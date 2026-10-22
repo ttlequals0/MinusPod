@@ -7,6 +7,7 @@ import subprocess
 import threading
 from contextlib import ExitStack
 from dataclasses import dataclass, field, replace
+from typing import cast
 import requests
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import failover
@@ -18,6 +19,7 @@ from utils.errors import (
     AudioExtractionTimeout, ModelLoadError,
     TranscriptionRejectedError,
 )
+from utils.segments import normalize_segments
 from utils.text import transcript_gaps
 from utils.time import format_vtt_timestamp
 from utils.gpu import clear_gpu_memory, get_gpu_device_name
@@ -435,6 +437,8 @@ class Transcriber:
         empty_reason is 'quiet', 'unreadable' or 'no_speech' when the span should not be retried.
         With quiet_db set, a span below it (or with an unreadable volume) is skipped before extraction.
         ModelLoadError propagates; other failures return (None, None).
+
+        Segments are normalized before being returned.
         """
         label = _NOVAD_LABELS[flag]
         prefix = settings._log_prefix()
@@ -453,7 +457,8 @@ class Transcriber:
             logger.warning(f"{prefix}{label} chunk extraction failed; skipping")
             return None, None
         try:
-            new_segments = self._transcribe_sequential(chunk_path, language_override)
+            new_segments = self._normalize_segments(
+                self._transcribe_sequential(chunk_path, language_override))
         except ModelLoadError:
             raise
         except Exception as e:
@@ -724,6 +729,16 @@ class Transcriber:
             logger.error(f"Failed to download audio: {e}")
             return None
 
+    def _normalize_segments(self, segments: list[dict] | None) -> list[dict] | None:
+        if segments is not None:
+            try:
+                segments = cast(list[dict], normalize_segments(segments))
+            except Exception as e:
+                # `normalize_segments` shouldn't fail. We'll fix if errors occur.
+                logger.error(f"Error normalizing transcript segments: {e}")
+                raise
+        return segments
+
     def transcribe(
         self,
         audio_path: str,
@@ -731,7 +746,28 @@ class Transcriber:
         vad_filter: bool = True,
         preprocessed: bool = False,
         whisper_settings: dict[str, str] | None = None,
-    ) -> list[dict]:
+    ) -> list[dict] | None:
+        """Transcribe with OOM retries; explicit settings pin the backend.
+        language_override replaces the global language; preprocessed skips filtering.
+        vad_filter is forwarded to either backend.
+        
+        Segments are normalized before being returned.
+        """
+        return self._normalize_segments(
+            self._transcribe(audio_path,
+                             language_override=language_override,
+                             vad_filter=vad_filter,
+                             preprocessed=preprocessed,
+                             whisper_settings=whisper_settings))
+
+    def _transcribe(
+        self,
+        audio_path: str,
+        language_override: str | None = None,
+        vad_filter: bool = True,
+        preprocessed: bool = False,
+        whisper_settings: dict[str, str] | None = None,
+    ) -> list[dict] | None:
         """Transcribe with OOM retries; explicit settings pin the backend.
         language_override replaces the global language; preprocessed skips filtering.
         vad_filter is forwarded to either backend."""
@@ -1297,7 +1333,7 @@ class Transcriber:
         audio_path: str,
         language_override: str | None = None,
         whisper_settings: dict[str, str] | None = None,
-    ) -> list[dict]:
+    ) -> list[dict] | None:
         """Choose API or local chunking using explicit settings, otherwise the active configuration."""
         duration = self.get_audio_duration(audio_path)
         if duration is None:

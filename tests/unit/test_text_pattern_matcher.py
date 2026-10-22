@@ -10,7 +10,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 from unittest.mock import MagicMock
 
 from text_pattern_matcher import (
-    _split_sentences, _extract_intro_phrase, _extract_outro_phrase,
+    _extract_intro_phrase, _extract_outro_phrase,
     TextPatternMatcher, AdPattern, TextMatch, MAX_MATCH_DURATION,
     MIN_TEXT_LENGTH, FUZZY_DISCRIMINATIVE_LENGTH, required_fuzzy_score,
 )
@@ -19,32 +19,6 @@ from ad_detector import _unpack_region, get_uncovered_portions, AdDetector
 from config import (
     DEFAULT_AD_DURATION_ESTIMATE, TFIDF_MATCH_THRESHOLD, FUZZY_MATCH_THRESHOLD,
 )
-
-
-class TestSplitSentences:
-    """Tests for _split_sentences."""
-
-    def test_basic_splitting(self):
-        text = "Hello world. How are you? I am fine!"
-        result = _split_sentences(text)
-        assert result == ["Hello world.", "How are you?", "I am fine!"]
-
-    def test_no_punctuation_returns_whole_text(self):
-        text = "this is a sentence without punctuation"
-        result = _split_sentences(text)
-        assert result == [text]
-
-    def test_empty_string(self):
-        assert _split_sentences("") == []
-
-    def test_single_sentence(self):
-        result = _split_sentences("Just one sentence.")
-        assert result == ["Just one sentence."]
-
-    def test_extra_whitespace(self):
-        text = "First sentence.   Second sentence."
-        result = _split_sentences(text)
-        assert result == ["First sentence.", "Second sentence."]
 
 
 class TestExtractIntroPhrase:

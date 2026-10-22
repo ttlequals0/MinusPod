@@ -71,10 +71,18 @@ BREAKER_WAIT_CAP_SECONDS = 90.0
 
 def json_schema_format(name: str, schema: dict, description: str | None = None) -> dict:
     """response_format payload for schema-enforced structured output (#694)."""
-    payload = {"name": name, "schema": schema}
-    if description:
-        payload["description"] = description
-    return {"type": "json_schema", "json_schema": payload}
+    payload = {
+        "name": name,
+        "strict": True,
+        "schema": schema,
+    }
+    # Exclude the description since a) it is not needed and b) it consumes tokens
+    # if description:
+    #     payload["description"] = description
+    return {
+        "type": "json_schema",
+        "json_schema": payload
+    }
 
 
 def schema_format_for(model, name: str, schema: dict,

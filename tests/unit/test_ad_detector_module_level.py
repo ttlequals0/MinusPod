@@ -170,21 +170,32 @@ def test_format_window_prompt_includes_window_header():
         window_start=600.0, window_end=1200.0,
     )
     # window_index is 0-based; header is 1-based.
-    assert '=== WINDOW 3/4: 10.0-20.0 minutes ===' in out
+    assert 'IMPORTANT: This is a partial transcript' in out
+    assert 'window 3 of 4' in out
+    assert 'minutes 10.0 thru 20.0' in out
 
 
-def test_format_window_prompt_appends_audio_context_between_template_and_header():
+def test_format_window_prompt_window_header_absent_for_single_window():
     out = format_window_prompt(
         podcast_name='Test', episode_title='Ep1',
         description_section='', transcript_lines=['[0.0s - 5.0s] hi'],
         window_index=0, total_windows=1,
         window_start=0.0, window_end=600.0,
+    )
+    assert out.find('window') == -1
+
+def test_format_window_prompt_appends_audio_context_after_transcript():
+    out = format_window_prompt(
+        podcast_name='Test', episode_title='Ep1',
+        description_section='', transcript_lines=['[0.0s - 5.0s] Foo'],
+        window_index=0, total_windows=1,
+        window_start=0.0, window_end=600.0,
         audio_context='\n=== AUDIO ===\nvolume_drop at 5.0s\n',
     )
     audio_pos = out.find('=== AUDIO ===')
-    window_pos = out.find('=== WINDOW 1/1')
-    assert audio_pos > 0 and window_pos > 0
-    assert audio_pos < window_pos, "audio_context should appear before window header"
+    foo_pos = out.find('Foo')
+    assert foo_pos > 0, "transcript should appear in the output"
+    assert foo_pos < audio_pos, "audio_context should appear after the transcript"
 
 
 # ===== Item 3: module-level get_static_system_prompt =====

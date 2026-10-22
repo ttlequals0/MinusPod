@@ -90,13 +90,16 @@ AD_REVIEW_JSON_SCHEMA = {
                     "is_ad": {"type": "boolean"},
                     "start": {"type": "number"},
                     "end": {"type": "number"},
-                    "confidence": {"type": "number"},
-                    "reason": {"type": "string"},
+                    "confidence": {"type": ["number", "null"]}, # null when !is_ad
+                    "reason": {"type": ["string", "null"]}, # null when !is_ad
                 },
+                "required": ["is_ad", "start", "end", "confidence", "reason"],
+                "additionalProperties": False,
             },
         },
     },
     "required": ["ads"],
+    "additionalProperties": False,
 }
 
 logger = logging.getLogger(__name__)
@@ -342,6 +345,8 @@ TRIM_RECOVERY_JSON_SCHEMA = {
         "ad_start": {"type": ["number", "null"]},
         "ad_end": {"type": ["number", "null"]},
     },
+    "required": ["ad_start", "ad_end"],
+    "additionalProperties": False,
 }
 
 

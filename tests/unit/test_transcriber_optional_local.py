@@ -79,8 +79,8 @@ def test_api_backend_skips_the_guard(missing_stack):
             patch.object(t, '_transcribe_via_api', return_value=sentinel), \
             patch.object(t, '_transcribe_chunked_parallel_api', return_value=sentinel), \
             patch.object(t, 'get_audio_duration', return_value=600.0):
-        assert t.transcribe('/nonexistent.mp3') is sentinel
-        assert t.transcribe_chunked('/nonexistent.mp3') is sentinel
+        assert t.transcribe('/nonexistent.mp3') == sentinel
+        assert t.transcribe_chunked('/nonexistent.mp3') == sentinel
 
 
 def test_local_health_reports_missing_packages(missing_stack):

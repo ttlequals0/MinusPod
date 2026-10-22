@@ -181,7 +181,18 @@ def _build_user_prompt(
     description = scrub_description(episode.metadata.description, max_length=4000)
     description_section = f"\n\nEpisode description: {description}\n" if description else ""
     if addressing_mode == "segment_ids":
-        transcript_lines = [f"[{seg['sid']}] {seg['text']}" for seg in (id_segments or [])]
+        transcript_lines = []
+        # prefix each segment with its ID and display long gaps between segments
+        min_gap_callout = 1.5
+        gap_displayed = False
+        prev_end = None
+        for seg in id_segments or []:
+            gap = max(0, seg['start'] - prev_end) if prev_end is not None else 0
+            if gap >= min_gap_callout:
+                transcript_lines.append(f"[gap of {gap:.1f}s{'' if gap_displayed else ' (no transcript, likely silence, jingle, or unintelligible speech)'}]")
+                gap_displayed = True
+            transcript_lines.append(f"[{seg['sid']}] {seg['text']}")
+            prev_end = seg['end']
     else:
         transcript_lines = window.transcript_lines
     return parsing.format_window_prompt(
@@ -297,6 +308,12 @@ async def run(
                     parsed_ads, extraction_method, id_contract_miss = _parse_id_response(response_text, id_segments)
                 else:
                     parsed_ads, extraction_method = _parse_response(response_text)
+
+                # drop intro, outro, and recap segments. Our revised prompt asks for
+                # them but the benchmark doesn't know that and will count them as
+                # false positives.
+                parsed_ads = [ad for ad in parsed_ads if ad.get('category') not in ('intro', 'outro', 'recap')]
+
                 comp = compliance_score(extraction_method)
                 cost_lookup = pricing_snapshot.lookup(unit.model_id)
                 if cost_lookup is not None and native_accounting is None:

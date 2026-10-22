@@ -4,9 +4,11 @@ Pure functions over ad dicts and transcript segments. No DB, no LLM client.
 Split out of ``ad_detector/__init__.py`` for readability; behavior is
 unchanged from the pre-split module.
 """
+from copy import deepcopy
 import logging
 import math
 import re
+from typing import cast
 
 from utils.markers import (
     carve_fragment,
@@ -24,6 +26,10 @@ from utils.markers import (
     quote_edge_valid as _quote_edge_valid,
     recorded_member_spans,
     word_timed_edge_valid,
+)
+from utils.segments import (
+    is_end_of_sentence, is_text_essentially_same, join_word_segments,
+    split_segments_into_sentences, validate_text_segment,
 )
 from utils.text import get_transcript_text_for_range
 from utils.time import overlap_seconds, ranges_overlap
@@ -490,7 +496,20 @@ def snap_early_ads_to_zero(ads: list[dict], threshold: float = EARLY_AD_SNAP_THR
 
 
 def _timed_utterances(segment: dict, memo: dict | None = None) -> list[dict] | None:
-    """Complete word-timed utterances, or None for unreliable timing; memo is one stage's id(segment) cache."""
+    """
+    Attempts to split `segment` into word-timed utterance segments (i.e.
+    short sentence-like segments).
+    If the segment does not have valid word timings, or cannot otherwise
+    be split into sentences for some reason, then None is returned.
+
+    Args:
+        segment (dict): The text segment to be split.
+        memo (dict | None): Optional dictionary for memoization to avoid
+          recomputing timed utterances for the same segment.
+    Returns:
+        list[dict]: A list of normalized word-timed utterance segments.
+        None: The segment could not be reliably split.
+    """
     if memo is None:
         return _compute_timed_utterances(segment)
     if id(segment) not in memo:
@@ -499,73 +518,78 @@ def _timed_utterances(segment: dict, memo: dict | None = None) -> list[dict] | N
 
 
 def _compute_timed_utterances(segment: dict) -> list[dict] | None:
-    """Return complete word-timed utterances, or None for unreliable timing."""
-    words = segment.get('words')
-    if not isinstance(words, list) or not words:
-        return None
-    timed = []
-    previous_start = segment['start']
-    for word in words:
-        if not isinstance(word, dict) or not isinstance(word.get('word'), str):
+    """See _timed_utterances() for usage and behavior."""
+    try:
+        # segment must be valid (required fields and timing)
+        validate_text_segment(segment,
+                              require_space_prefixed_words=False)
+        # must have word timings
+        if not (words := segment.get('words')):
             return None
-        start, end = word.get('start'), word.get('end')
-        if (not isinstance(start, (int, float))
-                or not isinstance(end, (int, float))
-                or not math.isfinite(start) or not math.isfinite(end)
-                or start < previous_start - 0.05 or end < start
-                or start < segment['start'] - 0.05
-                or end > segment['end'] + 0.05
-                or not word.get('word', '').strip()):
+        # words must match the segment text. a mismatch suggests someone
+        # has edited the text without updating word timings, thus we cannot
+        # trust the words.
+        if not is_text_essentially_same(join_word_segments(words), segment['text']):
             return None
-        timed.append(word)
-        previous_start = start
-    segment_text = segment.get('text')
-    if not isinstance(segment_text, str):
+        # looks okay. split into sentence-like segments
+        return cast(list[dict], split_segments_into_sentences([segment]))
+    except Exception:
         return None
-    if (re.findall(r'\w+', ' '.join(word['word'] for word in timed).lower())
-            != re.findall(r'\w+', segment_text.lower())):
-        return None
-    utterances = []
-    current = []
-    abbreviations = {'mr.', 'mrs.', 'ms.', 'dr.', 'prof.', 'st.'}
-    for word in timed:
-        current.append(word)
-        token = word['word'].strip().lower()
-        if token.endswith(('.', '!', '?')) and token not in abbreviations:
-            utterances.append(current)
-            current = []
-    if current:
-        utterances.append(current)
-    return [
-        {
-            'start': group[0]['start'], 'end': group[-1]['end'],
-            'text': ' '.join(word['word'].strip() for word in group).lower(),
-            'words': group,
-            'terminal': group[-1]['word'].strip().endswith(('.', '!', '?')),
-        }
-        for group in utterances
-    ]
 
 
-def timed_line_segments(segments: list[dict]) -> list[dict]:
-    """Split reliable word timing into transcript lines without losing words."""
+def timed_line_segments(segments: list[dict],
+                        max_words: int | None = 25,
+                        ) -> list[dict]:
+    """
+    Attempts to split `segments` into word-timed utterance segments (i.e.
+    short sentence-like segments) containing `max_words` or less.
+    If a segment already contains the key `word_timed_line` set to True,
+    or does not have valid word timings, or cannot otherwise be split into
+    sentences for some reason, then a deep copy of the segment is used.
+    Otherwise, the segment is split into normalized segments containing no
+    more than `max_words` words.
+
+    Args:
+        segments (list[dict]): A list of text segments to be split into word-
+          timed lines.
+        max_words (int | None): The maximum number of words allowed in each
+          sentence. If None, no sentence splitting is performed.
+    Returns:
+        list[dict]: A list of new segments.
+    """
     lines = []
     for seg in segments:
-        # An already split line re-splits to itself; windows are built from split lines.
-        utterances = None if seg.get('word_timed_line') else _timed_utterances(seg)
+        # if the segment is already a word-timed line, just use it as is.
+        if seg.get('word_timed_line'):
+            lines.append(deepcopy(seg))
+            continue
+
+        # split into timed utterances
+        utterances = _timed_utterances(seg)
         if utterances is None:
-            lines.append(seg.copy())
+            # just use the segment as is
+            lines.append({
+                **deepcopy(seg),
+                'terminal': is_end_of_sentence(seg['text'])
+            })
+            continue
+
+        # split each utterance into groups of `max_words`
+        if max_words is None:
+            lines.extend(utterances)
             continue
         for utterance in utterances:
             words = utterance['words']
-            for offset in range(0, len(words), 25):
-                group = words[offset:offset + 25]
+            for offset in range(0, len(words), max_words):
+                group = words[offset:offset + max_words]
+                text = join_word_segments(group)
                 lines.append({
                     'start': group[0]['start'],
                     'end': group[-1]['end'],
-                    'text': ' '.join(word['word'].strip() for word in group),
+                    'text': text,
                     'words': group,
                     'word_timed_line': True,
+                    'terminal': is_end_of_sentence(text),
                 })
     return lines
 
@@ -576,7 +600,7 @@ def _timed_ad_evidence_end(utterance: dict,
     if _return_word_index(utterance) is not None:
         return None
     words = utterance['words']
-    text = ' '.join(word['word'].strip().lower() for word in words)
+    text = join_word_segments(words).lower()
     positions = []
     offset = 0
     for word in words:
@@ -631,18 +655,18 @@ def _return_word_index(utterance: dict) -> int | None:
     return None
 
 
-def _ad_outro_utterance(utterance: dict) -> bool:
-    text = utterance['text']
-    return bool(re.search(r'\b(?:we thank|thank you|thanks to)\b.*\b(?:support|sponsor)\b', text))
+def _ad_outro_utterance(lower_text: str) -> bool:
+    return bool(re.search(r'\b(?:we thank|thank you|thanks to)\b.*\b(?:support|sponsor)\b',
+                          lower_text))
 
 
-def _ad_connector_utterance(utterance: dict) -> bool:
-    return utterance['text'].startswith(('thank you for ', 'we thank them '))
+def _ad_connector_utterance(lower_text: str) -> bool:
+    return lower_text.startswith(('thank you for ', 'we thank them '))
 
 
 def _supported_ad_utterance(utterance: dict, prior_domains: set,
                             sponsors: set, boundary: float) -> bool:
-    text = utterance['text']
+    text = utterance['text'].lower()
     domains = domain_labels(text)
     has_phone = any(pattern in text for pattern in AD_CONTENT_PHONE_PATTERNS)
     has_offer = any(phrase in text for phrase in AD_OFFER_PHRASES)
@@ -666,9 +690,11 @@ def _bounded_transcript_text(segments: list[dict], start: float,
             if start <= segment['start'] and segment['end'] <= end:
                 words.append(segment.get('text') or '')
             continue
-        words.extend(word['word'].strip() for utterance in timed
-                     for word in utterance['words']
-                     if word['end'] > start and word['start'] < end)
+        words.append(
+            join_word_segments(
+                [word for utterance in timed
+                    for word in utterance['words']
+                    if word['end'] > start and word['start'] < end]))
     return ' '.join(words)
 
 
@@ -752,29 +778,29 @@ def extend_ad_boundaries_by_content(ads: list[dict], segments: list[dict],
                     if return_index == 0:
                         stop = True
                         break
+                    lower_text = utterance['text'].lower()
                     evidence_end = _timed_ad_evidence_end(utterance, ad_end)
                     if (evidence_end is not None and evidence_end > ad_end
                             and _supported_ad_utterance(
                                 utterance, ad_domains, ad_sponsors, ad_end)):
                         new_end = min(evidence_end, end_cap)
-                        accepted_domains.update(domain_labels(
-                            utterance['text']))
+                        accepted_domains.update(domain_labels(lower_text))
                         skipped = 0
                         skipped_time = 0.0
                     elif (skipped and accepted_domains
-                          & domain_labels(utterance['text'])
+                          & domain_labels(lower_text)
                           and return_index is None
-                          and utterance['text'].startswith((
+                          and lower_text.startswith((
                               'and we thank them', 'we thank them'))):
                         new_end = min(evidence_end or utterance['end'], end_cap)
                         skipped = 0
                         skipped_time = 0.0
-                    elif (_ad_outro_utterance(utterance)
+                    elif (_ad_outro_utterance(lower_text)
                           and return_index is None and new_end > ad_end):
                         new_end = min(utterance['end'], end_cap)
                         skipped = 0
                         skipped_time = 0.0
-                    elif (_ad_connector_utterance(utterance)
+                    elif (_ad_connector_utterance(lower_text)
                           and new_end > ad_end
                           and skipped_time + utterance['end']
                           - max(utterance['start'], ad_end)
@@ -822,8 +848,7 @@ def extend_ad_boundaries_by_content(ads: list[dict], segments: list[dict],
                             continue
                         if utterance['end'] <= start_cap:
                             break
-                        evidence_end = _timed_ad_evidence_end(
-                            utterance)
+                        evidence_end = _timed_ad_evidence_end(utterance)
                         if (evidence_end is None
                                 or _return_word_index(utterance) is not None
                                 or not _supported_ad_utterance(

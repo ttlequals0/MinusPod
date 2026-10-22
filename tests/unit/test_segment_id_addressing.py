@@ -6,7 +6,7 @@ import ad_detector.boundaries as boundaries
 from ad_detector import AdDetector
 from ad_validator import AdValidator, Decision
 from ad_detector.prompts import (
-    SEGMENT_ID_SYSTEM_SECTION, format_window_prompt,
+    format_window_prompt,
     parse_id_ads_from_response, resolve_segment_id_ads,
 )
 
@@ -75,12 +75,24 @@ def test_effective_mode_random_logs_the_draw(caplog):
 
 
 def test_id_transcript_lines():
-    segs = [{'sid': 0, 'start': 0.0, 'end': 5.0, 'text': 'hello'},
-            {'sid': 1, 'start': 5.0, 'end': 9.0, 'text': 'world'}]
-    lines = AdDetector._format_transcript_lines(segs, 'segment_ids')
-    assert lines == ['[0] hello', '[1] world']
+    segs = [{'sid': 0, 'start': 0.0, 'end': 3.0, 'text': 'hello'},
+            {'sid': 1, 'start': 5.0, 'end': 7.0, 'text': 'cruel'},
+            {'sid': 2, 'start': 8.5, 'end': 10.0, 'text': 'world'},
+            {'sid': 3, 'start': 11.0, 'end': 12.0, 'text': 'foo'}]
+    lines = AdDetector._format_transcript_lines(segs, 'segment_ids', min_gap_callout=1.5)
+    assert lines == [
+        '[0] hello',
+        '[gap of 2.0s (no transcript, likely silence, jingle, or unintelligible speech)]',
+        '[1] cruel',
+        '[gap of 1.5s]',
+        '[2] world',
+        '[3] foo']
     ts_lines = AdDetector._format_transcript_lines(segs, 'timestamps')
-    assert ts_lines == ['[0.0s - 5.0s] hello', '[5.0s - 9.0s] world']
+    assert ts_lines == [
+        '[0.0s - 3.0s] hello',
+        '[5.0s - 7.0s] cruel',
+        '[8.5s - 10.0s] world',
+        '[11.0s - 12.0s] foo']
 
 
 def test_timestamp_transcript_lines_expose_timed_show_and_ad_utterances():
@@ -232,12 +244,10 @@ def _window_kwargs():
 
 def test_window_prompt_rules_are_mode_exclusive():
     id_out = format_window_prompt(**_window_kwargs(), addressing_mode='segment_ids')
-    assert 'start_id' in id_out
-    assert 'Use absolute timestamps' not in id_out
+    assert 'Transcript with indexes:' in id_out
 
     ts_out = format_window_prompt(**_window_kwargs(), addressing_mode='timestamps')
-    assert 'Use absolute timestamps' in ts_out
-    assert 'start_id' not in ts_out
+    assert 'Transcript with timestamps:' in ts_out
 
 
 SEGS = [{'sid': i, 'start': i * 10.0, 'end': i * 10.0 + 10.0,

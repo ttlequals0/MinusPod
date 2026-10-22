@@ -2,6 +2,7 @@
 
 import logging
 import os
+from typing import Any, cast
 from config import (
     log_download_query_enabled,
     UNREVIEWABLE_GAP_SECONDS,
@@ -16,6 +17,7 @@ from utils.errors import AudioNotReadyError
 
 from utils.http import safe_url_for_log
 from utils.language import get_feed_language_override
+from utils.segments import normalize_segments, split_and_merge_segments
 from utils.text import parse_transcript_segments
 
 from main_app.pipeline import common
@@ -226,7 +228,7 @@ def _download_and_transcribe(slug, episode_id, episode_url,
             db.clear_episode_details(slug, episode_id)
         return audio_path, []
 
-    segments = None
+    segments: list[dict] | None = None
     transcript_text = None if force_transcription else storage.get_transcript(slug, episode_id)
 
     if transcript_text:
@@ -280,6 +282,15 @@ def _download_and_transcribe(slug, episode_id, episode_url,
             )
         if not segments:
             raise Exception("Failed to transcribe audio")
+
+        # Normalize, split, and merge segments before performing any repairs
+        # since most repairs create discrepancies between the segment text and
+        # the word-level segments.
+        invalid_segments = []
+        valid_segments = normalize_segments(segments, invalid_segments=invalid_segments)
+        if invalid_segments:
+            audio_logger.warning(f"[{slug}:{episode_id}] Dropped {len(invalid_segments)} invalid segments: {invalid_segments}")
+        segments = cast(list[dict], split_and_merge_segments(valid_segments, reporter=audio_logger.info))
 
         _apply_transcript_corrections(slug, episode_id, segments)
 
