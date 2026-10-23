@@ -423,9 +423,8 @@ def _recut_episode(slug, episode_id, episode_title, podcast_name,
             raise Exception("Retained original audio is missing; cannot recut")
         work_path = common._copy_retained_original_to_temp(original_path)
 
-        segments = db.get_original_segments(slug, episode_id)
-        if not segments:
-            raise Exception("No saved transcript segments; cannot recut")
+        # Empty for an episode that never had a transcript (cue-only, transcription skipped).
+        segments = db.get_original_segments(slug, episode_id) or []
 
         bitrate, compression_level = common.resolve_audio_encode_settings()
         audio_output = db.resolve_audio_output(slug, podcast=podcast_row)

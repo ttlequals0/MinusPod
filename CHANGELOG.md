@@ -72,6 +72,19 @@ release notes.
   width gets two cards per row.
   When the browser reports a two-segment viewport, dialogs stay inside the
   right-hand half instead of spanning the hinge.
+- Chapters: ffmpeg writes ID3v2.4 frame sizes as plain big-endian
+  integers. A CHAP frame of 128 bytes or more (a long chapter title) then
+  failed the chapter restore with "Invalid ID3 synchsafe integer", and the
+  episode was retried four times and marked permanently failed. The
+  parser now accepts either encoding by checking which reading lands on
+  the next frame, and the tag it writes back is synchsafe. A chapter tag
+  that still cannot be read is logged and skipped instead of failing the
+  cut. Fix from ChaosHat. (#888)
+- Recut: a cue-only feed with transcription skipped has no saved transcript
+  segments. "Apply confirmed and recut" and "Recut Audio" both refused with
+  "No saved transcript segments". Recut now runs without segments when
+  the episode never had a transcript, and the pending-recut list marks such
+  episodes ready. (#891)
 - Pattern details: the Podcast link opened the API episodes path and
   returned Not Found. It now goes to the feed page. (#876)
 - Episode page: cut markers that the audio processor merges into one span

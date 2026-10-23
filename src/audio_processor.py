@@ -6,6 +6,7 @@ import os
 import shutil
 from pathlib import Path
 
+from id3_chapters import ChapterTagError
 from utils.audio import AudioMetadata, get_audio_duration, probe_render_input
 from embedded_chapters import (
     parse_chapters, remap_chapters, render_ffmetadata,
@@ -23,6 +24,14 @@ from config import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+def _restore_chapters(*args):
+    # A malformed source chapter tag must not fail the episode; keep ffmpeg's chapters.
+    try:
+        restore_chapter_tag(*args)
+    except ChapterTagError as e:
+        logger.warning("Chapter tag not restored: %s", e)
 
 
 # Get the assets directory - check primary location first, fall back to builtin
@@ -175,7 +184,7 @@ class AudioProcessor:
                 logger.error("Convert output unreadable")
                 return None
 
-            restore_chapter_tag(output_path, source_tag, [], 0, output_duration)
+            _restore_chapters(output_path, source_tag, [], 0, output_duration)
             success = True
             return output_path
 
@@ -247,7 +256,7 @@ class AudioProcessor:
                 return None
 
             logger.info("FFMPEG normalize complete")
-            restore_chapter_tag(output_path, source_tag, [], 0, output_duration)
+            _restore_chapters(output_path, source_tag, [], 0, output_duration)
             success = True
             return output_path
 
@@ -507,7 +516,7 @@ class AudioProcessor:
                     copied_duration = self.get_audio_duration(output_path)
                     if not copied_duration:
                         return None
-                    restore_chapter_tag(output_path, source_tag, copied, 0, copied_duration)
+                    _restore_chapters(output_path, source_tag, copied, 0, copied_duration)
                     logger.info('MP3 stream copy complete: %d cut(s)', len(copied))
                     return copied
 
@@ -677,7 +686,7 @@ class AudioProcessor:
             # render diverged from marker arithmetic (spec 1.5 overshoot forensics).
             new_duration = self.get_audio_duration(output_path)
             if new_duration:
-                restore_chapter_tag(output_path, source_tag, ads, beep_duration, new_duration)
+                _restore_chapters(output_path, source_tag, ads, beep_duration, new_duration)
                 removed_time = total_duration - new_duration
                 drift = new_duration - expected_duration
                 beep_action_count = sum(1 for a in ads if a.get('beep'))

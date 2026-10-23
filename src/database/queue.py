@@ -796,7 +796,7 @@ class QueueMixin:
         pending recuts without touching the rest of the queue.
         """
         conn = self.get_connection()
-        # has_segments/has_markers mirror the recut preconditions cheaply
+        # has_segments/has_transcript/has_markers mirror the recut preconditions cheaply
         # (string tests, not JSON parses: this backs a polled endpoint and
         # segments run to hundreds of KB): segments must be a non-empty list,
         # markers only present ('[]' recuts fine, restoring the original).
@@ -808,6 +808,9 @@ class QueueMixin:
                       p.title AS podcast_title,
                       d.original_segments_json IS NOT NULL
                           AND d.original_segments_json != '[]' AS has_segments,
+                      d.transcript_text IS NOT NULL
+                          OR d.original_transcript_text IS NOT NULL
+                          OR d.transcript_vtt IS NOT NULL AS has_transcript,
                       d.ad_markers_json IS NOT NULL AS has_markers,
                       EXISTS (SELECT 1 FROM auto_process_queue q
                               WHERE q.podcast_id = e.podcast_id
