@@ -164,7 +164,7 @@ function Dashboard() {
       <div>
         <Skeleton className="h-[42px] w-full mb-6" />
         {viewMode === 'grid' ? (
-          <SkeletonStatCards count={6} className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3" />
+          <SkeletonStatCards count={6} className="grid gap-4 grid-cols-1 min-[600px]:grid-cols-2 lg:grid-cols-3" />
         ) : (
           <SkeletonRows count={6} className="flex flex-col gap-2" />
         )}
@@ -384,7 +384,7 @@ function Dashboard() {
           <DashboardEpisodeGroups feeds={pageFeeds} episodesPerPodcast={episodesPerPodcast} />
         )
       ) : viewMode === 'grid' ? (
-        <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-4 grid-cols-1 min-[600px]:grid-cols-2 lg:grid-cols-3">
           {pageFeeds.map((feed) => (
             <FeedCard
               key={feed.slug}

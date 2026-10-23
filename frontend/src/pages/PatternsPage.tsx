@@ -504,19 +504,19 @@ function PatternsPage() {
 
       {/* Desktop Table Layout */}
       <div className="hidden sm:block bg-card rounded-lg border border-border overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full table-fixed divide-y divide-border">
+        <div className="overflow-x-auto" role="region" aria-label="Patterns table" tabIndex={0}>
+          <table className="w-full min-w-[960px] table-fixed divide-y divide-border">
             <colgroup>
-              <col className="w-[4%]" />
+              <col className="w-[5%]" />
+              <col className="w-[12%]" />
               <col className="w-[13%]" />
-              <col className="w-[19%]" />
-              <col className="w-[11%]" />
-              <col className="w-[8%]" />
-              <col className="w-[8%]" />
+              <col className="w-[15%]" />
+              <col className="w-[9%]" />
+              <col className="w-[10%]" />
               <col className="w-[10%]" />
               <col className="w-[10%]" />
               <col className="w-[7%]" />
-              <col className="w-[10%]" />
+              <col className="w-[9%]" />
             </colgroup>
             <thead className="bg-muted/50">
               <tr>
@@ -526,8 +526,8 @@ function PatternsPage() {
                 <th className="px-2 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
                   Category
                 </th>
-                <SortHeader field="confirmation_count" label="Confirmed" className="px-2" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} />
-                <SortHeader field="false_positive_count" label="False Pos." className="px-2" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} />
+                <SortHeader field="confirmation_count" label="Confirmed" className="px-2 whitespace-nowrap" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} />
+                <SortHeader field="false_positive_count" label="False Pos." className="px-2 whitespace-nowrap" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} />
                 <SortHeader field="created_at" label="Created" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} />
                 <SortHeader field="last_matched_at" label="Last Matched" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} />
                 <th className="px-2 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
@@ -591,7 +591,7 @@ function PatternsPage() {
                         category: e.target.value === ''
                           ? null : (e.target.value as SegmentCategory),
                       })}
-                      className={`px-2 py-1 text-xs rounded bg-secondary text-secondary-foreground border border-border disabled:opacity-50 ${focusRing}`}
+                      className={`w-full min-w-0 px-2 py-1 text-xs rounded bg-secondary text-secondary-foreground border border-border disabled:opacity-50 ${focusRing}`}
                     >
                       <option value="">Uncategorized</option>
                       {SEGMENT_CATEGORIES.map((c) => (

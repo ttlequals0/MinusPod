@@ -68,6 +68,8 @@ release notes.
   the left and right safe-area insets, so nothing sits under a side status
   bar on a folded outer display. Stat and tile grids use two or four
   columns between 640 and 1023 px so rows divide evenly at a center fold.
+  The Feeds grid goes to two columns from 600 px, so the unfolded portrait
+  width gets two cards per row.
   When the browser reports a two-segment viewport, dialogs stay inside the
   right-hand half instead of spanning the hinge.
 - Episode page: cut markers that the audio processor merges into one span
@@ -81,7 +83,9 @@ release notes.
   title. Copy buttons center their icon when the label is hidden. Play
   buttons are one square size everywhere, 32 px inside the 44 px target on
   phones and 28 px on desktop, with the Play glyph optically centered. The
-  Cue Matches section uses the same button.
+  Cue Matches section uses the same button. The patterns table scrolls
+  inside a focusable region instead of squeezing its columns until the
+  Confirmed and False Pos. headers collide.
 
 ### Security
 - Dependencies: pillow 13.0.0 (CVE-2026-112395, CVE-2026-112397,
