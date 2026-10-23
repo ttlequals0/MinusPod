@@ -644,7 +644,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                     </button>
                     <button
                       onClick={() => setIsEditingNetwork(false)}
-                      className={`px-2 py-1 text-xs bg-muted text-muted-foreground rounded hover:bg-accent ${focusRing}`}
+                      className={`px-2 py-1 text-xs rounded ${btnSecondary} ${focusRing}`}
                     >
                       Cancel
                     </button>
@@ -713,7 +713,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                       <button
                         onClick={() => setIsEditingSourceUrl(false)}
                         disabled={sourceUrlMutation.isPending}
-                        className={`px-2 py-1 text-xs bg-muted text-muted-foreground rounded hover:bg-accent disabled:opacity-50 ${focusRing}`}
+                        className={`px-2 py-1 text-xs rounded ${btnSecondary} disabled:opacity-50 ${focusRing}`}
                       >
                         Cancel
                       </button>

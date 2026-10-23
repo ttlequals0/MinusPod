@@ -3,8 +3,8 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { addNormalization, updateNormalization } from '../api/sponsors';
 import { SponsorNormalization, NormalizationCategory } from '../api/types';
 import { getErrorMessage } from '../api/client';
-import { btnOutline, btnPrimary } from './buttonStyles';
-import { Modal } from './Modal';
+import { btnOutline, btnPrimary, btnGhost } from './buttonStyles';
+import { Modal, dialogFooterBtn } from './Modal';
 import { selectBase } from './fieldStyles';
 import { focusRing } from './fieldStyles';
 
@@ -53,7 +53,7 @@ function NormalizationEditModal({ normalization, onClose, onSaved }: Props) {
         <h2 className="text-lg font-semibold text-foreground">
           {isNew ? 'Add Normalization' : 'Edit Normalization'}
         </h2>
-        <button onClick={onClose} className={`p-1 text-muted-foreground hover:text-foreground ${focusRing}`}>
+        <button aria-label="Close dialog" onClick={onClose} className={`p-1 rounded ${btnGhost} ${focusRing}`}>
           <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
           </svg>
@@ -104,14 +104,14 @@ function NormalizationEditModal({ normalization, onClose, onSaved }: Props) {
       <div className="flex items-center justify-end gap-2 p-4 border-t border-border">
         <button
           onClick={onClose}
-          className={`px-3 py-1.5 text-sm rounded ${btnOutline} transition-colors ${focusRing}`}
+          className={`${dialogFooterBtn} ${btnOutline}`}
         >
           Cancel
         </button>
         <button
           onClick={() => save.mutate()}
           disabled={save.isPending}
-          className={`px-3 py-1.5 text-sm rounded ${btnPrimary} disabled:opacity-50 transition-colors ${focusRing}`}
+          className={`${dialogFooterBtn} ${btnPrimary} disabled:opacity-50`}
         >
           {save.isPending ? 'Saving...' : isNew ? 'Add' : 'Save'}
         </button>

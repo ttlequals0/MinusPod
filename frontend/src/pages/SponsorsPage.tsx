@@ -15,7 +15,7 @@ import { Skeleton, SkeletonRows } from '../components/Skeleton';
 import { Pagination } from '../components/Pagination';
 import { SortHeader, useSortState } from '../components/SortHeader';
 import { formatDate } from '../utils/format';
-import { btnOutline, btnPrimary } from '../components/buttonStyles';
+import { btnOutline, btnPrimary, btnDestructiveOutline } from '../components/buttonStyles';
 import Checkbox from '../components/Checkbox';
 import { selectBase, inputBase, filterGrid, filterLabel, filterControl, focusRing } from '../components/fieldStyles';
 import { ActiveBadge } from '../components/ActiveBadge';
@@ -178,7 +178,7 @@ function SponsorsSection() {
             </div>
             <div className="flex gap-2">
               <button onClick={() => setEditing(s)} className={`px-2 py-1 text-xs rounded ${btnOutline} ${focusRing}`}>Edit</button>
-              <button onClick={() => setDeleteTarget(s)} className={`px-2 py-1 text-xs rounded border border-destructive/40 text-destructive hover:bg-destructive/10 ${focusRing}`}>Delete</button>
+              <button onClick={() => setDeleteTarget(s)} className={`px-2 py-1 text-xs rounded ${btnDestructiveOutline} ${focusRing}`}>Delete</button>
             </div>
           </div>
         ))}
@@ -238,7 +238,7 @@ function SponsorsSection() {
                   <td className="px-2 py-3 whitespace-nowrap text-xs">
                     <div className="flex gap-1">
                       <button onClick={() => setEditing(s)} className={`px-2 py-1 rounded ${btnOutline} ${focusRing}`}>Edit</button>
-                      <button onClick={() => setDeleteTarget(s)} className={`px-2 py-1 rounded border border-destructive/40 text-destructive hover:bg-destructive/10 ${focusRing}`}>Delete</button>
+                      <button onClick={() => setDeleteTarget(s)} className={`px-2 py-1 rounded ${btnDestructiveOutline} ${focusRing}`}>Delete</button>
                     </div>
                   </td>
                 </tr>

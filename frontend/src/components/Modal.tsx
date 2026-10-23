@@ -10,6 +10,12 @@ export const modalBackdrop = 'modal-backdrop fixed inset-0 z-60 flex items-cente
 const modalPanelBase = 'bg-card rounded-lg border border-border shadow-xl';
 export const modalPanel = modalPanelBase + ' text-foreground';
 
+// Dialog footer button, text label at every width; add a btn* recipe.
+export const dialogFooterBtn = `px-3 py-1.5 text-sm rounded transition-colors ${focusRing}`;
+// Dialog footer button that collapses to a 44px icon square below sm (label moves to aria-label/title).
+export const dialogFooterIconBtn =
+  `inline-flex items-center justify-center h-11 w-11 sm:h-auto sm:w-auto sm:px-4 sm:py-2 text-sm rounded ${focusRing}`;
+
 // Close-on-Escape for modals that opt in (also used standalone by the cue
 // feature's recipe-based modals via the cueScanStyles re-export).
 export function isTopDialog(panel: HTMLElement | null) {
@@ -190,14 +196,14 @@ export function ConfirmModal({
         <button
           onClick={onCancel}
           disabled={pending}
-          className={`px-3 py-1.5 text-sm rounded ${btnOutline} transition-colors ${focusRing}`}
+          className={`${dialogFooterBtn} ${btnOutline}`}
         >
           Cancel
         </button>
         <button
           onClick={onConfirm}
           disabled={pending}
-          className={`px-3 py-1.5 text-sm rounded ${destructive ? btnDestructive : btnPrimary} disabled:opacity-50 transition-colors ${focusRing}`}
+          className={`${dialogFooterBtn} ${destructive ? btnDestructive : btnPrimary} disabled:opacity-50`}
         >
           {pending ? busyLabel : confirmLabel}
         </button>

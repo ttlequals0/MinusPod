@@ -6,7 +6,7 @@ import {
 import { episodeOriginalUrl } from '../api/feeds';
 import { getSponsors } from '../api/sponsors';
 import { useAuditionPlayer } from '../hooks/useAuditionPlayer';
-import { Modal, modalPanel } from './Modal';
+import { Modal, modalPanel, dialogFooterBtn } from './Modal';
 import { SkeletonRows } from './Skeleton';
 import { AuditionPlayButton } from './AuditionPlayButton';
 import { Pin } from './ad-editor/Pin';
@@ -299,14 +299,14 @@ export default function SplitMarkerModal({ target, onClose, onSplit }: Props) {
               <button
                 type="button"
                 onClick={() => refetch()}
-                className={`px-3 py-1.5 text-sm rounded ${btnOutline} ${focusRing}`}
+                className={`${dialogFooterBtn} ${btnOutline}`}
               >
                 Retry
               </button>
               <button
                 type="button"
                 onClick={onClose}
-                className={`px-3 py-1.5 text-sm rounded ${btnGhost} ${focusRing}`}
+                className={`${dialogFooterBtn} ${btnGhost}`}
               >
                 Cancel
               </button>
@@ -448,7 +448,7 @@ export default function SplitMarkerModal({ target, onClose, onSplit }: Props) {
               <button
                 type="button"
                 onClick={addDivider}
-                className={`px-3 py-1.5 text-sm rounded ${btnOutline} ${focusRing}`}
+                className={`${dialogFooterBtn} ${btnOutline}`}
               >
                 Add divider
               </button>
@@ -464,14 +464,14 @@ export default function SplitMarkerModal({ target, onClose, onSplit }: Props) {
                 type="button"
                 onClick={submit}
                 disabled={saving || shortIdx !== null || effectiveDividers.length === 0}
-                className={`ml-auto px-3 py-1.5 text-sm rounded ${btnPrimary} disabled:opacity-50 ${focusRing}`}
+                className={`ml-auto ${dialogFooterBtn} ${btnPrimary} disabled:opacity-50`}
               >
                 Split into {pieces.length} {pieces.length === 1 ? 'ad' : 'ads'}
               </button>
               <button
                 type="button"
                 onClick={onClose}
-                className={`px-3 py-1.5 text-sm rounded ${btnGhost} ${focusRing}`}
+                className={`${dialogFooterBtn} ${btnGhost}`}
               >
                 Cancel
               </button>

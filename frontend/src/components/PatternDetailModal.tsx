@@ -7,8 +7,8 @@ import { getSponsors, addSponsor } from '../api/sponsors';
 import { getErrorMessage } from '../api/client';
 import { ScopeBadge } from './ScopeBadge';
 import { SegmentCategoryBadge } from './SegmentCategoryBadge';
-import { btnDestructive, btnOutline, btnPrimary } from './buttonStyles';
-import { Modal } from './Modal';
+import { btnDestructive, btnOutline, btnPrimary, btnGhost } from './buttonStyles';
+import { Modal, dialogFooterIconBtn } from './Modal';
 import Checkbox from './Checkbox';
 import { focusRing, selectBase, inputBase } from './fieldStyles';
 import {
@@ -19,7 +19,6 @@ import {
 } from '../utils/segmentCategory';
 
 // 44px icon buttons below sm, text buttons from sm
-const footerBtn = `inline-flex items-center justify-center h-11 w-11 sm:h-auto sm:w-auto sm:px-4 sm:py-2 text-sm rounded ${focusRing}`;
 
 interface PatternDetailModalProps {
   pattern: AdPattern;
@@ -135,7 +134,7 @@ function PatternDetailModal({ pattern, onClose, onSave }: PatternDetailModalProp
         <button
           onClick={requestClose}
           aria-label="Close dialog"
-          className={`p-1 inline-flex items-center justify-center shrink-0 text-muted-foreground hover:text-foreground ${focusRing}`}
+          className={`p-1 rounded inline-flex items-center justify-center shrink-0 ${btnGhost} ${focusRing}`}
         >
           <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -372,7 +371,7 @@ function PatternDetailModal({ pattern, onClose, onSave }: PatternDetailModalProp
                 aria-describedby={!pattern.can_split ? `split-reason-${pattern.id}` : undefined}
                 aria-label={splitLabel}
                 title={pattern.can_split ? splitLabel : `${splitLabel}: No reliable ad boundary found.`}
-                className={`${footerBtn} ${btnOutline} disabled:opacity-50`}
+                className={`${dialogFooterIconBtn} ${btnOutline} disabled:opacity-50`}
               >
                 <Scissors className="h-5 w-5 sm:hidden" aria-hidden="true" />
                 <span className="hidden sm:inline">{splitLabel}</span>
@@ -395,7 +394,7 @@ function PatternDetailModal({ pattern, onClose, onSave }: PatternDetailModalProp
                 disabled={deleteMutation.isPending}
                 aria-label={deleteMutation.isPending ? 'Deleting...' : 'Yes, Delete'}
                 title={deleteMutation.isPending ? 'Deleting...' : 'Yes, delete'}
-                className={`${footerBtn} ${btnDestructive} disabled:opacity-50`}
+                className={`${dialogFooterIconBtn} ${btnDestructive} disabled:opacity-50`}
               >
                 <Check className="h-5 w-5 sm:hidden" aria-hidden="true" />
                 <span className="hidden sm:inline">{deleteMutation.isPending ? 'Deleting...' : 'Yes, Delete'}</span>
@@ -404,7 +403,7 @@ function PatternDetailModal({ pattern, onClose, onSave }: PatternDetailModalProp
                 onClick={() => setShowDeleteConfirm(false)}
                 aria-label="Cancel"
                 title="Cancel delete"
-                className={`${footerBtn} ${btnOutline}`}
+                className={`${dialogFooterIconBtn} ${btnOutline}`}
               >
                 <X className="h-5 w-5 sm:hidden" aria-hidden="true" />
                 <span className="hidden sm:inline">Cancel</span>
@@ -415,7 +414,7 @@ function PatternDetailModal({ pattern, onClose, onSave }: PatternDetailModalProp
               onClick={() => setShowDeleteConfirm(true)}
               aria-label="Delete"
               title="Delete this pattern"
-              className={`${footerBtn} text-destructive hover:bg-destructive/10`}
+              className={`${dialogFooterIconBtn} text-destructive hover:bg-destructive/10`}
             >
               <Trash2 className="h-5 w-5 sm:hidden" aria-hidden="true" />
               <span className="hidden sm:inline">Delete</span>
@@ -429,7 +428,7 @@ function PatternDetailModal({ pattern, onClose, onSave }: PatternDetailModalProp
                 onClick={() => setIsEditing(false)}
                 aria-label="Cancel"
                 title="Cancel editing"
-                className={`${footerBtn} ${btnOutline}`}
+                className={`${dialogFooterIconBtn} ${btnOutline}`}
               >
                 <X className="h-5 w-5 sm:hidden" aria-hidden="true" />
                 <span className="hidden sm:inline">Cancel</span>
@@ -439,7 +438,7 @@ function PatternDetailModal({ pattern, onClose, onSave }: PatternDetailModalProp
                 disabled={updateMutation.isPending}
                 aria-label={saveLabel}
                 title={saveLabel}
-                className={`${footerBtn} ${btnPrimary} disabled:opacity-50`}
+                className={`${dialogFooterIconBtn} ${btnPrimary} disabled:opacity-50`}
               >
                 <Check className="h-5 w-5 sm:hidden" aria-hidden="true" />
                 <span className="hidden sm:inline">{saveLabel}</span>
@@ -451,7 +450,7 @@ function PatternDetailModal({ pattern, onClose, onSave }: PatternDetailModalProp
                 onClick={requestClose}
                 aria-label="Close"
                 title="Close"
-                className={`${footerBtn} ${btnOutline}`}
+                className={`${dialogFooterIconBtn} ${btnOutline}`}
               >
                 <X className="h-5 w-5 sm:hidden" aria-hidden="true" />
                 <span className="hidden sm:inline">Close</span>
@@ -460,7 +459,7 @@ function PatternDetailModal({ pattern, onClose, onSave }: PatternDetailModalProp
                 onClick={() => setIsEditing(true)}
                 aria-label="Edit"
                 title="Edit"
-                className={`${footerBtn} ${btnPrimary}`}
+                className={`${dialogFooterIconBtn} ${btnPrimary}`}
               >
                 <Pencil className="h-5 w-5 sm:hidden" aria-hidden="true" />
                 <span className="hidden sm:inline">Edit</span>

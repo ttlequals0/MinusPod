@@ -8,7 +8,7 @@ import { SponsorNormalization } from '../../api/types';
 import NormalizationEditModal from '../../components/NormalizationEditModal';
 import { ConfirmModal } from '../../components/Modal';
 import { SkeletonRows } from '../../components/Skeleton';
-import { btnOutline, btnPrimary } from '../../components/buttonStyles';
+import { btnOutline, btnPrimary, btnDestructiveOutline } from '../../components/buttonStyles';
 import { focusRing } from '../../components/fieldStyles';
 import { badgeBase, tint } from '../../components/badgeStyles';
 
@@ -79,7 +79,7 @@ function TranscriptNormalizationSection() {
                 </div>
                 <div className="flex gap-2">
                   <button onClick={() => setEditing(n)} className={`px-2 py-1 text-xs rounded ${btnOutline} ${focusRing}`}>Edit</button>
-                  <button onClick={() => setDeleteId(n.id)} className={`px-2 py-1 text-xs rounded border border-destructive/40 text-destructive hover:bg-destructive/10 ${focusRing}`}>Delete</button>
+                  <button onClick={() => setDeleteId(n.id)} className={`px-2 py-1 text-xs rounded ${btnDestructiveOutline} ${focusRing}`}>Delete</button>
                 </div>
               </div>
             ))}
@@ -117,7 +117,7 @@ function TranscriptNormalizationSection() {
                       <td className="px-2 py-3 whitespace-nowrap text-xs">
                         <div className="flex gap-1">
                           <button onClick={() => setEditing(n)} className={`px-2 py-1 rounded ${btnOutline} ${focusRing}`}>Edit</button>
-                          <button onClick={() => setDeleteId(n.id)} className={`px-2 py-1 rounded border border-destructive/40 text-destructive hover:bg-destructive/10 ${focusRing}`}>Delete</button>
+                          <button onClick={() => setDeleteId(n.id)} className={`px-2 py-1 rounded ${btnDestructiveOutline} ${focusRing}`}>Delete</button>
                         </div>
                       </td>
                     </tr>

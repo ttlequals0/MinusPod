@@ -13,7 +13,7 @@ import {
   purgeAllCommunityPatterns,
 } from '../../api/community';
 import { SEGMENT_CATEGORIES, SEGMENT_CATEGORY_LABELS, type SegmentCategory } from '../../utils/segmentCategory';
-import { btnDestructive, btnPrimary, btnSecondary } from '../../components/buttonStyles';
+import { btnDestructive, btnPrimary, btnSecondary, btnDestructiveOutline } from '../../components/buttonStyles';
 import { focusRing } from '../../components/fieldStyles';
 import SavedBadge from './SavedBadge';
 import CronScheduleField from './CronScheduleField';
@@ -237,7 +237,7 @@ function CommunityPatternsSection() {
               <button
                 type="button"
                 onClick={() => { setPurgeResult(null); setConfirmPurge(true); }}
-                className={`px-3 py-1.5 rounded-lg border border-destructive text-destructive hover:bg-destructive dark:hover:bg-destructive/20 text-sm ${focusRing}`}
+                className={`px-3 py-1.5 rounded-lg ${btnDestructiveOutline} text-sm ${focusRing}`}
               >
                 Remove all community patterns
               </button>

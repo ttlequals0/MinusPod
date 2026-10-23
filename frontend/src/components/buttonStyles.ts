@@ -20,3 +20,5 @@ export const touchCompact =
 // For a row that must stay on one line on a phone: full height, shared width below sm.
 export const touchTargetRow =
   'inline-flex items-center justify-center min-h-11 sm:min-h-0 max-sm:min-w-0';
+// Destructive action that is not the primary one in its group (Delete beside Edit).
+export const btnDestructiveOutline = 'border border-destructive/40 text-destructive hover:bg-destructive/10';

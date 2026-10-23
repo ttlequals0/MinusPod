@@ -571,7 +571,7 @@ function FeedDetail() {
                   </button>
                   <button
                     onClick={() => setIsEditingTitle(false)}
-                    className={`px-2 py-1 text-xs bg-muted text-muted-foreground rounded hover:bg-accent ${focusRing}`}
+                    className={`px-2 py-1 text-xs rounded ${btnSecondary} ${focusRing}`}
                   >
                     Cancel
                   </button>

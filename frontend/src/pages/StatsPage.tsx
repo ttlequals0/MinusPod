@@ -515,7 +515,7 @@ function EpisodeCostTable({
             type="button"
             onClick={() => onSort(sortField)}
             aria-label={sortDir === 'asc' ? 'Sort descending' : 'Sort ascending'}
-            className={`min-h-11 min-w-11 inline-flex items-center justify-center rounded border border-border bg-secondary text-secondary-foreground hover:bg-secondary/80 transition-colors ${focusRing}`}
+            className={`min-h-11 min-w-11 inline-flex items-center justify-center rounded border border-border ${btnSecondary} transition-colors ${focusRing}`}
           >
             <span aria-hidden="true">{sortDir === 'asc' ? '\u2191' : '\u2193'}</span>
           </button>

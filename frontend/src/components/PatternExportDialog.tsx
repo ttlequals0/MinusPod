@@ -7,7 +7,7 @@ import {
 } from '../api/patterns';
 import { PatternExportEditRow } from './PatternExportEditRow';
 import { getErrorMessage } from '../api/client';
-import { Modal } from './Modal';
+import { Modal, dialogFooterBtn } from './Modal';
 import Checkbox from './Checkbox';
 import { focusRing } from './fieldStyles';
 import { btnOutline, btnPrimary } from './buttonStyles';
@@ -346,7 +346,7 @@ function PatternExportDialogImpl({ patterns, onClose }: Omit<Props, 'open'>) {
                 type="button"
                 onClick={handleClose}
                 disabled={busy}
-                className={`px-3 py-1.5 text-sm rounded ${btnOutline} transition-colors disabled:opacity-50 ${focusRing}`}
+                className={`${dialogFooterBtn} ${btnOutline} disabled:opacity-50`}
               >
                 Cancel
               </button>
@@ -355,7 +355,7 @@ function PatternExportDialogImpl({ patterns, onClose }: Omit<Props, 'open'>) {
                   type="button"
                   onClick={downloadSelected}
                   disabled={effectiveSelection.size === 0}
-                  className={`px-3 py-1.5 text-sm rounded ${btnPrimary} transition-colors disabled:opacity-50 ${focusRing}`}
+                  className={`${dialogFooterBtn} ${btnPrimary} disabled:opacity-50`}
                 >
                   Export {effectiveSelection.size} pattern{effectiveSelection.size === 1 ? '' : 's'}
                 </button>
@@ -364,7 +364,7 @@ function PatternExportDialogImpl({ patterns, onClose }: Omit<Props, 'open'>) {
                   type="button"
                   onClick={runPreview}
                   disabled={effectiveSelection.size === 0 || busy}
-                  className={`px-3 py-1.5 text-sm rounded ${btnPrimary} transition-colors disabled:opacity-50 ${focusRing}`}
+                  className={`${dialogFooterBtn} ${btnPrimary} disabled:opacity-50`}
                 >
                   {busy ? 'Checking...' : 'Continue'}
                 </button>
@@ -425,7 +425,7 @@ function CommunityPreview({
           type="button"
           onClick={onBack}
           disabled={busy}
-          className={`px-3 py-1.5 text-sm rounded ${btnOutline} transition-colors disabled:opacity-50 ${focusRing}`}
+          className={`${dialogFooterBtn} ${btnOutline} disabled:opacity-50`}
         >
           Back
         </button>
@@ -433,7 +433,7 @@ function CommunityPreview({
           type="button"
           onClick={onDownload}
           disabled={ready_count === 0 || busy}
-          className={`px-3 py-1.5 text-sm rounded ${btnPrimary} transition-colors disabled:opacity-50 ${focusRing}`}
+          className={`${dialogFooterBtn} ${btnPrimary} disabled:opacity-50`}
         >
           {busy ? 'Building bundle...' : `Download bundle (${ready_count})`}
         </button>
@@ -468,7 +468,7 @@ function CommunityDone({ filename, onClose }: { filename: string; onClose: () =>
         <button
           type="button"
           onClick={onClose}
-          className={`px-3 py-1.5 text-sm rounded ${btnPrimary} transition-colors ${focusRing}`}
+          className={`${dialogFooterBtn} ${btnPrimary}`}
         >
           Done
         </button>

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { ConfirmModal } from '../../components/Modal';
 import { focusRing } from '../../components/fieldStyles';
+import { btnDestructive, btnDestructiveOutline } from '../../components/buttonStyles';
 
 interface ConfirmResetButtonProps {
   label: string;
@@ -37,8 +38,8 @@ function ConfirmResetButton({
         size === 'compact' ? 'px-2 py-1 text-xs' : 'px-4 py-2 text-sm'
       } ${
         armed
-          ? 'border-destructive bg-destructive text-destructive-foreground hover:bg-destructive/80'
-          : 'border-destructive/40 text-destructive hover:bg-destructive/10'
+          ? `border-destructive ${btnDestructive}`
+          : btnDestructiveOutline
       } ${focusRing} ${className}`}
     >
       {isPending ? 'Resetting...' : label}

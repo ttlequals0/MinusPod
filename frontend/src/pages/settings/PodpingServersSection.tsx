@@ -9,7 +9,7 @@ import {
   resetPodpingNodes,
   updatePodpingNodes,
 } from '../../api/podping';
-import { btnGhost, btnSecondary, touchTarget } from '../../components/buttonStyles';
+import { btnGhost, btnSecondary, touchTarget, btnPrimary } from '../../components/buttonStyles';
 import { focusRing } from '../../components/fieldStyles';
 
 const MAX_NODES = 20;
@@ -147,7 +147,7 @@ function PodpingServersSection({ enabled }: { enabled: boolean }) {
         </button>
         <button
           type="button"
-          className={`${actionButton} rounded-lg bg-primary px-4 text-primary-foreground`}
+          className={`${actionButton} rounded-lg px-4 ${btnPrimary}`}
           disabled={!canSave}
           onClick={() => { setError(null); save.mutate(nodes); }}
         >
