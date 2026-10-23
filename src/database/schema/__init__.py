@@ -32,6 +32,13 @@ _SEARCH_CHANGE_TRIGGER_MARKER = 'search_change_triggers_v1'
 
 # The hold reason inside the snippet _file_corroborated_hold_approvals writes.
 _AUTO_FILED_REASON_RE = re.compile(r'\s*corroborated (\S+) hold')
+_LEGACY_TIMESTAMP_RE = re.compile(r'\d\.\ds\s*-\s*\d+\.\ds')
+
+
+def _prompt_has_legacy_markup(value):
+    """True if a stored prompt still has doubled curlies or 's' timestamp ranges."""
+    value = value or ''
+    return '{{' in value or bool(_LEGACY_TIMESTAMP_RE.search(value))
 
 
 # SQL DDL constants live in tables.py - re-exported for backward compat
@@ -1483,6 +1490,31 @@ class SchemaMixin:
                     logger.info(f"Migration: Updated default {key} to v2.1.2 (array output)")
         except Exception as e:
             logger.warning(f"Migration failed for reviewer prompts v2.1.2: {e}")
+
+        # Migration: refresh default prompts still using doubled curlies or 's' timestamps.
+        try:
+            from database import (
+                DEFAULT_REVIEW_PROMPT, DEFAULT_RESURRECT_PROMPT,
+            )
+            for key, value in (
+                ('system_prompt', DEFAULT_SYSTEM_PROMPT),
+                ('verification_prompt', DEFAULT_VERIFICATION_PROMPT),
+                ('review_prompt', DEFAULT_REVIEW_PROMPT),
+                ('resurrect_prompt', DEFAULT_RESURRECT_PROMPT),
+            ):
+                row = conn.execute(
+                    "SELECT value, is_default FROM settings WHERE key = ?",
+                    (key,)
+                ).fetchone()
+                if row and row['is_default'] and _prompt_has_legacy_markup(row['value']):
+                    conn.execute(
+                        "UPDATE settings SET value = ? WHERE key = ?",
+                        (value, key)
+                    )
+                    conn.commit()
+                    logger.info(f"Migration: Updated default {key} to the minimal-timestamp form")
+        except Exception as e:
+            logger.warning(f"Migration failed for minimal-timestamp prompts: {e}")
 
         # Migration: Create token usage tables and seed default model pricing
         try:

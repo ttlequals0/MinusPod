@@ -9,15 +9,6 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
-## [Unreleased]
-
-### Changed
-- Segment-ID prompts mark pauses of 1.5 s or longer between transcript lines with a gap cue, so the model can see jingles and silence it otherwise cannot. (#883, #884, from mrfootoyou)
-- Use minimal timestamps in LLM prompts to help reduce token usage.
-
-### Fixed
-- Docs: whisper.cpp needs `--no-flash-attn` alongside `--dtw` on Apple Silicon (Metal) too, not only on CUDA; added it to the native Apple Silicon example.
-
 ## [2.100.19] - 2026-10-19
 
 ### Added
@@ -33,8 +24,6 @@ release notes.
   embeds the tour and the pipeline animation, and the doc for each
   feature embeds its landscape cut, uploaded as a GitHub attachment so
   it plays inline.
-
-### Added
 - Cue templates can cut every match on their own, with no ad next to it
   (#874). Three layers, explicit beating inherited: a global "Cut matched
   cue audio" setting (off), a per-feed override, and a per-template value
@@ -48,6 +37,15 @@ release notes.
   are not eligible. Cue telemetry reports the new "cut" outcome.
 
 ### Changed
+- LLM prompts use minimal timestamps, `[987.6-1023.4]` instead of
+  `[987.6s - 1023.4s]`, with the unit stated once in the transcript header.
+  That is about 3 fewer tokens per transcript line. Stored default prompts are
+  refreshed to the new form on upgrade when they were never customized.
+  (#886, from mrfootoyou)
+- Segment-ID prompts mark pauses of 1.5 s or longer between transcript
+  lines with a gap cue, so the model can see jingles and silence it
+  otherwise cannot. The System One adapter skips these rows when it reads
+  a prompt back into segments. (#883, #884, from mrfootoyou)
 - Settings > System Status no longer repeats Time Saved, LLM Tokens and
   Cost. The Stats page already shows them with filters, and the two sets of
   numbers could disagree. The panel links to the Stats page instead.
