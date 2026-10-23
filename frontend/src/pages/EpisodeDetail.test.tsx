@@ -14,7 +14,7 @@ import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import EpisodeDetail, { KeyedEpisodeDetail } from './EpisodeDetail';
 import EpisodeList from '../components/EpisodeList';
-import type { Episode, EpisodeDetail as EpisodeDetailType, Settings } from '../api/types';
+import type { AdSegment, Episode, EpisodeDetail as EpisodeDetailType, Settings } from '../api/types';
 import { formatTimestamp } from '../utils/format';
 import { getSettings } from '../api/settings';
 
@@ -2529,5 +2529,44 @@ describe('Correction badges', () => {
     }));
     await waitFor(() => expect(screen.getByText('Confirmed')).toBeDefined());
     expect(screen.queryByText('Auto-approved')).toBeNull();
+  });
+});
+
+describe('Detected ads: overlapping markers grouped into one block', () => {
+  const overlapping: AdSegment[] = [
+    { start: 1839.0, end: 2032.0, confidence: 0.9, detection_stage: 'claude', category: 'sponsor' },
+    { start: 1992.8, end: 2160.3, confidence: 0.9, detection_stage: 'claude', category: 'self_promo' },
+    { start: 2097.1, end: 2334.9, confidence: 0.9, detection_stage: 'claude', category: 'sponsor' },
+  ];
+
+  it('shows one collapsed block and reveals the member cards on expand', async () => {
+    const user = userEvent.setup();
+    renderDetail(makeEpisode({
+      pendingReviewMarkers: [],
+      adMarkers: overlapping,
+      hasOriginalAudio: true,
+      transcript: 'hello',
+      status: 'completed',
+    }));
+    expect(await screen.findByText('Detected Ads (1 block, 3 segments)')).not.toBeNull();
+    const toggle = screen.getByRole('button', { name: /3 segments/ });
+    expect(toggle.getAttribute('aria-expanded')).toBe('false');
+    expect(screen.getAllByRole('button', { name: 'Play this ad' })).toHaveLength(1);
+    expect(screen.queryByRole('button', { name: 'Jump' })).toBeNull();
+
+    await user.click(toggle);
+    expect(toggle.getAttribute('aria-expanded')).toBe('true');
+    expect(screen.getAllByRole('button', { name: 'Jump' })).toHaveLength(3);
+    expect(screen.getAllByRole('button', { name: 'Play this ad' })).toHaveLength(4);
+  });
+
+  it('keeps the plain count when no markers are grouped', async () => {
+    renderDetail(makeEpisode({
+      pendingReviewMarkers: [],
+      adMarkers: [overlapping[0], { ...overlapping[2], start: 3000, end: 3100 }],
+      hasOriginalAudio: true,
+    }));
+    expect(await screen.findByText('Detected Ads (2)')).not.toBeNull();
+    expect(screen.queryByRole('button', { name: /segments/ })).toBeNull();
   });
 });

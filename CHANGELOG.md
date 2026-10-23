@@ -57,6 +57,10 @@ release notes.
   stinger that sat inside the LLM span, because only edges the cue snap had
   already moved acted as limits. Removable template cues inside the span
   now hold the edge too, so the stinger is cut with the ad wherever it falls.
+- Episode page: cut markers that the audio processor merges into one span
+  (overlapping, or within 5 s of each other) show as one block in Detected
+  Ads, with the whole span's play button and a segments toggle that opens
+  the member cards. A lone marker renders as before.
 - Web UI: Calls by phase on the Stats page is a table. The pattern details
   dialog uses the shared button recipes, and on phones its footer is one
   row of icon buttons. The Feeds header shows the compact action set below

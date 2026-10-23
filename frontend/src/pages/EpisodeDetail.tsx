@@ -1,5 +1,6 @@
 import { pageTitle } from '../components/pageStyles';
 import { useState, useRef, useMemo } from 'react';
+import { ChevronDown } from 'lucide-react';
 import { useParams, Link } from 'react-router';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
@@ -37,6 +38,7 @@ import CueCandidatesSection from '../components/CueCandidatesSection';
 import { useLocalStorageState } from '../hooks/useLocalStorageState';
 import { useSyncFromQuery } from '../hooks/useSyncFromQuery';
 import { formatStorage, formatDuration, formatTokenRange } from './settings/settingsUtils';
+import { groupAdBlocks } from '../utils/adBlocks';
 import { formatDate, formatTimestamp, toDatetimeLocalInput, fromDatetimeLocalInput } from '../utils/format';
 import { useAuditionPlayer } from '../hooks/useAuditionPlayer';
 import { AuditionPlayButton } from '../components/AuditionPlayButton';
@@ -648,6 +650,15 @@ function EpisodeDetail() {
     }));
   }, [adMarkers]);
 
+  const adBlocks = useMemo(() => groupAdBlocks(adMarkers ?? []), [adMarkers]);
+  const [openAdBlocks, setOpenAdBlocks] = useState<Set<number>>(new Set());
+  const toggleAdBlock = (start: number) =>
+    setOpenAdBlocks((prev) => {
+      const next = new Set(prev);
+      if (!next.delete(start)) next.add(start);
+      return next;
+    });
+
   const formatFileSize = (bytes?: number) => {
     if (!bytes) return '';
     const mb = bytes / (1024 * 1024);
@@ -709,6 +720,166 @@ function EpisodeDetail() {
       </div>
     );
   }
+
+  const renderAdMarkerCard = (segment: AdSegment, index: number) => (
+    <div
+      key={index}
+      className="p-3 bg-secondary/50 rounded-lg"
+    >
+      {/* Row 1: Time, badges, jump button, confidence */}
+      <div className="flex flex-wrap items-center gap-2">
+        {episode.hasOriginalAudio && (
+          <AuditionPlayButton
+            playing={markerAudition.playingKey === `detected-${segment.start}-${segment.end}`}
+            onClick={() => {
+              // Play the same timeframe the row displays: for
+              // reviewer-adjusted markers that is the reviewed
+              // pre-trim span, not the trimmed cut bounds.
+              const adjusted = segment.reviewer_verdict === 'adjust'
+                && segment.reviewer_original_start !== undefined
+                && segment.reviewer_original_end !== undefined;
+              markerAudition.toggle(
+                `detected-${segment.start}-${segment.end}`,
+                markerAudioUrl,
+                adjusted ? segment.reviewer_original_start! : segment.start,
+                adjusted ? segment.reviewer_original_end! : segment.end,
+              );
+            }}
+          />
+        )}
+        <span className="font-mono text-sm">
+          {segment.reviewer_verdict === 'adjust' && segment.reviewer_original_start !== undefined && segment.reviewer_original_end !== undefined
+            ? `${formatTimestamp(segment.reviewer_original_start)} - ${formatTimestamp(segment.reviewer_original_end)}`
+            : `${formatTimestamp(segment.start)} - ${formatTimestamp(segment.end)}`}
+        </span>
+        <SegmentCategoryBadge category={segment.category} />
+        {isKeepLike(segment.actionApplied) && <KeptBadge actionApplied={segment.actionApplied} />}
+        {segment.detection_stage && DETECTION_STAGE_META[segment.detection_stage] && (
+          <StageBadge stage={segment.detection_stage} />
+        )}
+        {segment.corroborated_by && CORROBORATION_META[segment.corroborated_by] && (
+          <span
+            className={`${badgeBase} font-medium ${CORROBORATION_CLASS}`}
+            title={CORROBORATION_META[segment.corroborated_by].title}
+          >
+            {CORROBORATION_META[segment.corroborated_by].label}
+          </span>
+        )}
+        {segment.cue_snap && (
+          <span
+            className={`${badgeBase} font-medium ${tint.purple}`}
+            title={
+              (segment.cue_snap.start as Record<string, unknown> | undefined)?.cue_type === 'content_transition' ||
+              (segment.cue_snap.end as Record<string, unknown> | undefined)?.cue_type === 'content_transition'
+                ? "An audio cue snapped this ad's edge to the chime via content transition"
+                : "An audio cue snapped this ad's edge to the chime"
+            }
+          >
+            Cue snapped
+          </span>
+        )}
+        {segment.silence_snap && (
+          <span
+            className={`${badgeBase} font-medium ${tint.teal}`}
+            title="Ad edge snapped to nearby silence"
+          >
+            Silence snapped
+          </span>
+        )}
+        {segment.sponsor && (
+          <span
+            className={`${badgeBase} font-medium ${tint.neutral}`}
+            title="Sponsor"
+          >
+            {segment.sponsor}
+          </span>
+        )}
+        {segment.reviewer_verdict === 'confirmed' && (
+          <span className={`${badgeBase} font-medium ${tint.success}`} title={segment.reviewer_reasoning || 'Confirmed by reviewer'}>
+            Reviewer: confirmed
+          </span>
+        )}
+        {segment.reviewer_verdict === 'adjust' && (
+          <span className={`${badgeBase} font-medium ${tint.teal}`} title={segment.reviewer_reasoning || 'Boundaries adjusted by reviewer'}>
+            Reviewer: adjusted
+          </span>
+        )}
+        {segment.reviewer_verdict === 'resurrect' && (
+          <span className={`${badgeBase} font-medium ${tint.warning}`} title={segment.reviewer_reasoning || 'Resurrected by reviewer'}>
+            Reviewer: resurrected
+          </span>
+        )}
+        {segment.reviewer_verdict === 'failure' && (
+          <span className={`${badgeBase} font-medium ${tint.neutral}`} title="Reviewer LLM call failed; original detection kept">
+            Reviewer: skipped
+          </span>
+        )}
+        {segment.reviewer_verdict === 'inconclusive' && (
+          <span className={`${badgeBase} font-medium ${tint.neutral}`} title={segment.reviewer_reasoning || 'Reviewer abstained; original detection kept'}>
+            Reviewer abstained
+          </span>
+        )}
+        {episode.transcript && (
+          <button
+            onClick={() => handleJumpToAd(index)}
+            className={`${rowActionBtn} bg-primary/10 text-primary-on-tint hover:bg-primary/20 active:bg-primary/30 ${focusRing}`}
+            title="Jump to this ad in editor"
+          >
+            Jump
+          </button>
+        )}
+        {(() => {
+          const correction = getAdCorrection(segment.start, segment.end);
+          if (correction) {
+            return (
+              <span className={`${badgeBase} font-medium ${
+                correction.correction_type === 'confirm'
+                  ? tint.success
+                  : correction.correction_type === 'false_positive'
+                  ? tint.warning
+                  : tint.blue
+              }`}>
+                {correctionBadgeLabel(correction)}
+              </span>
+            );
+          }
+          return null;
+        })()}
+        <span className="ml-auto text-sm text-muted-foreground whitespace-nowrap">
+          {formatConfidence(segment)}
+        </span>
+      </div>
+      {/* Row 2: Detector's own note about the match. Framed as
+          a "Match:" label so it doesn't read as a contradicting
+          sponsor when the field carries reviewer-overwritten
+          free text (e.g., boundary extension that swept up an
+          adjacent ad's content). */}
+      {segment.reason && (
+        <ExpandableText
+          label="match"
+          className="text-sm text-muted-foreground mt-2"
+        >
+          <span className="font-medium">Match:</span>{' '}
+          <PatternLink reason={segment.reason} />
+        </ExpandableText>
+      )}
+      {segment.reviewer_verdict === 'adjust' && (
+        <p className="text-sm text-c-teal mt-1 font-mono">
+          Reviewer: {formatTimestamp(segment.start)} - {formatTimestamp(segment.end)}
+        </p>
+      )}
+      <CarvedFromHint segment={segment} />
+      {segment.reviewer_verdict && segment.reviewer_reasoning && (
+        <ExpandableText
+          label="reviewer note"
+          clampLines={3}
+          className="text-xs text-muted-foreground mt-1 italic"
+        >
+          Reviewer: {segment.reviewer_reasoning}
+        </ExpandableText>
+      )}
+    </div>
+  );
 
   const failureReason =
     isFailedStatus(episode.status) && episode.error ? episode.error : undefined;
@@ -1206,7 +1377,9 @@ function EpisodeDetail() {
             {/* Row 1: Title + Edit button */}
             <div className="flex items-center justify-between">
               <h2 className="text-xl font-semibold text-foreground">
-                Detected Ads ({episode.adMarkers.length})
+                Detected Ads ({adBlocks.length === episode.adMarkers.length
+                  ? episode.adMarkers.length
+                  : `${adBlocks.length} ${adBlocks.length === 1 ? 'block' : 'blocks'}, ${episode.adMarkers.length} segments`})
               </h2>
               {episode.status === 'completed' && episode.transcript && (
                 <div className="flex items-center gap-1.5 shrink-0">
@@ -1282,165 +1455,52 @@ function EpisodeDetail() {
           )}
 
           <div className="space-y-3">
-            {episode.adMarkers.map((segment, index) => (
-              <div
-                key={index}
-                className="p-3 bg-secondary/50 rounded-lg"
-              >
-                {/* Row 1: Time, badges, jump button, confidence */}
-                <div className="flex flex-wrap items-center gap-2">
-                  {episode.hasOriginalAudio && (
-                    <AuditionPlayButton
-                      playing={markerAudition.playingKey === `detected-${segment.start}-${segment.end}`}
-                      onClick={() => {
-                        // Play the same timeframe the row displays: for
-                        // reviewer-adjusted markers that is the reviewed
-                        // pre-trim span, not the trimmed cut bounds.
-                        const adjusted = segment.reviewer_verdict === 'adjust'
-                          && segment.reviewer_original_start !== undefined
-                          && segment.reviewer_original_end !== undefined;
-                        markerAudition.toggle(
-                          `detected-${segment.start}-${segment.end}`,
-                          markerAudioUrl,
-                          adjusted ? segment.reviewer_original_start! : segment.start,
-                          adjusted ? segment.reviewer_original_end! : segment.end,
-                        );
-                      }}
-                    />
+            {adBlocks.map((block) => {
+              const indexed = block.members.map((m) => ({ m, i: adMarkers!.indexOf(m) }));
+              if (indexed.length === 1) return renderAdMarkerCard(indexed[0].m, indexed[0].i);
+              const open = openAdBlocks.has(block.start);
+              const panelId = `ad-block-${Math.round(block.start * 10)}`;
+              const key = `detected-block-${block.start}-${block.end}`;
+              const categories = [...new Set(indexed.map(({ m }) => m.category ?? ''))];
+              return (
+                <div key={key}>
+                  <div className="p-3 bg-secondary/50 rounded-lg">
+                    <div className="flex flex-wrap items-center gap-2">
+                      {episode.hasOriginalAudio && (
+                        <AuditionPlayButton
+                          playing={markerAudition.playingKey === key}
+                          onClick={() => markerAudition.toggle(key, markerAudioUrl, block.start, block.end)}
+                        />
+                      )}
+                      <span className="font-mono text-sm">
+                        {formatTimestamp(block.start)} - {formatTimestamp(block.end)}
+                      </span>
+                      <span className="text-sm text-muted-foreground whitespace-nowrap">
+                        {formatDuration(block.end - block.start)}
+                      </span>
+                      {categories.map((c) => (
+                        <SegmentCategoryBadge key={c} category={c || null} />
+                      ))}
+                      <button
+                        type="button"
+                        onClick={() => toggleAdBlock(block.start)}
+                        aria-expanded={open}
+                        aria-controls={panelId}
+                        className={`ml-auto inline-flex items-center gap-1 min-h-11 sm:min-h-0 text-sm text-primary hover:underline ${focusRing}`}
+                      >
+                        {indexed.length} segments
+                        <ChevronDown size={16} className={`transition-transform motion-reduce:transition-none ${open ? 'rotate-180' : ''}`} />
+                      </button>
+                    </div>
+                  </div>
+                  {open && (
+                    <div id={panelId} className="mt-3 space-y-3 ml-4 sm:ml-6 border-l-2 border-border pl-3 min-w-0">
+                      {indexed.map(({ m, i }) => renderAdMarkerCard(m, i))}
+                    </div>
                   )}
-                  <span className="font-mono text-sm">
-                    {segment.reviewer_verdict === 'adjust' && segment.reviewer_original_start !== undefined && segment.reviewer_original_end !== undefined
-                      ? `${formatTimestamp(segment.reviewer_original_start)} - ${formatTimestamp(segment.reviewer_original_end)}`
-                      : `${formatTimestamp(segment.start)} - ${formatTimestamp(segment.end)}`}
-                  </span>
-                  <SegmentCategoryBadge category={segment.category} />
-                  {isKeepLike(segment.actionApplied) && <KeptBadge actionApplied={segment.actionApplied} />}
-                  {segment.detection_stage && DETECTION_STAGE_META[segment.detection_stage] && (
-                    <StageBadge stage={segment.detection_stage} />
-                  )}
-                  {segment.corroborated_by && CORROBORATION_META[segment.corroborated_by] && (
-                    <span
-                      className={`${badgeBase} font-medium ${CORROBORATION_CLASS}`}
-                      title={CORROBORATION_META[segment.corroborated_by].title}
-                    >
-                      {CORROBORATION_META[segment.corroborated_by].label}
-                    </span>
-                  )}
-                  {segment.cue_snap && (
-                    <span
-                      className={`${badgeBase} font-medium ${tint.purple}`}
-                      title={
-                        (segment.cue_snap.start as Record<string, unknown> | undefined)?.cue_type === 'content_transition' ||
-                        (segment.cue_snap.end as Record<string, unknown> | undefined)?.cue_type === 'content_transition'
-                          ? "An audio cue snapped this ad's edge to the chime via content transition"
-                          : "An audio cue snapped this ad's edge to the chime"
-                      }
-                    >
-                      Cue snapped
-                    </span>
-                  )}
-                  {segment.silence_snap && (
-                    <span
-                      className={`${badgeBase} font-medium ${tint.teal}`}
-                      title="Ad edge snapped to nearby silence"
-                    >
-                      Silence snapped
-                    </span>
-                  )}
-                  {segment.sponsor && (
-                    <span
-                      className={`${badgeBase} font-medium ${tint.neutral}`}
-                      title="Sponsor"
-                    >
-                      {segment.sponsor}
-                    </span>
-                  )}
-                  {segment.reviewer_verdict === 'confirmed' && (
-                    <span className={`${badgeBase} font-medium ${tint.success}`} title={segment.reviewer_reasoning || 'Confirmed by reviewer'}>
-                      Reviewer: confirmed
-                    </span>
-                  )}
-                  {segment.reviewer_verdict === 'adjust' && (
-                    <span className={`${badgeBase} font-medium ${tint.teal}`} title={segment.reviewer_reasoning || 'Boundaries adjusted by reviewer'}>
-                      Reviewer: adjusted
-                    </span>
-                  )}
-                  {segment.reviewer_verdict === 'resurrect' && (
-                    <span className={`${badgeBase} font-medium ${tint.warning}`} title={segment.reviewer_reasoning || 'Resurrected by reviewer'}>
-                      Reviewer: resurrected
-                    </span>
-                  )}
-                  {segment.reviewer_verdict === 'failure' && (
-                    <span className={`${badgeBase} font-medium ${tint.neutral}`} title="Reviewer LLM call failed; original detection kept">
-                      Reviewer: skipped
-                    </span>
-                  )}
-                  {segment.reviewer_verdict === 'inconclusive' && (
-                    <span className={`${badgeBase} font-medium ${tint.neutral}`} title={segment.reviewer_reasoning || 'Reviewer abstained; original detection kept'}>
-                      Reviewer abstained
-                    </span>
-                  )}
-                  {episode.transcript && (
-                    <button
-                      onClick={() => handleJumpToAd(index)}
-                      className={`${rowActionBtn} bg-primary/10 text-primary-on-tint hover:bg-primary/20 active:bg-primary/30 ${focusRing}`}
-                      title="Jump to this ad in editor"
-                    >
-                      Jump
-                    </button>
-                  )}
-                  {(() => {
-                    const correction = getAdCorrection(segment.start, segment.end);
-                    if (correction) {
-                      return (
-                        <span className={`${badgeBase} font-medium ${
-                          correction.correction_type === 'confirm'
-                            ? tint.success
-                            : correction.correction_type === 'false_positive'
-                            ? tint.warning
-                            : tint.blue
-                        }`}>
-                          {correctionBadgeLabel(correction)}
-                        </span>
-                      );
-                    }
-                    return null;
-                  })()}
-                  <span className="ml-auto text-sm text-muted-foreground whitespace-nowrap">
-                    {formatConfidence(segment)}
-                  </span>
                 </div>
-                {/* Row 2: Detector's own note about the match. Framed as
-                    a "Match:" label so it doesn't read as a contradicting
-                    sponsor when the field carries reviewer-overwritten
-                    free text (e.g., boundary extension that swept up an
-                    adjacent ad's content). */}
-                {segment.reason && (
-                  <ExpandableText
-                    label="match"
-                    className="text-sm text-muted-foreground mt-2"
-                  >
-                    <span className="font-medium">Match:</span>{' '}
-                    <PatternLink reason={segment.reason} />
-                  </ExpandableText>
-                )}
-                {segment.reviewer_verdict === 'adjust' && (
-                  <p className="text-sm text-c-teal mt-1 font-mono">
-                    Reviewer: {formatTimestamp(segment.start)} - {formatTimestamp(segment.end)}
-                  </p>
-                )}
-                <CarvedFromHint segment={segment} />
-                {segment.reviewer_verdict && segment.reviewer_reasoning && (
-                  <ExpandableText
-                    label="reviewer note"
-                    clampLines={3}
-                    className="text-xs text-muted-foreground mt-1 italic"
-                  >
-                    Reviewer: {segment.reviewer_reasoning}
-                  </ExpandableText>
-                )}
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       )}
