@@ -12,6 +12,7 @@ from ad_detector.boundaries import (
     snap_extended_ad_tails_to_splice,
 )
 from ad_validator import AdValidator, ValidationResult
+from config import is_cue_backed
 from main_app import processing
 from main_app.pipeline import cuts
 
@@ -220,6 +221,42 @@ def test_merge_clears_stale_content_extension_from_earlier_fragment():
     assert merged['end'] == 160.0
     assert 'end_extended_by_content' not in merged
     assert 'tail_splice_snap' not in merged
+
+
+def _cue_pair(next_end, next_snap):
+    current = {'start': 0.0, 'end': 60.4, 'confidence': 0.9,
+               'sponsor': 'Acme', 'detection_stage': 'claude'}
+    nxt = {'start': 0.0, 'end': next_end, 'confidence': 0.9,
+           'sponsor': 'Acme', 'detection_stage': 'claude', 'cue_snap': next_snap}
+    return current, nxt
+
+
+def test_nested_fold_keeps_cue_backedness_without_stale_end_record():
+    snap = {'start': {'cue_end': 0.5, 'template_id': 1},
+            'end': {'cue_start': 57.2, 'template_id': 1}}
+    current, nxt = _cue_pair(57.7, snap)
+    _merge_ad_pair(current, nxt)
+    assert current['end'] == 60.4
+    assert is_cue_backed(current)
+    assert 'end' not in current['cue_snap']
+    assert current['cue_snap']['start']['template_id'] == 1
+
+
+def test_nested_fold_keeps_end_only_cue_record_when_nothing_else_backs_it():
+    current, nxt = _cue_pair(57.7, {'end': {'cue_start': 57.2, 'template_id': 1}})
+    _merge_ad_pair(current, nxt)
+    assert current['end'] == 60.4
+    assert is_cue_backed(current)
+
+
+def test_extending_fold_inherits_full_cue_snap():
+    snap = {'start': {'cue_end': 0.5, 'template_id': 1},
+            'end': {'cue_start': 69.5, 'template_id': 1}}
+    current, nxt = _cue_pair(70.0, snap)
+    expected = {k: dict(v) for k, v in snap.items()}
+    _merge_ad_pair(current, nxt)
+    assert current['end'] == 70.0
+    assert current['cue_snap'] == expected
 
 
 def test_merge_preserves_content_extension_on_later_fragment():

@@ -1306,9 +1306,13 @@ def _merge_ad_pair(current_ad: dict, next_ad: dict, gap_desc: str = "") -> None:
                 dict(snap) if isinstance(snap, dict) else snap)
         if next_ad.get('end_text'):
             current_ad['end_text'] = next_ad['end_text']
-        # Merged span stays cue-backed if either fragment is; the end-edge record applies only when next's end wins.
-        if next_ad.get('cue_snap') and not current_ad.get('cue_snap'):
-            current_ad['cue_snap'] = next_ad['cue_snap']
+    # Merged span stays cue-backed if either fragment is. A nested fragment's
+    # end record does not describe the merged end, so it is dropped when possible.
+    next_snap = next_ad.get('cue_snap')
+    if next_snap and not current_ad.get('cue_snap'):
+        if not extends and isinstance(next_snap, dict):
+            next_snap = {k: v for k, v in next_snap.items() if k != 'end'} or next_snap
+        current_ad['cue_snap'] = next_snap
     invalidate_quote_alignment(current_ad)
     invalidate_word_timed_edges(current_ad)
     current_ad['confidence'] = max(current_ad.get('confidence', 0.0),
