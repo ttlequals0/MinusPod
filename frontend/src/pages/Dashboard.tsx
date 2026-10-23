@@ -419,7 +419,7 @@ function Dashboard() {
       )}
 
       {(deleteConfirm || actionError) && (
-        <div className="fixed bottom-4 right-4 flex flex-col items-end gap-2">
+        <div className="fixed bottom-4 right-[max(1rem,env(safe-area-inset-right))] flex flex-col items-end gap-2">
           {actionError && !deleteConfirm && (
             <div className="max-w-sm bg-destructive/10 border border-destructive text-destructive rounded-lg p-4 shadow-lg text-sm flex items-start gap-3">
               <span className="flex-1">{actionError}</span>

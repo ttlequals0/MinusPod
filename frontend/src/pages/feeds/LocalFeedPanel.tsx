@@ -623,7 +623,7 @@ function LocalFeedPanel({ feed, slug }: Props) {
             />
             <p id={`local-categories-${slug}` + '-help'} className="mt-1 text-sm text-muted-foreground">Comma-separated, e.g. Technology, Business</p>
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             <div>
               <label htmlFor={`local-medium-${slug}`} className="block text-sm font-medium text-foreground mb-2">Medium</label>
               <select

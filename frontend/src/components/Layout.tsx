@@ -99,7 +99,7 @@ function Layout() {
         Skip to content
       </a>
       <header className="sticky z-30 border-b border-border bg-card" style={{ top: 'var(--status-bar-height, 0px)' }}>
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="safe-x safe-x-wide max-w-7xl mx-auto">
           <div className="flex justify-between items-center h-16">
             <div className="flex items-center gap-8">
               <Link to="/" className={`flex h-11 shrink-0 items-center ${focusRing} xl:h-auto`}>
@@ -195,7 +195,7 @@ function Layout() {
         </div>
         {mobileMenuOpen && (
           <div className="xl:hidden max-h-[calc(100dvh-var(--status-bar-height,0px)-4rem)] overflow-y-auto overscroll-contain border-t border-border bg-card">
-            <nav className="flex flex-col px-4 py-2 gap-1">
+            <nav className="safe-x flex flex-col py-2 gap-1">
               {NAV_ITEMS.map((item) => (
                 <NavLink
                   key={item.to}
@@ -210,7 +210,7 @@ function Layout() {
           </div>
         )}
       </header>
-      <main id="main" tabIndex={-1} className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <main id="main" tabIndex={-1} className="safe-x safe-x-wide max-w-7xl mx-auto py-8">
         <UpdateBanner />
         <Outlet />
       </main>

@@ -57,6 +57,12 @@ release notes.
   stinger that sat inside the LLM span, because only edges the cue snap had
   already moved acted as limits. Removable template cues inside the span
   now hold the edge too, so the stinger is cut with the ad wherever it falls.
+- Foldable phones: the page shell, fixed bars and floating buttons pad for
+  the left and right safe-area insets, so nothing sits under a side status
+  bar on a folded outer display. Stat and tile grids use two or four
+  columns between 640 and 1023 px so rows divide evenly at a center fold.
+  When the browser reports a two-segment viewport, dialogs stay inside the
+  right-hand half instead of spanning the hinge.
 - Episode page: cut markers that the audio processor merges into one span
   (overlapping, or within 5 s of each other) show as one block in Detected
   Ads, with the whole span's play button and a segments toggle that opens

@@ -283,7 +283,7 @@ function GlobalStatusBar() {
       ref={barRef}
       // Only while it is on screen: translated away it costs a popover no room.
       data-viewport-inset={hasActivity ? 'top' : undefined}
-      className={`fixed top-0 left-0 right-0 z-50 pt-[env(safe-area-inset-top)] bg-card border-b border-border shadow-xs transition-all duration-300 ${
+      className={`fixed top-0 left-0 right-0 z-50 pt-[env(safe-area-inset-top)] pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)] bg-card border-b border-border shadow-xs transition-all duration-300 ${
         hasActivity ? 'translate-y-0' : '-translate-y-full'
       }`}
     >

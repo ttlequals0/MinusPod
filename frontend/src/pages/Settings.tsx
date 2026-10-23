@@ -1811,7 +1811,7 @@ function Settings() {
       {hasChanges && (
         <div
           data-viewport-inset="bottom"
-          className="safe-bottom fixed bottom-0 left-0 right-0 z-40 border-t border-border bg-background/80 backdrop-blur-md"
+          className="safe-bottom pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)] fixed bottom-0 left-0 right-0 z-40 border-t border-border bg-background/80 backdrop-blur-md"
         >
           <div className="max-w-3xl mx-auto flex items-center justify-between gap-4 px-4 py-3">
             <ConfirmResetButton

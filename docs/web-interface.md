@@ -115,6 +115,10 @@ The web UI is a Progressive Web App. Installed, it opens full screen from its ow
 
 The installed app updates the same way as the browser tab: when a new version is ready, the Reload banner appears and applies it. To remove it, delete the icon as you would any app.
 
+### Foldable phones
+
+The layout pads the page and its fixed bars by the left and right safe-area insets, so content stays clear of the side bar on a folded outer display. Summary grids keep even column counts at tablet-like widths so cards divide cleanly at a center fold. When the browser reports a two-segment viewport, as on a partly folded device, dialogs stay inside one half instead of crossing the hinge.
+
 ### Dashboard views
 
 The dashboard toolbar has a Podcasts / Episodes switch. On mobile, an icon menu holds both choices to leave room for the other controls. Podcasts is the original view, one card or row per show, and it keeps the grid and list layouts and the sort control. Episodes reorganizes the same dashboard around recent work instead: one section per podcast, each with its cover, its title, its total episode count, a "View all episodes" link, and that show's newest episodes underneath.

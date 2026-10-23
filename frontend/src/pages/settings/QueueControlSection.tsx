@@ -466,7 +466,7 @@ function QueueControlSection({
           <p className="text-sm text-muted-foreground mb-3">
             How far each request type jumps the queue. Ties process oldest first.
           </p>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             <div>
               <label htmlFor="queueManualBoost" className="block text-sm text-foreground mb-2">
                 Play / Reprocess

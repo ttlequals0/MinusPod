@@ -130,7 +130,7 @@ function QueryErrorPanel({ message, onRetry, retryLabel = 'Retry' }: { message: 
 
 function ModelUsageDetail({ stat }: { stat: ModelUsageStat }) {
   return (
-    <dl className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-xs">
+    <dl className="grid grid-cols-2 gap-3 text-xs">
       <div>
         <dt className="text-muted-foreground">Distinct episodes</dt>
         <dd className="text-foreground">{stat.distinctEpisodes}</dd>
@@ -890,10 +890,10 @@ export default function StatsPage() {
       <section id="stats-overview" className="scroll-mt-28">
       {/* Summary Cards */}
       {dashLoading && (
-        <SkeletonStatCards count={7} lines={3} className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4 mb-8" />
+        <SkeletonStatCards count={7} lines={3} className="grid grid-cols-2 lg:grid-cols-6 gap-4 mb-8" />
       )}
       {dashboard && (
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4 mb-8">
+        <div className="grid grid-cols-2 lg:grid-cols-6 gap-4 mb-8">
           <StatCard
             label="Avg Time Saved"
             value={formatDuration(dashboard.avgTimeSavedSeconds)}
@@ -934,10 +934,10 @@ export default function StatsPage() {
 
       {/* Totals Row */}
       {dashLoading && (
-        <SkeletonStatCards count={6} className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-3 xl:grid-cols-6 gap-4 mb-8" />
+        <SkeletonStatCards count={6} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 mb-8" />
       )}
       {dashboard && (
-        <div className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-3 xl:grid-cols-6 gap-4 mb-8">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 mb-8">
           <StatCard label="Total Episodes" value={String(dashboard.totalEpisodesProcessed)}
             details={dashboard.totalRuns !== dashboard.totalEpisodesProcessed
               ? `${dashboard.totalRuns} processing runs` : undefined} />
@@ -1016,7 +1016,7 @@ export default function StatsPage() {
               No reviews yet. Enable Ad Reviewer in Settings, AI & Processing section, then reprocess an episode.
             </p>
           )}
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
+          <div className="grid grid-cols-2 lg:grid-cols-6 gap-4">
             <ReviewerStatCard label="Total reviews" value={reviewer.totalReviews} />
             <ReviewerStatCard label="Confirmed" value={reviewer.verdictCounts.confirmed} />
             <ReviewerStatCard label="Adjusted" value={reviewer.verdictCounts.adjust} />
@@ -1111,7 +1111,7 @@ export default function StatsPage() {
               <h3 className="text-sm font-medium text-muted-foreground mb-2">
                 Unused cue reasons
               </h3>
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+              <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
                 {cueUnusedReasons.map(({ reason, count }) => (
                   <ReviewerStatCard key={reason} label={reason.replace(/_/g, ' ')} value={count} />
                 ))}
@@ -1397,7 +1397,7 @@ export default function StatsPage() {
             </div>
 
             <h4 className="text-sm font-medium text-foreground mt-5 mb-3">Patterns</h4>
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+            <div className="grid grid-cols-2 gap-3">
               <StatCard label="Tracked pattern checks" value={String(cleanupStats.patterns.checked)} details={`${cleanupStats.patterns.distinctChecked} distinct patterns`} />
               <StatCard label="Tracked model reviews" value={String(cleanupStats.patterns.modelReviewed)} />
               <StatCard label="Patterns with suggestions / changed" value={`${cleanupStats.patterns.proposed} / ${cleanupStats.patterns.changed}`} />

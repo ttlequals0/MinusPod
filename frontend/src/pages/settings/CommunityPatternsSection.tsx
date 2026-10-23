@@ -139,7 +139,7 @@ function CommunityPatternsSection() {
               rather than deleting them; re-checking it reactivates them on the next sync.
               Locally created patterns are never affected.
             </p>
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+            <div className="grid grid-cols-2 gap-2">
               {SEGMENT_CATEGORIES.map((cat) => (
                 <div key={cat} className="flex items-center gap-2 text-sm">
                   <Checkbox

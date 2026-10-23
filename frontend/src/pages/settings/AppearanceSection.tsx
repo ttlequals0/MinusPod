@@ -17,7 +17,7 @@ function AppearanceSection() {
               <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">
                 {group}
               </p>
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+              <div className="grid grid-cols-2 gap-2">
                 {groupThemes.map((t) => {
                   const isActive = t.id === themeId;
                   const isDarkOnly = t.light === null && t.dark !== null;

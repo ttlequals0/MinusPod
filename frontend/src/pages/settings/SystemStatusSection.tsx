@@ -21,7 +21,7 @@ function SystemStatusSection({
       {statusLoading ? (
         <LoadingSpinner size="sm" />
       ) : status ? (
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
+        <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
           <div>
             <p className="text-sm text-muted-foreground">Version</p>
             <a
