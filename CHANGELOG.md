@@ -105,6 +105,11 @@ release notes.
   pairs", the same name the global setting uses, so search finds both. (#879)
 - Pattern details: the Podcast link opened the API episodes path and
   returned Not Found. It now goes to the feed page. (#876)
+- Transcript viewer: segments are shown as paragraphs, grouped at render
+  time only. A paragraph breaks at a real pause, at the first sentence end
+  past 20 seconds, or at 45 seconds. A Paragraphs / Lines toggle keeps the
+  old one-row-per-segment view and remembers the choice. Stored segments
+  and the published VTT are unchanged.
 - Episode page: cut markers that the audio processor merges into one span
   (overlapping, or within 5 s of each other) show as one block in Detected
   Ads, with the whole span's play button and a segments toggle that opens

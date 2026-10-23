@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { Fragment, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { getFinalSegments, getOriginalSegments, getOriginalTranscript, type OriginalSegment } from '../api/feeds';
 import type { AdSegment, EpisodeDetail } from '../api/types';
@@ -11,8 +11,33 @@ import { formatTimestamp } from '../utils/format';
 import { parseTimeInput } from '../utils/adReviewHelpers';
 import { usePagedList } from '../hooks/usePagedList';
 import { badgeBase, tint } from './badgeStyles';
+import SegmentedToggle from './SegmentedToggle';
+import { groupParagraphs } from '../utils/transcriptParagraphs';
 
 type Source = 'original' | 'processed';
+type View = 'paragraphs' | 'lines';
+
+const VIEW_KEY = 'minuspod.transcript.view';
+const VIEW_OPTIONS = [
+  { value: 'paragraphs', label: 'Paragraphs' },
+  { value: 'lines', label: 'Lines' },
+] as const;
+
+function readView(): View {
+  try {
+    return localStorage.getItem(VIEW_KEY) === 'lines' ? 'lines' : 'paragraphs';
+  } catch {
+    return 'paragraphs';
+  }
+}
+
+function writeView(v: View) {
+  try {
+    localStorage.setItem(VIEW_KEY, v);
+  } catch {
+    // storage unavailable: the choice lasts for this session only
+  }
+}
 
 // Attribute variants outrank inputBase's border and focus ring, so an
 // unparsable time reads red whether or not the field has focus.
@@ -57,6 +82,7 @@ function TranscriptViewer({ slug, episodeId, episode, onClose }: Props) {
   const [startText, setStartText] = useState('');
   const [endText, setEndText] = useState('');
   const [highlight, setHighlight] = useState(false);
+  const [view, setView] = useState<View>(readView);
 
   const query = useQuery({
     queryKey: [source === 'original' ? 'originalSegments' : 'finalSegments', slug, episodeId],
@@ -81,8 +107,17 @@ function TranscriptViewer({ slug, episodeId, episode, onClose }: Props) {
     if (end !== null && seg.start >= end) return false;
     return !needle || seg.text.toLowerCase().includes(needle);
   }), [segments, start, end, needle]);
-  const { shown, reset, onScroll } = usePagedList(filtered.length);
+  // Paragraphs come from every segment so a filter never moves a boundary.
+  const paragraphs = useMemo(() => {
+    const keep = new Set(filtered);
+    return groupParagraphs(segments)
+      .map((p) => ({ start: p.start, members: p.segments.filter((s) => keep.has(s)) }))
+      .filter((p) => p.members.length > 0);
+  }, [segments, filtered]);
+  const asParagraphs = view === 'paragraphs';
+  const { shown, reset, onScroll } = usePagedList(asParagraphs ? paragraphs.length : filtered.length);
   const visible = filtered.slice(0, shown);
+  const visibleParagraphs = paragraphs.slice(0, shown);
 
   const onFilter = (apply: () => void) => {
     apply();
@@ -176,17 +211,26 @@ function TranscriptViewer({ slug, episodeId, episode, onClose }: Props) {
             />
           </div>
         </div>
-        {source === 'original' && markers.length > 0 && (
-          <label className="flex items-center gap-2 min-h-11 text-sm text-muted-foreground">
-            <input
-              type="checkbox"
-              checked={highlight}
-              onChange={(e) => setHighlight(e.target.checked)}
-              className={focusRing}
-            />
-            Highlight ads
-          </label>
-        )}
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+          <SegmentedToggle
+            variant="toolbar"
+            options={VIEW_OPTIONS}
+            value={view}
+            onChange={(v) => { writeView(v); setView(v); reset(); }}
+            ariaLabel="Transcript view"
+          />
+          {source === 'original' && markers.length > 0 && (
+            <label className="flex items-center gap-2 min-h-11 text-sm text-muted-foreground">
+              <input
+                type="checkbox"
+                checked={highlight}
+                onChange={(e) => setHighlight(e.target.checked)}
+                className={focusRing}
+              />
+              Highlight ads
+            </label>
+          )}
+        </div>
       </div>
 
       <div className="flex-1 overflow-y-auto p-4" onScroll={onScroll}>
@@ -208,7 +252,39 @@ function TranscriptViewer({ slug, episodeId, episode, onClose }: Props) {
         {segments.length > 0 && filtered.length === 0 && (
           <p className="text-sm text-muted-foreground">No segments match the current filters.</p>
         )}
-        {visible.length > 0 && (
+        {asParagraphs && visibleParagraphs.length > 0 && (
+          <ol className="text-sm space-y-3">
+            {visibleParagraphs.map((para, i) => {
+              const ads = highlight && source === 'original'
+                ? para.members.map((seg) => adFor(seg, markers))
+                : [];
+              const firstAd = ads.find(Boolean);
+              return (
+                <li key={`${para.start}-${i}`} className="flex gap-3 border-l-2 border-l-transparent pl-3">
+                  <span className="shrink-0 w-16 tabular-nums text-muted-foreground">
+                    {formatTimestamp(para.start)}
+                  </span>
+                  <span className="min-w-0 flex-1 break-words leading-relaxed">
+                    {para.members.map((seg, j) => (
+                      <Fragment key={`${seg.start}-${j}`}>
+                        {j > 0 && ' '}
+                        <span className={ads[j] ? 'bg-destructive/10 rounded-sm box-decoration-clone' : undefined}>
+                          <Highlight text={seg.text.trim()} needle={needle} />
+                        </span>
+                      </Fragment>
+                    ))}
+                  </span>
+                  {firstAd && (
+                    <span className={`${badgeBase} shrink-0 self-start ${tint.destructive}`}>
+                      {firstAd.sponsor || 'Ad'}
+                    </span>
+                  )}
+                </li>
+              );
+            })}
+          </ol>
+        )}
+        {!asParagraphs && visible.length > 0 && (
           <ol className="text-sm space-y-px">
             {visible.map((seg, i) => {
               const ad = highlight && source === 'original' ? adFor(seg, markers) : undefined;
