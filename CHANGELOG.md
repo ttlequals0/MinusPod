@@ -57,6 +57,13 @@ release notes.
   stinger that sat inside the LLM span, because only edges the cue snap had
   already moved acted as limits. Removable template cues inside the span
   now hold the edge too, so the stinger is cut with the ad wherever it falls.
+- MP3 stream copy: a final cut that ends inside the two-frame warm-up
+  before the stream end is extended to the end instead of refusing and
+  falling back to a re-encode. A leading frame the mp3 demuxer skips as
+  junk no longer fails validation when source and copy are short by the
+  same frames. Validation reads from decoder pipes instead of writing two
+  32-bit PCM files, which removes about 3 GB of temporary disk writes per
+  70-minute episode. Ported from batram's plusminuspod fork.
 - Foldable phones: the page shell, fixed bars and floating buttons pad for
   the left and right safe-area insets, so nothing sits under a side status
   bar on a folded outer display. Stat and tile grids use two or four
