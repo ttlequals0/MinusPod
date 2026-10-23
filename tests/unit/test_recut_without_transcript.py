@@ -71,3 +71,28 @@ def test_vtt_only_row_counts_as_transcript_in_both_queries(temp_db):
     temp_db.get_connection().commit()
     rows = temp_db.get_episodes_pending_recut()
     assert [r['has_transcript'] for r in rows] == [1]
+
+
+def _recut_with_no_segments(episode_row):
+    with ExitStack() as stack:
+        db, _storage, local_ap = stub_recut(stack, [], [], episode_row=episode_row, duration=600.0)
+        db.get_original_segments.return_value = []
+        stack.enter_context(patch.object(processing.shutil, 'move'))
+        stack.enter_context(patch.object(publish, '_generate_assets'))
+        stack.enter_context(patch.object(finalize, '_finalize_episode'))
+        local_ap.get_audio_duration.return_value = 600.0
+        local_ap.process_episode.return_value = ('/tmp/recut-cut.mp3', [])
+        recut._recut_episode('example-podcast', 'a1b2c3d4e5f6', 'Episode', 'Podcast', '', time.time())
+        return local_ap
+
+
+def test_recut_with_transcript_but_no_segments_raises(caplog):
+    local_ap = _recut_with_no_segments({'podcast_id': 1, 'processed_version': 0, 'has_transcript': 1})
+    assert 'No saved transcript segments; cannot recut' in caplog.text
+    local_ap.process_episode.assert_not_called()
+
+
+def test_recut_without_transcript_flag_proceeds_past_the_segment_guard(caplog):
+    local_ap = _recut_with_no_segments({'podcast_id': 1, 'processed_version': 0, 'has_transcript': 0})
+    assert 'No saved transcript segments' not in caplog.text
+    local_ap.process_episode.assert_called_once()

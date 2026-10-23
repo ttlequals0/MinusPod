@@ -425,6 +425,11 @@ def _recut_episode(slug, episode_id, episode_title, podcast_name,
 
         # Empty for an episode that never had a transcript (cue-only, transcription skipped).
         segments = db.get_original_segments(slug, episode_id) or []
+        if not segments:
+            if 'has_transcript' not in (episode_data or {}):
+                episode_data = db.get_episode(slug, episode_id)
+            if (episode_data or {}).get('has_transcript'):
+                raise Exception("No saved transcript segments; cannot recut")
 
         bitrate, compression_level = common.resolve_audio_encode_settings()
         audio_output = db.resolve_audio_output(slug, podcast=podcast_row)

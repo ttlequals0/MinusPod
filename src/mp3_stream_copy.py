@@ -341,6 +341,11 @@ def _decode(path, output, timeout):
         raise CopyUnavailable('MP3 decode validation failed')
 
 
+def _decode_command(path):
+    return ['ffmpeg', *SAFE_MEDIA_INPUT_ARGS, '-v', 'error', '-nostats', '-i', path,
+            '-map', '0:a:0', '-c:a', 'pcm_s32le', '-f', 's32le', '-']
+
+
 class _PcmPipe:
     """Forward-only reader over ffmpeg's decoded PCM, straight from a pipe.
 
@@ -356,13 +361,28 @@ class _PcmPipe:
         self.pos = 0
         self.timed_out = False
         self.proc = subprocess.Popen(
-            ['ffmpeg', *SAFE_MEDIA_INPUT_ARGS, '-v', 'error', '-nostats', '-i', path,
-             '-map', '0:a:0', '-c:a', 'pcm_s32le', '-f', 's32le', '-'],
+            _decode_command(path),
             stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         subprocess_registry.register(self.proc)
+        self.stderr = b''
+        self.drain = threading.Thread(target=self._drain_stderr, daemon=True)
+        self.drain.start()
         self.timer = threading.Timer(timeout, self._kill)
         self.timer.daemon = True
         self.timer.start()
+
+    def _drain_stderr(self):
+        # Read to EOF so a chatty decoder never blocks on a full pipe; keep the first 64 KB.
+        kept = []
+        size = 0
+        while True:
+            data = self.proc.stderr.read(1 << 16)
+            if not data:
+                break
+            if size < 1 << 16:
+                kept.append(data[:(1 << 16) - size])
+                size += len(kept[-1])
+        self.stderr = b''.join(kept)
 
     def _kill(self):
         self.timed_out = True
@@ -407,8 +427,8 @@ class _PcmPipe:
             total += len(data)
         self.proc.wait()
         self.timer.cancel()
-        stderr = self.proc.stderr.read()
-        if self.timed_out or self.proc.returncode or stderr:
+        self.drain.join()
+        if self.timed_out or self.proc.returncode or self.stderr:
             raise CopyUnavailable('MP3 decode validation failed')
         return total // self.block
 
@@ -418,6 +438,11 @@ class _PcmPipe:
             self.proc.kill()
             self.proc.wait()
         subprocess_registry.unregister(self.proc)
+
+
+def _required_space(filler_samples, block, staged_bytes):
+    """Disk needed in the work dir: the filler PCM plus the staged mp3 (validation streams the rest)."""
+    return filler_samples * block + staged_bytes
 
 
 def _first_packet(path):
@@ -588,9 +613,12 @@ def copy_mp3(source_path, output_path, cuts, barriers=(), replacement_path=None,
             last_end_locked = bool(locked) and locked[len(intervals) - 1][1]
             if intervals and previous > 0 and not last_end_locked:
                 trailing = stream.decoded_samples - boundaries[previous]
+                tail_end = stream.decoded_samples / stream.rate
+                if any(b['start'] < tail_end and b['end'] > snapped[-1]['start'] for b in barriers):
+                    raise CopyUnavailable('Snapped MP3 cut crosses protected audio')
                 lo_f, _hi_f = intervals[-1]
                 intervals[-1] = (lo_f, len(stream.frames))
-                snapped[-1]['end'] = stream.decoded_samples / stream.rate
+                snapped[-1]['end'] = tail_end
                 previous = count
                 has_end = True
                 logger.info('MP3 stream copy: extended final cut to the stream end '
@@ -638,7 +666,7 @@ def copy_mp3(source_path, output_path, cuts, barriers=(), replacement_path=None,
                 raise CopyUnavailable('MP3 decoded length unavailable')
             if max(stream.decoded_samples, output_samples) * block > MAX_PCM_BYTES:
                 raise CopyUnavailable('PCM validation size limit exceeded')
-            required = (stream.decoded_samples + output_samples + filler_samples) * block + os.path.getsize(source_path)
+            required = _required_space(filler_samples, block, os.path.getsize(source_path))
             if shutil.disk_usage(directory).free < required:
                 raise CopyUnavailable('Insufficient disk space for PCM validation')
             staged = str(Path(directory) / 'candidate.mp3')

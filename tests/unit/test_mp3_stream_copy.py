@@ -3,6 +3,7 @@
 import dataclasses
 import shutil
 import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -398,3 +399,34 @@ def test_final_cut_with_locked_end_short_of_the_stream_is_still_refused(source, 
     assert copy_mp3(str(source), str(output), [{'start': 60, 'end': _end_two_frames_short(source)}],
                     locked=[(False, True)]) is None
     assert output.read_bytes() == existing
+
+
+def test_required_space_does_not_scale_with_decoded_length():
+    block = 8
+    assert mp3_stream_copy._required_space(0, block, 5_000_000) == 5_000_000
+    assert mp3_stream_copy._required_space(1000, block, 5_000_000) == 5_008_000
+
+
+def test_barrier_in_the_trailing_sub_warmup_tail_refuses_the_extension(source, tmp_path):
+    output = tmp_path / 'output.mp3'
+    stream = _scan(source)
+    end = _end_two_frames_short(source)
+    decoded_end = stream.decoded_samples / stream.rate
+    assert copy_mp3(str(source), str(output), [{'start': 60, 'end': end}],
+                    barriers=[{'start': decoded_end - .001, 'end': decoded_end}]) is None
+    assert not output.exists()
+
+
+def test_chatty_decoder_stderr_does_not_deadlock(tmp_path, monkeypatch):
+    script = ('import sys\nsys.stderr.write("x" * 200000)\nsys.stderr.flush()\n'
+              'sys.stdout.buffer.write(b"\\0" * 4000)\n')
+    monkeypatch.setattr(mp3_stream_copy, '_decode_command',
+                        lambda path: [sys.executable, '-c', script])
+    pipe = mp3_stream_copy._PcmPipe('ignored', 4, 20)
+    try:
+        with pytest.raises(mp3_stream_copy.CopyUnavailable):
+            pipe.finish()
+        assert not pipe.timed_out
+        assert len(pipe.stderr) == 1 << 16
+    finally:
+        pipe.close()

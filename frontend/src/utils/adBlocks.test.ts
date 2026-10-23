@@ -31,8 +31,8 @@ describe('groupAdBlocks', () => {
     expect(groupAdBlocks([m(0, 100), m(10, 20)])[0].end).toBe(100);
   });
 
-  it('joins at exactly 5 s and splits at 5.01 s', () => {
-    expect(groupAdBlocks([m(0, 10), m(15, 20)])).toHaveLength(1);
-    expect(groupAdBlocks([m(0, 10), m(15.01, 20)])).toHaveLength(2);
+  it('joins at a 4.99 s gap and splits at exactly 5 s', () => {
+    expect(groupAdBlocks([m(0, 10), m(14.99, 20)])).toHaveLength(1);
+    expect(groupAdBlocks([m(0, 10), m(15, 20)])).toHaveLength(2);
   });
 });
