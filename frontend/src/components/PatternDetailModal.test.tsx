@@ -1,6 +1,7 @@
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { MemoryRouter } from 'react-router';
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 import PatternDetailModal from './PatternDetailModal';
 import type { AdPattern } from '../api/patterns';
@@ -49,9 +50,11 @@ function renderModal(pattern: AdPattern, onClose = vi.fn(), onSave = vi.fn()) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   const invalidateSpy = vi.spyOn(qc, 'invalidateQueries');
   render(
-    <QueryClientProvider client={qc}>
-      <PatternDetailModal pattern={pattern} onClose={onClose} onSave={onSave} />
-    </QueryClientProvider>,
+    <MemoryRouter>
+      <QueryClientProvider client={qc}>
+        <PatternDetailModal pattern={pattern} onClose={onClose} onSave={onSave} />
+      </QueryClientProvider>
+    </MemoryRouter>,
   );
   return { invalidateSpy };
 }
@@ -178,5 +181,12 @@ describe('Footer actions', () => {
     expect(screen.getByRole('button', { name: 'Cancel' })).toBeDefined();
     await userEvent.click(screen.getByRole('button', { name: 'Yes, Delete' }));
     await waitFor(() => expect(mockDeletePattern).toHaveBeenCalledWith(42));
+  });
+});
+
+describe('podcast link', () => {
+  it('links to the feed page, not the API episodes path', () => {
+    renderModal(makePattern({ podcast_slug: 'example-podcast' }));
+    expect(screen.getByRole('link', { name: 'example-podcast' }).getAttribute('href')).toBe('/feeds/example-podcast');
   });
 });

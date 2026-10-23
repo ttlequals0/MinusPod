@@ -1,4 +1,5 @@
 import { Check, Pencil, Scissors, Trash2, X } from 'lucide-react';
+import { Link } from 'react-router';
 import { useDraftClose } from '../hooks/useDraftClose';
 import { useEffect, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -342,12 +343,13 @@ function PatternDetailModal({ pattern, onClose, onSave }: PatternDetailModalProp
             {pattern.podcast_slug && (
               <div>
                 <span className="text-muted-foreground">Podcast:</span>
-                <a
-                  href={`/feeds/${pattern.podcast_slug}/episodes`}
+                <Link
+                  to={`/feeds/${pattern.podcast_slug}`}
+                  onClick={onClose}
                   className={`ml-2 text-primary hover:underline break-all ${focusRing}`}
                 >
                   {pattern.podcast_slug}
-                </a>
+                </Link>
               </div>
             )}
             {pattern.created_from_episode_id && (

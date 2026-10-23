@@ -72,6 +72,8 @@ release notes.
   width gets two cards per row.
   When the browser reports a two-segment viewport, dialogs stay inside the
   right-hand half instead of spanning the hinge.
+- Pattern details: the Podcast link opened the API episodes path and
+  returned Not Found. It now goes to the feed page. (#876)
 - Episode page: cut markers that the audio processor merges into one span
   (overlapping, or within 5 s of each other) show as one block in Detected
   Ads, with the whole span's play button and a segments toggle that opens
