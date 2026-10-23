@@ -16,14 +16,14 @@ from systemone.adapter import SystemOneSettings, parse_transcript, run_chat_comp
 
 
 TS_LINES = [
-    "[0.0s - 6.0s] Welcome back to the show.",
-    "[6.0s - 12.0s] Today we talk about hiking trips.",
-    "[12.0s - 18.0s] It was a great trip in the mountains.",
-    "[18.0s - 24.0s] This episode is sponsored by BetterHelp.",
-    "[24.0s - 30.0s] BetterHelp offers online therapy at betterhelp.com slash show.",
-    "[30.0s - 36.0s] Use code SHOW for ten percent off your first month today.",
-    "[36.0s - 42.0s] Anyway, back to the trip we were on.",
-    "[42.0s - 48.0s] We hiked for hours and it was tiring.",
+    "[0.0-6.0] Welcome back to the show.",
+    "[6.0-12.0] Today we talk about hiking trips.",
+    "[12.0-18.0] It was a great trip in the mountains.",
+    "[18.0-24.0] This episode is sponsored by BetterHelp.",
+    "[24.0-30.0] BetterHelp offers online therapy at betterhelp.com slash show.",
+    "[30.0-36.0] Use code SHOW for ten percent off your first month today.",
+    "[36.0-42.0] Anyway, back to the trip we were on.",
+    "[42.0-48.0] We hiked for hours and it was tiring.",
 ]
 
 
@@ -144,7 +144,7 @@ def test_large_custom_system_policy_is_forwarded_without_truncation(temp_db):
 
     run_chat_completion(
         messages=[{"role": "system", "content": policy},
-                  {"role": "user", "content": "[0.0s - 1.0s] sponsored by BetterHelp"}],
+                  {"role": "user", "content": "[0.0-1.0] sponsored by BetterHelp"}],
         request_model="jev-latest",
         settings=SystemOneSettings(model="jev-latest", category_pass=False),
         fetcher=fetcher, sponsor_lookup=_sponsor_lookup(_sponsor_service(temp_db, "BetterHelp")),
@@ -156,7 +156,7 @@ def test_large_custom_system_policy_is_forwarded_without_truncation(temp_db):
 def test_unmatched_sponsor_stays_unlabeled_with_grounded_reason(temp_db):
     prompt = format_window_prompt(
         "Example Podcast", "Episode", "",
-        ["[0.0s - 10.0s] Sponsored by Unknown Brand, visit example.com today."],
+        ["[0.0-10.0] Sponsored by Unknown Brand, visit example.com today."],
         0, 1, 0.0, 600.0,
     )
     result = run_chat_completion(

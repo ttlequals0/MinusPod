@@ -256,7 +256,7 @@ BE ACCURATE: Don't invent ads. Many episodes will be completely clean after the 
 OUTPUT FORMAT:
 Return ONLY a valid JSON array. No explanation, no markdown.
 
-Each ad segment: {{"start": FLOAT_SECONDS, "end": FLOAT_SECONDS, "confidence": FLOAT_0_TO_1, "category": "sponsor|cross_promo|self_promo|interaction|intro|outro|recap", "reason": "brief description", "end_text": "last 3-5 words"}}
+Each ad segment: {"start": FLOAT_SECONDS, "end": FLOAT_SECONDS, "confidence": FLOAT_0_TO_1, "category": "sponsor|cross_promo|self_promo|interaction|intro|outro|recap", "reason": "brief description", "end_text": "last 3-5 words"}
 
 "category" is REQUIRED on every object, the same as in the first pass. Use:
 - sponsor: a paid host read, a produced ad spot, a dynamically inserted ad (DAI), or a platform-inserted ad
@@ -271,20 +271,20 @@ An orphaned fragment left by a cut takes the category of the ad it belonged to.
 ALL values for "start", "end", and "confidence" MUST be numeric (float). Never use strings like "high", "low", "medium", or percentages like "95%". Examples: "start": 45.0, "end": 82.0, "confidence": 0.95
 
 FRAGMENT EXAMPLE:
-[120.0s - 122.0s] So yeah, that's really interesting.
-[122.5s - 124.0s] [transition tone]
-[124.5s - 128.0s] at athleticgreens.com slash podcast. Anyway, moving on to
-[128.5s - 132.0s] the next topic I wanted to discuss was the new research.
+[120.0-122.0] So yeah, that's really interesting.
+[122.5-124.0] [transition tone]
+[124.5-128.0] at athleticgreens.com slash podcast. Anyway, moving on to
+[128.5-132.0] the next topic I wanted to discuss was the new research.
 
-Output: [{{"start": 124.5, "end": 128.0, "confidence": 0.95, "category": "sponsor", "reason": "Athletic Greens ad fragment -- orphaned URL after cut boundary", "end_text": "moving on to"}}]
+Output: [{"start": 124.5, "end": 128.0, "confidence": 0.95, "category": "sponsor", "reason": "Athletic Greens ad fragment -- orphaned URL after cut boundary", "end_text": "moving on to"}]
 
 MISSED AD EXAMPLE:
-[340.0s - 342.0s] You know what I've been really into lately?
-[342.5s - 348.0s] I've been using this app called Calm and it's been amazing for my sleep.
-[348.5s - 365.0s] They have these sleep stories and meditations... You can try it free for 30 days at calm.com/podcast.
-[365.5s - 368.0s] But anyway, getting back to what we were saying about
+[340.0-342.0] You know what I've been really into lately?
+[342.5-348.0] I've been using this app called Calm and it's been amazing for my sleep.
+[348.5-365.0] They have these sleep stories and meditations... You can try it free for 30 days at calm.com/podcast.
+[365.5-368.0] But anyway, getting back to what we were saying about
 
-Output: [{{"start": 340.0, "end": 365.0, "confidence": 0.92, "category": "sponsor", "reason": "Calm app sponsor read -- missed baked-in ad with free trial URL", "end_text": "calm.com/podcast"}}]
+Output: [{"start": 340.0, "end": 365.0, "confidence": 0.92, "category": "sponsor", "reason": "Calm app sponsor read -- missed baked-in ad with free trial URL", "end_text": "calm.com/podcast"}]
 
 CLEAN EPISODE EXAMPLE:
 [no promotional content found in transcript]
@@ -314,7 +314,7 @@ DROP THE AD (return empty array): The candidate is not a real-world advertisemen
 - A comedic bit or fictional sponsor read that is part of the show's creative content (no real product behind it)
 - Silence, pauses, or audio production artifacts with no promotional transcript content
 - Topic transitions or content gaps without promotional language
-You may also return [{{"is_ad": false, "reason": "why"}}] instead of an empty array to reject explicitly.
+You may also return [{"is_ad": false, "reason": "why"}] instead of an empty array to reject explicitly.
 
 DO NOT REJECT (these ARE real ads, keep them):
 - Host-read sponsor segments, including ones without promo codes
@@ -337,7 +337,7 @@ WHEN IN DOUBT: Keep the ad with original boundaries unchanged. Do not drop unles
 OUTPUT FORMAT:
 Return ONLY a valid JSON array. No explanation, no markdown.
 
-Each kept ad: {{"is_ad": BOOLEAN_TRUE_ONLY_IF_REAL_AD, "start": FLOAT_SECONDS, "end": FLOAT_SECONDS, "confidence": FLOAT_0_TO_1, "reason": "brief description"}}
+Each kept ad: {"is_ad": BOOLEAN_TRUE_ONLY_IF_REAL_AD, "start": FLOAT_SECONDS, "end": FLOAT_SECONDS, "confidence": FLOAT_0_TO_1, "reason": "brief description"}
 
 Set "is_ad" true only when the span is a real advertisement to cut. Set it false, or return an empty array, when it is not.
 
@@ -345,39 +345,39 @@ ALL values for "start", "end", and "confidence" MUST be numeric (float). Never u
 
 EXAMPLE - KEEP UNCHANGED (boundaries are correct):
 Original boundaries: 1245.00s - 1320.50s.
-[1240.0s-1245.0s] We will pick that thread back up in a minute.
+[1240.0-1245.0] We will pick that thread back up in a minute.
 >>> CANDIDATE AD START [1245.0s] >>>
-[1245.0s-1248.0s] This episode is brought to you by BetterHelp.
-[1248.0s-1315.0s] BetterHelp is the largest online therapy platform...
-[1315.0s-1320.5s] Visit betterhelp.com slash podcast. That's betterhelp.com slash podcast.
+[1245.0-1248.0] This episode is brought to you by BetterHelp.
+[1248.0-1315.0] BetterHelp is the largest online therapy platform...
+[1315.0-1320.5] Visit betterhelp.com slash podcast. That's betterhelp.com slash podcast.
 <<< CANDIDATE AD END [1320.5s] <<<
-[1320.5s-1325.0s] Anyway, back to what we were talking about.
+[1320.5-1325.0] Anyway, back to what we were talking about.
 
-Output: [{{"is_ad": true, "start": 1245.0, "end": 1320.5, "confidence": 0.95, "reason": "Confirmed BetterHelp host-read sponsor with clean boundaries"}}]
+Output: [{"is_ad": true, "start": 1245.0, "end": 1320.5, "confidence": 0.95, "reason": "Confirmed BetterHelp host-read sponsor with clean boundaries"}]
 
 EXAMPLE - ADJUST BOUNDARIES (start was late, end was early):
 Original boundaries: 100.00s - 130.00s.
-[92.0s-95.0s] So that wraps up our discussion. Let's take a quick break.
-[95.0s-100.0s] This episode is brought to you by Athletic Greens.
+[92.0-95.0] So that wraps up our discussion. Let's take a quick break.
+[95.0-100.0] This episode is brought to you by Athletic Greens.
 >>> CANDIDATE AD START [100.0s] >>>
-[100.0s-128.0s] AG1 is the daily foundational nutrition supplement...
-[128.0s-130.0s] Go to athleticgreens.com slash podcast.
+[100.0-128.0] AG1 is the daily foundational nutrition supplement...
+[128.0-130.0] Go to athleticgreens.com slash podcast.
 <<< CANDIDATE AD END [130.0s] <<<
-[130.0s-132.0s] That's athleticgreens.com slash podcast.
-[132.0s-135.0s] Now, back to our conversation.
+[130.0-132.0] That's athleticgreens.com slash podcast.
+[132.0-135.0] Now, back to our conversation.
 
 Both adjusted timestamps are read straight off context lines: 95.0 starts the line before the marker, 132.0 ends the line after it.
 
-Output: [{{"is_ad": true, "start": 95.0, "end": 132.0, "confidence": 0.92, "reason": "Started at the transition line at 95.0s; ended at 132.0s after the repeated URL"}}]
+Output: [{"is_ad": true, "start": 95.0, "end": 132.0, "confidence": 0.92, "reason": "Started at the transition line at 95.0s; ended at 132.0s after the repeated URL"}]
 
 EXAMPLE - DROP (host mentioning a brand editorially, not an ad):
 Original boundaries: 50.00s - 70.00s.
-[45.0s-50.0s] Have you been following the Apple antitrust case?
+[45.0-50.0] Have you been following the Apple antitrust case?
 >>> CANDIDATE AD START [50.0s] >>>
-[50.0s-62.0s] The DOJ argued that Apple's app store policies harm developers.
-[62.0s-70.0s] They want the court to force a change to the commission structure.
+[50.0-62.0] The DOJ argued that Apple's app store policies harm developers.
+[62.0-70.0] They want the court to force a change to the commission structure.
 <<< CANDIDATE AD END [70.0s] <<<
-[70.0s-74.0s] What's your take on the proposed remedies?
+[70.0-74.0] What's your take on the proposed remedies?
 
 Output: []{sponsor_database}"""
 
@@ -398,7 +398,7 @@ KEEP REJECTED (return empty array): Agree with the validator. The segment is not
 - Brand names mentioned in passing as part of editorial topic discussion
 - Comedic bits or fictional sponsor reads in the show's creative content
 - Silence, pauses, or topic transitions with no promotional transcript content
-You may also return [{{"is_ad": false, "reason": "why"}}] instead of an empty array to reject explicitly.
+You may also return [{"is_ad": false, "reason": "why"}] instead of an empty array to reject explicitly.
 
 AUDIO CUE SIGNALS: if a labelled audio cue brackets or sits next to the rejected segment, treat it as strong evidence a break happened there; a cue-bracketed segment with even a single sponsor mention is usually a real ad the validator was too cautious about -- resurrect it.
 
@@ -407,7 +407,7 @@ WHEN IN DOUBT: Agree with the validator and return empty. Only resurrect when th
 OUTPUT FORMAT:
 Return ONLY a valid JSON array. No explanation, no markdown.
 
-Each resurrected ad: {{"is_ad": BOOLEAN_TRUE_ONLY_IF_REAL_AD, "start": FLOAT_SECONDS, "end": FLOAT_SECONDS, "confidence": FLOAT_0_TO_1, "reason": "brief description"}}
+Each resurrected ad: {"is_ad": BOOLEAN_TRUE_ONLY_IF_REAL_AD, "start": FLOAT_SECONDS, "end": FLOAT_SECONDS, "confidence": FLOAT_0_TO_1, "reason": "brief description"}
 
 Set "is_ad" true only when the span is a real advertisement to cut. Set it false, or return an empty array, when it is not.
 
@@ -419,7 +419,7 @@ Validator-rejected segment: 666.7s - 674.3s (validator confidence 0.71)
 [666.7s] Hosted on Acast. See acast dot com slash privacy for more information.
 [674.5s] Welcome back, today we're talking about the Switch 2 launch.
 
-Output: [{{"is_ad": true, "start": 666.7, "end": 674.3, "confidence": 0.92, "reason": "Acast hosting platform post-roll, clearly promotional and not editorial"}}]
+Output: [{"is_ad": true, "start": 666.7, "end": 674.3, "confidence": 0.92, "reason": "Acast hosting platform post-roll, clearly promotional and not editorial"}]
 
 EXAMPLE - KEEP REJECTED (validator was right):
 Validator-rejected segment: 200.0s - 215.0s (validator confidence 0.65)

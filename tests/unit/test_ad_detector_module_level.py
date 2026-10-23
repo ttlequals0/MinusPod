@@ -165,7 +165,7 @@ def test_phase_for_pass_defaults_on_unknown_pass_instead_of_raising():
 def test_format_window_prompt_includes_window_header():
     out = format_window_prompt(
         podcast_name='Test', episode_title='Ep1',
-        description_section='', transcript_lines=['[0.0s - 5.0s] hello'],
+        description_section='', transcript_lines=['[0.0-5.0] hello'],
         window_index=2, total_windows=4,
         window_start=600.0, window_end=1200.0,
     )
@@ -176,7 +176,7 @@ def test_format_window_prompt_includes_window_header():
 def test_format_window_prompt_appends_audio_context_between_template_and_header():
     out = format_window_prompt(
         podcast_name='Test', episode_title='Ep1',
-        description_section='', transcript_lines=['[0.0s - 5.0s] hi'],
+        description_section='', transcript_lines=['[0.0-5.0] hi'],
         window_index=0, total_windows=1,
         window_start=0.0, window_end=600.0,
         audio_context='\n=== AUDIO ===\nvolume_drop at 5.0s\n',

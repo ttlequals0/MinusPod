@@ -89,10 +89,10 @@ def test_id_transcript_lines():
         '[3] foo']
     ts_lines = AdDetector._format_transcript_lines(segs, 'timestamps')
     assert ts_lines == [
-        '[0.0s - 3.0s] hello',
-        '[5.0s - 7.0s] cruel',
-        '[8.5s - 10.0s] world',
-        '[11.0s - 12.0s] foo']
+        '[0.0-3.0] hello',
+        '[5.0-7.0] cruel',
+        '[8.5-10.0] world',
+        '[11.0-12.0] foo']
 
 
 def test_timestamp_transcript_lines_expose_timed_show_and_ad_utterances():
@@ -107,10 +107,10 @@ def test_timestamp_transcript_lines_expose_timed_show_and_ad_utterances():
     }
 
     assert AdDetector._format_transcript_lines([segment], 'timestamps') == [
-        '[10.0s - 11.5s] Host story.',
-        '[12.0s - 15.5s] Our sponsor is Acme.',
-        '[16.0s - 17.5s] Visit acme.com.',
-        '[18.0s - 21.5s] Back to the topic.',
+        '[10.0-11.5] Host story.',
+        '[12.0-15.5] Our sponsor is Acme.',
+        '[16.0-17.5] Visit acme.com.',
+        '[18.0-21.5] Back to the topic.',
     ]
     segment['sid'] = 3
     assert AdDetector._format_transcript_lines([segment], 'segment_ids') == [
@@ -127,8 +127,8 @@ def test_timestamp_transcript_lines_chunk_unpunctuated_speech_without_word_loss(
 
     lines = AdDetector._format_transcript_lines([segment], 'timestamps')
     assert len(lines) == 3
-    assert lines[0].startswith('[0.0s - 24.5s] ')
-    assert lines[-1] == '[50.0s - 54.5s] word50 word51 word52 word53 word54'
+    assert lines[0].startswith('[0.0-24.5] ')
+    assert lines[-1] == '[50.0-54.5] word50 word51 word52 word53 word54'
     assert ' '.join(line.split('] ', 1)[1] for line in lines) == segment['text']
 
 
@@ -138,7 +138,7 @@ def test_timestamp_transcript_lines_fall_back_for_unaligned_word_timing():
         'words': [{'start': 10.0, 'end': 11.0, 'word': 'Different'}],
     }
     assert AdDetector._format_transcript_lines([segment], 'timestamps') == [
-        '[10.0s - 20.0s] The actual transcript.']
+        '[10.0-20.0] The actual transcript.']
 
 
 def test_segment_ids_resolve_word_timed_ad_inside_mixed_segment():

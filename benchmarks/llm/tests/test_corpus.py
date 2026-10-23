@@ -75,7 +75,7 @@ def test_compute_windows_uses_minuspod_logic():
     windows = compute_windows(big)
     assert len(windows) >= 2
     assert windows[0].start == 0.0
-    assert windows[0].transcript_lines[0].startswith("[0.0s - 1.0s] seg0")
+    assert windows[0].transcript_lines[0].startswith("[0.0-1.0] seg0")
     assert all(w.end > w.start for w in windows)
 
 

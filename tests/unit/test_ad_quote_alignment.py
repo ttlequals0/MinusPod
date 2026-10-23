@@ -307,9 +307,9 @@ def test_jev_detection_without_quotes_reaches_renderer(monkeypatch,
             'slug': 'example-podcast', 'episode_id': 'episode-1',
             'podcast_id': 1,
         }, pool='accepted')
-    assert '[6.0s-11.8s] A word from our sponsor Acme.' in prompt
-    assert '[89.0s-92.8s] Back to the story.' in prompt
-    assert '[0.0s-100.0s]' not in prompt
+    assert '[6.0-11.8] A word from our sponsor Acme.' in prompt
+    assert '[89.0-92.8] Back to the story.' in prompt
+    assert '[0.0-100.0]' not in prompt
 
     reviewer._llm_client.messages_create.return_value = _Response(
         '[{"start": 6.0, "end": 87.8, "confidence": 0.95, '

@@ -2,8 +2,8 @@
 
 Detection, verification, and reviewer prompts all use ``{placeholder}``
 substitution rather than appending content unconditionally. ``str.replace``
-(not ``str.format``) is intentional so literal ``{{...}}`` JSON examples in
-prompt bodies stay intact.
+(not ``str.format``) is intentional so literal ``{...}`` JSON examples in
+prompt bodies stay intact (also avoids injection attacks).
 """
 import re
 

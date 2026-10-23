@@ -61,7 +61,6 @@ _SPONSOR_FIELD_STEMS = frozenset(_singular(f) for f in SPONSOR_PRIORITY_FIELDS)
 USER_PROMPT_TEMPLATE = """Podcast: {podcast_name}
 Episode: {episode_title}
 {description_section}
-Transcript:
 {transcript}"""
 
 def create_windows(segments: list[dict], window_size: float = None,
@@ -159,7 +158,12 @@ def format_window_prompt(
     message. Callers that never pass it (benchmark, keep-content windows)
     get 'timestamps' behavior unchanged.
     """
-    transcript = "\n".join(transcript_lines)
+    if addressing_mode == "segment_ids":
+        transcript = "Transcript (with [{id}] prefix):\n"
+    else:
+        transcript = "Transcript (with [{start}-{end}] timestamp, in seconds):\n"
+    transcript += "\n".join(transcript_lines)
+
     header = (
         f"\n\n=== WINDOW {window_index + 1}/{total_windows}: "
         f"{window_start/60:.1f}-{window_end/60:.1f} minutes ==="

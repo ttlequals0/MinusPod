@@ -167,13 +167,13 @@ def get_timestamped_transcript_for_range(
         end_time: End of range in seconds
 
     Returns:
-        Newline-joined lines in the form "[12.3s-15.7s] text"
+        Newline-joined lines in the form "[12.3-15.7] text"
     """
     lines = []
     for seg in segments:
         if seg['end'] >= start_time and seg['start'] <= end_time:
             lines.append(
-                f"[{seg['start']:.1f}s-{seg['end']:.1f}s] {seg.get('text', '')}"
+                f"[{seg['start']:.1f}-{seg['end']:.1f}] {seg.get('text', '')}"
             )
     return '\n'.join(lines)
 
@@ -197,7 +197,7 @@ def get_timestamped_words_for_range(
             if end >= start_time and start <= end_time:
                 text = str(word.get('word', '')).strip()
                 if text:
-                    words.append(f"[{start:.2f}s-{end:.2f}s] {text}")
+                    words.append(f"[{start:.2f}-{end:.2f}] {text}")
     return '\n'.join(words)
 
 

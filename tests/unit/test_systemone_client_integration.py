@@ -73,7 +73,7 @@ def test_call_llm_returns_native_adapter_envelope_and_accounts_http_dispatch(
     client = llm_client.SystemOneClient(
         PROVIDER_TYPESAFE, base_url='https://api.typesafe.ai/v1', api_key=None)
     prompt = format_window_prompt(
-        'Example', 'Episode', '', ['[0.0s - 6.0s] We hiked in the mountains.'],
+        'Example', 'Episode', '', ['[0.0-6.0] We hiked in the mountains.'],
         0, 1, 0.0, 6.0,
     )
     try:
@@ -187,7 +187,7 @@ def test_concurrent_calls_keep_model_settings_and_transport_local(temp_db, monke
     client = llm_client.SystemOneClient(
         PROVIDER_TYPESAFE, base_url='https://api.typesafe.ai/v1', api_key=None)
     prompt = format_window_prompt(
-        'Example', 'Episode', '', ['[0.0s - 6.0s] We hiked in the mountains.'],
+        'Example', 'Episode', '', ['[0.0-6.0] We hiked in the mountains.'],
         0, 1, 0.0, 6.0,
     )
 
@@ -464,7 +464,7 @@ def test_account_change_after_response_finalizes_usage_without_retry(temp_db, mo
     client = llm_client.SystemOneClient(
         PROVIDER_TYPESAFE, base_url='https://api.typesafe.ai/v1', api_key=None)
     prompt = format_window_prompt(
-        'Example', 'Episode', '', ['[0.0s - 6.0s] We hiked in the mountains.'],
+        'Example', 'Episode', '', ['[0.0-6.0] We hiked in the mountains.'],
         0, 1, 0.0, 6.0,
     )
     try:
@@ -588,7 +588,7 @@ def test_concurrent_native_calls_accumulate_into_shared_detector_run(temp_db, mo
     client = llm_client.SystemOneClient(PROVIDER_TYPESAFE,
                                       base_url='https://api.typesafe.ai/v1', api_key=None)
     prompt = format_window_prompt('Example', 'Episode', '',
-                                 ['[0.0s - 6.0s] We hiked in the mountains.'], 0, 1, 0.0, 6.0)
+                                 ['[0.0-6.0] We hiked in the mountains.'], 0, 1, 0.0, 6.0)
     ctx = run_context.begin('example-podcast', 'a1b2c3d4e5f6')
     ctx.tokens.start()
 
@@ -633,7 +633,7 @@ def test_native_composition_snapshots_source_seed_names_and_exact_aliases(temp_d
     client = llm_client.SystemOneClient(PROVIDER_TYPESAFE,
                                       base_url='https://api.typesafe.ai/v1', api_key=None)
     prompt = format_window_prompt('Example', 'Episode', '',
-                                 ['[0.0s - 6.0s] We hiked in the mountains.'], 0, 1, 0.0, 6.0)
+                                 ['[0.0-6.0] We hiked in the mountains.'], 0, 1, 0.0, 6.0)
     response, error = call_llm(llm_client=client, model='jev-latest', system_prompt='policy',
                                prompt=prompt, llm_timeout=30, max_retries=0, max_tokens=200,
                                call_label='seed', phase_key='detection', provider=PROVIDER_TYPESAFE,

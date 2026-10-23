@@ -258,7 +258,7 @@ def _run_detect_ads(*, detect_show_segments, segment_actions, ads,
     window_result = WindowResult(
         window_idx=0, window_start=0.0, window_end=1000.0,
         ads=ads, raw_response='raw', failed=False, last_error=None,
-        transcript_excerpt='[0.0s - 1000.0s] some transcript text')
+        transcript_excerpt='[0.0-1000.0] some transcript text')
     run_windows = MagicMock(return_value=[window_result])
     repair_mock = MagicMock(
         side_effect=repair_side_effect if repair_side_effect is not None
@@ -446,7 +446,7 @@ def _detect_ads_with_fake_client(*, detect_show_segments, segment_actions,
     window_result = WindowResult(
         window_idx=0, window_start=0.0, window_end=1000.0,
         ads=ads, raw_response='raw', failed=False, last_error=None,
-        transcript_excerpt='[0.0s - 1000.0s] some transcript text')
+        transcript_excerpt='[0.0-1000.0] some transcript text')
     run_windows = MagicMock(return_value=[window_result])
     with patch.object(detector, 'initialize_client'), \
          patch.object(detector, '_detect_foreign_language_ads', return_value=[]), \

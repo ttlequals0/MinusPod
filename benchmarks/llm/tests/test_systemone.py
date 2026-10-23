@@ -22,7 +22,7 @@ def _provider(kind='typesafe', **settings):
 
 
 def _prompt():
-    lines = [f"[{seg['start']:.1f}s - {seg['end']:.1f}s] {seg['text']}" for seg in contiguous(2)]
+    lines = [f"[{seg['start']:.1f}-{seg['end']:.1f}] {seg['text']}" for seg in contiguous(2)]
     return 'Podcast: Example\nEpisode title: Example\nTranscript:\n' + '\n'.join(lines)
 
 

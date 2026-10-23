@@ -170,7 +170,7 @@ def test_reconstruct_user_prompt_missing_field_defaults_to_timestamps(tmp_path, 
     ep = corpus.load_episode(ep_dir)
     rebuilt = runner.reconstruct_user_prompt({"episode_id": ep.ep_id, "window_index": 0}, corpus_dir=tmp_path)
     assert rebuilt == runner._build_user_prompt(ep, ep.windows[0], total_windows=1)
-    assert "[0.0s - 5.0s]" in rebuilt
+    assert "[0.0-5.0]" in rebuilt
 
 
 def test_reconstruct_user_prompt_uses_record_segment_id_mode(tmp_path, write_corpus_episode):

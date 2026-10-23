@@ -140,9 +140,9 @@ def test_word_only_candidate_recovery_reaches_jev(tmp_path):
         [],
         [(83.0, 90.0, "context after")],
     ) + (
-        "Boundary word timing, use these timestamps for corrections:\n"
-        "Start edge:\n[66.1s-70.0s] This episode is sponsored\n"
-        "End edge:\n[70.1s-82.2s] BetterHelp promo code\n"
+        "Boundary word timing, use these timestamps (in seconds) for corrections:\n"
+        "Start edge:\n[66.1-70.0] This episode is sponsored\n"
+        "End edge:\n[70.1-82.2] BetterHelp promo code\n"
     )
     calls = 0
     normal = make_text_fake()
@@ -207,9 +207,9 @@ def test_boundary_cap_setting_controls_offered_end_options(tmp_path):
          (130.0, 190.0, "Long editorial discussion."),
          (190.0, 195.0, "Closing remark.")],
     ) + (
-        "Boundary word timing, use these timestamps for corrections:\n"
-        "Start edge:\n[100.0s-101.0s] Editorial\n[110.0s-111.0s] Sponsor\n"
-        "End edge:\n[119.0s-120.0s] ends.\n[129.0s-130.0s] return.\n[189.0s-190.0s] discussion.\n"
+        "Boundary word timing, use these timestamps (in seconds) for corrections:\n"
+        "Start edge:\n[100.0-101.0] Editorial\n[110.0-111.0] Sponsor\n"
+        "End edge:\n[119.0-120.0] ends.\n[129.0-130.0] return.\n[189.0-190.0] discussion.\n"
     )
 
     def offered(cap):
@@ -271,9 +271,9 @@ def test_boundary_option_overflow_abstains_without_truncation(tmp_path):
         [(100.0, 120.0, "This episode is sponsored by Acme.")],
         [(120.0, 130.0, "Discussion resumes.")],
     ) + (
-        "Boundary word timing, use these timestamps for corrections:\nStart edge:\n"
-        + "".join(f"[{100.0 + index * 0.1:.2f}s-{100.05 + index * 0.1:.2f}s] word.\n" for index in range(255))
-        + "End edge:\n[129.0s-130.0s] sponsored\n"
+        "Boundary word timing, use these timestamps (in seconds) for corrections:\nStart edge:\n"
+        + "".join(f"[{100.0 + index * 0.1:.2f}-{100.05 + index * 0.1:.2f}] word.\n" for index in range(255))
+        + "End edge:\n[129.0-130.0] sponsored\n"
     )
     normal = make_text_fake()
     stages = []
@@ -424,10 +424,10 @@ def test_word_clipped_original_can_adjust_to_aligned_end(tmp_path):
          (94.2, 95.0, "Welcome back.")],
         [(95.0, 100.0, "Now for the discussion.")],
     ) + (
-        "Boundary word timing, use these timestamps for corrections:\n"
-        "Start edge:\n[0.00s-0.20s] This\n"
-        "End edge:\n[93.90s-94.20s] Acme.\n"
-        "[94.42s-94.70s] Welcome\n[94.70s-94.98s] back.\n"
+        "Boundary word timing, use these timestamps (in seconds) for corrections:\n"
+        "Start edge:\n[0.00-0.20] This\n"
+        "End edge:\n[93.90-94.20] Acme.\n"
+        "[94.42-94.70] Welcome\n[94.70-94.98] back.\n"
     )
     ranked = _select_pair_fake(0.0, 94.2)
 
@@ -462,9 +462,9 @@ def test_zero_duration_word_supports_selected_endpoint_outside_coarse_context(
         [(94.0, 100.0, "This episode is sponsored by BetterHelp")],
         [],
     ) + (
-        "Boundary word timing, use these timestamps for corrections:\n"
-        "Start edge:\n[93.9s-94.1s] sponsor\n"
-        "End edge:\n[110.0s-110.0s] sponsor\n"
+        "Boundary word timing, use these timestamps (in seconds) for corrections:\n"
+        "Start edge:\n[93.9-94.1] sponsor\n"
+        "End edge:\n[110.0-110.0] sponsor\n"
     )
     normal = make_text_fake()
     focused_payloads = []
@@ -509,9 +509,9 @@ def _meaningful_pair_prompt() -> str:
          (115.0, 120.0, "Sponsor continues.")],
         [(120.0, 130.0, "Editorial return.")],
     ) + (
-        "Boundary word timing, use these timestamps for corrections:\n"
-        "Start edge:\n[90.0s-91.0s] Editorial.\n[100.0s-101.0s] Editorial\n[106.0s-107.0s] Sponsor\n"
-        "End edge:\n[114.0s-115.0s] ends.\n[119.0s-120.0s] continues.\n[129.0s-130.0s] Editorial.\n"
+        "Boundary word timing, use these timestamps (in seconds) for corrections:\n"
+        "Start edge:\n[90.0-91.0] Editorial.\n[100.0-101.0] Editorial\n[106.0-107.0] Sponsor\n"
+        "End edge:\n[114.0-115.0] ends.\n[119.0-120.0] continues.\n[129.0-130.0] Editorial.\n"
     )
 
 
@@ -522,11 +522,11 @@ def _unsupported_original_prompt() -> str:
         [(94.0, 100.0, "This episode is sponsored by BetterHelp")],
         [(100.0, 110.0, "context after"), (110.0, 120.0, "more context")],
     ) + (
-        "Boundary word timing, use these timestamps for corrections:\n"
+        "Boundary word timing, use these timestamps (in seconds) for corrections:\n"
         "Start edge:\n"
-        "[94.0s-94.5s] This\n[94.5s-95.0s] episode\n[95.0s-95.3s] is\n"
-        "[95.3s-96.0s] sponsored\n[96.0s-96.2s] by\n[96.2s-100.0s] BetterHelp\n"
-        "End edge:\n[96.2s-100.0s] BetterHelp\n[100.0s-101.0s] context\n"
+        "[94.0-94.5] This\n[94.5-95.0] episode\n[95.0-95.3] is\n"
+        "[95.3-96.0] sponsored\n[96.0-96.2] by\n[96.2-100.0] BetterHelp\n"
+        "End edge:\n[96.2-100.0] BetterHelp\n[100.0-101.0] context\n"
     )
 
 
@@ -695,7 +695,7 @@ def make_text_fake(*, keywords=_AD_KW, input_tokens=1200, output_tokens=6, raise
 
 
 def _ts_lines(rows):
-    return "\n".join(f"[{s:.1f}s-{e:.1f}s] {t}" for s, e, t in rows)
+    return "\n".join(f"[{s:.1f}-{e:.1f}] {t}" for s, e, t in rows)
 
 
 def build_review_prompt(cand_start, cand_end, before, ad, after, *, pool="accepted",
@@ -719,7 +719,7 @@ def build_review_prompt(cand_start, cand_end, before, ad, after, *, pool="accept
         "\n"
         f"{framing}\n"
         "Transcript (60s before, the candidate ad, 60s after; all lines "
-        "carry [start-end] second timestamps):\n"
+        "carry [{start}-{end}] timestamp, in seconds):\n"
         f"{render(before)}\n"
         f">>> CANDIDATE AD START [{cand_start:.1f}s] >>>\n"
         f"{render(ad)}\n"
@@ -894,7 +894,7 @@ def test_review_prefilter_uses_review_evidence_threshold_only(tmp_path):
     assert evidence_calls == 1
 
     detection_prompt = format_window_prompt(
-        "Pod", "Ep", "", [f"[{start:.1f}s-{end:.1f}s] {text}" for start, end, text in rows],
+        "Pod", "Ep", "", [f"[{start:.1f}-{end:.1f}] {text}" for start, end, text in rows],
         0, 1, 0.0, 600.0,
     )
     detected = adapter.run_chat_completion(
@@ -918,18 +918,18 @@ def test_review_prefilter_uses_review_evidence_threshold_only(tmp_path):
 
 def test_current_detection_prompt_builds_into_native_transcript_and_cue_context():
     rows = [
-        "[0.0s - 6.0s] Welcome back to the show.",
-        "[6.0s - 12.0s] Today we talk about hiking trips.",
-        "[12.0s - 18.0s] It was a great trip in the mountains.",
-        "[18.0s - 24.0s] This episode is sponsored by BetterHelp.",
-        "[24.0s - 30.0s] BetterHelp offers online therapy at betterhelp.com slash show.",
-        "[30.0s - 36.0s] Use code SHOW for ten percent off your first month today.",
-        "[36.0s - 42.0s] Anyway, back to the trip we were on.",
-        "[42.0s - 48.0s] We hiked for hours and it was tiring.",
+        "[0.0-6.0] Welcome back to the show.",
+        "[6.0-12.0] Today we talk about hiking trips.",
+        "[12.0-18.0] It was a great trip in the mountains.",
+        "[18.0-24.0] This episode is sponsored by BetterHelp.",
+        "[24.0-30.0] BetterHelp offers online therapy at betterhelp.com slash show.",
+        "[30.0-36.0] Use code SHOW for ten percent off your first month today.",
+        "[36.0-42.0] Anyway, back to the trip we were on.",
+        "[42.0-48.0] We hiked for hours and it was tiring.",
     ]
     cue_context = "\n=== AUDIO SIGNALS ===\n[12.0s - 13.0s] cue"
     prompt = format_window_prompt(
-        "Pod", "Ep", "[10.0s - 11.0s] show-note cue", rows, 0, 1, 0.0, 600.0,
+        "Pod", "Ep", "[10.0-11.0] show-note cue", rows, 0, 1, 0.0, 600.0,
         audio_context=cue_context,
     )
     segments, mode = adapter.parse_transcript(prompt)
@@ -1020,11 +1020,11 @@ def test_lower_evidence_threshold_replays_review_without_cache(tmp_path):
 
 def _with_word_edges(prompt, start=(99.5, 100.0, "This"), end=(119.5, 120.0, "BetterHelp")):
     return prompt + (
-        "Boundary word timing, use these timestamps for corrections:\n"
+        "Boundary word timing, use these timestamps (in seconds) for corrections:\n"
         "Start edge:\n"
-        f"[{start[0]:.1f}s-{start[1]:.1f}s] {start[2]}\n"
+        f"[{start[0]:.1f}-{start[1]:.1f}] {start[2]}\n"
         "End edge:\n"
-        f"[{end[0]:.1f}s-{end[1]:.1f}s] {end[2]}\n"
+        f"[{end[0]:.1f}-{end[1]:.1f}] {end[2]}\n"
     )
 
 
@@ -1042,8 +1042,8 @@ def test_review_prompt_is_recognized():
 
 def test_detection_window_is_not_a_review():
     lines = [
-        "[0.0s - 6.0s] Welcome back to the show.",
-        "[6.0s - 12.0s] This episode is sponsored by BetterHelp.",
+        "[0.0-6.0] Welcome back to the show.",
+        "[6.0-12.0] This episode is sponsored by BetterHelp.",
     ]
     prompt = format_window_prompt("Pod", "Ep", "", lines, 0, 1, 0.0, 600.0)
     assert is_review_request(prompt) is False
@@ -1051,7 +1051,7 @@ def test_detection_window_is_not_a_review():
 
 def test_review_system_prompt_routes_without_markers():
     # No CANDIDATE markers in the user text; only the system prompt signals review.
-    user = "[100.0s - 110.0s] This episode is sponsored by BetterHelp."
+    user = "[100.0-110.0] This episode is sponsored by BetterHelp."
     assert ">>> CANDIDATE AD START [" not in user
     review_system = (
         "You are reviewing a candidate advertisement that has already been "
@@ -1068,7 +1068,7 @@ def test_review_system_prompt_routes_without_markers():
 
 
 def test_detection_prompt_never_routes_to_review():
-    lines = ["[0.0s - 6.0s] Welcome back to the show.", "[6.0s - 12.0s] Today we discuss hiking."]
+    lines = ["[0.0-6.0] Welcome back to the show.", "[6.0-12.0] Today we discuss hiking."]
     user = format_window_prompt("Pod", "Ep", "", lines, 0, 1, 0.0, 600.0)
     system = get_static_system_prompt()  # opens "Analyze this podcast transcript..."
     assert is_review_request(user, system) is False
@@ -1237,9 +1237,9 @@ def test_word_timing_is_not_mixed_into_coarse_review_segments():
         [(100.0, 120.0, "This episode is sponsored by BetterHelp")],
         [(120.0, 126.0, "context after")],
     ) + (
-        "Boundary word timing, use these timestamps for corrections:\n"
-        "Start edge:\n[99.9s-100.0s] This\n"
-        "End edge:\n[120.0s-120.0s] end\n"
+        "Boundary word timing, use these timestamps (in seconds) for corrections:\n"
+        "Start edge:\n[99.9-100.0] This\n"
+        "End edge:\n[120.0-120.0] end\n"
     )
     segments, words = parse_review_context(prompt)
     assert all(segment["text"] not in {"This", "end"} for segment in segments)
@@ -1278,8 +1278,8 @@ def test_reversed_coarse_line_remains_invalid():
         [(100.0, 120.0, "This episode is sponsored by Acme")],
         [(120.0, 126.0, "context after")],
     ).replace(
-        "[100.0s-120.0s] This episode is sponsored by Acme",
-        "[120.0s-100.0s] This episode is sponsored by Acme",
+        "[100.0-120.0] This episode is sponsored by Acme",
+        "[120.0-100.0] This episode is sponsored by Acme",
     )
 
     with pytest.raises(ValueError, match="timestamped review interval is invalid"):
@@ -1288,13 +1288,13 @@ def test_reversed_coarse_line_remains_invalid():
 
 def test_review_word_edges_are_sorted_and_deduplicated():
     prompt = _meaningful_pair_prompt().replace(
-        "[90.0s-91.0s] Editorial.\n[100.0s-101.0s] Editorial\n[106.0s-107.0s] Sponsor\n",
-        "[106.0s-107.0s] Sponsor\n[100.0s-101.0s] Editorial\n"
-        "[106.0s-107.0s] Sponsor\n[90.0s-91.0s] Editorial.\n",
+        "[90.0-91.0] Editorial.\n[100.0-101.0] Editorial\n[106.0-107.0] Sponsor\n",
+        "[106.0-107.0] Sponsor\n[100.0-101.0] Editorial\n"
+        "[106.0-107.0] Sponsor\n[90.0-91.0] Editorial.\n",
     ).replace(
-        "[114.0s-115.0s] ends.\n[119.0s-120.0s] continues.\n[129.0s-130.0s] Editorial.\n",
-        "[129.0s-130.0s] Editorial.\n[119.0s-120.0s] continues.\n"
-        "[114.0s-115.0s] ends.\n[119.0s-120.0s] continues.\n",
+        "[114.0-115.0] ends.\n[119.0-120.0] continues.\n[129.0-130.0] Editorial.\n",
+        "[129.0-130.0] Editorial.\n[119.0-120.0] continues.\n"
+        "[114.0-115.0] ends.\n[119.0-120.0] continues.\n",
     )
 
     _, words = parse_review_context(prompt)
@@ -1329,7 +1329,7 @@ def test_review_caller_context_reaches_detection_and_all_review_stages(tmp_path)
         "Episode: Ep 1\n"
         "Podcast description: sponsor history for the show\n"
         "AUDIO CUE EVIDENCE: labelled break cue at 99.5s-100.0s\n"
-        "[101.0s-102.0s] Timestamped cue note, not spoken transcript\n",
+        "[101.0-102.0] Timestamped cue note, not spoken transcript\n",
     )
     payloads = []
     normal = _select_pair_fake(90.0, 115.0)
@@ -1359,14 +1359,14 @@ def test_review_caller_context_reaches_detection_and_all_review_stages(tmp_path)
         assert "AUDIO CUE EVIDENCE" not in speech
         assert "Timestamped cue note" not in speech
         assert all(row["start"] != 101.0 for row in payload["state"].get("timeline", []))
-    assert "[101.0s-102.0s]" in caller_context
-    assert "Transcript (60s before, the candidate ad, 60s after; all lines carry [start-end] second timestamps):" not in caller_context
-    assert "Boundary word timing, use these timestamps for corrections:" not in caller_context
-    assert "[101.0s-102.0s]" not in transcript_text
+    assert "[101.0-102.0]" in caller_context
+    assert "Transcript (60s before, the candidate ad, 60s after; all lines carry [{start}-{end}] timestamp, in seconds):" not in caller_context
+    assert "Boundary word timing, use these timestamps (in seconds) for corrections:" not in caller_context
+    assert "[101.0-102.0]" not in transcript_text
 
 
 def test_review_prompt_without_minuspod_transcript_heading_has_no_caller_context():
-    prompt = "Podcast: Legacy\n[10.0s-12.0s] transcript line\n"
+    prompt = "Podcast: Legacy\n[10.0-12.0] transcript line\n"
 
     context, transcript_text = _review_prompt_parts(prompt)
 
@@ -1594,9 +1594,9 @@ def test_self_promo_keep_vetoes_same_show_access_without_policy_bias(
         "\nEffective category actions: sponsor=remove, self_promo=keep\n\n"
         "Transcript (60s before, the candidate ad, 60s after;",
     ) + (
-        "Boundary word timing, use these timestamps for corrections:\n"
-        "Start edge:\n[100.0s-101.0s] Subscribe\n"
-        "End edge:\n[119.0s-120.0s] episodes.\n"
+        "Boundary word timing, use these timestamps (in seconds) for corrections:\n"
+        "Start edge:\n[100.0-101.0] Subscribe\n"
+        "End edge:\n[119.0-120.0] episodes.\n"
     )
     normal = _select_pair_fake(100.0, 120.0)
     relation_requests = []
@@ -1898,9 +1898,9 @@ def test_single_start_option_skips_alternative_choice(tmp_path):
         [(100.0, 120.0, "Sponsor offer and sign-off.")],
         [(120.0, 130.0, "Editorial after.")],
     ) + (
-        "Boundary word timing, use these timestamps for corrections:\n"
-        "Start edge:\n[100.0s-101.0s] Sponsor\n"
-        "End edge:\n[119.0s-120.0s] sign-off.\n"
+        "Boundary word timing, use these timestamps (in seconds) for corrections:\n"
+        "Start edge:\n[100.0-101.0] Sponsor\n"
+        "End edge:\n[119.0-120.0] sign-off.\n"
     )
     normal = make_text_fake()
     stages = []
@@ -1950,10 +1950,10 @@ def test_refinement_centers_fine_context_on_distant_selected_end(tmp_path):
          (150.0, 181.0, "The discussion continues.")],
         [(181.0, 190.0, "More discussion follows.")],
     ) + (
-        "Boundary word timing, use these timestamps for corrections:\n"
-        "Start edge:\n[100.0s-101.0s] Acme\n"
-        "End edge:\n[143.0s-144.0s] sign-off.\n"
-        "[144.0s-145.0s] Back\n[179.0s-180.0s] discussion.\n"
+        "Boundary word timing, use these timestamps (in seconds) for corrections:\n"
+        "Start edge:\n[100.0-101.0] Acme\n"
+        "End edge:\n[143.0-144.0] sign-off.\n"
+        "[144.0-145.0] Back\n[179.0-180.0] discussion.\n"
     )
     select = _select_pair_fake(100.0, 144.0)
     fine_contexts = []
@@ -1993,9 +1993,9 @@ def test_coarse_end_context_rejects_detector_edge_beyond_search_cap(tmp_path):
          (205.0, 245.0, "Later sponsor message.")],
         [(245.0, 270.0, "After the later message.")],
     ) + (
-        "Boundary word timing, use these timestamps for corrections:\n"
-        "Start edge:\n[100.0s-101.0s] Sponsor\n"
-        "End edge:\n[179.0s-180.0s] ending.\n"
+        "Boundary word timing, use these timestamps (in seconds) for corrections:\n"
+        "Start edge:\n[100.0-101.0] Sponsor\n"
+        "End edge:\n[179.0-180.0] ending.\n"
     )
     normal = _select_pair_fake(100.0, 180.0)
     end_contexts = []
@@ -2021,9 +2021,9 @@ def test_supported_expansion_does_not_require_partial_added_delta(tmp_path):
          (118.0, 120.0, "Final sponsor sign-off.")],
         [(120.0, 126.0, "The interview resumes.")],
     ) + (
-        "Boundary word timing, use these timestamps for corrections:\n"
-        "Start edge:\n[100.0s-101.0s] This\n"
-        "End edge:\n[119.0s-120.0s] sign-off.\n"
+        "Boundary word timing, use these timestamps (in seconds) for corrections:\n"
+        "Start edge:\n[100.0-101.0] This\n"
+        "End edge:\n[119.0-120.0] sign-off.\n"
     )
     select = _select_pair_fake(100.0, 120.0)
     comparison_requests = []
@@ -2070,10 +2070,10 @@ def test_weak_choice_cannot_confirm_original_with_same_ad_after_end(tmp_path):
          (118.0, 120.0, "Use the Acme offer at acme.com.")],
         [(120.0, 130.0, "Back to the discussion.")],
     ) + (
-        "Boundary word timing, use these timestamps for corrections:\n"
-        "Start edge:\n[100.0s-101.0s] This\n"
-        "End edge:\n[117.0s-118.0s] Acme.\n[118.0s-119.0s] Use\n"
-        "[119.0s-120.0s] acme.com.\n"
+        "Boundary word timing, use these timestamps (in seconds) for corrections:\n"
+        "Start edge:\n[100.0-101.0] This\n"
+        "End edge:\n[117.0-118.0] Acme.\n[118.0-119.0] Use\n"
+        "[119.0-120.0] acme.com.\n"
     )
     normal = make_text_fake()
 
@@ -2104,10 +2104,10 @@ def test_separate_neighboring_ad_does_not_block_complete_cut(tmp_path):
         [(100.0, 120.0, "Acme sponsor offer and sign-off.")],
         [(120.0, 130.0, "A separate Beacon sponsor offer.")],
     ) + (
-        "Boundary word timing, use these timestamps for corrections:\n"
-        "Start edge:\n[100.0s-101.0s] Acme\n"
-        "End edge:\n[119.0s-120.0s] sign-off.\n[120.0s-121.0s] A\n"
-        "[121.0s-122.0s] separate\n"
+        "Boundary word timing, use these timestamps (in seconds) for corrections:\n"
+        "Start edge:\n[100.0-101.0] Acme\n"
+        "End edge:\n[119.0-120.0] sign-off.\n[120.0-121.0] A\n"
+        "[121.0-122.0] separate\n"
     )
     normal = make_text_fake()
 
@@ -2155,9 +2155,9 @@ def test_sentence_interior_veto_isolates_show_island_inside_coarse_segment(
         [(100.0, 130.0, "Acme sponsor offer. We are back. The interview resumes now. Acme sponsor sign-off.")],
         [(130.0, 136.0, "Discussion continues.")],
     ) + (
-        "Boundary word timing, use these timestamps for corrections:\n"
-        "Start edge:\n[100.0s-101.0s] Acme\n"
-        "End edge:\n[129.0s-130.0s] sign-off.\n"
+        "Boundary word timing, use these timestamps (in seconds) for corrections:\n"
+        "Start edge:\n[100.0-101.0] Acme\n"
+        "End edge:\n[129.0-130.0] sign-off.\n"
     )
     normal = make_text_fake()
     interior_targets = []
@@ -2188,9 +2188,9 @@ def test_separate_sponsor_does_not_reclassify_independent_personal_story(
          (110.0, 120.0, "This episode is sponsored by Acme. Visit acme.com.")],
         [(120.0, 126.0, "The interview resumes.")],
     ) + (
-        "Boundary word timing, use these timestamps for corrections:\n"
-        "Start edge:\n[100.0s-101.0s] After\n"
-        "End edge:\n[119.0s-120.0s] acme.com.\n"
+        "Boundary word timing, use these timestamps (in seconds) for corrections:\n"
+        "Start edge:\n[100.0-101.0] After\n"
+        "End edge:\n[119.0-120.0] acme.com.\n"
     )
     normal = make_text_fake()
     programme_states = []
@@ -2315,10 +2315,10 @@ def test_complete_terminal_cta_reaches_fine_end_and_still_checks_programme(
          (110.0, 120.0, "Visit example .com.")],
         [],
     ) + (
-        "Boundary word timing, use these timestamps for corrections:\n"
-        "Start edge:\n[100.0s-101.0s] Sponsor\n"
-        "End edge:\n[110.0s-111.0s] Visit\n"
-        "[111.0s-112.0s] example\n[112.0s-120.0s] .com.\n"
+        "Boundary word timing, use these timestamps (in seconds) for corrections:\n"
+        "Start edge:\n[100.0-101.0] Sponsor\n"
+        "End edge:\n[110.0-111.0] Visit\n"
+        "[111.0-112.0] example\n[112.0-120.0] .com.\n"
     )
     select = _select_pair_fake(100.0, 120.0)
     coarse = []
@@ -2375,10 +2375,10 @@ def test_truncated_terminal_phrase_blocks_otherwise_accepted_boundary(
          (110.0, 120.0, "Visit example dot")],
         [],
     ) + (
-        "Boundary word timing, use these timestamps for corrections:\n"
-        "Start edge:\n[100.0s-101.0s] Sponsor\n"
-        "End edge:\n[110.0s-111.0s] Visit\n"
-        "[111.0s-112.0s] example\n[112.0s-120.0s] dot\n"
+        "Boundary word timing, use these timestamps (in seconds) for corrections:\n"
+        "Start edge:\n[100.0-101.0] Sponsor\n"
+        "End edge:\n[110.0-111.0] Visit\n"
+        "[111.0-112.0] example\n[112.0-120.0] dot\n"
     )
     select = _select_pair_fake(100.0, 120.0)
     stages = []
@@ -2412,11 +2412,11 @@ def test_terminal_closing_checks_last_word_before_padded_row_end(
         [(100.0, 120.0, "Sponsor offer. Visit example dot")],
         [],
     ) + (
-        "Boundary word timing, use these timestamps for corrections:\n"
-        "Start edge:\n[100.0s-101.0s] Sponsor\n"
-        "End edge:\n[100.0s-101.0s] Sponsor\n"
-        "[101.0s-102.0s] offer.\n[118.0s-118.5s] Visit\n"
-        "[118.5s-119.0s] example\n[119.0s-119.8s] dot\n"
+        "Boundary word timing, use these timestamps (in seconds) for corrections:\n"
+        "Start edge:\n[100.0-101.0] Sponsor\n"
+        "End edge:\n[100.0-101.0] Sponsor\n"
+        "[101.0-102.0] offer.\n[118.0-118.5] Visit\n"
+        "[118.5-119.0] example\n[119.0-119.8] dot\n"
     )
     select = _select_pair_fake(100.0, 119.8)
     stages = []
@@ -2443,10 +2443,10 @@ def _terminal_fallback_prompt() -> str:
          (106.0, 120.0, "Sponsor offer. Visit example dot")],
         [],
     ) + (
-        "Boundary word timing, use these timestamps for corrections:\n"
-        "Start edge:\n[100.0s-101.0s] Editorial\n[106.0s-107.0s] Sponsor\n"
-        "End edge:\n[100.0s-101.0s] Editorial\n[106.0s-107.0s] Sponsor\n"
-        "[117.0s-118.0s] Visit\n[118.0s-119.0s] example\n[119.0s-120.0s] dot\n"
+        "Boundary word timing, use these timestamps (in seconds) for corrections:\n"
+        "Start edge:\n[100.0-101.0] Editorial\n[106.0-107.0] Sponsor\n"
+        "End edge:\n[100.0-101.0] Editorial\n[106.0-107.0] Sponsor\n"
+        "[117.0-118.0] Visit\n[118.0-119.0] example\n[119.0-120.0] dot\n"
     )
 
 
@@ -2505,11 +2505,11 @@ def test_terminal_allowance_does_not_include_later_programme_speech(
          (110.0, 120.0, "Visit example .com.")],
         [(120.0, 130.0, "Editorial return.")],
     ) + (
-        "Boundary word timing, use these timestamps for corrections:\n"
-        "Start edge:\n[100.0s-101.0s] Sponsor\n"
-        "End edge:\n[110.0s-111.0s] Visit\n"
-        "[111.0s-112.0s] example\n[112.0s-120.0s] .com.\n"
-        "[120.0s-121.0s] Editorial\n[121.0s-130.0s] return.\n"
+        "Boundary word timing, use these timestamps (in seconds) for corrections:\n"
+        "Start edge:\n[100.0-101.0] Sponsor\n"
+        "End edge:\n[110.0-111.0] Visit\n"
+        "[111.0-112.0] example\n[112.0-120.0] .com.\n"
+        "[120.0-121.0] Editorial\n[121.0-130.0] return.\n"
     )
     select = _select_pair_fake(100.0, 120.0)
     end_requests = []
@@ -2549,10 +2549,10 @@ def test_terminal_cta_still_respects_kept_category(
         "\nEffective category actions: sponsor=remove, self_promo=keep\n\n"
         "Transcript (60s before, the candidate ad, 60s after;",
     ) + (
-        "Boundary word timing, use these timestamps for corrections:\n"
-        "Start edge:\n[100.0s-101.0s] Sponsor\n"
-        "End edge:\n[110.0s-111.0s] Visit\n"
-        "[111.0s-112.0s] example\n[112.0s-120.0s] .com.\n"
+        "Boundary word timing, use these timestamps (in seconds) for corrections:\n"
+        "Start edge:\n[100.0-101.0] Sponsor\n"
+        "End edge:\n[110.0-111.0] Visit\n"
+        "[111.0-112.0] example\n[112.0-120.0] .com.\n"
     )
     select = _select_pair_fake(100.0, 120.0)
     kept_requests = []
@@ -2625,13 +2625,13 @@ def test_adjacent_end_unit_comparison_recovers_closing_url(
         [(120.0, 126.0, "I trust Acme .com. Back to the show."),
          (126.0, 130.0, "Editorial discussion resumes.")],
     ) + (
-        "Boundary word timing, use these timestamps for corrections:\n"
-        "Start edge:\n[100.0s-101.0s] Acme\n"
-        "End edge:\n[119.0s-120.0s] Acme.\n"
-        "[120.0s-121.0s] I\n[121.0s-121.5s] trust\n"
-        "[121.5s-122.0s] Acme\n[122.0s-123.0s] .com.\n"
-        "[123.0s-124.0s] Back\n[124.0s-124.5s] to\n"
-        "[124.5s-125.0s] the\n[125.0s-126.0s] show.\n"
+        "Boundary word timing, use these timestamps (in seconds) for corrections:\n"
+        "Start edge:\n[100.0-101.0] Acme\n"
+        "End edge:\n[119.0-120.0] Acme.\n"
+        "[120.0-121.0] I\n[121.0-121.5] trust\n"
+        "[121.5-122.0] Acme\n[122.0-123.0] .com.\n"
+        "[123.0-124.0] Back\n[124.0-124.5] to\n"
+        "[124.5-125.0] the\n[125.0-126.0] show.\n"
     )
     normal = make_text_fake()
     compared = []
@@ -2701,16 +2701,16 @@ def test_end_transition_handles_adjacent_promo_and_programme_separator(
          *middle, later],
         [(135.84, 160.7, "Early in the morning, an officer woke to his alarm.")],
     ) + (
-        "Boundary word timing, use these timestamps for corrections:\n"
-        "Start edge:\n[68.2s-68.5s] Sponsor\n"
-        "End edge:\n[96.25s-101.39s] Acme membership eligibility and product restrictions apply.\n"
+        "Boundary word timing, use these timestamps (in seconds) for corrections:\n"
+        "Start edge:\n[68.2-68.5] Sponsor\n"
+        "End edge:\n[96.25-101.39] Acme membership eligibility and product restrictions apply.\n"
         + (
-            "[102.12s-111.0s] The episode story resumes with the officer's morning.\n"
-            "[112.0s-129.74s] Tonight on WXYZ, the new season continues. The auditions continue tonight.\n"
+            "[102.12-111.0] The episode story resumes with the officer's morning.\n"
+            "[112.0-129.74] Tonight on WXYZ, the new season continues. The auditions continue tonight.\n"
             if tail_kind in {"mixed", "forced_unsafe"} else
-            "[102.12s-129.74s] The episode story resumes with the officer's morning.\n"
+            "[102.12-129.74] The episode story resumes with the officer's morning.\n"
             if tail_kind == "protected" else
-            "[102.12s-129.74s] Tonight on WXYZ, the new season continues. The auditions continue tonight.\n"
+            "[102.12-129.74] Tonight on WXYZ, the new season continues. The auditions continue tonight.\n"
         )
     )
     if tail_kind == "forced_unsafe":
@@ -2906,9 +2906,9 @@ def test_ambiguous_intro_fragment_cannot_be_trimmed(tmp_path):
          (106.0, 120.0, "brought to you by Acme sponsor.")],
         [(120.0, 126.0, "Editorial return.")],
     ) + (
-        "Boundary word timing, use these timestamps for corrections:\n"
-        "Start edge:\n[100.0s-101.0s] This\n[106.0s-107.0s] brought\n"
-        "End edge:\n[119.0s-120.0s] sponsor.\n[120.0s-121.0s] Editorial\n"
+        "Boundary word timing, use these timestamps (in seconds) for corrections:\n"
+        "Start edge:\n[100.0-101.0] This\n[106.0-107.0] brought\n"
+        "End edge:\n[119.0-120.0] sponsor.\n[120.0-121.0] Editorial\n"
     )
     base = _select_pair_fake(106.0, 120.0)
 
@@ -2933,12 +2933,12 @@ def test_ad_only_cut_can_omit_ad_intro_when_original_is_unsafe(tmp_path):
          (106.0, 120.0, "Use the Acme offer at acme.com.")],
         [(120.0, 126.0, "Editorial return.")],
     ) + (
-        "Boundary word timing, use these timestamps for corrections:\n"
-        "Start edge:\n[100.0s-101.0s] This\n[101.0s-102.0s] sponsor\n"
-        "[102.0s-103.0s] message\n[103.0s-104.0s] begins\n"
-        "[104.0s-105.0s] with\n[105.0s-106.0s] Acme.\n"
-        "[106.0s-107.0s] Use\n"
-        "End edge:\n[119.0s-120.0s] acme.com.\n"
+        "Boundary word timing, use these timestamps (in seconds) for corrections:\n"
+        "Start edge:\n[100.0-101.0] This\n[101.0-102.0] sponsor\n"
+        "[102.0-103.0] message\n[103.0-104.0] begins\n"
+        "[104.0-105.0] with\n[105.0-106.0] Acme.\n"
+        "[106.0-107.0] Use\n"
+        "End edge:\n[119.0-120.0] acme.com.\n"
     )
     select = _select_pair_fake(105.0, 120.0)
 
@@ -2966,10 +2966,10 @@ def test_outward_sponsor_tail_requires_edge_confirmation(tmp_path):
          (118.0, 120.0, "Sponsor website .com")],
         [(120.0, 130.0, "Editorial return.")],
     ) + (
-        "Boundary word timing, use these timestamps for corrections:\n"
-        "Start edge:\n[100.0s-101.0s] This\n[101.0s-102.0s] episode\n"
-        "End edge:\n[117.0s-118.0s] Acme.\n[118.0s-119.0s] Sponsor\n"
-        "[119.0s-120.0s] .com\n[120.0s-121.0s] Editorial\n"
+        "Boundary word timing, use these timestamps (in seconds) for corrections:\n"
+        "Start edge:\n[100.0-101.0] This\n[101.0-102.0] episode\n"
+        "End edge:\n[117.0-118.0] Acme.\n[118.0-119.0] Sponsor\n"
+        "[119.0-120.0] .com\n[120.0-121.0] Editorial\n"
     )
     base = _select_pair_fake(100.0, 120.0)
 
@@ -2993,9 +2993,9 @@ def test_missing_local_end_words_abstains_for_both_intervals(tmp_path):
          (118.0, 120.0, "Sponsor website .com")],
         [(120.0, 130.0, "Editorial return.")],
     ) + (
-        "Boundary word timing, use these timestamps for corrections:\n"
-        "Start edge:\n[100.0s-101.0s] This\n"
-        "End edge:\n[120.0s-120.0s] edge\n"
+        "Boundary word timing, use these timestamps (in seconds) for corrections:\n"
+        "Start edge:\n[100.0-101.0] This\n"
+        "End edge:\n[120.0-120.0] edge\n"
     )
 
     with pytest.raises(ReviewInconclusiveError) as raised:
@@ -3152,8 +3152,8 @@ def test_partial_overlap_does_not_transfer_programme_veto(tmp_path):
         return result
 
     prompt = _meaningful_pair_prompt().replace(
-        "[120.0s-130.0s] Editorial return.",
-        "[120.0s-130.0s] Editorial return.\n[130.0s-140.0s] Editorial after.",
+        "[120.0-130.0] Editorial return.",
+        "[120.0-130.0] Editorial return.\n[130.0-140.0] Editorial after.",
     )
     response = _run(prompt, fake, tmp_path, refine_boundaries=True)
     ad = json.loads(response["choices"][0]["message"]["content"])["ads"][0]

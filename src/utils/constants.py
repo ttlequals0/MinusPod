@@ -1263,7 +1263,7 @@ Do not interpolate or estimate times between segments.
 OUTPUT FORMAT:
 Return ONLY a valid JSON array. No explanation, no markdown.
 
-Each ad segment: {{"start": FLOAT_SECONDS, "end": FLOAT_SECONDS, "confidence": FLOAT_0_TO_1, "category": "sponsor|cross_promo|self_promo|interaction", "reason": "brief description", "end_text": "last 3-5 words"}}
+Each ad segment: {"start": FLOAT_SECONDS, "end": FLOAT_SECONDS, "confidence": FLOAT_0_TO_1, "category": "sponsor|cross_promo|self_promo|interaction", "reason": "brief description", "end_text": "last 3-5 words"}
 
 "category" is REQUIRED on every ad object, with no exceptions. A response where any object omits "category" is invalid, even if you are confident the category is obvious from the reason text. Always write the key. See CATEGORY below for the exact allowed values.
 
@@ -1278,39 +1278,39 @@ Every ad object MUST also include "category", set to exactly one of:
 Three more categories exist (intro, outro, recap), but use them only when this prompt also contains a SHOW SEGMENTS section below. Without that section, always pick one of the four categories above.
 
 EXAMPLE:
-[45.0s - 48.0s] That's a great point. Let's take a quick break.
-[48.5s - 52.0s] This episode is brought to you by Athletic Greens.
-[52.5s - 78.0s] AG1 is the daily foundational nutrition supplement... Go to athleticgreens.com/podcast.
-[78.5s - 82.0s] That's athleticgreens.com/podcast.
-[82.5s - 86.0s] Now, back to our conversation.
+[45.0-48.0] That's a great point. Let's take a quick break.
+[48.5-52.0] This episode is brought to you by Athletic Greens.
+[52.5-78.0] AG1 is the daily foundational nutrition supplement... Go to athleticgreens.com/podcast.
+[78.5-82.0] That's athleticgreens.com/podcast.
+[82.5-86.0] Now, back to our conversation.
 
-Output: [{{"start": 45.0, "end": 82.0, "confidence": 0.98, "category": "sponsor", "reason": "Athletic Greens sponsor read", "end_text": "athleticgreens.com/podcast"}}]
+Output: [{"start": 45.0, "end": 82.0, "confidence": 0.98, "category": "sponsor", "reason": "Athletic Greens sponsor read", "end_text": "athleticgreens.com/podcast"}]
 
 NOT AN AD EXAMPLE (silence/content gap):
-[290.0s - 293.0s] So that's really the core of what GPT-4 can do.
-[293.5s - 296.0s] [silence]
-[296.5s - 300.0s] Now the other thing I wanted to talk about is the fine-tuning process.
+[290.0-293.0] So that's really the core of what GPT-4 can do.
+[293.5-296.0] [silence]
+[296.5-300.0] Now the other thing I wanted to talk about is the fine-tuning process.
 
 Output: []
 
 SHORT BRAND TAGLINE EXAMPLE (this IS an ad):
-[874.2s - 877.0s] FreshField Market, your destination for what's next in nutrition.
-[877.0s - 886.0s] Curated by experts who know what works, we bring you the best in health and wellness.
-[886.0s - 893.0s] Whether you're training hard, living well, or chasing your best self,
-[893.0s - 898.5s] FreshField Market is where the future of wellness begins. Explore more at FreshField.
+[874.2-877.0] FreshField Market, your destination for what's next in nutrition.
+[877.0-886.0] Curated by experts who know what works, we bring you the best in health and wellness.
+[886.0-893.0] Whether you're training hard, living well, or chasing your best self,
+[893.0-898.5] FreshField Market is where the future of wellness begins. Explore more at FreshField.
 
-Output: [{{"start": 874.2, "end": 898.5, "confidence": 0.95, "category": "sponsor", "reason": "FreshField Market network-inserted brand tagline ad", "end_text": "wellness begins. Explore more at FreshField"}}]
+Output: [{"start": 874.2, "end": 898.5, "confidence": 0.95, "category": "sponsor", "reason": "FreshField Market network-inserted brand tagline ad", "end_text": "wellness begins. Explore more at FreshField"}]
 
 Note: No promo code, no call to action -- but this is concentrated marketing copy
 for a brand with product positioning language. It is not editorial content.
 
 CROSS-PROMO EXAMPLE (this IS an ad, and its category is NOT sponsor):
-[512.0s - 514.5s] Before we get back to it, a quick note.
-[514.5s - 528.0s] Hey, it's Jamie from Tech Weekly. If you like this show, check out our
+[512.0-514.5] Before we get back to it, a quick note.
+[514.5-528.0] Hey, it's Jamie from Tech Weekly. If you like this show, check out our
 sister podcast Startup Stories for interviews with founders every Tuesday.
-[528.0s - 531.0s] Now, back to today's episode.
+[528.0-531.0] Now, back to today's episode.
 
-Output: [{{"start": 512.0, "end": 531.0, "confidence": 0.9, "category": "cross_promo", "reason": "Produced cross-promotion for the sister podcast Startup Stories", "end_text": "back to today's episode"}}]
+Output: [{"start": 512.0, "end": 531.0, "confidence": 0.9, "category": "cross_promo", "reason": "Produced cross-promotion for the sister podcast Startup Stories", "end_text": "back to today's episode"}]
 
 Note: a different voice promoting a different show, inserted by the platform or network.
 Not a sponsor read, so "category" is "cross_promo", not "sponsor".{sponsor_database}"""
@@ -1332,8 +1332,8 @@ RULES FOR SHOW SEGMENTS:
 - Use the same timestamp discipline as ads: use the exact [Xs] marker timestamps from the transcript, do not interpolate or estimate.
 
 OUTRO EXAMPLE:
-[2324.5s - 2360.0s] That's the show for today, thanks for listening, and we'll see you next time.
-[2360.0s - 2381.1s] [closing theme music]
+[2324.5-2360.0] That's the show for today, thanks for listening, and we'll see you next time.
+[2360.0-2381.1] [closing theme music]
 
 Output: [{"start": 2324.5, "end": 2381.1, "confidence": 0.85, "category": "outro", "reason": "Show sign-off and closing theme music", "end_text": "[closing theme music]"}]
 """
