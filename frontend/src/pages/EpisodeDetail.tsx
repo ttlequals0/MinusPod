@@ -650,12 +650,20 @@ function EpisodeDetail() {
     }));
   }, [adMarkers]);
 
-  const adBlocks = useMemo(() => groupAdBlocks(adMarkers ?? []), [adMarkers]);
-  const [openAdBlocks, setOpenAdBlocks] = useState<Set<number>>(new Set());
-  const toggleAdBlock = (start: number) =>
+  const adBlocks = useMemo(() => {
+    const markers = adMarkers ?? [];
+    const indexOf = new Map(markers.map((marker, index) => [marker, index]));
+    return groupAdBlocks(markers).map((block) => ({
+      ...block,
+      key: `detected-block-${block.start}-${block.end}`,
+      members: block.members.map((marker) => ({ marker, index: indexOf.get(marker) ?? 0 })),
+    }));
+  }, [adMarkers]);
+  const [openAdBlocks, setOpenAdBlocks] = useState<Set<string>>(new Set());
+  const toggleAdBlock = (key: string) =>
     setOpenAdBlocks((prev) => {
       const next = new Set(prev);
-      if (!next.delete(start)) next.add(start);
+      if (!next.delete(key)) next.add(key);
       return next;
     });
 
@@ -1456,12 +1464,11 @@ function EpisodeDetail() {
 
           <div className="space-y-3">
             {adBlocks.map((block) => {
-              const indexed = block.members.map((m) => ({ m, i: adMarkers!.indexOf(m) }));
-              if (indexed.length === 1) return renderAdMarkerCard(indexed[0].m, indexed[0].i);
-              const open = openAdBlocks.has(block.start);
-              const panelId = `ad-block-${Math.round(block.start * 10)}`;
-              const key = `detected-block-${block.start}-${block.end}`;
-              const categories = [...new Set(indexed.map(({ m }) => m.category ?? ''))];
+              const { key, members } = block;
+              if (members.length === 1) return renderAdMarkerCard(members[0].marker, members[0].index);
+              const open = openAdBlocks.has(key);
+              const panelId = `${key}-panel`;
+              const categories = [...new Set(members.map(({ marker }) => marker.category ?? ''))];
               return (
                 <div key={key}>
                   <div className="p-3 bg-secondary/50 rounded-lg">
@@ -1483,19 +1490,19 @@ function EpisodeDetail() {
                       ))}
                       <button
                         type="button"
-                        onClick={() => toggleAdBlock(block.start)}
+                        onClick={() => toggleAdBlock(key)}
                         aria-expanded={open}
                         aria-controls={panelId}
                         className={`ml-auto inline-flex items-center gap-1 min-h-11 sm:min-h-0 text-sm text-primary hover:underline ${focusRing}`}
                       >
-                        {indexed.length} segments
+                        {members.length} segments
                         <ChevronDown size={16} className={`transition-transform motion-reduce:transition-none ${open ? 'rotate-180' : ''}`} />
                       </button>
                     </div>
                   </div>
                   {open && (
                     <div id={panelId} className="mt-3 space-y-3 ml-4 sm:ml-6 border-l-2 border-border pl-3 min-w-0">
-                      {indexed.map(({ m, i }) => renderAdMarkerCard(m, i))}
+                      {members.map(({ marker, index }) => renderAdMarkerCard(marker, index))}
                     </div>
                   )}
                 </div>

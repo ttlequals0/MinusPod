@@ -28,17 +28,13 @@ def test_no_transcript_and_no_segments_passes():
 
 
 def test_transcript_without_segments_still_409():
-    message, status = _check(False, transcript_text='hello')
+    message, status = _check(False, has_transcript=1)
     assert status == 409
     assert 'No saved transcript segments' in message
 
 
-def test_vtt_only_without_segments_still_409():
-    assert _check(False, transcript_vtt='WEBVTT')[1] == 409
-
-
 def test_transcript_with_segments_passes():
-    assert _check(True, transcript_text='hello') is None
+    assert _check(True, has_transcript=1) is None
 
 
 def test_recut_with_empty_segments_renders_and_finalizes():
@@ -61,3 +57,17 @@ def test_recut_with_empty_segments_renders_and_finalizes():
     assert assets.call_args.kwargs['regenerate_chapters'] is False
     fin.assert_called_once()
     storage.save_combined_ads.assert_called_once()
+
+
+def test_vtt_only_row_counts_as_transcript_in_both_queries(temp_db):
+    temp_db.create_podcast('example-podcast', 'https://example.com/feed.xml', 'Example')
+    temp_db.upsert_episode('example-podcast', 'a1b2c3d4e5f6',
+                           original_url='https://example.com/ep.mp3')
+    assert temp_db.get_episode('example-podcast', 'a1b2c3d4e5f6')['has_transcript'] == 0
+    temp_db.save_episode_details('example-podcast', 'a1b2c3d4e5f6', transcript_vtt='WEBVTT')
+    assert temp_db.get_episode('example-podcast', 'a1b2c3d4e5f6')['has_transcript'] == 1
+    temp_db.get_connection().execute(
+        "UPDATE episodes SET pending_recut_at = '2026-01-01T00:00:00Z'")
+    temp_db.get_connection().commit()
+    rows = temp_db.get_episodes_pending_recut()
+    assert [r['has_transcript'] for r in rows] == [1]

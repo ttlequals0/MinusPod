@@ -96,9 +96,14 @@ def source_chapter_tag(audio_path, detected):
 
 
 def restore_chapter_tag(audio_path, tag, cuts, replacement_duration, duration):
-    if tag is not None:
+    if tag is None:
+        return
+    # A malformed chapter tag must not fail the episode; keep ffmpeg's chapters.
+    try:
         restored = remap_tag(tag, cuts, replacement_duration, duration)
         write_tag(audio_path, merge_chapter_frames(read_tag(audio_path), restored))
+    except ChapterTagError as e:
+        logger.warning("Chapter tag not restored: %s", e)
 
 
 def parse_chapters(chapters: list[dict]) -> list[dict]:

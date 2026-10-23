@@ -4,6 +4,7 @@ import logging
 from datetime import datetime, timedelta, timezone
 
 from config import DEFER_SERVICE_LLM
+from database.episodes import HAS_TRANSCRIPT_SQL
 from utils.time import ISO_FORMAT, utc_now, utc_now_iso
 
 logger = logging.getLogger(__name__)
@@ -803,14 +804,12 @@ class QueueMixin:
         # has_queue_row separates an episode whose own run is coming from one
         # left 'pending' by a cleared queue, which nothing will run.
         cursor = conn.execute(
-            """SELECT e.episode_id, e.title, e.status, e.original_url,
+            f"""SELECT e.episode_id, e.title, e.status, e.original_url,
                       e.pending_recut_at, p.slug AS podcast_slug,
                       p.title AS podcast_title,
                       d.original_segments_json IS NOT NULL
                           AND d.original_segments_json != '[]' AS has_segments,
-                      d.transcript_text IS NOT NULL
-                          OR d.original_transcript_text IS NOT NULL
-                          OR d.transcript_vtt IS NOT NULL AS has_transcript,
+                      {HAS_TRANSCRIPT_SQL.format(a='d')} AS has_transcript,
                       d.ad_markers_json IS NOT NULL AS has_markers,
                       EXISTS (SELECT 1 FROM auto_process_queue q
                               WHERE q.podcast_id = e.podcast_id
@@ -823,7 +822,7 @@ class QueueMixin:
                WHERE e.pending_recut_at IS NOT NULL
                  AND (? IS NULL OR p.slug = ?)
                ORDER BY e.pending_recut_at ASC
-               LIMIT ?""",
+               LIMIT ?""",  # noqa: S608
             (slug, slug, limit)
         )
         return [dict(row) for row in cursor.fetchall()]

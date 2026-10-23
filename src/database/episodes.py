@@ -15,6 +15,11 @@ from utils.time import ISO_FORMAT, parse_iso_utc, utc_now, utc_now_iso
 
 logger = logging.getLogger(__name__)
 
+# True when any transcript form is stored; {a} is the episode_details alias.
+HAS_TRANSCRIPT_SQL = (
+    "({a}.transcript_text IS NOT NULL OR {a}.original_transcript_text IS NOT NULL "
+    "OR {a}.transcript_vtt IS NOT NULL)")
+
 # Columns the ad-detection and cut stages regenerate (issue #349 LLM-only
 # reprocess). Shared by clear_episode_ad_data and batch_clear_episode_ad_data.
 # Episodes per discovery write transaction. One transaction spanning a large
@@ -254,6 +259,7 @@ class EpisodeMixin:
                       {_PROCESSED_EPISODE_EXISTS_SQL} AS has_been_processed,
                       ed.transcript_text,
                       (ed.original_transcript_text IS NOT NULL) as has_original_transcript,
+                      {HAS_TRANSCRIPT_SQL.format(a='ed')} AS has_transcript,
                       ed.transcript_vtt,
                       ed.chapters_json, ed.ad_markers_json,
                       ed.first_pass_response, ed.first_pass_prompt,

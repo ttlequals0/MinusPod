@@ -14,7 +14,7 @@ export const modalPanel = modalPanelBase + ' text-foreground';
 export const dialogFooterBtn = `px-3 py-1.5 text-sm rounded transition-colors ${focusRing}`;
 // Dialog footer button that collapses to a 44px icon square below sm (label moves to aria-label/title).
 export const dialogFooterIconBtn =
-  `inline-flex items-center justify-center h-11 w-11 sm:h-auto sm:w-auto sm:px-4 sm:py-2 text-sm rounded ${focusRing}`;
+  `${dialogFooterBtn} inline-flex items-center justify-center max-sm:h-11 max-sm:w-11 max-sm:px-0 max-sm:py-0`;
 
 // Close-on-Escape for modals that opt in (also used standalone by the cue
 // feature's recipe-based modals via the cueScanStyles re-export).

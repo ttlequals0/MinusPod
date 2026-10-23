@@ -159,6 +159,7 @@ function Dashboard() {
 
   const showSearchPanel = open && query.length > 0;
 
+  // grid-cols-2 starts at 600px: an unfolded foldable phone is 626px wide, 14px under sm.
   if (isLoading) {
     return (
       <div>
