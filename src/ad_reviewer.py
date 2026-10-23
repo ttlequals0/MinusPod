@@ -127,6 +127,12 @@ _INCONCLUSIVE_STAGES = frozenset({
 })
 
 
+def _skips_reviewer(ad) -> bool:
+    """Human-confirmed ads and cue_match markers (a measured cue, no spoken ad) skip the LLM."""
+    return (bool((ad.get("validation") or {}).get("user_confirmed"))
+            or ad.get("detection_stage") == "cue_match")
+
+
 def _review_inconclusive_reason(error: Exception) -> str:
     """Return a bounded, allowlisted reason from an inconclusive response."""
     body = extract_error_body(error)
@@ -1415,7 +1421,7 @@ class AdReviewer:
         """Apply the per-ad failure rule to every accepted ad after a batch failure."""
         result = ReviewResult()
         for ad in accepted_ads:
-            if (ad.get("validation") or {}).get("user_confirmed"):
+            if _skips_reviewer(ad):
                 result.accepted_after_review.append(ad)
                 continue
             verdict = ReviewVerdict(
@@ -1709,8 +1715,7 @@ class AdReviewer:
             return []
 
         def _run_one(idx):
-            if (pool == "accepted"
-                    and (ads[idx].get("validation") or {}).get("user_confirmed")):
+            if pool == "accepted" and _skips_reviewer(ads[idx]):
                 return None, ads[idx]
             verdict, updated = self._review_single(
                 ad=ads[idx],

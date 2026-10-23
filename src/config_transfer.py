@@ -123,6 +123,7 @@ FEED_COLUMNS = (
     'title_override', 'detection_notes', 'detection_mode', 'chapter_notes',
     'chapters_mode', 'chapters_in_notes', 'own_episode_guids',
     'cue_template_score_override', 'cue_create_from_pairs_override',
+    'cue_cut_matches_override',
     'cue_pair_min_break_override', 'cue_pair_max_break_override',
     'cue_pair_max_break_fraction_override', 'cue_snap_confidence_override',
     'cue_snap_lead_override', 'cue_snap_lag_override', 'silence_snap_enabled',
@@ -150,7 +151,8 @@ FEED_BOOL_COLUMNS = frozenset({
     'splice_veto_enabled', 'cue_gated_approval', 'only_expose_processed_episodes',
     'passthrough_enabled', 'skip_ad_detection', 'detect_show_segments',
     'skip_second_pass', 'transcript_differential', 'skip_transcription',
-    'explicit', 'cue_create_from_pairs_override', 'differential_fetch_enabled',
+    'explicit', 'cue_create_from_pairs_override', 'cue_cut_matches_override',
+    'differential_fetch_enabled',
     'keep_original_audio_override',
     'audio_replacement_sound_override', 'audio_mp3_stream_copy_override',
 })
@@ -972,7 +974,8 @@ def _validated_feed_updates(db, podcast, payload, feed_type, *, confirmed_ceilin
             if not isinstance(value, list) or any(not isinstance(tag, str) for tag in value):
                 raise ConfigTransferError('user_tags must be an array of strings or null')
             value = _canonical_json(value)
-        elif key in ('cue_create_from_pairs_override', 'differential_fetch_enabled',
+        elif key in ('cue_create_from_pairs_override', 'cue_cut_matches_override',
+                     'differential_fetch_enabled',
                      'keep_original_audio_override', 'audio_replacement_sound_override',
                      'audio_mp3_stream_copy_override'):
             value, error = feed_api._normalize_cue_bool_override(value, key)

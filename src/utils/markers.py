@@ -436,7 +436,7 @@ _MEMBER_FIELDS = ('confidence', 'precise_start', 'precise_end',
 # dai_differential is not one: a cross-fetch diff earns KeepDifferentialOverride
 # but never outranks a reviewer reject by itself.
 MEASURED_EVIDENCE_STAGES = frozenset({
-    'fingerprint', 'cue_pair', 'text_pattern', 'manual',
+    'fingerprint', 'cue_pair', 'cue_match', 'text_pattern', 'manual',
 })
 
 # Merge bookkeeping a split fragment must drop: it describes the merged

@@ -204,6 +204,7 @@ EXPECTED_AD_RESET_KEYS = {
     'audio_cue_freq_max_hz', 'audio_cue_prominence_db',
     'audio_cue_min_confidence', 'audio_cue_template_score',
     'audio_cue_formant_atten_db', 'audio_cue_create_from_pairs',
+    'audio_cue_cut_matches',
     'audio_cue_snap_confidence', 'audio_cue_snap_lead_seconds',
     'audio_cue_snap_lag_seconds', 'audio_cue_capture_min_seconds',
     'audio_cue_capture_max_seconds', 'audio_cue_capture_max_intro_seconds',
@@ -539,12 +540,12 @@ class TestGetDefaults:
         # audioEncoderCompressionLevel added after that (165 -> 166).
         # maxLlmWindowAdSeconds added after that (166 -> 167), then
         # downloadHistoryEnabled + downloadGeoLookupEnabled +
-        # downloadHistoryRetentionDays (167 -> 170).
+        # downloadHistoryRetentionDays (167 -> 170), audioCueCutMatches (170 -> 171).
         payload_keys = {
             spec.payload_key for spec in SETTINGS_REGISTRY.values()
             if spec.payload_key
         }
-        assert len(payload_keys) == 170
+        assert len(payload_keys) == 171
         assert 'systemoneBaseUrl' in payload_keys
         assert 'failoverWhisperMaxAttempts' in payload_keys
         assert 'audioCuePairOrientWindowSeconds' not in payload_keys

@@ -38,6 +38,7 @@ class _DB:
             self._call_count.append(1)
         return {
             'cue_create_from_pairs_override': self._overrides.get('cue_create_from_pairs_override'),
+            'cue_cut_matches_override': self._overrides.get('cue_cut_matches_override'),
             'cue_pair_min_break_override': self._overrides.get('cue_pair_min_break_override'),
             'cue_pair_max_break_override': self._overrides.get('cue_pair_max_break_override'),
             'cue_pair_max_break_fraction_override': self._overrides.get('cue_pair_max_break_fraction_override'),
@@ -219,3 +220,19 @@ def test_no_db_returns_defaults():
     result = resolve_feed_cue_settings(None, None)
     assert result['create_from_pairs'] is _CREATE_FROM_PAIRS_DEFAULT
     assert result['pair_min_break'] == AUDIO_CUE_PAIR_MIN_BREAK_SECONDS
+
+
+def test_cut_matches_override_wins_over_global():
+    db = _DB(overrides={'cue_cut_matches_override': 1},
+             global_vals={'audio_cue_cut_matches': False})
+    assert resolve_feed_cue_settings(db, 1)['cut_matches'] is True
+    db = _DB(overrides={'cue_cut_matches_override': 0},
+             global_vals={'audio_cue_cut_matches': True})
+    assert resolve_feed_cue_settings(db, 1)['cut_matches'] is False
+
+
+def test_cut_matches_inherits_global_and_defaults_off():
+    assert resolve_feed_cue_settings(_DB(), 1)['cut_matches'] is False
+    db = _DB(global_vals={'audio_cue_cut_matches': True})
+    assert resolve_feed_cue_settings(db, 1)['cut_matches'] is True
+    assert resolve_feed_cue_settings(None, 1)['cut_matches'] is False

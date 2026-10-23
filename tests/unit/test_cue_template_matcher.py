@@ -131,3 +131,14 @@ def test_matcher_threads_removal_preference_into_signals(remove_with_ad):
     matcher._scan_chunk(mfcc, 0.0, matches, {1: 0.0}, {1: []})
     assert len(matches[1]) == 1
     assert matches[1][0].details['remove_with_ad'] is remove_with_ad
+
+
+@pytest.mark.parametrize('cut_matches,stored', [(None, None), (True, 1), (False, 0)])
+def test_matcher_threads_cut_matches_into_signals(cut_matches, stored):
+    mfcc = np.random.default_rng(42).standard_normal((20, N_COEFFS)).astype(np.float32)
+    row = _make_template_row(mfcc)
+    row['cut_matches'] = stored
+    matcher = AudioCueTemplateMatcher([row])
+    matches = {1: []}
+    matcher._scan_chunk(mfcc, 0.0, matches, {1: 0.0}, {1: []})
+    assert matches[1][0].details['cut_matches'] is cut_matches

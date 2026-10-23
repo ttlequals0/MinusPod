@@ -34,6 +34,19 @@ release notes.
   feature embeds its landscape cut, uploaded as a GitHub attachment so
   it plays inline.
 
+### Added
+- Cue templates can cut every match on their own, with no ad next to it
+  (#874). Three layers, explicit beating inherited: a global "Cut matched
+  cue audio" setting (off), a per-feed override, and a per-template value
+  next to "Remove cue with ad". Each match of an enabled template becomes a
+  marker with the cue type's category (intro, outro, or sponsor for ad-break
+  cues), so the feed's segment category actions decide whether it is
+  removed, beeped, kept or marked. Short stingers are accepted as cuts and
+  the LLM reviewer leaves these markers alone. Cue-only safety still holds
+  an unproven template. A feed whose templates all cut their own matches
+  can run cue-only without start and end templates. Content transition cues
+  are not eligible. Cue telemetry reports the new "cut" outcome.
+
 ### Changed
 - Settings > System Status no longer repeats Time Saved, LLM Tokens and
   Cost. The Stats page already shows them with filters, and the two sets of

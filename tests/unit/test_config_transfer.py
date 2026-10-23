@@ -630,10 +630,15 @@ def test_unavailable_crypto_rejects_secret_import_before_any_write(temp_db, monk
 def test_preview_validates_nullable_feed_overrides_and_effective_processing_mode(temp_db):
     valid = _document(feeds=[_feed(
         cue_create_from_pairs_override=True,
+        cue_cut_matches_override=False,
         differential_fetch_enabled=False,
         keep_original_audio_override=True,
     )])
     config_transfer.build_preview(temp_db, valid, 'everything')
+
+    invalid_cut = _document(feeds=[_feed(cue_cut_matches_override='unexpected')])
+    with pytest.raises(ConfigTransferError, match='cue_cut_matches_override'):
+        config_transfer.build_preview(temp_db, invalid_cut, 'everything')
 
     invalid_bool = _document(feeds=[_feed(keep_original_audio_override='unexpected')])
     with pytest.raises(ConfigTransferError, match='keep_original_audio_override'):

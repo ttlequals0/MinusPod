@@ -987,6 +987,22 @@ describe('FeedSettingsPanel experimental labelling', () => {
     await waitFor(() => expect(screen.queryAllByText(/^Experimental$/).length).toBeGreaterThan(0));
   });
 
+  it('saves the cut matched cue audio override as a tri-state', async () => {
+    renderPanel(makeFeed());
+    await screen.findByText('Cut matched cue audio:');
+    const select = screen.getByText('Cut matched cue audio:').nextElementSibling!.querySelector('select')!;
+    await userEvent.selectOptions(select, 'enable');
+    await waitFor(() => expect(mockUpdateFeed).toHaveBeenCalledWith('test-feed', { cueCutMatchesOverride: true }));
+    await userEvent.selectOptions(select, 'disable');
+    await waitFor(() => expect(mockUpdateFeed).toHaveBeenCalledWith('test-feed', { cueCutMatchesOverride: false }));
+  });
+
+  it('shows the override badge when set', async () => {
+    renderPanel(makeFeed({ cueCutMatchesOverride: false }));
+    await screen.findByText('Cut matched cue audio:');
+    expect(screen.getByText('Override: off')).toBeDefined();
+  });
+
   it('keeps the badge behind the control so the row stays aligned', async () => {
     // Every input in the cue tuning section shares one left edge. The badge
     // trails the hint, so nothing sits between the label and the select.

@@ -333,11 +333,11 @@ PASS2_AUTOAPPROVE_PROPOSED_IOU = 0.8
 
 def is_cue_backed(ad) -> bool:
     """Single source of truth for the cue gate: an ad is exempt from cue-gated
-    holding when it has an audio-cue snap, came from a cue pair, or is a manual
+    holding when it has an audio-cue snap, came from a cue pair or cue match, or is a manual
     (human) marker. Used by the validator hold rules and the pass-1 gate.
     """
     return (bool(ad.get('cue_snap'))
-            or ad.get('detection_stage') in ('cue_pair', 'manual'))
+            or ad.get('detection_stage') in ('cue_pair', 'cue_match', 'manual'))
 
 
 def measured_evidence(ad) -> list[str]:
@@ -1169,6 +1169,7 @@ def resolve_feed_cue_settings(db, podcast_id):
     if not db:
         result = {out_key: default for _, _, default, out_key in _CUE_FLOAT_KNOBS}
         result['create_from_pairs'] = False
+        result['cut_matches'] = False
         result['transition_snap_enabled'] = False
         return result
 
@@ -1186,7 +1187,13 @@ def resolve_feed_cue_settings(db, podcast_id):
     else:
         create_from_pairs = db.get_setting_bool('audio_cue_create_from_pairs', default=False)
 
-    result = {'create_from_pairs': create_from_pairs}
+    cut_matches_raw = overrides.get('cue_cut_matches_override')
+    if cut_matches_raw is not None:
+        cut_matches = bool(cut_matches_raw)
+    else:
+        cut_matches = db.get_setting_bool('audio_cue_cut_matches', default=False)
+
+    result = {'create_from_pairs': create_from_pairs, 'cut_matches': cut_matches}
     for override_col, setting_key, code_default, out_key in _CUE_FLOAT_KNOBS:
         raw = overrides.get(override_col)
         if raw is not None:
@@ -1531,8 +1538,22 @@ AUDIO_CUE_END_EDGE_ROLES = ('end', 'boundary')
 CUE_ONLY_REQUIRED_ROLES = ('start', 'end')
 
 
-def cue_only_missing_roles(rows):
-    """Required cue-only roles (start/end) with no enabled template in rows."""
+def cue_template_cuts_matches(row, cut_matches_default=False):
+    """Effective cut_matches for a template row: own value, else the default; never content_transition."""
+    if (row.get('cue_type') or AUDIO_CUE_TYPE_DEFAULT) == AUDIO_CUE_TYPE_CONTENT_TRANSITION:
+        return False
+    value = row.get('cut_matches')
+    return bool(cut_matches_default) if value is None else bool(value)
+
+
+def cue_only_missing_roles(rows, cut_matches_default=False):
+    """Required cue-only roles (start/end) with no enabled template in rows.
+
+    An enabled template that cuts its own matches needs no start/end pair.
+    """
+    if any(r.get('enabled') and cue_template_cuts_matches(r, cut_matches_default)
+           for r in rows):
+        return set()
     roles = {audio_cue_type_role(r.get('cue_type') or AUDIO_CUE_TYPE_DEFAULT)
              for r in rows if r.get('enabled')}
     return set(CUE_ONLY_REQUIRED_ROLES) - roles

@@ -93,6 +93,7 @@ export interface Feed {
   episodeLogs?: EpisodeLogsOverride | null;
   cueTemplateScoreOverride?: number | null;
   cueCreateFromPairsOverride?: boolean | null;
+  cueCutMatchesOverride?: boolean | null;
   cuePairMinBreakOverride?: number | null;
   cuePairMaxBreakOverride?: number | null;
   cuePairMaxBreakFractionOverride?: number | null;
@@ -897,6 +898,7 @@ export interface Settings {
   audioCueProminenceDb: SettingValueNumber;
   audioCueMinConfidence: SettingValueNumber;
   audioCueCreateFromPairs: SettingValueBoolean;
+  audioCueCutMatches: SettingValueBoolean;
   audioCueTemplateScore: SettingValueNumber;
   audioCueFormantAttenDb: SettingValueNumber;
   audioCueSnapConfidence: SettingValueNumber;
@@ -1104,6 +1106,7 @@ export interface Settings {
     audioCueProminenceDb: number;
     audioCueMinConfidence: number;
     audioCueCreateFromPairs: boolean;
+    audioCueCutMatches: boolean;
     audioCueTemplateScore: number;
     audioCueFormantAttenDb: number;
     audioCueSnapConfidence: number;
@@ -1225,6 +1228,7 @@ export interface UpdateSettingsPayload {
   audioCueProminenceDb?: number;
   audioCueMinConfidence?: number;
   audioCueCreateFromPairs?: boolean;
+  audioCueCutMatches?: boolean;
   audioCueTemplateScore?: number;
   audioCueFormantAttenDb?: number;
   audioCueSnapConfidence?: number;

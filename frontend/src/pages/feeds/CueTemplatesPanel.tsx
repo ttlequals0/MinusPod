@@ -37,6 +37,7 @@ import type { Episode } from '../../api/types';
 import { formatTime } from '../../utils/adReviewHelpers';
 import { formatDate } from '../../utils/format';
 import Checkbox from '../../components/Checkbox';
+import TriStateSelect from '../../components/TriStateSelect';
 import DraftNumberInput, { parseOptionalNumber } from '../../components/DraftNumberInput';
 import { focusRing } from '../../components/fieldStyles';
 import { badgeBase, tint } from '../../components/badgeStyles';
@@ -107,6 +108,11 @@ function CueTemplatesPanel({ slug }: Props) {
   // Capture length bounds come from settings so the mark dialog honors the
   // configured audio_cue_capture_min/max_seconds.
   const settingsQuery = useQuery({ queryKey: ['settings'], queryFn: getSettings });
+  const inheritedCutMatches =
+    feedQuery.data?.cueCutMatchesOverride ?? settingsQuery.data?.audioCueCutMatches?.value;
+  const inheritLabel = inheritedCutMatches == null
+    ? 'Inherit'
+    : `Inherit (${inheritedCutMatches ? 'on' : 'off'})`;
   const captureMinSeconds = settingsQuery.data?.audioCueCaptureMinSeconds?.value ?? 0.2;
   const captureMaxSeconds = settingsQuery.data?.audioCueCaptureMaxSeconds?.value ?? 10;
   const captureMaxIntroSeconds = settingsQuery.data?.audioCueCaptureMaxIntroSeconds?.value ?? 60;
@@ -145,7 +151,7 @@ function CueTemplatesPanel({ slug }: Props) {
   const invalidate = () => queryClient.invalidateQueries({ queryKey: ['cue-templates', slug] });
 
   const updateMutation = useMutation({
-    mutationFn: ({ id, patch }: { id: number; patch: { cueType?: CueTemplateType; enabled?: boolean; removeWithAd?: boolean; scope?: CueTemplateScope; networkId?: string; scoreThreshold?: number | null } }) =>
+    mutationFn: ({ id, patch }: { id: number; patch: { cueType?: CueTemplateType; enabled?: boolean; removeWithAd?: boolean; cutMatches?: boolean | null; scope?: CueTemplateScope; networkId?: string; scoreThreshold?: number | null } }) =>
       updateCueTemplate(id, patch),
     onSuccess: invalidate,
     onError: (e) => setActionError(getErrorMessage(e, 'Update failed')),
@@ -455,6 +461,29 @@ function CueTemplatesPanel({ slug }: Props) {
                           disabled={t.owned === false || updateMutation.isPending}
                           ariaLabel={`Remove cue with ad: ${t.label}`}
                         />
+                      )}
+                      {t.cueType !== 'content_transition' && (
+                        <div className="flex flex-col gap-1">
+                          <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2">
+                            <label htmlFor={`cut-matches-${t.id}`} className="text-xs text-muted-foreground">
+                              Cut matched audio
+                            </label>
+                            <TriStateSelect
+                              id={`cut-matches-${t.id}`}
+                              ariaDescribedBy={`cut-matches-help-${t.id}`}
+                              value={t.cutMatches ?? null}
+                              onChange={(cutMatches) => updateMutation.mutate({ id: t.id, patch: { cutMatches } })}
+                              disabled={t.owned === false || updateMutation.isPending}
+                              globalLabel={inheritLabel}
+                              enableLabel="On"
+                              disableLabel="Off"
+                              className="px-2 py-1.5 text-sm bg-secondary border border-border rounded min-h-11 sm:min-h-0 w-full sm:w-auto"
+                            />
+                          </div>
+                          <p id={`cut-matches-help-${t.id}`} className="text-xs text-muted-foreground">
+                            Cuts every match of this cue on its own. The feed's category action for the cue type decides remove, keep or mark.
+                          </p>
+                        </div>
                       )}
                       {t.owned !== false && t.scope === 'network' && networkId
                         && t.networkId && t.networkId !== networkId && (

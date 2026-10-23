@@ -246,6 +246,7 @@ class PodcastMixin:
 
     _CUE_OVERRIDE_COLS = (
         'cue_create_from_pairs_override',
+        'cue_cut_matches_override',
         'cue_pair_min_break_override',
         'cue_pair_max_break_override',
         'cue_pair_max_break_fraction_override',

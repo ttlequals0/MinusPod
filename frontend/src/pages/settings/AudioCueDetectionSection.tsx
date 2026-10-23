@@ -12,6 +12,7 @@ export interface AudioCueState {
   templateScore: number;
   formantAttenDb: number;
   createFromPairs: boolean;
+  cutMatches: boolean;
   snapConfidence: number;
   snapLeadSeconds: number;
   snapLagSeconds: number;
@@ -273,6 +274,22 @@ function AudioCueDetectionSection({ audioCue, onChange }: AudioCueDetectionSecti
                   </label>
                   <p className="mt-2 text-sm text-muted-foreground ml-14">
                     When two high-confidence cues bracket a break the model missed, create a cue-only ad for the reviewer to check. Off by default - turn it on once you trust the matcher on this feed.
+                  </p>
+                </div>
+
+                <div>
+                  <label className="flex items-center gap-3 cursor-pointer">
+                    <ToggleSwitch
+                      checked={audioCue.cutMatches}
+                      onChange={(v) => update('cutMatches', v)}
+                      ariaLabel="Cut matched cue audio"
+                    />
+                    <span className="text-sm font-medium text-foreground">
+                      Cut matched cue audio
+                    </span>
+                  </label>
+                  <p className="mt-2 text-sm text-muted-foreground ml-14">
+                    Cut every match of a cue template on its own, with no ad next to it. Each template and feed can override this. The feed's category action for the cue type decides the outcome.
                   </p>
                 </div>
               </div>

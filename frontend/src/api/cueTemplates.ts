@@ -54,6 +54,8 @@ export interface CueTemplate {
   networkId: string | null;
   enabled: boolean;
   removeWithAd?: boolean;
+  // Cut every match on its own. null/absent = inherit from feed/global.
+  cutMatches?: boolean | null;
   createdAt: string;
   createdBy: string | null;
   // False for a network template shared from another feed in this network;
@@ -128,6 +130,7 @@ export async function updateCueTemplate(
     cueType?: CueTemplateType;
     enabled?: boolean;
     removeWithAd?: boolean;
+    cutMatches?: boolean | null;
     scope?: CueTemplateScope;
     networkId?: string;
     scoreThreshold?: number | null;

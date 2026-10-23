@@ -31,6 +31,7 @@ from config import (
     resolve_skip_transcription,
     resolve_cue_only_safety,
     cue_only_missing_roles,
+    resolve_feed_cue_settings,
     resolve_max_ad_duration_override,
     resolve_ad_detection_exclude_start_seconds,
     resolve_cue_gated_approval,
@@ -777,7 +778,9 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                         slug, podcast_name, podcast_id, cue_templates_for_feed,
                         threshold_suggestions=detect._suggest_cue_thresholds(
                             slug, episode_id, podcast_id, audio_analysis_result))
-                    if cue_only_missing_roles(cue_templates_for_feed):
+                    if cue_only_missing_roles(
+                            cue_templates_for_feed,
+                            cut_matches_default=resolve_feed_cue_settings(db, podcast_id)['cut_matches']):
                         # Near-unreachable: the API guard blocks the mutation that
                         # would cause this. Belt-and-suspenders log only.
                         audio_logger.error(

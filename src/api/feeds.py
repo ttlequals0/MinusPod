@@ -631,6 +631,8 @@ def _cue_override_fields(podcast) -> dict:
         'cueTemplateScoreOverride': podcast.get('cue_template_score_override'),
         'cueCreateFromPairsOverride': _deserialize_nullable_bool(
             podcast.get('cue_create_from_pairs_override')),
+        'cueCutMatchesOverride': _deserialize_nullable_bool(
+            podcast.get('cue_cut_matches_override')),
     } | {
         json_key: _deserialize_nullable_bool(podcast.get(db_col))
         for json_key, db_col in _NULLABLE_BOOL_FIELDS
@@ -2172,6 +2174,13 @@ def update_feed(slug):
         if err:
             return error_response(err, 400)
         updates['cue_create_from_pairs_override'] = v
+
+    if 'cueCutMatchesOverride' in data:
+        v, err = _normalize_cue_bool_override(data['cueCutMatchesOverride'],
+                                               'cueCutMatchesOverride')
+        if err:
+            return error_response(err, 400)
+        updates['cue_cut_matches_override'] = v
 
     if data.get('skipTranscription'):
         # Effective mode after this PATCH: an in-flight processingMode write wins.

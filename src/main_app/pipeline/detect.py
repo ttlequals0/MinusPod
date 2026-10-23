@@ -9,6 +9,7 @@ from ad_detector import (
 )
 
 from ad_detector.cue_boundary_snap import snap_ad_boundaries_to_cues
+from ad_detector.cue_cut_ads import synthesize_ads_from_cue_matches
 from ad_detector.cue_pair_ads import synthesize_ads_from_cue_pairs
 from ad_detector.cue_telemetry import build_cue_detection_records
 from ad_detector.silence_boundary_snap import snap_ad_boundaries_to_silence
@@ -55,7 +56,10 @@ audio_logger = logging.getLogger('podcast.audio')
 
 def _exclude_opening_ads(ads, seconds):
     """Drop markers that begin inside the configured opening window."""
-    return [ad for ad in ads if float(ad.get('start', 0)) >= seconds] if seconds > 0 else ads
+    if seconds <= 0:
+        return ads
+    return [ad for ad in ads
+            if ad.get('detection_stage') == 'cue_match' or float(ad.get('start', 0)) >= seconds]
 
 
 def _detect_ads_first_pass(ctx, segments, audio_path,
@@ -222,6 +226,25 @@ def _detect_ads_first_pass(ctx, segments, audio_path,
                 f"[{slug}:{episode_id}] Cue pair synthesis skipped: {e}"
             )
 
+    # Cue cut: templates that cut their own matches become markers, with or without pairs (#874).
+    cue_cut_skip_diagnostics = {}
+    if audio_analysis_result:
+        try:
+            updated, cue_cut_skip_diagnostics = synthesize_ads_from_cue_matches(
+                first_pass_ads, audio_analysis_result,
+                cue_settings.get('cut_matches', False),
+                min_confidence=db.get_setting_float('audio_cue_pair_confidence', AUDIO_CUE_PAIR_CONFIDENCE),
+            )
+            added = len(updated) - len(first_pass_ads)
+            if added:
+                audio_logger.info(
+                    f"[{slug}:{episode_id}] Cue cut: {added} marker(s) from matched cues")
+            first_pass_ads = updated
+        except Exception as e:
+            audio_logger.warning(
+                f"[{slug}:{episode_id}] Cue cut skipped: {e}"
+            )
+
     # Snap both ad edges to nearby audio cues when the analyzer flagged any.
     # Capped by the reviewer's max_boundary_shift setting so a misfiring cue
     # cannot warp the boundary beyond what the user has authorised. Implicitly
@@ -271,7 +294,7 @@ def _detect_ads_first_pass(ctx, segments, audio_path,
             records = build_cue_detection_records(
                 first_pass_ads, audio_analysis_result,
                 pre_snap_ads=pre_snap_ads,
-                pair_skip_diagnostics=cue_pair_skip_diagnostics,
+                pair_skip_diagnostics={**cue_pair_skip_diagnostics, **cue_cut_skip_diagnostics},
                 snap_confidence=snap_confidence,
                 snap_lead_s=snap_lead,
                 snap_lag_s=snap_lag,

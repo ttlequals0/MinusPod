@@ -1612,6 +1612,24 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                 </div>
               </div>
 
+              <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 text-sm">
+                <span className="text-muted-foreground sm:w-32 shrink-0">Cut matched cue audio:</span>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <TriStateSelect
+                    value={feed.cueCutMatchesOverride}
+                    onChange={(next) => updateMutation.mutate({ cueCutMatchesOverride: next })}
+                    disabled={updateMutation.isPending}
+                    className="px-2 py-1.5 text-sm bg-secondary border border-border rounded flex-1 sm:flex-none min-w-36"
+                  />
+                  <span className="text-xs text-muted-foreground">Empty = use global</span>
+                  {feed.cueCutMatchesOverride != null && (
+                    <span className={`${badgeBase} font-medium ${tint.blue}`}>
+                      Override: {feed.cueCutMatchesOverride ? 'on' : 'off'}
+                    </span>
+                  )}
+                </div>
+              </div>
+
               <CueOverrideRow label="Pair min break" min={1} max={600} step={1}
                 value={pairMinField.value} setValue={pairMinField.setValue} feedValue={feed.cuePairMinBreakOverride}
                 hint="s, empty = global"

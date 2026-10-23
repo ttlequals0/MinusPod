@@ -246,3 +246,19 @@ def test_removal_defaults_on_and_opt_out_survives_updates(temp_db):
     assert temp_db.get_cue_template_meta(tid)['remove_with_ad'] == 0
     assert temp_db.list_cue_templates_metadata(pid)[0]['remove_with_ad'] == 0
     assert temp_db.list_cue_templates_for_feed_ui(pid)[0]['remove_with_ad'] == 0
+
+
+def test_cut_matches_tri_state_create_update_and_selects(temp_db):
+    pid = temp_db.create_podcast('cue-cut', 'https://example.com/feed.xml', 'Show')
+    tid = _create(temp_db, pid)
+    assert temp_db.get_cue_template(tid)['cut_matches'] is None
+    temp_db.update_cue_template(tid, cut_matches=True)
+    temp_db.update_cue_template(tid, enabled=False)
+    assert temp_db.get_cue_template(tid)['cut_matches'] == 1
+    assert temp_db.get_cue_template_meta(tid)['cut_matches'] == 1
+    assert temp_db.list_cue_templates_metadata(pid)[0]['cut_matches'] == 1
+    assert temp_db.list_cue_templates_for_feed_ui(pid)[0]['cut_matches'] == 1
+    temp_db.update_cue_template(tid, cut_matches=False)
+    assert temp_db.get_cue_template(tid)['cut_matches'] == 0
+    temp_db.update_cue_template(tid, cut_matches=None)
+    assert temp_db.get_cue_template(tid)['cut_matches'] is None

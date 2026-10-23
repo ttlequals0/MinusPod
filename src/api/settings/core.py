@@ -494,6 +494,9 @@ def _build_settings_payload():
     audio_cue_create_from_pairs = coerce_bool_setting(common._setting_value(
         settings, 'audio_cue_create_from_pairs',
         registry_default('audio_cue_create_from_pairs')))
+    audio_cue_cut_matches = coerce_bool_setting(common._setting_value(
+        settings, 'audio_cue_cut_matches',
+        registry_default('audio_cue_cut_matches')))
 
     dai_differential_overrides_keep = coerce_bool_setting(common._setting_value(
         settings, 'dai_differential_overrides_keep',
@@ -740,6 +743,7 @@ def _build_settings_payload():
         'audioCueProminenceDb': _sv('audio_cue_prominence_db', audio_cue_prominence),
         'audioCueMinConfidence': _sv('audio_cue_min_confidence', audio_cue_min_conf),
         'audioCueCreateFromPairs': _sv('audio_cue_create_from_pairs', audio_cue_create_from_pairs),
+        'audioCueCutMatches': _sv('audio_cue_cut_matches', audio_cue_cut_matches),
         'audioCueTemplateScore': _sv('audio_cue_template_score', audio_cue_template_score),
         'audioCueFormantAttenDb': _sv('audio_cue_formant_atten_db', audio_cue_formant_atten),
         'audioCueSnapConfidence': _sv('audio_cue_snap_confidence', audio_cue_snap_conf),

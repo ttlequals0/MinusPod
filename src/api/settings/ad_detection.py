@@ -1456,6 +1456,7 @@ def _audio_cue_writes(db, data):
     for payload_key, db_key in (
         ('audioCueDetectionEnabled', 'audio_cue_detection_enabled'),
         ('audioCueCreateFromPairs', 'audio_cue_create_from_pairs'),
+        ('audioCueCutMatches', 'audio_cue_cut_matches'),
     ):
         if payload_key in data:
             enabled = coerce_bool_setting(data[payload_key])

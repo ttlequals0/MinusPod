@@ -456,6 +456,7 @@ export interface UpdateFeedPayload {
   episodeLogs?: EpisodeLogsOverride | null;
   cueTemplateScoreOverride?: number | null;
   cueCreateFromPairsOverride?: boolean | null;
+  cueCutMatchesOverride?: boolean | null;
   cuePairMinBreakOverride?: number | null;
   cuePairMaxBreakOverride?: number | null;
   cuePairMaxBreakFractionOverride?: number | null;

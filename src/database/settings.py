@@ -842,6 +842,9 @@ SETTINGS_REGISTRY: dict[str, SettingSpec] = {
     'audio_cue_create_from_pairs': SettingSpec(
         default='false', in_ad_reset=True,
         payload_key='audioCueCreateFromPairs', payload_kind='bool'),
+    'audio_cue_cut_matches': SettingSpec(
+        default='false', in_ad_reset=True,
+        payload_key='audioCueCutMatches', payload_kind='bool'),
     'audio_cue_freq_min_hz': SettingSpec(
         default=str(AUDIO_CUE_FREQ_MIN_HZ), in_ad_reset=True,
         payload_key='audioCueFreqMinHz', payload_kind='int'),

@@ -837,3 +837,41 @@ describe('Remove cue with ad', () => {
     expect(screen.queryByRole('checkbox', { name: 'Remove cue with ad: Ding' })).toBeNull();
   });
 });
+
+describe('Cut matched audio', () => {
+  it('offers the selector for intro cues and saves the tri-state', async () => {
+    mockListCueTemplates.mockResolvedValue([makeTemplate({ cueType: 'show_intro' })]);
+    mockUpdateCueTemplate.mockResolvedValue(makeTemplate({ cutMatches: true }));
+    renderPanel();
+    const select = await screen.findByLabelText('Cut matched audio');
+    expect((select as HTMLSelectElement).value).toBe('global');
+    await userEvent.selectOptions(select, 'On');
+    await waitFor(() => expect(mockUpdateCueTemplate).toHaveBeenCalledWith(7, { cutMatches: true }));
+    await userEvent.selectOptions(select, 'Off');
+    await waitFor(() => expect(mockUpdateCueTemplate).toHaveBeenCalledWith(7, { cutMatches: false }));
+  });
+
+  it('reflects a stored value and can return to inherit', async () => {
+    mockListCueTemplates.mockResolvedValue([makeTemplate({ cueType: 'show_intro', cutMatches: false })]);
+    mockUpdateCueTemplate.mockResolvedValue(makeTemplate({ cutMatches: null }));
+    renderPanel();
+    const select = await screen.findByLabelText('Cut matched audio');
+    expect((select as HTMLSelectElement).value).toBe('disable');
+    await userEvent.selectOptions(select, 'global');
+    await waitFor(() => expect(mockUpdateCueTemplate).toHaveBeenCalledWith(7, { cutMatches: null }));
+  });
+
+  it('hides the selector for content_transition cues', async () => {
+    mockListCueTemplates.mockResolvedValue([makeTemplate({ cueType: 'content_transition' })]);
+    renderPanel();
+    await screen.findByText('Ding');
+    expect(screen.queryByLabelText('Cut matched audio')).toBeNull();
+  });
+
+  it('keeps shared templates read-only', async () => {
+    mockListCueTemplates.mockResolvedValue([makeTemplate({ cueType: 'show_intro', owned: false })]);
+    renderPanel();
+    const select = await screen.findByLabelText('Cut matched audio');
+    expect((select as HTMLSelectElement).disabled).toBe(true);
+  });
+});

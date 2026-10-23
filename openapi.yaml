@@ -1004,6 +1004,11 @@ paths:
                     - boolean
                     - 'null'
                   description: Per-feed override for cue-pair ad synthesis. true forces on, false forces off, null inherits the global audio_cue_create_from_pairs setting.
+                cueCutMatchesOverride:
+                  type:
+                    - boolean
+                    - 'null'
+                  description: Per-feed override for cutting matched cue audio. true forces on, false forces off, null inherits the global audio_cue_cut_matches setting.
                 cuePairMinBreakOverride:
                   type:
                     - number
@@ -6434,6 +6439,9 @@ paths:
                 audioCueCreateFromPairs:
                   type: boolean
                   description: Opt-in cue-pair ad synthesis. Off by default.
+                audioCueCutMatches:
+                  type: boolean
+                  description: Cut every matched cue on its own, with no ad next to it. Templates and feeds can override. Off by default.
                 silenceSnapNoiseDb:
                   type: number
                   description: Amplitude (dBFS) below which audio counts as silence for silence snap (default -50).
@@ -10686,6 +10694,9 @@ paths:
                   type: boolean
                   default: true
                   description: Include a matched ad-break cue in the cut. Programme cues, including content transitions, keep their audio regardless of this option.
+                cutMatches:
+                  type: [boolean, 'null']
+                  description: Cut every match of this cue on its own. null inherits the feed or global setting. true is rejected for content_transition.
                 scope:
                   type: string
                   enum: [podcast, network]
@@ -10735,6 +10746,9 @@ paths:
                 removeWithAd:
                   type: boolean
                   description: Include this ad-break cue in cuts. Omit to preserve the saved value; programme cues retain their audio.
+                cutMatches:
+                  type: [boolean, 'null']
+                  description: Cut every match of this cue on its own. null inherits; omit to keep the saved value. true is rejected for content_transition.
                 scope:
                   type: string
                   enum: [podcast, network]
@@ -12825,6 +12839,9 @@ components:
           type: boolean
           default: true
           description: Include matched ad-break cues in cuts. Existing templates and imports without this field default to true. Programme cues retain their audio.
+        cutMatches:
+          type: [boolean, 'null']
+          description: Cut every match of this cue on its own. null inherits the feed or global setting. Included in exports; imports without it default to null.
         enabled:
           type: boolean
         createdAt:
@@ -13731,6 +13748,11 @@ components:
             - boolean
             - 'null'
           description: Per-feed override for cue-pair ad synthesis. true/false override the global setting; null inherits.
+        cueCutMatchesOverride:
+          type:
+            - boolean
+            - 'null'
+          description: Per-feed override for cutting matched cue audio. true/false override the global setting; null inherits.
         cuePairMinBreakOverride:
           type:
             - number
@@ -16051,6 +16073,14 @@ components:
         audioCueCreateFromPairs:
           type: object
           description: Opt-in. Synthesize a cue-only ad when two high-confidence cues bracket a break the LLM missed (still reviewed). Off by default.
+          properties:
+            value:
+              type: boolean
+            isDefault:
+              type: boolean
+        audioCueCutMatches:
+          type: object
+          description: Opt-in. Cut every matched cue on its own; the feed's category action for the cue type decides the outcome. Off by default.
           properties:
             value:
               type: boolean

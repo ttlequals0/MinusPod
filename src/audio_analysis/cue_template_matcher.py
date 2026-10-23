@@ -68,6 +68,7 @@ class _Template:
     cue_type: str
     role: str
     remove_with_ad: bool = True
+    cut_matches: bool | None = None  # None = inherit feed/global
     score_threshold: float | None = None  # per-template override; None = use instance
     eff_threshold: float = 0.0   # precomputed: score_threshold if set, else instance threshold
     pick_floor: float = 0.0      # precomputed: min(eff_threshold, near_miss_floor) or eff_threshold
@@ -144,6 +145,8 @@ class AudioCueTemplateMatcher:
                 cue_type=cue_type,
                 role=audio_cue_type_role(cue_type),
                 remove_with_ad=bool(row.get('remove_with_ad', True)),
+                cut_matches=(None if row.get('cut_matches') is None
+                             else bool(row['cut_matches'])),
                 score_threshold=per_tpl_threshold,
                 eff_threshold=eff_thr,
                 pick_floor=pick_flr,
@@ -340,6 +343,7 @@ class AudioCueTemplateMatcher:
                             'cue_type': tpl.cue_type,
                             'role': tpl.role,
                             'remove_with_ad': tpl.remove_with_ad,
+                            'cut_matches': tpl.cut_matches,
                             'score': round(score, 3),
                         },
                     ))
