@@ -1594,7 +1594,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                   select stays first in the column, sharing the left edge every
                   other control in this section uses. */}
               <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 text-sm">
-                <span className="text-muted-foreground whitespace-nowrap sm:w-32 shrink-0">Pair synthesis:</span>
+                <span className="text-muted-foreground sm:w-32 shrink-0">Create ads from cue pairs:</span>
                 <div className="flex items-center gap-2 flex-wrap">
                   <TriStateSelect
                     value={feed.cueCreateFromPairsOverride}

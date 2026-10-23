@@ -88,6 +88,8 @@ release notes.
 - Ad review editor: dragging the current-position pin always started
   playback. It now follows the "Play audio while dragging pin" setting,
   like the boundary pins. (#875)
+- Feed settings: the cue pair override is labelled "Create ads from cue
+  pairs", the same name the global setting uses, so search finds both. (#879)
 - Pattern details: the Podcast link opened the API episodes path and
   returned Not Found. It now goes to the feed page. (#876)
 - Episode page: cut markers that the audio processor merges into one span

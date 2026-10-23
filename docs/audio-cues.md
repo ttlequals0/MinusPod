@@ -395,7 +395,7 @@ Per-feed controls sit on the feed detail page under Feed settings:
   episode can write this override for you via its Apply to this feed button.
 - **Cue tuning overrides** (collapsible) - per-feed overrides for seven advanced
   knobs. Empty for any field means inherit the global value:
-  - **Pair synthesis** (`cueCreateFromPairsOverride`) - tri-state: on, off, or
+  - **Create ads from cue pairs** (`cueCreateFromPairsOverride`) - tri-state: on, off, or
     inherit global.
   - **Pair min break** (`cuePairMinBreakOverride`) - seconds.
   - **Pair max break** (`cuePairMaxBreakOverride`) - seconds.

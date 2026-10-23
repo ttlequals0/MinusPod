@@ -991,7 +991,7 @@ describe('FeedSettingsPanel experimental labelling', () => {
     // Every input in the cue tuning section shares one left edge. The badge
     // trails the hint, so nothing sits between the label and the select.
     renderPanel(makeFeed());
-    await screen.findByText('Pair synthesis:');
+    await screen.findByText('Create ads from cue pairs:');
     const badge = screen.getByText(/^Experimental$/);
     const column = badge.parentElement!;
     const select = column.querySelector('select');

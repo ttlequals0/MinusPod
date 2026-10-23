@@ -617,7 +617,7 @@ function CueTemplatesPanel({ slug }: Props) {
             <h4 className="text-sm font-semibold text-foreground mb-1">Cue health</h4>
             <p className="text-xs text-muted-foreground mb-3">
               How this feed's cues have done across processed episodes. Use it to
-              decide whether to enable cue-pair synthesis.
+              decide whether to turn on Create ads from cue pairs.
             </p>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
               {([
