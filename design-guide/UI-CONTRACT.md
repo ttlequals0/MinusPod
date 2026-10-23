@@ -1,6 +1,6 @@
 # UI behavior and review contract
 
-Reviewed: 2026-10-16. Applies to desktop, phone, and tablet interfaces.
+Reviewed: 2026-10-23. Applies to desktop, phone, and tablet interfaces.
 
 The HTML guide contains visual examples. Production components own behavior. Change a shared component when a rule applies across screens; do not patch each caller with a different recipe.
 
@@ -10,7 +10,7 @@ The HTML guide contains visual examples. Production components own behavior. Cha
 | --- | --- | --- |
 | Theme values | `frontend/src/index.css`, `frontend/src/themes/themes.ts` | `npm run design:sync`; `npm run design:check`; theme contrast tests |
 | Page headers and summary cards | `pageStyles.ts`, Stats `StatCard` | Compare title, action placement, label/value alignment at every supported width |
-| Buttons and fields | `buttonStyles.ts`, `fieldStyles.ts`, `rowActionStyles.ts`, global coarse-pointer CSS | Measure the clickable element in a browser |
+| Buttons and fields | `buttonStyles.ts`, `fieldStyles.ts`, `rowActionStyles.ts`, `Modal.tsx` footer recipes, global coarse-pointer CSS | Measure the clickable element in a browser |
 | Dialogs | `Modal.tsx`, `useDraftClose.tsx` | Name, Tab cycle, Escape ownership, focus restoration, discard flow |
 | Page tabs | `PageTabs.tsx` | Arrows, Home/End, selected state, panel relationship |
 | Async failures | `QueryError.tsx` and query consumers | Failed requests cannot render an empty-success claim |
@@ -27,7 +27,37 @@ Run these commands from `frontend`. The guide's theme catalog and default tokens
 - Choose table breakpoints from populated content. Check long titles, large counts, IPv4 and IPv6 values, and error messages. Routine lists must fit their containers. Detailed comparison tables may scroll within a named, keyboard-focusable region.
 - Keep Since and Until together in a two-column group at 320 CSS px. Each field has a label and reciprocal date limit. Date-only filters must retain their date-only semantics.
 - Navigation collapses below 1280 CSS px. Keep the active route marked with `aria-current="page"` in both navigation layouts.
-- Verify 320, 390, 768, 1024, 1280, and 1440 CSS px for changed layouts. Include a short viewport when changing dialogs or fixed bars.
+- Verify 320, 390, 466, 626, 768, 890, 1024, 1280, and 1440 CSS px for changed layouts. Include a short viewport when changing dialogs or fixed bars. 466 and 626 (portrait) and 890 (landscape) match a folded and an unfolded foldable phone.
+- The Feeds grid has two columns from 600 CSS px. Stat and tile grids use even column counts between 640 and 1023 CSS px.
+- The page shell, fixed bars, and floating buttons pad for `env(safe-area-inset-left/right)` through the `.safe-x` and `.safe-x-wide` utilities in `index.css`.
+- Under `@media (horizontal-viewport-segments: 2)` dialogs stay in the right-hand viewport segment.
+- Overlapping cut markers on the episode page render as one block card with a segments toggle. Member cards keep their own actions.
+
+## Buttons
+
+There is no `<Button>` component. Recipes are class strings composed at the call site: the recipe plus only the modifiers that differ (`w-full`, `disabled:opacity-50`, `gap-2`).
+
+| Recipe | Use | Notes |
+| --- | --- | --- |
+| `btnPrimary` | The one main action in a card, row, or dialog | One per group |
+| `btnSecondary` | Default action beside a primary one | Fill, no border |
+| `btnOutline` | Same as secondary | Alias kept for call-site intent |
+| `btnGhost` | Low-emphasis action, icon toggles | Muted text, accent hover |
+| `btnDestructive` | The primary action is destructive (confirm delete) | Solid fill |
+| `btnDestructiveOutline` | Destructive action beside a primary one (Delete beside Edit) | Tinted border and hover |
+| `touchTarget` | Standalone control that needs a 44 px box on a phone | `min-h-11 min-w-11` below sm |
+| `touchCompact` | Icon-only header action beside a heading | 36 px square below sm, text button from sm |
+| `touchTargetRow` | Row that must stay on one line on a phone | Full height, shared width below sm |
+| `rowActionBtn`, `rowActionIcon` | Marker and detection row actions and the icon beside them | Icon derives its box from the same source |
+| `tableActionBtn` | Desktop detection table rows | 30 px tall |
+| `cardActionBtn` | Review and detection card actions | 44 px floor; labels wrap on a phone |
+| `dialogFooterBtn` | Dialog footer action | Text label at every width |
+| `dialogFooterIconBtn` | Footer action in a dialog with 3 or more actions | 44 px icon square below sm, label from sm |
+| `iconTarget` + `iconVisual` | Icon button with a smaller filled square | 44 px hit box on coarse pointers; visual is 32 px, 28 px from sm |
+
+- Pair `iconTarget` with `iconVisual`. The focus ring sits on the visual through `group-focus-visible`. `AuditionPlayButton` is the reference and is one size everywhere.
+- Dialog footers with 3 or more actions collapse to icon buttons below 640 CSS px. `aria-label` and `title` carry the full text. `PatternDetailModal` is the reference.
+- Inline link-style actions (`text-primary hover:underline`, "Show full match") and selected-state toggles (`PageTabs`, `SegmentedToggle`, pagination numbers) are intentionally not button recipes.
 
 ## Data and feedback states
 

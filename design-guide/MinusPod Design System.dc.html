@@ -146,13 +146,42 @@ a:hover{text-decoration:underline}
       <button aria-label="Delete" title="Icon-only: h-8 w-8, aria-label required" style="width:44px;height:44px;display:inline-flex;align-items:center;justify-content:center;border-radius:4px;border:none;cursor:pointer;background:hsl(var(--destructive));color:hsl(var(--destructive-foreground))" style-hover="background:hsl(var(--destructive) / 0.9)"><svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg></button>
       <button aria-label="Search" style="padding:8px;border-radius:6px;border:none;cursor:pointer;background:transparent;color:hsl(var(--muted-foreground));display:inline-flex" style-hover="background:hsl(var(--accent));color:hsl(var(--foreground))"><svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg></button>
     </div>
+    <div style="display:flex;flex-wrap:wrap;gap:20px;align-items:flex-start">
+      <div style="display:flex;flex-direction:column;gap:6px">
+        <div style="display:flex;gap:8px">
+          <button style="padding:6px 12px;font-size:14px;border-radius:4px;border:none;cursor:pointer;font-family:inherit;background:hsl(var(--secondary));color:hsl(var(--secondary-foreground))">Edit</button>
+          <button style="padding:6px 12px;font-size:14px;border-radius:4px;border:1px solid hsl(var(--destructive) / 0.4);cursor:pointer;font-family:inherit;background:transparent;color:hsl(var(--destructive))" style-hover="background:hsl(var(--destructive) / 0.1)">Delete</button>
+        </div>
+        <span style="font-size:12px;color:hsl(var(--muted-foreground))"><span style="font-family:ui-monospace,monospace;font-size:12px">btnDestructiveOutline</span>: destructive, but not the primary action</span>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:6px">
+        <button aria-label="Play" style="width:44px;height:44px;display:inline-flex;align-items:center;justify-content:center;border:none;background:transparent;cursor:pointer;padding:0"><span style="width:32px;height:32px;display:inline-flex;align-items:center;justify-content:center;border-radius:4px;background:hsl(var(--secondary));color:hsl(var(--secondary-foreground));box-shadow:0 0 0 2px hsl(var(--ring))"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg></span></button>
+        <span style="font-size:12px;color:hsl(var(--muted-foreground))"><span style="font-family:ui-monospace,monospace;font-size:12px">iconTarget</span> 44px box, <span style="font-family:ui-monospace,monospace;font-size:12px">iconVisual</span> 32px inside (28px from sm). Ring shown on the visual.</span>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:6px">
+        <div style="display:flex;gap:8px">
+          <button style="padding:6px 12px;font-size:14px;border-radius:4px;border:none;cursor:pointer;font-family:inherit;background:hsl(var(--secondary));color:hsl(var(--secondary-foreground))">Cancel</button>
+          <button style="padding:6px 12px;font-size:14px;border-radius:4px;border:none;cursor:pointer;font-family:inherit;background:hsl(var(--primary));color:hsl(var(--primary-foreground))">Save</button>
+        </div>
+        <span style="font-size:12px;color:hsl(var(--muted-foreground))"><span style="font-family:ui-monospace,monospace;font-size:12px">dialogFooterBtn</span>: text at every width</span>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:6px">
+        <div style="display:flex;gap:8px">
+          <button aria-label="Cancel" title="Cancel" style="width:44px;height:44px;display:inline-flex;align-items:center;justify-content:center;border-radius:4px;border:none;cursor:pointer;background:hsl(var(--secondary));color:hsl(var(--secondary-foreground))"><svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M6 6l12 12M18 6L6 18"/></svg></button>
+          <button aria-label="Save" title="Save" style="width:44px;height:44px;display:inline-flex;align-items:center;justify-content:center;border-radius:4px;border:none;cursor:pointer;background:hsl(var(--primary));color:hsl(var(--primary-foreground))"><svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg></button>
+        </div>
+        <span style="font-size:12px;color:hsl(var(--muted-foreground))"><span style="font-family:ui-monospace,monospace;font-size:12px">dialogFooterIconBtn</span>: below 640px, 3 or more actions. <span style="font-family:ui-monospace,monospace;font-size:12px">aria-label</span> and <span style="font-family:ui-monospace,monospace;font-size:12px">title</span> carry the text.</span>
+      </div>
+    </div>
     <div style="font-family:ui-monospace,monospace;font-size:12px;line-height:1.8;color:hsl(var(--muted-foreground));background:hsl(var(--muted) / 0.5);border-radius:6px;padding:12px 14px;overflow-x:auto">
 btnPrimary&nbsp;&nbsp;&nbsp;&nbsp;= bg-primary text-primary-foreground hover:bg-primary/90<br>
 btnSecondary&nbsp;&nbsp;= bg-secondary text-secondary-foreground hover:bg-secondary/80<br>
 btnOutline&nbsp;&nbsp;&nbsp;&nbsp;= btnSecondary&nbsp;&nbsp;<i>(alias, kept for intent)</i><br>
 btnGhost&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;= text-muted-foreground hover:text-foreground hover:bg-accent<br>
 <span>btn</span><span>Destructive</span> = bg-destructive text-destructive-foreground hover:bg-destructive/90<br>
-call site adds: px-3 py-1.5 text-sm rounded disabled:opacity-50 transition-colors
+btnDestructiveOutline = border border-destructive/40 text-destructive hover:bg-destructive/10<br>
+call site adds: px-3 py-1.5 text-sm rounded disabled:opacity-50 transition-colors<br>
+No &lt;Button&gt; component: recipe plus only the modifiers that differ (w-full, disabled:opacity-50, gap-2).
     </div>
     <div style="font-size:13px;color:hsl(var(--muted-foreground));text-wrap:pretty"><b style="color:hsl(var(--foreground))">Mobile:</b> collapse to icon-only 44&times;44 (<span style="font-family:ui-monospace,monospace;font-size:12px">h-11 w-11</span>) with <span style="font-family:ui-monospace,monospace;font-size:12px">aria-label</span>; show the text label from <span style="font-family:ui-monospace,monospace;font-size:12px">sm:</span> up (<span style="font-family:ui-monospace,monospace;font-size:12px">hidden sm:inline</span>). The clickable element itself must be at least 44px in each dimension on coarse pointers.</div>
   </div>
@@ -586,8 +615,11 @@ tint.destructive = bg-destructive/20 text-destructive-on-tint</div>
       <div style="font-size:13px;font-weight:700;color:hsl(var(--success));text-transform:uppercase;letter-spacing:0.05em;margin-bottom:12px">Do</div>
       <ul style="margin:0;padding-left:18px;font-size:14px;line-height:1.9;color:hsl(var(--foreground))">
         <li>Import button recipes from <span style="font-family:ui-monospace,monospace;font-size:12px">buttonStyles.ts</span>; add only sizing at the call site.</li>
+        <li>Pair <span style="font-family:ui-monospace,monospace;font-size:12px">iconTarget</span> with <span style="font-family:ui-monospace,monospace;font-size:12px">iconVisual</span> for icon buttons with a filled square; <span style="font-family:ui-monospace,monospace;font-size:12px">AuditionPlayButton</span> is the reference.</li>
+        <li>Collapse dialog footers with 3 or more actions to icon buttons below 640px (<span style="font-family:ui-monospace,monospace;font-size:12px">dialogFooterIconBtn</span>), with <span style="font-family:ui-monospace,monospace;font-size:12px">aria-label</span> and <span style="font-family:ui-monospace,monospace;font-size:12px">title</span>.</li>
+        <li><b>Foldable phones:</b> check 466 and 626px (portrait) and 890px (landscape), a folded and an unfolded foldable. The shell pads for <span style="font-family:ui-monospace,monospace;font-size:12px">env(safe-area-inset-left/right)</span> via <span style="font-family:ui-monospace,monospace;font-size:12px">.safe-x</span>, and dialogs stay in the right-hand segment under <span style="font-family:ui-monospace,monospace;font-size:12px">horizontal-viewport-segments: 2</span>. The Feeds grid has two columns from 600px; stat and tile grids use even counts from 640 to 1023px.</li>
         <li>Use token colors so every theme works; check dark + Obsidian before shipping.</li>
-        <li>Use cards below each table's measured content breakpoint. Processing History and episode costs use 1280px; Downloads uses 768px. Preserve sorting and actions in cards. Verify populated layouts at 320, 390, 768, 1024, 1280, and 1440 CSS px.</li>
+        <li>Use cards below each table's measured content breakpoint. Processing History and episode costs use 1280px; Downloads uses 768px. Preserve sorting and actions in cards. Verify populated layouts at 320, 390, 466, 626, 768, 890, 1024, 1280, and 1440 CSS px.</li>
         <li>Reuse shared components: Modal, DropdownMenu, Popover, SegmentedToggle, Checkbox, NumberInput, Pagination, SortHeader, CollapsibleSection, LoadingSpinner.</li>
         <li>Give every interactive element <span style="font-family:ui-monospace,monospace;font-size:12px">transition-colors</span>, <span style="font-family:ui-monospace,monospace;font-size:12px">disabled:opacity-50</span>, and <span style="font-family:ui-monospace,monospace;font-size:12px">focus:ring-2 ring-ring</span>.</li>
         <li>Make failure detail reachable without a pointer: a focusable disclosure that expands the text inline, with a copy action. A <span style="font-family:ui-monospace,monospace;font-size:12px">title=</span> may repeat it, never carry it alone.</li>
@@ -598,6 +630,7 @@ tint.destructive = bg-destructive/20 text-destructive-on-tint</div>
     <div style="background:hsl(var(--card));border:1px solid hsl(var(--border));border-radius:8px;padding:20px">
       <div style="font-size:13px;font-weight:700;color:hsl(var(--destructive));text-transform:uppercase;letter-spacing:0.05em;margin-bottom:12px">Don&rsquo;t</div>
       <ul style="margin:0;padding-left:18px;font-size:14px;line-height:1.9;color:hsl(var(--foreground))">
+        <li>Wrap recipes in a new <span style="font-family:ui-monospace,monospace;font-size:12px">&lt;Button&gt;</span> component, or turn link-style actions and selected-state toggles (<span style="font-family:ui-monospace,monospace;font-size:12px">PageTabs</span>, <span style="font-family:ui-monospace,monospace;font-size:12px">SegmentedToggle</span>, pagination numbers) into button recipes.</li>
         <li>Hardcode <span style="font-family:ui-monospace,monospace;font-size:12px">gray-*</span> / <span style="font-family:ui-monospace,monospace;font-size:12px">white</span> / hex colors &mdash; they bypass the theme palette.</li>
         <li>Invent a bordered &ldquo;outline&rdquo; button; <span style="font-family:ui-monospace,monospace;font-size:12px">btnOutline</span> is Secondary by design.</li>
         <li>Add shadows to resting cards &mdash; shadow-lg/xl marks overlays only.</li>
