@@ -60,6 +60,25 @@ def _sponsor_lookup(service):
                     for row in service.get_sponsors()]
 
 
+def test_parse_transcript_skips_gap_cue_rows():
+    """Gap cue rows between segment-ID rows must not truncate the transcript."""
+    prompt = (
+        "Transcript:\n"
+        "[0] First line.\n"
+        "[gap of 2.0s (no transcript, likely silence, jingle, or unintelligible speech)]\n"
+        "[1] Second line.\n"
+        "[gap 1.5s]\n"
+        "[2] Third line.\n"
+        "\n"
+        "Return the ad segments as JSON."
+    )
+    parsed, mode = parse_transcript(prompt)
+    assert mode == "segment_ids"
+    assert [(s["sid"], s["text"]) for s in parsed] == [
+        (0, "First line."), (1, "Second line."), (2, "Third line."),
+    ]
+
+
 @pytest.mark.parametrize("addressing_mode", ["timestamps", "segment_ids"])
 @pytest.mark.parametrize("category", SEGMENT_CATEGORIES)
 def test_current_window_prompt_detection_and_category_parity(temp_db, addressing_mode, category):

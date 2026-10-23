@@ -36,6 +36,8 @@ logger = logging.getLogger(__name__)
 _TS_LINE = re.compile(r"^\s*\[(\d+(?:\.\d+)?)s?\s*-\s*(\d+(?:\.\d+)?)s?\]\s?(.*)$")
 # segment_ids mode: [12] some text
 _ID_LINE = re.compile(r"^\s*\[(\d+)\]\s?(.*)$")
+# Gap cue rows that segment-ID prompts insert between transcript rows (#884).
+_GAP_LINE = re.compile(r"^\s*\[gap\b[^\]]*\]\s*$")
 # Transcript heading: "Transcript:" // old style
 #                  or "Transcript (with [{start}-{end}] timestamp, in seconds):"
 #                  or "Transcript (with [{id}] prefix):"
@@ -451,6 +453,8 @@ def parse_transcript(text: str) -> tuple[list[dict[str, Any]], str]:
             if not line.strip():
                 if rows:
                     break
+                continue
+            if _GAP_LINE.match(line):
                 continue
             if not (_TS_LINE.match(line) or _ID_LINE.match(line)):
                 break
