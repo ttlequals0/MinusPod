@@ -306,3 +306,38 @@ def test_repaired_xing_counts_toc_music_and_tag_crc(source, tmp_path):
         assert int.from_bytes(header[x + 154:x + 156], 'big') == _crc(header[:x + 154])
         assert list(header[x + 16:x + 116]) == [
             min(255, positions[i * len(positions) // 100] * 256 // total) for i in range(100)]
+
+
+def _end_two_frames_short(source):
+    """A cut end on the boundary two frames before the stream end: the tail it
+    leaves (two frames minus encoder padding) is never above the warm-up."""
+    stream = _scan(source)
+    return ((stream.count - 2) * stream.samples - stream.skip) / stream.rate
+
+
+@pytest.mark.parametrize('sound', [False, True])
+def test_final_cut_reaching_the_end_is_extended_instead_of_refused(source, tmp_path, sound):
+    """An ad that runs into the credits can snap a frame or two short of the
+    decoded end, leaving a tail below the warm-up. The copy folds it into the
+    cut instead of falling back to a re-encode (plusminuspod)."""
+    output = tmp_path / 'output.mp3'
+    end = _end_two_frames_short(source)
+    applied = copy_mp3(str(source), str(output), [{'start': 60, 'end': end}],
+                       replacement_path=str(ROOT / 'assets/replace.mp3') if sound else None)
+    assert applied is not None and len(applied) == 1
+    stream = _scan(source)
+    assert applied[0]['end'] == pytest.approx(stream.decoded_samples / stream.rate, abs=1e-6)
+    assert applied[0]['end'] > end
+    assert abs(applied[0]['start'] - 60) <= stream.samples / stream.rate / 2
+    expected = get_audio_duration(str(source)) - (applied[0]['end'] - applied[0]['start']) + applied[0]['replacement_duration']
+    # The probed output length is millisecond-rounded; the exact figure is sample-rate precise.
+    assert get_audio_duration(str(output)) == pytest.approx(expected, abs=2e-3)
+
+
+def test_final_cut_with_locked_end_short_of_the_stream_is_still_refused(source, tmp_path):
+    output = tmp_path / 'output.mp3'
+    existing = (ROOT / 'assets/replace.mp3').read_bytes()
+    output.write_bytes(existing)
+    assert copy_mp3(str(source), str(output), [{'start': 60, 'end': _end_two_frames_short(source)}],
+                    locked=[(False, True)]) is None
+    assert output.read_bytes() == existing

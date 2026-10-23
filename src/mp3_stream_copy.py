@@ -444,7 +444,24 @@ def copy_mp3(source_path, output_path, cuts, barriers=(), replacement_path=None,
         has_start = bool(intervals) and intervals[0][0] == first
         has_end = bool(intervals) and intervals[-1][1] == len(stream.frames)
         if not has_end and stream.decoded_samples - boundaries[previous] <= warmup:
-            raise CopyUnavailable('Insufficient final retained audio')
+            # The tail left after the last cut is shorter than the decoder
+            # warm-up, so it cannot be kept as a standalone span. When that
+            # tail is only the last cut's own end snapped one frame short
+            # (encoder padding makes the final boundary land before the
+            # decoded end), fold it into the cut instead of giving up on
+            # stream copy: an ad that runs into the credits is common.
+            last_end_locked = bool(locked) and locked[len(intervals) - 1][1]
+            if intervals and previous > 0 and not last_end_locked:
+                trailing = stream.decoded_samples - boundaries[previous]
+                lo_f, _hi_f = intervals[-1]
+                intervals[-1] = (lo_f, len(stream.frames))
+                snapped[-1]['end'] = stream.decoded_samples / stream.rate
+                previous = count
+                has_end = True
+                logger.info('MP3 stream copy: extended final cut to the stream end '
+                            '(%d trailing samples below warm-up)', trailing)
+            else:
+                raise CopyUnavailable('Insufficient final retained audio')
         with tempfile.TemporaryDirectory(prefix='mp3-copy-', dir=str(Path(output_path).parent)) as directory:
             filler = None
             filler_path = None
