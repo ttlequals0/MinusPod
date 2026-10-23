@@ -38,7 +38,7 @@ def _ctx():
     return SimpleNamespace(
         slug='example-podcast', episode_id='a1b2c3d4e5f6', podcast_id=1,
         podcast_name='Example Podcast', episode_title='Episode',
-        podcast_description='', episode_description='')
+        podcast_description='', detection_notes=None, episode_description='')
 
 
 def _spans(ads):

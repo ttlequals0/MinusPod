@@ -52,7 +52,7 @@ from utils.markers import (
 )
 from utils.prompt import (
     format_sponsor_block, render_prompt, apply_override,
-    scrub_description, strip_comments_from_prompt
+    format_detection_notes_block, scrub_description, strip_comments_from_prompt
 )
 from utils.text import most_mentioned, truncate, word_boundary_re
 from utils.time import overlap_ratio, ranges_overlap
@@ -1988,6 +1988,7 @@ class AdDetector:
                    episode_title: str = "Unknown", slug: str = None,
                    episode_id: str = None, episode_description: str = None,
                    podcast_description: str = None,
+                   detection_notes: str = None,
                    progress_callback=None,
                    audio_analysis=None,
                    positional_prior_hint: str = "",
@@ -2065,6 +2066,7 @@ class AdDetector:
             if podcast_description:
                 description_section = f"Podcast Description:\n{podcast_description}\n\n"
                 logger.info(f"[{slug}:{episode_id}] Including scrubbed podcast description ({len(podcast_description)} chars)")
+            description_section += format_detection_notes_block(detection_notes)
 
             episode_description = scrub_description(episode_description, max_length=4000)
             if episode_description:
@@ -2341,6 +2343,7 @@ class AdDetector:
                           podcast_id: str = None,
                           skip_patterns: bool = False,
                           podcast_description: str = None,
+                          detection_notes: str = None,
                           podcast_tags: set | None = None,
                           progress_callback=None,
                           audio_analysis=None,
@@ -2412,6 +2415,7 @@ class AdDetector:
             # something different to downstream reviewers).
             podcast_id = ctx.slug
             podcast_description = ctx.podcast_description
+            detection_notes = ctx.detection_notes
             episode_description = ctx.episode_description
             podcast_tags = ctx.podcast_tags
         elif self.db and slug:
@@ -2612,6 +2616,7 @@ class AdDetector:
                     kc_desc = ""
                     if podcast_description:
                         kc_desc += f"Podcast Description:\n{podcast_description}\n\n"
+                    kc_desc += format_detection_notes_block(detection_notes)
                     if episode_description:
                         kc_desc += f"Episode Description:\n{episode_description}\n"
                     kc_live = live_route_params('detection')
@@ -2634,6 +2639,7 @@ class AdDetector:
                 result = self.detect_ads(
                     segments, podcast_name, episode_title, slug, episode_id, episode_description,
                     podcast_description=podcast_description,
+                    detection_notes=detection_notes,
                     progress_callback=progress_callback,
                     audio_analysis=audio_analysis,
                     positional_prior_hint=positional_prior_hint,
@@ -3571,6 +3577,7 @@ class AdDetector:
                                     slug: str = None, episode_id: str = None,
                                     episode_description: str = None,
                                     podcast_description: str = None,
+                                    detection_notes: str = None,
                                     progress_callback=None,
                                     audio_analysis=None,
                                     pass1_cuts: list[dict] | None = None,
@@ -3638,7 +3645,8 @@ class AdDetector:
             podcast_description = scrub_description(podcast_description, max_length=800)
             if podcast_description:
                 description_section = f"Podcast Description:\n{podcast_description}\n\n"
-            
+            description_section += format_detection_notes_block(detection_notes)
+
             episode_description = scrub_description(episode_description, max_length=4000)
             if episode_description:
                 description_section += (

@@ -22,7 +22,7 @@ import { DETECTION_STAGE_META } from '../utils/detectionStage';
 import { CORROBORATION_CLASS, CORROBORATION_META } from '../utils/corroboration';
 import { formatConfidence } from '../utils/confidence';
 import { isActionBlocked } from '../utils/processingStage';
-import { confirmLabel, isKeepLike } from '../utils/segmentCategory';
+import { confirmLabel, isKeepLike, rejectLabel } from '../utils/segmentCategory';
 import { applyEpisodeJobState, jobStateFromError } from '../utils/jobStateCache';
 import AdEditor, { AdCorrection } from '../components/AdEditor';
 import AdReviewModal from '../components/AdReviewModal';
@@ -1730,7 +1730,7 @@ function EpisodeDetail() {
                         data-testid={`dismiss-${index}`}
                         className={`flex-1 sm:flex-none ${rowActionBtn} ${btnClass(rejectStatus, `${btnDestructive} active:bg-destructive/80`)} ${focusRing}`}
                       >
-                        {btnLabel(rejectStatus, 'Not an ad')}
+                        {btnLabel(rejectStatus, rejectLabel(segment.category))}
                       </button>
                     </div>
                   )}
@@ -1897,7 +1897,7 @@ function EpisodeDetail() {
                             disabled={correctionMutation.isPending}
                             className={`flex-1 sm:flex-none ${rowActionBtn} ${btnClass(rejectStatus, `${btnDestructive} active:bg-destructive/80`)} ${focusRing}`}
                           >
-                            {btnLabel(rejectStatus, 'Not an ad')}
+                            {btnLabel(rejectStatus, rejectLabel(segment.category))}
                           </button>
                         </div>
                       )}

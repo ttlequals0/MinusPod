@@ -1,5 +1,4 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { Play, Pause } from 'lucide-react';
 import CollapsibleSection from './CollapsibleSection';
 import { cueTypeLabel, type CueTemplateType } from '../api/cueTemplates';
 import { setCueDetectionVerdict, type CueVerdict } from '../api/cueDetections';
@@ -9,6 +8,8 @@ import { formatTimestamp } from '../utils/format';
 import { useAuditionPlayer } from '../hooks/useAuditionPlayer';
 import { btnDestructive, btnPrimary } from './buttonStyles';
 import { focusRing } from './fieldStyles';
+import { rowActionBtn } from './rowActionStyles';
+import { AuditionPlayButton } from './AuditionPlayButton';
 import { badgeBase, tint } from './badgeStyles';
 
 interface CueDetectionsSectionProps {
@@ -93,15 +94,12 @@ function CueDetectionsSection({ slug, episodeId, detections }: CueDetectionsSect
             >
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                 <div className="flex flex-wrap items-center gap-2">
-                  <button
-                    type="button"
+                  <AuditionPlayButton
+                    playing={playingKey === String(d.id)}
                     onClick={() => toggleMatch(String(d.id), audioUrl, d.start_s, d.end_s)}
-                    aria-label={playingKey === String(d.id) ? 'Pause match' : 'Play this match'}
-                    title={playingKey === String(d.id) ? 'Pause' : 'Play this match'}
-                    className={`p-1.5 rounded ${btnPrimary} transition-colors shrink-0 touch-manipulation ${focusRing}`}
-                  >
-                    {playingKey === String(d.id) ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
-                  </button>
+                    label="this match"
+                    size="row"
+                  />
                   <span className="font-mono text-sm text-foreground">
                     {formatTimestamp(d.start_s)} - {formatTimestamp(d.end_s)}
                   </span>
@@ -140,14 +138,14 @@ function CueDetectionsSection({ slug, episodeId, detections }: CueDetectionsSect
                       <button
                         onClick={() => mutation.mutate({ id: d.id, verdict: 'confirmed' })}
                         disabled={pending}
-                        className={`px-3 py-2 sm:py-1 text-sm sm:text-xs rounded font-medium ${btnPrimary} ${focusRing} disabled:opacity-50 transition-colors touch-manipulation min-h-[40px] sm:min-h-0`}
+                        className={`${rowActionBtn} font-medium ${btnPrimary} ${focusRing}`}
                       >
                         Confirm
                       </button>
                       <button
                         onClick={() => mutation.mutate({ id: d.id, verdict: 'rejected' })}
                         disabled={pending}
-                        className={`px-3 py-2 sm:py-1 text-sm sm:text-xs rounded font-medium ${btnDestructive} active:bg-destructive/80 disabled:opacity-50 transition-colors touch-manipulation min-h-[40px] sm:min-h-0 ${focusRing}`}
+                        className={`${rowActionBtn} font-medium ${btnDestructive} active:bg-destructive/80 ${focusRing}`}
                       >
                         Reject
                       </button>
@@ -166,7 +164,7 @@ function CueDetectionsSection({ slug, episodeId, detections }: CueDetectionsSect
                       <button
                         onClick={() => mutation.mutate({ id: d.id, verdict: 'pending' })}
                         disabled={pending}
-                        className={`px-3 py-2 sm:py-1 text-sm sm:text-xs rounded border border-border text-muted-foreground hover:bg-secondary disabled:opacity-50 transition-colors touch-manipulation min-h-[40px] sm:min-h-0 ${focusRing}`}
+                        className={`${rowActionBtn} border border-border text-muted-foreground hover:bg-secondary ${focusRing}`}
                       >
                         Reset
                       </button>

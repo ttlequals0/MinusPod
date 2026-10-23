@@ -1295,11 +1295,24 @@ export default function StatsPage() {
               {Object.keys(llmStats.byPhase).length > 0 && (
                 <div className="mt-4 border-t border-border pt-3">
                   <h4 className="text-sm font-medium text-foreground mb-2">Calls by phase</h4>
-                  <ul className="flex flex-wrap gap-x-4 gap-y-2 text-sm text-muted-foreground">
-                    {Object.entries(llmStats.byPhase).map(([phase, entry]) => (
-                      <li key={phase}>{phase}: <span className="tabular-nums text-foreground">{entry.calls}, {formatKnownCallCost(entry.costUsd)}</span></li>
-                    ))}
-                  </ul>
+                  <table aria-label="Calls by phase" className="w-full max-w-md">
+                    <thead className="bg-muted/50">
+                      <tr>
+                        <th scope="col" className="px-3 py-2 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Phase</th>
+                        <th scope="col" className="px-3 py-2 text-right text-xs font-medium text-muted-foreground uppercase tracking-wider">Calls</th>
+                        <th scope="col" className="px-3 py-2 text-right text-xs font-medium text-muted-foreground uppercase tracking-wider">Cost</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border">
+                      {Object.entries(llmStats.byPhase).sort(([, x], [, y]) => y.calls - x.calls).map(([phase, entry]) => (
+                        <tr key={phase}>
+                          <td className="px-3 py-2 text-sm text-foreground">{phase}</td>
+                          <td className="px-3 py-2 text-sm text-muted-foreground text-right tabular-nums">{entry.calls}</td>
+                          <td className="px-3 py-2 text-sm text-muted-foreground text-right tabular-nums">{formatKnownCallCost(entry.costUsd)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
               )}
             </div>

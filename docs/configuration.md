@@ -502,7 +502,7 @@ Each pass (first, verification, reviewer, resurrect) has an optional **Override*
 
 ### Per-feed detection notes
 
-The global overrides apply to every feed. For one show, use **Detection notes** on the feed's settings page (up to 1000 characters). The text is appended to the podcast description the model already sees, so it reaches the first pass and the reviewer. Use it for things only that show does: how its intro is structured, how host-read ads usually start, a recurring segment to keep. API: `detectionNotes` on `PATCH /api/v1/feeds/{slug}`.
+The global overrides apply to every feed. For one show, use **Detection notes** on the feed's settings page (up to 1000 characters). The text goes to the detector, the verification pass and the reviewer in its own prompt section, separate from the podcast description, as instructions for that show. Use it for things only that show does: how its intro is structured, how host-read ads usually start, a recurring segment to keep. API: `detectionNotes` on `PATCH /api/v1/feeds/{slug}`.
 
 ### Audio Cue Detection
 

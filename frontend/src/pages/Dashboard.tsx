@@ -1,4 +1,4 @@
-import { pageHeader, pageTitle } from '../components/pageStyles';
+import { pageTitle } from '../components/pageStyles';
 import { useState, useRef } from 'react';
 import DashboardControlsMenu from '../components/DashboardControlsMenu';
 import SegmentedToggle from '../components/SegmentedToggle';
@@ -44,6 +44,8 @@ const DASHBOARD_VIEW_OPTIONS = [
 // full page never leaves a ragged last row.
 const FEEDS_PER_PAGE = 24;
 
+// Labelled actions show from md; they sit beside the title only from lg.
+const dashboardHeader = 'flex min-w-0 flex-col gap-4 mb-6 lg:flex-row lg:items-start lg:justify-between';
 // Boxed keyboard-shortcut badge, matching the mockup's shortcut hints.
 const kbdClass = 'rounded border border-border bg-muted px-1 py-0.5 font-mono text-[10px] text-muted-foreground';
 
@@ -248,8 +250,8 @@ function Dashboard() {
         )}
       </div>
 
-      <div className={pageHeader}>
-        <div className="w-full sm:w-auto flex min-w-0 flex-wrap items-baseline gap-x-3">
+      <div className={dashboardHeader}>
+        <div className="w-full lg:w-auto flex min-w-0 flex-wrap items-baseline gap-x-3">
           <h1 className={pageTitle}>Feeds</h1>
           {lastRefreshCompletedAt && (
             <span
@@ -260,8 +262,8 @@ function Dashboard() {
             </span>
           )}
         </div>
-        <div className="w-full sm:w-auto flex gap-2 items-center justify-between sm:justify-start overflow-x-auto no-scrollbar sm:overflow-visible">
-          <div className="hidden sm:block">
+        <div className="w-full md:w-auto flex gap-2 items-center justify-between md:justify-start overflow-x-auto no-scrollbar md:overflow-visible">
+          <div className="hidden md:block">
             <SegmentedToggle
               options={DASHBOARD_VIEW_OPTIONS}
               value={dashboardView}
@@ -270,7 +272,7 @@ function Dashboard() {
               variant="toolbar"
             />
           </div>
-          <div className="sm:hidden">
+          <div className="md:hidden">
             <DropdownMenu
               triggerLabel={<PanelsTopLeft className="h-5 w-5" aria-hidden="true" />}
               triggerClassName={`${touchTarget} h-11 w-11 min-w-11 px-2.5 rounded ${btnSecondary} transition-colors`}
@@ -301,14 +303,14 @@ function Dashboard() {
           <DropdownMenu
             triggerLabel={
               <>
-                <svg className="w-5 h-5 sm:hidden" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <svg className="w-5 h-5 md:hidden" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                 </svg>
-                <span className="hidden sm:inline">{refreshAllMutation.isPending ? 'Refreshing...' : 'Refresh All'}</span>
+                <span className="hidden md:inline">{refreshAllMutation.isPending ? 'Refreshing...' : 'Refresh All'}</span>
               </>
             }
-            triggerClassName={`h-11 min-w-11 px-2.5 sm:px-4 text-sm rounded shrink-0 ${btnSecondary} disabled:opacity-50 transition-colors inline-flex items-center justify-center gap-2 whitespace-nowrap`}
-            chevronClassName="w-4 h-4 hidden sm:block"
+            triggerClassName={`h-11 min-w-11 px-2.5 md:px-4 text-sm rounded shrink-0 ${btnSecondary} disabled:opacity-50 transition-colors inline-flex items-center justify-center gap-2 whitespace-nowrap`}
+            chevronClassName="w-4 h-4 hidden md:block"
             disabled={refreshAllMutation.isPending}
             title="Refresh all feeds"
             ariaLabel="Refresh all feeds"
@@ -328,22 +330,22 @@ function Dashboard() {
           <button
             type="button"
             onClick={() => setOpmlExportOpen(true)}
-            className={`${touchTarget} px-2.5 sm:px-4 h-11 text-sm rounded shrink-0 ${btnSecondary} transition-colors inline-flex items-center justify-center whitespace-nowrap ${focusRing}`}
+            className={`${touchTarget} px-2.5 md:px-4 h-11 text-sm rounded shrink-0 ${btnSecondary} transition-colors inline-flex items-center justify-center whitespace-nowrap ${focusRing}`}
             title="Export feeds as OPML for a podcast app"
             aria-label="Export OPML"
           >
-            <Download className="h-5 w-5 sm:hidden" aria-hidden="true" />
-            <span className="hidden sm:inline">Export OPML</span>
+            <Download className="h-5 w-5 md:hidden" aria-hidden="true" />
+            <span className="hidden md:inline">Export OPML</span>
           </button>
           <Link
             to="/add"
-            className={`h-11 min-w-11 sm:px-4 inline-flex items-center justify-center rounded shrink-0 ${btnPrimary} transition-colors ${focusRing}`}
+            className={`h-11 min-w-11 md:px-4 inline-flex items-center justify-center rounded shrink-0 ${btnPrimary} transition-colors ${focusRing}`}
             title="Add Feed"
           >
-            <svg className="w-5 h-5 sm:hidden" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <svg className="w-5 h-5 md:hidden" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
             </svg>
-            <span className="hidden sm:inline">Add Feed</span>
+            <span className="hidden md:inline">Add Feed</span>
           </Link>
           </div>
         </div>

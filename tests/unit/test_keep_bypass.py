@@ -1394,7 +1394,7 @@ class TestPartitionPass2CategoryActions:
         ctx = types.SimpleNamespace(
             slug='pass2-actions', episode_id='ep1', podcast_id=1,
             podcast_name='Test Show', episode_title='Episode',
-            episode_description=None, podcast_description=None,
+            episode_description=None, podcast_description=None, detection_notes=None,
         )
         processed, original = self._pair('self_promo')
         audio_processor = types.SimpleNamespace()
@@ -1432,7 +1432,7 @@ class TestPartitionPass2CategoryActions:
         ctx = types.SimpleNamespace(
             slug='pass2-actions', episode_id='ep1', podcast_id=1,
             podcast_name='Test Show', episode_title='Episode',
-            episode_description=None, podcast_description=None,
+            episode_description=None, podcast_description=None, detection_notes=None,
         )
         processed = {
             'start': 110.0, 'end': 120.0, 'confidence': 0.95,

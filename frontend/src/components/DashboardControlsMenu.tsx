@@ -46,13 +46,13 @@ function DashboardControlsMenu({
         type="button"
         {...triggerProps}
         onClick={() => setOpen((o) => !o)}
-        className={`h-11 min-w-11 px-2.5 sm:px-4 text-sm rounded ${btnSecondary} transition-colors inline-flex items-center justify-center gap-2 whitespace-nowrap ${focusRing}`}
+        className={`h-11 min-w-11 px-2.5 md:px-4 text-sm rounded ${btnSecondary} transition-colors inline-flex items-center justify-center gap-2 whitespace-nowrap ${focusRing}`}
         title="Layout and sort"
         aria-label="View options"
       >
-        <SlidersHorizontal className="w-5 h-5 sm:hidden" />
-        <span className="hidden sm:inline">View</span>
-        <ChevronDown className={`w-4 h-4 hidden sm:block transition-transform ${open ? 'rotate-180' : ''}`} />
+        <SlidersHorizontal className="w-5 h-5 md:hidden" />
+        <span className="hidden md:inline">View</span>
+        <ChevronDown className={`w-4 h-4 hidden md:block transition-transform ${open ? 'rotate-180' : ''}`} />
       </button>
       <Popover
         open={open}

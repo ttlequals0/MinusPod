@@ -37,7 +37,7 @@ function CopyButton({
 
   const baseClass = hideLabelOnMobile
     ? 'inline-flex items-center justify-center gap-1.5 h-8 w-8 sm:w-auto sm:px-2 rounded'
-    : 'flex items-center gap-1.5 rounded';
+    : 'inline-flex items-center justify-center gap-1.5 rounded';
 
   return (
     <>

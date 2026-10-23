@@ -24,6 +24,7 @@ from cancel import request_cancellation, wait_for_cancellation
 from database.queue import compute_queue_priority
 from processing_queue import ProcessingQueue
 from config import (
+    DETECTION_NOTES_MAX_CHARS,
     CHAPTERS_IN_NOTES_VALUES,
     USER_AGENT_MAX_LENGTH, validate_user_agent,
     FEED_REFRESH_FAILURE_ALERT_THRESHOLD,
@@ -202,9 +203,6 @@ def _normalize_title_override(value):
     return val, None
 
 
-_DETECTION_NOTES_MAX = 1000
-
-
 def _normalize_notes(value, field):
     """None or blank clears; otherwise trimmed text up to the cap."""
     if value is None:
@@ -214,8 +212,8 @@ def _normalize_notes(value, field):
     text = value.strip()
     if not text:
         return None, None
-    if len(text) > _DETECTION_NOTES_MAX:
-        return None, f"{field} must be {_DETECTION_NOTES_MAX} characters or fewer"
+    if len(text) > DETECTION_NOTES_MAX_CHARS:
+        return None, f"{field} must be {DETECTION_NOTES_MAX_CHARS} characters or fewer"
     return text, None
 
 

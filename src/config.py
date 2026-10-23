@@ -40,6 +40,7 @@ MIN_CUT_CONFIDENCE = 0.80       # Minimum to actually remove from audio
 MIN_AD_DURATION = 7.0           # Reject if shorter (quick mentions ~10s minimum)
 SHORT_AD_WARN = 30.0            # Warn if shorter than 30s
 LONG_AD_WARN = 180.0            # Warn if longer than 3 min
+DETECTION_NOTES_MAX_CHARS = 1000  # Per-feed detection notes cap
 MAX_AD_DURATION = 300.0         # Needs a confirmed sponsor past this (5 min)
 MAX_AD_DURATION_CONFIRMED = 900.0  # Allow 15 min if sponsor confirmed
 MIN_UNCOVERED_TAIL_DURATION = 15.0  # Min seconds for an uncovered tail to be preserved

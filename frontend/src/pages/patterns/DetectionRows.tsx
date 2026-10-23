@@ -7,7 +7,7 @@ import { cardActionBtn, tableActionBtn } from '../../components/rowActionStyles'
 import { StageBadge } from '../../components/StageBadge';
 import { SegmentCategoryBadge } from '../../components/SegmentCategoryBadge';
 import {
-  SEGMENT_CATEGORIES, SEGMENT_CATEGORY_LABELS, confirmLabel, isKeepLike, type SegmentCategory,
+  SEGMENT_CATEGORIES, SEGMENT_CATEGORY_LABELS, confirmLabel, isKeepLike, rejectLabel, type SegmentCategory,
 } from '../../utils/segmentCategory';
 import { formatTimestamp, formatDate } from '../../utils/format';
 import { btnDestructive, btnOutline, btnPrimary } from '../../components/buttonStyles';
@@ -222,15 +222,16 @@ function DetectionActions({ d, variant, playing, onTogglePlay, actions }: {
       {isCard ? <ShortLabel full={confirmLabel(d.category)} short="Confirm" /> : confirmLabel(d.category)}
     </button>
   );
+  const reject = rejectLabel(d.category);
   const dismiss = actions.onDismiss && undecided && (
     <button
       type="button"
       onClick={() => actions.onDismiss?.(d)}
       disabled={actions.busy}
-      aria-label="Not an ad"
+      aria-label={reject}
       className={`${btn} ${btnDestructive} disabled:opacity-50 ${focusRing}`}
     >
-      {isCard ? <ShortLabel full="Not an ad" short="Not ad" /> : 'Not an ad'}
+      {isCard ? <ShortLabel full={reject} short={reject === 'Keep' ? 'Keep' : 'Not ad'} /> : reject}
     </button>
   );
   const split = actions.onSplit && (

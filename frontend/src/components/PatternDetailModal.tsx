@@ -17,6 +17,8 @@ import {
   type SegmentCategory,
 } from '../utils/segmentCategory';
 
+const footerBtn = `px-4 py-2 text-sm rounded ${focusRing}`;
+
 interface PatternDetailModalProps {
   pattern: AdPattern;
   onClose: () => void;
@@ -118,7 +120,7 @@ function PatternDetailModal({ pattern, onClose, onSave }: PatternDetailModalProp
     <Modal ariaLabel="Pattern details" onClose={requestClose} panelClassName="max-w-2xl w-full max-h-[90vh] overflow-y-auto">
       {/* Header */}
       <div className="flex items-center justify-between p-4 border-b border-border">
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 min-w-0">
           <h2 className="text-lg font-semibold text-foreground">
             Pattern #{pattern.id}
           </h2>
@@ -127,7 +129,8 @@ function PatternDetailModal({ pattern, onClose, onSave }: PatternDetailModalProp
         </div>
         <button
           onClick={requestClose}
-          className={`p-1 text-muted-foreground hover:text-foreground ${focusRing}`}
+          aria-label="Close dialog"
+          className={`p-1 inline-flex items-center justify-center shrink-0 text-muted-foreground hover:text-foreground ${focusRing}`}
         >
           <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -138,20 +141,20 @@ function PatternDetailModal({ pattern, onClose, onSave }: PatternDetailModalProp
       {/* Content */}
       <div className="p-4 space-y-4">
         {/* Stats Row */}
-        <div className="grid grid-cols-3 gap-4">
-          <div className="bg-secondary/50 rounded-lg p-3 text-center">
+        <div className="grid grid-cols-[repeat(auto-fit,minmax(7rem,1fr))] gap-2 sm:gap-4">
+          <div className="bg-secondary/50 rounded-lg p-2 sm:p-3 text-center">
             <div className="text-2xl font-bold text-success">
               {pattern.confirmation_count}
             </div>
             <div className="text-xs text-muted-foreground">Confirmations</div>
           </div>
-          <div className="bg-secondary/50 rounded-lg p-3 text-center">
+          <div className="bg-secondary/50 rounded-lg p-2 sm:p-3 text-center">
             <div className="text-2xl font-bold text-destructive">
               {pattern.false_positive_count}
             </div>
             <div className="text-xs text-muted-foreground">False Positives</div>
           </div>
-          <div className="bg-secondary/50 rounded-lg p-3 text-center">
+          <div className="bg-secondary/50 rounded-lg p-2 sm:p-3 text-center">
             <div className="text-lg font-medium text-foreground">
               {pattern.is_active ? 'Active' : 'Inactive'}
             </div>
@@ -317,7 +320,7 @@ function PatternDetailModal({ pattern, onClose, onSave }: PatternDetailModalProp
 
         {/* Metadata */}
         <div className="border-t border-border pt-4 mt-4">
-          <div className="grid grid-cols-2 gap-4 text-sm">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
             <div>
               <span className="text-muted-foreground">Created:</span>
               <span className="ml-2 text-foreground">{formatDate(pattern.created_at)}</span>
@@ -329,7 +332,7 @@ function PatternDetailModal({ pattern, onClose, onSave }: PatternDetailModalProp
             {pattern.dai_platform && (
               <div>
                 <span className="text-muted-foreground">DAI Platform:</span>
-                <span className="ml-2 text-foreground">{pattern.dai_platform}</span>
+                <span className="ml-2 text-foreground break-words">{pattern.dai_platform}</span>
               </div>
             )}
             {pattern.podcast_slug && (
@@ -337,7 +340,7 @@ function PatternDetailModal({ pattern, onClose, onSave }: PatternDetailModalProp
                 <span className="text-muted-foreground">Podcast:</span>
                 <a
                   href={`/feeds/${pattern.podcast_slug}/episodes`}
-                  className={`ml-2 text-primary hover:underline ${focusRing}`}
+                  className={`ml-2 text-primary hover:underline break-all ${focusRing}`}
                 >
                   {pattern.podcast_slug}
                 </a>
@@ -346,7 +349,7 @@ function PatternDetailModal({ pattern, onClose, onSave }: PatternDetailModalProp
             {pattern.created_from_episode_id && (
               <div>
                 <span className="text-muted-foreground">Origin Episode:</span>
-                <span className="ml-2 text-foreground font-mono text-xs">{pattern.created_from_episode_id}</span>
+                <span className="ml-2 text-foreground font-mono text-xs break-all">{pattern.created_from_episode_id}</span>
               </div>
             )}
           </div>
@@ -355,14 +358,14 @@ function PatternDetailModal({ pattern, onClose, onSave }: PatternDetailModalProp
 
       {/* Footer */}
       <div className="flex flex-wrap justify-between gap-2 p-4 border-t border-border">
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           {pattern.is_active && (
             <div className="flex flex-col gap-1">
               <button
                 onClick={() => splitMutation.mutate()}
                 disabled={!pattern.can_split || splitMutation.isPending}
                 aria-describedby={!pattern.can_split ? `split-reason-${pattern.id}` : undefined}
-                className={`px-3 py-1.5 text-sm ${btnOutline} rounded disabled:opacity-50 ${focusRing}`}
+                className={`${footerBtn} ${btnOutline} disabled:opacity-50`}
               >
                 {splitMutation.isPending ? 'Splitting...' : 'Split'}
               </button>
@@ -374,18 +377,18 @@ function PatternDetailModal({ pattern, onClose, onSave }: PatternDetailModalProp
             </div>
           )}
           {showDeleteConfirm ? (
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <span className="text-sm text-destructive">Delete this pattern?</span>
               <button
                 onClick={() => deleteMutation.mutate()}
                 disabled={deleteMutation.isPending}
-                className={`px-3 py-1.5 text-sm ${btnDestructive} rounded disabled:opacity-50 ${focusRing}`}
+                className={`${footerBtn} ${btnDestructive} disabled:opacity-50`}
               >
                 {deleteMutation.isPending ? 'Deleting...' : 'Yes, Delete'}
               </button>
               <button
                 onClick={() => setShowDeleteConfirm(false)}
-                className={`px-3 py-1.5 text-sm bg-muted text-muted-foreground rounded hover:bg-accent ${focusRing}`}
+                className={`${footerBtn} ${btnOutline}`}
               >
                 Cancel
               </button>
@@ -393,25 +396,25 @@ function PatternDetailModal({ pattern, onClose, onSave }: PatternDetailModalProp
           ) : (
             <button
               onClick={() => setShowDeleteConfirm(true)}
-              className={`px-3 py-1.5 text-sm text-destructive hover:bg-destructive/10 rounded ${focusRing}`}
+              className={`${footerBtn} text-destructive hover:bg-destructive/10`}
             >
               Delete
             </button>
           )}
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           {isEditing ? (
             <>
               <button
                 onClick={() => setIsEditing(false)}
-                className={`px-4 py-2 text-sm bg-muted text-muted-foreground rounded hover:bg-accent ${focusRing}`}
+                className={`${footerBtn} ${btnOutline}`}
               >
                 Cancel
               </button>
               <button
                 onClick={() => updateMutation.mutate()}
                 disabled={updateMutation.isPending}
-                className={`px-4 py-2 text-sm ${btnPrimary} rounded disabled:opacity-50 ${focusRing}`}
+                className={`${footerBtn} ${btnPrimary} disabled:opacity-50`}
               >
                 {updateMutation.isPending ? 'Saving...' : 'Save Changes'}
               </button>
@@ -420,13 +423,13 @@ function PatternDetailModal({ pattern, onClose, onSave }: PatternDetailModalProp
             <>
               <button
                 onClick={requestClose}
-                className={`px-4 py-2 text-sm bg-muted text-muted-foreground rounded hover:bg-accent ${focusRing}`}
+                className={`${footerBtn} ${btnOutline}`}
               >
                 Close
               </button>
               <button
                 onClick={() => setIsEditing(true)}
-                className={`px-4 py-2 text-sm ${btnPrimary} rounded ${focusRing}`}
+                className={`${footerBtn} ${btnPrimary}`}
               >
                 Edit
               </button>

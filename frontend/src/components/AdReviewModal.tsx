@@ -34,6 +34,7 @@ import {
   SEGMENT_CATEGORY_DESCRIPTIONS,
   SEGMENT_CATEGORY_LABELS,
   isKeepLike,
+  rejectLabel,
   type SegmentCategory,
 } from '../utils/segmentCategory';
 import { badgeBase, tint } from './badgeStyles';
@@ -1700,8 +1701,8 @@ function AdReviewModal({
                   <button type="button" onClick={handleReject}
                     className={`flex-1 sm:flex-none sm:min-w-[7rem] basis-0 h-9 px-2 sm:px-4 rounded-lg ${destructiveBtn} text-sm text-center whitespace-nowrap ${focusRing} max-sm:min-h-11`}
                     title="Mark as not an ad (R)">
-                    <span className="sm:hidden">Not an ad</span>
-                    <span className="hidden sm:inline">{hasNext ? 'Not an ad & Next' : 'Not an ad'}</span>
+                    <span className="sm:hidden">{rejectLabel(categoryInput)}</span>
+                    <span className="hidden sm:inline">{hasNext ? `${rejectLabel(categoryInput)} & Next` : rejectLabel(categoryInput)}</span>
                   </button>
                 )}
                 {!keptByCategory && (

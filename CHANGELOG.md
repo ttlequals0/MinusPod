@@ -34,6 +34,38 @@ release notes.
   feature embeds its landscape cut, uploaded as a GitHub attachment so
   it plays inline.
 
+### Changed
+- Settings > System Status no longer repeats Time Saved, LLM Tokens and
+  Cost. The Stats page already shows them with filters, and the two sets of
+  numbers could disagree. The panel links to the Stats page instead.
+- The reject button on a held or detected marker whose category is not
+  sponsor reads "Keep" instead of "Not an ad" (follow-up to #877).
+- Per-feed detection notes reach the detector, the verification pass and the
+  reviewer as their own prompt block, marked as operator instructions that
+  override the general guidance, instead of riding inside the podcast
+  description. The notes no longer count against the 800-character
+  description budget, so a long show description cannot truncate them.
+
+### Fixed
+- Detection: when a same-sponsor merge folded a span that sat entirely
+  inside the first one, the merged marker took the inner span's end and
+  shrank. A cross-fetch differential span measured to the end of an inserted
+  spot lost its tail to the LLM's last transcribed word. A few seconds of ad
+  music stayed in the output at an episode start and before the credits. A
+  fold now only extends an end, never pulls it inward.
+- Review: the reviewer could move an ad start inward past an ad-break
+  stinger that sat inside the LLM span, because only edges the cue snap had
+  already moved acted as limits. Removable template cues inside the span
+  now hold the edge too, so the stinger is cut with the ad wherever it falls.
+- Web UI: Calls by phase on the Stats page is a table. The pattern details
+  dialog uses the shared button recipes, one padding scale, and wraps its
+  footer and stats on phones. The Feeds header shows the compact action set
+  below 768 px, so a wide phone no longer draws the labelled buttons over
+  the title. Copy buttons center their icon when the label is hidden. Play
+  buttons on phones keep the 44 px target with a 32 px visual, the Play
+  glyph is optically centered, and the Cue Matches section shares that
+  button and the row action sizing.
+
 ### Security
 - Dependencies: pillow 13.0.0 (CVE-2026-112395, CVE-2026-112397,
   CVE-2026-112400, CVE-2026-112404, CVE-2026-112895, CVE-2026-112896,

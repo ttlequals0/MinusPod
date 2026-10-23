@@ -708,7 +708,7 @@ describe('StatsPage ledger filters', () => {
       ...LLM_STATS, calls: 3, requests: 4,
       outcomes: { success: 2, failure: 1, inconclusive: 0, inFlight: 1 },
       callLatencyMsAverage: 2000, dispatchLatencyMsAverage: 90,
-      costUsd: '0.75', byPhase: { detection: { calls: 2, costUsd: '0.5' } },
+      costUsd: '0.75', byPhase: { review: { calls: 1, costUsd: '0.25' }, detection: { calls: 2, costUsd: '0.5' } },
     });
     renderPage();
     const section = within(await waitFor(() => {
@@ -721,7 +721,11 @@ describe('StatsPage ledger filters', () => {
     expect(section.getByText('2,000 ms')).toBeTruthy();
     expect(section.getByText('90 ms')).toBeTruthy();
     expect(section.getByText('Calls by phase')).toBeTruthy();
-    expect(section.getByText(/^detection:/)).toBeTruthy();
+    const phaseTable = within(section.getByRole('table', { name: 'Calls by phase' }));
+    expect(phaseTable.getAllByRole('columnheader').map((h) => h.textContent)).toEqual(['Phase', 'Calls', 'Cost']);
+    const rows = phaseTable.getAllByRole('row').slice(1);
+    expect(rows.map((r) => r.textContent)).toEqual([expect.stringMatching(/^detection2/), expect.stringMatching(/^review1/)]);
+    expect(within(rows[0]).getByText('2')).toBeTruthy();
   });
 
   it('does not imply measured usage when a logical call sends no HTTP request', async () => {
