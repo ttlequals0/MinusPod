@@ -1235,10 +1235,9 @@ function AdReviewModal({
                       e.stopPropagation();
                       (e.target as HTMLElement).setPointerCapture(e.pointerId);
                       const rect = overlay.getBoundingClientRect();
-                      // AUDIO PLAYS DURING SCRUB. Start playback if it was
-                      // paused so the user always hears what they're
-                      // pointing at; just keep seeking on each pointermove.
-                      if (audio.paused) {
+                      // Same opt-in as the boundary pins: only start playback
+                      // while scrubbing when "Play audio while dragging pin" is on.
+                      if (playWhileDrag && audio.paused) {
                         audio.play()
                           .then(() => setIsPlaying(true))
                           .catch(() => {});

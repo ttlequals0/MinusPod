@@ -85,6 +85,9 @@ release notes.
   "No saved transcript segments". Recut now runs without segments when
   the episode never had a transcript, and the pending-recut list marks such
   episodes ready. (#891)
+- Ad review editor: dragging the current-position pin always started
+  playback. It now follows the "Play audio while dragging pin" setting,
+  like the boundary pins. (#875)
 - Pattern details: the Podcast link opened the API episodes path and
   returned Not Found. It now goes to the feed page. (#876)
 - Episode page: cut markers that the audio processor merges into one span
