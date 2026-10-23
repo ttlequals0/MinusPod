@@ -85,7 +85,9 @@ release notes.
   phones and 28 px on desktop, with the Play glyph optically centered. The
   Cue Matches section uses the same button. The patterns table scrolls
   inside a focusable region instead of squeezing its columns until the
-  Confirmed and False Pos. headers collide.
+  Confirmed and False Pos. headers collide. Dialog footers, close
+  buttons, secondary destructive actions and icon buttons across the app
+  share one set of button recipes instead of per-page class strings.
 
 ### Security
 - Dependencies: pillow 13.0.0 (CVE-2026-112395, CVE-2026-112397,
@@ -95,6 +97,7 @@ release notes.
   GHSA-698v-4r3x-3vcv, GHSA-587h-7wmj-h5pm). Also moves ctranslate2 to
   4.8.3, openai to 3.35.1, soupsieve to 3.0.3, vitest to 5.0.5, globals to
   17.13.0, swagger-ui-dist to 5.33.3, and react and react-dom to 19.3.1.
+- Dependencies: brotli 1.2.1 (PYSEC-2026-4322, GHSA-9v8h-qqgm-4m35).
 
 ## [2.100.18] - 2026-10-18
 
