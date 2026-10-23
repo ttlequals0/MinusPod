@@ -320,9 +320,7 @@ def _first_frame(data):
 
 @pytest.fixture(scope='module')
 def junk_lead_source(tmp_path_factory):
-    """A stitched-style file whose first frame ffmpeg discards as junk: one
-    plain-stereo frame in front of joint-stereo frames, no Xing, no ID3. Real
-    dynamically inserted podcast files look like this (seen 2026-10-16)."""
+    """Stitched file whose first frame ffmpeg discards as junk: plain-stereo frame before joint-stereo frames."""
     directory = tmp_path_factory.mktemp('mp3-junk')
     encodes = {}
     for name, joint, seconds in (('a', '0', '2'), ('b', '1', '60')):
@@ -356,9 +354,7 @@ def test_decoder_dropped_lead_frame_is_modelled_not_refused(junk_lead_source, tm
 
 
 def test_lead_frame_cut_away_is_not_mistaken_for_a_dropped_frame(junk_lead_source, tmp_path):
-    """A cut starting at the stream start replaces the junk frame with silence,
-    so source and copy no longer lose the same samples; the copy must refuse
-    rather than misalign."""
+    """A cut at the stream start replaces the junk frame with silence, so the copy must refuse."""
     output = tmp_path / 'output.mp3'
     existing = (ROOT / 'assets/replace.mp3').read_bytes()
     output.write_bytes(existing)
@@ -375,9 +371,7 @@ def _end_two_frames_short(source):
 
 @pytest.mark.parametrize('sound', [False, True])
 def test_final_cut_reaching_the_end_is_extended_instead_of_refused(source, tmp_path, sound):
-    """An ad that runs into the credits can snap a frame or two short of the
-    decoded end, leaving a tail below the warm-up. The copy folds it into the
-    cut instead of falling back to a re-encode (plusminuspod)."""
+    """An ad running into the credits can snap a frame or two short; fold the tail into the cut."""
     output = tmp_path / 'output.mp3'
     end = _end_two_frames_short(source)
     applied = copy_mp3(str(source), str(output), [{'start': 60, 'end': end}],
@@ -399,12 +393,6 @@ def test_final_cut_with_locked_end_short_of_the_stream_is_still_refused(source, 
     assert copy_mp3(str(source), str(output), [{'start': 60, 'end': _end_two_frames_short(source)}],
                     locked=[(False, True)]) is None
     assert output.read_bytes() == existing
-
-
-def test_required_space_does_not_scale_with_decoded_length():
-    block = 8
-    assert mp3_stream_copy._required_space(0, block, 5_000_000) == 5_000_000
-    assert mp3_stream_copy._required_space(1000, block, 5_000_000) == 5_008_000
 
 
 def test_barrier_in_the_trailing_sub_warmup_tail_refuses_the_extension(source, tmp_path):

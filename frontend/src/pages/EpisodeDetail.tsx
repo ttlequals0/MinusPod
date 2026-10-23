@@ -740,9 +740,7 @@ function EpisodeDetail() {
           <AuditionPlayButton
             playing={markerAudition.playingKey === `detected-${segment.start}-${segment.end}`}
             onClick={() => {
-              // Play the same timeframe the row displays: for
-              // reviewer-adjusted markers that is the reviewed
-              // pre-trim span, not the trimmed cut bounds.
+              // Play the displayed span: the pre-trim range for reviewer-adjusted markers.
               const adjusted = segment.reviewer_verdict === 'adjust'
                 && segment.reviewer_original_start !== undefined
                 && segment.reviewer_original_end !== undefined;
@@ -857,11 +855,7 @@ function EpisodeDetail() {
           {formatConfidence(segment)}
         </span>
       </div>
-      {/* Row 2: Detector's own note about the match. Framed as
-          a "Match:" label so it doesn't read as a contradicting
-          sponsor when the field carries reviewer-overwritten
-          free text (e.g., boundary extension that swept up an
-          adjacent ad's content). */}
+      {/* Detector's note, labelled "Match:" so reviewer-edited text is not read as a sponsor claim. */}
       {segment.reason && (
         <ExpandableText
           label="match"

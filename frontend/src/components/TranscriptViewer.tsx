@@ -108,16 +108,18 @@ function TranscriptViewer({ slug, episodeId, episode, onClose }: Props) {
     return !needle || seg.text.toLowerCase().includes(needle);
   }), [segments, start, end, needle]);
   // Paragraphs come from every segment so a filter never moves a boundary.
-  const paragraphs = useMemo(() => {
+  const grouped = useMemo(() => groupParagraphs(segments), [segments]);
+  const asParagraphs = view === 'paragraphs';
+  const filteredParagraphs = useMemo(() => {
+    if (!asParagraphs) return [];
     const keep = new Set(filtered);
-    return groupParagraphs(segments)
+    return grouped
       .map((p) => ({ start: p.start, members: p.segments.filter((s) => keep.has(s)) }))
       .filter((p) => p.members.length > 0);
-  }, [segments, filtered]);
-  const asParagraphs = view === 'paragraphs';
-  const { shown, reset, onScroll } = usePagedList(asParagraphs ? paragraphs.length : filtered.length);
-  const visible = filtered.slice(0, shown);
-  const visibleParagraphs = paragraphs.slice(0, shown);
+  }, [asParagraphs, grouped, filtered]);
+  const { shown, reset, onScroll } = usePagedList(asParagraphs ? filteredParagraphs.length : filtered.length);
+  const visibleParagraphs = filteredParagraphs.slice(0, shown);
+  const visible = asParagraphs ? [] : filtered.slice(0, shown);
 
   const onFilter = (apply: () => void) => {
     apply();

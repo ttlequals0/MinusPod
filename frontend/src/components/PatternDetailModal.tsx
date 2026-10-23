@@ -8,7 +8,7 @@ import { getSponsors, addSponsor } from '../api/sponsors';
 import { getErrorMessage } from '../api/client';
 import { ScopeBadge } from './ScopeBadge';
 import { SegmentCategoryBadge } from './SegmentCategoryBadge';
-import { btnDestructive, btnOutline, btnPrimary, btnGhost } from './buttonStyles';
+import { btnDestructive, btnOutline, btnPrimary, btnGhost, btnDestructiveOutline } from './buttonStyles';
 import { Modal, dialogFooterIconBtn } from './Modal';
 import Checkbox from './Checkbox';
 import { focusRing, selectBase, inputBase } from './fieldStyles';
@@ -416,7 +416,7 @@ function PatternDetailModal({ pattern, onClose, onSave }: PatternDetailModalProp
               onClick={() => setShowDeleteConfirm(true)}
               aria-label="Delete"
               title="Delete this pattern"
-              className={`${dialogFooterIconBtn} text-destructive hover:bg-destructive/10`}
+              className={`${dialogFooterIconBtn} ${btnDestructiveOutline}`}
             >
               <Trash2 className="h-5 w-5 sm:hidden" aria-hidden="true" />
               <span className="hidden sm:inline">Delete</span>

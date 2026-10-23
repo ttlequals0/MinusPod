@@ -346,7 +346,7 @@ def test_list_feeds_surfaces_overrides(app_client, seeded_feed, _auth):
     assert match['cueSnapConfidenceOverride'] == pytest.approx(0.65)
 
 
-# -- cueCutMatchesOverride --
+# cueCutMatchesOverride
 
 def test_patch_cut_matches_override_tri_state(app_client, seeded_feed, _auth):
     slug = seeded_feed['slug']

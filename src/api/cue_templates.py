@@ -28,7 +28,6 @@ from api import (
     api, log_request, json_response, error_response,
     get_database, get_storage, _get_version,
     _normalize_nullable_finite_float, _resolve_original_audio,
-    _deserialize_nullable_bool,
 )
 from audio_analysis.cue_features import (
     SAMPLE_RATE_HZ, N_COEFFS, FRAME_HOP_MS, FRAME_LENGTH_MS,
@@ -84,7 +83,7 @@ from config import (
 )
 from database.cue_templates import _UNSET as _CUE_THRESHOLD_UNSET
 from utils.constants import EpisodeStatus
-from utils.validation import is_valid_episode_id
+from utils.validation import is_valid_episode_id, nullable_bool
 
 # Cap on loud-spot markers returned to the capture UI.
 MAX_LOUD_SPOTS = 200
@@ -141,10 +140,6 @@ def _extract_window_blobs(audio_path, offset_s, duration_s, n_coeffs,
     return serialize_mfcc(mfcc), pcm_to_int16_bytes(pcm), SAMPLE_RATE_HZ
 
 
-def _cut_matches_from_row(row: dict) -> bool | None:
-    return _deserialize_nullable_bool(row.get('cut_matches'))
-
-
 def _validate_cut_matches(payload: dict, cue_type: str, *, coerce_ineligible=False):
     """Return (value, error) for an optional cutMatches field; absent -> None.
 
@@ -177,7 +172,7 @@ def _template_to_meta_dict(row: dict) -> dict:
         'networkId': row.get('network_id'),
         'enabled': bool(row['enabled']),
         'removeWithAd': bool(row.get('remove_with_ad', True)),
-        'cutMatches': _cut_matches_from_row(row),
+        'cutMatches': nullable_bool(row.get('cut_matches')),
         'createdAt': row['created_at'],
         'createdBy': row.get('created_by'),
         'hasAudio': bool(row.get('pcm_blob')) or bool(row.get('has_audio')),
@@ -713,7 +708,7 @@ def export_cue_template(template_id):
         'label': row['label'],
         'cueType': row.get('cue_type', AUDIO_CUE_TYPE_DEFAULT),
         'removeWithAd': bool(row.get('remove_with_ad', True)),
-        'cutMatches': _cut_matches_from_row(row),
+        'cutMatches': nullable_bool(row.get('cut_matches')),
         'durationS': row['duration_s'],
         'sampleRate': sample_rate,
         'nCoeffs': row['n_coeffs'],

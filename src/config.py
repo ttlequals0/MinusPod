@@ -1153,7 +1153,17 @@ _CUE_FLOAT_KNOBS = [
 ]
 
 
-def _cut_matches_default(db, overrides):
+def _feed_cue_overrides(db, podcast_id, caller):
+    """Per-feed cue overrides, or {} when unset or unreadable."""
+    try:
+        if podcast_id is not None:
+            return db.get_podcast_cue_settings_overrides(podcast_id)
+    except Exception:
+        _tunable_logger.warning('%s: override read failed; using globals', caller)
+    return {}
+
+
+def _cut_matches(db, overrides) -> bool:
     raw = overrides.get('cue_cut_matches_override')
     if raw is not None:
         return bool(raw)
@@ -1162,13 +1172,7 @@ def _cut_matches_default(db, overrides):
 
 def resolve_cut_matches_default(db, podcast_id) -> bool:
     """Feed override else global default for cutting matched cue audio."""
-    overrides = {}
-    try:
-        if podcast_id is not None:
-            overrides = db.get_podcast_cue_settings_overrides(podcast_id)
-    except Exception:
-        _tunable_logger.warning('resolve_cut_matches_default: override read failed; using global')
-    return _cut_matches_default(db, overrides)
+    return _cut_matches(db, _feed_cue_overrides(db, podcast_id, 'resolve_cut_matches_default'))
 
 
 def resolve_feed_cue_settings(db, podcast_id):
@@ -1191,13 +1195,7 @@ def resolve_feed_cue_settings(db, podcast_id):
         result['transition_snap_enabled'] = False
         return result
 
-    # Fetch per-feed overrides; failure here still allows global reads below.
-    overrides = {}
-    try:
-        if podcast_id is not None:
-            overrides = db.get_podcast_cue_settings_overrides(podcast_id)
-    except Exception:
-        _tunable_logger.warning('resolve_feed_cue_settings: override read failed; using globals')
+    overrides = _feed_cue_overrides(db, podcast_id, 'resolve_feed_cue_settings')
 
     create_from_pairs_raw = overrides.get('cue_create_from_pairs_override')
     if create_from_pairs_raw is not None:
@@ -1205,9 +1203,8 @@ def resolve_feed_cue_settings(db, podcast_id):
     else:
         create_from_pairs = db.get_setting_bool('audio_cue_create_from_pairs', default=False)
 
-    cut_matches = _cut_matches_default(db, overrides)
-
-    result = {'create_from_pairs': create_from_pairs, 'cut_matches': cut_matches}
+    result = {'create_from_pairs': create_from_pairs,
+              'cut_matches': _cut_matches(db, overrides)}
     for override_col, setting_key, code_default, out_key in _CUE_FLOAT_KNOBS:
         raw = overrides.get(override_col)
         if raw is not None:
@@ -1568,18 +1565,14 @@ def cue_cuts_matches(cue_type, value, default) -> bool:
     return bool(default) if value is None else bool(value)
 
 
-def cue_template_cuts_matches(row, default=False):
-    return cue_cuts_matches(row.get('cue_type') or AUDIO_CUE_TYPE_DEFAULT,
-                            row.get('cut_matches'), default)
-
-
 def cue_only_missing_roles(rows, *, cut_matches_default):
     """Required cue-only roles (start/end) with no enabled template in rows.
 
     An enabled template that cuts its own matches needs no start/end pair.
     """
-    if any(r.get('enabled') and cue_template_cuts_matches(r, cut_matches_default)
-           for r in rows):
+    if any(r.get('enabled') and cue_cuts_matches(
+            r.get('cue_type') or AUDIO_CUE_TYPE_DEFAULT, r.get('cut_matches'),
+            cut_matches_default) for r in rows):
         return set()
     roles = {audio_cue_type_role(r.get('cue_type') or AUDIO_CUE_TYPE_DEFAULT)
              for r in rows if r.get('enabled')}

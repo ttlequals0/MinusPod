@@ -1306,6 +1306,9 @@ def _merge_ad_pair(current_ad: dict, next_ad: dict, gap_desc: str = "") -> None:
                 dict(snap) if isinstance(snap, dict) else snap)
         if next_ad.get('end_text'):
             current_ad['end_text'] = next_ad['end_text']
+        # Merged span stays cue-backed if either fragment is; the end-edge record applies only when next's end wins.
+        if next_ad.get('cue_snap') and not current_ad.get('cue_snap'):
+            current_ad['cue_snap'] = next_ad['cue_snap']
     invalidate_quote_alignment(current_ad)
     invalidate_word_timed_edges(current_ad)
     current_ad['confidence'] = max(current_ad.get('confidence', 0.0),
@@ -1323,13 +1326,6 @@ def _merge_ad_pair(current_ad: dict, next_ad: dict, gap_desc: str = "") -> None:
     if current_ad.get('sponsor') is None and next_ad.get('sponsor') is not None:
         current_ad['sponsor'] = next_ad['sponsor']
 
-    # Preserve cue-backedness so cue-gated feeds still recognize the merged span.
-    # Only when next's end became the merged end does its end-edge record apply.
-    # Applies to both merge passes: a break where either fragment is cue-backed
-    # is treated as cue-backed (folding adjacent ads into one break), so the
-    # merged span is auto-cut rather than held on a cue-gated feed.
-    if extends and next_ad.get('cue_snap') and not current_ad.get('cue_snap'):
-        current_ad['cue_snap'] = next_ad['cue_snap']
     if next_ad.get('detection_stage') == 'cue_pair' or current_ad.get('detection_stage') == 'cue_pair':
         current_ad['detection_stage'] = 'cue_pair'
 

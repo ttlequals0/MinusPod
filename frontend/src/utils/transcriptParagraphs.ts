@@ -2,6 +2,7 @@ export interface TimedText {
   start: number;
   end: number;
   text: string;
+  speaker?: unknown;
 }
 
 export interface Paragraph<T extends TimedText> {
@@ -15,8 +16,8 @@ const MIN_GAP = 0.25;
 const MAX_GAP = 1.0;
 const MIN_GAPS = 4;
 // Break at the first sentence end past the target; never run past the hard cap.
-export const TARGET_PARAGRAPH_SECONDS = 20;
-export const MAX_PARAGRAPH_SECONDS = 45;
+const TARGET_PARAGRAPH_SECONDS = 20;
+const MAX_PARAGRAPH_SECONDS = 45;
 // Closing quotes include the curly forms (\u201d \u2019) that transcripts carry.
 const SENTENCE_END = /[.!?]["'\u201d\u2019)\]]*\s*$/;
 
@@ -48,8 +49,7 @@ export function groupParagraphs<T extends TimedText>(
     if (cur) {
       const prev = cur.segments[cur.segments.length - 1];
       const gap = seg.start - prev.end;
-      const speakerChange = 'speaker' in seg && 'speaker' in prev
-        && (seg as { speaker?: unknown }).speaker !== (prev as { speaker?: unknown }).speaker;
+      const speakerChange = 'speaker' in seg && 'speaker' in prev && seg.speaker !== prev.speaker;
       const dur = prev.end - cur.start;
       const brk = gap > threshold
         || (dur >= TARGET_PARAGRAPH_SECONDS && SENTENCE_END.test(prev.text))

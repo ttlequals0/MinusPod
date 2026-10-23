@@ -9,6 +9,7 @@ from config import (
 )
 from utils.constants import EpisodeStatus
 from utils.time import ISO_FORMAT, utc_now_iso
+from utils.validation import nullable_bool
 
 logger = logging.getLogger(__name__)
 
@@ -639,7 +640,7 @@ class PodcastMixin:
             except (ValueError, TypeError):
                 logger.warning("Bad podping_hive_accounts JSON; treating as none")
         return {
-            'uses_podping': None if uses is None else bool(uses),
+            'uses_podping': nullable_bool(uses),
             'hive_accounts': accounts,
         }
 
