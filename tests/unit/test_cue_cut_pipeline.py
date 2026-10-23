@@ -38,13 +38,14 @@ def _row(cue_type, cut=None, enabled=True):
 
 
 def test_cue_only_missing_roles_cut_matches():
-    rows = [_row('show_intro', cut=True)]
-    assert cue_only_missing_roles(rows) == set()
-    assert cue_only_missing_roles([_row('show_intro')]) == {'start', 'end'}
-    assert cue_only_missing_roles([_row('show_intro')], cut_matches_default=True) == set()
-    assert cue_only_missing_roles([_row('show_intro', cut=False)], True) == {'start', 'end'}
-    assert cue_only_missing_roles([_row('content_transition', cut=True)]) == {'start', 'end'}
-    assert cue_only_missing_roles([_row('show_intro', cut=True, enabled=False)]) == {'start', 'end'}
+    def missing(rows, default=False):
+        return cue_only_missing_roles(rows, cut_matches_default=default)
+    assert missing([_row('show_intro', cut=True)]) == set()
+    assert missing([_row('show_intro')]) == {'start', 'end'}
+    assert missing([_row('show_intro')], True) == set()
+    assert missing([_row('show_intro', cut=False)], True) == {'start', 'end'}
+    assert missing([_row('content_transition', cut=True)]) == {'start', 'end'}
+    assert missing([_row('show_intro', cut=True, enabled=False)]) == {'start', 'end'}
 
 
 def test_reviewer_skips_cue_match_and_confirmed_only():

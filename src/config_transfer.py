@@ -18,7 +18,7 @@ from community_sync import DEFAULT_CRON as COMMUNITY_SYNC_DEFAULT_CRON
 from config import (
     PODCAST_SEARCH_PROVIDERS, STAGE_TUNABLE_PAYLOAD_KEYS,
     SYSTEMONE_TUNABLE_DEFAULTS, SYSTEMONE_TUNABLE_PROFILE_KEYS,
-    PROCESSING_MODE_CUE_ONLY, cue_only_missing_roles,
+    PROCESSING_MODE_CUE_ONLY, cue_only_missing_roles_for_feed,
     get_stage_tunable, resolve_community_sync_categories,
     resolve_feed_processing_mode, resolve_jit_blocked_user_agents,
     resolve_segment_category_actions_map, resolve_max_ad_duration_confirmed,
@@ -905,10 +905,11 @@ def build_preview(db, document, scope, selected_feeds=None):
                 raise ConfigTransferError('Source URL already belongs to another feed')
         if feed.get('settings', {}).get('detection_mode') == 'cue_only':
             cue_templates = []
+            podcast = None
             if current is not None:
                 podcast = db.get_podcast_by_slug(slug)
                 cue_templates = db.list_cue_templates_for_feed_ui(podcast['id']) if podcast else []
-            if cue_only_missing_roles(cue_templates):
+            if cue_only_missing_roles_for_feed(db, podcast['id'] if podcast else None, cue_templates):
                 warnings.append(f'{slug} uses cue-only processing and needs enabled start and end cue templates on the destination.')
         _validated_feed_updates(
             db, dict(current) if current is not None else None,

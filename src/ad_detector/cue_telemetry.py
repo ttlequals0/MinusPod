@@ -85,7 +85,7 @@ def build_cue_detection_records(
     for ad in ads or []:
         match = ad.get('cue_match')
         if match:
-            cut.add(_cue_key(match.get('template_id'), match.get('cue_start', ad.get('start'))))
+            cut.add(_cue_key(match.get('template_id'), match.get('cue_start')))
         for side in ('start', 'end'):
             sub = (ad.get('cue_pair') or {}).get(side)
             if sub:

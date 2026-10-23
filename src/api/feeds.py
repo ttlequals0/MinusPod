@@ -43,7 +43,7 @@ from config import (
     CUE_ONLY_SAFETY_VALUES,
     LOW_AD_YIELD_ACTIONS,
     EPISODE_LOGS_VALUES,
-    cue_only_missing_roles,
+    cue_only_missing_roles_for_feed,
 )
 from description_chapters import TO_END, TRIM_MODES
 from differential_fetcher import is_likely_dai_feed
@@ -302,7 +302,7 @@ def _normalize_processing_mode(value):
 def _cue_only_templates_ok(db, podcast):
     """Cue-only needs one enabled start-role and one end-role template."""
     rows = db.list_cue_templates_for_feed_ui(podcast['id'])
-    if not cue_only_missing_roles(rows):
+    if not cue_only_missing_roles_for_feed(db, podcast['id'], rows):
         return True, None
     return False, ("cue_only needs at least one enabled 'ad-break start' and one "
                    "'ad-break end' template on this feed; boundary-only cues "

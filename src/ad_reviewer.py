@@ -12,6 +12,7 @@ from typing import Literal
 from collections.abc import Callable
 
 from config import (
+    CUE_MATCH_STAGE,
     resolve_stage_tunables,
     UNREVIEWABLE_GAP_SECONDS,
     AD_REVIEWER_PARALLEL_ADS_DEFAULT,
@@ -130,7 +131,7 @@ _INCONCLUSIVE_STAGES = frozenset({
 def _skips_reviewer(ad) -> bool:
     """Human-confirmed ads and cue_match markers (a measured cue, no spoken ad) skip the LLM."""
     return (bool((ad.get("validation") or {}).get("user_confirmed"))
-            or ad.get("detection_stage") == "cue_match")
+            or ad.get("detection_stage") == CUE_MATCH_STAGE)
 
 
 def _review_inconclusive_reason(error: Exception) -> str:

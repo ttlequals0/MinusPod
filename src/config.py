@@ -337,7 +337,7 @@ def is_cue_backed(ad) -> bool:
     (human) marker. Used by the validator hold rules and the pass-1 gate.
     """
     return (bool(ad.get('cue_snap'))
-            or ad.get('detection_stage') in ('cue_pair', 'cue_match', 'manual'))
+            or ad.get('detection_stage') in ('cue_pair', CUE_MATCH_STAGE, 'manual'))
 
 
 def measured_evidence(ad) -> list[str]:
@@ -1153,6 +1153,24 @@ _CUE_FLOAT_KNOBS = [
 ]
 
 
+def _cut_matches_default(db, overrides):
+    raw = overrides.get('cue_cut_matches_override')
+    if raw is not None:
+        return bool(raw)
+    return db.get_setting_bool('audio_cue_cut_matches', default=False)
+
+
+def resolve_cut_matches_default(db, podcast_id) -> bool:
+    """Feed override else global default for cutting matched cue audio."""
+    overrides = {}
+    try:
+        if podcast_id is not None:
+            overrides = db.get_podcast_cue_settings_overrides(podcast_id)
+    except Exception:
+        _tunable_logger.warning('resolve_cut_matches_default: override read failed; using global')
+    return _cut_matches_default(db, overrides)
+
+
 def resolve_feed_cue_settings(db, podcast_id):
     """Resolve per-feed cue knobs in one DB read.
 
@@ -1187,11 +1205,7 @@ def resolve_feed_cue_settings(db, podcast_id):
     else:
         create_from_pairs = db.get_setting_bool('audio_cue_create_from_pairs', default=False)
 
-    cut_matches_raw = overrides.get('cue_cut_matches_override')
-    if cut_matches_raw is not None:
-        cut_matches = bool(cut_matches_raw)
-    else:
-        cut_matches = db.get_setting_bool('audio_cue_cut_matches', default=False)
+    cut_matches = _cut_matches_default(db, overrides)
 
     result = {'create_from_pairs': create_from_pairs, 'cut_matches': cut_matches}
     for override_col, setting_key, code_default, out_key in _CUE_FLOAT_KNOBS:
@@ -1471,6 +1485,15 @@ AUDIO_CUE_TYPES = {
     # topic shifts there without claiming an ad boundary (#350 follow-up).
     'content_transition': ('content transition', 'non_ad'),
 }
+# Cue type -> marker category for cut-matched-audio; absent types never cut.
+CUE_CUT_CATEGORY = {
+    'show_intro': 'intro',
+    'show_outro': 'outro',
+    'ad_break_boundary': 'sponsor',
+    'ad_break_start': 'sponsor',
+    'ad_break_end': 'sponsor',
+}
+CUE_MATCH_STAGE = 'cue_match'
 AUDIO_CUE_TYPE_DEFAULT = 'ad_break_boundary'
 AUDIO_CUE_TYPE_CONTENT_TRANSITION = 'content_transition'
 # The two non_ad types that anchor where show content begins / ends. Audio
@@ -1538,15 +1561,19 @@ AUDIO_CUE_END_EDGE_ROLES = ('end', 'boundary')
 CUE_ONLY_REQUIRED_ROLES = ('start', 'end')
 
 
-def cue_template_cuts_matches(row, cut_matches_default=False):
-    """Effective cut_matches for a template row: own value, else the default; never content_transition."""
-    if (row.get('cue_type') or AUDIO_CUE_TYPE_DEFAULT) == AUDIO_CUE_TYPE_CONTENT_TRANSITION:
+def cue_cuts_matches(cue_type, value, default) -> bool:
+    """Effective cut flag: False for ineligible types, else own value, else the default."""
+    if cue_type not in CUE_CUT_CATEGORY:
         return False
-    value = row.get('cut_matches')
-    return bool(cut_matches_default) if value is None else bool(value)
+    return bool(default) if value is None else bool(value)
 
 
-def cue_only_missing_roles(rows, cut_matches_default=False):
+def cue_template_cuts_matches(row, default=False):
+    return cue_cuts_matches(row.get('cue_type') or AUDIO_CUE_TYPE_DEFAULT,
+                            row.get('cut_matches'), default)
+
+
+def cue_only_missing_roles(rows, *, cut_matches_default):
     """Required cue-only roles (start/end) with no enabled template in rows.
 
     An enabled template that cuts its own matches needs no start/end pair.
@@ -1557,6 +1584,12 @@ def cue_only_missing_roles(rows, cut_matches_default=False):
     roles = {audio_cue_type_role(r.get('cue_type') or AUDIO_CUE_TYPE_DEFAULT)
              for r in rows if r.get('enabled')}
     return set(CUE_ONLY_REQUIRED_ROLES) - roles
+
+
+def cue_only_missing_roles_for_feed(db, podcast_id, rows):
+    """cue_only_missing_roles with the feed's resolved cut-matches default."""
+    return cue_only_missing_roles(
+        rows, cut_matches_default=resolve_cut_matches_default(db, podcast_id))
 
 
 # ============================================================

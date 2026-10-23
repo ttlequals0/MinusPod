@@ -5,34 +5,21 @@ import logging
 
 from config import (
     AUDIO_CUE_TYPE_DEFAULT,
+    CUE_CUT_CATEGORY,
+    CUE_MATCH_STAGE,
+    cue_cuts_matches,
     is_template_cue,
 )
 from ad_detector.cue_pair_ads import (
     SKIP_BELOW_CONFIDENCE,
     SKIP_COVERED,
-    _covered_by_existing_ad,
 )
 from ad_detector.cue_telemetry import cue_key as _diag_key
 
 logger = logging.getLogger('podcast.claude.cue_cut')
 
-# Cue type -> marker category. Types absent here (content_transition) never cut.
-CUE_TYPE_CATEGORY = {
-    'show_intro': 'intro',
-    'show_outro': 'outro',
-    'ad_break_boundary': 'sponsor',
-    'ad_break_start': 'sponsor',
-    'ad_break_end': 'sponsor',
-}
-
-
-def cue_cut_enabled(details, feed_default: bool) -> bool:
-    """Effective cut flag: template value when set, else the feed/global default."""
-    details = details or {}
-    if details.get('cue_type', AUDIO_CUE_TYPE_DEFAULT) not in CUE_TYPE_CATEGORY:
-        return False
-    value = details.get('cut_matches')
-    return bool(feed_default) if value is None else bool(value)
+def _overlaps_existing_ad(ads: list[dict], start: float, end: float) -> bool:
+    return any(a['start'] < end and a['end'] > start for a in ads)
 
 
 def synthesize_ads_from_cue_matches(
@@ -48,7 +35,8 @@ def synthesize_ads_from_cue_matches(
     cues = sorted(
         (c for c in audio_analysis_result.get_signals_by_type('audio_cue')
          if is_template_cue(c.details)
-         and cue_cut_enabled(c.details, cue_settings_cut_matches)),
+         and cue_cuts_matches(c.details.get('cue_type', AUDIO_CUE_TYPE_DEFAULT),
+                              c.details.get('cut_matches'), cue_settings_cut_matches)),
         key=lambda c: c.start,
     )
     new_ads = list(ads)
@@ -58,7 +46,7 @@ def synthesize_ads_from_cue_matches(
         if c.confidence < min_confidence:
             skip_diagnostics[key] = SKIP_BELOW_CONFIDENCE
             continue
-        if _covered_by_existing_ad(new_ads, float(c.start), float(c.end)):
+        if _overlaps_existing_ad(new_ads, float(c.start), float(c.end)):
             skip_diagnostics[key] = SKIP_COVERED
             continue
         cue_type = details.get('cue_type', AUDIO_CUE_TYPE_DEFAULT)
@@ -68,13 +56,12 @@ def synthesize_ads_from_cue_matches(
             'end': round(float(c.end), 3),
             'confidence': confidence,
             'reason': 'audio_cue_match',
-            'detection_stage': 'cue_match',
-            'category': CUE_TYPE_CATEGORY[cue_type],
+            'detection_stage': CUE_MATCH_STAGE,
+            'category': CUE_CUT_CATEGORY[cue_type],
             'cue_match': {
                 'template_id': details.get('template_id'),
                 'label': details.get('label'),
                 'cue_type': cue_type,
-                'confidence': confidence,
                 'cue_start': round(float(c.start), 3),
             },
         })

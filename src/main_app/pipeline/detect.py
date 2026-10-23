@@ -15,7 +15,7 @@ from ad_detector.cue_telemetry import build_cue_detection_records
 from ad_detector.silence_boundary_snap import snap_ad_boundaries_to_silence
 from audio_analysis.cue_threshold_suggest import near_miss_streak_suggestion
 from config import (
-    CHAPTER_TRIM_SOURCES, DESCRIPTION_CHAPTER_STAGE,
+    CHAPTER_TRIM_SOURCES, CUE_MATCH_STAGE, DESCRIPTION_CHAPTER_STAGE,
     title_matches_skip_patterns,
     resolve_max_boundary_shift,
     MIN_CONTENT_BETWEEN_ADS_SECONDS,
@@ -59,7 +59,8 @@ def _exclude_opening_ads(ads, seconds):
     if seconds <= 0:
         return ads
     return [ad for ad in ads
-            if ad.get('detection_stage') == 'cue_match' or float(ad.get('start', 0)) >= seconds]
+            if (ad.get('detection_stage') == CUE_MATCH_STAGE and ad.get('category') != 'sponsor')
+            or float(ad.get('start', 0)) >= seconds]
 
 
 def _detect_ads_first_pass(ctx, segments, audio_path,
@@ -227,6 +228,7 @@ def _detect_ads_first_pass(ctx, segments, audio_path,
             )
 
     # Cue cut: templates that cut their own matches become markers, with or without pairs (#874).
+    # The pair confidence knob doubles as the cut confidence floor.
     cue_cut_skip_diagnostics = {}
     if audio_analysis_result:
         try:

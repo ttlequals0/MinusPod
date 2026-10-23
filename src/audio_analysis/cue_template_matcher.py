@@ -42,6 +42,7 @@ from .cue_features import (
     int16_bytes_to_pcm,
 )
 from utils.audio import get_audio_duration
+from utils.validation import nullable_bool
 
 logger = logging.getLogger('podcast.audio_analysis.cue_template')
 
@@ -145,8 +146,7 @@ class AudioCueTemplateMatcher:
                 cue_type=cue_type,
                 role=audio_cue_type_role(cue_type),
                 remove_with_ad=bool(row.get('remove_with_ad', True)),
-                cut_matches=(None if row.get('cut_matches') is None
-                             else bool(row['cut_matches'])),
+                cut_matches=nullable_bool(row.get('cut_matches')),
                 score_threshold=per_tpl_threshold,
                 eff_threshold=eff_thr,
                 pick_floor=pick_flr,

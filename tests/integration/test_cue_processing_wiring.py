@@ -192,7 +192,8 @@ def test_first_pass_cue_cut_markers(monkeypatch, cut, feed_default, expected):
         assert [r['outcome'] for r in db.recorded[0][2]] == ['cut']
 
 
-def test_exclude_opening_ads_keeps_cue_match():
-    ads = [{'start': 2.0, 'end': 6.0, 'detection_stage': 'cue_match'},
-           {'start': 3.0, 'end': 40.0, 'detection_stage': 'claude'}]
-    assert detect._exclude_opening_ads(ads, 10.0) == [ads[0]]
+def test_exclude_opening_ads_keeps_non_sponsor_cue_match_only():
+    intro = {'start': 2.0, 'end': 6.0, 'detection_stage': 'cue_match', 'category': 'intro'}
+    sponsor = {'start': 3.0, 'end': 5.0, 'detection_stage': 'cue_match', 'category': 'sponsor'}
+    llm = {'start': 3.0, 'end': 40.0, 'detection_stage': 'claude'}
+    assert detect._exclude_opening_ads([intro, sponsor, llm], 10.0) == [intro]

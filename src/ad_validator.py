@@ -9,7 +9,7 @@ from dataclasses import dataclass, field
 from enum import Enum
 
 from config import (
-    DESCRIPTION_CHAPTER_STAGE,
+    CUE_MATCH_STAGE, DESCRIPTION_CHAPTER_STAGE,
     MIN_AD_DURATION, SHORT_AD_WARN, LONG_AD_WARN, MAX_AD_DURATION,
     MAX_AD_DURATION_CONFIRMED, LOW_CONFIDENCE,
     REJECT_CONFIDENCE, HIGH_CONFIDENCE_OVERRIDE, PRE_ROLL, MID_ROLL_1,
@@ -1092,7 +1092,7 @@ class AdValidator:
             duration, position = self._measured_extent(ad)
 
         # Duration checks
-        if ad.get('detection_stage') == 'cue_match':
+        if ad.get('detection_stage') == CUE_MATCH_STAGE:
             # A stinger is short by nature; only a sliver is an error.
             if duration < CUE_MATCH_MIN_DURATION:
                 flags.append(f"ERROR: Very short ({duration:.1f}s)")
@@ -1522,7 +1522,7 @@ class AdValidator:
         # otherwise. hold_new holds cue_pair and cue_match markers built from an
         # unproven template, auto_cut instead raises the auto-cut confidence floor.
         if (self.cue_only_safety and decision != Decision.REJECT
-                and ad.get('detection_stage') in ('cue_pair', 'cue_match')):
+                and ad.get('detection_stage') in ('cue_pair', CUE_MATCH_STAGE)):
             pair = ad.get('cue_pair') or {}
             edge_templates = {
                 (pair.get('start') or {}).get('template_id'),

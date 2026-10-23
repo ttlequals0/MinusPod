@@ -28,6 +28,7 @@ from api import (
     api, log_request, json_response, error_response,
     get_database, get_storage, _get_version,
     _normalize_nullable_finite_float, _resolve_original_audio,
+    _deserialize_nullable_bool,
 )
 from audio_analysis.cue_features import (
     SAMPLE_RATE_HZ, N_COEFFS, FRAME_HOP_MS, FRAME_LENGTH_MS,
@@ -78,8 +79,8 @@ from config import (
     resolve_cue_template_score_with_source,
     AUDIO_CUE_SCORE_MAX, AUDIO_CUE_SCORE_MIN,
     resolve_feed_processing_mode, PROCESSING_MODE_CUE_ONLY,
-    cue_only_missing_roles,
-    resolve_feed_cue_settings,
+    cue_only_missing_roles_for_feed,
+    cue_cuts_matches,
 )
 from database.cue_templates import _UNSET as _CUE_THRESHOLD_UNSET
 from utils.constants import EpisodeStatus
@@ -141,17 +142,22 @@ def _extract_window_blobs(audio_path, offset_s, duration_s, n_coeffs,
 
 
 def _cut_matches_from_row(row: dict) -> bool | None:
-    raw = row.get('cut_matches')
-    return None if raw is None else bool(raw)
+    return _deserialize_nullable_bool(row.get('cut_matches'))
 
 
-def _validate_cut_matches(payload: dict, cue_type: str):
-    """Return (value, error) for an optional cutMatches field; absent -> None."""
+def _validate_cut_matches(payload: dict, cue_type: str, *, coerce_ineligible=False):
+    """Return (value, error) for an optional cutMatches field; absent -> None.
+
+    coerce_ineligible turns a true on an ineligible type into null (import).
+    """
     value = payload.get('cutMatches')
     if value is not None and not isinstance(value, bool):
         return None, 'cutMatches must be true, false, or null'
-    if value and cue_type == 'content_transition':
-        return None, 'cutMatches is not available for content_transition cues'
+    if value and not cue_cuts_matches(cue_type, True, False):
+        if coerce_ineligible:
+            logger.info(f"Cue template import: cutMatches ignored for cue_type={cue_type!r}")
+            return None, None
+        return None, f'cutMatches is not available for {cue_type} cues'
     return value, None
 
 
@@ -352,8 +358,7 @@ def _cue_only_missing_roles_for_feed(db, podcast_id, template_id, simulated_row)
         simulated = [r for r in rows if r['id'] != template_id]
     else:
         simulated = [simulated_row if r['id'] == template_id else r for r in rows]
-    cut_default = resolve_feed_cue_settings(db, podcast_id)['cut_matches']
-    return cue_only_missing_roles(simulated, cut_matches_default=cut_default)
+    return cue_only_missing_roles_for_feed(db, podcast_id, simulated)
 
 
 def _cue_only_eligibility_conflict(db, podcast_id, template_id, simulated_row):
@@ -505,6 +510,8 @@ def update_cue_template_route(template_id):
                 mfcc_blob, pcm_blob, sr):
             return error_response('template not found', 404)
 
+    if not cue_cuts_matches(new_cue_type or row['cue_type'], True, False):
+        cut_matches = None  # type change away from an eligible type clears the stored value
     db.update_cue_template(template_id, cue_type=new_cue_type, enabled=enabled,
                            score_threshold=score_threshold,
                            remove_with_ad=remove_with_ad,
@@ -848,7 +855,7 @@ def import_cue_template(slug):
     remove_with_ad = manifest.get('removeWithAd', True)
     if not isinstance(remove_with_ad, bool):
         return error_response('removeWithAd must be true or false', 400)
-    cut_matches, cm_err = _validate_cut_matches(manifest, cue_type)
+    cut_matches, cm_err = _validate_cut_matches(manifest, cue_type, coerce_ineligible=True)
     if cm_err:
         return error_response(cm_err, 400)
 

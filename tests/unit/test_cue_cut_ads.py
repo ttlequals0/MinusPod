@@ -25,8 +25,7 @@ def test_emits_marker_with_contract_shape():
         'reason': 'audio_cue_match', 'detection_stage': 'cue_match',
         'category': 'intro',
         'cue_match': {'template_id': 1, 'label': 'ding',
-                      'cue_type': 'show_intro', 'confidence': 0.9,
-                      'cue_start': 10.0},
+                      'cue_type': 'show_intro', 'cue_start': 10.0},
     }
 
 
@@ -62,6 +61,14 @@ def test_overlapping_existing_ad_skipped_with_diagnostic():
     ads, diag = synth(existing, _result(_cue(10.0, 12.0, cut=True)), False, 0.5)
     assert ads == existing
     assert diag == {(1, 10.0): 'covered_by_existing_ad'}
+
+
+def test_near_miss_llm_ad_does_not_suppress_cut():
+    existing = [{'start': 2.0, 'end': 7.4}]
+    ads, diag = synth(existing, _result(_cue(10.0, 10.4, cut=True)), False, 0.5)
+    assert len(ads) == 2 and diag == {}
+    existing = [{'start': 2.0, 'end': 10.2}]
+    assert synth(existing, _result(_cue(10.0, 10.4, cut=True)), False, 0.5)[0] == existing
 
 
 def test_below_confidence_skipped_with_diagnostic():

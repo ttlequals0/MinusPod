@@ -14,7 +14,7 @@ from functools import wraps
 from config import normalize_model_key
 from api.auth_state import authentication_required, session_is_authenticated
 from api.csrf import validate as csrf_validate
-from utils.validation import is_dangerous_slug
+from utils.validation import is_dangerous_slug, nullable_bool
 from utils.http import client_ip, redact_feed_credentials
 # Import registers the memory-threadsafe scheme before the Limiter resolves it.
 from utils.ratelimit_storage import (
@@ -394,12 +394,7 @@ def _serialize_nullable_bool(value):
     return 1 if value else 0
 
 
-def _deserialize_nullable_bool(value):
-    """DB int 1/0/None -> API True/False/None for tri-state boolean
-    columns. None preserves 'use global default' semantics on the wire."""
-    if value is None:
-        return None
-    return bool(value)
+_deserialize_nullable_bool = nullable_bool
 
 
 def _normalize_nullable_finite_float(value, field_name, lo, hi):
