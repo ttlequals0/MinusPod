@@ -308,6 +308,63 @@ def test_repaired_xing_counts_toc_music_and_tag_crc(source, tmp_path):
             min(255, positions[i * len(positions) // 100] * 256 // total) for i in range(100)]
 
 
+def _first_frame(data):
+    """Byte length of the MPEG-1 Layer III frame at the start of ``data``."""
+    header = int.from_bytes(data[:4], 'big')
+    assert header >> 21 == 0x7ff
+    bitrate = [0, 32, 40, 48, 56, 64, 80, 96, 112, 128, 160, 192, 224, 256, 320][(header >> 12) & 0xf] * 1000
+    rate = [44100, 48000, 32000][(header >> 10) & 3]
+    return 144 * bitrate // rate + ((header >> 9) & 1)
+
+
+@pytest.fixture(scope='module')
+def junk_lead_source(tmp_path_factory):
+    """A stitched-style file whose first frame ffmpeg discards as junk: one
+    plain-stereo frame in front of joint-stereo frames, no Xing, no ID3. Real
+    dynamically inserted podcast files look like this (seen 2026-10-16)."""
+    directory = tmp_path_factory.mktemp('mp3-junk')
+    encodes = {}
+    for name, joint, seconds in (('a', '0', '2'), ('b', '1', '60')):
+        path = directory / f'{name}.mp3'
+        subprocess.run(['ffmpeg', '-v', 'error', '-y', '-stream_loop', '-1',
+                        '-i', str(ROOT / 'assets/replace.mp3'), '-t', seconds, '-ac', '2', '-ar', '44100',
+                        '-c:a', 'libmp3lame', '-b:a', '192k', '-joint_stereo', joint,
+                        '-write_xing', '0', '-id3v2_version', '0', str(path)],
+                       check=True, capture_output=True)
+        encodes[name] = path.read_bytes()
+    path = directory / 'source.mp3'
+    path.write_bytes(encodes['a'][:_first_frame(encodes['a'])] + encodes['b'])
+    probe = subprocess.run(['ffmpeg', '-v', 'debug', '-i', str(path), '-t', '1', '-f', 'null', '-'],
+                           capture_output=True, text=True)
+    if 'bytes of junk' not in probe.stderr:
+        pytest.skip('this ffmpeg does not discard the mismatched lead frame')
+    return path
+
+
+@pytest.mark.parametrize('sound', [False, True])
+def test_decoder_dropped_lead_frame_is_modelled_not_refused(junk_lead_source, tmp_path, sound, caplog):
+    output = tmp_path / 'output.mp3'
+    with caplog.at_level('INFO', logger='mp3_stream_copy'):
+        applied = copy_mp3(str(junk_lead_source), str(output), [{'start': 20, 'end': 30}],
+                           replacement_path=str(ROOT / 'assets/replace.mp3') if sound else None)
+    assert applied is not None and len(applied) == 1
+    assert 'dropped 1 leading frame' in caplog.text
+    expected = (get_audio_duration(str(junk_lead_source)) - (applied[0]['end'] - applied[0]['start'])
+                + applied[0]['replacement_duration'])
+    assert get_audio_duration(str(output)) == pytest.approx(expected, abs=2e-3)
+
+
+def test_lead_frame_cut_away_is_not_mistaken_for_a_dropped_frame(junk_lead_source, tmp_path):
+    """A cut starting at the stream start replaces the junk frame with silence,
+    so source and copy no longer lose the same samples; the copy must refuse
+    rather than misalign."""
+    output = tmp_path / 'output.mp3'
+    existing = (ROOT / 'assets/replace.mp3').read_bytes()
+    output.write_bytes(existing)
+    assert copy_mp3(str(junk_lead_source), str(output), [{'start': 0, 'end': 10}]) is None
+    assert output.read_bytes() == existing
+
+
 def _end_two_frames_short(source):
     """A cut end on the boundary two frames before the stream end: the tail it
     leaves (two frames minus encoder padding) is never above the warm-up."""

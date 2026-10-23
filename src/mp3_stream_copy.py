@@ -19,6 +19,8 @@ from utils.subprocess_registry import tracked_run
 logger = logging.getLogger(__name__)
 MAX_FRAMES = 1_000_000
 MAX_PCM_BYTES = 4 * 1024 * 1024 * 1024
+# Leading frames the demuxer may drop as junk (see _validate) before the copy is refused.
+LEAD_JUNK_MAX_FRAMES = 4
 
 
 class CopyUnavailable(ValueError):
@@ -367,7 +369,24 @@ def _validate(source_path, output_path, stream, mapping, directory, filler_path,
     timeout = FFMPEG_LONG_TIMEOUT + int(max(samples, output_samples) / stream.rate / 12)
     _decode(source_path, source_pcm, timeout)
     _decode(output_path, output_pcm, timeout)
-    if source_pcm.stat().st_size != samples * block or output_pcm.stat().st_size != output_samples * block:
+    source_size, output_size = source_pcm.stat().st_size, output_pcm.stat().st_size
+    # The demuxer may discard leading frames it judges as junk (a stitched
+    # file whose first frame disagrees with the rest on stereo mode, say),
+    # so the decode comes out whole frames short. When the copy starts with
+    # the same source frames it loses exactly the same samples, which keeps
+    # every retained span aligned: model those frames as part of the skip.
+    lead = samples - source_size // block
+    skip_lead = 0
+    if (0 < lead <= LEAD_JUNK_MAX_FRAMES * stream.samples and lead % stream.samples == 0
+            and output_size == (output_samples - lead) * block
+            and all(mapping[stream.first + i] == ('source', stream.first + i)
+                    for i in range(lead // stream.samples))):
+        skip_lead = lead
+        samples -= lead
+        output_samples -= lead
+        logger.info('MP3 stream copy: decoder dropped %d leading frame(s) of source and copy alike',
+                    lead // stream.samples)
+    if source_size != samples * block or output_size != output_samples * block:
         raise CopyUnavailable('MP3 decoded duration mismatch')
     if filler is not None:
         _decode(filler_path, filler_pcm, timeout)
@@ -375,7 +394,7 @@ def _validate(source_path, output_path, stream, mapping, directory, filler_path,
             raise CopyUnavailable('MP3 filler duration mismatch')
     # Two frames cover one-granule MDCT overlap and the synthesis filter history.
     warmup = 2 * stream.samples
-    skip, size = stream.skip, stream.samples
+    skip, size = stream.skip + skip_lead, stream.samples
     frames = mapping[stream.first:]
     with ExitStack() as stack:
         source = stack.enter_context(source_pcm.open('rb'))
