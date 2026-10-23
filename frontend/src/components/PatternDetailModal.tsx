@@ -1,4 +1,3 @@
-import { Check, Pencil, Scissors, Trash2, X } from 'lucide-react';
 import { Link } from 'react-router';
 import { useDraftClose } from '../hooks/useDraftClose';
 import { useEffect, useRef, useState } from 'react';
@@ -9,7 +8,7 @@ import { getErrorMessage } from '../api/client';
 import { ScopeBadge } from './ScopeBadge';
 import { SegmentCategoryBadge } from './SegmentCategoryBadge';
 import { btnDestructive, btnOutline, btnPrimary, btnGhost, btnDestructiveOutline } from './buttonStyles';
-import { Modal, dialogFooterIconBtn } from './Modal';
+import { Modal, dialogFooterBtn, dialogFooterGrid } from './Modal';
 import Checkbox from './Checkbox';
 import { focusRing, selectBase, inputBase } from './fieldStyles';
 import {
@@ -119,7 +118,7 @@ function PatternDetailModal({ pattern, onClose, onSave }: PatternDetailModalProp
   };
 
   const splitLabel = splitMutation.isPending ? 'Splitting...' : 'Split';
-  const saveLabel = updateMutation.isPending ? 'Saving...' : 'Save Changes';
+  const saveLabel = updateMutation.isPending ? 'Saving...' : 'Save';
 
   return (
     <Modal ariaLabel="Pattern details" onClose={requestClose} panelClassName="max-w-2xl w-full max-h-[90vh] overflow-y-auto">
@@ -363,20 +362,18 @@ function PatternDetailModal({ pattern, onClose, onSave }: PatternDetailModalProp
       </div>
 
       {/* Footer */}
-      <div className="flex flex-nowrap justify-between gap-2 p-4 border-t border-border">
-        <div className="flex flex-nowrap items-center gap-1 sm:gap-2">
+      <div className={`flex flex-nowrap justify-between gap-2 p-4 border-t border-border ${showDeleteConfirm ? 'max-sm:grid max-sm:grid-cols-2 max-sm:gap-2' : dialogFooterGrid}`}>
+        <div className="flex flex-nowrap items-center gap-1 sm:gap-2 max-sm:contents">
           {pattern.is_active && (
-            <div className={`${showDeleteConfirm ? 'hidden sm:flex' : 'flex'} flex-col gap-1`}>
+            <div className={`${showDeleteConfirm ? 'hidden sm:flex' : 'flex max-sm:contents'} flex-col gap-1`}>
               <button
                 onClick={() => splitMutation.mutate()}
                 disabled={!pattern.can_split || splitMutation.isPending}
                 aria-describedby={!pattern.can_split ? `split-reason-${pattern.id}` : undefined}
-                aria-label={splitLabel}
-                title={pattern.can_split ? splitLabel : `${splitLabel}: No reliable ad boundary found.`}
-                className={`${dialogFooterIconBtn} ${btnOutline} disabled:opacity-50`}
+                title={pattern.can_split ? undefined : 'No reliable ad boundary found.'}
+                className={`${dialogFooterBtn} max-sm:w-full ${btnOutline} disabled:opacity-50`}
               >
-                <Scissors className="h-5 w-5 sm:hidden" aria-hidden="true" />
-                <span className="hidden sm:inline">{splitLabel}</span>
+                {splitLabel}
               </button>
               {!pattern.can_split && (
                 <span id={`split-reason-${pattern.id}`} className="hidden sm:block text-xs text-muted-foreground">
@@ -386,85 +383,64 @@ function PatternDetailModal({ pattern, onClose, onSave }: PatternDetailModalProp
             </div>
           )}
           {showDeleteConfirm ? (
-            <div className="flex flex-nowrap items-center gap-1 sm:gap-2">
-              <span className="text-sm text-destructive">
+            <div className="flex flex-nowrap items-center gap-1 sm:gap-2 max-sm:contents">
+              <span className="text-sm text-destructive max-sm:col-span-full">
                 <span className="sm:hidden">Delete?</span>
                 <span className="hidden sm:inline">Delete this pattern?</span>
               </span>
               <button
                 onClick={() => deleteMutation.mutate()}
                 disabled={deleteMutation.isPending}
-                aria-label={deleteMutation.isPending ? 'Deleting...' : 'Yes, Delete'}
-                title={deleteMutation.isPending ? 'Deleting...' : 'Yes, delete'}
-                className={`${dialogFooterIconBtn} ${btnDestructive} disabled:opacity-50`}
+                className={`${dialogFooterBtn} max-sm:w-full ${btnDestructive} disabled:opacity-50`}
               >
-                <Check className="h-5 w-5 sm:hidden" aria-hidden="true" />
-                <span className="hidden sm:inline">{deleteMutation.isPending ? 'Deleting...' : 'Yes, Delete'}</span>
+                {deleteMutation.isPending ? 'Deleting...' : 'Yes, Delete'}
               </button>
               <button
                 onClick={() => setShowDeleteConfirm(false)}
-                aria-label="Cancel"
-                title="Cancel delete"
-                className={`${dialogFooterIconBtn} ${btnOutline}`}
+                className={`${dialogFooterBtn} max-sm:w-full ${btnOutline}`}
               >
-                <X className="h-5 w-5 sm:hidden" aria-hidden="true" />
-                <span className="hidden sm:inline">Cancel</span>
+                Cancel
               </button>
             </div>
           ) : (
             <button
               onClick={() => setShowDeleteConfirm(true)}
-              aria-label="Delete"
-              title="Delete this pattern"
-              className={`${dialogFooterIconBtn} ${btnDestructiveOutline}`}
+              className={`${dialogFooterBtn} max-sm:w-full ${btnDestructiveOutline}`}
             >
-              <Trash2 className="h-5 w-5 sm:hidden" aria-hidden="true" />
-              <span className="hidden sm:inline">Delete</span>
+              Delete
             </button>
           )}
         </div>
-        <div className="flex flex-nowrap gap-1 sm:gap-2">
+        <div className={`flex flex-nowrap gap-1 sm:gap-2 ${showDeleteConfirm ? 'max-sm:hidden' : 'max-sm:contents'}`}>
           {isEditing ? (
             <>
               <button
                 onClick={() => setIsEditing(false)}
-                aria-label="Cancel"
-                title="Cancel editing"
-                className={`${dialogFooterIconBtn} ${btnOutline}`}
+                className={`${dialogFooterBtn} max-sm:w-full ${btnOutline}`}
               >
-                <X className="h-5 w-5 sm:hidden" aria-hidden="true" />
-                <span className="hidden sm:inline">Cancel</span>
+                Cancel
               </button>
               <button
                 onClick={() => updateMutation.mutate()}
                 disabled={updateMutation.isPending}
-                aria-label={saveLabel}
-                title={saveLabel}
-                className={`${dialogFooterIconBtn} ${btnPrimary} disabled:opacity-50`}
+                className={`${dialogFooterBtn} max-sm:w-full ${btnPrimary} disabled:opacity-50`}
               >
-                <Check className="h-5 w-5 sm:hidden" aria-hidden="true" />
-                <span className="hidden sm:inline">{saveLabel}</span>
+                {saveLabel}
               </button>
             </>
           ) : (
             <>
               <button
                 onClick={requestClose}
-                aria-label="Close"
-                title="Close"
-                className={`${dialogFooterIconBtn} ${btnOutline}`}
+                className={`${dialogFooterBtn} max-sm:w-full ${btnOutline}`}
               >
-                <X className="h-5 w-5 sm:hidden" aria-hidden="true" />
-                <span className="hidden sm:inline">Close</span>
+                Close
               </button>
               <button
                 onClick={() => setIsEditing(true)}
-                aria-label="Edit"
-                title="Edit"
-                className={`${dialogFooterIconBtn} ${btnPrimary}`}
+                className={`${dialogFooterBtn} max-sm:w-full ${btnPrimary}`}
               >
-                <Pencil className="h-5 w-5 sm:hidden" aria-hidden="true" />
-                <span className="hidden sm:inline">Edit</span>
+                Edit
               </button>
             </>
           )}

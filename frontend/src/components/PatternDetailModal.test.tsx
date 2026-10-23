@@ -141,7 +141,7 @@ describe('Category editing', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Edit' }));
 
     await userEvent.selectOptions(screen.getByLabelText('Category'), 'sponsor');
-    await userEvent.click(screen.getByRole('button', { name: 'Save Changes' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }));
 
     await waitFor(() => expect(mockUpdatePattern).toHaveBeenCalledWith(
       42, expect.objectContaining({ category: 'sponsor' }),
@@ -154,7 +154,7 @@ describe('Category editing', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Edit' }));
 
     await userEvent.selectOptions(screen.getByLabelText('Category'), '');
-    await userEvent.click(screen.getByRole('button', { name: 'Save Changes' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }));
 
     await waitFor(() => expect(mockUpdatePattern).toHaveBeenCalledWith(
       42, expect.objectContaining({ category: null }),
@@ -163,13 +163,12 @@ describe('Category editing', () => {
 });
 
 describe('Footer actions', () => {
-  it('exposes Split, Delete, Close and Edit by accessible name for the icon-only phone layout', () => {
+  it('shows Split, Delete, Close and Edit as text buttons at every width', () => {
     renderModal(makePattern());
     for (const name of ['Split', 'Delete', 'Close', 'Edit']) {
       const button = screen.getByRole('button', { name });
-      expect(button.getAttribute('aria-label')).toBe(name);
-      expect(button.getAttribute('title')).toBeTruthy();
-      expect(button.querySelector('svg')?.getAttribute('class')).toContain('sm:hidden');
+      expect(button.textContent).toBe(name);
+      expect(button.querySelector('svg')).toBeNull();
     }
   });
 

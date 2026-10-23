@@ -113,8 +113,8 @@ release notes.
   Ads, with the whole span's play button and a segments toggle that opens
   the member cards. A lone marker renders as before.
 - Web UI: Calls by phase on the Stats page is a table. The pattern details
-  dialog uses the shared button recipes, and on phones its footer is one
-  row of icon buttons. The Feeds header shows the compact action set below
+  dialog uses the shared button recipes, and on phones it lays its footer out as
+  equal-width text buttons. The Feeds header shows the compact action set below
   768 px, so a wide phone no longer draws the labelled buttons over the
   title. Copy buttons center their icon when the label is hidden. Play
   buttons are one square size everywhere, 32 px inside the 44 px target on
