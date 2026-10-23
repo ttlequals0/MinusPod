@@ -98,7 +98,6 @@ function CueDetectionsSection({ slug, episodeId, detections }: CueDetectionsSect
                     playing={playingKey === String(d.id)}
                     onClick={() => toggleMatch(String(d.id), audioUrl, d.start_s, d.end_s)}
                     label="this match"
-                    size="row"
                   />
                   <span className="font-mono text-sm text-foreground">
                     {formatTimestamp(d.start_s)} - {formatTimestamp(d.end_s)}

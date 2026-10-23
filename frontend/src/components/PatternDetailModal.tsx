@@ -1,3 +1,4 @@
+import { Check, Pencil, Scissors, Trash2, X } from 'lucide-react';
 import { useDraftClose } from '../hooks/useDraftClose';
 import { useEffect, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -17,7 +18,8 @@ import {
   type SegmentCategory,
 } from '../utils/segmentCategory';
 
-const footerBtn = `px-4 py-2 text-sm rounded ${focusRing}`;
+// 44px icon buttons below sm, text buttons from sm
+const footerBtn = `inline-flex items-center justify-center h-11 w-11 sm:h-auto sm:w-auto sm:px-4 sm:py-2 text-sm rounded ${focusRing}`;
 
 interface PatternDetailModalProps {
   pattern: AdPattern;
@@ -115,6 +117,9 @@ function PatternDetailModal({ pattern, onClose, onSave }: PatternDetailModalProp
     if (!dateStr) return '-';
     return new Date(dateStr).toLocaleString();
   };
+
+  const splitLabel = splitMutation.isPending ? 'Splitting...' : 'Split';
+  const saveLabel = updateMutation.isPending ? 'Saving...' : 'Save Changes';
 
   return (
     <Modal ariaLabel="Pattern details" onClose={requestClose} panelClassName="max-w-2xl w-full max-h-[90vh] overflow-y-auto">
@@ -357,81 +362,108 @@ function PatternDetailModal({ pattern, onClose, onSave }: PatternDetailModalProp
       </div>
 
       {/* Footer */}
-      <div className="flex flex-wrap justify-between gap-2 p-4 border-t border-border">
-        <div className="flex flex-wrap items-center gap-2">
+      <div className="flex flex-nowrap justify-between gap-2 p-4 border-t border-border">
+        <div className="flex flex-nowrap items-center gap-1 sm:gap-2">
           {pattern.is_active && (
-            <div className="flex flex-col gap-1">
+            <div className={`${showDeleteConfirm ? 'hidden sm:flex' : 'flex'} flex-col gap-1`}>
               <button
                 onClick={() => splitMutation.mutate()}
                 disabled={!pattern.can_split || splitMutation.isPending}
                 aria-describedby={!pattern.can_split ? `split-reason-${pattern.id}` : undefined}
+                aria-label={splitLabel}
+                title={pattern.can_split ? splitLabel : `${splitLabel}: No reliable ad boundary found.`}
                 className={`${footerBtn} ${btnOutline} disabled:opacity-50`}
               >
-                {splitMutation.isPending ? 'Splitting...' : 'Split'}
+                <Scissors className="h-5 w-5 sm:hidden" aria-hidden="true" />
+                <span className="hidden sm:inline">{splitLabel}</span>
               </button>
               {!pattern.can_split && (
-                <span id={`split-reason-${pattern.id}`} className="text-xs text-muted-foreground">
+                <span id={`split-reason-${pattern.id}`} className="hidden sm:block text-xs text-muted-foreground">
                   No reliable ad boundary found.
                 </span>
               )}
             </div>
           )}
           {showDeleteConfirm ? (
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="text-sm text-destructive">Delete this pattern?</span>
+            <div className="flex flex-nowrap items-center gap-1 sm:gap-2">
+              <span className="text-sm text-destructive">
+                <span className="sm:hidden">Delete?</span>
+                <span className="hidden sm:inline">Delete this pattern?</span>
+              </span>
               <button
                 onClick={() => deleteMutation.mutate()}
                 disabled={deleteMutation.isPending}
+                aria-label={deleteMutation.isPending ? 'Deleting...' : 'Yes, Delete'}
+                title={deleteMutation.isPending ? 'Deleting...' : 'Yes, delete'}
                 className={`${footerBtn} ${btnDestructive} disabled:opacity-50`}
               >
-                {deleteMutation.isPending ? 'Deleting...' : 'Yes, Delete'}
+                <Check className="h-5 w-5 sm:hidden" aria-hidden="true" />
+                <span className="hidden sm:inline">{deleteMutation.isPending ? 'Deleting...' : 'Yes, Delete'}</span>
               </button>
               <button
                 onClick={() => setShowDeleteConfirm(false)}
+                aria-label="Cancel"
+                title="Cancel delete"
                 className={`${footerBtn} ${btnOutline}`}
               >
-                Cancel
+                <X className="h-5 w-5 sm:hidden" aria-hidden="true" />
+                <span className="hidden sm:inline">Cancel</span>
               </button>
             </div>
           ) : (
             <button
               onClick={() => setShowDeleteConfirm(true)}
+              aria-label="Delete"
+              title="Delete this pattern"
               className={`${footerBtn} text-destructive hover:bg-destructive/10`}
             >
-              Delete
+              <Trash2 className="h-5 w-5 sm:hidden" aria-hidden="true" />
+              <span className="hidden sm:inline">Delete</span>
             </button>
           )}
         </div>
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-nowrap gap-1 sm:gap-2">
           {isEditing ? (
             <>
               <button
                 onClick={() => setIsEditing(false)}
+                aria-label="Cancel"
+                title="Cancel editing"
                 className={`${footerBtn} ${btnOutline}`}
               >
-                Cancel
+                <X className="h-5 w-5 sm:hidden" aria-hidden="true" />
+                <span className="hidden sm:inline">Cancel</span>
               </button>
               <button
                 onClick={() => updateMutation.mutate()}
                 disabled={updateMutation.isPending}
+                aria-label={saveLabel}
+                title={saveLabel}
                 className={`${footerBtn} ${btnPrimary} disabled:opacity-50`}
               >
-                {updateMutation.isPending ? 'Saving...' : 'Save Changes'}
+                <Check className="h-5 w-5 sm:hidden" aria-hidden="true" />
+                <span className="hidden sm:inline">{saveLabel}</span>
               </button>
             </>
           ) : (
             <>
               <button
                 onClick={requestClose}
+                aria-label="Close"
+                title="Close"
                 className={`${footerBtn} ${btnOutline}`}
               >
-                Close
+                <X className="h-5 w-5 sm:hidden" aria-hidden="true" />
+                <span className="hidden sm:inline">Close</span>
               </button>
               <button
                 onClick={() => setIsEditing(true)}
+                aria-label="Edit"
+                title="Edit"
                 className={`${footerBtn} ${btnPrimary}`}
               >
-                Edit
+                <Pencil className="h-5 w-5 sm:hidden" aria-hidden="true" />
+                <span className="hidden sm:inline">Edit</span>
               </button>
             </>
           )}

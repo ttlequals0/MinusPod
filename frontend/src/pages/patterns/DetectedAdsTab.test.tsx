@@ -112,7 +112,7 @@ describe('DetectedAdsTab', () => {
     const buttons = within(row).getAllByRole('button');
     expect(buttons.map((b) => b.getAttribute('aria-label') ?? b.textContent)).toEqual(
       ['Play this ad', 'Not an ad', 'Split', 'Edit']);
-    for (const b of buttons) expect(b.className).toContain('flex-1');
+    for (const b of buttons.slice(1)) expect(b.className).toContain('flex-1');
     const category = within(cards).getByRole('combobox', { name: /^Category for/ });
     expect(row.contains(category)).toBe(false);
     expect(category.compareDocumentPosition(row) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();

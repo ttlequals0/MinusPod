@@ -1291,7 +1291,6 @@ function EpisodeDetail() {
                 <div className="flex flex-wrap items-center gap-2">
                   {episode.hasOriginalAudio && (
                     <AuditionPlayButton
-                      size="row"
                       playing={markerAudition.playingKey === `detected-${segment.start}-${segment.end}`}
                       onClick={() => {
                         // Play the same timeframe the row displays: for
@@ -1591,7 +1590,6 @@ function EpisodeDetail() {
                     <div className="flex flex-wrap items-center gap-2">
                       {episode.hasOriginalAudio && (
                         <AuditionPlayButton
-                          size="row"
                           playing={heldPlaying}
                           onClick={() => markerAudition.toggle(heldKey, markerAudioUrl, segment.start, segment.end)}
                         />
@@ -1770,7 +1768,6 @@ function EpisodeDetail() {
                   <div className="flex flex-wrap items-center gap-2">
                     {episode.hasOriginalAudio && (
                       <AuditionPlayButton
-                        size="row"
                         label="this segment"
                         playing={markerAudition.playingKey === `kept-${segment.start}-${segment.end}`}
                         onClick={() => markerAudition.toggle(
@@ -1826,7 +1823,6 @@ function EpisodeDetail() {
                         <div className="flex flex-wrap items-center gap-2">
                           {episode.hasOriginalAudio && (
                             <AuditionPlayButton
-                              size="row"
                               playing={rejectedPlaying}
                               onClick={() => markerAudition.toggle(rejectedKey, markerAudioUrl, segment.start, segment.end)}
                             />

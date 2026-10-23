@@ -58,13 +58,13 @@ release notes.
   already moved acted as limits. Removable template cues inside the span
   now hold the edge too, so the stinger is cut with the ad wherever it falls.
 - Web UI: Calls by phase on the Stats page is a table. The pattern details
-  dialog uses the shared button recipes, one padding scale, and wraps its
-  footer and stats on phones. The Feeds header shows the compact action set
-  below 768 px, so a wide phone no longer draws the labelled buttons over
-  the title. Copy buttons center their icon when the label is hidden. Play
-  buttons on phones keep the 44 px target with a 32 px visual, the Play
-  glyph is optically centered, and the Cue Matches section shares that
-  button and the row action sizing.
+  dialog uses the shared button recipes, and on phones its footer is one
+  row of icon buttons. The Feeds header shows the compact action set below
+  768 px, so a wide phone no longer draws the labelled buttons over the
+  title. Copy buttons center their icon when the label is hidden. Play
+  buttons are one square size everywhere, 32 px inside the 44 px target on
+  phones and 28 px on desktop, with the Play glyph optically centered. The
+  Cue Matches section uses the same button.
 
 ### Security
 - Dependencies: pillow 13.0.0 (CVE-2026-112395, CVE-2026-112397,

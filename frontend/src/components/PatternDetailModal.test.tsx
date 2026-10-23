@@ -158,3 +158,25 @@ describe('Category editing', () => {
     ));
   });
 });
+
+describe('Footer actions', () => {
+  it('exposes Split, Delete, Close and Edit by accessible name for the icon-only phone layout', () => {
+    renderModal(makePattern());
+    for (const name of ['Split', 'Delete', 'Close', 'Edit']) {
+      const button = screen.getByRole('button', { name });
+      expect(button.getAttribute('aria-label')).toBe(name);
+      expect(button.getAttribute('title')).toBeTruthy();
+      expect(button.querySelector('svg')?.getAttribute('class')).toContain('sm:hidden');
+    }
+  });
+
+  it('confirms delete through the Yes, Delete and Cancel buttons', async () => {
+    mockDeletePattern.mockResolvedValue(undefined);
+    const onClose = vi.fn();
+    renderModal(makePattern(), onClose);
+    await userEvent.click(screen.getByRole('button', { name: 'Delete' }));
+    expect(screen.getByRole('button', { name: 'Cancel' })).toBeDefined();
+    await userEvent.click(screen.getByRole('button', { name: 'Yes, Delete' }));
+    await waitFor(() => expect(mockDeletePattern).toHaveBeenCalledWith(42));
+  });
+});

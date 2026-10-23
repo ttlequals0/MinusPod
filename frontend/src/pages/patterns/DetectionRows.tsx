@@ -178,7 +178,7 @@ function DetectionActions({ d, variant, playing, onTogglePlay, actions }: {
   const btn = isCard ? `${cardActionBtn} ${cardRowBtn}` : tableActionBtn;
   const undecided = d.resolution === 'unresolved';
   const play = d.hasOriginalAudio && (
-    <AuditionPlayButton playing={playing} onClick={onTogglePlay} size={isCard ? 'fill' : 'table'} />
+    <AuditionPlayButton playing={playing} onClick={onTogglePlay} />
   );
   const category = actions.onCategory && (
     <CategorySelect d={d} onCategory={actions.onCategory} busy={actions.busy}

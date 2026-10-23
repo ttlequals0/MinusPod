@@ -14,8 +14,6 @@ export const rowActionIcon =
 
 /** Desktop detection table rows: 30px tall. */
 export const tableActionBtn = 'px-1.5 py-1 text-xs rounded whitespace-nowrap';
-export const tableActionIcon =
-  'h-[30px] w-[30px] inline-flex items-center justify-center';
 
 /** Review/detection cards: 44px, the tap-target floor. Labels wrap on a phone, where a flex row can squeeze a button below its text. */
 const cardActionTail =
@@ -24,6 +22,3 @@ const cardActionTail =
 export const cardActionBtn = `min-h-[44px]${cardActionTail}`;
 /** cardActionBtn with the 44px floor on phones only. */
 export const cardActionBtnMobileOnly = `max-sm:min-h-[44px]${cardActionTail}`;
-export const cardActionHeight = 'h-11';
-export const cardActionIcon =
-  `${cardActionHeight} w-11 shrink-0 inline-flex items-center justify-center`;
