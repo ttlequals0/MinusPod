@@ -161,7 +161,7 @@ export function ProviderFields({
             fallback={null}
             parse={parseOptionalNumber}
             onChange={onTimeoutChange}
-            className={`w-full ${inputBase} placeholder:text-muted-foreground`}
+            className={`w-full placeholder:text-muted-foreground`}
           />
         </div>
         <div>
@@ -178,7 +178,7 @@ export function ProviderFields({
             fallback={null}
             parse={parseOptionalNumber}
             onChange={onMaxRetriesChange}
-            className={`w-full ${inputBase} placeholder:text-muted-foreground`}
+            className={`w-full placeholder:text-muted-foreground`}
             ariaDescribedBy={`${providerSelectId}MaxRetries` + '-help'}
           />
           <p id={`${providerSelectId}MaxRetries` + '-help'} className="mt-1 text-sm text-muted-foreground">

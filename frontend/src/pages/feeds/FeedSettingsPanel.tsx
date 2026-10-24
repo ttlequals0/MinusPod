@@ -113,7 +113,7 @@ function CueOverrideRow({
         onBlur={onBlur}
         disabled={disabled}
         ariaLabel={label}
-        className={`w-24 ${inputBase}`}
+        className="w-24"
       />
       <span className="text-xs text-muted-foreground">{hint}</span>
       {feedValue != null && (
@@ -627,7 +627,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                       max={isLocal ? 10000 : 500}
                       step={1}
                       ariaLabel="Feed cap"
-                      className={`w-20 ${inputBase}`}
+                      className="w-20"
                     />
                   </div>
                   {isLocal && (
@@ -1043,7 +1043,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                         placeholder="No limit"
                         ariaLabel={label}
                         disabled={updateMutation.isPending}
-                        className={`w-full ${inputBase}`}
+                        className="w-full"
                       />
                     </label>
                   ))}
@@ -1412,7 +1412,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                           onBlur={() => commitFloat(
                             retentionDaysField, feed.retentionDaysOverride,
                             'retentionDaysOverride', 1, MAX_RETENTION_DAYS)}
-                          className={`w-24 ${inputBase}`}
+                          className="w-24"
                           ariaLabel="Retention days"
                         />
                         <span className="text-xs text-muted-foreground">days</span>

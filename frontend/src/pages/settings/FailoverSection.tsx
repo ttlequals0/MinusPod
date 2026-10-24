@@ -262,7 +262,7 @@ function FailoverSection({
               step={1}
               parse={(s) => parseInt(s, 10)}
               onCommit={onProbeIntervalChange}
-              className={`w-full ${inputBase}`}
+              className="w-full"
               ariaDescribedBy="failoverProbeIntervalMinutes-help"
             />
             <p id="failoverProbeIntervalMinutes-help" className="mt-1 text-sm text-muted-foreground">How often each provider and transcriber is checked.</p>
@@ -280,7 +280,7 @@ function FailoverSection({
               step={1}
               parse={(s) => parseInt(s, 10)}
               onCommit={onRecoveryProbesChange}
-              className={`w-full ${inputBase}`}
+              className="w-full"
               ariaDescribedBy="failoverRecoveryProbes-help"
             />
             <p id="failoverRecoveryProbes-help" className="mt-1 text-sm text-muted-foreground">
@@ -496,7 +496,7 @@ function FailoverSection({
                         step={1}
                         parse={(s) => parseInt(s, 10)}
                         onCommit={(apiTimeoutSeconds) => onWhisperChange({ apiTimeoutSeconds })}
-                        className={`w-full ${inputBase}`}
+                        className="w-full"
                       />
                     </div>
                   </div>
@@ -514,7 +514,7 @@ function FailoverSection({
                       placeholder={String(activeWhisperMaxAttempts)}
                       parse={parseOptionalNumber}
                       onChange={(maxAttempts) => onWhisperChange({ maxAttempts })}
-                      className={`w-full ${inputBase} placeholder:text-muted-foreground`}
+                      className={`w-full placeholder:text-muted-foreground`}
                       ariaDescribedBy="failoverWhisperMaxAttempts-help"
                     />
                     <p id="failoverWhisperMaxAttempts-help" className="mt-1 text-sm text-muted-foreground">

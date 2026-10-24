@@ -41,7 +41,7 @@ import { formatDate, formatElapsed, formatPercent } from '../../utils/format';
 import Checkbox from '../../components/Checkbox';
 import TriStateSelect from '../../components/TriStateSelect';
 import DraftNumberInput, { parseOptionalNumber } from '../../components/DraftNumberInput';
-import { focusRing, inputBase, labelBase, selectBase } from '../../components/fieldStyles';
+import { focusRing, labelBase, selectBase } from '../../components/fieldStyles';
 import { badgeBase, tint } from '../../components/badgeStyles';
 
 const PICKER_PAGE_SIZE = 50;
@@ -574,7 +574,7 @@ function CueTemplatesPanel({ slug }: Props) {
                               }
                             }}
                             placeholder="inherit"
-                            className={`w-20 ${inputBase}`}
+                            className="w-20"
                             aria-label="Score threshold"
                           />
                         ) : (
@@ -987,7 +987,7 @@ function CueScanModal({ slug, onClose }: CueScanModalProps) {
               fallback={null}
               parse={parseOptionalNumber}
               onChange={(v) => setScoreOverride(v === null ? '' : String(v))}
-              className={`w-28 ${inputBase} font-mono`}
+              className="w-28 font-mono"
             />
           </div>
           <button

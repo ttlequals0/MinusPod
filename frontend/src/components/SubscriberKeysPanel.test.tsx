@@ -84,7 +84,7 @@ describe('SubscriberKeysPanel', () => {
     renderPanel();
     await userEvent.click(await screen.findByRole('button', { name: 'Delete' }));
     const dialog = await screen.findByRole('dialog');
-    await userEvent.click(within(dialog).getByRole('button', { name: 'Delete' }));
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Delete key record' }));
     expect(mockDeleteSubscriberKeyRecord).toHaveBeenCalledWith('example-podcast', 'key-2');
   });
 });

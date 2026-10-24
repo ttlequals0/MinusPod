@@ -161,7 +161,7 @@ function EmailSettingsForm() {
             fallback={null}
             parse={parseOptionalNumber}
             onChange={(v) => set('smtpPort', v === null ? '' : String(v))}
-            className={`${inputBase} w-full`}
+            className="w-full"
           />
         </div>
       </div>
