@@ -33,7 +33,7 @@ export default function PageTabs<T extends string>({ id, label, tabs, active, on
             onChange(tabs[next].value);
             list.current?.querySelectorAll<HTMLButtonElement>('[role="tab"]')[next]?.focus();
           }}
-          className={`px-2 sm:px-4 py-2 text-sm font-medium whitespace-nowrap border-b-2 -mb-px transition-colors ${focusRing} ${active === tab.value ? 'border-primary text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground'}`}>
+          className={`shrink-0 px-2 sm:px-4 py-2 text-sm font-medium whitespace-nowrap border-b-2 -mb-px transition-colors ${focusRing} ${active === tab.value ? 'border-primary text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground'}`}>
           {tab.label}{tab.badge}
         </button>
       ))}
