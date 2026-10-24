@@ -15,6 +15,8 @@ release notes.
 - Review action rows on phones: every button is 44 px tall, the play button's
   target height. Labels no longer wrap and a row that cannot fit five buttons
   wraps to a second line instead of stretching.
+- Icon buttons in action rows fill their 44 px target on phones, so the play
+  button matches the text buttons beside it.
 
 ## [2.100.20] - 2026-10-24
 

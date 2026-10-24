@@ -53,7 +53,7 @@ There is no `<Button>` component. Recipes are class strings composed at the call
 | `cardActionBtn` | Review and detection card actions | 44 px floor; labels wrap on a phone |
 | `dialogFooterBtn` | Dialog footer action | Text label at every width |
 | `dialogFooterGrid` | Dialog footer with 3 or more actions | Two columns below 360 px, one row of equal columns from 360 to 639 px, flex row from sm |
-| `iconTarget` + `iconVisual` | Icon button with a smaller filled square (AuditionPlayButton, OpenEditorButton) | 44 px hit box on coarse pointers; visual is 32 px, 28 px from sm |
+| `iconTarget` + `iconVisual` | Icon button with a smaller filled square (AuditionPlayButton, OpenEditorButton) | 44 px hit box on coarse pointers; visual fills the 44 px target below sm, 28 px from sm |
 
 - Pair `iconTarget` with `iconVisual`. The focus ring sits on the visual through `group-focus-visible`. `AuditionPlayButton` is the reference and is one size everywhere; `OpenEditorButton` is the second.
 - An icon-only control centers its icon with inline-flex items-center justify-center or the iconTarget and iconVisual pair. Padding alone places the icon top-left once the coarse-pointer floor stretches the box.

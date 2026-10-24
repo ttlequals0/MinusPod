@@ -20,7 +20,7 @@ describe('AuditionPlayButton', () => {
     expect(button.className).toContain('sm:h-7');
     expect(button.className).not.toContain('bg-primary');
     const visual = button.firstElementChild as HTMLElement;
-    expect(visual.className).toContain('h-8 w-8');
+    expect(visual.className).toContain('h-11 w-11');
     expect(visual.className).toContain('sm:h-7 sm:w-7');
     expect(visual.className).toContain('bg-primary');
   });
