@@ -8,7 +8,7 @@ function FeedTypeBadge({ feedType, className = '' }: { feedType: Feed['feedType'
   const label = feedType ? LABELS[feedType] : undefined;
   if (!label) return null;
   return (
-    <span className={`${badgeBase} shrink-0 font-medium ${tint.blue} ${className}`}>
+    <span className={`${badgeBase} shrink-0 ${tint.blue} ${className}`}>
       {label}
     </span>
   );

@@ -3,10 +3,10 @@ import { confirmLabel, rejectLabel } from './segmentCategory';
 
 describe('confirmLabel', () => {
   it('calls a sponsor or uncategorized marker an ad', () => {
-    expect(confirmLabel('sponsor')).toBe('Confirm ad');
-    expect(confirmLabel(undefined)).toBe('Confirm ad');
-    expect(confirmLabel(null)).toBe('Confirm ad');
-    expect(confirmLabel('')).toBe('Confirm ad');
+    expect(confirmLabel('sponsor')).toBe('Confirm');
+    expect(confirmLabel(undefined)).toBe('Confirm');
+    expect(confirmLabel(null)).toBe('Confirm');
+    expect(confirmLabel('')).toBe('Confirm');
   });
 
   it('names any other category instead of calling it an ad', () => {
@@ -17,7 +17,7 @@ describe('confirmLabel', () => {
   });
 
   it('falls back to ad for a category the frontend does not know', () => {
-    expect(confirmLabel('something_new')).toBe('Confirm ad');
+    expect(confirmLabel('something_new')).toBe('Confirm');
   });
 });
 

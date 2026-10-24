@@ -3,8 +3,6 @@ import { createBrowserRouter, Outlet, Navigate, useBlocker } from 'react-router'
 import { captureDialogTrigger, ConfirmModal } from './components/Modal';
 import { hasUnsavedChanges, useAnyUnsavedChanges } from './hooks/useUnsavedChanges';
 import { useAppUpdate } from './utils/appUpdate';
-import { btnSecondary, touchTarget } from './components/buttonStyles';
-import { focusRing } from './components/fieldStyles';
 import { RouterProvider } from 'react-router/dom';
 import PullToRefresh from 'pulltorefreshjs';
 import { ThemeProvider } from './context/ThemeContext';
@@ -13,6 +11,7 @@ import Layout from './components/Layout';
 import ChunkLoadRecovery, { ClearChunkLoadRecoveryMarkers } from './components/ChunkLoadRecovery';
 import GlobalStatusBar from './components/GlobalStatusBar';
 import { SkeletonPageHeader, SkeletonRows } from './components/Skeleton';
+import { btnBase, btnSecondary } from './components/buttonStyles';
 
 const Dashboard = lazy(() => import('./pages/Dashboard'));
 const FeedDetail = lazy(() => import('./pages/FeedDetail'));
@@ -48,7 +47,7 @@ function RootLayout() {
       <div style={{ height: 'var(--status-bar-height, 0px)' }} aria-hidden="true" />
       {update && <div role="status" className="bg-card border-b border-border p-3 flex flex-wrap items-center justify-center gap-3">
         <p className="text-sm">{dirty ? 'Update ready. Save your changes before reloading.' : 'An app update is ready.'}</p>
-        <button type="button" disabled={dirty} onClick={update} className={`${btnSecondary} ${touchTarget} ${focusRing} rounded px-3 py-2 text-sm disabled:opacity-50`}>Reload to update</button>
+        <button type="button" disabled={dirty} onClick={update} className={`${btnBase} ${btnSecondary}`}>Reload to update</button>
       </div>}
       <ChunkLoadRecovery>
         <Suspense fallback={<RouteFallback />}>

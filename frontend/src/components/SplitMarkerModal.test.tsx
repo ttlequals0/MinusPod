@@ -143,7 +143,7 @@ describe('SplitMarkerModal', () => {
     const { onSplit } = renderModal();
     const user = userEvent.setup();
     await user.click(await screen.findByRole('button', { name: 'Split into 2 ads' }));
-    expect(await screen.findByText('Failed to split. Try again.')).toBeTruthy();
+    expect(await screen.findByText('Could not split ad block. Try again.')).toBeTruthy();
     expect(onSplit).not.toHaveBeenCalled();
   });
 
@@ -210,7 +210,7 @@ describe('SplitMarkerModal', () => {
   it('surfaces a candidates load failure with a retry', async () => {
     mockGetCandidates.mockRejectedValueOnce(new Error('boom'));
     renderModal();
-    expect(await screen.findByText('Failed to load suggested dividers.')).toBeTruthy();
+    expect(await screen.findByText('Could not load suggested dividers.')).toBeTruthy();
     const user = userEvent.setup();
     await user.click(screen.getByRole('button', { name: 'Retry' }));
     expect(await screen.findByRole('button', { name: 'Split into 2 ads' })).toBeTruthy();

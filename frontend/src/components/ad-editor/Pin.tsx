@@ -153,7 +153,7 @@ export function Pin({
       role="slider"
       tabIndex={0}
       onKeyDown={onKeyDown}
-      aria-label={`${labelText} pin · ${formatTime(boundary)}`}
+      aria-label={`${labelText} pin at ${formatTime(boundary)}`}
       aria-valuenow={Math.round(boundary * 10) / 10}
       aria-valuemin={Number.isFinite(lowerBound) ? lowerBound : undefined}
       aria-valuemax={Number.isFinite(upperBound) ? upperBound : undefined}

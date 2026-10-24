@@ -44,7 +44,7 @@ function isAdCategory(category?: string | null): boolean {
 // a subscribe reminder doesn't read as calling it an ad.
 export function confirmLabel(category?: string | null): string {
   if (isAdCategory(category)) {
-    return 'Confirm ad';
+    return 'Confirm';
   }
   return `Confirm ${SEGMENT_CATEGORY_LABELS[category as SegmentCategory].toLowerCase()}`;
 }

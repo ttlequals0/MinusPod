@@ -1,6 +1,5 @@
 import { useDraftClose } from '../hooks/useDraftClose';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { X } from 'lucide-react';
 import WaveSurfer from 'wavesurfer.js';
 import { usePeaks } from './ad-editor/usePeaks';
 import { usePeakSlice } from './ad-editor/usePeakSlice';
@@ -9,7 +8,8 @@ import { snapToOnset } from './ad-editor/snapToOnset';
 import TransportBar from './ad-editor/TransportBar';
 import ZoomControl from './ad-editor/ZoomControl';
 import { useWaveformWindow } from './ad-editor/useWaveformWindow';
-import { primaryBtn, ctrlBtn, edgeBtn } from './ad-editor/controlStyles';
+import { edgeBtn } from './ad-editor/controlStyles';
+import CloseButton from './CloseButton';
 import { useEscape, useFocusTrap } from './Modal';
 import {
   formatTime,
@@ -32,10 +32,11 @@ import {
   type CueCandidate,
 } from '../api/cueTemplates';
 import { episodeOriginalUrl } from '../api/feeds';
+import { formatPercent } from '../utils/format';
 import { getErrorMessage } from '../api/client';
-import { btnPrimary } from './buttonStyles';
 import Checkbox from './Checkbox';
-import { focusRing } from './fieldStyles';
+import { btnBase, btnOutline, btnPrimary } from './buttonStyles';
+import { focusRing, inputBase, labelBase, selectBase } from './fieldStyles';
 
 // Cue template marking modal. Mirrors the AdReviewModal layout: a wavesurfer
 // waveform with green START / red END pins the user drags to bracket the cue
@@ -556,7 +557,7 @@ function CueMarkModal({
       onFinalSave?.(template);
       onClose();
     } catch (e) {
-      setError(getErrorMessage(e, 'Save failed'));
+      setError(getErrorMessage(e, 'Could not save cue.'));
     } finally {
       setSaving(false);
     }
@@ -577,7 +578,6 @@ function CueMarkModal({
     }
   };
 
-  const fieldCls = `rounded-lg border border-input bg-background text-foreground ${focusRing}`;
   const inCue = playheadTime >= cueStart && playheadTime <= cueEnd;
 
   return (
@@ -592,26 +592,21 @@ function CueMarkModal({
         role="dialog"
         aria-modal="true"
         aria-label="Mark audio cue"
-        className="bg-card text-foreground rounded-lg border border-border shadow-2xl w-full max-w-4xl p-4 sm:p-5 max-h-[92vh] overflow-y-auto focus:outline-hidden"
+        className="bg-card text-foreground rounded-lg border border-border shadow-2xl w-full max-w-4xl focus:outline-hidden"
+        data-split
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-start justify-between mb-3">
+        <div className="shrink-0 flex items-start justify-between px-4 sm:px-5 pt-4 sm:pt-5 pb-3">
           <div>
             <h2 className="text-lg font-semibold">Mark audio cue</h2>
             <p className="text-sm text-muted-foreground truncate max-w-2xl">
               {episodeTitle}
             </p>
           </div>
-          <button
-            type="button"
-            className={`text-muted-foreground hover:text-foreground ${focusRing}`}
-            onClick={requestClose}
-            aria-label="Close"
-          >
-            <X size={18} />
-          </button>
+          <CloseButton onClick={requestClose} />
         </div>
 
+        <div className="min-h-0 flex-1 overflow-y-auto px-4 sm:px-5">
         <p className="text-sm text-muted-foreground mb-3">
           Drag the pins to bracket the cue ({MIN_REGION_SECONDS}-{MAX_REGION_SECONDS}s).
         </p>
@@ -728,7 +723,7 @@ function CueMarkModal({
               aria-valuenow={Math.round(windowCenter)}
               tabIndex={0}
               onPointerDown={onScrubberPointerDown}
-              className="relative h-3 rounded-full bg-background border border-border cursor-pointer touch-none focus:outline-hidden focus:ring-2 focus:ring-ring"
+              className={`relative h-3 rounded-full bg-background border border-border cursor-pointer touch-none ${focusRing}`}
             >
               <div
                 className="absolute inset-y-0 bg-primary/30 rounded-full pointer-events-none"
@@ -762,7 +757,7 @@ function CueMarkModal({
         <div className="flex flex-wrap items-center gap-2 mt-2">
           <button
             type="button"
-            className={`${ctrlBtn} ${focusRing}`}
+            className={`${btnBase} ${btnOutline}`}
             onClick={() => findCandidates(!!candidatesError)}
             disabled={candidatesLoading}
           >
@@ -848,7 +843,7 @@ function CueMarkModal({
         {/* Time inputs + cue type. (Duration rides on the transport row.) */}
         <div className="flex flex-wrap items-end gap-3 mt-3">
           <div>
-            <label className="block text-xs text-muted-foreground" htmlFor="cue-start-in">Start</label>
+            <label className={labelBase} htmlFor="cue-start-in">Start</label>
             <input
               id="cue-start-in"
               ref={startInputRef}
@@ -858,11 +853,11 @@ function CueMarkModal({
               onChange={(e) => setStartInput(e.target.value)}
               onBlur={commitStart}
               onKeyDown={timeInputKeyDown(cueStart, setStartInput)}
-              className={`w-24 px-3 py-1.5 ${fieldCls} text-sm font-mono text-success`}
+              className={`w-24 ${inputBase} font-mono text-success`}
             />
           </div>
           <div>
-            <label className="block text-xs text-muted-foreground" htmlFor="cue-end-in">End</label>
+            <label className={labelBase} htmlFor="cue-end-in">End</label>
             <input
               id="cue-end-in"
               ref={endInputRef}
@@ -872,16 +867,16 @@ function CueMarkModal({
               onChange={(e) => setEndInput(e.target.value)}
               onBlur={commitEnd}
               onKeyDown={timeInputKeyDown(cueEnd, setEndInput)}
-              className={`w-24 px-3 py-1.5 ${fieldCls} text-sm font-mono text-destructive`}
+              className={`w-24 ${inputBase} font-mono text-destructive`}
             />
           </div>
           <div className="flex-1 min-w-[220px]">
-            <label className="block text-xs text-muted-foreground" htmlFor="cue-type-in">Cue type</label>
+            <label className={labelBase} htmlFor="cue-type-in">Cue type</label>
             <select
               id="cue-type-in"
               value={cueType}
               onChange={(e) => setCueType(e.target.value as CueTemplateType)}
-              className={`w-full px-3 py-1.5 ${fieldCls} text-sm`}
+              className={`w-full ${selectBase}`}
             >
               {CUE_TYPE_OPTIONS.map((o) => (
                 <option key={o.value} value={o.value}>{o.label}</option>
@@ -926,7 +921,7 @@ function CueMarkModal({
               <ul className="text-xs grid grid-cols-2 sm:grid-cols-3 gap-1 max-h-32 overflow-y-auto">
                 {previewMatches.slice(0, 30).map((m, i) => (
                   <li key={i} className="font-mono">
-                    {formatTime(m.start)} (score {m.score.toFixed(2)})
+                    {formatTime(m.start)} ({formatPercent(m.score)} match)
                   </li>
                 ))}
               </ul>
@@ -953,11 +948,12 @@ function CueMarkModal({
         <p className="text-xs text-muted-foreground mt-3 border-t border-border pt-3">
           Matched by sound alone - if it also plays outside ad breaks, cuts can land wrong.
         </p>
+        </div>
 
-        <div className="flex flex-col sm:flex-row sm:justify-end gap-2 mt-4">
+        <div className="shrink-0 flex flex-col sm:flex-row sm:justify-end gap-2 px-4 sm:px-5 pt-3 pb-4 sm:pb-5 border-t border-border">
           <button
             type="button"
-            className={`${ctrlBtn} ${focusRing}`}
+            className={`${btnBase} ${btnOutline}`}
             onClick={requestClose}
             disabled={saving || previewing}
           >
@@ -965,7 +961,7 @@ function CueMarkModal({
           </button>
           <button
             type="button"
-            className={`${ctrlBtn} ${focusRing}`}
+            className={`${btnBase} ${btnOutline}`}
             onClick={handlePreview}
             disabled={!canSave || previewing}
           >
@@ -973,7 +969,7 @@ function CueMarkModal({
           </button>
           <button
             type="button"
-            className={`px-4 py-1.5 rounded-lg ${primaryBtn} text-sm ${focusRing}`}
+            className={`${btnBase} ${btnPrimary}`}
             onClick={handleSave}
             disabled={!canSave}
           >

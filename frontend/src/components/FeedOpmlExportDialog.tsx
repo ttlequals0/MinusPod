@@ -5,7 +5,7 @@ import { exportOpml } from '../api/settings';
 import { getErrorMessage } from '../api/client';
 import { Modal, dialogFooterBtn } from './Modal';
 import Checkbox from './Checkbox';
-import { btnOutline, btnPrimary, btnSecondary, touchTarget } from './buttonStyles';
+import { btnBase, btnOutline, btnPrimary, btnSecondary, touchTarget } from './buttonStyles';
 import { feedDisplayTitle } from '../utils/feedTitle';
 import { Skeleton } from './Skeleton';
 
@@ -95,12 +95,12 @@ function FeedOpmlExportDialogImpl({ onClose }: Omit<Props, 'open'>) {
         )}
         {feedsFailed && feeds.length === 0 && (
           <div className="space-y-3 rounded-lg bg-destructive/10 p-3">
-            <p className="text-sm text-destructive">{getErrorMessage(feedsError, 'Failed to load feeds')}</p>
+            <p className="text-sm text-destructive">{getErrorMessage(feedsError, 'Could not load feeds.')}</p>
             <button
               type="button"
               onClick={() => void refetch()}
               disabled={isFetching}
-              className={`${touchTarget} ${dialogFooterBtn} ${btnSecondary} disabled:opacity-50`}
+              className={`${btnBase} ${btnSecondary}`}
             >
               {isFetching ? 'Loading...' : 'Retry'}
             </button>
@@ -113,7 +113,7 @@ function FeedOpmlExportDialogImpl({ onClose }: Omit<Props, 'open'>) {
               type="button"
               onClick={() => void refetch()}
               disabled={isFetching}
-              className={`${touchTarget} ${dialogFooterBtn} ${btnSecondary} disabled:opacity-50`}
+              className={`${btnBase} ${btnSecondary}`}
             >
               {isFetching ? 'Refreshing...' : 'Retry'}
             </button>
@@ -153,7 +153,7 @@ function FeedOpmlExportDialogImpl({ onClose }: Omit<Props, 'open'>) {
             type="button"
             onClick={onClose}
             disabled={busy}
-            className={`${touchTarget} ${dialogFooterBtn} ${btnOutline} disabled:opacity-50`}
+            className={`${dialogFooterBtn} ${btnOutline} disabled:opacity-50`}
           >
             Cancel
           </button>
@@ -161,7 +161,7 @@ function FeedOpmlExportDialogImpl({ onClose }: Omit<Props, 'open'>) {
             type="button"
             onClick={download}
             disabled={effective.size === 0 || busy}
-            className={`${touchTarget} ${dialogFooterBtn} ${btnPrimary} disabled:opacity-50`}
+            className={`${dialogFooterBtn} ${btnPrimary} disabled:opacity-50`}
           >
             {busy ? 'Exporting...' : `Download ${effective.size} feed${effective.size === 1 ? '' : 's'}`}
           </button>

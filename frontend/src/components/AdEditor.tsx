@@ -2,8 +2,8 @@ import { useEffect, useRef, useState } from 'react';
 import { useParams } from 'react-router';
 import AdReviewModal, { AdReviewItem, AdReviewSubmit, AdCreateSubmit } from './AdReviewModal';
 import type { PatternScope } from '../api/patterns';
-import { btnGhost, btnPrimary } from './buttonStyles';
-import { focusRing } from './fieldStyles';
+import { Plus } from 'lucide-react';
+import { btnBase, btnPrimary, btnGhost } from './buttonStyles';
 
 export interface DetectedAd {
   start: number;
@@ -57,11 +57,6 @@ interface AdEditorProps {
 
 // Re-export for consumers
 export type { AdReviewItem };
-
-const ADD_BUTTON_BTN =
-  `px-3 py-1.5 rounded-lg ${btnPrimary} text-sm transition-colors`;
-const GHOST_BTN =
-  `${btnGhost} transition-colors`;
 
 function AdEditor({
   detectedAds,
@@ -149,16 +144,17 @@ function AdEditor({
         <p className="text-muted-foreground mb-4">No ads detected on this episode.</p>
         <button
           type="button"
-          className={`${ADD_BUTTON_BTN} ${focusRing}`}
+          className={`${btnBase} ${btnPrimary}`}
           onClick={() => setInternalCreateMode(true)}
         >
-          + Add new ad
+          <Plus className="w-4 h-4" aria-hidden="true" />
+          Add new ad
         </button>
         {onClose && (
           <button
             type="button"
             onClick={onClose}
-            className={`ml-2 px-3 py-1.5 rounded-lg ${GHOST_BTN} text-sm ${focusRing}`}
+            className={`ml-2 ${btnBase} ${btnGhost}`}
           >
             Close
           </button>

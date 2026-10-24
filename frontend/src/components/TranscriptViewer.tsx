@@ -4,15 +4,15 @@ import { getFinalSegments, getOriginalSegments, getOriginalTranscript, type Orig
 import type { AdSegment, EpisodeDetail } from '../api/types';
 import { ApiError, getErrorMessage } from '../api/client';
 import { Modal } from './Modal';
-import { btnGhost } from './buttonStyles';
-import { filterControl, filterLabel, focusRing, inputBase, selectBase } from './fieldStyles';
 import { SkeletonRows } from './Skeleton';
 import { formatTimestamp } from '../utils/format';
 import { parseTimeInput } from '../utils/adReviewHelpers';
 import { usePagedList } from '../hooks/usePagedList';
-import { badgeBase, tint } from './badgeStyles';
 import SegmentedToggle from './SegmentedToggle';
 import { groupParagraphs } from '../utils/transcriptParagraphs';
+import { btnBase, btnGhost } from './buttonStyles';
+import { focusRing, inputBase, selectBase, filterLabel, filterControl } from './fieldStyles';
+import { badgeBase, tint } from './badgeStyles';
 
 type Source = 'original' | 'processed';
 type View = 'paragraphs' | 'lines';
@@ -157,7 +157,7 @@ function TranscriptViewer({ slug, episodeId, episode, onClose }: Props) {
         </div>
         <button
           onClick={onClose}
-          className={`px-3 py-1.5 text-sm rounded ${btnGhost} transition-colors ${focusRing}`}
+          className={`${btnBase} ${btnGhost}`}
         >
           Close
         </button>

@@ -21,8 +21,8 @@ export function CommunityBadge({ communityId, version, protected: isProtected }:
       className={`${badgeBase} ${tint.teal} hover:bg-c-teal/30 transition-colors ${focusRing}`}
       title="Community pattern"
     >
-      community{version ? ` v${version}` : ''} · {expanded ? communityId : short}
-      {isProtected ? ' · protected' : ''}
+      Community{version ? ` v${version}` : ''} - {expanded ? communityId : short}
+      {isProtected ? ' - protected' : ''}
     </button>
   );
 }

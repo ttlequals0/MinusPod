@@ -16,11 +16,9 @@ export function AuditionPlayButton({ playing, onClick, label = 'this ad' }: {
       title={playing ? 'Pause' : `Play ${label}`}
       className={iconTarget}
     >
-      <span
-        className={`${iconVisual} ${btnPrimary}`}
-      >
+      <span className={`${iconVisual} ${btnPrimary}`}>
         {/* Play reads left-heavy; nudge it 1px right to center optically. */}
-        {playing ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5 translate-x-px" />}
+        {playing ? <Pause className="w-3.5 h-3.5" aria-hidden="true" /> : <Play className="w-3.5 h-3.5 translate-x-px" aria-hidden="true" />}
       </span>
     </button>
   );

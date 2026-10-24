@@ -18,9 +18,10 @@ import { SponsorInput, type SponsorOption } from './ad-editor/SponsorInput';
 import {
   commitTimeInput, formatTime, timeInputKeyDown,
 } from '../utils/adReviewHelpers';
-import { btnGhost, btnOutline, btnPrimary } from './buttonStyles';
-import { focusRing } from './fieldStyles';
 import { edgeBtn } from './ad-editor/controlStyles';
+import { Plus } from 'lucide-react';
+import { btnBase, btnPrimary, btnOutline, btnGhost } from './buttonStyles';
+import { focusRing, inputBase } from './fieldStyles';
 
 // Matches MIN_AD_DURATION in src/config.py. A piece shorter than this is not an
 // ad the validator would accept, so the server rejects it too.
@@ -234,7 +235,7 @@ export default function SplitMarkerModal({ target, onClose, onSplit }: Props) {
       onSplit(result);
     } catch (e) {
       console.error('Split failed', e);
-      setSaveError('Failed to split. Try again.');
+      setSaveError('Could not split ad block. Try again.');
     } finally {
       setSaving(false);
     }
@@ -251,9 +252,7 @@ export default function SplitMarkerModal({ target, onClose, onSplit }: Props) {
     sponsorWrapRefs.current[i]?.querySelector('input')?.focus();
   };
 
-  const timeInputCls = 'w-24 px-2 py-1.5 rounded-lg border border-input '
-    + 'bg-background text-foreground focus:outline-hidden focus:ring-2 '
-    + 'focus:ring-ring text-xs font-mono disabled:opacity-60';
+  const timeInputCls = `w-24 ${inputBase} font-mono disabled:opacity-60`;
 
   // Editable divider time field; the outer block bounds render disabled.
   const dividerField = (dividerIdx: number, label: string) => {
@@ -279,21 +278,62 @@ export default function SplitMarkerModal({ target, onClose, onSplit }: Props) {
   };
 
   return (
-    <Modal ariaLabel="Split marker" onClose={onClose} closeOnEscape panelClassName={`${modalPanel} max-w-4xl w-full`}>
-      <div className="p-5 space-y-4">
-        <div>
+    <Modal
+      ariaLabel="Split marker"
+      onClose={onClose}
+      closeOnEscape
+      panelClassName={`${modalPanel} max-w-4xl w-full`}
+      header={(
+        <div className="p-5 pb-3">
           <h2 className="text-lg font-semibold text-foreground">Split ad block</h2>
           <p className="text-sm text-muted-foreground mt-1">
             Add or drag dividers between ads.
           </p>
         </div>
-
+      )}
+      footer={!isLoading && !isError ? (
+        <div className="flex items-center gap-2 flex-wrap p-5 pt-3 border-t border-border">
+          <button
+            type="button"
+            onClick={addDivider}
+            className={`${dialogFooterBtn} ${btnOutline}`}
+          >
+            <Plus className="w-4 h-4" aria-hidden="true" />
+            Add divider
+          </button>
+          <button
+            type="button"
+            onClick={addDividerAtPlayhead}
+            className={`${edgeBtn} ${focusRing}`}
+          >
+            <span className="sm:hidden">At playhead</span>
+            <span className="hidden sm:inline">Add divider at playhead</span>
+          </button>
+          <button
+            type="button"
+            onClick={submit}
+            disabled={saving || shortIdx !== null || effectiveDividers.length === 0}
+            className={`ml-auto ${dialogFooterBtn} ${btnPrimary} disabled:opacity-50`}
+          >
+            Split into {pieces.length} {pieces.length === 1 ? 'ad' : 'ads'}
+          </button>
+          <button
+            type="button"
+            onClick={onClose}
+            className={`${dialogFooterBtn} ${btnGhost}`}
+          >
+            Cancel
+          </button>
+        </div>
+      ) : undefined}
+    >
+      <div className="p-5 pt-0 space-y-4">
         {isLoading && <SkeletonRows count={3} />}
 
         {isError && (
           <div className="space-y-3">
             <p className="text-sm text-destructive" role="alert">
-              Failed to load suggested dividers.
+              Could not load suggested dividers.
             </p>
             <div className="flex items-center gap-2">
               <button
@@ -356,7 +396,7 @@ export default function SplitMarkerModal({ target, onClose, onSplit }: Props) {
                     type="button"
                     key={i}
                     onClick={() => focusSponsor(i)}
-                    className={`rounded text-[10px] text-foreground flex items-center justify-center gap-1 px-1 overflow-hidden focus:outline-hidden focus-visible:ring-2 focus-visible:ring-ring ${
+                    className={`rounded text-[10px] text-foreground flex items-center justify-center gap-1 px-1 overflow-hidden focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring ${
                       i === shortIdx
                         ? 'bg-destructive/30 border border-destructive'
                         : 'bg-primary/20'
@@ -424,7 +464,7 @@ export default function SplitMarkerModal({ target, onClose, onSplit }: Props) {
                     <button
                       type="button"
                       onClick={() => removeDivider(i - 1)}
-                      className={`px-2 py-1 text-xs rounded ${btnOutline} ${focusRing}`}
+                      className={`${btnBase} ${btnOutline}`}
                     >
                       Remove divider
                     </button>
@@ -443,39 +483,6 @@ export default function SplitMarkerModal({ target, onClose, onSplit }: Props) {
             {saveError && (
               <p className="text-sm text-destructive" role="alert">{saveError}</p>
             )}
-
-            <div className="flex items-center gap-2 pt-2 flex-wrap">
-              <button
-                type="button"
-                onClick={addDivider}
-                className={`${dialogFooterBtn} ${btnOutline}`}
-              >
-                Add divider
-              </button>
-              <button
-                type="button"
-                onClick={addDividerAtPlayhead}
-                className={`${edgeBtn} ${focusRing}`}
-              >
-                <span className="sm:hidden">At playhead</span>
-                <span className="hidden sm:inline">Add divider at playhead</span>
-              </button>
-              <button
-                type="button"
-                onClick={submit}
-                disabled={saving || shortIdx !== null || effectiveDividers.length === 0}
-                className={`ml-auto ${dialogFooterBtn} ${btnPrimary} disabled:opacity-50`}
-              >
-                Split into {pieces.length} {pieces.length === 1 ? 'ad' : 'ads'}
-              </button>
-              <button
-                type="button"
-                onClick={onClose}
-                className={`${dialogFooterBtn} ${btnGhost}`}
-              >
-                Cancel
-              </button>
-            </div>
           </>
         )}
       </div>

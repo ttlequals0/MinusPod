@@ -172,13 +172,13 @@ describe('Footer actions', () => {
     }
   });
 
-  it('confirms delete through the Yes, Delete and Cancel buttons', async () => {
+  it('confirms delete through the Delete pattern and Cancel buttons', async () => {
     mockDeletePattern.mockResolvedValue(undefined);
     const onClose = vi.fn();
     renderModal(makePattern(), onClose);
     await userEvent.click(screen.getByRole('button', { name: 'Delete' }));
     expect(screen.getByRole('button', { name: 'Cancel' })).toBeDefined();
-    await userEvent.click(screen.getByRole('button', { name: 'Yes, Delete' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Delete pattern' }));
     await waitFor(() => expect(mockDeletePattern).toHaveBeenCalledWith(42));
   });
 });

@@ -5,7 +5,7 @@ import { badgeBase, tint } from './badgeStyles';
 export function ExperimentalBadge({ title }: { title?: string }) {
   return (
     <span
-      className={`${badgeBase} font-medium ${tint.warning} align-middle`}
+      className={`${badgeBase} ${tint.warning} align-middle`}
       title={title || 'Experimental: cuts here come from audio cues alone'}
     >
       Experimental

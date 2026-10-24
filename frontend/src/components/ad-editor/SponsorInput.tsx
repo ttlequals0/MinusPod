@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ChevronDown } from 'lucide-react';
+import { ChevronDown, Plus } from 'lucide-react';
 import { useOutsideClick } from '../../hooks/useOutsideClick';
+import { inputBase } from '../fieldStyles';
 
 export interface SponsorOption {
   id: number;
@@ -77,7 +78,7 @@ export function SponsorInput({ value, onChange, sponsors, placeholder, inputClas
             setOpen(false);
           }
         }}
-        className={`w-full pl-3 pr-8 py-1.5 rounded-lg border border-input bg-background text-foreground focus:outline-hidden focus:ring-2 focus:ring-ring text-sm ${inputClassName}`}
+        className={`w-full pr-8 ${inputBase} ${inputClassName}`}
         aria-autocomplete="list"
         aria-expanded={open}
       />
@@ -113,7 +114,8 @@ export function SponsorInput({ value, onChange, sponsors, placeholder, inputClas
               }}
               className="px-3 py-1.5 cursor-pointer hover:bg-accent text-primary border-t border-border"
             >
-              + Add new: <strong className="font-semibold">{trimmed}</strong>
+              <Plus className="inline w-4 h-4 mr-1 align-text-bottom" aria-hidden="true" />
+              Add <strong className="font-semibold">{trimmed}</strong>
             </li>
           )}
         </ul>

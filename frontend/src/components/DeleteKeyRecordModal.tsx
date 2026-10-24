@@ -10,7 +10,7 @@ function DeleteKeyRecordModal({ pending, onCancel, onConfirm }: DeleteKeyRecordM
   return (
     <ConfirmModal
       title="Delete revoked subscriber key record?"
-      confirmLabel="Delete"
+      confirmLabel="Delete key record"
       busyLabel="Deleting..."
       pending={pending}
       onCancel={onCancel}

@@ -10,7 +10,7 @@ import { getErrorMessage } from '../api/client';
 import { Modal, dialogFooterBtn } from './Modal';
 import Checkbox from './Checkbox';
 import { focusRing } from './fieldStyles';
-import { btnOutline, btnPrimary } from './buttonStyles';
+import { btnBase, btnOutline, btnPrimary } from './buttonStyles';
 
 // Deterministic 8-char hex from the integer pattern id (Knuth multiplicative
 // hash). Feeds the live filename preview in the edit row so the contributor
@@ -280,14 +280,14 @@ function PatternExportDialogImpl({ patterns, onClose }: Omit<Props, 'open'>) {
                     {destination === 'community' && (
                       <button
                         type="button"
-                        className={`shrink-0 text-xs px-2 py-0.5 rounded ${btnOutline} transition-colors ${focusRing}`}
+                        className={`shrink-0 ${btnBase} ${btnOutline}`}
                         onClick={(e) => {
                           e.preventDefault();
                           e.stopPropagation();
                           setExpandedRowId((prev) => (prev === p.id ? null : p.id));
                         }}
                       >
-                        {expandedRowId === p.id ? 'Done' : 'Edit'}
+                        {expandedRowId === p.id ? 'Close' : 'Edit'}
                       </button>
                     )}
                   </label>
@@ -401,7 +401,7 @@ function CommunityPreview({
           </p>
         ) : (
           <details open className="text-sm">
-            <summary className="cursor-pointer font-medium mb-2">
+            <summary className={`cursor-pointer font-medium mb-2 ${focusRing}`}>
               Rejected patterns ({rejected.length})
             </summary>
             <ul className="space-y-2 pl-3">
@@ -470,7 +470,7 @@ function CommunityDone({ filename, onClose }: { filename: string; onClose: () =>
           onClick={onClose}
           className={`${dialogFooterBtn} ${btnPrimary}`}
         >
-          Done
+          Close
         </button>
       </div>
     </>
