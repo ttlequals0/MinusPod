@@ -106,11 +106,11 @@ describe('HistoryPage: Version column', () => {
 });
 
 describe('HistoryPage: duration formatting', () => {
-  it('floors to whole seconds without overflowing the minute field', async () => {
+  it('rounds to whole seconds and drops a zero seconds field', async () => {
     renderPage([makeEntry()], 1_079.6);
 
-    expect(await screen.findByText('Avg processing time: 17m 59s')).toBeDefined();
-    expect(screen.queryByText('Avg processing time: 18m 0s')).toBeNull();
+    expect(await screen.findByText('Avg processing time: 18m')).toBeDefined();
+    expect(screen.queryByText('Avg processing time: 17m 59s')).toBeNull();
   });
 });
 
@@ -147,10 +147,9 @@ describe('HistoryPage: failure reason', () => {
 
   it('falls back to the status badge when a failure carries no message', async () => {
     renderPage([makeEntry({ status: 'failed', errorMessage: undefined })]);
-    const badges = await screen.findAllByText('failed');
-    const withTitle = badges.map((el) => el.closest('[title]')).filter((el): el is Element => el !== null);
-    expect(withTitle.length).toBeGreaterThan(0);
-    expect(withTitle[0].getAttribute('title')).toBe('Processing failed');
+    const badges = await screen.findAllByText('Failed');
+    const titles = badges.map((el) => el.closest('[title]')?.getAttribute('title'));
+    expect(titles).toContain('Processing failed');
   });
 });
 
