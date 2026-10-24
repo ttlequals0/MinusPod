@@ -280,7 +280,7 @@ class TestNodeHealthSummary:
         response.json.return_value = {'result': {}}
         with patch('podping_listener.requests.Session') as session_cls:
             session_cls.return_value.post.return_value = response
-            listener = PodpingListener(db=FakeDb(), sleep=lambda s: None)
+            listener = PodpingListener(db=None, sleep=lambda s: None)
             for _ in range(3):
                 listener._default_rpc('some_method', [])
         session_cls.assert_called_once()
@@ -290,7 +290,7 @@ class TestNodeHealthSummary:
 
     def test_injected_rpc_opens_no_session(self):
         with patch('podping_listener.requests.Session') as session_cls:
-            listener = PodpingListener(rpc=lambda m, p: {}, db=FakeDb(), sleep=lambda s: None)
+            listener = PodpingListener(rpc=lambda m, p: {}, db=None, sleep=lambda s: None)
             listener.close()
         session_cls.assert_not_called()
 
