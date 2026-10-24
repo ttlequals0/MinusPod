@@ -1,0 +1,30 @@
+From 09136e90b49f30c25f71b00b95775da21a09dbd0 Mon Sep 17 00:00:00 2001
+From: Dimitry Andric <dimitry@unified-streaming.com>
+Date: Wed, 2 Jul 2025 12:24:59 +0200
+Subject: [PATCH] Fix possible memory leak when x264_encoder_open() fails
+
+In some scenarios, `x264_encoder_open()` can fail after it has allocated
+a `x264_param_t` structure, and is not freed before the function returns
+`NULL` to the caller. Call `x264_param_cleanup()` in that case.
+
+Fixes #75.
+---
+ encoder/encoder.c | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/encoder/encoder.c b/encoder/encoder.c
+index 20e620aa..1682268f 100644
+--- a/encoder/encoder.c
++++ b/encoder/encoder.c
+@@ -1854,6 +1854,8 @@ x264_t *x264_encoder_open( x264_param_t *param, void *api )
+ 
+     return h;
+ fail:
++    if( h != NULL )
++        x264_param_cleanup( &h->param );
+     x264_free( h );
+     return NULL;
+ }
+-- 
+GitLab
+

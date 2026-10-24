@@ -26,6 +26,7 @@
       "patches": [
         {
           "file": "x264-MR183.patch",
+          "path": "patches/x264-MR183.patch",
           "url": "https://code.videolan.org/videolan/x264/-/commit/09136e90b49f30c25f71b00b95775da21a09dbd0.patch",
           "sha256": "965e39066b38a64af2b6819698143304603f293b3f1d394d4d650a237df7c712",
           "upstream_commit": "09136e90b49f30c25f71b00b95775da21a09dbd0"
