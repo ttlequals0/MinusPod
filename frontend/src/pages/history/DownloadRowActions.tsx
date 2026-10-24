@@ -25,17 +25,15 @@ function DetailModal({ title, text, onClose }: { title: string; text: string; on
     <Modal
       ariaLabel="Download request details" onClose={onClose} closeOnBackdrop panelClassName="max-w-lg w-full text-left"
       header={(
-        <div className="p-4 border-b border-border">
-          <h2 className={cardTitle}>{title}</h2>
-        </div>
+        <h2 className={cardTitle}>{title}</h2>
       )}
       footer={(
-        <div className="flex items-center justify-between gap-2 p-4 border-t border-border">
+        <>
           <CopyButton text={text} label="Copy" copiedLabel="Copied" className="px-2 py-1" labelClassName="text-sm" />
           <button onClick={onClose} className={`${dialogFooterBtn} ${btnOutline}`}>
             Close
           </button>
-        </div>
+        </>
       )}
     >
       <div className="p-4">

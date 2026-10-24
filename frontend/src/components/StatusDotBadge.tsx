@@ -12,7 +12,7 @@ const DOT: Record<StatusDotTone, string> = {
 /** Settings status chip: a filled dot in the tone's hue, then its label. */
 export function StatusDotBadge({ tone, label }: { tone: StatusDotTone; label: string }) {
   return (
-    <span className={`${badgeBase} inline-flex items-center gap-1.5 font-medium ${tint[tone]}`}>
+    <span className={`${badgeBase} gap-1.5 ${tint[tone]}`}>
       <span className={`w-1.5 h-1.5 rounded-full ${DOT[tone]}`} />
       {label}
     </span>

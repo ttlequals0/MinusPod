@@ -1389,7 +1389,7 @@ function AdReviewModal({
             <div
               id={boundaryErrorId}
               role="alert"
-              className={`${badgeBase} mt-1.5 inline-flex items-center gap-1.5 ${tint.destructive} font-medium`}
+              className={`${badgeBase} mt-1.5 gap-1.5 ${tint.destructive}`}
             >
               <AlertCircle className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
               <span>{boundaryError}</span>

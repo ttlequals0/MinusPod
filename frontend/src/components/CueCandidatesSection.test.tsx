@@ -53,7 +53,7 @@ describe('CueCandidatesSection dismissals', () => {
     await userEvent.click(screen.getByRole('button', { name: /find audio cues/i }));
     await waitFor(() => expect(screen.getByText(/Repeats 4x/)).toBeDefined());
     // dismissed candidate is not in the active list
-    expect(screen.queryByText(/Repeats 3x -- /)).toBeNull();
+    expect(screen.queryByText(/Repeats 3x, /)).toBeNull();
     expect(screen.getByRole('button', { name: /show hidden \(1\)/i })).toBeDefined();
   });
 

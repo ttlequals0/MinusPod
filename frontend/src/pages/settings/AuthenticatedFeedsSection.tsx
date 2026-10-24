@@ -123,7 +123,7 @@ function AuthenticatedFeedsSection() {
                 type="button"
                 onClick={() => regenerateFeedsMutation.mutate()}
                 disabled={regenerateFeedsMutation.isPending}
-                className={`${btnBase} ${btnSecondary} gap-1.5`}
+                className={`${btnBase} ${btnSecondary}`}
               >
                 <RefreshCw className={`w-4 h-4 ${regenerateFeedsMutation.isPending ? 'animate-spin' : ''}`} />
                 {regenerateFeedsMutation.isPending ? 'Regenerating feeds...' : 'Regenerate feeds'}

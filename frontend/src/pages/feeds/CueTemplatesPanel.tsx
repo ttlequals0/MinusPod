@@ -724,19 +724,17 @@ function CueTemplatesPanel({ slug }: Props) {
           ariaLabel="Promote cue to network"
           panelClassName="text-foreground w-full max-w-md"
           header={(
-            <div className="p-4 border-b border-border">
-              <h3 className={cardTitle}>Promote to network</h3>
-            </div>
+            <h3 className={cardTitle}>Promote to network</h3>
           )}
           footer={(
-            <div className="flex items-center justify-end gap-2 p-4 border-t border-border">
+            <>
               <button type="button" className={`${dialogFooterBtn} ${btnOutline}`} onClick={() => setPromoteState(null)}>
                 Cancel
               </button>
               <button type="button" className={`${dialogFooterBtn} ${btnPrimary}`} onClick={confirmPromote}>
                 Promote
               </button>
-            </div>
+            </>
           )}
         >
           <div className="p-4">
@@ -791,7 +789,7 @@ function EpisodePicker({ slug, onClose, onPick }: EpisodePickerProps) {
       ariaLabel="Pick an episode"
       panelClassName="text-foreground w-full max-w-2xl max-h-[85vh]"
       header={(
-        <div className="flex items-start justify-between gap-3 p-4 border-b border-border">
+        <>
           <div>
             <h3 className={cardTitle}>Pick an episode</h3>
             <p className="text-xs text-muted-foreground">
@@ -799,10 +797,10 @@ function EpisodePicker({ slug, onClose, onPick }: EpisodePickerProps) {
             </p>
           </div>
           <CloseButton onClick={onClose} />
-        </div>
+        </>
       )}
       footer={totalPages > 1 ? (
-        <div className="flex items-center justify-between p-4 border-t border-border text-sm">
+        <div className="flex items-center justify-between w-full text-sm">
           <button
             type="button"
             className={ghostBtn}
@@ -962,13 +960,13 @@ function CueScanModal({ slug, onClose }: CueScanModalProps) {
       ariaLabel="Cue scan"
       panelClassName="text-foreground w-full max-w-3xl max-h-[90vh]"
       header={(
-        <div className="flex items-start justify-between gap-3 p-4 border-b border-border">
+        <>
           <div className="min-w-0">
             <h3 className={cardTitle}>Cue scan</h3>
             <p className="text-xs text-muted-foreground truncate max-w-xl">{selectedEpisode?.title}</p>
           </div>
           <CloseButton onClick={onClose} />
-        </div>
+        </>
       )}
     >
       <div className="p-4">

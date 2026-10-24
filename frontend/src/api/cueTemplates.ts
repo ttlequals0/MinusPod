@@ -1,4 +1,5 @@
 import { apiRequest } from './client';
+import { formatPercent } from '../utils/format';
 
 export type CueTemplateScope = 'podcast' | 'network';
 
@@ -278,9 +279,9 @@ export function cueCandidateLabel(c: CueCandidate): string {
   if (c.kind === 'outro') return `Outro (in ${c.episodeMatches ?? '?'} eps)`;
   if (c.kind === 'recurring' && c.boundaryAffinity != null && c.adBoundaryHits != null) {
     if (c.affinitySource === 'siblings') {
-      return `Repeats ${c.count ?? '?'}x -- ${Math.round(c.boundaryAffinity * 100)}% at known ad breaks (recent episodes)`;
+      return `Repeats ${c.count ?? "?"}x, ${formatPercent(c.boundaryAffinity)} at known ad breaks (recent episodes)`;
     }
-    return `Repeats ${c.count ?? '?'}x -- ${c.adBoundaryHits} of ${c.count ?? '?'} at known ad breaks`;
+    return `Repeats ${c.count ?? '?'}x, ${c.adBoundaryHits} of ${c.count ?? '?'} at known ad breaks`;
   }
   return `Repeats ${c.count ?? '?'}x`;
 }

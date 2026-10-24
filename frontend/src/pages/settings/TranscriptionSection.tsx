@@ -197,7 +197,7 @@ function TranscriptionSection({
               <ConnectionTestButton
                 key={`${apiConfig.baseUrl}|${apiConfig.model}|${skipFlacCompression}|${whisperStatus.configured}`}
                 onTest={() => onConnectionTest(apiConfig.baseUrl, apiConfig.model, skipFlacCompression)}
-                busyHint="Sending a short audio sample -- this can take up to 30 seconds"
+                busyHint="Sending a short audio sample. This can take up to 30 seconds."
               />
             </div>
 

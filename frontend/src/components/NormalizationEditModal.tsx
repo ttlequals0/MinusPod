@@ -50,15 +50,15 @@ function NormalizationEditModal({ normalization, onClose, onSaved }: Props) {
   return (
     <Modal ariaLabel="Edit normalization" onClose={onClose} panelClassName="max-w-lg w-full"
       header={(
-        <div className="flex items-center justify-between p-4 border-b border-border">
+        <>
           <h2 className="text-lg font-semibold text-foreground">
             {isNew ? 'Add normalization' : 'Edit normalization'}
           </h2>
           <CloseButton onClick={onClose} />
-        </div>
+        </>
       )}
       footer={(
-        <div className="flex items-center justify-end gap-2 p-4 border-t border-border">
+        <>
           <button
             onClick={onClose}
             className={`${dialogFooterBtn} ${btnOutline}`}
@@ -68,11 +68,11 @@ function NormalizationEditModal({ normalization, onClose, onSaved }: Props) {
           <button
             onClick={() => save.mutate()}
             disabled={save.isPending}
-            className={`${dialogFooterBtn} ${btnPrimary} disabled:opacity-50`}
+            className={`${dialogFooterBtn} ${btnPrimary}`}
           >
             {save.isPending ? 'Saving...' : isNew ? 'Add' : 'Save'}
           </button>
-        </div>
+        </>
       )}
     >
       <div className="p-4 space-y-4">

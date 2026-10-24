@@ -918,12 +918,10 @@ function FeedDetail() {
           onClose={() => setShowReprocessConfirm(false)}
           panelClassName="max-w-md w-full"
           header={(
-            <div className="p-4 border-b border-border">
-              <h2 className={cardTitle}>Reprocess all episodes?</h2>
-            </div>
+            <h2 className={cardTitle}>Reprocess all episodes?</h2>
           )}
           footer={(
-            <div className="flex items-center justify-end gap-2 p-4 border-t border-border">
+            <>
               <button
                 onClick={() => setShowReprocessConfirm(false)}
                 className={`${dialogFooterBtn} ${btnSecondary}`}
@@ -937,7 +935,7 @@ function FeedDetail() {
               >
                 {reprocessAllMutation.isPending ? 'Queuing...' : 'Reprocess all episodes'}
               </button>
-            </div>
+            </>
           )}
         >
           <div className="p-4">
@@ -967,16 +965,12 @@ function FeedDetail() {
           onClose={closeReprocessModal}
           panelClassName="max-w-md w-full"
           header={(
-            <div className="p-4 border-b border-border">
-              <h2 className={cardTitle}>Reprocess queued</h2>
-            </div>
+            <h2 className={cardTitle}>Reprocess queued</h2>
           )}
           footer={(
-            <div className="flex items-center justify-end gap-2 p-4 border-t border-border">
-              <button onClick={closeReprocessModal} className={`${dialogFooterBtn} ${btnPrimary}`}>
-                Close
-              </button>
-            </div>
+            <button onClick={closeReprocessModal} className={`${dialogFooterBtn} ${btnPrimary}`}>
+              Close
+            </button>
           )}
         >
           <div className="p-4">
@@ -999,16 +993,12 @@ function FeedDetail() {
           onClose={closeReprocessModal}
           panelClassName="max-w-md w-full"
           header={(
-            <div className="p-4 border-b border-border">
-              <h2 className={cardTitle}>Could not reprocess episodes</h2>
-            </div>
+            <h2 className={cardTitle}>Could not reprocess episodes</h2>
           )}
           footer={(
-            <div className="flex items-center justify-end gap-2 p-4 border-t border-border">
-              <button onClick={closeReprocessModal} className={`${dialogFooterBtn} ${btnPrimary}`}>
-                Close
-              </button>
-            </div>
+            <button onClick={closeReprocessModal} className={`${dialogFooterBtn} ${btnPrimary}`}>
+              Close
+            </button>
           )}
         >
           <p className="p-4 text-sm text-muted-foreground">
@@ -1023,14 +1013,12 @@ function FeedDetail() {
           onClose={() => setShowBulkDeleteConfirm(false)}
           panelClassName="max-w-md w-full"
           header={(
-            <div className="p-4 border-b border-border">
-              <h2 className={cardTitle}>
-                Delete {effectiveSelectedIds.size} episode{effectiveSelectedIds.size > 1 ? 's' : ''}?
-              </h2>
-            </div>
+            <h2 className={cardTitle}>
+              Delete {effectiveSelectedIds.size} episode{effectiveSelectedIds.size > 1 ? 's' : ''}?
+            </h2>
           )}
           footer={(
-            <div className="flex items-center justify-end gap-2 p-4 border-t border-border">
+            <>
               <button
                 onClick={() => setShowBulkDeleteConfirm(false)}
                 className={`${dialogFooterBtn} ${btnSecondary}`}
@@ -1046,7 +1034,7 @@ function FeedDetail() {
                   ? 'Deleting...'
                   : `Delete ${effectiveSelectedIds.size} episode${effectiveSelectedIds.size > 1 ? 's' : ''}`}
               </button>
-            </div>
+            </>
           )}
         >
           <p className="p-4 text-sm text-muted-foreground">
@@ -1061,16 +1049,12 @@ function FeedDetail() {
           onClose={() => setBulkResult(null)}
           panelClassName="max-w-md w-full"
           header={(
-            <div className="p-4 border-b border-border">
-              <h2 className={cardTitle}>Bulk action complete</h2>
-            </div>
+            <h2 className={cardTitle}>Bulk action complete</h2>
           )}
           footer={(
-            <div className="flex items-center justify-end gap-2 p-4 border-t border-border">
-              <button onClick={() => setBulkResult(null)} className={`${dialogFooterBtn} ${btnPrimary}`}>
-                Close
-              </button>
-            </div>
+            <button onClick={() => setBulkResult(null)} className={`${dialogFooterBtn} ${btnPrimary}`}>
+              Close
+            </button>
           )}
         >
           <div className="p-4">
@@ -1100,18 +1084,14 @@ function FeedDetail() {
           onClose={() => setPassthroughResult(null)}
           panelClassName="max-w-md w-full"
           header={(
-            <div className="p-4 border-b border-border">
-              <h2 className={cardTitle}>
-                {passthroughResult.enabled ? 'Pass-through set' : 'Pass-through cleared'}
-              </h2>
-            </div>
+            <h2 className={cardTitle}>
+              {passthroughResult.enabled ? 'Pass-through set' : 'Pass-through cleared'}
+            </h2>
           )}
           footer={(
-            <div className="flex items-center justify-end gap-2 p-4 border-t border-border">
-              <button onClick={() => setPassthroughResult(null)} className={`${dialogFooterBtn} ${btnPrimary}`}>
-                Close
-              </button>
-            </div>
+            <button onClick={() => setPassthroughResult(null)} className={`${dialogFooterBtn} ${btnPrimary}`}>
+              Close
+            </button>
           )}
         >
           <p className="p-4 text-sm text-muted-foreground">

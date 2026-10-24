@@ -85,8 +85,8 @@ function RunLogViewer({ slug, episodeId, runNumber, onClose }: RunLogViewerProps
     <Modal
       ariaLabel="Processing run log" onClose={onClose} panelClassName="w-full max-w-5xl h-[90vh] flex flex-col text-foreground"
       header={(
-        <>
-          <div className="flex items-start justify-between gap-3 p-4 border-b border-border">
+        <div className="flex-1 min-w-0 space-y-3">
+          <div className="flex items-start justify-between gap-3">
             <div>
               <h2 className={cardTitle}>Run {runNumber} log</h2>
               <p className="text-sm text-muted-foreground">
@@ -96,7 +96,7 @@ function RunLogViewer({ slug, episodeId, runNumber, onClose }: RunLogViewerProps
             <CloseButton onClick={onClose} />
           </div>
 
-          <div className="flex flex-wrap items-center gap-3 p-4 border-b border-border">
+          <div className="flex flex-wrap items-center gap-3">
             <div className="flex items-center gap-1" role="group" aria-label="Filter by level">
               {LEVELS.map((level) => (
                 <button
@@ -129,10 +129,10 @@ function RunLogViewer({ slug, episodeId, runNumber, onClose }: RunLogViewerProps
               Download
             </a>
           </div>
-        </>
+        </div>
       )}
       footer={(
-        <div className="flex flex-wrap items-center justify-between gap-2 p-4 border-t border-border text-sm text-muted-foreground">
+        <div className="flex flex-wrap items-center justify-between gap-2 w-full text-sm text-muted-foreground">
           <span>{filtered.length} of {lines.length} lines</span>
           {data?.truncated && (
             <span className="text-warning">This run hit the 20 MB cap, so the rest of the log is missing.</span>

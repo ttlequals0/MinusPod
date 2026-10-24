@@ -3,7 +3,7 @@ import { formatPercent } from '../../utils/format';
 import ToggleSwitch from '../../components/ToggleSwitch';
 import NumberInput from '../../components/NumberInput';
 import { ExperimentalBadge } from '../../components/ExperimentalBadge';
-import { labelBase } from '../../components/fieldStyles';
+import { labelBase, inputBase } from '../../components/fieldStyles';
 import { subHeading } from '../../components/pageStyles';
 
 export interface AudioCueState {
@@ -48,9 +48,7 @@ type NumericKey =
   | 'silenceSnapNoiseDb' | 'silenceSnapMinDurationSeconds'
   | 'silenceSnapMaxDistanceSeconds';
 
-const inputClass =
-  'w-28 px-3 py-1.5 rounded-lg border border-input bg-background text-foreground ' +
-  'focus:outline-hidden focus:ring-2 focus:ring-ring';
+const inputClass = `${inputBase} w-28`;
 
 function AudioCueDetectionSection({ audioCue, onChange }: AudioCueDetectionSectionProps) {
   const update = <K extends keyof AudioCueState>(key: K, value: AudioCueState[K]) =>

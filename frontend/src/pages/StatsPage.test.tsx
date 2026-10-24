@@ -923,9 +923,9 @@ describe('StatsPage with populated spend data', () => {
 
   it('offers a section index that reaches Spend directly', async () => {
     const { container } = renderPage();
-    const index = await screen.findByRole('tablist', { name: 'Stats sections' });
+    const index = await screen.findByRole('navigation', { name: 'Stats sections' });
 
-    const spend = within(index).getByRole('tab', { name: 'Spend' });
+    const spend = within(index).getByRole('link', { name: 'Spend' });
     const native = container.querySelector('#stats-systemone')!;
     const spendCard = container.querySelector('#stats-spend')!;
     expect(native.parentElement).toBe(spendCard.parentElement);
@@ -933,14 +933,11 @@ describe('StatsPage with populated spend data', () => {
     expect(container.querySelectorAll('#stats-systemone')).toHaveLength(1);
     expect(within(native as HTMLElement).getByRole('heading', { level: 2, name: 'System One calls' })).toBeTruthy();
     expect(within(native as HTMLElement).getByText(/Uses the Spend filters above/)).toBeTruthy();
-    expect(within(index).getByRole('tab', { name: 'System One' })).toBeTruthy();
-    const scrollIntoView = vi.fn();
-    spendCard.scrollIntoView = scrollIntoView;
-    fireEvent.click(spend);
-    expect(scrollIntoView).toHaveBeenCalled();
+    expect(within(index).getByRole('link', { name: 'System One' })).toBeTruthy();
+    expect(spend.getAttribute('href')).toBe('#stats-spend');
     // Every listed section exists on the page.
-    for (const tab of within(index).getAllByRole('tab')) {
-      const id = tab.id.replace('stats-tab-', '');
+    for (const link of within(index).getAllByRole('link')) {
+      const id = (link.getAttribute('href') ?? '').slice(1);
       expect(container.querySelector(`#${id}`)).not.toBeNull();
     }
   });

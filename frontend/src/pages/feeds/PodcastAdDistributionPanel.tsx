@@ -7,7 +7,7 @@ import CollapsibleSection, { useCollapsibleOpen } from '../../components/Collaps
 import LoadingSpinner from '../../components/LoadingSpinner';
 import { useThemeColors } from '../../hooks/useThemeColors';
 import { getAdDistribution } from '../../api/feeds';
-import { formatElapsed } from '../../utils/format';
+import { formatElapsed, formatPercent } from '../../utils/format';
 import type { AdDistribution, AdDistributionZone } from '../../api/types';
 import { subHeading } from '../../components/pageStyles';
 
@@ -16,10 +16,10 @@ interface Props {
 }
 
 function zoneLabel(center: number): string {
-  const pct = Math.round(center * 100);
-  if (center < 0.08) return `${pct}% pre-roll`;
-  if (center > 0.92) return `${pct}% post-roll`;
-  return `${pct}% mid-roll`;
+  const pct = formatPercent(center);
+  if (center < 0.08) return `${pct} pre-roll`;
+  if (center > 0.92) return `${pct} post-roll`;
+  return `${pct} mid-roll`;
 }
 
 function zoneTime(center: number, medianSeconds: number): string {
@@ -40,7 +40,7 @@ function PanelBody({ data }: { data: AdDistribution }) {
       const inZone = zones.some((z) => low <= z.high && high >= z.low);
       return {
         label: Math.round(low * 100),
-        range: `${Math.round(low * 100)}-${Math.round(high * 100)}% of episode`,
+        range: `${Math.round(low * 100)}-${formatPercent(high)} of episode`,
         count,
         inZone,
       };

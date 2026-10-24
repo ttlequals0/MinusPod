@@ -33,7 +33,7 @@ function StatusBadge({ entry }: { entry: ImportPlanEntry }) {
   const { status, reason } = rowStatus(entry);
   return (
     <span
-      className={`${badgeBase} font-medium cursor-help ${STATUS_CLASS[status]}`}
+      className={`${badgeBase} cursor-help ${STATUS_CLASS[status]}`}
       title={reason ?? undefined}
     >
       {status}
@@ -96,7 +96,7 @@ function DateCell({ entry }: { entry: ImportPlanEntry }) {
       {formatDateTime(entry.publishedAt)}
       {entry.publishedAtSource === 'synthesized' && (
         <span
-          className={`${badgeBase} ml-1.5 font-medium ${tint.neutral} align-middle`}
+          className={`${badgeBase} ml-1.5 ${tint.neutral} align-middle`}
           title="No explicit publish date found; one was assigned so episodes sort in order."
         >
           synthesized
@@ -121,7 +121,7 @@ function ReplacesPill({ entry }: { entry: ImportPlanEntry }) {
   if (!entry.replacesExisting || entry.errors.length > 0) return null;
   return (
     <span
-      className={`${badgeBase} font-medium ${tint.warning}`}
+      className={`${badgeBase} ${tint.warning}`}
       title="An episode with this ID already exists; committing replaces it."
     >
       replaces

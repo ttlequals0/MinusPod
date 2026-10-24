@@ -1,5 +1,5 @@
 import { ReactNode, type SyntheticEvent, useEffect, useId, useRef } from 'react';
-import { btnDestructive, btnOutline, btnPrimary } from './buttonStyles';
+import { btnBase, btnDestructive, btnOutline, btnPrimary } from './buttonStyles';
 import { focusRing } from './fieldStyles';
 
 // Shared modal recipes. cueScanStyles re-exports these for the cue feature's
@@ -11,7 +11,7 @@ const modalPanelBase = 'bg-card rounded-lg border border-border shadow-xl';
 export const modalPanel = modalPanelBase + ' text-foreground';
 
 // Dialog footer button, text label at every width; add a btn* recipe.
-export const dialogFooterBtn = `px-3 py-1.5 text-sm rounded border border-transparent transition-colors ${focusRing}`;
+export const dialogFooterBtn = `${btnBase} border border-transparent`;
 // Footers with 3 or more actions: 2 columns under 360 px, one row of equal columns to 639 px, flex row from sm.
 export const dialogFooterGrid = 'max-sm:grid max-sm:gap-2 max-sm:grid-cols-2 min-[360px]:max-sm:grid-cols-none min-[360px]:max-sm:grid-flow-col min-[360px]:max-sm:auto-cols-fr';
 
@@ -170,9 +170,9 @@ export function Modal({
       >
         {split ? (
           <>
-            {header !== undefined && <div className="shrink-0">{header}</div>}
+            {header !== undefined && <div className="shrink-0 flex items-start justify-between gap-3 p-4 border-b border-border">{header}</div>}
             <div className="min-h-0 flex-1 overflow-y-auto">{children}</div>
-            {footer !== undefined && <div className="shrink-0">{footer}</div>}
+            {footer !== undefined && <div className="shrink-0 flex flex-wrap items-center justify-end gap-2 p-4 border-t border-border">{footer}</div>}
           </>
         ) : children}
       </div>
@@ -200,12 +200,10 @@ export function ConfirmModal({
     <Modal
       onClose={onCancel} closeOnEscape={!pending} ariaLabelledBy={titleId} panelClassName="max-w-md w-full"
       header={(
-        <div className="p-4 border-b border-border">
-          <h2 id={titleId} className="text-lg font-semibold text-foreground">{title}</h2>
-        </div>
+        <h2 id={titleId} className="text-lg font-semibold text-foreground">{title}</h2>
       )}
       footer={(
-        <div className="flex items-center justify-end gap-2 p-4 border-t border-border">
+        <>
           <button
             onClick={onCancel}
             disabled={pending}
@@ -216,11 +214,11 @@ export function ConfirmModal({
           <button
             onClick={onConfirm}
             disabled={pending}
-            className={`${dialogFooterBtn} ${destructive ? btnDestructive : btnPrimary} disabled:opacity-50`}
+            className={`${dialogFooterBtn} ${destructive ? btnDestructive : btnPrimary}`}
           >
             {pending ? busyLabel : confirmLabel}
           </button>
-        </div>
+        </>
       )}
     >
       <div className="p-4 space-y-3 text-sm text-foreground">{children}</div>

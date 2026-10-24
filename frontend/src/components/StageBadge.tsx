@@ -7,7 +7,7 @@ import { badgeBase, tint } from './badgeStyles';
 export function StageBadge({ stage }: { stage: string }) {
   const meta = DETECTION_STAGE_META[stage as DetectionStage];
   return (
-    <span className={`${badgeBase} font-medium whitespace-nowrap ${meta?.className ?? tint.secondary}`}>
+    <span className={`${badgeBase} ${meta?.className ?? tint.secondary}`}>
       {meta?.label ?? stage}
     </span>
   );

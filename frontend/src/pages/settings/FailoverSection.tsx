@@ -145,7 +145,7 @@ function TargetRow({
       <div className="min-w-0 flex-1 basis-56">
         <div className="flex flex-wrap items-center gap-2">
           <span className="text-sm font-medium text-foreground">{label}</span>
-          <span className={`${badgeBase} shrink-0 font-medium ${badge.tone}`}>{badge.label}</span>
+          <span className={`${badgeBase} shrink-0 ${badge.tone}`}>{badge.label}</span>
         </div>
         <p className="mt-1 text-xs text-muted-foreground break-words">
           {off ? `${label} is off` : targetMeta(state, probe)}
@@ -180,7 +180,7 @@ function StandbyRow({ label, configured, probe }: {
     <li className="px-3 py-3">
       <div className="flex flex-wrap items-center gap-2">
         <span className="text-sm font-medium text-muted-foreground">{label}</span>
-        <span className={`${badgeBase} shrink-0 font-medium ${badge.tone}`}>{badge.label}</span>
+        <span className={`${badgeBase} shrink-0 ${badge.tone}`}>{badge.label}</span>
       </div>
       {configured && <p className="mt-1 text-xs text-muted-foreground break-words">{probeMeta(probe)}</p>}
     </li>

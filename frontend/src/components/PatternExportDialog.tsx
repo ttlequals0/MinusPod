@@ -346,7 +346,7 @@ function PatternExportDialogImpl({ patterns, onClose }: Omit<Props, 'open'>) {
                 type="button"
                 onClick={handleClose}
                 disabled={busy}
-                className={`${dialogFooterBtn} ${btnOutline} disabled:opacity-50`}
+                className={`${dialogFooterBtn} ${btnOutline}`}
               >
                 Cancel
               </button>
@@ -355,7 +355,7 @@ function PatternExportDialogImpl({ patterns, onClose }: Omit<Props, 'open'>) {
                   type="button"
                   onClick={downloadSelected}
                   disabled={effectiveSelection.size === 0}
-                  className={`${dialogFooterBtn} ${btnPrimary} disabled:opacity-50`}
+                  className={`${dialogFooterBtn} ${btnPrimary}`}
                 >
                   Export {effectiveSelection.size} pattern{effectiveSelection.size === 1 ? '' : 's'}
                 </button>
@@ -364,7 +364,7 @@ function PatternExportDialogImpl({ patterns, onClose }: Omit<Props, 'open'>) {
                   type="button"
                   onClick={runPreview}
                   disabled={effectiveSelection.size === 0 || busy}
-                  className={`${dialogFooterBtn} ${btnPrimary} disabled:opacity-50`}
+                  className={`${dialogFooterBtn} ${btnPrimary}`}
                 >
                   {busy ? 'Checking...' : 'Continue'}
                 </button>
@@ -425,7 +425,7 @@ function CommunityPreview({
           type="button"
           onClick={onBack}
           disabled={busy}
-          className={`${dialogFooterBtn} ${btnOutline} disabled:opacity-50`}
+          className={`${dialogFooterBtn} ${btnOutline}`}
         >
           Back
         </button>
@@ -433,7 +433,7 @@ function CommunityPreview({
           type="button"
           onClick={onDownload}
           disabled={ready_count === 0 || busy}
-          className={`${dialogFooterBtn} ${btnPrimary} disabled:opacity-50`}
+          className={`${dialogFooterBtn} ${btnPrimary}`}
         >
           {busy ? 'Building bundle...' : `Download bundle (${ready_count})`}
         </button>

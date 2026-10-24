@@ -81,15 +81,15 @@ function SponsorEditModal({ sponsor, onClose, onSaved }: Props) {
   return (
     <Modal ariaLabel={isNew ? 'Add sponsor' : `Edit ${sponsor!.name}`} onClose={requestClose} panelClassName="max-w-lg w-full"
       header={(
-        <div className="flex items-center justify-between p-4 border-b border-border">
+        <>
           <h2 className="text-lg font-semibold text-foreground">
             {isNew ? 'Add sponsor' : `Edit ${sponsor!.name}`}
           </h2>
           <CloseButton onClick={requestClose} />
-        </div>
+        </>
       )}
       footer={(
-        <div className="flex items-center justify-end gap-2 p-4 border-t border-border">
+        <>
           <button
             onClick={requestClose}
             className={`${dialogFooterBtn} ${btnOutline}`}
@@ -99,11 +99,11 @@ function SponsorEditModal({ sponsor, onClose, onSaved }: Props) {
           <button
             onClick={() => save.mutate()}
             disabled={save.isPending}
-            className={`${dialogFooterBtn} ${btnPrimary} disabled:opacity-50`}
+            className={`${dialogFooterBtn} ${btnPrimary}`}
           >
             {save.isPending ? 'Saving...' : isNew ? 'Add sponsor' : 'Save'}
           </button>
-        </div>
+        </>
       )}
     >
       <div className="p-4 space-y-4">

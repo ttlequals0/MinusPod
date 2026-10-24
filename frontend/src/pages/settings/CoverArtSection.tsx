@@ -102,7 +102,7 @@ function CoverArtSection({
             type="button"
             onClick={onRefreshArtwork}
             disabled={refreshArtworkPending}
-            className={`${btnBase} ${btnSecondary} gap-1.5`}
+            className={`${btnBase} ${btnSecondary}`}
           >
             <RefreshCw className={`w-4 h-4 ${refreshArtworkPending ? 'animate-spin' : ''}`} />
             {refreshArtworkPending ? 'Refreshing artwork...' : 'Refresh all artwork'}

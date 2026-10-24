@@ -17,7 +17,7 @@ import { getCueAggregateStats } from '../api/cueDetections';
 import { feedsQueryOptions } from '../api/feeds';
 import { feedDisplayTitle } from '../utils/feedTitle';
 import { formatTokenCount } from './settings/settingsUtils';
-import { formatCost, formatDateTime, formatElapsed as formatDuration } from '../utils/format';
+import { formatCost, formatDateTime, formatElapsed } from '../utils/format';
 import { SkeletonStatCards, SkeletonChart, SkeletonRows } from '../components/Skeleton';
 import { useThemeColors } from '../hooks/useThemeColors';
 import { Pagination } from '../components/Pagination';
@@ -28,7 +28,7 @@ import DateField from '../components/DateField';
 import { selectBase, focusRing, filterGrid, filterLabel, filterControl } from '../components/fieldStyles';
 import { SLOT_LABELS } from '../api/types';
 import { ArrowDown, ArrowUp } from 'lucide-react';
-import PageTabs from '../components/PageTabs';
+import { tabStrip, tabItem } from '../components/PageTabs';
 import StatTile from '../components/StatTile';
 import { btnBase, btnSecondary } from '../components/buttonStyles';
 import { badgeBase, tint } from '../components/badgeStyles';
@@ -278,7 +278,7 @@ const ATTEMPT_COLUMNS: {
     render: (a) => `${a.provider} / ${SLOT_LABELS[a.credentialSlot as keyof typeof SLOT_LABELS] ?? a.credentialSlot}` },
   { label: 'Model', align: 'left', render: (a) => a.returnedModel ?? a.model },
   { label: 'Status', align: 'left', render: (a) => a.status === 'inconclusive'
-    ? <span className={`${badgeBase} font-medium ${tint.neutral}`}>Abstained</span>
+    ? <span className={`${badgeBase} ${tint.neutral}`}>Abstained</span>
     : a.status },
   { label: 'Tokens', align: 'right',
     render: (a) => formatTokenCount((a.inputTokens ?? 0) + (a.outputTokens ?? 0)) },
@@ -580,7 +580,6 @@ function useExpandedKeys(): [Set<string>, (key: string) => void] {
 export default function StatsPage() {
   const theme = useThemeColors();
   const [podcastFilter, setPodcastFilter] = useState('');
-  const [activeSection, setActiveSection] = useState('stats-overview');
 
   // itemStyle matters: without it the value line keeps recharts' dark default
   // and is unreadable on the dark card. cursor replaces the default light grey
@@ -869,16 +868,14 @@ export default function StatsPage() {
         </div>
       </div>
 
-      <PageTabs
-        id="stats"
-        label="Stats sections"
-        active={activeSection}
-        onChange={(id) => {
-          setActiveSection(id);
-          document.getElementById(id)?.scrollIntoView({ block: 'start' });
-        }}
-        tabs={sectionLinks.map(({ id, label }) => ({ value: id, label }))}
-      />
+      <nav aria-label="Stats sections" className={tabStrip}>
+        {sectionLinks.map(({ id, label }) => (
+          <a key={id} href={`#${id}`}
+            className={`${tabItem} border-transparent text-muted-foreground hover:text-foreground`}>
+            {label}
+          </a>
+        ))}
+      </nav>
 
       <section id="stats-overview" className="scroll-mt-28">
       {/* Summary Cards */}
@@ -889,8 +886,8 @@ export default function StatsPage() {
         <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-4 mb-8">
           <StatTile
             label="Avg time saved"
-            value={formatDuration(dashboard.avgTimeSavedSeconds)}
-            hint={<><span>Min: {formatDuration(dashboard.minTimeSavedSeconds)}</span>{' '}<span>Max: {formatDuration(dashboard.maxTimeSavedSeconds)}</span></>}
+            value={formatElapsed(dashboard.avgTimeSavedSeconds)}
+            hint={<><span>Min: {formatElapsed(dashboard.minTimeSavedSeconds)}</span>{' '}<span>Max: {formatElapsed(dashboard.maxTimeSavedSeconds)}</span></>}
           />
           <StatTile
             label="Avg ads removed"
@@ -904,13 +901,13 @@ export default function StatsPage() {
           />
           <StatTile
             label="Avg processing time"
-            value={formatDuration(dashboard.avgProcessingTimeSeconds)}
-            hint={<><span>Min: {formatDuration(dashboard.minProcessingTimeSeconds)}</span>{' '}<span>Max: {formatDuration(dashboard.maxProcessingTimeSeconds)}</span></>}
+            value={formatElapsed(dashboard.avgProcessingTimeSeconds)}
+            hint={<><span>Min: {formatElapsed(dashboard.minProcessingTimeSeconds)}</span>{' '}<span>Max: {formatElapsed(dashboard.maxProcessingTimeSeconds)}</span></>}
           />
           <StatTile
             label="Avg episode length"
-            value={formatDuration(dashboard.avgEpisodeLengthSeconds)}
-            hint={<><span>Min: {formatDuration(dashboard.minEpisodeLengthSeconds)}</span>{' '}<span>Max: {formatDuration(dashboard.maxEpisodeLengthSeconds)}</span></>}
+            value={formatElapsed(dashboard.avgEpisodeLengthSeconds)}
+            hint={<><span>Min: {formatElapsed(dashboard.minEpisodeLengthSeconds)}</span>{' '}<span>Max: {formatElapsed(dashboard.maxEpisodeLengthSeconds)}</span></>}
           />
           <StatTile
             label="Avg tokens per run"
@@ -936,7 +933,7 @@ export default function StatsPage() {
               ? `${dashboard.totalRuns} processing runs` : undefined} />
           <StatTile label="Total ads removed" value={String(dashboard.totalAdsRemoved)} />
           <StatTile label="Total audio cues" value={String(dashboard.totalAudioCuesDetected)} />
-          <StatTile label="Total time saved" value={formatDuration(dashboard.totalTimeSavedSeconds)}
+          <StatTile label="Total time saved" value={formatElapsed(dashboard.totalTimeSavedSeconds)}
             hint={dashboard.episodesWithTimeSaved > 0 && dashboard.episodesWithTimeSaved !== dashboard.totalEpisodesProcessed
               ? `from ${dashboard.episodesWithTimeSaved} episodes` : undefined} />
           <StatTile label="Total cost" value={formatCost(dashboard.totalLlmCost)} />
@@ -1467,9 +1464,9 @@ export default function StatsPage() {
                 <span className="text-muted-foreground">Avg ads</span>
                 <span className="text-foreground text-right tabular-nums">{p.avgAds}</span>
                 <span className="text-muted-foreground">Avg time saved</span>
-                <span className="text-foreground text-right tabular-nums">{formatDuration(p.avgTimeSavedSeconds)}</span>
+                <span className="text-foreground text-right tabular-nums">{formatElapsed(p.avgTimeSavedSeconds)}</span>
                 <span className="text-muted-foreground">Avg length</span>
-                <span className="text-foreground text-right tabular-nums">{formatDuration(p.avgEpisodeLengthSeconds)}</span>
+                <span className="text-foreground text-right tabular-nums">{formatElapsed(p.avgEpisodeLengthSeconds)}</span>
                 <span className="text-muted-foreground">Total cost</span>
                 <span className="text-foreground text-right tabular-nums">{formatCost(p.totalCost)}</span>
                 <span className="text-muted-foreground">Tokens (In/Out)</span>
@@ -1507,8 +1504,8 @@ export default function StatsPage() {
                     <td className="px-4 py-3 text-sm text-muted-foreground text-right tabular-nums hidden lg:table-cell">{p.runCount}</td>
                     <td className="px-4 py-3 text-sm text-muted-foreground text-right tabular-nums">{p.totalAds}</td>
                     <td className="px-4 py-3 text-sm text-muted-foreground text-right tabular-nums">{p.avgAds}</td>
-                    <td className="px-4 py-3 text-sm text-muted-foreground text-right tabular-nums">{formatDuration(p.avgTimeSavedSeconds)}</td>
-                    <td className="px-4 py-3 text-sm text-muted-foreground text-right tabular-nums hidden lg:table-cell">{formatDuration(p.avgEpisodeLengthSeconds)}</td>
+                    <td className="px-4 py-3 text-sm text-muted-foreground text-right tabular-nums">{formatElapsed(p.avgTimeSavedSeconds)}</td>
+                    <td className="px-4 py-3 text-sm text-muted-foreground text-right tabular-nums hidden lg:table-cell">{formatElapsed(p.avgEpisodeLengthSeconds)}</td>
                     <td className="px-4 py-3 text-sm text-muted-foreground text-right tabular-nums hidden lg:table-cell">{formatCost(p.totalCost)}</td>
                     <td className="px-4 py-3 text-sm text-muted-foreground text-right tabular-nums hidden lg:table-cell">
                       <span>{formatTokenCount(p.avgTokensPerEpisode)}</span>

@@ -8,11 +8,6 @@ describe('StatusBadge', () => {
     expect(screen.getByText('Completed').className).toContain('rounded');
   });
 
-  it('shortens qualifiers when short is set', () => {
-    render(<StatusBadge status="permanently_failed" short />);
-    expect(screen.getByText('Failed')).toBeTruthy();
-  });
-
   it('passes className and title through', () => {
     render(<StatusBadge status="failed" className="cursor-help" title="boom" />);
     const badge = screen.getByText('Failed');

@@ -118,7 +118,7 @@ export function PatternImportDialog({ open, onClose, onComplete }: Props) {
           type="button"
           onClick={() => void handleImport()}
           disabled={busy}
-          className={`${dialogFooterBtn} ${btnPrimary} disabled:opacity-50`}
+          className={`${dialogFooterBtn} ${btnPrimary}`}
         >
           {busy ? 'Importing...' : 'Import'}
         </button>

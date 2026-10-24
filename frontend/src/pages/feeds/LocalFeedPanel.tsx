@@ -1091,12 +1091,10 @@ function AddEpisodeModal({ slug, onClose }: AddEpisodeModalProps) {
       onClose={requestClose}
       panelClassName="max-w-lg w-full max-h-[90vh]"
       header={(
-        <div className="p-4 border-b border-border">
-          <h2 className={cardTitle}>Add episode</h2>
-        </div>
+        <h2 className={cardTitle}>Add episode</h2>
       )}
       footer={(
-        <div className="flex items-center justify-end gap-2 p-4 border-t border-border">
+        <>
           <button
             type="button"
             onClick={requestClose}
@@ -1113,7 +1111,7 @@ function AddEpisodeModal({ slug, onClose }: AddEpisodeModalProps) {
           >
             {mutation.isPending ? 'Uploading...' : 'Add episode'}
           </button>
-        </div>
+        </>
       )}
     >
       <form id="add-episode-form" onSubmit={handleSubmit} className="space-y-4 p-4">

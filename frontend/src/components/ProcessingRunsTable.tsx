@@ -1,7 +1,7 @@
 import { Fragment, ReactNode, useState } from 'react';
 import { ChevronDown, ChevronRight } from 'lucide-react';
 import { EpisodeProcessingRun, LLM_PROVIDER_LABELS, LlmProvider, RunPhaseUsage } from '../api/types';
-import { formatCost, formatDateTime, formatElapsed } from '../utils/format';
+import { formatCost, formatDateTime, formatElapsed, formatPercent, sentenceCase } from '../utils/format';
 import { formatTokenCount, formatTokenRange } from '../pages/settings/settingsUtils';
 import DisclosureButton from './DisclosureButton';
 import CopyButton from './CopyButton';
@@ -100,7 +100,7 @@ function RunResult({ run }: { run: EpisodeProcessingRun }) {
 
 function transcriptDiffSummary(run: EpisodeProcessingRun): string {
   const diff = run.stats?.transcriptDiff;
-  const match = diff?.coverage != null ? ` (${Math.round(diff.coverage * 100)}% match)` : '';
+  const match = diff?.coverage != null ? ` (${formatPercent(diff.coverage)} match)` : '';
   switch (diff?.status) {
     case 'ok': return `${diff.spans} ${diff.spans === 1 ? 'gap' : 'gaps'}${match}`;
     case 'unreliable': return `unreliable${match}`;
@@ -289,14 +289,10 @@ function providerLabel(provider: string): string {
   return LLM_PROVIDER_LABELS[provider as LlmProvider] ?? provider;
 }
 
-function capitalize(word: string): string {
-  return word.charAt(0).toUpperCase() + word.slice(1);
-}
-
 // The "(pass N)" suffix only earns its place when the same phase ran in more
 // than one pass; a phase that appears once reads as just its name.
 function phaseLabel(phase: RunPhaseUsage, disambiguate: boolean): string {
-  const base = capitalize(phase.phaseKey);
+  const base = sentenceCase(phase.phaseKey);
   return disambiguate && phase.invokingPass ? `${base} (pass ${phase.invokingPass})` : base;
 }
 
@@ -388,7 +384,7 @@ function PhaseBreakdown({ run, layout }: { run: EpisodeProcessingRun; layout: 't
           ))}
           {gaps.map((g) => (
             <tr key={g.phaseKey} className="border-t border-border/40 text-muted-foreground">
-              <td className={cellClass}>{capitalize(g.phaseKey)}</td>
+              <td className={cellClass}>{sentenceCase(g.phaseKey)}</td>
               <td className="py-1" colSpan={metrics.length}>{g.reason}</td>
             </tr>
           ))}
@@ -414,7 +410,7 @@ function PhaseBreakdown({ run, layout }: { run: EpisodeProcessingRun; layout: 't
         ))}
         {gaps.map((g) => (
           <div key={g.phaseKey} className="rounded border border-border/40 p-2 text-xs flex justify-between gap-2 text-muted-foreground">
-            <span className="font-medium">{capitalize(g.phaseKey)}</span>
+            <span className="font-medium">{sentenceCase(g.phaseKey)}</span>
             <span>{g.reason}</span>
           </div>
         ))}

@@ -153,7 +153,7 @@ function FeedOpmlExportDialogImpl({ onClose }: Omit<Props, 'open'>) {
             type="button"
             onClick={onClose}
             disabled={busy}
-            className={`${dialogFooterBtn} ${btnOutline} disabled:opacity-50`}
+            className={`${dialogFooterBtn} ${btnOutline}`}
           >
             Cancel
           </button>
@@ -161,7 +161,7 @@ function FeedOpmlExportDialogImpl({ onClose }: Omit<Props, 'open'>) {
             type="button"
             onClick={download}
             disabled={effective.size === 0 || busy}
-            className={`${dialogFooterBtn} ${btnPrimary} disabled:opacity-50`}
+            className={`${dialogFooterBtn} ${btnPrimary}`}
           >
             {busy ? 'Exporting...' : `Download ${effective.size} feed${effective.size === 1 ? '' : 's'}`}
           </button>

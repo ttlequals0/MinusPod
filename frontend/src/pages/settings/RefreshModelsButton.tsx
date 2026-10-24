@@ -27,7 +27,7 @@ function RefreshModelsButton({ onClick, isPending, variant = 'chip' }: RefreshMo
       type="button"
       onClick={onClick}
       disabled={isPending}
-      className={`${btnBase} ${btnSecondary} gap-1.5`}
+      className={`${btnBase} ${btnSecondary}`}
       title="Refresh model list from provider"
     >
       {isPending ? (

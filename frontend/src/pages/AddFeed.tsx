@@ -421,6 +421,12 @@ function SearchResultItem({ result, isSubscribed, isAdding, onAdd }: {
   );
 }
 
+const MODES: [AddFeedMode, string][] = [
+  ['subscribe', 'Subscribe to feed'],
+  ['local', 'Create local feed'],
+  ['recents', 'Create recents feed'],
+];
+
 function AddFeed() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -576,33 +582,18 @@ function AddFeed() {
 
       {/* Mode toggle: subscribed feeds pull from an upstream RSS URL; local
           feeds have no upstream source and are seeded entirely from this form. */}
-      <div className="grid grid-cols-1 min-[560px]:flex border border-border rounded overflow-hidden mb-6 w-full min-[560px]:w-fit">
-        <button
-          type="button"
-          onClick={() => setMode('subscribe')}
-          aria-pressed={mode === 'subscribe'}
-          className={`${btnLg} rounded-none ${mode === 'subscribe' ? btnPrimary : btnSecondary}`}
-        >
-          Subscribe to feed
-        </button>
-        <button
-          type="button"
-          onClick={() => setMode('local')}
-          aria-pressed={mode === 'local'}
-          className={`${btnLg} rounded-none ${mode === 'local' ? btnPrimary : btnSecondary}`}
-        >
-          Create local feed
-        </button>
-        {!hasRecents && (
+      <div className="grid grid-cols-1 min-[560px]:flex border border-border rounded overflow-hidden mb-6 w-full min-[560px]:w-fit [&>button]:rounded-none">
+        {MODES.filter(([value]) => value !== 'recents' || !hasRecents).map(([value, label]) => (
           <button
+            key={value}
             type="button"
-            onClick={() => setMode('recents')}
-            aria-pressed={mode === 'recents'}
-            className={`${btnLg} rounded-none ${mode === 'recents' ? btnPrimary : btnSecondary}`}
+            onClick={() => setMode(value)}
+            aria-pressed={mode === value}
+            className={`${btnLg} ${mode === value ? btnPrimary : btnSecondary}`}
           >
-            Create recents feed
+            {label}
           </button>
-        )}
+        ))}
       </div>
 
       {mode === 'local' && <LocalFeedForm onCancel={() => setMode('subscribe')} />}

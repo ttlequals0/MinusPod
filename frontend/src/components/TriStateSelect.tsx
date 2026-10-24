@@ -1,3 +1,5 @@
+import { inputBase } from './fieldStyles';
+
 interface TriStateSelectProps {
   /**
    * Tri-state value: true = override-on, false = override-off, null = use
@@ -44,7 +46,7 @@ function TriStateSelect({
       }}
       className={
         className ??
-        'w-full px-4 py-2 rounded-lg border border-input bg-background text-foreground focus:outline-hidden focus:ring-2 focus:ring-ring'
+        `${inputBase} w-full`
       }
     >
       <option value="global">{globalLabel}</option>

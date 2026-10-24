@@ -7,7 +7,7 @@ import { isActionBlocked } from '../utils/processingStage';
 import { applyEpisodeJobState, jobStateFromError } from '../utils/jobStateCache';
 import DropdownMenu from './DropdownMenu';
 import { Modal, dialogFooterBtn } from './Modal';
-import { btnPrimary, btnSecondary, btnDestructive } from './buttonStyles';
+import { btnBase, btnPrimary, btnSecondary, btnDestructive } from './buttonStyles';
 import { badgeBase, tint } from './badgeStyles';
 import { cardTitle } from './pageStyles';
 
@@ -88,7 +88,7 @@ function EpisodeRowActions({
       <DropdownMenu
         // The 6rem floor aligns row actions; flex-1 centers the label beside the chevron.
         triggerLabel={<span className="flex-1 text-center">Actions</span>}
-        triggerClassName={`min-h-11 sm:min-h-0 px-2 py-2 sm:py-1.5 text-xs rounded flex items-center gap-1 min-w-24 whitespace-nowrap touch-manipulation ${btnPrimary} disabled:opacity-50 disabled:cursor-not-allowed transition-colors`}
+        triggerClassName={`${btnBase} ${btnPrimary} gap-1 min-w-24`}
         chevronClassName="w-3 h-3"
         disabled={blocked}
         title="Episode actions"
@@ -116,12 +116,10 @@ function EpisodeRowActions({
           ariaLabelledBy={deleteTitleId}
           panelClassName="max-w-md w-full"
           header={(
-            <div className="p-4 border-b border-border">
-              <h2 id={deleteTitleId} className={cardTitle}>Delete downloaded files?</h2>
-            </div>
+            <h2 id={deleteTitleId} className={cardTitle}>Delete downloaded files?</h2>
           )}
           footer={(
-            <div className="flex items-center justify-end gap-2 p-4 border-t border-border">
+            <>
               <button
                 type="button"
                 onClick={() => setConfirmDelete(false)}
@@ -140,7 +138,7 @@ function EpisodeRowActions({
                 disabled={deleteMutation.isPending || blocked}
                 className={`${dialogFooterBtn} ${btnDestructive}`}
               >{deleteMutation.isPending ? 'Deleting...' : 'Delete files'}</button>
-            </div>
+            </>
           )}
         >
           <div className="p-4">

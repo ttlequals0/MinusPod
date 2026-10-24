@@ -39,6 +39,10 @@ type RetentionMode = 'global' | 'archive' | 'custom';
 import { badgeBase, tint } from '../../components/badgeStyles';
 import { isSystemOneChapterRoute } from '../settings/systemoneWarnings';
 
+const rowLabel = 'text-muted-foreground whitespace-nowrap sm:w-32 shrink-0';
+const rowLabelTop = `${rowLabel} sm:pt-1.5`;
+const rowLabelTopSm = `${rowLabel} sm:pt-0.5`;
+
 interface Props {
   feed: Feed;
   slug: string;
@@ -149,7 +153,7 @@ function GlobalOverrideRow({
 }) {
   return (
     <div className="flex flex-col sm:flex-row sm:items-start gap-2 sm:gap-3 text-sm">
-      <span className="text-muted-foreground whitespace-nowrap sm:w-32 shrink-0 sm:pt-1.5">{label}</span>
+      <span className={rowLabelTop}>{label}</span>
       <div className="flex flex-col gap-1 flex-1 min-w-0">
         <select
           value={value ?? ''}
@@ -686,7 +690,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                   Local feeds have no upstream source. */}
               {!isLocal && (
               <div className="flex flex-col sm:flex-row sm:items-start gap-2 sm:gap-3 text-sm">
-                <span className="text-muted-foreground whitespace-nowrap sm:w-32 shrink-0 sm:pt-0.5">Source feed</span>
+                <span className={rowLabelTopSm}>Source feed</span>
                 {isEditingSourceUrl ? (
                   <div className="flex flex-col gap-1 flex-1 min-w-0">
                     <input
@@ -813,7 +817,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
 
               {/* Auto-Process Control */}
               <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 text-sm">
-                <span className="text-muted-foreground whitespace-nowrap sm:w-32 shrink-0">Auto-Process</span>
+                <span className={rowLabel}>Auto-Process</span>
                 <div className="flex items-center gap-2 flex-wrap">
                   <TriStateSelect
                     value={feed.autoProcessOverride}
@@ -887,7 +891,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                         </select>
                       </div>
                       <div className="flex flex-col sm:flex-row sm:items-start gap-2 sm:gap-3">
-                        <span className="text-muted-foreground whitespace-nowrap sm:w-32 shrink-0 sm:pt-0.5">
+                        <span className={rowLabelTopSm}>
                           Transcription:
                         </span>
                         <div className="flex flex-col gap-1 flex-1 min-w-0">
@@ -914,7 +918,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
 
               {/* Per-feed auto-process queue priority (#625) */}
               <div className="flex flex-col sm:flex-row sm:items-start gap-2 sm:gap-3 text-sm">
-                <span className="text-muted-foreground whitespace-nowrap sm:w-32 shrink-0 sm:pt-1.5">Queue priority</span>
+                <span className={rowLabelTop}>Queue priority</span>
                 <div className="flex flex-col gap-1 flex-1 min-w-0">
                   <select
                     value={feed.queuePriority || 'normal'}
@@ -938,7 +942,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
 
               {/* Per-feed low-ad-yield action override */}
               <div className="flex flex-col sm:flex-row sm:items-start gap-2 sm:gap-3 text-sm">
-                <span className="text-muted-foreground whitespace-nowrap sm:w-32 shrink-0 sm:pt-1.5">Low ad yield</span>
+                <span className={rowLabelTop}>Low ad yield</span>
                 <div className="flex flex-col gap-1 flex-1 min-w-0">
                   <select
                     value={feed.lowAdYieldAction ?? ''}
@@ -964,7 +968,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
 
               {/* Per-feed transcription language override */}
               <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 text-sm">
-                <span className="text-muted-foreground whitespace-nowrap sm:w-32 shrink-0">Language</span>
+                <span className={rowLabel}>Language</span>
                 <div className="flex items-center gap-2 flex-wrap">
                   <select
                     value={feed.languageOverride ?? ''}
@@ -1091,7 +1095,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
 
 
               <div className="flex flex-col sm:flex-row sm:items-start gap-2 sm:gap-3 text-sm">
-                <span className="text-muted-foreground whitespace-nowrap sm:w-32 shrink-0 sm:pt-1.5">
+                <span className={rowLabelTop}>
                   Skipped episodes:
                 </span>
                 <select
@@ -1120,7 +1124,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
             <div className="space-y-4 pt-1">
               {/* Feed tags */}
               <div className="flex flex-col sm:flex-row sm:items-start gap-2 sm:gap-3 text-sm">
-                <span className="text-muted-foreground whitespace-nowrap sm:w-32 shrink-0 sm:pt-0.5">Tags</span>
+                <span className={rowLabelTopSm}>Tags</span>
                 <div className="flex-1 min-w-0">
                   <FeedTagsEditor slug={slug} />
                 </div>
@@ -1137,7 +1141,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
             <div className="space-y-4 pt-1">
               {/* Per-feed chapter mode */}
               <div className="flex flex-col sm:flex-row sm:items-start gap-2 sm:gap-3 text-sm">
-                <span className="text-muted-foreground whitespace-nowrap sm:w-32 shrink-0 sm:pt-1.5">Chapters</span>
+                <span className={rowLabelTop}>Chapters</span>
                 <div className="flex flex-col gap-1 flex-1 min-w-0">
                   <select
                     value={feed.chaptersMode ?? ''}
@@ -1300,7 +1304,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                   local feed: nothing is served until it finishes processing. */}
               {!isLocal && (
               <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 text-sm">
-                <span className="text-muted-foreground whitespace-nowrap sm:w-32 shrink-0">Hide unprocessed</span>
+                <span className={rowLabel}>Hide unprocessed</span>
                 <div className="flex items-center gap-2 flex-wrap">
                   <TriStateSelect
                     value={feed.onlyExposeProcessedEpisodes}
@@ -1325,7 +1329,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                   own episode IDs; there's no publisher GUID to fall back to. */}
               {!isLocal && (
               <div className="flex flex-col sm:flex-row sm:items-start gap-2 sm:gap-3 text-sm">
-                <span className="text-muted-foreground whitespace-nowrap sm:w-32 shrink-0 sm:pt-0.5">Episode GUIDs</span>
+                <span className={rowLabelTopSm}>Episode GUIDs</span>
                 <div className="flex flex-col gap-1 flex-1 min-w-0">
                   <label className="flex items-center gap-2 cursor-pointer">
                     <ToggleSwitch
@@ -1347,7 +1351,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
 
               {/* Per-feed run log storage override */}
               <div className="flex flex-col sm:flex-row sm:items-start gap-2 sm:gap-3 text-sm">
-                <span className="text-muted-foreground whitespace-nowrap sm:w-32 shrink-0 sm:pt-1.5">Run logs</span>
+                <span className={rowLabelTop}>Run logs</span>
                 <div className="flex flex-col gap-1 flex-1 min-w-0">
                   <select
                     value={feed.episodeLogs ?? ''}
@@ -1374,7 +1378,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                   control: inherit, archive (0), and an explicit day count, so
                   the number field only appears once "Keep for" is chosen. */}
               <div className="flex flex-col sm:flex-row sm:items-start gap-2 sm:gap-3 text-sm">
-                <span className="text-muted-foreground whitespace-nowrap sm:w-32 shrink-0 sm:pt-1.5">Retention</span>
+                <span className={rowLabelTop}>Retention</span>
                 <div className="flex flex-col gap-1 flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
                     <select
@@ -1434,7 +1438,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
 
               {/* Per-feed pre-cut original audio override */}
               <div className="flex flex-col sm:flex-row sm:items-start gap-2 sm:gap-3 text-sm">
-                <span className="text-muted-foreground whitespace-nowrap sm:w-32 shrink-0 sm:pt-1.5">Original audio</span>
+                <span className={rowLabelTop}>Original audio</span>
                 <div className="flex flex-col gap-1 flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
                     <select
@@ -1740,7 +1744,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                 }>
               ).map(({ label, field, ariaLabel, toggleLabel, warning }) => (
                 <div key={field} className="flex flex-col sm:flex-row sm:items-start gap-2 sm:gap-3 text-sm">
-                  <span className="text-muted-foreground whitespace-nowrap sm:w-32 shrink-0 sm:pt-0.5">{label}</span>
+                  <span className={rowLabelTopSm}>{label}</span>
                   <div className="flex flex-col gap-1 flex-1 min-w-0">
                     <label className="flex items-center gap-2 cursor-pointer">
                       <ToggleSwitch
@@ -1797,7 +1801,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
               {/* Splice-veto override. Tri-state so a feed can also be held
                   to the check when the global is off. */}
               <div className="flex flex-col sm:flex-row sm:items-start gap-2 sm:gap-3 text-sm">
-                <span className="text-muted-foreground whitespace-nowrap sm:w-32 shrink-0 sm:pt-1.5">Splice check</span>
+                <span className={rowLabelTop}>Splice check</span>
                 <div className="flex flex-col gap-1 flex-1 min-w-0">
                   <select
                     value={feed.spliceVetoEnabled === null || feed.spliceVetoEnabled === undefined
@@ -1824,7 +1828,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
 
               {/* Cue-gated approval (Phase C held-for-review) */}
               <div className="flex flex-col sm:flex-row sm:items-start gap-2 sm:gap-3 text-sm">
-                <span className="text-muted-foreground whitespace-nowrap sm:w-32 shrink-0 sm:pt-0.5">Cue gating</span>
+                <span className={rowLabelTopSm}>Cue gating</span>
                 <div className="flex flex-col gap-1 flex-1 min-w-0">
                   <label className="flex items-center gap-2 cursor-pointer">
                     <ToggleSwitch
@@ -1843,7 +1847,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
 
               {/* Per-feed verification mode (#599). */}
               <div className="flex flex-col sm:flex-row sm:items-start gap-2 sm:gap-3 text-sm">
-                <span className="text-muted-foreground whitespace-nowrap sm:w-32 shrink-0 sm:pt-0.5">Verification</span>
+                <span className={rowLabelTopSm}>Verification</span>
                 <div className="flex flex-col gap-1 flex-1 min-w-0">
                   <select
                     value={cueOnlyActive ? 'skip' : feed.skipSecondPass == null ? 'inherit' : feed.skipSecondPass ? 'skip' : 'run'}
@@ -1875,7 +1879,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                   upstream audio URL to fetch twice. */}
               {!isLocal && (
               <div className="flex flex-col sm:flex-row sm:items-start gap-2 sm:gap-3 text-sm">
-                <span className="text-muted-foreground whitespace-nowrap sm:w-32 shrink-0 sm:pt-0.5">Cross-fetch diff</span>
+                <span className={rowLabelTopSm}>Cross-fetch diff</span>
                 <div className="flex flex-col gap-1 flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
                     <select
@@ -1925,7 +1929,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
               {/* Local feeds have no publisher transcript to compare against. */}
               {!isLocal && (
               <div className="flex flex-col sm:flex-row sm:items-start gap-2 sm:gap-3 text-sm">
-                <span className="text-muted-foreground whitespace-nowrap sm:w-32 shrink-0 sm:pt-0.5">Transcript diff</span>
+                <span className={rowLabelTopSm}>Transcript diff</span>
                 <div className="flex flex-col gap-1 flex-1 min-w-0">
                   <select
                     value={feed.transcriptDifferential == null ? 'inherit' : feed.transcriptDifferential ? 'on' : 'off'}

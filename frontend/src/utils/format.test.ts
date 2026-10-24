@@ -1,9 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { formatDurationHoursMinutes, formatDurationPrecise, formatDurationWhole, keyLabel, formatPercent, formatElapsed } from './format';
-
-// Characterization tests: outputs captured from the three formatters' prior
-// per-component copies (EpisodeList, HistoryPage, ProcessingJobProgress)
-// before they were consolidated here.
+import { formatDurationHoursMinutes, keyLabel, formatPercent, formatElapsed, sentenceCase } from './format';
 
 describe('formatDurationHoursMinutes', () => {
   it.each([
@@ -20,36 +16,6 @@ describe('formatDurationHoursMinutes', () => {
 
   it('formats null as empty string', () => {
     expect(formatDurationHoursMinutes(null as unknown as undefined)).toBe('');
-  });
-});
-
-describe('formatDurationPrecise', () => {
-  it.each([
-    [0, '0.0s'],
-    [null, '-'],
-    [undefined, '-'],
-    [59.4, '59.4s'],
-    [60, '1m 0s'],
-    [3599, '59m 59s'],
-    [3600, '60m 0s'],
-    [90061, '1501m 1s'],
-  ])('formats %s as %s', (seconds, expected) => {
-    expect(formatDurationPrecise(seconds)).toBe(expected);
-  });
-});
-
-describe('formatDurationWhole', () => {
-  it.each([
-    [0, '0s'],
-    [null, '0s'],
-    [undefined, '0s'],
-    [59.4, '59s'],
-    [60, '1m 0s'],
-    [3599, '59m 59s'],
-    [3600, '60m 0s'],
-    [90061, '1501m 1s'],
-  ])('formats %s as %s', (seconds, expected) => {
-    expect(formatDurationWhole(seconds as unknown as number)).toBe(expected);
   });
 });
 
@@ -85,5 +51,12 @@ describe('formatElapsed', () => {
     expect(formatElapsed(59.4)).toBe('59s');
     expect(formatElapsed(-3)).toBe('0s');
     expect(formatElapsed(NaN)).toBe('0s');
+  });
+});
+
+describe('sentenceCase', () => {
+  it('upper-cases the first letter only', () => {
+    expect(sentenceCase('queued (offline)')).toBe('Queued (offline)');
+    expect(sentenceCase('')).toBe('');
   });
 });

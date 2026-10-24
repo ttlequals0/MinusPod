@@ -205,7 +205,7 @@ export default function CueCrossEpisodeScanModal({
                           <p className="text-sm font-medium truncate">
                             {ep.title}
                             {rank === 0 && (
-                              <span className={`${badgeBase} ml-2 font-medium ${tint.primary} align-middle`}>
+                              <span className={`${badgeBase} ml-2 ${tint.primary} align-middle`}>
                                 target
                               </span>
                             )}

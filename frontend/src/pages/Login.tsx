@@ -4,8 +4,8 @@ import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import { takeLoginRedirect } from '../utils/loginRedirect';
 import LoadingSpinner from '../components/LoadingSpinner';
-import { btnPrimary } from '../components/buttonStyles';
-import { focusRing } from '../components/fieldStyles';
+import { btnLg, btnPrimary } from '../components/buttonStyles';
+import { inputBase } from '../components/fieldStyles';
 
 function Login() {
   const navigate = useNavigate();
@@ -93,7 +93,7 @@ function Login() {
                 placeholder="Password"
                 required
                 autoFocus
-                className="w-full px-4 py-3 rounded-lg border border-input bg-background text-foreground placeholder:text-muted-foreground focus:outline-hidden focus:ring-2 focus:ring-ring"
+                className={`${inputBase} w-full`}
               />
             </div>
 
@@ -106,7 +106,7 @@ function Login() {
             <button
               type="submit"
               disabled={isSubmitting || !password}
-              className={`w-full px-4 py-3 rounded-lg ${btnPrimary} disabled:opacity-50 transition-colors font-medium ${focusRing}`}
+              className={`${btnLg} ${btnPrimary} w-full`}
             >
               {isSubmitting ? 'Signing in...' : 'Sign In'}
             </button>

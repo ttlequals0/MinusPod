@@ -11,7 +11,7 @@ import { getStageLabel } from '../../utils/processingStage';
 import { getProcessingAdmission, setProcessingAdmission } from '../../api/settings';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { btnBase, btnSecondary, btnGhost, btnDestructive } from '../../components/buttonStyles';
-import { focusRing } from '../../components/fieldStyles';
+import { focusRing, inputBase } from '../../components/fieldStyles';
 import { subHeading } from '../../components/pageStyles';
 import { iconTarget, iconVisual } from '../../components/rowActionStyles';
 
@@ -165,7 +165,7 @@ function ProcessingQueueSection({
           onCommit={(priority) => {
             if (priority !== episode.priority) onPriorityChange({ ...row, priority });
           }}
-          className="w-16 px-2 py-1 rounded-lg border border-input bg-background text-foreground text-sm text-center tabular-nums"
+          className={`${inputBase} w-16 text-center tabular-nums`}
         />
         {stepBtn(PRIORITY_STEP, Plus, 'Raise')}
       </div>

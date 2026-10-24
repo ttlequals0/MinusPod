@@ -160,7 +160,7 @@ export function DetectionFilterBar({
             type="button"
             onClick={() => onOrderChange(order === 'desc' ? 'asc' : 'desc')}
             aria-label={order === 'desc' ? 'Switch to ascending order' : 'Switch to descending order'}
-            className={`${btnBase} ${btnSecondary} shrink-0 min-h-11`}
+            className={`${btnBase} ${btnSecondary} shrink-0`}
           >
             {order === 'desc'
               ? <ChevronDown className="w-4 h-4" aria-hidden />

@@ -13,7 +13,7 @@ export function RemovableChip({ label, onRemove, disabled }: {
   disabled?: boolean;
 }) {
   return (
-    <span className={`${badgeBase} inline-flex max-w-full items-center gap-1 ${tint.blue}`}>
+    <span className={`${badgeBase} max-w-full gap-1 ${tint.blue}`}>
       <span className="min-w-0 break-words">{label}</span>
       <button
         type="button"

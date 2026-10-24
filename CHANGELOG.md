@@ -11,6 +11,36 @@ release notes.
 
 ## [2.100.21] - 2026-10-24
 
+### Changed
+- UI consistency pass. Headings, buttons, tabs and labels are sentence case
+  (product nouns keep their capitals). Errors read "Could not <verb> <noun>."
+  and empty lists read "No <things> yet." or "No <things> match these
+  filters." Held markers are "Needs review" everywhere and the duplicate
+  "Pending review" filter is gone. Marker decisions are "Confirm" and "Not ad"
+  in rows, cards, cue matches and the editor footer. Re-running detection is
+  "Re-detect ads" and the full pipeline is "Full reprocess" in every menu. The
+  nav says "Feeds" and "Add feed" to match the page titles. Destructive
+  confirms repeat verb and noun ("Delete pattern", "Delete 3 episodes") under
+  question titles. "and" replaces "&" outside the editor footer, "Close"
+  replaces "Done", and cue candidates are hidden with "Hide".
+- Numbers: confidence and cue scores are whole percents with one label ("99%
+  confidence", "87% match"). Elapsed and summed durations read "2m 5s" or "1h
+  2m", positions stay m:ss, timestamps share one formatter with "-" for missing
+  values, and run logs are labelled UTC.
+- Components: every button composes one base recipe (size, radius, focus ring,
+  disabled state) with a colour variant. Text fields, selects and textareas
+  share one chrome and height, and labels one recipe. Badges share one shape
+  with a tint, episode status renders through StatusBadge, stat grids use
+  StatTile (label above value, equal heights), and every close X is
+  CloseButton. Lucide icons replace hand-drawn SVGs and every control has a
+  focus ring. The design guide lists the recipes and the copy rules.
+- Layout: dialogs pin their header and footer and scroll only the body, so
+  footer actions stay on screen on phones. Stats and Search use the underline
+  tabs, form pages share one width, and nested cards became dividers or a
+  muted fill. On phones the Add feed modes stack below 560 px, the status bar
+  shows the stage only, the Sponsors search field spans the row, and episode
+  lists hide artwork below 640 px.
+
 ### Fixed
 - Docs: whisper.cpp needs `--no-flash-attn` alongside `--dtw` on Apple Silicon
   (Metal) too, not only on CUDA; the native Apple Silicon example now passes it.

@@ -7,7 +7,7 @@ import { useAuth } from '../context/AuthContext';
 import UpdateBanner from './UpdateBanner';
 import QuickSearch, { useQuickSearchHotkey } from './QuickSearch';
 import { getProcessingStatus } from '../api/status';
-import { btnPrimary, btnGhost, touchTarget } from './buttonStyles';
+import { btnBase, btnPrimary, btnGhost, touchTarget } from './buttonStyles';
 import { focusRing } from './fieldStyles';
 import { countPill, tint } from './badgeStyles';
 
@@ -94,7 +94,7 @@ function Layout() {
     <div className="min-h-screen bg-background">
       <a
         href="#main"
-        className={`sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-50 px-3 py-2 rounded text-sm ${btnPrimary} ${focusRing}`}
+        className={`sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-50 ${btnBase} ${btnPrimary}`}
       >
         Skip to content
       </a>

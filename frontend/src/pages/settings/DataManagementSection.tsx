@@ -141,7 +141,7 @@ function DataManagementSection({
                 <div key={mode} className="flex min-w-0 [&>div]:flex [&>div]:w-full">
                   <DropdownMenu
                     triggerLabel={mode === 'modified' ? 'Modified feeds' : 'Original feeds'}
-                    triggerClassName={`min-h-[44px] h-full w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg ${btnSecondary} disabled:opacity-50 transition-colors text-sm font-medium`}
+                    triggerClassName={`${btnBase} ${btnSecondary} h-full w-full`}
                     disabled={opmlStatus === 'loading'}
                     title={mode === 'modified' ? 'Export modified feeds' : 'Export original feeds'}
                     align={mode === 'modified' ? 'left' : 'right'}

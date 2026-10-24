@@ -110,7 +110,7 @@ function AdDetectionSection({
       <div className="space-y-6">
         <div>
           <label htmlFor="minCutConfidence" className={labelBase}>
-            Minimum confidence threshold: {Math.round(minCutConfidence * 100)}%
+            Minimum confidence threshold: {formatPercent(minCutConfidence)}
           </label>
           <input
             type="range"

@@ -47,7 +47,7 @@ interface FlatWord extends TranscriptWord {
 
 // Runs this close in time collapse into one on freeze.
 const MERGE_GAP_SECONDS = 1;
-const chipClass = `${badgeBase} inline-flex items-center gap-1.5 border border-border bg-background text-foreground`;
+const chipClass = `${badgeBase} gap-1.5 border border-border bg-background text-foreground`;
 
 // Shared with AdReviewModal so saved-run lookups use an identical key.
 export function runKey(run: TextRun): string {

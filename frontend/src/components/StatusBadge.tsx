@@ -1,26 +1,16 @@
 import { badgeBase } from './badgeStyles';
 import { displayStatusColor, displayStatusLabel } from '../utils/episodeStatus';
+import { sentenceCase } from '../utils/format';
 
-// Short form drops qualifiers: "permanently failed" -> "failed", "queued (offline)" -> "queued".
-function shortLabel(label: string): string {
-  return label.replace(/^permanently /, '').replace(/ \(.*\)$/, '');
-}
-
-function sentenceCase(label: string): string {
-  return label.charAt(0).toUpperCase() + label.slice(1);
-}
-
-export default function StatusBadge({ status, jobState, short, className, title }: {
+export default function StatusBadge({ status, jobState, className, title }: {
   status: string;
   jobState?: string;
-  short?: boolean;
   className?: string;
   title?: string;
 }) {
-  const label = displayStatusLabel(status, jobState);
   return (
-    <span className={`${badgeBase} ${displayStatusColor(status, jobState)}${className ? ` ${className}` : ''}`} title={title}>
-      {sentenceCase(short ? shortLabel(label) : label)}
+    <span className={`${badgeBase} ${displayStatusColor(status, jobState)} ${className ?? ''}`} title={title}>
+      {sentenceCase(displayStatusLabel(status, jobState))}
     </span>
   );
 }

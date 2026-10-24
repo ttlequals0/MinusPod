@@ -284,12 +284,12 @@ export default function SplitMarkerModal({ target, onClose, onSplit }: Props) {
       closeOnEscape
       panelClassName={`${modalPanel} max-w-4xl w-full`}
       header={(
-        <div className="p-5 pb-3">
+        <>
           <h2 className="text-lg font-semibold text-foreground">Split ad block</h2>
           <p className="text-sm text-muted-foreground mt-1">
             Add or drag dividers between ads.
           </p>
-        </div>
+        </>
       )}
       footer={!isLoading && !isError ? (
         <div className="flex items-center gap-2 flex-wrap p-5 pt-3 border-t border-border">
@@ -313,7 +313,7 @@ export default function SplitMarkerModal({ target, onClose, onSplit }: Props) {
             type="button"
             onClick={submit}
             disabled={saving || shortIdx !== null || effectiveDividers.length === 0}
-            className={`ml-auto ${dialogFooterBtn} ${btnPrimary} disabled:opacity-50`}
+            className={`ml-auto ${dialogFooterBtn} ${btnPrimary}`}
           >
             Split into {pieces.length} {pieces.length === 1 ? 'ad' : 'ads'}
           </button>

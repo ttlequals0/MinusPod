@@ -6,10 +6,11 @@
 export const focusRing = 'focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring';
 
 // One chrome and one height for every text field, select, and textarea.
-export const inputBase = `min-h-10 px-3 py-2 rounded border border-input bg-background text-foreground text-sm placeholder:text-muted-foreground ${focusRing}`;
+const fieldChrome = `px-3 py-2 rounded border border-input bg-background text-foreground text-sm placeholder:text-muted-foreground ${focusRing}`;
+export const inputBase = `min-h-10 ${fieldChrome}`;
 export const selectBase = inputBase;
 // Textareas size by rows, so no min-height.
-export const textareaBase = `px-3 py-2 rounded border border-input bg-background text-foreground text-sm placeholder:text-muted-foreground ${focusRing}`;
+export const textareaBase = fieldChrome;
 export const labelBase = 'block text-sm font-medium text-foreground mb-1.5';
 export const filterGrid = 'grid grid-cols-1 min-[375px]:grid-cols-2 gap-4';
 export const filterLabel = 'mb-1 block text-sm text-muted-foreground';

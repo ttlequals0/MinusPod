@@ -25,7 +25,7 @@ import SavedBadge from './SavedBadge';
 import Checkbox from '../../components/Checkbox';
 import { getErrorMessage } from '../../api/client';
 import { btnBase, btnLg, btnPrimary, btnSecondary } from '../../components/buttonStyles';
-import { focusRing, inputBase, selectBase, labelBase } from '../../components/fieldStyles';
+import { inputBase, selectBase, labelBase } from '../../components/fieldStyles';
 import { subHeading } from '../../components/pageStyles';
 
 const STORAGE_KEY = 'settings-section-queue-control';
@@ -150,7 +150,7 @@ function ProviderAdmissionForm({ value }: { value: ProviderBudget }) {
             setDraft({ ...draft, displayCurrency: currency });
             setBudgetDirty(true);
           }}
-          className={`w-full px-3 py-2 rounded-lg border border-input bg-background text-foreground disabled:opacity-50 ${focusRing}`}
+          className={`${inputBase} w-full disabled:opacity-50`}
         >
           <option value="USD">USD, US Dollar</option>
           {draft.displayCurrency !== 'USD' && !hasSelectedCurrency && <option value={draft.displayCurrency}>{draft.displayCurrency}</option>}

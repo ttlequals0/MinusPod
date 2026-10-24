@@ -126,7 +126,7 @@ function PatternDetailModal({ pattern, onClose, onSave }: PatternDetailModalProp
   return (
     <Modal ariaLabel="Pattern details" onClose={requestClose} panelClassName="max-w-2xl w-full"
       header={(
-        <div className="flex items-center justify-between p-4 border-b border-border">
+        <>
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1 min-w-0">
             <h2 className="text-lg font-semibold text-foreground">
               Pattern #{pattern.id}
@@ -135,10 +135,10 @@ function PatternDetailModal({ pattern, onClose, onSave }: PatternDetailModalProp
             <SegmentCategoryBadge category={pattern.category} />
           </div>
           <CloseButton onClick={requestClose} label="Close dialog" className="shrink-0" />
-        </div>
+        </>
       )}
       footer={(
-        <div className={`flex flex-nowrap justify-between gap-2 p-4 border-t border-border ${showDeleteConfirm ? 'max-sm:grid max-sm:grid-cols-2 max-sm:gap-2' : dialogFooterGrid}`}>
+        <div className={`flex flex-nowrap justify-between gap-2 w-full ${showDeleteConfirm ? 'max-sm:grid max-sm:grid-cols-2 max-sm:gap-2' : dialogFooterGrid}`}>
           <div className="flex flex-nowrap items-center gap-1 sm:gap-2 max-sm:contents">
             {pattern.is_active && (
               <div className={`${showDeleteConfirm ? 'hidden sm:flex' : 'flex max-sm:contents'} flex-col gap-1`}>
@@ -147,7 +147,7 @@ function PatternDetailModal({ pattern, onClose, onSave }: PatternDetailModalProp
                   disabled={!pattern.can_split || splitMutation.isPending}
                   aria-describedby={!pattern.can_split ? `split-reason-${pattern.id}` : undefined}
                   title={pattern.can_split ? undefined : 'No reliable ad boundary found.'}
-                  className={`${dialogFooterBtn} max-sm:w-full ${btnOutline} disabled:opacity-50`}
+                  className={`${dialogFooterBtn} max-sm:w-full ${btnOutline}`}
                 >
                   {splitLabel}
                 </button>
@@ -167,7 +167,7 @@ function PatternDetailModal({ pattern, onClose, onSave }: PatternDetailModalProp
                 <button
                   onClick={() => deleteMutation.mutate()}
                   disabled={deleteMutation.isPending}
-                  className={`${dialogFooterBtn} max-sm:w-full ${btnDestructive} disabled:opacity-50`}
+                  className={`${dialogFooterBtn} max-sm:w-full ${btnDestructive}`}
                 >
                   {deleteMutation.isPending ? 'Deleting...' : 'Delete pattern'}
                 </button>
@@ -199,7 +199,7 @@ function PatternDetailModal({ pattern, onClose, onSave }: PatternDetailModalProp
                 <button
                   onClick={() => updateMutation.mutate()}
                   disabled={updateMutation.isPending}
-                  className={`${dialogFooterBtn} max-sm:w-full ${btnPrimary} disabled:opacity-50`}
+                  className={`${dialogFooterBtn} max-sm:w-full ${btnPrimary}`}
                 >
                   {saveLabel}
                 </button>
