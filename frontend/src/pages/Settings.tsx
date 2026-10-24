@@ -72,8 +72,12 @@ import OutboundRequestsSection from './settings/OutboundRequestsSection';
 import SearchableSectionGroup from '../components/SearchableSectionGroup';
 import { useSettingsSearch } from '../context/SettingsSearchContext';
 import { reconcileStageSlotsForSecondaryToggle } from './settings/settingsUtils';
-import { btnBase, btnLg, btnPrimary, btnGhost } from '../components/buttonStyles';
+import { btnLg, btnPrimary, touchTarget } from '../components/buttonStyles';
+import { focusRing } from '../components/fieldStyles';
 import { pageHeader, pageTitle, pageDescription } from '../components/pageStyles';
+
+// External doc links stay link-styled so they read as clickable; touchTarget keeps the phone hit box.
+const docsLink = `${touchTarget} gap-1 text-sm text-primary hover:underline whitespace-nowrap ${focusRing}`;
 
 export function systemStatusRefetchInterval(status?: SystemStatus): number {
   const check = status?.podping?.check;
@@ -1259,7 +1263,7 @@ function Settings() {
             href="https://github.com/ttlequals0/MinusPod/blob/main/docs/README.md"
             target="_blank"
             rel="noopener noreferrer"
-            className={`${btnBase} ${btnGhost}`}
+            className={docsLink}
           >
             <BookOpen className="w-4 h-4" aria-hidden="true" />
             Docs
@@ -1268,7 +1272,7 @@ function Settings() {
             href="/api/v1/docs"
             target="_blank"
             rel="noopener noreferrer"
-            className={`${btnBase} ${btnGhost}`}
+            className={docsLink}
           >
             <FileText className="w-4 h-4" aria-hidden="true" />
             API docs
