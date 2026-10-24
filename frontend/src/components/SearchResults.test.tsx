@@ -44,7 +44,7 @@ describe('SearchResults', () => {
 
   it('shows the human label on the episode status chip', () => {
     renderResults();
-    expect(screen.getByText('permanently failed')).toBeTruthy();
+    expect(screen.getByText('Permanently failed')).toBeTruthy();
   });
 
   it('renders a <mark> in a snippet as an element, not escaped text', () => {

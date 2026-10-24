@@ -417,7 +417,7 @@ describe('failed run error disclosure', () => {
   it('renders a plain label when a failure carries no message', () => {
     render(<ProcessingRunsTable runs={[{ ...failedRun, errorMessage: null }]} />);
     expect(screen.queryByRole('button', { name: /failed/i })).toBeNull();
-    expect(screen.getAllByText('failed').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Failed').length).toBeGreaterThan(0);
   });
 });
 
@@ -447,7 +447,7 @@ describe('chapter degradation result', () => {
       stats: { chaptersDegraded: true, chaptersDegradedReason: 'Chapter warning' },
     }]} />);
 
-    expect(screen.getAllByText('completed')).toHaveLength(2);
+    expect(screen.getAllByText('Completed')).toHaveLength(2);
     expect(screen.getAllByRole('button', { name: /failed/i })).toHaveLength(2);
     expect(screen.queryByText('completed with chapter warning')).toBeNull();
   });

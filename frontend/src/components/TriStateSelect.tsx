@@ -23,7 +23,7 @@ function TriStateSelect({
   ariaDescribedBy,
   disabled,
   className,
-  globalLabel = 'Global Default',
+  globalLabel = 'Global default',
   enableLabel = 'Enabled',
   disableLabel = 'Disabled',
 }: TriStateSelectProps) {

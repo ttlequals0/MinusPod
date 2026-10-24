@@ -130,7 +130,7 @@ describe('DetectedAdsTab', () => {
   it('leads with the total time cut', async () => {
     renderTab();
     expect(await screen.findByText('Time cut')).toBeTruthy();
-    expect(screen.getByText('2h 0m 0s')).toBeTruthy();
+    expect(screen.getByText('2h')).toBeTruthy();
     expect(screen.getByText('Detections')).toBeTruthy();
     expect(screen.getByText('Sponsors')).toBeTruthy();
     expect(screen.getByText('Podcasts')).toBeTruthy();
