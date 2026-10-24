@@ -131,10 +131,14 @@ test('add-feed controls have accessible names and valid ARIA relationships', asy
 });
 
 test('icon-only controls center their icon', async ({ page }) => {
+  test.slow(); // four routes, two of them wait out the backend retry before their alert shows
   const failures: string[] = [];
   for (const route of ['', 'settings', 'search?q=technology', 'patterns']) {
     await page.goto(route);
     await expect(page.locator('main')).toBeVisible();
+    if (route === 'settings' || route.startsWith('search')) {
+      await expect(page.getByRole('alert').first()).toBeVisible({ timeout: 15_000 });
+    }
     const found = await page.evaluate(() => {
       const hasText = (el: Element) => {
         const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);

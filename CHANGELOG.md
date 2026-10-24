@@ -18,7 +18,9 @@ release notes.
 - The ad editor's hand-drawn plus and close icons are now the shared lucide icons.
 - Held-marker and Ad Review action rows give every button the same height and
   center their labels.
-- A browser contract measures that icon-only controls center their icon.
+- A browser contract measures icon centering on the routes the suite reaches
+  without a backend (home, settings, search, patterns), so regressions in shared
+  chrome and recipes fail CI. Data-driven pages are checked with the mocked harness.
 
 ### Changed
 - The reject button on a sponsor marker reads "Not ad" instead of "Not an ad",

@@ -599,7 +599,7 @@ function FeedDetail() {
                   className={`${iconTarget} mt-1.5`}
                 >
                   <span className={`${iconVisual} ${btnGhost}`}>
-                    <Pencil className="w-4 h-4" />
+                    <Pencil aria-hidden="true" className="w-4 h-4" />
                   </span>
                 </button>
               </div>
