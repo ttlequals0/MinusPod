@@ -285,6 +285,14 @@ class TestNodeHealthSummary:
                 listener._default_rpc('some_method', [])
         session_cls.assert_called_once()
         assert session_cls.return_value.post.call_count == 3
+        listener.close()
+        session_cls.return_value.close.assert_called_once()
+
+    def test_injected_rpc_opens_no_session(self):
+        with patch('podping_listener.requests.Session') as session_cls:
+            listener = PodpingListener(rpc=lambda m, p: {}, db=FakeDb(), sleep=lambda s: None)
+            listener.close()
+        session_cls.assert_not_called()
 
     def test_non_200_response_records_its_status(self):
         db = FakeDb()

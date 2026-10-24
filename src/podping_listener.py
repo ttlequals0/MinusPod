@@ -370,7 +370,7 @@ class PodpingListener:
     def __init__(self, rpc=None, db=None, refresh=None, sleep=None, rand=None,
                  now=None, node_probe=None, monotonic=None):
         self.rpc = rpc or self._default_rpc
-        self._session = requests.Session()
+        self._session = None  # one keep-alive session for the block poll, opened on first use
         self.db = db
         self.refresh = refresh
         self.sleep = sleep or _default_sleep_shutdown_aware
@@ -430,6 +430,8 @@ class PodpingListener:
         """Default rpc: POST to the currently-selected node. Returns the
         unwrapped 'result' payload (dict or list depending on method)."""
         url = self.nodes[self.node_index]
+        if self._session is None:
+            self._session = requests.Session()
         response = self._session.post(
             url,
             json={'jsonrpc': '2.0', 'method': method, 'params': params, 'id': 1},
@@ -663,6 +665,8 @@ class PodpingListener:
         for future in self._probe_futures.values():
             future.cancel()
         self._probe_executor.shutdown(wait=False, cancel_futures=True)
+        if self._session is not None:
+            self._session.close()
         self._clear_active_connection()
         if self.db is not None and self._active_raw is not None:
             self.db.clear_setting_if_equal(

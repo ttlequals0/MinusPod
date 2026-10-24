@@ -13,8 +13,8 @@ release notes.
 
 ### Fixed
 - The Podping listener keeps one HTTP session for its block polling, so the
-  Hive node is no longer resolved and reconnected on every call (about 80 DNS
-  queries a minute before).
+  Hive node is no longer resolved and reconnected on every call (two RPC calls
+  every 3 s, each with its own DNS lookup and TLS handshake before).
 - Detected ads cards on phones: the four controls (play, Not ad, Split, Edit)
   share one line. Only the Ad review card, which adds Confirm, moves Split and
   Edit to a second line below 430 px.
