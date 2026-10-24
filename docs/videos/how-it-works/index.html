@@ -320,10 +320,10 @@ add(6.8, 'Then it learns from you.', 'A confirmed ad becomes a pattern that matc
     text(lab, cx, cy - rad - 16, font(500, 28), C.primary, 'center'); }); });
   reveal(eo(seg(lt, 0.1, 0.7)), () => {
     fillRR(cx - 220, cy - 70, 440, 140, 24, C.card); strokeRR(cx - 220, cy - 70, 440, 140, 24, C.border, 1.5); text('"brought to you by Acme, the..."', cx, cy - 18, font(500, 26), C.fg, 'center');
-    reveal(eo(seg(lt, 0.6, 0.4)), () => { pill('Confirm ad', cx - 10, cy + 8, C.ok, { align: 'right', size: 24 }); pill('Not an ad', cx + 10, cy + 8, C.muted, { size: 24 }); });
+    reveal(eo(seg(lt, 0.6, 0.4)), () => { pill('Confirm ad', cx - 10, cy + 8, C.ok, { align: 'right', size: 24 }); pill('Not ad', cx + 10, cy + 8, C.muted, { size: 24 }); });
   });
   reveal(eo(seg(lt, 1.6, 0.5)), () => pill('pattern saved', cx, cy + 90, C.purple, { align: 'center', size: 24 }), 10);
-  note('"Not an ad" is remembered too, so the same false positive is excluded next time.', 1560, eo(seg(lt, 4.4, 0.7)), C.muted, 28);
+  note('"Not ad" is remembered too, so the same false positive is excluded next time.', 1560, eo(seg(lt, 4.4, 0.7)), C.muted, 28);
   note('Each pattern keeps its own hit and false-positive counts. An optional scheduled cleanup proposes retirements for you to approve.', 1660, eo(seg(lt, 5.0, 0.7)), C.muted, 28);
 });
 

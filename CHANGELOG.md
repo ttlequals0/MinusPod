@@ -9,6 +9,14 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
+## [2.100.20] - 2026-10-24
+
+### Changed
+- The reject button on a sponsor marker reads "Not ad" instead of "Not an ad",
+  so it stays on one line beside "Confirm ad" on phones.
+- Settings > System Status no longer carries the sentence pointing at the
+  Stats page; the Stats page is in the main navigation.
+
 ## [2.100.19] - 2026-10-23
 
 ### Added

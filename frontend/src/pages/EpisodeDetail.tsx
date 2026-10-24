@@ -115,7 +115,7 @@ function correctionBadgeLabel(correction: EpisodeCorrection): string {
   if (correction.correction_type === 'confirm') {
     return correction.origin === 'auto_pass2' ? 'Auto-approved' : 'Confirmed';
   }
-  return correction.correction_type === 'false_positive' ? 'Not an ad' : 'Adjusted';
+  return correction.correction_type === 'false_positive' ? 'Not ad' : 'Adjusted';
 }
 
 type ProposedAdSegment = AdSegment & { reviewer_proposed_start: number; reviewer_proposed_end: number };
@@ -1656,7 +1656,7 @@ function EpisodeDetail() {
                         />
                       )}
                       {/* Decision surface: hidden once the row is decided,
-                          matching the Confirm / Not an ad buttons. */}
+                          matching the Confirm / Not ad buttons. */}
                       {episode.hasOriginalAudio && !correction && !segment.approved && (
                         <OpenEditorButton
                           onClick={() => setReviewMarker({ segment, key: heldKey, fromHeld: true })}
@@ -1700,7 +1700,7 @@ function EpisodeDetail() {
                             : tint.warning
                         }`}>
                           {correction?.correction_type === 'confirm' ? correctionBadgeLabel(correction)
-                           : segment.approved ? 'Confirmed' : 'Not an ad'}
+                           : segment.approved ? 'Confirmed' : 'Not ad'}
                         </span>
                       )}
                     </div>

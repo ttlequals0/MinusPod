@@ -69,7 +69,7 @@ describe('DatabaseStatsSection', () => {
 });
 
 describe('SystemStatusSection', () => {
-  it('shows the instance cells and points lifetime totals to the Stats page', () => {
+  it('shows the instance cells', () => {
     render(
       <MemoryRouter>
         <SystemStatusSection status={STATUS} statusLoading={false} />
@@ -81,6 +81,5 @@ describe('SystemStatusSection', () => {
     for (const label of ['Time Saved', 'LLM Tokens', 'Cost']) {
       expect(screen.queryByText(label)).toBeNull();
     }
-    expect(screen.getByRole('link', { name: 'Stats page' }).getAttribute('href')).toBe('/stats');
   });
 });

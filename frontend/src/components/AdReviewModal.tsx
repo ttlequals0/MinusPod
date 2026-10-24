@@ -943,7 +943,7 @@ function AdReviewModal({
   // highlight on mouseover instead of looking washed out.
 
   // primaryBtn / ghostBtn come from the shared controlStyles so the transport,
-  // zoom, and action buttons all render from one source. destructiveBtn (Not an ad)
+  // zoom, and action buttons all render from one source. destructiveBtn (Not ad)
   // is unique to this modal.
   const destructiveBtn =
     'bg-destructive text-destructive-foreground transition-all ' +

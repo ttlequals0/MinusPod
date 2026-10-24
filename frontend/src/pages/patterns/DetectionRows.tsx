@@ -15,7 +15,7 @@ import { focusRing } from '../../components/fieldStyles';
 import { badgeBase, tint } from '../../components/badgeStyles';
 
 // "Not cut" = flagged but left in the audio; the bucket covers both
-// validation rejects and human "Not an ad" decisions once a recut restores
+// validation rejects and human "Not ad" decisions once a recut restores
 // the span (marker_status in src/detection_review.py keys on was_cut).
 export const STATUS_BADGE: Record<ReviewDetection['status'], [string, string]> = {
   accepted: ['Accepted', tint.success],
@@ -28,7 +28,7 @@ export const STATUS_BADGE: Record<ReviewDetection['status'], [string, string]> =
 export const RESOLUTION_BADGE: Record<ReviewDetection['resolution'], [string, string]> = {
   unresolved: ['Not reviewed', tint.secondary],
   confirmed: ['Confirmed', tint.success],
-  dismissed: ['Not an ad', tint.secondary],
+  dismissed: ['Not ad', tint.secondary],
 };
 
 // Only beep, keep, and mark get a badge. remove is what a cut ad normally

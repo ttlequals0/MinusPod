@@ -111,7 +111,7 @@ describe('DetectedAdsTab', () => {
     const row = within(cards).getByTestId('detection-actions-row');
     const buttons = within(row).getAllByRole('button');
     expect(buttons.map((b) => b.getAttribute('aria-label') ?? b.textContent)).toEqual(
-      ['Play this ad', 'Not an ad', 'Split', 'Edit']);
+      ['Play this ad', 'Not ad', 'Split', 'Edit']);
     for (const b of buttons.slice(1)) expect(b.className).toContain('flex-1');
     const category = within(cards).getByRole('combobox', { name: /^Category for/ });
     expect(row.contains(category)).toBe(false);
@@ -150,7 +150,7 @@ describe('DetectedAdsTab', () => {
     renderTab();
     await screen.findAllByRole('link', { name: 'Episode One' });
     expect(screen.queryByRole('button', { name: 'Confirm ad' })).toBeNull();
-    expect(screen.queryAllByRole('button', { name: 'Not an ad' })).not.toHaveLength(0);
+    expect(screen.queryAllByRole('button', { name: 'Not ad' })).not.toHaveLength(0);
     expect(screen.queryAllByRole('button', { name: 'Edit' })).not.toHaveLength(0);
   });
 
@@ -158,7 +158,7 @@ describe('DetectedAdsTab', () => {
     renderTab();
     const user = userEvent.setup();
     await screen.findAllByRole('link', { name: 'Episode One' });
-    await user.click(screen.getAllByRole('button', { name: 'Not an ad' })[0]);
+    await user.click(screen.getAllByRole('button', { name: 'Not ad' })[0]);
     await waitFor(() => expect(mockSubmitCorrection).toHaveBeenCalled());
     expect(mockSubmitCorrection.mock.calls[0][2]).toMatchObject({ type: 'reject' });
     // The server stamps the episode; the Apply bar puts the audio back in one

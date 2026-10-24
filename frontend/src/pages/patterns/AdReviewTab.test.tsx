@@ -179,7 +179,7 @@ describe('AdReviewTab', () => {
     const row = within(cards).getByTestId('detection-actions-row');
     const buttons = within(row).getAllByRole('button');
     expect(buttons.map((b) => b.getAttribute('aria-label') ?? b.textContent)).toEqual(
-      ['Play this ad', 'Confirm ad', 'Not an ad', 'Split', 'Edit']);
+      ['Play this ad', 'Confirm ad', 'Not ad', 'Split', 'Edit']);
     // Play is a fixed square; the text buttons share the row equally.
     for (const b of buttons.slice(1)) {
       expect(b.className).toContain('flex-1');
@@ -270,7 +270,7 @@ describe('AdReviewTab row actions', () => {
   it('dismiss submits a reject correction with no recut', async () => {
     renderTab();
     const user = userEvent.setup();
-    await user.click((await screen.findAllByRole('button', { name: 'Not an ad' }))[0]);
+    await user.click((await screen.findAllByRole('button', { name: 'Not ad' }))[0]);
     await waitFor(() => expect(mockSubmitCorrection).toHaveBeenCalledOnce());
     expect(mockSubmitCorrection.mock.calls[0][2]).toMatchObject({
       type: 'reject',
@@ -286,7 +286,7 @@ describe('AdReviewTab row actions', () => {
     renderTab();
     await screen.findAllByRole('link', { name: 'Episode One' });
     expect(screen.queryByRole('button', { name: 'Confirm ad' })).toBeNull();
-    expect(screen.queryByRole('button', { name: 'Not an ad' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Not ad' })).toBeNull();
     // Edit (and the audition play button) must survive resolution -- both
     // the desktop row and the card keep their non-decision controls.
     const cards = screen.getByTestId('detections-cards');

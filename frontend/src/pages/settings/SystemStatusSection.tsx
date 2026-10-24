@@ -1,4 +1,3 @@
-import { Link } from 'react-router';
 import type { SystemStatus } from '../../api/types';
 import CollapsibleSection from '../../components/CollapsibleSection';
 import LoadingSpinner from '../../components/LoadingSpinner';
@@ -51,12 +50,6 @@ function SystemStatusSection({
           </div>
         </div>
       ) : null}
-      {status && (
-        <p className="mt-3 text-sm text-muted-foreground">
-          Time saved, tokens and cost are on the{' '}
-          <Link to="/stats" className={`text-primary hover:underline ${focusRing}`}>Stats page</Link>.
-        </p>
-      )}
       {status && <SystemHealthPanel status={status} />}
       <UpdateStatusPanel />
     </CollapsibleSection>

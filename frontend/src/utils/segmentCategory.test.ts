@@ -22,11 +22,11 @@ describe('confirmLabel', () => {
 });
 
 describe('rejectLabel', () => {
-  it('reads Not an ad for sponsor and uncategorized markers', () => {
-    expect(rejectLabel('sponsor')).toBe('Not an ad');
-    expect(rejectLabel(undefined)).toBe('Not an ad');
-    expect(rejectLabel(null)).toBe('Not an ad');
-    expect(rejectLabel('')).toBe('Not an ad');
+  it('reads Not ad for sponsor and uncategorized markers', () => {
+    expect(rejectLabel('sponsor')).toBe('Not ad');
+    expect(rejectLabel(undefined)).toBe('Not ad');
+    expect(rejectLabel(null)).toBe('Not ad');
+    expect(rejectLabel('')).toBe('Not ad');
   });
 
   it('reads Keep for any other known category', () => {
@@ -35,7 +35,7 @@ describe('rejectLabel', () => {
     expect(rejectLabel('intro')).toBe('Keep');
   });
 
-  it('falls back to Not an ad for a category the frontend does not know', () => {
-    expect(rejectLabel('something_new')).toBe('Not an ad');
+  it('falls back to Not ad for a category the frontend does not know', () => {
+    expect(rejectLabel('something_new')).toBe('Not ad');
   });
 });

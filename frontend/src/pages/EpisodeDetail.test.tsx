@@ -653,7 +653,7 @@ describe('Held for Review: per-action error isolation', () => {
       expect(screen.getByTestId('approve-trimmed-0').textContent).toBe('Error!');
     });
     expect(screen.getByTestId('approve-recut-0').textContent).toBe('Confirm ad');
-    expect(screen.getByTestId('dismiss-0').textContent).toBe('Not an ad');
+    expect(screen.getByTestId('dismiss-0').textContent).toBe('Not ad');
   });
 
   it('a success on one action does not error the others', async () => {
@@ -679,7 +679,7 @@ describe('Held for Review: per-action error isolation', () => {
       expect(screen.getByTestId('approve-trimmed-0').textContent).toBe('Saved!');
     });
     expect(screen.getByTestId('approve-recut-0').textContent).toBe('Confirm ad');
-    expect(screen.getByTestId('dismiss-0').textContent).toBe('Not an ad');
+    expect(screen.getByTestId('dismiss-0').textContent).toBe('Not ad');
   });
 });
 
@@ -2429,7 +2429,7 @@ describe('Run controls while a job is in flight', () => {
     mockReprocessEpisode.mockResolvedValue({});
   });
 
-  it('disables "Not an ad" once the episode is queued, like its siblings', async () => {
+  it('disables "Not ad" once the episode is queued, like its siblings', async () => {
     renderDetail(makeEpisode({ jobState: 'queued' }));
     await waitFor(() => {
       expect(screen.getByTestId('dismiss-0')).toHaveProperty('disabled', true);

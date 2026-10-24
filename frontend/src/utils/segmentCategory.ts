@@ -53,7 +53,7 @@ export function confirmLabel(category?: string | null): string {
 // marker is an ad; any other known category is kept rather than called "not an ad".
 export function rejectLabel(category?: string | null): string {
   if (isAdCategory(category)) {
-    return 'Not an ad';
+    return 'Not ad';
   }
   return 'Keep';
 }

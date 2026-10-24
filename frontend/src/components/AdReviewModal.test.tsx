@@ -349,7 +349,7 @@ describe('AdReviewModal kept-by-category hotkeys', () => {
     await user.keyboard('r');
     await user.keyboard('c');
     expect(onSubmit).not.toHaveBeenCalled();
-    expect(screen.queryByRole('button', { name: /Not an ad/ })).toBeNull();
+    expect(screen.queryByRole('button', { name: /Not ad/ })).toBeNull();
   });
 
   it('mutes C and R on a mark marker the same way as keep', async () => {
@@ -360,7 +360,7 @@ describe('AdReviewModal kept-by-category hotkeys', () => {
     await user.keyboard('r');
     await user.keyboard('c');
     expect(onSubmit).not.toHaveBeenCalled();
-    expect(screen.queryByRole('button', { name: /Not an ad/ })).toBeNull();
+    expect(screen.queryByRole('button', { name: /Not ad/ })).toBeNull();
   });
 });
 
