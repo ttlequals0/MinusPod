@@ -1475,7 +1475,7 @@ function EpisodeDetail() {
                       <span className="font-mono text-sm">
                         {formatTimestamp(block.start)} - {formatTimestamp(block.end)}
                       </span>
-                      <span className="text-sm text-muted-foreground whitespace-nowrap">
+                      <span className="font-mono text-sm text-muted-foreground whitespace-nowrap">
                         {formatDuration(block.end - block.start)}
                       </span>
                       {categories.map((c) => (
