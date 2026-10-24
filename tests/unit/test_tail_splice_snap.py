@@ -12,7 +12,7 @@ from ad_detector.boundaries import (
     snap_extended_ad_tails_to_splice,
 )
 from ad_validator import AdValidator, ValidationResult
-from config import is_cue_backed
+from config import is_cue_backed, is_edge_cue_snapped
 from main_app import processing
 from main_app.pipeline import cuts
 
@@ -240,13 +240,17 @@ def test_nested_fold_keeps_cue_backedness_without_stale_end_record():
     assert is_cue_backed(current)
     assert 'end' not in current['cue_snap']
     assert current['cue_snap']['start']['template_id'] == 1
+    assert current['cue_snap']['interior']['end']['cue_start'] == 57.2
 
 
-def test_nested_fold_keeps_end_only_cue_record_when_nothing_else_backs_it():
+def test_nested_end_only_record_becomes_interior_evidence():
     current, nxt = _cue_pair(57.7, {'end': {'cue_start': 57.2, 'template_id': 1}})
     _merge_ad_pair(current, nxt)
     assert current['end'] == 60.4
     assert is_cue_backed(current)
+    assert 'end' not in current['cue_snap']
+    assert current['cue_snap']['interior']['end']['cue_start'] == 57.2
+    assert not is_edge_cue_snapped(current, 'end')
 
 
 def test_extending_fold_inherits_full_cue_snap():
@@ -257,6 +261,32 @@ def test_extending_fold_inherits_full_cue_snap():
     _merge_ad_pair(current, nxt)
     assert current['end'] == 70.0
     assert current['cue_snap'] == expected
+
+
+def test_extending_fold_replaces_stale_end_record_and_adopts_next_end():
+    current, nxt = _cue_pair(70.0, {'end': {'cue_start': 69.5, 'template_id': 2}})
+    current['cue_snap'] = {'start': {'cue_end': 0.5, 'template_id': 1},
+                           'end': {'cue_start': 59.9, 'template_id': 1}}
+    _merge_ad_pair(current, nxt)
+    assert current['end'] == 70.0
+    assert current['cue_snap']['end']['template_id'] == 2
+    assert current['cue_snap']['start'] == {'cue_end': 0.5, 'template_id': 1}
+
+
+def test_extending_fold_without_next_end_record_drops_stale_end_record():
+    current, nxt = _cue_pair(70.0, None)
+    current['cue_snap'] = {'start': {'cue_end': 0.5, 'template_id': 1},
+                           'end': {'cue_start': 59.9, 'template_id': 1}}
+    _merge_ad_pair(current, nxt)
+    assert 'end' not in current['cue_snap']
+    assert current['cue_snap']['start'] == {'cue_end': 0.5, 'template_id': 1}
+
+
+def test_merge_copies_cue_snap_records():
+    current, nxt = _cue_pair(70.0, {'end': {'cue_start': 69.5, 'template_id': 2}})
+    _merge_ad_pair(current, nxt)
+    nxt['cue_snap']['end']['cue_start'] = 1.0
+    assert current['cue_snap']['end']['cue_start'] == 69.5
 
 
 def test_merge_preserves_content_extension_on_later_fragment():

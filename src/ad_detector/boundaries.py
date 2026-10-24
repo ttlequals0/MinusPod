@@ -4,6 +4,7 @@ Pure functions over ad dicts and transcript segments. No DB, no LLM client.
 Split out of ``ad_detector/__init__.py`` for readability; behavior is
 unchanged from the pre-split module.
 """
+import copy
 import logging
 import math
 import re
@@ -1306,13 +1307,25 @@ def _merge_ad_pair(current_ad: dict, next_ad: dict, gap_desc: str = "") -> None:
                 dict(snap) if isinstance(snap, dict) else snap)
         if next_ad.get('end_text'):
             current_ad['end_text'] = next_ad['end_text']
-    # Merged span stays cue-backed if either fragment is. A nested fragment's
-    # end record does not describe the merged end, so it is dropped when possible.
+    # Merged span stays cue-backed if either fragment is. Only a record that
+    # describes a merged edge keeps its edge key; the rest is interior evidence.
+    cur_snap = current_ad.get('cue_snap')
     next_snap = next_ad.get('cue_snap')
-    if next_snap and not current_ad.get('cue_snap'):
-        if not extends and isinstance(next_snap, dict):
-            next_snap = {k: v for k, v in next_snap.items() if k != 'end'} or next_snap
-        current_ad['cue_snap'] = next_snap
+    cur = copy.deepcopy(cur_snap) if isinstance(cur_snap, dict) else {}
+    nxt = copy.deepcopy(next_snap) if isinstance(next_snap, dict) else {}
+    if cur or nxt:
+        merged = cur
+        if extends:
+            merged.pop('end', None)
+            if 'end' in nxt:
+                merged['end'] = nxt.pop('end')
+        if ('start' not in merged and 'start' in nxt
+                and abs(next_ad['start'] - current_ad['start']) <= 0.05):
+            merged['start'] = nxt.pop('start')
+        for edge in ('start', 'end'):
+            if edge in nxt:
+                merged.setdefault('interior', {})[edge] = nxt[edge]
+        current_ad['cue_snap'] = merged
     invalidate_quote_alignment(current_ad)
     invalidate_word_timed_edges(current_ad)
     current_ad['confidence'] = max(current_ad.get('confidence', 0.0),

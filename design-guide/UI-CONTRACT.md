@@ -52,11 +52,11 @@ There is no `<Button>` component. Recipes are class strings composed at the call
 | `tableActionBtn` | Desktop detection table rows | 30 px tall |
 | `cardActionBtn` | Review and detection card actions | 44 px floor; labels wrap on a phone |
 | `dialogFooterBtn` | Dialog footer action | Text label at every width |
-| `dialogFooterGrid` | Dialog footer with 3 or more actions | Equal columns below sm, flex row from sm |
+| `dialogFooterGrid` | Dialog footer with 3 or more actions | Two columns below 360 px, one row of equal columns from 360 to 639 px, flex row from sm |
 | `iconTarget` + `iconVisual` | Icon button with a smaller filled square | 44 px hit box on coarse pointers; visual is 32 px, 28 px from sm |
 
 - Pair `iconTarget` with `iconVisual`. The focus ring sits on the visual through `group-focus-visible`. `AuditionPlayButton` is the reference and is one size everywhere.
-- Dialog footers with 3 or more actions keep their text labels at every width. Below 640 CSS px they become equal-width columns (dialogFooterGrid) so the row stays one line and nothing is icon-only. PatternDetailModal is the reference.
+- Dialog footers with 3 or more actions keep their text labels at every width. Below 360 CSS px they become two equal columns in two rows, and from 360 to 639 px one row of equal-width columns (dialogFooterGrid), so nothing is icon-only. PatternDetailModal is the reference.
 - Inline link-style actions (`text-primary hover:underline`, "Show full match") and selected-state toggles (`PageTabs`, `SegmentedToggle`, pagination numbers) are intentionally not button recipes.
 
 ## Data and feedback states
