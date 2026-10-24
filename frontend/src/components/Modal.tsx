@@ -11,7 +11,7 @@ const modalPanelBase = 'bg-card rounded-lg border border-border shadow-xl';
 export const modalPanel = modalPanelBase + ' text-foreground';
 
 // Dialog footer button, text label at every width; add a btn* recipe.
-export const dialogFooterBtn = `px-3 py-1.5 text-sm rounded transition-colors ${focusRing}`;
+export const dialogFooterBtn = `px-3 py-1.5 text-sm rounded border border-transparent transition-colors ${focusRing}`;
 // Footers with 3 or more actions: 2 columns under 360 px, one row of equal columns to 639 px, flex row from sm.
 export const dialogFooterGrid = 'max-sm:grid max-sm:gap-2 max-sm:grid-cols-2 min-[360px]:max-sm:grid-cols-none min-[360px]:max-sm:grid-flow-col min-[360px]:max-sm:auto-cols-fr';
 

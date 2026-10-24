@@ -147,7 +147,7 @@ function PatternDetailModal({ pattern, onClose, onSave }: PatternDetailModalProp
                   disabled={!pattern.can_split || splitMutation.isPending}
                   aria-describedby={!pattern.can_split ? `split-reason-${pattern.id}` : undefined}
                   title={pattern.can_split ? undefined : 'No reliable ad boundary found.'}
-                  className={`${dialogFooterBtn} max-sm:w-full border border-transparent ${btnOutline} disabled:opacity-50`}
+                  className={`${dialogFooterBtn} max-sm:w-full ${btnOutline} disabled:opacity-50`}
                 >
                   {splitLabel}
                 </button>
@@ -167,13 +167,13 @@ function PatternDetailModal({ pattern, onClose, onSave }: PatternDetailModalProp
                 <button
                   onClick={() => deleteMutation.mutate()}
                   disabled={deleteMutation.isPending}
-                  className={`${dialogFooterBtn} max-sm:w-full border border-transparent ${btnDestructive} disabled:opacity-50`}
+                  className={`${dialogFooterBtn} max-sm:w-full ${btnDestructive} disabled:opacity-50`}
                 >
                   {deleteMutation.isPending ? 'Deleting...' : 'Delete pattern'}
                 </button>
                 <button
                   onClick={() => setShowDeleteConfirm(false)}
-                  className={`${dialogFooterBtn} max-sm:w-full border border-transparent ${btnOutline}`}
+                  className={`${dialogFooterBtn} max-sm:w-full ${btnOutline}`}
                 >
                   Cancel
                 </button>
@@ -192,14 +192,14 @@ function PatternDetailModal({ pattern, onClose, onSave }: PatternDetailModalProp
               <>
                 <button
                   onClick={() => setIsEditing(false)}
-                  className={`${dialogFooterBtn} max-sm:w-full border border-transparent ${btnOutline}`}
+                  className={`${dialogFooterBtn} max-sm:w-full ${btnOutline}`}
                 >
                   Cancel
                 </button>
                 <button
                   onClick={() => updateMutation.mutate()}
                   disabled={updateMutation.isPending}
-                  className={`${dialogFooterBtn} max-sm:w-full border border-transparent ${btnPrimary} disabled:opacity-50`}
+                  className={`${dialogFooterBtn} max-sm:w-full ${btnPrimary} disabled:opacity-50`}
                 >
                   {saveLabel}
                 </button>
@@ -208,13 +208,13 @@ function PatternDetailModal({ pattern, onClose, onSave }: PatternDetailModalProp
               <>
                 <button
                   onClick={requestClose}
-                  className={`${dialogFooterBtn} max-sm:w-full border border-transparent ${btnOutline}`}
+                  className={`${dialogFooterBtn} max-sm:w-full ${btnOutline}`}
                 >
                   Close
                 </button>
                 <button
                   onClick={() => setIsEditing(true)}
-                  className={`${dialogFooterBtn} max-sm:w-full border border-transparent ${btnPrimary}`}
+                  className={`${dialogFooterBtn} max-sm:w-full ${btnPrimary}`}
                 >
                   Edit
                 </button>

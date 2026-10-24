@@ -76,10 +76,13 @@ describe('formatElapsed', () => {
   it('formats seconds, minutes, and hours', () => {
     expect(formatElapsed(45)).toBe('45s');
     expect(formatElapsed(125)).toBe('2m 5s');
-    expect(formatElapsed(3725)).toBe('1h 2m 5s');
+    expect(formatElapsed(3725)).toBe('1h 2m');
+    expect(formatElapsed(7200)).toBe('2h');
+    expect(formatElapsed(120)).toBe('2m');
   });
-  it('floors fractions and clamps bad input to 0s', () => {
-    expect(formatElapsed(59.9)).toBe('59s');
+  it('rounds fractions and clamps bad input to 0s', () => {
+    expect(formatElapsed(59.9)).toBe('1m');
+    expect(formatElapsed(59.4)).toBe('59s');
     expect(formatElapsed(-3)).toBe('0s');
     expect(formatElapsed(NaN)).toBe('0s');
   });

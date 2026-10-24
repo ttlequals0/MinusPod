@@ -114,11 +114,11 @@ export function formatPercent(value: number): string {
 
 // Elapsed or summed duration: '45s', '2m 5s', '1h 2m 5s' (hours only from 3600 s). Floored whole seconds.
 export function formatElapsed(seconds: number): string {
-  const total = Number.isFinite(seconds) && seconds > 0 ? Math.floor(seconds) : 0;
+  const total = Number.isFinite(seconds) && seconds > 0 ? Math.round(seconds) : 0;
   const h = Math.floor(total / 3600);
   const m = Math.floor((total % 3600) / 60);
   const s = total % 60;
-  if (h > 0) return `${h}h ${m}m ${s}s`;
-  if (m > 0) return `${m}m ${s}s`;
+  if (h > 0) return m > 0 ? `${h}h ${m}m` : `${h}h`;
+  if (m > 0) return s > 0 ? `${m}m ${s}s` : `${m}m`;
   return `${s}s`;
 }
