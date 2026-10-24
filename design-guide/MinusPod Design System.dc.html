@@ -56,7 +56,7 @@ a:hover{text-decoration:underline}
       <span style="font-size:13px;color:hsl(var(--muted-foreground));white-space:nowrap">Design System</span>
     </div>
     <div style="display:flex;align-items:center;gap:8px">
-      <select value="{{ themeId }}" onChange="{{ onTheme }}" style="padding:8px 12px;border-radius:4px;background:hsl(var(--secondary));color:hsl(var(--secondary-foreground));border:1px solid hsl(var(--border));font-size:14px;font-family:inherit">
+      <select value="{{ themeId }}" onChange="{{ onTheme }}" style="padding:8px 12px;min-height:40px;border-radius:4px;background:hsl(var(--background));color:hsl(var(--foreground));border:1px solid hsl(var(--input));font-size:14px;font-family:inherit">
         <sc-for list="{{ themeOptions }}" as="t" hint-placeholder-count="3">
           <option value="{{ t.id }}">{{ t.label }}</option>
         </sc-for>
@@ -181,31 +181,38 @@ call site adds: px-3 py-1.5 text-sm rounded disabled:opacity-50 transition-color
 No &lt;Button&gt; component: recipe plus only the modifiers that differ (w-full, disabled:opacity-50, gap-2).
     </div>
     <div style="font-size:13px;color:hsl(var(--muted-foreground));text-wrap:pretty"><b style="color:hsl(var(--foreground))">Mobile:</b> collapse to icon-only 44&times;44 (<span style="font-family:ui-monospace,monospace;font-size:12px">h-11 w-11</span>) with <span style="font-family:ui-monospace,monospace;font-size:12px">aria-label</span>; show the text label from <span style="font-family:ui-monospace,monospace;font-size:12px">sm:</span> up (<span style="font-family:ui-monospace,monospace;font-size:12px">hidden sm:inline</span>). The clickable element itself must be at least 44px in each dimension on coarse pointers.</div>
+    <div style="display:flex;flex-direction:column;gap:6px">
+      <div style="display:flex;flex-wrap:wrap;gap:12px;align-items:center">
+        <button style="padding:6px 12px;font-size:14px;border-radius:4px;border:none;cursor:pointer;font-family:inherit;background:hsl(var(--primary));color:hsl(var(--primary-foreground))" style-hover="background:hsl(var(--primary) / 0.9)">Save</button>
+        <button style="padding:8px 16px;font-size:14px;border-radius:4px;border:none;cursor:pointer;font-family:inherit;background:hsl(var(--primary));color:hsl(var(--primary-foreground))" style-hover="background:hsl(var(--primary) / 0.9)">Save settings</button>
+      </div>
+      <span style="font-size:12px;color:hsl(var(--muted-foreground));text-wrap:pretty"><span style="font-family:ui-monospace,monospace;font-size:13px">${btnBase} ${btnPrimary}</span> beside <span style="font-family:ui-monospace,monospace;font-size:13px">${btnLg} ${btnPrimary}</span>. Both carry the focus ring and the disabled state. The variant sets colour only; btnLg (16px by 8px) is for page-level form actions.</span>
+    </div>
   </div>
 </section>
 
 <section id="forms" style="display:flex;flex-direction:column;gap:16px">
   <div>
     <h2 style="margin:0;font-size:18px;font-weight:600">Inputs &amp; forms</h2>
-    <p style="margin:4px 0 0;font-size:14px;color:hsl(var(--muted-foreground));text-wrap:pretty">Text/number fields sit on <span style="font-family:ui-monospace,monospace;font-size:13px">background</span> with an <span style="font-family:ui-monospace,monospace;font-size:13px">input</span> border and 8px radius. Selects are the one exception: <span style="font-family:ui-monospace,monospace;font-size:13px">secondary</span> fill, 4px radius. Focus is always <span style="font-family:ui-monospace,monospace;font-size:13px">ring-2 ring-ring</span>, never a recolored border. Numeric fields go through <span style="font-family:ui-monospace,monospace;font-size:13px">NumberInput</span>, checkboxes through <span style="font-family:ui-monospace,monospace;font-size:13px">Checkbox</span>.</p>
+    <p style="margin:4px 0 0;font-size:14px;color:hsl(var(--muted-foreground));text-wrap:pretty">Text, number and select fields share the <span style="font-family:ui-monospace,monospace;font-size:13px">inputBase</span> chrome: 4px radius, <span style="font-family:ui-monospace,monospace;font-size:13px">min-h-10</span>, <span style="font-family:ui-monospace,monospace;font-size:13px">border-input</span>, <span style="font-family:ui-monospace,monospace;font-size:13px">bg-background</span>. Text/number fields sit on <span style="font-family:ui-monospace,monospace;font-size:13px">background</span> with an <span style="font-family:ui-monospace,monospace;font-size:13px">input</span> border. Focus is always <span style="font-family:ui-monospace,monospace;font-size:13px">ring-2 ring-ring</span>, never a recolored border. Numeric fields go through <span style="font-family:ui-monospace,monospace;font-size:13px">NumberInput</span>, checkboxes through <span style="font-family:ui-monospace,monospace;font-size:13px">Checkbox</span>.</p>
   </div>
   <div style="background:hsl(var(--card));border:1px solid hsl(var(--border));border-radius:8px;padding:20px;display:grid;grid-template-columns:repeat(auto-fit,minmax(244px,1fr));gap:20px">
     <div style="display:flex;flex-direction:column;gap:6px">
       <label style="font-size:13px;font-weight:500">Text input</label>
-      <input type="text" placeholder="https://example.com/feed.xml" style="width:100%;box-sizing:border-box;padding:8px 12px;border-radius:8px;border:1px solid hsl(var(--input));background:hsl(var(--background));color:hsl(var(--foreground));font-size:14px;font-family:inherit;outline:none" style-focus="box-shadow:0 0 0 2px hsl(var(--ring))">
-      <span style="font-size:12px;color:hsl(var(--muted-foreground))">px-3 py-2 rounded-lg border-input bg-background. A textarea is the same recipe: <span style="font-family:ui-monospace,monospace">inputBase</span> plus <span style="font-family:ui-monospace,monospace">w-full resize-y placeholder:text-muted-foreground</span>, never the secondary fill that selects use.</span>
+      <input type="text" placeholder="https://example.com/feed.xml" style="width:100%;box-sizing:border-box;padding:8px 12px;min-height:40px;border-radius:4px;border:1px solid hsl(var(--input));background:hsl(var(--background));color:hsl(var(--foreground));font-size:14px;font-family:inherit;outline:none" style-focus="box-shadow:0 0 0 2px hsl(var(--ring))">
+      <span style="font-size:12px;color:hsl(var(--muted-foreground))">inputBase: min-h-10 px-3 py-2 rounded border-input bg-background. A textarea is the same recipe: <span style="font-family:ui-monospace,monospace">inputBase</span> plus <span style="font-family:ui-monospace,monospace">w-full resize-y placeholder:text-muted-foreground</span>, never the secondary fill that selects use.</span>
     </div>
     <div style="display:flex;flex-direction:column;gap:6px">
       <label style="font-size:13px;font-weight:500">Number input</label>
-      <input type="number" value="30" style="width:96px;box-sizing:border-box;padding:6px 12px;border-radius:8px;border:1px solid hsl(var(--input));background:hsl(var(--background));color:hsl(var(--foreground));font-size:14px;font-family:inherit;outline:none" style-focus="box-shadow:0 0 0 2px hsl(var(--ring))">
-      <span style="font-size:12px;color:hsl(var(--muted-foreground))">w-24 px-3 py-1.5 &mdash; use the NumberInput component</span>
+      <input type="number" value="30" style="width:96px;box-sizing:border-box;padding:8px 12px;min-height:40px;border-radius:4px;border:1px solid hsl(var(--input));background:hsl(var(--background));color:hsl(var(--foreground));font-size:14px;font-family:inherit;outline:none" style-focus="box-shadow:0 0 0 2px hsl(var(--ring))">
+      <span style="font-size:12px;color:hsl(var(--muted-foreground))">w-24 on inputBase chrome. Use the NumberInput component</span>
     </div>
     <div style="display:flex;flex-direction:column;gap:6px">
       <label style="font-size:13px;font-weight:500">Select</label>
-      <select style="width:100%;padding:8px 12px;border-radius:4px;background:hsl(var(--secondary));color:hsl(var(--secondary-foreground));border:1px solid hsl(var(--border));font-size:14px;font-family:inherit">
-        <option>All Status</option><option>Completed</option><option>Failed</option>
+      <select style="width:100%;padding:8px 12px;min-height:40px;border-radius:4px;background:hsl(var(--background));color:hsl(var(--foreground));border:1px solid hsl(var(--input));font-size:14px;font-family:inherit">
+        <option>All statuses</option><option>Completed</option><option>Failed</option>
       </select>
-      <span style="font-size:12px;color:hsl(var(--muted-foreground))">px-3 py-2 rounded bg-secondary border-border text-sm</span>
+      <span style="font-size:12px;color:hsl(var(--muted-foreground))">selectBase is inputBase: same chrome and height as a text input</span>
     </div>
     <div style="display:flex;flex-direction:column;gap:10px">
       <label style="font-size:13px;font-weight:500">Checkbox</label>
@@ -244,15 +251,15 @@ No &lt;Button&gt; component: recipe plus only the modifiers that differ (w-full,
       <label style="font-size:13px;font-weight:500">Icon button in a row of text buttons</label>
       <div style="display:flex;align-items:center;gap:8px">
         <span style="display:inline-flex;align-items:center;justify-content:center;width:44px;height:44px;border-radius:6px;background:hsl(var(--primary));color:hsl(var(--primary-foreground));font-size:12px">&#9654;</span>
-        <span style="padding:10px 12px;border-radius:6px;background:hsl(var(--primary));color:hsl(var(--primary-foreground));font-size:14px">Confirm ad</span>
+        <span style="padding:10px 12px;border-radius:6px;background:hsl(var(--primary));color:hsl(var(--primary-foreground));font-size:14px">Confirm</span>
         <span style="padding:10px 12px;border-radius:6px;background:hsl(var(--destructive));color:hsl(var(--destructive-foreground));font-size:14px">Not ad</span>
       </div>
       <span style="font-size:12px;color:hsl(var(--muted-foreground))">Use the shared row action recipes. On coarse pointers every clickable control is at least 44px tall. The 44px width is a default that a recipe can override, so a flex row can give its buttons a wider floor of their own. Fine-pointer desktop rows may use compact visual sizes.</span>
     </div>
     <div style="display:flex;flex-direction:column;gap:6px">
       <label style="font-size:13px;font-weight:500">Inline error</label>
-      <div style="padding:12px;border-radius:8px;background:hsl(var(--destructive) / 0.1);color:hsl(var(--destructive));font-size:14px;text-align:center">Invalid password</div>
-      <span style="font-size:12px;color:hsl(var(--muted-foreground))">bg-destructive/10 text-destructive rounded-lg p-3</span>
+      <div style="padding:12px;border-radius:8px;background:hsl(var(--destructive) / 0.1);color:hsl(var(--destructive));font-size:14px;text-align:center">Could not sign in.</div>
+      <span style="font-size:12px;color:hsl(var(--muted-foreground))">bg-destructive/10 text-destructive rounded p-3</span>
     </div>
     <div style="display:flex;flex-direction:column;gap:6px">
       <label style="font-size:13px;font-weight:500">Loading</label>
@@ -306,6 +313,14 @@ No &lt;Button&gt; component: recipe plus only the modifiers that differ (w-full,
       <span style="font-size:12px;color:hsl(var(--muted-foreground))">&larr; inline warnings are plain text-warning, no fill</span>
     </div>
     <div style="font-size:13px;color:hsl(var(--muted-foreground))">Big stat numbers reuse the same hues as text-only: <span style="color:hsl(var(--success));font-weight:700">128</span> <span style="color:var(--c-red);font-weight:700">4</span> <span style="color:var(--c-yellow);font-weight:700">2</span> &mdash; never introduce a new hue for a new state; extend <span style="font-family:ui-monospace,monospace;font-size:12px">episodeStatus.ts</span>, or add a tint to <span style="font-family:ui-monospace,monospace;font-size:12px">badgeStyles.ts</span> when it is reusable.</div>
+  <div style="background:hsl(var(--card));border:1px solid hsl(var(--border));border-radius:8px;padding:20px;display:flex;flex-direction:column;gap:12px">
+    <div style="font-size:15px;font-weight:600">StatusBadge</div>
+    <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center">
+      <span style="padding:2px 8px;font-size:12px;font-weight:500;border-radius:4px;background:rgba(234,179,8,.2);color:hsl(var(--warning-on-tint))">Needs review</span>
+      <span style="padding:2px 8px;font-size:12px;font-weight:500;border-radius:4px;background:hsl(var(--muted));color:hsl(var(--muted-foreground))">Not processed</span>
+    </div>
+    <span style="font-size:12px;color:hsl(var(--muted-foreground));text-wrap:pretty">StatusBadge renders an episode status on badgeBase with its shared tint. Labels use sentence case.</span>
+  </div>
   </div>
 </section>
 
@@ -395,15 +410,23 @@ metric row = row-span-3 grid grid-rows-subgrid gap-y-0 on each card, so label,
   </div>
   <div style="background:hsl(var(--card));border:1px solid hsl(var(--border));border-radius:8px;padding:16px;display:flex;flex-direction:column;gap:8px">
     <h3 style="margin:0;font-size:16px;font-weight:600">Detection cards</h3>
-    <p style="margin:0;font-size:14px;color:hsl(var(--muted-foreground));text-wrap:pretty">Ad Review and Detected Ads share one mobile card layout. The category select sits above the action row and spans its full width, with left-aligned text. The action row is a single line of equal-width controls: Play, the primary verdict (Confirm ad), the destructive verdict (Not ad), Split, and Edit, each <span style="font-family:ui-monospace,monospace;font-size:13px">flex-1 basis-0 min-w-0</span> at the 44px tap-target height. Labels drop to short forms below 370px so the row stays on one line. A label that still does not fit wraps inside its button instead of spilling past it. Rows that have no verdict to give (already decided) omit those controls, and Detected Ads, which are already cut, omit Confirm ad only and render Play, Not ad, Split and Edit; the rest share the width. Cards for spans that stay in the audio by category (kept or marked) render no Split, matching the API, which refuses verdicts on those spans with a 409; they show Play, a short note, and Edit. The desktop table row is unchanged.</p>
+    <p style="margin:0;font-size:14px;color:hsl(var(--muted-foreground));text-wrap:pretty">Ad Review and Detected Ads share one mobile card layout. The category select sits above the action row and spans its full width, with left-aligned text. The action row is a single line of equal-width controls: Play, the primary verdict (Confirm), the destructive verdict (Not ad), Split, and Edit, each <span style="font-family:ui-monospace,monospace;font-size:13px">flex-1 basis-0 min-w-0</span> at the 44px tap-target height. Labels drop to short forms below 370px so the row stays on one line. A label that still does not fit wraps inside its button instead of spilling past it. Rows that have no verdict to give (already decided) omit those controls, and Detected Ads, which are already cut, omit Confirm only and render Play, Not ad, Split and Edit; the rest share the width. Cards for spans that stay in the audio by category (kept or marked) render no Split, matching the API, which refuses verdicts on those spans with a 409; they show Play, a short note, and Edit. The desktop table row is unchanged.</p>
     <div style="display:flex"><span style="flex:1;padding:8px 12px;font-size:14px;border-radius:4px;background:hsl(var(--secondary));color:hsl(var(--secondary-foreground));border:1px solid hsl(var(--border))">Sponsor</span></div>
     <div style="display:flex;gap:8px">
       <span style="flex:1 1 0;min-width:0;min-height:44px;display:flex;align-items:center;justify-content:center;border-radius:4px;font-size:14px;background:hsl(var(--primary));color:hsl(var(--primary-foreground))">Play</span>
-      <span style="flex:1 1 0;min-width:0;min-height:44px;display:flex;align-items:center;justify-content:center;border-radius:4px;font-size:14px;background:hsl(var(--primary));color:hsl(var(--primary-foreground))">Confirm ad</span>
+      <span style="flex:1 1 0;min-width:0;min-height:44px;display:flex;align-items:center;justify-content:center;border-radius:4px;font-size:14px;background:hsl(var(--primary));color:hsl(var(--primary-foreground))">Confirm</span>
       <span style="flex:1 1 0;min-width:0;min-height:44px;display:flex;align-items:center;justify-content:center;border-radius:4px;font-size:14px;background:hsl(var(--destructive));color:hsl(var(--destructive-foreground))">Not ad</span>
       <span style="flex:1 1 0;min-width:0;min-height:44px;display:flex;align-items:center;justify-content:center;border-radius:4px;font-size:14px;border:1px solid hsl(var(--border));color:hsl(var(--foreground))">Split</span>
       <span style="flex:1 1 0;min-width:0;min-height:44px;display:flex;align-items:center;justify-content:center;border-radius:4px;font-size:14px;border:1px solid hsl(var(--border));color:hsl(var(--foreground))">Edit</span>
     </div>
+  <div style="background:hsl(var(--card));border:1px solid hsl(var(--border));border-radius:8px;padding:20px;display:flex;flex-direction:column;gap:12px">
+    <div style="font-size:15px;font-weight:600">StatTile</div>
+    <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;align-items:stretch">
+      <div style="display:flex;flex-direction:column;align-items:flex-start;min-width:0;height:100%;box-sizing:border-box;border:1px solid hsl(var(--border));border-radius:8px;padding:16px;text-align:left"><div style="font-size:12px;color:hsl(var(--muted-foreground))">Episodes</div><div style="font-size:20px;font-weight:700;font-variant-numeric:tabular-nums">128</div></div>
+      <div style="display:flex;flex-direction:column;align-items:flex-start;min-width:0;height:100%;box-sizing:border-box;border:1px solid hsl(var(--border));border-radius:8px;padding:16px;text-align:left"><div style="font-size:12px;color:hsl(var(--muted-foreground))">Ad time removed</div><div style="font-size:20px;font-weight:700;font-variant-numeric:tabular-nums">1h 2m 5s</div></div>
+    </div>
+    <span style="font-size:12px;color:hsl(var(--muted-foreground));text-wrap:pretty">Label above value, 20px bold tabular value, h-full so tiles in a row stretch to equal height. Two columns at phone widths; even counts between 640 and 1023px.</span>
+  </div>
   </div>
 </section>
 
@@ -472,7 +495,7 @@ metric row = row-span-3 grid grid-rows-subgrid gap-y-0 on each card, so label,
   </div>
   <div style="background:hsl(var(--card));border:1px solid hsl(var(--border));border-radius:8px;padding:20px;display:flex;flex-direction:column;gap:20px">
     <div style="display:flex;gap:8px;flex-wrap:wrap">
-      <span style="padding:8px 12px;border-radius:6px;font-size:14px;font-weight:500;background:hsl(var(--primary));color:hsl(var(--primary-foreground))">Dashboard</span>
+      <span style="padding:8px 12px;border-radius:6px;font-size:14px;font-weight:500;background:hsl(var(--primary));color:hsl(var(--primary-foreground))">Feeds</span>
       <span style="padding:8px 12px;border-radius:6px;font-size:14px;font-weight:500;color:hsl(var(--muted-foreground));cursor:pointer" style-hover="color:hsl(var(--foreground));background:hsl(var(--accent))">Patterns</span>
       <span style="padding:8px 12px;border-radius:6px;font-size:14px;font-weight:500;color:hsl(var(--muted-foreground));cursor:pointer" style-hover="color:hsl(var(--foreground));background:hsl(var(--accent))">History</span>
       <span style="padding:8px 12px;border-radius:6px;font-size:14px;font-weight:500;color:hsl(var(--muted-foreground));cursor:pointer" style-hover="color:hsl(var(--foreground));background:hsl(var(--accent))">Settings</span>
@@ -599,6 +622,17 @@ tint.destructive = bg-destructive/20 text-destructive-on-tint</div>
       </div>
       <div style="font-size:12px;color:hsl(var(--muted-foreground))">Menus: DropdownMenu component &mdash; w-56 card, shadow-lg, title 14/500 + subtitle 12 muted, align right by default (left when the trigger sits on the row&rsquo;s left edge). The live menu renders in a portal on document.body at z-40, above the z-30 sticky header and below the fixed z-50 bars, whose height it subtracts from the room it places itself in; the z-index:10 above is only this sample&rsquo;s local stacking. Destructive actions use ConfirmModal with a named target and stated consequences. Confirmation has no timer.</div>
     </div>
+  <div style="background:hsl(var(--card));border:1px solid hsl(var(--border));border-radius:8px;padding:20px;display:flex;flex-direction:column;gap:12px">
+    <div style="font-size:15px;font-weight:600">Modal with pinned header and footer</div>
+    <div style="max-width:420px;width:100%;height:240px;display:flex;flex-direction:column;background:hsl(var(--card));border:1px solid hsl(var(--border));border-radius:8px;box-shadow:0 20px 25px -5px rgba(0,0,0,0.2)">
+      <div style="flex:none;padding:16px;border-bottom:1px solid hsl(var(--border))"><span style="font-size:16px;font-weight:600">Edit sponsor</span></div>
+      <div style="flex:1 1 auto;min-height:0;overflow-y:auto;padding:16px;font-size:14px;display:flex;flex-direction:column;gap:12px">
+        <p style="margin:0">Acme appears in the intro of Example Podcast.</p><p style="margin:0">Only this body scrolls when the content is taller than the panel.</p><p style="margin:0">The header and the footer stay in view.</p><p style="margin:0">Footers stay inside the viewport from 320 to 390px.</p>
+      </div>
+      <div style="flex:none;display:flex;justify-content:flex-end;gap:8px;padding:16px;border-top:1px solid hsl(var(--border))"><button style="padding:6px 12px;font-size:14px;border-radius:4px;border:1px solid transparent;cursor:pointer;font-family:inherit;background:hsl(var(--secondary));color:hsl(var(--secondary-foreground))">Cancel</button><button style="padding:6px 12px;font-size:14px;border-radius:4px;border:1px solid transparent;cursor:pointer;font-family:inherit;background:hsl(var(--primary));color:hsl(var(--primary-foreground))">Save sponsor</button></div>
+    </div>
+    <span style="font-size:12px;color:hsl(var(--muted-foreground));text-wrap:pretty">Modal takes header and footer props. The panel is a flex column and only the body scrolls. Footer buttons use <span style="font-family:ui-monospace,monospace;font-size:13px">dialogFooterBtn</span>, which is <span style="font-family:ui-monospace,monospace;font-size:13px">${btnBase} border border-transparent</span> so a colour variant sits beside any bordered one at the same size.</span>
+  </div>
   </div>
 </section>
 
@@ -618,7 +652,7 @@ tint.destructive = bg-destructive/20 text-destructive-on-tint</div>
         <li>Use token colors so every theme works; check dark + Obsidian before shipping.</li>
         <li>Use cards below each table's measured content breakpoint. Processing History and episode costs use 1280px; Downloads uses 768px. Preserve sorting and actions in cards. Verify populated layouts at 320, 390, 466, 626, 768, 890, 1024, 1280, and 1440 CSS px.</li>
         <li>Reuse shared components: Modal, DropdownMenu, Popover, SegmentedToggle, Checkbox, NumberInput, Pagination, SortHeader, CollapsibleSection, LoadingSpinner.</li>
-        <li>Give every interactive element <span style="font-family:ui-monospace,monospace;font-size:12px">transition-colors</span>, <span style="font-family:ui-monospace,monospace;font-size:12px">disabled:opacity-50</span>, and <span style="font-family:ui-monospace,monospace;font-size:12px">focus:ring-2 ring-ring</span>.</li>
+        <li>Give every interactive element <span style="font-family:ui-monospace,monospace;font-size:12px">transition-colors</span>, <span style="font-family:ui-monospace,monospace;font-size:12px">disabled:opacity-50</span>, and <span style="font-family:ui-monospace,monospace;font-size:12px">focus-visible:ring-2 ring-ring</span>.</li>
         <li>Make failure detail reachable without a pointer: a focusable disclosure that expands the text inline, with a copy action. A <span style="font-family:ui-monospace,monospace;font-size:12px">title=</span> may repeat it, never carry it alone.</li>
         <li>Give every standalone interactive element a minimum 44px box on coarse pointers at every viewport width: import <span style="font-family:ui-monospace,monospace;font-size:12px">touchTarget</span> from <span style="font-family:ui-monospace,monospace;font-size:12px">buttonStyles.ts</span> and put it on the button or link itself.</li>
         <li>Add new statuses to <span style="font-family:ui-monospace,monospace;font-size:12px">episodeStatus.ts</span> / <span style="font-family:ui-monospace,monospace;font-size:12px">segmentCategory.ts</span> maps, not inline.</li>
