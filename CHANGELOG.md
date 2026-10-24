@@ -135,7 +135,8 @@ release notes.
   17.13.0, swagger-ui-dist to 5.33.3, and react and react-dom to 19.3.1.
 - Dependencies: brotli 1.2.1 (PYSEC-2026-4322, GHSA-9v8h-qqgm-4m35),
   filelock 4.2.4 (CVE-2026-112940), zod 4.6.7 in the frontend lockfile
-  (GHSA-mrhx-c7xc-m3w5).
+  (GHSA-mrhx-c7xc-m3w5), happy-dom 21.0.4 (GHSA-834v-8h66-3h79, test
+  environment only), fast-uri 3.1.9 and serialize-javascript 7.1.4.
 
 ## [2.100.18] - 2026-10-18
 

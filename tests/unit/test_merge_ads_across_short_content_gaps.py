@@ -170,14 +170,14 @@ class TestMergeAcrossShortContentGaps:
         assert len(result) == 2
 
     def test_merge_preserves_next_ad_cue_snap(self):
-        """A non-cue ad merged with a cue_snap ad must keep the cue evidence so
-        cue-gated feeds still recognize the merged span as cue-backed."""
+        """A non-cue ad merged with a cue_snap ad keeps the cue evidence: the end
+        record describes the merged end, the start cue is interior to the span."""
         cue = {'start': 48.0, 'end': 82.0}
         ads = [_ad(10, 40), {**_ad(50, 80), 'cue_snap': cue}]
         segments = [_seg(0, 5, 'Intro.')]
         result = merge_ads_across_short_content_gaps(ads, segments, min_content_seconds=12.0, max_merged_seconds=300.0)
         assert len(result) == 1
-        assert result[0].get('cue_snap') == cue
+        assert result[0].get('cue_snap') == {'end': 82.0, 'interior': {'start': 48.0}}
 
     def test_merge_preserves_cue_pair_stage(self):
         """If either component is detection_stage=cue_pair, the merged ad stays
