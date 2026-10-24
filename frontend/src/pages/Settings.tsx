@@ -14,7 +14,7 @@ import { getErrorMessage } from '../api/client';
 import { useAuth } from '../context/AuthContext';
 import { SkeletonRows } from '../components/Skeleton';
 import type { AffectedRunsAction, BadgePosition, EpisodeLogLevel, LowAdYieldAction, LlmProvider, ModelPricingOverride, ProviderSlot, SystemStatus, WhisperBackend, WhisperApiConfig, UpdateSettingsPayload, Settings as SettingsShape } from '../api/types';
-import { LLM_PROVIDERS, SAME_AS_PASS, SLOT_PRIMARY, SLOT_SECONDARY } from '../api/types';
+import { AUTO_PROCESS_WINDOW, LLM_PROVIDERS, SAME_AS_PASS, SLOT_PRIMARY, SLOT_SECONDARY } from '../api/types';
 
 import SystemStatusSection from './settings/SystemStatusSection';
 import StorageRetentionSection from './settings/StorageRetentionSection';
@@ -221,7 +221,7 @@ function Settings() {
   const [verificationProvider, setVerificationProvider] = useState('');
   const [whisperModel, setWhisperModel] = useState('');
   const [autoProcessEnabled, setAutoProcessEnabled] = useState(false);
-  const [autoProcessMaxAgeHours, setAutoProcessMaxAgeHours] = useState(48);
+  const [autoProcessMaxAgeHours, setAutoProcessMaxAgeHours] = useState<number>(AUTO_PROCESS_WINDOW.default);
   const [maxFeedEpisodes, setMaxFeedEpisodes] = useState(0);
   const [podpingEnabled, setPodpingEnabled] = useState(false);
   const [rssRefreshIntervalMinutes, setRssRefreshIntervalMinutes] = useState(15);
@@ -892,7 +892,7 @@ function Settings() {
     { key: 'maxAudioDownloadMb', kind: 'val', useDefault: true, value: maxAudioDownloadMb, set: setMaxAudioDownloadMb },
     // Global behavior / output toggles
     { key: 'autoProcessEnabled', kind: 'val', useDefault: true, value: autoProcessEnabled, set: setAutoProcessEnabled },
-    { key: 'autoProcessMaxAgeHours', kind: 'val', useDefault: true, literal: 48, value: autoProcessMaxAgeHours, set: setAutoProcessMaxAgeHours },
+    { key: 'autoProcessMaxAgeHours', kind: 'val', useDefault: true, literal: AUTO_PROCESS_WINDOW.default, value: autoProcessMaxAgeHours, set: setAutoProcessMaxAgeHours },
     { key: 'onlyExposeProcessedDefault', kind: 'val', useDefault: true, value: onlyExposeProcessedDefault, set: setOnlyExposeProcessedDefault },
     { key: 'artworkWatermarkEnabled', kind: 'val', useDefault: true, value: artworkWatermarkEnabled, set: setArtworkWatermarkEnabled },
     { key: 'artworkBadgePosition', kind: 'str', useDefault: true, value: artworkBadgePosition, set: (v) => setArtworkBadgePosition(v as BadgePosition) },

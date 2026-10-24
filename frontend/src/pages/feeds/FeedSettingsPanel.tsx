@@ -5,6 +5,7 @@ import { listCueTemplates } from '../../api/cueTemplates';
 import { getSettings, getAudioSettings } from '../../api/settings';
 import { getErrorMessage } from '../../api/client';
 import type { Feed, LowAdYieldAction, EpisodeLogsOverride } from '../../api/types';
+import { AUTO_PROCESS_WINDOW } from '../../api/types';
 import CollapsibleSection, { useCollapsibleOpen } from '../../components/CollapsibleSection';
 import CopyButton from '../../components/CopyButton';
 import SubscriberKeysPanel from '../../components/SubscriberKeysPanel';
@@ -269,15 +270,15 @@ function FeedSettingsPanel({ feed, slug }: Props) {
   const snapLeadField = useDraftField(feed, (f) => s(f.cueSnapLeadOverride));
   const snapLagField = useDraftField(feed, (f) => s(f.cueSnapLagOverride));
   const maxAdDurField = useDraftField(feed, (f) => s(f.maxAdDurationOverride));
-  const autoProcessWindowField = useDraftField(feed, (f) => s(f.autoProcessMaxAgeHoursOverride));
   const maxAdDurRejectField = useDraftField(feed, (f) => s(f.maxAdDurationRejectOverride));
   const introExclusionField = useDraftField(feed, (f) => s(f.adDetectionExcludeStartOverride));
+  const autoProcessWindowField = useDraftField(feed, (f) => s(f.autoProcessMaxAgeHoursOverride));
   // Notes commit on Save, not blur: markClean runs in the mutation's onSuccess so
   // the button/badge update instantly. Dirty compare trims, so a whitespace-only edit isn't dirty.
   const notesField = useDraftField(feed, (f) => f.detectionNotes ?? '', (v) => v.trim());
   const chapterNotesField = useDraftField(feed, (f) => f.chapterNotes ?? '', (v) => v.trim());
-  useUnsavedChanges([autoProcessWindowField, cueScoreField, pairMinField, pairMaxField, pairFracField, snapConfField, snapLeadField,
-    snapLagField, maxAdDurField, maxAdDurRejectField, introExclusionField, notesField, chapterNotesField]
+  useUnsavedChanges([cueScoreField, pairMinField, pairMaxField, pairFracField, snapConfField, snapLeadField,
+    snapLagField, maxAdDurField, maxAdDurRejectField, introExclusionField, autoProcessWindowField, notesField, chapterNotesField]
     .some(field => field.dirty) || isEditingSourceUrl || isEditingNetwork);
   const [chapterNotesSaved, setChapterNotesSaved] = useState(false);
   const [chapterNotesError, setChapterNotesError] = useState<string | null>(null);
@@ -430,6 +431,32 @@ function FeedSettingsPanel({ feed, slug }: Props) {
       }
       // Normalizes the display (e.g. typed "20.0" over a server 20 becomes
       // "20") even with no PATCH sent, matching what a reload would show.
+      draftField.markClean(String(v));
+    } else {
+      draftField.markClean(serverValue != null ? String(serverValue) : '');
+    }
+  }
+
+  function commitInt(
+    draftField: DraftField,
+    serverValue: number | null | undefined,
+    field: keyof UpdateFeedPayload,
+    lo: number,
+    hi: number,
+  ) {
+    const trimmed = draftField.value.trim();
+    if (trimmed === '') {
+      if (serverValue != null) {
+        updateMutation.mutate({ [field]: null });
+      }
+      draftField.markClean('');
+      return;
+    }
+    const v = Number(trimmed);
+    if (Number.isInteger(v) && v >= lo && v <= hi) {
+      if (v !== serverValue) {
+        updateMutation.mutate({ [field]: v });
+      }
       draftField.markClean(String(v));
     } else {
       draftField.markClean(serverValue != null ? String(serverValue) : '');
@@ -838,15 +865,15 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                 </div>
               </div>
 
-              <CueOverrideRow label="Auto-process window" min={1} max={720} step={1}
+              <CueOverrideRow label="Auto-process window" min={AUTO_PROCESS_WINDOW.min} max={AUTO_PROCESS_WINDOW.max} step={1}
                 value={autoProcessWindowField.value} setValue={autoProcessWindowField.setValue}
                 feedValue={feed.autoProcessMaxAgeHoursOverride}
                 hint="hours, empty = global"
-                placeholder={String(settings?.autoProcessMaxAgeHours?.value ?? 48)}
+                placeholder={String(settings?.autoProcessMaxAgeHours?.value ?? AUTO_PROCESS_WINDOW.default)}
                 disabled={updateMutation.isPending}
                 formatOverride={(v) => `${v} h`}
-                onBlur={() => commitFloat(autoProcessWindowField, feed.autoProcessMaxAgeHoursOverride,
-                  'autoProcessMaxAgeHoursOverride', 1, 720)} />
+                onBlur={() => commitInt(autoProcessWindowField, feed.autoProcessMaxAgeHoursOverride,
+                  'autoProcessMaxAgeHoursOverride', AUTO_PROCESS_WINDOW.min, AUTO_PROCESS_WINDOW.max)} />
 
               {/* Single preset canonicalizing detectionMode/skipAdDetection/passthroughEnabled;
                   those legacy fields stay available for external API callers. */}

@@ -350,6 +350,16 @@ describe('FeedSettingsPanel auto-process window override', () => {
     expect(mockUpdateFeed).toHaveBeenCalledWith('test-feed', { autoProcessMaxAgeHoursOverride: 240 });
   });
 
+  it('rejects a fractional value without sending it and reverts the field', async () => {
+    renderPanel(makeFeed({ autoProcessMaxAgeHoursOverride: 168 }));
+    const input = screen.getByRole('spinbutton', { name: 'Auto-process window' }) as HTMLInputElement;
+    await userEvent.clear(input);
+    await userEvent.type(input, '24.5');
+    await userEvent.tab();
+    expect(mockUpdateFeed).not.toHaveBeenCalled();
+    expect(input.value).toBe('168');
+  });
+
   it('clears the override with null when emptied', async () => {
     renderPanel(makeFeed({ autoProcessMaxAgeHoursOverride: 168 }));
     const input = screen.getByRole('spinbutton', { name: 'Auto-process window' });

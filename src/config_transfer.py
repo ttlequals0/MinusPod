@@ -23,7 +23,7 @@ from config import (
     resolve_feed_processing_mode, resolve_jit_blocked_user_agents,
     resolve_segment_category_actions_map, resolve_max_ad_duration_confirmed,
     SEARCH_PROVIDER_ITUNES, SEARCH_PROVIDER_PODCASTINDEX,
-    valid_auto_process_max_age,
+    AUTO_PROCESS_MAX_AGE_ERROR, valid_auto_process_max_age,
 )
 from db_backup_service import (
     DEFAULT_CRON as DB_BACKUP_DEFAULT_CRON,
@@ -1074,7 +1074,8 @@ def _validated_feed_updates(db, podcast, payload, feed_type, *, confirmed_ceilin
                 raise ConfigTransferError('differential_fetch_mode is invalid')
         elif key == 'auto_process_max_age_hours_override':
             if value is not None and not valid_auto_process_max_age(value):
-                raise ConfigTransferError('auto_process_max_age_hours_override is invalid')
+                raise ConfigTransferError(
+                    f'auto_process_max_age_hours_override {AUTO_PROCESS_MAX_AGE_ERROR}')
         elif key in ('title', 'description', 'author', 'network_id', 'dai_platform',
                      'network_id_override', 'website_url', 'auto_process_override'):
             if value is not None and not isinstance(value, str):

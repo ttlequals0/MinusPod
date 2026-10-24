@@ -506,7 +506,7 @@ def refresh_rss_feed(slug: str, feed_url: str, force: bool = False,
         queued_count = 0
         if db.is_auto_process_enabled_for_podcast(slug, podcast=podcast):
             cutoff_time = datetime.now(timezone.utc) - timedelta(
-                hours=db.get_auto_process_max_age_hours(slug, podcast=podcast))
+                hours=db.get_auto_process_max_age_hours(podcast))
             # Read once per refresh, not per episode.
             fresh_boost_enabled = db.get_setting_bool('process_new_episodes_first', True)
 

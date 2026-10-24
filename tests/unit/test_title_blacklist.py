@@ -129,6 +129,34 @@ class TestDescriptionMatchesSkipPatterns:
         )['descriptionSkipped']
 
 
+def _prime_refresh(mock_db, mock_rss, mock_pattern, podcast, episodes, queued,
+                   window_hours=48):
+    """Mock the db and rss_parser calls refresh_rss_feed makes for one feed."""
+    mock_db.get_podcast_by_slug.return_value = podcast
+    mock_db.get_podcast_row.return_value = podcast
+    mock_db.bulk_upsert_discovered_episodes.return_value = (len(episodes), {}, {})
+    mock_db.is_auto_process_enabled_for_podcast.return_value = True
+    mock_db.get_auto_process_max_age_hours.return_value = window_hours
+    mock_db.get_episode_statuses_for_podcast.return_value = ({}, {})
+    mock_db.queue_episodes_for_processing.return_value = queued
+    mock_pattern.update_podcast_metadata.return_value = {}
+
+    mock_rss.fetch_feed_conditional.return_value = (b'<rss/>', None, None)
+    parsed = MagicMock()
+    parsed.feed = {'title': 'Show', 'description': '', 'link': ''}
+    parsed.entries = list(range(len(episodes)))
+    parsed.bozo = False
+    mock_rss.parse_feed.return_value = parsed
+    mock_rss.find_channel_element.return_value = None
+    mock_rss.resolve_channel_fields.return_value = {
+        'title': 'Show', 'description': '', 'link': '', 'language': 'en',
+        'author': '', 'categories': []}
+    mock_rss.extract_podcast_artwork_url.return_value = None
+    mock_rss.extract_podping_declaration.return_value = {
+        'uses_podping': None, 'hive_accounts': []}
+    mock_rss.extract_episodes.return_value = episodes
+
+
 class TestRssGateSkipsBlacklistedTitles:
     @pytest.mark.parametrize('duration_filters', [False, True])
     @patch('main_app.feeds._build_and_save_served_rss')
@@ -145,39 +173,18 @@ class TestRssGateSkipsBlacklistedTitles:
 
         recent = format_datetime(datetime.now(timezone.utc))
 
-        mock_db.get_podcast_by_slug.return_value = {
+        podcast = {
             'id': 1, 'etag': None, 'last_modified_header': None,
             'artwork_cached': True,
             'title_skip_patterns': None if duration_filters else json.dumps(['Blacklisted*']),
             'min_duration_seconds': 60 if duration_filters else None,
         }
-        mock_db.get_podcast_row.return_value = mock_db.get_podcast_by_slug.return_value
-        mock_db.bulk_upsert_discovered_episodes.return_value = (2, {}, {})
-        mock_db.is_auto_process_enabled_for_podcast.return_value = True
-        mock_db.get_auto_process_max_age_hours.return_value = 48
-        mock_db.get_episode_statuses_for_podcast.return_value = ({}, {})
-        mock_db.queue_episodes_for_processing.return_value = {'ep-normal'}
-        mock_pattern.update_podcast_metadata.return_value = {}
-
-        mock_rss.fetch_feed_conditional.return_value = (b'<rss/>', None, None)
-        parsed = MagicMock()
-        parsed.feed = {'title': 'Show', 'description': '', 'link': ''}
-        parsed.entries = [1, 2]
-        parsed.bozo = False
-        mock_rss.parse_feed.return_value = parsed
-        mock_rss.find_channel_element.return_value = None
-        mock_rss.resolve_channel_fields.return_value = {
-            'title': 'Show', 'description': '', 'link': '', 'language': 'en',
-            'author': '', 'categories': []}
-        mock_rss.extract_podcast_artwork_url.return_value = None
-        mock_rss.extract_podping_declaration.return_value = {
-            'uses_podping': None, 'hive_accounts': []}
-        mock_rss.extract_episodes.return_value = [
+        _prime_refresh(mock_db, mock_rss, mock_pattern, podcast, [
             {'id': 'ep-blacklisted', 'url': 'https://e.test/a.mp3',
              'title': 'Blacklisted Episode', 'description': '', 'published': recent, 'rss_duration': 30},
             {'id': 'ep-normal', 'url': 'https://e.test/b.mp3',
              'title': 'Normal Episode', 'description': '', 'published': recent, 'rss_duration': 120},
-        ]
+        ], {'ep-normal'})
 
         feeds_mod.refresh_rss_feed('show', 'https://example.com/f.xml', force=True)
 
@@ -202,32 +209,10 @@ class TestRssGateAutoProcessWindow:
         old = format_datetime(datetime.now(timezone.utc) - timedelta(hours=100))
         podcast = {'id': 1, 'etag': None, 'last_modified_header': None,
                    'artwork_cached': True}
-        mock_db.get_podcast_by_slug.return_value = podcast
-        mock_db.get_podcast_row.return_value = podcast
-        mock_db.bulk_upsert_discovered_episodes.return_value = (1, {}, {})
-        mock_db.is_auto_process_enabled_for_podcast.return_value = True
-        mock_db.get_auto_process_max_age_hours.return_value = window_hours
-        mock_db.get_episode_statuses_for_podcast.return_value = ({}, {})
-        mock_db.queue_episodes_for_processing.return_value = {'ep-old'}
-        mock_pattern.update_podcast_metadata.return_value = {}
-
-        mock_rss.fetch_feed_conditional.return_value = (b'<rss/>', None, None)
-        parsed = MagicMock()
-        parsed.feed = {'title': 'Show', 'description': '', 'link': ''}
-        parsed.entries = [1]
-        parsed.bozo = False
-        mock_rss.parse_feed.return_value = parsed
-        mock_rss.find_channel_element.return_value = None
-        mock_rss.resolve_channel_fields.return_value = {
-            'title': 'Show', 'description': '', 'link': '', 'language': 'en',
-            'author': '', 'categories': []}
-        mock_rss.extract_podcast_artwork_url.return_value = None
-        mock_rss.extract_podping_declaration.return_value = {
-            'uses_podping': None, 'hive_accounts': []}
-        mock_rss.extract_episodes.return_value = [
+        _prime_refresh(mock_db, mock_rss, mock_pattern, podcast, [
             {'id': 'ep-old', 'url': 'https://e.test/a.mp3', 'title': 'Old Episode',
              'description': '', 'published': old, 'rss_duration': 120},
-        ]
+        ], {'ep-old'}, window_hours)
 
         feeds_mod.refresh_rss_feed('show', 'https://example.com/f.xml', force=True)
 

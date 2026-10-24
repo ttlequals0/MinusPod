@@ -27,7 +27,7 @@ from config import (
     EPISODE_LOG_LEVELS,
     EPISODE_LOG_RETENTION_DAYS_MIN, EPISODE_LOG_RETENTION_DAYS_MAX,
     DOWNLOAD_HISTORY_RETENTION_DAYS_MIN, DOWNLOAD_HISTORY_RETENTION_DAYS_MAX,
-    AUTO_PROCESS_MAX_AGE_HOURS_MIN, AUTO_PROCESS_MAX_AGE_HOURS_MAX,
+    AUTO_PROCESS_MAX_AGE_ERROR,
     valid_auto_process_max_age,
     MAX_LLM_WINDOW_AD_MIN, MAX_LLM_WINDOW_AD_MAX,
     USER_AGENT_MAX_LENGTH, validate_user_agent,
@@ -301,9 +301,7 @@ def _validate_processing_defaults_payload(data):
         if key in data and not isinstance(data[key], bool):
             return f'{key} must be a boolean', 400
     if 'autoProcessMaxAgeHours' in data and not valid_auto_process_max_age(data['autoProcessMaxAgeHours']):
-        return (
-            'autoProcessMaxAgeHours must be an integer between '
-            f'{AUTO_PROCESS_MAX_AGE_HOURS_MIN} and {AUTO_PROCESS_MAX_AGE_HOURS_MAX}', 400)
+        return f'autoProcessMaxAgeHours {AUTO_PROCESS_MAX_AGE_ERROR}', 400
     if 'downloadHistoryRetentionDays' in data:
         days = data['downloadHistoryRetentionDays']
         if (not isinstance(days, int) or isinstance(days, bool)
@@ -610,9 +608,9 @@ def _apply_processing_flags(db, data):
         logger.info(f"Updated auto-process to: {value}")
 
     if 'autoProcessMaxAgeHours' in data:
-        hours = data['autoProcessMaxAgeHours']
-        db.set_setting('auto_process_max_age_hours', str(hours), is_default=False)
-        logger.info(f"Updated auto-process max age to {hours} hours")
+        db.set_setting('auto_process_max_age_hours',
+                       str(data['autoProcessMaxAgeHours']), is_default=False)
+        logger.info(f"Updated auto-process max age to {data['autoProcessMaxAgeHours']} hours")
 
     if 'maxFeedEpisodes' in data:
         try:

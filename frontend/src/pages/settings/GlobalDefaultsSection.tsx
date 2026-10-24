@@ -1,6 +1,7 @@
 import CollapsibleSection from '../../components/CollapsibleSection';
 import { LOW_AD_YIELD_ACTION_LABELS } from '../../utils/lowAdYield';
 import type { EpisodeLogLevel, LowAdYieldAction } from '../../api/types';
+import { AUTO_PROCESS_WINDOW } from '../../api/types';
 import NumberInput from '../../components/NumberInput';
 import ToggleSwitch from '../../components/ToggleSwitch';
 import PodpingServersSection from './PodpingServersSection';
@@ -124,14 +125,15 @@ function GlobalDefaultsSection({
             <NumberInput
               id="autoProcessMaxAgeHours"
               value={autoProcessMaxAgeHours}
-              min={1}
-              max={720}
+              min={AUTO_PROCESS_WINDOW.min}
+              max={AUTO_PROCESS_WINDOW.max}
               step={1}
-              fallback={48}
+              fallback={AUTO_PROCESS_WINDOW.default}
+              parse={(text) => Math.round(parseFloat(text))}
               ariaDescribedBy="autoProcessMaxAgeHours-help"
               onCommit={onAutoProcessMaxAgeHoursChange}
             />
-            <span className="text-sm text-muted-foreground">hours (1 to 720)</span>
+            <span className="text-sm text-muted-foreground">hours ({AUTO_PROCESS_WINDOW.min} to {AUTO_PROCESS_WINDOW.max})</span>
           </div>
           <p id="autoProcessMaxAgeHours-help" className="mt-2 text-sm text-muted-foreground">
             Newly discovered episodes older than this are left as discovered until you process them. If this instance runs only now and then, set it to cover the longest gap between runs.

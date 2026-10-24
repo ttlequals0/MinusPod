@@ -24,7 +24,7 @@ from cancel import request_cancellation, wait_for_cancellation
 from database.queue import compute_queue_priority
 from processing_queue import ProcessingQueue
 from config import (
-    AUTO_PROCESS_MAX_AGE_HOURS_MIN, AUTO_PROCESS_MAX_AGE_HOURS_MAX,
+    AUTO_PROCESS_MAX_AGE_ERROR,
     valid_auto_process_max_age,
     DETECTION_NOTES_MAX_CHARS,
     CHAPTERS_IN_NOTES_VALUES,
@@ -1992,8 +1992,7 @@ def update_feed(slug):
         hours = data['autoProcessMaxAgeHoursOverride']
         if hours is not None and not valid_auto_process_max_age(hours):
             return error_response(
-                'autoProcessMaxAgeHoursOverride must be null or an integer between '
-                f'{AUTO_PROCESS_MAX_AGE_HOURS_MIN} and {AUTO_PROCESS_MAX_AGE_HOURS_MAX}', 400)
+                f'autoProcessMaxAgeHoursOverride {AUTO_PROCESS_MAX_AGE_ERROR} or null', 400)
         updates['auto_process_max_age_hours_override'] = hours
 
     if 'languageOverride' in data:

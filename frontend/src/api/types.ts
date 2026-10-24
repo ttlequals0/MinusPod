@@ -795,6 +795,8 @@ export const SAME_AS_PASS = 'same_as_pass';
 // provider config. Verification/chapters also accept SAME_AS_DETECTION to
 // inherit detection's resolved slot.
 export const SLOT_PRIMARY = 'primary';
+
+export const AUTO_PROCESS_WINDOW = { min: 1, max: 720, default: 48 } as const;
 export const SLOT_SECONDARY = 'secondary';
 export const SAME_AS_DETECTION = 'same_as_detection';
 export type ProviderSlot = typeof SLOT_PRIMARY | typeof SLOT_SECONDARY;

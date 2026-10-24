@@ -38,7 +38,7 @@ Upgrades preserve existing feed choices instead of switching them to inheritance
 
 ### Auto-process window
 
-When a feed refresh discovers a new episode and auto-process is on, the episode is queued only if it was published within the auto-process window. The default is 48 hours and the range is 1 to 720 hours. Older discovered episodes stay as discovered until you process them. If this instance runs only now and then, set Settings > Global defaults > Auto-process episodes published within to cover the longest gap between runs. A feed can set its own window in Feed Settings; leave it empty to inherit the global value. API fields: `autoProcessMaxAgeHours` on `PUT /api/v1/settings/ad-detection` and `autoProcessMaxAgeHoursOverride` (null inherits) on `PATCH /api/v1/feeds/{slug}`.
+A new episode is auto-queued only if it was published within the auto-process window; older ones stay discovered until you process them. The default is 48 hours and the range is 1 to 720 hours. A feed can set its own window in Feed Settings; leave it empty to inherit the global value. API fields: `autoProcessMaxAgeHours` on `PUT /api/v1/settings/ad-detection` and `autoProcessMaxAgeHoursOverride` (null inherits) on `PATCH /api/v1/feeds/{slug}`.
 
 ### Audio leveling
 

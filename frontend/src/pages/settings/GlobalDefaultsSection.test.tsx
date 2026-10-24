@@ -6,7 +6,7 @@
  * Segment actions (per-category matrix + show-segments default) moved to
  * their own card, SegmentActionsSection; see SegmentActionsSection.test.tsx.
  */
-import { useState } from 'react';
+import { useState, type ComponentProps } from 'react';
 import { beforeEach, describe, it, expect, vi } from 'vitest';
 import { render as rtlRender, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -34,7 +34,10 @@ function render(ui: React.ReactElement) {
   );
 }
 
-function Harness({ onCommit }: { onCommit: (minutes: number) => void }) {
+function Harness({ onCommit, overrides }: {
+  onCommit: (minutes: number) => void;
+  overrides?: Partial<ComponentProps<typeof GlobalDefaultsSection>>;
+}) {
   const [minutes, setMinutes] = useState(15);
   return (
     <>
@@ -63,6 +66,7 @@ function Harness({ onCommit }: { onCommit: (minutes: number) => void }) {
         onSkipSecondPassChange={() => {}}
         differentialFetchMode="auto"
         onDifferentialFetchModeChange={() => {}}
+        {...overrides}
       />
       <button onClick={() => onCommit(minutes)}>Commit</button>
     </>
@@ -173,34 +177,7 @@ describe('GlobalDefaultsSection: Podping notifications toggle', () => {
 describe('GlobalDefaultsSection: auto-process window', () => {
   it('renders the field with its help text and commits a typed value', async () => {
     const onChange = vi.fn();
-    render(
-      <GlobalDefaultsSection
-        autoProcessEnabled
-        onAutoProcessEnabledChange={() => {}}
-        autoProcessMaxAgeHours={48}
-        onAutoProcessMaxAgeHoursChange={onChange}
-        rssRefreshIntervalMinutes={15}
-        onRssRefreshIntervalMinutesChange={() => {}}
-        podpingEnabled={false}
-        onPodpingEnabledChange={() => {}}
-        maxFeedEpisodes={10}
-        onMaxFeedEpisodesChange={() => {}}
-        onlyExposeProcessedDefault={false}
-        onOnlyExposeProcessedDefaultChange={() => {}}
-        lowAdYieldAction="nothing"
-        onLowAdYieldActionChange={() => {}}
-        episodeLogRetentionDays={30}
-        onEpisodeLogRetentionDaysChange={() => {}}
-        episodeLogLevel="debug"
-        onEpisodeLogLevelChange={() => {}}
-        textRecurrenceHints={false}
-        onTextRecurrenceHintsChange={() => {}}
-        skipSecondPass={false}
-        onSkipSecondPassChange={() => {}}
-        differentialFetchMode="auto"
-        onDifferentialFetchModeChange={() => {}}
-      />,
-    );
+    render(<Harness onCommit={() => {}} overrides={{ onAutoProcessMaxAgeHoursChange: onChange }} />);
     const input = screen.getByLabelText('Auto-process episodes published within') as HTMLInputElement;
     expect(input.value).toBe('48');
     expect(input.min).toBe('1');
@@ -211,6 +188,16 @@ describe('GlobalDefaultsSection: auto-process window', () => {
     await user.clear(input);
     await user.type(input, '168');
     expect(onChange).toHaveBeenLastCalledWith(168);
+  });
+
+  it('rounds a fractional entry to a whole number of hours', async () => {
+    const onChange = vi.fn();
+    render(<Harness onCommit={() => {}} overrides={{ onAutoProcessMaxAgeHoursChange: onChange }} />);
+    const input = screen.getByLabelText('Auto-process episodes published within');
+    const user = userEvent.setup();
+    await user.clear(input);
+    await user.type(input, '48.5');
+    expect(onChange).toHaveBeenLastCalledWith(49);
   });
 });
 
