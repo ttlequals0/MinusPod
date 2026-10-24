@@ -458,7 +458,6 @@ def _midroll_marker(probes, end=3851.08):
 
 
 def test_wordless_core_start_holds_against_a_word_supported_trim(monkeypatch):
-    # The wordless stretch inside a measured core is ad audio, so the core start holds.
     run, cuts = _run_reviewed(
         monkeypatch, _midroll_marker([{'start': 3773.89, 'end': 3777.89}]),
         MIDROLL_SEGMENTS, (3773.63, 3849.02), 3950.0,
@@ -470,7 +469,6 @@ def test_wordless_core_start_holds_against_a_word_supported_trim(monkeypatch):
 
 
 def test_wordless_core_edges_hold_against_a_terminal_snap(monkeypatch):
-    # The wordless stretch inside a measured core is ad audio, so both core edges hold.
     run, cuts = _run_reviewed(
         monkeypatch, _midroll_marker([{'start': 3773.89, 'end': 3777.89}], end=3850.5),
         MIDROLL_SEGMENTS[:2], (3773.63, 3849.02), 3850.5,

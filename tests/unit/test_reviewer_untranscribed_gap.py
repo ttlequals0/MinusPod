@@ -73,10 +73,10 @@ def _dai_marker(**extra):
     return marker
 
 
-def _clamp(marker, start, end, barriers=None):
+def _clamp(marker, start, end, barriers=None, original=(728.8, 939.9), segments=HOLE_SEGMENTS):
     return _reviewer()._clamp_proposed_bounds(
-        marker, start, end, 728.8, 939.9, 60, 'show', 'ep1',
-        segments=HOLE_SEGMENTS, hard_barriers=barriers)
+        marker, start, end, *original, 60, 'show', 'ep1',
+        segments=segments, hard_barriers=barriers)
 
 
 def test_gap_rule_floors_a_trim_past_the_dai_core_start():
@@ -163,20 +163,16 @@ def test_end_cannot_be_trimmed_into_an_untranscribed_tail():
     assert got == (900.0, 1000.0)
 
 
-def test_short_wordless_tail_still_stops_the_end_trim():
-    segments = [_worded(3733.5, 3789.52, 'Try Acme free at acme.example today.')]
-    got = _reviewer()._clamp_proposed_bounds(
-        dict(_marker(), start=3733.5, end=3794.26), 3733.5, 3789.52, 3733.5, 3794.26, 60,
-        'show', 'ep1', segments=segments)
-    assert got == (3733.5, 3794.26)
-
-
-def test_short_wordless_head_still_stops_the_start_trim():
-    segments = [_worded(4.0, 30.0, 'Try Acme free at acme.example today.')]
-    got = _reviewer()._clamp_proposed_bounds(
-        dict(_marker(), start=0.0, end=30.0), 4.0, 30.0, 0.0, 30.0, 60,
-        'show', 'ep1', segments=segments)
-    assert got == (0.0, 30.0)
+@pytest.mark.parametrize('words, original, proposal', [
+    # A 4.74 s wordless tail, under the 8 s rule, still holds the end at the file end.
+    ((3733.5, 3789.52), (3733.5, 3794.26), (3733.5, 3789.52)),
+    # A 4 s wordless head holds the start at 0.
+    ((4.0, 30.0), (0.0, 30.0), (4.0, 30.0)),
+])
+def test_short_wordless_head_or_tail_still_stops_the_trim(words, original, proposal):
+    segments = [_worded(*words, 'Try Acme free at acme.example today.')]
+    marker = dict(_marker(), start=original[0], end=original[1])
+    assert _clamp(marker, *proposal, original=original, segments=segments) == original
 
 
 PREROLL_SEGMENTS = [
@@ -186,8 +182,7 @@ PREROLL_SEGMENTS = [
 
 
 def _preroll_clamp(marker):
-    return _reviewer()._clamp_proposed_bounds(
-        marker, 0.0, 57.7, 0.0, 60.38, 60, 'show', 'ep1', segments=PREROLL_SEGMENTS)
+    return _clamp(marker, 0.0, 57.7, original=(0.0, 60.38), segments=PREROLL_SEGMENTS)
 
 
 def test_short_gap_at_a_measured_core_edge_stops_the_end_trim():
