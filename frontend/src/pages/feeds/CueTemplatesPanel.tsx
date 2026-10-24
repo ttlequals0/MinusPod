@@ -1,15 +1,17 @@
-import { Modal } from '../../components/Modal';
+import { Modal, dialogFooterBtn } from '../../components/Modal';
 import { useEffect, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { X, Play, Square } from 'lucide-react';
+import { Play, Plus, Square } from 'lucide-react';
+import CloseButton from '../../components/CloseButton';
+import StatTile from '../../components/StatTile';
 import CollapsibleSection, { useCollapsibleOpen } from '../../components/CollapsibleSection';
 import LoadingSpinner from '../../components/LoadingSpinner';
 import CueMarkModal from '../../components/CueMarkModal';
 import CueWindowOptimizePanel from '../../components/CueWindowOptimizePanel';
 import CueCrossEpisodeScanModal from '../../components/CueCrossEpisodeScanModal';
-import {
-  ghostBtn, primaryBtn, fieldCls,
-} from '../../components/cueScanStyles';
+import { ghostBtn, primaryBtn } from '../../components/cueScanStyles';
+import { btnBase, btnDestructive, btnDestructiveOutline, btnGhost, btnOutline, btnPrimary } from '../../components/buttonStyles';
+import { cardTitle, subHeading } from '../../components/pageStyles';
 import { ConfirmModal } from '../../components/Modal';
 import {
   CUE_TYPE_OPTIONS,
@@ -35,10 +37,11 @@ import { getErrorMessage } from '../../api/client';
 import type { Feed } from '../../api/types';
 import type { Episode } from '../../api/types';
 import { formatTime } from '../../utils/adReviewHelpers';
-import { formatDate } from '../../utils/format';
+import { formatDate, formatElapsed, formatPercent } from '../../utils/format';
 import Checkbox from '../../components/Checkbox';
+import TriStateSelect from '../../components/TriStateSelect';
 import DraftNumberInput, { parseOptionalNumber } from '../../components/DraftNumberInput';
-import { focusRing } from '../../components/fieldStyles';
+import { focusRing, labelBase, selectBase } from '../../components/fieldStyles';
 import { badgeBase, tint } from '../../components/badgeStyles';
 
 const PICKER_PAGE_SIZE = 50;
@@ -49,7 +52,6 @@ interface Props {
 
 // Per-feed cue template management. Templates take precedence over the global
 // spectral cue detector when at least one is enabled for the feed.
-const cueBtn = `whitespace-nowrap px-3 py-1.5 rounded text-sm ${focusRing}`;
 
 function CueTemplatesPanel({ slug }: Props) {
   const queryClient = useQueryClient();
@@ -107,6 +109,11 @@ function CueTemplatesPanel({ slug }: Props) {
   // Capture length bounds come from settings so the mark dialog honors the
   // configured audio_cue_capture_min/max_seconds.
   const settingsQuery = useQuery({ queryKey: ['settings'], queryFn: getSettings });
+  const inheritedCutMatches =
+    feedQuery.data?.cueCutMatchesOverride ?? settingsQuery.data?.audioCueCutMatches?.value;
+  const inheritLabel = inheritedCutMatches == null
+    ? 'Inherit'
+    : `Inherit (${inheritedCutMatches ? 'on' : 'off'})`;
   const captureMinSeconds = settingsQuery.data?.audioCueCaptureMinSeconds?.value ?? 0.2;
   const captureMaxSeconds = settingsQuery.data?.audioCueCaptureMaxSeconds?.value ?? 10;
   const captureMaxIntroSeconds = settingsQuery.data?.audioCueCaptureMaxIntroSeconds?.value ?? 60;
@@ -145,16 +152,16 @@ function CueTemplatesPanel({ slug }: Props) {
   const invalidate = () => queryClient.invalidateQueries({ queryKey: ['cue-templates', slug] });
 
   const updateMutation = useMutation({
-    mutationFn: ({ id, patch }: { id: number; patch: { cueType?: CueTemplateType; enabled?: boolean; removeWithAd?: boolean; scope?: CueTemplateScope; networkId?: string; scoreThreshold?: number | null } }) =>
+    mutationFn: ({ id, patch }: { id: number; patch: { cueType?: CueTemplateType; enabled?: boolean; removeWithAd?: boolean; cutMatches?: boolean | null; scope?: CueTemplateScope; networkId?: string; scoreThreshold?: number | null } }) =>
       updateCueTemplate(id, patch),
     onSuccess: invalidate,
-    onError: (e) => setActionError(getErrorMessage(e, 'Update failed')),
+    onError: (e) => setActionError(getErrorMessage(e, 'Could not update this cue.')),
   });
 
   const deleteMutation = useMutation({
     mutationFn: (id: number) => deleteCueTemplate(id),
     onSuccess: invalidate,
-    onError: (e) => setActionError(getErrorMessage(e, 'Delete failed')),
+    onError: (e) => setActionError(getErrorMessage(e, 'Could not delete this cue.')),
   });
 
   const templates: CueTemplate[] = templatesQuery.data ?? [];
@@ -185,7 +192,7 @@ function CueTemplatesPanel({ slug }: Props) {
     setActionError(null);
     setEditingThresholdId(template.id);
     setEditThresholdValue(
-      template.scoreThreshold != null ? String(template.scoreThreshold) : '',
+      template.scoreThreshold != null ? String(Math.round(template.scoreThreshold * 100)) : '',
     );
   };
 
@@ -202,12 +209,14 @@ function CueTemplatesPanel({ slug }: Props) {
       }
       return;
     }
-    const val = parseFloat(trimmed);
-    if (isNaN(val) || val < 0.30 || val > 0.99) {
-      setActionError('Score threshold must be a number between 0.30 and 0.99');
+    const percent = Number(trimmed);
+    if (!Number.isInteger(percent) || percent < 30 || percent > 99) {
+      setActionError('Match threshold must be a whole number between 30% and 99%.');
       return;
     }
-    if (val !== template.scoreThreshold) {
+    const val = percent / 100;
+    const current = template.scoreThreshold == null ? null : Math.round(template.scoreThreshold * 100);
+    if (percent !== current) {
       updateMutation.mutate({ id: template.id, patch: { scoreThreshold: val } });
     }
   };
@@ -266,7 +275,7 @@ function CueTemplatesPanel({ slug }: Props) {
       }
       setVerifyState({ label: template.label, checked: candidates.length, matched });
     } catch (e) {
-      setActionError(getErrorMessage(e, 'Auto-verify failed'));
+      setActionError(getErrorMessage(e, 'Could not check recent episodes.'));
     } finally {
       setVerifying(false);
     }
@@ -275,7 +284,7 @@ function CueTemplatesPanel({ slug }: Props) {
   const importMutation = useMutation({
     mutationFn: (file: File) => importCueTemplate(slug, file),
     onSuccess: invalidate,
-    onError: (e) => setActionError(getErrorMessage(e, 'Import failed')),
+    onError: (e) => setActionError(getErrorMessage(e, 'Could not import this cue.')),
   });
 
   const handleImportFile = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -309,7 +318,7 @@ function CueTemplatesPanel({ slug }: Props) {
   return (
     <div className="mb-6">
       <CollapsibleSection
-        title="Audio Cue Templates"
+        title="Audio cue templates"
         subtitle="A recurring ding or stinger the matcher snaps ad edges to."
         defaultOpen={false}
         storageKey={`feed-cue-templates-${slug}`}
@@ -326,7 +335,7 @@ function CueTemplatesPanel({ slug }: Props) {
         <div className="flex flex-wrap gap-2 mb-3">
           <button
             type="button"
-            className={`${cueBtn} ${ghostBtn}`}
+            className={ghostBtn}
             onClick={() => importInputRef.current?.click()}
             disabled={importMutation.isPending}
             title="Import a cue template zip exported from another install"
@@ -335,7 +344,7 @@ function CueTemplatesPanel({ slug }: Props) {
           </button>
           <button
             type="button"
-            className={`${cueBtn} ${ghostBtn} disabled:opacity-50`}
+            className={ghostBtn}
             onClick={() => setScanOpen(true)}
             disabled={templates.length === 0}
             title={templates.length === 0 ? 'Mark at least one cue first' : 'Run all enabled templates against an episode'}
@@ -344,7 +353,7 @@ function CueTemplatesPanel({ slug }: Props) {
           </button>
           <button
             type="button"
-            className={`${cueBtn} ${ghostBtn} disabled:opacity-50`}
+            className={ghostBtn}
             onClick={() => { setActionError(null); setCrossEpisodeScanOpen(true); }}
             disabled={!crossEpisodeEligible}
             title={!crossEpisodeEligible ? 'Need at least 2 episodes with original audio' : 'Find recurring cue sounds across multiple episodes'}
@@ -353,10 +362,11 @@ function CueTemplatesPanel({ slug }: Props) {
           </button>
           <button
             type="button"
-            className={`${cueBtn} ${primaryBtn}`}
+            className={primaryBtn}
             onClick={() => { setActionError(null); setPickerOpen(true); }}
           >
-            + Mark cue
+            <Plus className="w-4 h-4" aria-hidden="true" />
+            Mark cue
           </button>
         </div>
 
@@ -388,7 +398,7 @@ function CueTemplatesPanel({ slug }: Props) {
         )}
 
         {templates.length > 0 && (
-          <ul className="divide-y divide-border border border-border rounded">
+          <ul className="divide-y divide-border border-t border-border">
             {templates.map((t) => (
               <li key={t.id} className="px-3 py-2 text-sm">
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
@@ -415,7 +425,7 @@ function CueTemplatesPanel({ slug }: Props) {
                           e.currentTarget.blur();
                         }
                       }}
-                      className={`w-full px-3 py-1.5 ${fieldCls} text-sm`}
+                      className={`w-full ${selectBase}`}
                       aria-label="Cue type"
                     >
                       {CUE_TYPE_OPTIONS.map((o) => (
@@ -427,16 +437,16 @@ function CueTemplatesPanel({ slug }: Props) {
                       <p className="font-medium truncate">
                         {t.label}
                         {t.scope === 'network' && (
-                          <span className={`${badgeBase} ml-2 font-medium ${tint.purple} align-middle`}>
-                            NETWORK
+                          <span className={`${badgeBase} ml-2 ${tint.purple} align-middle`}>
+                            Network
                           </span>
                         )}
                         {t.quiet && (
                           <span
-                            className={`${badgeBase} ml-2 font-medium ${tint.warning} align-middle`}
+                            className={`${badgeBase} ml-2 ${tint.warning} align-middle`}
                             title="No matches in recent episodes. Recapture this cue to keep it working."
                           >
-                            quiet
+                            Quiet
                           </span>
                         )}
                       </p>
@@ -456,6 +466,29 @@ function CueTemplatesPanel({ slug }: Props) {
                           ariaLabel={`Remove cue with ad: ${t.label}`}
                         />
                       )}
+                      {t.cueType !== 'content_transition' && (
+                        <div className="flex flex-col gap-1">
+                          <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2">
+                            <label htmlFor={`cut-matches-${t.id}`} className={`${labelBase} mb-0`}>
+                              Cut matched audio
+                            </label>
+                            <TriStateSelect
+                              id={`cut-matches-${t.id}`}
+                              ariaDescribedBy={`cut-matches-help-${t.id}`}
+                              value={t.cutMatches ?? null}
+                              onChange={(cutMatches) => updateMutation.mutate({ id: t.id, patch: { cutMatches } })}
+                              disabled={t.owned === false || updateMutation.isPending}
+                              globalLabel={inheritLabel}
+                              enableLabel="On"
+                              disableLabel="Off"
+                              className={`${selectBase} w-full sm:w-auto`}
+                            />
+                          </div>
+                          <p id={`cut-matches-help-${t.id}`} className="text-xs text-muted-foreground">
+                            Cuts every match of this cue on its own. The feed's category action for the cue type decides remove, keep or mark.
+                          </p>
+                        </div>
+                      )}
                       {t.owned !== false && t.scope === 'network' && networkId
                         && t.networkId && t.networkId !== networkId && (
                         <p className="text-xs text-warning">
@@ -467,21 +500,21 @@ function CueTemplatesPanel({ slug }: Props) {
                   </div>
                 </div>
                 {editingId !== t.id && (
-                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1 pl-7 sm:pl-0 sm:shrink-0">
+                  <div className="flex flex-wrap items-center gap-2 pl-7 sm:pl-0 sm:shrink-0">
                     {t.hasAudio !== false && (
                       <button
                         type="button"
-                        className={`inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground ${focusRing}`}
+                        className={`${btnBase} ${btnGhost}`}
                         onClick={() => togglePlay(t)}
                         title={playingId === t.id ? 'Stop' : 'Play this cue'}
                         aria-label={playingId === t.id ? `Stop cue ${t.label}` : `Play cue ${t.label}`}
                       >
-                        {playingId === t.id ? <Square className="w-3 h-3" /> : <Play className="w-3 h-3" />}
+                        {playingId === t.id ? <Square className="w-4 h-4" aria-hidden="true" /> : <Play className="w-4 h-4" aria-hidden="true" />}
                         {playingId === t.id ? 'Stop' : 'Play'}
                       </button>
                     )}
                     <a
-                      className={`text-xs text-muted-foreground hover:text-foreground ${focusRing}`}
+                      className={`${btnBase} ${btnGhost}`}
                       href={cueTemplateExportUrl(t.id)}
                       title="Download this cue as a portable zip"
                     >
@@ -499,7 +532,7 @@ function CueTemplatesPanel({ slug }: Props) {
                           return (
                             <button
                               type="button"
-                              className={`text-xs text-muted-foreground hover:text-foreground ${focusRing}`}
+                              className={`${btnBase} ${btnGhost}`}
                               onClick={() => handlePromote(t)}
                               title={
                                 t.scope === 'network'
@@ -517,7 +550,7 @@ function CueTemplatesPanel({ slug }: Props) {
                         })()}
                         <button
                           type="button"
-                          className={`text-xs text-muted-foreground hover:text-foreground ${focusRing}`}
+                          className={`${btnBase} ${btnGhost}`}
                           onClick={() => startEditType(t)}
                         >
                           Change type
@@ -525,9 +558,9 @@ function CueTemplatesPanel({ slug }: Props) {
                         {editingThresholdId === t.id ? (
                           <DraftNumberInput
                             autoFocus
-                            min={0.30}
-                            max={0.99}
-                            step={0.01}
+                            min={30}
+                            max={99}
+                            step={1}
                             ariaLabel={`Match threshold for ${t.label}`}
                             value={parseOptionalNumber(editThresholdValue)}
                             fallback={null}
@@ -542,22 +575,22 @@ function CueTemplatesPanel({ slug }: Props) {
                               }
                             }}
                             placeholder="inherit"
-                            className={`w-20 px-2 py-0.5 text-xs ${fieldCls}`}
+                            className="w-20"
                             aria-label="Score threshold"
                           />
                         ) : (
                           <button
                             type="button"
-                            className={`text-xs text-muted-foreground hover:text-foreground ${focusRing}`}
+                            className={`${btnBase} ${btnGhost}`}
                             onClick={() => startEditThreshold(t)}
                             title="Per-template match score threshold (empty = inherit feed/global)"
                           >
-                            Threshold{t.scoreThreshold != null ? `: ${t.scoreThreshold}` : ''}
+                            Threshold{t.scoreThreshold != null ? `: ${formatPercent(t.scoreThreshold)}` : ''}
                           </button>
                         )}
                         <button
                           type="button"
-                          className={`text-xs text-muted-foreground hover:text-foreground disabled:opacity-50 disabled:cursor-not-allowed ${focusRing}`}
+                          className={`${btnBase} ${btnGhost}`}
                           onClick={() => {
                             setActionError(null);
                             setOptimizeId(optimizeId === t.id ? null : t.id);
@@ -573,14 +606,14 @@ function CueTemplatesPanel({ slug }: Props) {
                           <>
                             <button
                               type="button"
-                              className={`text-xs text-destructive font-medium ${focusRing}`}
+                              className={`${btnBase} ${btnDestructive}`}
                               onClick={() => { deleteMutation.mutate(t.id); setConfirmDeleteId(null); }}
                             >
-                              Confirm
+                              Delete cue
                             </button>
                             <button
                               type="button"
-                              className={`text-xs text-muted-foreground hover:text-foreground ${focusRing}`}
+                              className={`${btnBase} ${btnGhost}`}
                               onClick={() => setConfirmDeleteId(null)}
                             >
                               Cancel
@@ -589,7 +622,7 @@ function CueTemplatesPanel({ slug }: Props) {
                         ) : (
                           <button
                             type="button"
-                            className={`text-xs text-destructive hover:text-destructive/80 ${focusRing}`}
+                            className={`${btnBase} ${btnDestructiveOutline}`}
                             onClick={() => setConfirmDeleteId(t.id)}
                           >
                             Delete
@@ -614,33 +647,30 @@ function CueTemplatesPanel({ slug }: Props) {
 
         {advisoryQuery.data && advisoryQuery.data.total > 0 && (
           <div className="mt-4 pt-4 border-t border-border">
-            <h4 className="text-sm font-semibold text-foreground mb-1">Cue health</h4>
+            <h4 className={`${subHeading} mb-1`}>Cue health</h4>
             <p className="text-xs text-muted-foreground mb-3">
               How this feed's cues have done across processed episodes. Use it to
-              decide whether to enable cue-pair synthesis.
+              decide whether to turn on Create ads from cue pairs.
             </p>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
               {([
                 ['Detections', String(advisoryQuery.data.total)],
-                ['Paired / Snapped', `${advisoryQuery.data.paired} / ${advisoryQuery.data.snapped}`],
+                ['Paired / snapped', `${advisoryQuery.data.paired} / ${advisoryQuery.data.snapped}`],
                 ['Confirm rate', advisoryQuery.data.confirmRate != null
-                  ? `${Math.round(advisoryQuery.data.confirmRate * 100)}%` : '--'],
-                ['Score range', advisoryQuery.data.minScore != null
-                  ? `${Math.round(advisoryQuery.data.minScore * 100)}-${Math.round((advisoryQuery.data.maxScore ?? 0) * 100)}%`
+                  ? formatPercent(advisoryQuery.data.confirmRate) : '--'],
+                ['Match range', advisoryQuery.data.minScore != null
+                  ? `${formatPercent(advisoryQuery.data.minScore)} to ${formatPercent(advisoryQuery.data.maxScore ?? 0)}`
                   : '--'],
               ] as const).map(([label, value]) => (
-                <div key={label} className="rounded-lg border border-border bg-secondary/40 px-3 py-2">
-                  <div className="text-xs text-muted-foreground">{label}</div>
-                  <div className="text-sm font-semibold text-foreground">{value}</div>
-                </div>
+                <StatTile key={label} label={label} value={value} />
               ))}
             </div>
             {(advisoryQuery.data.templateHints?.length ?? 0) > 0 && (
               <div className="mt-3 space-y-1">
                 {advisoryQuery.data.templateHints!.map((h) => (
                   <p key={h.templateId} className="text-sm text-muted-foreground">
-                    <span className={`${badgeBase} font-medium ${tint.warning} mr-2`}>
-                      {h.hint === 'raise_threshold' ? 'Raise threshold' : 'Re-capture cue'}
+                    <span className={`${badgeBase} ${tint.warning} mr-2`}>
+                      {h.hint === 'raise_threshold' ? 'Raise threshold' : 'Recapture cue'}
                     </span>
                     {h.label || `Template ${h.templateId}`}: {h.rejected} rejected
                     {h.confirmed > 0 && `, ${h.confirmed} confirmed`}
@@ -690,26 +720,36 @@ function CueTemplatesPanel({ slug }: Props) {
       )}
 
       {promoteState && (
-        <Modal onClose={() => setPromoteState(null)} ariaLabel="Promote cue to network" panelClassName="text-foreground w-full max-w-md p-5">
-            <h3 className="text-base font-semibold mb-2">Promote to network</h3>
+        <Modal
+          onClose={() => setPromoteState(null)}
+          ariaLabel="Promote cue to network"
+          panelClassName="text-foreground w-full max-w-md"
+          header={(
+            <h3 className={cardTitle}>Promote to network</h3>
+          )}
+          footer={(
+            <>
+              <button type="button" className={`${dialogFooterBtn} ${btnOutline}`} onClick={() => setPromoteState(null)}>
+                Cancel
+              </button>
+              <button type="button" className={`${dialogFooterBtn} ${btnPrimary}`} onClick={confirmPromote}>
+                Promote
+              </button>
+            </>
+          )}
+        >
+          <div className="p-4">
             <p className="text-sm text-muted-foreground mb-3">
               Cue "{promoteState.template.label}" will start matching every feed on
               network "{networkId}" ({promoteState.feeds.length}):
             </p>
-            <ul className="text-sm border border-border rounded divide-y divide-border max-h-48 overflow-y-auto mb-4">
+            <ul className="text-sm border border-border rounded divide-y divide-border max-h-48 overflow-y-auto">
               {promoteState.feeds.map((f) => (
                 <li key={f.slug} className="px-3 py-1.5 truncate">{f.title || f.slug}</li>
               ))}
             </ul>
-            <div className="flex justify-end gap-2">
-              <button type="button" className={`px-3 py-1.5 rounded ${ghostBtn} text-sm ${focusRing}`} onClick={() => setPromoteState(null)}>
-                Cancel
-              </button>
-              <button type="button" className={`px-3 py-1.5 rounded ${primaryBtn} text-sm ${focusRing}`} onClick={confirmPromote}>
-                Promote
-              </button>
-            </div>
-          </Modal>
+          </div>
+        </Modal>
       )}
     </div>
   );
@@ -745,24 +785,50 @@ function EpisodePicker({ slug, onClose, onPick }: EpisodePickerProps) {
   const totalPages = Math.max(1, Math.ceil(total / PICKER_PAGE_SIZE));
 
   return (
-    <Modal onClose={onClose} ariaLabel="Pick an episode" panelClassName="text-foreground w-full max-w-2xl p-5 max-h-[85vh] flex flex-col">
-        <div className="flex items-start justify-between mb-3">
+    <Modal
+      onClose={onClose}
+      ariaLabel="Pick an episode"
+      panelClassName="text-foreground w-full max-w-2xl max-h-[85vh]"
+      header={(
+        <>
           <div>
-            <h3 className="text-base font-semibold">Pick an episode</h3>
+            <h3 className={cardTitle}>Pick an episode</h3>
             <p className="text-xs text-muted-foreground">
               Any episode with retained original audio. A cue applies to the whole feed.
             </p>
           </div>
-          <button type="button" className={`text-muted-foreground hover:text-foreground ${focusRing}`} onClick={onClose} aria-label="Close">
-            <X size={18} />
+          <CloseButton onClick={onClose} />
+        </>
+      )}
+      footer={totalPages > 1 ? (
+        <div className="flex items-center justify-between w-full text-sm">
+          <button
+            type="button"
+            className={ghostBtn}
+            onClick={() => setPage((p) => Math.max(0, p - 1))}
+            disabled={page === 0}
+          >
+            Prev
+          </button>
+          <span className="text-muted-foreground">
+            Page {page + 1} of {totalPages} ({total} episodes)
+          </span>
+          <button
+            type="button"
+            className={ghostBtn}
+            onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
+            disabled={page + 1 >= totalPages}
+          >
+            Next
           </button>
         </div>
-
-        <div className="flex-1 overflow-y-auto border border-border rounded">
+      ) : undefined}
+    >
+        <div>
           {query.isLoading && <div className="p-4"><LoadingSpinner size="sm" /></div>}
           {query.error && <p className="p-3 text-sm text-destructive">Could not load episodes.</p>}
           {!query.isLoading && episodes.length === 0 && (
-            <p className="p-3 text-sm text-muted-foreground">No episodes match this filter.</p>
+            <p className="p-3 text-sm text-muted-foreground">No episodes match these filters.</p>
           )}
           {episodes.length > 0 && (
             <ul className="divide-y divide-border">
@@ -775,9 +841,9 @@ function EpisodePicker({ slug, onClose, onPick }: EpisodePickerProps) {
                   >
                     <p className="text-sm font-medium truncate">{ep.title}</p>
                     <p className="text-xs text-muted-foreground">
-                      {ep.published ? formatDate(ep.published) : 'unknown date'}
+                      {ep.published ? formatDate(ep.published) : '-'}
                       {' - '}{ep.status}
-                      {typeof ep.duration === 'number' && ep.duration > 0 ? ` - ${Math.round(ep.duration / 60)} min` : ''}
+                      {typeof ep.duration === 'number' && ep.duration > 0 ? ` - ${formatElapsed(ep.duration)}` : ''}
                     </p>
                   </button>
                 </li>
@@ -785,31 +851,7 @@ function EpisodePicker({ slug, onClose, onPick }: EpisodePickerProps) {
             </ul>
           )}
         </div>
-
-        {totalPages > 1 && (
-          <div className="flex items-center justify-between mt-3 text-sm">
-            <button
-              type="button"
-              className={`px-2 py-1 rounded ${ghostBtn} disabled:opacity-50 ${focusRing}`}
-              onClick={() => setPage((p) => Math.max(0, p - 1))}
-              disabled={page === 0}
-            >
-              Prev
-            </button>
-            <span className="text-muted-foreground">
-              Page {page + 1} / {totalPages} ({total} episodes)
-            </span>
-            <button
-              type="button"
-              className={`px-2 py-1 rounded ${ghostBtn} disabled:opacity-50 ${focusRing}`}
-              onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
-              disabled={page + 1 >= totalPages}
-            >
-              Next
-            </button>
-          </div>
-        )}
-      </Modal>
+    </Modal>
   );
 }
 
@@ -844,7 +886,7 @@ function CueScanModal({ slug, onClose }: CueScanModalProps) {
       const res = await scanEpisodeCues(slug, ep.id, override);
       setResult(res);
     } catch (e) {
-      setError(getErrorMessage(e, 'Scan failed'));
+      setError(getErrorMessage(e, 'Could not scan this episode.'));
     } finally {
       setRunning(false);
     }
@@ -860,7 +902,7 @@ function CueScanModal({ slug, onClose }: CueScanModalProps) {
         const res = await suggestCueThreshold(slug, selectedEpisode.id, i === 0);
         if (!activeRef.current) return;
         if (res.status === 'error') {
-          setError(res.error || 'Threshold suggest failed');
+          setError(res.error || 'Could not suggest a threshold.');
           return;
         }
         if (res.status === 'ready') {
@@ -871,7 +913,7 @@ function CueScanModal({ slug, onClose }: CueScanModalProps) {
       }
       setError('Threshold suggest timed out after 3 minutes');
     } catch (e) {
-      setError(getErrorMessage(e, 'Suggest failed'));
+      setError(getErrorMessage(e, 'Could not suggest a threshold.'));
     } finally {
       setSuggesting(false);
     }
@@ -890,7 +932,7 @@ function CueScanModal({ slug, onClose }: CueScanModalProps) {
       queryClient.invalidateQueries({ queryKey: ['feeds'] });
       setApplied(true);
     } catch (e) {
-      setError(getErrorMessage(e, 'Could not apply'));
+      setError(getErrorMessage(e, 'Could not apply the threshold.'));
     }
   };
 
@@ -905,7 +947,7 @@ function CueScanModal({ slug, onClose }: CueScanModalProps) {
       setSelectedEpisode(ep);
       await runScan(ep);
     } catch (e) {
-      setError(getErrorMessage(e, 'Could not load episode'));
+      setError(getErrorMessage(e, 'Could not load this episode.'));
     }
   };
 
@@ -914,20 +956,24 @@ function CueScanModal({ slug, onClose }: CueScanModalProps) {
   }
 
   return (
-    <Modal onClose={onClose} ariaLabel="Cue scan" panelClassName="text-foreground w-full max-w-3xl p-5 max-h-[90vh] overflow-y-auto">
-        <div className="flex items-start justify-between mb-3">
-          <div>
-            <h3 className="text-base font-semibold">Cue scan</h3>
+    <Modal
+      onClose={onClose}
+      ariaLabel="Cue scan"
+      panelClassName="text-foreground w-full max-w-3xl max-h-[90vh]"
+      header={(
+        <>
+          <div className="min-w-0">
+            <h3 className={cardTitle}>Cue scan</h3>
             <p className="text-xs text-muted-foreground truncate max-w-xl">{selectedEpisode?.title}</p>
           </div>
-          <button type="button" className={`text-muted-foreground hover:text-foreground ${focusRing}`} onClick={onClose} aria-label="Close">
-            <X size={18} />
-          </button>
-        </div>
-
+          <CloseButton onClick={onClose} />
+        </>
+      )}
+    >
+      <div className="p-4">
         <div className="flex flex-wrap items-end gap-3 mb-4">
           <div>
-            <label className="block text-xs text-muted-foreground" htmlFor="score-override">
+            <label className={labelBase} htmlFor="score-override">
               Score threshold (optional)
             </label>
             <DraftNumberInput
@@ -940,12 +986,12 @@ function CueScanModal({ slug, onClose }: CueScanModalProps) {
               fallback={null}
               parse={parseOptionalNumber}
               onChange={(v) => setScoreOverride(v === null ? '' : String(v))}
-              className={`w-28 px-3 py-1.5 ${fieldCls} text-sm font-mono`}
+              className="w-28 font-mono"
             />
           </div>
           <button
             type="button"
-            className={`px-3 py-1.5 rounded ${ghostBtn} text-sm ${focusRing}`}
+            className={ghostBtn}
             onClick={() => {
               if (!selectedEpisode) return;
               const n = scoreOverride.trim() === '' ? undefined : Number(scoreOverride);
@@ -961,14 +1007,14 @@ function CueScanModal({ slug, onClose }: CueScanModalProps) {
           </button>
           <button
             type="button"
-            className={`px-3 py-1.5 rounded ${ghostBtn} text-sm ${focusRing}`}
+            className={ghostBtn}
             onClick={() => { setPicking(true); setResult(null); setSelectedEpisode(null); setSuggestion(null); }}
           >
-            Pick different episode
+            Pick a different episode
           </button>
           <button
             type="button"
-            className={`px-3 py-1.5 rounded ${ghostBtn} text-sm ${focusRing}`}
+            className={ghostBtn}
             onClick={runSuggest}
             disabled={suggesting}
           >
@@ -984,7 +1030,7 @@ function CueScanModal({ slug, onClose }: CueScanModalProps) {
           const canApply = s.confidence !== 'low'
             && s.effectFloorWarning !== 'signal-below-floor';
           return (
-            <div className="mb-3 rounded-lg border border-border bg-secondary/40 px-3 py-2 text-sm">
+            <div className="mb-3 rounded-lg bg-muted/40 px-3 py-2 text-sm">
               {s.suggested != null ? (
                 <p className="font-mono">
                   noise {s.noiseCeiling?.toFixed(3)} / signal {s.signalFloor?.toFixed(3)}
@@ -1009,7 +1055,7 @@ function CueScanModal({ slug, onClose }: CueScanModalProps) {
               {s.suggested != null && (
                 <button
                   type="button"
-                  className={`mt-2 px-3 py-1.5 rounded ${ghostBtn} text-sm disabled:opacity-50 ${focusRing}`}
+                  className={`mt-2 ${ghostBtn}`}
                   onClick={() => applySuggested(s.suggested as number)}
                   disabled={!canApply}
                 >
@@ -1032,7 +1078,7 @@ function CueScanModal({ slug, onClose }: CueScanModalProps) {
               {result.thresholdSource === 'request' && ' (this scan only)'}
               {' '}- scan {result.elapsedSeconds.toFixed(1)}s
             </p>
-            <ul className="divide-y divide-border border border-border rounded">
+            <ul className="divide-y divide-border border-t border-border">
               {result.templates.map((t) => {
                 // Use per-template effective threshold when available (set when
                 // a per-template override governs this template's matching).
@@ -1049,7 +1095,7 @@ function CueScanModal({ slug, onClose }: CueScanModalProps) {
                       </div>
                       <div className="text-right shrink-0">
                         <p className={`text-sm font-mono ${passed ? 'text-success' : 'text-warning'}`}>
-                          peak {t.peakScore.toFixed(3)}
+                          Peak {formatPercent(t.peakScore)} match
                         </p>
                         <p className="text-xs text-muted-foreground">
                           {t.matchCount} match{t.matchCount === 1 ? '' : 'es'}
@@ -1060,7 +1106,7 @@ function CueScanModal({ slug, onClose }: CueScanModalProps) {
                       <ul className="mt-2 text-xs grid grid-cols-2 sm:grid-cols-3 gap-1 max-h-32 overflow-y-auto">
                         {t.matches.slice(0, 30).map((m, i) => (
                           <li key={i} className="font-mono">
-                            {formatTime(m.start)} - {m.score.toFixed(3)}
+                            {formatTime(m.start)} - {formatPercent(m.score)} match
                           </li>
                         ))}
                       </ul>
@@ -1083,7 +1129,8 @@ function CueScanModal({ slug, onClose }: CueScanModalProps) {
           <p>Sets this feed's cue match threshold to {pendingThreshold.toFixed(2)}. The global setting does not change.</p>
         </ConfirmModal>
       )}
-      </Modal>
+      </div>
+    </Modal>
   );
 }
 

@@ -178,7 +178,8 @@ jobs:
           PLATFORM: ${{ matrix.platform }}
         run: |
           set -euo pipefail
-          trivy image --image-src remote --platform "$PLATFORM" --ignorefile /dev/null --scanners vuln,secret --exit-code 0 \
+          trivy image --image-src remote --platform "$PLATFORM" --ignorefile /dev/null --secret-config trivy-allow-rules.yaml \
+            --scanners vuln,secret --exit-code 0 \
             --format json --output "/tmp/trivy-$ARCH_ID.json" \
             "$REGISTRY_IMAGE@$IMAGE_DIGEST"
 

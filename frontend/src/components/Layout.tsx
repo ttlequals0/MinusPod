@@ -1,17 +1,19 @@
 import { useCallback, useState } from 'react';
+import { LogOut, Menu, Moon, Search, Sun, X } from 'lucide-react';
 import { Outlet, Link, useLocation } from 'react-router';
 import { useQuery } from '@tanstack/react-query';
 import { useTheme } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
-import { btnGhost, btnPrimary, touchTarget } from './buttonStyles';
-import { focusRing } from './fieldStyles';
 import UpdateBanner from './UpdateBanner';
 import QuickSearch, { useQuickSearchHotkey } from './QuickSearch';
 import { getProcessingStatus } from '../api/status';
+import { btnBase, btnPrimary, btnGhost, touchTarget } from './buttonStyles';
+import { focusRing } from './fieldStyles';
+import { countPill, tint } from './badgeStyles';
 
 const NAV_ITEMS: { to: string; label: string }[] = [
-  { to: '/', label: 'Dashboard' },
-  { to: '/add', label: 'Add Feed' },
+  { to: '/', label: 'Feeds' },
+  { to: '/add', label: 'Add feed' },
   { to: '/patterns', label: 'Patterns' },
   { to: '/sponsors', label: 'Sponsors' },
   { to: '/history', label: 'History' },
@@ -43,10 +45,8 @@ function NavLink({ to, label, active, onClick, count }: NavLinkProps) {
     >
       {label}
       {count ? (
-        <span className={`ml-1 px-1.5 py-0.5 text-xs rounded-full tabular-nums ${
-          active
-            ? 'bg-primary-foreground/20 text-primary-foreground'
-            : 'bg-primary/20 text-primary'
+        <span className={`ml-1.5 ${countPill} ${
+          active ? 'bg-primary-foreground/20 text-primary-foreground' : tint.primary
         }`}>
           {count}
         </span>
@@ -94,12 +94,12 @@ function Layout() {
     <div className="min-h-screen bg-background">
       <a
         href="#main"
-        className={`sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-50 px-3 py-2 rounded text-sm ${btnPrimary} ${focusRing}`}
+        className={`sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-50 ${btnBase} ${btnPrimary}`}
       >
         Skip to content
       </a>
       <header className="sticky z-30 border-b border-border bg-card" style={{ top: 'var(--status-bar-height, 0px)' }}>
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="safe-x safe-x-wide max-w-7xl mx-auto">
           <div className="flex justify-between items-center h-16">
             <div className="flex items-center gap-8">
               <Link to="/" className={`flex h-11 shrink-0 items-center ${focusRing} xl:h-auto`}>
@@ -128,34 +128,14 @@ function Layout() {
                 aria-label="Search"
                 title="Search"
               >
-                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                </svg>
+                <Search className="w-5 h-5" aria-hidden="true" />
               </Link>
               <button
                 onClick={toggleTheme}
                 className={`${touchTarget} ${COMPACT_HEADER_CONTROL_SIZE} p-2 rounded-md ${btnGhost} ${focusRing} transition-colors`}
                 aria-label="Toggle theme"
               >
-                {theme === 'dark' ? (
-                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"
-                    />
-                  </svg>
-                ) : (
-                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"
-                    />
-                  </svg>
-                )}
+                {theme === 'dark' ? <Sun className="w-5 h-5" aria-hidden="true" /> : <Moon className="w-5 h-5" aria-hidden="true" />}
               </button>
               {isPasswordSet && (
                 <button
@@ -164,14 +144,7 @@ function Layout() {
                   aria-label="Log out"
                   title="Log out"
                 >
-                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15M12 9l3 3m0 0l-3 3m3-3H2.25"
-                    />
-                  </svg>
+                  <LogOut className="w-5 h-5" aria-hidden="true" />
                 </button>
               )}
               <button
@@ -180,22 +153,14 @@ function Layout() {
                 aria-label="Toggle menu"
                 aria-expanded={mobileMenuOpen}
               >
-                {mobileMenuOpen ? (
-                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                ) : (
-                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-                  </svg>
-                )}
+                {mobileMenuOpen ? <X className="w-5 h-5" aria-hidden="true" /> : <Menu className="w-5 h-5" aria-hidden="true" />}
               </button>
             </div>
           </div>
         </div>
         {mobileMenuOpen && (
           <div className="xl:hidden max-h-[calc(100dvh-var(--status-bar-height,0px)-4rem)] overflow-y-auto overscroll-contain border-t border-border bg-card">
-            <nav className="flex flex-col px-4 py-2 gap-1">
+            <nav className="safe-x flex flex-col py-2 gap-1">
               {NAV_ITEMS.map((item) => (
                 <NavLink
                   key={item.to}
@@ -210,7 +175,7 @@ function Layout() {
           </div>
         )}
       </header>
-      <main id="main" tabIndex={-1} className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <main id="main" tabIndex={-1} className="safe-x safe-x-wide max-w-7xl mx-auto py-8">
         <UpdateBanner />
         <Outlet />
       </main>

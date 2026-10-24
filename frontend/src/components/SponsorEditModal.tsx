@@ -5,11 +5,12 @@ import { addSponsor, updateSponsor } from '../api/sponsors';
 import { getTagVocabulary, updateSponsorTags } from '../api/community';
 import { Sponsor } from '../api/types';
 import { getErrorMessage } from '../api/client';
-import { btnOutline, btnPrimary } from './buttonStyles';
-import { Modal } from './Modal';
+import { Modal, dialogFooterBtn } from './Modal';
 import Checkbox from './Checkbox';
-import { focusRing, inputBase, selectBase } from './fieldStyles';
 import { SEGMENT_CATEGORIES, SEGMENT_CATEGORY_LABELS, type SegmentCategory } from '../utils/segmentCategory';
+import CloseButton from './CloseButton';
+import { btnPrimary, btnOutline } from './buttonStyles';
+import { focusRing, inputBase, labelBase, selectBase } from './fieldStyles';
 import { badgeBase, tint } from './badgeStyles';
 
 interface Props {
@@ -66,7 +67,7 @@ function SponsorEditModal({ sponsor, onClose, onSaved }: Props) {
       queryClient.invalidateQueries({ queryKey: ['sponsors'] });
       onSaved();
     },
-    onError: (e: unknown) => setError(getErrorMessage(e, 'Failed to save sponsor')),
+    onError: (e: unknown) => setError(getErrorMessage(e, 'Could not save sponsor.')),
   });
 
   const dirty = name !== (sponsor?.name ?? '') || aliasesText !== (sponsor?.aliases ?? []).join(', ')
@@ -78,21 +79,36 @@ function SponsorEditModal({ sponsor, onClose, onSaved }: Props) {
     setTags((prev) => (prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag]));
 
   return (
-    <Modal ariaLabel={isNew ? 'Add Sponsor' : `Edit ${sponsor!.name}`} onClose={requestClose} panelClassName="max-w-lg w-full max-h-[90vh] overflow-y-auto">
-      <div className="flex items-center justify-between p-4 border-b border-border">
-        <h2 className="text-lg font-semibold text-foreground">
-          {isNew ? 'Add Sponsor' : `Edit ${sponsor!.name}`}
-        </h2>
-        <button aria-label="Close" onClick={requestClose} className={`p-1 text-muted-foreground hover:text-foreground ${focusRing}`}>
-          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-          </svg>
-        </button>
-      </div>
-
+    <Modal ariaLabel={isNew ? 'Add sponsor' : `Edit ${sponsor!.name}`} onClose={requestClose} panelClassName="max-w-lg w-full"
+      header={(
+        <>
+          <h2 className="text-lg font-semibold text-foreground">
+            {isNew ? 'Add sponsor' : `Edit ${sponsor!.name}`}
+          </h2>
+          <CloseButton onClick={requestClose} />
+        </>
+      )}
+      footer={(
+        <>
+          <button
+            onClick={requestClose}
+            className={`${dialogFooterBtn} ${btnOutline}`}
+          >
+            Cancel
+          </button>
+          <button
+            onClick={() => save.mutate()}
+            disabled={save.isPending}
+            className={`${dialogFooterBtn} ${btnPrimary}`}
+          >
+            {save.isPending ? 'Saving...' : isNew ? 'Add sponsor' : 'Save'}
+          </button>
+        </>
+      )}
+    >
       <div className="p-4 space-y-4">
         <div>
-          <label htmlFor={`${fieldId}-name`} className="block text-sm font-medium text-foreground mb-1">Name</label>
+          <label htmlFor={`${fieldId}-name`} className={labelBase}>Name</label>
           <input
             type="text"
             id={`${fieldId}-name`}
@@ -107,8 +123,8 @@ function SponsorEditModal({ sponsor, onClose, onSaved }: Props) {
         </div>
 
         <div>
-          <label htmlFor={`${fieldId}-aliases`} className="block text-sm font-medium text-foreground mb-1">
-            Aliases <span className="text-muted-foreground font-normal">(comma-separated)</span>
+          <label htmlFor={`${fieldId}-aliases`} className={labelBase}>
+            Aliases <span className="text-muted-foreground font-normal">(comma separated)</span>
           </label>
           <input
             type="text"
@@ -121,7 +137,7 @@ function SponsorEditModal({ sponsor, onClose, onSaved }: Props) {
         </div>
 
         <div>
-          <label htmlFor={`${fieldId}-category`} className="block text-sm font-medium text-foreground mb-1">Category</label>
+          <label htmlFor={`${fieldId}-category`} className={labelBase}>Category</label>
           <input
             type="text"
             id={`${fieldId}-category`}
@@ -133,7 +149,7 @@ function SponsorEditModal({ sponsor, onClose, onSaved }: Props) {
         </div>
 
         <div>
-          <label htmlFor="sponsor-segment-category" className="block text-sm font-medium text-foreground mb-1">
+          <label htmlFor="sponsor-segment-category" className={labelBase}>
             Segment category
           </label>
           <select
@@ -154,7 +170,7 @@ function SponsorEditModal({ sponsor, onClose, onSaved }: Props) {
         </div>
 
         <fieldset>
-          <legend className="block text-sm font-medium text-foreground mb-2">Tags</legend>
+          <legend className={labelBase}>Tags</legend>
           <div className="flex flex-wrap gap-1.5 max-h-40 overflow-y-auto">
             {(vocab?.all_tags ?? []).map((tag) => {
               const on = tags.includes(tag);
@@ -193,21 +209,6 @@ function SponsorEditModal({ sponsor, onClose, onSaved }: Props) {
         {error && <p id={`${fieldId}-error`} role="alert" className="text-sm text-destructive">{error}</p>}
       </div>
 
-      <div className="flex items-center justify-end gap-2 p-4 border-t border-border">
-        <button
-          onClick={requestClose}
-          className={`px-3 py-1.5 text-sm rounded ${btnOutline} transition-colors ${focusRing}`}
-        >
-          Cancel
-        </button>
-        <button
-          onClick={() => save.mutate()}
-          disabled={save.isPending}
-          className={`px-3 py-1.5 text-sm rounded ${btnPrimary} disabled:opacity-50 transition-colors ${focusRing}`}
-        >
-          {save.isPending ? 'Saving...' : isNew ? 'Add Sponsor' : 'Save'}
-        </button>
-      </div>
       {confirmation}
     </Modal>
   );

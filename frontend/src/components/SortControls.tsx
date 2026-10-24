@@ -1,6 +1,6 @@
 import { useId } from 'react';
-import { btnSecondary } from './buttonStyles';
-import { focusRing, selectBase } from './fieldStyles';
+import { btnBase, btnSecondary } from './buttonStyles';
+import { selectBase } from './fieldStyles';
 import type { SortDirection } from './SortHeader';
 
 export default function SortControls<T extends string>({ options, field, direction, onSort, className = '' }: {
@@ -16,7 +16,7 @@ export default function SortControls<T extends string>({ options, field, directi
     <select id={id} value={field} onChange={event => onSort(event.target.value as T)} className={`min-w-0 flex-1 ${selectBase}`}>
       {options.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
     </select>
-    <button type="button" onClick={() => onSort(field)} className={`${btnSecondary} ${focusRing} rounded px-3 py-2 text-sm`} aria-label={`Sort ${direction === 'asc' ? 'descending' : 'ascending'}`}>
+    <button type="button" onClick={() => onSort(field)} className={`${btnBase} ${btnSecondary}`} title={`Switch to ${direction === 'asc' ? 'descending' : 'ascending'}`}>
       {direction === 'asc' ? 'Ascending' : 'Descending'}
     </button>
   </div>;

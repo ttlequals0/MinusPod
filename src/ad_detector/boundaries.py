@@ -4,6 +4,7 @@ Pure functions over ad dicts and transcript segments. No DB, no LLM client.
 Split out of ``ad_detector/__init__.py`` for readability; behavior is
 unchanged from the pre-split module.
 """
+import copy
 import logging
 import math
 import re
@@ -1292,20 +1293,41 @@ def _merge_ad_pair(current_ad: dict, next_ad: dict, gap_desc: str = "") -> None:
     ``gap_desc`` is appended to the merged reason when set (filler-gap pass).
     """
     mark_distinct_merge(current_ad, next_ad)
-    invalidate_tail_provenance(current_ad, next_ad['end'])
-    inherit_edge(current_ad, next_ad, 'end')
+    # A fold is a union: a nested next_ad must not pull the measured end inward.
+    extends = next_ad['end'] > current_ad['end']
+    if extends:
+        invalidate_tail_provenance(current_ad, next_ad['end'])
+        inherit_edge(current_ad, next_ad, 'end')
+        # Only the later fragment's tail-sweep flag describes the new end edge.
+        if next_ad.get('end_extended_by_content'):
+            current_ad['end_extended_by_content'] = True
+        if next_ad.get('tail_splice_snap') is not None:
+            snap = next_ad['tail_splice_snap']
+            current_ad['tail_splice_snap'] = (
+                dict(snap) if isinstance(snap, dict) else snap)
+        if next_ad.get('end_text'):
+            current_ad['end_text'] = next_ad['end_text']
+    # Merged span stays cue-backed if either fragment is. Only a record that
+    # describes a merged edge keeps its edge key; the rest is interior evidence.
+    cur_snap = current_ad.get('cue_snap')
+    next_snap = next_ad.get('cue_snap')
+    cur = copy.deepcopy(cur_snap) if isinstance(cur_snap, dict) else {}
+    nxt = copy.deepcopy(next_snap) if isinstance(next_snap, dict) else {}
+    if cur or nxt:
+        merged = cur
+        if extends:
+            merged.pop('end', None)
+            if 'end' in nxt:
+                merged['end'] = nxt.pop('end')
+        if ('start' not in merged and 'start' in nxt
+                and abs(next_ad['start'] - current_ad['start']) <= 0.05):
+            merged['start'] = nxt.pop('start')
+        for edge in ('start', 'end'):
+            if edge in nxt:
+                merged.setdefault('interior', {})[edge] = nxt[edge]
+        current_ad['cue_snap'] = merged
     invalidate_quote_alignment(current_ad)
     invalidate_word_timed_edges(current_ad)
-    # The tail-sweep marker describes how the *current end* was reached. Once
-    # this merge replaces that edge, only the later fragment's flag remains
-    # meaningful; retaining the earlier fragment's flag could snap past an
-    # otherwise final, non-content-derived boundary.
-    if next_ad.get('end_extended_by_content'):
-        current_ad['end_extended_by_content'] = True
-    if next_ad.get('tail_splice_snap') is not None:
-        snap = next_ad['tail_splice_snap']
-        current_ad['tail_splice_snap'] = (
-            dict(snap) if isinstance(snap, dict) else snap)
     current_ad['confidence'] = max(current_ad.get('confidence', 0.0),
                                    next_ad.get('confidence', 0.0))
 
@@ -1321,17 +1343,6 @@ def _merge_ad_pair(current_ad: dict, next_ad: dict, gap_desc: str = "") -> None:
     if current_ad.get('sponsor') is None and next_ad.get('sponsor') is not None:
         current_ad['sponsor'] = next_ad['sponsor']
 
-    # end_text comes from the later ad.
-    if next_ad.get('end_text'):
-        current_ad['end_text'] = next_ad['end_text']
-
-    # Preserve cue-backedness so cue-gated feeds still recognize the merged span.
-    # current.end == next.end, so next's cue_snap end-edge record stays meaningful.
-    # Applies to both merge passes: a break where either fragment is cue-backed
-    # is treated as cue-backed (folding adjacent ads into one break), so the
-    # merged span is auto-cut rather than held on a cue-gated feed.
-    if next_ad.get('cue_snap') and not current_ad.get('cue_snap'):
-        current_ad['cue_snap'] = next_ad['cue_snap']
     if next_ad.get('detection_stage') == 'cue_pair' or current_ad.get('detection_stage') == 'cue_pair':
         current_ad['detection_stage'] = 'cue_pair'
 
@@ -1509,7 +1520,7 @@ def merge_same_sponsor_ads(ads: list[dict], segments: list[dict], max_gap: float
                 if should_merge:
                     # Safety check: don't merge if result would be too long
                     # MAX_MERGED_DURATION imported from config.py
-                    merged_duration = next_ad['end'] - current_ad['start']
+                    merged_duration = max(next_ad['end'], current_ad['end']) - current_ad['start']
                     if merged_duration > MAX_MERGED_DURATION:
                         logger.info(
                             f"Skipping merge: {current_ad['start']:.1f}s-{current_ad['end']:.1f}s + "

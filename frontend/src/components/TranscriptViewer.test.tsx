@@ -38,6 +38,7 @@ function renderViewer(ep: EpisodeDetail = episode) {
 describe('TranscriptViewer', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    localStorage.setItem('minuspod.transcript.view', 'lines');
     mockOriginal.mockResolvedValue({ episodeId: 'a1b2c3d4e5f6', segments: SEGS });
     mockFinal.mockResolvedValue({ episodeId: 'a1b2c3d4e5f6', segments: [SEGS[0], SEGS[2]] });
   });
@@ -123,5 +124,93 @@ describe('TranscriptViewer loading placeholder', () => {
     renderViewer();
     await waitFor(() => screen.getByText('Welcome to the show.'));
     expect(screen.queryByTestId('skeleton-rows')).toBeNull();
+  });
+});
+
+describe('TranscriptViewer paragraphs', () => {
+  // Pauses of 2 s after segments 2 and 5 split the 7 segments into 3 paragraphs.
+  const PSEGS = [
+    { start: 0, end: 2, text: 'Welcome to the show.' },
+    { start: 2, end: 4, text: 'Today we talk batteries.' },
+    { start: 6, end: 8, text: 'This episode is brought to you by Acme.' },
+    { start: 8, end: 10, text: 'Use code SAVE at checkout.' },
+    { start: 12, end: 14, text: 'Back to batteries.' },
+    { start: 14, end: 16, text: 'Lithium is everywhere.' },
+  ];
+  const adEpisode = {
+    ...episode,
+    adMarkers: [{ start: 8, end: 10, confidence: 0.9, sponsor: 'Acme' }],
+  } as unknown as EpisodeDetail;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    localStorage.clear();
+    mockOriginal.mockResolvedValue({ episodeId: 'a1b2c3d4e5f6', segments: PSEGS });
+  });
+
+  it('renders paragraphs by default with one start label each', async () => {
+    renderViewer(adEpisode);
+    await waitFor(() => screen.getByText(/Welcome to the show\./));
+    expect(screen.getAllByRole('listitem')).toHaveLength(3);
+    expect(screen.getByText('0:00')).toBeTruthy();
+    expect(screen.getByText('0:06')).toBeTruthy();
+    expect(screen.getByText('0:12')).toBeTruthy();
+    expect(screen.queryByText('0:00 - 0:02')).toBeNull();
+    expect(screen.getAllByRole('listitem')[0].textContent).toContain('Welcome to the show. Today we talk batteries.');
+  });
+
+  it('switches to Lines for one row per segment and stores the choice', async () => {
+    renderViewer(adEpisode);
+    await waitFor(() => screen.getByText(/Welcome to the show\./));
+    await userEvent.click(screen.getByRole('button', { name: 'Lines' }));
+    expect(screen.getAllByRole('listitem')).toHaveLength(PSEGS.length);
+    expect(screen.getByText('0:00 - 0:02')).toBeTruthy();
+    expect(localStorage.getItem('minuspod.transcript.view')).toBe('lines');
+    await userEvent.click(screen.getByRole('button', { name: 'Paragraphs' }));
+    expect(screen.getAllByRole('listitem')).toHaveLength(3);
+    expect(localStorage.getItem('minuspod.transcript.view')).toBe('paragraphs');
+  });
+
+  it('restores a stored Lines choice', async () => {
+    localStorage.setItem('minuspod.transcript.view', 'lines');
+    renderViewer(adEpisode);
+    await waitFor(() => screen.getByText('Welcome to the show.'));
+    expect(screen.getAllByRole('listitem')).toHaveLength(PSEGS.length);
+  });
+
+  it('still filters by search per member and keeps the surviving paragraph', async () => {
+    renderViewer(adEpisode);
+    await waitFor(() => screen.getByText(/Welcome to the show\./));
+    await userEvent.type(screen.getByLabelText('Search'), 'lithium');
+    expect(screen.getAllByRole('listitem')).toHaveLength(1);
+    expect(screen.getByText('Lithium', { selector: 'mark' })).toBeTruthy();
+    expect(screen.queryByText(/Back to batteries/)).toBeNull();
+    expect(screen.getByText('1 of 6 segments')).toBeTruthy();
+  });
+
+  it('highlights only the ad member inside its paragraph', async () => {
+    renderViewer(adEpisode);
+    await waitFor(() => screen.getByText(/Welcome to the show\./));
+    await userEvent.click(screen.getByLabelText('Highlight ads'));
+    const adSpan = screen.getByText('Use code SAVE at checkout.');
+    expect(adSpan.className).toContain('bg-destructive/10');
+    expect(adSpan.closest('li')?.className).not.toContain('bg-destructive');
+    expect(screen.getByText('This episode is brought to you by Acme.').className).not.toContain('bg-destructive');
+    expect(screen.getByText('Acme', { selector: 'span.shrink-0' })).toBeTruthy();
+  });
+
+  it('falls back to paragraphs when storage throws', async () => {
+    const get = vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => { throw new Error('blocked'); });
+    const set = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => { throw new Error('blocked'); });
+    try {
+      renderViewer(adEpisode);
+      await waitFor(() => screen.getByText(/Welcome to the show\./));
+      expect(screen.getAllByRole('listitem')).toHaveLength(3);
+      await userEvent.click(screen.getByRole('button', { name: 'Lines' }));
+      expect(screen.getAllByRole('listitem')).toHaveLength(PSEGS.length);
+    } finally {
+      get.mockRestore();
+      set.mockRestore();
+    }
   });
 });

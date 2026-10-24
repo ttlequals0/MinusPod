@@ -2,7 +2,7 @@ import { fireEvent, render, screen, within } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import ProcessingRunsTable from './ProcessingRunsTable';
 import type { EpisodeProcessingRun } from '../api/types';
-import { formatDuration } from '../pages/settings/settingsUtils';
+import { formatElapsed as formatDuration } from '../utils/format';
 
 const statsRun: EpisodeProcessingRun = {
   runNumber: 2,
@@ -176,8 +176,8 @@ describe('ProcessingRunsTable', () => {
     const table = renderTable([chapterRun]);
     fireEvent.click(table.getByRole('button', { name: /show phase breakdown for run #9/i }));
     expect(table.getByText('Detection').nextSibling?.textContent).toBe('Not applicable');
-    expect(table.getByText('Chapters').nextSibling?.textContent).toBe('0:12');
-    expect(table.getByText('FFmpeg').nextSibling?.textContent).toBe('0:02');
+    expect(table.getByText('Chapters').nextSibling?.textContent).toBe('12s');
+    expect(table.getByText('FFmpeg').nextSibling?.textContent).toBe('2s');
   });
 
   it('shows the source time cut next to the net time when beeps were inserted', () => {
@@ -203,8 +203,8 @@ describe('ProcessingRunsTable', () => {
     expect(table.getByText('Elapsed by stage')).toBeTruthy();
     expect(table.getByText('Elapsed by stage').parentElement?.className).toContain('sm:w-[calc(100cqw-1.5rem)]');
     expect(table.getByText('Stage times may overlap. FFmpeg totals include all tasks and retries.')).toBeTruthy();
-    expect(table.getByText('0:42')).toBeTruthy();
-    expect(table.getByText('0:12')).toBeTruthy();
+    expect(table.getByText('42s')).toBeTruthy();
+    expect(table.getByText('12s')).toBeTruthy();
     expect(table.getAllByText('Unavailable').length).toBeGreaterThan(0);
   });
 
@@ -229,7 +229,7 @@ describe('ProcessingRunsTable', () => {
     };
     const withValue = renderTable([withChapters]);
     fireEvent.click(withValue.getByRole('button', { name: /show phase breakdown for run #8/i }));
-    expect(withValue.getByText('Chapters').nextSibling?.textContent).toBe('0:05');
+    expect(withValue.getByText('Chapters').nextSibling?.textContent).toBe('5s');
 
     const withoutValue = renderTable([statsRun]);
     fireEvent.click(withoutValue.getByRole('button', { name: /show phase breakdown for run #2/i }));
@@ -252,7 +252,7 @@ describe('ProcessingRunsTable', () => {
     expect(table.queryByText('clean')).toBeNull();
     fireEvent.click(table.getByRole('button', { name: /show phase breakdown for run #4/i }));
     expect(table.getByText('Skipped')).toBeTruthy();
-    expect(table.getByText('0:00')).toBeTruthy();
+    expect(table.getByText('0s')).toBeTruthy();
   });
 
   it('marks a cue-only run with no transcript', () => {
@@ -351,7 +351,7 @@ describe('ProcessingRunsTable: transcript diff', () => {
   it('lists the transcript diff timing', () => {
     const table = renderTable([withDiff({ status: 'ok', coverage: 0.9, spans: 0 })]);
     fireEvent.click(table.getByRole('button', { name: /show phase breakdown for run #2/i }));
-    expect(table.getByText('Transcript diff', { selector: 'dt' }).nextSibling?.textContent).toBe('0:03');
+    expect(table.getByText('Transcript diff', { selector: 'dt' }).nextSibling?.textContent).toBe('3s');
   });
 });
 
@@ -417,7 +417,7 @@ describe('failed run error disclosure', () => {
   it('renders a plain label when a failure carries no message', () => {
     render(<ProcessingRunsTable runs={[{ ...failedRun, errorMessage: null }]} />);
     expect(screen.queryByRole('button', { name: /failed/i })).toBeNull();
-    expect(screen.getAllByText('failed').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Failed').length).toBeGreaterThan(0);
   });
 });
 
@@ -447,7 +447,7 @@ describe('chapter degradation result', () => {
       stats: { chaptersDegraded: true, chaptersDegradedReason: 'Chapter warning' },
     }]} />);
 
-    expect(screen.getAllByText('completed')).toHaveLength(2);
+    expect(screen.getAllByText('Completed')).toHaveLength(2);
     expect(screen.getAllByRole('button', { name: /failed/i })).toHaveLength(2);
     expect(screen.queryByText('completed with chapter warning')).toBeNull();
   });

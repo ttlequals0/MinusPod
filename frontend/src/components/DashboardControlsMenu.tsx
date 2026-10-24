@@ -3,9 +3,9 @@ import { SlidersHorizontal, ChevronDown } from 'lucide-react';
 import { usePopoverTabs } from '../hooks/usePopover';
 import Popover from './Popover';
 import SegmentedToggle from './SegmentedToggle';
-import { btnSecondary } from './buttonStyles';
-import { focusRing, selectBase } from './fieldStyles';
 import type { FeedSortBy } from '../utils/feedSort';
+import { btnBase, btnSecondary } from './buttonStyles';
+import { selectBase } from './fieldStyles';
 
 interface DashboardControlsMenuProps {
   dashboardView: 'podcasts' | 'episodes';
@@ -46,13 +46,13 @@ function DashboardControlsMenu({
         type="button"
         {...triggerProps}
         onClick={() => setOpen((o) => !o)}
-        className={`h-11 min-w-11 px-2.5 sm:px-4 text-sm rounded ${btnSecondary} transition-colors inline-flex items-center justify-center gap-2 whitespace-nowrap ${focusRing}`}
+        className={`${btnBase} ${btnSecondary}`}
         title="Layout and sort"
         aria-label="View options"
       >
-        <SlidersHorizontal className="w-5 h-5 sm:hidden" />
-        <span className="hidden sm:inline">View</span>
-        <ChevronDown className={`w-4 h-4 hidden sm:block transition-transform ${open ? 'rotate-180' : ''}`} />
+        <SlidersHorizontal className="w-5 h-5 md:hidden" aria-hidden="true" />
+        <span className="hidden md:inline">View</span>
+        <ChevronDown aria-hidden="true" className={`w-4 h-4 hidden md:block transition-transform ${open ? 'rotate-180' : ''}`} />
       </button>
       <Popover
         open={open}
@@ -96,7 +96,7 @@ function DashboardControlsMenu({
                   aria-label="Episodes per podcast"
                   value={episodesPerPodcast}
                   onChange={(e) => onEpisodesPerPodcastChange(Number(e.target.value))}
-                  className={`${selectBase} h-11 w-full`}
+                  className={`${selectBase} w-full`}
                 >
                   {Array.from({ length: perPodcastMax - perPodcastMin + 1 }, (_, i) => perPodcastMin + i).map((n) => (
                     <option key={n} value={n}>{n}</option>

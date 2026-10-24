@@ -2,7 +2,7 @@ import type { ReactNode } from 'react';
 import { Link } from 'react-router';
 import { getStageLabel } from '../utils/processingStage';
 import { focusRing } from './fieldStyles';
-import { formatDurationWhole } from '../utils/format';
+import { formatElapsed } from '../utils/format';
 
 export interface ProcessingJobProgressData {
   slug: string;
@@ -54,7 +54,7 @@ export default function ProcessingJobProgress({
         <div className="sm:shrink-0 sm:text-right">
           <p className="text-sm font-medium text-primary">{stageLabel}</p>
           <p className="text-xs text-muted-foreground tabular-nums">
-            {Math.round(progress)}% - {formatDurationWhole(elapsed)}
+            {Math.round(progress)}% - {formatElapsed(elapsed)}
           </p>
         </div>
       </div>

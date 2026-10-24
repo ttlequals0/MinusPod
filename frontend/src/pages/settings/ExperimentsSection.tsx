@@ -1,6 +1,6 @@
 import CollapsibleSection from '../../components/CollapsibleSection';
-import { selectBase } from '../../components/fieldStyles';
 import ExperimentalBadge from '../../components/ExperimentalBadge';
+import { selectBase } from '../../components/fieldStyles';
 
 interface ExperimentsSectionProps {
   addressingMode: string;
@@ -10,7 +10,7 @@ interface ExperimentsSectionProps {
 function ExperimentsSection({ addressingMode, onAddressingModeChange }: ExperimentsSectionProps) {
   return (
     <CollapsibleSection
-      title="Ad Addressing Mode"
+      title="Ad addressing mode"
       subtitle="Experimental: how the detector points at ads in the transcript."
     >
       <div>

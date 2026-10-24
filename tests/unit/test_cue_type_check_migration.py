@@ -130,7 +130,7 @@ def test_rebuild_preserves_threshold_and_existing_removal_preference(tmp_path):
     conn.close()
     db = Database(data_dir=str(tmp_path))
     after = db.get_connection().execute('SELECT * FROM audio_cue_templates ORDER BY id').fetchall()
-    assert [dict(row) for row in after] == before
+    assert [{k: dict(row)[k] for k in old} for old, row in zip(before, after, strict=True)] == before
 
 
 def test_existing_templates_default_to_removal_without_data_loss(tmp_path):
@@ -145,3 +145,18 @@ def test_existing_templates_default_to_removal_without_data_loss(tmp_path):
     for old, migrated in zip(before, after, strict=True):
         assert {key: migrated[key] for key in old} == old
         assert migrated['remove_with_ad'] == 1
+
+
+def test_rebuild_keeps_cut_matches_column(tmp_path):
+    path = tmp_path / 'podcast.db'
+    _seed_legacy_db(path)
+    conn = sqlite3.connect(path)
+    conn.execute('ALTER TABLE audio_cue_templates ADD COLUMN cut_matches INTEGER')
+    conn.execute('UPDATE audio_cue_templates SET cut_matches=1 WHERE id=1')
+    conn.commit()
+    conn.close()
+    db = Database(data_dir=str(tmp_path))
+    rows = db.get_connection().execute(
+        'SELECT id, cut_matches FROM audio_cue_templates ORDER BY id').fetchall()
+    assert rows[0]['cut_matches'] == 1
+    assert all(r['cut_matches'] is None for r in rows[1:])

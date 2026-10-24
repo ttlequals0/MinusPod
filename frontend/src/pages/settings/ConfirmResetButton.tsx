@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { ConfirmModal } from '../../components/Modal';
-import { focusRing } from '../../components/fieldStyles';
+import { btnBase, btnLg, btnDestructive, btnDestructiveOutline } from '../../components/buttonStyles';
 
 interface ConfirmResetButtonProps {
   label: string;
@@ -33,13 +33,7 @@ function ConfirmResetButton({
       aria-label={ariaLabel}
       onClick={() => setArmed(true)}
       disabled={isPending || disabled}
-      className={`rounded-lg border font-medium transition-colors disabled:opacity-50 ${
-        size === 'compact' ? 'px-2 py-1 text-xs' : 'px-4 py-2 text-sm'
-      } ${
-        armed
-          ? 'border-destructive bg-destructive text-destructive-foreground hover:bg-destructive/80'
-          : 'border-destructive/40 text-destructive hover:bg-destructive/10'
-      } ${focusRing} ${className}`}
+      className={`${size === 'compact' ? btnBase : btnLg} ${armed ? btnDestructive : btnDestructiveOutline} ${className}`}
     >
       {isPending ? 'Resetting...' : label}
     </button>

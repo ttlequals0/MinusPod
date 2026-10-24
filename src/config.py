@@ -40,6 +40,7 @@ MIN_CUT_CONFIDENCE = 0.80       # Minimum to actually remove from audio
 MIN_AD_DURATION = 7.0           # Reject if shorter (quick mentions ~10s minimum)
 SHORT_AD_WARN = 30.0            # Warn if shorter than 30s
 LONG_AD_WARN = 180.0            # Warn if longer than 3 min
+DETECTION_NOTES_MAX_CHARS = 1000  # Per-feed detection notes cap
 MAX_AD_DURATION = 300.0         # Needs a confirmed sponsor past this (5 min)
 MAX_AD_DURATION_CONFIRMED = 900.0  # Allow 15 min if sponsor confirmed
 MIN_UNCOVERED_TAIL_DURATION = 15.0  # Min seconds for an uncovered tail to be preserved
@@ -332,11 +333,11 @@ PASS2_AUTOAPPROVE_PROPOSED_IOU = 0.8
 
 def is_cue_backed(ad) -> bool:
     """Single source of truth for the cue gate: an ad is exempt from cue-gated
-    holding when it has an audio-cue snap, came from a cue pair, or is a manual
+    holding when it has an audio-cue snap, came from a cue pair or cue match, or is a manual
     (human) marker. Used by the validator hold rules and the pass-1 gate.
     """
     return (bool(ad.get('cue_snap'))
-            or ad.get('detection_stage') in ('cue_pair', 'manual'))
+            or ad.get('detection_stage') in ('cue_pair', CUE_MATCH_STAGE, 'manual'))
 
 
 def measured_evidence(ad) -> list[str]:
@@ -988,6 +989,9 @@ EPISODE_LOG_LEVEL_DEBUG = 'debug'
 EPISODE_LOG_LEVEL_INFO = 'info'
 EPISODE_LOG_LEVELS = (EPISODE_LOG_LEVEL_DEBUG, EPISODE_LOG_LEVEL_INFO)
 
+AUTO_PROCESS_MAX_AGE_HOURS_DEFAULT = 48
+AUTO_PROCESS_MAX_AGE_HOURS_BOUNDS = (1, 720)
+
 DOWNLOAD_HISTORY_RETENTION_DAYS_MIN = 1
 DOWNLOAD_HISTORY_RETENTION_DAYS_MAX = 3650
 DOWNLOAD_HISTORY_RETENTION_DAYS_DEFAULT = 90
@@ -1152,6 +1156,28 @@ _CUE_FLOAT_KNOBS = [
 ]
 
 
+def _feed_cue_overrides(db, podcast_id, caller):
+    """Per-feed cue overrides, or {} when unset or unreadable."""
+    try:
+        if podcast_id is not None:
+            return db.get_podcast_cue_settings_overrides(podcast_id)
+    except Exception:
+        _tunable_logger.warning('%s: override read failed; using globals', caller)
+    return {}
+
+
+def _cut_matches(db, overrides) -> bool:
+    raw = overrides.get('cue_cut_matches_override')
+    if raw is not None:
+        return bool(raw)
+    return db.get_setting_bool('audio_cue_cut_matches', default=False)
+
+
+def resolve_cut_matches_default(db, podcast_id) -> bool:
+    """Feed override else global default for cutting matched cue audio."""
+    return _cut_matches(db, _feed_cue_overrides(db, podcast_id, 'resolve_cut_matches_default'))
+
+
 def resolve_feed_cue_settings(db, podcast_id):
     """Resolve per-feed cue knobs in one DB read.
 
@@ -1168,16 +1194,11 @@ def resolve_feed_cue_settings(db, podcast_id):
     if not db:
         result = {out_key: default for _, _, default, out_key in _CUE_FLOAT_KNOBS}
         result['create_from_pairs'] = False
+        result['cut_matches'] = False
         result['transition_snap_enabled'] = False
         return result
 
-    # Fetch per-feed overrides; failure here still allows global reads below.
-    overrides = {}
-    try:
-        if podcast_id is not None:
-            overrides = db.get_podcast_cue_settings_overrides(podcast_id)
-    except Exception:
-        _tunable_logger.warning('resolve_feed_cue_settings: override read failed; using globals')
+    overrides = _feed_cue_overrides(db, podcast_id, 'resolve_feed_cue_settings')
 
     create_from_pairs_raw = overrides.get('cue_create_from_pairs_override')
     if create_from_pairs_raw is not None:
@@ -1185,7 +1206,8 @@ def resolve_feed_cue_settings(db, podcast_id):
     else:
         create_from_pairs = db.get_setting_bool('audio_cue_create_from_pairs', default=False)
 
-    result = {'create_from_pairs': create_from_pairs}
+    result = {'create_from_pairs': create_from_pairs,
+              'cut_matches': _cut_matches(db, overrides)}
     for override_col, setting_key, code_default, out_key in _CUE_FLOAT_KNOBS:
         raw = overrides.get(override_col)
         if raw is not None:
@@ -1328,6 +1350,16 @@ def resolve_splice_veto_enabled(db, podcast_id, global_default: bool) -> bool:
     return global_default if override is None else override
 
 
+AUTO_PROCESS_MAX_AGE_ERROR = 'must be an integer between {} and {}'.format(
+    *AUTO_PROCESS_MAX_AGE_HOURS_BOUNDS)
+
+
+def valid_auto_process_max_age(value) -> bool:
+    """True for an int (not bool) inside the auto-process age bounds."""
+    lo, hi = AUTO_PROCESS_MAX_AGE_HOURS_BOUNDS
+    return isinstance(value, int) and not isinstance(value, bool) and lo <= value <= hi
+
+
 def resolve_download_history_retention_days(db) -> int:
     """Download history retention in days, clamped to the allowed range."""
     days = db.get_setting_int('download_history_retention_days',
@@ -1463,6 +1495,15 @@ AUDIO_CUE_TYPES = {
     # topic shifts there without claiming an ad boundary (#350 follow-up).
     'content_transition': ('content transition', 'non_ad'),
 }
+# Cue type -> marker category for cut-matched-audio; absent types never cut.
+CUE_CUT_CATEGORY = {
+    'show_intro': 'intro',
+    'show_outro': 'outro',
+    'ad_break_boundary': 'sponsor',
+    'ad_break_start': 'sponsor',
+    'ad_break_end': 'sponsor',
+}
+CUE_MATCH_STAGE = 'cue_match'
 AUDIO_CUE_TYPE_DEFAULT = 'ad_break_boundary'
 AUDIO_CUE_TYPE_CONTENT_TRANSITION = 'content_transition'
 # The two non_ad types that anchor where show content begins / ends. Audio
@@ -1530,11 +1571,31 @@ AUDIO_CUE_END_EDGE_ROLES = ('end', 'boundary')
 CUE_ONLY_REQUIRED_ROLES = ('start', 'end')
 
 
-def cue_only_missing_roles(rows):
-    """Required cue-only roles (start/end) with no enabled template in rows."""
+def cue_cuts_matches(cue_type, value, default) -> bool:
+    """Effective cut flag: False for ineligible types, else own value, else the default."""
+    if cue_type not in CUE_CUT_CATEGORY:
+        return False
+    return bool(default) if value is None else bool(value)
+
+
+def cue_only_missing_roles(rows, *, cut_matches_default):
+    """Required cue-only roles (start/end) with no enabled template in rows.
+
+    An enabled template that cuts its own matches needs no start/end pair.
+    """
+    if any(r.get('enabled') and cue_cuts_matches(
+            r.get('cue_type') or AUDIO_CUE_TYPE_DEFAULT, r.get('cut_matches'),
+            cut_matches_default) for r in rows):
+        return set()
     roles = {audio_cue_type_role(r.get('cue_type') or AUDIO_CUE_TYPE_DEFAULT)
              for r in rows if r.get('enabled')}
     return set(CUE_ONLY_REQUIRED_ROLES) - roles
+
+
+def cue_only_missing_roles_for_feed(db, podcast_id, rows):
+    """cue_only_missing_roles with the feed's resolved cut-matches default."""
+    return cue_only_missing_roles(
+        rows, cut_matches_default=resolve_cut_matches_default(db, podcast_id))
 
 
 # ============================================================

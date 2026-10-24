@@ -45,6 +45,7 @@ class CueTemplateMixin:
         network_id: str | None = None,
         created_by: str = 'user',
         remove_with_ad: bool = True,
+        cut_matches: bool | None = None,
     ) -> int:
         """Insert a cue template. Returns the new row id.
 
@@ -59,13 +60,14 @@ class CueTemplateMixin:
                    podcast_id, label, cue_type, source_episode_id, source_offset_s,
                    duration_s, sample_rate, n_coeffs, mfcc_blob,
                    pcm_blob, pcm_sample_rate, scope, network_id,
-                   enabled, created_by, remove_with_ad
+                   enabled, created_by, remove_with_ad, cut_matches
                )
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)""",
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?)""",
             (
                 podcast_id, label, cue_type, source_episode_id, source_offset_s,
                 duration_s, sample_rate, n_coeffs, mfcc_blob,
                 pcm_blob, pcm_sample_rate, scope, network_id, created_by, int(remove_with_ad),
+                None if cut_matches is None else int(cut_matches),
             ),
         )
         conn.commit()
@@ -90,7 +92,7 @@ class CueTemplateMixin:
         row = conn.execute(
             "SELECT id, podcast_id, label, cue_type, source_episode_id, "
             "source_offset_s, duration_s, sample_rate, n_coeffs, scope, "
-            "network_id, enabled, score_threshold, remove_with_ad, created_at, created_by "
+            "network_id, enabled, score_threshold, remove_with_ad, cut_matches, created_at, created_by "
             "FROM audio_cue_templates WHERE id = ?", (template_id,),
         ).fetchone()
         return dict(row) if row else None
@@ -132,7 +134,7 @@ class CueTemplateMixin:
         cursor = conn.execute(
             "SELECT id, podcast_id, label, cue_type, source_episode_id, source_offset_s, "
             "duration_s, sample_rate, n_coeffs, scope, network_id, "
-            "enabled, score_threshold, remove_with_ad, created_at, created_by, "
+            "enabled, score_threshold, remove_with_ad, cut_matches, created_at, created_by, "
             "(pcm_blob IS NOT NULL) AS has_audio "
             "FROM audio_cue_templates WHERE podcast_id = ? "
             "ORDER BY created_at DESC",
@@ -154,7 +156,7 @@ class CueTemplateMixin:
         cursor = conn.execute(
             """SELECT id, podcast_id, label, cue_type, source_episode_id, source_offset_s,
                       duration_s, sample_rate, n_coeffs, scope, network_id,
-                      enabled, score_threshold, remove_with_ad, created_at, created_by,
+                      enabled, score_threshold, remove_with_ad, cut_matches, created_at, created_by,
                       (pcm_blob IS NOT NULL) AS has_audio
                FROM audio_cue_templates
                WHERE podcast_id = :pid
@@ -187,8 +189,9 @@ class CueTemplateMixin:
         enabled: bool | None = None,
         score_threshold=_UNSET,
         remove_with_ad: bool | None = None,
+        cut_matches=_UNSET,
     ) -> bool:
-        """Patch template options; score_threshold=None clears its override."""
+        """Patch template options; score_threshold/cut_matches=None clear the override."""
         sets = []
         args: list = []
         if cue_type is not None:
@@ -202,6 +205,9 @@ class CueTemplateMixin:
         if remove_with_ad is not None:
             sets.append("remove_with_ad = ?")
             args.append(int(remove_with_ad))
+        if cut_matches is not _UNSET:
+            sets.append("cut_matches = ?")
+            args.append(None if cut_matches is None else int(cut_matches))
         if score_threshold is not _UNSET:
             sets.append("score_threshold = ?")
             args.append(score_threshold)

@@ -78,11 +78,12 @@ from config import (
     resolve_cue_template_score_with_source,
     AUDIO_CUE_SCORE_MAX, AUDIO_CUE_SCORE_MIN,
     resolve_feed_processing_mode, PROCESSING_MODE_CUE_ONLY,
-    cue_only_missing_roles,
+    cue_only_missing_roles_for_feed,
+    cue_cuts_matches,
 )
 from database.cue_templates import _UNSET as _CUE_THRESHOLD_UNSET
 from utils.constants import EpisodeStatus
-from utils.validation import is_valid_episode_id
+from utils.validation import is_valid_episode_id, nullable_bool
 
 # Cap on loud-spot markers returned to the capture UI.
 MAX_LOUD_SPOTS = 200
@@ -139,6 +140,22 @@ def _extract_window_blobs(audio_path, offset_s, duration_s, n_coeffs,
     return serialize_mfcc(mfcc), pcm_to_int16_bytes(pcm), SAMPLE_RATE_HZ
 
 
+def _validate_cut_matches(payload: dict, cue_type: str, *, coerce_ineligible=False):
+    """Return (value, error) for an optional cutMatches field; absent -> None.
+
+    coerce_ineligible turns a true on an ineligible type into null (import).
+    """
+    value = payload.get('cutMatches')
+    if value is not None and not isinstance(value, bool):
+        return None, 'cutMatches must be true, false, or null'
+    if value and not cue_cuts_matches(cue_type, True, False):
+        if coerce_ineligible:
+            logger.info(f"Cue template import: cutMatches ignored for cue_type={cue_type!r}")
+            return None, None
+        return None, f'cutMatches is not available for {cue_type} cues'
+    return value, None
+
+
 def _template_to_meta_dict(row: dict) -> dict:
     """Strip the binary blobs for JSON responses."""
     return {
@@ -155,6 +172,7 @@ def _template_to_meta_dict(row: dict) -> dict:
         'networkId': row.get('network_id'),
         'enabled': bool(row['enabled']),
         'removeWithAd': bool(row.get('remove_with_ad', True)),
+        'cutMatches': nullable_bool(row.get('cut_matches')),
         'createdAt': row['created_at'],
         'createdBy': row.get('created_by'),
         'hasAudio': bool(row.get('pcm_blob')) or bool(row.get('has_audio')),
@@ -219,6 +237,9 @@ def create_cue_template(slug):
     remove_with_ad = payload.get('removeWithAd', True)
     if not isinstance(remove_with_ad, bool):
         return error_response('removeWithAd must be true or false', 400)
+    cut_matches, cm_err = _validate_cut_matches(payload, cue_type)
+    if cm_err:
+        return error_response(cm_err, 400)
     try:
         start_s = float(payload['startS'])
         end_s = float(payload['endS'])
@@ -281,6 +302,7 @@ def create_cue_template(slug):
         scope=scope,
         network_id=network_id,
         remove_with_ad=remove_with_ad,
+        cut_matches=cut_matches,
     )
     logger.info(
         f"Cue template created: id={template_id} feed={slug} ep={episode_id} "
@@ -331,7 +353,7 @@ def _cue_only_missing_roles_for_feed(db, podcast_id, template_id, simulated_row)
         simulated = [r for r in rows if r['id'] != template_id]
     else:
         simulated = [simulated_row if r['id'] == template_id else r for r in rows]
-    return cue_only_missing_roles(simulated)
+    return cue_only_missing_roles_for_feed(db, podcast_id, simulated)
 
 
 def _cue_only_eligibility_conflict(db, podcast_id, template_id, simulated_row):
@@ -391,6 +413,12 @@ def update_cue_template_route(template_id):
     remove_with_ad = payload.get('removeWithAd')
     if 'removeWithAd' in payload and not isinstance(remove_with_ad, bool):
         return error_response('removeWithAd must be true or false', 400)
+    cut_matches = _CUE_THRESHOLD_UNSET
+    if 'cutMatches' in payload:
+        cut_matches, cm_err = _validate_cut_matches(
+            payload, new_cue_type or row['cue_type'])
+        if cm_err:
+            return error_response(cm_err, 400)
     if new_cue_type is not None and new_cue_type not in AUDIO_CUE_TYPES:
         return error_response(
             'cueType must be one of: ' + ', '.join(sorted(AUDIO_CUE_TYPES)), 400)
@@ -477,9 +505,12 @@ def update_cue_template_route(template_id):
                 mfcc_blob, pcm_blob, sr):
             return error_response('template not found', 404)
 
+    if not cue_cuts_matches(new_cue_type or row['cue_type'], True, False):
+        cut_matches = None  # type change away from an eligible type clears the stored value
     db.update_cue_template(template_id, cue_type=new_cue_type, enabled=enabled,
                            score_threshold=score_threshold,
-                           remove_with_ad=remove_with_ad)  # _CUE_THRESHOLD_UNSET = no change
+                           remove_with_ad=remove_with_ad,
+                           cut_matches=cut_matches)  # _CUE_THRESHOLD_UNSET = no change
     if scope is not None:
         db.promote_cue_template(template_id, scope, network_id)
 
@@ -677,6 +708,7 @@ def export_cue_template(template_id):
         'label': row['label'],
         'cueType': row.get('cue_type', AUDIO_CUE_TYPE_DEFAULT),
         'removeWithAd': bool(row.get('remove_with_ad', True)),
+        'cutMatches': nullable_bool(row.get('cut_matches')),
         'durationS': row['duration_s'],
         'sampleRate': sample_rate,
         'nCoeffs': row['n_coeffs'],
@@ -818,6 +850,9 @@ def import_cue_template(slug):
     remove_with_ad = manifest.get('removeWithAd', True)
     if not isinstance(remove_with_ad, bool):
         return error_response('removeWithAd must be true or false', 400)
+    cut_matches, cm_err = _validate_cut_matches(manifest, cue_type, coerce_ineligible=True)
+    if cm_err:
+        return error_response(cm_err, 400)
 
     template_id = db.create_cue_template(
         podcast_id=podcast['id'],
@@ -832,6 +867,7 @@ def import_cue_template(slug):
         pcm_sample_rate=SAMPLE_RATE_HZ,
         created_by='import',
         remove_with_ad=remove_with_ad,
+        cut_matches=cut_matches,
     )
     logger.info(f"Cue template imported: id={template_id} feed={slug} cue_type={cue_type!r}")
     row = db.get_cue_template(template_id)

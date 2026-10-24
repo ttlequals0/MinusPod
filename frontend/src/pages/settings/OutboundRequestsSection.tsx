@@ -4,11 +4,11 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import CollapsibleSection from '../../components/CollapsibleSection';
 import { getSettings, updateSettings } from '../../api/settings';
 import { getErrorMessage } from '../../api/client';
-import { btnPrimary } from '../../components/buttonStyles';
-import { focusRing, inputBase } from '../../components/fieldStyles';
 import ToggleSwitch from '../../components/ToggleSwitch';
 import FieldResetHeader from './FieldResetHeader';
 import SavedBadge from './SavedBadge';
+import { btnLg, btnPrimary } from '../../components/buttonStyles';
+import { inputBase } from '../../components/fieldStyles';
 
 const STORAGE_KEY = 'settings-section-outbound-requests';
 
@@ -50,7 +50,7 @@ function OutboundRequestsSection() {
       });
       queryClient.invalidateQueries({ queryKey: ['settings'] });
     },
-    onError: (e: unknown) => setError(getErrorMessage(e, 'Save failed')),
+    onError: (e: unknown) => setError(getErrorMessage(e, 'Could not save settings.')),
   });
 
   const logQuery = settings?.logDownloadQuery?.value ?? false;
@@ -62,7 +62,7 @@ function OutboundRequestsSection() {
 
   return (
     <CollapsibleSection
-      title="Outbound Requests"
+      title="Outbound requests"
       subtitle="The User-Agent MinusPod sends when it fetches feeds, audio, and artwork."
       storageKey={STORAGE_KEY}
     >
@@ -115,7 +115,7 @@ function OutboundRequestsSection() {
             type="button"
             onClick={() => save.mutate(draft)}
             disabled={save.isPending || !dirty}
-            className={`px-4 py-2 rounded-lg ${btnPrimary} disabled:opacity-50 text-sm ${focusRing}`}
+            className={`${btnLg} ${btnPrimary}`}
           >
             {save.isPending ? 'Saving...' : 'Save'}
           </button>

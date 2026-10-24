@@ -84,9 +84,9 @@ describe('Audio output choices', () => {
     await user.click(copy);
     expect(onCopy).toHaveBeenCalledWith(true);
     expect(onSound).not.toHaveBeenCalled();
-    expect(screen.getByLabelText('Output Bitrate')).toHaveProperty('disabled', false);
-    expect(screen.getByLabelText('Normalization Intensity')).toHaveProperty('disabled', false);
-    expect(screen.getByRole('switch', { name: 'Audio Leveling' }).getAttribute('aria-disabled')).not.toBe('true');
+    expect(screen.getByLabelText('Output bitrate')).toHaveProperty('disabled', false);
+    expect(screen.getByLabelText('Normalization intensity')).toHaveProperty('disabled', false);
+    expect(screen.getByRole('switch', { name: 'Audio leveling' }).getAttribute('aria-disabled')).not.toBe('true');
     await user.click(sound);
     expect(onSound).toHaveBeenCalledWith(false);
   });
@@ -110,7 +110,7 @@ describe('Audio output choices', () => {
       </QueryClientProvider>,
     );
     await user.click(screen.getByRole('button', { name: 'Audio' }));
-    const select = screen.getByLabelText('Encoder Compression Level') as HTMLSelectElement;
+    const select = screen.getByLabelText('Encoder compression level') as HTMLSelectElement;
     expect(select.value).toBe('default');
     await user.selectOptions(select, '7');
     expect(onLevelChange).toHaveBeenCalledWith('7');

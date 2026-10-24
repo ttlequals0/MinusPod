@@ -159,7 +159,7 @@ describe('FeedDetail: copy control mobile sizing', () => {
     await waitFor(() => {
       expect(screen.getByText('Test Feed')).toBeDefined();
     });
-    const copyButton = screen.getByTitle('Copy Feed URL');
+    const copyButton = screen.getByTitle('Copy feed URL');
     expect(copyButton.className).not.toContain('px-4 py-2');
     expect(copyButton.className).not.toContain('sm:px-2');
     expect(copyButton.className).not.toContain('h-8 w-8');
@@ -170,7 +170,7 @@ describe('FeedDetail: copy control mobile sizing', () => {
     await waitFor(() => {
       expect(screen.getByText('Test Feed')).toBeDefined();
     });
-    const label = screen.getByTitle('Copy Feed URL').querySelector('span');
+    const label = screen.getByTitle('Copy feed URL').querySelector('span');
     expect(label?.className).toContain('hidden');
     expect(label?.className).toContain('sm:inline');
   });
@@ -319,7 +319,7 @@ describe('FeedDetail: bulk pass-through (#746)', () => {
     await waitFor(() => {
       expect(mockSetEpisodesPassthrough).toHaveBeenCalledWith('test-feed', ['ep-set-1'], true);
     });
-    expect(await screen.findByText('Pass-through Set')).toBeTruthy();
+    expect(await screen.findByText('Pass-through set')).toBeTruthy();
     // Selection clears: the bulk toolbar (and its buttons) disappear.
     expect(screen.queryByRole('button', { name: /Set pass-through/ })).toBeNull();
   });
@@ -341,7 +341,7 @@ describe('FeedDetail: bulk pass-through (#746)', () => {
     await waitFor(() => {
       expect(mockSetEpisodesPassthrough).toHaveBeenCalledWith('test-feed', ['ep-clear-1'], false);
     });
-    expect(await screen.findByText('Pass-through Cleared')).toBeTruthy();
+    expect(await screen.findByText('Pass-through cleared')).toBeTruthy();
     expect(screen.queryByRole('button', { name: /Clear pass-through/ })).toBeNull();
   });
 });
@@ -437,9 +437,9 @@ describe('FeedDetail: bulk toolbar', () => {
     }]);
 
     await user.click(await screen.findByRole('button', { name: 'Select episode' }));
-    for (const name of [/^Reprocess \(/, /^Full Reprocess/, /^Re-detect Ads/, /^Set pass-through/,
+    for (const name of [/^Reprocess \(/, /^Full reprocess/, /^Re-detect ads/, /^Set pass-through/,
       /^Clear pass-through/, /^Delete \(/, /^Clear$/]) {
-      expect(screen.getByRole('button', { name }).className).toContain('min-h-[44px]');
+      expect(screen.getByRole('button', { name }).className).toContain('px-3 py-1.5');
     }
   });
 
@@ -572,10 +572,10 @@ describe('FeedDetail: live episode search', () => {
     await user.click(await screen.findByRole('button', { name: 'Select all 30 matches' }));
     expect(await screen.findByText('2 selected')).toBeTruthy();
     await user.click(screen.getByRole('button', { name: 'Delete (2)' }));
-    expect(screen.getByRole('heading', { name: 'Delete 2 Episodes' })).toBeTruthy();
+    expect(screen.getByRole('heading', { name: 'Delete 2 episodes?' })).toBeTruthy();
     expect(mockBulkEpisodeAction).not.toHaveBeenCalled();
     mockBulkEpisodeAction.mockResolvedValue({ queued: 0, skipped: 0, freedMb: 0, errors: [] });
-    await user.click(screen.getByRole('button', { name: 'Delete' }));
+    await user.click(screen.getByRole('button', { name: 'Delete 2 episodes' }));
     await waitFor(() => expect(mockBulkEpisodeAction).toHaveBeenCalledWith(
       'test-feed', ['match-first', 'match-off-page'], 'delete'));
   });
@@ -644,7 +644,7 @@ it('allows explicit bulk reprocessing of duration-filtered matching episodes', a
     status: 'completed', jobState: 'idle', durationSkipped: true,
   }]);
   await user.click(await screen.findByRole('button', { name: 'Select episode' }));
-  await user.click(screen.getByRole('button', { name: 'Full Reprocess (1)' }));
+  await user.click(screen.getByRole('button', { name: 'Full reprocess (1)' }));
   await waitFor(() => expect(mockBulkEpisodeAction).toHaveBeenCalledWith(
     'test-feed', ['filtered-completed'], 'reprocess_full'));
 });

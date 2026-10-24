@@ -53,8 +53,8 @@ describe('CueCandidatesSection dismissals', () => {
     await userEvent.click(screen.getByRole('button', { name: /find audio cues/i }));
     await waitFor(() => expect(screen.getByText(/Repeats 4x/)).toBeDefined());
     // dismissed candidate is not in the active list
-    expect(screen.queryByText(/Repeats 3x -- /)).toBeNull();
-    expect(screen.getByRole('button', { name: /dismissed \(1\)/i })).toBeDefined();
+    expect(screen.queryByText(/Repeats 3x, /)).toBeNull();
+    expect(screen.getByRole('button', { name: /show hidden \(1\)/i })).toBeDefined();
   });
 
   it('dismiss calls the API and refetches', async () => {
@@ -63,7 +63,7 @@ describe('CueCandidatesSection dismissals', () => {
     renderSection();
     await userEvent.click(screen.getByRole('button', { name: /find audio cues/i }));
     await waitFor(() => expect(screen.getByText(/Repeats 4x/)).toBeDefined());
-    await userEvent.click(screen.getByRole('button', { name: /^dismiss$/i }));
+    await userEvent.click(screen.getByRole('button', { name: /^hide$/i }));
     await waitFor(() => expect(dismissCueCandidate).toHaveBeenCalledWith(
       'feed', 'ep1', expect.objectContaining({ start_s: 10, end_s: 12 })));
   });
@@ -79,14 +79,14 @@ describe('CueCandidatesSection dismissals', () => {
       renderSection();
       await userEvent.click(screen.getByRole('button', { name: /find audio cues/i }));
       await waitFor(() => expect(screen.getByText(/Repeats 4x/)).toBeDefined());
-      await userEvent.click(screen.getByRole('button', { name: /play candidate/i }));
-      expect(screen.getByRole('button', { name: /stop preview/i })).toBeDefined();
+      await userEvent.click(screen.getByRole('button', { name: /play this sound/i }));
+      expect(screen.getByRole('button', { name: /pause this sound/i })).toBeDefined();
       pause.mockClear();
-      await userEvent.click(screen.getByRole('button', { name: /^dismiss$/i }));
-      // stopPreview ran: audio paused and the button is back to "Play candidate".
+      await userEvent.click(screen.getByRole('button', { name: /^hide$/i }));
+      // stopPreview ran: audio paused and the button is back to "Play this sound".
       expect(pause).toHaveBeenCalled();
       await waitFor(() =>
-        expect(screen.queryByRole('button', { name: /stop preview/i })).toBeNull());
+        expect(screen.queryByRole('button', { name: /pause this sound/i })).toBeNull());
     } finally {
       play.mockRestore();
       pause.mockRestore();
@@ -97,8 +97,8 @@ describe('CueCandidatesSection dismissals', () => {
     vi.mocked(undoCueCandidateDismissal).mockResolvedValue(undefined);
     renderSection();
     await userEvent.click(screen.getByRole('button', { name: /find audio cues/i }));
-    await waitFor(() => expect(screen.getByRole('button', { name: /dismissed \(1\)/i })).toBeDefined());
-    await userEvent.click(screen.getByRole('button', { name: /dismissed \(1\)/i }));
+    await waitFor(() => expect(screen.getByRole('button', { name: /show hidden \(1\)/i })).toBeDefined());
+    await userEvent.click(screen.getByRole('button', { name: /show hidden \(1\)/i }));
     await userEvent.click(screen.getByRole('button', { name: /undo/i }));
     await waitFor(() => expect(undoCueCandidateDismissal).toHaveBeenCalledWith(9));
   });

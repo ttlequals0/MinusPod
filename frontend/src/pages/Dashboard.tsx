@@ -1,10 +1,10 @@
-import { pageHeader, pageTitle } from '../components/pageStyles';
+import CloseButton from '../components/CloseButton';
 import { useState, useRef } from 'react';
 import DashboardControlsMenu from '../components/DashboardControlsMenu';
 import SegmentedToggle from '../components/SegmentedToggle';
 import { keepPreviousData, useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate, Link } from 'react-router';
-import { Download, PanelsTopLeft } from 'lucide-react';
+import { Download, PanelsTopLeft, Plus, RefreshCw, Search } from 'lucide-react';
 import { feedsQueryOptionsFor, refreshFeed, refreshAllFeeds, deleteFeed } from '../api/feeds';
 import { FeedOpmlExportDialog } from '../components/FeedOpmlExportDialog';
 import DropdownMenu from '../components/DropdownMenu';
@@ -26,17 +26,18 @@ import { feedSortDirection, FeedSortBy, DASHBOARD_SORT_KEY, DEFAULT_FEED_SORT } 
 import { Pagination } from '../components/Pagination';
 import { deleteStopsProcessingMessage } from '../utils/feedTitle';
 import { formatDateTime } from '../utils/format';
-import { btnPrimary, btnSecondary, touchTarget } from '../components/buttonStyles';
-import { focusRing, inputBase } from '../components/fieldStyles';
 import { ConfirmModal } from '../components/Modal';
 import QueryError from '../components/QueryError';
+import { btnBase, btnLg, btnPrimary, btnSecondary } from '../components/buttonStyles';
+import { focusRing, inputBase } from '../components/fieldStyles';
+import { pageTitle } from '../components/pageStyles';
 
 type DashboardView = 'podcasts' | 'episodes';
 const DASHBOARD_VIEW_KEY = 'dashboardView';
 const DASHBOARD_EPISODES_PER_PODCAST_KEY = 'dashboardEpisodesPerPodcast';
 
 const DASHBOARD_VIEW_OPTIONS = [
-  { value: 'podcasts' as const, label: 'Podcasts', title: 'Group by podcast' },
+  { value: 'podcasts' as const, label: 'Feeds', title: 'Group by feed' },
   { value: 'episodes' as const, label: 'Episodes', title: 'Show latest episodes per podcast' },
 ];
 
@@ -44,6 +45,8 @@ const DASHBOARD_VIEW_OPTIONS = [
 // full page never leaves a ragged last row.
 const FEEDS_PER_PAGE = 24;
 
+// Labelled actions show from md; they sit beside the title only from lg.
+const dashboardHeader = 'flex min-w-0 flex-col gap-4 mb-6 lg:flex-row lg:items-start lg:justify-between';
 // Boxed keyboard-shortcut badge, matching the mockup's shortcut hints.
 const kbdClass = 'rounded border border-border bg-muted px-1 py-0.5 font-mono text-[10px] text-muted-foreground';
 
@@ -157,12 +160,13 @@ function Dashboard() {
 
   const showSearchPanel = open && query.length > 0;
 
+  // grid-cols-2 starts at 600px: an unfolded foldable phone is 626px wide, 14px under sm.
   if (isLoading) {
     return (
       <div>
         <Skeleton className="h-[42px] w-full mb-6" />
         {viewMode === 'grid' ? (
-          <SkeletonStatCards count={6} className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3" />
+          <SkeletonStatCards count={6} className="grid gap-4 grid-cols-1 min-[600px]:grid-cols-2 lg:grid-cols-3" />
         ) : (
           <SkeletonRows count={6} className="flex flex-col gap-2" />
         )}
@@ -174,12 +178,12 @@ function Dashboard() {
     return (
       <div className="space-y-6">
         <h1 className={pageTitle}>Feeds</h1>
-        <QueryError title="Failed to load feeds" onRetry={() => void activeQuery.refetch()} retrying={activeQuery.isFetching} />
+        <QueryError title="Could not load feeds." onRetry={() => void activeQuery.refetch()} retrying={activeQuery.isFetching} />
       </div>
     );
   }
 
-  const dashboardViewLabel = DASHBOARD_VIEW_OPTIONS.find((option) => option.value === dashboardView)?.label ?? 'Podcasts';
+  const dashboardViewLabel = DASHBOARD_VIEW_OPTIONS.find((option) => option.value === dashboardView)?.label ?? 'Feeds';
 
   return (
     <div>
@@ -194,9 +198,7 @@ function Dashboard() {
         }}
       >
         <div className="relative">
-          <svg className="pointer-events-none absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-muted-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-          </svg>
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
           <input
             role="combobox"
             aria-expanded={showSearchPanel && rows.length > 0}
@@ -248,8 +250,8 @@ function Dashboard() {
         )}
       </div>
 
-      <div className={pageHeader}>
-        <div className="w-full sm:w-auto flex min-w-0 flex-wrap items-baseline gap-x-3">
+      <div className={dashboardHeader}>
+        <div className="w-full lg:w-auto flex min-w-0 flex-wrap items-baseline gap-x-3">
           <h1 className={pageTitle}>Feeds</h1>
           {lastRefreshCompletedAt && (
             <span
@@ -260,20 +262,20 @@ function Dashboard() {
             </span>
           )}
         </div>
-        <div className="w-full sm:w-auto flex gap-2 items-center justify-between sm:justify-start overflow-x-auto no-scrollbar sm:overflow-visible">
-          <div className="hidden sm:block">
+        <div className="w-full md:w-auto flex gap-2 items-center justify-between md:justify-start overflow-x-auto no-scrollbar md:overflow-visible">
+          <div className="hidden md:block">
             <SegmentedToggle
               options={DASHBOARD_VIEW_OPTIONS}
               value={dashboardView}
               onChange={setDashboardView}
-              ariaLabel="Dashboard view"
+              ariaLabel="Feeds view"
               variant="toolbar"
             />
           </div>
-          <div className="sm:hidden">
+          <div className="md:hidden">
             <DropdownMenu
               triggerLabel={<PanelsTopLeft className="h-5 w-5" aria-hidden="true" />}
-              triggerClassName={`${touchTarget} h-11 w-11 min-w-11 px-2.5 rounded ${btnSecondary} transition-colors`}
+              triggerClassName={`${btnBase} ${btnSecondary}`}
               chevronClassName="hidden"
               ariaLabel={`View by ${dashboardViewLabel}`}
               title={`View by ${dashboardViewLabel}`}
@@ -301,25 +303,23 @@ function Dashboard() {
           <DropdownMenu
             triggerLabel={
               <>
-                <svg className="w-5 h-5 sm:hidden" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                </svg>
-                <span className="hidden sm:inline">{refreshAllMutation.isPending ? 'Refreshing...' : 'Refresh All'}</span>
+                <RefreshCw className="w-5 h-5 md:hidden" aria-hidden="true" />
+                <span className="hidden md:inline">{refreshAllMutation.isPending ? 'Refreshing...' : 'Refresh all'}</span>
               </>
             }
-            triggerClassName={`h-11 min-w-11 px-2.5 sm:px-4 text-sm rounded shrink-0 ${btnSecondary} disabled:opacity-50 transition-colors inline-flex items-center justify-center gap-2 whitespace-nowrap`}
-            chevronClassName="w-4 h-4 hidden sm:block"
+            triggerClassName={`${btnBase} ${btnSecondary} shrink-0`}
+            chevronClassName="w-4 h-4 hidden md:block"
             disabled={refreshAllMutation.isPending}
             title="Refresh all feeds"
             ariaLabel="Refresh all feeds"
             items={[
               {
-                title: 'Refresh All',
+                title: 'Refresh all',
                 subtitle: 'Check every feed for new episodes',
                 onClick: () => refreshAllMutation.mutate(undefined),
               },
               {
-                title: 'Force Refresh All',
+                title: 'Force refresh all',
                 subtitle: 'Bypass cache on every feed',
                 onClick: () => refreshAllMutation.mutate({ force: true }),
               },
@@ -328,22 +328,21 @@ function Dashboard() {
           <button
             type="button"
             onClick={() => setOpmlExportOpen(true)}
-            className={`${touchTarget} px-2.5 sm:px-4 h-11 text-sm rounded shrink-0 ${btnSecondary} transition-colors inline-flex items-center justify-center whitespace-nowrap ${focusRing}`}
+            className={`${btnBase} ${btnSecondary} shrink-0`}
             title="Export feeds as OPML for a podcast app"
             aria-label="Export OPML"
           >
-            <Download className="h-5 w-5 sm:hidden" aria-hidden="true" />
-            <span className="hidden sm:inline">Export OPML</span>
+            <Download className="h-5 w-5 md:hidden" aria-hidden="true" />
+            <span className="hidden md:inline">Export OPML</span>
           </button>
           <Link
             to="/add"
-            className={`h-11 min-w-11 sm:px-4 inline-flex items-center justify-center rounded shrink-0 ${btnPrimary} transition-colors ${focusRing}`}
-            title="Add Feed"
+            className={`${btnBase} touch-target ${btnPrimary} shrink-0`}
+            title="Add feed"
+            aria-label="Add feed"
           >
-            <svg className="w-5 h-5 sm:hidden" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-            </svg>
-            <span className="hidden sm:inline">Add Feed</span>
+            <Plus className="w-5 h-5 md:w-4 md:h-4" aria-hidden="true" />
+            <span className="hidden md:inline">Add feed</span>
           </Link>
           </div>
         </div>
@@ -351,12 +350,13 @@ function Dashboard() {
 
       {totalFeeds === 0 ? (
         <div className="text-center py-12 bg-card rounded-lg border border-border">
-          <p className="text-muted-foreground mb-4">No feeds added yet</p>
+          <p className="text-muted-foreground mb-4">No feeds yet.</p>
           <Link
             to="/add"
-            className={`${touchTarget} px-4 py-2 rounded ${btnPrimary} transition-colors ${focusRing}`}
+            className={`${btnLg} touch-target ${btnPrimary}`}
           >
-            Add Your First Feed
+            <Plus className="w-4 h-4" aria-hidden="true" />
+            Add your first feed
           </Link>
           <p className="text-sm text-muted-foreground mt-4">
             Find podcast RSS feeds at{' '}
@@ -375,14 +375,14 @@ function Dashboard() {
           <SkeletonRows count={4} className="flex flex-col gap-4" />
         ) : episodesQuery.error ? (
           <div className="text-center py-12">
-            <p className="text-destructive">Failed to load episodes</p>
+            <p className="text-destructive">Could not load episodes.</p>
             <p className="text-sm text-muted-foreground mt-2">{(episodesQuery.error as Error).message}</p>
           </div>
         ) : (
           <DashboardEpisodeGroups feeds={pageFeeds} episodesPerPodcast={episodesPerPodcast} />
         )
       ) : viewMode === 'grid' ? (
-        <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-4 grid-cols-1 min-[600px]:grid-cols-2 lg:grid-cols-3">
           {pageFeeds.map((feed) => (
             <FeedCard
               key={feed.slug}
@@ -417,19 +417,11 @@ function Dashboard() {
       )}
 
       {(deleteConfirm || actionError) && (
-        <div className="fixed bottom-4 right-4 flex flex-col items-end gap-2">
+        <div className="fixed bottom-4 right-[max(1rem,env(safe-area-inset-right))] flex flex-col items-end gap-2">
           {actionError && !deleteConfirm && (
             <div className="max-w-sm bg-destructive/10 border border-destructive text-destructive rounded-lg p-4 shadow-lg text-sm flex items-start gap-3">
               <span className="flex-1">{actionError}</span>
-              <button
-                onClick={() => setActionError(null)}
-                aria-label="Dismiss error"
-                className={`shrink-0 text-destructive/70 hover:text-destructive ${focusRing}`}
-              >
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
+              <CloseButton onClick={() => setActionError(null)} label="Dismiss error" className="shrink-0" />
             </div>
           )}
           {deleteConfirm && (

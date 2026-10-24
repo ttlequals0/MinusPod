@@ -3,11 +3,11 @@ import { useQueryClient } from '@tanstack/react-query';
 import type { PodpingCheck, SystemStatus } from '../api/types';
 import { requestPodpingCheck } from '../api/settings';
 import { formatDateTime } from '../utils/format';
-import { focusRing } from './fieldStyles';
 import ChevronCaret from './ChevronCaret';
-import { badgeBase, tint } from './badgeStyles';
-import { btnSecondary, touchTarget } from './buttonStyles';
 import { FAILOVER_TARGETS, FAILOVER_TARGET_LABELS, type FailoverTargetName } from '../api/failover';
+import { btnBase, btnSecondary, touchTarget } from './buttonStyles';
+import { focusRing } from './fieldStyles';
+import { badgeBase, tint } from './badgeStyles';
 
 const NODE_STALE_MS = 10 * 60 * 1000;
 
@@ -199,7 +199,7 @@ function PodpingRow({ p }: { p: NonNullable<SystemStatus['podping']> }) {
           }}
           className={`${touchTarget} shrink-0 p-0 ${focusRing} disabled:opacity-50`}
         >
-          <span className={`px-2 py-1 rounded text-xs ${btnSecondary} transition-colors`}>
+          <span className={`${btnBase} ${btnSecondary}`}>
             {isChecking ? 'Checking...' : 'Check now'}
           </span>
         </button>
@@ -224,7 +224,7 @@ function PodpingRow({ p }: { p: NonNullable<SystemStatus['podping']> }) {
           })}
           {(requestError || check?.status === 'error') && (
             <div role="alert" className="text-xs text-destructive">
-              {requestError || check?.message || 'Check failed.'}
+              {requestError || check?.message || 'Could not run check.'}
             </div>
           )}
         </div>
@@ -241,7 +241,7 @@ function FeedRefreshRow({ f }: { f: NonNullable<SystemStatus['feedRefresh']> }) 
         detail={`degraded, ${f.outageAffectedCount} feed(s) affected${retry}`} />
     );
   }
-  const last = f.lastSuccessfulRefreshAt ? formatDateTime(f.lastSuccessfulRefreshAt) : 'never';
+  const last = formatDateTime(f.lastSuccessfulRefreshAt ?? null);
   return <Row tone="healthy" label="Feed refresh" detail={`healthy; last success ${last}`} />;
 }
 
@@ -258,7 +258,7 @@ function SystemHealthPanel({ status }: { status: SystemStatus }) {
   if (!status.transcriber && !status.podping && !status.feedRefresh && !status.failover) return null;
   const overall = rollupHealth(status);
   return (
-    <div className="mt-4 rounded-lg border border-border">
+    <div className="mt-4 rounded-lg bg-muted/40">
       <button
         type="button"
         aria-expanded={open}

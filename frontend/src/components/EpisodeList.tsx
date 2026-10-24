@@ -1,14 +1,15 @@
 import { ReactNode } from 'react';
 import { Link } from 'react-router';
 import { Episode } from '../api/types';
-import { displayStatusColor, displayStatusLabel, isFailedStatus } from '../utils/episodeStatus';
+import { isFailedStatus } from '../utils/episodeStatus';
 import { stripHtml } from '../utils/stripHtml';
 import { formatDate, formatDurationHoursMinutes } from '../utils/format';
 import Artwork from './Artwork';
 import { episodeArtworkSrc } from '../utils/artworkUrl';
 import Checkbox from './Checkbox';
-import { focusRing } from './fieldStyles';
 import { isActionBlocked } from '../utils/processingStage';
+import StatusBadge from './StatusBadge';
+import { focusRing } from './fieldStyles';
 import { badgeBase, tint } from './badgeStyles';
 
 interface EpisodeListProps {
@@ -24,7 +25,7 @@ function EpisodeList({ episodes, feedSlug, feedArtworkUrl, selectedIds, onToggle
   if (episodes.length === 0) {
     return (
       <div className="text-center py-8 text-muted-foreground">
-        No episodes found
+        No episodes yet.
       </div>
     );
   }
@@ -108,7 +109,7 @@ function EpisodeRow({
           src={episodeArtworkSrc(rowSlug, episode.id, episode.artworkUrl, episode.feedSlug ? undefined : feedArtworkUrl)}
           alt=""
           loading="lazy"
-          className="w-12 h-12 sm:w-16 sm:h-16 shrink-0 object-cover rounded-md"
+          className="hidden sm:block sm:w-16 sm:h-16 shrink-0 object-cover rounded-md"
         />
         <div className="flex-1 min-w-0">
           <h3 className="font-medium text-foreground truncate">{episode.title}</h3>
@@ -129,24 +130,24 @@ function EpisodeRow({
           </div>
           <div className="flex items-center gap-2 mt-1 min-h-6">
             {episode.pendingReviewCount !== undefined && episode.pendingReviewCount > 0 && (
-              <span className={`${badgeBase} whitespace-nowrap ${tint.warning}`}>
+              <span className={`${badgeBase} ${tint.warning}`}>
                 {episode.pendingReviewCount} held
               </span>
             )}
             {episode.passthroughEnabled && (
               <span
-                className={`${badgeBase} whitespace-nowrap ${tint.neutral}`}
+                className={`${badgeBase} ${tint.neutral}`}
                 title="Served unmodified; ad processing is skipped for this episode"
               >
                 Pass-through
               </span>
             )}
-            <span
-              className={`${badgeBase} whitespace-nowrap ${displayStatusColor(episode.status, episode.jobState)}${failureReason ? ' cursor-help' : ''}`}
+            <StatusBadge
+              status={episode.status}
+              jobState={episode.jobState}
+              className={failureReason ? 'cursor-help' : undefined}
               title={failureReason}
-            >
-              {displayStatusLabel(episode.status, episode.jobState)}
-            </span>
+            />
           </div>
         </div>
       </Link>

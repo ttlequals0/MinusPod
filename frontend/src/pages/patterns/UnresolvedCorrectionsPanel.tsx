@@ -8,10 +8,12 @@ import {
   type UnresolvedCorrection,
 } from '../../api/patterns';
 import Checkbox from '../../components/Checkbox';
-import { btnDestructive, btnOutline, btnPrimary } from '../../components/buttonStyles';
+import { ChevronDown } from 'lucide-react';
+import { btnBase, btnDestructive, btnOutline, btnPrimary } from '../../components/buttonStyles';
 import { focusRing, selectBase } from '../../components/fieldStyles';
 import { ConfirmModal } from '../../components/Modal';
-import { badgeBase, tint } from '../../components/badgeStyles';
+import { countPill, tint } from '../../components/badgeStyles';
+import { cardTitle } from '../../components/pageStyles';
 
 function formatBounds(bounds: { start: number; end: number } | null): string | null {
   if (!bounds) return null;
@@ -40,7 +42,7 @@ function CorrectionRow({ correction, selected, onSelected }: CorrectionRowProps)
   const selectedCandidate = correction.candidates.find((candidate) => candidate.slug === slug);
 
   return (
-    <li className="rounded border border-border bg-background p-4">
+    <li className="rounded bg-muted/40 p-4">
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div className="flex gap-3">
           <Checkbox
@@ -144,14 +146,14 @@ function CorrectionRow({ correction, selected, onSelected }: CorrectionRowProps)
           type="button"
           disabled={!slug || !confirmed || mutation.isPending}
           onClick={() => mutation.mutate()}
-          className={`rounded px-3 py-2 text-sm ${btnPrimary} ${focusRing} disabled:opacity-50`}
+          className={`${btnBase} ${btnPrimary}`}
         >
           {mutation.isPending ? 'Assigning...' : 'Assign correction'}
         </button>
         {mutation.error && (
           <p className="text-sm text-destructive">{(mutation.error as Error).message}</p>
         )}
-        <button type="button" onClick={() => setConfirmDelete(true)} className={`rounded px-3 py-2 text-sm ${btnOutline} ${focusRing}`}>
+        <button type="button" onClick={() => setConfirmDelete(true)} className={`${btnBase} ${btnOutline}`}>
           Delete
         </button>
       </div>
@@ -159,7 +161,7 @@ function CorrectionRow({ correction, selected, onSelected }: CorrectionRowProps)
       {confirmDelete && (
         <ConfirmModal
           title="Delete this saved correction?"
-          confirmLabel="Delete"
+          confirmLabel="Delete correction"
           busyLabel="Deleting..."
           pending={deleteMutation.isPending}
           onCancel={() => setConfirmDelete(false)}
@@ -222,15 +224,13 @@ export default function UnresolvedCorrectionsPanel() {
         aria-controls="unassigned-corrections"
         onClick={() => setIsOpen((open) => !open)}
       >
-        <h2 className="text-base font-semibold text-foreground">Unassigned corrections</h2>
+        <h2 className={cardTitle}>Unassigned corrections</h2>
         {data && (
-          <span className={`${badgeBase} ${tint.warning} font-medium`}>
+          <span className={`${countPill} ${tint.warning}`}>
             {data.count}
           </span>
         )}
-        <svg className={`ml-auto h-5 w-5 shrink-0 transition-transform ${isOpen ? 'rotate-180' : ''}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} aria-hidden="true">
-          <path strokeLinecap="round" strokeLinejoin="round" d="m6 9 6 6 6-6" />
-        </svg>
+        <ChevronDown className={`ml-auto h-5 w-5 shrink-0 transition-transform ${isOpen ? 'rotate-180' : ''}`} aria-hidden="true" />
       </button>
       {isOpen && (
         <div id="unassigned-corrections">
@@ -241,27 +241,27 @@ export default function UnresolvedCorrectionsPanel() {
             <p className="mt-3 text-sm text-destructive">Could not load unassigned corrections.</p>
           ) : (<>
             <ul className="mt-4 space-y-3">
-              <li className="rounded border border-border bg-card p-3">
+              <li className="rounded bg-muted/40 p-3">
                 <div className="flex flex-wrap items-center gap-2 text-sm">
                   <span>{activeIds.length} selected</span>
-                  <button type="button" onClick={() => setSelectedIds(data?.corrections.map((correction) => correction.id) ?? [])} className={`${btnOutline} min-h-11 rounded px-3 py-2 ${focusRing} touch-manipulation transition-colors sm:min-h-0`}>Select all</button>
-                  <button type="button" onClick={() => setSelectedIds(data?.corrections.filter((correction) => correction.candidates.length === 0).map((correction) => correction.id) ?? [])} className={`${btnOutline} min-h-11 rounded px-3 py-2 ${focusRing} touch-manipulation transition-colors sm:min-h-0`}>Select unavailable</button>
-                  <button type="button" onClick={() => setSelectedIds([])} className={`${btnOutline} min-h-11 rounded px-3 py-2 ${focusRing} touch-manipulation transition-colors sm:min-h-0`}>Clear</button>
+                  <button type="button" onClick={() => setSelectedIds(data?.corrections.map((correction) => correction.id) ?? [])} className={`${btnBase} ${btnOutline}`}>Select all</button>
+                  <button type="button" onClick={() => setSelectedIds(data?.corrections.filter((correction) => correction.candidates.length === 0).map((correction) => correction.id) ?? [])} className={`${btnBase} ${btnOutline}`}>Select unavailable</button>
+                  <button type="button" onClick={() => setSelectedIds([])} className={`${btnBase} ${btnOutline}`}>Clear</button>
                 </div>
                 {activeIds.length > 0 && <div className="mt-3 flex flex-wrap items-center gap-2">
-                  <select aria-label="Feed for selected corrections" value={bulkSlug} onChange={(event) => setBulkSlug(event.target.value)} className={`min-h-11 sm:min-h-0 ${selectBase}`}>
+                  <select aria-label="Feed for selected corrections" value={bulkSlug} onChange={(event) => setBulkSlug(event.target.value)} className={selectBase}>
                     <option value="">Choose one proven feed</option>
                     {commonCandidates.map((candidate) => <option key={candidate.slug} value={candidate.slug}>{candidate.podcast_title || candidate.slug}</option>)}
                   </select>
-                  <button type="button" disabled={!validBulkSlug} onClick={() => openBulkAction('assign')} className={`${btnPrimary} min-h-11 rounded px-3 py-2 text-sm ${focusRing} touch-manipulation transition-colors disabled:opacity-50 sm:min-h-0`}>Assign selected</button>
-                  <button type="button" onClick={() => openBulkAction('delete')} className={`${btnDestructive} min-h-11 rounded px-3 py-2 text-sm ${focusRing} touch-manipulation transition-colors sm:min-h-0`}>Delete selected</button>
+                  <button type="button" disabled={!validBulkSlug} onClick={() => openBulkAction('assign')} className={`${btnBase} ${btnPrimary}`}>Assign selected</button>
+                  <button type="button" onClick={() => openBulkAction('delete')} className={`${btnBase} ${btnDestructive}`}>Delete selected</button>
                 </div>}
               </li>
               {data?.corrections.map((correction) => (
                 <CorrectionRow key={correction.id} correction={correction} selected={selectedIds.includes(correction.id)} onSelected={(checked) => setSelectedIds((ids) => checked ? [...ids, correction.id] : ids.filter((id) => id !== correction.id))} />
               ))}
             </ul>
-            {bulkAction && <ConfirmModal title={bulkAction === 'assign' ? `Assign ${selectedLabel} to ${selectedFeed?.podcast_title || bulkSlug}?` : `Delete ${selectedLabel}?`} confirmLabel={bulkAction === 'assign' ? 'Assign' : 'Delete'} busyLabel={bulkAction === 'assign' ? 'Assigning...' : 'Deleting...'} pending={bulkMutation.isPending} onCancel={closeBulkAction} onConfirm={() => bulkMutation.mutate({ action: bulkAction, correctionIds: activeIds, slug: bulkAction === 'assign' ? bulkSlug : undefined })}>
+            {bulkAction && <ConfirmModal title={bulkAction === 'assign' ? `Assign ${selectedLabel} to ${selectedFeed?.podcast_title || bulkSlug}?` : `Delete ${selectedLabel}?`} confirmLabel={bulkAction === 'assign' ? `Assign ${selectedLabel}` : `Delete ${selectedLabel}`} busyLabel={bulkAction === 'assign' ? 'Assigning...' : 'Deleting...'} pending={bulkMutation.isPending} onCancel={closeBulkAction} onConfirm={() => bulkMutation.mutate({ action: bulkAction, correctionIds: activeIds, slug: bulkAction === 'assign' ? bulkSlug : undefined })}>
               <p>{bulkAction === 'assign' ? 'The selected corrections will be assigned to this feed.' : 'This permanently removes the selected unassigned corrections. Patterns, media, and feeds are unchanged.'}</p>
               {bulkMutation.error && <p role="alert" className="mt-3 text-sm text-destructive">{(bulkMutation.error as Error).message}</p>}
             </ConfirmModal>}

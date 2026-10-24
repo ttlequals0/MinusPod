@@ -18,11 +18,12 @@ from community_sync import DEFAULT_CRON as COMMUNITY_SYNC_DEFAULT_CRON
 from config import (
     PODCAST_SEARCH_PROVIDERS, STAGE_TUNABLE_PAYLOAD_KEYS,
     SYSTEMONE_TUNABLE_DEFAULTS, SYSTEMONE_TUNABLE_PROFILE_KEYS,
-    PROCESSING_MODE_CUE_ONLY, cue_only_missing_roles,
+    PROCESSING_MODE_CUE_ONLY, cue_only_missing_roles_for_feed,
     get_stage_tunable, resolve_community_sync_categories,
     resolve_feed_processing_mode, resolve_jit_blocked_user_agents,
     resolve_segment_category_actions_map, resolve_max_ad_duration_confirmed,
     SEARCH_PROVIDER_ITUNES, SEARCH_PROVIDER_PODCASTINDEX,
+    AUTO_PROCESS_MAX_AGE_ERROR, valid_auto_process_max_age,
 )
 from db_backup_service import (
     DEFAULT_CRON as DB_BACKUP_DEFAULT_CRON,
@@ -119,10 +120,12 @@ BOOLEAN_EXTRA_SETTINGS = frozenset({
 FEED_COLUMNS = (
     'title', 'description', 'source_url', 'network_id', 'dai_platform',
     'network_id_override', 'audio_analysis_override', 'auto_process_override',
+    'auto_process_max_age_hours_override',
     'language_override', 'download_user_agent_override', 'feed_user_agent_override',
     'title_override', 'detection_notes', 'detection_mode', 'chapter_notes',
     'chapters_mode', 'chapters_in_notes', 'own_episode_guids',
     'cue_template_score_override', 'cue_create_from_pairs_override',
+    'cue_cut_matches_override',
     'cue_pair_min_break_override', 'cue_pair_max_break_override',
     'cue_pair_max_break_fraction_override', 'cue_snap_confidence_override',
     'cue_snap_lead_override', 'cue_snap_lag_override', 'silence_snap_enabled',
@@ -150,7 +153,8 @@ FEED_BOOL_COLUMNS = frozenset({
     'splice_veto_enabled', 'cue_gated_approval', 'only_expose_processed_episodes',
     'passthrough_enabled', 'skip_ad_detection', 'detect_show_segments',
     'skip_second_pass', 'transcript_differential', 'skip_transcription',
-    'explicit', 'cue_create_from_pairs_override', 'differential_fetch_enabled',
+    'explicit', 'cue_create_from_pairs_override', 'cue_cut_matches_override',
+    'differential_fetch_enabled',
     'keep_original_audio_override',
     'audio_replacement_sound_override', 'audio_mp3_stream_copy_override',
 })
@@ -903,10 +907,11 @@ def build_preview(db, document, scope, selected_feeds=None):
                 raise ConfigTransferError('Source URL already belongs to another feed')
         if feed.get('settings', {}).get('detection_mode') == 'cue_only':
             cue_templates = []
+            podcast = None
             if current is not None:
                 podcast = db.get_podcast_by_slug(slug)
                 cue_templates = db.list_cue_templates_for_feed_ui(podcast['id']) if podcast else []
-            if cue_only_missing_roles(cue_templates):
+            if cue_only_missing_roles_for_feed(db, podcast['id'] if podcast else None, cue_templates):
                 warnings.append(f'{slug} uses cue-only processing and needs enabled start and end cue templates on the destination.')
         _validated_feed_updates(
             db, dict(current) if current is not None else None,
@@ -972,7 +977,8 @@ def _validated_feed_updates(db, podcast, payload, feed_type, *, confirmed_ceilin
             if not isinstance(value, list) or any(not isinstance(tag, str) for tag in value):
                 raise ConfigTransferError('user_tags must be an array of strings or null')
             value = _canonical_json(value)
-        elif key in ('cue_create_from_pairs_override', 'differential_fetch_enabled',
+        elif key in ('cue_create_from_pairs_override', 'cue_cut_matches_override',
+                     'differential_fetch_enabled',
                      'keep_original_audio_override', 'audio_replacement_sound_override',
                      'audio_mp3_stream_copy_override'):
             value, error = feed_api._normalize_cue_bool_override(value, key)
@@ -1066,6 +1072,10 @@ def _validated_feed_updates(db, podcast, payload, feed_type, *, confirmed_ceilin
         elif key == 'differential_fetch_mode':
             if value not in (None, 'auto', 'on', 'off'):
                 raise ConfigTransferError('differential_fetch_mode is invalid')
+        elif key == 'auto_process_max_age_hours_override':
+            if value is not None and not valid_auto_process_max_age(value):
+                raise ConfigTransferError(
+                    f'auto_process_max_age_hours_override {AUTO_PROCESS_MAX_AGE_ERROR}')
         elif key in ('title', 'description', 'author', 'network_id', 'dai_platform',
                      'network_id_override', 'website_url', 'auto_process_override'):
             if value is not None and not isinstance(value, str):

@@ -1,0 +1,31 @@
+From 86708357d126af84c16f80d9c57335d1e8c845c5 Mon Sep 17 00:00:00 2001
+From: Michael Niedermayer <michael@niedermayer.cc>
+Date: Sun, 28 Jun 2026 22:05:28 +0200
+Subject: [PATCH] avformat/iamf_parse: check count_label against the available
+ bytes
+
+Fixes: unbounded allocation / denial of service
+Fixes: tP59h4cpaFyg
+Fixes: 4ee05182b7 (avformat: Immersive Audio Model and Formats demuxer)
+Found-by: Adrian Junge (vurlo)
+Signed-off-by: Michael Niedermayer <michael@niedermayer.cc>
+---
+ libavformat/iamf_parse.c | 5 +++++
+ 1 file changed, 5 insertions(+)
+
+diff --git a/libavformat/iamf_parse.c b/libavformat/iamf_parse.c
+index d74a8677d6..4c2df2c9e6 100644
+--- a/libavformat/iamf_parse.c
++++ b/libavformat/iamf_parse.c
+@@ -1009,6 +1009,11 @@ static int mix_presentation_obu(void *s, IAMFContext *c, AVIOContext *pb, int le
+     mix_presentation->cmix = mix;
+ 
+     mix_presentation->count_label = ffio_read_leb(pbc);
++    if (mix_presentation->count_label > len - avio_tell(pbc)) {
++        mix_presentation->count_label = 0;
++        ret = AVERROR_INVALIDDATA;
++        goto fail;
++    }
+     mix_presentation->language_label = av_calloc(mix_presentation->count_label,
+                                                  sizeof(*mix_presentation->language_label));
+     if (!mix_presentation->language_label) {

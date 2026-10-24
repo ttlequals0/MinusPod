@@ -26,6 +26,7 @@
       "patches": [
         {
           "file": "x264-MR183.patch",
+          "path": "patches/x264-MR183.patch",
           "url": "https://code.videolan.org/videolan/x264/-/commit/09136e90b49f30c25f71b00b95775da21a09dbd0.patch",
           "sha256": "965e39066b38a64af2b6819698143304603f293b3f1d394d4d650a237df7c712",
           "upstream_commit": "09136e90b49f30c25f71b00b95775da21a09dbd0"
@@ -61,6 +62,7 @@
       "patches": [
         {
           "file": "cairo-glyph-overflow-842bd70.patch",
+          "path": "patches/cairo-glyph-overflow-842bd70.patch",
           "url": "https://gitlab.freedesktop.org/cairo/cairo/-/commit/842bd70cdfaf87d4e284685ecd5995622da38301.patch",
           "sha256": "91fb2009f26406b6b28f9588447f276c98f9578c43324a97fcd00f2ce71050f5",
           "upstream_commit": "842bd70cdfaf87d4e284685ecd5995622da38301"

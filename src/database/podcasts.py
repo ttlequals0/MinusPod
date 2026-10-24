@@ -9,6 +9,7 @@ from config import (
 )
 from utils.constants import EpisodeStatus
 from utils.time import ISO_FORMAT, utc_now_iso
+from utils.validation import nullable_bool
 
 logger = logging.getLogger(__name__)
 
@@ -246,6 +247,7 @@ class PodcastMixin:
 
     _CUE_OVERRIDE_COLS = (
         'cue_create_from_pairs_override',
+        'cue_cut_matches_override',
         'cue_pair_min_break_override',
         'cue_pair_max_break_override',
         'cue_pair_max_break_fraction_override',
@@ -344,6 +346,7 @@ class PodcastMixin:
                 'last_checked_at', 'last_refresh_attempt_at',
                 'source_url', 'network_id', 'dai_platform',
                 'network_id_override', 'audio_analysis_override', 'auto_process_override',
+                'auto_process_max_age_hours_override',
                 'language_override', 'download_user_agent_override', 'feed_user_agent_override',
                 'title_override', 'detection_notes', 'detection_mode', 'chapter_notes',
                 'chapters_mode', 'chapters_in_notes',
@@ -638,7 +641,7 @@ class PodcastMixin:
             except (ValueError, TypeError):
                 logger.warning("Bad podping_hive_accounts JSON; treating as none")
         return {
-            'uses_podping': None if uses is None else bool(uses),
+            'uses_podping': nullable_bool(uses),
             'hive_accounts': accounts,
         }
 

@@ -1,14 +1,17 @@
 import CollapsibleSection from '../../components/CollapsibleSection';
-import { selectBase } from '../../components/fieldStyles';
 import { LOW_AD_YIELD_ACTION_LABELS } from '../../utils/lowAdYield';
 import type { EpisodeLogLevel, LowAdYieldAction } from '../../api/types';
+import { AUTO_PROCESS_WINDOW } from '../../api/types';
 import NumberInput from '../../components/NumberInput';
 import ToggleSwitch from '../../components/ToggleSwitch';
 import PodpingServersSection from './PodpingServersSection';
+import { selectBase, labelBase } from '../../components/fieldStyles';
 
 interface GlobalDefaultsSectionProps {
   autoProcessEnabled: boolean;
   onAutoProcessEnabledChange: (enabled: boolean) => void;
+  autoProcessMaxAgeHours: number;
+  onAutoProcessMaxAgeHoursChange: (hours: number) => void;
   rssRefreshIntervalMinutes: number;
   onRssRefreshIntervalMinutesChange: (value: number) => void;
   podpingEnabled: boolean;
@@ -34,6 +37,8 @@ interface GlobalDefaultsSectionProps {
 function GlobalDefaultsSection({
   autoProcessEnabled,
   onAutoProcessEnabledChange,
+  autoProcessMaxAgeHours,
+  onAutoProcessMaxAgeHoursChange,
   rssRefreshIntervalMinutes,
   onRssRefreshIntervalMinutesChange,
   podpingEnabled,
@@ -57,12 +62,12 @@ function GlobalDefaultsSection({
 }: GlobalDefaultsSectionProps) {
   return (
     <CollapsibleSection
-      title="Global Defaults"
+      title="Global defaults"
       subtitle="Applied to every feed unless overridden on the feed's own settings."
     >
       <div className="space-y-6">
         <div className="pt-4 border-t border-border">
-          <label htmlFor="globalVerificationPass" className="block text-sm font-medium text-foreground mb-2">
+          <label htmlFor="globalVerificationPass" className={labelBase}>
             Verification pass by default
           </label>
           <select
@@ -81,7 +86,7 @@ function GlobalDefaultsSection({
         </div>
 
         <div className="pt-4 border-t border-border">
-          <label htmlFor="differentialFetchMode" className="block text-sm font-medium text-foreground mb-2">
+          <label htmlFor="differentialFetchMode" className={labelBase}>
             Cross-fetch differential default
           </label>
           <select id="differentialFetchMode" value={differentialFetchMode}
@@ -111,9 +116,33 @@ function GlobalDefaultsSection({
           </p>
         </div>
 
+        {/* Auto-process window */}
+        <div className="pt-4 border-t border-border">
+          <label htmlFor="autoProcessMaxAgeHours" className={labelBase}>
+            Auto-process episodes published within
+          </label>
+          <div className="flex items-center gap-3">
+            <NumberInput
+              id="autoProcessMaxAgeHours"
+              value={autoProcessMaxAgeHours}
+              min={AUTO_PROCESS_WINDOW.min}
+              max={AUTO_PROCESS_WINDOW.max}
+              step={1}
+              fallback={AUTO_PROCESS_WINDOW.default}
+              parse={(text) => Math.round(parseFloat(text))}
+              ariaDescribedBy="autoProcessMaxAgeHours-help"
+              onCommit={onAutoProcessMaxAgeHoursChange}
+            />
+            <span className="text-sm text-muted-foreground">hours ({AUTO_PROCESS_WINDOW.min} to {AUTO_PROCESS_WINDOW.max})</span>
+          </div>
+          <p id="autoProcessMaxAgeHours-help" className="mt-2 text-sm text-muted-foreground">
+            Newly discovered episodes older than this are left as discovered until you process them. If this instance runs only now and then, set it to cover the longest gap between runs.
+          </p>
+        </div>
+
         {/* Feed refresh interval */}
         <div className="pt-4 border-t border-border">
-          <label htmlFor="rssRefreshIntervalMinutes" className="block text-sm font-medium text-foreground mb-2">
+          <label htmlFor="rssRefreshIntervalMinutes" className={labelBase}>
             Feed refresh interval
           </label>
           <div className="flex items-center gap-3">
@@ -186,7 +215,7 @@ function GlobalDefaultsSection({
 
         {/* Low ad yield response */}
         <div className="pt-4 border-t border-border">
-          <label htmlFor="lowAdYieldAction" className="block text-sm font-medium text-foreground mb-2">
+          <label htmlFor="lowAdYieldAction" className={labelBase}>
             When an episode detects fewer ads than usual
           </label>
           <select

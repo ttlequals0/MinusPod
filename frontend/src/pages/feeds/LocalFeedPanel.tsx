@@ -3,7 +3,9 @@ import { useDraftClose } from '../../hooks/useDraftClose';
 import { useEffect, useRef, useState, type Dispatch, type SetStateAction } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import CollapsibleSection, { useCollapsibleOpen } from '../../components/CollapsibleSection';
-import { Modal } from '../../components/Modal';
+import { Plus } from 'lucide-react';
+import { Modal, dialogFooterBtn } from '../../components/Modal';
+import { cardTitle, subHeading } from '../../components/pageStyles';
 import Checkbox from '../../components/Checkbox';
 import LoadingSpinner from '../../components/LoadingSpinner';
 import ImportPreviewTable from '../../components/ImportPreviewTable';
@@ -14,8 +16,8 @@ import {
 } from '../../api/feeds';
 import type { UpdateFeedPayload, ImportPlan, ImportSource, ImportRejectedFile } from '../../api/feeds';
 import type { Feed } from '../../api/types';
-import { btnPrimary, btnSecondary, btnOutline } from '../../components/buttonStyles';
-import { fileInputBase, focusRing, selectBase } from '../../components/fieldStyles';
+import { btnBase, btnGhost, btnLg, btnPrimary, btnSecondary, btnOutline } from '../../components/buttonStyles';
+import { fileInputBase, inputBase, labelBase, selectBase, textareaBase } from '../../components/fieldStyles';
 import { useSyncFromQuery } from '../../hooks/useSyncFromQuery';
 import { fromDatetimeLocalInput } from '../../utils/format';
 
@@ -29,8 +31,6 @@ const P20_MEDIUM_OPTIONS = ['podcast', 'music', 'video', 'film', 'audiobook', 'n
 const P20_FEED_GUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 // Mirrors api/feeds.py's _P20_PODROLL_MAX.
 const P20_PODROLL_MAX_ROWS = 50;
-
-const fieldCls = 'w-full px-4 py-2 rounded-lg border border-input bg-background text-foreground placeholder:text-muted-foreground focus:outline-hidden focus:ring-2 focus:ring-ring';
 
 // ---- Podcasting 2.0 list tags (funding/person/license/location/txt/podroll) ----
 // One row shape (plain string fields) serves all six tags; the field list
@@ -81,7 +81,7 @@ const P20_TAG_DEFS: P20TagDef[] = [
     tag: 'funding',
     title: 'Funding',
     hint: 'Links listeners can use to support the show, like Patreon or Ko-fi.',
-    addLabel: '+ Add funding',
+    addLabel: 'Add funding',
     fields: [
       { key: 'text', label: 'Label', placeholder: 'Support us on Patreon' },
       { key: 'url', label: 'URL', placeholder: 'https://...' },
@@ -93,7 +93,7 @@ const P20_TAG_DEFS: P20TagDef[] = [
     tag: 'person',
     title: 'People',
     hint: 'Hosts, guests, and other people to credit.',
-    addLabel: '+ Add person',
+    addLabel: 'Add person',
     fields: [
       { key: 'text', label: 'Name', placeholder: 'Jane Doe' },
       { key: 'role', label: 'Role', placeholder: 'host' },
@@ -108,7 +108,7 @@ const P20_TAG_DEFS: P20TagDef[] = [
     tag: 'license',
     title: 'License',
     hint: 'The license this show is released under.',
-    addLabel: '+ Add license',
+    addLabel: 'Add license',
     fields: [
       { key: 'text', label: 'License name', placeholder: 'CC BY-NC-ND 4.0' },
       { key: 'url', label: 'URL', placeholder: 'https://...' },
@@ -120,7 +120,7 @@ const P20_TAG_DEFS: P20TagDef[] = [
     tag: 'location',
     title: 'Location',
     hint: 'Where the show is set or recorded.',
-    addLabel: '+ Add location',
+    addLabel: 'Add location',
     fields: [
       { key: 'text', label: 'Name', placeholder: 'Portland, OR' },
       { key: 'geo', label: 'Geo', placeholder: 'geo:45.5,-122.6' },
@@ -133,7 +133,7 @@ const P20_TAG_DEFS: P20TagDef[] = [
     tag: 'txt',
     title: 'Text',
     hint: "Freeform values for anything the other tags don't cover.",
-    addLabel: '+ Add text',
+    addLabel: 'Add text',
     fields: [
       { key: 'text', label: 'Text', placeholder: 'Free text' },
       { key: 'purpose', label: 'Purpose', placeholder: 'verify' },
@@ -145,7 +145,7 @@ const P20_TAG_DEFS: P20TagDef[] = [
     tag: 'podroll',
     title: 'Podroll',
     hint: 'Other shows to recommend alongside this one.',
-    addLabel: '+ Add show',
+    addLabel: 'Add show',
     fields: [
       { key: 'feedGuid', label: 'Feed GUID', placeholder: '29cdca4a-32d8-56ba-b48b-09a011c5daa9' },
       { key: 'feedUrl', label: 'Feed URL', placeholder: 'https://...' },
@@ -402,7 +402,7 @@ function LocalFeedPanel({ feed, slug }: Props) {
         const result = await importUpload(slug, [file]);
         rejected.push(...result.rejected);
       } catch (e) {
-        rejected.push({ file: file.name, reason: getErrorMessage(e, 'Upload failed') });
+        rejected.push({ file: file.name, reason: getErrorMessage(e, 'Could not upload files.') });
       }
     }
     return rejected;
@@ -438,7 +438,7 @@ function LocalFeedPanel({ feed, slug }: Props) {
       setPlan(scanned);
       setImportSource('staging');
     },
-    onError: (e) => setImportError(getErrorMessage(e, 'Upload failed')),
+    onError: (e) => setImportError(getErrorMessage(e, 'Could not upload files.')),
     onSettled: () => setUploadProgress(null),
   });
 
@@ -457,7 +457,7 @@ function LocalFeedPanel({ feed, slug }: Props) {
       setPlan(scanned);
       setImportSource('staging');
     },
-    onError: (e) => setImportError(getErrorMessage(e, 'Add files failed')),
+    onError: (e) => setImportError(getErrorMessage(e, 'Could not add files.')),
     onSettled: () => setUploadProgress(null),
   });
 
@@ -472,7 +472,7 @@ function LocalFeedPanel({ feed, slug }: Props) {
       setPlan(scanned);
       setImportSource('staging');
     },
-    onError: (e) => setImportError(getErrorMessage(e, 'Rescan failed')),
+    onError: (e) => setImportError(getErrorMessage(e, 'Could not rescan staged files.')),
   });
 
   const scanDirectoryMutation = useMutation({
@@ -483,7 +483,7 @@ function LocalFeedPanel({ feed, slug }: Props) {
       setPlan(scanned);
       setImportSource('directory');
     },
-    onError: (e) => setImportError(getErrorMessage(e, 'Scan failed')),
+    onError: (e) => setImportError(getErrorMessage(e, 'Could not scan the directory.')),
   });
 
   const commitMutation = useMutation({
@@ -497,7 +497,7 @@ function LocalFeedPanel({ feed, slug }: Props) {
       setPlan(null);
       queryClient.invalidateQueries({ queryKey: ['import-status', slug] });
     },
-    onError: (e) => setImportError(getErrorMessage(e, 'Import failed')),
+    onError: (e) => setImportError(getErrorMessage(e, 'Could not start the import.')),
   });
 
   const handleImportFiles = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -573,36 +573,36 @@ function LocalFeedPanel({ feed, slug }: Props) {
 
         <form onSubmit={handleSaveMetadata} className="space-y-4 mb-6">
           <fieldset disabled={metaMutation.isPending} className="space-y-4">
-          <h3 className="text-sm font-semibold text-foreground">Feed metadata</h3>
+          <h3 className={subHeading}>Feed metadata</h3>
           <div>
-            <label htmlFor={`local-title-${slug}`} className="block text-sm font-medium text-foreground mb-2">Title</label>
+            <label htmlFor={`local-title-${slug}`} className={labelBase}>Title</label>
             <input
               id={`local-title-${slug}`}
               type="text"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               required
-              className={fieldCls}
+              className={`w-full ${inputBase}`}
             />
           </div>
           <div>
-            <label htmlFor={`local-description-${slug}`} className="block text-sm font-medium text-foreground mb-2">Description</label>
+            <label htmlFor={`local-description-${slug}`} className={labelBase}>Description</label>
             <textarea
               id={`local-description-${slug}`}
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               rows={6}
-              className={fieldCls}
+              className={`w-full ${textareaBase}`}
             />
           </div>
           <div>
-            <label htmlFor={`local-author-${slug}`} className="block text-sm font-medium text-foreground mb-2">Author</label>
+            <label htmlFor={`local-author-${slug}`} className={labelBase}>Author</label>
             <input
               id={`local-author-${slug}`}
               type="text"
               value={author}
               onChange={(e) => setAuthor(e.target.value)}
-              className={fieldCls}
+              className={`w-full ${inputBase}`}
             />
           </div>
           <Checkbox
@@ -611,21 +611,21 @@ function LocalFeedPanel({ feed, slug }: Props) {
             label="Explicit content"
           />
           <div>
-            <label htmlFor={`local-categories-${slug}`} className="block text-sm font-medium text-foreground mb-2">Categories</label>
+            <label htmlFor={`local-categories-${slug}`} className={labelBase}>Categories</label>
             <input
               id={`local-categories-${slug}`}
               type="text"
               value={categoriesInput}
               onChange={(e) => setCategoriesInput(e.target.value)}
               placeholder="Technology, Business"
-              className={fieldCls}
+              className={`w-full ${inputBase}`}
               aria-describedby={`local-categories-${slug}` + '-help'}
             />
             <p id={`local-categories-${slug}` + '-help'} className="mt-1 text-sm text-muted-foreground">Comma-separated, e.g. Technology, Business</p>
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             <div>
-              <label htmlFor={`local-medium-${slug}`} className="block text-sm font-medium text-foreground mb-2">Medium</label>
+              <label htmlFor={`local-medium-${slug}`} className={labelBase}>Medium</label>
               <select
                 id={`local-medium-${slug}`}
                 value={medium}
@@ -636,7 +636,7 @@ function LocalFeedPanel({ feed, slug }: Props) {
               </select>
             </div>
             <div>
-              <label htmlFor={`local-locked-${slug}`} className="block text-sm font-medium text-foreground mb-2">Locked</label>
+              <label htmlFor={`local-locked-${slug}`} className={labelBase}>Locked</label>
               <select
                 id={`local-locked-${slug}`}
                 value={locked}
@@ -648,19 +648,19 @@ function LocalFeedPanel({ feed, slug }: Props) {
               </select>
             </div>
             <div>
-              <label htmlFor={`local-locked-owner-${slug}`} className="block text-sm font-medium text-foreground mb-2">Locked owner email</label>
+              <label htmlFor={`local-locked-owner-${slug}`} className={labelBase}>Locked owner email</label>
               <input
                 id={`local-locked-owner-${slug}`}
                 type="email"
                 value={lockedOwner}
                 onChange={(e) => setLockedOwner(e.target.value)}
                 placeholder="owner@example.com"
-                className={fieldCls}
+                className={`w-full ${inputBase}`}
               />
             </div>
           </div>
           <div>
-            <label htmlFor={`local-artwork-${slug}`} className="block text-sm font-medium text-foreground mb-2">Artwork</label>
+            <label htmlFor={`local-artwork-${slug}`} className={labelBase}>Artwork</label>
             <input
               id={`local-artwork-${slug}`}
               type="file"
@@ -675,12 +675,13 @@ function LocalFeedPanel({ feed, slug }: Props) {
             {artworkMutation.isPending && <p className="mt-1 text-sm text-muted-foreground">Uploading...</p>}
             {artworkMutation.isSuccess && <p className="mt-1 text-sm text-success">Artwork updated.</p>}
             {artworkMutation.isError && (
-              <p className="mt-1 text-sm text-destructive">{getErrorMessage(artworkMutation.error, 'Artwork upload failed')}</p>
+              <p className="mt-1 text-sm text-destructive">{getErrorMessage(artworkMutation.error, 'Could not upload artwork.')}</p>
             )}
           </div>
 
           <CollapsibleSection
             title="Podcasting 2.0 tags"
+            variant="subsection"
             subtitle="Funding, people, license, location, text, and podroll tags for apps that support them."
             defaultOpen={false}
             storageKey={`local-p20-${slug}`}
@@ -710,12 +711,12 @@ function LocalFeedPanel({ feed, slug }: Props) {
             <p className="text-sm text-destructive">{p20ValidationError}</p>
           )}
           {metaMutation.isError && (
-            <p className="text-sm text-destructive">{getErrorMessage(metaMutation.error, 'Could not save')}</p>
+            <p className="text-sm text-destructive">{getErrorMessage(metaMutation.error, 'Could not save this feed.')}</p>
           )}
           <button
             type="submit"
             disabled={metaMutation.isPending || !title.trim()}
-            className={`px-4 py-2 rounded-lg ${btnPrimary} disabled:opacity-50 transition-colors ${focusRing}`}
+            className={`${btnLg} ${btnPrimary}`}
           >
             {metaMutation.isPending ? 'Saving...' : metaSaved ? 'Saved' : 'Save metadata'}
           </button>
@@ -724,12 +725,13 @@ function LocalFeedPanel({ feed, slug }: Props) {
 
         <div className="pt-4 border-t border-border mb-6">
           <div className="flex items-center justify-between gap-3 mb-3">
-            <h3 className="text-sm font-semibold text-foreground">Episodes</h3>
+            <h3 className={subHeading}>Episodes</h3>
             <button
               type="button"
               onClick={() => setAddEpisodeOpen(true)}
-              className={`px-3 py-1.5 text-sm rounded ${btnPrimary} ${focusRing}`}
+              className={`${btnBase} ${btnPrimary}`}
             >
+              <Plus className="w-4 h-4" aria-hidden="true" />
               Add episode
             </button>
           </div>
@@ -737,7 +739,7 @@ function LocalFeedPanel({ feed, slug }: Props) {
         </div>
 
         <div className="pt-4 border-t border-border">
-          <h3 className="text-sm font-semibold text-foreground mb-1">Bulk import</h3>
+          <h3 className={`${subHeading} mb-1`}>Bulk import</h3>
           <p className="text-sm text-muted-foreground mb-1">
             Upload mp3s named like S01E01.mp3, with optional matching .txt/.jpg/.json sidecar files.
           </p>
@@ -760,7 +762,7 @@ function LocalFeedPanel({ feed, slug }: Props) {
               type="button"
               onClick={() => importFileInputRef.current?.click()}
               disabled={stagingBusy}
-              className={`px-3 py-1.5 text-sm rounded ${btnSecondary} disabled:opacity-50 ${focusRing}`}
+              className={`${btnBase} ${btnSecondary}`}
             >
               {uploadAndScanMutation.isPending ? 'Uploading...' : 'Choose files'}
             </button>
@@ -769,7 +771,7 @@ function LocalFeedPanel({ feed, slug }: Props) {
               onClick={() => scanDirectoryMutation.mutate(overwriteExisting)}
               disabled={stagingBusy}
               title="Scan the server-side import directory instead of uploading"
-              className={`px-3 py-1.5 text-sm rounded ${btnSecondary} disabled:opacity-50 ${focusRing}`}
+              className={`${btnBase} ${btnSecondary}`}
             >
               {scanDirectoryMutation.isPending ? 'Scanning...' : 'Scan server directory'}
             </button>
@@ -800,7 +802,7 @@ function LocalFeedPanel({ feed, slug }: Props) {
               touching anything else already staged -- unlike "Choose files"
               above, which clears staging first. */}
           {hasFixableLeftovers && (
-            <div className="mb-3 flex flex-wrap items-center gap-2 rounded-md border border-border bg-secondary/30 px-3 py-2 text-xs text-muted-foreground" data-testid="fixable-leftovers-note">
+            <div className="mb-3 flex flex-wrap items-center gap-2 rounded-md bg-muted/40 px-3 py-2 text-xs text-muted-foreground" data-testid="fixable-leftovers-note">
               <span>A file from the last run needs fixing before it can import. Neither of these clears what&apos;s already staged.</span>
               <div className="flex flex-wrap gap-2 sm:ml-auto">
                 <input
@@ -816,7 +818,7 @@ function LocalFeedPanel({ feed, slug }: Props) {
                   onClick={() => rescanStagingMutation.mutate(overwriteExisting)}
                   disabled={stagingBusy}
                   title="Rescan staged files without clearing them."
-                  className={`px-2 py-1 text-xs rounded ${btnOutline} disabled:opacity-50 ${focusRing}`}
+                  className={`${btnBase} ${btnOutline}`}
                 >
                   {rescanStagingMutation.isPending ? 'Rescanning...' : 'Rescan staged files'}
                 </button>
@@ -825,7 +827,7 @@ function LocalFeedPanel({ feed, slug }: Props) {
                   onClick={() => addFilesInputRef.current?.click()}
                   disabled={stagingBusy}
                   title="Add files without clearing staging, such as a corrected sidecar."
-                  className={`px-2 py-1 text-xs rounded ${btnOutline} disabled:opacity-50 ${focusRing}`}
+                  className={`${btnBase} ${btnOutline}`}
                 >
                   {addFilesToStagingMutation.isPending ? 'Uploading...' : 'Add files to staged set'}
                 </button>
@@ -843,7 +845,7 @@ function LocalFeedPanel({ feed, slug }: Props) {
               showing the same list merged with the plan's own rejections. */}
           {!plan && uploadRejected.length > 0 && (
             <div className="mb-3">
-              <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1">Rejected files</h4>
+              <h4 className={`${subHeading} mb-1`}>Rejected files</h4>
               <ul className="text-sm space-y-1">
                 {uploadRejected.map((r) => (
                   <li key={r.file} className="flex flex-col sm:flex-row sm:justify-between sm:gap-3">
@@ -873,14 +875,14 @@ function LocalFeedPanel({ feed, slug }: Props) {
                     || (plan.batchErrors?.length ?? 0) > 0
                     || importRunning
                   }
-                  className={`px-4 py-2 rounded-lg ${btnPrimary} disabled:opacity-50 ${focusRing}`}
+                  className={`${btnBase} ${btnPrimary}`}
                 >
                   {commitMutation.isPending ? 'Starting...' : commitButtonLabel(plan)}
                 </button>
                 <button
                   type="button"
                   onClick={handleCancelPlan}
-                  className={`px-4 py-2 rounded-lg ${btnSecondary} ${focusRing}`}
+                  className={`${btnBase} ${btnSecondary}`}
                 >
                   Cancel
                 </button>
@@ -890,7 +892,7 @@ function LocalFeedPanel({ feed, slug }: Props) {
 
           {statusQuery.data && statusQuery.data.state !== 'idle'
             && statusQuery.data.startedAt !== dismissedRunStartedAt && (
-            <div className="mt-4 p-3 rounded-lg bg-secondary/50 border border-border">
+            <div className="mt-4 p-3 rounded-lg bg-muted/40">
               {importState === 'running' ? (
                 <p className="text-sm text-muted-foreground flex items-center gap-2" role="status">
                   <LoadingSpinner size="sm" inline /> Importing {statusQuery.data.processed} / {statusQuery.data.total}...
@@ -899,12 +901,12 @@ function LocalFeedPanel({ feed, slug }: Props) {
                 <div>
                   <div className="flex items-start justify-between gap-3">
                     <p className="text-sm text-destructive">
-                      Import failed: {statusQuery.data.report?.error ?? 'unknown error'}
+                      Could not import: {statusQuery.data.report?.error ?? 'unknown error'}
                     </p>
                     <button
                       type="button"
                       onClick={() => setDismissedRunStartedAt(statusQuery.data!.startedAt)}
-                      className={`shrink-0 text-xs text-muted-foreground hover:text-foreground ${focusRing}`}
+                      className={`${btnBase} ${btnGhost} shrink-0`}
                     >
                       Clear report
                     </button>
@@ -917,7 +919,7 @@ function LocalFeedPanel({ feed, slug }: Props) {
                     <button
                       type="button"
                       onClick={() => setDismissedRunStartedAt(statusQuery.data!.startedAt)}
-                      className={`shrink-0 text-xs text-muted-foreground hover:text-foreground ${focusRing}`}
+                      className={`${btnBase} ${btnGhost} shrink-0`}
                     >
                       Clear report
                     </button>
@@ -970,7 +972,7 @@ function P20TagEditor({ slug, def, rows, onChange, disabled }: P20TagEditorProps
 
   return (
     <div className="py-3 first:pt-0 last:pb-0">
-      <h4 className="text-sm font-medium text-foreground">{def.title}</h4>
+      <h4 className={subHeading}>{def.title}</h4>
       <p className="text-xs text-muted-foreground mb-2">{def.hint}</p>
       {rows.length > 0 && (
         <div className="space-y-2 mb-2">
@@ -978,13 +980,13 @@ function P20TagEditor({ slug, def, rows, onChange, disabled }: P20TagEditorProps
             // Index key: rows have no natural identity until a field is
             // filled in, and this list only grows/shrinks from user clicks
             // right here, never reorders.
-            <div key={idx} className="rounded-md border border-border p-3">
+            <div key={idx} className="rounded-md bg-muted/40 p-3">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 {def.fields.map((field) => {
                   const inputId = `local-p20-${slug}-${def.tag}-${idx}-${field.key}`;
                   return (
                     <div key={field.key}>
-                      <label htmlFor={inputId} className="block text-xs text-muted-foreground mb-1">
+                      <label htmlFor={inputId} className={labelBase}>
                         {field.label}
                       </label>
                       {field.options ? (
@@ -1006,7 +1008,7 @@ function P20TagEditor({ slug, def, rows, onChange, disabled }: P20TagEditorProps
                           onChange={(e) => updateField(idx, field.key, e.target.value)}
                           placeholder={field.placeholder}
                           disabled={disabled}
-                          className={fieldCls}
+                          className={`w-full ${inputBase}`}
                         />
                       )}
                     </div>
@@ -1018,7 +1020,7 @@ function P20TagEditor({ slug, def, rows, onChange, disabled }: P20TagEditorProps
                 onClick={() => removeRow(idx)}
                 disabled={disabled}
                 aria-label={`Remove ${def.title} row ${idx + 1}`}
-                className={`mt-2 text-xs text-muted-foreground hover:text-destructive disabled:opacity-50 ${focusRing}`}
+                className={`${btnBase} ${btnGhost} mt-2`}
               >
                 Remove
               </button>
@@ -1030,8 +1032,9 @@ function P20TagEditor({ slug, def, rows, onChange, disabled }: P20TagEditorProps
         type="button"
         onClick={addRow}
         disabled={disabled}
-        className={`px-2 py-1 text-xs rounded ${btnOutline} disabled:opacity-50 ${focusRing}`}
+        className={`${btnBase} ${btnOutline}`}
       >
+        <Plus className="w-4 h-4" aria-hidden="true" />
         {def.addLabel}
       </button>
     </div>
@@ -1083,11 +1086,37 @@ function AddEpisodeModal({ slug, onClose }: AddEpisodeModalProps) {
   };
 
   return (
-    <Modal ariaLabel="Add episode" onClose={requestClose} panelClassName="max-w-lg w-full p-6 max-h-[90vh] overflow-y-auto">
-      <h2 className="text-xl font-semibold text-foreground mb-4">Add episode</h2>
-      <form onSubmit={handleSubmit} className="space-y-4">
+    <Modal
+      ariaLabel="Add episode"
+      onClose={requestClose}
+      panelClassName="max-w-lg w-full max-h-[90vh]"
+      header={(
+        <h2 className={cardTitle}>Add episode</h2>
+      )}
+      footer={(
+        <>
+          <button
+            type="button"
+            onClick={requestClose}
+            disabled={mutation.isPending}
+            className={`${dialogFooterBtn} ${btnSecondary}`}
+          >
+            Cancel
+          </button>
+          <button
+            type="submit"
+            form="add-episode-form"
+            disabled={mutation.isPending || !audioFile}
+            className={`${dialogFooterBtn} ${btnPrimary}`}
+          >
+            {mutation.isPending ? 'Uploading...' : 'Add episode'}
+          </button>
+        </>
+      )}
+    >
+      <form id="add-episode-form" onSubmit={handleSubmit} className="space-y-4 p-4">
         <div>
-          <label htmlFor="add-ep-audio" className="block text-sm font-medium text-foreground mb-2">Audio file (.mp3)</label>
+          <label htmlFor="add-ep-audio" className={labelBase}>Audio file (.mp3)</label>
           <input
             id="add-ep-audio"
             type="file"
@@ -1098,12 +1127,12 @@ function AddEpisodeModal({ slug, onClose }: AddEpisodeModalProps) {
           />
         </div>
         <div>
-          <label htmlFor="add-ep-title" className="block text-sm font-medium text-foreground mb-2">Title</label>
-          <input id="add-ep-title" type="text" value={title} onChange={(e) => setTitle(e.target.value)} className={fieldCls} />
+          <label htmlFor="add-ep-title" className={labelBase}>Title</label>
+          <input id="add-ep-title" type="text" value={title} onChange={(e) => setTitle(e.target.value)} className={`w-full ${inputBase}`} />
         </div>
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <label htmlFor="add-ep-season" className="block text-sm font-medium text-foreground mb-2">Season</label>
+            <label htmlFor="add-ep-season" className={labelBase}>Season</label>
             <input
               id="add-ep-season"
               type="number"
@@ -1111,11 +1140,11 @@ function AddEpisodeModal({ slug, onClose }: AddEpisodeModalProps) {
               value={season}
               onChange={(e) => setSeason(e.target.value)}
               placeholder="1"
-              className={fieldCls}
+              className={`w-full ${inputBase}`}
             />
           </div>
           <div>
-            <label htmlFor="add-ep-episode" className="block text-sm font-medium text-foreground mb-2">Episode</label>
+            <label htmlFor="add-ep-episode" className={labelBase}>Episode</label>
             <input
               id="add-ep-episode"
               type="number"
@@ -1123,34 +1152,34 @@ function AddEpisodeModal({ slug, onClose }: AddEpisodeModalProps) {
               value={episode}
               onChange={(e) => setEpisode(e.target.value)}
               placeholder="next available"
-              className={fieldCls}
+              className={`w-full ${inputBase}`}
             />
           </div>
         </div>
         <div>
-          <label htmlFor="add-ep-published" className="block text-sm font-medium text-foreground mb-2">Published</label>
+          <label htmlFor="add-ep-published" className={labelBase}>Published</label>
           <input
             id="add-ep-published"
             type="datetime-local"
             value={publishedAt}
             onChange={(e) => setPublishedAt(e.target.value)}
-            className={fieldCls}
+            className={`w-full ${inputBase}`}
             aria-describedby="add-ep-published-help"
           />
           <p id="add-ep-published-help" className="mt-1 text-sm text-muted-foreground">Leave blank to use the upload time.</p>
         </div>
         <div>
-          <label htmlFor="add-ep-description" className="block text-sm font-medium text-foreground mb-2">Description</label>
+          <label htmlFor="add-ep-description" className={labelBase}>Description</label>
           <textarea
             id="add-ep-description"
             value={description}
             onChange={(e) => setDescription(e.target.value)}
             rows={3}
-            className={fieldCls}
+            className={`w-full ${textareaBase}`}
           />
         </div>
         <div>
-          <label htmlFor="add-ep-artwork" className="block text-sm font-medium text-foreground mb-2">Artwork (optional)</label>
+          <label htmlFor="add-ep-artwork" className={labelBase}>Artwork (optional)</label>
           <input
             id="add-ep-artwork"
             type="file"
@@ -1160,25 +1189,8 @@ function AddEpisodeModal({ slug, onClose }: AddEpisodeModalProps) {
           />
         </div>
         {mutation.isError && (
-          <p role="alert" className="text-sm text-destructive">{getErrorMessage(mutation.error, 'Upload failed')}</p>
+          <p role="alert" className="text-sm text-destructive">{getErrorMessage(mutation.error, 'Could not upload files.')}</p>
         )}
-        <div className="flex gap-3 justify-end pt-2">
-          <button
-            type="button"
-            onClick={requestClose}
-            disabled={mutation.isPending}
-            className={`px-4 py-2 rounded ${btnSecondary} disabled:opacity-50 ${focusRing}`}
-          >
-            Cancel
-          </button>
-          <button
-            type="submit"
-            disabled={mutation.isPending || !audioFile}
-            className={`px-4 py-2 rounded ${btnPrimary} disabled:opacity-50 ${focusRing}`}
-          >
-            {mutation.isPending ? 'Uploading...' : 'Add episode'}
-          </button>
-        </div>
       </form>
       {confirmation}
     </Modal>

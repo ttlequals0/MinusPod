@@ -1,7 +1,8 @@
 import { Link } from 'react-router';
+import { formatPercent } from '../../utils/format';
 import NumberInput from '../../components/NumberInput';
-import { inputBase, focusRing } from '../../components/fieldStyles';
 import { ToggleRow } from './Podcasting20Section';
+import { focusRing, inputBase, labelBase } from '../../components/fieldStyles';
 
 export interface AdChaptersBlockProps {
   chaptersEnabled: boolean;
@@ -27,7 +28,7 @@ function TextField({ id, label, value, disabled, onChange, help }: {
 }) {
   return (
     <div>
-      <label htmlFor={id} className="block text-sm font-medium text-foreground mb-2">
+      <label htmlFor={id} className={labelBase}>
         {label}
       </label>
       <input
@@ -114,7 +115,7 @@ function AdChaptersBlock({
           help="Marks where the show picks up after a break."
         />
         <div>
-          <label htmlFor="adChapterMinConfidence" className="block text-sm font-medium text-foreground mb-2">
+          <label htmlFor="adChapterMinConfidence" className={labelBase}>
             Minimum confidence
           </label>
           <NumberInput
@@ -127,8 +128,9 @@ function AdChaptersBlock({
             disabled={disabled}
             onCommit={onMinConfidenceChange} ariaDescribedBy="adChapterMinConfidence-help"
           />
+          <span className="ml-3 text-sm text-muted-foreground">{formatPercent(minConfidence)}</span>
           <p id="adChapterMinConfidence-help" className="mt-2 text-sm text-muted-foreground">
-            Kept segments below this score get no chapter. 0 to 1, default 0.9.
+            Kept segments below this score get no chapter. Default 90%.
           </p>
         </div>
       </div>

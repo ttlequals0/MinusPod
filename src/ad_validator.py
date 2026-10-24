@@ -9,7 +9,7 @@ from dataclasses import dataclass, field
 from enum import Enum
 
 from config import (
-    DESCRIPTION_CHAPTER_STAGE,
+    CUE_MATCH_STAGE, DESCRIPTION_CHAPTER_STAGE,
     MIN_AD_DURATION, SHORT_AD_WARN, LONG_AD_WARN, MAX_AD_DURATION,
     MAX_AD_DURATION_CONFIRMED, LOW_CONFIDENCE,
     REJECT_CONFIDENCE, HIGH_CONFIDENCE_OVERRIDE, PRE_ROLL, MID_ROLL_1,
@@ -79,6 +79,8 @@ from utils.constants import (AUDIO_ECHO_RE, is_brand_token, is_non_brand_name,
 from utils.text import extract_text_from_segments, word_boundary_re
 from utils.time import overlap_ratio
 from ad_detector.boundaries import effective_resolved_action
+
+CUE_MATCH_MIN_DURATION = 0.2  # seconds; sanity floor for cue_match markers
 
 logger = logging.getLogger(__name__)
 
@@ -1090,7 +1092,11 @@ class AdValidator:
             duration, position = self._measured_extent(ad)
 
         # Duration checks
-        if duration < MIN_AD_DURATION:
+        if ad.get('detection_stage') == CUE_MATCH_STAGE:
+            # A stinger is short by nature; only a sliver is an error.
+            if duration < CUE_MATCH_MIN_DURATION:
+                flags.append(f"ERROR: Very short ({duration:.1f}s)")
+        elif duration < MIN_AD_DURATION:
             flags.append(f"ERROR: Very short ({duration:.1f}s)")
         elif duration < SHORT_AD_WARN:
             flags.append(f"WARN: Short duration ({duration:.1f}s)")
@@ -1513,14 +1519,15 @@ class AdValidator:
                 return Decision.REVIEW
 
         # Rule 6: cue-only run safety. Only set on cue_only runs; inert
-        # otherwise. hold_new holds cue_pair markers built from an unproven
-        # template, auto_cut instead raises the auto-cut confidence floor.
+        # otherwise. hold_new holds cue_pair and cue_match markers built from an
+        # unproven template, auto_cut instead raises the auto-cut confidence floor.
         if (self.cue_only_safety and decision != Decision.REJECT
-                and ad.get('detection_stage') == 'cue_pair'):
+                and ad.get('detection_stage') in ('cue_pair', CUE_MATCH_STAGE)):
             pair = ad.get('cue_pair') or {}
             edge_templates = {
                 (pair.get('start') or {}).get('template_id'),
                 (pair.get('end') or {}).get('template_id'),
+                (ad.get('cue_match') or {}).get('template_id'),
             } - {None}
             if (self.cue_only_safety == CUE_ONLY_SAFETY_HOLD_NEW
                     and edge_templates & self.cue_unproven_template_ids):

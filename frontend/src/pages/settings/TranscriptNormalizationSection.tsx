@@ -1,3 +1,4 @@
+import { Plus } from 'lucide-react';
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import CollapsibleSection, {
@@ -8,8 +9,7 @@ import { SponsorNormalization } from '../../api/types';
 import NormalizationEditModal from '../../components/NormalizationEditModal';
 import { ConfirmModal } from '../../components/Modal';
 import { SkeletonRows } from '../../components/Skeleton';
-import { btnOutline, btnPrimary } from '../../components/buttonStyles';
-import { focusRing } from '../../components/fieldStyles';
+import { btnBase, btnPrimary, btnOutline, btnDestructiveOutline } from '../../components/buttonStyles';
 import { badgeBase, tint } from '../../components/badgeStyles';
 
 const STORAGE_KEY = 'settings-section-transcript-normalization';
@@ -39,7 +39,7 @@ function TranscriptNormalizationSection() {
 
   return (
     <CollapsibleSection
-      title="Transcript Normalization"
+      title="Transcript normalization"
       subtitle="Corrections applied to the transcript before ad detection runs."
       storageKey={STORAGE_KEY}
       onToggle={setOpen}
@@ -52,7 +52,7 @@ function TranscriptNormalizationSection() {
       {isLoading || !visible ? (
         <SkeletonRows count={4} />
       ) : error ? (
-        <div className="text-center py-12"><p className="text-destructive">Failed to load normalizations</p></div>
+        <div className="text-center py-12"><p className="text-destructive">Could not load normalizations.</p></div>
       ) : (
         <div>
           <div className="flex items-center justify-between mb-4">
@@ -60,16 +60,17 @@ function TranscriptNormalizationSection() {
             <button
               type="button"
               onClick={() => setEditing(null)}
-              className={`px-3 py-1.5 text-sm rounded ${btnPrimary} transition-colors ${focusRing}`}
+              className={`${btnBase} ${btnPrimary}`}
             >
-              + Add Normalization
+              <Plus className="w-4 h-4" aria-hidden="true" />
+              Add normalization
             </button>
           </div>
 
           {/* Mobile cards */}
           <div className="sm:hidden space-y-3">
             {norms?.map((n) => (
-              <div key={n.id} className="bg-card rounded-lg border border-border p-4">
+              <div key={n.id} className="bg-muted/40 rounded-lg p-4">
                 <div className="flex items-start justify-between gap-2 mb-2">
                   <span className="text-sm font-mono text-foreground break-all">{n.terms}</span>
                   <span className={`${badgeBase} shrink-0 ${tint.neutral}`}>{n.category}</span>
@@ -78,13 +79,13 @@ function TranscriptNormalizationSection() {
                   <span className="text-muted-foreground">→ </span>{n.canonical}
                 </div>
                 <div className="flex gap-2">
-                  <button onClick={() => setEditing(n)} className={`px-2 py-1 text-xs rounded ${btnOutline} ${focusRing}`}>Edit</button>
-                  <button onClick={() => setDeleteId(n.id)} className={`px-2 py-1 text-xs rounded border border-destructive/40 text-destructive hover:bg-destructive/10 ${focusRing}`}>Delete</button>
+                  <button onClick={() => setEditing(n)} className={`${btnBase} ${btnOutline}`}>Edit</button>
+                  <button onClick={() => setDeleteId(n.id)} className={`${btnBase} ${btnDestructiveOutline}`}>Delete</button>
                 </div>
               </div>
             ))}
             {norms?.length === 0 && (
-              <div className="bg-card rounded-lg border border-border p-8 text-center text-muted-foreground">No normalizations</div>
+              <div className="bg-card rounded-lg border border-border p-8 text-center text-muted-foreground">No normalizations yet.</div>
             )}
           </div>
 
@@ -116,14 +117,14 @@ function TranscriptNormalizationSection() {
                       </td>
                       <td className="px-2 py-3 whitespace-nowrap text-xs">
                         <div className="flex gap-1">
-                          <button onClick={() => setEditing(n)} className={`px-2 py-1 rounded ${btnOutline} ${focusRing}`}>Edit</button>
-                          <button onClick={() => setDeleteId(n.id)} className={`px-2 py-1 rounded border border-destructive/40 text-destructive hover:bg-destructive/10 ${focusRing}`}>Delete</button>
+                          <button onClick={() => setEditing(n)} className={`${btnBase} ${btnOutline}`}>Edit</button>
+                          <button onClick={() => setDeleteId(n.id)} className={`${btnBase} ${btnDestructiveOutline}`}>Delete</button>
                         </div>
                       </td>
                     </tr>
                   ))}
                   {norms?.length === 0 && (
-                    <tr><td colSpan={4} className="px-4 py-8 text-center text-muted-foreground">No normalizations</td></tr>
+                    <tr><td colSpan={4} className="px-4 py-8 text-center text-muted-foreground">No normalizations yet.</td></tr>
                   )}
                 </tbody>
               </table>

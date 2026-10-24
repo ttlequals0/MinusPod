@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import { getErrorMessage } from '../../api/client';
 import { RemovableChip } from '../../components/RemovableChip';
-import { btnOutline } from '../../components/buttonStyles';
-import { inputBase, focusRing } from '../../components/fieldStyles';
+import { Plus } from 'lucide-react';
+import { btnBase, btnOutline } from '../../components/buttonStyles';
+import { inputBase } from '../../components/fieldStyles';
 
 interface SkipPatternsFieldProps {
   label: string;
@@ -39,14 +40,14 @@ export function SkipPatternsField({
         setInput('');
         setAdding(false);
       },
-      onError: (e) => setError(getErrorMessage(e, 'Failed to add pattern')),
+      onError: (e) => setError(getErrorMessage(e, 'Could not add pattern.')),
     });
   };
 
   const removePattern = (pattern: string) => {
     setError(null);
     onRemove((patterns ?? []).filter((p) => p !== pattern), {
-      onError: (e) => setError(getErrorMessage(e, 'Failed to remove pattern')),
+      onError: (e) => setError(getErrorMessage(e, 'Could not remove pattern.')),
     });
   };
 
@@ -70,9 +71,10 @@ export function SkipPatternsField({
               aria-label={addButtonAriaLabel}
               onClick={() => setAdding(true)}
               disabled={disabled}
-              className={`min-h-9 sm:min-h-0 px-3 py-1.5 text-sm rounded whitespace-nowrap ${btnOutline} disabled:opacity-50 ${focusRing}`}
+              className={`${btnBase} ${btnOutline}`}
             >
-              + Add pattern
+              <Plus className="w-4 h-4" aria-hidden="true" />
+              Add pattern
             </button>
           ) : (
             <>
@@ -94,13 +96,13 @@ export function SkipPatternsField({
                 aria-label={inputAriaLabel}
                 maxLength={200}
                 disabled={disabled}
-                className={`w-full min-h-11 min-w-0 sm:flex-1 sm:w-auto ${inputBase}`}
+                className={`w-full min-w-0 sm:flex-1 sm:w-auto ${inputBase}`}
               />
               <button
                 type="button"
                 onClick={addPattern}
                 disabled={disabled || !input.trim()}
-                className={`min-h-9 sm:min-h-0 px-3 py-1.5 text-sm rounded whitespace-nowrap ${btnOutline} disabled:opacity-50 ${focusRing}`}
+                className={`${btnBase} ${btnOutline}`}
               >
                 Add
               </button>
@@ -112,7 +114,7 @@ export function SkipPatternsField({
                   setInput('');
                   setError(null);
                 }}
-                className={`min-h-9 sm:min-h-0 px-3 py-1.5 text-sm rounded whitespace-nowrap ${btnOutline} disabled:opacity-50 ${focusRing}`}
+                className={`${btnBase} ${btnOutline}`}
               >
                 Cancel
               </button>

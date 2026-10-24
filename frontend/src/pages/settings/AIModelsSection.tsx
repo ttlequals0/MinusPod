@@ -9,10 +9,11 @@ import RefreshModelsButton from './RefreshModelsButton';
 import type { ModelsRefresh } from '../../hooks/useModelsRefresh';
 import ModelSelect from './ModelSelect';
 import StageProviderSelect, { detectionSlotOptions, inheritedSlotOptions } from './StageProviderSelect';
-import { btnSecondary } from '../../components/buttonStyles';
-import { focusRing } from '../../components/fieldStyles';
 import { isSystemOneRoute } from './systemoneWarnings';
 import { pricingOverrideKey } from './modelPricing';
+import { btnBase, btnSecondary } from '../../components/buttonStyles';
+import { inputBase, labelBase } from '../../components/fieldStyles';
+import { subHeading } from '../../components/pageStyles';
 
 interface AIModelsSectionProps {
   // Each stage carries its own catalog and its own fetch state. No fallback
@@ -92,7 +93,7 @@ function AIModelsSection({
 
   return (
     <CollapsibleSection
-      title="AI Models"
+      title="AI models"
       defaultOpen
       headerRight={(
         <RefreshModelsButton onClick={modelsRefresh.refresh} isPending={modelsRefresh.isPending} />
@@ -118,7 +119,7 @@ function AIModelsSection({
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <StageProviderSelect
             id="detectionProvider"
-            label="Ad Detection Provider"
+            label="Ad detection provider"
             value={detectionProvider}
             options={detectionOptions}
             onChange={onDetectionProviderChange}
@@ -126,7 +127,7 @@ function AIModelsSection({
           />
           <ModelSelect
             id="model"
-            label="Ad Detection Model"
+            label="Ad detection model"
             value={selectedModel}
             catalog={detectionCatalog}
             onChange={onSelectedModelChange}
@@ -137,7 +138,7 @@ function AIModelsSection({
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <StageProviderSelect
             id="verificationProvider"
-            label="Verification Provider"
+            label="Verification provider"
             value={verificationProvider}
             options={inheritedOptions}
             onChange={onVerificationProviderChange}
@@ -145,7 +146,7 @@ function AIModelsSection({
           />
           <ModelSelect
             id="verificationModel"
-            label="Verification Model"
+            label="Verification model"
             value={verificationModel}
             catalog={verificationCatalog}
             onChange={onVerificationModelChange}
@@ -156,7 +157,7 @@ function AIModelsSection({
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <StageProviderSelect
             id="chaptersProvider"
-            label="Chapters Provider"
+            label="Chapters provider"
             value={chaptersProvider}
             options={inheritedOptions}
             onChange={onChaptersProviderChange}
@@ -164,7 +165,7 @@ function AIModelsSection({
           />
           <ModelSelect
             id="chaptersModel"
-            label="Chapters Model"
+            label="Chapters model"
             value={chaptersModel}
             catalog={chaptersCatalog}
             onChange={onChaptersModelChange}
@@ -175,7 +176,7 @@ function AIModelsSection({
         {onPricingOverrideUpdate && configuredModelIds.length > 0 && (
           <div className="pt-4 border-t border-border space-y-4">
             <div>
-              <h4 className="text-sm font-medium text-foreground">Custom pricing</h4>
+              <h4 className={subHeading}>Custom pricing</h4>
               <p className="mt-1 text-sm text-muted-foreground">
                 Set USD prices per 1 million tokens when the catalog price is missing or wrong. Leave both fields blank to use the catalog. Enter 0 for a free model.
               </p>
@@ -269,7 +270,7 @@ function ModelPricingFields({
       <legend className="font-mono text-sm text-foreground break-all">{modelId}</legend>
       <div className="grid gap-3 sm:grid-cols-2">
         <div>
-          <label htmlFor={`${fieldId}-input`} className="block text-sm font-medium text-foreground mb-1">
+          <label htmlFor={`${fieldId}-input`} className={labelBase}>
             Input, USD per 1 million tokens
           </label>
           <input
@@ -282,11 +283,11 @@ function ModelPricingFields({
             inputMode="decimal"
             value={inputRate}
             onChange={(event) => { setInputRate(event.target.value); setMessage(null); }}
-            className={`w-full min-h-[44px] px-3 py-2 rounded-lg border border-input bg-background text-foreground text-sm ${focusRing}`}
+            className={`${inputBase} w-full`}
           />
         </div>
         <div>
-          <label htmlFor={`${fieldId}-output`} className="block text-sm font-medium text-foreground mb-1">
+          <label htmlFor={`${fieldId}-output`} className={labelBase}>
             Output, USD per 1 million tokens
           </label>
           <input
@@ -299,7 +300,7 @@ function ModelPricingFields({
             inputMode="decimal"
             value={outputRate}
             onChange={(event) => { setOutputRate(event.target.value); setMessage(null); }}
-            className={`w-full min-h-[44px] px-3 py-2 rounded-lg border border-input bg-background text-foreground text-sm ${focusRing}`}
+            className={`${inputBase} w-full`}
           />
         </div>
       </div>
@@ -308,7 +309,7 @@ function ModelPricingFields({
           type="button"
           onClick={commit}
           disabled={!isDirty || saving}
-          className={`px-3 py-1.5 text-sm rounded ${btnSecondary} disabled:opacity-50 transition-colors ${focusRing}`}
+          className={`${btnBase} ${btnSecondary}`}
         >
           {saving ? 'Saving...' : 'Save pricing'}
         </button>

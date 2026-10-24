@@ -47,12 +47,13 @@ def _build_episode_meta(slug, episode_id, podcast_id, podcast_name,
                         episode_title, podcast_description, episode_description,
                         audio_analysis=None, effective_category_actions=None,
                         hard_barriers=None, min_cut_confidence=None,
-                        protected_spans=None):
+                        protected_spans=None, detection_notes=None):
     return {
         'podcast_name': podcast_name,
         'episode_title': episode_title,
         'episode_description': episode_description,
         'podcast_description': podcast_description,
+        'detection_notes': detection_notes,
         'slug': slug,
         'episode_id': episode_id,
         'podcast_id': podcast_id,
@@ -175,6 +176,7 @@ def _apply_pass2_reviewer(ctx, v_ads_to_cut, v_ads_for_ui, v_ads_held,
         hard_barriers=hard_barriers,
         min_cut_confidence=min_cut_confidence,
         protected_spans=protected_spans,
+        detection_notes=ctx.detection_notes,
     )
     pass2_model = ad_detector.get_verification_model()
     pass2_provider = ad_detector.get_verification_provider()
@@ -388,7 +390,8 @@ def _review_hold_release_candidates(ctx, candidates, original_segments,
         ctx.episode_title, ctx.podcast_description, ctx.episode_description,
         effective_category_actions=segment_actions,
         hard_barriers=protection.hard_orig, min_cut_confidence=min_cut_confidence,
-        protected_spans=protection.hard_labelled)
+        protected_spans=protection.hard_labelled,
+        detection_notes=ctx.detection_notes)
     result = reviewer.review(
         accepted_ads=[orig_sub for orig_sub, _hold in candidates],
         resurrection_eligible=[],
@@ -611,7 +614,8 @@ def _run_ad_reviewer(slug, episode_id, podcast_id, ads_to_remove,
                      episode_title, episode_description, podcast_description,
                      min_cut_confidence, pass_num, pass_model, pass_provider=None,
                      audio_analysis=None, cue_gate_enabled=False,
-                     segment_actions=None, keep_ads=(), user_rejects=()):
+                     segment_actions=None, keep_ads=(), user_rejects=(),
+                     detection_notes=None):
     """Run the LLM ad reviewer over the cut list and resurrection-eligible
     rejects. Returns updated ``(ads_to_remove, all_ads_with_validation)``.
 
@@ -655,6 +659,7 @@ def _run_ad_reviewer(slug, episode_id, podcast_id, ads_to_remove,
         hard_barriers=[*keep_ads, *user_rejects],
         min_cut_confidence=min_cut_confidence,
         protected_spans=_labelled_protected_spans(keep_ads, user_rejects),
+        detection_notes=detection_notes,
     )
     result = reviewer.review(
         accepted_ads=ads_to_remove,

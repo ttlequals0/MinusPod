@@ -7,9 +7,9 @@ import CatalogStatus from '../../components/CatalogStatus';
 import RefreshModelsButton from './RefreshModelsButton';
 import type { ModelsRefresh } from '../../hooks/useModelsRefresh';
 import { formatModelLabel } from './settingsUtils';
-import { selectBase } from '../../components/fieldStyles';
 import type { ModelCatalog } from '../../hooks/useModelCatalog';
 import { SAME_AS_PASS, SLOT_LABELS, SLOT_PRIMARY, SLOT_SECONDARY } from '../../api/types';
+import { selectBase, labelBase } from '../../components/fieldStyles';
 
 export interface ReviewerState {
   enabled: boolean;
@@ -81,7 +81,7 @@ function AdReviewerSection({
 
   return (
     <CollapsibleSection
-      title="Ad Reviewer"
+      title="Ad reviewer"
       subtitle="Reviews each detected ad and decides confirm, adjust, or reject before the cut. Off by default."
     >
       <div className="space-y-6 max-sm:[&_input]:min-h-11 max-sm:[&_select]:min-h-11 max-sm:[&_button]:min-h-11">
@@ -110,7 +110,7 @@ function AdReviewerSection({
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
-              <label htmlFor="reviewProvider" className="block text-sm font-medium text-foreground mb-2">
+              <label htmlFor="reviewProvider" className={labelBase}>
                 Review provider
               </label>
               <select
@@ -141,7 +141,7 @@ function AdReviewerSection({
 
             <div>
               <div className="flex items-center justify-between mb-2">
-                <label htmlFor="reviewModel" className="block text-sm font-medium text-foreground">
+                <label htmlFor="reviewModel" className={labelBase}>
                   Review model
                 </label>
                 {modelsRefresh && reviewer.provider !== SAME_AS_PASS && (
@@ -191,7 +191,7 @@ function AdReviewerSection({
           </div>
 
           <div>
-            <label htmlFor="reviewMaxBoundaryShift" className="block text-sm font-medium text-foreground mb-2">
+            <label htmlFor="reviewMaxBoundaryShift" className={labelBase}>
               Max boundary shift
             </label>
             <div className="flex items-center gap-3">
@@ -213,7 +213,7 @@ function AdReviewerSection({
           </div>
 
           <div>
-            <label htmlFor="reviewerParallelAds" className="block text-sm font-medium text-foreground mb-2">
+            <label htmlFor="reviewerParallelAds" className={labelBase}>
               Parallel ad reviews
             </label>
             <div className="flex items-center gap-3">
@@ -255,7 +255,7 @@ function AdReviewerSection({
 
           {reviewer.updatePatterns && (
             <div>
-              <label htmlFor="minTrimThreshold" className="block text-sm font-medium text-foreground mb-2">
+              <label htmlFor="minTrimThreshold" className={labelBase}>
                 Minimum trim threshold
               </label>
               <div className="flex items-center gap-3">
@@ -331,7 +331,7 @@ function AdReviewerSection({
           />
 
           <ConfirmResetButton
-            label="Reset Reviewer Prompts to Default"
+            label="Reset reviewer prompts to default"
             isPending={resetIsPending}
             onConfirm={onResetPrompts}
           />

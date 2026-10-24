@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
-import { focusRing } from './fieldStyles';
+import { inputBase } from './fieldStyles';
 
 // Blank or unparseable input reads as "no value" rather than NaN.
 export function parseOptionalNumber(raw: string): number | null {
@@ -7,9 +7,6 @@ export function parseOptionalNumber(raw: string): number | null {
   const n = Number(raw);
   return Number.isFinite(n) ? n : null;
 }
-
-export const DRAFT_NUMBER_INPUT_CLASS =
-  `w-full px-2 py-1 rounded border border-input bg-background text-foreground text-sm ${focusRing} disabled:opacity-60`;
 
 interface DraftNumberInputProps {
   value: number | null;
@@ -36,7 +33,7 @@ interface DraftNumberInputProps {
 // rather than on blur, so a typed value survives when the user never blurs.
 export default function DraftNumberInput({
   value, fallback, min, max, step, placeholder, parse, onChange,
-  className = DRAFT_NUMBER_INPUT_CLASS, disabled, id, ariaLabel, ariaDescribedBy, ariaInvalid, onBlur, onKeyDown, autoFocus,
+  className = 'w-full', disabled, id, ariaLabel, ariaDescribedBy, ariaInvalid, onBlur, onKeyDown, autoFocus,
 }: DraftNumberInputProps) {
   const display = (v: number | null) => {
     if (v !== null && v !== undefined) return String(v);
@@ -72,7 +69,7 @@ export default function DraftNumberInput({
       onBlur={onBlur}
       onKeyDown={onKeyDown}
       autoFocus={autoFocus}
-      className={className}
+      className={`${inputBase} disabled:opacity-60 ${className}`}
       disabled={disabled}
     />
   );

@@ -1,7 +1,8 @@
 import { Modal } from './Modal';
 import { useState } from 'react';
 import { useQueries, useQuery } from '@tanstack/react-query';
-import { ChevronDown, ChevronRight, Play, Square, X } from 'lucide-react';
+import { ChevronDown, ChevronRight, Play, Square } from 'lucide-react';
+import CloseButton from './CloseButton';
 import LoadingSpinner from './LoadingSpinner';
 import CueMarkModal from './CueMarkModal';
 import { ghostBtn, primaryBtn } from './cueScanStyles';
@@ -171,9 +172,7 @@ export default function CueCrossEpisodeScanModal({
                 Select {CROSS_EPISODE_MIN}-{CROSS_EPISODE_MAX} episodes. Results are shown in the first selected episode's time.
               </p>
             </div>
-            <button type="button" className={`text-muted-foreground hover:text-foreground ${focusRing}`} onClick={onClose} aria-label="Close">
-              <X size={18} />
-            </button>
+            <CloseButton onClick={onClose} />
           </div>
 
           <div className="flex-1 overflow-y-auto border border-border rounded">
@@ -206,7 +205,7 @@ export default function CueCrossEpisodeScanModal({
                           <p className="text-sm font-medium truncate">
                             {ep.title}
                             {rank === 0 && (
-                              <span className={`${badgeBase} ml-2 font-medium ${tint.primary} align-middle`}>
+                              <span className={`${badgeBase} ml-2 ${tint.primary} align-middle`}>
                                 target
                               </span>
                             )}
@@ -229,18 +228,18 @@ export default function CueCrossEpisodeScanModal({
             <div className="flex items-center justify-between mt-3 text-sm">
               <button
                 type="button"
-                className={`px-2 py-1 rounded ${ghostBtn} disabled:opacity-50 ${focusRing}`}
+                className={ghostBtn}
                 onClick={() => setPickerPage((p) => Math.max(0, p - 1))}
                 disabled={pickerPage === 0}
               >
                 Prev
               </button>
               <span className="text-muted-foreground">
-                Page {pickerPage + 1} / {pickerTotalPages}
+                Page {pickerPage + 1} of {pickerTotalPages}
               </span>
               <button
                 type="button"
-                className={`px-2 py-1 rounded ${ghostBtn} disabled:opacity-50 ${focusRing}`}
+                className={ghostBtn}
                 onClick={() => setPickerPage((p) => Math.min(pickerTotalPages - 1, p + 1))}
                 disabled={pickerPage + 1 >= pickerTotalPages}
               >
@@ -264,7 +263,7 @@ export default function CueCrossEpisodeScanModal({
             </div>
             <button
               type="button"
-              className={`px-3 py-1.5 rounded ${primaryBtn} text-sm disabled:opacity-50 ${focusRing}`}
+              className={primaryBtn}
               disabled={selected.length < CROSS_EPISODE_MIN}
               onClick={() => setPhase('results')}
             >
@@ -288,15 +287,13 @@ export default function CueCrossEpisodeScanModal({
                 </p>
               )}
             </div>
-            <button type="button" className={`text-muted-foreground hover:text-foreground ${focusRing}`} onClick={onClose} aria-label="Close">
-              <X size={18} />
-            </button>
+            <CloseButton onClick={onClose} />
           </div>
 
           <div className="flex flex-wrap gap-2 mb-3">
             <button
               type="button"
-              className={`px-3 py-1.5 rounded ${ghostBtn} text-sm ${focusRing}`}
+              className={ghostBtn}
               onClick={() => {
                 stopPlayback();
                 setPhase('picker');
@@ -307,7 +304,7 @@ export default function CueCrossEpisodeScanModal({
             {!scanning && (
               <button
                 type="button"
-                className={`px-3 py-1.5 rounded ${ghostBtn} text-sm ${focusRing}`}
+                className={ghostBtn}
                 onClick={() => {
                   stopPlayback();
                   setExpandedKey(null);
@@ -350,7 +347,7 @@ export default function CueCrossEpisodeScanModal({
                     <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
                       <button
                         type="button"
-                        className={`shrink-0 p-1.5 rounded ${ghostBtn} ${focusRing}`}
+                        className={`shrink-0 ${ghostBtn}`}
                         onClick={() => targetEpId && playWindow(targetEpId, c.start, c.end)}
                         disabled={!targetEpId}
                         title={playingKey === rowPlayKey ? 'Stop' : 'Play candidate'}
@@ -366,9 +363,9 @@ export default function CueCrossEpisodeScanModal({
                           {(c.end - c.start).toFixed(2)}s
                         </span>
                         {c.episodeMatches != null && (
-                          <span className={`${badgeBase} ml-2 font-medium ${tint.blue}`}>
+                          <span className={`${badgeBase} ml-2 ${tint.blue}`}>
                             {/* episodeMatches counts SIBLINGS; the target is always a match too, so +1. */}
-                            in {c.episodeMatches + 1} of {episodeCount} eps
+                            in {c.episodeMatches + 1} of {episodeCount} episodes
                           </span>
                         )}
                       </div>
@@ -385,7 +382,7 @@ export default function CueCrossEpisodeScanModal({
                       )}
                       <button
                         type="button"
-                        className={`shrink-0 px-3 py-1.5 rounded ${primaryBtn} text-xs ${focusRing}`}
+                        className={`shrink-0 ${primaryBtn}`}
                         onClick={() => setSeed(c)}
                       >
                         Make template

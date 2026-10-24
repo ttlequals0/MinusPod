@@ -127,6 +127,7 @@ SEED_SNAPSHOT = {
     'secondary_provider_base_url': 'http://localhost:8000/v1',
     'review_prompt': ('sha256', '3515a8a98250a187f7e885b696864db04ceca30ffdf97d72baa6a3d69029e87a'),  # Updated for the untranscribed-audio sentence
     'rss_refresh_interval_minutes': '15',
+    'auto_process_max_age_hours': '48',
     'queue_manual_boost': '20',
     'queue_fresh_boost': '5',
     'queue_bulk_boost': '0',
@@ -204,6 +205,7 @@ EXPECTED_AD_RESET_KEYS = {
     'audio_cue_freq_max_hz', 'audio_cue_prominence_db',
     'audio_cue_min_confidence', 'audio_cue_template_score',
     'audio_cue_formant_atten_db', 'audio_cue_create_from_pairs',
+    'audio_cue_cut_matches',
     'audio_cue_snap_confidence', 'audio_cue_snap_lead_seconds',
     'audio_cue_snap_lag_seconds', 'audio_cue_capture_min_seconds',
     'audio_cue_capture_max_seconds', 'audio_cue_capture_max_intro_seconds',
@@ -537,14 +539,12 @@ class TestGetDefaults:
         # adChaptersEnabled and adChapterCategories retired with the settings
         # they came from (164 -> 162; 2.98.0, mark_action_from_ad_chapters_v1).
         # audioEncoderCompressionLevel added after that (165 -> 166).
-        # maxLlmWindowAdSeconds added after that (166 -> 167), then
-        # downloadHistoryEnabled + downloadGeoLookupEnabled +
-        # downloadHistoryRetentionDays (167 -> 170).
+        # autoProcessMaxAgeHours added after that (171 -> 172).
         payload_keys = {
             spec.payload_key for spec in SETTINGS_REGISTRY.values()
             if spec.payload_key
         }
-        assert len(payload_keys) == 170
+        assert len(payload_keys) == 172
         assert 'systemoneBaseUrl' in payload_keys
         assert 'failoverWhisperMaxAttempts' in payload_keys
         assert 'audioCuePairOrientWindowSeconds' not in payload_keys

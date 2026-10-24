@@ -29,17 +29,6 @@ from main_app.pipeline.shared import db
 audio_logger = logging.getLogger('podcast.audio')
 
 
-def build_podcast_context(podcast_settings):
-    """Podcast description plus operator detection notes (#709), or None."""
-    if not podcast_settings:
-        return None
-    description = podcast_settings.get('description') or ''
-    notes = podcast_settings.get('detection_notes')
-    if not notes:
-        return description or None
-    return f"{description}\n\nOperator notes for this show:\n{notes}".strip()
-
-
 def _load_route_snapshot(run_id: str) -> dict | None:
     """The persisted snapshot for an existing run row, or None when there
     isn't one yet (fresh run) or the row/column can't be read."""

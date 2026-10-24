@@ -323,8 +323,54 @@ describe('FeedSettingsPanel queue priority control (#625)', () => {
   });
 });
 
+describe('FeedSettingsPanel auto-process window override', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockUpdateFeed.mockResolvedValue(makeFeed());
+  });
+
+  it('shows the inherited global value as the placeholder when unset', () => {
+    renderPanel(makeFeed());
+    const input = screen.getByRole('spinbutton', { name: 'Auto-process window' }) as HTMLInputElement;
+    expect(input.value).toBe('');
+    expect(input.placeholder).toBe('48');
+  });
+
+  it('shows the stored override', () => {
+    renderPanel(makeFeed({ autoProcessMaxAgeHoursOverride: 168 }));
+    const input = screen.getByRole('spinbutton', { name: 'Auto-process window' }) as HTMLInputElement;
+    expect(input.value).toBe('168');
+  });
+
+  it('sends the typed hours on blur', async () => {
+    renderPanel(makeFeed());
+    const input = screen.getByRole('spinbutton', { name: 'Auto-process window' });
+    await userEvent.type(input, '240');
+    await userEvent.tab();
+    expect(mockUpdateFeed).toHaveBeenCalledWith('test-feed', { autoProcessMaxAgeHoursOverride: 240 });
+  });
+
+  it('rejects a fractional value without sending it and reverts the field', async () => {
+    renderPanel(makeFeed({ autoProcessMaxAgeHoursOverride: 168 }));
+    const input = screen.getByRole('spinbutton', { name: 'Auto-process window' }) as HTMLInputElement;
+    await userEvent.clear(input);
+    await userEvent.type(input, '24.5');
+    await userEvent.tab();
+    expect(mockUpdateFeed).not.toHaveBeenCalled();
+    expect(input.value).toBe('168');
+  });
+
+  it('clears the override with null when emptied', async () => {
+    renderPanel(makeFeed({ autoProcessMaxAgeHoursOverride: 168 }));
+    const input = screen.getByRole('spinbutton', { name: 'Auto-process window' });
+    await userEvent.clear(input);
+    await userEvent.tab();
+    expect(mockUpdateFeed).toHaveBeenCalledWith('test-feed', { autoProcessMaxAgeHoursOverride: null });
+  });
+});
+
 describe('FeedSettingsPanel title blacklist controls', () => {
-  const ADD_BUTTON_NAME = '+ Add pattern';
+  const ADD_BUTTON_NAME = 'Add pattern';
   const ACTION_SELECT_NAME = 'Skipped episodes';
 
   beforeEach(() => {
@@ -987,11 +1033,27 @@ describe('FeedSettingsPanel experimental labelling', () => {
     await waitFor(() => expect(screen.queryAllByText(/^Experimental$/).length).toBeGreaterThan(0));
   });
 
+  it('saves the cut matched cue audio override as a tri-state', async () => {
+    renderPanel(makeFeed());
+    await screen.findByText('Cut matched cue audio');
+    const select = screen.getByText('Cut matched cue audio').nextElementSibling!.querySelector('select')!;
+    await userEvent.selectOptions(select, 'enable');
+    await waitFor(() => expect(mockUpdateFeed).toHaveBeenCalledWith('test-feed', { cueCutMatchesOverride: true }));
+    await userEvent.selectOptions(select, 'disable');
+    await waitFor(() => expect(mockUpdateFeed).toHaveBeenCalledWith('test-feed', { cueCutMatchesOverride: false }));
+  });
+
+  it('shows the override badge when set', async () => {
+    renderPanel(makeFeed({ cueCutMatchesOverride: false }));
+    await screen.findByText('Cut matched cue audio');
+    expect(screen.getByText('Override: off')).toBeDefined();
+  });
+
   it('keeps the badge behind the control so the row stays aligned', async () => {
     // Every input in the cue tuning section shares one left edge. The badge
     // trails the hint, so nothing sits between the label and the select.
     renderPanel(makeFeed());
-    await screen.findByText('Pair synthesis:');
+    await screen.findByText('Create ads from cue pairs');
     const badge = screen.getByText(/^Experimental$/);
     const column = badge.parentElement!;
     const select = column.querySelector('select');
@@ -1282,7 +1344,7 @@ describe('FeedSettingsPanel feed cap', () => {
   it('shows the uncapped hint and a 0-10000 range on a local feed', async () => {
     const user = userEvent.setup();
     renderPanel(makeFeed({ feedType: 'local' }));
-    await user.click(await screen.findByRole('button', { name: '+ Add network' }));
+    await user.click(await screen.findByRole('button', { name: 'Add network' }));
 
     const cap = screen.getByLabelText('Feed cap') as HTMLInputElement;
     expect(cap.min).toBe('0');
@@ -1293,7 +1355,7 @@ describe('FeedSettingsPanel feed cap', () => {
   it('sends maxEpisodes: 0 unclamped for a local feed', async () => {
     const user = userEvent.setup();
     renderPanel(makeFeed({ feedType: 'local' }));
-    await user.click(await screen.findByRole('button', { name: '+ Add network' }));
+    await user.click(await screen.findByRole('button', { name: 'Add network' }));
 
     const cap = screen.getByLabelText('Feed cap');
     await user.clear(cap);
@@ -1307,7 +1369,7 @@ describe('FeedSettingsPanel feed cap', () => {
   it('keeps the 10-500 clamp and no uncapped hint on a subscribed feed', async () => {
     const user = userEvent.setup();
     renderPanel(makeFeed({ feedType: 'subscribed' }));
-    await user.click(await screen.findByRole('button', { name: '+ Add network' }));
+    await user.click(await screen.findByRole('button', { name: 'Add network' }));
 
     const cap = screen.getByLabelText('Feed cap') as HTMLInputElement;
     expect(cap.min).toBe('10');

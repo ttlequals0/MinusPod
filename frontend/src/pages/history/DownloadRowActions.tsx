@@ -3,13 +3,13 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { getErrorMessage } from '../../api/client';
 import { getSettings, updateSettings } from '../../api/settings';
 import type { DownloadHistoryEntry } from '../../api/types';
-import { btnOutline } from '../../components/buttonStyles';
-import { focusRing } from '../../components/fieldStyles';
 import DropdownMenu, { type DropdownMenuItem } from '../../components/DropdownMenu';
 import CopyButton from '../../components/CopyButton';
-import { ConfirmModal, Modal } from '../../components/Modal';
+import { ConfirmModal, Modal, dialogFooterBtn } from '../../components/Modal';
 import { useSubscriberKeyActions } from '../../hooks/useSubscriberKeyActions';
 import { blockPatternFor } from '../../utils/userAgent';
+import { btnBase, btnOutline } from '../../components/buttonStyles';
+import { cardTitle } from '../../components/pageStyles';
 
 interface Props {
   row: DownloadHistoryEntry;
@@ -22,21 +22,22 @@ type Pending = 'block' | 'revoke' | 'agent' | 'request' | null;
 
 function DetailModal({ title, text, onClose }: { title: string; text: string; onClose: () => void }) {
   return (
-    <Modal ariaLabel="Download request details" onClose={onClose} closeOnBackdrop panelClassName="max-w-lg w-full text-left">
-      <div className="p-4 border-b border-border">
-        <h2 className="text-lg font-semibold text-foreground">{title}</h2>
-      </div>
+    <Modal
+      ariaLabel="Download request details" onClose={onClose} closeOnBackdrop panelClassName="max-w-lg w-full text-left"
+      header={(
+        <h2 className={cardTitle}>{title}</h2>
+      )}
+      footer={(
+        <>
+          <CopyButton text={text} label="Copy" copiedLabel="Copied" className="px-2 py-1" labelClassName="text-sm" />
+          <button onClick={onClose} className={`${dialogFooterBtn} ${btnOutline}`}>
+            Close
+          </button>
+        </>
+      )}
+    >
       <div className="p-4">
         <pre className="font-mono text-xs text-foreground bg-muted rounded p-3 whitespace-pre-wrap break-all">{text}</pre>
-      </div>
-      <div className="flex items-center justify-between gap-2 p-4 border-t border-border">
-        <CopyButton text={text} label="Copy" copiedLabel="Copied" className="px-2 py-1" labelClassName="text-sm" />
-        <button
-          onClick={onClose}
-          className={`px-3 py-1.5 text-sm rounded ${btnOutline} transition-colors ${focusRing}`}
-        >
-          Close
-        </button>
       </div>
     </Modal>
   );
@@ -47,7 +48,7 @@ function requestText(row: DownloadHistoryEntry): string {
   return [row.lastRequestLine, ...headers].filter(Boolean).join('\n');
 }
 
-function DownloadRowActions({ row, blocked, triggerClassName = 'px-3 py-1.5' }: Props) {
+function DownloadRowActions({ row, blocked, triggerClassName = '' }: Props) {
   const queryClient = useQueryClient();
   const [pending, setPending] = useState<Pending>(null);
   const [blockError, setBlockError] = useState<string | null>(null);
@@ -79,7 +80,7 @@ function DownloadRowActions({ row, blocked, triggerClassName = 'px-3 py-1.5' }: 
       queryClient.invalidateQueries({ queryKey: ['settings'] });
       finish();
     },
-    onError: (e) => setBlockError(getErrorMessage(e, 'Failed to block user agent')),
+    onError: (e) => setBlockError(getErrorMessage(e, 'Could not block user agent.')),
   });
 
   const open = (next: Pending) => {
@@ -121,7 +122,7 @@ function DownloadRowActions({ row, blocked, triggerClassName = 'px-3 py-1.5' }: 
     <>
       <DropdownMenu
         triggerLabel="Actions"
-        triggerClassName={`${triggerClassName} text-sm rounded ${btnOutline} inline-flex items-center gap-1 transition-colors`}
+        triggerClassName={`${btnBase} ${btnOutline} ${triggerClassName}`}
         chevronClassName="w-3.5 h-3.5"
         align="right"
         items={items}
@@ -130,8 +131,8 @@ function DownloadRowActions({ row, blocked, triggerClassName = 'px-3 py-1.5' }: 
       {pending === 'request' && <DetailModal title="Last request" text={requestText(row)} onClose={close} />}
       {pending === 'block' && (
         <ConfirmModal
-          title="Block user agent"
-          confirmLabel="Block"
+          title="Block user agent?"
+          confirmLabel="Block user agent"
           busyLabel="Blocking..."
           destructive={false}
           pending={blockMutation.isPending}
@@ -150,8 +151,8 @@ function DownloadRowActions({ row, blocked, triggerClassName = 'px-3 py-1.5' }: 
       )}
       {pending === 'revoke' && (
         <ConfirmModal
-          title="Revoke subscriber"
-          confirmLabel="Revoke"
+          title="Revoke subscriber?"
+          confirmLabel="Revoke subscriber"
           busyLabel="Revoking..."
           pending={revokeMutation.isPending}
           onCancel={close}

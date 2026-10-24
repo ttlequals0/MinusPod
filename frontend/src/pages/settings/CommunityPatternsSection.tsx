@@ -1,4 +1,5 @@
 import { useUnsavedChanges } from '../../hooks/useUnsavedChanges';
+import { formatDateTime } from '../../utils/format';
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import CollapsibleSection from '../../components/CollapsibleSection';
@@ -13,10 +14,10 @@ import {
   purgeAllCommunityPatterns,
 } from '../../api/community';
 import { SEGMENT_CATEGORIES, SEGMENT_CATEGORY_LABELS, type SegmentCategory } from '../../utils/segmentCategory';
-import { btnDestructive, btnPrimary, btnSecondary } from '../../components/buttonStyles';
-import { focusRing } from '../../components/fieldStyles';
 import SavedBadge from './SavedBadge';
 import CronScheduleField from './CronScheduleField';
+import { btnBase, btnLg, btnPrimary, btnSecondary, btnDestructive, btnDestructiveOutline } from '../../components/buttonStyles';
+import { subHeading } from '../../components/pageStyles';
 
 interface Draft {
   enabled?: boolean;
@@ -49,7 +50,7 @@ function CommunityPatternsSection() {
       setDraft({});
       qc.invalidateQueries({ queryKey: ['communitySync'] });
     },
-    onError: (e: unknown) => setCronError(getErrorMessage(e, 'Save failed')),
+    onError: (e: unknown) => setCronError(getErrorMessage(e, 'Could not save settings.')),
   });
 
   function toggleCategory(cat: SegmentCategory) {
@@ -77,7 +78,7 @@ function CommunityPatternsSection() {
       qc.invalidateQueries({ queryKey: ['communitySync'] });
     },
     onError: (e: unknown) =>
-      setPurgeResult(e instanceof Error ? `Purge failed: ${e.message}` : 'Purge failed'),
+      setPurgeResult(e instanceof Error ? `Could not remove patterns: ${e.message}` : 'Could not remove patterns.'),
   });
 
   // React Compiler memoizes this automatically; manual useMemo trips the
@@ -100,7 +101,7 @@ function CommunityPatternsSection() {
   })();
 
   return (
-    <CollapsibleSection title="Community Patterns">
+    <CollapsibleSection title="Community patterns">
       {isLoading ? (
         <SkeletonRows count={3} />
       ) : (
@@ -133,13 +134,13 @@ function CommunityPatternsSection() {
           )}
 
           <div className="pt-2 border-t border-border space-y-2">
-            <h4 className="text-sm font-medium text-foreground">Categories to sync</h4>
+            <h4 className={subHeading}>Categories to sync</h4>
             <p className="text-sm text-muted-foreground">
               Unchecking a category deactivates its already-synced community patterns
               rather than deleting them; re-checking it reactivates them on the next sync.
               Locally created patterns are never affected.
             </p>
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+            <div className="grid grid-cols-2 gap-2">
               {SEGMENT_CATEGORIES.map((cat) => (
                 <div key={cat} className="flex items-center gap-2 text-sm">
                   <Checkbox
@@ -161,7 +162,7 @@ function CommunityPatternsSection() {
               type="button"
               onClick={() => save.mutate()}
               disabled={save.isPending}
-              className={`px-4 py-2 rounded-lg ${btnPrimary} disabled:opacity-50 text-sm ${focusRing}`}
+              className={`${btnLg} ${btnPrimary}`}
             >
               {save.isPending ? 'Saving...' : 'Save'}
             </button>
@@ -169,14 +170,14 @@ function CommunityPatternsSection() {
               type="button"
               onClick={() => syncNow.mutate()}
               disabled={syncNow.isPending || !data?.enabled}
-              className={`px-4 py-2 rounded-lg ${btnSecondary} disabled:opacity-50 text-sm ${focusRing}`}
+              className={`${btnLg} ${btnSecondary}`}
             >
               {syncNow.isPending ? 'Syncing...' : 'Sync now'}
             </button>
             {save.isSuccess && <SavedBadge className="ml-1" />}
             {syncNow.isError && (
               <span className="ml-1 text-sm text-destructive">
-                {(syncNow.error as Error)?.message || 'Sync failed'}
+                {(syncNow.error as Error)?.message || 'Could not sync community patterns.'}
               </span>
             )}
           </div>
@@ -184,7 +185,7 @@ function CommunityPatternsSection() {
           <div className="text-sm text-muted-foreground pt-2 border-t border-border">
             <div>
               <span className="font-medium text-foreground">Last sync:</span>{' '}
-              {data?.lastRun ? new Date(data.lastRun).toLocaleString() : 'never'}
+              {formatDateTime(data?.lastRun ?? null)}
             </div>
             {data?.manifestVersion && (
               <div>
@@ -208,7 +209,7 @@ function CommunityPatternsSection() {
           </div>
 
           <div className="pt-3 border-t border-border space-y-2">
-            <h4 className="text-sm font-medium text-foreground">Remove all community patterns</h4>
+            <h4 className={subHeading}>Remove all community patterns</h4>
             <p className="text-sm text-muted-foreground">
               Wipes every pattern with source=community from this instance, including any
               you marked Protect from sync. Local and imported patterns are left alone.
@@ -220,15 +221,15 @@ function CommunityPatternsSection() {
                   type="button"
                   onClick={() => purge.mutate()}
                   disabled={purge.isPending}
-                  className={`px-3 py-1.5 rounded-lg ${btnDestructive} ${focusRing} disabled:opacity-50 text-sm transition-colors`}
+                  className={`${btnBase} ${btnDestructive}`}
                 >
-                  {purge.isPending ? 'Removing...' : 'Yes, remove all'}
+                  {purge.isPending ? 'Removing...' : 'Remove all patterns'}
                 </button>
                 <button
                   type="button"
                   onClick={() => setConfirmPurge(false)}
                   disabled={purge.isPending}
-                  className={`px-3 py-1.5 rounded-lg ${btnSecondary} disabled:opacity-50 text-sm ${focusRing}`}
+                  className={`${btnBase} ${btnSecondary}`}
                 >
                   Cancel
                 </button>
@@ -237,13 +238,13 @@ function CommunityPatternsSection() {
               <button
                 type="button"
                 onClick={() => { setPurgeResult(null); setConfirmPurge(true); }}
-                className={`px-3 py-1.5 rounded-lg border border-destructive text-destructive hover:bg-destructive dark:hover:bg-destructive/20 text-sm ${focusRing}`}
+                className={`${btnBase} ${btnDestructiveOutline}`}
               >
                 Remove all community patterns
               </button>
             )}
             {purgeResult && (
-              <p className={`text-sm ${purgeResult.startsWith('Purge failed') ? 'text-destructive' : 'text-success'}`}>
+              <p className={`text-sm ${purgeResult.startsWith('Could not remove patterns') ? 'text-destructive' : 'text-success'}`}>
                 {purgeResult}
               </p>
             )}

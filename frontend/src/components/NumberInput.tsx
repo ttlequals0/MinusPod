@@ -1,5 +1,6 @@
 import { useUnsavedChanges } from '../hooks/useUnsavedChanges';
 import { useEffect, useRef, useState } from 'react';
+import { inputBase } from './fieldStyles';
 
 interface NumberInputProps {
   value: number;
@@ -36,7 +37,7 @@ export default function NumberInput({
   value, min, max, fallback, onCommit, id, ariaLabel, ariaDescribedBy, ariaInvalid, step,
   disabled = false, commitOn = 'edit',
   parse = parseFloat,
-  className = 'w-24 px-3 py-1.5 rounded-lg border border-input bg-background text-foreground focus:outline-hidden focus:ring-2 focus:ring-ring',
+  className = 'w-24',
 }: NumberInputProps) {
   const [text, setText] = useState(String(value));
   const focused = useRef(false);
@@ -62,7 +63,7 @@ export default function NumberInput({
       max={max}
       step={step}
       disabled={disabled}
-      className={className}
+      className={`${inputBase} ${className}`}
       onFocus={(e) => { focused.current = true; e.target.select(); }}
       onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); }}
       onChange={(e) => {

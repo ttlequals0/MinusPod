@@ -12,8 +12,8 @@ import { episodeOriginalUrl } from '../api/feeds';
 import { getSettings } from '../api/settings';
 import { formatTimestamp } from '../utils/format';
 import { useScanQuery } from '../hooks/useScanQuery';
-import { btnPrimary, btnSecondary } from './buttonStyles';
-import { focusRing } from './fieldStyles';
+import { AuditionPlayButton } from './AuditionPlayButton';
+import { btnBase, btnPrimary, btnSecondary, btnGhost } from './buttonStyles';
 import { badgeBase, tint } from './badgeStyles';
 
 interface CueCandidatesSectionProps {
@@ -24,8 +24,6 @@ interface CueCandidatesSectionProps {
   hasOriginalAudio: boolean;
 }
 
-const btnBase =
-  'px-3 py-2 sm:py-1 text-sm sm:text-xs rounded font-medium disabled:opacity-50 transition-colors touch-manipulation min-h-[40px] sm:min-h-0';
 const makeBtn = `${btnBase} ${btnPrimary}`;
 const secondaryBtn = `${btnBase} ${btnSecondary}`;
 
@@ -61,8 +59,8 @@ function CueCandidatesSection({
     queryFn: () => getCueCandidates(slug, episodeId),
     rescanFn: () => getCueCandidates(slug, episodeId, true),
     enabled: scanned,
-    savedErrorFallback: 'Scan failed.',
-    thrownError: 'Scan failed. Try again.',
+    savedErrorFallback: 'Could not scan audio.',
+    thrownError: 'Could not scan audio. Try again.',
   });
   // Gate on `scanned`: a cached {status:'scanning'} envelope from a previous
   // mount would otherwise show a never-resolving spinner (the poll is disabled
@@ -171,7 +169,7 @@ function CueCandidatesSection({
 
   return (
     <CollapsibleSection
-      title="Audio Cues"
+      title="Audio cues"
       subtitle="Find an audio cue to make a cue template"
       defaultOpen={false}
       storageKey={`episode-cue-candidates-${episodeId}`}
@@ -185,7 +183,7 @@ function CueCandidatesSection({
           onClick={() => setScanned(true)}
           disabled={!hasOriginalAudio}
           title={hasOriginalAudio ? '' : 'Original audio not retained for this episode'}
-          className={`${makeBtn} ${focusRing}`}
+          className={makeBtn}
         >
           Find audio cues
         </button>
@@ -199,7 +197,7 @@ function CueCandidatesSection({
       {!scanning && scanError && (
         <div className="flex items-center gap-3">
           <p className="text-sm text-destructive">{scanError}</p>
-          <button onClick={() => rescan()} className={`${makeBtn} ${focusRing}`}>Try again</button>
+          <button onClick={() => rescan()} className={makeBtn}>Try again</button>
         </div>
       )}
       {noneFound && (
@@ -215,31 +213,18 @@ function CueCandidatesSection({
               <div key={key} className="p-3 bg-secondary/40 rounded-lg border border-border">
                 <div className="flex flex-col sm:flex-row sm:items-center gap-3">
                   <div className="flex items-center gap-3 min-w-0 flex-1">
-                    <button
+                    <AuditionPlayButton
+                      playing={isPlaying}
                       onClick={() => togglePreview(c)}
+                      label="this sound"
                       disabled={!hasOriginalAudio}
-                      aria-label={isPlaying ? 'Stop preview' : 'Play candidate'}
-                      title={hasOriginalAudio
-                        ? (isPlaying ? 'Stop' : 'Play this sound')
-                        : 'Original audio not retained for this episode'}
-                      className={`shrink-0 inline-flex items-center justify-center w-9 h-9 rounded border border-border bg-background text-foreground hover:bg-accent disabled:opacity-50 transition-colors touch-manipulation ${focusRing}`}
-                    >
-                      {isPlaying ? (
-                        <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-                          <rect x="6" y="5" width="4" height="14" rx="1" />
-                          <rect x="14" y="5" width="4" height="14" rx="1" />
-                        </svg>
-                      ) : (
-                        <svg className="w-4 h-4 ml-0.5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-                          <path d="M8 5v14l11-7z" />
-                        </svg>
-                      )}
-                    </button>
+                      title={hasOriginalAudio ? undefined : 'Original audio not retained for this episode'}
+                    />
                     <div className="min-w-0 flex flex-wrap items-center gap-2">
                       <span className="font-mono text-sm text-foreground whitespace-nowrap">
                         {formatTimestamp(c.start)} - {formatTimestamp(c.end)}
                       </span>
-                      <span className={`${badgeBase} font-medium ${
+                      <span className={`${badgeBase} ${
                         c.kind === 'intro' || c.kind === 'outro'
                           ? tint.warning
                           : tint.blue
@@ -247,7 +232,7 @@ function CueCandidatesSection({
                         {cueCandidateLabel(c)}
                       </span>
                       {c.kind === 'recurring' && c.suggestedType && (
-                        <span className={`${badgeBase} font-medium ${tint.neutral}`}>
+                        <span className={`${badgeBase} ${tint.neutral}`}>
                           {c.suggestedType.replace(/_/g, ' ')}
                         </span>
                       )}
@@ -259,7 +244,7 @@ function CueCandidatesSection({
                       disabled={!hasOriginalAudio}
                       title={hasOriginalAudio ? 'Open the capture tool to make a template'
                         : 'Original audio not retained for this episode'}
-                      className={`${makeBtn} flex-1 sm:flex-none ${focusRing}`}
+                      className={`${makeBtn} flex-1 sm:flex-none`}
                     >
                       Make template
                     </button>
@@ -267,9 +252,9 @@ function CueCandidatesSection({
                       onClick={() => { stopPreview(); dismissMutation.mutate(c); }}
                       disabled={dismissMutation.isPending}
                       title="Not a cue: hide this sound in every episode of this feed"
-                      className={`${secondaryBtn} flex-1 sm:flex-none ${focusRing}`}
+                      className={`${secondaryBtn} flex-1 sm:flex-none`}
                     >
-                      Dismiss
+                      Hide
                     </button>
                   </div>
                 </div>
@@ -279,7 +264,7 @@ function CueCandidatesSection({
           <div className="pt-1">
             <button
               onClick={() => rescan()}
-              className={`${secondaryBtn} ${focusRing}`}
+              className={secondaryBtn}
             >
               Rescan
             </button>
@@ -288,9 +273,9 @@ function CueCandidatesSection({
             <div className="pt-1">
               <button
                 onClick={() => setShowDismissed((v) => !v)}
-                className={`text-sm text-muted-foreground hover:text-foreground transition-colors ${focusRing}`}
+                className={`${btnBase} ${btnGhost}`}
               >
-                {showDismissed ? 'Hide dismissed' : `Dismissed (${dismissals.length})`}
+                {showDismissed ? 'Hide hidden' : `Show hidden (${dismissals.length})`}
               </button>
               {showDismissed && (
                 <div className="mt-2 space-y-2">
@@ -300,13 +285,13 @@ function CueCandidatesSection({
                         {formatTimestamp(d.startS)} - {formatTimestamp(d.endS)}
                       </span>
                       <span className="flex-1 min-w-0 text-xs text-muted-foreground truncate">
-                        {d.label || 'Dismissed sound'}
+                        {d.label || 'Hidden sound'}
                         {d.sourceEpisodeId !== episodeId && ' (from another episode)'}
                       </span>
                       <button
                         onClick={() => undoMutation.mutate(d.id)}
                         disabled={undoMutation.isPending}
-                        className={`shrink-0 px-2 py-1 text-xs rounded font-medium ${btnSecondary} disabled:opacity-50 ${focusRing}`}
+                        className={`${secondaryBtn} shrink-0`}
                       >
                         Undo
                       </button>

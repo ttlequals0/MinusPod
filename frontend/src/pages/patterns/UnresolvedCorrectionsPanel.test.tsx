@@ -57,7 +57,7 @@ describe('UnresolvedCorrectionsPanel', () => {
     await userEvent.click(await screen.findByRole('button', { name: /Unassigned corrections/ }));
     await userEvent.click(screen.getByRole('button', { name: 'Select unavailable' }));
     await userEvent.click(screen.getByRole('button', { name: 'Delete selected' }));
-    await userEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Delete' }));
+    await userEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: /^Delete \d+ corrections?$/ }));
     await waitFor(() => expect(mockBulk).toHaveBeenCalledWith('delete', [21], undefined));
   });
 
@@ -67,7 +67,7 @@ describe('UnresolvedCorrectionsPanel', () => {
     await userEvent.click(screen.getByRole('checkbox', { name: 'Select correction 17' }));
     await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Feed for selected corrections' }), 'feed-a');
     await userEvent.click(screen.getByRole('button', { name: 'Assign selected' }));
-    await userEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Assign' }));
+    await userEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: /^Assign \d+ corrections?$/ }));
     await waitFor(() => expect(mockBulk).toHaveBeenCalledWith('assign', [17], 'feed-a'));
   });
 
@@ -106,7 +106,7 @@ describe('UnresolvedCorrectionsPanel', () => {
     await userEvent.click(screen.getByRole('checkbox', { name: 'Select correction 17' }));
     await userEvent.click(screen.getByRole('button', { name: 'Delete selected' }));
     const dialog = await screen.findByRole('dialog');
-    await userEvent.click(within(dialog).getByRole('button', { name: 'Delete' }));
+    await userEvent.click(within(dialog).getByRole('button', { name: /^Delete \d+ corrections?$/ }));
     expect(await within(dialog).findByText('Selected corrections changed. Refresh and try again.')).toBeTruthy();
     expect(screen.getByText('1 selected')).toBeTruthy();
     await userEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }));
@@ -188,7 +188,7 @@ describe('UnresolvedCorrectionsPanel', () => {
     await userEvent.click(screen.getAllByRole('button', { name: 'Delete' })[0]);
     const dialog = await screen.findByRole('dialog');
     expect(dialog.textContent).toContain('does not change source patterns, media, or feeds');
-    await userEvent.click(within(dialog).getByRole('button', { name: 'Delete' }));
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Delete correction' }));
     await waitFor(() => expect(mockDelete).toHaveBeenCalledWith(17));
   });
 
@@ -203,7 +203,7 @@ describe('UnresolvedCorrectionsPanel', () => {
     expect(screen.getByText('Correction #17')).toBeDefined();
     await userEvent.click(screen.getAllByRole('button', { name: 'Delete' })[0]);
     dialog = await screen.findByRole('dialog');
-    await userEvent.click(within(dialog).getByRole('button', { name: 'Delete' }));
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Delete correction' }));
     expect(await screen.findByText('Unable to delete correction')).toBeDefined();
     expect(screen.getByText('Correction #17')).toBeDefined();
   });

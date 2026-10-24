@@ -34,15 +34,14 @@ logger = logging.getLogger('podcast.api')
 
 
 def _check_recut_preconditions(db, slug, episode_id, episode):
-    """Recut cuts the retained original from the saved detections and re-times
-    the saved segments; it cannot run if any of those inputs are missing. Fail
-    with an actionable message rather than silently falling back to an LLM
-    reprocess. Returns an error_response or None."""
+    """Check the retained original, saved segments (only if a transcript exists) and detections.
+
+    Returns an actionable error_response, or None when the recut can run."""
     if not get_storage().get_original_path(slug, episode_id).exists():
         return error_response(
             'Original audio was not retained for this episode, so it cannot '
             'be re-cut. Use "reprocess" or "full" to rebuild it from source.', 409)
-    if not db.get_original_segments(slug, episode_id):
+    if episode.get('has_transcript') and not db.get_original_segments(slug, episode_id):
         return error_response(
             'No saved transcript segments for this episode; recut needs them '
             'to re-time the transcript. Use "reprocess" or "full" first.', 409)
@@ -1006,7 +1005,7 @@ def get_pending_recuts():
         # an apply will rebuild now, which are mid-run, and which wait for
         # a full reprocess. A chapters-only row needs none of those inputs.
         data_ok = bool(
-            e['has_segments'] and e['has_markers']
+            (e['has_segments'] or not e['has_transcript']) and e['has_markers']
             and storage.get_original_path(
                 e['podcast_slug'], e['episode_id']).exists())
         if not data_ok and not running:

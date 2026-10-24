@@ -1,6 +1,6 @@
-import { pageTitle } from '../components/pageStyles';
 import { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import { Pencil, Trash2 } from 'lucide-react';
+import CloseButton from '../components/CloseButton';
 import { useParams, Link, useNavigate, useLocation } from 'react-router';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getFeed, feedsQueryOptions, getEpisodes, refreshFeed, updateFeed, reprocessAllEpisodes, ReprocessAllResult, bulkEpisodeAction, BulkAction, UpdateFeedPayload, deleteFeed, setEpisodesPassthrough } from '../api/feeds';
@@ -34,16 +34,16 @@ import CueTemplatesPanel from './feeds/CueTemplatesPanel';
 import { formatStorage } from './settings/settingsUtils';
 import { formatDateTime } from '../utils/format';
 import RichText from '../components/RichText';
-import { btnDestructive, btnGhost, btnPrimary, btnSecondary } from '../components/buttonStyles';
-import { cardActionBtn } from '../components/rowActionStyles';
-import { Modal, ConfirmModal } from '../components/Modal';
-import { selectBase } from '../components/fieldStyles';
-import { focusRing } from '../components/fieldStyles';
+import { Modal, ConfirmModal, dialogFooterBtn } from '../components/Modal';
+import { btnBase, btnPrimary, btnSecondary, btnGhost, btnDestructive } from '../components/buttonStyles';
+import { focusRing, inputBase, selectBase } from '../components/fieldStyles';
 import { badgeBase, tint } from '../components/badgeStyles';
+import { pageTitle, cardTitle, sectionPad } from '../components/pageStyles';
+import { iconTarget, iconVisual } from '../components/rowActionStyles';
 
 function reprocessModeLabel(mode: string): string {
-  if (mode === 'full') return 'AI Only';
-  if (mode === 'llm') return 'Re-detect Ads';
+  if (mode === 'full') return 'Full reprocess';
+  if (mode === 'llm') return 'Re-detect ads';
   return 'Patterns + AI';
 }
 
@@ -103,8 +103,8 @@ function useEpisodeListParams() {
   };
 }
 
-// Bulk actions sit on the tap floor and pair up per line on a phone.
-const bulkActionBtn = `${cardActionBtn} flex-1 sm:flex-none min-w-[8rem]`;
+// Bulk actions pair up per line on a phone.
+const bulkActionBtn = `${btnBase} flex-1 sm:flex-none min-w-[8rem]`;
 
 function FeedDetail() {
   const { slug } = useParams<{ slug: string }>();
@@ -488,9 +488,9 @@ function FeedDetail() {
   if (feedError || !feed) {
     return (
       <div className="text-center py-12">
-        <p className="text-destructive">Failed to load feed</p>
+        <p className="text-destructive">Could not load this feed.</p>
         <Link to="/" className={`text-primary hover:underline mt-2 inline-block ${focusRing}`}>
-          Back to Dashboard
+          Back to feeds
         </Link>
       </div>
     );
@@ -510,7 +510,7 @@ function FeedDetail() {
     <div>
       <div className="flex items-center justify-between gap-3 mb-4">
         <Link to="/" className={`text-primary hover:underline inline-block ${focusRing}`}>
-          Back to Dashboard
+          Back to feeds
         </Link>
         {feeds && feeds.length > 1 && (
           <nav className="flex items-center gap-1.5" aria-label="Adjacent feeds">
@@ -530,7 +530,7 @@ function FeedDetail() {
         )}
       </div>
 
-      <div className="bg-card rounded-lg border border-border p-4 sm:p-6 mb-6">
+      <div className={`bg-card rounded-lg border border-border p-4 sm:${sectionPad} mb-6`}>
         <div className="flex flex-col sm:flex-row gap-6">
           <div className="w-32 h-32 shrink-0 mx-auto sm:mx-0">
             {feed.websiteUrl ? (
@@ -560,18 +560,19 @@ function FeedDetail() {
                     placeholder={feed.title}
                     maxLength={500}
                     autoFocus
-                    className="flex-1 min-w-0 px-2 py-1 text-lg font-semibold bg-secondary border border-border rounded focus:outline-hidden focus:ring-2 focus:ring-ring"
+                    className={`${inputBase} flex-1 min-w-0`}
+                    aria-label="Feed title"
                   />
                   <button
                     onClick={saveTitleEdit}
                     disabled={updateMutation.isPending}
-                    className={`px-2 py-1 text-xs ${btnPrimary} rounded disabled:opacity-50 ${focusRing}`}
+                    className={`${btnBase} ${btnPrimary}`}
                   >
                     {updateMutation.isPending ? 'Saving...' : 'Save'}
                   </button>
                   <button
                     onClick={() => setIsEditingTitle(false)}
-                    className={`px-2 py-1 text-xs bg-muted text-muted-foreground rounded hover:bg-accent ${focusRing}`}
+                    className={`${btnBase} ${btnSecondary}`}
                   >
                     Cancel
                   </button>
@@ -588,7 +589,7 @@ function FeedDetail() {
                 </h1>
                 <FeedTypeBadge feedType={feed.feedType} className="mt-1.5" />
                 {feed.titleOverride && (
-                  <span className={`${badgeBase} mt-1.5 shrink-0 font-medium ${tint.blue}`}>
+                  <span className={`${badgeBase} mt-1.5 shrink-0 ${tint.blue}`}>
                     Custom
                   </span>
                 )}
@@ -596,9 +597,11 @@ function FeedDetail() {
                   onClick={startEditingTitle}
                   aria-label="Edit feed title"
                   title="Edit feed title"
-                  className={`mt-1.5 shrink-0 p-1 rounded ${btnGhost} transition-colors ${focusRing}`}
+                  className={`${iconTarget} mt-1.5`}
                 >
-                  <Pencil className="w-4 h-4" />
+                  <span className={`${iconVisual} ${btnGhost}`}>
+                    <Pencil aria-hidden="true" className="w-4 h-4" />
+                  </span>
                 </button>
               </div>
             )}
@@ -628,7 +631,7 @@ function FeedDetail() {
 
         <div className="mt-6 pt-4 border-t border-border flex flex-wrap gap-2 sm:gap-4 items-center justify-between">
           <div className="flex items-center gap-2 min-w-0">
-            <span className="hidden sm:inline text-sm text-muted-foreground shrink-0">Feed URL:</span>
+            <span className="hidden sm:inline text-sm text-muted-foreground shrink-0">Feed URL</span>
             <code className="hidden sm:block text-sm bg-secondary px-2 py-1 rounded truncate min-w-0">
               {feed.feedUrl}
             </code>
@@ -637,7 +640,7 @@ function FeedDetail() {
                 same-utility conflicts by scale, not by source order. */}
             <CopyButton
               text={feed.feedUrl}
-              label="Copy Feed URL"
+              label="Copy feed URL"
               className={`px-2 py-2 sm:px-0 sm:py-0 sm:p-1.5 gap-2 ${btnSecondary} sm:bg-transparent sm:text-muted-foreground sm:hover:bg-accent`}
               copiedClassName="text-success bg-success/10 sm:bg-transparent"
               labelClassName="hidden sm:inline text-sm"
@@ -652,9 +655,9 @@ function FeedDetail() {
             {!isRecents && (
             <DropdownMenu
               triggerLabel={reprocessAllMutation.isPending ? 'Queuing...' : (
-                <><span className="sm:hidden">Reprocess</span><span className="hidden sm:inline">Reprocess All</span></>
+                <><span className="sm:hidden">Reprocess</span><span className="hidden sm:inline">Reprocess all</span></>
               )}
-              triggerClassName={`px-2 py-1.5 sm:px-4 sm:py-2 text-sm rounded ${btnSecondary} disabled:opacity-50 transition-colors flex items-center gap-1.5 sm:gap-2 whitespace-nowrap`}
+              triggerClassName={`${btnBase} ${btnSecondary}`}
               disabled={reprocessAllMutation.isPending}
               title="Reprocess all processed episodes"
               align="left"
@@ -668,15 +671,15 @@ function FeedDetail() {
                   },
                 },
                 {
-                  title: 'AI Only',
-                  subtitle: 'Fresh analysis without patterns',
+                  title: 'Full reprocess',
+                  subtitle: 'Fresh analysis without patterns, AI only',
                   onClick: () => {
                     setSelectedReprocessMode('full');
                     setShowReprocessConfirm(true);
                   },
                 },
                 {
-                  title: 'Re-detect Ads',
+                  title: 'Re-detect ads',
                   subtitle: 'Keep transcripts, skip re-transcription',
                   onClick: () => {
                     setSelectedReprocessMode('llm');
@@ -689,9 +692,9 @@ function FeedDetail() {
             {feedHasUpstream(feed) && (
               <DropdownMenu
                 triggerLabel={refreshMutation.isPending ? 'Refreshing...' : (
-                  <><span className="sm:hidden">Refresh</span><span className="hidden sm:inline">Refresh Feed</span></>
+                  <><span className="sm:hidden">Refresh</span><span className="hidden sm:inline">Refresh feed</span></>
                 )}
-                triggerClassName={`px-2 py-1.5 sm:px-4 sm:py-2 text-sm rounded ${btnPrimary} disabled:opacity-50 transition-colors flex items-center gap-1.5 sm:gap-2 whitespace-nowrap`}
+                triggerClassName={`${btnBase} ${btnPrimary}`}
                 disabled={refreshMutation.isPending}
                 title="Refresh feed"
                 items={[
@@ -712,11 +715,11 @@ function FeedDetail() {
             <button
               onClick={handleDeleteFeed}
               disabled={deleteMutation.isPending}
-              className={`inline-flex items-center justify-center gap-2 px-2 py-1.5 sm:px-4 sm:py-2 text-sm rounded ${btnDestructive} disabled:opacity-50 transition-colors ${focusRing}`}
+              className={`${btnBase} ${btnDestructive}`}
               title="Delete feed"
               aria-label="Delete feed"
             >
-              <Trash2 className="w-4 h-4 sm:hidden" />
+              <Trash2 className="w-4 h-4 sm:hidden" aria-hidden="true" />
               <span className="hidden sm:inline">Delete</span>
             </button>
           </div>
@@ -740,8 +743,8 @@ function FeedDetail() {
 
       {/* Episodes header with status filter */}
       <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
-        <h2 className="text-xl font-semibold text-foreground">
-          Episodes {totalEpisodes > 0 && <span className="text-muted-foreground font-normal text-base">({totalEpisodes})</span>}
+        <h2 className={cardTitle}>
+          Episodes {totalEpisodes > 0 && <span className="text-muted-foreground font-normal text-sm">({totalEpisodes})</span>}
         </h2>
         {/* The pair shares one row and shrinks to fit rather than stacking:
             wrapping put each select on its own line at ordinary phone widths. */}
@@ -758,7 +761,7 @@ function FeedDetail() {
             <option value="processing">Processing</option>
             <option value="processed">Completed</option>
             <option value="failed">Failed</option>
-            <option value="permanently_failed">Permanently Failed</option>
+            <option value="permanently_failed">Permanently failed</option>
             <option value="deferred">Queued (offline)</option>
           </select>
           <select
@@ -766,10 +769,10 @@ function FeedDetail() {
             onChange={(e) => changeFilter({ sort: e.target.value })}
             className={`flex-1 min-w-0 sm:flex-none ${selectBase}`}
           >
-            <option value="published_at:desc">Newest First</option>
-            <option value="published_at:asc">Oldest First</option>
-            <option value="episode_number:desc">Episode # (High-Low)</option>
-            <option value="episode_number:asc">Episode # (Low-High)</option>
+            <option value="published_at:desc">Newest first</option>
+            <option value="published_at:asc">Oldest first</option>
+            <option value="episode_number:desc">Episode # (high to low)</option>
+            <option value="episode_number:asc">Episode # (low to high)</option>
           </select>
         </div>
         )}
@@ -782,14 +785,14 @@ function FeedDetail() {
           onChange={(event) => setSearchInput(event.target.value)}
           placeholder="Search episode titles..."
           aria-label="Search episode titles"
-          className="flex-1 min-w-0 min-h-11 px-3 py-2 rounded-lg border border-input bg-background text-foreground focus:outline-hidden focus:ring-2 focus:ring-ring"
+          className={`${inputBase} flex-1 min-w-0`}
         />
         {!isRecents && totalEpisodes > 0 && (
           <button
             type="button"
             onClick={selectAllMatches}
             disabled={episodesLoading || selectingMatches || bulkMutation.isPending || passthroughMutation.isPending}
-            className={`min-h-11 px-3 py-2 text-sm rounded ${btnSecondary} disabled:opacity-50 ${focusRing}`}
+            className={`${btnBase} ${btnSecondary}`}
           >
             {selectingMatches ? 'Selecting...' : `Select all ${totalEpisodes} matches`}
           </button>
@@ -805,7 +808,7 @@ function FeedDetail() {
               <button
                 onClick={() => bulkMutation.mutate({ action: 'process' })}
                 disabled={bulkMutation.isPending || passthroughMutation.isPending || selectionOverLimit}
-                className={`${bulkActionBtn} ${btnPrimary} disabled:opacity-50 ${focusRing}`}
+                className={`${bulkActionBtn} ${btnPrimary}`}
               >
                 {bulkMutation.isPending ? 'Processing...' : `Process now (${discoveredCount + pendingCount})`}
               </button>
@@ -815,24 +818,24 @@ function FeedDetail() {
                 <button
                   onClick={() => bulkMutation.mutate({ action: 'reprocess' })}
                   disabled={bulkMutation.isPending || passthroughMutation.isPending || selectionOverLimit}
-                  className={`${bulkActionBtn} ${btnSecondary} disabled:opacity-50 ${focusRing}`}
+                  className={`${bulkActionBtn} ${btnSecondary}`}
                 >
                   Reprocess ({processedCount})
                 </button>
                 <button
                   onClick={() => bulkMutation.mutate({ action: 'reprocess_full' })}
                   disabled={bulkMutation.isPending || passthroughMutation.isPending || selectionOverLimit}
-                  className={`${bulkActionBtn} ${btnSecondary} disabled:opacity-50 ${focusRing}`}
+                  className={`${bulkActionBtn} ${btnSecondary}`}
                 >
-                  Full Reprocess ({processedCount})
+                  Full reprocess ({processedCount})
                 </button>
                 <button
                   onClick={() => bulkMutation.mutate({ action: 'reprocess_llm' })}
                   disabled={bulkMutation.isPending || passthroughMutation.isPending || selectionOverLimit}
-                  className={`${bulkActionBtn} ${btnSecondary} disabled:opacity-50 ${focusRing}`}
+                  className={`${bulkActionBtn} ${btnSecondary}`}
                   title="Re-detect ads using existing transcripts (skips re-transcription)"
                 >
-                  Re-detect Ads ({processedCount})
+                  Re-detect ads ({processedCount})
                 </button>
               </>
             )}
@@ -842,7 +845,7 @@ function FeedDetail() {
               onClick={() => passthroughMutation.mutate({ enabled: true })}
               disabled={bulkMutation.isPending || passthroughMutation.isPending || selectionOverLimit}
               title="Serve these episodes unmodified, with no ad processing"
-              className={`${bulkActionBtn} ${btnSecondary} disabled:opacity-50 ${focusRing}`}
+              className={`${bulkActionBtn} ${btnSecondary}`}
             >
               {passthroughMutation.isPending && passthroughMutation.variables?.enabled
                 ? 'Setting...' : `Set pass-through (${effectiveSelectedIds.size})`}
@@ -851,7 +854,7 @@ function FeedDetail() {
               onClick={() => passthroughMutation.mutate({ enabled: false })}
               disabled={bulkMutation.isPending || passthroughMutation.isPending || selectionOverLimit}
               title="Resume normal ad processing for these episodes"
-              className={`${bulkActionBtn} ${btnSecondary} disabled:opacity-50 ${focusRing}`}
+              className={`${bulkActionBtn} ${btnSecondary}`}
             >
               {passthroughMutation.isPending && passthroughMutation.variables?.enabled === false
                 ? 'Clearing...' : `Clear pass-through (${effectiveSelectedIds.size})`}
@@ -860,7 +863,7 @@ function FeedDetail() {
               <button
                 onClick={() => setShowBulkDeleteConfirm(true)}
                 disabled={bulkMutation.isPending || passthroughMutation.isPending || selectionOverLimit}
-                className={`${bulkActionBtn} ${btnDestructive} disabled:opacity-50 ${focusRing}`}
+                className={`${bulkActionBtn} ${btnDestructive}`}
               >
                 Delete ({processedCount})
               </button>
@@ -870,7 +873,7 @@ function FeedDetail() {
             )}
             <button
               onClick={clearSelection}
-              className={`${cardActionBtn} ${btnGhost} ${focusRing}`}
+              className={`${btnBase} ${btnGhost}`}
             >
               Clear
             </button>
@@ -895,16 +898,13 @@ function FeedDetail() {
       <Pagination page={page} totalPages={totalPages} total={totalEpisodes} onPage={handlePageChange} />
       {totalPages > 1 && (
         <div className="mt-3 flex items-center justify-end gap-2">
-          <span className="text-sm text-muted-foreground">Per page:</span>
+          <span className="text-sm text-muted-foreground">Per page</span>
           {PAGE_SIZES.map(size => (
             <button
               key={size}
               onClick={() => changeFilter({ size: String(size) })}
-              className={`px-2 py-1 text-xs rounded ${
-                pageSize === size
-                  ? 'bg-primary text-primary-foreground'
-                  : btnSecondary
-              } ${focusRing}`}
+              className={`${btnBase} ${pageSize === size ? btnPrimary : btnSecondary}`}
+              aria-pressed={pageSize === size}
             >
               {size}
             </button>
@@ -912,13 +912,33 @@ function FeedDetail() {
         </div>
       )}
 
-      {/* Reprocess All Confirmation Modal */}
       {showReprocessConfirm && (
-        <Modal ariaLabel="Reprocess all episodes" onClose={() => setShowReprocessConfirm(false)} panelClassName="max-w-md w-full">
-          <div className="p-6">
-            <h2 className="text-xl font-semibold text-foreground mb-4">
-              Reprocess All Episodes
-            </h2>
+        <Modal
+          ariaLabel="Reprocess all episodes"
+          onClose={() => setShowReprocessConfirm(false)}
+          panelClassName="max-w-md w-full"
+          header={(
+            <h2 className={cardTitle}>Reprocess all episodes?</h2>
+          )}
+          footer={(
+            <>
+              <button
+                onClick={() => setShowReprocessConfirm(false)}
+                className={`${dialogFooterBtn} ${btnSecondary}`}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => reprocessAllMutation.mutate(selectedReprocessMode)}
+                disabled={reprocessAllMutation.isPending}
+                className={`${dialogFooterBtn} ${btnDestructive}`}
+              >
+                {reprocessAllMutation.isPending ? 'Queuing...' : 'Reprocess all episodes'}
+              </button>
+            </>
+          )}
+        >
+          <div className="p-4">
             <div className="mb-4 p-3 rounded-lg bg-accent/50">
               <p className="text-sm font-medium text-foreground">
                 Mode: {reprocessModeLabel(selectedReprocessMode)}
@@ -932,104 +952,112 @@ function FeedDetail() {
                 ? 'This will queue all processed episodes that have a saved transcript. The transcript is reused (no re-transcription); audio is re-analyzed and re-cut. Episodes without a transcript are skipped.'
                 : 'This will queue all processed episodes for reprocessing. Existing processed audio files will be deleted and episodes will be re-transcribed and re-analyzed.'}
             </p>
-            <p className="text-sm text-warning mb-6">
+            <p className="text-sm text-warning">
               This operation cannot be undone. Episodes currently processing will be skipped.
             </p>
-            <div className="flex gap-3 justify-end">
-              <button
-                onClick={() => setShowReprocessConfirm(false)}
-                className={`px-4 py-2 rounded ${btnSecondary} ${focusRing}`}
-              >
-                Cancel
-              </button>
-              <button
-                onClick={() => reprocessAllMutation.mutate(selectedReprocessMode)}
-                disabled={reprocessAllMutation.isPending}
-                className={`px-4 py-2 rounded ${btnDestructive} disabled:opacity-50 ${focusRing}`}
-              >
-                {reprocessAllMutation.isPending ? 'Queuing...' : 'Reprocess All'}
-              </button>
-            </div>
           </div>
         </Modal>
       )}
 
-      {/* Reprocess Results Modal */}
       {reprocessResult && (
-        <Modal ariaLabel="Reprocess queued" onClose={closeReprocessModal} panelClassName="max-w-md w-full">
-          <div className="p-6">
-            <h2 className="text-xl font-semibold text-foreground mb-4">Reprocess Queued</h2>
+        <Modal
+          ariaLabel="Reprocess queued"
+          onClose={closeReprocessModal}
+          panelClassName="max-w-md w-full"
+          header={(
+            <h2 className={cardTitle}>Reprocess queued</h2>
+          )}
+          footer={(
+            <button onClick={closeReprocessModal} className={`${dialogFooterBtn} ${btnPrimary}`}>
+              Close
+            </button>
+          )}
+        >
+          <div className="p-4">
             <p className="text-xs text-muted-foreground mb-4">
               Mode: {reprocessModeLabel(reprocessResult.mode)}
             </p>
             <ResultStatsGrid queued={reprocessResult.queued} skipped={reprocessResult.skipped} queuedLabel="Queued" />
             {reprocessResult.queued > 0 && (
-              <p className="text-sm text-muted-foreground mb-4">
+              <p className="text-sm text-muted-foreground">
                 {reprocessResult.queued} episodes have been queued for {reprocessModeVerb(reprocessResult.mode)} reprocessing. They will be processed in the background.
               </p>
             )}
-            <button
-              onClick={closeReprocessModal}
-              className={`w-full px-4 py-2 rounded ${btnPrimary} ${focusRing}`}
-            >
-              Done
-            </button>
           </div>
         </Modal>
       )}
 
-      {/* Reprocess Error Modal */}
       {reprocessAllMutation.error && (
-        <Modal ariaLabel="Reprocess failed" onClose={closeReprocessModal} panelClassName="max-w-md w-full">
-          <div className="p-6">
-            <h2 className="text-xl font-semibold text-destructive mb-4">Reprocess Failed</h2>
-            <p className="text-sm text-muted-foreground mb-4">
-              {(reprocessAllMutation.error as Error).message}
-            </p>
-            <button
-              onClick={closeReprocessModal}
-              className={`w-full px-4 py-2 rounded ${btnPrimary} ${focusRing}`}
-            >
+        <Modal
+          ariaLabel="Could not reprocess episodes"
+          onClose={closeReprocessModal}
+          panelClassName="max-w-md w-full"
+          header={(
+            <h2 className={cardTitle}>Could not reprocess episodes</h2>
+          )}
+          footer={(
+            <button onClick={closeReprocessModal} className={`${dialogFooterBtn} ${btnPrimary}`}>
               Close
             </button>
-          </div>
+          )}
+        >
+          <p className="p-4 text-sm text-muted-foreground">
+            {(reprocessAllMutation.error as Error).message}
+          </p>
         </Modal>
       )}
 
-      {/* Bulk Delete Confirmation Modal */}
       {showBulkDeleteConfirm && (
-        <Modal ariaLabel="Delete selected episodes" onClose={() => setShowBulkDeleteConfirm(false)} panelClassName="max-w-md w-full">
-          <div className="p-6">
-            <h2 className="text-xl font-semibold text-foreground mb-4">
-              Delete {effectiveSelectedIds.size} Episode{effectiveSelectedIds.size > 1 ? 's' : ''}
+        <Modal
+          ariaLabel="Delete selected episodes"
+          onClose={() => setShowBulkDeleteConfirm(false)}
+          panelClassName="max-w-md w-full"
+          header={(
+            <h2 className={cardTitle}>
+              Delete {effectiveSelectedIds.size} episode{effectiveSelectedIds.size > 1 ? 's' : ''}?
             </h2>
-            <p className="text-sm text-muted-foreground mb-4">
-              This will delete processed audio files and reset selected episodes to discovered status. Episode records and processing history are preserved.
-            </p>
-            <div className="flex gap-3 justify-end">
+          )}
+          footer={(
+            <>
               <button
                 onClick={() => setShowBulkDeleteConfirm(false)}
-                className={`px-4 py-2 rounded ${btnSecondary} ${focusRing}`}
+                className={`${dialogFooterBtn} ${btnSecondary}`}
               >
                 Cancel
               </button>
               <button
                 onClick={() => bulkMutation.mutate({ action: 'delete' })}
                 disabled={bulkMutation.isPending || passthroughMutation.isPending || selectionOverLimit}
-                className={`px-4 py-2 rounded ${btnDestructive} disabled:opacity-50 ${focusRing}`}
+                className={`${dialogFooterBtn} ${btnDestructive}`}
               >
-                {bulkMutation.isPending ? 'Deleting...' : 'Delete'}
+                {bulkMutation.isPending
+                  ? 'Deleting...'
+                  : `Delete ${effectiveSelectedIds.size} episode${effectiveSelectedIds.size > 1 ? 's' : ''}`}
               </button>
-            </div>
-          </div>
+            </>
+          )}
+        >
+          <p className="p-4 text-sm text-muted-foreground">
+            This will delete processed audio files and reset selected episodes to discovered status. Episode records and processing history are preserved.
+          </p>
         </Modal>
       )}
 
-      {/* Bulk Action Result Modal */}
       {bulkResult && (
-        <Modal ariaLabel="Bulk action complete" onClose={() => setBulkResult(null)} panelClassName="max-w-md w-full">
-          <div className="p-6">
-            <h2 className="text-xl font-semibold text-foreground mb-4">Bulk Action Complete</h2>
+        <Modal
+          ariaLabel="Bulk action complete"
+          onClose={() => setBulkResult(null)}
+          panelClassName="max-w-md w-full"
+          header={(
+            <h2 className={cardTitle}>Bulk action complete</h2>
+          )}
+          footer={(
+            <button onClick={() => setBulkResult(null)} className={`${dialogFooterBtn} ${btnPrimary}`}>
+              Close
+            </button>
+          )}
+        >
+          <div className="p-4">
             <ResultStatsGrid queued={bulkResult.queued} skipped={bulkResult.skipped} queuedLabel="Actioned" />
             {bulkResult.freedMb > 0 && (
               <p className="text-sm text-muted-foreground mb-4">
@@ -1042,56 +1070,44 @@ function FeedDetail() {
               </div>
             )}
             {bulkResult.skippedEpisodes?.some(item => item.reason === 'Already queued' || item.reason === 'Already processing') && (
-              <p className="text-sm text-muted-foreground mb-4">
+              <p className="text-sm text-muted-foreground">
                 Episodes already queued or processing were skipped.
               </p>
             )}
-            <button
-              onClick={() => setBulkResult(null)}
-              className={`w-full px-4 py-2 rounded ${btnPrimary} ${focusRing}`}
-            >
-              Done
-            </button>
           </div>
         </Modal>
       )}
 
-      {/* Pass-through Result Modal */}
       {passthroughResult && (
-        <Modal ariaLabel="Pass-through result" onClose={() => setPassthroughResult(null)} panelClassName="max-w-md w-full">
-          <div className="p-6">
-            <h2 className="text-xl font-semibold text-foreground mb-4">
-              {passthroughResult.enabled ? 'Pass-through Set' : 'Pass-through Cleared'}
+        <Modal
+          ariaLabel="Pass-through result"
+          onClose={() => setPassthroughResult(null)}
+          panelClassName="max-w-md w-full"
+          header={(
+            <h2 className={cardTitle}>
+              {passthroughResult.enabled ? 'Pass-through set' : 'Pass-through cleared'}
             </h2>
-            <p className="text-sm text-muted-foreground mb-4">
-              {passthroughResult.updated} episode{passthroughResult.updated === 1 ? '' : 's'} updated.
-              {passthroughResult.enabled && passthroughResult.queued > 0
-                ? ` ${passthroughResult.queued} queued to run pass-through.` : ''}
-            </p>
-            <button
-              onClick={() => setPassthroughResult(null)}
-              className={`w-full px-4 py-2 rounded ${btnPrimary} ${focusRing}`}
-            >
-              Done
+          )}
+          footer={(
+            <button onClick={() => setPassthroughResult(null)} className={`${dialogFooterBtn} ${btnPrimary}`}>
+              Close
             </button>
-          </div>
+          )}
+        >
+          <p className="p-4 text-sm text-muted-foreground">
+            {passthroughResult.updated} episode{passthroughResult.updated === 1 ? '' : 's'} updated.
+            {passthroughResult.enabled && passthroughResult.queued > 0
+              ? ` ${passthroughResult.queued} queued to run pass-through.` : ''}
+          </p>
         </Modal>
       )}
       {/* Same bottom-right confirm/error toasts the dashboard uses. */}
       {(deleteConfirm || actionError) && (
-        <div className="fixed bottom-4 right-4 flex flex-col items-end gap-2">
+        <div className="fixed bottom-4 right-[max(1rem,env(safe-area-inset-right))] flex flex-col items-end gap-2">
           {actionError && !deleteConfirm && (
             <div className="max-w-sm bg-destructive/10 border border-destructive text-destructive rounded-lg p-4 shadow-lg text-sm flex items-start gap-3">
               <span className="flex-1">{actionError}</span>
-              <button
-                onClick={() => setActionError(null)}
-                aria-label="Dismiss error"
-                className={`shrink-0 text-destructive/70 hover:text-destructive ${focusRing}`}
-              >
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
+              <CloseButton onClick={() => setActionError(null)} label="Dismiss error" className="shrink-0" />
             </div>
           )}
           {deleteConfirm && (

@@ -1,0 +1,5 @@
+# Trivy secret-scan allow rules for the published images (cpu-image.yml passes this file).
+allow-rules:
+  - id: anthropic-sdk-service-account-docstrings
+    description: "Anthropic SDK docstrings mention a service_account execution identity; library text, not a credential"
+    path: .*/site-packages/anthropic/.*

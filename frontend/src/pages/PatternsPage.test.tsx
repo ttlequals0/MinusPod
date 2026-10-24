@@ -122,13 +122,13 @@ describe('PatternsPage tabs', () => {
   it('switches to the ad review tab on click', async () => {
     renderPage();
     const user = userEvent.setup();
-    await user.click(screen.getByRole('tab', { name: 'Ad Review' }));
+    await user.click(screen.getByRole('tab', { name: 'Ad review' }));
     expect(mockGetDetections).toHaveBeenCalled();
   });
 
   it('opens the ad review tab from the URL', async () => {
     renderPage('/patterns?tab=ad-review');
-    const tab = await screen.findByRole('tab', { name: 'Ad Review' });
+    const tab = await screen.findByRole('tab', { name: 'Ad review' });
     expect(tab.getAttribute('aria-selected')).toBe('true');
   });
 
@@ -160,7 +160,7 @@ describe('PatternsPage cleanup tab', () => {
     renderPage();
     await screen.findByRole('tab', { name: 'Patterns' });
     expect(screen.getAllByRole('tab').map((t) => t.textContent)).toEqual([
-      'Patterns', 'Detected Ads', 'Ad Review', 'Cleanup',
+      'Patterns', 'Detected ads', 'Ad review', 'Cleanup',
     ]);
   });
 
@@ -226,7 +226,7 @@ describe('PatternsPage category filter', () => {
     renderPage();
     const user = userEvent.setup();
     await screen.findAllByText('Beta Co');
-    await user.selectOptions(screen.getByLabelText('Category:'), 'cross_promo');
+    await user.selectOptions(screen.getByLabelText('Category'), 'cross_promo');
     expect(await screen.findAllByText('Beta Co')).not.toHaveLength(0);
     expect(screen.queryByText('Acme')).toBeNull();
     expect(screen.queryByText('Gamma Co')).toBeNull();
@@ -237,7 +237,7 @@ describe('PatternsPage category filter', () => {
     renderPage();
     const user = userEvent.setup();
     await screen.findAllByText('Gamma Co');
-    await user.selectOptions(screen.getByLabelText('Category:'), 'none');
+    await user.selectOptions(screen.getByLabelText('Category'), 'none');
     expect(await screen.findAllByText('Gamma Co')).not.toHaveLength(0);
     expect(screen.queryByText('Acme')).toBeNull();
     expect(screen.queryByText('Beta Co')).toBeNull();
@@ -256,14 +256,14 @@ describe('PatternsPage detected ads tab', () => {
   it('switches to the detected ads tab and requests cut detections', async () => {
     renderPage();
     const user = userEvent.setup();
-    await user.click(screen.getByRole('tab', { name: 'Detected Ads' }));
+    await user.click(screen.getByRole('tab', { name: 'Detected ads' }));
     await waitFor(() => expect(mockGetDetections).toHaveBeenCalled());
     expect(mockGetDetections.mock.lastCall?.[0]).toMatchObject({ status: 'accepted' });
   });
 
   it('opens the detected ads tab from the url', async () => {
     renderPage('/patterns?tab=detected-ads');
-    const tab = await screen.findByRole('tab', { name: 'Detected Ads' });
+    const tab = await screen.findByRole('tab', { name: 'Detected ads' });
     expect(tab.getAttribute('aria-selected')).toBe('true');
   });
 

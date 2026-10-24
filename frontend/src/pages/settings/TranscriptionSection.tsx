@@ -11,9 +11,9 @@ import ToggleSwitch from '../../components/ToggleSwitch';
 import ProviderKeyField from './ProviderKeyField';
 import SavedBadge from './SavedBadge';
 import type { ProviderName, ProviderStatus, ProviderTestResult, ProvidersResponse, ConnectionTestResult } from '../../api/providers';
-import { btnPrimary } from '../../components/buttonStyles';
-import { selectBase } from '../../components/fieldStyles';
-import { focusRing } from '../../components/fieldStyles';
+import { btnLg, btnPrimary } from '../../components/buttonStyles';
+import { focusRing, inputBase, selectBase, labelBase } from '../../components/fieldStyles';
+import { subHeading } from '../../components/pageStyles';
 
 interface TranscriptionSectionProps {
   whisperModel: string;
@@ -122,7 +122,7 @@ function TranscriptionSection({
     <CollapsibleSection title="Transcription" storageKey={STORAGE_KEY} onToggle={setOpen}>
       <div className="space-y-4">
         <div>
-          <label htmlFor="whisperBackend" className="block text-sm font-medium text-foreground mb-2">
+          <label htmlFor="whisperBackend" className={labelBase}>
             Backend
           </label>
           <select
@@ -144,8 +144,8 @@ function TranscriptionSection({
 
         {whisperBackend === WHISPER_BACKENDS.LOCAL && (
           <div>
-            <label htmlFor="whisperModel" className="block text-sm font-medium text-foreground mb-2">
-              Whisper Model
+            <label htmlFor="whisperModel" className={labelBase}>
+              Whisper model
             </label>
             <select
               id="whisperModel"
@@ -179,8 +179,8 @@ function TranscriptionSection({
         {whisperBackend === WHISPER_BACKENDS.OPENAI_API && (
           <>
             <div>
-              <label htmlFor="whisperApiBaseUrl" className="block text-sm font-medium text-foreground mb-2">
-                API Base URL
+              <label htmlFor="whisperApiBaseUrl" className={labelBase}>
+                API base URL
               </label>
               <input
                 type="text"
@@ -188,7 +188,7 @@ function TranscriptionSection({
                 value={apiConfig.baseUrl}
                 onChange={(e) => onApiConfigChange('baseUrl', e.target.value)}
                 placeholder="http://host.docker.internal:8765/v1"
-                className="w-full px-4 py-2 rounded-lg border border-input bg-background text-foreground placeholder:text-muted-foreground focus:outline-hidden focus:ring-2 focus:ring-ring font-mono text-sm"
+                className={`${inputBase} w-full font-mono`}
                 aria-describedby="whisperApiBaseUrl-help"
               />
               <p id="whisperApiBaseUrl-help" className="mt-1 text-sm text-muted-foreground">
@@ -197,7 +197,7 @@ function TranscriptionSection({
               <ConnectionTestButton
                 key={`${apiConfig.baseUrl}|${apiConfig.model}|${skipFlacCompression}|${whisperStatus.configured}`}
                 onTest={() => onConnectionTest(apiConfig.baseUrl, apiConfig.model, skipFlacCompression)}
-                busyHint="Sending a short audio sample -- this can take up to 30 seconds"
+                busyHint="Sending a short audio sample. This can take up to 30 seconds."
               />
             </div>
 
@@ -213,8 +213,8 @@ function TranscriptionSection({
             />
 
             <div>
-              <label htmlFor="whisperApiModel" className="block text-sm font-medium text-foreground mb-2">
-                Model Name
+              <label htmlFor="whisperApiModel" className={labelBase}>
+                Model name
               </label>
               <input
                 type="text"
@@ -222,7 +222,7 @@ function TranscriptionSection({
                 value={apiConfig.model}
                 onChange={(e) => onApiConfigChange('model', e.target.value)}
                 placeholder="whisper-1"
-                className="w-full px-4 py-2 rounded-lg border border-input bg-background text-foreground placeholder:text-muted-foreground focus:outline-hidden focus:ring-2 focus:ring-ring font-mono text-sm"
+                className={`${inputBase} w-full font-mono`}
                 aria-describedby="whisperApiModel-help"
               />
               <p id="whisperApiModel-help" className="mt-1 text-sm text-muted-foreground">
@@ -231,11 +231,11 @@ function TranscriptionSection({
             </div>
 
             <div className="pt-2 border-t border-border">
-              <h4 className="text-sm font-medium text-foreground mb-3">Parallel chunked transcription</h4>
+              <h4 className={`${subHeading} mb-3`}>Parallel chunked transcription</h4>
               <div className="space-y-3">
                 <div className="flex items-center gap-3">
-                  <label htmlFor="transcribeMaxChunkSeconds" className="text-sm text-muted-foreground w-44">
-                    Max chunk seconds:
+                  <label htmlFor="transcribeMaxChunkSeconds" className={`${labelBase} mb-0! w-44`}>
+                    Max chunk seconds
                   </label>
                   <NumberInput
                     id="transcribeMaxChunkSeconds"
@@ -249,8 +249,8 @@ function TranscriptionSection({
                   <span className="text-sm text-muted-foreground">600 for Whisper, 28 for Parakeet</span>
                 </div>
                 <div className="flex items-center gap-3">
-                  <label htmlFor="transcribeConcurrentChunks" className="text-sm text-muted-foreground w-44">
-                    Concurrent chunks:
+                  <label htmlFor="transcribeConcurrentChunks" className={`${labelBase} mb-0! w-44`}>
+                    Concurrent chunks
                   </label>
                   <NumberInput
                     id="transcribeConcurrentChunks"
@@ -264,8 +264,8 @@ function TranscriptionSection({
                   <span className="text-sm text-muted-foreground">match backend's worker count</span>
                 </div>
                 <div className="flex items-center gap-3">
-                  <label htmlFor="transcribeChunkOverlapSeconds" className="text-sm text-muted-foreground w-44">
-                    Chunk overlap seconds:
+                  <label htmlFor="transcribeChunkOverlapSeconds" className={`${labelBase} mb-0! w-44`}>
+                    Chunk overlap seconds
                   </label>
                   <NumberInput
                     id="transcribeChunkOverlapSeconds"
@@ -279,8 +279,8 @@ function TranscriptionSection({
                   <span className="text-sm text-muted-foreground">for word-boundary dedupe</span>
                 </div>
                 <div className="flex items-center gap-3">
-                  <label htmlFor="whisperApiTimeoutSeconds" className="text-sm text-muted-foreground w-44">
-                    Request timeout:
+                  <label htmlFor="whisperApiTimeoutSeconds" className={`${labelBase} mb-0! w-44`}>
+                    Request timeout
                   </label>
                   <NumberInput
                     id="whisperApiTimeoutSeconds"
@@ -294,7 +294,7 @@ function TranscriptionSection({
                   <span className="text-sm text-muted-foreground">seconds to wait per chunk</span>
                 </div>
                 <div className="flex items-center gap-3">
-                  <label htmlFor="whisperMaxAttempts" className="text-sm text-muted-foreground w-44">
+                  <label htmlFor="whisperMaxAttempts" className={`${labelBase} mb-0! w-44`}>
                     Max upload attempts
                   </label>
                   <NumberInput
@@ -317,7 +317,7 @@ function TranscriptionSection({
             </div>
 
             <div className="pt-2 border-t border-border">
-              <h4 className="text-sm font-medium text-foreground mb-3">Whisper pool</h4>
+              <h4 className={`${subHeading} mb-3`}>Whisper pool</h4>
               <label className="flex items-center gap-3 cursor-pointer">
                 <ToggleSwitch
                   checked={whisperPoolEnabled}
@@ -334,8 +334,8 @@ function TranscriptionSection({
               </p>
               <div className="space-y-3 mt-3">
                 <div className="flex items-center gap-3">
-                  <label htmlFor="whisperPoolMaxRequests" className="text-sm text-muted-foreground w-44">
-                    Max requests to backend:
+                  <label htmlFor="whisperPoolMaxRequests" className={`${labelBase} mb-0! w-44`}>
+                    Max requests to backend
                   </label>
                   {/* Bounds mirror WHISPER_POOL_MAX_REQUESTS_RANGE in src/config.py. */}
                   <NumberInput
@@ -351,8 +351,8 @@ function TranscriptionSection({
                   <span className="text-sm text-muted-foreground">across all running episodes</span>
                 </div>
                 <div className="flex items-center gap-3">
-                  <label htmlFor="whisperPoolMaxEpisodes" className="text-sm text-muted-foreground w-44">
-                    Episodes at once:
+                  <label htmlFor="whisperPoolMaxEpisodes" className={`${labelBase} mb-0! w-44`}>
+                    Episodes at once
                   </label>
                   {/* Bounds mirror WHISPER_POOL_MAX_EPISODES_RANGE in src/config.py. */}
                   <NumberInput
@@ -392,7 +392,7 @@ function TranscriptionSection({
         </div>
 
         <div className="pt-2 border-t border-border">
-          <label htmlFor="whisperLanguage" className="block text-sm font-medium text-foreground mb-2">
+          <label htmlFor="whisperLanguage" className={labelBase}>
             Language
           </label>
           <LanguageCombobox
@@ -408,7 +408,7 @@ function TranscriptionSection({
 
         {whisperBackend === WHISPER_BACKENDS.LOCAL && (
           <div className="pt-2 border-t border-border">
-            <label htmlFor="whisperComputeType" className="block text-sm font-medium text-foreground mb-2">
+            <label htmlFor="whisperComputeType" className={labelBase}>
               GPU compute type
             </label>
             <select
@@ -432,8 +432,8 @@ function TranscriptionSection({
 
         <div className="pt-2 border-t border-border space-y-3">
           <div className="flex items-center gap-3">
-            <label htmlFor="softTimeoutMinutes" className="text-sm text-muted-foreground w-36">
-              Soft timeout:
+            <label htmlFor="softTimeoutMinutes" className={`${labelBase} mb-0! w-36`}>
+              Soft timeout
             </label>
             <NumberInput
               id="softTimeoutMinutes"
@@ -447,8 +447,8 @@ function TranscriptionSection({
             <span className="text-sm text-muted-foreground">minutes (default 60)</span>
           </div>
           <div className="flex items-center gap-3">
-            <label htmlFor="hardTimeoutMinutes" className="text-sm text-muted-foreground w-36">
-              Hard timeout:
+            <label htmlFor="hardTimeoutMinutes" className={`${labelBase} mb-0! w-36`}>
+              Hard timeout
             </label>
             <NumberInput
               id="hardTimeoutMinutes"
@@ -465,9 +465,9 @@ function TranscriptionSection({
             <button
               onClick={onTimeoutsSave}
               disabled={timeoutsSaveIsPending}
-              className={`px-4 py-2 rounded-lg ${btnPrimary} disabled:opacity-50 transition-colors text-sm ${focusRing}`}
+              className={`${btnLg} ${btnPrimary}`}
             >
-              {timeoutsSaveIsPending ? 'Saving...' : 'Save Timeouts'}
+              {timeoutsSaveIsPending ? 'Saving...' : 'Save timeouts'}
             </button>
             {timeoutsSaveIsSuccess && !timeoutsError && <SavedBadge />}
             {timeoutsError && (

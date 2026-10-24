@@ -4,14 +4,14 @@ import { useQueryClient } from '@tanstack/react-query';
 import { storeLoginRedirect } from '../utils/loginRedirect';
 import { getStageLabel } from '../utils/processingStage';
 import { EPISODE_STATUS_COLORS } from '../utils/episodeStatus';
-import { focusRing } from './fieldStyles';
 import ChevronCaret from './ChevronCaret';
 import { apiRequest } from '../api/client';
-import { tint } from './badgeStyles';
 import ProcessingJobProgress from './ProcessingJobProgress';
 import { failoverSourceLabel, failoverTargetLabel } from '../api/failover';
 import type { ProcessingStatus } from '../api/status';
-import { formatDurationWhole } from '../utils/format';
+import { formatElapsed } from '../utils/format';
+import { focusRing } from './fieldStyles';
+import { badgeBase, tint } from './badgeStyles';
 
 interface ProcessingJob {
   slug: string;
@@ -158,7 +158,7 @@ function CountChip({ count, noun, className }: { count: number; noun: string; cl
   return (
     <span
       title={`${count} ${noun}`}
-      className={`px-1.5 py-0.5 text-xs rounded font-medium shrink-0 ${className}`}
+      className={`${badgeBase} shrink-0 ${className}`}
     >
       +{count}<span className="hidden sm:inline"> {noun}</span>
     </span>
@@ -283,7 +283,7 @@ function GlobalStatusBar() {
       ref={barRef}
       // Only while it is on screen: translated away it costs a popover no room.
       data-viewport-inset={hasActivity ? 'top' : undefined}
-      className={`fixed top-0 left-0 right-0 z-50 pt-[env(safe-area-inset-top)] bg-card border-b border-border shadow-xs transition-all duration-300 ${
+      className={`fixed top-0 left-0 right-0 z-50 pt-[env(safe-area-inset-top)] pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)] bg-card border-b border-border shadow-xs transition-all duration-300 ${
         hasActivity ? 'translate-y-0' : '-translate-y-full'
       }`}
     >
@@ -310,7 +310,7 @@ function GlobalStatusBar() {
               <span className="text-xs font-medium text-primary truncate">
                 {stageLabel}
               </span>
-              <span className="text-xs text-muted-foreground truncate">
+              <span className="hidden sm:inline text-xs text-muted-foreground truncate">
                 {currentJob.title}
               </span>
             </div>
@@ -325,7 +325,7 @@ function GlobalStatusBar() {
 
             {/* Elapsed time */}
             <span className="text-xs text-muted-foreground shrink-0 w-14 text-right tabular-nums">
-              {formatDurationWhole(jobElapsed(currentJob, now, receivedAt))}
+              {formatElapsed(jobElapsed(currentJob, now, receivedAt))}
             </span>
           </>
         ) : (
@@ -336,7 +336,7 @@ function GlobalStatusBar() {
 
         {/* Hold badge: amber so a stalled queue reads differently from a busy one */}
         {summary && currentJob && (
-          <span className={`px-1.5 py-0.5 text-xs rounded font-medium ${tint.warning} min-w-0 truncate`}>
+          <span className={`${badgeBase} ${tint.warning} min-w-0 truncate`}>
             {compactSummary === summary ? summary : (
               <>
                 <span className="sm:hidden">{compactSummary}</span>
@@ -455,7 +455,7 @@ function GlobalStatusBar() {
           {(status?.feedRefreshes?.length ?? 0) > 0 && (
             <div className="py-2 border-t border-border/30">
               <p className="text-xs font-medium text-muted-foreground mb-1">
-                Feed Refreshes
+                Feed refreshes
               </p>
               <ul className="space-y-1">
                 {status?.feedRefreshes.map((refresh) => (

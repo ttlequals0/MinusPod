@@ -9,16 +9,77 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
-## [Unreleased]
+## [2.100.21] - 2026-10-24
+
+### Added
+- The auto-process window is a setting with a per-feed override: default 48
+  hours, up to 720, for instances that run only occasionally (#895).
 
 ### Changed
-- Segment-ID prompts mark pauses of 1.5 s or longer between transcript lines with a gap cue, so the model can see jingles and silence it otherwise cannot. (#883, #884, from mrfootoyou)
-- Use minimal timestamps in LLM prompts to help reduce token usage.
+- UI consistency pass. Headings, buttons, tabs and labels are sentence case
+  (product nouns keep their capitals). Errors read "Could not <verb> <noun>."
+  and empty lists read "No <things> yet." or "No <things> match these
+  filters." Held markers are "Needs review" everywhere and the duplicate
+  "Pending review" filter is gone. Marker decisions are "Confirm" and "Not ad"
+  in rows, cards, cue matches and the editor footer. Re-running detection is
+  "Re-detect ads" and the full pipeline is "Full reprocess" in every menu. The
+  nav says "Feeds" and "Add feed" to match the page titles. Destructive
+  confirms repeat verb and noun ("Delete pattern", "Delete 3 episodes") under
+  question titles. "and" replaces "&" outside the editor footer, "Close"
+  replaces "Done", and cue candidates are hidden with "Hide".
+- Numbers: confidence and cue scores are whole percents with one label ("99%
+  confidence", "87% match"). Elapsed and summed durations read "2m 5s" or "1h
+  2m", positions stay m:ss, timestamps share one formatter with "-" for missing
+  values, and run logs are labelled UTC.
+- Components: every button composes one base recipe (size, radius, focus ring,
+  disabled state) with a colour variant. Text fields, selects and textareas
+  share one chrome and height, and labels one recipe. Badges share one shape
+  with a tint, episode status renders through StatusBadge, stat grids use
+  StatTile (label above value, equal heights), and every close X is
+  CloseButton. Lucide icons replace hand-drawn SVGs and every control has a
+  focus ring. The design guide lists the recipes and the copy rules.
+- Layout: dialogs pin their header and footer and scroll only the body, so
+  footer actions stay on screen on phones. Stats and Search use the underline
+  tabs, form pages share one width, and nested cards became dividers or a
+  muted fill. On phones the Add feed modes stack below 560 px, the status bar
+  shows the stage only, the Sponsors search field spans the row, and episode
+  lists hide artwork below 640 px.
 
 ### Fixed
-- Docs: whisper.cpp needs `--no-flash-attn` alongside `--dtw` on Apple Silicon (Metal) too, not only on CUDA; added it to the native Apple Silicon example.
+- Docs: whisper.cpp needs `--no-flash-attn` alongside `--dtw` on Apple Silicon
+  (Metal) too, not only on CUDA; the native Apple Silicon example now passes it.
+  (#894, from velaia)
+- Episode page: the duration beside an ad block's time range uses the same
+  monospace face, so the numerals share a baseline.
+- Review action rows on phones: every button is 44 px tall, the play button's
+  target height. Labels no longer wrap and a row that cannot fit five buttons
+  wraps to a second line instead of stretching.
+- Icon buttons in action rows fill their 44 px target on phones, so the play
+  button matches the text buttons beside it.
 
-## [2.100.19] - 2026-10-19
+## [2.100.20] - 2026-10-24
+
+### Fixed
+- CPU image workflow: the image secret scan allows the Anthropic SDK's
+  managed-agents docstrings, which mention a service-account type and
+  tripped Trivy's GCP key rule after the SDK bump, failing the arm64 leg.
+- Icons are centered in the "Edit feed title", "Open in editor", ad editor
+  "Add new ad" and ad editor "Close" buttons on phones, where the 44 px
+  touch floor had left them packed to the left.
+- The ad editor's hand-drawn plus and close icons are now the shared lucide icons.
+- Held-marker and Ad Review action rows give every button the same height and
+  center their labels.
+- A browser contract measures icon centering on the routes the suite reaches
+  without a backend (home, settings, search, patterns), so regressions in shared
+  chrome and recipes fail CI. Data-driven pages are checked with the mocked harness.
+
+### Changed
+- The reject button on a sponsor marker reads "Not ad" instead of "Not an ad",
+  so it stays on one line beside "Confirm ad" on phones.
+- Settings > System Status no longer carries the sentence pointing at the
+  Stats page; the Stats page is in the main navigation.
+
+## [2.100.19] - 2026-10-23
 
 ### Added
 - Docs: nine short videos under docs/videos, each in a portrait and a
@@ -33,6 +94,111 @@ release notes.
   embeds the tour and the pipeline animation, and the doc for each
   feature embeds its landscape cut, uploaded as a GitHub attachment so
   it plays inline.
+- Cue templates can cut every match on their own, with no ad next to it
+  (#874). Three layers, explicit beating inherited: a global "Cut matched
+  cue audio" setting (off), a per-feed override, and a per-template value
+  next to "Remove cue with ad". Each match of an enabled template becomes a
+  marker with the cue type's category (intro, outro, or sponsor for ad-break
+  cues), so the feed's segment category actions decide whether it is
+  removed, beeped, kept or marked. Short stingers are accepted as cuts and
+  the LLM reviewer leaves these markers alone. Cue-only safety still holds
+  an unproven template. A feed whose templates all cut their own matches
+  can run cue-only without start and end templates. Content transition cues
+  are not eligible. Cue telemetry reports the new "cut" outcome.
+
+### Changed
+- LLM prompts use minimal timestamps, `[987.6-1023.4]` instead of
+  `[987.6s - 1023.4s]`, with the unit stated once in the transcript header.
+  That is about 3 fewer tokens per transcript line. Stored default prompts are
+  refreshed to the new form on upgrade when they were never customized.
+  (#886, from mrfootoyou)
+- Segment-ID prompts mark pauses of 1.5 s or longer between transcript
+  lines with a gap cue, so the model can see jingles and silence it
+  otherwise cannot. The System One adapter skips these rows when it reads
+  a prompt back into segments. (#883, #884, from mrfootoyou)
+- Settings > System Status no longer repeats Time Saved, LLM Tokens and
+  Cost. The Stats page already shows them with filters, and the two sets of
+  numbers could disagree. The panel links to the Stats page instead.
+- The reject button on a held or detected marker whose category is not
+  sponsor reads "Keep" instead of "Not an ad" (follow-up to #877).
+- Per-feed detection notes reach the detector, the verification pass and the
+  reviewer as their own prompt block, marked as operator instructions that
+  override the general guidance, instead of riding inside the podcast
+  description. The notes no longer count against the 800-character
+  description budget, so a long show description cannot truncate them.
+
+### Fixed
+- Image build: the 30 upstream security patches for ffmpeg, x264, libass,
+  libsndfile, glibc, cairo, cjson and glib ship in the repo instead of
+  being downloaded from their git forges at build time. One forge now
+  answers automated fetches with a bot challenge page and another changed
+  its patch rendering, so the pinned checksums no longer matched.
+- Detection: when a same-sponsor merge folded a span that sat entirely
+  inside the first one, the merged marker took the inner span's end and
+  shrank. A cross-fetch differential span measured to the end of an inserted
+  spot lost its tail to the LLM's last transcribed word. A few seconds of ad
+  music stayed in the output at an episode start and before the credits. A
+  fold now only extends an end, never pulls it inward.
+- Review: the reviewer could move an ad start inward past an ad-break
+  stinger that sat inside the LLM span, because only edges the cue snap had
+  already moved acted as limits. Removable template cues inside the span
+  now hold the edge too, so the stinger is cut with the ad wherever it falls.
+- MP3 stream copy: a final cut that ends inside the two-frame warm-up
+  before the stream end is extended to the end instead of refusing and
+  falling back to a re-encode. A leading frame the mp3 demuxer skips as
+  junk no longer fails validation when source and copy are short by the
+  same frames. Validation reads from decoder pipes instead of writing two
+  32-bit PCM files, which removes about 3 GB of temporary disk writes per
+  70-minute episode. Ported from batram's plusminuspod fork.
+- Foldable phones: the page shell, fixed bars and floating buttons pad for
+  the left and right safe-area insets, so nothing sits under a side status
+  bar on a folded outer display. Stat and tile grids use two or four
+  columns between 640 and 1023 px so rows divide evenly at a center fold.
+  The Feeds grid goes to two columns from 600 px, so the unfolded portrait
+  width gets two cards per row.
+  When the browser reports a two-segment viewport, dialogs stay inside the
+  right-hand half instead of spanning the hinge.
+- Chapters: ffmpeg writes ID3v2.4 frame sizes as plain big-endian
+  integers. A CHAP frame of 128 bytes or more (a long chapter title) then
+  failed the chapter restore with "Invalid ID3 synchsafe integer", and the
+  episode was retried four times and marked permanently failed. The
+  parser now accepts either encoding by checking which reading lands on
+  the next frame, and the tag it writes back is synchsafe. A chapter tag
+  that still cannot be read is logged and skipped instead of failing the
+  cut. Fix from ChaosHat. (#888)
+- Recut: a cue-only feed with transcription skipped has no saved transcript
+  segments. "Apply confirmed and recut" and "Recut Audio" both refused with
+  "No saved transcript segments". Recut now runs without segments when
+  the episode never had a transcript, and the pending-recut list marks such
+  episodes ready. (#891)
+- Ad review editor: dragging the current-position pin always started
+  playback. It now follows the "Play audio while dragging pin" setting,
+  like the boundary pins. (#875)
+- Feed settings: the cue pair override is labelled "Create ads from cue
+  pairs", the same name the global setting uses, so search finds both. (#879)
+- Pattern details: the Podcast link opened the API episodes path and
+  returned Not Found. It now goes to the feed page. (#876)
+- Transcript viewer: segments are shown as paragraphs, grouped at render
+  time only. A paragraph breaks at a real pause, at the first sentence end
+  past 20 seconds, or at 45 seconds. A Paragraphs / Lines toggle keeps the
+  old one-row-per-segment view and remembers the choice. Stored segments
+  and the published VTT are unchanged.
+- Episode page: cut markers that the audio processor merges into one span
+  (overlapping, or within 5 s of each other) show as one block in Detected
+  Ads, with the whole span's play button and a segments toggle that opens
+  the member cards. A lone marker renders as before.
+- Web UI: Calls by phase on the Stats page is a table. The pattern details
+  dialog uses the shared button recipes, and on phones it lays its footer out as
+  equal-width text buttons. The Feeds header shows the compact action set below
+  768 px, so a wide phone no longer draws the labelled buttons over the
+  title. Copy buttons center their icon when the label is hidden. Play
+  buttons are one square size everywhere, 32 px inside the 44 px target on
+  phones and 28 px on desktop, with the Play glyph optically centered. The
+  Cue Matches section uses the same button. The patterns table scrolls
+  inside a focusable region instead of squeezing its columns until the
+  Confirmed and False Pos. headers collide. Dialog footers, close
+  buttons, secondary destructive actions and icon buttons across the app
+  share one set of button recipes instead of per-page class strings.
 
 ### Security
 - Dependencies: pillow 13.0.0 (CVE-2026-112395, CVE-2026-112397,
@@ -42,6 +208,10 @@ release notes.
   GHSA-698v-4r3x-3vcv, GHSA-587h-7wmj-h5pm). Also moves ctranslate2 to
   4.8.3, openai to 3.35.1, soupsieve to 3.0.3, vitest to 5.0.5, globals to
   17.13.0, swagger-ui-dist to 5.33.3, and react and react-dom to 19.3.1.
+- Dependencies: brotli 1.2.1 (PYSEC-2026-4322, GHSA-9v8h-qqgm-4m35),
+  filelock 4.2.4 (CVE-2026-112940), zod 4.6.7 in the frontend lockfile
+  (GHSA-mrhx-c7xc-m3w5), happy-dom 21.0.4 (GHSA-834v-8h66-3h79, test
+  environment only), fast-uri 3.1.9 and serialize-javascript 7.1.4.
 
 ## [2.100.18] - 2026-10-18
 

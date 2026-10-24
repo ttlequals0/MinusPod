@@ -1,5 +1,5 @@
 /**
- * Tests for the Transcript Normalization settings section: rule list with
+ * Tests for the Transcript normalization settings section: rule list with
  * counts, add/edit/delete wiring, and the failed-load state.
  */
 import { describe, it, expect, vi } from 'vitest';
@@ -53,8 +53,8 @@ describe('TranscriptNormalizationSection', () => {
     mocked.getNormalizations.mockResolvedValue([]);
     renderSection();
     const user = userEvent.setup();
-    await user.click(await screen.findByText('+ Add Normalization'));
-    expect(screen.getByText('Add Normalization')).toBeTruthy();
+    await user.click(await screen.findByText('Add normalization'));
+    expect(within(screen.getByRole('dialog')).getByText(/add normalization/i)).toBeTruthy();
   });
 
   it('confirms before deleting a rule', async () => {
@@ -76,7 +76,7 @@ describe('TranscriptNormalizationSection', () => {
     mocked.getNormalizations.mockRejectedValue(new Error('boom'));
     renderSection();
     await waitFor(() => {
-      expect(screen.getByText('Failed to load normalizations')).toBeTruthy();
+      expect(screen.getByText('Could not load normalizations.')).toBeTruthy();
     });
   });
 });

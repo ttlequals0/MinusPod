@@ -1,4 +1,3 @@
-import { pageHeader, pageTitle } from '../../components/pageStyles';
 import { Fragment, useState, type ReactNode } from 'react';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router';
@@ -11,7 +10,6 @@ import { sortFeeds } from '../../utils/feedSort';
 import { formatDateTime } from '../../utils/format';
 import { clientName } from '../../utils/userAgent';
 import { SEARCH_DEBOUNCE_MS, useDebouncedValue } from '../../hooks/useDebouncedValue';
-import { badgeBase, tint } from '../../components/badgeStyles';
 import DateField from '../../components/DateField';
 import { SkeletonRows } from '../../components/Skeleton';
 import { Pagination } from '../../components/Pagination';
@@ -19,7 +17,9 @@ import { SortHeader, useSortState } from '../../components/SortHeader';
 import DownloadRowActions from './DownloadRowActions';
 import SortControls from '../../components/SortControls';
 import QueryError from '../../components/QueryError';
-import { selectBase, inputBase, focusRing, filterGrid, filterLabel, filterControl } from '../../components/fieldStyles';
+import { focusRing, inputBase, selectBase, filterGrid, filterLabel, filterControl } from '../../components/fieldStyles';
+import { badgeBase, tint } from '../../components/badgeStyles';
+import { pageHeader, pageTitle } from '../../components/pageStyles';
 
 const LIMIT = 20;
 
@@ -146,7 +146,7 @@ function DownloadsTab({ tabs }: Props) {
             onChange={(e) => setFilter(setPodcast, e.target.value)}
             className={`${filterControl} ${selectBase}`}
           >
-            <option value="">All Podcasts</option>
+            <option value="">All podcasts</option>
             {sortFeeds(feeds ?? [], 'title').map((feed) => (
               <option key={feed.slug} value={feed.slug}>{feedDisplayTitle(feed)}</option>
             ))}
@@ -204,7 +204,7 @@ function DownloadsTab({ tabs }: Props) {
       ]} />
       {isLoading && <SkeletonRows count={8} />}
       {error && (
-        <QueryError title={data ? 'Download history could not be refreshed. Showing the last loaded rows.' : 'Failed to load download history'} onRetry={() => void refetch()} retrying={isFetching} />
+        <QueryError title={data ? 'Download history could not be refreshed. Showing the last loaded rows.' : 'Could not load download history.'} onRetry={() => void refetch()} retrying={isFetching} />
       )}
 
       {!isLoading && data && (
@@ -213,14 +213,14 @@ function DownloadsTab({ tabs }: Props) {
           <div className="md:hidden space-y-3 mb-4">
             {rows.length === 0 ? (
               <div className="bg-card rounded-lg border border-border p-8 text-center text-muted-foreground">
-                No downloads recorded
+                No downloads yet.
               </div>
             ) : rows.map((row) => (
               <div key={row.id} className="bg-card rounded-lg border border-border p-4">
                 <div className="flex items-start justify-between gap-3 mb-1">
                   <EpisodeLink row={row} className="font-medium min-w-0" />
                   <div className="shrink-0">
-                    <DownloadRowActions row={row} blocked={blocked} triggerClassName="px-3 py-2" />
+                    <DownloadRowActions row={row} blocked={blocked}  />
                   </div>
                 </div>
                 <p className="text-xs text-muted-foreground truncate mb-3">{row.podcastTitle}</p>
@@ -265,7 +265,7 @@ function DownloadsTab({ tabs }: Props) {
                   {rows.length === 0 ? (
                     <tr>
                       <td colSpan={9} className="px-3 py-8 text-center text-muted-foreground">
-                        No downloads recorded
+                        No downloads yet.
                       </td>
                     </tr>
                   ) : rows.map((row) => (

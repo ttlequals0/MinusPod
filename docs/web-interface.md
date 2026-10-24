@@ -85,7 +85,7 @@ The server includes a web-based management UI at `/ui/`. Opening the server root
 - Outbound Requests (Settings > Data & Security): the User-Agent MinusPod sends when it fetches feeds, audio, and artwork, editable per string with a Reset back to the default, plus a toggle for whether download logs include URL query strings
 - OPML export with original or ad-free (modified) feed URLs
 - Optional cover-art badge that marks the filtered feed (Settings > Cover Art), with a Refresh all artwork button
-- Global Defaults group in settings: Auto-Process, Max Feed Episodes, Only Expose Processed, verification, and cross-fetch differential. New feeds use these defaults; each feed can inherit or set an explicit override
+- Global Defaults group in settings: Auto-Process, the auto-process window, Max Feed Episodes, Only Expose Processed, verification, and cross-fetch differential. New feeds use these defaults; each feed can inherit or set an explicit override
 - Chapter mode default in Settings > Transcripts & Chapters, with the same per-feed inheritance and override
 - Queue priority boosts in Queue > Queue Control
 - Notifications for processed episodes, permanent failures, auth failures, exhausted spend limits, and structural rate-limit hits, delivered by webhooks or native email (Settings > Notifications)
@@ -114,6 +114,10 @@ The web UI is a Progressive Web App. Installed, it opens full screen from its ow
 | Windows | Chrome and Edge show the same install icon in the address bar, or use the browser menu and choose Install MinusPod. |
 
 The installed app updates the same way as the browser tab: when a new version is ready, the Reload banner appears and applies it. To remove it, delete the icon as you would any app.
+
+### Foldable phones
+
+The layout pads the page and its fixed bars by the left and right safe-area insets, so content stays clear of the side bar on a folded outer display. Summary grids keep even column counts at tablet-like widths so cards divide cleanly at a center fold. When the browser reports a two-segment viewport, as on a partly folded device, dialogs stay inside one half instead of crossing the hinge.
 
 ### Dashboard views
 
@@ -149,7 +153,7 @@ Process, Reprocess, Re-detect Ads, and Recut all read their enabled state from t
 - While a run owns the episode, the controls are disabled rather than merely slow. Submitting the same episode twice is not possible from the UI, and the API answers a duplicate submission with the same job state rather than a bare error, so the page reconciles instead of showing a failure.
 - An episode waiting in the run queue shows a purple "queued" badge, not "pending". Pending means the episode is eligible for work; queued means work has actually been scheduled.
 
-Error states are scoped to the action that produced them. A failed correction in the review panel marks only the button that was clicked, so Confirm ad, Confirm trimmed, and Not an ad no longer all read "Error!" when one of them fails. A rejected reprocess shows the server's own message. A failed run shows its reason under the episode title on the history page and in the header on the episode page. In the Processing stats table the word "failed" is a button: expanding it shows the error text inline with a Copy error action, so the reason is readable on a phone or by keyboard rather than only on hover.
+Error states are scoped to the action that produced them. A failed correction in the review panel marks only the button that was clicked, so Confirm ad, Confirm trimmed, and Not ad no longer all read "Error!" when one of them fails. A rejected reprocess shows the server's own message. A failed run shows its reason under the episode title on the history page and in the header on the episode page. In the Processing stats table the word "failed" is a button: expanding it shows the error text inline with a Copy error action, so the reason is readable on a phone or by keyboard rather than only on hover.
 
 ### Feed Display Title
 
@@ -237,13 +241,13 @@ A row carries up to three badges, and each answers a different question.
 | Not cut | What did the audio do? | The span is still in the file |
 | Pending | What did the audio do? | The episode is still processing |
 | Confirmed | What did you decide? | You said this is an ad |
-| Not an ad | What did you decide? | You said it is not |
+| Not ad | What did you decide? | You said it is not |
 | Kept | Why was it left in? | Its category resolves to keep, so it was never a candidate to cut |
 | Adjusted | Did the reviewer move it? | The ad reviewer moved the boundaries; hover the badge for the span it started from |
 
 A detection you have not decided on yet gets no second badge. Undecided is the normal state in this list, so a badge on every row would say nothing.
 
-"Not cut" and "Not an ad" read alike but are not the same. "Not cut" is what happened to the audio; a span can be left in because the validator rejected it, because you dismissed it, or because its category is set to keep. "Not an ad" is your recorded judgment.
+"Not cut" and "Not ad" read alike but are not the same. "Not cut" is what happened to the audio; a span can be left in because the validator rejected it, because you dismissed it, or because its category is set to keep. "Not ad" is your recorded judgment.
 
 A Detection Statistics card above the filters shows totals by status and resolution across all podcasts. On phones the list renders as stacked cards instead of a table, with a sort control in the filter bar.
 
@@ -257,11 +261,11 @@ Each row has up to five actions:
 
 - **Play** - auditions the pre-cut audio for that segment in the browser. Only appears when the original is retained (see Settings > Storage & Retention). Click again to pause.
 - **Confirm ad** - records a confirm correction and marks the episode for a recut.
-- **Not an ad** - records a rejection.
+- **Not ad** - records a rejection.
 - **Category** - sets the segment category, which is what decides whether the span is cut, beeped, or left in. This is the only action on a row left in by its category, and it is how you change that.
 - **Edit** - opens the waveform editor so you can adjust the ad boundaries before deciding.
 
-Confirm ad and Not an ad only appear for a detection still awaiting a decision, and never on one left in by its category. Recording a decision does not re-cut the episode on the spot: it marks the episode, and an Apply recuts button above the list rebuilds every waiting episode once. An episode you edit five times is rebuilt once rather than five times. The same button appears on a feed page, where it covers only that feed's episodes.
+Confirm ad and Not ad only appear for a detection still awaiting a decision, and never on one left in by its category. Recording a decision does not re-cut the episode on the spot: it marks the episode, and an Apply recuts button above the list rebuilds every waiting episode once. An episode you edit five times is rebuilt once rather than five times. The same button appears on a feed page, where it covers only that feed's episodes.
 
 Corrections go through the same per-episode corrections endpoint used on the episode page, so approve and dismiss decisions feed pattern learning the same way.
 

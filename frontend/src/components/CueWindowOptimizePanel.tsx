@@ -10,7 +10,7 @@ import {
   type CueTemplate,
   type CueWindowOptimizeResponse,
 } from '../api/cueTemplates';
-import { focusRing } from './fieldStyles';
+import { formatPercent } from '../utils/format';
 import { badgeBase, tint } from './badgeStyles';
 
 interface CueWindowOptimizePanelProps {
@@ -32,7 +32,7 @@ export default function CueWindowOptimizePanel({ slug, template, onClose }: CueW
       queryKey,
       queryFn: () => optimizeCueWindow(slug, template.id),
       rescanFn: () => optimizeCueWindow(slug, template.id, true),
-      savedErrorFallback: 'Optimize failed.',
+      savedErrorFallback: 'Could not optimize the window.',
       thrownError: 'message',
     });
 
@@ -66,7 +66,7 @@ export default function CueWindowOptimizePanel({ slug, template, onClose }: CueW
       queryClient.invalidateQueries({ queryKey: ['cue-templates', slug] });
       onClose();
     },
-    onError: (e) => setApplyError(getErrorMessage(e, 'Apply failed')),
+    onError: (e) => setApplyError(getErrorMessage(e, 'Could not apply the window.')),
   });
 
   const rescan = () => {
@@ -78,16 +78,16 @@ export default function CueWindowOptimizePanel({ slug, template, onClose }: CueW
     <div className="mt-2 rounded border border-border bg-secondary/30 px-3 py-2 text-xs">
       {scanning && (
         <p className="text-muted-foreground flex items-center gap-2">
-          <LoadingSpinner size="sm" inline /> Testing window trims across episodes, this can take a minute...
+          <LoadingSpinner size="sm" inline /> Testing window trims across episodes. This can take a minute...
         </p>
       )}
       {!scanning && scanError && (
         <div className="flex flex-wrap items-center gap-3">
           <p className="text-destructive">{scanError}</p>
-          <button type="button" className={`px-2 py-1 rounded ${ghostBtn} ${focusRing}`} onClick={rescan}>
+          <button type="button" className={ghostBtn} onClick={rescan}>
             Rescan
           </button>
-          <button type="button" className={`px-2 py-1 rounded ${ghostBtn} ${focusRing}`} onClick={onClose}>
+          <button type="button" className={ghostBtn} onClick={onClose}>
             Close
           </button>
         </div>
@@ -96,7 +96,7 @@ export default function CueWindowOptimizePanel({ slug, template, onClose }: CueW
         <div className="space-y-2">
           {alreadyOptimal ? (
             <p>
-              <span className={`${badgeBase} font-medium ${tint.success}`}>
+              <span className={`${badgeBase} ${tint.success}`}>
                 Already optimal
               </span>
               <span className="ml-2 text-muted-foreground">
@@ -119,16 +119,16 @@ export default function CueWindowOptimizePanel({ slug, template, onClose }: CueW
                 ? 'The current window is outside the capture bounds, so it was not scored'
                 : undefined}
               >
-                {baselineMeanPeakScore != null ? baselineMeanPeakScore.toFixed(3) : '--'}
+                {baselineMeanPeakScore != null ? formatPercent(baselineMeanPeakScore) : '--'}
               </span>
               <span>
-                {meanPeakScore.toFixed(3)}
+                {formatPercent(meanPeakScore)}
                 {scoreDelta != null && (
                   <span className={`ml-1 ${scoreDelta >= 0
                     ? 'text-success'
                     : 'text-warning'}`}
                   >
-                    {scoreDelta >= 0 ? '+' : ''}{scoreDelta.toFixed(3)}
+                    {scoreDelta >= 0 ? '+' : ''}{(scoreDelta * 100).toFixed(1)}%
                   </span>
                 )}
               </span>
@@ -139,22 +139,22 @@ export default function CueWindowOptimizePanel({ slug, template, onClose }: CueW
               Per episode:{' '}
               {perEpisode!.map((e) => (
                 <span key={e.episodeId} className="mr-2 font-mono">
-                  {e.episodeId.slice(0, 8)} {e.peakScore.toFixed(3)}
+                  {e.episodeId.slice(0, 8)} {formatPercent(e.peakScore)}
                 </span>
               ))}
             </p>
           )}
           <div className="flex flex-wrap items-center gap-2">
-            <button type="button" className={`px-2 py-1 rounded ${ghostBtn} ${focusRing}`} onClick={rescan}>
+            <button type="button" className={ghostBtn} onClick={rescan}>
               Rescan
             </button>
-            <button type="button" className={`px-2 py-1 rounded ${ghostBtn} ${focusRing}`} onClick={onClose}>
+            <button type="button" className={ghostBtn} onClick={onClose}>
               Discard
             </button>
             {!alreadyOptimal && (
               <button
                 type="button"
-                className={`px-2 py-1 rounded ${primaryBtn} disabled:opacity-50 ${focusRing}`}
+                className={`${primaryBtn}`}
                 onClick={() => {
                   setApplyError(null);
                   applyMutation.mutate({ startS: proposedStartS, endS: proposedEndS });

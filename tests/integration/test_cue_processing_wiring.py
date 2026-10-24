@@ -152,3 +152,48 @@ def test_pair_fraction_uses_audio_duration_with_transcript_fallback(monkeypatch,
     assert len(pairs) == pair_count
     if pairs:
         assert (pairs[0]['start'], pairs[0]['end']) == (99.95, 170.05)
+
+
+def _cut_cue(start, end, cut, cue_type='show_intro'):
+    return AudioSegmentSignal(
+        start=start, end=end, signal_type='audio_cue', confidence=0.95,
+        details={'source': 'template', 'label': 'jingle', 'template_id': 5,
+                 'cue_type': cue_type, 'role': 'non_ad', 'cut_matches': cut},
+    )
+
+
+@pytest.mark.parametrize(('cut', 'feed_default', 'expected'),
+                         [(True, False, 1), (None, True, 1), (False, True, 0), (None, False, 0)])
+def test_first_pass_cue_cut_markers(monkeypatch, cut, feed_default, expected):
+    from main_app import processing
+
+    ad_result = {'status': 'success', 'ads': []}
+    monkeypatch.setattr(processing.ad_detector, 'process_transcript', lambda *a, **k: ad_result)
+    monkeypatch.setattr(processing.storage, 'save_ads_json', lambda *a, **k: None)
+    monkeypatch.setattr(processing.status_service, 'update_job_stage', lambda *a, **k: None)
+    stub_clear_fallback(monkeypatch)
+    db = _StubDB(create_from_pairs=False)
+    monkeypatch.setattr(processing, 'db', db)
+    real = detect.resolve_feed_cue_settings
+    monkeypatch.setattr(detect, 'resolve_feed_cue_settings',
+                        lambda d, pid: {**real(d, pid), 'cut_matches': feed_default})
+
+    analysis = AudioAnalysisResult()
+    analysis.signals = [_cut_cue(2.0, 6.0, cut)]
+    ctx = types.SimpleNamespace(slug='wire-feed', episode_id='abcdef012345', podcast_id=1)
+    ads, _, _ = detect._detect_ads_first_pass(
+        ctx, segments=[], audio_path='x.mp3', skip_patterns=False,
+        audio_analysis_result=analysis, progress_callback=None,
+    )
+    matches = [a for a in ads if a.get('detection_stage') == 'cue_match']
+    assert len(matches) == expected
+    if expected:
+        assert (matches[0]['start'], matches[0]['end'], matches[0]['category']) == (2.0, 6.0, 'intro')
+        assert [r['outcome'] for r in db.recorded[0][2]] == ['cut']
+
+
+def test_exclude_opening_ads_keeps_non_sponsor_cue_match_only():
+    intro = {'start': 2.0, 'end': 6.0, 'detection_stage': 'cue_match', 'category': 'intro'}
+    sponsor = {'start': 3.0, 'end': 5.0, 'detection_stage': 'cue_match', 'category': 'sponsor'}
+    llm = {'start': 3.0, 'end': 40.0, 'detection_stage': 'claude'}
+    assert detect._exclude_opening_ads([intro, sponsor, llm], 10.0) == [intro]

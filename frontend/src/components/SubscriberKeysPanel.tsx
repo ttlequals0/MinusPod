@@ -6,8 +6,8 @@ import { useSubscriberKeyActions } from '../hooks/useSubscriberKeyActions';
 import { createSubscriberKey, getSubscriberKeys } from '../api/feeds';
 import { getErrorMessage } from '../api/client';
 import { formatDate, keyLabel } from '../utils/format';
-import { btnPrimary, btnOutline, btnDestructive } from './buttonStyles';
-import { focusRing } from './fieldStyles';
+import { btnBase, btnPrimary, btnOutline, btnDestructive } from './buttonStyles';
+import { inputBase } from './fieldStyles';
 
 interface SubscriberKeysPanelProps {
   slug: string;
@@ -47,13 +47,13 @@ function SubscriberKeysPanel({ slug }: SubscriberKeysPanelProps) {
           maxLength={100}
           onChange={(event) => setLabel(event.target.value)}
           placeholder="Living room"
-          className={`min-w-0 flex-1 px-3 py-2 rounded-lg border border-input bg-background text-foreground ${focusRing}`}
+          className={`min-w-0 flex-1 ${inputBase}`}
         />
         <button
           type="button"
           onClick={() => createMutation.mutate()}
           disabled={createMutation.isPending}
-          className={`px-4 py-2 rounded-lg ${btnPrimary} disabled:opacity-50 ${focusRing}`}
+          className={`${btnBase} ${btnPrimary}`}
         >
           Create
         </button>
@@ -83,9 +83,9 @@ function SubscriberKeysPanel({ slug }: SubscriberKeysPanelProps) {
               </p>
             </div>
             {key.revoked_at ? (
-              <button type="button" onClick={() => setKeyToDelete(key.id)} disabled={deleteMutation.isPending} className={`px-3 py-1 text-sm rounded ${btnOutline} disabled:opacity-50 ${focusRing}`}>Delete</button>
+              <button type="button" onClick={() => setKeyToDelete(key.id)} disabled={deleteMutation.isPending} className={`${btnBase} ${btnOutline}`}>Delete</button>
             ) : (
-              <button type="button" onClick={() => revokeMutation.mutate({ slug, id: key.id })} disabled={revokeMutation.isPending} className={`px-3 py-1 text-sm rounded ${btnDestructive} disabled:opacity-50 ${focusRing}`}>Revoke</button>
+              <button type="button" onClick={() => revokeMutation.mutate({ slug, id: key.id })} disabled={revokeMutation.isPending} className={`${btnBase} ${btnDestructive}`}>Revoke</button>
             )}
           </div>
         ))}

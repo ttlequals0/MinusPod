@@ -1,9 +1,9 @@
 /**
- * Component tests for the "Held for Review" section in EpisodeDetail.tsx (Phase C T6).
+ * Component tests for the "Held for review" section in EpisodeDetail.tsx (Phase C T6).
  *
  * Covers:
  *   - Held section renders N rows from pendingReviewMarkers; absent when empty.
- *   - Approve & Recut: confirm correction submitted then recut triggered (assert order).
+ *   - Approve and recut: confirm correction submitted then recut triggered (assert order).
  *   - hasOriginalAudio=false: recut NOT called, confirm still submitted, note shown.
  *   - Dismiss: reject correction submitted, no recut.
  *   - EpisodeList chip renders when pendingReviewCount>0, absent at 0/undefined.
@@ -14,7 +14,7 @@ import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import EpisodeDetail, { KeyedEpisodeDetail } from './EpisodeDetail';
 import EpisodeList from '../components/EpisodeList';
-import type { Episode, EpisodeDetail as EpisodeDetailType, Settings } from '../api/types';
+import type { AdSegment, Episode, EpisodeDetail as EpisodeDetailType, Settings } from '../api/types';
 import { formatTimestamp } from '../utils/format';
 import { getSettings } from '../api/settings';
 
@@ -180,7 +180,7 @@ describe('Description and chapter notes', () => {
   });
 });
 
-describe('Held for Review section: rendering', () => {
+describe('Held for review section: rendering', () => {
   beforeEach(() => {
     mockSubmitCorrection.mockReset();
     mockReprocessEpisode.mockReset();
@@ -263,7 +263,7 @@ describe('Held for Review section: rendering', () => {
   });
 });
 
-describe('Held for Review: Approve & Recut (hasOriginalAudio=true)', () => {
+describe('Held for review: Approve and recut (hasOriginalAudio=true)', () => {
   beforeEach(() => {
     mockSubmitCorrection.mockReset();
     mockReprocessEpisode.mockReset();
@@ -328,7 +328,7 @@ describe('Held for Review: Approve & Recut (hasOriginalAudio=true)', () => {
   });
 });
 
-describe('Held for Review: Approve without original audio (hasOriginalAudio=false)', () => {
+describe('Held for review: Approve without original audio (hasOriginalAudio=false)', () => {
   beforeEach(() => {
     mockSubmitCorrection.mockReset();
     mockReprocessEpisode.mockReset();
@@ -368,7 +368,7 @@ describe('Held for Review: Approve without original audio (hasOriginalAudio=fals
   });
 });
 
-describe('Held for Review: Dismiss', () => {
+describe('Held for review: Dismiss', () => {
   beforeEach(() => {
     mockSubmitCorrection.mockReset();
     mockReprocessEpisode.mockReset();
@@ -394,7 +394,7 @@ describe('Held for Review: Dismiss', () => {
   });
 });
 
-describe('Held for Review: re-detect offer once every held marker is rejected', () => {
+describe('Held for review: re-detect offer once every held marker is rejected', () => {
   beforeEach(() => {
     mockSubmitCorrection.mockReset();
     mockReprocessEpisode.mockReset();
@@ -404,7 +404,7 @@ describe('Held for Review: re-detect offer once every held marker is rejected', 
     mockRegenerateChapters.mockResolvedValue({});
   });
 
-  it('offers Re-detect Ads after the last held marker is marked not an ad, and runs the llm mode', async () => {
+  it('offers Re-detect ads after the last held marker is marked not an ad, and runs the llm mode', async () => {
     const user = userEvent.setup();
     const ep = makeEpisode({ transcriptAvailable: true });
     renderDetail(ep);
@@ -432,7 +432,7 @@ describe('Held for Review: re-detect offer once every held marker is rejected', 
     await screen.findByTestId('redetect-after-review');
 
     await user.click(screen.getByRole('button', { name: 'Reprocess' }));
-    await user.click(screen.getByText('Full Analysis'));
+    await user.click(screen.getByText('Full reprocess'));
 
     await waitFor(() => expect(screen.queryByTestId('held-review-cleared')).toBeNull());
   });
@@ -475,7 +475,7 @@ describe('Held for Review: re-detect offer once every held marker is rejected', 
     routeParams.episodeId = 'ep-1';
   });
 
-  it('offers Regenerate Chapters alongside it and fires the regeneration', async () => {
+  it('offers Regenerate chapters alongside it and fires the regeneration', async () => {
     const user = userEvent.setup();
     renderDetail(makeEpisode({ transcriptAvailable: true, transcriptVttAvailable: true }));
     await screen.findByTestId('dismiss-0');
@@ -511,7 +511,7 @@ describe('Held for Review: re-detect offer once every held marker is rejected', 
     expect(mockRegenerateChapters).not.toHaveBeenCalled();
   });
 
-  it('omits Regenerate Chapters without a VTT transcript', async () => {
+  it('omits Regenerate chapters without a VTT transcript', async () => {
     const user = userEvent.setup();
     renderDetail(makeEpisode({ transcriptAvailable: true, transcriptVttAvailable: false }));
     await screen.findByTestId('dismiss-0');
@@ -525,7 +525,7 @@ describe('Held for Review: re-detect offer once every held marker is rejected', 
     expect(screen.queryByTestId('regenerate-chapters-after-review')).toBeNull();
   });
 
-  it('disables Regenerate Chapters while a regeneration is in flight', async () => {
+  it('disables Regenerate chapters while a regeneration is in flight', async () => {
     const user = userEvent.setup();
     renderDetail(makeEpisode({ transcriptAvailable: true, transcriptVttAvailable: true }));
     await screen.findByTestId('dismiss-0');
@@ -554,7 +554,7 @@ describe('Held for Review: re-detect offer once every held marker is rejected', 
   });
 });
 
-describe('Held for Review: failed Approve & Recut does not arm pendingRecutRef', () => {
+describe('Held for review: failed Approve and recut does not arm pendingRecutRef', () => {
   beforeEach(() => {
     mockSubmitCorrection.mockReset();
     mockReprocessEpisode.mockReset();
@@ -568,7 +568,7 @@ describe('Held for Review: failed Approve & Recut does not arm pendingRecutRef',
       expect(screen.getByTestId('approve-recut-0')).toBeDefined();
     });
 
-    // First click: Approve & Recut - correction call fails.
+    // First click: Approve and recut - correction call fails.
     mockSubmitCorrection.mockRejectedValueOnce(new Error('network error'));
     await user.click(screen.getByTestId('approve-recut-0'));
 
@@ -590,7 +590,7 @@ describe('Held for Review: failed Approve & Recut does not arm pendingRecutRef',
   });
 });
 
-describe('Held for Review: stale reviewer trim', () => {
+describe('Held for review: stale reviewer trim', () => {
   it('hides confirm-trimmed when the proposal does not overlap the held span', async () => {
     const staleMarker = {
       ...heldMarker,
@@ -609,8 +609,8 @@ describe('Held for Review: stale reviewer trim', () => {
   });
 });
 
-describe('Held for Review: confirm label names the category', () => {
-  it('labels an interaction marker "Confirm interaction", not "Confirm ad"', async () => {
+describe('Held for review: confirm label names the category', () => {
+  it('labels an interaction marker "Confirm interaction", not "Confirm"', async () => {
     renderDetail(makeEpisode({
       hasOriginalAudio: true,
       pendingReviewMarkers: [{ ...heldMarker, category: 'interaction' }, secondHeldMarker],
@@ -620,11 +620,11 @@ describe('Held for Review: confirm label names the category', () => {
       expect(screen.getByTestId('approve-recut-0')).toBeDefined();
     });
     expect(screen.getByTestId('approve-recut-0').textContent).toBe('Confirm interaction');
-    expect(screen.getByTestId('approve-recut-1').textContent).toBe('Confirm ad');
+    expect(screen.getByTestId('approve-recut-1').textContent).toBe('Confirm');
   });
 });
 
-describe('Held for Review: per-action error isolation', () => {
+describe('Held for review: per-action error isolation', () => {
   beforeEach(() => {
     mockSubmitCorrection.mockReset();
     mockReprocessEpisode.mockReset();
@@ -652,8 +652,8 @@ describe('Held for Review: per-action error isolation', () => {
     await waitFor(() => {
       expect(screen.getByTestId('approve-trimmed-0').textContent).toBe('Error!');
     });
-    expect(screen.getByTestId('approve-recut-0').textContent).toBe('Confirm ad');
-    expect(screen.getByTestId('dismiss-0').textContent).toBe('Not an ad');
+    expect(screen.getByTestId('approve-recut-0').textContent).toBe('Confirm');
+    expect(screen.getByTestId('dismiss-0').textContent).toBe('Not ad');
   });
 
   it('a success on one action does not error the others', async () => {
@@ -678,8 +678,8 @@ describe('Held for Review: per-action error isolation', () => {
     await waitFor(() => {
       expect(screen.getByTestId('approve-trimmed-0').textContent).toBe('Saved!');
     });
-    expect(screen.getByTestId('approve-recut-0').textContent).toBe('Confirm ad');
-    expect(screen.getByTestId('dismiss-0').textContent).toBe('Not an ad');
+    expect(screen.getByTestId('approve-recut-0').textContent).toBe('Confirm');
+    expect(screen.getByTestId('dismiss-0').textContent).toBe('Not ad');
   });
 });
 
@@ -818,7 +818,7 @@ describe('Differential status and corroboration badges', () => {
       pendingReviewMarkers: [],
       adMarkers: [{ start: 10, end: 40, confidence: 0.9, detection_stage: 'claude' }],
     }));
-    await waitFor(() => expect(screen.getByText('Detected Ads (1)')).toBeDefined());
+    await waitFor(() => expect(screen.getByText('Detected ads (1)')).toBeDefined());
     expect(screen.queryByText(/^Corroborated:/)).toBeNull();
   });
 
@@ -1023,7 +1023,7 @@ describe('New hold reasons: tooltip titles', () => {
   });
 });
 
-describe('Held for Review section: playback', () => {
+describe('Held for review section: playback', () => {
   it('renders a play button per held row when original audio is retained', async () => {
     const ep = makeEpisode({
       pendingReviewMarkers: [heldMarker, { ...heldMarker, start: 400, end: 500 }],
@@ -1119,7 +1119,7 @@ const confirmedHeldCorrection = {
   created_at: '2026-01-02T00:00:00Z',
 };
 
-describe('Held for Review: batch approve (multiple held ads)', () => {
+describe('Held for review: batch approve (multiple held ads)', () => {
   beforeEach(() => {
     mockSubmitCorrection.mockReset();
     mockReprocessEpisode.mockReset();
@@ -1140,13 +1140,13 @@ describe('Held for Review: batch approve (multiple held ads)', () => {
     expect(mockReprocessEpisode).not.toHaveBeenCalled();
   });
 
-  it('multi-held approve button is labeled Approve, not Approve & Recut', async () => {
+  it('multi-held approve button is labeled Approve, not Approve and recut', async () => {
     renderDetail(makeEpisode({
       hasOriginalAudio: true,
       pendingReviewMarkers: [heldMarker, secondHeldMarker],
     }));
     await screen.findByTestId('held-for-review-section');
-    expect(screen.getByTestId('approve-recut-0').textContent).toBe('Confirm ad');
+    expect(screen.getByTestId('approve-recut-0').textContent).toBe('Confirm');
   });
 
   it('apply bar shows the approved count and fires exactly one recut', async () => {
@@ -1159,7 +1159,7 @@ describe('Held for Review: batch approve (multiple held ads)', () => {
     await screen.findByTestId('held-for-review-section');
 
     const applyBtn = await screen.findByTestId('apply-approved-recut');
-    expect(applyBtn.textContent).toBe('Apply 1 confirmed & recut');
+    expect(applyBtn.textContent).toBe('Apply 1 confirmed and recut');
 
     await user.click(applyBtn);
     await waitFor(() =>
@@ -1189,7 +1189,7 @@ describe('Held for Review: batch approve (multiple held ads)', () => {
     // The approved card has no buttons; the remaining card offers the
     // one-tap finish since its approval completes the set.
     const btn = screen.getByTestId('approve-recut-1');
-    expect(btn.textContent).toBe('Confirm & Recut');
+    expect(btn.textContent).toBe('Confirm and recut');
     await user.click(btn);
     await waitFor(() =>
       expect(mockReprocessEpisode).toHaveBeenCalledWith('test-feed', 'ep-1', 'recut'));
@@ -1210,7 +1210,7 @@ describe('Held for Review: batch approve (multiple held ads)', () => {
 });
 
 
-describe('Held for Review: apply bar guards', () => {
+describe('Held for review: apply bar guards', () => {
   beforeEach(() => {
     mockSubmitCorrection.mockReset();
     mockReprocessEpisode.mockReset();
@@ -1270,7 +1270,7 @@ describe('Held for Review: apply bar guards', () => {
     }));
     await screen.findByTestId('held-for-review-section');
     const applyBtn = await screen.findByTestId('apply-approved-recut');
-    expect(applyBtn.textContent).toBe('Apply 1 confirmed & recut');
+    expect(applyBtn.textContent).toBe('Apply 1 confirmed and recut');
   });
 });
 
@@ -1330,7 +1330,7 @@ describe('Authoritative jobState eligibility', () => {
     setupEpisodeMock(makeEpisode({ pendingReviewMarkers: [], jobState: 'queued' }));
 
     await user.click(screen.getByRole('button', { name: 'Reprocess' }));
-    await user.click(screen.getByText('Full Analysis'));
+    await user.click(screen.getByText('Full reprocess'));
 
     await waitFor(() => expect(mockReprocessEpisode).toHaveBeenCalledWith('test-feed', 'ep-1', 'full'));
     await waitFor(() => {
@@ -1350,10 +1350,10 @@ describe('Authoritative jobState eligibility', () => {
     }));
 
     await user.click(screen.getByRole('button', { name: 'Process' }));
-    await user.click(screen.getByText('Full Analysis'));
+    await user.click(screen.getByText('Full reprocess'));
 
     await waitFor(() => expect(mockReprocessEpisode).toHaveBeenCalledWith('test-feed', 'ep-1', 'full'));
-    await waitFor(() => expect(screen.getByText('queued')).toBeDefined());
+    await waitFor(() => expect(screen.getByText('Queued')).toBeDefined());
   });
 
   it('invalidates the episodes list query (not just the detail) on reprocess success', async () => {
@@ -1363,7 +1363,7 @@ describe('Authoritative jobState eligibility', () => {
     await waitFor(() => expect(screen.getByText('Test Episode')).toBeDefined());
 
     await user.click(screen.getByRole('button', { name: 'Reprocess' }));
-    await user.click(screen.getByText('Full Analysis'));
+    await user.click(screen.getByText('Full reprocess'));
 
     await waitFor(() => expect(mockReprocessEpisode).toHaveBeenCalled());
     await waitFor(() => {
@@ -1381,7 +1381,7 @@ describe('Detected ads: inline audition', () => {
       adMarkers: [{ start: 10, end: 40, confidence: 0.9, detection_stage: 'claude' }],
       hasOriginalAudio: true,
     }));
-    expect(await screen.findByText('Detected Ads (1)')).not.toBeNull();
+    expect(await screen.findByText('Detected ads (1)')).not.toBeNull();
     expect(screen.getByRole('button', { name: 'Play this ad' })).not.toBeNull();
     // The shared windowed player must mount for detected-only episodes
     // (no held or rejected rows), or the button would silently no-op.
@@ -1394,7 +1394,7 @@ describe('Detected ads: inline audition', () => {
       adMarkers: [{ start: 10, end: 40, confidence: 0.9, detection_stage: 'claude' }],
       hasOriginalAudio: false,
     }));
-    expect(await screen.findByText('Detected Ads (1)')).not.toBeNull();
+    expect(await screen.findByText('Detected ads (1)')).not.toBeNull();
     expect(screen.queryByRole('button', { name: 'Play this ad' })).toBeNull();
   });
 });
@@ -1425,7 +1425,7 @@ describe('Segment category chips (#565)', () => {
       pendingReviewMarkers: [],
       adMarkers: [{ start: 10, end: 40, confidence: 0.9, detection_stage: 'claude', category: 'cross_promo' }],
     }));
-    expect(await screen.findByText('Detected Ads (1)')).not.toBeNull();
+    expect(await screen.findByText('Detected ads (1)')).not.toBeNull();
     expect(screen.getByText('Cross-promo')).not.toBeNull();
   });
 
@@ -1434,7 +1434,7 @@ describe('Segment category chips (#565)', () => {
       pendingReviewMarkers: [],
       adMarkers: [{ start: 10, end: 40, confidence: 0.9, detection_stage: 'claude', category: 'sponsor', actionApplied: 'keep' }],
     }));
-    expect(await screen.findByText('Detected Ads (1)')).not.toBeNull();
+    expect(await screen.findByText('Detected ads (1)')).not.toBeNull();
     expect(screen.getByText('Kept')).not.toBeNull();
   });
 
@@ -1443,7 +1443,7 @@ describe('Segment category chips (#565)', () => {
       pendingReviewMarkers: [],
       adMarkers: [{ start: 10, end: 40, confidence: 0.9, detection_stage: 'claude', category: 'sponsor', actionApplied: 'remove' }],
     }));
-    expect(await screen.findByText('Detected Ads (1)')).not.toBeNull();
+    expect(await screen.findByText('Detected ads (1)')).not.toBeNull();
     expect(screen.queryByText('Kept')).toBeNull();
   });
 
@@ -1452,12 +1452,12 @@ describe('Segment category chips (#565)', () => {
       pendingReviewMarkers: [],
       adMarkers: [{ start: 10, end: 40, confidence: 0.9, detection_stage: 'claude', category: 'sponsor', actionApplied: 'mark' }],
     }));
-    expect(await screen.findByText('Detected Ads (1)')).not.toBeNull();
+    expect(await screen.findByText('Detected ads (1)')).not.toBeNull();
     expect(screen.getByText('Marked')).not.toBeNull();
     expect(screen.queryByText('Kept')).toBeNull();
   });
 
-  it('shows the category label on a Held for Review row', async () => {
+  it('shows the category label on a Held for review row', async () => {
     renderDetail(makeEpisode({
       pendingReviewMarkers: [{ ...heldMarker, category: 'self_promo' }],
     }));
@@ -1465,14 +1465,14 @@ describe('Segment category chips (#565)', () => {
     expect(screen.getByText('Self-promo')).not.toBeNull();
   });
 
-  it('shows the category label and Kept badge on a Detections Not Cut row', async () => {
+  it('shows the category label and Kept badge on a Detections not cut row', async () => {
     renderDetail(makeEpisode({
       pendingReviewMarkers: [],
       rejectedAdMarkers: [{
         start: 5, end: 20, confidence: 0.4, category: 'interaction', actionApplied: 'keep',
       }],
     }));
-    expect(await screen.findByText('Detections Not Cut (1)')).not.toBeNull();
+    expect(await screen.findByText('Detections not cut (1)')).not.toBeNull();
     expect(screen.getByText('Interaction')).not.toBeNull();
     expect(screen.getByText('Kept')).not.toBeNull();
   });
@@ -1487,7 +1487,7 @@ describe('Segment category chips (#565)', () => {
         start: 90, end: 120, confidence: 0.9, category: 'sponsor', carved_from: carvedFrom,
       }],
     }));
-    expect(await screen.findByText('Detections Not Cut (1)')).not.toBeNull();
+    expect(await screen.findByText('Detections not cut (1)')).not.toBeNull();
     expect(screen.getAllByText(hint)).toHaveLength(2);
   });
 
@@ -1496,7 +1496,7 @@ describe('Segment category chips (#565)', () => {
       pendingReviewMarkers: [],
       rejectedAdMarkers: [{ start: 5, end: 20, confidence: 0.4, category: 'sponsor' }],
     }));
-    expect(await screen.findByText('Detections Not Cut (1)')).not.toBeNull();
+    expect(await screen.findByText('Detections not cut (1)')).not.toBeNull();
     expect(screen.queryByText(/^Split from detection /)).toBeNull();
   });
 });
@@ -1589,14 +1589,14 @@ describe('Kept segments section (2.78.3)', () => {
     expect(screen.queryByTestId('kept-segments-section')).toBeNull();
   });
 
-  it('does not also render kept segments under Detections Not Cut', async () => {
+  it('does not also render kept segments under Detections not cut', async () => {
     renderDetail(makeEpisode({
       pendingReviewMarkers: [],
       keptMarkers: [{ start: 1562.5, end: 1600.0, confidence: 0.9, category: 'self_promo', actionApplied: 'keep' }],
       rejectedAdMarkers: [],
     }));
     expect(await screen.findByTestId('kept-segments-section')).not.toBeNull();
-    expect(screen.queryByText(/Detections Not Cut/)).toBeNull();
+    expect(screen.queryByText(/Detections not cut/)).toBeNull();
   });
 });
 
@@ -1668,7 +1668,7 @@ describe('Partial detection (degraded pass-1)', () => {
     expect(screen.queryByText(/AI detection pass failed/)).toBeNull();
   });
 
-  it('the Re-run detection button fires reprocess with mode llm', async () => {
+  it('the Re-detect ads button fires reprocess with mode llm', async () => {
     const user = userEvent.setup();
     renderDetail(makeEpisode({
       pendingReviewMarkers: [],
@@ -1677,7 +1677,7 @@ describe('Partial detection (degraded pass-1)', () => {
     await waitFor(() => {
       expect(screen.getByText('Partial detection')).toBeDefined();
     });
-    await user.click(screen.getByRole('button', { name: 'Re-run detection' }));
+    await user.click(screen.getByRole('button', { name: 'Re-detect ads' }));
     await waitFor(() => {
       expect(mockReprocessEpisode).toHaveBeenCalledWith('test-feed', 'ep-1', 'llm');
     });
@@ -1877,7 +1877,7 @@ describe('Thinking setting fallback', () => {
   });
 });
 
-describe('Regenerate Chapters: progress and result feedback', () => {
+describe('Regenerate chapters: progress and result feedback', () => {
   beforeEach(() => {
     mockRegenerateChapters.mockReset();
   });
@@ -1885,7 +1885,7 @@ describe('Regenerate Chapters: progress and result feedback', () => {
   async function openMenuAndRegenerate(user: ReturnType<typeof userEvent.setup>) {
     await screen.findByText('Test Episode');
     await user.click(screen.getByRole('button', { name: 'Reprocess' }));
-    await user.click(screen.getByText('Regenerate Chapters'));
+    await user.click(screen.getByText('Regenerate chapters'));
   }
 
   it('disables native chapter regeneration and offers the settings route', async () => {
@@ -1897,8 +1897,8 @@ describe('Regenerate Chapters: progress and result feedback', () => {
     await screen.findByText('System One cannot generate chapters. Select a chat provider and model.');
     expect(screen.getByRole('link', { name: 'Open settings' }).getAttribute('href')).toBe('/settings');
     await user.click(screen.getByRole('button', { name: 'Reprocess' }));
-    expect((screen.getByText('Regenerate Chapters').closest('button') as HTMLButtonElement).disabled).toBe(true);
-    await user.click(screen.getByText('Regenerate Chapters'));
+    expect((screen.getByText('Regenerate chapters').closest('button') as HTMLButtonElement).disabled).toBe(true);
+    await user.click(screen.getByText('Regenerate chapters'));
     expect(mockRegenerateChapters).not.toHaveBeenCalled();
   });
 
@@ -1909,7 +1909,7 @@ describe('Regenerate Chapters: progress and result feedback', () => {
     renderDetail(makeEpisode({ transcriptVttAvailable: true }));
     await screen.findByText('Test Episode');
     await user.click(screen.getByRole('button', { name: 'Reprocess' }));
-    const item = screen.getByText('Regenerate Chapters').closest('button') as HTMLButtonElement;
+    const item = screen.getByText('Regenerate chapters').closest('button') as HTMLButtonElement;
     expect(item.disabled).toBe(true);
     expect(item.title).toBe('Loading chapter settings...');
     resolveSettings({ llmProvider: { value: 'anthropic' }, claudeModel: { value: 'claude-sonnet' } } as Settings);
@@ -1922,14 +1922,14 @@ describe('Regenerate Chapters: progress and result feedback', () => {
     renderDetail(makeEpisode({ transcriptVttAvailable: true }));
     await screen.findByRole('alert');
     await user.click(screen.getByRole('button', { name: 'Reprocess' }));
-    const item = screen.getByText('Regenerate Chapters').closest('button') as HTMLButtonElement;
+    const item = screen.getByText('Regenerate chapters').closest('button') as HTMLButtonElement;
     expect(item.disabled).toBe(true);
     expect(item.title).toBe('Load chapter settings before regenerating chapters.');
     vi.mocked(getSettings).mockResolvedValue({ llmProvider: { value: 'anthropic' }, claudeModel: { value: 'claude-sonnet' } } as Settings);
     await user.click(screen.getByRole('button', { name: 'Retry chapter settings' }));
     await waitFor(() => expect(screen.queryByRole('alert')).toBeNull());
     await user.click(screen.getByRole('button', { name: 'Reprocess' }));
-    expect((screen.getByText('Regenerate Chapters').closest('button') as HTMLButtonElement).disabled).toBe(false);
+    expect((screen.getByText('Regenerate chapters').closest('button') as HTMLButtonElement).disabled).toBe(false);
   });
 
   it('shows the progress text once the menu closes while the call is pending', async () => {
@@ -1942,7 +1942,7 @@ describe('Regenerate Chapters: progress and result feedback', () => {
 
     await openMenuAndRegenerate(user);
 
-    // The menu (and its "Regenerate Chapters" item) unmounted; the progress
+    // The menu (and its "Regenerate chapters" item) unmounted; the progress
     // text renders outside it, so this is the only remaining match.
     expect(await screen.findByText('Regenerating chapters...')).not.toBeNull();
 
@@ -1982,14 +1982,14 @@ describe('Regenerate Chapters: progress and result feedback', () => {
 
     // Reopen the menu; a user who reopens it mid-flight should see it's busy.
     await user.click(screen.getByRole('button', { name: 'Reprocess' }));
-    const menuItem = screen.getByText('Regenerate Chapters').closest('button');
+    const menuItem = screen.getByText('Regenerate chapters').closest('button');
     expect(menuItem).toHaveProperty('disabled', true);
 
     resolveRegenerate();
   });
 });
 
-describe('Regenerate Chapters: background run reported by the episode', () => {
+describe('Regenerate chapters: background run reported by the episode', () => {
   beforeEach(() => {
     mockRegenerateChapters.mockReset();
   });
@@ -2002,7 +2002,7 @@ describe('Regenerate Chapters: background run reported by the episode', () => {
 
     expect(await screen.findByText('Regenerating chapters...')).not.toBeNull();
     await user.click(screen.getByRole('button', { name: 'Reprocess' }));
-    const menuItem = screen.getByText('Regenerate Chapters').closest('button');
+    const menuItem = screen.getByText('Regenerate chapters').closest('button');
     expect(menuItem).toHaveProperty('disabled', true);
   });
 
@@ -2012,7 +2012,7 @@ describe('Regenerate Chapters: background run reported by the episode', () => {
       chaptersRegenError: 'Failed to generate chapters',
     }));
 
-    expect(await screen.findByText('Chapter regeneration failed: Failed to generate chapters')).not.toBeNull();
+    expect(await screen.findByText('Could not regenerate chapters: Failed to generate chapters')).not.toBeNull();
   });
 
   it('refetches the episode when the start is refused', async () => {
@@ -2026,7 +2026,7 @@ describe('Regenerate Chapters: background run reported by the episode', () => {
     }));
 
     await user.click(screen.getByRole('button', { name: 'Reprocess' }));
-    await user.click(screen.getByText('Regenerate Chapters'));
+    await user.click(screen.getByText('Regenerate chapters'));
 
     expect(await screen.findByText('Regenerating chapters...')).not.toBeNull();
   });
@@ -2042,7 +2042,7 @@ describe('Regenerate Chapters: background run reported by the episode', () => {
     }));
 
     await user.click(screen.getByRole('button', { name: 'Reprocess' }));
-    await user.click(screen.getByText('Regenerate Chapters'));
+    await user.click(screen.getByText('Regenerate chapters'));
 
     expect(await screen.findByText('Regenerating chapters...')).not.toBeNull();
     expect(screen.queryByText('Chapters regenerated.')).toBeNull();
@@ -2374,7 +2374,7 @@ describe('EpisodeDetail: stable Process vs Reprocess label', () => {
   });
 });
 
-describe('Held for Review: correction that lands while the episode query is in error', () => {
+describe('Held for review: correction that lands while the episode query is in error', () => {
   beforeEach(() => {
     mockSubmitCorrection.mockReset();
     mockReprocessEpisode.mockReset();
@@ -2406,7 +2406,7 @@ describe('Held for Review: correction that lands while the episode query is in e
     // The poll fails while the correction POST is still in flight.
     (getEpisode as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('poll failed'));
     await client.invalidateQueries({ queryKey: ['episode', 'test-feed', 'ep-1'] });
-    await screen.findByText('Failed to load episode');
+    await screen.findByText('Could not load this episode.');
 
     releaseCorrection();
     await waitFor(() => {
@@ -2429,7 +2429,7 @@ describe('Run controls while a job is in flight', () => {
     mockReprocessEpisode.mockResolvedValue({});
   });
 
-  it('disables "Not an ad" once the episode is queued, like its siblings', async () => {
+  it('disables "Not ad" once the episode is queued, like its siblings', async () => {
     renderDetail(makeEpisode({ jobState: 'queued' }));
     await waitFor(() => {
       expect(screen.getByTestId('dismiss-0')).toHaveProperty('disabled', true);
@@ -2529,5 +2529,44 @@ describe('Correction badges', () => {
     }));
     await waitFor(() => expect(screen.getByText('Confirmed')).toBeDefined());
     expect(screen.queryByText('Auto-approved')).toBeNull();
+  });
+});
+
+describe('Detected ads: overlapping markers grouped into one block', () => {
+  const overlapping: AdSegment[] = [
+    { start: 1839.0, end: 2032.0, confidence: 0.9, detection_stage: 'claude', category: 'sponsor' },
+    { start: 1992.8, end: 2160.3, confidence: 0.9, detection_stage: 'claude', category: 'self_promo' },
+    { start: 2097.1, end: 2334.9, confidence: 0.9, detection_stage: 'claude', category: 'sponsor' },
+  ];
+
+  it('shows one collapsed block and reveals the member cards on expand', async () => {
+    const user = userEvent.setup();
+    renderDetail(makeEpisode({
+      pendingReviewMarkers: [],
+      adMarkers: overlapping,
+      hasOriginalAudio: true,
+      transcript: 'hello',
+      status: 'completed',
+    }));
+    expect(await screen.findByText('Detected ads (1 block, 3 segments)')).not.toBeNull();
+    const toggle = screen.getByRole('button', { name: /3 segments/ });
+    expect(toggle.getAttribute('aria-expanded')).toBe('false');
+    expect(screen.getAllByRole('button', { name: 'Play this ad' })).toHaveLength(1);
+    expect(screen.queryByRole('button', { name: 'Jump' })).toBeNull();
+
+    await user.click(toggle);
+    expect(toggle.getAttribute('aria-expanded')).toBe('true');
+    expect(screen.getAllByRole('button', { name: 'Jump' })).toHaveLength(3);
+    expect(screen.getAllByRole('button', { name: 'Play this ad' })).toHaveLength(4);
+  });
+
+  it('keeps the plain count when no markers are grouped', async () => {
+    renderDetail(makeEpisode({
+      pendingReviewMarkers: [],
+      adMarkers: [overlapping[0], { ...overlapping[2], start: 3000, end: 3100 }],
+      hasOriginalAudio: true,
+    }));
+    expect(await screen.findByText('Detected ads (2)')).not.toBeNull();
+    expect(screen.queryByRole('button', { name: /segments/ })).toBeNull();
   });
 });

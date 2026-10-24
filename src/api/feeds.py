@@ -24,6 +24,9 @@ from cancel import request_cancellation, wait_for_cancellation
 from database.queue import compute_queue_priority
 from processing_queue import ProcessingQueue
 from config import (
+    AUTO_PROCESS_MAX_AGE_ERROR,
+    valid_auto_process_max_age,
+    DETECTION_NOTES_MAX_CHARS,
     CHAPTERS_IN_NOTES_VALUES,
     USER_AGENT_MAX_LENGTH, validate_user_agent,
     FEED_REFRESH_FAILURE_ALERT_THRESHOLD,
@@ -42,7 +45,7 @@ from config import (
     CUE_ONLY_SAFETY_VALUES,
     LOW_AD_YIELD_ACTIONS,
     EPISODE_LOGS_VALUES,
-    cue_only_missing_roles,
+    cue_only_missing_roles_for_feed,
 )
 from description_chapters import TO_END, TRIM_MODES
 from differential_fetcher import is_likely_dai_feed
@@ -202,9 +205,6 @@ def _normalize_title_override(value):
     return val, None
 
 
-_DETECTION_NOTES_MAX = 1000
-
-
 def _normalize_notes(value, field):
     """None or blank clears; otherwise trimmed text up to the cap."""
     if value is None:
@@ -214,8 +214,8 @@ def _normalize_notes(value, field):
     text = value.strip()
     if not text:
         return None, None
-    if len(text) > _DETECTION_NOTES_MAX:
-        return None, f"{field} must be {_DETECTION_NOTES_MAX} characters or fewer"
+    if len(text) > DETECTION_NOTES_MAX_CHARS:
+        return None, f"{field} must be {DETECTION_NOTES_MAX_CHARS} characters or fewer"
     return text, None
 
 
@@ -304,7 +304,7 @@ def _normalize_processing_mode(value):
 def _cue_only_templates_ok(db, podcast):
     """Cue-only needs one enabled start-role and one end-role template."""
     rows = db.list_cue_templates_for_feed_ui(podcast['id'])
-    if not cue_only_missing_roles(rows):
+    if not cue_only_missing_roles_for_feed(db, podcast['id'], rows):
         return True, None
     return False, ("cue_only needs at least one enabled 'ad-break start' and one "
                    "'ad-break end' template on this feed; boundary-only cues "
@@ -633,6 +633,8 @@ def _cue_override_fields(podcast) -> dict:
         'cueTemplateScoreOverride': podcast.get('cue_template_score_override'),
         'cueCreateFromPairsOverride': _deserialize_nullable_bool(
             podcast.get('cue_create_from_pairs_override')),
+        'cueCutMatchesOverride': _deserialize_nullable_bool(
+            podcast.get('cue_cut_matches_override')),
     } | {
         json_key: _deserialize_nullable_bool(podcast.get(db_col))
         for json_key, db_col in _NULLABLE_BOOL_FIELDS
@@ -1868,6 +1870,7 @@ def get_feed(slug):
         'websiteUrl': podcast.get('website_url'),
         'networkIdOverride': podcast.get('network_id_override'),
         'autoProcessOverride': auto_process_override_result,
+        'autoProcessMaxAgeHoursOverride': podcast.get('auto_process_max_age_hours_override'),
         'languageOverride': podcast.get('language_override'),
         # Same rule as the differential stage gate, applied to the feed's
         # recent episodes (#519). The pipeline evaluates each new episode's
@@ -1984,6 +1987,13 @@ def update_feed(slug):
     # which guards with `if db_value is not None` since there's nothing to clear yet.
     if 'autoProcessOverride' in data:
         updates['auto_process_override'] = _serialize_auto_process(data['autoProcessOverride'])
+
+    if 'autoProcessMaxAgeHoursOverride' in data:
+        hours = data['autoProcessMaxAgeHoursOverride']
+        if hours is not None and not valid_auto_process_max_age(hours):
+            return error_response(
+                f'autoProcessMaxAgeHoursOverride {AUTO_PROCESS_MAX_AGE_ERROR} or null', 400)
+        updates['auto_process_max_age_hours_override'] = hours
 
     if 'languageOverride' in data:
         lang_val, lang_err = _normalize_language_override(data['languageOverride'])
@@ -2174,6 +2184,13 @@ def update_feed(slug):
         if err:
             return error_response(err, 400)
         updates['cue_create_from_pairs_override'] = v
+
+    if 'cueCutMatchesOverride' in data:
+        v, err = _normalize_cue_bool_override(data['cueCutMatchesOverride'],
+                                               'cueCutMatchesOverride')
+        if err:
+            return error_response(err, 400)
+        updates['cue_cut_matches_override'] = v
 
     if data.get('skipTranscription'):
         # Effective mode after this PATCH: an in-flight processingMode write wins.

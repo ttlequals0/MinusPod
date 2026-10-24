@@ -1,4 +1,5 @@
 import { ReactNode } from 'react';
+import { Check } from 'lucide-react';
 
 interface CheckboxProps {
   checked: boolean;
@@ -40,9 +41,7 @@ function Checkbox({
           : 'border-muted-foreground/40 bg-transparent hover:border-primary/60'
       } peer-focus-visible:ring-2 peer-focus-visible:ring-ring peer-focus-visible:ring-offset-1 peer-focus-visible:ring-offset-card`}>
         {checked && (
-          <svg className="h-3 w-3 text-primary-foreground" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M2.5 6L5 8.5L9.5 3.5" />
-          </svg>
+          <Check className="h-3 w-3 text-primary-foreground" strokeWidth={3} aria-hidden="true" />
         )}
       </span>
       {label && <span className={labelClassName}>{label}</span>}

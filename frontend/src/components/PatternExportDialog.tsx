@@ -7,10 +7,10 @@ import {
 } from '../api/patterns';
 import { PatternExportEditRow } from './PatternExportEditRow';
 import { getErrorMessage } from '../api/client';
-import { Modal } from './Modal';
+import { Modal, dialogFooterBtn } from './Modal';
 import Checkbox from './Checkbox';
 import { focusRing } from './fieldStyles';
-import { btnOutline, btnPrimary } from './buttonStyles';
+import { btnBase, btnOutline, btnPrimary } from './buttonStyles';
 
 // Deterministic 8-char hex from the integer pattern id (Knuth multiplicative
 // hash). Feeds the live filename preview in the edit row so the contributor
@@ -280,14 +280,14 @@ function PatternExportDialogImpl({ patterns, onClose }: Omit<Props, 'open'>) {
                     {destination === 'community' && (
                       <button
                         type="button"
-                        className={`shrink-0 text-xs px-2 py-0.5 rounded ${btnOutline} transition-colors ${focusRing}`}
+                        className={`shrink-0 ${btnBase} ${btnOutline}`}
                         onClick={(e) => {
                           e.preventDefault();
                           e.stopPropagation();
                           setExpandedRowId((prev) => (prev === p.id ? null : p.id));
                         }}
                       >
-                        {expandedRowId === p.id ? 'Done' : 'Edit'}
+                        {expandedRowId === p.id ? 'Close' : 'Edit'}
                       </button>
                     )}
                   </label>
@@ -346,7 +346,7 @@ function PatternExportDialogImpl({ patterns, onClose }: Omit<Props, 'open'>) {
                 type="button"
                 onClick={handleClose}
                 disabled={busy}
-                className={`px-3 py-1.5 text-sm rounded ${btnOutline} transition-colors disabled:opacity-50 ${focusRing}`}
+                className={`${dialogFooterBtn} ${btnOutline}`}
               >
                 Cancel
               </button>
@@ -355,7 +355,7 @@ function PatternExportDialogImpl({ patterns, onClose }: Omit<Props, 'open'>) {
                   type="button"
                   onClick={downloadSelected}
                   disabled={effectiveSelection.size === 0}
-                  className={`px-3 py-1.5 text-sm rounded ${btnPrimary} transition-colors disabled:opacity-50 ${focusRing}`}
+                  className={`${dialogFooterBtn} ${btnPrimary}`}
                 >
                   Export {effectiveSelection.size} pattern{effectiveSelection.size === 1 ? '' : 's'}
                 </button>
@@ -364,7 +364,7 @@ function PatternExportDialogImpl({ patterns, onClose }: Omit<Props, 'open'>) {
                   type="button"
                   onClick={runPreview}
                   disabled={effectiveSelection.size === 0 || busy}
-                  className={`px-3 py-1.5 text-sm rounded ${btnPrimary} transition-colors disabled:opacity-50 ${focusRing}`}
+                  className={`${dialogFooterBtn} ${btnPrimary}`}
                 >
                   {busy ? 'Checking...' : 'Continue'}
                 </button>
@@ -401,7 +401,7 @@ function CommunityPreview({
           </p>
         ) : (
           <details open className="text-sm">
-            <summary className="cursor-pointer font-medium mb-2">
+            <summary className={`cursor-pointer font-medium mb-2 ${focusRing}`}>
               Rejected patterns ({rejected.length})
             </summary>
             <ul className="space-y-2 pl-3">
@@ -425,7 +425,7 @@ function CommunityPreview({
           type="button"
           onClick={onBack}
           disabled={busy}
-          className={`px-3 py-1.5 text-sm rounded ${btnOutline} transition-colors disabled:opacity-50 ${focusRing}`}
+          className={`${dialogFooterBtn} ${btnOutline}`}
         >
           Back
         </button>
@@ -433,7 +433,7 @@ function CommunityPreview({
           type="button"
           onClick={onDownload}
           disabled={ready_count === 0 || busy}
-          className={`px-3 py-1.5 text-sm rounded ${btnPrimary} transition-colors disabled:opacity-50 ${focusRing}`}
+          className={`${dialogFooterBtn} ${btnPrimary}`}
         >
           {busy ? 'Building bundle...' : `Download bundle (${ready_count})`}
         </button>
@@ -468,9 +468,9 @@ function CommunityDone({ filename, onClose }: { filename: string; onClose: () =>
         <button
           type="button"
           onClick={onClose}
-          className={`px-3 py-1.5 text-sm rounded ${btnPrimary} transition-colors ${focusRing}`}
+          className={`${dialogFooterBtn} ${btnPrimary}`}
         >
-          Done
+          Close
         </button>
       </div>
     </>

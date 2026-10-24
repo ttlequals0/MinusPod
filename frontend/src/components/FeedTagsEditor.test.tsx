@@ -45,7 +45,7 @@ describe('FeedTagsEditor loading placeholder', () => {
 
   it('drops the skeletons once the tags land', async () => {
     renderEditor();
-    await screen.findByText('From RSS:');
+    await screen.findByText('From RSS');
     expect(screen.queryByTestId('skeleton-tags')).toBeNull();
   });
 });

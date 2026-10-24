@@ -22,7 +22,7 @@ def _ctx():
     return SimpleNamespace(
         slug='verify-status-feed', episode_id='ep1', podcast_id=1,
         podcast_name='Test Podcast', episode_title='Episode 1',
-        episode_description=None, podcast_description=None,
+        episode_description=None, podcast_description=None, detection_notes=None,
     )
 
 

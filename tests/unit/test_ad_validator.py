@@ -1828,6 +1828,42 @@ class TestCueGatedApproval:
         assert ad['validation']['decision'] == Decision.ACCEPT.value
 
 
+class TestCueMatchMarkers:
+    """cue_match markers (#874): short by nature, cue-backed, rule 6 applies."""
+
+    def _ad(self, start=100.0, end=104.0, **kwargs):
+        base = {'start': start, 'end': end, 'confidence': 0.9,
+                'reason': 'audio_cue_match', 'detection_stage': 'cue_match',
+                'category': 'intro', 'cue_match': {'template_id': 7}}
+        base.update(kwargs)
+        return base
+
+    def test_short_cue_match_has_no_very_short_error(self):
+        ad = AdValidator(episode_duration=3600.0, segments=[]).validate([self._ad()]).ads[0]
+        assert not any('Very short' in f for f in ad['validation']['flags'])
+
+    def test_sliver_cue_match_still_errors(self):
+        ad = AdValidator(episode_duration=3600.0, segments=[]).validate(
+            [self._ad(end=100.1)]).ads[0]
+        assert any('Very short' in f for f in ad['validation']['flags'])
+
+    def test_cue_gate_accepts_cue_match(self):
+        validator = AdValidator(episode_duration=3600.0, segments=[], cue_gate_enabled=True)
+        assert not validator.validate([self._ad()]).ads[0].get('held_for_review')
+
+    def test_hold_new_holds_unproven_cue_match_template(self):
+        validator = AdValidator(episode_duration=3600.0, segments=[],
+                                cue_only_safety='hold_new', cue_unproven_template_ids={7})
+        ad = validator.validate([self._ad()]).ads[0]
+        assert ad.get('held_for_review') is True
+        assert ad.get('hold_reason') == HOLD_REASON_CUE_TEMPLATE_UNPROVEN
+
+    def test_hold_new_passes_proven_cue_match_template(self):
+        validator = AdValidator(episode_duration=3600.0, segments=[],
+                                cue_only_safety='hold_new', cue_unproven_template_ids={8})
+        assert not validator.validate([self._ad()]).ads[0].get('held_for_review')
+
+
 class TestCueOnlySafetyHold:
     """Rule 6: cue-only run safety holds (hold_new / auto_cut)."""
 

@@ -4,9 +4,9 @@ import type { ProviderName, ProviderStatus, ProviderTestResult } from '../../api
 import { getErrorMessage } from '../../api/client';
 import { ConfirmModal } from '../../components/Modal';
 import { useTransientState } from '../../hooks/useTransientState';
-import { focusRing } from '../../components/fieldStyles';
-import { btnOutline, btnPrimary } from '../../components/buttonStyles';
 import { StatusDotBadge, type StatusDotTone } from '../../components/StatusDotBadge';
+import { btnBase, btnPrimary, btnOutline } from '../../components/buttonStyles';
+import { inputBase } from '../../components/fieldStyles';
 
 interface ProviderKeyFieldProps {
   provider: ProviderName;
@@ -60,7 +60,7 @@ function ProviderKeyField({
       // this notice, users misread the blank input as "save erased my key".
       setSavedNotice(true);
     }
-    catch (e) { setError(getErrorMessage(e, 'Save failed')); }
+    catch (e) { setError(getErrorMessage(e, 'Could not save settings.')); }
     finally { setBusy(null); }
   }
 
@@ -68,7 +68,7 @@ function ProviderKeyField({
     setConfirmClear(false);
     setBusy('clear'); setError(null); setTestResult(null);
     try { await onClear(provider); setDraft(''); }
-    catch (e) { setError(getErrorMessage(e, 'Clear failed')); }
+    catch (e) { setError(getErrorMessage(e, 'Could not clear key.')); }
     finally { setBusy(null); }
   }
 
@@ -113,7 +113,7 @@ function ProviderKeyField({
         disabled={busy !== null}
         onChange={(e) => setDraft(e.target.value)}
         placeholder={status.source === 'db' ? '(stored - enter new value to change)' : placeholder}
-        className="w-full px-4 py-2 rounded-lg border border-input bg-background text-foreground placeholder:text-muted-foreground focus:outline-hidden focus:ring-2 focus:ring-ring font-mono text-sm"
+        className={`${inputBase} w-full font-mono`}
       />
       {helper && <p id={`key-${provider}-help`} className="mt-1 text-sm text-muted-foreground">{helper}</p>}
       {showActions && (
@@ -122,7 +122,7 @@ function ProviderKeyField({
             type="button"
             disabled={!draft || busy !== null}
             onClick={handleSave}
-            className={`px-3 py-1.5 rounded-md ${btnPrimary} text-sm font-medium transition-colors disabled:opacity-50 ${focusRing}`}
+            className={`${btnBase} ${btnPrimary}`}
           >
             {busy === 'save' ? 'Saving...' : 'Save'}
           </button>
@@ -131,7 +131,7 @@ function ProviderKeyField({
             disabled={busy !== null || testBlocked}
             onClick={handleTest}
             title={testBlocked ? 'Save the key before testing.' : undefined}
-            className={`px-3 py-1.5 rounded-md ${btnOutline} text-sm font-medium transition-colors disabled:opacity-50 ${focusRing}`}
+            className={`${btnBase} ${btnOutline}`}
           >
             {busy === 'test' ? 'Testing...' : 'Test'}
           </button>
@@ -140,7 +140,7 @@ function ProviderKeyField({
               type="button"
               disabled={busy !== null}
               onClick={() => setConfirmClear(true)}
-              className={`px-3 py-1.5 rounded-md ${btnOutline} text-destructive text-sm font-medium transition-colors disabled:opacity-50 ${focusRing}`}
+              className={`${btnBase} ${btnOutline} text-destructive`}
             >
               Clear
             </button>

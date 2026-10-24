@@ -74,7 +74,7 @@ describe('StageTunablesSection: Do not send temperature toggle', () => {
     const user = userEvent.setup();
 
     await user.click(screen.getByRole('switch', { name: 'Do not send temperature' }));
-    await user.click(screen.getByRole('button', { name: 'Save LLM Tunables' }));
+    await user.click(screen.getByRole('button', { name: 'Save LLM tunables' }));
 
     expect(saved).toEqual({ omitTemperature: true });
   });
@@ -114,13 +114,13 @@ describe('StageTunablesSection: Do not send temperature toggle', () => {
 // assertions to that card (rather than the whole page) is what lets these
 // tests tell one stage's control apart from another's.
 function stageCard(label: string) {
-  return screen.getByRole('heading', { name: label, level: 4 }).closest('.border') as HTMLElement;
+  return screen.getByRole('heading', { name: label, level: 4 }).closest('[class*="bg-muted/40"]') as HTMLElement;
 }
 
 describe('StageTunablesSection: detection window', () => {
   it('accepts a window size of 10800 seconds', () => {
     render(<Harness />);
-    const card = stageCard('Detection Window');
+    const card = stageCard('Detection window');
     const [sizeInput] = Array.from(
       card.querySelectorAll('input[type="number"]'),
     ) as HTMLInputElement[];
@@ -133,7 +133,7 @@ describe('StageTunablesSection: per-stage effective provider', () => {
     const native = { provider: 'typesafe', model: 'jev-latest' };
     const chat = { provider: 'anthropic', model: 'claude-sonnet' };
     render(<Harness reviewEnabled reviewRoutes={nativeFirst ? [native, chat] : [chat, native]} />);
-    const reviewer = stageCard('Reviewer (Pass 1 and Pass 2)');
+    const reviewer = stageCard('Reviewer (pass 1 and pass 2)');
     expect(screen.getByText('Ad review with System One models is experimental.')).toBeDefined();
     expect(within(reviewer).getByText('Reasoning budget (legacy Anthropic models)')).toBeDefined();
     for (const input of reviewer.querySelectorAll('input,select')) {
@@ -147,7 +147,7 @@ describe('StageTunablesSection: per-stage effective provider', () => {
       { provider: 'typesafe', model: 'jev-latest' },
       { provider: 'systemone-compatible', model: 'custom-native-model' },
     ]} />);
-    const reviewer = stageCard('Reviewer (Pass 1 and Pass 2)');
+    const reviewer = stageCard('Reviewer (pass 1 and pass 2)');
     for (const input of reviewer.querySelectorAll('input,select')) {
       expect((input as HTMLInputElement).disabled).toBe(true);
     }
@@ -155,11 +155,11 @@ describe('StageTunablesSection: per-stage effective provider', () => {
   it('shows the Anthropic control for a stage on the global provider and the generic control for one routed elsewhere', () => {
     render(<Harness llmProvider="anthropic" verificationProvider="ollama" />);
 
-    const detection = stageCard('Ad Detection (Pass 1)');
+    const detection = stageCard('Ad detection (pass 1)');
     expect(within(detection).getByText('Reasoning budget (legacy Anthropic models)')).toBeDefined();
     expect(within(detection).getByText('Reasoning effort (adaptive Anthropic models)')).toBeDefined();
 
-    const verification = stageCard('Verification (Ad Detection Pass 2)');
+    const verification = stageCard('Verification (ad detection pass 2)');
     expect(within(verification).getByText('Reasoning effort')).toBeDefined();
     expect(within(verification).queryByText('Reasoning budget (legacy Anthropic models)')).toBeNull();
   });
@@ -167,11 +167,11 @@ describe('StageTunablesSection: per-stage effective provider', () => {
   it('saves adaptive reasoning effort for an Anthropic stage', async () => {
     let saved: UpdateSettingsPayload | null = null;
     render(<Harness llmProvider="anthropic" onSave={(payload) => { saved = payload; }} />);
-    const detection = stageCard('Ad Detection (Pass 1)');
+    const detection = stageCard('Ad detection (pass 1)');
     const user = userEvent.setup();
 
     await user.selectOptions(within(detection).getByRole('combobox'), 'high');
-    await user.click(screen.getByRole('button', { name: 'Save LLM Tunables' }));
+    await user.click(screen.getByRole('button', { name: 'Save LLM tunables' }));
 
     expect(saved).toMatchObject({ detectionReasoningLevel: 'high' });
   });
@@ -179,9 +179,9 @@ describe('StageTunablesSection: per-stage effective provider', () => {
   it('routing verification to another provider does not change the chapters or detection blocks', () => {
     render(<Harness llmProvider="anthropic" verificationProvider="ollama" />);
 
-    expect(within(stageCard('Ad Detection (Pass 1)')).getByText('Reasoning budget (legacy Anthropic models)')).toBeDefined();
-    expect(within(stageCard('Chapter Title Generation')).getByText('Reasoning budget (legacy Anthropic models)')).toBeDefined();
-    expect(within(stageCard('Chapter Boundary Detection')).getByText('Reasoning budget (legacy Anthropic models)')).toBeDefined();
+    expect(within(stageCard('Ad detection (pass 1)')).getByText('Reasoning budget (legacy Anthropic models)')).toBeDefined();
+    expect(within(stageCard('Chapter title generation')).getByText('Reasoning budget (legacy Anthropic models)')).toBeDefined();
+    expect(within(stageCard('Chapter boundary detection')).getByText('Reasoning budget (legacy Anthropic models)')).toBeDefined();
   });
 
   it('routes chapters to its own override independently of verification', () => {
@@ -189,8 +189,8 @@ describe('StageTunablesSection: per-stage effective provider', () => {
 
     // openrouter is non-Anthropic, same generic control as ollama, but the
     // point is chapters picked up its OWN override, not verification's.
-    expect(within(stageCard('Chapter Title Generation')).getByText('Reasoning effort')).toBeDefined();
-    expect(within(stageCard('Verification (Ad Detection Pass 2)')).getByText('Reasoning effort')).toBeDefined();
-    expect(within(stageCard('Ad Detection (Pass 1)')).getByText('Reasoning budget (legacy Anthropic models)')).toBeDefined();
+    expect(within(stageCard('Chapter title generation')).getByText('Reasoning effort')).toBeDefined();
+    expect(within(stageCard('Verification (ad detection pass 2)')).getByText('Reasoning effort')).toBeDefined();
+    expect(within(stageCard('Ad detection (pass 1)')).getByText('Reasoning budget (legacy Anthropic models)')).toBeDefined();
   });
 });

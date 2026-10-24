@@ -27,6 +27,8 @@ from config import (
     EPISODE_LOG_LEVELS,
     EPISODE_LOG_RETENTION_DAYS_MIN, EPISODE_LOG_RETENTION_DAYS_MAX,
     DOWNLOAD_HISTORY_RETENTION_DAYS_MIN, DOWNLOAD_HISTORY_RETENTION_DAYS_MAX,
+    AUTO_PROCESS_MAX_AGE_ERROR,
+    valid_auto_process_max_age,
     MAX_LLM_WINDOW_AD_MIN, MAX_LLM_WINDOW_AD_MAX,
     USER_AGENT_MAX_LENGTH, validate_user_agent,
     resolve_segment_category_actions_map,
@@ -298,6 +300,8 @@ def _validate_processing_defaults_payload(data):
     for key in ('downloadHistoryEnabled', 'downloadGeoLookupEnabled'):
         if key in data and not isinstance(data[key], bool):
             return f'{key} must be a boolean', 400
+    if 'autoProcessMaxAgeHours' in data and not valid_auto_process_max_age(data['autoProcessMaxAgeHours']):
+        return f'autoProcessMaxAgeHours {AUTO_PROCESS_MAX_AGE_ERROR}', 400
     if 'downloadHistoryRetentionDays' in data:
         days = data['downloadHistoryRetentionDays']
         if (not isinstance(days, int) or isinstance(days, bool)
@@ -602,6 +606,11 @@ def _apply_processing_flags(db, data):
         value = 'true' if data['autoProcessEnabled'] else 'false'
         db.set_setting('auto_process_enabled', value, is_default=False)
         logger.info(f"Updated auto-process to: {value}")
+
+    if 'autoProcessMaxAgeHours' in data:
+        db.set_setting('auto_process_max_age_hours',
+                       str(data['autoProcessMaxAgeHours']), is_default=False)
+        logger.info(f"Updated auto-process max age to {data['autoProcessMaxAgeHours']} hours")
 
     if 'maxFeedEpisodes' in data:
         try:
@@ -1456,6 +1465,7 @@ def _audio_cue_writes(db, data):
     for payload_key, db_key in (
         ('audioCueDetectionEnabled', 'audio_cue_detection_enabled'),
         ('audioCueCreateFromPairs', 'audio_cue_create_from_pairs'),
+        ('audioCueCutMatches', 'audio_cue_cut_matches'),
     ):
         if payload_key in data:
             enabled = coerce_bool_setting(data[payload_key])

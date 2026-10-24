@@ -17,7 +17,7 @@ from utils.paths import resolve_data_dir
 from utils.markers import precise_edge, subtract_spans
 from mp3_stream_copy import copy_mp3
 from config import (
-    FFMPEG_LONG_TIMEOUT,
+    CUE_MATCH_STAGE, FFMPEG_LONG_TIMEOUT,
     MIN_AD_DURATION_FOR_REMOVAL, POST_ROLL_TRIM_THRESHOLD, MERGE_GAP_SECONDS,
     SHORT_CUT_KEEP_CONFIDENCE, RENDER_DRIFT_WARN_SECONDS,
 )
@@ -382,7 +382,7 @@ class AudioProcessor:
             duration = ad['end'] - ad['start']
             measured_split = bool(ad.get('_measured_split_fragment'))
             keep_short = (ad.get('_confirmed_cut')
-                          or ad.get('detection_stage') == 'fingerprint'
+                          or ad.get('detection_stage') in ('fingerprint', CUE_MATCH_STAGE)
                           or ad.get('confidence', 0) >= SHORT_CUT_KEEP_CONFIDENCE
                           or measured_split)
             if duration >= MIN_AD_DURATION_FOR_REMOVAL:

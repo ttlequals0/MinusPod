@@ -15,13 +15,14 @@ test('failed settings stop loading and offer retry', async ({ page }) => {
 test('search filters fit and failed requests are not empty results', async ({ page }) => {
   await page.goto('search?q=technology');
   await expect(page.getByRole('alert')).toContainText('Search', { timeout: 15_000 });
-  const filters = page.locator('main button[aria-pressed]');
+  const filters = page.locator('main [role="tab"]');
   await expect(filters).toHaveCount(6);
+  const coarse = Boolean(test.info().project.use.hasTouch);
   for (const filter of await filters.all()) {
     const box = await filter.boundingBox();
     expect(box!.x).toBeGreaterThanOrEqual(0);
     expect(box!.x + box!.width).toBeLessThanOrEqual(page.viewportSize()!.width);
-    expect(box!.height).toBeGreaterThanOrEqual(44);
+    if (coarse) expect(box!.height).toBeGreaterThanOrEqual(44);
   }
   await expect(page.getByText('No results found', { exact: true })).toHaveCount(0);
 });
@@ -119,7 +120,7 @@ test('feed URL validation associates its visible error with the field', async ({
   await expect(input).toHaveAttribute('aria-invalid', 'true');
   await expect(input).toHaveAttribute('aria-describedby', 'podcast-url-feedback');
   await expect(page.locator('#podcast-url-feedback')).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Add Feed', exact: true })).toBeDisabled();
+  await expect(page.getByRole('button', { name: 'Add feed', exact: true })).toBeDisabled();
 });
 
 
@@ -128,4 +129,46 @@ test('add-feed controls have accessible names and valid ARIA relationships', asy
   await page.getByText('Advanced options', { exact: false }).click();
   const scan = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze();
   expect(scan.violations.map(({ id, nodes }) => ({ id, targets: nodes.map((node) => node.target) }))).toEqual([]);
+});
+
+test('icon-only controls center their icon', async ({ page }) => {
+  test.slow(); // four routes, two of them wait out the backend retry before their alert shows
+  const failures: string[] = [];
+  for (const route of ['', 'settings', 'search?q=technology', 'patterns']) {
+    await page.goto(route);
+    await expect(page.locator('main')).toBeVisible();
+    if (route === 'settings' || route.startsWith('search')) {
+      await expect(page.getByRole('alert').first()).toBeVisible({ timeout: 15_000 });
+    }
+    const found = await page.evaluate(() => {
+      const hasText = (el: Element) => {
+        const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+        for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+          if (!node.textContent?.trim()) continue;
+          const parent = node.parentElement;
+          if (parent?.closest('.sr-only, [aria-hidden="true"]')) continue;
+          const range = document.createRange();
+          range.selectNodeContents(node);
+          const r = range.getBoundingClientRect();
+          if (r.width > 0 && r.height > 0) return true;
+        }
+        return false;
+      };
+      const out: string[] = [];
+      for (const el of document.querySelectorAll('main :is(button, [role="button"], a[href], summary), header :is(button, [role="button"], a[href], summary)')) {
+        const svg = el.querySelector('svg');
+        const box = el.getBoundingClientRect();
+        if (!svg || box.width === 0 || box.height === 0 || hasText(el)) continue;
+        const s = svg.getBoundingClientRect();
+        const dx = s.x + s.width / 2 - (box.x + box.width / 2);
+        const dy = s.y + s.height / 2 - (box.y + box.height / 2);
+        if (Math.abs(dx) > 1.25 || Math.abs(dy) > 1.25) {
+          out.push(`aria-label="${el.getAttribute('aria-label')}" class="${el.getAttribute('class')}" dx=${dx.toFixed(2)} dy=${dy.toFixed(2)}`);
+        }
+      }
+      return out;
+    });
+    failures.push(...found.map(f => `${route || '/'}: ${f}`));
+  }
+  expect(failures.join('\n')).toBe('');
 });

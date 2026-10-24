@@ -2,7 +2,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { MemoryRouter } from 'react-router';
 import DatabaseStatsSection from './DatabaseStatsSection';
+import SystemStatusSection from './SystemStatusSection';
 import type { SystemStatus } from '../../api/types';
 
 const mockCheckpoint = vi.fn();
@@ -12,6 +14,7 @@ vi.mock('../../api/settings', () => ({
 }));
 
 vi.mock('./UpdateStatusPanel', () => ({ default: () => null }));
+vi.mock('../../components/SystemHealthPanel', () => ({ default: () => null }));
 
 const STATUS = {
   status: 'ok', version: '2.76.0', uptime: 120,
@@ -62,5 +65,21 @@ describe('DatabaseStatsSection', () => {
     expect((await screen.findByRole('status')).textContent).toContain(
       'Checkpointed 8 of 8 WAL pages in 1.25 ms.',
     );
+  });
+});
+
+describe('SystemStatusSection', () => {
+  it('shows the instance cells', () => {
+    render(
+      <MemoryRouter>
+        <SystemStatusSection status={STATUS} statusLoading={false} />
+      </MemoryRouter>,
+    );
+    for (const label of ['Version', 'Feeds', 'Episodes', 'Storage', 'Uptime']) {
+      expect(screen.getByText(label)).toBeTruthy();
+    }
+    for (const label of ['Time Saved', 'LLM Tokens', 'Cost']) {
+      expect(screen.queryByText(label)).toBeNull();
+    }
   });
 });

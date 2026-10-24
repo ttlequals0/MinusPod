@@ -1,14 +1,17 @@
 import { useUnsavedChanges } from '../../hooks/useUnsavedChanges';
+import { formatPercent } from '../../utils/format';
+import Checkbox from '../../components/Checkbox';
 import { useState } from 'react';
 import type { SystemOneCredentialSlot, SystemOneProfile, SystemOneProfiles, SystemOneProvider, UpdateSettingsPayload } from '../../api/types';
 import { SLOT_LABELS } from '../../api/types';
 import CollapsibleSection from '../../components/CollapsibleSection';
-import { btnPrimary, touchTarget } from '../../components/buttonStyles';
-import { focusRing, inputBase, selectBase } from '../../components/fieldStyles';
 import NumberInput from '../../components/NumberInput';
 import DraftNumberInput, { parseOptionalNumber } from '../../components/DraftNumberInput';
 import { SEGMENT_CATEGORIES, SEGMENT_CATEGORY_LABELS } from '../../utils/segmentCategory';
 import SavedBadge from './SavedBadge';
+import { btnBase, btnLg, btnPrimary, btnGhost } from '../../components/buttonStyles';
+import { selectBase, labelBase } from '../../components/fieldStyles';
+import { subHeading } from '../../components/pageStyles';
 
 type ProfilePatch = Partial<SystemOneProfile>;
 type DraftProfiles = Record<SystemOneCredentialSlot, Record<SystemOneProvider, SystemOneProfile>>;
@@ -91,18 +94,18 @@ function SystemOneTunablesSection({ connections, profiles, defaults, isDefault, 
   const selectedProfileSlot = editableSlots.includes(selectedSlot) ? selectedSlot : editableSlots[0];
 
   return (
-    <CollapsibleSection title="System One Tuneables" storageKey="settings-section-system-one">
+    <CollapsibleSection title="System One tuneables" storageKey="settings-section-system-one">
       <div className="space-y-5">
         {!selectedProfileSlot ? (
-          <p className="text-sm text-muted-foreground">Choose a System One provider in LLM Provider.</p>
+          <p className="text-sm text-muted-foreground">Choose a System One provider in LLM provider.</p>
         ) : <>
         <div className="rounded-lg border border-warning/30 bg-warning/10 p-3 text-sm text-warning">
           Chapters and pattern cleanup are unavailable for System One models.
         </div>
         {editableSlots.length > 1 && (
           <div>
-            <label htmlFor="system-one-provider" className="mb-2 block text-sm font-medium text-foreground">Provider</label>
-            <select id="system-one-provider" value={selectedProfileSlot} onChange={(event) => setSelectedSlot(event.target.value as SystemOneCredentialSlot)} className={`w-full min-h-11 ${selectBase}`}>
+            <label htmlFor="system-one-provider" className={labelBase}>Provider</label>
+            <select id="system-one-provider" value={selectedProfileSlot} onChange={(event) => setSelectedSlot(event.target.value as SystemOneCredentialSlot)} className={`w-full ${selectBase}`}>
               {editableSlots.map((slot) => <option key={slot} value={slot}>{SLOT_LABELS[slot]}</option>)}
             </select>
           </div>
@@ -119,16 +122,17 @@ function SystemOneTunablesSection({ connections, profiles, defaults, isDefault, 
                 max: ['detectionEnter', 'detectionStay', 'reviewEvidenceEnter', 'reviewChoiceEnter', 'reviewProgrammeVeto'].includes(field) ? 1 : undefined,
                 step,
                 disabled: field === 'maxChoiceOptions' && provider === 'typesafe',
-                className: `w-full min-h-11 ${inputBase}`,
+                className: 'w-full',
               };
               return (
               <div>
-                <label htmlFor={`${id}-${String(field)}`} className="mb-1 block text-sm font-medium text-foreground">{label}</label>
+                <label htmlFor={`${id}-${String(field)}`} className={labelBase}>{label}</label>
                 {nullable ? (
                   <DraftNumberInput {...fieldProps} value={value[field] as number | null} fallback={null} parse={parseOptionalNumber} onChange={(next) => change(slot, provider, field, next as SystemOneProfile[K])} />
                 ) : (
                   <NumberInput {...fieldProps} value={value[field] as number} fallback={defaults[slot][provider][field] as number} onCommit={(next) => change(slot, provider, field, next as SystemOneProfile[K])} />
                 )}
+                {fieldProps.max === 1 && typeof value[field] === 'number' && <p className="mt-1 text-xs text-muted-foreground">{formatPercent(value[field] as number)}</p>}
                 {field === 'maxChoiceOptions' && provider === 'typesafe' && <p className="mt-1 text-xs text-muted-foreground">TypeSafe has a fixed maximum of 255.</p>}
                 {nullable && <p className="mt-1 text-xs text-muted-foreground">
                   {field === 'reviewEvidenceEnter' || field === 'reviewChoiceEnter'
@@ -143,10 +147,7 @@ function SystemOneTunablesSection({ connections, profiles, defaults, isDefault, 
               );
             };
             const toggle = (field: 'categoryPass' | 'refineBoundaries', label: string) => (
-              <label className="flex min-h-11 items-center gap-3 text-sm text-foreground">
-                <input type="checkbox" checked={value[field]} onChange={(event) => change(slot, provider, field, event.target.checked)} className="h-5 w-5 accent-primary" />
-                {label}
-              </label>
+              <Checkbox className="min-h-11" checked={value[field]} onChange={(checked) => change(slot, provider, field, checked)} label={label} />
             );
             return (
               <div key={id} className="space-y-4">
@@ -154,7 +155,7 @@ function SystemOneTunablesSection({ connections, profiles, defaults, isDefault, 
                   <div>
                     {isDefault[slot][provider] && <p className="mt-1 text-xs text-muted-foreground">Using defaults</p>}
                   </div>
-                  <button type="button" className={`px-2 py-1 text-xs underline ${touchTarget}`} disabled={pending} onClick={() => void resetProfile(slot, provider)}>Reset profile</button>
+                  <button type="button" className={`${btnBase} ${btnGhost}`} disabled={pending} onClick={() => void resetProfile(slot, provider)}>Reset profile</button>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   {number('detectionEnter', 'Detection confidence threshold', 0, 0.01)}
@@ -164,8 +165,8 @@ function SystemOneTunablesSection({ connections, profiles, defaults, isDefault, 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {number('categoryContext', 'Neighboring segments for category context', 0)}
                 <div>
-                  <label htmlFor={`${id}-defaultCategory`} className="mb-1 block text-sm font-medium text-foreground">Default ad category</label>
-                  <select id={`${id}-defaultCategory`} value={value.defaultCategory} onChange={(event) => change(slot, provider, 'defaultCategory', event.target.value)} className={`w-full min-h-11 ${selectBase}`}>
+                  <label htmlFor={`${id}-defaultCategory`} className={labelBase}>Default ad category</label>
+                  <select id={`${id}-defaultCategory`} value={value.defaultCategory} onChange={(event) => change(slot, provider, 'defaultCategory', event.target.value)} className={`w-full ${selectBase}`}>
                     {SEGMENT_CATEGORIES.map((category) => <option key={category} value={category}>{SEGMENT_CATEGORY_LABELS[category]}</option>)}
                   </select>
                 </div>
@@ -177,7 +178,7 @@ function SystemOneTunablesSection({ connections, profiles, defaults, isDefault, 
                 {number('retryAfterMaxSeconds', 'Maximum Retry-After wait (seconds)', 0, 'any')}
                 </div>
                 <div className="border-t border-border pt-3 space-y-3">
-                  <h4 className="text-sm font-medium text-foreground">Review thresholds</h4>
+                  <h4 className={subHeading}>Review thresholds</h4>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   {number('reviewEvidenceEnter', 'Evidence enter threshold', 0, 0.01, true)}
                   {number('reviewChoiceEnter', 'Choice enter threshold', 0, 0.01, true)}
@@ -187,7 +188,7 @@ function SystemOneTunablesSection({ connections, profiles, defaults, isDefault, 
                   </div>
                 </div>
                 <div className="border-t border-border pt-3 space-y-3">
-                  <h4 className="text-sm font-medium text-foreground">Protocol limits</h4>
+                  <h4 className={subHeading}>Protocol limits</h4>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   {number('maxQuestionsPerRequest', 'Questions per API request', 1, 1, true)}
                   {number('maxRequestBytes', 'Request size limit (bytes)', 1, 1, true)}
@@ -199,7 +200,7 @@ function SystemOneTunablesSection({ connections, profiles, defaults, isDefault, 
           })()}
         {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
         <div className="flex items-center gap-3">
-          <button type="button" className={`px-4 py-2 rounded-lg ${btnPrimary} ${touchTarget} disabled:opacity-50 ${focusRing}`} disabled={!dirty || pending} onClick={() => void save()}>
+          <button type="button" className={`${btnLg} ${btnPrimary}`} disabled={!dirty || pending} onClick={() => void save()}>
             {pending ? 'Saving...' : 'Save System One tuning'}
           </button>
           {!dirty && !pending && <SavedBadge />}

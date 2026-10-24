@@ -75,6 +75,7 @@ export interface Feed {
   daiPlatform?: string;
   networkIdOverride?: string | null;
   autoProcessOverride?: boolean | null;
+  autoProcessMaxAgeHoursOverride?: number | null;
   languageOverride?: string | null;
   downloadUserAgentOverride?: string | null;
   feedUserAgentOverride?: string | null;
@@ -93,6 +94,7 @@ export interface Feed {
   episodeLogs?: EpisodeLogsOverride | null;
   cueTemplateScoreOverride?: number | null;
   cueCreateFromPairsOverride?: boolean | null;
+  cueCutMatchesOverride?: boolean | null;
   cuePairMinBreakOverride?: number | null;
   cuePairMaxBreakOverride?: number | null;
   cuePairMaxBreakFractionOverride?: number | null;
@@ -793,6 +795,8 @@ export const SAME_AS_PASS = 'same_as_pass';
 // provider config. Verification/chapters also accept SAME_AS_DETECTION to
 // inherit detection's resolved slot.
 export const SLOT_PRIMARY = 'primary';
+
+export const AUTO_PROCESS_WINDOW = { min: 1, max: 720, default: 48 } as const;
 export const SLOT_SECONDARY = 'secondary';
 export const SAME_AS_DETECTION = 'same_as_detection';
 export type ProviderSlot = typeof SLOT_PRIMARY | typeof SLOT_SECONDARY;
@@ -839,6 +843,7 @@ export interface Settings {
   verificationProvider: SettingValue;
   whisperModel: SettingValue;
   autoProcessEnabled: SettingValueBoolean;
+  autoProcessMaxAgeHours: SettingValueNumber;
   maxFeedEpisodes: SettingValueNumber;
   podpingEnabled: SettingValueBoolean;
   rssRefreshIntervalMinutes: SettingValueNumber;
@@ -897,6 +902,7 @@ export interface Settings {
   audioCueProminenceDb: SettingValueNumber;
   audioCueMinConfidence: SettingValueNumber;
   audioCueCreateFromPairs: SettingValueBoolean;
+  audioCueCutMatches: SettingValueBoolean;
   audioCueTemplateScore: SettingValueNumber;
   audioCueFormantAttenDb: SettingValueNumber;
   audioCueSnapConfidence: SettingValueNumber;
@@ -1027,6 +1033,7 @@ export interface Settings {
     verificationModel: string;
     whisperModel: string;
     autoProcessEnabled: boolean;
+    autoProcessMaxAgeHours: number;
     maxFeedEpisodes: number;
     podpingEnabled: boolean;
     rssRefreshIntervalMinutes: number;
@@ -1104,6 +1111,7 @@ export interface Settings {
     audioCueProminenceDb: number;
     audioCueMinConfidence: number;
     audioCueCreateFromPairs: boolean;
+    audioCueCutMatches: boolean;
     audioCueTemplateScore: number;
     audioCueFormantAttenDb: number;
     audioCueSnapConfidence: number;
@@ -1168,6 +1176,7 @@ export interface UpdateSettingsPayload {
   verificationProvider?: string;
   whisperModel?: string;
   autoProcessEnabled?: boolean;
+  autoProcessMaxAgeHours?: number;
   maxFeedEpisodes?: number;
   podpingEnabled?: boolean;
   rssRefreshIntervalMinutes?: number;
@@ -1225,6 +1234,7 @@ export interface UpdateSettingsPayload {
   audioCueProminenceDb?: number;
   audioCueMinConfidence?: number;
   audioCueCreateFromPairs?: boolean;
+  audioCueCutMatches?: boolean;
   audioCueTemplateScore?: number;
   audioCueFormantAttenDb?: number;
   audioCueSnapConfidence?: number;

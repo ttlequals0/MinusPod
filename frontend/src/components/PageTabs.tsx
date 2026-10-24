@@ -1,12 +1,18 @@
 import { useEffect, useRef, type ReactNode } from 'react';
 import { focusRing } from './fieldStyles';
 
-export default function PageTabs<T extends string>({ id, label, tabs, active, onChange }: {
+export const tabStrip = 'flex gap-1 border-b border-border mb-6 overflow-x-auto overflow-y-hidden';
+// Short tab sets wrap on a phone so every tab stays inside the viewport.
+export const tabStripWrap = 'flex flex-wrap gap-1 border-b border-border mb-6';
+export const tabItem = `shrink-0 px-2 sm:px-4 py-2 text-sm font-medium whitespace-nowrap border-b-2 -mb-px transition-colors ${focusRing}`;
+
+export default function PageTabs<T extends string>({ id, label, tabs, active, onChange, wrap = false }: {
   id: string;
   label: string;
   tabs: readonly { value: T; label: string; badge?: ReactNode; accessibleLabel?: string }[];
   active: T;
   onChange: (value: T) => void;
+  wrap?: boolean;
 }) {
   const list = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -18,7 +24,7 @@ export default function PageTabs<T extends string>({ id, label, tabs, active, on
     if (bounds.right > container.right) list.current.scrollLeft += bounds.right - container.right;
   }, [active]);
   return (
-    <div ref={list} role="tablist" aria-label={label} className="flex gap-1 border-b border-border mb-6 overflow-x-auto overflow-y-hidden">
+    <div ref={list} role="tablist" aria-label={label} className={wrap ? tabStripWrap : tabStrip}>
       {tabs.map((tab, index) => (
         <button key={tab.value} type="button" role="tab" id={`${id}-tab-${tab.value}`}
           aria-controls={`${id}-panel-${tab.value}`} aria-selected={active === tab.value}
@@ -33,7 +39,7 @@ export default function PageTabs<T extends string>({ id, label, tabs, active, on
             onChange(tabs[next].value);
             list.current?.querySelectorAll<HTMLButtonElement>('[role="tab"]')[next]?.focus();
           }}
-          className={`px-2 sm:px-4 py-2 text-sm font-medium whitespace-nowrap border-b-2 -mb-px transition-colors ${focusRing} ${active === tab.value ? 'border-primary text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground'}`}>
+          className={`${tabItem} ${active === tab.value ? 'border-primary text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground'}`}>
           {tab.label}{tab.badge}
         </button>
       ))}

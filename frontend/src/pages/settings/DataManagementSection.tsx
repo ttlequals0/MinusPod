@@ -1,6 +1,8 @@
 import { useState } from 'react';
+import { Check, Database, FileDown, X } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import DropdownMenu, { DropdownMenuItem } from '../../components/DropdownMenu';
+import LoadingSpinner from '../../components/LoadingSpinner';
 import CollapsibleSection from '../../components/CollapsibleSection';
 import ConfirmResetButton from './ConfirmResetButton';
 import NumberInput from '../../components/NumberInput';
@@ -9,9 +11,10 @@ import { getErrorMessage } from '../../api/client';
 import { useTransientState } from '../../hooks/useTransientState';
 import { copyText } from '../../utils/clipboard';
 import { BYTES_PER_MB, formatStorage } from './settingsUtils';
-import { btnSecondary } from '../../components/buttonStyles';
-import { focusRing } from '../../components/fieldStyles';
 import ConfigurationTransferSection from './ConfigurationTransferSection';
+import { btnBase, btnSecondary } from '../../components/buttonStyles';
+import { labelBase } from '../../components/fieldStyles';
+import { subHeading } from '../../components/pageStyles';
 
 
 type ActionStatus = 'idle' | 'loading' | 'success' | 'error';
@@ -55,7 +58,7 @@ function DataManagementSection({
       setOpmlStatus('success');
     } catch (err) {
       setOpmlStatus('error', 5000);
-      setOpmlError(getErrorMessage(err, 'Export failed'));
+      setOpmlError(getErrorMessage(err, 'Could not export OPML.'));
     }
   };
 
@@ -67,7 +70,7 @@ function DataManagementSection({
       setBackupStatus('success');
     } catch (err) {
       setBackupStatus('error', 5000);
-      const message = getErrorMessage(err, 'Backup failed');
+      const message = getErrorMessage(err, 'Could not download backup.');
       setBackupError(message === 'backup_encryption_unavailable'
         ? 'Encrypted backup unavailable. Set MINUSPOD_MASTER_PASSPHRASE and restart, or download plaintext below.'
         : message);
@@ -78,10 +81,7 @@ function DataManagementSection({
     if (status === 'loading') {
       return (
         <div className="flex items-center gap-2 mt-3">
-          <svg className="animate-spin h-4 w-4 text-muted-foreground" viewBox="0 0 24 24" fill="none">
-            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-          </svg>
+          <LoadingSpinner inline className="w-4 h-4" />
           <span className="text-xs text-muted-foreground">Processing...</span>
         </div>
       );
@@ -89,9 +89,7 @@ function DataManagementSection({
     if (status === 'success') {
       return (
         <div className="flex items-center gap-2 mt-3">
-          <svg className="h-4 w-4 text-success" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-          </svg>
+          <Check className="w-4 h-4 text-success" aria-hidden="true" />
           <span className="text-xs text-success">Downloaded successfully</span>
         </div>
       );
@@ -99,9 +97,7 @@ function DataManagementSection({
     if (status === 'error' && error) {
       return (
         <div className="flex items-center gap-2 mt-3">
-          <svg className="h-4 w-4 text-destructive" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-          </svg>
+          <X className="w-4 h-4 text-destructive" aria-hidden="true" />
           <span className="text-xs text-destructive">{error}</span>
         </div>
       );
@@ -110,20 +106,16 @@ function DataManagementSection({
   };
 
   return (
-    <CollapsibleSection title="Data Management" storageKey="settings-section-data-management">
+    <CollapsibleSection title="Data management" storageKey="settings-section-data-management">
       <div className="grid grid-cols-1 sm:grid-cols-2 items-start gap-4">
         {/* OPML Export Card */}
-        <div className="p-4 rounded-lg border border-border bg-background flex flex-col">
+        <div className="p-4 rounded-lg bg-muted/40 flex flex-col">
           <div className="flex items-start gap-3 mb-3">
             <div className="p-2 rounded bg-secondary shrink-0">
-              <svg className="h-5 w-5 text-foreground" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3" />
-                <path strokeLinecap="round" strokeLinejoin="round" d="M3 17v2a2 2 0 002 2h14a2 2 0 002-2v-2" />
-                <path strokeLinecap="round" strokeLinejoin="round" d="M7 3h10l4 4v6H3V7l4-4z" />
-              </svg>
+              <FileDown className="w-5 h-5 text-foreground" aria-hidden="true" />
             </div>
             <div className="flex-1 min-w-0">
-              <h4 className="text-sm font-semibold text-foreground">OPML Export</h4>
+              <h4 className={subHeading}>OPML export</h4>
               <p className="text-xs text-muted-foreground mt-1">
                 Export feed subscriptions as OPML. Modified feeds use MinusPod ad-free URLs; original feeds use upstream source URLs.
               </p>
@@ -148,8 +140,8 @@ function DataManagementSection({
               return (
                 <div key={mode} className="flex min-w-0 [&>div]:flex [&>div]:w-full">
                   <DropdownMenu
-                    triggerLabel={mode === 'modified' ? 'Modified Feeds' : 'Original Feeds'}
-                    triggerClassName={`min-h-[44px] h-full w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg ${btnSecondary} disabled:opacity-50 transition-colors text-sm font-medium`}
+                    triggerLabel={mode === 'modified' ? 'Modified feeds' : 'Original feeds'}
+                    triggerClassName={`${btnBase} ${btnSecondary} h-full w-full`}
                     disabled={opmlStatus === 'loading'}
                     title={mode === 'modified' ? 'Export modified feeds' : 'Export original feeds'}
                     align={mode === 'modified' ? 'left' : 'right'}
@@ -163,17 +155,13 @@ function DataManagementSection({
         </div>
 
         {/* Database Backup Card */}
-        <div className="p-4 rounded-lg border border-border bg-background flex flex-col">
+        <div className="p-4 rounded-lg bg-muted/40 flex flex-col">
           <div className="flex items-start gap-3 mb-3">
             <div className="p-2 rounded bg-secondary shrink-0">
-              <svg className="h-5 w-5 text-foreground" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <ellipse cx="12" cy="5" rx="9" ry="3" />
-                <path d="M21 12c0 1.66-4.03 3-9 3s-9-1.34-9-3" />
-                <path d="M3 5v14c0 1.66 4.03 3 9 3s9-1.34 9-3V5" />
-              </svg>
+              <Database className="w-5 h-5 text-foreground" aria-hidden="true" />
             </div>
             <div className="flex-1 min-w-0">
-              <h4 className="text-sm font-semibold text-foreground">Database Backup</h4>
+              <h4 className={subHeading}>Database backup</h4>
               <p className="text-xs text-muted-foreground mt-1">
                 Download feeds, episodes, patterns, sponsors, and settings. Encrypted download is the default.
               </p>
@@ -182,9 +170,9 @@ function DataManagementSection({
           <button
             onClick={() => handleDownloadBackup(true)}
             disabled={backupStatus === 'loading'}
-            className={`mt-auto min-h-[44px] w-full px-4 py-2 rounded-lg ${btnSecondary} disabled:opacity-50 transition-colors text-sm font-medium ${focusRing}`}
+            className={`${btnBase} ${btnSecondary} mt-auto w-full`}
           >
-            {backupStatus === 'loading' ? 'Preparing...' : 'Download Encrypted Backup'}
+            {backupStatus === 'loading' ? 'Preparing...' : 'Download encrypted backup'}
           </button>
           <div className="mt-3 rounded-md border border-warning/40 bg-warning/10 p-3">
             <p className="text-xs text-warning">
@@ -209,7 +197,7 @@ function DataManagementSection({
       <ConfigurationTransferSection />
 
       <div className="mt-4 pt-4 border-t border-border">
-        <label htmlFor="maxRssMb" className="block text-sm font-medium text-foreground mb-2">
+        <label htmlFor="maxRssMb" className={labelBase}>
           Max RSS feed size (MB)
         </label>
         <div className="flex items-center gap-3">
@@ -236,7 +224,7 @@ function DataManagementSection({
 
       <div className="mt-4 pt-4 border-t border-border">
         <ConfirmResetButton
-          label="Reset All Episodes"
+          label="Reset all episodes"
           isPending={resetIsPending}
           onConfirm={onResetEpisodes}
         />

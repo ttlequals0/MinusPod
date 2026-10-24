@@ -9,12 +9,12 @@ import type {
 import { LLM_PROVIDERS } from '../../api/types';
 import CollapsibleSection from '../../components/CollapsibleSection';
 import ToggleSwitch from '../../components/ToggleSwitch';
-import { btnPrimary, touchTarget } from '../../components/buttonStyles';
 import SavedBadge from './SavedBadge';
-import DraftNumberInput, { DRAFT_NUMBER_INPUT_CLASS } from '../../components/DraftNumberInput';
-import { selectBase } from '../../components/fieldStyles';
-import { focusRing } from '../../components/fieldStyles';
+import DraftNumberInput from '../../components/DraftNumberInput';
 import { isSystemOneRoute } from './systemoneWarnings';
+import { btnBase, btnLg, btnPrimary, btnGhost } from '../../components/buttonStyles';
+import { selectBase, labelBase } from '../../components/fieldStyles';
+import { subHeading } from '../../components/pageStyles';
 
 // Which per-phase provider override (see llm_route.py) governs a stage block.
 // Both chapter blocks route through chaptersProvider.
@@ -57,7 +57,7 @@ interface StageBlock {
 
 const STAGES: StageBlock[] = [
   {
-    label: 'Ad Detection (Pass 1)',
+    label: 'Ad detection (pass 1)',
     providerStage: 'detection',
     temperatureKey: 'detectionTemperature',
     maxTokensKey: 'detectionMaxTokens',
@@ -66,7 +66,7 @@ const STAGES: StageBlock[] = [
     description: 'First scan of the full transcript.',
   },
   {
-    label: 'Verification (Ad Detection Pass 2)',
+    label: 'Verification (ad detection pass 2)',
     providerStage: 'verification',
     temperatureKey: 'verificationTemperature',
     maxTokensKey: 'verificationMaxTokens',
@@ -75,7 +75,7 @@ const STAGES: StageBlock[] = [
     description: 'Second scan against processed audio.',
   },
   {
-    label: 'Reviewer (Pass 1 and Pass 2)',
+    label: 'Reviewer (pass 1 and pass 2)',
     providerStage: 'review',
     temperatureKey: 'reviewerTemperature',
     maxTokensKey: 'reviewerMaxTokens',
@@ -84,7 +84,7 @@ const STAGES: StageBlock[] = [
     description: 'Optional confirm/reject pass on detected ads.',
   },
   {
-    label: 'Chapter Boundary Detection',
+    label: 'Chapter boundary detection',
     providerStage: 'chapters',
     temperatureKey: 'chapterBoundaryTemperature',
     maxTokensKey: 'chapterBoundaryMaxTokens',
@@ -93,7 +93,7 @@ const STAGES: StageBlock[] = [
     description: 'Finds topic transitions.',
   },
   {
-    label: 'Chapter Title Generation',
+    label: 'Chapter title generation',
     providerStage: 'chapters',
     temperatureKey: 'chapterTitleTemperature',
     maxTokensKey: 'chapterTitleMaxTokens',
@@ -218,7 +218,7 @@ export function ResetButton({
       onClick={onClick}
       disabled={disabled}
       title="Reset to default"
-      className={`ml-2 ${touchTarget} px-2 text-xs text-muted-foreground hover:text-foreground underline disabled:opacity-40 disabled:no-underline disabled:cursor-not-allowed ${focusRing}`}
+      className={`${btnBase} ${btnGhost} ml-2`}
     >
       Reset
     </button>
@@ -278,7 +278,6 @@ export function NumberFieldRow({
         placeholder={placeholder}
         parse={parse}
         onChange={onChange}
-        className={`${DRAFT_NUMBER_INPUT_CLASS} min-h-11 sm:min-h-0`}
         disabled={disabled}
         ariaDescribedBy={inputId + '-help'}
       />
@@ -319,9 +318,9 @@ function StageBlockEditor({
   const levelDraft = draft[block.levelKey] as ReasoningLevel | null;
 
   return (
-    <div className="border border-border rounded-lg p-3 space-y-3">
+    <div className="bg-muted/40 rounded-lg p-3 space-y-3">
       <div>
-        <h4 className="text-sm font-semibold text-foreground">{block.label}</h4>
+        <h4 className={subHeading}>{block.label}</h4>
         <p className="text-xs text-muted-foreground mt-0.5">{block.description}</p>
         {chatControlsDisabled && <p className="mt-1 text-xs text-warning">Chat settings do not apply to System One.</p>}
       </div>
@@ -395,7 +394,7 @@ function StageBlockEditor({
       )}
       <div>
         <div className="flex items-center justify-between mb-1">
-          <label htmlFor={String(block.levelKey)} className="block text-xs font-medium text-foreground">
+          <label htmlFor={String(block.levelKey)} className={labelBase}>
             {useAnthropic ? 'Reasoning effort (adaptive Anthropic models)' : 'Reasoning effort'}
           </label>
           <ResetButton
@@ -451,9 +450,9 @@ function WindowConfigBlock({
   const overlapDraft = draft.windowOverlapSeconds as number | null;
 
   return (
-    <div className="border border-border rounded-lg p-3 space-y-3">
+    <div className="bg-muted/40 rounded-lg p-3 space-y-3">
       <div>
-        <h4 className="text-sm font-semibold text-foreground">Detection Window</h4>
+        <h4 className={subHeading}>Detection window</h4>
         <p className="text-xs text-muted-foreground mt-0.5">
           Transcript chunk size for ad detection. Shrink for small-context local LLMs.
         </p>
@@ -516,9 +515,9 @@ function ConcurrencyConfigBlock({
   setField: (key: string, value: DraftValue) => void;
 }) {
   return (
-    <div className="border border-border rounded-lg p-3 space-y-3">
+    <div className="bg-muted/40 rounded-lg p-3 space-y-3">
       <div>
-        <h4 className="text-sm font-semibold text-foreground">Detection Concurrency</h4>
+        <h4 className={subHeading}>Detection concurrency</h4>
         <p className="text-xs text-muted-foreground mt-0.5">
           Run multiple transcript windows through the LLM at once. 1 means sequential (original
           behavior). Higher values cut detection time but raise concurrent load on your LLM provider.
@@ -561,7 +560,7 @@ function OmitTemperatureToggle({
   onChange: (checked: boolean) => void;
 }) {
   return (
-    <div className="border border-border rounded-lg p-3">
+    <div className="bg-muted/40 rounded-lg p-3">
       <label className="flex items-center gap-3 cursor-pointer">
         <ToggleSwitch
           checked={checked}
@@ -646,7 +645,7 @@ function StageTunablesSection({
   };
 
   return (
-    <CollapsibleSection title="LLM Tunables">
+    <CollapsibleSection title="LLM tunables">
       <p className="text-sm text-muted-foreground mb-3">
         Temperature, max tokens, reasoning, detection-window geometry, and parallelism. Applies on the next episode.
       </p>
@@ -694,9 +693,9 @@ function StageTunablesSection({
             type="button"
             onClick={() => onSave(buildPayload())}
             disabled={!dirty || saveIsPending || !!crossFieldError}
-            className={`${touchTarget} px-4 py-2 rounded-lg ${btnPrimary} disabled:opacity-50 transition-colors text-sm ${focusRing}`}
+            className={`${btnLg} ${btnPrimary}`}
           >
-            {saveIsPending ? 'Saving...' : 'Save LLM Tunables'}
+            {saveIsPending ? 'Saving...' : 'Save LLM tunables'}
           </button>
           {saveIsSuccess && !dirty && !saveError && <SavedBadge className="ml-3" />}
           {saveError && (

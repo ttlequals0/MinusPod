@@ -257,20 +257,20 @@ describe('StatsPage loading placeholders', () => {
     renderPage();
     // The by-day chart heading proves the rest of the page rendered rather
     // than the whole page waiting behind one spinner.
-    expect(await screen.findByText('Episodes Processed by Day')).toBeTruthy();
+    expect(await screen.findByText('Episodes processed by day')).toBeTruthy();
     expect(screen.getAllByTestId('skeleton-stat-cards').length).toBeGreaterThanOrEqual(1);
   });
 
   it('shows a chart skeleton while the by-day query is pending', async () => {
     mockGetStatsByDay.mockReturnValue(new Promise(() => {}));
     renderPage();
-    expect(await screen.findByText('Total Episodes')).toBeTruthy();
+    expect(await screen.findByText('Total episodes')).toBeTruthy();
     expect(screen.getAllByTestId('skeleton-chart').length).toBeGreaterThanOrEqual(1);
   });
 
-  it('points at AI & Processing for enabling the reviewer', async () => {
+  it('points at AI and processing for enabling the reviewer', async () => {
     renderPage();
-    expect(await screen.findByText(/Enable Ad Reviewer in Settings, AI & Processing section/)).toBeTruthy();
+    expect(await screen.findByText(/Enable ad reviewer in Settings, AI and processing section/)).toBeTruthy();
   });
 
   it('shows zero inconclusive reviewer counts as abstentions', async () => {
@@ -700,7 +700,7 @@ describe('StatsPage ledger filters', () => {
       return within(el!);
     });
     expect(section.getByRole('heading', { level: 2, name: 'LLM calls' })).toBeTruthy();
-    expect(await section.findByText('No LLM calls recorded for this filter.')).toBeTruthy();
+    expect(await section.findByText('No LLM calls match these filters.')).toBeTruthy();
   });
 
   it('renders LLM call cards and calls by phase', async () => {
@@ -708,7 +708,7 @@ describe('StatsPage ledger filters', () => {
       ...LLM_STATS, calls: 3, requests: 4,
       outcomes: { success: 2, failure: 1, inconclusive: 0, inFlight: 1 },
       callLatencyMsAverage: 2000, dispatchLatencyMsAverage: 90,
-      costUsd: '0.75', byPhase: { detection: { calls: 2, costUsd: '0.5' } },
+      costUsd: '0.75', byPhase: { review: { calls: 1, costUsd: '0.25' }, detection: { calls: 2, costUsd: '0.5' } },
     });
     renderPage();
     const section = within(await waitFor(() => {
@@ -721,7 +721,11 @@ describe('StatsPage ledger filters', () => {
     expect(section.getByText('2,000 ms')).toBeTruthy();
     expect(section.getByText('90 ms')).toBeTruthy();
     expect(section.getByText('Calls by phase')).toBeTruthy();
-    expect(section.getByText(/^detection:/)).toBeTruthy();
+    const phaseTable = within(section.getByRole('table', { name: 'Calls by phase' }));
+    expect(phaseTable.getAllByRole('columnheader').map((h) => h.textContent)).toEqual(['Phase', 'Calls', 'Cost']);
+    const rows = phaseTable.getAllByRole('row').slice(1);
+    expect(rows.map((r) => r.textContent)).toEqual([expect.stringMatching(/^detection2/), expect.stringMatching(/^review1/)]);
+    expect(within(rows[0]).getByText('2')).toBeTruthy();
   });
 
   it('does not imply measured usage when a logical call sends no HTTP request', async () => {
@@ -922,7 +926,6 @@ describe('StatsPage with populated spend data', () => {
     const index = await screen.findByRole('navigation', { name: 'Stats sections' });
 
     const spend = within(index).getByRole('link', { name: 'Spend' });
-    expect(spend.getAttribute('href')).toBe('#stats-spend');
     const native = container.querySelector('#stats-systemone')!;
     const spendCard = container.querySelector('#stats-spend')!;
     expect(native.parentElement).toBe(spendCard.parentElement);
@@ -930,8 +933,9 @@ describe('StatsPage with populated spend data', () => {
     expect(container.querySelectorAll('#stats-systemone')).toHaveLength(1);
     expect(within(native as HTMLElement).getByRole('heading', { level: 2, name: 'System One calls' })).toBeTruthy();
     expect(within(native as HTMLElement).getByText(/Uses the Spend filters above/)).toBeTruthy();
-    expect(within(index).getByRole('link', { name: 'System One' }).getAttribute('href')).toBe('#stats-systemone');
-    // Every listed anchor exists on the page.
+    expect(within(index).getByRole('link', { name: 'System One' })).toBeTruthy();
+    expect(spend.getAttribute('href')).toBe('#stats-spend');
+    // Every listed section exists on the page.
     for (const link of within(index).getAllByRole('link')) {
       const id = (link.getAttribute('href') ?? '').slice(1);
       expect(container.querySelector(`#${id}`)).not.toBeNull();
@@ -941,12 +945,12 @@ describe('StatsPage with populated spend data', () => {
   it('right-aligns the numeric headers of both ledger tables', async () => {
     renderPage();
     const usage = await screen.findByRole('table', { name: 'Provider and model usage' });
-    for (const label of ['Calls', 'Known Cost', 'Coverage']) {
+    for (const label of ['Calls', 'Known cost', 'Coverage']) {
       expect(within(usage).getByRole('columnheader', { name: new RegExp(label, 'i') }).className)
         .toContain('text-right');
     }
     const costs = screen.getByRole('table', { name: 'Episode costs' });
-    for (const label of ['Runs', 'Latest Run', 'Cumulative']) {
+    for (const label of ['Runs', 'Latest run', 'Cumulative']) {
       expect(within(costs).getByRole('columnheader', { name: new RegExp(label, 'i') }).className)
         .toContain('text-right');
     }

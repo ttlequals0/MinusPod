@@ -173,7 +173,17 @@ mark,
 
 .modal-backdrop { padding: max(16px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) max(16px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left)); }
 [role="dialog"][aria-modal="true"] { max-height: calc(100dvh - 32px - env(safe-area-inset-top) - env(safe-area-inset-bottom)); overflow-y: auto; }
+[role="dialog"][data-split] { display: flex; flex-direction: column; overflow: hidden; }
 .safe-bottom { padding-bottom: env(safe-area-inset-bottom); }
+/* Side gutters that grow with the horizontal safe-area insets (foldable outer display, landscape). */
+.safe-x { --safe-gutter: 1rem; padding-left: max(var(--safe-gutter), env(safe-area-inset-left)); padding-right: max(var(--safe-gutter), env(safe-area-inset-right)); }
+@media (min-width: 640px) { .safe-x-wide { --safe-gutter: 1.5rem; } }
+@media (min-width: 1024px) { .safe-x-wide { --safe-gutter: 2rem; } }
+/* Half-folded two-segment display: keep dialogs inside the right-hand segment; env() is undefined elsewhere. */
+@media (horizontal-viewport-segments: 2) {
+  .modal-backdrop { justify-content: flex-end; }
+  [role="dialog"][aria-modal="true"] { max-width: calc(env(viewport-segment-width 1 0, 100%) - 32px); }
+}
 
 @media (prefers-reduced-motion: reduce) {
   /* The spinner stays out: frozen, it reads as a hang. */

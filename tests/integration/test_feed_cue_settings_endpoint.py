@@ -344,3 +344,26 @@ def test_list_feeds_surfaces_overrides(app_client, seeded_feed, _auth):
     match = next((f for f in feeds if f['slug'] == slug), None)
     assert match is not None
     assert match['cueSnapConfidenceOverride'] == pytest.approx(0.65)
+
+
+# cueCutMatchesOverride
+
+def test_patch_cut_matches_override_tri_state(app_client, seeded_feed, _auth):
+    slug = seeded_feed['slug']
+    hdr = _csrf(app_client)
+    assert app_client.get(f'/api/v1/feeds/{slug}').get_json()['cueCutMatchesOverride'] is None
+    for value in (True, False, None):
+        r = app_client.patch(f'/api/v1/feeds/{slug}',
+                             json={'cueCutMatchesOverride': value}, headers=hdr)
+        assert r.status_code == 200
+        assert r.get_json()['cueCutMatchesOverride'] is value
+        body = app_client.get(f'/api/v1/feeds/{slug}').get_json()
+        assert body['cueCutMatchesOverride'] is value
+
+
+def test_patch_cut_matches_override_invalid(app_client, seeded_feed, _auth):
+    slug = seeded_feed['slug']
+    hdr = _csrf(app_client)
+    r = app_client.patch(f'/api/v1/feeds/{slug}',
+                         json={'cueCutMatchesOverride': 'yes'}, headers=hdr)
+    assert r.status_code == 400

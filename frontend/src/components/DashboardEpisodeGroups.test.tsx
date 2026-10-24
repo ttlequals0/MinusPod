@@ -56,7 +56,7 @@ describe('DashboardEpisodeGroups', () => {
     };
     renderGroups([recents]);
     expect(screen.queryByRole('heading', { name: 'Recents' })).toBeNull();
-    expect(screen.getByText('No podcasts to show episodes for yet')).toBeTruthy();
+    expect(screen.getByText('No feeds to show episodes for yet.')).toBeTruthy();
   });
 
   it('renders a feed with fewer than N episodes cleanly', () => {
@@ -75,7 +75,7 @@ describe('DashboardEpisodeGroups', () => {
     };
     renderGroups([feed]);
     expect(screen.getByRole('heading', { name: 'Show C' })).toBeTruthy();
-    expect(screen.getByText('No episodes yet')).toBeTruthy();
+    expect(screen.getByText('No episodes yet.')).toBeTruthy();
   });
 
   it('group header links to the podcast and labels its section', () => {
@@ -153,7 +153,7 @@ describe('DashboardEpisodeGroups', () => {
       latestEpisodes: [episodeSummary({ id: 'e1', jobState: 'queued', status: 'pending' })],
     };
     renderGroups([feed]);
-    expect(screen.getByText('queued')).toBeTruthy();
+    expect(screen.getByText('Queued')).toBeTruthy();
   });
 });
 

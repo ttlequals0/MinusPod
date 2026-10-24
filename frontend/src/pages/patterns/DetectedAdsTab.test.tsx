@@ -104,15 +104,15 @@ beforeEach(() => {
 });
 
 describe('DetectedAdsTab', () => {
-  it('lays out the card with the category above one equal-width action row', async () => {
+  it('lays out the card with the category above one wrapping action row', async () => {
     renderTab();
     await screen.findByText('Time cut');
     const cards = screen.getByTestId('detections-cards');
     const row = within(cards).getByTestId('detection-actions-row');
     const buttons = within(row).getAllByRole('button');
     expect(buttons.map((b) => b.getAttribute('aria-label') ?? b.textContent)).toEqual(
-      ['Play this ad', 'Not an ad', 'Split', 'Edit']);
-    for (const b of buttons) expect(b.className).toContain('flex-1');
+      ['Play this ad', 'Not ad', 'Split', 'Edit']);
+    for (const b of buttons.slice(1)) expect(b.className).toContain('grow');
     const category = within(cards).getByRole('combobox', { name: /^Category for/ });
     expect(row.contains(category)).toBe(false);
     expect(category.compareDocumentPosition(row) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
@@ -130,7 +130,7 @@ describe('DetectedAdsTab', () => {
   it('leads with the total time cut', async () => {
     renderTab();
     expect(await screen.findByText('Time cut')).toBeTruthy();
-    expect(screen.getByText('2.0h')).toBeTruthy();
+    expect(screen.getByText('2h')).toBeTruthy();
     expect(screen.getByText('Detections')).toBeTruthy();
     expect(screen.getByText('Sponsors')).toBeTruthy();
     expect(screen.getByText('Podcasts')).toBeTruthy();
@@ -150,7 +150,7 @@ describe('DetectedAdsTab', () => {
     renderTab();
     await screen.findAllByRole('link', { name: 'Episode One' });
     expect(screen.queryByRole('button', { name: 'Confirm ad' })).toBeNull();
-    expect(screen.queryAllByRole('button', { name: 'Not an ad' })).not.toHaveLength(0);
+    expect(screen.queryAllByRole('button', { name: 'Not ad' })).not.toHaveLength(0);
     expect(screen.queryAllByRole('button', { name: 'Edit' })).not.toHaveLength(0);
   });
 
@@ -158,7 +158,7 @@ describe('DetectedAdsTab', () => {
     renderTab();
     const user = userEvent.setup();
     await screen.findAllByRole('link', { name: 'Episode One' });
-    await user.click(screen.getAllByRole('button', { name: 'Not an ad' })[0]);
+    await user.click(screen.getAllByRole('button', { name: 'Not ad' })[0]);
     await waitFor(() => expect(mockSubmitCorrection).toHaveBeenCalled());
     expect(mockSubmitCorrection.mock.calls[0][2]).toMatchObject({ type: 'reject' });
     // The server stamps the episode; the Apply bar puts the audio back in one
@@ -200,16 +200,16 @@ describe('DetectedAdsTab', () => {
       cutSummary: { ...SUMMARY, count: 0, durationSeconds: 0 },
     });
     renderTab();
-    expect(await screen.findByText('No ads have been cut yet.')).toBeTruthy();
+    expect(await screen.findByText('No ads cut yet.')).toBeTruthy();
     const user = userEvent.setup();
     await user.selectOptions(screen.getByLabelText('Category'), 'outro');
-    expect(await screen.findByText('No cut ads match the current filters.')).toBeTruthy();
+    expect(await screen.findByText('No cut ads match these filters.')).toBeTruthy();
   });
 
   it('surfaces a load failure', async () => {
     mockGetDetections.mockRejectedValue(new Error('boom'));
     renderTab();
-    expect(await screen.findByText('Failed to load detected ads.')).toBeTruthy();
+    expect(await screen.findByText('Could not load detected ads.')).toBeTruthy();
   });
 
   it('a finished split names the ad count and triggers the recut', async () => {

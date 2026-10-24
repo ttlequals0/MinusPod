@@ -1,4 +1,5 @@
 import ConfirmResetButton from './ConfirmResetButton';
+import { labelBase } from '../../components/fieldStyles';
 
 interface FieldResetHeaderProps {
   htmlFor: string;
@@ -17,7 +18,7 @@ function FieldResetHeader({
 }: FieldResetHeaderProps) {
   return (
     <div className="flex items-center justify-between gap-2 mb-2">
-      <label htmlFor={htmlFor} className="block text-sm font-medium text-foreground">
+      <label htmlFor={htmlFor} className={labelBase}>
         {label}
       </label>
       {onReset && (

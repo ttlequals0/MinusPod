@@ -36,6 +36,10 @@ New feeds use each global choice. A feed set to Inherit continues using that cho
 
 Upgrades preserve existing feed choices instead of switching them to inheritance. The earlier cross-fetch enabled flag becomes an explicit On or Off, while an unset legacy flag becomes explicit Auto.
 
+### Auto-process window
+
+A new episode is auto-queued only if it was published within the auto-process window; older ones stay discovered until you process them. The default is 48 hours and the range is 1 to 720 hours. A feed can set its own window in Feed Settings; leave it empty to inherit the global value. API fields: `autoProcessMaxAgeHours` on `PUT /api/v1/settings/ad-detection` and `autoProcessMaxAgeHoursOverride` (null inherits) on `PATCH /api/v1/feeds/{slug}`.
+
 ### Audio leveling
 
 Audio Leveling evens out quiet and loud passages in the processed audio. It runs an additional ffmpeg pass using the `dynaudnorm` filter after ad removal, with Gentle, Normal, Aggressive, Extreme, and Maximum intensity presets. The additional pass adds processing time; it does not change detection or ad-cut boundaries.
@@ -366,7 +370,7 @@ Some shows publish an episode whose second half is a re-run, and the description
 
 When a timestamp line in the description matches, that span becomes an Outro marker with the stage badge Description chapter. It is cut regardless of detection confidence or duration, is not sent to the reviewer, and is re-applied on every process, re-detect, and recut. The feed's segment action for Outro still decides the result: remove cuts it, mark or keep leaves it in the audio. A span that ends within 1 s of the episode end is treated as cut to the end.
 
-User corrections win: a keep range or a Not an ad on an overlapping marker can carve the trimmed span, and with the Outro action set to keep or mark the span is not cut. Matching reads the upstream description, not the served one with MinusPod's chapter list appended.
+User corrections win: a keep range or a Not ad on an overlapping marker can carve the trimmed span, and with the Outro action set to keep or mark the span is not cut. Matching reads the upstream description, not the served one with MinusPod's chapter list appended.
 
 The pattern also matches the episode's chapters, whether the feed publishes them or MinusPod generates them. `Cut until the next chapter` ends at the next chapter start, and the last chapter runs to the end of the episode. Generated chapters only exist after a run. When one matches and no marker already covers its span, the run adds the marker and recuts the episode once. This needs the retained original; without it no recut is queued. A recut never triggers another. The marker's reason reads `Chapter: <title>`. On a later recut, a chapter-derived marker stays while the pattern still matches its title. Changing the mode re-ends it: to the episode end, or the stored span for the next-chapter mode. The automatic trim runs only when chapters are enabled for the feed (mode not off), and the manual Regenerate Chapters action does not queue a trim.
 
@@ -502,7 +506,7 @@ Each pass (first, verification, reviewer, resurrect) has an optional **Override*
 
 ### Per-feed detection notes
 
-The global overrides apply to every feed. For one show, use **Detection notes** on the feed's settings page (up to 1000 characters). The text is appended to the podcast description the model already sees, so it reaches the first pass and the reviewer. Use it for things only that show does: how its intro is structured, how host-read ads usually start, a recurring segment to keep. API: `detectionNotes` on `PATCH /api/v1/feeds/{slug}`.
+The global overrides apply to every feed. For one show, use **Detection notes** on the feed's settings page (up to 1000 characters). The text goes to the detector, the verification pass and the reviewer in its own prompt section, separate from the podcast description, as instructions for that show. Use it for things only that show does: how its intro is structured, how host-read ads usually start, a recurring segment to keep. API: `detectionNotes` on `PATCH /api/v1/feeds/{slug}`.
 
 ### Audio Cue Detection
 

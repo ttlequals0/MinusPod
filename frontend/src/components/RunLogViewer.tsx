@@ -2,11 +2,13 @@ import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Modal } from './Modal';
 import { SkeletonRows } from './Skeleton';
-import { btnGhost, btnOutline } from './buttonStyles';
-import { focusRing } from './fieldStyles';
+import CloseButton from './CloseButton';
 import { episodeRunLogDownloadUrl, getEpisodeRunLog } from '../api/feeds';
 import type { RunLogLine } from '../api/types';
 import { usePagedList } from '../hooks/usePagedList';
+import { btnBase, btnPrimary, btnOutline } from './buttonStyles';
+import { inputBase } from './fieldStyles';
+import { cardTitle } from './pageStyles';
 
 interface RunLogViewerProps {
   slug: string;
@@ -80,59 +82,65 @@ function RunLogViewer({ slug, episodeId, runNumber, onClose }: RunLogViewerProps
   };
 
   return (
-    <Modal ariaLabel="Processing run log" onClose={onClose} panelClassName="w-full max-w-5xl h-[90vh] flex flex-col text-foreground">
-      <div className="flex items-start justify-between gap-3 p-4 border-b border-border">
-        <div>
-          <h2 className="text-lg font-semibold">Run {runNumber} log</h2>
-          <p className="text-sm text-muted-foreground">
-            {data ? `${lines.length} lines, ${formatBytes(data.bytes)}` : 'Pipeline log for this run'}
-          </p>
-        </div>
-        <button
-          onClick={onClose}
-          className={`px-3 py-1.5 text-sm rounded ${btnGhost} transition-colors ${focusRing}`}
-        >
-          Close
-        </button>
-      </div>
+    <Modal
+      ariaLabel="Processing run log" onClose={onClose} panelClassName="w-full max-w-5xl h-[90vh] flex flex-col text-foreground"
+      header={(
+        <div className="flex-1 min-w-0 space-y-3">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <h2 className={cardTitle}>Run {runNumber} log</h2>
+              <p className="text-sm text-muted-foreground">
+                {data ? `${lines.length} lines, ${formatBytes(data.bytes)}` : 'Pipeline log for this run'}
+              </p>
+            </div>
+            <CloseButton onClick={onClose} />
+          </div>
 
-      <div className="flex flex-wrap items-center gap-3 p-4 border-b border-border">
-        <div className="flex items-center gap-1" role="group" aria-label="Filter by level">
-          {LEVELS.map((level) => (
-            <button
-              key={level}
-              aria-pressed={selectedLevels.has(level)}
-              onClick={() => onFilterChange(() => setSelectedLevels((prev) => {
-                const next = new Set(prev);
-                if (next.has(level)) next.delete(level); else next.add(level);
-                return next;
-              }))}
-              className={`px-2.5 py-1 text-xs rounded transition-colors ${focusRing} ${
-                selectedLevels.has(level) ? 'bg-primary text-primary-foreground' : btnOutline
-              }`}
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="flex items-center gap-1" role="group" aria-label="Filter by level">
+              {LEVELS.map((level) => (
+                <button
+                  key={level}
+                  aria-pressed={selectedLevels.has(level)}
+                  onClick={() => onFilterChange(() => setSelectedLevels((prev) => {
+                    const next = new Set(prev);
+                    if (next.has(level)) next.delete(level); else next.add(level);
+                    return next;
+                  }))}
+                  className={`${btnBase} ${selectedLevels.has(level) ? btnPrimary : btnOutline}`}
+                >
+                  {LEVEL_LABEL[level]}
+                </button>
+              ))}
+            </div>
+            <input
+              type="search"
+              aria-label="Search this log"
+              placeholder="Search lines"
+              value={search}
+              onChange={(e) => onFilterChange(() => setSearch(e.target.value))}
+              className={`${inputBase} flex-1 min-w-40`}
+            />
+            <a
+              href={episodeRunLogDownloadUrl(slug, episodeId, runNumber)}
+              download
+              className={`${btnBase} ${btnOutline}`}
             >
-              {LEVEL_LABEL[level]}
-            </button>
-          ))}
+              Download
+            </a>
+          </div>
         </div>
-        <input
-          type="search"
-          aria-label="Search this log"
-          placeholder="Search lines"
-          value={search}
-          onChange={(e) => onFilterChange(() => setSearch(e.target.value))}
-          className={`flex-1 min-w-40 px-3 py-1.5 text-sm rounded bg-secondary text-secondary-foreground border border-border ${focusRing}`}
-        />
-        <a
-          href={episodeRunLogDownloadUrl(slug, episodeId, runNumber)}
-          download
-          className={`px-3 py-1.5 text-sm rounded ${btnOutline} transition-colors ${focusRing}`}
-        >
-          Download
-        </a>
-      </div>
-
-      <div className="flex-1 overflow-y-auto p-4" onScroll={onScroll}>
+      )}
+      footer={(
+        <div className="flex flex-wrap items-center justify-between gap-2 w-full text-sm text-muted-foreground">
+          <span>{filtered.length} of {lines.length} lines</span>
+          {data?.truncated && (
+            <span className="text-warning">This run hit the 20 MB cap, so the rest of the log is missing.</span>
+          )}
+        </div>
+      )}
+    >
+      <div className="h-full overflow-y-auto p-4" onScroll={onScroll}>
         {isLoading && <SkeletonRows count={6} />}
         {error && (
           <p className="text-sm text-destructive">
@@ -143,6 +151,9 @@ function RunLogViewer({ slug, episodeId, runNumber, onClose }: RunLogViewerProps
           <p className="text-sm text-muted-foreground">
             No lines match the current filters.
           </p>
+        )}
+        {visible.length > 0 && (
+          <p className="mb-1 text-xs text-muted-foreground">Times are UTC.</p>
         )}
         {visible.length > 0 && (
           <ol className="font-mono text-xs space-y-px">
@@ -167,13 +178,6 @@ function RunLogViewer({ slug, episodeId, runNumber, onClose }: RunLogViewerProps
               );
             })}
           </ol>
-        )}
-      </div>
-
-      <div className="flex flex-wrap items-center justify-between gap-2 p-4 border-t border-border text-sm text-muted-foreground">
-        <span>{filtered.length} of {lines.length} lines</span>
-        {data?.truncated && (
-          <span className="text-warning">This run hit the 20 MB cap, so the rest of the log is missing.</span>
         )}
       </div>
     </Modal>

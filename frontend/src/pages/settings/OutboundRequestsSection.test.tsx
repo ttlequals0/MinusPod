@@ -1,5 +1,5 @@
 /**
- * Tests for the Outbound Requests section: editing the two User-Agent
+ * Tests for the Outbound requests section: editing the two User-Agent
  * strings, and resetting one back to its default.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';

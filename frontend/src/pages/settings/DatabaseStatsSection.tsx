@@ -1,10 +1,9 @@
 import { useMutation } from '@tanstack/react-query';
 import type { SystemStatus } from '../../api/types';
 import { checkpointDatabase } from '../../api/settings';
-import { btnSecondary } from '../../components/buttonStyles';
 import CollapsibleSection from '../../components/CollapsibleSection';
-import { focusRing } from '../../components/fieldStyles';
 import { formatStorage } from './settingsUtils';
+import { btnBase, btnSecondary } from '../../components/buttonStyles';
 
 interface DatabaseStatsSectionProps {
   database: SystemStatus['database'];
@@ -16,7 +15,7 @@ function DatabaseStatsSection({ database }: DatabaseStatsSectionProps) {
   if (!database) return null;
 
   return (
-    <CollapsibleSection title="Database Stats" storageKey="settings-section-db-stats">
+    <CollapsibleSection title="Database stats" storageKey="settings-section-db-stats">
       <div className="space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
@@ -28,7 +27,7 @@ function DatabaseStatsSection({ database }: DatabaseStatsSectionProps) {
             type="button"
             onClick={() => checkpoint.mutate()}
             disabled={checkpoint.isPending}
-            className={`px-3 py-2 rounded-lg text-sm ${btnSecondary} ${focusRing} disabled:opacity-50`}
+            className={`${btnBase} ${btnSecondary}`}
           >
             {checkpoint.isPending ? 'Checkpointing...' : 'Run passive checkpoint'}
           </button>

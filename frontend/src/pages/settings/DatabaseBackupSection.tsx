@@ -1,4 +1,5 @@
 import { useUnsavedChanges } from '../../hooks/useUnsavedChanges';
+import { formatDateTime } from '../../utils/format';
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import CollapsibleSection from '../../components/CollapsibleSection';
@@ -11,11 +12,11 @@ import {
   runDatabaseBackupNow,
 } from '../../api/settings';
 import { formatStorage } from './settingsUtils';
-import { btnPrimary, btnSecondary } from '../../components/buttonStyles';
 import SavedBadge from './SavedBadge';
 import CronScheduleField from './CronScheduleField';
 import NumberInput from '../../components/NumberInput';
-import { focusRing } from '../../components/fieldStyles';
+import { btnBase, btnLg, btnPrimary, btnSecondary } from '../../components/buttonStyles';
+import { inputBase } from '../../components/fieldStyles';
 
 interface Draft {
   enabled?: boolean;
@@ -47,7 +48,7 @@ function DatabaseBackupSection() {
       setDraft({});
       qc.invalidateQueries({ queryKey: ['dbBackup'] });
     },
-    onError: (e: unknown) => setSaveError(getErrorMessage(e, 'Save failed')),
+    onError: (e: unknown) => setSaveError(getErrorMessage(e, 'Could not save settings.')),
   });
 
   const runNow = useMutation({
@@ -75,7 +76,7 @@ function DatabaseBackupSection() {
 
   return (
     <CollapsibleSection
-      title="Scheduled Backups"
+      title="Scheduled backups"
       storageKey="settings-section-scheduled-backups"
     >
       {isLoading ? (
@@ -90,7 +91,7 @@ function DatabaseBackupSection() {
           <button
             type="button"
             onClick={() => refetch()}
-            className={`px-4 py-2 rounded-lg ${btnSecondary} text-sm ${focusRing}`}
+            className={`${btnBase} ${btnSecondary}`}
           >
             Retry
           </button>
@@ -126,7 +127,7 @@ function DatabaseBackupSection() {
                 htmlFor="db-backup-dest"
                 className="text-sm text-muted-foreground whitespace-nowrap"
               >
-                Destination:
+                Destination
               </label>
               <input
                 id="db-backup-dest"
@@ -135,7 +136,7 @@ function DatabaseBackupSection() {
                 value={dest}
                 onChange={(e) => setDraft((d) => ({ ...d, dest: e.target.value }))}
                 placeholder={data?.effectiveDest}
-                className="flex-1 min-w-0 px-3 py-1.5 rounded-lg border border-input bg-background text-foreground font-mono text-sm"
+                className={`${inputBase} flex-1 min-w-0 font-mono`}
               />
             </div>
             <p id="db-backup-dest-help" className="text-xs text-muted-foreground">
@@ -158,7 +159,7 @@ function DatabaseBackupSection() {
                 htmlFor="db-backup-keep"
                 className="text-sm text-muted-foreground whitespace-nowrap"
               >
-                Copies to keep:
+                Copies to keep
               </label>
               <NumberInput
                 id="db-backup-keep"
@@ -174,7 +175,7 @@ function DatabaseBackupSection() {
                     keepCount: n,
                   }));
                 }}
-                className="w-20 px-3 py-1.5 rounded-lg border border-input bg-background text-foreground text-sm"
+                className="w-20"
               />
             </div>
             <p id="db-backup-keep-help" className="text-xs text-muted-foreground">
@@ -192,7 +193,7 @@ function DatabaseBackupSection() {
               type="button"
               onClick={() => save.mutate()}
               disabled={save.isPending}
-              className={`px-4 py-2 rounded-lg ${btnPrimary} disabled:opacity-50 text-sm ${focusRing}`}
+              className={`${btnLg} ${btnPrimary}`}
             >
               {save.isPending ? 'Saving...' : 'Save'}
             </button>
@@ -200,7 +201,7 @@ function DatabaseBackupSection() {
               type="button"
               onClick={() => runNow.mutate()}
               disabled={runNow.isPending}
-              className={`px-4 py-2 rounded-lg ${btnSecondary} disabled:opacity-50 text-sm ${focusRing}`}
+              className={`${btnLg} ${btnSecondary}`}
             >
               {runNow.isPending ? 'Backing up...' : 'Back up now'}
             </button>
@@ -212,7 +213,7 @@ function DatabaseBackupSection() {
             )}
             {runNow.isError && (
               <span className="ml-1 text-sm text-destructive">
-                {(runNow.error as Error)?.message || 'Backup failed'}
+                {(runNow.error as Error)?.message || 'Could not run backup.'}
               </span>
             )}
           </div>
@@ -220,7 +221,7 @@ function DatabaseBackupSection() {
           <div className="text-sm text-muted-foreground pt-2 border-t border-border">
             <div>
               <span className="font-medium text-foreground">Last backup:</span>{' '}
-              {data?.lastRun ? new Date(data.lastRun).toLocaleString() : 'never'}
+              {formatDateTime(data?.lastRun ?? null)}
             </div>
             {lastSummary && (
               <div>

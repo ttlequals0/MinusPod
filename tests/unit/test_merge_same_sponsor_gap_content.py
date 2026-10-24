@@ -163,3 +163,34 @@ def test_two_short_reads_across_talk_stay_separate():
     assert len(merged) == 2
     total = sum(a['end'] - a['start'] for a in merged)
     assert total == pytest.approx(28.5, abs=0.1)
+
+
+class TestNestedFoldKeepsMeasuredEnd:
+
+    @staticmethod
+    def _pair():
+        dai = {'start': 0.0, 'end': 60.38, 'confidence': 0.9, 'reason': 'dai',
+               'detection_stage': 'dai_differential',
+               'dai_core_spans': [{'start': 0.0, 'end': 60.38}]}
+        llm = {'start': 0.0, 'end': 57.68, 'confidence': 0.9, 'reason': 'llm',
+               'word_timed_end': 57.68}
+        segs = [_seg(0.0, 30.0, 'Get it at bluevine.com today'),
+                _seg(30.0, 57.68, 'Go to bluevine.com for business banking')]
+        return dai, llm, segs
+
+    @pytest.mark.parametrize('dai_first', [True, False])
+    def test_nested_fold_keeps_longer_end_and_core_span(self, dai_first):
+        from utils.markers import dai_core_spans
+        dai, llm, segs = self._pair()
+        ads = [dai, llm] if dai_first else [llm, dai]
+        merged = merge_same_sponsor_ads(ads, segs, min_content_seconds=12.0)
+        assert len(merged) == 1
+        assert merged[0]['end'] == 60.38
+        assert dai_core_spans(merged[0]) == [(0.0, 60.38)]
+
+    def test_extending_next_still_inherits_later_end(self):
+        ads = [_ad(100, 130, READ), _ad(125, 180, READ)]
+        segments = _episode((100, 130), (125, 180))
+        merged = merge_same_sponsor_ads(ads, segments, min_content_seconds=12.0)
+        assert len(merged) == 1
+        assert merged[0]['end'] == 180

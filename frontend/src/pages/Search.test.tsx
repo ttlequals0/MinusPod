@@ -34,8 +34,7 @@ describe('Search page', () => {
   it('falls back to the All tab for an unknown ?type= without throwing', async () => {
     renderSearch('/search?type=bogus&q=xy');
     await waitFor(() => screen.getByText('The Daily Tech Show'));
-    const allTab = screen.getByRole('button', { name: 'All' });
-    expect(allTab.className).toContain('bg-primary');
+    expect(screen.getByRole('tab', { name: 'All' }).getAttribute('aria-selected')).toBe('true');
   });
 });
 
@@ -78,8 +77,8 @@ describe('Search page episode results', () => {
   it('shows each episode with its status and publish date', async () => {
     renderSearch('/search?q=quartz');
     await waitFor(() => screen.getByText('Rerun'));
-    expect(screen.getByText('discovered')).toBeTruthy();
-    expect(screen.getByText('completed')).toBeTruthy();
+    expect(screen.getByText('Discovered')).toBeTruthy();
+    expect(screen.getByText('Completed')).toBeTruthy();
     const expected = new Date('2024-12-16T08:00:00Z').toLocaleDateString();
     expect(screen.getByText(expected)).toBeTruthy();
   });

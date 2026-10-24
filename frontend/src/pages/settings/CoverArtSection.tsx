@@ -3,10 +3,9 @@ import CollapsibleSection from '../../components/CollapsibleSection';
 import NumberInput from '../../components/NumberInput';
 import ToggleSwitch from '../../components/ToggleSwitch';
 import { BYTES_PER_MB } from './settingsUtils';
-import { btnSecondary } from '../../components/buttonStyles';
 import type { BadgePosition } from '../../api/types';
-import { selectBase } from '../../components/fieldStyles';
-import { focusRing } from '../../components/fieldStyles';
+import { btnBase, btnSecondary } from '../../components/buttonStyles';
+import { selectBase, labelBase } from '../../components/fieldStyles';
 
 
 interface CoverArtSectionProps {
@@ -32,7 +31,7 @@ function CoverArtSection({
 }: CoverArtSectionProps) {
   const maxArtworkMb = Math.round((maxArtworkBytes / BYTES_PER_MB) * 10) / 10;
   return (
-    <CollapsibleSection title="Cover Art">
+    <CollapsibleSection title="Cover art">
       <div className="space-y-4">
         <div>
           <label className="flex items-center gap-3 cursor-pointer">
@@ -51,7 +50,7 @@ function CoverArtSection({
         </div>
 
         <div>
-          <label htmlFor="artworkBadgePosition" className="block text-sm font-medium text-foreground mb-2">
+          <label htmlFor="artworkBadgePosition" className={labelBase}>
             Badge position
           </label>
           <select
@@ -73,7 +72,7 @@ function CoverArtSection({
         </div>
 
         <div className="pt-4 border-t border-border">
-          <label htmlFor="maxArtworkMb" className="block text-sm font-medium text-foreground mb-2">
+          <label htmlFor="maxArtworkMb" className={labelBase}>
             Max artwork size (MB)
           </label>
           <div className="flex items-center gap-3">
@@ -103,7 +102,7 @@ function CoverArtSection({
             type="button"
             onClick={onRefreshArtwork}
             disabled={refreshArtworkPending}
-            className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md ${btnSecondary} disabled:opacity-50 transition-colors ${focusRing}`}
+            className={`${btnBase} ${btnSecondary}`}
           >
             <RefreshCw className={`w-4 h-4 ${refreshArtworkPending ? 'animate-spin' : ''}`} />
             {refreshArtworkPending ? 'Refreshing artwork...' : 'Refresh all artwork'}

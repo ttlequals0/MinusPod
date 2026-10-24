@@ -24,5 +24,6 @@ class EpisodeContext:
     episode_title: str = "Unknown"
     podcast_id: str | None = None
     podcast_description: str | None = None
+    detection_notes: str | None = None
     episode_description: str | None = None
     podcast_tags: set[str] | None = None

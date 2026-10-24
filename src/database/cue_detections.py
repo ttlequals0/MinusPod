@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 
 _VALID_VERDICTS = ('pending', 'confirmed', 'rejected')
 # App-layer guard; the DB CHECK was dropped for 'below_threshold'.
-_VALID_OUTCOMES = ('snap', 'pair', 'none', 'below_threshold')
+_VALID_OUTCOMES = ('snap', 'pair', 'cut', 'none', 'below_threshold')
 
 # Shared aggregate projection for the per-feed and global telemetry views.
 # Static SQL (no user input) -- safe to interpolate into both queries. Totals,
@@ -28,6 +28,7 @@ _ADVISORY_AGGREGATE_SQL = """
     COUNT(*) AS total,
     SUM(outcome = 'snap') AS snapped,
     SUM(outcome = 'pair') AS paired,
+    SUM(outcome = 'cut') AS cut,
     SUM(outcome = 'none') AS unused,
     SUM(verdict = 'confirmed') AS confirmed,
     SUM(verdict = 'rejected') AS rejected,

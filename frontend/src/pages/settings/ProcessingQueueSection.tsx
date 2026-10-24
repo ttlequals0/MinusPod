@@ -7,12 +7,13 @@ import { formatDateTime } from '../../utils/format';
 import CollapsibleSection from '../../components/CollapsibleSection';
 import { Pagination } from '../../components/Pagination';
 import NumberInput from '../../components/NumberInput';
-import { btnDestructive, btnGhost, touchTarget } from '../../components/buttonStyles';
-import { focusRing } from '../../components/fieldStyles';
 import { getStageLabel } from '../../utils/processingStage';
 import { getProcessingAdmission, setProcessingAdmission } from '../../api/settings';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { btnSecondary } from '../../components/buttonStyles';
+import { btnBase, btnSecondary, btnGhost, btnDestructive } from '../../components/buttonStyles';
+import { focusRing, inputBase } from '../../components/fieldStyles';
+import { subHeading } from '../../components/pageStyles';
+import { iconTarget, iconVisual } from '../../components/rowActionStyles';
 
 const STORAGE_KEY = 'settings-section-processing-queue';
 
@@ -121,7 +122,7 @@ function ProcessingQueueSection({
       <button
         onClick={() => onCancel({ slug: episode.slug, episodeId: episode.episodeId })}
         disabled={cancelIsPending}
-        className={`${touchTarget} px-3 py-1 text-sm rounded ${btnDestructive} disabled:opacity-50 transition-colors shrink-0 ${focusRing}`}
+        className={`${btnBase} ${btnDestructive} shrink-0`}
       >
         {isCanceling ? 'Canceling...' : 'Cancel'}
       </button>
@@ -141,9 +142,11 @@ function ProcessingQueueSection({
         onClick={() => step(delta)}
         disabled={priorityIsPending}
         aria-label={`${verb} priority for ${episode.title}`}
-        className={`${touchTarget} h-8 w-8 rounded ${btnGhost} disabled:opacity-50 transition-colors ${focusRing}`}
+        className={iconTarget}
       >
-        <Icon className="w-4 h-4" />
+        <span className={`${iconVisual} ${btnGhost}`}>
+          <Icon className="w-4 h-4" aria-hidden="true" />
+        </span>
       </button>
     );
     return (
@@ -162,7 +165,7 @@ function ProcessingQueueSection({
           onCommit={(priority) => {
             if (priority !== episode.priority) onPriorityChange({ ...row, priority });
           }}
-          className="w-16 px-2 py-1 rounded-lg border border-input bg-background text-foreground text-sm text-center tabular-nums"
+          className={`${inputBase} w-16 text-center tabular-nums`}
         />
         {stepBtn(PRIORITY_STEP, Plus, 'Raise')}
       </div>
@@ -171,7 +174,7 @@ function ProcessingQueueSection({
 
   return (
     <CollapsibleSection
-      title="Processing Queue"
+      title="Processing queue"
       defaultOpen={defaultOpen}
       storageKey={storageKey ?? STORAGE_KEY}
       key={hasProcessing ? 'processing-active' : 'processing-idle'}
@@ -179,7 +182,7 @@ function ProcessingQueueSection({
       {admission.data ? (
         <div className="mb-5 flex flex-wrap items-center justify-between gap-3 border-b border-border pb-5">
           <div>
-            <h3 className="text-sm font-medium text-foreground">Processing admission</h3>
+            <h3 className={subHeading}>Processing admission</h3>
             <p className="text-xs text-muted-foreground">
             {admission.data.paused
                 ? `${admission.data.activeRuns} active ${admission.data.activeRuns === 1 ? 'run is' : 'runs are'} draining. New work stays queued.`
@@ -190,7 +193,7 @@ function ProcessingQueueSection({
             type="button"
             onClick={() => updateAdmission.mutate(!admission.data.paused)}
             disabled={updateAdmission.isPending}
-            className={`px-3 py-2 rounded-lg text-sm ${btnSecondary} ${focusRing} disabled:opacity-50`}
+            className={`${btnBase} ${btnSecondary}`}
           >
             {admission.data.paused ? 'Resume new work' : 'Pause new work'}
           </button>

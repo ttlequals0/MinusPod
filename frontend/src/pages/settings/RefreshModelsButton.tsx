@@ -1,6 +1,6 @@
 import LoadingSpinner from '../../components/LoadingSpinner';
-import { btnSecondary } from '../../components/buttonStyles';
-import { focusRing } from '../../components/fieldStyles';
+import { RefreshCw } from 'lucide-react';
+import { btnBase, btnSecondary, btnGhost } from '../../components/buttonStyles';
 
 interface RefreshModelsButtonProps {
   onClick: () => void;
@@ -16,7 +16,7 @@ function RefreshModelsButton({ onClick, isPending, variant = 'chip' }: RefreshMo
         type="button"
         onClick={onClick}
         disabled={isPending}
-        className={`text-sm text-primary hover:underline disabled:opacity-50 ${focusRing}`}
+        className={`${btnBase} ${btnGhost} text-primary`}
       >
         {isPending ? 'Refreshing...' : 'Refresh models'}
       </button>
@@ -27,19 +27,17 @@ function RefreshModelsButton({ onClick, isPending, variant = 'chip' }: RefreshMo
       type="button"
       onClick={onClick}
       disabled={isPending}
-      className={`inline-flex items-center gap-1.5 px-2.5 py-1 text-xs rounded ${btnSecondary} disabled:opacity-50 transition-colors ${focusRing}`}
+      className={`${btnBase} ${btnSecondary}`}
       title="Refresh model list from provider"
     >
       {isPending ? (
         <>
-          <LoadingSpinner inline className="w-3.5 h-3.5" />
+          <LoadingSpinner inline className="w-4 h-4" />
           Refreshing...
         </>
       ) : (
         <>
-          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-          </svg>
+          <RefreshCw className="w-4 h-4" aria-hidden="true" />
           Refresh
         </>
       )}

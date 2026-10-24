@@ -38,12 +38,12 @@ describe('EpisodeRowActions: action label stays stable across run states', () =>
     expect(screen.getByRole('menuitem', { name: /Process/ })).toBeTruthy();
   });
 
-  it('offers Reprocess and Full Analysis for a completed episode', async () => {
+  it('offers Reprocess and Full reprocess for a completed episode', async () => {
     const user = userEvent.setup();
     renderTrigger({ status: 'completed' });
     await user.click(triggerButton());
     expect(screen.getByRole('menuitem', { name: /Reprocess/ })).toBeTruthy();
-    expect(screen.getByRole('menuitem', { name: /Full Analysis/ })).toBeTruthy();
+    expect(screen.getByRole('menuitem', { name: /Full reprocess/ })).toBeTruthy();
   });
 
   it.each(['submitting', 'queued', 'processing'] as const)(
@@ -80,10 +80,9 @@ describe('EpisodeRowActions: equal-width trigger', () => {
     renderTrigger({ status: 'completed' });
     const reprocessClass = triggerButton().className;
     expect(processClass).toBe(reprocessClass);
-    // The floor only equalizes widths while the type stays text-xs.
+    // The floor only equalizes widths while the type stays text-sm.
     expect(processClass).toMatch(/(^|\s)min-w-24(\s|$)/);
-    expect(processClass).toMatch(/(^|\s)text-xs(\s|$)/);
-    expect(processClass).toMatch(/(^|\s)min-h-11(\s|$)/);
+    expect(processClass).toMatch(/(^|\s)text-sm(\s|$)/);
   });
 });
 

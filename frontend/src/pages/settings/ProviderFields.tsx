@@ -2,9 +2,9 @@ import type { LlmProvider } from '../../api/types';
 import { LLM_PROVIDER_LABELS, LLM_PROVIDER_OPTIONS, LLM_PROVIDERS } from '../../api/types';
 import type { ConnectionTestResult, ProviderName, ProviderStatus, ProviderTestResult } from '../../api/providers';
 import DraftNumberInput, { parseOptionalNumber } from '../../components/DraftNumberInput';
-import { inputBase, selectBase } from '../../components/fieldStyles';
 import ConnectionTestButton from './ConnectionTestButton';
 import ProviderKeyField from './ProviderKeyField';
+import { inputBase, selectBase, labelBase } from '../../components/fieldStyles';
 
 // Placeholder shown for a blank timeout/retries override: mirrors the
 // provider-type fallback in get_llm_timeout/get_llm_max_retries (llm_client.py).
@@ -100,7 +100,7 @@ export function ProviderFields({
   return (
     <>
       <div>
-        <label htmlFor={providerSelectId} className="block text-sm font-medium text-foreground mb-2">
+        <label htmlFor={providerSelectId} className={labelBase}>
           {providerLabel}
         </label>
         <select
@@ -120,7 +120,7 @@ export function ProviderFields({
 
       {hasBaseUrl && (
         <div>
-          <label htmlFor={baseUrlInputId} className="block text-sm font-medium text-foreground mb-2">
+          <label htmlFor={baseUrlInputId} className={labelBase}>
             {baseUrlLabel}
           </label>
           <input
@@ -148,7 +148,7 @@ export function ProviderFields({
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div>
-          <label htmlFor={`${providerSelectId}TimeoutSeconds`} className="block text-sm font-medium text-foreground mb-2">
+          <label htmlFor={`${providerSelectId}TimeoutSeconds`} className={labelBase}>
             {slotLabel} request timeout (seconds)
           </label>
           <DraftNumberInput
@@ -161,11 +161,11 @@ export function ProviderFields({
             fallback={null}
             parse={parseOptionalNumber}
             onChange={onTimeoutChange}
-            className={`w-full ${inputBase} placeholder:text-muted-foreground`}
+            className={`w-full placeholder:text-muted-foreground`}
           />
         </div>
         <div>
-          <label htmlFor={`${providerSelectId}MaxRetries`} className="block text-sm font-medium text-foreground mb-2">
+          <label htmlFor={`${providerSelectId}MaxRetries`} className={labelBase}>
             {slotLabel} max retries
           </label>
           <DraftNumberInput
@@ -178,7 +178,7 @@ export function ProviderFields({
             fallback={null}
             parse={parseOptionalNumber}
             onChange={onMaxRetriesChange}
-            className={`w-full ${inputBase} placeholder:text-muted-foreground`}
+            className={`w-full placeholder:text-muted-foreground`}
             ariaDescribedBy={`${providerSelectId}MaxRetries` + '-help'}
           />
           <p id={`${providerSelectId}MaxRetries` + '-help'} className="mt-1 text-sm text-muted-foreground">

@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import { ChevronDown } from 'lucide-react';
 import { PLAYBACK_RATES, ghostBtn } from './controlStyles';
-import { touchTarget } from '../buttonStyles';
-import { focusRing } from '../../components/fieldStyles';
 import { useOutsideClick } from '../../hooks/useOutsideClick';
+import { touchTarget } from '../buttonStyles';
+import { focusRing } from '../fieldStyles';
 
 interface SpeedMenuProps {
   playbackRate: number;
@@ -44,7 +44,7 @@ function SpeedMenu({ playbackRate, onChange, rates = PLAYBACK_RATES, className =
         type="button"
         disabled={disabled}
         onClick={() => setOpen((o) => !o)}
-        className={`h-8 px-1.5 rounded inline-flex items-center gap-1 text-xs font-semibold tabular-nums ${ghostBtn} focus:outline-hidden focus:ring-2 focus:ring-ring ${touchTarget}`}
+        className={`h-8 px-1.5 rounded inline-flex items-center gap-1 text-xs font-semibold tabular-nums ${ghostBtn} ${focusRing} ${touchTarget}`}
         title="Playback speed"
         aria-expanded={open}
         aria-label="Playback speed"

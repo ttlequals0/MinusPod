@@ -3,8 +3,9 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import ToggleSwitch from '../../components/ToggleSwitch';
 import { getSettings, updateSettings } from '../../api/settings';
 import { getErrorMessage } from '../../api/client';
-import { inputBase } from '../../components/fieldStyles';
 import type { UpdateSettingsPayload } from '../../api/types';
+import { inputBase, labelBase } from '../../components/fieldStyles';
+import { subHeading } from '../../components/pageStyles';
 
 const RETENTION_MIN = 1;
 const RETENTION_MAX = 3650;
@@ -42,7 +43,7 @@ function DownloadHistorySettings() {
   return (
     <div className="pt-4 border-t border-border space-y-4">
       <div>
-        <h3 className="text-base font-semibold text-foreground mb-1">Download history</h3>
+        <h3 className={`${subHeading} mb-1`}>Download history</h3>
         <p className="text-sm text-muted-foreground">
           Records each episode download with the client IP and app. Shown on the History page, Downloads tab.
         </p>
@@ -74,7 +75,7 @@ function DownloadHistorySettings() {
       </div>
 
       <div>
-        <label htmlFor="download-history-retention" className="block text-sm font-medium text-foreground mb-1">
+        <label htmlFor="download-history-retention" className={labelBase}>
           Keep history for (days)
         </label>
         <input
@@ -98,7 +99,7 @@ function DownloadHistorySettings() {
 
       {mutation.isError && (
         <p id="download-setting-error" role="alert" className="text-sm text-destructive">
-          {getErrorMessage(mutation.error, 'Failed to update setting')}
+          {getErrorMessage(mutation.error, 'Could not update setting.')}
         </p>
       )}
     </div>

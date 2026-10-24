@@ -11,7 +11,7 @@ export function SegmentCategoryBadge({ category }: { category?: string | null })
   if (!category) {
     return (
       <span
-        className={`${badgeBase} font-medium ${tint.neutral}`}
+        className={`${badgeBase} ${tint.neutral}`}
         title="No detection stage classified this segment"
       >
         Uncategorized
@@ -20,7 +20,7 @@ export function SegmentCategoryBadge({ category }: { category?: string | null })
   }
   const label = SEGMENT_CATEGORY_LABELS[category as SegmentCategory] ?? category;
   return (
-    <span className={`${badgeBase} font-medium ${tint.purple}`}>
+    <span className={`${badgeBase} ${tint.purple}`}>
       {label}
     </span>
   );
@@ -33,7 +33,7 @@ export function KeptBadge({ actionApplied }: { actionApplied?: string | null }) 
   const marked = actionApplied === 'mark';
   return (
     <span
-      className={`${badgeBase} font-medium ${tint.neutral}`}
+      className={`${badgeBase} ${tint.neutral}`}
       title={marked
         ? "This segment's category is set to Mark, so it was left in the audio and published as a chapter"
         : "This segment's category is set to Keep, so it was left in the audio"}

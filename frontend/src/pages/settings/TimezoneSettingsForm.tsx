@@ -4,8 +4,8 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSyncFromQuery } from '../../hooks/useSyncFromQuery';
 import { getNotificationTimezone, updateNotificationTimezone } from '../../api/settings';
 import { getErrorMessage } from '../../api/client';
-import { btnPrimary, touchTarget } from '../../components/buttonStyles';
-import { focusRing, selectBase } from '../../components/fieldStyles';
+import { btnLg, btnPrimary } from '../../components/buttonStyles';
+import { selectBase, labelBase } from '../../components/fieldStyles';
 
 const FALLBACK_ZONES = [
   'UTC', 'America/New_York', 'America/Chicago', 'America/Denver', 'America/Los_Angeles',
@@ -50,7 +50,7 @@ function TimezoneSettingsForm() {
   });
 
   if (isError) {
-    return <p className="text-sm text-destructive">Failed to load the notification timezone.</p>;
+    return <p className="text-sm text-destructive">Could not load the notification timezone.</p>;
   }
   if (isLoading || draft === null) {
     return <p className="text-sm text-muted-foreground">Loading timezone...</p>;
@@ -62,13 +62,13 @@ function TimezoneSettingsForm() {
   }
 
   return (
-    <form onSubmit={handleSave} className="space-y-3 p-4 rounded-lg border border-border bg-background">
+    <form onSubmit={handleSave} className="space-y-3 p-4 rounded-lg bg-muted/40">
       <p id="notification-timezone-help" className="text-xs text-muted-foreground">
         Notifications also show times in this timezone, alongside UTC.
       </p>
       <div className="flex items-end gap-2 flex-wrap">
         <div className="flex-1 min-w-48">
-          <label htmlFor="notification-timezone" className="block text-sm font-medium text-foreground mb-1">
+          <label htmlFor="notification-timezone" className={labelBase}>
             Timezone
           </label>
           <select
@@ -88,14 +88,14 @@ function TimezoneSettingsForm() {
         <button
           type="submit"
           disabled={saveMutation.isPending || !dirty}
-          className={`${touchTarget} px-4 py-2 rounded-lg ${btnPrimary} disabled:opacity-50 transition-colors text-sm ${focusRing}`}
+          className={`${btnLg} ${btnPrimary}`}
         >
           {saveMutation.isPending ? 'Saving...' : 'Save timezone'}
         </button>
       </div>
       {saveMutation.isError && (
         <div id="notification-timezone-error" role="alert" className="p-3 rounded-lg bg-destructive/10 text-destructive text-sm">
-          {getErrorMessage(saveMutation.error, 'Failed to save timezone')}
+          {getErrorMessage(saveMutation.error, 'Could not save timezone.')}
         </div>
       )}
     </form>

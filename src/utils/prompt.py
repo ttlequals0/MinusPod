@@ -7,6 +7,8 @@ prompt bodies stay intact (also avoids injection attacks).
 """
 import re
 
+from config import DETECTION_NOTES_MAX_CHARS
+
 SPONSOR_DATABASE_HEADER = (
     "\n\nDYNAMIC SPONSOR DATABASE (current known sponsors - treat as high confidence):\n"
 )
@@ -127,6 +129,18 @@ def scrub_description(description: str|None, max_length: int|None = None, split_
             clip_end = max(clip_end, description.find(' ', clip_end))
         description = description[:clip_begin] + "..." + description[clip_end:]
     return description
+
+def format_detection_notes_block(notes: str|None) -> str:
+    """Prompt block for per-feed operator notes, or "" when there are none."""
+    # Operator text is trusted: strip HTML only, so a cited time like 1:30 survives.
+    notes = re.sub(r'(?:\s*\n)+', '\n', strip_html(notes or '')).strip()[:DETECTION_NOTES_MAX_CHARS]
+    if not notes:
+        return ""
+    return (
+        "Operator notes for this show (written by the person running this server; "
+        "they describe how this show structures its ads and override the general "
+        f"guidance above when they apply):\n{notes}\n\n"
+    )
 
 def strip_comments_from_prompt(prompt: str|None) -> str:
     """Remove HTML-style comments from the prompt following markdown

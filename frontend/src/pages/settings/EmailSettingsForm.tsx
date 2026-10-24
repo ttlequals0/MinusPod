@@ -8,10 +8,10 @@ import {
 import type { EmailNotificationSettings, EmailNotificationSettingsPayload } from '../../api/settings';
 import { useTransientState } from '../../hooks/useTransientState';
 import { EVENT_OPTIONS } from './notificationEvents';
-import { btnPrimary, btnSecondary, touchTarget } from '../../components/buttonStyles';
 import Checkbox from '../../components/Checkbox';
 import DraftNumberInput, { parseOptionalNumber } from '../../components/DraftNumberInput';
-import { focusRing } from '../../components/fieldStyles';
+import { btnBase, btnLg, btnPrimary, btnSecondary, btnGhost } from '../../components/buttonStyles';
+import { inputBase, selectBase, labelBase } from '../../components/fieldStyles';
 
 interface EmailDraft {
   enabled: boolean;
@@ -38,8 +38,6 @@ function draftFromSettings(s: EmailNotificationSettings): EmailDraft {
     recipients: s.recipients,
   };
 }
-
-const emailInputClass = `max-sm:min-h-11 w-full px-4 py-2 rounded-lg border border-input bg-background text-foreground placeholder:text-muted-foreground text-sm ${focusRing}`;
 
 function EmailSettingsForm() {
   const queryClient = useQueryClient();
@@ -71,7 +69,7 @@ function EmailSettingsForm() {
   const testMutation = useMutation({
     mutationFn: sendTestEmail,
     onSuccess: (data) => setTestResult(data),
-    onError: () => setTestResult({ success: false, message: 'Request failed' }),
+    onError: () => setTestResult({ success: false, message: 'Could not send test email.' }),
   });
 
   const dirty = draft != null && settings != null && (
@@ -90,7 +88,7 @@ function EmailSettingsForm() {
   useUnsavedChanges(dirty);
 
   if (isError) {
-    return <p className="text-sm text-destructive">Failed to load email settings.</p>;
+    return <p className="text-sm text-destructive">Could not load email settings.</p>;
   }
   if (isLoading || !draft) {
     return <p className="text-sm text-muted-foreground">Loading email settings...</p>;
@@ -134,11 +132,11 @@ function EmailSettingsForm() {
   }
 
   return (
-    <form aria-describedby={saveMutation.isError ? "email-save-error" : undefined} onSubmit={handleSave} className="space-y-4 p-4 rounded-lg border border-border bg-background">
+    <form aria-describedby={saveMutation.isError ? "email-save-error" : undefined} onSubmit={handleSave} className="space-y-4 p-4 rounded-lg bg-muted/40">
       <fieldset disabled={saveMutation.isPending} className="space-y-4">
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         <div className="sm:col-span-2">
-          <label htmlFor="email-smtp-host" className="block text-sm font-medium text-foreground mb-1">
+          <label htmlFor="email-smtp-host" className={labelBase}>
             SMTP host
           </label>
           <input
@@ -147,11 +145,11 @@ function EmailSettingsForm() {
             value={draft.smtpHost}
             onChange={(e) => set('smtpHost', e.target.value)}
             placeholder="mail.example.com"
-            className={emailInputClass}
+            className={`${inputBase} w-full`}
           />
         </div>
         <div>
-          <label htmlFor="email-smtp-port" className="block text-sm font-medium text-foreground mb-1">
+          <label htmlFor="email-smtp-port" className={labelBase}>
             Port
           </label>
           <DraftNumberInput
@@ -163,21 +161,21 @@ function EmailSettingsForm() {
             fallback={null}
             parse={parseOptionalNumber}
             onChange={(v) => set('smtpPort', v === null ? '' : String(v))}
-            className={emailInputClass}
+            className="w-full"
           />
         </div>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         <div>
-          <label htmlFor="email-smtp-security" className="block text-sm font-medium text-foreground mb-1">
+          <label htmlFor="email-smtp-security" className={labelBase}>
             Security
           </label>
           <select
             id="email-smtp-security"
             value={draft.smtpSecurity}
             onChange={(e) => set('smtpSecurity', e.target.value as EmailDraft['smtpSecurity'])}
-            className={emailInputClass}
+            className={`${selectBase} w-full`}
           >
             <option value="none">None</option>
             <option value="starttls">STARTTLS</option>
@@ -185,7 +183,7 @@ function EmailSettingsForm() {
           </select>
         </div>
         <div>
-          <label htmlFor="email-smtp-username" className="block text-sm font-medium text-foreground mb-1">
+          <label htmlFor="email-smtp-username" className={labelBase}>
             Username <span className="text-muted-foreground font-normal">(optional)</span>
           </label>
           <input
@@ -194,11 +192,11 @@ function EmailSettingsForm() {
             value={draft.smtpUsername}
             onChange={(e) => set('smtpUsername', e.target.value)}
             autoComplete="off"
-            className={emailInputClass}
+            className={`${inputBase} w-full`}
           />
         </div>
         <div>
-          <label htmlFor="email-smtp-password" className="block text-sm font-medium text-foreground mb-1">
+          <label htmlFor="email-smtp-password" className={labelBase}>
             Password <span className="text-muted-foreground font-normal">(optional)</span>
           </label>
           <div className="relative">
@@ -211,12 +209,12 @@ function EmailSettingsForm() {
                 ? '(stored - enter new value to change)'
                 : ''}
               autoComplete="off"
-              className={`${emailInputClass} pr-16`}
+              className={`${inputBase} w-full pr-16`}
             />
             <button
               type="button"
               onClick={() => setShowPassword((prev) => !prev)}
-              className={`${touchTarget} absolute right-2 top-1/2 -translate-y-1/2 px-2 py-1 text-xs text-muted-foreground hover:text-foreground transition-colors ${focusRing}`}
+              className={`${btnBase} ${btnGhost} absolute right-1 top-1/2 -translate-y-1/2`}
             >
               {showPassword ? 'Hide' : 'Show'}
             </button>
@@ -226,7 +224,7 @@ function EmailSettingsForm() {
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div>
-          <label htmlFor="email-from" className="block text-sm font-medium text-foreground mb-1">
+          <label htmlFor="email-from" className={labelBase}>
             From address
           </label>
           <input
@@ -235,11 +233,11 @@ function EmailSettingsForm() {
             value={draft.fromAddress}
             onChange={(e) => set('fromAddress', e.target.value)}
             placeholder="minuspod@example.com"
-            className={emailInputClass}
+            className={`${inputBase} w-full`}
           />
         </div>
         <div>
-          <label htmlFor="email-recipients" className="block text-sm font-medium text-foreground mb-1">
+          <label htmlFor="email-recipients" className={labelBase}>
             Recipients
           </label>
           <input
@@ -249,7 +247,7 @@ function EmailSettingsForm() {
             value={draft.recipients}
             onChange={(e) => set('recipients', e.target.value)}
             placeholder="you@example.com, other@example.com"
-            className={emailInputClass}
+            className={`${inputBase} w-full`}
           />
           <p id="email-recipients-help" className="text-xs text-muted-foreground mt-1">Comma-separated email addresses</p>
         </div>
@@ -279,7 +277,7 @@ function EmailSettingsForm() {
 
       {saveMutation.isError && (
         <div id="email-save-error" role="alert" className="p-3 rounded-lg bg-destructive/10 text-destructive text-sm">
-          {(saveMutation.error as Error)?.message || 'Failed to save email settings'}
+          {(saveMutation.error as Error)?.message || 'Could not save email settings.'}
         </div>
       )}
 
@@ -287,7 +285,7 @@ function EmailSettingsForm() {
         <button
           type="submit"
           disabled={saveMutation.isPending || !dirty}
-          className={`${touchTarget} px-4 py-2 rounded-lg ${btnPrimary} disabled:opacity-50 transition-colors text-sm ${focusRing}`}
+          className={`${btnLg} ${btnPrimary}`}
         >
           {saveMutation.isPending ? 'Saving...' : 'Save'}
         </button>
@@ -295,7 +293,7 @@ function EmailSettingsForm() {
           type="button"
           onClick={() => testMutation.mutate()}
           disabled={testMutation.isPending || !savedSendReady || dirty}
-          className={`${touchTarget} px-4 py-2 rounded-lg ${btnSecondary} disabled:opacity-50 transition-colors text-sm ${focusRing}`}
+          className={`${btnLg} ${btnSecondary}`}
         >
           {testMutation.isPending ? 'Sending...' : 'Send test email'}
         </button>

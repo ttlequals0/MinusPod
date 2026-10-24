@@ -1,7 +1,10 @@
-// Shared button class recipes -- the single source for the app's standard
-// button variants. Layout/sizing utilities (px-*, w-full, text-sm, rounded*)
-// and per-site state modifiers (disabled:opacity-50, transition-colors) stay
-// inline at call sites next to the recipe.
+import { focusRing } from './fieldStyles';
+
+// Compose `${btnBase} ${btnPrimary}`: the base carries size, radius, and focus; the variant carries colour only.
+// Call sites add only layout classes (w-full, gap overrides). btnLg is for page-level form actions.
+const btnShape = 'inline-flex items-center justify-center gap-1.5 text-sm rounded whitespace-nowrap transition-colors disabled:opacity-50 disabled:pointer-events-none';
+export const btnBase = `${btnShape} px-3 py-1.5 ${focusRing}`;
+export const btnLg = `${btnShape} px-4 py-2 ${focusRing}`;
 export const btnPrimary = 'bg-primary text-primary-foreground hover:bg-primary/90';
 export const btnSecondary = 'bg-secondary text-secondary-foreground hover:bg-secondary/80';
 // Outline-style buttons render with the secondary recipe since 2.60.0 (#534):
@@ -20,3 +23,5 @@ export const touchCompact =
 // For a row that must stay on one line on a phone: full height, shared width below sm.
 export const touchTargetRow =
   'inline-flex items-center justify-center min-h-11 sm:min-h-0 max-sm:min-w-0';
+// Destructive action that is not the primary one in its group (Delete beside Edit).
+export const btnDestructiveOutline = 'border border-destructive/40 text-destructive hover:bg-destructive/10';

@@ -1,0 +1,52 @@
+From 842bd70cdfaf87d4e284685ecd5995622da38301 Mon Sep 17 00:00:00 2001
+From: Jim Blandy <jimb@red-bean.com>
+Date: Wed, 29 Apr 2026 11:34:35 -0700
+Subject: [PATCH] _compute_xrender_bitmap_size: Avoid overflow computing buffer
+ size.
+
+In `_compute_xrender_bitmap_size`, avoid arithmetic overflow in
+calculating the size needed for the glyph buffer by: rejecting
+unreasonable glyph sizes early, and using 64-bit temporaries to
+multiply 32-bit values.
+
+Fixes #950.
+---
+ src/cairo-ft-font.c | 13 ++++++++++++-
+ 1 file changed, 12 insertions(+), 1 deletion(-)
+
+diff --git a/src/cairo-ft-font.c b/src/cairo-ft-font.c
+index b5d08ee1b..b9bdf81cf 100644
+--- a/src/cairo-ft-font.c
++++ b/src/cairo-ft-font.c
+@@ -950,8 +950,14 @@ _compute_xrender_bitmap_size(FT_Bitmap      *target,
+     /* compute the size of the final bitmap */
+     ftbit = &slot->bitmap;
+ 
++    /* Reject absurd glyph dimensions to avoid overflow below. */
++    if (ftbit->width > INT_MAX / 4 || ftbit->rows > INT_MAX) {
++      return -1;
++    }
++
+     width = ftbit->width;
+     height = ftbit->rows;
++
+     pitch = (width + 3) & ~3;
+ 
+     switch (ftbit->pixel_mode) {
+@@ -1003,7 +1009,12 @@ _compute_xrender_bitmap_size(FT_Bitmap      *target,
+     target->pitch = pitch;
+     target->buffer = NULL;
+ 
+-    return pitch * height;
++    /* Reject this size if the multiplication would overflow an int. */
++    size_t result;
++    if (_cairo_mul_size_t_overflow(pitch, height, &result) || result > INT_MAX)
++	return -1;
++
++    return (int) result;
+ }
+ 
+ /* this functions converts the glyph bitmap found in a FT_GlyphSlot
+-- 
+GitLab
+

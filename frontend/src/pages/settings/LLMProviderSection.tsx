@@ -9,7 +9,7 @@ import type { ConnectionTestResult, ProviderName, ProviderStatus, ProviderTestRe
 import DraftNumberInput, { parseOptionalNumber } from '../../components/DraftNumberInput';
 import NumberInput from '../../components/NumberInput';
 import ToggleSwitch from '../../components/ToggleSwitch';
-import { selectBase } from '../../components/fieldStyles';
+import { selectBase, labelBase } from '../../components/fieldStyles';
 
 interface LLMProviderSectionProps {
   llmProvider: LlmProvider;
@@ -107,7 +107,7 @@ function RateLimitFields({
       <legend className="text-sm font-medium text-foreground mb-2">{legend}</legend>
       <div className="flex flex-wrap gap-6">
         <div>
-          <label htmlFor={`${idPrefix}Rpm`} className="block text-sm font-medium text-foreground mb-2">
+          <label htmlFor={`${idPrefix}Rpm`} className={labelBase}>
             Requests per minute
           </label>
           <NumberInput
@@ -122,7 +122,7 @@ function RateLimitFields({
           />
         </div>
         <div>
-          <label htmlFor={`${idPrefix}Rpd`} className="block text-sm font-medium text-foreground mb-2">
+          <label htmlFor={`${idPrefix}Rpd`} className={labelBase}>
             Requests per day
           </label>
           <NumberInput
@@ -137,7 +137,7 @@ function RateLimitFields({
           />
         </div>
         <div>
-          <label htmlFor={`${idPrefix}Tpm`} className="block text-sm font-medium text-foreground mb-2">
+          <label htmlFor={`${idPrefix}Tpm`} className={labelBase}>
             Tokens per minute
           </label>
           <NumberInput
@@ -226,7 +226,7 @@ function LLMProviderSection({
   const secondaryKeyMeta = keyMetaForType(secondaryProvider);
 
   return (
-    <CollapsibleSection title="LLM Provider" defaultOpen>
+    <CollapsibleSection title="LLM provider" defaultOpen>
       <div className="space-y-4 max-sm:[&_input]:min-h-11 max-sm:[&_select]:min-h-11 max-sm:[&_button]:min-h-11">
         <div>
           <span className="text-sm font-medium text-foreground">{SLOT_LABELS.primary}</span>
@@ -319,7 +319,7 @@ function LLMProviderSection({
               <ToggleSwitch
                 checked={secondaryProviderEnabled}
                 onChange={onSecondaryProviderEnabledChange}
-                ariaLabel="Enable Provider B"
+                ariaLabel="Enable provider B"
               />
               <span className="text-sm font-medium text-foreground">
                 {SLOT_LABELS.secondary}
@@ -389,7 +389,7 @@ function LLMProviderSection({
         </div>
 
         <div>
-          <label htmlFor="pricingSourceMode" className="block text-sm font-medium text-foreground mb-2">
+          <label htmlFor="pricingSourceMode" className={labelBase}>
             Pricing source
           </label>
           <select
@@ -443,7 +443,7 @@ function OllamaNumCtxField({
 
   return (
     <div>
-      <label htmlFor="ollamaNumCtx" className="block text-sm font-medium text-foreground mb-2">
+      <label htmlFor="ollamaNumCtx" className={labelBase}>
         Context window (num_ctx)
       </label>
       <DraftNumberInput
@@ -460,7 +460,7 @@ function OllamaNumCtxField({
         onKeyDown={(e) => {
           if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
         }}
-        className="w-full px-4 py-2 rounded-lg border border-input bg-background text-foreground placeholder:text-muted-foreground focus:outline-hidden focus:ring-2 focus:ring-ring text-sm disabled:opacity-60"
+        className="w-full disabled:opacity-60"
         ariaDescribedBy="ollamaNumCtx-help"
       />
       <p id="ollamaNumCtx-help" className="mt-1 text-sm text-muted-foreground">

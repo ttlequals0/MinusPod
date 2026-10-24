@@ -7,18 +7,22 @@ import os
 import shutil
 import subprocess
 import tempfile
+import threading
 from contextlib import ExitStack
 from dataclasses import dataclass
 from pathlib import Path
 
 from config import FFMPEG_LONG_TIMEOUT, FFPROBE_TIMEOUT
 from utils.audio import get_audio_duration
+from utils import subprocess_registry
 from utils.ffmpeg_run import SAFE_MEDIA_INPUT_ARGS
 from utils.subprocess_registry import tracked_run
 
 logger = logging.getLogger(__name__)
 MAX_FRAMES = 1_000_000
 MAX_PCM_BYTES = 4 * 1024 * 1024 * 1024
+# Leading frames the demuxer may drop as junk (see _validate) before the copy is refused.
+LEAD_JUNK_MAX_FRAMES = 4
 
 
 class CopyUnavailable(ValueError):
@@ -328,59 +332,202 @@ def _write(source_path, output_path, stream, intervals, filler_path, filler):
     return mapping
 
 
+def _decode_command(path):
+    return ['ffmpeg', *SAFE_MEDIA_INPUT_ARGS, '-v', 'error', '-nostats', '-i', path,
+            '-map', '0:a:0', '-c:a', 'pcm_s32le', '-f', 's32le', '-']
+
+
 def _decode(path, output, timeout):
-    result = tracked_run(['ffmpeg', *SAFE_MEDIA_INPUT_ARGS, '-v', 'error', '-y', '-i', path,
-                          '-map', '0:a:0', '-c:a', 'pcm_s32le', '-f', 's32le',
-                          '-fs', str(MAX_PCM_BYTES), str(output)],
-                         capture_output=True, timeout=timeout)
+    command = _decode_command(path)[:-1] + ['-y', '-fs', str(MAX_PCM_BYTES), str(output)]
+    result = tracked_run(command, capture_output=True, timeout=timeout)
     if result.returncode or result.stderr:
         raise CopyUnavailable('MP3 decode validation failed')
 
 
-def _compare(source, output, source_start, output_start, length, block):
-    source.seek(source_start * block)
-    output.seek(output_start * block)
-    remaining = length * block
-    while remaining:
-        data = source.read(min(65536, remaining))
-        if not data or output.read(len(data)) != data:
-            raise CopyUnavailable('MP3 retained samples differ')
-        remaining -= len(data)
+class _PcmPipe:
+    """Forward-only reader over ffmpeg's decoded PCM, read from a pipe instead of temp files."""
 
 
-def _validate(source_path, output_path, stream, mapping, directory, filler_path, filler, output_samples):
-    samples = stream.decoded_samples
-    filler_samples = len(filler.frames) * filler.samples if filler is not None else 0
-    block = stream.channels * 4
+    def __init__(self, path, block, timeout):
+        self.block = block
+        self.pos = 0
+        self.timed_out = False
+        self.proc = subprocess.Popen(
+            _decode_command(path),
+            stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        subprocess_registry.register(self.proc)
+        self.stderr = b''
+        self.drain = threading.Thread(target=self._drain_stderr, daemon=True)
+        self.drain.start()
+        self.timer = threading.Timer(timeout, self._kill)
+        self.timer.daemon = True
+        self.timer.start()
+
+    def _drain_stderr(self):
+        # Read to EOF so a chatty decoder never blocks on a full pipe; keep the first 64 KB.
+        kept = []
+        size = 0
+        while True:
+            data = self.proc.stderr.read(1 << 16)
+            if not data:
+                break
+            if size < 1 << 16:
+                kept.append(data[:(1 << 16) - size])
+                size += len(kept[-1])
+        self.stderr = b''.join(kept)
+
+    def _kill(self):
+        self.timed_out = True
+        self.proc.kill()
+
+    def _read(self, size):
+        chunks = []
+        while size:
+            data = self.proc.stdout.read(min(size, 1 << 16))
+            if not data:
+                break
+            chunks.append(data)
+            size -= len(data)
+        return b''.join(chunks)
+
+    def advance(self, sample):
+        """Discard decoded audio up to ``sample``; never moves backwards."""
+        if sample < self.pos:
+            raise CopyUnavailable('MP3 validation spans out of order')
+        remaining = (sample - self.pos) * self.block
+        while remaining:
+            data = self._read(min(remaining, 1 << 20))
+            if not data:
+                raise CopyUnavailable('MP3 decoded duration mismatch')
+            remaining -= len(data)
+        self.pos = sample
+
+    def take(self, samples):
+        data = self._read(samples * self.block)
+        if len(data) != samples * self.block:
+            raise CopyUnavailable('MP3 decoded duration mismatch')
+        self.pos += samples
+        return data
+
+    def finish(self):
+        """Drain to EOF and return the decoded length in samples."""
+        total = self.pos * self.block
+        while True:
+            data = self._read(1 << 20)
+            if not data:
+                break
+            total += len(data)
+        self.proc.wait()
+        self.timer.cancel()
+        self.drain.join()
+        if self.timed_out or self.proc.returncode or self.stderr:
+            raise CopyUnavailable('MP3 decode validation failed')
+        return total // self.block
+
+    def close(self):
+        self.timer.cancel()
+        if self.proc.poll() is None:
+            self.proc.kill()
+            self.proc.wait()
+        subprocess_registry.unregister(self.proc)
+
+
+def _first_packet(path):
     probe = tracked_run(['ffprobe', '-v', 'error', '-select_streams', 'a:0', '-show_packets',
-                         '-read_intervals', '%+#1', '-of', 'json', source_path],
+                         '-read_intervals', '%+#1', '-of', 'json', path],
                         capture_output=True, timeout=FFPROBE_TIMEOUT)
     if probe.returncode:
         raise CopyUnavailable('MP3 timing probe failed')
     packets = json.loads(probe.stdout).get('packets', [])
     if len(packets) != 1:
         raise CopyUnavailable('MP3 timing unavailable')
-    actual_skip = sum(item.get('skip_samples', 0) for item in packets[0].get('side_data_list', []))
-    if actual_skip != stream.skip or float(packets[0].get('pts_time', 'nan')) != 0.0:
+    return packets[0]
+
+
+def _lead_frames(packet, frames, first):
+    """Leading frames the demuxer skipped before its first packet, from the packet byte position."""
+
+    try:
+        pos = int(packet.get('pos'))
+    except (TypeError, ValueError):
+        return 0
+    for lead in range(LEAD_JUNK_MAX_FRAMES + 1):
+        index = first + lead
+        if index >= len(frames):
+            break
+        if frames[index].offset == pos:
+            return lead
+    raise CopyUnavailable('MP3 decoder start unaccounted for')
+
+
+class _PcmFile:
+    """Seekable reader over a decoded PCM file, with the _PcmPipe advance/take interface."""
+
+    def __init__(self, path, block):
+        self.block = block
+        self.file = open(path, 'rb')
+
+    def advance(self, sample):
+        self.file.seek(sample * self.block)
+
+    def take(self, samples):
+        return self.file.read(samples * self.block)
+
+    def close(self):
+        self.file.close()
+
+
+def _compare_pipes(left, right, left_start, right_start, length):
+    left.advance(left_start)
+    right.advance(right_start)
+    remaining = length
+    while remaining:
+        count = min(remaining, (1 << 16) // left.block)
+        if left.take(count) != right.take(count):
+            raise CopyUnavailable('MP3 retained samples differ')
+        remaining -= count
+
+
+def _validate(source_path, output_path, stream, mapping, directory, filler_path, filler, output_samples):
+    samples = stream.decoded_samples
+    filler_samples = len(filler.frames) * filler.samples if filler is not None else 0
+    block = stream.channels * 4
+    packet = _first_packet(source_path)
+    actual_skip = sum(item.get('skip_samples', 0) for item in packet.get('side_data_list', []))
+    if actual_skip != stream.skip or float(packet.get('pts_time', 'nan')) != 0.0:
         raise CopyUnavailable('MP3 decoder timing mismatch')
-    source_pcm, output_pcm, filler_pcm = [Path(directory) / name for name in ('source.pcm', 'output.pcm', 'filler.pcm')]
+    # Leading frames the demuxer drops as junk are lost from source and copy
+    # alike as long as the copy starts with the same frames, which keeps every
+    # retained span aligned: model them as part of the decoder skip.
+    lead = _lead_frames(packet, stream.frames, stream.first)
+    skip_lead = 0
+    if lead:
+        copied_lead = _lead_frames(_first_packet(output_path), stream.frames, stream.first)
+        if copied_lead != lead or not all(mapping[stream.first + i] == ('source', stream.first + i)
+                                          for i in range(lead)):
+            raise CopyUnavailable('MP3 decoded duration mismatch')
+        skip_lead = lead * stream.samples
+        samples -= skip_lead
+        output_samples -= skip_lead
+        logger.info('MP3 stream copy: decoder dropped %d leading frame(s) of source and copy alike', lead)
     timeout = FFMPEG_LONG_TIMEOUT + int(max(samples, output_samples) / stream.rate / 12)
-    _decode(source_path, source_pcm, timeout)
-    _decode(output_path, output_pcm, timeout)
-    if source_pcm.stat().st_size != samples * block or output_pcm.stat().st_size != output_samples * block:
-        raise CopyUnavailable('MP3 decoded duration mismatch')
+    filler_pcm = Path(directory) / 'filler.pcm'
     if filler is not None:
         _decode(filler_path, filler_pcm, timeout)
         if filler_pcm.stat().st_size != filler_samples * block:
             raise CopyUnavailable('MP3 filler duration mismatch')
     # Two frames cover one-granule MDCT overlap and the synthesis filter history.
     warmup = 2 * stream.samples
-    skip, size = stream.skip, stream.samples
+    skip, size = stream.skip + skip_lead, stream.samples
     frames = mapping[stream.first:]
     with ExitStack() as stack:
-        source = stack.enter_context(source_pcm.open('rb'))
-        output = stack.enter_context(output_pcm.open('rb'))
-        clip = stack.enter_context(filler_pcm.open('rb')) if filler is not None else None
+        source = _PcmPipe(source_path, block, timeout)
+        stack.callback(source.close)
+        output = _PcmPipe(output_path, block, timeout)
+        stack.callback(output.close)
+        clip = _PcmFile(filler_pcm, block) if filler is not None else None
+        if clip is not None:
+            stack.callback(clip.close)
         k = 0
         while k < len(frames):
             kind, index = frames[k]
@@ -394,13 +541,15 @@ def _validate(source_path, output_path, stream, mapping, directory, filler_path,
                 output_start = k * size + off - skip
                 length = min((end - k) * size - off, samples - source_start, output_samples - output_start)
                 if length > 0:
-                    _compare(source, output, source_start, output_start, length, block)
+                    _compare_pipes(source, output, source_start, output_start, length)
             elif kind == 'filler':
                 while end < len(frames) and frames[end][0] == 'filler':
                     end += 1
                 off = max(warmup, skip - k * size)
-                _compare(clip, output, off, k * size + off - skip, filler_samples - off, block)
+                _compare_pipes(clip, output, off, k * size + off - skip, filler_samples - off)
             k = end
+        if source.finish() != samples or output.finish() != output_samples:
+            raise CopyUnavailable('MP3 decoded duration mismatch')
 
 
 def copy_mp3(source_path, output_path, cuts, barriers=(), replacement_path=None, locked=()):
@@ -444,7 +593,21 @@ def copy_mp3(source_path, output_path, cuts, barriers=(), replacement_path=None,
         has_start = bool(intervals) and intervals[0][0] == first
         has_end = bool(intervals) and intervals[-1][1] == len(stream.frames)
         if not has_end and stream.decoded_samples - boundaries[previous] <= warmup:
-            raise CopyUnavailable('Insufficient final retained audio')
+            # Tail under decoder warm-up: fold it into the last cut rather than refusing stream copy.
+            last_end_locked = bool(locked) and locked[len(intervals) - 1][1]
+            if not intervals or previous <= 0 or last_end_locked:
+                raise CopyUnavailable('Insufficient final retained audio')
+            trailing = stream.decoded_samples - boundaries[previous]
+            tail_end = stream.decoded_samples / stream.rate
+            if any(b['start'] < tail_end and b['end'] > snapped[-1]['start'] for b in barriers):
+                raise CopyUnavailable('Snapped MP3 cut crosses protected audio')
+            lo_f, _hi_f = intervals[-1]
+            intervals[-1] = (lo_f, len(stream.frames))
+            snapped[-1]['end'] = tail_end
+            previous = count
+            has_end = True
+            logger.info('MP3 stream copy: extended final cut to the stream end '
+                        '(%d trailing samples below warm-up)', trailing)
         with tempfile.TemporaryDirectory(prefix='mp3-copy-', dir=str(Path(output_path).parent)) as directory:
             filler = None
             filler_path = None
@@ -486,7 +649,8 @@ def copy_mp3(source_path, output_path, cuts, barriers=(), replacement_path=None,
                 raise CopyUnavailable('MP3 decoded length unavailable')
             if max(stream.decoded_samples, output_samples) * block > MAX_PCM_BYTES:
                 raise CopyUnavailable('PCM validation size limit exceeded')
-            required = (stream.decoded_samples + output_samples + filler_samples) * block + os.path.getsize(source_path)
+            # Disk needed: the filler PCM plus the staged mp3 (validation streams the rest).
+            required = filler_samples * block + os.path.getsize(source_path)
             if shutil.disk_usage(directory).free < required:
                 raise CopyUnavailable('Insufficient disk space for PCM validation')
             staged = str(Path(directory) / 'candidate.mp3')

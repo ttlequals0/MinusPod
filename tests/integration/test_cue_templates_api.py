@@ -440,3 +440,87 @@ def test_legacy_template_import_defaults_to_removal(app_client, seeded):
                                content_type='multipart/form-data')
     assert response.status_code == 201
     assert response.get_json()['template']['removeWithAd'] is True
+
+
+def test_cut_matches_api_default_patch_and_validation(app_client, seeded):
+    hdr = _csrf(app_client)
+    tid = _seed_template(seeded['db'], seeded['slug'])
+    url = f'/api/v1/cue-templates/{tid}'
+    base = f"/api/v1/feeds/{seeded['slug']}/cue-templates"
+    assert [t for t in app_client.get(base).get_json()['templates'] if t['id'] == tid][0]['cutMatches'] is None
+    for value, stored in ((True, 1), (False, 0), (None, None)):
+        r = app_client.patch(url, json={'cutMatches': value}, headers=hdr)
+        assert r.status_code == 200
+        assert r.get_json()['template']['cutMatches'] is value
+        assert seeded['db'].get_cue_template(tid)['cut_matches'] == stored
+    r = app_client.patch(url, json={'enabled': True}, headers=hdr)
+    assert r.get_json()['template']['cutMatches'] is None
+    for bad in ('true', 1, 'yes'):
+        r = app_client.patch(url, json={'cutMatches': bad}, headers=hdr)
+        assert r.status_code == 400
+        assert r.get_json()['error'] == 'cutMatches must be true, false, or null'
+        r = app_client.post(base, json={'cutMatches': bad}, headers=hdr)
+        assert r.status_code == 400
+        assert r.get_json()['error'] == 'cutMatches must be true, false, or null'
+
+
+def test_cut_matches_rejected_for_content_transition(app_client, seeded):
+    hdr = _csrf(app_client)
+    tid = _seed_template(seeded['db'], seeded['slug'])
+    url = f'/api/v1/cue-templates/{tid}'
+    r = app_client.patch(url, json={'cueType': 'content_transition', 'cutMatches': True}, headers=hdr)
+    assert r.status_code == 400
+    assert 'content_transition' in r.get_json()['error']
+    assert seeded['db'].get_cue_template(tid)['cut_matches'] is None
+    r = app_client.post(f"/api/v1/feeds/{seeded['slug']}/cue-templates",
+                        json={'cueType': 'content_transition', 'cutMatches': True}, headers=hdr)
+    assert r.status_code == 400
+    assert 'content_transition' in r.get_json()['error']
+
+
+def test_type_change_to_ineligible_clears_cut_matches(app_client, seeded):
+    hdr = _csrf(app_client)
+    tid = _seed_template(seeded['db'], seeded['slug'])
+    url = f'/api/v1/cue-templates/{tid}'
+    assert app_client.patch(url, json={'cutMatches': True}, headers=hdr).status_code == 200
+    r = app_client.patch(url, json={'cueType': 'content_transition'}, headers=hdr)
+    assert r.status_code == 200
+    assert r.get_json()['template']['cutMatches'] is None
+    assert seeded['db'].get_cue_template(tid)['cut_matches'] is None
+
+
+def test_import_content_transition_manifest_coerces_cut_matches(app_client, seeded):
+    if shutil.which('ffmpeg') is None:
+        pytest.skip('ffmpeg not available')
+    hdr = _csrf(app_client)
+    tid = _seed_template(seeded['db'], seeded['slug'])
+    exported = app_client.get(f'/api/v1/cue-templates/{tid}/export')
+    archive = io.BytesIO()
+    with zipfile.ZipFile(io.BytesIO(exported.get_data())) as source:
+        manifest = json.loads(source.read('template.json'))
+        manifest.update(cueType='content_transition', cutMatches=True)
+        with zipfile.ZipFile(archive, 'w') as destination:
+            destination.writestr('template.json', json.dumps(manifest))
+            destination.writestr('cue.flac', source.read('cue.flac'))
+    archive.seek(0)
+    response = app_client.post(f"/api/v1/feeds/{seeded['slug']}/cue-templates/import",
+                               data={'file': (archive, 'cue.zip')}, headers=hdr,
+                               content_type='multipart/form-data')
+    assert response.status_code == 201
+    assert response.get_json()['template']['cutMatches'] is None
+
+
+def test_cut_matches_export_import_roundtrip(app_client, seeded):
+    if shutil.which('ffmpeg') is None:
+        pytest.skip('ffmpeg not available')
+    hdr = _csrf(app_client)
+    tid = _seed_template(seeded['db'], seeded['slug'])
+    app_client.patch(f'/api/v1/cue-templates/{tid}', json={'cutMatches': True}, headers=hdr)
+    exported = app_client.get(f'/api/v1/cue-templates/{tid}/export')
+    with zipfile.ZipFile(io.BytesIO(exported.get_data())) as z:
+        assert json.loads(z.read('template.json'))['cutMatches'] is True
+    imp = app_client.post(f"/api/v1/feeds/{seeded['slug']}/cue-templates/import",
+                          data={'file': (io.BytesIO(exported.get_data()), 'cue.zip')},
+                          headers=hdr, content_type='multipart/form-data')
+    assert imp.status_code == 201
+    assert imp.get_json()['template']['cutMatches'] is True

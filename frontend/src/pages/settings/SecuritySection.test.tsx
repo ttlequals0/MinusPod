@@ -102,7 +102,7 @@ describe('SecuritySection warning: password set', () => {
     expect(screen.queryByText(NO_PASSWORD_TEXT)).toBeNull();
     expect(screen.queryByText(PASSPHRASE_TEXT)).toBeNull();
     // Password-set state still renders its normal UI.
-    expect(screen.queryByText('Current Password')).not.toBeNull();
+    expect(screen.queryByText('Current password')).not.toBeNull();
     expect(screen.queryByRole('button', { name: 'Logout' })).not.toBeNull();
   });
 });

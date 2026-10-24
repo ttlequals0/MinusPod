@@ -1,4 +1,3 @@
-import { pageHeader, pageTitle } from '../components/pageStyles';
 import { useState, useEffect, useMemo } from 'react';
 import { useSyncFromQuery } from '../hooks/useSyncFromQuery';
 import PageTabs from '../components/PageTabs';
@@ -31,24 +30,24 @@ import DetectedAdsTab from './patterns/DetectedAdsTab';
 import CleanupTab from './patterns/CleanupTab';
 import { getPatternCleanupStatus, patternCleanupQueryKey } from '../api/patternCleanup';
 import UnresolvedCorrectionsPanel from './patterns/UnresolvedCorrectionsPanel';
-import { btnOutline } from '../components/buttonStyles';
+import { RefreshCw } from 'lucide-react';
+import StatTile from '../components/StatTile';
 import Checkbox from '../components/Checkbox';
-import { focusRing, inputBase, selectBase, filterGrid, filterLabel, filterControl } from '../components/fieldStyles';
 import {
   SEGMENT_CATEGORIES, SEGMENT_CATEGORY_LABELS, type SegmentCategory,
 } from '../utils/segmentCategory';
-import { badgeBase, tint } from '../components/badgeStyles';
 import { ActiveBadge } from '../components/ActiveBadge';
+import { btnBase, btnOutline } from '../components/buttonStyles';
+import { focusRing, inputBase, selectBase, filterGrid, filterLabel, filterControl } from '../components/fieldStyles';
+import { badgeBase, countPill, tint } from '../components/badgeStyles';
+import { pageHeader, pageTitle } from '../components/pageStyles';
+import { tableActionBtn } from '../components/rowActionStyles';
 
 type ScopeFilter = 'all' | 'global' | 'network' | 'podcast';
 type OriginFilter = 'all' | 'auto' | 'user';
 type SourceFilter = 'all' | 'local' | 'community' | 'imported';
 type PatternsTab = 'patterns' | 'ad-review' | 'detected-ads' | 'cleanup';
 const OTHER_TABS: readonly string[] = ['ad-review', 'detected-ads', 'cleanup'];
-
-// Shared by the three header actions so none of them reads as the odd one
-// out; whitespace-nowrap keeps the sync stamp on one line.
-const headerBtn = 'px-3 py-1.5 text-sm rounded whitespace-nowrap';
 
 function PatternsPage() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -210,9 +209,9 @@ function PatternsPage() {
   return (
     <div>
       <div className={pageHeader}>
-        <h1 className={pageTitle}>Ad Patterns</h1>
+        <h1 className={pageTitle}>Patterns</h1>
         {activeTab === 'patterns' && (
-          <div className="flex flex-wrap items-center gap-2 sm:gap-3 text-sm">
+          <div className="flex flex-wrap items-center gap-2 sm:gap-3 text-sm sm:justify-end">
             <span className="text-muted-foreground">
               {sortedPatterns?.length || 0} patterns
             </span>
@@ -220,12 +219,12 @@ function PatternsPage() {
               <button
                 type="button"
                 onClick={handleSyncNow}
-                className={`${headerBtn} ${btnOutline} transition-colors ${focusRing}`}
+                className={`${btnBase} ${btnOutline}`}
                 title={syncStatus.lastError
                   ? `Last error: ${syncStatus.lastError}`
                   : `Last synced ${new Date(syncStatus.lastRun).toLocaleString()}. Sync now.`}
               >
-                <span aria-hidden="true">↻</span> synced
+                <RefreshCw className="w-4 h-4" aria-hidden="true" /> Synced
                 <span className="hidden sm:inline">
                   {' '}{new Date(syncStatus.lastRun).toLocaleDateString()}
                 </span>
@@ -234,14 +233,14 @@ function PatternsPage() {
             <button
               type="button"
               onClick={() => setImportOpen(true)}
-              className={`${headerBtn} ${btnOutline} transition-colors ${focusRing}`}
+              className={`${btnBase} ${btnOutline}`}
             >
               Import
             </button>
             <button
               type="button"
               onClick={() => setExportOpen(true)}
-              className={`${headerBtn} ${btnOutline} transition-colors ${focusRing}`}
+              className={`${btnBase} ${btnOutline}`}
             >
               Export
             </button>
@@ -261,10 +260,10 @@ function PatternsPage() {
 
       <PageTabs id="patterns" label="Pattern sections" active={activeTab} onChange={switchTab} tabs={[
         { value: 'patterns', label: 'Patterns' },
-        { value: 'detected-ads', label: 'Detected Ads' },
-        { value: 'ad-review', label: 'Ad Review' },
+        { value: 'detected-ads', label: 'Detected ads' },
+        { value: 'ad-review', label: 'Ad review' },
         { value: 'cleanup', label: 'Cleanup', accessibleLabel: cleanupPending > 0 ? `Cleanup, ${cleanupPending} pending` : undefined,
-          badge: cleanupPending > 0 ? <span className={`ml-2 ${badgeBase} ${tint.warning}`}>{cleanupPending}</span> : undefined },
+          badge: cleanupPending > 0 ? <span className={`ml-2 ${countPill} ${tint.warning}`}>{cleanupPending}</span> : undefined },
       ]} />
       <div role="tabpanel" id={`patterns-panel-${activeTab}`} aria-labelledby={`patterns-tab-${activeTab}`} tabIndex={0}>
       {activeTab === 'detected-ads' && <DetectedAdsTab />}
@@ -278,50 +277,23 @@ function PatternsPage() {
       {isLoading && <SkeletonRows count={6} />}
       {error && (
         <div className="text-center py-12">
-          <p className="text-destructive">{patterns ? 'Patterns could not be refreshed. Showing the last loaded list.' : 'Failed to load patterns'}</p>
+          <p className="text-destructive">{patterns ? 'Patterns could not be refreshed. Showing the last loaded list.' : 'Could not load patterns.'}</p>
         </div>
       )}
       {!isLoading && patterns && (<>
 
       {/* Stats Summary */}
       {stats && (
-        <div className="bg-card rounded-lg border border-border p-4 mb-6">
-          <h2 className="text-sm font-medium text-foreground mb-3">Pattern Statistics</h2>
-          <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-4 text-sm">
-            <div>
-              <p className="text-muted-foreground">Total</p>
-              <p className="font-medium text-foreground">{stats.total}</p>
-            </div>
-            <div>
-              <p className="text-muted-foreground">Active</p>
-              <p className="font-medium text-success">{stats.active}</p>
-            </div>
-            <div>
-              <p className="text-muted-foreground">Global</p>
-              <p className="font-medium text-foreground">{stats.by_scope.global}</p>
-            </div>
-            <div>
-              <p className="text-muted-foreground">Network</p>
-              <p className="font-medium text-foreground">{stats.by_scope.network}</p>
-            </div>
-            <div>
-              <p className="text-muted-foreground">Podcast</p>
-              <p className="font-medium text-foreground">{stats.by_scope.podcast}</p>
-            </div>
-            <div>
-              <p className="text-muted-foreground">Unknown Sponsor</p>
-              <p className={`font-medium ${stats.no_sponsor > 0 ? 'text-warning' : 'text-foreground'}`}>
-                {stats.no_sponsor}
-              </p>
-            </div>
-            <div>
-              <p className="text-muted-foreground">High False Pos.</p>
-              <p className={`font-medium ${stats.high_false_positive_count > 0 ? 'text-destructive' : 'text-foreground'}`}>
-                {stats.high_false_positive_count}
-              </p>
-            </div>
-          </div>
-        </div>
+        <section aria-label="Pattern statistics" className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-4 mb-6">
+          <StatTile label="Total" value={stats.total} />
+          <StatTile label="Active" value={stats.active} tone="success" />
+          <StatTile label="Global" value={stats.by_scope.global} />
+          <StatTile label="Network" value={stats.by_scope.network} />
+          <StatTile label="Podcast" value={stats.by_scope.podcast} />
+          <StatTile label="Unknown sponsor" value={stats.no_sponsor} tone={stats.no_sponsor > 0 ? 'warning' : 'default'} />
+          <StatTile label="High false positives" value={stats.high_false_positive_count}
+            tone={stats.high_false_positive_count > 0 ? 'destructive' : 'default'} />
+        </section>
       )}
 
       {/* Merge suggestions (#399): same-sponsor near-duplicate clusters */}
@@ -332,7 +304,7 @@ function PatternsPage() {
         <div className={`${filterGrid} lg:grid-cols-4`}>
           {/* Scope filter */}
           <div className="min-w-0">
-            <label htmlFor="patterns-scope" className={filterLabel}>Scope:</label>
+            <label htmlFor="patterns-scope" className={filterLabel}>Scope</label>
             <select
               id="patterns-scope"
               value={scopeFilter}
@@ -351,7 +323,7 @@ function PatternsPage() {
 
           {/* Origin filter */}
           <div className="min-w-0">
-            <label htmlFor="patterns-origin" className={filterLabel}>Origin:</label>
+            <label htmlFor="patterns-origin" className={filterLabel}>Origin</label>
             <select
               id="patterns-origin"
               value={originFilter}
@@ -369,7 +341,7 @@ function PatternsPage() {
 
           {/* Source filter */}
           <div className="min-w-0">
-            <label htmlFor="patterns-source" className={filterLabel}>Source:</label>
+            <label htmlFor="patterns-source" className={filterLabel}>Source</label>
             <select
               id="patterns-source"
               value={sourceFilter}
@@ -388,7 +360,7 @@ function PatternsPage() {
 
           {/* Category filter */}
           <div className="min-w-0">
-            <label htmlFor="patterns-category" className={filterLabel}>Category:</label>
+            <label htmlFor="patterns-category" className={filterLabel}>Category</label>
             <select
               id="patterns-category"
               value={categoryFilter}
@@ -468,7 +440,7 @@ function PatternsPage() {
                 <button
                   type="button"
                   onClick={(e) => { e.stopPropagation(); handleToggleProtect(pattern); }}
-                  className={`px-2 py-1 text-xs rounded ${btnOutline} ${focusRing}`}
+                  className={`${btnBase} ${btnOutline}`}
                 >
                   {pattern.protected_from_sync ? 'Unprotect' : 'Protect from sync'}
                 </button>
@@ -487,7 +459,7 @@ function PatternsPage() {
                 Confirmed: {pattern.confirmation_count}
               </span>
               <span className={pattern.false_positive_count > 0 ? 'text-destructive' : ''}>
-                False Pos: {pattern.false_positive_count}
+                False positives: {pattern.false_positive_count}
               </span>
               <span className="ml-auto">
                 {formatDate(pattern.last_matched_at)}
@@ -497,26 +469,26 @@ function PatternsPage() {
         ))}
         {paginatedPatterns?.length === 0 && (
           <div className="bg-card rounded-lg border border-border p-8 text-center text-muted-foreground">
-            No patterns found
+            {patterns.length === 0 ? 'No patterns yet.' : 'No patterns match these filters.'}
           </div>
         )}
       </div>
 
       {/* Desktop Table Layout */}
       <div className="hidden sm:block bg-card rounded-lg border border-border overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full table-fixed divide-y divide-border">
+        <div className="overflow-x-auto" role="region" aria-label="Patterns table" tabIndex={0}>
+          <table className="w-full min-w-[960px] table-fixed divide-y divide-border">
             <colgroup>
-              <col className="w-[4%]" />
+              <col className="w-[5%]" />
+              <col className="w-[12%]" />
               <col className="w-[13%]" />
-              <col className="w-[19%]" />
-              <col className="w-[11%]" />
-              <col className="w-[8%]" />
-              <col className="w-[8%]" />
+              <col className="w-[15%]" />
+              <col className="w-[9%]" />
+              <col className="w-[10%]" />
               <col className="w-[10%]" />
               <col className="w-[10%]" />
               <col className="w-[7%]" />
-              <col className="w-[10%]" />
+              <col className="w-[9%]" />
             </colgroup>
             <thead className="bg-muted/50">
               <tr>
@@ -526,10 +498,10 @@ function PatternsPage() {
                 <th className="px-2 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
                   Category
                 </th>
-                <SortHeader field="confirmation_count" label="Confirmed" className="px-2" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} />
-                <SortHeader field="false_positive_count" label="False Pos." className="px-2" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} />
+                <SortHeader field="confirmation_count" label="Confirmed" className="px-2 whitespace-nowrap" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} />
+                <SortHeader field="false_positive_count" label="False pos." className="px-2 whitespace-nowrap" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} />
                 <SortHeader field="created_at" label="Created" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} />
-                <SortHeader field="last_matched_at" label="Last Matched" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} />
+                <SortHeader field="last_matched_at" label="Last matched" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} />
                 <th className="px-2 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
                   Status
                 </th>
@@ -591,7 +563,7 @@ function PatternsPage() {
                         category: e.target.value === ''
                           ? null : (e.target.value as SegmentCategory),
                       })}
-                      className={`px-2 py-1 text-xs rounded bg-secondary text-secondary-foreground border border-border disabled:opacity-50 ${focusRing}`}
+                      className={`${selectBase} w-full min-w-0 disabled:opacity-50`}
                     >
                       <option value="">Uncategorized</option>
                       {SEGMENT_CATEGORIES.map((c) => (
@@ -627,7 +599,7 @@ function PatternsPage() {
                       <button
                         type="button"
                         onClick={(e) => { e.stopPropagation(); handleToggleProtect(pattern); }}
-                        className={`px-2 py-1 rounded ${btnOutline} whitespace-nowrap ${focusRing}`}
+                        className={`${tableActionBtn} ${btnOutline} ${focusRing}`}
                       >
                         {pattern.protected_from_sync ? 'Unprotect' : 'Protect'}
                       </button>
@@ -638,7 +610,7 @@ function PatternsPage() {
               {paginatedPatterns?.length === 0 && (
                 <tr>
                   <td colSpan={10} className="px-4 py-8 text-center text-muted-foreground">
-                    No patterns found
+                    {patterns.length === 0 ? 'No patterns yet.' : 'No patterns match these filters.'}
                   </td>
                 </tr>
               )}

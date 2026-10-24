@@ -1,8 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { applyPendingRecuts, getPendingRecuts } from '../../api/settings';
 import { getErrorMessage } from '../../api/client';
-import { btnPrimary } from '../../components/buttonStyles';
-import { focusRing } from '../../components/fieldStyles';
+import { btnBase, btnPrimary } from '../../components/buttonStyles';
 import { useState } from 'react';
 
 // Review is bulk work: decisions are recorded as they are made and cut in one
@@ -103,7 +102,7 @@ export function PendingRecutsBar({ slug }: PendingRecutsBarProps) {
         type="button"
         onClick={() => apply.mutate()}
         disabled={apply.isPending || ready === 0}
-        className={`px-4 py-2 rounded-lg text-sm ${btnPrimary} disabled:opacity-50 transition-colors ${focusRing}`}
+        className={`${btnBase} ${btnPrimary}`}
       >
         {apply.isPending ? 'Starting...'
           : recuttingOnly ? `Recutting ${inFlight}...`

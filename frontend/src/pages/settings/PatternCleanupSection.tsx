@@ -1,4 +1,5 @@
 import { useUnsavedChanges } from '../../hooks/useUnsavedChanges';
+import { formatDateTime } from '../../utils/format';
 import { useEffect, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router';
@@ -18,13 +19,13 @@ import {
 } from '../../api/patternCleanup';
 import { SAME_AS_DETECTION, SLOT_PRIMARY, SLOT_SECONDARY, type ProviderSlot } from '../../api/types';
 import { useModelCatalog } from '../../hooks/useModelCatalog';
-import { btnPrimary, btnSecondary } from '../../components/buttonStyles';
-import { focusRing } from '../../components/fieldStyles';
 import SavedBadge from './SavedBadge';
 import CronScheduleField from './CronScheduleField';
 import ModelSelect from './ModelSelect';
 import StageProviderSelect, { inheritedSlotOptions } from './StageProviderSelect';
 import { isSystemOneRoute } from './systemoneWarnings';
+import { btnBase, btnLg, btnPrimary, btnSecondary } from '../../components/buttonStyles';
+import { focusRing, labelBase } from '../../components/fieldStyles';
 
 interface PatternCleanupSectionProps {
   // Provider types behind each slot; secondaryProvider is '' when that slot is unusable.
@@ -39,8 +40,6 @@ interface PatternCleanupSectionProps {
 }
 
 const STORAGE_KEY = 'settings-section-pattern-cleanup';
-const fieldInput = 'max-sm:min-h-11 px-3 py-1.5 rounded-lg border border-input bg-background text-foreground text-sm';
-const actionButton = `max-sm:min-h-11 px-4 py-2 rounded-lg disabled:opacity-50 text-sm ${focusRing}`;
 
 function runErrorMessage(e: unknown): string {
   if (e instanceof ApiError && e.status === 409) return 'A cleanup run is already in progress.';
@@ -137,7 +136,7 @@ function PatternCleanupSection({
       qc.invalidateQueries({ queryKey: patternCleanupQueryKey });
       qc.invalidateQueries({ queryKey: ['settings'] });
     },
-    onError: (e: unknown) => setSaveError(getErrorMessage(e, 'Save failed')),
+    onError: (e: unknown) => setSaveError(getErrorMessage(e, 'Could not save settings.')),
   });
 
   const run = useMutation({
@@ -154,7 +153,7 @@ function PatternCleanupSection({
 
   return (
     <CollapsibleSection
-      title="Pattern Cleanup"
+      title="Pattern cleanup"
       subtitle="Reviews learned patterns with an LLM and suggests trims, splits, renames and retirements for you to approve. Off by default."
       storageKey={STORAGE_KEY}
       onToggle={setOpen}
@@ -162,7 +161,7 @@ function PatternCleanupSection({
       {isError ? (
         <div className="space-y-2">
           <p className="text-sm text-destructive">Could not load pattern cleanup settings.</p>
-          <button type="button" onClick={() => refetch()} className={`${actionButton} ${btnSecondary}`}>
+          <button type="button" onClick={() => refetch()} className={`${btnBase} ${btnSecondary}`}>
             Retry
           </button>
         </div>
@@ -208,7 +207,7 @@ function PatternCleanupSection({
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-sm:[&_select]:min-h-11 max-sm:[&_input]:min-h-11 max-sm:[&_button]:min-h-11 max-sm:[&_label]:min-h-11 [&_label]:flex [&_label]:items-center">
             <StageProviderSelect
               id="patternCleanupProvider"
-              label="Cleanup Provider"
+              label="Cleanup provider"
               value={settings.provider}
               options={inheritedSlotOptions(secondaryEnabled)}
               onChange={changeProvider}
@@ -216,7 +215,7 @@ function PatternCleanupSection({
             />
             <ModelSelect
               id="patternCleanupModel"
-              label="Cleanup Model"
+              label="Cleanup model"
               value={modelSelection}
               catalog={catalog}
               onChange={(v) => update({ model: v })}
@@ -228,7 +227,7 @@ function PatternCleanupSection({
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="space-y-1">
-              <label htmlFor="pattern-cleanup-batch" className="block text-sm font-medium text-foreground">
+              <label htmlFor="pattern-cleanup-batch" className={labelBase}>
                 Patterns per run
               </label>
               <NumberInput
@@ -240,7 +239,7 @@ function PatternCleanupSection({
                 parse={(s) => parseInt(s, 10)}
                 value={settings.batchSize}
                 onCommit={(n) => update({ batchSize: n })}
-                className={`w-24 ${fieldInput} ${focusRing}`}
+                className="w-24"
                 ariaDescribedBy="pattern-cleanup-batch-help"
               />
               <p id="pattern-cleanup-batch-help" className="text-xs text-muted-foreground">
@@ -248,7 +247,7 @@ function PatternCleanupSection({
               </p>
             </div>
             <div className="space-y-1">
-              <label htmlFor="pattern-cleanup-unused" className="block text-sm font-medium text-foreground">
+              <label htmlFor="pattern-cleanup-unused" className={labelBase}>
                 Retire after (days unused)
               </label>
               <NumberInput
@@ -260,7 +259,7 @@ function PatternCleanupSection({
                 parse={(s) => parseInt(s, 10)}
                 value={settings.unusedDays}
                 onCommit={(n) => update({ unusedDays: n })}
-                className={`w-24 ${fieldInput} ${focusRing}`}
+                className="w-24"
                 ariaDescribedBy="pattern-cleanup-unused-help"
               />
               <p id="pattern-cleanup-unused-help" className="text-xs text-muted-foreground">
@@ -279,7 +278,7 @@ function PatternCleanupSection({
               type="button"
               onClick={() => save.mutate()}
               disabled={save.isPending || modelSelection === '' || (settings.enabled && cleanupUsesSystemOne)}
-              className={`${actionButton} ${btnPrimary}`}
+              className={`${btnLg} ${btnPrimary}`}
             >
               {save.isPending ? 'Saving...' : 'Save'}
             </button>
@@ -287,7 +286,7 @@ function PatternCleanupSection({
               type="button"
               onClick={() => run.mutate(false)}
               disabled={runDisabled}
-              className={`${actionButton} ${btnSecondary}`}
+              className={`${btnBase} ${btnSecondary}`}
             >
               {running ? 'Running...' : 'Run now'}
             </button>
@@ -295,7 +294,7 @@ function PatternCleanupSection({
               type="button"
               onClick={() => setConfirmForce(true)}
               disabled={runDisabled}
-              className={`${actionButton} ${btnSecondary}`}
+              className={`${btnBase} ${btnSecondary}`}
             >
               Force recheck all
             </button>
@@ -307,12 +306,12 @@ function PatternCleanupSection({
             {data.inProgress && data.lastRun && (
               <div>
                 <span className="font-medium text-foreground">Running since:</span>{' '}
-                {new Date(data.lastRun).toLocaleString()}
+                {formatDateTime(data.lastRun)}
               </div>
             )}
             <div>
               <span className="font-medium text-foreground">Last run:</span>{' '}
-              {summary?.finishedAt ? new Date(summary.finishedAt).toLocaleString() : 'never'}
+              {formatDateTime(summary?.finishedAt ?? null)}
               {summary && (
                 <>
                   {': '}
@@ -341,7 +340,7 @@ function PatternCleanupSection({
       {confirmForce && (
         <ConfirmModal
           title="Recheck active learned patterns?"
-          confirmLabel="Recheck all"
+          confirmLabel="Recheck patterns"
           busyLabel="Starting..."
           destructive={false}
           pending={run.isPending}

@@ -40,7 +40,7 @@ describe('DataManagementSection backup export', () => {
   it('requests encryption from the primary backup action', async () => {
     renderSection();
 
-    await userEvent.click(screen.getByRole('button', { name: 'Download Encrypted Backup' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Download encrypted backup' }));
 
     await waitFor(() => expect(mockDownloadBackup).toHaveBeenCalledWith(true));
   });
@@ -61,7 +61,7 @@ describe('DataManagementSection backup export', () => {
     mockDownloadBackup.mockRejectedValue(new Error('backup_encryption_unavailable'));
     renderSection();
 
-    await userEvent.click(screen.getByRole('button', { name: 'Download Encrypted Backup' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Download encrypted backup' }));
 
     expect(await screen.findByText(
       'Encrypted backup unavailable. Set MINUSPOD_MASTER_PASSPHRASE and restart, or download plaintext below.',

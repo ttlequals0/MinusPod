@@ -23,7 +23,7 @@ describe('TroubleshootingSection', () => {
     render(<TroubleshootingSection />);
 
     expect(screen.getByRole('heading', { name: 'Troubleshooting' })).toBeDefined();
-    expect(screen.getByText('Configuration Export').parentElement?.parentElement?.parentElement?.parentElement?.className)
+    expect(screen.getByText('Configuration export').parentElement?.parentElement?.parentElement?.parentElement?.className)
       .toContain('sm:grid-cols-2');
   });
 
@@ -31,7 +31,7 @@ describe('TroubleshootingSection', () => {
     let resolveDownload: () => void = () => {};
     mockDownloadConfig.mockReturnValue(new Promise<void>((resolve) => { resolveDownload = resolve; }));
     render(<TroubleshootingSection />);
-    const button = screen.getByRole('button', { name: 'Download Configuration' });
+    const button = screen.getByRole('button', { name: 'Download configuration' });
 
     await userEvent.click(button);
 
@@ -40,13 +40,13 @@ describe('TroubleshootingSection', () => {
     expect((button as HTMLButtonElement).disabled).toBe(true);
 
     resolveDownload();
-    await waitFor(() => expect(button.textContent).toBe('Download Configuration'));
+    await waitFor(() => expect(button.textContent).toBe('Download configuration'));
   });
 
   it('sends the selected UTC diagnostic time range', async () => {
     render(<TroubleshootingSection />);
     await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Diagnostic time range' }), '6');
-    await userEvent.click(screen.getByRole('button', { name: 'Download Diagnostics' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Download diagnostics' }));
 
     await waitFor(() => expect(mockDownloadDiagnostics).toHaveBeenCalledOnce());
     const [start, end] = mockDownloadDiagnostics.mock.calls[0] as [string, string];
@@ -57,7 +57,7 @@ describe('TroubleshootingSection', () => {
     mockDownloadConfig.mockRejectedValue(new Error('config failed'));
     render(<TroubleshootingSection />);
 
-    await userEvent.click(screen.getByRole('button', { name: 'Download Configuration' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Download configuration' }));
 
     expect(await screen.findByText('config failed')).toBeDefined();
   });
@@ -66,7 +66,7 @@ describe('TroubleshootingSection', () => {
     mockDownloadDiagnostics.mockRejectedValue(new Error('diagnostics failed'));
     render(<TroubleshootingSection />);
 
-    await userEvent.click(screen.getByRole('button', { name: 'Download Diagnostics' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Download diagnostics' }));
 
     expect(await screen.findByText('diagnostics failed')).toBeDefined();
   });

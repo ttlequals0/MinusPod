@@ -1,0 +1,30 @@
+From acf5d7cdc1f9ae8752c23e1ea8d7f355ed780781 Mon Sep 17 00:00:00 2001
+From: Joshua Rogers <MegaManSec@users.noreply.github.com>
+Date: Tue, 4 Aug 2026 12:11:56 +0000
+Subject: [PATCH] avformat/hevc: reject hvcC NAL arrays that overflow the
+ 16-bit count
+
+numNalus is uint16_t; a crafted hvcC declaring >65535 NAL units of one
+type wraps it to 0 and then writes nal[-1]. Reject before the count can
+wrap. Reachable by remuxing a crafted file with -c copy.
+
+Fixes: integer overflow
+Fixes: out of array access
+---
+ libavformat/hevc.c | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/libavformat/hevc.c b/libavformat/hevc.c
+index c9ee11f36c..678a9e2206 100644
+--- a/libavformat/hevc.c
++++ b/libavformat/hevc.c
+@@ -844,6 +844,9 @@ static int hvcc_array_add_nal_unit(const uint8_t *nal_buf, uint32_t nal_size,
+     int ret;
+     uint16_t numNalus = array->numNalus;
+ 
++    if (numNalus >= UINT16_MAX)
++        return AVERROR_INVALIDDATA;
++
+     ret = av_reallocp_array(&array->nal, numNalus + 1, sizeof(*array->nal));
+     if (ret < 0)
+         return ret;

@@ -1,5 +1,5 @@
 import { ReactNode, type SyntheticEvent, useEffect, useId, useRef } from 'react';
-import { btnDestructive, btnOutline, btnPrimary } from './buttonStyles';
+import { btnBase, btnDestructive, btnOutline, btnPrimary } from './buttonStyles';
 import { focusRing } from './fieldStyles';
 
 // Shared modal recipes. cueScanStyles re-exports these for the cue feature's
@@ -9,6 +9,11 @@ export const modalBackdrop = 'modal-backdrop fixed inset-0 z-60 flex items-cente
 // the exported recipe keeps it for standalone use.
 const modalPanelBase = 'bg-card rounded-lg border border-border shadow-xl';
 export const modalPanel = modalPanelBase + ' text-foreground';
+
+// Dialog footer button, text label at every width; add a btn* recipe.
+export const dialogFooterBtn = `${btnBase} border border-transparent`;
+// Footers with 3 or more actions: 2 columns under 360 px, one row of equal columns to 639 px, flex row from sm.
+export const dialogFooterGrid = 'max-sm:grid max-sm:gap-2 max-sm:grid-cols-2 min-[360px]:max-sm:grid-cols-none min-[360px]:max-sm:grid-flow-col min-[360px]:max-sm:auto-cols-fr';
 
 // Close-on-Escape for modals that opt in (also used standalone by the cue
 // feature's recipe-based modals via the cueScanStyles re-export).
@@ -135,16 +140,20 @@ type ModalProps = ({ ariaLabelledBy: string; ariaLabel?: never } | { ariaLabel: 
   // foreground, and card-foreground differs from foreground in dark mode,
   // so dialogs that used text-card-foreground pass it here.
   panelClassName?: string;
+  // Fixed above/below the scrolling body; with either set, only children scroll.
+  header?: ReactNode;
+  footer?: ReactNode;
   children: ReactNode;
 }
 
 export function Modal({
   onClose, closeOnEscape = true, closeOnBackdrop = false, ariaLabelledBy, ariaLabel,
-  panelClassName = '', children,
+  panelClassName = '', header, footer, children,
 }: ModalProps) {
   const panelRef = useRef<HTMLDivElement>(null);
   useEscape(onClose, closeOnEscape, panelRef);
   useFocusTrap(panelRef);
+  const split = header !== undefined || footer !== undefined;
 
   return (
     <div className={modalBackdrop} onClick={closeOnBackdrop ? onClose : undefined}>
@@ -155,10 +164,17 @@ export function Modal({
         aria-labelledby={ariaLabelledBy}
         aria-label={ariaLabel}
         tabIndex={-1}
+        data-split={split || undefined}
         className={`${modalPanelBase} ${focusRing} ${panelClassName}`}
         onClick={closeOnBackdrop ? (e) => e.stopPropagation() : undefined}
       >
-        {children}
+        {split ? (
+          <>
+            {header !== undefined && <div className="shrink-0 flex items-start justify-between gap-3 p-4 border-b border-border">{header}</div>}
+            <div className="min-h-0 flex-1 overflow-y-auto">{children}</div>
+            {footer !== undefined && <div className="shrink-0 flex flex-wrap items-center justify-end gap-2 p-4 border-t border-border">{footer}</div>}
+          </>
+        ) : children}
       </div>
     </div>
   );
@@ -181,27 +197,31 @@ export function ConfirmModal({
 }: ConfirmModalProps) {
   const titleId = useId();
   return (
-    <Modal onClose={onCancel} closeOnEscape={!pending} ariaLabelledBy={titleId} panelClassName="max-w-md w-full">
-      <div className="p-4 border-b border-border">
+    <Modal
+      onClose={onCancel} closeOnEscape={!pending} ariaLabelledBy={titleId} panelClassName="max-w-md w-full"
+      header={(
         <h2 id={titleId} className="text-lg font-semibold text-foreground">{title}</h2>
-      </div>
+      )}
+      footer={(
+        <>
+          <button
+            onClick={onCancel}
+            disabled={pending}
+            className={`${dialogFooterBtn} ${btnOutline}`}
+          >
+            Cancel
+          </button>
+          <button
+            onClick={onConfirm}
+            disabled={pending}
+            className={`${dialogFooterBtn} ${destructive ? btnDestructive : btnPrimary}`}
+          >
+            {pending ? busyLabel : confirmLabel}
+          </button>
+        </>
+      )}
+    >
       <div className="p-4 space-y-3 text-sm text-foreground">{children}</div>
-      <div className="flex items-center justify-end gap-2 p-4 border-t border-border">
-        <button
-          onClick={onCancel}
-          disabled={pending}
-          className={`px-3 py-1.5 text-sm rounded ${btnOutline} transition-colors ${focusRing}`}
-        >
-          Cancel
-        </button>
-        <button
-          onClick={onConfirm}
-          disabled={pending}
-          className={`px-3 py-1.5 text-sm rounded ${destructive ? btnDestructive : btnPrimary} disabled:opacity-50 transition-colors ${focusRing}`}
-        >
-          {pending ? busyLabel : confirmLabel}
-        </button>
-      </div>
     </Modal>
   );
 }

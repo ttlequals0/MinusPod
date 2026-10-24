@@ -204,6 +204,7 @@ def _build_settings_payload():
     def _str_setting(key):
         return common._setting_value(settings, key, registry_default(key))
 
+    auto_process_max_age_hours = _int_setting('auto_process_max_age_hours')
     queue_manual_boost = _int_setting('queue_manual_boost')
     queue_fresh_boost = _int_setting('queue_fresh_boost')
     queue_bulk_boost = _int_setting('queue_bulk_boost')
@@ -494,6 +495,9 @@ def _build_settings_payload():
     audio_cue_create_from_pairs = coerce_bool_setting(common._setting_value(
         settings, 'audio_cue_create_from_pairs',
         registry_default('audio_cue_create_from_pairs')))
+    audio_cue_cut_matches = coerce_bool_setting(common._setting_value(
+        settings, 'audio_cue_cut_matches',
+        registry_default('audio_cue_cut_matches')))
 
     dai_differential_overrides_keep = coerce_bool_setting(common._setting_value(
         settings, 'dai_differential_overrides_keep',
@@ -570,6 +574,7 @@ def _build_settings_payload():
         'verificationProvider': _sv('verification_provider', verification_provider),
         'whisperModel': _sv('whisper_model', whisper_model),
         'autoProcessEnabled': _sv('auto_process_enabled', auto_process_enabled),
+        'autoProcessMaxAgeHours': _sv('auto_process_max_age_hours', auto_process_max_age_hours),
         'maxFeedEpisodes': _sv('max_feed_episodes', max_feed_episodes),
         'rssRefreshIntervalMinutes': _sv(
             'rss_refresh_interval_minutes', rss_refresh_interval_minutes),
@@ -740,6 +745,7 @@ def _build_settings_payload():
         'audioCueProminenceDb': _sv('audio_cue_prominence_db', audio_cue_prominence),
         'audioCueMinConfidence': _sv('audio_cue_min_confidence', audio_cue_min_conf),
         'audioCueCreateFromPairs': _sv('audio_cue_create_from_pairs', audio_cue_create_from_pairs),
+        'audioCueCutMatches': _sv('audio_cue_cut_matches', audio_cue_cut_matches),
         'audioCueTemplateScore': _sv('audio_cue_template_score', audio_cue_template_score),
         'audioCueFormantAttenDb': _sv('audio_cue_formant_atten_db', audio_cue_formant_atten),
         'audioCueSnapConfidence': _sv('audio_cue_snap_confidence', audio_cue_snap_conf),

@@ -127,6 +127,31 @@ def test_partial_cue_only_import_uses_existing_mode_at_apply(temp_db, monkeypatc
     assert temp_db.get_podcast_by_slug('example-local')['skip_transcription'] == 1
 
 
+def _cue_only_warnings(db, monkeypatch):
+    monkeypatch.setattr(config_transfer, '_validated_feed_updates', lambda *a, **k: None)
+    document = _document(feeds=[{
+        'slug': 'example-local', 'feedType': 'local',
+        'settings': {'source_url': 'local://example-local', 'title': 'Example',
+                     'detection_mode': 'cue_only'},
+    }])
+    return config_transfer.build_preview(db, document, 'feeds')['warnings']
+
+
+def test_cue_only_warning_honors_cut_enabled_intro_template(temp_db, monkeypatch):
+    temp_db.create_podcast('example-local', 'local://example-local', 'Example', feed_type='local')
+    pid = temp_db.get_podcast_by_slug('example-local')['id']
+    tid = temp_db.create_cue_template(
+        podcast_id=pid, cue_type='show_intro', source_episode_id='ep1',
+        source_offset_s=1.0, duration_s=1.0, sample_rate=22050, n_coeffs=13,
+        mfcc_blob=b'\x00' * 52)
+    assert any('cue-only' in w for w in _cue_only_warnings(temp_db, monkeypatch))
+    temp_db.update_cue_template(tid, cut_matches=True)
+    assert not any('cue-only' in w for w in _cue_only_warnings(temp_db, monkeypatch))
+    temp_db.update_cue_template(tid, cut_matches=None)
+    temp_db.set_setting('audio_cue_cut_matches', 'true')
+    assert not any('cue-only' in w for w in _cue_only_warnings(temp_db, monkeypatch))
+
+
 def test_feed_ceiling_uses_selected_prospective_globals(temp_db, monkeypatch):
     temp_db.set_setting('max_ad_duration_confirmed_seconds', '300')
     document = _document({'max_ad_duration_confirmed_seconds': 600}, [{
@@ -630,10 +655,15 @@ def test_unavailable_crypto_rejects_secret_import_before_any_write(temp_db, monk
 def test_preview_validates_nullable_feed_overrides_and_effective_processing_mode(temp_db):
     valid = _document(feeds=[_feed(
         cue_create_from_pairs_override=True,
+        cue_cut_matches_override=False,
         differential_fetch_enabled=False,
         keep_original_audio_override=True,
     )])
     config_transfer.build_preview(temp_db, valid, 'everything')
+
+    invalid_cut = _document(feeds=[_feed(cue_cut_matches_override='unexpected')])
+    with pytest.raises(ConfigTransferError, match='cue_cut_matches_override'):
+        config_transfer.build_preview(temp_db, invalid_cut, 'everything')
 
     invalid_bool = _document(feeds=[_feed(keep_original_audio_override='unexpected')])
     with pytest.raises(ConfigTransferError, match='keep_original_audio_override'):

@@ -546,6 +546,7 @@ class SchemaMixin:
             ('audio_analysis_override', 'TEXT'),
             ('created_at', "TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))"),
             ('auto_process_override', 'TEXT'),
+            ('auto_process_max_age_hours_override', 'INTEGER'),
             ('language_override', 'TEXT'),
             ('download_user_agent_override', 'TEXT'),
             ('feed_user_agent_override', 'TEXT'),
@@ -553,6 +554,7 @@ class SchemaMixin:
             ('detection_mode', 'TEXT'),
             ('cue_template_score_override', 'REAL'),
             ('cue_create_from_pairs_override', 'INTEGER'),
+            ('cue_cut_matches_override', 'INTEGER'),
             ('cue_pair_min_break_override', 'REAL'),
             ('cue_pair_max_break_override', 'REAL'),
             ('cue_pair_max_break_fraction_override', 'REAL'),
@@ -691,6 +693,7 @@ class SchemaMixin:
         act_migrations = [
             ('score_threshold', 'REAL'),
             ('remove_with_ad', 'INTEGER NOT NULL DEFAULT 1'),
+            ('cut_matches', 'INTEGER'),
         ]
         for col, definition in act_migrations:
             self._add_column_if_missing(conn, 'audio_cue_templates', col, definition, act_cols)
@@ -2030,7 +2033,7 @@ class SchemaMixin:
                     "id, podcast_id, label, source_episode_id, source_offset_s, "
                     "duration_s, sample_rate, n_coeffs, mfcc_blob, pcm_blob, "
                     "pcm_sample_rate, scope, network_id, cue_type, enabled, "
-                    "score_threshold, remove_with_ad, "
+                    "score_threshold, remove_with_ad, cut_matches, "
                     "created_at, created_by"
                 )
                 before = conn.execute(
@@ -2054,6 +2057,7 @@ class SchemaMixin:
                         enabled INTEGER NOT NULL DEFAULT 1,
                         score_threshold REAL,
                         remove_with_ad INTEGER NOT NULL DEFAULT 1,
+                        cut_matches INTEGER,
                         created_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
                         created_by TEXT DEFAULT 'user',
                         FOREIGN KEY (podcast_id) REFERENCES podcasts(id) ON DELETE CASCADE

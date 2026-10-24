@@ -1,6 +1,6 @@
 import { ReactNode } from 'react';
 import type { ImportPlanEntry, ImportRejectedFile } from '../api/feeds';
-import { formatDate } from '../utils/format';
+import { formatDateTime } from '../utils/format';
 import { formatStorage } from '../pages/settings/settingsUtils';
 import { badgeBase, tint } from './badgeStyles';
 
@@ -33,7 +33,7 @@ function StatusBadge({ entry }: { entry: ImportPlanEntry }) {
   const { status, reason } = rowStatus(entry);
   return (
     <span
-      className={`${badgeBase} font-medium cursor-help ${STATUS_CLASS[status]}`}
+      className={`${badgeBase} cursor-help ${STATUS_CLASS[status]}`}
       title={reason ?? undefined}
     >
       {status}
@@ -93,10 +93,10 @@ function SidecarDots({ entry }: { entry: ImportPlanEntry }) {
 function DateCell({ entry }: { entry: ImportPlanEntry }) {
   return (
     <span className="whitespace-nowrap">
-      {formatDate(entry.publishedAt)}
+      {formatDateTime(entry.publishedAt)}
       {entry.publishedAtSource === 'synthesized' && (
         <span
-          className={`${badgeBase} ml-1.5 font-medium ${tint.neutral} align-middle`}
+          className={`${badgeBase} ml-1.5 ${tint.neutral} align-middle`}
           title="No explicit publish date found; one was assigned so episodes sort in order."
         >
           synthesized
@@ -121,7 +121,7 @@ function ReplacesPill({ entry }: { entry: ImportPlanEntry }) {
   if (!entry.replacesExisting || entry.errors.length > 0) return null;
   return (
     <span
-      className={`${badgeBase} font-medium ${tint.warning}`}
+      className={`${badgeBase} ${tint.warning}`}
       title="An episode with this ID already exists; committing replaces it."
     >
       replaces

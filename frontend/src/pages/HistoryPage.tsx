@@ -1,4 +1,3 @@
-import { pageHeader, pageTitle, summaryCard, summaryValue, summaryLabel } from '../components/pageStyles';
 import { useState, type ReactNode } from 'react';
 import PageTabs from '../components/PageTabs';
 import SortControls from '../components/SortControls';
@@ -14,22 +13,24 @@ import {
 } from '../api/history';
 import { feedsQueryOptions } from '../api/feeds';
 import { feedDisplayTitle } from '../utils/feedTitle';
-import { formatDateTime, formatDurationPrecise } from '../utils/format';
+import { formatDateTime, formatElapsed } from '../utils/format';
 import { ProcessingHistoryEntry } from '../api/types';
 import { SkeletonRows } from '../components/Skeleton';
 import { Pagination } from '../components/Pagination';
 import { SortHeader, useSortState } from '../components/SortHeader';
-import { btnSecondary } from '../components/buttonStyles';
-import { selectBase, focusRing, filterGrid, filterLabel, filterControl } from '../components/fieldStyles';
-import { badgeBase, tint } from '../components/badgeStyles';
+import StatTile from '../components/StatTile';
+import StatusBadge from '../components/StatusBadge';
 import DownloadsTab from './history/DownloadsTab';
+import { btnBase, btnSecondary } from '../components/buttonStyles';
+import { focusRing, selectBase, filterGrid, filterLabel, filterControl } from '../components/fieldStyles';
+import { pageHeader, pageTitle } from '../components/pageStyles';
 
 type StatusFilter = 'all' | 'completed' | 'failed';
 type SortField = 'processedAt' | 'processingDurationSeconds' | 'adsDetected' | 'reprocessNumber' | 'llmCost' | 'appVersion';
 
-const FILTER_CARD_CLASS =
-  `${summaryCard} cursor-pointer transition-colors ` +
-  'hover:border-primary/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring';
+const FILTER_TILE_CLASS = 'h-full w-full rounded-lg cursor-pointer transition-colors hover:border-primary/50';
+
+const elapsedOrDash = (seconds: number | null | undefined) => (seconds == null ? '-' : formatElapsed(seconds));
 
 function ProcessingTab({ tabs }: { tabs: ReactNode }) {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
@@ -87,14 +88,14 @@ function ProcessingTab({ tabs }: { tabs: ReactNode }) {
   };
 
   if (isLoading) {
-    return <div><h1 className={`${pageTitle} mb-6`}>History</h1>{tabs}<div role="tabpanel" id="history-panel-processing" aria-labelledby="history-tab-processing"><SkeletonRows count={8} /></div></div>;
+    return <div><div className={pageHeader}><h1 className={pageTitle}>History</h1></div>{tabs}<div role="tabpanel" id="history-panel-processing" aria-labelledby="history-tab-processing"><SkeletonRows count={8} /></div></div>;
   }
 
   if (error && !historyData) {
     return <div>
-      <h1 className={`${pageTitle} mb-6`}>History</h1>{tabs}
+      <div className={pageHeader}><h1 className={pageTitle}>History</h1></div>{tabs}
       <div role="tabpanel" id="history-panel-processing" aria-labelledby="history-tab-processing">
-        <QueryError title="Failed to load processing history" onRetry={() => void refetch()} retrying={isFetching} />
+        <QueryError title="Could not load processing history." onRetry={() => void refetch()} retrying={isFetching} />
       </div>
     </div>;
   }
@@ -106,18 +107,18 @@ function ProcessingTab({ tabs }: { tabs: ReactNode }) {
     <div>
       <div className={pageHeader}>
         <h1 className={pageTitle}>History</h1>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <button
             onClick={() => handleExport('csv')}
             disabled={exporting !== null}
-            className={`px-3 py-2 text-sm rounded ${btnSecondary} disabled:opacity-50 transition-colors ${focusRing}`}
+            className={`${btnBase} ${btnSecondary}`}
           >
             {exporting === 'csv' ? 'Exporting...' : 'Export CSV'}
           </button>
           <button
             onClick={() => handleExport('json')}
             disabled={exporting !== null}
-            className={`px-3 py-2 text-sm rounded ${btnSecondary} disabled:opacity-50 transition-colors ${focusRing}`}
+            className={`${btnBase} ${btnSecondary}`}
           >
             {exporting === 'json' ? 'Exporting...' : 'Export JSON'}
           </button>
@@ -131,41 +132,30 @@ function ProcessingTab({ tabs }: { tabs: ReactNode }) {
 
       {/* Stats Summary */}
       {stats && (
-        <div className="grid grid-cols-2 sm:grid-cols-5 gap-4 mb-6">
-          <div className={`${summaryCard} bg-card border-border`}>
-            <div className={`${summaryValue} text-foreground`}>{stats.totalProcessed}</div>
-            <div className={summaryLabel}>Total Processed</div>
-          </div>
+        <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
+          <StatTile label="Total processed" value={stats.totalProcessed} />
           <button
             type="button"
             onClick={() => { setStatusFilter((f) => (f === 'completed' ? 'all' : 'completed')); setPage(1); }}
             aria-pressed={statusFilter === 'completed'}
             title="Filter the list below by completed runs"
-            className={`${FILTER_CARD_CLASS} ${statusFilter === 'completed' ? 'border-primary bg-primary/5' : 'border-border bg-card'} ${focusRing}`}
+            className={`block h-full min-w-0 rounded-lg ${focusRing}`}
           >
-            <div className={`${summaryValue} text-success`}>{stats.completedCount}</div>
-            <div className={summaryLabel}>Completed</div>
+            <StatTile label="Completed" value={stats.completedCount} tone="success"
+              className={`${FILTER_TILE_CLASS} ${statusFilter === 'completed' ? 'border-primary bg-primary/5' : 'border-border'}`} />
           </button>
           <button
             type="button"
             onClick={() => { setStatusFilter((f) => (f === 'failed' ? 'all' : 'failed')); setPage(1); }}
             aria-pressed={statusFilter === 'failed'}
             title="Filter the list below by failed runs"
-            className={`${FILTER_CARD_CLASS} ${statusFilter === 'failed' ? 'border-primary bg-primary/5' : 'border-border bg-card'} ${focusRing}`}
+            className={`block h-full min-w-0 rounded-lg ${focusRing}`}
           >
-            <div className={`${summaryValue} text-destructive`}>{stats.failedCount}</div>
-            <div className={summaryLabel}>Failed</div>
+            <StatTile label="Failed" value={stats.failedCount} tone="destructive"
+              className={`${FILTER_TILE_CLASS} ${statusFilter === 'failed' ? 'border-primary bg-primary/5' : 'border-border'}`} />
           </button>
-          <div className={`${summaryCard} bg-card border-border`}>
-            <div className={`${summaryValue} text-foreground`}>{stats.totalAdsDetected}</div>
-            <div className={summaryLabel}>Total Ads Detected</div>
-          </div>
-          <div className={`${summaryCard} bg-card border-border`}>
-            <div className={`${summaryValue} text-foreground`}>
-              {stats.totalLlmCost != null ? `$${stats.totalLlmCost.toFixed(2)}` : '-'}
-            </div>
-            <div className={summaryLabel}>Total Cost</div>
-          </div>
+          <StatTile label="Total ads detected" value={stats.totalAdsDetected} />
+          <StatTile label="Total cost" value={stats.totalLlmCost != null ? `$${stats.totalLlmCost.toFixed(2)}` : '-'} />
         </div>
       )}
 
@@ -183,7 +173,7 @@ function ProcessingTab({ tabs }: { tabs: ReactNode }) {
             }}
             className={`${filterControl} ${selectBase}`}
           >
-            <option value="all">All Status</option>
+            <option value="all">All statuses</option>
             <option value="completed">Completed</option>
             <option value="failed">Failed</option>
           </select>
@@ -199,7 +189,7 @@ function ProcessingTab({ tabs }: { tabs: ReactNode }) {
             }}
             className={`${filterControl} ${selectBase}`}
           >
-            <option value="">All Podcasts</option>
+            <option value="">All podcasts</option>
             {[...(feeds ?? [])]
               .sort((a, b) => feedDisplayTitle(a).localeCompare(feedDisplayTitle(b)))
               .map((feed) => (
@@ -212,7 +202,7 @@ function ProcessingTab({ tabs }: { tabs: ReactNode }) {
         </div>
         {stats && (
           <div className="text-sm text-muted-foreground self-center">
-            Avg processing time: {formatDurationPrecise(stats.avgProcessingTimeSeconds)}
+            Avg processing time: {elapsedOrDash(stats.avgProcessingTimeSeconds)}
           </div>
         )}
       </div>
@@ -226,7 +216,7 @@ function ProcessingTab({ tabs }: { tabs: ReactNode }) {
       <div className="xl:hidden space-y-3 mb-4">
         {history.length === 0 ? (
           <div className="bg-card rounded-lg border border-border p-8 text-center text-muted-foreground">
-            No processing history found
+            No processing history yet.
           </div>
         ) : (
           history.map((entry: ProcessingHistoryEntry) => (
@@ -240,16 +230,9 @@ function ProcessingTab({ tabs }: { tabs: ReactNode }) {
                   {entry.podcastTitle}
                 </Link>
                 {entry.status === 'completed' ? (
-                  <span className={`${badgeBase} ${tint.success}`}>
-                    Completed
-                  </span>
+                  <StatusBadge status="completed" />
                 ) : (
-                  <span
-                    className={`${badgeBase} ${tint.destructive} cursor-help`}
-                    title={entry.errorMessage || 'Processing failed'}
-                  >
-                    Failed
-                  </span>
+                  <span title={entry.errorMessage || 'Processing failed'} className="cursor-help"><StatusBadge status="failed" /></span>
                 )}
               </div>
               <div className="mb-3">
@@ -274,10 +257,10 @@ function ProcessingTab({ tabs }: { tabs: ReactNode }) {
               </div>
               <div className="flex items-center gap-4 text-xs text-muted-foreground">
                 <span>{formatDateTime(entry.processedAt)}</span>
-                <span>{formatDurationPrecise(entry.processingDurationSeconds)}</span>
+                <span>{elapsedOrDash(entry.processingDurationSeconds)}</span>
                 {entry.downloadedDuration != null && (
                   <span title="Length of the downloaded copy this run processed">
-                    Audio: {formatDurationPrecise(entry.downloadedDuration)}
+                    Audio: {elapsedOrDash(entry.downloadedDuration)}
                   </span>
                 )}
                 <span>Ads: {entry.mode === 'chapters' ? '-' : entry.adsDetected}</span>
@@ -322,7 +305,7 @@ function ProcessingTab({ tabs }: { tabs: ReactNode }) {
               {history.length === 0 ? (
                 <tr>
                   <td colSpan={10} className="px-4 py-8 text-center text-muted-foreground">
-                    No processing history found
+                    No processing history yet.
                   </td>
                 </tr>
               ) : (
@@ -361,11 +344,11 @@ function ProcessingTab({ tabs }: { tabs: ReactNode }) {
                       {formatDateTime(entry.processedAt)}
                     </td>
                     <td className="px-4 py-3 text-sm text-muted-foreground hidden md:table-cell">
-                      {formatDurationPrecise(entry.processingDurationSeconds)}
+                      {elapsedOrDash(entry.processingDurationSeconds)}
                     </td>
                     <td className="px-4 py-3 text-sm text-muted-foreground hidden lg:table-cell">
                       {entry.downloadedDuration != null
-                        ? formatDurationPrecise(entry.downloadedDuration)
+                        ? elapsedOrDash(entry.downloadedDuration)
                         : '-'}
                     </td>
                     <td className="px-4 py-3 text-sm text-foreground">
@@ -382,17 +365,10 @@ function ProcessingTab({ tabs }: { tabs: ReactNode }) {
                     </td>
                     <td className="px-4 py-3">
                       {entry.status === 'completed' ? (
-                        <span className={`${badgeBase} ${tint.success}`}>
-                          Completed
-                        </span>
-                      ) : (
-                        <span
-                          className={`${badgeBase} ${tint.destructive} cursor-help`}
-                          title={entry.errorMessage || 'Processing failed'}
-                        >
-                          Failed
-                        </span>
-                      )}
+                  <StatusBadge status="completed" />
+                ) : (
+                  <span title={entry.errorMessage || 'Processing failed'} className="cursor-help"><StatusBadge status="failed" /></span>
+                )}
                     </td>
                   </tr>
                 ))

@@ -220,6 +220,30 @@ class TestCueOnlyPatch:
         assert resp.status_code == 200
         assert resp.get_json()['processingMode'] == 'cue_only'
 
+    def test_cue_only_accepted_with_cut_enabled_intro_only(self, app_client, seeded_feed):
+        client = app_client; slug = seeded_feed['slug']; db = seeded_feed['db']
+        _authed(client)
+        tid = _add_template(db, slug, 'show_intro')
+        resp = client.patch(f'/api/v1/feeds/{slug}', json={'processingMode': 'cue_only'},
+                            headers=_csrf_headers(client))
+        assert resp.status_code == 400
+        db.update_cue_template(tid, cut_matches=True)
+        resp = client.patch(f'/api/v1/feeds/{slug}', json={'processingMode': 'cue_only'},
+                            headers=_csrf_headers(client))
+        assert resp.status_code == 200
+
+    def test_cue_only_accepted_with_global_cut_on(self, app_client, seeded_feed):
+        client = app_client; slug = seeded_feed['slug']; db = seeded_feed['db']
+        _authed(client)
+        _add_template(db, slug, 'show_intro')
+        db.set_setting('audio_cue_cut_matches', 'true')
+        try:
+            resp = client.patch(f'/api/v1/feeds/{slug}', json={'processingMode': 'cue_only'},
+                                headers=_csrf_headers(client))
+            assert resp.status_code == 200
+        finally:
+            db.set_setting('audio_cue_cut_matches', 'false')
+
     def test_disabled_templates_do_not_count(self, app_client, seeded_feed):
         client = app_client; slug = seeded_feed['slug']; db = seeded_feed['db']
         _authed(client)

@@ -3,8 +3,8 @@ import type {
   DetectionReviewerFilter, DetectionSort, DetectionStatusFilter,
 } from '../../api/detections';
 import { SEGMENT_CATEGORY_FILTER_OPTIONS } from '../../utils/segmentCategory';
-import { focusRing, inputBase, selectBase } from '../../components/fieldStyles';
-import { btnSecondary, touchTarget } from '../../components/buttonStyles';
+import { btnBase, btnSecondary } from '../../components/buttonStyles';
+import { inputBase, selectBase, filterLabel, filterControl } from '../../components/fieldStyles';
 
 const SORT_OPTIONS: Array<[DetectionSort, string]> = [
   ['date', 'Published'],
@@ -18,7 +18,7 @@ const REVIEWER_OPTIONS: Array<[DetectionReviewerFilter, string]> = [
   ['unadjusted', 'Not adjusted'],
 ];
 
-const SELECT_CLASS = `min-h-11 w-full sm:min-h-0 ${selectBase}`;
+const SELECT_CLASS = `${filterControl} ${selectBase}`;
 
 interface FeedOption {
   slug: string;
@@ -53,14 +53,14 @@ interface Props {
   onSortChange: (next: DetectionSort) => void;
   order: 'asc' | 'desc';
   onOrderChange: (next: 'asc' | 'desc') => void;
-  // Ad Review filters by review state; Detected Ads is already scoped to cut
+  // Ad review filters by review state; Detected Ads is already scoped to cut
   // ads, so it passes nothing and the select is omitted.
   status?: StatusConfig;
   // Only meaningful while the status filter selects pending holds.
   holdReason?: HoldReasonConfig;
 }
 
-// Shared filter bar for the Ad Review and Detected Ads tabs. The two were
+// Shared filter bar for the Ad review and Detected ads tabs. The two were
 // byte-identical apart from the status select, and users move between the tabs
 // constantly, so the layout is worth keeping in one place.
 export function DetectionFilterBar({
@@ -72,7 +72,7 @@ export function DetectionFilterBar({
     <div className="bg-card rounded-lg border border-border p-4 mb-6 grid grid-cols-1 min-[375px]:grid-cols-2 lg:grid-cols-4 gap-4 items-end">
       {status && (
         <div className="min-w-0">
-          <label htmlFor={`${idPrefix}-status`} className="mb-1 block text-sm text-muted-foreground">Status</label>
+          <label htmlFor={`${idPrefix}-status`} className={filterLabel}>Status</label>
           <select
             id={`${idPrefix}-status`}
             value={status.value}
@@ -87,7 +87,7 @@ export function DetectionFilterBar({
       )}
       {holdReason && (
         <div className="min-w-0">
-          <label htmlFor={`${idPrefix}-hold-reason`} className="mb-1 block text-sm text-muted-foreground">Hold reason</label>
+          <label htmlFor={`${idPrefix}-hold-reason`} className={filterLabel}>Hold reason</label>
           <select
             id={`${idPrefix}-hold-reason`}
             value={holdReason.value}
@@ -102,7 +102,7 @@ export function DetectionFilterBar({
         </div>
       )}
       <div className="min-w-0">
-        <label htmlFor={`${idPrefix}-feed`} className="mb-1 block text-sm text-muted-foreground">Podcast</label>
+        <label htmlFor={`${idPrefix}-feed`} className={filterLabel}>Podcast</label>
         <select
           id={`${idPrefix}-feed`}
           value={feed}
@@ -116,7 +116,7 @@ export function DetectionFilterBar({
         </select>
       </div>
       <div className="min-w-0">
-        <label htmlFor={`${idPrefix}-category`} className="mb-1 block text-sm text-muted-foreground">Category</label>
+        <label htmlFor={`${idPrefix}-category`} className={filterLabel}>Category</label>
         <select
           id={`${idPrefix}-category`}
           value={category}
@@ -129,7 +129,7 @@ export function DetectionFilterBar({
         </select>
       </div>
       <div className="min-w-0">
-        <label htmlFor={`${idPrefix}-reviewer`} className="mb-1 block text-sm text-muted-foreground">Reviewer</label>
+        <label htmlFor={`${idPrefix}-reviewer`} className={filterLabel}>Reviewer</label>
         <select
           id={`${idPrefix}-reviewer`}
           value={reviewer}
@@ -143,14 +143,14 @@ export function DetectionFilterBar({
       </div>
       {/* Neither the rows nor the cards have sortable headers, so sorting
           lives in the filter bar at every width. */}
-      <div className="min-w-0">
-        <label htmlFor={`${idPrefix}-sort`} className="mb-1 block text-sm text-muted-foreground">Sort</label>
+      <div className="min-w-0 min-[375px]:col-span-2 lg:col-span-1">
+        <label htmlFor={`${idPrefix}-sort`} className={filterLabel}>Sort</label>
         <div className="flex min-w-0 items-center gap-1 sm:gap-2">
           <select
             id={`${idPrefix}-sort`}
             value={sort}
             onChange={(e) => onSortChange(e.target.value as DetectionSort)}
-            className={`min-w-0 flex-1 ${SELECT_CLASS}`}
+            className={`flex-1 ${SELECT_CLASS}`}
           >
             {SORT_OPTIONS.map(([value, label]) => (
               <option key={value} value={value}>{label}</option>
@@ -160,7 +160,7 @@ export function DetectionFilterBar({
             type="button"
             onClick={() => onOrderChange(order === 'desc' ? 'asc' : 'desc')}
             aria-label={order === 'desc' ? 'Switch to ascending order' : 'Switch to descending order'}
-            className={`${touchTarget} shrink-0 rounded px-3 py-1.5 ${btnSecondary} transition-colors ${focusRing}`}
+            className={`${btnBase} ${btnSecondary} shrink-0`}
           >
             {order === 'desc'
               ? <ChevronDown className="w-4 h-4" aria-hidden />
@@ -168,15 +168,15 @@ export function DetectionFilterBar({
           </button>
         </div>
       </div>
-      <div className={`min-w-0 min-[375px]:col-span-2 lg:col-span-4`}>
-        <label htmlFor={`${idPrefix}-q`} className="mb-1 block text-sm text-muted-foreground">Search</label>
+      <div className="min-w-0 min-[375px]:col-span-2 lg:col-span-4">
+        <label htmlFor={`${idPrefix}-q`} className={filterLabel}>Search</label>
         <input
           id={`${idPrefix}-q`}
           type="text"
           value={q}
           onChange={(e) => onQChange(e.target.value)}
           placeholder="Sponsor or reason"
-          className={`min-h-11 w-full min-w-0 sm:min-h-0 ${inputBase}`}
+          className={`${filterControl} ${inputBase}`}
         />
       </div>
     </div>

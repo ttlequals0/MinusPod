@@ -1,15 +1,15 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { Play, Pause, SkipBack, SkipForward, Search, ChevronUp, ChevronDown } from 'lucide-react';
+import { Play, Pause, Plus, SkipBack, SkipForward, Search, ChevronUp, ChevronDown, X } from 'lucide-react';
 import {
   getOriginalSegments,
   type OriginalSegment,
   type TranscriptWord,
 } from '../../api/feeds';
 import { formatTime } from '../../utils/adReviewHelpers';
-import { btnGhost, touchTarget } from '../buttonStyles';
-import { badgeBase } from '../badgeStyles';
-import { focusRing } from '../../components/fieldStyles';
 import SpeedMenu from './SpeedMenu';
+import { btnBase, btnGhost, touchTarget } from '../buttonStyles';
+import { focusRing, inputBase } from '../fieldStyles';
+import { badgeBase } from '../badgeStyles';
 
 export interface TextRun {
   start: number;
@@ -47,7 +47,7 @@ interface FlatWord extends TranscriptWord {
 
 // Runs this close in time collapse into one on freeze.
 const MERGE_GAP_SECONDS = 1;
-const chipClass = `${badgeBase} inline-flex items-center gap-1.5 border border-border bg-background text-foreground`;
+const chipClass = `${badgeBase} gap-1.5 border border-border bg-background text-foreground`;
 
 // Shared with AdReviewModal so saved-run lookups use an identical key.
 export function runKey(run: TextRun): string {
@@ -424,7 +424,7 @@ function TextSelectionPanel({
             onChange={(e) => setSearchTerm(e.target.value)}
             placeholder="Search the transcript"
             disabled={disabled}
-            className="w-full pl-8 pr-3 py-1.5 rounded-md border border-input bg-background text-foreground text-sm focus:outline-hidden focus:ring-2 focus:ring-ring max-sm:min-h-11"
+            className={`w-full pl-8 ${inputBase}`}
           />
         </div>
         {matchIndices.length > 0 && (
@@ -485,7 +485,7 @@ function TextSelectionPanel({
               aria-label={`Remove span ${formatTime(run.start)} to ${formatTime(run.end)}`}
               className={`${touchTarget} max-sm:-mx-2.5 max-sm:-my-2.5 rounded text-muted-foreground hover:text-destructive disabled:opacity-40 ${focusRing}`}
             >
-              &times;
+              <X className="w-3.5 h-3.5" aria-hidden="true" />
             </button>
           </span>
         ))}
@@ -493,8 +493,9 @@ function TextSelectionPanel({
           type="button"
           onClick={freezeCurrentRun}
           disabled={!hasSelection || disabled}
-          className={`px-2 py-1 rounded text-xs ${btnGhost} disabled:opacity-40 disabled:cursor-not-allowed ${focusRing} max-sm:min-h-11`}
+          className={`${btnBase} ${btnGhost}`}
         >
+          <Plus className="w-4 h-4" aria-hidden="true" />
           Add another span
         </button>
       </div>

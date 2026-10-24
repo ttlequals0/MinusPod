@@ -1,9 +1,7 @@
 import { type ReactNode, useMemo } from 'react';
 import type { StageTunables, UpdateSettingsPayload } from '../../api/types';
 import CollapsibleSection from '../../components/CollapsibleSection';
-import { selectBase } from '../../components/fieldStyles';
 import ToggleSwitch from '../../components/ToggleSwitch';
-import { btnPrimary } from '../../components/buttonStyles';
 import SavedBadge from './SavedBadge';
 import {
   NumberFieldRow,
@@ -12,8 +10,10 @@ import {
   readEnvOverride,
   useServerDraft,
 } from './StageTunablesSection';
-import { focusRing } from '../../components/fieldStyles';
 import AdChaptersBlock, { type AdChaptersBlockProps } from './AdChaptersBlock';
+import { btnLg, btnPrimary } from '../../components/buttonStyles';
+import { selectBase, labelBase } from '../../components/fieldStyles';
+import { subHeading } from '../../components/pageStyles';
 
 const CHAPTER_GEOMETRY_FIELDS = [
   {
@@ -79,9 +79,9 @@ function ChapterGeometryBlock({
   }
 
   return (
-    <div className="border border-border rounded-lg p-3 space-y-3">
+    <div className="bg-muted/40 rounded-lg p-3 space-y-3">
       <div>
-        <h4 className="text-sm font-semibold text-foreground">Chapter Density</h4>
+        <h4 className={subHeading}>Chapter density</h4>
         <p className="text-xs text-muted-foreground mt-0.5">
           How many chapters a long episode gets, and how much transcript each
           detection call sees. Applies on the next episode.
@@ -119,9 +119,9 @@ function ChapterGeometryBlock({
           type="button"
           onClick={() => onSave(buildPayload())}
           disabled={!dirty || saveIsPending || !!crossFieldError}
-          className={`px-4 py-2 rounded-lg ${btnPrimary} disabled:opacity-50 transition-colors text-sm ${focusRing}`}
+          className={`${btnLg} ${btnPrimary}`}
         >
-          {saveIsPending ? 'Saving...' : 'Save Chapter Density'}
+          {saveIsPending ? 'Saving...' : 'Save chapter density'}
         </button>
         {saveIsSuccess && !dirty && !saveError && <SavedBadge className="ml-3" />}
         {saveError && (
@@ -178,7 +178,7 @@ function Podcasting20Section({
   geometry,
 }: Podcasting20SectionProps) {
   return (
-    <CollapsibleSection title="Transcripts & Chapters">
+    <CollapsibleSection title="Transcripts and chapters" storageKey="settings-section-transcripts-&-chapters">
       <div className="space-y-4 max-sm:[&_select]:min-h-11 max-sm:[&_button]:min-h-11">
         <ToggleRow checked={vttTranscriptsEnabled} onChange={onVttTranscriptsEnabledChange}
           label="Generate VTT Transcripts">
@@ -187,7 +187,7 @@ function Podcasting20Section({
 
         <ToggleRow checked={chaptersEnabled} onChange={onChaptersEnabledChange}
           disabled={!chaptersEnabled && !!unsupportedChaptersRoute}
-          label="Generate Chapters">
+          label="Generate chapters">
           Create JSON chapters from ad boundaries and description timestamps
         </ToggleRow>
         {unsupportedChaptersRoute && (
@@ -197,7 +197,7 @@ function Podcasting20Section({
         )}
 
         <div className="border-t border-border pt-4">
-          <label htmlFor="globalChaptersMode" className="block text-sm font-medium text-foreground mb-2">
+          <label htmlFor="globalChaptersMode" className={labelBase}>
             Chapter mode for feeds that inherit the global setting
           </label>
           <select id="globalChaptersMode" value={chaptersMode}

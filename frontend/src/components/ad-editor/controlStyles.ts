@@ -17,7 +17,6 @@ export const primaryBtn =
   'hover:bg-primary hover:ring-2 hover:ring-primary hover:ring-offset-2 hover:ring-offset-card ' +
   'disabled:opacity-50 disabled:cursor-not-allowed';
 
-export const ctrlBtn = `px-2 py-1.5 rounded ${ghostBtn} text-sm`;
 
 // "Set START/END at playhead". Once the waveform is zoomed the pins sit off
 // screen, and on a phone there is no wheel to zoom back out, so these are the
@@ -38,5 +37,5 @@ export const selectionBtn =
   'border border-warning/50 text-warning bg-warning/10 ' +
   'hover:bg-warning/20 hover:border-warning ' +
   'dark:border-warning/60 dark:text-warning dark:hover:border-warning ' +
-  'focus:outline-hidden focus:ring-2 focus:ring-warning ' +
+  'focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-warning ' +
   'disabled:opacity-40 disabled:cursor-not-allowed';

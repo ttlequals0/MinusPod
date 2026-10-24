@@ -89,6 +89,32 @@ class Tag:
         return _parse_chapter_frames(self)
 
 
+def _frame_size(data, position, version):
+    # ffmpeg writes v2.4 sizes big-endian; pick the reading that lands on a frame header, padding or the end.
+    raw = data[position + 4:position + 8]
+    be = int.from_bytes(raw, 'big')
+    if version == 3:
+        return be
+
+    def lands(size):
+        nxt = position + 10 + size
+        if nxt == len(data):
+            return True
+        if nxt > len(data):
+            return False
+        return not data[nxt] or re.fullmatch(rb'[A-Z0-9]{4}', data[nxt:nxt + 4]) is not None
+
+    try:
+        ss = _synchsafe(raw)
+    except ChapterTagError:
+        if lands(be):
+            return be
+        raise
+    if lands(ss) or not lands(be):
+        return ss
+    return be
+
+
 def _frames(data, version, *, all_unsynced=False, limit=MAX_FRAMES):
     frames = []
     position = 0
@@ -102,7 +128,7 @@ def _frames(data, version, *, all_unsynced=False, limit=MAX_FRAMES):
         header = data[position:position + 10]
         if not re.fullmatch(rb'[A-Z0-9]{4}', header[:4]):
             raise ChapterTagError('Invalid ID3 frame identifier')
-        size = int.from_bytes(header[4:8], 'big') if version == 3 else _synchsafe(header[4:8])
+        size = _frame_size(data, position, version)
         position += 10
         if not size or size > len(data) - position:
             raise ChapterTagError('Invalid ID3 frame length')
@@ -171,7 +197,7 @@ def _has_chapter_artifacts(data, version, flags):
         if len(header) < 10 or not re.fullmatch(rb'[A-Z0-9]{4}', header[:4]):
             return b'CHAP' in data[position:] or b'CTOC' in data[position:]
         try:
-            size = int.from_bytes(header[4:8], 'big') if version == 3 else _synchsafe(header[4:8])
+            size = _frame_size(data, position, version)
         except ChapterTagError:
             return b'CHAP' in data[position:] or b'CTOC' in data[position:]
         if size > len(data) - position - 10:

@@ -3,7 +3,11 @@ import json
 import logging
 from datetime import datetime, timedelta, timezone
 
-from config import DEFER_SERVICE_LLM
+from config import (
+    AUTO_PROCESS_MAX_AGE_HOURS_BOUNDS, AUTO_PROCESS_MAX_AGE_HOURS_DEFAULT,
+    DEFER_SERVICE_LLM,
+)
+from database.episodes import HAS_TRANSCRIPT_SQL
 from utils.time import ISO_FORMAT, utc_now, utc_now_iso
 
 logger = logging.getLogger(__name__)
@@ -114,6 +118,15 @@ class QueueMixin:
         else:
             # No override, use global setting
             return global_enabled
+
+    def get_auto_process_max_age_hours(self, podcast: dict) -> int:
+        """Hours since publish within which a new episode is auto-queued."""
+        hours = podcast.get('auto_process_max_age_hours_override')
+        if hours is None:
+            hours = self.get_setting_int('auto_process_max_age_hours',
+                                         AUTO_PROCESS_MAX_AGE_HOURS_DEFAULT)
+        lo, hi = AUTO_PROCESS_MAX_AGE_HOURS_BOUNDS
+        return min(max(hours, lo), hi)
 
     def queue_episode_for_processing(self, slug: str, episode_id: str,
                                       original_url: str, title: str = None,
@@ -796,18 +809,19 @@ class QueueMixin:
         pending recuts without touching the rest of the queue.
         """
         conn = self.get_connection()
-        # has_segments/has_markers mirror the recut preconditions cheaply
+        # has_segments/has_transcript/has_markers mirror the recut preconditions cheaply
         # (string tests, not JSON parses: this backs a polled endpoint and
         # segments run to hundreds of KB): segments must be a non-empty list,
         # markers only present ('[]' recuts fine, restoring the original).
         # has_queue_row separates an episode whose own run is coming from one
         # left 'pending' by a cleared queue, which nothing will run.
         cursor = conn.execute(
-            """SELECT e.episode_id, e.title, e.status, e.original_url,
+            f"""SELECT e.episode_id, e.title, e.status, e.original_url,
                       e.pending_recut_at, p.slug AS podcast_slug,
                       p.title AS podcast_title,
                       d.original_segments_json IS NOT NULL
                           AND d.original_segments_json != '[]' AS has_segments,
+                      {HAS_TRANSCRIPT_SQL.format(a='d')} AS has_transcript,
                       d.ad_markers_json IS NOT NULL AS has_markers,
                       EXISTS (SELECT 1 FROM auto_process_queue q
                               WHERE q.podcast_id = e.podcast_id
@@ -820,7 +834,7 @@ class QueueMixin:
                WHERE e.pending_recut_at IS NOT NULL
                  AND (? IS NULL OR p.slug = ?)
                ORDER BY e.pending_recut_at ASC
-               LIMIT ?""",
+               LIMIT ?""",  # noqa: S608
             (slug, slug, limit)
         )
         return [dict(row) for row in cursor.fetchall()]

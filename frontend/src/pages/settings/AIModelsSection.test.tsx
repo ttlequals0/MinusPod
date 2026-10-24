@@ -7,6 +7,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import AIModelsSection from './AIModelsSection';
+import { inputBase } from '../../components/fieldStyles';
 import type { ModelCatalog } from '../../hooks/useModelCatalog';
 import type { ClaudeModel } from '../../api/types';
 
@@ -58,7 +59,7 @@ describe('AIModelsSection: not-configured state', () => {
   });
   it('renders a selected "Not configured" placeholder for an empty model value', () => {
     renderSection({ selectedModel: '' });
-    const select = screen.getByLabelText('Ad Detection Model') as HTMLSelectElement;
+    const select = screen.getByLabelText('Ad detection model') as HTMLSelectElement;
     expect(select.value).toBe('');
     const placeholder = screen.getByRole('option', { name: 'Not configured' }) as HTMLOptionElement;
     expect(placeholder.selected).toBe(true);
@@ -66,14 +67,14 @@ describe('AIModelsSection: not-configured state', () => {
 
   it('shows the helper line under an unconfigured select', () => {
     renderSection({ selectedModel: '' });
-    const select = screen.getByLabelText('Ad Detection Model');
+    const select = screen.getByLabelText('Ad detection model');
     expect(screen.getByText('Pick a model before processing episodes.')).toBeDefined();
     expect(select.getAttribute('aria-invalid')).toBe('true');
   });
 
   it('renders a configured value with no placeholder option and no helper line', () => {
     renderSection({ selectedModel: 'gpt-5' });
-    const select = screen.getByLabelText('Ad Detection Model') as HTMLSelectElement;
+    const select = screen.getByLabelText('Ad detection model') as HTMLSelectElement;
     expect(select.value).toBe('gpt-5');
     expect(screen.queryByRole('option', { name: 'Not configured' })).toBeNull();
     expect(screen.queryByText('Pick a model before processing episodes.')).toBeNull();
@@ -81,10 +82,10 @@ describe('AIModelsSection: not-configured state', () => {
 
   it('applies the not-configured state independently to each model select', () => {
     renderSection({ selectedModel: 'gpt-5', verificationModel: '', chaptersModel: 'gpt-5-mini' });
-    expect((screen.getByLabelText('Ad Detection Model') as HTMLSelectElement).value).toBe('gpt-5');
-    expect((screen.getByLabelText('Verification Model') as HTMLSelectElement).value).toBe('');
-    expect((screen.getByLabelText('Chapters Model') as HTMLSelectElement).value).toBe('gpt-5-mini');
-    // One helper line per unconfigured select; here only Verification Model is empty.
+    expect((screen.getByLabelText('Ad detection model') as HTMLSelectElement).value).toBe('gpt-5');
+    expect((screen.getByLabelText('Verification model') as HTMLSelectElement).value).toBe('');
+    expect((screen.getByLabelText('Chapters model') as HTMLSelectElement).value).toBe('gpt-5-mini');
+    // One helper line per unconfigured select; here only Verification model is empty.
     expect(screen.getAllByText('Pick a model before processing episodes.')).toHaveLength(1);
   });
 });
@@ -93,7 +94,7 @@ describe('AIModelsSection: orphaned saved value', () => {
   it('still renders the existing "(current, not in catalog)" option for a value missing from the catalog', () => {
     renderSection({ selectedModel: 'retired-model' });
     expect(screen.getByRole('option', { name: 'retired-model (current, not in catalog)' })).toBeDefined();
-    const select = screen.getByLabelText('Ad Detection Model') as HTMLSelectElement;
+    const select = screen.getByLabelText('Ad detection model') as HTMLSelectElement;
     expect(select.value).toBe('retired-model');
   });
 });
@@ -116,15 +117,15 @@ describe('AIModelsSection: typing a model ID', () => {
   it('swaps the list for a text field and back', async () => {
     const user = userEvent.setup();
     renderSection();
-    expect(screen.getByLabelText('Ad Detection Model').tagName).toBe('SELECT');
+    expect(screen.getByLabelText('Ad detection model').tagName).toBe('SELECT');
 
     await user.click(screen.getAllByRole('button', { name: 'Type a model ID' })[0]);
-    const input = screen.getByLabelText('Ad Detection Model');
+    const input = screen.getByLabelText('Ad detection model');
     expect(input.tagName).toBe('INPUT');
-    expect(input.className).toContain('min-h-[44px]');
+    expect(input.className).toContain(inputBase);
 
     await user.click(screen.getAllByRole('button', { name: 'Choose from list' })[0]);
-    expect(screen.getByLabelText('Ad Detection Model').tagName).toBe('SELECT');
+    expect(screen.getByLabelText('Ad detection model').tagName).toBe('SELECT');
   });
 
   it('reports what was typed', async () => {
@@ -133,7 +134,7 @@ describe('AIModelsSection: typing a model ID', () => {
     renderSection({ selectedModel: '', onSelectedModelChange });
 
     await user.click(screen.getAllByRole('button', { name: 'Type a model ID' })[0]);
-    await user.type(screen.getByLabelText('Ad Detection Model'), 'x');
+    await user.type(screen.getByLabelText('Ad detection model'), 'x');
 
     expect(onSelectedModelChange).toHaveBeenCalledWith('x');
   });
@@ -144,7 +145,7 @@ describe('AIModelsSection: typing a model ID', () => {
 
     await user.click(screen.getAllByRole('button', { name: 'Type a model ID' })[0]);
 
-    const input = screen.getByLabelText('Ad Detection Model');
+    const input = screen.getByLabelText('Ad detection model');
     expect(input.getAttribute('aria-invalid')).toBe('true');
     expect(input.getAttribute('aria-describedby')?.split(' ')).toEqual(['model-required-message', 'model-help']);
     expect(screen.getByText('Pick a model before processing episodes.')).toBeDefined();
@@ -156,14 +157,14 @@ describe('AIModelsSection: typing a model ID', () => {
 
     await user.click(screen.getAllByRole('button', { name: 'Type a model ID' })[0]);
 
-    expect(screen.getByLabelText('Ad Detection Model').tagName).toBe('INPUT');
-    expect(screen.getByLabelText('Verification Model').tagName).toBe('SELECT');
-    expect(screen.getByLabelText('Chapters Model').tagName).toBe('SELECT');
+    expect(screen.getByLabelText('Ad detection model').tagName).toBe('INPUT');
+    expect(screen.getByLabelText('Verification model').tagName).toBe('SELECT');
+    expect(screen.getByLabelText('Chapters model').tagName).toBe('SELECT');
   });
 
   it('keeps the orphan option available in list mode', () => {
     renderSection({ selectedModel: 'retired-model' });
-    expect(screen.getByLabelText('Ad Detection Model').tagName).toBe('SELECT');
+    expect(screen.getByLabelText('Ad detection model').tagName).toBe('SELECT');
     expect(screen.getByRole('option', { name: 'retired-model (current, not in catalog)' })).toBeDefined();
   });
 });
@@ -171,18 +172,18 @@ describe('AIModelsSection: typing a model ID', () => {
 describe('AIModelsSection: per-stage provider selects', () => {
   it('renders a provider select beside each stage\'s model select', () => {
     renderSection();
-    expect(screen.getByLabelText('Ad Detection Provider')).toBeDefined();
-    expect(screen.getByLabelText('Verification Provider')).toBeDefined();
-    expect(screen.getByLabelText('Chapters Provider')).toBeDefined();
+    expect(screen.getByLabelText('Ad detection provider')).toBeDefined();
+    expect(screen.getByLabelText('Verification provider')).toBeDefined();
+    expect(screen.getByLabelText('Chapters provider')).toBeDefined();
   });
 
   it('defaults detection to "Provider A" and the others to "Same as detection"', () => {
     renderSection();
-    expect((screen.getByLabelText('Ad Detection Provider') as HTMLSelectElement).selectedOptions[0].textContent)
+    expect((screen.getByLabelText('Ad detection provider') as HTMLSelectElement).selectedOptions[0].textContent)
       .toBe('Provider A');
-    expect((screen.getByLabelText('Verification Provider') as HTMLSelectElement).selectedOptions[0].textContent)
+    expect((screen.getByLabelText('Verification provider') as HTMLSelectElement).selectedOptions[0].textContent)
       .toBe('Same as detection');
-    expect((screen.getByLabelText('Chapters Provider') as HTMLSelectElement).selectedOptions[0].textContent)
+    expect((screen.getByLabelText('Chapters provider') as HTMLSelectElement).selectedOptions[0].textContent)
       .toBe('Same as detection');
   });
 
@@ -192,7 +193,7 @@ describe('AIModelsSection: per-stage provider selects', () => {
     const onVerificationProviderChange = vi.fn();
     renderSection({ onDetectionProviderChange, onVerificationProviderChange });
 
-    await user.selectOptions(screen.getByLabelText('Verification Provider'), 'primary');
+    await user.selectOptions(screen.getByLabelText('Verification provider'), 'primary');
 
     expect(onVerificationProviderChange).toHaveBeenCalledWith('primary');
     expect(onDetectionProviderChange).not.toHaveBeenCalled();
@@ -204,7 +205,7 @@ describe('AIModelsSection: per-stage provider selects', () => {
       verificationCatalog: catalog({ models: [{ id: 'llama3', name: 'Llama 3' }] }),
       verificationModel: 'llama3',
     });
-    const select = screen.getByLabelText('Verification Model') as HTMLSelectElement;
+    const select = screen.getByLabelText('Verification model') as HTMLSelectElement;
     expect(select.value).toBe('llama3');
     expect(within(select).getByRole('option', { name: 'Llama 3' })).toBeDefined();
     expect(within(select).queryByRole('option', { name: 'GPT-5' })).toBeNull();
@@ -212,7 +213,7 @@ describe('AIModelsSection: per-stage provider selects', () => {
 
   it('never borrows the detection catalog for a stage whose own list is missing', () => {
     renderSection({ verificationCatalog: catalog({ models: undefined }) });
-    const verifSelect = screen.getByLabelText('Verification Model') as HTMLSelectElement;
+    const verifSelect = screen.getByLabelText('Verification model') as HTMLSelectElement;
     expect(within(verifSelect).queryByRole('option', { name: 'GPT-5' })).toBeNull();
     // The saved id stays selected so the field does not read as reset.
     expect(verifSelect.value).toBe('gpt-5');
@@ -222,14 +223,14 @@ describe('AIModelsSection: per-stage provider selects', () => {
 describe('AIModelsSection: secondary provider slot', () => {
   it('hides the Provider B option on every stage select while the secondary provider is off', () => {
     renderSection();
-    for (const label of ['Ad Detection Provider', 'Verification Provider', 'Chapters Provider']) {
+    for (const label of ['Ad detection provider', 'Verification provider', 'Chapters provider']) {
       expect(within(screen.getByLabelText(label)).queryByRole('option', { name: 'Provider B' })).toBeNull();
     }
   });
 
   it('shows the Provider B option once the secondary provider is enabled', () => {
     renderSection({ secondaryProviderEnabled: true });
-    for (const label of ['Ad Detection Provider', 'Verification Provider', 'Chapters Provider']) {
+    for (const label of ['Ad detection provider', 'Verification provider', 'Chapters provider']) {
       expect(within(screen.getByLabelText(label)).getByRole('option', { name: 'Provider B' })).toBeDefined();
     }
   });
@@ -239,7 +240,7 @@ describe('AIModelsSection: secondary provider slot', () => {
     const onDetectionProviderChange = vi.fn();
     renderSection({ secondaryProviderEnabled: true, onDetectionProviderChange });
 
-    await user.selectOptions(screen.getByLabelText('Ad Detection Provider'), 'Provider B');
+    await user.selectOptions(screen.getByLabelText('Ad detection provider'), 'Provider B');
 
     expect(onDetectionProviderChange).toHaveBeenCalledWith('secondary');
   });
@@ -309,7 +310,7 @@ describe('AIModelsSection: custom pricing', () => {
       ...screen.getAllByLabelText('Output, USD per 1 million tokens'),
     ];
     for (const input of inputs) {
-      expect(input.className).toContain('min-h-[44px]');
+      expect(input.className).toContain(inputBase);
       expect(input.className).toContain('focus-visible:ring-2');
     }
   });
@@ -399,7 +400,7 @@ describe('AIModelsSection: per-stage catalog states', () => {
       verificationCatalog: catalog({ models: undefined, isLoading: true }),
       verificationModel: 'llama3',
     });
-    const select = screen.getByLabelText('Verification Model') as HTMLSelectElement;
+    const select = screen.getByLabelText('Verification model') as HTMLSelectElement;
     expect(within(select).queryByRole('option', { name: 'GPT-5' })).toBeNull();
     expect(select.value).toBe('llama3');
     expect(screen.getByText('Loading models...')).toBeDefined();
@@ -412,7 +413,7 @@ describe('AIModelsSection: per-stage catalog states', () => {
       verificationCatalog: catalog({ models: undefined, isError: true }),
       verificationModel: 'llama3',
     });
-    const select = screen.getByLabelText('Verification Model') as HTMLSelectElement;
+    const select = screen.getByLabelText('Verification model') as HTMLSelectElement;
     expect(within(select).queryByRole('option', { name: 'GPT-5' })).toBeNull();
     expect(screen.getByText("Could not load this provider's model list. Refresh to try again.")).toBeDefined();
   });
@@ -422,7 +423,7 @@ describe('AIModelsSection: per-stage catalog states', () => {
       detectionCatalog: catalog({ models: undefined, isLoading: true }),
       selectedModel: 'gpt-5',
     });
-    const select = screen.getByLabelText('Ad Detection Model') as HTMLSelectElement;
+    const select = screen.getByLabelText('Ad detection model') as HTMLSelectElement;
     expect(select.value).toBe('gpt-5');
     expect(screen.getAllByText('Loading models...')).toHaveLength(1);
   });
@@ -446,7 +447,7 @@ describe('AIModelsSection: per-stage catalog states', () => {
 describe('AIModelsSection: stored secondary slot while the secondary provider is off', () => {
   it('keeps the stored value selected instead of reading as Provider A', () => {
     renderSection({ detectionProvider: 'secondary' });
-    const select = screen.getByLabelText('Ad Detection Provider') as HTMLSelectElement;
+    const select = screen.getByLabelText('Ad detection provider') as HTMLSelectElement;
     expect(select.value).toBe('secondary');
     expect(select.selectedOptions[0].textContent).toBe('Provider B (off)');
   });
@@ -459,7 +460,7 @@ describe('AIModelsSection: stored secondary slot while the secondary provider is
   it('leaves stages that are not on the secondary slot alone', () => {
     renderSection({ detectionProvider: 'secondary' });
     expect(
-      within(screen.getByLabelText('Verification Provider')).queryByRole('option', { name: 'Provider B (off)' })
+      within(screen.getByLabelText('Verification provider')).queryByRole('option', { name: 'Provider B (off)' })
     ).toBeNull();
     expect(screen.getAllByText('Provider B is off, so this stage runs on Provider A.')).toHaveLength(1);
   });

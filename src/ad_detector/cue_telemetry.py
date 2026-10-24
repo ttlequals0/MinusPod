@@ -81,7 +81,11 @@ def build_cue_detection_records(
 
     paired = set()
     snapped = set()
+    cut = set()
     for ad in ads or []:
+        match = ad.get('cue_match')
+        if match:
+            cut.add(_cue_key(match.get('template_id'), match.get('cue_start')))
         for side in ('start', 'end'):
             sub = (ad.get('cue_pair') or {}).get(side)
             if sub:
@@ -98,7 +102,9 @@ def build_cue_detection_records(
             continue
         role = details.get('role', AUDIO_CUE_ROLE_DEFAULT)
         key = _cue_key(details.get('template_id'), c.start)
-        if key in paired:
+        if key in cut:
+            outcome = 'cut'
+        elif key in paired:
             outcome = 'pair'
         elif key in snapped:
             outcome = 'snap'

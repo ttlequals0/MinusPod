@@ -10,6 +10,7 @@ from typing import Any
 from collections.abc import Callable
 
 from config import (
+    AUTO_PROCESS_MAX_AGE_HOURS_BOUNDS, AUTO_PROCESS_MAX_AGE_HOURS_DEFAULT,
     normalize_model_key, ENV_BACKED_SETTINGS, resolve_env_backed_default,
     coerce_bool_setting, get_env_backed_int,
     STAGE_TUNABLE_DEFAULTS,
@@ -742,6 +743,10 @@ SETTINGS_REGISTRY: dict[str, SettingSpec] = {
         payload_key='autoProcessEnabled',
         payload_factory=lambda: coerce_bool_setting(
             resolve_env_backed_default('auto_process_enabled'))),
+    'auto_process_max_age_hours': SettingSpec(
+        default=str(AUTO_PROCESS_MAX_AGE_HOURS_DEFAULT), seeded=True,
+        validator=_int_in_range(AUTO_PROCESS_MAX_AGE_HOURS_BOUNDS),
+        payload_key='autoProcessMaxAgeHours', payload_kind='int'),
     'feed_auth_enabled': SettingSpec(
         env_backed=True,
         payload_key='feedAuthEnabled',
@@ -842,6 +847,9 @@ SETTINGS_REGISTRY: dict[str, SettingSpec] = {
     'audio_cue_create_from_pairs': SettingSpec(
         default='false', in_ad_reset=True,
         payload_key='audioCueCreateFromPairs', payload_kind='bool'),
+    'audio_cue_cut_matches': SettingSpec(
+        default='false', in_ad_reset=True,
+        payload_key='audioCueCutMatches', payload_kind='bool'),
     'audio_cue_freq_min_hz': SettingSpec(
         default=str(AUDIO_CUE_FREQ_MIN_HZ), in_ad_reset=True,
         payload_key='audioCueFreqMinHz', payload_kind='int'),

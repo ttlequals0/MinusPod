@@ -502,10 +502,11 @@ def refresh_rss_feed(slug: str, feed_url: str, force: bool = False,
             refresh_logger.info(f"[{slug}] Discovered {inserted} new episode(s)")
 
         # Queue new episodes for auto-processing if enabled
-        # Only queue episodes published within the last 48 hours to avoid processing entire backlog
+        # Only queue episodes published inside the auto-process window to avoid processing the whole backlog
         queued_count = 0
         if db.is_auto_process_enabled_for_podcast(slug, podcast=podcast):
-            cutoff_time = datetime.now(timezone.utc) - timedelta(hours=48)
+            cutoff_time = datetime.now(timezone.utc) - timedelta(
+                hours=db.get_auto_process_max_age_hours(podcast))
             # Read once per refresh, not per episode.
             fresh_boost_enabled = db.get_setting_bool('process_new_episodes_first', True)
 

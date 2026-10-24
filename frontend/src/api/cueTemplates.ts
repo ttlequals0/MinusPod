@@ -1,4 +1,5 @@
 import { apiRequest } from './client';
+import { formatPercent } from '../utils/format';
 
 export type CueTemplateScope = 'podcast' | 'network';
 
@@ -54,6 +55,8 @@ export interface CueTemplate {
   networkId: string | null;
   enabled: boolean;
   removeWithAd?: boolean;
+  // Cut every match on its own. null/absent = inherit from feed/global.
+  cutMatches?: boolean | null;
   createdAt: string;
   createdBy: string | null;
   // False for a network template shared from another feed in this network;
@@ -128,6 +131,7 @@ export async function updateCueTemplate(
     cueType?: CueTemplateType;
     enabled?: boolean;
     removeWithAd?: boolean;
+    cutMatches?: boolean | null;
     scope?: CueTemplateScope;
     networkId?: string;
     scoreThreshold?: number | null;
@@ -275,9 +279,9 @@ export function cueCandidateLabel(c: CueCandidate): string {
   if (c.kind === 'outro') return `Outro (in ${c.episodeMatches ?? '?'} eps)`;
   if (c.kind === 'recurring' && c.boundaryAffinity != null && c.adBoundaryHits != null) {
     if (c.affinitySource === 'siblings') {
-      return `Repeats ${c.count ?? '?'}x -- ${Math.round(c.boundaryAffinity * 100)}% at known ad breaks (recent episodes)`;
+      return `Repeats ${c.count ?? "?"}x, ${formatPercent(c.boundaryAffinity)} at known ad breaks (recent episodes)`;
     }
-    return `Repeats ${c.count ?? '?'}x -- ${c.adBoundaryHits} of ${c.count ?? '?'} at known ad breaks`;
+    return `Repeats ${c.count ?? '?'}x, ${c.adBoundaryHits} of ${c.count ?? '?'} at known ad breaks`;
   }
   return `Repeats ${c.count ?? '?'}x`;
 }

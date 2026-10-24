@@ -1,6 +1,6 @@
-import { pageTitle } from '../components/pageStyles';
 import { useState, useMemo, useRef, useCallback, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router';
+import { Check, Mic, Plus, UploadCloud } from 'lucide-react';
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
 import { getErrorMessage } from '../api/client';
 import { addFeed, addLocalFeed, addRecentsFeed, uploadFeedArtwork, importOpml, OpmlImportResult, feedsQueryOptions } from '../api/feeds';
@@ -9,9 +9,10 @@ import { getSettings } from '../api/settings';
 import LoadingSpinner from '../components/LoadingSpinner';
 import TriStateSelect from '../components/TriStateSelect';
 import Checkbox from '../components/Checkbox';
-import { btnPrimary, btnSecondary } from '../components/buttonStyles';
-import DraftNumberInput, { DRAFT_NUMBER_INPUT_CLASS, parseOptionalNumber } from '../components/DraftNumberInput';
-import { fileInputBase, focusRing, inputBase } from '../components/fieldStyles';
+import DraftNumberInput, { parseOptionalNumber } from '../components/DraftNumberInput';
+import { btnBase, btnLg, btnPrimary, btnSecondary, btnGhost, touchTarget } from '../components/buttonStyles';
+import { focusRing, inputBase, textareaBase, labelBase, fileInputBase } from '../components/fieldStyles';
+import { pageHeader, pageTitle, cardTitle, subHeading } from '../components/pageStyles';
 
 type AddFeedMode = 'subscribe' | 'local' | 'recents';
 
@@ -57,25 +58,25 @@ function RecentsFeedForm({ onCancel }: { onCancel: () => void }) {
         One feed for newly processed episodes across your podcasts. Episodes published before today stay out.
       </p>
       <div>
-        <label htmlFor="recentsTitle" className="block text-sm font-medium text-foreground mb-2">Title</label>
+        <label htmlFor="recentsTitle" className={labelBase}>Title</label>
         <input id="recentsTitle" type="text" value={title} onChange={(e) => setTitle(e.target.value)}
           className={`w-full ${inputBase}`} />
       </div>
       <div>
-        <label htmlFor="recentsDescription" className="block text-sm font-medium text-foreground mb-2">Description</label>
+        <label htmlFor="recentsDescription" className={labelBase}>Description</label>
         <textarea id="recentsDescription" rows={3} value={description} onChange={(e) => setDescription(e.target.value)}
-          className={`w-full ${inputBase}`} />
+          className={`w-full ${textareaBase}`} />
       </div>
       {mutation.error && (
         <p className="text-sm text-destructive">{getErrorMessage(mutation.error)}</p>
       )}
       <div className="flex gap-2">
         <button type="submit" disabled={mutation.isPending}
-          className={`px-4 py-2 rounded-lg ${btnPrimary} disabled:opacity-50 transition-colors ${focusRing}`}>
-          {mutation.isPending ? 'Creating...' : 'Create feed'}
+          className={`${btnLg} ${btnPrimary}`}>
+          {mutation.isPending ? 'Creating feed...' : 'Create feed'}
         </button>
         <button type="button" onClick={onCancel}
-          className={`px-4 py-2 rounded-lg ${btnSecondary} transition-colors ${focusRing}`}>
+          className={`${btnLg} ${btnSecondary}`}>
           Cancel
         </button>
       </div>
@@ -139,7 +140,7 @@ function LocalFeedForm({ onCancel }: LocalFeedFormProps) {
             artworkNoticeRef.current = `Feed created. ${result.warning}`;
           }
         } catch {
-          artworkNoticeRef.current = 'Feed created. Artwork upload failed. Retry from the feed page.';
+          artworkNoticeRef.current = 'Feed created. Could not upload artwork. Retry from the feed page.';
         }
       }
       return feed;
@@ -159,7 +160,7 @@ function LocalFeedForm({ onCancel }: LocalFeedFormProps) {
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       <div>
-        <label htmlFor="localTitle" className="block text-sm font-medium text-foreground mb-2">
+        <label htmlFor="localTitle" className={labelBase}>
           Title
         </label>
         <input
@@ -169,12 +170,12 @@ function LocalFeedForm({ onCancel }: LocalFeedFormProps) {
           onChange={(e) => handleTitleChange(e.target.value)}
           placeholder="My Archive Show"
           required
-          className="w-full px-4 py-2 rounded-lg border border-input bg-background text-foreground placeholder:text-muted-foreground focus:outline-hidden focus:ring-2 focus:ring-ring"
+          className={`${inputBase} w-full`}
         />
       </div>
 
       <div>
-        <label htmlFor="localSlug" className="block text-sm font-medium text-foreground mb-2">
+        <label htmlFor="localSlug" className={labelBase}>
           Slug
         </label>
         <input
@@ -184,7 +185,7 @@ function LocalFeedForm({ onCancel }: LocalFeedFormProps) {
           value={slug}
           onChange={(e) => handleSlugChange(e.target.value)}
           placeholder="my-archive-show"
-          className="w-full px-4 py-2 rounded-lg border border-input bg-background text-foreground placeholder:text-muted-foreground focus:outline-hidden focus:ring-2 focus:ring-ring"
+          className={`${inputBase} w-full`}
         />
         <p id="localSlug-help" className="mt-1 text-sm text-muted-foreground">
           Cannot be changed after creation.
@@ -192,7 +193,7 @@ function LocalFeedForm({ onCancel }: LocalFeedFormProps) {
       </div>
 
       <div>
-        <label htmlFor="localDescription" className="block text-sm font-medium text-foreground mb-2">
+        <label htmlFor="localDescription" className={labelBase}>
           Description
         </label>
         <textarea
@@ -200,12 +201,12 @@ function LocalFeedForm({ onCancel }: LocalFeedFormProps) {
           value={description}
           onChange={(e) => setDescription(e.target.value)}
           rows={3}
-          className="w-full px-4 py-2 rounded-lg border border-input bg-background text-foreground placeholder:text-muted-foreground focus:outline-hidden focus:ring-2 focus:ring-ring"
+          className={`${textareaBase} w-full`}
         />
       </div>
 
       <div>
-        <label htmlFor="localAuthor" className="block text-sm font-medium text-foreground mb-2">
+        <label htmlFor="localAuthor" className={labelBase}>
           Author
         </label>
         <input
@@ -213,7 +214,7 @@ function LocalFeedForm({ onCancel }: LocalFeedFormProps) {
           id="localAuthor"
           value={author}
           onChange={(e) => setAuthor(e.target.value)}
-          className="w-full px-4 py-2 rounded-lg border border-input bg-background text-foreground placeholder:text-muted-foreground focus:outline-hidden focus:ring-2 focus:ring-ring"
+          className={`${inputBase} w-full`}
         />
       </div>
 
@@ -229,7 +230,7 @@ function LocalFeedForm({ onCancel }: LocalFeedFormProps) {
       />
 
       <div>
-        <label htmlFor="localCategories" className="block text-sm font-medium text-foreground mb-2">
+        <label htmlFor="localCategories" className={labelBase}>
           Categories
         </label>
         <input
@@ -239,7 +240,7 @@ function LocalFeedForm({ onCancel }: LocalFeedFormProps) {
           value={categoriesInput}
           onChange={(e) => setCategoriesInput(e.target.value)}
           placeholder="Technology, Business"
-          className="w-full px-4 py-2 rounded-lg border border-input bg-background text-foreground placeholder:text-muted-foreground focus:outline-hidden focus:ring-2 focus:ring-ring"
+          className={`${inputBase} w-full`}
         />
         <p id="localCategories-help" className="mt-1 text-sm text-muted-foreground">
           Comma-separated, e.g. Technology, Business
@@ -247,7 +248,7 @@ function LocalFeedForm({ onCancel }: LocalFeedFormProps) {
       </div>
 
       <div>
-        <label htmlFor="localArtwork" className="block text-sm font-medium text-foreground mb-2">
+        <label htmlFor="localArtwork" className={labelBase}>
           Artwork
         </label>
         <input
@@ -273,14 +274,14 @@ function LocalFeedForm({ onCancel }: LocalFeedFormProps) {
         <button
           type="submit"
           disabled={mutation.isPending || !title.trim()}
-          className={`flex-1 px-4 py-2 rounded-lg ${btnPrimary} disabled:opacity-50 transition-colors ${focusRing}`}
+          className={`${btnLg} ${btnPrimary} flex-1`}
         >
           {mutation.isPending ? 'Creating feed...' : 'Create feed'}
         </button>
         <button
           type="button"
           onClick={onCancel}
-          className={`px-4 py-2 rounded-lg ${btnSecondary} transition-colors ${focusRing}`}
+          className={`${btnLg} ${btnSecondary}`}
         >
           Cancel
         </button>
@@ -371,9 +372,7 @@ function SearchResultItem({ result, isSubscribed, isAdding, onAdd }: {
         />
       ) : (
         <div className="w-14 h-14 rounded bg-muted shrink-0 flex items-center justify-center">
-          <svg className="w-6 h-6 text-muted-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
-          </svg>
+          <Mic className="w-6 h-6 text-muted-foreground" aria-hidden="true" />
         </div>
       )}
       <div className="flex-1 min-w-0">
@@ -394,23 +393,19 @@ function SearchResultItem({ result, isSubscribed, isAdding, onAdd }: {
           </div>
           {isSubscribed ? (
             <span className="shrink-0 text-muted-foreground" title="Already subscribed">
-              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-              </svg>
+              <Check className="w-5 h-5" aria-hidden="true" />
             </span>
           ) : (
             <button
               onClick={handleAdd}
               disabled={isAdding}
-              className={`shrink-0 p-1.5 rounded-md text-primary hover:bg-primary/10 disabled:opacity-50 transition-colors ${focusRing}`}
+              className={`${touchTarget} ${btnGhost} shrink-0 rounded text-primary disabled:opacity-50 ${focusRing}`}
               title="Add this podcast"
             >
               {isAdding ? (
                 <LoadingSpinner size="sm" inline />
               ) : (
-                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                </svg>
+                <Plus className="w-5 h-5" aria-hidden="true" />
               )}
             </button>
           )}
@@ -425,6 +420,12 @@ function SearchResultItem({ result, isSubscribed, isAdding, onAdd }: {
     </div>
   );
 }
+
+const MODES: [AddFeedMode, string][] = [
+  ['subscribe', 'Subscribe to feed'],
+  ['local', 'Create local feed'],
+  ['recents', 'Create recents feed'],
+];
 
 function AddFeed() {
   const navigate = useNavigate();
@@ -574,44 +575,25 @@ function AddFeed() {
   };
 
   return (
-    <div className="max-w-xl mx-auto">
-      <h1 className={`${pageTitle} mb-6`}>Add New Feed</h1>
+    <div className="max-w-3xl mx-auto">
+      <div className={pageHeader}>
+        <h1 className={pageTitle}>Add feed</h1>
+      </div>
 
       {/* Mode toggle: subscribed feeds pull from an upstream RSS URL; local
           feeds have no upstream source and are seeded entirely from this form. */}
-      <div className="flex border border-border rounded overflow-hidden mb-6 w-fit">
-        <button
-          type="button"
-          onClick={() => setMode('subscribe')}
-          aria-pressed={mode === 'subscribe'}
-          className={`px-4 py-2 text-sm font-medium transition-colors ${
-            mode === 'subscribe' ? btnPrimary : btnSecondary
-          } ${focusRing}`}
-        >
-          Subscribe to feed
-        </button>
-        <button
-          type="button"
-          onClick={() => setMode('local')}
-          aria-pressed={mode === 'local'}
-          className={`px-4 py-2 text-sm font-medium transition-colors ${
-            mode === 'local' ? btnPrimary : btnSecondary
-          } ${focusRing}`}
-        >
-          Create local feed
-        </button>
-        {!hasRecents && (
+      <div className="grid grid-cols-1 min-[560px]:flex border border-border rounded overflow-hidden mb-6 w-full min-[560px]:w-fit [&>button]:rounded-none">
+        {MODES.filter(([value]) => value !== 'recents' || !hasRecents).map(([value, label]) => (
           <button
+            key={value}
             type="button"
-            onClick={() => setMode('recents')}
-            aria-pressed={mode === 'recents'}
-            className={`px-4 py-2 text-sm font-medium transition-colors ${
-              mode === 'recents' ? btnPrimary : btnSecondary
-            } ${focusRing}`}
+            onClick={() => setMode(value)}
+            aria-pressed={mode === value}
+            className={`${btnLg} ${mode === value ? btnPrimary : btnSecondary}`}
           >
-            Create recents feed
+            {label}
           </button>
-        )}
+        ))}
       </div>
 
       {mode === 'local' && <LocalFeedForm onCancel={() => setMode('subscribe')} />}
@@ -629,8 +611,8 @@ function AddFeed() {
       {/* Section A: Unified Input */}
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
-          <label htmlFor="podcastInput" className="block text-sm font-medium text-foreground mb-2">
-            {searchAvailable ? 'Search podcasts or enter RSS URL' : 'Podcast RSS Feed URL'}
+          <label htmlFor="podcastInput" className={labelBase}>
+            {searchAvailable ? 'Search podcasts or enter RSS URL' : 'Podcast RSS feed URL'}
           </label>
           <input
             type="text"
@@ -665,8 +647,8 @@ function AddFeed() {
           </summary>
           <div className="mt-4 space-y-4">
             <div>
-              <label htmlFor="slug" className="block text-sm font-medium text-foreground mb-2">
-                Custom Slug (optional)
+              <label htmlFor="slug" className={labelBase}>
+                Custom slug (optional)
               </label>
               <input
                 type="text"
@@ -675,7 +657,7 @@ function AddFeed() {
                 value={customSlug}
                 onChange={(e) => setCustomSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))}
                 placeholder="my-podcast"
-                className="w-full px-4 py-2 rounded-lg border border-input bg-background text-foreground placeholder:text-muted-foreground focus:outline-hidden focus:ring-2 focus:ring-ring"
+                className={`${inputBase} w-full`}
               />
               <p id="slug-help" className="mt-1 text-sm text-muted-foreground">
                 Custom URL path for this feed. Only lowercase letters, numbers, and hyphens.
@@ -683,8 +665,8 @@ function AddFeed() {
             </div>
 
             <div>
-              <label htmlFor="autoProcess" className="block text-sm font-medium text-foreground mb-2">
-                Auto-Process
+              <label htmlFor="autoProcess" className={labelBase}>
+                Auto-process
               </label>
               <TriStateSelect
                 id="autoProcess"
@@ -698,8 +680,8 @@ function AddFeed() {
             </div>
 
             <div>
-              <label htmlFor="maxEpisodes" className="block text-sm font-medium text-foreground mb-2">
-                Max Episodes in Feed
+              <label htmlFor="maxEpisodes" className={labelBase}>
+                Max episodes in feed
               </label>
               <DraftNumberInput
                 id="maxEpisodes"
@@ -712,7 +694,7 @@ function AddFeed() {
                 min={10}
                 max={500}
                 step={1}
-                className={`w-full px-4 py-2 ${DRAFT_NUMBER_INPUT_CLASS}`}
+                className="w-full"
               />
               <p id="maxEpisodes-help" className="mt-1 text-sm text-muted-foreground">
                 Limits how many episodes are served to podcast clients. Max: 500.
@@ -720,7 +702,7 @@ function AddFeed() {
             </div>
 
             <div>
-              <label htmlFor="onlyExposeProcessedEpisodes" className="block text-sm font-medium text-foreground mb-2">
+              <label htmlFor="onlyExposeProcessedEpisodes" className={labelBase}>
                 Only expose processed episodes in feed
               </label>
               <TriStateSelect
@@ -730,7 +712,7 @@ function AddFeed() {
                 onChange={setOnlyExposeProcessedEpisodes}
               />
               <p id="onlyExposeProcessedEpisodes-help" className="mt-1 text-sm text-muted-foreground">
-                Hide upstream episodes until processing finishes. Global Default uses the site-wide setting.
+                Hide upstream episodes until processing finishes. Global default uses the site-wide setting.
               </p>
             </div>
           </div>
@@ -748,14 +730,15 @@ function AddFeed() {
               <button
                 type="submit"
                 disabled={mutation.isPending || !inputValue.trim() || (touched && !urlValidation.isValid)}
-                className={`flex-1 px-4 py-2 rounded-lg ${btnPrimary} disabled:opacity-50 transition-colors ${focusRing}`}
+                className={`${btnLg} ${btnPrimary} flex-1`}
               >
-                {mutation.isPending ? 'Adding Feed...' : 'Add Feed'}
+                <Plus className="w-4 h-4" aria-hidden="true" />
+                {mutation.isPending ? 'Adding feed...' : 'Add feed'}
               </button>
               <button
                 type="button"
                 onClick={() => navigate('/')}
-                className={`px-4 py-2 rounded-lg ${btnSecondary} transition-colors ${focusRing}`}
+                className={`${btnLg} ${btnSecondary}`}
               >
                 Cancel
               </button>
@@ -788,7 +771,7 @@ function AddFeed() {
           )}
 
           {!isSearching && !searchError && searchResults.length === 0 && inputValue.trim().length >= 2 && (
-            <p className="text-sm text-muted-foreground py-4 text-center">No podcasts found</p>
+            <p className="text-sm text-muted-foreground py-4 text-center">No results for "{inputValue.trim()}".</p>
           )}
 
           {!isSearching && searchResults.map((result) => {
@@ -820,7 +803,7 @@ function AddFeed() {
 
       {/* OPML Import Section */}
       <div className="space-y-4">
-        <h2 className="text-lg font-semibold text-foreground">Import from OPML</h2>
+        <h2 className={cardTitle}>Import from OPML</h2>
         <p className="text-sm text-muted-foreground">
           Upload an OPML file to import multiple feeds
         </p>
@@ -854,25 +837,13 @@ function AddFeed() {
             </div>
           ) : (
             <div className="space-y-4">
-              <svg
-                className="w-12 h-12 mx-auto text-muted-foreground"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={1.5}
-                  d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
-                />
-              </svg>
+              <UploadCloud className="w-12 h-12 mx-auto text-muted-foreground" aria-hidden="true" />
               <div>
                 <p className="text-foreground">Drop your OPML file here, or</p>
                 <button
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
-                  className={`text-primary hover:underline font-medium ${focusRing}`}
+                  className={`${btnBase} ${btnGhost} text-primary`}
                 >
                   browse to select
                 </button>
@@ -890,7 +861,7 @@ function AddFeed() {
 
         {opmlResult && (
           <div className="p-4 rounded-lg border border-border bg-card">
-            <h3 className="font-medium text-foreground mb-2">Import Results</h3>
+            <h3 className={`${subHeading} mb-2`}>Import results</h3>
             <div className="grid grid-cols-2 gap-4 text-sm">
               <div className="text-success">
                 <span className="font-semibold">{opmlResult.imported}</span> feeds imported
@@ -903,7 +874,7 @@ function AddFeed() {
             </div>
             {opmlResult.feeds.failed.length > 0 && (
               <div className="mt-3 text-sm">
-                <p className="text-muted-foreground mb-1">Failed imports:</p>
+                <p className="text-muted-foreground mb-1">Could not import these feeds:</p>
                 <ul className="list-disc list-inside text-destructive space-y-1">
                   {opmlResult.feeds.failed.slice(0, 5).map((item, i) => (
                     <li key={i} className="truncate" title={item.url}>{item.error}</li>
@@ -916,7 +887,7 @@ function AddFeed() {
             )}
             <button
               onClick={() => setOpmlResult(null)}
-              className={`mt-3 text-sm text-muted-foreground hover:text-foreground ${focusRing}`}
+              className={`${btnBase} ${btnGhost} mt-3`}
             >
               Dismiss
             </button>

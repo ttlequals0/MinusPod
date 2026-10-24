@@ -182,10 +182,10 @@ describe('AdReviewModal split entry', () => {
 });
 
 describe('AdReviewModal hideConfirm', () => {
-  it('disables Save and mutes the C shortcut when confirm has nothing to do', async () => {
+  it('disables Confirm and mutes the C shortcut when confirm has nothing to do', async () => {
     const { onSubmit } = renderModal({ hideConfirm: true });
     const user = userEvent.setup();
-    const save = screen.getByRole('button', { name: /Save/ });
+    const save = screen.getByRole('button', { name: /Confirm/ });
     expect(save.hasAttribute('disabled')).toBe(true);
     expect(screen.getByText(
       'This ad is already cut. Move a boundary to save an adjustment.')).toBeTruthy();
@@ -214,7 +214,7 @@ describe('AdReviewModal multi-span submission', () => {
     await user.type(screen.getByLabelText(/Sponsor name/), 'Acme');
     await user.click(screen.getByRole('button', { name: 'Mark ad (2 spans)' }));
 
-    await waitFor(() => expect(screen.getByText(/Failed to save/)).toBeTruthy());
+    await waitFor(() => expect(screen.getByText(/Could not save/)).toBeTruthy());
     expect(onCreate.mock.calls.map(([run]) => run.start)).toEqual([10, 30]);
 
     await user.click(screen.getByRole('button', { name: 'change second run' }));
@@ -237,12 +237,12 @@ describe('AdReviewModal multi-span submission', () => {
     await user.click(screen.getByRole('button', { name: 'set two valid runs' }));
     await user.type(screen.getByLabelText(/Sponsor name/), 'Acme');
     await user.click(screen.getByRole('button', { name: 'Mark ad (2 spans)' }));
-    await waitFor(() => expect(screen.getByText(/Failed to save/)).toBeTruthy());
+    await waitFor(() => expect(screen.getByText(/Could not save/)).toBeTruthy());
 
     await user.click(screen.getByRole('button', { name: 'keep only saved run' }));
     await user.click(screen.getByRole('button', { name: 'By audio' }));
     await user.click(screen.getByRole('button', { name: 'By text' }));
-    await user.click(screen.getByRole('button', { name: 'Done' }));
+    await user.click(screen.getByRole('button', { name: 'Close' }));
 
     expect(onCreate).toHaveBeenCalledTimes(2);
     expect(onCreateDone).toHaveBeenCalledTimes(1);
@@ -297,7 +297,7 @@ describe('AdReviewModal multi-span submission', () => {
     await user.type(screen.getByLabelText(/Sponsor name/), 'Acme');
     await user.click(screen.getByRole('button', { name: 'Mark ad (2 spans)' }));
 
-    await waitFor(() => expect(screen.getByText(/Failed to save/)).toBeTruthy());
+    await waitFor(() => expect(screen.getByText(/Could not save/)).toBeTruthy());
 
     // The saved run's template is locked (hasSavedRun); the boundary inputs
     // must follow or nudging them flips Done back to Save and re-submits.
@@ -349,7 +349,7 @@ describe('AdReviewModal kept-by-category hotkeys', () => {
     await user.keyboard('r');
     await user.keyboard('c');
     expect(onSubmit).not.toHaveBeenCalled();
-    expect(screen.queryByRole('button', { name: /Not an ad/ })).toBeNull();
+    expect(screen.queryByRole('button', { name: /Not ad/ })).toBeNull();
   });
 
   it('mutes C and R on a mark marker the same way as keep', async () => {
@@ -360,7 +360,7 @@ describe('AdReviewModal kept-by-category hotkeys', () => {
     await user.keyboard('r');
     await user.keyboard('c');
     expect(onSubmit).not.toHaveBeenCalled();
-    expect(screen.queryByRole('button', { name: /Not an ad/ })).toBeNull();
+    expect(screen.queryByRole('button', { name: /Not ad/ })).toBeNull();
   });
 });
 
@@ -487,7 +487,7 @@ describe('AdReviewModal multi-span create', () => {
 
     await waitFor(() => expect(onCreate).toHaveBeenCalledTimes(2));
     expect(screen.getByText('0:10.0 - 0:20.0: Saved')).toBeTruthy();
-    expect(screen.getByText(/0:30\.0 - 0:40\.0: Failed to save/)).toBeTruthy();
+    expect(screen.getByText(/0:30\.0 - 0:40\.0: Could not save/)).toBeTruthy();
     expect(onCreateDone).not.toHaveBeenCalled();
     expect(onClose).not.toHaveBeenCalled();
   });

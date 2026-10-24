@@ -1,5 +1,5 @@
 /**
- * Tests for the Queue Control section: the moved Global Defaults queue
+ * Tests for the Queue control section: the moved Global defaults queue
  * pieces (process-new-first toggle, priority boosts) and the offline queue /
  * rate-limit hold blocks with their failed-GET guards.
  */
@@ -95,7 +95,7 @@ describe('QueueControlSection', () => {
     renderSection();
     expect((screen.getByLabelText('Play / Reprocess') as HTMLInputElement).value).toBe('20');
     expect((screen.getByLabelText('New episode') as HTMLInputElement).value).toBe('5');
-    expect((screen.getByLabelText('Reprocess All') as HTMLInputElement).value).toBe('0');
+    expect((screen.getByLabelText('Reprocess all') as HTMLInputElement).value).toBe('0');
   });
 
   it('sends local currency amounts as decimal strings', async () => {
@@ -289,7 +289,7 @@ describe('QueueControlSection', () => {
       expect(screen.getByText(/Queue paused until/)).toBeTruthy();
     });
     // No give-up window: held episodes stay in the normal queue.
-    expect(screen.queryByLabelText('Give up after:', { selector: '#rate-limit-hold-ttl' })).toBeNull();
+    expect(screen.queryByLabelText('Give up after', { selector: '#rate-limit-hold-ttl' })).toBeNull();
   });
 
   it('renders the offline queue failed-GET guard instead of the editable form', async () => {
@@ -302,7 +302,7 @@ describe('QueueControlSection', () => {
       expect(screen.getByText('Could not load offline queue settings.')).toBeTruthy();
     });
     // The offline form's own TTL field must not render from fallback defaults.
-    expect(screen.queryByLabelText('Give up after:', { selector: '#offline-queue-ttl' })).toBeNull();
+    expect(screen.queryByLabelText('Give up after', { selector: '#offline-queue-ttl' })).toBeNull();
   });
 
   it('loads its settings when a search reveals the collapsed section', async () => {
@@ -334,7 +334,7 @@ describe('QueueControlSection', () => {
       expect((screen.getByLabelText('Usage endpoint (optional)') as HTMLInputElement).value)
         .toBe('https://your-proxy:8001/v1/usage');
     });
-    expect((screen.getByLabelText('Check every:') as HTMLInputElement).value).toBe('10');
+    expect((screen.getByLabelText('Check every') as HTMLInputElement).value).toBe('10');
   });
 
   it('saves an edited usage URL and probe interval together', async () => {
@@ -352,7 +352,7 @@ describe('QueueControlSection', () => {
     renderSection();
     const urlInput = await screen.findByLabelText('Usage endpoint (optional)');
     await user.type(urlInput, 'https://your-proxy:8001/v1/usage');
-    const minutesInput = screen.getByLabelText('Check every:');
+    const minutesInput = screen.getByLabelText('Check every');
     await user.clear(minutesInput);
     await user.type(minutesInput, '15');
     const block = urlInput.closest('.space-y-4') as HTMLElement;

@@ -12,6 +12,7 @@ from typing import Literal
 from collections.abc import Callable
 
 from config import (
+    CUE_MATCH_STAGE,
     resolve_stage_tunables,
     UNREVIEWABLE_GAP_SECONDS,
     AD_REVIEWER_PARALLEL_ADS_DEFAULT,
@@ -23,10 +24,11 @@ from config import (
     HOLD_REASON_REVIEWER_FAILED,
     HOLD_REASON_REVIEWER_INCONCLUSIVE_BOUNDS,
     HOLD_REASON_REVIEWER_REJECT_CONFLICT,
-    AUDIO_CUE_ROLE_DEFAULT,
     AUDIO_CUE_ROLE_NON_AD,
     AUDIO_CUE_TYPE_CONTENT_TRANSITION,
     AUDIO_CUE_SOURCE_TEMPLATE,
+    AUDIO_CUE_START_EDGE_ROLES,
+    AUDIO_CUE_END_EDGE_ROLES,
     is_edge_cue_snapped,
     is_template_cue,
     measured_evidence,
@@ -37,7 +39,10 @@ from config import (
 )
 from audio_enforcer import content_anchors
 from ad_detector.boundaries import timed_line_segments
-from ad_detector.cue_boundary_snap import cue_snap_edge_limit
+from ad_detector.cue_boundary_snap import (
+    MIN_CUE_CONFIDENCE_FOR_SNAP, _cue_role, cue_removal_enabled,
+    cue_snap_edge_limit,
+)
 from text_pattern_matcher import is_defined_pattern
 from database import DEFAULT_REVIEW_PROMPT, DEFAULT_RESURRECT_PROMPT
 from llm_capabilities import PASS_REVIEWER_1, PASS_REVIEWER_2
@@ -64,7 +69,7 @@ from utils.markers import (
 )
 from utils.prompt import (
     format_sponsor_block, render_prompt, apply_override,
-    scrub_description, strip_comments_from_prompt
+    format_detection_notes_block, scrub_description, strip_comments_from_prompt
 )
 from utils.text import (
     BOUNDARY_SNAP_TOLERANCE_S,
@@ -121,6 +126,12 @@ _INCONCLUSIVE_STAGES = frozenset({
     'context', 'evidence', 'choice_rank', 'focused_validation',
     'boundary_coverage',
 })
+
+
+def _skips_reviewer(ad) -> bool:
+    """Human-confirmed ads and cue_match markers (a measured cue, no spoken ad) skip the LLM."""
+    return (bool((ad.get("validation") or {}).get("user_confirmed"))
+            or ad.get("detection_stage") == CUE_MATCH_STAGE)
 
 
 def _review_inconclusive_reason(error: Exception) -> str:
@@ -726,9 +737,15 @@ def _silence_limits(ad: dict, original_start: float,
              if hi >= original_end - EDGE_TOLERANCE])
 
 
-def _cue_snap_limits(ad: dict, original_start: float,
-                     original_end: float) -> tuple[list, list]:
-    """Edge limits at the labelled template cues the ad's edges were snapped to."""
+def _audio_cues(audio_analysis) -> list:
+    """Template and spectral cue signals, or [] when the analysis has none."""
+    by_type = getattr(audio_analysis, 'get_signals_by_type', None)
+    return by_type('audio_cue') if by_type else []
+
+
+def _cue_snap_limits(ad: dict, original_start: float, original_end: float,
+                     audio_analysis=None) -> tuple[list, list]:
+    """Edge limits at snapped template cues, plus removable cues inside the span."""
     snap = ad.get('cue_snap') if isinstance(ad.get('cue_snap'), dict) else {}
 
     def cue_limit(edge: str) -> float | None:
@@ -744,15 +761,29 @@ def _cue_snap_limits(ad: dict, original_start: float,
     lim = cue_limit('end')
     if lim is not None and original_start < lim <= original_end + EDGE_TOLERANCE:
         ends.append((lim, min(lim, original_end)))
+
+    for cue in _audio_cues(audio_analysis):
+        details = cue.details or {}
+        if (not is_template_cue(details) or not cue_removal_enabled(details)
+                or cue.confidence < MIN_CUE_CONFIDENCE_FOR_SNAP):
+            continue
+        role = _cue_role(cue)
+        record = {'remove_with_ad': True, 'cue_start': cue.start, 'cue_end': cue.end}
+        if (role in AUDIO_CUE_START_EDGE_ROLES
+                and original_start - EDGE_TOLERANCE <= cue.start < original_end):
+            starts.append((cue.start, max(cue_snap_edge_limit(record, 'start'), original_start)))
+        if (role in AUDIO_CUE_END_EDGE_ROLES
+                and original_start < cue.end <= original_end + EDGE_TOLERANCE):
+            ends.append((cue.end, min(cue_snap_edge_limit(record, 'end'), original_end)))
     return starts, ends
 
 
 def _hold_inward_limits(ad: dict, start: float, end: float, original_start: float,
                         original_end: float, index: TranscriptIndex,
-                        barriers) -> tuple[float, float]:
+                        barriers, audio_analysis=None) -> tuple[float, float]:
     """Apply the transcript-gap, boundary-cue and absorbed-silence no-cross rules in one call."""
     limits = (_untranscribed_limits(index, original_start, original_end),
-              _cue_snap_limits(ad, original_start, original_end),
+              _cue_snap_limits(ad, original_start, original_end, audio_analysis),
               _silence_limits(ad, original_start, original_end))
     return _hold_inward_edges(start, end, [lim for st, _ in limits for lim in st],
                               [lim for _, en in limits for lim in en], barriers)
@@ -951,10 +982,7 @@ def _format_cue_section(*, audio_analysis, ad_start: float, ad_end: float,
     """
     lines = []
     if audio_analysis is not None:
-        try:
-            cues = audio_analysis.get_signals_by_type('audio_cue')
-        except AttributeError:
-            cues = []
+        cues = _audio_cues(audio_analysis)
         # Template cues: precise matches, treated as ground-truth markers.
         near_start_tmpl = []
         near_end_tmpl = []
@@ -968,7 +996,7 @@ def _format_cue_section(*, audio_analysis, ad_start: float, ad_end: float,
                 continue
             details = cue.details or {}
             label = details.get('label') or 'audio cue'
-            role = details.get('role', AUDIO_CUE_ROLE_DEFAULT)
+            role = _cue_role(cue)
             near_start_edge = (
                 abs(cue.start - ad_start) <= bucket_radius
                 or abs(cue.end - ad_start) <= bucket_radius
@@ -1394,7 +1422,7 @@ class AdReviewer:
         """Apply the per-ad failure rule to every accepted ad after a batch failure."""
         result = ReviewResult()
         for ad in accepted_ads:
-            if (ad.get("validation") or {}).get("user_confirmed"):
+            if _skips_reviewer(ad):
                 result.accepted_after_review.append(ad)
                 continue
             verdict = ReviewVerdict(
@@ -1555,7 +1583,8 @@ class AdReviewer:
                         verdict.adjusted_start, verdict.adjusted_end = _hold_inward_limits(
                             updated_ad, *recovered, verdict.original_start,
                             verdict.original_end, transcript_units,
-                            episode_meta.get('hard_barriers') or [])
+                            episode_meta.get('hard_barriers') or [],
+                            episode_meta.get('audio_analysis'))
                 if (verdict.adjusted_start is not None
                         and verdict.adjusted_end is not None):
                     held["reviewer_proposed_start"] = verdict.adjusted_start
@@ -1616,7 +1645,8 @@ class AdReviewer:
                         episode_meta.get('episode_id'),
                         segments=segments, transcript_units=transcript_units,
                         hard_barriers=episode_meta.get('hard_barriers'),
-                        min_conf=min_conf)
+                        min_conf=min_conf,
+                        audio_analysis=episode_meta.get('audio_analysis'))
                     if _bounds_unchanged(new_start, new_end,
                                          verdict.original_start,
                                          verdict.original_end):
@@ -1686,8 +1716,7 @@ class AdReviewer:
             return []
 
         def _run_one(idx):
-            if (pool == "accepted"
-                    and (ads[idx].get("validation") or {}).get("user_confirmed")):
+            if pool == "accepted" and _skips_reviewer(ads[idx]):
                 return None, ads[idx]
             verdict, updated = self._review_single(
                 ad=ads[idx],
@@ -1897,7 +1926,7 @@ class AdReviewer:
             max_shift, slug, episode_id, segments=segments,
             transcript_units=transcript_units,
             hard_barriers=episode_meta.get('hard_barriers'), min_conf=min_conf,
-            members=members)
+            members=members, audio_analysis=episode_meta.get('audio_analysis'))
 
         proposal_clamped = _clamp_overrode(
             new_start, new_end, original_start, original_end,
@@ -1988,7 +2017,7 @@ class AdReviewer:
                                original_start, original_end, max_shift,
                                slug, episode_id, segments=None, transcript_units=None,
                                hard_barriers=None, min_conf=MIN_CUT_CONFIDENCE,
-                               members=None):
+                               members=None, audio_analysis=None):
         """Clamp reviewer-proposed bounds: inverted-bounds fallback, per-edge
         shift cap, merged-span floor, final validity fallback. Single seam for
         every path that turns reviewer prose or deltas into marker bounds."""
@@ -2042,7 +2071,8 @@ class AdReviewer:
         gap_start, gap_end = clamped_start, clamped_end
         clamped_start, clamped_end = _hold_inward_edges(
             clamped_start, clamped_end,
-            *_cue_snap_limits(ad, original_start, original_end), barriers)
+            *_cue_snap_limits(ad, original_start, original_end, audio_analysis),
+            barriers)
         start_held_by = ('boundary cue' if clamped_start != gap_start
                          else 'untranscribed audio' if gap_start != proposed[0] else None)
         end_held_by = ('boundary cue' if clamped_end != gap_end
@@ -2338,10 +2368,12 @@ class AdReviewer:
             except Exception as e:
                 logger.warning(f"sponsor history provider failed: {e}")
 
-        description_section = ""
+        notes_block = format_detection_notes_block(episode_meta.get("detection_notes"))
+        description_section = notes_block
         if podcast_description or episode_description:
             description_section = (
                 f"Podcast description: {podcast_description}\n"
+                f"{notes_block}"
                 f"Episode description: {episode_description}\n"
             )
 

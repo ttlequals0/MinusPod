@@ -1,4 +1,3 @@
-import { pageHeader, pageTitle } from '../components/pageStyles';
 import { useState } from 'react';
 import { useSyncFromQuery } from '../hooks/useSyncFromQuery';
 import { useSearchParams } from 'react-router';
@@ -15,10 +14,13 @@ import { Skeleton, SkeletonRows } from '../components/Skeleton';
 import { Pagination } from '../components/Pagination';
 import { SortHeader, useSortState } from '../components/SortHeader';
 import { formatDate } from '../utils/format';
-import { btnOutline, btnPrimary } from '../components/buttonStyles';
 import Checkbox from '../components/Checkbox';
-import { selectBase, inputBase, filterGrid, filterLabel, filterControl, focusRing } from '../components/fieldStyles';
+import { Plus } from 'lucide-react';
 import { ActiveBadge } from '../components/ActiveBadge';
+import { btnBase, btnPrimary, btnOutline, btnDestructiveOutline } from '../components/buttonStyles';
+import { focusRing, inputBase, selectBase, filterLabel, filterControl } from '../components/fieldStyles';
+import { pageHeader, pageTitle } from '../components/pageStyles';
+import { tableActionBtn } from '../components/rowActionStyles';
 
 type SortField = 'name' | 'category' | 'pattern_count' | 'created_at' | 'last_matched_at';
 
@@ -107,14 +109,14 @@ function SponsorsSection() {
       </div>
     );
   }
-  if (error && !sponsors) return <QueryError title="Failed to load sponsors" onRetry={() => void refetch()} retrying={isFetching} />;
+  if (error && !sponsors) return <QueryError title="Could not load sponsors." onRetry={() => void refetch()} retrying={isFetching} />;
 
   return (
     <div>
       {error && <div className="mb-6"><QueryError title="Sponsors could not be refreshed. Showing the last loaded list." onRetry={() => void refetch()} retrying={isFetching} /></div>}
       {/* Filters + add */}
       <div className="bg-card rounded-lg border border-border p-4 mb-6">
-        <div className={`${filterGrid} lg:grid-cols-4 items-end`}>
+        <div className="grid grid-cols-1 min-[375px]:grid-cols-2 lg:grid-cols-4 gap-4 items-end">
           <div className="min-w-0">
             <label htmlFor="sponsors-tag" className={filterLabel}>Tag</label>
             <select
@@ -127,7 +129,7 @@ function SponsorsSection() {
               {(vocab?.all_tags ?? []).map((t) => <option key={t} value={t}>{t}</option>)}
             </select>
           </div>
-          <div className="min-w-0">
+          <div className="min-w-0 order-first min-[375px]:col-span-2 lg:order-none lg:col-span-1">
             <label htmlFor="sponsors-search" className={filterLabel}>Search</label>
             <input
               id="sponsors-search"
@@ -148,9 +150,10 @@ function SponsorsSection() {
           <button
             type="button"
             onClick={() => setEditing(null)}
-            className={`min-h-11 px-3 py-1.5 text-sm rounded ${btnPrimary} transition-colors ${focusRing}`}
+            className={`${btnBase} ${btnPrimary} min-[375px]:col-span-2 lg:col-span-1`}
           >
-            + Add Sponsor
+            <Plus className="w-4 h-4" aria-hidden="true" />
+            Add sponsor
           </button>
         </div>
       </div>
@@ -177,13 +180,13 @@ function SponsorsSection() {
               <span>matched {formatDate(s.last_matched_at)}</span>
             </div>
             <div className="flex gap-2">
-              <button onClick={() => setEditing(s)} className={`px-2 py-1 text-xs rounded ${btnOutline} ${focusRing}`}>Edit</button>
-              <button onClick={() => setDeleteTarget(s)} className={`px-2 py-1 text-xs rounded border border-destructive/40 text-destructive hover:bg-destructive/10 ${focusRing}`}>Delete</button>
+              <button onClick={() => setEditing(s)} className={`${btnBase} ${btnOutline}`}>Edit</button>
+              <button onClick={() => setDeleteTarget(s)} className={`${btnBase} ${btnDestructiveOutline}`}>Delete</button>
             </div>
           </div>
         ))}
         {paginated?.length === 0 && (
-          <div className="bg-card rounded-lg border border-border p-8 text-center text-muted-foreground">No sponsors found</div>
+          <div className="bg-card rounded-lg border border-border p-8 text-center text-muted-foreground">No sponsors yet.</div>
         )}
       </div>
 
@@ -209,7 +212,7 @@ function SponsorsSection() {
                 <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Tags</th>
                 <SortHeader field="pattern_count" label="Patterns" className="px-2" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} />
                 <SortHeader field="created_at" label="Created" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} />
-                <SortHeader field="last_matched_at" label="Last Matched" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} />
+                <SortHeader field="last_matched_at" label="Last matched" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} />
                 <th className="px-2 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Actions</th>
               </tr>
             </thead>
@@ -237,14 +240,14 @@ function SponsorsSection() {
                   <td className="px-4 py-3 whitespace-nowrap text-sm text-muted-foreground">{formatDate(s.last_matched_at)}</td>
                   <td className="px-2 py-3 whitespace-nowrap text-xs">
                     <div className="flex gap-1">
-                      <button onClick={() => setEditing(s)} className={`px-2 py-1 rounded ${btnOutline} ${focusRing}`}>Edit</button>
-                      <button onClick={() => setDeleteTarget(s)} className={`px-2 py-1 rounded border border-destructive/40 text-destructive hover:bg-destructive/10 ${focusRing}`}>Delete</button>
+                      <button onClick={() => setEditing(s)} className={`${tableActionBtn} ${btnOutline} ${focusRing}`}>Edit</button>
+                      <button onClick={() => setDeleteTarget(s)} className={`${tableActionBtn} ${btnDestructiveOutline} ${focusRing}`}>Delete</button>
                     </div>
                   </td>
                 </tr>
               ))}
               {paginated?.length === 0 && (
-                <tr><td colSpan={8} className="px-4 py-8 text-center text-muted-foreground">No sponsors found</td></tr>
+                <tr><td colSpan={8} className="px-4 py-8 text-center text-muted-foreground">No sponsors yet.</td></tr>
               )}
             </tbody>
           </table>

@@ -11,10 +11,11 @@ import { feedDisplayTitle } from '../../utils/feedTitle';
 import { sortFeeds } from '../../utils/feedSort';
 import { getSettings, updateSettings, regenerateFeedKey } from '../../api/settings';
 import { feedsQueryOptions, regenerateAllFeeds } from '../../api/feeds';
-import { btnSecondary } from '../../components/buttonStyles';
 import { getErrorMessage } from '../../api/client';
 import { ConfirmModal } from '../../components/Modal';
-import { focusRing } from '../../components/fieldStyles';
+import { btnBase, btnSecondary } from '../../components/buttonStyles';
+import { selectBase, labelBase } from '../../components/fieldStyles';
+import { subHeading } from '../../components/pageStyles';
 
 function AuthenticatedFeedsSection() {
   const queryClient = useQueryClient();
@@ -63,7 +64,7 @@ function AuthenticatedFeedsSection() {
   }
 
   return (
-    <CollapsibleSection title="Authenticated Feeds" subtitle="Require a key in feed URLs">
+    <CollapsibleSection title="Authenticated feeds" subtitle="Require a key in feed URLs">
       <div className="space-y-4">
         <div>
           <label className="flex items-center gap-3 cursor-pointer">
@@ -82,7 +83,7 @@ function AuthenticatedFeedsSection() {
           </p>
           {toggleMutation.isError && (
             <p className="mt-2 text-sm text-destructive">
-              {getErrorMessage(toggleMutation.error, 'Failed to update setting')}
+              {getErrorMessage(toggleMutation.error, 'Could not update setting.')}
             </p>
           )}
         </div>
@@ -103,7 +104,7 @@ function AuthenticatedFeedsSection() {
                 type="button"
                 onClick={handleRegenerateKey}
                 disabled={regenerateKeyMutation.isPending}
-                className={`px-3 py-1.5 text-sm rounded-md ${btnSecondary} disabled:opacity-50 transition-colors ${focusRing}`}
+                className={`${btnBase} ${btnSecondary}`}
               >
                 {regenerateKeyMutation.isPending ? 'Regenerating key...' : 'Regenerate key'}
               </button>
@@ -112,7 +113,7 @@ function AuthenticatedFeedsSection() {
               )}
               {regenerateKeyMutation.isError && (
                 <p className="mt-2 text-sm text-destructive">
-                  {getErrorMessage(regenerateKeyMutation.error, 'Failed to regenerate key')}
+                  {getErrorMessage(regenerateKeyMutation.error, 'Could not regenerate key.')}
                 </p>
               )}
             </div>
@@ -122,7 +123,7 @@ function AuthenticatedFeedsSection() {
                 type="button"
                 onClick={() => regenerateFeedsMutation.mutate()}
                 disabled={regenerateFeedsMutation.isPending}
-                className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md ${btnSecondary} disabled:opacity-50 transition-colors ${focusRing}`}
+                className={`${btnBase} ${btnSecondary}`}
               >
                 <RefreshCw className={`w-4 h-4 ${regenerateFeedsMutation.isPending ? 'animate-spin' : ''}`} />
                 {regenerateFeedsMutation.isPending ? 'Regenerating feeds...' : 'Regenerate feeds'}
@@ -134,7 +135,7 @@ function AuthenticatedFeedsSection() {
               )}
               {regenerateFeedsMutation.isError && (
                 <p className="mt-2 text-sm text-destructive">
-                  {getErrorMessage(regenerateFeedsMutation.error, 'Failed to regenerate feeds')}
+                  {getErrorMessage(regenerateFeedsMutation.error, 'Could not regenerate feeds.')}
                 </p>
               )}
             </div>
@@ -146,14 +147,14 @@ function AuthenticatedFeedsSection() {
         )}
 
         <div className="pt-4 border-t border-border">
-          <h3 className="text-base font-semibold text-foreground mb-1">Subscriber feed URLs</h3>
+          <h3 className={`${subHeading} mb-1`}>Subscriber feed URLs</h3>
           <p className="text-sm text-muted-foreground mb-4">Create a separate feed URL for each subscriber. Revoking one URL does not affect other subscribers.</p>
           <AllSubscriberKeys hasFeeds={feeds.length > 0} />
           {feeds.length === 0 ? <p className="mt-4 text-sm text-muted-foreground">Add a feed before creating subscriber keys.</p> : (
             <div className="mt-6 space-y-3">
-              <h4 className="text-sm font-semibold text-foreground">Create a subscriber feed</h4>
-              <label className="block text-sm font-medium text-foreground" htmlFor="subscriberFeed">Feed</label>
-              <select id="subscriberFeed" value={activeFeed} onChange={(event) => setSelectedFeed(event.target.value)} className={`w-full px-3 py-2 rounded-lg border border-input bg-background text-foreground ${focusRing}`}>
+              <h4 className={subHeading}>Create a subscriber feed</h4>
+              <label className={labelBase} htmlFor="subscriberFeed">Feed</label>
+              <select id="subscriberFeed" value={activeFeed} onChange={(event) => setSelectedFeed(event.target.value)} className={`${selectBase} w-full`}>
                 {feeds.map((feed) => <option key={feed.slug} value={feed.slug}>{feedDisplayTitle(feed)}</option>)}
               </select>
               <SubscriberKeysPanel key={activeFeed} slug={activeFeed} />

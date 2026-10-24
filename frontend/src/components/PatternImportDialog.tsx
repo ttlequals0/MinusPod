@@ -1,8 +1,8 @@
 import { useRef, useState } from 'react';
 import { apiRequest, getErrorMessage } from '../api/client';
-import { Modal, ConfirmModal } from './Modal';
-import { btnOutline } from './buttonStyles';
-import { focusRing, selectBase } from './fieldStyles';
+import { Modal, ConfirmModal, dialogFooterBtn } from './Modal';
+import { btnOutline, btnPrimary } from './buttonStyles';
+import { selectBase } from './fieldStyles';
 
 interface Props {
   open: boolean;
@@ -109,7 +109,7 @@ export function PatternImportDialog({ open, onClose, onComplete }: Props) {
         <button
           type="button"
           onClick={onClose}
-          className={`px-3 py-1.5 text-sm rounded ${btnOutline} ${focusRing} transition-colors`}
+          className={`${dialogFooterBtn} ${btnOutline}`}
           disabled={busy}
         >
           Close
@@ -118,7 +118,7 @@ export function PatternImportDialog({ open, onClose, onComplete }: Props) {
           type="button"
           onClick={() => void handleImport()}
           disabled={busy}
-          className={`px-3 py-1.5 text-sm rounded bg-primary text-primary-foreground disabled:opacity-50 ${focusRing}`}
+          className={`${dialogFooterBtn} ${btnPrimary}`}
         >
           {busy ? 'Importing...' : 'Import'}
         </button>

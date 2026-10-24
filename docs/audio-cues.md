@@ -327,6 +327,25 @@ Uses accepted cues to snap ad edges or build ads from cue pairs.
   "cue is supporting evidence only" rule, so leave it off until you trust the
   matcher on a feed. The UI labels this and the cue-only preset as experimental,
   since both can cut audio on cue evidence the LLM never reviewed.
+- **Cut matched cue audio** - off by default. Cuts every match of a cue
+  template on its own, with no ad next to it. See Cut matched audio below.
+
+### Cut matched audio
+
+A matched cue becomes its own marker, so a show intro, outro or ad-break stinger
+can be cut without any ad beside it. A match that overlaps an existing ad is skipped.
+
+- **Layering:** a template value wins over the feed override, and the feed
+  override wins over the global setting. Inherit on a template defers to the feed.
+- **Category:** show intro and show outro matches get the intro and outro categories.
+  Ad-break cue types get the sponsor category.
+- **Outcome:** the feed's category action for that category decides whether the
+  marker is removed, beeped, kept or only marked.
+- **Not eligible:** content transition templates never show the option and are never cut this way.
+- **Safety:** cue-only safety still applies. A template that has not proven itself
+  is held for review, or held below the auto-cut floor.
+- **Where to set it:** the Cut matched audio selector on each template (Inherit,
+  On, Off), the per-feed override, and the global Cut matched cue audio setting.
 
 ## Cue-only preset
 
@@ -393,9 +412,11 @@ Per-feed controls sit on the feed detail page under Feed settings:
   0.30 to 0.99. Empty means use the global Template match score. A per-template
   value takes precedence over this. The `Suggest threshold` action in Test on
   episode can write this override for you via its Apply to this feed button.
-- **Cue tuning overrides** (collapsible) - per-feed overrides for seven advanced
+- **Cue tuning overrides** (collapsible) - per-feed overrides for eight advanced
   knobs. Empty for any field means inherit the global value:
-  - **Pair synthesis** (`cueCreateFromPairsOverride`) - tri-state: on, off, or
+  - **Create ads from cue pairs** (`cueCreateFromPairsOverride`) - tri-state: on, off, or
+    inherit global.
+  - **Cut matched cue audio** (`cueCutMatchesOverride`) - tri-state: on, off, or
     inherit global.
   - **Pair min break** (`cuePairMinBreakOverride`) - seconds.
   - **Pair max break** (`cuePairMaxBreakOverride`) - seconds.

@@ -34,14 +34,28 @@ export const SEGMENT_CATEGORY_DESCRIPTIONS: Record<SegmentCategory, string> = {
   recap: 'Previews and coming-up bumpers',
 };
 
+// Sponsor, uncategorized and unknown categories all count as an ad.
+function isAdCategory(category?: string | null): boolean {
+  return !category || category === 'sponsor' || !(category in SEGMENT_CATEGORY_LABELS);
+}
+
 // Label for the button that approves a held or rejected marker. A sponsor or
 // uncategorized marker is an ad; any other category names itself, so confirming
 // a subscribe reminder doesn't read as calling it an ad.
 export function confirmLabel(category?: string | null): string {
-  if (!category || category === 'sponsor' || !(category in SEGMENT_CATEGORY_LABELS)) {
-    return 'Confirm ad';
+  if (isAdCategory(category)) {
+    return 'Confirm';
   }
   return `Confirm ${SEGMENT_CATEGORY_LABELS[category as SegmentCategory].toLowerCase()}`;
+}
+
+// Label for the button that rejects a marker. Only a sponsor (or uncategorized)
+// marker is an ad; any other known category is kept rather than called "not an ad".
+export function rejectLabel(category?: string | null): string {
+  if (isAdCategory(category)) {
+    return 'Not ad';
+  }
+  return 'Keep';
 }
 
 export type SegmentAction = 'remove' | 'beep' | 'keep' | 'mark';

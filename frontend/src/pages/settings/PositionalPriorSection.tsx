@@ -9,7 +9,7 @@ interface PositionalPriorSectionProps {
 function PositionalPriorSection({ enabled, onChange }: PositionalPriorSectionProps) {
   return (
     <CollapsibleSection
-      title="Learned Ad Positions"
+      title="Learned ad positions"
       subtitle="Learns where each show historically places ad breaks and uses it as a detection hint. Off by default."
     >
       <div>

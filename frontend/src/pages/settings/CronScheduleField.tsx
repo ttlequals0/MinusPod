@@ -1,4 +1,4 @@
-import { focusRing } from '../../components/fieldStyles';
+import { inputBase } from '../../components/fieldStyles';
 
 interface CronScheduleFieldProps {
   id: string;
@@ -12,7 +12,7 @@ export default function CronScheduleField({ id, value, onChange, placeholder }: 
   return (
     <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
       <label htmlFor={id} className="text-sm text-muted-foreground whitespace-nowrap">
-        Schedule (cron):
+        Schedule (cron)
       </label>
       <input
         id={id}
@@ -21,7 +21,7 @@ export default function CronScheduleField({ id, value, onChange, placeholder }: 
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
-        className={`w-40 px-3 py-1.5 rounded-lg border border-input bg-background text-foreground font-mono text-sm ${focusRing}`}
+        className={`${inputBase} w-40 font-mono`}
       />
       <span id={`${id}-help`} className="text-xs text-muted-foreground">UTC</span>
     </div>

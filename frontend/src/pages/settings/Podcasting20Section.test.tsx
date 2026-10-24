@@ -1,5 +1,5 @@
 /**
- * Tests for the Chapter Density group in the Transcripts & Chapters section.
+ * Tests for the Chapter density group in the Transcripts and chapters section.
  */
 import { beforeEach, describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
@@ -51,7 +51,7 @@ describe('chapter density controls', () => {
 
   it('renders all four density fields under their own heading', () => {
     render(<Harness />);
-    expect(screen.getByText('Chapter Density')).toBeTruthy();
+    expect(screen.getByText('Chapter density')).toBeTruthy();
     for (const [label] of FIELDS) {
       expect(screen.getByText(label)).toBeTruthy();
     }
@@ -66,7 +66,7 @@ describe('chapter density controls', () => {
 
     await user.clear(inputFor(label));
     await user.type(inputFor(label), String(value));
-    await user.click(screen.getByRole('button', { name: 'Save Chapter Density' }));
+    await user.click(screen.getByRole('button', { name: 'Save chapter density' }));
 
     expect(saved).toEqual({ [payloadKey]: value });
   });
@@ -80,7 +80,7 @@ describe('chapter density controls', () => {
     await user.type(inputFor('Target chapter length (seconds)'), '3600');
     expect(screen.getByText(
       'Target chapter length must not exceed the transcript window.')).toBeTruthy();
-    expect(screen.getByRole('button', { name: 'Save Chapter Density' })
+    expect(screen.getByRole('button', { name: 'Save chapter density' })
       .hasAttribute('disabled')).toBe(true);
   });
 
@@ -93,7 +93,7 @@ describe('chapter density controls', () => {
     await user.type(inputFor('Shortest chapter (seconds)'), '900');
     expect(screen.getByText(
       'Shortest chapter must not exceed the target chapter length.')).toBeTruthy();
-    expect(screen.getByRole('button', { name: 'Save Chapter Density' })
+    expect(screen.getByRole('button', { name: 'Save chapter density' })
       .hasAttribute('disabled')).toBe(true);
   });
 });

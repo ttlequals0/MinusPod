@@ -1,0 +1,79 @@
+From 23da65a130bb8c5b2cf0c7df0dd7d424607f98f1 Mon Sep 17 00:00:00 2001
+From: Oneric <oneric@oneric.stub>
+Date: Mon, 22 Jun 2026 00:00:00 +0000
+Subject: [PATCH] ass: skip cleaning negative ReadOrder values
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Matroska packets with negative ReadOrder values are not considered valid
+and due to a lack of checks for such invalid values in clear_read_order_bit
+this allowed attackers to clear bits at near arbitrary addresses and
+positions around NULL if read-order checking was enabled
+and the malicious event got pruned.
+
+Before the introduction of pruning this happened to be safe.
+Negative values were considered a sign of overflowing the counter
+and led to an error in resize_read_order_bitmap. With this error
+propagating to the calling function, no attempts to set a bi
+based on the negative value will be made.
+
+The error routine of resize_read_order_bitmap includes freeing
+the bitmap and replacing the pointer with a NULL value. On later valid
+packets a re-initialisation of the bitmap might be attempted, but will
+just again end up exiting and resetting on the first invalid packet.
+ReadOrder duplicate checks will fallback to a simple (but more costly)
+loop over all events if no bitmap is allocated.
+
+The introduction of event pruning added methods to also clear
+the read order flags for pruned events. This method assumed anything
+which made it through parsing must have valid values and therefore
+lacked a check for negative values and as such the offset from the
+bitmap base pointer as well as the bit position at this address were
+naïvely computed from an initial negative value via bit shifts and
+masks.
+As per the previous paragraph the base pointer will always be NULL
+if invalid packets were received, but there is no early exit for
+a NULL base pointer either. This is in itself no issue, since
+a check for the offset being smaller than the bitmap size exists
+and will prevent OOB accesses for positive ReadOrder values.
+
+Thus, on platforms with NULL as zero and arithmetic right shifts
+event pruning lead to bit clears at attacker controlled positions
+in the upper pow(2, sizeof(int) - 5 - 1) * sizeof(uint32_t) of the
+address space. Commonly this means the upper 256MiB.
+For platforms with logical right shift the bit clears instead
+occur in the lower pow(2, sizeof(int) - 5) * sizeof(uint32_t)
+of the address space.
+
+Out of an abundance of caution wrt not breaking unintentionally
+invalid files possibly existing out in the wild, continue to allow
+loading packets with negative ReadOrder values, but also test for
+and skip clearing negative values.
+
+Reported-by: Fieash (Wong Yu Zhang) <https://github.com/Fieash>
+
+Fixes oversight in: dcc9eb722ebd485d2ed0e21c261b0a1b05497154
+
+Fixes: https://github.com/libass/libass/issues/937
+Fixes: https://github.com/libass/libass/security/advisories/GHSA-5gf7-wjfm-vmvm
+---
+ libass/ass.c | 5 +++++
+ 1 file changed, 5 insertions(+)
+
+diff --git a/libass/ass.c b/libass/ass.c
+index 08f06135b..b9ce81115 100644
+--- a/libass/ass.c
++++ b/libass/ass.c
+@@ -200,6 +200,11 @@ static int test_and_set_read_order_bit(ASS_Track *track, int id)
+ 
+ static inline void clear_read_order_bit(ASS_Track *track, int id)
+ {
++    // we previously loaded a packet with an invalid ReadOrder field
++    // (or int overflow) and decided to just skip checking for duplicates
++    if (id < 0)
++        return;
++
+     int index = id >> 5;
+     if (index < track->parser_priv->read_order_elems) {
+         uint32_t mask = ~(1u << (id & 0x1F));

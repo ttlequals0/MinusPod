@@ -63,23 +63,9 @@ export function formatDurationHoursMinutes(seconds?: number): string {
   return `${minutes}m`;
 }
 
-// Processing-history duration: sub-minute shown to one decimal (`X.Xs`),
-// else rounded to the nearest second as `Xm Ys`. '-' for null/undefined.
-export function formatDurationPrecise(seconds: number | null | undefined): string {
-  if (seconds === null || seconds === undefined) return '-';
-  if (seconds < 60) return `${seconds.toFixed(1)}s`;
-  const roundedSeconds = Math.round(seconds);
-  const mins = Math.floor(roundedSeconds / 60);
-  const secs = roundedSeconds % 60;
-  return `${mins}m ${secs}s`;
-}
-
-// Job-progress duration: floored whole seconds, `Xs` under a minute else
-// `Xm Ys`. '0s' for a non-finite or negative value.
-export function formatDurationWhole(seconds: number): string {
-  if (!Number.isFinite(seconds) || seconds < 0) return '0s';
-  if (seconds < 60) return `${Math.floor(seconds)}s`;
-  return `${Math.floor(seconds / 60)}m ${Math.floor(seconds % 60)}s`;
+// First letter upper-cased.
+export function sentenceCase(text: string): string {
+  return text.charAt(0).toUpperCase() + text.slice(1);
 }
 
 // LLM cost with sub-cent precision.
@@ -104,4 +90,21 @@ export function fromDatetimeLocalInput(value: string): string | undefined {
   if (!value) return undefined;
   const d = new Date(value);
   return Number.isNaN(d.getTime()) ? undefined : d.toISOString();
+}
+
+// Whole-number percent. Values <= 1 are fractions (0.99 -> '99%'); larger values are already percent.
+export function formatPercent(value: number): string {
+  const pct = value <= 1 ? value * 100 : value;
+  return `${Math.round(pct)}%`;
+}
+
+// Elapsed or summed duration, rounded to whole seconds; zero trailing units are dropped: '45s', '2m 5s', '1h 2m'.
+export function formatElapsed(seconds: number): string {
+  const total = Number.isFinite(seconds) && seconds > 0 ? Math.round(seconds) : 0;
+  const h = Math.floor(total / 3600);
+  const m = Math.floor((total % 3600) / 60);
+  const s = total % 60;
+  if (h > 0) return m > 0 ? `${h}h ${m}m` : `${h}h`;
+  if (m > 0) return s > 0 ? `${m}m ${s}s` : `${m}m`;
+  return `${s}s`;
 }

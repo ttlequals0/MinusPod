@@ -1,6 +1,9 @@
 import CollapsibleSection from '../../components/CollapsibleSection';
+import { formatPercent } from '../../utils/format';
 import ToggleSwitch from '../../components/ToggleSwitch';
 import NumberInput from '../../components/NumberInput';
+import { focusRing, labelBase } from '../../components/fieldStyles';
+import { subHeading } from '../../components/pageStyles';
 
 interface AdDetectionSectionProps {
   minCutConfidence: number;
@@ -48,7 +51,7 @@ function numRow(
 ) {
   return (
     <div>
-      <label htmlFor={id} className="block text-sm font-medium text-foreground mb-2">{label}</label>
+      <label htmlFor={id} className={labelBase}>{label}</label>
       <div className="flex items-center gap-3">
         <NumberInput
           id={id}
@@ -59,7 +62,7 @@ function numRow(
           fallback={fallback}
           onCommit={onChange}
         />
-        <span className="text-sm text-muted-foreground">{lo} to {hi}</span>
+        <span className="text-sm text-muted-foreground">{hi <= 1 ? `${formatPercent(value)} (${formatPercent(lo)} to ${formatPercent(hi)})` : `${lo} to ${hi}`}</span>
       </div>
       <p className="mt-2 text-sm text-muted-foreground">{hint}</p>
     </div>
@@ -103,11 +106,11 @@ function AdDetectionSection({
   onTranscriptDifferentialEnabledChange,
 }: AdDetectionSectionProps) {
   return (
-    <CollapsibleSection title="Ad Detection">
+    <CollapsibleSection title="Ad detection">
       <div className="space-y-6">
         <div>
-          <label htmlFor="minCutConfidence" className="block text-sm font-medium text-foreground mb-2">
-            Minimum Confidence Threshold: {Math.round(minCutConfidence * 100)}%
+          <label htmlFor="minCutConfidence" className={labelBase}>
+            Minimum confidence threshold: {formatPercent(minCutConfidence)}
           </label>
           <input
             type="range"
@@ -117,12 +120,12 @@ function AdDetectionSection({
             step="0.05"
             value={minCutConfidence}
             onChange={(e) => onMinCutConfidenceChange(parseFloat(e.target.value))}
-            className="w-full h-2 bg-muted rounded-lg appearance-none cursor-pointer accent-primary"
+            className={`w-full h-2 bg-muted rounded-lg appearance-none cursor-pointer accent-primary ${focusRing}`}
             aria-describedby="minCutConfidence-help"
           />
           <div className="flex justify-between text-xs text-muted-foreground mt-1">
-            <span>More Aggressive (50%)</span>
-            <span>More Conservative (95%)</span>
+            <span>More aggressive (50%)</span>
+            <span>More conservative (95%)</span>
           </div>
           <p id="minCutConfidence-help" className="mt-3 text-sm text-muted-foreground">
             How confident the system must be before removing an ad.
@@ -136,7 +139,7 @@ function AdDetectionSection({
           'Markers beginning in this opening window are ignored by every detection pass. Set to 0 to disable.',
         )}
         <div>
-          <label htmlFor="minContentBetweenAdsSeconds" className="block text-sm font-medium text-foreground mb-2">
+          <label htmlFor="minContentBetweenAdsSeconds" className={labelBase}>
             Ad break filler gap threshold (s)
             {minContentBetweenAdsSeconds === 0 && (
               <span className="ml-2 text-xs text-muted-foreground font-normal">Disabled</span>
@@ -150,7 +153,7 @@ function AdDetectionSection({
             step={1}
             fallback={0}
             onCommit={onMinContentBetweenAdsSecondsChange}
-            className="w-32 px-3 py-1.5 text-sm bg-background border border-border rounded-md text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+            className="w-32"
             ariaDescribedBy="minContentBetweenAdsSeconds-help"
           />
           <p id="minContentBetweenAdsSeconds-help" className="mt-2 text-sm text-muted-foreground">
@@ -159,7 +162,7 @@ function AdDetectionSection({
           </p>
         </div>
         <div>
-          <label htmlFor="maxAdDurationSeconds" className="block text-sm font-medium text-foreground mb-2">
+          <label htmlFor="maxAdDurationSeconds" className={labelBase}>
             Ad length needing a confirmed sponsor (s)
           </label>
           <NumberInput
@@ -170,7 +173,7 @@ function AdDetectionSection({
             step={10}
             fallback={300}
             onCommit={onMaxAdDurationSecondsChange}
-            className="w-32 px-3 py-1.5 text-sm bg-background border border-border rounded-md text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+            className="w-32"
             ariaDescribedBy="maxAdDurationSeconds-help"
           />
           <p id="maxAdDurationSeconds-help" className="mt-2 text-sm text-muted-foreground">
@@ -179,7 +182,7 @@ function AdDetectionSection({
           </p>
         </div>
         <div>
-          <label htmlFor="maxAdDurationConfirmedSeconds" className="block text-sm font-medium text-foreground mb-2">
+          <label htmlFor="maxAdDurationConfirmedSeconds" className={labelBase}>
             Longest ad to cut at all (s)
           </label>
           <NumberInput
@@ -190,7 +193,7 @@ function AdDetectionSection({
             step={10}
             fallback={900}
             onCommit={onMaxAdDurationConfirmedSecondsChange}
-            className="w-32 px-3 py-1.5 text-sm bg-background border border-border rounded-md text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+            className="w-32"
             ariaDescribedBy="maxAdDurationConfirmedSeconds-help"
           />
           <p id="maxAdDurationConfirmedSeconds-help" className="mt-2 text-sm text-muted-foreground">
@@ -198,7 +201,7 @@ function AdDetectionSection({
           </p>
         </div>
         <div>
-          <label htmlFor="maxLlmWindowAdSeconds" className="block text-sm font-medium text-foreground mb-2">
+          <label htmlFor="maxLlmWindowAdSeconds" className={labelBase}>
             Longest single LLM detection (seconds)
           </label>
           <NumberInput
@@ -209,7 +212,7 @@ function AdDetectionSection({
             step={10}
             fallback={420}
             onCommit={onMaxLlmWindowAdSecondsChange}
-            className="w-32 px-3 py-1.5 text-sm bg-background border border-border rounded-md text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+            className="w-32"
             ariaDescribedBy="maxLlmWindowAdSeconds-help"
           />
           <p id="maxLlmWindowAdSeconds-help" className="mt-2 text-sm text-muted-foreground">
@@ -243,9 +246,9 @@ function AdDetectionSection({
           </p>
         </div>
 
-        <div className="border border-border rounded-lg p-3 space-y-3">
+        <div className="bg-muted/40 rounded-lg p-3 space-y-3">
           <div>
-            <h4 className="text-sm font-semibold text-foreground">Verification pass</h4>
+            <h4 className={subHeading}>Verification pass</h4>
             <p className="text-xs text-muted-foreground mt-0.5">
               Ads pass 2 finds that pass 1 missed and that overlap no pass-1 marker.
             </p>
@@ -306,9 +309,9 @@ function AdDetectionSection({
           </div>
         </div>
 
-        <div className="border border-border rounded-lg p-3 space-y-3">
+        <div className="bg-muted/40 rounded-lg p-3 space-y-3">
           <div>
-            <h4 className="text-sm font-semibold text-foreground">Differential detection</h4>
+            <h4 className={subHeading}>Differential detection</h4>
             <p className="text-xs text-muted-foreground mt-0.5">
               Compares two downloads of the same episode to find dynamically inserted ads.
             </p>
@@ -321,7 +324,7 @@ function AdDetectionSection({
             )}
 
             <div>
-              <label htmlFor="differentialHoldMinSeconds" className="block text-sm font-medium text-foreground mb-2">
+              <label htmlFor="differentialHoldMinSeconds" className={labelBase}>
                 Hold minimum length (s)
                 {differentialHoldMinSeconds === 0 && (
                   <span className="ml-2 text-xs text-muted-foreground font-normal">Disabled</span>

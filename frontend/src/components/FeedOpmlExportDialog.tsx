@@ -3,10 +3,9 @@ import { useQuery } from '@tanstack/react-query';
 import { feedsQueryOptions } from '../api/feeds';
 import { exportOpml } from '../api/settings';
 import { getErrorMessage } from '../api/client';
-import { Modal } from './Modal';
+import { Modal, dialogFooterBtn } from './Modal';
 import Checkbox from './Checkbox';
-import { focusRing } from './fieldStyles';
-import { btnOutline, btnPrimary, btnSecondary, touchTarget } from './buttonStyles';
+import { btnBase, btnOutline, btnPrimary, btnSecondary, touchTarget } from './buttonStyles';
 import { feedDisplayTitle } from '../utils/feedTitle';
 import { Skeleton } from './Skeleton';
 
@@ -96,12 +95,12 @@ function FeedOpmlExportDialogImpl({ onClose }: Omit<Props, 'open'>) {
         )}
         {feedsFailed && feeds.length === 0 && (
           <div className="space-y-3 rounded-lg bg-destructive/10 p-3">
-            <p className="text-sm text-destructive">{getErrorMessage(feedsError, 'Failed to load feeds')}</p>
+            <p className="text-sm text-destructive">{getErrorMessage(feedsError, 'Could not load feeds.')}</p>
             <button
               type="button"
               onClick={() => void refetch()}
               disabled={isFetching}
-              className={`${touchTarget} px-3 py-1.5 text-sm rounded ${btnSecondary} transition-colors disabled:opacity-50 ${focusRing}`}
+              className={`${btnBase} ${btnSecondary}`}
             >
               {isFetching ? 'Loading...' : 'Retry'}
             </button>
@@ -114,7 +113,7 @@ function FeedOpmlExportDialogImpl({ onClose }: Omit<Props, 'open'>) {
               type="button"
               onClick={() => void refetch()}
               disabled={isFetching}
-              className={`${touchTarget} px-3 py-1.5 text-sm rounded ${btnSecondary} transition-colors disabled:opacity-50 ${focusRing}`}
+              className={`${btnBase} ${btnSecondary}`}
             >
               {isFetching ? 'Refreshing...' : 'Retry'}
             </button>
@@ -154,7 +153,7 @@ function FeedOpmlExportDialogImpl({ onClose }: Omit<Props, 'open'>) {
             type="button"
             onClick={onClose}
             disabled={busy}
-            className={`${touchTarget} px-3 py-1.5 text-sm rounded ${btnOutline} transition-colors disabled:opacity-50 ${focusRing}`}
+            className={`${dialogFooterBtn} ${btnOutline}`}
           >
             Cancel
           </button>
@@ -162,7 +161,7 @@ function FeedOpmlExportDialogImpl({ onClose }: Omit<Props, 'open'>) {
             type="button"
             onClick={download}
             disabled={effective.size === 0 || busy}
-            className={`${touchTarget} px-3 py-1.5 text-sm rounded ${btnPrimary} transition-colors disabled:opacity-50 ${focusRing}`}
+            className={`${dialogFooterBtn} ${btnPrimary}`}
           >
             {busy ? 'Exporting...' : `Download ${effective.size} feed${effective.size === 1 ? '' : 's'}`}
           </button>

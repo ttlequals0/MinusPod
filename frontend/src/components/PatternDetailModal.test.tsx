@@ -1,6 +1,7 @@
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { MemoryRouter } from 'react-router';
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 import PatternDetailModal from './PatternDetailModal';
 import type { AdPattern } from '../api/patterns';
@@ -49,9 +50,11 @@ function renderModal(pattern: AdPattern, onClose = vi.fn(), onSave = vi.fn()) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   const invalidateSpy = vi.spyOn(qc, 'invalidateQueries');
   render(
-    <QueryClientProvider client={qc}>
-      <PatternDetailModal pattern={pattern} onClose={onClose} onSave={onSave} />
-    </QueryClientProvider>,
+    <MemoryRouter>
+      <QueryClientProvider client={qc}>
+        <PatternDetailModal pattern={pattern} onClose={onClose} onSave={onSave} />
+      </QueryClientProvider>
+    </MemoryRouter>,
   );
   return { invalidateSpy };
 }
@@ -138,7 +141,7 @@ describe('Category editing', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Edit' }));
 
     await userEvent.selectOptions(screen.getByLabelText('Category'), 'sponsor');
-    await userEvent.click(screen.getByRole('button', { name: 'Save Changes' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }));
 
     await waitFor(() => expect(mockUpdatePattern).toHaveBeenCalledWith(
       42, expect.objectContaining({ category: 'sponsor' }),
@@ -151,10 +154,38 @@ describe('Category editing', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Edit' }));
 
     await userEvent.selectOptions(screen.getByLabelText('Category'), '');
-    await userEvent.click(screen.getByRole('button', { name: 'Save Changes' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }));
 
     await waitFor(() => expect(mockUpdatePattern).toHaveBeenCalledWith(
       42, expect.objectContaining({ category: null }),
     ));
+  });
+});
+
+describe('Footer actions', () => {
+  it('shows Split, Delete, Close and Edit as text buttons at every width', () => {
+    renderModal(makePattern());
+    for (const name of ['Split', 'Delete', 'Close', 'Edit']) {
+      const button = screen.getByRole('button', { name });
+      expect(button.textContent).toBe(name);
+      expect(button.querySelector('svg')).toBeNull();
+    }
+  });
+
+  it('confirms delete through the Delete pattern and Cancel buttons', async () => {
+    mockDeletePattern.mockResolvedValue(undefined);
+    const onClose = vi.fn();
+    renderModal(makePattern(), onClose);
+    await userEvent.click(screen.getByRole('button', { name: 'Delete' }));
+    expect(screen.getByRole('button', { name: 'Cancel' })).toBeDefined();
+    await userEvent.click(screen.getByRole('button', { name: 'Delete pattern' }));
+    await waitFor(() => expect(mockDeletePattern).toHaveBeenCalledWith(42));
+  });
+});
+
+describe('podcast link', () => {
+  it('links to the feed page, not the API episodes path', () => {
+    renderModal(makePattern({ podcast_slug: 'example-podcast' }));
+    expect(screen.getByRole('link', { name: 'example-podcast' }).getAttribute('href')).toBe('/feeds/example-podcast');
   });
 });

@@ -1,6 +1,5 @@
 import { Component, type ReactNode, useEffect } from 'react';
-import { btnPrimary } from './buttonStyles';
-import { focusRing } from './fieldStyles';
+import { btnLg, btnPrimary } from './buttonStyles';
 
 const MARKER_PREFIX = 'minuspod:chunk-load-recovery:';
 
@@ -77,7 +76,7 @@ export default class ChunkLoadRecovery extends Component<ChunkLoadRecoveryProps,
           <button
             type="button"
             onClick={() => window.location.reload()}
-            className={`mt-4 rounded-lg px-4 py-2 text-sm font-medium ${btnPrimary} ${focusRing}`}
+            className={`mt-4 ${btnLg} ${btnPrimary}`}
           >
             Reload
           </button>

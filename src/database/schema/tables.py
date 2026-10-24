@@ -66,6 +66,7 @@ TABLE_DDL['podcasts'] = """CREATE TABLE IF NOT EXISTS podcasts (
     network_id_override TEXT,
     audio_analysis_override TEXT,
     auto_process_override TEXT,
+    auto_process_max_age_hours_override INTEGER,
     language_override TEXT,
     download_user_agent_override TEXT,
     feed_user_agent_override TEXT,
@@ -75,6 +76,7 @@ TABLE_DDL['podcasts'] = """CREATE TABLE IF NOT EXISTS podcasts (
     detection_mode TEXT,
     cue_template_score_override REAL,
     cue_create_from_pairs_override INTEGER,
+    cue_cut_matches_override INTEGER,
     cue_pair_min_break_override REAL,
     cue_pair_max_break_override REAL,
     cue_pair_max_break_fraction_override REAL,
@@ -628,6 +630,7 @@ TABLE_DDL['audio_cue_templates'] = """CREATE TABLE IF NOT EXISTS audio_cue_templ
     enabled INTEGER NOT NULL DEFAULT 1,
     score_threshold REAL,
     remove_with_ad INTEGER NOT NULL DEFAULT 1,
+    cut_matches INTEGER,
     created_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
     created_by TEXT DEFAULT 'user',
     FOREIGN KEY (podcast_id) REFERENCES podcasts(id) ON DELETE CASCADE

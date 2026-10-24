@@ -1,6 +1,6 @@
 /**
  * Tests for the Experiments group, which now holds only the ad addressing
- * mode; Ad Reviewer moved to AI & Processing.
+ * mode; Ad reviewer moved to AI and processing.
  */
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
@@ -32,9 +32,9 @@ describe('ExperimentsSection: addressing mode', () => {
     expect(onAddressingModeChange).toHaveBeenCalledWith('segment_ids');
   });
 
-  it('no longer renders the Ad Reviewer controls', () => {
+  it('no longer renders the Ad reviewer controls', () => {
     render(<ExperimentsSection addressingMode="timestamps" onAddressingModeChange={vi.fn()} />);
     expect(screen.queryByText('Enable ad reviewer')).toBeNull();
-    expect(screen.queryByRole('button', { name: 'Reset Reviewer Prompts to Default' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Reset reviewer prompts to default' })).toBeNull();
   });
 });

@@ -1,5 +1,7 @@
-// The design guide's one badge shape; tint and weight stay at call sites.
-export const badgeBase = 'px-2 py-0.5 text-xs rounded';
+// The design guide's one badge shape; the tint is added at the call site.
+export const badgeBase = 'inline-flex items-center px-2 py-0.5 text-xs font-medium rounded whitespace-nowrap';
+// Round count pill; pair with a tint.
+export const countPill = 'inline-flex items-center justify-center min-w-5 h-5 px-1.5 text-xs font-medium rounded-full tabular-nums';
 
 // Each hue pairs with its on-tint text token, solved for the worst backdrop a
 // badge meets: a 30 percent hover fill inside a 10 percent panel of that hue.

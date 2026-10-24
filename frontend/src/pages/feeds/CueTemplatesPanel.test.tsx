@@ -382,7 +382,7 @@ describe('Scan trigger and polling', () => {
 
   it('stops polling on status=ready and shows candidates', async () => {
     // Two episodes selected -> at most one sibling match; the badge shows the
-    // total (sibling + target) over the episode-set size: "in 2 of 2 eps".
+    // total (sibling + target) over the episode-set size: "in 2 of 2 episodes".
     const candidate = { start: 30, end: 60, kind: 'recurring' as const, episodeMatches: 1 };
     // First response scanning, then ready: exercises one poll cycle end-to-end.
     mockCrossEpisodeScan
@@ -405,7 +405,7 @@ describe('Scan trigger and polling', () => {
 
     // Poll at 3s returns ready; badge appears.
     await waitFor(() => {
-      expect(screen.getByText(/in 2 of 2 eps/i)).toBeDefined();
+      expect(screen.getByText(/in 2 of 2 episodes/i)).toBeDefined();
     }, { timeout: 5000 });
     expect(mockCrossEpisodeScan).toHaveBeenCalledTimes(2);
 
@@ -478,7 +478,7 @@ describe('Candidate results', () => {
     await userEvent.click(screen.getByRole('button', { name: /^Scan$/ }));
 
     await waitFor(() => {
-      expect(screen.getByText(/in 2 of 2 eps/i)).toBeDefined();
+      expect(screen.getByText(/in 2 of 2 episodes/i)).toBeDefined();
     });
 
     // Click "Make template" on the candidate row
@@ -513,7 +513,7 @@ describe('Candidate results', () => {
     await userEvent.click(screen.getByLabelText('Select episode Episode 3'));
     await userEvent.click(screen.getByRole('button', { name: /^Scan$/ }));
 
-    await waitFor(() => expect(screen.getByText(/in 2 of 2 eps/i)).toBeDefined());
+    await waitFor(() => expect(screen.getByText(/in 2 of 2 episodes/i)).toBeDefined());
     await userEvent.click(screen.getByRole('button', { name: /Make template/i }));
 
     await waitFor(() => expect(screen.getByTestId('cue-mark-modal')).toBeDefined());
@@ -639,10 +639,10 @@ describe('Optimize window result panel', () => {
     expect(screen.getByText('14.80s')).toBeDefined();
     expect(screen.getByText('11.90s')).toBeDefined();
     expect(screen.getByText('15.10s')).toBeDefined();
-    expect(screen.getByText('0.871')).toBeDefined();
-    expect(screen.getByText('0.943')).toBeDefined();
-    expect(screen.getByText(/epaaaa11 0\.951/)).toBeDefined();
-    expect(screen.getByText(/epbbbb22 0\.938/)).toBeDefined();
+    expect(screen.getByText('87%')).toBeDefined();
+    expect(screen.getByText('94%')).toBeDefined();
+    expect(screen.getByText(/epaaaa11 95%/)).toBeDefined();
+    expect(screen.getByText(/epbbbb22 94%/)).toBeDefined();
   });
 
   it('shows already-optimal and hides Apply when proposed equals baseline', async () => {
@@ -835,5 +835,43 @@ describe('Remove cue with ad', () => {
     renderPanel();
     await screen.findByText('Ding');
     expect(screen.queryByRole('checkbox', { name: 'Remove cue with ad: Ding' })).toBeNull();
+  });
+});
+
+describe('Cut matched audio', () => {
+  it('offers the selector for intro cues and saves the tri-state', async () => {
+    mockListCueTemplates.mockResolvedValue([makeTemplate({ cueType: 'show_intro' })]);
+    mockUpdateCueTemplate.mockResolvedValue(makeTemplate({ cutMatches: true }));
+    renderPanel();
+    const select = await screen.findByLabelText('Cut matched audio');
+    expect((select as HTMLSelectElement).value).toBe('global');
+    await userEvent.selectOptions(select, 'On');
+    await waitFor(() => expect(mockUpdateCueTemplate).toHaveBeenCalledWith(7, { cutMatches: true }));
+    await userEvent.selectOptions(select, 'Off');
+    await waitFor(() => expect(mockUpdateCueTemplate).toHaveBeenCalledWith(7, { cutMatches: false }));
+  });
+
+  it('reflects a stored value and can return to inherit', async () => {
+    mockListCueTemplates.mockResolvedValue([makeTemplate({ cueType: 'show_intro', cutMatches: false })]);
+    mockUpdateCueTemplate.mockResolvedValue(makeTemplate({ cutMatches: null }));
+    renderPanel();
+    const select = await screen.findByLabelText('Cut matched audio');
+    expect((select as HTMLSelectElement).value).toBe('disable');
+    await userEvent.selectOptions(select, 'global');
+    await waitFor(() => expect(mockUpdateCueTemplate).toHaveBeenCalledWith(7, { cutMatches: null }));
+  });
+
+  it('hides the selector for content_transition cues', async () => {
+    mockListCueTemplates.mockResolvedValue([makeTemplate({ cueType: 'content_transition' })]);
+    renderPanel();
+    await screen.findByText('Ding');
+    expect(screen.queryByLabelText('Cut matched audio')).toBeNull();
+  });
+
+  it('keeps shared templates read-only', async () => {
+    mockListCueTemplates.mockResolvedValue([makeTemplate({ cueType: 'show_intro', owned: false })]);
+    renderPanel();
+    const select = await screen.findByLabelText('Cut matched audio');
+    expect((select as HTMLSelectElement).disabled).toBe(true);
   });
 });

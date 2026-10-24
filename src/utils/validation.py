@@ -163,3 +163,8 @@ def validate_slug_and_episode_params(f):
             abort(404)
         return f(slug, episode_id, *args, **kwargs)
     return wrapper
+
+
+def nullable_bool(value):
+    """DB int 1/0/None -> True/False/None; None keeps 'inherit' semantics."""
+    return None if value is None else bool(value)

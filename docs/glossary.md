@@ -60,7 +60,7 @@ Every term the app uses, in plain words, with a link to the part of the docs tha
 
 **Contaminated pattern** - A learned ad pattern that contains show content or other material that should not be matched as an ad. Pattern Cleanup can flag it for review; nothing changes until a suggestion is approved. [Pattern Cleanup](pattern-cleanup.md#suggestion-kinds)
 
-**Correction** - Your verdict on a detection: "Confirm ad" or "Not an ad". Corrections train future detection for that feed and can trigger a recut. [Web Interface > Ad Review tab](web-interface.md#ad-review-tab)
+**Correction** - Your verdict on a detection: "Confirm ad" or "Not ad". Corrections train future detection for that feed and can trigger a recut. [Web Interface > Ad Review tab](web-interface.md#ad-review-tab)
 
 **Corroboration** - Independent evidence from another detection stage, an overlapping marker, or a matched audio cue that backs an otherwise-uncertain detection, letting it cut instead of hold. Used by the cross-fetch differential stage to decide which candidates cut and which hold. [How It Works > Cross-Fetch Differential](how-it-works.md#cross-fetch-differential)
 

@@ -5,12 +5,13 @@
 // doesn't leave a ring behind.
 export const focusRing = 'focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring';
 
-// Selects are the one field on a secondary fill at 4px radius.
-export const selectBase = `px-3 py-2 rounded bg-secondary text-secondary-foreground border border-border text-sm ${focusRing}`;
-
-// Single-line text input: the same chrome AIModelsSection and the settings
-// User-Agent fields were each spelling out inline.
-export const inputBase = `px-3 py-2 rounded-lg border border-input bg-background text-foreground text-sm ${focusRing}`;
+// One chrome and one height for every text field, select, and textarea.
+const fieldChrome = `px-3 py-2 rounded border border-input bg-background text-foreground text-sm placeholder:text-muted-foreground ${focusRing}`;
+export const inputBase = `min-h-10 ${fieldChrome}`;
+export const selectBase = inputBase;
+// Textareas size by rows, so no min-height.
+export const textareaBase = fieldChrome;
+export const labelBase = 'block text-sm font-medium text-foreground mb-1.5';
 export const filterGrid = 'grid grid-cols-1 min-[375px]:grid-cols-2 gap-4';
 export const filterLabel = 'mb-1 block text-sm text-muted-foreground';
 export const filterControl = 'min-h-11 min-w-0 w-full';

@@ -12,7 +12,7 @@ import DropdownMenu from './DropdownMenu';
 import FeedStatusSummary from './FeedStatusSummary';
 import FeedTypeBadge from './FeedTypeBadge';
 import PodpingBadge from './PodpingBadge';
-import { btnDestructive, btnPrimary } from './buttonStyles';
+import { btnBase, btnPrimary, btnDestructive } from './buttonStyles';
 import { focusRing } from './fieldStyles';
 
 interface FeedListItemProps {
@@ -77,11 +77,11 @@ function FeedListItem({ feed, onRefresh, onDelete, isRefreshing }: FeedListItemP
               <DropdownMenu
                 triggerLabel={
                   <>
-                    <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
-                    <span className="hidden sm:inline text-xs">{isRefreshing ? 'Refreshing' : 'Refresh'}</span>
+                    <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} aria-hidden="true" />
+                    <span className="hidden sm:inline">{isRefreshing ? 'Refreshing' : 'Refresh'}</span>
                   </>
                 }
-                triggerClassName={`inline-flex items-center justify-center gap-1.5 h-8 px-2 rounded ${btnPrimary} disabled:opacity-50 transition-colors`}
+                triggerClassName={`${btnBase} ${btnPrimary}`}
                 disabled={isRefreshing}
                 title={isRefreshing ? 'Refreshing' : 'Refresh feed'}
                 chevronClassName="w-3 h-3"
@@ -103,12 +103,12 @@ function FeedListItem({ feed, onRefresh, onDelete, isRefreshing }: FeedListItemP
         )}
         <button
           onClick={() => onDelete(feed.slug)}
-          className={`inline-flex items-center justify-center gap-1.5 h-8 w-8 sm:w-auto sm:px-2 rounded ${btnDestructive} transition-colors ${focusRing}`}
+          className={`${btnBase} ${btnDestructive}`}
           title="Delete feed"
           aria-label="Delete feed"
         >
-          <Trash2 className="w-4 h-4" />
-          <span className="hidden sm:inline text-xs">Delete</span>
+          <Trash2 className="w-4 h-4" aria-hidden="true" />
+          <span className="hidden sm:inline">Delete</span>
         </button>
       </div>
     </div>

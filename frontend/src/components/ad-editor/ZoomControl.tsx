@@ -1,7 +1,7 @@
 import { ZoomIn, ZoomOut } from 'lucide-react';
 import { ghostBtn } from './controlStyles';
-import { focusRing } from '../../components/fieldStyles';
 import { touchTarget } from '../buttonStyles';
+import { focusRing } from '../fieldStyles';
 
 // Shared waveform zoom control for the audio-editor modals: a range slider
 // flanked by zoom-out / zoom-in buttons and a numeric readout. Presentational;
@@ -48,7 +48,7 @@ function ZoomControl({ value, min, max, step = 0.1, onChange, onZoomIn, onZoomOu
         <ZoomIn className="w-3.5 h-3.5" />
       </button>
       <span className="tabular-nums w-12 shrink-0 text-right">
-        {value < 10 ? value.toFixed(1) : Math.round(value)}×
+        {value < 10 ? value.toFixed(1) : Math.round(value)}&times;
       </span>
     </div>
   );

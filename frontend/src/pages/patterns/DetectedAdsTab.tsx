@@ -13,10 +13,11 @@ import AdReviewModal, {
   type AdReviewItem,
   type AdReviewSubmit,
 } from '../../components/AdReviewModal';
+import StatTile from '../../components/StatTile';
 import { Pagination } from '../../components/Pagination';
 import { SkeletonRows } from '../../components/Skeleton';
 import { SegmentCategoryBadge } from '../../components/SegmentCategoryBadge';
-import { formatStatsDuration } from '../../utils/format';
+import { formatElapsed } from '../../utils/format';
 import { sortFeeds } from '../../utils/feedSort';
 import { UNSET_CATEGORY } from '../../utils/segmentCategory';
 import SplitMarkerModal from '../../components/SplitMarkerModal';
@@ -24,24 +25,6 @@ import { DetectionRows } from './DetectionRows';
 import { DetectionFilterBar } from './DetectionFilterBar';
 import { useDetectionCorrections } from './useDetectionCorrections';
 import { PendingRecutsBar } from './PendingRecutsBar';
-
-function StatFigure({ label, value, lead = false }: {
-  label: string;
-  value: string;
-  lead?: boolean;
-}) {
-  return (
-    <div>
-      <p className="text-muted-foreground text-sm">{label}</p>
-      <p className={lead
-        ? 'font-semibold text-2xl text-foreground'
-        : 'font-medium text-foreground'}
-      >
-        {value}
-      </p>
-    </div>
-  );
-}
 
 // Counts beside the real badge rather than a chart: SegmentCategoryBadge renders
 // every category in one tint, so a multi-hue bar would contradict the badge
@@ -73,20 +56,15 @@ function CategoryBreakdown({ byCategory }: { byCategory: Record<string, number> 
 
 function CutStats({ summary }: { summary: CutSummary }) {
   return (
-    <div className="bg-card rounded-lg border border-border p-4 mb-6">
-      <h2 className="text-sm font-medium text-foreground mb-3">Ads Cut</h2>
+    <section aria-label="Ads cut" className="mb-6">
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-        <StatFigure
-          label="Time cut"
-          value={formatStatsDuration(summary.durationSeconds)}
-          lead
-        />
-        <StatFigure label="Detections" value={String(summary.count)} />
-        <StatFigure label="Sponsors" value={String(summary.distinctSponsors)} />
-        <StatFigure label="Podcasts" value={String(summary.distinctPodcasts)} />
+        <StatTile label="Time cut" value={formatElapsed(summary.durationSeconds)} />
+        <StatTile label="Detections" value={summary.count} />
+        <StatTile label="Sponsors" value={summary.distinctSponsors} />
+        <StatTile label="Podcasts" value={summary.distinctPodcasts} />
       </div>
       <CategoryBreakdown byCategory={summary.byCategory} />
-    </div>
+    </section>
   );
 }
 
@@ -188,14 +166,14 @@ export default function DetectedAdsTab() {
       {isLoading && <SkeletonRows count={6} />}
       {error && (
         <div className="text-destructive text-sm">
-          Failed to load detected ads.
+          Could not load detected ads.
         </div>
       )}
       {!isLoading && !error && data && (data.total === 0 ? (
         <div className="text-muted-foreground text-sm py-8 text-center">
           {feed || category || reviewer || debouncedQ
-            ? 'No cut ads match the current filters.'
-            : 'No ads have been cut yet.'}
+            ? 'No cut ads match these filters.'
+            : 'No ads cut yet.'}
         </div>
       ) : (
         <>

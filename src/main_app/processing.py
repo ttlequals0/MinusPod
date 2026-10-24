@@ -30,7 +30,7 @@ from config import (
     resolve_skip_second_pass,
     resolve_skip_transcription,
     resolve_cue_only_safety,
-    cue_only_missing_roles,
+    cue_only_missing_roles_for_feed,
     resolve_max_ad_duration_override,
     resolve_ad_detection_exclude_start_seconds,
     resolve_cue_gated_approval,
@@ -366,10 +366,10 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                               episode_description, start_time, cancel_event)
 
     podcast_settings = db.get_podcast_by_slug(slug)
-    podcast_description = admission.build_podcast_context(podcast_settings)
-    notes = (podcast_settings or {}).get('detection_notes')
-    if notes:
-        audio_logger.info(f"[{slug}:{episode_id}] Including detection notes ({len(notes)} chars)")
+    podcast_description = (podcast_settings or {}).get('description') or None
+    detection_notes = (podcast_settings or {}).get('detection_notes')
+    if detection_notes:
+        audio_logger.info(f"[{slug}:{episode_id}] Including detection notes ({len(detection_notes)} chars)")
 
     # Effective mode: a per-episode pass-through override (#746) wins over
     # the feed mode; otherwise the feed mode's own precedence (passthrough >
@@ -674,6 +674,7 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                 episode_title=episode_title,
                 podcast_id=(podcast_row_for_ctx.get('id') if podcast_row_for_ctx else None),
                 podcast_description=podcast_description,
+                detection_notes=detection_notes,
                 episode_description=episode_description,
                 podcast_tags=podcast_tags_for_ctx,
             )
@@ -776,7 +777,7 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                         slug, podcast_name, podcast_id, cue_templates_for_feed,
                         threshold_suggestions=detect._suggest_cue_thresholds(
                             slug, episode_id, podcast_id, audio_analysis_result))
-                    if cue_only_missing_roles(cue_templates_for_feed):
+                    if cue_only_missing_roles_for_feed(db, podcast_id, cue_templates_for_feed):
                         # Near-unreachable: the API guard blocks the mutation that
                         # would cause this. Belt-and-suspenders log only.
                         audio_logger.error(
@@ -885,6 +886,7 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                         segment_actions=segment_actions,
                         keep_ads=keep_ads,
                         user_rejects=pass1_user_rejects,
+                        detection_notes=detection_notes,
                     )
             _check_cancel(cancel_event, slug, episode_id)
             # Standing reviewer rejects bar the render and restore, as on recut, except where the user confirmed.
