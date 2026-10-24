@@ -152,8 +152,8 @@ function CategorySelect({ d, onCategory, busy, className = '' }: {
   );
 }
 
-// Card buttons share one line equally; labels drop to short forms below 370px.
-const cardRowBtn = 'flex-1 basis-0 min-w-0 px-1 min-[480px]:px-3 text-xs min-[480px]:text-sm leading-tight';
+// Card buttons grow to fill the row, never wrap their label, and the row wraps instead.
+const cardRowBtn = 'grow whitespace-nowrap max-sm:h-11 leading-tight';
 const cardCategoryClass = 'w-full min-h-[44px] px-3 text-sm text-left min-w-0';
 
 function ShortLabel({ full, short }: { full: string; short: string }) {
@@ -198,14 +198,14 @@ function DetectionActions({ d, variant, playing, onTogglePlay, actions }: {
   // verdict the cut can never honor (the endpoint 409s them). Edit is the
   // way through: the modal's category picker changes this span's fate.
   if (isKeepLike(d.actionApplied)) {
-    const kept = <p className="text-xs text-muted-foreground min-w-0 grow self-center">Left in by its category</p>;
+    const kept = <p className="text-xs text-muted-foreground min-w-0 grow">Left in by its category</p>;
     if (!isCard) {
       return <div className="flex items-center gap-2">{play}{kept}{category}{edit}</div>;
     }
     return (
       <div className="flex flex-col gap-2 pt-1">
         {category}
-        <div data-testid="detection-actions-row" className="flex items-stretch gap-1.5 min-[370px]:gap-2">
+        <div data-testid="detection-actions-row" className="flex flex-wrap items-center gap-1.5 min-[370px]:gap-2">
           {play}{kept}{edit}
         </div>
       </div>
@@ -253,8 +253,9 @@ function DetectionActions({ d, variant, playing, onTogglePlay, actions }: {
   return (
     <div className="flex flex-col gap-2 pt-1">
       {category}
-      <div data-testid="detection-actions-row" className="flex items-stretch gap-1.5 min-[370px]:gap-2">
-        {play}{approve}{dismiss}{split}{edit}
+      <div data-testid="detection-actions-row" className="flex flex-wrap items-center gap-1.5 min-[370px]:gap-2">
+        {play}{approve}{dismiss}
+        <div className="flex gap-1.5 min-[370px]:gap-2 grow max-[429px]:basis-full">{split}{edit}</div>
       </div>
     </div>
   );

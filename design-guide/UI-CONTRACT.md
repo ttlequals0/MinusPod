@@ -48,7 +48,7 @@ There is no `<Button>` component. Recipes are class strings composed at the call
 | `touchTarget` | Standalone control that needs a 44 px box on a phone | `min-h-11 min-w-11` below sm |
 | `touchCompact` | Icon-only header action beside a heading | 36 px square below sm, text button from sm |
 | `touchTargetRow` | Row that must stay on one line on a phone | Full height, shared width below sm |
-| `rowActionBtn`, `rowActionIcon` | Marker and detection row actions and the icon beside them | Icon derives its box from the same source |
+| `rowActionBtn`, `rowActionIcon` | Marker and detection row actions and the icon beside them | Icon derives its box from the same source. Row action buttons are 44 px tall on phones, never wrap their label, and their row wraps instead of shrinking them |
 | `tableActionBtn` | Desktop detection table rows | 30 px tall |
 | `cardActionBtn` | Review and detection card actions | 44 px floor; labels wrap on a phone |
 | `dialogFooterBtn` | Dialog footer action | Text label at every width |

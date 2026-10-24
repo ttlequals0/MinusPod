@@ -9,6 +9,13 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
+## [2.100.21] - 2026-10-24
+
+### Fixed
+- Review action rows on phones: every button is 44 px tall, the play button's
+  target height. Labels no longer wrap and a row that cannot fit five buttons
+  wraps to a second line instead of stretching.
+
 ## [2.100.20] - 2026-10-24
 
 ### Fixed

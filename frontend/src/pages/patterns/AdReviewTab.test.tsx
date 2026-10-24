@@ -180,16 +180,16 @@ describe('AdReviewTab', () => {
     const buttons = within(row).getAllByRole('button');
     expect(buttons.map((b) => b.getAttribute('aria-label') ?? b.textContent)).toEqual(
       ['Play this ad', 'Confirm ad', 'Not ad', 'Split', 'Edit']);
-    // Play is a fixed square; the text buttons share the row equally.
+    // Play is a fixed square; the text buttons grow to fill the row, which wraps.
+    expect(row.className).toContain('flex-wrap');
     for (const b of buttons.slice(1)) {
-      expect(b.className).toContain('flex-1');
-      expect(b.className).toContain('basis-0');
-      expect(b.className).toContain('min-w-0');
+      expect(b.className).toContain('grow');
+      expect(b.className).not.toContain('basis-0');
     }
     // Play keeps the 44px floor; the text buttons carry the shared tap-target classes.
     expect(buttons[0].className).toContain('min-h-11');
     for (const b of buttons.slice(1)) {
-      expect(b.className).toContain('min-h-[44px]');
+      expect(b.className).toContain('max-sm:h-11');
       expect(b.className).toContain('whitespace-nowrap');
     }
     // The category sits on its own line before the action row, spanning its full width.
