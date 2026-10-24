@@ -1,0 +1,35 @@
+From db05df9d135fb56a4babb836d5e9f5c1d984e087 Mon Sep 17 00:00:00 2001
+From: Michael Niedermayer <michael@niedermayer.cc>
+Date: Wed, 22 Jul 2026 05:53:16 +0200
+Subject: [PATCH] avcodec/cfhd: reject transform-2 output wider than the plane
+
+Fixes: out of array access
+Fixes: cfhd_transform2_output_width_oob.avi
+Fixes: MimvoaEVpKow
+Found-by: Adrian Junge (vurlo)
+---
+ libavcodec/cfhd.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/libavcodec/cfhd.c b/libavcodec/cfhd.c
+index 4d430e32ef..128362ac62 100644
+--- a/libavcodec/cfhd.c
++++ b/libavcodec/cfhd.c
+@@ -1224,7 +1224,7 @@ finish:
+ 
+             if (lowpass_height > s->plane[plane].band[4][1].a_height || lowpass_width > s->plane[plane].band[4][1].a_width ||
+                 !highpass_stride || s->plane[plane].band[4][1].width > s->plane[plane].band[4][1].a_width ||
+-                lowpass_width < 3 || lowpass_height < 3) {
++                lowpass_width < 3 || lowpass_height < 3 || lowpass_width * 2 > s->plane[plane].width) {
+                 av_log(avctx, AV_LOG_ERROR, "Invalid plane dimensions\n");
+                 ret = AVERROR(EINVAL);
+                 goto end;
+@@ -1345,7 +1345,7 @@ finish:
+ 
+             if (lowpass_height > s->plane[plane].band[4][1].a_height || lowpass_width > s->plane[plane].band[4][1].a_width ||
+                 s->plane[plane].band[4][1].width > s->plane[plane].band[4][1].a_width ||
+-                lowpass_width < 3 || lowpass_height < 3) {
++                lowpass_width < 3 || lowpass_height < 3 || lowpass_width * 2 > s->plane[plane].width) {
+                 av_log(avctx, AV_LOG_ERROR, "Invalid plane dimensions\n");
+                 ret = AVERROR(EINVAL);
+                 goto end;

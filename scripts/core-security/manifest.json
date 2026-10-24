@@ -31,6 +31,7 @@
       "patches": [
         {
           "file": "glibc-18374.patch",
+          "path": "patches/glibc-18374.patch",
           "url": "https://sourceware.org/git/?p=glibc.git;a=patch;h=72351055c6a1328c1ce2c06b72b8a4e3ebe0ef08",
           "sha256": "73ca6cb57d78c89785cd2bdd5c15cf7e5fdee873599bb8f1623035a2692915f1",
           "upstream_commit": "72351055c6a1328c1ce2c06b72b8a4e3ebe0ef08",

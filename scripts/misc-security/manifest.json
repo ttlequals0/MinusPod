@@ -26,6 +26,7 @@
       "patches": [
         {
           "file": "cjson-CVE-2026-29036.patch",
+          "path": "patches/cjson-CVE-2026-29036.patch",
           "url": "https://github.com/DaveGamble/cJSON/commit/09569cf7e9b8678a95389ade908e43a206e9c344.patch",
           "sha256": "5c36172ff0c550bee5f9ab16f93b958bfc602075009173e5fb9eb2a6ce81a9bd",
           "upstream_commit": "09569cf7e9b8678a95389ade908e43a206e9c344",
@@ -69,6 +70,7 @@
       "patches": [
         {
           "file": "glib2.0-CVE-2026-86469.patch",
+          "path": "patches/glib2.0-CVE-2026-86469.patch",
           "url": "https://gitlab.gnome.org/GNOME/glib/-/commit/a91805ebdc09bf4f8b005af8d8e5ba21a3d0099b.patch",
           "sha256": "0c0a23d859394576eae85ab31444d8a4b875a3344e581549edee666d8ce1eaa2",
           "upstream_commit": "a91805ebdc09bf4f8b005af8d8e5ba21a3d0099b",

@@ -1,0 +1,39 @@
+From 4c6217477fc64305055b37d9d1d0d76d30e37f97 Mon Sep 17 00:00:00 2001
+From: Michael Niedermayer <michael@niedermayer.cc>
+Date: Tue, 30 Jun 2026 00:24:07 +0200
+Subject: [PATCH] avcodec/nvdec: don't double free the fdd-owned context on the
+ sep_ref error path
+
+Fixes: double free
+Fixes: rpSz7v3yq2u8
+Fixes: 72982f8cb5dad6252a14226d28128313eed4a5ff (avcodec/nvdec: add support for separate reference frame)
+Found-by: Pavel Kohout (Aisle Research)
+Signed-off-by: Michael Niedermayer <michael@niedermayer.cc>
+---
+ libavcodec/nvdec.c | 6 +-----
+ 1 file changed, 1 insertion(+), 5 deletions(-)
+
+diff --git a/libavcodec/nvdec.c b/libavcodec/nvdec.c
+index 6420483f38..a986e9be16 100644
+--- a/libavcodec/nvdec.c
++++ b/libavcodec/nvdec.c
+@@ -627,8 +627,7 @@ int ff_nvdec_start_frame_sep_ref(AVCodecContext *avctx, AVFrame *frame, int has_
+             cf->ref_idx_ref = av_refstruct_pool_get(ctx->decoder_pool);
+             if (!cf->ref_idx_ref) {
+                 av_log(avctx, AV_LOG_ERROR, "No decoder surfaces left\n");
+-                ret = AVERROR(ENOMEM);
+-                goto fail;
++                return AVERROR(ENOMEM);
+             }
+         }
+         cf->ref_idx = *cf->ref_idx_ref;
+@@ -638,9 +637,6 @@ int ff_nvdec_start_frame_sep_ref(AVCodecContext *avctx, AVFrame *frame, int has_
+     }
+ 
+     return 0;
+-fail:
+-    nvdec_fdd_priv_free(cf);
+-    return ret;
+ }
+ 
+ int ff_nvdec_end_frame(AVCodecContext *avctx)

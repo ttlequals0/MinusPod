@@ -1,0 +1,28 @@
+From 1c10bcc2e17255dacb717a25ab3db142ce390602 Mon Sep 17 00:00:00 2001
+From: Joshua Rogers <MegaManSec@users.noreply.github.com>
+Date: Tue, 4 Aug 2026 12:11:55 +0000
+Subject: [PATCH] avformat/librist: honor the caller buffer size in
+ librist_read
+
+librist_read() ignored its size argument and copied the full payload_len,
+overflowing a smaller destination (e.g. via the async: wrapper). Clamp the
+copy to the caller-provided buffer size.
+
+Fixes: out of array access
+---
+ libavformat/librist.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/libavformat/librist.c b/libavformat/librist.c
+index 9669d5b5df..3c4b5e3e5b 100644
+--- a/libavformat/librist.c
++++ b/libavformat/librist.c
+@@ -226,7 +226,7 @@ static int librist_read(URLContext *h, uint8_t *buf, int size)
+         }
+     }
+ 
+-    size = data_block->payload_len;
++    size = FFMIN(data_block->payload_len, size);
+     memcpy(buf, data_block->payload, size);
+ out_free:
+     rist_receiver_data_block_free2(&data_block);

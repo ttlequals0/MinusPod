@@ -1,0 +1,28 @@
+From 2addf444823393896605bf8fb201ac4019d604d0 Mon Sep 17 00:00:00 2001
+From: Michael Niedermayer <michael@niedermayer.cc>
+Date: Wed, 12 Aug 2026 03:12:07 +0200
+Subject: [PATCH] avcodec/lcldec: clear what the multithread chunks leave
+ undecoded
+
+Fixes: read of uninitialized memory
+Fixes: zTrrhikJHTRR
+Found-by: Eunsoo Kim, Microsoft FORGE Labs
+(cherry picked from commit 98e45d60746e25fc4a5529bd6ffb8ae7f28f6ce8)
+Signed-off-by: Michael Niedermayer <michael@niedermayer.cc>
+---
+ libavcodec/lcldec.c | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/libavcodec/lcldec.c b/libavcodec/lcldec.c
+index 71c6d070e2..719490e52b 100644
+--- a/libavcodec/lcldec.c
++++ b/libavcodec/lcldec.c
+@@ -289,6 +289,8 @@ static int decode_frame(AVCodecContext *avctx, AVFrame *frame,
+             ret = zlib_decomp(avctx, buf + 8 + mthread_inlen, len - 8 - mthread_inlen,
+                               mthread_outlen, mthread_outlen);
+             if (ret < 0) return ret;
++            memset(c->decomp_buf + mthread_outlen + ret, 0,
++                   c->decomp_size - mthread_outlen - ret);
+             len = c->decomp_size;
+         } else {
+             int ret = zlib_decomp(avctx, buf, len, 0, c->decomp_size);

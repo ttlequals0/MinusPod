@@ -58,9 +58,11 @@ release notes.
   description budget, so a long show description cannot truncate them.
 
 ### Fixed
-- Image build: the x264 security patch ships in the repo instead of being
-  downloaded at build time. Its upstream host now answers automated
-  fetches with a bot challenge page, which failed the checksum.
+- Image build: the 30 upstream security patches for ffmpeg, x264, libass,
+  libsndfile, glibc, cairo, cjson and glib ship in the repo instead of
+  being downloaded from their git forges at build time. One forge now
+  answers automated fetches with a bot challenge page and another changed
+  its patch rendering, so the pinned checksums no longer matched.
 - Detection: when a same-sponsor merge folded a span that sat entirely
   inside the first one, the merged marker took the inner span's end and
   shrank. A cross-fetch differential span measured to the end of an inserted

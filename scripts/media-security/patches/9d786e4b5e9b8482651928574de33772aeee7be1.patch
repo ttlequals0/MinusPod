@@ -1,0 +1,38 @@
+From 9d786e4b5e9b8482651928574de33772aeee7be1 Mon Sep 17 00:00:00 2001
+From: Joshua Rogers <MegaManSec@users.noreply.github.com>
+Date: Tue, 4 Aug 2026 12:11:55 +0000
+Subject: [PATCH] avformat/mpegenc: reject stream counts that overflow the
+ system header
+
+put_system_header() writes 12 + 3*N bytes after the pack header into a
+fixed 128-byte stack buffer, but is handed a PutBitContext sized past the
+real buffer, so its own bounds check never fires; ~35+ streams overflow the
+stack. Reject at mux init when the system header would not fit.
+
+Fixes: out of array access
+Fixes: many.mkv
+---
+ libavformat/mpegenc.c | 10 ++++++++++
+ 1 file changed, 10 insertions(+)
+
+diff --git a/libavformat/mpegenc.c b/libavformat/mpegenc.c
+index 128dfe2885..cea91d80da 100644
+--- a/libavformat/mpegenc.c
++++ b/libavformat/mpegenc.c
+@@ -473,6 +473,16 @@ static av_cold int mpeg_mux_init(AVFormatContext *ctx)
+         if (!stream->fifo)
+             return AVERROR(ENOMEM);
+     }
++
++    /* The system header is emitted, right after the pack header (which is at
++     * most 14 bytes), into the fixed 128-byte buffer used by flush_packet().
++     * Reject configurations whose system header would not fit. */
++    if (get_system_header_size(ctx) > 128 - 14) {
++        av_log(ctx, AV_LOG_ERROR,
++               "Too many streams to fit the MPEG program stream system header\n");
++        return AVERROR(EINVAL);
++    }
++
+     bitrate       = 0;
+     audio_bitrate = 0;
+     video_bitrate = 0;
