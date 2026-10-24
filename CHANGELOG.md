@@ -12,6 +12,9 @@ release notes.
 ## [2.100.20] - 2026-10-24
 
 ### Fixed
+- CPU image workflow: the image secret scan allows the Anthropic SDK's
+  managed-agents docstrings, which mention a service-account type and
+  tripped Trivy's GCP key rule after the SDK bump, failing the arm64 leg.
 - Icons are centered in the "Edit feed title", "Open in editor", ad editor
   "Add new ad" and ad editor "Close" buttons on phones, where the 44 px
   touch floor had left them packed to the left.
