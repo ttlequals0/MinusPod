@@ -9,7 +9,7 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
-## [2.100.19] - 2026-10-19
+## [2.100.19] - 2026-10-23
 
 ### Added
 - Docs: nine short videos under docs/videos, each in a portrait and a
