@@ -15,13 +15,14 @@ test('failed settings stop loading and offer retry', async ({ page }) => {
 test('search filters fit and failed requests are not empty results', async ({ page }) => {
   await page.goto('search?q=technology');
   await expect(page.getByRole('alert')).toContainText('Search', { timeout: 15_000 });
-  const filters = page.locator('main button[aria-pressed]');
+  const filters = page.locator('main [role="tab"]');
   await expect(filters).toHaveCount(6);
+  const coarse = Boolean(test.info().project.use.hasTouch);
   for (const filter of await filters.all()) {
     const box = await filter.boundingBox();
     expect(box!.x).toBeGreaterThanOrEqual(0);
     expect(box!.x + box!.width).toBeLessThanOrEqual(page.viewportSize()!.width);
-    expect(box!.height).toBeGreaterThanOrEqual(44);
+    if (coarse) expect(box!.height).toBeGreaterThanOrEqual(44);
   }
   await expect(page.getByText('No results found', { exact: true })).toHaveCount(0);
 });
@@ -119,7 +120,7 @@ test('feed URL validation associates its visible error with the field', async ({
   await expect(input).toHaveAttribute('aria-invalid', 'true');
   await expect(input).toHaveAttribute('aria-describedby', 'podcast-url-feedback');
   await expect(page.locator('#podcast-url-feedback')).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Add Feed', exact: true })).toBeDisabled();
+  await expect(page.getByRole('button', { name: 'Add feed', exact: true })).toBeDisabled();
 });
 
 

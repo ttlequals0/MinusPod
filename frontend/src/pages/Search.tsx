@@ -155,6 +155,7 @@ function Search() {
       <PageTabs
         id="search"
         label="Result type"
+        wrap
         active={filterType}
         onChange={setFilterType}
         tabs={FILTER_TYPES.map((type) => ({

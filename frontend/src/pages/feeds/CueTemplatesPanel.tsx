@@ -209,13 +209,14 @@ function CueTemplatesPanel({ slug }: Props) {
       }
       return;
     }
-    const percent = parseFloat(trimmed);
-    if (isNaN(percent) || percent < 30 || percent > 99) {
+    const percent = Number(trimmed);
+    if (!Number.isInteger(percent) || percent < 30 || percent > 99) {
       setActionError('Match threshold must be a whole number between 30% and 99%.');
       return;
     }
-    const val = Math.round(percent) / 100;
-    if (val !== template.scoreThreshold) {
+    const val = percent / 100;
+    const current = template.scoreThreshold == null ? null : Math.round(template.scoreThreshold * 100);
+    if (percent !== current) {
       updateMutation.mutate({ id: template.id, patch: { scoreThreshold: val } });
     }
   };

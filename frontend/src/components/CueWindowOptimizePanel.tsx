@@ -128,7 +128,7 @@ export default function CueWindowOptimizePanel({ slug, template, onClose }: CueW
                     ? 'text-success'
                     : 'text-warning'}`}
                   >
-                    {scoreDelta >= 0 ? '+' : ''}{formatPercent(scoreDelta)}
+                    {scoreDelta >= 0 ? '+' : ''}{(scoreDelta * 100).toFixed(1)}%
                   </span>
                 )}
               </span>

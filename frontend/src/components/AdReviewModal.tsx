@@ -1026,7 +1026,8 @@ function AdReviewModal({
                 </button>
               )}
               <CloseButton
-                onClick={() => { if (!(mode === 'create' && multiSubmitting)) requestClose(); }}
+                onClick={requestClose}
+                disabled={mode === 'create' && multiSubmitting}
                 label="Close dialog"
               />
             </div>

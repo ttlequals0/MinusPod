@@ -217,6 +217,8 @@ function CueCandidatesSection({
                       playing={isPlaying}
                       onClick={() => togglePreview(c)}
                       label="this sound"
+                      disabled={!hasOriginalAudio}
+                      title={hasOriginalAudio ? undefined : 'Original audio not retained for this episode'}
                     />
                     <div className="min-w-0 flex flex-wrap items-center gap-2">
                       <span className="font-mono text-sm text-foreground whitespace-nowrap">
