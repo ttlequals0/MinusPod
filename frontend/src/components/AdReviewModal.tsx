@@ -1038,7 +1038,7 @@ function AdReviewModal({
               <span>Stage: {item.detectionStage ?? '-'}</span>
               {item.confidence !== null && <span>{formatPercent(item.confidence)} confidence</span>}
               {item.patternId !== null && <span>Pattern #{item.patternId}</span>}
-              {item.reason && <span className="italic truncate max-w-full" title={item.reason}>{item.reason}</span>}
+              {item.reason && <span className="basis-full italic line-clamp-2" title={item.reason}>{item.reason}</span>}
             </div>
           )}
         </div>

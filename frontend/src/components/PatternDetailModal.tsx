@@ -227,7 +227,7 @@ function PatternDetailModal({ pattern, onClose, onSave }: PatternDetailModalProp
       {/* Content */}
       <div className="p-4 space-y-4">
         {/* Stats Row */}
-        <div className="grid grid-cols-[repeat(auto-fit,minmax(7rem,1fr))] gap-2 sm:gap-4">
+        <div className="grid grid-cols-[repeat(auto-fit,minmax(6rem,1fr))] gap-2 sm:gap-4">
           <StatTile label="Confirmations" value={pattern.confirmation_count} tone="success" />
           <StatTile label="False positives" value={pattern.false_positive_count} tone="destructive" />
           <StatTile label="Status" value={pattern.is_active ? 'Active' : 'Inactive'} />
