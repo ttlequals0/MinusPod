@@ -828,6 +828,13 @@ paths:
                     - boolean
                     - 'null'
                   description: Override auto-process setting (null uses global)
+                autoProcessMaxAgeHoursOverride:
+                  type:
+                    - integer
+                    - 'null'
+                  minimum: 1
+                  maximum: 720
+                  description: Per-feed auto-process window in hours (null uses the global autoProcessMaxAgeHours)
                 downloadUserAgentOverride:
                   type:
                     - string
@@ -6554,6 +6561,11 @@ paths:
                 autoProcessEnabled:
                   type: boolean
                   description: Enable automatic processing of new episodes when feeds refresh
+                autoProcessMaxAgeHours:
+                  type: integer
+                  minimum: 1
+                  maximum: 720
+                  description: Only episodes published within this many hours are auto-queued (default 48). Feeds can override it.
                 maxFeedEpisodes:
                   type: integer
                   minimum: 10
@@ -13587,6 +13599,13 @@ components:
             - boolean
             - 'null'
           description: Override auto-process setting for this feed (null uses global setting)
+        autoProcessMaxAgeHoursOverride:
+          type:
+            - integer
+            - 'null'
+          minimum: 1
+          maximum: 720
+          description: Per-feed auto-process window in hours (null uses the global autoProcessMaxAgeHours)
         downloadUserAgentOverride:
           type:
             - string
@@ -16341,6 +16360,16 @@ components:
               description: Whether auto-processing of new episodes is enabled
             isDefault:
               type: boolean
+        autoProcessMaxAgeHours:
+          type: object
+          properties:
+            value:
+              type: integer
+              minimum: 1
+              maximum: 720
+              description: Only episodes published within this many hours are auto-queued. Default 48.
+            isDefault:
+              type: boolean
         maxFeedEpisodes:
           type: object
           properties:
@@ -17386,6 +17415,8 @@ components:
               example: 2
             autoProcessEnabled:
               type: boolean
+            autoProcessMaxAgeHours:
+              type: integer
             maxFeedEpisodes:
               type: integer
             onlyExposeProcessedDefault:

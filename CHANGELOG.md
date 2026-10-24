@@ -11,6 +11,10 @@ release notes.
 
 ## [2.100.21] - 2026-10-24
 
+### Added
+- The auto-process window is a setting with a per-feed override: default 48
+  hours, up to 720, for instances that run only occasionally (#895).
+
 ### Changed
 - UI consistency pass. Headings, buttons, tabs and labels are sentence case
   (product nouns keep their capitals). Errors read "Could not <verb> <noun>."

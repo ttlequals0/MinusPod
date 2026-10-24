@@ -3,7 +3,7 @@ import json
 import logging
 from datetime import datetime, timedelta, timezone
 
-from config import DEFER_SERVICE_LLM
+from config import AUTO_PROCESS_MAX_AGE_HOURS_DEFAULT, DEFER_SERVICE_LLM
 from database.episodes import HAS_TRANSCRIPT_SQL
 from utils.time import ISO_FORMAT, utc_now, utc_now_iso
 
@@ -115,6 +115,17 @@ class QueueMixin:
         else:
             # No override, use global setting
             return global_enabled
+
+    def get_auto_process_max_age_hours(self, slug: str,
+                                       podcast: dict | None = None) -> int:
+        """Hours since publish within which a new episode is auto-queued."""
+        if podcast is None:
+            podcast = self.get_podcast_by_slug(slug)
+        override = (podcast or {}).get('auto_process_max_age_hours_override')
+        if override is not None:
+            return int(override)
+        return self.get_setting_int('auto_process_max_age_hours',
+                                    AUTO_PROCESS_MAX_AGE_HOURS_DEFAULT)
 
     def queue_episode_for_processing(self, slug: str, episode_id: str,
                                       original_url: str, title: str = None,

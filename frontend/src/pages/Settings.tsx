@@ -221,6 +221,7 @@ function Settings() {
   const [verificationProvider, setVerificationProvider] = useState('');
   const [whisperModel, setWhisperModel] = useState('');
   const [autoProcessEnabled, setAutoProcessEnabled] = useState(false);
+  const [autoProcessMaxAgeHours, setAutoProcessMaxAgeHours] = useState(48);
   const [maxFeedEpisodes, setMaxFeedEpisodes] = useState(0);
   const [podpingEnabled, setPodpingEnabled] = useState(false);
   const [rssRefreshIntervalMinutes, setRssRefreshIntervalMinutes] = useState(15);
@@ -891,6 +892,7 @@ function Settings() {
     { key: 'maxAudioDownloadMb', kind: 'val', useDefault: true, value: maxAudioDownloadMb, set: setMaxAudioDownloadMb },
     // Global behavior / output toggles
     { key: 'autoProcessEnabled', kind: 'val', useDefault: true, value: autoProcessEnabled, set: setAutoProcessEnabled },
+    { key: 'autoProcessMaxAgeHours', kind: 'val', useDefault: true, literal: 48, value: autoProcessMaxAgeHours, set: setAutoProcessMaxAgeHours },
     { key: 'onlyExposeProcessedDefault', kind: 'val', useDefault: true, value: onlyExposeProcessedDefault, set: setOnlyExposeProcessedDefault },
     { key: 'artworkWatermarkEnabled', kind: 'val', useDefault: true, value: artworkWatermarkEnabled, set: setArtworkWatermarkEnabled },
     { key: 'artworkBadgePosition', kind: 'str', useDefault: true, value: artworkBadgePosition, set: (v) => setArtworkBadgePosition(v as BadgePosition) },
@@ -1324,6 +1326,8 @@ function Settings() {
       <GlobalDefaultsSection
         autoProcessEnabled={autoProcessEnabled}
         onAutoProcessEnabledChange={setAutoProcessEnabled}
+        autoProcessMaxAgeHours={autoProcessMaxAgeHours}
+        onAutoProcessMaxAgeHoursChange={setAutoProcessMaxAgeHours}
         rssRefreshIntervalMinutes={rssRefreshIntervalMinutes}
         onRssRefreshIntervalMinutesChange={setRssRefreshIntervalMinutes}
         podpingEnabled={podpingEnabled}

@@ -742,6 +742,9 @@ SETTINGS_REGISTRY: dict[str, SettingSpec] = {
         payload_key='autoProcessEnabled',
         payload_factory=lambda: coerce_bool_setting(
             resolve_env_backed_default('auto_process_enabled'))),
+    'auto_process_max_age_hours': SettingSpec(
+        default='48', seeded=True,
+        payload_key='autoProcessMaxAgeHours', payload_kind='int'),
     'feed_auth_enabled': SettingSpec(
         env_backed=True,
         payload_key='feedAuthEnabled',

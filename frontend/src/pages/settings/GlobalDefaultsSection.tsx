@@ -9,6 +9,8 @@ import { selectBase, labelBase } from '../../components/fieldStyles';
 interface GlobalDefaultsSectionProps {
   autoProcessEnabled: boolean;
   onAutoProcessEnabledChange: (enabled: boolean) => void;
+  autoProcessMaxAgeHours: number;
+  onAutoProcessMaxAgeHoursChange: (hours: number) => void;
   rssRefreshIntervalMinutes: number;
   onRssRefreshIntervalMinutesChange: (value: number) => void;
   podpingEnabled: boolean;
@@ -34,6 +36,8 @@ interface GlobalDefaultsSectionProps {
 function GlobalDefaultsSection({
   autoProcessEnabled,
   onAutoProcessEnabledChange,
+  autoProcessMaxAgeHours,
+  onAutoProcessMaxAgeHoursChange,
   rssRefreshIntervalMinutes,
   onRssRefreshIntervalMinutesChange,
   podpingEnabled,
@@ -108,6 +112,29 @@ function GlobalDefaultsSection({
           </label>
           <p className="mt-2 text-sm text-muted-foreground">
             When a feed refresh discovers a new episode, queue it for processing automatically. Per-feed Auto-Process can override this.
+          </p>
+        </div>
+
+        {/* Auto-process window */}
+        <div className="pt-4 border-t border-border">
+          <label htmlFor="autoProcessMaxAgeHours" className={labelBase}>
+            Auto-process episodes published within
+          </label>
+          <div className="flex items-center gap-3">
+            <NumberInput
+              id="autoProcessMaxAgeHours"
+              value={autoProcessMaxAgeHours}
+              min={1}
+              max={720}
+              step={1}
+              fallback={48}
+              ariaDescribedBy="autoProcessMaxAgeHours-help"
+              onCommit={onAutoProcessMaxAgeHoursChange}
+            />
+            <span className="text-sm text-muted-foreground">hours (1 to 720)</span>
+          </div>
+          <p id="autoProcessMaxAgeHours-help" className="mt-2 text-sm text-muted-foreground">
+            Newly discovered episodes older than this are left as discovered until you process them. If this instance runs only now and then, set it to cover the longest gap between runs.
           </p>
         </div>
 

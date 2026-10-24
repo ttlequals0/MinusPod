@@ -85,7 +85,7 @@ The server includes a web-based management UI at `/ui/`. Opening the server root
 - Outbound Requests (Settings > Data & Security): the User-Agent MinusPod sends when it fetches feeds, audio, and artwork, editable per string with a Reset back to the default, plus a toggle for whether download logs include URL query strings
 - OPML export with original or ad-free (modified) feed URLs
 - Optional cover-art badge that marks the filtered feed (Settings > Cover Art), with a Refresh all artwork button
-- Global Defaults group in settings: Auto-Process, Max Feed Episodes, Only Expose Processed, verification, and cross-fetch differential. New feeds use these defaults; each feed can inherit or set an explicit override
+- Global Defaults group in settings: Auto-Process, the auto-process window, Max Feed Episodes, Only Expose Processed, verification, and cross-fetch differential. New feeds use these defaults; each feed can inherit or set an explicit override
 - Chapter mode default in Settings > Transcripts & Chapters, with the same per-feed inheritance and override
 - Queue priority boosts in Queue > Queue Control
 - Notifications for processed episodes, permanent failures, auth failures, exhausted spend limits, and structural rate-limit hits, delivered by webhooks or native email (Settings > Notifications)

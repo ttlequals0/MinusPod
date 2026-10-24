@@ -203,7 +203,7 @@ GET /api/v1/feeds/{slug}/import/status
 Whether an imported or uploaded episode gets queued for ad detection depends on one thing: was the feed empty before this batch landed.
 
 - **Into an empty feed** (the very first import, populating an archive from scratch): nothing is queued, no matter what auto-process is set to. A hundred-episode backfill isn't "new content" in the sense auto-process exists for.
-- **Into a feed that already has episodes** (a later single upload, or a later import): each newly added episode enters the normal auto-process gate, same as a newly discovered episode on a subscribed feed, except there's no publish-date recency check. A backdated archive episode you just added is still new content to MinusPod even though its synthesized date is old.
+- **Into a feed that already has episodes** (a later single upload, or a later import): each newly added episode enters the normal auto-process gate, same as a newly discovered episode on a subscribed feed, except there's no publish-date recency check (the auto-process window setting, `autoProcessMaxAgeHours`, does not apply). A backdated archive episode you just added is still new content to MinusPod even though its synthesized date is old.
 
 Either way, with auto-process off (or an episode that didn't get queued), the episode still processes on first play, via manual reprocess, or through the bulk episode actions, exactly like a subscribed feed.
 

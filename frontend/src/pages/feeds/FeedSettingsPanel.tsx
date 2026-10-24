@@ -269,13 +269,14 @@ function FeedSettingsPanel({ feed, slug }: Props) {
   const snapLeadField = useDraftField(feed, (f) => s(f.cueSnapLeadOverride));
   const snapLagField = useDraftField(feed, (f) => s(f.cueSnapLagOverride));
   const maxAdDurField = useDraftField(feed, (f) => s(f.maxAdDurationOverride));
+  const autoProcessWindowField = useDraftField(feed, (f) => s(f.autoProcessMaxAgeHoursOverride));
   const maxAdDurRejectField = useDraftField(feed, (f) => s(f.maxAdDurationRejectOverride));
   const introExclusionField = useDraftField(feed, (f) => s(f.adDetectionExcludeStartOverride));
   // Notes commit on Save, not blur: markClean runs in the mutation's onSuccess so
   // the button/badge update instantly. Dirty compare trims, so a whitespace-only edit isn't dirty.
   const notesField = useDraftField(feed, (f) => f.detectionNotes ?? '', (v) => v.trim());
   const chapterNotesField = useDraftField(feed, (f) => f.chapterNotes ?? '', (v) => v.trim());
-  useUnsavedChanges([cueScoreField, pairMinField, pairMaxField, pairFracField, snapConfField, snapLeadField,
+  useUnsavedChanges([autoProcessWindowField, cueScoreField, pairMinField, pairMaxField, pairFracField, snapConfField, snapLeadField,
     snapLagField, maxAdDurField, maxAdDurRejectField, introExclusionField, notesField, chapterNotesField]
     .some(field => field.dirty) || isEditingSourceUrl || isEditingNetwork);
   const [chapterNotesSaved, setChapterNotesSaved] = useState(false);
@@ -836,6 +837,16 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                   )}
                 </div>
               </div>
+
+              <CueOverrideRow label="Auto-process window" min={1} max={720} step={1}
+                value={autoProcessWindowField.value} setValue={autoProcessWindowField.setValue}
+                feedValue={feed.autoProcessMaxAgeHoursOverride}
+                hint="hours, empty = global"
+                placeholder={String(settings?.autoProcessMaxAgeHours?.value ?? 48)}
+                disabled={updateMutation.isPending}
+                formatOverride={(v) => `${v} h`}
+                onBlur={() => commitFloat(autoProcessWindowField, feed.autoProcessMaxAgeHoursOverride,
+                  'autoProcessMaxAgeHoursOverride', 1, 720)} />
 
               {/* Single preset canonicalizing detectionMode/skipAdDetection/passthroughEnabled;
                   those legacy fields stay available for external API callers. */}

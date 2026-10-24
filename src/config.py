@@ -989,6 +989,10 @@ EPISODE_LOG_LEVEL_DEBUG = 'debug'
 EPISODE_LOG_LEVEL_INFO = 'info'
 EPISODE_LOG_LEVELS = (EPISODE_LOG_LEVEL_DEBUG, EPISODE_LOG_LEVEL_INFO)
 
+AUTO_PROCESS_MAX_AGE_HOURS_MIN = 1
+AUTO_PROCESS_MAX_AGE_HOURS_MAX = 720
+AUTO_PROCESS_MAX_AGE_HOURS_DEFAULT = 48
+
 DOWNLOAD_HISTORY_RETENTION_DAYS_MIN = 1
 DOWNLOAD_HISTORY_RETENTION_DAYS_MAX = 3650
 DOWNLOAD_HISTORY_RETENTION_DAYS_DEFAULT = 90
@@ -1345,6 +1349,12 @@ def resolve_splice_veto_enabled(db, podcast_id, global_default: bool) -> bool:
     """
     override = _resolve_override(db, podcast_id, 'splice_veto_enabled', bool, None)
     return global_default if override is None else override
+
+
+def valid_auto_process_max_age(value) -> bool:
+    """True for an int (not bool) inside the auto-process age bounds."""
+    return (isinstance(value, int) and not isinstance(value, bool)
+            and AUTO_PROCESS_MAX_AGE_HOURS_MIN <= value <= AUTO_PROCESS_MAX_AGE_HOURS_MAX)
 
 
 def resolve_download_history_retention_days(db) -> int:

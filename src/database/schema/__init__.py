@@ -546,6 +546,7 @@ class SchemaMixin:
             ('audio_analysis_override', 'TEXT'),
             ('created_at', "TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))"),
             ('auto_process_override', 'TEXT'),
+            ('auto_process_max_age_hours_override', 'INTEGER'),
             ('language_override', 'TEXT'),
             ('download_user_agent_override', 'TEXT'),
             ('feed_user_agent_override', 'TEXT'),

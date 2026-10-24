@@ -75,6 +75,7 @@ export interface Feed {
   daiPlatform?: string;
   networkIdOverride?: string | null;
   autoProcessOverride?: boolean | null;
+  autoProcessMaxAgeHoursOverride?: number | null;
   languageOverride?: string | null;
   downloadUserAgentOverride?: string | null;
   feedUserAgentOverride?: string | null;
@@ -840,6 +841,7 @@ export interface Settings {
   verificationProvider: SettingValue;
   whisperModel: SettingValue;
   autoProcessEnabled: SettingValueBoolean;
+  autoProcessMaxAgeHours: SettingValueNumber;
   maxFeedEpisodes: SettingValueNumber;
   podpingEnabled: SettingValueBoolean;
   rssRefreshIntervalMinutes: SettingValueNumber;
@@ -1029,6 +1031,7 @@ export interface Settings {
     verificationModel: string;
     whisperModel: string;
     autoProcessEnabled: boolean;
+    autoProcessMaxAgeHours: number;
     maxFeedEpisodes: number;
     podpingEnabled: boolean;
     rssRefreshIntervalMinutes: number;
@@ -1171,6 +1174,7 @@ export interface UpdateSettingsPayload {
   verificationProvider?: string;
   whisperModel?: string;
   autoProcessEnabled?: boolean;
+  autoProcessMaxAgeHours?: number;
   maxFeedEpisodes?: number;
   podpingEnabled?: boolean;
   rssRefreshIntervalMinutes?: number;

@@ -127,6 +127,7 @@ SEED_SNAPSHOT = {
     'secondary_provider_base_url': 'http://localhost:8000/v1',
     'review_prompt': ('sha256', '3515a8a98250a187f7e885b696864db04ceca30ffdf97d72baa6a3d69029e87a'),  # Updated for the untranscribed-audio sentence
     'rss_refresh_interval_minutes': '15',
+    'auto_process_max_age_hours': '48',
     'queue_manual_boost': '20',
     'queue_fresh_boost': '5',
     'queue_bulk_boost': '0',
@@ -538,11 +539,12 @@ class TestGetDefaults:
         # adChaptersEnabled and adChapterCategories retired with the settings
         # they came from (164 -> 162; 2.98.0, mark_action_from_ad_chapters_v1).
         # audioEncoderCompressionLevel added after that (165 -> 166).
+        # autoProcessMaxAgeHours added after that (171 -> 172).
         payload_keys = {
             spec.payload_key for spec in SETTINGS_REGISTRY.values()
             if spec.payload_key
         }
-        assert len(payload_keys) == 171
+        assert len(payload_keys) == 172
         assert 'systemoneBaseUrl' in payload_keys
         assert 'failoverWhisperMaxAttempts' in payload_keys
         assert 'audioCuePairOrientWindowSeconds' not in payload_keys

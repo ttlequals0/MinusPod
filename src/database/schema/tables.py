@@ -65,6 +65,7 @@ TABLE_DDL['podcasts'] = """CREATE TABLE IF NOT EXISTS podcasts (
     dai_platform TEXT,
     network_id_override TEXT,
     audio_analysis_override TEXT,
+    auto_process_max_age_hours_override INTEGER,
     auto_process_override TEXT,
     language_override TEXT,
     download_user_agent_override TEXT,

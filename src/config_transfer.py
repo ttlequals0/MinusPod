@@ -23,6 +23,7 @@ from config import (
     resolve_feed_processing_mode, resolve_jit_blocked_user_agents,
     resolve_segment_category_actions_map, resolve_max_ad_duration_confirmed,
     SEARCH_PROVIDER_ITUNES, SEARCH_PROVIDER_PODCASTINDEX,
+    valid_auto_process_max_age,
 )
 from db_backup_service import (
     DEFAULT_CRON as DB_BACKUP_DEFAULT_CRON,
@@ -119,6 +120,7 @@ BOOLEAN_EXTRA_SETTINGS = frozenset({
 FEED_COLUMNS = (
     'title', 'description', 'source_url', 'network_id', 'dai_platform',
     'network_id_override', 'audio_analysis_override', 'auto_process_override',
+    'auto_process_max_age_hours_override',
     'language_override', 'download_user_agent_override', 'feed_user_agent_override',
     'title_override', 'detection_notes', 'detection_mode', 'chapter_notes',
     'chapters_mode', 'chapters_in_notes', 'own_episode_guids',
@@ -1070,6 +1072,9 @@ def _validated_feed_updates(db, podcast, payload, feed_type, *, confirmed_ceilin
         elif key == 'differential_fetch_mode':
             if value not in (None, 'auto', 'on', 'off'):
                 raise ConfigTransferError('differential_fetch_mode is invalid')
+        elif key == 'auto_process_max_age_hours_override':
+            if value is not None and not valid_auto_process_max_age(value):
+                raise ConfigTransferError('auto_process_max_age_hours_override is invalid')
         elif key in ('title', 'description', 'author', 'network_id', 'dai_platform',
                      'network_id_override', 'website_url', 'auto_process_override'):
             if value is not None and not isinstance(value, str):
