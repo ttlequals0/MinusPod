@@ -47,9 +47,9 @@ def test_end_stays_at_the_snapped_boundary_cue(caplog):
     assert 'stopped at boundary cue: 1816.0-1895.0 -> 1816.0-1897.6' in lines[0]
 
 
-def test_a_generic_cue_snap_keeps_the_old_behaviour():
+def test_a_generic_cue_does_not_release_the_measured_core_end():
     marker = _marker(cue_snap={'end': _snap(source='spectral')})
-    assert _clamp(marker, 1816.0, 1895.0) == (1816.0, 1895.0)
+    assert _clamp(marker, 1816.0, 1895.0) == (1816.0, 1897.6)
 
 
 def test_start_edge_mirror():

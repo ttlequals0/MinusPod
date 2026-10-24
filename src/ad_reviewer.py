@@ -593,6 +593,9 @@ class TranscriptIndex:
         self.start = _EdgeIndex(_negated(units), _negated(words))
         self.gaps = transcript_gaps([{'start': lo, 'end': hi} for lo, hi in self.end.units],
                                     UNREVIEWABLE_GAP_SECONDS)
+        # Shorter gaps only matter where they touch a measured edge.
+        self.short_gaps = transcript_gaps(
+            [{'start': lo, 'end': hi} for lo, hi in self.end.units], EDGE_TOLERANCE)
 
 
 def _edge_transcript_supported(index: TranscriptIndex, edge: str, new: float, old: float) -> bool:
@@ -714,16 +717,39 @@ def _hold_inward_edges(start: float, end: float, start_limits, end_limits,
     return start, end
 
 
+def _template_snapped(ad: dict, edge: str) -> bool:
+    """Whether the edge was snapped to a labelled template cue."""
+    snap = ad.get('cue_snap') if ad else None
+    record = snap.get(edge) if isinstance(snap, dict) else None
+    return isinstance(record, dict) and is_template_cue(record)
+
+
 def _untranscribed_limits(index: TranscriptIndex, original_start: float,
-                          original_end: float) -> tuple[list, list]:
-    """Edge limits from untranscribed stretches of UNREVIEWABLE_GAP_SECONDS or more inside the span."""
-    gaps = list(index.gaps)
+                          original_end: float, ad: dict | None = None) -> tuple[list, list]:
+    """Edge limits from untranscribed stretches inside the span.
+
+    Interior gaps count from UNREVIEWABLE_GAP_SECONDS, or at any length when they touch a measured
+    DAI core edge; the stretches before the first and after the last speech unit always count.
+    """
     units = index.end.units
+    core_start, core_end = dai_core_bounds(ad) if ad else (None, None)
+    # A labelled template cue is a more precise edge than the core; its own limit governs.
+    start_measured = (core_start is not None and abs(core_start - original_start) <= EDGE_TOLERANCE
+                      and not _template_snapped(ad, 'start'))
+    end_measured = (core_end is not None and abs(core_end - original_end) <= EDGE_TOLERANCE
+                    and not _template_snapped(ad, 'end'))
+    inside = []
+    for lo, hi in index.short_gaps:
+        lo, hi = max(lo, original_start), min(hi, original_end)
+        measured = (start_measured and lo == original_start) or (end_measured and hi == original_end)
+        if hi - lo >= UNREVIEWABLE_GAP_SECONDS or (measured and hi - lo > EDGE_TOLERANCE):
+            inside.append((lo, hi))
     if any(lo < original_end and hi > original_start for lo, hi in units):
         # Audio before the first and after the last speech unit is untranscribed too.
-        gaps += [(original_start, units[0][0]), (index.end.max_his[-1], original_end)]
-    inside = [(max(lo, original_start), min(hi, original_end)) for lo, hi in gaps]
-    inside = [(lo, hi) for lo, hi in inside if hi - lo >= UNREVIEWABLE_GAP_SECONDS]
+        for lo, hi in ((original_start, units[0][0]), (index.end.max_his[-1], original_end)):
+            lo, hi = max(lo, original_start), min(hi, original_end)
+            if hi - lo > EDGE_TOLERANCE:
+                inside.append((lo, hi))
     return [(lo, lo) for lo, _hi in inside], [(hi, hi) for _lo, hi in inside]
 
 
@@ -782,7 +808,7 @@ def _hold_inward_limits(ad: dict, start: float, end: float, original_start: floa
                         original_end: float, index: TranscriptIndex,
                         barriers, audio_analysis=None) -> tuple[float, float]:
     """Apply the transcript-gap, boundary-cue and absorbed-silence no-cross rules in one call."""
-    limits = (_untranscribed_limits(index, original_start, original_end),
+    limits = (_untranscribed_limits(index, original_start, original_end, ad),
               _cue_snap_limits(ad, original_start, original_end, audio_analysis),
               _silence_limits(ad, original_start, original_end))
     return _hold_inward_edges(start, end, [lim for st, _ in limits for lim in st],
@@ -2067,7 +2093,7 @@ class AdReviewer:
         proposed = (clamped_start, clamped_end)
         clamped_start, clamped_end = _hold_inward_edges(
             clamped_start, clamped_end,
-            *_untranscribed_limits(index, original_start, original_end), barriers)
+            *_untranscribed_limits(index, original_start, original_end, ad), barriers)
         gap_start, gap_end = clamped_start, clamped_end
         clamped_start, clamped_end = _hold_inward_edges(
             clamped_start, clamped_end,

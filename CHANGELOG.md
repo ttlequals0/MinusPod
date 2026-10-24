@@ -15,6 +15,9 @@ release notes.
 - Detected ads cards on phones: the four controls (play, Not ad, Split, Edit)
   share one line. Only the Ad review card, which adds Confirm, moves Split and
   Edit to a second line below 430 px.
+- The reviewer no longer pulls a cut back to the last spoken word across wordless
+  audio at the file head or tail, or at a differential-measured edge, so an ad's
+  closing music is cut with it.
 
 ## [2.100.21] - 2026-10-24
 

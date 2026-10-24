@@ -233,7 +233,7 @@ def test_clamp_log_names_what_floored_each_edge(caplog):
     assert bounds == pytest.approx((0.0, 63.8))
     lines = [r.getMessage() for r in caplog.records if 'DAI core' in r.getMessage()]
     assert len(lines) == 1
-    assert 'start floored by DAI core, end floored by independent span' in lines[0]
+    assert 'start floored by untranscribed audio, end floored by independent span' in lines[0]
 
 
 # "vary." ends 94.2 and "Dare" starts 0.22 s later, too close for a supported edge.
@@ -426,13 +426,14 @@ def _assert_bounds(run, cuts, start, end):
     return saved
 
 
-def test_word_supported_end_crosses_core_without_released_speech(monkeypatch):
+def test_wordless_core_end_holds_against_a_word_supported_trim(monkeypatch):
+    # The wordless stretch inside a measured core is ad audio, so the core end holds.
     run, cuts = _run_outro(monkeypatch, [{'start': 2821.31, 'end': 2825.31}])
-    saved = _assert_bounds(run, cuts, 2802.09, 2959.57)
-    assert saved['dai_core_spans'][-1]['end'] == pytest.approx(2959.57)
+    saved = _assert_bounds(run, cuts, 2802.09, 2961.04)
+    assert saved['dai_core_spans'][-1]['end'] == pytest.approx(2961.04)
     AdValidator(episode_duration=3600.0, segments=[])._clamp_boundaries(
         [saved], ValidationResult(ads=[]))
-    assert saved['end'] == pytest.approx(2959.57)
+    assert saved['end'] == pytest.approx(2961.04)
 
 
 def test_probe_over_released_span_keeps_core_end(monkeypatch):
@@ -456,24 +457,26 @@ def _midroll_marker(probes, end=3851.08):
     return _dai_marker(3773.39, end, probes)
 
 
-def test_tail_completion_keeps_reviewer_locked_end(monkeypatch):
+def test_wordless_core_start_holds_against_a_word_supported_trim(monkeypatch):
+    # The wordless stretch inside a measured core is ad audio, so the core start holds.
     run, cuts = _run_reviewed(
         monkeypatch, _midroll_marker([{'start': 3773.89, 'end': 3777.89}]),
         MIDROLL_SEGMENTS, (3773.63, 3849.02), 3950.0,
         events=[{'time': 3857.0, 'type': 'deep_silence', 'depth_dbfs': -70.0}])
-    saved = _assert_bounds(run, cuts, 3773.63, 3849.02)
-    assert saved['reviewer_locked_start'] == pytest.approx(3773.63)
+    saved = _assert_bounds(run, cuts, 3773.39, 3849.02)
+    assert 'reviewer_locked_start' not in saved
     assert saved['reviewer_locked_end'] == pytest.approx(3849.02)
     assert not saved.get('tail_completed')
 
 
-def test_terminal_snap_keeps_reviewer_locked_start(monkeypatch):
+def test_wordless_core_edges_hold_against_a_terminal_snap(monkeypatch):
+    # The wordless stretch inside a measured core is ad audio, so both core edges hold.
     run, cuts = _run_reviewed(
         monkeypatch, _midroll_marker([{'start': 3773.89, 'end': 3777.89}], end=3850.5),
         MIDROLL_SEGMENTS[:2], (3773.63, 3849.02), 3850.5,
         events=[{'time': 3772.94, 'type': 'deep_silence', 'depth_dbfs': -70.0}])
-    saved = _assert_bounds(run, cuts, 3773.63, 3849.02)
-    assert 'terminal_snap' not in saved
+    saved = _assert_bounds(run, cuts, 3772.94, 3850.5)
+    assert 'reviewer_locked_start' not in saved
 
 
 def test_probe_over_released_start_keeps_core_start(monkeypatch):
