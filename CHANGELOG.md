@@ -15,6 +15,9 @@ release notes.
 - Segment-ID prompts mark pauses of 1.5 s or longer between transcript lines with a gap cue, so the model can see jingles and silence it otherwise cannot. (#883, #884, from mrfootoyou)
 - Use minimal timestamps in LLM prompts to help reduce token usage.
 
+### Fixed
+- Docs: whisper.cpp needs `--no-flash-attn` alongside `--dtw` on Apple Silicon (Metal) too, not only on CUDA; added it to the native Apple Silicon example.
+
 ## [2.100.19] - 2026-10-19
 
 ### Added

@@ -129,7 +129,7 @@ WHISPER_DEVICE=cpu
 
 If MinusPod and whisper-server are on the same Docker network, use the container name (`whisper-server`). If they are on separate hosts, use the host IP and the exposed port (`http://your-server:8765/v1`).
 
-The `--dtw large.v3.turbo` flag enables word-level timestamps for precise ad boundary detection. On CUDA GPUs, `--no-flash-attn` is required alongside `--dtw`. Flash attention silently disables DTW, causing word-level timestamps to be missing from the API response. On Apple Silicon (Metal), this flag is not needed. `WHISPER_DEVICE=cpu` prevents MinusPod from attempting to initialize a local CUDA GPU. MinusPod already preprocesses audio to 16kHz mono WAV before sending it to the API, so the whisper.cpp `--convert` flag is not needed.
+The `--dtw large.v3.turbo` flag enables word-level timestamps for precise ad boundary detection. `--no-flash-attn` is required alongside `--dtw` on every backend, CUDA and Apple Silicon (Metal) alike. Flash attention silently disables DTW (whisper.cpp logs `dtw_token_timestamps is not supported with flash_attn - disabling` at startup), causing word-level timestamps to be missing from the API response. On Metal it also produces zero-length and repeated segments, which show up as untranscribed holes MinusPod has to re-transcribe. `WHISPER_DEVICE=cpu` prevents MinusPod from attempting to initialize a local CUDA GPU. MinusPod already preprocesses audio to 16kHz mono WAV before sending it to the API, so the whisper.cpp `--convert` flag is not needed.
 
 > **Warning:** If you add `--convert` for use with other clients, be aware that whisper.cpp writes temporary converted files to the current working directory. In Docker, the default CWD may not be writable, causing whisper.cpp to silently return empty transcription results (200 with 0 segments). Set `working_dir: /tmp` in your compose file or mount a writable volume if you need `--convert`.
 
@@ -148,7 +148,8 @@ cd whisper.cpp && make -j
   --host 0.0.0.0 --port 8765 \
   --model models/ggml-large-v3-turbo.bin \
   --inference-path /v1/audio/transcriptions \
-  --dtw large.v3.turbo
+  --dtw large.v3.turbo \
+  --no-flash-attn
 
 # Configure MinusPod
 WHISPER_BACKEND=openai-api
