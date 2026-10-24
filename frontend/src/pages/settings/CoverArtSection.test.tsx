@@ -1,5 +1,5 @@
 /**
- * Tests for the badge position select in the Cover Art section (issue #600).
+ * Tests for the badge position select in the Cover art section (issue #600).
  */
 import { describe, it, expect } from 'vitest';
 import { render, screen } from '@testing-library/react';

@@ -4,6 +4,8 @@ import { render as rtlRender, screen, fireEvent, waitFor } from '@testing-librar
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { SystemStatus } from '../api/types';
 import SystemHealthPanel, { rollupHealth } from './SystemHealthPanel';
+import { btnBase } from './buttonStyles';
+import { badgeBase } from './badgeStyles';
 import { makeFailoverProbe, makeFailoverTarget } from '../test/failover';
 
 const requestPodpingCheck = vi.hoisted(() => vi.fn());
@@ -251,8 +253,7 @@ describe('SystemHealthPanel', () => {
     expect(check.parentElement).toBe(details.parentElement);
     expect(details.contains(check)).toBe(false);
     expect(check.className).toContain('min-h-11');
-    expect(check.firstElementChild?.className).toContain('px-2 py-1');
-    expect(check.firstElementChild?.className).toContain('text-xs');
+    expect(check.firstElementChild?.className).toContain(btnBase);
   });
 
   it('offers a manual check while automatic listening is disabled', async () => {
@@ -354,7 +355,7 @@ describe('SystemHealthPanel: house recipes', () => {
   it('uses the shared badge shape and tint on the rollup pill', () => {
     render(<SystemHealthPanel status={status({})} />);
     const pill = screen.getByText('Healthy');
-    expect(pill.className).toContain('px-2 py-0.5 text-xs rounded');
+    expect(pill.className).toContain(badgeBase);
     expect(pill.className).toContain('bg-success/20');
     expect(pill.className).toContain('text-success-on-tint');
   });

@@ -1,10 +1,12 @@
 import { useState } from 'react';
+import { FileDown } from 'lucide-react';
 import CollapsibleSection from '../../components/CollapsibleSection';
 import { downloadConfig, downloadDiagnostics } from '../../api/settings';
 import { getErrorMessage } from '../../api/client';
 import { useTransientState } from '../../hooks/useTransientState';
-import { btnSecondary } from '../../components/buttonStyles';
-import { focusRing, selectBase } from '../../components/fieldStyles';
+import { btnBase, btnSecondary } from '../../components/buttonStyles';
+import { selectBase, filterLabel } from '../../components/fieldStyles';
+import { subHeading } from '../../components/pageStyles';
 
 type ActionStatus = 'idle' | 'loading' | 'success' | 'error';
 
@@ -62,17 +64,13 @@ function TroubleshootingSection() {
       storageKey="settings-section-troubleshooting"
     >
       <div className="grid grid-cols-1 sm:grid-cols-2 items-stretch gap-4">
-        <div className="p-4 rounded-lg border border-border bg-background flex flex-col">
+        <div className="p-4 rounded-lg bg-muted/40 flex flex-col">
           <div className="flex items-start gap-3 mb-3">
             <div className="p-2 rounded bg-secondary shrink-0">
-              <svg className="h-5 w-5 text-foreground" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3" />
-                <path strokeLinecap="round" strokeLinejoin="round" d="M3 17v2a2 2 0 002 2h14a2 2 0 002-2v-2" />
-                <path strokeLinecap="round" strokeLinejoin="round" d="M7 3h10l4 4v6H3V7l4-4z" />
-              </svg>
+              <FileDown className="w-5 h-5 text-foreground" aria-hidden="true" />
             </div>
             <div className="flex-1 min-w-0">
-              <h4 className="text-sm font-semibold text-foreground">Configuration Export</h4>
+              <h4 className={subHeading}>Configuration export</h4>
               <p className="text-xs text-muted-foreground mt-1">
                 Download redacted settings and feed configuration as JSON for a bug report.
               </p>
@@ -81,30 +79,26 @@ function TroubleshootingSection() {
           <button
             onClick={handleDownloadConfig}
             disabled={configStatus === 'loading'}
-            className={`mt-auto min-h-[44px] w-full px-4 py-2 rounded-lg ${btnSecondary} disabled:opacity-50 transition-colors text-sm font-medium ${focusRing}`}
+            className={`${btnBase} ${btnSecondary} mt-auto w-full`}
           >
-            {configStatus === 'loading' ? 'Preparing download' : 'Download Configuration'}
+            {configStatus === 'loading' ? 'Preparing download' : 'Download configuration'}
           </button>
           {renderStatusIndicator(configStatus, configError)}
         </div>
 
-        <div className="p-4 rounded-lg border border-border bg-background flex flex-col">
+        <div className="p-4 rounded-lg bg-muted/40 flex flex-col">
           <div className="flex items-start gap-3 mb-3">
             <div className="p-2 rounded bg-secondary shrink-0">
-              <svg className="h-5 w-5 text-foreground" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3" />
-                <path strokeLinecap="round" strokeLinejoin="round" d="M3 17v2a2 2 0 002 2h14a2 2 0 002-2v-2" />
-                <path strokeLinecap="round" strokeLinejoin="round" d="M7 3h10l4 4v6H3V7l4-4z" />
-              </svg>
+              <FileDown className="w-5 h-5 text-foreground" aria-hidden="true" />
             </div>
             <div className="flex-1 min-w-0">
-              <h4 className="text-sm font-semibold text-foreground">Diagnostic Export</h4>
+              <h4 className={subHeading}>Diagnostic export</h4>
               <p className="text-xs text-muted-foreground mt-1">
                 Download event times and source locations without message text.
               </p>
             </div>
           </div>
-          <label htmlFor="diagnosticRange" className="mb-2 text-xs font-medium text-muted-foreground">
+          <label htmlFor="diagnosticRange" className={filterLabel}>
             Time range
           </label>
           <select
@@ -121,9 +115,9 @@ function TroubleshootingSection() {
           <button
             onClick={handleDownloadDiagnostics}
             disabled={diagnosticStatus === 'loading'}
-            className={`mt-auto min-h-[44px] w-full px-4 py-2 rounded-lg ${btnSecondary} disabled:opacity-50 transition-colors text-sm font-medium ${focusRing}`}
+            className={`${btnBase} ${btnSecondary} mt-auto w-full`}
           >
-            {diagnosticStatus === 'loading' ? 'Preparing...' : 'Download Diagnostics'}
+            {diagnosticStatus === 'loading' ? 'Preparing...' : 'Download diagnostics'}
           </button>
           {renderStatusIndicator(diagnosticStatus, diagnosticError)}
         </div>

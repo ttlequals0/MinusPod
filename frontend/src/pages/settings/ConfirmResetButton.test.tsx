@@ -8,13 +8,13 @@ describe('ConfirmResetButton', () => {
 
   it('requires explicit confirmation before firing onConfirm', () => {
     const onConfirm = vi.fn();
-    render(<ConfirmResetButton label="Reset Prompts to Default" isPending={false} onConfirm={onConfirm} />);
-    const btn = screen.getByRole('button', { name: 'Reset Prompts to Default' });
+    render(<ConfirmResetButton label="Reset prompts to default" isPending={false} onConfirm={onConfirm} />);
+    const btn = screen.getByRole('button', { name: 'Reset prompts to default' });
     fireEvent.click(btn);
     expect(onConfirm).not.toHaveBeenCalled();
-    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Reset Prompts to Default' }));
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Reset prompts to default' }));
     expect(onConfirm).toHaveBeenCalledTimes(1);
-    expect(btn.textContent).toBe('Reset Prompts to Default');
+    expect(btn.textContent).toBe('Reset prompts to default');
   });
 
   it('keeps the confirmation open until explicitly cancelled', () => {
@@ -52,7 +52,7 @@ describe('ConfirmResetButton', () => {
     const onConfirm = vi.fn();
     render(
       <ConfirmResetButton
-        label="Reset All"
+        label="Reset all"
         isPending={false}
         onConfirm={onConfirm}
         confirmHint="Also clears your AI model choices; you may need to pick them again."

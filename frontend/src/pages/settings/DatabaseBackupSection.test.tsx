@@ -168,7 +168,7 @@ describe('DatabaseBackupSection', () => {
     expect(screen.queryByLabelText(/schedule \(cron\)/i)).toBeNull();
     expect(screen.getByLabelText(/copies to keep/i)).toBeDefined();
     expect((screen.getByRole('button', { name: /back up now/i }) as HTMLButtonElement).disabled).toBe(false);
-    expect(screen.getByText(/never/i)).toBeDefined();
+    expect(screen.getByText(/last backup/i).parentElement?.textContent).toContain('-');
   });
 
   it('does not crash on malformed lastSummary and drops the last-result row', async () => {

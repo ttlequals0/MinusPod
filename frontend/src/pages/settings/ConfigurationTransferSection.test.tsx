@@ -54,7 +54,7 @@ describe('ConfigurationTransferSection', () => {
 
   it('requires the credential warning acknowledgment before download', async () => {
     renderSection();
-    const download = screen.getByRole('button', { name: 'Download Configuration JSON' });
+    const download = screen.getByRole('button', { name: 'Download configuration JSON' });
     expect((download as HTMLButtonElement).disabled).toBe(true);
     await userEvent.click(screen.getByRole('checkbox'));
     await userEvent.click(download);
@@ -66,7 +66,7 @@ describe('ConfigurationTransferSection', () => {
     const upload = screen.getByLabelText('Import configuration JSON');
     const file = new File([JSON.stringify(document)], 'settings.json', { type: 'application/json' });
     await userEvent.upload(upload, file);
-    await userEvent.click(screen.getByRole('button', { name: 'Preview Import' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Preview import' }));
 
     expect(await screen.findByText(/1 changed settings, 1 new feeds/)).toBeDefined();
     expect(screen.getByText('Setting: openai_api_key (credential)')).toBeDefined();
@@ -74,7 +74,7 @@ describe('ConfigurationTransferSection', () => {
     expect(screen.queryByText(/secret-value|api-key-value/)).toBeNull();
     expect(mocks.preview).toHaveBeenCalledWith({ document, scope: 'everything' });
 
-    await userEvent.click(screen.getByRole('button', { name: 'Apply Import' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Apply import' }));
     await waitFor(() => expect(mocks.apply).toHaveBeenCalledWith({
       document, scope: 'everything', previewToken: 'digest',
     }));
@@ -87,7 +87,7 @@ describe('ConfigurationTransferSection', () => {
     renderSection();
     const file = new File([JSON.stringify(document)], 'settings.json', { type: 'application/json' });
     await userEvent.upload(screen.getByLabelText('Import configuration JSON'), file);
-    await userEvent.click(screen.getByRole('button', { name: 'Preview Import' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Preview import' }));
     expect((await screen.findByRole('alert')).textContent).toContain('Preview rejected');
     expect(screen.getByText('Selected: settings.json')).toBeDefined();
   });
@@ -101,12 +101,12 @@ describe('ConfigurationTransferSection', () => {
     const fileInput = screen.getByLabelText('Import configuration JSON') as HTMLInputElement;
     const scope = screen.getByLabelText('Import scope') as HTMLSelectElement;
     await userEvent.upload(fileInput, new File([JSON.stringify(document)], 'settings.json', { type: 'application/json' }));
-    await userEvent.click(screen.getByRole('button', { name: 'Preview Import' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Preview import' }));
     expect(fileInput.disabled).toBe(true);
     expect(scope.disabled).toBe(true);
     await act(async () => { finishPreview(preview); });
     expect(fileInput.disabled).toBe(false);
-    await userEvent.click(screen.getByRole('button', { name: 'Apply Import' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Apply import' }));
     expect(fileInput.disabled).toBe(true);
     expect(scope.disabled).toBe(true);
     await act(async () => { finishApply({ warnings: ['Feed refresh needs another attempt.'] }); });
@@ -123,7 +123,7 @@ describe('ConfigurationTransferSection', () => {
     await userEvent.upload(input, oldFile);
     await userEvent.upload(input, new File([JSON.stringify(document)], 'new.json', { type: 'application/json' }));
     await act(async () => { finishOld(JSON.stringify({ ...document, feeds: [] })); });
-    await userEvent.click(screen.getByRole('button', { name: 'Preview Import' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Preview import' }));
     await waitFor(() => expect(mocks.preview).toHaveBeenCalledWith({ document, scope: 'everything' }));
     expect(screen.getByText('Selected: new.json')).toBeDefined();
   });

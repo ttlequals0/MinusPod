@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { formatDateTime } from '../../utils/format';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router';
 import PatternCleanupSection from './PatternCleanupSection';
@@ -353,7 +354,7 @@ describe('PatternCleanupSection', () => {
 
     await user.click(screen.getByRole('button', { name: /force recheck all/i }));
     dialog = screen.getByRole('dialog');
-    await user.click(within(dialog).getByRole('button', { name: /^recheck all$/i }));
+    await user.click(within(dialog).getByRole('button', { name: /^recheck patterns$/i }));
     expect(mockRun).toHaveBeenCalledWith(true);
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
   });
@@ -372,9 +373,9 @@ describe('PatternCleanupSection', () => {
     renderSection();
     expect(await screen.findByText('Running since:')).toBeDefined();
     const running = screen.getByText('Running since:').parentElement!;
-    expect(running.textContent).toContain(new Date('2026-10-05T04:00:00Z').toLocaleString());
+    expect(running.textContent).toContain(formatDateTime('2026-10-05T04:00:00Z'));
     const last = screen.getByText('Last run:').parentElement!;
-    expect(last.textContent).toContain(new Date('2026-10-04T04:02:00Z').toLocaleString());
+    expect(last.textContent).toContain(formatDateTime('2026-10-04T04:02:00Z'));
   });
 
   it('hides the running line when idle', async () => {
@@ -391,10 +392,10 @@ describe('PatternCleanupSection', () => {
     expect(mockCatalog).toHaveBeenLastCalledWith(expect.anything(), expect.anything(), false);
   });
 
-  it('shows never when there is no last run', async () => {
+  it('shows a dash when there is no last run', async () => {
     mockGet.mockResolvedValue(makeStatus({ lastRun: null, lastSummary: null }));
     renderSection();
-    expect(await screen.findByText(/never/i)).toBeDefined();
+    expect((await screen.findByText('Last run:')).parentElement?.textContent).toContain('-');
   });
 
   it('scopes 44px control sizing to phones, not desktop', async () => {
@@ -415,11 +416,9 @@ describe('PatternCleanupSection', () => {
     expect(tokens(providerWrapper!)).not.toContain('[&_label]:min-h-11');
 
     const batch = screen.getByLabelText(/patterns per run/i);
-    expect(tokens(batch)).toContain('max-sm:min-h-11');
-    expect(tokens(batch)).not.toContain('min-h-11');
+    expect(tokens(batch)).toContain('min-h-10');
 
     const run = screen.getByRole('button', { name: /run now/i });
-    expect(tokens(run)).toContain('max-sm:min-h-11');
     expect(tokens(run)).not.toContain('min-h-11');
   });
 

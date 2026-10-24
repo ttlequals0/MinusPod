@@ -1,4 +1,5 @@
 import FieldResetHeader from './FieldResetHeader';
+import { textareaBase } from '../../components/fieldStyles';
 
 interface PromptFieldProps {
   id: string;
@@ -37,7 +38,7 @@ export default function PromptField({
         value={value}
         onChange={(e) => onChange(e.target.value)}
         rows={rows}
-        className="w-full px-4 py-2 rounded-lg border border-input bg-background text-foreground placeholder:text-muted-foreground focus:outline-hidden focus:ring-2 focus:ring-ring font-mono text-sm sm:rows-12"
+        className={`${textareaBase} w-full font-mono sm:rows-12`}
       />
       {helpText && (
         <p className="mt-1 text-sm text-muted-foreground">{helpText}</p>

@@ -1,5 +1,5 @@
-import { pageHeader, pageTitle, pageDescription } from '../components/pageStyles';
 import { useState, useEffect } from 'react';
+import { BookOpen, FileText } from 'lucide-react';
 import QueryError from '../components/QueryError';
 import { useUnsavedChanges } from '../hooks/useUnsavedChanges';
 import { useSyncFromQuery } from '../hooks/useSyncFromQuery';
@@ -72,8 +72,8 @@ import OutboundRequestsSection from './settings/OutboundRequestsSection';
 import SearchableSectionGroup from '../components/SearchableSectionGroup';
 import { useSettingsSearch } from '../context/SettingsSearchContext';
 import { reconcileStageSlotsForSecondaryToggle } from './settings/settingsUtils';
-import { btnPrimary } from '../components/buttonStyles';
-import { focusRing } from '../components/fieldStyles';
+import { btnBase, btnLg, btnPrimary, btnGhost } from '../components/buttonStyles';
+import { pageHeader, pageTitle, pageDescription } from '../components/pageStyles';
 
 export function systemStatusRefetchInterval(status?: SystemStatus): number {
   const check = status?.podping?.check;
@@ -339,7 +339,7 @@ function Settings() {
   const reloadProviders = () =>
     listProviders()
       .then((r) => { setProvidersState(r); setProvidersError(null); })
-      .catch((e) => setProvidersError(getErrorMessage(e, 'Failed to load providers')));
+      .catch((e) => setProvidersError(getErrorMessage(e, 'Could not load providers.')));
 
   useEffect(() => { reloadProviders(); }, []);
 
@@ -780,7 +780,7 @@ function Settings() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['processing-timeouts'] });
     },
-    onError: (err: Error) => setTimeoutsError(err.message || 'Failed to save'),
+    onError: (err: Error) => setTimeoutsError(err.message || 'Could not save settings.'),
   });
 
   // The field registry. Each row appears exactly once; everything else
@@ -1231,15 +1231,15 @@ function Settings() {
   if (settingsLoading) {
     return (
       <div className="max-w-3xl mx-auto pb-20">
-        <h1 className={`${pageTitle} mb-6`}>Settings</h1>
+        <div className={pageHeader}><h1 className={pageTitle}>Settings</h1></div>
         <SkeletonRows count={6} />
       </div>
     );
   }
 
   if (!settings) {
-    return <div className="max-w-3xl mx-auto space-y-6">
-      <h1 className={pageTitle}>Settings</h1>
+    return <div className="max-w-3xl mx-auto">
+      <div className={pageHeader}><h1 className={pageTitle}>Settings</h1></div>
       <QueryError title="Settings are unavailable. Your saved values could not be loaded." onRetry={() => void retrySettings()} retrying={settingsFetching} />
     </div>;
   }
@@ -1254,33 +1254,29 @@ function Settings() {
             Configure ad detection prompts and system settings.
           </p>
         </div>
-        <div className="flex items-center gap-4 shrink-0">
+        <div className="flex flex-wrap items-center gap-2 shrink-0">
           <a
             href="https://github.com/ttlequals0/MinusPod/blob/main/docs/README.md"
             target="_blank"
             rel="noopener noreferrer"
-            className={`text-sm text-primary hover:underline flex items-center gap-1 whitespace-nowrap ${focusRing}`}
+            className={`${btnBase} ${btnGhost}`}
           >
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.247m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.247" />
-            </svg>
+            <BookOpen className="w-4 h-4" aria-hidden="true" />
             Docs
           </a>
           <a
             href="/api/v1/docs"
             target="_blank"
             rel="noopener noreferrer"
-            className={`text-sm text-primary hover:underline flex items-center gap-1 whitespace-nowrap ${focusRing}`}
+            className={`${btnBase} ${btnGhost}`}
           >
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-            </svg>
-            API Docs
+            <FileText className="w-4 h-4" aria-hidden="true" />
+            API docs
           </a>
         </div>
       </div>
 
-      <p className="text-sm text-muted-foreground">Unsaved settings use the Save Changes bar. Sections with their own Save or Apply button save separately. Appearance changes apply immediately.</p>
+      <p className="text-sm text-muted-foreground">Unsaved settings use the Save changes bar. Sections with their own Save or Apply button save separately. Appearance changes apply immediately.</p>
 
       <SystemStatusSection
         status={status}
@@ -1300,7 +1296,7 @@ function Settings() {
 
       <AppearanceSection />
 
-      <SettingsGroupHeader title="Podcast Discovery" />
+      <SettingsGroupHeader title="Podcast discovery" />
 
       <div id="podcast-index">
         <PodcastIndexSection
@@ -1315,7 +1311,7 @@ function Settings() {
         />
       </div>
 
-      <SettingsGroupHeader title="AI & Processing" />
+      <SettingsGroupHeader title="AI and processing" />
 
       {providersError && (
         <p className="text-sm text-destructive mb-2">Could not load provider status: {providersError}</p>
@@ -1448,7 +1444,7 @@ function Settings() {
         onProbeNow={() => failoverAction.mutate({ kind: 'probe' })}
         actionPending={failoverAction.isPending}
         probePending={failoverAction.isPending && failoverAction.variables?.kind === 'probe'}
-        actionError={failoverAction.error ? getErrorMessage(failoverAction.error, 'Failover action failed') : null}
+        actionError={failoverAction.error ? getErrorMessage(failoverAction.error, 'Could not run failover action.') : null}
         probeIntervalMinutes={failoverProbeIntervalMinutes}
         onProbeIntervalChange={setFailoverProbeIntervalMinutes}
         recoveryProbes={failoverRecoveryProbes}
@@ -1749,7 +1745,7 @@ function Settings() {
         refreshArtworkPending={refreshArtworkMutation.isPending}
       />
 
-      <SettingsGroupHeader title="Data & Security" />
+      <SettingsGroupHeader title="Data and security" />
 
       <OutboundRequestsSection />
 
@@ -1817,7 +1813,7 @@ function Settings() {
         >
           <div className="max-w-3xl mx-auto flex items-center justify-between gap-4 px-4 py-3">
             <ConfirmResetButton
-              label="Reset All"
+              label="Reset all"
               title="Also clears your AI model choices; you may need to pick them again."
               confirmHint="Also clears your AI model choices; you may need to pick them again."
               isPending={resetMutation.isPending}
@@ -1826,9 +1822,9 @@ function Settings() {
             <button
               onClick={() => updateMutation.mutate()}
               disabled={updateMutation.isPending}
-              className={`px-6 py-2 rounded-lg ${btnPrimary} disabled:opacity-50 transition-colors text-sm font-medium ${focusRing}`}
+              className={`${btnLg} ${btnPrimary}`}
             >
-              {updateMutation.isPending ? 'Saving...' : 'Save Changes'}
+              {updateMutation.isPending ? 'Saving...' : 'Save changes'}
             </button>
           </div>
         </div>

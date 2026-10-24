@@ -1,4 +1,5 @@
 import { useUnsavedChanges } from '../../hooks/useUnsavedChanges';
+import Checkbox from '../../components/Checkbox';
 import { useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import {
@@ -9,8 +10,9 @@ import {
   RuntimeConfigDocument,
 } from '../../api/configTransfer';
 import { getErrorMessage } from '../../api/client';
-import { btnSecondary } from '../../components/buttonStyles';
-import { focusRing, selectBase } from '../../components/fieldStyles';
+import { btnBase, btnSecondary, btnGhost } from '../../components/buttonStyles';
+import { focusRing, selectBase, labelBase } from '../../components/fieldStyles';
+import { subHeading } from '../../components/pageStyles';
 
 type Scope = 'everything' | 'global' | 'feeds';
 
@@ -86,7 +88,7 @@ function ConfigurationTransferSection() {
       setPreview(await previewConfigImport(request()));
     } catch (err) {
       setPreview(null);
-      setError(getErrorMessage(err, 'Preview failed.'));
+      setError(getErrorMessage(err, 'Could not preview import.'));
     } finally {
       setBusy(false);
     }
@@ -105,7 +107,7 @@ function ConfigurationTransferSection() {
       setPreview(null);
       await queryClient.invalidateQueries();
     } catch (err) {
-      setError(getErrorMessage(err, 'Import failed. The file and choices are still selected.'));
+      setError(getErrorMessage(err, 'Could not import configuration. The file and choices are still selected.'));
     } finally {
       setBusy(false);
     }
@@ -119,24 +121,21 @@ function ConfigurationTransferSection() {
   };
 
   return (
-    <section className="mt-4 rounded-lg border border-border bg-background p-4" aria-labelledby="config-transfer-title">
-      <h4 id="config-transfer-title" className="text-sm font-semibold text-foreground">
-        Configuration Import / Export
+    <section className="mt-4 rounded-lg bg-muted/40 p-4" aria-labelledby="config-transfer-title">
+      <h4 id="config-transfer-title" className={subHeading}>
+        Configuration import and export
       </h4>
       <p className="mt-1 text-xs text-muted-foreground">
         Export or merge global settings and feed configuration as JSON. This does not transfer episodes, history, patterns, database contents, or media files.
       </p>
 
       <div className="mt-3 rounded-md border border-warning/40 bg-warning/10 p-3">
-        <label className="flex items-start gap-2 text-sm text-foreground">
-          <input
-            type="checkbox"
-            checked={downloadAcknowledged}
-            onChange={(event) => setDownloadAcknowledged(event.target.checked)}
-            className={`mt-0.5 h-4 w-4 ${focusRing}`}
-          />
-          <span>The export contains configured credentials and private feed URLs. It does not contain the administrator sign-in password.</span>
-        </label>
+        <Checkbox
+          className="items-start"
+          checked={downloadAcknowledged}
+          onChange={setDownloadAcknowledged}
+          label="The export contains configured credentials and private feed URLs. It does not contain the administrator sign-in password."
+        />
         <button
           type="button"
           disabled={!downloadAcknowledged || downloading}
@@ -146,19 +145,19 @@ function ConfigurationTransferSection() {
             try {
               await downloadRuntimeConfig();
             } catch (err) {
-              setError(getErrorMessage(err, 'Configuration export failed.'));
+              setError(getErrorMessage(err, 'Could not export configuration.'));
             } finally {
               setDownloading(false);
             }
           }}
-          className={`mt-3 min-h-[44px] rounded-lg px-4 py-2 text-sm font-medium ${btnSecondary} ${focusRing} disabled:opacity-50`}
+          className={`${btnBase} ${btnSecondary} mt-3`}
         >
-          {downloading ? 'Preparing export...' : 'Download Configuration JSON'}
+          {downloading ? 'Preparing export...' : 'Download configuration JSON'}
         </button>
       </div>
 
       <div className="mt-4 border-t border-border pt-4">
-        <label htmlFor="config-import-file" className="block text-sm font-medium text-foreground">
+        <label htmlFor="config-import-file" className={labelBase}>
           Import configuration JSON
         </label>
         <input
@@ -170,7 +169,7 @@ function ConfigurationTransferSection() {
           className={`mt-2 block min-h-[44px] w-full text-sm text-foreground file:mr-3 file:min-h-[44px] file:rounded-lg file:border-0 file:px-3 file:py-2 file:text-sm ${focusRing}`}
         />
         {file && <p className="mt-1 break-all text-xs text-muted-foreground">Selected: {file.name}</p>}
-        <label htmlFor="config-import-scope" className="mt-3 block text-sm font-medium text-foreground">Import scope</label>
+        <label htmlFor="config-import-scope" className={`${labelBase} mt-3`}>Import scope</label>
         <select
           id="config-import-scope"
           value={scope}
@@ -183,17 +182,20 @@ function ConfigurationTransferSection() {
           <option value="feeds">Feeds only</option>
         </select>
         {scope === 'feeds' && document && (
-          <fieldset disabled={busy} className="mt-3 max-h-48 overflow-y-auto rounded-md border border-border p-3">
+          <fieldset disabled={busy} className="mt-3 max-h-48 overflow-y-auto rounded-md bg-background p-3">
             <legend className="px-1 text-sm font-medium text-foreground">Select feeds</legend>
             <div className="flex gap-3 pb-2 text-xs">
-              <button type="button" className={`min-h-[44px] underline ${focusRing}`} onClick={() => { setSelectedFeeds(document.feeds.map((feed) => feed.slug)); setPreview(null); }}>Select all</button>
-              <button type="button" className={`min-h-[44px] underline ${focusRing}`} onClick={() => { setSelectedFeeds([]); setPreview(null); }}>Clear selection</button>
+              <button type="button" className={`${btnBase} ${btnGhost}`} onClick={() => { setSelectedFeeds(document.feeds.map((feed) => feed.slug)); setPreview(null); }}>Select all</button>
+              <button type="button" className={`${btnBase} ${btnGhost}`} onClick={() => { setSelectedFeeds([]); setPreview(null); }}>Clear selection</button>
             </div>
             {document.feeds.map((feed) => (
-              <label key={feed.slug} className="flex min-h-[44px] items-center gap-2 text-sm text-foreground">
-                <input type="checkbox" checked={selectedFeeds.includes(feed.slug)} onChange={() => toggleFeed(feed.slug)} />
-                <span className="min-w-0 break-all">{feed.slug}</span>
-              </label>
+              <Checkbox
+                key={feed.slug}
+                className="min-h-11 w-full"
+                checked={selectedFeeds.includes(feed.slug)}
+                onChange={() => toggleFeed(feed.slug)}
+                label={<span className="min-w-0 break-all">{feed.slug}</span>}
+              />
             ))}
           </fieldset>
         )}
@@ -201,9 +203,9 @@ function ConfigurationTransferSection() {
           type="button"
           disabled={!document || busy || reading || (scope === 'feeds' && selectedFeeds.length === 0)}
           onClick={() => { void handlePreview(); }}
-          className={`mt-3 min-h-[44px] rounded-lg px-4 py-2 text-sm font-medium ${btnSecondary} ${focusRing} disabled:opacity-50`}
+          className={`${btnBase} ${btnSecondary} mt-3`}
         >
-          {busy ? 'Working...' : 'Preview Import'}
+          {busy ? 'Working...' : 'Preview import'}
         </button>
         {preview && (
           <div className="mt-3 rounded-md border border-border bg-secondary/30 p-3 text-sm text-foreground">
@@ -220,9 +222,9 @@ function ConfigurationTransferSection() {
               type="button"
               disabled={busy}
               onClick={() => { void handleApply(); }}
-              className={`mt-3 min-h-[44px] rounded-lg px-4 py-2 text-sm font-medium ${btnSecondary} ${focusRing} disabled:opacity-50`}
+              className={`${btnBase} ${btnSecondary} mt-3`}
             >
-              {busy ? 'Applying...' : 'Apply Import'}
+              {busy ? 'Applying...' : 'Apply import'}
             </button>
           </div>
         )}

@@ -42,7 +42,7 @@ describe('SystemOneTunablesSection', () => {
     const onSave = vi.fn().mockRejectedValue(new Error('Save rejected'));
     render(<SystemOneTunablesSection connections={connections} profiles={profiles} defaults={defaults} isDefault={isDefault} onSave={onSave} pending={false} error="Save rejected" />);
 
-    await user.click(screen.getByRole('button', { name: 'System One Tuneables' }));
+    await user.click(screen.getByRole('button', { name: 'System One tuneables' }));
     const field = screen.getByLabelText('Detection confidence threshold', { selector: '#primary-typesafe-detectionEnter' }) as HTMLInputElement;
     await user.clear(field);
     await user.type(field, '0.8');
@@ -55,7 +55,7 @@ describe('SystemOneTunablesSection', () => {
 
   it('disables profile reset while another save is pending', async () => {
     render(<SystemOneTunablesSection connections={connections} profiles={profiles} defaults={defaults} isDefault={isDefault} onSave={vi.fn()} pending error={null} />);
-    await userEvent.setup().click(screen.getByRole('button', { name: 'System One Tuneables' }));
+    await userEvent.setup().click(screen.getByRole('button', { name: 'System One tuneables' }));
     expect(screen.getAllByRole('button', { name: 'Reset profile' }).every((button) => (button as HTMLButtonElement).disabled)).toBe(true);
   });
 
@@ -63,7 +63,7 @@ describe('SystemOneTunablesSection', () => {
     const user = userEvent.setup();
     const onSave = vi.fn().mockResolvedValue(undefined);
     render(<SystemOneTunablesSection connections={connections} profiles={profiles} defaults={defaults} isDefault={isDefault} onSave={onSave} pending={false} error={null} />);
-    await user.click(screen.getByRole('button', { name: 'System One Tuneables' }));
+    await user.click(screen.getByRole('button', { name: 'System One tuneables' }));
     await user.selectOptions(screen.getByLabelText('Provider'), 'secondary');
     const field = screen.getByLabelText('Maximum concurrent operations', { selector: '#secondary-systemone-compatible-maxConcurrentOperations' });
     await user.clear(field);
@@ -78,7 +78,7 @@ describe('SystemOneTunablesSection', () => {
     const user = userEvent.setup();
     const onSave = vi.fn().mockResolvedValue(undefined);
     render(<SystemOneTunablesSection connections={connections} profiles={profiles} defaults={defaults} isDefault={isDefault} onSave={onSave} pending={false} error={null} />);
-    await user.click(screen.getByRole('button', { name: 'System One Tuneables' }));
+    await user.click(screen.getByRole('button', { name: 'System One tuneables' }));
     const field = screen.getByLabelText('Logical request deadline (seconds)', { selector: '#primary-typesafe-requestDeadlineSeconds' }) as HTMLInputElement;
     await user.clear(field);
     expect(field.value).toBe('');
@@ -95,7 +95,7 @@ describe('SystemOneTunablesSection', () => {
     const customized = structuredClone(profiles);
     customized.secondary['systemone-compatible'].reviewEvidenceEnter = 0.72;
     render(<SystemOneTunablesSection connections={connections} profiles={customized} defaults={defaults} isDefault={isDefault} onSave={onSave} pending={false} error={null} />);
-    await user.click(screen.getByRole('button', { name: 'System One Tuneables' }));
+    await user.click(screen.getByRole('button', { name: 'System One tuneables' }));
     await user.selectOptions(screen.getByLabelText('Provider'), 'secondary');
     const field = screen.getByLabelText('Evidence enter threshold', { selector: '#secondary-systemone-compatible-reviewEvidenceEnter' }) as HTMLInputElement;
     await user.clear(field);
@@ -108,7 +108,7 @@ describe('SystemOneTunablesSection', () => {
     const user = userEvent.setup();
     const onSave = vi.fn().mockRejectedValue(new Error('Reset rejected'));
     render(<SystemOneTunablesSection connections={connections} profiles={profiles} defaults={defaults} isDefault={isDefault} onSave={onSave} pending={false} error="Reset rejected" />);
-    await user.click(screen.getByRole('button', { name: 'System One Tuneables' }));
+    await user.click(screen.getByRole('button', { name: 'System One tuneables' }));
     await user.click(screen.getAllByRole('button', { name: 'Reset profile' })[0]);
 
     expect((await screen.findByRole('alert')).textContent).toContain('Reset rejected');
@@ -120,7 +120,7 @@ describe('SystemOneTunablesSection', () => {
     const onSave = vi.fn().mockResolvedValue(undefined);
     const props = { profiles, defaults, isDefault, onSave, pending: false, error: null };
     const { rerender } = render(<SystemOneTunablesSection {...props} connections={connections} />);
-    await user.click(screen.getByRole('button', { name: 'System One Tuneables' }));
+    await user.click(screen.getByRole('button', { name: 'System One tuneables' }));
     await user.clear(screen.getByLabelText('Detection confidence threshold'));
     await user.type(screen.getByLabelText('Detection confidence threshold'), '0.8');
     await user.selectOptions(screen.getByLabelText('Provider'), 'secondary');
@@ -143,7 +143,7 @@ describe('SystemOneTunablesSection', () => {
 
   it('keeps a saved native Provider B profile editable when Provider A uses chat', async () => {
     render(<SystemOneTunablesSection connections={{ primary: 'anthropic', secondary: 'typesafe' }} profiles={profiles} defaults={defaults} isDefault={isDefault} onSave={vi.fn()} pending={false} error={null} />);
-    await userEvent.setup().click(screen.getByRole('button', { name: 'System One Tuneables' }));
+    await userEvent.setup().click(screen.getByRole('button', { name: 'System One tuneables' }));
     expect(screen.getByLabelText('Detection confidence threshold', { selector: '#secondary-typesafe-detectionEnter' })).toBeTruthy();
     expect(screen.queryByLabelText('Provider')).toBeNull();
   });
@@ -152,11 +152,11 @@ describe('SystemOneTunablesSection', () => {
     const user = userEvent.setup();
     const props = { profiles, defaults, isDefault, onSave: vi.fn(), pending: false, error: null };
     const { rerender } = render(<SystemOneTunablesSection {...props} connections={connections} />);
-    await user.click(screen.getByRole('button', { name: 'System One Tuneables' }));
+    await user.click(screen.getByRole('button', { name: 'System One tuneables' }));
     await user.clear(screen.getByLabelText('Detection confidence threshold'));
     await user.type(screen.getByLabelText('Detection confidence threshold'), '0.83');
     rerender(<SystemOneTunablesSection {...props} connections={{ primary: 'anthropic', secondary: 'openrouter' }} />);
-    expect(screen.getByText(/Choose a System One provider in LLM Provider/)).toBeTruthy();
+    expect(screen.getByText(/Choose a System One provider in LLM provider/)).toBeTruthy();
     expect(screen.queryByLabelText('Detection confidence threshold')).toBeNull();
     rerender(<SystemOneTunablesSection {...props} connections={connections} />);
     expect((screen.getByLabelText('Detection confidence threshold') as HTMLInputElement).value).toBe('0.83');

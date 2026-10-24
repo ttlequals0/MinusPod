@@ -1,7 +1,10 @@
 import CollapsibleSection from '../../components/CollapsibleSection';
+import { formatPercent } from '../../utils/format';
 import ToggleSwitch from '../../components/ToggleSwitch';
 import NumberInput from '../../components/NumberInput';
 import { ExperimentalBadge } from '../../components/ExperimentalBadge';
+import { labelBase } from '../../components/fieldStyles';
+import { subHeading } from '../../components/pageStyles';
 
 export interface AudioCueState {
   enabled: boolean;
@@ -59,7 +62,7 @@ function AudioCueDetectionSection({ audioCue, onChange }: AudioCueDetectionSecti
     parse: (s: string) => number = parseFloat,
   ) => (
     <div>
-      <label htmlFor={id} className="block text-sm font-medium text-foreground mb-2">{label}</label>
+      <label htmlFor={id} className={labelBase}>{label}</label>
       <div className="flex items-center gap-3">
         <NumberInput
           id={id}
@@ -71,7 +74,7 @@ function AudioCueDetectionSection({ audioCue, onChange }: AudioCueDetectionSecti
           parse={parse}
           onCommit={(v) => update(key, v)}
         />
-        <span className="text-sm text-muted-foreground">{lo} to {hi}</span>
+        <span className="text-sm text-muted-foreground">{hi <= 1 ? `${formatPercent(audioCue[key])} (${formatPercent(lo)} to ${formatPercent(hi)})` : `${lo} to ${hi}`}</span>
       </div>
       <p className="mt-2 text-sm text-muted-foreground">{hint}</p>
     </div>
@@ -79,7 +82,7 @@ function AudioCueDetectionSection({ audioCue, onChange }: AudioCueDetectionSecti
 
   return (
     <CollapsibleSection
-      title="Audio Cue Detection"
+      title="Audio cue detection"
       subtitle="Detects a short ding/stinger some shows play before an ad break and feeds it to the detector as a timing hint. Off by default."
     >
       <div className="space-y-6">
@@ -101,9 +104,9 @@ function AudioCueDetectionSection({ audioCue, onChange }: AudioCueDetectionSecti
 
         {audioCue.enabled && (
           <div className="space-y-3 pt-2">
-            <div className="border border-border rounded-lg p-3 space-y-3">
+            <div className="bg-muted/40 rounded-lg p-3 space-y-3">
               <div>
-                <h4 className="text-sm font-semibold text-foreground">Finding cues</h4>
+                <h4 className={subHeading}>Finding cues</h4>
                 <p className="text-xs text-muted-foreground mt-0.5">
                   Spots candidate cues in the audio and brackets how long a cue may run.
                 </p>
@@ -143,7 +146,7 @@ function AudioCueDetectionSection({ audioCue, onChange }: AudioCueDetectionSecti
                 </div>
 
                 <div>
-                  <label htmlFor="audioCueProminence" className="block text-sm font-medium text-foreground mb-2">
+                  <label htmlFor="audioCueProminence" className={labelBase}>
                     Prominence threshold
                   </label>
                   <div className="flex items-center gap-3">
@@ -164,7 +167,7 @@ function AudioCueDetectionSection({ audioCue, onChange }: AudioCueDetectionSecti
                 </div>
 
                 <div>
-                  <label htmlFor="audioCueMinConfidence" className="block text-sm font-medium text-foreground mb-2">
+                  <label htmlFor="audioCueMinConfidence" className={labelBase}>
                     Minimum confidence
                   </label>
                   <div className="flex items-center gap-3">
@@ -177,10 +180,10 @@ function AudioCueDetectionSection({ audioCue, onChange }: AudioCueDetectionSecti
                       fallback={0.8}
                       onCommit={(v) => update('minConfidence', v)}
                     />
-                    <span className="text-sm text-muted-foreground">0-1</span>
+                    <span className="text-sm text-muted-foreground">{formatPercent(audioCue.minConfidence)} (0% to 100%)</span>
                   </div>
                   <p className="mt-2 text-sm text-muted-foreground">
-                    Drop cues weaker than this. The model is never shown a cue below 0.80 confidence regardless of this value.
+                    Drop cues weaker than this. The model is never shown a cue below 80% confidence regardless of this value.
                   </p>
                 </div>
 
@@ -195,16 +198,16 @@ function AudioCueDetectionSection({ audioCue, onChange }: AudioCueDetectionSecti
               </div>
             </div>
 
-            <div className="border border-border rounded-lg p-3 space-y-3">
+            <div className="bg-muted/40 rounded-lg p-3 space-y-3">
               <div>
-                <h4 className="text-sm font-semibold text-foreground">Matching templates</h4>
+                <h4 className={subHeading}>Matching templates</h4>
                 <p className="text-xs text-muted-foreground mt-0.5">
                   Scores saved cue templates against new episodes. Minimum confidence (above) and template match score also gate which cues reach ad cutting.
                 </p>
               </div>
               <div className="space-y-5">
                 <div>
-                  <label htmlFor="audioCueTemplateScore" className="block text-sm font-medium text-foreground mb-2">
+                  <label htmlFor="audioCueTemplateScore" className={labelBase}>
                     Template match score
                   </label>
                   <div className="flex items-center gap-3">
@@ -217,11 +220,11 @@ function AudioCueDetectionSection({ audioCue, onChange }: AudioCueDetectionSecti
                       fallback={0.75}
                       onCommit={(v) => update('templateScore', v)}
                     />
-                    <span className="text-sm text-muted-foreground">0-0.99</span>
+                    <span className="text-sm text-muted-foreground">{formatPercent(audioCue.templateScore)} (0% to 99%)</span>
                   </div>
                   <p className="mt-2 text-sm text-muted-foreground">
                     Match score a marked cue must reach on another episode. Lower catches more
-                    and risks false matches. A cue still needs 0.80 confidence to affect a cut,
+                    and risks false matches. A cue still needs 80% confidence to affect a cut,
                     so a lower value here only surfaces weaker cues in diagnostics.
                   </p>
                 </div>
@@ -231,9 +234,9 @@ function AudioCueDetectionSection({ audioCue, onChange }: AudioCueDetectionSecti
               </div>
             </div>
 
-            <div className="border border-border rounded-lg p-3 space-y-3">
+            <div className="bg-muted/40 rounded-lg p-3 space-y-3">
               <div>
-                <h4 className="text-sm font-semibold text-foreground">Ad cutting</h4>
+                <h4 className={subHeading}>Ad cutting</h4>
                 <p className="text-xs text-muted-foreground mt-0.5">
                   Uses accepted cues to snap ad edges or build ads from cue pairs.
                 </p>

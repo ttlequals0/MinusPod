@@ -1,6 +1,6 @@
 import { ReactNode } from 'react';
 import type { ImportPlanEntry, ImportRejectedFile } from '../api/feeds';
-import { formatDate } from '../utils/format';
+import { formatDateTime } from '../utils/format';
 import { formatStorage } from '../pages/settings/settingsUtils';
 import { badgeBase, tint } from './badgeStyles';
 
@@ -93,7 +93,7 @@ function SidecarDots({ entry }: { entry: ImportPlanEntry }) {
 function DateCell({ entry }: { entry: ImportPlanEntry }) {
   return (
     <span className="whitespace-nowrap">
-      {formatDate(entry.publishedAt)}
+      {formatDateTime(entry.publishedAt)}
       {entry.publishedAtSource === 'synthesized' && (
         <span
           className={`${badgeBase} ml-1.5 font-medium ${tint.neutral} align-middle`}

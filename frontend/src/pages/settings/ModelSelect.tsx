@@ -4,8 +4,8 @@ import type { ClaudeModel } from '../../api/types';
 import type { ModelCatalog } from '../../hooks/useModelCatalog';
 import CatalogStatus from '../../components/CatalogStatus';
 import { formatModelLabel } from './settingsUtils';
-import { focusRing, selectBase } from '../../components/fieldStyles';
-import { touchTarget } from '../../components/buttonStyles';
+import { btnBase, btnGhost } from '../../components/buttonStyles';
+import { inputBase, selectBase, labelBase } from '../../components/fieldStyles';
 
 interface ModelSelectProps {
   id: string;
@@ -39,13 +39,13 @@ function ModelSelect({
   return (
     <div>
       <div className="flex items-baseline justify-between gap-3 mb-2">
-        <label htmlFor={id} className="block text-sm font-medium text-foreground">
+        <label htmlFor={id} className={labelBase}>
           {label}
         </label>
         <button
           type="button"
           onClick={() => setTyped(!typed)}
-          className={`text-xs text-primary hover:underline transition-colors rounded ${focusRing} ${touchTarget}`}
+          className={`${btnBase} ${btnGhost} text-primary`}
         >
           {typed ? 'Choose from list' : 'Type a model ID'}
         </button>
@@ -63,7 +63,7 @@ function ModelSelect({
             : "Provider's exact model ID"}
           spellCheck={false}
           autoComplete="off"
-          className={`w-full min-h-[44px] px-3 py-2 rounded-lg border border-input bg-background text-foreground text-sm ${focusRing}`}
+          className={`${inputBase} w-full`}
         />
       ) : (
         <select

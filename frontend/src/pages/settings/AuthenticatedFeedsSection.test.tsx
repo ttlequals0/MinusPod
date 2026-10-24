@@ -91,7 +91,7 @@ describe('AuthenticatedFeedsSection subscriber keys', () => {
     renderSection();
     await userEvent.click(await screen.findByRole('button', { name: 'Delete' }));
     const dialog = await screen.findByRole('dialog');
-    await userEvent.click(within(dialog).getByRole('button', { name: 'Delete' }));
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Delete key record' }));
     expect(mockDeleteSubscriberKeyRecord).toHaveBeenCalledWith('alpha', 'key-1');
   });
 });
@@ -115,7 +115,7 @@ describe('AuthenticatedFeedsSection all subscriber feeds', () => {
     mockGetSettings.mockResolvedValue(makeSettings());
     mockGetAllSubscriberKeys.mockRejectedValue(new Error('down'));
     renderSection();
-    expect(await screen.findByText('Failed to load subscriber feeds.')).toBeDefined();
+    expect(await screen.findByText('Could not load subscriber feeds.')).toBeDefined();
   });
 
   it('revokes a key using its own feed slug', async () => {

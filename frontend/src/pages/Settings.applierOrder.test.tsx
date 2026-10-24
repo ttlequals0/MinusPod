@@ -243,7 +243,7 @@ describe('Settings: one PUT per save', () => {
     await user.click(screen.getByText('enable-secondary'));
     await user.click(screen.getByText('change-primary-provider'));
 
-    const saveButton = await screen.findByRole('button', { name: 'Save Changes' });
+    const saveButton = await screen.findByRole('button', { name: 'Save changes' });
     await user.click(saveButton);
 
     await waitFor(() => expect(mockUpdateSettings).toHaveBeenCalledTimes(1));
@@ -267,7 +267,7 @@ describe('Settings: one PUT per save', () => {
     await user.click(screen.getByText('change-primary-provider'));
     expect(screen.getByTestId('stage-models').textContent).toBe('||');
     await user.click(screen.getByText('replace-detection-model'));
-    await user.click(screen.getByRole('button', { name: 'Save Changes' }));
+    await user.click(screen.getByRole('button', { name: 'Save changes' }));
 
     await waitFor(() => expect(mockUpdateSettings).toHaveBeenCalledTimes(1));
     expect(mockUpdateSettings.mock.calls[0][0]).toMatchObject({

@@ -1,10 +1,10 @@
 import CollapsibleSection from '../../components/CollapsibleSection';
-import { selectBase } from '../../components/fieldStyles';
 import { LOW_AD_YIELD_ACTION_LABELS } from '../../utils/lowAdYield';
 import type { EpisodeLogLevel, LowAdYieldAction } from '../../api/types';
 import NumberInput from '../../components/NumberInput';
 import ToggleSwitch from '../../components/ToggleSwitch';
 import PodpingServersSection from './PodpingServersSection';
+import { selectBase, labelBase } from '../../components/fieldStyles';
 
 interface GlobalDefaultsSectionProps {
   autoProcessEnabled: boolean;
@@ -57,12 +57,12 @@ function GlobalDefaultsSection({
 }: GlobalDefaultsSectionProps) {
   return (
     <CollapsibleSection
-      title="Global Defaults"
+      title="Global defaults"
       subtitle="Applied to every feed unless overridden on the feed's own settings."
     >
       <div className="space-y-6">
         <div className="pt-4 border-t border-border">
-          <label htmlFor="globalVerificationPass" className="block text-sm font-medium text-foreground mb-2">
+          <label htmlFor="globalVerificationPass" className={labelBase}>
             Verification pass by default
           </label>
           <select
@@ -81,7 +81,7 @@ function GlobalDefaultsSection({
         </div>
 
         <div className="pt-4 border-t border-border">
-          <label htmlFor="differentialFetchMode" className="block text-sm font-medium text-foreground mb-2">
+          <label htmlFor="differentialFetchMode" className={labelBase}>
             Cross-fetch differential default
           </label>
           <select id="differentialFetchMode" value={differentialFetchMode}
@@ -113,7 +113,7 @@ function GlobalDefaultsSection({
 
         {/* Feed refresh interval */}
         <div className="pt-4 border-t border-border">
-          <label htmlFor="rssRefreshIntervalMinutes" className="block text-sm font-medium text-foreground mb-2">
+          <label htmlFor="rssRefreshIntervalMinutes" className={labelBase}>
             Feed refresh interval
           </label>
           <div className="flex items-center gap-3">
@@ -186,7 +186,7 @@ function GlobalDefaultsSection({
 
         {/* Low ad yield response */}
         <div className="pt-4 border-t border-border">
-          <label htmlFor="lowAdYieldAction" className="block text-sm font-medium text-foreground mb-2">
+          <label htmlFor="lowAdYieldAction" className={labelBase}>
             When an episode detects fewer ads than usual
           </label>
           <select

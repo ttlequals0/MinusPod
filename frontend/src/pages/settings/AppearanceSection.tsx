@@ -1,4 +1,5 @@
 import CollapsibleSection from '../../components/CollapsibleSection';
+import { Check } from 'lucide-react';
 import { useTheme } from '../../context/ThemeContext';
 import { THEME_GROUPS, GROUPED_THEMES } from '../../themes';
 import { focusRing } from '../../components/fieldStyles';
@@ -44,9 +45,7 @@ function AppearanceSection() {
                         )}
                       </span>
                       {isActive && (
-                        <svg className="w-4 h-4 text-primary shrink-0 ml-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                        </svg>
+                        <Check className="w-4 h-4 text-primary shrink-0 ml-auto" aria-hidden="true" />
                       )}
                     </button>
                   );

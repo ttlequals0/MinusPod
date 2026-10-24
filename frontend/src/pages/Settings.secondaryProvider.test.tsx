@@ -210,7 +210,7 @@ describe('Settings: secondary provider with no persisted type', () => {
     await waitFor(() => expect(captured.llm.secondaryProviderEnabled).toBe(true));
     expect(captured.llm.secondaryProvider).toBe('');
     expect(mockGetModels).not.toHaveBeenCalledWith(expect.anything(), 'secondary');
-    expect(screen.queryByRole('button', { name: 'Save Changes' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Save changes' })).toBeNull();
   });
 
   it('runs a stage on the primary catalog while the secondary has no type', async () => {
@@ -262,7 +262,7 @@ describe('Settings: secondary provider with no persisted type', () => {
     await waitFor(() => {
       expect(captured.llm.secondaryProvider).toBe('');
     });
-    expect(screen.queryByRole('button', { name: 'Save Changes' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Save changes' })).toBeNull();
   });
 });
 

@@ -66,7 +66,7 @@ function PromptsSection({
       <div className="space-y-6">
         <PromptField
           id="systemPrompt"
-          label="First Pass System Prompt"
+          label="First pass system prompt"
           value={systemPrompt}
           onChange={onSystemPromptChange}
           helpText="Instructions sent to the AI model for the initial ad detection pass"
@@ -75,7 +75,7 @@ function PromptsSection({
         />
         <PromptField
           id="systemPromptOverride"
-          label="First Pass Override"
+          label="First pass override"
           value={systemPromptOverride}
           onChange={onSystemPromptOverrideChange}
           rows={3}
@@ -84,7 +84,7 @@ function PromptsSection({
 
         <PromptField
           id="verificationPrompt"
-          label="Verification Prompt"
+          label="Verification prompt"
           value={verificationPrompt}
           onChange={onVerificationPromptChange}
           helpText="Instructions for the verification pass to detect ads missed by the first pass"
@@ -93,7 +93,7 @@ function PromptsSection({
         />
         <PromptField
           id="verificationPromptOverride"
-          label="Verification Override"
+          label="Verification override"
           value={verificationPromptOverride}
           onChange={onVerificationPromptOverrideChange}
           rows={3}
@@ -102,7 +102,7 @@ function PromptsSection({
 
         <PromptField
           id="chapterPrompt"
-          label="Chapter Prompt"
+          label="Chapter prompt"
           value={chapterPrompt}
           onChange={onChapterPromptChange}
           helpText={'Instructions for chapter topic detection. Placeholders: {num_splits}, '
@@ -113,7 +113,7 @@ function PromptsSection({
         />
         <PromptField
           id="chapterPromptOverride"
-          label="Chapter Override"
+          label="Chapter override"
           value={chapterPromptOverride}
           onChange={onChapterPromptOverrideChange}
           rows={3}
@@ -122,16 +122,16 @@ function PromptsSection({
 
         <PromptField
           id="patternCleanupPrompt"
-          label="Pattern Cleanup Prompt"
+          label="Pattern cleanup prompt"
           value={patternCleanupPrompt}
           onChange={onPatternCleanupPromptChange}
-          helpText="Instructions for reviewing learned patterns in Experiments > Pattern Cleanup"
+          helpText="Instructions for reviewing learned patterns in Experiments > Pattern cleanup"
           onReset={onResetPatternCleanupPrompt}
           isDefault={patternCleanupPromptIsDefault}
         />
 
         <ConfirmResetButton
-          label="Reset Prompts to Default"
+          label="Reset prompts to default"
           isPending={resetIsPending}
           onConfirm={onResetPrompts}
         />

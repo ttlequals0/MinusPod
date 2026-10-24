@@ -2,7 +2,7 @@ import CollapsibleSection from '../../components/CollapsibleSection';
 import NumberInput from '../../components/NumberInput';
 import ToggleSwitch from '../../components/ToggleSwitch';
 import ReplacementAudioField from './ReplacementAudioField';
-import { selectBase } from '../../components/fieldStyles';
+import { selectBase, labelBase } from '../../components/fieldStyles';
 
 interface AudioSectionProps {
   audioBitrate: string;
@@ -41,8 +41,8 @@ function AudioSection({
     <CollapsibleSection title="Audio">
       <div className="space-y-4">
         <div>
-          <label htmlFor="audioBitrate" className="block text-sm font-medium text-foreground mb-2">
-            Output Bitrate
+          <label htmlFor="audioBitrate" className={labelBase}>
+            Output bitrate
           </label>
           <select
             id="audioBitrate"
@@ -63,8 +63,8 @@ function AudioSection({
         </div>
 
         <div>
-          <label htmlFor="audioEncoderCompressionLevel" className="block text-sm font-medium text-foreground mb-2">
-            Encoder Compression Level
+          <label htmlFor="audioEncoderCompressionLevel" className={labelBase}>
+            Encoder compression level
           </label>
           <select
             id="audioEncoderCompressionLevel"
@@ -102,9 +102,9 @@ function AudioSection({
             <ToggleSwitch
               checked={audioNormalizeEnabled}
               onChange={onAudioNormalizeEnabledChange}
-              ariaLabel="Audio Leveling"
+              ariaLabel="Audio leveling"
             />
-            <span className="text-sm font-medium text-foreground">Audio Leveling (loudness normalization)</span>
+            <span className="text-sm font-medium text-foreground">Audio leveling (loudness normalization)</span>
           </label>
           <p className="mt-2 text-sm text-muted-foreground ml-14">
             Even out quiet and loud passages.
@@ -113,8 +113,8 @@ function AudioSection({
 
         {audioNormalizeEnabled && (
           <div>
-            <label htmlFor="audioNormalizeIntensity" className="block text-sm font-medium text-foreground mb-2">
-              Normalization Intensity
+            <label htmlFor="audioNormalizeIntensity" className={labelBase}>
+              Normalization intensity
             </label>
             <select
               id="audioNormalizeIntensity"
@@ -152,7 +152,7 @@ function AudioSection({
         <ReplacementAudioField />
 
         <div className="pt-4 border-t border-border">
-          <label htmlFor="maxAudioDownloadMb" className="block text-sm font-medium text-foreground mb-2">
+          <label htmlFor="maxAudioDownloadMb" className={labelBase}>
             Max episode download (MB)
           </label>
           <div className="flex items-center gap-3">

@@ -1,11 +1,12 @@
 /**
- * Tests for the Processing Queue section: the active job, the paginated
+ * Tests for the Processing queue section: the active job, the paginated
  * waiting list (offset-aware positions, page controls, per-row priority
  * stepper), and per-row cancel.
  */
 import { beforeEach, describe, it, expect, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { btnBase } from '../../components/buttonStyles';
 import ProcessingQueueSection from './ProcessingQueueSection';
 import type { ProcessingEpisode } from '../../api/settings';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -177,7 +178,7 @@ describe('ProcessingQueueSection', () => {
     const onCancel = renderSection([active(), queued(1), queued(2)]);
 
     const cancelButtons = screen.getAllByRole('button', { name: 'Cancel' });
-    expect(cancelButtons[0].className).toContain('min-h-11');
+    expect(cancelButtons[0].className).toContain(btnBase);
     // [active, queued 1, queued 2]
     await user.click(cancelButtons[2]);
 

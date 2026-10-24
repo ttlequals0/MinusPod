@@ -12,10 +12,11 @@ import { useTransientState } from '../../hooks/useTransientState';
 import EmailSettingsForm from './EmailSettingsForm';
 import TimezoneSettingsForm from './TimezoneSettingsForm';
 import { EVENT_OPTIONS } from './notificationEvents';
-import { btnDestructive, btnPrimary, btnSecondary, touchTarget } from '../../components/buttonStyles';
 import Checkbox from '../../components/Checkbox';
-import { focusRing } from '../../components/fieldStyles';
+import { btnBase, btnLg, btnPrimary, btnSecondary, btnGhost, btnDestructive } from '../../components/buttonStyles';
+import { inputBase, textareaBase, labelBase } from '../../components/fieldStyles';
 import { badgeBase, tint } from '../../components/badgeStyles';
+import { subHeading } from '../../components/pageStyles';
 
 const DEFAULT_TEMPLATE_PLACEHOLDER = [
   'Leave blank to use default payload. Example custom template:',
@@ -25,8 +26,6 @@ const DEFAULT_TEMPLATE_PLACEHOLDER = [
   '  "url": "{{ episode.url }}"',
   '}',
 ].join('\n');
-
-const webhookInputClass = `max-sm:min-h-11 w-full px-4 py-2 rounded-lg border border-input bg-background text-foreground placeholder:text-muted-foreground focus:outline-hidden focus:ring-2 focus:ring-ring text-sm`;
 
 interface WebhookFormData {
   url: string;
@@ -93,7 +92,7 @@ function WebhooksBlock() {
   const testMutation = useMutation({
     mutationFn: (id: string) => testWebhook(id),
     onSuccess: (data, id) => setTestResult({ id, ...data }),
-    onError: (_err, id) => setTestResult({ id, success: false, results: [], message: 'Request failed' }),
+    onError: (_err, id) => setTestResult({ id, success: false, results: [], message: 'Could not send test webhook.' }),
   });
 
   function resetForm() {
@@ -157,7 +156,7 @@ function WebhooksBlock() {
       const result = await validateTemplate(form.payloadTemplate);
       setTemplatePreview(result);
     } catch {
-      setTemplatePreview({ valid: false, preview: '', error: 'Validation request failed' });
+      setTemplatePreview({ valid: false, preview: '', error: 'Could not validate template.' });
     } finally {
       setValidating(false);
     }
@@ -176,7 +175,7 @@ function WebhooksBlock() {
       )}
 
       {!isLoading && webhooks.length === 0 && !showForm && (
-        <p className="text-sm text-muted-foreground">No webhooks configured.</p>
+        <p className="text-sm text-muted-foreground">No webhooks yet.</p>
       )}
 
       {/* Webhook list */}
@@ -185,7 +184,7 @@ function WebhooksBlock() {
           {webhooks.map((wh) => (
             <div
               key={wh.id}
-              className="flex flex-col items-stretch justify-between gap-3 p-3 rounded-lg border border-border bg-background sm:flex-row sm:items-center"
+              className="flex flex-col items-stretch justify-between gap-3 p-3 rounded-lg bg-muted/40 sm:flex-row sm:items-center"
             >
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">
@@ -239,21 +238,21 @@ function WebhooksBlock() {
                 <button
                   onClick={() => testMutation.mutate(wh.id)}
                   disabled={testMutation.isPending}
-                  className={`${touchTarget} px-2.5 py-1 text-xs rounded ${btnSecondary} disabled:opacity-50 transition-colors ${focusRing}`}
+                  className={`${btnBase} ${btnSecondary}`}
                 >
                   Test
                 </button>
                 <button
                   onClick={() => startEdit(wh)}
                   disabled={showForm}
-                  className={`${touchTarget} px-2.5 py-1 text-xs rounded ${btnSecondary} transition-colors ${focusRing}`}
+                  className={`${btnBase} ${btnSecondary}`}
                 >
                   Edit
                 </button>
                 <button
                   onClick={() => setDeleteConfirmId(wh.id)}
                   disabled={deleteMutation.isPending}
-                  className={`${touchTarget} px-2.5 py-1 text-xs rounded ${btnDestructive} disabled:opacity-50 transition-colors ${focusRing}`}
+                  className={`${btnBase} ${btnDestructive}`}
                 >
                   Delete
                 </button>
@@ -273,23 +272,23 @@ function WebhooksBlock() {
             setShowForm(true);
             setTemplatePreview(null);
           }}
-          className={`${touchTarget} px-4 py-2 rounded ${btnPrimary} transition-colors text-sm ${focusRing}`}
+          className={`${btnLg} ${btnPrimary}`}
         >
-          Add Webhook
+          Add webhook
         </button>
       )}
 
       {/* Form */}
       {showForm && (
-        <form aria-describedby={createMutation.isError || updateMutation.isError ? "webhook-save-error" : undefined} onSubmit={handleSubmit} className="space-y-4 p-4 rounded-lg border border-border bg-background">
+        <form aria-describedby={createMutation.isError || updateMutation.isError ? "webhook-save-error" : undefined} onSubmit={handleSubmit} className="space-y-4 p-4 rounded-lg bg-muted/40">
       <fieldset disabled={isSaving} className="space-y-4">
-          <h3 className="text-sm font-semibold text-foreground">
-            {editingId ? 'Edit Webhook' : 'New Webhook'}
+          <h3 className={subHeading}>
+            {editingId ? 'Edit webhook' : 'New webhook'}
           </h3>
 
           {/* URL */}
           <div>
-            <label htmlFor="webhook-url" className="block text-sm font-medium text-foreground mb-1">
+            <label htmlFor="webhook-url" className={labelBase}>
               URL
             </label>
             <input
@@ -299,7 +298,7 @@ function WebhooksBlock() {
               value={form.url}
               onChange={(e) => setForm((prev) => ({ ...prev, url: e.target.value }))}
               placeholder="https://example.com/webhook"
-              className={webhookInputClass}
+              className={`${inputBase} w-full`}
             />
           </div>
 
@@ -321,8 +320,8 @@ function WebhooksBlock() {
 
           {/* Payload Template */}
           <div>
-            <label htmlFor="webhook-template" className="block text-sm font-medium text-foreground mb-0.5">
-              Payload Template (optional)
+            <label htmlFor="webhook-template" className={labelBase}>
+              Payload template (optional)
             </label>
             <p id="webhook-template-help" className="text-xs text-muted-foreground mb-1">
               Customize the JSON body sent to your endpoint
@@ -338,16 +337,16 @@ function WebhooksBlock() {
               }}
               placeholder={DEFAULT_TEMPLATE_PLACEHOLDER}
               rows={6}
-              className={`${webhookInputClass} font-mono`}
+              className={`${textareaBase} w-full font-mono`}
             />
             <div className="flex items-center gap-2 mt-1">
               <button
                 type="button"
                 onClick={handleValidateTemplate}
                 disabled={validating || !form.payloadTemplate.trim()}
-                className={`${touchTarget} px-3 py-1 text-xs rounded ${btnSecondary} disabled:opacity-50 transition-colors ${focusRing}`}
+                className={`${btnBase} ${btnSecondary}`}
               >
-                {validating ? 'Validating...' : 'Validate & Preview'}
+                {validating ? 'Validating...' : 'Validate and preview'}
               </button>
             </div>
             {templatePreview && (
@@ -366,7 +365,7 @@ function WebhooksBlock() {
 
           {/* Content Type */}
           <div>
-            <label htmlFor="webhook-content-type" className="block text-sm font-medium text-foreground mb-1">
+            <label htmlFor="webhook-content-type" className={labelBase}>
               Content-Type
             </label>
             <input
@@ -374,13 +373,13 @@ function WebhooksBlock() {
               type="text"
               value={form.contentType}
               onChange={(e) => setForm((prev) => ({ ...prev, contentType: e.target.value }))}
-              className={webhookInputClass}
+              className={`${inputBase} w-full`}
             />
           </div>
 
           {/* Secret */}
           <div>
-            <label htmlFor="webhook-secret" className="block text-sm font-medium text-foreground mb-1">
+            <label htmlFor="webhook-secret" className={labelBase}>
               Secret {editingId && <span className="text-muted-foreground font-normal">(leave empty to keep current)</span>}
             </label>
             <div className="relative">
@@ -391,12 +390,12 @@ function WebhooksBlock() {
                 onChange={(e) => setForm((prev) => ({ ...prev, secret: e.target.value }))}
                 placeholder="Optional signing secret"
                 autoComplete="off"
-                className={`${webhookInputClass} pr-16`}
+                className={`${inputBase} w-full pr-16`}
               />
               <button
                 type="button"
                 onClick={() => setShowSecret((prev) => !prev)}
-                className={`${touchTarget} absolute right-2 top-1/2 -translate-y-1/2 px-2 py-1 text-xs text-muted-foreground hover:text-foreground transition-colors ${focusRing}`}
+                className={`${btnBase} ${btnGhost} absolute right-1 top-1/2 -translate-y-1/2`}
               >
                 {showSecret ? 'Hide' : 'Show'}
               </button>
@@ -414,7 +413,7 @@ function WebhooksBlock() {
           {/* Error messages */}
           {(createMutation.isError || updateMutation.isError) && (
             <div id="webhook-save-error" role="alert" className="p-3 rounded-lg bg-destructive/10 text-destructive text-sm">
-              {((createMutation.error || updateMutation.error) as Error)?.message || 'Failed to save webhook'}
+              {((createMutation.error || updateMutation.error) as Error)?.message || 'Could not save webhook.'}
             </div>
           )}
 
@@ -423,14 +422,14 @@ function WebhooksBlock() {
             <button
               type="submit"
               disabled={isSaving || form.events.length === 0}
-              className={`${touchTarget} px-4 py-2 rounded-lg ${btnPrimary} disabled:opacity-50 transition-colors text-sm ${focusRing}`}
+              className={`${btnLg} ${btnPrimary}`}
             >
-              {isSaving ? 'Saving...' : editingId ? 'Update Webhook' : 'Create Webhook'}
+              {isSaving ? 'Saving...' : editingId ? 'Update webhook' : 'Create webhook'}
             </button>
             <button
               type="button"
               onClick={requestClose}
-              className={`${touchTarget} px-4 py-2 rounded-lg ${btnSecondary} transition-colors text-sm ${focusRing}`}
+              className={`${btnLg} ${btnSecondary}`}
             >
               Cancel
             </button>
@@ -443,7 +442,7 @@ function WebhooksBlock() {
         pending={deleteMutation.isPending} onCancel={() => setDeleteConfirmId(null)}
         onConfirm={() => deleteMutation.mutate(deleteConfirmId, { onSuccess: () => setDeleteConfirmId(null) })}>
         <p>This removes the selected notification endpoint.</p>
-        {deleteMutation.isError && <p role="alert" className="text-destructive">Failed to delete webhook. Try again.</p>}
+        {deleteMutation.isError && <p role="alert" className="text-destructive">Could not delete webhook.</p>}
       </ConfirmModal>}
     </div>
   );

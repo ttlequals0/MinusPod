@@ -1,9 +1,8 @@
 import CollapsibleSection from '../../components/CollapsibleSection';
 import ToggleSwitch from '../../components/ToggleSwitch';
-import { btnPrimary } from '../../components/buttonStyles';
 import SavedBadge from './SavedBadge';
-import DraftNumberInput, { DRAFT_NUMBER_INPUT_CLASS } from '../../components/DraftNumberInput';
-import { focusRing } from '../../components/fieldStyles';
+import DraftNumberInput from '../../components/DraftNumberInput';
+import { btnLg, btnPrimary } from '../../components/buttonStyles';
 
 interface StorageRetentionSectionProps {
   keepOriginalAudio: boolean;
@@ -45,7 +44,7 @@ function StorageRetentionSection({
   };
 
   return (
-    <CollapsibleSection title="Storage & Retention">
+    <CollapsibleSection title="Storage and retention" storageKey="settings-section-storage-&-retention">
       <div className="space-y-4">
         <div>
           <div className="flex items-center gap-3 mb-3">
@@ -62,7 +61,7 @@ function StorageRetentionSection({
           </div>
           <div className="flex items-center gap-3">
             <label htmlFor="retentionDays" className="text-sm text-muted-foreground whitespace-nowrap">
-              Retain processed files for:
+              Retain processed files for
             </label>
             <DraftNumberInput
               id="retentionDays"
@@ -75,7 +74,7 @@ function StorageRetentionSection({
               max={3650}
               step={1}
               placeholder="30"
-              className={`w-24 ${DRAFT_NUMBER_INPUT_CLASS}`}
+              className="w-24"
             />
             <span className="text-sm text-muted-foreground">days</span>
           </div>
@@ -102,7 +101,7 @@ function StorageRetentionSection({
 
           <div className="mt-4 flex items-center gap-3">
             <label htmlFor="originalRetentionDays" className="text-sm text-muted-foreground whitespace-nowrap">
-              Retain original audio for:
+              Retain original audio for
             </label>
             <DraftNumberInput
               id="originalRetentionDays"
@@ -117,7 +116,7 @@ function StorageRetentionSection({
               max={retentionEnabled ? retentionDays : 3650}
               placeholder={String(retentionDays)}
               ariaInvalid={originalExceedsProcessed}
-              className={`w-24 ${DRAFT_NUMBER_INPUT_CLASS}`}
+              className="w-24"
             />
             <span className="text-sm text-muted-foreground">days</span>
           </div>
@@ -135,9 +134,9 @@ function StorageRetentionSection({
           <button
             onClick={onSave}
             disabled={saveIsPending || originalExceedsProcessed}
-            className={`px-4 py-2 rounded-lg ${btnPrimary} disabled:opacity-50 transition-colors text-sm ${focusRing}`}
+            className={`${btnLg} ${btnPrimary}`}
           >
-            {saveIsPending ? 'Saving...' : 'Save Retention Settings'}
+            {saveIsPending ? 'Saving...' : 'Save retention settings'}
           </button>
           {saveIsSuccess && <SavedBadge className="ml-3" />}
         </div>

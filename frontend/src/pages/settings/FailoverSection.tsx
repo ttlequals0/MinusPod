@@ -12,14 +12,14 @@ import NumberInput from '../../components/NumberInput';
 import DraftNumberInput, { parseOptionalNumber } from '../../components/DraftNumberInput';
 import ToggleSwitch from '../../components/ToggleSwitch';
 import { SkeletonRows } from '../../components/Skeleton';
-import { badgeBase, tint } from '../../components/badgeStyles';
-import { btnOutline, btnSecondary, touchTarget } from '../../components/buttonStyles';
-import { focusRing, inputBase, selectBase } from '../../components/fieldStyles';
 import { formatDateTime, formatTimeAgo } from '../../utils/format';
 import ConnectionTestButton from './ConnectionTestButton';
 import ModelSelect from './ModelSelect';
 import ProviderKeyField from './ProviderKeyField';
 import { ProviderFields, keyMetaForType } from './ProviderFields';
+import { btnBase, btnSecondary, btnOutline } from '../../components/buttonStyles';
+import { focusRing, inputBase, selectBase, labelBase } from '../../components/fieldStyles';
+import { badgeBase, tint } from '../../components/badgeStyles';
 
 interface FailoverLlm {
   enabled: boolean;
@@ -160,7 +160,7 @@ function TargetRow({
           aria-label={`${verb} failover for ${label}`}
           disabled={pending || (!state.active && !state.configured)}
           onClick={() => (state.active ? onCancel(name) : onTrigger(name))}
-          className={`shrink-0 px-3 py-1.5 rounded-md ${btnOutline} ${touchTarget} text-sm font-medium disabled:opacity-50 transition-colors ${focusRing}`}
+          className={`${btnBase} ${btnOutline} shrink-0`}
         >
           {verb} failover
         </button>
@@ -209,7 +209,7 @@ function FailoverSection({
           type="button"
           onClick={onProbeNow}
           disabled={actionPending}
-          className={`px-2.5 py-1 text-xs rounded ${btnSecondary} ${touchTarget} disabled:opacity-50 transition-colors ${focusRing}`}
+          className={`${btnBase} ${btnSecondary}`}
         >
           {probePending ? 'Probing...' : 'Probe now'}
         </button>
@@ -250,7 +250,7 @@ function FailoverSection({
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
-            <label htmlFor="failoverProbeIntervalMinutes" className="block text-sm font-medium text-foreground mb-2">
+            <label htmlFor="failoverProbeIntervalMinutes" className={labelBase}>
               Probe interval (minutes)
             </label>
             <NumberInput
@@ -268,7 +268,7 @@ function FailoverSection({
             <p id="failoverProbeIntervalMinutes-help" className="mt-1 text-sm text-muted-foreground">How often each provider and transcriber is checked.</p>
           </div>
           <div>
-            <label htmlFor="failoverRecoveryProbes" className="block text-sm font-medium text-foreground mb-2">
+            <label htmlFor="failoverRecoveryProbes" className={labelBase}>
               Healthy probes before recovery
             </label>
             <NumberInput
@@ -397,7 +397,7 @@ function FailoverSection({
           {whisper.enabled && (
             <>
               <div>
-                <label htmlFor="failoverWhisperBackend" className="block text-sm font-medium text-foreground mb-2">
+                <label htmlFor="failoverWhisperBackend" className={labelBase}>
                   Failover backend
                 </label>
                 <select
@@ -414,7 +414,7 @@ function FailoverSection({
 
               {whisper.backend === WHISPER_BACKENDS.LOCAL ? (
                 <div>
-                  <label htmlFor="failoverWhisperModel" className="block text-sm font-medium text-foreground mb-2">
+                  <label htmlFor="failoverWhisperModel" className={labelBase}>
                     Local model
                   </label>
                   <input
@@ -434,7 +434,7 @@ function FailoverSection({
               ) : (
                 <>
                   <div>
-                    <label htmlFor="failoverWhisperApiBaseUrl" className="block text-sm font-medium text-foreground mb-2">
+                    <label htmlFor="failoverWhisperApiBaseUrl" className={labelBase}>
                       API base URL
                     </label>
                     <input
@@ -470,7 +470,7 @@ function FailoverSection({
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
-                      <label htmlFor="failoverWhisperApiModel" className="block text-sm font-medium text-foreground mb-2">
+                      <label htmlFor="failoverWhisperApiModel" className={labelBase}>
                         API model
                       </label>
                       <input
@@ -484,7 +484,7 @@ function FailoverSection({
                       />
                     </div>
                     <div>
-                      <label htmlFor="failoverWhisperApiTimeoutSeconds" className="block text-sm font-medium text-foreground mb-2">
+                      <label htmlFor="failoverWhisperApiTimeoutSeconds" className={labelBase}>
                         API timeout (seconds)
                       </label>
                       <NumberInput
@@ -501,7 +501,7 @@ function FailoverSection({
                     </div>
                   </div>
                   <div>
-                    <label htmlFor="failoverWhisperMaxAttempts" className="block text-sm font-medium text-foreground mb-2">
+                    <label htmlFor="failoverWhisperMaxAttempts" className={labelBase}>
                       Max upload attempts
                     </label>
                     <DraftNumberInput
@@ -525,7 +525,7 @@ function FailoverSection({
               )}
 
               <div>
-                <label htmlFor="failoverWhisperLanguage" className="block text-sm font-medium text-foreground mb-2">
+                <label htmlFor="failoverWhisperLanguage" className={labelBase}>
                   Language
                 </label>
                 <input

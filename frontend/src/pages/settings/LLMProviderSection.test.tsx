@@ -80,7 +80,7 @@ describe('LLMProviderSection: Provider A / Provider B labeling', () => {
   it('labels the two slots Provider A and Provider B', () => {
     renderSection({ secondaryProviderEnabled: true });
     expect(screen.getByText('Provider A')).toBeDefined();
-    expect(screen.getByRole('switch', { name: 'Enable Provider B' })).toBeDefined();
+    expect(screen.getByRole('switch', { name: 'Enable provider B' })).toBeDefined();
     expect(screen.getByLabelText('Provider B type')).toBeDefined();
     expect(screen.queryByText(/secondary/i)).toBeNull();
     expect(screen.queryByText(/primary/i)).toBeNull();
@@ -124,7 +124,7 @@ describe('LLMProviderSection: secondary provider toggle', () => {
     const onBaseUrlChange = vi.fn();
     renderSection({ onSecondaryProviderEnabledChange, onProviderChange, onBaseUrlChange });
 
-    await user.click(screen.getByRole('switch', { name: 'Enable Provider B' }));
+    await user.click(screen.getByRole('switch', { name: 'Enable provider B' }));
 
     expect(onSecondaryProviderEnabledChange).toHaveBeenCalledWith(true);
     expect(onProviderChange).not.toHaveBeenCalled();

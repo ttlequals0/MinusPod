@@ -1,9 +1,8 @@
 import CollapsibleSection from '../../components/CollapsibleSection';
 import ConnectionTestButton from './ConnectionTestButton';
 import type { ConnectionTestResult } from '../../api/providers';
-import { selectBase } from '../../components/fieldStyles';
-import { focusRing } from '../../components/fieldStyles';
 import { StatusDotBadge } from '../../components/StatusDotBadge';
+import { focusRing, inputBase, selectBase, labelBase } from '../../components/fieldStyles';
 
 interface PodcastIndexSectionProps {
   searchProvider: string;
@@ -31,14 +30,14 @@ function PodcastIndexSection({
   const draftsPending = podcastIndexApiKey !== '' || podcastIndexApiSecret !== '';
   const usingPodcastIndex = searchProvider === 'podcastindex';
   return (
-    <CollapsibleSection title="Podcast Search" storageKey="settings-section-podcast-index">
+    <CollapsibleSection title="Podcast search" storageKey="settings-section-podcast-index">
       <div className="space-y-4">
         <p className="text-sm text-muted-foreground">
           Search for podcasts by name when adding feeds.
         </p>
 
         <div>
-          <label htmlFor="podcastSearchProvider" className="block text-sm font-medium text-foreground mb-2">
+          <label htmlFor="podcastSearchProvider" className={labelBase}>
             Search provider
           </label>
           <select
@@ -70,7 +69,7 @@ function PodcastIndexSection({
             {/* A form wrapper: Chrome warns about a password input outside one. */}
             <form onSubmit={(e) => e.preventDefault()} className="space-y-4">
               <div>
-                <label htmlFor="podcastIndexApiKey" className="block text-sm font-medium text-foreground mb-2">
+                <label htmlFor="podcastIndexApiKey" className={labelBase}>
                   API Key
                 </label>
                 <input
@@ -80,12 +79,12 @@ function PodcastIndexSection({
                   value={podcastIndexApiKey}
                   onChange={(e) => onApiKeyChange(e.target.value)}
                   placeholder={podcastIndexApiKeyConfigured ? '(configured - enter new to change)' : 'Your PodcastIndex API key'}
-                  className="w-full px-4 py-2 rounded-lg border border-input bg-background text-foreground placeholder:text-muted-foreground focus:outline-hidden focus:ring-2 focus:ring-ring font-mono text-sm"
+                  className={`${inputBase} w-full font-mono`}
                 />
               </div>
 
               <div>
-                <label htmlFor="podcastIndexApiSecret" className="block text-sm font-medium text-foreground mb-2">
+                <label htmlFor="podcastIndexApiSecret" className={labelBase}>
                   API Secret
                 </label>
                 <input
@@ -95,7 +94,7 @@ function PodcastIndexSection({
                   value={podcastIndexApiSecret}
                   onChange={(e) => onApiSecretChange(e.target.value)}
                   placeholder={podcastIndexApiKeyConfigured ? '(configured - enter new to change)' : 'Your PodcastIndex API secret'}
-                  className="w-full px-4 py-2 rounded-lg border border-input bg-background text-foreground placeholder:text-muted-foreground focus:outline-hidden focus:ring-2 focus:ring-ring font-mono text-sm"
+                  className={`${inputBase} w-full font-mono`}
                 />
               </div>
             </form>

@@ -1,5 +1,5 @@
 /**
- * Tests for the Ad Detection settings section: the existing confidence/gap
+ * Tests for the Ad detection settings section: the existing confidence/gap
  * controls plus the detection-tuning tunables added in 2.76.0 (verification
  * pass hold/autocut floors, pattern-learning floors, differential detection
  * thresholds). Follows NotificationsSection.test.tsx conventions.
@@ -54,7 +54,7 @@ function defaultState(): TunablesState {
 
 // Mirrors how Settings.tsx wires this section: controlled state lifted to
 // the parent, with a single Commit action standing in for the page's
-// batched "Save Changes" button (computeChangedFields -> updateSettings).
+// batched "Save changes" button (computeChangedFields -> updateSettings).
 function Harness({ onCommit }: { onCommit: (payload: TunablesState) => void }) {
   const [state, setState] = useState<TunablesState>(defaultState());
   const patch = <K extends keyof TunablesState>(key: K) => (v: TunablesState[K]) =>

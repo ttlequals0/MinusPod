@@ -198,7 +198,7 @@ describe('NotificationsSection', () => {
 
     await user.type(screen.getByRole('textbox', { name: 'Search notifications' }), 'notifications');
     expect(screen.getByRole('button', { name: 'Email' }).getAttribute('aria-expanded')).toBe('true');
-    expect(await screen.findByText('Failed to load email settings.')).toBeDefined();
+    expect(await screen.findByText('Could not load email settings.')).toBeDefined();
   });
 
   it('responds to settings expand and collapse all signals', () => {
@@ -322,12 +322,12 @@ describe('NotificationsSection', () => {
     ));
     renderSection();
     const user = userEvent.setup();
-    await waitFor(() => expect(screen.getByText('No webhooks configured.')).toBeDefined());
-    await user.click(screen.getByRole('button', { name: 'Add Webhook' }));
+    await waitFor(() => expect(screen.getByText('No webhooks yet.')).toBeDefined());
+    await user.click(screen.getByRole('button', { name: 'Add webhook' }));
     await user.type(screen.getByLabelText('URL'), 'https://example.com/hook');
     const eventChoices = screen.getAllByLabelText('Episode Failed');
     await user.click(eventChoices[eventChoices.length - 1]);
-    await user.click(screen.getByRole('button', { name: 'Create Webhook' }));
+    await user.click(screen.getByRole('button', { name: 'Create webhook' }));
 
     expect(await screen.findByText(/may have completed/)).toBeDefined();
     expect(mockCreateWebhook).toHaveBeenCalledTimes(1);
@@ -419,7 +419,7 @@ describe('independent notification drafts', () => {
     const user = userEvent.setup();
     renderSection();
     await screen.findByLabelText('SMTP host');
-    await user.click(screen.getByRole('button', { name: 'Add Webhook' }));
+    await user.click(screen.getByRole('button', { name: 'Add webhook' }));
     await user.type(screen.getByLabelText('URL', { exact: true }), 'http://hook.example.com/x');
     await user.click(screen.getByRole('button', { name: 'Cancel' }));
     const dialog = screen.getByRole('dialog', { name: 'Discard unsaved changes?' });

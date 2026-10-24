@@ -46,7 +46,7 @@ describe('PromptsSection: per-prompt reset', () => {
     expect(resetButtons).toHaveLength(3);
     for (const btn of resetButtons) expect(btn).toHaveProperty('disabled', true);
     // Bulk reset button stays regardless of per-field state.
-    expect(screen.getByRole('button', { name: 'Reset Prompts to Default' })).toBeDefined();
+    expect(screen.getByRole('button', { name: 'Reset prompts to default' })).toBeDefined();
   });
 
   it('fires the system-prompt callback for the first field only', async () => {
@@ -112,7 +112,7 @@ describe('PromptsSection: per-prompt reset', () => {
         onResetPatternCleanupPrompt={onResetCleanup}
       />,
     );
-    const field = screen.getByLabelText('Pattern Cleanup Prompt') as HTMLTextAreaElement;
+    const field = screen.getByLabelText('Pattern cleanup prompt') as HTMLTextAreaElement;
     expect(field.value).toBe('cleanup text');
     fireEvent.change(field, { target: { value: 'edited' } });
     expect(onChange).toHaveBeenCalledWith('edited');

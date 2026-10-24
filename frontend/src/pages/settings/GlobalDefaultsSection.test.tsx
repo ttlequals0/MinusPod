@@ -1,5 +1,5 @@
 /**
- * Tests for the Global Defaults settings section, including the feed
+ * Tests for the Global defaults settings section, including the feed
  * refresh interval field and the Podping notifications toggle added
  * alongside the podping-listener feature.
  *

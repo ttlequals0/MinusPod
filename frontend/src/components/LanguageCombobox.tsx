@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { WHISPER_LANGUAGES, labelForLanguage } from '../utils/whisperLanguages';
 import { useOutsideClick } from '../hooks/useOutsideClick';
+import { inputBase } from './fieldStyles';
 
 interface LanguageComboboxProps {
   id?: string;
@@ -115,7 +116,7 @@ function LanguageCombobox({ id, value, onChange, className = '' }: LanguageCombo
           setQuery(e.target.value);
         }}
         onKeyDown={onKeyDown}
-        className="w-full px-4 py-2 rounded-lg border border-input bg-background text-foreground focus:outline-hidden focus:ring-2 focus:ring-ring"
+        className={`${inputBase} w-full`}
       />
       {open && (
         <ul

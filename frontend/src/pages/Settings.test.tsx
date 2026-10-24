@@ -215,7 +215,7 @@ describe('Settings: per-prompt reset', () => {
     mockGetSettings.mockResolvedValue(makeSettings({ systemPrompt: sv('default system prompt', true) }));
     renderSettings();
     await waitFor(() => {
-      expect(screen.getByLabelText('First Pass System Prompt')).toBeDefined();
+      expect(screen.getByLabelText('First pass system prompt')).toBeDefined();
     });
     const resetButtons = screen.getAllByRole('button', { name: 'Reset' });
     expect(resetButtons.length).toBeGreaterThan(0);
@@ -229,10 +229,10 @@ describe('Settings: per-prompt reset', () => {
     renderSettings();
 
     await waitFor(() => {
-      expect(screen.getByLabelText('First Pass System Prompt')).toBeDefined();
+      expect(screen.getByLabelText('First pass system prompt')).toBeDefined();
     });
 
-    const resetBtn = resetButtonFor('First Pass System Prompt');
+    const resetBtn = resetButtonFor('First pass system prompt');
     await user.click(resetBtn);
     await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Reset' }));
 
@@ -246,22 +246,22 @@ describe('Settings: per-prompt reset', () => {
     renderSettings();
 
     await waitFor(() => {
-      expect(screen.getByLabelText('First Pass System Prompt')).toHaveProperty('value', 'custom system prompt');
+      expect(screen.getByLabelText('First pass system prompt')).toHaveProperty('value', 'custom system prompt');
     });
 
     // The refetch after the mutation returns the field already at default.
     mockGetSettings.mockResolvedValue(makeSettings({ systemPrompt: sv('default system prompt', true) }));
 
-    const resetBtn = resetButtonFor('First Pass System Prompt');
+    const resetBtn = resetButtonFor('First pass system prompt');
     await user.click(resetBtn);
     await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Reset' }));
 
     await waitFor(() => {
-      expect(screen.getByLabelText('First Pass System Prompt')).toHaveProperty('value', 'default system prompt');
+      expect(screen.getByLabelText('First pass system prompt')).toHaveProperty('value', 'default system prompt');
     });
   });
 
-  it('fires resetPrompt("review") and resetPrompt("resurrect") from the Ad Reviewer section', async () => {
+  it('fires resetPrompt("review") and resetPrompt("resurrect") from the Ad reviewer section', async () => {
     mockGetSettings.mockResolvedValue(makeSettings({
       systemPrompt: sv('default system prompt', true),
       reviewPrompt: sv('custom review prompt', false),
@@ -288,20 +288,20 @@ describe('Settings: per-prompt reset', () => {
   });
 });
 
-describe('Settings: Ad Reviewer placement', () => {
+describe('Settings: Ad reviewer placement', () => {
   // Guards the move out of Experiments: order, not index, so an unrelated
   // section landing between these headings does not fail the test.
   function precedes(a: HTMLElement, b: HTMLElement) {
     return Boolean(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING);
   }
 
-  it('renders Ad Reviewer under AI & Processing, before Seed sponsors and before Experiments', async () => {
+  it('renders Ad reviewer under AI and processing, before Seed sponsors and before Experiments', async () => {
     mockGetSettings.mockResolvedValue(makeSettings());
     renderSettings();
 
-    const adReviewer = await screen.findByRole('heading', { name: 'Ad Reviewer' });
+    const adReviewer = await screen.findByRole('heading', { name: 'Ad reviewer' });
     const seedSponsors = screen.getByRole('heading', { name: 'Seed sponsors' });
-    const aiHeader = screen.getByRole('heading', { name: 'AI & Processing' });
+    const aiHeader = screen.getByRole('heading', { name: 'AI and processing' });
 
     expect(precedes(aiHeader, adReviewer)).toBe(true);
     expect(precedes(adReviewer, seedSponsors)).toBe(true);
@@ -361,7 +361,7 @@ describe('Settings: Failover placement', () => {
     client.setQueryDefaults(['models'], { staleTime: Infinity });
     const user = userEvent.setup();
     renderSettings(client);
-    await screen.findByLabelText('First Pass System Prompt');
+    await screen.findByLabelText('First pass system prompt');
     expect(mockGetModels.mock.calls.filter(([, slot]) => slot === 'failover')).toHaveLength(0);
 
     await user.click(screen.getByRole('button', { name: /^Failover/ }));
@@ -381,7 +381,7 @@ describe('Settings: Failover placement', () => {
     const client = makeClient();
     const user = userEvent.setup();
     renderSettings(client);
-    await screen.findByLabelText('First Pass System Prompt');
+    await screen.findByLabelText('First pass system prompt');
     const key = ['models', 'ollama', 'failover'];
     expect(client.getQueryCache().find({ queryKey: key })?.isActive()).toBe(false);
 
@@ -414,13 +414,13 @@ describe('Settings: standby upload attempts', () => {
     }));
     const user = userEvent.setup();
     renderSettings();
-    await screen.findByLabelText('First Pass System Prompt');
+    await screen.findByLabelText('First pass system prompt');
     await user.click(screen.getByRole('button', { name: /^Failover/ }));
     const field = screen.getByLabelText('Max upload attempts') as HTMLInputElement;
     expect(field.value).toBe('');
     expect(field.placeholder).toBe('3');
     await user.type(field, '5');
-    await user.click(screen.getByRole('button', { name: 'Save Changes' }));
+    await user.click(screen.getByRole('button', { name: 'Save changes' }));
     await waitFor(() => expect(updateSettings).toHaveBeenCalledWith(
       expect.objectContaining({ failoverWhisperMaxAttempts: 5 }),
     ));
@@ -434,13 +434,13 @@ describe('Settings: standby upload attempts', () => {
     }));
     const user = userEvent.setup();
     renderSettings();
-    await screen.findByLabelText('First Pass System Prompt');
+    await screen.findByLabelText('First pass system prompt');
     await user.click(screen.getByRole('button', { name: /^Failover/ }));
     const select = screen.getByLabelText('Failover backend') as HTMLSelectElement;
     expect(select.value).toBe('openai-api');
     await user.selectOptions(select, 'parakeet');
     expect(select.value).toBe('parakeet');
-    await user.click(screen.getByRole('button', { name: 'Save Changes' }));
+    await user.click(screen.getByRole('button', { name: 'Save changes' }));
     await waitFor(() => expect(updateSettings).toHaveBeenCalledWith(
       expect.objectContaining({ failoverWhisperBackend: 'parakeet' }),
     ));
@@ -456,32 +456,32 @@ describe('Settings: standby upload attempts', () => {
     vi.mocked(updateSettings).mockRejectedValueOnce(new Error('failoverWhisperMaxAttempts must be between 1 and 10'));
     const user = userEvent.setup();
     renderSettings();
-    await screen.findByLabelText('First Pass System Prompt');
+    await screen.findByLabelText('First pass system prompt');
     await user.click(screen.getByRole('button', { name: /^Failover/ }));
     const field = screen.getByLabelText('Max upload attempts') as HTMLInputElement;
     await user.type(field, '11');
-    await user.click(screen.getByRole('button', { name: 'Save Changes' }));
+    await user.click(screen.getByRole('button', { name: 'Save changes' }));
     await screen.findByText('failoverWhisperMaxAttempts must be between 1 and 10');
     expect(field.value).toBe('11');
-    expect(screen.getByRole('button', { name: 'Save Changes' })).toBeDefined();
+    expect(screen.getByRole('button', { name: 'Save changes' })).toBeDefined();
   });
 });
 
-describe('Settings: Reset All copy', () => {
+describe('Settings: Reset all copy', () => {
   it('warns that model choices are cleared by the bulk ad-detection reset', async () => {
     mockGetSettings.mockResolvedValue(makeSettings());
     const user = userEvent.setup();
     renderSettings();
 
     await waitFor(() => {
-      expect(screen.getByLabelText('First Pass System Prompt')).toBeDefined();
+      expect(screen.getByLabelText('First pass system prompt')).toBeDefined();
     });
 
     // Editing a field flips hasChanges, which is what shows the sticky
-    // save bar holding the "Reset All" button.
-    await user.type(screen.getByLabelText('First Pass System Prompt'), ' edited');
+    // save bar holding the "Reset all" button.
+    await user.type(screen.getByLabelText('First pass system prompt'), ' edited');
 
-    const resetAllBtn = await screen.findByRole('button', { name: 'Reset All' });
+    const resetAllBtn = await screen.findByRole('button', { name: 'Reset all' });
     expect(resetAllBtn.getAttribute('title')).toBe(
       'Also clears your AI model choices; you may need to pick them again.'
     );
@@ -499,7 +499,7 @@ describe('Settings loading placeholder', () => {
   it('drops the skeletons once the settings land', async () => {
     mockGetSettings.mockResolvedValue(makeSettings());
     renderSettings();
-    await screen.findByLabelText('First Pass System Prompt');
+    await screen.findByLabelText('First pass system prompt');
     expect(screen.queryByTestId('skeleton-page-header')).toBeNull();
   });
 });
@@ -535,11 +535,11 @@ describe('Settings search', () => {
     mockGetSettings.mockResolvedValue(makeSettings());
     const user = userEvent.setup();
     renderSettings();
-    await screen.findByRole('heading', { name: 'Ad Reviewer' });
+    await screen.findByRole('heading', { name: 'Ad reviewer' });
 
     const search = screen.getByRole('textbox', { name: 'Search settings' });
     await user.type(search, 'resurrect prompt');
-    expect(card('Ad Reviewer').className).not.toContain('hidden');
+    expect(card('Ad reviewer').className).not.toContain('hidden');
     expect(card('Seed sponsors').className).toContain('hidden');
     expect(screen.getByRole('button', { name: 'Expand all' })).toHaveProperty('disabled', true);
     expect(screen.getByRole('button', { name: 'Collapse all' })).toHaveProperty('disabled', true);

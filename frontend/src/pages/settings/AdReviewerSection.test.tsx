@@ -50,7 +50,7 @@ describe('AdReviewerSection: per-prompt reset', () => {
     const resetButtons = screen.getAllByRole('button', { name: 'Reset' });
     expect(resetButtons).toHaveLength(2);
     for (const btn of resetButtons) expect(btn).toHaveProperty('disabled', true);
-    expect(screen.getByRole('button', { name: 'Reset Reviewer Prompts to Default' })).toBeDefined();
+    expect(screen.getByRole('button', { name: 'Reset reviewer prompts to default' })).toBeDefined();
   });
 
   it('fires resetPrompt(review) only from the review field', async () => {

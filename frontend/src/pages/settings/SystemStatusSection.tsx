@@ -16,7 +16,7 @@ function SystemStatusSection({
   statusLoading,
 }: SystemStatusSectionProps) {
   return (
-    <CollapsibleSection title="System Status" defaultOpen storageKey="settings-section-system-status">
+    <CollapsibleSection title="System status" defaultOpen storageKey="settings-section-system-status">
       {statusLoading ? (
         <LoadingSpinner size="sm" />
       ) : status ? (

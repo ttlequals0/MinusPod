@@ -1,5 +1,5 @@
 import { SAME_AS_DETECTION, SLOT_LABELS, SLOT_PRIMARY, SLOT_SECONDARY } from '../../api/types';
-import { selectBase } from '../../components/fieldStyles';
+import { selectBase, labelBase } from '../../components/fieldStyles';
 
 export interface SlotOption {
   value: string;
@@ -36,7 +36,7 @@ function StageProviderSelect({ id, label, value, options, onChange, secondaryEna
     : options;
   return (
     <div>
-      <label htmlFor={id} className="block text-sm font-medium text-foreground mb-2">
+      <label htmlFor={id} className={labelBase}>
         {label}
       </label>
       <select

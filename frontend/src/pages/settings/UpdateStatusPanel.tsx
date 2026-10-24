@@ -4,9 +4,8 @@ import { getUpdateCheckSettings, getUpdateStatus, updateUpdateCheckSettings } fr
 import { getErrorMessage } from '../../api/client';
 import type { UpdateCheckSettings } from '../../api/types';
 import ToggleSwitch from '../../components/ToggleSwitch';
-import { btnSecondary } from '../../components/buttonStyles';
-import { selectBase } from '../../components/fieldStyles';
-import { focusRing } from '../../components/fieldStyles';
+import { btnBase, btnSecondary } from '../../components/buttonStyles';
+import { focusRing, selectBase } from '../../components/fieldStyles';
 
 export default function UpdateStatusPanel() {
   const queryClient = useQueryClient();
@@ -28,7 +27,7 @@ export default function UpdateStatusPanel() {
       queryClient.setQueryData(['update-check-settings'], data);
       queryClient.invalidateQueries({ queryKey: ['update-status'] });
     },
-    onError: (e: unknown) => setError(getErrorMessage(e, 'Failed to save update settings')),
+    onError: (e: unknown) => setError(getErrorMessage(e, 'Could not save update settings.')),
   });
 
   const checkNow = async () => {
@@ -38,7 +37,7 @@ export default function UpdateStatusPanel() {
       queryClient.setQueryData(['update-status'], fresh);
       setError(null);
     } catch (e) {
-      setError(getErrorMessage(e, 'Update check failed'));
+      setError(getErrorMessage(e, 'Could not check for updates.'));
     } finally {
       setChecking(false);
     }
@@ -88,7 +87,7 @@ export default function UpdateStatusPanel() {
           </label>
           <button
             type="button"
-            className={`px-3 py-1 text-sm rounded ${btnSecondary} disabled:opacity-50 transition-colors ${focusRing}`}
+            className={`${btnBase} ${btnSecondary}`}
             onClick={checkNow}
             disabled={checking}
           >

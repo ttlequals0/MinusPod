@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { Pause, Play } from 'lucide-react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { getErrorMessage } from '../../api/client';
 import {
@@ -6,9 +7,9 @@ import {
   revertReplacementAudio,
   uploadReplacementAudio,
 } from '../../api/settings';
-import { btnSecondary } from '../../components/buttonStyles';
-import { focusRing } from '../../components/fieldStyles';
+import { btnBase, btnSecondary } from '../../components/buttonStyles';
 import { badgeBase } from '../../components/badgeStyles';
+import { iconTarget, iconVisual } from '../../components/rowActionStyles';
 
 // The splice bar reads as a beep sitting inside content, so its width has to
 // mean something. Scale duration against this, since typical markers are 1-3s.
@@ -66,7 +67,7 @@ function ReplacementAudioField() {
   const upload = useMutation({
     mutationFn: (file: File) => uploadReplacementAudio(file),
     onSuccess: settle,
-    onError: (e: unknown) => setError(getErrorMessage(e, 'Upload failed')),
+    onError: (e: unknown) => setError(getErrorMessage(e, 'Could not upload audio.')),
   });
 
   const revert = useMutation({
@@ -134,18 +135,15 @@ function ReplacementAudioField() {
           onClick={togglePlay}
           disabled={!data?.exists || busy}
           aria-label={playing ? 'Stop the replacement audio' : 'Play the replacement audio'}
-          className="shrink-0 w-9 h-9 rounded border border-border bg-background text-foreground flex items-center justify-center hover:bg-accent focus:outline-hidden focus:ring-2 focus:ring-ring disabled:opacity-50"
+          className={iconTarget}
         >
-          {playing ? (
-            <svg viewBox="0 0 12 12" className="w-3 h-3" fill="currentColor" aria-hidden="true">
-              <rect x="1" y="1" width="3.5" height="10" rx="1" />
-              <rect x="7.5" y="1" width="3.5" height="10" rx="1" />
-            </svg>
-          ) : (
-            <svg viewBox="0 0 12 12" className="w-3 h-3 ml-0.5" fill="currentColor" aria-hidden="true">
-              <path d="M2 1.2v9.6a.6.6 0 0 0 .92.5l7.3-4.8a.6.6 0 0 0 0-1L2.92.7A.6.6 0 0 0 2 1.2Z" />
-            </svg>
-          )}
+          <span className={`${iconVisual} ${btnSecondary}`}>
+            {playing ? (
+              <Pause className="w-4 h-4" fill="currentColor" aria-hidden="true" />
+            ) : (
+              <Play className="w-4 h-4" fill="currentColor" aria-hidden="true" />
+            )}
+          </span>
         </button>
 
         {/* Content, replacement, content. Width of the middle block tracks
@@ -197,7 +195,7 @@ function ReplacementAudioField() {
           type="button"
           onClick={() => fileInputRef.current?.click()}
           disabled={busy}
-          className={`px-3 py-1.5 rounded text-sm ${btnSecondary} disabled:opacity-50 ${focusRing}`}
+          className={`${btnBase} ${btnSecondary}`}
         >
           {upload.isPending ? 'Uploading...' : 'Upload a file'}
         </button>
@@ -206,7 +204,7 @@ function ReplacementAudioField() {
             type="button"
             onClick={() => revert.mutate()}
             disabled={busy}
-            className={`px-3 py-1.5 rounded text-sm ${btnSecondary} disabled:opacity-50 ${focusRing}`}
+            className={`${btnBase} ${btnSecondary}`}
           >
             {revert.isPending ? 'Restoring...' : 'Use the default'}
           </button>

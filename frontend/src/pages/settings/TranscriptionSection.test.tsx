@@ -61,14 +61,14 @@ describe('TranscriptionSection whisper pool', () => {
   it('renders the toggle and both dials for the remote backend', async () => {
     renderSection();
     expect(screen.getByRole('switch', { name: 'Whisper pool toggle' })).toBeTruthy();
-    expect((screen.getByLabelText('Max requests to backend:') as HTMLInputElement).value).toBe('3');
-    expect((screen.getByLabelText('Episodes at once:') as HTMLInputElement).value).toBe('2');
+    expect((screen.getByLabelText('Max requests to backend') as HTMLInputElement).value).toBe('3');
+    expect((screen.getByLabelText('Episodes at once') as HTMLInputElement).value).toBe('2');
     expect(await screen.findByText(/Up to 8 requests in flight against a cap of 3/)).toBeTruthy();
   });
 
   it('disables the dials while the toggle is off', () => {
     renderSection({ whisperPoolEnabled: false });
-    expect((screen.getByLabelText('Max requests to backend:') as HTMLInputElement).disabled).toBe(true);
+    expect((screen.getByLabelText('Max requests to backend') as HTMLInputElement).disabled).toBe(true);
   });
 
   it('hides the block on the local backend', () => {
@@ -93,7 +93,7 @@ describe('TranscriptionSection whisper pool', () => {
   it('keeps field labels in the DOM while collapsed, for settings search', () => {
     renderSection({}, { open: false });
     expect(screen.getByRole('button', { name: 'Transcription' }).getAttribute('aria-expanded')).toBe('false');
-    expect(screen.getByText('Chunk overlap seconds:')).toBeTruthy();
+    expect(screen.getByText('Chunk overlap seconds')).toBeTruthy();
   });
 
   it('shows the max upload attempts field next to the request timeout', () => {
@@ -196,14 +196,14 @@ describe('TranscriptionSection whisper model select', () => {
 
   it('shows a model missing from the list as the selected option', () => {
     renderSection({ whisperBackend: 'local', whisperModel: 'distil-large-v3', whisperModels: models });
-    const select = screen.getByLabelText('Whisper Model') as HTMLSelectElement;
+    const select = screen.getByLabelText('Whisper model') as HTMLSelectElement;
     expect(select.value).toBe('distil-large-v3');
     expect(screen.getByRole('option', { name: /distil-large-v3 \(current, not in list\)/ })).toBeDefined();
   });
 
   it('adds no extra option for a listed model', () => {
     renderSection({ whisperBackend: 'local', whisperModel: 'small', whisperModels: models });
-    const select = screen.getByLabelText('Whisper Model') as HTMLSelectElement;
+    const select = screen.getByLabelText('Whisper model') as HTMLSelectElement;
     expect(select.value).toBe('small');
     expect(screen.queryByRole('option', { name: /not in list/ })).toBeNull();
   });
@@ -223,7 +223,7 @@ describe('TranscriptionSection parakeet backend', () => {
 
   it('hides model, compute and API fields and shows the helper text', () => {
     renderSection({ whisperBackend: 'parakeet' });
-    expect(screen.queryByLabelText('Whisper Model')).toBeNull();
+    expect(screen.queryByLabelText('Whisper model')).toBeNull();
     expect(screen.queryByLabelText('API base URL')).toBeNull();
     expect(screen.queryByLabelText('GPU compute type')).toBeNull();
     expect(screen.getByText(/The model downloads into the data directory on first use/)).toBeDefined();
