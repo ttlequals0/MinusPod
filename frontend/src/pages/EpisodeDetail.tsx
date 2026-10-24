@@ -1,6 +1,6 @@
 import { pageTitle } from '../components/pageStyles';
 import { useState, useRef, useMemo } from 'react';
-import { ChevronDown } from 'lucide-react';
+import { ChevronDown, Pencil } from 'lucide-react';
 import { useParams, Link } from 'react-router';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
@@ -42,7 +42,7 @@ import { groupAdBlocks } from '../utils/adBlocks';
 import { formatDate, formatTimestamp, toDatetimeLocalInput, fromDatetimeLocalInput } from '../utils/format';
 import { useAuditionPlayer } from '../hooks/useAuditionPlayer';
 import { AuditionPlayButton } from '../components/AuditionPlayButton';
-import { rowActionBtn } from '../components/rowActionStyles';
+import { iconTarget, iconVisual, rowActionBtn } from '../components/rowActionStyles';
 import { StageBadge } from '../components/StageBadge';
 import ProcessingRunsTable from '../components/ProcessingRunsTable';
 import CostAmount from '../components/CostAmount';
@@ -156,12 +156,11 @@ function OpenEditorButton({ onClick, testId }: { onClick: () => void; testId: st
       aria-label="Open in editor"
       title="Open in editor"
       data-testid={testId}
-      className={`p-1.5 rounded ${btnSecondary} transition-colors shrink-0 touch-manipulation ${focusRing}`}
+      className={iconTarget}
     >
-      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-          d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-      </svg>
+      <span className={`${iconVisual} ${btnSecondary}`}>
+        <Pencil className="w-4 h-4" aria-hidden="true" />
+      </span>
     </button>
   );
 }
@@ -1741,7 +1740,7 @@ function EpisodeDetail() {
                     </p>
                   )}
                   {!correction && !segment.approved && (
-                    <div className="flex flex-col sm:flex-row gap-2 mt-3">
+                    <div className="flex flex-col sm:flex-row sm:items-stretch gap-2 mt-3">
                       <button
                         onClick={() => {
                           if (oneTapRecut) {
@@ -1941,7 +1940,7 @@ function EpisodeDetail() {
                         </ExpandableText>
                       )}
                       {!correction && (
-                        <div className="flex flex-col sm:flex-row gap-2 mt-3">
+                        <div className="flex flex-col sm:flex-row sm:items-stretch gap-2 mt-3">
                           <button
                             onClick={() => handleCorrection({ type: 'confirm', originalAd })}
                             disabled={correctionMutation.isPending}

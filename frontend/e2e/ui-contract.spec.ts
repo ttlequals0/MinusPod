@@ -129,3 +129,41 @@ test('add-feed controls have accessible names and valid ARIA relationships', asy
   const scan = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze();
   expect(scan.violations.map(({ id, nodes }) => ({ id, targets: nodes.map((node) => node.target) }))).toEqual([]);
 });
+
+test('icon-only controls center their icon', async ({ page }) => {
+  const failures: string[] = [];
+  for (const route of ['', 'settings', 'search?q=technology', 'patterns']) {
+    await page.goto(route);
+    await expect(page.locator('main')).toBeVisible();
+    const found = await page.evaluate(() => {
+      const hasText = (el: Element) => {
+        const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+        for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+          if (!node.textContent?.trim()) continue;
+          const parent = node.parentElement;
+          if (parent?.closest('.sr-only, [aria-hidden="true"]')) continue;
+          const range = document.createRange();
+          range.selectNodeContents(node);
+          const r = range.getBoundingClientRect();
+          if (r.width > 0 && r.height > 0) return true;
+        }
+        return false;
+      };
+      const out: string[] = [];
+      for (const el of document.querySelectorAll('main :is(button, [role="button"], a[href], summary), header :is(button, [role="button"], a[href], summary)')) {
+        const svg = el.querySelector('svg');
+        const box = el.getBoundingClientRect();
+        if (!svg || box.width === 0 || box.height === 0 || hasText(el)) continue;
+        const s = svg.getBoundingClientRect();
+        const dx = s.x + s.width / 2 - (box.x + box.width / 2);
+        const dy = s.y + s.height / 2 - (box.y + box.height / 2);
+        if (Math.abs(dx) > 1.25 || Math.abs(dy) > 1.25) {
+          out.push(`aria-label="${el.getAttribute('aria-label')}" class="${el.getAttribute('class')}" dx=${dx.toFixed(2)} dy=${dy.toFixed(2)}`);
+        }
+      }
+      return out;
+    });
+    failures.push(...found.map(f => `${route || '/'}: ${f}`));
+  }
+  expect(failures.join('\n')).toBe('');
+});

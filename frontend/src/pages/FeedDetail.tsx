@@ -596,7 +596,7 @@ function FeedDetail() {
                   onClick={startEditingTitle}
                   aria-label="Edit feed title"
                   title="Edit feed title"
-                  className={`mt-1.5 shrink-0 p-1 rounded ${btnGhost} transition-colors ${focusRing}`}
+                  className={`mt-1.5 shrink-0 p-1 rounded inline-flex items-center justify-center ${btnGhost} transition-colors ${focusRing}`}
                 >
                   <Pencil className="w-4 h-4" />
                 </button>

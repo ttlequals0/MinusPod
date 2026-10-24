@@ -2,7 +2,7 @@ import { useDraftClose } from '../hooks/useDraftClose';
 import { isTopDialog, useEscape, useFocusTrap } from './Modal';
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { AlertCircle } from 'lucide-react';
+import { AlertCircle, Plus, X } from 'lucide-react';
 import WaveSurfer from 'wavesurfer.js';
 import RegionsPlugin from 'wavesurfer.js/dist/plugins/regions.esm.js';
 import { getTranscriptSpan } from '../api/feeds';
@@ -1024,23 +1024,19 @@ function AdReviewModal({
                   onClick={onAddNew}
                   aria-label="Add new ad"
                   title="Add new ad"
-                  className={`inline-flex items-center gap-1 px-2 py-1 text-xs rounded-md ${btnPrimary} transition-colors ${focusRing} max-sm:min-h-11 max-sm:min-w-11`}
+                  className={`inline-flex items-center justify-center gap-1 px-2 py-1 text-xs rounded-md ${btnPrimary} transition-colors ${focusRing} max-sm:min-h-11 max-sm:min-w-11`}
                 >
-                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                  </svg>
+                  <Plus className="w-4 h-4" aria-hidden="true" />
                   <span className="hidden sm:inline">Add new ad</span>
                 </button>
               )}
               <button
                 onClick={requestClose}
                 disabled={mode === 'create' && multiSubmitting}
-                className={`p-1 rounded ${btnGhost} transition-colors ${focusRing} max-sm:min-h-11 max-sm:min-w-11`}
+                className={`inline-flex items-center justify-center p-1 rounded ${btnGhost} transition-colors ${focusRing} max-sm:min-h-11 max-sm:min-w-11`}
                 aria-label="Close"
               >
-                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
+                <X className="w-5 h-5" aria-hidden="true" />
               </button>
             </div>
           </div>

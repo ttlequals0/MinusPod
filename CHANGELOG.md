@@ -11,6 +11,15 @@ release notes.
 
 ## [2.100.20] - 2026-10-24
 
+### Fixed
+- Icons are centered in the "Edit feed title", "Open in editor", ad editor
+  "Add new ad" and ad editor "Close" buttons on phones, where the 44 px
+  touch floor had left them packed to the left.
+- The ad editor's hand-drawn plus and close icons are now the shared lucide icons.
+- Held-marker and Ad Review action rows give every button the same height and
+  center their labels.
+- A browser contract measures that icon-only controls center their icon.
+
 ### Changed
 - The reject button on a sponsor marker reads "Not ad" instead of "Not an ad",
   so it stays on one line beside "Confirm ad" on phones.
