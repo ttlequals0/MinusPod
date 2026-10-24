@@ -267,7 +267,7 @@ class TestNodeHealthSummary:
         db = FakeDb()
         response = MagicMock(status_code=200)
         response.json.return_value = {'result': {'ok': True}}
-        with patch('podping_listener.requests.post', return_value=response):
+        with patch('podping_listener.requests.Session.post', return_value=response):
             listener = PodpingListener(db=db, sleep=lambda s: None)
             listener._call_rpc('some_method', [])
 
@@ -275,10 +275,21 @@ class TestNodeHealthSummary:
         assert summary['httpStatus'] == 200
         assert summary['outcome'] == 'healthy'
 
+    def test_default_rpc_reuses_one_session(self):
+        response = MagicMock(status_code=200)
+        response.json.return_value = {'result': {}}
+        with patch('podping_listener.requests.Session') as session_cls:
+            session_cls.return_value.post.return_value = response
+            listener = PodpingListener(db=FakeDb(), sleep=lambda s: None)
+            for _ in range(3):
+                listener._default_rpc('some_method', [])
+        session_cls.assert_called_once()
+        assert session_cls.return_value.post.call_count == 3
+
     def test_non_200_response_records_its_status(self):
         db = FakeDb()
         response = MagicMock(status_code=503)
-        with patch('podping_listener.requests.post', return_value=response):
+        with patch('podping_listener.requests.Session.post', return_value=response):
             listener = PodpingListener(db=db, sleep=lambda s: None,
                                        rand=lambda lo, hi: 0)
             listener._call_rpc('some_method', [])
@@ -291,7 +302,7 @@ class TestNodeHealthSummary:
         db = FakeDb()
         response = MagicMock(status_code=200)
         response.json.return_value = {'error': 'invalid'}
-        with patch('podping_listener.requests.post', return_value=response):
+        with patch('podping_listener.requests.Session.post', return_value=response):
             listener = PodpingListener(db=db, sleep=lambda s: None,
                                        rand=lambda lo, hi: 0)
             listener._call_rpc('some_method', [])

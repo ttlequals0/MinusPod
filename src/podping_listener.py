@@ -370,6 +370,7 @@ class PodpingListener:
     def __init__(self, rpc=None, db=None, refresh=None, sleep=None, rand=None,
                  now=None, node_probe=None, monotonic=None):
         self.rpc = rpc or self._default_rpc
+        self._session = requests.Session()
         self.db = db
         self.refresh = refresh
         self.sleep = sleep or _default_sleep_shutdown_aware
@@ -429,7 +430,7 @@ class PodpingListener:
         """Default rpc: POST to the currently-selected node. Returns the
         unwrapped 'result' payload (dict or list depending on method)."""
         url = self.nodes[self.node_index]
-        response = requests.post(
+        response = self._session.post(
             url,
             json={'jsonrpc': '2.0', 'method': method, 'params': params, 'id': 1},
             timeout=10,
