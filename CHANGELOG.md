@@ -12,6 +12,9 @@ release notes.
 ## [2.100.21] - 2026-10-24
 
 ### Fixed
+- Docs: whisper.cpp needs `--no-flash-attn` alongside `--dtw` on Apple Silicon
+  (Metal) too, not only on CUDA; the native Apple Silicon example now passes it.
+  (#894, from velaia)
 - Episode page: the duration beside an ad block's time range uses the same
   monospace face, so the numerals share a baseline.
 - Review action rows on phones: every button is 44 px tall, the play button's
