@@ -63,8 +63,8 @@ def _local(slug):
             'feed_type': 'local', 'title': 'Archive'}
 
 
-def _seg(start, end, text):
-    return {'start': start, 'end': end, 'text': text}
+def _seg(start, end, text, **kwargs):
+    return {'start': start, 'end': end, 'text': text, **kwargs}
 
 
 # ---------------------------------------------------------------------
@@ -74,7 +74,7 @@ def _seg(start, end, text):
 def test_fresh_episode_reuses_retained_original_no_download(tmp_path):
     original = tmp_path / 'orig.mp3'
     original.write_bytes(b'mp3-bytes')
-    segments = [_seg(0.0, 10.0, 'hi')]
+    segments = [_seg(0.0, 10.0, 'hi', terminal=False)]
 
     mock_storage = MagicMock()
     mock_storage.get_transcript.return_value = None

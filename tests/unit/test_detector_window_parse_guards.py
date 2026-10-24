@@ -1,4 +1,5 @@
 """Window-level guards on what an LLM detection window is allowed to return."""
+from copy import deepcopy
 import logging
 from unittest.mock import MagicMock, patch
 
@@ -440,14 +441,16 @@ def test_verification_pass_forwards_pass1_cuts():
     analyzer.analyze.return_value.get_signals_by_type.return_value = []
     cuts = [{'start': 30.0, 'end': 60.0, 'detection_stage': 'text_pattern',
              'sponsor': 'Acme Pet Food'}]
+    original_segments = [{'start': 0.0, 'end': 100.0, 'text': 'hello'}]
     transcriber = MagicMock()
+    transcriber.transcribe_chunked.return_value = deepcopy(original_segments)
     transcriber.repair_gaps.return_value = ([], [])
     VerificationPass(ad_detector=detector, transcriber=transcriber,
                      audio_analyzer=analyzer).verify(
         processed_audio_path='/nonexistent.mp3', podcast_name='Example Podcast',
         episode_title='Episode One', slug='example-podcast',
         episode_id='a1b2c3d4e5f6', pass1_cuts=cuts,
-        original_segments=[{'start': 0.0, 'end': 100.0, 'text': 'hello'}])
+        original_segments=original_segments)
 
     assert detector.run_verification_detection.call_args.kwargs['pass1_cuts'] is cuts
 

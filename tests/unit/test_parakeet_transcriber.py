@@ -127,7 +127,7 @@ def test_decode_dedupes_overlap_and_offsets(tmp_path, monkeypatch):
     monkeypatch.setattr(pt.ParakeetModelSingleton, 'get_instance', classmethod(lambda cls: model))
     segs = pt.decode(path, 'en')
     words = [w for s in segs for w in s['words']]
-    assert [w['word'] for w in words] == ['one', 'edge', 'two.']
+    assert [w['word'] for w in words] == [' one', ' edge', ' two.']
     assert words[1]['start'] == 28.5
     assert words[2]['start'] == 30.0
     assert model.calls == [30.0, 3.0]
@@ -239,7 +239,7 @@ def test_decode_boundary_word_emitted_once(tmp_path, monkeypatch, first_ts, seco
     model = _boundary_model(first_ts, second_ts)
     monkeypatch.setattr(pt.ParakeetModelSingleton, 'get_instance', classmethod(lambda cls: model))
     words = [w['word'] for s in pt.decode(path, 'en') for w in s['words']]
-    assert words == ['one', 'edge', 'two.']
+    assert words == [' one', ' edge', ' two.']
 
 
 def test_decode_boundary_dedupe_ignores_case_and_punctuation(tmp_path, monkeypatch):
@@ -247,8 +247,10 @@ def test_decode_boundary_dedupe_ignores_case_and_punctuation(tmp_path, monkeypat
     _write_wav(path, 33.0)
     model = _boundary_model(28.96, 29.04, 'Edge,', 'edge')
     monkeypatch.setattr(pt.ParakeetModelSingleton, 'get_instance', classmethod(lambda cls: model))
-    words = [w['word'] for s in pt.decode(path, 'en') for w in s['words']]
-    assert len(words) == 3 and sum(w.casefold().strip(',.') == 'edge' for w in words) == 1
+    segments = pt.decode(path, 'en')
+    words = [w['word'] for s in segments for w in s.get('words', [])]
+    assert len(words) == 3
+    assert sum(w == ' Edge,' for w in words) == 1
 
 
 def test_words_from_tokens_length_mismatch_uses_shorter(caplog):
@@ -310,7 +312,7 @@ def test_words_from_tokens_accepts_sentencepiece_marker_and_skips_specials():
 def test_decode_window_of_space_prefixed_tokens_splits_into_segments(tmp_path, monkeypatch):
     path = tmp_path / 'f.wav'
     _write_wav(path, 30.0)
-    toks = [' a', ' b', ' c', ' d', ' e', ' f', ' g.', ' h', ' i', ' j', ' k', ' l.']
+    toks = [' A', ' b', ' c', ' d', ' e', ' f', ' g.', ' H', ' i', ' j', ' k', ' l.']
     stamps = [i * 2.0 for i in range(12)]
     model = types.SimpleNamespace(recognize=lambda chunk, sample_rate: _Result(toks, stamps))
     monkeypatch.setattr(pt.ParakeetModelSingleton, 'get_instance', classmethod(lambda cls: model))

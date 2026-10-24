@@ -12,12 +12,14 @@ coordinates for cutting.
 
 import logging
 from copy import deepcopy
+from typing import cast
 
 from audio_processor import get_replacement_duration
 from config import UNREVIEWABLE_GAP_SECONDS
 from transcript_generator import TranscriptGenerator
 from utils.errors import ServiceUnavailableError, AudioExtractionError
 from utils.language import get_feed_language_override
+from utils.segments import normalize_segments, split_and_merge_segments
 from utils.time import adjust_timestamp
 
 logger = logging.getLogger('podcast.verification')
@@ -104,7 +106,8 @@ class VerificationPass:
                 progress_callback("transcribing", 85)
             logger.info(f"[{slug}:{episode_id}] Verification: Re-transcribing processed audio")
             try:
-                verification_segments = self._transcribe_verification(processed_audio_path, slug=slug)
+                verification_segments = self._transcribe_verification(
+                    processed_audio_path, slug=slug, episode_id=episode_id)
             except (ServiceUnavailableError, AudioExtractionError) as e:
                 # Verification is best-effort: a Whisper outage (or a chunk
                 # extraction failure, #556) here must not fail or defer an
@@ -237,7 +240,8 @@ class VerificationPass:
         }
 
     def _transcribe_verification(self, audio_path: str,
-                                 slug: str = None) -> list[dict]:
+                                 slug: str,
+                                 episode_id: str) -> list[dict]:
         """Re-transcribe for verification using the shared Transcriber.
 
         Delegates to self.transcriber.transcribe_chunked() so episodes longer
@@ -254,10 +258,20 @@ class VerificationPass:
         )
         if not segments:
             return segments
+
         # Same hole repair as pass 1, without the per-episode memo.
         added, _empty = self.transcriber.repair_gaps(
             audio_path, segments, UNREVIEWABLE_GAP_SECONDS, language_override)
-        return sorted(segments + added, key=lambda seg: seg['start']) if added else segments
+        segments += added
+
+        # Normalize, split, and merge segments...
+        invalid_segments = []
+        valid_segments = normalize_segments(segments, invalid_segments=invalid_segments)
+        if invalid_segments:
+            logger.warning(f"[{slug}:{episode_id}] Dropped {len(invalid_segments)} invalid segments: {invalid_segments}")
+        segments = cast(list[dict], split_and_merge_segments(valid_segments, reporter=logger.info))
+
+        return segments
 
 
 def _build_timestamp_map(pass1_cuts: list[dict]) -> list[tuple[float, float, float | None]]:

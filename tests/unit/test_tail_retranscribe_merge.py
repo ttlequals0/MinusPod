@@ -19,9 +19,10 @@ import main_app.processing as processing
 from main_app.pipeline import common, transcribe
 
 
-def _seg(start, end, text):
+def _seg(start, end, text, **kwargs):
     return {'start': start, 'end': end, 'text': text,
-            'words': [{'word': text, 'start': start, 'end': end}]}
+            'words': [{'word': text, 'start': start, 'end': end}],
+            **kwargs}
 
 
 _TUNABLES = {'min_seconds': 10.0, 'max_seconds': 600.0}
@@ -40,7 +41,7 @@ def _run_tail(segments, duration, span_result=(None, None)):
 
 
 def test_tail_gap_returns_the_span_segments():
-    recovered = [dict(_seg(100.5, 120.0, 'quiet post-roll ad'), novad_tail=True)]
+    recovered = [_seg(100.5, 120.0, 'quiet post-roll ad', novad_tail=True)]
     tail, mock_t = _run_tail([_seg(0.0, 100.0, 'show content')], 142.4, (recovered, None))
     assert tail == recovered
     mock_t.transcribe_span_no_vad.assert_called_once_with(
@@ -72,8 +73,8 @@ def test_failed_or_empty_span_adds_nothing():
 
 
 def test_fresh_transcription_appends_tail_before_persist():
-    base = [_seg(0.0, 100.0, 'show content')]
-    tail_seg = dict(_seg(100.5, 120.0, 'post-roll'), novad_tail=True)
+    base = [_seg(0.0, 100.0, 'show content', word_timed_line=True, terminal=False)]
+    tail_seg = _seg(100.5, 120.0, 'post-roll', novad_tail=True)
     mock_storage = MagicMock()
     mock_storage.get_transcript.return_value = None
     # No retained original: the fresh-episode branch must download, not reuse.
@@ -109,7 +110,7 @@ def test_reuse_branch_extends_in_memory_and_stores_the_repair(tmp_path):
     original = tmp_path / 'orig.mp3'
     original.write_bytes(b'mp3')
     base = [_seg(0.0, 100.0, 'show content')]
-    tail_seg = dict(_seg(100.5, 120.0, 'post-roll'), novad_tail=True)
+    tail_seg = _seg(100.5, 120.0, 'post-roll', novad_tail=True)
     mock_storage = MagicMock()
     mock_storage.get_transcript.return_value = 'existing transcript'
     mock_storage.get_original_path.return_value = str(original)

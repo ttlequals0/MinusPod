@@ -16,6 +16,7 @@ from config import (
     PARAKEET_WORD_MAX_S, resolve_whisper_device,
 )
 from utils.errors import ModelLoadError
+from utils.segments import normalize_segment, split_segments_into_sentences
 
 logger = logging.getLogger('podcast.parakeet')
 
@@ -131,12 +132,12 @@ def words_from_tokens(tokens, timestamps, offset_s=0.0):
                        len(tokens), len(timestamps))
     groups = []
     for tok, ts in zip(tokens, timestamps, strict=False):
-        text = tok.lstrip(' ' + WORD_MARKER)
-        # onnx-asr turns the SentencePiece marker into a leading space, so accept both.
-        starts_word = tok[:1] in (' ', WORD_MARKER)
         if _SPECIAL_TOKEN.match(tok.strip()):
             continue
+        # onnx-asr turns the SentencePiece marker into a leading space, so accept both.
+        starts_word = tok[:1] in (' ', WORD_MARKER)
         if starts_word or not groups:
+            text = tok.lstrip(' ' + WORD_MARKER)
             groups.append({'text': text, 'start': ts, 'last': ts})
         else:
             groups[-1]['text'] += tok
@@ -175,28 +176,25 @@ def drop_non_latin_words(words):
     return kept, len(words) - len(kept)
 
 
-def group_segments(words):
+def group_segments(words: list[dict]):
     """Group words into segments split on sentence ends, long pauses and the length cap."""
-    segments = []
-    cur = []
+    if not words:
+        return []
 
-    def flush():
-        if cur:
-            segments.append({
-                'start': cur[0]['start'], 'end': cur[-1]['end'],
-                'text': ' '.join(w['word'] for w in cur).strip(), 'words': list(cur),
-            })
-            cur.clear()
+    # create an initial segment encompassing all words
+    the_segment = normalize_segment({
+        'words': words,
+        'start': 0, # will be filled
+        'end': 0,   # will be filled
+        'text': '', # will be filled
+    }, normalize_from_words=True)
 
-    for w in words:
-        if cur and (w['start'] - cur[-1]['end'] > PARAKEET_SEGMENT_PAUSE_S
-                    or w['end'] - cur[0]['start'] > PARAKEET_SEGMENT_MAX_S):
-            flush()
-        cur.append(w)
-        if w['word'].endswith(_SENTENCE_END):
-            flush()
-    flush()
-    return segments
+    # now split the segment into sentences
+    return split_segments_into_sentences(
+        [the_segment],
+        max_word_gap=PARAKEET_SEGMENT_PAUSE_S,
+        max_segment_duration=PARAKEET_SEGMENT_MAX_S,
+    )
 
 
 def read_wav_float32(path):

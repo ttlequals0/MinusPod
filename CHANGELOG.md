@@ -11,7 +11,14 @@ release notes.
 
 ## [Unreleased]
 
+### Added
+- Introduces `utils/segments.py` containing helper functions for normalizing, splitting and merging text segments.
+
 ### Changed
+- Replaced `text_pattern_matcher._split_sentences()` with `segments.split_sentences()`.
+- Parakeet modified to use `segments.split_segments_into_sentences()` to assemble the transcribed words into text segments.
+- Transcribers normalize raw transcript segments immediately after creation, primarily to guarantee ordering and eliminate word-pairs ASAP. The completed and assembled (chunked) transcript is immediately converted into paragraph-like segments. The result is about 3 times as many segments which are more coherent and readable. While it is a lot more segments, it is far fewer than the sub-25-word utterances previously sent to the LLM.
+- Ad Detector attempts to generate "timed utterances" using `segments.validate_text_segment()` and `segments.split_segments_into_sentences()`.
 - Segment-ID prompts mark pauses of 1.5 s or longer between transcript lines with a gap cue, so the model can see jingles and silence it otherwise cannot. (#883, #884, from mrfootoyou)
 - Use minimal timestamps in LLM prompts to help reduce token usage.
 

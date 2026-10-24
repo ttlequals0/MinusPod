@@ -182,7 +182,7 @@ def test_pass2_transcription_repairs_skipped_holes(monkeypatch):
     v.transcriber.transcribe_chunked.return_value = [_seg(0.0, 10.0, 'a'), _seg(40.0, 50.0, 'b')]
     hole = dict(_seg(12.0, 30.0, 'recovered'), novad_hole=True)
     v.transcriber.repair_gaps.return_value = ([hole], [])
-    segments = v._transcribe_verification('/processed.mp3', slug='show')
+    segments = v._transcribe_verification('/processed.mp3', slug='show', episode_id='ep1')
     assert [s['text'] for s in segments] == ['a', 'recovered', 'b']
     args = v.transcriber.repair_gaps.call_args.args
     assert args[0] == '/processed.mp3' and args[2] == 8.0

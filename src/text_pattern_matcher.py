@@ -24,6 +24,7 @@ from community_export import (
     count_brand_occurrences, brand_match_candidates,
     declared_sponsor_names_lower, find_foreign_sponsors,
     first_brand_occurrence, get_sponsor_row_or_stub)
+from utils.segments import split_sentences
 from utils.text import extract_text_from_segments, timed_spans_from_segments, word_boundary_re
 from sponsor_normalize import get_or_create_known_sponsor, segment_category_for
 from sponsor_context import COMMERCIAL_CONTEXT_RE, domain_labels
@@ -311,14 +312,9 @@ WINDOW_SIZES = [500, 1000, 1500, 2500]
 WINDOW_SIZE_TOLERANCE = 0.6
 
 
-def _split_sentences(text: str) -> list:
-    """Split text into sentences at sentence-ending punctuation."""
-    return [s.strip() for s in re.split(r'(?<=[.!?])\s+', text) if s.strip()]
-
-
 def _extract_intro_phrase(text: str, min_words: int = 20, max_words: int = 60) -> str:
     """Extract intro phrase ending at a sentence boundary."""
-    sentences = _split_sentences(text)
+    sentences = split_sentences(text)
     result_words = 0
     result_sentences = []
     for sentence in sentences:
@@ -334,7 +330,7 @@ def _extract_intro_phrase(text: str, min_words: int = 20, max_words: int = 60) -
 
 def _extract_outro_phrase(text: str, min_words: int = 15, max_words: int = 40) -> str:
     """Extract outro phrase starting at a sentence boundary."""
-    sentences = _split_sentences(text)
+    sentences = split_sentences(text)
     result_words = 0
     result_sentences = []
     for sentence in reversed(sentences):

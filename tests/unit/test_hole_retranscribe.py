@@ -23,9 +23,10 @@ from utils import audio as audio_utils
 from utils.errors import ModelLoadError
 
 
-def _seg(start, end, text):
+def _seg(start, end, text, **kwargs):
     return {'start': start, 'end': end, 'text': text,
-            'words': [{'word': text, 'start': start, 'end': end}]}
+            'words': [{'word': text, 'start': start, 'end': end}],
+            **kwargs}
 
 
 def _production_shape():
@@ -274,7 +275,7 @@ def test_reuse_repair_stores_the_repaired_originals(tmp_path, caplog):
 
 
 def test_first_run_writes_originals_once_and_records_empty_holes():
-    base = [_seg(0.0, 100.0, 'show content')]
+    base = [_seg(0.0, 100.0, 'show content', word_timed_line=True, terminal=False)]
     empty = [{'start': 40.0, 'end': 55.0, 'reason': 'no_speech'}]
     mock_storage = MagicMock()
     mock_storage.get_transcript.return_value = None
