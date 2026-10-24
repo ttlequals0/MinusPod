@@ -1740,7 +1740,7 @@ function EpisodeDetail() {
                     </p>
                   )}
                   {!correction && !segment.approved && (
-                    <div className="flex flex-col sm:flex-row sm:items-stretch gap-2 mt-3">
+                    <div className="flex flex-col sm:flex-row gap-2 mt-3">
                       <button
                         onClick={() => {
                           if (oneTapRecut) {
@@ -1940,7 +1940,7 @@ function EpisodeDetail() {
                         </ExpandableText>
                       )}
                       {!correction && (
-                        <div className="flex flex-col sm:flex-row sm:items-stretch gap-2 mt-3">
+                        <div className="flex flex-col sm:flex-row gap-2 mt-3">
                           <button
                             onClick={() => handleCorrection({ type: 'confirm', originalAd })}
                             disabled={correctionMutation.isPending}

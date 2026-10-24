@@ -35,7 +35,7 @@ import { formatStorage } from './settings/settingsUtils';
 import { formatDateTime } from '../utils/format';
 import RichText from '../components/RichText';
 import { btnDestructive, btnGhost, btnPrimary, btnSecondary } from '../components/buttonStyles';
-import { cardActionBtn } from '../components/rowActionStyles';
+import { cardActionBtn, iconTarget, iconVisual } from '../components/rowActionStyles';
 import { Modal, ConfirmModal } from '../components/Modal';
 import { selectBase } from '../components/fieldStyles';
 import { focusRing } from '../components/fieldStyles';
@@ -596,9 +596,11 @@ function FeedDetail() {
                   onClick={startEditingTitle}
                   aria-label="Edit feed title"
                   title="Edit feed title"
-                  className={`mt-1.5 shrink-0 p-1 rounded inline-flex items-center justify-center ${btnGhost} transition-colors ${focusRing}`}
+                  className={`${iconTarget} mt-1.5`}
                 >
-                  <Pencil className="w-4 h-4" />
+                  <span className={`${iconVisual} ${btnGhost}`}>
+                    <Pencil className="w-4 h-4" />
+                  </span>
                 </button>
               </div>
             )}

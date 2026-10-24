@@ -29,6 +29,7 @@ import {
 import { btnGhost, btnPrimary } from './buttonStyles';
 import Checkbox from './Checkbox';
 import { filterLabel, focusRing, selectBase } from './fieldStyles';
+import { iconTarget, iconVisual } from './rowActionStyles';
 import {
   SEGMENT_CATEGORIES,
   SEGMENT_CATEGORY_DESCRIPTIONS,
@@ -1033,10 +1034,12 @@ function AdReviewModal({
               <button
                 onClick={requestClose}
                 disabled={mode === 'create' && multiSubmitting}
-                className={`inline-flex items-center justify-center p-1 rounded ${btnGhost} transition-colors ${focusRing} max-sm:min-h-11 max-sm:min-w-11`}
+                className={iconTarget}
                 aria-label="Close"
               >
-                <X className="w-5 h-5" aria-hidden="true" />
+                <span className={`${iconVisual} ${btnGhost}`}>
+                  <X className="w-5 h-5" aria-hidden="true" />
+                </span>
               </button>
             </div>
           </div>
