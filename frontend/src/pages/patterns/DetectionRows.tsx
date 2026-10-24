@@ -250,12 +250,16 @@ function DetectionActions({ d, variant, playing, onTogglePlay, actions }: {
       <div className="flex items-center gap-1.5">{play}{approve}{dismiss}{category}{split}{edit}</div>
     );
   }
+  // Five controls do not fit one line under 430 px, so Split and Edit take a
+  // second line there. A row without Confirm has four and stays on one line.
+  const tail = approve && dismiss
+    ? <div className="flex gap-1.5 min-[370px]:gap-2 grow max-[429px]:basis-full">{split}{edit}</div>
+    : <>{split}{edit}</>;
   return (
     <div className="flex flex-col gap-2 pt-1">
       {category}
       <div data-testid="detection-actions-row" className="flex flex-wrap items-center gap-1.5 min-[370px]:gap-2">
-        {play}{approve}{dismiss}
-        <div className="flex gap-1.5 min-[370px]:gap-2 grow max-[429px]:basis-full">{split}{edit}</div>
+        {play}{approve}{dismiss}{tail}
       </div>
     </div>
   );

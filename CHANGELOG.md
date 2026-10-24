@@ -9,6 +9,13 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
+## [2.100.22] - 2026-10-24
+
+### Fixed
+- Detected ads cards on phones: the four controls (play, Not ad, Split, Edit)
+  share one line. Only the Ad review card, which adds Confirm, moves Split and
+  Edit to a second line below 430 px.
+
 ## [2.100.21] - 2026-10-24
 
 ### Added
