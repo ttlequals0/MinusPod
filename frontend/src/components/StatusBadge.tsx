@@ -6,6 +6,10 @@ function shortLabel(label: string): string {
   return label.replace(/^permanently /, '').replace(/ \(.*\)$/, '');
 }
 
+function sentenceCase(label: string): string {
+  return label.charAt(0).toUpperCase() + label.slice(1);
+}
+
 export default function StatusBadge({ status, jobState, short, className, title }: {
   status: string;
   jobState?: string;
@@ -16,7 +20,7 @@ export default function StatusBadge({ status, jobState, short, className, title 
   const label = displayStatusLabel(status, jobState);
   return (
     <span className={`${badgeBase} ${displayStatusColor(status, jobState)}${className ? ` ${className}` : ''}`} title={title}>
-      {short ? shortLabel(label) : label}
+      {sentenceCase(short ? shortLabel(label) : label)}
     </span>
   );
 }

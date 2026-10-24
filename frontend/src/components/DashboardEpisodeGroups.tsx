@@ -10,6 +10,7 @@ import FeedTypeBadge from './FeedTypeBadge';
 import { EpisodeRow } from './EpisodeList';
 import EpisodeRowActions from './EpisodeRowActions';
 import { focusRing } from './fieldStyles';
+import { cardTitle, cardPad } from './pageStyles';
 
 export const MIN_EPISODES_PER_PODCAST = 1;
 export const MAX_EPISODES_PER_PODCAST = 10;
@@ -54,7 +55,7 @@ function DashboardEpisodeGroups({ feeds, episodesPerPodcast }: DashboardEpisodeG
   if (groupedFeeds.length === 0) {
     return (
       <div className="text-center py-12 bg-card rounded-lg border border-border">
-        <p className="text-muted-foreground">No podcasts to show episodes for yet</p>
+        <p className="text-muted-foreground">No feeds to show episodes for yet.</p>
       </div>
     );
   }
@@ -77,7 +78,7 @@ function FeedEpisodeGroup({ feed, limit }: { feed: Feed; limit: number }) {
 
   return (
     <section aria-labelledby={headingId} className="bg-card rounded-lg border border-border">
-      <div className={`flex items-center gap-3 p-4${collapsed ? '' : ' border-b border-border'}`}>
+      <div className={`flex items-center gap-3 ${cardPad}${collapsed ? '' : ' border-b border-border'}`}>
         <Link
           to={`/feeds/${feed.slug}`}
           aria-label={`${feedDisplayTitle(feed)} cover art`}
@@ -92,7 +93,7 @@ function FeedEpisodeGroup({ feed, limit }: { feed: Feed; limit: number }) {
         </Link>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 min-w-0">
-            <h2 id={headingId} className="text-base font-semibold text-foreground truncate">
+            <h2 id={headingId} className={`${cardTitle} truncate`}>
               <Link to={`/feeds/${feed.slug}`} className={`hover:text-primary ${focusRing}`}>
                 {feedDisplayTitle(feed)}
               </Link>
@@ -123,7 +124,7 @@ function FeedEpisodeGroup({ feed, limit }: { feed: Feed; limit: number }) {
       {!collapsed && (
         <div>
         {episodes.length === 0 ? (
-          <p className="p-4 text-sm text-muted-foreground">No episodes yet</p>
+          <p className="p-4 text-sm text-muted-foreground">No episodes yet.</p>
         ) : (
           <div className="p-3 flex flex-col gap-2">
             {episodes.map((summary) => (

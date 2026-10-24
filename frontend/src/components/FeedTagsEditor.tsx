@@ -8,10 +8,10 @@ import {
 } from '../api/community';
 import { TagChips } from './TagChips';
 import { Skeleton } from './Skeleton';
-import { btnOutline } from './buttonStyles';
-import { selectBase } from './fieldStyles';
-import { focusRing } from './fieldStyles';
+import { Plus } from 'lucide-react';
 import { RemovableChip } from './RemovableChip';
+import { btnBase, btnOutline } from './buttonStyles';
+import { selectBase } from './fieldStyles';
 
 interface Props {
   slug: string;
@@ -86,19 +86,19 @@ export function FeedTagsEditor({ slug }: Props) {
               <div className="space-y-2 mb-3">
                 {tags.rss.length > 0 && (
                   <div className="flex flex-wrap items-center gap-2">
-                    <span className="text-xs text-muted-foreground w-16 shrink-0">From RSS:</span>
+                    <span className="text-xs text-muted-foreground w-16 shrink-0">From RSS</span>
                     <TagChips tags={tags.rss} />
                   </div>
                 )}
                 {tags.episode.length > 0 && (
                   <div className="flex flex-wrap items-center gap-2">
-                    <span className="text-xs text-muted-foreground w-16 shrink-0">Episodes:</span>
+                    <span className="text-xs text-muted-foreground w-16 shrink-0">Episodes</span>
                     <TagChips tags={tags.episode} />
                   </div>
                 )}
                 {tags.user.length > 0 && (
                   <div className="flex flex-wrap items-center gap-2">
-                    <span className="text-xs text-muted-foreground w-16 shrink-0">Yours:</span>
+                    <span className="text-xs text-muted-foreground w-16 shrink-0">Yours</span>
                     <div className="flex flex-wrap gap-1">
                       {tags.user.map((t) => (
                         <RemovableChip key={t} label={t} onRemove={() => removeTag(t)} disabled={save.isPending} />
@@ -115,9 +115,10 @@ export function FeedTagsEditor({ slug }: Props) {
                   type="button"
                   onClick={() => setAdding(true)}
                   disabled={save.isPending || remainingVocab.length === 0}
-                  className={`px-2 py-1 text-xs rounded ${btnOutline} disabled:opacity-50 ${focusRing}`}
+                  className={`${btnBase} ${btnOutline}`}
                 >
-                  + Add tag
+                  <Plus className="w-4 h-4" aria-hidden="true" />
+                  Add tag
                 </button>
               ) : (
                 <>
@@ -125,7 +126,7 @@ export function FeedTagsEditor({ slug }: Props) {
                     autoFocus
                     defaultValue=""
                     onChange={(e) => e.target.value && addTag(e.target.value)}
-                    className={`${selectBase}`}
+                    className={selectBase}
                   >
                     <option value="" disabled>Pick a tag...</option>
                     {vocab?.podcast_genres && (
@@ -150,7 +151,7 @@ export function FeedTagsEditor({ slug }: Props) {
                   <button
                     type="button"
                     onClick={() => setAdding(false)}
-                    className={`px-2 py-1 text-xs rounded ${btnOutline} ${focusRing}`}
+                    className={`${btnBase} ${btnOutline}`}
                   >
                     Cancel
                   </button>
@@ -158,7 +159,7 @@ export function FeedTagsEditor({ slug }: Props) {
               )}
               {save.isError && (
                 <span className="text-xs text-destructive">
-                  {(save.error as Error)?.message || 'Save failed'}
+                  {(save.error as Error)?.message || 'Could not save tags.'}
                 </span>
               )}
             </div>

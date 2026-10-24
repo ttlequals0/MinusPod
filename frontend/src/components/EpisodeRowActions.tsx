@@ -6,10 +6,10 @@ import type { BulkActionResult, JobState } from '../api/types';
 import { isActionBlocked } from '../utils/processingStage';
 import { applyEpisodeJobState, jobStateFromError } from '../utils/jobStateCache';
 import DropdownMenu from './DropdownMenu';
-import { Modal } from './Modal';
-import { btnDestructive, btnPrimary, btnSecondary } from './buttonStyles';
+import { Modal, dialogFooterBtn } from './Modal';
+import { btnPrimary, btnSecondary, btnDestructive } from './buttonStyles';
 import { badgeBase, tint } from './badgeStyles';
-import { focusRing } from './fieldStyles';
+import { cardTitle } from './pageStyles';
 
 interface EpisodeRowActionsProps {
   feedSlug: string;
@@ -94,7 +94,7 @@ function EpisodeRowActions({
         title="Episode actions"
         items={[
           { title: baseLabel, subtitle: 'Use patterns + AI', onClick: () => mutation.mutate('reprocess') },
-          { title: 'Full Analysis', subtitle: 'Skip patterns, AI only', onClick: () => mutation.mutate('full') },
+          { title: 'Full reprocess', subtitle: 'Skip patterns, AI only', onClick: () => mutation.mutate('full') },
           ...(deletable ? [{
             title: 'Delete',
             subtitle: 'Free downloaded space',
@@ -115,19 +115,18 @@ function EpisodeRowActions({
           closeOnEscape={!deleteMutation.isPending}
           ariaLabelledBy={deleteTitleId}
           panelClassName="max-w-md w-full"
-        >
-          <div className="p-5">
-            <h2 id={deleteTitleId} className="text-lg font-semibold text-foreground">Delete downloaded episode files?</h2>
-            <p className="mt-3 text-sm text-muted-foreground">
-              This deletes downloaded audio and resets the episode to Discovered. The episode and processing history remain. Originals uploaded to local feeds are kept.
-            </p>
-            {deleteError && <p role="alert" className="mt-3 text-sm text-destructive">{deleteError}</p>}
-            <div className="mt-5 flex justify-end gap-2">
+          header={(
+            <div className="p-4 border-b border-border">
+              <h2 id={deleteTitleId} className={cardTitle}>Delete downloaded files?</h2>
+            </div>
+          )}
+          footer={(
+            <div className="flex items-center justify-end gap-2 p-4 border-t border-border">
               <button
                 type="button"
                 onClick={() => setConfirmDelete(false)}
                 disabled={deleteMutation.isPending}
-                className={`min-h-11 px-4 py-2 rounded ${btnSecondary} disabled:opacity-50 ${focusRing}`}
+                className={`${dialogFooterBtn} ${btnSecondary}`}
               >Cancel</button>
               <button
                 type="button"
@@ -139,9 +138,16 @@ function EpisodeRowActions({
                   deleteMutation.mutate();
                 }}
                 disabled={deleteMutation.isPending || blocked}
-                className={`min-h-11 px-4 py-2 rounded ${btnDestructive} disabled:opacity-50 ${focusRing}`}
+                className={`${dialogFooterBtn} ${btnDestructive}`}
               >{deleteMutation.isPending ? 'Deleting...' : 'Delete files'}</button>
             </div>
+          )}
+        >
+          <div className="p-4">
+            <p className="text-sm text-muted-foreground">
+              This deletes downloaded audio and resets the episode to Discovered. The episode and processing history remain. Originals uploaded to local feeds are kept.
+            </p>
+            {deleteError && <p role="alert" className="mt-3 text-sm text-destructive">{deleteError}</p>}
           </div>
         </Modal>
       )}

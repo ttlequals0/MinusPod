@@ -23,11 +23,11 @@ import { WHISPER_LANGUAGES, labelForLanguage } from '../../utils/whisperLanguage
 import { useSyncFromQuery } from '../../hooks/useSyncFromQuery';
 import { useDraftField, type DraftField } from '../../hooks/useDraftField';
 import { useUnsavedChanges } from '../../hooks/useUnsavedChanges';
-import { btnPrimary, btnSecondary, btnOutline } from '../../components/buttonStyles';
+import { btnBase, btnGhost, btnPrimary, btnSecondary, btnOutline } from '../../components/buttonStyles';
 import { ConfirmModal } from '../../components/Modal';
 import SavedBadge from '../settings/SavedBadge';
 import DraftNumberInput, { parseOptionalNumber } from '../../components/DraftNumberInput';
-import { focusRing, inputBase, selectBase } from '../../components/fieldStyles';
+import { inputBase, labelBase, selectBase } from '../../components/fieldStyles';
 import { LOW_AD_YIELD_ACTION_LABELS } from '../../utils/lowAdYield';
 import { SkipPatternsField } from './SkipPatternsField';
 import { UserAgentOverrideField } from './UserAgentOverrideField';
@@ -113,11 +113,11 @@ function CueOverrideRow({
         onBlur={onBlur}
         disabled={disabled}
         ariaLabel={label}
-        className="w-24 px-2 py-1.5 text-sm bg-secondary border border-border rounded disabled:opacity-50"
+        className={`w-24 ${inputBase}`}
       />
       <span className="text-xs text-muted-foreground">{hint}</span>
       {feedValue != null && (
-        <span className={`${badgeBase} font-medium ${tint.blue}`}>
+        <span className={`${badgeBase} ${tint.blue}`}>
           Override: {formatOverride(feedValue)}
         </span>
       )}
@@ -125,7 +125,7 @@ function CueOverrideRow({
   );
   return (
     <div className={`flex flex-col sm:flex-row ${description ? 'sm:items-start' : 'sm:items-center'} gap-2 sm:gap-3 text-sm`}>
-      <span className={`text-muted-foreground sm:w-32 shrink-0${description ? ' sm:pt-1.5' : ''}`}>{label}:</span>
+      <span className={`text-muted-foreground sm:w-32 shrink-0${description ? ' sm:pt-1.5' : ''}`}>{label}</span>
       {description ? (
         <div className="flex flex-col gap-1 flex-1 min-w-0">
           {inputRow}
@@ -149,13 +149,13 @@ function GlobalOverrideRow({
 }) {
   return (
     <div className="flex flex-col sm:flex-row sm:items-start gap-2 sm:gap-3 text-sm">
-      <span className="text-muted-foreground whitespace-nowrap sm:w-32 shrink-0 sm:pt-1.5">{label}:</span>
+      <span className="text-muted-foreground whitespace-nowrap sm:w-32 shrink-0 sm:pt-1.5">{label}</span>
       <div className="flex flex-col gap-1 flex-1 min-w-0">
         <select
           value={value ?? ''}
           onChange={(e) => onChange(e.target.value === '' ? null : e.target.value as 'on' | 'off')}
           disabled={disabled}
-          className={`self-start w-full sm:w-auto min-h-11 sm:min-h-0 min-w-0 max-w-full disabled:opacity-50 ${selectBase}`}
+          className={`self-start w-full sm:w-auto min-w-0 max-w-full ${selectBase}`}
           aria-label={ariaLabel}
         >
           <option value="">Use global ({globalOn ? 'on' : 'off'})</option>
@@ -343,7 +343,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
     updateMutation.mutate({ segmentCategoryActions: next }, {
       onError: (e) => {
         setSegmentOverrides(prev);
-        setSegmentActionError(getErrorMessage(e, 'Failed to update segment action'));
+        setSegmentActionError(getErrorMessage(e, 'Could not update the segment action.'));
       },
     });
   };
@@ -359,7 +359,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
     }, {
       onError: (e) => {
         setSegmentOverrides(prev);
-        setSegmentActionError(getErrorMessage(e, 'Failed to update segment action'));
+        setSegmentActionError(getErrorMessage(e, 'Could not update the segment action.'));
       },
     });
   };
@@ -373,7 +373,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
     },
     onError: (e: unknown) => {
       setRerenderResult(null);
-      setRerenderError(getErrorMessage(e, 'Re-render failed'));
+      setRerenderError(getErrorMessage(e, 'Could not re-render segments.'));
     },
   });
 
@@ -447,7 +447,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
         notesField.markClean(next ?? '');
         setDetectionNotesSaved(true);
       },
-      onError: (e) => setDetectionNotesError(getErrorMessage(e, 'Failed to save detection notes')),
+      onError: (e) => setDetectionNotesError(getErrorMessage(e, 'Could not save detection notes.')),
     });
   };
 
@@ -459,7 +459,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
         chapterNotesField.markClean(next ?? '');
         setChapterNotesSaved(true);
       },
-      onError: (e) => setChapterNotesError(getErrorMessage(e, 'Failed to save chapter notes')),
+      onError: (e) => setChapterNotesError(getErrorMessage(e, 'Could not save chapter notes.')),
     });
   };
 
@@ -550,6 +550,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
           >
 
           <CollapsibleSection
+            variant="subsection"
             title="Source and network"
             defaultOpen
             storageKey={`feed-source-${slug}`}
@@ -559,7 +560,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
               {isEditingNetwork ? (
                 <div className="space-y-2 text-sm">
                   <div className="flex items-center gap-2">
-                    <label className="text-muted-foreground w-16 shrink-0">Network:</label>
+                    <label className={`${labelBase} mb-0 w-16 shrink-0`}>Network</label>
                     <select
                       value={customNetwork ? '__custom__' : editNetworkOverride}
                       onChange={(e) => {
@@ -590,13 +591,13 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                   {customNetwork && (
                     <>
                       <div className="flex items-center gap-2">
-                        <label className="text-muted-foreground w-16 shrink-0">Name:</label>
+                        <label className={`${labelBase} mb-0 w-16 shrink-0`}>Name</label>
                         <input
                           type="text"
                           value={editNetworkOverride}
                           onChange={(e) => setEditNetworkOverride(e.target.value)}
                           placeholder="Network name"
-                          className="flex-1 min-w-0 px-2 py-1 bg-secondary border border-border rounded"
+                          className={`flex-1 min-w-0 ${inputBase}`}
                         />
                       </div>
                       <p className="text-xs text-muted-foreground pl-[4.5rem]">
@@ -605,17 +606,17 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                     </>
                   )}
                   <div className="flex items-center gap-2">
-                    <label className="text-muted-foreground w-16 shrink-0">DAI:</label>
+                    <label className={`${labelBase} mb-0 w-16 shrink-0`}>DAI</label>
                     <input
                       type="text"
                       value={editDaiPlatform}
                       onChange={(e) => setEditDaiPlatform(e.target.value)}
                       placeholder="e.g., megaphone, acast"
-                      className="flex-1 min-w-0 px-2 py-1 bg-secondary border border-border rounded"
+                      className={`flex-1 min-w-0 ${inputBase}`}
                     />
                   </div>
                   <div className="flex items-center gap-2">
-                    <label className="text-muted-foreground w-16 shrink-0">Feed cap:</label>
+                    <label className={`${labelBase} mb-0 w-16 shrink-0`}>Feed cap</label>
                     <DraftNumberInput
                       value={parseOptionalNumber(editMaxEpisodes)}
                       fallback={null}
@@ -626,7 +627,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                       max={isLocal ? 10000 : 500}
                       step={1}
                       ariaLabel="Feed cap"
-                      className="w-20 px-2 py-1 bg-secondary border border-border rounded"
+                      className={`w-20 ${inputBase}`}
                     />
                   </div>
                   {isLocal && (
@@ -638,13 +639,13 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                     <button
                       onClick={saveNetworkEdit}
                       disabled={updateMutation.isPending}
-                      className={`px-2 py-1 text-xs ${btnPrimary} rounded disabled:opacity-50 ${focusRing}`}
+                      className={`${btnBase} ${btnPrimary}`}
                     >
                       {updateMutation.isPending ? 'Saving...' : 'Save'}
                     </button>
                     <button
                       onClick={() => setIsEditingNetwork(false)}
-                      className={`px-2 py-1 text-xs rounded ${btnSecondary} ${focusRing}`}
+                      className={`${btnBase} ${btnSecondary}`}
                     >
                       Cancel
                     </button>
@@ -653,7 +654,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
               ) : (
                 <div className="flex items-center gap-3 flex-wrap text-sm">
                   {(feed.networkIdOverride || feed.networkId) && (
-                    <span className={`${badgeBase} font-medium ${
+                    <span className={`${badgeBase} ${
                       feed.networkIdOverride
                         ? tint.warning
                         : tint.success
@@ -662,7 +663,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                     </span>
                   )}
                   {feed.daiPlatform && (
-                    <span className={`${badgeBase} ${tint.purple} font-medium`}>
+                    <span className={`${badgeBase} ${tint.purple}`}>
                       DAI: {feed.daiPlatform}
                     </span>
                   )}
@@ -673,9 +674,9 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                   </span>
                   <button
                     onClick={startEditingNetwork}
-                    className={`text-xs text-muted-foreground hover:text-foreground ${focusRing}`}
+                    className={`${btnBase} ${btnGhost}`}
                   >
-                    {feed.networkIdOverride || feed.networkId || feed.daiPlatform ? 'Edit' : '+ Add network'}
+                    {feed.networkIdOverride || feed.networkId || feed.daiPlatform ? 'Edit' : 'Add network'}
                   </button>
                 </div>
               )}
@@ -685,7 +686,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                   Local feeds have no upstream source. */}
               {!isLocal && (
               <div className="flex flex-col sm:flex-row sm:items-start gap-2 sm:gap-3 text-sm">
-                <span className="text-muted-foreground whitespace-nowrap sm:w-32 shrink-0 sm:pt-0.5">Source feed:</span>
+                <span className="text-muted-foreground whitespace-nowrap sm:w-32 shrink-0 sm:pt-0.5">Source feed</span>
                 {isEditingSourceUrl ? (
                   <div className="flex flex-col gap-1 flex-1 min-w-0">
                     <input
@@ -693,7 +694,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                       value={editSourceUrl}
                       onChange={(e) => setEditSourceUrl(e.target.value)}
                       placeholder="https://example.com/feed.xml"
-                      className="w-full min-w-0 px-2 py-1 bg-secondary border border-border rounded"
+                      className={`w-full min-w-0 ${inputBase}`}
                     />
                     <p className="text-xs text-warning">
                       Points this feed at a different source URL. Existing episodes are
@@ -706,14 +707,14 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                       <button
                         onClick={saveSourceUrl}
                         disabled={sourceUrlMutation.isPending}
-                        className={`px-2 py-1 text-xs ${btnPrimary} rounded disabled:opacity-50 ${focusRing}`}
+                        className={`${btnBase} ${btnPrimary}`}
                       >
                         {sourceUrlMutation.isPending ? 'Validating...' : 'Save'}
                       </button>
                       <button
                         onClick={() => setIsEditingSourceUrl(false)}
                         disabled={sourceUrlMutation.isPending}
-                        className={`px-2 py-1 text-xs rounded ${btnSecondary} disabled:opacity-50 ${focusRing}`}
+                        className={`${btnBase} ${btnSecondary}`}
                       >
                         Cancel
                       </button>
@@ -731,7 +732,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                       <CopyButton text={feed.sourceUrl} label="Copy source URL" labelClassName="sr-only" />
                       <button
                         onClick={startEditingSourceUrl}
-                        className={`text-xs text-muted-foreground hover:text-foreground ${focusRing}`}
+                        className={`${btnBase} ${btnGhost}`}
                       >
                         Edit
                       </button>
@@ -747,6 +748,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
           </CollapsibleSection>
 
           <CollapsibleSection
+            variant="subsection"
             title="Security"
             storageKey={`feed-security-${slug}`}
           >
@@ -759,6 +761,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
           </CollapsibleSection>
 
           <CollapsibleSection
+            variant="subsection"
             title="Processing"
             defaultOpen
             storageKey={`feed-processing-${slug}`}
@@ -766,7 +769,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
             <div className="space-y-4 pt-1">
               {/* Detection notes (#709): free text appended to the LLM prompt context. */}
               <div className="flex flex-col gap-1 text-sm">
-                <label htmlFor="detection-notes" className="text-muted-foreground">Detection notes</label>
+                <label htmlFor="detection-notes" className={`${labelBase} mb-0`}>Detection notes</label>
                 <textarea
                   id="detection-notes"
                   value={notesField.value}
@@ -789,7 +792,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                     onClick={saveDetectionNotes}
                     disabled={!notesField.dirty || updateMutation.isPending}
                     aria-label="Save detection notes"
-                    className={`px-2 py-1 text-xs ${btnPrimary} rounded disabled:opacity-50 ${focusRing}`}
+                    className={`${btnBase} ${btnPrimary}`}
                   >
                     {updateMutation.isPending ? 'Saving...' : 'Save'}
                   </button>
@@ -797,7 +800,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                     onClick={clearDetectionNotes}
                     disabled={notesField.value === ''}
                     aria-label="Clear detection notes"
-                    className={`px-2 py-1 text-xs ${btnOutline} rounded disabled:opacity-50 ${focusRing}`}
+                    className={`${btnBase} ${btnOutline}`}
                   >
                     Clear
                   </button>
@@ -810,16 +813,16 @@ function FeedSettingsPanel({ feed, slug }: Props) {
 
               {/* Auto-Process Control */}
               <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 text-sm">
-                <span className="text-muted-foreground whitespace-nowrap sm:w-32 shrink-0">Auto-Process:</span>
+                <span className="text-muted-foreground whitespace-nowrap sm:w-32 shrink-0">Auto-Process</span>
                 <div className="flex items-center gap-2 flex-wrap">
                   <TriStateSelect
                     value={feed.autoProcessOverride}
                     onChange={(next) => updateMutation.mutate({ autoProcessOverride: next })}
                     disabled={updateMutation.isPending}
-                    className="px-2 py-1.5 text-sm bg-secondary border border-border rounded flex-1 sm:flex-none min-w-0"
+                    className={`flex-1 sm:flex-none min-w-0 ${selectBase}`}
                   />
                   {feed.autoProcessOverride !== null && feed.autoProcessOverride !== undefined && (
-                    <span className={`${badgeBase} font-medium ${
+                    <span className={`${badgeBase} ${
                       feed.autoProcessOverride
                         ? tint.success
                         : tint.destructive
@@ -833,7 +836,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
               {/* Single preset canonicalizing detectionMode/skipAdDetection/passthroughEnabled;
                   those legacy fields stay available for external API callers. */}
               <div className="flex flex-col sm:flex-row sm:items-start gap-2 sm:gap-3 text-sm">
-                <label htmlFor="processing-mode" className="text-muted-foreground whitespace-nowrap sm:w-32 shrink-0 sm:pt-1.5">
+                <label htmlFor="processing-mode" className={`${labelBase} mb-0 whitespace-nowrap sm:w-32 shrink-0 sm:pt-1.5`}>
                   Processing mode:
                 </label>
                 <div className="flex flex-col gap-1 flex-1 min-w-0">
@@ -867,7 +870,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                   {processingMode === 'cue_only' && (
                     <div className="flex flex-col gap-3 pt-1">
                       <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
-                        <label htmlFor="cue-only-safety" className="text-muted-foreground whitespace-nowrap sm:w-32 shrink-0">
+                        <label htmlFor="cue-only-safety" className={`${labelBase} mb-0 whitespace-nowrap sm:w-32 shrink-0`}>
                           Cue-only safety:
                         </label>
                         <select
@@ -911,7 +914,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
 
               {/* Per-feed auto-process queue priority (#625) */}
               <div className="flex flex-col sm:flex-row sm:items-start gap-2 sm:gap-3 text-sm">
-                <span className="text-muted-foreground whitespace-nowrap sm:w-32 shrink-0 sm:pt-1.5">Queue priority:</span>
+                <span className="text-muted-foreground whitespace-nowrap sm:w-32 shrink-0 sm:pt-1.5">Queue priority</span>
                 <div className="flex flex-col gap-1 flex-1 min-w-0">
                   <select
                     value={feed.queuePriority || 'normal'}
@@ -935,7 +938,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
 
               {/* Per-feed low-ad-yield action override */}
               <div className="flex flex-col sm:flex-row sm:items-start gap-2 sm:gap-3 text-sm">
-                <span className="text-muted-foreground whitespace-nowrap sm:w-32 shrink-0 sm:pt-1.5">Low ad yield:</span>
+                <span className="text-muted-foreground whitespace-nowrap sm:w-32 shrink-0 sm:pt-1.5">Low ad yield</span>
                 <div className="flex flex-col gap-1 flex-1 min-w-0">
                   <select
                     value={feed.lowAdYieldAction ?? ''}
@@ -961,7 +964,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
 
               {/* Per-feed transcription language override */}
               <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 text-sm">
-                <span className="text-muted-foreground whitespace-nowrap sm:w-32 shrink-0">Language:</span>
+                <span className="text-muted-foreground whitespace-nowrap sm:w-32 shrink-0">Language</span>
                 <div className="flex items-center gap-2 flex-wrap">
                   <select
                     value={feed.languageOverride ?? ''}
@@ -981,7 +984,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                     ))}
                   </select>
                   {feed.languageOverride && (
-                    <span className={`${badgeBase} font-medium ${tint.blue}`}>
+                    <span className={`${badgeBase} ${tint.blue}`}>
                       Override: {labelForLanguage(feed.languageOverride)}
                     </span>
                   )}
@@ -992,6 +995,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
 
           {!isLocal && (
           <CollapsibleSection
+            variant="subsection"
             title="Episode filters"
             subtitle="Skip automatic processing by title, description, or duration"
             defaultOpen
@@ -1028,7 +1032,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                     ['Maximum (minutes)', maxDurationField],
                   ] as const).map(([label, field]) => (
                     <label key={label} className="flex min-w-0 flex-col gap-1.5">
-                      <span className="text-muted-foreground">{label}</span>
+                      <span className={labelBase}>{label}</span>
                       <DraftNumberInput
                         value={parseOptionalNumber(field.value)}
                         fallback={null}
@@ -1039,7 +1043,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                         placeholder="No limit"
                         ariaLabel={label}
                         disabled={updateMutation.isPending}
-                        className="w-full min-h-11 px-3 py-2 rounded-lg border border-input bg-background text-foreground focus:outline-hidden focus:ring-2 focus:ring-ring disabled:opacity-50"
+                        className={`w-full ${inputBase}`}
                       />
                     </label>
                   ))}
@@ -1051,7 +1055,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                 <button
                   type="button"
                   disabled={updateMutation.isPending || (!minDurationField.dirty && !maxDurationField.dirty)}
-                  className={`min-h-11 px-3 py-2 text-sm rounded ${btnSecondary} disabled:opacity-50 ${focusRing}`}
+                  className={`${btnBase} ${btnSecondary}`}
                   onClick={() => {
                     const minimum = parseOptionalNumber(minDurationField.value);
                     const maximum = parseOptionalNumber(maxDurationField.value);
@@ -1108,6 +1112,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
           )}
 
           <CollapsibleSection
+            variant="subsection"
             title="Tags"
             defaultOpen
             storageKey={`feed-title-tags-${slug}`}
@@ -1115,7 +1120,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
             <div className="space-y-4 pt-1">
               {/* Feed tags */}
               <div className="flex flex-col sm:flex-row sm:items-start gap-2 sm:gap-3 text-sm">
-                <span className="text-muted-foreground whitespace-nowrap sm:w-32 shrink-0 sm:pt-0.5">Tags:</span>
+                <span className="text-muted-foreground whitespace-nowrap sm:w-32 shrink-0 sm:pt-0.5">Tags</span>
                 <div className="flex-1 min-w-0">
                   <FeedTagsEditor slug={slug} />
                 </div>
@@ -1124,14 +1129,15 @@ function FeedSettingsPanel({ feed, slug }: Props) {
           </CollapsibleSection>
 
           <CollapsibleSection
+            variant="subsection"
             title="Chapters"
             defaultOpen
             storageKey={`feed-chapters-${slug}`}
           >
-            <div className="space-y-4 pt-1 max-sm:[&_select]:min-h-11">
+            <div className="space-y-4 pt-1">
               {/* Per-feed chapter mode */}
               <div className="flex flex-col sm:flex-row sm:items-start gap-2 sm:gap-3 text-sm">
-                <span className="text-muted-foreground whitespace-nowrap sm:w-32 shrink-0 sm:pt-1.5">Chapters:</span>
+                <span className="text-muted-foreground whitespace-nowrap sm:w-32 shrink-0 sm:pt-1.5">Chapters</span>
                 <div className="flex flex-col gap-1 flex-1 min-w-0">
                   <select
                     value={feed.chaptersMode ?? ''}
@@ -1159,7 +1165,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
               </div>
 
               <div className="flex flex-col gap-1 text-sm">
-                <label htmlFor="chapter-notes" className="text-muted-foreground">Chapter notes</label>
+                <label htmlFor="chapter-notes" className={`${labelBase} mb-0`}>Chapter notes</label>
                 <textarea
                   id="chapter-notes"
                   value={chapterNotesField.value}
@@ -1182,7 +1188,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                     onClick={saveChapterNotes}
                     disabled={!chapterNotesField.dirty || updateMutation.isPending}
                     aria-label="Save chapter notes"
-                    className={`px-2 py-1 text-xs ${btnPrimary} rounded disabled:opacity-50 ${focusRing}`}
+                    className={`${btnBase} ${btnPrimary}`}
                   >
                     {updateMutation.isPending ? 'Saving...' : 'Save'}
                   </button>
@@ -1190,7 +1196,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                     onClick={clearChapterNotes}
                     disabled={chapterNotesField.value === ''}
                     aria-label="Clear chapter notes"
-                    className={`px-2 py-1 text-xs ${btnOutline} rounded disabled:opacity-50 ${focusRing}`}
+                    className={`${btnBase} ${btnOutline}`}
                   >
                     Clear
                   </button>
@@ -1218,14 +1224,15 @@ function FeedSettingsPanel({ feed, slug }: Props) {
           </CollapsibleSection>
 
           <CollapsibleSection
+            variant="subsection"
             title="Chapter trim"
             subtitle="Cut a span whose chapter title matches a pattern"
             defaultOpen
             storageKey={`feed-chapter-trim-${slug}`}
           >
-            <div className="space-y-4 pt-1 max-sm:[&_select]:min-h-11">
+            <div className="space-y-4 pt-1">
               <div className="flex flex-col sm:flex-row sm:items-start gap-2 sm:gap-3 text-sm">
-                <label htmlFor="description-trim-pattern" className="text-muted-foreground sm:w-32 shrink-0 sm:pt-2">
+                <label htmlFor="description-trim-pattern" className={`${labelBase} mb-0 sm:w-32 shrink-0 sm:pt-2`}>
                   Chapter title pattern:
                 </label>
                 <div className="flex flex-col gap-2 flex-1 min-w-0">
@@ -1240,7 +1247,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                     placeholder="*Throwback*"
                     disabled={updateMutation.isPending}
                     aria-label="Chapter title pattern"
-                    className={`${inputBase} w-full max-w-sm min-h-11 disabled:opacity-50`}
+                    className={`${inputBase} w-full max-w-sm`}
                   />
                   <select
                     value={feed.descriptionTrimMode ?? 'to_end'}
@@ -1263,6 +1270,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
           </CollapsibleSection>
 
           <CollapsibleSection
+            variant="subsection"
             title="Served feed and storage"
             defaultOpen
             storageKey={`feed-output-${slug}`}
@@ -1292,16 +1300,16 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                   local feed: nothing is served until it finishes processing. */}
               {!isLocal && (
               <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 text-sm">
-                <span className="text-muted-foreground whitespace-nowrap sm:w-32 shrink-0">Hide unprocessed:</span>
+                <span className="text-muted-foreground whitespace-nowrap sm:w-32 shrink-0">Hide unprocessed</span>
                 <div className="flex items-center gap-2 flex-wrap">
                   <TriStateSelect
                     value={feed.onlyExposeProcessedEpisodes}
                     onChange={(next) => updateMutation.mutate({ onlyExposeProcessedEpisodes: next })}
                     disabled={updateMutation.isPending}
-                    className="px-2 py-1.5 text-sm bg-secondary border border-border rounded w-full sm:w-auto min-h-11 sm:min-h-0 sm:flex-none min-w-0"
+                    className={`w-full sm:w-auto sm:flex-none min-w-0 ${selectBase}`}
                   />
                   {feed.onlyExposeProcessedEpisodes !== null && feed.onlyExposeProcessedEpisodes !== undefined && (
-                    <span className={`${badgeBase} font-medium ${
+                    <span className={`${badgeBase} ${
                       feed.onlyExposeProcessedEpisodes
                         ? tint.success
                         : tint.destructive
@@ -1317,7 +1325,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                   own episode IDs; there's no publisher GUID to fall back to. */}
               {!isLocal && (
               <div className="flex flex-col sm:flex-row sm:items-start gap-2 sm:gap-3 text-sm">
-                <span className="text-muted-foreground whitespace-nowrap sm:w-32 shrink-0 sm:pt-0.5">Episode GUIDs:</span>
+                <span className="text-muted-foreground whitespace-nowrap sm:w-32 shrink-0 sm:pt-0.5">Episode GUIDs</span>
                 <div className="flex flex-col gap-1 flex-1 min-w-0">
                   <label className="flex items-center gap-2 cursor-pointer">
                     <ToggleSwitch
@@ -1339,7 +1347,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
 
               {/* Per-feed run log storage override */}
               <div className="flex flex-col sm:flex-row sm:items-start gap-2 sm:gap-3 text-sm">
-                <span className="text-muted-foreground whitespace-nowrap sm:w-32 shrink-0 sm:pt-1.5">Run logs:</span>
+                <span className="text-muted-foreground whitespace-nowrap sm:w-32 shrink-0 sm:pt-1.5">Run logs</span>
                 <div className="flex flex-col gap-1 flex-1 min-w-0">
                   <select
                     value={feed.episodeLogs ?? ''}
@@ -1348,7 +1356,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                         ? null : (e.target.value as EpisodeLogsOverride),
                     })}
                     disabled={updateMutation.isPending}
-                    className={`self-start w-full sm:w-auto min-h-11 sm:min-h-0 min-w-0 max-w-full disabled:opacity-50 ${selectBase}`}
+                    className={`self-start w-full sm:w-auto min-w-0 max-w-full ${selectBase}`}
                     aria-label="Run log storage"
                   >
                     <option value="">Use global ({globalEpisodeLogsLabel})</option>
@@ -1366,7 +1374,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                   control: inherit, archive (0), and an explicit day count, so
                   the number field only appears once "Keep for" is chosen. */}
               <div className="flex flex-col sm:flex-row sm:items-start gap-2 sm:gap-3 text-sm">
-                <span className="text-muted-foreground whitespace-nowrap sm:w-32 shrink-0 sm:pt-1.5">Retention:</span>
+                <span className="text-muted-foreground whitespace-nowrap sm:w-32 shrink-0 sm:pt-1.5">Retention</span>
                 <div className="flex flex-col gap-1 flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
                     <select
@@ -1383,7 +1391,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                         });
                       }}
                       disabled={updateMutation.isPending}
-                      className={`self-start w-full sm:w-auto min-h-11 sm:min-h-0 min-w-0 max-w-full disabled:opacity-50 ${selectBase}`}
+                      className={`self-start w-full sm:w-auto min-w-0 max-w-full ${selectBase}`}
                       aria-label="Retention"
                     >
                       <option value="global">Use global ({globalStorageRetentionLabel})</option>
@@ -1404,14 +1412,14 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                           onBlur={() => commitFloat(
                             retentionDaysField, feed.retentionDaysOverride,
                             'retentionDaysOverride', 1, MAX_RETENTION_DAYS)}
-                          className="w-24 px-2 py-1 rounded border border-input bg-background text-foreground text-sm focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring"
+                          className={`w-24 ${inputBase}`}
                           ariaLabel="Retention days"
                         />
                         <span className="text-xs text-muted-foreground">days</span>
                       </>
                     )}
                     {feed.retentionDaysOverride === 0 && (
-                      <span className={`${badgeBase} font-medium ${tint.blue}`}>
+                      <span className={`${badgeBase} ${tint.blue}`}>
                         Archived
                       </span>
                     )}
@@ -1426,7 +1434,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
 
               {/* Per-feed pre-cut original audio override */}
               <div className="flex flex-col sm:flex-row sm:items-start gap-2 sm:gap-3 text-sm">
-                <span className="text-muted-foreground whitespace-nowrap sm:w-32 shrink-0 sm:pt-1.5">Original audio:</span>
+                <span className="text-muted-foreground whitespace-nowrap sm:w-32 shrink-0 sm:pt-1.5">Original audio</span>
                 <div className="flex flex-col gap-1 flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
                     <select
@@ -1437,7 +1445,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                           ? null : e.target.value === 'on',
                       })}
                       disabled={updateMutation.isPending}
-                      className={`self-start w-full sm:w-auto min-h-11 sm:min-h-0 min-w-0 max-w-full disabled:opacity-50 ${selectBase}`}
+                      className={`self-start w-full sm:w-auto min-w-0 max-w-full ${selectBase}`}
                       aria-label="Keep original audio"
                     >
                       <option value="">Use global ({globalKeepOriginalLabel})</option>
@@ -1445,7 +1453,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                       <option value="off">Discard the uncut copy</option>
                     </select>
                     {feed.keepOriginalAudioOverride != null && (
-                      <span className={`${badgeBase} font-medium ${tint.blue}`}>
+                      <span className={`${badgeBase} ${tint.blue}`}>
                         Override: {feed.keepOriginalAudioOverride ? 'keeping' : 'discarding'}
                       </span>
                     )}
@@ -1462,6 +1470,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
           {/* Segment actions (issue #565): per-feed remove/beep/keep/mark overrides,
               show-segment detection, and the bulk re-render trigger. */}
           <CollapsibleSection
+            variant="subsection"
             title="Segment actions"
             subtitle="Per-feed overrides, show-segment detection, and re-rendering already-processed episodes"
             defaultOpen={false}
@@ -1493,7 +1502,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                         {/* Fixed width fits the Inherit pill, so Clear never shifts the toggle. */}
                         <div className="w-16 shrink-0 flex">
                           {override === undefined ? (
-                            <span className={`${badgeBase} font-medium whitespace-nowrap ${tint.secondary}`}>
+                            <span className={`${badgeBase} whitespace-nowrap ${tint.secondary}`}>
                               Inherit
                             </span>
                           ) : (
@@ -1501,7 +1510,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                               type="button"
                               onClick={() => clearSegmentActionOverride(category)}
                               disabled={updateMutation.isPending}
-                              className={`text-xs text-muted-foreground hover:text-foreground disabled:opacity-50 ${focusRing}`}
+                              className={`${btnBase} ${btnGhost}`}
                             >
                               Clear
                             </button>
@@ -1553,7 +1562,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                   type="button"
                   onClick={handleRerenderClick}
                   disabled={rerenderMutation.isPending}
-                  className={`self-start whitespace-nowrap px-3 py-1.5 text-sm rounded ${btnSecondary} disabled:opacity-50 transition-colors ${focusRing}`}
+                  className={`self-start ${btnBase} ${btnSecondary}`}
                 >
                   {rerenderMutation.isPending ? 'Re-rendering...' : 'Re-render episodes'}
                 </button>
@@ -1572,6 +1581,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
 
           {/* Cue tuning overrides (collapsible, advanced knobs) */}
           <CollapsibleSection
+            variant="subsection"
             title="Cue tuning overrides"
             defaultOpen={false}
             storageKey={`feed-cue-tuning-${slug}`}
@@ -1594,18 +1604,18 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                   select stays first in the column, sharing the left edge every
                   other control in this section uses. */}
               <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 text-sm">
-                <span className="text-muted-foreground sm:w-32 shrink-0">Create ads from cue pairs:</span>
+                <span className="text-muted-foreground sm:w-32 shrink-0">Create ads from cue pairs</span>
                 <div className="flex items-center gap-2 flex-wrap">
                   <TriStateSelect
                     value={feed.cueCreateFromPairsOverride}
                     onChange={(next) => updateMutation.mutate({ cueCreateFromPairsOverride: next })}
                     disabled={updateMutation.isPending}
-                    className="px-2 py-1.5 text-sm bg-secondary border border-border rounded flex-1 sm:flex-none min-w-0"
+                    className={`flex-1 sm:flex-none min-w-0 ${selectBase}`}
                   />
                   <span className="text-xs text-muted-foreground">Empty = use global</span>
                   <ExperimentalBadge />
                   {feed.cueCreateFromPairsOverride != null && (
-                    <span className={`${badgeBase} font-medium ${tint.blue}`}>
+                    <span className={`${badgeBase} ${tint.blue}`}>
                       Override: {feed.cueCreateFromPairsOverride ? 'on' : 'off'}
                     </span>
                   )}
@@ -1613,17 +1623,17 @@ function FeedSettingsPanel({ feed, slug }: Props) {
               </div>
 
               <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 text-sm">
-                <span className="text-muted-foreground sm:w-32 shrink-0">Cut matched cue audio:</span>
+                <span className="text-muted-foreground sm:w-32 shrink-0">Cut matched cue audio</span>
                 <div className="flex items-center gap-2 flex-wrap">
                   <TriStateSelect
                     value={feed.cueCutMatchesOverride}
                     onChange={(next) => updateMutation.mutate({ cueCutMatchesOverride: next })}
                     disabled={updateMutation.isPending}
-                    className="px-2 py-1.5 text-sm bg-secondary border border-border rounded flex-1 sm:flex-none min-w-36"
+                    className={`flex-1 sm:flex-none min-w-36 ${selectBase}`}
                   />
                   <span className="text-xs text-muted-foreground">Empty = use global</span>
                   {feed.cueCutMatchesOverride != null && (
-                    <span className={`${badgeBase} font-medium ${tint.blue}`}>
+                    <span className={`${badgeBase} ${tint.blue}`}>
                       Override: {feed.cueCutMatchesOverride ? 'on' : 'off'}
                     </span>
                   )}
@@ -1671,6 +1681,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
 
           {/* Advanced settings (collapsible; rarely-changed knobs) */}
           <CollapsibleSection
+            variant="subsection"
             title="Advanced"
             subtitle="Download requests, cut snapping, ad review holds, and differential checks"
             defaultOpen={false}
@@ -1686,7 +1697,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                 hint="Audio, artwork, and chapters for this feed. Blank uses global. Cross-fetch uses a different client."
                 saveAriaLabel="Save download User-Agent"
                 useGlobalAriaLabel="Use global download User-Agent"
-                errorFallback="Failed to save download User-Agent"
+                errorFallback="Could not save the download User-Agent."
                 disabled={updateMutation.isPending}
                 onSave={(next, callbacks) => updateMutation.mutate({ downloadUserAgentOverride: next }, callbacks)}
               />
@@ -1699,7 +1710,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                 hint="This feed's own RSS fetch. Blank uses global."
                 saveAriaLabel="Save RSS User-Agent"
                 useGlobalAriaLabel="Use global RSS User-Agent"
-                errorFallback="Failed to save RSS User-Agent"
+                errorFallback="Could not save the RSS User-Agent."
                 disabled={updateMutation.isPending}
                 onSave={(next, callbacks) => updateMutation.mutate({ feedUserAgentOverride: next }, callbacks)}
               />
@@ -1786,7 +1797,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
               {/* Splice-veto override. Tri-state so a feed can also be held
                   to the check when the global is off. */}
               <div className="flex flex-col sm:flex-row sm:items-start gap-2 sm:gap-3 text-sm">
-                <span className="text-muted-foreground whitespace-nowrap sm:w-32 shrink-0 sm:pt-1.5">Splice check:</span>
+                <span className="text-muted-foreground whitespace-nowrap sm:w-32 shrink-0 sm:pt-1.5">Splice check</span>
                 <div className="flex flex-col gap-1 flex-1 min-w-0">
                   <select
                     value={feed.spliceVetoEnabled === null || feed.spliceVetoEnabled === undefined
@@ -1813,7 +1824,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
 
               {/* Cue-gated approval (Phase C held-for-review) */}
               <div className="flex flex-col sm:flex-row sm:items-start gap-2 sm:gap-3 text-sm">
-                <span className="text-muted-foreground whitespace-nowrap sm:w-32 shrink-0 sm:pt-0.5">Cue gating:</span>
+                <span className="text-muted-foreground whitespace-nowrap sm:w-32 shrink-0 sm:pt-0.5">Cue gating</span>
                 <div className="flex flex-col gap-1 flex-1 min-w-0">
                   <label className="flex items-center gap-2 cursor-pointer">
                     <ToggleSwitch
@@ -1832,7 +1843,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
 
               {/* Per-feed verification mode (#599). */}
               <div className="flex flex-col sm:flex-row sm:items-start gap-2 sm:gap-3 text-sm">
-                <span className="text-muted-foreground whitespace-nowrap sm:w-32 shrink-0 sm:pt-0.5">Verification:</span>
+                <span className="text-muted-foreground whitespace-nowrap sm:w-32 shrink-0 sm:pt-0.5">Verification</span>
                 <div className="flex flex-col gap-1 flex-1 min-w-0">
                   <select
                     value={cueOnlyActive ? 'skip' : feed.skipSecondPass == null ? 'inherit' : feed.skipSecondPass ? 'skip' : 'run'}
@@ -1864,7 +1875,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                   upstream audio URL to fetch twice. */}
               {!isLocal && (
               <div className="flex flex-col sm:flex-row sm:items-start gap-2 sm:gap-3 text-sm">
-                <span className="text-muted-foreground whitespace-nowrap sm:w-32 shrink-0 sm:pt-0.5">Cross-fetch diff:</span>
+                <span className="text-muted-foreground whitespace-nowrap sm:w-32 shrink-0 sm:pt-0.5">Cross-fetch diff</span>
                 <div className="flex flex-col gap-1 flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
                     <select
@@ -1883,7 +1894,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                       <option value="off">Off</option>
                     </select>
                     <span
-                      className={`${badgeBase} font-medium ${
+                      className={`${badgeBase} ${
                         feed.differentialFetchEffective
                           ? tint.destructive
                           : tint.secondary
@@ -1896,7 +1907,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                     </span>
                     {feed.daiLikely && (
                       <span
-                        className={`${badgeBase} font-medium ${tint.destructive}`}
+                        className={`${badgeBase} ${tint.destructive}`}
                         title="This feed's audio URLs route through a known dynamic ad insertion service."
                       >
                         DAI likely
@@ -1914,7 +1925,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
               {/* Local feeds have no publisher transcript to compare against. */}
               {!isLocal && (
               <div className="flex flex-col sm:flex-row sm:items-start gap-2 sm:gap-3 text-sm">
-                <span className="text-muted-foreground whitespace-nowrap sm:w-32 shrink-0 sm:pt-0.5">Transcript diff:</span>
+                <span className="text-muted-foreground whitespace-nowrap sm:w-32 shrink-0 sm:pt-0.5">Transcript diff</span>
                 <div className="flex flex-col gap-1 flex-1 min-w-0">
                   <select
                     value={feed.transcriptDifferential == null ? 'inherit' : feed.transcriptDifferential ? 'on' : 'off'}

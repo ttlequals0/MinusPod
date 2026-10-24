@@ -324,7 +324,7 @@ describe('FeedSettingsPanel queue priority control (#625)', () => {
 });
 
 describe('FeedSettingsPanel title blacklist controls', () => {
-  const ADD_BUTTON_NAME = '+ Add pattern';
+  const ADD_BUTTON_NAME = 'Add pattern';
   const ACTION_SELECT_NAME = 'Skipped episodes';
 
   beforeEach(() => {
@@ -989,8 +989,8 @@ describe('FeedSettingsPanel experimental labelling', () => {
 
   it('saves the cut matched cue audio override as a tri-state', async () => {
     renderPanel(makeFeed());
-    await screen.findByText('Cut matched cue audio:');
-    const select = screen.getByText('Cut matched cue audio:').nextElementSibling!.querySelector('select')!;
+    await screen.findByText('Cut matched cue audio');
+    const select = screen.getByText('Cut matched cue audio').nextElementSibling!.querySelector('select')!;
     await userEvent.selectOptions(select, 'enable');
     await waitFor(() => expect(mockUpdateFeed).toHaveBeenCalledWith('test-feed', { cueCutMatchesOverride: true }));
     await userEvent.selectOptions(select, 'disable');
@@ -999,7 +999,7 @@ describe('FeedSettingsPanel experimental labelling', () => {
 
   it('shows the override badge when set', async () => {
     renderPanel(makeFeed({ cueCutMatchesOverride: false }));
-    await screen.findByText('Cut matched cue audio:');
+    await screen.findByText('Cut matched cue audio');
     expect(screen.getByText('Override: off')).toBeDefined();
   });
 
@@ -1007,7 +1007,7 @@ describe('FeedSettingsPanel experimental labelling', () => {
     // Every input in the cue tuning section shares one left edge. The badge
     // trails the hint, so nothing sits between the label and the select.
     renderPanel(makeFeed());
-    await screen.findByText('Create ads from cue pairs:');
+    await screen.findByText('Create ads from cue pairs');
     const badge = screen.getByText(/^Experimental$/);
     const column = badge.parentElement!;
     const select = column.querySelector('select');
@@ -1298,7 +1298,7 @@ describe('FeedSettingsPanel feed cap', () => {
   it('shows the uncapped hint and a 0-10000 range on a local feed', async () => {
     const user = userEvent.setup();
     renderPanel(makeFeed({ feedType: 'local' }));
-    await user.click(await screen.findByRole('button', { name: '+ Add network' }));
+    await user.click(await screen.findByRole('button', { name: 'Add network' }));
 
     const cap = screen.getByLabelText('Feed cap') as HTMLInputElement;
     expect(cap.min).toBe('0');
@@ -1309,7 +1309,7 @@ describe('FeedSettingsPanel feed cap', () => {
   it('sends maxEpisodes: 0 unclamped for a local feed', async () => {
     const user = userEvent.setup();
     renderPanel(makeFeed({ feedType: 'local' }));
-    await user.click(await screen.findByRole('button', { name: '+ Add network' }));
+    await user.click(await screen.findByRole('button', { name: 'Add network' }));
 
     const cap = screen.getByLabelText('Feed cap');
     await user.clear(cap);
@@ -1323,7 +1323,7 @@ describe('FeedSettingsPanel feed cap', () => {
   it('keeps the 10-500 clamp and no uncapped hint on a subscribed feed', async () => {
     const user = userEvent.setup();
     renderPanel(makeFeed({ feedType: 'subscribed' }));
-    await user.click(await screen.findByRole('button', { name: '+ Add network' }));
+    await user.click(await screen.findByRole('button', { name: 'Add network' }));
 
     const cap = screen.getByLabelText('Feed cap') as HTMLInputElement;
     expect(cap.min).toBe('10');

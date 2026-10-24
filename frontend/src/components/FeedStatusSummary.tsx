@@ -24,7 +24,7 @@ function FeedStatusSummary({ counts, className = '' }: Props) {
       {visible.map((key) => (
         <span
           key={key}
-          className={`${badgeBase} font-medium whitespace-nowrap ${EPISODE_STATUS_COLORS[key]}`}
+          className={`${badgeBase} ${EPISODE_STATUS_COLORS[key]}`}
           title={`${counts[key]} ${EPISODE_STATUS_LABELS[key]}`}
         >
           {counts[key]} {EPISODE_STATUS_SHORT_LABELS[key]}

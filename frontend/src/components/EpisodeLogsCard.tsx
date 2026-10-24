@@ -1,9 +1,8 @@
 import { useState } from 'react';
 import RunLogViewer from './RunLogViewer';
-import { btnOutline } from './buttonStyles';
-import { focusRing } from './fieldStyles';
 import { formatDateTime } from '../utils/format';
 import type { EpisodeProcessingRun } from '../api/types';
+import { btnBase, btnOutline } from './buttonStyles';
 
 interface EpisodeLogsCardProps {
   slug: string;
@@ -40,7 +39,7 @@ function EpisodeLogsCard({ slug, episodeId, runs }: EpisodeLogsCardProps) {
                 <button
                   onClick={() => setOpenRun(run.runNumber)}
                   aria-label={`View log for run ${run.runNumber}`}
-                  className={`px-3 py-1 text-sm rounded ${btnOutline} transition-colors ${focusRing}`}
+                  className={`${btnBase} ${btnOutline}`}
                 >
                   View log
                 </button>

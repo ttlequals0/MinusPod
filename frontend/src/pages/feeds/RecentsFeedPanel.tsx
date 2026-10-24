@@ -2,10 +2,10 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { updateFeed, uploadFeedArtwork } from '../../api/feeds';
 import { getErrorMessage } from '../../api/client';
 import type { Feed } from '../../api/types';
-import { btnPrimary } from '../../components/buttonStyles';
 import CollapsibleSection from '../../components/CollapsibleSection';
-import { fileInputBase, focusRing, inputBase } from '../../components/fieldStyles';
 import { useDraftField } from '../../hooks/useDraftField';
+import { btnBase, btnPrimary } from '../../components/buttonStyles';
+import { inputBase, textareaBase, labelBase, fileInputBase } from '../../components/fieldStyles';
 
 // Title, description and artwork are the only editable parts of the recents feed.
 function RecentsFeedPanel({ feed, slug }: { feed: Feed; slug: string }) {
@@ -45,27 +45,27 @@ function RecentsFeedPanel({ feed, slug }: { feed: Feed; slug: string }) {
           <p className="text-sm text-muted-foreground">
             From all your podcasts. Older episodes stay out even when they are reprocessed.
           </p>
-          <label className="block text-sm">
-            <span className="font-medium text-foreground">Title</span>
+          <label className="block">
+            <span className={labelBase}>Title</span>
             <input aria-label="Feed title" value={titleField.value}
               onChange={(e) => titleField.setValue(e.target.value)}
-              className={`mt-1 w-full ${inputBase}`} />
+              className={`w-full ${inputBase}`} />
           </label>
-          <label className="block text-sm">
-            <span className="font-medium text-foreground">Description</span>
+          <label className="block">
+            <span className={labelBase}>Description</span>
             <textarea aria-label="Feed description" rows={3} value={descriptionField.value}
               onChange={(e) => descriptionField.setValue(e.target.value)}
-              className={`mt-1 w-full ${inputBase}`} />
+              className={`w-full ${textareaBase}`} />
           </label>
           <div className="flex flex-wrap gap-2 items-center">
             <button type="button" onClick={() => save.mutate()} disabled={save.isPending || !titleField.value.trim()}
-              className={`px-4 py-2 rounded ${btnPrimary} disabled:opacity-50 ${focusRing}`}>
+              className={`${btnBase} ${btnPrimary}`}>
               {save.isPending ? 'Saving...' : 'Save'}
             </button>
             {save.isSuccess && <span className="text-sm text-muted-foreground">Saved.</span>}
           </div>
           <div>
-            <label htmlFor={`recents-artwork-${slug}`} className="block text-sm font-medium text-foreground mb-2">Artwork</label>
+            <label htmlFor={`recents-artwork-${slug}`} className={labelBase}>Artwork</label>
             <input
               id={`recents-artwork-${slug}`}
               type="file"

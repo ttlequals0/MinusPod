@@ -268,9 +268,9 @@ describe('Dashboard mobile view menu', () => {
     renderDashboard();
     await screen.findByText('Existing Feed');
 
-    const trigger = screen.getByRole('button', { name: 'View by Podcasts' });
+    const trigger = screen.getByRole('button', { name: 'View by Feeds' });
     await userEvent.click(trigger);
-    expect(screen.getByRole('menuitemradio', { name: 'Podcasts' }).getAttribute('aria-checked')).toBe('true');
+    expect(screen.getByRole('menuitemradio', { name: 'Feeds' }).getAttribute('aria-checked')).toBe('true');
     await userEvent.click(screen.getByRole('menuitemradio', { name: 'Episodes' }));
 
     expect(screen.getByRole('button', { name: 'View by Episodes' })).toBeDefined();
@@ -351,7 +351,7 @@ describe('Dashboard Episodes view', () => {
     renderDashboard();
     await userEvent.click(await screen.findByRole('button', { name: 'Episodes' }));
     await screen.findByRole('heading', { name: 'Alpha Show' });
-    expect(screen.getByText('No episodes yet')).toBeTruthy();
+    expect(screen.getByText('No episodes yet.')).toBeTruthy();
   });
 
   it('sends the sort to the server and renders the page in the order it came back', async () => {
@@ -367,7 +367,7 @@ describe('Dashboard Episodes view', () => {
     const headings = await screen.findAllByRole('heading', { level: 2 });
     expect(headings.map((h) => h.textContent)).toEqual(['Zulu Show', 'Alpha Show']);
 
-    await userEvent.click(screen.getByRole('button', { name: 'Podcasts' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Feeds' }));
     expect(JSON.parse(localStorage.getItem('dashboardSortBy') ?? '""')).toBe('title');
   });
 });
@@ -459,14 +459,14 @@ describe('Dashboard toolbar heights', () => {
     localStorage.removeItem('dashboardEpisodesPerPodcast');
   });
 
-  it('gives the Podcasts/Episodes switch a 44px outer height', async () => {
+  it('gives the Feeds/Episodes switch a 44px outer height', async () => {
     renderDashboard();
-    const group = await screen.findByRole('group', { name: 'Dashboard view' });
+    const group = await screen.findByRole('group', { name: 'Feeds view' });
     expect(group.className).toContain('h-11');
-    const podcastsButton = screen.getByRole('button', { name: 'Podcasts' });
-    expect(podcastsButton.className).toContain('inline-flex');
-    expect(podcastsButton.className).toContain('items-center');
-    expect(podcastsButton.className).toContain('justify-center');
+    const feedsButton = screen.getByRole('button', { name: 'Feeds' });
+    expect(feedsButton.className).toContain('inline-flex');
+    expect(feedsButton.className).toContain('items-center');
+    expect(feedsButton.className).toContain('justify-center');
   });
 
   it('gives the grid/list icon buttons a 44px wrapper height and matching min-width', async () => {
@@ -490,15 +490,19 @@ describe('Dashboard toolbar heights', () => {
     expect(sortButton.className).toContain('min-w-11');
   });
 
-  it('gives Refresh All and Add Feed a 44px height and matching min-width', async () => {
+  it('puts Refresh all, Export OPML and Add feed on one button recipe', async () => {
     renderDashboard();
     const refreshAll = await screen.findByRole('button', { name: 'Refresh all feeds' });
-    expect(refreshAll.className).toContain('h-11');
-    expect(refreshAll.className).toContain('min-w-11');
+    const exportOpml = screen.getByRole('button', { name: 'Export OPML' });
+    const viewOptions = screen.getByRole('button', { name: 'View options' });
+    for (const el of [refreshAll, exportOpml, viewOptions]) {
+      expect(el.className).toContain('px-3 py-1.5');
+      expect(el.className).toContain('text-sm');
+    }
 
-    const addFeed = screen.getByRole('link', { name: 'Add Feed' });
-    expect(addFeed.className).toContain('h-11');
-    expect(addFeed.className).toContain('min-w-11');
+    const addFeed = screen.getByRole('link', { name: 'Add feed' });
+    expect(addFeed.className).toContain('px-3 py-1.5');
+    expect(addFeed.className).toContain('text-sm');
   });
 
   it('gives the episodes-per-podcast select a matching 44px height', async () => {
@@ -506,6 +510,6 @@ describe('Dashboard toolbar heights', () => {
     await userEvent.click(await screen.findByRole('button', { name: 'Episodes' }));
     await userEvent.click(await screen.findByRole('button', { name: 'View options' }));
     const select = await screen.findByRole('combobox', { name: 'Episodes per podcast' });
-    expect(select.className).toContain('h-11');
+    expect(select.className).toContain('min-h-10');
   });
 });

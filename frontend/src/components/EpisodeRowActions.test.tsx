@@ -38,12 +38,12 @@ describe('EpisodeRowActions: action label stays stable across run states', () =>
     expect(screen.getByRole('menuitem', { name: /Process/ })).toBeTruthy();
   });
 
-  it('offers Reprocess and Full Analysis for a completed episode', async () => {
+  it('offers Reprocess and Full reprocess for a completed episode', async () => {
     const user = userEvent.setup();
     renderTrigger({ status: 'completed' });
     await user.click(triggerButton());
     expect(screen.getByRole('menuitem', { name: /Reprocess/ })).toBeTruthy();
-    expect(screen.getByRole('menuitem', { name: /Full Analysis/ })).toBeTruthy();
+    expect(screen.getByRole('menuitem', { name: /Full reprocess/ })).toBeTruthy();
   });
 
   it.each(['submitting', 'queued', 'processing'] as const)(

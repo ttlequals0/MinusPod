@@ -36,7 +36,7 @@ describe('CueDetectionsSection', () => {
 
   it('uses the shared row action sizing on verdict buttons', () => {
     renderSection([DETECTION]);
-    for (const name of ['Confirm', 'Reject']) {
+    for (const name of ['Confirm', 'Not ad']) {
       expect(screen.getByRole('button', { name }).className).toContain('min-h-11');
     }
   });

@@ -2,8 +2,9 @@ import { useState, useRef, useEffect, type ReactNode } from 'react';
 import { useLocalStorageState, readStoredValue } from '../hooks/useLocalStorageState';
 import { useInSettingsSearchRegion, useSettingsSearch } from '../context/SettingsSearchContext';
 import { useSettingsBulkCollapse } from '../context/SettingsBulkCollapseContext';
-import { focusRing } from './fieldStyles';
 import ChevronCaret from './ChevronCaret';
+import { focusRing } from './fieldStyles';
+import { cardTitle, subHeading } from './pageStyles';
 
 // Mirror of a CollapsibleSection's persisted open state, for hosts that need
 // to know whether their section is open (e.g. to gate a query on visibility)
@@ -177,8 +178,8 @@ function CollapsibleSection({
           className={`flex-1 min-w-0 text-left ${subsection ? 'flex min-h-11 flex-col items-start justify-center sm:min-h-0' : ''} ${focusRing}`}
         >
           {subsection
-            ? <h3 className="text-base font-semibold text-foreground">{title}</h3>
-            : <h2 className="text-lg font-semibold text-foreground">{title}</h2>}
+            ? <h3 className={subHeading}>{title}</h3>
+            : <h2 className={cardTitle}>{title}</h2>}
           {subtitle && expanded && (
             <p className="text-sm text-muted-foreground mt-0.5">{subtitle}</p>
           )}

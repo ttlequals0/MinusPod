@@ -2,8 +2,8 @@ import { useState } from 'react';
 import { getErrorMessage } from '../../api/client';
 import type { Feed } from '../../api/types';
 import { useDraftField } from '../../hooks/useDraftField';
-import { btnPrimary, btnOutline } from '../../components/buttonStyles';
-import { inputBase, focusRing } from '../../components/fieldStyles';
+import { btnBase, btnPrimary, btnOutline } from '../../components/buttonStyles';
+import { inputBase, labelBase } from '../../components/fieldStyles';
 
 interface UserAgentOverrideFieldProps {
   id: string;
@@ -36,7 +36,7 @@ export function UserAgentOverrideField({
 
   return (
     <div className="flex flex-col gap-2 text-sm min-w-0">
-      <label htmlFor={id} className="text-muted-foreground">{label}</label>
+      <label htmlFor={id} className={`${labelBase} mb-0`}>{label}</label>
       <input
         id={id}
         value={draft.value}
@@ -48,7 +48,7 @@ export function UserAgentOverrideField({
         maxLength={512}
         disabled={disabled}
         aria-describedby={`${id}-hint`}
-        className={`w-full min-w-0 min-h-11 font-mono ${inputBase}`}
+        className={`w-full min-w-0 font-mono ${inputBase}`}
       />
       <p id={`${id}-hint`} className="text-xs text-muted-foreground">
         {hint}
@@ -58,13 +58,13 @@ export function UserAgentOverrideField({
           onClick={() => save(draft.value)}
           disabled={!draft.dirty || disabled}
           aria-label={saveAriaLabel}
-          className={`${btnPrimary} min-h-11 px-3 py-2 text-xs rounded ${focusRing}`}
+          className={`${btnBase} ${btnPrimary}`}
         >Save</button>
         <button
           onClick={() => save('')}
           disabled={(feed[field] == null && draft.value === '') || disabled}
           aria-label={useGlobalAriaLabel}
-          className={`${btnOutline} min-h-11 px-3 py-2 text-xs rounded ${focusRing}`}
+          className={`${btnBase} ${btnOutline}`}
         >Use global</button>
       </div>
       {error && <p role="alert" className="text-xs text-destructive">{error}</p>}

@@ -1,4 +1,4 @@
-import { summaryCard, summaryValue, summaryLabel } from '../../components/pageStyles';
+import StatTile from '../../components/StatTile';
 import { useQuery } from '@tanstack/react-query';
 import { getDashboardStats } from '../../api/stats';
 import type { Feed } from '../../api/types';
@@ -12,19 +12,6 @@ import { formatCost, formatStatsDuration } from '../../utils/format';
 interface Props {
   feed: Feed;
   slug: string;
-}
-
-function StatCard({ value, label, valueClass = 'text-foreground' }: {
-  value: string | number;
-  label: string;
-  valueClass?: string;
-}) {
-  return (
-    <div className={`${summaryCard} bg-card border-border`}>
-      <p className={`${summaryValue} ${valueClass}`}>{value}</p>
-      <p className={summaryLabel}>{label}</p>
-    </div>
-  );
 }
 
 // Per-feed health at a glance (#466): a row of status-count cards colored to
@@ -48,23 +35,23 @@ function FeedStatsCards({ feed, slug }: Props) {
   return (
     <div className="mb-6 space-y-3">
       {counts && (
-        <div className="grid grid-cols-3 sm:grid-cols-6 gap-2 sm:gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-6 gap-2 sm:gap-3">
           {statusKeys.map((key) => (
-            <StatCard
+            <StatTile
               key={key}
               value={counts[key]}
-              label={EPISODE_STATUS_LABELS[key]}
-              valueClass={EPISODE_STATUS_TEXT_COLORS[key]}
+              label={<span className="first-letter:uppercase">{EPISODE_STATUS_LABELS[key]}</span>}
+              className={EPISODE_STATUS_TEXT_COLORS[key]}
             />
           ))}
         </div>
       )}
       {showAggregates && (
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3">
-          <StatCard value={stats.totalEpisodesProcessed} label="episodes processed" />
-          <StatCard value={stats.totalAdsRemoved} label="ads removed" />
-          <StatCard value={formatStatsDuration(stats.totalTimeSavedSeconds)} label="time saved" />
-          <StatCard value={formatCost(stats.totalLlmCost)} label="Cost" />
+          <StatTile value={stats.totalEpisodesProcessed} label="Episodes processed" />
+          <StatTile value={stats.totalAdsRemoved} label="Ads removed" />
+          <StatTile value={formatStatsDuration(stats.totalTimeSavedSeconds)} label="Time saved" />
+          <StatTile value={formatCost(stats.totalLlmCost)} label="Cost" />
         </div>
       )}
     </div>

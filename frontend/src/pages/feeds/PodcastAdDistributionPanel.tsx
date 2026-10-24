@@ -7,8 +7,9 @@ import CollapsibleSection, { useCollapsibleOpen } from '../../components/Collaps
 import LoadingSpinner from '../../components/LoadingSpinner';
 import { useThemeColors } from '../../hooks/useThemeColors';
 import { getAdDistribution } from '../../api/feeds';
-import { formatDuration } from '../settings/settingsUtils';
+import { formatElapsed } from '../../utils/format';
 import type { AdDistribution, AdDistributionZone } from '../../api/types';
+import { subHeading } from '../../components/pageStyles';
 
 interface Props {
   slug: string;
@@ -23,7 +24,7 @@ function zoneLabel(center: number): string {
 
 function zoneTime(center: number, medianSeconds: number): string {
   if (!medianSeconds) return '';
-  return ` (~${formatDuration(center * medianSeconds)})`;
+  return ` (~${formatElapsed(center * medianSeconds)})`;
 }
 
 function PanelBody({ data }: { data: AdDistribution }) {
@@ -64,14 +65,13 @@ function PanelBody({ data }: { data: AdDistribution }) {
     );
   }
 
-  const medianMin = Math.round(medianDurationSeconds / 60);
   const avgPerEp = (totalEvents / episodesConsidered).toFixed(1);
 
   return (
     <div className="space-y-4">
       <p className="text-sm text-muted-foreground">
         <span className="text-foreground font-medium">{episodesConsidered}</span> episodes
-        {medianMin > 0 && <> &middot; median <span className="text-foreground font-medium">{medianMin} min</span></>}
+        {medianDurationSeconds > 0 && <> &middot; median <span className="text-foreground font-medium">{formatElapsed(medianDurationSeconds)}</span></>}
         {' '}&middot; <span className="text-foreground font-medium">{avgPerEp}</span> ads/ep
       </p>
 
@@ -124,7 +124,7 @@ function PanelBody({ data }: { data: AdDistribution }) {
 
       {zones.length > 0 ? (
         <div className="space-y-1.5">
-          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+          <p className={subHeading}>
             Learned ad-break zones
           </p>
           <ul className="space-y-1">
@@ -164,7 +164,7 @@ function PodcastAdDistributionPanel({ slug }: Props) {
   return (
     <div className="mb-6">
       <CollapsibleSection
-        title="Ad Distribution"
+        title="Ad distribution"
         subtitle="Where ads have been cut across this feed's episodes"
         defaultOpen={false}
         storageKey={`feed-ad-distribution-${slug}`}

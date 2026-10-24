@@ -1,6 +1,6 @@
 import { pageTitle } from '../components/pageStyles';
 import { useState, useRef, useMemo } from 'react';
-import { ChevronDown, Pencil } from 'lucide-react';
+import { ChevronDown, Pencil, Plus } from 'lucide-react';
 import { useParams, Link } from 'react-router';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
@@ -18,7 +18,9 @@ import LoadingSpinner from '../components/LoadingSpinner';
 import { SkeletonPageHeader, SkeletonRows } from '../components/Skeleton';
 import Artwork from '../components/Artwork';
 import { episodeArtworkSrc } from '../utils/artworkUrl';
-import { displayStatusColor, displayStatusLabel, isFailedStatus } from '../utils/episodeStatus';
+import { isFailedStatus } from '../utils/episodeStatus';
+import StatusBadge from '../components/StatusBadge';
+import CloseButton from '../components/CloseButton';
 import { DETECTION_STAGE_META } from '../utils/detectionStage';
 import { CORROBORATION_CLASS, CORROBORATION_META } from '../utils/corroboration';
 import { formatConfidence } from '../utils/confidence';
@@ -39,7 +41,7 @@ import { useLocalStorageState } from '../hooks/useLocalStorageState';
 import { useSyncFromQuery } from '../hooks/useSyncFromQuery';
 import { formatStorage, formatDuration, formatTokenRange } from './settings/settingsUtils';
 import { groupAdBlocks } from '../utils/adBlocks';
-import { formatDate, formatTimestamp, toDatetimeLocalInput, fromDatetimeLocalInput } from '../utils/format';
+import { formatDate, formatPercent, formatTimestamp, toDatetimeLocalInput, fromDatetimeLocalInput } from '../utils/format';
 import { useAuditionPlayer } from '../hooks/useAuditionPlayer';
 import { AuditionPlayButton } from '../components/AuditionPlayButton';
 import { iconTarget, iconVisual, rowActionBtn } from '../components/rowActionStyles';
@@ -47,10 +49,11 @@ import { StageBadge } from '../components/StageBadge';
 import ProcessingRunsTable from '../components/ProcessingRunsTable';
 import CostAmount from '../components/CostAmount';
 import EpisodeLogsCard from '../components/EpisodeLogsCard';
-import { btnDestructive, btnPrimary, btnSecondary, touchCompact, touchTarget } from '../components/buttonStyles';
+import { btnBase, btnDestructive, btnLg, btnPrimary, btnSecondary } from '../components/buttonStyles';
 import DropdownMenu, { type DropdownMenuItem } from '../components/DropdownMenu';
-import { fileInputBase, focusRing } from '../components/fieldStyles';
+import { fileInputBase, focusRing, inputBase, labelBase, textareaBase } from '../components/fieldStyles';
 import { badgeBase, tint } from '../components/badgeStyles';
+import { cardTitle } from '../components/pageStyles';
 import { HOLD_REASON_LABELS, HOLD_REASON_TITLES } from '../utils/holdReason';
 
 function btnLabel(status: string, idle: string): string {
@@ -180,8 +183,6 @@ function parseLocalEpisodeId(id: string): { season: number; episode: number } | 
   return { season: parseInt(m[1], 10), episode: parseInt(m[2], 10) };
 }
 
-const editFieldCls = 'w-full px-4 py-2 rounded-lg border border-input bg-background text-foreground placeholder:text-muted-foreground focus:outline-hidden focus:ring-2 focus:ring-ring';
-
 // "Edit metadata" section shown only for episodes of a local feed (there's
 // no upstream RSS to derive title/description/dates from). Local feeds only:
 // callers gate rendering on feed.feedType === 'local'.
@@ -246,29 +247,29 @@ function EpisodeMetadataEditSection({ slug, episode }: { slug: string; episode: 
       <CollapsibleSection title="Edit metadata" defaultOpen={false} storageKey="episode-edit-metadata">
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label htmlFor="ep-edit-title" className="block text-sm font-medium text-foreground mb-2">Title</label>
-            <input id="ep-edit-title" type="text" value={title} onChange={(e) => setTitle(e.target.value)} required className={editFieldCls} />
+            <label htmlFor="ep-edit-title" className={labelBase}>Title</label>
+            <input id="ep-edit-title" type="text" value={title} onChange={(e) => setTitle(e.target.value)} required className={`w-full ${inputBase}`} />
           </div>
           <div>
-            <label htmlFor="ep-edit-description" className="block text-sm font-medium text-foreground mb-2">Description</label>
-            <textarea id="ep-edit-description" value={description} onChange={(e) => setDescription(e.target.value)} rows={6} className={editFieldCls} />
+            <label htmlFor="ep-edit-description" className={labelBase}>Description</label>
+            <textarea id="ep-edit-description" value={description} onChange={(e) => setDescription(e.target.value)} rows={6} className={`w-full ${textareaBase}`} />
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label htmlFor="ep-edit-season" className="block text-sm font-medium text-foreground mb-2">Season</label>
-              <input id="ep-edit-season" type="number" min={1} value={season} onChange={(e) => setSeason(e.target.value)} className={editFieldCls} />
+              <label htmlFor="ep-edit-season" className={labelBase}>Season</label>
+              <input id="ep-edit-season" type="number" min={1} value={season} onChange={(e) => setSeason(e.target.value)} className={`w-full ${inputBase}`} />
             </div>
             <div>
-              <label htmlFor="ep-edit-episode" className="block text-sm font-medium text-foreground mb-2">Episode</label>
-              <input id="ep-edit-episode" type="number" min={1} value={episodeNum} onChange={(e) => setEpisodeNum(e.target.value)} className={editFieldCls} />
+              <label htmlFor="ep-edit-episode" className={labelBase}>Episode</label>
+              <input id="ep-edit-episode" type="number" min={1} value={episodeNum} onChange={(e) => setEpisodeNum(e.target.value)} className={`w-full ${inputBase}`} />
             </div>
           </div>
           <div>
-            <label htmlFor="ep-edit-published" className="block text-sm font-medium text-foreground mb-2">Published</label>
-            <input id="ep-edit-published" type="datetime-local" value={publishedAt} onChange={(e) => setPublishedAt(e.target.value)} className={editFieldCls} />
+            <label htmlFor="ep-edit-published" className={labelBase}>Published</label>
+            <input id="ep-edit-published" type="datetime-local" value={publishedAt} onChange={(e) => setPublishedAt(e.target.value)} className={`w-full ${inputBase}`} />
           </div>
           <div>
-            <label htmlFor="ep-edit-artwork" className="block text-sm font-medium text-foreground mb-2">Artwork</label>
+            <label htmlFor="ep-edit-artwork" className={labelBase}>Artwork</label>
             <input
               id="ep-edit-artwork"
               type="file"
@@ -283,16 +284,16 @@ function EpisodeMetadataEditSection({ slug, episode }: { slug: string; episode: 
             {artworkMutation.isPending && <p className="mt-1 text-sm text-muted-foreground">Uploading...</p>}
             {artworkMutation.isSuccess && <p className="mt-1 text-sm text-success">Artwork updated.</p>}
             {artworkMutation.isError && (
-              <p className="mt-1 text-sm text-destructive">{getErrorMessage(artworkMutation.error, 'Artwork upload failed')}</p>
+              <p className="mt-1 text-sm text-destructive">{getErrorMessage(artworkMutation.error, 'Could not upload artwork.')}</p>
             )}
           </div>
           {mutation.isError && (
-            <p className="text-sm text-destructive">{getErrorMessage(mutation.error, 'Could not save')}</p>
+            <p className="text-sm text-destructive">{getErrorMessage(mutation.error, 'Could not save this episode.')}</p>
           )}
           <button
             type="submit"
             disabled={mutation.isPending || !title.trim()}
-            className={`px-4 py-2 rounded-lg ${btnPrimary} disabled:opacity-50 transition-colors ${focusRing}`}
+            className={`${btnLg} ${btnPrimary}`}
           >
             {mutation.isPending ? 'Saving...' : saved ? 'Saved' : 'Save metadata'}
           </button>
@@ -323,7 +324,7 @@ function SpendSummary({ label, spend, title }: {
 // Header summary of the upstream transcript diff; hidden when the stage did not run.
 function TranscriptDiffBadge({ diff }: { diff?: UpstreamTranscript | null }) {
   if (!diff || diff.status === 'none') return null;
-  const match = diff.coverage != null ? `${Math.round(diff.coverage * 100)}%` : null;
+  const match = diff.coverage != null ? formatPercent(diff.coverage) : null;
   const gaps = diff.spans.length;
   const [label, title] = {
     ok: [gaps ? `Transcript diff: ${gaps} ${gaps === 1 ? 'gap' : 'gaps'}` : 'Transcript diff: no gaps',
@@ -335,7 +336,7 @@ function TranscriptDiffBadge({ diff }: { diff?: UpstreamTranscript | null }) {
   }[diff.status];
   return (
     <span
-      className={`${badgeBase} font-medium ${diff.status === 'ok' && gaps ? tint.teal : tint.neutral}`}
+      className={`${badgeBase} ${diff.status === 'ok' && gaps ? tint.teal : tint.neutral}`}
       title={title}
     >
       {label}
@@ -350,7 +351,7 @@ function blockedRunReason(jobState?: JobState): string {
   return 'A run is already starting.';
 }
 
-const downloadChip = `${touchTarget} px-3 py-1 text-sm rounded transition-colors ${focusRing}`;
+const downloadChip = btnBase;
 
 function EpisodeDetail() {
   const { slug, episodeId } = useParams<{ slug: string; episodeId: string }>();
@@ -565,7 +566,7 @@ function EpisodeDetail() {
       setSaveStatus('error');
       // A keep-resolved marker (409) or any other rejection: surface the
       // backend's own message rather than special-casing the status code.
-      setCorrectionError(getErrorMessage(error, 'Failed to save correction'));
+      setCorrectionError(getErrorMessage(error, 'Could not save the correction.'));
       pendingRecutRef.current = false;
       setTimeout(() => setSaveStatus('idle'), 3000);
     },
@@ -720,9 +721,9 @@ function EpisodeDetail() {
   if (error || !episode) {
     return (
       <div className="text-center py-12">
-        <p className="text-destructive">Failed to load episode</p>
+        <p className="text-destructive">Could not load this episode.</p>
         <Link to={`/feeds/${slug}`} className={`text-primary hover:underline mt-2 inline-block ${focusRing}`}>
-          Back to Feed
+          Back to feed
         </Link>
       </div>
     );
@@ -764,7 +765,7 @@ function EpisodeDetail() {
         )}
         {segment.corroborated_by && CORROBORATION_META[segment.corroborated_by] && (
           <span
-            className={`${badgeBase} font-medium ${CORROBORATION_CLASS}`}
+            className={`${badgeBase} ${CORROBORATION_CLASS}`}
             title={CORROBORATION_META[segment.corroborated_by].title}
           >
             {CORROBORATION_META[segment.corroborated_by].label}
@@ -772,7 +773,7 @@ function EpisodeDetail() {
         )}
         {segment.cue_snap && (
           <span
-            className={`${badgeBase} font-medium ${tint.purple}`}
+            className={`${badgeBase} ${tint.purple}`}
             title={
               (segment.cue_snap.start as Record<string, unknown> | undefined)?.cue_type === 'content_transition' ||
               (segment.cue_snap.end as Record<string, unknown> | undefined)?.cue_type === 'content_transition'
@@ -785,7 +786,7 @@ function EpisodeDetail() {
         )}
         {segment.silence_snap && (
           <span
-            className={`${badgeBase} font-medium ${tint.teal}`}
+            className={`${badgeBase} ${tint.teal}`}
             title="Ad edge snapped to nearby silence"
           >
             Silence snapped
@@ -793,34 +794,34 @@ function EpisodeDetail() {
         )}
         {segment.sponsor && (
           <span
-            className={`${badgeBase} font-medium ${tint.neutral}`}
+            className={`${badgeBase} ${tint.neutral}`}
             title="Sponsor"
           >
             {segment.sponsor}
           </span>
         )}
         {segment.reviewer_verdict === 'confirmed' && (
-          <span className={`${badgeBase} font-medium ${tint.success}`} title={segment.reviewer_reasoning || 'Confirmed by reviewer'}>
+          <span className={`${badgeBase} ${tint.success}`} title={segment.reviewer_reasoning || 'Confirmed by reviewer'}>
             Reviewer: confirmed
           </span>
         )}
         {segment.reviewer_verdict === 'adjust' && (
-          <span className={`${badgeBase} font-medium ${tint.teal}`} title={segment.reviewer_reasoning || 'Boundaries adjusted by reviewer'}>
+          <span className={`${badgeBase} ${tint.teal}`} title={segment.reviewer_reasoning || 'Boundaries adjusted by reviewer'}>
             Reviewer: adjusted
           </span>
         )}
         {segment.reviewer_verdict === 'resurrect' && (
-          <span className={`${badgeBase} font-medium ${tint.warning}`} title={segment.reviewer_reasoning || 'Resurrected by reviewer'}>
+          <span className={`${badgeBase} ${tint.warning}`} title={segment.reviewer_reasoning || 'Resurrected by reviewer'}>
             Reviewer: resurrected
           </span>
         )}
         {segment.reviewer_verdict === 'failure' && (
-          <span className={`${badgeBase} font-medium ${tint.neutral}`} title="Reviewer LLM call failed; original detection kept">
+          <span className={`${badgeBase} ${tint.neutral}`} title="Reviewer LLM call failed; original detection kept">
             Reviewer: skipped
           </span>
         )}
         {segment.reviewer_verdict === 'inconclusive' && (
-          <span className={`${badgeBase} font-medium ${tint.neutral}`} title={segment.reviewer_reasoning || 'Reviewer abstained; original detection kept'}>
+          <span className={`${badgeBase} ${tint.neutral}`} title={segment.reviewer_reasoning || 'Reviewer abstained; original detection kept'}>
             Reviewer abstained
           </span>
         )}
@@ -837,7 +838,7 @@ function EpisodeDetail() {
           const correction = getAdCorrection(segment.start, segment.end);
           if (correction) {
             return (
-              <span className={`${badgeBase} font-medium ${
+              <span className={`${badgeBase} ${
                 correction.correction_type === 'confirm'
                   ? tint.success
                   : correction.correction_type === 'false_positive'
@@ -930,7 +931,7 @@ function EpisodeDetail() {
   const downloadTo = (kind: 'original' | 'cut') => () => {
     setDownloadError(null);
     downloadEpisodeAudio(slug!, episodeId!, kind)
-      .catch((e: unknown) => setDownloadError(getErrorMessage(e, 'Download failed')));
+      .catch((e: unknown) => setDownloadError(getErrorMessage(e, 'Could not download the audio.')));
   };
   const downloadItems: DropdownMenuItem[] = [];
   if (episode?.processedAt) {
@@ -976,7 +977,7 @@ function EpisodeDetail() {
     <div>
       <div className="flex items-center justify-between gap-3 mb-4">
         <Link to={`/feeds/${slug}`} className={`text-primary hover:underline inline-block ${focusRing}`}>
-          Back to Feed
+          Back to feed
         </Link>
         {episode.navigation && (
           <nav className="flex items-center gap-1.5" aria-label="Adjacent episodes">
@@ -999,14 +1000,7 @@ function EpisodeDetail() {
       {correctionError && (
         <div className="mb-4 p-3 rounded-lg bg-destructive/10 text-destructive text-sm flex items-center justify-between gap-3">
           <span>{correctionError}</span>
-          <button
-            type="button"
-            onClick={() => setCorrectionError(null)}
-            aria-label="Dismiss"
-            className={`shrink-0 text-destructive hover:opacity-70 ${focusRing}`}
-          >
-            &times;
-          </button>
+          <CloseButton onClick={() => setCorrectionError(null)} label="Dismiss" className="shrink-0" />
         </div>
       )}
 
@@ -1031,15 +1025,15 @@ function EpisodeDetail() {
               {episode.fileSize && (
                 <span>{formatFileSize(episode.fileSize)}</span>
               )}
-              <span
-                className={`${badgeBase} font-medium ${displayStatusColor(episode.status, episode.jobState)}${failureReason ? ' cursor-help' : ''}`}
+              <StatusBadge
+                status={episode.status}
+                jobState={episode.jobState}
+                className={failureReason ? 'cursor-help' : undefined}
                 title={failureReason}
-              >
-                {displayStatusLabel(episode.status, episode.jobState)}
-              </span>
+              />
               {episode.passthroughEnabled && (
                 <span
-                  className={`${badgeBase} font-medium ${tint.neutral} cursor-help`}
+                  className={`${badgeBase} ${tint.neutral} cursor-help`}
                   title="Served unmodified; ad processing is skipped for this episode"
                 >
                   Pass-through
@@ -1047,7 +1041,7 @@ function EpisodeDetail() {
               )}
               {episode.lowAdYield && (
                 <span
-                  className={`${badgeBase} font-medium ${tint.warning} cursor-help`}
+                  className={`${badgeBase} ${tint.warning} cursor-help`}
                   title={`This run removed ${formatDuration(episode.lowAdYield.removedSeconds)} of ads; this feed's recent episodes average ${formatDuration(episode.lowAdYield.feedAverageSeconds)}. The downloaded copy may have arrived with unfilled ad slots, or ads were missed.`}
                 >
                   Low ad yield
@@ -1055,25 +1049,25 @@ function EpisodeDetail() {
               )}
               {episode.partialDetection && (
                 <span
-                  className={`${badgeBase} font-medium ${tint.warning} cursor-help`}
+                  className={`${badgeBase} ${tint.warning} cursor-help`}
                   title={episode.partialDetection.reason}
                 >
                   Partial detection
                 </span>
               )}
               {episode.transcriptVttAvailable && (
-                <span className={`${badgeBase} font-medium ${tint.blue}`}>
+                <span className={`${badgeBase} ${tint.blue}`}>
                   VTT
                 </span>
               )}
               {episode.chaptersAvailable && (
-                <span className={`${badgeBase} font-medium ${tint.purple}`}>
+                <span className={`${badgeBase} ${tint.purple}`}>
                   Chapters
                 </span>
               )}
               {episode.daiDifferential && (
                 <span
-                  className={`${badgeBase} font-medium ${
+                  className={`${badgeBase} ${
                     episode.daiDifferential.status === 'ok'
                       ? tint.destructive
                       : tint.neutral
@@ -1122,7 +1116,7 @@ function EpisodeDetail() {
               {downloadItems.length > 0 && (
                 <DropdownMenu
                   triggerLabel="Download"
-                  triggerClassName={`px-2 py-0.5 text-xs sm:text-sm ${btnSecondary} rounded flex items-center gap-1`}
+                  triggerClassName={`${btnBase} ${btnSecondary}`}
                   chevronClassName="w-3 h-3"
                   title="Download audio"
                   items={downloadItems}
@@ -1130,7 +1124,7 @@ function EpisodeDetail() {
               )}
               <DropdownMenu
                 triggerLabel={reprocessTriggerLabel}
-                triggerClassName={`px-2 py-0.5 text-xs sm:text-sm ${btnPrimary} rounded disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1`}
+                triggerClassName={`${btnBase} ${btnPrimary}`}
                 chevronClassName="w-3 h-3"
                 disabled={reprocessBlocked}
                 title={reprocessTriggerTooltip}
@@ -1138,20 +1132,20 @@ function EpisodeDetail() {
                   { title: reprocessLabel, subtitle: 'Use patterns + AI',
                     tooltip: 'Use learned patterns + AI analysis',
                     onClick: () => handleReprocess('reprocess') },
-                  { title: 'Full Analysis', subtitle: 'Skip patterns, AI only',
+                  { title: 'Full reprocess', subtitle: 'Skip patterns, AI only',
                     tooltip: 'Skip pattern DB, AI analyzes everything fresh',
                     onClick: () => handleReprocess('full') },
                   ...(episode.hasOriginalAudio ? [{
-                    title: 'Recut Audio', subtitle: 'Apply edits, no AI',
+                    title: 'Recut audio', subtitle: 'Apply edits, no AI',
                     tooltip: 'Re-cut the original audio from your current ad edits (no transcription or AI)',
                     onClick: () => handleReprocess('recut') }] : []),
                   ...(episode.transcriptAvailable ? [{
-                    title: 'Re-detect Ads', subtitle: 'Keep transcript, re-cut',
+                    title: 'Re-detect ads', subtitle: 'Keep transcript, re-cut',
                     disabled: redetectDisabled,
                     tooltip: redetectTooltip,
                     onClick: () => handleReprocess('llm') }] : []),
                   ...(episode.transcriptVttAvailable ? [{
-                    title: 'Regenerate Chapters', subtitle: 'Use existing transcript',
+                    title: 'Regenerate chapters', subtitle: 'Use existing transcript',
                     disabled: chaptersRegenerating || chapterSettingsPending || !settings || unsupportedChapterRoute,
                     tooltip: chapterActionTooltip,
                     onClick: () => regenerateChaptersMutation.mutate() }] : []),
@@ -1174,7 +1168,7 @@ function EpisodeDetail() {
         {episode.transcriptVttAvailable && chapterSettingsError && (
           <div role="alert" className="mt-2 flex flex-wrap items-center gap-2 text-sm text-destructive">
             <span>{getErrorMessage(chapterSettingsError, 'Could not load chapter settings.')}</span>
-            <button type="button" onClick={() => void reloadChapterSettings()} className={`min-h-11 px-4 py-2 rounded-lg ${btnSecondary} ${focusRing}`}>Retry chapter settings</button>
+            <button type="button" onClick={() => void reloadChapterSettings()} className={`${btnBase} ${btnSecondary}`}>Retry chapter settings</button>
           </div>
         )}
         {verificationVerdict && (
@@ -1195,12 +1189,12 @@ function EpisodeDetail() {
         )}
         {regenerateChaptersMutation.isError && (
           <p className="mt-2 text-sm text-destructive">
-            {getErrorMessage(regenerateChaptersMutation.error, 'Failed to regenerate chapters')}
+            {getErrorMessage(regenerateChaptersMutation.error, 'Could not regenerate chapters.')}
           </p>
         )}
         {!episode.chaptersRegenerating && episode.chaptersRegenError && (
           <p className="mt-2 text-sm text-destructive">
-            Chapter regeneration failed: {episode.chaptersRegenError}
+            Could not regenerate chapters: {episode.chaptersRegenError}
           </p>
         )}
 
@@ -1227,9 +1221,9 @@ function EpisodeDetail() {
                 type="button"
                 onClick={() => handleReprocess('llm')}
                 disabled={reprocessBlocked}
-                className={`shrink-0 px-3 py-1.5 text-xs sm:text-sm rounded ${btnSecondary} disabled:opacity-50 disabled:cursor-not-allowed ${focusRing}`}
+                className={`${btnBase} ${btnSecondary} shrink-0`}
               >
-                Re-run detection
+                Re-detect ads
               </button>
             </div>
           </div>
@@ -1279,7 +1273,7 @@ function EpisodeDetail() {
                     download
                     className={`${downloadChip} ${tint.purple} hover:bg-c-purple/30`}
                   >
-                    Download Chapters
+                    Download chapters
                   </a>
                 )}
               </div>
@@ -1349,7 +1343,7 @@ function EpisodeDetail() {
           ) : (
             <div className="flex items-center justify-between gap-3">
               <div className="min-w-0">
-                <h2 className="text-lg font-semibold text-foreground">No ads detected</h2>
+                <h2 className={cardTitle}>No ads detected</h2>
                 <p className="text-sm text-muted-foreground">
                   Spotted an ad the detector missed? Mark it manually so the pattern matcher learns it.
                 </p>
@@ -1358,14 +1352,12 @@ function EpisodeDetail() {
               <button
                 type="button"
                 onClick={() => openEditorFresh(true)}
-                aria-label="Add new ad"
-                title="Add new ad"
-                className={`shrink-0 inline-flex items-center gap-1 px-3 py-1.5 text-sm rounded-md ${btnPrimary} transition-colors whitespace-nowrap ${focusRing}`}
+                aria-label="Add ad"
+                title="Add ad"
+                className={`${btnBase} ${btnPrimary} shrink-0`}
               >
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                </svg>
-                <span className="hidden sm:inline">Add new ad</span>
+                <Plus className="w-4 h-4" aria-hidden="true" />
+                <span className="hidden sm:inline">Add ad</span>
               </button>
             </div>
           )}
@@ -1377,8 +1369,8 @@ function EpisodeDetail() {
           <div className="mb-4">
             {/* Row 1: Title + Edit button */}
             <div className="flex items-center justify-between">
-              <h2 className="text-xl font-semibold text-foreground">
-                Detected Ads ({adBlocks.length === episode.adMarkers.length
+              <h2 className={cardTitle}>
+                Detected ads ({adBlocks.length === episode.adMarkers.length
                   ? episode.adMarkers.length
                   : `${adBlocks.length} ${adBlocks.length === 1 ? 'block' : 'blocks'}, ${episode.adMarkers.length} segments`})
               </h2>
@@ -1388,24 +1380,20 @@ function EpisodeDetail() {
                     onClick={() => openEditorFresh(false)}
                     aria-label={showEditor ? 'Hide editor' : 'Edit ads'}
                     title={showEditor ? 'Hide editor' : 'Edit ads'}
-                    className={`${touchCompact} gap-1.5 sm:px-3 sm:py-1.5 text-xs sm:text-sm ${btnSecondary} rounded-md transition-colors whitespace-nowrap ${focusRing}`}
+                    className={iconTarget}
                   >
-                    <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                        d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                    </svg>
-                    <span className="hidden sm:inline">{showEditor ? 'Hide Editor' : 'Edit Ads'}</span>
+                    <span className={`${iconVisual} ${btnSecondary}`}>
+                      <Pencil className="w-4 h-4" aria-hidden="true" />
+                    </span>
                   </button>
                   <button
                     onClick={() => openEditorFresh(true)}
-                    aria-label="Add new ad"
-                    title="Add new ad"
-                    className={`${touchCompact} gap-1.5 sm:px-3 sm:py-1.5 text-xs sm:text-sm ${btnPrimary} rounded-md transition-colors whitespace-nowrap ${focusRing}`}
+                    aria-label="Add ad"
+                    title="Add ad"
+                    className={`${btnBase} ${btnPrimary}`}
                   >
-                    <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                    </svg>
-                    <span className="hidden sm:inline">Add new ad</span>
+                    <Plus className="w-4 h-4" aria-hidden="true" />
+                    <span className="hidden sm:inline">Add ad</span>
                   </button>
                 </div>
               )}
@@ -1426,7 +1414,7 @@ function EpisodeDetail() {
           </div>
 
           {/* AdEditor for reviewing/editing ad detections. The
-              Processed/Original toggle and the "+ Add new ad" button
+              Processed/Original toggle and the "Add ad" button
               now live INSIDE the modal header, so they remain reachable
               once the editor is open. */}
           {showEditor && episode.status === 'completed' && (
@@ -1602,9 +1590,9 @@ function EpisodeDetail() {
               disabled={reprocessBlocked || redetectDisabled}
               title={redetectTooltip}
               data-testid="redetect-after-review"
-              className={`w-full sm:w-auto ${rowActionBtn} ${btnPrimary} ${focusRing}`}
+              className={`w-full sm:w-auto ${btnBase} ${btnPrimary}`}
             >
-              Re-detect Ads
+              Re-detect ads
             </button>
             {episode.transcriptVttAvailable && (
               <button
@@ -1612,9 +1600,9 @@ function EpisodeDetail() {
                 disabled={chaptersRegenerating || chapterSettingsPending || !settings || unsupportedChapterRoute}
                 title={chapterActionTooltip}
                 data-testid="regenerate-chapters-after-review"
-                className={`w-full sm:w-auto ${rowActionBtn} ${btnSecondary} ${focusRing}`}
+                className={`w-full sm:w-auto ${btnBase} ${btnSecondary}`}
               >
-                Regenerate Chapters
+                Regenerate chapters
               </button>
             )}
           </div>
@@ -1623,8 +1611,8 @@ function EpisodeDetail() {
 
       {heldMarkers.length > 0 && (
         <div className="bg-card rounded-lg border border-warning/30 p-6 mb-6" data-testid="held-for-review-section">
-          <h2 className="text-xl font-semibold text-foreground mb-4">
-            Held for Review ({heldMarkers.length})
+          <h2 className={`${cardTitle} mb-4`}>
+            Held for review ({heldMarkers.length})
           </h2>
           <div className="space-y-3">
             {heldMarkers.map((segment, index) => {
@@ -1644,7 +1632,7 @@ function EpisodeDetail() {
               return (
                 <div
                   key={index}
-                  className="p-3 bg-warning/10 rounded-lg border border-warning/20"
+                  className="p-3 bg-warning/10 rounded-lg"
                 >
                   <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                     <div className="flex flex-wrap items-center gap-2">
@@ -1672,28 +1660,28 @@ function EpisodeDetail() {
                       )}
                       {segment.corroborated_by && CORROBORATION_META[segment.corroborated_by] && (
                         <span
-                          className={`${badgeBase} font-medium ${CORROBORATION_CLASS}`}
+                          className={`${badgeBase} ${CORROBORATION_CLASS}`}
                           title={CORROBORATION_META[segment.corroborated_by].title}
                         >
                           {CORROBORATION_META[segment.corroborated_by].label}
                         </span>
                       )}
                       <span
-                        className={`${badgeBase} font-medium ${tint.warning}`}
+                        className={`${badgeBase} ${tint.warning}`}
                         title={holdTitle}
                       >
                         {holdLabel}
                       </span>
                       {segment.reviewer_verdict === 'inconclusive' && (
                         <span
-                          className={`${badgeBase} font-medium ${tint.neutral}`}
+                          className={`${badgeBase} ${tint.neutral}`}
                           title={segment.reviewer_reasoning || 'Reviewer abstained; marker remains held'}
                         >
                           Reviewer abstained
                         </span>
                       )}
                       {(correction || segment.approved) && (
-                        <span className={`${badgeBase} font-medium ${
+                        <span className={`${badgeBase} ${
                           segment.approved || correction?.correction_type === 'confirm'
                             ? tint.success
                             : tint.warning
@@ -1752,7 +1740,7 @@ function EpisodeDetail() {
                         data-testid={`approve-recut-${index}`}
                         className={`flex-1 sm:flex-none ${rowActionBtn} ${btnClass(confirmStatus, btnPrimary)} ${focusRing}`}
                       >
-                        {btnLabel(confirmStatus, oneTapRecut ? 'Confirm & Recut' : confirmLabel(segment.category))}
+                        {btnLabel(confirmStatus, oneTapRecut ? 'Confirm and recut' : confirmLabel(segment.category))}
                       </button>
                       {proposalOverlaps(segment) && (
                         <button
@@ -1804,7 +1792,7 @@ function EpisodeDetail() {
                 data-testid="apply-approved-recut"
                 className={`w-full sm:w-auto ${rowActionBtn} ${btnPrimary} ${focusRing}`}
               >
-                {`Apply ${approvedHeldCount} confirmed & recut`}
+                {`Apply ${approvedHeldCount} confirmed and recut`}
               </button>
             </div>
           )}
@@ -1854,7 +1842,7 @@ function EpisodeDetail() {
       {episode.rejectedAdMarkers && episode.rejectedAdMarkers.length > 0 && (
         <div className="mb-6">
           <CollapsibleSection
-            title={`Detections Not Cut (${episode.rejectedAdMarkers.length})`}
+            title={`Detections not cut (${episode.rejectedAdMarkers.length})`}
             subtitle="Flagged but kept in audio"
             defaultOpen={false}
             storageKey="episode-rejected-detections"
@@ -1868,7 +1856,7 @@ function EpisodeDetail() {
             {episode.rejectedAdMarkers.map((segment, index) => (
               <div
                 key={index}
-                className="p-3 bg-destructive/10 rounded-lg border border-destructive/20"
+                className="p-3 bg-destructive/10 rounded-lg"
               >
                 {(() => {
                   const correction = getAdCorrection(segment.start, segment.end);
@@ -1898,21 +1886,21 @@ function EpisodeDetail() {
                           </span>
                           <SegmentCategoryBadge category={segment.category} />
                           {isKeepLike(segment.actionApplied) && <KeptBadge actionApplied={segment.actionApplied} />}
-                          <span className={`${badgeBase} font-medium ${tint.destructive}`}>
+                          <span className={`${badgeBase} ${tint.destructive}`}>
                             Not cut
                           </span>
                           {segment.reviewer_verdict === 'reject' && (
-                            <span className={`${badgeBase} font-medium ${tint.destructive}`} title={segment.reviewer_reasoning || 'Rejected by reviewer'}>
+                            <span className={`${badgeBase} ${tint.destructive}`} title={segment.reviewer_reasoning || 'Rejected by reviewer'}>
                               Reviewer: rejected
                             </span>
                           )}
                           {segment.reviewer_verdict === 'failure' && segment.source === 'reviewer' && (
-                            <span className={`${badgeBase} font-medium ${tint.neutral}`} title="Reviewer LLM call failed; validator decision kept">
+                            <span className={`${badgeBase} ${tint.neutral}`} title="Reviewer LLM call failed; validator decision kept">
                               Reviewer: skipped
                             </span>
                           )}
                           {correction && (
-                            <span className={`${badgeBase} font-medium ${
+                            <span className={`${badgeBase} ${
                               correction.correction_type === 'confirm'
                                 ? tint.success
                                 : tint.warning
@@ -1992,13 +1980,13 @@ function EpisodeDetail() {
       {(episode.transcript || episode.originalTranscriptAvailable) && (
         <div className="mb-6 bg-card rounded-lg border border-border p-4 flex items-center justify-between gap-3">
           <div>
-            <h2 className="text-lg font-semibold text-foreground">Transcript</h2>
+            <h2 className={cardTitle}>Transcript</h2>
             <p className="text-sm text-muted-foreground mt-0.5">Original and processed text, with search</p>
           </div>
           <button
             type="button"
             onClick={() => setTranscriptOpen(true)}
-            className={`shrink-0 px-3 py-1.5 text-sm rounded ${btnSecondary} transition-colors ${focusRing}`}
+            className={`${btnBase} ${btnSecondary} shrink-0`}
           >
             View transcript
           </button>

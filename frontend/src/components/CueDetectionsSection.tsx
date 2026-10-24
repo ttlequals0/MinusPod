@@ -4,13 +4,12 @@ import { cueTypeLabel, type CueTemplateType } from '../api/cueTemplates';
 import { setCueDetectionVerdict, type CueVerdict } from '../api/cueDetections';
 import type { CueDetection } from '../api/types';
 import { episodeOriginalUrl } from '../api/feeds';
-import { formatTimestamp } from '../utils/format';
+import { formatPercent, formatTimestamp } from '../utils/format';
 import { useAuditionPlayer } from '../hooks/useAuditionPlayer';
-import { btnDestructive, btnPrimary } from './buttonStyles';
-import { focusRing } from './fieldStyles';
-import { rowActionBtn } from './rowActionStyles';
 import { AuditionPlayButton } from './AuditionPlayButton';
+import { btnPrimary, btnGhost, btnDestructive } from './buttonStyles';
 import { badgeBase, tint } from './badgeStyles';
+import { rowActionBtn } from './rowActionStyles';
 
 interface CueDetectionsSectionProps {
   slug: string;
@@ -37,7 +36,7 @@ const OUTCOME_META: Record<CueDetection['outcome'], OutcomeMeta> = {
     title: 'Sent to the model as evidence; did not move an ad edge',
   },
   below_threshold: {
-    label: 'missed - below threshold',
+    label: 'Missed, below threshold',
     className: tint.warning,
     title: 'Scored just under the feed threshold; never a signal, never affected a cut',
   },
@@ -46,7 +45,7 @@ const OUTCOME_META: Record<CueDetection['outcome'], OutcomeMeta> = {
 // Defensive fallback for an outcome the server adds before the frontend knows
 // it (forward-compat), so the row still renders instead of throwing.
 const UNKNOWN_OUTCOME: OutcomeMeta = {
-  label: 'unknown',
+  label: 'Unknown',
   className: tint.neutral,
   title: 'Unrecognized outcome',
 };
@@ -70,7 +69,7 @@ function CueDetectionsSection({ slug, episodeId, detections }: CueDetectionsSect
 
   return (
     <CollapsibleSection
-      title="Cue Matches"
+      title="Cue matches"
       subtitle="Confirm or reject each template cue match"
       defaultOpen={hasPending}
       storageKey={`episode-cue-detections-${episodeId}`}
@@ -103,19 +102,19 @@ function CueDetectionsSection({ slug, episodeId, detections }: CueDetectionsSect
                     {formatTimestamp(d.start_s)} - {formatTimestamp(d.end_s)}
                   </span>
                   {d.cue_type && (
-                    <span className={`${badgeBase} font-medium ${tint.neutral}`}>
+                    <span className={`${badgeBase} ${tint.neutral}`}>
                       {cueTypeLabel(d.cue_type as CueTemplateType)}
                     </span>
                   )}
                   <span
                     title={outcome.title}
-                    className={`${badgeBase} font-medium ${outcome.className}`}
+                    className={`${badgeBase} ${outcome.className}`}
                   >
                     {outcome.label}
                   </span>
                   {d.match_score != null && (
                     <span className="text-xs text-muted-foreground">
-                      Match {Math.round(d.match_score * 100)}%
+                      {formatPercent(d.match_score)} match
                     </span>
                   )}
                   {d.outcome === 'none' && d.unused_reason && (
@@ -127,43 +126,43 @@ function CueDetectionsSection({ slug, episodeId, detections }: CueDetectionsSect
                 <div className="flex items-center gap-2 shrink-0">
                   {d.outcome === 'below_threshold' ? (
                     <span
-                      className={`${badgeBase} font-medium ${tint.neutral}`}
+                      className={`${badgeBase} ${tint.neutral}`}
                       title="Informational; not counted in stats"
                     >
-                      informational
+                      Informational
                     </span>
                   ) : d.verdict === 'pending' ? (
                     <>
                       <button
                         onClick={() => mutation.mutate({ id: d.id, verdict: 'confirmed' })}
                         disabled={pending}
-                        className={`${rowActionBtn} font-medium ${btnPrimary} ${focusRing}`}
+                        className={`${rowActionBtn} ${btnPrimary}`}
                       >
                         Confirm
                       </button>
                       <button
                         onClick={() => mutation.mutate({ id: d.id, verdict: 'rejected' })}
                         disabled={pending}
-                        className={`${rowActionBtn} font-medium ${btnDestructive} active:bg-destructive/80 ${focusRing}`}
+                        className={`${rowActionBtn} ${btnDestructive}`}
                       >
-                        Reject
+                        Not ad
                       </button>
                     </>
                   ) : (
                     <>
                       <span
-                        className={`${badgeBase} font-medium ${
+                        className={`${badgeBase} ${
                           d.verdict === 'confirmed'
                             ? tint.success
                             : tint.destructive
                         }`}
                       >
-                        {d.verdict === 'confirmed' ? 'Confirmed' : 'Rejected'}
+                        {d.verdict === 'confirmed' ? 'Confirmed' : 'Not ad'}
                       </span>
                       <button
                         onClick={() => mutation.mutate({ id: d.id, verdict: 'pending' })}
                         disabled={pending}
-                        className={`${rowActionBtn} border border-border text-muted-foreground hover:bg-secondary ${focusRing}`}
+                        className={`${rowActionBtn} ${btnGhost}`}
                       >
                         Reset
                       </button>

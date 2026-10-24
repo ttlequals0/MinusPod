@@ -316,7 +316,7 @@ describe('LocalFeedPanel', () => {
     mockUpdateFeed.mockResolvedValue(makeFeed());
     renderPanel(makeFeed({ p20: { medium: 'podcast', locked: 'yes', locked_owner: '' } }));
 
-    await user.click(screen.getByRole('button', { name: '+ Add funding' }));
+    await user.click(screen.getByRole('button', { name: 'Add funding' }));
     await user.type(screen.getByLabelText('Label'), 'Support us on Patreon');
     await user.type(screen.getByLabelText('URL'), 'https://patreon.com/example');
     await user.click(screen.getByRole('button', { name: /Save metadata/ }));
@@ -356,7 +356,7 @@ describe('LocalFeedPanel', () => {
     const user = userEvent.setup();
     renderPanel(makeFeed({ p20: { medium: 'podcast', locked: 'yes', locked_owner: '' } }));
 
-    await user.click(screen.getByRole('button', { name: '+ Add funding' }));
+    await user.click(screen.getByRole('button', { name: 'Add funding' }));
     await user.type(screen.getByLabelText('Label'), 'Support us');
     await user.click(screen.getByRole('button', { name: /Save metadata/ }));
 
@@ -392,7 +392,7 @@ describe('LocalFeedPanel', () => {
     const user = userEvent.setup();
     renderPanel(makeFeed({ p20: { medium: 'podcast', locked: 'yes', locked_owner: '' } }));
 
-    await user.click(screen.getByRole('button', { name: '+ Add show' }));
+    await user.click(screen.getByRole('button', { name: 'Add show' }));
     await user.type(screen.getByLabelText('Feed URL'), 'https://example.com/feed.xml');
     await user.click(screen.getByRole('button', { name: /Save metadata/ }));
 
@@ -427,7 +427,7 @@ describe('LocalFeedPanel', () => {
     const sectionDiv = () => screen.getByRole('heading', { name: 'Podcasting 2.0 tags' }).closest('div')!;
     expect(sectionDiv().getAttribute('data-force-open')).toBe('false');
 
-    await user.click(screen.getByRole('button', { name: '+ Add show' }));
+    await user.click(screen.getByRole('button', { name: 'Add show' }));
     await user.type(screen.getByLabelText('Feed URL'), 'https://example.com/feed.xml');
     await user.click(screen.getByRole('button', { name: /Save metadata/ }));
 
@@ -491,7 +491,7 @@ describe('LocalFeedPanel', () => {
     const user = userEvent.setup();
     renderPanel(makeFeed({ p20: { medium: 'podcast', locked: 'yes', locked_owner: '' } }));
 
-    await user.click(screen.getByRole('button', { name: '+ Add show' }));
+    await user.click(screen.getByRole('button', { name: 'Add show' }));
     await user.type(screen.getByLabelText('Feed GUID'), 'not-a-uuid');
     await user.click(screen.getByRole('button', { name: /Save metadata/ }));
 
@@ -514,7 +514,7 @@ describe('LocalFeedPanel', () => {
     const user = userEvent.setup();
     renderPanel(makeFeed({ p20: { medium: 'podcast', locked: 'yes', locked_owner: '' } }));
 
-    await user.click(screen.getByRole('button', { name: '+ Add license' }));
+    await user.click(screen.getByRole('button', { name: 'Add license' }));
     await user.type(screen.getByLabelText('URL'), 'https://creativecommons.org/licenses/by/4.0/');
     await user.click(screen.getByRole('button', { name: /Save metadata/ }));
 
@@ -526,7 +526,7 @@ describe('LocalFeedPanel', () => {
     const user = userEvent.setup();
     renderPanel(makeFeed({ p20: { medium: 'podcast', locked: 'yes', locked_owner: '' } }));
 
-    await user.click(screen.getByRole('button', { name: '+ Add location' }));
+    await user.click(screen.getByRole('button', { name: 'Add location' }));
     await user.type(screen.getByLabelText('Geo'), 'geo:45.5,-122.6');
     await user.click(screen.getByRole('button', { name: /Save metadata/ }));
 
@@ -538,7 +538,7 @@ describe('LocalFeedPanel', () => {
     const user = userEvent.setup();
     renderPanel(makeFeed({ p20: { medium: 'podcast', locked: 'yes', locked_owner: '' } }));
 
-    await user.click(screen.getByRole('button', { name: '+ Add text' }));
+    await user.click(screen.getByRole('button', { name: 'Add text' }));
     await user.type(screen.getByLabelText('Purpose'), 'verify');
     await user.click(screen.getByRole('button', { name: /Save metadata/ }));
 
@@ -679,7 +679,7 @@ describe('LocalFeedPanel', () => {
     });
     renderPanel(makeFeed());
 
-    await waitFor(() => expect(screen.getByText(/Import failed: disk full/)).toBeDefined());
+    await waitFor(() => expect(screen.getByText(/Could not import: disk full/)).toBeDefined());
     await user.click(screen.getByRole('button', { name: 'Clear report' }));
 
     expect(screen.queryByText(/Import failed/)).toBeNull();
