@@ -140,16 +140,20 @@ type ModalProps = ({ ariaLabelledBy: string; ariaLabel?: never } | { ariaLabel: 
   // foreground, and card-foreground differs from foreground in dark mode,
   // so dialogs that used text-card-foreground pass it here.
   panelClassName?: string;
+  // Fixed above/below the scrolling body; with either set, only children scroll.
+  header?: ReactNode;
+  footer?: ReactNode;
   children: ReactNode;
 }
 
 export function Modal({
   onClose, closeOnEscape = true, closeOnBackdrop = false, ariaLabelledBy, ariaLabel,
-  panelClassName = '', children,
+  panelClassName = '', header, footer, children,
 }: ModalProps) {
   const panelRef = useRef<HTMLDivElement>(null);
   useEscape(onClose, closeOnEscape, panelRef);
   useFocusTrap(panelRef);
+  const split = header !== undefined || footer !== undefined;
 
   return (
     <div className={modalBackdrop} onClick={closeOnBackdrop ? onClose : undefined}>
@@ -160,10 +164,17 @@ export function Modal({
         aria-labelledby={ariaLabelledBy}
         aria-label={ariaLabel}
         tabIndex={-1}
+        data-split={split || undefined}
         className={`${modalPanelBase} ${focusRing} ${panelClassName}`}
         onClick={closeOnBackdrop ? (e) => e.stopPropagation() : undefined}
       >
-        {children}
+        {split ? (
+          <>
+            {header !== undefined && <div className="shrink-0">{header}</div>}
+            <div className="min-h-0 flex-1 overflow-y-auto">{children}</div>
+            {footer !== undefined && <div className="shrink-0">{footer}</div>}
+          </>
+        ) : children}
       </div>
     </div>
   );
@@ -186,27 +197,33 @@ export function ConfirmModal({
 }: ConfirmModalProps) {
   const titleId = useId();
   return (
-    <Modal onClose={onCancel} closeOnEscape={!pending} ariaLabelledBy={titleId} panelClassName="max-w-md w-full">
-      <div className="p-4 border-b border-border">
-        <h2 id={titleId} className="text-lg font-semibold text-foreground">{title}</h2>
-      </div>
+    <Modal
+      onClose={onCancel} closeOnEscape={!pending} ariaLabelledBy={titleId} panelClassName="max-w-md w-full"
+      header={(
+        <div className="p-4 border-b border-border">
+          <h2 id={titleId} className="text-lg font-semibold text-foreground">{title}</h2>
+        </div>
+      )}
+      footer={(
+        <div className="flex items-center justify-end gap-2 p-4 border-t border-border">
+          <button
+            onClick={onCancel}
+            disabled={pending}
+            className={`${dialogFooterBtn} ${btnOutline}`}
+          >
+            Cancel
+          </button>
+          <button
+            onClick={onConfirm}
+            disabled={pending}
+            className={`${dialogFooterBtn} ${destructive ? btnDestructive : btnPrimary} disabled:opacity-50`}
+          >
+            {pending ? busyLabel : confirmLabel}
+          </button>
+        </div>
+      )}
+    >
       <div className="p-4 space-y-3 text-sm text-foreground">{children}</div>
-      <div className="flex items-center justify-end gap-2 p-4 border-t border-border">
-        <button
-          onClick={onCancel}
-          disabled={pending}
-          className={`${dialogFooterBtn} ${btnOutline}`}
-        >
-          Cancel
-        </button>
-        <button
-          onClick={onConfirm}
-          disabled={pending}
-          className={`${dialogFooterBtn} ${destructive ? btnDestructive : btnPrimary} disabled:opacity-50`}
-        >
-          {pending ? busyLabel : confirmLabel}
-        </button>
-      </div>
     </Modal>
   );
 }

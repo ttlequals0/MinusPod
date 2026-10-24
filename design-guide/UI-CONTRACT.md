@@ -35,10 +35,12 @@ Run these commands from `frontend`. The guide's theme catalog and default tokens
 
 ## Buttons
 
-There is no `<Button>` component. Recipes are class strings composed at the call site: the recipe plus only the modifiers that differ (`w-full`, `disabled:opacity-50`, `gap-2`).
+There is no `<Button>` component. Recipes are class strings composed at the call site as `${btnBase} ${btnPrimary}`. The base carries size, radius, gap, disabled state, and focus ring, so call sites add only layout classes such as `w-full`.
 
 | Recipe | Use | Notes |
 | --- | --- | --- |
+| `btnBase` | Size and shape for every standard button (12 px by 6 px padding, 4 px radius) | Always paired with one colour variant |
+| `btnLg` | Page-level form actions (Save settings, Add feed, Create feed, dialog primary on wide forms) | Same as `btnBase` with 16 px by 8 px padding |
 | `btnPrimary` | The one main action in a card, row, or dialog | One per group |
 | `btnSecondary` | Default action beside a primary one | Fill, no border |
 | `btnOutline` | Same as secondary | Alias kept for call-site intent |
@@ -59,6 +61,15 @@ There is no `<Button>` component. Recipes are class strings composed at the call
 - An icon-only control centers its icon with inline-flex items-center justify-center or the iconTarget and iconVisual pair. Padding alone places the icon top-left once the coarse-pointer floor stretches the box.
 - Dialog footers with 3 or more actions keep their text labels at every width. Below 360 CSS px they become two equal columns in two rows, and from 360 to 639 px one row of equal-width columns (dialogFooterGrid), so nothing is icon-only. PatternDetailModal is the reference.
 - Inline link-style actions (`text-primary hover:underline`, "Show full match") and selected-state toggles (`PageTabs`, `SegmentedToggle`, pagination numbers) are intentionally not button recipes.
+
+### Shared field, badge, and component recipes
+
+- Fields: `inputBase`, `selectBase`, and `textareaBase` share one chrome (4 px radius, `bg-background`, `border-input`, `text-foreground`) and inputs and selects share one 40 px minimum height. Textareas size by rows. `labelBase` is the form label; `filterLabel` stays the muted label in filter rows.
+- Badges: `badgeBase` is the one badge shape (12 px, medium weight, no wrap) and takes a `tint`. `countPill` is the round count pill and also takes a tint.
+- `StatusBadge` renders an episode status with its shared color and label. Use it instead of composing `badgeBase` with `displayStatusColor` by hand. `short` drops qualifiers such as "permanently" and "(offline)".
+- `StatTile` is the metric card: label above value, optional hint below, `h-full` so tiles in a grid row stretch to equal height. `tone` colors the value only.
+- `CloseButton` is the one close X. It uses the `iconTarget` and `iconVisual` pair, so it has a 44 px hit box on phones.
+- Numbers: `formatPercent` prints a whole-number percent with no decimals, and the same quantity uses the same label text in every place. Use the clock form `m:ss` (`formatTimestamp`) for positions, `Xm Ys` (`formatElapsed`) for elapsed or summed durations, and tenths of a second only in the editor scrub readout.
 
 ## Data and feedback states
 
@@ -114,6 +125,7 @@ Feed deletion, resets, and replace-mode imports use `ConfirmModal`. Name the obj
 
 - Normal text requires at least 4.5:1 contrast against its rendered surface. Test ordinary text, muted text, status text, links, solid controls, hover states, and tinted badges across every theme and mode.
 - Use the appropriate paired foreground token. Being token-based does not prove sufficient contrast. Disabled controls and decorative marks require separate interpretation; do not dilute active text with opacity.
+- Card and section titles use `cardTitle` (18 CSS px, 600) and sub-headings use `subHeading` (14 CSS px, 600), always `text-foreground`. Data cards pad with `cardPad` (16 CSS px) and section cards with `sectionPad` (24 CSS px).
 - Use one visible page `h1` at 24 CSS px, section headings at 18 CSS px, and consistent summary-card labels/values. Keep numeric column headings aligned with their values.
 - Use `pageHeader`, `pageTitle`, and `pageDescription`: 24 CSS px titles, 16 CSS px header gaps, 24 CSS px bottom spacing, and actions below the title on phones.
 - Counter cards place the value above the label, left aligned. Metric cards place the label above the value and may add details. Both use 20 CSS px bold tabular values, 12 CSS px labels, and 16 CSS px outer padding. Metrics nested within a larger card may share its surface.

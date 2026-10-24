@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { formatDurationHoursMinutes, formatDurationPrecise, formatDurationWhole, keyLabel } from './format';
+import { formatDurationHoursMinutes, formatDurationPrecise, formatDurationWhole, keyLabel, formatPercent, formatElapsed } from './format';
 
 // Characterization tests: outputs captured from the three formatters' prior
 // per-component copies (EpisodeList, HistoryPage, ProcessingJobProgress)
@@ -57,5 +57,30 @@ describe('keyLabel', () => {
   it('falls back for an empty label', () => {
     expect(keyLabel({ label: '' })).toBe('Unlabeled subscriber');
     expect(keyLabel({ label: 'Kitchen' })).toBe('Kitchen');
+  });
+});
+
+describe('formatPercent', () => {
+  it('treats values <= 1 as fractions', () => {
+    expect(formatPercent(0.99)).toBe('99%');
+    expect(formatPercent(0)).toBe('0%');
+    expect(formatPercent(1)).toBe('100%');
+  });
+  it('accepts 0..100 values and rounds to an integer', () => {
+    expect(formatPercent(99)).toBe('99%');
+    expect(formatPercent(87.6)).toBe('88%');
+  });
+});
+
+describe('formatElapsed', () => {
+  it('formats seconds, minutes, and hours', () => {
+    expect(formatElapsed(45)).toBe('45s');
+    expect(formatElapsed(125)).toBe('2m 5s');
+    expect(formatElapsed(3725)).toBe('1h 2m 5s');
+  });
+  it('floors fractions and clamps bad input to 0s', () => {
+    expect(formatElapsed(59.9)).toBe('59s');
+    expect(formatElapsed(-3)).toBe('0s');
+    expect(formatElapsed(NaN)).toBe('0s');
   });
 });

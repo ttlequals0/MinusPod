@@ -105,3 +105,20 @@ export function fromDatetimeLocalInput(value: string): string | undefined {
   const d = new Date(value);
   return Number.isNaN(d.getTime()) ? undefined : d.toISOString();
 }
+
+// Whole-number percent. Values <= 1 are fractions (0.99 -> '99%'); larger values are already percent.
+export function formatPercent(value: number): string {
+  const pct = value <= 1 ? value * 100 : value;
+  return `${Math.round(pct)}%`;
+}
+
+// Elapsed or summed duration: '45s', '2m 5s', '1h 2m 5s' (hours only from 3600 s). Floored whole seconds.
+export function formatElapsed(seconds: number): string {
+  const total = Number.isFinite(seconds) && seconds > 0 ? Math.floor(seconds) : 0;
+  const h = Math.floor(total / 3600);
+  const m = Math.floor((total % 3600) / 60);
+  const s = total % 60;
+  if (h > 0) return `${h}h ${m}m ${s}s`;
+  if (m > 0) return `${m}m ${s}s`;
+  return `${s}s`;
+}
