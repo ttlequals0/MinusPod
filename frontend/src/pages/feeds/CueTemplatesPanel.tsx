@@ -192,7 +192,7 @@ function CueTemplatesPanel({ slug }: Props) {
     setActionError(null);
     setEditingThresholdId(template.id);
     setEditThresholdValue(
-      template.scoreThreshold != null ? String(template.scoreThreshold) : '',
+      template.scoreThreshold != null ? String(Math.round(template.scoreThreshold * 100)) : '',
     );
   };
 
@@ -209,11 +209,12 @@ function CueTemplatesPanel({ slug }: Props) {
       }
       return;
     }
-    const val = parseFloat(trimmed);
-    if (isNaN(val) || val < 0.30 || val > 0.99) {
-      setActionError('Score threshold must be a number between 0.30 and 0.99');
+    const percent = parseFloat(trimmed);
+    if (isNaN(percent) || percent < 30 || percent > 99) {
+      setActionError('Match threshold must be a whole number between 30% and 99%.');
       return;
     }
+    const val = Math.round(percent) / 100;
     if (val !== template.scoreThreshold) {
       updateMutation.mutate({ id: template.id, patch: { scoreThreshold: val } });
     }
@@ -556,9 +557,9 @@ function CueTemplatesPanel({ slug }: Props) {
                         {editingThresholdId === t.id ? (
                           <DraftNumberInput
                             autoFocus
-                            min={0.30}
-                            max={0.99}
-                            step={0.01}
+                            min={30}
+                            max={99}
+                            step={1}
                             ariaLabel={`Match threshold for ${t.label}`}
                             value={parseOptionalNumber(editThresholdValue)}
                             fallback={null}
@@ -583,7 +584,7 @@ function CueTemplatesPanel({ slug }: Props) {
                             onClick={() => startEditThreshold(t)}
                             title="Per-template match score threshold (empty = inherit feed/global)"
                           >
-                            Threshold{t.scoreThreshold != null ? `: ${t.scoreThreshold}` : ''}
+                            Threshold{t.scoreThreshold != null ? `: ${formatPercent(t.scoreThreshold)}` : ''}
                           </button>
                         )}
                         <button
