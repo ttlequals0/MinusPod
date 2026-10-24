@@ -1,5 +1,4 @@
-import { btnSecondary } from './buttonStyles';
-import { focusRing } from './fieldStyles';
+import { btnBase, btnPrimary, btnSecondary } from './buttonStyles';
 
 /** First, last, and `neighbours` pages either side of the current one. */
 function pageWindow(page: number, totalPages: number, neighbours: number) {
@@ -31,9 +30,7 @@ function pageButtons(
       onClick={() => onPage(p)}
       aria-label={`Page ${p}`}
       aria-current={p === page ? 'page' : undefined}
-      className={`px-2 sm:px-3 py-1.5 text-sm rounded transition-colors ${visibility} ${
-        p === page ? 'bg-primary text-primary-foreground' : btnSecondary
-      } ${focusRing}`}
+      className={`${btnBase} ${visibility} ${p === page ? btnPrimary : btnSecondary}`}
     >
       {p}
     </button>
@@ -59,17 +56,17 @@ export function Pagination({
         <button
           onClick={() => onPage(Math.max(1, page - 1))}
           disabled={page === 1}
-          className={`px-2 sm:px-3 py-1.5 text-sm rounded ${btnSecondary} disabled:opacity-50 transition-colors ${focusRing}`}
+          className={`${btnBase} ${btnSecondary}`}
         >
           <span className="sm:hidden">Prev</span>
           <span className="hidden sm:inline">Previous</span>
         </button>
         {pageButtons(narrowPages, page, onPage, 'sm:hidden')}
-        {pageButtons(pages, page, onPage, 'hidden sm:inline-flex')}
+        {pageButtons(pages, page, onPage, 'max-sm:hidden')}
         <button
           onClick={() => onPage(Math.min(totalPages, page + 1))}
           disabled={page === totalPages}
-          className={`px-2 sm:px-3 py-1.5 text-sm rounded ${btnSecondary} disabled:opacity-50 transition-colors ${focusRing}`}
+          className={`${btnBase} ${btnSecondary}`}
         >
           Next
         </button>

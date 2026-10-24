@@ -227,7 +227,7 @@ describe('DownloadsTab row actions', () => {
     await userEvent.click(screen.getByRole('menuitem', { name: 'Block user agent' }));
     expect(await screen.findByText('^Pocket Casts')).toBeTruthy();
     const calls = mockGetDownloadHistory.mock.calls.length;
-    await userEvent.click(screen.getByRole('button', { name: 'Block' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Block user agent' }));
     await waitFor(() => expect(mockUpdateSettings).toHaveBeenCalledWith({
       jitBlockedUserAgents: ['AntennaPod', '^Pocket Casts'],
     }));
@@ -242,7 +242,7 @@ describe('DownloadsTab row actions', () => {
       jitBlockedUserAgents: { value: ['AntennaPod', 'Added elsewhere'], isDefault: false },
     });
     await userEvent.click(screen.getByRole('menuitem', { name: 'Block user agent' }));
-    await userEvent.click(await screen.findByRole('button', { name: 'Block' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'Block user agent' }));
     await waitFor(() => expect(mockUpdateSettings).toHaveBeenCalledWith({
       jitBlockedUserAgents: ['AntennaPod', 'Added elsewhere', '^Pocket Casts'],
     }));
@@ -256,7 +256,7 @@ describe('DownloadsTab row actions', () => {
       jitBlockedUserAgents: { value: ['^Pocket Casts'], isDefault: false },
     });
     await userEvent.click(screen.getByRole('menuitem', { name: 'Block user agent' }));
-    await userEvent.click(await screen.findByRole('button', { name: 'Block' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'Block user agent' }));
     await waitFor(() => expect(screen.queryByRole('button', { name: 'Block' })).toBeNull());
     expect(mockUpdateSettings).not.toHaveBeenCalled();
   });
@@ -285,7 +285,7 @@ describe('DownloadsTab row actions', () => {
     await userEvent.click(screen.getByRole('menuitem', { name: 'Revoke subscriber' }));
     expect(await screen.findByText(/Phone/, { selector: 'strong' })).toBeTruthy();
     const calls = mockGetDownloadHistory.mock.calls.length;
-    await userEvent.click(screen.getByRole('button', { name: 'Revoke' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Revoke subscriber' }));
     await waitFor(() => expect(mockRevoke).toHaveBeenCalledWith('example-podcast', 'abcdef0123456789'));
     await waitFor(() => expect(mockGetDownloadHistory.mock.calls.length).toBeGreaterThan(calls));
   });
@@ -305,7 +305,7 @@ describe('DownloadsTab row actions', () => {
     renderTab([makeRow({ userAgent: 'Pocket Casts' })]);
     await openMenu();
     await userEvent.click(screen.getByRole('menuitem', { name: 'Block user agent' }));
-    await userEvent.click(await screen.findByRole('button', { name: 'Block' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'Block user agent' }));
     expect(await screen.findByText('entries must be 1-200 characters')).toBeTruthy();
   });
 });

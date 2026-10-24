@@ -115,7 +115,7 @@ describe('AdReviewTab', () => {
     // The second meta line carries what the old table columns did.
     expect(within(row).getByText(/2026/)).toBeTruthy();
     expect(within(row).getByText(/\(30s\)/)).toBeTruthy();
-    expect(within(row).getByText('conf 0.40')).toBeTruthy();
+    expect(within(row).getByText('40% confidence')).toBeTruthy();
     expect(within(row).getByText('Acme')).toBeTruthy();
   });
 
@@ -163,8 +163,8 @@ describe('AdReviewTab', () => {
   it('renders the stats card and sorts the podcast dropdown by title', async () => {
     renderTab();
     await screen.findAllByRole('link', { name: 'Episode One' });
-    expect(screen.getByText('Detection Statistics')).toBeTruthy();
-    expect(screen.getByText('Needs Review')).toBeTruthy();
+    expect(screen.getByRole('region', { name: 'Detection statistics' })).toBeTruthy();
+    expect(screen.getAllByText('Needs review').length).toBeTruthy();
     const select = await screen.findByLabelText('Podcast') as HTMLSelectElement;
     const labels = [...select.options].map((o) => o.text);
     expect(labels).toEqual(['All podcasts', 'Feed A', 'Feed B']);
@@ -179,7 +179,7 @@ describe('AdReviewTab', () => {
     const row = within(cards).getByTestId('detection-actions-row');
     const buttons = within(row).getAllByRole('button');
     expect(buttons.map((b) => b.getAttribute('aria-label') ?? b.textContent)).toEqual(
-      ['Play this ad', 'Confirm ad', 'Not ad', 'Split', 'Edit']);
+      ['Play this ad', 'Confirm', 'Not ad', 'Split', 'Edit']);
     // Play is a fixed square; the text buttons grow to fill the row, which wraps.
     expect(row.className).toContain('flex-wrap');
     for (const b of buttons.slice(1)) {
@@ -240,7 +240,7 @@ describe('AdReviewTab row actions', () => {
   it('approve submits a confirm correction without recutting on the spot', async () => {
     renderTab();
     const user = userEvent.setup();
-    await user.click((await screen.findAllByRole('button', { name: 'Confirm ad' }))[0]);
+    await user.click((await screen.findAllByRole('button', { name: 'Confirm' }))[0]);
     await waitFor(() => expect(mockSubmitCorrection).toHaveBeenCalledOnce());
     expect(mockSubmitCorrection.mock.calls[0][0]).toBe('feed-a');
     expect(mockSubmitCorrection.mock.calls[0][1]).toBe('ep-1');
@@ -285,7 +285,7 @@ describe('AdReviewTab row actions', () => {
     });
     renderTab();
     await screen.findAllByRole('link', { name: 'Episode One' });
-    expect(screen.queryByRole('button', { name: 'Confirm ad' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Confirm' })).toBeNull();
     expect(screen.queryByRole('button', { name: 'Not ad' })).toBeNull();
     // Edit (and the audition play button) must survive resolution -- both
     // the desktop row and the card keep their non-decision controls.
@@ -310,7 +310,7 @@ describe('AdReviewTab row actions', () => {
     mockSubmitCorrection.mockRejectedValueOnce(new Error('boom'));
     renderTab();
     const user = userEvent.setup();
-    await user.click((await screen.findAllByRole('button', { name: 'Confirm ad' }))[0]);
+    await user.click((await screen.findAllByRole('button', { name: 'Confirm' }))[0]);
     expect(await screen.findByText('boom')).toBeTruthy();
     expect(mockReprocess).not.toHaveBeenCalled();
     errSpy.mockRestore();
@@ -410,7 +410,7 @@ describe('AdReviewTab loading placeholder', () => {
 });
 
 describe('AdReviewTab hold-reason filter', () => {
-  it('shows the select for needs_review and pending only, with per-reason counts', async () => {
+  it('shows the select for needs_review only, with per-reason counts', async () => {
     mockGetDetections.mockResolvedValue({
       detections: [detection()], total: 1, page: 1, totalPages: 1, limit: 20,
       counts: { ...COUNTS, pendingByHoldReason: { verification_miss: 3 } },
@@ -421,8 +421,7 @@ describe('AdReviewTab hold-reason filter', () => {
     const select = screen.getByLabelText('Hold reason');
     expect(within(select).getByRole('option', { name: 'Verification catch (3)' })).toBeTruthy();
     expect(within(select).getByRole('option', { name: 'Over max duration' })).toBeTruthy();
-    await user.selectOptions(screen.getByLabelText('Status'), 'pending');
-    expect(screen.getByLabelText('Hold reason')).toBeTruthy();
+    expect(within(screen.getByLabelText('Status')).queryByRole('option', { name: 'Pending review' })).toBeNull();
     await user.selectOptions(screen.getByLabelText('Status'), 'accepted');
     expect(screen.queryByLabelText('Hold reason')).toBeNull();
   });

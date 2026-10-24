@@ -1,12 +1,14 @@
 import { Fragment, ReactNode, useState } from 'react';
 import { ChevronDown, ChevronRight } from 'lucide-react';
 import { EpisodeProcessingRun, LLM_PROVIDER_LABELS, LlmProvider, RunPhaseUsage } from '../api/types';
-import { formatCost, formatDateTime } from '../utils/format';
-import { formatDuration, formatTokenCount, formatTokenRange } from '../pages/settings/settingsUtils';
+import { formatCost, formatDateTime, formatElapsed } from '../utils/format';
+import { formatTokenCount, formatTokenRange } from '../pages/settings/settingsUtils';
 import DisclosureButton from './DisclosureButton';
 import CopyButton from './CopyButton';
 import CostAmount from './CostAmount';
+import StatusBadge from './StatusBadge';
 import { focusRing } from './fieldStyles';
+import { badgeBase, tint } from './badgeStyles';
 
 interface ProcessingRunsTableProps {
   runs: EpisodeProcessingRun[];
@@ -45,7 +47,7 @@ function rssDeltaNote(runs: EpisodeProcessingRun[], rssDuration?: number | null)
   const delta = downloaded - rssDuration;
   if (Math.abs(delta) < RSS_DELTA_NOTE_SECONDS) return null;
   const direction = delta > 0 ? 'longer' : 'shorter';
-  return `The latest downloaded copy is ${formatDuration(Math.abs(delta))} ${direction} ` +
+  return `The latest downloaded copy is ${formatElapsed(Math.abs(delta))} ${direction} ` +
     'than the duration the feed declares. Dynamically inserted ad loads vary per download.';
 }
 
@@ -61,18 +63,18 @@ function RunCost({ run }: { run: EpisodeProcessingRun }) {
 function RunResult({ run }: { run: EpisodeProcessingRun }) {
   const [open, setOpen] = useState(false);
   if (run.status !== 'failed') {
-    if (!run.stats?.chaptersDegraded) return <>completed</>;
+    if (!run.stats?.chaptersDegraded) return <StatusBadge status="completed" />;
     return (
       <div className="flex flex-col items-start gap-1">
-        <span className="text-amber-700 dark:text-amber-300">completed with chapter warning</span>
-        <div className="w-full max-w-xs whitespace-normal break-words rounded border border-amber-500/40 bg-amber-500/10 p-2 text-xs">
+        <span className={`${badgeBase} ${tint.warning}`}>completed with chapter warning</span>
+        <div className="w-full max-w-xs whitespace-normal break-words rounded border border-warning/40 bg-warning/10 p-2 text-xs">
           {run.stats.chaptersDegradedReason && <p>{run.stats.chaptersDegradedReason}</p>}
-          <p className="mt-1">Check Settings &gt; AI Models, or regenerate chapters after recovery.</p>
+          <p className="mt-1">Check Settings &gt; AI models, or regenerate chapters after recovery.</p>
         </div>
       </div>
     );
   }
-  if (!run.errorMessage) return <span className="text-destructive">failed</span>;
+  if (!run.errorMessage) return <StatusBadge status="failed" />;
   const panelId = `run-error-${run.runNumber}`;
   return (
     <div className="flex flex-col items-start gap-1">
@@ -81,10 +83,10 @@ function RunResult({ run }: { run: EpisodeProcessingRun }) {
         onClick={() => setOpen(!open)}
         aria-expanded={open}
         aria-controls={open ? panelId : undefined}
-        className={`inline-flex items-center gap-1 min-h-11 sm:min-h-0 text-destructive underline decoration-dotted underline-offset-2 ${focusRing}`}
+        className={`${badgeBase} ${tint.destructive} gap-1 underline decoration-dotted underline-offset-2 ${focusRing}`}
       >
         failed
-        {open ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+        {open ? <ChevronDown className="w-4 h-4" aria-hidden="true" /> : <ChevronRight className="w-4 h-4" aria-hidden="true" />}
       </button>
       {open && (
         <div id={panelId} className="w-full max-w-xs whitespace-normal break-words rounded border border-destructive/40 bg-destructive/10 p-2 text-xs text-destructive">
@@ -123,7 +125,7 @@ function timingValue(run: EpisodeProcessingRun, key: typeof TIMING_STAGES[number
     return 'Skipped';
   }
   const value = timings?.[key];
-  if (value != null) return formatDuration(value);
+  if (value != null) return formatElapsed(value);
   if (!timings) return 'Timing unavailable';
   return 'Unavailable';
 }
@@ -203,13 +205,13 @@ const COLUMNS: Column[] = [
     title: 'Wall-clock time for the whole run',
     lowPriority: true,
     render: (run) => (run.processingDurationSeconds != null
-      ? formatDuration(run.processingDurationSeconds) : '-'),
+      ? formatElapsed(run.processingDurationSeconds) : '-'),
   },
   {
     label: 'Downloaded',
     title: 'Length of the downloaded copy this run processed',
     lowPriority: true,
-    render: (run) => (run.stats?.downloadedDuration ? formatDuration(run.stats.downloadedDuration) : '-'),
+    render: (run) => (run.stats?.downloadedDuration ? formatElapsed(run.stats.downloadedDuration) : '-'),
   },
   {
     label: 'Windows',
@@ -252,9 +254,9 @@ const COLUMNS: Column[] = [
     render: (run) => {
       const s = run.stats;
       if (s?.secondsRemoved == null) return '-';
-      const net = formatDuration(s.secondsRemoved);
+      const net = formatElapsed(s.secondsRemoved);
       return s.replacementSecondsAdded && s.sourceSecondsRemoved != null
-        ? `${net} (${formatDuration(s.sourceSecondsRemoved)} cut)`
+        ? `${net} (${formatElapsed(s.sourceSecondsRemoved)} cut)`
         : net;
     },
   },

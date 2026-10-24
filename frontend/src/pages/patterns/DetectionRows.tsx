@@ -3,16 +3,16 @@ import type { ReviewDetection } from '../../api/detections';
 import { episodeOriginalUrl } from '../../api/feeds';
 import type { useAuditionPlayer } from '../../hooks/useAuditionPlayer';
 import { AuditionPlayButton } from '../../components/AuditionPlayButton';
-import { cardActionBtn, tableActionBtn } from '../../components/rowActionStyles';
 import { StageBadge } from '../../components/StageBadge';
 import { SegmentCategoryBadge } from '../../components/SegmentCategoryBadge';
 import {
   SEGMENT_CATEGORIES, SEGMENT_CATEGORY_LABELS, confirmLabel, isKeepLike, rejectLabel, type SegmentCategory,
 } from '../../utils/segmentCategory';
-import { formatTimestamp, formatDate } from '../../utils/format';
-import { btnDestructive, btnOutline, btnPrimary } from '../../components/buttonStyles';
-import { focusRing } from '../../components/fieldStyles';
+import { formatTimestamp, formatDate, formatPercent } from '../../utils/format';
+import { btnPrimary, btnOutline, btnDestructive } from '../../components/buttonStyles';
+import { focusRing, selectBase } from '../../components/fieldStyles';
 import { badgeBase, tint } from '../../components/badgeStyles';
+import { cardActionBtn, tableActionBtn } from '../../components/rowActionStyles';
 
 // "Not cut" = flagged but left in the audio; the bucket covers both
 // validation rejects and human "Not ad" decisions once a recut restores
@@ -20,7 +20,7 @@ import { badgeBase, tint } from '../../components/badgeStyles';
 export const STATUS_BADGE: Record<ReviewDetection['status'], [string, string]> = {
   accepted: ['Accepted', tint.success],
   rejected: ['Not cut', tint.destructive],
-  pending: ['Pending', tint.warning],
+  pending: ['Needs review', tint.warning],
 };
 
 // STATUS_BADGE says what the audio did; this says what a person decided.
@@ -100,7 +100,7 @@ function DetectionMeta({ d, showCategory }: { d: ReviewDetection; showCategory: 
         <span className="sr-only">ad at </span>
         {timeLabel(d)}
       </span>
-      <span>conf {d.confidence != null ? d.confidence.toFixed(2) : '-'}</span>
+      <span>{d.confidence != null ? `${formatPercent(d.confidence)} confidence` : 'confidence -'}</span>
       {d.detectionStage ? <StageBadge stage={d.detectionStage} /> : <span>stage -</span>}
       {showCategory && <SegmentCategoryBadge category={d.category} />}
       {/* Truncation is desktop-only: the row must stay one line, while the
@@ -114,8 +114,8 @@ function DetectionMeta({ d, showCategory }: { d: ReviewDetection; showCategory: 
 }
 
 export interface DetectionRowActions {
-  // Each action renders only when its handler is supplied. Confirm and Not an
-  // ad additionally require an unresolved row: a decided detection has nothing
+  // Each action renders only when its handler is supplied. Confirm and Not ad
+  // additionally require an unresolved row: a decided detection has nothing
   // left to decide.
   onApprove?: (d: ReviewDetection) => void;
   onDismiss?: (d: ReviewDetection) => void;
@@ -142,7 +142,7 @@ function CategorySelect({ d, onCategory, busy, className = '' }: {
       disabled={busy}
       onChange={(e) => onCategory(
         d, e.target.value === '' ? null : (e.target.value as SegmentCategory))}
-      className={`rounded bg-secondary text-secondary-foreground border border-border disabled:opacity-50 ${focusRing} ${className}`}
+      className={`${selectBase} disabled:opacity-50 ${className}`}
     >
       <option value="">Uncategorized</option>
       {SEGMENT_CATEGORIES.map((c) => (
@@ -154,7 +154,7 @@ function CategorySelect({ d, onCategory, busy, className = '' }: {
 
 // Card buttons grow to fill the row, never wrap their label, and the row wraps instead.
 const cardRowBtn = 'grow whitespace-nowrap max-sm:h-11 leading-tight';
-const cardCategoryClass = 'w-full min-h-[44px] px-3 text-sm text-left min-w-0';
+const cardCategoryClass = 'w-full min-h-[44px] text-left min-w-0';
 
 function ShortLabel({ full, short }: { full: string; short: string }) {
   return (
@@ -182,7 +182,7 @@ function DetectionActions({ d, variant, playing, onTogglePlay, actions }: {
   );
   const category = actions.onCategory && (
     <CategorySelect d={d} onCategory={actions.onCategory} busy={actions.busy}
-      className={isCard ? cardCategoryClass : 'px-2 py-1 text-xs'} />
+      className={isCard ? cardCategoryClass : 'max-w-40'} />
   );
   const edit = (
     <button

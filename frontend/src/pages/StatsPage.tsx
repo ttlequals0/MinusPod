@@ -1,4 +1,4 @@
-import { pageHeader, pageTitle, summaryValue, summaryLabel } from '../components/pageStyles';
+import { pageHeader, pageTitle, cardTitle, sectionPad, summaryValue } from '../components/pageStyles';
 import { Fragment, useState, useMemo, type ReactNode } from 'react';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router';
@@ -17,7 +17,7 @@ import { getCueAggregateStats } from '../api/cueDetections';
 import { feedsQueryOptions } from '../api/feeds';
 import { feedDisplayTitle } from '../utils/feedTitle';
 import { formatTokenCount } from './settings/settingsUtils';
-import { formatCost, formatDateTime, formatStatsDuration as formatDuration } from '../utils/format';
+import { formatCost, formatDateTime, formatElapsed as formatDuration } from '../utils/format';
 import { SkeletonStatCards, SkeletonChart, SkeletonRows } from '../components/Skeleton';
 import { useThemeColors } from '../hooks/useThemeColors';
 import { Pagination } from '../components/Pagination';
@@ -27,7 +27,10 @@ import CostAmount from '../components/CostAmount';
 import DateField from '../components/DateField';
 import { selectBase, focusRing, filterGrid, filterLabel, filterControl } from '../components/fieldStyles';
 import { SLOT_LABELS } from '../api/types';
-import { btnSecondary } from '../components/buttonStyles';
+import { ArrowDown, ArrowUp } from 'lucide-react';
+import PageTabs from '../components/PageTabs';
+import StatTile from '../components/StatTile';
+import { btnBase, btnSecondary } from '../components/buttonStyles';
 import { badgeBase, tint } from '../components/badgeStyles';
 import { getErrorMessage } from '../api/client';
 import { CleanupStatsUsage, EpisodeCostStat, ModelUsageSortField, EpisodeCostSortField, ModelUsageStat, SpendAttempt } from '../api/types';
@@ -39,16 +42,7 @@ const CLEANUP_ACTION_LABELS: Record<string, string> = {
 
 type PodcastSortField = 'podcastTitle' | 'episodeCount' | 'runCount' | 'totalAds' | 'avgAds' | 'avgTimeSavedSeconds' | 'avgEpisodeLengthSeconds' | 'totalCost' | 'avgTokensPerEpisode';
 
-function ReviewerStatCard({ label, value }: { label: string; value: number | string }) {
-  return (
-    <div className="bg-secondary/50 rounded-md p-3">
-      <p className="text-xs text-muted-foreground">{label}</p>
-      <p className={`${summaryValue} text-foreground`}>{value}</p>
-    </div>
-  );
-}
-
-// Label + value only, no background -- used inside an already-shaded parent
+// Label + value only, no background used inside an already-shaded parent
 // (e.g. the addressing-mode card), where a second background would nest a
 // card inside a card.
 function Metric({ label, value }: { label: string; value: number | string }) {
@@ -120,7 +114,7 @@ function QueryErrorPanel({ message, onRetry, retryLabel = 'Retry' }: { message: 
       <button
         type="button"
         onClick={onRetry}
-        className={`px-3 py-1.5 max-sm:min-h-11 text-sm ${btnSecondary} rounded transition-colors ${focusRing}`}
+        className={`${btnBase} ${btnSecondary}`}
       >
         {retryLabel}
       </button>
@@ -168,7 +162,7 @@ function ModelUsageTable({
                 <SortHeader field="provider" label="Provider" sortField={sortField} sortDirection={sortDir} onSort={onSort} />
                 <SortHeader field="model" label="Model" sortField={sortField} sortDirection={sortDir} onSort={onSort} />
                 <SortHeader field="calls" label="Calls" align="right" sortField={sortField} sortDirection={sortDir} onSort={onSort} />
-                <SortHeader field="knownCostUsd" label="Known Cost" align="right" sortField={sortField} sortDirection={sortDir} onSort={onSort} />
+                <SortHeader field="knownCostUsd" label="Known cost" align="right" sortField={sortField} sortDirection={sortDir} onSort={onSort} />
                 <SortHeader field="unknownCostCount" label="Coverage" align="right" sortField={sortField} sortDirection={sortDir} onSort={onSort} />
               </tr>
             </thead>
@@ -176,7 +170,7 @@ function ModelUsageTable({
               {items.length === 0 ? (
                 <tr>
                   <td colSpan={6} className="px-4 py-8 text-center text-muted-foreground">
-                    No model usage recorded for this filter
+                    No model usage matches these filters.
                   </td>
                 </tr>
               ) : items.map((stat) => {
@@ -220,7 +214,7 @@ function ModelUsageTable({
             aria-label="Sort model usage by"
             value={sortField}
             onChange={(e) => onSort(e.target.value as ModelUsageSortField)}
-            className={`flex-1 min-w-0 min-h-11 ${selectBase}`}
+            className={`flex-1 min-w-0 ${selectBase}`}
           >
             <option value="provider">Provider</option>
             <option value="model">Model</option>
@@ -232,14 +226,14 @@ function ModelUsageTable({
             type="button"
             onClick={() => onSort(sortField)}
             aria-label={sortDir === 'asc' ? 'Sort model usage descending' : 'Sort model usage ascending'}
-            className={`min-h-11 min-w-11 inline-flex items-center justify-center rounded ${btnSecondary} transition-colors ${focusRing}`}
+            className={`${btnBase} ${btnSecondary} min-w-11`}
           >
-            <span aria-hidden="true">{sortDir === 'asc' ? '\u2191' : '\u2193'}</span>
+            {sortDir === 'asc' ? <ArrowUp className="w-4 h-4" aria-hidden="true" /> : <ArrowDown className="w-4 h-4" aria-hidden="true" />}
           </button>
         </div>
         {items.length === 0 ? (
           <div className="bg-card rounded-lg border border-border p-8 text-center text-muted-foreground">
-            No model usage recorded for this filter
+            No model usage matches these filters.
           </div>
         ) : items.map((stat) => {
           const key = modelUsageKey(stat);
@@ -248,7 +242,7 @@ function ModelUsageTable({
           return (
             <div key={key} className="bg-card rounded-lg border border-border p-4">
               <div className="mb-2">
-                <p className="text-sm font-medium text-foreground break-words">{stat.provider} / {stat.model}</p>
+                <p className="text-sm font-semibold text-foreground break-words">{stat.provider} / {stat.model}</p>
                 <p className="mt-1.5 text-sm text-muted-foreground text-right">
                   <CostAmount amount={parseFloat(stat.knownCostUsd)} unpricedCount={stat.unknownCostCount} />
                 </p>
@@ -422,19 +416,19 @@ function EpisodeCostTable({
                 <SortHeader field="podcastTitle" label="Podcast" sortField={sortField} sortDirection={sortDir} onSort={onSort} />
                 <SortHeader field="episodeTitle" label="Episode" sortField={sortField} sortDirection={sortDir} onSort={onSort} />
                 <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                  Models Used
+                  Models used
                 </th>
                 <SortHeader field="runCount" label="Runs" align="right" sortField={sortField} sortDirection={sortDir} onSort={onSort} />
-                <SortHeader field="latestRunCostUsd" label="Latest Run" align="right" sortField={sortField} sortDirection={sortDir} onSort={onSort} />
+                <SortHeader field="latestRunCostUsd" label="Latest run" align="right" sortField={sortField} sortDirection={sortDir} onSort={onSort} />
                 <SortHeader field="cumulativeCostUsd" label="Cumulative" align="right" sortField={sortField} sortDirection={sortDir} onSort={onSort} />
-                <SortHeader field="lastActivityAt" label="Last Activity" sortField={sortField} sortDirection={sortDir} onSort={onSort} />
+                <SortHeader field="lastActivityAt" label="Last activity" sortField={sortField} sortDirection={sortDir} onSort={onSort} />
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
               {items.length === 0 ? (
                 <tr>
                   <td colSpan={8} className="px-4 py-8 text-center text-muted-foreground">
-                    No episode costs recorded for this filter
+                    No episode costs match these filters.
                   </td>
                 </tr>
               ) : items.map((stat) => {
@@ -505,7 +499,7 @@ function EpisodeCostTable({
             aria-label="Sort episode costs by"
             value={sortField}
             onChange={(e) => onSort(e.target.value as EpisodeCostSortField)}
-            className={`flex-1 min-h-11 ${selectBase}`}
+            className={`flex-1 min-w-0 ${selectBase}`}
           >
             {EPISODE_COST_SORT_OPTIONS.map((option) => (
               <option key={option.field} value={option.field}>{option.label}</option>
@@ -515,14 +509,14 @@ function EpisodeCostTable({
             type="button"
             onClick={() => onSort(sortField)}
             aria-label={sortDir === 'asc' ? 'Sort descending' : 'Sort ascending'}
-            className={`min-h-11 min-w-11 inline-flex items-center justify-center rounded border border-border ${btnSecondary} transition-colors ${focusRing}`}
+            className={`${btnBase} ${btnSecondary} min-w-11`}
           >
-            <span aria-hidden="true">{sortDir === 'asc' ? '\u2191' : '\u2193'}</span>
+            {sortDir === 'asc' ? <ArrowUp className="w-4 h-4" aria-hidden="true" /> : <ArrowDown className="w-4 h-4" aria-hidden="true" />}
           </button>
         </div>
         {items.length === 0 ? (
           <div className="bg-card rounded-lg border border-border p-8 text-center text-muted-foreground">
-            No episode costs recorded for this filter
+            No episode costs match these filters.
           </div>
         ) : items.map((stat) => {
           const key = episodeCostKey(stat);
@@ -586,6 +580,7 @@ function useExpandedKeys(): [Set<string>, (key: string) => void] {
 export default function StatsPage() {
   const theme = useThemeColors();
   const [podcastFilter, setPodcastFilter] = useState('');
+  const [activeSection, setActiveSection] = useState('stats-overview');
 
   // itemStyle matters: without it the value line keeps recharts' dark default
   // and is unreadable on the dark card. cursor replaces the default light grey
@@ -855,17 +850,16 @@ export default function StatsPage() {
     <div>
       <div className={pageHeader}>
         <h1 className={pageTitle}>Stats</h1>
-        <div className="w-full sm:w-64 min-w-0">
+        <div className="w-full sm:w-64 min-w-0 sm:shrink-0">
         <label htmlFor="stats-summary-podcast" className={filterLabel}>Podcast</label>
         <select
           id="stats-summary-podcast"
           aria-label="Filter summary cards, charts, reviewer and addressing sections by podcast"
-          title="Applies to the summary cards, charts, reviewer and addressing sections. The Spend section has its own podcast filter."
           value={podcastFilter}
           onChange={(e) => setPodcastFilter(e.target.value)}
           className={`${filterControl} ${selectBase}`}
         >
-          <option value="">All Podcasts</option>
+          <option value="">All podcasts</option>
           {feeds?.map((feed) => (
             <option key={feed.slug} value={feed.slug}>
               {feedDisplayTitle(feed)}
@@ -875,80 +869,79 @@ export default function StatsPage() {
         </div>
       </div>
 
-      <nav aria-label="Stats sections" className="mb-6 flex gap-2 overflow-x-auto no-scrollbar">
-        {sectionLinks.map(({ id, label }) => (
-          <a
-            key={id}
-            href={`#${id}`}
-            className={`inline-flex items-center min-h-11 shrink-0 whitespace-nowrap rounded px-3 text-sm ${btnSecondary} transition-colors ${focusRing}`}
-          >
-            {label}
-          </a>
-        ))}
-      </nav>
+      <PageTabs
+        id="stats"
+        label="Stats sections"
+        active={activeSection}
+        onChange={(id) => {
+          setActiveSection(id);
+          document.getElementById(id)?.scrollIntoView({ block: 'start' });
+        }}
+        tabs={sectionLinks.map(({ id, label }) => ({ value: id, label }))}
+      />
 
       <section id="stats-overview" className="scroll-mt-28">
       {/* Summary Cards */}
       {dashLoading && (
-        <SkeletonStatCards count={7} lines={3} className="grid grid-cols-2 lg:grid-cols-6 gap-4 mb-8" />
+        <SkeletonStatCards count={7} lines={3} className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-4 mb-8" />
       )}
       {dashboard && (
-        <div className="grid grid-cols-2 lg:grid-cols-6 gap-4 mb-8">
-          <StatCard
-            label="Avg Time Saved"
+        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-4 mb-8">
+          <StatTile
+            label="Avg time saved"
             value={formatDuration(dashboard.avgTimeSavedSeconds)}
-            details={<><span>Min: {formatDuration(dashboard.minTimeSavedSeconds)}</span>{' '}<span>Max: {formatDuration(dashboard.maxTimeSavedSeconds)}</span></>}
+            hint={<><span>Min: {formatDuration(dashboard.minTimeSavedSeconds)}</span>{' '}<span>Max: {formatDuration(dashboard.maxTimeSavedSeconds)}</span></>}
           />
-          <StatCard
-            label="Avg Ads Removed"
+          <StatTile
+            label="Avg ads removed"
             value={dashboard.avgAdsRemoved.toFixed(1)}
-            details={<><span>Min: {String(dashboard.minAdsRemoved)}</span>{' '}<span>Max: {String(dashboard.maxAdsRemoved)}</span></>}
+            hint={<><span>Min: {String(dashboard.minAdsRemoved)}</span>{' '}<span>Max: {String(dashboard.maxAdsRemoved)}</span></>}
           />
-          <StatCard
-            label="Avg Cost"
+          <StatTile
+            label="Avg cost"
             value={formatCost(dashboard.avgCostPerEpisode)}
-            details={<><span>Min: {formatCost(dashboard.minCostPerEpisode)}</span>{' '}<span>Max: {formatCost(dashboard.maxCostPerEpisode)}</span></>}
+            hint={<><span>Min: {formatCost(dashboard.minCostPerEpisode)}</span>{' '}<span>Max: {formatCost(dashboard.maxCostPerEpisode)}</span></>}
           />
-          <StatCard
-            label="Avg Processing Time"
+          <StatTile
+            label="Avg processing time"
             value={formatDuration(dashboard.avgProcessingTimeSeconds)}
-            details={<><span>Min: {formatDuration(dashboard.minProcessingTimeSeconds)}</span>{' '}<span>Max: {formatDuration(dashboard.maxProcessingTimeSeconds)}</span></>}
+            hint={<><span>Min: {formatDuration(dashboard.minProcessingTimeSeconds)}</span>{' '}<span>Max: {formatDuration(dashboard.maxProcessingTimeSeconds)}</span></>}
           />
-          <StatCard
-            label="Avg Episode Length"
+          <StatTile
+            label="Avg episode length"
             value={formatDuration(dashboard.avgEpisodeLengthSeconds)}
-            details={<><span>Min: {formatDuration(dashboard.minEpisodeLengthSeconds)}</span>{' '}<span>Max: {formatDuration(dashboard.maxEpisodeLengthSeconds)}</span></>}
+            hint={<><span>Min: {formatDuration(dashboard.minEpisodeLengthSeconds)}</span>{' '}<span>Max: {formatDuration(dashboard.maxEpisodeLengthSeconds)}</span></>}
           />
-          <StatCard
-            label="Avg Tokens/Run"
+          <StatTile
+            label="Avg tokens per run"
             value={formatTokenCount(dashboard.avgInputTokens + dashboard.avgOutputTokens)}
-            details={<><span>In: {formatTokenCount(dashboard.avgInputTokens)}</span>{' '}<span>Out: {formatTokenCount(dashboard.avgOutputTokens)}</span></>}
+            hint={<><span>In: {formatTokenCount(dashboard.avgInputTokens)}</span>{' '}<span>Out: {formatTokenCount(dashboard.avgOutputTokens)}</span></>}
           />
-          <StatCard
-            label="Avg Audio Cues"
+          <StatTile
+            label="Avg audio cues"
             value={dashboard.avgAudioCuesDetected.toFixed(1)}
-            details={<><span>Min: {String(dashboard.minAudioCuesDetected)}</span>{' '}<span>Max: {String(dashboard.maxAudioCuesDetected)}</span></>}
+            hint={<><span>Min: {String(dashboard.minAudioCuesDetected)}</span>{' '}<span>Max: {String(dashboard.maxAudioCuesDetected)}</span></>}
           />
         </div>
       )}
 
       {/* Totals Row */}
       {dashLoading && (
-        <SkeletonStatCards count={6} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 mb-8" />
+        <SkeletonStatCards count={6} className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 mb-8" />
       )}
       {dashboard && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 mb-8">
-          <StatCard label="Total Episodes" value={String(dashboard.totalEpisodesProcessed)}
-            details={dashboard.totalRuns !== dashboard.totalEpisodesProcessed
+        <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 mb-8">
+          <StatTile label="Total episodes" value={String(dashboard.totalEpisodesProcessed)}
+            hint={dashboard.totalRuns !== dashboard.totalEpisodesProcessed
               ? `${dashboard.totalRuns} processing runs` : undefined} />
-          <StatCard label="Total Ads Removed" value={String(dashboard.totalAdsRemoved)} />
-          <StatCard label="Total Audio Cues" value={String(dashboard.totalAudioCuesDetected)} />
-          <StatCard label="Total Time Saved" value={formatDuration(dashboard.totalTimeSavedSeconds)}
-            details={dashboard.episodesWithTimeSaved > 0 && dashboard.episodesWithTimeSaved !== dashboard.totalEpisodesProcessed
+          <StatTile label="Total ads removed" value={String(dashboard.totalAdsRemoved)} />
+          <StatTile label="Total audio cues" value={String(dashboard.totalAudioCuesDetected)} />
+          <StatTile label="Total time saved" value={formatDuration(dashboard.totalTimeSavedSeconds)}
+            hint={dashboard.episodesWithTimeSaved > 0 && dashboard.episodesWithTimeSaved !== dashboard.totalEpisodesProcessed
               ? `from ${dashboard.episodesWithTimeSaved} episodes` : undefined} />
-          <StatCard label="Total Cost" value={formatCost(dashboard.totalLlmCost)} />
-          <StatCard label="Total Tokens" value={formatTokenCount(dashboard.totalInputTokens + dashboard.totalOutputTokens)}
-            details={`In: ${formatTokenCount(dashboard.totalInputTokens)} / Out: ${formatTokenCount(dashboard.totalOutputTokens)}`} />
+          <StatTile label="Total cost" value={formatCost(dashboard.totalLlmCost)} />
+          <StatTile label="Total tokens" value={formatTokenCount(dashboard.totalInputTokens + dashboard.totalOutputTokens)}
+            hint={`In: ${formatTokenCount(dashboard.totalInputTokens)} / Out: ${formatTokenCount(dashboard.totalOutputTokens)}`} />
         </div>
       )}
 
@@ -960,7 +953,7 @@ export default function StatsPage() {
         {podLoading && <SkeletonChart />}
         {topPodcasts.length > 0 && (
           <div className="bg-card rounded-lg border border-border p-4">
-            <h2 className="text-lg font-semibold text-foreground mb-4">Top Podcasts by Ads Removed</h2>
+            <h2 className={`${cardTitle} mb-4`}>Top podcasts by ads removed</h2>
             <ResponsiveContainer width="100%" height={300}>
               <BarChart data={topPodcasts} layout="vertical" margin={{ left: 20, right: 20 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke={theme.border} />
@@ -987,7 +980,7 @@ export default function StatsPage() {
         {dayLoading && <SkeletonChart />}
         {byDay?.days && (
           <div className="bg-card rounded-lg border border-border p-4">
-            <h2 className="text-lg font-semibold text-foreground mb-4">Episodes Processed by Day</h2>
+            <h2 className={`${cardTitle} mb-4`}>Episodes processed by day</h2>
             <ResponsiveContainer width="100%" height={300}>
               <BarChart data={byDay.days} margin={{ left: 0, right: 20 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke={theme.border} />
@@ -1005,28 +998,28 @@ export default function StatsPage() {
         )}
       </div>
 
-      {/* Ad Reviewer Stats. Renders whenever the query has loaded; all-zero
+      {/* Ad reviewer stats. Renders whenever the query has loaded; all-zero
           counts are the visible signal that the reviewer is configured but
           has not yet run on any episode. */}
       {reviewer && (
-        <div id="stats-reviewer" className="scroll-mt-28 bg-card rounded-lg border border-border p-4 sm:p-6 mb-6">
-          <h2 className="text-lg font-semibold text-foreground mb-4">Ad Reviewer Stats</h2>
+        <div id="stats-reviewer" className={`scroll-mt-28 bg-card rounded-lg border border-border ${sectionPad} mb-6`}>
+          <h2 className={`${cardTitle} mb-4`}>Ad reviewer stats</h2>
           {reviewer.totalReviews === 0 && (
             <p className="text-sm text-muted-foreground mb-4">
-              No reviews yet. Enable Ad Reviewer in Settings, AI & Processing section, then reprocess an episode.
+              No reviews yet. Enable ad reviewer in Settings, AI and processing section, then reprocess an episode.
             </p>
           )}
-          <div className="grid grid-cols-2 lg:grid-cols-6 gap-4">
-            <ReviewerStatCard label="Total reviews" value={reviewer.totalReviews} />
-            <ReviewerStatCard label="Confirmed" value={reviewer.verdictCounts.confirmed} />
-            <ReviewerStatCard label="Adjusted" value={reviewer.verdictCounts.adjust} />
-            <ReviewerStatCard label="Rejected" value={reviewer.verdictCounts.reject} />
-            <ReviewerStatCard label="Resurrected" value={reviewer.verdictCounts.resurrect} />
-            <ReviewerStatCard label="Failed" value={reviewer.verdictCounts.failure} />
-            <ReviewerStatCard label="Abstained" value={reviewer.verdictCounts.inconclusive} />
-            <ReviewerStatCard label="Pass 1 adjusts" value={reviewer.pass1AdjustmentCount} />
-            <ReviewerStatCard label="Pass 2 adjusts" value={reviewer.pass2AdjustmentCount} />
-            <ReviewerStatCard label="Avg shift" value={`${reviewer.avgBoundaryShiftSeconds}s`} />
+          <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
+            <StatTile label="Total reviews" value={reviewer.totalReviews} />
+            <StatTile label="Confirmed" value={reviewer.verdictCounts.confirmed} />
+            <StatTile label="Adjusted" value={reviewer.verdictCounts.adjust} />
+            <StatTile label="Rejected" value={reviewer.verdictCounts.reject} />
+            <StatTile label="Resurrected" value={reviewer.verdictCounts.resurrect} />
+            <StatTile label="Failed" value={reviewer.verdictCounts.failure} />
+            <StatTile label="Abstained" value={reviewer.verdictCounts.inconclusive} />
+            <StatTile label="Pass 1 adjusts" value={reviewer.pass1AdjustmentCount} />
+            <StatTile label="Pass 2 adjusts" value={reviewer.pass2AdjustmentCount} />
+            <StatTile label="Avg shift" value={`${reviewer.avgBoundaryShiftSeconds}s`} />
           </div>
         </div>
       )}
@@ -1034,8 +1027,8 @@ export default function StatsPage() {
       {/* Addressing modes. Renders whenever the query has loaded; all-zero
           counts are the visible signal that neither mode has run yet. */}
       {addressing && (
-        <div id="stats-addressing" className="scroll-mt-28 bg-card rounded-lg border border-border p-4 sm:p-6 mb-6">
-          <h2 className="text-lg font-semibold text-foreground mb-1">Addressing modes</h2>
+        <div id="stats-addressing" className={`scroll-mt-28 bg-card rounded-lg border border-border ${sectionPad} mb-6`}>
+          <h2 className={`${cardTitle} mb-1`}>Addressing modes</h2>
           <p className="text-sm text-muted-foreground mb-4">
             Contract compliance and ad yield per addressing mode. Random-mode runs count toward whichever mode was drawn. Yield is recorded from 2.92.0 on, so its sample can lag the compliance sample.
           </p>
@@ -1044,7 +1037,7 @@ export default function StatsPage() {
               const stats = addressing.modes[mode];
               return (
                 <div key={mode} className="bg-secondary/50 rounded-md p-4">
-                  <p className="text-sm font-medium text-foreground mb-3">
+                  <p className="text-sm font-semibold text-foreground mb-3">
                     {mode === 'timestamps' ? 'Timestamps' : 'Segment IDs'}
                   </p>
                   <div className="grid grid-cols-3 gap-3">
@@ -1077,17 +1070,17 @@ export default function StatsPage() {
         </div>
       )}
 
-      {/* Audio Cue Telemetry. Renders once the aggregate query loads and there
+      {/* Audio cue telemetry. Renders once the aggregate query loads and there
           is any recorded cue (matches or near-misses). Below-threshold
-          near-misses show as a distinct series -- they never affected cuts. */}
+          near-misses show as a distinct series; they never affected cuts. */}
       {cueStats && (cueStats.total > 0 || cueStats.nearMissTotal > 0) && (
-        <div id="stats-cues" className="scroll-mt-28 bg-card rounded-lg border border-border p-4 sm:p-6 mb-6">
-          <h2 className="text-lg font-semibold text-foreground mb-4">Audio Cue Telemetry</h2>
+        <div id="stats-cues" className={`scroll-mt-28 bg-card rounded-lg border border-border ${sectionPad} mb-6`}>
+          <h2 className={`${cardTitle} mb-4`}>Audio cue telemetry</h2>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
-            <ReviewerStatCard label="Matches" value={cueStats.total} />
-            <ReviewerStatCard label="Snapped" value={cueStats.snapped} />
-            <ReviewerStatCard label="Paired" value={cueStats.paired} />
-            <ReviewerStatCard label="Near-misses" value={cueStats.nearMissTotal} />
+            <StatTile label="Matches" value={cueStats.total} />
+            <StatTile label="Snapped" value={cueStats.snapped} />
+            <StatTile label="Paired" value={cueStats.paired} />
+            <StatTile label="Near-misses" value={cueStats.nearMissTotal} />
           </div>
           {cueHistogram.length > 0 && (
             <ResponsiveContainer width="100%" height={260}>
@@ -1113,7 +1106,7 @@ export default function StatsPage() {
               </h3>
               <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
                 {cueUnusedReasons.map(({ reason, count }) => (
-                  <ReviewerStatCard key={reason} label={reason.replace(/_/g, ' ')} value={count} />
+                  <StatTile key={reason} label={reason.replace(/_/g, ' ')} value={count} />
                 ))}
               </div>
             </div>
@@ -1124,8 +1117,8 @@ export default function StatsPage() {
       {/* LLM cost ledger: provider/model usage and per-episode spend, both
           paginated and sorted server-side over the llm_call_usage ledger.
           Includes failed and cancelled runs that incurred cost. */}
-      <div id="stats-spend" className="scroll-mt-28 bg-card rounded-lg border border-border p-4 sm:p-6 mb-6">
-        <h2 className="text-lg font-semibold text-foreground mb-1">Spend</h2>
+      <div id="stats-spend" className={`scroll-mt-28 bg-card rounded-lg border border-border ${sectionPad} mb-6`}>
+        <h2 className={`${cardTitle} mb-1`}>Spend</h2>
         <p className="text-sm text-muted-foreground mb-4">
           Spend by provider, model, and episode across LLM and System One calls, including failed or cancelled runs that incurred cost.
           The filters below apply to spend, LLM calls, System One calls, and pattern cleanup activity. Dates select whole UTC days.
@@ -1157,7 +1150,7 @@ export default function StatsPage() {
             onChange={(e) => write({ podcast: e.target.value, muPage: '1', ecPage: '1' })}
             className={`${filterControl} ${selectBase}`}
           >
-            <option value="">All Podcasts</option>
+            <option value="">All podcasts</option>
             {feeds?.map((feed) => (
               <option key={feed.slug} value={feed.slug}>
                 {feedDisplayTitle(feed)}
@@ -1174,7 +1167,7 @@ export default function StatsPage() {
             onChange={(e) => write({ provider: e.target.value, model: '', muPage: '1', ecPage: '1' })}
             className={`${filterControl} ${selectBase}`}
           >
-            <option value="">All Providers</option>
+            <option value="">All providers</option>
             {providerOptions.map(({ value, inScope }) => (
               <option key={value} value={value}>
                 {inScope ? value : `${value} (no data in range)`}
@@ -1191,7 +1184,7 @@ export default function StatsPage() {
             onChange={(e) => write({ model: e.target.value, muPage: '1', ecPage: '1' })}
             className={`${filterControl} ${selectBase}`}
           >
-            <option value="">All Models</option>
+            <option value="">All models</option>
             {modelOptions.map(({ value, inScope }) => (
               <option key={value} value={value}>
                 {inScope ? value : `${value} (no data in range)`}
@@ -1210,7 +1203,7 @@ export default function StatsPage() {
           />
         )}
 
-        <h3 className="text-base font-medium text-foreground mb-3">Provider &amp; model usage</h3>
+        <h3 className={`${cardTitle} mb-3`}>Provider and model usage</h3>
         {modelUsageLoading && <SkeletonRows count={5} />}
         {modelUsageError && (
           <QueryErrorPanel
@@ -1237,7 +1230,7 @@ export default function StatsPage() {
           </>
         )}
 
-        <h3 className="text-base font-medium text-foreground mb-3 mt-8">Episode costs</h3>
+        <h3 className={`${cardTitle} mb-3 mt-8`}>Episode costs</h3>
         {episodeCostLoading && <SkeletonRows count={5} />}
         {episodeCostError && (
           <QueryErrorPanel
@@ -1265,8 +1258,8 @@ export default function StatsPage() {
         )}
       </div>
 
-      <div id="stats-llm" className="scroll-mt-28 bg-card rounded-lg border border-border p-4 sm:p-6 mb-6">
-        <h2 className="text-lg font-semibold text-foreground mb-1">LLM calls</h2>
+      <div id="stats-llm" className={`scroll-mt-28 bg-card rounded-lg border border-border ${sectionPad} mb-6`}>
+        <h2 className={`${cardTitle} mb-1`}>LLM calls</h2>
         <p className="text-sm text-muted-foreground mb-3">
           Uses the Spend filters above. One call may send several requests.
         </p>
@@ -1280,21 +1273,21 @@ export default function StatsPage() {
         )}
         {llmStats && (
           llmStats.calls === 0 ? (
-            <p className="rounded-lg border border-border p-3 text-sm text-muted-foreground">No LLM calls recorded for this filter.</p>
+            <p className="text-sm text-muted-foreground">No LLM calls match these filters.</p>
           ) : (
             <div>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                <StatCard label="Calls" value={String(llmStats.calls)} />
-                <StatCard label="HTTP requests" value={String(llmStats.requests)} />
-                <StatCard label="Success / failed / inconclusive" value={`${llmStats.outcomes.success} / ${llmStats.outcomes.failure} / ${llmStats.outcomes.inconclusive}`} details={llmStats.outcomes.inFlight > 0 ? `${llmStats.outcomes.inFlight} in flight` : undefined} />
-                <StatCard label="Average call time" value={formatMs(llmStats.callLatencyMsAverage)} />
-                <StatCard label="Average request time" value={formatMs(llmStats.dispatchLatencyMsAverage)} details="Per HTTP request" />
-                <StatCard label="Token usage" value={`${formatTokenCount(llmStats.tokens.input)} in / ${formatTokenCount(llmStats.tokens.output)} out`} details={llmTokenDetails} />
-                <StatCard label="Known cost" value={formatKnownCallCost(llmStats.costUsd)} details={!llmStats.requests ? 'No recorded requests' : llmStats.unknownCostRequestCount ? `${requestCount(llmStats.unknownCostRequestCount)} unpriced` : undefined} />
+                <StatTile label="Calls" value={String(llmStats.calls)} />
+                <StatTile label="HTTP requests" value={String(llmStats.requests)} />
+                <StatTile label="Success / failed / inconclusive" value={`${llmStats.outcomes.success} / ${llmStats.outcomes.failure} / ${llmStats.outcomes.inconclusive}`} hint={llmStats.outcomes.inFlight > 0 ? `${llmStats.outcomes.inFlight} in flight` : undefined} />
+                <StatTile label="Average call time" value={formatMs(llmStats.callLatencyMsAverage)} />
+                <StatTile label="Average request time" value={formatMs(llmStats.dispatchLatencyMsAverage)} hint="Per HTTP request" />
+                <StatTile label="Token usage" value={`${formatTokenCount(llmStats.tokens.input)} in / ${formatTokenCount(llmStats.tokens.output)} out`} hint={llmTokenDetails} />
+                <StatTile label="Known cost" value={formatKnownCallCost(llmStats.costUsd)} hint={!llmStats.requests ? 'No recorded requests' : llmStats.unknownCostRequestCount ? `${requestCount(llmStats.unknownCostRequestCount)} unpriced` : undefined} />
               </div>
               {Object.keys(llmStats.byPhase).length > 0 && (
                 <div className="mt-4 border-t border-border pt-3">
-                  <h4 className="text-sm font-medium text-foreground mb-2">Calls by phase</h4>
+                  <h4 className="text-sm font-semibold text-foreground mb-2">Calls by phase</h4>
                   <table aria-label="Calls by phase" className="w-full max-w-md">
                     <thead className="bg-muted/50">
                       <tr>
@@ -1320,8 +1313,8 @@ export default function StatsPage() {
         )}
       </div>
 
-      <div id="stats-systemone" className="scroll-mt-28 bg-card rounded-lg border border-border p-4 sm:p-6 mb-6">
-        <h2 className="text-lg font-semibold text-foreground mb-1">System One calls</h2>
+      <div id="stats-systemone" className={`scroll-mt-28 bg-card rounded-lg border border-border ${sectionPad} mb-6`}>
+        <h2 className={`${cardTitle} mb-1`}>System One calls</h2>
         <p className="text-sm text-muted-foreground mb-3">
           Uses the Spend filters above. One call may send several requests.
         </p>
@@ -1335,22 +1328,22 @@ export default function StatsPage() {
         )}
         {systemOneStats && (
           systemOneStats.calls === 0 ? (
-            <p className="rounded-lg border border-border p-3 text-sm text-muted-foreground">No System One calls recorded for this filter.</p>
+            <p className="text-sm text-muted-foreground">No System One calls match these filters.</p>
           ) : (
             <div>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                <StatCard label="Calls" value={String(systemOneStats.calls)} />
-                <StatCard label="HTTP requests" value={String(systemOneStats.requests)} />
-                <StatCard label="Completed / failed / inconclusive" value={`${systemOneStats.outcomes.completed} / ${systemOneStats.outcomes.failed} / ${systemOneStats.outcomes.inconclusive}`} />
-                <StatCard label="Average call time" value={formatMs(systemOneStats.logicalLatencyMsAverage)} />
-                <StatCard label="Token usage" value={`${formatTokenCount(systemOneStats.tokens.input)} in / ${formatTokenCount(systemOneStats.tokens.output)} out`} details={!systemOneStats.requests ? 'No recorded requests' : systemOneStats.tokens.unknownRequestCount ? `Usage unavailable for ${requestCount(systemOneStats.tokens.unknownRequestCount)}` : undefined} />
-                <StatCard label="Known cost" value={formatKnownCallCost(systemOneStats.costUsd)} details={!systemOneStats.requests ? 'No recorded requests' : systemOneStats.unknownCostRequestCount ? `${requestCount(systemOneStats.unknownCostRequestCount)} unpriced` : undefined} />
-                <StatCard label="Average request time" value={formatMs(systemOneStats.dispatchLatencyMsAverage)} details="Per HTTP request" />
-                <StatCard label="Review refinements" value={`${systemOneStats.refinements.completed} / ${systemOneStats.refinements.attempted}`} details={`${systemOneStats.refinements.skipped} skipped, ${systemOneStats.refinements.inconclusive} inconclusive, ${systemOneStats.refinements.upstream_error} upstream errors`} />
+                <StatTile label="Calls" value={String(systemOneStats.calls)} />
+                <StatTile label="HTTP requests" value={String(systemOneStats.requests)} />
+                <StatTile label="Completed / failed / inconclusive" value={`${systemOneStats.outcomes.completed} / ${systemOneStats.outcomes.failed} / ${systemOneStats.outcomes.inconclusive}`} />
+                <StatTile label="Average call time" value={formatMs(systemOneStats.logicalLatencyMsAverage)} />
+                <StatTile label="Token usage" value={`${formatTokenCount(systemOneStats.tokens.input)} in / ${formatTokenCount(systemOneStats.tokens.output)} out`} hint={!systemOneStats.requests ? 'No recorded requests' : systemOneStats.tokens.unknownRequestCount ? `Usage unavailable for ${requestCount(systemOneStats.tokens.unknownRequestCount)}` : undefined} />
+                <StatTile label="Known cost" value={formatKnownCallCost(systemOneStats.costUsd)} hint={!systemOneStats.requests ? 'No recorded requests' : systemOneStats.unknownCostRequestCount ? `${requestCount(systemOneStats.unknownCostRequestCount)} unpriced` : undefined} />
+                <StatTile label="Average request time" value={formatMs(systemOneStats.dispatchLatencyMsAverage)} hint="Per HTTP request" />
+                <StatTile label="Review refinements" value={`${systemOneStats.refinements.completed} / ${systemOneStats.refinements.attempted}`} hint={`${systemOneStats.refinements.skipped} skipped, ${systemOneStats.refinements.inconclusive} inconclusive, ${systemOneStats.refinements.upstream_error} upstream errors`} />
               </div>
               {Object.keys(systemOneStats.reviewReasons).length > 0 && (
                 <div className="mt-4 border-t border-border pt-3">
-                  <h4 className="text-sm font-medium text-foreground mb-2">Review outcomes by reason</h4>
+                  <h4 className="text-sm font-semibold text-foreground mb-2">Review outcomes by reason</h4>
                   <ul className="flex flex-wrap gap-x-4 gap-y-2 text-sm text-muted-foreground">
                     {Object.entries(systemOneStats.reviewReasons).map(([reason, count]) => (
                       <li key={reason}>{reason}: <span className="tabular-nums text-foreground">{count}</span></li>
@@ -1360,7 +1353,7 @@ export default function StatsPage() {
               )}
               {Object.keys(systemOneStats.refinementSkipReasons).length > 0 && (
                 <div className="mt-4 border-t border-border pt-3">
-                  <h4 className="text-sm font-medium text-foreground mb-2">Refinement skips by reason</h4>
+                  <h4 className="text-sm font-semibold text-foreground mb-2">Refinement skips by reason</h4>
                   <ul className="flex flex-wrap gap-x-4 gap-y-2 text-sm text-muted-foreground">
                     {Object.entries(systemOneStats.refinementSkipReasons).map(([reason, count]) => (
                       <li key={reason}>{reason}: <span className="tabular-nums text-foreground">{count}</span></li>
@@ -1373,8 +1366,8 @@ export default function StatsPage() {
         )}
       </div>
 
-      <div id="stats-cleanup" className="scroll-mt-28 bg-card rounded-lg border border-border p-4 sm:p-6 mb-6">
-        <h2 className="text-lg font-semibold text-foreground mb-1">Pattern cleanup activity</h2>
+      <div id="stats-cleanup" className={`scroll-mt-28 bg-card rounded-lg border border-border ${sectionPad} mb-6`}>
+        <h2 className={`${cardTitle} mb-1`}>Pattern cleanup activity</h2>
         <p className="text-sm text-muted-foreground mb-3">
           Uses the Spend filters above.
         </p>
@@ -1388,24 +1381,24 @@ export default function StatsPage() {
         )}
         {cleanupStats && (
           <div>
-            <h4 className="text-sm font-medium text-foreground mb-3">Runs</h4>
+            <h4 className="text-sm font-semibold text-foreground mb-3">Runs</h4>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-              <StatCard label="Total runs" value={String(cleanupStats.runs.total)} />
-              <StatCard label="Running / completed / failed" value={`${cleanupStats.runs.running} / ${cleanupStats.runs.completed} / ${cleanupStats.runs.failed}`} />
-              <StatCard label="Exact / legacy runs" value={`${cleanupStats.runs.exactAccounting} / ${cleanupStats.runs.legacy}`} />
-              <StatCard label="Runs with unknown spend" value={String(cleanupStats.coverage.historicalRunCountWithUnknownSpend)} />
+              <StatTile label="Total runs" value={String(cleanupStats.runs.total)} />
+              <StatTile label="Running / completed / failed" value={`${cleanupStats.runs.running} / ${cleanupStats.runs.completed} / ${cleanupStats.runs.failed}`} />
+              <StatTile label="Exact / legacy runs" value={`${cleanupStats.runs.exactAccounting} / ${cleanupStats.runs.legacy}`} />
+              <StatTile label="Runs with unknown spend" value={String(cleanupStats.coverage.historicalRunCountWithUnknownSpend)} />
             </div>
 
-            <h4 className="text-sm font-medium text-foreground mt-5 mb-3">Patterns</h4>
+            <h4 className="text-sm font-semibold text-foreground mt-5 mb-3">Patterns</h4>
             <div className="grid grid-cols-2 gap-3">
-              <StatCard label="Tracked pattern checks" value={String(cleanupStats.patterns.checked)} details={`${cleanupStats.patterns.distinctChecked} distinct patterns`} />
-              <StatCard label="Tracked model reviews" value={String(cleanupStats.patterns.modelReviewed)} />
-              <StatCard label="Patterns with suggestions / changed" value={`${cleanupStats.patterns.proposed} / ${cleanupStats.patterns.changed}`} />
-              <StatCard label="Legacy reported reviews" value={String(cleanupStats.patterns.legacyReportedReviews)} details="Older run records without exact check history" />
+              <StatTile label="Tracked pattern checks" value={String(cleanupStats.patterns.checked)} hint={`${cleanupStats.patterns.distinctChecked} distinct patterns`} />
+              <StatTile label="Tracked model reviews" value={String(cleanupStats.patterns.modelReviewed)} />
+              <StatTile label="Patterns with suggestions / changed" value={`${cleanupStats.patterns.proposed} / ${cleanupStats.patterns.changed}`} />
+              <StatTile label="Legacy reported reviews" value={String(cleanupStats.patterns.legacyReportedReviews)} hint="Older run records without exact check history" />
             </div>
 
             <div className="mt-5">
-              <h4 className="text-sm font-medium text-foreground mb-2">Suggested and applied actions</h4>
+              <h4 className="text-sm font-semibold text-foreground mb-2">Suggested and applied actions</h4>
               <p className="text-xs text-muted-foreground mb-2">Counts by action type. Accepted includes reverted actions.</p>
               <div className="hidden sm:block">
                 <table className="w-full text-sm">
@@ -1422,8 +1415,8 @@ export default function StatsPage() {
               </div>
               <div className="sm:hidden space-y-3">
                 {Object.entries(cleanupStats.actions).map(([action, counts]) => (
-                  <div key={action} className="rounded border border-border/40 p-3">
-                    <h5 className="text-sm font-medium text-foreground mb-2">{CLEANUP_ACTION_LABELS[action] ?? action}</h5>
+                  <div key={action} className="rounded bg-muted/40 p-3">
+                    <h5 className="text-sm font-semibold text-foreground mb-2">{CLEANUP_ACTION_LABELS[action] ?? action}</h5>
                     <dl className="text-sm space-y-1">
                       {(['proposed', 'accepted', 'applied', 'reverted'] as const).map((kind) => (
                         <div key={kind} className="flex justify-between gap-2">
@@ -1460,24 +1453,24 @@ export default function StatsPage() {
       {/* Mobile Card Layout */}
       {sortedPodcasts.length > 0 && (
         <div className="sm:hidden space-y-3">
-          <h2 className="text-lg font-semibold text-foreground">All Podcasts</h2>
+          <h2 className={cardTitle}>All podcasts</h2>
           {sortedPodcasts.map((p) => (
             <div key={p.podcastSlug} className="bg-card rounded-lg border border-border p-4">
-              <p className="text-sm font-medium text-foreground mb-2">{p.podcastTitle}</p>
+              <p className="text-sm font-semibold text-foreground mb-2">{p.podcastTitle}</p>
               <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
                 <span className="text-muted-foreground">Episodes</span>
                 <span className="text-foreground text-right tabular-nums">{p.episodeCount}</span>
                 <span className="text-muted-foreground">Runs</span>
                 <span className="text-foreground text-right tabular-nums">{p.runCount}</span>
-                <span className="text-muted-foreground">Total Ads</span>
+                <span className="text-muted-foreground">Total ads</span>
                 <span className="text-foreground text-right tabular-nums">{p.totalAds}</span>
-                <span className="text-muted-foreground">Avg Ads</span>
+                <span className="text-muted-foreground">Avg ads</span>
                 <span className="text-foreground text-right tabular-nums">{p.avgAds}</span>
-                <span className="text-muted-foreground">Avg Time Saved</span>
+                <span className="text-muted-foreground">Avg time saved</span>
                 <span className="text-foreground text-right tabular-nums">{formatDuration(p.avgTimeSavedSeconds)}</span>
-                <span className="text-muted-foreground">Avg Length</span>
+                <span className="text-muted-foreground">Avg length</span>
                 <span className="text-foreground text-right tabular-nums">{formatDuration(p.avgEpisodeLengthSeconds)}</span>
-                <span className="text-muted-foreground">Total Cost</span>
+                <span className="text-muted-foreground">Total cost</span>
                 <span className="text-foreground text-right tabular-nums">{formatCost(p.totalCost)}</span>
                 <span className="text-muted-foreground">Tokens (In/Out)</span>
                 <span className="text-foreground text-right tabular-nums">{formatTokenCount(p.totalInputTokens)} / {formatTokenCount(p.totalOutputTokens)}</span>
@@ -1490,7 +1483,7 @@ export default function StatsPage() {
       {/* Desktop Table Layout */}
       {sortedPodcasts.length > 0 && (
         <div className="hidden sm:block bg-card rounded-lg border border-border overflow-hidden">
-          <h2 className="text-lg font-semibold text-foreground p-4 pb-2">All Podcasts</h2>
+          <h2 className={`${cardTitle} p-4 pb-2`}>All podcasts</h2>
           <div role="region" aria-label="Statistics table; scroll for more columns" tabIndex={0} className="overflow-x-auto">
             <table aria-label="Podcast totals" className="w-full">
               <thead className="bg-muted/50">
@@ -1498,12 +1491,12 @@ export default function StatsPage() {
                   <SortHeader field="podcastTitle" label="Podcast" sortField={sortField} sortDirection={sortDir} onSort={handleSort} />
                   <SortHeader field="episodeCount" label="Episodes" align="right" sortField={sortField} sortDirection={sortDir} onSort={handleSort} />
                   <SortHeader field="runCount" label="Runs" className="px-4 hidden lg:table-cell" align="right" sortField={sortField} sortDirection={sortDir} onSort={handleSort} />
-                  <SortHeader field="totalAds" label="Total Ads" align="right" sortField={sortField} sortDirection={sortDir} onSort={handleSort} />
-                  <SortHeader field="avgAds" label="Avg Ads" align="right" sortField={sortField} sortDirection={sortDir} onSort={handleSort} />
-                  <SortHeader field="avgTimeSavedSeconds" label="Avg Time Saved" align="right" sortField={sortField} sortDirection={sortDir} onSort={handleSort} />
-                  <SortHeader field="avgEpisodeLengthSeconds" label="Avg Length" className="px-4 hidden lg:table-cell" align="right" sortField={sortField} sortDirection={sortDir} onSort={handleSort} />
-                  <SortHeader field="totalCost" label="Total Cost" className="px-4 hidden lg:table-cell" align="right" sortField={sortField} sortDirection={sortDir} onSort={handleSort} />
-                  <SortHeader field="avgTokensPerEpisode" label="Avg Tokens/Run" className="px-4 hidden lg:table-cell" align="right" sortField={sortField} sortDirection={sortDir} onSort={handleSort} />
+                  <SortHeader field="totalAds" label="Total ads" align="right" sortField={sortField} sortDirection={sortDir} onSort={handleSort} />
+                  <SortHeader field="avgAds" label="Avg ads" align="right" sortField={sortField} sortDirection={sortDir} onSort={handleSort} />
+                  <SortHeader field="avgTimeSavedSeconds" label="Avg time saved" align="right" sortField={sortField} sortDirection={sortDir} onSort={handleSort} />
+                  <SortHeader field="avgEpisodeLengthSeconds" label="Avg length" className="px-4 hidden lg:table-cell" align="right" sortField={sortField} sortDirection={sortDir} onSort={handleSort} />
+                  <SortHeader field="totalCost" label="Total cost" className="px-4 hidden lg:table-cell" align="right" sortField={sortField} sortDirection={sortDir} onSort={handleSort} />
+                  <SortHeader field="avgTokensPerEpisode" label="Avg tokens per run" className="px-4 hidden lg:table-cell" align="right" sortField={sortField} sortDirection={sortDir} onSort={handleSort} />
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
@@ -1535,24 +1528,14 @@ export default function StatsPage() {
 function CleanupUsageCards({ title, usage }: { title: string; usage: CleanupStatsUsage }) {
   return (
     <>
-      <h4 className="text-sm font-medium text-foreground mt-5 mb-3">{title}</h4>
+      <h4 className="text-sm font-semibold text-foreground mt-5 mb-3">{title}</h4>
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <StatCard label="HTTP requests" value={String(usage.requests)} />
-        <StatCard label="Token usage" value={`${formatTokenCount(usage.inputTokens)} in / ${formatTokenCount(usage.outputTokens)} out`} details={!usage.requests ? 'No recorded requests' : usage.unknownUsageRequestCount ? `Usage unavailable for ${usage.unknownUsageRequestCount} requests` : undefined} />
-        <StatCard label="Known cost" value={formatKnownCallCost(usage.knownCostUsd)} details={!usage.requests ? 'No recorded requests' : usage.unknownCostRequestCount ? `${usage.unknownCostRequestCount} requests unpriced` : undefined} />
-        <StatCard label="Unknown usage / cost requests" value={`${usage.unknownUsageRequestCount} / ${usage.unknownCostRequestCount}`} />
+        <StatTile label="HTTP requests" value={String(usage.requests)} />
+        <StatTile label="Token usage" value={`${formatTokenCount(usage.inputTokens)} in / ${formatTokenCount(usage.outputTokens)} out`} hint={!usage.requests ? 'No recorded requests' : usage.unknownUsageRequestCount ? `Usage unavailable for ${usage.unknownUsageRequestCount} requests` : undefined} />
+        <StatTile label="Known cost" value={formatKnownCallCost(usage.knownCostUsd)} hint={!usage.requests ? 'No recorded requests' : usage.unknownCostRequestCount ? `${usage.unknownCostRequestCount} requests unpriced` : undefined} />
+        <StatTile label="Unknown usage / cost requests" value={`${usage.unknownUsageRequestCount} / ${usage.unknownCostRequestCount}`} />
       </div>
     </>
-  );
-}
-
-function StatCard({ label, value, details }: { label: string; value: string; details?: ReactNode }) {
-  return (
-    <div className="row-span-3 grid grid-rows-subgrid gap-y-0 bg-card rounded-lg border border-border p-4">
-      <p className={summaryLabel}>{label}</p>
-      <p className={`${summaryValue} text-foreground`}>{value}</p>
-      {details && <p className="flex flex-wrap content-start gap-x-2 text-xs text-muted-foreground mt-1 [&>span]:whitespace-nowrap">{details}</p>}
-    </div>
   );
 }
 

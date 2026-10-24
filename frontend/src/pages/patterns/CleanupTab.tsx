@@ -14,13 +14,13 @@ import Checkbox from '../../components/Checkbox';
 import { ActiveBadge } from '../../components/ActiveBadge';
 import { ScopeBadge } from '../../components/ScopeBadge';
 import { SkeletonRows } from '../../components/Skeleton';
-import { badgeBase, tint } from '../../components/badgeStyles';
-import { btnOutline, btnPrimary } from '../../components/buttonStyles';
+import { formatDate, formatPercent } from '../../utils/format';
 import { cardActionBtnMobileOnly as scopedCardActionBtn } from '../../components/rowActionStyles';
-import { focusRing, selectBase } from '../../components/fieldStyles';
-import { formatDate } from '../../utils/format';
 import { SEGMENT_CATEGORY_LABELS, type SegmentCategory } from '../../utils/segmentCategory';
 import { TrimDiff } from './TrimDiff';
+import { btnBase, btnPrimary, btnOutline } from '../../components/buttonStyles';
+import { focusRing, selectBase, filterLabel, filterControl } from '../../components/fieldStyles';
+import { badgeBase, tint } from '../../components/badgeStyles';
 
 type KindFilter = CleanupKind | 'all';
 
@@ -65,7 +65,7 @@ function actionError(err: unknown, action?: 'approve' | 'reject' | 'undo'): stri
       ? 'Undo is unavailable because the pattern changed, a later approval remains, or the saved state is incomplete.'
       : 'This suggestion cannot be applied: the pattern changed or the suggestion was already handled.';
   }
-  return getErrorMessage(err, 'The action failed.');
+  return getErrorMessage(err, 'Could not complete the action.');
 }
 
 function plural(n: number, word: string) {
@@ -120,7 +120,7 @@ const PROPOSED_CHANGE: Record<CleanupKind, (s: PatternCleanupSuggestion, origina
     return (
       <div className="grid gap-2 sm:grid-cols-2">
         {pieces.map((piece, i) => (
-          <div key={i} data-testid="split-piece" className="rounded border border-border bg-muted/40 p-3 min-w-0">
+          <div key={i} data-testid="split-piece" className="rounded bg-muted/40 p-3 min-w-0">
             <span className={`${badgeBase} ${tint.secondary}`}>{piece.sponsor}</span>
             {piece.category && (
               <CategoryChange from={s.before?.category} to={piece.category} />
@@ -153,7 +153,7 @@ const PROPOSED_CHANGE: Record<CleanupKind, (s: PatternCleanupSuggestion, origina
       <p className="text-sm text-foreground">
         No matches in {p.unusedDays} days.{' '}
         <span className="text-muted-foreground">
-          Last matched {p.lastMatchedAt ? formatDate(p.lastMatchedAt) : 'never'}, created{' '}
+          Last matched {formatDate(p.lastMatchedAt ?? null)}, created{' '}
           {formatDate(s.pattern?.createdAt ?? null)}, {plural(p.confirmationCount, 'confirmation')}.
         </span>
       </p>
@@ -247,7 +247,7 @@ function SuggestionCard({ s, selected, onSelect, onAction, busy }: {
           <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground">
             <span className="font-mono">#{s.patternId}</span>
             {s.confidence != null && (
-              <span className="tabular-nums">Confidence {Math.round(s.confidence * 100)}%</span>
+              <span className="tabular-nums">{formatPercent(s.confidence)} confidence</span>
             )}
             <span>Suggested {formatDate(s.createdAt)}</span>
           </div>
@@ -257,7 +257,7 @@ function SuggestionCard({ s, selected, onSelect, onAction, busy }: {
       {PROPOSED_CHANGE[s.kind](s, s.before?.textTemplate ?? '')}
 
       {s.before?.textTemplate && (
-        <details className="rounded border border-border bg-muted/30 px-3 py-2">
+        <details className="rounded bg-muted/40 px-3 py-2">
           <summary className="flex max-sm:min-h-11 cursor-pointer items-center text-sm font-medium text-foreground">
             Original pattern text
           </summary>
@@ -267,7 +267,7 @@ function SuggestionCard({ s, selected, onSelect, onAction, busy }: {
         </details>
       )}
       {s.before?.sourceContext && (
-        <details className="rounded border border-border bg-muted/30 px-3 py-2">
+        <details className="rounded bg-muted/40 px-3 py-2">
           <summary className="flex max-sm:min-h-11 cursor-pointer items-center text-sm font-medium text-foreground">
             Source context
           </summary>
@@ -288,7 +288,7 @@ function SuggestionCard({ s, selected, onSelect, onAction, busy }: {
           <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
             <span className="text-success">Confirmed: {pattern.confirmationCount}</span>
             <span className={pattern.falsePositiveCount > 0 ? 'text-destructive' : ''}>
-              False Pos: {pattern.falsePositiveCount}
+              False positives: {pattern.falsePositiveCount}
             </span>
             <span>Last matched {formatDate(pattern.lastMatchedAt)}</span>
           </div>
@@ -398,23 +398,23 @@ export default function CleanupTab() {
     <div>
       <div className="bg-card rounded-lg border border-border p-4 mb-6 grid grid-cols-1 min-[375px]:grid-cols-2 lg:grid-cols-4 gap-4 items-end">
         <div className="min-w-0">
-          <label htmlFor="cleanup-kind" className="mb-1 block text-sm text-muted-foreground">Kind</label>
+          <label htmlFor="cleanup-kind" className={filterLabel}>Kind</label>
           <select
             id="cleanup-kind"
             value={kind}
             onChange={(e) => changeFilter({ kind: e.target.value as KindFilter })}
-            className={`min-h-11 w-full sm:min-h-0 ${selectBase}`}
+            className={`${filterControl} ${selectBase}`}
           >
             {KIND_OPTIONS.map(({ value, label }) => <option key={value} value={value}>{label}</option>)}
           </select>
         </div>
         <div className="min-w-0">
-          <label htmlFor="cleanup-status" className="mb-1 block text-sm text-muted-foreground">Status</label>
+          <label htmlFor="cleanup-status" className={filterLabel}>Status</label>
           <select
             id="cleanup-status"
             value={status}
             onChange={(e) => changeFilter({ status: e.target.value as CleanupStatus })}
-            className={`min-h-11 w-full sm:min-h-0 ${selectBase}`}
+            className={`${filterControl} ${selectBase}`}
           >
             {STATUS_OPTIONS.map(([value, label]) => (
               <option key={value} value={value}>{label}</option>
@@ -455,18 +455,18 @@ export default function CleanupTab() {
 
       {message && <div role="alert" className="text-destructive text-sm mb-3">{message}</div>}
       {isLoading && <SkeletonRows count={4} />}
-      {error && <div className="text-destructive text-sm">Failed to load suggestions.</div>}
+      {error && <div className="text-destructive text-sm">Could not load suggestions.</div>}
       {!isLoading && !error && items.length === 0 && (
         <div className="bg-card rounded-lg border border-border p-8 text-center text-sm text-muted-foreground">
           {status === 'pending' && kind === 'all' ? (
             <>
-              No suggestions. Run cleanup from{' '}
+              No suggestions yet. Run cleanup from{' '}
               <Link to="/settings" className={`text-primary hover:underline ${focusRing}`}>
                 {'Settings > Experiments'}
               </Link>
               .
             </>
-          ) : 'No suggestions match the current filters.'}
+          ) : 'No suggestions match these filters.'}
         </div>
       )}
       {items.length > 0 && (
@@ -489,7 +489,7 @@ export default function CleanupTab() {
             type="button"
             disabled={isFetchingNextPage}
             onClick={() => fetchNextPage()}
-            className={`max-sm:min-h-11 px-4 py-2 rounded-lg text-sm disabled:opacity-50 ${focusRing} ${btnOutline}`}
+            className={`${btnBase} ${btnOutline}`}
           >
             {isFetchingNextPage ? 'Loading...' : 'Load older suggestions'}
           </button>

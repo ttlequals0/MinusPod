@@ -1,9 +1,8 @@
 import { Fragment } from 'react';
 import type { SearchEpisodeResult, SearchShowResult, SearchTranscriptResult } from '../api/search';
-import { displayStatusColor, displayStatusLabel } from '../utils/episodeStatus';
 import { formatDate, formatTimestamp } from '../utils/format';
 import { renderSnippet } from '../utils/searchSnippet';
-import { badgeBase } from './badgeStyles';
+import StatusBadge from './StatusBadge';
 
 export type SearchResultGroup = 'shows' | 'episodes' | 'transcripts';
 
@@ -114,11 +113,7 @@ function SearchResults({ rows, activeIndex, onHover, onSelect, ready = true, loa
                     <span className="min-w-0 flex-1 truncate text-sm">
                       {row.titleSnippet ? renderSnippet(row.titleSnippet) : row.title}
                     </span>
-                    {row.status && (
-                      <span className={`${badgeBase} whitespace-nowrap font-normal ${displayStatusColor(row.status)}`}>
-                        {displayStatusLabel(row.status)}
-                      </span>
-                    )}
+                    {row.status && <StatusBadge status={row.status} />}
                   </div>
                   {row.subtitle && (
                     <div className="truncate text-xs font-normal text-muted-foreground">{row.subtitle}</div>

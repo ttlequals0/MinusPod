@@ -15,6 +15,7 @@ import AdReviewModal, {
   type AdReviewSubmit,
 } from '../../components/AdReviewModal';
 import SplitMarkerModal from '../../components/SplitMarkerModal';
+import StatTile from '../../components/StatTile';
 import { Pagination } from '../../components/Pagination';
 import { SkeletonRows } from '../../components/Skeleton';
 import {
@@ -28,14 +29,13 @@ import { HOLD_REASON_LABELS } from '../../utils/holdReason';
 
 const STATUS_OPTIONS: Array<[DetectionStatusFilter, string]> = [
   ['needs_review', 'Needs review'],
-  ['pending', 'Pending review'],
   ['rejected', 'Not cut'],
   ['accepted', 'Accepted'],
   ['all', 'All'],
 ];
 
-// Hold reasons only exist on pending detections.
-const HOLD_REASON_STATUSES: DetectionStatusFilter[] = ['needs_review', 'pending'];
+// Hold reasons only exist on held detections.
+const HOLD_REASON_STATUSES: DetectionStatusFilter[] = ['needs_review'];
 
 export default function AdReviewTab() {
   const [page, setPage] = useState(1);
@@ -105,41 +105,14 @@ export default function AdReviewTab() {
   return (
     <div>
       {counts && (
-        <div className="bg-card rounded-lg border border-border p-4 mb-6">
-          <h2 className="text-sm font-medium text-foreground mb-3">Detection Statistics</h2>
-          <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-4 text-sm">
-            <div>
-              <p className="text-muted-foreground">Total</p>
-              <p className="font-medium text-foreground">{counts.total}</p>
-            </div>
-            <div>
-              <p className="text-muted-foreground">Needs Review</p>
-              <p className={`font-medium ${counts.needsReview > 0 ? 'text-warning' : 'text-foreground'}`}>
-                {counts.needsReview}
-              </p>
-            </div>
-            <div>
-              <p className="text-muted-foreground">Pending</p>
-              <p className="font-medium text-foreground">{counts.pending}</p>
-            </div>
-            <div>
-              <p className="text-muted-foreground">{STATUS_BADGE.rejected[0]}</p>
-              <p className="font-medium text-foreground">{counts.rejected}</p>
-            </div>
-            <div>
-              <p className="text-muted-foreground">Accepted</p>
-              <p className="font-medium text-success">{counts.accepted}</p>
-            </div>
-            <div>
-              <p className="text-muted-foreground">Confirmed</p>
-              <p className="font-medium text-foreground">{counts.confirmed}</p>
-            </div>
-            <div>
-              <p className="text-muted-foreground">{RESOLUTION_BADGE.dismissed[0]}</p>
-              <p className="font-medium text-foreground">{counts.dismissed}</p>
-            </div>
-          </div>
-        </div>
+        <section aria-label="Detection statistics" className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4 mb-6">
+          <StatTile label="Total" value={counts.total} />
+          <StatTile label="Needs review" value={counts.needsReview} tone={counts.needsReview > 0 ? 'warning' : 'default'} />
+          <StatTile label={STATUS_BADGE.rejected[0]} value={counts.rejected} />
+          <StatTile label="Accepted" value={counts.accepted} tone="success" />
+          <StatTile label="Confirmed" value={counts.confirmed} />
+          <StatTile label={RESOLUTION_BADGE.dismissed[0]} value={counts.dismissed} />
+        </section>
       )}
       <DetectionFilterBar
         idPrefix="ad-review"
@@ -179,14 +152,14 @@ export default function AdReviewTab() {
       {isLoading && <SkeletonRows count={6} />}
       {error && (
         <div className="text-destructive text-sm">
-          Failed to load detections.
+          Could not load detections.
         </div>
       )}
       {!isLoading && !error && data && (data.total === 0 ? (
         <div className="text-muted-foreground text-sm py-8 text-center">
           {status === 'needs_review'
             ? 'No detections need review.'
-            : 'No detections match the current filters.'}
+            : 'No detections match these filters.'}
         </div>
       ) : (
         <>

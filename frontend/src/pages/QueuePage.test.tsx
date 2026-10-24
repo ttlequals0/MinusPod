@@ -114,7 +114,7 @@ describe('QueuePage', () => {
     expect(screen.getByText('Transcribing')).toBeDefined();
     expect(screen.getByText(/25% - \d+s/)).toBeDefined();
     expect(screen.getByRole('progressbar', { name: 'Transcribing progress' }).getAttribute('aria-valuenow')).toBe('25');
-    expect(screen.getAllByRole('button', { name: 'Cancel' })[0].className).toContain('min-h-11');
+    expect(screen.getAllByRole('button', { name: 'Cancel' })[0].className).toContain('px-3');
     await userEvent.click(screen.getAllByRole('button', { name: 'Cancel' })[0]);
     await waitFor(() => expect(mockCancel).toHaveBeenCalledWith('example-podcast', 'episode-0'));
     await userEvent.click(screen.getByRole('button', { name: 'Next' }));
@@ -124,7 +124,7 @@ describe('QueuePage', () => {
   it('commits queue numeric controls on blur after the draft is complete', async () => {
     mockGetEpisodes.mockResolvedValue([]);
     renderPage();
-    await userEvent.click(await screen.findByRole('button', { name: 'Queue Control' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'Queue control' }));
     const input = screen.getByLabelText('Play / Reprocess');
     fireEvent.focus(input);
     fireEvent.change(input, { target: { value: '30' } });

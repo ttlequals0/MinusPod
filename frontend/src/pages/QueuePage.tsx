@@ -1,4 +1,3 @@
-import { pageHeader, pageTitle, pageDescription } from '../components/pageStyles';
 import { useState } from 'react';
 import { Link } from 'react-router';
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -17,12 +16,13 @@ import type { ProcessingStatus } from '../api/status';
 import ProcessingQueueSection, { QUEUE_PAGE_SIZE } from './settings/ProcessingQueueSection';
 import QueueControlSection from './settings/QueueControlSection';
 import { getStageLabel } from '../utils/processingStage';
-import { focusRing } from '../components/fieldStyles';
-import { touchTarget } from '../components/buttonStyles';
-import { tint } from '../components/badgeStyles';
 import LoadingSpinner from '../components/LoadingSpinner';
 import ProcessingJobProgress from '../components/ProcessingJobProgress';
 import QueryError from '../components/QueryError';
+import { btnBase, btnDestructiveOutline } from '../components/buttonStyles';
+import { focusRing } from '../components/fieldStyles';
+import { countPill, tint } from '../components/badgeStyles';
+import { pageHeader, pageTitle, cardTitle, pageDescription } from '../components/pageStyles';
 
 function ActiveQueue({
   status,
@@ -49,11 +49,11 @@ function ActiveQueue({
     <section className="bg-card rounded-lg border border-border p-4 sm:p-6" aria-labelledby="active-processing-title">
       <div className="flex items-start justify-between gap-3 mb-4">
         <div>
-          <h2 id="active-processing-title" className="text-lg font-semibold text-foreground">In progress</h2>
+          <h2 id="active-processing-title" className={cardTitle}>In progress</h2>
           <p className="text-sm text-muted-foreground mt-0.5">Episodes currently moving through the pipeline.</p>
         </div>
         {status && status.queueLength > 0 && (
-          <span className={`${tint.primary} px-2 py-0.5 text-xs rounded font-medium shrink-0`}>
+          <span className={`${countPill} ${tint.primary} shrink-0`}>
             {status.queueLength} queued
           </span>
         )}
@@ -72,7 +72,7 @@ function ActiveQueue({
                   type="button"
                   onClick={() => onCancel({ slug: job.slug, episodeId: job.episodeId })}
                   disabled={cancelIsPending}
-                  className={`${touchTarget} px-3 py-1 text-sm rounded ${cancelIsPending && cancelingKey === `${job.slug}:${job.episodeId}` ? 'bg-destructive text-destructive-foreground' : 'bg-destructive/20 text-destructive'} disabled:opacity-50 ${focusRing}`}
+                  className={`${btnBase} ${btnDestructiveOutline}`}
                 >
                   {cancelIsPending && cancelingKey === `${job.slug}:${job.episodeId}` ? 'Canceling...' : 'Cancel'}
                 </button>
@@ -97,7 +97,7 @@ function ActiveQueue({
                 type="button"
                 onClick={() => onCancel({ slug: episode.slug, episodeId: episode.episodeId })}
                 disabled={cancelIsPending}
-                className={`${touchTarget} px-3 py-1 text-sm rounded bg-destructive/20 text-destructive disabled:opacity-50 ${focusRing}`}
+                className={`${btnBase} ${btnDestructiveOutline}`}
               >
                 {cancelIsPending && cancelingKey === `${episode.slug}:${episode.episodeId}` ? 'Canceling...' : 'Cancel'}
               </button>
@@ -164,8 +164,8 @@ function QueuePage() {
     <div className="max-w-7xl mx-auto space-y-4 pb-20">
       <div className={pageHeader}>
         <div>
-        <h1 className={pageTitle}>Queue</h1>
-        <p className={pageDescription}>Monitor active processing and manage queued episodes.</p>
+          <h1 className={pageTitle}>Queue</h1>
+          <p className={pageDescription}>Monitor active processing and manage queued episodes.</p>
         </div>
       </div>
 
@@ -214,7 +214,7 @@ function QueuePage() {
       />}
       {admission.data?.paused && (
         <p className="text-sm text-muted-foreground">
-          New work is paused. <Link to="/settings" className={`text-primary hover:underline ${focusRing}`}>Open Settings</Link> to change other processing defaults.
+          New work is paused. <Link to="/settings" className={`text-primary hover:underline ${focusRing}`}>Open settings</Link> to change other processing defaults.
         </p>
       )}
     </div>

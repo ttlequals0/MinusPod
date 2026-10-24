@@ -34,8 +34,7 @@ describe('Search page', () => {
   it('falls back to the All tab for an unknown ?type= without throwing', async () => {
     renderSearch('/search?type=bogus&q=xy');
     await waitFor(() => screen.getByText('The Daily Tech Show'));
-    const allTab = screen.getByRole('button', { name: 'All' });
-    expect(allTab.className).toContain('bg-primary');
+    expect(screen.getByRole('tab', { name: 'All' }).getAttribute('aria-selected')).toBe('true');
   });
 });
 

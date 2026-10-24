@@ -379,7 +379,7 @@ describe('CleanupTab', () => {
   it('shows the empty state with a link to Settings', async () => {
     mockList.mockResolvedValue([]);
     renderTab();
-    expect(await screen.findByText(/No suggestions\./)).toBeDefined();
+    expect(await screen.findByText(/No suggestions yet\./)).toBeDefined();
     const link = screen.getByRole('link', { name: 'Settings > Experiments' });
     expect(link.getAttribute('href')).toBe('/settings');
   });
