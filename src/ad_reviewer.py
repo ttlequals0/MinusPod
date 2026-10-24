@@ -748,7 +748,7 @@ def _untranscribed_limits(index: TranscriptIndex, original_start: float,
         lo, hi = max(lo, original_start), min(hi, original_end)
         if (start_measured and lo == original_start) or (end_measured and hi == original_end):
             min_len = EDGE_TOLERANCE
-        if hi - lo >= min_len and hi - lo > EDGE_TOLERANCE:
+        if hi - lo >= min_len:
             inside.append((lo, hi))
     return [(lo, lo) for lo, _hi in inside], [(hi, hi) for _lo, hi in inside]
 
