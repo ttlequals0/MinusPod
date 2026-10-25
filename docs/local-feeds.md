@@ -80,8 +80,8 @@ For a worked example of producing an import-ready archive, see [snarchiver](http
 
 **Where files come from**: two places, and you can use either or both in the same import.
 
-- **Staging area** (`<data>/import-staging/<slug>/`): files you `POST` to `/api/v1/feeds/{slug}/import/upload` (multipart, repeated `files` field, 409 while an import is already running). A finished commit sweeps this directory, but not indiscriminately. A committed entry's audio is already moved and its sidecars already deleted by that point, and a file the plan rejected outright (bad naming, empty, a stray `.part`) is removed too, but a skipped or errored entry's audio and sidecars (typically a bad sidecar sitting next to an otherwise-good mp3) are left in place, so you can fix the problem without re-uploading the audio. The directory itself is only removed once nothing preserved is left in it. That sweep only runs when the commit's `source` was `staging` or `both`: a `directory`-only commit never scanned staging, and never touches it. `DELETE /api/v1/feeds/{slug}/import/staging` empties it on demand (409 while an import is running); the UI's own "Choose files" button calls this automatically before every new selection, so each pick of files stands on its own instead of piling onto whatever was staged before. The UI's Cancel button only drops the reviewed plan on your screen; it doesn't touch staging. When the last scan or finished run left a skipped or errored entry behind, the UI also offers "Add files to staged set" (upload more files into staging without clearing it, e.g. a corrected sidecar) and "Rescan staged files" (re-read what's staged without uploading or clearing anything). Both skip the pre-clear "Choose files" does, since the point is building on what survived, not replacing it.
-- **Import directory** (`<data>/import/<slug>/`): files you place there yourself, outside MinusPod. This is for archives already sitting on the same host or a mounted volume. MinusPod moves the audio file out of it on a successful commit and deletes that file's sidecars (`.txt`, `.json`, artwork) along with it; a rejected or errored file's sidecars are left in place so you can fix and re-scan them. Point this at the same filesystem as your data directory if you can: the commit is then a same-volume move rather than a copy, which matters for a large archive.
+- **Staging area** (`<data>/import-staging/<slug>/`): files you `POST` to `/api/v1/feeds/{slug}/import/upload` (multipart, repeated `files` field, 409 while an import is already running). A finished commit sweeps this directory, but keeps what you may need to fix. Committed audio is already moved and its sidecars deleted, and files the plan rejected outright (bad naming, empty, a stray `.part`) are removed. A skipped or errored entry's audio and sidecars (typically a bad sidecar beside an otherwise-good mp3) stay, so you can fix the problem without re-uploading the audio. The directory is removed only once nothing preserved is left. The sweep runs only when the commit's `source` was `staging` or `both`; a `directory`-only commit never touches staging. `DELETE /api/v1/feeds/{slug}/import/staging` empties it on demand (409 while an import is running). The UI's "Choose files" button calls this before every new selection, so each pick stands on its own. The UI's Cancel button only drops the reviewed plan on your screen. When the last scan or run left a skipped or errored entry behind, the UI also offers "Add files to staged set" (upload more files, e.g. a corrected sidecar, without clearing staging) and "Rescan staged files" (re-read what's staged). Both skip the pre-clear, since they build on what survived.
+- **Import directory** (`<data>/import/<slug>/`): files you place there yourself, outside MinusPod. This is for archives already sitting on the same host or a mounted volume. MinusPod moves the audio file out of it on a successful commit and deletes that file's sidecars (`.txt`, `.json`, artwork) along with it; a rejected or errored file's sidecars are left in place so you can fix and re-scan them.
 
 Deleting the feed itself (`DELETE /api/v1/feeds/{slug}`) removes both of these directories along with everything still in them, sidecars included, since neither belongs anywhere once the feed is gone.
 
@@ -103,7 +103,7 @@ services:
       - /mnt/archives/my-show:/app/data/import/my-archive
 ```
 
-A bind mount from a different filesystem does make the commit a copy rather than a rename, so a very large archive imports faster if you copy it into `./data/import/<slug>/` first.
+A bind mount from a different filesystem makes the commit a copy rather than a same-volume rename, so a very large archive imports faster if you copy it into `./data/import/<slug>/` first.
 
 You can also mount one parent folder holding a subfolder per feed, and every local feed finds its own directory:
 
@@ -115,7 +115,7 @@ services:
       - /mnt/data/import:/app/data/import
 ```
 
-Here `/mnt/data/import/slug1/` serves the feed with slug `slug1`, `/mnt/data/import/slug2/` serves `slug2`, and so on. Folder names must match feed slugs exactly. Remember that a committed import moves the audio out of these folders: after the import, the mp3s live in MinusPod's storage, not your archive folder. Keep a separate copy if the mounted folder is not meant to be consumed, and never mount it read-only.
+Here `/mnt/data/import/slug1/` serves the feed with slug `slug1`, `/mnt/data/import/slug2/` serves `slug2`, and so on. Folder names must match feed slugs exactly. Keep a separate copy if the mounted folder is not meant to be consumed, and never mount it read-only.
 
 Either way, files must follow the naming scheme below before MinusPod will touch them.
 
@@ -174,7 +174,7 @@ Explicit dates that land out of order relative to the (season, episode) sort are
 
 Two files landing on the same episode id within one batch is a per-file error on both. An id that already exists in the feed is also an error, unless you pass `overwrite: true`, in which case a re-import fully replaces that episode: new audio and metadata come in, and the prior transcript, chapters, and ad-detection results are discarded as the episode goes back to `discovered`. Its processing-history and token-usage rows are kept. Existing episodes are never silently overwritten without the flag.
 
-Episode ids always mint at minimal zero-padded width: `s01e0006 - Title.mp3` mints `s01e06`, not `s01e0006`, regardless of how many digits the filename itself uses. This also applies when comparing against what's already in the feed, so a rescan of an episode that was imported before this normalization existed (and is still sitting in the database under a wide id like `s01e0006`) still collides correctly with the id a fresh scan mints for it. If a feed already has both spellings for the same episode (a pre-normalization duplicate), an overwrite commit deterministically resets the canonical-id row and leaves the wide-id one untouched; deleting that leftover duplicate is a manual step.
+Episode ids always mint at minimal zero-padded width: `s01e0006 - Title.mp3` mints `s01e06`, not `s01e0006`, regardless of how many digits the filename itself uses. This also applies when comparing against what's already in the feed, so an existing episode stored under a wide id like `s01e0006` still collides with the id a scan mints for it. If a feed holds both spellings for the same episode, an overwrite commit resets the canonical-id row and leaves the wide-id one untouched; deleting that duplicate is a manual step.
 
 #### Scan, then commit
 
@@ -233,7 +233,7 @@ Feed level (`p20`): `funding` (list of `{text, url}`), `person` (list of `{text,
 
 Episode level (`p20`): `person` and `location`, both lists in the same shape as above.
 
-Out of scope for now: value-for-value splits, `liveItem`, and Podping announcements for local feeds (MinusPod's Podping support today only listens for upstream announcements on subscribed feeds; it doesn't publish its own).
+Value-for-value splits and `liveItem` are not supported for local feeds. MinusPod never emits Podping; see [Podping](podcasting-2.0.md#minuspod-does-not-emit-podping).
 
 ## What doesn't apply to local feeds
 

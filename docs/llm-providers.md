@@ -34,11 +34,11 @@ Leave effort blank to use the configured default; without an environment default
 
 MinusPod requests a 5-minute cache for static Anthropic system prompts. Transcript snippets and other per-call messages remain outside that cache boundary. Caching is automatic; there is no setting to enable it. Short prompts may not meet the provider's minimum cache size, and a changed prompt or expired cache causes a miss. See [Anthropic's prompt caching guide](https://platform.claude.com/docs/en/build-with-claude/prompt-caching).
 
-Input token totals include cache reads and writes. Processing history reports these counts separately as subsets of input tokens. For direct Anthropic calls, estimated cost uses the model's cache-read discount and the 5-minute cache-write rate. A provider-reported cost takes precedence; calls without known pricing remain unpriced. Existing usage records are unchanged.
+Input token totals include cache reads and writes. Processing history reports these counts separately as subsets of input tokens. For direct Anthropic calls, estimated cost uses the model's cache-read discount and the 5-minute cache-write rate. A provider-reported cost takes precedence; calls without known pricing remain unpriced.
 
 ## Using Claude Code Wrapper (Max Subscription)
 
-Instead of using API credits, you can use the [Claude Code OpenAI Wrapper](https://github.com/ttlequals0/claude-code-openai-wrapper) to use your Claude Max subscription instead.
+The [Claude Code OpenAI Wrapper](https://github.com/ttlequals0/claude-code-openai-wrapper) lets you run on a Claude Max subscription instead of API credits.
 
 **Quick Start:**
 
@@ -277,7 +277,7 @@ System One preserves caller prompts, policy, and context in its structured quest
 
 ## Per-Stage Providers
 
-MinusPod supports up to two full provider configurations: Provider A, and one optional Provider B with its own type, base URL, and API key. Provider B is off by default (see [Provider B](configuration.md#provider-b)). Each pipeline stage then picks one of the two, not a provider type directly. Settings > AI & Processing > AI Models shows a slot selector next to each model selector:
+MinusPod supports up to two full provider configurations: Provider A, and one optional Provider B with its own type, base URL, and API key. See [Provider B](configuration.md#provider-b). Each pipeline stage then picks one of the two, not a provider type directly. Settings > AI & Processing > AI Models shows a slot selector next to each model selector:
 
 - **Ad Detection Provider** - `Default (Provider A)` or `Provider B`. Provider B only appears in the list once it is enabled and configured.
 - **Verification Provider** - `Same as detection` (default), `Default (Provider A)`, or `Provider B`. Pointing it at the other slot is useful for cost control (a cheap pass-2 sanity check) or comparing two providers' output on the same episode.
@@ -306,7 +306,7 @@ A separate feature, failover, does move work between providers at runtime: a ded
 
 System One routes do not participate in chat failover. Choose a supported chat provider for the standby account.
 
-A run's routes are frozen when it starts. Each phase's provider, model, and endpoint are snapshotted at run start and reused for the whole run, so editing a provider or a stage's model mid-run does not re-route work already underway. The change applies to the next run. Credentials are the exception: they are read when the client is built, so a rotated key is picked up without a restart. See [Rotating a provider key](configuration.md#rotating-or-clearing-a-provider-key).
+A run's routes are frozen when it starts, and a rotated key is picked up without a restart; see [Endpoint and model changes during an active run](configuration.md#endpoint-and-model-changes-during-an-active-run).
 
 ### Staying under an account's limits
 
@@ -335,17 +335,7 @@ Pricing is fetched automatically based on your configured provider:
 | TypeSafe | Fixed official Jev pricing | $0.042 USD per 1 million input tokens; output tokens are free |
 | System One compatible | Operator pricing override | Unknown unless configured |
 
-Pricing refreshes once every 24 hours in the background. You can also force a refresh from the API:
-
-```bash
-curl -X POST http://your-server:8000/api/v1/system/model-pricing/refresh
-```
-
-Or view current pricing:
-
-```bash
-curl http://your-server:8000/api/v1/system/model-pricing
-```
+Pricing refreshes once every 24 hours in the background. You can also force a refresh with `POST /api/v1/system/model-pricing/refresh`, or view current rates with `GET /api/v1/system/model-pricing`; see [API](api-and-webhooks.md#api).
 
 ### How model matching works
 

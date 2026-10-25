@@ -13,6 +13,7 @@
 - [Experiments](#experiments)
 - [Reprocessing](#reprocessing)
 - [Community Patterns (Optional)](#community-patterns-optional)
+- [Splice check](#splice-check)
 - [Offline Queue](#offline-queue)
 - [Rate-Limit Hold](#rate-limit-hold)
 - [Whisper Pool](#whisper-pool)
@@ -33,8 +34,6 @@ Add a feed from the dashboard at `/ui/` (Add Feed, RSS URL, optional custom slug
 Settings > Global Defaults controls verification and cross-fetch differential. Verification can run or be skipped. Cross-fetch can run automatically for feeds that look DAI-served, always run, or stay off. Settings > Transcripts & Chapters controls chapter mode: preserve upstream chapters automatically, always generate chapters, or turn chapters off. During normal processing, the mode is applied only when Generate Chapters is on.
 
 New feeds use each global choice. A feed set to Inherit continues using that choice; an explicit Feed Settings value overrides it. The same controls are available through `PUT /api/v1/settings/ad-detection` and `PATCH /api/v1/feeds/{slug}`; see the [OpenAPI specification](../openapi.yaml) for fields and accepted values.
-
-Upgrades preserve existing feed choices instead of switching them to inheritance. The earlier cross-fetch enabled flag becomes an explicit On or Off, while an unset legacy flag becomes explicit Auto.
 
 ### Auto-process window
 
@@ -65,7 +64,7 @@ Each customizable prompt (first pass system, verification, chapter, and the Ad R
 
 Four toggles decide which LLM passes are handed the running list of known sponsors: Detection, Verification, Reviewer, and Resurrect. Turning one off does not turn off that pass; it just stops seeding its prompt with prior sponsors, so the pass judges each candidate on its own. Turning off Reviewer, for example, makes that pass an independent second opinion rather than a check that already expects the sponsor it is reviewing.
 
-All four default on to match prior behavior. API: `PUT /api/v1/settings/ad-detection` with `seedSponsorsDetection`, `seedSponsorsVerification`, `seedSponsorsReviewer`, `seedSponsorsResurrect` (booleans).
+All four default on. API: `PUT /api/v1/settings/ad-detection` with `seedSponsorsDetection`, `seedSponsorsVerification`, `seedSponsorsReviewer`, `seedSponsorsResurrect` (booleans).
 
 ### Ad Reviewer
 
@@ -152,7 +151,7 @@ Controls available on each:
 | Max tokens | 128 - 32768 | Response cap. Truncated JSON fails parsing; the salvage helper only recovers single-ad cases. |
 | Reasoning | Provider-aware | Older Anthropic models use a token budget (1024-65536 tokens). Adaptive-only Anthropic models, OpenAI, OpenRouter, and Ollama use an effort level (`none`, `low`, `medium`, `high`). |
 
-Anthropic stages expose both controls. The stage's model determines which setting applies; the other value stays saved for later use. Leave effort blank to use the configured default; without an environment default, the provider decides. `none` disables thinking when supported and selects low effort on models that require thinking. See [Anthropic reasoning](llm-providers.md#reasoning-settings).
+Anthropic stages expose both controls. The stage's model determines which setting applies; the other value stays saved for later use. Blank effort uses the configured default. See [Anthropic reasoning](llm-providers.md#reasoning-settings) for what `none` and a blank value do.
 
 #### Fallback when the provider rejects a value
 
@@ -208,7 +207,7 @@ If the passphrase is missing, the key inputs collapse to a "Setup required" note
 
 Alongside Provider A above, you can configure one Provider B: a separate provider type, base URL, and API key that a stage's provider selector can route to instead of Provider A. This is useful for splitting cost or capacity across two accounts, or across two different providers, without switching your main configuration back and forth.
 
-Provider B is off by default, so an install with only Provider A configured behaves exactly as before. Configure it via `PUT /api/v1/settings/ad-detection`:
+Provider B is off by default. Configure it via `PUT /api/v1/settings/ad-detection`:
 
 - `secondaryProviderEnabled` (boolean) - turns the slot on or off. A stage set to route to Provider B while this is off falls back to Provider A. Alias: `providerBEnabled`.
 - `secondaryProvider` - the provider type: `anthropic`, `openrouter`, `openai-compatible`, or `ollama`. An empty value clears it. Alias: `providerB`.
@@ -235,7 +234,7 @@ Each of Provider A, Provider B, and the LLM failover provider has its own reques
 | `failoverLlmTimeoutSeconds` | `failover_llm_timeout_seconds` | 10-3600 seconds, or blank |
 | `failoverLlmMaxRetries` | `failover_llm_max_retries` | 0-10, or blank |
 
-Every value here must be a JSON integer or `null`/omitted; a numeric string (`"30"`) is rejected with a 400 rather than coerced. `null` or an empty string clears the override back to the provider-type default. A max-retries value of 0 sends exactly one request and also skips the two per-window retries, so a failing call reaches the failover provider without delay. These were previously read only from Provider A's values regardless of which slot a stage used; each slot now reads its own override. See [Failover](failover.md#per-provider-timeouts-and-retries) for how the failover provider's timeout and retries are used mid-run.
+Every value here must be a JSON integer or `null`/omitted; a numeric string (`"30"`) is rejected with a 400 rather than coerced. `null` or an empty string clears the override back to the provider-type default. A max-retries value of 0 sends exactly one request and also skips the two per-window retries, so a failing call reaches the failover provider without delay. Each slot reads its own override, whichever slot a stage uses. See [Failover](failover.md#per-provider-timeouts-and-retries) for how the failover provider's timeout and retries are used mid-run.
 
 Transcription uses `whisperMaxAttempts` for upload attempts per chunk, including the first upload. `failoverWhisperMaxAttempts` independently sets failover transcriber upload attempts from 1 to 10. Null or blank inherits the current `whisperMaxAttempts`; omitting it leaves the override unchanged. Configure it under Settings > Failover, including when the active transcriber runs locally.
 
@@ -291,7 +290,7 @@ Settings > Cover Art has an **Overlay MinusPod badge on cover art** toggle, off 
 
 ### Pass-through mode
 
-Pass-through is one of the five presets on each feed's **Processing mode** select (Feed Settings), alongside standard, keep content only, skip ad detection, and cue-only (experimental). Choosing it stops processing that feed's episodes entirely: each new episode is downloaded and relayed, with no transcription or ad removal. Audio may still be transcoded for serving, so pass-through is not a promise of byte-identical audio; see the caveat below. Useful for archiving originals, or for pausing ad removal on a feed without touching your podcast app.
+Pass-through is one of the presets on each feed's **Processing mode** select (Feed Settings); see [Processing modes](workflows.md#processing-modes) for the rest. Choosing it stops processing that feed's episodes entirely: each new episode is downloaded and relayed, with no transcription or ad removal. Audio may still be transcoded for serving, so pass-through is not a promise of byte-identical audio; see the caveat below. Useful for archiving originals, or for pausing ad removal on a feed without touching your podcast app.
 
 The served feed URL does not change, which is the point: your app keeps pulling the same MinusPod feed, and switching to another mode resumes full processing for new episodes. Two caveats. First, the serving stack names episode files `.mp3` and declares `audio/mpeg`, so an enclosure that is not already MP3 is re-encoded to MP3 at the configured bitrate, as is one whose codec ffprobe cannot identify; an MP3 enclosure is relayed as-is. Second, the download size cap (`MINUSPOD_MAX_AUDIO_DOWNLOAD_MB`, default 500) still applies, so raise it before archiving very large episodes. Episodes that were served untouched keep their original audio until you reprocess them. While the feed is on Pass-through, a full or AI reprocess just re-downloads the current copy; the per-episode Recut action still works on episodes that have a retained original and ad markers.
 
@@ -360,8 +359,6 @@ Add glob patterns under **Episode filters > Skip episodes by description**. Use 
 
 Matching is against the description's plain text, with HTML tags removed, as a single whole-text string, case-insensitive. `*` is a wildcard, so a phrase needs `*` on both sides, for example `*This is a preview. To hear the entire episode*`.
 
-The shared **Skipped episodes** choice applies to title, description, and duration filters.
-
 API: `descriptionSkipPatterns` (array of strings, max 50 patterns, 200 characters each) on `PATCH /api/v1/feeds/{slug}`; `titleSkipAction` governs served-RSS visibility for all three filters.
 
 ### Chapter trim
@@ -412,7 +409,7 @@ upstream URL.
 
 Global retention lives in Settings > Storage & Retention and applies to every feed. Any single feed can override it from its own settings page with the **Retention** control, which offers three choices:
 
-- **Use global** (default) follows the global window, so nothing changes for existing feeds.
+- **Use global** (default) follows the global window.
 - **Keep for N days** sets a window for this feed alone. Use a short window on a daily news show you never revisit, or a long one on a show you catch up with slowly.
 - **Archive, never delete** keeps every processed episode indefinitely. This is the option for shows that have stopped publishing, where a swept episode is gone for good because the publisher's feed no longer carries it.
 
@@ -474,21 +471,11 @@ Settings > Experiments has an Ad addressing mode select, marked experimental. Ti
 
 How often each mode's LLM contract is actually honored shows up on the Stats page, under Addressing modes: runs, windows judged, and compliance percentage per mode. Random-mode runs count toward whichever mode was drawn for that pass.
 
-From 2.100.13 each LLM-detected marker also records the mode it was detected under (`addressing_mode`) and the model's bounds before snapping (`llm_start`, `llm_end`), and the Ad Reviewer log and corrections carry the mode. Two stats blocks use them. `GET /api/v1/stats/reviewer` returns `byMode` with reviews, verdict counts and mean boundary shift per mode. `GET /api/v1/stats/addressing` returns `byMode` with the held, approved and rejected rate of corrections and `avgSnapDistance`, the mean seconds between the model's raw start and end and the stored marker (both edges added, every correction stage included). These blocks are API only; the Stats page does not chart them. The snap distance covers the 2000 most recent episodes processed in the last 90 days. Markers and log rows from before 2.100.13 carry no mode and are excluded.
+Each LLM-detected marker also records the mode it was detected under (`addressing_mode`) and the model's bounds before snapping (`llm_start`, `llm_end`), and the Ad Reviewer log and corrections carry the mode. Two stats blocks use them. `GET /api/v1/stats/reviewer` returns `byMode` with reviews, verdict counts and mean boundary shift per mode. `GET /api/v1/stats/addressing` returns `byMode` with the held, approved and rejected rate of corrections and `avgSnapDistance`, the mean seconds between the model's raw start and end and the stored marker (both edges added, every correction stage included). These blocks are API only; the Stats page does not chart them. The snap distance covers the 2000 most recent episodes processed in the last 90 days. Markers and log rows recorded before 2.100.13 carry no mode and are excluded.
 
 Default `timestamps`. API: `PUT /api/v1/settings/ad-detection` with `adAddressingMode` (`timestamps`, `segment_ids`, or `random`).
 
-The Stats page tracks two things per mode. Contract compliance reports whether
-the model used the requested output shape. Ad yield compares how many ads each
-mode proposed, how many survived into the pipeline, and why the rest were
-dropped. The "invalid ref" drop count only exists for
-segment IDs, and that asymmetry is the point of the experiment: a made-up
-segment ID is caught and dropped, while a made-up timestamp sails through
-and has to be caught by later validation, if it is caught at all.
-
-Yield is recorded from 2.92.0 on. Older runs carry no yield data and are
-excluded from the yield numbers, so the yield sample starts empty and can
-lag the compliance sample.
+The Stats page also compares ad yield per mode: how many ads each proposed, how many survived into the pipeline, and why the rest were dropped. The "invalid ref" drop exists only for segment IDs, which is the point of the experiment: a made-up segment ID is caught and dropped, while a made-up timestamp passes and has to be caught by later validation, if at all. Runs before yield tracking (2.92.0) carry no yield data, so the yield sample can lag the compliance sample.
 
 ### Prompt placeholders
 
@@ -497,8 +484,6 @@ Detection, verification, and reviewer prompts use explicit placeholder substitut
 - `{sponsor_database}` - substituted at runtime with the dynamic sponsor list (the one that grows as new sponsors are detected). Available in the system, verification, review, and resurrect prompts. If you remove this placeholder from your customized prompt, no sponsor list is injected on that prompt.
 - `{max_boundary_shift_seconds}` - review prompt only. Substituted with the current `Max boundary shift` setting. The boundary cap is enforced in code regardless of whether the placeholder is in the prompt.
 - `{override}` - replaced with that pass's override text (see below). If a customized prompt omits it, the override is appended instead.
-
-If you customized your system or verification prompt before this release, the upgrade automatically appends `{sponsor_database}` to your prompt so behavior is preserved. The migration is idempotent and runs once.
 
 ### Per-pass prompt overrides
 
@@ -619,7 +604,7 @@ The rate-limit hold above reacts to a 429 after it happens. Manual request-rate 
 
 Limits are scoped to one provider account, meaning one credential slot on one provider type: Provider A and Provider B count separately even when both point at the same provider. Counting comes from the LLM call ledger: requests in the last 60 seconds against the per-minute cap (RPM), input plus output tokens of finalized calls in the last 60 seconds against the tokens-per-minute cap (TPM), and requests since the last UTC midnight against the per-day cap (RPD). When any cap is reached, that account's queue is paused. A per-minute pause (RPM or TPM) lifts about 60 seconds after the oldest contributing call in the window; the per-day pause lifts at the next UTC midnight, which is the fixed reset boundary regardless of your server's timezone or the provider's own billing day. When more than one cap is over, the later reset wins.
 
-All are off by default (0 means unlimited), so existing installs are unaffected. Configure them under **Settings > AI & Processing > LLM Provider**, or via `PUT /api/v1/settings/ad-detection`:
+All are off by default (0 means unlimited). Configure them under **Settings > AI & Processing > LLM Provider**, or via `PUT /api/v1/settings/ad-detection`:
 
 - `providerRequestsPerMin`, `providerRequestsPerDay`, `providerTokensPerMin` - caps for the Provider A account (env `PROVIDER_REQUESTS_PER_MIN`, `PROVIDER_REQUESTS_PER_DAY`, `PROVIDER_TOKENS_PER_MIN`).
 - `secondaryProviderRequestsPerMin`, `secondaryProviderRequestsPerDay`, `secondaryProviderTokensPerMin` - caps for the Provider B account (env `SECONDARY_PROVIDER_REQUESTS_PER_MIN`, `SECONDARY_PROVIDER_REQUESTS_PER_DAY`, `SECONDARY_PROVIDER_TOKENS_PER_MIN`); aliases `providerBRequestsPerMin`, `providerBRequestsPerDay`, `providerBTokensPerMin`.
@@ -670,12 +655,6 @@ fields described above.
 
 ## Outbound Requests
 
-Feed settings > Advanced > Download User-Agent overrides the global download string for one feed's audio, artwork, chapters, and upstream transcripts. Save a printable ASCII string of up to 512 characters, or choose Use global to clear it. The API field `downloadUserAgentOverride` accepts a string or `null`; blank also clears it. Configuration export and import preserve the override. Changing the effective download string also allows a fresh attempt for artwork that failed with the previous string.
-
-Feed settings > Advanced > RSS User-Agent overrides the global RSS string for that feed's own fetches, the same way the download override works. The API field `feedUserAgentOverride` accepts a string or `null`; blank also clears it. Configuration export and import preserve the override. An override that fails validation (e.g. edited directly in the database) is ignored in favor of the global RSS string, with a warning logged once per feed until the stored value changes.
-
-Cross-fetch still selects a random alternate from its podcast-client pool. It excludes the feed's effective download string and any accepted fallback string, so setting an override preserves request variation.
-
 MinusPod identifies itself with two User-Agent strings, and hosts treat them differently. Bot mitigation on some CDNs refuses browser identifiers below a version floor that moves as new browsers ship. A string that worked last year starts drawing a 403 on download, even though the file is there. Other feed hosts do the reverse and answer only a declared podcast client. One string cannot satisfy both, so there are two.
 
 Both ship with working defaults and are editable in **Settings > Data & Security > Outbound Requests**. A host that starts refusing yours is fixed by pasting in a new string rather than by waiting for a release.
@@ -686,6 +665,12 @@ Both ship with working defaults and are editable in **Settings > Data & Security
 | RSS feeds | `PodcastAdRemover/1.0` | Fetching and validating RSS. |
 
 A value must be printable ASCII on a single line, at most 512 characters. Carriage returns and line feeds are rejected, since the value goes straight into a request header. Reset returns a field to its default.
+
+Feed settings > Advanced > Download User-Agent overrides the global download string for one feed's audio, artwork, chapters, and upstream transcripts. Save a printable ASCII string of up to 512 characters, or choose Use global to clear it. The API field `downloadUserAgentOverride` accepts a string or `null`; blank also clears it. Changing the effective download string also allows a fresh attempt for artwork that failed with the previous string.
+
+Feed settings > Advanced > RSS User-Agent overrides the global RSS string for that feed's own fetches, the same way the download override works. The API field `feedUserAgentOverride` accepts a string or `null`; blank also clears it. An override that fails validation (e.g. edited directly in the database) is ignored in favor of the global RSS string, with a warning logged once per feed until the stored value changes.
+
+Cross-fetch still selects a random alternate from its podcast-client pool. It excludes the feed's effective download string and any accepted fallback string, so setting an override preserves request variation. Both overrides survive configuration export and import.
 
 ### What the download logs record
 

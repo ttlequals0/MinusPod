@@ -52,8 +52,8 @@ The server includes a web-based management UI at `/ui/`. Opening the server root
 - Segment actions card on the feed settings page, with a matching global card in Settings: a four-option toggle per category (Remove, Beep, Keep, or Mark). Mark keeps the audio and publishes the segment as a chapter; see [How It Works > Segment Categories](how-it-works.md#segment-categories)
 - Ad chapters block (Settings > Transcripts & Chapters): chapter and resume titles, minimum confidence, and include-held, with a helper line linking back to Segment actions, where setting a category to Mark is what chapters it. See [Podcasting 2.0 > Ad chapters](podcasting-2.0.md#ad-chapters)
 - Per-feed retention override: inherit the global window, keep for N days, or archive. See [Configuration > Per-feed retention](configuration.md#per-feed-retention)
-- Per-feed original audio override on the same page: inherit the global "Keep original audio" setting, or force it on or off for one feed. Discarding the uncut copy roughly halves what the feed stores and takes effect on the next episode processed
-- Per-feed stat cards above Feed Settings: episode counts by status (colored to match the status badges) plus totals for episodes processed, ads removed, time saved, and LLM cost
+- Per-feed original audio override on the same page: inherit, keep, or discard the uncut copy; see [Configuration > Per-feed retention](configuration.md#per-feed-retention)
+- Per-feed stat cards above Feed Settings: episode counts by status (colored to match the status badges) plus episodes processed, ads removed, time saved, and LLM cost
 - Dashboard feeds show compact per-status counts (for example "10 Disc / 2 Pend / 4 Comp") so feed health is visible without clicking in
 - Ad Distribution panel on the feed detail page: a histogram of where ads have historically been cut across the feed, with learned prior zones marked
 - Feed page artwork links to the show's website in a new tab, when the feed declares one
@@ -71,25 +71,25 @@ The server includes a web-based management UI at `/ui/`. Opening the server root
 - Processing history with stats, filtering by podcast, and CSV/JSON export; failed runs show their error reason under the episode title, with the full text on hover
 - Stats dashboard with charts: avg/min/max metrics, top podcasts by ads, episodes by day, token usage, sortable podcast table, and an addressing-modes card comparing contract compliance and ad yield per mode (see [Configuration > Ad Addressing Mode](configuration.md#ad-addressing-mode))
 - JSON schema response format (Settings > LLM Provider): opt-in for OpenAI-compatible endpoints, probed per model, falling back to plain JSON mode where it is not supported (see [Configuration](configuration.md#json-schema-response-format))
-- Settings for LLM provider, AI models, ad detection prompts, retention, system stats, token usage and cost. Each customizable prompt has its own Reset button next to its label (visible but disabled at default), alongside the section-wide reset-all button
-- Database backups (Settings > Data & Security): encrypted downloads and scheduled plain SQLite snapshots. Scheduled controls include the cron schedule, destination, keep count, and a Back up now button that works with the schedule off
-- Offline queue (Queue > Queue Control): hold episodes while a self-hosted LLM or Whisper endpoint is down. Processing resumes when it returns, with a configurable give-up window
-- Whisper pool (Settings > Transcription): optionally process several episodes at once on a remote Whisper backend, with a cap on requests in flight
-- Rate-limit hold (Queue > Queue Control): optionally pause the queue while the LLM provider reports a 429 with a reset time, instead of failing episodes
+- Settings for LLM provider, AI models, ad detection prompts, retention, system stats, token usage and cost. Each customizable prompt has its own Reset button; see [Configuration > Ad Detection Settings](configuration.md#ad-detection-settings)
+- Database backups (Settings > Data & Security): encrypted downloads and scheduled plain SQLite snapshots with a Back up now button. See [Configuration > Scheduled Database Backups](configuration.md#scheduled-database-backups)
+- Offline queue (Queue > Queue Control): hold episodes while a self-hosted LLM or Whisper endpoint is down. See [Configuration > Offline Queue](configuration.md#offline-queue)
+- Whisper pool (Settings > Transcription): process several episodes at once on a remote Whisper backend. See [Configuration > Whisper Pool](configuration.md#whisper-pool)
+- Rate-limit hold (Queue > Queue Control): pause the queue while the LLM provider reports a 429 with a reset time. See [Configuration > Rate-Limit Hold](configuration.md#rate-limit-hold)
 - Queue page: active jobs show progress and cancellation controls. The full waiting list is paginated, and each row has links and -/+ buttons that can raise or lower its priority. A row the scheduler will not admit yet says why, naming the blocked phase, the account slot, the reason, and when the block lifts
 - Provider account switch (Settings > LLM Provider): changing a slot's endpoint or provider type lists the runs still bound to the current account before you save, and asks whether to requeue them on the new account (the default) or cancel them, so in-flight work is never moved silently
-- Failover (Settings > AI & Processing): a standby LLM provider and transcriber that take over when Provider A, Provider B, or the active transcriber goes unreachable; status strip per target, health-probe policy, and manual Trigger/Cancel/Probe now controls. See [Failover](failover.md)
-- Pattern Cleanup (Settings > Experiments): scheduled LLM review of learned patterns, suggesting trims, splits, sponsor renames, and retirements; reviewed on the Patterns page's Cleanup tab. Experimental, off by default. See [Pattern Cleanup](pattern-cleanup.md)
-- Status bar showing processing progress across all pages through 2-second polling, with failure backoff up to 30 seconds. It also appears when the queue holds work with nothing running, including while any target is on failover. The message names the provider reset time for a rate-limit pause, the unavailable service for an offline wait, or the targets currently on failover
+- Failover (Settings > AI & Processing): standby LLM provider and transcriber with a status row per target and manual Trigger/Cancel/Probe now controls. See [Failover](failover.md)
+- Pattern Cleanup (Settings > Experiments): scheduled LLM review of learned patterns, reviewed on the Patterns page's Cleanup tab. Experimental, off by default. See [Pattern Cleanup](pattern-cleanup.md)
+- Status bar showing processing progress across all pages. It also appears when the queue holds work with nothing running, and names the provider reset time for a rate-limit pause, the unavailable service for an offline wait, or the targets on failover. See [How It Works > Real-Time Processing Status](how-it-works.md#real-time-processing-status)
 - System health panel: a Failover row turns warning while any target is on its failover configuration, alongside the existing Transcriber, Podping, and Feed refresh rows
-- Outbound Requests (Settings > Data & Security): the User-Agent MinusPod sends when it fetches feeds, audio, and artwork, editable per string with a Reset back to the default, plus a toggle for whether download logs include URL query strings
+- Outbound Requests (Settings > Data & Security): the User-Agent strings MinusPod sends when it fetches feeds, audio, and artwork, plus a toggle for URL query strings in download logs. See [Configuration > Outbound Requests](configuration.md#outbound-requests)
 - OPML export with original or ad-free (modified) feed URLs
 - Optional cover-art badge that marks the filtered feed (Settings > Cover Art), with a Refresh all artwork button
-- Global Defaults group in settings: Auto-Process, the auto-process window, Max Feed Episodes, Only Expose Processed, verification, and cross-fetch differential. New feeds use these defaults; each feed can inherit or set an explicit override
-- Chapter mode default in Settings > Transcripts & Chapters, with the same per-feed inheritance and override
-- Queue priority boosts in Queue > Queue Control
+- Global Defaults group in settings: Auto-Process, the auto-process window, Max Feed Episodes, Only Expose Processed, verification, and cross-fetch differential. Each feed can inherit or override them; see [Configuration > Global feed defaults](configuration.md#global-feed-defaults)
+- Chapter mode default in Settings > Transcripts & Chapters, with the same per-feed inheritance
+- Queue priority boosts in Queue > Queue Control, see [Configuration > Queue priority](configuration.md#queue-priority)
 - Notifications for processed episodes, permanent failures, auth failures, exhausted spend limits, and structural rate-limit hits, delivered by webhooks or native email (Settings > Notifications)
-- Podcast search via PodcastIndex.org
+- Podcast search from Add feed, using Apple's iTunes directory by default or Podcast Index when configured
 - Search: press Ctrl+K on Windows/Linux or Cmd+K on macOS to open the keyboard palette, or use the search field on the Dashboard. Both return shows, episodes, and transcript matches together, spanning every episode status. The header magnifier, or the palette's own "Advanced search" link, opens a dedicated search page with type filters plus pattern and sponsor matches
 - Multiple dark themes (Tokyo Night, Dracula, Catppuccin, Nord, Gruvbox, Solarized, and more) with light/dark toggle
 - Installs as an app on phones, tablets and desktops ([Install as an app](#install-as-an-app))
@@ -98,7 +98,7 @@ The server includes a web-based management UI at `/ui/`. Opening the server root
 
 Settings shows whether a control uses the page's Save Changes button, its own Save button, or an immediate action. Registered unsaved drafts prompt before navigation or closing an editor. Cancel keeps the draft; Discard closes it without saving. Browser reload/close uses the browser's own unsaved-change prompt.
 
-When an app update is ready, a banner offers Reload. Finish saving or discard registered drafts before applying it. Updates no longer reload the page automatically while a draft is open.
+When an app update is ready, a banner offers Reload. Finish saving or discard registered drafts before applying it. Updates never reload the page automatically while a draft is open.
 
 Feed deletion, settings reset, and replacement imports use explicit confirmation dialogs. Read the named target and consequences before confirming. Failed requests show an error and Retry where supported; a failure does not establish an empty list.
 
@@ -153,7 +153,7 @@ Process, Reprocess, Re-detect Ads, and Recut all read their enabled state from t
 - While a run owns the episode, the controls are disabled rather than merely slow. Submitting the same episode twice is not possible from the UI, and the API answers a duplicate submission with the same job state rather than a bare error, so the page reconciles instead of showing a failure.
 - An episode waiting in the run queue shows a purple "queued" badge, not "pending". Pending means the episode is eligible for work; queued means work has actually been scheduled.
 
-Error states are scoped to the action that produced them. A failed correction in the review panel marks only the button that was clicked, so Confirm ad, Confirm trimmed, and Not ad no longer all read "Error!" when one of them fails. A rejected reprocess shows the server's own message. A failed run shows its reason under the episode title on the history page and in the header on the episode page. In the Processing stats table the word "failed" is a button: expanding it shows the error text inline with a Copy error action, so the reason is readable on a phone or by keyboard rather than only on hover.
+Error states are scoped to the action that produced them. A failed correction in the review panel marks only the button that was clicked, so a failure on Confirm, Confirm trimmed, or Not ad marks only that button. A rejected reprocess shows the server's own message. A failed run shows its reason under the episode title on the history page and in the header on the episode page. In the Processing stats table the word "failed" is a button: expanding it shows the error text inline with a Copy error action, so the reason is readable on a phone or by keyboard rather than only on hover.
 
 ### Feed Display Title
 
@@ -169,7 +169,7 @@ A sponsor can also carry a segment category. When set, every read that names the
 
 Deleting a sponsor is permanent. Ad patterns linked to it are not deleted: their sponsor link is cleared (unlinked) so no pattern data is lost. The confirmation dialog shows how many patterns will be unlinked first.
 
-Name normalizations moved to Settings > AI & Processing > Transcript Normalization: regex rules that rewrite messy or inconsistent sponsor names into one canonical form before matching (for example collapsing `ag 1`, `ag-1`, and `ag one` to `ag1`). The rules correct any misheard Whisper output, sponsor names included.
+Name normalizations live in Settings > AI & Processing > Transcript Normalization: regex rules that rewrite messy or inconsistent sponsor names into one canonical form before matching (for example collapsing `ag 1`, `ag-1`, and `ag one` to `ag1`). The rules correct any misheard Whisper output, sponsor names included.
 
 #### Normalization regex format
 
@@ -260,12 +260,12 @@ A podcast dropdown narrows the list to one feed. The Reviewer dropdown, on this 
 Each row has up to five actions:
 
 - **Play** - auditions the pre-cut audio for that segment in the browser. Only appears when the original is retained (see Settings > Storage & Retention). Click again to pause.
-- **Confirm ad** - records a confirm correction and marks the episode for a recut.
+- **Confirm** - records a confirm correction and marks the episode for a recut.
 - **Not ad** - records a rejection.
 - **Category** - sets the segment category, which is what decides whether the span is cut, beeped, or left in. This is the only action on a row left in by its category, and it is how you change that.
 - **Edit** - opens the waveform editor so you can adjust the ad boundaries before deciding.
 
-Confirm ad and Not ad only appear for a detection still awaiting a decision, and never on one left in by its category. Recording a decision does not re-cut the episode on the spot: it marks the episode, and an Apply recuts button above the list rebuilds every waiting episode once. An episode you edit five times is rebuilt once rather than five times. The same button appears on a feed page, where it covers only that feed's episodes.
+Confirm and Not ad only appear for a detection still awaiting a decision, and never on one left in by its category. Recording a decision does not re-cut the episode on the spot: it marks the episode, and an Apply recuts button above the list rebuilds every waiting episode once. An episode you edit five times is rebuilt once rather than five times. The same button appears on a feed page, where it covers only that feed's episodes.
 
 Corrections go through the same per-episode corrections endpoint used on the episode page, so approve and dismiss decisions feed pattern learning the same way.
 
@@ -296,7 +296,7 @@ A held detection from the queue to the waveform editor: play the span, confirm i
 
 https://github.com/user-attachments/assets/ce18b17f-c99c-41fd-a973-62a686bb2d89
 
-When a feed has a max ad duration cap or cue-gated approval on, ads that cannot auto-cut are held rather than cut. The episode publishes with the audio intact. Held ads appear on the episode page in an amber "Held for Review" section with two actions per row:
+Ads that cannot auto-cut are held rather than cut; see [How It Works > Held for Review](how-it-works.md#held-for-review) for the causes. The episode publishes with the audio intact. Held ads appear on the episode page in an amber "Held for Review" section with two actions per row:
 
 - **Approve & Recut** - stores a confirm correction and immediately re-cuts the original audio if retained; otherwise the button reads Approve and the cut applies on the next reprocess.
 - **Dismiss** - records a rejection and leaves the audio unchanged.
@@ -331,7 +331,7 @@ The episode header carries up to three spend readouts: **Active run** while a ru
 
 ### Search index
 
-Search reads a full-text index. Changes to shows, episodes, transcripts, patterns and sponsors are written to a change journal and applied to the index every 6 hours, so new content can take up to 6 hours to appear in search results. The index is rebuilt in full once a week. Both run in short steps that let other writers in, and a refresh is postponed (up to 12 hours) while an episode is processing. Descriptions are indexed as plain text, so result snippets show no HTML tags. Upgrading to 2.100.13 rebuilds the index once.
+Search reads a full-text index. Changes to shows, episodes, transcripts, patterns and sponsors are written to a change journal and applied to the index every 6 hours, so new content can take up to 6 hours to appear in search results. The index is rebuilt in full once a week. Both run in short steps that let other writers in, and a refresh is postponed (up to 12 hours) while an episode is processing. Descriptions are indexed as plain text, so result snippets show no HTML tags.
 
 ### Filters and date ranges
 

@@ -6,7 +6,7 @@
 
 ## Contents
 
-- [Remote access and security](#remote-access-security)
+- [Remote access and security](#remote-access--security)
 - [Authenticated feeds](#authenticated-feeds-optional)
 - [Provider admission controls](#provider-admission-controls)
 - [Data storage](#data-storage)
@@ -30,7 +30,7 @@ The tunnel exposes the admin interface to the public internet. Without all of th
 2. `SESSION_COOKIE_SECURE=true` (the default).
 3. `MINUSPOD_MASTER_PASSPHRASE` set so provider API keys are encrypted at rest.
 4. Cloudflare WAF rule blocking `/ui` and `/api` (see below). The docs and OpenAPI spec live under `/api/v1/docs` and `/api/v1/openapi.yaml`, so they're already covered by the `/api` block.
-5. `MINUSPOD_TRUSTED_PROXY_COUNT=1` so login lockout keys on the real client IP, not the tunnel loopback.
+5. `MINUSPOD_TRUSTED_PROXY_COUNT=1` (see [Client IP for login lockout](#client-ip-for-login-lockout)).
 
 ### Client IP for login lockout
 
@@ -55,7 +55,7 @@ Startup logs a WARN (`Running in a container without MINUSPOD_TRUSTED_PROXY_COUN
 Operator checklist:
 
 - Serve over HTTPS (`SESSION_COOKIE_SECURE=true` is the default).
-- `MINUSPOD_TRUSTED_PROXY_COUNT=1` if behind a reverse proxy.
+- `MINUSPOD_TRUSTED_PROXY_COUNT=1` if behind a reverse proxy (see above).
 - `MINUSPOD_MASTER_PASSPHRASE` set so provider keys encrypt at rest. The
   passphrase encrypts stored API keys; it is not a login credential and does not
   restrict access on its own. The instance stays open until a login password is
@@ -144,7 +144,7 @@ The OPML Export controls (Settings > Data Management) give two ways to move your
 
 Both are offered for modified feeds (MinusPod ad-free URLs) and original feeds (upstream source URLs).
 
-If you also run the Cloudflare WAF rule described above, the cover URL still ends in `.jpg` and query strings are not part of the matched path, so key-gated fetching is unaffected. One caveat for Copy URL: the `/opml/` path lives on the feed domain behind that rule, so an app fetching it needs to get past your UA/path filter. If a given app's import-from-URL is blocked, allow the `/opml/` path (or that app's user agent) in the rule. The two layers stack - Cloudflare filters by client, the key gates by possession.
+If you also run the Cloudflare WAF rule described above, the cover URL still ends in `.jpg` and query strings are not part of the matched path, so key-gated fetching is unaffected. One caveat for Copy URL: the `/opml/` path lives on the feed domain behind that rule, so an app fetching it needs to get past your UA/path filter. If a given app's import-from-URL is blocked, allow the `/opml/` path (or that app's user agent) in the rule. The two layers stack: Cloudflare filters by client, the key gates by possession.
 
 ## Data storage
 
@@ -228,7 +228,7 @@ Before doing a `replace` import, export first so there's a round-trip backup:
 curl -b cookies.txt https://your-minuspod/api/v1/patterns/export?include_corrections=true > patterns-backup.json
 ```
 
-`POST /api/v1/patterns/import` runs validation on the entire payload before any writes and wraps the delete/update/insert pass in a single `BEGIN IMMEDIATE` transaction. A malformed entry or mid-transaction error rolls back to the pre-import state; `replace` mode can no longer leave an empty pattern table on a bad payload. Modes are `merge` (update matches, add new), `replace` (wipe then import), or `supplement` (add new only).
+`POST /api/v1/patterns/import` runs validation on the entire payload before any writes and wraps the delete/update/insert pass in a single `BEGIN IMMEDIATE` transaction. A malformed entry or mid-transaction error rolls back to the pre-import state, so `replace` mode cannot leave an empty pattern table on a bad payload. Modes are `merge` (update matches, add new), `replace` (wipe then import), or `supplement` (add new only).
 
 ## Custom assets (optional)
 

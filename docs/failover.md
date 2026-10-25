@@ -43,7 +43,7 @@ Failover is different from the Provider A / Provider B slot a stage is configure
 
 A rate limit or daily quota never moves LLM work to the failover provider. If the failover provider itself returns a rate limit while it is in use, the [Rate-Limit Hold](configuration.md#rate-limit-hold) pauses only the failover account.
 
-The transcriber side uses the same shape: connection errors and 5xx-equivalent backend outages trigger failover, and so do 401/402/403/404 and exhausted 429 retries from an API backend (`TranscriptionRejectedError`), exhausted HTTP 408 timeout retries, and a local backend's model-load failure. Other 4xx responses from an API backend are left alone, same as before this feature. Unlike the LLM side, a transcription 429 that outlasts its retry deadline does switch to the failover transcriber, because transcription has no rate-limit hold to wait it out.
+The transcriber side uses the same shape: connection errors and 5xx-equivalent backend outages trigger failover, and so do 401/402/403/404 and exhausted 429 retries from an API backend (`TranscriptionRejectedError`), exhausted HTTP 408 timeout retries, and a local backend's model-load failure. Other 4xx responses from an API backend are left alone. Unlike the LLM side, a transcription 429 that outlasts its retry deadline does switch to the failover transcriber, because transcription has no rate-limit hold to wait it out.
 
 ## What happens mid-run
 
@@ -69,9 +69,7 @@ A background tick checks enabled targets at the configured **Probe interval** (`
 
 Two consecutive failed probes of an original provider trigger automatic failover. Recovery requires **N consecutive healthy probes** of that provider (**Recovery probes**, `failoverRecoveryProbes`, 1-10, default 3). Results from before the failover or from an obsolete provider configuration cannot recover it. A manual failover stays active until cancelled.
 
-An eligible failed processing call triggers failover immediately after its normal retries, without waiting for two failed probes.
-
-Before processing, MinusPod checks the effective endpoints needed for the run when their cached probes are older than the interval or no longer match the provider configuration, failover state, or local transcription outcome. Concurrent background, manual, and pre-run checks share probe ownership across workers. Scheduled checks continue probing the original providers so automatic recovery can occur while work uses failover endpoints.
+An eligible failed processing call triggers failover immediately after its normal retries, without waiting for two failed probes. Before processing, MinusPod rechecks the endpoints needed for the run when their cached probes are older than the interval or no longer match the provider configuration, failover state, or local transcription outcome. Concurrent background, manual, and pre-run checks share probe ownership across workers, and scheduled checks keep probing the original providers so automatic recovery can occur while work uses failover endpoints.
 
 ## Manual control
 
@@ -166,9 +164,9 @@ Both carry `target` (`llm-a`, `llm-b`, or `transcriber`), `source` (`auto`, `pro
 
 ## Per-provider timeouts and retries
 
-Provider A, Provider B, and the LLM failover provider each have their own request timeout and max-retries setting (`providerATimeoutSeconds`/`providerAMaxRetries`, `providerBTimeoutSeconds`/`providerBMaxRetries`, `failoverLlmTimeoutSeconds`/`failoverLlmMaxRetries`). Blank falls back to the provider-type default: 120 seconds and 3 retries for Anthropic and OpenRouter, 600 seconds and 2 retries for OpenAI-compatible endpoints and Ollama. A stage that fails over mid-run uses the failover provider's own timeout and retry count on the extra attempt, not Provider A's or Provider B's. Max retries counts retries after the first request, plus two short per-window retries for transient errors. Set it to 0 to fail fast: the call sends one request and then moves to the failover provider (if configured) without the per-window retries. Blank keeps the provider default. See [Configuration > Per-provider timeout and retries](configuration.md#per-provider-timeout-and-retries) for the full table.
+Provider A, Provider B, and the LLM failover provider each have their own timeout and max-retries setting; keys, defaults, and the effect of 0 are in [Configuration > Per-provider timeout and retries](configuration.md#per-provider-timeout-and-retries). A stage that fails over mid-run uses the failover provider's own timeout and retry count on the extra attempt, not Provider A's or Provider B's.
 
-On the transcription side, `whisperMaxAttempts` (Settings > Transcription, 1-10, default 2) sets upload attempts per chunk, including the first upload. The failover transcriber inherits it unless `failoverWhisperMaxAttempts` is set. Configure the failover override under Settings > Failover, even when the active transcriber runs locally. Null or blank clears the override; omitting the field leaves it unchanged.
+The failover transcriber inherits `whisperMaxAttempts` unless `failoverWhisperMaxAttempts` is set (Settings > Failover, even when the active transcriber runs locally). Both are described in the same Configuration section.
 
 ---
 

@@ -65,7 +65,7 @@ episode page.
 
 ### Remove cue with ad
 
-Ad-break templates have **Remove cue with ad** enabled by default, including templates saved before this option was added. Turn it off in the capture dialog or template list to keep that cue with the programme.
+Ad-break templates have **Remove cue with ad** enabled by default. Turn it off in the capture dialog or template list to keep that cue with the programme.
 
 When enabled, an ad starts 0.05 seconds before its opening cue and ends 0.05 seconds after its closing cue. The reviewer's maximum boundary shift applies to the edge actually used, including the cue's full length. A cue beyond that cap leaves the edge unchanged.
 
@@ -401,7 +401,7 @@ chapters stop, and those episodes lose transcript search and VTT subtitles.
 Publisher chapters still work: both embedded ID3 chapters and linked
 Podcasting 2.0 JSON chapters are remapped onto the cut audio using the cue
 timestamps, with no transcript needed. Runs are labeled "(cue-only)" in the
-episode's run list, and additionally "(no transcript)" when transcription is
+episode's run list, and also "(no transcript)" when transcription is
 skipped.
 
 ## Per-feed overrides
@@ -424,9 +424,8 @@ Per-feed controls sit on the feed detail page under Feed settings:
   - **Snap confidence** (`cueSnapConfidenceOverride`) - 0-1.
   - **Snap lead** (`cueSnapLeadOverride`) - seconds.
   - **Snap lag** (`cueSnapLagOverride`) - seconds.
-- **Snap cuts to silence** (`silenceSnapEnabled`) - off by default. Edges not
-  already moved by cue snap are moved to the midpoint of the nearest qualifying
-  silence. See Silence snap above.
+- **Snap cuts to silence** (`silenceSnapEnabled`) - off by default. See
+  [Silence snap](#silence-snap).
 - **Snap to content transitions** (`transitionSnapEnabled`) - off by default.
   Content-transition cues may snap ad edges the same way boundary cues do.
 - **Cue-only safety** (`cueOnlySafety`) - `cue_only` feeds only. `hold_new`

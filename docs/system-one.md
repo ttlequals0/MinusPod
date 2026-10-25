@@ -30,7 +30,7 @@ The existing `openai-compatible` route remains supported for explicitly recogniz
 | Chapter generation | Unsupported | Enabled chapter generation cannot be saved or run when its effective route is System One. Choose a chat provider and model or disable chapter generation. |
 | Pattern Cleanup | Unsupported | Enabling scheduled cleanup or starting a manual run is blocked on a known System One route. Choose a chat provider and model. |
 
-Unsupported selections remain visible so they can be repaired. Capability checks use the effective provider and a recognized model ID; unknown model IDs are not guessed from their names. Review remains supported but experimental.
+Unsupported selections remain visible so they can be repaired. Capability checks use the effective provider and a recognized model ID; unknown model IDs are not guessed from their names.
 
 TypeSafe and System One compatible providers are never offered as a chat failover target: a failover configuration whose provider and model resolve to a System One route is treated as unconfigured for failover purposes.
 
@@ -70,7 +70,7 @@ TypeSafe's known Jev price is $0.042 USD per 1 million input tokens, with free o
 
 The Stats page separates logical System One calls from HTTP requests. A logical call may contain multiple detection, category, review, or refinement requests. Logical diagnostics include the phase, outcome, review reason, and refinement counts. The Average call time card displays milliseconds. Average logical time covers complete adapter calls, including local waits and retries; HTTP dispatch time sums actual request attempts. Token totals include reported values. Known costs include provider-reported amounts or estimates from known pricing. Missing or partially reported usage remains unknown. `GET /api/v1/stats/systemone` supports the Stats page filters: `from`, `to`, `podcastSlug`, `provider`, and `model`. Date filters select whole UTC days.
 
-Pattern Cleanup statistics use `GET /api/v1/stats/cleanup` with the same filters. Run, check, and linked request cohorts use run start time. Unlinked usage is shown only with All Podcasts selected and is grouped by request time; it is not assigned to a feed. Legacy runs have unknown spend, and older check history is unavailable. Historical proposal scope is unknown where the original feed scope was not recorded. Action counts are grouped by saved action kind, not every changed field. Accepted actions include actions later reverted; applied actions are currently approved, so these columns overlap. See [Pattern Cleanup](pattern-cleanup.md#statistics) for the full definitions.
+Pattern Cleanup statistics (`GET /api/v1/stats/cleanup`) are defined in [Pattern Cleanup > Statistics](pattern-cleanup.md#statistics).
 
 ## Migration and configuration backup
 
@@ -78,7 +78,7 @@ If an installation currently calls the TypeSafe Jev proxy through `openai-compat
 
 A custom System One endpoint uses the System One compatible provider. Set its own base URL and key for the selected slot. The provider sends requests to `/systemone` and discovers models from `/models` under that base URL.
 
-System One profiles and credentials are included in Configuration Import / Export. Credentials are re-encrypted for the destination installation. Import keeps destination-only profile fields when they are absent from an older export. See [Configuration Import / Export](configuration-import-export.md).
+System One profiles and credentials are included in Configuration Import / Export. Credentials are re-encrypted for the destination installation. Import merging rules are in [Configuration Import / Export](configuration-import-export.md).
 
 ## Upstream source and license
 

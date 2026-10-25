@@ -9,6 +9,21 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
+## [Unreleased]
+
+### Changed
+- README rewritten as a short overview: one-line feature bullets that link
+  to the topic docs, a quick start of three commands, and the setup, password
+  and release-channel detail left to the installation and security docs.
+- Docs deduplicated. Each topic is explained once in its own doc and other
+  docs link to it instead of restating it, and upgrade history narration is
+  rewritten as current behavior. Stale glossary entries, the podcast search
+  default, old button labels and a dead anchor are fixed.
+
+### Fixed
+- OpenAPI: the per-episode cost runs endpoint and the processing-admission
+  pause endpoint are documented.
+
 ## [2.100.22] - 2026-10-24
 
 ### Fixed

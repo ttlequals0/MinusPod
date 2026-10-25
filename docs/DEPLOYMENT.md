@@ -25,7 +25,7 @@ This page covers running MinusPod in production: health monitoring, backups, upd
 
 - Docker (NVIDIA runtime for GPU image; not required for the CPU image)
 - 8 GB RAM minimum; 16 GB+ recommended for `medium` / `large-v3` faster-whisper models or long episodes
-- CUDA-capable GPU with NVIDIA driver 525 or newer (GPU image only; CPU image runs without one). The image does not gate on driver version at startup; an older driver surfaces as a CUDA init error on the first transcription. PyTorch ships a CUDA 12.9 build covering Turing (sm_75) through Blackwell (sm_120). Older cards (Maxwell, Pascal, Volta) still transcribe, since CTranslate2 is compiled separately, but PyTorch prints an unsupported-architecture warning and VRAM-based chunk sizing may fall back to defaults.
+- CUDA-capable GPU with NVIDIA driver 525 or newer (GPU image only; CPU image runs without one). An older driver surfaces as a CUDA init error on the first transcription. PyTorch ships a CUDA 12.9 build covering Turing (sm_75) through Blackwell (sm_120). Older cards (Maxwell, Pascal, Volta) still transcribe, but PyTorch warns about the architecture and VRAM-based chunk sizing may fall back to defaults.
 - An LLM API key (Anthropic, OpenRouter, OpenAI-compatible, or an Ollama instance)
 
 The GPU image is `ttlequals0/minuspod:<version>` and `:latest`. The CPU image is `ttlequals0/minuspod:<version>-cpu` and `:cpu`. See [Installation](installation.md) for variant selection.
@@ -46,7 +46,7 @@ The full reference is in [Environment Variables](environment-variables.md). The 
 | `BASE_URL` | Public URL embedded in generated RSS feeds |
 | `MINUSPOD_MASTER_PASSPHRASE` | Encrypts provider keys and downloadable backups at rest. Store it separately from the backup. |
 
-If you are behind a reverse proxy or Cloudflare tunnel, also set `MINUSPOD_TRUSTED_PROXY_COUNT=1` (or higher for multi-hop chains) so login lockout and per-IP rate limits key on the real client IP.
+Behind a reverse proxy or Cloudflare tunnel, also set `MINUSPOD_TRUSTED_PROXY_COUNT=1` (higher for multi-hop chains); see [Client IP for login lockout](security-and-storage.md#client-ip-for-login-lockout).
 
 ## Health monitoring
 
@@ -153,15 +153,7 @@ docker-compose start
 
 ### Restore
 
-Stop the service and prepare a new database artifact without overwriting the current database:
-
-```bash
-docker-compose stop
-MINUSPOD_MASTER_PASSPHRASE=your-passphrase \
-  python scripts/restore_backup.py backup.db.enc data/podcast-restored.db
-```
-
-The command verifies SQLite integrity and refuses an existing destination or stale WAL sidecars. Keep the current database until the prepared file passes review. Move the old `podcast.db`, `podcast.db-wal`, and `podcast.db-shm` out of the data directory, then rename the prepared file to `podcast.db` and start the service. Migrations run on startup and support an older snapshot.
+Stop the service with `docker-compose stop`, then follow [Restore and passphrase rotation](security-and-storage.md#restore-and-passphrase-rotation). Migrations run on startup and support an older snapshot.
 
 ## SQLite diagnostics
 
@@ -202,30 +194,19 @@ docker logs --tail 100 minuspod
 
 ## Resource usage
 
-Use the [installation sizing tables](installation.md#memory-requirements) as the single capacity reference. Whisper estimates do not apply to Parakeet or to a separate transcription server. Model disk size is not runtime memory use.
+Use the [installation sizing tables](installation.md#memory-requirements) as the capacity reference. Whisper estimates do not apply to Parakeet or a separate transcription server, and model disk size is not runtime memory use.
 
-Measure cold startup and a complete episode with [the resource-check procedure](installation.md#checking-resource-use). Include other GPU users and local LLMs. Parakeet peak RAM/VRAM measurements remain an open documentation task; no benchmark is implied by its download size.
+Measure cold startup and a complete episode with [the resource-check procedure](installation.md#checking-resource-use), including other GPU users and local LLMs.
 
 ## Cloudflare tunnel (optional)
 
-For remote access without port forwarding:
-
-```bash
-# .env
-TUNNEL_TOKEN=your-cloudflare-tunnel-token
-MINUSPOD_TRUSTED_PROXY_COUNT=1   # required for correct client-IP attribution
-
-docker-compose --profile tunnel up -d
-```
-
-Without `MINUSPOD_TRUSTED_PROXY_COUNT=1`, login lockout and per-IP rate limits will key on the tunnel sidecar's loopback address instead of the real client. Audit logs and auth-failure webhooks will also carry the wrong IP. Set the same flag when running behind nginx, Traefik, or any other reverse proxy.
+For remote access without port forwarding, set `TUNNEL_TOKEN` and `MINUSPOD_TRUSTED_PROXY_COUNT=1` in `.env`, then run `docker-compose --profile tunnel up -d`. Setup steps and what breaks without the proxy count are in [Remote access / security](security-and-storage.md#remote-access--security).
 
 ## Security notes
 
 - Set `MINUSPOD_MASTER_PASSPHRASE` to encrypt provider API keys at rest. Without it they sit as plaintext in the SQLite DB. See [Security & Storage](security-and-storage.md).
-- Compose refuses normal API use until an application password is set. Complete setup from loopback or set a one-time `MINUSPOD_SETUP_TOKEN`, send it as `X-MinusPod-Setup-Token` when setting the first password, then remove it.
+- Password, setup token, and public-processing policy: see [Security recommendations](security-and-storage.md#security-recommendations), [Provider admission controls](security-and-storage.md#provider-admission-controls), and [Environment Variables](environment-variables.md#security).
 - Bind `MINUSPOD_BIND_ADDRESS=127.0.0.1` when a local proxy, VPN, or wrapper is the only intended entry point.
-- Compose blocks unauthenticated requests from starting paid processing. Set `MINUSPOD_ALLOW_PUBLIC_PROCESSING=true` only when that behavior is intended, or enable Authenticated Feeds.
 - `SESSION_COOKIE_SECURE=auto` follows `BASE_URL`. Set it explicitly only for an unusual proxy setup.
 - RSS URLs are public by default. Authenticated Feeds adds an existing global credential or a revocable key scoped to one feed. Treat every credential-bearing URL like a password.
 - Cloudflare Tunnel or a VPN is recommended for remote access. Direct port-forwarding works but skips Cloudflare's WAF.

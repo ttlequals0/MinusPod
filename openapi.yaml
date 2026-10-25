@@ -3475,6 +3475,50 @@ paths:
         '400':
           $ref: '#/components/responses/LedgerDateBadRequest'
 
+  /stats/episode-costs/runs:
+    get:
+      tags:
+        - Stats
+      summary: Get per-run cost breakdown for one episode
+      description: |
+        Per-run, per-phase cost rows for one episode, used by the expandable
+        Episode costs row in Stats. Same run shape as the episode detail
+        page's processingRuns.
+      operationId: getEpisodeCostRuns
+      parameters:
+        - name: slug
+          in: query
+          required: true
+          schema: { type: string }
+        - name: episodeId
+          in: query
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Runs for the episode, oldest first
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  runs:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/EpisodeProcessingRun'
+        '400':
+          description: slug and episodeId are required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Episode not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
   /stats/spend/attempts:
     get:
       tags:
@@ -5325,6 +5369,54 @@ paths:
                   `event: auth-failed\ndata: {}\n\n` then close.
         '410':
           description: SSE compatibility is disabled because no stream slots are configured
+
+  /status/processing-admission:
+    get:
+      tags:
+        - Status
+      summary: Read whether new processing runs are paused
+      description: |
+        Pause for new processing runs that survives restarts. While paused,
+        active runs finish and queued episodes stay queued until someone
+        resumes.
+      operationId: getProcessingAdmission
+      responses:
+        '200':
+          description: Current admission state
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProcessingAdmission'
+    put:
+      tags:
+        - Status
+      summary: Pause or resume new processing runs
+      description: |
+        Pausing does not stop runs already in progress. It only keeps new
+        work from starting.
+      operationId: setProcessingAdmission
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [paused]
+              properties:
+                paused: { type: boolean }
+      responses:
+        '200':
+          description: Admission state after the change
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProcessingAdmission'
+        '400':
+          description: paused must be a boolean
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
 
   /detections:
     get:
@@ -14776,6 +14868,16 @@ components:
           enum: [user, auto_pass2]
           description: user for a decision made in the UI or API; auto_pass2 for a confirm the verification pass filed when it re-detected a held ad.
 
+    ProcessingAdmission:
+      type: object
+      properties:
+        paused: { type: boolean }
+        activeRuns:
+          type: integer
+          description: Runs currently holding a processing slot
+        queuedEpisodes:
+          type: integer
+          description: Episodes waiting in the auto-process queue
     EpisodeProcessingRun:
       type: object
       description: One processing run of an episode, with its pipeline stats.

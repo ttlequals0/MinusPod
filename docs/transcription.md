@@ -51,7 +51,7 @@ The default local backend. It runs faster-whisper on CTranslate2, with the model
 
 ### GPU compute type
 
-faster-whisper runs on CTranslate2, which only supports certain compute types per GPU generation. MinusPod exposes `WHISPER_COMPUTE_TYPE` as an env var and as a dropdown in Settings > Transcription. The default `auto` picks `float16` on CUDA and `int8` on CPU, matching the prior hardcoded behavior. If `float16` fails at model init (common on Pascal GTX 10xx and Maxwell GTX 9xx, which cannot do fp16 math in CTranslate2), the server retries `int8_float16`, then `int8`, then `float32` and logs the final active type. Any other explicit choice that fails is raised instead of silently masked.
+faster-whisper runs on CTranslate2, which only supports certain compute types per GPU generation. MinusPod exposes `WHISPER_COMPUTE_TYPE` as an env var and as a dropdown in Settings > Transcription. The default `auto` picks `float16` on CUDA and `int8` on CPU. If `float16` fails at model init (common on Pascal GTX 10xx and Maxwell GTX 9xx, which cannot do fp16 math in CTranslate2), the server retries `int8_float16`, then `int8`, then `float32` and logs the final active type. Any other explicit choice that fails is raised instead of silently masked.
 
 Pick a value that matches your GPU:
 
@@ -89,9 +89,9 @@ For an offline installation, first complete a transcription on a connected insta
 
 Parakeet v3 is multilingual and cannot be pinned to a language. With the transcription language set to `en`, words written in other scripts (Cyrillic, Greek, CJK, Arabic and so on) are dropped before the transcript is built, and the count is logged at INFO. With `auto` or a non-English language, nothing is dropped.
 
-The faster-whisper model, compute type and the API settings do not apply to this backend. Parakeet can also be the failover transcriber: choose it under Settings > AI & Processing > Failover, or set `failoverWhisperBackend` to `parakeet`. See [Failover](failover.md#configuration-reference).
+The faster-whisper model, compute type and the API settings do not apply to this backend. Parakeet can also be the failover transcriber; see [Failover > Configuration reference](failover.md#configuration-reference).
 
-In tests on narrative shows with music beds (issue #834), Parakeet ran faster than the Whisper large models and produced fewer repetition loops. See [Choosing between Whisper and Parakeet](#choosing-between-whisper-and-parakeet) for the measured trade-offs.
+On narrative shows with music beds (issue #834), Parakeet also produced fewer repetition loops than the Whisper large models.
 
 The CPU image supports Linux arm64, including Docker on Apple Silicon. This uses the CPU provider; MinusPod does not select Metal or CoreML acceleration. Native macOS and Mac GPU performance have not been measured. For an accelerated external transcriber, use an OpenAI-compatible server with `WHISPER_BACKEND=openai-api`.
 
@@ -217,7 +217,7 @@ protect, chunks upload and transcribe concurrently.
 
 ## Failover transcriber
 
-An optional standby transcriber (Settings > AI & Processing > Failover) takes over when the active backend is unreachable, times out, or an API backend rejects the request with 401, 402, 403, or 404. On the API backend, `whisperMaxAttempts` (Settings > Transcription, 1-10, default 2) replaces the old fixed retry count before a chunk counts as failed and the switch is considered. See [Failover](failover.md#what-happens-mid-run) for how a switch affects a chunk already in progress, and [Failover > Configuration reference](failover.md#configuration-reference) for every failover transcriber setting.
+An optional standby transcriber (Settings > AI & Processing > Failover) takes over when the active backend is unreachable, times out, or an API backend rejects the request with 401, 402, 403, or 404. On the API backend, `whisperMaxAttempts` (Settings > Transcription, 1-10, default 2) sets how many attempts a chunk gets before it counts as failed and the switch is considered. See [Failover](failover.md#what-happens-mid-run) for how a switch affects a chunk already in progress, and [Failover > Configuration reference](failover.md#configuration-reference) for every failover transcriber setting.
 
 ## Transcription language
 

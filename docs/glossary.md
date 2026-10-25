@@ -60,7 +60,7 @@ Every term the app uses, in plain words, with a link to the part of the docs tha
 
 **Contaminated pattern** - A learned ad pattern that contains show content or other material that should not be matched as an ad. Pattern Cleanup can flag it for review; nothing changes until a suggestion is approved. [Pattern Cleanup](pattern-cleanup.md#suggestion-kinds)
 
-**Correction** - Your verdict on a detection: "Confirm ad" or "Not ad". Corrections train future detection for that feed and can trigger a recut. [Web Interface > Ad Review tab](web-interface.md#ad-review-tab)
+**Correction** - Your verdict on a detection: "Confirm" or "Not ad". Corrections train future detection for that feed and can trigger a recut. [Web Interface > Ad Review tab](web-interface.md#ad-review-tab)
 
 **Corroboration** - Independent evidence from another detection stage, an overlapping marker, or a matched audio cue that backs an otherwise-uncertain detection, letting it cut instead of hold. Used by the cross-fetch differential stage to decide which candidates cut and which hold. [How It Works > Cross-Fetch Differential](how-it-works.md#cross-fetch-differential)
 
@@ -122,9 +122,9 @@ Every term the app uses, in plain words, with a link to the part of the docs tha
 
 **Health probe** - A periodic check that an LLM or transcription endpoint is usable. Failover uses probe results to detect outages and recover the original provider; fresh results are shared across queued episodes. [Failover > Health probes](failover.md#health-probes)
 
-**Held for Review** - An ad that detection wanted to cut but a per-feed guard (max ad duration, cue-gated approval, a reviewer contradiction, or a verification conflict) stopped. The audio stays intact until you approve or dismiss it. [Web Interface > Held for Review](web-interface.md#held-for-review)
+**Held for Review** - An ad that detection wanted to cut but a guard stopped. The audio stays intact until you approve or dismiss it. For the causes see [How It Works > Held for review](how-it-works.md#held-for-review); for the actions see [Web Interface > Held for Review](web-interface.md#held-for-review)
 
-**Held remainder** - The part of a larger detection that stays held for review after a piece of it was cut or released. It inherits the original's reviewer proposal, which is dropped or clamped when it no longer overlaps the remainder. [Web Interface > Held for Review](web-interface.md)
+**Held remainder** - The part of a larger detection that stays held for review after a piece of it was cut or released. It inherits the original's reviewer proposal, which is dropped or clamped when it no longer overlaps the remainder. [Web Interface > Held for Review](web-interface.md#held-for-review)
 
 **Hold (queue)** - Any reason the queue is waiting rather than working: a rate-limit pause that stops new claims outright, or an offline-queue wait that parks specific episodes while the rest keep processing. The status bar names which one is in effect, and `GET /api/v1/status` reports it in a `hold` block. [Configuration > Rate-Limit Hold](configuration.md#rate-limit-hold)
 
@@ -190,13 +190,13 @@ Every term the app uses, in plain words, with a link to the part of the docs tha
 
 **Preparing stage** - The first stage a job shows in the status bar, before any download or transcription starts. A run that reuses a retained original, such as a local-feed reprocess or re-detect, stays in Preparing and never shows Downloading. [How It Works](how-it-works.md)
 
-**Processing mode** - The per-feed preset that decides what the pipeline does with each episode: standard ad removal, keep-content detection, skip ad detection (transcripts and chapters only), pass-through, or cue-only (cuts from cue pairs and previously learned ad patterns, no LLM call). One select in Feed Settings; the REST API also accepts the underlying per-field flags. [How It Works](how-it-works.md)
+**Processing mode** - The per-feed preset, one select in Feed Settings, that decides what the pipeline does with each episode: standard, keep content only, skip ad detection, pass-through, or cue-only. [Episode Processing Workflows > Processing modes](workflows.md#processing-modes)
 
 **Processing queue** - The Queue page shows active jobs and the full waiting list, with controls for queue behavior and priority. [How It Works > Processing Queue](how-it-works.md#processing-queue)
 
 **Processing stats** - The per-run table at the bottom of the episode page: what each run downloaded, detected, cut, held, and verified, plus elapsed stage and FFmpeg timing when available. [Web Interface > Processing stats](web-interface.md#processing-stats)
 
-**Provider A / Provider B** - The two LLM provider slots a pipeline stage can be routed to, renamed from Primary/Secondary. The API retains `primary`/`secondary` slot values and `secondary*` settings keys. [LLM Providers > Per-Stage Providers](llm-providers.md#per-stage-providers)
+**Provider A / Provider B** - The two LLM provider slots a pipeline stage can be routed to. The API also accepts the older `primary`/`secondary` slot values and `secondary*` settings keys. [LLM Providers > Per-Stage Providers](llm-providers.md#per-stage-providers)
 
 ## Q
 
@@ -214,7 +214,7 @@ Every term the app uses, in plain words, with a link to the part of the docs tha
 
 **Recut** - Re-cutting the retained original audio using the current ad markers, with no download, transcription, or LLM involved. What "Approve & Recut" does. [How It Works > Reprocessing Modes](how-it-works.md#reprocessing-modes)
 
-**Reprocess modes** - *Patterns + AI* (the default, everything), *AI Only* (skip the learned-pattern DB), *Re-detect Ads* (reuse the saved transcript, rerun detection), and *Recut*. [How It Works > Reprocessing Modes](how-it-works.md#reprocessing-modes)
+**Reprocess modes** - *Reprocess* (the default, learned patterns plus LLM), *Full reprocess* (LLM only, called Full Analysis in Configuration), *Re-detect ads* (reuse the saved transcript), and *Recut audio*. [Configuration > Reprocessing](configuration.md#reprocessing)
 
 **Remove cue with ad** - A cue-template option, on by default, that includes a matched ad-break cue in the cut. Programme cues remain protected. [Audio Cues > Remove cue with ad](audio-cues.md#remove-cue-with-ad)
 
@@ -294,7 +294,7 @@ Every term the app uses, in plain words, with a link to the part of the docs tha
 
 **Whisper (faster-whisper)** - The default local transcription backend (`WHISPER_BACKEND=local`). `WHISPER_MODEL` and `WHISPER_COMPUTE_TYPE` apply to it only. [Transcription > Whisper (faster-whisper)](transcription.md#whisper-faster-whisper)
 
-**Webhook events** - Notifications MinusPod can send: Episode Processed, Episode Failed, Auth Failure, Limit Exceeded, Rate Limit Structural, Feed Refresh Failed, Update Available, Cue Template Quiet, Queue Held, Queue Resumed, Service Offline, Service Reachable, Failover Triggered, and Failover Cancelled. Each can also go out by email. [API & Webhooks > Events](api-and-webhooks.md#events)
+**Webhook events** - Notifications MinusPod can send about episodes, feeds, the queue, services, and failover. Each can also go out by email. [API & Webhooks > Events](api-and-webhooks.md#events)
 
 **Webhook template fallback** - If a custom payload template cannot render for an event, MinusPod uses a default body. Webhook test results set a `templateFallback` flag whether or not delivery succeeds. Text content types get a readable line; other types get JSON. [API & Webhooks > Webhooks](api-and-webhooks.md#webhooks)
 

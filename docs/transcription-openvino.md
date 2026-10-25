@@ -13,7 +13,7 @@
 - [4. Point MinusPod at it](#4-point-minuspod-at-it)
 - [5. Verify the GPU is doing the work](#5-verify-the-gpu-is-doing-the-work)
 
-This guide offloads Whisper transcription to an Intel GPU using [OpenVINO Model Server](https://docs.openvino.ai/2025/model-server/ovms_what_is_openvino_model_server.html) (OVMS) running alongside the MinusPod CPU image. MinusPod talks to it as a remote OpenAI-compatible Whisper backend, so the heavy transcription work lands on the GPU instead of pinning every CPU core.
+This guide offloads Whisper transcription to an Intel GPU using [OpenVINO Model Server](https://docs.openvino.ai/2025/model-server/ovms_what_is_openvino_model_server.html) (OVMS) running alongside the MinusPod CPU image. MinusPod talks to it as a remote OpenAI-compatible Whisper backend, so the heavy transcription work runs on the GPU instead of pinning every CPU core.
 
 It applies to the **CPU image** on an Intel host with a capable integrated or discrete GPU (roughly 6th-gen / 2015 and newer; 11th-gen and newer perform best). It does not apply to the NVIDIA GPU image, which already uses local CUDA. There is no local OpenVINO device path inside MinusPod itself; OVMS runs as a separate container and MinusPod reaches it over HTTP.
 
@@ -183,7 +183,7 @@ In the MinusPod web UI, open **Settings**, expand **Transcription**, and set:
 3. **Model Name:** `whisper-large-v3-turbo` (the alias from `config.json`).
 4. **Skip FLAC Compression:** ON. MinusPod compresses chunks to FLAC by default to keep uploads small for cloud APIs. OVMS expects raw WAV and has no FLAC decoder in its audio pipeline, so transcription fails unless this is on.
 
-Before saving, click **Test connection** under the API Base URL field. It sends a one-second audio sample through the real transcription request, so it catches a wrong path or a wrong model alias without processing a full episode. This matters with OVMS in particular: the server responds on every path (a `curl` to the wrong URL still gets a `400 Bad Request`, which only proves the server is alive), but only the versioned base (`/v3` here) accepts transcription requests. The sample is uploaded in the format episodes will use, so if Skip FLAC Compression is still off, the test fails the same way a real episode would: flip the toggle and test again.
+Before saving, click **Test connection** (see [Testing a remote endpoint](transcription.md#testing-a-remote-endpoint)). OVMS answers on every path, but only the versioned base (`/v3` here) accepts transcription requests. If Skip FLAC Compression is still off, the test fails the way a real episode would: flip the toggle and test again.
 
 Save. The same fields can be set with `WHISPER_BACKEND`, `WHISPER_API_BASE_URL`, `WHISPER_API_MODEL`, and `SKIP_FLAC_COMPRESSION` on first boot, but the UI is the runtime source of truth.
 

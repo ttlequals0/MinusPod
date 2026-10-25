@@ -12,19 +12,16 @@
 - [Feed identity](#feed-identity)
 - [Upstream namespace URIs](#upstream-namespace-uris)
 - [Compatibility with older players](#compatibility-with-older-players)
+- [Example served feed](#example-served-feed)
 - [References](#references)
 
 MinusPod sits between the original podcast feed and your player. It
 downloads each episode, removes ad segments, re-encodes the audio, and
 serves a modified RSS feed pointing at the processed files.
 
-That position has consequences for the Podcast Namespace (the set of
-`podcast:` tags often called "Podcasting 2.0"). MinusPod is not the
-podcast's publisher. It is a proxy that rewrites someone else's feed.
-Some namespace tags survive that rewrite unchanged. Some describe the
-original audio and become wrong the moment an ad is cut. A few would
-actively break playback if passed through. This document explains
-exactly what MinusPod emits, what it deliberately drops, and why.
+MinusPod is not the podcast's publisher, so the Podcast Namespace (the
+`podcast:` tags often called "Podcasting 2.0") needs care: it is a proxy
+that rewrites someone else's feed.
 
 Almost none of this is configurable. Two things are: each feed can
 choose how its `podcast:chapters` tag is populated (see "Chapter
@@ -140,8 +137,7 @@ a transient ffprobe error), MinusPod treats that as unknown too, and skips
 the chapter step for that run rather than risk overwriting the ID3 frames
 the cut step already wrote correctly.
 
-**Always generate** skips the probe and always produces AI chapters,
-matching MinusPod's behavior before this setting existed.
+**Always generate** skips the probe and always produces AI chapters.
 
 **Off** stops chapter work for episodes processed from then on: no
 probing, no generation, and nothing saved, so those episodes carry no
@@ -149,8 +145,8 @@ probing, no generation, and nothing saved, so those episodes carry no
 chapters they already have until they are reprocessed.
 
 Auto is the default because it keeps the publisher's chapters
-whenever they hold up across the cut; replacing accurate publisher
-chapters with generated ones is what prompted issue #560.
+whenever they hold up across the cut, rather than replacing accurate
+ones with generated chapters.
 
 ### Chapters in episode descriptions
 
@@ -198,16 +194,12 @@ Regenerate Chapters on an episode, or Re-render episodes with current
 segment actions on the feed. Existing episodes are not backfilled
 automatically.
 
-The old global ad chapters toggle and the per-category chapter checklist
-are retired; a category's segment action is now the only switch. The
-`adChaptersEnabled` and `adChapterCategories` fields still work on the
-settings and feed APIs, deprecated and translated against the segment
-action map: `adChaptersEnabled` reads true when any category resolves to
-Mark; a `true` entry in `adChapterCategories` sets that category to Mark
-(from Keep or Mark), a `false` entry sets it back to Keep, and setting
-`adChaptersEnabled` to `false` demotes every Mark to Keep (`true` is
-accepted and has no effect). New integrations should set
-`segmentCategoryActions` to `mark` directly.
+A category's segment action is the only chapter switch. The deprecated
+`adChaptersEnabled` and `adChapterCategories` API fields map onto it:
+`adChaptersEnabled` reads true when any category is Mark, and `false`
+sets every Mark to Keep (`true` has no effect); a `true` or `false` entry
+in `adChapterCategories` sets that category to Mark or Keep. New
+integrations should set `segmentCategoryActions` to `mark` directly.
 
 ### Deliberately stripped
 
@@ -289,11 +281,9 @@ large hosts, including Acast, Megaphone, Libsyn, Simplecast, and Omny,
 do not. Enabling the toggle only speeds up episodes on feeds whose host
 pings; everything else keeps its existing polling cadence.
 
-That list is a snapshot, not a fixed set. It came from measuring three
-days of Podping traffic on the Hive chain in July 2026, and hosts adopt
-Podping over time. Treat it as a guide to what to expect rather than a
-guarantee, and use the Podping line below to see what a specific feed
-actually receives.
+That list is a snapshot from three days of Podping traffic on the Hive
+chain in July 2026, and hosts adopt Podping over time. Use the Podping
+line below to see what a specific feed actually receives.
 
 With the listener on, the feed detail page and the feed lists show one
 line per feed. It reads `Podping: last ping at <time>` once a
@@ -324,8 +314,8 @@ This follows from what MinusPod is. It is a proxy that re-serves
 someone else's feed with ads removed, not the publisher of that
 content. The feeds MinusPod serves change only when the upstream feed
 changes, and players already discover that on the upstream publisher's
-own schedule (directly, or now via the upstream host's Podping
-notifications, per the listening side above). MinusPod announcing its
+own schedule (directly, or through the upstream host's own Podping
+notifications). MinusPod announcing its
 own re-feed as a new publish event would tell the ecosystem about a
 private, ad-stripped derivative of content you do not own, which is
 not what Podping is for.

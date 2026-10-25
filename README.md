@@ -14,83 +14,53 @@ A tour of the web UI. More videos, portrait cuts and the files themselves in [do
 
 https://github.com/user-attachments/assets/3c64b0eb-5b52-457a-bd94-17b7ecdeef2c
 
-## Contents
-
-- [Features](#features)
-- [How it works](#how-it-works)
-- [Requirements](#requirements)
-- [Quick start](#quick-start)
-- [Documentation](#documentation)
-- [Contributing](#contributing)
-- [Disclaimer](#disclaimer)
-- [License](#license)
-- [LLM disclosure](#llm-disclosure)
-
 ## Features
 
 **Ad detection**
-- First-pass LLM detection over sliding windows, plus an automatic verification pass on the re-cut audio, skippable per feed
-- Native System One support for detection and verification, with experimental review. [Details](docs/system-one.md)
-- Optional ad-reviewer stage that confirms, adjusts, or rejects each cut and can resurrect borderline detections
-- Audio-side signals: loudness analysis, DAI transition detection, a cross-fetch differential against a second download, pre/post-roll, and a VAD-gap detector for spans Whisper drops
-- Per-feed audio cue detection that snaps cuts to a show's jingle or stinger
-- [Publisher transcript comparison](docs/transcript-differential.md) adds evidence for speech omitted from an upstream transcript; unmatched gaps wait for review
-- Confidence scoring with a review queue filterable by hold reason and reviewer adjustment; rejected detections stay visible for auditing
-- Every marker carries a segment category (sponsor, cross-promo, self-promo, interaction, and opt-in intro/outro/recap), each resolving to remove, beep, keep, or mark (left in the audio and published as a skippable chapter when chapters are enabled), set globally or per feed and defaulting to remove until configured
-- Five per-feed [processing modes](docs/workflows.md) (standard, keep content only, cue-only, skip detection, pass-through), plus per-episode pass-through
+- An LLM finds ads in the transcript, a second pass verifies the cut, and an optional reviewer confirms or adjusts each boundary. [How it works](docs/how-it-works.md)
+- Audio evidence backs the transcript: loudness and DAI transitions, a cross-fetch diff against a second download, per-feed jingle cues, and the publisher's own transcript. [Audio cues](docs/audio-cues.md), [Transcript differential](docs/transcript-differential.md)
+- Each detection gets a category (sponsor, cross-promo, self-promo, intro/outro) and a per-feed action: remove, beep, keep, or mark as a skippable chapter
+- Low-confidence cuts wait in a review queue with a waveform editor; your corrections become cross-episode patterns so repeat sponsors are caught without another LLM call
+- Five per-feed [processing modes](docs/workflows.md), from full detection to pass-through
 
-**Transcription**
-- Local transcription with faster-whisper (Whisper) or NVIDIA Parakeet TDT 0.6B v3 on GPU or CPU, or a remote OpenAI-compatible API
-- Works with whisper.cpp, Groq, OpenAI Whisper, and OpenVINO (Intel GPU)
-
-**LLM providers**
-- Bring your own: Anthropic, OpenRouter, Ollama, System One, or any OpenAI-compatible endpoint, switchable at runtime
-- Per-stage tuning (model, temperature, tokens, reasoning) and editable prompts with per-pass overrides
-- Independent Provider A/B routing, plus [failover](docs/failover.md) to a separately configured LLM or transcriber during outages
-- Provider keys encrypted with AES-256-GCM behind a master passphrase
-- Rate-limit hold on provider 429s and an offline queue for down self-hosted endpoints. [Details](docs/configuration.md)
+**Transcription and LLMs**
+- Transcribe locally with faster-whisper or NVIDIA Parakeet on GPU or CPU, or remotely through whisper.cpp, Groq, OpenAI, or OpenVINO. [Transcription](docs/transcription.md)
+- Anthropic, OpenRouter, Ollama, System One, or any OpenAI-compatible endpoint, switchable at runtime with per-stage models and editable prompts. [LLM providers](docs/llm-providers.md)
+- A/B routing between two providers, [failover](docs/failover.md) to a standby, rate-limit holds, and an offline queue for self-hosted endpoints
 
 **Patterns and sponsors**
-- Cross-episode pattern learning from your corrections, scoped podcast to network to global
-- Sponsor list with aliases and normalizations
-- Opt-in community pattern sync, with one-PR submission back, and pattern import and export
-- Experimental [Pattern Cleanup](docs/pattern-cleanup.md): scheduled or manual suggestions to trim, split, rename, retire, or flag unreliable learned patterns, with approval and undo
+- Learned patterns scoped per podcast, network, or globally, with a sponsor list and aliases
+- Opt-in [community pattern](patterns/README.md) sync with one-PR contribution back
+- Scheduled [Pattern Cleanup](docs/pattern-cleanup.md) suggests trims, splits, and retirements, with approval and undo
 
 **Publishing**
-- Re-cut RSS feeds served per podcast, with versioned audio files
-- Replacement sound at each cut, loudness leveling, and lossless MP3 stream copy for compatible cuts. [Details](docs/configuration.md)
-- Podcasting 2.0: regenerated transcripts and chapters, AI-content disclosure, value-for-value tags passed through
-- Optional Podping listener refreshes a feed within seconds of the host announcing a new episode, on top of scheduled polling
-- OPML import/export, including selected subscriptions with ad-free URLs, and an optional cover-art badge that marks the re-feed
-- Local feeds: build a feed from your own audio files instead of an upstream RSS feed, with single or bulk episode upload, a dry-run import preview, and the same ad-removal pipeline as a subscribed feed
-- Podcast search from Add Feed, backed by Podcast Index. [Details](docs/feeds-and-usage.md)
-- Optional Recents feed combines processed episodes published on or after its creation date across subscribed and local feeds, including feeds added later
+- Re-cut RSS feeds per podcast with versioned audio, a replacement sound at each cut, loudness leveling, and lossless MP3 stream copy where the cut allows
+- [Podcasting 2.0](docs/podcasting-2.0.md) tags regenerated: transcripts, chapters, AI-content disclosure, value-for-value passed through
+- Podping listener refreshes a feed seconds after the host announces an episode
+- OPML import and export, podcast search from Add feed, an optional cover-art badge, a combined Recents feed, and [local feeds](docs/local-feeds.md) built from your own audio files
 
-**Interface and ops**
-- Web UI with a waveform ad editor, plus feed, episode, queue, search, pattern, sponsor, history, stats, and settings views. Installs as an app on iOS, Android, macOS and Windows. [Details](docs/web-interface.md#install-as-an-app)
-- Stats and cost analytics: ads cut, time saved, an LLM cost ledger (per-episode, per-run, and per-phase spend, with a drill-down to calls), plus System One, reviewer, and Pattern Cleanup stats. [Details](docs/web-interface.md)
-- Retention controls (global or per feed, including a never-delete archive mode), scheduled and downloadable backups (encrypted when a master passphrase is set), email and webhook notifications, and a full REST API with OpenAPI
-- Shared-password UI and API auth, with optional feed keys or per-feed subscriber keys for RSS; runs behind a reverse proxy or Cloudflare tunnel
-- Runtime configuration export and restore with a preview before apply. [Details](docs/configuration-import-export.md)
+**Web UI and administration**
+- Feed, episode, queue, search, pattern, sponsor, history, stats, and settings views. Installs as an app on iOS, Android, macOS, and Windows. [Web interface](docs/web-interface.md)
+- Stats and an LLM cost ledger down to the individual call
+- Retention per feed, scheduled encrypted backups, email and webhook notifications, and a REST API with OpenAPI. [API and webhooks](docs/api-and-webhooks.md)
+- Password auth for the UI and API, feed keys or per-feed subscriber keys for RSS, provider keys encrypted at rest. [Security](docs/security-and-storage.md)
 
 ## How it works
 
-The transcriber (faster-whisper, Parakeet, or a remote API) transcribes the episode, an LLM finds the ad segments in the transcript, FFmpeg cuts them, and Flask serves the modified feed and audio. Full pipeline detail (verification pass, sliding windows, pattern learning, audio analysis) is in [docs/how-it-works.md](docs/how-it-works.md).
-
-The same pipeline, one episode end to end.
+The transcriber turns the episode into text, an LLM marks the ad segments, FFmpeg cuts them, and Flask serves the modified feed and audio. One episode, end to end:
 
 https://github.com/user-attachments/assets/d2f2ad13-71b9-4712-a872-de3c8e867a2a
 
+The full pipeline, including the verification pass, sliding windows, pattern learning, and audio analysis, is in [docs/how-it-works.md](docs/how-it-works.md).
+
 ## Requirements
 
-- Docker on any amd64 or arm64 host; an NVIDIA GPU is recommended for local transcription but not required
-- Anthropic API key, [OpenRouter](https://openrouter.ai) API key, [Ollama](https://ollama.com) for local inference, a System One credential, **or** any OpenAI-compatible endpoint
+- Docker on an amd64 or arm64 host. An NVIDIA GPU speeds up local transcription but is not required.
+- An LLM: an Anthropic or [OpenRouter](https://openrouter.ai) API key, [Ollama](https://ollama.com) for local inference, a System One credential, or any OpenAI-compatible endpoint.
 
-Whisper and Parakeet sizing, model storage, and RAM/VRAM measurement are in [Installation](docs/installation.md#memory-requirements).
+Whisper and Parakeet sizing and RAM/VRAM figures are in [Installation](docs/installation.md#memory-requirements).
 
 ## Quick start
-
-Before processing an episode, set `BASE_URL`, configure provider access (`ANTHROPIC_API_KEY`, `OPENROUTER_API_KEY`, or `OPENAI_BASE_URL` for a local endpoint), and choose a model. `OPENAI_MODEL` seeds the model settings, or you can choose each model under Settings > AI & Processing > AI Models. Compose starts without `MINUSPOD_MASTER_PASSPHRASE`. Set it to encrypt provider keys saved through the UI and API-downloaded database backups. Env vars seed unset settings; stored values win afterward.
 
 ```bash
 # 1. Create environment file
@@ -109,56 +79,32 @@ docker compose up -d                              # NVIDIA GPU image
 docker compose -f docker-compose.cpu.yml up -d    # CPU image, no GPU needed
 ```
 
-- `docker-compose.cpu.yml` is the CPU image: multi-arch, runs natively on amd64 and arm64, transcribes locally or through a remote API.
-- `docker-compose.yml` is the GPU image: amd64 with the NVIDIA container runtime. Recommended, not required.
+Open `http://localhost:8000/ui/`, set an application password, and add a feed. The GPU image is amd64 with the NVIDIA container runtime; the CPU image runs natively on amd64 and arm64. Both read the same `.env` and `data/` directory.
 
-Both read the same `.env` and `data/` directory. See [docs/installation.md](docs/installation.md) for the rest.
-
-Access the web UI at `http://localhost:8000/ui/` to add and manage feeds.
-
-Compose requires an application password before it serves the normal API. Set the first password from the same host. For remote setup, put a temporary `MINUSPOD_SETUP_TOKEN` in `.env`, send it in the `X-MinusPod-Setup-Token` header when setting the first password, then remove it. Compose also prevents unauthenticated feed requests from starting paid processing. Enable Authenticated Feeds, or set `MINUSPOD_ALLOW_PUBLIC_PROCESSING=true` if public just-in-time processing is intentional.
-
-`MINUSPOD_MASTER_PASSPHRASE` is strongly recommended for production. Without it, provider API keys go into the database as plaintext. Setting it later migrates existing plaintext rows to `enc:v1:` encrypted storage on the next boot, with a mandatory pre-migration SQLite snapshot in `data/backups/`. Restoring an encrypted API download requires the same passphrase that created it, so pick a long random value and keep it somewhere separate from the database.
-
-**Stable or edge?** `:latest` (GPU) and `:cpu` follow every release, and several can ship in one day. For a slower, vetted track, set `MINUSPOD_VERSION=stable` (GPU compose) or `MINUSPOD_VERSION=stable-cpu` (CPU compose) in your `.env` to pin `ttlequals0/minuspod:stable` / `:stable-cpu` instead. Stable tags only move to releases that have soaked in production; see the [releases page](https://github.com/ttlequals0/MinusPod/releases) for curated notes on each.
+`MINUSPOD_MASTER_PASSPHRASE` encrypts provider keys at rest, so set it before you store any. Remote first-time setup, public processing, and the slower `stable` release channel are covered in [Installation](docs/installation.md#quick-start).
 
 ## Documentation
 
 | Topic | |
 |---|---|
-| [Installation](docs/installation.md) | Requirements, quick start, CPU image, Intel hybrid CPU tuning |
-| [Environment Variables](docs/environment-variables.md) | Every env var, grouped by how often you touch it |
-| [LLM Providers](docs/llm-providers.md) | Claude Code wrapper, Ollama, OpenRouter, recommended models, pricing |
-| [Transcription](docs/transcription.md) | faster-whisper and Parakeet backends, choosing between them, GPU compute types, whisper.cpp, Groq, OpenAI Whisper, timeouts |
-| [Finding Feeds & Usage](docs/feeds-and-usage.md) | Podcast search, finding RSS feeds, Audiobookshelf |
-| [Web Interface](docs/web-interface.md) | Management UI, ad editor workflow, screenshots |
-| [How It Works & Detection Pipeline](docs/how-it-works.md) | Verification pass, sliding windows, queue, validation, pattern learning, audio analysis |
-| [Episode Processing Workflows](docs/workflows.md) | Visual map of the pipeline, the five processing modes, re-runs, and failure paths |
-| [Configuration & Experiments](docs/configuration.md) | Settings, per-stage LLM tuning, VAD gap detector, ad reviewer, reprocessing, community patterns, segment categories, episode filters, queue priority, offline queue, rate-limit hold, Whisper pool, scheduled backups |
-| [Security, Storage & Custom Assets](docs/security-and-storage.md) | Remote access, login lockout, authenticated feeds and subscriber keys, backups and restore, custom markers |
-| [Audio Cue Detection](docs/audio-cues.md) | Per-feed cue templates, the find-audio-cues suggestion scan, settings, and tuning |
-| [Community Patterns](patterns/README.md) | Crowdsourced ad pattern set: opt-in manifest sync, file format, and how to contribute |
-| [Pattern Cleanup](docs/pattern-cleanup.md) | Scheduled or manual review of learned patterns: trims, splits, renames, retirements, approve, reject, undo |
-| [Upstream Transcript Differential](docs/transcript-differential.md) | Diffing the Whisper transcript against the publisher's ad-free transcript, how gaps corroborate or hold |
-| [System One](docs/system-one.md) | Native TypeSafe and compatible providers, supported phases, profiles, migration, statistics |
-| [Failover](docs/failover.md) | Standby LLM provider and transcriber, triggers, health probes, recovery, manual control |
-| [Download History](docs/download-history.md) | The History Downloads tab: recorded fields, filters, optional geo lookup, retention, privacy |
-| [Local Feeds](docs/local-feeds.md) | Build a feed from your own audio files: creation, uploads, bulk archive import, naming scheme, JSON sidecar schema |
-| [Configuration Import / Export](docs/configuration-import-export.md) | Export and restore global settings and selected feed configuration |
-| [Intel GPU Transcription (OpenVINO)](docs/transcription-openvino.md) | Offload Whisper to an Intel GPU via the OpenVINO Model Server |
-| [API & Webhooks](docs/api-and-webhooks.md) | REST endpoints, webhook events, payload templates, signing, email notifications |
-| [Podcasting 2.0](docs/podcasting-2.0.md) | What MinusPod emits, regenerates, and deliberately strips from the Podcast Namespace, and why |
-| [Deployment Runbook](docs/DEPLOYMENT.md) | Operational runbook |
-| [Releasing & Channels](docs/releasing.md) | Stable vs edge channels, how releases are tagged and promoted |
-| [Container Security Updates](docs/container-security.md) | Pinned security patches for media libraries and base packages in the GPU and CPU images |
-| [LLM Benchmark Report](benchmarks/llm/results/report.md) | Per-model F1, JSON compliance, latency, and cost across the benchmarked models |
-| [Glossary](docs/glossary.md) | Every term the app uses, defined and linked to the docs that cover it |
+| [Installation](docs/installation.md) | Requirements, sizing, quick start, CPU image |
+| [Environment variables](docs/environment-variables.md) | Every env var |
+| [LLM providers](docs/llm-providers.md) | Providers, recommended models, pricing |
+| [Transcription](docs/transcription.md) | faster-whisper, Parakeet, remote APIs, [OpenVINO](docs/transcription-openvino.md) |
+| [Web interface](docs/web-interface.md) | Management UI and the ad editor |
+| [How it works](docs/how-it-works.md) | The detection pipeline in depth |
+| [Workflows](docs/workflows.md) | Processing modes, re-runs, failure paths |
+| [Configuration](docs/configuration.md) | Every setting and experiment |
+| [Security and storage](docs/security-and-storage.md) | Remote access, authenticated feeds, backups |
+| [API and webhooks](docs/api-and-webhooks.md) | REST endpoints, webhook events, notifications |
+| [Podcasting 2.0](docs/podcasting-2.0.md) | What is emitted, regenerated, and stripped |
+| [Glossary](docs/glossary.md) | Every term the app uses |
 
-Or browse the [full docs index](docs/README.md).
+The [full docs index](docs/README.md) covers the rest: audio cues, community patterns, Pattern Cleanup, System One, failover, local feeds, download history, configuration import and export, deployment, releasing, and the [LLM benchmark report](benchmarks/llm/results/report.md).
 
 ## Contributing
 
-Bug reports, feature requests, enhancements, and general feedback are all welcome. Open an issue using one of the templates, or send a pull request if you already have a fix in hand. For larger changes, open an issue first so we can talk through the approach before you write code. Two areas have their own contribution flows: ad patterns ([Community Patterns](patterns/README.md)) and benchmark results ([Benchmark Contributing](benchmarks/llm/CONTRIBUTING.md)). Fork-derived features and community bug reports are credited in the CHANGELOG.md entry that ships them; merged commits are credited automatically on the repo's contributors graph.
+Bug reports, feature requests, and pull requests are welcome. Open an issue first for larger changes so we can agree on the approach. Ad patterns go through [Community Patterns](patterns/README.md) and benchmark results through [Benchmark Contributing](benchmarks/llm/CONTRIBUTING.md). Fork-derived features and community bug reports are credited in the CHANGELOG entry that ships them.
 
 ## Disclaimer
 

@@ -20,7 +20,7 @@ Authenticated write requests (`POST`, `PUT`, `PATCH`, `DELETE`) require an `X-CS
 Key endpoints:
 - `GET /api/v1/health` - Readiness check (database, storage); returns 503 if either is down
 - `GET /api/v1/health/live` - Liveness probe (process up); always 200, safe for frequent polling
-- `GET /api/v1/feeds` - List feeds. With no `page`/`limit`, returns every feed (unchanged default). Passing `page`/`limit` paginates the list; `includeLatestEpisodes=true` (with optional `episodesPerFeed`, default 3, max 20) adds each feed's newest episodes without a separate request per feed
+- `GET /api/v1/feeds` - List feeds. With no `page`/`limit`, returns every feed. Passing `page`/`limit` paginates the list; `includeLatestEpisodes=true` (with optional `episodesPerFeed`, default 3, max 20) adds each feed's newest episodes without a separate request per feed
 - `POST /api/v1/feeds` - Add a new feed (supports `maxEpisodes` for RSS cap, `onlyExposeProcessedEpisodes` to hide unprocessed episodes from the served feed, `retentionDaysOverride` for a per-feed retention window or archive, `keepOriginalAudioOverride` for the pre-cut original audio)
 - `PATCH /api/v1/feeds/{slug}` - Update feed settings, including title and description rules and duration limits. The OpenAPI spec lists all supported fields.
 - `POST /api/v1/feeds/import-opml` - Import feeds from OPML file
@@ -30,7 +30,7 @@ Key endpoints:
 - `POST /api/v1/feeds/{slug}/refresh` - Refresh one subscribed feed. Success includes a structured `outcome` with status, new and queued episode counts, plus refresh timestamps; source fetch or parse failures return 502.
 - `POST /api/v1/feeds/refresh` - Refresh every subscribed feed. Returns per-feed outcomes and totals; HTTP 207 means the pass completed with at least one feed failure.
 - `GET/HEAD /api/v1/feeds/{slug}/artwork` - Serve cached feed artwork without admin authentication. Traversal-like or over-200-character legacy slugs are rejected before this public exemption.
-- `GET /api/v1/podcast-search?q=query` - Search podcasts via PodcastIndex.org
+- `GET /api/v1/podcast-search?q=query` - Search podcasts through the configured directory (Apple iTunes by default, or Podcast Index)
 - `GET /api/v1/feeds/{slug}/episodes` - List episodes with sorting, status, pagination, and literal case-insensitive title `search`. Search applies across the full feed before pagination. `jobState` reports live queue state.
 - `GET /api/v1/feeds/{slug}/episodes?selection=true` - Return matching episode IDs and action eligibility without loading full episode rows, capped at 501 rows (`truncated` is `true` past that cap). The `selection` array contains `id`, `status`, `jobState`, `titleSkipped`, `descriptionSkipped`, and `durationSkipped`; `episodes` is empty. Pagination is ignored for this projection; bulk actions still accept at most 500 episode IDs.
 - `POST /api/v1/feeds/{slug}/episodes/bulk` - Bulk episode actions (process, reprocess, reprocess_full, reprocess_llm, delete)
@@ -47,10 +47,10 @@ Key endpoints:
 - `POST /api/v1/patterns/corrections/{id}/assign` - Assign one unresolved correction after `confirm: true`
 - `DELETE /api/v1/patterns/corrections/{id}` - Delete one unresolved correction without changing patterns, history, media, or feeds
 - `POST /api/v1/patterns/corrections/unresolved/bulk` - Assign or delete 1 to 500 unique correction IDs in one transaction. Both actions need `confirm: true`; assignment also needs one feed proven for every row. One stale or invalid row rejects the batch.
-- `GET/POST /api/v1/feeds/{slug}/cue-templates` - List a feed's audio-cue templates, or mark a new one from a window of an episode's original audio (`episodeId`, `startS`, `endS`, `cueType`; 0.2 to 10 seconds, up to 60 for show intro/outro)
-- `PATCH/DELETE /api/v1/cue-templates/{id}` - Enable/disable, change scope (`podcast` or `network`), set a per-template match threshold (`scoreThreshold`, 0.30-0.99, null clears), move the capture window (`sourceOffsetS`/`durationS`; re-extracts the audio blobs from the retained original, 409 when it has aged out), or delete a template
+- `GET/POST /api/v1/feeds/{slug}/cue-templates` - List a feed's audio-cue templates, or mark a new one from a window of an episode's original audio (`episodeId`, `startS`, `endS`, `cueType`). See [Audio Cue Detection](audio-cues.md#marking-a-cue)
+- `PATCH/DELETE /api/v1/cue-templates/{id}` - Enable/disable, change scope (`podcast` or `network`), set `scoreThreshold`, move the capture window (`sourceOffsetS`/`durationS`; 409 when the original has aged out), or delete a template. See [Managing cues](audio-cues.md#managing-cues)
 - `GET /api/v1/cue-templates/{id}/export` - Download a template as a portable zip (lossless WAV plus JSON manifest)
-- `POST /api/v1/feeds/{slug}/cue-templates/import` - Import a template zip into a feed (multipart `file`); the MFCC is recomputed from the WAV, sample-rate or channel mismatches are rejected. The manifest carries a `schemaVersion` field that is reserved for a future breaking change; this release only checks that it parses and does not gate or migrate on it.
+- `POST /api/v1/feeds/{slug}/cue-templates/import` - Import a template zip into a feed (multipart `file`); the MFCC is recomputed from the WAV, sample-rate or channel mismatches are rejected. The manifest's `schemaVersion` field is reserved for a future format change and is only checked for parsing.
 - `GET /api/v1/feeds/{slug}/episodes/{id}/cue-loud-spots` - Template-free energy pass over an episode's original audio; returns candidate "loud spots" the capture UI marks as jump points
 - `GET /api/v1/feeds/{slug}/episodes/{id}/cue-candidates` - Find-audio-cues scan: recurring in-episode stings (speech-like ones dropped) plus intros and outros shared across the feed (powers the Find audio cues button)
 - `POST /api/v1/feeds/{slug}/episodes/{id}/cue-candidates/dismiss` - Dismiss a candidate sound feed-wide (`start_s`, `end_s`, optional `label`; spans over 120 seconds are rejected). Stores the span's fingerprint from the retained original; future candidate scans suppress matching sounds
@@ -58,22 +58,22 @@ Key endpoints:
 - `DELETE /api/v1/cue-candidate-dismissals/{id}` - Undo a dismissal; the sound becomes suggestible again
 - `POST /api/v1/feeds/{slug}/episodes/{id}/cue-scan` - Diagnostic: run every enabled template against an episode and return per-template peak scores and match times (optional `scoreThreshold` override)
 - `POST /api/v1/feeds/{slug}/episodes/{id}/cue-template-preview` - Run a single template (`templateId`) against an episode
-- `POST /api/v1/feeds/{slug}/cue-cross-episode-scan` - Full-body cross-episode scan for recurring segments (`episodeIds`, 2-5; the first sets the coordinate frame). Poll with the same body; `rescan: true` forces a fresh run
-- `POST /api/v1/feeds/{slug}/cue-templates/{id}/optimize-window` - Sweep start/end trims (up to 0.5s each way, 0.1s steps) for the window with the best mean match score across the source episode and up to 4 siblings; 409 when the source original has aged out
+- `POST /api/v1/feeds/{slug}/cue-cross-episode-scan` - Full-body cross-episode scan for recurring segments (`episodeIds`, 2-5). See [Finding cues across episodes](audio-cues.md#finding-cues-across-episodes)
+- `POST /api/v1/feeds/{slug}/cue-templates/{id}/optimize-window` - Find the capture window with the best mean match score. See [Optimizing the cue window](audio-cues.md#optimizing-the-cue-window)
 - `GET /api/v1/detections` - List ad detections across all feeds with status filter (`needs_review`, `pending`, `rejected`, `accepted`, `all`; default `needs_review`), optional podcast slug (`feed`), free-text search (`q`), sort (`date`, `confidence`, `podcast`), order (`asc`, `desc`), and pagination (`page`, `limit` 1-100, default 20). Powers the Patterns > Ad Review tab.
 - `GET /api/v1/patterns` - List ad patterns (filter by scope)
 - `GET /api/v1/patterns/stats` - Pattern database statistics
-- `GET /api/v1/patterns/cleanup` - Pattern cleanup settings plus live state: `inProgress`, `lastRun`, `lastError`, `lastSummary`, pending suggestion counts by kind (Experiments). See [Pattern Cleanup](pattern-cleanup.md#api)
+- `GET /api/v1/patterns/cleanup` - Pattern cleanup settings plus live state and pending suggestion counts by kind (Experiments). See [Pattern Cleanup](pattern-cleanup.md#api)
 - `PUT /api/v1/settings/pattern-cleanup` - Update pattern cleanup settings (`enabled`, `cron`, `batchSize`, `unusedDays`, `provider`, `model`)
-- `POST /api/v1/patterns/cleanup/run` - Start a cleanup batch; `{"force": true}` resets all active learned patterns and replaces their pending suggestions. Later normal batches continue the remaining work. Returns 202 with `{"runId"}`, 400 for invalid input, or 409 if already running; rate limited to 6/hour
+- `POST /api/v1/patterns/cleanup/run` - Start a cleanup batch; `{"force": true}` forces a recheck of all active learned patterns. Returns 202 with `{"runId"}`, 400 for invalid input, or 409 if already running; rate limited to 6/hour
 - `GET /api/v1/patterns/cleanup/runs` - Recent pattern cleanup runs, newest first
-- `GET /api/v1/patterns/cleanup/suggestions` - List suggestions by `status` and `kind`; `limit` and `before_id` paginate older decisions without skipping rows after an approval or rejection; the cursor overrides the older `offset` parameter. Includes original text and optional retained transcript context; trim proposals can also correct the sponsor
+- `GET /api/v1/patterns/cleanup/suggestions` - List suggestions by `status` and `kind`, paginated with `limit` and `before_id`
 - `POST /api/v1/patterns/cleanup/suggestions/{id}/approve` - Approve one suggestion, applying it to the pattern in place
 - `POST /api/v1/patterns/cleanup/suggestions/{id}/reject` - Reject one suggestion
-- `POST /api/v1/patterns/cleanup/suggestions/{id}/undo` - Undo an approval without overwriting later manual edits; unsafe or out-of-order undo returns 409
+- `POST /api/v1/patterns/cleanup/suggestions/{id}/undo` - Undo an approval; 409 on a conflicting later edit
 - `POST /api/v1/patterns/cleanup/suggestions/bulk` - Approve or reject several suggestion ids at once
 - `GET /api/v1/sponsors` - List/create/update/delete sponsors (full CRUD)
-- `GET /api/v1/search?q=query` - Full-text search across all content, grouped into shows, episodes, transcripts, patterns and sponsors. Optional `groups` (comma-separated subset of those five, default all) limits which are computed; an unrequested group is returned empty rather than omitted. Names are case-sensitive, empty tokens from a stray comma are ignored, and duplicates are tolerated. A query shorter than two characters returns every group empty. The old `type` parameter was removed; a request that still sends it gets a 400
+- `GET /api/v1/search?q=query` - Full-text search across all content, grouped into shows, episodes, transcripts, patterns and sponsors. Optional `groups` (comma-separated subset of those five, default all) limits which are computed; an unrequested group is returned empty rather than omitted. Names are case-sensitive, empty tokens from a stray comma are ignored, and duplicates are tolerated. A query shorter than two characters returns every group empty. A request that sends the removed `type` parameter gets a 400
 - `GET /api/v1/episodes/processing` - List episodes currently processing
 - `GET /api/v1/history` - Processing history with pagination and export
 - `GET /api/v1/history/downloads` - Episode download history with filters, sorting and pagination; see [Download History](download-history.md)
@@ -619,11 +619,11 @@ When no custom template is configured, MinusPod sends these JSON payloads.
 
 ## Email notifications
 
-Point MinusPod at an SMTP server and it emails you for the events you pick. Community webhook-to-email sidecars like minuspod-webhook-mailer are no longer needed. One configuration: SMTP host, port, security (None, STARTTLS, or SSL/TLS), optional username and password, a from address, and a comma-separated recipient list. The password is stored encrypted like provider API keys, so saving one needs `MINUSPOD_MASTER_PASSPHRASE` set.
+Point MinusPod at an SMTP server and it emails you for the events you pick. One configuration: SMTP host, port, security (None, STARTTLS, or SSL/TLS), optional username and password, a from address, and a comma-separated recipient list. The password is stored encrypted like provider API keys, so saving one needs `MINUSPOD_MASTER_PASSPHRASE` set.
 
 Emails are HTML with the MinusPod logo embedded inline (no external image fetch) and a plain-text fallback part for text-only clients. Each event renders a subject like `[MinusPod] Episode Failed: My Show - Episode 42` with a short table of facts and, for alert events, the action to take. Alert events (`Auth Failure`, `Limit Exceeded`, `Rate Limit Structural`, `Queue Held`, `Queue Resumed`, `Service Offline`, `Service Reachable`) keep their 5-minute dedup window, shared with webhooks, so a burst of failures produces one email. `Failover Triggered` and `Failover Cancelled` are sent once per state change with no dedup window. The webhook Test button never emails; the email form has its own **Send test email** button that delivers a real message through the saved settings.
 
-By default the failure and alert events, including the four new hold and offline events, are checked and `Episode Processed` is not, so a working setup stays quiet. SMTP sending runs with a 10 second timeout in a background thread; a down mail server never blocks or fails episode processing. An `Episode Processed` email adds an "Ads held for review" and/or "Detections not cut" row when the run produced either, so a quiet run's table stays short. A send failure logs the full traceback (issue #571) rather than just the exception message, for easier SMTP troubleshooting from container logs.
+By default the failure and alert events, including `Queue Held`, `Queue Resumed`, `Service Offline` and `Service Reachable`, are checked and `Episode Processed` is not, so a working setup stays quiet. SMTP sending runs with a 10 second timeout in a background thread; a down mail server never blocks or fails episode processing. An `Episode Processed` email adds an "Ads held for review" and/or "Detections not cut" row when the run produced either, so a quiet run's table stays short. A send failure logs the full traceback, for SMTP troubleshooting from container logs.
 
 ### Example: Pushover
 

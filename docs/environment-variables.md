@@ -14,6 +14,8 @@
 
 Grouped by how often you'll touch them. **Standard** is what a typical deployment sets; **Security** is the hardening surface; **Advanced** are tuning knobs for edge cases; **Optional** are opt-in features.
 
+`WHISPER_LANGUAGE`, `WHISPER_COMPUTE_TYPE`, and the `VAD_GAP_*` variables seed fresh installs only; runtime values live in Settings > Transcription (VAD at `GET/PUT /api/v1/settings`).
+
 ## Standard
 
 | Variable | Default | Description |
@@ -38,12 +40,12 @@ Grouped by how often you'll touch them. **Standard** is what a typical deploymen
 | `WHISPER_API_BASE_URL` | _(none)_ | Base URL for OpenAI-compatible whisper API |
 | `WHISPER_API_KEY` | _(none)_ | API key for whisper API |
 | `WHISPER_API_MODEL` | `whisper-1` | Model name sent to whisper API |
-| `WHISPER_LANGUAGE` | `en` | ISO 639-1 language code, or `auto`. Seeds fresh installs only; runtime value is in Settings > Transcription. |
-| `WHISPER_COMPUTE_TYPE` | `auto` | faster-whisper backend only. `auto`, `float16`, `int8_float16`, `int8`, or `float32`. `auto` picks `float16` on CUDA and `int8` on CPU. Seeds fresh installs only; runtime value is in Settings > Transcription. See [GPU Compute Type](transcription.md#gpu-compute-type) for per-GPU recommendations. |
-| `VAD_GAP_DETECTION_ENABLED` | `true` | `true` or `false`. Toggles the VAD gap detector, which cuts audio regions Whisper's VAD dropped (sped-up disclaimers, distorted ad tails) that the transcript-based detectors never see. Seeds the DB row on fresh installs; runtime value is at `GET/PUT /api/v1/settings`. Advanced tuning, not surfaced in the UI. |
-| `VAD_GAP_START_MIN_SECONDS` | `3.0` | Minimum pre-transcript gap (seconds) at episode start that the VAD detector will cut. Anything shorter is left alone. Seeds fresh installs only. |
-| `VAD_GAP_MID_MIN_SECONDS` | `8.0` | Minimum mid-episode untranscribed gap. Standalone mid-gaps still require BOTH signoff-before AND resume-after context to emit; gaps adjacent to a detected ad extend that ad in place regardless of this threshold. Seeds fresh installs only. |
-| `VAD_GAP_TAIL_MIN_SECONDS` | `3.0` | Minimum post-transcript gap at episode end that the VAD detector will cut when no postroll marker already covers it. Seeds fresh installs only. |
+| `WHISPER_LANGUAGE` | `en` | ISO 639-1 language code, or `auto`. |
+| `WHISPER_COMPUTE_TYPE` | `auto` | faster-whisper backend only. `auto`, `float16`, `int8_float16`, `int8`, or `float32`. `auto` picks `float16` on CUDA and `int8` on CPU. See [GPU Compute Type](transcription.md#gpu-compute-type) for per-GPU recommendations. |
+| `VAD_GAP_DETECTION_ENABLED` | `true` | `true` or `false`. Toggles the VAD gap detector, which cuts audio regions Whisper's VAD dropped (sped-up disclaimers, distorted ad tails) that the transcript-based detectors never see. Advanced tuning, not surfaced in the UI. |
+| `VAD_GAP_START_MIN_SECONDS` | `3.0` | Minimum pre-transcript gap (seconds) at episode start that the VAD detector will cut. Anything shorter is left alone. |
+| `VAD_GAP_MID_MIN_SECONDS` | `8.0` | Minimum mid-episode untranscribed gap. Standalone mid-gaps still require BOTH signoff-before AND resume-after context to emit; gaps adjacent to a detected ad extend that ad in place regardless of this threshold. |
+| `VAD_GAP_TAIL_MIN_SECONDS` | `3.0` | Minimum post-transcript gap at episode end that the VAD detector will cut when no postroll marker already covers it. |
 | `OLLAMA_API_KEY` | _(none)_ | Ollama Cloud key. Leave unset for local. |
 | `PODCAST_INDEX_API_KEY` | _(none)_ | PodcastIndex.org API key for podcast search |
 | `PODCAST_INDEX_API_SECRET` | _(none)_ | PodcastIndex.org API secret |
@@ -63,27 +65,29 @@ Grouped by how often you'll touch them. **Standard** is what a typical deploymen
 | `SESSION_COOKIE_SECURE` | `auto` in Compose | Follow `BASE_URL`. Set `true` or `false` only when proxy termination makes that result incorrect. An unset value uses the same automatic behavior. |
 | `SESSION_COOKIE_SAMESITE` | `Strict` | Override to `Lax` only if a specific integration breaks. |
 | `MINUSPOD_ENABLE_HSTS` | `false` | Set to `true` once the deployment is HTTPS-only. HSTS traps browsers so don't flip this on a dual-protocol setup. |
-| `MINUSPOD_TRUSTED_PROXY_COUNT` | `0` | Reverse-proxy hops to trust when reading `X-Forwarded-For`. `1` behind Cloudflare / cloudflared / nginx / Traefik, higher for a multi-proxy chain. **Leaving this at `0` behind a proxy breaks login lockout** (the proxy IP is private/loopback, which the lockout excludes) and per-IP rate limits (they key on the proxy instead of the client); audit logs + auth-failure webhooks also carry the wrong IP. Startup logs a WARN when unset. |
-| `SSRF_IP_PINNING` | `true` | Pin the resolved IP for outbound fetches. Each request and redirect hop resolves the hostname once, checks every address against the SSRF rules, and connects to those addresses in order, so a DNS record that flips between the check and the connect cannot reach an internal target. If a connect fails, the next validated address is tried, each at most once. The URL, `Host` header, SNI, and certificate verification stay on the original hostname. Set `false` (or `0`, `no`, `off`) to revert to checking the hostname and letting the HTTP client resolve it again; use that only to isolate a fetch failure you suspect the pin causes. Provider SDK traffic is unaffected, since those SDKs do their own HTTP. |
+| `MINUSPOD_TRUSTED_PROXY_COUNT` | `0` | Reverse-proxy hops to trust when reading `X-Forwarded-For`; `1` behind Cloudflare, cloudflared, nginx, or Traefik. Leaving it at `0` behind a proxy breaks login lockout and per-IP rate limits. See [Client IP for login lockout](security-and-storage.md#client-ip-for-login-lockout). |
+| `SSRF_IP_PINNING` | `true` | Pin the resolved IP for outbound fetches so a DNS record that flips between check and connect cannot reach an internal target. Set `false` (or `0`, `no`, `off`) only to isolate a fetch failure you suspect the pin causes. Provider SDK traffic is unaffected. See [Outbound request safety](security-and-storage.md#outbound-request-safety). |
 | `MINUSPOD_ALLOW_PRIVATE_FEED_HOSTS` | `false` | Allow RSS feed sources on private / loopback / LAN hosts. Off by default: feed URLs are untrusted and validated with the strict SSRF tier (DNS-resolved, private/metadata blocked) so a stored URL can't be rebound to an internal address on refresh. Set `true` only if you serve a feed from a private address (e.g. a LAN Audiobookshelf). |
 
 ## Advanced
+
+Env-backed rows seed the default of the stored setting named in the row. The stored value is editable at runtime in Settings and wins over the env var.
 
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `PROCESSING_SOFT_TIMEOUT` | `3600` | Seconds before a stuck job is auto-cleared. Seeds fresh installs; runtime value lives in Settings > Transcription. |
 | `PROCESSING_HARD_TIMEOUT` | `7200` | Seconds before the processing lock is force-released. Must exceed the soft timeout. |
-| `AD_DETECTION_MAX_FAILED_WINDOW_RATIO` | `0.25` | Fraction of a detection or verification pass's windows that may fail (LLM error, timeout) before the whole pass is treated as failed, instead of accepting a result with those windows unexamined. A failed first pass fails the episode, which the retry ladder then picks up. A failed verification pass leaves the first-pass result and its markers alone and records the second scan as incomplete rather than clean; the episode is not reprocessed on its own. `1.0` restores the legacy behavior of accepting the pass unless every window failed. This variable seeds the `ad_detection_max_failed_window_ratio` setting, which is read on every pass, so editing the stored value retunes the threshold without a restart. |
-| `REVIEWER_CALIBRATION_ON_CHANGE` | `true` | Run the reviewer calibration self-test in a background thread when the reviewer model setting changes. Each run costs 8 LLM calls. Set to `false` to switch models without paying for the check. Env-backed: seeds the default; the stored `reviewer_calibration_on_change` setting is editable at runtime. |
-| `LOW_AD_YIELD_ACTION` | `nothing` | Action taken automatically when a pipeline-initiated run removes far less ad time than the feed's recent average: `nothing`, `redetect` (rerun detection from the stored transcript), `reprocess`, or `full`. Fires at most once per episode (a failed rerun still counts) and never for a manual reprocess. Env-backed: seeds the default; the stored `low_ad_yield_action` setting is editable at runtime in Settings, and each feed can override it. |
-| `EPISODE_LOG_RETENTION_DAYS` | `30` | Days to keep per-run pipeline logs, clamped to `[0, 365]`. `0` turns run log storage off and lets the cleanup sweep delete what is already stored. Env-backed: seeds the default; the stored `episode_log_retention_days` setting is editable at runtime in Settings, and each feed can opt in or out. |
-| `EPISODE_LOG_LEVEL` | `debug` | Minimum level kept in a run log: `debug` or `info`. A run log can only keep what the server already writes, so there are no debug lines to keep unless `LOG_LEVEL` is `DEBUG`. Env-backed: seeds the default; the stored `episode_log_level` setting is editable at runtime in Settings. |
-| `DOWNLOAD_USER_AGENT` | _(a current Chrome string)_ | User-Agent sent when fetching audio, artwork, and chapters. Some hosts run bot mitigation that refuses browser identifiers below a rolling version floor, which surfaces as a 403 on download even though the file is there. Env-backed: seeds the default; the stored `download_user_agent` setting is editable at runtime in Settings > Outbound Requests, so a host that starts refusing ours is fixed without a new image. |
-| `FEED_USER_AGENT` | `PodcastAdRemover/1.0` | User-Agent sent when fetching RSS. Kept separate from the download UA because some feed hosts do the opposite and answer only a declared podcast client. Env-backed: seeds the default; the stored `feed_user_agent` setting is editable at runtime in Settings > Outbound Requests. |
-| `LOG_DOWNLOAD_QUERY` | `false` | Include URL query strings in download logs. The requested path and the full redirect chain are logged either way. This adds the query, which on a podcast enclosure regularly carries a signed CDN token or a per-listener tracking id. Turn it on while debugging a refusal, not permanently, since those values then sit in your logs for as long as you keep them. Env-backed: seeds the default; the stored `log_download_query` setting is editable at runtime in Settings > Outbound Requests. |
-| `MAX_AUDIO_DOWNLOAD_MB` | `500` | Per-episode download size cap in MB. Raise it for feeds with very long or high-bitrate episodes (a 260-minute episode at 256kbps is about 500MB). Guards against a broken or malicious enclosure filling the disk, so keep it finite. Env-backed: seeds the default; editable at runtime in Settings, and a saved UI value wins over the env var. |
-| `MINUSPOD_MAX_ARTWORK_BYTES` | `26214400` (25 MB) | Cap on podcast artwork download size. Clamped to `[65536, 52428800]`. Env-backed: seeds the default; editable at runtime in Settings. |
-| `MINUSPOD_MAX_RSS_BYTES` | `209715200` (200 MB) | Cap on RSS response body size. Floor is 1 MB. Env-backed: seeds the default; editable at runtime in Settings. |
+| `AD_DETECTION_MAX_FAILED_WINDOW_RATIO` | `0.25` | Fraction of a detection or verification pass's windows that may fail (LLM error, timeout) before the whole pass is treated as failed, instead of accepting a result with those windows unexamined. A failed first pass fails the episode, which the retry ladder then picks up. A failed verification pass leaves the first-pass result and its markers alone and records the second scan as incomplete rather than clean; the episode is not reprocessed on its own. `1.0` accepts the pass unless every window failed. This variable seeds the `ad_detection_max_failed_window_ratio` setting, which is read on every pass, so editing the stored value retunes the threshold without a restart. |
+| `REVIEWER_CALIBRATION_ON_CHANGE` | `true` | Run the reviewer calibration self-test in a background thread when the reviewer model setting changes. Each run costs 8 LLM calls. Set to `false` to switch models without paying for the check. Env-backed (`reviewer_calibration_on_change`). |
+| `LOW_AD_YIELD_ACTION` | `nothing` | Action taken automatically when a pipeline-initiated run removes far less ad time than the feed's recent average: `nothing`, `redetect` (rerun detection from the stored transcript), `reprocess`, or `full`. Fires at most once per episode (a failed rerun still counts) and never for a manual reprocess. Env-backed (`low_ad_yield_action`); each feed can override it. |
+| `EPISODE_LOG_RETENTION_DAYS` | `30` | Days to keep per-run pipeline logs, clamped to `[0, 365]`. `0` turns run log storage off and lets the cleanup sweep delete what is already stored. Env-backed (`episode_log_retention_days`); each feed can opt in or out. |
+| `EPISODE_LOG_LEVEL` | `debug` | Minimum level kept in a run log: `debug` or `info`. A run log can only keep what the server already writes, so there are no debug lines to keep unless `LOG_LEVEL` is `DEBUG`. Env-backed (`episode_log_level`). |
+| `DOWNLOAD_USER_AGENT` | _(a current Chrome string)_ | User-Agent sent when fetching audio, artwork, and chapters. Some hosts run bot mitigation that refuses browser identifiers below a rolling version floor, which surfaces as a 403 on download even though the file is there. Env-backed (`download_user_agent`, Settings > Outbound Requests), so a host that starts refusing ours is fixed without a new image. |
+| `FEED_USER_AGENT` | `PodcastAdRemover/1.0` | User-Agent sent when fetching RSS. Kept separate from the download UA because some feed hosts do the opposite and answer only a declared podcast client. Env-backed (`feed_user_agent`, Settings > Outbound Requests). |
+| `LOG_DOWNLOAD_QUERY` | `false` | Include URL query strings in download logs. The requested path and the full redirect chain are logged either way. This adds the query, which on a podcast enclosure regularly carries a signed CDN token or a per-listener tracking id. Turn it on while debugging a refusal, not permanently, since those values then sit in your logs for as long as you keep them. Env-backed (`log_download_query`, Settings > Outbound Requests). |
+| `MAX_AUDIO_DOWNLOAD_MB` | `500` | Per-episode download size cap in MB. Raise it for feeds with very long or high-bitrate episodes (a 260-minute episode at 256kbps is about 500MB). Guards against a broken or malicious enclosure filling the disk, so keep it finite. Env-backed. |
+| `MINUSPOD_MAX_ARTWORK_BYTES` | `26214400` (25 MB) | Cap on podcast artwork download size. Clamped to `[65536, 52428800]`. Env-backed. |
+| `MINUSPOD_MAX_RSS_BYTES` | `209715200` (200 MB) | Cap on RSS response body size. Floor is 1 MB. Env-backed. |
 | `RATE_LIMIT_STORAGE_URI` | `memory-threadsafe://` | Flask-limiter storage backend. Default is per-worker; set to `redis://host:6379` + run a Redis sidecar for exact declared limits across workers. |
 | `APP_UID` | `1000` | UID gunicorn runs as inside the container. Override to match host volume ownership. |
 | `APP_GID` | `1000` | GID counterpart to `APP_UID`. |
@@ -102,7 +106,7 @@ Grouped by how often you'll touch them. **Standard** is what a typical deploymen
 
 ### LLM stage tunables
 
-Every per-stage LLM control in Settings > Ad Detection has a matching env var: the setting key in uppercase. Set one to pin the control (the UI renders it read-only with a note); unset it to hand control back to the stored value. Defaults match the pre-tunable behavior, so an unset variable changes nothing. See the annotated list in [`.env.example`](../.env.example) and the [configuration guide](configuration.md#configuration).
+Every per-stage LLM control in Settings > Ad Detection has a matching env var: the setting key in uppercase. Set one to pin the control (the UI renders it read-only with a note); unset it to hand control back to the stored value. An unset variable leaves the built-in default in place. See the annotated list in [`.env.example`](../.env.example) and the [configuration guide](configuration.md#configuration).
 
 The stage prefixes are `DETECTION_`, `VERIFICATION_`, `REVIEWER_`, `CHAPTER_BOUNDARY_`, and `CHAPTER_TITLE_`. Each takes the same four suffixes:
 
@@ -119,7 +123,7 @@ So `DETECTION_TEMPERATURE`, `VERIFICATION_MAX_TOKENS`, `REVIEWER_REASONING_LEVEL
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `TUNNEL_TOKEN` | _(none)_ | Cloudflare tunnel token. See Remote Access / Security > Before enabling the tunnel profile. |
+| `TUNNEL_TOKEN` | _(none)_ | Cloudflare tunnel token. See [Before enabling the tunnel profile](security-and-storage.md#before-enabling-the-tunnel-profile). |
 | `SENTRY_DSN` | _(none)_ | Opt-in Sentry. Requires `sentry-sdk` installed. Headers, cookies, CSRF tokens, and credential-like query params are scrubbed before send; no performance tracing. |
 | `MINUSPOD_RELEASE` | _(none)_ | Optional release tag forwarded to Sentry. |
 | `SENTRY_ENVIRONMENT` | `production` | Environment tag forwarded to Sentry. |

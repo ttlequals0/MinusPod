@@ -55,7 +55,7 @@ Parakeet uses one fixed model, `nemo-parakeet-tdt-0.6b-v3`. There is no `tiny`/`
 
 Download sizes total the files selected by [MinusPod's loader](../src/parakeet_transcriber.py), including vocabulary and configuration. They come from the [ONNX model file listing](https://huggingface.co/istupakov/parakeet-tdt-0.6b-v3-onnx/tree/8f23f0c03c8761650bdb5b40aaf3e40d2c15f1ce), checked on 2026-10-16. GB here means 1,000,000,000 bytes.
 
-These downloads are disk requirements, not RAM or VRAM minima. Runtime tensors, CUDA workspaces, audio buffers, and concurrent services need additional memory. Neither upstream's NeMo hardware examples nor Whisper's table establishes MinusPod's ONNX Runtime peak. Measure before choosing a GPU or setting a memory limit.
+These downloads are disk requirements, not RAM or VRAM minima. Runtime tensors, CUDA workspaces, audio buffers, and concurrent services need additional memory. Measure the ONNX Runtime peak ([Checking resource use](#checking-resource-use)) before choosing a GPU or setting a memory limit.
 
 The cache lives at `$HF_HOME/parakeet/nemo-parakeet-tdt-0.6b-v3`, normally `/app/data/.cache/parakeet/nemo-parakeet-tdt-0.6b-v3`. Keep it on the persistent data volume. Switching between CPU and CUDA downloads another weight set; retaining both uses about 3.220 GB before download metadata or temporary files. Allow additional disk space for those files, episode audio, and backups.
 
@@ -97,7 +97,7 @@ docker compose -f docker-compose.cpu.yml up -d  # CPU image
 
 Access the web UI at `http://localhost:8000/ui/` to add and manage feeds.
 
-Compose refuses protected API access until you set an application password under Settings > Security. Setup from loopback is allowed. Remote setup requires `MINUSPOD_SETUP_TOKEN` in `.env` and the same value in the `X-MinusPod-Setup-Token` request header:
+Compose refuses protected API access until you set an application password under Settings > Security. Remote setup requires `MINUSPOD_SETUP_TOKEN` in `.env` and the same value in the `X-MinusPod-Setup-Token` header (loopback needs no token):
 
 ```bash
 curl -sS -X PUT http://your-server:8000/api/v1/auth/password \
@@ -106,7 +106,7 @@ curl -sS -X PUT http://your-server:8000/api/v1/auth/password \
   --data '{"newPassword":"a-long-application-password"}'
 ```
 
-Remove the token after setup. Direct source runs keep the passwordless default unless `MINUSPOD_REQUIRE_AUTH=true` is set.
+Remove the token after setup. For why Compose requires a password and how `MINUSPOD_REQUIRE_AUTH` works, see [Security recommendations](security-and-storage.md#security-recommendations) and [Environment Variables](environment-variables.md#security).
 
 `MINUSPOD_MASTER_PASSPHRASE` is strongly recommended for production. Without it, provider API keys go into the database as plaintext. Setting it later migrates existing plaintext rows to `enc:v1:` encrypted storage on the next boot, with a mandatory pre-migration SQLite snapshot in `data/backups/`. Restoring an encrypted API download requires the same passphrase that created it, so pick a long random value and keep it somewhere separate from the database.
 
@@ -120,18 +120,9 @@ Reuse the same `.env` and `data/` directory as the Quick Start, then:
 docker compose -f docker-compose.cpu.yml up -d
 ```
 
-That pulls `ttlequals0/minuspod:cpu` (the floating CPU tag). To pin a release, set `MINUSPOD_VERSION=X.Y.Z-cpu` in `.env`. The `:latest` tag always points at the GPU image; CPU users should track `:cpu` or a versioned `-cpu` tag. Both follow every release. For vetted builds, set `MINUSPOD_VERSION=stable-cpu` (or `stable` for GPU): these tags move only after a production soak (see [Releasing & Channels](releasing.md)).
+That pulls `ttlequals0/minuspod:cpu` (the floating CPU tag). To pin a release, set `MINUSPOD_VERSION=X.Y.Z-cpu` in `.env`. The `:latest` tag is always the GPU image; CPU users track `:cpu` or a versioned `-cpu` tag. For vetted builds, set `MINUSPOD_VERSION=stable-cpu` (or `stable` for GPU): these tags move only after a production soak (see [Releasing & Channels](releasing.md)).
 
-The CPU image transcribes locally with `faster-whisper` or Parakeet. For Parakeet, set `WHISPER_BACKEND=parakeet`; keep `WHISPER_DEVICE=cpu`. To use a remote backend instead, set this in your `.env`:
-
-```
-WHISPER_BACKEND=openai-api
-WHISPER_API_BASE_URL=https://api.groq.com/openai/v1
-WHISPER_API_KEY=gsk_your_key_here
-WHISPER_API_MODEL=whisper-large-v3-turbo
-```
-
-Groq, OpenAI, or a self-hosted whisper.cpp server (see `docker-compose.whisper.yml`) all work here. The shipped Compose files pass these variables from `.env`. On an existing installation, change stored transcription settings in the UI; environment values seed unset settings.
+The CPU image transcribes locally with `faster-whisper` or Parakeet. For Parakeet, set `WHISPER_BACKEND=parakeet`; keep `WHISPER_DEVICE=cpu`. A remote backend (`WHISPER_BACKEND=openai-api`) also works: Groq, OpenAI, or a self-hosted whisper.cpp server (see `docker-compose.whisper.yml`). See [Remote Whisper APIs](transcription.md#remote-whisper-apis) for the `.env` settings.
 
 ### Intel hybrid CPU tuning (optional)
 
@@ -161,7 +152,7 @@ Two knobs, smallest change first:
 
    If you would rather bind threads than restrict the cgroup, `OMP_PROC_BIND=close` with `OMP_PLACES=cores` does the same job.
 
-Match `OMP_NUM_THREADS` and the cpuset range to your own chip; the values above are for a 6 P-core part with 12 P-threads. The payoff depends on the CPU and model size, so treat the numbers above as one data point rather than a promise. For sustained transcription, a remote Whisper API is still the better answer.
+Match `OMP_NUM_THREADS` and the cpuset range to your own chip; the values above are for a 6 P-core part with 12 P-threads. The payoff depends on the CPU and model size. For sustained transcription, a remote Whisper API is still the better answer.
 
 <details>
 <summary>Build the CPU image locally</summary>

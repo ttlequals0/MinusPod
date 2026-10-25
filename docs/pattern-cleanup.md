@@ -27,7 +27,7 @@ https://github.com/user-attachments/assets/e3dd4a49-3fac-4ab2-96ab-25e60b858317
 
 A learned pattern is captured straight from a transcript, so it often carries a few words of host banter or show content stitched onto the actual sponsor read, or merges two sponsors read back to back into one pattern. Pattern Cleanup runs an LLM over your learned pattern library and proposes trims, splits, sponsor renames, category corrections, or retirement for patterns that have stopped matching.
 
-Review suggestions in the Cleanup tab on the Patterns page. An approved change keeps the pattern's prior state, so it can be undone later. Nothing in the pipeline reads a suggestion before you act on it: pattern matching, detection, and cutting behave exactly as before this feature.
+Review suggestions in the Cleanup tab on the Patterns page. An approved change keeps the pattern's prior state, so it can be undone later. Nothing in the pipeline reads a suggestion before you act on it.
 
 ## Scope: learned patterns only
 
@@ -46,7 +46,7 @@ Settings > Experiments > Pattern Cleanup has:
 Save configuration changes before starting a run. Run now and Force recheck
 all use the saved provider, model, and batch size.
 
-Turning the schedule on never starts a run right away. Each time it goes from off to on, the next scheduled run waits for the first cron slot after that moment, even when the last run was weeks ago. Enabling does not change the Last run time on the card. **Run now** is unaffected and always starts a run right away, subject to the usual lock (see below).
+Turning the schedule on never starts a run right away: the next run waits for the first cron slot after that moment and the Last run time is unchanged. **Run now** always starts a run right away, subject to the usual lock (see below).
 
 A run starts in a background thread and the API call returns as soon as it has been queued; the Settings card polls while a run is in progress and updates the last-run line (reviewed, suggested, skipped, and any error) once it finishes. Only one run can hold the lock at a time; starting another while one is active returns an in-progress error instead of queueing a second run.
 
@@ -112,10 +112,6 @@ A trim or sponsor rename can include a category correction in the same suggestio
 
 The default prompt classifies the intended segment first. An intro, outro, or recap can receive a category correction while keeping its text; show-segment content is not contamination by itself.
 
-Contamination remains visible even when the model also proposes an edit.
-When the model says a trim cannot fix the contamination, cleanup retains a
-disable recommendation rather than presenting the trim as a clean pattern.
-
 ## Approve, reject, undo
 
 Expand **Original pattern text** on any card to inspect the source of the
@@ -129,8 +125,7 @@ resulting states. It refuses to overwrite fields changed since review,
 including manually edited intro/outro variants. **Reject** leaves the pattern
 untouched and acknowledges the reviewed version; rejecting an outdated
 suggestion returns a conflict instead of marking newer text reviewed.
-Successful model reviews are not repeated for unchanged text, sponsor, and category unless you force
-a recheck. Statistics checks can still surface new evidence as described above.
+Model reviews are not repeated for unchanged text, sponsor, and category unless you force a recheck.
 
 **Undo** restores the pattern from that snapshot: a trim or flag-trim restores the text and any sponsor or category fields included in the approval; a rename restores the sponsor and any category changed with it; a category suggestion restores the prior category; and retire or a flag-disable restores active status. A split's undo re-enables the original pattern and disables the pieces that were created from it. Undo checks the fields it changed, so a later manual edit to one of those fields returns a conflict.
 
@@ -211,10 +206,7 @@ Stale approvals, rejections, and unsafe undo operations return HTTP 409.
 
 Suggestion pages are ordered by descending id. Prefer `before_id` when decisions may change between pages: it avoids the skipped rows that offset pagination can produce when earlier suggestions leave the list. When supplied, `before_id` takes precedence over `offset`.
 
-Suggestion payloads use camelCase. A trim or rename may include `payload.category`
-for a combined correction; a flag recommending a trim uses `trimText` and may
-also include `sponsor` and `category`. A split piece may include `category`. A
-category-only suggestion uses kind `category` and `payload.category`.
+Suggestion payloads use camelCase. A flag recommending a trim uses `trimText`. Category corrections use `payload.category`, and a category-only suggestion uses kind `category`.
 `before.textTemplate` is the original pattern text, and
 optional `before.sourceContext` is the real retained transcript context.
 
