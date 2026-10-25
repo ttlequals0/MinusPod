@@ -87,15 +87,15 @@ def test_openapi_has_expected_top_level_shape():
     """Spec exposes the top-level keys downstream consumers rely on.
 
     Guards against an edit that accidentally renames or drops
-    ``paths`` / ``components`` / ``info.version``. The version match
-    against ``version.py`` is enforced separately by the
-    /build-and-push flow; here we only check the key exists.
+    ``paths`` / ``components`` / ``info.version``. The file carries a fixed
+    placeholder version; the served spec substitutes version.py at request
+    time, so a real number here would only go stale.
     """
     with open(SPEC_PATH) as f:
         doc = yaml.safe_load(f)
     assert doc.get('openapi', '').startswith('3.'), 'expected openapi 3.x spec'
     assert 'info' in doc and isinstance(doc['info'], dict)
-    assert doc['info'].get('version'), 'info.version is required'
+    assert doc['info'].get('version') == '0.0.0-source', 'info.version must stay the placeholder; the served spec fills in version.py'
     assert 'paths' in doc and isinstance(doc['paths'], dict) and doc['paths']
     assert 'components' in doc and isinstance(doc['components'], dict)
 

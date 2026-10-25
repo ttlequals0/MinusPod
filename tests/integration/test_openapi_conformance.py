@@ -1,5 +1,6 @@
 """Live responses from the Flask test client must match openapi.yaml."""
 import os
+import re
 import sys
 import tempfile
 
@@ -193,6 +194,14 @@ def test_get_response_matches_spec(seeded, template, query):
     client, headers = seeded
     url = _fill(template + (f'?{query}' if query else ''))
     assert_response_conforms('get', template, client.get(f'/api/v1{url}', headers=headers))
+
+
+def test_served_spec_carries_running_version(seeded):
+    client, headers = seeded
+    from utils.app_version import APP_VERSION
+    body = client.get('/api/v1/openapi.yaml', headers=headers).get_data(as_text=True)
+    assert re.search(r'^\s*version:\s*(.+)$', body, re.M).group(1).strip() == APP_VERSION
+    assert '0.0.0-source' not in body
 
 
 MUTATIONS = [

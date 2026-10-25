@@ -12,7 +12,9 @@ info:
     - Monitor system status and trigger cleanup operations
     - Manage cross-episode ad patterns with network and podcast scope
     - Submit corrections to improve ad detection accuracy
-  version: 2.100.22
+  # Placeholder. The served /api/v1/openapi.yaml substitutes the running
+  # version from version.py, so this value is never bumped by hand.
+  version: 0.0.0-source
   contact:
     name: MinusPod
   license:

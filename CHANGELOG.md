@@ -20,6 +20,10 @@ release notes.
   rewritten as current behavior. Stale glossary entries, the podcast search
   default, old button labels and a dead anchor are fixed.
 
+- openapi.yaml carries a fixed placeholder version. The served spec already
+  substitutes the running version from version.py, so the file no longer needs
+  a bump on every release.
+
 ### Fixed
 - OpenAPI: the per-episode cost runs endpoint and the processing-admission
   pause endpoint are documented, and descriptions drop dash asides, version
