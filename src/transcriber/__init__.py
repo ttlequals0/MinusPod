@@ -730,15 +730,9 @@ class Transcriber:
             return None
 
     def _normalize_segments(self, segments: list[dict] | None) -> list[dict] | None:
-        if segments is not None:
-            try:
-                segments = cast(list[dict], normalize_segments(segments))
-            except Exception as e:
-                # `normalize_segments()` should only fail when the input is
-                # malformed (wrong structure or content)
-                logger.error(f"Error normalizing transcript segments: {e}")
-                raise
-        return segments
+        if segments is None:
+            return None
+        return cast(list[dict], normalize_segments(segments))
 
     def transcribe(
         self,
@@ -751,7 +745,7 @@ class Transcriber:
         """Transcribe with OOM retries; explicit settings pin the backend.
         language_override replaces the global language; preprocessed skips filtering.
         vad_filter is forwarded to either backend.
-        
+
         Segments are normalized before being returned.
         """
         return self._normalize_segments(

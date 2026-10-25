@@ -104,3 +104,41 @@ def test_init_silent_on_api_backend(missing_stack, caplog):
             caplog.at_level(logging.WARNING, logger='transcriber'):
         transcriber.Transcriber()
     assert not any('WHISPER_BACKEND=openai-api' in r.message for r in caplog.records)
+
+
+def _overlapping_segments():
+    return [
+        {'text': 'first part here', 'start': 0.0, 'end': 2.15,
+         'words': [{'word': ' first', 'start': 0.0, 'end': 0.5},
+                   {'word': ' part', 'start': 0.6, 'end': 1.0},
+                   {'word': ' here', 'start': 2.05, 'end': 2.15}]},
+        {'text': 'second bit now', 'start': 2.0, 'end': 4.0,
+         'words': [{'word': ' second', 'start': 2.0, 'end': 2.5},
+                   {'word': ' bit', 'start': 2.6, 'end': 3.0},
+                   {'word': ' now', 'start': 3.1, 'end': 4.0}]},
+    ]
+
+
+def test_transcribe_keeps_overlapping_segments_with_different_text():
+    t = transcriber.Transcriber()
+    with patch('transcriber.settings._get_whisper_settings',
+               return_value=_settings(WHISPER_BACKEND_API)), \
+            patch.object(t, '_transcribe_via_api', return_value=_overlapping_segments()), \
+            patch.object(t, 'get_audio_duration', return_value=60.0):
+        out = t.transcribe('/nonexistent.mp3')
+    assert [s['text'] for s in out] == ['first part here', 'second bit now']
+    assert sum(len(s['words']) for s in out) == 6
+
+
+def test_transcribe_drops_malformed_segment_and_warns(caplog):
+    t = transcriber.Transcriber()
+    segs = _overlapping_segments()
+    segs[1]['start'] = float('nan')
+    with patch('transcriber.settings._get_whisper_settings',
+               return_value=_settings(WHISPER_BACKEND_API)), \
+            patch.object(t, '_transcribe_via_api', return_value=segs), \
+            patch.object(t, 'get_audio_duration', return_value=60.0), \
+            caplog.at_level(logging.WARNING, logger='utils.segments'):
+        out = t.transcribe('/nonexistent.mp3')
+    assert [s['text'] for s in out] == ['first part here']
+    assert [r.getMessage() for r in caplog.records if r.name == 'utils.segments'][0].startswith('Dropped 1')

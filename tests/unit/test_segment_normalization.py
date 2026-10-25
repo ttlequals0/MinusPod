@@ -1,9 +1,12 @@
+import logging
+
+import pytest
+
 from utils.segments import (
-    TextSegmentLike, WordSegmentLike, essential_text, is_text_essentially_same,
-    is_text_segment, is_word_segment, normalize_word_segments, 
-    validate_text_segment, validate_text_segments, validate_word_segment,
-    normalize_segments, validate_word_segments, _text_leading_diff,
-    join_word_segments
+    TextSegmentLike, WordSegmentLike, is_text_segment, is_word_segment,
+    validate_text_segment, validate_word_segment,
+    normalize_segments, validate_word_segments,
+    join_word_segments, word_spans
 )
 
 # These helpers are reused in other tests.
@@ -99,64 +102,26 @@ def verify_word_segment(segment: WordSegmentLike,
 
 
 class TestJoinWordSegments:
-    def test_join_word_segments_infers_space_prefix_from_first_word(self):
+    def test_prefixed_words_join_with_continuation_tokens(self):
         words = [
             make_word_segment(' How', 0),
             make_word_segment(' y', 1),
             make_word_segment("'all", 2),
             make_word_segment(' doin?', 3),
         ]
-        joined = join_word_segments(words)
-        assert joined == "How y'all doin?", 'joins words with w/o space'
+        assert join_word_segments(words) == "How y'all doin?"
 
-        # remove leading space to test non-space-prefixed inference
-        words[0]['word'] = 'How'
-        joined = join_word_segments(words)
-        assert joined == "How y 'all doin?", 'all words trimmed and space inserted'
-
-    def test_join_word_segments_does_not_insert_spaces_when_space_prefixed_true(self):
+    def test_unprefixed_words_are_space_separated(self):
         words = [
             make_word_segment('How', 0),
             make_word_segment('y', 1),
-            make_word_segment("'all  ", 2),
-            make_word_segment(' doin?', 3),
+            make_word_segment("'all ", 2),
+            make_word_segment('doin? ', 3),
         ]
-        joined = join_word_segments(words, space_prefixed=True)
-        assert joined == "Howy'all   doin?", 'joins words without trimming'
+        assert join_word_segments(words) == "How y 'all doin?"
 
-    def test_join_word_segments_inserts_spaces_when_space_prefixed_false(self):
-        words = [
-            make_word_segment('How', 0),
-            make_word_segment("y'all ", 1),
-            make_word_segment(' doin? ', 2),
-        ]
-        joined = join_word_segments(words, space_prefixed=False)
-        assert joined == "How y'all doin?", 'trims all words, inserts spaces'
-
-
-class TestIsTextEssentiallySame:
-    def test_essentially_same_matches_identical_text(self):
-        assert is_text_essentially_same("Hello world", "Hello world")
-        assert is_text_essentially_same("", "")
-
-    def test_essentially_same_ignores_whitespace(self):
-        assert essential_text("Hello world") == "helloworld"
-        assert essential_text(" Hell oworld ") == "helloworld"
-        assert is_text_essentially_same("Hello world", " Helloworld ")
-
-    def test_essentially_same_ignores_case(self):
-        assert essential_text("Hello world") == "helloworld"
-        assert essential_text("hello WORLD") == "helloworld"
-        assert is_text_essentially_same("Hello world", "hello WORLD")
-
-    def test_essentially_same_detects_difference(self):
-        assert not is_text_essentially_same("Hello world", "Hello there")
-
-    def test_essentially_same_compares_non_words_chars_when_no_word_chars(self):
-        assert essential_text(" @@@  !!!! ") == "@ !"
-        assert essential_text("@@ !") == "@ !"
-        assert is_text_essentially_same(" @@@  !!!! ", "@@ !")
-        assert is_text_essentially_same("", "  ")
+    def test_empty_input(self):
+        assert word_spans([]) == ('', [])
 
 
 class TestWordSegment:
@@ -283,7 +248,6 @@ class TestTextSegment:
             {'text': 'x', 'start': 1.0, 'end': 'bad'},
             {'text': 'x', 'start': 1.0, 'end': 2.0, 'words': 'bad'},
             {'text': 'x', 'start': 1.0, 'end': 2.0, 'words': {}},
-            {'text': 'x', 'start': 1.0, 'end': 2.0, 'words': ['bad']},
         ]
 
         for segment in segments:
@@ -321,86 +285,11 @@ class TestTextSegment:
             except ValueError:
                 pass
 
-    def test_validate_text_segments_accepts_valid_input(self):
-        segments: list[tuple[str, list[TextSegmentLike]]] = [
-            ('empty', []),
-            ('no overlap', [
-                {'text': 'a', 'start': 0.0, 'end': 1.0},
-                {'text': 'b', 'start': 1.0, 'end': 2.0},
-                {'text': 'b', 'start': 11.0, 'end': 22.0},
-            ]),
-            ('duplicate', [
-                {'text': 'a', 'start': 0.0, 'end': 1.0},
-                {'text': 'a', 'start': 0.0, 'end': 1.0},
-            ]),
-            ('full overlap', [
-                {'text': 'a', 'start': 0.0, 'end': 1.0},
-                {'text': 'b', 'start': 0.0, 'end': 1.0},
-            ]),
-            ('partial overlap, same start', [
-                {'text': 'in a', 'start': 1.0, 'end': 8.0},
-                {'text': 'a', 'start': 1.0, 'end': 10.0},
-            ]),
-            ('same start, end out of order', [
-                # this is technically out of order because end breaks the 
-                # (start, end) sorting, but we allow it anyway
-                {'text': 'a', 'start': 0.0, 'end': 2.0},
-                {'text': 'b', 'start': 0.0, 'end': 1.0},
-            ]),
-            ('partial overlap, diff start, same end', [
-                {'text': 'a', 'start': 1.0, 'end': 4.0},
-                {'text': 'in a', 'start': 2.0, 'end': 4.0},
-                {'text': 'in both', 'start': 3.0, 'end': 4.0},
-            ]),
-            ('partial overlap, diff start, diff end', [
-                {'text': 'a', 'start': 1.0, 'end': 5.0},
-                {'text': 'b', 'start': 2.0, 'end': 10.0},
-                {'text': 'c', 'start': 3.0, 'end': 4.0},
-            ]),
-            ('mix', [
-                # 012345
-                # a
-                #  b
-                #  ccc
-                #   d
-                #   ee
-                #     f
-                {'text': 'a', 'start': 0.0, 'end': 1.0},
-                {'text': 'b', 'start': 1.0, 'end': 2.0},
-                {'text': 'c', 'start': 1.0, 'end': 4.0},
-                {'text': 'd', 'start': 2.0, 'end': 3.0},
-                {'text': 'e', 'start': 2.0, 'end': 4.0},
-                {'text': 'f', 'start': 4.0, 'end': 5.0},
-            ]),
-        ]
+    def test_validate_text_segment_rejects_malformed_words(self):
+        with pytest.raises(TypeError):
+            validate_text_segment({'text': 'x', 'start': 1.0, 'end': 2.0, 'words': ['bad']})
 
-        for description, segment_list in segments:
-            try:
-                validate_text_segments(segment_list)
-            except Exception as e:
-                assert not e, f"Expected valid segments for: {description}"
-
-    def test_validate_text_segments_rejects_invalid_input(self):
-        segments: list[tuple[str, list[TextSegmentLike]]] = [
-            ('out of order, diff start', [
-                {'text': 'b', 'start': 1.0, 'end': 2.0},
-                {'text': 'a', 'start': 0.0, 'end': 1.0},
-            ]),
-            ('word issues', [
-                {'text': 'x', 'start': 0.0, 'end': 1.0, 'words': [
-                    {'word': 'negative-duration', 'start': 1.0, 'end': 0.0},
-                ]},
-            ]),
-        ]
-
-        for description, segment_list in segments:
-            try:
-                validate_text_segments(segment_list)
-                assert False, f"Expected invalid segments for {description}"
-            except ValueError:
-                pass
-
-    def test_validate_word_segments_allows_invalid_timing_when_not_strict(self):
+    def test_validate_text_segment_allows_invalid_timing_when_not_strict(self):
         segments: list[TextSegmentLike] = [
             {'text': 'negative-duration', 'start': 10.0, 'end': 30.0},
             {'text': 'out-of-order', 'start': 0.0, 'end': 0.0},
@@ -408,284 +297,130 @@ class TestTextSegment:
                 {'word': 'negetive-duration', 'start': 1.0, 'end': 0.0},
             ]},
         ]
-        validate_text_segments(segments, strict=False)
+        for segment in segments:
+            validate_text_segment(segment, strict=False)
 
 
-class TestNormalizeSegment:
-    def test_normalize_word_segments_with_empty_list(self):
-        words = normalize_word_segments([])
-        assert words is not None
-        assert len(words) == 0
+def _words(spec):
+    return [make_word_segment(w, s, e) for w, s, e in spec]
 
-    def test_normalize_segments_with_empty_list(self):
-        segments = normalize_segments([])
-        assert segments is not None
-        assert len(segments) == 0
 
-    def test_normalizes_segments_sets_text_and_timestamp_from_words(self):
-        segments = normalize_segments(
-            [
-                {
-                    'text': 'blahhh', # will be replaced
-                    'start': 1.0, # will be replaced
-                    'end': 1.0, # will be replaced
-                    'words': make_words_from_text('Hello world.', 0.0, 2.0),
-                },
-            ],
-            normalize_from_words=True) # default
+class TestNormalizeSegments:
+    def test_empty_list(self):
+        assert normalize_segments([]) == []
 
-        assert segments is not None
-        assert len(segments) == 1
-        verify_text_segment(segments[0], 'Hello world.', 0.0, 2.0)
-        assert (words := segments[0].get('words')) is not None
-        assert len(words) == 2
-        verify_word_segment(words[0], ' Hello', 0.0, 1.0)
-        verify_word_segment(words[1], ' world.', 1.0, 2.0)
-
-    def test_normalize_segments_normalizes_from_words(self):
-        words = [
-            # out of order, not space-prefixed
-            make_word_segment('world.', 1.0),
-            make_word_segment('Hello', 0.0),
-        ]
-        segments = normalize_segments([make_text_segment('', 0, 0, words)])
-
-        assert segments is not None
-        assert len(segments) == 1
-        verify_text_segment(segments[0], 'Hello world.', 0.0, 2.0)
-        assert (words := segments[0].get('words')) is not None
-        assert len(words) == 2
-        verify_word_segment(words[0], ' Hello', 0.0, 1.0)
-        verify_word_segment(words[1], ' world.', 1.0, 2.0)
-
-    def test_normalize_segments_does_not_normalize_from_words_when_disabled(self):
-        segments = normalize_segments(
-            [
-                {
-                    'text': 'blahhhh.',
-                    'start': -1.0,
-                    'end': 4.0,
-                    'words': make_words_from_text('Hello world.', 0.0)
-                }
-            ],
-            normalize_from_words=False)
-
-        assert segments is not None
-        assert len(segments) == 1
-        verify_text_segment(segments[0], 'blahhhh.', -1.0, 4.0)
-
-    def test_normalize_segments_removes_duplicate_words(self):
+    def test_sorts_segments_and_coerces_floats(self):
         segments = normalize_segments([
-            make_text_segment('', 0, 0, [
-                {'word': 'Hello', 'start': 0.0, 'end': 1.0},
-                {'word': 'world.', 'start': 1.0, 'end': 2.0},
-                # duplicates
-                {'word': 'world.', 'start': 1.0, 'end': 2.1}, # end doesn't matter
-                {'word': 'Hello', 'start': 0.0, 'end': 0.9}, # end doesn't matter
-            ])
+            make_text_segment('  second  ', 5, 6),
+            make_text_segment('first', 1, 2),
         ])
+        assert [s['text'] for s in segments] == ['first', 'second']
+        assert all(isinstance(s[k], float) for s in segments for k in ('start', 'end'))
 
-        assert segments is not None
-        assert len(segments) == 1
-        verify_text_segment(segments[0], 'Hello world.', 0.0, 2.1)
-        assert (words := segments[0].get('words')) is not None
-        assert len(words) == 2
-        verify_word_segment(words[0], ' Hello', 0.0, 1.0)
-        verify_word_segment(words[1], ' world.', 1.0, 2.1)
+    def test_clips_end_to_start(self):
+        seg = normalize_segments([make_text_segment('x', 3.0, 1.0)])[0]
+        assert seg['end'] == 3.0
 
-    def test_normalize_segments_removes_word_overlap(self):
+    def test_overlapping_segments_are_kept(self):
         segments = normalize_segments([
-            make_text_segment('', 0, 0, [
-                {'word': ' Hello', 'start': 0.0, 'end': 1.0},
-                {'word': ' overlap', 'start': 0.2, 'end': 0.3},
-            ])
+            make_text_segment('a b', 0.0, 2.0),
+            make_text_segment('c d', 1.0, 3.0),
         ])
+        assert [s['text'] for s in segments] == ['a b', 'c d']
 
-        assert segments is not None
-        verify_text_segment(segments[0], 'Hello overlap', 0.0, 0.3)
-        assert (words := segments[0].get('words')) is not None
-        assert len(words) == 2
-        verify_word_segment(words[0], ' Hello', 0.0, 0.2)
-        verify_word_segment(words[1], ' overlap', 0.2, 0.3)
+    def test_preserves_extra_fields(self):
+        seg = make_text_segment('How', 0, 1, [make_word_segment(' How', 0.0, 1.0) | {'foo': 'baz'}])
+        seg['foo'] = 'bar'
+        out = normalize_segments([seg])[0]
+        verify_text_segment(out, 'How', foo='bar', words=[{'word': ' How', 'foo': 'baz'}])
 
-    def test_normalize_segments_removes_overlap_text_only(self):
-        words3 = 'First Second Scenario #3.'.split()
-        segments = normalize_segments(
-            [
-                # Scenario #1: s0 contained in s1. Skip s0.
-                #   s0--->......|
-                #   s1------>...|
-                #   s2--------->|
-                make_text_segment('Scenario #1 (first).', 10.0, 11.0),
-                make_text_segment('Scenario #1 (second).', 10.0, 12.0),
-                make_text_segment('Scenario #1 (third).', 10.0, 13.0),
-
-                # Scenario #2: s1 contained in s0. Skip s1
-                #   s0--------->|
-                #     s1---->...|
-                #       s2----->|
-                make_text_segment('Scenario #2 (first).', 20.0, 23.0),
-                make_text_segment('Scenario #2 (second).', 21.0, 22.0),
-                make_text_segment('Scenario #2 (third).', 21.5, 23.0),
-
-                # Scenario #3: Partial overlap, Take s0-s1 and s1
-                #   s0----->|
-                #      s1----->|
-                #         s2----->|
-                make_text_segment(' '.join(words3), 30.0, 33.0),
-                make_text_segment(' '.join(words3[1:]), 31.0, 34.0),
-                make_text_segment(' '.join(words3[2:]), 32.0, 35.0),
-            ]
-        )
-
-        assert segments is not None
-        # assert len(segments) == 5
-        verify_text_segment(segments[0], 'Scenario #1 (third).', 10.0, 13.0)
-        verify_text_segment(segments[1], 'Scenario #2 (first).', 20.0, 23.0)
-        verify_text_segment(segments[2], words3[0], 30.0, 31.0)
-        verify_text_segment(segments[3], words3[1], 31.0, 32.0)
-        verify_text_segment(segments[4], ' '.join(words3[2:]), 32.0, 35.0)
-
-    def test_text_leading_diff(self):
-        assert _text_leading_diff("abc", "abc") == "", "no difference"
-        assert _text_leading_diff("abc", "abc...") == "", "no leading difference"
-        assert _text_leading_diff("abc", "def") == "abc", "all different"
-        assert _text_leading_diff("abc xyz", "abc") == "abc xyz", "no trailing overlap"
-        assert _text_leading_diff("abc xyz", "xyz...") == "abc ", "leading difference"
-        assert _text_leading_diff("ABC XYZ", "xyz...") == "ABC ", "ignores case differences"
-        assert _text_leading_diff("abc xyz!", "xyz,") == "abc ", "ignores punctuation differences"
-        assert _text_leading_diff("abc x y z", "x  y  z...") == "abc ", "ignores whitespace differences"
-        assert _text_leading_diff("abc xyz", "x y z") == "abc xyz", "matches on words"
-        # edge cases
-        assert _text_leading_diff("", "xyz...") == "", "all strings begin with an empty string"
-        assert _text_leading_diff("abc", "") == "abc", "all strings end with an empty string"
-        assert _text_leading_diff("", "") == "", "cant be anything else"
-
-    def test_normalize_segments_removes_overlap_from_words(self):
-        segments = normalize_segments(
-            [
-                # Scenario #1: s0 contained in s1. Skip s0.
-                #   s0--->......|
-                #   s1------>...|
-                #   s2--------->|
-                make_text_segment('', 0, 0, make_words_from_text('Scenario #1 (first).', 10.0, 11.0)),
-                make_text_segment('', 0, 0, make_words_from_text('Scenario #1 (second).', 10.0, 12.0)),
-                make_text_segment('', 0, 0, make_words_from_text('Scenario #1 (third).', 10.0, 13.0)),
-
-                # Scenario #2: s1 contained in s0. Skip s1
-                #   s0--------->|
-                #     s1---->...|
-                #       s2----->|
-                make_text_segment('', 0, 0, make_words_from_text('Scenario #2 (first).', 20.0, 23.0)),
-                make_text_segment('', 0, 0, make_words_from_text('Scenario #2 (second).', 21.0, 22.0)),
-                make_text_segment('', 0, 0, make_words_from_text('Scenario #2 (third).', 21.5, 23.0)),
-
-                # Scenario #3: Partial overlap, Take s0.words[*].start < s1.start
-                #   s0----->|
-                #      s1----->|
-                #         s2----->|
-                make_text_segment('', 0, 0, make_words_from_text('First Scenario #3', 30.0)),
-                make_text_segment('', 0, 0, make_words_from_text('Second Scenario #3', 31.0)),
-                make_text_segment('', 0, 0, make_words_from_text('Third Scenario #3.', 32.0)),
-            ]
-        )
-
-        assert segments is not None
-        assert len(segments) == 5
-        verify_text_segment(segments[0], 'Scenario #1 (third).', 10.0, 13.0)
-        verify_text_segment(segments[1], 'Scenario #2 (first).', 20.0, 23.0)
-        verify_text_segment(segments[2], 'First', 30.0, 31.0)
-        verify_text_segment(segments[3], 'Second', 31.0, 32.0)
-        verify_text_segment(segments[4], 'Third Scenario #3.', 32.0, 35.0)
-
-    def test_normalize_segments_normalizes_text_and_word_order(self):
-        segments = normalize_segments([
-            make_text_segment('', 0, 0, [
-                make_word_segment(' segment.', 2.0, 3.0),
-                make_word_segment(' Second', 1.0, 2.0),
-            ]),
-            make_text_segment('First.', 0.0, 1.0),
-        ])
-
-        assert len(segments) == 2
-        verify_text_segment(segments[0], 'First.', 0.0, 1.0)
-        verify_text_segment(segments[1], 'Second segment.', 1.0, 3.0)
-        assert segments[0].get('words') is None
-        assert (words := segments[1].get('words')) is not None
-        verify_word_segment(words[0], ' Second', 1.0, 2.0)
-        verify_word_segment(words[1], ' segment.', 2.0, 3.0)
-
-    def test_normalize_segments_creates_space_prefixed_words(self):
-        segments = normalize_segments([
-            make_text_segment('', 0, 0, [
-                make_word_segment('Hello', 0.0),
-                make_word_segment('-world.', 1.0),
-            ])
-        ])
-
-        assert segments is not None
-        assert len(segments) == 1
-        assert (segment := segments[0]) is not None
-        verify_text_segment(segment, 'Hello -world.', 0.0, 2.0)
-        assert (words := segment.get('words')) is not None
-        assert len(words) == 2
-        verify_word_segment(words[0], ' Hello', 0.0, 1.0)
-        verify_word_segment(words[1], ' -world.', 1.0, 2.0)
-
-    def test_normalize_segments_merges_split_words(self):
-        segments = normalize_segments([
-            make_text_segment('', 0, 0, [
-                make_word_segment(' How', 0.0, 1.0),
-                make_word_segment(' y', 1.0, 1.5),
-                make_word_segment("'all", 1.5, 2.0),
-                make_word_segment(' doin?', 2.0, 2.2),
-            ])
-        ])
-
-        assert segments is not None
-        assert len(segments) == 1
-        assert (segment := segments[0]) is not None
-        verify_text_segment(segment, "How y'all doin?", 0.0, 2.2)
-        assert (words := segment.get('words')) is not None
-        assert len(words) == 3
-        verify_word_segment(words[0], ' How', 0.0, 1.0)
-        verify_word_segment(words[1], " y'all", 1.0, 2.0)
-        verify_word_segment(words[2], " doin?", 2.0, 2.2)
-
-    def test_normalize_segments_trims_text_when_no_words(self):
-        segments = normalize_segments([
-            make_text_segment('   Hello foo.  ', 1.0, 4.0)
-        ])
-
-        assert segments is not None
-        assert len(segments) == 1
-        verify_text_segment(segments[0], 'Hello foo.', 1.0, 4.0)
-        assert segments[0].get('words') is None
-
-    def test_normalize_segments_preserves_extra_fields(self):
-        segments = normalize_segments([
-            make_text_segment('', 0, 0, [
-                make_word_segment(' How', 0.0, 1.0)
-                | {'foo': 'baz'} # type: ignore extra field
-            ])
-            | {'foo': 'bar'} # type: ignore extra field
-        ])
-
-        verify_text_segment(segments[0],
-                            'How',
-                            foo='bar',
-                            words=[{'word': ' How',
-                                    'foo': 'baz'}]
-                                    )
-
-    def test_normalize_segments_does_not_throw_when_invalid_segment_arg_is_provided(self):
+    def test_invalid_segment_dropped_with_one_warning(self, caplog):
         segments = [
-            make_text_segment('good', 0, 0),
+            make_text_segment('good', 0, 1),
             make_text_segment('bad start', float('nan'), 0),
+            make_text_segment('bad end', 0, float('inf')),
         ]
-        invalid = []
-        valid = normalize_segments(segments, invalid_segments=invalid)
-        assert len(valid) == 1
-        assert len(invalid) == 1
-        assert valid[0] is segments[0]
-        assert invalid[0] is segments[1]
+        with caplog.at_level(logging.WARNING, logger='utils.segments'):
+            valid = normalize_segments(segments)
+        assert valid == [segments[0]]
+        warnings = [r for r in caplog.records if r.name == 'utils.segments']
+        assert len(warnings) == 1
+        assert 'Dropped 2' in warnings[0].getMessage()
+
+    def test_text_and_timings_are_never_rewritten_from_words(self):
+        seg = make_text_segment('Hello.', 0.0, 9.0, _words([(' Hello', 1.0, 2.0)]))
+        out = normalize_segments([seg])[0]
+        verify_text_segment(out, 'Hello.', 0.0, 9.0)
+
+    def test_api_style_words_leave_text_untouched(self):
+        text = "Hello, world. Visit AT&T.com today!"
+        words = _words([('Hello', 0.0, 0.5), ('world', 0.6, 1.0), ('Visit', 1.1, 1.5),
+                        ('AT&T.com', 1.6, 2.2), ('today', 2.3, 2.8)])
+        out = normalize_segments([make_text_segment(text, 0.0, 3.0, words)])[0]
+        verify_text_segment(out, text, 0.0, 3.0)
+        assert [w['word'] for w in out['words']][:2] == [' Hello', ' world']
+
+    def test_cjk_words_leave_text_untouched(self):
+        words = _words([('你好', 0.0, 0.5), ('世界', 0.5, 1.0)])
+        out = normalize_segments([make_text_segment('你好世界', 0.0, 1.0, words)])[0]
+        assert out['text'] == '你好世界'
+
+
+class TestNormalizeWords:
+    def test_sorts_and_prefixes_words(self):
+        words = _words([(' world.', 1.0, 2.0), ('Hello', 0.0, 1.0)])
+        out = normalize_segments([make_text_segment('Hello world.', 0, 2, words)])[0]
+        assert [w['word'] for w in out['words']] == [' Hello', ' world.']
+
+    def test_merges_split_words(self):
+        words = _words([(' How', 0.0, 1.0), (' y', 1.0, 1.5), ("'all", 1.5, 2.0), (' doin?', 2.0, 2.2)])
+        out = normalize_segments([make_text_segment("How y'all doin?", 0, 2.2, words)])[0]
+        assert [(w['word'], w['start'], w['end']) for w in out['words']] == [
+            (' How', 0.0, 1.0), (" y'all", 1.0, 2.0), (' doin?', 2.0, 2.2)]
+        assert out['text'] == "How y'all doin?"
+
+    def test_whisper_split_url_merges_and_text_is_untouched(self):
+        words = _words([(' AT', 0.0, 0.2), ('&T', 0.2, 0.4), (' .com', 0.5, 0.9)])
+        out = normalize_segments([make_text_segment('AT&T.com', 0.0, 0.9, words)])[0]
+        assert [w['word'] for w in out['words']] == [' AT&T', ' .com']
+        assert out['text'] == 'AT&T.com'
+
+    def test_same_start_same_text_words_are_both_kept(self):
+        words = _words([(' very,', 600.6, 600.9), (' very', 600.6, 600.9), (' good.', 601.0, 601.5)])
+        out = normalize_segments([make_text_segment('very, very good.', 600.6, 601.5, words)])[0]
+        assert len(out['words']) == 3
+
+    def test_removes_word_overlap(self):
+        words = _words([(' Hello', 0.0, 1.0), (' overlap', 0.2, 0.3)])
+        out = normalize_segments([make_text_segment('Hello overlap', 0, 1, words)])[0]
+        verify_word_segment(out['words'][0], ' Hello', 0.0, 0.2)
+        verify_word_segment(out['words'][1], ' overlap', 0.2, 0.3)
+
+
+class TestWordSpans:
+    def test_prefixed_continuation_words(self):
+        words = _words([(' visit', 0, 1), (' AT', 1, 2), ('&T', 2, 3), (' .com', 3, 4)])
+        text, spans = word_spans(words)
+        assert text == 'visit AT&T .com'
+        assert [text[a:b] for a, b in spans] == ['visit', 'AT', '&T', '.com']
+
+    def test_unprefixed_words(self):
+        words = _words([('visit', 0, 1), ('acme', 1, 2), ('today', 2, 3)])
+        text, spans = word_spans(words)
+        assert text == 'visit acme today'
+        assert [text[a:b] for a, b in spans] == ['visit', 'acme', 'today']
+
+
+class TestTimedAdEvidenceEnd:
+    def test_continuation_words_keep_offsets_in_sync(self):
+        from ad_detector.boundaries import _timed_ad_evidence_end
+        words = _words([(' a', 0, 1), (' AT', 1, 2), ('&', 2, 3), ('T', 3, 4),
+                        ('.', 4, 5), (' ab', 5, 6)])
+        utt = {'words': words, 'terminal': False, 'start': 0, 'end': 6}
+        assert _timed_ad_evidence_end(utt) == 6
+
+    def test_plain_unprefixed_words(self):
+        from ad_detector.boundaries import _timed_ad_evidence_end
+        words = _words([('visit', 0, 1), ('acme.com', 1, 2)])
+        utt = {'words': words, 'terminal': False, 'start': 0, 'end': 2}
+        assert _timed_ad_evidence_end(utt) == 2

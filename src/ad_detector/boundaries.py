@@ -26,7 +26,7 @@ from utils.markers import (
     recorded_member_spans,
     word_timed_edge_valid,
 )
-from utils.segments import join_word_segments
+from utils.segments import join_word_segments, word_spans
 from utils.text import get_transcript_text_for_range
 from utils.time import overlap_seconds, ranges_overlap
 from sponsor_context import domain_labels
@@ -578,12 +578,7 @@ def _timed_ad_evidence_end(utterance: dict,
     if _return_word_index(utterance) is not None:
         return None
     words = utterance['words']
-    text = join_word_segments(words).lower()
-    positions = []
-    offset = 0
-    for word in words:
-        positions.append((offset, offset + len(word['word'].strip())))
-        offset += len(word['word'].strip()) + 1
+    text, positions = word_spans([{'word': w['word'].lower()} for w in words])
     patterns = [*AD_CONTENT_URL_PATTERNS, *AD_CONTENT_PHONE_PATTERNS, *AD_COPY_PHRASES]
     last_index = None
     last_pattern = None
