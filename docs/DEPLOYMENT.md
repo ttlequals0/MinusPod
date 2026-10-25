@@ -200,7 +200,7 @@ Measure cold startup and a complete episode with [the resource-check procedure](
 
 ## Cloudflare tunnel (optional)
 
-For remote access without port forwarding, set `TUNNEL_TOKEN` and `MINUSPOD_TRUSTED_PROXY_COUNT=1` in `.env`, then run `docker-compose --profile tunnel up -d`. Setup steps and what breaks without the proxy count are in [Remote access / security](security-and-storage.md#remote-access--security).
+For remote access without port forwarding, set `TUNNEL_TOKEN` and `MINUSPOD_TRUSTED_PROXY_COUNT=1` in `.env`, then run `docker-compose --profile tunnel up -d`. Setup steps and what breaks without the proxy count are in [Remote access and security](security-and-storage.md#remote-access-and-security).
 
 ## Security notes
 

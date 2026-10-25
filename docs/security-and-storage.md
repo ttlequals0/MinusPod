@@ -6,7 +6,7 @@
 
 ## Contents
 
-- [Remote access and security](#remote-access--security)
+- [Remote access and security](#remote-access-and-security)
 - [Authenticated feeds](#authenticated-feeds-optional)
 - [Provider admission controls](#provider-admission-controls)
 - [Data storage](#data-storage)
@@ -14,7 +14,7 @@
 - [Restore and passphrase rotation](#restore-and-passphrase-rotation)
 - [Custom assets](#custom-assets-optional)
 
-## Remote access / security
+## Remote access and security
 
 The docker-compose includes an optional Cloudflare tunnel service for secure remote access without port forwarding:
 
