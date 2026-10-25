@@ -1223,7 +1223,7 @@ paths:
                 title:
                   type: string
                   description: >-
-                    Local feeds only (issue #625 Task 6); 400 on a
+                    Local feeds only (issue #625); 400 on a
                     subscribed feed, whose title is RSS-managed and would
                     be overwritten on the next refresh anyway; use
                     titleOverride there instead. Must be non-empty.
@@ -1273,7 +1273,7 @@ paths:
       summary: Refresh a single feed
       description: |
         Fetch the latest RSS feed and update the episode list. By default
-        this sends a conditional GET -- if upstream returns 304 Not
+        this sends a conditional GET. If upstream returns 304 Not
         Modified, the refresh is a no-op. Pass `{"force": true}` in the
         body to bypass the stored ETag / Last-Modified headers and do a
         full fetch, useful when an upstream CDN is falsely returning 304
@@ -1344,7 +1344,7 @@ paths:
       summary: Refresh all feeds
       description: |
         Refresh RSS feeds for all configured podcasts. By default this
-        sends a conditional GET per feed -- if upstream returns 304 Not
+        sends a conditional GET per feed. If upstream returns 304 Not
         Modified, that feed is a no-op. Pass `{"force": true}` in the
         body to clear every podcast's stored ETag / Last-Modified before
         fetching so upstream cannot short-circuit with 304.
@@ -2130,7 +2130,7 @@ paths:
       description: |
         Returns ffmpeg-derived waveform peaks for the requested window of an
         episode's retained original audio. Drives the wavesurfer.js view in
-        the new ad editor (2.2.0+). The server auto-coarsens the resolution
+        the ad editor. The server auto-coarsens the resolution
         for very long windows so the JSON payload stays bounded; the response
         echoes the effective resolution actually used.
       operationId: getEpisodePeaks
@@ -2848,15 +2848,15 @@ paths:
           using TF-IDF similarity matching (threshold: 0.75)
         - adjust: Correct ad boundaries. Also creates patterns from the adjusted boundaries
           (like confirm), ensuring accurate pattern text is learned from the corrected segment
-        - create (2.2.0+): Mark a brand-new ad on an episode the detector missed. Top-level
+        - create: Mark a brand-new ad on an episode the detector missed. Top-level
           start/end/sponsor/text_template required (no original_ad). Creates a new
           pattern with created_by='user' and a pattern_corrections row of type 'create'.
-          2.70.0+: if the text contains more than one ad transition phrase (a
+          If the text contains more than one ad transition phrase (a
           contaminated multi-sponsor read), it is split at those boundaries into one
           pattern per sponsor segment instead of a single oversized pattern; the
           response's patternIds lists every pattern created or reused this way, and
           pattern_id/sponsor still identify the sponsor-matched primary.
-        - split (2.82.0+): Replace one marker covering back-to-back ads with N
+        - split: Replace one marker covering back-to-back ads with N
           single-sponsor markers (issue #563). Send `original_ad` plus
           `split_points` (a list of times strictly inside the span) and an
           optional `pieces` array of `{sponsor}` overrides in piece order.
@@ -2900,7 +2900,7 @@ paths:
                     type: array
                     items:
                       type: integer
-                    description: Patterns created or reused; returned by create (2.70.0+) and split
+                    description: Patterns created or reused; returned by create and split
                   markerCount:
                     type: integer
                     description: Number of markers that replaced the original; returned by split
@@ -6093,7 +6093,7 @@ paths:
         `whisper` uploads a one-second generated audio sample through the
         same request shape and upload format (FLAC by default, WAV when
         Skip FLAC compression is on) as the real transcription path, so the
-        result reflects what an actual episode upload would hit -- including
+        result reflects what an actual episode upload would hit, including
         the wrong-path case (OpenVINO Model Server only answers under its
         versioned base such as `/v3`). `openai` and `ollama` hit the same
         `/models` route the real LLM client uses for discovery, with the
@@ -6439,7 +6439,7 @@ paths:
                     failure with float16, the server falls back through
                     int8_float16 -> int8 -> float32. Older NVIDIA GPUs
                     (Pascal GTX 10xx, Maxwell GTX 9xx) need `int8` or `float32`.
-                    See the README section "GPU Compute Type" for the per-GPU table.
+                    See the Transcription guide (docs/transcription.md, GPU compute type) for the per-GPU table.
                   example: auto
                 audioCueDetectionEnabled:
                   type: boolean
@@ -6571,7 +6571,7 @@ paths:
                     Toggles the VAD gap detector, which cuts audio regions
                     Whisper's VAD dropped (sped-up disclaimers, distorted ad
                     tails). Advanced tuning; intentionally not surfaced in the
-                    UI. See README "VAD Gap Detector" for full behavior.
+                    UI. See the Configuration guide (docs/configuration.md, VAD Gap Detector) for full behavior.
                   example: true
                 vadGapStartMinSeconds:
                   type: number
@@ -6721,7 +6721,7 @@ paths:
                   additionalProperties:
                     type: string
                     enum: [remove, beep, keep, mark]
-                  description: Partial global segment-category action map (issue #565). Merged over the stored global map; a category omitted here keeps its current global action. Every category defaults to remove, so an install upgrades with byte-identical behavior until an action is changed.
+                  description: Partial global segment-category action map (issue #565). Merged over the stored global map; a category omitted here keeps its current global action. Every category defaults to remove.
                   example: {sponsor: remove, cross_promo: keep, self_promo: beep}
                 communitySyncCategories:
                   type: array
@@ -6730,8 +6730,7 @@ paths:
                     enum: [sponsor, cross_promo, self_promo, interaction, intro, outro, recap]
                   description: |
                     Segment categories accepted from community pattern sync. Default is
-                    every category, so an install upgrades with unchanged sync behavior
-                    until a category is unchecked. Replaces the stored list outright.
+                    every category. Replaces the stored list outright.
                 jitBlockedUserAgents:
                   type: array
                   items:
@@ -7074,7 +7073,7 @@ paths:
                   example: 250000
                 providerBEnabled:
                   type: boolean
-                  description: Alias of secondaryProviderEnabled (Provider A/B rename, #806).
+                  description: Alias of secondaryProviderEnabled.
                 providerB:
                   type: [string, 'null']
                   description: Alias of secondaryProvider.
@@ -7294,7 +7293,7 @@ paths:
                   type: integer
                   description: >-
                     Ceiling on chapter boundaries per episode (1-200, default
-                    40). Was hardcoded to 6 before 2.82.0.
+                    40).
                 chapterMinDurationSeconds:
                   type: integer
                   description: >-
@@ -8019,7 +8018,7 @@ paths:
       summary: Swagger UI
       description: |
         Renders this OpenAPI spec in an interactive Swagger UI. Assets
-        are bundled in the image under `/ui/swagger/*` -- no CDN
+        are bundled in the image under `/ui/swagger/*`, no CDN
         dependency, air-gap friendly. Auth-gated; an unauthenticated
         GET returns 401 (the blueprint-level `check_auth` runs first).
       operationId: swaggerUi
@@ -10405,7 +10404,7 @@ paths:
                     maximum: 32
                     description: |
                       Number of ads the reviewer reviews concurrently via the LLM.
-                      1 preserves the original sequential behavior.
+                      1 reviews them one at a time.
                   parallelAdsDefault:
                     type: integer
                     description: Default value of parallelAds (env-backed registry).
@@ -11285,7 +11284,7 @@ paths:
         - name: peek
           in: query
           required: false
-          description: Read-only -- return a cached result or 'idle' without starting a scan
+          description: Read-only. Returns a cached result or 'idle' without starting a scan
           schema:
             type: string
             enum: ['1', 'true', 'yes']
@@ -11324,17 +11323,17 @@ paths:
                           description: recurring (repeats within the episode), or intro/outro (shared across sibling episodes)
                         count:
                           type: [integer, 'null']
-                          description: Recurring candidates only -- times the sound recurs within the episode
+                          description: Recurring candidates only. Times the sound recurs within the episode
                         episodeMatches:
                           type: [integer, 'null']
-                          description: Intro/outro candidates only -- how many sibling episodes share the segment
+                          description: Intro/outro candidates only. How many sibling episodes share the segment
                         suggestedType:
                           type: [string, 'null']
                           enum: [show_intro, show_outro, ad_break_boundary, ad_break_start, ad_break_end, content_transition, null]
                           description: Capture-type hint; intro/outro get show_intro/show_outro; recurring gets ad-affinity type or null
                         adBoundaryHits:
                           type: [integer, 'null']
-                          description: Recurring candidates only -- how many occurrences landed near a known ad boundary
+                          description: Recurring candidates only. How many occurrences fell near a known ad boundary
                         boundaryAffinity:
                           type: [number, 'null']
                           format: float
@@ -12973,7 +12972,7 @@ components:
         weakCue:
           type: boolean
           description: >
-            Create-response only. True when selfMatchCount is exactly 1 -- the
+            Create-response only. True when selfMatchCount is exactly 1: the
             cue appears only once in its source episode and therefore cannot
             bracket an ad break reliably. The UI warns the user and requires a
             second Save to proceed. Absent on list rows.
@@ -12982,8 +12981,8 @@ components:
           description: >
             Create-response only. True when the captured duration exceeds
             captureWarnSeconds for ad-break-role cue types (ad_break_boundary,
-            ad_break_start, ad_break_end). Issue #350 field data showed a 9.8s
-            capture matched far worse than 1.5-2.5s clips of the same cue. Non-ad
+            ad_break_start, ad_break_end). A capture near 10 s matches far worse
+            than a 1.5-2.5 s clip of the same cue. Non-ad
             types (show_intro, show_outro, content_transition) are always false.
             Absent on list rows.
         captureWarnSeconds:
@@ -13044,8 +13043,7 @@ components:
             enum: [sponsor, cross_promo, self_promo, interaction, intro, outro, recap]
           description: |
             Segment categories this install accepts from community sync
-            (community_sync_categories setting). Default is every category, so
-            an upgrade with this never configured syncs exactly as before.
+            (community_sync_categories setting). Default is every category.
         categoryBreakdown:
           type: object
           description: Count of currently-active (synced) community patterns per category.
@@ -13579,7 +13577,7 @@ components:
           description: URL to cached artwork image
         hasArtwork:
           type: boolean
-          description: Whether MinusPod currently holds an artwork file for this feed, regardless of what artworkUrl falls back to when it does not (issue #625 Task 13). The reliable "has art been uploaded/cached" signal; artworkUrl is never falsy on its own.
+          description: Whether MinusPod currently holds an artwork file for this feed, regardless of what artworkUrl falls back to when it does not (issue #625). The reliable "has art been uploaded/cached" signal; artworkUrl is never falsy on its own.
         author:
           type:
             - string
@@ -14414,8 +14412,7 @@ components:
                 Live ledger spend of the run that currently owns this episode,
                 read straight from the ledger while the run is still in flight.
                 Null when no run owns the episode, so a client can use its
-                presence as the "a run is spending right now" signal. Replaces
-                the removed currentRunSpend field.
+                presence as the "a run is spending right now" signal.
             latestRunSpend:
               oneOf:
                 - $ref: '#/components/schemas/EpisodeRunSpend'
@@ -16617,9 +16614,8 @@ components:
         communitySyncCategories:
           type: object
           description: |
-            Segment categories accepted from community pattern sync (issue #565
-            follow-up). Default is every category, so an upgrade with this never
-            configured syncs exactly as before.
+            Segment categories accepted from community pattern sync. Default is
+            every category.
           properties:
             value:
               type: array
@@ -16984,7 +16980,7 @@ components:
             chaptersProvider, reviewProvider) pick a routing slot, primary or
             secondary, rather than a provider type; a stage routed to
             secondary while this is false falls back to primary. Off by
-            default, so a single-provider install is unchanged.
+            default.
           properties:
             value:
               type: boolean
@@ -18178,7 +18174,7 @@ components:
             - 'null'
           enum: [sponsor, cross_promo, self_promo, interaction, intro, outro, recap, null]
           description: >-
-            create type only (2.89.5+). Segment category stamped on both the
+            create type only. Segment category stamped on both the
             manual marker and the pattern(s) created from it; each feed's
             segment actions decide what happens to future matches. Omit or
             send null to leave the marker and pattern uncategorized
@@ -18688,7 +18684,7 @@ components:
         contentType:
           type: string
           description: Content type for webhook delivery
-      description: Webhook configuration. Note -- the secret field is never returned in responses.
+      description: Webhook configuration. The secret field is never returned in responses.
 
     NotificationTimezoneSettings:
       type: object

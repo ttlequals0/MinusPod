@@ -22,7 +22,8 @@ release notes.
 
 ### Fixed
 - OpenAPI: the per-episode cost runs endpoint and the processing-admission
-  pause endpoint are documented.
+  pause endpoint are documented, and descriptions drop dash asides, version
+  history and two stale README pointers.
 
 ## [2.100.22] - 2026-10-24
 
