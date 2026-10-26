@@ -25,9 +25,11 @@ interface StageProviderSelectProps {
   options: SlotOption[];
   onChange: (slot: string) => void;
   secondaryEnabled: boolean;
+  // Spans three rows of a grid parent so label row, control and notes line up with a sibling.
+  aligned?: boolean;
 }
 
-function StageProviderSelect({ id, label, value, options, onChange, secondaryEnabled }: StageProviderSelectProps) {
+function StageProviderSelect({ id, label, value, options, onChange, secondaryEnabled, aligned }: StageProviderSelectProps) {
   // A stage saved on the secondary slot before it was turned off keeps that
   // value; hiding the option would misrepresent what is actually stored.
   const strandedOnSecondary = value === SLOT_SECONDARY && !secondaryEnabled;
@@ -35,10 +37,12 @@ function StageProviderSelect({ id, label, value, options, onChange, secondaryEna
     ? [...options, { value: SLOT_SECONDARY, label: `${SLOT_LABELS.secondary} (off)` }]
     : options;
   return (
-    <div>
-      <label htmlFor={id} className={labelBase}>
-        {label}
-      </label>
+    <div className={aligned ? 'grid grid-rows-subgrid row-span-3 gap-y-0 max-sm:mb-3' : undefined}>
+      <div className={aligned ? 'flex items-center justify-between gap-3 mb-2' : undefined}>
+        <label htmlFor={id} className={labelBase}>
+          {label}
+        </label>
+      </div>
       <select
         id={id}
         value={value}
@@ -49,11 +53,13 @@ function StageProviderSelect({ id, label, value, options, onChange, secondaryEna
           <option key={o.value} value={o.value}>{o.label}</option>
         ))}
       </select>
-      {strandedOnSecondary && (
-        <p className="mt-1 text-sm text-warning">
-          {SLOT_LABELS.secondary} is off, so this stage runs on {SLOT_LABELS.primary}.
-        </p>
-      )}
+      <div>
+        {strandedOnSecondary && (
+          <p className="mt-1 text-sm text-warning">
+            {SLOT_LABELS.secondary} is off, so this stage runs on {SLOT_LABELS.primary}.
+          </p>
+        )}
+      </div>
     </div>
   );
 }

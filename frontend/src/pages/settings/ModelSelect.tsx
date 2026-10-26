@@ -17,6 +17,8 @@ interface ModelSelectProps {
   // Labels the blank value when blank means "inherit" rather than unset.
   inheritLabel?: string;
   inheritValue?: string;
+  // Spans three rows of a grid parent so label row, control and notes line up with a sibling.
+  aligned?: boolean;
 }
 
 // A saved model id the catalog does not list, or no catalog at all, would
@@ -29,7 +31,7 @@ function renderOrphan(value: string, models: ClaudeModel[] | undefined) {
 }
 
 function ModelSelect({
-  id, label, value, catalog, onChange, description, inheritLabel, inheritValue = '',
+  id, label, value, catalog, onChange, description, inheritLabel, inheritValue = '', aligned,
 }: ModelSelectProps) {
   // Free-text toggle lets proxies, private deployments and new model ids in
   // despite the catalog only listing what the provider advertises.
@@ -37,8 +39,8 @@ function ModelSelect({
   const notConfigured = !value && (!inheritLabel || inheritValue !== '');
   const requiredMessageId = `${id}-required-message`;
   return (
-    <div>
-      <div className="flex items-baseline justify-between gap-3 mb-2">
+    <div className={aligned ? 'grid grid-rows-subgrid row-span-3 gap-y-0' : undefined}>
+      <div className={`flex ${aligned ? 'items-center' : 'items-baseline'} justify-between gap-3 mb-2`}>
         <label htmlFor={id} className={labelBase}>
           {label}
         </label>
@@ -84,13 +86,15 @@ function ModelSelect({
           ))}
         </select>
       )}
-      {notConfigured && (
-        <p id={requiredMessageId} className="mt-1 text-sm text-destructive" role="status">
-          Pick a model before processing episodes.
-        </p>
-      )}
-      <CatalogStatus loading={catalog.isLoading} error={catalog.isError} />
-      {description && <p id={`${id}-help`} className="mt-1 text-sm text-muted-foreground">{description}</p>}
+      <div>
+        {notConfigured && (
+          <p id={requiredMessageId} className="mt-1 text-sm text-destructive" role="status">
+            Pick a model before processing episodes.
+          </p>
+        )}
+        <CatalogStatus loading={catalog.isLoading} error={catalog.isError} />
+        {description && <p id={`${id}-help`} className="mt-1 text-sm text-muted-foreground">{description}</p>}
+      </div>
     </div>
   );
 }

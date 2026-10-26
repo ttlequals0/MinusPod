@@ -252,15 +252,15 @@ describe('AIModelsSection: custom pricing', () => {
     const view = renderSection({ modelPricingOverrides });
     expect(screen.queryByText('retired-model')).toBeNull();
     view.rerender(section({ modelPricingOverrides, pricingModelIds: ['retired-model'] }));
-    expect((screen.getByLabelText('Input, USD per 1 million tokens') as HTMLInputElement).value).toBe('1');
+    expect((screen.getByLabelText('Input') as HTMLInputElement).value).toBe('1');
     view.rerender(section({
       pricingModelIds: ['retired-model'],
       modelPricingOverrides: { 'retired-model': { inputCostPerMtok: 3, outputCostPerMtok: 4 } },
     }));
-    expect((screen.getByLabelText('Input, USD per 1 million tokens') as HTMLInputElement).value).toBe('3');
+    expect((screen.getByLabelText('Input') as HTMLInputElement).value).toBe('3');
     view.rerender(section({ pricingModelIds: ['retired-model'], modelPricingOverrides: {} }));
-    expect((screen.getByLabelText('Input, USD per 1 million tokens') as HTMLInputElement).value).toBe('');
-    expect((screen.getByLabelText('Output, USD per 1 million tokens') as HTMLInputElement).value).toBe('');
+    expect((screen.getByLabelText('Input') as HTMLInputElement).value).toBe('');
+    expect((screen.getByLabelText('Output') as HTMLInputElement).value).toBe('');
   });
 
   it('edits the operative alias key and disables its row during saving', async () => {
@@ -270,8 +270,8 @@ describe('AIModelsSection: custom pricing', () => {
     const props = { pricingModelIds: ['gpt-5'], modelPricingOverrides, onPricingOverrideUpdate };
     const view = renderSection(props);
     expect(screen.queryByText('openai/gpt-5')).toBeNull();
-    await user.clear(screen.getByLabelText('Input, USD per 1 million tokens'));
-    await user.clear(screen.getByLabelText('Output, USD per 1 million tokens'));
+    await user.clear(screen.getByLabelText('Input'));
+    await user.clear(screen.getByLabelText('Output'));
     await user.click(screen.getByRole('button', { name: 'Save pricing' }));
     expect(onPricingOverrideUpdate).toHaveBeenCalledWith('openai/gpt-5', null);
     view.rerender(section({ ...props, pricingOverrideSavingModel: 'openai/gpt-5' }));
@@ -286,7 +286,7 @@ describe('AIModelsSection: custom pricing', () => {
         'gpt-5:free': { inputCostPerMtok: 0, outputCostPerMtok: 0 },
       },
     });
-    expect(screen.getAllByLabelText('Input, USD per 1 million tokens').map((input) => (input as HTMLInputElement).value)).toEqual(['1', '0']);
+    expect(screen.getAllByLabelText('Input').map((input) => (input as HTMLInputElement).value)).toEqual(['1', '0']);
   });
 
   it('renders explicit zero rates for a free model', () => {
@@ -296,8 +296,8 @@ describe('AIModelsSection: custom pricing', () => {
       },
     });
 
-    const inputs = screen.getAllByLabelText('Input, USD per 1 million tokens') as HTMLInputElement[];
-    const outputs = screen.getAllByLabelText('Output, USD per 1 million tokens') as HTMLInputElement[];
+    const inputs = screen.getAllByLabelText('Input') as HTMLInputElement[];
+    const outputs = screen.getAllByLabelText('Output') as HTMLInputElement[];
     expect(inputs[0].value).toBe('0');
     expect(outputs[0].value).toBe('0');
   });
@@ -306,9 +306,9 @@ describe('AIModelsSection: custom pricing', () => {
     renderSection();
 
     const inputs = [
-      ...screen.getAllByLabelText('Input, USD per 1 million tokens'),
-      ...screen.getAllByLabelText('Output, USD per 1 million tokens'),
-      ...screen.getAllByLabelText('Cached input, USD per 1 million tokens'),
+      ...screen.getAllByLabelText('Input'),
+      ...screen.getAllByLabelText('Output'),
+      ...screen.getAllByLabelText('Cached input'),
     ];
     for (const input of inputs) {
       expect(input.className).toContain(inputBase);
@@ -321,8 +321,8 @@ describe('AIModelsSection: custom pricing', () => {
     const onPricingOverrideUpdate = vi.fn().mockResolvedValue(undefined);
     renderSection({ onPricingOverrideUpdate });
 
-    const input = screen.getAllByLabelText('Input, USD per 1 million tokens')[0];
-    const output = screen.getAllByLabelText('Output, USD per 1 million tokens')[0];
+    const input = screen.getAllByLabelText('Input')[0];
+    const output = screen.getAllByLabelText('Output')[0];
     await user.type(input, '1.25');
     await user.type(output, '4.5');
     await user.click(screen.getAllByRole('button', { name: 'Save pricing' })[0]);
@@ -338,9 +338,9 @@ describe('AIModelsSection: custom pricing', () => {
     const onPricingOverrideUpdate = vi.fn().mockResolvedValue(undefined);
     renderSection({ onPricingOverrideUpdate });
 
-    await user.type(screen.getAllByLabelText('Input, USD per 1 million tokens')[0], '2');
-    await user.type(screen.getAllByLabelText('Output, USD per 1 million tokens')[0], '8');
-    await user.type(screen.getAllByLabelText('Cached input, USD per 1 million tokens')[0], '0.5');
+    await user.type(screen.getAllByLabelText('Input')[0], '2');
+    await user.type(screen.getAllByLabelText('Output')[0], '8');
+    await user.type(screen.getAllByLabelText('Cached input')[0], '0.5');
     await user.click(screen.getAllByRole('button', { name: 'Save pricing' })[0]);
 
     expect(onPricingOverrideUpdate).toHaveBeenCalledWith('gpt-5', {
@@ -355,8 +355,8 @@ describe('AIModelsSection: custom pricing', () => {
     const onPricingOverrideUpdate = vi.fn().mockResolvedValue(undefined);
     renderSection({ onPricingOverrideUpdate });
 
-    await user.type(screen.getAllByLabelText('Input, USD per 1 million tokens')[0], '2');
-    await user.type(screen.getAllByLabelText('Output, USD per 1 million tokens')[0], '8');
+    await user.type(screen.getAllByLabelText('Input')[0], '2');
+    await user.type(screen.getAllByLabelText('Output')[0], '8');
     await user.click(screen.getAllByRole('button', { name: 'Save pricing' })[0]);
 
     const saved = onPricingOverrideUpdate.mock.calls[0][1];
@@ -374,9 +374,9 @@ describe('AIModelsSection: custom pricing', () => {
       onPricingOverrideUpdate,
     });
 
-    const cache = screen.getAllByLabelText('Cached input, USD per 1 million tokens')[0] as HTMLInputElement;
+    const cache = screen.getAllByLabelText('Cached input')[0] as HTMLInputElement;
     expect(cache.value).toBe('0.5');
-    const output = screen.getAllByLabelText('Output, USD per 1 million tokens')[0];
+    const output = screen.getAllByLabelText('Output')[0];
     await user.clear(output);
     await user.type(output, '9');
     await user.click(screen.getAllByRole('button', { name: 'Save pricing' })[0]);
@@ -393,7 +393,7 @@ describe('AIModelsSection: custom pricing', () => {
     const onPricingOverrideUpdate = vi.fn().mockResolvedValue(undefined);
     renderSection({ onPricingOverrideUpdate });
 
-    await user.type(screen.getAllByLabelText('Cached input, USD per 1 million tokens')[0], '0.5');
+    await user.type(screen.getAllByLabelText('Cached input')[0], '0.5');
     await user.click(screen.getAllByRole('button', { name: 'Save pricing' })[0]);
 
     expect(screen.getByText('Enter input and output prices before a cached input price.')).toBeDefined();
@@ -405,7 +405,7 @@ describe('AIModelsSection: custom pricing', () => {
     const onPricingOverrideUpdate = vi.fn().mockResolvedValue(undefined);
     renderSection({ onPricingOverrideUpdate });
 
-    await user.type(screen.getAllByLabelText('Input, USD per 1 million tokens')[0], '1');
+    await user.type(screen.getAllByLabelText('Input')[0], '1');
     await user.click(screen.getAllByRole('button', { name: 'Save pricing' })[0]);
 
     expect(screen.getByText('Enter both prices, or leave both blank.')).toBeDefined();
@@ -417,10 +417,10 @@ describe('AIModelsSection: custom pricing', () => {
     const onPricingOverrideUpdate = vi.fn().mockResolvedValue(undefined);
     renderSection({ onPricingOverrideUpdate });
 
-    fireEvent.change(screen.getAllByLabelText('Input, USD per 1 million tokens')[0], {
+    fireEvent.change(screen.getAllByLabelText('Input')[0], {
       target: { value: '-1' },
     });
-    fireEvent.change(screen.getAllByLabelText('Output, USD per 1 million tokens')[0], {
+    fireEvent.change(screen.getAllByLabelText('Output')[0], {
       target: { value: '2' },
     });
     await user.click(screen.getAllByRole('button', { name: 'Save pricing' })[0]);
@@ -439,8 +439,8 @@ describe('AIModelsSection: custom pricing', () => {
       onPricingOverrideUpdate,
     });
 
-    await user.clear(screen.getAllByLabelText('Input, USD per 1 million tokens')[0]);
-    await user.clear(screen.getAllByLabelText('Output, USD per 1 million tokens')[0]);
+    await user.clear(screen.getAllByLabelText('Input')[0]);
+    await user.clear(screen.getAllByLabelText('Output')[0]);
     await user.click(screen.getAllByRole('button', { name: 'Save pricing' })[0]);
 
     expect(onPricingOverrideUpdate).toHaveBeenCalledWith('gpt-5', null);
