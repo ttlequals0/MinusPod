@@ -1,6 +1,8 @@
 // Shared, output-stable formatting helpers. Each function here had multiple
 // byte-identical copies inlined across pages/components before consolidation.
 
+import { formatTokenCount } from '../pages/settings/settingsUtils';
+
 // Clock-style timestamp: `H:MM:SS` at or above one hour, else `M:SS`. Integer
 // seconds (each field floored). Used for audio positions (cue rows, ad
 // boundaries) and, via settingsUtils.formatDuration, episode-length durations.
@@ -96,6 +98,22 @@ export function fromDatetimeLocalInput(value: string): string | undefined {
 export function formatPercent(value: number): string {
   const pct = value <= 1 ? value * 100 : value;
   return `${Math.round(pct)}%`;
+}
+
+// Reads over input; null when there is nothing to show (no input, or no cache traffic).
+export function cacheHitRate(read: number, write: number, input: number): number | null {
+  if (!input || (!read && !write)) return null;
+  return read / input;
+}
+
+export function formatCacheHit(read: number, write: number, input: number): string {
+  const rate = cacheHitRate(read, write, input);
+  return rate == null ? '' : formatPercent(rate);
+}
+
+export function cacheHitTitle(read: number, write: number, input: number): string | undefined {
+  return cacheHitRate(read, write, input) == null ? undefined
+    : `${formatTokenCount(read)} read, ${formatTokenCount(write)} write of ${formatTokenCount(input)} input`;
 }
 
 // Elapsed or summed duration, rounded to whole seconds; zero trailing units are dropped: '45s', '2m 5s', '1h 2m'.

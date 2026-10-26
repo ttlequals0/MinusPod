@@ -17,7 +17,7 @@ import { getCueAggregateStats } from '../api/cueDetections';
 import { feedsQueryOptions } from '../api/feeds';
 import { feedDisplayTitle } from '../utils/feedTitle';
 import { formatTokenCount } from './settings/settingsUtils';
-import { formatCost, formatDateTime, formatElapsed } from '../utils/format';
+import { cacheHitRate, cacheHitTitle, formatCacheHit, formatCost, formatDateTime, formatElapsed } from '../utils/format';
 import { SkeletonStatCards, SkeletonChart, SkeletonRows } from '../components/Skeleton';
 import { useThemeColors } from '../hooks/useThemeColors';
 import { Pagination } from '../components/Pagination';
@@ -137,6 +137,18 @@ function ModelUsageDetail({ stat }: { stat: ModelUsageStat }) {
         <dt className="text-muted-foreground">Output tokens</dt>
         <dd className="text-foreground">{formatTokenCount(stat.outputTokens)}</dd>
       </div>
+      <div>
+        <dt className="text-muted-foreground">Cache read</dt>
+        <dd className="text-foreground">{formatTokenCount(stat.cacheReadTokens)}</dd>
+      </div>
+      <div>
+        <dt className="text-muted-foreground">Cache write</dt>
+        <dd className="text-foreground">{formatTokenCount(stat.cacheWriteTokens)}</dd>
+      </div>
+      <div>
+        <dt className="text-muted-foreground">Cache hit rate</dt>
+        <dd className="text-foreground">{formatCacheHit(stat.cacheReadTokens, stat.cacheWriteTokens, stat.inputTokens) || 'None'}</dd>
+      </div>
     </dl>
   );
 }
@@ -162,6 +174,7 @@ function ModelUsageTable({
                 <SortHeader field="provider" label="Provider" sortField={sortField} sortDirection={sortDir} onSort={onSort} />
                 <SortHeader field="model" label="Model" sortField={sortField} sortDirection={sortDir} onSort={onSort} />
                 <SortHeader field="calls" label="Calls" align="right" sortField={sortField} sortDirection={sortDir} onSort={onSort} />
+                <SortHeader field="cacheHitRate" label="Cache hit" align="right" sortField={sortField} sortDirection={sortDir} onSort={onSort} />
                 <SortHeader field="knownCostUsd" label="Known cost" align="right" sortField={sortField} sortDirection={sortDir} onSort={onSort} />
                 <SortHeader field="unknownCostCount" label="Coverage" align="right" sortField={sortField} sortDirection={sortDir} onSort={onSort} />
               </tr>
@@ -169,7 +182,7 @@ function ModelUsageTable({
             <tbody className="divide-y divide-border">
               {items.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-4 py-8 text-center text-muted-foreground">
+                  <td colSpan={7} className="px-4 py-8 text-center text-muted-foreground">
                     No model usage matches these filters.
                   </td>
                 </tr>
@@ -188,6 +201,10 @@ function ModelUsageTable({
                       <td className="px-4 py-3 text-sm text-foreground">{stat.provider}</td>
                       <td className="px-4 py-3 text-sm text-foreground">{stat.model}</td>
                       <td className="px-4 py-3 text-sm text-muted-foreground text-right tabular-nums">{stat.calls}</td>
+                      <td className="px-4 py-3 text-sm text-muted-foreground text-right tabular-nums"
+                          title={cacheHitTitle(stat.cacheReadTokens, stat.cacheWriteTokens, stat.inputTokens)}>
+                        {formatCacheHit(stat.cacheReadTokens, stat.cacheWriteTokens, stat.inputTokens)}
+                      </td>
                       <td className="px-4 py-3 text-sm text-muted-foreground text-right tabular-nums">
                         <CostAmount amount={parseFloat(stat.knownCostUsd)} unpricedCount={stat.unknownCostCount} />
                       </td>
@@ -195,7 +212,7 @@ function ModelUsageTable({
                     </tr>
                     {isOpen && (
                       <tr className="bg-muted/20">
-                        <td colSpan={6} className="px-4 py-3">
+                        <td colSpan={7} className="px-4 py-3">
                           <ModelUsageDetail stat={stat} />
                         </td>
                       </tr>
@@ -219,6 +236,7 @@ function ModelUsageTable({
             <option value="provider">Provider</option>
             <option value="model">Model</option>
             <option value="calls">Calls</option>
+            <option value="cacheHitRate">Cache hit</option>
             <option value="knownCostUsd">Known spend</option>
             <option value="unknownCostCount">Unpriced calls</option>
           </select>
@@ -249,6 +267,9 @@ function ModelUsageTable({
               </div>
               <div className="flex items-center justify-between text-xs text-muted-foreground">
                 <span>{stat.calls} calls</span>
+                <span title={cacheHitTitle(stat.cacheReadTokens, stat.cacheWriteTokens, stat.inputTokens)}>
+                  {formatCacheHit(stat.cacheReadTokens, stat.cacheWriteTokens, stat.inputTokens) || 'No cache'}
+                </span>
                 <span>{formatCoverage(stat.calls, stat.unknownCostCount)}</span>
               </div>
               <div className="mt-2">
@@ -271,6 +292,7 @@ function ModelUsageTable({
 // table and the stacked rows so the two layouts cannot drift.
 const ATTEMPT_COLUMNS: {
   label: string; align: 'left' | 'right'; render: (a: SpendAttempt) => ReactNode;
+  title?: (a: SpendAttempt) => string | undefined;
 }[] = [
   { label: 'Phase', align: 'left',
     render: (a) => `${a.phase}${a.invokingPass ? ` (pass ${a.invokingPass})` : ''}` },
@@ -282,6 +304,9 @@ const ATTEMPT_COLUMNS: {
     : a.status },
   { label: 'Tokens', align: 'right',
     render: (a) => formatTokenCount((a.inputTokens ?? 0) + (a.outputTokens ?? 0)) },
+  { label: 'Cache', align: 'right',
+    render: (a) => formatCacheHit(a.cacheReadTokens ?? 0, a.cacheWriteTokens ?? 0, a.inputTokens ?? 0),
+    title: (a) => cacheHitTitle(a.cacheReadTokens ?? 0, a.cacheWriteTokens ?? 0, a.inputTokens ?? 0) },
   { label: 'Cost', align: 'right',
     render: (a) => (a.costUsd == null ? 'Unknown' : formatCost(parseFloat(a.costUsd))) },
   { label: 'When', align: 'left', render: (a) => formatDateTime(a.finalizedAt ?? a.createdAt) },
@@ -323,7 +348,7 @@ function SpendAttemptsPanel({ slug, episodeId }: { slug: string; episodeId: stri
             {data.attempts.map((a) => (
               <tr key={a.attemptId} className="border-t border-border/40">
                 {ATTEMPT_COLUMNS.map((c) => (
-                  <td key={c.label} className={`${cell(c.align)} break-all`}>{c.render(a)}</td>
+                  <td key={c.label} title={c.title?.(a)} className={`${cell(c.align)} break-all`}>{c.render(a)}</td>
                 ))}
               </tr>
             ))}
@@ -336,7 +361,7 @@ function SpendAttemptsPanel({ slug, episodeId }: { slug: string; episodeId: stri
             {ATTEMPT_COLUMNS.map((c) => (
               <div key={c.label} className="flex justify-between gap-2">
                 <dt className="text-muted-foreground shrink-0">{c.label}</dt>
-                <dd className={`break-all ${c.align === 'right' ? 'tabular-nums' : ''}`}>{c.render(a)}</dd>
+                <dd title={c.title?.(a)} className={`break-all ${c.align === 'right' ? 'tabular-nums' : ''}`}>{c.render(a)}</dd>
               </div>
             ))}
           </dl>
@@ -763,6 +788,8 @@ export default function StatsPage() {
   const llmTokenDetails = !llmStats ? undefined : !llmStats.requests
     ? 'No recorded requests'
     : [
+      cacheHitRate(llmStats.tokens.cacheRead, llmStats.tokens.cacheWrite, llmStats.tokens.input) != null
+        ? `${formatCacheHit(llmStats.tokens.cacheRead, llmStats.tokens.cacheWrite, llmStats.tokens.input)} cache hit` : null,
       llmStats.tokens.cacheRead > 0 ? `${formatTokenCount(llmStats.tokens.cacheRead)} cache read` : null,
       llmStats.tokens.cacheWrite > 0 ? `${formatTokenCount(llmStats.tokens.cacheWrite)} cache write` : null,
       llmStats.tokens.reasoning > 0 ? `${formatTokenCount(llmStats.tokens.reasoning)} reasoning` : null,

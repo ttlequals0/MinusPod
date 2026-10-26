@@ -299,6 +299,7 @@ describe('StatsPage LLM cost ledger', () => {
     items: [{
       provider: 'anthropic', model: 'claude-sonnet', calls: 12, distinctEpisodes: 5,
       inputTokens: 40000, outputTokens: 8000, knownCostUsd: '1.234500', unknownCostCount: 0,
+      cacheReadTokens: 30000, cacheWriteTokens: 2000,
     }],
     total: 40, totalPages: 2, page: 1, limit: 20,
   };
@@ -312,6 +313,16 @@ describe('StatsPage LLM cost ledger', () => {
     }],
     total: 1, totalPages: 1, page: 1, limit: 20,
   };
+
+  it('shows the cache hit rate per model with the raw counts on hover', async () => {
+    mockGetModelUsageStats.mockReset();
+    mockGetModelUsageStats.mockResolvedValue(MODEL_USAGE_PAGE);
+    renderPage();
+    // Desktop table and mobile card both mount; each carries the hover title.
+    const cells = await screen.findAllByText('75%');
+    expect(cells).toHaveLength(2);
+    cells.forEach((c) => expect((c.closest('[title]') as HTMLElement).title).toContain('30.0K read'));
+  });
 
   function lastMainListParams() {
     const calls = mockGetModelUsageStats.mock.calls;
@@ -422,6 +433,7 @@ describe('StatsPage ledger: incomplete cost display', () => {
     items: [{
       provider: 'openrouter', model: 'llama-3', calls: 12, distinctEpisodes: 5,
       inputTokens: 40000, outputTokens: 8000, knownCostUsd: '1.234500', unknownCostCount: 3,
+      cacheReadTokens: 0, cacheWriteTokens: 0,
     }],
     total: 1, totalPages: 1, page: 1, limit: 20,
   };
@@ -856,6 +868,7 @@ describe('StatsPage spend section: copy, labels and table chrome', () => {
       items: [{
         provider: 'anthropic', model: 'claude-sonnet', calls: 12, distinctEpisodes: 5,
         inputTokens: 40000, outputTokens: 8000, knownCostUsd: '1.234500', unknownCostCount: 0,
+        cacheReadTokens: 0, cacheWriteTokens: 0,
       }],
       total: 40, totalPages: 2, page: 1, limit: 20,
     });
@@ -887,6 +900,7 @@ describe('StatsPage spend section: copy, labels and table chrome', () => {
 const MODEL_USAGE_ROW = {
   provider: 'anthropic', model: 'claude-sonnet', calls: 12, distinctEpisodes: 3,
   inputTokens: 1000, outputTokens: 200, knownCostUsd: '1.25', unknownCostCount: 2,
+  cacheReadTokens: 0, cacheWriteTokens: 0,
 };
 const EPISODE_COST_ROW = {
   podcastSlug: 'a-show', podcastTitle: 'A Show', episodeId: 'ep1', episodeTitle: 'Episode One',

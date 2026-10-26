@@ -1,7 +1,7 @@
 import { Fragment, ReactNode, useState } from 'react';
 import { ChevronDown, ChevronRight } from 'lucide-react';
 import { EpisodeProcessingRun, LLM_PROVIDER_LABELS, LlmProvider, RunPhaseUsage } from '../api/types';
-import { formatCost, formatDateTime, formatElapsed, formatPercent, sentenceCase } from '../utils/format';
+import { cacheHitTitle, formatCacheHit, formatCost, formatDateTime, formatElapsed, formatPercent, sentenceCase } from '../utils/format';
 import { formatTokenCount, formatTokenRange } from '../pages/settings/settingsUtils';
 import DisclosureButton from './DisclosureButton';
 import CopyButton from './CopyButton';
@@ -343,9 +343,9 @@ function PhaseBreakdown({ run, layout }: { run: EpisodeProcessingRun; layout: 't
     { label: 'Model', align: 'left', render: (p) => p.returnedModel ?? p.configuredModel, title: modelTitle },
     { label: 'Input', align: 'right', render: (p) => formatTokenCount(p.inputTokens) },
     { label: 'Output', align: 'right', render: (p) => formatTokenCount(p.outputTokens) },
-    ...(hasCache ? [{ label: 'Cache', align: 'right' as const, render: (p: RunPhaseUsage) => (
-      p.cacheReadTokens || p.cacheWriteTokens
-        ? `${formatTokenCount(p.cacheReadTokens)} r / ${formatTokenCount(p.cacheWriteTokens)} w` : '-') }] : []),
+    ...(hasCache ? [{ label: 'Cache hit', align: 'right' as const,
+      render: (p: RunPhaseUsage) => formatCacheHit(p.cacheReadTokens, p.cacheWriteTokens, p.inputTokens) || '-',
+      title: (p: RunPhaseUsage) => cacheHitTitle(p.cacheReadTokens, p.cacheWriteTokens, p.inputTokens) }] : []),
     ...(hasReasoning ? [{ label: 'Reasoning', align: 'right' as const,
       render: (p: RunPhaseUsage) => (p.reasoningTokens ? formatTokenCount(p.reasoningTokens) : '-') }] : []),
     { label: 'Cost', align: 'right', render: (p) => (p.costUsd == null ? 'Unknown' : formatCost(parseFloat(p.costUsd))) },

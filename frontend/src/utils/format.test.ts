@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { formatDurationHoursMinutes, keyLabel, formatPercent, formatElapsed, sentenceCase } from './format';
+import { formatDurationHoursMinutes, keyLabel, formatPercent, formatElapsed, sentenceCase, cacheHitRate, cacheHitTitle, formatCacheHit } from './format';
 
 describe('formatDurationHoursMinutes', () => {
   it.each([
@@ -58,5 +58,17 @@ describe('sentenceCase', () => {
   it('upper-cases the first letter only', () => {
     expect(sentenceCase('queued (offline)')).toBe('Queued (offline)');
     expect(sentenceCase('')).toBe('');
+  });
+});
+
+describe('cache hit helpers', () => {
+  it('reports reads over input as a whole percent', () => {
+    expect(formatCacheHit(800, 100, 1000)).toBe('80%');
+    expect(cacheHitTitle(800, 100, 1000)).toMatch(/^800 read, 100 write of /);
+  });
+  it('is blank without input or without cache traffic', () => {
+    expect(cacheHitRate(10, 0, 0)).toBeNull();
+    expect(formatCacheHit(0, 0, 1000)).toBe('');
+    expect(cacheHitTitle(0, 0, 1000)).toBeUndefined();
   });
 });
