@@ -501,6 +501,9 @@ class SchemaMixin:
         conn.execute(
             "CREATE INDEX IF NOT EXISTS idx_llm_call_usage_logical "
             "ON llm_call_usage(logical_call_id)")
+        pricing_cols = self._get_table_columns(conn, 'model_pricing')
+        self._add_column_if_missing(
+            conn, 'model_pricing', 'cache_read_cost_per_mtok', 'REAL', pricing_cols)
 
         # -- Episodes table columns --
         self._add_episode_columns(conn)

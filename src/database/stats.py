@@ -386,7 +386,8 @@ class StatsMixin:
     def _resolve_model_rate(self, conn, model_id: str, match_key: str = ''):
         """Resolve current per-mtok input/output rates for a model.
 
-        Returns (input_per_mtok, output_per_mtok, revision) or None when no
+        Returns (input_per_mtok, output_per_mtok, cache_read_per_mtok | None,
+        revision) or None when no
         operator override, exact catalog match, or prefix match resolves a
         rate. Resolution: operator override -> exact match_key -> prefix match.
         `revision` identifies the resolved rate's provenance ('override' or
@@ -397,11 +398,13 @@ class StatsMixin:
 
         override = self.get_model_pricing_override(model_id)
         if override is not None:
-            return override['inputCostPerMtok'], override['outputCostPerMtok'], 'override'
+            return (override['inputCostPerMtok'], override['outputCostPerMtok'],
+                    override.get('cacheReadCostPerMtok'), 'override')
 
         # Exact match on match_key
         cursor = conn.execute(
-            "SELECT input_cost_per_mtok, output_cost_per_mtok, source, updated_at "
+            "SELECT input_cost_per_mtok, output_cost_per_mtok, cache_read_cost_per_mtok, "
+            "source, updated_at "
             "FROM model_pricing WHERE match_key = ?",
             (match_key,)
         )
@@ -417,7 +420,7 @@ class StatsMixin:
         if not row:
             cursor = conn.execute(
                 """SELECT match_key, input_cost_per_mtok, output_cost_per_mtok,
-                          source, updated_at
+                          cache_read_cost_per_mtok, source, updated_at
                    FROM model_pricing
                    WHERE ? LIKE match_key || '%'
                      AND length(match_key) >= length(?) * 0.8
@@ -455,7 +458,12 @@ class StatsMixin:
             input_per_mtok = max(0.0, input_per_mtok)
             output_per_mtok = max(0.0, output_per_mtok)
 
-        return input_per_mtok, output_per_mtok, f"{row['source']}:{row['updated_at']}"
+        cache_read_per_mtok = row['cache_read_cost_per_mtok']
+        if cache_read_per_mtok is not None and cache_read_per_mtok < 0:
+            cache_read_per_mtok = None
+
+        return (input_per_mtok, output_per_mtok, cache_read_per_mtok,
+                f"{row['source']}:{row['updated_at']}")
 
     def _apply_token_usage_counters(self, conn, model_id: str,
                                     input_tokens: int, output_tokens: int,
@@ -752,14 +760,14 @@ class StatsMixin:
             cost = float(cost_dec)
         elif tokens_known or (row['provider_key'] == 'typesafe' and input_tokens is not None):
             if row['provider_key'] == 'typesafe':
-                resolved = (0.042, 0.0, 'typesafe-v1')
+                resolved = (0.042, 0.0, None, 'typesafe-v1')
             else:
                 resolved = self._resolve_model_rate(conn, configured_model)
             # An endpoint alias may resolve to a differently-named priced model.
             if resolved is None and returned_model and returned_model != configured_model:
                 resolved = self._resolve_model_rate(conn, returned_model)
             if resolved is not None:
-                input_per_mtok, output_per_mtok, revision = resolved
+                input_per_mtok, output_per_mtok, cache_read_per_mtok, revision = resolved
                 if input_per_mtok == 0 and output_per_mtok == 0:
                     cost_source = 'explicit_zero'
                     cost_dec = Decimal('0')

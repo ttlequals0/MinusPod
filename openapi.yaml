@@ -7932,6 +7932,9 @@ paths:
                         outputCostPerMtok:
                           type: number
                           description: Output cost per million tokens (USD)
+                        cacheReadCostPerMtok:
+                          type: [number, 'null']
+                          description: Cached-input cost per million tokens (USD), when the source publishes one
                         source:
                           type: string
                           description: Pricing data source (openrouter_api, pricepertoken, default, legacy)
@@ -15627,6 +15630,10 @@ components:
           type: number
           minimum: 0
           description: Output price in USD per 1 million tokens
+        cacheReadCostPerMtok:
+          type: [number, 'null']
+          minimum: 0
+          description: Cached-input price in USD per 1 million tokens. Optional.
 
     WhisperModel:
       type: object

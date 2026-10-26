@@ -598,9 +598,12 @@ def _validate_setting_value(key, value):
                 continue
             if not isinstance(rates, dict):
                 raise ConfigTransferError('model_pricing_overrides contains an invalid model')
-            if set(rates) != {'inputCostPerMtok', 'outputCostPerMtok'}:
+            required = {'inputCostPerMtok', 'outputCostPerMtok'}
+            if not required <= set(rates) <= required | {'cacheReadCostPerMtok'}:
                 raise ConfigTransferError('model_pricing_overrides contains invalid rate fields')
-            for rate in rates.values():
+            for field, rate in rates.items():
+                if field == 'cacheReadCostPerMtok' and rate is None:
+                    continue
                 if (isinstance(rate, bool) or not isinstance(rate, (int, float))
                         or not math.isfinite(rate) or rate < 0):
                     raise ConfigTransferError('model_pricing_overrides rates must be finite and non-negative')

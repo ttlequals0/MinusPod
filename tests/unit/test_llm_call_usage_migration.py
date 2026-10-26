@@ -217,3 +217,14 @@ def test_full_init_on_intermediate_ledger_without_credential_slot(tmp_path):
         assert SLOT_INDEX in _indexes(conn, 'llm_call_usage')
     finally:
         Database._instance = None
+
+
+def test_model_pricing_gains_cache_read_rate_column(tmp_path):
+    Database._instance = None
+    db = Database(data_dir=str(tmp_path))
+    try:
+        cols = {r[1] for r in db.get_connection().execute(
+            "PRAGMA table_info(model_pricing)")}
+        assert 'cache_read_cost_per_mtok' in cols
+    finally:
+        Database._instance = None

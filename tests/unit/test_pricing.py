@@ -183,8 +183,10 @@ class TestModelPricingOverrides:
                 future.result()
 
         assert temp_db.get_model_pricing_overrides() == {
-            'model-a': {'inputCostPerMtok': 1.0, 'outputCostPerMtok': 1.0},
-            'model-b': {'inputCostPerMtok': 2.0, 'outputCostPerMtok': 2.0},
+            'model-a': {'inputCostPerMtok': 1.0, 'outputCostPerMtok': 1.0,
+                        'cacheReadCostPerMtok': None},
+            'model-b': {'inputCostPerMtok': 2.0, 'outputCostPerMtok': 2.0,
+                        'cacheReadCostPerMtok': None},
         }
 
     def test_summary_keeps_recorded_cost_after_override_changes(self, temp_db):
@@ -525,6 +527,7 @@ class TestSeedDefaultPricing:
                 display_name TEXT NOT NULL,
                 input_cost_per_mtok REAL NOT NULL,
                 output_cost_per_mtok REAL NOT NULL,
+                cache_read_cost_per_mtok REAL,
                 source TEXT DEFAULT 'legacy',
                 updated_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
             )
@@ -948,6 +951,7 @@ class TestGetModelPricingSourceFilter:
                 display_name TEXT NOT NULL,
                 input_cost_per_mtok REAL NOT NULL,
                 output_cost_per_mtok REAL NOT NULL,
+                cache_read_cost_per_mtok REAL,
                 source TEXT DEFAULT 'legacy',
                 updated_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
             )
@@ -993,6 +997,13 @@ class TestLiteLLMFallback:
         "gpt-4o": {
             "input_cost_per_token": 0.0000025,
             "output_cost_per_token": 0.00001,
+            "cache_read_input_token_cost": 0.00000125,
+            "litellm_provider": "openai",
+        },
+        "bad-cache": {
+            "input_cost_per_token": 0.000001,
+            "output_cost_per_token": 0.000002,
+            "cache_read_input_token_cost": "oops",
             "litellm_provider": "openai",
         },
         "embedding-model": {
@@ -1035,6 +1046,21 @@ class TestLiteLLMFallback:
         claude = next(r for r in results if r['raw_model_id'] == 'claude-opus-4-6')
         assert claude['input_cost_per_mtok'] == 15.0
         assert claude['output_cost_per_mtok'] == 75.0
+
+    def _fetch(self):
+        from pricing_fetcher import fetch_litellm_pricing
+        with patch('pricing_fetcher.safe_get', return_value=self._mock_resp()):
+            return fetch_litellm_pricing()
+
+    def test_cache_read_rate_is_parsed_per_mtok(self):
+        rows = {r['raw_model_id']: r for r in self._fetch()}
+        assert rows['gpt-4o']['cache_read_cost_per_mtok'] == 1.25
+        assert rows['claude-opus-4-6']['cache_read_cost_per_mtok'] == 1.5
+
+    def test_unparseable_cache_rate_keeps_the_row_without_it(self):
+        rows = {r['raw_model_id']: r for r in self._fetch()}
+        assert rows['bad-cache']['cache_read_cost_per_mtok'] is None
+        assert rows['bad-cache']['input_cost_per_mtok'] == 1.0
 
     def test_provider_filter(self):
         from pricing_fetcher import fetch_litellm_pricing

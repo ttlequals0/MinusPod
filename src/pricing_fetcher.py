@@ -265,6 +265,14 @@ def fetch_litellm_pricing(provider_filter: str | None = None) -> list[dict]:
             logger.debug(f"Skipping LiteLLM entry with unparseable pricing: {raw_id}")
             continue
 
+        cache_per_mtok = None
+        try:
+            cache_cost = spec.get('cache_read_input_token_cost')
+            if cache_cost is not None and float(cache_cost) >= 0:
+                cache_per_mtok = round(float(cache_cost) * 1_000_000, 4)
+        except (ValueError, TypeError):
+            pass
+
         key = normalize_model_key(raw_id)
         results.append({
             'match_key': key,
@@ -272,6 +280,7 @@ def fetch_litellm_pricing(provider_filter: str | None = None) -> list[dict]:
             'display_name': raw_id,
             'input_cost_per_mtok': round(input_per_mtok, 4),
             'output_cost_per_mtok': round(output_per_mtok, 4),
+            'cache_read_cost_per_mtok': cache_per_mtok,
         })
 
     return results

@@ -1191,7 +1191,7 @@ class SettingsMixin:
             }
         return settings
 
-    def get_model_pricing_overrides(self) -> dict[str, dict[str, float]]:
+    def get_model_pricing_overrides(self) -> dict[str, dict[str, float | None]]:
         """Return valid operator pricing overrides keyed by model ID."""
         raw = self.get_setting('model_pricing_overrides')
         if not raw:
@@ -1222,15 +1222,26 @@ class SettingsMixin:
             if (not math.isfinite(input_rate) or not math.isfinite(output_rate)
                     or input_rate < 0 or output_rate < 0):
                 continue
+            cache_rate = rates.get('cacheReadCostPerMtok')
+            if cache_rate is not None and not isinstance(cache_rate, bool):
+                try:
+                    cache_rate = float(cache_rate)
+                except (TypeError, ValueError):
+                    cache_rate = None
+                if cache_rate is not None and (not math.isfinite(cache_rate) or cache_rate < 0):
+                    cache_rate = None
+            else:
+                cache_rate = None
             overrides[model_id] = {
                 'inputCostPerMtok': input_rate,
                 'outputCostPerMtok': output_rate,
+                'cacheReadCostPerMtok': cache_rate,
             }
         return overrides
 
     def get_model_pricing_override(
             self, model_id: str,
-            overrides: dict[str, dict[str, float]] | None = None,
+            overrides: dict[str, dict[str, float | None]] | None = None,
     ) -> dict[str, float] | None:
         """Resolve an exact or normalized operator override for a model."""
         if overrides is None:
@@ -1516,7 +1527,7 @@ class SettingsMixin:
             cursor = conn.execute(
                 """SELECT match_key, raw_model_id, display_name,
                           input_cost_per_mtok, output_cost_per_mtok,
-                          source, updated_at
+                          cache_read_cost_per_mtok, source, updated_at
                    FROM model_pricing WHERE source = ?
                    ORDER BY display_name""",
                 (source,)
@@ -1525,7 +1536,7 @@ class SettingsMixin:
             cursor = conn.execute(
                 """SELECT match_key, raw_model_id, display_name,
                           input_cost_per_mtok, output_cost_per_mtok,
-                          source, updated_at
+                          cache_read_cost_per_mtok, source, updated_at
                    FROM model_pricing ORDER BY display_name"""
             )
         return [
@@ -1535,6 +1546,7 @@ class SettingsMixin:
                 'displayName': row['display_name'],
                 'inputCostPerMtok': row['input_cost_per_mtok'],
                 'outputCostPerMtok': row['output_cost_per_mtok'],
+                'cacheReadCostPerMtok': row['cache_read_cost_per_mtok'],
                 'source': row['source'],
                 'updatedAt': row['updated_at'],
             }
@@ -1594,16 +1606,19 @@ class SettingsMixin:
             conn.execute(
                 """INSERT INTO model_pricing
                        (model_id, match_key, raw_model_id, display_name,
-                        input_cost_per_mtok, output_cost_per_mtok, source)
-                   VALUES (?, ?, ?, ?, ?, ?, ?)
+                        input_cost_per_mtok, output_cost_per_mtok,
+                        cache_read_cost_per_mtok, source)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                    ON CONFLICT(match_key) DO UPDATE SET
                      raw_model_id = excluded.raw_model_id,
                      display_name = excluded.display_name,
                      input_cost_per_mtok = excluded.input_cost_per_mtok,
                      output_cost_per_mtok = excluded.output_cost_per_mtok,
+                     cache_read_cost_per_mtok = excluded.cache_read_cost_per_mtok,
                      source = excluded.source,
                      updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')""",
                 (m['raw_model_id'], m['match_key'], m['raw_model_id'], m['display_name'],
-                 m['input_cost_per_mtok'], m['output_cost_per_mtok'], row_source)
+                 m['input_cost_per_mtok'], m['output_cost_per_mtok'],
+                 m.get('cache_read_cost_per_mtok'), row_source)
             )
         conn.commit()

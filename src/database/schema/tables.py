@@ -576,6 +576,7 @@ TABLE_DDL['model_pricing'] = """CREATE TABLE IF NOT EXISTS model_pricing (
     display_name TEXT NOT NULL,
     input_cost_per_mtok REAL NOT NULL,
     output_cost_per_mtok REAL NOT NULL,
+    cache_read_cost_per_mtok REAL,
     source TEXT DEFAULT 'legacy',
     updated_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
 )"""

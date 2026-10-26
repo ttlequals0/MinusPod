@@ -475,14 +475,17 @@ def _model_pricing_patch(submitted):
         if not isinstance(rates, Mapping):
             return None, (f'modelPricingOverrides.{model_id} must be an object or null', 400)
         required = {'inputCostPerMtok', 'outputCostPerMtok'}
-        if set(rates) != required:
+        optional = {'cacheReadCostPerMtok'}
+        if not required <= set(rates) <= required | optional:
             return None, (
                 f'modelPricingOverrides.{model_id} must contain inputCostPerMtok '
-                'and outputCostPerMtok', 400)
+                'and outputCostPerMtok, and may contain cacheReadCostPerMtok', 400)
 
         parsed = {}
-        for field in required:
+        for field in required | (optional & set(rates)):
             value = rates[field]
+            if value is None and field in optional:
+                continue
             if isinstance(value, bool) or not isinstance(value, (int, float)):
                 return None, (
                     f'modelPricingOverrides.{model_id}.{field} must be a '

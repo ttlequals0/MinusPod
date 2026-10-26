@@ -870,6 +870,33 @@ class TestTokenUsage:
         rate = temp_db._resolve_model_rate(conn, 'claude-haiku-4-5-20251001')
         assert rate[:2] == (1.0, 5.0)
 
+    def test_resolve_rate_returns_cache_read_rate_when_catalog_has_one(self, temp_db):
+        temp_db.upsert_fetched_pricing([{
+            'match_key': 'cachedmodel', 'raw_model_id': 'cached-model',
+            'display_name': 'cached-model', 'input_cost_per_mtok': 2.0,
+            'output_cost_per_mtok': 8.0, 'cache_read_cost_per_mtok': 0.5,
+        }], source='litellm')
+        conn = temp_db.get_connection()
+        rate = temp_db._resolve_model_rate(conn, 'cached-model')
+        assert rate[:3] == (2.0, 8.0, 0.5)
+
+    def test_resolve_rate_cache_rate_is_none_when_unknown(self, temp_db):
+        conn = temp_db.get_connection()
+        assert temp_db._resolve_model_rate(conn, 'claude-haiku-4-5-20251001')[2] is None
+
+    def test_override_cache_rate_is_optional(self, temp_db):
+        temp_db.merge_model_pricing_overrides({
+            'legacy-override': {'inputCostPerMtok': 1.0, 'outputCostPerMtok': 2.0},
+            'cached-override': {'inputCostPerMtok': 1.0, 'outputCostPerMtok': 2.0,
+                                'cacheReadCostPerMtok': 0.1},
+            'bad-override': {'inputCostPerMtok': 1.0, 'outputCostPerMtok': 2.0,
+                             'cacheReadCostPerMtok': -1},
+        })
+        conn = temp_db.get_connection()
+        assert temp_db._resolve_model_rate(conn, 'legacy-override') == (1.0, 2.0, None, 'override')
+        assert temp_db._resolve_model_rate(conn, 'cached-override') == (1.0, 2.0, 0.1, 'override')
+        assert temp_db._resolve_model_rate(conn, 'bad-override') == (1.0, 2.0, None, 'override')
+
     def test_resolve_rate_prefix_match_close_length(self, temp_db):
         """Prefix match works when stored key covers >= 80% of lookup key length."""
         conn = temp_db.get_connection()
