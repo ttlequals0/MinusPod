@@ -14,7 +14,7 @@ release notes.
 ### Added
 - `utils/segments.py` helpers for validating, normalizing and joining word-timed segments.
 - Stats: cache read and write tokens on model usage, per-run totals and
-  contributing calls, with a cache hit rate (reads over input) on the model
+  contributing calls. A cache hit rate (reads over input) shows on the model
   usage table, the contributing calls panel, the per-run phase breakdown and
   the LLM token tile (#897).
 - Pricing: `model_pricing` stores a cache read rate from LiteLLM, operator
