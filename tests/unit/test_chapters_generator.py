@@ -576,6 +576,36 @@ class TestSharedLLMCallPath:
         )
 
 
+class _OverflowingTopicClient:
+    """Stub client whose topic-detection prompts overflow Ollama's num_ctx
+    while title prompts succeed (#893)."""
+
+    def messages_create(self, **kwargs):
+        from llm_client import OllamaContextOverflowError
+        prompt = kwargs['messages'][0]['content']
+        if 'major topic changes' in prompt:
+            raise OllamaContextOverflowError(
+                'cut', num_ctx=16384, prompt_tokens=8195, estimated_tokens=21000)
+        return _StubResponse(content='Introduction')
+
+
+class TestContextOverflowDegradation:
+    def test_overflow_named_in_degradation_reason(self):
+        gen = ChaptersGenerator(api_key='test')
+        gen._llm_client = _OverflowingTopicClient()
+
+        gen.generate_chapters(
+            segments=_long_episode_segments(duration=5400),
+            podcast_name='Show',
+            episode_title='Ep',
+            episode_id='ep-overflow',
+        )
+
+        assert gen.chapters_degraded is True
+        assert 'topic detection failed' in gen.chapters_degradation_reason
+        assert 'num_ctx=16384' in gen.chapters_degradation_reason
+
+
 class _SplitTextClient:
     """Stub client returning unparseable prose for topic-detection prompts
     and a real title otherwise, to isolate the topic-detection gap from

@@ -81,6 +81,7 @@ const WINDOW_LOSS_LABELS: Record<string, string> = {
   reasoning_exhausted: 'reasoning budget exhausted',
   output_truncated: 'output cut off at max tokens',
   empty_completion: 'empty reply',
+  context_overflow: 'prompt cut off by Ollama num_ctx',
   other: 'other error',
 };
 

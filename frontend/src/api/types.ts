@@ -288,7 +288,7 @@ export interface UpstreamTranscript {
 
 // Windows the latest run lost in one pass, and what they were lost to
 // (rate_limit, server_error, connectivity, reasoning_exhausted,
-// output_truncated, empty_completion, other).
+// output_truncated, empty_completion, context_overflow, other).
 export interface CoverageGap {
   failed: number;
   total: number | null;
