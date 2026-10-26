@@ -46,6 +46,8 @@ Every term the app uses, in plain words, with a link to the part of the docs tha
 
 ## C
 
+**Cache hit rate** - Share of input tokens served from the prompt cache, computed as cache reads over input tokens. Shown on the Stats page per model, per run and per contributing call, with the raw read, write and input counts on hover. [Web Interface > LLM cost ledger](web-interface.md#llm-cost-ledger)
+
 **Chapters** - Chapter markers MinusPod preserves or generates for the processed audio, served as Podcasting 2.0 JSON and embedded in the MP3 as ID3 frames. [How It Works > Chapter Generation](how-it-works.md#chapter-generation)
 
 **Chapter regeneration** - Refreshing an episode's chapters on demand. Each attempt gets its own processing-history entry and usage record, plus an episode log when log storage is enabled. [How It Works > Chapter Generation](how-it-works.md#chapter-generation)
@@ -172,7 +174,7 @@ Every term the app uses, in plain words, with a link to the part of the docs tha
 
 ## P
 
-**Prompt caching** - Reusing a static prompt prefix across LLM calls. MinusPod requests a 5-minute cache for Anthropic system prompts and records cache reads and writes in input-token usage. [LLM Providers > Prompt caching](llm-providers.md#prompt-caching)
+**Prompt caching** - Reusing a static prompt prefix across LLM calls. MinusPod requests a 5-minute cache for Anthropic system prompts, records cache reads and writes inside input-token usage for every provider, and bills cached input on OpenAI-compatible and OpenRouter calls at the model's cache read rate when one is known. [LLM Providers > Prompt caching](llm-providers.md#prompt-caching)
 
 **Parakeet** - NVIDIA Parakeet TDT 0.6B v3, the second local transcription backend. It runs in-process through ONNX Runtime and is selected with `WHISPER_BACKEND=parakeet`. [Transcription > Parakeet](transcription.md#parakeet)
 

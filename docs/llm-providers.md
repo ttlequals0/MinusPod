@@ -34,7 +34,7 @@ Leave effort blank to use the configured default; without an environment default
 
 MinusPod requests a 5-minute cache for static Anthropic system prompts. Transcript snippets and other per-call messages remain outside that cache boundary. Caching is automatic; there is no setting to enable it. Short prompts may not meet the provider's minimum cache size, and a changed prompt or expired cache causes a miss. See [Anthropic's prompt caching guide](https://platform.claude.com/docs/en/build-with-claude/prompt-caching).
 
-Input token totals include cache reads and writes. Processing history reports these counts separately as subsets of input tokens. For direct Anthropic calls, estimated cost uses the model's cache-read discount and the 5-minute cache-write rate. A provider-reported cost takes precedence; calls without known pricing remain unpriced.
+Input token totals include cache reads and writes. Processing history reports these counts separately as subsets of input tokens. Input token totals include cache reads and writes. Processing history reports these counts separately as subsets of input tokens. For direct Anthropic calls, estimated cost uses the model's cache-read discount and the 5-minute cache-write rate. For OpenAI-compatible and OpenRouter calls, cached input tokens bill at the model's cache read rate when the pricing catalog or an operator override supplies one, and at the full input rate otherwise. The Stats page shows the resulting cache hit rate (cache reads over input tokens) per model, per run and per contributing call. A provider-reported cost takes precedence; calls without known pricing remain unpriced.
 
 ## Using Claude Code Wrapper (Max Subscription)
 
@@ -343,7 +343,7 @@ Different sources use different names for the same model. A normalization step s
 
 ### Offline / air-gapped installs
 
-If the pricing fetch fails on startup and the database has no pricing data, MinusPod seeds a built-in table of Anthropic prices. A non-Anthropic model without a catalog row has unknown pricing and accrues $0 until a match or operator override exists. Existing cached pricing is kept when a fetch fails.
+If the pricing fetch fails on startup and the database has no pricing data, MinusPod seeds a built-in table of Anthropic prices. A non-Anthropic model without a catalog row has unknown pricing and accrues $0 until a match or operator override exists. Existing cached pricing is kept when a fetch fails. The LiteLLM source also supplies a cache read rate per model where the provider publishes one; an operator override can set it as `cacheReadCostPerMtok` alongside the input and output rates.
 
 ### Pricing accuracy
 
