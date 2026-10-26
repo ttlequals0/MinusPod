@@ -11,6 +11,8 @@ release notes.
 
 ## [Unreleased]
 
+## [2.100.23] - 2026-10-26
+
 ### Added
 - `utils/segments.py` helpers for validating, normalizing and joining word-timed segments.
 - Stats: cache read and write tokens on model usage, per-run totals and

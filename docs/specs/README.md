@@ -25,4 +25,4 @@ and heading anchor when a test exists to pin a decision made here.
 | [2026-10-12 Processing split](2026-10-12-processing-split-design.md) | Splitting `main_app/processing.py` into pipeline stage modules | 2.100.11 |
 | [2026-10-14 Download history](2026-10-14-download-history-design.md) | Download recording, geo lookup, retention, row actions, subscriber feed management | Shipped in 2.100.13 |
 | [2026-10-14 Detection and search fixes](2026-10-14-detection-and-search-fixes-design.md) | LLM window cap, reviewer clamp and proposals, addressing-mode telemetry, search index, preparing stage | Shipped in 2.100.13 |
-| [2026-10-26 Prompt cache stats](2026-10-26-prompt-cache-stats-design.md) | Cache read and write tokens, hit rate on the Stats page, cached-input pricing for OpenAI-compatible and OpenRouter rows | Unreleased |
+| [2026-10-26 Prompt cache stats](2026-10-26-prompt-cache-stats-design.md) | Cache read and write tokens, hit rate on the Stats page, cached-input pricing for OpenAI-compatible and OpenRouter rows | 2.100.23 |
