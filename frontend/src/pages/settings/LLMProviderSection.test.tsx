@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import LLMProviderSection from './LLMProviderSection';
 import type { ProvidersResponse } from '../../api/providers';
+import { LLM_PROVIDERS } from '../../api/types';
 
 const providersState: ProvidersResponse = {
   cryptoReady: true,
@@ -107,6 +108,18 @@ describe('LLMProviderSection: Provider A / Provider B labeling', () => {
     expect(chat.min).toBe('10');
     expect(chat.max).toBe('3600');
     expect(chat.step).toBe('1');
+  });
+});
+
+describe('LLMProviderSection: JSON schema response format toggle', () => {
+  it.each([LLM_PROVIDERS.OPENAI_COMPATIBLE, LLM_PROVIDERS.OLLAMA])('shows the toggle for %s', (llmProvider) => {
+    renderSection({ llmProvider });
+    expect(screen.getByRole('switch', { name: 'JSON schema response format' })).toBeTruthy();
+  });
+
+  it('hides the toggle for anthropic', () => {
+    renderSection();
+    expect(screen.queryByRole('switch', { name: 'JSON schema response format' })).toBeNull();
   });
 });
 

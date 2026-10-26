@@ -160,6 +160,7 @@ from .prompts import (
     CATEGORY_REPAIR_JSON_SCHEMA,
     CATEGORY_REPAIR_MAX_TOKENS,
     AD_DETECTION_JSON_SCHEMA,
+    ad_detection_json_schema,
     format_category_repair_prompt,
     log_assembled_system_prompt,
     parse_category_repair_response,
@@ -1260,12 +1261,14 @@ class AdDetector:
         return ads
 
     def _call_llm_for_window(self, *, model, system_prompt, prompt, llm_timeout,
-                              max_retries, slug, episode_id, window_label, pass_name):
+                              max_retries, slug, episode_id, window_label, pass_name,
+                              response_schema=AD_DETECTION_JSON_SCHEMA):
         """Thin wrapper over utils.llm_call.call_llm_for_window with per-stage tunables.
 
         ``pass_name`` selects which config keys (DETECTION_* vs VERIFICATION_*) supply
         the temperature/max_tokens/reasoning values, and is forwarded to the LLM
-        client for per-pass fallback flag scoping.
+        client for per-pass fallback flag scoping. ``response_schema`` is sent
+        only where schema output is enabled; json_object mode ignores it.
         """
         phase = _phase_for_pass(pass_name)
         live = live_route_params(phase, model, llm_timeout, max_retries)
@@ -1293,7 +1296,7 @@ class AdDetector:
             credential_slot=credential_slot,
             stage_tunable_prefix=phase,
             response_format=schema_format_for(
-                model, 'ad_detection', AD_DETECTION_JSON_SCHEMA,
+                model, 'ad_detection', response_schema,
                 'Ad segments detected in this window.', provider=provider),
         )
 
@@ -1366,6 +1369,7 @@ class AdDetector:
             slug=slug, episode_id=episode_id,
             window_label=window_label,
             pass_name=pass_name,
+            response_schema=ad_detection_json_schema(addressing_mode),
         )
         if response is None:
             logger.error(

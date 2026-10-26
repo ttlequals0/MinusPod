@@ -129,6 +129,23 @@ class TestProbe:
         assert client._get_json_schema_supported('never-probed') is None
 
 
+class TestOllamaSkipsProbe:
+    def teardown_method(self):
+        _db().clear_setting('llm_json_schema_enabled')
+        _invalidate()
+
+    def test_opt_in_sends_no_probe_request(self):
+        from llm_client import OllamaNativeClient
+        client = OllamaNativeClient(
+            ollama_num_ctx=8192, base_url='http://localhost:11434/v1',
+            api_key='not-needed', default_model='m')
+        client._client = MagicMock()
+        _db().set_setting('llm_json_schema_enabled', 'true')
+        _invalidate()
+        client._probe_json_schema_if_enabled(fallback_model='m')
+        client._client.chat.completions.create.assert_not_called()
+
+
 class TestBuildKwargsDowngrade:
     def test_json_schema_downgrades_to_json_object_when_unsupported(self):
         client = _make_client()
@@ -239,6 +256,18 @@ class TestSupportsJsonSchemaForCalls:
         fmt = schema_format_for('m', 'n', {'type': 'object'}, provider='openai-compatible')
         assert fmt['type'] == 'json_schema'
 
+    def test_true_for_ollama_when_opted_in_without_a_probe(self):
+        self._configure('ollama', enabled=True, probed=None)
+        assert supports_json_schema_for_calls('m') is True
+
+    def test_false_for_ollama_when_not_opted_in(self):
+        self._configure('ollama', enabled=False, probed=True)
+        assert supports_json_schema_for_calls('m') is False
+
+    def test_routed_ollama_behind_other_global_provider(self):
+        self._configure('typesafe', enabled=True, probed=None)
+        assert supports_json_schema_for_calls('m', 'ollama') is True
+
     def test_false_when_not_opted_in(self):
         self._configure('openai-compatible', enabled=False, probed=True)
         assert supports_json_schema_for_calls('m') is False
@@ -344,3 +373,40 @@ class TestDetectionSchemaCategoryEnum:
         # The rest stay as slots an enforcing decoder cannot strip.
         for field in aliases:
             assert props[field] == {'type': 'string'}
+
+
+class TestModeDetectionSchema:
+    """An enforcing decoder emits only required fields reliably, so the
+    window schema requires what the prompt requires, per addressing mode."""
+
+    def _items(self, mode):
+        from ad_detector.prompts import ad_detection_json_schema
+        return ad_detection_json_schema(mode)['properties']['ads']['items']
+
+    def test_timestamps_mode_requires_start_and_end(self):
+        required = self._items('timestamps')['required']
+        assert required[:2] == ['start', 'end']
+        assert 'start_id' not in required
+        assert {'end_text', 'category', 'confidence', 'reason'} <= set(required)
+
+    def test_segment_ids_mode_requires_ids_not_timestamps(self):
+        required = self._items('segment_ids')['required']
+        assert required[:2] == ['start_id', 'end_id']
+        assert 'start' not in required and 'end' not in required
+
+    def test_free_text_is_capped(self):
+        from ad_detector.prompts import AD_SCHEMA_TEXT_MAX_CHARS
+        from utils.constants import SPONSOR_MAX_NAME_CHARS, SPONSOR_PRIORITY_FIELDS
+        props = self._items('timestamps')['properties']
+        assert props['reason']['maxLength'] == AD_SCHEMA_TEXT_MAX_CHARS
+        assert props['end_text']['maxLength'] == AD_SCHEMA_TEXT_MAX_CHARS
+        for field in SPONSOR_PRIORITY_FIELDS:
+            assert props[field]['maxLength'] == SPONSOR_MAX_NAME_CHARS
+        assert 'maxLength' not in props['category']
+
+    def test_shared_schema_is_left_untouched(self):
+        from ad_detector.prompts import AD_DETECTION_JSON_SCHEMA
+        self._items('timestamps')
+        items = AD_DETECTION_JSON_SCHEMA['properties']['ads']['items']
+        assert 'required' not in items
+        assert 'maxLength' not in items['properties']['reason']

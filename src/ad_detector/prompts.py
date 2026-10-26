@@ -4,6 +4,7 @@ Pure functions / module-level constants for prompt assembly and response
 parsing. No DB, no LLM client. Split out of ``ad_detector/__init__.py``
 for readability; behavior is unchanged from the pre-split module.
 """
+import copy
 import logging
 import json
 import re
@@ -901,6 +902,33 @@ AD_DETECTION_JSON_SCHEMA = {
     },
     "required": ["ads"],
 }
+
+# Cap on the schema's free-text fields. An enforcing decoder cannot otherwise
+# stop a model that starts repeating itself inside a string: gemma4 on Ollama
+# looped a sponsor alias until max_tokens and the window's JSON never closed.
+AD_SCHEMA_TEXT_MAX_CHARS = 300
+
+
+def ad_detection_json_schema(addressing_mode: str) -> dict:
+    """The detection schema for one addressing mode, for enforcing decoders.
+
+    An enforcing decoder such as Ollama's ``format`` emits an optional field
+    only when the model picks it, and gemma4 picked sponsor aliases over
+    category, reason and end_text, so the validator rejected real ads. This
+    marks the fields the prompt requires as required for ``addressing_mode``
+    and caps free text; AD_DETECTION_JSON_SCHEMA itself stays all-optional.
+    """
+    schema = copy.deepcopy(AD_DETECTION_JSON_SCHEMA)
+    item = schema["properties"]["ads"]["items"]
+    for name, spec in item["properties"].items():
+        if spec["type"] == "string" and "enum" not in spec:
+            spec["maxLength"] = (SPONSOR_MAX_NAME_CHARS if name in SPONSOR_PRIORITY_FIELDS
+                                 else AD_SCHEMA_TEXT_MAX_CHARS)
+    edges = (["start_id", "end_id"] if addressing_mode == "segment_ids"
+             else ["start", "end"])
+    item["required"] = edges + ["end_text", "category", "confidence", "reason"]
+    return schema
+
 
 # Small fixed budget: the repair call only ever emits a short JSON array,
 # not full-length ad detection. Not user-tunable; this is an internal call.

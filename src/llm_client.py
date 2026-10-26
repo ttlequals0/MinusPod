@@ -393,11 +393,20 @@ def _omit_temperature_override() -> bool:
 
 
 def supports_json_schema_for_calls(model: str | None = None, provider: str | None = None) -> bool:
-    """Schema-probe result for the routed (else global) OpenAI-compatible provider."""
-    if (provider or get_effective_provider()) != PROVIDER_OPENAI_COMPATIBLE:
+    """Return whether JSON calls on the routed (else global) provider send json_schema.
+
+    OpenAI-compatible endpoints need the operator opt-in and a passing probe.
+    Ollama needs only the opt-in: its native client sends the schema as the
+    /api/chat ``format``, which constrains decoding to it, while plain json
+    mode leaves the model to pick the array's key itself.
+    """
+    provider = provider or get_effective_provider()
+    if provider not in (PROVIDER_OPENAI_COMPATIBLE, PROVIDER_OLLAMA):
         return False
     if not coerce_bool_setting(_get_cached_setting('llm_json_schema_enabled')):
         return False
+    if provider == PROVIDER_OLLAMA:
+        return True
     return _format_flag_for(_JSON_SCHEMA_SETTING_KEY, model) is True
 
 
@@ -1961,6 +1970,11 @@ class OllamaNativeClient(OpenAICompatibleClient):
     def __init__(self, *, ollama_num_ctx: int, **kwargs):
         super().__init__(**kwargs)
         self._ollama_num_ctx = ollama_num_ctx
+
+    def _probe_json_schema_if_enabled(self, fallback_model: str) -> None:
+        """No probe: the schema goes out as the native ``format``, which the
+        /v1 probe does not exercise, and a thinking model can outlast the
+        probe's timeout there."""
 
     def messages_create(
         self,

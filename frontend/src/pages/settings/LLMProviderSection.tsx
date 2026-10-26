@@ -284,7 +284,7 @@ function LLMProviderSection({
           />
         )}
 
-        {llmProvider === LLM_PROVIDERS.OPENAI_COMPATIBLE && (
+        {(llmProvider === LLM_PROVIDERS.OPENAI_COMPATIBLE || llmProvider === LLM_PROVIDERS.OLLAMA) && (
           <div>
             <label className="flex items-center gap-3 cursor-pointer">
               <ToggleSwitch

@@ -288,9 +288,13 @@ The active run and the latest attempted run are usually the same run. They diver
 
 ### JSON schema response format
 
-OpenAI-compatible endpoints only, whether the stage runs on Provider A or is routed to Provider B. When on, MinusPod asks the endpoint to enforce a JSON schema on detection, review, category repair, and trim-recovery responses instead of only asking for JSON, which cuts malformed replies. Off by default; the toggle is in **Settings > LLM Provider**.
+OpenAI-compatible and Ollama endpoints, whether the stage runs on Provider A or is routed to Provider B. When on, MinusPod asks the endpoint to enforce a JSON schema on detection, review, category repair, and trim-recovery responses instead of only asking for JSON, which cuts malformed replies. Off by default; the toggle is in **Settings > LLM Provider**.
 
-Support varies by model, not just by server. MinusPod probes each model the ad pipeline is configured to use, once, after the endpoint verifies. Provider A and an enabled Provider B are both probed, and one answer is stored per model name, so two OpenAI-compatible endpoints that serve the same model name share it. Plain JSON mode is remembered the same way, so one model's rejection no longer speaks for the others on that endpoint. A model that rejects the schema falls back to plain JSON mode, and so does a model that passes the probe but rejects a real request. Check that your server implements `response_format` with `type: json_schema` before relying on it. Anthropic, OpenRouter, and Ollama call sites are unaffected by this toggle.
+Support varies by model, not just by server. MinusPod probes each model the ad pipeline is configured to use, once, after the endpoint verifies. Provider A and an enabled Provider B are both probed, and one answer is stored per model name, so two OpenAI-compatible endpoints that serve the same model name share it. Plain JSON mode is remembered the same way, so one model's rejection no longer speaks for the others on that endpoint. A model that rejects the schema falls back to plain JSON mode, and so does a model that passes the probe but rejects a real request. Check that your server implements `response_format` with `type: json_schema` before relying on it.
+
+With Ollama the schema goes out as the native `/api/chat` `format` field (Ollama 0.5 or later), which constrains decoding to it, so there is no probe. Turn it on for Ollama: in plain JSON mode a model cannot return the list of ads the prompt asks for, so it names its own key (`items`, `results`, `ad_spans`) or returns a single ad object, and detections under an unknown key or past the first ad in a window are lost.
+
+Anthropic and OpenRouter call sites are unaffected by this toggle.
 
 ### Cover art badge
 
