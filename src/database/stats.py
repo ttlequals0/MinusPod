@@ -779,6 +779,7 @@ class StatsMixin:
                         'inputCostPerMtok': input_per_mtok,
                         'outputCostPerMtok': output_per_mtok,
                     }
+                    cost_dec_cache = Decimal('0')
                     if row['provider_key'] == 'anthropic' and (
                             cache_read_tokens or cache_write_tokens):
                         read_multiplier = _anthropic_cache_read_multiplier(
@@ -794,9 +795,17 @@ class StatsMixin:
                             Decimal(str(input_per_mtok)) * read_multiplier)
                         rates['cacheWriteCostPerMtok'] = float(
                             Decimal(str(input_per_mtok)) * write_multiplier)
+                    elif cache_read_tokens and cache_read_per_mtok is not None:
+                        # Cached share bills at the cache rate, the rest at the input rate.
+                        read_tokens = min(Decimal(cache_read_tokens), billed_input)
+                        cache_rate = Decimal(str(cache_read_per_mtok))
+                        billed_input -= read_tokens
+                        cost_dec_cache = read_tokens / mtok * cache_rate
+                        rates['cacheReadCostPerMtok'] = float(cache_rate)
                     cost_dec = (
                         billed_input / mtok * Decimal(str(input_per_mtok))
                         + Decimal(output_tokens or 0) / mtok * Decimal(str(output_per_mtok))
+                        + cost_dec_cache
                     )
                     rate_snapshot = json.dumps(rates)
                     pricing_revision = revision
