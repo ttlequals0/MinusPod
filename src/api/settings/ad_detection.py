@@ -11,6 +11,7 @@ from api import (
     get_database,
 )
 from config import (
+    PRICING_OVERRIDE_OPTIONAL, PRICING_OVERRIDE_REQUIRED,
     ALLOWED_AUDIO_BITRATES, ALLOWED_AUDIO_ENCODER_COMPRESSION_LEVELS, AD_DETECTION_PARALLEL_WINDOWS_MIN,
     AD_DETECTION_PARALLEL_WINDOWS_MAX,
     AD_REVIEWER_PARALLEL_ADS_MIN,
@@ -474,17 +475,16 @@ def _model_pricing_patch(submitted):
             continue
         if not isinstance(rates, Mapping):
             return None, (f'modelPricingOverrides.{model_id} must be an object or null', 400)
-        required = {'inputCostPerMtok', 'outputCostPerMtok'}
-        optional = {'cacheReadCostPerMtok'}
-        if not required <= set(rates) <= required | optional:
+        if not PRICING_OVERRIDE_REQUIRED <= set(rates) <= (
+                PRICING_OVERRIDE_REQUIRED | PRICING_OVERRIDE_OPTIONAL):
             return None, (
                 f'modelPricingOverrides.{model_id} must contain inputCostPerMtok '
                 'and outputCostPerMtok, and may contain cacheReadCostPerMtok', 400)
 
         parsed = {}
-        for field in required | (optional & set(rates)):
+        for field in rates:
             value = rates[field]
-            if value is None and field in optional:
+            if value is None and field in PRICING_OVERRIDE_OPTIONAL:
                 continue
             if isinstance(value, bool) or not isinstance(value, (int, float)):
                 return None, (

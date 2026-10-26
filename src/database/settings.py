@@ -10,6 +10,7 @@ from typing import Any
 from collections.abc import Callable
 
 from config import (
+    PRICING_OVERRIDE_OPTIONAL, PRICING_OVERRIDE_REQUIRED,
     AUTO_PROCESS_MAX_AGE_HOURS_BOUNDS, AUTO_PROCESS_MAX_AGE_HOURS_DEFAULT,
     normalize_model_key, ENV_BACKED_SETTINGS, resolve_env_backed_default,
     coerce_bool_setting, get_env_backed_int,
@@ -56,6 +57,17 @@ from secrets_crypto import (
 from utils.time import is_valid_timezone
 
 logger = logging.getLogger(__name__)
+
+
+def _rate_or_none(value) -> float | None:
+    """Float for a finite non-negative number, else None (bools rejected)."""
+    if isinstance(value, bool):
+        return None
+    try:
+        rate = float(value)
+    except (TypeError, ValueError):
+        return None
+    return rate if math.isfinite(rate) and rate >= 0 else None
 
 
 def _valid_notification_timezone(tz: str) -> bool:
@@ -1210,29 +1222,13 @@ class SettingsMixin:
             if not isinstance(model_id, str) or not model_id.strip() \
                     or not isinstance(rates, dict):
                 continue
-            input_rate = rates.get('inputCostPerMtok')
-            output_rate = rates.get('outputCostPerMtok')
-            if isinstance(input_rate, bool) or isinstance(output_rate, bool):
+            entry = {f: _rate_or_none(rates.get(f)) for f in PRICING_OVERRIDE_REQUIRED}
+            if None in entry.values():
                 continue
-            try:
-                input_rate = float(input_rate)
-                output_rate = float(output_rate)
-            except (TypeError, ValueError):
-                continue
-            if (not math.isfinite(input_rate) or not math.isfinite(output_rate)
-                    or input_rate < 0 or output_rate < 0):
-                continue
-            entry = {'inputCostPerMtok': input_rate, 'outputCostPerMtok': output_rate}
-            cache_rate = rates.get('cacheReadCostPerMtok')
-            if cache_rate is not None and not isinstance(cache_rate, bool):
-                try:
-                    cache_rate = float(cache_rate)
-                except (TypeError, ValueError):
-                    cache_rate = None
-            else:
-                cache_rate = None
-            if cache_rate is not None and math.isfinite(cache_rate) and cache_rate >= 0:
-                entry['cacheReadCostPerMtok'] = cache_rate
+            for field in PRICING_OVERRIDE_OPTIONAL:
+                rate = _rate_or_none(rates.get(field))
+                if rate is not None:
+                    entry[field] = rate
             overrides[model_id] = entry
         return overrides
 

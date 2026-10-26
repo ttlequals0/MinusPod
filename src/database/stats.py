@@ -5,6 +5,7 @@ import math
 import uuid
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
+from typing import NamedTuple
 
 from config import SYSTEMONE_PROVIDERS, normalize_model_key
 from utils.app_version import APP_VERSION as __version__
@@ -154,9 +155,24 @@ def _build_ledger_filters(from_date=None, to_date=None, podcast_slug=None,
     return " AND " + " AND ".join(clauses), params
 
 
-def _sum_billable_rows(rows) -> tuple[int, int, int, int, Decimal, bool]:
-    """(input, output, cache read, cache write, known-cost sum,
-    has_unknown_cost) over the billable rows of a finalized-ledger result set."""
+class BillableTotals(NamedTuple):
+    input_tokens: int
+    output_tokens: int
+    cache_read_tokens: int
+    cache_write_tokens: int
+    cost: Decimal
+    has_unknown_cost: bool
+
+
+class ModelRate(NamedTuple):
+    input_per_mtok: float
+    output_per_mtok: float
+    cache_read_per_mtok: float | None
+    revision: str
+
+
+def _sum_billable_rows(rows) -> BillableTotals:
+    """Token and known-cost totals over the billable rows of a finalized-ledger result set."""
     total_input = 0
     total_output = 0
     total_cache_read = 0
@@ -176,8 +192,8 @@ def _sum_billable_rows(rows) -> tuple[int, int, int, int, Decimal, bool]:
             total_cost += Decimal(row['cost_usd'])
         else:
             has_unknown_cost = True
-    return (total_input, total_output, total_cache_read, total_cache_write,
-            total_cost, has_unknown_cost)
+    return BillableTotals(total_input, total_output, total_cache_read,
+                          total_cache_write, total_cost, has_unknown_cost)
 
 
 def _safe_systemone_diagnostics(value) -> str:
@@ -388,11 +404,10 @@ class StatsMixin:
 
     # ========== Token Usage Methods ==========
 
-    def _resolve_model_rate(self, conn, model_id: str, match_key: str = ''):
+    def _resolve_model_rate(self, conn, model_id: str, match_key: str = '') -> ModelRate | None:
         """Resolve current per-mtok rates for a model.
 
-        Returns (input_per_mtok, output_per_mtok, cache_read_per_mtok | None,
-        revision), or None when no operator override, exact catalog match, or
+        Returns a ModelRate, or None when no operator override, exact catalog match, or
         prefix match resolves a rate. Resolution: operator override -> exact
         match_key -> prefix match. `revision` identifies the resolved rate's
         provenance ('override' or '<source>:<updated_at>') so callers can
@@ -403,8 +418,8 @@ class StatsMixin:
 
         override = self.get_model_pricing_override(model_id)
         if override is not None:
-            return (override['inputCostPerMtok'], override['outputCostPerMtok'],
-                    override.get('cacheReadCostPerMtok'), 'override')
+            return ModelRate(override['inputCostPerMtok'], override['outputCostPerMtok'],
+                             override.get('cacheReadCostPerMtok'), 'override')
 
         # Exact match on match_key
         cursor = conn.execute(
@@ -463,12 +478,9 @@ class StatsMixin:
             input_per_mtok = max(0.0, input_per_mtok)
             output_per_mtok = max(0.0, output_per_mtok)
 
-        cache_read_per_mtok = row['cache_read_cost_per_mtok']
-        if cache_read_per_mtok is not None and cache_read_per_mtok < 0:
-            cache_read_per_mtok = None
-
-        return (input_per_mtok, output_per_mtok, cache_read_per_mtok,
-                f"{row['source']}:{row['updated_at']}")
+        return ModelRate(input_per_mtok, output_per_mtok,
+                         row['cache_read_cost_per_mtok'],
+                         f"{row['source']}:{row['updated_at']}")
 
     def _apply_token_usage_counters(self, conn, model_id: str,
                                     input_tokens: int, output_tokens: int,
@@ -765,14 +777,16 @@ class StatsMixin:
             cost = float(cost_dec)
         elif tokens_known or (row['provider_key'] == 'typesafe' and input_tokens is not None):
             if row['provider_key'] == 'typesafe':
-                resolved = (0.042, 0.0, None, 'typesafe-v1')
+                resolved = ModelRate(0.042, 0.0, None, 'typesafe-v1')
             else:
                 resolved = self._resolve_model_rate(conn, configured_model)
             # An endpoint alias may resolve to a differently-named priced model.
             if resolved is None and returned_model and returned_model != configured_model:
                 resolved = self._resolve_model_rate(conn, returned_model)
             if resolved is not None:
-                input_per_mtok, output_per_mtok, cache_read_per_mtok, revision = resolved
+                input_per_mtok = resolved.input_per_mtok
+                output_per_mtok = resolved.output_per_mtok
+                cache_read_per_mtok = resolved.cache_read_per_mtok
                 if input_per_mtok == 0 and output_per_mtok == 0:
                     cost_source = 'explicit_zero'
                     cost_dec = Decimal('0')
@@ -813,7 +827,7 @@ class StatsMixin:
                         + cost_dec_cache
                     )
                     rate_snapshot = json.dumps(rates)
-                    pricing_revision = revision
+                    pricing_revision = resolved.revision
                 cost_usd = str(cost_dec)
                 cost = float(cost_dec)
 
@@ -915,12 +929,12 @@ class StatsMixin:
                WHERE run_id IS ? AND finalized_at IS NOT NULL""",
             (run_id,)
         ).fetchall()
-        total_input, total_output, _, _, total_cost, has_unknown_cost = _sum_billable_rows(rows)
+        totals = _sum_billable_rows(rows)
         return {
-            'input_tokens': total_input,
-            'output_tokens': total_output,
-            'cost_usd': str(total_cost),
-            'has_unknown_cost': has_unknown_cost,
+            'input_tokens': totals.input_tokens,
+            'output_tokens': totals.output_tokens,
+            'cost_usd': str(totals.cost),
+            'has_unknown_cost': totals.has_unknown_cost,
         }
 
     def get_episode_run_usage_totals(self, podcast_id: int, episode_id: str) -> dict:
@@ -940,15 +954,14 @@ class StatsMixin:
             by_run.setdefault(row['run_id'], []).append(row)
         totals = {}
         for run_id, run_rows in by_run.items():
-            (total_input, total_output, cache_read, cache_write,
-             total_cost, has_unknown) = _sum_billable_rows(run_rows)
+            t = _sum_billable_rows(run_rows)
             totals[run_id] = {
-                'input_tokens': total_input,
-                'output_tokens': total_output,
-                'cache_read_tokens': cache_read,
-                'cache_write_tokens': cache_write,
-                'cost_usd': str(total_cost),
-                'has_unknown_cost': has_unknown,
+                'input_tokens': t.input_tokens,
+                'output_tokens': t.output_tokens,
+                'cache_read_tokens': t.cache_read_tokens,
+                'cache_write_tokens': t.cache_write_tokens,
+                'cost_usd': str(t.cost),
+                'has_unknown_cost': t.has_unknown_cost,
             }
         return totals
 
@@ -1106,12 +1119,12 @@ class StatsMixin:
                WHERE podcast_id = ? AND episode_id = ? AND finalized_at IS NOT NULL""",
             (podcast_id, episode_id)
         ).fetchall()
-        total_input, total_output, _, _, total_cost, has_unknown_cost = _sum_billable_rows(rows)
+        totals = _sum_billable_rows(rows)
         return {
-            'inputTokens': total_input,
-            'outputTokens': total_output,
-            'costUsd': str(total_cost),
-            'hasUnknownCost': has_unknown_cost,
+            'inputTokens': totals.input_tokens,
+            'outputTokens': totals.output_tokens,
+            'costUsd': str(totals.cost),
+            'hasUnknownCost': totals.has_unknown_cost,
         }
 
     _MODEL_USAGE_SORT_COLUMNS = {
