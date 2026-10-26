@@ -389,14 +389,14 @@ class StatsMixin:
     # ========== Token Usage Methods ==========
 
     def _resolve_model_rate(self, conn, model_id: str, match_key: str = ''):
-        """Resolve current per-mtok input/output rates for a model.
+        """Resolve current per-mtok rates for a model.
 
         Returns (input_per_mtok, output_per_mtok, cache_read_per_mtok | None,
-        revision) or None when no
-        operator override, exact catalog match, or prefix match resolves a
-        rate. Resolution: operator override -> exact match_key -> prefix match.
-        `revision` identifies the resolved rate's provenance ('override' or
-        '<source>:<updated_at>') so callers can snapshot what priced a call.
+        revision), or None when no operator override, exact catalog match, or
+        prefix match resolves a rate. Resolution: operator override -> exact
+        match_key -> prefix match. `revision` identifies the resolved rate's
+        provenance ('override' or '<source>:<updated_at>') so callers can
+        snapshot what priced a call.
         """
         if not match_key:
             match_key = normalize_model_key(model_id)
@@ -960,8 +960,7 @@ class StatsMixin:
         """
         conn = self.get_connection()
         rows = conn.execute(
-            """SELECT state, input_tokens, output_tokens, cache_read_tokens,
-                      cache_write_tokens, cost_usd
+            """SELECT state, input_tokens, output_tokens, cost_usd
                FROM llm_call_usage
                WHERE run_id IS ? AND provider_key = ? AND finalized_at IS NOT NULL""",
             (run_id, provider_key)

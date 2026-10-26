@@ -103,8 +103,8 @@ class TestModelPricingOverrideValidation:
         assert response.status_code == 200
         settings = client.get('/api/v1/settings').get_json()
         assert settings['modelPricingOverrides']['value'] == {
-            'free-local': {'inputCostPerMtok': 0.0, 'outputCostPerMtok': 0.0, 'cacheReadCostPerMtok': None},
-            'paid-local': {'inputCostPerMtok': 1.25, 'outputCostPerMtok': 4.5, 'cacheReadCostPerMtok': None},
+            'free-local': {'inputCostPerMtok': 0.0, 'outputCostPerMtok': 0.0},
+            'paid-local': {'inputCostPerMtok': 1.25, 'outputCostPerMtok': 4.5},
         }
 
     def test_patch_preserves_other_models_and_omitted_field(self, client):
@@ -130,7 +130,7 @@ class TestModelPricingOverrideValidation:
         assert self._put(client, {'model-a': None}).status_code == 200
 
         assert database.Database().get_model_pricing_overrides() == {
-            'model-b': {'inputCostPerMtok': 3.0, 'outputCostPerMtok': 4.0, 'cacheReadCostPerMtok': None},
+            'model-b': {'inputCostPerMtok': 3.0, 'outputCostPerMtok': 4.0},
         }
 
     @pytest.mark.parametrize('value', [

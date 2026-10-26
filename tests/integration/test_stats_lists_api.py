@@ -82,6 +82,23 @@ class TestModelUsageStats:
         zero = next(i for i in items if i['model'] == 'zero-input')
         assert zero['cacheReadTokens'] == 10
 
+    def test_null_hit_rate_sorts_first_ascending(self, app_client, temp_db):
+        _authed(app_client)
+        podcast_id = temp_db.create_podcast('pod-asc', 'https://example.com/feed.xml', 'Pod')
+        temp_db.upsert_episode('pod-asc', 'ep1', original_url='https://example.com/e.mp3',
+                               title='Ep1', status='processed')
+        _seed_price(temp_db, 'hot-model', 2.0, 0.0)
+        _seed_price(temp_db, 'zero-input', 2.0, 0.0)
+        _call(temp_db, run_id='r1', podcast_id=podcast_id, episode_id='ep1',
+              provider_key='anthropic', configured_model='hot-model',
+              input_tokens=1000, cache_read_tokens=800)
+        _call(temp_db, run_id='r2', podcast_id=podcast_id, episode_id='ep1',
+              provider_key='openai', configured_model='zero-input',
+              input_tokens=0, output_tokens=5, cache_read_tokens=10)
+
+        resp = app_client.get('/api/v1/stats/model-usage?podcastSlug=pod-asc&sortBy=cacheHitRate&sortDir=asc')
+        assert [i['model'] for i in resp.get_json()['items']] == ['zero-input', 'hot-model']
+
     def test_groups_identical_model_under_two_providers_separately(self, app_client, temp_db):
         _authed(app_client)
         podcast_id = temp_db.create_podcast('pod-group', 'https://example.com/feed.xml', 'Pod')
@@ -431,10 +448,11 @@ class TestEpisodeCostRuns:
         assert resp.status_code == 200
         runs = resp.get_json()['runs']
         assert len(runs) >= 1
-        phases = runs[-1]['phases']
+        run = runs[0]
+        phases = run['phases']
         assert {p['phaseKey'] for p in phases} >= {'detection', 'review'}
         assert {p['configuredModel'] for p in phases} >= {'m-det', 'm-rev'}
-        run = runs[0]
+        assert run['cacheReadTokens'] == 50
         assert run['cacheReadTokens'] == sum(p['cacheReadTokens'] for p in run['phases'])
         assert run['cacheWriteTokens'] == sum(p['cacheWriteTokens'] for p in run['phases'])
 

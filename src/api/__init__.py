@@ -455,6 +455,7 @@ def _enrich_models_with_pricing(models: list) -> None:
             if override is not None:
                 model['inputCostPerMtok'] = override['inputCostPerMtok']
                 model['outputCostPerMtok'] = override['outputCostPerMtok']
+                model['cacheReadCostPerMtok'] = override.get('cacheReadCostPerMtok')
                 model['pricingSource'] = 'operator'
                 continue
             key = normalize_model_key(model.get('id', ''))
@@ -462,6 +463,7 @@ def _enrich_models_with_pricing(models: list) -> None:
             if pricing:
                 model['inputCostPerMtok'] = pricing['inputCostPerMtok']
                 model['outputCostPerMtok'] = pricing['outputCostPerMtok']
+                model['cacheReadCostPerMtok'] = pricing.get('cacheReadCostPerMtok')
                 model['pricingSource'] = pricing['source']
             else:
                 logger.debug(

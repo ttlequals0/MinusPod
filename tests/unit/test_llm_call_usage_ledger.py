@@ -450,6 +450,10 @@ class TestFinalizeLlmAttempt:
             input_tokens=100_000, output_tokens=0, cache_read_tokens=150_000)
         # 0 uncached + 100k clamped reads at 0.5
         assert Decimal(str(cost)) == Decimal('0.05')
+        row = temp_db.get_connection().execute(
+            "SELECT rate_snapshot FROM llm_call_usage WHERE attempt_id = ?",
+            (attempt_id,)).fetchone()
+        assert json.loads(row['rate_snapshot'])['cacheReadCostPerMtok'] == 0.5
 
     def test_anthropic_cache_math_ignores_the_catalog_cache_rate(self, temp_db):
         temp_db.upsert_fetched_pricing([{

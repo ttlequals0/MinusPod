@@ -77,6 +77,21 @@ def test_lists_the_attempts_behind_a_run_with_the_unknown_cost_marked(app_client
     assert priced['cacheWriteTokens'] == 0
 
 
+def test_attempt_with_unknown_usage_reports_null_cache_tokens(app_client, temp_db):
+    _authed(app_client)
+    podcast_id = temp_db.create_podcast('spend-null', 'https://example.com/feed.xml', 'Null Pod')
+    temp_db.upsert_episode('spend-null', 'ep1', original_url='https://example.com/e.mp3',
+                           title='Ep1', status='processed')
+    _call(temp_db, run_id='run-null', podcast_id=podcast_id, episode_id='ep1',
+          provider_key='openai', configured_model='priced-model', state='success',
+          input_tokens=None, output_tokens=None)
+
+    body = app_client.get('/api/v1/stats/spend/attempts?runId=run-null').get_json()
+    attempt = body['attempts'][0]
+    assert attempt['cacheReadTokens'] is None
+    assert attempt['cacheWriteTokens'] is None
+
+
 def test_provider_filter_scopes_the_listing(app_client, temp_db):
     _authed(app_client)
     podcast_id = _seed_run(temp_db)

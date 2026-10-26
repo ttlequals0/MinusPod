@@ -228,3 +228,41 @@ def test_model_pricing_gains_cache_read_rate_column(tmp_path):
         assert 'cache_read_cost_per_mtok' in cols
     finally:
         Database._instance = None
+
+
+def test_full_init_on_legacy_model_pricing_adds_cache_rate_column(tmp_path):
+    """A pre-cache-rate catalog gains the column and keeps its row as NULL."""
+    Database._instance = None
+    db = Database(data_dir=str(tmp_path))
+    try:
+        conn = db.get_connection()
+        conn.execute("DROP TABLE model_pricing")
+        conn.execute(
+            """CREATE TABLE model_pricing (
+                   model_id TEXT PRIMARY KEY, match_key TEXT, raw_model_id TEXT,
+                   display_name TEXT NOT NULL, input_cost_per_mtok REAL NOT NULL,
+                   output_cost_per_mtok REAL NOT NULL, source TEXT DEFAULT 'legacy',
+                   updated_at TEXT)""")
+        conn.execute(
+            "INSERT INTO model_pricing (model_id, match_key, raw_model_id, display_name, "
+            "input_cost_per_mtok, output_cost_per_mtok, source) "
+            "VALUES ('legacy-model', 'legacymodel', 'legacy-model', 'Legacy', 1.5, 3.0, 'litellm')")
+        conn.commit()
+
+        def legacy_rows():
+            return conn.execute(
+                "SELECT input_cost_per_mtok, cache_read_cost_per_mtok FROM model_pricing "
+                "WHERE model_id = 'legacy-model'").fetchall()
+
+        db._init_schema()
+
+        assert 'cache_read_cost_per_mtok' in db._get_table_columns(conn, 'model_pricing')
+        rows = legacy_rows()
+        assert len(rows) == 1
+        assert rows[0]['input_cost_per_mtok'] == 1.5
+        assert rows[0]['cache_read_cost_per_mtok'] is None
+
+        db._init_schema()  # second startup must stay clean
+        assert len(legacy_rows()) == 1
+    finally:
+        Database._instance = None

@@ -1222,27 +1222,24 @@ class SettingsMixin:
             if (not math.isfinite(input_rate) or not math.isfinite(output_rate)
                     or input_rate < 0 or output_rate < 0):
                 continue
+            entry = {'inputCostPerMtok': input_rate, 'outputCostPerMtok': output_rate}
             cache_rate = rates.get('cacheReadCostPerMtok')
             if cache_rate is not None and not isinstance(cache_rate, bool):
                 try:
                     cache_rate = float(cache_rate)
                 except (TypeError, ValueError):
                     cache_rate = None
-                if cache_rate is not None and (not math.isfinite(cache_rate) or cache_rate < 0):
-                    cache_rate = None
             else:
                 cache_rate = None
-            overrides[model_id] = {
-                'inputCostPerMtok': input_rate,
-                'outputCostPerMtok': output_rate,
-                'cacheReadCostPerMtok': cache_rate,
-            }
+            if cache_rate is not None and math.isfinite(cache_rate) and cache_rate >= 0:
+                entry['cacheReadCostPerMtok'] = cache_rate
+            overrides[model_id] = entry
         return overrides
 
     def get_model_pricing_override(
             self, model_id: str,
             overrides: dict[str, dict[str, float | None]] | None = None,
-    ) -> dict[str, float] | None:
+    ) -> dict[str, float | None] | None:
         """Resolve an exact or normalized operator override for a model."""
         if overrides is None:
             overrides = self.get_model_pricing_overrides()

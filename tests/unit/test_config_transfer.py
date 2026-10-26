@@ -90,10 +90,7 @@ def test_large_valid_configuration_round_trips_within_request_limit(temp_db, mon
 
     config_transfer.apply_config(temp_db, document, 'everything', None, preview['previewToken'])
 
-    assert temp_db.get_model_pricing_overrides() == {
-        model: {**rates, 'inputCostPerMtok': 1.0, 'outputCostPerMtok': 2.0,
-                'cacheReadCostPerMtok': None}
-        for model, rates in pricing.items()}
+    assert temp_db.get_model_pricing_overrides() == pricing
     assert temp_db.get_podcast_by_slug('example-local')['description'] == description
 
 

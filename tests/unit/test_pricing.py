@@ -162,6 +162,31 @@ class TestModelPricingOverrides:
             'vendor-a/local-model', overrides) == overrides['vendor-a/local-model']
         assert temp_db.get_model_pricing_override('local-model', overrides) is None
 
+    def test_override_cache_rate_exports_only_when_set(self, temp_db):
+        temp_db.merge_model_pricing_overrides({
+            'with-cache': {'inputCostPerMtok': 1.0, 'outputCostPerMtok': 2.0,
+                           'cacheReadCostPerMtok': 0.25},
+            'without-cache': {'inputCostPerMtok': 3.0, 'outputCostPerMtok': 4.0,
+                              'cacheReadCostPerMtok': None},
+        })
+        overrides = temp_db.get_model_pricing_overrides()
+        assert overrides['with-cache']['cacheReadCostPerMtok'] == 0.25
+        assert overrides['without-cache'] == {
+            'inputCostPerMtok': 3.0, 'outputCostPerMtok': 4.0}
+
+    def test_model_listing_carries_override_cache_rate(self, temp_db):
+        from unittest.mock import patch
+        from api import _enrich_models_with_pricing
+        temp_db.merge_model_pricing_overrides({
+            'cached-local': {'inputCostPerMtok': 1.0, 'outputCostPerMtok': 2.0,
+                             'cacheReadCostPerMtok': 0.25},
+        })
+        models = [{'id': 'cached-local', 'name': 'Cached'}]
+        with patch('api.get_database', return_value=temp_db):
+            _enrich_models_with_pricing(models)
+        assert models[0]['cacheReadCostPerMtok'] == 0.25
+        assert models[0]['pricingSource'] == 'operator'
+
     def test_concurrent_partial_override_merges_preserve_both_models(self, temp_db):
         barrier = threading.Barrier(2)
 
@@ -183,10 +208,8 @@ class TestModelPricingOverrides:
                 future.result()
 
         assert temp_db.get_model_pricing_overrides() == {
-            'model-a': {'inputCostPerMtok': 1.0, 'outputCostPerMtok': 1.0,
-                        'cacheReadCostPerMtok': None},
-            'model-b': {'inputCostPerMtok': 2.0, 'outputCostPerMtok': 2.0,
-                        'cacheReadCostPerMtok': None},
+            'model-a': {'inputCostPerMtok': 1.0, 'outputCostPerMtok': 1.0},
+            'model-b': {'inputCostPerMtok': 2.0, 'outputCostPerMtok': 2.0},
         }
 
     def test_summary_keeps_recorded_cost_after_override_changes(self, temp_db):
@@ -322,6 +345,35 @@ class TestFetchPricingChain:
             ])
         by_key = {m['match_key']: m for m in merged}
         assert by_key['claudesonnet5']['input_cost_per_mtok'] == 3.0
+
+    def test_missing_cache_rate_is_filled_from_later_source(self):
+        from pricing_fetcher import fetch_pricing_chain
+        first = self._row('a', 1.0, 1.0)
+        first['cache_read_cost_per_mtok'] = None
+        later = self._row('a', 9.0, 9.0)
+        later['cache_read_cost_per_mtok'] = 0.5
+        with patch('pricing_fetcher.fetch_openrouter_pricing', return_value=[first]), \
+             patch('pricing_fetcher.fetch_litellm_pricing', return_value=[later]):
+            merged = fetch_pricing_chain([
+                {'type': 'openrouter_api', 'url': 'x'},
+                {'type': 'litellm'},
+            ])
+        row = merged[0]
+        assert row['cache_read_cost_per_mtok'] == 0.5
+        assert row['input_cost_per_mtok'] == 1.0
+        assert row['_source'] == 'openrouter_api'
+
+    def test_existing_cache_rate_is_kept(self):
+        from pricing_fetcher import fetch_pricing_chain
+        first = {**self._row('a', 1.0, 1.0), 'cache_read_cost_per_mtok': 0.1}
+        later = {**self._row('a', 9.0, 9.0), 'cache_read_cost_per_mtok': 0.5}
+        with patch('pricing_fetcher.fetch_openrouter_pricing', return_value=[first]), \
+             patch('pricing_fetcher.fetch_litellm_pricing', return_value=[later]):
+            merged = fetch_pricing_chain([
+                {'type': 'openrouter_api', 'url': 'x'},
+                {'type': 'litellm'},
+            ])
+        assert merged[0]['cache_read_cost_per_mtok'] == 0.1
 
     def test_later_source_fills_gap(self):
         from pricing_fetcher import fetch_pricing_chain
@@ -1006,6 +1058,12 @@ class TestLiteLLMFallback:
             "cache_read_input_token_cost": "oops",
             "litellm_provider": "openai",
         },
+        "inf-cache": {
+            "input_cost_per_token": 0.000001,
+            "output_cost_per_token": 0.000002,
+            "cache_read_input_token_cost": "inf",
+            "litellm_provider": "openai",
+        },
         "embedding-model": {
             "output_vector_size": 1536,
             "litellm_provider": "openai",
@@ -1062,9 +1120,43 @@ class TestLiteLLMFallback:
         assert rows['bad-cache']['cache_read_cost_per_mtok'] is None
         assert rows['bad-cache']['input_cost_per_mtok'] == 1.0
 
+    def test_infinite_cache_rate_is_dropped(self):
+        rows = {r['raw_model_id']: r for r in self._fetch()}
+        assert rows['inf-cache']['cache_read_cost_per_mtok'] is None
+
     def test_provider_filter(self):
         from pricing_fetcher import fetch_litellm_pricing
 
         with patch('pricing_fetcher.safe_get', return_value=self._mock_resp()):
             anthropic_only = fetch_litellm_pricing(provider_filter='anthropic')
         assert [r['raw_model_id'] for r in anthropic_only] == ['claude-opus-4-6']
+
+
+class TestOpenRouterCacheRate:
+    PAYLOAD = {'data': [
+        {'id': 'acme/cached', 'name': 'Cached',
+         'pricing': {'prompt': '0.000003', 'completion': '0.000015',
+                     'input_cache_read': '0.0000003'}},
+        {'id': 'acme/plain', 'name': 'Plain',
+         'pricing': {'prompt': '0.000001', 'completion': '0.000002'}},
+        {'id': 'acme/negative', 'name': 'Negative',
+         'pricing': {'prompt': '0.000001', 'completion': '0.000002',
+                     'input_cache_read': '-0.1'}},
+        {'id': 'acme/junk', 'name': 'Junk',
+         'pricing': {'prompt': '0.000001', 'completion': '0.000002',
+                     'input_cache_read': 'inf'}},
+    ]}
+
+    def _fetch(self):
+        from pricing_fetcher import fetch_openrouter_pricing
+        with patch('pricing_fetcher._fetch_capped_body',
+                   return_value=json.dumps(self.PAYLOAD).encode()):
+            return {r['raw_model_id']: r for r in fetch_openrouter_pricing()}
+
+    def test_cache_read_rate_is_parsed_per_mtok(self):
+        assert self._fetch()['acme/cached']['cache_read_cost_per_mtok'] == 0.3
+
+    def test_absent_negative_or_infinite_rate_is_none(self):
+        rows = self._fetch()
+        for model in ('acme/plain', 'acme/negative', 'acme/junk'):
+            assert rows[model]['cache_read_cost_per_mtok'] is None

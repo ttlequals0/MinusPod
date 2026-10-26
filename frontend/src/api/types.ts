@@ -675,6 +675,7 @@ export interface SettingValueNumberOrNull {
 export interface ModelPricingOverride {
   inputCostPerMtok: number;
   outputCostPerMtok: number;
+  cacheReadCostPerMtok?: number | null;
 }
 
 export type ModelPricingOverrides = Record<string, ModelPricingOverride>;
@@ -1413,6 +1414,7 @@ export interface ClaudeModel {
   name: string;
   inputCostPerMtok?: number;
   outputCostPerMtok?: number;
+  cacheReadCostPerMtok?: number | null;
   pricingSource?: string;
 }
 

@@ -7,6 +7,7 @@ Fetches model pricing from:
 """
 import json
 import logging
+import math
 import threading
 import time
 from datetime import datetime, timezone
@@ -69,12 +70,25 @@ _last_fetch: float = 0.0
 _fetch_lock = threading.Lock()
 
 
+def _cache_rate_per_mtok(per_token) -> float | None:
+    """Convert a per-token cache read cost to USD per Mtok; None if absent or invalid."""
+    if per_token is None:
+        return None
+    try:
+        value = float(per_token)
+    except (ValueError, TypeError):
+        return None
+    if not math.isfinite(value) or value < 0:
+        return None
+    return round(value * 1_000_000, 4)
+
+
 def fetch_openrouter_pricing() -> list[dict]:
     """Fetch pricing from OpenRouter's /api/v1/models endpoint.
 
     Returns list of dicts:
       [{match_key, raw_model_id, display_name,
-        input_cost_per_mtok, output_cost_per_mtok}, ...]
+        input_cost_per_mtok, output_cost_per_mtok, cache_read_cost_per_mtok}, ...]
     """
     try:
         body = _fetch_capped_body('https://openrouter.ai/api/v1/models')
@@ -107,6 +121,7 @@ def fetch_openrouter_pricing() -> list[dict]:
             'display_name': display_name,
             'input_cost_per_mtok': round(input_per_mtok, 4),
             'output_cost_per_mtok': round(output_per_mtok, 4),
+            'cache_read_cost_per_mtok': _cache_rate_per_mtok(pricing.get('input_cache_read')),
         })
 
     return results
@@ -265,13 +280,7 @@ def fetch_litellm_pricing(provider_filter: str | None = None) -> list[dict]:
             logger.debug(f"Skipping LiteLLM entry with unparseable pricing: {raw_id}")
             continue
 
-        cache_per_mtok = None
-        try:
-            cache_cost = spec.get('cache_read_input_token_cost')
-            if cache_cost is not None and float(cache_cost) >= 0:
-                cache_per_mtok = round(float(cache_cost) * 1_000_000, 4)
-        except (ValueError, TypeError):
-            pass
+        cache_per_mtok = _cache_rate_per_mtok(spec.get('cache_read_input_token_cost'))
 
         key = normalize_model_key(raw_id)
         results.append({
@@ -313,7 +322,8 @@ def fetch_pricing_chain(sources: list[dict]) -> list[dict]:
 
     Each source is fetched in order; a per-source failure logs WARNING and the
     chain continues. Later sources only fill keys the earlier ones did not
-    provide. Each merged row carries a '_source' key with the type of the
+    provide, plus a missing cache read rate on a row an earlier source won.
+    Each merged row carries a '_source' key with the type of the
     source that actually contributed it. Logs one INFO summarizing per-source
     contribution counts.
     """
@@ -325,9 +335,14 @@ def fetch_pricing_chain(sources: list[dict]) -> list[dict]:
         added = 0
         for row in rows:
             key = row['match_key']
-            if key and key not in merged:
+            if not key:
+                continue
+            if key not in merged:
                 merged[key] = {**row, '_source': source_type}
                 added += 1
+            elif (merged[key].get('cache_read_cost_per_mtok') is None
+                  and row.get('cache_read_cost_per_mtok') is not None):
+                merged[key]['cache_read_cost_per_mtok'] = row['cache_read_cost_per_mtok']
         summary.append(f"{source_type}={len(rows)}rows/{added}new")
     logger.info(
         f"Pricing chain merged {len(merged)} models "

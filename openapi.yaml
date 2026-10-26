@@ -15629,6 +15629,9 @@ components:
         outputCostPerMtok:
           type: [number, 'null']
           description: Output cost per million tokens (USD), present when pricing is known
+        cacheReadCostPerMtok:
+          type: [number, 'null']
+          description: Cached-input cost per million tokens (USD), present when pricing is known and a cache rate exists
         pricingSource:
           type: [string, 'null']
           description: Pricing source, including operator when a configured override applies
