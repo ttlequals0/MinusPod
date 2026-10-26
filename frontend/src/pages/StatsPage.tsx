@@ -147,7 +147,7 @@ function ModelUsageDetail({ stat }: { stat: ModelUsageStat }) {
       </div>
       <div>
         <dt className="text-muted-foreground">Cache hit rate</dt>
-        <dd className="text-foreground">{formatCacheHit(stat.cacheReadTokens, stat.cacheWriteTokens, stat.inputTokens) || 'None'}</dd>
+        <dd className="text-foreground">{formatCacheHit(stat.cacheReadTokens, stat.cacheWriteTokens, stat.inputTokens) || '-'}</dd>
       </div>
     </dl>
   );
@@ -268,7 +268,7 @@ function ModelUsageTable({
               <div className="flex items-center justify-between text-xs text-muted-foreground">
                 <span>{stat.calls} calls</span>
                 <span title={cacheHitTitle(stat.cacheReadTokens, stat.cacheWriteTokens, stat.inputTokens)}>
-                  {formatCacheHit(stat.cacheReadTokens, stat.cacheWriteTokens, stat.inputTokens) || 'No cache'}
+                  {formatCacheHit(stat.cacheReadTokens, stat.cacheWriteTokens, stat.inputTokens) || '-'}
                 </span>
                 <span>{formatCoverage(stat.calls, stat.unknownCostCount)}</span>
               </div>
@@ -304,7 +304,7 @@ const ATTEMPT_COLUMNS: {
     : a.status },
   { label: 'Tokens', align: 'right',
     render: (a) => formatTokenCount((a.inputTokens ?? 0) + (a.outputTokens ?? 0)) },
-  { label: 'Cache', align: 'right',
+  { label: 'Cache hit', align: 'right',
     render: (a) => formatCacheHit(a.cacheReadTokens ?? 0, a.cacheWriteTokens ?? 0, a.inputTokens ?? 0),
     title: (a) => cacheHitTitle(a.cacheReadTokens ?? 0, a.cacheWriteTokens ?? 0, a.inputTokens ?? 0) },
   { label: 'Cost', align: 'right',
@@ -361,7 +361,7 @@ function SpendAttemptsPanel({ slug, episodeId }: { slug: string; episodeId: stri
             {ATTEMPT_COLUMNS.map((c) => (
               <div key={c.label} className="flex justify-between gap-2">
                 <dt className="text-muted-foreground shrink-0">{c.label}</dt>
-                <dd title={c.title?.(a)} className={`break-all ${c.align === 'right' ? 'tabular-nums' : ''}`}>{c.render(a)}</dd>
+                <dd title={c.title?.(a)} className={`break-all ${c.align === 'right' ? 'tabular-nums' : ''}`}>{c.render(a) || '-'}</dd>
               </div>
             ))}
           </dl>

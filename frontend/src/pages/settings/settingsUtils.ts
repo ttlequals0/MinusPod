@@ -1,7 +1,9 @@
 export const BYTES_PER_MB = 1048576;
 
 import type { ClaudeModel } from '../../api/types';
-import { formatTimestamp } from '../../utils/format';
+import { formatTimestamp, formatTokenCount } from '../../utils/format';
+
+export { formatTokenCount };
 
 export function formatUptime(seconds: number): string {
   const days = Math.floor(seconds / 86400);
@@ -15,12 +17,6 @@ export function formatUptime(seconds: number): string {
 export function formatDuration(seconds?: number): string {
   if (!seconds) return '0:00';
   return formatTimestamp(seconds);
-}
-
-export function formatTokenCount(tokens: number): string {
-  if (tokens >= 1_000_000) return `${(tokens / 1_000_000).toFixed(1)}M`;
-  if (tokens >= 1_000) return `${(tokens / 1_000).toFixed(1)}K`;
-  return String(tokens);
 }
 
 // "12.3K in / 456 out": shared by every place that reports an input/output

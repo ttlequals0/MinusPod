@@ -324,6 +324,26 @@ describe('StatsPage LLM cost ledger', () => {
     cells.forEach((c) => expect((c.closest('[title]') as HTMLElement).title).toContain('30.0K read'));
   });
 
+  it('shows the three cache rows in the model usage detail panel', async () => {
+    renderPage();
+    const [open] = await screen.findAllByRole('button', { name: 'Show usage detail for anthropic claude-sonnet' });
+    fireEvent.click(open);
+    const dl = (await screen.findAllByText('Cache hit rate'))[0].closest('dl') as HTMLElement;
+    const d = within(dl);
+    expect(d.getByText('Cache read').nextElementSibling?.textContent).toBe('30.0K');
+    expect(d.getByText('Cache write').nextElementSibling?.textContent).toBe('2.0K');
+    expect(d.getByText('Cache hit rate').nextElementSibling?.textContent).toBe('75%');
+  });
+
+  it('adds the cache hit rate to the LLM token hint', async () => {
+    mockGetLlmStats.mockResolvedValue({
+      ...LLM_STATS, calls: 1, requests: 1,
+      tokens: { ...LLM_STATS.tokens, input: 40000, cacheRead: 30000, cacheWrite: 2000 },
+    });
+    renderPage();
+    expect(await screen.findByText(/75% cache hit/)).toBeTruthy();
+  });
+
   function lastMainListParams() {
     const calls = mockGetModelUsageStats.mock.calls;
     return calls[calls.length - 1][0];
@@ -1000,14 +1020,14 @@ describe('StatsPage with populated spend data', () => {
         {
           attemptId: 'a1', phase: 'detection', invokingPass: 1, provider: 'anthropic',
           credentialSlot: 'primary', model: 'claude-sonnet', returnedModel: null,
-          status: 'success', inputTokens: 900, outputTokens: 100, costUsd: '1.25',
+          status: 'success', inputTokens: 900, outputTokens: 100, cacheReadTokens: 450, cacheWriteTokens: 0, costUsd: '1.25',
           costSource: 'catalog', createdAt: '2026-09-01T10:00:00Z',
           finalizedAt: '2026-09-01T10:00:05Z',
         },
         {
           attemptId: 'a2', phase: 'review', invokingPass: 1, provider: 'anthropic',
           credentialSlot: 'primary', model: 'claude-haiku', returnedModel: null,
-          status: 'inconclusive', inputTokens: 100, outputTokens: 100, costUsd: null,
+          status: 'inconclusive', inputTokens: 100, outputTokens: 100, cacheReadTokens: null, cacheWriteTokens: null, costUsd: null,
           costSource: null, createdAt: '2026-09-01T10:01:00Z',
           finalizedAt: '2026-09-01T10:01:02Z',
         },
@@ -1026,5 +1046,13 @@ describe('StatsPage with populated spend data', () => {
     expect(screen.getAllByText('Unknown').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Abstained').length).toBeGreaterThan(0);
     expect(screen.getAllByText(/1 of 2 calls have no recorded price/).length).toBeGreaterThan(0);
+    const panel = within(screen.getAllByRole('table', { name: 'Contributing calls' })[0]);
+    expect(panel.getByRole('columnheader', { name: 'Cache hit' })).toBeTruthy();
+    const hit = panel.getByText('50%');
+    expect(hit.getAttribute('title')).toBe('450 read, 0 write of 900 input');
+    const blank = panel.getAllByRole('row')[2].querySelector('td:nth-child(6)') as HTMLElement;
+    expect(blank.textContent).toBe('');
+    expect(blank.getAttribute('title')).toBeNull();
+    expect(screen.getAllByText('-').length).toBeGreaterThan(0);
   });
 });

@@ -1,8 +1,5 @@
 // Shared, output-stable formatting helpers. Each function here had multiple
 // byte-identical copies inlined across pages/components before consolidation.
-
-import { formatTokenCount } from '../pages/settings/settingsUtils';
-
 // Clock-style timestamp: `H:MM:SS` at or above one hour, else `M:SS`. Integer
 // seconds (each field floored). Used for audio positions (cue rows, ad
 // boundaries) and, via settingsUtils.formatDuration, episode-length durations.
@@ -100,10 +97,16 @@ export function formatPercent(value: number): string {
   return `${Math.round(pct)}%`;
 }
 
+export function formatTokenCount(tokens: number): string {
+  if (tokens >= 1_000_000) return `${(tokens / 1_000_000).toFixed(1)}M`;
+  if (tokens >= 1_000) return `${(tokens / 1_000).toFixed(1)}K`;
+  return String(tokens);
+}
+
 // Reads over input; null when there is nothing to show (no input, or no cache traffic).
 export function cacheHitRate(read: number, write: number, input: number): number | null {
   if (!input || (!read && !write)) return null;
-  return read / input;
+  return Math.min(read / input, 1);
 }
 
 export function formatCacheHit(read: number, write: number, input: number): string {
