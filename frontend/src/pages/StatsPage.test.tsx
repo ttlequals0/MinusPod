@@ -1053,7 +1053,7 @@ describe('StatsPage with populated spend data', () => {
     const hit = panel.getByText('50%');
     expect(hit.getAttribute('title')).toBe('450 read, 0 write of 900 input');
     const blank = panel.getAllByRole('row')[2].querySelector('td:nth-child(6)') as HTMLElement;
-    expect(blank.textContent).toBe('');
+    expect(blank.textContent).toBe('-');
     expect(blank.getAttribute('title')).toBeNull();
     expect(screen.getAllByText('-').length).toBeGreaterThan(0);
   });

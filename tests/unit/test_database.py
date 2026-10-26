@@ -880,6 +880,17 @@ class TestTokenUsage:
         rate = temp_db._resolve_model_rate(conn, 'cached-model')
         assert rate[:3] == (2.0, 8.0, 0.5)
 
+    def test_resolve_rate_negative_catalog_cache_rate_resolves_to_none(self, temp_db):
+        temp_db.upsert_fetched_pricing([{
+            'match_key': 'negcache', 'raw_model_id': 'neg-cache',
+            'display_name': 'neg-cache', 'input_cost_per_mtok': 2.0,
+            'output_cost_per_mtok': 8.0, 'cache_read_cost_per_mtok': 0.5,
+        }], source='litellm')
+        conn = temp_db.get_connection()
+        conn.execute("UPDATE model_pricing SET cache_read_cost_per_mtok = -1 WHERE match_key = 'negcache'")
+        conn.commit()
+        assert temp_db._resolve_model_rate(conn, 'neg-cache').cache_read_per_mtok is None
+
     def test_resolve_rate_cache_rate_is_none_when_unknown(self, temp_db):
         conn = temp_db.get_connection()
         assert temp_db._resolve_model_rate(conn, 'claude-haiku-4-5-20251001')[2] is None

@@ -478,8 +478,11 @@ class StatsMixin:
             input_per_mtok = max(0.0, input_per_mtok)
             output_per_mtok = max(0.0, output_per_mtok)
 
-        return ModelRate(input_per_mtok, output_per_mtok,
-                         row['cache_read_cost_per_mtok'],
+        cache_read_per_mtok = row['cache_read_cost_per_mtok']
+        if cache_read_per_mtok is not None and cache_read_per_mtok < 0:
+            cache_read_per_mtok = None
+
+        return ModelRate(input_per_mtok, output_per_mtok, cache_read_per_mtok,
                          f"{row['source']}:{row['updated_at']}")
 
     def _apply_token_usage_counters(self, conn, model_id: str,

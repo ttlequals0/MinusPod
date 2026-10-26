@@ -194,7 +194,7 @@ function ModelUsageTable({
                       <td className="px-4 py-3 text-sm text-muted-foreground text-right tabular-nums">{stat.calls}</td>
                       <td className="px-4 py-3 text-sm text-muted-foreground text-right tabular-nums"
                           title={hit.title}>
-                        {hit.text}
+                        {hit.text || '-'}
                       </td>
                       <td className="px-4 py-3 text-sm text-muted-foreground text-right tabular-nums">
                         <CostAmount amount={parseFloat(stat.knownCostUsd)} unpricedCount={stat.unknownCostCount} />
@@ -298,7 +298,7 @@ const ATTEMPT_COLUMNS: {
   { label: 'Tokens', align: 'right',
     render: (a) => formatTokenCount((a.inputTokens ?? 0) + (a.outputTokens ?? 0)) },
   { label: 'Cache hit', align: 'right',
-    render: (a) => cacheHit(a.cacheReadTokens ?? 0, a.cacheWriteTokens ?? 0, a.inputTokens ?? 0).text,
+    render: (a) => cacheHit(a.cacheReadTokens ?? 0, a.cacheWriteTokens ?? 0, a.inputTokens ?? 0).text || '-',
     title: (a) => cacheHit(a.cacheReadTokens ?? 0, a.cacheWriteTokens ?? 0, a.inputTokens ?? 0).title },
   { label: 'Cost', align: 'right',
     render: (a) => (a.costUsd == null ? 'Unknown' : formatCost(parseFloat(a.costUsd))) },

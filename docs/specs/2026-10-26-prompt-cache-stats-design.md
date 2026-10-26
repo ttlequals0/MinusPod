@@ -33,7 +33,7 @@ Null sums serialize as 0, matching `inputTokens`. `openapi.yaml` documents the f
 
 ## Decision: hit rate
 
-Hit rate is cache reads divided by input tokens. It is computed in the frontend from the raw counts and printed with `formatPercent` (whole percent). The hover `title` carries the raw counts as "N read, N write of N input". A cell is blank when input is 0 or both cache counts are 0.
+Hit rate is cache reads divided by input tokens. It is computed in the frontend from the raw counts and printed with `formatPercent` (whole percent). The hover `title` carries the raw counts as "N read, N write of N input". A cell shows "-" when input is 0 or both cache counts are 0.
 
 ## Decision: pricing cached input
 
