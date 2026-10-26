@@ -174,7 +174,7 @@ function ModelUsageTable({
                 <SortHeader field="provider" label="Provider" sortField={sortField} sortDirection={sortDir} onSort={onSort} />
                 <SortHeader field="model" label="Model" sortField={sortField} sortDirection={sortDir} onSort={onSort} />
                 <SortHeader field="calls" label="Calls" align="right" sortField={sortField} sortDirection={sortDir} onSort={onSort} />
-                <SortHeader field="cacheHitRate" label="Cache hit" align="right" sortField={sortField} sortDirection={sortDir} onSort={onSort} />
+                <SortHeader field="cacheHitRate" label="Cache hit" align="right" className="px-4 whitespace-nowrap" sortField={sortField} sortDirection={sortDir} onSort={onSort} />
                 <SortHeader field="knownCostUsd" label="Known cost" align="right" sortField={sortField} sortDirection={sortDir} onSort={onSort} />
                 <SortHeader field="unknownCostCount" label="Coverage" align="right" sortField={sortField} sortDirection={sortDir} onSort={onSort} />
               </tr>
@@ -292,13 +292,14 @@ function ModelUsageTable({
 // table and the stacked rows so the two layouts cannot drift.
 const ATTEMPT_COLUMNS: {
   label: string; align: 'left' | 'right'; render: (a: SpendAttempt) => ReactNode;
+  breakable?: boolean;
   title?: (a: SpendAttempt) => string | undefined;
 }[] = [
-  { label: 'Phase', align: 'left',
+  { label: 'Phase', align: 'left', breakable: true,
     render: (a) => `${a.phase}${a.invokingPass ? ` (pass ${a.invokingPass})` : ''}` },
-  { label: 'Provider', align: 'left',
+  { label: 'Provider', align: 'left', breakable: true,
     render: (a) => `${a.provider} / ${SLOT_LABELS[a.credentialSlot as keyof typeof SLOT_LABELS] ?? a.credentialSlot}` },
-  { label: 'Model', align: 'left', render: (a) => a.returnedModel ?? a.model },
+  { label: 'Model', align: 'left', breakable: true, render: (a) => a.returnedModel ?? a.model },
   { label: 'Status', align: 'left', render: (a) => a.status === 'inconclusive'
     ? <span className={`${badgeBase} ${tint.neutral}`}>Abstained</span>
     : a.status },
@@ -335,12 +336,12 @@ function SpendAttemptsPanel({ slug, episodeId }: { slug: string; episodeId: stri
         {formatCost(parseFloat(data.knownCostUsd))}.
         {data.truncated && ' Only the first 200 calls are listed; the totals cover them all.'}
       </p>
-      <div className="hidden sm:block overflow-x-auto">
+      <div role="region" aria-label="Contributing calls; scroll for more columns" tabIndex={0} className="hidden sm:block overflow-x-auto">
         <table aria-label="Contributing calls" className="w-full">
           <thead>
             <tr className="text-muted-foreground">
               {ATTEMPT_COLUMNS.map((c) => (
-                <th key={c.label} className={`font-medium ${cell(c.align)}`}>{c.label}</th>
+                <th key={c.label} className={`font-medium whitespace-nowrap ${cell(c.align)}`}>{c.label}</th>
               ))}
             </tr>
           </thead>
@@ -348,7 +349,7 @@ function SpendAttemptsPanel({ slug, episodeId }: { slug: string; episodeId: stri
             {data.attempts.map((a) => (
               <tr key={a.attemptId} className="border-t border-border/40">
                 {ATTEMPT_COLUMNS.map((c) => (
-                  <td key={c.label} title={c.title?.(a)} className={`${cell(c.align)} break-all`}>{c.render(a)}</td>
+                  <td key={c.label} title={c.title?.(a)} className={`${cell(c.align)} ${c.breakable ? 'break-all' : 'whitespace-nowrap'}`}>{c.render(a)}</td>
                 ))}
               </tr>
             ))}
