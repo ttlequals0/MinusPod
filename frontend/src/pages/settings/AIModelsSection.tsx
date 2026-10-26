@@ -224,7 +224,7 @@ function RateField({ id, label, value, onChange, disabled, describedBy }: {
   describedBy?: string;
 }) {
   return (
-    <div className="min-w-0">
+    <div className="grid grid-rows-subgrid row-span-2 gap-y-0 min-w-0">
       <label htmlFor={id} className={labelBase}>{label}</label>
       <input
         id={id}
@@ -320,7 +320,7 @@ function ModelPricingFields({
     <fieldset className="space-y-3">
       <legend className="font-mono text-sm text-foreground break-all">{modelId}</legend>
       <p className="text-sm text-muted-foreground">USD per 1 million tokens</p>
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-3 gap-x-3">
         {rateFields.map(({ key, label, value, setValue }) => (
           <RateField
             key={key}
