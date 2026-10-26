@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { formatDurationHoursMinutes, keyLabel, formatPercent, formatElapsed, sentenceCase, cacheHitRate, cacheHitTitle, formatCacheHit } from './format';
+import { formatDurationHoursMinutes, keyLabel, formatPercent, formatElapsed, sentenceCase, cacheHit } from './format';
 
 describe('formatDurationHoursMinutes', () => {
   it.each([
@@ -61,18 +61,17 @@ describe('sentenceCase', () => {
   });
 });
 
-describe('cache hit helpers', () => {
+describe('cacheHit', () => {
   it('reports reads over input as a whole percent', () => {
-    expect(formatCacheHit(800, 100, 1000)).toBe('80%');
-    expect(cacheHitTitle(800, 100, 1000)).toMatch(/^800 read, 100 write of /);
+    const hit = cacheHit(800, 100, 1000);
+    expect(hit.text).toBe('80%');
+    expect(hit.title).toMatch(/^800 read, 100 write of /);
   });
   it('caps the rate at 100% when reads exceed input', () => {
-    expect(cacheHitRate(1500, 0, 1000)).toBe(1);
-    expect(formatCacheHit(1500, 0, 1000)).toBe('100%');
+    expect(cacheHit(1500, 0, 1000).text).toBe('100%');
   });
   it('is blank without input or without cache traffic', () => {
-    expect(cacheHitRate(10, 0, 0)).toBeNull();
-    expect(formatCacheHit(0, 0, 1000)).toBe('');
-    expect(cacheHitTitle(0, 0, 1000)).toBeUndefined();
+    expect(cacheHit(10, 0, 0)).toEqual({ text: '' });
+    expect(cacheHit(0, 0, 1000)).toEqual({ text: '' });
   });
 });

@@ -16,7 +16,7 @@ import ProcessingRunsTable from '../components/ProcessingRunsTable';
 import { getCueAggregateStats } from '../api/cueDetections';
 import { feedsQueryOptions } from '../api/feeds';
 import { feedDisplayTitle } from '../utils/feedTitle';
-import { cacheHitRate, cacheHitTitle, formatCacheHit, formatCost, formatDateTime, formatElapsed, formatTokenCount } from '../utils/format';
+import { cacheHit, formatCost, formatDateTime, formatElapsed, formatTokenCount } from '../utils/format';
 import { SkeletonStatCards, SkeletonChart, SkeletonRows } from '../components/Skeleton';
 import { useThemeColors } from '../hooks/useThemeColors';
 import { Pagination } from '../components/Pagination';
@@ -122,32 +122,23 @@ function QueryErrorPanel({ message, onRetry, retryLabel = 'Retry' }: { message: 
 }
 
 function ModelUsageDetail({ stat }: { stat: ModelUsageStat }) {
+  // Row-major order that fills two columns: episodes/input/output left, cache right.
+  const entries: [string, string | number][] = [
+    ['Distinct episodes', stat.distinctEpisodes],
+    ['Cache read', formatTokenCount(stat.cacheReadTokens)],
+    ['Input tokens', formatTokenCount(stat.inputTokens)],
+    ['Cache write', formatTokenCount(stat.cacheWriteTokens)],
+    ['Output tokens', formatTokenCount(stat.outputTokens)],
+    ['Cache hit rate', cacheHit(stat.cacheReadTokens, stat.cacheWriteTokens, stat.inputTokens).text || '-'],
+  ];
   return (
     <dl className="grid grid-cols-2 gap-3 text-xs">
-      <div>
-        <dt className="text-muted-foreground">Distinct episodes</dt>
-        <dd className="text-foreground">{stat.distinctEpisodes}</dd>
-      </div>
-      <div>
-        <dt className="text-muted-foreground">Input tokens</dt>
-        <dd className="text-foreground">{formatTokenCount(stat.inputTokens)}</dd>
-      </div>
-      <div>
-        <dt className="text-muted-foreground">Output tokens</dt>
-        <dd className="text-foreground">{formatTokenCount(stat.outputTokens)}</dd>
-      </div>
-      <div>
-        <dt className="text-muted-foreground">Cache read</dt>
-        <dd className="text-foreground">{formatTokenCount(stat.cacheReadTokens)}</dd>
-      </div>
-      <div>
-        <dt className="text-muted-foreground">Cache write</dt>
-        <dd className="text-foreground">{formatTokenCount(stat.cacheWriteTokens)}</dd>
-      </div>
-      <div>
-        <dt className="text-muted-foreground">Cache hit rate</dt>
-        <dd className="text-foreground">{formatCacheHit(stat.cacheReadTokens, stat.cacheWriteTokens, stat.inputTokens) || '-'}</dd>
-      </div>
+      {entries.map(([label, value]) => (
+        <div key={label}>
+          <dt className="text-muted-foreground">{label}</dt>
+          <dd className="text-foreground">{value}</dd>
+        </div>
+      ))}
     </dl>
   );
 }
@@ -188,6 +179,7 @@ function ModelUsageTable({
               ) : items.map((stat) => {
                 const key = modelUsageKey(stat);
                 const isOpen = expanded.has(key);
+                const hit = cacheHit(stat.cacheReadTokens, stat.cacheWriteTokens, stat.inputTokens);
                 const label = isOpen
                   ? `Hide usage detail for ${stat.provider} ${stat.model}`
                   : `Show usage detail for ${stat.provider} ${stat.model}`;
@@ -201,8 +193,8 @@ function ModelUsageTable({
                       <td className="px-4 py-3 text-sm text-foreground">{stat.model}</td>
                       <td className="px-4 py-3 text-sm text-muted-foreground text-right tabular-nums">{stat.calls}</td>
                       <td className="px-4 py-3 text-sm text-muted-foreground text-right tabular-nums"
-                          title={cacheHitTitle(stat.cacheReadTokens, stat.cacheWriteTokens, stat.inputTokens)}>
-                        {formatCacheHit(stat.cacheReadTokens, stat.cacheWriteTokens, stat.inputTokens)}
+                          title={hit.title}>
+                        {hit.text}
                       </td>
                       <td className="px-4 py-3 text-sm text-muted-foreground text-right tabular-nums">
                         <CostAmount amount={parseFloat(stat.knownCostUsd)} unpricedCount={stat.unknownCostCount} />
@@ -256,6 +248,7 @@ function ModelUsageTable({
           const key = modelUsageKey(stat);
           const isOpen = expanded.has(key);
           const label = isOpen ? 'Hide usage detail' : 'Show usage detail';
+          const hit = cacheHit(stat.cacheReadTokens, stat.cacheWriteTokens, stat.inputTokens);
           return (
             <div key={key} className="bg-card rounded-lg border border-border p-4">
               <div className="mb-2">
@@ -264,12 +257,12 @@ function ModelUsageTable({
                   <CostAmount amount={parseFloat(stat.knownCostUsd)} unpricedCount={stat.unknownCostCount} />
                 </p>
               </div>
-              <div className="flex items-center justify-between text-xs text-muted-foreground">
+              <div className="grid grid-cols-3 text-xs text-muted-foreground">
                 <span>{stat.calls} calls</span>
-                <span title={cacheHitTitle(stat.cacheReadTokens, stat.cacheWriteTokens, stat.inputTokens)}>
-                  Cache hit {formatCacheHit(stat.cacheReadTokens, stat.cacheWriteTokens, stat.inputTokens) || '-'}
+                <span className="text-center" title={hit.title}>
+                  Cache hit {hit.text || '-'}
                 </span>
-                <span>{formatCoverage(stat.calls, stat.unknownCostCount)}</span>
+                <span className="text-right">{formatCoverage(stat.calls, stat.unknownCostCount)}</span>
               </div>
               <div className="mt-2">
                 <DisclosureButton expanded={isOpen} onToggle={() => onToggle(key)} label={label} showLabel />
@@ -305,8 +298,8 @@ const ATTEMPT_COLUMNS: {
   { label: 'Tokens', align: 'right',
     render: (a) => formatTokenCount((a.inputTokens ?? 0) + (a.outputTokens ?? 0)) },
   { label: 'Cache hit', align: 'right',
-    render: (a) => formatCacheHit(a.cacheReadTokens ?? 0, a.cacheWriteTokens ?? 0, a.inputTokens ?? 0),
-    title: (a) => cacheHitTitle(a.cacheReadTokens ?? 0, a.cacheWriteTokens ?? 0, a.inputTokens ?? 0) },
+    render: (a) => cacheHit(a.cacheReadTokens ?? 0, a.cacheWriteTokens ?? 0, a.inputTokens ?? 0).text,
+    title: (a) => cacheHit(a.cacheReadTokens ?? 0, a.cacheWriteTokens ?? 0, a.inputTokens ?? 0).title },
   { label: 'Cost', align: 'right',
     render: (a) => (a.costUsd == null ? 'Unknown' : formatCost(parseFloat(a.costUsd))) },
   { label: 'When', align: 'left', render: (a) => formatDateTime(a.finalizedAt ?? a.createdAt) },
@@ -785,11 +778,13 @@ export default function StatsPage() {
     queryKey: ['stats-llm', systemOneParams],
     queryFn: () => getLlmStats(systemOneParams),
   });
+  const llmHit = llmStats
+    ? cacheHit(llmStats.tokens.cacheRead, llmStats.tokens.cacheWrite, llmStats.tokens.input)
+    : { text: '' };
   const llmTokenDetails = !llmStats ? undefined : !llmStats.requests
     ? 'No recorded requests'
     : [
-      cacheHitRate(llmStats.tokens.cacheRead, llmStats.tokens.cacheWrite, llmStats.tokens.input) != null
-        ? `${formatCacheHit(llmStats.tokens.cacheRead, llmStats.tokens.cacheWrite, llmStats.tokens.input)} cache hit` : null,
+      llmHit.text ? `${llmHit.text} cache hit` : null,
       llmStats.tokens.cacheRead > 0 ? `${formatTokenCount(llmStats.tokens.cacheRead)} cache read` : null,
       llmStats.tokens.cacheWrite > 0 ? `${formatTokenCount(llmStats.tokens.cacheWrite)} cache write` : null,
       llmStats.tokens.reasoning > 0 ? `${formatTokenCount(llmStats.tokens.reasoning)} reasoning` : null,

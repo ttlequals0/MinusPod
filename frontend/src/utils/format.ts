@@ -105,19 +105,19 @@ export function formatTokenCount(tokens: number): string {
 }
 
 // Reads over input; null when there is nothing to show (no input, or no cache traffic).
-export function cacheHitRate(read: number, write: number, input: number): number | null {
+function cacheHitRate(read: number, write: number, input: number): number | null {
   if (!input || (!read && !write)) return null;
   return Math.min(read / input, 1);
 }
 
-export function formatCacheHit(read: number, write: number, input: number): string {
+// text is '' when there is no rate to show.
+export function cacheHit(read: number, write: number, input: number): { text: string; title?: string } {
   const rate = cacheHitRate(read, write, input);
-  return rate == null ? '' : formatPercent(rate);
-}
-
-export function cacheHitTitle(read: number, write: number, input: number): string | undefined {
-  return cacheHitRate(read, write, input) == null ? undefined
-    : `${formatTokenCount(read)} read, ${formatTokenCount(write)} write of ${formatTokenCount(input)} input`;
+  if (rate == null) return { text: '' };
+  return {
+    text: formatPercent(rate),
+    title: `${formatTokenCount(read)} read, ${formatTokenCount(write)} write of ${formatTokenCount(input)} input`,
+  };
 }
 
 // Elapsed or summed duration, rounded to whole seconds; zero trailing units are dropped: '45s', '2m 5s', '1h 2m'.
