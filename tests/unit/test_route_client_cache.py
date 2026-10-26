@@ -88,6 +88,19 @@ class TestGetClientForProviderCache(unittest.TestCase):
             self.assertNotIn('super-secret-key', str(key))
             self.assertNotIn('another-secret', str(key))
 
+    @patch('llm_client.get_effective_secondary_provider_api_key', return_value='sk-secondary-or')
+    @patch('llm_client.get_effective_openai_api_key', return_value='sk-oai')
+    @patch('llm_client.get_effective_base_url', return_value='http://a/v1')
+    @patch('llm_client.get_effective_provider', return_value='typesafe')
+    def test_client_is_tagged_with_the_provider_it_was_built_for(self, *_mocks):
+        """messages_create picks the reasoning shape from this tag, so a
+        Provider B client must carry its own type, not the global provider's."""
+        secondary = get_client_for_provider('openrouter', credential_slot='secondary')
+        primary = get_client_for_provider('openai-compatible')
+
+        self.assertEqual(secondary.provider_key, 'openrouter')
+        self.assertEqual(primary.provider_key, 'openai-compatible')
+
     @patch('llm_client.get_effective_anthropic_api_key', return_value='sk-ant')
     @patch('llm_client.get_effective_provider', return_value='anthropic')
     def test_get_llm_client_delegates_to_per_provider_cache(self, *_mocks):

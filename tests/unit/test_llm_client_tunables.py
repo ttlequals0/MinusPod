@@ -467,6 +467,49 @@ class TestOpenAIFallback:
         assert kwargs["reasoning_effort"] == "none"
         assert "extra_body" not in kwargs
 
+    @pytest.mark.parametrize("effort", ["none", "low", "high"])
+    def test_reasoning_shape_follows_client_provider_not_global(self, effort):
+        """Mixed providers: Provider A is TypeSafe, chapters route to an
+        OpenRouter Provider B. The reasoning field must use OpenRouter's
+        shape, or the "retry with reasoning disabled" fallback sends nothing."""
+        client = self._build_client()
+        client.provider_key = "openrouter"
+        mock_sdk = MagicMock()
+        mock_sdk.chat.completions.create.return_value = _make_openai_response()
+        client._client = mock_sdk
+
+        with patch("llm_client.get_effective_provider", return_value="typesafe"):
+            client.messages_create(
+                model="model-x",
+                max_tokens=4096,
+                system="sys",
+                messages=[{"role": "user", "content": "hi"}],
+                reasoning_effort=effort,
+            )
+
+        kwargs = mock_sdk.chat.completions.create.call_args.kwargs
+        assert kwargs["extra_body"] == {"reasoning": {"effort": effort}}
+        assert "reasoning_effort" not in kwargs
+
+    def test_untagged_client_still_uses_global_provider(self):
+        client = self._build_client()
+        assert client.provider_key is None
+        mock_sdk = MagicMock()
+        mock_sdk.chat.completions.create.return_value = _make_openai_response()
+        client._client = mock_sdk
+
+        with patch("llm_client.get_effective_provider", return_value="openrouter"):
+            client.messages_create(
+                model="model-x",
+                max_tokens=4096,
+                system="sys",
+                messages=[{"role": "user", "content": "hi"}],
+                reasoning_effort="none",
+            )
+
+        kwargs = mock_sdk.chat.completions.create.call_args.kwargs
+        assert kwargs["extra_body"] == {"reasoning": {"effort": "none"}}
+
     @pytest.mark.parametrize(
         "provider", ["openai-compatible", "openrouter", "ollama"])
     def test_concurrent_reasoning_rejections_retry_each_inflight_call(

@@ -703,6 +703,11 @@ class LLMClient(ABC):
         # Which account this client authenticates as; part of the model-list
         # cache identity so two accounts on one endpoint never share a list.
         self.credential_slot = 'primary'
+        # Provider type this client was built for. A stage routed to Provider
+        # B may differ from the global provider, and request shapes such as
+        # the reasoning field must follow the provider actually called. None
+        # for clients built outside the factory, which use the global provider.
+        self.provider_key: str | None = None
         # Provider-config revision this client was built on; a mismatch at
         # acquire time rebuilds it so a rotated credential is never reused.
         self._config_revision = None
@@ -1511,8 +1516,10 @@ class OpenAICompatibleClient(LLMClient):
         token_param = cached_param or "max_completion_tokens"
 
         # Provider detection picks the right reasoning shape (OpenRouter vs
-        # OpenAI-native vs Ollama). get_effective_provider() reads DB+env.
-        active_provider = get_effective_provider()
+        # OpenAI-native vs Ollama). Use the provider this client was built
+        # for: the global provider (get_effective_provider() reads DB+env)
+        # can be another type when this stage is routed to Provider B.
+        active_provider = self.provider_key or get_effective_provider()
 
         def _build_kwargs(tok, tmp, reasoning):
             kw = {
@@ -2339,6 +2346,7 @@ def get_client_for_provider(provider_key: str, base_url: str | None = None,
             )
             client = AnthropicClient()
         client.credential_slot = credential_slot
+        client.provider_key = provider_key
         client._config_revision = revision
 
         # No usage callback wired: utils.llm_call records every dispatch
@@ -2485,6 +2493,7 @@ def create_client_for_provider(
             logger.warning(f"Unknown provider '{provider}' for preview client")
         else:
             client.credential_slot = credential_slot
+            client.provider_key = provider
         return client
     except Exception as e:
         logger.error(f"Failed to create preview client for provider '{provider}': {e}")

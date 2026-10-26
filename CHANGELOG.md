@@ -11,6 +11,14 @@ release notes.
 
 ## [Unreleased]
 
+### Fixed
+- A stage routed to Provider B sends that provider's reasoning field. The
+  OpenAI-compatible client chose the reasoning shape from the global
+  provider, so an OpenRouter Provider B behind a TypeSafe Provider A got no
+  reasoning field at all, and the "retry with reasoning disabled" fallback
+  sent the same request again. Reasoning models then spent the whole output
+  budget and chapter generation failed.
+
 ## [2.100.23] - 2026-10-26
 
 ### Added
