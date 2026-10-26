@@ -319,7 +319,7 @@ describe('StatsPage LLM cost ledger', () => {
     mockGetModelUsageStats.mockResolvedValue(MODEL_USAGE_PAGE);
     renderPage();
     // Desktop table and mobile card both mount; each carries the hover title.
-    const cells = await screen.findAllByText('75%');
+    const cells = [...await screen.findAllByText('75%'), await screen.findByText('Cache hit 75%')];
     expect(cells).toHaveLength(2);
     cells.forEach((c) => expect((c.closest('[title]') as HTMLElement).title).toContain('30.0K read'));
   });
@@ -1046,6 +1046,8 @@ describe('StatsPage with populated spend data', () => {
     expect(screen.getAllByText('Unknown').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Abstained').length).toBeGreaterThan(0);
     expect(screen.getAllByText(/1 of 2 calls have no recorded price/).length).toBeGreaterThan(0);
+    const scroller = screen.getAllByRole('region', { name: 'Contributing calls; scroll for more columns' })[0];
+    expect(scroller.tabIndex).toBe(0);
     const panel = within(screen.getAllByRole('table', { name: 'Contributing calls' })[0]);
     expect(panel.getByRole('columnheader', { name: 'Cache hit' })).toBeTruthy();
     const hit = panel.getByText('50%');

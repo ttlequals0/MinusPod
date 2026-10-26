@@ -1,8 +1,8 @@
 import { Fragment, ReactNode, useState } from 'react';
 import { ChevronDown, ChevronRight } from 'lucide-react';
 import { EpisodeProcessingRun, LLM_PROVIDER_LABELS, LlmProvider, RunPhaseUsage } from '../api/types';
-import { cacheHitTitle, formatCacheHit, formatCost, formatDateTime, formatElapsed, formatPercent, sentenceCase } from '../utils/format';
-import { formatTokenCount, formatTokenRange } from '../pages/settings/settingsUtils';
+import { cacheHitTitle, formatCacheHit, formatCost, formatDateTime, formatElapsed, formatPercent, formatTokenCount, sentenceCase } from '../utils/format';
+import { formatTokenRange } from '../pages/settings/settingsUtils';
 import DisclosureButton from './DisclosureButton';
 import CopyButton from './CopyButton';
 import CostAmount from './CostAmount';

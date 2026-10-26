@@ -16,8 +16,7 @@ import ProcessingRunsTable from '../components/ProcessingRunsTable';
 import { getCueAggregateStats } from '../api/cueDetections';
 import { feedsQueryOptions } from '../api/feeds';
 import { feedDisplayTitle } from '../utils/feedTitle';
-import { formatTokenCount } from './settings/settingsUtils';
-import { cacheHitRate, cacheHitTitle, formatCacheHit, formatCost, formatDateTime, formatElapsed } from '../utils/format';
+import { cacheHitRate, cacheHitTitle, formatCacheHit, formatCost, formatDateTime, formatElapsed, formatTokenCount } from '../utils/format';
 import { SkeletonStatCards, SkeletonChart, SkeletonRows } from '../components/Skeleton';
 import { useThemeColors } from '../hooks/useThemeColors';
 import { Pagination } from '../components/Pagination';
@@ -268,7 +267,7 @@ function ModelUsageTable({
               <div className="flex items-center justify-between text-xs text-muted-foreground">
                 <span>{stat.calls} calls</span>
                 <span title={cacheHitTitle(stat.cacheReadTokens, stat.cacheWriteTokens, stat.inputTokens)}>
-                  {formatCacheHit(stat.cacheReadTokens, stat.cacheWriteTokens, stat.inputTokens) || '-'}
+                  Cache hit {formatCacheHit(stat.cacheReadTokens, stat.cacheWriteTokens, stat.inputTokens) || '-'}
                 </span>
                 <span>{formatCoverage(stat.calls, stat.unknownCostCount)}</span>
               </div>

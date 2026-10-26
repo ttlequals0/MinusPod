@@ -178,7 +178,7 @@ function AIModelsSection({
             <div>
               <h4 className={subHeading}>Custom pricing</h4>
               <p className="mt-1 text-sm text-muted-foreground">
-                Set USD prices per 1 million tokens when the catalog price is missing or wrong. Leave both fields blank to use the catalog. Enter 0 for a free model.
+                Set USD prices per 1 million tokens when the catalog price is missing or wrong. Leave input and output blank to use the catalog. The cached input price is optional. Enter 0 for a free model.
               </p>
             </div>
             {configuredModelIds.map((modelId, index) => {
@@ -226,13 +226,16 @@ function ModelPricingFields({
 }) {
   const savedInput = override === undefined ? '' : String(override.inputCostPerMtok);
   const savedOutput = override === undefined ? '' : String(override.outputCostPerMtok);
+  const savedCache = override?.cacheReadCostPerMtok == null ? '' : String(override.cacheReadCostPerMtok);
   const inputDraft = useDraftField(savedInput, (value) => value);
   const outputDraft = useDraftField(savedOutput, (value) => value);
+  const cacheDraft = useDraftField(savedCache, (value) => value);
   const { value: inputRate, setValue: setInputRate } = inputDraft;
   const { value: outputRate, setValue: setOutputRate } = outputDraft;
+  const { value: cacheRate, setValue: setCacheRate } = cacheDraft;
   const [message, setMessage] = useState<string | null>(null);
 
-  const isDirty = inputRate !== savedInput || outputRate !== savedOutput;
+  const isDirty = inputRate !== savedInput || outputRate !== savedOutput || cacheRate !== savedCache;
   useUnsavedChanges(isDirty);
   const commit = async () => {
     setMessage(null);
@@ -241,10 +244,16 @@ function ModelPricingFields({
       setMessage('Enter both prices, or leave both blank.');
       return;
     }
+    const hasCache = cacheRate.trim() !== '';
+    if (bothBlank && hasCache) {
+      setMessage('Enter input and output prices before a cached input price.');
+      return;
+    }
     const input = Number(inputRate);
     const output = Number(outputRate);
+    const cache = Number(cacheRate);
     if (!bothBlank && (!Number.isFinite(input) || !Number.isFinite(output)
-      || input < 0 || output < 0)) {
+      || input < 0 || output < 0 || (hasCache && (!Number.isFinite(cache) || cache < 0)))) {
       setMessage('Prices must be non-negative numbers.');
       return;
     }
@@ -252,9 +261,11 @@ function ModelPricingFields({
       await onUpdate(modelId, bothBlank ? null : {
         inputCostPerMtok: input,
         outputCostPerMtok: output,
+        ...(hasCache && { cacheReadCostPerMtok: cache }),
       });
       inputDraft.markClean(bothBlank ? '' : String(input));
       outputDraft.markClean(bothBlank ? '' : String(output));
+      cacheDraft.markClean(bothBlank || !hasCache ? '' : String(cache));
       setMessage(bothBlank ? 'Using catalog pricing.' : 'Custom pricing saved.');
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Could not save custom pricing.');
@@ -303,6 +314,23 @@ function ModelPricingFields({
             className={`${inputBase} w-full`}
           />
         </div>
+        <div>
+          <label htmlFor={`${fieldId}-cache`} className={labelBase}>
+            Cached input, USD per 1 million tokens
+          </label>
+          <input
+            id={`${fieldId}-cache`}
+            disabled={saving}
+            aria-describedby={message ? `${fieldId}-result` : undefined}
+            type="number"
+            min="0"
+            step="any"
+            inputMode="decimal"
+            value={cacheRate}
+            onChange={(event) => { setCacheRate(event.target.value); setMessage(null); }}
+            className={`${inputBase} w-full`}
+          />
+        </div>
       </div>
       <div className="flex flex-wrap items-center gap-3">
         <button
@@ -315,7 +343,7 @@ function ModelPricingFields({
         </button>
         {catalogAvailable && (
           <span className="text-xs text-muted-foreground">
-            Catalog: {formatUsdRate(catalogModel.inputCostPerMtok!)} input, {formatUsdRate(catalogModel.outputCostPerMtok!)} output
+            Catalog: {formatUsdRate(catalogModel.inputCostPerMtok!)} input, {formatUsdRate(catalogModel.outputCostPerMtok!)} output{typeof catalogModel.cacheReadCostPerMtok === 'number' && `, ${formatUsdRate(catalogModel.cacheReadCostPerMtok)} cached input`}
           </span>
         )}
       </div>

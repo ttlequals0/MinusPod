@@ -308,6 +308,7 @@ describe('AIModelsSection: custom pricing', () => {
     const inputs = [
       ...screen.getAllByLabelText('Input, USD per 1 million tokens'),
       ...screen.getAllByLabelText('Output, USD per 1 million tokens'),
+      ...screen.getAllByLabelText('Cached input, USD per 1 million tokens'),
     ];
     for (const input of inputs) {
       expect(input.className).toContain(inputBase);
@@ -330,6 +331,73 @@ describe('AIModelsSection: custom pricing', () => {
       inputCostPerMtok: 1.25,
       outputCostPerMtok: 4.5,
     });
+  });
+
+  it('sends the cached input rate when set', async () => {
+    const user = userEvent.setup();
+    const onPricingOverrideUpdate = vi.fn().mockResolvedValue(undefined);
+    renderSection({ onPricingOverrideUpdate });
+
+    await user.type(screen.getAllByLabelText('Input, USD per 1 million tokens')[0], '2');
+    await user.type(screen.getAllByLabelText('Output, USD per 1 million tokens')[0], '8');
+    await user.type(screen.getAllByLabelText('Cached input, USD per 1 million tokens')[0], '0.5');
+    await user.click(screen.getAllByRole('button', { name: 'Save pricing' })[0]);
+
+    expect(onPricingOverrideUpdate).toHaveBeenCalledWith('gpt-5', {
+      inputCostPerMtok: 2,
+      outputCostPerMtok: 8,
+      cacheReadCostPerMtok: 0.5,
+    });
+  });
+
+  it('omits the cached input rate when the field is blank', async () => {
+    const user = userEvent.setup();
+    const onPricingOverrideUpdate = vi.fn().mockResolvedValue(undefined);
+    renderSection({ onPricingOverrideUpdate });
+
+    await user.type(screen.getAllByLabelText('Input, USD per 1 million tokens')[0], '2');
+    await user.type(screen.getAllByLabelText('Output, USD per 1 million tokens')[0], '8');
+    await user.click(screen.getAllByRole('button', { name: 'Save pricing' })[0]);
+
+    const saved = onPricingOverrideUpdate.mock.calls[0][1];
+    expect(saved).toEqual({ inputCostPerMtok: 2, outputCostPerMtok: 8 });
+    expect('cacheReadCostPerMtok' in saved).toBe(false);
+  });
+
+  it('pre-fills a saved cached input rate and keeps it when only output changes', async () => {
+    const user = userEvent.setup();
+    const onPricingOverrideUpdate = vi.fn().mockResolvedValue(undefined);
+    renderSection({
+      modelPricingOverrides: {
+        'gpt-5': { inputCostPerMtok: 2, outputCostPerMtok: 8, cacheReadCostPerMtok: 0.5 },
+      },
+      onPricingOverrideUpdate,
+    });
+
+    const cache = screen.getAllByLabelText('Cached input, USD per 1 million tokens')[0] as HTMLInputElement;
+    expect(cache.value).toBe('0.5');
+    const output = screen.getAllByLabelText('Output, USD per 1 million tokens')[0];
+    await user.clear(output);
+    await user.type(output, '9');
+    await user.click(screen.getAllByRole('button', { name: 'Save pricing' })[0]);
+
+    expect(onPricingOverrideUpdate).toHaveBeenCalledWith('gpt-5', {
+      inputCostPerMtok: 2,
+      outputCostPerMtok: 9,
+      cacheReadCostPerMtok: 0.5,
+    });
+  });
+
+  it('rejects a cached input rate without input and output rates', async () => {
+    const user = userEvent.setup();
+    const onPricingOverrideUpdate = vi.fn().mockResolvedValue(undefined);
+    renderSection({ onPricingOverrideUpdate });
+
+    await user.type(screen.getAllByLabelText('Cached input, USD per 1 million tokens')[0], '0.5');
+    await user.click(screen.getAllByRole('button', { name: 'Save pricing' })[0]);
+
+    expect(screen.getByText('Enter input and output prices before a cached input price.')).toBeDefined();
+    expect(onPricingOverrideUpdate).not.toHaveBeenCalled();
   });
 
   it('requires both rates', async () => {

@@ -3,8 +3,6 @@ export const BYTES_PER_MB = 1048576;
 import type { ClaudeModel } from '../../api/types';
 import { formatTimestamp, formatTokenCount } from '../../utils/format';
 
-export { formatTokenCount };
-
 export function formatUptime(seconds: number): string {
   const days = Math.floor(seconds / 86400);
   const hours = Math.floor((seconds % 86400) / 3600);
