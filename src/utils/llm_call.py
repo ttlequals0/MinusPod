@@ -33,6 +33,7 @@ from llm_client import (
     StructuralRateLimitError,
     ProviderAccountChangedError,
     ProviderRateLimitedError,
+    OllamaContextOverflowError,
     supports_json_schema_for_calls,
 )
 from llm_route import (
@@ -463,6 +464,9 @@ def _is_retryable(error) -> bool:
     # A truncated answer is terminal: the same budget truncates again.
     if isinstance(error, OutputTruncatedError):
         return False
+    # So is a prompt Ollama cut to fit num_ctx: it overflows again.
+    if isinstance(error, OllamaContextOverflowError):
+        return False
     if isinstance(error, CircuitBreakerOpen):
         return True
     return isinstance(error, EmptyCompletionError) or is_retryable_error(error)
@@ -476,6 +480,7 @@ LOSS_CONNECTIVITY = 'connectivity'
 LOSS_REASONING_EXHAUSTED = 'reasoning_exhausted'
 LOSS_OUTPUT_TRUNCATED = 'output_truncated'
 LOSS_EMPTY_COMPLETION = 'empty_completion'
+LOSS_CONTEXT_OVERFLOW = 'context_overflow'
 LOSS_OTHER = 'other'
 
 
@@ -489,6 +494,8 @@ def window_loss_class(error) -> str:
         return LOSS_OUTPUT_TRUNCATED
     if isinstance(error, EmptyCompletionError):
         return LOSS_EMPTY_COMPLETION
+    if isinstance(error, OllamaContextOverflowError):
+        return LOSS_CONTEXT_OVERFLOW
     if isinstance(error, (StructuralRateLimitError, ProviderRateLimitedError)):
         return LOSS_RATE_LIMIT
     if is_rate_limit_error(error):

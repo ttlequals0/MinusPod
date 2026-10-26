@@ -1368,6 +1368,48 @@ class OllamaNativeChatError(Exception):
         self.response = response
 
 
+class OllamaContextOverflowError(Exception):
+    """Ollama cut a prompt longer than num_ctx down to about num_ctx/2,
+    dropping its start (system prompt and instructions included), and answered
+    anyway (#893). Terminal: the same prompt overflows again. Carries the
+    response so the ledger can still record the tokens Ollama evaluated."""
+
+    def __init__(self, message: str, *, num_ctx: int, prompt_tokens: int,
+                 estimated_tokens: int, response=None):
+        super().__init__(message)
+        self.num_ctx = num_ctx
+        self.prompt_tokens = prompt_tokens
+        self.estimated_tokens = estimated_tokens
+        self.response = response
+
+
+# Ollama truncates an overflowing prompt to num_ctx/2 plus a few kept tokens
+# (limit=8195 at 16384, 4098 at 8192); this band absorbs the kept tokens.
+OLLAMA_OVERFLOW_BAND_TOKENS = 64
+# The reported count must also sit well below the prompt's own size estimate,
+# so a prompt that is genuinely about num_ctx/2 long is not flagged.
+OLLAMA_OVERFLOW_ESTIMATE_RATIO = 1.5
+# Rough chars-per-token for the prompt size estimate.
+OLLAMA_PROMPT_CHARS_PER_TOKEN = 4
+
+
+def estimate_prompt_tokens(messages: list[dict]) -> int:
+    """Rough token estimate for a chat prompt, from its character count."""
+    chars = 0
+    for message in messages:
+        content = message.get('content')
+        chars += len(content if isinstance(content, str) else str(content or ''))
+    return chars // OLLAMA_PROMPT_CHARS_PER_TOKEN
+
+
+def ollama_prompt_was_truncated(prompt_tokens, num_ctx, estimated_tokens) -> bool:
+    """True when Ollama's prompt_eval_count shows it cut the prompt to num_ctx/2."""
+    if not isinstance(prompt_tokens, int) or not num_ctx:
+        return False
+    return (abs(prompt_tokens - num_ctx // 2) <= OLLAMA_OVERFLOW_BAND_TOKENS
+            and estimated_tokens >= prompt_tokens * OLLAMA_OVERFLOW_ESTIMATE_RATIO)
+
+
 class OpenAICompatibleClient(LLMClient):
     """OpenAI-compatible API client.
 
@@ -1963,7 +2005,28 @@ class OllamaNativeClient(OpenAICompatibleClient):
             _send,
         )
         self._record_circuit_breaker(success=True)
-        return self._map_ollama_native_response(data, model, eff_max)
+        llm_response = self._map_ollama_native_response(data, model, eff_max)
+        self._raise_if_context_overflow(
+            llm_response, model, estimate_prompt_tokens(all_messages))
+        return llm_response
+
+    def _raise_if_context_overflow(self, llm_response: LLMResponse, model: str,
+                                   estimated_tokens: int) -> None:
+        """Fail the call when Ollama silently truncated the prompt (#893)."""
+        prompt_tokens = (llm_response.usage or {}).get('input_tokens')
+        if not ollama_prompt_was_truncated(
+                prompt_tokens, self._ollama_num_ctx, estimated_tokens):
+            return
+        raise OllamaContextOverflowError(
+            f"Ollama truncated the prompt for {model} to {prompt_tokens} tokens "
+            f"(about half of num_ctx={self._ollama_num_ctx}); the prompt is about "
+            f"{estimated_tokens} tokens, so its start and the instructions were "
+            f"dropped. Raise num_ctx (Settings > Context window, or OLLAMA_NUM_CTX).",
+            num_ctx=self._ollama_num_ctx,
+            prompt_tokens=prompt_tokens,
+            estimated_tokens=estimated_tokens,
+            response=llm_response,
+        )
 
     def _build_ollama_native_request(
         self, model: str, all_messages: list[dict], max_tokens: int,

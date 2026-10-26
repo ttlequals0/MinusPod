@@ -17,7 +17,7 @@ from utils.text import extract_text_from_segments
 from llm_capabilities import PASS_CHAPTER_GENERATION
 from llm_client import (
     get_llm_client, get_api_key, LLMClient,
-    ProviderAccountChangedError, ProviderRateLimitedError,
+    OllamaContextOverflowError, ProviderAccountChangedError, ProviderRateLimitedError,
 )
 from cancel import ProcessingCancelled, ProcessingOwnershipLost
 from llm_route import client_for_route, live_route_params
@@ -199,6 +199,8 @@ class ChaptersGenerator:
         # Set when get_chapters_model() raises; appended to the degradation
         # reason below instead of just the generic "... failed" text.
         self._model_not_configured_message: str | None = None
+        # Set when Ollama truncated a chapter prompt to fit num_ctx (#893).
+        self._context_overflow_message: str | None = None
         self.chapters_degraded: bool = False
         self.chapters_degradation_reason: str | None = None
 
@@ -377,6 +379,10 @@ class ChaptersGenerator:
                 # A rate-limit hold is queue-wide state, not a degraded run.
                 if isinstance(last_error, ProviderRateLimitedError):
                     raise last_error
+                if isinstance(last_error, OllamaContextOverflowError):
+                    self._context_overflow_message = (
+                        f"prompt exceeded Ollama num_ctx={last_error.num_ctx} "
+                        f"(about {last_error.estimated_tokens} tokens); raise num_ctx")
                 logger.error(f"Failed to detect topic boundaries: {last_error}")
                 return None
 
@@ -814,6 +820,7 @@ class ChaptersGenerator:
         self._title_generation_failed = False
         self._missing_client_for_titles = False
         self._model_not_configured_message = None
+        self._context_overflow_message = None
         self.chapters_degraded = False
         self.chapters_degradation_reason = None
 
@@ -894,6 +901,8 @@ class ChaptersGenerator:
                 reasons.append('chapter title generation failed')
             if self._model_not_configured_message:
                 reasons.append(self._model_not_configured_message)
+            if self._context_overflow_message:
+                reasons.append(self._context_overflow_message)
             reason = '; '.join(reasons)
             self.chapters_degraded = True
             self.chapters_degradation_reason = reason

@@ -32,6 +32,7 @@ release notes.
   a bump on every release.
 
 ### Fixed
+- Ollama: a call whose prompt Ollama silently truncated to fit num_ctx now fails instead of returning an answer written without the instructions. The native client compares `prompt_eval_count` with num_ctx/2 and the prompt's own size estimate. The error names num_ctx, a lost detection window is counted under the new `context_overflow` loss class, and a chapter run degraded by it says so in its degradation reason. (#893)
 - OpenAPI: the per-episode cost runs endpoint and the processing-admission
   pause endpoint are documented, and descriptions drop dash asides, version
   history and two stale README pointers.

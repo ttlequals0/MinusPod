@@ -314,5 +314,72 @@ class TestBuildClientOllamaNumCtx(unittest.TestCase):
         self.assertNotIsInstance(client, OllamaNativeClient)
 
 
+
+class TestOllamaContextOverflow(unittest.TestCase):
+    """Ollama cuts a prompt longer than num_ctx to about num_ctx/2 and answers
+    without the instructions; the call must fail and name num_ctx (#893)."""
+
+    def _client(self, num_ctx=16384):
+        from llm_client import OllamaNativeClient
+        client = OllamaNativeClient(
+            base_url='http://localhost:11434/v1',
+            api_key='not-needed',
+            default_model='gemma4',
+            ollama_num_ctx=num_ctx,
+        )
+        client._token_param_cache.clear()
+        client._client = MagicMock()
+        return client
+
+    def _call(self, client, prompt_eval_count, prompt_chars):
+        native = _native_resp(200, {
+            "model": "gemma4",
+            "message": {"role": "assistant", "content": "{}"},
+            "done_reason": "stop",
+            "prompt_eval_count": prompt_eval_count,
+            "eval_count": 2,
+        })
+        with patch('utils.safe_http.safe_post', return_value=native):
+            return client.messages_create(
+                model="gemma4", max_tokens=100, system="instructions",
+                messages=[{"role": "user", "content": "x" * prompt_chars}],
+            )
+
+    def test_truncated_prompt_raises_naming_num_ctx(self):
+        from llm_client import OllamaContextOverflowError
+        client = self._client(num_ctx=16384)
+        # ~22.5k-token prompt reported back as 8195 evaluated tokens.
+        with self.assertRaises(OllamaContextOverflowError) as ctx:
+            self._call(client, prompt_eval_count=8195, prompt_chars=90000)
+        err = ctx.exception
+        self.assertEqual(err.num_ctx, 16384)
+        self.assertEqual(err.prompt_tokens, 8195)
+        self.assertIn('num_ctx=16384', str(err))
+        self.assertEqual(err.response.usage, {'input_tokens': 8195, 'output_tokens': 2})
+
+    def test_overflow_is_terminal_and_classified(self):
+        from llm_client import OllamaContextOverflowError
+        from utils.llm_call import LOSS_CONTEXT_OVERFLOW, _is_retryable
+        err = OllamaContextOverflowError(
+            'cut', num_ctx=8192, prompt_tokens=4098, estimated_tokens=10232)
+        self.assertFalse(_is_retryable(err))
+        self.assertEqual(window_loss_class(err), LOSS_CONTEXT_OVERFLOW)
+
+    def test_prompt_that_fits_is_not_flagged(self):
+        client = self._client(num_ctx=16384)
+        result = self._call(client, prompt_eval_count=12000, prompt_chars=48000)
+        self.assertEqual(result.usage['input_tokens'], 12000)
+
+    def test_prompt_genuinely_near_half_num_ctx_is_not_flagged(self):
+        # A real ~8.2k-token prompt lands in the band but matches its estimate.
+        client = self._client(num_ctx=16384)
+        result = self._call(client, prompt_eval_count=8190, prompt_chars=33000)
+        self.assertEqual(result.usage['input_tokens'], 8190)
+
+    def test_missing_prompt_eval_count_is_not_flagged(self):
+        from llm_client import ollama_prompt_was_truncated
+        self.assertFalse(ollama_prompt_was_truncated(None, 16384, 30000))
+
+
 if __name__ == '__main__':
     unittest.main()
