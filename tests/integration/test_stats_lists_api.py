@@ -33,13 +33,15 @@ def _seed_price(db, model_id, input_cost, output_cost):
 
 
 def _call(db, *, run_id, podcast_id, episode_id, provider_key, configured_model,
-          state='success', input_tokens=1_000_000, output_tokens=0, phase_key='detect'):
+          state='success', input_tokens=1_000_000, output_tokens=0, phase_key='detect',
+          cache_read_tokens=None, cache_write_tokens=None):
     attempt_id = db.begin_llm_attempt(
         run_id=run_id, podcast_id=podcast_id, episode_id=episode_id,
         phase_key=phase_key, invoking_pass=1, provider_key=provider_key,
         configured_model=configured_model)
     return db.finalize_llm_attempt(
-        attempt_id, state=state, input_tokens=input_tokens, output_tokens=output_tokens)
+        attempt_id, state=state, input_tokens=input_tokens, output_tokens=output_tokens,
+        cache_read_tokens=cache_read_tokens, cache_write_tokens=cache_write_tokens)
 
 
 def _backdate_run(db, run_id, created_at, finalized_at):
@@ -52,6 +54,34 @@ def _backdate_run(db, run_id, created_at, finalized_at):
 
 
 class TestModelUsageStats:
+    def test_sums_cache_tokens_and_sorts_by_hit_rate(self, app_client, temp_db):
+        _authed(app_client)
+        podcast_id = temp_db.create_podcast('pod-cache', 'https://example.com/feed.xml', 'Pod')
+        temp_db.upsert_episode('pod-cache', 'ep1', original_url='https://example.com/e.mp3',
+                               title='Ep1', status='processed')
+        _seed_price(temp_db, 'hot-model', 2.0, 0.0)
+        _seed_price(temp_db, 'cold-model', 2.0, 0.0)
+        _seed_price(temp_db, 'zero-input', 2.0, 0.0)
+        _call(temp_db, run_id='r1', podcast_id=podcast_id, episode_id='ep1',
+              provider_key='anthropic', configured_model='hot-model',
+              input_tokens=1000, cache_read_tokens=800, cache_write_tokens=100)
+        _call(temp_db, run_id='r2', podcast_id=podcast_id, episode_id='ep1',
+              provider_key='openai', configured_model='cold-model', input_tokens=1000)
+        _call(temp_db, run_id='r3', podcast_id=podcast_id, episode_id='ep1',
+              provider_key='openai', configured_model='zero-input',
+              input_tokens=0, output_tokens=5, cache_read_tokens=10)
+
+        resp = app_client.get('/api/v1/stats/model-usage?podcastSlug=pod-cache&sortBy=cacheHitRate&sortDir=desc')
+        assert resp.status_code == 200
+        items = resp.get_json()['items']
+        assert items[0]['model'] == 'hot-model'
+        assert items[0]['cacheReadTokens'] == 800
+        assert items[0]['cacheWriteTokens'] == 100
+        cold = next(i for i in items if i['model'] == 'cold-model')
+        assert cold['cacheReadTokens'] == 0 and cold['cacheWriteTokens'] == 0
+        zero = next(i for i in items if i['model'] == 'zero-input')
+        assert zero['cacheReadTokens'] == 10
+
     def test_groups_identical_model_under_two_providers_separately(self, app_client, temp_db):
         _authed(app_client)
         podcast_id = temp_db.create_podcast('pod-group', 'https://example.com/feed.xml', 'Pod')
@@ -389,7 +419,8 @@ class TestEpisodeCostRuns:
         _seed_price(temp_db, 'm-det', 3.0, 0.0)
         _seed_price(temp_db, 'm-rev', 5.0, 0.0)
         _call(temp_db, run_id='run-r1', podcast_id=pid, episode_id='er1',
-              provider_key='anthropic', configured_model='m-det', phase_key='detection')
+              provider_key='anthropic', configured_model='m-det', phase_key='detection',
+              cache_read_tokens=50)
         _call(temp_db, run_id='run-r1', podcast_id=pid, episode_id='er1',
               provider_key='openai-compatible', configured_model='m-rev', phase_key='review')
         temp_db.record_processing_history(
@@ -403,6 +434,9 @@ class TestEpisodeCostRuns:
         phases = runs[-1]['phases']
         assert {p['phaseKey'] for p in phases} >= {'detection', 'review'}
         assert {p['configuredModel'] for p in phases} >= {'m-det', 'm-rev'}
+        run = runs[0]
+        assert run['cacheReadTokens'] == sum(p['cacheReadTokens'] for p in run['phases'])
+        assert run['cacheWriteTokens'] == sum(p['cacheWriteTokens'] for p in run['phases'])
 
     def test_unknown_episode_is_404(self, app_client, temp_db):
         _authed(app_client)

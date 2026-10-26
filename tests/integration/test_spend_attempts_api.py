@@ -30,13 +30,15 @@ def _seed_price(db, model_id, input_cost, output_cost):
 
 
 def _call(db, *, run_id, podcast_id, episode_id, provider_key, configured_model,
-          phase_key='detect', state='success', input_tokens=1_000_000, output_tokens=0):
+          phase_key='detect', state='success', input_tokens=1_000_000, output_tokens=0,
+          cache_read_tokens=None, cache_write_tokens=None):
     attempt_id = db.begin_llm_attempt(
         run_id=run_id, podcast_id=podcast_id, episode_id=episode_id,
         phase_key=phase_key, invoking_pass=1, provider_key=provider_key,
         configured_model=configured_model)
     return db.finalize_llm_attempt(
-        attempt_id, state=state, input_tokens=input_tokens, output_tokens=output_tokens)
+        attempt_id, state=state, input_tokens=input_tokens, output_tokens=output_tokens,
+        cache_read_tokens=cache_read_tokens, cache_write_tokens=cache_write_tokens)
 
 
 def _seed_run(db):
@@ -45,7 +47,8 @@ def _seed_run(db):
                       title='Ep1', status='processed')
     _seed_price(db, 'priced-model', 3.0, 0.0)
     _call(db, run_id='run-a', podcast_id=podcast_id, episode_id='ep1',
-          provider_key='openai', configured_model='priced-model', phase_key='detection')
+          provider_key='openai', configured_model='priced-model', phase_key='detection',
+          cache_read_tokens=250_000)
     # No catalog price, so this attempt is billable with an unknown cost.
     _call(db, run_id='run-a', podcast_id=podcast_id, episode_id='ep1',
           provider_key='openai', configured_model='unpriced-model', phase_key='review')
@@ -69,6 +72,9 @@ def test_lists_the_attempts_behind_a_run_with_the_unknown_cost_marked(app_client
     assert by_phase['review']['costUsd'] is None
     assert by_phase['review']['model'] == 'unpriced-model'
     assert by_phase['review']['finalizedAt']
+    priced = next(a for a in body['attempts'] if a['model'] == 'priced-model')
+    assert priced['cacheReadTokens'] == 250_000
+    assert priced['cacheWriteTokens'] == 0
 
 
 def test_provider_filter_scopes_the_listing(app_client, temp_db):

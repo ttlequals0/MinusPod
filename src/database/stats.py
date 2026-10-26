@@ -154,11 +154,13 @@ def _build_ledger_filters(from_date=None, to_date=None, podcast_slug=None,
     return " AND " + " AND ".join(clauses), params
 
 
-def _sum_billable_rows(rows) -> tuple[int, int, Decimal, bool]:
-    """(input tokens, output tokens, known-cost sum, has_unknown_cost) over
-    the billable rows of a finalized-ledger result set."""
+def _sum_billable_rows(rows) -> tuple[int, int, int, int, Decimal, bool]:
+    """(input, output, cache read, cache write, known-cost sum,
+    has_unknown_cost) over the billable rows of a finalized-ledger result set."""
     total_input = 0
     total_output = 0
+    total_cache_read = 0
+    total_cache_write = 0
     total_cost = Decimal('0')
     has_unknown_cost = False
     for row in rows:
@@ -168,11 +170,14 @@ def _sum_billable_rows(rows) -> tuple[int, int, Decimal, bool]:
             continue
         total_input += row['input_tokens'] or 0
         total_output += row['output_tokens'] or 0
+        total_cache_read += row['cache_read_tokens'] or 0
+        total_cache_write += row['cache_write_tokens'] or 0
         if row['cost_usd'] is not None:
             total_cost += Decimal(row['cost_usd'])
         else:
             has_unknown_cost = True
-    return total_input, total_output, total_cost, has_unknown_cost
+    return (total_input, total_output, total_cache_read, total_cache_write,
+            total_cost, has_unknown_cost)
 
 
 def _safe_systemone_diagnostics(value) -> str:
@@ -904,12 +909,13 @@ class StatsMixin:
         """
         conn = self.get_connection()
         rows = conn.execute(
-            """SELECT state, input_tokens, output_tokens, cost_usd
+            """SELECT state, input_tokens, output_tokens, cache_read_tokens,
+                      cache_write_tokens, cost_usd
                FROM llm_call_usage
                WHERE run_id IS ? AND finalized_at IS NOT NULL""",
             (run_id,)
         ).fetchall()
-        total_input, total_output, total_cost, has_unknown_cost = _sum_billable_rows(rows)
+        total_input, total_output, _, _, total_cost, has_unknown_cost = _sum_billable_rows(rows)
         return {
             'input_tokens': total_input,
             'output_tokens': total_output,
@@ -923,7 +929,8 @@ class StatsMixin:
         Runs with no billable rows are still present with zeroed totals."""
         conn = self.get_connection()
         rows = conn.execute(
-            """SELECT run_id, state, input_tokens, output_tokens, cost_usd
+            """SELECT run_id, state, input_tokens, output_tokens,
+                      cache_read_tokens, cache_write_tokens, cost_usd
                FROM llm_call_usage
                WHERE podcast_id = ? AND episode_id = ? AND finalized_at IS NOT NULL""",
             (podcast_id, episode_id)
@@ -933,10 +940,13 @@ class StatsMixin:
             by_run.setdefault(row['run_id'], []).append(row)
         totals = {}
         for run_id, run_rows in by_run.items():
-            total_input, total_output, total_cost, has_unknown = _sum_billable_rows(run_rows)
+            (total_input, total_output, cache_read, cache_write,
+             total_cost, has_unknown) = _sum_billable_rows(run_rows)
             totals[run_id] = {
                 'input_tokens': total_input,
                 'output_tokens': total_output,
+                'cache_read_tokens': cache_read,
+                'cache_write_tokens': cache_write,
                 'cost_usd': str(total_cost),
                 'has_unknown_cost': has_unknown,
             }
@@ -950,7 +960,8 @@ class StatsMixin:
         """
         conn = self.get_connection()
         rows = conn.execute(
-            """SELECT state, input_tokens, output_tokens, cost_usd
+            """SELECT state, input_tokens, output_tokens, cache_read_tokens,
+                      cache_write_tokens, cost_usd
                FROM llm_call_usage
                WHERE run_id IS ? AND provider_key = ? AND finalized_at IS NOT NULL""",
             (run_id, provider_key)
@@ -1090,12 +1101,13 @@ class StatsMixin:
         """
         conn = self.get_connection()
         rows = conn.execute(
-            """SELECT state, input_tokens, output_tokens, cost_usd
+            """SELECT state, input_tokens, output_tokens, cache_read_tokens,
+                      cache_write_tokens, cost_usd
                FROM llm_call_usage
                WHERE podcast_id = ? AND episode_id = ? AND finalized_at IS NOT NULL""",
             (podcast_id, episode_id)
         ).fetchall()
-        total_input, total_output, total_cost, has_unknown_cost = _sum_billable_rows(rows)
+        total_input, total_output, _, _, total_cost, has_unknown_cost = _sum_billable_rows(rows)
         return {
             'inputTokens': total_input,
             'outputTokens': total_output,
@@ -1112,6 +1124,7 @@ class StatsMixin:
         'outputTokens': 'output_tokens',
         'knownCostUsd': 'known_cost_usd',
         'unknownCostCount': 'unknown_cost_count',
+        'cacheHitRate': 'cache_hit_rate',
     }
 
     def get_model_usage_stats(self, *, page: int = 1, limit: int = 50,
@@ -1153,6 +1166,10 @@ class StatsMixin:
                                          THEN podcast_id || ':' || episode_id END) AS distinct_episodes,
                     COALESCE(SUM(COALESCE(input_tokens, 0)), 0) AS input_tokens,
                     COALESCE(SUM(COALESCE(output_tokens, 0)), 0) AS output_tokens,
+                    COALESCE(SUM(COALESCE(cache_read_tokens, 0)), 0) AS cache_read_tokens,
+                    COALESCE(SUM(COALESCE(cache_write_tokens, 0)), 0) AS cache_write_tokens,
+                    COALESCE(SUM(COALESCE(cache_read_tokens, 0)), 0) * 1.0
+                        / NULLIF(SUM(COALESCE(input_tokens, 0)), 0) AS cache_hit_rate,
                     COALESCE(SUM(CASE WHEN cost_usd IS NOT NULL
                                       THEN CAST(cost_usd AS REAL) ELSE 0 END), 0) AS known_cost_usd,
                     SUM(CASE WHEN cost_usd IS NULL THEN 1 ELSE 0 END) AS unknown_cost_count
@@ -1171,6 +1188,8 @@ class StatsMixin:
             'distinctEpisodes': row['distinct_episodes'],
             'inputTokens': row['input_tokens'],
             'outputTokens': row['output_tokens'],
+            'cacheReadTokens': row['cache_read_tokens'],
+            'cacheWriteTokens': row['cache_write_tokens'],
             'knownCostUsd': str(Decimal(str(round(row['known_cost_usd'], 6)))),
             'unknownCostCount': row['unknown_cost_count'],
         } for row in rows]

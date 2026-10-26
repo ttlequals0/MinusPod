@@ -263,7 +263,7 @@ def get_ledger_filter_options():
 _SPEND_ATTEMPTS_SQL = """
     SELECT attempt_id, phase_key, invoking_pass, provider_key, credential_slot,
            configured_model, returned_model, state, input_tokens, output_tokens,
-           cost_usd, cost_source, created_at, finalized_at
+           cache_read_tokens, cache_write_tokens, cost_usd, cost_source, created_at, finalized_at
     FROM llm_call_usage
     WHERE finalized_at IS NOT NULL
       AND (:run_id = '' OR run_id = :run_id)
@@ -274,6 +274,11 @@ _SPEND_ATTEMPTS_SQL = """
 """
 
 _SPEND_ATTEMPTS_LIMIT = 200
+
+
+def _cache_tokens(row, column):
+    # Null only when the usage is unknown (mirrors inputTokens); unreported cache counts as 0.
+    return None if row['input_tokens'] is None else row[column] or 0
 
 
 def _spend_attempt_json(row) -> dict:
@@ -288,6 +293,8 @@ def _spend_attempt_json(row) -> dict:
         'status': row['state'],
         'inputTokens': row['input_tokens'],
         'outputTokens': row['output_tokens'],
+        'cacheReadTokens': _cache_tokens(row, 'cache_read_tokens'),
+        'cacheWriteTokens': _cache_tokens(row, 'cache_write_tokens'),
         'costUsd': row['cost_usd'],
         'costSource': row['cost_source'],
         'createdAt': row['created_at'],

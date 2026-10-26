@@ -3213,7 +3213,7 @@ paths:
           description: Unrecognized values fall back to knownCostUsd.
           schema:
             type: string
-            enum: [provider, model, calls, distinctEpisodes, inputTokens, outputTokens, knownCostUsd, unknownCostCount]
+            enum: [provider, model, calls, distinctEpisodes, inputTokens, outputTokens, knownCostUsd, unknownCostCount, cacheHitRate]
             default: knownCostUsd
         - name: sortDir
           in: query
@@ -3269,6 +3269,8 @@ paths:
                         distinctEpisodes: { type: integer }
                         inputTokens: { type: integer }
                         outputTokens: { type: integer }
+                        cacheReadTokens: { type: integer, description: "Summed from the ledger; cached tokens are counted inside inputTokens." }
+                        cacheWriteTokens: { type: integer, description: "Summed from the ledger; cached tokens are counted inside inputTokens." }
                         knownCostUsd:
                           type: string
                           description: Decimal string; sum of rows with a resolved cost.
@@ -3618,6 +3620,14 @@ paths:
                             - integer
                             - 'null'
                         outputTokens:
+                          type:
+                            - integer
+                            - 'null'
+                        cacheReadTokens:
+                          type:
+                            - integer
+                            - 'null'
+                        cacheWriteTokens:
                           type:
                             - integer
                             - 'null'
@@ -14912,6 +14922,12 @@ components:
           type: integer
         outputTokens:
           type: integer
+        cacheReadTokens:
+          type: integer
+          description: Run total from the ledger; 0 for a run without ledger rows.
+        cacheWriteTokens:
+          type: integer
+          description: Run total from the ledger; 0 for a run without ledger rows.
         llmCost:
           type: number
         hasLog:
