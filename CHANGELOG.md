@@ -32,6 +32,7 @@ release notes.
   a bump on every release.
 
 ### Fixed
+- Docs: the Ollama context window advice now recommends 32768 or higher. Chapter prompts with the default 2700 s windows run 18k to 23k tokens, so the old "8192 or higher" advice left every chapter call truncated. (#893)
 - OpenAPI: the per-episode cost runs endpoint and the processing-admission
   pause endpoint are documented, and descriptions drop dash asides, version
   history and two stale README pointers.

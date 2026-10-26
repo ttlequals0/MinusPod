@@ -163,7 +163,17 @@ Every tunable has a matching env var (`DETECTION_TEMPERATURE`, `VERIFICATION_MAX
 
 #### Ollama context window
 
-Ollama truncates prompts that exceed its context window without telling you. The default is often 2048 tokens, too small for a full-transcript pass, and detection fails silently. When the active provider is Ollama, Settings exposes a **Context window (num_ctx)** field; set it to your model's trained context (8192 or higher on most modern models). Env-var alias: `OLLAMA_NUM_CTX`.
+Ollama truncates prompts that exceed its context window without telling you. It keeps only the last half of the window, so the start of the prompt, the instructions included, is dropped and the model answers without them. The default is often 2048 tokens, too small for a full-transcript pass, and detection fails silently. When the active provider is Ollama, Settings exposes a **Context window (num_ctx)** field. Env-var alias: `OLLAMA_NUM_CTX`.
+
+Set it to **32768** or higher with the default window settings, and stay within your model's trained context. The largest prompts are:
+
+| Call | Prompt size with defaults |
+|---|---|
+| Chapter boundary detection (2700 s chapter windows) | 18k to 23k tokens |
+| Ad detection, 600 s window, fast-talking show | up to ~18k tokens |
+| Ad detection, 600 s window, typical show | 10k to 13k tokens |
+
+At 16384 every chapter call is cut and chapters degrade to a single chapter. A larger context needs more memory for the KV cache, so on memory-constrained hosts the alternative is smaller detection windows (below) and chapter windows.
 
 #### Detection window geometry
 
