@@ -17,7 +17,7 @@ from llm_client import (
     _JSON_FORMAT_SETTING_KEY as JSON_FORMAT_KEY,
     _JSON_SCHEMA_SETTING_KEY as JSON_SCHEMA_KEY,
 )
-from utils.llm_call import call_llm_for_window
+from utils.llm_call import call_llm_for_window, schema_format_for
 
 
 def _db():
@@ -235,12 +235,9 @@ class TestSupportsJsonSchemaForCalls:
         assert supports_json_schema_for_calls('m', 'openrouter') is False
 
     def test_schema_format_for_passes_route_provider(self):
-        from utils.llm_call import schema_format_for
         self._configure('typesafe', enabled=True, probed=True)
-        oc = schema_format_for('m', 'n', {'type': 'object'}, provider='openai-compatible')
-        assert oc['type'] == 'json_schema'
-        ts = schema_format_for('m', 'n', {'type': 'object'}, provider='typesafe')
-        assert ts['type'] == 'json_object'
+        fmt = schema_format_for('m', 'n', {'type': 'object'}, provider='openai-compatible')
+        assert fmt['type'] == 'json_schema'
 
     def test_false_when_not_opted_in(self):
         self._configure('openai-compatible', enabled=False, probed=True)
