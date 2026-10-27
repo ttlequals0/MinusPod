@@ -16,9 +16,9 @@ release notes.
 ### Fixed
 - A stage routed to an OpenAI-compatible Provider B now gets the opted-in JSON
   schema response format. The gate read the global provider type instead of
-  the routed one, the same fault #914 fixed for the reasoning field, and the
-  format probes only ran on Provider A, so Provider B models never had an
-  answer. Both slots are probed now, at startup and when either changes.
+  the routed one, the same fault #914 fixed for the reasoning field. The
+  format probes also only ran on Provider A, so Provider B models never had
+  an answer. Both slots are probed now, at startup and when either changes.
 - A stage routed to Provider B sends that provider's reasoning field. The
   OpenAI-compatible client chose the reasoning shape from the global
   provider, so an OpenRouter Provider B behind a TypeSafe Provider A got no
