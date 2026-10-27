@@ -91,8 +91,10 @@ def test_category_keeps_are_hard_barriers_not_holds_through_pass2():
                        patch.object(verify, 'build_protection', side_effect=spy_build)])
     output = run.output
 
-    # Hard sources are built once, after the category partition.
-    [protection] = built
+    # Hard sources are built after the category partition and rebuilt once
+    # gating settles which known ads the keeps yield to; the last one governs.
+    assert len(built) == 2
+    protection = built[-1]
     assert (300.0, 320.0) in _spans(protection.hard_orig)
     assert (400.0, 420.0) not in _spans(protection.hard_orig)
     reviewer_barriers = reviewer.call_args.kwargs['protected_original_ranges']
