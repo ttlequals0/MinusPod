@@ -68,21 +68,22 @@ class TestSlotClientEndpoint(unittest.TestCase):
             self.assertEqual(key[1], expected)
 
 
-class TestReprobeAllSlots(unittest.TestCase):
+class TestReprobeHooks(unittest.TestCase):
 
-    def test_verifies_primary_and_probes_secondary(self):
+    def test_primary_reprobe_verifies_off_thread(self):
         client = MagicMock()
         with patch('api.settings.provider_phases.get_llm_client', return_value=client), \
-                patch('api.settings.provider_phases.threading.Thread', SyncThread), \
-                patch('api.settings.provider_phases.probe_secondary_provider_formats') as probe:
-            provider_phases._reprobe_all_slots()
+                patch('api.settings.provider_phases.threading.Thread', SyncThread):
+            provider_phases._reprobe_primary()
         client.verify_connection.assert_called_once_with(timeout=provider_phases.HTTP_TIMEOUT_API)
-        probe.assert_called_once()
 
-    def test_clearing_probes_queues_a_reprobe(self):
+    def test_clearing_probes_queues_both_slots_once(self):
         with common.post_commit_scope() as buckets:
             provider_phases._clear_format_probes(MagicMock())
-        self.assertIn(provider_phases._reprobe_all_slots, buckets['side_effects'])
+            provider_phases._clear_format_probes(MagicMock())
+        hooks = buckets['side_effects']
+        self.assertEqual(hooks.count(provider_phases._reprobe_primary), 1)
+        self.assertEqual(hooks.count(provider_phases.probe_secondary_provider_formats), 1)
 
 
 class _FakeDb:
@@ -108,16 +109,22 @@ class TestSecondaryChangeDetection(unittest.TestCase):
         return buckets['side_effects']
 
     def test_key_save_with_unchanged_type_probes_only_the_secondary(self):
-        db = _FakeDb(secondary_provider='openai-compatible')
+        db = _FakeDb(secondary_provider='openai-compatible', secondary_provider_enabled='true')
         hooks = self._apply(db, {'secondaryProviderApiKey': 'k', 'secondaryProvider': 'openai-compatible'})
         self.assertIn(provider_phases.probe_secondary_provider_formats, hooks)
-        self.assertNotIn(provider_phases._reprobe_all_slots, hooks)
+        self.assertNotIn(provider_phases._reprobe_primary, hooks)
+
+    def test_disabling_the_secondary_queues_no_probe(self):
+        db = _FakeDb(secondary_provider='openai-compatible', secondary_provider_enabled='true')
+        hooks = self._apply(db, {'secondaryProviderEnabled': False})
+        self.assertNotIn(provider_phases.probe_secondary_provider_formats, hooks)
 
     def test_new_base_url_clears_probe_answers(self):
         db = _FakeDb(secondary_provider='openai-compatible')
         hooks = self._apply(db, {'secondaryProviderBaseUrl': 'http://b.example/v1'})
         self.assertIn(provider_phases.reset_schema_probe_memo, hooks)
-        self.assertEqual(hooks.count(provider_phases._reprobe_all_slots), 1)
+        self.assertEqual(hooks.count(provider_phases._reprobe_primary), 1)
+        self.assertEqual(hooks.count(provider_phases.probe_secondary_provider_formats), 1)
 
     def test_primary_key_save_with_unchanged_provider_keeps_probe_answers(self):
         db = _FakeDb(llm_provider='openrouter')
@@ -132,7 +139,7 @@ class TestSecondaryChangeDetection(unittest.TestCase):
         with common.post_commit_scope() as buckets:
             provider_phases._apply_provider_fields(db, {'llmProvider': 'openai-compatible'})
         self.assertIn(provider_phases.reset_schema_probe_memo, buckets['side_effects'])
-        self.assertIn(provider_phases._reprobe_all_slots, buckets['side_effects'])
+        self.assertIn(provider_phases._reprobe_primary, buckets['side_effects'])
 
 
 class TestAfterCommitDedupe(unittest.TestCase):

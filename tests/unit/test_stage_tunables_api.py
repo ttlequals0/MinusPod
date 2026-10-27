@@ -163,7 +163,7 @@ class TestResetClearsStageTunables:
         db.set_setting('reviewer_reasoning_level', 'high', is_default=False)
 
         # Patch out the endpoint re-probe so the reset doesn't touch a provider.
-        with patch('api.settings.provider_phases._reprobe_all_slots'):
+        with patch('api.settings.provider_phases._reprobe_primary'):
             r = client.post('/api/v1/settings/ad-detection/reset')
         assert r.status_code == 200, r.data
 

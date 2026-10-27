@@ -178,13 +178,12 @@ def _validate_provider_rate_limit_payload(data):
     return issue
 
 
-def _reprobe_all_slots() -> None:
-    """Re-probe both slots off the request thread; a cleared map needs every answer again."""
+def _reprobe_primary() -> None:
+    """Re-verify the primary client off the request thread, which re-runs its probes."""
     client = get_llm_client()
     if hasattr(client, 'verify_connection'):
         threading.Thread(target=client.verify_connection,
                          kwargs={'timeout': HTTP_TIMEOUT_API}, daemon=True).start()
-    probe_secondary_provider_formats()
 
 
 def _forget_endpoint_state(db) -> None:
@@ -199,7 +198,9 @@ def _clear_format_probes(db) -> None:
     db.clear_setting(_JSON_SCHEMA_SETTING_KEY)
     common.after_commit(reset_schema_probe_memo)
     common.after_commit(invalidate_provider_cache)
-    common.after_commit(_reprobe_all_slots)
+    # The map is shared by both slots, so a clear needs every answer again.
+    common.after_commit(_reprobe_primary)
+    common.after_commit(probe_secondary_provider_formats)
 
 
 def _base_url_error(value, label):
@@ -561,7 +562,7 @@ def _apply_secondary_provider_fields(db, data):
         # A key-only change keeps the stored answers; a new endpoint needs fresh ones.
         if (db.get_setting('secondary_provider'), db.get_setting('secondary_provider_base_url')) != endpoint_before:
             _forget_endpoint_state(db)
-        else:
+        elif coerce_bool_setting(db.get_setting('secondary_provider_enabled')):
             common.after_commit(probe_secondary_provider_formats)
         # No secondary type configured: nothing to lift, and a null provider
         # would target the unscoped blanket marker, which may be primary's.
