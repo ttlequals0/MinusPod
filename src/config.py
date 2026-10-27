@@ -161,6 +161,14 @@ def normalize_segment_category(value: Any) -> str:
 
 
 AD_CATEGORIES = ('sponsor', 'cross_promo', 'self_promo', 'interaction')
+_KNOWN_AD_VALIDATION_KEYS = ('confirmed_span', 'user_confirmed', 'sponsor_confirmed')
+
+
+def _has_fingerprint_evidence(marker: dict) -> bool:
+    # Lazy: utils/__init__ imports utils.audio, which imports this module.
+    from utils.markers import recorded_member_spans
+    return (marker.get('fingerprint_match_start') is not None
+            or any(span.get('stage') == 'fingerprint' for span in recorded_member_spans(marker)))
 
 
 def is_known_ad(marker: dict) -> bool:
@@ -171,13 +179,11 @@ def is_known_ad(marker: dict) -> bool:
     return bool(
         marker.get('pattern_defined')
         or (marker.get('pattern_id') is not None and marker.get('sponsor'))
-        or marker.get('fingerprint_match_start') is not None
+        or _has_fingerprint_evidence(marker)
         or marker.get('sponsor_known')
         or marker.get('_confirmed_correction') is not None
-        or validation.get('confirmed_span')
-        or validation.get('user_confirmed')
-        or validation.get('sponsor_confirmed')
-        or marker.get('reviewer_verdict') == 'confirmed')
+        or marker.get('reviewer_verdict') == 'confirmed'
+        or any(validation.get(key) for key in _KNOWN_AD_VALIDATION_KEYS))
 
 
 # Per-category community-sync acceptance (issue #565): which categories this

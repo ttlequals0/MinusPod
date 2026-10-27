@@ -119,9 +119,9 @@ def _stamp_pass2_marker_categories(markers):
     return markers
 
 
-def _stamp_known_sponsors(slug, processed_ads, original_ads):
-    """Flag pass-2 ads naming a sponsor the feed has a pattern for; is_known_ad reads the flag."""
-    known = pattern_service.known_sponsors(slug) if slug else set()
+def _stamp_known_sponsors(processed_ads, original_ads):
+    """Flag pass-2 ads naming a sponsor with an active pattern; is_known_ad reads the flag."""
+    known = db.get_active_pattern_sponsors() if db else set()
     if not known:
         return
     for processed, original in zip(processed_ads, original_ads, strict=True):
@@ -938,7 +938,7 @@ def _run_verification_pass(ctx, processed_path, pass1_cuts,
             verification_ads_processed, verification_ads_original,
             lambda o: _matches_false_positive_correction(o, false_positive_corrections),
             'rejected:fp_correction', ledger)
-        _stamp_known_sponsors(slug, verification_ads_processed, verification_ads_original)
+        _stamp_known_sponsors(verification_ads_processed, verification_ads_original)
         # A pass-1 keep is operator intent. Settle overlaps before category
         # partitioning so a same-category keep does not become a duplicate
         # pass-2 marker and only fragments outside the keep reach validation.
