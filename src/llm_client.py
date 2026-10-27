@@ -1906,10 +1906,10 @@ class OpenAICompatibleClient(LLMClient):
             key = (self.base_url, model)
             # Both slots may verify at once; one probe per endpoint and model.
             with _schema_probe_lock:
-                if key in _SCHEMA_PROBE_ATTEMPTED:
-                    continue
+                first = key not in _SCHEMA_PROBE_ATTEMPTED
                 _SCHEMA_PROBE_ATTEMPTED.add(key)
-            self.probe_json_schema_support(model=model)
+            if first:
+                self.probe_json_schema_support(model=model)
 
     @staticmethod
     def _configured_models(fallback_model: str) -> list[str]:

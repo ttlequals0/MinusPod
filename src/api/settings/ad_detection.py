@@ -1799,8 +1799,7 @@ def reset_ad_detection_settings():
     for key in AD_RESET_SETTING_KEYS:
         db.reset_setting(key)
 
-    provider_phases._refresh_after_provider_change()
-    provider_phases._clear_format_probes(db)
+    provider_phases._forget_endpoint_state(db)
 
     provider_phases._mark_whisper_for_reload()
 

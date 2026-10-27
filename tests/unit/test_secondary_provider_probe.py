@@ -102,6 +102,21 @@ class TestSecondaryChangeDetection(unittest.TestCase):
         self.assertIn(provider_phases.reset_schema_probe_memo, hooks)
         self.assertEqual(hooks.count(provider_phases._reprobe_all_slots), 1)
 
+    def test_primary_key_save_with_unchanged_provider_keeps_probe_answers(self):
+        db = _FakeDb(llm_provider='openrouter')
+        with patch('api.settings.provider_phases.set_or_clear_secret'), \
+                common.post_commit_scope() as buckets:
+            provider_phases._apply_provider_fields(db, {'openrouterApiKey': 'k', 'llmProvider': 'openrouter'})
+        self.assertNotIn(provider_phases.reset_schema_probe_memo, buckets['side_effects'])
+        self.assertIn(provider_phases._refresh_after_provider_change, buckets['side_effects'])
+
+    def test_primary_provider_switch_clears_probe_answers(self):
+        db = _FakeDb(llm_provider='anthropic')
+        with common.post_commit_scope() as buckets:
+            provider_phases._apply_provider_fields(db, {'llmProvider': 'openai-compatible'})
+        self.assertIn(provider_phases.reset_schema_probe_memo, buckets['side_effects'])
+        self.assertIn(provider_phases._reprobe_all_slots, buckets['side_effects'])
+
 
 class TestAfterCommitDedupe(unittest.TestCase):
 

@@ -187,6 +187,12 @@ def _reprobe_all_slots() -> None:
     probe_secondary_provider_formats()
 
 
+def _forget_endpoint_state(db) -> None:
+    """A slot's endpoint changed: drop the model list and every probe answer."""
+    _clear_model_list_cache()
+    _clear_format_probes(db)
+
+
 def _clear_format_probes(db) -> None:
     """Forget every response_format probe answer, stored and in-process, then re-probe."""
     db.set_setting(_JSON_FORMAT_SETTING_KEY, '', is_default=True)
@@ -438,6 +444,7 @@ def _apply_provider_fields(db, data):
     # Resolved before any write: a hold belongs to the provider that was
     # configured when the 429 landed, not to the one being saved.
     affected_providers = {db.get_setting('llm_provider') or get_effective_provider()}
+    endpoint_before = (db.get_setting('llm_provider'), db.get_setting('openai_base_url'))
     # Field values were checked by _validate_provider_payload before any
     # applier ran, so this phase only writes.
     if 'llmProvider' in data:
@@ -474,12 +481,13 @@ def _apply_provider_fields(db, data):
                 db, 'LLM provider settings changed', affected_providers),
             bucket='holds')
 
+    # A key or pricing-mode save echoes the endpoint fields; only a real change re-probes.
+    if (db.get_setting('llm_provider'), db.get_setting('openai_base_url')) != endpoint_before:
+        _forget_endpoint_state(db)
+    elif provider_changed:
+        _clear_model_list_cache()
     if provider_changed:
-        # Clear the cached probe answers so the new endpoint gets re-probed:
-        # a stored false against a model name the new endpoint also serves
-        # would otherwise pin it to the fallback format forever.
         common.after_commit(_refresh_after_provider_change)
-        _clear_format_probes(db)
     # The TTL cache backing get_effective_base_url / get_effective_provider
     # lags writes by up to 5s. Without this invalidation, the GET /settings
     # response that fires right after this PUT returns the pre-write value,
@@ -490,13 +498,8 @@ def _apply_provider_fields(db, data):
 
 
 def _refresh_after_provider_change():
-    """Drop the cached model list and refresh pricing; the client rebuilds on its next use."""
-    _clear_model_list_cache()
+    """Refresh pricing for the new provider or pricing mode."""
     threading.Thread(target=force_refresh_pricing, daemon=True).start()
-
-
-def _secondary_endpoint(db) -> tuple:
-    return (db.get_setting('secondary_provider'), db.get_setting('secondary_provider_base_url'))
 
 
 def _apply_secondary_provider_fields(db, data):
@@ -511,8 +514,8 @@ def _apply_secondary_provider_fields(db, data):
     changed = False
     # Resolved before the write below, so switching the secondary type lifts
     # the outgoing account's hold as well as the incoming one's.
-    affected_providers = {db.get_setting('secondary_provider')}
-    endpoint_before = _secondary_endpoint(db)
+    endpoint_before = (db.get_setting('secondary_provider'), db.get_setting('secondary_provider_base_url'))
+    affected_providers = {endpoint_before[0]}
 
     if 'secondaryProviderEnabled' in data:
         value = 'true' if bool(data['secondaryProviderEnabled']) else 'false'
@@ -556,8 +559,8 @@ def _apply_secondary_provider_fields(db, data):
     if changed:
         common.after_commit(invalidate_provider_cache)
         # A key-only change keeps the stored answers; a new endpoint needs fresh ones.
-        if _secondary_endpoint(db) != endpoint_before:
-            _clear_format_probes(db)
+        if (db.get_setting('secondary_provider'), db.get_setting('secondary_provider_base_url')) != endpoint_before:
+            _forget_endpoint_state(db)
         common.after_commit(_reprobe_all_slots)
         # No secondary type configured: nothing to lift, and a null provider
         # would target the unscoped blanket marker, which may be primary's.
