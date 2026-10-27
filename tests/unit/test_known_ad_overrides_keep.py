@@ -97,6 +97,8 @@ def test_kept_spans_yield_to_a_known_pass2_ad_before_protection_is_built():
     protection = verify.build_protection(kept=trimmed, category_kept=[], user_trims=[],
                                          fp_corrections=[], holds=[], pass1_cuts=[])
     assert protection.hard_orig == [{'start': 2425.52, 'end': 2446.7}]
+    # A known ad that validation dropped gives the keep its audio back.
+    assert verify._keeps_yielding_to_known_ads(kept, [guess]) == kept
 
 
 def test_known_beep_ad_owns_the_overlap_too():
