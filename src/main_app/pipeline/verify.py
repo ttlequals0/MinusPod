@@ -36,6 +36,7 @@ from llm_capabilities import (
 
 from llm_client import ProviderRateLimitedError
 
+from utils.constants import canonical_sponsor
 from utils.errors import ModelLoadError
 
 from main_app.verification_reconciliation import (
@@ -116,6 +117,17 @@ def _stamp_pass2_marker_categories(markers):
             continue
         m.pop('category', None)
     return markers
+
+
+def _stamp_known_sponsors(slug, processed_ads, original_ads):
+    """Flag pass-2 ads naming a sponsor the feed has a pattern for; is_known_ad reads the flag."""
+    known = pattern_service.known_sponsors(slug) if slug else set()
+    if not known:
+        return
+    for processed, original in zip(processed_ads, original_ads, strict=True):
+        sponsor = canonical_sponsor(original.get('sponsor') or processed.get('sponsor') or '')
+        if sponsor and sponsor.lower() in known:
+            processed['sponsor_known'] = original['sponsor_known'] = True
 
 
 def _partition_pass2_category_actions(processed_ads, original_ads, actions_map,
@@ -926,6 +938,7 @@ def _run_verification_pass(ctx, processed_path, pass1_cuts,
             verification_ads_processed, verification_ads_original,
             lambda o: _matches_false_positive_correction(o, false_positive_corrections),
             'rejected:fp_correction', ledger)
+        _stamp_known_sponsors(slug, verification_ads_processed, verification_ads_original)
         # A pass-1 keep is operator intent. Settle overlaps before category
         # partitioning so a same-category keep does not become a duplicate
         # pass-2 marker and only fragments outside the keep reach validation.

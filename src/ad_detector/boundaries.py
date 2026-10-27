@@ -44,7 +44,7 @@ from config import (
     AD_CONTENT_PHONE_PATTERNS, AD_COPY_PHRASES, AD_OFFER_PHRASES,
     MIN_KEYWORD_LENGTH, MIN_UNCOVERED_TAIL_DURATION,
     TERMINAL_SNAP_EOF_TOLERANCE_SECONDS,
-    DEFAULT_SEGMENT_ACTION, normalize_segment_category, is_keep_like,
+    DEFAULT_SEGMENT_ACTION, normalize_segment_category, is_keep_like, is_known_ad,
     MIN_AD_DURATION_FOR_REMOVAL,
     PATTERN_TIGHTEN_MIN_EXCESS_SECONDS, PATTERN_TIGHTEN_MIN_CONFIDENCE,
 )
@@ -1788,12 +1788,20 @@ def split_conflicting_action_span(last: dict, current: dict,
         # Legacy no-action behavior: the earlier marker owns a partial
         # overlap. Action-aware callers use explicit precedence below.
         return last, [carve(current, last['end'], current['end'])]
-    current_wins = (
-        effective_last_action is None
-        or effective_current_action is None
-        or (priority.get(effective_current_action, 0)
-            >= priority.get(effective_last_action, 0))
-    )
+    # A known ad owns the contested audio; a keep never carves it.
+    if effective_current_action == 'remove' and is_known_ad(current) \
+            and is_keep_like(effective_last_action):
+        current_wins = True
+    elif effective_last_action == 'remove' and is_known_ad(last) \
+            and is_keep_like(effective_current_action):
+        current_wins = False
+    else:
+        current_wins = (
+            effective_last_action is None
+            or effective_current_action is None
+            or (priority.get(effective_current_action, 0)
+                >= priority.get(effective_last_action, 0))
+        )
     if not current_wins:
         # A clipped keep can start after current, leaving current a head to keep.
         entries = [carve(current, lo, hi) for lo, hi in

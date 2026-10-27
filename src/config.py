@@ -160,6 +160,26 @@ def normalize_segment_category(value: Any) -> str:
     return value if value in SEGMENT_CATEGORIES else 'sponsor'
 
 
+AD_CATEGORIES = ('sponsor', 'cross_promo', 'self_promo', 'interaction')
+
+
+def is_known_ad(marker: dict) -> bool:
+    """An ad-category marker with evidence beyond an LLM guess; it always cuts."""
+    if normalize_segment_category(marker.get('category')) not in AD_CATEGORIES:
+        return False
+    validation = marker.get('validation') or {}
+    return bool(
+        marker.get('pattern_defined')
+        or (marker.get('pattern_id') is not None and marker.get('sponsor'))
+        or marker.get('fingerprint_match_start') is not None
+        or marker.get('sponsor_known')
+        or marker.get('_confirmed_correction') is not None
+        or validation.get('confirmed_span')
+        or validation.get('user_confirmed')
+        or validation.get('sponsor_confirmed')
+        or marker.get('reviewer_verdict') == 'confirmed')
+
+
 # Per-category community-sync acceptance (issue #565): which categories this
 # install pulls from community sync. Defaults to every category, so an
 # upgrade with an unset setting syncs exactly as it did before this feature.
