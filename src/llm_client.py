@@ -2538,7 +2538,29 @@ def _verify_endpoint(label: str) -> bool:
         return False
 
 
+def probe_secondary_provider_formats() -> None:
+    """Probe response_format support on the enabled secondary slot's endpoint."""
+    try:
+        if not coerce_bool_setting(_get_cached_setting('secondary_provider_enabled')):
+            return
+        provider = _get_cached_setting('secondary_provider')
+        if provider not in PROVIDERS_NON_ANTHROPIC:
+            return
+        client = get_client_for_provider(provider, credential_slot='secondary')
+        if hasattr(client, 'verify_connection'):
+            client.verify_connection(timeout=HTTP_TIMEOUT_API)
+    except Exception as e:
+        logger.warning(f"Secondary provider probe skipped: {e}")
+
+
 def verify_llm_connection() -> bool:
+    """Verify the primary endpoint at startup, then probe the secondary slot."""
+    ok = _verify_primary_connection()
+    probe_secondary_provider_formats()
+    return ok
+
+
+def _verify_primary_connection() -> bool:
     """Verify the LLM endpoint is reachable at startup.
 
     For OpenRouter and openai-compatible providers (including Ollama),

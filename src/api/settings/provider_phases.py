@@ -24,6 +24,7 @@ from llm_client import (
     _JSON_FORMAT_SETTING_KEY,
     _JSON_SCHEMA_SETTING_KEY,
     invalidate_provider_cache,
+    probe_secondary_provider_formats,
     reset_schema_probe_memo,
 )
 from llm_route import (
@@ -481,6 +482,7 @@ def _probe_after_provider_change():
     client = get_llm_client(force_new=True)
     if hasattr(client, 'probe_json_format_support'):
         client.probe_json_format_support()
+    probe_secondary_provider_formats()
     threading.Thread(target=force_refresh_pricing, daemon=True).start()
 
 
@@ -537,8 +539,14 @@ def _apply_secondary_provider_fields(db, data):
         logger.info("Updated secondary provider API key")
         changed = True
 
+    endpoint_changed = 'secondaryProvider' in data or 'secondaryProviderBaseUrl' in data
     if changed:
         common.after_commit(invalidate_provider_cache)
+        if endpoint_changed:
+            _clear_format_probes(db)
+            common.after_commit(_probe_after_provider_change)
+        else:
+            common.after_commit(probe_secondary_provider_formats)
         # No secondary type configured: nothing to lift, and a null provider
         # would target the unscoped blanket marker, which may be primary's.
         known = [p for p in affected_providers if p]
