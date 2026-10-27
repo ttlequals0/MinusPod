@@ -177,12 +177,22 @@ def _validate_provider_rate_limit_payload(data):
     return issue
 
 
+def _reprobe_all_slots() -> None:
+    """Re-probe both slots off the request thread; a cleared map needs every answer again."""
+    client = get_llm_client()
+    if hasattr(client, 'verify_connection'):
+        threading.Thread(target=client.verify_connection,
+                         kwargs={'timeout': HTTP_TIMEOUT_API}, daemon=True).start()
+    probe_secondary_provider_formats()
+
+
 def _clear_format_probes(db) -> None:
-    """Forget every response_format probe answer, stored and in-process."""
+    """Forget every response_format probe answer, stored and in-process, then re-probe."""
     db.set_setting(_JSON_FORMAT_SETTING_KEY, '', is_default=True)
     db.clear_setting(_JSON_SCHEMA_SETTING_KEY)
     common.after_commit(reset_schema_probe_memo)
     common.after_commit(invalidate_provider_cache)
+    common.after_commit(_reprobe_all_slots)
 
 
 def _base_url_error(value, label):
@@ -467,10 +477,8 @@ def _apply_provider_fields(db, data):
         # Clear the cached probe answers so the new endpoint gets re-probed:
         # a stored false against a model name the new endpoint also serves
         # would otherwise pin it to the fallback format forever.
+        common.after_commit(_rebuild_client_after_provider_change)
         _clear_format_probes(db)
-        common.after_commit(_probe_after_provider_change)
-        # Probe answers are one shared map, so a cleared map needs both slots again.
-        common.after_commit(probe_secondary_provider_formats)
     # The TTL cache backing get_effective_base_url / get_effective_provider
     # lags writes by up to 5s. Without this invalidation, the GET /settings
     # response that fires right after this PUT returns the pre-write value,
@@ -480,12 +488,9 @@ def _apply_provider_fields(db, data):
     return None
 
 
-def _probe_after_provider_change():
-    """Refresh endpoint-dependent probes and pricing after provider changes."""
-    client = get_llm_client(force_new=True)
-    # verify_connection re-probes json_object and, under the opt-in, json_schema.
-    if hasattr(client, 'verify_connection'):
-        client.verify_connection(timeout=HTTP_TIMEOUT_API)
+def _rebuild_client_after_provider_change():
+    """Drop the cached client and model list, then refresh pricing for the new provider."""
+    get_llm_client(force_new=True)
     threading.Thread(target=force_refresh_pricing, daemon=True).start()
 
 
@@ -548,8 +553,8 @@ def _apply_secondary_provider_fields(db, data):
         # A key-only change keeps the stored answers; a new endpoint needs fresh ones.
         if endpoint_changed:
             _clear_format_probes(db)
-            common.after_commit(_probe_after_provider_change)
-        common.after_commit(probe_secondary_provider_formats)
+        else:
+            common.after_commit(probe_secondary_provider_formats)
         # No secondary type configured: nothing to lift, and a null provider
         # would target the unscoped blanket marker, which may be primary's.
         known = [p for p in affected_providers if p]

@@ -812,8 +812,6 @@ def _apply_processing_flags(db, data):
         db.set_setting('llm_json_schema_enabled', value, is_default=False)
         # The opt-in changed, so both slots need fresh probe answers.
         provider_phases._clear_format_probes(db)
-        common.after_commit(provider_phases._probe_after_provider_change)
-        common.after_commit(provider_phases.probe_secondary_provider_formats)
         logger.info(f"Updated llm_json_schema_enabled to: {value}")
     return None
 
@@ -1800,12 +1798,10 @@ def reset_ad_detection_settings():
 
     for key in AD_RESET_SETTING_KEYS:
         db.reset_setting(key)
-    provider_phases._clear_format_probes(db)
 
     # Recreate LLM client with reset settings
-    client = get_llm_client(force_new=True)
-    if hasattr(client, 'probe_json_format_support'):
-        client.probe_json_format_support()
+    get_llm_client(force_new=True)
+    provider_phases._clear_format_probes(db)
 
     provider_phases._mark_whisper_for_reload()
 

@@ -2,9 +2,10 @@
 
 
 class SyncThread:
-    def __init__(self, target=None, args=(), **_):
+    def __init__(self, target=None, args=(), kwargs=None, **_):
         self._target = target
         self._args = args
+        self._kwargs = kwargs or {}
 
     def start(self):
-        self._target(*self._args)
+        self._target(*self._args, **self._kwargs)
