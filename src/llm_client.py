@@ -2556,7 +2556,7 @@ def _probe_secondary_provider_formats() -> None:
     """Probe response_format support on the secondary slot's endpoint."""
     try:
         provider = _get_cached_setting('secondary_provider')
-        if provider not in PROVIDERS_NON_ANTHROPIC:
+        if provider not in (PROVIDER_OPENAI_COMPATIBLE, PROVIDER_OLLAMA):
             return
         client = get_client_for_provider(provider, credential_slot='secondary')
         if hasattr(client, 'verify_connection'):

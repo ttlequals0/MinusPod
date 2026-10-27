@@ -22,11 +22,13 @@ class TestProbeSecondaryProviderFormats(unittest.TestCase):
         get_client.assert_called_once_with('openai-compatible', credential_slot='secondary')
         client.verify_connection.assert_called_once_with(timeout=llm_client.HTTP_TIMEOUT_API)
 
-    def test_skips_anthropic_secondary(self):
-        with patch('llm_client._get_cached_setting', side_effect=_settings('true', 'anthropic')), \
-                patch('llm_client.get_client_for_provider') as get_client:
-            llm_client._probe_secondary_provider_formats()
-        get_client.assert_not_called()
+    def test_skips_providers_without_format_probes(self):
+        for provider in ('anthropic', 'typesafe', 'openrouter'):
+            with self.subTest(provider=provider), \
+                    patch('llm_client._get_cached_setting', side_effect=_settings('true', provider)), \
+                    patch('llm_client.get_client_for_provider') as get_client:
+                llm_client._probe_secondary_provider_formats()
+                get_client.assert_not_called()
 
     def test_disabled_secondary_starts_no_thread(self):
         with patch('llm_client._get_cached_setting', side_effect=_settings('false', 'openai-compatible')), \
