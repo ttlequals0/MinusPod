@@ -24,6 +24,7 @@ from llm_client import (
     get_llm_client,
     _JSON_FORMAT_SETTING_KEY,
     _JSON_SCHEMA_SETTING_KEY,
+    _clear_model_list_cache,
     invalidate_provider_cache,
     probe_secondary_provider_formats,
     reset_schema_probe_memo,
@@ -477,7 +478,7 @@ def _apply_provider_fields(db, data):
         # Clear the cached probe answers so the new endpoint gets re-probed:
         # a stored false against a model name the new endpoint also serves
         # would otherwise pin it to the fallback format forever.
-        common.after_commit(_rebuild_client_after_provider_change)
+        common.after_commit(_refresh_after_provider_change)
         _clear_format_probes(db)
     # The TTL cache backing get_effective_base_url / get_effective_provider
     # lags writes by up to 5s. Without this invalidation, the GET /settings
@@ -488,10 +489,14 @@ def _apply_provider_fields(db, data):
     return None
 
 
-def _rebuild_client_after_provider_change():
-    """Drop the cached client and model list, then refresh pricing for the new provider."""
-    get_llm_client(force_new=True)
+def _refresh_after_provider_change():
+    """Drop the cached model list and refresh pricing; the client rebuilds on its next use."""
+    _clear_model_list_cache()
     threading.Thread(target=force_refresh_pricing, daemon=True).start()
+
+
+def _secondary_endpoint(db) -> tuple:
+    return (db.get_setting('secondary_provider'), db.get_setting('secondary_provider_base_url'))
 
 
 def _apply_secondary_provider_fields(db, data):
@@ -507,6 +512,7 @@ def _apply_secondary_provider_fields(db, data):
     # Resolved before the write below, so switching the secondary type lifts
     # the outgoing account's hold as well as the incoming one's.
     affected_providers = {db.get_setting('secondary_provider')}
+    endpoint_before = _secondary_endpoint(db)
 
     if 'secondaryProviderEnabled' in data:
         value = 'true' if bool(data['secondaryProviderEnabled']) else 'false'
@@ -547,14 +553,12 @@ def _apply_secondary_provider_fields(db, data):
         logger.info("Updated secondary provider API key")
         changed = True
 
-    endpoint_changed = 'secondaryProvider' in data or 'secondaryProviderBaseUrl' in data
     if changed:
         common.after_commit(invalidate_provider_cache)
         # A key-only change keeps the stored answers; a new endpoint needs fresh ones.
-        if endpoint_changed:
+        if _secondary_endpoint(db) != endpoint_before:
             _clear_format_probes(db)
-        else:
-            common.after_commit(probe_secondary_provider_formats)
+        common.after_commit(_reprobe_all_slots)
         # No secondary type configured: nothing to lift, and a null provider
         # would target the unscoped blanket marker, which may be primary's.
         known = [p for p in affected_providers if p]

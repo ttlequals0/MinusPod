@@ -44,7 +44,7 @@ from database.settings import (
 from user_agent import invalidate_cache as invalidate_user_agent_cache
 from rate_limit_hold import clear_holds_for_provider_change
 from llm_client import (
-    get_effective_provider, get_llm_client,
+    get_effective_provider,
 )
 from llm_route import (
     VALID_SLOTS, SAME_AS_PASS,
@@ -1799,8 +1799,7 @@ def reset_ad_detection_settings():
     for key in AD_RESET_SETTING_KEYS:
         db.reset_setting(key)
 
-    # Recreate LLM client with reset settings
-    get_llm_client(force_new=True)
+    provider_phases._refresh_after_provider_change()
     provider_phases._clear_format_probes(db)
 
     provider_phases._mark_whisper_for_reload()

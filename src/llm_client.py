@@ -106,6 +106,7 @@ _JSON_SCHEMA_SETTING_KEY = 'llm_json_schema_supported'
 # verify uses force_new clients, so without this memo an always-inconclusive
 # endpoint would be probed again on every verification (~5 min cadence).
 _SCHEMA_PROBE_ATTEMPTED: set[tuple[str, str]] = set()
+_schema_probe_lock = threading.Lock()
 
 # Both probe results are a JSON {model: bool} map, keyed by model rather than
 # endpoint (#693): one URL can serve models that differ, and one model's 400
@@ -1903,9 +1904,11 @@ class OpenAICompatibleClient(LLMClient):
             if self._get_json_schema_supported(model) is not None:
                 continue
             key = (self.base_url, model)
-            if key in _SCHEMA_PROBE_ATTEMPTED:
-                continue
-            _SCHEMA_PROBE_ATTEMPTED.add(key)
+            # Both slots may verify at once; one probe per endpoint and model.
+            with _schema_probe_lock:
+                if key in _SCHEMA_PROBE_ATTEMPTED:
+                    continue
+                _SCHEMA_PROBE_ATTEMPTED.add(key)
             self.probe_json_schema_support(model=model)
 
     @staticmethod

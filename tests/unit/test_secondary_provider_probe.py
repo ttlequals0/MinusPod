@@ -68,6 +68,41 @@ class TestReprobeAllSlots(unittest.TestCase):
         self.assertIn(provider_phases._reprobe_all_slots, buckets['side_effects'])
 
 
+class _FakeDb:
+    def __init__(self, **values):
+        self.values = values
+
+    def get_setting(self, key):
+        return self.values.get(key)
+
+    def set_setting(self, key, value, is_default=False):
+        self.values[key] = value
+
+    def clear_setting(self, key):
+        self.values.pop(key, None)
+
+
+class TestSecondaryChangeDetection(unittest.TestCase):
+
+    def _apply(self, db, data):
+        with patch('api.settings.provider_phases.set_or_clear_secret'), \
+                common.post_commit_scope() as buckets:
+            provider_phases._apply_secondary_provider_fields(db, data)
+        return buckets['side_effects']
+
+    def test_key_save_with_unchanged_type_keeps_probe_answers(self):
+        db = _FakeDb(secondary_provider='openai-compatible')
+        hooks = self._apply(db, {'secondaryProviderApiKey': 'k', 'secondaryProvider': 'openai-compatible'})
+        self.assertIn(provider_phases._reprobe_all_slots, hooks)
+        self.assertNotIn(provider_phases.reset_schema_probe_memo, hooks)
+
+    def test_new_base_url_clears_probe_answers(self):
+        db = _FakeDb(secondary_provider='openai-compatible')
+        hooks = self._apply(db, {'secondaryProviderBaseUrl': 'http://b.example/v1'})
+        self.assertIn(provider_phases.reset_schema_probe_memo, hooks)
+        self.assertEqual(hooks.count(provider_phases._reprobe_all_slots), 1)
+
+
 class TestAfterCommitDedupe(unittest.TestCase):
 
     def test_same_hook_queued_twice_runs_once(self):
