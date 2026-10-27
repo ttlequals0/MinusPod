@@ -2538,7 +2538,7 @@ def _verify_endpoint(label: str) -> bool:
         return False
 
 
-def probe_secondary_provider_formats() -> None:
+def _probe_secondary_provider_formats() -> None:
     """Probe response_format support on the enabled secondary slot's endpoint."""
     try:
         if not coerce_bool_setting(_get_cached_setting('secondary_provider_enabled')):
@@ -2553,10 +2553,15 @@ def probe_secondary_provider_formats() -> None:
         logger.warning(f"Secondary provider probe skipped: {e}")
 
 
+def probe_secondary_provider_formats() -> None:
+    """Probe the secondary slot on a daemon thread so boot and saves never wait on it."""
+    threading.Thread(target=_probe_secondary_provider_formats, daemon=True).start()
+
+
 def verify_llm_connection() -> bool:
-    """Verify the primary endpoint at startup; the secondary probe must not block boot."""
+    """Verify the primary endpoint at startup, then probe the secondary slot."""
     ok = _verify_primary_connection()
-    threading.Thread(target=probe_secondary_provider_formats, daemon=True).start()
+    probe_secondary_provider_formats()
     return ok
 
 

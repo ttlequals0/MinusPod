@@ -12,6 +12,7 @@ from config import (
     PROVIDER_OPENAI_COMPATIBLE, PROVIDER_OLLAMA,
     SYSTEMONE_PROVIDERS,
     WHISPER_API_TIMEOUT_MIN, WHISPER_API_TIMEOUT_MAX,
+    HTTP_TIMEOUT_API,
     coerce_bool_setting,
 )
 from rate_limit_hold import clear_holds_for_provider_change
@@ -468,6 +469,8 @@ def _apply_provider_fields(db, data):
         # would otherwise pin it to the fallback format forever.
         _clear_format_probes(db)
         common.after_commit(_probe_after_provider_change)
+        # Probe answers are one shared map, so a cleared map needs both slots again.
+        common.after_commit(probe_secondary_provider_formats)
     # The TTL cache backing get_effective_base_url / get_effective_provider
     # lags writes by up to 5s. Without this invalidation, the GET /settings
     # response that fires right after this PUT returns the pre-write value,
@@ -480,10 +483,9 @@ def _apply_provider_fields(db, data):
 def _probe_after_provider_change():
     """Refresh endpoint-dependent probes and pricing after provider changes."""
     client = get_llm_client(force_new=True)
-    if hasattr(client, 'probe_json_format_support'):
-        client.probe_json_format_support()
-    # Probe answers are one shared map, so a cleared map needs both slots again.
-    probe_secondary_provider_formats()
+    # verify_connection re-probes json_object and, under the opt-in, json_schema.
+    if hasattr(client, 'verify_connection'):
+        client.verify_connection(timeout=HTTP_TIMEOUT_API)
     threading.Thread(target=force_refresh_pricing, daemon=True).start()
 
 
@@ -547,8 +549,7 @@ def _apply_secondary_provider_fields(db, data):
         if endpoint_changed:
             _clear_format_probes(db)
             common.after_commit(_probe_after_provider_change)
-        else:
-            common.after_commit(probe_secondary_provider_formats)
+        common.after_commit(probe_secondary_provider_formats)
         # No secondary type configured: nothing to lift, and a null provider
         # would target the unscoped blanket marker, which may be primary's.
         known = [p for p in affected_providers if p]

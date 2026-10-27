@@ -810,9 +810,10 @@ def _apply_processing_flags(db, data):
     if 'llmJsonSchemaEnabled' in data:
         value = 'true' if data['llmJsonSchemaEnabled'] else 'false'
         db.set_setting('llm_json_schema_enabled', value, is_default=False)
-        # Re-probe on the next endpoint verification now that the opt-in
-        # changed.
+        # The opt-in changed, so both slots need fresh probe answers.
         provider_phases._clear_format_probes(db)
+        common.after_commit(provider_phases._probe_after_provider_change)
+        common.after_commit(provider_phases.probe_secondary_provider_formats)
         logger.info(f"Updated llm_json_schema_enabled to: {value}")
     return None
 
