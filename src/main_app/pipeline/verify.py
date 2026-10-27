@@ -1051,6 +1051,13 @@ def _run_verification_pass(ctx, processed_path, pass1_cuts,
                 (v_ads_to_cut, v_ads_for_ui, gated_held, v_corroborated_count,
                  hold_release_candidates) = gated
                 v_ads_held.extend(gated_held)
+                # Keeps yield only to the known ads that survived validation and gating.
+                hard_protection = build_protection(
+                    kept=_keeps_yielding_to_known_ads(pass1_kept_markers, v_ads_to_cut),
+                    category_kept=_keeps_yielding_to_known_ads(category_kept, v_ads_to_cut),
+                    user_trims=pass1_trim_ranges,
+                    fp_corrections=false_positive_corrections,
+                    holds=[], pass1_cuts=pass1_cuts, reviewer_rejects=pass1_reviewer_rejects)
                 # Before the fragment gate so a covering adjust's outside pieces take that path.
                 released, outside_pairs = review._review_hold_release_candidates(
                     ctx, hold_release_candidates, original_segments,
