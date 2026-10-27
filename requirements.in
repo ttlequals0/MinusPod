@@ -69,4 +69,5 @@ backports.tarfile>=1.2.0; python_version < "3.12"
 # Testing
 pytest>=9.1.1
 pytest-cov>=4.1.0
+pytest-xdist>=3.8.0
 jsonschema>=4.26.0

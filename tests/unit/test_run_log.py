@@ -35,6 +35,13 @@ def _temp_file(recorder):
     return recorder.temp_path
 
 
+def _log_to_recorder_only(recorder, log, message):
+    """Hand a record to the recorder without the root logger. pytest's log
+    capture would hold it too, and pytest-xdist cannot send a lone surrogate
+    from a worker."""
+    recorder.handle(log.makeRecord(log.name, logging.INFO, __file__, 0, message, None, None))
+
+
 class TestKeepRule:
     def test_tagged_record_is_kept(self, rec, src_logger):
         rec.attach()
@@ -265,7 +272,7 @@ def _raise_oserror(*args, **kwargs):
 class TestUnwritableText:
     def test_a_lone_surrogate_does_not_disable_the_recorder(self, rec, src_logger):
         rec.attach()
-        src_logger.info('[my-feed:ep123] transcript said \ud83d and then more')
+        _log_to_recorder_only(rec, src_logger, '[my-feed:ep123] transcript said \ud83d and then more')
         src_logger.info('[my-feed:ep123] still capturing')
         rec.detach()
 
@@ -358,7 +365,7 @@ class TestFinalizeRace:
             self, rec, src_logger, tmp_path):
         rec.attach()
         src_logger.info('[my-feed:ep123] sponsor: Cafe élégant 30s')
-        src_logger.info('[my-feed:ep123] surrogate \ud83d tail')
+        _log_to_recorder_only(rec, src_logger, '[my-feed:ep123] surrogate \ud83d tail')
         rec.detach()
         final = tmp_path / 'final' / 'run-12.jsonl'
 
