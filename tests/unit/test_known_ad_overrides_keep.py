@@ -88,6 +88,25 @@ def test_pass2_unknown_sponsor_inside_a_kept_span_is_dropped():
     assert kept_original == [] and kept_processed == []
 
 
+def test_kept_spans_yield_to_a_known_pass2_ad_before_protection_is_built():
+    kept = [{'start': 2425.52, 'end': 2483.7, 'category': 'outro', 'was_cut': False}]
+    known = {'start': 2446.7, 'end': 2483.7, 'category': 'sponsor', 'sponsor_known': True}
+    guess = {'start': 2430.0, 'end': 2440.0, 'category': 'sponsor'}
+    trimmed = verify._keeps_yielding_to_known_ads(kept, [known, guess])
+    assert [(k['start'], k['end']) for k in trimmed] == [(2425.52, 2446.7)]
+    protection = verify.build_protection(kept=trimmed, category_kept=[], user_trims=[],
+                                         fp_corrections=[], holds=[], pass1_cuts=[])
+    assert protection.hard_orig == [{'start': 2425.52, 'end': 2446.7}]
+
+
+def test_known_beep_ad_owns_the_overlap_too():
+    from ad_detector.boundaries import split_conflicting_action_span
+    keep = {'start': 100.0, 'end': 150.0, 'category': 'outro'}
+    spot = {'start': 130.0, 'end': 170.0, 'category': 'sponsor', 'fingerprint_match_start': 130.0}
+    new_last, entries = split_conflicting_action_span(keep, spot, 'keep', 'beep')
+    assert new_last['end'] == 130.0 and entries == [spot]
+
+
 def test_pass2_ads_are_stamped_when_the_feed_has_the_sponsor():
     processed = [{'start': 1.0, 'end': 2.0, 'sponsor': 'Capital One'},
                  {'start': 3.0, 'end': 4.0, 'sponsor': 'Nobody'}]
