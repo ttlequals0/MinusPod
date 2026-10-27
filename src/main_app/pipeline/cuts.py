@@ -23,7 +23,7 @@ from utils.time import (
 from config import (
     MIN_AD_DURATION, MIN_AD_DURATION_FOR_REMOVAL,
     CORRECTION_MATCH_MIN_COVERAGE,
-    is_pending_review, resolve_silence_snap_tunables,
+    is_known_ad, is_pending_review, resolve_silence_snap_tunables,
     TERMINAL_SNAP_WINDOW_SECONDS,
 )
 
@@ -195,6 +195,10 @@ def _carve_cuts_around(ads_to_remove, all_ads, ranges, *, user_trim=False, tag='
         return ads_to_remove
     carved = []
     for ad in ads_to_remove:
+        # Only an operator trim carves a known ad; kept audio never does.
+        if not user_trim and is_known_ad(ad):
+            carved.append(ad)
+            continue
         whole = (ad['start'], ad['end'])
         spans = subtract_spans([whole], barriers)
         if spans == [whole]:

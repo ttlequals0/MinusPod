@@ -6,6 +6,7 @@ from dataclasses import dataclass, field
 from audio_processor import get_replacement_duration
 from config import (
     CORRECTION_MATCH_MIN_COVERAGE,
+    is_known_ad,
     HOLD_REASON_ESTIMATED_PATTERN,
     HOLD_REASON_VERIFICATION_KEPT_CONFLICT,
     HOLD_REASON_VERIFICATION_MISS,
@@ -421,7 +422,7 @@ def _exclude_kept_spans_from_verification(verification_ads_processed,
         covered = sum(overlap_seconds(barrier['start'], barrier['end'],
                                       ad['start'], ad['end'])
                       for barrier in keep_barriers)
-        if covered <= 0:
+        if covered <= 0 or is_known_ad(orig_ad):
             surviving_processed.append(ad)
             surviving_original.append(orig_ad)
             continue

@@ -803,7 +803,7 @@ class TestSplitConflictingActionSpan:
         assert new_last['_measured_split_fragment'] is True
         assert entries[1]['_measured_split_fragment'] is True
 
-    def test_later_keep_owns_overlap_with_defined_remove_pattern(self):
+    def test_known_remove_pattern_owns_overlap_with_later_keep(self):
         last = {
             'start': 100.0, 'end': 150.0, 'category': 'sponsor',
             'pattern_defined': True,
@@ -815,10 +815,10 @@ class TestSplitConflictingActionSpan:
         new_last, entries = split_conflicting_action_span(
             last, current, 'remove', 'keep')
 
-        assert new_last['end'] == 130.0
-        assert entries == [current]
+        assert new_last == last
+        assert (entries[0]['start'], entries[0]['end']) == (150.0, 170.0)
 
-    def test_keep_owns_overlap_with_later_defined_remove_pattern(self):
+    def test_known_remove_pattern_owns_overlap_with_earlier_keep(self):
         last = {
             'start': 100.0, 'end': 150.0, 'category': 'self_promo',
         }
@@ -830,9 +830,8 @@ class TestSplitConflictingActionSpan:
         new_last, entries = split_conflicting_action_span(
             last, current, 'keep', 'remove')
 
-        assert new_last == last
-        assert entries[0]['start'] == 150.0
-        assert entries[0]['end'] == 170.0
+        assert new_last['end'] == 130.0
+        assert entries == [current]
 
     def test_keep_owns_overlap_with_later_defined_beep_pattern(self):
         last = {
@@ -912,8 +911,8 @@ class TestSplitConflictingActionSpan:
         last = {
             'start': 0.0, 'end': 100.0, 'category': 'sponsor',
             'reason': 'Acme advertising: "Visit Acme.com"',
-            'sponsor': 'Acme', 'end_text': 'Visit Acme.com',
-            'confidence': 0.91, 'pattern_id': 12, 'pattern_defined': True,
+            'sponsor': None, 'end_text': 'Visit Acme.com',
+            'confidence': 0.91, 'pattern_id': 12, 'pattern_defined': False,
         }
         current = {
             'start': 40.0, 'end': 60.0, 'category': 'intro',
@@ -934,7 +933,7 @@ class TestSplitConflictingActionSpan:
             assert 'end_text' not in fragment
             assert fragment['category'] == 'sponsor'
             assert fragment['pattern_id'] == 12
-            assert fragment['pattern_defined'] is True
+            assert fragment['pattern_defined'] is False
             assert fragment['confidence'] == 0.91
             assert extract_sponsor_names('', fragment['reason']) == set()
             assert _extract_ad_keywords(fragment) == []

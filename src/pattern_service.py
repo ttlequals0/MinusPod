@@ -247,6 +247,12 @@ class PatternService:
 
         return None
 
+    def known_sponsors(self, podcast_id: str, network_id: str = None) -> set[str]:
+        """Lower-cased canonical sponsor names of every active pattern that applies to the feed."""
+        return {canonical_sponsor(p['sponsor']).lower()
+                for p in self.get_patterns_for_podcast(podcast_id, network_id)
+                if p.get('sponsor')}
+
     def get_patterns_for_podcast(
         self,
         podcast_id: str,

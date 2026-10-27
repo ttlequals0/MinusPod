@@ -11,7 +11,20 @@ release notes.
 
 ## [Unreleased]
 
-## [2.100.24] - 2026-10-27
+## [2.100.25] - 2026-10-27
+
+### Fixed
+
+- A known ad always cuts. A marker backed by a fingerprint match, a sponsor
+  text pattern, a defined pattern, a sponsor the feed has a pattern for, a
+  confirmation or a reviewer verdict now owns any audio it shares with a
+  keep-category marker, kept audio never carves it, and a verification catch
+  naming a known sponsor is no longer dropped for lying inside a kept span.
+  Before, an outro pattern whose end was only an average-length estimate could
+  swallow the start of a fingerprinted sponsor read, and every later stage
+  deferred to that estimate. The operator's per-category keep still applies to
+  markers of that category.
+
 
 ### Fixed
 - A stage routed to an OpenAI-compatible Provider B now gets the opted-in JSON
