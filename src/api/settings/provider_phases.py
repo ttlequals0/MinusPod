@@ -482,6 +482,7 @@ def _probe_after_provider_change():
     client = get_llm_client(force_new=True)
     if hasattr(client, 'probe_json_format_support'):
         client.probe_json_format_support()
+    # Probe answers are one shared map, so a cleared map needs both slots again.
     probe_secondary_provider_formats()
     threading.Thread(target=force_refresh_pricing, daemon=True).start()
 
@@ -542,6 +543,7 @@ def _apply_secondary_provider_fields(db, data):
     endpoint_changed = 'secondaryProvider' in data or 'secondaryProviderBaseUrl' in data
     if changed:
         common.after_commit(invalidate_provider_cache)
+        # A key-only change keeps the stored answers; a new endpoint needs fresh ones.
         if endpoint_changed:
             _clear_format_probes(db)
             common.after_commit(_probe_after_provider_change)

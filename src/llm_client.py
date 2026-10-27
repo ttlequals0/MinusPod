@@ -2554,9 +2554,9 @@ def probe_secondary_provider_formats() -> None:
 
 
 def verify_llm_connection() -> bool:
-    """Verify the primary endpoint at startup, then probe the secondary slot."""
+    """Verify the primary endpoint at startup; the secondary probe must not block boot."""
     ok = _verify_primary_connection()
-    probe_secondary_provider_formats()
+    threading.Thread(target=probe_secondary_provider_formats, daemon=True).start()
     return ok
 
 

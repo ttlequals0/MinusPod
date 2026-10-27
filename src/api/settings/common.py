@@ -132,7 +132,9 @@ def after_commit(fn, bucket: str = 'side_effects'):
     if buckets is None:
         fn()
         return
-    buckets[bucket].append(fn)
+    # Two phases queuing the same hook in one save run it once.
+    if fn not in buckets[bucket]:
+        buckets[bucket].append(fn)
 
 
 @contextmanager
