@@ -2454,7 +2454,11 @@ def _build_client(provider: str, base_url: str | None = None,
             }
         )
     elif provider in PROVIDERS_NON_ANTHROPIC:
-        raw_base_url = base_url or get_effective_base_url()
+        if credential_slot == 'secondary':
+            raw_base_url = (base_url or _get_cached_setting('secondary_provider_base_url')
+                            or DEFAULT_OPENAI_BASE_URL)
+        else:
+            raw_base_url = base_url or get_effective_base_url()
         normalized_base_url = _normalize_base_url_for_provider(provider, raw_base_url)
         if provider == PROVIDER_OLLAMA:
             if normalized_base_url != raw_base_url:

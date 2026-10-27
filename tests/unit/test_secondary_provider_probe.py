@@ -51,6 +51,17 @@ class TestProbeSecondaryProviderFormats(unittest.TestCase):
 
 
 
+class TestSecondaryClientEndpoint(unittest.TestCase):
+
+    def test_secondary_slot_uses_its_own_base_url(self):
+        settings = {'secondary_provider_base_url': 'http://b.example/v1'}
+        with patch('llm_client._get_cached_setting', side_effect=settings.get), \
+                patch('llm_client.get_effective_base_url', return_value='http://a.example/v1'), \
+                patch('llm_client.get_effective_secondary_provider_api_key', return_value='k'):
+            client = llm_client._build_client('openai-compatible', credential_slot='secondary')
+        self.assertEqual(client.base_url, 'http://b.example/v1')
+
+
 class TestReprobeAllSlots(unittest.TestCase):
 
     def test_verifies_primary_and_probes_secondary(self):
@@ -90,10 +101,11 @@ class TestSecondaryChangeDetection(unittest.TestCase):
             provider_phases._apply_secondary_provider_fields(db, data)
         return buckets['side_effects']
 
-    def test_key_save_with_unchanged_type_keeps_probe_answers(self):
+    def test_key_save_with_unchanged_type_probes_only_the_secondary(self):
         db = _FakeDb(secondary_provider='openai-compatible')
         hooks = self._apply(db, {'secondaryProviderApiKey': 'k', 'secondaryProvider': 'openai-compatible'})
-        self.assertIn(provider_phases._reprobe_all_slots, hooks)
+        self.assertIn(provider_phases.probe_secondary_provider_formats, hooks)
+        self.assertNotIn(provider_phases._reprobe_all_slots, hooks)
         self.assertNotIn(provider_phases.reset_schema_probe_memo, hooks)
 
     def test_new_base_url_clears_probe_answers(self):
