@@ -165,10 +165,9 @@ _KNOWN_AD_VALIDATION_KEYS = ('confirmed_span', 'user_confirmed', 'sponsor_confir
 
 
 def _has_fingerprint_evidence(marker: dict) -> bool:
-    # Lazy: utils/__init__ imports utils.audio, which imports this module.
+    """A merged-in fingerprint member counts; lazy import, utils imports this module."""
     from utils.markers import recorded_member_spans
-    return (marker.get('fingerprint_match_start') is not None
-            or any(span.get('stage') == 'fingerprint' for span in recorded_member_spans(marker)))
+    return any(span.get('stage') == 'fingerprint' for span in recorded_member_spans(marker))
 
 
 def is_known_ad(marker: dict) -> bool:
@@ -179,11 +178,12 @@ def is_known_ad(marker: dict) -> bool:
     return bool(
         marker.get('pattern_defined')
         or (marker.get('pattern_id') is not None and marker.get('sponsor'))
-        or _has_fingerprint_evidence(marker)
         or marker.get('sponsor_known')
+        or marker.get('fingerprint_match_start') is not None
         or marker.get('_confirmed_correction') is not None
         or marker.get('reviewer_verdict') == 'confirmed'
-        or any(validation.get(key) for key in _KNOWN_AD_VALIDATION_KEYS))
+        or any(validation.get(key) for key in _KNOWN_AD_VALIDATION_KEYS)
+        or _has_fingerprint_evidence(marker))
 
 
 # Per-category community-sync acceptance (issue #565): which categories this

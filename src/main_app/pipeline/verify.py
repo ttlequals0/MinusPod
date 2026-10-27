@@ -22,7 +22,7 @@ from config import (
     PASS2_AUTOAPPROVE_SNIPPET_PREFIX,
     PASS2_AUTOAPPROVE_TRIM_SLACK_S,
     CORRECTION_ORIGIN_AUTO_PASS2,
-    is_pending_review, normalize_segment_category, is_keep_like,
+    is_pending_review, normalize_segment_category, is_keep_like, is_known_ad,
     SEGMENT_CATEGORIES,
     DEFAULT_SEGMENT_ACTION,
     resolve_ad_detection_exclude_start_seconds,
@@ -37,6 +37,7 @@ from llm_capabilities import (
 from llm_client import ProviderRateLimitedError
 
 from utils.constants import canonical_sponsor
+from utils.markers import subtract_spans
 from utils.errors import ModelLoadError
 
 from main_app.verification_reconciliation import (
@@ -128,6 +129,16 @@ def _stamp_known_sponsors(processed_ads, original_ads):
         sponsor = canonical_sponsor(original.get('sponsor') or processed.get('sponsor') or '')
         if sponsor and sponsor.lower() in known:
             processed['sponsor_known'] = original['sponsor_known'] = True
+
+
+def _keeps_yielding_to_known_ads(kept_markers, original_ads):
+    """Kept spans minus the audio a known pass-2 ad covers; the keep yields to the ad."""
+    known = [(ad['start'], ad['end']) for ad in original_ads if is_known_ad(ad)]
+    if not known:
+        return list(kept_markers or [])
+    return [{**marker, 'start': start, 'end': end}
+            for marker in (kept_markers or [])
+            for start, end in subtract_spans([(marker['start'], marker['end'])], known)]
 
 
 def _partition_pass2_category_actions(processed_ads, original_ads, actions_map,
@@ -977,7 +988,8 @@ def _run_verification_pass(ctx, processed_path, pass1_cuts,
         )
         # After the category partition, so every Protection carries the category keeps.
         hard_protection = build_protection(
-            kept=pass1_kept_markers, category_kept=category_kept,
+            kept=_keeps_yielding_to_known_ads(pass1_kept_markers, verification_ads_original),
+            category_kept=_keeps_yielding_to_known_ads(category_kept, verification_ads_original),
             user_trims=pass1_trim_ranges,
             fp_corrections=false_positive_corrections,
             holds=[], pass1_cuts=pass1_cuts, reviewer_rejects=pass1_reviewer_rejects)

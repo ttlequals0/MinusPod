@@ -1732,7 +1732,7 @@ def _clip_estimated_keep(keep: dict, keep_action, other: dict, other_action) -> 
 
 
 def _owns_over_keep(marker: dict, action, other_action) -> bool:
-    return action == 'remove' and is_keep_like(other_action) and is_known_ad(marker)
+    return action in ('remove', 'beep') and is_keep_like(other_action) and is_known_ad(marker)
 
 
 def _in_start_order(new_last, entries):
