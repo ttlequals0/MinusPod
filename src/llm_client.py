@@ -391,9 +391,9 @@ def _omit_temperature_override() -> bool:
     return coerce_bool_setting(_get_cached_setting('omit_temperature'))
 
 
-def supports_json_schema_for_calls(model: str | None = None) -> bool:
-    """Return the configured schema-probe result for the active OpenAI endpoint."""
-    if get_effective_provider() != PROVIDER_OPENAI_COMPATIBLE:
+def supports_json_schema_for_calls(model: str | None = None, provider: str | None = None) -> bool:
+    """Return the configured schema-probe result for an OpenAI-compatible provider (the routed one when given)."""
+    if (provider or get_effective_provider()) != PROVIDER_OPENAI_COMPATIBLE:
         return False
     if not coerce_bool_setting(_get_cached_setting('llm_json_schema_enabled')):
         return False

@@ -226,6 +226,22 @@ class TestSupportsJsonSchemaForCalls:
         self._configure('openai-compatible', enabled=True, probed=True)
         assert supports_json_schema_for_calls('m') is True
 
+    def test_routed_openai_compatible_behind_other_global_provider(self):
+        self._configure('typesafe', enabled=True, probed=True)
+        assert supports_json_schema_for_calls('m', 'openai-compatible') is True
+
+    def test_routed_other_provider_behind_openai_compatible_global(self):
+        self._configure('openai-compatible', enabled=True, probed=True)
+        assert supports_json_schema_for_calls('m', 'openrouter') is False
+
+    def test_schema_format_for_passes_route_provider(self):
+        from utils.llm_call import schema_format_for
+        self._configure('typesafe', enabled=True, probed=True)
+        oc = schema_format_for('m', 'n', {'type': 'object'}, provider='openai-compatible')
+        assert oc['type'] == 'json_schema'
+        ts = schema_format_for('m', 'n', {'type': 'object'}, provider='typesafe')
+        assert ts['type'] == 'json_object'
+
     def test_false_when_not_opted_in(self):
         self._configure('openai-compatible', enabled=False, probed=True)
         assert supports_json_schema_for_calls('m') is False

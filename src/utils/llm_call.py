@@ -83,7 +83,7 @@ def schema_format_for(model, name: str, schema: dict,
                       allow_provider_schema: bool = False,
                       provider: str | None = None) -> dict:
     """Use a model-probed schema or an explicitly allowed provider schema."""
-    if supports_json_schema_for_calls(model) or (
+    if supports_json_schema_for_calls(model, provider) or (
             allow_provider_schema
             and supports_json_schema(provider or get_effective_provider())):
         return json_schema_format(name, schema, description)
@@ -790,7 +790,7 @@ def _dispatch_on_failover(run_ladder, llm_kwargs, last_error, *, target, phase, 
     rf = llm_kwargs.get('response_format') or {}
     if (rf.get('type') == 'json_schema'
             and not supports_json_schema(route.provider_key)
-            and not supports_json_schema_for_calls(route.model_id)):
+            and not supports_json_schema_for_calls(route.model_id, route.provider_key)):
         fo_kwargs['response_format'] = {'type': 'json_object'}
     logger.warning(f"[{slug}:{episode_id}] {call_label} switching to failover provider "
                    f"{route.provider_key} model {route.model_id}")

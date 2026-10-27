@@ -288,7 +288,7 @@ The active run and the latest attempted run are usually the same run. They diver
 
 ### JSON schema response format
 
-OpenAI-compatible endpoints only. When on, MinusPod asks the endpoint to enforce a JSON schema on detection, review, category repair, and trim-recovery responses instead of only asking for JSON, which cuts malformed replies. Off by default; the toggle is in **Settings > LLM Provider**.
+OpenAI-compatible endpoints only, whether the stage runs on Provider A or is routed to Provider B. When on, MinusPod asks the endpoint to enforce a JSON schema on detection, review, category repair, and trim-recovery responses instead of only asking for JSON, which cuts malformed replies. Off by default; the toggle is in **Settings > LLM Provider**.
 
 Support varies by model, not just by server. MinusPod probes each model the ad pipeline is configured to use, once, after the endpoint verifies, and stores one answer per model. Plain JSON mode is remembered the same way, so one model's rejection no longer speaks for the others on that endpoint. A model that rejects the schema falls back to plain JSON mode, and so does a model that passes the probe but rejects a real request. Check that your server implements `response_format` with `type: json_schema` before relying on it. Anthropic, OpenRouter, and Ollama call sites are unaffected by this toggle.
 
