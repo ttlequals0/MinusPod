@@ -1,8 +1,4 @@
-"""A known ad (pattern, fingerprint, known sponsor, confirmation, reviewer verdict) always cuts.
-
-Regression for the episode tail where an estimated outro keep swallowed the head of a
-fingerprinted sponsor read and every later stage deferred to the keep.
-"""
+"""A known ad (pattern, fingerprint, known sponsor, confirmation, reviewer verdict) always cuts."""
 from unittest.mock import patch
 
 from tests.app_bootstrap import bootstrap
@@ -41,6 +37,8 @@ def _merge(ads):
 
 def test_known_ad_truth_table():
     assert is_known_ad({'category': 'sponsor', 'fingerprint_match_start': 1.0})
+    assert is_known_ad({'category': 'sponsor', 'merged_member_spans': [
+        {'start': 1.0, 'end': 2.0, 'stage': 'fingerprint'}]})
     assert is_known_ad({'category': 'sponsor', 'pattern_id': 5, 'sponsor': 'Acme'})
     assert is_known_ad({'category': 'cross_promo', 'pattern_defined': True})
     assert is_known_ad({'sponsor_known': True})
@@ -94,8 +92,8 @@ def test_pass2_ads_are_stamped_when_the_feed_has_the_sponsor():
     processed = [{'start': 1.0, 'end': 2.0, 'sponsor': 'Capital One'},
                  {'start': 3.0, 'end': 4.0, 'sponsor': 'Nobody'}]
     original = [dict(a) for a in processed]
-    with patch.object(verify, 'pattern_service') as service:
-        service.known_sponsors.return_value = {'capital one'}
-        verify._stamp_known_sponsors('example-podcast', processed, original)
+    with patch.object(verify, 'db') as database:
+        database.get_active_pattern_sponsors.return_value = {'capital one'}
+        verify._stamp_known_sponsors(processed, original)
     assert processed[0].get('sponsor_known') and original[0].get('sponsor_known')
     assert 'sponsor_known' not in processed[1] and 'sponsor_known' not in original[1]

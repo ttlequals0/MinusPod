@@ -1731,6 +1731,10 @@ def _clip_estimated_keep(keep: dict, keep_action, other: dict, other_action) -> 
     return carve_fragment(keep, lo, hi)
 
 
+def _owns_over_keep(marker: dict, action, other_action) -> bool:
+    return action == 'remove' and is_keep_like(other_action) and is_known_ad(marker)
+
+
 def _in_start_order(new_last, entries):
     """Fold new_last into entries when an entry now starts before it."""
     if new_last is not None and any(e['start'] < new_last['start'] for e in entries):
@@ -1789,11 +1793,9 @@ def split_conflicting_action_span(last: dict, current: dict,
         # overlap. Action-aware callers use explicit precedence below.
         return last, [carve(current, last['end'], current['end'])]
     # A known ad owns the contested audio; a keep never carves it.
-    if effective_current_action == 'remove' and is_known_ad(current) \
-            and is_keep_like(effective_last_action):
+    if _owns_over_keep(current, effective_current_action, effective_last_action):
         current_wins = True
-    elif effective_last_action == 'remove' and is_known_ad(last) \
-            and is_keep_like(effective_current_action):
+    elif _owns_over_keep(last, effective_last_action, effective_current_action):
         current_wins = False
     else:
         current_wins = (
