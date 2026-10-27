@@ -2219,6 +2219,17 @@ def _normalize_base_url_for_provider(provider: str, base_url: str) -> str:
     return base_url
 
 
+def _slot_base_url(base_url: str | None, credential_slot: str) -> str:
+    """Raw endpoint for a non-Anthropic slot: an explicit URL, else the slot's own setting."""
+    if base_url:
+        return base_url
+    if credential_slot == 'secondary':
+        return _get_cached_setting('secondary_provider_base_url') or DEFAULT_OPENAI_BASE_URL
+    if credential_slot == 'failover':
+        return _get_cached_setting('failover_llm_base_url') or DEFAULT_OPENAI_BASE_URL
+    return get_effective_base_url()
+
+
 def _resolve_cache_key(provider_key: str, base_url: str | None = None,
                        credential_slot: str = 'primary') -> tuple[str, str | None, str]:
     """Client cache key for a provider: (provider_key, normalized_base, credential_slot).
@@ -2246,7 +2257,7 @@ def _resolve_cache_key(provider_key: str, base_url: str | None = None,
                    or os.getenv('SYSTEMONE_BASE_URL') or '')
         return (provider_key, raw.rstrip('/'), credential_slot)
     if provider_key in PROVIDERS_NON_ANTHROPIC:
-        raw = base_url or get_effective_base_url()
+        raw = _slot_base_url(base_url, credential_slot)
         return (provider_key, _normalize_base_url_for_provider(provider_key, raw), credential_slot)
     return (provider_key, base_url, credential_slot)
 
@@ -2454,11 +2465,7 @@ def _build_client(provider: str, base_url: str | None = None,
             }
         )
     elif provider in PROVIDERS_NON_ANTHROPIC:
-        if credential_slot == 'secondary':
-            raw_base_url = (base_url or _get_cached_setting('secondary_provider_base_url')
-                            or DEFAULT_OPENAI_BASE_URL)
-        else:
-            raw_base_url = base_url or get_effective_base_url()
+        raw_base_url = _slot_base_url(base_url, credential_slot)
         normalized_base_url = _normalize_base_url_for_provider(provider, raw_base_url)
         if provider == PROVIDER_OLLAMA:
             if normalized_base_url != raw_base_url:
