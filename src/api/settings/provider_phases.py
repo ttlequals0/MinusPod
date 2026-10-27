@@ -562,7 +562,7 @@ def _apply_secondary_provider_fields(db, data):
         # A key-only change keeps the stored answers; a new endpoint needs fresh ones.
         if (db.get_setting('secondary_provider'), db.get_setting('secondary_provider_base_url')) != endpoint_before:
             _forget_endpoint_state(db)
-        elif coerce_bool_setting(db.get_setting('secondary_provider_enabled')):
+        else:
             common.after_commit(probe_secondary_provider_formats)
         # No secondary type configured: nothing to lift, and a null provider
         # would target the unscoped blanket marker, which may be primary's.

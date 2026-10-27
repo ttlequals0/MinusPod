@@ -2553,10 +2553,8 @@ def _verify_endpoint(label: str) -> bool:
 
 
 def _probe_secondary_provider_formats() -> None:
-    """Probe response_format support on the enabled secondary slot's endpoint."""
+    """Probe response_format support on the secondary slot's endpoint."""
     try:
-        if not coerce_bool_setting(_get_cached_setting('secondary_provider_enabled')):
-            return
         provider = _get_cached_setting('secondary_provider')
         if provider not in PROVIDERS_NON_ANTHROPIC:
             return
@@ -2568,7 +2566,9 @@ def _probe_secondary_provider_formats() -> None:
 
 
 def probe_secondary_provider_formats() -> None:
-    """Probe the secondary slot on a daemon thread so boot and saves never wait on it."""
+    """Probe an enabled secondary slot on a daemon thread so boot and saves never wait on it."""
+    if not coerce_bool_setting(_get_cached_setting('secondary_provider_enabled')):
+        return
     threading.Thread(target=_probe_secondary_provider_formats, daemon=True).start()
 
 

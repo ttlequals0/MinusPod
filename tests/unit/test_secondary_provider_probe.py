@@ -22,13 +22,17 @@ class TestProbeSecondaryProviderFormats(unittest.TestCase):
         get_client.assert_called_once_with('openai-compatible', credential_slot='secondary')
         client.verify_connection.assert_called_once_with(timeout=llm_client.HTTP_TIMEOUT_API)
 
-    def test_skips_disabled_or_anthropic_secondary(self):
-        for enabled, provider in (('false', 'openai-compatible'), ('true', 'anthropic')):
-            with self.subTest(enabled=enabled, provider=provider), \
-                    patch('llm_client._get_cached_setting', side_effect=_settings(enabled, provider)), \
-                    patch('llm_client.get_client_for_provider') as get_client:
-                llm_client._probe_secondary_provider_formats()
-                get_client.assert_not_called()
+    def test_skips_anthropic_secondary(self):
+        with patch('llm_client._get_cached_setting', side_effect=_settings('true', 'anthropic')), \
+                patch('llm_client.get_client_for_provider') as get_client:
+            llm_client._probe_secondary_provider_formats()
+        get_client.assert_not_called()
+
+    def test_disabled_secondary_starts_no_thread(self):
+        with patch('llm_client._get_cached_setting', side_effect=_settings('false', 'openai-compatible')), \
+                patch('llm_client.threading.Thread') as thread:
+            llm_client.probe_secondary_provider_formats()
+        thread.assert_not_called()
 
     def test_swallows_client_errors(self):
         with patch('llm_client._get_cached_setting', side_effect=_settings('true', 'openai-compatible')), \
@@ -113,11 +117,6 @@ class TestSecondaryChangeDetection(unittest.TestCase):
         hooks = self._apply(db, {'secondaryProviderApiKey': 'k', 'secondaryProvider': 'openai-compatible'})
         self.assertIn(provider_phases.probe_secondary_provider_formats, hooks)
         self.assertNotIn(provider_phases._reprobe_primary, hooks)
-
-    def test_disabling_the_secondary_queues_no_probe(self):
-        db = _FakeDb(secondary_provider='openai-compatible', secondary_provider_enabled='true')
-        hooks = self._apply(db, {'secondaryProviderEnabled': False})
-        self.assertNotIn(provider_phases.probe_secondary_provider_formats, hooks)
 
     def test_new_base_url_clears_probe_answers(self):
         db = _FakeDb(secondary_provider='openai-compatible')
