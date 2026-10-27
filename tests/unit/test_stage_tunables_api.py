@@ -1,6 +1,6 @@
 """API validation tests for per-stage LLM tunables in PUT /settings/ad-detection."""
 import json
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 
@@ -162,8 +162,8 @@ class TestResetClearsStageTunables:
         db.set_setting('window_size_seconds', '900', is_default=False)
         db.set_setting('reviewer_reasoning_level', 'high', is_default=False)
 
-        # Patch out the LLM-client recreation so the reset doesn't touch a provider.
-        with patch('api.settings.ad_detection.get_llm_client', return_value=MagicMock()):
+        # Patch out the endpoint re-probe so the reset doesn't touch a provider.
+        with patch('api.settings.provider_phases._reprobe_all_slots'):
             r = client.post('/api/v1/settings/ad-detection/reset')
         assert r.status_code == 200, r.data
 
