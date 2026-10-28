@@ -19,6 +19,8 @@ interface AudioSectionProps {
   onAudioNormalizeIntensityChange: (intensity: string) => void;
   maxAudioDownloadMb: number;
   onMaxAudioDownloadMbChange: (mb: number) => void;
+  localUploadMaxMb: number;
+  onLocalUploadMaxMbChange: (mb: number) => void;
 }
 
 function AudioSection({
@@ -36,6 +38,8 @@ function AudioSection({
   onAudioNormalizeIntensityChange,
   maxAudioDownloadMb,
   onMaxAudioDownloadMbChange,
+  localUploadMaxMb,
+  onLocalUploadMaxMbChange,
 }: AudioSectionProps) {
   return (
     <CollapsibleSection title="Audio">
@@ -171,6 +175,29 @@ function AudioSection({
           </div>
           <p className="mt-2 text-sm text-muted-foreground">
             Episode downloads over this size fail the episode instead of processing. Default 500 MB.
+          </p>
+        </div>
+
+        <div className="pt-4 border-t border-border">
+          <label htmlFor="localUploadMaxMb" className={labelBase}>
+            Max upload size (MB)
+          </label>
+          <div className="flex items-center gap-3">
+            <NumberInput
+              id="localUploadMaxMb"
+              value={localUploadMaxMb}
+              min={1}
+              max={10240}
+              fallback={1024}
+              parse={(s) => parseInt(s, 10)}
+              onCommit={(mb) => {
+                if (mb !== localUploadMaxMb) onLocalUploadMaxMbChange(mb);
+              }}
+            />
+            <span className="text-sm text-muted-foreground">MB (minimum 1)</span>
+          </div>
+          <p className="mt-2 text-sm text-muted-foreground">
+            Largest audio file Add episode and Import accept. A reverse proxy or Cloudflare in front of the server may cap uploads lower.
           </p>
         </div>
       </div>

@@ -22,6 +22,7 @@ from config import (
     apply_ad_chapter_compat, MAX_AD_DURATION, MAX_AD_DURATION_CONFIRMED,
     MAX_ARTWORK_BYTES_MIN, MAX_ARTWORK_BYTES_MAX, MAX_RSS_BYTES_MIN,
     MAX_AUDIO_DOWNLOAD_MB_MIN,
+    LOCAL_UPLOAD_MAX_MB_MIN, LOCAL_UPLOAD_MAX_MB_MAX,
     PODCAST_SEARCH_PROVIDERS,
     SEGMENT_CATEGORIES, SEGMENT_ACTIONS,
     LOW_AD_YIELD_ACTIONS,
@@ -527,6 +528,8 @@ def _size_cap_writes(data):
         ('maxArtworkBytes', 'max_artwork_bytes', MAX_ARTWORK_BYTES_MIN, MAX_ARTWORK_BYTES_MAX),
         ('maxRssBytes', 'max_rss_bytes', MAX_RSS_BYTES_MIN, None),
         ('maxAudioDownloadMb', 'max_audio_download_mb', MAX_AUDIO_DOWNLOAD_MB_MIN, None),
+        ('localUploadMaxMb', 'local_upload_max_mb',
+         LOCAL_UPLOAD_MAX_MB_MIN, LOCAL_UPLOAD_MAX_MB_MAX),
     )
     writes = []
     for payload_key, db_key, floor, ceiling in caps:

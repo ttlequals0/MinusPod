@@ -6,12 +6,12 @@ import re
 import secrets
 import time
 from typing import Optional
-from flask import Blueprint, abort, jsonify, request, session
+from flask import Blueprint, abort, g, jsonify, request, session
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from functools import wraps
 
-from config import normalize_model_key
+from config import normalize_model_key, LOCAL_UPLOAD_MAX_MB_DEFAULT
 from api.auth_state import authentication_required, session_is_authenticated
 from api.csrf import validate as csrf_validate
 from utils.validation import is_dangerous_slug, nullable_bool
@@ -198,7 +198,9 @@ def check_auth():
     return None
 
 
-MAX_AUDIO_UPLOAD_BYTES = 1024 ** 3  # 1 GB per file
+def local_upload_max_mb():
+    """Configured per-request upload cap in MB."""
+    return get_database().get_setting_int('local_upload_max_mb', LOCAL_UPLOAD_MAX_MB_DEFAULT)
 
 
 @api.before_request
@@ -210,7 +212,8 @@ def _widen_upload_cap():
     if request.method == 'POST' and (
             p.endswith('/import/upload')
             or (p.startswith('/api/v1/feeds/') and p.endswith('/episodes'))):
-        request.max_content_length = MAX_AUDIO_UPLOAD_BYTES
+        g.upload_limit_mb = local_upload_max_mb()
+        request.max_content_length = g.upload_limit_mb * 1024 * 1024
 
 
 def get_storage():
@@ -292,6 +295,20 @@ def log_request(f):
 
 
 from werkzeug.exceptions import HTTPException as _HTTPException
+from werkzeug.exceptions import RequestEntityTooLarge as _RequestEntityTooLarge
+
+
+@api.errorhandler(_RequestEntityTooLarge)
+def _handle_request_too_large(exc):
+    """413 on an upload route names the configured limit; elsewhere stays generic."""
+    mb = g.get('upload_limit_mb')
+    if mb is None:
+        return _handle_http_exception(exc)
+    return jsonify({
+        'error': f'File is too large. This server accepts up to {mb} MB per upload.',
+        'status': 413,
+        'maxUploadMb': mb,
+    }), 413
 
 
 @api.errorhandler(_HTTPException)

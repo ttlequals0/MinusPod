@@ -15,7 +15,6 @@ _data_dir = bootstrap('queue_verdict_test_')
 import main_app.background as background  # noqa: E402
 import main_app.processing as processing  # noqa: E402
 from main_app.pipeline import finalize
-from database import Database  # noqa: E402
 from whisper_pool import WhisperPool  # noqa: E402
 
 URL = 'https://example.com/ep.mp3'
@@ -44,8 +43,8 @@ def _row_status(db, queue_id):
 
 
 class TestVerdictIsConditional:
-    def test_a_mid_run_requeue_survives_a_completed_verdict(self):
-        db = Database()
+    def test_a_mid_run_requeue_survives_a_completed_verdict(self, temp_db):
+        db = temp_db
         slug = 'verdict-completed-feed'
         row = _claimed_row(db, slug, 'ep1')
 
@@ -58,8 +57,8 @@ class TestVerdictIsConditional:
         assert db.claim_next_queued_episode()['id'] == row['id']
         db.delete_podcast(slug)
 
-    def test_a_mid_run_requeue_survives_a_failed_verdict(self):
-        db = Database()
+    def test_a_mid_run_requeue_survives_a_failed_verdict(self, temp_db):
+        db = temp_db
         slug = 'verdict-failed-feed'
         row = _claimed_row(db, slug, 'ep1')
 
@@ -73,8 +72,8 @@ class TestVerdictIsConditional:
         assert db.claim_next_queued_episode()['id'] == row['id']
         db.delete_podcast(slug)
 
-    def test_an_untouched_row_still_takes_the_verdict(self):
-        db = Database()
+    def test_an_untouched_row_still_takes_the_verdict(self, temp_db):
+        db = temp_db
         slug = 'verdict-normal-feed'
         row = _claimed_row(db, slug, 'ep1')
 
@@ -84,8 +83,8 @@ class TestVerdictIsConditional:
         assert db.claim_next_queued_episode() is None
         db.delete_podcast(slug)
 
-    def test_an_untouched_row_still_takes_a_failure(self):
-        db = Database()
+    def test_an_untouched_row_still_takes_a_failure(self, temp_db):
+        db = temp_db
         slug = 'verdict-normal-failure-feed'
         row = _claimed_row(db, slug, 'ep1')
 
@@ -94,10 +93,10 @@ class TestVerdictIsConditional:
         assert _row_status(db, row['id']) == 'failed'
         db.delete_podcast(slug)
 
-    def test_without_the_guard_the_write_is_unconditional(self):
+    def test_without_the_guard_the_write_is_unconditional(self, temp_db):
         # Callers that are not reporting on a claim they hold keep the old
         # behavior.
-        db = Database()
+        db = temp_db
         slug = 'verdict-unguarded-feed'
         row = _claimed_row(db, slug, 'ep1')
 
@@ -111,8 +110,8 @@ class TestDegradedRedetectSurvives:
     """The degraded re-detect re-queues while the episode ends 'processed',
     so the drainer used to write 'completed' straight over it."""
 
-    def test_the_queued_redetect_is_claimable_after_the_verdict(self):
-        db = Database()
+    def test_the_queued_redetect_is_claimable_after_the_verdict(self, temp_db):
+        db = temp_db
         slug = 'verdict-degraded-feed'
         row = _claimed_row(db, slug, 'ep1')
         db.upsert_episode(slug, 'ep1', status='processed')
@@ -141,8 +140,8 @@ class TestLowYieldRerunSurvives:
                               new_duration=3000.0,
                               processed_at=f'2026-08-0{i + 1}T00:00:00Z')
 
-    def test_hook_requeue_survives_and_is_claimed_next(self):
-        db = Database()
+    def test_hook_requeue_survives_and_is_claimed_next(self, temp_db):
+        db = temp_db
         slug = 'verdict-low-yield-feed'
         row = _claimed_row(db, slug, 'flat-copy')
         self._seed_feed_history(db, slug)
@@ -176,8 +175,8 @@ class TestDrainerErrorPathKeepsRequeue:
     """The drainer's own error handler closes the row too, and it used to do
     that unconditionally."""
 
-    def test_an_exception_after_a_mid_run_requeue_leaves_the_row_claimable(self):
-        db = Database()
+    def test_an_exception_after_a_mid_run_requeue_leaves_the_row_claimable(self, temp_db):
+        db = temp_db
         slug = 'verdict-error-path-feed'
         db.create_podcast(slug, 'https://example.com/feed.xml', 'A Podcast')
         db.upsert_episode(slug, 'ep1', original_url=URL, status='processing')
@@ -246,8 +245,8 @@ class TestDrainerRerunAccounting:
         db.upsert_episode(slug, 'ep1', original_url=URL, status='pending')
         db.upsert_episode_for_processing(slug, 'ep1', URL, 'Episode One')
 
-    def test_a_plain_success_logs_the_success_line(self):
-        db = Database()
+    def test_a_plain_success_logs_the_success_line(self, temp_db):
+        db = temp_db
         slug = 'drainer-success-feed'
         self._seed(db, slug)
         log = MagicMock()
@@ -264,8 +263,8 @@ class TestDrainerRerunAccounting:
         assert 'rerun was queued' not in messages
         db.delete_podcast(slug)
 
-    def test_a_policy_requeue_logs_the_rerun_line_and_no_failure_narrative(self):
-        db = Database()
+    def test_a_policy_requeue_logs_the_rerun_line_and_no_failure_narrative(self, temp_db):
+        db = temp_db
         slug = 'drainer-rerun-feed'
         self._seed(db, slug)
         log = MagicMock()
@@ -297,8 +296,8 @@ class TestPolicyRerunKeepsTheEpisodePublished:
     """A processed-only served feed builds from episodes.status, so a rerun
     that flipped the row to pending pulled the episode out of the feed."""
 
-    def test_status_and_stored_detail_survive_the_fire(self):
-        db = Database()
+    def test_status_and_stored_detail_survive_the_fire(self, temp_db):
+        db = temp_db
         slug = 'published-through-rerun-feed'
         db.create_podcast(slug, 'https://example.com/feed.xml', 'A Podcast')
         for i in range(3):

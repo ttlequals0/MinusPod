@@ -17,6 +17,7 @@
 - [Logs](#logs)
 - [Resource usage](#resource-usage)
 - [Cloudflare tunnel](#cloudflare-tunnel-optional)
+- [Upload size behind a proxy](#upload-size-behind-a-proxy)
 - [Security notes](#security-notes)
 
 This page covers running MinusPod in production: health monitoring, backups, updates, and the common operational issues. For first-time install see [Installation](installation.md); for the complete environment variable reference see [Environment Variables](environment-variables.md).
@@ -201,6 +202,22 @@ Measure cold startup and a complete episode with [the resource-check procedure](
 ## Cloudflare tunnel (optional)
 
 For remote access without port forwarding, set `TUNNEL_TOKEN` and `MINUSPOD_TRUSTED_PROXY_COUNT=1` in `.env`, then run `docker-compose --profile tunnel up -d`. Setup steps and what breaks without the proxy count are in [Remote access and security](security-and-storage.md#remote-access-and-security).
+
+### Upload size behind a proxy
+
+MinusPod's own limit is the Max upload size setting (default 1024 MB; see [Local upload size limit](configuration.md#local-upload-size-limit)). A proxy in front of it can reject a larger upload first, and that rejection never reaches MinusPod.
+
+- Cloudflare caps request bodies at 100 MB on the Free, Pro and Business plans and returns its own 413. Uploads larger than that need a direct route: a VPN, a LAN address, or an Enterprise plan.
+- nginx defaults `client_max_body_size` to 1 MB. Match it to the MinusPod setting:
+
+```nginx
+location / {
+    client_max_body_size 1g;
+    proxy_request_buffering off;
+}
+```
+
+- Traefik and Caddy do not cap request body size by default.
 
 ## Security notes
 

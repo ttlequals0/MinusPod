@@ -790,6 +790,7 @@ def _build_settings_payload():
         'maxArtworkBytes': _sv('max_artwork_bytes', max_artwork_bytes),
         'maxRssBytes': _sv('max_rss_bytes', max_rss_bytes),
         'maxAudioDownloadMb': _sv('max_audio_download_mb', max_audio_download_mb),
+        'localUploadMaxMb': _sv('local_upload_max_mb', _int_setting('local_upload_max_mb')),
         'whisperApiTimeoutSeconds': _sv('whisper_api_timeout_seconds', whisper_api_timeout_seconds),
         'transcribeMaxChunkSeconds': _sv('transcribe_max_chunk_seconds', transcribe_max_chunk_seconds),
         'transcribeConcurrentChunks': _sv('transcribe_concurrent_chunks', transcribe_concurrent_chunks),

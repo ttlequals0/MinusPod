@@ -10,7 +10,7 @@
  * wrapper funnels through.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { ApiError, apiRequest } from './client';
+import { ApiError, apiFileRequest, apiRequest } from './client';
 
 // Minimal fetch Response stand-in: only the surface apiRequest actually
 // reads (status/ok/headers.get/json), so this doesn't depend on whatever
@@ -136,5 +136,45 @@ describe('ApiError: conflict bodies', () => {
     const error = await apiRequest('/x', { method: 'POST' }).catch((e: unknown) => e);
 
     expect((error as ApiError).jobState).toBeUndefined();
+  });
+});
+
+describe('413 mapping', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  const htmlResponse = () => ({
+    ok: false,
+    status: 413,
+    headers: { get: () => 'text/html' },
+    json: async () => { throw new SyntaxError('Unexpected token <'); },
+  } as unknown as Response);
+
+  it('explains a proxy 413 with an HTML body', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(htmlResponse()));
+
+    const error = await apiRequest('/x', { method: 'POST' }).catch((e: unknown) => e);
+
+    expect(error).toBeInstanceOf(ApiError);
+    expect((error as ApiError).status).toBe(413);
+    expect((error as ApiError).message).toBe('The file is too large for the server or a proxy in front of it.');
+  });
+
+  it('keeps the server error text for a JSON 413', async () => {
+    const msg = 'File is too large. This server accepts up to 1024 MB per upload.';
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(fakeResponse({ error: msg, status: 413, maxUploadMb: 1024 }, 413)));
+
+    const error = await apiRequest('/x', { method: 'POST' }).catch((e: unknown) => e);
+
+    expect((error as ApiError).message).toBe(msg);
+  });
+
+  it('maps a proxy 413 in apiFileRequest too', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(htmlResponse()));
+
+    const error = await apiFileRequest('/x', { method: 'POST' }).catch((e: unknown) => e);
+
+    expect((error as Error).message).toBe('The file is too large for the server or a proxy in front of it.');
   });
 });

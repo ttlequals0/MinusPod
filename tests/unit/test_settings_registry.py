@@ -164,6 +164,7 @@ SEED_SNAPSHOT = {
     'failover_whisper_language': '',
     'failover_probe_interval_minutes': '5',
     'failover_recovery_probes': '3',
+    'local_upload_max_mb': '1024',
     'whisper_max_attempts': '2',
 }
 
@@ -540,11 +541,12 @@ class TestGetDefaults:
         # they came from (164 -> 162; 2.98.0, mark_action_from_ad_chapters_v1).
         # audioEncoderCompressionLevel added after that (165 -> 166).
         # autoProcessMaxAgeHours added after that (171 -> 172).
+        # localUploadMaxMb added after that (172 -> 173).
         payload_keys = {
             spec.payload_key for spec in SETTINGS_REGISTRY.values()
             if spec.payload_key
         }
-        assert len(payload_keys) == 172
+        assert len(payload_keys) == 173
         assert 'systemoneBaseUrl' in payload_keys
         assert 'failoverWhisperMaxAttempts' in payload_keys
         assert 'audioCuePairOrientWindowSeconds' not in payload_keys

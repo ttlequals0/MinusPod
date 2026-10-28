@@ -890,6 +890,7 @@ export interface Settings {
   maxArtworkBytes: SettingValueNumber;
   maxRssBytes: SettingValueNumber;
   maxAudioDownloadMb: SettingValueNumber;
+  localUploadMaxMb: SettingValueNumber;
   adDetectionParallelWindows: SettingValueNumber;
   adReviewerParallelAds: SettingValueNumber;
   transcribeMaxChunkSeconds: SettingValueNumber;
@@ -1088,6 +1089,7 @@ export interface Settings {
     maxArtworkBytes: number;
     maxRssBytes: number;
     maxAudioDownloadMb: number;
+    localUploadMaxMb: number;
     providerRequestsPerMin: number;
     providerRequestsPerDay: number;
     secondaryProviderRequestsPerMin: number;
@@ -1222,6 +1224,7 @@ export interface UpdateSettingsPayload {
   maxArtworkBytes?: number;
   maxRssBytes?: number;
   maxAudioDownloadMb?: number;
+  localUploadMaxMb?: number;
   adDetectionParallelWindows?: number;
   adReviewerParallelAds?: number;
   transcribeMaxChunkSeconds?: number;

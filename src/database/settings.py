@@ -29,6 +29,7 @@ from config import (
     AD_REVIEWER_PARALLEL_ADS_DEFAULT,
     MAX_ARTWORK_BYTES_MIN, MAX_ARTWORK_BYTES_MAX, MAX_RSS_BYTES_MIN,
     MAX_AUDIO_DOWNLOAD_MB_MIN,
+    LOCAL_UPLOAD_MAX_MB_MIN, LOCAL_UPLOAD_MAX_MB_MAX, LOCAL_UPLOAD_MAX_MB_DEFAULT,
     MIN_CONTENT_BETWEEN_ADS_SECONDS,
     MAX_AD_DURATION, MAX_AD_DURATION_CONFIRMED, MAX_AD_DURATION_WINDOW,
     REVIEW_MAX_BOUNDARY_SHIFT_DEFAULT,
@@ -835,6 +836,10 @@ SETTINGS_REGISTRY: dict[str, SettingSpec] = {
     'max_audio_download_mb': SettingSpec(
         env_backed=True, in_ad_reset=True, payload_key='maxAudioDownloadMb',
         payload_factory=_payload_max_audio_download_mb),
+    'local_upload_max_mb': SettingSpec(
+        default=str(LOCAL_UPLOAD_MAX_MB_DEFAULT), seeded=True,
+        validator=_int_in_range((LOCAL_UPLOAD_MAX_MB_MIN, LOCAL_UPLOAD_MAX_MB_MAX)),
+        payload_key='localUploadMaxMb', payload_kind='int'),
     # Manual per-provider request-rate limits (#747); 0 = unlimited.
     'provider_requests_per_min': SettingSpec(
         env_backed=True, payload_key='providerRequestsPerMin', payload_kind='int'),

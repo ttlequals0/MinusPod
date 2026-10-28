@@ -241,6 +241,7 @@ function Settings() {
   const [maxArtworkBytes, setMaxArtworkBytes] = useState(26214400);
   const [maxRssBytes, setMaxRssBytes] = useState(209715200);
   const [maxAudioDownloadMb, setMaxAudioDownloadMb] = useState(500);
+  const [localUploadMaxMb, setLocalUploadMaxMb] = useState(1024);
   const [vttTranscriptsEnabled, setVttTranscriptsEnabled] = useState(false);
   const [chaptersEnabled, setChaptersEnabled] = useState(false);
   const [chaptersInNotes, setChaptersInNotes] = useState(false);
@@ -890,6 +891,7 @@ function Settings() {
     { key: 'maxArtworkBytes', kind: 'val', useDefault: true, value: maxArtworkBytes, set: setMaxArtworkBytes },
     { key: 'maxRssBytes', kind: 'val', useDefault: true, value: maxRssBytes, set: setMaxRssBytes },
     { key: 'maxAudioDownloadMb', kind: 'val', useDefault: true, value: maxAudioDownloadMb, set: setMaxAudioDownloadMb },
+    { key: 'localUploadMaxMb', kind: 'val', useDefault: true, value: localUploadMaxMb, set: setLocalUploadMaxMb },
     // Global behavior / output toggles
     { key: 'autoProcessEnabled', kind: 'val', useDefault: true, value: autoProcessEnabled, set: setAutoProcessEnabled },
     { key: 'autoProcessMaxAgeHours', kind: 'val', useDefault: true, literal: AUTO_PROCESS_WINDOW.default, value: autoProcessMaxAgeHours, set: setAutoProcessMaxAgeHours },
@@ -1701,6 +1703,8 @@ function Settings() {
         onAudioNormalizeIntensityChange={setAudioNormalizeIntensity}
         maxAudioDownloadMb={maxAudioDownloadMb}
         onMaxAudioDownloadMbChange={setMaxAudioDownloadMb}
+        localUploadMaxMb={localUploadMaxMb}
+        onLocalUploadMaxMbChange={setLocalUploadMaxMb}
       />
 
       <Podcasting20Section

@@ -110,6 +110,16 @@ export function getErrorMessage(err: unknown, fallback = 'Request failed'): stri
   return err instanceof Error ? err.message : fallback;
 }
 
+const PROXY_413_MESSAGE =
+  'The file is too large for the server or a proxy in front of it.';
+
+// A proxy 413 has an HTML body, so a body without our JSON error string gets the proxy hint.
+function errorMessageFor(body: unknown, status: number): string {
+  const hasError = typeof (body as { error?: unknown } | null)?.error === 'string';
+  if (status === 413 && !hasError) return PROXY_413_MESSAGE;
+  return extractErrorMessage(body ?? { error: 'Request failed' }, status);
+}
+
 // Thrown by apiRequest on a non-ok response, carrying the HTTP status so
 // callers can branch on it (e.g. treat 404 as "not found" vs any other error)
 // without string-matching the message, plus the parsed body. A 409 conflict
@@ -192,8 +202,8 @@ export async function apiRequest<T>(endpoint: string, options: RequestOptions = 
           await sleep(delay, signal);
           continue;
         }
-        const error = await response.json().catch(() => ({ error: 'Request failed' }));
-        throw new ApiError(extractErrorMessage(error, response.status), response.status, error);
+        const error = await response.json().catch(() => null);
+        throw new ApiError(errorMessageFor(error, response.status), response.status, error ?? { error: 'Request failed' });
       }
 
       const contentType = response.headers.get('content-type');
@@ -269,8 +279,8 @@ export async function apiFileRequest(
   }
 
   if (!response.ok) {
-    const error = await response.json().catch(() => ({ error: 'Request failed' }));
-    throw new Error(extractErrorMessage(error, response.status));
+    const error = await response.json().catch(() => null);
+    throw new Error(errorMessageFor(error, response.status));
   }
 
   const blob = await response.blob();

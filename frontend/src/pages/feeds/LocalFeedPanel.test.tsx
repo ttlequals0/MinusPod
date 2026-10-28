@@ -44,6 +44,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import LocalFeedPanel from './LocalFeedPanel';
 import type { Feed } from '../../api/types';
 import type { ImportPlan, ImportUploadResult, ImportStatus } from '../../api/feeds';
+import { ApiError } from '../../api/client';
 
 // CollapsibleSection defaults closed; render children unconditionally so the
 // panel's contents are queryable without simulating a click first (mirrors
@@ -75,6 +76,11 @@ const mockImportScan = vi.fn();
 const mockImportCommit = vi.fn();
 const mockImportStatus = vi.fn();
 const mockClearImportStaging = vi.fn();
+const mockGetSettings = vi.fn();
+
+vi.mock('../../api/settings', () => ({
+  getSettings: (...args: unknown[]) => mockGetSettings(...args),
+}));
 
 vi.mock('../../api/feeds', () => ({
   updateFeed: (...args: unknown[]) => mockUpdateFeed(...args),
@@ -149,6 +155,7 @@ describe('LocalFeedPanel', () => {
     vi.clearAllMocks();
     mockImportStatus.mockResolvedValue(IDLE_STATUS);
     mockClearImportStaging.mockResolvedValue({ message: 'staging cleared' });
+    mockGetSettings.mockResolvedValue({ localUploadMaxMb: { value: 2, isDefault: false } });
   });
 
   it('renders for a local feed', async () => {
@@ -1000,5 +1007,83 @@ describe('LocalFeedPanel', () => {
 
     await waitFor(() => expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['episodes', 'archive-show'] }));
     expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['feed', 'archive-show'] });
+  });
+
+  it('shows the upload limit under the import and Add episode file inputs', async () => {
+    const user = userEvent.setup();
+    renderPanel(makeFeed());
+
+    expect(await screen.findByText('Up to 2 MB per file')).toBeDefined();
+    await user.click(screen.getByRole('button', { name: 'Add episode' }));
+    expect(await screen.findByText('Up to 2 MB per upload')).toBeDefined();
+  });
+
+  it('does not send an oversize file from Add episode and shows the size error', async () => {
+    const user = userEvent.setup();
+    renderPanel(makeFeed());
+    await screen.findByText('Up to 2 MB per file');
+
+    await user.click(screen.getByRole('button', { name: 'Add episode' }));
+    const input = document.getElementById('add-ep-audio') as HTMLInputElement;
+    const big = new File([new Uint8Array(3 * 1024 * 1024)], 'big.mp3', { type: 'audio/mpeg' });
+    await user.upload(input, big);
+    await user.click(screen.getAllByRole('button', { name: 'Add episode' }).slice(-1)[0]);
+
+    expect((await screen.findByRole('alert')).textContent).toBe(
+      'big.mp3 is 3.0 MB. This server accepts up to 2.0 MB per upload.',
+    );
+    expect(mockUploadLocalEpisode).not.toHaveBeenCalled();
+  });
+
+  it('counts artwork toward the Add episode limit and disables submit', async () => {
+    const user = userEvent.setup();
+    renderPanel(makeFeed());
+    await screen.findByText('Up to 2 MB per file');
+
+    await user.click(screen.getByRole('button', { name: 'Add episode' }));
+    const audio = new File([new Uint8Array(1.5 * 1024 * 1024)], 'a.mp3', { type: 'audio/mpeg' });
+    const art = new File([new Uint8Array(1024 * 1024)], 'art.png', { type: 'image/png' });
+    await user.upload(document.getElementById('add-ep-audio') as HTMLInputElement, audio);
+    await user.upload(document.querySelector('#add-episode-form input[type="file"][accept*="image"]') as HTMLInputElement, art);
+
+    expect((await screen.findByRole('alert')).textContent).toBe(
+      'a.mp3 with artwork is 2.5 MB. This server accepts up to 2.0 MB per upload.',
+    );
+    const submit = screen.getAllByRole('button', { name: 'Add episode' }).slice(-1)[0] as HTMLButtonElement;
+    expect(submit.disabled).toBe(true);
+  });
+
+  it('adds the Cloudflare hint to a proxy 413 on Add episode', async () => {
+    const user = userEvent.setup();
+    mockUploadLocalEpisode.mockRejectedValue(
+      new ApiError('The file is too large for the server or a proxy in front of it.', 413, {}));
+    renderPanel(makeFeed());
+    await screen.findByText('Up to 2 MB per file');
+
+    await user.click(screen.getByRole('button', { name: 'Add episode' }));
+    const input = document.getElementById('add-ep-audio') as HTMLInputElement;
+    await user.upload(input, new File(['x'], 'ok.mp3', { type: 'audio/mpeg' }));
+    await user.click(screen.getAllByRole('button', { name: 'Add episode' }).slice(-1)[0]);
+
+    expect((await screen.findByRole('alert')).textContent).toBe(
+      'The file is too large for the server or a proxy in front of it. Cloudflare caps uploads at 100 MB on most plans.',
+    );
+  });
+
+  it('lists an oversize import file as rejected without uploading it', async () => {
+    const user = userEvent.setup();
+    mockImportUpload.mockResolvedValue({ staged: ['small.mp3'], rejected: [] });
+    mockImportScan.mockResolvedValue(makePlan({ rejected: [] }));
+    renderPanel(makeFeed());
+    await screen.findByText('Up to 2 MB per file');
+
+    const fileInput = document.querySelector('input[type="file"][multiple]') as HTMLInputElement;
+    const big = new File([new Uint8Array(3 * 1024 * 1024)], 'big.mp3', { type: 'audio/mpeg' });
+    const small = new File(['x'], 'small.mp3', { type: 'audio/mpeg' });
+    await user.upload(fileInput, [big, small]);
+
+    expect(await screen.findByText('big.mp3 is 3.0 MB. This server accepts up to 2.0 MB per upload.')).toBeDefined();
+    expect(mockImportUpload).toHaveBeenCalledTimes(1);
+    expect(mockImportUpload).toHaveBeenCalledWith('archive-show', [small]);
   });
 });

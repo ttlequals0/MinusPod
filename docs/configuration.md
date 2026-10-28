@@ -443,6 +443,10 @@ Matching is case-insensitive, and a bare pattern matches anywhere in the agent s
 
 API: `jitBlockedUserAgents` (array of strings) on `PUT /api/v1/settings/ad-detection`.
 
+### Local upload size limit
+
+Caps the size of one local-feed upload request (a single episode or a batch of staged import files). Set it in Settings > Audio > Max upload size, or with `localUploadMaxMb` on `PUT /api/v1/settings/ad-detection`. Default 1024 MB, range 1 to 10240 MB. A reverse proxy or Cloudflare in front of the server may cap uploads lower than this setting; see [Upload size behind a proxy](DEPLOYMENT.md#upload-size-behind-a-proxy).
+
 ## Output audio
 
 Settings > Output > Audio has independent **Replacement sound** and **MP3 stream

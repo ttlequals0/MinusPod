@@ -56,26 +56,37 @@ beforeEach(() => {
   mockGet.mockResolvedValue(makeAudio());
 });
 
+type AudioSectionProps = React.ComponentProps<typeof AudioSection>;
+
+function renderAudioSection(overrides: Partial<AudioSectionProps> = {}) {
+  const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  return render(
+    <QueryClientProvider client={qc}>
+      <AudioSection
+        audioBitrate="128k" onAudioBitrateChange={vi.fn()}
+        audioEncoderCompressionLevel="default" onAudioEncoderCompressionLevelChange={vi.fn()}
+        audioReplacementSoundEnabled onAudioReplacementSoundEnabledChange={vi.fn()}
+        audioMp3StreamCopyEnabled={false} onAudioMp3StreamCopyEnabledChange={vi.fn()}
+        audioNormalizeEnabled onAudioNormalizeEnabledChange={vi.fn()}
+        audioNormalizeIntensity="normal" onAudioNormalizeIntensityChange={vi.fn()}
+        maxAudioDownloadMb={500} onMaxAudioDownloadMbChange={vi.fn()}
+        localUploadMaxMb={1024} onLocalUploadMaxMbChange={vi.fn()}
+        {...overrides}
+      />
+    </QueryClientProvider>,
+  );
+}
+
 describe('Audio output choices', () => {
   it('keeps stream copy independent of replacement sound and fallback controls', async () => {
     localStorage.removeItem('settings-section-audio');
     const user = userEvent.setup();
     const onSound = vi.fn();
     const onCopy = vi.fn();
-    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-    render(
-      <QueryClientProvider client={qc}>
-        <AudioSection
-          audioBitrate="128k" onAudioBitrateChange={vi.fn()}
-          audioEncoderCompressionLevel="default" onAudioEncoderCompressionLevelChange={vi.fn()}
-          audioReplacementSoundEnabled onAudioReplacementSoundEnabledChange={onSound}
-          audioMp3StreamCopyEnabled={false} onAudioMp3StreamCopyEnabledChange={onCopy}
-          audioNormalizeEnabled onAudioNormalizeEnabledChange={vi.fn()}
-          audioNormalizeIntensity="normal" onAudioNormalizeIntensityChange={vi.fn()}
-          maxAudioDownloadMb={500} onMaxAudioDownloadMbChange={vi.fn()}
-        />
-      </QueryClientProvider>,
-    );
+    renderAudioSection({
+      onAudioReplacementSoundEnabledChange: onSound,
+      onAudioMp3StreamCopyEnabledChange: onCopy,
+    });
     await user.click(screen.getByRole('button', { name: 'Audio' }));
     const sound = screen.getByRole('switch', { name: 'Replacement sound' });
     const copy = screen.getByRole('switch', { name: 'MP3 stream copy' });
@@ -95,25 +106,27 @@ describe('Audio output choices', () => {
     localStorage.removeItem('settings-section-audio');
     const user = userEvent.setup();
     const onLevelChange = vi.fn();
-    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-    render(
-      <QueryClientProvider client={qc}>
-        <AudioSection
-          audioBitrate="128k" onAudioBitrateChange={vi.fn()}
-          audioEncoderCompressionLevel="default" onAudioEncoderCompressionLevelChange={onLevelChange}
-          audioReplacementSoundEnabled onAudioReplacementSoundEnabledChange={vi.fn()}
-          audioMp3StreamCopyEnabled={false} onAudioMp3StreamCopyEnabledChange={vi.fn()}
-          audioNormalizeEnabled onAudioNormalizeEnabledChange={vi.fn()}
-          audioNormalizeIntensity="normal" onAudioNormalizeIntensityChange={vi.fn()}
-          maxAudioDownloadMb={500} onMaxAudioDownloadMbChange={vi.fn()}
-        />
-      </QueryClientProvider>,
-    );
+    renderAudioSection({ onAudioEncoderCompressionLevelChange: onLevelChange });
     await user.click(screen.getByRole('button', { name: 'Audio' }));
     const select = screen.getByLabelText('Encoder compression level') as HTMLSelectElement;
     expect(select.value).toBe('default');
     await user.selectOptions(select, '7');
     expect(onLevelChange).toHaveBeenCalledWith('7');
+  });
+
+  it('renders the upload limit field and reports a committed change', async () => {
+    localStorage.removeItem('settings-section-audio');
+    const user = userEvent.setup();
+    const onUploadChange = vi.fn();
+    renderAudioSection({ onLocalUploadMaxMbChange: onUploadChange });
+    await user.click(screen.getByRole('button', { name: 'Audio' }));
+    const input = screen.getByLabelText('Max upload size (MB)') as HTMLInputElement;
+    expect(input.value).toBe('1024');
+    expect(screen.getByText(/A reverse proxy or Cloudflare in front of the server may cap uploads lower/)).toBeDefined();
+    await user.clear(input);
+    await user.type(input, '2048');
+    await user.tab();
+    expect(onUploadChange).toHaveBeenCalledWith(2048);
   });
 });
 
