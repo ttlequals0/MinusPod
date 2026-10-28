@@ -187,7 +187,7 @@ function AudioSection({
               id="localUploadMaxMb"
               value={localUploadMaxMb}
               min={1}
-              max={10240}
+              max={4096}
               fallback={1024}
               parse={(s) => parseInt(s, 10)}
               onCommit={(mb) => {

@@ -6970,7 +6970,7 @@ paths:
                 localUploadMaxMb:
                   type: integer
                   minimum: 1
-                  maximum: 10240
+                  maximum: 4096
                   default: 1024
                   description: Maximum size in MB of one local-feed upload request.
                   example: 1024
@@ -16500,12 +16500,12 @@ components:
               type: boolean
         localUploadMaxMb:
           type: object
-          description: Maximum size in MB of one local-feed upload request (1 to 10240, default 1024).
+          description: Maximum size in MB of one local-feed upload request (1 to 4096, default 1024).
           properties:
             value:
               type: integer
               minimum: 1
-              maximum: 10240
+              maximum: 4096
             isDefault:
               type: boolean
         autoProcessEnabled:

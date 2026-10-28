@@ -445,7 +445,7 @@ API: `jitBlockedUserAgents` (array of strings) on `PUT /api/v1/settings/ad-detec
 
 ### Local upload size limit
 
-Caps the size of one local-feed upload request (a single episode or a batch of staged import files). Set it in Settings > Audio > Max upload size, or with `localUploadMaxMb` on `PUT /api/v1/settings/ad-detection`. Default 1024 MB, range 1 to 10240 MB. A reverse proxy or Cloudflare in front of the server may cap uploads lower than this setting; see [Upload size behind a proxy](DEPLOYMENT.md#upload-size-behind-a-proxy).
+Caps the size of one local-feed upload request (a single episode or a batch of staged import files). Set it in Settings > Audio > Max upload size, or with `localUploadMaxMb` on `PUT /api/v1/settings/ad-detection`. Default 1024 MB, range 1 to 4096 MB. A reverse proxy or Cloudflare in front of the server may cap uploads lower than this setting; see [Upload size behind a proxy](DEPLOYMENT.md#upload-size-behind-a-proxy).
 
 ## Output audio
 

@@ -25,7 +25,7 @@ def hdr(app_client):
     get_database().clear_setting('local_upload_max_mb')
 
 
-@pytest.mark.parametrize('value', [1, 10240])
+@pytest.mark.parametrize('value', [1, 4096])
 def test_put_accepts_bounds(app_client, hdr, value):
     r = app_client.put('/api/v1/settings/ad-detection',
                        json={'localUploadMaxMb': value}, headers=hdr)
@@ -33,7 +33,7 @@ def test_put_accepts_bounds(app_client, hdr, value):
     assert app_client.get('/api/v1/settings').get_json()['localUploadMaxMb']['value'] == value
 
 
-@pytest.mark.parametrize('value', [0, 10241, 'abc'])
+@pytest.mark.parametrize('value', [0, 4097, 'abc'])
 def test_put_rejects_invalid(app_client, hdr, value):
     r = app_client.put('/api/v1/settings/ad-detection',
                        json={'localUploadMaxMb': value}, headers=hdr)

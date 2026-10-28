@@ -2606,7 +2606,7 @@ MAX_ARTWORK_BYTES_MAX = 50 * 1024 * 1024
 MAX_RSS_BYTES_MIN = 1024 * 1024
 MAX_AUDIO_DOWNLOAD_MB_MIN = 1
 LOCAL_UPLOAD_MAX_MB_MIN = 1
-LOCAL_UPLOAD_MAX_MB_MAX = 10240
+LOCAL_UPLOAD_MAX_MB_MAX = 4096
 LOCAL_UPLOAD_MAX_MB_DEFAULT = 1024
 # Advisory threshold only -- the download cap is the disk-fill guard, so
 # values past 10 GB log a warning but are honored (no hard ceiling; a

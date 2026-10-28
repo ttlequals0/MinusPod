@@ -16,7 +16,7 @@ release notes.
 ### Added
 
 - The local upload size limit is now a setting (Settings > Audio > Max upload
-  size, or `localUploadMaxMb` in the API; default 1 GB, range 1 to 10240 MB).
+  size, or `localUploadMaxMb` in the API; default 1 GB, range 1 to 4096 MB).
   The server's own 413 response names the limit, and the docs explain the
   Cloudflare and nginx body-size caps that can sit in front of it (#920).
 
