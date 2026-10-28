@@ -23,6 +23,8 @@ def _settings(backend):
 def missing_stack(monkeypatch):
     monkeypatch.setattr(transcriber.local, '_LOCAL_IMPORT_ERROR',
                         ImportError('No module named faster_whisper'))
+    # A model another test already loaded would be served before the guard runs.
+    monkeypatch.setattr(transcriber.local.WhisperModelSingleton, '_instance', None)
 
 
 def test_module_imports_without_local_packages():

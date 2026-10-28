@@ -45,6 +45,9 @@ release notes.
   that log a lone surrogate now route it to the recorder without the root
   logger, since xdist cannot send that text back from a worker, and a
   prefetch test waits for the lookahead before changing the chunk size.
+  Tests share one database, so a fixture now reverts any setting a test
+  leaves behind and the missing-stack transcriber tests reset the model
+  singleton; the suite passes under every xdist distribution mode.
 
 ## [2.100.24] - 2026-10-27
 

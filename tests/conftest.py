@@ -76,6 +76,34 @@ def patch_settings_db(temp_db, monkeypatch):
     return temp_db
 
 
+def _settings_snapshot(db):
+    rows = db.get_connection().execute("SELECT key, value, is_default FROM settings").fetchall()
+    return {row['key']: (row['value'], bool(row['is_default'])) for row in rows}
+
+
+@pytest.fixture(autouse=True)
+def _undo_leaked_settings():
+    """Revert setting writes a test leaves behind: tests share one database,
+    and under xdist a leaked value lands in another module's assertion."""
+    db = Database._instance
+    try:
+        before = _settings_snapshot(db) if db is not None else None
+    except Exception:
+        before = None
+    yield
+    if before is None:
+        return
+    try:
+        after = _settings_snapshot(db)
+    except Exception:
+        return
+    for key, (value, is_default) in before.items():
+        if after.get(key) != (value, is_default):
+            db.set_setting(key, value, is_default)
+    for key in after.keys() - before.keys():
+        db.clear_setting(key)
+
+
 @pytest.fixture
 def preserve_setting():
     """Factory: snapshot a global setting's value and is_default, restore after.
