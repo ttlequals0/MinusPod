@@ -176,7 +176,7 @@ Every term the app uses, in plain words, with a link to the part of the docs tha
 
 **Prompt caching** - Reusing a static prompt prefix across LLM calls. MinusPod requests a 5-minute cache for Anthropic system prompts and records cache reads and writes inside input-token usage for every provider. Cached input on OpenAI-compatible and OpenRouter calls bills at the model's cache read rate when one is known. [LLM Providers > Prompt caching](llm-providers.md#prompt-caching)
 
-**Parakeet** - NVIDIA Parakeet TDT 0.6B v3, the second local transcription backend. It runs in-process through ONNX Runtime and is selected with `WHISPER_BACKEND=parakeet`. [Transcription > Parakeet](transcription.md#parakeet)
+**Parakeet** - NVIDIA Parakeet TDT 0.6B v3, the recommended local transcription backend. It runs in-process through ONNX Runtime and is selected with `WHISPER_BACKEND=parakeet`. [Transcription > Parakeet](transcription.md#parakeet)
 
 **Partial detection** - An episode published from pattern and cross-fetch cuts alone after the AI detection pass failed. Shows an amber badge and a Re-run detection banner on the episode page; one automatic low-priority re-detect is also queued. [How It Works > Partial Detection](how-it-works.md#partial-detection)
 

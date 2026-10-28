@@ -48,6 +48,9 @@ release notes.
 
 ### Changed
 
+- Docs: Parakeet is now the recommended local transcription backend. The
+  `WHISPER_BACKEND` default is unchanged.
+
 - CI runs pytest on all runner cores with pytest-xdist. Two run-log tests
   that log a lone surrogate now route it to the recorder without the root
   logger, since xdist cannot send that text back from a worker, and a

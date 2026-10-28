@@ -27,7 +27,7 @@ MinusPod has three transcription backends. Pick one with `WHISPER_BACKEND` or in
 | Backend | `WHISPER_BACKEND` | Runs where | Good at | Settings that apply |
 |---|---|---|---|---|
 | faster-whisper (default) | `local` | In the container: CUDA in the GPU image, CPU in the CPU image | Proper names, sponsor names, promo codes; several model sizes | `WHISPER_MODEL`, `WHISPER_COMPUTE_TYPE`, `WHISPER_DEVICE`, language |
-| Parakeet TDT 0.6B v3 | `parakeet` | In the container through onnx-asr: CUDA in the GPU image, CPU in the CPU image | Speed on a GPU; fewer repetition loops | `WHISPER_DEVICE`, language |
+| Parakeet TDT 0.6B v3 (recommended) | `parakeet` | In the container through onnx-asr: CUDA in the GPU image, CPU in the CPU image | Speed on a GPU; fewer repetition loops | `WHISPER_DEVICE`, language |
 | Remote API | `openai-api` | A separate server (whisper.cpp, Groq, OpenAI, OpenVINO) | Hosts with no GPU; offloading to another machine | `WHISPER_API_BASE_URL`, `WHISPER_API_KEY`, `WHISPER_API_MODEL`, `whisperMaxAttempts` |
 
 Every backend runs without a GPU.
@@ -43,7 +43,7 @@ Measured on a Tesla T4 across three episodes:
 - Names: Parakeet is weaker on sponsor names and promo codes, so transcript normalization rules (Settings > AI & Processing > Transcript Normalization) matter more with it.
 - Fillers: Parakeet keeps "uh" and "um" in the transcript.
 
-Based on those numbers, Parakeet suits a GPU host that wants shorter processing time, and faster-whisper suits shows where sponsor names and codes drive detection. Use the remote API backend when the host has no usable GPU.
+Parakeet is the recommended local backend. It is a smaller model (0.6B parameters against 1.55B for Whisper large-v3), it transcribes faster, and detection results matched. `WHISPER_BACKEND` still defaults to `local`, so an existing install keeps its transcriber until you set `WHISPER_BACKEND=parakeet` or pick it in Settings > Transcription > Backend. Stay on faster-whisper for shows where sponsor names and promo codes drive detection and normalization rules do not cover them. Use the remote API backend when the host has no usable GPU.
 
 ## Whisper (faster-whisper)
 
@@ -71,7 +71,7 @@ Sources:
 
 ## Parakeet
 
-NVIDIA Parakeet TDT 0.6B v3 is the second local transcription backend. It runs through ONNX Runtime inside the MinusPod container: on CUDA in the GPU image and on CPU in the CPU image. No separate server is needed.
+NVIDIA Parakeet TDT 0.6B v3 is the recommended local transcription backend. It runs through ONNX Runtime inside the MinusPod container: on CUDA in the GPU image and on CPU in the CPU image. No separate server is needed.
 
 Select it in Settings > Transcription > Backend with "Local (Parakeet TDT 0.6B v3)", or set:
 
