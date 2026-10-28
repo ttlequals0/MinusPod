@@ -110,6 +110,9 @@ class TestChunkPrefetcher:
             p = _ChunkPrefetcher('/tmp/in.mp3')
             try:
                 consumed = p.take(0, 1800, 7200, 30)
+                # Let the lookahead run first: an extraction still queued
+                # is cancelled instead and leaves no file to check.
+                _wait_for(lambda: len(made) == 1 + EXTRACT_PREFETCH_AHEAD)
                 # Chunk size halved (OOM shrink): the next take misses the
                 # queued (0, ...) key family and rebuilds the queue.
                 fresh = p.take(0, 900, 7200, 30)
