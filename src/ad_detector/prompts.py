@@ -8,7 +8,6 @@ import copy
 import logging
 import json
 import re
-from functools import lru_cache
 from collections import Counter
 from typing import NamedTuple
 
@@ -910,8 +909,7 @@ AD_DETECTION_JSON_SCHEMA = {
 AD_SCHEMA_TEXT_MAX_CHARS = 300
 
 
-@lru_cache(maxsize=None)
-def ad_detection_json_schema(addressing_mode: str) -> dict:
+def _mode_detection_schema(addressing_mode: str) -> dict:
     """The detection schema for one addressing mode, for enforcing decoders.
 
     An enforcing decoder such as Ollama's ``format`` emits an optional field
@@ -930,6 +928,14 @@ def ad_detection_json_schema(addressing_mode: str) -> dict:
              else ["start", "end"])
     item["required"] = edges + ["start_text", "end_text", "category", "confidence", "reason"]
     return schema
+
+
+# Built once; callers pass these through unchanged, like AD_DETECTION_JSON_SCHEMA.
+_MODE_DETECTION_SCHEMAS = {mode: _mode_detection_schema(mode) for mode in ("timestamps", "segment_ids")}
+
+
+def ad_detection_json_schema(addressing_mode: str) -> dict:
+    return _MODE_DETECTION_SCHEMAS["segment_ids" if addressing_mode == "segment_ids" else "timestamps"]
 
 
 # Small fixed budget: the repair call only ever emits a short JSON array,

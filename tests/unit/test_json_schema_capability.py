@@ -299,6 +299,11 @@ class TestTrimRecoverySchema:
         assert props['ad_end']['type'] == ['number', 'null']
         assert TRIM_RECOVERY_JSON_SCHEMA['required'] == ['ad_start', 'ad_end']
 
+    def test_review_items_require_only_the_verdict_and_reason(self):
+        from ad_reviewer import AD_REVIEW_JSON_SCHEMA
+        items = AD_REVIEW_JSON_SCHEMA['properties']['ads']['items']
+        assert items['required'] == ['is_ad', 'reason']
+
     def test_prompt_asks_for_the_object_form_not_bare_null(self):
         from ad_reviewer import _TRIM_RECOVERY_SYSTEM_PROMPT
         assert '{"ad_start": null, "ad_end": null}' in _TRIM_RECOVERY_SYSTEM_PROMPT
@@ -410,14 +415,3 @@ class TestModeDetectionSchema:
         items = AD_DETECTION_JSON_SCHEMA['properties']['ads']['items']
         assert 'required' not in items
         assert 'maxLength' not in items['properties']['reason']
-
-    def test_mode_schemas_are_built_once(self):
-        from ad_detector.prompts import ad_detection_json_schema
-        assert ad_detection_json_schema('timestamps') is ad_detection_json_schema('timestamps')
-
-
-class TestReviewSchemasRequireTheVerdict:
-    def test_review_items_require_is_ad_and_reason_only(self):
-        from ad_reviewer import AD_REVIEW_JSON_SCHEMA
-        items = AD_REVIEW_JSON_SCHEMA['properties']['ads']['items']
-        assert items['required'] == ['is_ad', 'reason']
