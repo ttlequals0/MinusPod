@@ -74,6 +74,9 @@ def feed():
     db.create_podcast(SLUG, 'https://example.com/feed.xml', title='Idle')
     set_processing_paused(False, db)
     ProcessingQueue().clear_all()
+    # A queued row another test left behind would be claimed instead of idling.
+    db.get_connection().execute("DELETE FROM auto_process_queue")
+    db.get_connection().commit()
     yield
     ProcessingQueue().clear_all()
     db.delete_podcast(SLUG)
