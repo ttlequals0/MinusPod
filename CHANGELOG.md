@@ -11,18 +11,7 @@ release notes.
 
 ## [Unreleased]
 
-### Fixed
-- Ollama: the JSON schema response format toggle now applies to Ollama, which
-  sends the detection schema as the native `/api/chat` `format` (no probe).
-  In plain JSON mode a model cannot return the ad list the prompt asks for:
-  gemma4 answered with one bare ad object per window or picked its own key
-  (`items`, `results`, `ad_spans`), so a window's second and later ads, or all
-  of them, were lost. Detection windows now send a per-addressing-mode schema
-  that requires the fields the prompt requires and caps free text, since an
-  enforcing decoder otherwise skips category and end_text and can loop inside
-  a string until max_tokens.
-
-## [2.100.25] - 2026-10-27
+## [2.100.26] - 2026-10-28
 
 ### Fixed
 
@@ -35,6 +24,27 @@ release notes.
   swallow the start of a fingerprinted sponsor read, and every later stage
   deferred to that estimate. The operator's per-category keep still applies to
   markers of that category.
+- Ollama: the JSON schema response format toggle now applies to Ollama, which
+  sends the detection schema as the native `/api/chat` `format` (no probe).
+  In plain JSON mode a model cannot return the ad list the prompt asks for:
+  gemma4 answered with one bare ad object per window or picked its own key
+  (`items`, `results`, `ad_spans`), so a window's second and later ads, or all
+  of them, were lost. Detection windows now send a per-addressing-mode schema
+  that requires the fields the prompt requires and caps free text, since an
+  enforcing decoder otherwise skips category and end_text and can loop inside
+  a string until max_tokens.
+- JSON schema responses require what the prompt requires. The per-mode
+  detection schema now also requires `start_text`, the reviewer schema
+  requires `is_ad` and `reason` on every item, and the trim-recovery schema
+  requires both nullable edges, so an enforcing decoder cannot drop the
+  verdict or an edge quote.
+
+### Changed
+
+- CI runs pytest on all runner cores with pytest-xdist. Two run-log tests
+  that log a lone surrogate now route it to the recorder without the root
+  logger, since xdist cannot send that text back from a worker, and a
+  prefetch test waits for the lookahead before changing the chunk size.
 
 ## [2.100.24] - 2026-10-27
 

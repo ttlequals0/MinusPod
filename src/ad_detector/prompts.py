@@ -8,6 +8,7 @@ import copy
 import logging
 import json
 import re
+from functools import lru_cache
 from collections import Counter
 from typing import NamedTuple
 
@@ -909,6 +910,7 @@ AD_DETECTION_JSON_SCHEMA = {
 AD_SCHEMA_TEXT_MAX_CHARS = 300
 
 
+@lru_cache(maxsize=None)
 def ad_detection_json_schema(addressing_mode: str) -> dict:
     """The detection schema for one addressing mode, for enforcing decoders.
 
@@ -926,7 +928,7 @@ def ad_detection_json_schema(addressing_mode: str) -> dict:
                                  else AD_SCHEMA_TEXT_MAX_CHARS)
     edges = (["start_id", "end_id"] if addressing_mode == "segment_ids"
              else ["start", "end"])
-    item["required"] = edges + ["end_text", "category", "confidence", "reason"]
+    item["required"] = edges + ["start_text", "end_text", "category", "confidence", "reason"]
     return schema
 
 

@@ -98,6 +98,9 @@ AD_REVIEW_JSON_SCHEMA = {
                     "confidence": {"type": "number"},
                     "reason": {"type": "string"},
                 },
+                # An explicit reject carries only these two; an enforcing
+                # decoder may drop the rest, never the verdict.
+                "required": ["is_ad", "reason"],
             },
         },
     },
@@ -346,13 +349,15 @@ _TRIM_RECOVERY_SYSTEM_PROMPT = (
     '{"ad_start": null, "ad_end": null}.'
 )
 
-# #694: nullable and not required so the no-sub-span answer still validates.
+# #694: nullable so the no-sub-span answer still validates; required so an
+# enforcing decoder cannot answer with an empty object.
 TRIM_RECOVERY_JSON_SCHEMA = {
     "type": "object",
     "properties": {
         "ad_start": {"type": ["number", "null"]},
         "ad_end": {"type": ["number", "null"]},
     },
+    "required": ["ad_start", "ad_end"],
 }
 
 

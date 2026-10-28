@@ -2,6 +2,7 @@
 import json
 import logging
 import threading
+from contextlib import contextmanager
 
 import pytest
 
@@ -35,11 +36,18 @@ def _temp_file(recorder):
     return recorder.temp_path
 
 
-def _log_to_recorder_only(recorder, log, message):
-    """Hand a record to the recorder without the root logger. pytest's log
-    capture would hold it too, and pytest-xdist cannot send a lone surrogate
-    from a worker."""
-    recorder.handle(log.makeRecord(log.name, logging.INFO, __file__, 0, message, None, None))
+@contextmanager
+def _recorder_only(recorder, log):
+    """Route ``log`` straight to the recorder, not the root logger: pytest's
+    capture there would hold the record too, and xdist cannot send a lone
+    surrogate back from a worker."""
+    log.propagate = False
+    log.addHandler(recorder)
+    try:
+        yield
+    finally:
+        log.removeHandler(recorder)
+        log.propagate = True
 
 
 class TestKeepRule:
@@ -272,7 +280,8 @@ def _raise_oserror(*args, **kwargs):
 class TestUnwritableText:
     def test_a_lone_surrogate_does_not_disable_the_recorder(self, rec, src_logger):
         rec.attach()
-        _log_to_recorder_only(rec, src_logger, '[my-feed:ep123] transcript said \ud83d and then more')
+        with _recorder_only(rec, src_logger):
+            src_logger.info('[my-feed:ep123] transcript said \ud83d and then more')
         src_logger.info('[my-feed:ep123] still capturing')
         rec.detach()
 
@@ -365,7 +374,8 @@ class TestFinalizeRace:
             self, rec, src_logger, tmp_path):
         rec.attach()
         src_logger.info('[my-feed:ep123] sponsor: Cafe élégant 30s')
-        _log_to_recorder_only(rec, src_logger, '[my-feed:ep123] surrogate \ud83d tail')
+        with _recorder_only(rec, src_logger):
+            src_logger.info('[my-feed:ep123] surrogate \ud83d tail')
         rec.detach()
         final = tmp_path / 'final' / 'run-12.jsonl'
 
