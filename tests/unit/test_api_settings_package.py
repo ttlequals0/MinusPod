@@ -65,6 +65,8 @@ EXPECTED_RULES = [
     ('/api/v1/settings/webhooks/validate-template', ('POST',)),
     ('/api/v1/settings/whisper-models', ('GET',)),
     ('/api/v1/settings/whisper/capacity', ('GET',)),
+    ('/api/v1/settings/youtube', ('GET',)),
+    ('/api/v1/settings/youtube', ('PUT',)),
 ]
 
 

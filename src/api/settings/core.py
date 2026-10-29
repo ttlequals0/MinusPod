@@ -40,6 +40,7 @@ from llm_client import (
 )
 from utils.opml import modified_feed_url
 from api.settings import common, operations
+from youtube import settings as yt_settings
 
 
 # ========== Settings Endpoints ==========
@@ -713,6 +714,8 @@ def _build_settings_payload():
         'providerBMaxRetries': _sv('secondary_llm_max_retries', provider_b_max_retries),
         'whisperMaxAttempts': _sv('whisper_max_attempts', whisper_max_attempts),
         'podcastIndexApiKeyConfigured': bool(podcast_index_api_key),
+        'youtubeEnabled': _sv('youtube_enabled', yt_settings.load_global(db).enabled),
+        'youtubeApiKeyConfigured': bool(yt_settings.api_key(db)),
         # value is resolved, not raw: unset falls back to PodcastIndex when
         # its credentials exist (pre-option installs keep their behavior),
         # else iTunes. isDefault marks a derived value; saving from the UI

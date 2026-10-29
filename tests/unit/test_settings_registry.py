@@ -166,6 +166,15 @@ SEED_SNAPSHOT = {
     'failover_recovery_probes': '3',
     'local_upload_max_mb': '1024',
     'whisper_max_attempts': '2',
+    'youtube_enabled': 'false',
+    'youtube_process_delay_minutes': '60',
+    'youtube_sb_probe_attempts': '6',
+    'youtube_sb_probe_interval_minutes': '30',
+    'youtube_sb_watch_interval_hours': '6',
+    'youtube_sb_watch_max_days': '7',
+    'youtube_llm_fallback': 'true',
+    'youtube_captions_as_transcript': 'true',
+    'youtube_ytdlp_auto_update': 'true',
 }
 
 # The pre-registry bulk reset endpoint reset exactly these keys
@@ -542,11 +551,12 @@ class TestGetDefaults:
         # audioEncoderCompressionLevel added after that (165 -> 166).
         # autoProcessMaxAgeHours added after that (171 -> 172).
         # localUploadMaxMb added after that (172 -> 173).
+        # youtubeEnabled added after that (173 -> 174).
         payload_keys = {
             spec.payload_key for spec in SETTINGS_REGISTRY.values()
             if spec.payload_key
         }
-        assert len(payload_keys) == 173
+        assert len(payload_keys) == 174
         assert 'systemoneBaseUrl' in payload_keys
         assert 'failoverWhisperMaxAttempts' in payload_keys
         assert 'audioCuePairOrientWindowSeconds' not in payload_keys

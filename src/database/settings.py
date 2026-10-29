@@ -840,6 +840,21 @@ SETTINGS_REGISTRY: dict[str, SettingSpec] = {
         default=str(LOCAL_UPLOAD_MAX_MB_DEFAULT), seeded=True,
         validator=_int_in_range((LOCAL_UPLOAD_MAX_MB_MIN, LOCAL_UPLOAD_MAX_MB_MAX)),
         payload_key='localUploadMaxMb', payload_kind='int'),
+    # YouTube feeds (#898)
+    'youtube_enabled': SettingSpec(default='false', seeded=True, validator=_one_of('true', 'false'),
+                                   payload_key='youtubeEnabled', payload_kind='bool'),
+    'youtube_process_delay_minutes': SettingSpec(default='60', seeded=True, validator=_int_in_range((0, 1440))),
+    'youtube_sb_probe_attempts': SettingSpec(default='6', seeded=True, validator=_int_in_range((0, 48))),
+    'youtube_sb_probe_interval_minutes': SettingSpec(default='30', seeded=True, validator=_int_in_range((5, 1440))),
+    'youtube_sb_watch_interval_hours': SettingSpec(default='6', seeded=True, validator=_int_in_range((1, 48))),
+    'youtube_sb_watch_max_days': SettingSpec(default='7', seeded=True, validator=_int_in_range((1, 60))),
+    'youtube_llm_fallback': SettingSpec(default='true', seeded=True, validator=_one_of('true', 'false')),
+    'youtube_captions_as_transcript': SettingSpec(default='true', seeded=True, validator=_one_of('true', 'false')),
+    'youtube_ytdlp_auto_update': SettingSpec(default='true', seeded=True, validator=_one_of('true', 'false')),
+    'youtube_ytdlp_version': SettingSpec(resettable=False),
+    'youtube_ytdlp_last_update_at': SettingSpec(resettable=False),
+    'youtube_ytdlp_last_check_at': SettingSpec(resettable=False),
+    'youtube_ytdlp_last_error': SettingSpec(resettable=False),
     # Manual per-provider request-rate limits (#747); 0 = unlimited.
     'provider_requests_per_min': SettingSpec(
         env_backed=True, payload_key='providerRequestsPerMin', payload_kind='int'),

@@ -53,6 +53,7 @@ SECRET_SETTING_KEYS = frozenset(
         "failover_whisper_api_key",
         "podcast_index_api_key",
         "podcast_index_api_secret",
+        "youtube_api_key",
         "email_smtp_password",
     }
 )
