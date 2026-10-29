@@ -143,6 +143,7 @@ RUN : "$MINUSPOD_VERSION" && apt-get update && apt-get install -y --no-install-r
     libsndfile1 \
     libchromaprint-tools \
     tzdata \
+    unzip \
     && apt-get upgrade -y \
     && rm -rf /usr/lib/python3/dist-packages/cryptography* \
               /usr/lib/python3/dist-packages/PyJWT* \
@@ -152,6 +153,30 @@ RUN : "$MINUSPOD_VERSION" && apt-get update && apt-get install -y --no-install-r
     && rm -rf /usr/bin/pebble /var/lib/pebble \
     && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/* \
     && setpriv --reuid=nobody --regid=nogroup --init-groups true
+
+# yt-dlp floor: the pinned release is baked in; the app copies it to the data
+# volume on boot and self-updates there, so a new image never downgrades it.
+ARG TARGETARCH
+ARG DENO_VERSION=v2.9.8
+COPY ytdlp-version.txt /tmp/ytdlp-version.txt
+RUN set -eu; \
+    YTDLP_VERSION=$(tr -d '[:space:]' < /tmp/ytdlp-version.txt); \
+    case "${TARGETARCH:-amd64}" in \
+      amd64) YTDLP_ASSET=yt-dlp_linux; DENO_ASSET=deno-x86_64-unknown-linux-gnu.zip ;; \
+      arm64) YTDLP_ASSET=yt-dlp_linux_aarch64; DENO_ASSET=deno-aarch64-unknown-linux-gnu.zip ;; \
+      *) echo "unsupported TARGETARCH ${TARGETARCH}" >&2; exit 1 ;; \
+    esac; \
+    base="https://github.com/yt-dlp/yt-dlp/releases/download/${YTDLP_VERSION}"; \
+    curl -fsSL -o /tmp/yt-dlp "${base}/${YTDLP_ASSET}"; \
+    curl -fsSL -o /tmp/SHA2-256SUMS "${base}/SHA2-256SUMS"; \
+    grep " ${YTDLP_ASSET}\$" /tmp/SHA2-256SUMS | sed "s| ${YTDLP_ASSET}| /tmp/yt-dlp|" | sha256sum -c -; \
+    install -m 0755 /tmp/yt-dlp /usr/local/bin/yt-dlp; \
+    curl -fsSL -o /tmp/deno.zip "https://github.com/denoland/deno/releases/download/${DENO_VERSION}/${DENO_ASSET}"; \
+    curl -fsSL -o /tmp/deno.zip.sha256sum "https://github.com/denoland/deno/releases/download/${DENO_VERSION}/${DENO_ASSET}.sha256sum"; \
+    (cd /tmp && sed 's|  .*| deno.zip|' deno.zip.sha256sum | sha256sum -c -); \
+    unzip -q /tmp/deno.zip -d /usr/local/bin && chmod 0755 /usr/local/bin/deno; \
+    rm -f /tmp/yt-dlp /tmp/SHA2-256SUMS /tmp/deno.zip /tmp/deno.zip.sha256sum /tmp/ytdlp-version.txt; \
+    /usr/local/bin/yt-dlp --version && /usr/local/bin/deno --version
 
 # Set python3.12 as default, create venv for all pip installs
 # Venv avoids pip 26+ "uninstall-no-record-file" errors with system packages
@@ -233,6 +258,7 @@ RUN apt-get update \
 # CPU transcription is slow on small/medium/large; for real workloads point
 # WHISPER_BACKEND=openai-api at Groq, OpenAI, or a self-hosted whisper.cpp.
 ENV HOME=/app/data \
+    DENO_DIR=/app/data/.cache/deno \
     WHISPER_MODEL=tiny \
     WHISPER_DEVICE=cpu \
     HF_HOME=/app/data/.cache \

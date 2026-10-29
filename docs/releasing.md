@@ -25,19 +25,20 @@ carry curated, operator-facing notes.
 
 ## Per-release flow (maintainer)
 
-1. On the release branch, build the GPU image for `linux/amd64`. Run the
+1. Run `scripts/bump_ytdlp.sh` so the image ships the latest yt-dlp release as its floor. Commit the `ytdlp-version.txt` change with the release.
+2. On the release branch, build the GPU image for `linux/amd64`. Run the
    container smoke check below, scan it, and push the version tag. Stop
    if any GPU step fails.
-2. Dispatch the native multi-architecture CPU workflow from the release
+3. Dispatch the native multi-architecture CPU workflow from the release
    branch: `gh workflow run cpu-image.yml -f version=X.Y.Z --ref <branch>`.
    Watch the `linux/amd64` and `linux/arm64` jobs and the manifest merge.
    CPU and GPU Trivy reports are separate. Record CPU-only findings
    in the PR; they do not block the GPU release.
-3. Merge the release PR to main with squash subject `Short description
+4. Merge the release PR to main with squash subject `Short description
    (X.Y.Z) (#PR)` only after both images and required PR checks pass.
-4. On up-to-date main: `scripts/publish_release.sh X.Y.Z`. This creates
+5. On up-to-date main: `scripts/publish_release.sh X.Y.Z`. This creates
    the annotated tag and the GitHub pre-release.
-5. Publishing the pre-release triggers the release-tags workflow
+6. Publishing the pre-release triggers the release-tags workflow
    (`.github/workflows/release-tags.yml`), which moves `latest` to the
    new GPU image and `cpu` to the new CPU image (waiting up to 10
    minutes for the CPU build to finish). The workflow skips itself when
