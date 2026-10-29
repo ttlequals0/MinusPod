@@ -76,6 +76,10 @@ def is_recents_feed(podcast: dict | None) -> bool:
     return bool(podcast) and podcast.get('feed_type') == 'recents'
 
 
+def is_youtube_feed(podcast: dict | None) -> bool:
+    return bool(podcast) and podcast.get('feed_type') == 'youtube'
+
+
 def recents_cutoff(podcast: dict) -> str:
     """Membership starts on the day the row was created: a date-only string
     sorts before any timestamp of that day, so `published_at >= cutoff` works."""
@@ -375,6 +379,10 @@ class PodcastMixin:
                 'audio_replacement_sound_override', 'audio_mp3_stream_copy_override',
                 'p20_channel_json', 'author', 'explicit', 'categories',
                 'artwork_failure_state',
+                'youtube_source_kind', 'youtube_source_id', 'youtube_include_shorts',
+                'yt_process_delay_minutes_override', 'yt_probe_attempts_override',
+                'yt_probe_interval_minutes_override', 'yt_llm_fallback_override',
+                'yt_llm_on_top_override', 'yt_captions_override',
             ):
                 fields.append(f"{key} = ?")
                 values.append(value)

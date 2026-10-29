@@ -27,6 +27,7 @@ from database.provider_admission import ProviderAdmissionMixin
 from database.upload_reservations import UploadReservationMixin
 from database.failover_events import FailoverEventsMixin
 from database.pattern_cleanup import PatternCleanupMixin
+from database.youtube import YouTubeMixin
 from utils.paths import resolve_data_dir
 
 logger = logging.getLogger(__name__)
@@ -481,7 +482,7 @@ class Database(SchemaMixin, PodcastMixin, EpisodeMixin, SettingsMixin,
                QueueMixin, SearchMixin, AuthLockoutMixin, PodpingHostMixin,
                FeedSubscriberMixin, ProviderAdmissionMixin,
                UploadReservationMixin, FailoverEventsMixin, PatternCleanupMixin,
-               DownloadHistoryMixin):
+               DownloadHistoryMixin, YouTubeMixin):
     """SQLite database manager with thread-safe connections."""
 
     _instance = None

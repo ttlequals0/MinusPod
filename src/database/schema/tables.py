@@ -144,6 +144,15 @@ TABLE_DDL['podcasts'] = """CREATE TABLE IF NOT EXISTS podcasts (
     author TEXT,
     explicit INTEGER,
     categories TEXT,
+    youtube_source_kind TEXT,
+    youtube_source_id TEXT,
+    youtube_include_shorts INTEGER,
+    yt_process_delay_minutes_override INTEGER,
+    yt_probe_attempts_override INTEGER,
+    yt_probe_interval_minutes_override INTEGER,
+    yt_llm_fallback_override INTEGER,
+    yt_llm_on_top_override INTEGER,
+    yt_captions_override INTEGER,
     deletion_requested_at TEXT,
     created_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
     updated_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
@@ -215,6 +224,13 @@ TABLE_DDL['episodes'] = """CREATE TABLE IF NOT EXISTS episodes (
     deletion_requested_at TEXT,
     -- Per-episode pass-through override, issue #746.
     passthrough_enabled INTEGER,
+    youtube_video_id TEXT,
+    sb_state TEXT,
+    sb_next_check_at TEXT,
+    sb_attempts INTEGER NOT NULL DEFAULT 0,
+    sb_segment_uuids TEXT,
+    sb_last_error TEXT,
+    sb_note TEXT,
     created_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
     updated_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
     FOREIGN KEY (podcast_id) REFERENCES podcasts(id) ON DELETE CASCADE,
@@ -925,6 +941,7 @@ CREATE INDEX IF NOT EXISTS idx_episodes_episode_id ON episodes(episode_id);
 CREATE INDEX IF NOT EXISTS idx_episodes_podcast_episode ON episodes(podcast_id, episode_id);
 CREATE INDEX IF NOT EXISTS idx_episodes_status ON episodes(status);
 CREATE INDEX IF NOT EXISTS idx_episodes_created_at ON episodes(created_at);
+CREATE INDEX IF NOT EXISTS idx_episodes_sb_next_check ON episodes(sb_next_check_at) WHERE sb_next_check_at IS NOT NULL;
 
 -- Cross-episode training indexes (indexes on new columns created in migrations)
 CREATE INDEX IF NOT EXISTS idx_patterns_sponsor_id ON ad_patterns(sponsor_id) WHERE is_active = 1;

@@ -1,0 +1,58 @@
+"""YouTube feed and SponsorBlock state queries."""
+import logging
+
+logger = logging.getLogger(__name__)
+
+SB_COLUMNS = frozenset({
+    'youtube_video_id', 'sb_state', 'sb_next_check_at', 'sb_attempts',
+    'sb_segment_uuids', 'sb_last_error', 'sb_note',
+})
+
+
+class YouTubeMixin:
+    def update_episode_sponsorblock(self, slug: str, episode_id: str, **fields) -> bool:
+        unknown = set(fields) - SB_COLUMNS
+        if unknown:
+            raise ValueError(f"not a SponsorBlock column: {', '.join(sorted(unknown))}")
+        if not fields:
+            return False
+        db_id = self._get_episode_db_id(slug, episode_id)
+        if not db_id:
+            return False
+        assignments = ', '.join(f"{col} = ?" for col in fields)
+        conn = self.get_connection()
+        conn.execute(
+            f"UPDATE episodes SET {assignments}, "  # noqa: S608
+            "updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now') WHERE id = ?",
+            (*fields.values(), db_id))
+        conn.commit()
+        return True
+
+    def get_due_sponsorblock_episodes(self, now_iso: str, limit: int = 50) -> list[dict]:
+        cursor = self.get_connection().execute(
+            """SELECT e.episode_id, e.title, e.original_url, e.published_at, e.description,
+                      e.status, e.youtube_video_id, e.sb_state, e.sb_attempts,
+                      e.sb_next_check_at, e.sb_segment_uuids, e.podcast_id,
+                      e.original_duration, p.slug
+               FROM episodes e JOIN podcasts p ON p.id = e.podcast_id
+               WHERE p.feed_type = 'youtube' AND e.sb_next_check_at IS NOT NULL
+                     AND e.sb_next_check_at <= ?
+               ORDER BY e.sb_next_check_at ASC LIMIT ?""",
+            (now_iso, limit))
+        return [dict(row) for row in cursor.fetchall()]
+
+    def get_youtube_feed_episodes_for_rss(self, podcast_id: int, limit: int | None) -> list[dict]:
+        query = ("SELECT * FROM episodes WHERE podcast_id = ? AND status = 'processed' "
+                 "AND processed_file IS NOT NULL "
+                 "ORDER BY COALESCE(published_at, created_at) DESC")
+        params: list = [podcast_id]
+        if limit:
+            query += " LIMIT ?"
+            params.append(limit)
+        cursor = self.get_connection().execute(query, params)
+        return [dict(row) for row in cursor.fetchall()]
+
+    def count_youtube_feeds(self) -> int:
+        row = self.get_connection().execute(
+            "SELECT COUNT(*) AS n FROM podcasts WHERE feed_type = 'youtube'").fetchone()
+        return int(row['n']) if row else 0

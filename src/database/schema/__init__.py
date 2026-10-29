@@ -682,6 +682,17 @@ class SchemaMixin:
             # cover is not retried until its backoff window elapses even
             # after a process restart.
             ('artwork_failure_state', 'TEXT'),
+            # YouTube feeds: source identity plus per-feed SponsorBlock
+            # overrides (NULL inherits the global setting).
+            ('youtube_source_kind', 'TEXT'),
+            ('youtube_source_id', 'TEXT'),
+            ('youtube_include_shorts', 'INTEGER'),
+            ('yt_process_delay_minutes_override', 'INTEGER'),
+            ('yt_probe_attempts_override', 'INTEGER'),
+            ('yt_probe_interval_minutes_override', 'INTEGER'),
+            ('yt_llm_fallback_override', 'INTEGER'),
+            ('yt_llm_on_top_override', 'INTEGER'),
+            ('yt_captions_override', 'INTEGER'),
         ]
         for col, definition in podcasts_migrations:
             self._add_column_if_missing(conn, 'podcasts', col, definition, pod_cols)
@@ -690,6 +701,17 @@ class SchemaMixin:
             episode_cols = self._get_table_columns(conn, 'episodes')
             self._add_column_if_missing(
                 conn, 'episodes', 'deletion_requested_at', 'TEXT', episode_cols)
+            for col, definition in (
+                    ('youtube_video_id', 'TEXT'),
+                    ('sb_state', 'TEXT'),
+                    ('sb_next_check_at', 'TEXT'),
+                    ('sb_attempts', 'INTEGER NOT NULL DEFAULT 0'),
+                    ('sb_segment_uuids', 'TEXT'),
+                    ('sb_last_error', 'TEXT'),
+                    ('sb_note', 'TEXT')):
+                self._add_column_if_missing(conn, 'episodes', col, definition, episode_cols)
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_episodes_sb_next_check "
+                         "ON episodes(sb_next_check_at) WHERE sb_next_check_at IS NOT NULL")
 
         # -- audio_cue_templates table columns --
         act_cols = self._get_table_columns(conn, 'audio_cue_templates')
