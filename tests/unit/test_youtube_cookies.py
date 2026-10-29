@@ -28,3 +28,19 @@ def test_save_writes_0600_and_reports_status(tmp_path):
 def test_save_rejects_non_netscape(tmp_path):
     with pytest.raises(cookies.InvalidCookiesError):
         cookies.save(FakeStorage(tmp_path), 'PREF=f6=1; path=/')
+
+
+def test_httponly_row_counts_as_cookie(tmp_path):
+    row = "#HttpOnly_.youtube.com\tTRUE\t/\tTRUE\t1800000000\tSID\tabc"
+    assert cookies.save(FakeStorage(tmp_path), row)['lines'] == 1
+
+
+def test_header_plus_garbage_rejected(tmp_path):
+    with pytest.raises(cookies.InvalidCookiesError):
+        cookies.save(FakeStorage(tmp_path), "# Netscape HTTP Cookie File\nnot a cookie row\n")
+
+
+def test_trailing_tab_on_empty_value_kept(tmp_path):
+    row = ".youtube.com\tTRUE\t/\tTRUE\t1800000000\tPREF\t"
+    assert cookies.save(FakeStorage(tmp_path), row)['lines'] == 1
+    assert cookies.path(FakeStorage(tmp_path)).read_text().endswith('PREF\t\n')

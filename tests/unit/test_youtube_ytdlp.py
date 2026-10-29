@@ -78,3 +78,22 @@ def test_update_binary_records_version(tmp_path):
         result = ytdlp.update_binary(storage, db)
     assert result == {'updated': True, 'version': '2026.10.27', 'error': None}
     db.set_setting.assert_any_call('youtube_ytdlp_version', '2026.10.27', is_default=False)
+
+
+def test_ensure_leaves_no_temp_files(tmp_path):
+    baked = tmp_path / 'baked' / 'yt-dlp'
+    _fake_binary(baked, '2026.10.26')
+    storage = FakeStorage(tmp_path / 'data')
+    with patch.object(ytdlp, 'BAKED_PATH', str(baked)):
+        ytdlp.ensure_runtime_binary(storage, MagicMock())
+    assert [p.name for p in ytdlp.runtime_dir(storage).iterdir()] == ['yt-dlp']
+
+
+def test_update_tick_swallows_errors_and_records(tmp_path):
+    db = MagicMock()
+    db.get_setting_bool.return_value = True
+    stub = MagicMock(storage=FakeStorage(tmp_path))
+    with patch.dict('sys.modules', {'main_app': stub}), \
+            patch.object(ytdlp, 'ensure_runtime_binary', side_effect=PermissionError('denied')):
+        ytdlp.update_tick(db)
+    db.set_setting.assert_any_call('youtube_ytdlp_last_error', 'denied', is_default=False)

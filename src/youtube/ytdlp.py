@@ -3,6 +3,7 @@ import logging
 import os
 import shutil
 import subprocess
+import tempfile
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -16,6 +17,7 @@ UPDATE_INTERVAL = timedelta(hours=24)
 _UPDATE_HINTS = ('please report this issue', 'unable to extract',
                  'requested format is not available', 'nsig extraction failed')
 _booted = False
+_ensured_path: Path | None = None
 
 
 class YtDlpNotInstalled(RuntimeError):
@@ -46,15 +48,32 @@ def _version_tuple(text: str | None) -> tuple:
         return ()
 
 
+def _install_baked(target: Path) -> None:
+    """Copy the baked binary next to target, then rename over it (safe under concurrent workers)."""
+    target.parent.mkdir(parents=True, exist_ok=True)
+    fd, tmp = tempfile.mkstemp(dir=target.parent, prefix='.yt-dlp-')
+    os.close(fd)
+    try:
+        shutil.copyfile(BAKED_PATH, tmp)
+        os.chmod(tmp, 0o755)
+        os.replace(tmp, target)
+    except BaseException:
+        try:
+            os.unlink(tmp)
+        except FileNotFoundError:
+            pass
+        raise
+
+
 def ensure_runtime_binary(storage, db) -> Path:
+    global _ensured_path
     target = runtime_path(storage)
     baked_version = binary_version(BAKED_PATH)
     if not os.path.exists(target):
         if baked_version is None:
             raise YtDlpNotInstalled('yt-dlp is not installed in this image')
-        target.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copyfile(BAKED_PATH, target)
-        target.chmod(0o755)
+        _install_baked(target)
+        _ensured_path = target
         return target
     target.chmod(0o755)
     current = binary_version(target)
@@ -63,15 +82,19 @@ def ensure_runtime_binary(storage, db) -> Path:
         logger.warning(RUNTIME_NOT_EXECUTABLE)
         return Path(BAKED_PATH)
     if _version_tuple(baked_version) > _version_tuple(current):
-        shutil.copyfile(BAKED_PATH, target)
-        target.chmod(0o755)
+        _install_baked(target)
+    _ensured_path = target
     return target
 
 
 def run(args: list[str], *, timeout: int, cwd=None, storage=None, db=None) -> subprocess.CompletedProcess:
     # Lazy import: main_app imports this package at startup.
     from main_app import db as app_db, storage as app_storage
-    binary = ensure_runtime_binary(storage or app_storage, db or app_db)
+    storage = storage or app_storage
+    if _ensured_path is not None and _ensured_path == runtime_path(storage) and _ensured_path.exists():
+        binary = _ensured_path
+    else:
+        binary = ensure_runtime_binary(storage, db or app_db)
     try:
         return subprocess.run([str(binary), *args], capture_output=True, text=True,
                               timeout=timeout, cwd=cwd)
@@ -116,25 +139,24 @@ def update_binary(storage, db, *, force: bool = False) -> dict:
 def update_tick(db):
     """Daily self-update, once at boot then every 24 h. Never raises."""
     global _booted
-    if not db.get_setting_bool('youtube_enabled', False):
-        return
-    from main_app import storage  # lazy: avoids an import cycle
     try:
+        if not db.get_setting_bool('youtube_enabled', False):
+            return
+        from main_app import storage  # lazy: avoids an import cycle
         ensure_runtime_binary(storage, db)
-    except YtDlpNotInstalled as exc:
-        db.set_setting('youtube_ytdlp_last_error', str(exc), is_default=False)
-        return
-    if not db.get_setting_bool('youtube_ytdlp_auto_update', True):
-        return
-    last = parse_iso_utc(db.get_setting('youtube_ytdlp_last_check_at'))
-    if _booted and last and datetime.now(timezone.utc) - last < UPDATE_INTERVAL:
-        return
-    _booted = True
-    try:
+        if not db.get_setting_bool('youtube_ytdlp_auto_update', True):
+            return
+        last = parse_iso_utc(db.get_setting('youtube_ytdlp_last_check_at'))
+        if _booted and last and datetime.now(timezone.utc) - last < UPDATE_INTERVAL:
+            return
+        _booted = True
         update_binary(storage, db)
     except Exception as exc:
         logger.warning(f"yt-dlp update failed: {exc}")
-        db.set_setting('youtube_ytdlp_last_error', str(exc)[:500], is_default=False)
+        try:
+            db.set_setting('youtube_ytdlp_last_error', str(exc)[:500], is_default=False)
+        except Exception:
+            logger.warning("could not record yt-dlp error", exc_info=True)
 
 
 def status(storage, db) -> dict:
