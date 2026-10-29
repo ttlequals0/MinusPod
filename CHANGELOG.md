@@ -11,6 +11,19 @@ release notes.
 
 ## [Unreleased]
 
+## [2.101.0] - 2026-10-29
+
+### Added
+
+### Changed
+
+### Security
+
+- Dependency bumps folded in: lucide-react 1.61.0, react-router 8.5.0,
+  wavesurfer.js 8.0.3, vite 8.3.5, @testing-library/user-event 14.6.8,
+  soupsieve 3.0.4, actions/setup-python 7.1.0, docker/login-action 4.7.0
+  (#902, #903, #905, #906, #907, #908, #909, #910).
+
 ## [2.100.26] - 2026-10-28
 
 ### Added
