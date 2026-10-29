@@ -1,0 +1,249 @@
+"""List videos for a YouTube feed through the Data API or yt-dlp."""
+import json
+import logging
+import re
+from dataclasses import dataclass
+from datetime import datetime, timezone
+from urllib.parse import urlencode
+
+import requests
+
+from config import HTTP_TIMEOUT_API
+from rss_parser import RSSParser
+from utils.app_version import APP_VERSION
+from utils.safe_http import URLTrust, read_response_capped, safe_get
+from utils.url import SSRFError
+from youtube import settings as yt_settings, ytdlp
+from youtube.urls import Source, uploads_playlist, watch_url
+
+logger = logging.getLogger(__name__)
+
+API = 'https://www.googleapis.com/youtube/v3'
+API_MAX_BYTES = 2 * 1024 * 1024
+SHORTS_MAX_SECONDS = 180
+_ISO_DURATION = re.compile(r'^P(?:(\d+)D)?T?(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?$')
+_ids = RSSParser()
+
+
+class DiscoveryError(Exception):
+    pass
+
+
+class SourceNotFound(DiscoveryError):
+    pass
+
+
+class QuotaExceeded(DiscoveryError):
+    pass
+
+
+@dataclass(frozen=True)
+class SourceInfo:
+    kind: str
+    id: str
+    title: str
+    description: str
+    artwork_url: str | None
+    video_count: int | None
+
+
+def parse_iso_duration(text) -> float | None:
+    if not text:
+        return None
+    m = _ISO_DURATION.match(text)
+    if not m:
+        return None
+    days, hours, minutes, seconds = (int(x or 0) for x in m.groups())
+    return float(days * 86400 + hours * 3600 + minutes * 60 + seconds)
+
+
+def _api_get(path: str, params: dict) -> dict:
+    url = f"{API}/{path}?{urlencode(params)}"
+    try:
+        response = safe_get(url, URLTrust.OPERATOR_CONFIGURED, timeout=HTTP_TIMEOUT_API, stream=True,
+                            headers={'User-Agent': f'MinusPod/{APP_VERSION}'})
+    except (requests.RequestException, SSRFError) as exc:
+        raise DiscoveryError(f'YouTube Data API request failed: {exc}') from exc
+    try:
+        status = response.status_code
+        if status == 200:
+            body = read_response_capped(response, API_MAX_BYTES)
+        else:
+            text = response.text or ''
+    except (requests.RequestException, ValueError) as exc:
+        raise DiscoveryError(f'YouTube Data API read failed: {exc}') from exc
+    finally:
+        response.close()
+    if status == 403 and 'quotaExceeded' in text:
+        raise QuotaExceeded('YouTube Data API quota exceeded')
+    if status == 404:
+        raise SourceNotFound('Playlist or channel not found')
+    if status != 200:
+        raise DiscoveryError(f'YouTube Data API error {status}')
+    return json.loads(body.decode('utf-8'))
+
+
+def _ytdlp_json(url: str, extra: list[str], timeout: int) -> dict:
+    result = ytdlp.run(['--flat-playlist', '--dump-single-json', '--no-warnings', *extra, url], timeout=timeout)
+    if result.returncode != 0:
+        error = ytdlp.trimmed_error(result.stderr)
+        low = error.lower()
+        if 'does not exist' in low or 'private' in low or 'unavailable' in low or 'not found' in low:
+            raise SourceNotFound(error)
+        raise DiscoveryError(error)
+    try:
+        return json.loads(result.stdout)
+    except ValueError as exc:
+        raise DiscoveryError('yt-dlp returned unreadable JSON') from exc
+
+
+def _best_thumb(thumbs) -> str | None:
+    if isinstance(thumbs, dict):
+        for key in ('maxres', 'standard', 'high', 'medium', 'default'):
+            if thumbs.get(key, {}).get('url'):
+                return thumbs[key]['url']
+        return None
+    if isinstance(thumbs, list) and thumbs:
+        return (thumbs[-1] or {}).get('url')
+    return None
+
+
+def _source_url(source: Source) -> str:
+    if source.kind == 'playlist':
+        return f'https://www.youtube.com/playlist?list={source.id}'
+    if source.kind == 'channel':
+        return f'https://www.youtube.com/channel/{source.id}'
+    if source.kind == 'handle':
+        return f'https://www.youtube.com/@{source.id}'
+    return f'https://www.youtube.com/{"user" if source.kind == "user" else "c"}/{source.id}'
+
+
+def resolve_source(db, source: Source) -> SourceInfo:
+    key = yt_settings.api_key(db)
+    if key:
+        try:
+            return _resolve_with_api(key, source)
+        except QuotaExceeded:
+            logger.warning('YouTube Data API quota exceeded; resolving with yt-dlp')
+    data = _ytdlp_json(_source_url(source), ['--playlist-items', '0'], timeout=120)
+    if source.kind == 'playlist':
+        return SourceInfo('playlist', source.id, data.get('title') or source.id, data.get('description') or '',
+                          _best_thumb(data.get('thumbnails')), data.get('playlist_count'))
+    channel_id = data.get('channel_id') or data.get('uploader_id')
+    if not channel_id or not channel_id.startswith('UC'):
+        raise SourceNotFound('Channel not found')
+    return SourceInfo('channel', channel_id, data.get('channel') or data.get('title') or channel_id,
+                      data.get('description') or '', _best_thumb(data.get('thumbnails')), data.get('playlist_count'))
+
+
+def _resolve_with_api(key: str, source: Source) -> SourceInfo:
+    if source.kind == 'playlist':
+        data = _api_get('playlists', {'part': 'snippet,contentDetails', 'id': source.id, 'key': key})
+        items = data.get('items') or []
+        if not items:
+            raise SourceNotFound('Playlist not found or private')
+        sn = items[0]['snippet']
+        return SourceInfo('playlist', source.id, sn.get('title') or source.id, sn.get('description') or '',
+                          _best_thumb(sn.get('thumbnails')), items[0].get('contentDetails', {}).get('itemCount'))
+    selector = {'channel': 'id', 'handle': 'forHandle', 'user': 'forUsername', 'custom': 'forHandle'}[source.kind]
+    data = _api_get('channels', {'part': 'snippet,statistics', selector: source.id, 'key': key})
+    items = data.get('items') or []
+    if not items:
+        raise SourceNotFound('Channel not found')
+    sn = items[0]['snippet']
+    count = items[0].get('statistics', {}).get('videoCount')
+    return SourceInfo('channel', items[0]['id'], sn.get('title') or items[0]['id'], sn.get('description') or '',
+                      _best_thumb(sn.get('thumbnails')), int(count) if count is not None else None)
+
+
+def _playlist_for(podcast: dict, include_shorts: bool) -> str:
+    if podcast.get('youtube_source_kind') == 'channel':
+        return uploads_playlist(podcast['youtube_source_id'], include_shorts)
+    return podcast['youtube_source_id']
+
+
+def _episode(video_id: str, title: str, description: str, published_iso: str, duration, thumb) -> dict:
+    url = watch_url(video_id)
+    return {
+        'id': _ids.generate_episode_id(url, f'yt:{video_id}'),
+        'video_id': video_id, 'url': url, 'title': title or video_id,
+        'published': published_iso, 'description': description or '', 'artwork_url': thumb,
+        'episode_number': None, 'rss_duration': duration,
+        'upstream_chapters_url': None, 'upstream_transcript_url': None, 'upstream_transcript_type': None,
+        'tags': [],
+    }
+
+
+def _keep(duration, is_live_or_upcoming: bool, include_shorts: bool, from_channel_longform: bool) -> bool:
+    if is_live_or_upcoming:
+        return False
+    if include_shorts or from_channel_longform:
+        return True
+    return duration is None or duration > SHORTS_MAX_SECONDS
+
+
+def list_videos(db, podcast: dict, limit: int) -> list[dict]:
+    include_shorts = bool(podcast.get('youtube_include_shorts'))
+    playlist_id = _playlist_for(podcast, include_shorts)
+    longform = podcast.get('youtube_source_kind') == 'channel' and not include_shorts
+    key = yt_settings.api_key(db)
+    if key:
+        try:
+            return _list_with_api(key, playlist_id, limit, include_shorts, longform)
+        except QuotaExceeded:
+            logger.warning(f"[{podcast.get('slug')}] YouTube Data API quota exceeded; listing with yt-dlp")
+    return _list_with_ytdlp(playlist_id, limit, include_shorts, longform)
+
+
+def _list_with_api(key, playlist_id, limit, include_shorts, longform) -> list[dict]:
+    ids: list[str] = []
+    token = None
+    while len(ids) < limit:
+        params = {'part': 'contentDetails', 'playlistId': playlist_id, 'maxResults': 50, 'key': key}
+        if token:
+            params['pageToken'] = token
+        page = _api_get('playlistItems', params)
+        ids.extend(i['contentDetails']['videoId'] for i in page.get('items') or [])
+        token = page.get('nextPageToken')
+        if not token:
+            break
+    ids = ids[:limit]
+    episodes = []
+    for start in range(0, len(ids), 50):
+        chunk = ids[start:start + 50]
+        data = _api_get('videos', {'part': 'contentDetails,snippet,liveStreamingDetails', 'id': ','.join(chunk), 'key': key})
+        for item in data.get('items') or []:
+            live = item.get('liveStreamingDetails') or {}
+            is_live = bool(live) and not live.get('actualEndTime')
+            duration = parse_iso_duration(item.get('contentDetails', {}).get('duration'))
+            if not _keep(duration, is_live, include_shorts, longform):
+                continue
+            sn = item.get('snippet', {})
+            episodes.append(_episode(item['id'], sn.get('title'), sn.get('description'),
+                                     sn.get('publishedAt') or '', duration, _best_thumb(sn.get('thumbnails'))))
+    return episodes
+
+
+def _published_from_entry(entry: dict) -> str:
+    if entry.get('timestamp'):
+        return datetime.fromtimestamp(int(entry['timestamp']), tz=timezone.utc).isoformat()
+    raw = entry.get('upload_date') or entry.get('release_date')
+    if raw and len(raw) == 8:
+        return datetime(int(raw[:4]), int(raw[4:6]), int(raw[6:]), tzinfo=timezone.utc).isoformat()
+    return ''
+
+
+def _list_with_ytdlp(playlist_id, limit, include_shorts, longform) -> list[dict]:
+    data = _ytdlp_json(f'https://www.youtube.com/playlist?list={playlist_id}',
+                       ['--playlist-end', str(limit), '--extractor-args', 'youtubetab:approximate_date'], timeout=180)
+    episodes = []
+    for entry in data.get('entries') or []:
+        if not entry or not entry.get('id'):
+            continue
+        is_live = entry.get('live_status') in ('is_live', 'is_upcoming', 'post_live')
+        duration = float(entry['duration']) if entry.get('duration') is not None else None
+        if not _keep(duration, is_live, include_shorts, longform):
+            continue
+        episodes.append(_episode(entry['id'], entry.get('title'), entry.get('description'),
+                                 _published_from_entry(entry), duration, _best_thumb(entry.get('thumbnails'))))
+    return episodes

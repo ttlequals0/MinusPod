@@ -253,7 +253,8 @@ def _append_local_episode_item(lines: list, slug: str, ep: dict, base: str,
     lines.append('</item>')
 
 
-def build_local_feed_xml(podcast: dict, episodes: list[dict], *, storage, db) -> str:
+def build_local_feed_xml(podcast: dict, episodes: list[dict], *, storage, db,
+                         channel_link: str | None = None) -> str:
     """Render a local feed's RSS from DB rows only. No upstream fetch."""
     slug = podcast['slug']
     base = rss_parser._resolved_base_url()
@@ -262,7 +263,7 @@ def build_local_feed_xml(podcast: dict, episodes: list[dict], *, storage, db) ->
     channel_json = _load_json_dict(podcast.get('p20_channel_json'))
 
     title = podcast.get('title') or slug
-    channel_link = f"{base}/{slug}"
+    channel_link = channel_link or f"{base}/{slug}"
     description = podcast.get('description') or ''
     # 'auto' is a Whisper transcription-language pin, not an RSS language
     # code -- it must never leak into <language>.
