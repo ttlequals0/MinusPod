@@ -3,6 +3,7 @@ import json
 import logging
 import os
 import shutil
+import subprocess
 import tempfile
 from dataclasses import dataclass, field
 
@@ -61,7 +62,6 @@ def _chapters(info: dict) -> list[dict]:
 
 def download(video_id: str, *, want_captions: bool, language: str) -> DownloadResult:
     """Fetch audio as mp3 into a fresh temp dir; the caller deletes that dir after moving the audio."""
-    work_dir = tempfile.mkdtemp(prefix='minuspod-yt-')
     args = ['-x', '--audio-format', 'mp3', '--audio-quality', resolve_bitrate(), '--no-playlist',
             '--write-info-json', '--embed-chapters', '--no-write-playlist-metafiles', '--no-progress',
             '--no-warnings', '--sleep-requests', '1', '--sleep-interval', '2', '--max-sleep-interval', '8',
@@ -77,18 +77,28 @@ def download(video_id: str, *, want_captions: bool, language: str) -> DownloadRe
     if target:
         args += ['--impersonate', target]
     args.append(watch_url(video_id))
-    result = ytdlp.run(args, timeout=TIMEOUT_S, cwd=work_dir)
-    if result.returncode != 0:
+    work_dir = tempfile.mkdtemp(prefix='minuspod-yt-')
+    try:
+        try:
+            result = ytdlp.run(args, timeout=TIMEOUT_S, cwd=work_dir)
+        except subprocess.TimeoutExpired as exc:
+            raise DownloadError('yt-dlp timed out downloading the video') from exc
+        if result.returncode != 0:
+            raise DownloadError(ytdlp.trimmed_error(result.stderr), needs_update=ytdlp.needs_update(result.stderr))
+        audio_path = os.path.join(work_dir, f'{video_id}.mp3')
+        if not os.path.exists(audio_path):
+            raise DownloadError('yt-dlp finished without producing an mp3')
+        info = {}
+        info_path = os.path.join(work_dir, f'{video_id}.info.json')
+        if os.path.exists(info_path):
+            try:
+                with open(info_path) as fh:
+                    info = json.load(fh)
+            except (OSError, ValueError) as exc:
+                raise DownloadError('yt-dlp wrote an unreadable info file') from exc
+        captions_path = pick_file(work_dir, video_id, language) if want_captions else None
+        return DownloadResult(audio_path=audio_path, info=info, captions_path=captions_path,
+                              chapters=_chapters(info))
+    except BaseException:
         shutil.rmtree(work_dir, ignore_errors=True)
-        raise DownloadError(ytdlp.trimmed_error(result.stderr), needs_update=ytdlp.needs_update(result.stderr))
-    audio_path = os.path.join(work_dir, f'{video_id}.mp3')
-    if not os.path.exists(audio_path):
-        shutil.rmtree(work_dir, ignore_errors=True)
-        raise DownloadError('yt-dlp finished without producing an mp3')
-    info = {}
-    info_path = os.path.join(work_dir, f'{video_id}.info.json')
-    if os.path.exists(info_path):
-        with open(info_path) as fh:
-            info = json.load(fh)
-    captions_path = pick_file(work_dir, video_id, language) if want_captions else None
-    return DownloadResult(audio_path=audio_path, info=info, captions_path=captions_path, chapters=_chapters(info))
+        raise

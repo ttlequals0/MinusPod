@@ -38,7 +38,9 @@ def _pass_through_ads(slug, episode_id, ads_to_remove, *a, **k):
     return ads_to_remove
 
 
-def _run(markers, *, llm_on_top=False, llm_fallback=True, episode_row=None, captions=True, cut_override=None):
+def _run(markers, *, llm_on_top=False, llm_fallback=True, episode_row=None, captions=True,
+         saved_transcript=False, download_error=None):
+    """Drive process_episode for a YouTube feed; extra mocks land in _run.extras."""
     podcast = dict(PODCAST, yt_llm_on_top_override=1 if llm_on_top else None)
     work_dir = tempfile.mkdtemp(prefix='minuspod-yt-test-')
     audio = os.path.join(work_dir, 'vid000000001.mp3')
@@ -62,7 +64,9 @@ def _run(markers, *, llm_on_top=False, llm_fallback=True, episode_row=None, capt
             p(processing, 'status_service')
             storage = p(processing, 'storage')
             storage.get_original_path.return_value = MagicMock(exists=lambda: False)
-            storage.get_transcript.return_value = None
+            storage.get_transcript.return_value = 'saved text' if saved_transcript else None
+            db.get_original_segments.return_value = SEGMENTS if saved_transcript else None
+            db.get_repair_holes.return_value = []
             storage.get_episode_path.return_value = '/tmp/final.mp3'
             ap_singleton = p(processing, 'audio_processor')
             ap_singleton.get_audio_duration.return_value = 3600.0
@@ -75,7 +79,10 @@ def _run(markers, *, llm_on_top=False, llm_fallback=True, episode_row=None, capt
             p(sb_stage.yt_settings, 'resolve_feed', return_value=_settings(llm_fallback=llm_fallback))
             dl = MagicMock(audio_path=audio, info={'id': 'vid000000001'},
                            captions_path='/tmp/c.json3' if captions else None, chapters=[])
-            p(sb_stage.download, 'download', return_value=dl)
+            p(sb_stage.download, 'download', return_value=dl, side_effect=download_error)
+            update_binary = p(sb_stage.ytdlp, 'update_binary')
+            repair = p(transcribe, '_repair_transcript',
+                       side_effect=lambda slug, ep, path, segs, *a, **k: (segs, [], []))
             p(sb_stage.captions, 'load_segments', return_value=SEGMENTS if captions else [])
             p(sb_stage.sponsorblock, 'fetch_segments', return_value=[{'UUID': 'u1'}] if markers else [])
             p(sb_stage.sponsorblock, 'to_markers', return_value=(list(markers), None))
@@ -94,8 +101,9 @@ def _run(markers, *, llm_on_top=False, llm_fallback=True, episode_row=None, capt
               side_effect=lambda s, e, ads, *a, **k: (list(ads), list(ads)))
             p(processing.review, '_run_ad_reviewer',
               side_effect=lambda s, e, pid, ads, all_ads, *a, **k: (ads, all_ads))
-            p(processing.cuts, '_snap_terminal_starts', side_effect=_pass_through_ads)
-            p(processing.cuts, '_complete_cut_tails', side_effect=_pass_through_ads)
+            sweeps = [p(processing.cuts, name, side_effect=_pass_through_ads)
+                      for name in ('_snap_terminal_starts', '_complete_cut_tails',
+                                   '_snap_completed_cut_tails_to_splice')]
             ap = p(processing, 'AudioProcessor')
             p(recut, 'AudioProcessor', new=ap)
             ap.return_value.process_episode.side_effect = (
@@ -111,6 +119,7 @@ def _run(markers, *, llm_on_top=False, llm_fallback=True, episode_row=None, capt
             p(processing.os.path, 'exists', return_value=False)
             ok = processing.process_episode('yt-feed', 'ep1', 'https://www.youtube.com/watch?v=vid000000001',
                                             'Ep', 'YT', None, None, None)
+            _run.extras = dict(sweeps=sweeps, storage=storage, update_binary=update_binary, repair=repair)
             return ok, whisper, detect, verification, ap, fin, after, diff_spy
     finally:
         shutil.rmtree(work_dir, ignore_errors=True)
@@ -121,7 +130,7 @@ def test_sponsorblock_only_skips_whisper_detection_and_verification():
     assert ok is True
     whisper.assert_not_called()
     detect.assert_not_called()
-    verification.assert_not_called()
+    assert verification.call_args.kwargs['skip_verification'] is True
     cut = ap.return_value.process_episode.call_args.args[1]
     assert [c['sb_uuid'] for c in cut] == ['u1']
     after.assert_called_once()
@@ -157,6 +166,58 @@ def test_mute_segment_is_rendered_as_beep():
     assert ok is True
     cut = ap.return_value.process_episode.call_args.args[1]
     assert cut[0]['beep'] is True
+    saved = _run.extras['storage'].save_combined_ads.call_args.args[2]
+    assert [m['action_applied'] for m in saved] == ['beep']
+
+
+def test_sponsorblock_only_skips_boundary_sweeps_but_llm_path_runs_them():
+    _run(MARKERS)
+    assert all(not sweep.called for sweep in _run.extras['sweeps'])
+    _run([])
+    assert all(sweep.called for sweep in _run.extras['sweeps'])
+
+
+def test_saved_caption_transcript_is_reused_without_whisper_or_repair():
+    ok, whisper, detect, *_ = _run([], saved_transcript=True)
+    assert ok is True
+    whisper.assert_not_called()
+    _run.extras['repair'].assert_not_called()
+    detect.assert_called_once()
+
+
+def _failed(error, **kw):
+    with patch.object(processing.failure, '_handle_processing_failure') as handled:
+        ok, *_ = _run([], llm_fallback=False, download_error=error, **kw)
+    return ok, handled
+
+
+def test_outdated_ytdlp_triggers_one_forced_update_and_fails():
+    ok, handled = _failed(sb_stage.download.DownloadError('Unable to extract', needs_update=True))
+    assert ok is False and handled.called
+    _run.extras['update_binary'].assert_called_once()
+    assert _run.extras['update_binary'].call_args.kwargs == {'force': True}
+
+
+def test_bot_wall_error_does_not_update_ytdlp():
+    ok, handled = _failed(sb_stage.download.DownloadError('Sign in to confirm', needs_update=False))
+    assert ok is False and handled.called
+    _run.extras['update_binary'].assert_not_called()
+
+
+def test_manual_llm_reprocess_runs_llm_without_marks_or_fallback():
+    row = {'episode_id': 'ep1', 'status': 'pending', 'sb_state': 'watching',
+           'youtube_video_id': 'vid000000001', 'reprocess_mode': 'llm'}
+    ok, whisper, detect, verification, ap, fin, after, diff = _run([], llm_fallback=False, episode_row=row)
+    assert ok is True
+    detect.assert_called_once()
+
+
+def test_exhausted_episode_runs_llm_without_marks_or_fallback():
+    row = {'episode_id': 'ep1', 'status': 'pending', 'sb_state': 'exhausted',
+           'youtube_video_id': 'vid000000001'}
+    ok, whisper, detect, *_ = _run([], llm_fallback=False, episode_row=row)
+    assert ok is True
+    detect.assert_called_once()
 
 
 def test_differential_fetch_skips_youtube_feeds():

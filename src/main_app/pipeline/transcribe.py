@@ -261,21 +261,24 @@ def _download_and_transcribe(slug, episode_id, episode_url,
             f"{len(segments)} segments, {duration_min:.1f} min")
 
         audio_path = _resolve_audio_path(slug, episode_id, episode_url, podcast, outcome)
-        language_override = get_feed_language_override(db, slug)
-        segments, added, empty_holes = _repair_transcript(
-            slug, episode_id, audio_path, segments, language_override,
-            tried=db.get_repair_holes(slug, episode_id))
-        db.add_repair_holes(slug, episode_id, empty_holes)
-        if added:
-            # A repair only adds segments to the same transcription, so it
-            # replaces the write-once originals and is not redone next time.
-            repaired_text = transcriber.segments_to_text(segments)
-            storage.save_transcript(slug, episode_id, repaired_text)
-            db.save_repaired_original_transcript(
-                slug, episode_id, repaired_text, segments)
-            audio_logger.info(
-                f"[{slug}:{episode_id}] Stored repaired original transcript "
-                f"(+{len(added)} segments)")
+        if outcome.get('youtube_audio_path'):
+            audio_logger.info(f"[{slug}:{episode_id}] Transcript repair skipped (YouTube captions)")
+        else:
+            language_override = get_feed_language_override(db, slug)
+            segments, added, empty_holes = _repair_transcript(
+                slug, episode_id, audio_path, segments, language_override,
+                tried=db.get_repair_holes(slug, episode_id))
+            db.add_repair_holes(slug, episode_id, empty_holes)
+            if added:
+                # A repair only adds segments to the same transcription, so it
+                # replaces the write-once originals and is not redone next time.
+                repaired_text = transcriber.segments_to_text(segments)
+                storage.save_transcript(slug, episode_id, repaired_text)
+                db.save_repaired_original_transcript(
+                    slug, episode_id, repaired_text, segments)
+                audio_logger.info(
+                    f"[{slug}:{episode_id}] Stored repaired original transcript "
+                    f"(+{len(added)} segments)")
     else:
         audio_path = _resolve_audio_path(slug, episode_id, episode_url, podcast, outcome)
 

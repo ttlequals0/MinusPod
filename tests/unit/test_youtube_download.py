@@ -73,3 +73,38 @@ def test_download_error_carries_trimmed_line_and_update_hint():
         with pytest.raises(download.DownloadError) as exc:
             download.download('vid000000001', want_captions=False, language='en')
     assert exc.value.needs_update is True
+
+
+def _patched():
+    return (patch.object(download, '_impersonate_target', return_value=None),
+            patch.object(download, 'cookies_path', return_value=None),
+            patch.object(download, 'resolve_bitrate', return_value='128k'))
+
+
+def test_timeout_becomes_download_error_and_cleans_up():
+    dirs = []
+
+    def run(args, timeout, cwd=None, **kw):
+        dirs.append(cwd)
+        raise subprocess.TimeoutExpired('yt-dlp', 1)
+    a, b, c = _patched()
+    with a, b, c, patch.object(download.ytdlp, 'run', side_effect=run):
+        with pytest.raises(download.DownloadError) as exc:
+            download.download('vid000000001', want_captions=False, language='en')
+    assert 'timed out' in str(exc.value)
+    assert dirs and not os.path.exists(dirs[0])
+
+
+def test_corrupt_info_json_becomes_download_error_and_cleans_up():
+    dirs = []
+
+    def run(args, timeout, cwd=None, **kw):
+        dirs.append(cwd)
+        open(os.path.join(cwd, 'vid000000001.mp3'), 'wb').write(b'ID3')
+        open(os.path.join(cwd, 'vid000000001.info.json'), 'w').write('{not json')
+        return subprocess.CompletedProcess(args, 0, stdout='', stderr='')
+    a, b, c = _patched()
+    with a, b, c, patch.object(download.ytdlp, 'run', side_effect=run):
+        with pytest.raises(download.DownloadError):
+            download.download('vid000000001', want_captions=False, language='en')
+    assert dirs and not os.path.exists(dirs[0])

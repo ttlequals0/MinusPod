@@ -927,26 +927,28 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                 # Kept markers bypass validation and cut-ad learning.
                 keep_rules._learn_from_kept_ads(slug, episode_id, keep_ads, segments, audio_path)
 
-            # Terminal start snap to the splice point; reviewer-locked starts stay put.
-            ads_to_remove = cuts._snap_terminal_starts(
-                slug, episode_id, ads_to_remove, all_ads_with_validation,
-                segments, audio_analysis_result, episode_duration,
-                podcast_name=podcast_name
-            )
+            # Community timestamps are authoritative: no boundary sweeps on SponsorBlock-only cuts.
+            if not sponsorblock_only:
+                # Terminal start snap to the splice point; reviewer-locked starts stay put.
+                ads_to_remove = cuts._snap_terminal_starts(
+                    slug, episode_id, ads_to_remove, all_ads_with_validation,
+                    segments, audio_analysis_result, episode_duration,
+                    podcast_name=podcast_name
+                )
 
-            # Tail completion: content-based end sweep that never extends a reviewer-locked end.
-            ads_to_remove = cuts._complete_cut_tails(
-                slug, episode_id, ads_to_remove, all_ads_with_validation,
-                segments, podcast_name=podcast_name
-            )
+                # Tail completion: content-based end sweep that never extends a reviewer-locked end.
+                ads_to_remove = cuts._complete_cut_tails(
+                    slug, episode_id, ads_to_remove, all_ads_with_validation,
+                    segments, podcast_name=podcast_name
+                )
 
-            # A transcript-guided tail extension can stop before an
-            # untranscribed sonic logo. Strong forward splice evidence closes
-            # that final gap without crossing speech or another marker.
-            ads_to_remove = cuts._snap_completed_cut_tails_to_splice(
-                slug, episode_id, ads_to_remove, all_ads_with_validation,
-                segments, audio_analysis_result, podcast_name=podcast_name
-            )
+                # A transcript-guided tail extension can stop before an
+                # untranscribed sonic logo. Strong forward splice evidence closes
+                # that final gap without crossing speech or another marker.
+                ads_to_remove = cuts._snap_completed_cut_tails_to_splice(
+                    slug, episode_id, ads_to_remove, all_ads_with_validation,
+                    segments, audio_analysis_result, podcast_name=podcast_name
+                )
 
             # Human-approved trim bounds are the final boundary authority.
             # Run after every automated reviewer and tail mutation so neither
@@ -971,6 +973,9 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
             for ad in ads_to_remove:
                 if ad.get('sb_action') == 'mute' and ad.get('action_applied') == 'remove':
                     ad['action_applied'] = 'beep'
+                    master = cuts._find_master(all_ads_with_validation, ad)
+                    if master is not None:
+                        master['action_applied'] = 'beep'
 
             # Stage 5: Process audio
             common._publish_status('update_job_stage', slug, episode_id,
@@ -1029,13 +1034,9 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
             if skip_second_pass and not skip_detection:
                 audio_logger.info(
                     f"[{slug}:{episode_id}] Verification pass skipped (configured setting)")
-            # SponsorBlock-only runs never enter the pass; community marks need no re-scan.
-            run_verification = (
-                (lambda _ctx, path, *_a, **_k: verify.skipped_verification(path))
-                if sponsorblock_only else verify._run_verification_pass)
             with (common._measure_run_stage('verification')
                   if not verification_skipped else nullcontext()):
-                verification_count, v_ads_for_ui, v_cuts_for_assets, v_ads_held, processed_path, verification_cue_count, verification_ok, v_corroborated_count = run_verification(
+                verification_count, v_ads_for_ui, v_cuts_for_assets, v_ads_held, processed_path, verification_cue_count, verification_ok, v_corroborated_count = verify._run_verification_pass(
                     ctx, processed_path, applied_cuts,
                     skip_patterns, min_cut_confidence,
                     local_audio_processor, detection_progress_callback,
