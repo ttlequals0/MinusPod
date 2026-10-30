@@ -2,8 +2,15 @@
 import glob
 import json
 import os
+import re
 
 MIN_EVENT_S = 0.5
+_NOISE = re.compile(r'\[[^\]]*\]|\([^)]*\)|>{2,}')
+
+
+def _clean(text: str) -> str:
+    """Drop speaker-change markers and bracketed or parenthesized sound cues."""
+    return ' '.join(_NOISE.sub(' ', text or '').split())
 
 
 def pick_file(directory: str, video_id: str, language: str) -> str | None:
@@ -22,16 +29,15 @@ def json3_to_segments(data: dict) -> list[dict]:
     """Convert json3 events to Whisper-shaped segments; events under MIN_EVENT_S join the previous one."""
     segments: list[dict] = []
     for event in data.get('events') or []:
-        segs = event.get('segs') or []
+        segs = [(seg, _clean(seg.get('utf8'))) for seg in event.get('segs') or []]
         start_ms = int(event.get('tStartMs') or 0)
         dur_ms = int(event.get('dDurationMs') or 0)
         words = []
-        for i, seg in enumerate(segs):
-            text = (seg.get('utf8') or '').strip()
+        for i, (seg, text) in enumerate(segs):
             if not text:
                 continue
             w_start = start_ms + int(seg.get('tOffsetMs') or 0)
-            nxt = next((s for s in segs[i + 1:] if (s.get('utf8') or '').strip()), None)
+            nxt = next((s for s, t in segs[i + 1:] if t), None)
             w_end = start_ms + int(nxt.get('tOffsetMs') or 0) if nxt and nxt.get('tOffsetMs') is not None else start_ms + dur_ms
             words.append({'word': text, 'start': w_start / 1000.0, 'end': max(w_end, w_start) / 1000.0})
         if not words:

@@ -17,6 +17,7 @@
 - [Cookies](#cookies)
 - [yt-dlp](#yt-dlp)
 - [Per-feed overrides](#per-feed-overrides)
+- [OPML export](#opml-export)
 - [Licensing](#licensing)
 - [Troubleshooting](#troubleshooting)
 - [Reference](#reference)
@@ -57,6 +58,8 @@ Open Settings > YouTube.
 
 To create a key, open the Google Cloud console, create a project, enable the YouTube Data API v3, and create an API key. Restrict the key to that one API. MinusPod sends it in the `X-Goog-Api-Key` header, never in a URL, and stores it encrypted. The key is write-only: the API reports `apiKeyConfigured` and never returns the value. Saving a key requires secret encryption to be available.
 
+Without a key, yt-dlp listings carry no episode descriptions. MinusPod fills the description from the video's metadata when the episode is downloaded for processing. With a key, the Data API supplies descriptions when episodes are discovered.
+
 ## Adding a playlist or channel
 
 On the Add feed page, paste a YouTube address and choose **Look up**. The card shows the title, artwork, video count and any podcast directory matches that offer the same show as an RSS feed. If a directory match exists, prefer the RSS feed: it is the publisher's own audio. To use the YouTube source anyway, choose **Add YouTube feed**. The page also keeps the normal RSS form under **Or add by RSS feed**.
@@ -75,6 +78,8 @@ Accepted forms:
 A channel feed lists long-form uploads by default (see [Shorts and duration filters](#shorts-and-duration-filters)). Adding a source that already exists is rejected, and the lookup reports the existing feed. A private or missing playlist returns "Playlist not found or private".
 
 The feed's first listing runs in the background after the add request returns, so the new feed page can be empty for a moment. Later listings run on the normal feed refresh schedule.
+
+MinusPod sets the feed author from the channel name when you add a feed. You can change the author, the explicit flag and the categories with `PATCH /api/v1/feeds/<slug>`.
 
 A playlist feed reads the whole playlist, sorts it by publish date, and keeps the newest videos up to the feed's episode limit, so an oldest-first playlist still shows its latest videos. With a Data API key this costs one quota unit per 50 playlist items on each refresh. A channel feed reads the uploads list, which is already newest first, and stops at the limit.
 
@@ -112,7 +117,7 @@ Two suffixes can follow: `, marked whole video as sponsored` when SponsorBlock f
 
 ## Transcripts and chapters
 
-- **Captions first.** When **Use YouTube captions as the transcript** is on (global default, per-feed override), yt-dlp downloads captions with the audio. MinusPod prefers the creator's track, then the auto-generated track, in the feed's language (the transcription language override, `en` if unset). With the feed language set to auto, the original-language auto captions are used. The captions become the transcript and Whisper is skipped.
+- **Captions first.** When **Use YouTube captions as the transcript** is on (global default, per-feed override), yt-dlp downloads captions with the audio. MinusPod prefers the creator's track, then the auto-generated track, in the feed's language (the transcription language override, `en` if unset). With the feed language set to auto, the original-language auto captions are used. The captions become the transcript and Whisper is skipped. Speaker-change markers (`>>`) and bracketed sound cues such as `[Music]` are removed from the caption text.
 - **Whisper when none.** If no captions exist, or the toggle is off, the normal transcription backend runs.
 - **Creator chapters.** yt-dlp embeds the video's chapters in the audio (`--embed-chapters`). MinusPod reuses them, so the LLM chapter generation call is skipped for those episodes.
 - **Artwork.** Feed artwork comes from the source's thumbnail. You can upload your own or refresh it from the feed's YouTube panel. Episode thumbnails are cached when an episode is processed and served as per-episode artwork.
@@ -178,6 +183,10 @@ The feed page has a YouTube section. Each field inherits the global setting unti
 | Shorts | `youtubeIncludeShorts` | Include videos of 180 seconds or less |
 
 The watch interval and watch ceiling are global only.
+
+## OPML export
+
+YouTube feeds are skipped in `mode=original` because the source is not an RSS URL. They are included in `mode=modified` with the MinusPod-served feed URL.
 
 ## Licensing
 

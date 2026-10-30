@@ -48,6 +48,7 @@ class SourceInfo:
     description: str
     artwork_url: str | None
     video_count: int | None
+    author: str = ''
 
 
 def parse_iso_duration(text) -> float | None:
@@ -129,12 +130,14 @@ def resolve_source(db, source: Source) -> SourceInfo:
     data = _ytdlp_json(source_url(source), ['--playlist-items', '0'], timeout=120)
     if source.kind == 'playlist':
         return SourceInfo('playlist', source.id, data.get('title') or source.id, data.get('description') or '',
-                          _best_thumb(data.get('thumbnails')), data.get('playlist_count'))
+                          _best_thumb(data.get('thumbnails')), data.get('playlist_count'),
+                          data.get('channel') or data.get('uploader') or '')
     channel_id = data.get('channel_id') or data.get('uploader_id')
     if not channel_id or not channel_id.startswith('UC'):
         raise SourceNotFound('Channel not found')
     return SourceInfo('channel', channel_id, data.get('channel') or data.get('title') or channel_id,
-                      data.get('description') or '', _best_thumb(data.get('thumbnails')), data.get('playlist_count'))
+                      data.get('description') or '', _best_thumb(data.get('thumbnails')), data.get('playlist_count'),
+                      data.get('channel') or data.get('title') or '')
 
 
 def _resolve_with_api(key: str, source: Source) -> SourceInfo:
@@ -152,7 +155,8 @@ def _parse_api_source(key: str, source: Source) -> SourceInfo:
             raise SourceNotFound('Playlist not found or private')
         sn = items[0]['snippet']
         return SourceInfo('playlist', source.id, sn.get('title') or source.id, sn.get('description') or '',
-                          _best_thumb(sn.get('thumbnails')), items[0].get('contentDetails', {}).get('itemCount'))
+                          _best_thumb(sn.get('thumbnails')), items[0].get('contentDetails', {}).get('itemCount'),
+                          sn.get('channelTitle') or '')
     selector = {'channel': 'id', 'handle': 'forHandle', 'user': 'forUsername', 'custom': 'forHandle'}[source.kind]
     data = _api_get('channels', {'part': 'snippet,statistics', selector: source.id}, key)
     items = data.get('items') or []
@@ -161,7 +165,8 @@ def _parse_api_source(key: str, source: Source) -> SourceInfo:
     sn = items[0]['snippet']
     count = items[0].get('statistics', {}).get('videoCount')
     return SourceInfo('channel', items[0]['id'], sn.get('title') or items[0]['id'], sn.get('description') or '',
-                      _best_thumb(sn.get('thumbnails')), int(count) if count is not None else None)
+                      _best_thumb(sn.get('thumbnails')), int(count) if count is not None else None,
+                      sn.get('title') or '')
 
 
 def _playlist_for(podcast: dict, include_shorts: bool) -> str:

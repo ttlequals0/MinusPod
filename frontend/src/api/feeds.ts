@@ -317,6 +317,7 @@ export interface AddYoutubeFeedPayload {
   sourceId: string;
   title: string;
   description?: string;
+  author?: string;
   artworkUrl?: string | null;
   includeShorts?: boolean;
   slug?: string;
@@ -446,7 +447,8 @@ export async function reprocessEpisode(
 
 export interface UpdateFeedPayload {
   sourceUrl?: string;
-  // Local feeds only: the backend rejects these on a subscribed feed.
+  // title and p20 are local feeds only; author, explicit and categories also work on YouTube feeds.
+  // The backend rejects them on a subscribed feed.
   title?: string;
   description?: string;
   // null clears the stored value (the backend distinguishes "clear" from

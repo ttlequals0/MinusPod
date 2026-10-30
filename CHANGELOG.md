@@ -11,6 +11,12 @@ release notes.
 
 ## [Unreleased]
 
+### Fixed
+
+- SponsorBlock-only YouTube runs no longer call the LLM reviewer, which had nudged community mark boundaries.
+- YouTube caption transcripts drop speaker-change markers and bracketed sound cues such as `[Music]`.
+- YouTube episode descriptions (and a full publish time when the listing gave only a date) are filled from the video metadata at download when the listing carried none.
+
 ## [2.101.0] - 2026-10-29
 
 ### Added

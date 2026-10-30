@@ -37,6 +37,7 @@ export interface YouTubePreview {
     id: string;
     title: string;
     description: string;
+    author: string;
     artworkUrl: string | null;
     videoCount: number | null;
     alreadyAdded: string | null;

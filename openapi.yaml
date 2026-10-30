@@ -1277,7 +1277,7 @@ paths:
                   type:
                     - string
                     - 'null'
-                  description: Feed description, rewritten into the served channel <description>. Editable on any feed, local or subscribed, unlike title/author/explicit/categories/p20 below, which are local-feed only.
+                  description: Feed description, rewritten into the served channel <description>. Editable on any feed, local or subscribed, unlike title and p20 below, which are local-feed only (author, explicit and categories also work on YouTube feeds).
                 title:
                   type: string
                   description: >-
@@ -1289,19 +1289,19 @@ paths:
                   type:
                     - string
                     - 'null'
-                  description: itunes:author. Local feeds only; 400 on a subscribed feed.
+                  description: itunes:author. Local and YouTube feeds; 400 on a subscribed feed.
                 explicit:
                   type:
                     - boolean
                     - 'null'
-                  description: itunes:explicit. Local feeds only; 400 on a subscribed feed. Null clears.
+                  description: itunes:explicit. Local and YouTube feeds; 400 on a subscribed feed. Null clears.
                 categories:
                   type:
                     - array
                     - 'null'
                   items:
                     type: string
-                  description: itunes:category list. Local feeds only; 400 on a subscribed feed. Null clears.
+                  description: itunes:category list. Local and YouTube feeds; 400 on a subscribed feed. Null clears.
                 p20:
                   allOf:
                     - $ref: '#/components/schemas/LocalFeedP20'
@@ -4902,6 +4902,9 @@ paths:
                         type: string
                       description:
                         type: string
+                      author:
+                        type: string
+                        description: Channel title; for a playlist, the owning channel. Seeds itunes:author when the feed is added.
                       artworkUrl:
                         type: [string, 'null']
                       videoCount:
@@ -13978,7 +13981,7 @@ components:
           type:
             - string
             - 'null'
-          description: itunes:author. Local feeds only; always null for a subscribed feed (taken from the upstream RSS at render time, not stored per-feed).
+          description: itunes:author. Local and YouTube feeds; always null for a subscribed feed (taken from the upstream RSS at render time, not stored per-feed).
         explicit:
           type:
             - boolean

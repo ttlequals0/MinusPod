@@ -125,6 +125,16 @@ def test_resolve_handle_without_key():
         info = discovery.resolve_source(_db(), Source('handle', 'ExampleChannel'))
     assert info.kind == 'channel' and info.id == 'UCabcdefghijklmnopqrstuv'
     assert info.title == 'Example Channel' and info.video_count == 3
+    assert info.author == 'Example Channel'
+
+
+def test_api_playlist_author_is_the_owning_channel():
+    page = {'items': [{'snippet': {'title': 'List', 'channelTitle': 'Owner Channel', 'thumbnails': {}},
+                       'contentDetails': {'itemCount': 4}}]}
+    with patch.object(discovery, 'safe_get', return_value=_resp()), \
+            patch.object(discovery, 'read_response_capped', return_value=json.dumps(page).encode()):
+        info = discovery.resolve_source(_db('KEY'), Source('playlist', 'PL1'))
+    assert info.author == 'Owner Channel'
 
 
 def test_parse_iso8601_duration():

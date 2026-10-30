@@ -32,3 +32,27 @@ def test_pick_file_auto_or_empty_accepts_any_track(tmp_path):
     (tmp_path / 'v.de-orig.json3').write_text('{}')
     for lang in ('auto', '', None):
         assert captions.pick_file(str(tmp_path), 'v', lang).endswith('v.de-orig.json3')
+
+
+def _event(start, dur, *tokens):
+    return {'tStartMs': start, 'dDurationMs': dur,
+            'segs': [{'utf8': t, 'tOffsetMs': off} for off, t in tokens]}
+
+
+def test_speaker_marker_is_stripped_and_word_timings_kept():
+    segs = captions.json3_to_segments({'events': [_event(0, 2000, (0, '>> Back'), (800, ' room.'))]})
+    assert [s['text'] for s in segs] == ['Back room.']
+    assert segs[0]['words'] == [{'word': 'Back', 'start': 0.0, 'end': 0.8},
+                                {'word': 'room.', 'start': 0.8, 'end': 2.0}]
+
+
+def test_cue_only_event_produces_no_segment():
+    data = {'events': [_event(0, 2000, (0, '[Music]')), _event(3000, 1000, (0, '(Upbeat Music)')),
+                       _event(5000, 1000, (0, '>>>'))]}
+    assert captions.json3_to_segments(data) == []
+
+
+def test_mixed_cue_and_speech_keeps_speech():
+    segs = captions.json3_to_segments({'events': [_event(0, 2000, (0, '[laughter]'), (500, ' okay'))]})
+    assert [s['text'] for s in segs] == ['okay']
+    assert segs[0]['words'][0]['start'] == 0.5

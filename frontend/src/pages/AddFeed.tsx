@@ -567,6 +567,7 @@ function AddFeed() {
       sourceId: source.id,
       title: source.title,
       description: source.description,
+      author: source.author,
       artworkUrl: source.artworkUrl,
       includeShorts: false,
       slug: customSlug || undefined,

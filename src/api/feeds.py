@@ -1447,6 +1447,9 @@ def _add_youtube_feed(data, db):
     description = data.get('description')
     if description is not None and not isinstance(description, str):
         return error_response('description must be a string', 400)
+    author = data.get('author')
+    if author is not None and not isinstance(author, str):
+        return error_response('author must be a string', 400)
     max_ep = None
     if 'maxEpisodes' in data:
         max_ep, err = _normalize_max_episodes(data['maxEpisodes'], False)
@@ -1459,6 +1462,8 @@ def _add_youtube_feed(data, db):
                    'youtube_include_shorts': include_shorts, 'p20_channel_json': json.dumps(channel_json)}
         if description is not None:
             updates['description'] = description
+        if author and author.strip():
+            updates['author'] = author.strip()
         auto_process = _serialize_auto_process(data.get('autoProcessOverride'))
         if auto_process is not None:
             updates['auto_process_override'] = auto_process
@@ -2041,8 +2046,9 @@ def update_feed(slug):
     # are only meaningful for a local feed (no upstream RSS to derive them
     # from), so a subscribed feed 400s rather than silently accepting a value
     # a refresh would immediately overwrite or ignore.
+    youtube_editable = ('author', 'explicit', 'categories') if is_youtube_feed(podcast) else ()
     for field in _LOCAL_ONLY_FIELDS:
-        if field in data and has_upstream(podcast):
+        if field in data and has_upstream(podcast) and field not in youtube_editable:
             return error_response(
                 f'field {field} is only editable on local feeds', 400)
 

@@ -39,7 +39,7 @@ def _pass_through_ads(slug, episode_id, ads_to_remove, *a, **k):
 
 
 def _run(markers, *, llm_on_top=False, llm_fallback=True, episode_row=None, captions=True,
-         saved_transcript=False, download_error=None, fetch_result=...):
+         saved_transcript=False, download_error=None, fetch_result=..., info=None):
     """Drive process_episode for a YouTube feed; extra mocks land in _run.extras."""
     podcast = dict(PODCAST, yt_llm_on_top_override=1 if llm_on_top else None)
     work_dir = tempfile.mkdtemp(prefix='minuspod-yt-test-')
@@ -77,7 +77,7 @@ def _run(markers, *, llm_on_top=False, llm_fallback=True, episode_row=None, capt
             p(finalize_stage, 'get_available_memory_gb', return_value=None)
             p(common, 'get_min_cut_confidence', return_value=0.8)
             p(sb_stage.yt_settings, 'resolve_feed', return_value=_settings(llm_fallback=llm_fallback))
-            dl = MagicMock(audio_path=audio, info={'id': 'vid000000001'},
+            dl = MagicMock(audio_path=audio, info=info or {'id': 'vid000000001'},
                            captions_path='/tmp/c.json3' if captions else None)
             p(sb_stage.download, 'download', return_value=dl, side_effect=download_error)
             update_binary = p(sb_stage.ytdlp, 'update_binary')
@@ -101,7 +101,7 @@ def _run(markers, *, llm_on_top=False, llm_fallback=True, episode_row=None, capt
             detect = p(detect_stage, '_detect_ads_first_pass', return_value=([], 0, {}))
             p(detect_stage, '_refine_and_validate',
               side_effect=lambda s, e, ads, *a, **k: (list(ads), list(ads)))
-            p(processing.review, '_run_ad_reviewer',
+            reviewer = p(processing.review, '_run_ad_reviewer',
               side_effect=lambda s, e, pid, ads, all_ads, *a, **k: (ads, all_ads))
             sweeps = [p(processing.cuts, name, side_effect=_pass_through_ads)
                       for name in ('_snap_terminal_starts', '_complete_cut_tails',
@@ -121,7 +121,8 @@ def _run(markers, *, llm_on_top=False, llm_fallback=True, episode_row=None, capt
             p(processing.os.path, 'exists', return_value=False)
             ok = processing.process_episode('yt-feed', 'ep1', 'https://www.youtube.com/watch?v=vid000000001',
                                             'Ep', 'YT', None, None, None)
-            _run.extras = dict(db=db, sweeps=sweeps, storage=storage, update_binary=update_binary, repair=repair)
+            _run.extras = dict(db=db, sweeps=sweeps, storage=storage, update_binary=update_binary, repair=repair,
+                          reviewer=reviewer)
             return ok, whisper, detect, verification, ap, fin, after, diff_spy
     finally:
         shutil.rmtree(work_dir, ignore_errors=True)
@@ -137,6 +138,39 @@ def test_sponsorblock_only_skips_whisper_detection_and_verification():
     assert [c['sb_uuid'] for c in cut] == ['u1']
     after.assert_called_once()
     assert after.call_args.args[2].mode == 'sponsorblock'
+
+
+def test_sponsorblock_only_never_calls_the_reviewer_but_llm_on_top_does():
+    _run(MARKERS)
+    assert not _run.extras['reviewer'].called
+    _run(MARKERS, llm_on_top=True)
+    assert _run.extras['reviewer'].called
+
+
+def test_download_fills_empty_description_and_date_only_published_at():
+    row = {'episode_id': 'ep1', 'status': 'pending', 'sb_state': 'probing', 'youtube_video_id': 'vid000000001',
+           'description': '', 'published_at': '2026-10-01'}
+    info = {'id': 'vid000000001', 'description': 'Full text', 'timestamp': 1790000000}
+    _run(MARKERS, episode_row=row, info=info)
+    calls = [c.kwargs for c in _run.extras['db'].upsert_episode.call_args_list]
+    assert {'description': 'Full text', 'published_at': '2026-09-21T14:13:20+00:00'} in calls
+
+
+def test_download_keeps_existing_description_and_full_published_at():
+    row = {'episode_id': 'ep1', 'status': 'pending', 'sb_state': 'probing', 'youtube_video_id': 'vid000000001',
+           'description': 'Listed', 'published_at': '2026-10-01T12:00:00+00:00'}
+    info = {'id': 'vid000000001', 'description': 'Full text', 'timestamp': 1790000000}
+    _run(MARKERS, episode_row=row, info=info)
+    assert not any(c.kwargs.get('description') == 'Full text' or c.kwargs.get('published_at', '').startswith('2026-09')
+                   for c in _run.extras['db'].upsert_episode.call_args_list)
+
+
+def test_never_processed_youtube_episode_serializes_its_thumbnail():
+    from api.episodes import core
+    ep = {'episode_id': 'e', 'title': 't', 'status': 'discovered', 'created_at': 'x', 'processed_at': None,
+          'original_duration': None, 'new_duration': None, 'ads_removed': 0,
+          'artwork_url': 'https://i.ytimg.com/vi/vid000000001/hqdefault.jpg'}
+    assert core._episode_base_json(ep, slug='yt-feed', is_youtube=True)['artworkUrl'] == ep['artwork_url']
 
 
 def test_no_marks_with_fallback_runs_llm_on_captions():

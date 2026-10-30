@@ -5,7 +5,7 @@ import os
 import shutil
 import tempfile
 from dataclasses import dataclass
-from datetime import timedelta
+from datetime import datetime, timedelta, timezone
 from urllib.parse import parse_qs, urlparse
 
 from main_app.pipeline import common
@@ -52,6 +52,20 @@ def _video_id(episode_data, episode_url) -> str:
     return vid or parse_qs(urlparse(episode_url).query).get('v', [''])[0]
 
 
+def _fill_metadata(slug, episode_id, episode_data, info):
+    """Backfill the description and a full publish time that flat listings lack."""
+    fields = {}
+    description = (info or {}).get('description')
+    if description and not (episode_data or {}).get('description'):
+        fields['description'] = description
+    timestamp = (info or {}).get('timestamp')
+    published = (episode_data or {}).get('published_at')
+    if isinstance(timestamp, (int, float)) and (not published or len(str(published)) <= 10):
+        fields['published_at'] = datetime.fromtimestamp(timestamp, tz=timezone.utc).isoformat()
+    if fields:
+        db.upsert_episode(slug, episode_id, **fields)
+
+
 def acquire(slug, episode_id, episode_url, podcast, episode_data, reprocess_mode) -> YouTubeRun:
     """Get the audio, captions and SponsorBlock marks, and pick the run mode."""
     resolved = yt_settings.resolve_feed(db, podcast)
@@ -81,6 +95,7 @@ def acquire(slug, episode_id, episode_url, podcast, episode_data, reprocess_mode
                     except Exception as update_exc:
                         audio_logger.warning(f"[{slug}:{episode_id}] yt-dlp update failed: {update_exc}")
                 raise Exception(str(exc)) from exc
+        _fill_metadata(slug, episode_id, episode_data, result.info)
         work_dir = os.path.dirname(result.audio_path)
         fd, audio_path = tempfile.mkstemp(suffix='.mp3')
         os.close(fd)

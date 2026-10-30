@@ -55,7 +55,8 @@ def test_preview_returns_source_and_rss_matches(app_client):
     _authed(app_client)
     from api import get_database
     _enable(get_database())
-    info = SourceInfo('channel', 'UCabcdefghijklmnopqrstuv', 'The Daily Tech Show', 'desc', 'https://i.ytimg.com/a.jpg', 412)
+    info = SourceInfo('channel', 'UCabcdefghijklmnopqrstuv', 'The Daily Tech Show', 'desc', 'https://i.ytimg.com/a.jpg', 412,
+                      'The Daily Tech Show')
     matches = [{'title': 'The Daily Tech Show', 'feedUrl': 'https://feeds.example.com/dts.xml', 'artworkUrl': ''},
                {'title': 'Daily Tech', 'feedUrl': 'https://feeds.example.com/dt.xml', 'artworkUrl': ''},
                {'title': 'Unrelated Cooking', 'feedUrl': 'https://feeds.example.com/cook.xml', 'artworkUrl': ''},
@@ -67,7 +68,7 @@ def test_preview_returns_source_and_rss_matches(app_client):
     body = resp.get_json()
     assert resp.status_code == 200, body
     assert body['source']['id'] == 'UCabcdefghijklmnopqrstuv' and body['source']['videoCount'] == 412
-    assert body['source']['alreadyAdded'] is None
+    assert body['source']['alreadyAdded'] is None and body['source']['author'] == 'The Daily Tech Show'
     titles = [m['title'] for m in body['rssMatches']]
     assert 'Unrelated Cooking' not in titles and len(titles) <= 3
 
@@ -249,3 +250,42 @@ def test_ytdlp_update_timeout_is_a_504(app_client):
     with patch('api.youtube.ytdlp.update_binary', side_effect=subprocess.TimeoutExpired('yt-dlp', 300)):
         resp = app_client.post('/api/v1/youtube/ytdlp/update', headers=_csrf_headers(app_client))
     assert resp.status_code == 504 and resp.get_json()['error'] == 'yt-dlp update timed out'
+
+
+def test_opml_skips_youtube_in_original_and_serves_it_in_modified():
+    from utils.opml import build_opml_xml
+    yt = {'slug': 'yt-opml', 'title': 'YT', 'source_url': 'youtube://playlist/PL1', 'feed_type': 'youtube'}
+    assert 'yt-opml' not in build_opml_xml([yt], 'original', 'https://pods.example.com')
+    assert 'https://pods.example.com/yt-opml' in build_opml_xml([yt], 'modified', 'https://pods.example.com')
+
+
+def test_add_youtube_feed_stores_author_and_patch_edits_served_metadata(app_client):
+    _authed(app_client)
+    from api import get_database
+    from main_app import storage
+    from youtube.feed import rebuild_youtube_feed
+    db = get_database()
+    _enable(db)
+    headers = _csrf_headers(app_client)
+    with patch('main_app.feeds.refresh_single_feed', return_value=True), patch('api.feeds.get_storage'):
+        resp = app_client.post('/api/v1/feeds', json={
+            'feedType': 'youtube', 'sourceKind': 'channel', 'sourceId': 'UCabcdefghijklmnopqrstuv',
+            'title': 'Example Channel', 'author': 'Example Channel Co'}, headers=headers)
+    assert resp.status_code == 201, resp.get_json()
+    slug = resp.get_json()['slug']
+    try:
+        assert db.get_podcast_by_slug(slug)['author'] == 'Example Channel Co'
+        assert app_client.get(f'/api/v1/feeds/{slug}').get_json()['author'] == 'Example Channel Co'
+        patched = app_client.patch(f'/api/v1/feeds/{slug}', json={
+            'author': 'New Author', 'explicit': True, 'categories': ['Technology']}, headers=headers)
+        assert patched.status_code == 200, patched.get_json()
+        assert rebuild_youtube_feed(slug)
+        rss = storage.get_rss(slug)
+        assert '<itunes:author>New Author</itunes:author>' in rss
+        assert '<itunes:explicit>true</itunes:explicit>' in rss
+        assert '<itunes:category text="Technology"' in rss
+        for field in ('title', 'p20'):
+            assert app_client.patch(f'/api/v1/feeds/{slug}', json={field: 'x' if field == 'title' else {}},
+                                    headers=headers).status_code == 400
+    finally:
+        db.delete_podcast(slug)
