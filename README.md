@@ -37,7 +37,11 @@ https://github.com/user-attachments/assets/3c64b0eb-5b52-457a-bd94-17b7ecdeef2c
 - Re-cut RSS feeds per podcast with versioned audio, a replacement sound at each cut, loudness leveling, and lossless MP3 stream copy where the cut allows
 - [Podcasting 2.0](docs/podcasting-2.0.md) tags regenerated: transcripts, chapters, AI-content disclosure, value-for-value passed through
 - Podping listener refreshes a feed seconds after the host announces an episode
-- OPML import and export, podcast search from Add feed, an optional cover-art badge, a combined Recents feed, [local feeds](docs/local-feeds.md) built from your own audio files, and [YouTube feeds](docs/youtube-feeds.md) built from a playlist or channel
+- OPML import and export, podcast search from Add feed, an optional cover-art badge, a combined Recents feed, and [local feeds](docs/local-feeds.md) built from your own audio files
+
+**YouTube**
+- Turn a YouTube playlist or channel into a podcast feed: audio through yt-dlp, the video's captions as the transcript, chapters, artwork and descriptions. [YouTube feeds](docs/youtube-feeds.md)
+- Community [SponsorBlock](https://sponsor.ajay.app/) marks are cut as given and learned as patterns. The LLM steps in only when a video has no marks, or on top of them per feed. Off by default.
 
 **Web UI and administration**
 - Feed, episode, queue, search, pattern, sponsor, history, stats, and settings views. Installs as an app on iOS, Android, macOS, and Windows. [Web interface](docs/web-interface.md)
