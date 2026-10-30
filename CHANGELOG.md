@@ -11,6 +11,17 @@ release notes.
 
 ## [Unreleased]
 
+## [2.101.5] - 2026-10-30
+
+### Fixed
+
+- The metadata backfill gives up on a video after three failed lookups
+  instead of retrying forever.
+- The placeholder cleanup also removes placeholders whose processing attempt
+  failed.
+- Deleting a feed also removes its pending rows from the processing queue, so
+  a removed feed cannot be picked up for processing again.
+
 ## [2.101.4] - 2026-10-30
 
 ### Added
@@ -33,10 +44,6 @@ release notes.
   entries already created.
 - Processing stats record the chapters stage when publisher chapters are
   preserved, and show a SponsorBlock lookup stage on YouTube runs.
-- The metadata backfill gives up on a video after three failed lookups
-  instead of retrying forever.
-- The placeholder cleanup also removes placeholders whose processing attempt
-  failed.
 
 ### Changed
 
