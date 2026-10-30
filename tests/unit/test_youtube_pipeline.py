@@ -41,7 +41,7 @@ def _pass_through_ads(slug, episode_id, ads_to_remove, *a, **k):
 
 def _run(markers, *, llm_on_top=False, llm_fallback=True, episode_row=None, captions=True,
          saved_transcript=False, download_error=None, fetch_result=..., info=None, transcribe_fallback=True,
-         retained=False, caption_file=None, reprocess_mode=None):
+         retained=False, caption_file=None, reprocess_mode=None, pattern_hits=()):
     """Drive process_episode for a YouTube feed; extra mocks land in _run.extras."""
     podcast = dict(PODCAST, yt_llm_on_top_override=1 if llm_on_top else None)
     work_dir = tempfile.mkdtemp(prefix='minuspod-yt-test-')
@@ -104,8 +104,9 @@ def _run(markers, *, llm_on_top=False, llm_fallback=True, episode_row=None, capt
             diff_spy = signals._run_differential_fetch
             p(signals, '_run_audio_analysis', return_value=None)
             p(processing, 'load_positional_prior', return_value=None)
-            detect = p(detect_stage, '_detect_ads_first_pass', return_value=([], 0, {}))
-            p(detect_stage, '_refine_and_validate',
+            detect = p(detect_stage, '_detect_ads_first_pass',
+                       return_value=(list(pattern_hits), len(pattern_hits), {}))
+            refine = p(detect_stage, '_refine_and_validate',
               side_effect=lambda s, e, ads, *a, **k: (list(ads), list(ads)))
             reviewer = p(processing.review, '_run_ad_reviewer',
               side_effect=lambda s, e, pid, ads, all_ads, *a, **k: (ads, all_ads))
@@ -128,22 +129,48 @@ def _run(markers, *, llm_on_top=False, llm_fallback=True, episode_row=None, capt
             ok = processing.process_episode('yt-feed', 'ep1', 'https://www.youtube.com/watch?v=vid000000001',
                                             'Ep', 'YT', None, None, None)
             _run.extras = dict(fetch_captions=fetch_captions, db=db, sweeps=sweeps, storage=storage, update_binary=update_binary, repair=repair,
-                          reviewer=reviewer)
+                          reviewer=reviewer, refine=refine)
             return ok, whisper, detect, verification, ap, fin, after, diff_spy
     finally:
         shutil.rmtree(work_dir, ignore_errors=True)
 
 
-def test_sponsorblock_only_skips_whisper_detection_and_verification():
-    ok, whisper, detect, verification, ap, fin, after, diff = _run(MARKERS)
+PATTERN_HIT = {'start': 50.0, 'end': 58.0, 'category': 'sponsor', 'confidence': 0.95,
+               'detection_stage': 'text_pattern', 'reason': 'pattern', 'sponsor': 'Acme', 'was_cut': True}
+
+
+def test_sponsorblock_only_runs_patterns_with_llm_off_and_skips_verification():
+    ok, whisper, detect, verification, ap, fin, after, diff = _run(MARKERS, pattern_hits=[PATTERN_HIT])
     assert ok is True
     whisper.assert_not_called()
-    detect.assert_not_called()
+    detect.assert_called_once()
+    assert detect.call_args.kwargs['skip_llm'] is True
+    assert detect.call_args.kwargs['force_create_from_pairs'] is False
     assert verification.call_args.kwargs['skip_verification'] is True
+    refined = _run.extras['refine'].call_args
+    assert [a['detection_stage'] for a in refined.args[2]] == ['text_pattern']
+    assert refined.kwargs['apply_heuristic_rolls'] is False
     cut = ap.return_value.process_episode.call_args.args[1]
-    assert [c['sb_uuid'] for c in cut] == ['u1']
-    after.assert_called_once()
+    assert sorted(c['start'] for c in cut) == [10.0, 50.0]
+    assert [c.get('sb_uuid') for c in sorted(cut, key=lambda c: c['start'])] == ['u1', None]
     assert after.call_args.args[2].mode == 'sponsorblock'
+
+
+def test_sponsorblock_only_without_captions_still_runs_the_pattern_stages():
+    ok, whisper, detect, *_ = _run(MARKERS, captions=False, transcribe_fallback=False)
+    assert ok is True
+    whisper.assert_not_called()
+    detect.assert_called_once()
+    assert detect.call_args.args[1] == [] and detect.call_args.kwargs['skip_llm'] is True
+
+
+def test_kept_category_on_a_sponsorblock_mark_is_still_kept():
+    kept = [dict(MARKERS[0], category='intro')]
+    ok, whisper, detect, verification, ap, *_ = _run(kept)
+    assert ok is True
+    assert not ap.return_value.process_episode.call_args.args[1]
+    saved = _run.extras['storage'].save_combined_ads.call_args.args[2]
+    assert [m['category'] for m in saved] == ['intro']
 
 
 def test_sponsorblock_only_never_calls_the_reviewer_but_llm_on_top_does():
@@ -151,6 +178,13 @@ def test_sponsorblock_only_never_calls_the_reviewer_but_llm_on_top_does():
     assert not _run.extras['reviewer'].called
     _run(MARKERS, llm_on_top=True)
     assert _run.extras['reviewer'].called
+
+
+def test_full_and_llm_reprocess_force_pass_1_while_plain_reprocess_keeps_marks_only():
+    for mode, expected in (('full', 'llm'), ('llm', 'llm'), ('reprocess', 'sponsorblock')):
+        ok, whisper, detect, verification, ap, fin, after, diff = _run(MARKERS, reprocess_mode=mode)
+        assert after.call_args.args[2].mode == expected
+        assert detect.call_args.kwargs['skip_llm'] is (expected == 'sponsorblock')
 
 
 def test_download_fills_empty_description_and_date_only_published_at():
@@ -199,7 +233,6 @@ def test_no_captions_transcribe_off_with_marks_runs_sponsorblock_only():
     ok, whisper, detect, verification, ap, fin, after, diff = _run(MARKERS, captions=False, transcribe_fallback=False)
     assert ok is True
     whisper.assert_not_called()
-    detect.assert_not_called()
     cut = ap.return_value.process_episode.call_args.args[1]
     assert [c['sb_uuid'] for c in cut] == ['u1']
     run = after.call_args.args[2]
@@ -210,7 +243,7 @@ def test_no_captions_transcribe_off_skips_llm_on_top():
     ok, whisper, detect, *_ = _run(MARKERS, captions=False, llm_on_top=True, transcribe_fallback=False)
     assert ok is True
     whisper.assert_not_called()
-    detect.assert_not_called()
+    assert detect.call_args.kwargs['skip_llm'] is True
 
 
 def _no_caption_run(row):
@@ -253,10 +286,12 @@ def test_captions_present_ignore_transcribe_off():
     detect.assert_called_once()
 
 
-def test_llm_on_top_merges_sponsorblock_markers_into_detection():
+def test_llm_on_top_appends_sponsorblock_markers_after_validation():
     ok, whisper, detect, verification, ap, fin, after, diff = _run(MARKERS, llm_on_top=True)
     assert ok is True
     detect.assert_called_once()
+    assert detect.call_args.kwargs['skip_llm'] is False
+    assert not _run.extras['refine'].call_args.args[2]
     cut = ap.return_value.process_episode.call_args.args[1]
     assert any(c.get('sb_uuid') == 'u1' for c in cut)
 
@@ -503,14 +538,27 @@ def test_recut_success_stamps_uuids_from_stored_markers_and_failure_does_not():
         assert stamp.called is outcome
 
 
-def test_sponsorblock_markers_are_never_learned_from():
+def test_sponsorblock_markers_are_learned_like_detections():
     from main_app.pipeline import keep_rules
-    sb = dict(MARKERS[0])
-    with patch.object(processing, 'ad_detector') as detector:
-        assert keep_rules._learn_from_kept_ads('yt-feed', 'ep1', [sb], SEGMENTS, '/a.mp3') == 0
+    sb = dict(MARKERS[0], action_applied='remove')
+    with patch.object(keep_rules, 'ad_detector') as detector:
+        detector.learn_from_detections.return_value = 1
         assert keep_rules._learn_from_applied_cut_ads(
-            'yt-feed', 'ep1', [sb], [sb], [(10.0, 40.0)], 3600.0, SEGMENTS, '/a.mp3') == 0
-    detector.learn_from_detections.assert_not_called()
+            'yt-feed', 'ep1', [sb], [sb], [{'start': 10.0, 'end': 40.0}], 3600.0, SEGMENTS, '/a.mp3') == 1
+    assert detector.learn_from_detections.call_args.args[0] == [sb]
+
+
+def test_sponsorblock_mark_without_a_sponsor_learns_under_its_category_label():
+    from ad_detector import AdDetector
+    detector = AdDetector.__new__(AdDetector)
+    detector.sponsor_service = None
+    detector.db = None
+    sb = dict(MARKERS[0], category='self_promo')
+    assert detector._ad_passes_learning_filters(sb, 0.8)
+    assert detector._resolve_sponsor_for_learning(sb) == 'Self promotion'
+    assert not detector._sponsor_blocked_by_gates('Intro', set())
+    claude = {'detection_stage': 'claude', 'source': 'claude', 'category': 'sponsor', 'reason': ''}
+    assert detector._resolve_sponsor_for_learning(claude) is None
 
 
 def test_episode_json_carries_sponsorblock_block_only_for_youtube():

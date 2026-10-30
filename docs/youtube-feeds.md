@@ -35,6 +35,8 @@ Like a [local feed](local-feeds.md), there is no podcast RSS upstream. MinusPod 
 Cuts on a YouTube feed come from SponsorBlock, a community database of timestamps for sponsor reads, self-promotion, intros and similar spans. Read this before enabling the feature: the trust model differs from the LLM pipeline.
 
 - Community marks drive the cuts. By default MinusPod cuts where SponsorBlock says to cut, without asking the LLM.
+- Learned patterns (audio fingerprints and text patterns) always run, including when marks exist. Cuts are the marks plus any validated pattern hits, and MinusPod learns new patterns from the marks it cuts.
+- The LLM runs only when an episode has no marks or Pass 1 detection is on. **Full reprocess** and **Re-detect ads** on an episode force pass 1 for that run.
 - Marks keep arriving after an episode is published. During the watch window, a changed set of marks triggers an automatic recut from the retained original audio.
 - Marks are filtered before use. A mark with a negative vote total is dropped unless a SponsorBlock moderator locked it. Marks of unknown category are dropped. If a mark declares a video duration that differs from the downloaded audio by more than 2 seconds, all marks for that video are ignored. A mark whose end is not after its start is dropped.
 - A short watch ceiling limits how long late marks can change an episode.

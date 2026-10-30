@@ -257,8 +257,8 @@ def _stamp_and_carve_cuts(slug, episode_id, ads_to_remove, all_ads, segment_acti
 
 
 def _learnable(ad) -> bool:
-    """SponsorBlock marks are community data, not detections to learn patterns from."""
-    return ad.get('source') != 'sponsorblock'
+    """SponsorBlock marks are learned like detections."""
+    return True
 
 
 def _learn_from_kept_ads(slug, episode_id, keep_ads, segments, audio_path):

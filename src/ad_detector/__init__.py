@@ -757,6 +757,11 @@ def _pattern_match_evidence(match, kind: str) -> str:
 
 
 _SPONSOR_MATCH_STAGES = ('fingerprint', 'text_pattern')
+# Pattern label for a SponsorBlock mark whose span text names no sponsor.
+SPONSORBLOCK_CATEGORY_LABELS = {
+    'sponsor': 'Sponsor read', 'self_promo': 'Self promotion', 'intro': 'Intro',
+    'outro': 'Outro', 'interaction': 'Interaction reminder', 'recap': 'Recap',
+}
 
 
 def _known_sponsor_matchers(ads: list[dict],
@@ -2889,7 +2894,7 @@ class AdDetector:
         """Apply basic eligibility filters before sponsor resolution.
 
         Returns True if the ad should proceed to sponsor extraction.
-        Filters: was_cut, detection_stage == 'claude', confidence floor,
+        Filters: was_cut, detection_stage claude or sponsorblock, confidence floor,
         and stricter confidence for long (>90s) detections.
         """
         # Learn from removed ads, or a keep/mark-action marker: it still
@@ -2902,8 +2907,8 @@ class AdDetector:
         if ad.get('_skip_pattern_learning'):
             return False
 
-        # Only learn from Claude detections (not fingerprint/text pattern)
-        if ad.get('detection_stage') != 'claude':
+        # Only learn from Claude detections and SponsorBlock marks (not fingerprint/text pattern)
+        if ad.get('detection_stage') not in ('claude', 'sponsorblock'):
             return False
 
         # Require high confidence
@@ -3008,8 +3013,14 @@ class AdDetector:
         Tier 3: use raw sponsor if it looks valid
         Tier 4: read a brand out of the reason prose
 
+        SponsorBlock marks skip the tiers and take the label for their category.
+
         Returns the canonical sponsor name, or None if no usable sponsor.
         """
+        if ad.get('source') == 'sponsorblock':
+            # Marks carry no sponsor and a synthetic reason, so tiers 1-4 have nothing to read.
+            return SPONSORBLOCK_CATEGORY_LABELS.get(ad.get('category'))
+
         sponsor = None
         raw_sponsor = ad.get('sponsor')
         reason_text = ad.get('reason', '')
@@ -3046,6 +3057,9 @@ class AdDetector:
 
         Returns True if the sponsor should be rejected.
         """
+        if sponsor in SPONSORBLOCK_CATEGORY_LABELS.values():
+            return False
+
         # Gate A: reject sponsors that are strict prefixes of known sponsors
         if self.sponsor_service:
             sponsor_lower = sponsor.lower()

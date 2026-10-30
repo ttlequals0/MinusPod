@@ -124,7 +124,7 @@ def acquire(slug, episode_id, episode_url, podcast, episode_data, reprocess_mode
             else:
                 raise SponsorBlockDeferred('No captions and transcription is off', _retry_at(episode_data, resolved))
             note = f'{note},no_captions' if note else 'no_captions'
-        elif markers and not llm_on_top(podcast):
+        elif markers and not (llm_on_top(podcast) or reprocess_mode in ('full', 'llm')):
             mode = 'sponsorblock'
         elif markers or forced:
             mode = 'llm'

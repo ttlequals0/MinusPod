@@ -193,7 +193,7 @@ Every term the app uses, in plain words, with a link to the part of the docs tha
 
 **Partial detection** - An episode published from pattern and cross-fetch cuts alone after the AI detection pass failed. Shows an amber badge and a Re-run detection banner on the episode page; one automatic low-priority re-detect is also queued. [How It Works > Partial Detection](how-it-works.md#partial-detection)
 
-**Pass 1 detection (YouTube feeds)** - A per-feed switch that runs the LLM detector on a YouTube episode in addition to SponsorBlock, even when marks exist. Both sets of segments are cut. [YouTube Feeds > What decides the cuts](youtube-feeds.md#what-decides-the-cuts)
+**Pass 1 detection (YouTube feeds)** - A per-feed switch that runs the LLM detector on a YouTube episode in addition to SponsorBlock, even when marks exist. Both sets of segments are cut. Without it, the LLM runs only on episodes with no marks, while learned patterns always run. Full reprocess and Re-detect ads force it for that run. [YouTube Feeds > What decides the cuts](youtube-feeds.md#what-decides-the-cuts)
 
 **Pass-through** - One of the five presets on the per-feed Processing mode select. It turns processing off entirely: episodes are downloaded and relayed with no transcription or ad removal, though the audio may be transcoded for serving. The feed URL stays the same, so switching to another mode resumes processing later without touching your podcast app. [Configuration > Pass-through mode](configuration.md#pass-through-mode)
 

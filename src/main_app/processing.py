@@ -566,7 +566,8 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
             detection_mode = 'sponsorblock'
             run_stats['verification_skipped'] = True
         sponsorblock_only = detection_mode == 'sponsorblock'
-        detection_off = detection_mode != 'normal'
+        llm_off = cue_only or sponsorblock_only
+        detection_off = detection_mode == 'skip'
         try:
             audio_path, segments = transcribe._download_and_transcribe(
                 slug, episode_id, episode_url,
@@ -591,7 +592,8 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
 
         # Stage 1a: upstream transcript differential (best effort, bounded fetch).
         transcript_spans = []
-        if not detection_off:
+        # YouTube feeds have no upstream transcript to diff against.
+        if not detection_off and yt_run is None:
             transcript_diff = signals._run_transcript_diff(
                 slug, episode_id, episode_data, segments, run_stats, podcast=podcast_settings,
                 segments_reused=transcribe_outcome.get('segments_reused', False))
@@ -739,8 +741,7 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                 # contract. Detection stats (stage_hits, detected) are not
                 # recorded for stages that never ran.
                 audio_logger.info(
-                    f"[{slug}:{episode_id}] Ad detection skipped "
-                    f"({'SponsorBlock marks' if sponsorblock_only else 'per-feed setting'})")
+                    f"[{slug}:{episode_id}] Ad detection skipped (per-feed setting)")
                 # Markers and assets left by an earlier detection run describe
                 # cut audio; clear them like pass-through does. Transcript
                 # inputs survive, so nothing is re-transcribed.
@@ -750,12 +751,6 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                 ads_to_remove, all_ads_with_validation = [], []
                 keep_ads = []
                 segment_actions = {}
-                if sponsorblock_only:
-                    segment_actions = db.resolve_segment_actions(slug, podcast=podcast_settings)
-                    keep_ads, ads_to_remove = keep_rules._partition_keep_ads(
-                        [dict(m) for m in yt_run.markers], segment_actions, None)
-                    all_ads_with_validation = list(ads_to_remove)
-                    first_pass_count = len(yt_run.markers)
             else:
                 # Learned positional prior (issue #360 experiment, off by
                 # default); consumed by detection and validation only.
@@ -784,6 +779,10 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                 segment_actions = db.resolve_segment_actions(slug, podcast=podcast_settings)
                 recut._log_segment_action_map(slug, episode_id, segment_actions, podcast_settings)
 
+                if sponsorblock_only:
+                    audio_logger.info(
+                        f"[{slug}:{episode_id}] Pattern-only detection (SponsorBlock marks, LLM off)")
+
                 # Stage 3: First-pass detection
                 _reserve_provider()
                 provider_attempted = True
@@ -800,7 +799,7 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                         # None = resolve fresh from the DB at detection time, so a
                         # detection_mode toggle during download/transcription is honored.
                         keep_content=None,
-                        skip_llm=cue_only,
+                        skip_llm=llm_off,
                         force_create_from_pairs=cue_only,
                         strict_pair_roles=cue_only,
                         episode_duration=episode_duration,
@@ -810,8 +809,6 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                     )
                 _check_cancel(cancel_event, slug, episode_id)
 
-                if yt_run and yt_run.markers:
-                    first_pass_ads = list(first_pass_ads) + [dict(m) for m in yt_run.markers]
                 first_pass_ads = detect._exclude_opening_ads(first_pass_ads, opening_exclusion_seconds)
                 first_pass_count = len(first_pass_ads)
 
@@ -887,7 +884,7 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                         keep_ads=keep_ads,
                         cue_only_safety=cue_only_safety,
                         cue_unproven_template_ids=cue_unproven_ids,
-                        apply_heuristic_rolls=not cue_only,
+                        apply_heuristic_rolls=not llm_off,
                         segment_actions=segment_actions,
                         corrections=user_corrections,
                         transcript_spans=transcript_spans,
@@ -908,6 +905,19 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                     ads_to_remove = [ad for ad in ads_to_remove
                                      if id(ad) not in late_keep_ids]
                     keep_ads = keep_ads + late_keep_ads
+
+                if yt_run and yt_run.markers:
+                    # Community marks skip validation: its duration cap and boundary
+                    # refinement would alter them. A kept category still wins.
+                    mark_keep, mark_cuts = keep_rules._partition_keep_ads(
+                        [dict(m) for m in yt_run.markers], segment_actions, None)
+                    keep_ads = keep_ads + mark_keep
+                    ads_to_remove = list(ads_to_remove) + mark_cuts
+                    all_ads_with_validation = sorted(
+                        list(all_ads_with_validation) + mark_cuts, key=lambda x: x['start'])
+                    ads_to_remove = sorted(ads_to_remove, key=lambda x: x['start'])
+                    first_pass_count += len(yt_run.markers)
+                    run_stats['detected'] = first_pass_count
             _check_cancel(cancel_event, slug, episode_id)
 
             # cue_only and SponsorBlock-only skip this: neither mode makes LLM calls.
@@ -1046,7 +1056,7 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                 m for m in all_ads_with_validation
                 if is_keep_like(m.get('action_applied'))
             ]
-            verification_skipped = detection_off or skip_second_pass or cue_only
+            verification_skipped = detection_off or skip_second_pass or llm_off
             if skip_second_pass and not skip_detection:
                 audio_logger.info(
                     f"[{slug}:{episode_id}] Verification pass skipped (configured setting)")
