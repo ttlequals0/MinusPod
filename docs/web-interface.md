@@ -148,6 +148,10 @@ or `POST` to the same URL with `{"slugs":["example-podcast"]}` for a selection.
 The POST form avoids URL-length limits for large selections. See
 [API & Webhooks](api-and-webhooks.md#api).
 
+### Episode player
+
+A completed episode plays in a built-in player instead of the browser's native controls. When the episode has chapters, a row above the scrubber shows the current chapter title with previous and next chapter buttons; previous restarts the current chapter when you are more than 3 seconds into it and otherwise jumps to the chapter before. The scrubber marks chapter starts and shows elapsed and remaining time. Below it are skip back 15 seconds, play and pause, skip forward 30 seconds, and a speed button that cycles 1x, 1.25x, 1.5x, 1.75x, 2x and 0.8x; the speed is remembered per browser. With focus on the player, Space plays or pauses, Left Arrow skips back 15 seconds and Right Arrow skips forward 30 seconds. The episode description and chapter notes sit under the player, collapsed to a few lines with a Show more button when they are long.
+
 ### Episode actions and job state
 
 Process, Reprocess, Re-detect Ads, and Recut all read their enabled state from the server's authoritative view of whether a job is queued or running, rather than guessing from the episode's stored status. In the UI that means:

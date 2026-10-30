@@ -11,6 +11,16 @@ release notes.
 
 ## [Unreleased]
 
+## [2.101.8] - 2026-10-30
+
+### Added
+
+- The episode page has a built-in audio player with chapter navigation and the current chapter title, skip back 15 s and forward 30 s, playback speed remembered per browser, and keyboard shortcuts. The episode description now sits under the player and collapses to a few lines with a Show more button.
+
+### Changed
+
+- lucide-react 1.62.0.
+
 ## [2.101.7] - 2026-10-30
 
 ### Fixed
