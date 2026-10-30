@@ -189,3 +189,12 @@ def update_tick(db):
 
 def status(db) -> dict:
     return {'bakedVersion': baked_version(), 'version': db.get_setting('youtube_ytdlp_version')}
+
+
+def update_after_failure(db, log, prefix=''):
+    """Self-update the binary after an outdated-extractor failure; never raises."""
+    from main_app import storage  # lazy: main_app instantiates Storage on import
+    try:
+        update_binary(storage, db)
+    except Exception as exc:
+        log.warning(f"{prefix}yt-dlp update failed: {exc}")

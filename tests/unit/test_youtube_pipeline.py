@@ -565,26 +565,29 @@ def test_sponsorblock_markers_are_learned_like_detections():
     assert detector.learn_from_detections.call_args.args[0] == [sb]
 
 
-def test_sponsorblock_mark_without_a_sponsor_learns_under_its_category_label():
+def test_marks_are_named_from_caption_text_or_category_label():
+    plain = [{'start': 12.0, 'end': 20.0, 'text': 'Support the show today'}]
+    named = [{'start': 12.0, 'end': 20.0, 'text': 'This is brought to you by Acme'}]
+    with patch.object(sb_stage, 'sponsor_service') as svc:
+        svc.find_sponsor_in_text.side_effect = lambda text: 'Acme' if 'acme' in text.lower() else None
+        base = {'start': 10.0, 'end': 40.0, 'category': 'sponsor'}
+        marks = [dict(base), dict(base), dict(base, category='intro')]
+        sb_stage._name_marks(marks[:1], named)
+        sb_stage._name_marks(marks[1:], plain)
+    assert marks[0]['sponsor'] == 'Acme' and 'label_sponsor' not in marks[0]
+    assert marks[1]['sponsor'] == 'Sponsor read' and marks[1]['label_sponsor'] is True
+    assert marks[2]['sponsor'] == 'Intro' and marks[2]['label_sponsor'] is True
+
+
+def test_label_sponsor_mark_passes_gates_and_learns_under_its_sponsor():
     from ad_detector import AdDetector
     detector = AdDetector.__new__(AdDetector)
     detector.sponsor_service = None
     detector.db = None
-    sb = dict(MARKERS[0], category='self_promo')
+    sb = dict(MARKERS[0], category='self_promo', sponsor='Self promotion', label_sponsor=True)
     assert detector._ad_passes_learning_filters(sb, 0.8)
     assert detector._resolve_sponsor_for_learning(sb) == 'Self promotion'
-    assert not detector._sponsor_blocked_by_gates('Intro', set())
-    detector.sponsor_service = MagicMock()
-    detector.sponsor_service.find_sponsor_in_text.side_effect = (
-        lambda text: 'Acme' if 'acme' in text.lower() else None)
-    sponsor_mark = dict(MARKERS[0])
-    named = [{'start': 12.0, 'end': 20.0, 'text': 'This is brought to you by Acme'}]
-    plain = [{'start': 12.0, 'end': 20.0, 'text': 'Support the show today'}]
-    assert detector._resolve_sponsor_for_learning(sponsor_mark, named) == 'Acme'
-    assert detector._resolve_sponsor_for_learning(sponsor_mark, plain) == 'Sponsor read'
-    assert detector._resolve_sponsor_for_learning(dict(sb, category='intro'), named) == 'Intro'
-    claude = {'detection_stage': 'claude', 'source': 'claude', 'category': 'sponsor', 'reason': ''}
-    assert detector._resolve_sponsor_for_learning(claude) is None
+    assert not detector._sponsor_blocked_by_gates('Self promotion', set(), sb)
 
 
 def test_episode_json_carries_sponsorblock_block_only_for_youtube():

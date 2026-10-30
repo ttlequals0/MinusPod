@@ -7,16 +7,17 @@ import tempfile
 from dataclasses import dataclass
 from datetime import timedelta
 
-from main_app.pipeline import common
-from main_app.pipeline.shared import audio_processor, db, storage
+from main_app.pipeline import common, keep_rules
+from main_app.pipeline.shared import audio_processor, db, sponsor_service, storage
 from reprocess_modes import FORCE_TRANSCRIBE_MODES
 from utils.markers import parse_ad_markers
-from utils.time import utc_now, utc_now_iso
+from utils.time import overlap_ratio, utc_now, utc_now_iso
 from youtube import captions, download, metadata, sponsorblock, ytdlp
 from youtube import settings as yt_settings
 from youtube.settings import YouTubeSettings, llm_on_top
 
 audio_logger = logging.getLogger('podcast.audio')
+MARK_COVER_RATIO = 0.5
 
 
 class SponsorBlockDeferred(Exception):
@@ -52,6 +53,19 @@ def _fill_metadata(slug, episode_id, episode_data, info):
     db.upsert_episode(slug, episode_id, yt_metadata_at=utc_now_iso(), **fields)
 
 
+def _name_marks(markers, segments):
+    """Stamp each mark with the registry sponsor its caption text names, else its category label."""
+    for marker in markers:
+        found = None
+        if marker['category'] == 'sponsor' and segments:
+            text = ' '.join(seg.get('text', '') for seg in segments
+                            if seg.get('end', 0) >= marker['start'] and seg.get('start', 0) <= marker['end'])
+            found = sponsor_service.find_sponsor_in_text(text.strip())
+        marker['sponsor'] = found or sponsorblock.SPONSORBLOCK_CATEGORY_LABELS.get(marker['category'])
+        if not found:
+            marker['label_sponsor'] = True
+
+
 def _fetch_retained_captions(slug, episode_id, video_id, language):
     """Captions for a run that reuses retained audio; a failed fetch leaves the run captionless."""
     try:
@@ -70,7 +84,7 @@ def _fetch_retained_captions(slug, episode_id, video_id, language):
 def acquire(slug, episode_id, episode_url, podcast, episode_data, reprocess_mode) -> YouTubeRun:
     """Get the audio, captions and SponsorBlock marks, and pick the run mode."""
     resolved = yt_settings.resolve_feed(db, podcast)
-    video_id = metadata.video_id_of({**(episode_data or {}), 'original_url': episode_url})
+    video_id = metadata.video_id_of(episode_data, episode_url)
     if not video_id:
         raise Exception('YouTube episode has no video id')
     db.update_episode_sponsorblock(slug, episode_id, youtube_video_id=video_id)
@@ -93,10 +107,7 @@ def acquire(slug, episode_id, episode_url, podcast, episode_data, reprocess_mode
             except download.DownloadError as exc:
                 if exc.needs_update:
                     audio_logger.warning(f"[{slug}:{episode_id}] yt-dlp looks outdated; updating before retry")
-                    try:
-                        ytdlp.update_binary(storage, db)
-                    except Exception as update_exc:
-                        audio_logger.warning(f"[{slug}:{episode_id}] yt-dlp update failed: {update_exc}")
+                    ytdlp.update_after_failure(db, audio_logger, f"[{slug}:{episode_id}] ")
                 raise Exception(str(exc)) from exc
         _fill_metadata(slug, episode_id, episode_data, result.info)
         work_dir = os.path.dirname(result.audio_path)
@@ -112,6 +123,7 @@ def acquire(slug, episode_id, episode_url, podcast, episode_data, reprocess_mode
         duration = audio_processor.get_audio_duration(audio_path)
         marks = sponsorblock.fetch_segments(video_id)
         markers, note = sponsorblock.to_markers(marks or [], duration)
+        _name_marks(markers, segments)
         manual = bool(reprocess_mode) or (episode_data or {}).get('reprocess_source') is not None
         exhausted = (episode_data or {}).get('sb_state') == 'exhausted'
         forced = manual or exhausted
@@ -145,6 +157,28 @@ def acquire(slug, episode_id, episode_url, podcast, episode_data, reprocess_mode
     audio_logger.info(f"[{slug}:{episode_id}] SponsorBlock: {len(markers)} segment(s), mode={mode}, "
                       f"captions={'yes' if segments else 'no'}")
     return YouTubeRun(audio_path, segments, markers, note, mode, resolved)
+
+
+def _covered_by(ad, marks) -> bool:
+    return any(overlap_ratio(m['start'], m['end'], ad['start'], ad['end']) >= MARK_COVER_RATIO for m in marks)
+
+
+def merge_marks(yt_run, ads_to_remove, all_ads_with_validation, keep_ads, segment_actions):
+    """Fold SponsorBlock marks into the post-validation ad lists; returns the lists plus the dropped count.
+
+    Marks skip validation (its duration cap and refinement would alter them), a kept category
+    still wins, and a mark outranks any detection it covers so learned patterns never double a row.
+    """
+    mark_keep, mark_cuts = keep_rules._partition_keep_ads(
+        [dict(m) for m in yt_run.markers], segment_actions, None)
+    kept = [ad for ad in all_ads_with_validation if not _covered_by(ad, mark_cuts)]
+    dropped = len(all_ads_with_validation) - len(kept)
+    if dropped:
+        audio_logger.info(f"Dropped {dropped} detection(s) covered by SponsorBlock marks")
+    ads_to_remove = sorted([ad for ad in ads_to_remove if not _covered_by(ad, mark_cuts)] + mark_cuts,
+                           key=lambda x: x['start'])
+    all_ads_with_validation = sorted(kept + mark_cuts, key=lambda x: x['start'])
+    return ads_to_remove, all_ads_with_validation, keep_ads + mark_keep, dropped
 
 
 def after_success(slug, episode_id, run: YouTubeRun, episode_data=None):

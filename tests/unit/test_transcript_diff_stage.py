@@ -270,3 +270,11 @@ def test_empty_saved_transcript_falls_back_and_skips_reuse(stage):
                                      'fetched_at': _iso(1)}
     stage.run(segments=segments, segments_reused=outcome['segments_reused'])
     stage.fetch.assert_called_once()
+
+
+def test_youtube_feed_is_skipped_without_fetch_or_stats(stage):
+    payload, run_stats = stage.run(podcast={**FEED, 'feed_type': 'youtube'})
+    assert payload['status'] == 'none' and payload['spans'] == []
+    assert run_stats == {}
+    stage.fetch.assert_not_called()
+    stage.save.assert_not_called()

@@ -72,7 +72,7 @@ function DropdownMenu({
   };
 
   return (
-    <div ref={rootRef}>
+    <div ref={rootRef} className="min-w-0">
       <button
         ref={triggerRef}
         {...triggerProps}

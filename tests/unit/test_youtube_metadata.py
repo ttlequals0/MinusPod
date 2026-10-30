@@ -68,7 +68,7 @@ def test_fetch_info_error_when_nothing_parsed():
     stderr = 'ERROR: Unable to extract player version; please report this issue'
     run = MagicMock(return_value=_run_result('', returncode=1, stderr=stderr))
     p1, p2 = _patched_fetch(run)
-    with p1, p2, pytest.raises(metadata.MetadataError) as exc:
+    with p1, p2, pytest.raises(download.DownloadError) as exc:
         metadata.fetch_info(['vid1'])
     assert exc.value.needs_update is True
     assert str(exc.value).startswith('ERROR: Unable')
@@ -91,14 +91,15 @@ def test_tick_disabled_makes_no_db_call():
     db.get_youtube_episodes_missing_metadata.assert_not_called()
 
 
-def test_tick_empty_selection_sets_throttle_without_ytdlp():
+def test_batch_empty_selection_sets_throttle_without_ytdlp():
     db = _db([])
-    with _enabled(), patch.object(metadata, 'fetch_info') as fetch:
-        metadata.backfill_tick(db)
+    with _enabled(), patch.object(metadata, 'fetch_info') as fetch, patch.object(metadata, '_executor') as executor:
+        metadata._run_batch(db)
         assert metadata._next_run > utc_now() + timedelta(minutes=9)
         db.get_youtube_episodes_missing_metadata.reset_mock()
         metadata.backfill_tick(db)
     fetch.assert_not_called()
+    executor.submit.assert_not_called()
     db.get_youtube_episodes_missing_metadata.assert_not_called()
 
 
@@ -110,7 +111,7 @@ def test_tick_upserts_fields_and_marker():
     db = _db(rows)
     with _enabled(), patch.object(metadata, 'fetch_info', return_value={
             'vid1': {'id': 'vid1', 'description': 'Hello'}, 'vid2': {'id': 'vid2'}}) as fetch:
-        metadata.backfill_tick(db)
+        metadata._run_batch(db)
     fetch.assert_called_once_with(['vid1', 'vid2'])
     first, second = db.upsert_episode.call_args_list
     assert first[0] == ('s', 'e1') and first[1]['description'] == 'Hello' and first[1]['yt_metadata_at']
@@ -120,7 +121,24 @@ def test_tick_upserts_fields_and_marker():
 def test_tick_error_does_not_mark_rows_and_throttles():
     db = _db([{'slug': 's', 'episode_id': 'e1', 'youtube_video_id': 'vid1', 'original_url': 'u',
                'published_at': None, 'description': ''}])
-    with _enabled(), patch.object(metadata, 'fetch_info', side_effect=metadata.MetadataError('boom')):
-        metadata.backfill_tick(db)
+    with _enabled(), patch.object(metadata, 'fetch_info', side_effect=download.DownloadError('boom')):
+        metadata._run_batch(db)
     db.upsert_episode.assert_not_called()
     assert metadata._next_run > utc_now()
+
+
+def test_tick_in_flight_batch_makes_no_db_call():
+    db = _db([])
+    running = MagicMock()
+    running.done.return_value = False
+    with _enabled(), patch.object(metadata, '_future', running), patch.object(metadata, '_executor') as executor:
+        metadata.backfill_tick(db)
+    executor.submit.assert_not_called()
+    db.get_youtube_episodes_missing_metadata.assert_not_called()
+
+
+def test_tick_submits_one_batch():
+    db = _db([])
+    with _enabled(), patch.object(metadata, '_future', None), patch.object(metadata, '_executor') as executor:
+        metadata.backfill_tick(db)
+    executor.submit.assert_called_once_with(metadata._run_batch, db)

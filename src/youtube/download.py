@@ -57,7 +57,7 @@ def _sub_langs(language: str | None) -> str:
     return '.*-orig,-live_chat'
 
 
-def _auth_args() -> list[str]:
+def auth_args() -> list[str]:
     args = []
     cookie_file = cookies_path()
     if cookie_file:
@@ -76,7 +76,7 @@ def download(video_id: str, *, want_captions: bool, language: str) -> DownloadRe
             '-o', '%(id)s.%(ext)s']
     if want_captions:
         args += ['--write-subs', '--write-auto-subs', '--sub-langs', _sub_langs(language), '--sub-format', 'json3']
-    args += _auth_args()
+    args += auth_args()
     args.append(watch_url(video_id))
     work_dir = tempfile.mkdtemp(prefix='minuspod-yt-')
     try:
@@ -108,7 +108,7 @@ def fetch_captions(video_id: str, *, language: str) -> str | None:
     """Fetch only the json3 captions; the caller deletes the returned file's directory."""
     args = ['--skip-download', '--write-subs', '--write-auto-subs', '--sub-langs', _sub_langs(language),
             '--sub-format', 'json3', '--no-playlist', '--no-warnings', '--no-progress',
-            '-o', '%(id)s.%(ext)s'] + _auth_args() + [watch_url(video_id)]
+            '-o', '%(id)s.%(ext)s'] + auth_args() + [watch_url(video_id)]
     work_dir = tempfile.mkdtemp(prefix='minuspod-yt-')
     try:
         try:
@@ -119,10 +119,9 @@ def fetch_captions(video_id: str, *, language: str) -> str | None:
             logger.debug(f"yt-dlp caption fetch for {video_id} exited {result.returncode}: "
                          f"{ytdlp.trimmed_error(result.stderr)}")
         path = pick_file(work_dir, video_id, language)
-        if path:
-            return path
+        if not path:
+            shutil.rmtree(work_dir, ignore_errors=True)
+        return path
     except BaseException:
         shutil.rmtree(work_dir, ignore_errors=True)
         raise
-    shutil.rmtree(work_dir, ignore_errors=True)
-    return None

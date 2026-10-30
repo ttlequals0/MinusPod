@@ -25,7 +25,7 @@ from config import (
     resolve_differential_fetch_mode,
 )
 
-from database.podcasts import has_upstream_audio
+from database.podcasts import has_upstream_audio, is_youtube_feed
 from transcript_differential import align, fetch_upstream_transcript
 from splice_calibration import compute_splice_calibration
 from user_agent import download_user_agent
@@ -278,6 +278,8 @@ def _run_transcript_diff(slug, episode_id, episode_row, segments, run_stats, *, 
     url = (episode_row or {}).get('upstream_transcript_url')
     payload = {'status': 'none', 'source_url': url, 'mime': None, 'timed': None,
                'coverage': None, 'spans': [], 'fetched_at': None, 'error': None}
+    if is_youtube_feed(podcast):
+        return payload
     reused = False
     persist = True
     host = 'unknown'

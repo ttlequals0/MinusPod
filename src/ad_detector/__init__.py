@@ -757,11 +757,7 @@ def _pattern_match_evidence(match, kind: str) -> str:
 
 
 _SPONSOR_MATCH_STAGES = ('fingerprint', 'text_pattern')
-# Pattern label for a SponsorBlock mark whose span text names no sponsor.
-SPONSORBLOCK_CATEGORY_LABELS = {
-    'sponsor': 'Sponsor read', 'self_promo': 'Self promotion', 'intro': 'Intro',
-    'outro': 'Outro', 'interaction': 'Interaction reminder', 'recap': 'Recap',
-}
+LEARNABLE_STAGES = frozenset({'claude', 'sponsorblock'})
 
 
 def _known_sponsor_matchers(ads: list[dict],
@@ -2894,7 +2890,7 @@ class AdDetector:
         """Apply basic eligibility filters before sponsor resolution.
 
         Returns True if the ad should proceed to sponsor extraction.
-        Filters: was_cut, detection_stage claude or sponsorblock, confidence floor,
+        Filters: was_cut, detection_stage in LEARNABLE_STAGES, confidence floor,
         and stricter confidence for long (>90s) detections.
         """
         # Learn from removed ads, or a keep/mark-action marker: it still
@@ -2907,8 +2903,7 @@ class AdDetector:
         if ad.get('_skip_pattern_learning'):
             return False
 
-        # Only learn from Claude detections and SponsorBlock marks (not fingerprint/text pattern)
-        if ad.get('detection_stage') not in ('claude', 'sponsorblock'):
+        if ad.get('detection_stage') not in LEARNABLE_STAGES:
             return False
 
         # Require high confidence
@@ -3005,7 +3000,7 @@ class AdDetector:
             return canonical_sponsor(named)
         return None
 
-    def _resolve_sponsor_for_learning(self, ad: dict, segments: list[dict] | None = None) -> str | None:
+    def _resolve_sponsor_for_learning(self, ad: dict) -> str | None:
         """Resolve a usable sponsor name from an ad via 4-tier lookup.
 
         Tier 1: sponsor DB lookup on raw sponsor field
@@ -3013,20 +3008,8 @@ class AdDetector:
         Tier 3: use raw sponsor if it looks valid
         Tier 4: read a brand out of the reason prose
 
-        SponsorBlock marks skip the tiers: a sponsor mark names a registry sponsor found in
-        its caption text, else it takes the label for its category.
-
         Returns the canonical sponsor name, or None if no usable sponsor.
         """
-        if ad.get('source') == 'sponsorblock':
-            # Marks carry no sponsor and a synthetic reason, so tiers 1-4 have nothing to read.
-            if ad.get('category') == 'sponsor' and segments and self.sponsor_service:
-                found = self.sponsor_service.find_sponsor_in_text(
-                    self._get_segment_text(segments, ad['start'], ad['end']))
-                if found:
-                    return canonical_sponsor(found)
-            return SPONSORBLOCK_CATEGORY_LABELS.get(ad.get('category'))
-
         sponsor = None
         raw_sponsor = ad.get('sponsor')
         reason_text = ad.get('reason', '')
@@ -3057,13 +3040,13 @@ class AdDetector:
         return canonical_sponsor(sponsor)
 
     def _sponsor_blocked_by_gates(
-        self, sponsor: str, active_pattern_sponsors: set
+        self, sponsor: str, active_pattern_sponsors: set, ad: dict | None = None
     ) -> bool:
         """Apply Gate A (prefix-of-known) and Gate B (unknown short single word).
 
         Returns True if the sponsor should be rejected.
         """
-        if sponsor in SPONSORBLOCK_CATEGORY_LABELS.values():
+        if (ad or {}).get('label_sponsor'):
             return False
 
         # Gate A: reject sponsors that are strict prefixes of known sponsors
@@ -3191,11 +3174,11 @@ class AdDetector:
             if candidate.get('_cut_down'):
                 sponsor = self._cut_down_piece_sponsor(candidate, segments)
             else:
-                sponsor = self._resolve_sponsor_for_learning(candidate, segments)
+                sponsor = self._resolve_sponsor_for_learning(candidate)
             if not sponsor:
                 continue
 
-            if self._sponsor_blocked_by_gates(sponsor, active_pattern_sponsors):
+            if self._sponsor_blocked_by_gates(sponsor, active_pattern_sponsors, candidate):
                 continue
 
             if candidate.get('_member_of'):

@@ -12,6 +12,11 @@ logger = logging.getLogger(__name__)
 API = 'https://sponsor.ajay.app/api/skipSegments'
 CATEGORY_MAP = {'sponsor': 'sponsor', 'selfpromo': 'self_promo', 'interaction': 'interaction',
                 'intro': 'intro', 'outro': 'outro', 'preview': 'recap'}
+# Pattern label for a mark whose caption text names no sponsor.
+SPONSORBLOCK_CATEGORY_LABELS = {
+    'sponsor': 'Sponsor read', 'self_promo': 'Self promotion', 'intro': 'Intro',
+    'outro': 'Outro', 'interaction': 'Interaction reminder', 'recap': 'Recap',
+}
 REQUEST_CATEGORIES = list(CATEGORY_MAP)
 ACTION_TYPES = ['skip', 'mute', 'full']
 DURATION_TOLERANCE_S = 2.0

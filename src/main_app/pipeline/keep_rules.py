@@ -256,14 +256,8 @@ def _stamp_and_carve_cuts(slug, episode_id, ads_to_remove, all_ads, segment_acti
     return ads_to_remove
 
 
-def _learnable(ad) -> bool:
-    """SponsorBlock marks are learned like detections."""
-    return True
-
-
 def _learn_from_kept_ads(slug, episode_id, keep_ads, segments, audio_path):
     """Learn from keep-action markers that bypassed validation."""
-    keep_ads = [ad for ad in keep_ads or [] if _learnable(ad)]
     if not keep_ads or not slug:
         return 0
     patterns_learned = ad_detector.learn_from_detections(
@@ -284,7 +278,7 @@ def _learn_from_applied_cut_ads(slug, episode_id, cut_ads, markers,
     if not slug:
         return 0
     learnable = []
-    for ad in (ad for ad in cut_ads if _learnable(ad)):
+    for ad in cut_ads:
         marker = cuts._find_master(markers, ad)
         # A carved fragment is part of a read, not a whole one.
         if (marker is None or not ad.get('was_cut') or not marker.get('was_cut')

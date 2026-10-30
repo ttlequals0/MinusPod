@@ -60,7 +60,6 @@ from utils.constants import (
 
 from utils.episode_paths import episode_relative_path, published_episode_version
 from utils.gpu import get_available_memory_gb
-from utils.time import overlap_ratio
 
 audio_logger = logging.getLogger('podcast.audio')
 
@@ -593,8 +592,7 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
 
         # Stage 1a: upstream transcript differential (best effort, bounded fetch).
         transcript_spans = []
-        # YouTube feeds have no upstream transcript to diff against.
-        if not detection_off and yt_run is None:
+        if not detection_off:
             transcript_diff = signals._run_transcript_diff(
                 slug, episode_id, episode_data, segments, run_stats, podcast=podcast_settings,
                 segments_reused=transcribe_outcome.get('segments_reused', False))
@@ -735,12 +733,8 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
             # Snapshot for this run: a correction saved mid-run applies on the next run.
             user_corrections = detect._load_user_corrections(slug, episode_id, db)
             if detection_off:
-                # Stages 3-4 skipped: no prior, no detection, no validation.
-                # Stage 4 in particular must not run on the empty list because
-                # _apply_heuristic_rolls inside it adds pre/post-roll and
-                # VAD-gap cuts even then, breaking this mode's nothing-is-cut
-                # contract. Detection stats (stage_hits, detected) are not
-                # recorded for stages that never ran.
+                # 'skip' mode: stages 3-4 never run, and stage 4 would still add roll and VAD-gap
+                # cuts on the empty list. Detection stats are not recorded.
                 audio_logger.info(
                     f"[{slug}:{episode_id}] Ad detection skipped (per-feed setting)")
                 # Markers and assets left by an earlier detection run describe
@@ -908,28 +902,8 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                     keep_ads = keep_ads + late_keep_ads
 
                 if yt_run and yt_run.markers:
-                    # Community marks skip validation: its duration cap and boundary
-                    # refinement would alter them. A kept category still wins.
-                    mark_keep, mark_cuts = keep_rules._partition_keep_ads(
-                        [dict(m) for m in yt_run.markers], segment_actions, None)
-                    keep_ads = keep_ads + mark_keep
-
-                    def _covered_by_mark(ad):
-                        return any(overlap_ratio(m['start'], m['end'], ad['start'], ad['end']) >= 0.5
-                                   for m in mark_cuts)
-                    n_before = len(all_ads_with_validation)
-                    # A mark outranks a detection it covers, so learned patterns never double a row.
-                    all_ads_with_validation = [ad for ad in all_ads_with_validation
-                                               if not _covered_by_mark(ad)]
-                    ads_to_remove = [ad for ad in ads_to_remove if not _covered_by_mark(ad)]
-                    if n_before != len(all_ads_with_validation):
-                        audio_logger.info(
-                            f"[{slug}:{episode_id}] Dropped {n_before - len(all_ads_with_validation)} "
-                            f"detection(s) covered by SponsorBlock marks")
-                    ads_to_remove = ads_to_remove + mark_cuts
-                    all_ads_with_validation = sorted(
-                        list(all_ads_with_validation) + mark_cuts, key=lambda x: x['start'])
-                    ads_to_remove = sorted(ads_to_remove, key=lambda x: x['start'])
+                    ads_to_remove, all_ads_with_validation, keep_ads, _ = sb_stage.merge_marks(
+                        yt_run, ads_to_remove, all_ads_with_validation, keep_ads, segment_actions)
                     first_pass_count += len(yt_run.markers)
                     run_stats['detected'] = first_pass_count
             _check_cancel(cancel_event, slug, episode_id)

@@ -3,6 +3,7 @@ import json
 import logging
 import re
 import subprocess
+from concurrent.futures import ThreadPoolExecutor
 from datetime import timedelta
 from urllib.parse import parse_qs, urlparse
 
@@ -18,21 +19,17 @@ BATCH = 10
 IDLE_INTERVAL = timedelta(minutes=10)
 _DATE_ONLY = re.compile(r'^\d{4}-\d{2}-\d{2}$')
 _next_run = None
+_executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix='yt-metadata')
+_future = None
 
 
-class MetadataError(Exception):
-    def __init__(self, message: str, needs_update: bool = False):
-        super().__init__(message)
-        self.needs_update = needs_update
-
-
-def video_id_of(row) -> str:
+def video_id_of(row, url=None) -> str:
     vid = (row or {}).get('youtube_video_id')
-    return vid or parse_qs(urlparse((row or {}).get('original_url') or '').query).get('v', [''])[0]
+    return vid or parse_qs(urlparse(url or (row or {}).get('original_url') or '').query).get('v', [''])[0]
 
 
 def fill_fields(episode_row, info) -> dict:
-    """Upsert fields the info supplies and the row lacks."""
+    """Fields the info supplies and the row lacks."""
     fields = {}
     description = (info or {}).get('description')
     if description and not (episode_row or {}).get('description'):
@@ -47,17 +44,12 @@ def fill_fields(episode_row, info) -> dict:
 def fetch_info(video_ids: list[str]) -> dict[str, dict]:
     """One yt-dlp call for all ids; returns info keyed by video id."""
     args = ['--dump-json', '--skip-download', '--no-playlist', '--no-warnings', '--no-progress']
-    cookie_file = download.cookies_path()
-    if cookie_file:
-        args += ['--cookies', cookie_file]
-    target = download._impersonate_target()
-    if target:
-        args += ['--impersonate', target]
+    args += download.auth_args()
     args += [watch_url(vid) for vid in video_ids]
     try:
         result = ytdlp.run(args, timeout=METADATA_TIMEOUT_S)
     except subprocess.TimeoutExpired as exc:
-        raise MetadataError('yt-dlp timed out reading video metadata') from exc
+        raise download.DownloadError('yt-dlp timed out reading video metadata') from exc
     infos = {}
     for line in (result.stdout or '').splitlines():
         try:
@@ -67,39 +59,39 @@ def fetch_info(video_ids: list[str]) -> dict[str, dict]:
         if isinstance(info, dict) and info.get('id'):
             infos[info['id']] = info
     if result.returncode != 0 and not infos:
-        raise MetadataError(ytdlp.trimmed_error(result.stderr), needs_update=ytdlp.needs_update(result.stderr))
+        raise download.DownloadError(ytdlp.trimmed_error(result.stderr), needs_update=ytdlp.needs_update(result.stderr))
     return infos
 
 
 def backfill_tick(db):
-    """Fill missing descriptions and publish times for a few episodes per pass, no download."""
-    global _next_run
+    """Start a background batch that fills missing descriptions and publish times, no download."""
+    global _future
     if not yt_settings.enabled(db):
         return
-    now = utc_now()
-    if _next_run is not None and now < _next_run:
+    if (_future is not None and not _future.done()) or (_next_run is not None and utc_now() < _next_run):
         return
+    _future = _executor.submit(_run_batch, db)
+
+
+def _run_batch(db):
+    global _next_run
     rows = db.get_youtube_episodes_missing_metadata(BATCH)
-    if not rows:
-        _next_run = now + IDLE_INTERVAL
-        return
-    wanted = [(row, video_id_of(row)) for row in rows]
-    try:
-        infos = fetch_info([vid for _, vid in wanted if vid])
-    except MetadataError as exc:
-        logger.warning(f"YouTube metadata backfill failed: {exc}")
-        if exc.needs_update:
-            from main_app import storage  # lazy: main_app instantiates Storage on import
-            try:
-                ytdlp.update_binary(storage, db)
-            except Exception as update_exc:
-                logger.warning(f"yt-dlp update failed: {update_exc}")
-        _next_run = now + IDLE_INTERVAL
-        return
-    filled = 0
-    for row, vid in wanted:
-        fields = fill_fields(row, infos.get(vid, {}))
-        if fields.get('description'):
-            filled += 1
-        db.upsert_episode(row['slug'], row['episode_id'], yt_metadata_at=utc_now_iso(), **fields)
-    logger.info(f"YouTube metadata backfill: filled {filled} of {len(rows)} episode(s)")
+    ok = bool(rows)
+    if rows:
+        wanted = [(row, video_id_of(row)) for row in rows]
+        try:
+            infos = fetch_info([vid for _, vid in wanted if vid])
+        except download.DownloadError as exc:
+            ok = False
+            logger.warning(f"YouTube metadata backfill failed: {exc}")
+            if exc.needs_update:
+                ytdlp.update_after_failure(db, logger)
+    if ok:
+        filled = 0
+        for row, vid in wanted:
+            fields = fill_fields(row, infos.get(vid, {}))
+            if fields.get('description'):
+                filled += 1
+            db.upsert_episode(row['slug'], row['episode_id'], yt_metadata_at=utc_now_iso(), **fields)
+        logger.info(f"YouTube metadata backfill: filled {filled} of {len(rows)} episode(s)")
+    _next_run = None if ok else utc_now() + IDLE_INTERVAL
