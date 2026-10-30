@@ -1,10 +1,15 @@
 """YouTube settings: GET/PUT /settings/youtube and POST /settings/youtube/reset."""
+import logging
+
 from flask import request
 
 from api import api, error_response, get_database, get_storage, json_response, log_request
+from database.settings import YOUTUBE_RESET_SETTING_KEYS
 from secrets_crypto import is_available as crypto_available
 from utils.secret_writes import SecretWriteRejected, set_or_clear_secret
 from youtube import cookies, settings as yt_settings, ytdlp
+
+logger = logging.getLogger('podcast.api')
 
 _BOOL_KEYS = {
     'enabled': 'youtube_enabled',
@@ -112,19 +117,12 @@ def put_youtube_settings():
     return json_response(youtube_status_payload(db))
 
 
-_RESET_KEYS = (
-    *yt_settings.INT_KEYS.values(),
-    *(k for name, k in _BOOL_KEYS.items() if name != 'enabled'),
-    'youtube_proxy_url',
-    'youtube_ytdlp_extra_args',
-)
-
-
 @api.route('/settings/youtube/reset', methods=['POST'])
 @log_request
 def reset_youtube_settings():
     """Restore the YouTube tunables, proxy and extra arguments; keep the switch, key and cookies."""
     db = get_database()
-    for key in _RESET_KEYS:
+    for key in YOUTUBE_RESET_SETTING_KEYS:
         db.reset_setting(key)
+    logger.info('Reset YouTube settings to defaults')
     return json_response(youtube_status_payload(db))

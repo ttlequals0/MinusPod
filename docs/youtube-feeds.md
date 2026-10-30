@@ -179,7 +179,7 @@ yt-dlp changes often because YouTube does. MinusPod keeps up in layers.
 
 Settings > YouTube shows the running version, the version the image ships, and the last check time and error.
 
-**Reset to defaults** at the bottom of Settings > YouTube restores the processing settings, daily update toggle, proxy URL and extra arguments to their defaults. The feature switch, Data API key and cookies file are kept.
+**Reset to defaults** at the bottom of Settings > YouTube restores the processing settings, daily update toggle, proxy URL and extra arguments. The feature switch, Data API key and cookies file are kept.
 
 **Proxy URL** (API: `proxyUrl`) routes every yt-dlp call and every YouTube Data API request through a proxy. It accepts `http`, `https`, `socks4`, `socks5` and `socks5h` URLs, for example `socks5h://proxy:1080`, up to 500 characters. The API returns any password in the URL as `***`, and saving that masked value leaves the stored password unchanged. Self-updates ignore it. Set the proxy here rather than in the extra arguments, which reject URL values.
 

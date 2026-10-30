@@ -9172,7 +9172,6 @@ paths:
       summary: Reset YouTube settings to defaults
       description: >-
         Restores the YouTube tunables, proxy and extra yt-dlp arguments to their defaults.
-        The feature switch, Data API key and cookies file are kept.
       operationId: resetYoutubeSettings
       responses:
         '200':

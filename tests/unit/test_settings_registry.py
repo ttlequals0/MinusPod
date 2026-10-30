@@ -643,3 +643,9 @@ class TestShippedPromptsTrackTheDefault:
         values = dict(iter_refreshable_defaults())
         assert values['system_prompt'] == DEFAULT_SYSTEM_PROMPT
         assert 'CATEGORY:' in values['system_prompt']
+
+
+def test_youtube_reset_keys_cover_every_default_but_the_switch():
+    from database.settings import YOUTUBE_RESET_SETTING_KEYS
+    from youtube import settings as yt_settings
+    assert set(YOUTUBE_RESET_SETTING_KEYS) == set(yt_settings.DEFAULTS) - {'youtube_enabled'}
