@@ -438,7 +438,7 @@ Settings > YouTube configures [YouTube feeds](youtube-feeds.md). The feature is 
 | Transcribe when captions are missing (`transcribeFallback`) | off | on or off | Run the configured transcriber for videos with no captions; off keeps such videos on SponsorBlock marks only |
 | Update yt-dlp daily (`ytdlpAutoUpdate`) | on | on or off | Daily self-update of the data-volume copy |
 | Proxy URL (`proxyUrl`) | empty | up to 500 characters, http, https, socks4, socks5 or socks5h | Routes yt-dlp and YouTube Data API requests through a proxy |
-| Extra yt-dlp arguments (`ytdlpExtraArgs`) | empty | up to 1000 characters | Added before MinusPod's own options on every yt-dlp call; options that run or load programs, change paths, read local files, alter JSON output or update the binary are rejected |
+| Extra yt-dlp arguments (`ytdlpExtraArgs`) | empty | up to 1000 characters | Added before MinusPod's own options on every yt-dlp call; unsafe options are rejected |
 
 A YouTube feed overrides the delay, probe attempts, probe interval, LLM fallback, captions, private-video hiding, transcription fallback, and Shorts settings per feed, and adds a pass 1 detection switch, which runs the LLM detector in addition to SponsorBlock and cuts both sets of segments. Learned patterns run on every YouTube episode and learn from the SponsorBlock marks; Full reprocess and Re-detect ads force the LLM for that run. Null inherits the global value; 0 is a real value. The watch interval and ceiling are global only. API: `GET` and `PUT /api/v1/settings/youtube`; per-feed fields on `PATCH /api/v1/feeds/{slug}` are listed in [YouTube Feeds](youtube-feeds.md#per-feed-overrides).
 

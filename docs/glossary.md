@@ -113,7 +113,7 @@ Every term the app uses, in plain words, with a link to the part of the docs tha
 
 ## F
 
-**Extra yt-dlp arguments** - A YouTube setting whose text is split like a shell command and added before MinusPod's own options on every yt-dlp call. Options that run or load other programs, change where files are written, read local files, alter the JSON output or update the binary are rejected; use long option names. [YouTube Feeds > yt-dlp](youtube-feeds.md#yt-dlp)
+**Extra yt-dlp arguments** - A YouTube setting whose text is split like a shell command and added before MinusPod's own options on every yt-dlp call. Options that run programs, move files, read local files, change the JSON output or update the binary are rejected. [YouTube Feeds > yt-dlp](youtube-feeds.md#yt-dlp)
 
 **Failover** - A standby LLM provider or transcriber that takes over a target (Provider A, Provider B, or the active transcriber) when it is unreachable, times out, or rejects the key, model, or billing. Switches back after enough consecutive healthy health-probe checks for an automatic switch, or on manual cancel for one triggered by hand. [Failover](failover.md)
 

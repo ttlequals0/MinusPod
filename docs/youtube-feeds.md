@@ -179,9 +179,9 @@ yt-dlp changes often because YouTube does. MinusPod keeps up in layers.
 
 Settings > YouTube shows the running version, the version the image ships, and the last check time and error.
 
-**Proxy URL** (API: `proxyUrl`) is a global setting that routes every yt-dlp call and every YouTube Data API request through a proxy. It accepts `http`, `https`, `socks4`, `socks5` and `socks5h` URLs, for example `socks5h://proxy:1080`, up to 500 characters. The API returns any password in the URL as `***`, and saving that masked value leaves the stored password unchanged. A `--proxy` inside the extra arguments overrides it for yt-dlp. Self-updates ignore it.
+**Proxy URL** (API: `proxyUrl`) routes every yt-dlp call and every YouTube Data API request through a proxy. It accepts `http`, `https`, `socks4`, `socks5` and `socks5h` URLs, for example `socks5h://proxy:1080`, up to 500 characters. The API returns any password in the URL as `***`, and saving that masked value leaves the stored password unchanged. A `--proxy` inside the extra arguments overrides it for yt-dlp. Self-updates ignore it.
 
-**Extra yt-dlp arguments** (API: `ytdlpExtraArgs`) is a global setting whose text is split like a shell command and added before MinusPod's own options on every yt-dlp call: listings, metadata lookups, caption fetches, and downloads. Self-updates ignore it. Because MinusPod's options come last, output format and paths stay fixed. Example: `--limit-rate 2M`. Options that run or load other programs, change where files are written, read local files, alter the JSON output or update the binary are rejected; use long option names. The text is limited to 1000 characters.
+**Extra yt-dlp arguments** (API: `ytdlpExtraArgs`) is split like a shell command and added before MinusPod's own options on every yt-dlp call: listings, metadata lookups, caption fetches and downloads. Self-updates ignore it. MinusPod's options come last, so output format and paths stay fixed. Example: `--limit-rate 2M`. Options that run or load other programs, change where files are written, read local files, alter the JSON output or update the binary are rejected, and abbreviated or bundled short options are rejected too, so use full long option names. Up to 1000 characters.
 
 ## Per-feed overrides
 
