@@ -13,10 +13,19 @@ release notes.
 
 ## [2.101.3] - 2026-10-30
 
+### Changed
+
+- A YouTube feed lists every discovered episode with its upload date, up to
+  the feed's episode cap. The first play of an unprocessed episode starts
+  processing, as on subscribed and local feeds. Turn on "Only expose
+  processed episodes" for the feed to list finished episodes only.
+
 ### Fixed
 
 - Processed YouTube episodes appear in the combined Recents feed and the
   Recents list, like subscribed and local episodes.
+- YouTube publish times stored as midnight are upgraded to the video's
+  exact time by the metadata backfill, which also reads release timestamps.
 
 ## [2.101.2] - 2026-10-30
 
