@@ -113,6 +113,8 @@ Every term the app uses, in plain words, with a link to the part of the docs tha
 
 ## F
 
+**Extra yt-dlp arguments** - A YouTube setting whose text is split like a shell command and added before MinusPod's own options on every yt-dlp call. Options that change output paths, run commands or alter the JSON output are rejected. [YouTube Feeds > yt-dlp](youtube-feeds.md#yt-dlp)
+
 **Failover** - A standby LLM provider or transcriber that takes over a target (Provider A, Provider B, or the active transcriber) when it is unreachable, times out, or rejects the key, model, or billing. Switches back after enough consecutive healthy health-probe checks for an automatic switch, or on manual cancel for one triggered by hand. [Failover](failover.md)
 
 **False-positive text** - Transcript text stored from a confirmed "Mark as Not Ad" correction, matched against future episodes of the same podcast to suppress similar text automatically. [How It Works > Pattern Learning](how-it-works.md#pattern-learning)

@@ -13,6 +13,12 @@ release notes.
 
 ## [2.101.4] - 2026-10-30
 
+### Added
+
+- An Extra yt-dlp arguments setting under Settings > YouTube adds options
+  such as a proxy or rate limit to every yt-dlp call. Options that change
+  output paths, run commands or alter the JSON output are rejected.
+
 ### Fixed
 
 - Private and deleted playlist entries no longer appear as episodes titled
