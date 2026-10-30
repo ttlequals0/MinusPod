@@ -182,6 +182,7 @@ def is_known_ad(marker: dict) -> bool:
         or marker.get('fingerprint_match_start') is not None
         or marker.get('_confirmed_correction') is not None
         or marker.get('reviewer_verdict') == 'confirmed'
+        or marker.get('source') == 'sponsorblock'
         or any(validation.get(key) for key in _KNOWN_AD_VALIDATION_KEYS)
         or _has_fingerprint_evidence(marker))
 
