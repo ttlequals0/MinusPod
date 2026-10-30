@@ -60,6 +60,7 @@ from utils.constants import (
 
 from utils.episode_paths import episode_relative_path, published_episode_version
 from utils.gpu import get_available_memory_gb
+from utils.time import overlap_ratio
 
 audio_logger = logging.getLogger('podcast.audio')
 
@@ -912,7 +913,20 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                     mark_keep, mark_cuts = keep_rules._partition_keep_ads(
                         [dict(m) for m in yt_run.markers], segment_actions, None)
                     keep_ads = keep_ads + mark_keep
-                    ads_to_remove = list(ads_to_remove) + mark_cuts
+
+                    def _covered_by_mark(ad):
+                        return any(overlap_ratio(m['start'], m['end'], ad['start'], ad['end']) >= 0.5
+                                   for m in mark_cuts)
+                    n_before = len(all_ads_with_validation)
+                    # A mark outranks a detection it covers, so learned patterns never double a row.
+                    all_ads_with_validation = [ad for ad in all_ads_with_validation
+                                               if not _covered_by_mark(ad)]
+                    ads_to_remove = [ad for ad in ads_to_remove if not _covered_by_mark(ad)]
+                    if n_before != len(all_ads_with_validation):
+                        audio_logger.info(
+                            f"[{slug}:{episode_id}] Dropped {n_before - len(all_ads_with_validation)} "
+                            f"detection(s) covered by SponsorBlock marks")
+                    ads_to_remove = ads_to_remove + mark_cuts
                     all_ads_with_validation = sorted(
                         list(all_ads_with_validation) + mark_cuts, key=lambda x: x['start'])
                     ads_to_remove = sorted(ads_to_remove, key=lambda x: x['start'])

@@ -164,6 +164,23 @@ def test_sponsorblock_only_without_captions_still_runs_the_pattern_stages():
     assert detect.call_args.args[1] == [] and detect.call_args.kwargs['skip_llm'] is True
 
 
+def test_pattern_hit_covered_by_a_mark_is_dropped_and_a_distant_one_kept():
+    hits = [dict(PATTERN_HIT, start=100.0, end=130.0), dict(PATTERN_HIT, start=300.0, end=320.0)]
+    mark = dict(MARKERS[0], start=100.0, end=132.0)
+    ok, whisper, detect, verification, ap, *_ = _run([mark], pattern_hits=hits)
+    cut = ap.return_value.process_episode.call_args.args[1]
+    assert sorted((c['start'], c['end']) for c in cut) == [(100.0, 132.0), (300.0, 320.0)]
+    assert [c.get('sb_uuid') for c in sorted(cut, key=lambda c: c['start'])] == ['u1', None]
+
+
+def test_llm_detection_covered_by_a_mark_is_dropped_with_pass_1_on():
+    llm_hit = dict(PATTERN_HIT, detection_stage='claude', start=100.0, end=130.0)
+    mark = dict(MARKERS[0], start=100.0, end=132.0)
+    ok, whisper, detect, verification, ap, *_ = _run([mark], llm_on_top=True, pattern_hits=[llm_hit])
+    cut = ap.return_value.process_episode.call_args.args[1]
+    assert [(c['start'], c['end'], c.get('sb_uuid')) for c in cut] == [(100.0, 132.0, 'u1')]
+
+
 def test_kept_category_on_a_sponsorblock_mark_is_still_kept():
     kept = [dict(MARKERS[0], category='intro')]
     ok, whisper, detect, verification, ap, *_ = _run(kept)
@@ -557,6 +574,15 @@ def test_sponsorblock_mark_without_a_sponsor_learns_under_its_category_label():
     assert detector._ad_passes_learning_filters(sb, 0.8)
     assert detector._resolve_sponsor_for_learning(sb) == 'Self promotion'
     assert not detector._sponsor_blocked_by_gates('Intro', set())
+    detector.sponsor_service = MagicMock()
+    detector.sponsor_service.find_sponsor_in_text.side_effect = (
+        lambda text: 'Acme' if 'acme' in text.lower() else None)
+    sponsor_mark = dict(MARKERS[0])
+    named = [{'start': 12.0, 'end': 20.0, 'text': 'This is brought to you by Acme'}]
+    plain = [{'start': 12.0, 'end': 20.0, 'text': 'Support the show today'}]
+    assert detector._resolve_sponsor_for_learning(sponsor_mark, named) == 'Acme'
+    assert detector._resolve_sponsor_for_learning(sponsor_mark, plain) == 'Sponsor read'
+    assert detector._resolve_sponsor_for_learning(dict(sb, category='intro'), named) == 'Intro'
     claude = {'detection_stage': 'claude', 'source': 'claude', 'category': 'sponsor', 'reason': ''}
     assert detector._resolve_sponsor_for_learning(claude) is None
 

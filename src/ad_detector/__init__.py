@@ -3005,7 +3005,7 @@ class AdDetector:
             return canonical_sponsor(named)
         return None
 
-    def _resolve_sponsor_for_learning(self, ad: dict) -> str | None:
+    def _resolve_sponsor_for_learning(self, ad: dict, segments: list[dict] | None = None) -> str | None:
         """Resolve a usable sponsor name from an ad via 4-tier lookup.
 
         Tier 1: sponsor DB lookup on raw sponsor field
@@ -3013,12 +3013,18 @@ class AdDetector:
         Tier 3: use raw sponsor if it looks valid
         Tier 4: read a brand out of the reason prose
 
-        SponsorBlock marks skip the tiers and take the label for their category.
+        SponsorBlock marks skip the tiers: a sponsor mark names a registry sponsor found in
+        its caption text, else it takes the label for its category.
 
         Returns the canonical sponsor name, or None if no usable sponsor.
         """
         if ad.get('source') == 'sponsorblock':
             # Marks carry no sponsor and a synthetic reason, so tiers 1-4 have nothing to read.
+            if ad.get('category') == 'sponsor' and segments and self.sponsor_service:
+                found = self.sponsor_service.find_sponsor_in_text(
+                    self._get_segment_text(segments, ad['start'], ad['end']))
+                if found:
+                    return canonical_sponsor(found)
             return SPONSORBLOCK_CATEGORY_LABELS.get(ad.get('category'))
 
         sponsor = None
@@ -3185,7 +3191,7 @@ class AdDetector:
             if candidate.get('_cut_down'):
                 sponsor = self._cut_down_piece_sponsor(candidate, segments)
             else:
-                sponsor = self._resolve_sponsor_for_learning(candidate)
+                sponsor = self._resolve_sponsor_for_learning(candidate, segments)
             if not sponsor:
                 continue
 
