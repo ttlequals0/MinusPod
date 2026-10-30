@@ -121,7 +121,7 @@ for (const width of WIDTHS) {
 
       // Header rows stay on one line: row height equals one control, no page scroll.
       const rows = [
-        page.locator('div.flex-nowrap').filter({ hasText: 'Completed' }).filter({ hasNot: page.getByRole('button') }).first(),
+        page.locator('div.flex-nowrap').filter({ hasText: 'Chapters' }).filter({ hasNot: page.getByRole('button') }).first(),
         page.locator('div.flex-nowrap').filter({ has: page.getByRole('button', { name: 'Reprocess' }) }).first(),
       ];
       const firstControls = [page.getByText('Completed', { exact: true }), page.getByRole('button', { name: 'Reprocess' })];

@@ -1043,7 +1043,7 @@ function EpisodeDetail() {
           </div>
           <h1 className={`${pageTitle} min-w-0`}>{episode.title}</h1>
           <div className="col-span-2 sm:col-span-1 sm:col-start-2 flex flex-col gap-2 min-w-0 text-sm text-muted-foreground">
-            <div className="flex flex-nowrap items-center gap-2 sm:gap-4">
+            <div className="flex flex-nowrap items-center gap-2 max-[360px]:gap-1 max-[360px]:text-xs sm:gap-4">
               <span className="shrink-0">{formatDate(episode.published)}</span>
               {episode.status === 'completed' && episode.newDuration ? (
                 <span className="shrink-0">{formatDuration(episode.newDuration)}</span>
@@ -1053,9 +1053,14 @@ function EpisodeDetail() {
               <StatusBadge
                 status={episode.status}
                 jobState={episode.jobState}
-                className={`shrink-0 ${failureReason ? 'cursor-help' : ''}`.trim()}
+                className={`shrink-0 max-[360px]:px-1.5 ${failureReason ? 'cursor-help' : ''}`.trim()}
                 title={failureReason}
               />
+              {episode.chaptersAvailable && (
+                <span className={`${badgeBase} ${tint.purple} shrink-0 max-[360px]:px-1.5`}>
+                  Chapters
+                </span>
+              )}
             </div>
             <div className="flex flex-wrap items-center gap-2 sm:gap-4 empty:hidden">
               {episode.fileSize && (
@@ -1140,16 +1145,11 @@ function EpisodeDetail() {
                 />
               )}
             </div>
-            <div className="flex flex-nowrap items-center gap-2 max-sm:gap-1">
-              {episode.chaptersAvailable && (
-                <span className={`${badgeBase} ${tint.purple} shrink-0 max-sm:px-1.5`}>
-                  Chapters
-                </span>
-              )}
+            <div className="flex flex-nowrap items-center gap-2">
               {downloadItems.length > 0 && (
                 <DropdownMenu
                   triggerLabel="Download"
-                  triggerClassName={`${btnBase} ${btnSecondary} shrink-0 max-sm:px-1.5 max-sm:gap-1`}
+                  triggerClassName={`${btnBase} ${btnSecondary} shrink-0`}
                   chevronClassName="w-3 h-3"
                   title="Download audio"
                   items={downloadItems}
@@ -1157,7 +1157,7 @@ function EpisodeDetail() {
               )}
               <DropdownMenu
                 triggerLabel={reprocessTriggerLabel}
-                triggerClassName={`${btnBase} ${btnPrimary} shrink-0 max-sm:px-1.5 max-sm:gap-1`}
+                triggerClassName={`${btnBase} ${btnPrimary} shrink-0`}
                 chevronClassName="w-3 h-3"
                 disabled={reprocessBlocked}
                 title={reprocessTriggerTooltip}
