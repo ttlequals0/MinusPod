@@ -114,7 +114,7 @@ def needs_update(stderr: str) -> bool:
     return any(hint in low for hint in _UPDATE_HINTS)
 
 
-def update_binary(storage, db, *, force: bool = False) -> dict:
+def update_binary(storage, db) -> dict:
     now = utc_now_iso()
     db.set_setting('youtube_ytdlp_last_check_at', now, is_default=False)
     target = ensure_runtime_binary(storage, db)
@@ -162,7 +162,6 @@ def update_tick(db):
 def status(storage, db) -> dict:
     target = runtime_path(storage)
     return {
-        'runtimePath': str(target) if target.exists() else None,
         'bakedVersion': binary_version(BAKED_PATH),
         'version': db.get_setting('youtube_ytdlp_version') or (binary_version(target) if target.exists() else None),
     }

@@ -25,7 +25,7 @@ const base: YouTubeSettings = {
   sbProbeIntervalMinutes: 30, sbWatchIntervalHours: 6, sbWatchMaxDays: 7, llmFallback: true,
   captionsAsTranscript: true,
   ytdlp: { autoUpdate: true, version: '2026.10.26', lastUpdateAt: null, lastCheckAt: null, lastError: null,
-           runtimePath: '/data/youtube/bin/yt-dlp', bakedVersion: '2026.10.20' },
+           bakedVersion: '2026.10.20' },
   cookies: { set: false, lines: 0, updatedAt: null },
   bounds: { processDelayMinutes: [0, 1440], sbProbeAttempts: [0, 48], sbProbeIntervalMinutes: [5, 1440],
             sbWatchIntervalHours: [1, 48], sbWatchMaxDays: [1, 60] },

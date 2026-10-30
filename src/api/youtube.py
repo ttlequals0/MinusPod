@@ -107,6 +107,6 @@ def delete_youtube_cookies():
 @log_request
 def update_ytdlp_now():
     try:
-        return json_response(ytdlp.update_binary(get_storage(), get_database(), force=True))
+        return json_response(ytdlp.update_binary(get_storage(), get_database()))
     except ytdlp.YtDlpNotInstalled as exc:
         return error_response(str(exc), 503)

@@ -3,7 +3,7 @@ import json
 import logging
 import os
 import shutil
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from urllib.parse import parse_qs, urlparse
 
@@ -28,9 +28,7 @@ class YouTubeRun:
     markers: list
     note: str | None
     mode: str
-    captions_used: bool
     resolved: YouTubeSettings
-    chapters: list = field(default_factory=list)
 
 
 def _video_id(episode_data, episode_url) -> str:
@@ -50,7 +48,7 @@ def acquire(slug, episode_id, episode_url, podcast, episode_data, reprocess_mode
         reprocess_mode in FORCE_TRANSCRIBE_MODES or not storage.get_transcript(slug, episode_id))
 
     original = storage.get_original_path(slug, episode_id)
-    segments, chapters = [], []
+    segments = []
     if original and os.path.exists(original):
         audio_logger.info(f"[{slug}:{episode_id}] Reusing retained original audio (skipped download)")
         audio_path = common._copy_retained_original_to_temp(original)
@@ -62,7 +60,7 @@ def acquire(slug, episode_id, episode_url, podcast, episode_data, reprocess_mode
             except download.DownloadError as exc:
                 if exc.needs_update:
                     audio_logger.warning(f"[{slug}:{episode_id}] yt-dlp looks outdated; updating before retry")
-                    ytdlp.update_binary(storage, db, force=True)
+                    ytdlp.update_binary(storage, db)
                 raise Exception(str(exc)) from exc
         work_dir = os.path.dirname(result.audio_path)
         try:
@@ -71,7 +69,6 @@ def acquire(slug, episode_id, episode_url, podcast, episode_data, reprocess_mode
                 segments = captions.load_segments(result.captions_path)
         finally:
             shutil.rmtree(work_dir, ignore_errors=True)
-        chapters = result.chapters
     outcome['youtube_audio_path'] = audio_path
     if segments:
         outcome['preloaded_segments'] = segments
@@ -95,7 +92,7 @@ def acquire(slug, episode_id, episode_url, podcast, episode_data, reprocess_mode
         raise
     audio_logger.info(f"[{slug}:{episode_id}] SponsorBlock: {len(markers)} segment(s), mode={mode}, "
                       f"captions={'yes' if segments else 'no'}")
-    return YouTubeRun(audio_path, segments, markers, note, mode, bool(segments), resolved, chapters)
+    return YouTubeRun(audio_path, segments, markers, note, mode, resolved)
 
 
 def after_success(slug, episode_id, run: YouTubeRun, episode_data=None):

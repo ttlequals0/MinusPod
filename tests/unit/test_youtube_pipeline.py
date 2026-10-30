@@ -78,7 +78,7 @@ def _run(markers, *, llm_on_top=False, llm_fallback=True, episode_row=None, capt
             p(common, 'get_min_cut_confidence', return_value=0.8)
             p(sb_stage.yt_settings, 'resolve_feed', return_value=_settings(llm_fallback=llm_fallback))
             dl = MagicMock(audio_path=audio, info={'id': 'vid000000001'},
-                           captions_path='/tmp/c.json3' if captions else None, chapters=[])
+                           captions_path='/tmp/c.json3' if captions else None)
             p(sb_stage.download, 'download', return_value=dl, side_effect=download_error)
             update_binary = p(sb_stage.ytdlp, 'update_binary')
             repair = p(transcribe, '_repair_transcript',
@@ -191,11 +191,10 @@ def _failed(error, **kw):
     return ok, handled
 
 
-def test_outdated_ytdlp_triggers_one_forced_update_and_fails():
+def test_outdated_ytdlp_triggers_one_update_and_fails():
     ok, handled = _failed(sb_stage.download.DownloadError('Unable to extract', needs_update=True))
     assert ok is False and handled.called
     _run.extras['update_binary'].assert_called_once()
-    assert _run.extras['update_binary'].call_args.kwargs == {'force': True}
 
 
 def test_bot_wall_error_does_not_update_ytdlp():
@@ -232,7 +231,7 @@ def _after(run, episode_data=None):
 
 
 def _yt_run(mode, markers):
-    return sb_stage.YouTubeRun('/a.mp3', [], markers, None, mode, False, _settings())
+    return sb_stage.YouTubeRun('/a.mp3', [], markers, None, mode, _settings())
 
 
 def test_after_success_states():

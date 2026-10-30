@@ -1,5 +1,5 @@
 import pytest
-from youtube.urls import Source, canonical_source_url, is_youtube_url, parse, uploads_playlist, watch_url
+from youtube.urls import Source, canonical_source_url, parse, uploads_playlist, watch_url
 
 
 @pytest.mark.parametrize('text,expected', [
@@ -30,8 +30,6 @@ def test_parse_rejects(text):
 
 
 def test_helpers():
-    assert is_youtube_url('https://www.youtube.com/@x') is True
-    assert is_youtube_url('https://example.com/x') is False
     assert canonical_source_url('playlist', 'PL1') == 'youtube://playlist/PL1'
     assert canonical_source_url('channel', 'UCx') == 'youtube://channel/UCx'
     assert watch_url('abc') == 'https://www.youtube.com/watch?v=abc'

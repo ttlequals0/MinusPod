@@ -17,10 +17,6 @@ DURATION_TOLERANCE_S = 2.0
 TIMEOUT_S = 15
 
 
-class SponsorBlockError(Exception):
-    pass
-
-
 def hash_prefix(video_id: str) -> str:
     return hashlib.sha256(video_id.encode('utf-8')).hexdigest()[:4]
 

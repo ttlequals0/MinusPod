@@ -1,4 +1,5 @@
 import json
+from dataclasses import replace
 from datetime import datetime, timedelta, timezone
 from unittest.mock import MagicMock
 
@@ -35,7 +36,7 @@ def test_no_marks_probes_then_falls_back_to_llm():
 
 
 def test_no_marks_without_fallback_watches_until_ceiling():
-    s = watch.replace_settings(SETTINGS, llm_fallback=False)
+    s = replace(SETTINGS, llm_fallback=False)
     out = watch.transition(_row('probing', attempts=2), s, [], NOW, has_retained_original=False)
     assert out['queue'] is False and out['sb_state'] == 'watching'
     assert out['sb_next_check_at'] == (NOW + timedelta(hours=6)).isoformat()
@@ -53,7 +54,7 @@ def test_watching_young_episode_keeps_watching_and_marks_queue():
 
 
 def test_zero_probe_attempts_skips_probing():
-    s = watch.replace_settings(SETTINGS, probe_attempts=0)
+    s = replace(SETTINGS, probe_attempts=0)
     out = watch.transition(_row('waiting'), s, [], NOW, has_retained_original=False)
     assert out['queue'] is True and out['sb_state'] == 'llm'
 
@@ -94,7 +95,7 @@ def test_error_retries_at_normal_interval_and_records():
     for state in ('watching', 'done'):
         out = watch.transition(_row(state), SETTINGS, None, NOW, False)
         assert out['sb_next_check_at'] == (NOW + timedelta(hours=6)).isoformat()
-    s = watch.replace_settings(SETTINGS, probe_interval_minutes=2000)
+    s = replace(SETTINGS, probe_interval_minutes=2000)
     out = watch.transition(_row('probing'), s, None, NOW, False)
     assert out['sb_next_check_at'] == (NOW + timedelta(hours=24)).isoformat()
 

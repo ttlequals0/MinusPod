@@ -8,14 +8,14 @@ import pytest
 from youtube import download
 
 
-def _fake_run(tmp_dir_holder, stderr='', code=0, captions=True, chapters=None):
+def _fake_run(tmp_dir_holder, stderr='', code=0, captions=True):
     def run(args, timeout, cwd=None, **kw):
         tmp_dir_holder.append(cwd)
         if code:
             return subprocess.CompletedProcess(args, code, stdout='', stderr=stderr)
         vid = args[-1].split('v=')[1]
         open(os.path.join(cwd, f'{vid}.mp3'), 'wb').write(b'ID3')
-        info = {'id': vid, 'title': 't', 'duration': 100, 'chapters': chapters or []}
+        info = {'id': vid, 'title': 't', 'duration': 100}
         json.dump(info, open(os.path.join(cwd, f'{vid}.info.json'), 'w'))
         if captions:
             json.dump({'events': []}, open(os.path.join(cwd, f'{vid}.en.json3'), 'w'))
@@ -25,7 +25,7 @@ def _fake_run(tmp_dir_holder, stderr='', code=0, captions=True, chapters=None):
 
 def test_download_returns_paths_and_passes_flags(tmp_path):
     dirs = []
-    with patch.object(download.ytdlp, 'run', side_effect=_fake_run(dirs, chapters=[{'title': 'Intro', 'start_time': 0, 'end_time': 10}])) as run, \
+    with patch.object(download.ytdlp, 'run', side_effect=_fake_run(dirs)) as run, \
             patch.object(download, '_impersonate_target', return_value='chrome'), \
             patch.object(download, 'cookies_path', return_value=None), \
             patch.object(download, 'resolve_bitrate', return_value='128k'):
@@ -33,7 +33,6 @@ def test_download_returns_paths_and_passes_flags(tmp_path):
     args = run.call_args.args[0]
     assert result.audio_path.endswith('vid000000001.mp3') and os.path.exists(result.audio_path)
     assert result.captions_path.endswith('vid000000001.en.json3')
-    assert result.chapters == [{'title': 'Intro', 'start': 0.0, 'end': 10.0}]
     for flag in ('-x', '--audio-format', 'mp3', '--audio-quality', '128k', '--no-playlist', '--write-info-json',
                  '--embed-chapters', '--write-subs', '--write-auto-subs', '--sub-format', 'json3',
                  '--impersonate', 'chrome'):

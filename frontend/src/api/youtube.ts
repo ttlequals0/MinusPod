@@ -16,7 +16,6 @@ export interface YouTubeSettings {
     lastUpdateAt: string | null;
     lastCheckAt: string | null;
     lastError: string | null;
-    runtimePath: string | null;
     bakedVersion: string | null;
   };
   cookies: { set: boolean; lines: number; updatedAt: string | null };

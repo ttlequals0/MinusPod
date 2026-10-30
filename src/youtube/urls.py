@@ -18,11 +18,6 @@ class Source:
     id: str
 
 
-def is_youtube_url(text: str) -> bool:
-    host = (urlparse(text.strip()).hostname or '').lower()
-    return host in _HOSTS or parse(text) is not None
-
-
 def parse(text: str) -> Source | None:
     text = (text or '').strip()
     if not text:

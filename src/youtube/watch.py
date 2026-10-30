@@ -1,7 +1,6 @@
 """SponsorBlock gate: schedule YouTube episodes before they enter the queue."""
 import json
 import logging
-from dataclasses import replace as _replace
 from datetime import datetime, timedelta, timezone
 
 from database.queue import compute_queue_priority
@@ -20,11 +19,6 @@ def schedule_new_episode(db, slug, episode_id, podcast) -> bool:
     resolved = yt_settings.resolve_feed(db, podcast)
     due = datetime.now(timezone.utc) + timedelta(minutes=resolved.process_delay_minutes)
     return db.schedule_sponsorblock_wait(slug, episode_id, due.isoformat())
-
-
-def replace_settings(settings, **changes):
-    """Return a copy of the settings with the given fields changed."""
-    return _replace(settings, **changes)
 
 
 def _ceiling_passed(row, resolved, now) -> bool:
@@ -117,9 +111,7 @@ def _process_row(db, row, podcast, now, storage):
     slug, episode_id = row['slug'], row['episode_id']
     resolved = yt_settings.resolve_feed(db, podcast)
     marks = sponsorblock.fetch_segments(row['youtube_video_id']) if row.get('youtube_video_id') else []
-    markers = []
-    if marks:
-        markers, _note = sponsorblock.to_markers(marks, row.get('original_duration'))
+    markers = sponsorblock.to_markers(marks or [], row.get('original_duration'))[0]
     current_uuids = set(sponsorblock.uuid_set(markers)) if markers else None
     original = storage.get_original_path(slug, episode_id)
     out = transition(row, resolved, marks, now, bool(original and original.exists()), current_uuids)

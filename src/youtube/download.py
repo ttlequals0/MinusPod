@@ -5,7 +5,7 @@ import os
 import shutil
 import subprocess
 import tempfile
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 from youtube import cookies, ytdlp
 from youtube.captions import pick_file
@@ -27,7 +27,6 @@ class DownloadResult:
     audio_path: str
     info: dict
     captions_path: str | None
-    chapters: list[dict] = field(default_factory=list)
 
 
 def resolve_bitrate() -> str:
@@ -48,16 +47,6 @@ def _impersonate_target() -> str | None:
         result = ytdlp.run(['--list-impersonate-targets'], timeout=60)
         _impersonate_cache['target'] = 'chrome' if result.returncode == 0 and 'chrome' in result.stdout.lower() else None
     return _impersonate_cache['target']
-
-
-def _chapters(info: dict) -> list[dict]:
-    out = []
-    for ch in info.get('chapters') or []:
-        try:
-            out.append({'title': str(ch.get('title') or ''), 'start': float(ch['start_time']), 'end': float(ch['end_time'])})
-        except (KeyError, TypeError, ValueError):
-            continue
-    return out
 
 
 def download(video_id: str, *, want_captions: bool, language: str) -> DownloadResult:
@@ -97,8 +86,7 @@ def download(video_id: str, *, want_captions: bool, language: str) -> DownloadRe
             except (OSError, ValueError) as exc:
                 raise DownloadError('yt-dlp wrote an unreadable info file') from exc
         captions_path = pick_file(work_dir, video_id, language) if want_captions else None
-        return DownloadResult(audio_path=audio_path, info=info, captions_path=captions_path,
-                              chapters=_chapters(info))
+        return DownloadResult(audio_path=audio_path, info=info, captions_path=captions_path)
     except BaseException:
         shutil.rmtree(work_dir, ignore_errors=True)
         raise
