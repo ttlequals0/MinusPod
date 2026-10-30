@@ -33,6 +33,22 @@ class TestPodcastOperations:
         assert podcast['source_url'] == source_url
         assert podcast['title'] == title
 
+    def test_delete_podcast_removes_its_queue_rows(self, temp_db):
+        """Deleting a podcast drops its queue rows and keeps other feeds' rows."""
+        gone_id = temp_db.create_podcast('gone-feed', 'https://example.com/a.xml', 'Gone')
+        kept_id = temp_db.create_podcast('kept-feed', 'https://example.com/b.xml', 'Kept')
+        conn = temp_db.get_connection()
+        for pid in (gone_id, kept_id):
+            conn.execute(
+                "INSERT INTO auto_process_queue (podcast_id, episode_id, original_url) "
+                "VALUES (?, 'ep1', 'https://example.com/ep.mp3')", (pid,))
+        conn.commit()
+
+        assert temp_db.delete_podcast('gone-feed')
+
+        rows = conn.execute("SELECT podcast_id FROM auto_process_queue").fetchall()
+        assert [r[0] for r in rows] == [kept_id]
+
     def test_podcast_unique_slug(self, temp_db):
         """Duplicate slugs should raise an error."""
         slug = 'unique-podcast'

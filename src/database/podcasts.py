@@ -615,6 +615,11 @@ class PodcastMixin:
             "UPDATE pattern_cleanup_deleted_actions SET podcast_slug = NULL WHERE podcast_slug = ?",
             (slug,))
 
+        # Explicit: the cascade only fires when foreign_keys is on for the connection.
+        conn.execute(
+            "DELETE FROM auto_process_queue WHERE podcast_id IN "
+            "(SELECT id FROM podcasts WHERE slug = ?)", (slug,))
+
         cursor = conn.execute(
             "DELETE FROM podcasts WHERE slug = ?", (slug,)
         )
