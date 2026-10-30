@@ -17,7 +17,7 @@ release notes.
 
 - Private and deleted playlist entries no longer appear as episodes titled
   with a bare video id.
-- A one-shot cleanup removes the undescribed placeholder episodes those
+- A one-shot cleanup removes the placeholder episodes those
   entries already created.
 - Processing stats record the chapters stage when publisher chapters are
   preserved, and show a SponsorBlock lookup stage on YouTube runs.
@@ -25,8 +25,9 @@ release notes.
 ### Changed
 
 - The YouTube playlist listing sends the cookies file and hides private and
-  deleted videos by default. A global "Hide private and deleted videos"
-  setting with a per-feed override lists them instead.
+  deleted episodes by default. A global "Hide private and deleted episodes"
+  setting with a per-feed override lists them instead, titled "Private episode"
+  until the real title is known.
 - SponsorBlock-only runs skip audio analysis, since marks are cut as given
   and nothing reads the signals. The stats table shows the stage as skipped.
 

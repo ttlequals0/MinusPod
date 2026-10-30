@@ -434,7 +434,7 @@ Settings > YouTube configures [YouTube feeds](youtube-feeds.md). The feature is 
 | Watch ceiling (`sbWatchMaxDays`) | 7 | 1 to 60 days | Days after publish before the watch ends |
 | LLM fallback (`llmFallback`) | on | on or off | Run the LLM pipeline when no marks appear |
 | Use YouTube captions as the transcript (`captionsAsTranscript`) | on | on or off | Skip Whisper when captions exist |
-| Hide private and deleted videos (`hidePrivate`) | on | on or off | Skip playlist entries the listing cannot see; turn off when the cookies account can watch them |
+| hide private and deleted episodes (`hidePrivate`) | on | on or off | Skip playlist entries the listing cannot see; turn off when the cookies account can watch them |
 | Transcribe when captions are missing (`transcribeFallback`) | off | on or off | Run the configured transcriber for videos with no captions; off keeps such videos on SponsorBlock marks only |
 | Update yt-dlp daily (`ytdlpAutoUpdate`) | on | on or off | Daily self-update of the data-volume copy |
 

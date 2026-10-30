@@ -13,7 +13,7 @@
 - [How processing works](#how-processing-works)
 - [Transcripts and chapters](#transcripts-and-chapters)
 - [Shorts and duration filters](#shorts-and-duration-filters)
-- [Private and deleted videos](#private-and-deleted-videos)
+- [Private and deleted episodes](#private-and-deleted-episodes)
 - [SponsorBlock categories](#sponsorblock-categories)
 - [Cookies](#cookies)
 - [yt-dlp](#yt-dlp)
@@ -135,9 +135,9 @@ Three suffixes can follow: `, marked whole video as sponsored` when SponsorBlock
 - Turning on **Shorts** for a feed (API: `youtubeIncludeShorts`) includes them. For a channel it switches to the full uploads list.
 - Live and upcoming videos are never listed.
 
-## Private and deleted videos
+## Private and deleted episodes
 
-Playlist listings hide private and deleted videos by default. yt-dlp reports them as an entry with only an id or a placeholder title such as `[Private video]`, and they cannot download. Turn **Hide private and deleted videos** off (API: `hidePrivate` globally, `ytHidePrivateOverride` per feed) when the cookies file belongs to an account that can watch them. They then list with the placeholder title, or the video id when there is none. The Data API listing never returns these entries.
+Playlist listings hide private and deleted episodes by default. yt-dlp reports them as an entry with only an id or a placeholder title such as `[Private video]`, and the download fails. Turn **Hide private and deleted episodes** off (API: `hidePrivate` globally, `ytHidePrivateOverride` per feed) when the cookies file belongs to an account that can watch them. They are then listed as Private episode (or Deleted episode) until a cookie account that can see them supplies the real title. The Data API listing never returns these entries.
 
 The feed's normal minimum and maximum episode duration filters still apply on top of this. See [Configuration > Episode duration filters](configuration.md#episode-duration-filters).
 
@@ -187,7 +187,7 @@ The feed page has a YouTube section. Each field inherits the global setting unti
 | LLM fallback | `ytLlmFallbackOverride` | Run the LLM pipeline when no marks appear |
 | Pass 1 detection | `ytLlmOnTopOverride` | Run the LLM detector in addition to SponsorBlock marks and cut both |
 | Captions | `ytCaptionsOverride` | Use YouTube captions as the transcript |
-| Hide private and deleted videos | `ytHidePrivateOverride` | Drop playlist entries the listing cannot see |
+| Hide private and deleted episodes | `ytHidePrivateOverride` | Drop playlist entries the listing cannot see |
 | Transcribe when captions are missing | `ytTranscribeOverride` | Run the transcription backend for videos without captions |
 | Delay | `ytProcessDelayMinutesOverride` | Processing delay in minutes |
 | Probe attempts | `ytProbeAttemptsOverride` | SponsorBlock lookup attempts |
