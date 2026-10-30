@@ -66,7 +66,10 @@ from utils.text import truncate
 from api.episodes.core import _episode_base_json
 from api.episodes.common import _job_state
 from database.podcasts import (EPISODE_STATUSES, RECENTS_SLUG, PodcastMixin, has_upstream, is_local_feed,
-                               is_recents_feed, recents_cutoff)
+                               is_recents_feed, is_youtube_feed, recents_cutoff)
+from youtube import urls as yt_urls
+from youtube.feed import source_link as youtube_source_link
+from youtube.settings import BOUNDS as YT_BOUNDS
 from podping_listener import feed_url_domain
 from utils.time import utc_now_iso
 from utils.url import validate_url, SSRFError
@@ -1008,6 +1011,16 @@ def _podcast_base_json(podcast, feed_url, db, global_actions=None) -> dict:
         'onlyExposeProcessedEpisodes': _deserialize_nullable_bool(podcast.get('only_expose_processed_episodes')),
         'retentionDaysOverride': podcast.get('retention_days_override'),
         'keepOriginalAudioOverride': _deserialize_nullable_bool(podcast.get('keep_original_audio_override')),
+        'youtubeSourceKind': podcast.get('youtube_source_kind'),
+        'youtubeSourceId': podcast.get('youtube_source_id'),
+        'youtubeSourceUrl': youtube_source_link(podcast) if is_youtube_feed(podcast) else None,
+        'youtubeIncludeShorts': _deserialize_nullable_bool(podcast.get('youtube_include_shorts')),
+        'ytProcessDelayMinutesOverride': podcast.get('yt_process_delay_minutes_override'),
+        'ytProbeAttemptsOverride': podcast.get('yt_probe_attempts_override'),
+        'ytProbeIntervalMinutesOverride': podcast.get('yt_probe_interval_minutes_override'),
+        'ytLlmFallbackOverride': _deserialize_nullable_bool(podcast.get('yt_llm_fallback_override')),
+        'ytLlmOnTopOverride': _deserialize_nullable_bool(podcast.get('yt_llm_on_top_override')),
+        'ytCaptionsOverride': _deserialize_nullable_bool(podcast.get('yt_captions_override')),
     }
 
 
@@ -1403,6 +1416,67 @@ def _add_local_feed(data, db):
         return error_response('Failed to add local feed', 500)
 
 
+def _add_youtube_feed(data, db):
+    """Create a YouTube playlist/channel feed and run its first listing inline."""
+    if not db.get_setting_bool('youtube_enabled', False):
+        return error_response('YouTube feeds are disabled in Settings', 400)
+    kind = data.get('sourceKind')
+    source_id = str(data.get('sourceId') or '').strip()
+    parsed = yt_urls.parse(source_id)
+    if kind not in ('playlist', 'channel') or parsed is None or (parsed.kind, parsed.id) != (kind, source_id):
+        return error_response('sourceKind must be playlist or channel with a valid sourceId', 400)
+    title = data.get('title')
+    if not isinstance(title, str) or not title.strip():
+        return error_response('title is required', 400)
+    title = title.strip()
+    slug = (data.get('slug') or '').strip() or make_slug(title)
+    if not slug or not is_valid_slug(slug) or slug == RECENTS_SLUG:
+        return error_response(f'Invalid slug "{slug}"', 400)
+    if db.get_podcast_by_slug(slug):
+        return error_response(f'Feed with slug "{slug}" already exists', 409)
+    canonical = yt_urls.canonical_source_url(kind, source_id)
+    if any(p['source_url'] == canonical for p in db.get_podcast_feed_urls()):
+        return error_response('This YouTube source is already added', 409)
+    include_shorts = None
+    if 'includeShorts' in data:
+        include_shorts, err = _normalize_cue_bool_override(data['includeShorts'], 'includeShorts')
+        if err:
+            return error_response(err, 400)
+    description = data.get('description')
+    if description is not None and not isinstance(description, str):
+        return error_response('description must be a string', 400)
+    max_ep = None
+    if 'maxEpisodes' in data:
+        max_ep, err = _normalize_max_episodes(data['maxEpisodes'], False)
+        if err:
+            return error_response(err, 400)
+    try:
+        db.create_podcast(slug, canonical, title, feed_type='youtube')
+        feed_url = _public_feed_url(slug, get_feed_auth_key(db))
+        channel_json = {'medium': 'podcast', 'locked': 'yes', 'guid': compute_feed_guid(feed_url)}
+        updates = {'youtube_source_kind': kind, 'youtube_source_id': source_id,
+                   'youtube_include_shorts': include_shorts, 'p20_channel_json': json.dumps(channel_json)}
+        if description is not None:
+            updates['description'] = description
+        auto_process = _serialize_auto_process(data.get('autoProcessOverride'))
+        if auto_process is not None:
+            updates['auto_process_override'] = auto_process
+        if max_ep is not None:
+            updates['max_episodes'] = max_ep
+        db.update_podcast(slug, **updates)
+        if data.get('artworkUrl'):
+            get_storage().download_artwork(slug, [data['artworkUrl']])
+        from main_app.feeds import invalidate_feed_cache, refresh_single_feed
+        invalidate_feed_cache()
+        refresh_single_feed(slug)
+        logger.info(f"Created new YouTube feed: {slug}")
+        return json_response({'slug': slug, 'feedType': 'youtube', 'feedUrl': feed_url,
+                              'message': 'YouTube feed created successfully'}, 201)
+    except Exception:
+        logger.exception("Failed to add YouTube feed")
+        return error_response('Failed to add YouTube feed', 500)
+
+
 @api.route('/feeds', methods=['POST'])
 @limiter.limit("3 per minute")
 @log_request
@@ -1418,6 +1492,8 @@ def add_feed():
         return _add_recents_feed(data, get_database())
     if data and data.get('feedType') == 'local':
         return _add_local_feed(data, get_database())
+    if data and data.get('feedType') == 'youtube':
+        return _add_youtube_feed(data, get_database())
 
     if not data or 'sourceUrl' not in data:
         logger.warning("Missing sourceUrl in POST /feeds request")
@@ -1883,6 +1959,46 @@ def get_feed(slug):
     })
 
 
+_YT_INT_OVERRIDES = (
+    ('ytProcessDelayMinutesOverride', 'yt_process_delay_minutes_override', 'processDelayMinutes'),
+    ('ytProbeAttemptsOverride', 'yt_probe_attempts_override', 'sbProbeAttempts'),
+    ('ytProbeIntervalMinutesOverride', 'yt_probe_interval_minutes_override', 'sbProbeIntervalMinutes'),
+)
+_YT_BOOL_OVERRIDES = (
+    ('ytLlmFallbackOverride', 'yt_llm_fallback_override'),
+    ('ytLlmOnTopOverride', 'yt_llm_on_top_override'),
+    ('ytCaptionsOverride', 'yt_captions_override'),
+    ('youtubeIncludeShorts', 'youtube_include_shorts'),
+)
+
+
+def _youtube_override_updates(podcast, data, updates):
+    """Validate YouTube-only PATCH fields into updates; returns an error string or None."""
+    keys = {f[0] for f in _YT_INT_OVERRIDES} | {f[0] for f in _YT_BOOL_OVERRIDES}
+    present = keys & set(data)
+    if not present:
+        return None
+    if not is_youtube_feed(podcast):
+        return f"{', '.join(sorted(present))} only editable on YouTube feeds"
+    staged = {}
+    for api_field, db_field, bound_key in _YT_INT_OVERRIDES:
+        if api_field not in data:
+            continue
+        value = data[api_field]
+        if value is not None:
+            lo, hi = YT_BOUNDS[bound_key]
+            if not isinstance(value, int) or isinstance(value, bool) or not lo <= value <= hi:
+                return f'{api_field} must be an integer between {lo} and {hi} or null'
+        staged[db_field] = value
+    for api_field, db_field in _YT_BOOL_OVERRIDES:
+        if api_field in data:
+            staged[db_field], err = _normalize_cue_bool_override(data[api_field], api_field)
+            if err:
+                return err
+    updates.update(staged)
+    return None
+
+
 @api.route('/feeds/<slug>', methods=['PATCH'])
 @log_request
 def update_feed(slug):
@@ -1926,6 +2042,10 @@ def update_feed(slug):
         if field in data and has_upstream(podcast):
             return error_response(
                 f'field {field} is only editable on local feeds', 400)
+
+    yt_error = _youtube_override_updates(podcast, data, updates)
+    if yt_error:
+        return error_response(yt_error, 400)
 
     if 'title' in data:
         title_val = data['title']

@@ -946,3 +946,36 @@ def test_chapter_notes_restores_from_backup(temp_db, monkeypatch):
         db, exported, 'everything', None, preview['previewToken'])
 
     assert db.get_podcast_by_slug('notes-feed')['chapter_notes'] == 'Give donations their own chapter.'
+
+
+def test_youtube_feed_round_trips(temp_db):
+    db = temp_db
+    db.create_podcast('yt-xfer', 'youtube://channel/UCabcdefghijklmnopqrstuv', 'YT', feed_type='youtube')
+    db.update_podcast('yt-xfer', youtube_source_kind='channel', youtube_source_id='UCabcdefghijklmnopqrstuv',
+                      yt_probe_attempts_override=2, yt_captions_override=1)
+    db.create_podcast('plain-xfer', 'https://example.com/plain.xml', 'Plain')
+    exported = config_transfer.export_config(db, '2.98.2')
+    feed = next(f for f in exported['feeds'] if f['slug'] == 'yt-xfer')
+    assert feed['feedType'] == 'youtube'
+    assert feed['settings']['youtube_source_id'] == 'UCabcdefghijklmnopqrstuv'
+    assert feed['settings']['yt_probe_attempts_override'] == 2
+    assert feed['settings']['yt_captions_override'] is True
+    plain = next(f for f in exported['feeds'] if f['slug'] == 'plain-xfer')
+    assert not any(k.startswith(('youtube_', 'yt_')) for k in plain['settings'])
+    db.delete_podcast('yt-xfer')
+    document = {**exported, 'feeds': [feed]}
+    preview = config_transfer.build_preview(db, document, 'feeds', ['yt-xfer'])
+    config_transfer.apply_config(db, document, 'feeds', ['yt-xfer'], preview['previewToken'])
+    row = db.get_podcast_by_slug('yt-xfer')
+    assert row['feed_type'] == 'youtube' and row['yt_probe_attempts_override'] == 2
+
+
+def test_youtube_feed_import_rejects_bad_identity_and_foreign_columns(temp_db):
+    bad = {'slug': 'yt-bad', 'feedType': 'youtube',
+           'settings': {'source_url': 'https://example.com/x', 'title': 'x',
+                        'youtube_source_kind': 'channel', 'youtube_source_id': 'UCabc'}}
+    with pytest.raises(ConfigTransferError):
+        config_transfer.build_preview(temp_db, _document(feeds=[bad]), 'feeds', ['yt-bad'])
+    foreign = _feed(slug='yt-foreign', yt_probe_attempts_override=2)
+    with pytest.raises(ConfigTransferError, match='YouTube-only'):
+        config_transfer.build_preview(temp_db, _document(feeds=[foreign]), 'feeds', ['yt-foreign'])

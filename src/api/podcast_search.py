@@ -82,19 +82,16 @@ def _get_podcast_index_credentials():
     return api_key, api_secret
 
 
-@api.route('/podcast-search', methods=['GET'])
-@log_request
-@limiter.limit("30 per minute")
-def search_podcasts():
-    """Search for podcasts via the configured provider.
+class DirectorySearchError(Exception):
+    """Search failure carrying the HTTP status the route reports."""
 
-    iTunes (keyless, the default for installs without PodcastIndex
-    credentials) or PodcastIndex.org. Both map to the same result shape.
-    """
-    query = request.args.get('q', '').strip()
-    if not query:
-        return error_response('Query parameter "q" is required', 400)
+    def __init__(self, message: str, status: int):
+        super().__init__(message)
+        self.status = status
 
+
+def search_directory(query: str) -> list[dict]:
+    """Search the configured provider; raises DirectorySearchError on failure."""
     provider = resolve_search_provider()
     if provider == SEARCH_PROVIDER_ITUNES:
         label = 'iTunes'
@@ -105,7 +102,7 @@ def search_podcasts():
         label = 'PodcastIndex'
         api_key, api_secret = _get_podcast_index_credentials()
         if not api_key or not api_secret:
-            return error_response(
+            raise DirectorySearchError(
                 'PodcastIndex API credentials not configured. '
                 'Set them in Settings or via PODCAST_INDEX_API_KEY/PODCAST_INDEX_API_SECRET environment variables.',
                 503,
@@ -127,18 +124,18 @@ def search_podcasts():
         resp.raise_for_status()
     except SSRFError as e:
         logger.warning(f"{label} SSRF block: {e}")
-        return error_response(f'{label} endpoint rejected by SSRF validation', 502)
+        raise DirectorySearchError(f'{label} endpoint rejected by SSRF validation', 502) from None
     except requests.exceptions.Timeout:
-        return error_response(f'{label} request timed out', 502)
+        raise DirectorySearchError(f'{label} request timed out', 502) from None
     except requests.exceptions.RequestException as e:
         logger.error(f"{label} API error: {e}")
-        return error_response(f'Failed to reach {label}', 502)
+        raise DirectorySearchError(f'Failed to reach {label}', 502) from None
 
     try:
         data = resp.json()
     except ValueError:
         logger.error(f"{label} returned non-JSON response")
-        return error_response(f'{label} returned an invalid response', 502)
+        raise DirectorySearchError(f'{label} returned an invalid response', 502) from None
 
     if provider == SEARCH_PROVIDER_ITUNES:
         # Entries without a feedUrl (platform-exclusive shows) cannot be
@@ -162,8 +159,26 @@ def search_podcasts():
             'author': feed.get('author', ''),
             'link': feed.get('link', ''),
         } for feed in data.get('feeds', [])]
+    return results
 
-    return json_response({'results': results, 'provider': provider})
+
+@api.route('/podcast-search', methods=['GET'])
+@log_request
+@limiter.limit("30 per minute")
+def search_podcasts():
+    """Search for podcasts via the configured provider.
+
+    iTunes (keyless, the default for installs without PodcastIndex
+    credentials) or PodcastIndex.org. Both map to the same result shape.
+    """
+    query = request.args.get('q', '').strip()
+    if not query:
+        return error_response('Query parameter "q" is required', 400)
+    try:
+        results = search_directory(query)
+    except DirectorySearchError as e:
+        return error_response(str(e), e.status)
+    return json_response({'results': results, 'provider': resolve_search_provider()})
 
 
 @api.route('/settings/podcast-index/test', methods=['POST'])

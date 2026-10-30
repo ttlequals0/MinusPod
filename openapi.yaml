@@ -67,6 +67,10 @@ tags:
     description: >-
       Local (archive-import) feeds: no upstream RSS, episode upload and
       edits, and bulk directory/upload import (#625)
+  - name: YouTube
+    description: >-
+      YouTube playlist and channel feeds: source preview, Data API key test,
+      cookies, and yt-dlp updates. Global settings live under Settings.
   - name: Failover
     description: >-
       Provider failover (#806): state of the LLM A/B and transcriber
@@ -387,12 +391,37 @@ paths:
                   example: my-podcast
                 feedType:
                   type: string
-                  enum: [subscribed, local, recents]
+                  enum: [subscribed, local, recents, youtube]
                   default: subscribed
                   description: >-
                     "local" creates an archive-import feed with no upstream
                     RSS: title is required, sourceUrl is ignored, and no
-                    fetch happens. Omit or "subscribed" for a normal feed.
+                    fetch happens. "youtube" creates a feed from a YouTube
+                    playlist or channel: sourceKind, sourceId and title are
+                    required, sourceUrl is ignored, and the first listing runs
+                    before the response. Omit or "subscribed" for a normal feed.
+                sourceKind:
+                  type: string
+                  enum: [playlist, channel]
+                  description: YouTube feeds only. Kind of the source.
+                sourceId:
+                  type: string
+                  description: YouTube feeds only. Canonical playlist id or channel id, as returned by the preview.
+                  example: UCxxxxxxxxxxxxxxxxxxxxxx
+                artworkUrl:
+                  type: string
+                  format: uri
+                  description: YouTube feeds only. Cover image downloaded once at creation.
+                includeShorts:
+                  type:
+                    - boolean
+                    - 'null'
+                  description: YouTube feeds only. Whether videos of 180 seconds or less are listed; null follows the default.
+                autoProcessOverride:
+                  type:
+                    - boolean
+                    - 'null'
+                  description: Per-feed auto-process override applied at creation. Null inherits the global setting.
                 title:
                   type: string
                   description: Feed title. Required and editable when feedType is "local"; ignored for a subscribed feed, which takes its title from the upstream RSS on refresh.
@@ -1178,6 +1207,33 @@ paths:
                     - boolean
                     - 'null'
                   description: Per-feed override for retaining the pre-cut original audio. Null falls back to the global keepOriginalAudio setting; true always keeps it; false never does. Applies from the next episode processed.
+                ytProcessDelayMinutesOverride:
+                  type: [integer, 'null']
+                  minimum: 0
+                  maximum: 1440
+                  description: YouTube feeds only. Minutes to wait after a video is published before processing. Null follows the global setting.
+                ytProbeAttemptsOverride:
+                  type: [integer, 'null']
+                  minimum: 0
+                  maximum: 48
+                  description: YouTube feeds only. SponsorBlock lookup attempts. Null follows the global setting.
+                ytProbeIntervalMinutesOverride:
+                  type: [integer, 'null']
+                  minimum: 5
+                  maximum: 1440
+                  description: YouTube feeds only. Minutes between SponsorBlock lookup attempts. Null follows the global setting.
+                ytLlmFallbackOverride:
+                  type: [boolean, 'null']
+                  description: YouTube feeds only. Run LLM detection when SponsorBlock has no data. Null follows the global setting.
+                ytLlmOnTopOverride:
+                  type: [boolean, 'null']
+                  description: YouTube feeds only. Run LLM detection on top of SponsorBlock segments. Null follows the global setting.
+                ytCaptionsOverride:
+                  type: [boolean, 'null']
+                  description: YouTube feeds only. Use YouTube captions as the transcript. Null follows the global setting.
+                youtubeIncludeShorts:
+                  type: [boolean, 'null']
+                  description: YouTube feeds only. Whether videos of 180 seconds or less are listed. Null follows the default.
                 segmentCategoryActions:
                   type:
                     - object
@@ -4799,6 +4855,166 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
+
+  /youtube/preview:
+    post:
+      tags:
+        - YouTube
+      summary: Preview a YouTube source
+      description: >-
+        Resolves a playlist, channel or handle URL and returns its identity plus podcast
+        directory matches that may offer the same show as an RSS feed. Returns enabled false
+        with no lookup when YouTube feeds are disabled.
+      operationId: previewYoutubeSource
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [url]
+              properties:
+                url:
+                  type: string
+                  example: https://www.youtube.com/@example
+      responses:
+        '200':
+          description: Source preview
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  enabled:
+                    type: boolean
+                  source:
+                    type:
+                      - object
+                      - 'null'
+                    properties:
+                      kind:
+                        type: string
+                        enum: [playlist, channel]
+                      id:
+                        type: string
+                      title:
+                        type: string
+                      description:
+                        type: string
+                      artworkUrl:
+                        type: [string, 'null']
+                      videoCount:
+                        type: [integer, 'null']
+                      alreadyAdded:
+                        type: [string, 'null']
+                        description: Slug of the existing feed for this source, if any.
+                  rssMatches:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        title:
+                          type: string
+                        feedUrl:
+                          type: string
+                        artworkUrl:
+                          type: string
+        '400':
+          description: Not a YouTube playlist or channel URL
+        '404':
+          description: Source not found or private
+        '502':
+          description: The lookup failed upstream
+  /youtube/test-key:
+    post:
+      tags:
+        - YouTube
+      summary: Test a YouTube Data API key
+      description: Tests the supplied key, or the stored key when apiKey is omitted, against a public channel.
+      operationId: testYoutubeApiKey
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                apiKey:
+                  type: string
+      responses:
+        '200':
+          description: The key works
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  channelTitle:
+                    type: [string, 'null']
+        '400':
+          description: No key available or YouTube rejected it
+  /youtube/cookies:
+    post:
+      tags:
+        - YouTube
+      summary: Save YouTube cookies
+      description: Stores a Netscape-format cookies file used by yt-dlp. The content is never returned.
+      operationId: putYoutubeCookies
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [cookies]
+              properties:
+                cookies:
+                  type: string
+      responses:
+        '200':
+          description: Cookies status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/YoutubeCookiesStatus'
+        '400':
+          description: The text is not a valid cookies file
+    delete:
+      tags:
+        - YouTube
+      summary: Remove YouTube cookies
+      operationId: deleteYoutubeCookies
+      responses:
+        '200':
+          description: Cookies status after removal
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/YoutubeCookiesStatus'
+  /youtube/ytdlp/update:
+    post:
+      tags:
+        - YouTube
+      summary: Update yt-dlp now
+      description: Downloads the latest yt-dlp into the runtime copy. Limited to 6 requests per hour.
+      operationId: updateYtdlp
+      responses:
+        '200':
+          description: Update result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  updated:
+                    type: boolean
+                  version:
+                    type: [string, 'null']
+                  error:
+                    type: [string, 'null']
+        '503':
+          description: yt-dlp is not installed
 
   /podcast-search:
     get:
@@ -12158,6 +12374,15 @@ components:
         example: 550e8400-e29b-41d4-a716-446655440000
 
   schemas:
+    YoutubeCookiesStatus:
+      type: object
+      properties:
+        set:
+          type: boolean
+        lines:
+          type: integer
+        updatedAt:
+          type: [string, 'null']
     YoutubeSettings:
       type: object
       properties:
@@ -12786,7 +13011,7 @@ components:
                 type: string
               feedType:
                 type: string
-                enum: [subscribed, local, recents]
+                enum: [subscribed, local, recents, youtube]
               settings:
                 type: object
                 additionalProperties: true
@@ -13723,7 +13948,7 @@ components:
           description: URL-safe identifier for the feed
         feedType:
           type: string
-          enum: [subscribed, local, recents]
+          enum: [subscribed, local, recents, youtube]
           description: >-
             "subscribed" (default) mirrors an upstream RSS feed; "local" is
             an archive-import feed MinusPod builds and serves itself, with
@@ -14197,6 +14422,44 @@ components:
             - boolean
             - 'null'
           description: Per-feed override for retaining the pre-cut original audio. Null falls back to the global keepOriginalAudio setting; true always keeps it; false never does. Applies from the next episode processed.
+        ytProcessDelayMinutesOverride:
+          type: [integer, 'null']
+          minimum: 0
+          maximum: 1440
+          description: YouTube feeds only. Minutes to wait after a video is published before processing. Null follows the global setting.
+        ytProbeAttemptsOverride:
+          type: [integer, 'null']
+          minimum: 0
+          maximum: 48
+          description: YouTube feeds only. SponsorBlock lookup attempts. Null follows the global setting.
+        ytProbeIntervalMinutesOverride:
+          type: [integer, 'null']
+          minimum: 5
+          maximum: 1440
+          description: YouTube feeds only. Minutes between SponsorBlock lookup attempts. Null follows the global setting.
+        ytLlmFallbackOverride:
+          type: [boolean, 'null']
+          description: YouTube feeds only. Run LLM detection when SponsorBlock has no data. Null follows the global setting.
+        ytLlmOnTopOverride:
+          type: [boolean, 'null']
+          description: YouTube feeds only. Run LLM detection on top of SponsorBlock segments. Null follows the global setting.
+        ytCaptionsOverride:
+          type: [boolean, 'null']
+          description: YouTube feeds only. Use YouTube captions as the transcript. Null follows the global setting.
+        youtubeIncludeShorts:
+          type: [boolean, 'null']
+          description: YouTube feeds only. Whether videos of 180 seconds or less are listed. Null follows the default.
+        youtubeSourceKind:
+          type: [string, 'null']
+          enum: [playlist, channel, null]
+          description: YouTube feeds only. Kind of the source.
+        youtubeSourceId:
+          type: [string, 'null']
+          description: YouTube feeds only. Playlist id or channel id.
+        youtubeSourceUrl:
+          type: [string, 'null']
+          format: uri
+          description: YouTube feeds only. Public YouTube page of the source.
         segmentCategoryActions:
           type:
             - object
@@ -14334,6 +14597,16 @@ components:
           type: string
         title:
           type: string
+        sponsorBlock:
+          type: [object, 'null']
+          description: SponsorBlock lookup progress for a YouTube episode. Null on other feed types.
+          properties:
+            state: { type: string }
+            attempts: { type: integer }
+            nextCheckAt: { type: [string, 'null'] }
+            segmentCount: { type: [integer, 'null'] }
+            note: { type: [string, 'null'] }
+            lastError: { type: [string, 'null'] }
         status:
           type: string
           enum: [discovered, pending, processing, completed, failed, permanently_failed, deferred]

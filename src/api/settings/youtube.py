@@ -1,10 +1,10 @@
 """YouTube settings: GET/PUT /settings/youtube."""
 from flask import request
 
-from api import api, error_response, get_database, json_response, log_request
+from api import api, error_response, get_database, get_storage, json_response, log_request
 from secrets_crypto import is_available as crypto_available
 from utils.secret_writes import SecretWriteRejected, set_or_clear_secret
-from youtube import settings as yt_settings
+from youtube import cookies, settings as yt_settings, ytdlp
 
 _INT_KEYS = {
     'processDelayMinutes': 'youtube_process_delay_minutes',
@@ -23,6 +23,7 @@ _BOOL_KEYS = {
 
 def youtube_status_payload(db) -> dict:
     s = yt_settings.load_global(db)
+    storage = get_storage()
     return {
         'enabled': s.enabled,
         'apiKeyConfigured': bool(yt_settings.api_key(db)),
@@ -35,14 +36,12 @@ def youtube_status_payload(db) -> dict:
         'captionsAsTranscript': s.captions_as_transcript,
         'ytdlp': {
             'autoUpdate': s.ytdlp_auto_update,
-            'version': db.get_setting('youtube_ytdlp_version'),
+            **ytdlp.status(storage, db),
             'lastUpdateAt': db.get_setting('youtube_ytdlp_last_update_at'),
             'lastCheckAt': db.get_setting('youtube_ytdlp_last_check_at'),
             'lastError': db.get_setting('youtube_ytdlp_last_error'),
-            'runtimePath': None,
-            'bakedVersion': None,
         },
-        'cookies': {'set': False, 'lines': 0, 'updatedAt': None},
+        'cookies': cookies.status(storage),
         'bounds': {k: list(v) for k, v in yt_settings.BOUNDS.items()},
     }
 

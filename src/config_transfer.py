@@ -37,6 +37,7 @@ from llm_route import SAME_AS_DETECTION, VALID_SLOTS
 from pattern_cleanup import BATCH_SIZE_RANGE, UNUSED_DAYS_RANGE
 from podping_listener import get_podping_nodes, normalize_podping_nodes
 from rss_parser import _feed_trust
+from youtube.settings import BOUNDS as YT_BOUNDS
 from rate_limit_hold import clear_hold_for_provider_change
 from secrets_crypto import SECRET_SETTING_KEYS, decrypt, is_available, is_ciphertext
 from utils.cron import is_valid_expression
@@ -144,7 +145,23 @@ FEED_COLUMNS = (
     'keep_original_audio_override', 'user_tags', 'author', 'explicit',
     'audio_replacement_sound_override', 'audio_mp3_stream_copy_override',
     'categories', 'p20_channel_json',
+    'youtube_source_kind', 'youtube_source_id', 'youtube_include_shorts',
+    'yt_process_delay_minutes_override', 'yt_probe_attempts_override',
+    'yt_probe_interval_minutes_override', 'yt_llm_fallback_override',
+    'yt_llm_on_top_override', 'yt_captions_override',
 )
+YOUTUBE_COLUMNS = frozenset({
+    'youtube_source_kind', 'youtube_source_id', 'youtube_include_shorts',
+    'yt_process_delay_minutes_override', 'yt_probe_attempts_override',
+    'yt_probe_interval_minutes_override', 'yt_llm_fallback_override',
+    'yt_llm_on_top_override', 'yt_captions_override',
+})
+YOUTUBE_SOURCE_RE = re.compile(r'^youtube://(playlist|channel)/[A-Za-z0-9_-]+$')
+YT_INT_COLUMNS = {
+    'yt_process_delay_minutes_override': 'processDelayMinutes',
+    'yt_probe_attempts_override': 'sbProbeAttempts',
+    'yt_probe_interval_minutes_override': 'sbProbeIntervalMinutes',
+}
 FEED_JSON_COLUMNS = frozenset({
     'segment_category_actions', 'title_skip_patterns', 'description_skip_patterns',
     'user_tags', 'categories', 'p20_channel_json',
@@ -158,6 +175,8 @@ FEED_BOOL_COLUMNS = frozenset({
     'differential_fetch_enabled',
     'keep_original_audio_override',
     'audio_replacement_sound_override', 'audio_mp3_stream_copy_override',
+    'youtube_include_shorts', 'yt_llm_fallback_override', 'yt_llm_on_top_override',
+    'yt_captions_override',
 })
 
 
@@ -380,6 +399,8 @@ def export_config(db, app_version):
             columns = tuple(column for column in columns if column not in {
                 'author', 'explicit', 'categories', 'p20_channel_json',
             })
+        if row['feed_type'] != 'youtube':
+            columns = tuple(column for column in columns if column not in YOUTUBE_COLUMNS)
         if row['feed_type'] == 'recents':
             columns = ('title', 'description', 'source_url')
         feeds.append({
@@ -448,7 +469,7 @@ def _validate_document(document):
         if slug in seen:
             raise ConfigTransferError('File contains duplicate feed slugs')
         seen.add(slug)
-        if feed_type not in ('subscribed', 'local', 'recents'):
+        if feed_type not in ('subscribed', 'local', 'recents', 'youtube'):
             raise ConfigTransferError(f'Unsupported feed type for {slug}')
         fields = feed.get('settings', {})
         if set(fields) - set(FEED_COLUMNS):
@@ -476,6 +497,12 @@ def _validate_document(document):
             raise ConfigTransferError(f'Recents feed {slug} contains unsupported settings')
         if feed_type == 'recents' and fields.get('source_url') != 'recents://':
             raise ConfigTransferError(f'Recents feed {slug} has an invalid identity')
+        if feed_type == 'youtube' and (
+                not isinstance(source_url, str) or not YOUTUBE_SOURCE_RE.match(source_url)
+                or not fields.get('youtube_source_kind') or not fields.get('youtube_source_id')):
+            raise ConfigTransferError(f'YouTube feed {slug} has an invalid identity')
+        if feed_type != 'youtube' and set(fields) & YOUTUBE_COLUMNS:
+            raise ConfigTransferError(f'Feed {slug} contains YouTube-only settings')
         if feed_type != 'local' and set(fields) & {
                 'author', 'explicit', 'categories', 'p20_channel_json'}:
             raise ConfigTransferError(f'Feed {slug} contains local-only metadata')
@@ -902,7 +929,7 @@ def build_preview(db, document, scope, selected_feeds=None):
                 raise ConfigTransferError(f'Feed source conflict for {slug}')
             updated.append(slug)
         source = feed.get('settings', {}).get('source_url', '')
-        if feed['feedType'] == 'subscribed':
+        if feed['feedType'] in ('subscribed', 'youtube'):
             duplicate = db.get_connection().execute(
                 'SELECT slug FROM podcasts WHERE source_url = ? AND slug != ? LIMIT 1',
                 (source, slug),
@@ -981,6 +1008,16 @@ def _validated_feed_updates(db, podcast, payload, feed_type, *, confirmed_ceilin
             if not isinstance(value, list) or any(not isinstance(tag, str) for tag in value):
                 raise ConfigTransferError('user_tags must be an array of strings or null')
             value = _canonical_json(value)
+        elif key in YT_INT_COLUMNS:
+            if value is not None:
+                lo, hi = YT_BOUNDS[YT_INT_COLUMNS[key]]
+                if not isinstance(value, int) or isinstance(value, bool) or not lo <= value <= hi:
+                    raise ConfigTransferError(f'{key} must be an integer between {lo} and {hi} or null')
+        elif key in ('yt_llm_fallback_override', 'yt_llm_on_top_override',
+                     'yt_captions_override', 'youtube_include_shorts'):
+            value, error = feed_api._normalize_cue_bool_override(value, key)
+            if error:
+                raise ConfigTransferError(error)
         elif key in ('cue_create_from_pairs_override', 'cue_cut_matches_override',
                      'differential_fetch_enabled',
                      'keep_original_audio_override', 'audio_replacement_sound_override',
@@ -1354,7 +1391,7 @@ def apply_config(db, document, scope, selected_feeds, preview_token):
                         'SELECT slug FROM podcasts WHERE source_url = ? AND slug != ? LIMIT 1',
                         (source_url, slug),
                     ).fetchone()
-                    if feed['feedType'] == 'subscribed' and duplicate_source:
+                    if feed['feedType'] in ('subscribed', 'youtube') and duplicate_source:
                         raise ConfigTransferError('Source URL already belongs to another feed')
                     updates = _validated_feed_updates(
                         db, dict(current_row) if current_row else None,
