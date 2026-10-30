@@ -29,7 +29,7 @@ from config import (
 from ad_chapters import ID3_CHAPTER_SOURCE_KEY, public_chapters
 from storage import is_chapter_image_filename
 from database.downloads import capture_request
-from database.podcasts import has_upstream, has_upstream_audio
+from database.podcasts import has_upstream_audio, is_youtube_feed
 from database.queue import compute_queue_priority
 from rss_parser import (
     RSS_RENDER_VERSION,
@@ -38,6 +38,7 @@ from rss_parser import (
     extract_cached_render_version,
 )
 from user_agent import download_user_agent
+from youtube import settings as yt_settings
 from utils.constants import EpisodeStatus, REPROCESS_SOURCE_JIT
 from utils.episode_paths import published_episode_version
 from utils.safe_http import URLTrust, safe_head
@@ -210,9 +211,9 @@ def _lookup_episode(slug, episode_id, feed_map, episode_row=None):
     # fallback below. Also avoids an SSRF-blocked fetch_feed call on every
     # lookup.
     podcast = db.get_podcast_by_slug(slug)
-    # An unknown row keeps the historical fetch; only local/recents rows skip it.
+    # An unknown row keeps the historical fetch; local, recents and YouTube rows have no RSS to fetch.
     original_feed = (rss_parser.fetch_feed(feed_map[slug]['in'], podcast=podcast)
-                     if podcast is None or has_upstream(podcast) else None)
+                     if has_upstream_audio(podcast) else None)
     if original_feed:
         parsed_feed = rss_parser.parse_feed(original_feed, source=slug)
         podcast_name = parsed_feed.feed.get('title', 'Unknown') if parsed_feed else 'Unknown'
@@ -679,6 +680,9 @@ def register_routes(app):
                         slug, episode_id, episode, requested_version)
                 return _routes._head_upstream(slug, episode_id, ep_data['url'])
             abort(404)
+
+        if is_youtube_feed(podcast) and not yt_settings.enabled(db):
+            return Response('YouTube feeds are disabled in Settings', status=503)
 
         # Need to process - find original URL from RSS
         if (not feed_auth_enabled(db)

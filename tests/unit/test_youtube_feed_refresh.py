@@ -221,3 +221,72 @@ def test_existing_row_without_video_id_is_backfilled_by_refresh():
         assert db.get_episode(slug, ep['id'])['youtube_video_id'] == 'vid000000002'
     finally:
         db.delete_podcast(slug)
+
+
+def test_disabled_master_switch_refresh_lists_nothing_and_rebuilds_from_db():
+    db = feeds_mod.db
+    slug = 'yt-off'
+    _make_feed(slug)
+    db.set_setting('youtube_enabled', 'false', is_default=False)
+    try:
+        with patch.object(discovery, 'list_videos', side_effect=AssertionError('listed')), \
+                patch.object(discovery, 'resolve_source', side_effect=AssertionError('resolved')), \
+                patch.object(feeds_mod, 'rebuild_youtube_feed', return_value=True) as rebuild:
+            outcome = feeds_mod.refresh_rss_feed(slug, 'youtube://playlist/PL1', force=True)
+            assert feeds_mod.refresh_feed_artwork(slug) is True
+        assert outcome.success and outcome.status == 'disabled'
+        assert rebuild.call_count == 2
+    finally:
+        db.delete_podcast(slug)
+
+
+def test_lookup_episode_never_fetches_an_upstream_feed_for_youtube():
+    from main_app import routes
+    db = feeds_mod.db
+    slug = 'yt-lookup'
+    _make_feed(slug)
+    try:
+        db.upsert_episode(slug, 'a1b2c3d4e5f6', original_url='https://www.youtube.com/watch?v=vid1', title='T')
+        with patch('main_app.routes.rss_parser.fetch_feed', side_effect=AssertionError('fetched')):
+            ep, _name = routes._lookup_episode(slug, 'a1b2c3d4e5f6', {slug: {'in': f'youtube://playlist/PL1'}})
+        assert ep['url'] == 'https://www.youtube.com/watch?v=vid1'
+    finally:
+        db.delete_podcast(slug)
+
+
+def test_jit_returns_503_for_an_unprocessed_youtube_episode_when_disabled():
+    from main_app import app
+    db = feeds_mod.db
+    slug = 'yt-jit-off'
+    _make_feed(slug)
+    db.set_setting('youtube_enabled', 'false', is_default=False)
+    try:
+        db.upsert_episode(slug, 'a1b2c3d4e5f6', original_url='https://www.youtube.com/watch?v=vid1',
+                          title='T', status='discovered')
+        feed_map = {slug: {'in': 'youtube://playlist/PL1', 'out': slug}}
+        with patch('main_app.routes.get_feed_map', return_value=feed_map), \
+                patch('main_app.processing.start_background_processing') as start:
+            with app.test_client() as c:
+                resp = c.get(f'/episodes/{slug}/a1b2c3d4e5f6.mp3')
+        assert resp.status_code == 503
+        assert b'YouTube feeds are disabled in Settings' in resp.data
+        start.assert_not_called()
+    finally:
+        db.delete_podcast(slug)
+
+
+def test_missing_source_artwork_is_not_looked_up_again_on_every_refresh():
+    db = feeds_mod.db
+    slug = 'yt-art-backoff'
+    _make_feed(slug)
+    feeds_mod._youtube_artwork_retry_at.pop(slug, None)
+    try:
+        info = _resolved(url=None)
+        with patch.object(discovery, 'resolve_source', return_value=info) as resolve, \
+                patch.object(feeds_mod, 'rebuild_youtube_feed', return_value=True):
+            _refresh(slug, [_episode('vid000000001')])
+            _refresh(slug, [_episode('vid000000001')])
+        resolve.assert_called_once()
+    finally:
+        feeds_mod._youtube_artwork_retry_at.pop(slug, None)
+        db.delete_podcast(slug)

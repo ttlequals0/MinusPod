@@ -25,6 +25,7 @@ from recents_feed import rebuild_recents_feed
 from utils.http import safe_url_for_log
 from utils.retry import calculate_backoff
 from utils.time import parse_iso_utc, utc_now_iso
+from youtube import settings as yt_settings
 from youtube.feed import rebuild_youtube_feed
 
 from slugify import slugify
@@ -223,8 +224,15 @@ def invalidate_feed_cache():
     _feed_cache.invalidate('all_feeds')
 
 
+_EPOCH = datetime.min.replace(tzinfo=timezone.utc)
+YOUTUBE_ARTWORK_RETRY = timedelta(hours=24)
+_youtube_artwork_retry_at: dict[str, datetime] = {}
+
+
 def _fetch_youtube_source_artwork(slug, podcast, force):
     """Pull the channel or playlist thumbnail; returns True when it was saved."""
+    if not yt_settings.enabled(db):
+        return False
     from youtube import discovery
     from youtube.urls import Source
     info = discovery.resolve_source(db, Source(podcast['youtube_source_kind'], podcast['youtube_source_id']))
@@ -235,9 +243,13 @@ def _fetch_youtube_source_artwork(slug, podcast, force):
 
 def _refresh_youtube_feed(slug, podcast, force, record_failure) -> RefreshOutcome:
     """Discover videos, queue SponsorBlock waits, render the served RSS."""
-    from youtube import discovery, settings as yt_settings, watch as yt_watch  # lazy: avoids an import cycle at startup
+    from youtube import discovery, watch as yt_watch  # lazy: avoids an import cycle at startup
     if not force and _refresh_coalesce.get(slug) is not None:
         return RefreshOutcome(True, 'coalesced')
+    if not yt_settings.enabled(db):
+        rebuild_youtube_feed(slug, podcast)
+        _record_refresh_success(slug)
+        return RefreshOutcome(True, 'disabled', 0, 0)
     _refresh_coalesce.set(slug, True)
     db.update_podcast(slug, last_refresh_attempt_at=utc_now_iso())
     try:
@@ -271,11 +283,16 @@ def _refresh_youtube_feed(slug, podcast, force, record_failure) -> RefreshOutcom
                     scheduled += 1
         if scheduled:
             refresh_logger.info(f"[{slug}] {scheduled} video(s) waiting for SponsorBlock")
-        if not podcast.get('artwork_cached'):
+        if not podcast.get('artwork_cached') and datetime.now(timezone.utc) >= _youtube_artwork_retry_at.get(slug, _EPOCH):
             try:
-                _fetch_youtube_source_artwork(slug, podcast, force=False)
+                saved = _fetch_youtube_source_artwork(slug, podcast, force=False)
             except Exception as e:
+                saved = False
                 refresh_logger.debug(f"[{slug}] YouTube source artwork fetch failed: {e}")
+            if saved:
+                _youtube_artwork_retry_at.pop(slug, None)
+            else:
+                _youtube_artwork_retry_at[slug] = datetime.now(timezone.utc) + YOUTUBE_ARTWORK_RETRY
         rebuild_youtube_feed(slug, podcast)
         _record_refresh_success(slug)
         status_service.complete_feed_refresh(slug, 0)
@@ -899,6 +916,7 @@ def refresh_feed_artwork(slug, podcast=None):
     try:
         if is_youtube_feed(podcast):
             _fetch_youtube_source_artwork(slug, podcast, force=True)
+            _youtube_artwork_retry_at.pop(slug, None)
             storage.clear_watermark_cache(slug)
             return rebuild_served_rss(slug, podcast)
         # Re-derive candidates from the live feed so a manual refresh can

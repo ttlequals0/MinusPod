@@ -19,7 +19,7 @@ from urllib.parse import urlparse, urlunparse
 
 import requests
 
-from database.podcasts import has_upstream
+from database.podcasts import has_upstream_audio
 from utils.time import ISO_FORMAT, parse_iso_utc, utc_now, utc_now_iso
 
 logger = logging.getLogger('podcast.podping')
@@ -969,7 +969,7 @@ class PodpingListener:
     def _refresh_feed_map(self):
         feed_map = {}
         for podcast in self.db.get_podcast_feed_urls():
-            if not has_upstream(podcast):
+            if not has_upstream_audio(podcast):
                 continue
             source_url = podcast.get('source_url')
             if source_url:

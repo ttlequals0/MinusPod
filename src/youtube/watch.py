@@ -163,7 +163,7 @@ def _process_row(db, row, podcast, now, storage, base) -> bool:
 
 def sponsorblock_tick(db):
     """Probe SponsorBlock for due YouTube episodes and queue the ones that are ready."""
-    if not db.get_setting_bool('youtube_enabled', False):
+    if not yt_settings.enabled(db):
         return
     from main_app import storage  # lazy: see queue_for_processing
     now = utc_now()

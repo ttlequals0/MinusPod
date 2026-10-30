@@ -30,6 +30,11 @@ DEFAULTS = {
 }
 
 
+def enabled(db) -> bool:
+    """Master switch: when off, no YouTube network activity runs."""
+    return db.get_setting_bool('youtube_enabled', DEFAULTS['youtube_enabled'])
+
+
 def validate_yt_int(field: str, value, bound_key: str) -> str | None:
     """Error text when a nullable integer override is out of its bound, else None."""
     if value is None:

@@ -1050,7 +1050,7 @@ def _podping_coverage(podcast, enabled, host_is_active):
     about this feed) or the feed has no upstream that could ping. The UI only distinguishes received from everything
     else; the finer states are here for API consumers and diagnostics.
     """
-    if not enabled or not has_upstream(podcast):
+    if not enabled or not has_upstream_audio(podcast):
         return None
     if podcast.get('podping_uses') == 0:
         return 'declined'
