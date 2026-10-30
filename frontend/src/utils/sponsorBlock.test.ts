@@ -33,4 +33,8 @@ describe('sponsorBlockLabel', () => {
     expect(sponsorBlockLabel({ ...base, state: 'watching', nextCheckAt: '2026-10-29T12:30:00Z', lastError: 'boom' }, 6, now))
       .toBe('Watching SponsorBlock, next check in 30 min, last check failed');
   });
+
+  it('returns null for an unknown state', () => {
+    expect(sponsorBlockLabel({ ...base, state: 'bogus' as never, lastError: 'x' }, 6, now)).toBeNull();
+  });
 });

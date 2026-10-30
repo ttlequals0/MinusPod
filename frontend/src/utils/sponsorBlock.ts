@@ -34,6 +34,8 @@ export function sponsorBlockLabel(
     case 'llm':
       label = 'No SponsorBlock marks, processed with LLM';
       break;
+    default:
+      return null;
   }
   if (sb.note === 'full') label += ', marked whole video as sponsored';
   if (sb.lastError) label += ', last check failed';

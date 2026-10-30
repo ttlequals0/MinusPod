@@ -33,9 +33,10 @@ function NumberOverrideRow({
   const [lo, hi] = bounds ?? [0, 100000];
 
   function commit() {
-    const v = draft ?? value ?? globalValue ?? null;
-    if (v == null || v < lo || v > hi || v === value) return;
-    onCommit(v);
+    if (draft === null) return;
+    if (draft < lo || draft > hi || draft === (value ?? globalValue)) return;
+    onCommit(draft);
+    setDraft(null);
   }
 
   return (

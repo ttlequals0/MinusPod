@@ -32,11 +32,11 @@ const feed = {
   ytLlmFallbackOverride: null, ytLlmOnTopOverride: null, ytCaptionsOverride: null,
 } as unknown as Feed;
 
-function renderPanel() {
+function renderPanel(overrides: Partial<Feed> = {}) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={client}>
-      <YouTubeFeedPanel feed={feed} slug="yt" />
+      <YouTubeFeedPanel feed={{ ...feed, ...overrides }} slug="yt" />
     </QueryClientProvider>,
   );
 }
@@ -81,5 +81,40 @@ describe('YouTubeFeedPanel', () => {
     await user.type(input, '5');
     await user.tab();
     await waitFor(() => expect(mockUpdateFeed).toHaveBeenCalledWith('yt', { ytProcessDelayMinutesOverride: 5 }));
+  });
+
+  it('does not write the global when the field is focused and blurred untouched', async () => {
+    const user = userEvent.setup();
+    renderPanel();
+    const mode = screen.getByLabelText('Delay mode') as HTMLSelectElement;
+    await waitFor(() => expect(mode.selectedOptions[0].textContent).toBe('Use global (60)'));
+    await user.selectOptions(mode, 'Custom');
+    await user.click(screen.getByLabelText('Delay'));
+    await user.tab();
+    expect(mockUpdateFeed).not.toHaveBeenCalled();
+  });
+
+  it('does not write when the typed value equals the saved override', async () => {
+    const user = userEvent.setup();
+    renderPanel({ ytProcessDelayMinutesOverride: 5 });
+    const input = screen.getByLabelText('Delay');
+    await user.clear(input);
+    await user.type(input, '5');
+    await user.tab();
+    expect(mockUpdateFeed).not.toHaveBeenCalled();
+  });
+
+  it('sends null when switching back to the global', async () => {
+    const user = userEvent.setup();
+    renderPanel({ ytProcessDelayMinutesOverride: 5 });
+    await user.selectOptions(screen.getByLabelText('Delay mode'), 'global');
+    await waitFor(() => expect(mockUpdateFeed).toHaveBeenCalledWith('yt', { ytProcessDelayMinutesOverride: null }));
+  });
+
+  it('sends false for Off on a boolean row', async () => {
+    const user = userEvent.setup();
+    renderPanel();
+    await user.selectOptions(screen.getByLabelText('Include Shorts'), 'Off');
+    await waitFor(() => expect(mockUpdateFeed).toHaveBeenCalledWith('yt', { youtubeIncludeShorts: false }));
   });
 });
