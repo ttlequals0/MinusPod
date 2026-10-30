@@ -29,6 +29,11 @@ DENIED_FLAGS = frozenset({
     '--exec', '--exec-before-download', '--no-exec', '-o', '--output', '-P', '--paths', '-a', '--batch-file',
     '--load-info-json', '--config-location', '--config-locations', '--cookies', '--cookies-from-browser',
     '--download-archive', '-j', '--dump-json', '-J', '--dump-single-json', '--print', '--print-to-file',
+    '--ffmpeg-location', '--downloader', '--external-downloader', '--downloader-args',
+    '--external-downloader-args', '--postprocessor-args', '--ppa', '--use-postprocessor', '--js-runtimes',
+    '--remote-components', '--plugin-dirs', '--netrc', '--netrc-location', '--netrc-cmd', '--cache-dir',
+    '--alias', '-U', '--update', '--update-to', '--write-link', '--write-url-link', '--write-webloc-link',
+    '--write-desktop-link', '--write-lnk-link',
 })
 
 
@@ -121,6 +126,8 @@ def parse_extra_args(text: str) -> list[str]:
     except ValueError:
         raise ValueError('extra yt-dlp arguments: unbalanced quotes') from None
     for token in tokens:
+        if token.startswith('-') and not token.startswith('--') and len(token) > 2:
+            raise ValueError(f'extra yt-dlp arguments: use the long form for {token}')
         flag = token.split('=', 1)[0]
         if token in DENIED_FLAGS or flag in DENIED_FLAGS:
             raise ValueError(f'extra yt-dlp arguments: {flag} is not allowed')
@@ -185,7 +192,7 @@ def _update_binary_locked(storage, db, target) -> dict:
     if str(target) == BAKED_PATH:
         return {'updated': False, 'version': baked_version(), 'error': RUNTIME_NOT_EXECUTABLE}
     before = binary_version(target)
-    result = run(['-U'], timeout=300, storage=storage, db=db)
+    result = run(['-U'], timeout=300, storage=storage, db=db, extra=False)
     if result.returncode != 0:
         error = trimmed_error(result.stderr or result.stdout)
         db.set_setting('youtube_ytdlp_last_error', error, is_default=False)

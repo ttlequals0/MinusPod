@@ -178,7 +178,7 @@ yt-dlp changes often because YouTube does. MinusPod keeps up in layers.
 
 Settings > YouTube shows the running version, the version the image ships, and the last check time and error.
 
-**Extra yt-dlp arguments** (API: `ytdlpExtraArgs`) is a global setting whose text is split like a shell command and added before MinusPod's own options on every yt-dlp call: listings, metadata lookups, caption fetches, downloads and updates. Because MinusPod's options come last, output format and paths stay fixed. Example: `--proxy socks5://proxy:1080 --limit-rate 2M`. Options that change output paths, run commands, read other files or alter the JSON output are rejected (for example `--exec`, `-o`, `--output`, `-P`, `--paths`, `--batch-file`, `--config-location`, `--cookies`, `--print` and `-j`). The text is limited to 1000 characters.
+**Extra yt-dlp arguments** (API: `ytdlpExtraArgs`) is a global setting whose text is split like a shell command and added before MinusPod's own options on every yt-dlp call: listings, metadata lookups, caption fetches, and downloads. Self-updates ignore it. Because MinusPod's options come last, output format and paths stay fixed. Example: `--proxy socks5://proxy:1080 --limit-rate 2M`. Options that run or load other programs, change where files are written, read local files, alter the JSON output or update the binary are rejected; use long option names. The text is limited to 1000 characters.
 
 ## Per-feed overrides
 

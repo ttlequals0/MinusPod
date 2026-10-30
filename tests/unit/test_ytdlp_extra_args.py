@@ -26,6 +26,9 @@ def test_normal_and_quoted_values():
     ('--proxy x -o foo', '-o'),
     ('--output=%(id)s', '--output'),
     ('--print=id', '--print'),
+    ('--update-to x@y', '--update-to'),
+    ('--ffmpeg-location /tmp/x', '--ffmpeg-location'),
+    ('-U', '-U'),
 ])
 def test_denied_flags(text, flag):
     with pytest.raises(ValueError, match=f'{flag} is not allowed'):
@@ -62,3 +65,17 @@ def test_run_extra_false_skips_them():
 
 def test_run_ignores_bad_stored_value():
     assert _run('--exec x') == ['/bin/yt-dlp', '--dump-single-json', 'u']
+
+
+@pytest.mark.parametrize('text', ['-ofile', '-xo file'])
+def test_bundled_short_options_rejected(text):
+    with pytest.raises(ValueError, match='use the long form'):
+        ytdlp.parse_extra_args(text)
+
+
+def test_update_ignores_extra_args():
+    db = MagicMock()
+    with patch.object(ytdlp, 'run', return_value=MagicMock(returncode=1, stderr='x', stdout='')) as run:
+        ytdlp.update_binary(MagicMock(), db, target=Path('/data/yt-dlp'))
+    assert run.call_args.args[0] == ['-U']
+    assert run.call_args.kwargs['extra'] is False

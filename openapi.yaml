@@ -9231,7 +9231,7 @@ paths:
                   type: boolean
                 ytdlpExtraArgs:
                   type: string
-                  description: Extra command line arguments added before the app's own options on every yt-dlp call. Options that change output paths, run commands or alter the JSON output are rejected.
+                  description: Extra command line arguments added before the app's own options on every yt-dlp call. Options that run or load other programs, change where files are written, read local files, alter the JSON output or update the binary are rejected; use long option names.
                 ytdlpAutoUpdate:
                   type: boolean
       responses:
@@ -12427,7 +12427,7 @@ components:
           type: boolean
         ytdlpExtraArgs:
           type: string
-          description: Extra command line arguments added before the app's own options on every yt-dlp call. Options that change output paths, run commands or alter the JSON output are rejected.
+          description: Extra command line arguments added before the app's own options on every yt-dlp call. Options that run or load other programs, change where files are written, read local files, alter the JSON output or update the binary are rejected; use long option names.
         ytdlp:
           type: object
           properties:
