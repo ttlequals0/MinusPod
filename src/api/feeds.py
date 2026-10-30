@@ -65,7 +65,7 @@ from utils.paths import RECENTS_ARTWORK_PATH
 from utils.text import truncate
 from api.episodes.core import _episode_base_json
 from api.episodes.common import _job_state
-from database.podcasts import (EPISODE_STATUSES, RECENTS_SLUG, PodcastMixin, has_upstream, is_local_feed,
+from database.podcasts import (EPISODE_STATUSES, RECENTS_SLUG, PodcastMixin, has_upstream, has_upstream_audio, is_local_feed,
                                is_recents_feed, is_youtube_feed, recents_cutoff)
 from youtube import urls as yt_urls
 from youtube.feed import source_link as youtube_source_link
@@ -2861,7 +2861,7 @@ def upload_feed_artwork(slug):
     podcast = db.get_podcast_by_slug(slug)
     if not podcast:
         return error_response('Feed not found', 404)
-    if has_upstream(podcast) and not is_youtube_feed(podcast):
+    if has_upstream_audio(podcast):
         return error_response('Artwork upload is only available for local, recents and YouTube feeds', 400)
 
     upload = request.files.get('file')

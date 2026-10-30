@@ -8,7 +8,7 @@ from config import (
     resolve_tail_retranscribe_tunables,
 )
 
-from database.podcasts import is_local_feed, is_youtube_feed
+from database.podcasts import has_upstream_audio
 from transcriber import CDN_REFUSED_PREFIX
 from user_agent import download_user_agent, feed_user_agent
 from utils.episode_paths import published_episode_version
@@ -100,10 +100,6 @@ CDN_BLOCKED_MESSAGE = 'CDN blocked the request (403) with both User-Agents'
 def _download_episode_audio(episode_url, podcast=None, outcome=None):
     """Check CDN availability and download the enclosure. Returns the temp
     audio path; raises on either failure."""
-    if outcome and outcome.get('youtube_audio_path'):
-        return outcome['youtube_audio_path']
-    if is_youtube_feed(podcast):
-        raise Exception('YouTube audio must be acquired by the SponsorBlock stage')
     with common._measure_run_stage('download'):
         url_for_log = safe_url_for_log(
             episode_url, keep_path=True, keep_query=log_download_query_enabled())
@@ -141,20 +137,20 @@ def _download_episode_audio(episode_url, podcast=None, outcome=None):
         return audio_path
 
 
-def _resolve_audio_path(slug, episode_id, episode_url, podcast, outcome):
-    """Working audio file: a copy of the retained original, else a fresh download.
+def _resolve_audio_path(slug, episode_id, episode_url, podcast, outcome, preacquired_audio=None):
+    """Working audio file: pre-acquired audio, a copy of the retained original, else a fresh download.
 
     The copy keeps the retain-move and cleanup-unlink later in process_episode
     off the retained original. Local originals are never re-downloadable
     (original_url is a local:// sentinel), so a missing one is a hard failure.
     """
-    if outcome and outcome.get('youtube_audio_path'):
-        return outcome['youtube_audio_path']
+    if preacquired_audio:
+        return preacquired_audio
     original_path = storage.get_original_path(slug, episode_id)
     if original_path and os.path.exists(original_path):
         audio_logger.info(f"[{slug}:{episode_id}] Reusing retained original audio (skipped download)")
         return common._copy_retained_original_to_temp(original_path)
-    if is_local_feed(podcast):
+    if not has_upstream_audio(podcast):
         raise Exception("original audio missing")
     common._publish_status('update_job_stage', slug, episode_id, "downloading", 5)
     audio_logger.info(f"[{slug}:{episode_id}] Downloading audio")
@@ -195,7 +191,8 @@ def _forced_transcription_already_done(slug, episode_id, requested_at) -> bool:
 
 def _download_and_transcribe(slug, episode_id, episode_url,
                               skip_transcription=False, podcast=None,
-                              force_transcription=False, outcome=None):
+                              force_transcription=False, outcome=None,
+                              preacquired_audio=None, preloaded_segments=None):
     """Pipeline stage: Download audio and get/create transcript segments.
 
     ``skip_transcription``: cue_only preset opt-out; goes straight to
@@ -212,18 +209,21 @@ def _download_and_transcribe(slug, episode_id, episode_url,
 
     ``outcome``: optional dict; gets ``segments_reused`` True only when saved segments were used.
 
+    ``preacquired_audio``: audio the caller already downloaded (YouTube).
+    ``preloaded_segments``: caller-supplied transcript segments (YouTube captions).
+
     Returns (audio_path, segments) or raises on failure.
     """
     outcome = {} if outcome is None else outcome
     outcome['segments_reused'] = False
     if skip_transcription:
         original_path = storage.get_original_path(slug, episode_id)
-        if outcome.get('youtube_audio_path'):
-            audio_path = outcome['youtube_audio_path']
+        if preacquired_audio:
+            audio_path = preacquired_audio
         elif original_path and os.path.exists(original_path):
             audio_path = common._copy_retained_original_to_temp(original_path)
             audio_logger.info(f"[{slug}:{episode_id}] Reusing retained original audio (skipped download)")
-        elif is_local_feed(podcast):
+        elif not has_upstream_audio(podcast):
             raise Exception("original audio missing")
         else:
             audio_path = _download_episode_audio(episode_url, podcast=podcast, outcome=outcome)
@@ -260,8 +260,8 @@ def _download_and_transcribe(slug, episode_id, episode_url,
             f"[{slug}:{episode_id}] Found existing transcript: "
             f"{len(segments)} segments, {duration_min:.1f} min")
 
-        audio_path = _resolve_audio_path(slug, episode_id, episode_url, podcast, outcome)
-        if outcome.get('youtube_audio_path'):
+        audio_path = _resolve_audio_path(slug, episode_id, episode_url, podcast, outcome, preacquired_audio)
+        if preacquired_audio:
             audio_logger.info(f"[{slug}:{episode_id}] Transcript repair skipped (YouTube captions)")
         else:
             language_override = get_feed_language_override(db, slug)
@@ -280,11 +280,10 @@ def _download_and_transcribe(slug, episode_id, episode_url,
                     f"[{slug}:{episode_id}] Stored repaired original transcript "
                     f"(+{len(added)} segments)")
     else:
-        audio_path = _resolve_audio_path(slug, episode_id, episode_url, podcast, outcome)
+        audio_path = _resolve_audio_path(slug, episode_id, episode_url, podcast, outcome, preacquired_audio)
 
-        preloaded = outcome.get('preloaded_segments')
-        if preloaded:
-            segments = preloaded
+        if preloaded_segments:
+            segments = preloaded_segments
             empty_holes = []
             outcome['transcript_source'] = 'youtube_captions'
             _apply_transcript_corrections(slug, episode_id, segments)

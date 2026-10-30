@@ -37,7 +37,7 @@ from config import (
     coerce_bool_setting,
 )
 
-from database.podcasts import is_local_feed, is_youtube_feed
+from database.podcasts import has_upstream_audio, is_youtube_feed
 from llm_client import (
     start_episode_token_tracking, get_effective_provider,
 )
@@ -186,7 +186,7 @@ def _process_episode_background(slug, episode_id, original_url, title, podcast_n
                 still_owned, replacement_published = (
                     _cleanup_cancelled_processing_output(
                         slug, episode_id, run_id, queue, episode_at_start,
-                        keep_original=is_local_feed(podcast_row) or is_youtube_feed(podcast_row)))
+                        keep_original=not has_upstream_audio(podcast_row)))
             except Exception as cleanup_err:
                 audio_logger.warning(f"[{slug}:{episode_id}] Failed to clean up partial file: {cleanup_err}")
                 still_owned = queue.owns(run_id, allow_cancel_requested=True)
@@ -392,7 +392,8 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
 
     # Skip ad detection (#538): episodes still get transcription, chapters,
     # and a transcript, but the detection stages and the cut are skipped.
-    skip_detection = processing_mode == PROCESSING_MODE_SKIP_DETECTION
+    detection_mode = 'skip' if processing_mode == PROCESSING_MODE_SKIP_DETECTION else 'normal'
+    skip_detection = detection_mode == 'skip'
 
     # Skip verification (#599): pass 1 still runs and cuts, the second LLM
     # sweep over its output does not.
@@ -537,23 +538,26 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
         yt_run = None
         if is_youtube_feed(podcast_settings):
             yt_run = sb_stage.acquire(slug, episode_id, episode_url, podcast_settings,
-                                      episode_data, reprocess_mode, transcribe_outcome)
+                                      episode_data, reprocess_mode)
             run_stats['sponsorblock'] = {'mode': yt_run.mode, 'segments': len(yt_run.markers),
                                          'note': yt_run.note}
             if yt_run.mode == 'sponsorblock' and not yt_run.segments:
                 skip_transcription_active = True
                 run_stats['transcription_skipped'] = True
-        sponsorblock_only = yt_run is not None and yt_run.mode == 'sponsorblock'
-        if sponsorblock_only:
+        if yt_run is not None and yt_run.mode == 'sponsorblock':
+            detection_mode = 'sponsorblock'
             run_stats['verification_skipped'] = True
-        detection_off = skip_detection or sponsorblock_only
+        sponsorblock_only = detection_mode == 'sponsorblock'
+        detection_off = detection_mode != 'normal'
         try:
             audio_path, segments = transcribe._download_and_transcribe(
                 slug, episode_id, episode_url,
                 skip_transcription=skip_transcription_active,
                 podcast=podcast_settings,
                 force_transcription=force_transcription,
-                outcome=transcribe_outcome)
+                outcome=transcribe_outcome,
+                preacquired_audio=yt_run.audio_path if yt_run else None,
+                preloaded_segments=yt_run.segments if yt_run else None)
         finally:
             # Recorded even when _download_and_transcribe raises (OOM
             # exhaustion): the failure handler's history row still gets the
@@ -970,12 +974,6 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
             ads_to_remove = keep_rules._stamp_and_carve_cuts(
                 slug, episode_id, ads_to_remove, all_ads_with_validation,
                 segment_actions, keep_ads)
-            for ad in ads_to_remove:
-                if ad.get('sb_action') == 'mute' and ad.get('action_applied') == 'remove':
-                    ad['action_applied'] = 'beep'
-                    master = cuts._find_master(all_ads_with_validation, ad)
-                    if master is not None:
-                        master['action_applied'] = 'beep'
 
             # Stage 5: Process audio
             common._publish_status('update_job_stage', slug, episode_id,

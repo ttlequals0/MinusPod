@@ -36,7 +36,7 @@ def _video_id(episode_data, episode_url) -> str:
     return vid or parse_qs(urlparse(episode_url).query).get('v', [''])[0]
 
 
-def acquire(slug, episode_id, episode_url, podcast, episode_data, reprocess_mode, outcome) -> YouTubeRun:
+def acquire(slug, episode_id, episode_url, podcast, episode_data, reprocess_mode) -> YouTubeRun:
     """Get the audio, captions and SponsorBlock marks, and pick the run mode."""
     resolved = yt_settings.resolve_feed(db, podcast)
     video_id = _video_id(episode_data, episode_url)
@@ -69,10 +69,6 @@ def acquire(slug, episode_id, episode_url, podcast, episode_data, reprocess_mode
                 segments = captions.load_segments(result.captions_path)
         finally:
             shutil.rmtree(work_dir, ignore_errors=True)
-    outcome['youtube_audio_path'] = audio_path
-    if segments:
-        outcome['preloaded_segments'] = segments
-
     try:
         duration = audio_processor.get_audio_duration(audio_path)
         marks = sponsorblock.fetch_segments(video_id)

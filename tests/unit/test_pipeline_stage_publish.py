@@ -41,6 +41,6 @@ def test_download_publishes_downloading_stage():
 
 
 def test_local_feed_without_original_raises():
-    with patch.object(transcribe, 'is_local_feed', return_value=True):
+    with patch.object(transcribe, 'has_upstream_audio', return_value=False):
         with pytest.raises(Exception, match='original audio missing'):
             _resolve({}, None)

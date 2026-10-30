@@ -236,19 +236,34 @@ def _partition_cut_actions(ads_to_remove, actions_map):
 
 def _stamp_and_carve_cuts(slug, episode_id, ads_to_remove, all_ads, segment_actions,
                           keep_ads):
-    """Stamp remove/beep on the cuts and their masters, then carve cuts around kept audio."""
+    """Stamp remove/beep on the cuts and their masters, then carve cuts around kept audio.
+
+    SponsorBlock mute marks that resolve to remove render as a beep.
+    """
     ads_to_remove = _partition_cut_actions(ads_to_remove, segment_actions)
     # Sweeps rebuild dicts, so a cut is not always its master's object.
     for ad in ads_to_remove:
         master = cuts._find_master(all_ads, ad)
         if master is not None:
             master['action_applied'] = ad['action_applied']
-    return cuts._carve_cuts_around(ads_to_remove, all_ads, keep_ads, tag=f"[{slug}:{episode_id}]")
+    ads_to_remove = cuts._carve_cuts_around(ads_to_remove, all_ads, keep_ads, tag=f"[{slug}:{episode_id}]")
+    for ad in ads_to_remove:
+        if ad.get('sb_action') == 'mute' and ad.get('action_applied') == 'remove':
+            ad['action_applied'] = 'beep'
+            master = cuts._find_master(all_ads, ad)
+            if master is not None:
+                master['action_applied'] = 'beep'
+    return ads_to_remove
+
+
+def _learnable(ad) -> bool:
+    """SponsorBlock marks are community data, not detections to learn patterns from."""
+    return ad.get('source') != 'sponsorblock'
 
 
 def _learn_from_kept_ads(slug, episode_id, keep_ads, segments, audio_path):
     """Learn from keep-action markers that bypassed validation."""
-    keep_ads = [ad for ad in keep_ads or [] if ad.get('source') != 'sponsorblock']
+    keep_ads = [ad for ad in keep_ads or [] if _learnable(ad)]
     if not keep_ads or not slug:
         return 0
     patterns_learned = ad_detector.learn_from_detections(
@@ -269,7 +284,7 @@ def _learn_from_applied_cut_ads(slug, episode_id, cut_ads, markers,
     if not slug:
         return 0
     learnable = []
-    for ad in (ad for ad in cut_ads if ad.get('source') != 'sponsorblock'):
+    for ad in (ad for ad in cut_ads if _learnable(ad)):
         marker = cuts._find_master(markers, ad)
         # A carved fragment is part of a read, not a whole one.
         if (marker is None or not ad.get('was_cut') or not marker.get('was_cut')

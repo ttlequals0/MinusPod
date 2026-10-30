@@ -72,6 +72,11 @@ def has_upstream(podcast) -> bool:
     return bool(podcast) and podcast.get('feed_type', 'subscribed') not in ('local', 'recents')
 
 
+def has_upstream_audio(podcast) -> bool:
+    """True when the enclosure can be fetched from the source again."""
+    return (podcast or {}).get('feed_type', 'subscribed') not in ('local', 'recents', 'youtube')
+
+
 def is_recents_feed(podcast: dict | None) -> bool:
     return bool(podcast) and podcast.get('feed_type') == 'recents'
 
