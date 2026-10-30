@@ -6,8 +6,8 @@ import YouTubeFeedPanel from './YouTubeFeedPanel';
 import type { Feed } from '../../api/types';
 
 vi.mock('../../components/CollapsibleSection', () => ({
-  default: ({ title, children }: { title: string; children: React.ReactNode }) => (
-    <div><h2>{title}</h2>{children}</div>
+  default: ({ title, subtitle, children }: { title: string; subtitle?: string; children: React.ReactNode }) => (
+    <div><h2>{title}</h2>{subtitle && <p>{subtitle}</p>}{children}</div>
   ),
 }));
 
@@ -34,7 +34,7 @@ const feed = {
   youtubeIncludeShorts: null, ytProcessDelayMinutesOverride: null,
   ytProbeAttemptsOverride: null, ytProbeIntervalMinutesOverride: null,
   ytLlmFallbackOverride: null, ytLlmOnTopOverride: null, ytCaptionsOverride: null,
-  ytTranscribeOverride: null,
+  ytTranscribeOverride: null, author: 'Old', explicit: false, categories: [],
 } as unknown as Feed;
 
 function renderPanel(overrides: Partial<Feed> = {}) {
@@ -63,6 +63,11 @@ describe('YouTubeFeedPanel', () => {
     renderPanel();
     await screen.findByText('Delay');
     expect(screen.queryByText('YouTube feeds are turned off in Settings.')).toBeNull();
+  });
+
+  it('renders the section subtitle', () => {
+    renderPanel();
+    expect(screen.getByText('SponsorBlock, captions, transcription and listing options for this source.')).toBeTruthy();
   });
 
   it('links to the source on YouTube', () => {
@@ -145,6 +150,21 @@ describe('YouTubeFeedPanel', () => {
     await waitFor(() => expect(select.selectedOptions[0].textContent).toBe('Use global (on)'));
     await user.selectOptions(select, 'Off');
     await waitFor(() => expect(mockUpdateFeed).toHaveBeenCalledWith('yt', { ytTranscribeOverride: false }));
+  });
+
+  it('saves author, explicit and categories from the metadata form', async () => {
+    const user = userEvent.setup();
+    renderPanel();
+    expect(screen.queryByLabelText('Title')).toBeNull();
+    const author = screen.getByLabelText('Author');
+    await user.clear(author);
+    await user.type(author, 'New Author');
+    await user.click(screen.getByLabelText('Categories'));
+    await user.type(screen.getByLabelText('Categories'), 'Technology, Business');
+    await user.click(screen.getByRole('button', { name: 'Save metadata' }));
+    await waitFor(() => expect(mockUpdateFeed).toHaveBeenCalledWith('yt', {
+      author: 'New Author', explicit: false, categories: ['Technology', 'Business'],
+    }));
   });
 
   it('sends false for Off on a boolean row', async () => {

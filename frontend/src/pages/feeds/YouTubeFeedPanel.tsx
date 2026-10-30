@@ -8,6 +8,7 @@ import CollapsibleSection from '../../components/CollapsibleSection';
 import DraftNumberInput, { parseOptionalNumber } from '../../components/DraftNumberInput';
 import { selectBase } from '../../components/fieldStyles';
 import FeedArtworkUpload from './FeedArtworkUpload';
+import FeedMetadataForm from './FeedMetadataForm';
 import { fromTri, GlobalOverrideRow, rowLabelTop, toTri } from './OverrideRows';
 
 type NumberField = 'ytProcessDelayMinutesOverride' | 'ytProbeAttemptsOverride' | 'ytProbeIntervalMinutesOverride';
@@ -105,118 +106,126 @@ function YouTubeFeedPanel({ feed, slug }: { feed: Feed; slug: string }) {
   const pending = mutation.isPending;
 
   return (
-    <CollapsibleSection title="YouTube" storageKey={`youtube-feed-${slug}`}>
-      <div className="space-y-4">
-        {globals?.enabled === false && (
-          <p className="text-xs text-muted-foreground">YouTube feeds are turned off in Settings.</p>
-        )}
-        <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 text-sm">
-          <span className={rowLabelTop}>{feed.youtubeSourceKind === 'playlist' ? 'Playlist' : 'Channel'}</span>
-          {feed.youtubeSourceUrl && (
-            <a
-              href={feed.youtubeSourceUrl}
-              target="_blank"
-              rel="noreferrer"
-              className="text-primary hover:underline"
-            >
-              Open on YouTube
-            </a>
+    <div className="mb-6">
+      <CollapsibleSection
+        title="YouTube"
+        subtitle="SponsorBlock, captions, transcription and listing options for this source."
+        storageKey={`youtube-feed-${slug}`}
+      >
+        <div className="space-y-4">
+          {globals?.enabled === false && (
+            <p className="text-xs text-muted-foreground">YouTube feeds are turned off in Settings.</p>
           )}
+          <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 text-sm">
+            <span className={rowLabelTop}>{feed.youtubeSourceKind === 'playlist' ? 'Playlist' : 'Channel'}</span>
+            {feed.youtubeSourceUrl && (
+              <a
+                href={feed.youtubeSourceUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="text-primary hover:underline"
+              >
+                Open on YouTube
+              </a>
+            )}
+          </div>
+
+          <FeedMetadataForm feed={feed} slug={slug} fields={['author', 'explicit', 'categories']} />
+
+          <FeedArtworkUpload slug={slug} />
+
+          <GlobalOverrideRow
+            label="LLM fallback"
+            ariaLabel="LLM fallback"
+            value={toTri(feed.ytLlmFallbackOverride)}
+            globalOn={!!globals?.llmFallback}
+            disabled={pending}
+            onChange={setBool('ytLlmFallbackOverride')}
+          >
+            Run the ad detector when SponsorBlock has no marks for an episode.
+          </GlobalOverrideRow>
+          <GlobalOverrideRow
+            label="LLM on top"
+            ariaLabel="LLM on top of SponsorBlock"
+            value={toTri(feed.ytLlmOnTopOverride)}
+            globalOn={false}
+            disabled={pending}
+            onChange={setBool('ytLlmOnTopOverride')}
+          >
+            Also run the ad detector when SponsorBlock marks exist.
+          </GlobalOverrideRow>
+          <GlobalOverrideRow
+            label="Captions"
+            ariaLabel="Use captions as transcript"
+            value={toTri(feed.ytCaptionsOverride)}
+            globalOn={!!globals?.captionsAsTranscript}
+            disabled={pending}
+            onChange={setBool('ytCaptionsOverride')}
+          >
+            Use YouTube captions instead of transcribing the audio when they exist.
+          </GlobalOverrideRow>
+          <GlobalOverrideRow
+            label="Transcribe"
+            ariaLabel="Transcribe when captions are missing"
+            value={toTri(feed.ytTranscribeOverride)}
+            globalOn={!!globals?.transcribeFallback}
+            disabled={pending}
+            onChange={setBool('ytTranscribeOverride')}
+          >
+            Run the configured transcriber for videos with no captions. Off keeps such videos on SponsorBlock marks only.
+          </GlobalOverrideRow>
+          <GlobalOverrideRow
+            label="Shorts"
+            ariaLabel="Include Shorts"
+            value={toTri(feed.youtubeIncludeShorts)}
+            globalOn={false}
+            disabled={pending}
+            onChange={setBool('youtubeIncludeShorts')}
+          >
+            Include Shorts. Playlist feeds otherwise skip videos of 3 minutes or less; channel feeds otherwise list long-form uploads only.
+          </GlobalOverrideRow>
+
+          <NumberOverrideRow
+            label="Delay"
+            ariaLabel="Delay"
+            value={feed.ytProcessDelayMinutesOverride}
+            globalValue={globals?.processDelayMinutes}
+            bounds={bound('processDelayMinutes')}
+            unit="minutes"
+            disabled={pending}
+            onCommit={setNumber('ytProcessDelayMinutesOverride')}
+          >
+            How long to wait after a video appears before processing it.
+          </NumberOverrideRow>
+          <NumberOverrideRow
+            label="Probe attempts"
+            ariaLabel="Probe attempts"
+            value={feed.ytProbeAttemptsOverride}
+            globalValue={globals?.sbProbeAttempts}
+            bounds={bound('sbProbeAttempts')}
+            unit="attempts"
+            disabled={pending}
+            onCommit={setNumber('ytProbeAttemptsOverride')}
+          >
+            How many times to check SponsorBlock before giving up.
+          </NumberOverrideRow>
+          <NumberOverrideRow
+            label="Probe interval"
+            ariaLabel="Probe interval"
+            value={feed.ytProbeIntervalMinutesOverride}
+            globalValue={globals?.sbProbeIntervalMinutes}
+            bounds={bound('sbProbeIntervalMinutes')}
+            unit="minutes"
+            disabled={pending}
+            onCommit={setNumber('ytProbeIntervalMinutesOverride')}
+          >
+            Time between SponsorBlock checks.
+          </NumberOverrideRow>
+
+          {error && <p className="text-xs text-destructive">{error}</p>}
         </div>
-
-        <FeedArtworkUpload slug={slug} />
-
-        <GlobalOverrideRow
-          label="LLM fallback"
-          ariaLabel="LLM fallback"
-          value={toTri(feed.ytLlmFallbackOverride)}
-          globalOn={!!globals?.llmFallback}
-          disabled={pending}
-          onChange={setBool('ytLlmFallbackOverride')}
-        >
-          Run the ad detector when SponsorBlock has no marks for an episode.
-        </GlobalOverrideRow>
-        <GlobalOverrideRow
-          label="LLM on top"
-          ariaLabel="LLM on top of SponsorBlock"
-          value={toTri(feed.ytLlmOnTopOverride)}
-          globalOn={false}
-          disabled={pending}
-          onChange={setBool('ytLlmOnTopOverride')}
-        >
-          Also run the ad detector when SponsorBlock marks exist.
-        </GlobalOverrideRow>
-        <GlobalOverrideRow
-          label="Captions"
-          ariaLabel="Use captions as transcript"
-          value={toTri(feed.ytCaptionsOverride)}
-          globalOn={!!globals?.captionsAsTranscript}
-          disabled={pending}
-          onChange={setBool('ytCaptionsOverride')}
-        >
-          Use YouTube captions instead of transcribing the audio when they exist.
-        </GlobalOverrideRow>
-        <GlobalOverrideRow
-          label="Transcribe"
-          ariaLabel="Transcribe when captions are missing"
-          value={toTri(feed.ytTranscribeOverride)}
-          globalOn={!!globals?.transcribeFallback}
-          disabled={pending}
-          onChange={setBool('ytTranscribeOverride')}
-        >
-          Run the configured transcriber for videos with no captions. Off keeps such videos on SponsorBlock marks only.
-        </GlobalOverrideRow>
-        <GlobalOverrideRow
-          label="Shorts"
-          ariaLabel="Include Shorts"
-          value={toTri(feed.youtubeIncludeShorts)}
-          globalOn={false}
-          disabled={pending}
-          onChange={setBool('youtubeIncludeShorts')}
-        >
-          Include Shorts. Playlist feeds otherwise skip videos of 3 minutes or less; channel feeds otherwise list long-form uploads only.
-        </GlobalOverrideRow>
-
-        <NumberOverrideRow
-          label="Delay"
-          ariaLabel="Delay"
-          value={feed.ytProcessDelayMinutesOverride}
-          globalValue={globals?.processDelayMinutes}
-          bounds={bound('processDelayMinutes')}
-          unit="minutes"
-          disabled={pending}
-          onCommit={setNumber('ytProcessDelayMinutesOverride')}
-        >
-          How long to wait after a video appears before processing it.
-        </NumberOverrideRow>
-        <NumberOverrideRow
-          label="Probe attempts"
-          ariaLabel="Probe attempts"
-          value={feed.ytProbeAttemptsOverride}
-          globalValue={globals?.sbProbeAttempts}
-          bounds={bound('sbProbeAttempts')}
-          unit="attempts"
-          disabled={pending}
-          onCommit={setNumber('ytProbeAttemptsOverride')}
-        >
-          How many times to check SponsorBlock before giving up.
-        </NumberOverrideRow>
-        <NumberOverrideRow
-          label="Probe interval"
-          ariaLabel="Probe interval"
-          value={feed.ytProbeIntervalMinutesOverride}
-          globalValue={globals?.sbProbeIntervalMinutes}
-          bounds={bound('sbProbeIntervalMinutes')}
-          unit="minutes"
-          disabled={pending}
-          onCommit={setNumber('ytProbeIntervalMinutesOverride')}
-        >
-          Time between SponsorBlock checks.
-        </NumberOverrideRow>
-
-        {error && <p className="text-xs text-destructive">{error}</p>}
-      </div>
-    </CollapsibleSection>
+      </CollapsibleSection>
+    </div>
   );
 }
 

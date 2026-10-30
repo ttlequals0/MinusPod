@@ -1,0 +1,157 @@
+import { useState } from 'react';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { updateFeed } from '../../api/feeds';
+import { getErrorMessage } from '../../api/client';
+import type { Feed } from '../../api/types';
+import Checkbox from '../../components/Checkbox';
+import { btnLg, btnPrimary } from '../../components/buttonStyles';
+import { inputBase, labelBase, textareaBase } from '../../components/fieldStyles';
+import { useSyncFromQuery } from '../../hooks/useSyncFromQuery';
+
+export type MetadataField = 'author' | 'explicit' | 'categories' | 'title' | 'description';
+
+export interface MetadataValues {
+  title: string;
+  description: string;
+  author: string;
+  explicit: boolean;
+  categoriesInput: string;
+}
+
+export const metadataValuesFromFeed = (f: Feed): MetadataValues => ({
+  title: f.title,
+  description: f.description ?? '',
+  author: f.author ?? '',
+  explicit: f.explicit ?? false,
+  categoriesInput: (f.categories ?? []).join(', '),
+});
+
+export const parseCategories = (input: string) => input.split(',').map((c) => c.trim()).filter(Boolean);
+
+// Controlled inputs shared by the local panel (inside its own form) and FeedMetadataForm.
+export function FeedMetadataFields({ slug, idPrefix, fields, values, onChange }: {
+  slug: string;
+  idPrefix: string;
+  fields: MetadataField[];
+  values: MetadataValues;
+  onChange: (patch: Partial<MetadataValues>) => void;
+}) {
+  const has = (f: MetadataField) => fields.includes(f);
+  return (
+    <>
+      {has('title') && (
+        <div>
+          <label htmlFor={`${idPrefix}-title-${slug}`} className={labelBase}>Title</label>
+          <input
+            id={`${idPrefix}-title-${slug}`}
+            type="text"
+            value={values.title}
+            onChange={(e) => onChange({ title: e.target.value })}
+            required
+            className={`w-full ${inputBase}`}
+          />
+        </div>
+      )}
+      {has('description') && (
+        <div>
+          <label htmlFor={`${idPrefix}-description-${slug}`} className={labelBase}>Description</label>
+          <textarea
+            id={`${idPrefix}-description-${slug}`}
+            value={values.description}
+            onChange={(e) => onChange({ description: e.target.value })}
+            rows={6}
+            className={`w-full ${textareaBase}`}
+          />
+        </div>
+      )}
+      {has('author') && (
+        <div>
+          <label htmlFor={`${idPrefix}-author-${slug}`} className={labelBase}>Author</label>
+          <input
+            id={`${idPrefix}-author-${slug}`}
+            type="text"
+            value={values.author}
+            onChange={(e) => onChange({ author: e.target.value })}
+            className={`w-full ${inputBase}`}
+          />
+        </div>
+      )}
+      {has('explicit') && (
+        <Checkbox
+          checked={values.explicit}
+          onChange={(explicit) => onChange({ explicit })}
+          label="Explicit content"
+        />
+      )}
+      {has('categories') && (
+        <div>
+          <label htmlFor={`${idPrefix}-categories-${slug}`} className={labelBase}>Categories</label>
+          <input
+            id={`${idPrefix}-categories-${slug}`}
+            type="text"
+            value={values.categoriesInput}
+            onChange={(e) => onChange({ categoriesInput: e.target.value })}
+            placeholder="Technology, Business"
+            className={`w-full ${inputBase}`}
+            aria-describedby={`${idPrefix}-categories-${slug}-help`}
+          />
+          <p id={`${idPrefix}-categories-${slug}-help`} className="mt-1 text-sm text-muted-foreground">
+            Comma-separated, e.g. Technology, Business
+          </p>
+        </div>
+      )}
+    </>
+  );
+}
+
+// Self-saving metadata form for panels without their own form (YouTube feeds).
+function FeedMetadataForm({ feed, slug, fields }: { feed: Feed; slug: string; fields: MetadataField[] }) {
+  const queryClient = useQueryClient();
+  const [values, setValues] = useState<MetadataValues>(() => metadataValuesFromFeed(feed));
+  const [saved, setSaved] = useState(false);
+  useSyncFromQuery(feed, (f) => setValues(metadataValuesFromFeed(f)));
+
+  const mutation = useMutation({
+    mutationFn: () => updateFeed(slug, {
+      ...(fields.includes('title') && { title: values.title.trim() }),
+      ...(fields.includes('description') && { description: values.description.trim() }),
+      // null clears the field server-side; undefined would drop the key
+      ...(fields.includes('author') && { author: values.author.trim() || null }),
+      ...(fields.includes('explicit') && { explicit: values.explicit }),
+      ...(fields.includes('categories') && {
+        categories: parseCategories(values.categoriesInput).length ? parseCategories(values.categoriesInput) : null,
+      }),
+    }),
+    onSuccess: (updated) => {
+      queryClient.setQueryData(['feed', slug], updated);
+      queryClient.invalidateQueries({ queryKey: ['feed', slug] });
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
+    },
+  });
+
+  return (
+    <form
+      onSubmit={(e) => { e.preventDefault(); mutation.mutate(); }}
+      className="space-y-4"
+    >
+      <fieldset disabled={mutation.isPending} className="space-y-4">
+        <FeedMetadataFields
+          slug={slug}
+          idPrefix="feed-meta"
+          fields={fields}
+          values={values}
+          onChange={(patch) => setValues((v) => ({ ...v, ...patch }))}
+        />
+        {mutation.isError && (
+          <p className="text-sm text-destructive">{getErrorMessage(mutation.error, 'Could not save this feed.')}</p>
+        )}
+        <button type="submit" className={`${btnLg} ${btnPrimary}`}>
+          {mutation.isPending ? 'Saving...' : saved ? 'Saved' : 'Save metadata'}
+        </button>
+      </fieldset>
+    </form>
+  );
+}
+
+export default FeedMetadataForm;
