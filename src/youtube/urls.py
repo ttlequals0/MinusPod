@@ -1,13 +1,14 @@
-"""Parse YouTube playlist, channel and handle URLs into a source identity."""
+"""Parse YouTube playlist, channel, handle and video URLs into a source identity."""
 import re
 from dataclasses import dataclass
 from typing import Literal
 from urllib.parse import parse_qs, urlparse
 
-Kind = Literal['playlist', 'channel', 'handle', 'user', 'custom']
+Kind = Literal['playlist', 'channel', 'handle', 'user', 'custom', 'video']
 _HOSTS = {'youtube.com', 'www.youtube.com', 'm.youtube.com', 'music.youtube.com', 'youtu.be'}
 _PLAYLIST_ID = re.compile(r'^(PL|UU|UULF|UUSH|UULV|OLAK5uy_|RD|FL)[A-Za-z0-9_-]{10,}$')
 _CHANNEL_ID = re.compile(r'^UC[A-Za-z0-9_-]{22}$')
+_VIDEO_ID = re.compile(r'^[A-Za-z0-9_-]{11}$')
 _NAME = re.compile(r'^[A-Za-z0-9._-]{2,64}$')
 _RESERVED = {'watch', 'feed', 'results', 'playlist', 'channel', 'shorts', 'embed', 'live', 'c', 'user', 'about'}
 
@@ -30,8 +31,11 @@ def parse(text: str) -> Source | None:
         return Source('handle', text[1:])
     parsed = urlparse(text if '://' in text else f'https://{text}')
     host = (parsed.hostname or '').lower()
-    if host not in _HOSTS or host == 'youtu.be':
+    if host not in _HOSTS:
         return None
+    if host == 'youtu.be':
+        short_id = parsed.path.strip('/')
+        return Source('video', short_id) if _VIDEO_ID.match(short_id) else None
     listed = parse_qs(parsed.query).get('list', [''])[0]
     if listed:
         return Source('playlist', listed) if _PLAYLIST_ID.match(listed) else None
@@ -39,6 +43,11 @@ def parse(text: str) -> Source | None:
     if not parts:
         return None
     head = parts[0]
+    if head == 'watch':
+        watched = parse_qs(parsed.query).get('v', [''])[0]
+        return Source('video', watched) if _VIDEO_ID.match(watched) else None
+    if head in ('live', 'shorts') and len(parts) > 1 and _VIDEO_ID.match(parts[1]):
+        return Source('video', parts[1])
     if head == 'channel' and len(parts) > 1 and _CHANNEL_ID.match(parts[1]):
         return Source('channel', parts[1])
     if head.startswith('@') and _NAME.match(head[1:]):
@@ -61,6 +70,8 @@ def source_url(source: Source) -> str:
         return f'https://www.youtube.com/channel/{source.id}'
     if source.kind == 'handle':
         return f'https://www.youtube.com/@{source.id}'
+    if source.kind == 'video':
+        return watch_url(source.id)
     return f'https://www.youtube.com/{"user" if source.kind == "user" else "c"}/{source.id}'
 
 

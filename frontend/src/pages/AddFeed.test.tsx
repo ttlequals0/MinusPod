@@ -410,6 +410,24 @@ describe('YouTube lookup', () => {
     expect(signal?.aborted).toBe(true);
   });
 
+  it('labels a single video and omits the video count', async () => {
+    mockPreviewYouTube.mockResolvedValue({
+      enabled: true, rssMatches: [],
+      source: { kind: 'video', id: 'abc123def45', title: 'One Video', description: '', author: 'Example Channel',
+                artworkUrl: null, videoCount: 1, alreadyAdded: null },
+    });
+    mockAddYoutubeFeed.mockResolvedValue({ slug: 'one-video', feedType: 'youtube', feedUrl: 'x' });
+    renderAddFeed(enabled);
+    await userEvent.type(await screen.findByLabelText(INPUT), 'https://youtu.be/abc123def45');
+    await userEvent.click(screen.getByRole('button', { name: /look up/i }));
+    expect(await screen.findByText('One Video')).toBeDefined();
+    expect(screen.getByText('Video')).toBeDefined();
+    expect(screen.queryByText(/1 videos/)).toBeNull();
+    await userEvent.click(screen.getByRole('button', { name: /add youtube feed/i }));
+    await waitFor(() => expect(mockAddYoutubeFeed).toHaveBeenCalledWith(
+      expect.objectContaining({ sourceKind: 'video', sourceId: 'abc123def45' })));
+  });
+
   it('points at Settings when YouTube is disabled', async () => {
     renderAddFeed(defaultSettings);
     const input = await screen.findByLabelText(INPUT);
@@ -437,7 +455,8 @@ describe('YouTube lookup', () => {
   });
 
   it.each([
-    ['https://youtu.be/abc123', false],
+    ['https://youtu.be/abc123def45', true],
+    ['https://www.youtube.com/watch?v=abc123def45', true],
     ['https://example.com/feed.xml', false],
     ['https://www.youtube.com/@x', true],
     ['https://music.youtube.com/playlist?list=PLabcdefghijkl', true],

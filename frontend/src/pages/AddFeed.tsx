@@ -296,10 +296,10 @@ function LocalFeedForm({ onCancel }: LocalFeedFormProps) {
 
 // URL validation patterns
 const URL_PATTERN = /^https?:\/\/[a-zA-Z0-9][-a-zA-Z0-9]*(\.[a-zA-Z0-9][-a-zA-Z0-9]*)+.*$/;
-const YOUTUBE_HOSTS = ['youtube.com', 'www.youtube.com', 'm.youtube.com', 'music.youtube.com'];
+const YOUTUBE_HOSTS = ['youtu.be', 'youtube.com', 'www.youtube.com', 'm.youtube.com', 'music.youtube.com'];
 const YOUTUBE_TOKEN = /^((PL|UU|UULF|UUSH|UULV)[A-Za-z0-9_-]{10,}|UC[A-Za-z0-9_-]{22}|@[A-Za-z0-9._-]{2,64})$/;
 
-// Mirrors youtube.urls.parse acceptance; youtu.be links are video-only and rejected.
+// Mirrors youtube.urls.parse acceptance.
 function isYouTubeInput(text: string): boolean {
   const value = text.trim();
   if (/^https?:\/\//i.test(value)) {
@@ -311,6 +311,8 @@ function isYouTubeInput(text: string): boolean {
   }
   return YOUTUBE_TOKEN.test(value);
 }
+
+const YOUTUBE_KIND_LABELS = { channel: 'Channel', playlist: 'Playlist', video: 'Video' } as const;
 
 const RSS_EXTENSIONS = ['.xml', '.rss', '.atom', '/rss', '/feed'];
 
@@ -549,7 +551,7 @@ function AddFeed() {
     },
   });
 
-  // YouTube lookup: preview a channel or playlist before adding it
+  // YouTube lookup: preview a channel, playlist or video before adding it
   const [youtubePreview, setYoutubePreview] = useState<YouTubePreview | null>(null);
   const previewAbortRef = useRef<AbortController | null>(null);
   const previewMutation = useMutation({
@@ -846,9 +848,9 @@ function AddFeed() {
                 <h2 className={`${cardTitle} break-words`}>{youtubeSource.title}</h2>
                 <div className="mt-1 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
                   <span className={`${badgeBase} ${tint.primary}`}>
-                    {youtubeSource.kind === 'channel' ? 'Channel' : 'Playlist'}
+                    {YOUTUBE_KIND_LABELS[youtubeSource.kind]}
                   </span>
-                  {youtubeSource.videoCount != null && <span>{youtubeSource.videoCount} videos</span>}
+                  {youtubeSource.kind !== 'video' && youtubeSource.videoCount != null && <span>{youtubeSource.videoCount} videos</span>}
                 </div>
               </div>
             </div>

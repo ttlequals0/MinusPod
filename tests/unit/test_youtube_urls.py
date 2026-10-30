@@ -1,5 +1,5 @@
 import pytest
-from youtube.urls import Source, canonical_source_url, parse, uploads_playlist, watch_url
+from youtube.urls import Source, canonical_source_url, parse, source_url, uploads_playlist, watch_url
 
 
 @pytest.mark.parametrize('text,expected', [
@@ -15,14 +15,20 @@ from youtube.urls import Source, canonical_source_url, parse, uploads_playlist, 
     ('https://www.youtube.com/c/SomeName', Source('custom', 'SomeName')),
     ('https://www.youtube.com/user/SomeUser', Source('user', 'SomeUser')),
     ('https://www.youtube.com/SomeName', Source('custom', 'SomeName')),
+    ('https://www.youtube.com/watch?v=abc123def45', Source('video', 'abc123def45')),
+    ('https://www.youtube.com/watch?v=abc123def45&t=30s', Source('video', 'abc123def45')),
+    ('https://youtu.be/abc123def45?si=x', Source('video', 'abc123def45')),
+    ('https://www.youtube.com/live/abc123def45', Source('video', 'abc123def45')),
+    ('https://www.youtube.com/shorts/abc-123_def', Source('video', 'abc-123_def')),
 ])
 def test_parse_accepts(text, expected):
     assert parse(text) == expected
 
 
 @pytest.mark.parametrize('text', [
-    '', 'https://example.com/feed.xml', 'https://www.youtube.com/watch?v=abc123def45',
-    'https://youtu.be/abc123def45', 'https://www.youtube.com/feed/subscriptions',
+    '', 'https://example.com/feed.xml', 'https://www.youtube.com/watch', 'https://www.youtube.com/watch?v=short',
+    'https://youtu.be/short', 'https://youtu.be/', 'https://www.youtube.com/shorts/', 'abc123def45',
+    'https://www.youtube.com/feed/subscriptions',
     'https://www.youtube.com/playlist?list=', 'PL<script>', 'https://www.youtube.com/results?search_query=x',
 ])
 def test_parse_rejects(text):
@@ -35,3 +41,4 @@ def test_helpers():
     assert watch_url('abc') == 'https://www.youtube.com/watch?v=abc'
     assert uploads_playlist('UCabcdefghijklmnopqrstuv', include_shorts=False) == 'UULFabcdefghijklmnopqrstuv'
     assert uploads_playlist('UCabcdefghijklmnopqrstuv', include_shorts=True) == 'UUabcdefghijklmnopqrstuv'
+    assert source_url(Source('video', 'abc123def45')) == 'https://www.youtube.com/watch?v=abc123def45'

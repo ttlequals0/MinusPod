@@ -1022,3 +1022,12 @@ def test_youtube_import_without_channel_block_mints_one(temp_db):
 def test_youtube_import_rejects_mismatched_source(temp_db, override):
     with pytest.raises(ConfigTransferError, match='YouTube|youtube_source_kind'):
         config_transfer.build_preview(temp_db, _document(feeds=[_yt_feed(**override)]), 'feeds', ['yt-new'])
+
+
+def test_youtube_import_accepts_a_video_source(temp_db):
+    feed = _yt_feed(source_url='youtube://video/abc123def45', youtube_source_kind='video',
+                    youtube_source_id='abc123def45')
+    document = _document(feeds=[feed])
+    preview = config_transfer.build_preview(temp_db, document, 'feeds', ['yt-new'])
+    config_transfer.apply_config(temp_db, document, 'feeds', ['yt-new'], preview['previewToken'])
+    assert temp_db.get_podcast_by_slug('yt-new')['youtube_source_kind'] == 'video'

@@ -131,6 +131,11 @@ def resolve_source(db, source: Source) -> SourceInfo:
             return _resolve_with_api(key, source)
         except DiscoveryError as exc:
             logger.warning(f'YouTube Data API failed ({type(exc).__name__}); resolving with yt-dlp')
+    if source.kind == 'video':
+        data = _ytdlp_json(watch_url(source.id), ['--no-playlist'], timeout=120)
+        return SourceInfo('video', source.id, data.get('title') or source.id, data.get('description') or '',
+                          _best_thumb(data.get('thumbnails')), 1,
+                          author=data.get('channel') or data.get('uploader') or '')
     data = _ytdlp_json(source_url(source), ['--playlist-items', '0'], timeout=120)
     if source.kind == 'playlist':
         return SourceInfo('playlist', source.id, data.get('title') or source.id, data.get('description') or '',
@@ -153,6 +158,14 @@ def _resolve_with_api(key: str, source: Source) -> SourceInfo:
 
 
 def _parse_api_source(key: str, source: Source) -> SourceInfo:
+    if source.kind == 'video':
+        data = _api_get('videos', {'part': 'snippet', 'id': source.id}, key)
+        items = data.get('items') or []
+        if not items:
+            raise SourceNotFound('Video not found or private')
+        sn = items[0]['snippet']
+        return SourceInfo('video', source.id, sn.get('title') or source.id, sn.get('description') or '',
+                          _best_thumb(sn.get('thumbnails')), 1, author=sn.get('channelTitle') or '')
     if source.kind == 'playlist':
         data = _api_get('playlists', {'part': 'snippet,contentDetails', 'id': source.id}, key)
         items = data.get('items') or []
@@ -201,6 +214,8 @@ def _keep(duration, is_live_or_upcoming: bool, include_shorts: bool, from_channe
 
 
 def list_videos(db, podcast: dict, limit: int, settings=None) -> list[dict]:
+    if podcast.get('youtube_source_kind') == 'video':
+        return _list_single_video(db, podcast)
     include_shorts = bool(podcast.get('youtube_include_shorts'))
     playlist_id = _playlist_for(podcast, include_shorts)
     longform = podcast.get('youtube_source_kind') == 'channel' and not include_shorts
@@ -215,6 +230,40 @@ def list_videos(db, podcast: dict, limit: int, settings=None) -> list[dict]:
             logger.warning(f"[{podcast.get('slug')}] YouTube Data API failed ({type(exc).__name__}); "
                            "listing with yt-dlp")
     return _list_with_ytdlp(playlist_id, limit, include_shorts, longform, full, hide_private=hide_private)
+
+
+def _list_single_video(db, podcast: dict) -> list[dict]:
+    video_id = podcast['youtube_source_id']
+    key = yt_settings.api_key(db)
+    if key:
+        try:
+            return _single_video_from_api(key, video_id)
+        except DiscoveryError as exc:
+            logger.warning(f"[{podcast.get('slug')}] YouTube Data API failed ({type(exc).__name__}); "
+                           "listing with yt-dlp")
+    data = _ytdlp_json(watch_url(video_id), ['--no-playlist'], timeout=120)
+    if data.get('live_status') in ('is_live', 'is_upcoming', 'post_live'):
+        return []
+    duration = float(data['duration']) if data.get('duration') is not None else None
+    return [_episode(video_id, data.get('title'), data.get('description'), _published_from_entry(data),
+                     duration, _best_thumb(data.get('thumbnails')))]
+
+
+def _single_video_from_api(key: str, video_id: str) -> list[dict]:
+    try:
+        data = _api_get('videos', {'part': 'contentDetails,snippet,liveStreamingDetails', 'id': video_id}, key)
+        episodes = []
+        for item in data.get('items') or []:
+            live = item.get('liveStreamingDetails') or {}
+            duration = parse_iso_duration(item.get('contentDetails', {}).get('duration'))
+            if not _keep(duration, bool(live) and not live.get('actualEndTime'), True, False):
+                continue
+            sn = item.get('snippet', {})
+            episodes.append(_episode(item['id'], sn.get('title'), sn.get('description'),
+                                     sn.get('publishedAt') or '', duration, _best_thumb(sn.get('thumbnails'))))
+        return episodes
+    except (KeyError, IndexError, TypeError, AttributeError):
+        raise DiscoveryError('YouTube Data API returned an unexpected payload') from None
 
 
 def _list_with_api(key, playlist_id, limit, include_shorts, longform, full=False, *, hide_private) -> list[dict]:

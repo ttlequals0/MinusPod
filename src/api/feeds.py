@@ -1422,14 +1422,14 @@ def _add_local_feed(data, db):
 
 
 def _add_youtube_feed(data, db):
-    """Create a YouTube playlist/channel feed; its first listing runs in the background after the response."""
+    """Create a YouTube playlist, channel or video feed; its first listing runs in the background after the response."""
     if not youtube_enabled(db):
         return error_response('YouTube feeds are disabled in Settings', 400)
     kind = data.get('sourceKind')
     source_id = str(data.get('sourceId') or '').strip()
-    parsed = yt_urls.parse(source_id)
-    if kind not in ('playlist', 'channel') or parsed is None or (parsed.kind, parsed.id) != (kind, source_id):
-        return error_response('sourceKind must be playlist or channel with a valid sourceId', 400)
+    parsed = yt_urls.parse(yt_urls.watch_url(source_id) if kind == 'video' else source_id)
+    if kind not in ('playlist', 'channel', 'video') or parsed is None or (parsed.kind, parsed.id) != (kind, source_id):
+        return error_response('sourceKind must be playlist, channel or video with a valid sourceId', 400)
     title = data.get('title')
     if not isinstance(title, str) or not title.strip():
         return error_response('title is required', 400)

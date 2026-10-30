@@ -313,7 +313,7 @@ export async function addRecentsFeed(payload: AddRecentsFeedPayload): Promise<Ad
 }
 
 export interface AddYoutubeFeedPayload {
-  sourceKind: 'playlist' | 'channel';
+  sourceKind: 'playlist' | 'channel' | 'video';
   sourceId: string;
   title: string;
   description?: string;

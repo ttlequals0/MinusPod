@@ -289,3 +289,41 @@ def test_add_youtube_feed_stores_author_and_patch_edits_served_metadata(app_clie
                                     headers=headers).status_code == 400
     finally:
         db.delete_podcast(slug)
+
+
+def test_add_youtube_video_feed(app_client):
+    _authed(app_client)
+    from api import get_database
+    db = get_database()
+    _enable(db)
+    headers = _csrf_headers(app_client)
+    with patch('main_app.feeds.refresh_single_feed', return_value=True), patch('api.feeds.get_storage'):
+        resp = app_client.post('/api/v1/feeds', json={
+            'feedType': 'youtube', 'sourceKind': 'video', 'sourceId': 'abc123def45', 'title': 'One Video'},
+            headers=headers)
+        assert resp.status_code == 201, resp.get_json()
+        row = db.get_podcast_by_slug(resp.get_json()['slug'])
+        assert row['slug'] == 'one-video'
+        assert (row['youtube_source_kind'], row['youtube_source_id']) == ('video', 'abc123def45')
+        assert row['source_url'] == 'youtube://video/abc123def45'
+        dup = app_client.post('/api/v1/feeds', json={
+            'feedType': 'youtube', 'sourceKind': 'video', 'sourceId': 'abc123def45', 'title': 'Again'}, headers=headers)
+        assert dup.status_code == 409
+        bad = app_client.post('/api/v1/feeds', json={
+            'feedType': 'youtube', 'sourceKind': 'video', 'sourceId': 'short', 'title': 'x'}, headers=headers)
+        assert bad.status_code == 400
+    db.delete_podcast('one-video')
+
+
+def test_preview_video_url_returns_video_kind(app_client):
+    _authed(app_client)
+    from api import get_database
+    _enable(get_database())
+    info = SourceInfo('video', 'abc123def45', 'One Video', 'about', None, 1, 'Example Channel')
+    with patch('api.youtube.discovery.resolve_source', return_value=info) as resolve, \
+            patch('api.youtube.search_directory', return_value=([], 'itunes')):
+        resp = app_client.post('/api/v1/youtube/preview', json={'url': 'https://youtu.be/abc123def45'},
+                               headers=_csrf_headers(app_client))
+    assert resp.status_code == 200, resp.get_json()
+    assert resolve.call_args.args[1].kind == 'video'
+    assert resp.get_json()['source']['kind'] == 'video' and resp.get_json()['source']['videoCount'] == 1

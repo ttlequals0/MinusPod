@@ -48,7 +48,7 @@ def preview_youtube_source():
     data = request.get_json(silent=True) or {}
     source = urls.parse(str(data.get('url') or ''))
     if source is None:
-        return error_response('Not a YouTube playlist or channel URL', 400)
+        return error_response('Not a YouTube playlist, channel or video URL', 400)
     try:
         info = discovery.resolve_source(db, source)
     except discovery.SourceNotFound as exc:

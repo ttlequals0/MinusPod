@@ -282,6 +282,28 @@ for (const width of WIDTHS) {
       await shoot(page, 'add', width);
     });
 
+    test('add feed youtube video card', async ({ page }) => {
+      await page.route('**/api/v1/youtube/preview', (route) => route.fulfill({
+        contentType: 'application/json',
+        body: JSON.stringify({
+          enabled: true, rssMatches: [],
+          source: { kind: 'video', id: 'abc123def45', title: 'One Example Video', description: 'A single video added as its own feed.', author: 'Example Channel', artworkUrl: null, videoCount: 1, alreadyAdded: null },
+        }),
+      }));
+      await page.goto('add');
+      await page.locator('#podcastInput').fill('https://youtu.be/abc123def45');
+      await page.getByRole('button', { name: 'Look up', exact: true }).click();
+      const card = page.locator('div.border.rounded-lg').filter({ has: page.getByRole('heading', { name: 'One Example Video' }) });
+      await expect(card).toBeVisible();
+      await expect(card.getByText('Video', { exact: true })).toBeVisible();
+      await card.scrollIntoViewIfNeeded();
+      expect(page.viewportSize()!.width).toBe(width);
+      await expectNoOverflow(page);
+      await expectTouchTargets(page, card, width);
+      await expectAxe(page);
+      await shoot(page, 'add-video', width);
+    });
+
     test('feed detail youtube panel', async ({ page }) => {
       await page.goto(`feeds/${SLUG}`);
       const panel = page.locator(`[data-search-key="youtube-feed-${SLUG}"]`);

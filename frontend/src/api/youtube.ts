@@ -36,7 +36,7 @@ export type YouTubeSettingsUpdate = Partial<Pick<YouTubeSettings,
 export interface YouTubePreview {
   enabled: boolean;
   source: {
-    kind: 'playlist' | 'channel';
+    kind: 'playlist' | 'channel' | 'video';
     id: string;
     title: string;
     description: string;

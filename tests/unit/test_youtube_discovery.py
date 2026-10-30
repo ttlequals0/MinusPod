@@ -362,3 +362,65 @@ def test_playlist_pages_through_all_items_and_caps_to_the_newest_via_api():
     assert [e['video_id'] for e in episodes] == ['vid000000003', 'vid000000002']
     assert 'pageToken=next' in get.call_args_list[1].args[0]
     assert 'vid000000003%2Cvid000000002' in get.call_args_list[2].args[0]
+
+
+YT_DLP_VIDEO = {
+    'id': 'abc123def45', 'title': 'One Video', 'description': 'about', 'channel': 'Example Channel',
+    'timestamp': 1792000000, 'duration': 90, 'live_status': 'not_live',
+    'thumbnails': [{'url': 'https://i.ytimg.com/v.jpg'}],
+}
+API_VIDEO = {'items': [{'id': 'abc123def45', 'snippet': {
+    'title': 'One Video', 'description': 'about', 'channelTitle': 'Example Channel',
+    'publishedAt': '2026-10-20T10:00:00Z', 'thumbnails': {'high': {'url': 'https://i.ytimg.com/v.jpg'}}},
+    'contentDetails': {'duration': 'PT1M30S'}}]}
+
+
+def test_resolve_video_without_key_uses_ytdlp():
+    with patch.object(discovery.ytdlp, 'run', return_value=_completed(YT_DLP_VIDEO)) as run:
+        info = discovery.resolve_source(_db(), Source('video', 'abc123def45'))
+    assert (info.kind, info.id, info.title, info.video_count) == ('video', 'abc123def45', 'One Video', 1)
+    assert info.author == 'Example Channel' and info.artwork_url == 'https://i.ytimg.com/v.jpg'
+    argv = run.call_args.args[0]
+    assert '--no-playlist' in argv and argv[-1] == 'https://www.youtube.com/watch?v=abc123def45'
+
+
+def test_resolve_video_with_key_uses_videos_endpoint():
+    with patch.object(discovery, 'safe_get', return_value=_resp()) as get, \
+            patch.object(discovery, 'read_response_capped', return_value=json.dumps(API_VIDEO).encode()):
+        info = discovery.resolve_source(_db('KEY'), Source('video', 'abc123def45'))
+    assert 'videos?' in get.call_args.args[0] and 'part=snippet' in get.call_args.args[0]
+    assert info.title == 'One Video' and info.author == 'Example Channel' and info.video_count == 1
+
+
+def test_resolve_video_api_empty_items_falls_back_to_ytdlp():
+    with patch.object(discovery, 'safe_get', return_value=_resp()), \
+            patch.object(discovery, 'read_response_capped', return_value=b'{"items": []}'), \
+            patch.object(discovery.ytdlp, 'run', return_value=_completed(YT_DLP_VIDEO, 1, 'Video unavailable')):
+        with pytest.raises(discovery.SourceNotFound):
+            discovery.resolve_source(_db('KEY'), Source('video', 'abc123def45'))
+
+
+def test_list_single_video_via_ytdlp_keeps_a_short_and_skips_the_playlist():
+    with patch.object(discovery.ytdlp, 'run', return_value=_completed(YT_DLP_VIDEO)) as run, \
+            patch.object(discovery, '_playlist_for') as playlist_for:
+        episodes = discovery.list_videos(_db(), _podcast('video', 'abc123def45'), limit=50)
+    assert not playlist_for.called
+    assert [e['video_id'] for e in episodes] == ['abc123def45']
+    assert episodes[0]['title'] == 'One Video' and episodes[0]['rss_duration'] == 90.0
+    assert episodes[0]['published'].startswith('2026-')
+    assert '--no-playlist' in run.call_args.args[0]
+
+
+def test_list_single_video_via_api_keeps_a_short():
+    with patch.object(discovery, 'safe_get', return_value=_resp()) as get, \
+            patch.object(discovery, 'read_response_capped', return_value=json.dumps(API_VIDEO).encode()):
+        episodes = discovery.list_videos(_db('KEY'), _podcast('video', 'abc123def45'), limit=50)
+    assert len(get.call_args_list) == 1 and 'videos?' in get.call_args.args[0]
+    assert episodes[0]['video_id'] == 'abc123def45' and episodes[0]['rss_duration'] == 90.0
+    assert episodes[0]['published'] == '2026-10-20T10:00:00Z'
+
+
+def test_list_single_video_skips_a_live_stream():
+    live = dict(YT_DLP_VIDEO, live_status='is_live')
+    with patch.object(discovery.ytdlp, 'run', return_value=_completed(live)):
+        assert discovery.list_videos(_db(), _podcast('video', 'abc123def45'), limit=50) == []
