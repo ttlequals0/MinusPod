@@ -10,6 +10,11 @@ from youtube import discovery
 from youtube.urls import Source
 
 
+@pytest.fixture(autouse=True)
+def _no_auth_args(monkeypatch):
+    monkeypatch.setattr(discovery.download, 'auth_args', lambda: [])
+
+
 def _completed(payload, code=0, stderr=''):
     return subprocess.CompletedProcess(['yt-dlp'], code, stdout=json.dumps(payload), stderr=stderr)
 
@@ -61,10 +66,30 @@ def test_ytdlp_listing_skips_entries_without_a_title():
 
 def test_untitled_entry_does_not_use_a_limit_slot():
     listing = _oldest_first_listing()
-    listing['entries'] = [{'id': 'abcdefghijk', 'upload_date': '20261009'}, *listing['entries'][:2]]
+    listing['entries'] = [{'id': 'abcdefghijk', 'upload_date': '20261009'},
+                          {'id': 'bcdefghijkl', 'title': '[Private video]', 'upload_date': '20261008'},
+                          *listing['entries'][:2]]
     with patch.object(discovery.ytdlp, 'run', return_value=_completed(listing)):
         episodes = discovery.list_videos(_db(), _podcast(), limit=2)
     assert {e['video_id'] for e in episodes} == {'vid000000001', 'vid000000002'}
+
+
+def test_channel_listing_requests_slack_and_caps_after_the_filter():
+    listing = _oldest_first_listing()
+    listing['entries'] = [{'id': 'abcdefghijk'}, *listing['entries'][:2]]
+    with patch.object(discovery.ytdlp, 'run', return_value=_completed(listing)) as run:
+        episodes = discovery.list_videos(_db(), _podcast('channel', 'UCabcdefghijklmnopqrstuv'), limit=2)
+    argv = run.call_args.args[0]
+    assert argv[argv.index('--playlist-end') + 1] == '22'
+    assert [e['video_id'] for e in episodes] == ['vid000000001', 'vid000000002']
+
+
+def test_listing_passes_download_auth_args():
+    with patch.object(discovery.download, 'auth_args', return_value=['--cookies', '/x']), \
+            patch.object(discovery.ytdlp, 'run', return_value=_completed(YT_DLP_LISTING)) as run:
+        discovery.list_videos(_db(), _podcast(), limit=50)
+    argv = run.call_args.args[0]
+    assert argv[argv.index('--cookies') + 1] == '/x'
 
 
 def test_list_videos_keeps_shorts_when_enabled():

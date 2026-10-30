@@ -15,7 +15,7 @@ from utils.app_version import APP_VERSION
 from utils.safe_http import URLTrust, read_response_capped, safe_get
 from utils.time import epoch_to_iso
 from utils.url import SSRFError
-from youtube import settings as yt_settings, ytdlp
+from youtube import download, settings as yt_settings, ytdlp
 from youtube.urls import Source, source_url, uploads_playlist, watch_url
 
 logger = logging.getLogger(__name__)
@@ -24,6 +24,8 @@ API = 'https://www.googleapis.com/youtube/v3'
 API_MAX_BYTES = 2 * 1024 * 1024
 SHORTS_MAX_SECONDS = 180
 PLAYLIST_SCAN_CAP = 5000
+UNAVAILABLE_SLACK = 20
+_UNAVAILABLE_TITLES = frozenset({'[Private video]', '[Deleted video]', '[Unavailable video]'})
 _ISO_DURATION = re.compile(r'^P(?:(\d+)D)?T?(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?$')
 _ids = RSSParser()
 
@@ -92,7 +94,7 @@ def _api_get(path: str, params: dict, key: str) -> dict:
 
 def _ytdlp_json(url: str, extra: list[str], timeout: int) -> dict:
     try:
-        result = ytdlp.run(['--flat-playlist', '--dump-single-json', '--no-warnings', *extra, url], timeout=timeout)
+        result = ytdlp.run(['--flat-playlist', '--dump-single-json', '--no-warnings', *download.auth_args(), *extra, url], timeout=timeout)
     except subprocess.TimeoutExpired:
         raise DiscoveryError('yt-dlp timed out listing the source') from None
     except ytdlp.YtDlpNotInstalled as exc:
@@ -263,13 +265,14 @@ def _published_from_entry(entry: dict) -> str:
 def _list_with_ytdlp(playlist_id, limit, include_shorts, longform, full=False) -> list[dict]:
     extra = ['--extractor-args', 'youtubetab:approximate_date']
     if not full:
-        extra = ['--playlist-end', str(limit), *extra]
+        extra = ['--playlist-end', str(limit + UNAVAILABLE_SLACK), *extra]
     data = _ytdlp_json(f'https://www.youtube.com/playlist?list={playlist_id}', extra, timeout=180)
     # Private or deleted videos come back as a bare id.
-    entries = [e for e in data.get('entries') or [] if e and e.get('id') and e.get('title')]
+    entries = [e for e in data.get('entries') or []
+               if e and e.get('id') and e.get('title') and e['title'] not in _UNAVAILABLE_TITLES]
     if full:
         entries.sort(key=_published_from_entry, reverse=True)
-        entries = entries[:limit]
+    entries = entries[:limit]
     episodes = []
     for entry in entries:
         is_live = entry.get('live_status') in ('is_live', 'is_upcoming', 'post_live')
