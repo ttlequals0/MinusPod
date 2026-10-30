@@ -3,7 +3,19 @@ import stat
 import subprocess
 from unittest.mock import MagicMock, patch
 
+import pytest
+
+from utils.time import utc_now_iso
 from youtube import ytdlp
+
+
+@pytest.fixture(autouse=True)
+def _reset_module_state():
+    ytdlp._baked_version = None
+    ytdlp._booted = False
+    yield
+    ytdlp._baked_version = None
+    ytdlp._booted = False
 
 
 class FakeStorage:
@@ -66,6 +78,30 @@ def test_update_tick_respects_gates(tmp_path):
     with patch.object(ytdlp, 'update_binary') as upd:
         ytdlp.update_tick(db)
     upd.assert_not_called()
+
+
+def test_update_tick_spawns_nothing_when_throttle_not_due(tmp_path):
+    db = MagicMock()
+    db.get_setting_bool.return_value = True
+    db.get_setting.return_value = utc_now_iso()
+    ytdlp._booted = True
+    stub = MagicMock(storage=FakeStorage(tmp_path))
+    with patch.dict('sys.modules', {'main_app': stub}), \
+            patch.object(ytdlp.subprocess, 'run') as spawn, \
+            patch.object(ytdlp, 'ensure_runtime_binary') as ensure:
+        ytdlp.update_tick(db)
+    spawn.assert_not_called()
+    ensure.assert_not_called()
+
+
+def test_status_spawns_at_most_once_for_the_baked_version(tmp_path):
+    db = MagicMock()
+    db.get_setting.return_value = '2026.10.26'
+    with patch.object(ytdlp, 'binary_version', return_value='2026.10.20') as probe:
+        first = ytdlp.status(db)
+        second = ytdlp.status(db)
+    assert first == second == {'bakedVersion': '2026.10.20', 'version': '2026.10.26'}
+    assert probe.call_count == 1
 
 
 def test_update_binary_records_version(tmp_path):

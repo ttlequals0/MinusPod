@@ -15,6 +15,7 @@ from config import (
 from ad_chapters import refresh_keep_like_markers
 from ad_yield import latest_completed_run, low_ad_yield
 from database.podcasts import is_local_feed, is_recents_feed, is_youtube_feed, recents_cutoff
+from utils.json_fields import load_json_list
 from utils.markers import parse_ad_markers
 from chapter_notes import format_chapter_block
 from utils.constants import EpisodeStatus
@@ -196,15 +197,11 @@ def _local_artwork_fallback_url(ep, *, is_local, storage, slug):
 
 
 def _sponsorblock_json(ep):
-    try:
-        segment_count = len(json.loads(ep.get('sb_segment_uuids') or '[]'))
-    except (json.JSONDecodeError, TypeError):
-        segment_count = 0
     return {
         'state': ep.get('sb_state'),
         'attempts': ep.get('sb_attempts') or 0,
         'nextCheckAt': ep.get('sb_next_check_at'),
-        'segmentCount': segment_count,
+        'segmentCount': len(load_json_list(ep.get('sb_segment_uuids'))),
         'note': ep.get('sb_note'),
         'lastError': ep.get('sb_last_error'),
     }

@@ -9,15 +9,25 @@ SB_COLUMNS = frozenset({
 })
 
 
+def _check_sb_columns(fields) -> None:
+    unknown = set(fields) - SB_COLUMNS
+    if unknown:
+        raise ValueError(f"not a SponsorBlock column: {', '.join(sorted(unknown))}")
+
+
 class YouTubeMixin:
     def update_episode_sponsorblock(self, slug: str, episode_id: str, **fields) -> bool:
-        unknown = set(fields) - SB_COLUMNS
-        if unknown:
-            raise ValueError(f"not a SponsorBlock column: {', '.join(sorted(unknown))}")
+        _check_sb_columns(fields)
         if not fields:
             return False
         db_id = self._get_episode_db_id(slug, episode_id)
         if not db_id:
+            return False
+        return self.update_episode_sponsorblock_by_pk(db_id, **fields)
+
+    def update_episode_sponsorblock_by_pk(self, db_id: int, **fields) -> bool:
+        _check_sb_columns(fields)
+        if not fields:
             return False
         assignments = ', '.join(f"{col} = ?" for col in fields)
         conn = self.get_connection()
@@ -43,7 +53,7 @@ class YouTubeMixin:
 
     def get_due_sponsorblock_episodes(self, now_iso: str, limit: int = 50) -> list[dict]:
         cursor = self.get_connection().execute(
-            """SELECT e.episode_id, e.title, e.original_url, e.published_at, e.description,
+            """SELECT e.id, e.episode_id, e.title, e.original_url, e.published_at, e.description,
                       e.status, e.youtube_video_id, e.sb_state, e.sb_attempts,
                       e.sb_next_check_at, e.sb_segment_uuids, e.podcast_id,
                       e.original_duration, e.created_at, p.slug
@@ -52,17 +62,6 @@ class YouTubeMixin:
                      AND e.sb_next_check_at <= ?
                ORDER BY e.sb_next_check_at ASC LIMIT ?""",
             (now_iso, limit))
-        return [dict(row) for row in cursor.fetchall()]
-
-    def get_youtube_feed_episodes_for_rss(self, podcast_id: int, limit: int | None) -> list[dict]:
-        query = ("SELECT * FROM episodes WHERE podcast_id = ? AND status = 'processed' "
-                 "AND processed_file IS NOT NULL "
-                 "ORDER BY COALESCE(published_at, created_at) DESC")
-        params: list = [podcast_id]
-        if limit:
-            query += " LIMIT ?"
-            params.append(limit)
-        cursor = self.get_connection().execute(query, params)
         return [dict(row) for row in cursor.fetchall()]
 
     def count_youtube_feeds(self) -> int:

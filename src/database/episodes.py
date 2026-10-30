@@ -1655,8 +1655,8 @@ class EpisodeMixin:
                    (podcast_id, episode_id, original_url, title, description,
                     artwork_url, episode_number, published_at, rss_duration,
                     upstream_chapters_url, upstream_transcript_url,
-                    upstream_transcript_type, tags, status)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'discovered')
+                    upstream_transcript_type, tags, youtube_video_id, status)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'discovered')
                    ON CONFLICT(podcast_id, episode_id) DO UPDATE SET
                     episode_number = COALESCE(excluded.episode_number, episodes.episode_number),
                     published_at = COALESCE(excluded.published_at, episodes.published_at),
@@ -1669,7 +1669,8 @@ class EpisodeMixin:
                     title = CASE WHEN COALESCE(episodes.title, '') = '' THEN excluded.title ELSE episodes.title END,
                     description = CASE WHEN COALESCE(episodes.description, '') = '' THEN excluded.description ELSE episodes.description END,
                     artwork_url = COALESCE(episodes.artwork_url, excluded.artwork_url),
-                    tags = CASE WHEN COALESCE(episodes.tags, '[]') = '[]' THEN excluded.tags ELSE episodes.tags END
+                    tags = CASE WHEN COALESCE(episodes.tags, '[]') = '[]' THEN excluded.tags ELSE episodes.tags END,
+                    youtube_video_id = COALESCE(episodes.youtube_video_id, excluded.youtube_video_id)
                    WHERE episodes.episode_number IS NOT COALESCE(episodes.episode_number, excluded.episode_number)
                       OR episodes.published_at IS NOT COALESCE(episodes.published_at, excluded.published_at)
                       OR episodes.rss_duration IS NOT COALESCE(episodes.rss_duration, excluded.rss_duration)
@@ -1681,7 +1682,8 @@ class EpisodeMixin:
                       OR episodes.title IS NOT CASE WHEN COALESCE(episodes.title, '') = '' THEN excluded.title ELSE episodes.title END
                       OR episodes.description IS NOT CASE WHEN COALESCE(episodes.description, '') = '' THEN excluded.description ELSE episodes.description END
                       OR episodes.artwork_url IS NOT COALESCE(episodes.artwork_url, excluded.artwork_url)
-                      OR episodes.tags IS NOT CASE WHEN COALESCE(episodes.tags, '[]') = '[]' THEN excluded.tags ELSE episodes.tags END""",
+                      OR episodes.tags IS NOT CASE WHEN COALESCE(episodes.tags, '[]') = '[]' THEN excluded.tags ELSE episodes.tags END
+                      OR episodes.youtube_video_id IS NOT COALESCE(episodes.youtube_video_id, excluded.youtube_video_id)""",
                 (
                     podcast_id,
                     ep['id'],
@@ -1696,6 +1698,7 @@ class EpisodeMixin:
                     ep.get('upstream_transcript_url'),
                     ep.get('upstream_transcript_type'),
                     tags_json,
+                    ep.get('video_id'),
                 )
             )
             if ep['id'] not in existing_by_id:

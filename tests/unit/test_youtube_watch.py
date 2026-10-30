@@ -110,7 +110,7 @@ def _tick_db(rows):
 
 def _tick_row(episode_id, state='done', uuids='["u0"]'):
     row = _row(state, uuids=uuids)
-    row.update(slug='example-podcast', episode_id=episode_id, youtube_video_id='vid' + episode_id,
+    row.update(id=7, slug='example-podcast', episode_id=episode_id, youtube_video_id='vid' + episode_id,
                original_url='https://example.com/v', title='T', description='', original_duration=100.0)
     return row
 
@@ -119,7 +119,7 @@ def _patch_tick(monkeypatch, retained=True):
     original = MagicMock()
     original.exists.return_value = retained
     monkeypatch.setattr('main_app.storage.get_original_path', lambda slug, eid: original)
-    monkeypatch.setattr(watch.yt_settings, 'resolve_feed', lambda db, podcast: SETTINGS)
+    monkeypatch.setattr(watch.yt_settings, 'resolve_feed', lambda db, podcast, base=None: SETTINGS)
     queued = []
     monkeypatch.setattr(watch, 'queue_for_processing',
                         lambda db, row, podcast, *, recut: queued.append((row['episode_id'], recut)))
@@ -135,7 +135,7 @@ def test_tick_recut_writes_markers_and_stamps_uuids(monkeypatch):
     db = _tick_db([_tick_row('a1')])
     watch.sponsorblock_tick(db)
     db.save_episode_details.assert_called_once_with('example-podcast', 'a1', ad_markers=markers)
-    fields = db.update_episode_sponsorblock.call_args.kwargs
+    fields = db.update_episode_sponsorblock_by_pk.call_args.kwargs
     assert fields['sb_segment_uuids'] == json.dumps(['u1'])
     assert queued == [('a1', True)]
 
@@ -147,7 +147,7 @@ def test_tick_recut_with_no_convertible_markers_only_reschedules(monkeypatch):
     db = _tick_db([_tick_row('a1')])
     watch.sponsorblock_tick(db)
     db.save_episode_details.assert_not_called()
-    fields = db.update_episode_sponsorblock.call_args.kwargs
+    fields = db.update_episode_sponsorblock_by_pk.call_args.kwargs
     assert 'sb_segment_uuids' not in fields and fields['sb_next_check_at']
     assert queued == []
 
@@ -182,7 +182,7 @@ def test_tick_filtered_segment_does_not_recut(monkeypatch):
     watch.sponsorblock_tick(db)
     assert queued == []
     db.save_episode_details.assert_not_called()
-    assert db.update_episode_sponsorblock.call_args.kwargs['sb_next_check_at']
+    assert db.update_episode_sponsorblock_by_pk.call_args.kwargs['sb_next_check_at']
 
 
 def test_tick_queue_failure_keeps_state_and_retries_soon(monkeypatch):
@@ -196,9 +196,19 @@ def test_tick_queue_failure_keeps_state_and_retries_soon(monkeypatch):
     db = _tick_db([_tick_row('a1', state='waiting', uuids='[]')])
     before = datetime.now(timezone.utc)
     watch.sponsorblock_tick(db)
-    calls = db.update_episode_sponsorblock.call_args_list
+    calls = db.update_episode_sponsorblock_by_pk.call_args_list
     assert len(calls) == 1
     fields = calls[0].kwargs
     assert 'sb_state' not in fields and fields['sb_last_error'] == 'RuntimeError'
     due = datetime.fromisoformat(fields['sb_next_check_at'])
     assert timedelta(minutes=4) < due - before < timedelta(minutes=6)
+
+
+def test_tick_corrupt_segment_uuids_do_not_raise(monkeypatch):
+    queued = _patch_tick(monkeypatch)
+    monkeypatch.setattr(watch.sponsorblock, 'fetch_segments', lambda vid: MARK)
+    db = _tick_db([_tick_row('a1', uuids='not json')])
+    watch.sponsorblock_tick(db)
+    assert queued == [('a1', True)]
+    db.update_episode_sponsorblock_by_pk.assert_called_once()
+    assert db.update_episode_sponsorblock_by_pk.call_args.args == (7,)

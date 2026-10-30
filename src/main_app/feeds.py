@@ -235,7 +235,7 @@ def _fetch_youtube_source_artwork(slug, podcast, force):
 
 def _refresh_youtube_feed(slug, podcast, force, record_failure) -> RefreshOutcome:
     """Discover videos, queue SponsorBlock waits, render the served RSS."""
-    from youtube import discovery, watch as yt_watch  # lazy: avoids an import cycle at startup
+    from youtube import discovery, settings as yt_settings, watch as yt_watch  # lazy: avoids an import cycle at startup
     if not force and _refresh_coalesce.get(slug) is not None:
         return RefreshOutcome(True, 'coalesced')
     _refresh_coalesce.set(slug, True)
@@ -252,13 +252,12 @@ def _refresh_youtube_feed(slug, podcast, force, record_failure) -> RefreshOutcom
             _refresh_coalesce.invalidate(slug)
             return RefreshOutcome(False, 'fetch_failed', error=str(exc))
         inserted, ep_statuses, _ = db.bulk_upsert_discovered_episodes(slug, episodes, return_state=True)
-        for ep in episodes:
-            db.update_episode_sponsorblock(slug, ep['id'], youtube_video_id=ep['video_id'])
         if inserted > 0:
             refresh_logger.info(f"[{slug}] Discovered {inserted} new video(s)")
         scheduled = 0
         if db.is_auto_process_enabled_for_podcast(slug, podcast=podcast):
             cutoff = datetime.now(timezone.utc) - timedelta(hours=db.get_auto_process_max_age_hours(podcast))
+            resolved = yt_settings.resolve_feed(db, podcast)
             for ep in episodes:
                 if ep_statuses.get(ep['id']) not in (None, 'discovered'):
                     continue
@@ -268,7 +267,7 @@ def _refresh_youtube_feed(slug, podcast, force, record_failure) -> RefreshOutcom
                 if episode_matches_feed_filters(ep, podcast):
                     refresh_logger.info(f"[{slug}] Skipping video matched by feed filters: {ep.get('title')}")
                     continue
-                if yt_watch.schedule_new_episode(db, slug, ep['id'], podcast):
+                if yt_watch.schedule_new_episode(db, slug, ep['id'], resolved):
                     scheduled += 1
         if scheduled:
             refresh_logger.info(f"[{slug}] {scheduled} video(s) waiting for SponsorBlock")

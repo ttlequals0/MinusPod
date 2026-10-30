@@ -1,10 +1,11 @@
 """SponsorBlock gate: schedule YouTube episodes before they enter the queue."""
 import json
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 
 from database.queue import compute_queue_priority
-from utils.time import parse_iso_utc, utc_now_iso
+from utils.json_fields import load_json_list
+from utils.time import parse_iso_utc, utc_now, utc_now_iso
 from youtube import settings as yt_settings, sponsorblock
 
 logger = logging.getLogger(__name__)
@@ -14,10 +15,9 @@ MAX_BACKOFF = timedelta(hours=24)
 TERMINAL = ('llm', 'exhausted')
 
 
-def schedule_new_episode(db, slug, episode_id, podcast) -> bool:
+def schedule_new_episode(db, slug, episode_id, resolved) -> bool:
     """First sighting of a video (no SponsorBlock state yet): wait out the processing delay before the first SponsorBlock check."""
-    resolved = yt_settings.resolve_feed(db, podcast)
-    due = datetime.now(timezone.utc) + timedelta(minutes=resolved.process_delay_minutes)
+    due = utc_now() + timedelta(minutes=resolved.process_delay_minutes)
     return db.schedule_sponsorblock_wait(slug, episode_id, due.isoformat())
 
 
@@ -76,7 +76,7 @@ def transition(row, resolved, marks, now, has_retained_original, current_uuids=N
     if state == 'done':
         if _ceiling_passed(row, resolved, now):
             return out
-        known = set(json.loads(row.get('sb_segment_uuids') or '[]'))
+        known = set(load_json_list(row.get('sb_segment_uuids')))
         if current_uuids and current_uuids != known and has_retained_original:
             out.update(queue=True, recut=True)
         out['sb_next_check_at'] = watch_next
@@ -107,9 +107,9 @@ def queue_for_processing(db, row, podcast, *, recut: bool):
     status_service.queue_episode(slug, episode_id, title, podcast_name)
 
 
-def _process_row(db, row, podcast, now, storage):
+def _process_row(db, row, podcast, now, storage, base):
     slug, episode_id = row['slug'], row['episode_id']
-    resolved = yt_settings.resolve_feed(db, podcast)
+    resolved = yt_settings.resolve_feed(db, podcast, base=base)
     marks = sponsorblock.fetch_segments(row['youtube_video_id']) if row.get('youtube_video_id') else []
     markers = sponsorblock.to_markers(marks or [], row.get('original_duration'))[0]
     current_uuids = set(sponsorblock.uuid_set(markers)) if markers else None
@@ -121,7 +121,7 @@ def _process_row(db, row, podcast, now, storage):
         fields['sb_segment_uuids'] = json.dumps(sponsorblock.uuid_set(markers))
     if out['queue']:
         queue_for_processing(db, row, podcast, recut=out['recut'])
-    db.update_episode_sponsorblock(slug, episode_id, **fields)
+    db.update_episode_sponsorblock_by_pk(row['id'], **fields)
     if out['queue']:
         logger.info(f"[{slug}:{episode_id}] SponsorBlock gate: {row.get('sb_state')} -> "
                     f"{out['sb_state']}{' (recut)' if out['recut'] else ''}, queued")
@@ -132,7 +132,8 @@ def sponsorblock_tick(db):
     if not db.get_setting_bool('youtube_enabled', False):
         return
     from main_app import storage  # lazy: see queue_for_processing
-    now = datetime.now(timezone.utc)
+    now = utc_now()
+    base = yt_settings.load_global(db)
     podcasts = {}
     for row in db.get_due_sponsorblock_episodes(now.isoformat(), BATCH):
         slug = row['slug']
@@ -140,12 +141,12 @@ def sponsorblock_tick(db):
             if slug not in podcasts:
                 podcasts[slug] = db.get_podcast_by_slug(slug)
             if podcasts[slug]:
-                _process_row(db, row, podcasts[slug], now, storage)
+                _process_row(db, row, podcasts[slug], now, storage, base)
         except Exception as exc:
             logger.exception(f"[{slug}:{row.get('episode_id')}] SponsorBlock tick failed")
             try:
-                db.update_episode_sponsorblock(slug, row['episode_id'],
-                                               sb_next_check_at=(now + timedelta(minutes=5)).isoformat(),
-                                               sb_last_error=type(exc).__name__)
+                db.update_episode_sponsorblock_by_pk(
+                    row['id'], sb_next_check_at=(now + timedelta(minutes=5)).isoformat(),
+                    sb_last_error=type(exc).__name__)
             except Exception:
                 logger.exception(f"[{slug}:{row.get('episode_id')}] SponsorBlock retry reschedule failed")

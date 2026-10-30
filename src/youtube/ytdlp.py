@@ -4,10 +4,10 @@ import os
 import shutil
 import subprocess
 import tempfile
-from datetime import datetime, timedelta, timezone
+from datetime import timedelta
 from pathlib import Path
 
-from utils.time import parse_iso_utc, utc_now_iso
+from utils.time import parse_iso_utc, utc_now, utc_now_iso
 
 logger = logging.getLogger(__name__)
 
@@ -18,6 +18,7 @@ _UPDATE_HINTS = ('please report this issue', 'unable to extract',
                  'requested format is not available', 'nsig extraction failed')
 _booted = False
 _ensured_path: Path | None = None
+_baked_version: tuple[str, str | None] | None = None
 
 
 class YtDlpNotInstalled(RuntimeError):
@@ -39,6 +40,14 @@ def binary_version(path) -> str | None:
         return None
     text = out.stdout.strip()
     return text if out.returncode == 0 and text else None
+
+
+def baked_version() -> str | None:
+    """Version of the image copy, probed once per process (the image does not change under it)."""
+    global _baked_version
+    if _baked_version is None or _baked_version[0] != BAKED_PATH:
+        _baked_version = (BAKED_PATH, binary_version(BAKED_PATH))
+    return _baked_version[1]
 
 
 def _version_tuple(text: str | None) -> tuple:
@@ -68,9 +77,9 @@ def _install_baked(target: Path) -> None:
 def ensure_runtime_binary(storage, db) -> Path:
     global _ensured_path
     target = runtime_path(storage)
-    baked_version = binary_version(BAKED_PATH)
+    baked = baked_version()
     if not os.path.exists(target):
-        if baked_version is None:
+        if baked is None:
             raise YtDlpNotInstalled('yt-dlp is not installed in this image')
         _install_baked(target)
         _ensured_path = target
@@ -81,7 +90,7 @@ def ensure_runtime_binary(storage, db) -> Path:
         db.set_setting('youtube_ytdlp_last_error', RUNTIME_NOT_EXECUTABLE, is_default=False)
         logger.warning(RUNTIME_NOT_EXECUTABLE)
         return Path(BAKED_PATH)
-    if _version_tuple(baked_version) > _version_tuple(current):
+    if _version_tuple(baked) > _version_tuple(current):
         _install_baked(target)
     _ensured_path = target
     return target
@@ -114,12 +123,13 @@ def needs_update(stderr: str) -> bool:
     return any(hint in low for hint in _UPDATE_HINTS)
 
 
-def update_binary(storage, db) -> dict:
+def update_binary(storage, db, target: Path | None = None) -> dict:
+    """Self-update the runtime copy; `target` is the already-ensured binary path."""
     now = utc_now_iso()
     db.set_setting('youtube_ytdlp_last_check_at', now, is_default=False)
-    target = ensure_runtime_binary(storage, db)
+    target = target or ensure_runtime_binary(storage, db)
     if str(target) == BAKED_PATH:
-        return {'updated': False, 'version': binary_version(target), 'error': RUNTIME_NOT_EXECUTABLE}
+        return {'updated': False, 'version': baked_version(), 'error': RUNTIME_NOT_EXECUTABLE}
     before = binary_version(target)
     result = run(['-U'], timeout=300, storage=storage, db=db)
     if result.returncode != 0:
@@ -143,14 +153,13 @@ def update_tick(db):
         if not db.get_setting_bool('youtube_enabled', False):
             return
         from main_app import storage  # lazy: avoids an import cycle
-        ensure_runtime_binary(storage, db)
         if not db.get_setting_bool('youtube_ytdlp_auto_update', True):
             return
         last = parse_iso_utc(db.get_setting('youtube_ytdlp_last_check_at'))
-        if _booted and last and datetime.now(timezone.utc) - last < UPDATE_INTERVAL:
+        if _booted and last and utc_now() - last < UPDATE_INTERVAL:
             return
         _booted = True
-        update_binary(storage, db)
+        update_binary(storage, db, ensure_runtime_binary(storage, db))
     except Exception as exc:
         logger.warning(f"yt-dlp update failed: {exc}")
         try:
@@ -159,9 +168,5 @@ def update_tick(db):
             logger.warning("could not record yt-dlp error", exc_info=True)
 
 
-def status(storage, db) -> dict:
-    target = runtime_path(storage)
-    return {
-        'bakedVersion': binary_version(BAKED_PATH),
-        'version': db.get_setting('youtube_ytdlp_version') or (binary_version(target) if target.exists() else None),
-    }
+def status(db) -> dict:
+    return {'bakedVersion': baked_version(), 'version': db.get_setting('youtube_ytdlp_version')}

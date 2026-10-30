@@ -59,11 +59,6 @@ def test_due_sponsorblock_episodes_orders_by_next_check(db):
     assert due[0]['slug'] == 'yt-show'
 
 
-def test_youtube_feed_rss_rows_are_processed_only(db):
-    pid = db.create_podcast('yt-show', 'youtube://playlist/PL1', feed_type='youtube')
-    db.upsert_episode('yt-show', 'done1', original_url='u', status='processed',
-                      processed_file='x.mp3', published_at='2026-10-01T00:00:00Z')
-    db.upsert_episode('yt-show', 'wait1', original_url='u', status='discovered')
-    rows = db.get_youtube_feed_episodes_for_rss(pid, None)
-    assert [r['episode_id'] for r in rows] == ['done1']
+def test_count_youtube_feeds(db):
+    db.create_podcast('yt-show', 'youtube://playlist/PL1', feed_type='youtube')
     assert db.count_youtube_feeds() == 1

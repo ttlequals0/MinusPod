@@ -3,13 +3,15 @@ import json
 import logging
 import os
 import shutil
+import tempfile
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import timedelta
 from urllib.parse import parse_qs, urlparse
 
 from main_app.pipeline import common
 from main_app.pipeline.shared import audio_processor, db, storage
 from reprocess_modes import FORCE_TRANSCRIBE_MODES
+from utils.time import utc_now
 from youtube import captions, download, sponsorblock, ytdlp
 from youtube import settings as yt_settings
 from youtube.settings import YouTubeSettings, llm_on_top
@@ -63,8 +65,10 @@ def acquire(slug, episode_id, episode_url, podcast, episode_data, reprocess_mode
                     ytdlp.update_binary(storage, db)
                 raise Exception(str(exc)) from exc
         work_dir = os.path.dirname(result.audio_path)
+        fd, audio_path = tempfile.mkstemp(suffix='.mp3')
+        os.close(fd)
         try:
-            audio_path = common._copy_retained_original_to_temp(result.audio_path)
+            shutil.move(result.audio_path, audio_path)
             if want_captions:
                 segments = captions.load_segments(result.captions_path)
         finally:
@@ -96,7 +100,7 @@ def after_success(slug, episode_id, run: YouTubeRun, episode_data=None):
     prior = (episode_data or {}).get('sb_state')
     if run.markers:
         state = 'done'
-        next_check = (datetime.now(timezone.utc) + timedelta(hours=run.resolved.watch_interval_hours)).isoformat()
+        next_check = (utc_now() + timedelta(hours=run.resolved.watch_interval_hours)).isoformat()
     elif prior in ('llm', 'exhausted'):
         state, next_check = prior, None
     else:

@@ -191,3 +191,33 @@ def test_refresh_feed_artwork_forces_download_for_youtube_feed():
         dl.assert_called_once_with(slug, ['https://i.ytimg.com/src.jpg'], force=True)
     finally:
         db.delete_podcast(slug)
+
+
+def test_youtube_feed_rss_rows_are_processed_only():
+    from local_feed_builder import _fetch_local_feed_episodes
+    db = feeds_mod.db
+    slug = 'yt-rss-rows'
+    _make_feed(slug)
+    try:
+        pid = db.get_podcast_by_slug(slug)['id']
+        db.upsert_episode(slug, 'done1', original_url='u', status='processed',
+                          processed_file='x.mp3', published_at='2026-10-01T00:00:00Z')
+        db.upsert_episode(slug, 'wait1', original_url='u', status='discovered')
+        rows = _fetch_local_feed_episodes(db, pid, None, processed_only=True)
+        assert [r['episode_id'] for r in rows] == ['done1']
+    finally:
+        db.delete_podcast(slug)
+
+
+def test_existing_row_without_video_id_is_backfilled_by_refresh():
+    db = feeds_mod.db
+    slug = 'yt-backfill'
+    _make_feed(slug)
+    try:
+        ep = _episode('vid000000002')
+        db.upsert_episode(slug, ep['id'], original_url=ep['url'], status='discovered')
+        assert db.get_episode(slug, ep['id'])['youtube_video_id'] is None
+        _refresh(slug, [ep])
+        assert db.get_episode(slug, ep['id'])['youtube_video_id'] == 'vid000000002'
+    finally:
+        db.delete_podcast(slug)
