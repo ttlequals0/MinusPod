@@ -13,6 +13,10 @@ release notes.
 
 ## [2.101.6] - 2026-10-30
 
+### Added
+
+- Settings > YouTube has a Reset to defaults action for its tunables, proxy and extra arguments. The feature switch, Data API key and cookies file are kept.
+
 ### Changed
 
 - Settings > YouTube lists the proxy and extra-argument fields first and keeps the yt-dlp version, daily update toggle and Update now button together below them.
