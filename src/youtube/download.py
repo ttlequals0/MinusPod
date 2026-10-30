@@ -1,0 +1,94 @@
+"""Download one YouTube video's audio (and captions) with yt-dlp."""
+import json
+import logging
+import os
+import shutil
+import tempfile
+from dataclasses import dataclass, field
+
+from youtube import cookies, ytdlp
+from youtube.captions import pick_file
+from youtube.urls import watch_url
+
+logger = logging.getLogger(__name__)
+TIMEOUT_S = 1800
+_impersonate_cache: dict[str, str | None] = {}
+
+
+class DownloadError(Exception):
+    def __init__(self, message: str, needs_update: bool = False):
+        super().__init__(message)
+        self.needs_update = needs_update
+
+
+@dataclass
+class DownloadResult:
+    audio_path: str
+    info: dict
+    captions_path: str | None
+    chapters: list[dict] = field(default_factory=list)
+
+
+def resolve_bitrate() -> str:
+    # Lazy import: main_app imports this package at startup.
+    from main_app.pipeline.common import resolve_audio_encode_settings
+    return resolve_audio_encode_settings()[0]
+
+
+def cookies_path() -> str | None:
+    # Lazy import: main_app imports this package at startup.
+    from main_app import storage
+    path = cookies.path(storage)
+    return str(path) if path.exists() else None
+
+
+def _impersonate_target() -> str | None:
+    if 'target' not in _impersonate_cache:
+        result = ytdlp.run(['--list-impersonate-targets'], timeout=60)
+        _impersonate_cache['target'] = 'chrome' if result.returncode == 0 and 'chrome' in result.stdout.lower() else None
+    return _impersonate_cache['target']
+
+
+def _chapters(info: dict) -> list[dict]:
+    out = []
+    for ch in info.get('chapters') or []:
+        try:
+            out.append({'title': str(ch.get('title') or ''), 'start': float(ch['start_time']), 'end': float(ch['end_time'])})
+        except (KeyError, TypeError, ValueError):
+            continue
+    return out
+
+
+def download(video_id: str, *, want_captions: bool, language: str) -> DownloadResult:
+    """Fetch audio as mp3 into a fresh temp dir; the caller deletes that dir after moving the audio."""
+    work_dir = tempfile.mkdtemp(prefix='minuspod-yt-')
+    args = ['-x', '--audio-format', 'mp3', '--audio-quality', resolve_bitrate(), '--no-playlist',
+            '--write-info-json', '--embed-chapters', '--no-write-playlist-metafiles', '--no-progress',
+            '--no-warnings', '--sleep-requests', '1', '--sleep-interval', '2', '--max-sleep-interval', '8',
+            '-o', '%(id)s.%(ext)s']
+    if want_captions:
+        lang = (language or 'en').split('-')[0]
+        args += ['--write-subs', '--write-auto-subs', '--sub-langs', f'{lang},{lang}-orig,-live_chat',
+                 '--sub-format', 'json3']
+    cookie_file = cookies_path()
+    if cookie_file:
+        args += ['--cookies', cookie_file]
+    target = _impersonate_target()
+    if target:
+        args += ['--impersonate', target]
+    args.append(watch_url(video_id))
+    result = ytdlp.run(args, timeout=TIMEOUT_S, cwd=work_dir)
+    if result.returncode != 0:
+        shutil.rmtree(work_dir, ignore_errors=True)
+        raise DownloadError(ytdlp.trimmed_error(result.stderr), needs_update=ytdlp.needs_update(result.stderr))
+    audio_path = os.path.join(work_dir, f'{video_id}.mp3')
+    if not os.path.exists(audio_path):
+        shutil.rmtree(work_dir, ignore_errors=True)
+        raise DownloadError('yt-dlp finished without producing an mp3')
+    info = {}
+    info_path = os.path.join(work_dir, f'{video_id}.info.json')
+    if os.path.exists(info_path):
+        with open(info_path) as fh:
+            info = json.load(fh)
+    captions_path = pick_file(work_dir, video_id, language) if want_captions else None
+    return DownloadResult(audio_path=audio_path, info=info, captions_path=captions_path, chapters=_chapters(info))

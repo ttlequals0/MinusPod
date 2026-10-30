@@ -37,7 +37,7 @@ from config import (
     coerce_bool_setting,
 )
 
-from database.podcasts import is_local_feed
+from database.podcasts import is_local_feed, is_youtube_feed
 from llm_client import (
     start_episode_token_tracking, get_effective_provider,
 )
@@ -65,6 +65,7 @@ audio_logger = logging.getLogger('podcast.audio')
 
 from main_app.episode_context import EpisodeContext
 from main_app.pipeline import common, transcribe, signals, detect, review, cuts, keep_rules, verify, publish, finalize, admission, failure, recut
+from main_app.pipeline import sponsorblock as sb_stage
 # Stage modules resolve every singleton through this module (pipeline.shared).
 from main_app import (db, storage, transcriber, ad_detector, audio_processor,
                       status_service, shutdown_event)
@@ -185,7 +186,7 @@ def _process_episode_background(slug, episode_id, original_url, title, podcast_n
                 still_owned, replacement_published = (
                     _cleanup_cancelled_processing_output(
                         slug, episode_id, run_id, queue, episode_at_start,
-                        keep_original=is_local_feed(podcast_row)))
+                        keep_original=is_local_feed(podcast_row) or is_youtube_feed(podcast_row)))
             except Exception as cleanup_err:
                 audio_logger.warning(f"[{slug}:{episode_id}] Failed to clean up partial file: {cleanup_err}")
                 still_owned = queue.owns(run_id, allow_cancel_requested=True)
@@ -533,6 +534,19 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
         # transcription is skipped or an existing transcript is reused.
         transcriber.last_transcription_stats = None
         transcribe_outcome = {}
+        yt_run = None
+        if is_youtube_feed(podcast_settings):
+            yt_run = sb_stage.acquire(slug, episode_id, episode_url, podcast_settings,
+                                      episode_data, reprocess_mode, transcribe_outcome)
+            run_stats['sponsorblock'] = {'mode': yt_run.mode, 'segments': len(yt_run.markers),
+                                         'note': yt_run.note}
+            if yt_run.mode == 'sponsorblock' and not yt_run.segments:
+                skip_transcription_active = True
+                run_stats['transcription_skipped'] = True
+        sponsorblock_only = yt_run is not None and yt_run.mode == 'sponsorblock'
+        if sponsorblock_only:
+            run_stats['verification_skipped'] = True
+        detection_off = skip_detection or sponsorblock_only
         try:
             audio_path, segments = transcribe._download_and_transcribe(
                 slug, episode_id, episode_url,
@@ -549,11 +563,13 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
             transcription_stats = transcriber.last_transcription_stats
             if transcription_stats is not None:
                 run_stats['transcription'] = dict(transcription_stats)
+        run_stats['transcript_source'] = transcribe_outcome.get(
+            'transcript_source', 'none' if skip_transcription_active else 'whisper')
         _check_cancel(cancel_event, slug, episode_id)
 
         # Stage 1a: upstream transcript differential (best effort, bounded fetch).
         transcript_spans = []
-        if not skip_detection:
+        if not detection_off:
             transcript_diff = signals._run_transcript_diff(
                 slug, episode_id, episode_data, segments, run_stats, podcast=podcast_settings,
                 segments_reused=transcribe_outcome.get('segments_reused', False))
@@ -579,7 +595,7 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
         # Both stages want the original's template cues; audio analysis owns
         # the scan and the differential waits for its result.
         primary_cue_future = Future()
-        if not skip_detection:
+        if not detection_off:
             # Stamp from the main thread BEFORE the worker starts: all status
             # stamps stay on the main thread, so the pass1 ordering 22 -> 25
             # is monotonic and an abandoned worker never stamps another job.
@@ -618,7 +634,7 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                 _check_cancel(cancel_event, slug, episode_id)
                 # Stage 2: Audio analysis (ad-cue detection; nothing to feed
                 # when detection is skipped)
-                if not skip_detection:
+                if not detection_off:
                     with common._measure_run_stage('audio_analysis'):
                         audio_analysis_result = signals._run_audio_analysis(
                             slug, episode_id, audio_path, segments,
@@ -693,7 +709,7 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                 db, podcast_id)
             # Snapshot for this run: a correction saved mid-run applies on the next run.
             user_corrections = detect._load_user_corrections(slug, episode_id, db)
-            if skip_detection:
+            if detection_off:
                 # Stages 3-4 skipped: no prior, no detection, no validation.
                 # Stage 4 in particular must not run on the empty list because
                 # _apply_heuristic_rolls inside it adds pre/post-roll and
@@ -701,7 +717,8 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                 # contract. Detection stats (stage_hits, detected) are not
                 # recorded for stages that never ran.
                 audio_logger.info(
-                    f"[{slug}:{episode_id}] Ad detection skipped (per-feed setting)")
+                    f"[{slug}:{episode_id}] Ad detection skipped "
+                    f"({'SponsorBlock marks' if sponsorblock_only else 'per-feed setting'})")
                 # Markers and assets left by an earlier detection run describe
                 # cut audio; clear them like pass-through does. Transcript
                 # inputs survive, so nothing is re-transcribed.
@@ -711,6 +728,12 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                 ads_to_remove, all_ads_with_validation = [], []
                 keep_ads = []
                 segment_actions = {}
+                if sponsorblock_only:
+                    segment_actions = db.resolve_segment_actions(slug, podcast=podcast_settings)
+                    keep_ads, ads_to_remove = keep_rules._partition_keep_ads(
+                        [dict(m) for m in yt_run.markers], segment_actions, None)
+                    all_ads_with_validation = list(ads_to_remove)
+                    first_pass_count = len(yt_run.markers)
             else:
                 # Learned positional prior (issue #360 experiment, off by
                 # default); consumed by detection and validation only.
@@ -765,6 +788,8 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                     )
                 _check_cancel(cancel_event, slug, episode_id)
 
+                if yt_run and yt_run.markers:
+                    first_pass_ads = list(first_pass_ads) + [dict(m) for m in yt_run.markers]
                 first_pass_ads = detect._exclude_opening_ads(first_pass_ads, opening_exclusion_seconds)
                 first_pass_count = len(first_pass_ads)
 
@@ -943,6 +968,9 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
             ads_to_remove = keep_rules._stamp_and_carve_cuts(
                 slug, episode_id, ads_to_remove, all_ads_with_validation,
                 segment_actions, keep_ads)
+            for ad in ads_to_remove:
+                if ad.get('sb_action') == 'mute' and ad.get('action_applied') == 'remove':
+                    ad['action_applied'] = 'beep'
 
             # Stage 5: Process audio
             common._publish_status('update_job_stage', slug, episode_id,
@@ -997,13 +1025,17 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                 m for m in all_ads_with_validation
                 if is_keep_like(m.get('action_applied'))
             ]
-            verification_skipped = skip_detection or skip_second_pass or cue_only
+            verification_skipped = detection_off or skip_second_pass or cue_only
             if skip_second_pass and not skip_detection:
                 audio_logger.info(
                     f"[{slug}:{episode_id}] Verification pass skipped (configured setting)")
+            # SponsorBlock-only runs never enter the pass; community marks need no re-scan.
+            run_verification = (
+                (lambda _ctx, path, *_a, **_k: verify.skipped_verification(path))
+                if sponsorblock_only else verify._run_verification_pass)
             with (common._measure_run_stage('verification')
                   if not verification_skipped else nullcontext()):
-                verification_count, v_ads_for_ui, v_cuts_for_assets, v_ads_held, processed_path, verification_cue_count, verification_ok, v_corroborated_count = verify._run_verification_pass(
+                verification_count, v_ads_for_ui, v_cuts_for_assets, v_ads_held, processed_path, verification_cue_count, verification_ok, v_corroborated_count = run_verification(
                     ctx, processed_path, applied_cuts,
                     skip_patterns, min_cut_confidence,
                     local_audio_processor, detection_progress_callback,
@@ -1104,7 +1136,7 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
             # Stage 7: Generate assets. Uses the RENDERED cut lists (one
             # replacement beep per span), not the UI ad list: gap-merged
             # pass-2 ads share a single beep in the audio.
-            if skip_detection:
+            if detection_off:
                 _reserve_provider()
                 provider_attempted = True
             with common._measure_run_stage('assets'):
@@ -1201,6 +1233,8 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                                ads_held=held_count, ads_not_cut=not_cut_count,
                                on_persisted=_mark_markers_published)
 
+            if yt_run:
+                sb_stage.after_success(slug, episode_id, yt_run, episode_data)
             _fire_post_completion_actions()
 
             common._publish_status('complete_job', slug, episode_id)

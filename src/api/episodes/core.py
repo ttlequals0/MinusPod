@@ -14,7 +14,7 @@ from config import (
 )
 from ad_chapters import refresh_keep_like_markers
 from ad_yield import latest_completed_run, low_ad_yield
-from database.podcasts import is_local_feed, is_recents_feed, recents_cutoff
+from database.podcasts import is_local_feed, is_recents_feed, is_youtube_feed, recents_cutoff
 from utils.markers import parse_ad_markers
 from chapter_notes import format_chapter_block
 from utils.constants import EpisodeStatus
@@ -73,6 +73,7 @@ def list_episodes(slug):
     # loop below): the local-artwork fallback needs to know whether this
     # feed is local.
     is_local = is_local_feed(podcast)
+    is_youtube = is_youtube_feed(podcast)
 
     # Get query params
     status = request.args.get('status', 'all')
@@ -131,6 +132,7 @@ def list_episodes(slug):
         item = _episode_base_json(
             ep, slug=owner_slug,
             is_local=(ep.get('source_feed_type') == 'local') if source_slug else is_local,
+            is_youtube=(ep.get('source_feed_type') == 'youtube') if source_slug else is_youtube,
             storage=storage,
             title_skip_patterns=(ep.get('source_title_skip_patterns')
                                  if source_slug else podcast.get('title_skip_patterns')),
@@ -193,7 +195,22 @@ def _local_artwork_fallback_url(ep, *, is_local, storage, slug):
     return f"/api/v1/feeds/{slug}/episodes/{ep['episode_id']}/artwork"
 
 
-def _episode_base_json(ep, *, slug=None, is_local=False, storage=None,
+def _sponsorblock_json(ep):
+    try:
+        segment_count = len(json.loads(ep.get('sb_segment_uuids') or '[]'))
+    except (json.JSONDecodeError, TypeError):
+        segment_count = 0
+    return {
+        'state': ep.get('sb_state'),
+        'attempts': ep.get('sb_attempts') or 0,
+        'nextCheckAt': ep.get('sb_next_check_at'),
+        'segmentCount': segment_count,
+        'note': ep.get('sb_note'),
+        'lastError': ep.get('sb_last_error'),
+    }
+
+
+def _episode_base_json(ep, *, slug=None, is_local=False, is_youtube=False, storage=None,
                        title_skip_patterns=None, description_skip_patterns=None,
                        duration_filters=None):
     """Shared camelCase fields for the episode list and detail serializers.
@@ -246,6 +263,7 @@ def _episode_base_json(ep, *, slug=None, is_local=False, storage=None,
         # Stable Process/Reprocess eligibility: a completed episode that is
         # queued again reverts to 'pending', so status alone flips the label.
         'hasBeenProcessed': bool(ep.get('has_been_processed')),
+        'sponsorBlock': _sponsorblock_json(ep) if is_youtube else None,
     }
 
 
@@ -319,7 +337,7 @@ def get_episode(slug, episode_id):
     splice_calibration = db.get_episode_splice_calibration(slug, episode_id)
 
     base = _episode_base_json(
-        episode, slug=slug, is_local=is_local, storage=storage,
+        episode, slug=slug, is_local=is_local, is_youtube=is_youtube_feed(podcast), storage=storage,
         title_skip_patterns=podcast.get('title_skip_patterns'),
         description_skip_patterns=podcast.get('description_skip_patterns'),
         duration_filters=podcast)

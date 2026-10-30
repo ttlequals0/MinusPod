@@ -1,0 +1,113 @@
+"""YouTube acquisition: yt-dlp download, captions, SponsorBlock marks, run mode."""
+import json
+import logging
+import os
+import shutil
+from dataclasses import dataclass, field
+from datetime import datetime, timedelta, timezone
+from urllib.parse import parse_qs, urlparse
+
+from main_app.pipeline import common
+from main_app.pipeline.shared import audio_processor, db, storage
+from reprocess_modes import FORCE_TRANSCRIBE_MODES
+from youtube import captions, download, sponsorblock, ytdlp
+from youtube import settings as yt_settings
+from youtube.settings import YouTubeSettings, llm_on_top
+
+audio_logger = logging.getLogger('podcast.audio')
+
+
+class SponsorBlockUnavailable(Exception):
+    pass
+
+
+@dataclass
+class YouTubeRun:
+    audio_path: str
+    segments: list
+    markers: list
+    note: str | None
+    mode: str
+    captions_used: bool
+    resolved: YouTubeSettings
+    chapters: list = field(default_factory=list)
+
+
+def _video_id(episode_data, episode_url) -> str:
+    vid = (episode_data or {}).get('youtube_video_id')
+    return vid or parse_qs(urlparse(episode_url).query).get('v', [''])[0]
+
+
+def acquire(slug, episode_id, episode_url, podcast, episode_data, reprocess_mode, outcome) -> YouTubeRun:
+    """Get the audio, captions and SponsorBlock marks, and pick the run mode."""
+    resolved = yt_settings.resolve_feed(db, podcast)
+    video_id = _video_id(episode_data, episode_url)
+    if not video_id:
+        raise Exception('YouTube episode has no video id')
+    db.update_episode_sponsorblock(slug, episode_id, youtube_video_id=video_id)
+    language = (podcast or {}).get('language_override') or 'en'
+    want_captions = resolved.captions_as_transcript and (
+        reprocess_mode in FORCE_TRANSCRIBE_MODES or not storage.get_transcript(slug, episode_id))
+
+    original = storage.get_original_path(slug, episode_id)
+    segments, chapters = [], []
+    if original and os.path.exists(original):
+        audio_logger.info(f"[{slug}:{episode_id}] Reusing retained original audio (skipped download)")
+        audio_path = common._copy_retained_original_to_temp(original)
+    else:
+        common._publish_status('update_job_stage', slug, episode_id, 'downloading', 5)
+        with common._measure_run_stage('download'):
+            try:
+                result = download.download(video_id, want_captions=want_captions, language=language)
+            except download.DownloadError as exc:
+                if exc.needs_update:
+                    audio_logger.warning(f"[{slug}:{episode_id}] yt-dlp looks outdated; updating before retry")
+                    ytdlp.update_binary(storage, db, force=True)
+                raise Exception(str(exc)) from exc
+        work_dir = os.path.dirname(result.audio_path)
+        try:
+            audio_path = common._copy_retained_original_to_temp(result.audio_path)
+            if want_captions:
+                segments = captions.load_segments(result.captions_path)
+        finally:
+            shutil.rmtree(work_dir, ignore_errors=True)
+        chapters = result.chapters
+    outcome['youtube_audio_path'] = audio_path
+    if segments:
+        outcome['preloaded_segments'] = segments
+
+    try:
+        duration = audio_processor.get_audio_duration(audio_path)
+        marks = sponsorblock.fetch_segments(video_id)
+        markers, note = sponsorblock.to_markers(marks or [], duration)
+        manual = bool(reprocess_mode) or (episode_data or {}).get('reprocess_source') is not None
+        exhausted = (episode_data or {}).get('sb_state') == 'exhausted'
+        if markers and not llm_on_top(podcast):
+            mode = 'sponsorblock'
+        elif markers or resolved.llm_fallback or manual or exhausted:
+            mode = 'llm'
+        else:
+            raise SponsorBlockUnavailable(
+                'No SponsorBlock marks yet; the episode stays unpublished until marks appear')
+    except BaseException:
+        if os.path.exists(audio_path):
+            os.unlink(audio_path)
+        raise
+    audio_logger.info(f"[{slug}:{episode_id}] SponsorBlock: {len(markers)} segment(s), mode={mode}, "
+                      f"captions={'yes' if segments else 'no'}")
+    return YouTubeRun(audio_path, segments, markers, note, mode, bool(segments), resolved, chapters)
+
+
+def after_success(slug, episode_id, run: YouTubeRun, episode_data=None):
+    """Persist the SponsorBlock watch state once the episode is published."""
+    prior = (episode_data or {}).get('sb_state')
+    if run.markers:
+        state = 'done'
+        next_check = (datetime.now(timezone.utc) + timedelta(hours=run.resolved.watch_interval_hours)).isoformat()
+    elif prior in ('llm', 'exhausted'):
+        state, next_check = prior, None
+    else:
+        state, next_check = 'llm', None
+    db.update_episode_sponsorblock(
+        slug, episode_id, sb_state=state, sb_next_check_at=next_check, sb_last_error=None,
+        sb_segment_uuids=json.dumps(sponsorblock.uuid_set(run.markers)), sb_note=run.note)

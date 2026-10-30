@@ -789,6 +789,11 @@ def _recut_processed_audio(slug, episode_id, processed_path, v_ads_to_cut,
     return processed_path, None, False
 
 
+def skipped_verification(processed_path):
+    """The _run_verification_pass result for a run that never scanned."""
+    return 0, [], [], [], processed_path, 0, False, 0
+
+
 def _run_verification_pass(ctx, processed_path, pass1_cuts,
                             skip_patterns, min_cut_confidence,
                             local_audio_processor, progress_callback,
@@ -830,7 +835,7 @@ def _run_verification_pass(ctx, processed_path, pass1_cuts,
     complete, skipped included, so callers do not report a clean scan.
     """
     if skip_verification:
-        return 0, [], [], [], processed_path, 0, False, 0
+        return skipped_verification(processed_path)
     slug = ctx.slug
     episode_id = ctx.episode_id
     podcast_name = ctx.podcast_name

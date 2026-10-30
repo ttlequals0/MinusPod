@@ -29,7 +29,7 @@ from config import (
 from ad_chapters import ID3_CHAPTER_SOURCE_KEY, public_chapters
 from storage import is_chapter_image_filename
 from database.downloads import capture_request
-from database.podcasts import has_upstream, is_local_feed
+from database.podcasts import has_upstream, is_local_feed, is_youtube_feed
 from database.queue import compute_queue_priority
 from rss_parser import (
     RSS_RENDER_VERSION,
@@ -600,7 +600,7 @@ def register_routes(app):
         # branch is the hottest path in the app and must not pay for a
         # podcast row it never uses.
         podcast = db.get_podcast_by_slug(slug)
-        local_feed = is_local_feed(podcast)
+        local_feed = is_local_feed(podcast) or is_youtube_feed(podcast)
 
         if status == EpisodeStatus.PERMANENTLY_FAILED:
             ep_key = f"{slug}:{episode_id}"

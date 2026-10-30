@@ -8,7 +8,7 @@ from config import (
     resolve_tail_retranscribe_tunables,
 )
 
-from database.podcasts import is_local_feed
+from database.podcasts import is_local_feed, is_youtube_feed
 from transcriber import CDN_REFUSED_PREFIX
 from user_agent import download_user_agent, feed_user_agent
 from utils.episode_paths import published_episode_version
@@ -100,6 +100,10 @@ CDN_BLOCKED_MESSAGE = 'CDN blocked the request (403) with both User-Agents'
 def _download_episode_audio(episode_url, podcast=None, outcome=None):
     """Check CDN availability and download the enclosure. Returns the temp
     audio path; raises on either failure."""
+    if outcome and outcome.get('youtube_audio_path'):
+        return outcome['youtube_audio_path']
+    if is_youtube_feed(podcast):
+        raise Exception('YouTube audio must be acquired by the SponsorBlock stage')
     with common._measure_run_stage('download'):
         url_for_log = safe_url_for_log(
             episode_url, keep_path=True, keep_query=log_download_query_enabled())
@@ -144,6 +148,8 @@ def _resolve_audio_path(slug, episode_id, episode_url, podcast, outcome):
     off the retained original. Local originals are never re-downloadable
     (original_url is a local:// sentinel), so a missing one is a hard failure.
     """
+    if outcome and outcome.get('youtube_audio_path'):
+        return outcome['youtube_audio_path']
     original_path = storage.get_original_path(slug, episode_id)
     if original_path and os.path.exists(original_path):
         audio_logger.info(f"[{slug}:{episode_id}] Reusing retained original audio (skipped download)")
@@ -212,7 +218,9 @@ def _download_and_transcribe(slug, episode_id, episode_url,
     outcome['segments_reused'] = False
     if skip_transcription:
         original_path = storage.get_original_path(slug, episode_id)
-        if original_path and os.path.exists(original_path):
+        if outcome.get('youtube_audio_path'):
+            audio_path = outcome['youtube_audio_path']
+        elif original_path and os.path.exists(original_path):
             audio_path = common._copy_retained_original_to_temp(original_path)
             audio_logger.info(f"[{slug}:{episode_id}] Reusing retained original audio (skipped download)")
         elif is_local_feed(podcast):
@@ -271,23 +279,32 @@ def _download_and_transcribe(slug, episode_id, episode_url,
     else:
         audio_path = _resolve_audio_path(slug, episode_id, episode_url, podcast, outcome)
 
-        common._publish_status('update_job_stage', slug, episode_id, "pass1:transcribing", 20)
-        audio_logger.info(f"[{slug}:{episode_id}] Starting transcription")
-        language_override = get_feed_language_override(db, slug)
-        with common._measure_run_stage('transcription'):
-            segments = transcriber.transcribe_chunked(
-                audio_path, language_override=language_override,
-            )
-        if not segments:
-            raise Exception("Failed to transcribe audio")
+        preloaded = outcome.get('preloaded_segments')
+        if preloaded:
+            segments = preloaded
+            empty_holes = []
+            outcome['transcript_source'] = 'youtube_captions'
+            _apply_transcript_corrections(slug, episode_id, segments)
+            audio_logger.info(
+                f"[{slug}:{episode_id}] Using YouTube captions as the transcript ({len(segments)} segments)")
+        else:
+            common._publish_status('update_job_stage', slug, episode_id, "pass1:transcribing", 20)
+            audio_logger.info(f"[{slug}:{episode_id}] Starting transcription")
+            language_override = get_feed_language_override(db, slug)
+            with common._measure_run_stage('transcription'):
+                segments = transcriber.transcribe_chunked(
+                    audio_path, language_override=language_override,
+                )
+            if not segments:
+                raise Exception("Failed to transcribe audio")
 
-        _apply_transcript_corrections(slug, episode_id, segments)
+            _apply_transcript_corrections(slug, episode_id, segments)
 
-        duration_min = segments[-1]['end'] / 60
-        audio_logger.info(f"[{slug}:{episode_id}] Transcription complete: {len(segments)} segments, {duration_min:.1f} min")
+            duration_min = segments[-1]['end'] / 60
+            audio_logger.info(f"[{slug}:{episode_id}] Transcription complete: {len(segments)} segments, {duration_min:.1f} min")
 
-        segments, _added, empty_holes = _repair_transcript(
-            slug, episode_id, audio_path, segments, language_override)
+            segments, _added, empty_holes = _repair_transcript(
+                slug, episode_id, audio_path, segments, language_override)
 
         transcript_text = transcriber.segments_to_text(segments)
         if force_transcription:

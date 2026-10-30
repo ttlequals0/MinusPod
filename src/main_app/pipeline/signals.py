@@ -25,7 +25,7 @@ from config import (
     resolve_differential_fetch_mode,
 )
 
-from database.podcasts import is_local_feed
+from database.podcasts import is_local_feed, is_youtube_feed
 from transcript_differential import align, fetch_upstream_transcript
 from splice_calibration import compute_splice_calibration
 from user_agent import download_user_agent
@@ -176,9 +176,9 @@ def _run_differential_fetch(slug, episode_id, episode_url, audio_path, podcast_i
     per-episode db.get_podcast_by_slug on this worker thread). None is
     treated as non-local, matching the behavior when no row is available.
     """
-    if is_local_feed(podcast):
+    if is_local_feed(podcast) or is_youtube_feed(podcast):
         audio_logger.debug(
-            f"[{slug}:{episode_id}] Differential fetch skipped: local feed")
+            f"[{slug}:{episode_id}] Differential fetch skipped: no upstream enclosure")
         return None
     try:
         explicit = resolve_differential_fetch_mode(db, podcast_id)
