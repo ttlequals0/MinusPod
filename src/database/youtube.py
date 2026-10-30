@@ -46,7 +46,7 @@ class YouTubeMixin:
             """SELECT e.episode_id, e.title, e.original_url, e.published_at, e.description,
                       e.status, e.youtube_video_id, e.sb_state, e.sb_attempts,
                       e.sb_next_check_at, e.sb_segment_uuids, e.podcast_id,
-                      e.original_duration, p.slug
+                      e.original_duration, e.created_at, p.slug
                FROM episodes e JOIN podcasts p ON p.id = e.podcast_id
                WHERE p.feed_type = 'youtube' AND e.sb_next_check_at IS NOT NULL
                      AND e.sb_next_check_at <= ?

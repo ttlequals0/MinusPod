@@ -262,3 +262,14 @@ class TestGeoLookupThread:
         monkeypatch.setattr(background.geo_lookup, 'run_geo_lookup',
                             lambda db: (_ for _ in ()).throw(RuntimeError('boom')))
         background._run_geo_lookup_safely()
+
+
+class TestYouTubeTicksWired:
+    def test_sponsorblock_and_ytdlp_ticks_run_each_pass(self, monkeypatch):
+        names = []
+        _run_refresh_loop(monkeypatch, [_outage_result(False)], 1)
+        monkeypatch.setattr(background, '_run_tick', lambda fn, name: names.append(name))
+        monkeypatch.setattr(background, 'shutdown_event', _FakeEvent(1))
+        background.background_rss_refresh()
+        assert 'youtube_sponsorblock_tick' in names
+        assert 'youtube_ytdlp_update_tick' in names
