@@ -117,12 +117,11 @@ def _mark(sponsor, **extra):
             'category': 'sponsor', **extra}
 
 
-def test_sponsorblock_mark_learns_with_label_sponsor():
+def test_sponsorblock_label_sponsor_mark_makes_no_pattern_attempt():
     d = _learner()
     segs = [{'start': 10.0, 'end': 60.0, 'text': 'this is a long sponsor read'}]
-    assert d.learn_from_detections([_mark('Intro', label_sponsor=True)], segs, 'example-podcast', 'a1b2c3d4e5f6') == 1
-    d.text_pattern_matcher.create_patterns_from_ad.assert_called_once()
-    assert d.text_pattern_matcher.create_patterns_from_ad.call_args.kwargs['sponsor'] == 'Intro'
+    assert d.learn_from_detections([_mark('Intro', label_sponsor=True)], segs, 'example-podcast', 'a1b2c3d4e5f6') == 0
+    d.text_pattern_matcher.create_patterns_from_ad.assert_not_called()
 
 
 def test_sponsorblock_mark_learns_registry_sponsor():

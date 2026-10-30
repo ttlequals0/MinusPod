@@ -2904,6 +2904,10 @@ class AdDetector:
         if ad.get('_skip_pattern_learning'):
             return False
 
+        # A category label names no sponsor, so a text pattern from it is always rejected.
+        if ad.get('label_sponsor'):
+            return False
+
         if ad.get('detection_stage') not in LEARNABLE_STAGES:
             return False
 
@@ -3047,9 +3051,6 @@ class AdDetector:
 
         Returns True if the sponsor should be rejected.
         """
-        if (ad or {}).get('label_sponsor'):
-            return False
-
         # Gate A: reject sponsors that are strict prefixes of known sponsors
         if self.sponsor_service:
             sponsor_lower = sponsor.lower()

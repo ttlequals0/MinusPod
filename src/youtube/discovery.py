@@ -270,8 +270,9 @@ def _single_video_from_api(key: str, video_id: str, *, proxy: str = '') -> list[
             if not _keep(duration, bool(live) and not live.get('actualEndTime'), True, False):
                 continue
             sn = item.get('snippet', {})
-            episodes.append(_episode(item['id'], sn.get('title'), sn.get('description'),
-                                     sn.get('publishedAt') or '', duration, _best_thumb(sn.get('thumbnails'))))
+            episodes.append({**_episode(item['id'], sn.get('title'), sn.get('description'),
+                                        sn.get('publishedAt') or '', duration, _best_thumb(sn.get('thumbnails'))),
+                             'metadata_complete': True})
         return episodes
     except (KeyError, IndexError, TypeError, AttributeError):
         raise DiscoveryError('YouTube Data API returned an unexpected payload') from None
@@ -318,8 +319,9 @@ def _parse_api_listing(key, playlist_id, limit, include_shorts, longform, full=F
             if not _keep(duration, is_live, include_shorts, longform):
                 continue
             sn = item.get('snippet', {})
-            by_id[item['id']] = _episode(item['id'], sn.get('title'), sn.get('description'),
-                                         sn.get('publishedAt') or '', duration, _best_thumb(sn.get('thumbnails')))
+            by_id[item['id']] = {**_episode(item['id'], sn.get('title'), sn.get('description'),
+                                            sn.get('publishedAt') or '', duration, _best_thumb(sn.get('thumbnails'))),
+                                 'metadata_complete': True}
     episodes = []
     for vid in ids:
         if vid in by_id:

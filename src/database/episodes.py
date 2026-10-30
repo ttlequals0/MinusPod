@@ -1655,8 +1655,8 @@ class EpisodeMixin:
                    (podcast_id, episode_id, original_url, title, description,
                     artwork_url, episode_number, published_at, rss_duration,
                     upstream_chapters_url, upstream_transcript_url,
-                    upstream_transcript_type, tags, youtube_video_id, status)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'discovered')
+                    upstream_transcript_type, tags, youtube_video_id, yt_metadata_at, status)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'discovered')
                    ON CONFLICT(podcast_id, episode_id) DO UPDATE SET
                     episode_number = COALESCE(excluded.episode_number, episodes.episode_number),
                     published_at = COALESCE(excluded.published_at, episodes.published_at),
@@ -1699,6 +1699,7 @@ class EpisodeMixin:
                     ep.get('upstream_transcript_type'),
                     tags_json,
                     ep.get('video_id'),
+                    utc_now_iso() if ep.get('metadata_complete') else None,
                 )
             )
             if ep['id'] not in existing_by_id:

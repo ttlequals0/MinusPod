@@ -106,7 +106,10 @@ def _run_batch(db):
                 fields = fill_fields(row, infos.get(vid, {}))
                 if fields.get('description'):
                     filled += 1
-                db.upsert_episode(row['slug'], row['episode_id'], yt_metadata_at=utc_now_iso(), **fields)
+                try:
+                    db.upsert_episode(row['slug'], row['episode_id'], yt_metadata_at=utc_now_iso(), **fields)
+                except ValueError:
+                    logger.debug(f"YouTube metadata backfill: skipping {row['slug']}/{row['episode_id']}, feed removed during backfill")
             logger.info(f"YouTube metadata backfill: filled {filled} of {len(rows)} episode(s)")
     except Exception:
         ok = False

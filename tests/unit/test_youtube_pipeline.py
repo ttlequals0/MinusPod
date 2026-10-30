@@ -587,15 +587,13 @@ def test_marks_are_named_from_caption_text_or_category_label():
     assert marks[2]['sponsor'] == 'Intro' and marks[2]['label_sponsor'] is True
 
 
-def test_label_sponsor_mark_passes_gates_and_learns_under_its_sponsor():
+def test_label_sponsor_mark_is_not_a_learning_candidate():
     from ad_detector import AdDetector
     detector = AdDetector.__new__(AdDetector)
-    detector.sponsor_service = None
     detector.db = None
     sb = dict(MARKERS[0], category='self_promo', sponsor='Self promotion', label_sponsor=True)
-    assert detector._ad_passes_learning_filters(sb, 0.8)
-    assert detector._resolve_sponsor_for_learning(sb) == 'Self promotion'
-    assert not detector._sponsor_blocked_by_gates('Self promotion', set(), sb)
+    assert not detector._ad_passes_learning_filters(sb, 0.8)
+    assert detector._ad_passes_learning_filters({k: v for k, v in sb.items() if k != 'label_sponsor'}, 0.8)
 
 
 def test_episode_json_carries_sponsorblock_block_only_for_youtube():

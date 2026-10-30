@@ -199,3 +199,15 @@ def test_batch_exception_throttles_and_clears_transaction():
         metadata._run_batch(db)
     assert metadata._next_run > utc_now()
     db.clear_leaked_transaction.assert_called_once()
+
+
+def test_batch_skips_a_row_whose_feed_was_deleted():
+    rows = _two_rows()
+    db = _db(rows)
+    db.upsert_episode.side_effect = [ValueError('Podcast not found: s'), None]
+    with _enabled(), patch.object(metadata, 'fetch_info', return_value={
+            'vid1': {'id': 'vid1', 'description': 'A'}, 'vid2': {'id': 'vid2', 'description': 'B'}}), \
+            patch.object(metadata.logger, 'exception') as err:
+        metadata._run_batch(db)
+    assert [c[0][1] for c in db.upsert_episode.call_args_list] == ['e1', 'e2']
+    err.assert_not_called()
