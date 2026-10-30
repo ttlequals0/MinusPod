@@ -60,6 +60,19 @@ def test_items_come_from_every_source_and_point_at_source_urls(recents):
     assert '/episodes/recents/' not in xml
 
 
+def test_youtube_source_episode_renders_with_its_title_prefix(recents):
+    mf.db.create_podcast('delta', 'youtube://delta', 'Delta Channel', feed_type='youtube')
+    try:
+        mf.db.upsert_episode('delta', 'ddddddddddd1', original_url='https://example.com/d1.mp3',
+                             title='Delta one', status='processed',
+                             published_at='2026-09-12T00:00:00Z', processed_file='/d1.mp3')
+        feed = feedparser.parse(build_recents_feed_xml(recents, _rows(recents), storage=mf.storage, db=mf.db))
+        assert feed.entries[0].title == 'Delta Channel: Delta one'
+        assert feed.entries[0].enclosures[0].href.endswith('/episodes/delta/ddddddddddd1.mp3')
+    finally:
+        mf.db.delete_podcast('delta')
+
+
 def test_transcript_and_chapter_tags_come_from_the_row(recents):
     mf.storage.save_transcript_vtt('alpha', 'aaaaaaaaaaa2', 'WEBVTT\n')
     mf.storage.save_chapters_json('alpha', 'aaaaaaaaaaa2', {'version': '1.2.0', 'chapters': [

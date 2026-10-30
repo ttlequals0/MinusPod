@@ -1174,11 +1174,11 @@ class EpisodeMixin:
         return [dict(row) for row in cursor.fetchall()]
 
     # Membership of the recents feed (#721): processed episodes across
-    # subscribed and local feeds published on or after the cutoff. Publish
+    # subscribed, local and YouTube feeds published on or after the cutoff. Publish
     # date only: a backlog episode processed later keeps its old date.
     _RECENTS_WHERE = ("FROM episodes e JOIN podcasts p ON p.id = e.podcast_id "
                       "WHERE e.status = 'processed' AND e.processed_file IS NOT NULL "
-                      "AND p.feed_type IN ('subscribed', 'local') "
+                      "AND p.feed_type IN ('subscribed', 'local', 'youtube') "
                       "AND e.published_at IS NOT NULL AND e.published_at >= ?")
     _RECENTS_SOURCE_COLS = ("p.slug AS source_slug, "
                             "COALESCE(NULLIF(p.title_override, ''), NULLIF(p.title, ''), p.slug) AS source_title, "

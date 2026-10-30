@@ -61,6 +61,19 @@ def test_membership_uses_publish_date_not_processing_time():
     assert rows[0]['source_title_skip_patterns'] == json.dumps(['s01*'])
 
 
+def test_youtube_feed_episodes_are_members():
+    db = _db()
+    _seed_source('delta', feed_type='youtube')
+    _seed_episode('delta', 'ddddddddddd1', '2026-09-10T00:00:00Z')
+    _seed_episode('delta', 'ddddddddddd2', '2026-09-11T00:00:00Z', status='pending', processed_file=None)
+    rows = db.get_recent_processed_episodes('2026-09-05')
+    assert [(r['source_slug'], r['episode_id']) for r in rows] == [('delta', 'ddddddddddd1')]
+    assert rows[0]['source_feed_type'] == 'youtube'
+    assert db.count_recent_processed_episodes('2026-09-05') == 1
+    assert db.is_recent_processed_episode('delta', 'ddddddddddd1', '2026-09-05') is True
+    assert db.is_recent_processed_episode('delta', 'ddddddddddd2', '2026-09-05') is False
+
+
 def test_membership_paginates_and_never_includes_a_recents_row():
     db = _db()
     _seed_source('gamma')

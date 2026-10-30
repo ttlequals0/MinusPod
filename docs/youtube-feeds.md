@@ -100,6 +100,8 @@ A failed SponsorBlock lookup is retried at the state's normal interval, capped a
 
 The served RSS contains processed episodes only. An episode that is still waiting for marks is not in the feed, so a podcast app never receives the original video audio.
 
+Processed YouTube episodes also appear in the combined Recents feed.
+
 Manual **Process** or **Reprocess** on a waiting episode skips the wait. With no marks yet it runs the LLM pipeline; with marks it uses them like an automatic run.
 
 ### Episode states
