@@ -1,5 +1,5 @@
 import { useMemo, useRef, type KeyboardEvent } from 'react';
-import { ChevronLeft, ChevronRight, Gauge, Pause, Play, SkipBack, SkipForward } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Gauge, Pause, Play, RotateCcw, RotateCw } from 'lucide-react';
 import { SKIP_BACK_SECONDS, SKIP_FORWARD_SECONDS, formatRate, useEpisodePlayer } from '../hooks/useEpisodePlayer';
 import { formatTimestamp } from '../utils/format';
 import { btnBase, btnGhost, btnPrimary, touchTarget } from './buttonStyles';
@@ -11,7 +11,9 @@ interface EpisodePlayerProps {
 }
 
 const ghostBtn = `${btnBase} ${btnGhost} ${touchTarget} touch-manipulation`;
-const skipBtn = `${ghostBtn} flex-col gap-0`;
+const skipBtn = ghostBtn;
+const skipIcon = 'h-8 w-8';
+const skipNum = 'absolute inset-0 flex items-center justify-center text-[10px] font-semibold leading-none tabular-nums';
 
 export default function EpisodePlayer({ src, chaptersUrl }: EpisodePlayerProps) {
   const audioRef = useRef<HTMLAudioElement>(null);
@@ -94,9 +96,11 @@ export default function EpisodePlayer({ src, chaptersUrl }: EpisodePlayerProps) 
       <div className="mt-2 grid grid-cols-[1fr_auto_1fr] items-center">
         <span aria-hidden="true" />
         <div className="flex items-center gap-3">
-          <button type="button" aria-label={`Back ${SKIP_BACK_SECONDS} seconds`} onClick={() => p.skip(-SKIP_BACK_SECONDS)} className={`${skipBtn}`}>
-            <SkipBack className="h-4 w-4" aria-hidden="true" />
-            <span className="text-[10px] leading-none tabular-nums">{SKIP_BACK_SECONDS}</span>
+          <button type="button" aria-label={`Back ${SKIP_BACK_SECONDS} seconds`} onClick={() => p.skip(-SKIP_BACK_SECONDS)} className={skipBtn}>
+            <span className="relative inline-flex">
+              <RotateCcw className={skipIcon} aria-hidden="true" />
+              <span className={skipNum}>{SKIP_BACK_SECONDS}</span>
+            </span>
           </button>
           <button
             type="button"
@@ -106,9 +110,11 @@ export default function EpisodePlayer({ src, chaptersUrl }: EpisodePlayerProps) 
           >
             {p.playing ? <Pause className="h-6 w-6" aria-hidden="true" /> : <Play className="h-6 w-6" aria-hidden="true" />}
           </button>
-          <button type="button" aria-label={`Forward ${SKIP_FORWARD_SECONDS} seconds`} onClick={() => p.skip(SKIP_FORWARD_SECONDS)} className={`${skipBtn}`}>
-            <SkipForward className="h-4 w-4" aria-hidden="true" />
-            <span className="text-[10px] leading-none tabular-nums">{SKIP_FORWARD_SECONDS}</span>
+          <button type="button" aria-label={`Forward ${SKIP_FORWARD_SECONDS} seconds`} onClick={() => p.skip(SKIP_FORWARD_SECONDS)} className={skipBtn}>
+            <span className="relative inline-flex">
+              <RotateCw className={skipIcon} aria-hidden="true" />
+              <span className={skipNum}>{SKIP_FORWARD_SECONDS}</span>
+            </span>
           </button>
         </div>
         <div className="flex justify-end">
