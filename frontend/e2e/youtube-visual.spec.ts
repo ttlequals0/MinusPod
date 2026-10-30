@@ -163,6 +163,13 @@ async function mockApi(page: Page) {
   });
 }
 
+async function routeEpisode(page: Page, extra: Record<string, unknown>) {
+  await page.route(`**/api/v1/feeds/${SLUG}/episodes/${EPISODE_ID}`, (route) => route.fulfill({
+    contentType: 'application/json',
+    body: JSON.stringify({ ...episodeDetail, ...extra }),
+  }));
+}
+
 async function seedOpen(page: Page) {
   await page.addInitScript(() => { localStorage.setItem('settings-section-youtube', 'true'); localStorage.setItem('youtube-feed-example-youtube', 'true'); });
 }
@@ -267,10 +274,7 @@ for (const width of WIDTHS) {
 
     test('episode detail youtube reprocess menu', async ({ page }) => {
       test.skip(width !== 390 && width !== 768, 'menu check runs at 390 and 768');
-      await page.route(`**/api/v1/feeds/${SLUG}/episodes/${EPISODE_ID}`, (route) => route.fulfill({
-        contentType: 'application/json',
-        body: JSON.stringify({ ...episodeDetail, transcriptAvailable: true }),
-      }));
+      await routeEpisode(page, { transcriptAvailable: true });
       await page.goto(`feeds/${SLUG}/episodes/${EPISODE_ID}`);
       await expect(page.getByText(/SponsorBlock: 4 segments/).first()).toBeVisible({ timeout: 15_000 });
       await page.getByRole('button', { name: 'Reprocess' }).click();
@@ -286,7 +290,7 @@ for (const width of WIDTHS) {
 
 const sponsorBlockRun = {
   runNumber: 1,
-  processedAt: iso(-80_000_000),
+  processedAt: sbEpisodes[1].processedAt,
   status: 'completed',
   adsDetected: 2,
   processingDurationSeconds: 48,
@@ -320,10 +324,7 @@ for (const width of [390, 1024]) {
 
     test('elapsed by stage shows SponsorBlock lookup and skipped audio analysis', async ({ page }) => {
       await mockApi(page);
-      await page.route(`**/api/v1/feeds/${SLUG}/episodes/${EPISODE_ID}`, (route) => route.fulfill({
-        contentType: 'application/json',
-        body: JSON.stringify({ ...episodeDetail, processingRuns: [sponsorBlockRun] }),
-      }));
+      await routeEpisode(page, { processingRuns: [sponsorBlockRun] });
       await page.goto(`feeds/${SLUG}/episodes/${EPISODE_ID}`);
       await page.getByRole('heading', { name: 'Processing stats' }).click();
       await page.getByRole('button', { name: /show phase breakdown for run #1/i }).click();
@@ -337,7 +338,7 @@ for (const width of [390, 1024]) {
       await page.waitForTimeout(300);
       expect(page.viewportSize()!.width).toBe(width);
       await expectNoOverflow(page);
-      await page.screenshot({ path: path.join(SHOTS, `run-stages-${width}.png`), fullPage: false });
+      await shoot(page, 'run-stages', width);
     });
   });
 }

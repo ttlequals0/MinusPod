@@ -502,172 +502,171 @@ def _generate_assets(slug, episode_id, segments, all_cuts, episode_description,
             pending_assets['transcript_text'] = processed_text
 
         chapters_enabled = db.get_setting('chapters_enabled')
-        if not regenerate_chapters:
-            audio_logger.info(f"[{slug}:{episode_id}] Skipping chapter regeneration (no AI call)")
-            _remap_stored_chapters(slug, episode_id, all_cuts,
-                                   replacement_duration, previous_cuts,
-                                   original_duration,
-                                   audio_path=audio_path,
-                                   audio_duration=audio_duration,
-                                   markers=markers, podcast_row=podcast_row, pending_assets=pending_assets)
-        elif chapters_enabled is None or chapters_enabled.lower() == 'true':
-            if podcast_row is None:
-                podcast_row = db.get_podcast_by_slug(slug)
-            chapters_mode = resolve_chapters_mode(podcast_row, db=db)
-            if chapters_mode == CHAPTERS_MODE_OFF:
-                audio_logger.info(f"[{slug}:{episode_id}] Chapters mode 'off'; skipping chapter step")
-                return
-            ad_config = resolve_ad_chapter_config(db, podcast_row)
-            # 'auto' probes the PROCESSED file: the ffmpeg cut step already
-            # remapped publisher ID3 CHAP frames onto the cut timeline
-            # (audio_processor.py), so a probe here gives the remapped list
-            # for free with no extra work. 'generate' never probes, so it
-            # always falls through to the generator below regardless of what
-            # publisher chapters exist.
-            publisher = []
-            if chapters_mode == CHAPTERS_MODE_AUTO and audio_path:
-                publisher = probe_chapters(str(audio_path))
-                if publisher is None:
-                    # Probe failed (e.g. transient ffprobe error), not "the
-                    # file definitively has no chapters" (embedded_chapters.
-                    # probe_chapters). Falling through to the generate+embed
-                    # path below would overwrite the ID3 frames the cut step
-                    # already wrote correctly, the exact failure mode issue
-                    # #500 prevents at the ffmpeg layer. Skip the chapter
-                    # step this run instead of guessing.
-                    audio_logger.warning(
-                        f"[{slug}:{episode_id}] Chapter probe failed after "
-                        f"cut; skipping chapter step this run")
-                    return
-            preserving_source = any(ch.get('_id3_id') for ch in publisher)
-            if len(publisher) >= MIN_PRESERVED_CHAPTERS or preserving_source:
-                with common._measure_run_stage('chapters'):
-                    entries = _publisher_chapter_entries(publisher)
-                    chapters_json = {'version': '1.2.0', 'chapters': entries}
-                    if preserving_source:
-                        chapters_json[ID3_CHAPTER_SOURCE_KEY] = 'id3'
-                    base = chapters_json['chapters']
-                    _queue_chapter_trim(slug, episode_id, base, podcast_row, all_cuts,
-                                        replacement_duration, audio_duration,
-                                        original_duration, markers, 'upstream_chapter')
-                    merged = merge_ad_chapters(base, markers, all_cuts or [],
-                                               audio_duration, replacement_duration,
-                                               ad_config)
-                    # The cut step already embedded the publisher frames, so the
-                    # re-embed only runs when ad entries were added on top.
-                    _publish_chapters(
-                        slug, episode_id, chapters_json, merged, all_cuts,
-                        audio_path, audio_duration, merged != base,
-                        f"Preserved {len(publisher)} publisher chapter(s) (no AI call)", pending_assets=pending_assets)
-                return
-            # Embedded chapters came up short. Some feeds publish chapters
-            # only as a separate podcast:chapters JSON file (issue #560
-            # follow-up), captured at RSS refresh as
-            # episodes.upstream_chapters_url; try fetching that next, before
-            # falling back to generation. The probe above must not risk
-            # overwriting correctly-embedded ID3 frames on a failed read, so
-            # it skips the run instead. A fetch failure here (None) has no
-            # such risk, so it is deliberately let through to the generator: a
-            # bad or unreachable remote file must not block chapters
-            # outright, only lose the chance to preserve the publisher's own
-            # set.
-            if chapters_mode == CHAPTERS_MODE_AUTO and original_duration:
-                episode_row = db.get_episode(slug, episode_id)
-                upstream_url = (episode_row or {}).get('upstream_chapters_url')
-                with common._measure_run_stage('chapters'):
-                    if upstream_url:
-                        fetched = fetch_upstream_chapters(upstream_url, user_agent=download_user_agent(podcast_row))
-                        if fetched is not None:
-                            remapped = _remap_chapters_for_recut(
-                                fetched, [], all_cuts or [], replacement_duration,
-                                original_duration, audio_duration)
-                            if len(remapped) >= MIN_PRESERVED_CHAPTERS:
-                                chapters_json = {
-                                    'version': '1.2.0',
-                                    'chapters': [
-                                        {**ch, 'title': ch.get('title') or f"Chapter {i + 1}"}
-                                        for i, ch in enumerate(remapped)
-                                    ],
-                                }
-                                _queue_chapter_trim(
-                                    slug, episode_id, fetched, podcast_row, all_cuts,
-                                    replacement_duration, audio_duration,
-                                    original_duration, markers, 'upstream_chapter',
-                                    original_timeline=True)
-                                merged = merge_ad_chapters(
-                                    chapters_json['chapters'], markers,
-                                    all_cuts or [], audio_duration,
-                                    replacement_duration, ad_config)
-                                # Unlike the embedded-preserve path above, the
-                                # served file has no chapter frames yet, so this
-                                # always embeds.
-                                _publish_chapters(
-                                    slug, episode_id, chapters_json, merged,
-                                    all_cuts, audio_path, audio_duration, True,
-                                    f"Preserved {len(remapped)} upstream JSON "
-                                    f"chapter(s) (no AI call)", pending_assets=pending_assets)
-                                return
-            chapters_gen = None
-            chapter_setup_failed = False
+        if not regenerate_chapters or chapters_enabled is None or chapters_enabled.lower() == 'true':
             with common._measure_run_stage('chapters'):
-                try:
-                    chapters_gen = ChaptersGenerator()
-                    clear_fallback(episode_id, PASS_CHAPTER_GENERATION)
-                    chapters = chapters_gen.generate_chapters(
-                        segments,
-                        episode_description=episode_description,
-                        ads_removed=all_cuts,
-                        podcast_name=podcast_name,
-                        episode_title=episode_title,
-                        episode_id=episode_id,
-                        replacement_duration=replacement_duration,
-                        segment_markers=markers,
-                        slug=slug,
-                        chapter_notes=(podcast_row or {}).get('chapter_notes'),
-                    )
-                except ProviderRateLimitedError as e:
-                    # The audio is already cut, so hold the queue and publish ad
-                    # chapters only rather than failing the run.
-                    hold_until = None
+                if not regenerate_chapters:
+                    audio_logger.info(f"[{slug}:{episode_id}] Skipping chapter regeneration (no AI call)")
+                    _remap_stored_chapters(slug, episode_id, all_cuts,
+                                           replacement_duration, previous_cuts,
+                                           original_duration,
+                                           audio_path=audio_path,
+                                           audio_duration=audio_duration,
+                                           markers=markers, podcast_row=podcast_row, pending_assets=pending_assets)
+                else:
+                    if podcast_row is None:
+                        podcast_row = db.get_podcast_by_slug(slug)
+                    chapters_mode = resolve_chapters_mode(podcast_row, db=db)
+                    if chapters_mode == CHAPTERS_MODE_OFF:
+                        audio_logger.info(f"[{slug}:{episode_id}] Chapters mode 'off'; skipping chapter step")
+                        return
+                    ad_config = resolve_ad_chapter_config(db, podcast_row)
+                    # 'auto' probes the PROCESSED file: the ffmpeg cut step already
+                    # remapped publisher ID3 CHAP frames onto the cut timeline
+                    # (audio_processor.py), so a probe here gives the remapped list
+                    # for free with no extra work. 'generate' never probes, so it
+                    # always falls through to the generator below regardless of what
+                    # publisher chapters exist.
+                    publisher = []
+                    if chapters_mode == CHAPTERS_MODE_AUTO and audio_path:
+                        publisher = probe_chapters(str(audio_path))
+                        if publisher is None:
+                            # Probe failed (e.g. transient ffprobe error), not "the
+                            # file definitively has no chapters" (embedded_chapters.
+                            # probe_chapters). Falling through to the generate+embed
+                            # path below would overwrite the ID3 frames the cut step
+                            # already wrote correctly, the exact failure mode issue
+                            # #500 prevents at the ffmpeg layer. Skip the chapter
+                            # step this run instead of guessing.
+                            audio_logger.warning(
+                                f"[{slug}:{episode_id}] Chapter probe failed after "
+                                f"cut; skipping chapter step this run")
+                            return
+                    preserving_source = any(ch.get('_id3_id') for ch in publisher)
+                    if len(publisher) >= MIN_PRESERVED_CHAPTERS or preserving_source:
+                        entries = _publisher_chapter_entries(publisher)
+                        chapters_json = {'version': '1.2.0', 'chapters': entries}
+                        if preserving_source:
+                            chapters_json[ID3_CHAPTER_SOURCE_KEY] = 'id3'
+                        base = chapters_json['chapters']
+                        _queue_chapter_trim(slug, episode_id, base, podcast_row, all_cuts,
+                                            replacement_duration, audio_duration,
+                                            original_duration, markers, 'upstream_chapter')
+                        merged = merge_ad_chapters(base, markers, all_cuts or [],
+                                                   audio_duration, replacement_duration,
+                                                   ad_config)
+                        # The cut step already embedded the publisher frames, so the
+                        # re-embed only runs when ad entries were added on top.
+                        _publish_chapters(
+                            slug, episode_id, chapters_json, merged, all_cuts,
+                            audio_path, audio_duration, merged != base,
+                            f"Preserved {len(publisher)} publisher chapter(s) (no AI call)", pending_assets=pending_assets)
+                        return
+                    # Embedded chapters came up short. Some feeds publish chapters
+                    # only as a separate podcast:chapters JSON file (issue #560
+                    # follow-up), captured at RSS refresh as
+                    # episodes.upstream_chapters_url; try fetching that next, before
+                    # falling back to generation. The probe above must not risk
+                    # overwriting correctly-embedded ID3 frames on a failed read, so
+                    # it skips the run instead. A fetch failure here (None) has no
+                    # such risk, so it is deliberately let through to the generator: a
+                    # bad or unreachable remote file must not block chapters
+                    # outright, only lose the chance to preserve the publisher's own
+                    # set.
+                    if chapters_mode == CHAPTERS_MODE_AUTO and original_duration:
+                        episode_row = db.get_episode(slug, episode_id)
+                        upstream_url = (episode_row or {}).get('upstream_chapters_url')
+                        if upstream_url:
+                            fetched = fetch_upstream_chapters(upstream_url, user_agent=download_user_agent(podcast_row))
+                            if fetched is not None:
+                                remapped = _remap_chapters_for_recut(
+                                    fetched, [], all_cuts or [], replacement_duration,
+                                    original_duration, audio_duration)
+                                if len(remapped) >= MIN_PRESERVED_CHAPTERS:
+                                    chapters_json = {
+                                        'version': '1.2.0',
+                                        'chapters': [
+                                            {**ch, 'title': ch.get('title') or f"Chapter {i + 1}"}
+                                            for i, ch in enumerate(remapped)
+                                        ],
+                                    }
+                                    _queue_chapter_trim(
+                                        slug, episode_id, fetched, podcast_row, all_cuts,
+                                        replacement_duration, audio_duration,
+                                        original_duration, markers, 'upstream_chapter',
+                                        original_timeline=True)
+                                    merged = merge_ad_chapters(
+                                        chapters_json['chapters'], markers,
+                                        all_cuts or [], audio_duration,
+                                        replacement_duration, ad_config)
+                                    # Unlike the embedded-preserve path above, the
+                                    # served file has no chapter frames yet, so this
+                                    # always embeds.
+                                    _publish_chapters(
+                                        slug, episode_id, chapters_json, merged,
+                                        all_cuts, audio_path, audio_duration, True,
+                                        f"Preserved {len(remapped)} upstream JSON "
+                                        f"chapter(s) (no AI call)", pending_assets=pending_assets)
+                                    return
+                    chapters_gen = None
+                    chapter_setup_failed = False
                     try:
-                        hold_until = hold_queue_for_provider_limit(
-                            db, e, slug=slug, episode_id=episode_id,
-                            podcast_name=podcast_name, phase='chapters')
+                        chapters_gen = ChaptersGenerator()
+                        clear_fallback(episode_id, PASS_CHAPTER_GENERATION)
+                        chapters = chapters_gen.generate_chapters(
+                            segments,
+                            episode_description=episode_description,
+                            ads_removed=all_cuts,
+                            podcast_name=podcast_name,
+                            episode_title=episode_title,
+                            episode_id=episode_id,
+                            replacement_duration=replacement_duration,
+                            segment_markers=markers,
+                            slug=slug,
+                            chapter_notes=(podcast_row or {}).get('chapter_notes'),
+                        )
+                    except ProviderRateLimitedError as e:
+                        # The audio is already cut, so hold the queue and publish ad
+                        # chapters only rather than failing the run.
+                        hold_until = None
+                        try:
+                            hold_until = hold_queue_for_provider_limit(
+                                db, e, slug=slug, episode_id=episode_id,
+                                podcast_name=podcast_name, phase='chapters')
+                        except Exception:
+                            audio_logger.exception(
+                                f"[{slug}:{episode_id}] Failed to record the rate-limit hold")
+                        chapters = None
+                        chapters_gen.chapters_degraded = True
+                        chapters_gen.chapters_degradation_reason = hold_message(hold_until, e)
+                    except (ProviderAccountChangedError, ProcessingCancelled,
+                            ProcessingOwnershipLost):
+                        raise
                     except Exception:
                         audio_logger.exception(
-                            f"[{slug}:{episode_id}] Failed to record the rate-limit hold")
-                    chapters = None
-                    chapters_gen.chapters_degraded = True
-                    chapters_gen.chapters_degradation_reason = hold_message(hold_until, e)
-                except (ProviderAccountChangedError, ProcessingCancelled,
-                        ProcessingOwnershipLost):
-                    raise
-                except Exception:
-                    audio_logger.exception(
-                        f"[{slug}:{episode_id}] Chapter generation setup failed")
-                    chapters = None
-                    chapter_setup_failed = True
-            chapters_degraded = chapter_setup_failed or bool(
-                chapters_gen and chapters_gen.chapters_degraded)
-            chapters_degraded_reason = (
-                'Chapter generation failed. Check Settings > AI Models and try again.'
-                if chapter_setup_failed else
-                chapters_gen.chapters_degradation_reason if chapters_gen else None)
-            if run_stats is not None and chapters_degraded:
-                run_stats['chapters_degraded'] = True
-                run_stats['chapters_degraded_reason'] = chapters_degraded_reason
-            topic = (chapters or {}).get('chapters') or []
-            _queue_chapter_trim(slug, episode_id, topic, podcast_row, all_cuts,
-                                replacement_duration, audio_duration,
-                                original_duration, markers, 'generated_chapter')
-            merged = merge_ad_chapters(topic, markers, all_cuts or [],
-                                       audio_duration, replacement_duration,
-                                       ad_config)
-            if merged:
-                _publish_chapters(
-                    slug, episode_id, chapters or {'version': '1.2.0'}, merged,
-                    all_cuts, audio_path, audio_duration, True,
-                    f"Generated {len(topic)} chapters", pending_assets=pending_assets)
+                            f"[{slug}:{episode_id}] Chapter generation setup failed")
+                        chapters = None
+                        chapter_setup_failed = True
+                    chapters_degraded = chapter_setup_failed or bool(
+                        chapters_gen and chapters_gen.chapters_degraded)
+                    chapters_degraded_reason = (
+                        'Chapter generation failed. Check Settings > AI Models and try again.'
+                        if chapter_setup_failed else
+                        chapters_gen.chapters_degradation_reason if chapters_gen else None)
+                    if run_stats is not None and chapters_degraded:
+                        run_stats['chapters_degraded'] = True
+                        run_stats['chapters_degraded_reason'] = chapters_degraded_reason
+                    topic = (chapters or {}).get('chapters') or []
+                    _queue_chapter_trim(slug, episode_id, topic, podcast_row, all_cuts,
+                                        replacement_duration, audio_duration,
+                                        original_duration, markers, 'generated_chapter')
+                    merged = merge_ad_chapters(topic, markers, all_cuts or [],
+                                               audio_duration, replacement_duration,
+                                               ad_config)
+                    if merged:
+                        _publish_chapters(
+                            slug, episode_id, chapters or {'version': '1.2.0'}, merged,
+                            all_cuts, audio_path, audio_duration, True,
+                            f"Generated {len(topic)} chapters", pending_assets=pending_assets)
     except (ProviderAccountChangedError, ProcessingCancelled, ProcessingOwnershipLost, ChapterTagError):
         publish_assets = False
         raise

@@ -136,6 +136,9 @@ function TimingBreakdown({ run }: { run: EpisodeProcessingRun }) {
   if (!run.stats?.timings) {
     return <p className="mt-3 border-t border-border/40 pt-2 text-xs text-muted-foreground">Timing unavailable for this run</p>;
   }
+  const stages = TIMING_STAGES.filter(
+    ([key]) => key !== 'sponsorblockSeconds' || run.stats?.timings?.sponsorblockSeconds != null,
+  );
   return (
     <div className="mt-3 w-full border-t border-border/40 pt-2 sm:w-[calc(100cqw-1.5rem)]">
       <h4 className="text-xs font-medium text-muted-foreground">Elapsed by stage</h4>
@@ -143,7 +146,7 @@ function TimingBreakdown({ run }: { run: EpisodeProcessingRun }) {
         Stage times may overlap. FFmpeg totals include all tasks and retries.
       </p>
       <dl className="mt-2 grid grid-cols-1 gap-x-6 gap-y-1 text-xs tabular-nums sm:grid-cols-2 lg:grid-cols-3">
-        {TIMING_STAGES.filter(([key]) => key !== 'sponsorblockSeconds' || run.stats?.timings?.sponsorblockSeconds != null).map(([key, label]) => (
+        {stages.map(([key, label]) => (
           <div key={key} className="flex justify-between gap-3">
             <dt className="text-muted-foreground">{label}</dt>
             <dd className="text-right">{timingValue(run, key)}</dd>

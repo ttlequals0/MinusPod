@@ -410,6 +410,19 @@ def test_generate_assets_records_chapters_stage(monkeypatch):
     assert 'chapters' in ctx.timing.snapshot()
 
 
+def test_generate_assets_remap_only_records_chapters_stage(monkeypatch):
+    _stub_chapters_assets_io(monkeypatch, {})
+    monkeypatch.setattr(publish, '_remap_stored_chapters', lambda *a, **k: None)
+    ctx = run_context.begin('example-podcast', 'chapters-remap')
+    try:
+        publish._generate_assets(
+            'example-podcast', 'chapters-remap', _CHAPTERS_SEGMENTS, [], '', 'Pod', 'Title',
+            regenerate_chapters=False)
+    finally:
+        run_context.end(ctx)
+    assert 'chapters' in ctx.timing.snapshot()
+
+
 def test_generate_assets_chapters_disabled_leaves_chapters_unrecorded(monkeypatch):
     counters = {}
     _stub_chapters_assets_io(monkeypatch, counters, chapters_enabled=False)

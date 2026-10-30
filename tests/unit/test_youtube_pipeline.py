@@ -342,7 +342,7 @@ def test_sponsorblock_only_skips_audio_analysis_but_llm_path_runs_it():
     assert fin.call_args.kwargs['run_stats']['audio_analysis_skipped'] is True
     ok, *_, fin, _after_mock, _diff = _run([])
     _run.extras['audio_analysis'].assert_called_once()
-    assert 'audio_analysis_skipped' not in fin.call_args.kwargs['run_stats']
+    assert fin.call_args.kwargs['run_stats']['audio_analysis_skipped'] is False
 
 
 def test_saved_caption_transcript_is_reused_without_whisper_or_repair():

@@ -568,6 +568,9 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
         sponsorblock_only = detection_mode == 'sponsorblock'
         llm_off = cue_only or sponsorblock_only
         detection_off = detection_mode == 'skip'
+        # SponsorBlock-only marks are cut as given; nothing reads the signals.
+        audio_analysis_skipped = sponsorblock_only and not cue_only
+        run_stats['audio_analysis_skipped'] = audio_analysis_skipped
         try:
             audio_path, segments = transcribe._download_and_transcribe(
                 slug, episode_id, episode_url,
@@ -655,12 +658,9 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
             # analysis crash must still release the waiting differential.
             try:
                 _check_cancel(cancel_event, slug, episode_id)
-                # Stage 2: Audio analysis (ad-cue detection; nothing to feed
-                # when detection is skipped)
-                # SponsorBlock-only marks are cut as given; nothing reads the signals.
-                if sponsorblock_only and not cue_only:
-                    run_stats['audio_analysis_skipped'] = True
-                elif not detection_off:
+                if not (audio_analysis_skipped or detection_off):
+                    # Stage 2: Audio analysis (ad-cue detection; nothing to feed
+                    # when detection is skipped)
                     with common._measure_run_stage('audio_analysis'):
                         audio_analysis_result = signals._run_audio_analysis(
                             slug, episode_id, audio_path, segments,
