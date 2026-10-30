@@ -1,4 +1,4 @@
-"""YouTube episodes through process_episode: SponsorBlock-only, LLM fallback, LLM on top, waiting."""
+"""YouTube episodes through process_episode: SponsorBlock-only, LLM fallback, pass 1 detection, waiting."""
 import os
 import shutil
 import tempfile
