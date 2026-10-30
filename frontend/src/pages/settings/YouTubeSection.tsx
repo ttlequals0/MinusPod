@@ -168,11 +168,12 @@ function YouTubeSection() {
           <div className="pt-3 border-t border-border space-y-3">
             <h4 className={subHeading}>Processing</h4>
             {NUMBER_ROWS.map(({ field, label }) => (
-              <div key={field} className="flex flex-wrap items-center gap-x-3 gap-y-1">
-                <label htmlFor={`yt-${field}`} className="text-sm text-foreground">{label}</label>
+              <div key={field} className="flex items-center justify-between gap-3">
+                <label htmlFor={`yt-${field}`} className="text-sm text-foreground flex-1 min-w-0">{label}</label>
                 <NumberInput
                   id={`yt-${field}`}
                   commitOn="blur"
+                  className="w-24 shrink-0"
                   value={data[field]}
                   min={data.bounds[field][0]}
                   max={data.bounds[field][1]}

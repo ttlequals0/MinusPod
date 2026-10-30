@@ -872,9 +872,6 @@ function AddFeed() {
                 >
                   {addYoutubeMutation.isPending ? 'Adding feed...' : 'Add YouTube feed'}
                 </button>
-                <button type="button" onClick={() => navigate('/')} className={`${btnLg} ${btnSecondary}`}>
-                  Cancel
-                </button>
               </div>
             )}
           </div>

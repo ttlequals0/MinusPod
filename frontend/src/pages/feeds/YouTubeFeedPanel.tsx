@@ -160,7 +160,7 @@ function YouTubeFeedPanel({ feed, slug }: { feed: Feed; slug: string }) {
           disabled={pending}
           onChange={setBool('youtubeIncludeShorts')}
         >
-          Include videos shorter than 60 seconds in this feed.
+          Include Shorts. Playlist feeds otherwise skip videos of 3 minutes or less; channel feeds otherwise list long-form uploads only.
         </GlobalOverrideRow>
 
         <NumberOverrideRow
