@@ -63,6 +63,29 @@ There is no `<Button>` component. Recipes are class strings composed at the call
 - Dialog footers with 3 or more actions keep their text labels at every width. Below 360 CSS px they become two equal columns in two rows, and from 360 to 639 px one row of equal-width columns (dialogFooterGrid), so nothing is icon-only. PatternDetailModal is the reference.
 - Inline link-style actions (`text-primary hover:underline`, "Show full match") and selected-state toggles (`PageTabs`, `SegmentedToggle`, pagination numbers) are intentionally not button recipes.
 
+### Media player
+
+`EpisodePlayer` (with `useEpisodePlayer`) is the one episode audio player. Reuse it; do not add a second player or restyle the native `<audio>` element.
+
+- Layout, top to bottom: chapter row (only when the episode has chapters), scrubber, time row, transport row.
+- Chapter row: `ChevronLeft` and `ChevronRight` ghost buttons around the current chapter title, truncated and centered. Previous and next disable at the first and last chapter.
+- Scrubber: a range input with a tick at each chapter start after 0. Elapsed time sits left and remaining time right as `-m:ss` (`formatTimestamp`).
+- Transport row: back 15, play or pause, forward 30, and the speed button at the right edge. The transport group stays centered; the speed button does not push it.
+- Icons: `RotateCcw` and `RotateCw` at 32 px with the seconds number centered inside the circle, `Play` and `Pause` at 24 px, chapter chevrons at 20 px.
+
+| Control | Recipe | Size |
+| --- | --- | --- |
+| Play and pause | `${btnBase} ${btnPrimary}` as a filled circle (`rounded-full`) | 56 px at every width |
+| Back, forward, speed, chapter chevrons | `${btnBase} ${btnGhost} ${touchTarget}` | 44 px at phone widths through the coarse-pointer floor, 32 px tall on desktop as the ghost recipe gives |
+| Container | `rounded-lg border border-border bg-card` with `focusRing`, `tabIndex={0}`, `role="group"` | `p-3`, `p-4` from sm |
+| Seek range | 44 px tall hit box, `focusRing` | Full width |
+
+- Previous chapter restarts the current chapter when the playhead is more than 3 s into it; otherwise it goes to the previous chapter.
+- Speed cycles 1x, 1.25x, 1.5x, 1.75x, 2x, 0.8x and wraps. The choice persists under the `minuspod.playbackRate` localStorage key and applies to every episode.
+- With focus on the player container (not a button or the range), Space toggles play and Left and Right skip back 15 and forward 30. Ignore modified keys and events already handled.
+- The scrubber seeks on release, not during the drag. The time row and chapter title follow the drag; commit on pointer up, key up, or blur.
+- The episode description sits under the player in `ExpandableText` with `toggleText` "Show more" and "Show less". The control appears only when the text overflows.
+
 ### Shared field, badge, and component recipes
 
 - Fields: `inputBase`, `selectBase`, and `textareaBase` share one chrome (4 px radius, `bg-background`, `border-input`, `text-foreground`) and inputs and selects share one 40 px minimum height. Textareas size by rows. `labelBase` is the form label; `filterLabel` stays the muted label in filter rows.
@@ -150,6 +173,7 @@ Feed deletion, resets, and replace-mode imports use `ConfirmModal`. Name the obj
 - Card and section titles use `cardTitle` (18 CSS px, 600) and sub-headings use `subHeading` (14 CSS px, 600), always `text-foreground`. Data cards pad with `cardPad` (16 CSS px) and section cards with `sectionPad` (24 CSS px).
 - Use one visible page `h1` at 24 CSS px, section headings at 18 CSS px, and consistent summary-card labels/values. Keep numeric column headings aligned with their values.
 - Use `pageHeader`, `pageTitle`, and `pageDescription`: 24 CSS px titles, 16 CSS px header gaps, 24 CSS px bottom spacing, and actions below the title on phones.
+- Episode header: metadata chips sit on one non-wrapping line and the action buttons on their own non-wrapping line. Compact the chips or buttons only below 361 CSS px.
 - Counter cards place the value above the label, left aligned. Metric cards place the label above the value and may add details. Both use 20 CSS px bold tabular values, 12 CSS px labels, and 16 CSS px outer padding. Metrics nested within a larger card may share its surface.
 - Summary cards in the same row align their values and label starts, including clickable cards. Use an explicit shared layout; native button centering must not shift content when a neighboring label wraps.
 - Layer order: sticky navigation 30, ordinary popovers and save bars 40, status bar 50, dialogs 60, dialog-owned popovers 70. Nested dialogs follow DOM order within the dialog layer.

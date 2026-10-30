@@ -588,6 +588,39 @@ tint.destructive = bg-destructive/20 text-destructive-on-tint</div>
       <li><b>neutral vs secondary.</b> Neutral badges use their own surface and foreground tokens. Secondary surfaces use the secondary token pair; keep each foreground paired with its intended background.</li>
     </ul>
   </div>
+
+  <div style="background:hsl(var(--card));border:1px solid hsl(var(--border));border-radius:8px;padding:20px;display:flex;flex-direction:column;gap:12px">
+    <div style="font-size:15px;font-weight:600">Media player</div>
+    <p style="margin:0;font-size:13px;color:hsl(var(--muted-foreground));text-wrap:pretty">The episode player: chapter row, scrubber with chapter ticks, then back 15, a 56px play circle, forward 30 and the speed button. Secondary controls are ghost buttons with the 44px phone floor. The theme toggle above shows it in light and dark. Behavior rules are in <a href="./UI-CONTRACT.md">UI-CONTRACT.md</a>.</p>
+    <div role="group" aria-label="Episode player example" style="max-width:420px;border-radius:8px;border:1px solid hsl(var(--border));background:hsl(var(--card));padding:16px">
+      <div style="display:flex;align-items:center;gap:4px">
+        <button type="button" aria-label="Previous chapter" style="display:inline-flex;align-items:center;justify-content:center;min-height:32px;padding:6px 12px;border-radius:4px;border:none;background:transparent;color:hsl(var(--muted-foreground));font-size:14px;font-weight:500;gap:4px;cursor:pointer"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg></button>
+        <p style="margin:0;min-width:0;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:center;font-size:14px;font-weight:500;color:hsl(var(--foreground))">Interview with the guest</p>
+        <button type="button" aria-label="Next chapter" style="display:inline-flex;align-items:center;justify-content:center;min-height:32px;padding:6px 12px;border-radius:4px;border:none;background:transparent;color:hsl(var(--muted-foreground));font-size:14px;font-weight:500;gap:4px;cursor:pointer"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg></button>
+      </div>
+      <div style="position:relative;margin-top:4px;height:44px">
+        <div aria-hidden="true" style="position:absolute;left:8px;right:8px;top:50%;height:16px;transform:translateY(-50%);pointer-events:none">
+          <span style="position:absolute;top:0;left:18%;width:2px;height:100%;transform:translateX(-50%);border-radius:9999px;background:hsl(var(--foreground) / 0.4)"></span>
+          <span style="position:absolute;top:0;left:57%;width:2px;height:100%;transform:translateX(-50%);border-radius:9999px;background:hsl(var(--foreground) / 0.4)"></span>
+        </div>
+        <input type="range" aria-label="Seek" min="0" max="100" value="32" style="position:absolute;inset:0;width:100%;height:44px;margin:0;accent-color:hsl(var(--primary))">
+      </div>
+      <div style="display:flex;justify-content:space-between;font-size:12px;font-variant-numeric:tabular-nums;color:hsl(var(--muted-foreground))"><span>12:04</span><span>-25:41</span></div>
+      <div style="margin-top:8px;display:grid;grid-template-columns:1fr auto 1fr;align-items:center">
+        <span aria-hidden="true"></span>
+        <div style="display:flex;align-items:center;gap:12px">
+          <button type="button" aria-label="Back 15 seconds" style="display:inline-flex;align-items:center;justify-content:center;min-height:32px;padding:6px 12px;border-radius:4px;border:none;background:transparent;color:hsl(var(--muted-foreground));font-size:14px;font-weight:500;gap:4px;cursor:pointer"><span style="position:relative;display:inline-flex"><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg><span style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:600;line-height:1;font-variant-numeric:tabular-nums">15</span></span></button>
+          <button type="button" aria-label="Play" style="display:inline-flex;align-items:center;justify-content:center;width:56px;height:56px;border-radius:9999px;border:none;background:hsl(var(--primary));color:hsl(var(--primary-foreground));cursor:pointer"><svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><polygon points="6 3 20 12 6 21 6 3"/></svg></button>
+          <button type="button" aria-label="Forward 30 seconds" style="display:inline-flex;align-items:center;justify-content:center;min-height:32px;padding:6px 12px;border-radius:4px;border:none;background:transparent;color:hsl(var(--muted-foreground));font-size:14px;font-weight:500;gap:4px;cursor:pointer"><span style="position:relative;display:inline-flex"><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/></svg><span style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:600;line-height:1;font-variant-numeric:tabular-nums">30</span></span></button>
+        </div>
+        <div style="display:flex;justify-content:flex-end"><button type="button" aria-label="Playback speed 1.25x" style="display:inline-flex;align-items:center;justify-content:center;min-height:32px;padding:6px 12px;border-radius:4px;border:none;background:transparent;color:hsl(var(--muted-foreground));font-size:14px;font-weight:500;gap:4px;cursor:pointer;padding:6px 8px;font-variant-numeric:tabular-nums">1.25x</button></div>
+      </div>
+    </div>
+    <div style="font-family:ui-monospace,monospace;font-size:12px;line-height:1.8;color:hsl(var(--muted-foreground));background:hsl(var(--muted) / 0.5);border-radius:6px;padding:12px 14px;overflow-x:auto;white-space:pre-wrap;word-break:break-word">container = rounded-lg border border-border bg-card p-3 sm:p-4 focusRing   role=group tabIndex=0
+secondary = btnBase btnGhost touchTarget touch-manipulation   (44px on a phone, 32px tall on desktop)
+play      = btnBase btnPrimary h-14 w-14 min-h-14 min-w-14 rounded-full   (56px at every width)
+skip icon = RotateCcw / RotateCw h-8 w-8, seconds centered inside    chevrons = h-5 w-5</div>
+  </div>
 </section>
 
 <section id="overlays" style="display:flex;flex-direction:column;gap:16px">
