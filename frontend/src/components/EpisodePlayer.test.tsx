@@ -1,0 +1,170 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import EpisodePlayer from './EpisodePlayer';
+import { RATE_STORAGE_KEY } from '../hooks/useEpisodePlayer';
+
+const CHAPTERS = {
+  version: '1.2.0',
+  chapters: [
+    { startTime: 0, title: 'Intro' },
+    { startTime: 100, title: 'Middle part' },
+    { startTime: 250, title: 'Wrap up' },
+  ],
+};
+
+let paused = true;
+let play: ReturnType<typeof vi.spyOn>;
+let pause: ReturnType<typeof vi.spyOn>;
+
+function audioEl(container: HTMLElement) {
+  const audio = container.querySelector('audio')!;
+  let t = 0;
+  Object.defineProperty(audio, 'currentTime', { configurable: true, get: () => t, set: (v: number) => { t = v; } });
+  Object.defineProperty(audio, 'duration', { configurable: true, get: () => 300 });
+  Object.defineProperty(audio, 'paused', { configurable: true, get: () => paused });
+  return audio;
+}
+
+function ready(container: HTMLElement, at = 0) {
+  const audio = audioEl(container);
+  audio.currentTime = at;
+  fireEvent.durationChange(audio);
+  fireEvent.timeUpdate(audio);
+  return audio;
+}
+
+beforeEach(() => {
+  paused = true;
+  localStorage.clear();
+  play = vi.spyOn(HTMLMediaElement.prototype, 'play').mockImplementation(function (this: HTMLMediaElement) {
+    paused = false;
+    fireEvent.play(this);
+    return Promise.resolve();
+  });
+  pause = vi.spyOn(HTMLMediaElement.prototype, 'pause').mockImplementation(function (this: HTMLMediaElement) {
+    paused = true;
+    fireEvent.pause(this);
+  });
+  vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: () => Promise.resolve(CHAPTERS) }));
+});
+
+afterEach(() => {
+  cleanup();
+  vi.restoreAllMocks();
+  vi.unstubAllGlobals();
+});
+
+describe('EpisodePlayer', () => {
+  it('hides the chapter row without a chapters URL', () => {
+    render(<EpisodePlayer src="/a.mp3" />);
+    expect(screen.queryByRole('button', { name: 'Previous chapter' })).toBeNull();
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it('shows the current chapter title and clock', async () => {
+    const { container } = render(<EpisodePlayer src="/a.mp3" chaptersUrl="/c.json" />);
+    await screen.findByText('Intro');
+    ready(container, 125);
+    expect(screen.getByText('Middle part')).toBeTruthy();
+    expect(screen.getByText('2:05')).toBeTruthy();
+    expect(screen.getByText('-2:55')).toBeTruthy();
+  });
+
+  it('toggles play and pause', () => {
+    const { container } = render(<EpisodePlayer src="/a.mp3" />);
+    ready(container);
+    fireEvent.click(screen.getByRole('button', { name: 'Play' }));
+    expect(play).toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: 'Pause' }));
+    expect(pause).toHaveBeenCalled();
+    expect(screen.getByRole('button', { name: 'Play' })).toBeTruthy();
+  });
+
+  it('skips back 15 s and forward 30 s with clamping', () => {
+    const { container } = render(<EpisodePlayer src="/a.mp3" />);
+    const audio = ready(container, 10);
+    fireEvent.click(screen.getByRole('button', { name: 'Back 15 seconds' }));
+    expect(audio.currentTime).toBe(0);
+    fireEvent.click(screen.getByRole('button', { name: 'Forward 30 seconds' }));
+    expect(audio.currentTime).toBe(30);
+    audio.currentTime = 290;
+    fireEvent.click(screen.getByRole('button', { name: 'Forward 30 seconds' }));
+    expect(audio.currentTime).toBe(300);
+  });
+
+  it('cycles speed and stores it', () => {
+    const { container } = render(<EpisodePlayer src="/a.mp3" />);
+    const audio = ready(container);
+    const speed = () => screen.getByRole('button', { name: /Playback speed/ });
+    expect(speed().textContent).toContain('1x');
+    fireEvent.click(speed());
+    expect(speed().textContent).toContain('1.25x');
+    expect(audio.playbackRate).toBe(1.25);
+    expect(localStorage.getItem(RATE_STORAGE_KEY)).toBe('1.25');
+    for (let i = 0; i < 4; i++) fireEvent.click(speed());
+    expect(speed().textContent).toContain('0.8x');
+    fireEvent.click(speed());
+    expect(speed().textContent).toContain('1x');
+  });
+
+  it('starts at the stored speed', () => {
+    localStorage.setItem(RATE_STORAGE_KEY, '2');
+    render(<EpisodePlayer src="/a.mp3" />);
+    expect(screen.getByRole('button', { name: 'Playback speed 2x' })).toBeTruthy();
+  });
+
+  it('navigates chapters with the 3 s rule and disables at the ends', async () => {
+    const { container } = render(<EpisodePlayer src="/a.mp3" chaptersUrl="/c.json" />);
+    await screen.findByText('Intro');
+    const audio = ready(container, 1);
+    const prev = screen.getByRole('button', { name: 'Previous chapter' }) as HTMLButtonElement;
+    const next = screen.getByRole('button', { name: 'Next chapter' }) as HTMLButtonElement;
+    expect(prev.disabled).toBe(true);
+    fireEvent.click(next);
+    expect(audio.currentTime).toBe(100);
+    fireEvent.timeUpdate(audio);
+    audio.currentTime = 110;
+    fireEvent.timeUpdate(audio);
+    fireEvent.click(prev);
+    expect(audio.currentTime).toBe(100);
+    fireEvent.timeUpdate(audio);
+    fireEvent.click(prev);
+    expect(audio.currentTime).toBe(0);
+    audio.currentTime = 260;
+    fireEvent.timeUpdate(audio);
+    expect(next.disabled).toBe(true);
+  });
+
+  it('seeks from the scrubber', () => {
+    const { container } = render(<EpisodePlayer src="/a.mp3" />);
+    const audio = ready(container);
+    fireEvent.change(screen.getByRole('slider', { name: 'Seek' }), { target: { value: '120' } });
+    expect(audio.currentTime).toBe(120);
+  });
+
+  it('handles keyboard shortcuts on the player and leaves buttons alone', () => {
+    const { container } = render(<EpisodePlayer src="/a.mp3" />);
+    const audio = ready(container, 60);
+    const group = screen.getByRole('group', { name: 'Episode player' });
+    fireEvent.keyDown(group, { key: 'ArrowRight' });
+    expect(audio.currentTime).toBe(90);
+    fireEvent.keyDown(group, { key: 'ArrowLeft' });
+    expect(audio.currentTime).toBe(75);
+    fireEvent.keyDown(group, { key: ' ' });
+    expect(play).toHaveBeenCalledTimes(1);
+    fireEvent.keyDown(screen.getByRole('button', { name: 'Back 15 seconds' }), { key: ' ' });
+    expect(play).toHaveBeenCalledTimes(1);
+    fireEvent.keyDown(screen.getByRole('slider', { name: 'Seek' }), { key: 'ArrowRight' });
+    expect(audio.currentTime).toBe(75);
+    fireEvent.keyDown(group, { key: 'ArrowRight', ctrlKey: true });
+    expect(audio.currentTime).toBe(75);
+  });
+
+  it('keeps playing without chapters when the fetch fails', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('down')));
+    render(<EpisodePlayer src="/a.mp3" chaptersUrl="/c.json" />);
+    await waitFor(() => expect(fetch).toHaveBeenCalled());
+    expect(screen.queryByRole('button', { name: 'Next chapter' })).toBeNull();
+    expect(screen.getByRole('button', { name: 'Play' })).toBeTruthy();
+  });
+});

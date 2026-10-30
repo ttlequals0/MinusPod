@@ -69,6 +69,15 @@ describe('ExpandableText', () => {
     expect(screen.getByRole('button').textContent).toBe('Show full match');
   });
 
+  it('uses custom toggle text', async () => {
+    mockOverflow(true);
+    const user = userEvent.setup();
+    render(<ExpandableText toggleText={{ more: 'Show more', less: 'Show less' }}>{'long '.repeat(200)}</ExpandableText>);
+    expect(screen.getByRole('button').textContent).toBe('Show more');
+    await user.click(screen.getByRole('button'));
+    expect(screen.getByRole('button').textContent).toBe('Show less');
+  });
+
   it('clamps to the requested number of lines while collapsed', () => {
     mockOverflow(true);
     const { container } = render(<ExpandableText clampLines={2}>{'long '.repeat(200)}</ExpandableText>);

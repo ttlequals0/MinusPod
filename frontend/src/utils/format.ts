@@ -12,6 +12,11 @@ export function formatTimestamp(seconds: number): string {
   return `${m}:${s.toString().padStart(2, '0')}`;
 }
 
+// Player clock: formatTimestamp that tolerates NaN, Infinity and negatives (0:00).
+export function formatClock(seconds: number): string {
+  return formatTimestamp(Number.isFinite(seconds) && seconds > 0 ? seconds : 0);
+}
+
 // Locale date (no time), `-` for a missing value.
 export function formatDate(dateStr: string | null): string {
   if (!dateStr) return '-';

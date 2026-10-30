@@ -51,6 +51,7 @@ import { iconTarget, iconVisual, rowActionBtn } from '../components/rowActionSty
 import { StageBadge } from '../components/StageBadge';
 import ProcessingRunsTable from '../components/ProcessingRunsTable';
 import CostAmount from '../components/CostAmount';
+import EpisodePlayer from '../components/EpisodePlayer';
 import EpisodeLogsCard from '../components/EpisodeLogsCard';
 import { btnBase, btnDestructive, btnLg, btnPrimary, btnSecondary } from '../components/buttonStyles';
 import DropdownMenu, { type DropdownMenuItem } from '../components/DropdownMenu';
@@ -987,6 +988,20 @@ function EpisodeDetail() {
         : `Verified: a second scan of the output audio found ${verificationAdsCut} more ad${verificationAdsCut === 1 ? '' : 's'} and cut ${verificationAdsCut === 1 ? 'it' : 'them'}.`
       : null;
 
+  const completed = episode.status === 'completed';
+  const hasDescription = Boolean(episode.description?.trim() || episode.chapterNotes?.trim());
+  // One block each: RichText collapses whitespace between block tags.
+  const descriptionBlock = hasDescription && (
+    <ExpandableText className="mt-4 text-muted-foreground" toggleText={{ more: 'Show more', less: 'Show less' }}>
+      {episode.description?.trim() && (
+        <RichText html={episode.description} className="block wrap-break-word" />
+      )}
+      {episode.chapterNotes?.trim() && (
+        <RichText html={episode.chapterNotes} className="mt-4 block wrap-break-word" />
+      )}
+    </ExpandableText>
+  );
+
   return (
     <div>
       <div className="flex items-center justify-between gap-3 mb-4">
@@ -1268,9 +1283,10 @@ function EpisodeDetail() {
           <div className="mt-4 pt-4 border-t border-border">
             {/* processedUrl is server-built and carries the feed auth key when
                 enabled; a hardcoded path would 401 under authenticated feeds. */}
-            <audio controls className="w-full" src={episode.processedUrl ?? `/episodes/${slug}/${episode.id}.mp3`}>
-              Your browser does not support the audio element.
-            </audio>
+            <EpisodePlayer
+              src={episode.processedUrl ?? `/episodes/${slug}/${episode.id}.mp3`}
+              chaptersUrl={episode.chaptersAvailable ? episode.chaptersUrl : undefined}
+            />
             {(episode.transcriptVttAvailable || episode.chaptersAvailable) && (
               <div className="flex flex-wrap gap-2 mt-3">
                 {episode.transcriptVttAvailable && episode.transcriptVttUrl && (
@@ -1293,6 +1309,7 @@ function EpisodeDetail() {
                 )}
               </div>
             )}
+            {descriptionBlock}
           </div>
         )}
 
@@ -1311,28 +1328,14 @@ function EpisodeDetail() {
         {episode.status !== 'completed' && !episode.processedAt
           && feed?.feedType === 'local' && episode.hasOriginalAudio && (
           <div className="mt-4 pt-4 border-t border-border">
-            <audio controls className="w-full" src={markerAudioUrl}>
-              Your browser does not support the audio element.
-            </audio>
+            <EpisodePlayer src={markerAudioUrl} />
             <p className="mt-2 text-xs text-muted-foreground">
               Original audio; ad removal hasn&apos;t run yet.
             </p>
           </div>
         )}
 
-        {/* One block each: RichText collapses whitespace between block tags. */}
-        {episode.description?.trim() && (
-          <RichText
-            html={episode.description}
-            className="mt-4 block text-muted-foreground wrap-break-word"
-          />
-        )}
-        {episode.chapterNotes?.trim() && (
-          <RichText
-            html={episode.chapterNotes}
-            className="mt-4 block text-muted-foreground wrap-break-word"
-          />
-        )}
+        {!completed && descriptionBlock}
       </div>
 
       {feed?.feedType === 'local' && slug && episodeId && (

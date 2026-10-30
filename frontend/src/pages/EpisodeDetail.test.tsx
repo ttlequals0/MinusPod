@@ -1567,9 +1567,9 @@ describe('Kept segments section (2.78.3)', () => {
       adMarkers: [],
       keptMarkers: [{ start: 127.8, end: 140.2, confidence: 0.9, category: 'intro', actionApplied: 'keep' }],
     }));
-    await screen.findByTestId('kept-segments-section');
+    const section = await screen.findByTestId('kept-segments-section');
 
-    expect(screen.queryAllByRole('button', { name: /play|audition/i })).toHaveLength(0);
+    expect(within(section).queryAllByRole('button', { name: /play|audition/i })).toHaveLength(0);
   });
 
   it('renders nothing when keptMarkers is empty', async () => {
