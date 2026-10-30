@@ -41,9 +41,7 @@ function YouTubeSection() {
   const [keyTest, setKeyTest] = useState<{ ok: boolean; text: string } | null>(null);
   const [cookiesError, setCookiesError] = useState<string | null>(null);
   const [argsDraft, setArgsDraft] = useState<string | null>(null);
-  const [argsError, setArgsError] = useState<string | null>(null);
   const [proxyDraft, setProxyDraft] = useState<string | null>(null);
-  const [proxyError, setProxyError] = useState<string | null>(null);
   const [settingsError, setSettingsError] = useState<string | null>(null);
   const [updateNote, setUpdateNote] = useState<{ ok: boolean; text: string } | null>(null);
 
@@ -60,18 +58,6 @@ function YouTubeSection() {
     mutationFn: (p: YouTubeSettingsUpdate) => updateYouTubeSettings(p),
     onSuccess: () => { setSettingsError(null); refresh(); },
     onError: (e: unknown) => setSettingsError(getErrorMessage(e, 'Could not save YouTube settings.')),
-  });
-
-  const saveArgs = useMutation({
-    mutationFn: (ytdlpExtraArgs: string) => updateYouTubeSettings({ ytdlpExtraArgs }),
-    onSuccess: () => { setArgsError(null); setArgsDraft(null); refresh(); },
-    onError: (e: unknown) => setArgsError(getErrorMessage(e, 'Could not save the extra arguments.')),
-  });
-
-  const saveProxy = useMutation({
-    mutationFn: (proxyUrl: string) => updateYouTubeSettings({ proxyUrl }),
-    onSuccess: () => { setProxyError(null); setProxyDraft(null); refresh(); },
-    onError: (e: unknown) => setProxyError(getErrorMessage(e, 'Could not save the proxy URL.')),
   });
 
   const saveKey = useMutation({
@@ -306,20 +292,19 @@ function YouTubeSection() {
                 type="text"
                 autoComplete="off"
                 spellCheck={false}
-                className={`${inputBase} min-h-11 w-full font-mono`}
+                className={`${inputBase} w-full font-mono`}
                 value={proxyDraft ?? data.proxyUrl}
                 onChange={(e) => setProxyDraft(e.target.value)}
                 onBlur={() => {
-                  if (proxyDraft !== null && proxyDraft.trim() !== data.proxyUrl) saveProxy.mutate(proxyDraft);
-                  else if (proxyDraft !== null) { setProxyDraft(null); setProxyError(null); }
+                  if (proxyDraft === null) return;
+                  if (proxyDraft.trim() === data.proxyUrl) setProxyDraft(null);
+                  else saveSettings.mutate({ proxyUrl: proxyDraft }, { onSuccess: () => setProxyDraft(null) });
                 }}
-                aria-invalid={proxyError ? true : undefined}
-                aria-describedby={proxyError ? 'yt-proxy-url-help yt-proxy-url-error' : 'yt-proxy-url-help'}
+                aria-describedby="yt-proxy-url-help"
               />
               <p id="yt-proxy-url-help" className="text-sm text-muted-foreground">
                 Used for yt-dlp and YouTube Data API requests. Example: socks5h://proxy:1080
               </p>
-              {proxyError && <p id="yt-proxy-url-error" role="alert" className="text-sm text-destructive">{proxyError}</p>}
             </div>
             <div className="space-y-1">
               <label htmlFor="yt-extra-args" className="text-sm text-foreground">Extra yt-dlp arguments</label>
@@ -328,20 +313,19 @@ function YouTubeSection() {
                 type="text"
                 autoComplete="off"
                 spellCheck={false}
-                className={`${inputBase} min-h-11 w-full font-mono`}
+                className={`${inputBase} w-full font-mono`}
                 value={argsDraft ?? data.ytdlpExtraArgs}
                 onChange={(e) => setArgsDraft(e.target.value)}
                 onBlur={() => {
-                  if (argsDraft !== null && argsDraft.trim() !== data.ytdlpExtraArgs) saveArgs.mutate(argsDraft);
-                  else if (argsDraft !== null) { setArgsDraft(null); setArgsError(null); }
+                  if (argsDraft === null) return;
+                  if (argsDraft.trim() === data.ytdlpExtraArgs) setArgsDraft(null);
+                  else saveSettings.mutate({ ytdlpExtraArgs: argsDraft }, { onSuccess: () => setArgsDraft(null) });
                 }}
-                aria-invalid={argsError ? true : undefined}
-                aria-describedby={argsError ? 'yt-extra-args-help yt-extra-args-error' : 'yt-extra-args-help'}
+                aria-describedby="yt-extra-args-help"
               />
               <p id="yt-extra-args-help" className="text-sm text-muted-foreground">
-                Added before MinusPod&apos;s own options on every yt-dlp call, so output format and paths stay fixed. Example: --proxy socks5://proxy:1080 --limit-rate 2M
+                Added before MinusPod&apos;s options on every yt-dlp call. Example: --limit-rate 2M --extractor-args youtube:player_client=web
               </p>
-              {argsError && <p id="yt-extra-args-error" role="alert" className="text-sm text-destructive">{argsError}</p>}
             </div>
             <div className="flex flex-wrap items-center gap-2">
               <button

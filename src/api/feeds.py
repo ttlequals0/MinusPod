@@ -1427,8 +1427,12 @@ def _add_youtube_feed(data, db):
         return error_response('YouTube feeds are disabled in Settings', 400)
     kind = data.get('sourceKind')
     source_id = str(data.get('sourceId') or '').strip()
-    parsed = yt_urls.parse(yt_urls.watch_url(source_id) if kind == 'video' else source_id)
-    if kind not in ('playlist', 'channel', 'video') or parsed is None or (parsed.kind, parsed.id) != (kind, source_id):
+    if kind == 'video':
+        valid = bool(yt_urls.VIDEO_ID.match(source_id))
+    else:
+        parsed = yt_urls.parse(source_id)
+        valid = kind in ('playlist', 'channel') and parsed is not None and (parsed.kind, parsed.id) == (kind, source_id)
+    if not valid:
         return error_response('sourceKind must be playlist, channel or video with a valid sourceId', 400)
     title = data.get('title')
     if not isinstance(title, str) or not title.strip():

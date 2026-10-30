@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { updateFeed, type UpdateFeedPayload } from '../../api/feeds';
-import { getYouTubeSettings, type YouTubeSettings } from '../../api/youtube';
+import { getYouTubeSettings, YOUTUBE_KIND_LABELS, type YouTubeSettings } from '../../api/youtube';
 import { getErrorMessage } from '../../api/client';
 import type { Feed } from '../../api/types';
 import CollapsibleSection from '../../components/CollapsibleSection';
@@ -117,7 +117,7 @@ function YouTubeFeedPanel({ feed, slug }: { feed: Feed; slug: string }) {
             <p className="text-xs text-muted-foreground">YouTube feeds are turned off in Settings.</p>
           )}
           <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 text-sm">
-            <span className={rowLabelTop}>{feed.youtubeSourceKind === 'playlist' ? 'Playlist' : 'Channel'}</span>
+            <span className={rowLabelTop}>{YOUTUBE_KIND_LABELS[feed.youtubeSourceKind ?? 'channel']}</span>
             {feed.youtubeSourceUrl && (
               <a
                 href={feed.youtubeSourceUrl}

@@ -43,7 +43,8 @@ vi.mock('../api/podcastSearch', () => ({
 }));
 
 const mockPreviewYouTube = vi.fn();
-vi.mock('../api/youtube', () => ({
+vi.mock('../api/youtube', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../api/youtube')>()),
   previewYouTube: (...a: unknown[]) => mockPreviewYouTube(...a),
 }));
 

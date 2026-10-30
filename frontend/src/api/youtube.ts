@@ -1,5 +1,7 @@
 import { apiRequest } from './client';
 
+export const YOUTUBE_KIND_LABELS = { channel: 'Channel', playlist: 'Playlist', video: 'Video' } as const;
+
 export interface YouTubeSettings {
   enabled: boolean;
   apiKeyConfigured: boolean;

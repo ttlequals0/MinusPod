@@ -19,7 +19,8 @@ vi.mock('../../api/feeds', () => ({
 }));
 
 let mockEnabled = true;
-vi.mock('../../api/youtube', () => ({
+vi.mock('../../api/youtube', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../api/youtube')>()),
   getYouTubeSettings: () => Promise.resolve({
     enabled: mockEnabled,
     processDelayMinutes: 60, sbProbeAttempts: 6, sbProbeIntervalMinutes: 30,
@@ -63,6 +64,12 @@ describe('YouTubeFeedPanel', () => {
     renderPanel();
     await screen.findByText('Delay');
     expect(screen.queryByText('YouTube feeds are turned off in Settings.')).toBeNull();
+  });
+
+  it('labels a single-video feed as Video', async () => {
+    renderPanel({ youtubeSourceKind: 'video' });
+    await screen.findByText('Delay');
+    expect(screen.getByText('Video')).toBeTruthy();
   });
 
   it('renders the section subtitle', () => {

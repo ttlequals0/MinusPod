@@ -45,7 +45,7 @@ def cookies_path() -> str | None:
 
 def _impersonate_target() -> str | None:
     if 'target' not in _impersonate_cache:
-        result = ytdlp.run(['--list-impersonate-targets'], timeout=60, extra=False)
+        result = ytdlp.run(['--list-impersonate-targets'], timeout=60, extra_args=False, proxy=False)
         _impersonate_cache['target'] = 'chrome' if result.returncode == 0 and 'chrome' in result.stdout.lower() else None
     return _impersonate_cache['target']
 

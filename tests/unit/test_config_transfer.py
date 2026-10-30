@@ -62,6 +62,13 @@ def test_export_carries_youtube_settings_but_not_ytdlp_status(temp_db):
     assert 'youtube_ytdlp_version' not in exported['settings']
 
 
+def test_export_omits_the_proxy_url(temp_db):
+    temp_db.set_setting('youtube_proxy_url', 'socks5h://u:secret@host:1080', is_default=False)
+    exported = config_transfer.export_config(temp_db, '2.98.2')
+    assert 'youtube_proxy_url' not in exported['settings']
+    assert 'secret' not in json.dumps(exported)
+
+
 def test_export_budget_includes_worst_apply_envelope_and_utf8_bytes(temp_db, monkeypatch):
     db = temp_db
     db.create_podcast('example-feed', 'https://example.com/feed.xml', 'Example')

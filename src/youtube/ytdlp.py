@@ -8,7 +8,7 @@ import tempfile
 import threading
 from datetime import timedelta
 from pathlib import Path
-from urllib.parse import urlparse
+from urllib.parse import urlparse, urlsplit
 
 from utils.time import parse_iso_utc, utc_now, utc_now_iso
 
@@ -122,8 +122,6 @@ def ensure_runtime_binary(storage, db) -> Path:
 
 def parse_extra_args(text: str) -> list[str]:
     """Split the extra-arguments setting like a shell; reject unsafe or unparseable input."""
-    if not text or not text.strip():
-        return []
     if len(text) > MAX_EXTRA_ARGS_LENGTH:
         raise ValueError(f'extra yt-dlp arguments: at most {MAX_EXTRA_ARGS_LENGTH} characters')
     try:
@@ -134,7 +132,7 @@ def parse_extra_args(text: str) -> list[str]:
         if token.startswith('-') and not token.startswith('--') and len(token) > 2:
             raise ValueError(f'extra yt-dlp arguments: use the long form for {token}')
         flag = token.split('=', 1)[0]
-        if token in DENIED_FLAGS or flag in DENIED_FLAGS or (
+        if flag in DENIED_FLAGS or (
                 flag.startswith('--') and (flag == '--' or any(d.startswith(flag) for d in DENIED_FLAGS))):
             raise ValueError(f'extra yt-dlp arguments: {flag} is not allowed')
     return tokens
@@ -158,31 +156,41 @@ def parse_proxy_url(text: str) -> str:
     return text
 
 
-def configured_proxy(db) -> str:
-    """Stored proxy URL, or '' when unset or invalid."""
-    text = db.get_setting('youtube_proxy_url') or ''
+def mask_proxy_url(text: str) -> str:
+    """The proxy URL with any password replaced by ***, safe to return from the API."""
     try:
-        return parse_proxy_url(text)
-    except ValueError as exc:
-        if text not in _warned_proxy:
-            _warned_proxy.add(text)
-            logger.warning('Ignoring stored YouTube proxy URL: %s', exc)
+        parts = urlsplit(text)
+    except ValueError:
         return ''
+    if parts.password is None:
+        return text
+    host = parts.netloc.rsplit('@', 1)[1]
+    return parts._replace(netloc=f'{parts.username}:***@{host}').geturl()
+
+
+def _configured(db, key: str, parser, warned: set, label: str):
+    """Parse a stored setting; an invalid value is logged once and ignored."""
+    text = db.get_setting(key) or ''
+    try:
+        return parser(text)
+    except ValueError as exc:
+        if text not in warned:
+            warned.add(text)
+            logger.warning('Ignoring stored %s: %s', label, exc)
+        return parser('')
+
+
+def configured_proxy(db) -> str:
+    return _configured(db, 'youtube_proxy_url', parse_proxy_url, _warned_proxy, 'YouTube proxy URL')
 
 
 def _configured_extra_args(db) -> list[str]:
-    text = db.get_setting('youtube_ytdlp_extra_args') or ''
-    try:
-        return parse_extra_args(text)
-    except ValueError as exc:
-        if text not in _warned_extra_args:
-            _warned_extra_args.add(text)
-            logger.warning('Ignoring stored yt-dlp extra arguments: %s', exc)
-        return []
+    return _configured(db, 'youtube_ytdlp_extra_args', parse_extra_args, _warned_extra_args,
+                       'yt-dlp extra arguments')
 
 
 def run(args: list[str], *, timeout: int, cwd=None, storage=None, db=None,
-        extra: bool = True) -> subprocess.CompletedProcess:
+        extra_args: bool = True, proxy: bool = True) -> subprocess.CompletedProcess:
     # Lazy import: main_app imports this package at startup.
     from main_app import db as app_db, storage as app_storage
     storage = storage or app_storage
@@ -191,12 +199,10 @@ def run(args: list[str], *, timeout: int, cwd=None, storage=None, db=None,
         binary = _ensured_path
     else:
         binary = ensure_runtime_binary(storage, db)
-    extra_args = []
-    if extra:
-        proxy = configured_proxy(db)
-        extra_args = [*(['--proxy', proxy] if proxy else []), *_configured_extra_args(db)]
+    proxy_url = configured_proxy(db) if proxy else ''
+    leading = [*(['--proxy', proxy_url] if proxy_url else []), *(_configured_extra_args(db) if extra_args else [])]
     try:
-        return subprocess.run([str(binary), *extra_args, *args], capture_output=True, text=True,
+        return subprocess.run([str(binary), *leading, *args], capture_output=True, text=True,
                               timeout=timeout, cwd=cwd)
     except FileNotFoundError as exc:
         raise YtDlpNotInstalled(str(exc)) from exc
@@ -231,7 +237,7 @@ def _update_binary_locked(storage, db, target) -> dict:
     if str(target) == BAKED_PATH:
         return {'updated': False, 'version': baked_version(), 'error': RUNTIME_NOT_EXECUTABLE}
     before = binary_version(target)
-    result = run(['-U'], timeout=300, storage=storage, db=db, extra=False)
+    result = run(['-U'], timeout=300, storage=storage, db=db, extra_args=False)
     if result.returncode != 0:
         error = trimmed_error(result.stderr or result.stdout)
         db.set_setting('youtube_ytdlp_last_error', error, is_default=False)

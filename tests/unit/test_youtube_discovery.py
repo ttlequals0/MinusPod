@@ -28,6 +28,7 @@ def _db(key=''):
     db = MagicMock()
     db.get_secret.return_value = key
     db.get_setting.return_value = ''
+    db.get_episode.return_value = None
     return db
 
 
@@ -444,3 +445,17 @@ def test_list_videos_threads_the_stored_proxy_to_the_api():
         discovery.list_videos(db, _podcast(), limit=50)
     assert all(c.kwargs['proxies'] == {'http': 'http://p:8080', 'https': 'http://p:8080'}
                for c in get.call_args_list)
+
+
+def test_single_video_with_an_existing_episode_skips_the_fetch():
+    db = _db('KEY')
+    db.get_episode.return_value = {'id': 'x'}
+    with patch.object(discovery, 'safe_get') as get, patch.object(discovery.ytdlp, 'run') as run:
+        assert discovery.list_videos(db, _podcast('video', 'abc123def45'), limit=50) == []
+    assert not get.called and not run.called
+    assert db.get_episode.call_args.args[0] == 'yt'
+
+
+def test_unsupported_source_kind_is_rejected():
+    with pytest.raises(ValueError, match='unsupported YouTube source kind'):
+        discovery.list_videos(_db(), _podcast('handle', 'x'), limit=5)

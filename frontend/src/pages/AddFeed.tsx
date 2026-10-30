@@ -5,7 +5,7 @@ import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
 import { getErrorMessage } from '../api/client';
 import { addFeed, addYoutubeFeed, addLocalFeed, addRecentsFeed, uploadFeedArtwork, importOpml, OpmlImportResult, feedsQueryOptions } from '../api/feeds';
 import { searchPodcasts, PodcastSearchResult } from '../api/podcastSearch';
-import { previewYouTube, YouTubePreview } from '../api/youtube';
+import { previewYouTube, YOUTUBE_KIND_LABELS, YouTubePreview } from '../api/youtube';
 import { getSettings } from '../api/settings';
 import LoadingSpinner from '../components/LoadingSpinner';
 import TriStateSelect from '../components/TriStateSelect';
@@ -311,8 +311,6 @@ function isYouTubeInput(text: string): boolean {
   }
   return YOUTUBE_TOKEN.test(value);
 }
-
-const YOUTUBE_KIND_LABELS = { channel: 'Channel', playlist: 'Playlist', video: 'Video' } as const;
 
 const RSS_EXTENSIONS = ['.xml', '.rss', '.atom', '/rss', '/feed'];
 

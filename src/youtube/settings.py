@@ -122,7 +122,6 @@ def api_key(db) -> str:
 
 
 def extra_args_valid(value: str) -> bool:
-    """Registry validator for the extra yt-dlp arguments setting."""
     try:
         ytdlp.parse_extra_args(value)
     except ValueError:
@@ -131,7 +130,6 @@ def extra_args_valid(value: str) -> bool:
 
 
 def proxy_url_valid(value: str) -> bool:
-    """Registry validator for the proxy URL setting."""
     try:
         ytdlp.parse_proxy_url(value)
     except ValueError:

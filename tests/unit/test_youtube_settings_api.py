@@ -135,3 +135,25 @@ def test_proxy_url_rejects_bad_values(app_client):
         assert resp.status_code == 400
         assert text in resp.get_json()['error']
         assert 'SECRET' not in resp.get_json()['error']
+
+
+def test_proxy_url_password_is_masked_and_masked_put_is_a_noop(app_client):
+    from api import get_database
+    _authed(app_client)
+    headers = _csrf_headers(app_client)
+    put = app_client.put('/api/v1/settings/youtube', json={'proxyUrl': 'socks5h://u:secret@host:1080'},
+                         headers=headers)
+    assert put.get_json()['proxyUrl'] == 'socks5h://u:***@host:1080'
+    assert 'secret' not in app_client.get('/api/v1/settings/youtube').get_data(as_text=True)
+    resp = app_client.put('/api/v1/settings/youtube', json={'proxyUrl': 'socks5h://u:***@host:1080'},
+                          headers=headers)
+    assert resp.status_code == 200
+    assert get_database().get_setting('youtube_proxy_url') == 'socks5h://u:secret@host:1080'
+    app_client.put('/api/v1/settings/youtube', json={'proxyUrl': 'http://other:1'}, headers=headers)
+    assert get_database().get_setting('youtube_proxy_url') == 'http://other:1'
+
+
+def test_mask_proxy_url_leaves_passwordless_urls():
+    from youtube import ytdlp
+    assert ytdlp.mask_proxy_url('http://u@h:1') == 'http://u@h:1'
+    assert ytdlp.mask_proxy_url('socks5://h:1') == 'socks5://h:1'

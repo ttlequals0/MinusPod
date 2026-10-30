@@ -55,9 +55,9 @@ def test_too_long():
         ytdlp.parse_extra_args('--x ' + 'a' * 1000)
 
 
-def _run(stored, proxy='', **kwargs):
+def _run(stored, url='', **kwargs):
     db = MagicMock()
-    db.get_setting.side_effect = lambda k: {'youtube_ytdlp_extra_args': stored, 'youtube_proxy_url': proxy}.get(k)
+    db.get_setting.side_effect = lambda k: {'youtube_ytdlp_extra_args': stored, 'youtube_proxy_url': url}.get(k)
     with patch.object(ytdlp, 'ensure_runtime_binary', return_value=Path('/bin/yt-dlp')), \
             patch.object(ytdlp, '_ensured_path', None), \
             patch.object(ytdlp.subprocess, 'run') as run:
@@ -70,7 +70,7 @@ def test_run_places_extras_before_caller_args():
 
 
 def test_run_extra_false_skips_them():
-    assert _run('--proxy p', extra=False) == ['/bin/yt-dlp', '--dump-single-json', 'u']
+    assert _run('--limit-rate 2M', extra_args=False) == ['/bin/yt-dlp', '--dump-single-json', 'u']
 
 
 def test_run_ignores_bad_stored_value():
@@ -88,20 +88,20 @@ def test_update_ignores_extra_args():
     with patch.object(ytdlp, 'run', return_value=MagicMock(returncode=1, stderr='x', stdout='')) as run:
         ytdlp.update_binary(MagicMock(), db, target=Path('/data/yt-dlp'))
     assert run.call_args.args[0] == ['-U']
-    assert run.call_args.kwargs['extra'] is False
+    assert run.call_args.kwargs['extra_args'] is False
 
 
 def test_run_places_proxy_before_extras():
-    cmd = _run('--limit-rate 2M', proxy='socks5h://proxy:1080')
+    cmd = _run('--limit-rate 2M', url='socks5h://proxy:1080')
     assert cmd == ['/bin/yt-dlp', '--proxy', 'socks5h://proxy:1080', '--limit-rate', '2M', '--dump-single-json', 'u']
 
 
 def test_run_extra_false_skips_proxy():
-    assert _run('', proxy='http://p:1', extra=False) == ['/bin/yt-dlp', '--dump-single-json', 'u']
+    assert _run('', url='http://p:1', proxy=False) == ['/bin/yt-dlp', '--dump-single-json', 'u']
 
 
 def test_run_ignores_invalid_stored_proxy():
-    assert _run('', proxy='ftp://p') == ['/bin/yt-dlp', '--dump-single-json', 'u']
+    assert _run('', url='ftp://p') == ['/bin/yt-dlp', '--dump-single-json', 'u']
 
 
 @pytest.mark.parametrize('text', ['http://p:8080', 'https://u:pw@p', 'socks4://p:1', 'socks5://p:1080',

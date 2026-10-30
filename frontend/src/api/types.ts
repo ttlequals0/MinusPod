@@ -30,7 +30,7 @@ export interface Feed {
   // default for feeds pulled from a source URL. Absent on backends that
   // predate local feeds, which read as 'subscribed'.
   feedType?: 'subscribed' | 'local' | 'recents' | 'youtube';
-  youtubeSourceKind?: 'playlist' | 'channel' | null;
+  youtubeSourceKind?: 'playlist' | 'channel' | 'video' | null;
   youtubeSourceId?: string | null;
   youtubeSourceUrl?: string | null;
   youtubeIncludeShorts?: boolean | null;

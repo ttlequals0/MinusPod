@@ -65,6 +65,9 @@ def parse_iso_duration(text) -> float | None:
     return float(days * 86400 + hours * 3600 + minutes * 60 + seconds)
 
 
+_LIVE_STATUSES = ('is_live', 'is_upcoming', 'post_live')
+
+
 def _api_get(path: str, params: dict, key: str, *, proxy: str = '') -> dict:
     url = f"{API}/{path}?{urlencode(params)}"
     headers = {'User-Agent': f'MinusPod/{APP_VERSION}', 'X-Goog-Api-Key': key}
@@ -188,9 +191,12 @@ def _parse_api_source(key: str, source: Source, *, proxy: str = '') -> SourceInf
 
 
 def _playlist_for(podcast: dict, include_shorts: bool) -> str:
-    if podcast.get('youtube_source_kind') == 'channel':
+    kind = podcast.get('youtube_source_kind')
+    if kind == 'channel':
         return uploads_playlist(podcast['youtube_source_id'], include_shorts)
-    return podcast['youtube_source_id']
+    if kind == 'playlist':
+        return podcast['youtube_source_id']
+    raise ValueError(f"unsupported YouTube source kind: {kind}")
 
 
 def _episode(video_id: str, title: str, description: str, published_iso: str, duration, thumb) -> dict:
@@ -214,13 +220,14 @@ def _keep(duration, is_live_or_upcoming: bool, include_shorts: bool, from_channe
 
 
 def list_videos(db, podcast: dict, limit: int, settings=None) -> list[dict]:
-    if podcast.get('youtube_source_kind') == 'video':
+    kind = podcast.get('youtube_source_kind')
+    if kind == 'video':
         return _list_single_video(db, podcast)
     include_shorts = bool(podcast.get('youtube_include_shorts'))
     playlist_id = _playlist_for(podcast, include_shorts)
-    longform = podcast.get('youtube_source_kind') == 'channel' and not include_shorts
+    longform = kind == 'channel' and not include_shorts
     # Uploads playlists are newest-first, so only a user playlist needs the whole list sorted.
-    full = podcast.get('youtube_source_kind') == 'playlist'
+    full = kind == 'playlist'
     hide_private = (settings or yt_settings.resolve_feed(db, podcast)).hide_private
     key = yt_settings.api_key(db)
     if key:
@@ -235,6 +242,9 @@ def list_videos(db, podcast: dict, limit: int, settings=None) -> list[dict]:
 
 def _list_single_video(db, podcast: dict) -> list[dict]:
     video_id = podcast['youtube_source_id']
+    episode_id = _ids.generate_episode_id(watch_url(video_id), f'yt:{video_id}')
+    if db.get_episode(podcast['slug'], episode_id):
+        return []
     key = yt_settings.api_key(db)
     if key:
         try:
@@ -243,7 +253,7 @@ def _list_single_video(db, podcast: dict) -> list[dict]:
             logger.warning(f"[{podcast.get('slug')}] YouTube Data API failed ({type(exc).__name__}); "
                            "listing with yt-dlp")
     data = _ytdlp_json(watch_url(video_id), ['--no-playlist'], timeout=120)
-    if data.get('live_status') in ('is_live', 'is_upcoming', 'post_live'):
+    if data.get('live_status') in _LIVE_STATUSES:
         return []
     duration = float(data['duration']) if data.get('duration') is not None else None
     return [_episode(video_id, data.get('title'), data.get('description'), _published_from_entry(data),
@@ -344,7 +354,7 @@ def _list_with_ytdlp(playlist_id, limit, include_shorts, longform, full=False, *
     entries = entries[:limit]
     episodes = []
     for entry in entries:
-        is_live = entry.get('live_status') in ('is_live', 'is_upcoming', 'post_live')
+        is_live = entry.get('live_status') in _LIVE_STATUSES
         duration = float(entry['duration']) if entry.get('duration') is not None else None
         if not _keep(duration, is_live, include_shorts, longform):
             continue

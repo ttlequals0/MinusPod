@@ -59,6 +59,8 @@ EXCLUDED_SETTINGS = frozenset({
     # yt-dlp runtime status is instance state, not configuration
     'youtube_ytdlp_version', 'youtube_ytdlp_last_update_at',
     'youtube_ytdlp_last_check_at', 'youtube_ytdlp_last_error',
+    # proxy URL may embed credentials
+    'youtube_proxy_url',
 })
 EXTRA_SETTINGS = frozenset({
     'model_pricing_overrides', 'retention_days', 'original_retention_days',
