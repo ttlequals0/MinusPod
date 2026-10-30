@@ -1033,32 +1033,34 @@ function EpisodeDetail() {
       )}
 
       <div className="bg-card rounded-lg border border-border p-4 sm:p-6 mb-6">
-        <div className="flex gap-4">
-          <div className="w-16 h-16 sm:w-24 sm:h-24 shrink-0">
+        <div className="grid grid-cols-[4rem_minmax(0,1fr)] sm:grid-cols-[6rem_minmax(0,1fr)] sm:grid-rows-[auto_1fr] gap-x-4 gap-y-2">
+          <div className="w-16 h-16 sm:w-24 sm:h-24 shrink-0 sm:row-span-2">
             <Artwork
               src={episodeArtworkSrc(slug!, episode.id, episode.artworkUrl, feed?.artworkUrl)}
               alt="Podcast artwork"
               className="w-full h-full object-cover rounded-lg"
             />
           </div>
-          <div className="flex flex-col gap-2 min-w-0">
-            <h1 className={pageTitle}>{episode.title}</h1>
-            <div className="flex flex-wrap items-center gap-2 sm:gap-4 text-sm text-muted-foreground">
-              <span>{formatDate(episode.published)}</span>
+          <h1 className={`${pageTitle} min-w-0`}>{episode.title}</h1>
+          <div className="col-span-2 sm:col-span-1 sm:col-start-2 flex flex-col gap-2 min-w-0 text-sm text-muted-foreground">
+            <div className="flex flex-nowrap items-center gap-2 sm:gap-4">
+              <span className="shrink-0">{formatDate(episode.published)}</span>
               {episode.status === 'completed' && episode.newDuration ? (
-                <span>{formatDuration(episode.newDuration)}</span>
+                <span className="shrink-0">{formatDuration(episode.newDuration)}</span>
               ) : episode.duration ? (
-                <span>{formatDuration(episode.duration)}</span>
+                <span className="shrink-0">{formatDuration(episode.duration)}</span>
               ) : null}
-              {episode.fileSize && (
-                <span>{formatFileSize(episode.fileSize)}</span>
-              )}
               <StatusBadge
                 status={episode.status}
                 jobState={episode.jobState}
-                className={failureReason ? 'cursor-help' : undefined}
+                className={`shrink-0 ${failureReason ? 'cursor-help' : ''}`.trim()}
                 title={failureReason}
               />
+            </div>
+            <div className="flex flex-wrap items-center gap-2 sm:gap-4 empty:hidden">
+              {episode.fileSize && (
+                <span>{formatFileSize(episode.fileSize)}</span>
+              )}
               {sbLabel && <span className="text-xs text-muted-foreground">{sbLabel}</span>}
               {episode.passthroughEnabled && (
                 <span
@@ -1087,11 +1089,6 @@ function EpisodeDetail() {
               {episode.transcriptVttAvailable && (
                 <span className={`${badgeBase} ${tint.blue}`}>
                   VTT
-                </span>
-              )}
-              {episode.chaptersAvailable && (
-                <span className={`${badgeBase} ${tint.purple}`}>
-                  Chapters
                 </span>
               )}
               {episode.daiDifferential && (
@@ -1142,10 +1139,17 @@ function EpisodeDetail() {
                   title="Every run this episode has had"
                 />
               )}
+            </div>
+            <div className="flex flex-nowrap items-center gap-2 max-sm:gap-1">
+              {episode.chaptersAvailable && (
+                <span className={`${badgeBase} ${tint.purple} shrink-0 max-sm:px-1.5`}>
+                  Chapters
+                </span>
+              )}
               {downloadItems.length > 0 && (
                 <DropdownMenu
                   triggerLabel="Download"
-                  triggerClassName={`${btnBase} ${btnSecondary}`}
+                  triggerClassName={`${btnBase} ${btnSecondary} shrink-0 max-sm:px-1.5 max-sm:gap-1`}
                   chevronClassName="w-3 h-3"
                   title="Download audio"
                   items={downloadItems}
@@ -1153,7 +1157,7 @@ function EpisodeDetail() {
               )}
               <DropdownMenu
                 triggerLabel={reprocessTriggerLabel}
-                triggerClassName={`${btnBase} ${btnPrimary}`}
+                triggerClassName={`${btnBase} ${btnPrimary} shrink-0 max-sm:px-1.5 max-sm:gap-1`}
                 chevronClassName="w-3 h-3"
                 disabled={reprocessBlocked}
                 title={reprocessTriggerTooltip}

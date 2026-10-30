@@ -119,6 +119,22 @@ for (const width of WIDTHS) {
       await player.scrollIntoViewIfNeeded();
       await page.waitForTimeout(400);
 
+      // Header rows stay on one line: row height equals one control, no page scroll.
+      const rows = [
+        page.locator('div.flex-nowrap').filter({ hasText: 'Completed' }).filter({ hasNot: page.getByRole('button') }).first(),
+        page.locator('div.flex-nowrap').filter({ has: page.getByRole('button', { name: 'Reprocess' }) }).first(),
+      ];
+      const firstControls = [page.getByText('Completed', { exact: true }), page.getByRole('button', { name: 'Reprocess' })];
+      for (const [i, row] of rows.entries()) {
+        const rowBox = (await row.boundingBox())!;
+        const controlBox = (await firstControls[i].boundingBox())!;
+        expect(await row.evaluate((el) => el.scrollHeight)).toBeLessThanOrEqual(Math.ceil(controlBox.height) + 1);
+        expect(rowBox.height).toBeLessThanOrEqual(Math.ceil(controlBox.height) + 1);
+        const fit = await row.evaluate((el) => [el.scrollWidth, el.clientWidth, el.scrollHeight]);
+        console.log(`header row ${i} ${width}`, fit.join('/'), controlBox.height);
+        expect(fit[0]).toBeLessThanOrEqual(fit[1]);
+      }
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
       const measured: Record<string, string> = {};
       const buttons: Array<[string | RegExp, number]> = [
         ['Play', 56], ['Previous chapter', 44], ['Next chapter', 44],
