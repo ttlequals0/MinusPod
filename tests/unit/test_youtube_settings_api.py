@@ -181,3 +181,37 @@ def test_changed_proxy_host_with_masked_password_is_rejected(app_client):
     resp = app_client.put('/api/v1/settings/youtube', json={'proxyUrl': 'http://u:new@other:1080'}, headers=headers)
     assert resp.status_code == 200
     assert get_database().get_setting('youtube_proxy_url') == 'http://u:new@other:1080'
+
+
+def test_reset_restores_defaults_and_keeps_switch_key_cookies(app_client, monkeypatch):
+    import secrets_crypto
+    monkeypatch.setenv('MINUSPOD_MASTER_PASSPHRASE', 'test-pass-youtube')
+    secrets_crypto.reset_cache()
+    _authed(app_client)
+    headers = _csrf_headers(app_client)
+    assert app_client.put('/api/v1/settings/youtube', json={
+        'enabled': True, 'apiKey': 'AIzaSyTESTKEY', 'processDelayMinutes': 5, 'sbProbeAttempts': 2,
+        'sbWatchMaxDays': 30, 'llmFallback': False, 'captionsAsTranscript': False, 'hidePrivate': False,
+        'transcribeFallback': True, 'ytdlpAutoUpdate': False, 'ytdlpExtraArgs': '--limit-rate 2M',
+        'proxyUrl': 'socks5h://user:secret@proxy:1080',
+    }, headers=headers).status_code == 200
+    before = app_client.get('/api/v1/settings/youtube').get_json()
+    assert before['proxyUrl'] and before['ytdlpExtraArgs']
+
+    resp = app_client.post('/api/v1/settings/youtube/reset', headers=headers)
+    assert resp.status_code == 200, resp.get_json()
+    body = resp.get_json()
+    assert body['processDelayMinutes'] == 60
+    assert body['sbProbeAttempts'] == 6
+    assert body['sbWatchMaxDays'] == 7
+    assert body['llmFallback'] is True
+    assert body['captionsAsTranscript'] is True
+    assert body['hidePrivate'] is True
+    assert body['transcribeFallback'] is False
+    assert body['ytdlp']['autoUpdate'] is True
+    assert body['ytdlpExtraArgs'] == ''
+    assert body['proxyUrl'] == ''
+    assert body['enabled'] is True
+    assert body['apiKeyConfigured'] is True
+    assert body['cookies'] == before['cookies']
+    assert set(body) == set(app_client.get('/api/v1/settings/youtube').get_json())

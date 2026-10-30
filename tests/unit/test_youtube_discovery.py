@@ -200,11 +200,13 @@ def _resp(status=200, text=''):
     return MagicMock(status_code=status, text=text)
 
 
-def test_list_videos_with_key_uses_data_api():
+def test_list_videos_with_key_uses_data_api(caplog):
+    caplog.set_level('INFO', logger='youtube.discovery')
     with patch.object(discovery, 'safe_get', return_value=_resp()) as get, \
             patch.object(discovery, 'read_response_capped', side_effect=_api_pages()):
         episodes = discovery.list_videos(_db('KEY'), _podcast(), limit=50)
     assert [e['video_id'] for e in episodes] == ['vid000000001']
+    assert '[yt] Listed 1 video(s) via the YouTube Data API' in caplog.text
     assert episodes[0]['rss_duration'] == 3600.0
     assert 'playlistItems' in get.call_args_list[0].args[0]
     assert 'KEY' not in get.call_args_list[0].args[0]

@@ -78,3 +78,7 @@ export async function clearYouTubeCookies(): Promise<YouTubeSettings['cookies']>
 export async function updateYtDlpNow(): Promise<{ updated: boolean; version: string | null; error: string | null }> {
   return apiRequest('/youtube/ytdlp/update', { method: 'POST', body: {} });
 }
+
+export async function resetYouTubeSettings(): Promise<YouTubeSettings> {
+  return apiRequest<YouTubeSettings>('/settings/youtube/reset', { method: 'POST' });
+}

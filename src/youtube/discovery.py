@@ -232,11 +232,14 @@ def list_videos(db, podcast: dict, limit: int, settings=None) -> list[dict]:
     key = yt_settings.api_key(db)
     if key:
         try:
-            return _list_with_api(key, playlist_id, limit, include_shorts, longform, full, hide_private=hide_private,
-                                  proxy=ytdlp.configured_proxy(db))
+            episodes = _list_with_api(key, playlist_id, limit, include_shorts, longform, full,
+                                      hide_private=hide_private, proxy=ytdlp.configured_proxy(db))
         except DiscoveryError as exc:
             logger.warning(f"[{podcast.get('slug')}] YouTube Data API failed ({type(exc).__name__}); "
                            "listing with yt-dlp")
+        else:
+            logger.info(f"[{podcast.get('slug')}] Listed {len(episodes)} video(s) via the YouTube Data API")
+            return episodes
     return _list_with_ytdlp(playlist_id, limit, include_shorts, longform, full, hide_private=hide_private)
 
 

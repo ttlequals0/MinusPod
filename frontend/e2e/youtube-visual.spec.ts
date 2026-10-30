@@ -260,6 +260,20 @@ for (const width of WIDTHS) {
       }
     });
 
+    test('settings youtube reset button', async ({ page }) => {
+      await page.goto('settings#youtube');
+      const reset = page.getByRole('button', { name: 'Reset to defaults' });
+      await expect(reset).toBeVisible({ timeout: 15_000 });
+      await reset.scrollIntoViewIfNeeded();
+      await page.waitForTimeout(400);
+      const box = (await reset.boundingBox())!;
+      if (width < 768) expect(box.height).toBeGreaterThanOrEqual(44);
+      await expectNoOverflow(page);
+      if (width === 390 || width === 1024) {
+        await page.screenshot({ path: path.join(SHOTS, `youtube-reset-${width}.png`), fullPage: false });
+      }
+    });
+
     test('hide private settings toggle', async ({ page }) => {
       await page.goto('settings#youtube');
       const toggle = page.getByRole('switch', { name: 'Hide private and deleted episodes' });

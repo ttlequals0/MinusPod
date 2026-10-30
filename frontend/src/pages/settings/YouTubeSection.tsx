@@ -12,6 +12,7 @@ import {
   saveYouTubeCookies,
   clearYouTubeCookies,
   updateYtDlpNow,
+  resetYouTubeSettings,
   type YouTubeSettings,
   type YouTubeSettingsUpdate,
 } from '../../api/youtube';
@@ -20,6 +21,7 @@ import { inputBase, labelBase, textareaBase } from '../../components/fieldStyles
 import { subHeading } from '../../components/pageStyles';
 import { formatDateTime } from '../../utils/format';
 import SavedBadge from './SavedBadge';
+import ConfirmResetButton from './ConfirmResetButton';
 
 type NumberField = keyof YouTubeSettings['bounds'];
 
@@ -95,6 +97,12 @@ function YouTubeSection() {
       refresh();
     },
     onError: (e: unknown) => setUpdateNote({ ok: false, text: getErrorMessage(e, 'Could not update yt-dlp.') }),
+  });
+
+  const resetAll = useMutation({
+    mutationFn: resetYouTubeSettings,
+    onSuccess: () => { setSettingsError(null); setArgsDraft(null); setProxyDraft(null); refresh(); },
+    onError: (e: unknown) => setSettingsError(getErrorMessage(e, 'Could not reset YouTube settings.')),
   });
 
   return (
@@ -342,6 +350,16 @@ function YouTubeSection() {
                 </span>
               )}
             </div>
+          </div>
+
+          <div className="pt-3 border-t border-border flex flex-wrap items-center gap-2">
+            <ConfirmResetButton
+              label="Reset to defaults"
+              confirmHint="Reset YouTube settings to their defaults? The feature switch, Data API key and cookies file are kept."
+              isPending={resetAll.isPending}
+              onConfirm={() => resetAll.mutate()}
+            />
+            {resetAll.isSuccess && !settingsError && <SavedBadge />}
           </div>
         </div>
       )}

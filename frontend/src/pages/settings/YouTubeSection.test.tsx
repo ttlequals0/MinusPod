@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import YouTubeSection from './YouTubeSection';
@@ -11,6 +11,7 @@ const mockTestKey = vi.fn();
 const mockSaveCookies = vi.fn();
 const mockClearCookies = vi.fn();
 const mockUpdateNow = vi.fn();
+const mockReset = vi.fn();
 vi.mock('../../api/youtube', () => ({
   getYouTubeSettings: (...a: unknown[]) => mockGet(...a),
   updateYouTubeSettings: (...a: unknown[]) => mockUpdate(...a),
@@ -18,6 +19,7 @@ vi.mock('../../api/youtube', () => ({
   saveYouTubeCookies: (...a: unknown[]) => mockSaveCookies(...a),
   clearYouTubeCookies: (...a: unknown[]) => mockClearCookies(...a),
   updateYtDlpNow: (...a: unknown[]) => mockUpdateNow(...a),
+  resetYouTubeSettings: (...a: unknown[]) => mockReset(...a),
 }));
 
 const base: YouTubeSettings = {
@@ -126,5 +128,17 @@ describe('YouTubeSection', () => {
     renderSection();
     await userEvent.click(await screen.findByRole('button', { name: /update now/i }));
     expect(await screen.findByText(/updated to 2026\.10\.27/i)).toBeDefined();
+  });
+
+  it('resets to defaults after confirming and refreshes', async () => {
+    mockReset.mockResolvedValue(base);
+    renderSection({ ...base, processDelayMinutes: 5 });
+    await userEvent.click(await screen.findByRole('button', { name: 'Reset to defaults' }));
+    expect(screen.getByText(/The feature switch, Data API key and cookies file are kept/)).toBeDefined();
+    expect(mockReset).not.toHaveBeenCalled();
+    const getCalls = mockGet.mock.calls.length;
+    await userEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Reset to defaults' }));
+    await waitFor(() => expect(mockReset).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(mockGet.mock.calls.length).toBeGreaterThan(getCalls));
   });
 });

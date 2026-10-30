@@ -9165,6 +9165,22 @@ paths:
                   health:
                     $ref: '#/components/schemas/WhisperHealthProbe'
 
+  /settings/youtube/reset:
+    post:
+      tags:
+        - Settings
+      summary: Reset YouTube settings to defaults
+      description: >-
+        Restores the YouTube tunables, proxy and extra yt-dlp arguments to their defaults.
+        The feature switch, Data API key and cookies file are kept.
+      operationId: resetYoutubeSettings
+      responses:
+        '200':
+          description: YouTube settings after the reset
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/YoutubeSettings'
   /settings/youtube:
     get:
       tags:
