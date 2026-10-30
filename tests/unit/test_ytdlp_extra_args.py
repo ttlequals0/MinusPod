@@ -34,6 +34,9 @@ def test_normal_and_quoted_values():
     ('--update-t x', '--update-t'),
     ('--p x', '--p'),
     ('--', '--'),
+    ('--username x', '--username'),
+    ('-p x', '-p'),
+    ('--video-password=x', '--video-password'),
 ])
 def test_denied_flags(text, flag):
     with pytest.raises(ValueError, match=f'{flag} is not allowed'):

@@ -8,7 +8,7 @@ import tempfile
 import threading
 from datetime import timedelta
 from pathlib import Path
-from urllib.parse import unquote, urlparse, urlsplit
+from urllib.parse import unquote, urlsplit
 
 from utils.time import parse_iso_utc, utc_now, utc_now_iso
 
@@ -39,6 +39,8 @@ DENIED_FLAGS = frozenset({
     '--remote-components', '--plugin-dirs', '--netrc', '--netrc-location', '--netrc-cmd', '--cache-dir',
     '--alias', '-U', '--update', '--update-to', '--write-link', '--write-url-link', '--write-webloc-link',
     '--write-desktop-link', '--write-lnk-link',
+    '-u', '--username', '-p', '--password', '-2', '--twofactor', '--ap-username', '--ap-password',
+    '--video-password', '--client-certificate-password', '--client-certificate-key-password',
 })
 
 
@@ -150,7 +152,7 @@ def parse_proxy_url(text: str) -> str:
     if len(text) > MAX_PROXY_LENGTH:
         raise ValueError(f'proxy URL: at most {MAX_PROXY_LENGTH} characters')
     try:
-        parsed = urlparse(text)
+        parsed = urlsplit(text)
         valid = (parsed.scheme.lower() in PROXY_SCHEMES and bool(parsed.hostname) and parsed.port != 0
                  and not any(c.isspace() for c in text))
     except ValueError:
