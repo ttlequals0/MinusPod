@@ -179,6 +179,20 @@ def test_partial_batch_stamps_only_present_then_gives_up_after_max_misses():
     assert 'vid2' not in metadata._misses
 
 
+def test_failing_batch_stamps_rows_after_max_misses():
+    metadata._misses.clear()
+    with _enabled(), patch.object(metadata, 'fetch_info', side_effect=download.DownloadError('private')):
+        for _ in range(metadata.MAX_MISSES - 1):
+            db = _db(_two_rows())
+            metadata._run_batch(db)
+            db.upsert_episode.assert_not_called()
+        db = _db(_two_rows())
+        metadata._run_batch(db)
+    assert [c[0][1] for c in db.upsert_episode.call_args_list] == ['e1', 'e2']
+    assert all(c[1]['yt_metadata_at'] for c in db.upsert_episode.call_args_list)
+    assert not metadata._misses
+
+
 def test_batch_exception_throttles_and_clears_transaction():
     db = _db(_two_rows())
     with _enabled(), patch.object(metadata, 'fetch_info', side_effect=RuntimeError('x')):

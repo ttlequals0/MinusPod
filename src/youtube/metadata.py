@@ -95,6 +95,9 @@ def _run_batch(db):
                 logger.warning(f"YouTube metadata backfill failed: {exc}")
                 if exc.needs_update:
                     ytdlp.update_after_failure(db, logger)
+                for row, vid in wanted:
+                    if vid and _give_up(vid):
+                        db.upsert_episode(row['slug'], row['episode_id'], yt_metadata_at=utc_now_iso())
         if ok:
             filled = 0
             for row, vid in wanted:

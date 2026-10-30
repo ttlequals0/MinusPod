@@ -42,3 +42,19 @@ def test_drops_only_placeholder_rows_and_runs_once(temp_db):
     conn.commit()
     temp_db._run_schema_migrations()
     assert 'placeholder02' in _ids(conn)
+
+
+def test_drops_failed_placeholders_only(temp_db):
+    temp_db.create_podcast('yt-feed', 'https://example.com/yt', 'YT')
+    conn = temp_db.get_connection()
+    yt = temp_db.get_podcast_by_slug('yt-feed')['id']
+    conn.execute("UPDATE podcasts SET feed_type = 'youtube' WHERE id = ?", (yt,))
+    _add(conn, yt, 'failedholder1', 'permanently_failed', 'abcdefghijk', 'abcdefghijk')
+    _add(conn, yt, 'failedholder2', 'failed', 'bcdefghijkl', 'bcdefghijkl')
+    _add(conn, yt, 'failedreal001', 'permanently_failed', 'A real title', 'cdefghijklm')
+    conn.execute("DELETE FROM schema_migrations WHERE name = 'youtube_drop_private_placeholders_failed'")
+    conn.commit()
+
+    temp_db._run_schema_migrations()
+
+    assert _ids(conn) == {'failedreal001'}

@@ -33,6 +33,10 @@ release notes.
   entries already created.
 - Processing stats record the chapters stage when publisher chapters are
   preserved, and show a SponsorBlock lookup stage on YouTube runs.
+- The metadata backfill gives up on a video after three failed lookups
+  instead of retrying forever.
+- The placeholder cleanup also removes placeholders whose processing attempt
+  failed.
 
 ### Changed
 

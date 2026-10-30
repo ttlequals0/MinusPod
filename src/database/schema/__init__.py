@@ -1937,6 +1937,8 @@ class SchemaMixin:
 
         try:
             self._run_youtube_drop_private_placeholders(conn)
+            self._run_youtube_drop_private_placeholders(
+                conn, 'youtube_drop_private_placeholders_failed', ('failed', 'permanently_failed'))
         except Exception as e:
             conn.rollback()
             logger.error(f"youtube private placeholder cleanup failed: {e}")
@@ -2844,15 +2846,17 @@ class SchemaMixin:
         else:
             logger.info(f"search-index-reindex: complete, {count} row(s) indexed")
 
-    def _run_youtube_drop_private_placeholders(self, conn):
-        """One-shot delete of discovered YouTube rows titled with their bare video id."""
-        name = 'youtube_drop_private_placeholders'
+    def _run_youtube_drop_private_placeholders(self, conn, name='youtube_drop_private_placeholders',
+                                               statuses=('discovered',)):
+        """One-shot delete of YouTube rows in the given statuses titled with their bare video id."""
         if conn.execute("SELECT 1 FROM schema_migrations WHERE name = ?", (name,)).fetchone():
             return
         rows = conn.execute(
-            "SELECT e.id, e.episode_id, p.slug FROM episodes e JOIN podcasts p ON p.id = e.podcast_id "
-            "WHERE e.status = 'discovered' AND e.title = e.youtube_video_id "
-            "AND (e.description IS NULL OR e.description = '') AND p.feed_type = 'youtube'"
+            "SELECT e.id, e.episode_id, p.slug FROM episodes e JOIN podcasts p ON p.id = e.podcast_id "  # noqa: S608
+            f"WHERE e.status IN ({','.join('?' * len(statuses))}) AND e.title = e.youtube_video_id "
+            "AND (e.description IS NULL OR e.description = '') AND p.feed_type = 'youtube' "
+            "AND e.processed_at IS NULL",
+            statuses
         ).fetchall()
         if rows:
             conn.executemany("DELETE FROM episodes WHERE id = ?", [(r['id'],) for r in rows])
