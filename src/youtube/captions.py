@@ -8,11 +8,12 @@ MIN_EVENT_S = 0.5
 
 def pick_file(directory: str, video_id: str, language: str) -> str | None:
     """Prefer the creator track, then the original auto track, then any json3 file."""
-    lang = (language or 'en').split('-')[0]
-    for name in (f'{video_id}.{lang}.json3', f'{video_id}.{lang}-orig.json3'):
-        path = os.path.join(directory, name)
-        if os.path.exists(path):
-            return path
+    if language and language != 'auto':
+        lang = language.split('-')[0]
+        for name in (f'{video_id}.{lang}.json3', f'{video_id}.{lang}-orig.json3'):
+            path = os.path.join(directory, name)
+            if os.path.exists(path):
+                return path
     others = sorted(glob.glob(os.path.join(directory, f'{video_id}.*.json3')))
     return others[0] if others else None
 

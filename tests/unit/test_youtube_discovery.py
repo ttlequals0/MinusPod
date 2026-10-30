@@ -109,13 +109,13 @@ def test_quota_exhausted_falls_back_to_ytdlp():
 def test_api_404_is_source_not_found():
     with patch.object(discovery, 'safe_get', return_value=_resp(404)):
         with pytest.raises(discovery.SourceNotFound):
-            discovery.list_videos(_db('KEY'), _podcast(), limit=50)
+            discovery._list_with_api('KEY', 'PL1', 50, False, False)
 
 
 def test_api_other_status_is_discovery_error():
     with patch.object(discovery, 'safe_get', return_value=_resp(500)):
         with pytest.raises(discovery.DiscoveryError) as exc:
-            discovery.list_videos(_db('KEY'), _podcast(), limit=50)
+            discovery._list_with_api('KEY', 'PL1', 50, False, False)
     assert '500' in str(exc.value)
 
 
@@ -137,7 +137,7 @@ def test_api_network_error_does_not_leak_key():
     exc = requests.ConnectionError('failed https://www.googleapis.com/youtube/v3/x?key=SECRETKEY')
     with patch.object(discovery, 'safe_get', side_effect=exc):
         with pytest.raises(discovery.DiscoveryError) as err:
-            discovery.list_videos(_db('SECRETKEY'), _podcast(), limit=50)
+            discovery._list_with_api('SECRETKEY', 'PL1', 50, False, False)
     assert 'SECRETKEY' not in str(err.value)
     assert 'ConnectionError' in str(err.value)
 
@@ -146,7 +146,7 @@ def test_api_unreadable_body_is_discovery_error():
     with patch.object(discovery, 'safe_get', return_value=_resp()), \
             patch.object(discovery, 'read_response_capped', return_value=b'\xff not json'):
         with pytest.raises(discovery.DiscoveryError) as err:
-            discovery.list_videos(_db('KEY'), _podcast(), limit=50)
+            discovery._list_with_api('KEY', 'PL1', 50, False, False)
     assert 'unreadable' in str(err.value)
 
 
@@ -155,8 +155,8 @@ def test_api_malformed_page_is_discovery_error():
     with patch.object(discovery, 'safe_get', return_value=_resp()), \
             patch.object(discovery, 'read_response_capped', return_value=page):
         with pytest.raises(discovery.DiscoveryError) as err:
-            discovery.list_videos(_db('KEY'), _podcast(), limit=50)
-    assert 'unexpected page' in str(err.value)
+            discovery._list_with_api('KEY', 'PL1', 50, False, False)
+    assert 'unexpected payload' in str(err.value)
 
 
 def test_ytdlp_timeout_is_discovery_error():
@@ -171,3 +171,38 @@ def test_ytdlp_not_installed_is_discovery_error():
         with pytest.raises(discovery.DiscoveryError) as err:
             discovery.list_videos(_db(), _podcast(), limit=50)
     assert 'not installed' in str(err.value)
+
+
+def test_api_source_not_found_falls_back_to_ytdlp_on_resolve():
+    with patch.object(discovery, 'safe_get', return_value=_resp(404)), \
+            patch.object(discovery.ytdlp, 'run', return_value=_completed(YT_DLP_LISTING)) as run:
+        info = discovery.resolve_source(_db('KEY'), Source('custom', 'Name'))
+    assert run.called and info.id == 'UCabcdefghijklmnopqrstuv'
+
+
+def test_api_403_without_quota_falls_back_to_ytdlp_on_list():
+    with patch.object(discovery, 'safe_get', return_value=_resp(403, '{"error":"keyInvalid"}')), \
+            patch.object(discovery.ytdlp, 'run', return_value=_completed(YT_DLP_LISTING)) as run:
+        episodes = discovery.list_videos(_db('KEY'), _podcast(), limit=50)
+    assert run.called and episodes[0]['video_id'] == 'vid000000001'
+
+
+def test_api_and_ytdlp_failing_raises_the_ytdlp_error():
+    with patch.object(discovery, 'safe_get', return_value=_resp(403, '{}')), \
+            patch.object(discovery.ytdlp, 'run', return_value=_completed({}, code=1, stderr='ERROR: boom')):
+        with pytest.raises(discovery.DiscoveryError) as exc:
+            discovery.list_videos(_db('KEY'), _podcast(), limit=50)
+    assert 'boom' in str(exc.value) and '403' not in str(exc.value)
+
+
+def test_api_item_without_snippet_does_not_escape_as_keyerror():
+    payload = json.dumps({'items': [{'id': 'UCabcdefghijklmnopqrstuv'}]}).encode()
+    with patch.object(discovery, 'safe_get', return_value=_resp()), \
+            patch.object(discovery, 'read_response_capped', return_value=payload), \
+            patch.object(discovery.ytdlp, 'run', return_value=_completed(YT_DLP_LISTING)) as run:
+        info = discovery.resolve_source(_db('KEY'), Source('handle', 'x'))
+    assert run.called and info.title == 'Example Channel'
+    with patch.object(discovery, 'safe_get', return_value=_resp()), \
+            patch.object(discovery, 'read_response_capped', return_value=payload):
+        with pytest.raises(discovery.DiscoveryError, match='unexpected payload'):
+            discovery._resolve_with_api('KEY', Source('handle', 'x'))

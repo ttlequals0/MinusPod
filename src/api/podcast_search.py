@@ -90,8 +90,8 @@ class DirectorySearchError(Exception):
         self.status = status
 
 
-def search_directory(query: str) -> list[dict]:
-    """Search the configured provider; raises DirectorySearchError on failure."""
+def search_directory(query: str) -> tuple[list[dict], str]:
+    """Search the configured provider; returns (results, provider). Raises DirectorySearchError on failure."""
     provider = resolve_search_provider()
     if provider == SEARCH_PROVIDER_ITUNES:
         label = 'iTunes'
@@ -159,7 +159,7 @@ def search_directory(query: str) -> list[dict]:
             'author': feed.get('author', ''),
             'link': feed.get('link', ''),
         } for feed in data.get('feeds', [])]
-    return results
+    return results, provider
 
 
 @api.route('/podcast-search', methods=['GET'])
@@ -175,10 +175,10 @@ def search_podcasts():
     if not query:
         return error_response('Query parameter "q" is required', 400)
     try:
-        results = search_directory(query)
+        results, provider = search_directory(query)
     except DirectorySearchError as e:
         return error_response(str(e), e.status)
-    return json_response({'results': results, 'provider': resolve_search_provider()})
+    return json_response({'results': results, 'provider': provider})
 
 
 @api.route('/settings/podcast-index/test', methods=['POST'])

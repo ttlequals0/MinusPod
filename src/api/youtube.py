@@ -22,7 +22,7 @@ def _normalize_title(text: str) -> str:
 
 def _rss_matches(title: str) -> list[dict]:
     try:
-        results = search_directory(title)
+        results, _ = search_directory(title)
     except Exception as exc:
         logger.info(f"Directory lookup for YouTube preview skipped: {type(exc).__name__}")
         return []

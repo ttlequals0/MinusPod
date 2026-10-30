@@ -167,6 +167,7 @@ class TestItunesSearch:
         assert r['author'] == 'Host Name'
         assert r['artworkUrl'] == 'https://img/600.jpg'
         assert r['feedUrl'] == 'https://example.com/rss'
+        mock_provider.assert_called_once()
         url = mock_get.call_args[0][0]
         assert url.startswith('https://itunes.apple.com/search?')
         assert 'media=podcast' in url

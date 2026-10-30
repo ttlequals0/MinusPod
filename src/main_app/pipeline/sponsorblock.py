@@ -45,7 +45,7 @@ def acquire(slug, episode_id, episode_url, podcast, episode_data, reprocess_mode
     if not video_id:
         raise Exception('YouTube episode has no video id')
     db.update_episode_sponsorblock(slug, episode_id, youtube_video_id=video_id)
-    language = (podcast or {}).get('language_override') or 'en'
+    language = (podcast or {}).get('language_override')
     want_captions = resolved.captions_as_transcript and (
         reprocess_mode in FORCE_TRANSCRIBE_MODES or not storage.get_transcript(slug, episode_id))
 

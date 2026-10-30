@@ -1,3 +1,4 @@
+import time
 import io
 import os
 import sys
@@ -59,7 +60,7 @@ def test_preview_returns_source_and_rss_matches(app_client):
                {'title': 'Unrelated Cooking', 'feedUrl': 'https://feeds.example.com/cook.xml', 'artworkUrl': ''},
                {'title': 'Tech Show Daily', 'feedUrl': 'https://feeds.example.com/tsd.xml', 'artworkUrl': ''}]
     with patch('api.youtube.discovery.resolve_source', return_value=info), \
-            patch('api.youtube.search_directory', return_value=matches):
+            patch('api.youtube.search_directory', return_value=(matches, 'itunes')):
         resp = app_client.post('/api/v1/youtube/preview', json={'url': 'https://www.youtube.com/@dailytech'},
                                headers=_csrf_headers(app_client))
     body = resp.get_json()
@@ -96,7 +97,7 @@ def test_add_youtube_feed_and_patch_overrides(app_client):
     db = get_database()
     _enable(db)
     headers = _csrf_headers(app_client)
-    with patch('main_app.feeds.refresh_single_feed', return_value=True), \
+    with patch('main_app.feeds.refresh_single_feed', return_value=True) as refresh, \
             patch('api.feeds.get_storage') as storage:
         storage.return_value.download_artwork.return_value = True
         resp = app_client.post('/api/v1/feeds', json={
@@ -106,6 +107,10 @@ def test_add_youtube_feed_and_patch_overrides(app_client):
         }, headers=headers)
     assert resp.status_code == 201, resp.get_json()
     slug = resp.get_json()['slug']
+    deadline = time.time() + 2
+    while not refresh.called and time.time() < deadline:
+        time.sleep(0.01)
+    refresh.assert_called_once_with(slug)
     try:
         row = db.get_podcast_by_slug(slug)
         assert row['feed_type'] == 'youtube'

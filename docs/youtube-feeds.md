@@ -110,7 +110,7 @@ Two suffixes can follow: `, marked whole video as sponsored` when SponsorBlock f
 
 ## Transcripts and chapters
 
-- **Captions first.** When **Use YouTube captions as the transcript** is on (global default, per-feed override), yt-dlp downloads captions with the audio. MinusPod prefers the creator's track, then the auto-generated track, in the feed's language (the transcription language override, `en` if unset). The captions become the transcript and Whisper is skipped.
+- **Captions first.** When **Use YouTube captions as the transcript** is on (global default, per-feed override), yt-dlp downloads captions with the audio. MinusPod prefers the creator's track, then the auto-generated track, in the feed's language (the transcription language override, `en` if unset). With the feed language set to auto, the original-language auto captions are used. The captions become the transcript and Whisper is skipped.
 - **Whisper when none.** If no captions exist, or the toggle is off, the normal transcription backend runs.
 - **Creator chapters.** yt-dlp embeds the video's chapters in the audio (`--embed-chapters`). MinusPod reuses them, so the LLM chapter generation call is skipped for those episodes.
 - **Artwork.** Feed artwork comes from the source's thumbnail. You can upload your own or refresh it from the feed's YouTube panel. Episode thumbnails are cached when an episode is processed and served as per-episode artwork.

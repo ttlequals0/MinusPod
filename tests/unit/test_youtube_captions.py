@@ -26,3 +26,9 @@ def test_pick_file_prefers_creator_track(tmp_path):
     assert captions.pick_file(str(tmp_path), 'v', 'en').endswith('v.en-orig.json3')
     assert captions.pick_file(str(tmp_path), 'v', 'fr').endswith('.json3')
     assert captions.pick_file(str(tmp_path), 'zz', 'en') is None
+
+
+def test_pick_file_auto_or_empty_accepts_any_track(tmp_path):
+    (tmp_path / 'v.de-orig.json3').write_text('{}')
+    for lang in ('auto', '', None):
+        assert captions.pick_file(str(tmp_path), 'v', lang).endswith('v.de-orig.json3')

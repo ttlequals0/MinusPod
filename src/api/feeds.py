@@ -6,6 +6,7 @@ import logging
 import os
 import re
 import shutil
+import threading
 import time
 from urllib.parse import urlparse
 
@@ -54,6 +55,7 @@ from llm_capabilities import chapters_capability_error
 # Module import (not `from rss_parser import RSSParser`) so tests patching
 # rss_parser.RSSParser take effect at call time.
 import rss_parser
+import run_context
 import run_log
 from storage import _detect_image_mime
 from utils.constants import EpisodeStatus
@@ -1468,7 +1470,8 @@ def _add_youtube_feed(data, db):
             get_storage().download_artwork(slug, [data['artworkUrl']])
         from main_app.feeds import invalidate_feed_cache, refresh_single_feed
         invalidate_feed_cache()
-        refresh_single_feed(slug)
+        threading.Thread(target=run_context.run_in_worker_thread(refresh_single_feed), args=(slug,),
+                         daemon=True).start()
         logger.info(f"Created new YouTube feed: {slug}")
         return json_response({'slug': slug, 'feedType': 'youtube', 'feedUrl': feed_url,
                               'message': 'YouTube feed created successfully'}, 201)

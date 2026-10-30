@@ -123,8 +123,8 @@ def resolve_source(db, source: Source) -> SourceInfo:
     if key:
         try:
             return _resolve_with_api(key, source)
-        except QuotaExceeded:
-            logger.warning('YouTube Data API quota exceeded; resolving with yt-dlp')
+        except DiscoveryError as exc:
+            logger.warning(f'YouTube Data API failed ({type(exc).__name__}); resolving with yt-dlp')
     data = _ytdlp_json(source_url(source), ['--playlist-items', '0'], timeout=120)
     if source.kind == 'playlist':
         return SourceInfo('playlist', source.id, data.get('title') or source.id, data.get('description') or '',
@@ -137,6 +137,13 @@ def resolve_source(db, source: Source) -> SourceInfo:
 
 
 def _resolve_with_api(key: str, source: Source) -> SourceInfo:
+    try:
+        return _parse_api_source(key, source)
+    except (KeyError, IndexError, TypeError, AttributeError):
+        raise DiscoveryError('YouTube Data API returned an unexpected payload') from None
+
+
+def _parse_api_source(key: str, source: Source) -> SourceInfo:
     if source.kind == 'playlist':
         data = _api_get('playlists', {'part': 'snippet,contentDetails', 'id': source.id}, key)
         items = data.get('items') or []
@@ -190,12 +197,20 @@ def list_videos(db, podcast: dict, limit: int) -> list[dict]:
     if key:
         try:
             return _list_with_api(key, playlist_id, limit, include_shorts, longform)
-        except QuotaExceeded:
-            logger.warning(f"[{podcast.get('slug')}] YouTube Data API quota exceeded; listing with yt-dlp")
+        except DiscoveryError as exc:
+            logger.warning(f"[{podcast.get('slug')}] YouTube Data API failed ({type(exc).__name__}); "
+                           "listing with yt-dlp")
     return _list_with_ytdlp(playlist_id, limit, include_shorts, longform)
 
 
 def _list_with_api(key, playlist_id, limit, include_shorts, longform) -> list[dict]:
+    try:
+        return _parse_api_listing(key, playlist_id, limit, include_shorts, longform)
+    except (KeyError, IndexError, TypeError, AttributeError):
+        raise DiscoveryError('YouTube Data API returned an unexpected payload') from None
+
+
+def _parse_api_listing(key, playlist_id, limit, include_shorts, longform) -> list[dict]:
     ids: list[str] = []
     token = None
     while len(ids) < limit:
@@ -203,10 +218,7 @@ def _list_with_api(key, playlist_id, limit, include_shorts, longform) -> list[di
         if token:
             params['pageToken'] = token
         page = _api_get('playlistItems', params, key)
-        try:
-            ids.extend(i['contentDetails']['videoId'] for i in page.get('items') or [])
-        except (KeyError, TypeError):
-            raise DiscoveryError('YouTube Data API returned an unexpected page') from None
+        ids.extend(i['contentDetails']['videoId'] for i in page.get('items') or [])
         token = page.get('nextPageToken')
         if not token:
             break

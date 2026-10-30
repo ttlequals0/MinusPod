@@ -56,9 +56,12 @@ def download(video_id: str, *, want_captions: bool, language: str) -> DownloadRe
             '--no-warnings', '--sleep-requests', '1', '--sleep-interval', '2', '--max-sleep-interval', '8',
             '-o', '%(id)s.%(ext)s']
     if want_captions:
-        lang = (language or 'en').split('-')[0]
-        args += ['--write-subs', '--write-auto-subs', '--sub-langs', f'{lang},{lang}-orig,-live_chat',
-                 '--sub-format', 'json3']
+        if language and language != 'auto':
+            lang = language.split('-')[0]
+            sub_langs = f'{lang},{lang}-orig,-live_chat'
+        else:
+            sub_langs = '.*-orig,-live_chat'
+        args += ['--write-subs', '--write-auto-subs', '--sub-langs', sub_langs, '--sub-format', 'json3']
     cookie_file = cookies_path()
     if cookie_file:
         args += ['--cookies', cookie_file]
