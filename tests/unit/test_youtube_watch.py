@@ -59,16 +59,16 @@ def test_zero_probe_attempts_skips_probing():
 
 
 def test_done_recuts_when_uuid_set_changes():
-    out = watch.transition(_row('done', uuids='["u0"]'), SETTINGS, MARK, NOW, has_retained_original=True)
+    out = watch.transition(_row('done', uuids='["u0"]'), SETTINGS, MARK, NOW, True, {'u1'})
     assert out['recut'] is True and out['queue'] is True
-    out = watch.transition(_row('done', uuids='["u1"]'), SETTINGS, MARK, NOW, has_retained_original=True)
+    out = watch.transition(_row('done', uuids='["u1"]'), SETTINGS, MARK, NOW, True, {'u1'})
     assert out['recut'] is False and out['sb_next_check_at'] == (NOW + timedelta(hours=6)).isoformat()
-    out = watch.transition(_row('done', uuids='["u0"]'), SETTINGS, MARK, NOW, has_retained_original=False)
+    out = watch.transition(_row('done', uuids='["u0"]'), SETTINGS, MARK, NOW, False, {'u1'})
     assert out['recut'] is False
 
 
 def test_done_stops_watching_past_ceiling():
-    out = watch.transition(_row('done', published=NOW - timedelta(days=8), uuids='["u1"]'), SETTINGS, MARK, NOW, True)
+    out = watch.transition(_row('done', published=NOW - timedelta(days=8), uuids='["u1"]'), SETTINGS, MARK, NOW, True, {'u1'})
     assert out['sb_next_check_at'] is None and out['queue'] is False
 
 
@@ -86,12 +86,16 @@ def test_terminal_states_never_scheduled():
         assert out['sb_next_check_at'] is None and out['queue'] is False and out['sb_state'] == state
 
 
-def test_error_backs_off_and_records():
-    out = watch.transition(_row('probing', attempts=1, last_gap_minutes=30), SETTINGS, None, NOW, False)
+def test_error_retries_at_normal_interval_and_records():
+    out = watch.transition(_row('probing', attempts=1), SETTINGS, None, NOW, False)
     assert out['sb_state'] == 'probing' and out['sb_attempts'] == 1
-    assert out['sb_next_check_at'] == (NOW + timedelta(minutes=60)).isoformat()
-    assert out['sb_last_error']
-    out = watch.transition(_row('probing', last_gap_minutes=20 * 60), SETTINGS, None, NOW, False)
+    assert out['sb_next_check_at'] == (NOW + timedelta(minutes=30)).isoformat()
+    assert out['sb_last_error'] == 'SponsorBlock request failed'
+    for state in ('watching', 'done'):
+        out = watch.transition(_row(state), SETTINGS, None, NOW, False)
+        assert out['sb_next_check_at'] == (NOW + timedelta(hours=6)).isoformat()
+    s = watch.replace_settings(SETTINGS, probe_interval_minutes=2000)
+    out = watch.transition(_row('probing'), s, None, NOW, False)
     assert out['sb_next_check_at'] == (NOW + timedelta(hours=24)).isoformat()
 
 
@@ -166,3 +170,34 @@ def test_tick_disabled_does_nothing():
     db.get_setting_bool.return_value = False
     watch.sponsorblock_tick(db)
     db.get_due_sponsorblock_episodes.assert_not_called()
+
+
+def test_tick_filtered_segment_does_not_recut(monkeypatch):
+    queued = _patch_tick(monkeypatch)
+    raw = MARK + [{'UUID': 'u2', 'segment': [5, 6], 'category': 'sponsor', 'actionType': 'skip',
+                   'votes': -3, 'locked': 0}]
+    monkeypatch.setattr(watch.sponsorblock, 'fetch_segments', lambda vid: raw)
+    db = _tick_db([_tick_row('a1', uuids='["u1"]')])
+    watch.sponsorblock_tick(db)
+    assert queued == []
+    db.save_episode_details.assert_not_called()
+    assert db.update_episode_sponsorblock.call_args.kwargs['sb_next_check_at']
+
+
+def test_tick_queue_failure_keeps_state_and_retries_soon(monkeypatch):
+    _patch_tick(monkeypatch)
+
+    def boom(db, row, podcast, *, recut):
+        raise RuntimeError('queue down')
+
+    monkeypatch.setattr(watch, 'queue_for_processing', boom)
+    monkeypatch.setattr(watch.sponsorblock, 'fetch_segments', lambda vid: MARK)
+    db = _tick_db([_tick_row('a1', state='waiting', uuids='[]')])
+    before = datetime.now(timezone.utc)
+    watch.sponsorblock_tick(db)
+    calls = db.update_episode_sponsorblock.call_args_list
+    assert len(calls) == 1
+    fields = calls[0].kwargs
+    assert 'sb_state' not in fields and fields['sb_last_error'] == 'RuntimeError'
+    due = datetime.fromisoformat(fields['sb_next_check_at'])
+    assert timedelta(minutes=4) < due - before < timedelta(minutes=6)

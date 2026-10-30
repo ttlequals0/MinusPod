@@ -32,16 +32,20 @@ def _ceiling_passed(row, resolved, now) -> bool:
     return now >= anchor + timedelta(days=resolved.watch_max_days)
 
 
-def _backoff(row, now) -> datetime:
-    """Double the previous gap, floor 5 min, cap 24 h."""
-    last = parse_iso_utc(row.get('sb_next_check_at'))
-    gap = (now - last) if last else timedelta(minutes=30)
-    gap = max(gap, timedelta(minutes=5))
-    return now + min(gap * 2, MAX_BACKOFF)
+def _error_retry(state, resolved, now) -> datetime:
+    """Retry a failed lookup at the state's normal interval, capped at 24 h."""
+    if state in ('waiting', 'probing'):
+        gap = timedelta(minutes=resolved.probe_interval_minutes)
+    else:
+        gap = timedelta(hours=resolved.watch_interval_hours)
+    return now + min(gap, MAX_BACKOFF)
 
 
-def transition(row, resolved, marks, now, has_retained_original) -> dict:
-    """Pure SponsorBlock state machine: next state, schedule and queue/recut intent for one row."""
+def transition(row, resolved, marks, now, has_retained_original, current_uuids=None) -> dict:
+    """Pure SponsorBlock state machine: next state, schedule and queue/recut intent for one row.
+
+    current_uuids is the uuid set of the converted markers; None means no usable markers (no recut).
+    """
     state = row.get('sb_state') or 'waiting'
     attempts = int(row.get('sb_attempts') or 0)
     watch_next = (now + timedelta(hours=resolved.watch_interval_hours)).isoformat()
@@ -50,7 +54,7 @@ def transition(row, resolved, marks, now, has_retained_original) -> dict:
     if state in TERMINAL:
         return out
     if marks is None:
-        out['sb_next_check_at'] = _backoff(row, now).isoformat()
+        out['sb_next_check_at'] = _error_retry(state, resolved, now).isoformat()
         out['sb_last_error'] = 'SponsorBlock request failed'
         return out
     if state in ('waiting', 'probing'):
@@ -79,8 +83,7 @@ def transition(row, resolved, marks, now, has_retained_original) -> dict:
         if _ceiling_passed(row, resolved, now):
             return out
         known = set(json.loads(row.get('sb_segment_uuids') or '[]'))
-        current = {m.get('UUID') for m in marks if m.get('UUID')}
-        if marks and current != known and has_retained_original:
+        if current_uuids and current_uuids != known and has_retained_original:
             out.update(queue=True, recut=True)
         out['sb_next_check_at'] = watch_next
         return out
@@ -114,19 +117,20 @@ def _process_row(db, row, podcast, now, storage):
     slug, episode_id = row['slug'], row['episode_id']
     resolved = yt_settings.resolve_feed(db, podcast)
     marks = sponsorblock.fetch_segments(row['youtube_video_id']) if row.get('youtube_video_id') else []
+    markers = []
+    if marks:
+        markers, _note = sponsorblock.to_markers(marks, row.get('original_duration'))
+    current_uuids = set(sponsorblock.uuid_set(markers)) if markers else None
     original = storage.get_original_path(slug, episode_id)
-    out = transition(row, resolved, marks, now, has_retained_original=bool(original and original.exists()))
+    out = transition(row, resolved, marks, now, bool(original and original.exists()), current_uuids)
     fields = {k: out[k] for k in ('sb_state', 'sb_attempts', 'sb_next_check_at', 'sb_last_error')}
     if out['recut']:
-        markers, _note = sponsorblock.to_markers(marks, row.get('original_duration'))
-        if markers:
-            db.save_episode_details(slug, episode_id, ad_markers=markers)
-            fields['sb_segment_uuids'] = json.dumps(sponsorblock.uuid_set(markers))
-        else:
-            out['queue'] = out['recut'] = False
-    db.update_episode_sponsorblock(slug, episode_id, **fields)
+        db.save_episode_details(slug, episode_id, ad_markers=markers)
+        fields['sb_segment_uuids'] = json.dumps(sponsorblock.uuid_set(markers))
     if out['queue']:
         queue_for_processing(db, row, podcast, recut=out['recut'])
+    db.update_episode_sponsorblock(slug, episode_id, **fields)
+    if out['queue']:
         logger.info(f"[{slug}:{episode_id}] SponsorBlock gate: {row.get('sb_state')} -> "
                     f"{out['sb_state']}{' (recut)' if out['recut'] else ''}, queued")
 
@@ -145,5 +149,11 @@ def sponsorblock_tick(db):
                 podcasts[slug] = db.get_podcast_by_slug(slug)
             if podcasts[slug]:
                 _process_row(db, row, podcasts[slug], now, storage)
-        except Exception:
+        except Exception as exc:
             logger.exception(f"[{slug}:{row.get('episode_id')}] SponsorBlock tick failed")
+            try:
+                db.update_episode_sponsorblock(slug, row['episode_id'],
+                                               sb_next_check_at=(now + timedelta(minutes=5)).isoformat(),
+                                               sb_last_error=type(exc).__name__)
+            except Exception:
+                logger.exception(f"[{slug}:{row.get('episode_id')}] SponsorBlock retry reschedule failed")
