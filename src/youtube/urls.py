@@ -54,6 +54,16 @@ def canonical_source_url(kind: str, source_id: str) -> str:
     return f'youtube://{kind}/{source_id}'
 
 
+def source_url(source: Source) -> str:
+    if source.kind == 'playlist':
+        return f'https://www.youtube.com/playlist?list={source.id}'
+    if source.kind == 'channel':
+        return f'https://www.youtube.com/channel/{source.id}'
+    if source.kind == 'handle':
+        return f'https://www.youtube.com/@{source.id}'
+    return f'https://www.youtube.com/{"user" if source.kind == "user" else "c"}/{source.id}'
+
+
 def watch_url(video_id: str) -> str:
     return f'https://www.youtube.com/watch?v={video_id}'
 

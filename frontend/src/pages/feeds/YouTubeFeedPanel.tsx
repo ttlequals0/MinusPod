@@ -8,12 +8,10 @@ import CollapsibleSection from '../../components/CollapsibleSection';
 import DraftNumberInput, { parseOptionalNumber } from '../../components/DraftNumberInput';
 import { selectBase } from '../../components/fieldStyles';
 import FeedArtworkUpload from './FeedArtworkUpload';
-import { GlobalOverrideRow, rowLabelTop } from './OverrideRows';
+import { fromTri, GlobalOverrideRow, rowLabelTop, toTri } from './OverrideRows';
 
 type NumberField = 'ytProcessDelayMinutesOverride' | 'ytProbeAttemptsOverride' | 'ytProbeIntervalMinutesOverride';
 type BoolField = 'ytLlmFallbackOverride' | 'ytLlmOnTopOverride' | 'ytCaptionsOverride' | 'youtubeIncludeShorts';
-
-const toTri = (v: boolean | null | undefined): 'on' | 'off' | null => (v == null ? null : v ? 'on' : 'off');
 
 function NumberOverrideRow({
   label, ariaLabel, value, globalValue, bounds, unit, disabled, onCommit, children,
@@ -101,7 +99,7 @@ function YouTubeFeedPanel({ feed, slug }: { feed: Feed; slug: string }) {
   });
 
   const setBool = (field: BoolField) => (v: 'on' | 'off' | null) =>
-    mutation.mutate({ [field]: v == null ? null : v === 'on' });
+    mutation.mutate({ [field]: fromTri(v) });
   const setNumber = (field: NumberField) => (v: number | null) => mutation.mutate({ [field]: v });
   const bound = (key: keyof YouTubeSettings['bounds']) => globals?.bounds[key];
   const pending = mutation.isPending;

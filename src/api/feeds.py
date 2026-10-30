@@ -69,7 +69,7 @@ from database.podcasts import (EPISODE_STATUSES, RECENTS_SLUG, PodcastMixin, has
                                is_recents_feed, is_youtube_feed, recents_cutoff)
 from youtube import urls as yt_urls
 from youtube.feed import source_link as youtube_source_link
-from youtube.settings import BOUNDS as YT_BOUNDS
+from youtube.settings import validate_yt_int
 from podping_listener import feed_url_domain
 from utils.time import utc_now_iso
 from utils.url import validate_url, SSRFError
@@ -1985,10 +1985,9 @@ def _youtube_override_updates(podcast, data, updates):
         if api_field not in data:
             continue
         value = data[api_field]
-        if value is not None:
-            lo, hi = YT_BOUNDS[bound_key]
-            if not isinstance(value, int) or isinstance(value, bool) or not lo <= value <= hi:
-                return f'{api_field} must be an integer between {lo} and {hi} or null'
+        err = validate_yt_int(api_field, value, bound_key)
+        if err:
+            return err
         staged[db_field] = value
     for api_field, db_field in _YT_BOOL_OVERRIDES:
         if api_field in data:

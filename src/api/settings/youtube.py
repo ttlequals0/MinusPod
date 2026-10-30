@@ -6,13 +6,6 @@ from secrets_crypto import is_available as crypto_available
 from utils.secret_writes import SecretWriteRejected, set_or_clear_secret
 from youtube import cookies, settings as yt_settings, ytdlp
 
-_INT_KEYS = {
-    'processDelayMinutes': 'youtube_process_delay_minutes',
-    'sbProbeAttempts': 'youtube_sb_probe_attempts',
-    'sbProbeIntervalMinutes': 'youtube_sb_probe_interval_minutes',
-    'sbWatchIntervalHours': 'youtube_sb_watch_interval_hours',
-    'sbWatchMaxDays': 'youtube_sb_watch_max_days',
-}
 _BOOL_KEYS = {
     'enabled': 'youtube_enabled',
     'llmFallback': 'youtube_llm_fallback',
@@ -36,7 +29,7 @@ def youtube_status_payload(db) -> dict:
         'captionsAsTranscript': s.captions_as_transcript,
         'ytdlp': {
             'autoUpdate': s.ytdlp_auto_update,
-            **ytdlp.status(storage, db),
+            **ytdlp.status(db),
             'lastUpdateAt': db.get_setting('youtube_ytdlp_last_update_at'),
             'lastCheckAt': db.get_setting('youtube_ytdlp_last_check_at'),
             'lastError': db.get_setting('youtube_ytdlp_last_error'),
@@ -57,7 +50,7 @@ def get_youtube_settings():
 def put_youtube_settings():
     data = request.get_json(silent=True) or {}
     writes = []
-    for key, db_key in _INT_KEYS.items():
+    for key, db_key in yt_settings.INT_KEYS.items():
         if key not in data:
             continue
         lo, hi = yt_settings.BOUNDS[key]

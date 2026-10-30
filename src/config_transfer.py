@@ -37,7 +37,7 @@ from llm_route import SAME_AS_DETECTION, VALID_SLOTS
 from pattern_cleanup import BATCH_SIZE_RANGE, UNUSED_DAYS_RANGE
 from podping_listener import get_podping_nodes, normalize_podping_nodes
 from rss_parser import _feed_trust
-from youtube.settings import BOUNDS as YT_BOUNDS
+from youtube.settings import validate_yt_int
 from rate_limit_hold import clear_hold_for_provider_change
 from secrets_crypto import SECRET_SETTING_KEYS, decrypt, is_available, is_ciphertext
 from utils.cron import is_valid_expression
@@ -122,6 +122,17 @@ BOOLEAN_EXTRA_SETTINGS = frozenset({
     'update_patterns_from_reviewer_adjustments', 'email_enabled', 'db_backup_enabled',
 })
 
+YT_INT_COLUMNS = {
+    'yt_process_delay_minutes_override': 'processDelayMinutes',
+    'yt_probe_attempts_override': 'sbProbeAttempts',
+    'yt_probe_interval_minutes_override': 'sbProbeIntervalMinutes',
+}
+YOUTUBE_BOOL_COLUMNS = (
+    'youtube_include_shorts', 'yt_llm_fallback_override', 'yt_llm_on_top_override',
+    'yt_captions_override',
+)
+_YOUTUBE_COLUMN_ORDER = ('youtube_source_kind', 'youtube_source_id', *YOUTUBE_BOOL_COLUMNS, *YT_INT_COLUMNS)
+YOUTUBE_COLUMNS = frozenset(_YOUTUBE_COLUMN_ORDER)
 FEED_COLUMNS = (
     'title', 'description', 'source_url', 'network_id', 'dai_platform',
     'network_id_override', 'audio_analysis_override', 'auto_process_override',
@@ -148,24 +159,10 @@ FEED_COLUMNS = (
     'keep_original_audio_override', 'user_tags', 'author', 'explicit',
     'audio_replacement_sound_override', 'audio_mp3_stream_copy_override',
     'categories', 'p20_channel_json',
-    'youtube_source_kind', 'youtube_source_id', 'youtube_include_shorts',
-    'yt_process_delay_minutes_override', 'yt_probe_attempts_override',
-    'yt_probe_interval_minutes_override', 'yt_llm_fallback_override',
-    'yt_llm_on_top_override', 'yt_captions_override',
+    *_YOUTUBE_COLUMN_ORDER,
 )
-YOUTUBE_COLUMNS = frozenset({
-    'youtube_source_kind', 'youtube_source_id', 'youtube_include_shorts',
-    'yt_process_delay_minutes_override', 'yt_probe_attempts_override',
-    'yt_probe_interval_minutes_override', 'yt_llm_fallback_override',
-    'yt_llm_on_top_override', 'yt_captions_override',
-})
 YOUTUBE_SOURCE_RE = re.compile(r'^youtube://(playlist|channel)/[A-Za-z0-9_-]+$')
 YOUTUBE_ID_RE = re.compile(r'^[A-Za-z0-9_-]+$')
-YT_INT_COLUMNS = {
-    'yt_process_delay_minutes_override': 'processDelayMinutes',
-    'yt_probe_attempts_override': 'sbProbeAttempts',
-    'yt_probe_interval_minutes_override': 'sbProbeIntervalMinutes',
-}
 FEED_JSON_COLUMNS = frozenset({
     'segment_category_actions', 'title_skip_patterns', 'description_skip_patterns',
     'user_tags', 'categories', 'p20_channel_json',
@@ -179,8 +176,7 @@ FEED_BOOL_COLUMNS = frozenset({
     'differential_fetch_enabled',
     'keep_original_audio_override',
     'audio_replacement_sound_override', 'audio_mp3_stream_copy_override',
-    'youtube_include_shorts', 'yt_llm_fallback_override', 'yt_llm_on_top_override',
-    'yt_captions_override',
+    *YOUTUBE_BOOL_COLUMNS,
 })
 
 
@@ -510,7 +506,7 @@ def _validate_document(document):
                     or not YOUTUBE_ID_RE.match(yt_id) or source_url != f'youtube://{yt_kind}/{yt_id}'):
                 raise ConfigTransferError(
                     f'Feed {slug} has a YouTube source that does not match its source_url')
-        if feed_type != 'youtube' and set(fields) & YOUTUBE_COLUMNS:
+        if feed_type != 'youtube' and not YOUTUBE_COLUMNS.isdisjoint(fields):
             raise ConfigTransferError(f'Feed {slug} contains YouTube-only settings')
         if feed_type != 'local' and set(fields) & (
                 {'author', 'explicit', 'categories'}
@@ -1019,12 +1015,10 @@ def _validated_feed_updates(db, podcast, payload, feed_type, *, confirmed_ceilin
                 raise ConfigTransferError('user_tags must be an array of strings or null')
             value = _canonical_json(value)
         elif key in YT_INT_COLUMNS:
-            if value is not None:
-                lo, hi = YT_BOUNDS[YT_INT_COLUMNS[key]]
-                if not isinstance(value, int) or isinstance(value, bool) or not lo <= value <= hi:
-                    raise ConfigTransferError(f'{key} must be an integer between {lo} and {hi} or null')
-        elif key in ('yt_llm_fallback_override', 'yt_llm_on_top_override',
-                     'yt_captions_override', 'youtube_include_shorts'):
+            error = validate_yt_int(key, value, YT_INT_COLUMNS[key])
+            if error:
+                raise ConfigTransferError(error)
+        elif key in YOUTUBE_BOOL_COLUMNS:
             value, error = feed_api._normalize_cue_bool_override(value, key)
             if error:
                 raise ConfigTransferError(error)

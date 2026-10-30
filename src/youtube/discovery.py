@@ -13,9 +13,10 @@ from config import HTTP_TIMEOUT_API
 from rss_parser import RSSParser
 from utils.app_version import APP_VERSION
 from utils.safe_http import URLTrust, read_response_capped, safe_get
+from utils.time import epoch_to_iso
 from utils.url import SSRFError
 from youtube import settings as yt_settings, ytdlp
-from youtube.urls import Source, uploads_playlist, watch_url
+from youtube.urls import Source, source_url, uploads_playlist, watch_url
 
 logger = logging.getLogger(__name__)
 
@@ -117,16 +118,6 @@ def _best_thumb(thumbs) -> str | None:
     return None
 
 
-def _source_url(source: Source) -> str:
-    if source.kind == 'playlist':
-        return f'https://www.youtube.com/playlist?list={source.id}'
-    if source.kind == 'channel':
-        return f'https://www.youtube.com/channel/{source.id}'
-    if source.kind == 'handle':
-        return f'https://www.youtube.com/@{source.id}'
-    return f'https://www.youtube.com/{"user" if source.kind == "user" else "c"}/{source.id}'
-
-
 def resolve_source(db, source: Source) -> SourceInfo:
     key = yt_settings.api_key(db)
     if key:
@@ -134,7 +125,7 @@ def resolve_source(db, source: Source) -> SourceInfo:
             return _resolve_with_api(key, source)
         except QuotaExceeded:
             logger.warning('YouTube Data API quota exceeded; resolving with yt-dlp')
-    data = _ytdlp_json(_source_url(source), ['--playlist-items', '0'], timeout=120)
+    data = _ytdlp_json(source_url(source), ['--playlist-items', '0'], timeout=120)
     if source.kind == 'playlist':
         return SourceInfo('playlist', source.id, data.get('title') or source.id, data.get('description') or '',
                           _best_thumb(data.get('thumbnails')), data.get('playlist_count'))
@@ -238,7 +229,7 @@ def _list_with_api(key, playlist_id, limit, include_shorts, longform) -> list[di
 
 def _published_from_entry(entry: dict) -> str:
     if entry.get('timestamp'):
-        return datetime.fromtimestamp(int(entry['timestamp']), tz=timezone.utc).isoformat()
+        return epoch_to_iso(int(entry['timestamp']))
     raw = entry.get('upload_date') or entry.get('release_date')
     if raw and len(raw) == 8:
         return datetime(int(raw[:4]), int(raw[4:6]), int(raw[6:]), tzinfo=timezone.utc).isoformat()

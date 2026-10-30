@@ -4,6 +4,9 @@ import { selectBase } from '../../components/fieldStyles';
 export const rowLabel = 'text-muted-foreground whitespace-nowrap sm:w-32 shrink-0';
 export const rowLabelTop = `${rowLabel} sm:pt-1.5`;
 
+export const toTri = (v: boolean | null | undefined): 'on' | 'off' | null => (v == null ? null : v ? 'on' : 'off');
+export const fromTri = (v: 'on' | 'off' | null): boolean | null => (v == null ? null : v === 'on');
+
 export function GlobalOverrideRow({
   label, ariaLabel, value, globalOn, disabled, onChange, children,
 }: {

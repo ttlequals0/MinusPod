@@ -10,6 +10,36 @@ BOUNDS = {
 }
 
 
+INT_KEYS = {
+    'processDelayMinutes': 'youtube_process_delay_minutes',
+    'sbProbeAttempts': 'youtube_sb_probe_attempts',
+    'sbProbeIntervalMinutes': 'youtube_sb_probe_interval_minutes',
+    'sbWatchIntervalHours': 'youtube_sb_watch_interval_hours',
+    'sbWatchMaxDays': 'youtube_sb_watch_max_days',
+}
+DEFAULTS = {
+    'youtube_enabled': False,
+    'youtube_process_delay_minutes': 60,
+    'youtube_sb_probe_attempts': 6,
+    'youtube_sb_probe_interval_minutes': 30,
+    'youtube_sb_watch_interval_hours': 6,
+    'youtube_sb_watch_max_days': 7,
+    'youtube_llm_fallback': True,
+    'youtube_captions_as_transcript': True,
+    'youtube_ytdlp_auto_update': True,
+}
+
+
+def validate_yt_int(field: str, value, bound_key: str) -> str | None:
+    """Error text when a nullable integer override is out of its bound, else None."""
+    if value is None:
+        return None
+    lo, hi = BOUNDS[bound_key]
+    if not isinstance(value, int) or isinstance(value, bool) or not lo <= value <= hi:
+        return f'{field} must be an integer between {lo} and {hi} or null'
+    return None
+
+
 @dataclass(frozen=True)
 class YouTubeSettings:
     enabled: bool
@@ -24,16 +54,19 @@ class YouTubeSettings:
 
 
 def load_global(db) -> YouTubeSettings:
+    d = DEFAULTS
     return YouTubeSettings(
-        enabled=db.get_setting_bool('youtube_enabled', False),
-        process_delay_minutes=db.get_setting_int('youtube_process_delay_minutes', 60),
-        probe_attempts=db.get_setting_int('youtube_sb_probe_attempts', 6),
-        probe_interval_minutes=db.get_setting_int('youtube_sb_probe_interval_minutes', 30),
-        watch_interval_hours=db.get_setting_int('youtube_sb_watch_interval_hours', 6),
-        watch_max_days=db.get_setting_int('youtube_sb_watch_max_days', 7),
-        llm_fallback=db.get_setting_bool('youtube_llm_fallback', True),
-        captions_as_transcript=db.get_setting_bool('youtube_captions_as_transcript', True),
-        ytdlp_auto_update=db.get_setting_bool('youtube_ytdlp_auto_update', True),
+        enabled=db.get_setting_bool('youtube_enabled', d['youtube_enabled']),
+        process_delay_minutes=db.get_setting_int('youtube_process_delay_minutes', d['youtube_process_delay_minutes']),
+        probe_attempts=db.get_setting_int('youtube_sb_probe_attempts', d['youtube_sb_probe_attempts']),
+        probe_interval_minutes=db.get_setting_int(
+            'youtube_sb_probe_interval_minutes', d['youtube_sb_probe_interval_minutes']),
+        watch_interval_hours=db.get_setting_int('youtube_sb_watch_interval_hours', d['youtube_sb_watch_interval_hours']),
+        watch_max_days=db.get_setting_int('youtube_sb_watch_max_days', d['youtube_sb_watch_max_days']),
+        llm_fallback=db.get_setting_bool('youtube_llm_fallback', d['youtube_llm_fallback']),
+        captions_as_transcript=db.get_setting_bool(
+            'youtube_captions_as_transcript', d['youtube_captions_as_transcript']),
+        ytdlp_auto_update=db.get_setting_bool('youtube_ytdlp_auto_update', d['youtube_ytdlp_auto_update']),
     )
 
 
@@ -43,8 +76,9 @@ def _override(podcast: dict, column: str, default, cast=lambda v: v):
     return default if value is None else cast(value)
 
 
-def resolve_feed(db, podcast: dict | None) -> YouTubeSettings:
-    base = load_global(db)
+def resolve_feed(db, podcast: dict | None, base: YouTubeSettings | None = None) -> YouTubeSettings:
+    """Global settings with the feed's overrides applied; pass `base` to reuse an already-loaded global."""
+    base = base or load_global(db)
     if not podcast:
         return base
     return replace(

@@ -12426,10 +12426,6 @@ components:
               type:
                 - string
                 - 'null'
-            runtimePath:
-              type:
-                - string
-                - 'null'
             bakedVersion:
               type:
                 - string

@@ -1,7 +1,8 @@
 """Operator-supplied Netscape cookies file for yt-dlp."""
 import os
-from datetime import datetime, timezone
 from pathlib import Path
+
+from utils.time import epoch_to_iso
 
 
 class InvalidCookiesError(ValueError):
@@ -45,5 +46,5 @@ def status(storage) -> dict:
     target = path(storage)
     if not target.exists():
         return {'set': False, 'lines': 0, 'updatedAt': None}
-    updated = datetime.fromtimestamp(target.stat().st_mtime, tz=timezone.utc).isoformat()
+    updated = epoch_to_iso(target.stat().st_mtime)
     return {'set': True, 'lines': len(_cookie_lines(target.read_text(errors='replace'))), 'updatedAt': updated}
