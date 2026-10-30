@@ -11,6 +11,12 @@ release notes.
 
 ## [Unreleased]
 
+## [2.101.6] - 2026-10-30
+
+### Changed
+
+- Settings > YouTube lists the proxy and extra-argument fields first and keeps the yt-dlp version, daily update toggle and Update now button together below them.
+
 ## [2.101.5] - 2026-10-30
 
 ### Fixed

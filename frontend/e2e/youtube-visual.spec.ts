@@ -244,7 +244,7 @@ for (const width of WIDTHS) {
       await page.goto('settings#youtube');
       const input = page.getByLabel('Extra yt-dlp arguments');
       await expect(input).toBeVisible({ timeout: 15_000 });
-      await input.scrollIntoViewIfNeeded();
+      await page.getByRole('button', { name: 'Update now' }).scrollIntoViewIfNeeded();
       await page.waitForTimeout(400);
       const proxy = page.getByLabel('Proxy URL');
       await expect(proxy).toBeVisible();

@@ -268,23 +268,6 @@ function YouTubeSection() {
 
           <div className="pt-3 border-t border-border space-y-2">
             <h4 className={subHeading}>yt-dlp</h4>
-            <div className="text-sm text-muted-foreground">
-              <div>
-                yt-dlp {data.ytdlp.version ?? 'not installed'}
-                {data.ytdlp.bakedVersion ? ` (image ships ${data.ytdlp.bakedVersion})` : ''}
-              </div>
-              <div>Last checked {formatDateTime(data.ytdlp.lastCheckAt)}</div>
-              {data.ytdlp.lastError && <div className="text-destructive">{data.ytdlp.lastError}</div>}
-            </div>
-            <label className="flex items-center gap-3 cursor-pointer">
-              <ToggleSwitch
-                checked={data.ytdlp.autoUpdate}
-                onChange={(ytdlpAutoUpdate) => saveSettings.mutate({ ytdlpAutoUpdate })}
-                disabled={saveSettings.isPending}
-                ariaLabel="Update yt-dlp daily"
-              />
-              <span className="text-sm text-foreground">Update yt-dlp daily</span>
-            </label>
             <div className="space-y-1">
               <label htmlFor="yt-proxy-url" className="text-sm text-foreground">Proxy URL</label>
               <input
@@ -327,6 +310,23 @@ function YouTubeSection() {
                 Added before MinusPod&apos;s options on every yt-dlp call. Example: --limit-rate 2M --extractor-args youtube:player_client=web
               </p>
             </div>
+            <div className="mt-3 text-sm text-muted-foreground">
+              <div>
+                yt-dlp {data.ytdlp.version ?? 'not installed'}
+                {data.ytdlp.bakedVersion ? ` (image ships ${data.ytdlp.bakedVersion})` : ''}
+              </div>
+              <div>Last checked {formatDateTime(data.ytdlp.lastCheckAt)}</div>
+              {data.ytdlp.lastError && <div className="text-destructive">{data.ytdlp.lastError}</div>}
+            </div>
+            <label className="flex items-center gap-3 cursor-pointer">
+              <ToggleSwitch
+                checked={data.ytdlp.autoUpdate}
+                onChange={(ytdlpAutoUpdate) => saveSettings.mutate({ ytdlpAutoUpdate })}
+                disabled={saveSettings.isPending}
+                ariaLabel="Update yt-dlp daily"
+              />
+              <span className="text-sm text-foreground">Update yt-dlp daily</span>
+            </label>
             <div className="flex flex-wrap items-center gap-2">
               <button
                 type="button"
