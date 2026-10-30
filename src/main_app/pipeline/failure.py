@@ -35,6 +35,7 @@ from webhook_service import (
 )
 
 from main_app.pipeline import common, finalize, admission
+from main_app.pipeline import sponsorblock as sb_stage
 from main_app.pipeline.shared import db
 
 audio_logger = logging.getLogger('podcast.audio')
@@ -158,6 +159,22 @@ def _handle_processing_failure(slug, episode_id, episode_title, podcast_name,
         fire_service_offline_event(
             service=service, error_message=error, slug=slug,
             episode_id=episode_id, podcast_name=podcast_name)
+        return
+
+    # SponsorBlock marks not usable yet: not a failure. The watcher re-queues the
+    # episode when marks appear; no retry count, history row or error text.
+    if isinstance(error, sb_stage.SponsorBlockDeferred):
+        prior = (episode_data or {}).get('status')
+        db.upsert_episode(
+            slug, episode_id,
+            status=prior if prior not in (EpisodeStatus.PENDING.value, EpisodeStatus.PROCESSING.value, None)
+            else EpisodeStatus.DISCOVERED.value,
+            error_message=None)
+        probing = (episode_data or {}).get('sb_state') in ('waiting', 'probing')
+        db.update_episode_sponsorblock(
+            slug, episode_id, sb_state='probing' if probing else 'watching',
+            sb_next_check_at=error.next_check_at, sb_last_error=str(error))
+        audio_logger.info(f"[{slug}:{episode_id}] SponsorBlock: {error}; will check again at {error.next_check_at}")
         return
 
     audio_logger.error(f"[{slug}:{episode_id}] Failed: {error} ({processing_time:.1f}s)")

@@ -62,3 +62,13 @@ def test_due_sponsorblock_episodes_orders_by_next_check(db):
 def test_count_youtube_feeds(db):
     db.create_podcast('yt-show', 'youtube://playlist/PL1', feed_type='youtube')
     assert db.count_youtube_feeds() == 1
+
+
+def test_disarm_sponsorblock_watch_clears_only_an_armed_check(db):
+    db.create_podcast('yt-show', 'youtube://playlist/PL1', feed_type='youtube')
+    db.upsert_episode('yt-show', 'a1b2c3d4e5f6', original_url='https://www.youtube.com/watch?v=vid1')
+    db.update_episode_sponsorblock('yt-show', 'a1b2c3d4e5f6', sb_state='watching',
+                                   sb_next_check_at='2026-10-29T12:00:00+00:00')
+    assert db.disarm_sponsorblock_watch('yt-show', 'a1b2c3d4e5f6') is True
+    assert db.get_episode('yt-show', 'a1b2c3d4e5f6')['sb_next_check_at'] is None
+    assert db.disarm_sponsorblock_watch('yt-show', 'a1b2c3d4e5f6') is False

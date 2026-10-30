@@ -1,8 +1,4 @@
 """YouTube feed and SponsorBlock state queries."""
-import logging
-
-logger = logging.getLogger(__name__)
-
 SB_COLUMNS = frozenset({
     'youtube_video_id', 'sb_state', 'sb_next_check_at', 'sb_attempts',
     'sb_segment_uuids', 'sb_last_error', 'sb_note',
@@ -48,6 +44,17 @@ class YouTubeMixin:
             "UPDATE episodes SET sb_state = 'waiting', sb_attempts = 0, sb_next_check_at = ?, "
             "updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now') WHERE id = ? AND sb_state IS NULL",
             (due_iso, db_id))
+        conn.commit()
+        return cur.rowcount > 0
+
+    def disarm_sponsorblock_watch(self, slug: str, episode_id: str) -> bool:
+        """Clear the next check so the watcher does not race a manual run; the run re-arms it."""
+        db_id = self._get_episode_db_id(slug, episode_id)
+        if not db_id:
+            return False
+        conn = self.get_connection()
+        cur = conn.execute(
+            "UPDATE episodes SET sb_next_check_at = NULL WHERE id = ? AND sb_next_check_at IS NOT NULL", (db_id,))
         conn.commit()
         return cur.rowcount > 0
 

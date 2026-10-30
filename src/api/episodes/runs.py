@@ -447,6 +447,7 @@ def bulk_episode_action(slug):
                     # episodes at +20 once pinned a fresh episode 94th).
                     priority = compute_queue_priority(
                         podcast.get('queue_priority'), ep.get('published_at'), bulk=True)
+                    db.disarm_sponsorblock_watch(slug, episode_id)
                     db.upsert_episode_for_processing(
                         slug, episode_id,
                         ep.get('original_url', ''),
@@ -1172,6 +1173,7 @@ def _reprocess_episode_with_mode(slug, episode_id, legacy=False):
         # Mode, user-request mark, and the per-mode clear. The processed audio
         # stays until the new version is durable (orchestration-5).
         reset_episode_for_reprocess(db, slug, episode_id, mode)
+        db.disarm_sponsorblock_watch(slug, episode_id)
 
         # Get episode metadata for processing
         episode_url = episode.get('original_url')

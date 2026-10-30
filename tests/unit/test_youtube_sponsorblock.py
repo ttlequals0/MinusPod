@@ -58,10 +58,39 @@ def test_to_markers_maps_categories_actions_and_sanity_rules():
 
 def test_to_markers_drops_response_on_duration_mismatch():
     markers, note = sb.to_markers(PAYLOAD[1]['segments'], downloaded_duration=3500.0)
-    assert markers == [] and note is None
+    assert markers == [] and note == 'duration_mismatch'
 
 
 def test_known_ad_includes_sponsorblock():
     from config import is_known_ad
     assert is_known_ad({'category': 'sponsor', 'source': 'sponsorblock'}) is True
     assert is_known_ad({'category': 'intro', 'source': 'sponsorblock'}) is False
+
+
+def test_to_markers_skips_malformed_segments():
+    good = {'segment': [10, 20], 'UUID': 'g', 'category': 'sponsor', 'actionType': 'skip', 'votes': 1, 'locked': 0}
+    segments = [
+        'not a dict',
+        dict(good, UUID='str-vote', votes='abc'),
+        dict(good, UUID='nan', segment=[float('nan'), 5]),
+        dict(good, UUID='inf', segment=[1, float('inf')]),
+        dict(good, UUID='short', segment=[1]),
+        good,
+        dict(good, UUID='past-end', segment=[90, 500]),
+    ]
+    markers, _ = sb.to_markers(segments, downloaded_duration=100.0)
+    assert [m['sb_uuid'] for m in markers] == ['g', 'past-end']
+    assert markers[1]['end'] == 100.0
+
+
+def test_fetch_ignores_non_dict_entries_and_segments():
+    payload = ['junk', {'videoID': 'vid000000001', 'segments': ['x', {'segment': [1, 2], 'UUID': 'a'}]}]
+    with patch.object(sb, 'safe_get', return_value=_resp(200, payload)):
+        assert sb.fetch_segments('vid000000001') == [{'segment': [1, 2], 'UUID': 'a'}]
+
+
+def test_fetch_logs_one_warning_when_the_server_keeps_failing(caplog):
+    with patch.object(sb, 'safe_get', side_effect=[_resp(503), _resp(503)]):
+        with caplog.at_level('WARNING', logger=sb.logger.name):
+            assert sb.fetch_segments('vid000000001') is None
+    assert len([r for r in caplog.records if 'server errors' in r.message]) == 1

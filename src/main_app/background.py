@@ -495,7 +495,7 @@ def _wait_for_claimed_episode(queue_id: int, slug: str, episode_id: str) -> None
             shutdown_event.wait(timeout=10)
             waited += 10
             episode = db.get_episode_state(slug, episode_id)
-            if episode and episode['status'] in ('processed', 'failed', 'permanently_failed', 'deferred'):
+            if episode and episode['status'] in ('processed', 'failed', 'permanently_failed', 'deferred', 'discovered'):
                 break
             # A rate-limit hold put the row back to pending.
             if episode and episode['status'] == 'pending' and any_hold_active(db):
@@ -548,6 +548,11 @@ def _wait_for_claimed_episode(queue_id: int, slug: str, episode_id: str) -> None
             # re-opens it as pending once the service is back.
             db.close_claimed_queue_row(queue_id, 'completed')
             refresh_logger.info(f"[{slug}:{episode_id}] Deferred to offline queue (endpoint unreachable)")
+        elif episode and episode['status'] == 'discovered':
+            # A YouTube episode stepped aside to wait for SponsorBlock marks;
+            # the watcher re-queues it, so the row closes without a failure.
+            db.close_claimed_queue_row(queue_id, 'completed')
+            refresh_logger.info(f"[{slug}:{episode_id}] Waiting for SponsorBlock marks; queue row closed")
         elif (episode and episode['status'] == 'pending'
                 and any_hold_active(db)):
             # The failure handler already reopened the row as

@@ -2,6 +2,7 @@
 import hashlib
 import json
 import logging
+import math
 
 from utils.app_version import APP_VERSION
 from utils.safe_http import URLTrust, safe_get
@@ -43,20 +44,47 @@ def fetch_segments(video_id: str) -> list[dict] | None:
         except ValueError:
             return None
         for entry in payload if isinstance(payload, list) else []:
-            if entry.get('videoID') == video_id:
-                return list(entry.get('segments') or [])
+            if isinstance(entry, dict) and entry.get('videoID') == video_id:
+                return [seg for seg in (entry.get('segments') or []) if isinstance(seg, dict)]
         return []
+    logger.warning("SponsorBlock server errors on both attempts")
     return None
 
 
+def _parse_segment(seg, limit):
+    """Return (start, end, votes) for a usable segment, else None."""
+    try:
+        votes = int(seg.get('votes') or 0)
+        start, end = (float(x) for x in seg['segment'])
+    except (KeyError, TypeError, ValueError):
+        return None
+    if not (math.isfinite(start) and math.isfinite(end)):
+        return None
+    if limit:
+        start, end = max(0.0, min(start, limit)), max(0.0, min(end, limit))
+    if end <= start:
+        return None
+    return start, end, votes
+
+
+def _duration_mismatch(segments, downloaded_duration) -> bool:
+    for seg in segments:
+        try:
+            declared = float(seg.get('videoDuration') or 0)
+        except (TypeError, ValueError):
+            continue
+        if declared and abs(declared - downloaded_duration) > DURATION_TOLERANCE_S:
+            logger.info(f"SponsorBlock duration {declared} differs from download {downloaded_duration:.1f}; ignoring marks")
+            return True
+    return False
+
+
 def to_markers(segments: list[dict], downloaded_duration: float | None) -> tuple[list[dict], str | None]:
+    """Map segments to markers; note is 'duration_mismatch' when the response was dropped, 'full' for a full-video label."""
+    segments = [seg for seg in segments if isinstance(seg, dict)]
+    if downloaded_duration and _duration_mismatch(segments, downloaded_duration):
+        return [], 'duration_mismatch'
     note = None
-    if downloaded_duration:
-        for seg in segments:
-            declared = seg.get('videoDuration')
-            if declared and abs(float(declared) - downloaded_duration) > DURATION_TOLERANCE_S:
-                logger.info(f"SponsorBlock duration {declared} differs from download {downloaded_duration:.1f}; ignoring marks")
-                return [], None
     markers = []
     for seg in segments:
         action = seg.get('actionType') or 'skip'
@@ -66,12 +94,12 @@ def to_markers(segments: list[dict], downloaded_duration: float | None) -> tuple
         category = CATEGORY_MAP.get(seg.get('category'))
         if category is None or action not in ('skip', 'mute'):
             continue
-        votes = int(seg.get('votes') or 0)
+        parsed = _parse_segment(seg, downloaded_duration)
+        if parsed is None:
+            continue
+        start, end, votes = parsed
         locked = bool(seg.get('locked'))
         if votes < 0 and not locked:
-            continue
-        start, end = (float(x) for x in seg['segment'])
-        if end <= start:
             continue
         markers.append({
             'start': start, 'end': end, 'category': category, 'confidence': 1.0,

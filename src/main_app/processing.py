@@ -363,8 +363,13 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
     # detections, no download/transcribe/detect/LLM. Branches before the full
     # pipeline; preconditions are enforced by the reprocess API.
     if reprocess_mode == 'recut':
-        return recut._recut_episode(slug, episode_id, episode_title, podcast_name,
+        recut_ok = recut._recut_episode(slug, episode_id, episode_title, podcast_name,
                               episode_description, start_time, cancel_event)
+        if recut_ok:
+            recut_podcast = db.get_podcast_by_slug(slug)
+            if is_youtube_feed(recut_podcast):
+                sb_stage.stamp_recut(slug, episode_id, recut_podcast)
+        return recut_ok
 
     podcast_settings = db.get_podcast_by_slug(slug)
     podcast_description = (podcast_settings or {}).get('description') or None

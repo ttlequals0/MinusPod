@@ -39,7 +39,7 @@ def _pass_through_ads(slug, episode_id, ads_to_remove, *a, **k):
 
 
 def _run(markers, *, llm_on_top=False, llm_fallback=True, episode_row=None, captions=True,
-         saved_transcript=False, download_error=None):
+         saved_transcript=False, download_error=None, fetch_result=...):
     """Drive process_episode for a YouTube feed; extra mocks land in _run.extras."""
     podcast = dict(PODCAST, yt_llm_on_top_override=1 if llm_on_top else None)
     work_dir = tempfile.mkdtemp(prefix='minuspod-yt-test-')
@@ -84,8 +84,10 @@ def _run(markers, *, llm_on_top=False, llm_fallback=True, episode_row=None, capt
             repair = p(transcribe, '_repair_transcript',
                        side_effect=lambda slug, ep, path, segs, *a, **k: (segs, [], []))
             p(sb_stage.captions, 'load_segments', return_value=SEGMENTS if captions else [])
-            p(sb_stage.sponsorblock, 'fetch_segments', return_value=[{'UUID': 'u1'}] if markers else [])
-            p(sb_stage.sponsorblock, 'to_markers', return_value=(list(markers), None))
+            p(sb_stage.sponsorblock, 'fetch_segments',
+              return_value=([{'UUID': 'u1'}] if markers else []) if fetch_result is ... else fetch_result)
+            if fetch_result is ...:
+                p(sb_stage.sponsorblock, 'to_markers', return_value=(list(markers), None))
             tr = p(processing, 'transcriber')
             tr.transcribe_chunked.return_value = SEGMENTS
             tr.repair_gaps.return_value = ([], [])
@@ -271,12 +273,72 @@ def test_after_success_thumbnail_failure_does_not_propagate():
     storage.download_episode_artwork.assert_called_once()
 
 
-def test_no_marks_without_fallback_fails_with_waiting_message():
+def _deferred(**kw):
     with patch.object(processing.failure, '_handle_processing_failure') as handled:
-        ok, *_ = _run([], llm_fallback=False)
+        ok, *_ = _run([], llm_fallback=False, **kw)
     assert ok is False
     error = handled.call_args.args[5]
-    assert isinstance(error, sb_stage.SponsorBlockUnavailable)
+    assert isinstance(error, sb_stage.SponsorBlockDeferred) and error.next_check_at
+    return error
+
+
+def test_no_marks_without_fallback_defers_instead_of_failing():
+    _deferred()
+
+
+def test_request_failure_defers_even_with_fallback_on():
+    with patch.object(processing.failure, '_handle_processing_failure') as handled:
+        ok, *_ = _run([], llm_fallback=True, fetch_result=None)
+    assert ok is False and isinstance(handled.call_args.args[5], sb_stage.SponsorBlockDeferred)
+
+
+def test_all_filtered_marks_defer():
+    raw = [{'UUID': 'u2', 'votes': -3}]
+    _deferred(fetch_result=raw)
+
+
+def _handle_deferral(episode_data, error=None):
+    from main_app.pipeline import failure
+    error = error or sb_stage.SponsorBlockDeferred('No SponsorBlock marks yet', '2026-10-29T18:00:00+00:00')
+    with patch.object(failure, 'db') as db, patch.object(failure.common, '_require_publication_owner'), \
+            patch.object(failure.common, '_publish_status'), patch.object(failure, 'finalize') as fin:
+        failure._handle_processing_failure('yt-feed', 'ep1', 'Ep', 'YT', episode_data, error, 0.0)
+    return db, fin
+
+
+def test_deferral_restores_status_keeps_retry_count_and_arms_watch():
+    db, fin = _handle_deferral({'status': 'pending', 'sb_state': 'watching', 'retry_count': 2})
+    kwargs = db.upsert_episode.call_args.kwargs
+    assert kwargs['status'] == 'discovered' and kwargs['error_message'] is None
+    assert 'retry_count' not in kwargs
+    sb = db.update_episode_sponsorblock.call_args.kwargs
+    assert sb['sb_state'] == 'watching' and sb['sb_next_check_at'] == '2026-10-29T18:00:00+00:00'
+    fin._record_history_row.assert_not_called()
+
+
+def test_deferral_keeps_probing_state_while_probing():
+    db, _ = _handle_deferral({'status': 'pending', 'sb_state': 'probing'})
+    assert db.update_episode_sponsorblock.call_args.kwargs['sb_state'] == 'probing'
+
+
+def test_recut_success_stamps_uuids_from_stored_markers_and_failure_does_not():
+    import json
+    stored = json.dumps(MARKERS + [{'start': 1.0, 'end': 2.0, 'source': 'llm'}])
+    with patch.object(sb_stage, 'db') as db, patch.object(sb_stage.yt_settings, 'resolve_feed', return_value=_settings()):
+        db.get_episode.return_value = {'ad_markers_json': stored}
+        sb_stage.stamp_recut('yt-feed', 'ep1', PODCAST)
+    fields = db.update_episode_sponsorblock.call_args.kwargs
+    assert fields['sb_segment_uuids'] == '["u1"]' and fields['sb_next_check_at']
+    for outcome in (True, False):
+        with patch.object(processing, 'db') as pdb, patch.object(processing.recut, '_recut_episode', return_value=outcome), \
+                patch.object(processing, 'start_episode_token_tracking'), \
+                patch.object(processing.admission, '_resolve_or_load_route_snapshot', return_value=None), \
+                patch.object(processing.admission, '_assert_route_snapshot_current'), \
+                patch.object(sb_stage, 'stamp_recut') as stamp:
+            pdb.get_episode.return_value = {'reprocess_mode': 'recut'}
+            pdb.get_podcast_by_slug.return_value = PODCAST
+            assert processing.process_episode('yt-feed', 'ep1', 'u', 'Ep', 'YT', None, None, None) is outcome
+        assert stamp.called is outcome
 
 
 def test_sponsorblock_markers_are_never_learned_from():

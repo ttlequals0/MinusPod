@@ -1,10 +1,10 @@
 """SponsorBlock gate: schedule YouTube episodes before they enter the queue."""
-import json
 import logging
 from datetime import datetime, timedelta
 
 from database.queue import compute_queue_priority
 from utils.json_fields import load_json_list
+from utils.markers import parse_ad_markers
 from utils.time import parse_iso_utc, utc_now, utc_now_iso
 from youtube import settings as yt_settings, sponsorblock
 
@@ -13,6 +13,8 @@ logger = logging.getLogger(__name__)
 BATCH = 50
 MAX_BACKOFF = timedelta(hours=24)
 TERMINAL = ('llm', 'exhausted')
+IN_FLIGHT = ('pending', 'processing')
+RETRY_SOON = timedelta(minutes=5)
 
 
 def schedule_new_episode(db, slug, episode_id, resolved) -> bool:
@@ -38,7 +40,9 @@ def _error_retry(state, resolved, now) -> datetime:
 def transition(row, resolved, marks, now, has_retained_original, current_uuids=None) -> dict:
     """Pure SponsorBlock state machine: next state, schedule and queue/recut intent for one row.
 
-    current_uuids is the uuid set of the converted markers; None means no usable markers (no recut).
+    marks: None when the request failed, else whether any usable marker remains after filtering.
+    current_uuids: uuid set of the converted markers (empty set is a genuine empty set); None when
+    the response was unusable (duration mismatch), which never triggers a recut.
     """
     state = row.get('sb_state') or 'waiting'
     attempts = int(row.get('sb_attempts') or 0)
@@ -77,7 +81,7 @@ def transition(row, resolved, marks, now, has_retained_original, current_uuids=N
         if _ceiling_passed(row, resolved, now):
             return out
         known = set(load_json_list(row.get('sb_segment_uuids')))
-        if current_uuids and current_uuids != known and has_retained_original:
+        if current_uuids is not None and current_uuids != known and has_retained_original:
             out.update(queue=True, recut=True)
         out['sb_next_check_at'] = watch_next
         return out
@@ -107,24 +111,54 @@ def queue_for_processing(db, row, podcast, *, recut: bool):
     status_service.queue_episode(slug, episode_id, title, podcast_name)
 
 
-def _process_row(db, row, podcast, now, storage, base):
+def _safety_check_at(state, resolved, now) -> str:
+    """A non-NULL next check written before queueing, so a crash between steps cannot orphan the row."""
+    if state in ('waiting', 'probing'):
+        return (now + timedelta(minutes=resolved.probe_interval_minutes)).isoformat()
+    return (now + timedelta(hours=resolved.watch_interval_hours)).isoformat()
+
+
+def _stored_non_sponsorblock_markers(db, slug, episode_id) -> list[dict]:
+    row = db.get_episode(slug, episode_id) or {}
+    return [m for m in (parse_ad_markers(row.get('ad_markers_json')) or []) if m.get('source') != 'sponsorblock']
+
+
+def _process_row(db, row, podcast, now, storage, base) -> bool:
+    """Run one due row through the state machine; True when the SponsorBlock request failed."""
     slug, episode_id = row['slug'], row['episode_id']
+    if row.get('status') in IN_FLIGHT:
+        db.update_episode_sponsorblock_by_pk(row['id'], sb_next_check_at=(now + RETRY_SOON).isoformat())
+        return False
     resolved = yt_settings.resolve_feed(db, podcast, base=base)
     marks = sponsorblock.fetch_segments(row['youtube_video_id']) if row.get('youtube_video_id') else []
-    markers = sponsorblock.to_markers(marks or [], row.get('original_duration'))[0]
-    current_uuids = set(sponsorblock.uuid_set(markers)) if markers else None
+    if marks is None:
+        markers, current_uuids, marks_present = [], None, None
+    else:
+        markers, note = sponsorblock.to_markers(marks, row.get('original_duration'))
+        marks_present = bool(markers)
+        current_uuids = None if note == 'duration_mismatch' else set(sponsorblock.uuid_set(markers))
     original = storage.get_original_path(slug, episode_id)
-    out = transition(row, resolved, marks, now, bool(original and original.exists()), current_uuids)
+    out = transition(row, resolved, marks_present, now, bool(original and original.exists()), current_uuids)
     fields = {k: out[k] for k in ('sb_state', 'sb_attempts', 'sb_next_check_at', 'sb_last_error')}
-    if out['recut']:
-        db.save_episode_details(slug, episode_id, ad_markers=markers)
-        fields['sb_segment_uuids'] = json.dumps(sponsorblock.uuid_set(markers))
     if out['queue']:
-        queue_for_processing(db, row, podcast, recut=out['recut'])
+        fields['sb_next_check_at'] = fields['sb_next_check_at'] or _safety_check_at(out['sb_state'], resolved, now)
+    if out['recut']:
+        merged = _stored_non_sponsorblock_markers(db, slug, episode_id) + markers
+        merged.sort(key=lambda m: m['start'])
+        db.save_episode_details(slug, episode_id, ad_markers=merged)
     db.update_episode_sponsorblock_by_pk(row['id'], **fields)
     if out['queue']:
+        try:
+            queue_for_processing(db, row, podcast, recut=out['recut'])
+        except Exception:
+            db.update_episode_sponsorblock_by_pk(row['id'], sb_state=row.get('sb_state'),
+                                                 sb_attempts=int(row.get('sb_attempts') or 0))
+            raise
+        if not out['recut']:
+            db.update_episode_sponsorblock_by_pk(row['id'], sb_next_check_at=None)
         logger.info(f"[{slug}:{episode_id}] SponsorBlock gate: {row.get('sb_state')} -> "
                     f"{out['sb_state']}{' (recut)' if out['recut'] else ''}, queued")
+    return marks is None
 
 
 def sponsorblock_tick(db):
@@ -135,18 +169,29 @@ def sponsorblock_tick(db):
     now = utc_now()
     base = yt_settings.load_global(db)
     podcasts = {}
+    request_failed = False
+    deferred = 0
     for row in db.get_due_sponsorblock_episodes(now.isoformat(), BATCH):
         slug = row['slug']
         try:
+            if request_failed:
+                db.update_episode_sponsorblock_by_pk(
+                    row['id'], sb_next_check_at=(now + RETRY_SOON).isoformat(),
+                    sb_last_error='SponsorBlock request failed')
+                deferred += 1
+                continue
             if slug not in podcasts:
                 podcasts[slug] = db.get_podcast_by_slug(slug)
             if podcasts[slug]:
-                _process_row(db, row, podcasts[slug], now, storage, base)
+                request_failed = _process_row(db, row, podcasts[slug], now, storage, base)
         except Exception as exc:
             logger.exception(f"[{slug}:{row.get('episode_id')}] SponsorBlock tick failed")
             try:
                 db.update_episode_sponsorblock_by_pk(
-                    row['id'], sb_next_check_at=(now + timedelta(minutes=5)).isoformat(),
+                    row['id'], sb_next_check_at=(now + RETRY_SOON).isoformat(),
                     sb_last_error=type(exc).__name__)
             except Exception:
                 logger.exception(f"[{slug}:{row.get('episode_id')}] SponsorBlock retry reschedule failed")
+    if request_failed:
+        logger.warning(f"SponsorBlock request failed; deferred {deferred} remaining episode(s) by "
+                       f"{int(RETRY_SOON.total_seconds() // 60)} min")

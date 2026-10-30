@@ -11,6 +11,7 @@ from urllib.parse import parse_qs, urlparse
 from main_app.pipeline import common
 from main_app.pipeline.shared import audio_processor, db, storage
 from reprocess_modes import FORCE_TRANSCRIBE_MODES
+from utils.markers import parse_ad_markers
 from utils.time import utc_now
 from youtube import captions, download, sponsorblock, ytdlp
 from youtube import settings as yt_settings
@@ -19,8 +20,12 @@ from youtube.settings import YouTubeSettings, llm_on_top
 audio_logger = logging.getLogger('podcast.audio')
 
 
-class SponsorBlockUnavailable(Exception):
-    pass
+class SponsorBlockDeferred(Exception):
+    """No usable SponsorBlock marks yet: the run steps aside and the watcher retries."""
+
+    def __init__(self, reason, next_check_at):
+        super().__init__(reason)
+        self.next_check_at = next_check_at
 
 
 @dataclass
@@ -31,6 +36,15 @@ class YouTubeRun:
     note: str | None
     mode: str
     resolved: YouTubeSettings
+
+
+def _retry_at(episode_data, resolved) -> str:
+    """Next watcher check after a deferral: probe interval while probing, else the watch interval."""
+    if (episode_data or {}).get('sb_state') in ('waiting', 'probing'):
+        gap = timedelta(minutes=resolved.probe_interval_minutes)
+    else:
+        gap = timedelta(hours=resolved.watch_interval_hours)
+    return (utc_now() + gap).isoformat()
 
 
 def _video_id(episode_data, episode_url) -> str:
@@ -62,7 +76,10 @@ def acquire(slug, episode_id, episode_url, podcast, episode_data, reprocess_mode
             except download.DownloadError as exc:
                 if exc.needs_update:
                     audio_logger.warning(f"[{slug}:{episode_id}] yt-dlp looks outdated; updating before retry")
-                    ytdlp.update_binary(storage, db)
+                    try:
+                        ytdlp.update_binary(storage, db)
+                    except Exception as update_exc:
+                        audio_logger.warning(f"[{slug}:{episode_id}] yt-dlp update failed: {update_exc}")
                 raise Exception(str(exc)) from exc
         work_dir = os.path.dirname(result.audio_path)
         fd, audio_path = tempfile.mkstemp(suffix='.mp3')
@@ -79,13 +96,17 @@ def acquire(slug, episode_id, episode_url, podcast, episode_data, reprocess_mode
         markers, note = sponsorblock.to_markers(marks or [], duration)
         manual = bool(reprocess_mode) or (episode_data or {}).get('reprocess_source') is not None
         exhausted = (episode_data or {}).get('sb_state') == 'exhausted'
+        forced = manual or exhausted
         if markers and not llm_on_top(podcast):
             mode = 'sponsorblock'
-        elif markers or resolved.llm_fallback or manual or exhausted:
+        elif markers or forced:
+            mode = 'llm'
+        elif marks is None:
+            raise SponsorBlockDeferred('SponsorBlock request failed', _retry_at(episode_data, resolved))
+        elif resolved.llm_fallback:
             mode = 'llm'
         else:
-            raise SponsorBlockUnavailable(
-                'No SponsorBlock marks yet; the episode stays unpublished until marks appear')
+            raise SponsorBlockDeferred('No SponsorBlock marks yet', _retry_at(episode_data, resolved))
     except BaseException:
         if os.path.exists(audio_path):
             os.unlink(audio_path)
@@ -120,3 +141,13 @@ def _cache_thumbnail(slug, episode_id, artwork_url):
             storage.download_episode_artwork(slug, episode_id, artwork_url)
     except Exception as exc:
         audio_logger.debug(f"[{slug}:{episode_id}] Thumbnail cache failed: {exc}")
+
+
+def stamp_recut(slug, episode_id, podcast):
+    """After a successful recut, record the SponsorBlock uuids now in the stored markers and re-arm the watch."""
+    row = db.get_episode(slug, episode_id) or {}
+    stored = [m for m in (parse_ad_markers(row.get('ad_markers_json')) or []) if m.get('source') == 'sponsorblock']
+    resolved = yt_settings.resolve_feed(db, podcast)
+    next_check = (utc_now() + timedelta(hours=resolved.watch_interval_hours)).isoformat()
+    db.update_episode_sponsorblock(slug, episode_id, sb_segment_uuids=json.dumps(sponsorblock.uuid_set(stored)),
+                                   sb_next_check_at=next_check)

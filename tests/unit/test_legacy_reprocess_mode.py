@@ -104,3 +104,26 @@ def test_legacy_non_json_or_empty_body_uses_the_default_mode(
 
     assert response.status_code == 202
     assert db.get_episode(slug, episode_id)['reprocess_mode'] == 'reprocess'
+
+
+def test_manual_reprocess_disarms_the_sponsorblock_watch(app_client, episode):
+    db, slug, episode_id, _segments, headers = episode
+    db.update_episode_sponsorblock(slug, episode_id, sb_state='done', sb_next_check_at='2026-10-29T12:00:00+00:00')
+    with patch('main_app.processing.start_background_processing', return_value=(False, 'busy')):
+        response = app_client.post(
+            f'/api/v1/feeds/{slug}/episodes/{episode_id}/reprocess',
+            json={'mode': 'reprocess'}, headers=headers,
+        )
+    assert response.status_code == 202
+    assert db.get_episode(slug, episode_id)['sb_next_check_at'] is None
+
+
+def test_bulk_process_disarms_the_sponsorblock_watch(app_client, episode):
+    db, slug, episode_id, _segments, headers = episode
+    db.update_episode_sponsorblock(slug, episode_id, sb_state='watching', sb_next_check_at='2026-10-29T12:00:00+00:00')
+    response = app_client.post(
+        f'/api/v1/feeds/{slug}/episodes/bulk',
+        json={'episodeIds': [episode_id], 'action': 'reprocess'}, headers=headers,
+    )
+    assert response.status_code == 200
+    assert db.get_episode(slug, episode_id)['sb_next_check_at'] is None
