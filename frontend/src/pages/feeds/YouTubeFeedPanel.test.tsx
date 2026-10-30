@@ -155,7 +155,7 @@ describe('YouTubeFeedPanel', () => {
   it('shows the hide private override and sends it', async () => {
     const user = userEvent.setup();
     renderPanel();
-    const select = screen.getByLabelText('hide private and deleted episodes') as HTMLSelectElement;
+    const select = screen.getByLabelText('Hide private and deleted episodes') as HTMLSelectElement;
     await waitFor(() => expect(select.selectedOptions[0].textContent).toBe('Use global (on)'));
     await user.selectOptions(select, 'Off');
     await waitFor(() => expect(mockUpdateFeed).toHaveBeenCalledWith('yt', { ytHidePrivateOverride: false }));

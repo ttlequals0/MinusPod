@@ -147,9 +147,10 @@ def _api_pages():
     return [json.dumps(items).encode(), json.dumps(videos).encode()]
 
 
-def _api_listing_with_private():
-    items = {'items': [{'contentDetails': {'videoId': 'vid000000001', 'videoPublishedAt': '2026-10-20T10:00:00Z'}},
-                       {'contentDetails': {'videoId': 'vid000000009', 'videoPublishedAt': '2026-10-19T10:00:00Z'}}]}
+def _api_listing_with_private(private_first=False):
+    items = [{'contentDetails': {'videoId': 'vid000000001', 'videoPublishedAt': '2026-10-20T10:00:00Z'}},
+             {'contentDetails': {'videoId': 'vid000000009', 'videoPublishedAt': '2026-10-19T10:00:00Z'}}]
+    items = {'items': items[::-1] if private_first else items}
     videos = {'items': _api_pages_videos()[:1]}
     return [json.dumps(items).encode(), json.dumps(videos).encode()]
 
@@ -173,6 +174,25 @@ def test_api_listing_adds_placeholder_when_hide_private_off():
     assert [(e['video_id'], e['title']) for e in episodes] == [
         ('vid000000001', 'Long'), ('vid000000009', 'Private episode')]
     assert episodes[1]['published'] == '2026-10-19T10:00:00Z' and episodes[1]['rss_duration'] is None
+
+
+def test_api_listing_keeps_playlist_order_and_placeholder_within_limit():
+    podcast = {**_podcast('channel', 'UCabcdefghijklmnopqrstuv'), 'yt_hide_private_override': 0}
+    with patch.object(discovery, 'safe_get', return_value=_resp()), \
+            patch.object(discovery, 'read_response_capped', side_effect=_api_listing_with_private(private_first=True)):
+        episodes = discovery.list_videos(_db('KEY'), podcast, limit=1)
+    assert [e['video_id'] for e in episodes] == ['vid000000009']
+
+
+def test_api_listing_fetches_the_slack_page():
+    page1 = {'items': [{'contentDetails': {'videoId': f'vid{i:09d}'}} for i in range(50)], 'nextPageToken': 'T'}
+    page2 = {'items': [{'contentDetails': {'videoId': 'vid000000099'}}]}
+    empty = json.dumps({'items': []}).encode()
+    with patch.object(discovery, 'safe_get', return_value=_resp()) as get, \
+            patch.object(discovery, 'read_response_capped',
+                         side_effect=[json.dumps(page1).encode(), json.dumps(page2).encode(), empty, empty]):
+        discovery.list_videos(_db('KEY'), _podcast(), limit=50)
+    assert sum('playlistItems' in c.args[0] for c in get.call_args_list) == 2
 
 
 def _resp(status=200, text=''):

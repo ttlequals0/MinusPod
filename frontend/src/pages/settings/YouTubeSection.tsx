@@ -208,9 +208,9 @@ function YouTubeSection() {
                 checked={data.hidePrivate}
                 onChange={(hidePrivate) => saveSettings.mutate({ hidePrivate })}
                 disabled={saveSettings.isPending}
-                ariaLabel="hide private and deleted episodes"
+                ariaLabel="Hide private and deleted episodes"
               />
-              <span className="text-sm text-foreground">hide private and deleted episodes</span>
+              <span className="text-sm text-foreground">Hide private and deleted episodes</span>
             </label>
             <label className="flex items-center gap-3 cursor-pointer">
               <ToggleSwitch

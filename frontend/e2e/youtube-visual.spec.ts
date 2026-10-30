@@ -240,14 +240,14 @@ for (const width of WIDTHS) {
 
     test('hide private settings toggle', async ({ page }) => {
       await page.goto('settings#youtube');
-      const toggle = page.getByRole('switch', { name: 'hide private and deleted episodes' });
+      const toggle = page.getByRole('switch', { name: 'Hide private and deleted episodes' });
       await expect(toggle).toBeVisible({ timeout: 15_000 });
       await measureAndShoot(page, toggle, 'hide-private-settings', width);
     });
 
     test('hide private feed override', async ({ page }) => {
       await page.goto(`feeds/${SLUG}`);
-      const select = page.getByLabel('hide private and deleted episodes');
+      const select = page.getByLabel('Hide private and deleted episodes');
       await expect(select).toBeVisible({ timeout: 15_000 });
       await measureAndShoot(page, select, 'hide-private-feed', width);
     });

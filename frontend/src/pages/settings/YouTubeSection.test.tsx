@@ -65,7 +65,7 @@ describe('YouTubeSection', () => {
   it('saves the hide private toggle', async () => {
     mockUpdate.mockResolvedValue({ ...base, hidePrivate: false });
     renderSection();
-    const toggle = await screen.findByRole('switch', { name: /hide private and deleted episodes/i });
+    const toggle = await screen.findByRole('switch', { name: /Hide private and deleted episodes/i });
     expect(toggle.getAttribute('aria-checked')).toBe('true');
     await userEvent.click(toggle);
     await waitFor(() => expect(mockUpdate).toHaveBeenCalledWith({ hidePrivate: false }));

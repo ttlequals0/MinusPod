@@ -235,31 +235,34 @@ def _parse_api_listing(key, playlist_id, limit, include_shorts, longform, full=F
         items.extend((i['contentDetails']['videoId'], i['contentDetails'].get('videoPublishedAt') or '')
                      for i in page.get('items') or [])
         token = page.get('nextPageToken')
-        if not token or len(items) >= (PLAYLIST_SCAN_CAP if full else limit):
+        if not token or len(items) >= (PLAYLIST_SCAN_CAP if full else limit + UNAVAILABLE_SLACK):
             break
     if full:
         items.sort(key=lambda item: item[1], reverse=True)
     ids = [video_id for video_id, _ in items][:limit + UNAVAILABLE_SLACK]
     published_by_id = dict(items)
-    episodes = []
-    seen = set()
+    by_id = {}
+    returned = set()
     for start in range(0, len(ids), 50):
         chunk = ids[start:start + 50]
         data = _api_get('videos', {'part': 'contentDetails,snippet,liveStreamingDetails', 'id': ','.join(chunk)}, key)
         for item in data.get('items') or []:
+            returned.add(item['id'])
             live = item.get('liveStreamingDetails') or {}
             is_live = bool(live) and not live.get('actualEndTime')
             duration = parse_iso_duration(item.get('contentDetails', {}).get('duration'))
             if not _keep(duration, is_live, include_shorts, longform):
                 continue
             sn = item.get('snippet', {})
-            episodes.append(_episode(item['id'], sn.get('title'), sn.get('description'),
-                                     sn.get('publishedAt') or '', duration, _best_thumb(sn.get('thumbnails'))))
-            seen.add(item['id'])
-    if not hide_private:
-        # videos.list omits private and deleted ids
-        episodes.extend(_episode(vid, PLACEHOLDER_TITLES['[Private video]'], '', published_by_id.get(vid) or '', None, None)
-                        for vid in ids if vid not in seen)
+            by_id[item['id']] = _episode(item['id'], sn.get('title'), sn.get('description'),
+                                         sn.get('publishedAt') or '', duration, _best_thumb(sn.get('thumbnails')))
+    episodes = []
+    for vid in ids:
+        if vid in by_id:
+            episodes.append(by_id[vid])
+        elif not hide_private and vid not in returned:
+            # videos.list omits private and deleted ids
+            episodes.append(_episode(vid, PLACEHOLDER_TITLES['[Private video]'], '', published_by_id.get(vid) or '', None, None))
     return episodes[:limit]
 
 
