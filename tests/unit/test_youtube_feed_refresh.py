@@ -248,7 +248,7 @@ def test_lookup_episode_never_fetches_an_upstream_feed_for_youtube():
     try:
         db.upsert_episode(slug, 'a1b2c3d4e5f6', original_url='https://www.youtube.com/watch?v=vid1', title='T')
         with patch('main_app.routes.rss_parser.fetch_feed', side_effect=AssertionError('fetched')):
-            ep, _name = routes._lookup_episode(slug, 'a1b2c3d4e5f6', {slug: {'in': f'youtube://playlist/PL1'}})
+            ep, _name = routes._lookup_episode(slug, 'a1b2c3d4e5f6', {slug: {'in': 'youtube://playlist/PL1'}})
         assert ep['url'] == 'https://www.youtube.com/watch?v=vid1'
     finally:
         db.delete_podcast(slug)
