@@ -113,7 +113,7 @@ Every term the app uses, in plain words, with a link to the part of the docs tha
 
 ## F
 
-**Extra yt-dlp arguments** - A YouTube setting whose text is split like a shell command and added before MinusPod's own options on every yt-dlp call. Options that change output paths, run commands or alter the JSON output are rejected. [YouTube Feeds > yt-dlp](youtube-feeds.md#yt-dlp)
+**Extra yt-dlp arguments** - A YouTube setting whose text is split like a shell command and added before MinusPod's own options on every yt-dlp call. Options that run or load other programs, change where files are written, read local files, alter the JSON output or update the binary are rejected; use long option names. [YouTube Feeds > yt-dlp](youtube-feeds.md#yt-dlp)
 
 **Failover** - A standby LLM provider or transcriber that takes over a target (Provider A, Provider B, or the active transcriber) when it is unreachable, times out, or rejects the key, model, or billing. Switches back after enough consecutive healthy health-probe checks for an automatic switch, or on manual cancel for one triggered by hand. [Failover](failover.md)
 
@@ -329,7 +329,9 @@ Every term the app uses, in plain words, with a link to the part of the docs tha
 
 ## Y
 
-**YouTube feed** - A podcast feed MinusPod builds from a YouTube playlist or channel: it lists the videos, downloads the audio with yt-dlp, removes sponsor segments and serves the episodes as RSS. Off by default. [YouTube Feeds](youtube-feeds.md)
+**YouTube feed** - A podcast feed MinusPod builds from a YouTube playlist, channel or single video: it lists the videos, downloads the audio with yt-dlp, removes sponsor segments and serves the episodes as RSS. Off by default. [YouTube Feeds](youtube-feeds.md)
+
+**Proxy URL (YouTube)** - A YouTube setting that routes yt-dlp and YouTube Data API requests through an HTTP or SOCKS proxy. [YouTube Feeds > yt-dlp](youtube-feeds.md#yt-dlp)
 
 **yt-dlp** - The command-line downloader MinusPod uses for YouTube. A pinned copy ships in the image, and a copy on the data volume updates daily. [YouTube Feeds > yt-dlp](youtube-feeds.md#yt-dlp)
 

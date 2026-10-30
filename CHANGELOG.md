@@ -16,8 +16,14 @@ release notes.
 ### Added
 
 - An Extra yt-dlp arguments setting under Settings > YouTube adds options
-  such as a proxy or rate limit to every yt-dlp call. Options that change
-  output paths, run commands or alter the JSON output are rejected.
+  such as a rate limit to every yt-dlp call. Options that run or load other
+  programs, change where files are written, read local files, alter the JSON
+  output or update the binary are rejected; use long option names.
+- A Proxy URL setting under Settings > YouTube routes yt-dlp and YouTube Data
+  API requests through an HTTP or SOCKS proxy.
+- A YouTube feed can hold a single video: paste a watch, youtu.be, live or
+  shorts URL on Add feed and the feed serves that one episode. The preview
+  card shows the source kind as Video.
 
 ### Fixed
 

@@ -76,9 +76,10 @@ Accepted forms:
 | Bare playlist id | `PLxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx` (also `UU`, `UULF`, `UUSH`, `UULV`, `OLAK5uy_`, `RD`, `FL` prefixes) |
 | Channel URL | `https://www.youtube.com/channel/UCxxxxxxxxxxxxxxxxxxxxxx` |
 | Handle | `https://www.youtube.com/@example-channel` or `@example-channel` |
+| Single video | `https://www.youtube.com/watch?v=VIDEO_ID`, `https://youtu.be/VIDEO_ID`, or a `/live/` or `/shorts/` URL |
 | Legacy names | `https://www.youtube.com/c/example-channel`, `https://www.youtube.com/user/example-channel` |
 
-A channel feed lists long-form uploads by default (see [Shorts and duration filters](#shorts-and-duration-filters)). Adding a source that already exists is rejected, and the lookup reports the existing feed. A private or missing playlist returns "Playlist not found or private".
+A video URL creates a feed with that one episode, and the lookup card shows the source kind as Video. A channel feed lists long-form uploads by default (see [Shorts and duration filters](#shorts-and-duration-filters)). Adding a source that already exists is rejected, and the lookup reports the existing feed. A private or missing playlist returns "Playlist not found or private".
 
 The feed's first listing runs in the background after the add request returns, so the new feed page can be empty for a moment. Later listings run on the normal feed refresh schedule.
 
@@ -178,7 +179,9 @@ yt-dlp changes often because YouTube does. MinusPod keeps up in layers.
 
 Settings > YouTube shows the running version, the version the image ships, and the last check time and error.
 
-**Extra yt-dlp arguments** (API: `ytdlpExtraArgs`) is a global setting whose text is split like a shell command and added before MinusPod's own options on every yt-dlp call: listings, metadata lookups, caption fetches, and downloads. Self-updates ignore it. Because MinusPod's options come last, output format and paths stay fixed. Example: `--proxy socks5://proxy:1080 --limit-rate 2M`. Options that run or load other programs, change where files are written, read local files, alter the JSON output or update the binary are rejected; use long option names. The text is limited to 1000 characters.
+**Proxy URL** (API: `proxyUrl`) is a global setting that routes every yt-dlp call and every YouTube Data API request through a proxy. It accepts `http`, `https`, `socks4`, `socks5` and `socks5h` URLs, for example `socks5h://proxy:1080`, up to 500 characters. A `--proxy` inside the extra arguments overrides it for yt-dlp. Self-updates ignore it.
+
+**Extra yt-dlp arguments** (API: `ytdlpExtraArgs`) is a global setting whose text is split like a shell command and added before MinusPod's own options on every yt-dlp call: listings, metadata lookups, caption fetches, and downloads. Self-updates ignore it. Because MinusPod's options come last, output format and paths stay fixed. Example: `--limit-rate 2M`. Options that run or load other programs, change where files are written, read local files, alter the JSON output or update the binary are rejected; use long option names. The text is limited to 1000 characters.
 
 ## Per-feed overrides
 
