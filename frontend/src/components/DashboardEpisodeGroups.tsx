@@ -141,6 +141,7 @@ function FeedEpisodeGroup({ feed, limit }: { feed: Feed; limit: number }) {
                     status={summary.status}
                     jobState={summary.jobState}
                     hasBeenProcessed={summary.hasBeenProcessed}
+                    feedType={feed.feedType}
                   />
                 )}
               />

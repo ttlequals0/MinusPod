@@ -287,3 +287,22 @@ describe('EpisodeRowActions: failed enqueue', () => {
     });
   });
 });
+
+describe('EpisodeRowActions: menu wording follows the feed type', () => {
+  it('describes SponsorBlock marks and pass 1 LLM on a YouTube feed', async () => {
+    const user = userEvent.setup();
+    renderTrigger({ feedType: 'youtube' });
+    await user.click(triggerButton());
+    expect(screen.getByText('SponsorBlock marks + patterns')).toBeTruthy();
+    expect(screen.getByText('Marks, patterns + pass 1 LLM')).toBeTruthy();
+    expect(screen.queryByText('Use patterns + AI')).toBeNull();
+  });
+
+  it('keeps the patterns + AI wording on a normal feed', async () => {
+    const user = userEvent.setup();
+    renderTrigger({ feedType: 'subscribed' });
+    await user.click(triggerButton());
+    expect(screen.getByText('Use patterns + AI')).toBeTruthy();
+    expect(screen.getByText('Skip patterns, AI only')).toBeTruthy();
+  });
+});

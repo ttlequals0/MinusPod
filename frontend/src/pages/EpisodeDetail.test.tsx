@@ -2570,3 +2570,34 @@ describe('Detected ads: overlapping markers grouped into one block', () => {
     expect(screen.queryByRole('button', { name: /segments/ })).toBeNull();
   });
 });
+
+describe('Reprocess menu wording follows the feed type', () => {
+  it('describes the YouTube modes on a YouTube feed', async () => {
+    const user = userEvent.setup();
+    setupEpisodeMock(makeEpisode({ transcriptAvailable: true }));
+    (getFeed as ReturnType<typeof vi.fn>).mockResolvedValue({
+      slug: 'test-feed', title: 'Feed', artworkUrl: null, feedType: 'youtube',
+    });
+    render(
+      <QueryClientProvider client={makeClient()}>
+        <EpisodeDetail />
+      </QueryClientProvider>,
+    );
+    await screen.findByTestId('dismiss-0');
+    await user.click(screen.getByRole('button', { name: 'Reprocess' }));
+    expect(await screen.findByText('SponsorBlock marks + patterns')).toBeTruthy();
+    expect(screen.getByText('Marks, patterns + pass 1 LLM')).toBeTruthy();
+    expect(screen.getByText('Keep transcript, add pass 1 LLM')).toBeTruthy();
+    expect(screen.queryByText('Use patterns + AI')).toBeNull();
+  });
+
+  it('keeps the patterns + AI wording on a normal feed', async () => {
+    const user = userEvent.setup();
+    renderDetail(makeEpisode({ transcriptAvailable: true }));
+    await screen.findByTestId('dismiss-0');
+    await user.click(screen.getByRole('button', { name: 'Reprocess' }));
+    expect(await screen.findByText('Use patterns + AI')).toBeTruthy();
+    expect(screen.getByText('Skip patterns, AI only')).toBeTruthy();
+    expect(screen.getByText('Keep transcript, re-cut')).toBeTruthy();
+  });
+});

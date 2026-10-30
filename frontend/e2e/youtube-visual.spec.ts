@@ -262,6 +262,23 @@ for (const width of WIDTHS) {
       await expectAxe(page);
       await shoot(page, 'episode-detail', width);
     });
+
+    test('episode detail youtube reprocess menu', async ({ page }) => {
+      test.skip(width !== 390 && width !== 768, 'menu check runs at 390 and 768');
+      await page.route(`**/api/v1/feeds/${SLUG}/episodes/${EPISODE_ID}`, (route) => route.fulfill({
+        contentType: 'application/json',
+        body: JSON.stringify({ ...episodeDetail, transcriptAvailable: true }),
+      }));
+      await page.goto(`feeds/${SLUG}/episodes/${EPISODE_ID}`);
+      await expect(page.getByText(/SponsorBlock: 4 segments/).first()).toBeVisible({ timeout: 15_000 });
+      await page.getByRole('button', { name: 'Reprocess' }).click();
+      for (const subtitle of ['SponsorBlock marks + patterns', 'Marks, patterns + pass 1 LLM', 'Keep transcript, add pass 1 LLM']) {
+        await expect(page.getByRole('menuitem').getByText(subtitle)).toBeVisible();
+      }
+      await page.waitForTimeout(400);
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+      await shoot(page, 'episode-detail-youtube-menu', width);
+    });
   });
 }
 

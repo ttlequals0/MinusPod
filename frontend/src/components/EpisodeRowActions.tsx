@@ -10,6 +10,7 @@ import { Modal, dialogFooterBtn } from './Modal';
 import { btnBase, btnPrimary, btnSecondary, btnDestructive } from './buttonStyles';
 import { badgeBase, tint } from './badgeStyles';
 import { cardTitle } from './pageStyles';
+import { reprocessMenuCopy } from '../utils/reprocessMenu';
 
 interface EpisodeRowActionsProps {
   feedSlug: string;
@@ -18,12 +19,14 @@ interface EpisodeRowActionsProps {
   jobState?: JobState;
   // Stable across a reprocess, unlike status; absent on older cached rows.
   hasBeenProcessed?: boolean;
+  feedType?: string;
 }
 
 // Compact dashboard menu for the two processing modes supported by a summary.
 function EpisodeRowActions({
-  feedSlug, episodeId, status, jobState, hasBeenProcessed,
+  feedSlug, episodeId, status, jobState, hasBeenProcessed, feedType,
 }: EpisodeRowActionsProps) {
+  const menuCopy = reprocessMenuCopy(feedType);
   const queryClient = useQueryClient();
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
@@ -93,8 +96,8 @@ function EpisodeRowActions({
         disabled={blocked}
         title="Episode actions"
         items={[
-          { title: baseLabel, subtitle: 'Use patterns + AI', onClick: () => mutation.mutate('reprocess') },
-          { title: 'Full reprocess', subtitle: 'Skip patterns, AI only', onClick: () => mutation.mutate('full') },
+          { title: baseLabel, subtitle: menuCopy.reprocess.subtitle, onClick: () => mutation.mutate('reprocess') },
+          { title: 'Full reprocess', subtitle: menuCopy.full.subtitle, onClick: () => mutation.mutate('full') },
           ...(deletable ? [{
             title: 'Delete',
             subtitle: 'Free downloaded space',
