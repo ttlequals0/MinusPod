@@ -111,3 +111,15 @@ def after_success(slug, episode_id, run: YouTubeRun, episode_data=None):
     db.update_episode_sponsorblock(
         slug, episode_id, sb_state=state, sb_next_check_at=next_check, sb_last_error=None,
         sb_segment_uuids=json.dumps(sponsorblock.uuid_set(run.markers)), sb_note=run.note)
+    _cache_thumbnail(slug, episode_id, (episode_data or {}).get('artwork_url'))
+
+
+def _cache_thumbnail(slug, episode_id, artwork_url):
+    """Cache the video thumbnail so the served feed can emit itunes:image."""
+    if not artwork_url:
+        return
+    try:
+        if not storage.has_episode_artwork(slug, episode_id):
+            storage.download_episode_artwork(slug, episode_id, artwork_url)
+    except Exception as exc:
+        audio_logger.debug(f"[{slug}:{episode_id}] Thumbnail cache failed: {exc}")

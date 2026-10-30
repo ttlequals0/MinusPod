@@ -247,6 +247,31 @@ def test_after_success_states():
     assert _after(_yt_run('llm', []), {'sb_state': 'exhausted'}).kwargs['sb_state'] == 'exhausted'
 
 
+def _after_with_storage(episode_data, has_artwork=False, download_error=None):
+    with patch.object(processing, 'db'), patch.object(processing, 'storage') as storage:
+        storage.has_episode_artwork.return_value = has_artwork
+        storage.download_episode_artwork.side_effect = download_error
+        sb_stage.after_success('yt-feed', 'ep1', _yt_run('sponsorblock', MARKERS), episode_data)
+    return storage
+
+
+def test_after_success_caches_episode_thumbnail_once():
+    storage = _after_with_storage({'artwork_url': 'https://i.ytimg.com/t.jpg'})
+    storage.download_episode_artwork.assert_called_once_with('yt-feed', 'ep1', 'https://i.ytimg.com/t.jpg')
+
+
+def test_after_success_skips_thumbnail_when_missing_or_cached():
+    assert not _after_with_storage({'artwork_url': None}).download_episode_artwork.called
+    assert not _after_with_storage(None).download_episode_artwork.called
+    assert not _after_with_storage({'artwork_url': 'https://i.ytimg.com/t.jpg'},
+                                   has_artwork=True).download_episode_artwork.called
+
+
+def test_after_success_thumbnail_failure_does_not_propagate():
+    storage = _after_with_storage({'artwork_url': 'https://i.ytimg.com/t.jpg'}, download_error=OSError('boom'))
+    storage.download_episode_artwork.assert_called_once()
+
+
 def test_no_marks_without_fallback_fails_with_waiting_message():
     with patch.object(processing.failure, '_handle_processing_failure') as handled:
         ok, *_ = _run([], llm_fallback=False)

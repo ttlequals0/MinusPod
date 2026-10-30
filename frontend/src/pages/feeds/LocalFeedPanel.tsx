@@ -13,13 +13,14 @@ import { ApiError, getErrorMessage } from '../../api/client';
 import { formatStorage } from '../settings/settingsUtils';
 import { getSettings } from '../../api/settings';
 import {
-  updateFeed, uploadFeedArtwork, uploadLocalEpisode,
+  updateFeed, uploadLocalEpisode,
   importUpload, importScan, importCommit, importStatus, clearImportStaging,
 } from '../../api/feeds';
 import type { UpdateFeedPayload, ImportPlan, ImportSource, ImportRejectedFile } from '../../api/feeds';
 import type { Feed } from '../../api/types';
 import { btnBase, btnGhost, btnLg, btnPrimary, btnSecondary, btnOutline } from '../../components/buttonStyles';
 import { fileInputBase, inputBase, labelBase, selectBase, textareaBase } from '../../components/fieldStyles';
+import FeedArtworkUpload from './FeedArtworkUpload';
 import { useSyncFromQuery } from '../../hooks/useSyncFromQuery';
 import { fromDatetimeLocalInput } from '../../utils/format';
 
@@ -321,13 +322,6 @@ function LocalFeedPanel({ feed, slug }: Props) {
       queryClient.invalidateQueries({ queryKey: ['feed', slug] });
       setMetaSaved(true);
       setTimeout(() => setMetaSaved(false), 2000);
-    },
-  });
-
-  const artworkMutation = useMutation({
-    mutationFn: (file: File) => uploadFeedArtwork(slug, file),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['feed', slug] });
     },
   });
 
@@ -690,25 +684,7 @@ function LocalFeedPanel({ feed, slug }: Props) {
               />
             </div>
           </div>
-          <div>
-            <label htmlFor={`local-artwork-${slug}`} className={labelBase}>Artwork</label>
-            <input
-              id={`local-artwork-${slug}`}
-              type="file"
-              accept="image/jpeg,image/png"
-              onChange={(e) => {
-                const file = e.target.files?.[0];
-                e.target.value = '';
-                if (file) artworkMutation.mutate(file);
-              }}
-              className={fileInputBase}
-            />
-            {artworkMutation.isPending && <p className="mt-1 text-sm text-muted-foreground">Uploading...</p>}
-            {artworkMutation.isSuccess && <p className="mt-1 text-sm text-success">Artwork updated.</p>}
-            {artworkMutation.isError && (
-              <p className="mt-1 text-sm text-destructive">{getErrorMessage(artworkMutation.error, 'Could not upload artwork.')}</p>
-            )}
-          </div>
+          <FeedArtworkUpload slug={slug} />
 
           <CollapsibleSection
             title="Podcasting 2.0 tags"

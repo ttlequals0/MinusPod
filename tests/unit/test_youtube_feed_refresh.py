@@ -143,3 +143,51 @@ def test_unexpected_error_returns_internal_error_and_clears_coalesce():
         assert db.get_podcast_by_slug(slug)['refresh_failure_count'] in (0, None)
     finally:
         db.delete_podcast(slug)
+
+
+def _resolved(url='https://i.ytimg.com/src.jpg'):
+    return discovery.SourceInfo('playlist', 'PL1', 'YT', '', url, 3)
+
+
+def test_refresh_fetches_source_artwork_once_when_cache_missing():
+    db = feeds_mod.db
+    slug = 'yt-art-missing'
+    _make_feed(slug)
+    try:
+        with patch.object(discovery, 'resolve_source', return_value=_resolved()) as resolve, \
+                patch.object(feeds_mod.storage, 'download_artwork', return_value=True) as dl, \
+                patch.object(feeds_mod, 'rebuild_youtube_feed', return_value=True):
+            _refresh(slug, [_episode('vid000000001')])
+        resolve.assert_called_once()
+        dl.assert_called_once_with(slug, ['https://i.ytimg.com/src.jpg'], force=False)
+    finally:
+        db.delete_podcast(slug)
+
+
+def test_refresh_skips_source_lookup_when_artwork_cached():
+    db = feeds_mod.db
+    slug = 'yt-art-cached'
+    _make_feed(slug, artwork_cached=1)
+    try:
+        with patch.object(discovery, 'resolve_source') as resolve, \
+                patch.object(feeds_mod.storage, 'download_artwork') as dl, \
+                patch.object(feeds_mod, 'rebuild_youtube_feed', return_value=True):
+            _refresh(slug, [_episode('vid000000001')])
+        resolve.assert_not_called()
+        dl.assert_not_called()
+    finally:
+        db.delete_podcast(slug)
+
+
+def test_refresh_feed_artwork_forces_download_for_youtube_feed():
+    db = feeds_mod.db
+    slug = 'yt-art-manual'
+    _make_feed(slug)
+    try:
+        with patch.object(discovery, 'resolve_source', return_value=_resolved()), \
+                patch.object(feeds_mod.storage, 'download_artwork', return_value=True) as dl, \
+                patch.object(feeds_mod, 'rebuild_youtube_feed', return_value=True):
+            assert feeds_mod.refresh_feed_artwork(slug) is True
+        dl.assert_called_once_with(slug, ['https://i.ytimg.com/src.jpg'], force=True)
+    finally:
+        db.delete_podcast(slug)

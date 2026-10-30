@@ -1532,10 +1532,10 @@ paths:
     post:
       tags:
         - LocalFeeds
-      summary: Upload cover art for a local feed
+      summary: Upload cover art for a local, recents or YouTube feed
       description: >-
-        Local feeds only (400 on a subscribed feed, whose artwork comes
-        from the upstream RSS on refresh). JPEG or PNG, detected from the
+        Local, recents and YouTube feeds only (400 on a subscribed RSS
+        feed, whose artwork comes from the upstream RSS on refresh). JPEG or PNG, detected from the
         file bytes rather than the client-supplied content type. Bound by
         the app's default 10 MB request cap. A response under 1400x1400
         still succeeds but carries a warning field, since podcast
@@ -1570,7 +1570,7 @@ paths:
                     type: string
                     description: Present when the image is smaller than 1400x1400 in either dimension.
         '400':
-          description: Not a local feed, missing file, or not a JPEG/PNG image
+          description: Not a local, recents or YouTube feed, missing file, or not a JPEG/PNG image
           content:
             application/json:
               schema:

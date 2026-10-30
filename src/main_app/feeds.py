@@ -223,6 +223,16 @@ def invalidate_feed_cache():
     _feed_cache.invalidate('all_feeds')
 
 
+def _fetch_youtube_source_artwork(slug, podcast, force):
+    """Pull the channel or playlist thumbnail; returns True when it was saved."""
+    from youtube import discovery
+    from youtube.urls import Source
+    info = discovery.resolve_source(db, Source(podcast['youtube_source_kind'], podcast['youtube_source_id']))
+    if not info.artwork_url:
+        return False
+    return storage.download_artwork(slug, [info.artwork_url], force=force)
+
+
 def _refresh_youtube_feed(slug, podcast, force, record_failure) -> RefreshOutcome:
     """Discover videos, queue SponsorBlock waits, render the served RSS."""
     from youtube import discovery, watch as yt_watch  # lazy: avoids an import cycle at startup
@@ -262,6 +272,11 @@ def _refresh_youtube_feed(slug, podcast, force, record_failure) -> RefreshOutcom
                     scheduled += 1
         if scheduled:
             refresh_logger.info(f"[{slug}] {scheduled} video(s) waiting for SponsorBlock")
+        if not podcast.get('artwork_cached'):
+            try:
+                _fetch_youtube_source_artwork(slug, podcast, force=False)
+            except Exception as e:
+                refresh_logger.debug(f"[{slug}] YouTube source artwork fetch failed: {e}")
         rebuild_youtube_feed(slug, podcast)
         _record_refresh_success(slug)
         status_service.complete_feed_refresh(slug, 0)
@@ -879,10 +894,14 @@ def refresh_feed_artwork(slug, podcast=None):
     podcast = podcast or db.get_podcast_by_slug(slug)
     if not podcast or not podcast.get('source_url'):
         return False
-    if is_local_feed(podcast) or is_youtube_feed(podcast):
-        # Local and YouTube artwork is set at creation or uploaded, never re-fetched.
+    if is_local_feed(podcast):
+        # Local artwork is uploaded, never re-fetched.
         return False
     try:
+        if is_youtube_feed(podcast):
+            _fetch_youtube_source_artwork(slug, podcast, force=True)
+            storage.clear_watermark_cache(slug)
+            return rebuild_served_rss(slug, podcast)
         # Re-derive candidates from the live feed so a manual refresh can
         # recover from a preferred candidate that has started 404ing, not
         # just re-fetch the URL already on the row. Falls back to the

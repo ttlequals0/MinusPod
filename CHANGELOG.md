@@ -15,6 +15,8 @@ release notes.
 
 ### Added
 
+- YouTube feeds cache each processed video's thumbnail so the served RSS carries per-episode artwork, accept an artwork upload, and re-fetch the source thumbnail when the cache is missing or on a manual artwork refresh.
+
 ### Changed
 
 ### Security

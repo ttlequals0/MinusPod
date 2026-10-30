@@ -1,3 +1,4 @@
+import io
 import os
 import sys
 import tempfile
@@ -195,3 +196,26 @@ def test_test_key_without_any_key_is_400(app_client):
     _authed(app_client)
     resp = app_client.post('/api/v1/youtube/test-key', json={}, headers=_csrf_headers(app_client))
     assert resp.status_code == 400
+
+
+_PNG_BYTES = bytes.fromhex(
+    '89504e470d0a1a0a0000000d49484452000000010000000108020000009077'
+    '3df40000000c4944415478da6360606060000000050001a5f6454000000000'
+    '49454e44ae426082'
+)
+
+
+def test_artwork_upload_allowed_on_youtube_feed(app_client):
+    _authed(app_client)
+    from api import get_database
+    db = get_database()
+    db.create_podcast('yt-art-upload', 'youtube://playlist/PL1', title='YT', feed_type='youtube')
+    db.update_podcast('yt-art-upload', youtube_source_kind='playlist', youtube_source_id='PL1')
+    try:
+        resp = app_client.post(
+            '/api/v1/feeds/yt-art-upload/artwork',
+            data={'file': (io.BytesIO(_PNG_BYTES), 'cover.png')},
+            headers=_csrf_headers(app_client), content_type='multipart/form-data')
+        assert resp.status_code == 200, resp.get_json()
+    finally:
+        db.delete_podcast('yt-art-upload')

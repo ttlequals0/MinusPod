@@ -2851,7 +2851,7 @@ def get_artwork(slug):
 @limiter.limit("60 per minute")
 @log_request
 def upload_feed_artwork(slug):
-    """Upload cover art for a local or recents feed.
+    """Upload cover art for a local, recents or YouTube feed.
 
     Subscribed feeds get their artwork from the upstream RSS
     <itunes:image>/<image> on refresh, so a direct upload here would just be
@@ -2861,8 +2861,8 @@ def upload_feed_artwork(slug):
     podcast = db.get_podcast_by_slug(slug)
     if not podcast:
         return error_response('Feed not found', 404)
-    if has_upstream(podcast):
-        return error_response('Artwork upload is only available for local and recents feeds', 400)
+    if has_upstream(podcast) and not is_youtube_feed(podcast):
+        return error_response('Artwork upload is only available for local, recents and YouTube feeds', 400)
 
     upload = request.files.get('file')
     if upload is None:

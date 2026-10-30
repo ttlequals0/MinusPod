@@ -12,8 +12,10 @@ vi.mock('../../components/CollapsibleSection', () => ({
 }));
 
 const mockUpdateFeed = vi.fn();
+const mockUploadFeedArtwork = vi.fn();
 vi.mock('../../api/feeds', () => ({
   updateFeed: (...args: unknown[]) => mockUpdateFeed(...args),
+  uploadFeedArtwork: (...args: unknown[]) => mockUploadFeedArtwork(...args),
 }));
 
 vi.mock('../../api/youtube', () => ({
@@ -53,6 +55,15 @@ describe('YouTubeFeedPanel', () => {
     expect(link.getAttribute('href')).toBe('https://www.youtube.com/playlist?list=PL1');
     expect(link.getAttribute('target')).toBe('_blank');
     expect(screen.getByText('Playlist')).toBeTruthy();
+  });
+
+  it('uploads feed artwork', async () => {
+    const user = userEvent.setup();
+    mockUploadFeedArtwork.mockResolvedValue({});
+    renderPanel();
+    const file = new File(['x'], 'cover.png', { type: 'image/png' });
+    await user.upload(screen.getByLabelText('Artwork'), file);
+    await waitFor(() => expect(mockUploadFeedArtwork).toHaveBeenCalledWith('yt', file));
   });
 
   it('sends a boolean override and null to inherit', async () => {

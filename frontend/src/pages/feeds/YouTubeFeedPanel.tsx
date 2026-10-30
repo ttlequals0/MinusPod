@@ -7,6 +7,7 @@ import type { Feed } from '../../api/types';
 import CollapsibleSection from '../../components/CollapsibleSection';
 import DraftNumberInput, { parseOptionalNumber } from '../../components/DraftNumberInput';
 import { selectBase } from '../../components/fieldStyles';
+import FeedArtworkUpload from './FeedArtworkUpload';
 import { GlobalOverrideRow, rowLabelTop } from './OverrideRows';
 
 type NumberField = 'ytProcessDelayMinutesOverride' | 'ytProbeAttemptsOverride' | 'ytProbeIntervalMinutesOverride';
@@ -121,6 +122,8 @@ function YouTubeFeedPanel({ feed, slug }: { feed: Feed; slug: string }) {
             </a>
           )}
         </div>
+
+        <FeedArtworkUpload slug={slug} />
 
         <GlobalOverrideRow
           label="LLM fallback"
