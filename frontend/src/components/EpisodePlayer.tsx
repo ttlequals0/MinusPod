@@ -20,10 +20,14 @@ export default function EpisodePlayer({ src, chaptersUrl }: EpisodePlayerProps) 
   const p = useEpisodePlayer(audioRef, chaptersUrl);
   const hasChapters = p.chapters.length > 0;
   const ticks = useMemo(
-    () => (p.duration > 0 ? p.chapters.filter((c) => c.startTime > 0).map((c) => ({ key: c.startTime, left: Math.min(c.startTime / p.duration, 1) * 100 })) : []),
+    () => (p.duration > 0 ? p.chapters.map((c, i) => ({ c, i })).filter(({ c }) => c.startTime > 0).map(({ c, i }) => ({ key: `${c.startTime}-${i}`, left: Math.min(c.startTime / p.duration, 1) * 100 })) : []),
     [p.chapters, p.duration],
   );
-  const endScrub = () => p.setScrubTime(null);
+  const endScrub = () => {
+    if (!p.scrubbing) return;
+    p.seek(p.time);
+    p.setScrubTime(null);
+  };
 
   const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
     if (e.defaultPrevented || e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return;
@@ -80,9 +84,9 @@ export default function EpisodePlayer({ src, chaptersUrl }: EpisodePlayerProps) 
           onChange={(e) => {
             const v = Number(e.target.value);
             p.setScrubTime(v);
-            p.seek(v);
           }}
           onPointerUp={endScrub}
+          onPointerCancel={endScrub}
           onKeyUp={endScrub}
           onBlur={endScrub}
           className={`absolute inset-0 h-11 w-full cursor-pointer touch-manipulation accent-primary disabled:cursor-default ${focusRing} rounded`}

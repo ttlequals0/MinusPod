@@ -72,7 +72,7 @@ export function useEpisodePlayer(audioRef: RefObject<HTMLAudioElement | null>, c
     if (!chaptersUrl) return;
     const ctrl = new AbortController();
     fetch(chaptersUrl, { credentials: 'include', signal: ctrl.signal })
-      .then((r) => (r.ok ? r.json() : null))
+      .then((r) => (r.ok ? r.json().catch(() => { console.warn('chapters response was not JSON'); return null; }) : null))
       .then((json) => setLoaded({ url: chaptersUrl, list: parseChapters(json) }))
       .catch(() => {});
     return () => ctrl.abort();
@@ -112,13 +112,14 @@ export function useEpisodePlayer(audioRef: RefObject<HTMLAudioElement | null>, c
 
   const shownTime = scrubTime ?? time;
   const chapterIndex = currentChapterIndex(chapters, shownTime);
-  const chapterTitle = chapters[Math.max(chapterIndex, 0)]?.title;
+  const chapterTitle = chapters[chapterIndex]?.title ?? '';
   const prevTarget = prevChapterTarget(chapters, chapterIndex, shownTime);
   const nextTarget = nextChapterTarget(chapters, chapterIndex);
 
   return {
     playing,
     time: shownTime,
+    scrubbing: scrubTime !== null,
     duration,
     rate,
     chapters,

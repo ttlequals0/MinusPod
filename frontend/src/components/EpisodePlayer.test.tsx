@@ -113,6 +113,24 @@ describe('EpisodePlayer', () => {
     expect(screen.getByRole('button', { name: 'Playback speed 2x' })).toBeTruthy();
   });
 
+  it('shows no chapter title before the first chapter and offers only next', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: () => Promise.resolve({ chapters: [{ startTime: 10, title: 'First' }] }) }));
+    const { container } = render(<EpisodePlayer src="/a.mp3" chaptersUrl="/c.json" />);
+    const next = await screen.findByRole('button', { name: 'Next chapter' });
+    ready(container, 2);
+    expect(screen.queryByText('First')).toBeNull();
+    expect((next as HTMLButtonElement).disabled).toBe(false);
+    expect((screen.getByRole('button', { name: 'Previous chapter' }) as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it('warns once when the chapters response is not JSON', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: () => Promise.reject(new Error('bad')) }));
+    render(<EpisodePlayer src="/a.mp3" chaptersUrl="/c.json" />);
+    await waitFor(() => expect(warn).toHaveBeenCalledWith('chapters response was not JSON'));
+    expect(screen.queryByRole('button', { name: 'Next chapter' })).toBeNull();
+  });
+
   it('falls back to 1x when storage throws', () => {
     vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => { throw new Error('blocked'); });
     vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => { throw new Error('blocked'); });
@@ -147,8 +165,17 @@ describe('EpisodePlayer', () => {
   it('seeks from the scrubber', () => {
     const { container } = render(<EpisodePlayer src="/a.mp3" />);
     const audio = ready(container);
-    fireEvent.change(screen.getByRole('slider', { name: 'Seek' }), { target: { value: '120' } });
+    const slider = screen.getByRole('slider', { name: 'Seek' });
+    fireEvent.change(slider, { target: { value: '120' } });
+    expect(audio.currentTime).toBe(0);
+    fireEvent.pointerUp(slider);
     expect(audio.currentTime).toBe(120);
+    fireEvent.change(slider, { target: { value: '200' } });
+    fireEvent.keyUp(slider, { key: 'ArrowRight' });
+    expect(audio.currentTime).toBe(200);
+    fireEvent.change(slider, { target: { value: '10' } });
+    fireEvent.pointerCancel(slider);
+    expect(audio.currentTime).toBe(10);
   });
 
   it('handles keyboard shortcuts on the player and leaves buttons alone', () => {
