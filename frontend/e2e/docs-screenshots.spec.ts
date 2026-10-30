@@ -116,6 +116,12 @@ for (const s of SHOTS) {
       await expect(player).toBeVisible({ timeout: 15_000 });
       await expect(player.getByText('Introduction')).toBeVisible();
       await expect(page.getByRole('button', { name: 'Show more' })).toBeVisible();
+      await player.getByRole('button', { name: 'Play', exact: true }).click();
+      await expect(player.getByRole('button', { name: 'Pause' })).toBeVisible();
+      await player.getByRole('button', { name: 'Next chapter' }).click();
+      await expect(player.getByText('Main topic')).toBeVisible();
+      await expect(player.getByText(/^7:0\d$/)).toBeVisible();
+      await page.mouse.move(0, 0);
       await page.waitForTimeout(400);
       await page.screenshot({ path: path.join(OUT, `episode-detail-${s.name}.png`), fullPage: false });
     });
