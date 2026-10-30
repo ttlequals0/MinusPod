@@ -902,9 +902,9 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                     keep_ads = keep_ads + late_keep_ads
 
                 if yt_run and yt_run.markers:
-                    ads_to_remove, all_ads_with_validation, keep_ads, _ = sb_stage.merge_marks(
+                    ads_to_remove, all_ads_with_validation, keep_ads, dropped = sb_stage.merge_marks(
                         yt_run, ads_to_remove, all_ads_with_validation, keep_ads, segment_actions)
-                    first_pass_count += len(yt_run.markers)
+                    first_pass_count += len(yt_run.markers) - dropped
                     run_stats['detected'] = first_pass_count
             _check_cancel(cancel_event, slug, episode_id)
 

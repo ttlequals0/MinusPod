@@ -2937,9 +2937,9 @@ class AdDetector:
 
     @staticmethod
     def _learning_candidates(ad: dict, min_piece_s: float) -> list[dict]:
-        """The marker itself when claude found it, else the stretches of its claude members no pattern explains."""
+        """The marker itself when a learnable stage found it, else the stretches of its claude members no pattern explains."""
         stage = ad.get('detection_stage')
-        if stage == 'claude':
+        if stage in LEARNABLE_STAGES:
             return [ad]
         members = recorded_member_spans(ad)
         if not members:

@@ -95,3 +95,38 @@ def test_hint_initializes_services_when_first_caller(caplog):
         hint = d._build_known_pattern_hint('example-podcast')
     assert 'Acme' in hint
     assert 'Could not fetch patterns' not in caplog.text
+
+
+def _learner(registry=()):
+    d = AdDetector.__new__(AdDetector)
+    d.db = MagicMock()
+    d.db.get_setting_float.side_effect = lambda key, default: default
+    d.db.get_active_pattern_sponsors.return_value = set(registry)
+    d.initialize_client = MagicMock()
+    d.text_pattern_matcher = MagicMock()
+    d.text_pattern_matcher.create_patterns_from_ad.return_value = [1]
+    d.sponsor_service = MagicMock()
+    d.sponsor_service.get_sponsors.return_value = [{'name': n} for n in registry]
+    d.sponsor_service.find_sponsor_in_text.side_effect = lambda text: text if text in registry else None
+    return d
+
+
+def _mark(sponsor, **extra):
+    return {'start': 10.0, 'end': 60.0, 'confidence': 1.0, 'source': 'sponsorblock',
+            'detection_stage': 'sponsorblock', 'was_cut': True, 'sponsor': sponsor,
+            'category': 'sponsor', **extra}
+
+
+def test_sponsorblock_mark_learns_with_label_sponsor():
+    d = _learner()
+    segs = [{'start': 10.0, 'end': 60.0, 'text': 'this is a long sponsor read'}]
+    assert d.learn_from_detections([_mark('Intro', label_sponsor=True)], segs, 'example-podcast', 'a1b2c3d4e5f6') == 1
+    d.text_pattern_matcher.create_patterns_from_ad.assert_called_once()
+    assert d.text_pattern_matcher.create_patterns_from_ad.call_args.kwargs['sponsor'] == 'Intro'
+
+
+def test_sponsorblock_mark_learns_registry_sponsor():
+    d = _learner(registry={'Acme'})
+    segs = [{'start': 10.0, 'end': 60.0, 'text': 'this is a long sponsor read'}]
+    assert d.learn_from_detections([_mark('Acme')], segs, 'example-podcast', 'a1b2c3d4e5f6') == 1
+    assert d.text_pattern_matcher.create_patterns_from_ad.call_args.kwargs['sponsor'] == 'Acme'

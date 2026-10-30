@@ -21,6 +21,8 @@ _DATE_ONLY = re.compile(r'^\d{4}-\d{2}-\d{2}$')
 _next_run = None
 _executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix='yt-metadata')
 _future = None
+MAX_MISSES = 3
+_misses: dict[str, int] = {}
 
 
 def video_id_of(row, url=None) -> str:
@@ -75,23 +77,41 @@ def backfill_tick(db):
 
 def _run_batch(db):
     global _next_run
-    rows = db.get_youtube_episodes_missing_metadata(BATCH)
-    ok = bool(rows)
-    if rows:
-        wanted = [(row, video_id_of(row)) for row in rows]
-        try:
-            infos = fetch_info([vid for _, vid in wanted if vid])
-        except download.DownloadError as exc:
-            ok = False
-            logger.warning(f"YouTube metadata backfill failed: {exc}")
-            if exc.needs_update:
-                ytdlp.update_after_failure(db, logger)
-    if ok:
-        filled = 0
-        for row, vid in wanted:
-            fields = fill_fields(row, infos.get(vid, {}))
-            if fields.get('description'):
-                filled += 1
-            db.upsert_episode(row['slug'], row['episode_id'], yt_metadata_at=utc_now_iso(), **fields)
-        logger.info(f"YouTube metadata backfill: filled {filled} of {len(rows)} episode(s)")
+    ok = False
+    try:
+        rows = db.get_youtube_episodes_missing_metadata(BATCH)
+        ok = bool(rows)
+        if rows:
+            wanted = [(row, video_id_of(row)) for row in rows]
+            try:
+                infos = fetch_info([vid for _, vid in wanted if vid])
+            except download.DownloadError as exc:
+                ok = False
+                logger.warning(f"YouTube metadata backfill failed: {exc}")
+                if exc.needs_update:
+                    ytdlp.update_after_failure(db, logger)
+        if ok:
+            filled = 0
+            for row, vid in wanted:
+                if vid and vid not in infos and not _give_up(vid):
+                    continue
+                fields = fill_fields(row, infos.get(vid, {}))
+                if fields.get('description'):
+                    filled += 1
+                db.upsert_episode(row['slug'], row['episode_id'], yt_metadata_at=utc_now_iso(), **fields)
+            logger.info(f"YouTube metadata backfill: filled {filled} of {len(rows)} episode(s)")
+    except Exception:
+        ok = False
+        logger.exception("YouTube metadata backfill failed")
+    finally:
+        db.clear_leaked_transaction(logger, 'youtube metadata backfill')
     _next_run = None if ok else utc_now() + IDLE_INTERVAL
+
+
+def _give_up(vid) -> bool:
+    """Count a miss for a video yt-dlp returned nothing for; True once it reaches MAX_MISSES."""
+    _misses[vid] = _misses.get(vid, 0) + 1
+    if _misses[vid] < MAX_MISSES:
+        return False
+    logger.info(f"YouTube metadata backfill: stamping a video with no metadata after {_misses.pop(vid)} misses")
+    return True

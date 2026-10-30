@@ -142,3 +142,32 @@ def test_tick_submits_one_batch():
     with _enabled(), patch.object(metadata, '_future', None), patch.object(metadata, '_executor') as executor:
         metadata.backfill_tick(db)
     executor.submit.assert_called_once_with(metadata._run_batch, db)
+
+
+def _two_rows():
+    return [{'slug': 's', 'episode_id': 'e1', 'youtube_video_id': 'vid1', 'original_url': 'u',
+             'published_at': None, 'description': ''},
+            {'slug': 's', 'episode_id': 'e2', 'youtube_video_id': 'vid2', 'original_url': 'u',
+             'published_at': None, 'description': ''}]
+
+
+def test_partial_batch_stamps_only_present_then_gives_up_after_max_misses():
+    metadata._misses.clear()
+    present = {'vid1': {'id': 'vid1', 'description': 'Hi'}}
+    with _enabled(), patch.object(metadata, 'fetch_info', return_value=present):
+        db = _db(_two_rows())
+        metadata._run_batch(db)
+        assert [c[0][1] for c in db.upsert_episode.call_args_list] == ['e1']
+        for _ in range(metadata.MAX_MISSES - 1):
+            db = _db(_two_rows())
+            metadata._run_batch(db)
+        assert [c[0][1] for c in db.upsert_episode.call_args_list] == ['e1', 'e2']
+    assert 'vid2' not in metadata._misses
+
+
+def test_batch_exception_throttles_and_clears_transaction():
+    db = _db(_two_rows())
+    with _enabled(), patch.object(metadata, 'fetch_info', side_effect=RuntimeError('x')):
+        metadata._run_batch(db)
+    assert metadata._next_run > utc_now()
+    db.clear_leaked_transaction.assert_called_once()
