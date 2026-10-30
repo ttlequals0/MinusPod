@@ -1934,6 +1934,13 @@ class SchemaMixin:
             conn.rollback()
             logger.error(f"search index plain-text re-strip failed: {e}")
 
+        # Drop YouTube placeholder rows that private or deleted playlist entries created (2.101.4).
+        try:
+            self._run_youtube_drop_private_placeholders(conn)
+        except Exception as e:
+            conn.rollback()
+            logger.error(f"youtube private placeholder cleanup failed: {e}")
+
         # Per-boot, not schema_migrations-gated: seeds an absent model row
         # from OPENAI_MODEL, run after the clear above so a stale default is
         # removed and reseeded in the same boot.
@@ -2836,6 +2843,21 @@ class SchemaMixin:
             logger.info("search-index-reindex: skipped, auto-populate already rebuilt it this boot")
         else:
             logger.info(f"search-index-reindex: complete, {count} row(s) indexed")
+
+    def _run_youtube_drop_private_placeholders(self, conn):
+        """One-shot delete of discovered YouTube rows titled with their bare video id."""
+        name = 'youtube_drop_private_placeholders'
+        if conn.execute("SELECT 1 FROM schema_migrations WHERE name = ?", (name,)).fetchone():
+            return
+        deleted = conn.execute(
+            "DELETE FROM episodes WHERE status = 'discovered' AND youtube_video_id IS NOT NULL "
+            "AND title = youtube_video_id AND (description IS NULL OR description = '') "
+            "AND podcast_id IN (SELECT id FROM podcasts WHERE feed_type = 'youtube')"
+        ).rowcount
+        conn.execute("INSERT OR IGNORE INTO schema_migrations (name) VALUES (?)", (name,))
+        conn.commit()
+        if deleted > 0:
+            logger.info(f"youtube-private-placeholders: removed {deleted} placeholder episode(s)")
 
     def _run_reindex_search_plain_text(self, conn, already_rebuilt: bool = False,
                                        name: str = 'search_index_plain_text_2_100_12') -> bool:

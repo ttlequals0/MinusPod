@@ -49,6 +49,16 @@ def test_list_videos_without_key_uses_ytdlp_and_filters(monkeypatch):
     assert '--playlist-end' not in run.call_args.args[0]
 
 
+def test_ytdlp_listing_skips_entries_without_a_title():
+    listing = {**YT_DLP_LISTING, 'entries': [
+        {'id': 'abcdefghijk'},
+        *YT_DLP_LISTING['entries'][:1],
+    ]}
+    with patch.object(discovery.ytdlp, 'run', return_value=_completed(listing)):
+        episodes = discovery.list_videos(_db(), _podcast(), limit=50)
+    assert [e['video_id'] for e in episodes] == ['vid000000001']
+
+
 def test_list_videos_keeps_shorts_when_enabled():
     with patch.object(discovery.ytdlp, 'run', return_value=_completed(YT_DLP_LISTING)):
         episodes = discovery.list_videos(_db(), _podcast(shorts=1), limit=50)

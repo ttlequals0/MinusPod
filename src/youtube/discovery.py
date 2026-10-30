@@ -271,6 +271,9 @@ def _list_with_ytdlp(playlist_id, limit, include_shorts, longform, full=False) -
         entries = entries[:limit]
     episodes = []
     for entry in entries:
+        # Private or deleted videos come back as a bare id.
+        if not entry.get('title'):
+            continue
         is_live = entry.get('live_status') in ('is_live', 'is_upcoming', 'post_live')
         duration = float(entry['duration']) if entry.get('duration') is not None else None
         if not _keep(duration, is_live, include_shorts, longform):
