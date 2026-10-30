@@ -28,6 +28,19 @@ class YouTubeMixin:
         conn.commit()
         return True
 
+    def schedule_sponsorblock_wait(self, slug: str, episode_id: str, due_iso: str) -> bool:
+        """Arm the first SponsorBlock check only for a row with no state yet."""
+        db_id = self._get_episode_db_id(slug, episode_id)
+        if not db_id:
+            return False
+        conn = self.get_connection()
+        cur = conn.execute(
+            "UPDATE episodes SET sb_state = 'waiting', sb_attempts = 0, sb_next_check_at = ?, "
+            "updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now') WHERE id = ? AND sb_state IS NULL",
+            (due_iso, db_id))
+        conn.commit()
+        return cur.rowcount > 0
+
     def get_due_sponsorblock_episodes(self, now_iso: str, limit: int = 50) -> list[dict]:
         cursor = self.get_connection().execute(
             """SELECT e.episode_id, e.title, e.original_url, e.published_at, e.description,

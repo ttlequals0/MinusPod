@@ -1,5 +1,7 @@
 import json
 import subprocess
+
+import requests
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -91,7 +93,8 @@ def test_list_videos_with_key_uses_data_api():
     assert [e['video_id'] for e in episodes] == ['vid000000001']
     assert episodes[0]['rss_duration'] == 3600.0
     assert 'playlistItems' in get.call_args_list[0].args[0]
-    assert 'key=KEY' in get.call_args_list[0].args[0]
+    assert 'KEY' not in get.call_args_list[0].args[0]
+    assert get.call_args_list[0].kwargs['headers']['X-Goog-Api-Key'] == 'KEY'
 
 
 def test_quota_exhausted_falls_back_to_ytdlp():
@@ -128,3 +131,43 @@ def test_parse_iso8601_duration():
     assert discovery.parse_iso_duration('PT45S') == 45.0
     assert discovery.parse_iso_duration('P0D') == 0.0
     assert discovery.parse_iso_duration(None) is None
+
+
+def test_api_network_error_does_not_leak_key():
+    exc = requests.ConnectionError('failed https://www.googleapis.com/youtube/v3/x?key=SECRETKEY')
+    with patch.object(discovery, 'safe_get', side_effect=exc):
+        with pytest.raises(discovery.DiscoveryError) as err:
+            discovery.list_videos(_db('SECRETKEY'), _podcast(), limit=50)
+    assert 'SECRETKEY' not in str(err.value)
+    assert 'ConnectionError' in str(err.value)
+
+
+def test_api_unreadable_body_is_discovery_error():
+    with patch.object(discovery, 'safe_get', return_value=_resp()), \
+            patch.object(discovery, 'read_response_capped', return_value=b'\xff not json'):
+        with pytest.raises(discovery.DiscoveryError) as err:
+            discovery.list_videos(_db('KEY'), _podcast(), limit=50)
+    assert 'unreadable' in str(err.value)
+
+
+def test_api_malformed_page_is_discovery_error():
+    page = json.dumps({'items': [{'contentDetails': {}}]}).encode()
+    with patch.object(discovery, 'safe_get', return_value=_resp()), \
+            patch.object(discovery, 'read_response_capped', return_value=page):
+        with pytest.raises(discovery.DiscoveryError) as err:
+            discovery.list_videos(_db('KEY'), _podcast(), limit=50)
+    assert 'unexpected page' in str(err.value)
+
+
+def test_ytdlp_timeout_is_discovery_error():
+    with patch.object(discovery.ytdlp, 'run', side_effect=subprocess.TimeoutExpired('yt-dlp', 180)):
+        with pytest.raises(discovery.DiscoveryError) as err:
+            discovery.list_videos(_db(), _podcast(), limit=50)
+    assert 'timed out' in str(err.value)
+
+
+def test_ytdlp_not_installed_is_discovery_error():
+    with patch.object(discovery.ytdlp, 'run', side_effect=discovery.ytdlp.YtDlpNotInstalled('yt-dlp is not installed')):
+        with pytest.raises(discovery.DiscoveryError) as err:
+            discovery.list_videos(_db(), _podcast(), limit=50)
+    assert 'not installed' in str(err.value)

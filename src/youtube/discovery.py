@@ -2,6 +2,7 @@
 import json
 import logging
 import re
+import subprocess
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from urllib.parse import urlencode
@@ -57,21 +58,21 @@ def parse_iso_duration(text) -> float | None:
     return float(days * 86400 + hours * 3600 + minutes * 60 + seconds)
 
 
-def _api_get(path: str, params: dict) -> dict:
+def _api_get(path: str, params: dict, key: str) -> dict:
     url = f"{API}/{path}?{urlencode(params)}"
+    headers = {'User-Agent': f'MinusPod/{APP_VERSION}', 'X-Goog-Api-Key': key}
+    # Error text may embed the request URL, so messages carry only the exception type.
     try:
         response = safe_get(url, URLTrust.OPERATOR_CONFIGURED, timeout=HTTP_TIMEOUT_API, stream=True,
-                            headers={'User-Agent': f'MinusPod/{APP_VERSION}'})
+                            headers=headers)
     except (requests.RequestException, SSRFError) as exc:
-        raise DiscoveryError(f'YouTube Data API request failed: {exc}') from exc
+        raise DiscoveryError(f'YouTube Data API request failed ({type(exc).__name__})') from None
     try:
         status = response.status_code
-        if status == 200:
-            body = read_response_capped(response, API_MAX_BYTES)
-        else:
-            text = response.text or ''
+        body = read_response_capped(response, API_MAX_BYTES) if status == 200 else b''
+        text = response.text or '' if status != 200 else ''
     except (requests.RequestException, ValueError) as exc:
-        raise DiscoveryError(f'YouTube Data API read failed: {exc}') from exc
+        raise DiscoveryError(f'YouTube Data API read failed ({type(exc).__name__})') from None
     finally:
         response.close()
     if status == 403 and 'quotaExceeded' in text:
@@ -80,11 +81,19 @@ def _api_get(path: str, params: dict) -> dict:
         raise SourceNotFound('Playlist or channel not found')
     if status != 200:
         raise DiscoveryError(f'YouTube Data API error {status}')
-    return json.loads(body.decode('utf-8'))
+    try:
+        return json.loads(body.decode('utf-8'))
+    except ValueError:
+        raise DiscoveryError('YouTube Data API returned an unreadable response') from None
 
 
 def _ytdlp_json(url: str, extra: list[str], timeout: int) -> dict:
-    result = ytdlp.run(['--flat-playlist', '--dump-single-json', '--no-warnings', *extra, url], timeout=timeout)
+    try:
+        result = ytdlp.run(['--flat-playlist', '--dump-single-json', '--no-warnings', *extra, url], timeout=timeout)
+    except subprocess.TimeoutExpired:
+        raise DiscoveryError('yt-dlp timed out listing the source') from None
+    except ytdlp.YtDlpNotInstalled as exc:
+        raise DiscoveryError(str(exc)) from None
     if result.returncode != 0:
         error = ytdlp.trimmed_error(result.stderr)
         low = error.lower()
@@ -138,7 +147,7 @@ def resolve_source(db, source: Source) -> SourceInfo:
 
 def _resolve_with_api(key: str, source: Source) -> SourceInfo:
     if source.kind == 'playlist':
-        data = _api_get('playlists', {'part': 'snippet,contentDetails', 'id': source.id, 'key': key})
+        data = _api_get('playlists', {'part': 'snippet,contentDetails', 'id': source.id}, key)
         items = data.get('items') or []
         if not items:
             raise SourceNotFound('Playlist not found or private')
@@ -146,7 +155,7 @@ def _resolve_with_api(key: str, source: Source) -> SourceInfo:
         return SourceInfo('playlist', source.id, sn.get('title') or source.id, sn.get('description') or '',
                           _best_thumb(sn.get('thumbnails')), items[0].get('contentDetails', {}).get('itemCount'))
     selector = {'channel': 'id', 'handle': 'forHandle', 'user': 'forUsername', 'custom': 'forHandle'}[source.kind]
-    data = _api_get('channels', {'part': 'snippet,statistics', selector: source.id, 'key': key})
+    data = _api_get('channels', {'part': 'snippet,statistics', selector: source.id}, key)
     items = data.get('items') or []
     if not items:
         raise SourceNotFound('Channel not found')
@@ -199,11 +208,14 @@ def _list_with_api(key, playlist_id, limit, include_shorts, longform) -> list[di
     ids: list[str] = []
     token = None
     while len(ids) < limit:
-        params = {'part': 'contentDetails', 'playlistId': playlist_id, 'maxResults': 50, 'key': key}
+        params = {'part': 'contentDetails', 'playlistId': playlist_id, 'maxResults': 50}
         if token:
             params['pageToken'] = token
-        page = _api_get('playlistItems', params)
-        ids.extend(i['contentDetails']['videoId'] for i in page.get('items') or [])
+        page = _api_get('playlistItems', params, key)
+        try:
+            ids.extend(i['contentDetails']['videoId'] for i in page.get('items') or [])
+        except (KeyError, TypeError):
+            raise DiscoveryError('YouTube Data API returned an unexpected page') from None
         token = page.get('nextPageToken')
         if not token:
             break
@@ -211,7 +223,7 @@ def _list_with_api(key, playlist_id, limit, include_shorts, longform) -> list[di
     episodes = []
     for start in range(0, len(ids), 50):
         chunk = ids[start:start + 50]
-        data = _api_get('videos', {'part': 'contentDetails,snippet,liveStreamingDetails', 'id': ','.join(chunk), 'key': key})
+        data = _api_get('videos', {'part': 'contentDetails,snippet,liveStreamingDetails', 'id': ','.join(chunk)}, key)
         for item in data.get('items') or []:
             live = item.get('liveStreamingDetails') or {}
             is_live = bool(live) and not live.get('actualEndTime')

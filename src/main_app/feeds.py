@@ -230,40 +230,47 @@ def _refresh_youtube_feed(slug, podcast, force, record_failure) -> RefreshOutcom
         return RefreshOutcome(True, 'coalesced')
     _refresh_coalesce.set(slug, True)
     db.update_podcast(slug, last_refresh_attempt_at=utc_now_iso())
-    limit = db.get_max_episodes_for_podcast(slug, podcast=podcast)
     try:
-        episodes = discovery.list_videos(db, podcast, limit)
-    except discovery.DiscoveryError as exc:
-        if record_failure:
-            _record_refresh_failure(slug, str(exc), podcast=podcast)
-        refresh_logger.warning(f"[{slug}] YouTube listing failed: {exc}")
-        _refresh_coalesce.invalidate(slug)
-        return RefreshOutcome(False, 'fetch_failed', error=str(exc))
-    inserted, ep_statuses, _ = db.bulk_upsert_discovered_episodes(slug, episodes, return_state=True)
-    for ep in episodes:
-        db.update_episode_sponsorblock(slug, ep['id'], youtube_video_id=ep['video_id'])
-    if inserted > 0:
-        refresh_logger.info(f"[{slug}] Discovered {inserted} new video(s)")
-    scheduled = 0
-    if db.is_auto_process_enabled_for_podcast(slug, podcast=podcast):
-        cutoff = datetime.now(timezone.utc) - timedelta(hours=db.get_auto_process_max_age_hours(podcast))
+        limit = db.get_max_episodes_for_podcast(slug, podcast=podcast)
+        try:
+            episodes = discovery.list_videos(db, podcast, limit)
+        except discovery.DiscoveryError as exc:
+            if record_failure:
+                _record_refresh_failure(slug, str(exc), podcast=podcast)
+            refresh_logger.warning(f"[{slug}] YouTube listing failed: {exc}")
+            status_service.complete_feed_refresh(slug, 0)
+            _refresh_coalesce.invalidate(slug)
+            return RefreshOutcome(False, 'fetch_failed', error=str(exc))
+        inserted, ep_statuses, _ = db.bulk_upsert_discovered_episodes(slug, episodes, return_state=True)
         for ep in episodes:
-            if ep_statuses.get(ep['id']) not in (None, 'discovered'):
-                continue
-            published = parse_iso_utc(ep.get('published'))
-            if not published or published < cutoff:
-                continue
-            if episode_matches_feed_filters(ep, podcast):
-                refresh_logger.info(f"[{slug}] Skipping video matched by feed filters: {ep.get('title')}")
-                continue
-            if yt_watch.schedule_new_episode(db, slug, ep['id'], podcast):
-                scheduled += 1
-    if scheduled:
-        refresh_logger.info(f"[{slug}] {scheduled} video(s) waiting for SponsorBlock")
-    rebuild_youtube_feed(slug, podcast)
-    _record_refresh_success(slug)
-    status_service.complete_feed_refresh(slug, 0)
-    return RefreshOutcome(True, 'refreshed', inserted, scheduled)
+            db.update_episode_sponsorblock(slug, ep['id'], youtube_video_id=ep['video_id'])
+        if inserted > 0:
+            refresh_logger.info(f"[{slug}] Discovered {inserted} new video(s)")
+        scheduled = 0
+        if db.is_auto_process_enabled_for_podcast(slug, podcast=podcast):
+            cutoff = datetime.now(timezone.utc) - timedelta(hours=db.get_auto_process_max_age_hours(podcast))
+            for ep in episodes:
+                if ep_statuses.get(ep['id']) not in (None, 'discovered'):
+                    continue
+                published = parse_iso_utc(ep.get('published'))
+                if not published or published < cutoff:
+                    continue
+                if episode_matches_feed_filters(ep, podcast):
+                    refresh_logger.info(f"[{slug}] Skipping video matched by feed filters: {ep.get('title')}")
+                    continue
+                if yt_watch.schedule_new_episode(db, slug, ep['id'], podcast):
+                    scheduled += 1
+        if scheduled:
+            refresh_logger.info(f"[{slug}] {scheduled} video(s) waiting for SponsorBlock")
+        rebuild_youtube_feed(slug, podcast)
+        _record_refresh_success(slug)
+        status_service.complete_feed_refresh(slug, 0)
+        return RefreshOutcome(True, 'refreshed', inserted, scheduled)
+    except Exception as e:
+        refresh_logger.error(f"[{slug}] YouTube refresh failed: {_scrub_query_strings(str(e))}")
+        status_service.remove_feed_refresh(slug)
+        _refresh_coalesce.invalidate(slug)
+        return RefreshOutcome(False, 'internal_error', error='Internal refresh error')
 
 
 def refresh_rss_feed(slug: str, feed_url: str, force: bool = False,
