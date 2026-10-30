@@ -1200,6 +1200,7 @@ class AdDetector:
         Never includes spans or timestamps (pass 1 stays blind to stage 2)."""
         if not podcast_slug:
             return ""
+        self._ensure_deps()
         try:
             patterns = self.db.get_ad_patterns(podcast_id=podcast_slug)
             sponsor_categories = self.db.get_sponsor_segment_categories()

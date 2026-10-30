@@ -295,12 +295,13 @@ def _caption_file(tmp_path):
 
 def test_retained_original_fetches_captions_as_the_transcript(tmp_path):
     caption_file = _caption_file(tmp_path)
-    ok, whisper, *_ = _run([], retained=True, caption_file=caption_file)
+    with patch.object(sb_stage.shutil, 'rmtree') as rmtree:
+        ok, whisper, *_ = _run([], retained=True, caption_file=caption_file)
     assert ok is True
+    rmtree.assert_any_call(os.path.dirname(caption_file), ignore_errors=True)
     _run.extras['fetch_captions'].assert_called_once_with('vid000000001', language=None)
     whisper.assert_not_called()
     _run.extras['db'].clear_episode_details.assert_not_called()
-    assert not (tmp_path / 'caps').exists()
 
 
 def test_reprocess_without_captions_keeps_the_saved_transcript():

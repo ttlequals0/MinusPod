@@ -547,8 +547,12 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
             run_stats['sponsorblock'] = {'mode': yt_run.mode, 'segments': len(yt_run.markers),
                                          'note': yt_run.note}
             if yt_run.mode == 'sponsorblock' and not yt_run.segments:
-                skip_transcription_active = True
-                run_stats['transcription_skipped'] = True
+                if storage.get_transcript(slug, episode_id):
+                    # Reuse the saved transcript; forcing would wipe one we cannot regenerate.
+                    force_transcription = False
+                else:
+                    skip_transcription_active = True
+                    run_stats['transcription_skipped'] = True
         if yt_run is not None and yt_run.mode == 'passthrough':
             served = recut._passthrough_episode(
                 slug, episode_id, episode_url, episode_title, podcast_name,

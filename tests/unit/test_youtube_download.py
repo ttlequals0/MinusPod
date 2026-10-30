@@ -1,5 +1,6 @@
 import json
 import os
+import shutil
 import subprocess
 from unittest.mock import patch
 
@@ -118,3 +119,47 @@ def test_corrupt_info_json_becomes_download_error_and_cleans_up():
         with pytest.raises(download.DownloadError):
             download.download('vid000000001', want_captions=False, language='en')
     assert dirs and not os.path.exists(dirs[0])
+
+
+def _fake_captions_run(write_file):
+    def run(args, timeout, cwd=None, **kw):
+        if write_file:
+            vid = args[-1].split('v=')[1]
+            open(os.path.join(cwd, f'{vid}.en.json3'), 'w').write('{}')
+        return subprocess.CompletedProcess(args, 1, stdout='', stderr='no subs')
+    return run
+
+
+def _fetch(side_effect, language='en'):
+    with patch.object(download.ytdlp, 'run', side_effect=side_effect) as run, \
+            patch.object(download, '_impersonate_target', return_value=None), \
+            patch.object(download, 'cookies_path', return_value=None):
+        return download.fetch_captions('vid000000001', language=language), run
+
+
+def test_fetch_captions_returns_json3_path_and_passes_flags():
+    path, run = _fetch(_fake_captions_run(True))
+    try:
+        assert path.endswith('vid000000001.en.json3')
+    finally:
+        shutil.rmtree(os.path.dirname(path))
+    args = run.call_args.args[0]
+    assert '--skip-download' in args and '-x' not in args
+    assert args[args.index('--sub-langs') + 1] == 'en,en-orig,-live_chat'
+    assert run.call_args.kwargs['timeout'] == download.CAPTIONS_TIMEOUT_S
+
+
+def test_fetch_captions_returns_none_and_cleans_up_when_nothing_written():
+    dirs = []
+
+    def run(args, timeout, cwd=None, **kw):
+        dirs.append(cwd)
+        return subprocess.CompletedProcess(args, 0, stdout='', stderr='')
+    path, _ = _fetch(run)
+    assert path is None
+    assert not os.path.exists(dirs[0])
+
+
+def test_fetch_captions_raises_on_timeout():
+    with pytest.raises(download.DownloadError):
+        _fetch(subprocess.TimeoutExpired('yt-dlp', 300))

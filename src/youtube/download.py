@@ -13,6 +13,7 @@ from youtube.urls import watch_url
 
 logger = logging.getLogger(__name__)
 TIMEOUT_S = 1800
+CAPTIONS_TIMEOUT_S = 300
 _impersonate_cache: dict[str, str | None] = {}
 
 
@@ -49,6 +50,24 @@ def _impersonate_target() -> str | None:
     return _impersonate_cache['target']
 
 
+def _sub_langs(language: str | None) -> str:
+    if language and language != 'auto':
+        lang = language.split('-')[0]
+        return f'{lang},{lang}-orig,-live_chat'
+    return '.*-orig,-live_chat'
+
+
+def _auth_args() -> list[str]:
+    args = []
+    cookie_file = cookies_path()
+    if cookie_file:
+        args += ['--cookies', cookie_file]
+    target = _impersonate_target()
+    if target:
+        args += ['--impersonate', target]
+    return args
+
+
 def download(video_id: str, *, want_captions: bool, language: str) -> DownloadResult:
     """Fetch audio as mp3 into a fresh temp dir; the caller deletes that dir after moving the audio."""
     args = ['-x', '--audio-format', 'mp3', '--audio-quality', resolve_bitrate(), '--no-playlist',
@@ -56,18 +75,8 @@ def download(video_id: str, *, want_captions: bool, language: str) -> DownloadRe
             '--no-warnings', '--sleep-requests', '1', '--sleep-interval', '2', '--max-sleep-interval', '8',
             '-o', '%(id)s.%(ext)s']
     if want_captions:
-        if language and language != 'auto':
-            lang = language.split('-')[0]
-            sub_langs = f'{lang},{lang}-orig,-live_chat'
-        else:
-            sub_langs = '.*-orig,-live_chat'
-        args += ['--write-subs', '--write-auto-subs', '--sub-langs', sub_langs, '--sub-format', 'json3']
-    cookie_file = cookies_path()
-    if cookie_file:
-        args += ['--cookies', cookie_file]
-    target = _impersonate_target()
-    if target:
-        args += ['--impersonate', target]
+        args += ['--write-subs', '--write-auto-subs', '--sub-langs', _sub_langs(language), '--sub-format', 'json3']
+    args += _auth_args()
     args.append(watch_url(video_id))
     work_dir = tempfile.mkdtemp(prefix='minuspod-yt-')
     try:
@@ -93,3 +102,27 @@ def download(video_id: str, *, want_captions: bool, language: str) -> DownloadRe
     except BaseException:
         shutil.rmtree(work_dir, ignore_errors=True)
         raise
+
+
+def fetch_captions(video_id: str, *, language: str) -> str | None:
+    """Fetch only the json3 captions; the caller deletes the returned file's directory."""
+    args = ['--skip-download', '--write-subs', '--write-auto-subs', '--sub-langs', _sub_langs(language),
+            '--sub-format', 'json3', '--no-playlist', '--no-warnings', '--no-progress',
+            '-o', '%(id)s.%(ext)s'] + _auth_args() + [watch_url(video_id)]
+    work_dir = tempfile.mkdtemp(prefix='minuspod-yt-')
+    try:
+        try:
+            result = ytdlp.run(args, timeout=CAPTIONS_TIMEOUT_S, cwd=work_dir)
+        except subprocess.TimeoutExpired as exc:
+            raise DownloadError('yt-dlp timed out fetching captions') from exc
+        if result.returncode != 0:
+            logger.debug(f"yt-dlp caption fetch for {video_id} exited {result.returncode}: "
+                         f"{ytdlp.trimmed_error(result.stderr)}")
+        path = pick_file(work_dir, video_id, language)
+        if path:
+            return path
+    except BaseException:
+        shutil.rmtree(work_dir, ignore_errors=True)
+        raise
+    shutil.rmtree(work_dir, ignore_errors=True)
+    return None

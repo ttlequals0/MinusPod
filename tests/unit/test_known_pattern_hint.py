@@ -78,3 +78,20 @@ def test_uncategorized_names_stay_in_leftovers():
     )._build_known_pattern_hint('example-podcast')
     assert 'Previously detected sponsors for this podcast: Acme' in hint
     assert '- Widgets (self_promo read).' in hint
+
+
+def test_hint_initializes_services_when_first_caller(caplog):
+    from unittest.mock import patch
+    stub = MagicMock()
+    stub.get_ad_patterns.return_value = [{
+        'id': 7, 'created_by': 'user', 'source': 'local', 'sponsor': 'Acme',
+        'category': 'sponsor', 'intro_text': 'brought to you by acme'}]
+    stub.get_sponsor_segment_categories.return_value = {}
+    d = AdDetector()
+    d.db = None
+    with patch('database.Database', return_value=stub), patch('ad_detector.SponsorService'), \
+            patch('audio_fingerprinter.AudioFingerprinter'), patch('text_pattern_matcher.TextPatternMatcher'), \
+            patch('pattern_service.PatternService'), caplog.at_level('WARNING'):
+        hint = d._build_known_pattern_hint('example-podcast')
+    assert 'Acme' in hint
+    assert 'Could not fetch patterns' not in caplog.text
