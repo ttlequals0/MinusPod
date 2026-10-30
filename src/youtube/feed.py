@@ -1,8 +1,6 @@
 """Served RSS for a YouTube feed: processed episodes rendered by the local feed builder."""
 import logging
 
-from local_feed_builder import build_local_feed_xml
-from main_app.shared_state import invalidate_episode_lookup_cache
 from utils.time import utc_now_iso
 
 logger = logging.getLogger(__name__)
@@ -15,7 +13,10 @@ def source_link(podcast: dict) -> str:
 
 
 def rebuild_youtube_feed(slug: str, podcast: dict | None = None) -> bool:
-    from main_app import db, storage  # lazy: main_app imports this module
+    # lazy: local_feed_builder and main_app import main_app at import time
+    from local_feed_builder import build_local_feed_xml
+    from main_app import db, storage
+    from main_app.shared_state import invalidate_episode_lookup_cache
     podcast = podcast or db.get_podcast_by_slug(slug)
     if not podcast:
         return False
