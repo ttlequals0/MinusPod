@@ -153,8 +153,6 @@ Every term the app uses, in plain words, with a link to the part of the docs tha
 
 **LLM fallback** - On a YouTube feed, running the normal LLM pipeline when SponsorBlock has no marks after the last probe. On by default, with a per-feed override. [YouTube Feeds > How processing works](youtube-feeds.md#how-processing-works)
 
-**LLM on top** - A per-feed switch that runs the LLM pipeline on a YouTube episode even when SponsorBlock marks exist, adding its detections to them. [YouTube Feeds > What decides the cuts](youtube-feeds.md#what-decides-the-cuts)
-
 **LLM window cap** - The longest single ad the LLM may report within one detection window; a longer one is discarded. The global Longest single LLM detection setting defaults to 7 minutes (60 to 900 s), and a feed's max ad duration cap or reject override raises it for that feed. Also called the longest single LLM detection. [Configuration > Longest single LLM detection](configuration.md#longest-single-llm-detection)
 
 **Local feed** - A podcast feed MinusPod builds and serves from your own audio files, with no upstream RSS feed behind it. Episodes still run through the same ad-removal pipeline; MinusPod is the publisher rather than a proxy. [Local Feeds](local-feeds.md)
@@ -194,6 +192,8 @@ Every term the app uses, in plain words, with a link to the part of the docs tha
 **Parakeet** - NVIDIA Parakeet TDT 0.6B v3, the recommended local transcription backend. It runs in-process through ONNX Runtime and is selected with `WHISPER_BACKEND=parakeet`. [Transcription > Parakeet](transcription.md#parakeet)
 
 **Partial detection** - An episode published from pattern and cross-fetch cuts alone after the AI detection pass failed. Shows an amber badge and a Re-run detection banner on the episode page; one automatic low-priority re-detect is also queued. [How It Works > Partial Detection](how-it-works.md#partial-detection)
+
+**Pass 1 detection (YouTube feeds)** - A per-feed switch that runs the LLM detector on a YouTube episode in addition to SponsorBlock, even when marks exist. Both sets of segments are cut. [YouTube Feeds > What decides the cuts](youtube-feeds.md#what-decides-the-cuts)
 
 **Pass-through** - One of the five presets on the per-feed Processing mode select. It turns processing off entirely: episodes are downloaded and relayed with no transcription or ad removal, though the audio may be transcoded for serving. The feed URL stays the same, so switching to another mode resumes processing later without touching your podcast app. [Configuration > Pass-through mode](configuration.md#pass-through-mode)
 

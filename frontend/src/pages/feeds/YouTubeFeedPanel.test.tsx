@@ -90,7 +90,7 @@ describe('YouTubeFeedPanel', () => {
   it('sends a boolean override and null to inherit', async () => {
     const user = userEvent.setup();
     renderPanel();
-    const select = screen.getByLabelText('LLM on top of SponsorBlock') as HTMLSelectElement;
+    const select = screen.getByLabelText('Pass 1 detection') as HTMLSelectElement;
     expect(select.selectedOptions[0].textContent).toBe('Use global (off)');
     await user.selectOptions(select, 'On');
     await waitFor(() => expect(mockUpdateFeed).toHaveBeenCalledWith('yt', { ytLlmOnTopOverride: true }));

@@ -145,14 +145,14 @@ function YouTubeFeedPanel({ feed, slug }: { feed: Feed; slug: string }) {
             Run the ad detector when SponsorBlock has no marks for an episode.
           </GlobalOverrideRow>
           <GlobalOverrideRow
-            label="LLM on top"
-            ariaLabel="LLM on top of SponsorBlock"
+            label="Pass 1 detection"
+            ariaLabel="Pass 1 detection"
             value={toTri(feed.ytLlmOnTopOverride)}
             globalOn={false}
             disabled={pending}
             onChange={setBool('ytLlmOnTopOverride')}
           >
-            Also run the ad detector when SponsorBlock marks exist.
+            Run pass 1 LLM detection even when SponsorBlock has marks, and cut both.
           </GlobalOverrideRow>
           <GlobalOverrideRow
             label="Captions"

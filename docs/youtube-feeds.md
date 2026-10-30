@@ -44,7 +44,7 @@ To turn the behavior down, use any of these:
 | Goal | Setting |
 |---|---|
 | Stop accepting late marks sooner | Lower **Watch ceiling (days)** in Settings > YouTube (global only) |
-| Have the LLM review every episode as well | Turn on **LLM on top** for the feed |
+| Have the LLM review every episode as well | Turn on **Pass 1 detection** for the feed |
 | Skip the wait for marks | Set **SponsorBlock probe attempts** to 0 with the LLM fallback on; episodes with no marks at the first check go straight to the LLM |
 | Never trust marks for one category | Set that category's segment action to Keep in Settings > Segment categories, or per feed |
 
@@ -92,7 +92,7 @@ A YouTube episode does not process the moment it is discovered. MinusPod gives t
 3. **No marks after the last probe.** If **Fall back to the LLM pipeline when no marks appear** is on (default), the episode is queued for the normal LLM pipeline. If it is off, the episode enters the watch window and keeps waiting.
 4. **Watch window.** Every **Watch interval (hours)** (default 6, range 1 to 48) MinusPod checks again. When marks appear the episode is queued. If none appear by the **Watch ceiling (days)** (default 7, range 1 to 60), measured from the publish date, the episode is processed with the LLM pipeline.
 5. **After processing.** For the rest of the watch window MinusPod keeps checking. If the set of marks changes and the original audio is still retained, the episode is recut automatically.
-6. **LLM on top.** A per-feed switch. When on, the LLM pipeline runs even when marks exist, and its detections are added to the SponsorBlock marks.
+6. **Pass 1 detection.** A per-feed switch. When on, the LLM detector runs in addition to SponsorBlock even when marks exist, and both sets of segments are cut.
 
 A failed SponsorBlock lookup is retried at the state's normal interval, capped at 24 hours. If a queued episode reaches the pipeline and no usable marks are left, or the lookup fails, the run steps aside instead of failing. The episode goes back to waiting and the watcher checks again.
 
@@ -119,7 +119,7 @@ Three suffixes can follow: `, marked whole video as sponsored` when SponsorBlock
 ## Transcripts and chapters
 
 - **Captions first.** When **Use YouTube captions as the transcript** is on (global default, per-feed override), yt-dlp downloads captions with the audio. MinusPod prefers the creator's track, then the auto-generated track, in the feed's language (the transcription language override, `en` if unset). With the feed language set to auto, the original-language auto captions are used. The captions become the transcript and Whisper is skipped. Speaker-change markers (`>>`) and bracketed sound cues such as `[Music]` are removed from the caption text.
-- **Whisper when none.** With the captions toggle off, the normal transcription backend runs. With it on and a video that has no captions, the backend (Whisper or Parakeet, whichever you configured) runs only if **Transcribe when captions are missing** is on. That setting is global, default off, with a per-feed override. When it is off and the video has SponsorBlock marks, the cuts come from the marks alone and the LLM is skipped, even with **LLM on top**, because there is no transcript. With no marks, the episode keeps waiting for them and does not fall back to the LLM. Once the watch ceiling passes, or when you reprocess it, the episode is served unmodified, since there is no transcript to detect ads in.
+- **Whisper when none.** With the captions toggle off, the normal transcription backend runs. With it on and a video that has no captions, the backend (Whisper or Parakeet, whichever you configured) runs only if **Transcribe when captions are missing** is on. That setting is global, default off, with a per-feed override. When it is off and the video has SponsorBlock marks, the cuts come from the marks alone and the LLM is skipped, even with **pass 1 detection**, because there is no transcript. With no marks, the episode keeps waiting for them and does not fall back to the LLM. Once the watch ceiling passes, or when you reprocess it, the episode is served unmodified, since there is no transcript to detect ads in.
 - **Creator chapters.** yt-dlp embeds the video's chapters in the audio (`--embed-chapters`). MinusPod reuses them, so the LLM chapter generation call is skipped for those episodes.
 - **Artwork.** Feed artwork comes from the source's thumbnail. You can upload your own or refresh it from the feed's YouTube panel. Episode thumbnails are cached when an episode is processed and served as per-episode artwork.
 
@@ -176,7 +176,7 @@ The feed page has a YouTube section. Each field inherits the global setting unti
 | Field | API field | Effect |
 |---|---|---|
 | LLM fallback | `ytLlmFallbackOverride` | Run the LLM pipeline when no marks appear |
-| LLM on top | `ytLlmOnTopOverride` | Run the LLM pipeline in addition to SponsorBlock marks |
+| Pass 1 detection | `ytLlmOnTopOverride` | Run the LLM detector in addition to SponsorBlock marks and cut both |
 | Captions | `ytCaptionsOverride` | Use YouTube captions as the transcript |
 | Transcribe when captions are missing | `ytTranscribeOverride` | Run the transcription backend for videos without captions |
 | Delay | `ytProcessDelayMinutesOverride` | Processing delay in minutes |
