@@ -355,7 +355,7 @@ function YouTubeSection() {
           <div className="pt-3 border-t border-border flex flex-wrap items-center gap-2">
             <ConfirmResetButton
               label="Reset to defaults"
-              confirmHint="Reset YouTube settings to their defaults? The feature switch, Data API key and cookies file are kept."
+              confirmHint="Reset YouTube settings to their defaults, including the daily yt-dlp update toggle? The feature switch, Data API key and cookies file are kept."
               isPending={resetAll.isPending}
               onConfirm={() => resetAll.mutate()}
             />

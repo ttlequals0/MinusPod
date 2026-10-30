@@ -15,7 +15,7 @@ release notes.
 
 ### Added
 
-- Settings > YouTube has a Reset to defaults action for its tunables, proxy and extra arguments. The feature switch, Data API key and cookies file are kept.
+- Settings > YouTube has a Reset to defaults action for its tunables, daily update toggle, proxy and extra arguments. The feature switch, Data API key and cookies file are kept.
 
 ### Changed
 

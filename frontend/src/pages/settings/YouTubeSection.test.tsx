@@ -134,7 +134,7 @@ describe('YouTubeSection', () => {
     mockReset.mockResolvedValue(base);
     renderSection({ ...base, processDelayMinutes: 5 });
     await userEvent.click(await screen.findByRole('button', { name: 'Reset to defaults' }));
-    expect(screen.getByText(/The feature switch, Data API key and cookies file are kept/)).toBeDefined();
+    expect(screen.getByText(/including the daily yt-dlp update toggle\? The feature switch, Data API key and cookies file are kept/)).toBeDefined();
     expect(mockReset).not.toHaveBeenCalled();
     const getCalls = mockGet.mock.calls.length;
     await userEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Reset to defaults' }));
