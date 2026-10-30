@@ -170,9 +170,11 @@ def _handle_processing_failure(slug, episode_id, episode_title, podcast_name,
             status=prior if prior not in (EpisodeStatus.PENDING.value, EpisodeStatus.PROCESSING.value, None)
             else EpisodeStatus.DISCOVERED.value,
             error_message=None)
-        probing = (episode_data or {}).get('sb_state') in ('waiting', 'probing')
+        prior_state = (episode_data or {}).get('sb_state')
+        state = 'exhausted' if prior_state == 'exhausted' else (
+            'probing' if prior_state in ('waiting', 'probing') else 'watching')
         db.update_episode_sponsorblock(
-            slug, episode_id, sb_state='probing' if probing else 'watching',
+            slug, episode_id, sb_state=state,
             sb_next_check_at=error.next_check_at, sb_last_error=str(error))
         audio_logger.info(f"[{slug}:{episode_id}] SponsorBlock: {error}; will check again at {error.next_check_at}")
         return

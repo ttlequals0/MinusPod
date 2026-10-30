@@ -56,3 +56,10 @@ def test_mixed_cue_and_speech_keeps_speech():
     segs = captions.json3_to_segments({'events': [_event(0, 2000, (0, '[laughter]'), (500, ' okay'))]})
     assert [s['text'] for s in segs] == ['okay']
     assert segs[0]['words'][0]['start'] == 0.5
+
+
+def test_spoken_parentheticals_stay_but_sound_cues_go():
+    keep = captions.json3_to_segments({'events': [_event(0, 2000, (0, '(you know) sure'))]})
+    assert [s['text'] for s in keep] == ['(you know) sure']
+    cue = captions.json3_to_segments({'events': [_event(0, 2000, (0, '(upbeat music) sure'))]})
+    assert [s['text'] for s in cue] == ['sure']

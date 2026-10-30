@@ -5,11 +5,14 @@ import os
 import re
 
 MIN_EVENT_S = 0.5
-_NOISE = re.compile(r'\[[^\]]*\]|\([^)]*\)|>{2,}')
+_CUE_WORDS = (r'music|applause|laughter|laughs|laughing|inaudible|crosstalk|cheering|singing|sighs|'
+              r'foreign language|silence|noise')
+_NOISE = re.compile(
+    rf'\[[^\]]*(?:{_CUE_WORDS})[^\]]*\]|\([^)]*(?:{_CUE_WORDS})[^)]*\)|>{{2,}}', re.IGNORECASE)
 
 
 def _clean(text: str) -> str:
-    """Drop speaker-change markers and bracketed or parenthesized sound cues."""
+    """Drop speaker-change markers and bracketed or parenthesized sound cues (not spoken asides)."""
     return ' '.join(_NOISE.sub(' ', text or '').split())
 
 

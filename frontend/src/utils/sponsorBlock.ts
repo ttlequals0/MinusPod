@@ -33,6 +33,7 @@ export function sponsorBlockLabel(
       label = `SponsorBlock: ${sb.segmentCount} segment${sb.segmentCount === 1 ? '' : 's'}`;
       break;
     case 'exhausted':
+      if (sb.note?.split(',').includes('no_captions')) return 'No marks and no captions, served unmodified';
       label = 'SponsorBlock timed out, processed with LLM';
       break;
     case 'llm':
@@ -41,8 +42,9 @@ export function sponsorBlockLabel(
     default:
       return null;
   }
-  if (sb.note?.split(',').includes('full')) label += ', marked whole video as sponsored';
-  if (sb.note?.split(',').includes('no_captions')) label += ', no captions (transcription off)';
+  const flags = sb.note?.split(',') ?? [];
+  if (flags.includes('full')) label += ', marked whole video as sponsored';
+  if (flags.includes('no_captions')) label += ', no captions (transcription off)';
   if (sb.lastError) label += ', last check failed';
   return label;
 }

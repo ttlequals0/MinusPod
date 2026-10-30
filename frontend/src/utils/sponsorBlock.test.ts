@@ -43,6 +43,11 @@ describe('sponsorBlockLabel', () => {
       .toBe('SponsorBlock: 1 segment, marked whole video as sponsored, no captions (transcription off)');
   });
 
+  it('labels an exhausted no-caption episode as served unmodified', () => {
+    expect(sponsorBlockLabel({ ...base, state: 'exhausted', attempts: 3, note: 'no_captions' }, 6, now))
+      .toBe('No marks and no captions, served unmodified');
+  });
+
   it('appends the last-check failure', () => {
     expect(sponsorBlockLabel({ ...base, state: 'watching', nextCheckAt: '2026-10-29T12:30:00Z', lastError: 'boom' }, 6, now))
       .toBe('Watching SponsorBlock, next check in 30 min, last check failed');

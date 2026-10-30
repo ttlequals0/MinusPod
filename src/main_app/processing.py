@@ -549,6 +549,15 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
             if yt_run.mode == 'sponsorblock' and not yt_run.segments:
                 skip_transcription_active = True
                 run_stats['transcription_skipped'] = True
+        if yt_run is not None and yt_run.mode == 'passthrough':
+            served = recut._passthrough_episode(
+                slug, episode_id, episode_url, episode_title, podcast_name,
+                episode_description, episode_artwork_url, episode_published_at,
+                start_time, episode_data, cancel_event=cancel_event,
+                podcast=podcast_settings, preacquired_audio=yt_run.audio_path)
+            if served:
+                sb_stage.after_success(slug, episode_id, yt_run, episode_data)
+            return served
         if yt_run is not None and yt_run.mode == 'sponsorblock':
             detection_mode = 'sponsorblock'
             run_stats['verification_skipped'] = True
@@ -906,7 +915,7 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
             user_trim_ranges = user_trimmed_keep_ranges(user_corrections[1] or [])
             pass1_user_rejects = review._pass1_user_rejects(user_corrections[0], user_trim_ranges)
             pass1_hard = [*keep_ads, *pass1_user_rejects]
-            if not cue_only and not sponsorblock_only:
+            if detection_mode == 'normal' and not cue_only:
                 with common._measure_run_stage('refine_validate'):
                     ads_to_remove, all_ads_with_validation = review._run_ad_reviewer(
                         slug, episode_id, podcast_id, ads_to_remove,

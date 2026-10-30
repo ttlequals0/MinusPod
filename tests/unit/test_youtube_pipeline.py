@@ -154,7 +154,7 @@ def test_download_fills_empty_description_and_date_only_published_at():
     info = {'id': 'vid000000001', 'description': 'Full text', 'timestamp': 1790000000}
     _run(MARKERS, episode_row=row, info=info)
     calls = [c.kwargs for c in _run.extras['db'].upsert_episode.call_args_list]
-    assert {'description': 'Full text', 'published_at': '2026-09-21T14:13:20+00:00'} in calls
+    assert {'description': 'Full text', 'published_at': '2026-09-21T14:13:20Z'} in calls
 
 
 def test_download_keeps_existing_description_and_full_published_at():
@@ -207,14 +207,31 @@ def test_no_captions_transcribe_off_skips_llm_on_top():
     detect.assert_not_called()
 
 
-def test_no_captions_transcribe_off_without_marks_defers_even_when_forced():
+def _no_caption_run(row):
+    with patch.object(recut, 'get_audio_codec', return_value='mp3'), patch.object(recut.shutil, 'move'):
+        return _run([], captions=False, transcribe_fallback=False, llm_fallback=True, episode_row=row)
+
+
+def test_no_captions_transcribe_off_without_marks_defers_when_not_forced():
     with patch.object(processing.failure, '_handle_processing_failure') as handled:
-        ok, *_ = _run([], captions=False, transcribe_fallback=False, llm_fallback=True,
-                      episode_row={'episode_id': 'ep1', 'status': 'pending', 'sb_state': 'exhausted',
-                                   'youtube_video_id': 'vid000000001'})
+        ok, *_ = _no_caption_run({'episode_id': 'ep1', 'status': 'pending', 'sb_state': 'watching',
+                                  'youtube_video_id': 'vid000000001'})
     error = handled.call_args.args[5]
     assert ok is False and isinstance(error, sb_stage.SponsorBlockDeferred)
     assert 'No captions and transcription is off' in str(error)
+
+
+def test_no_captions_transcribe_off_without_marks_serves_unmodified_when_exhausted_or_manual():
+    for row in ({'sb_state': 'exhausted'}, {'sb_state': 'watching', 'reprocess_mode': 'llm'}):
+        row = {'episode_id': 'ep1', 'status': 'pending', 'youtube_video_id': 'vid000000001', **row}
+        ok, whisper, detect, verification, ap, fin, after, diff = _no_caption_run(row)
+        assert ok is True
+        whisper.assert_not_called()
+        detect.assert_not_called()
+        ap.return_value.process_episode.assert_not_called()
+        fin.assert_called_once()
+        run = after.call_args.args[2]
+        assert run.mode == 'passthrough' and run.note == 'no_captions'
 
 
 def test_no_captions_transcribe_on_without_marks_runs_whisper():
@@ -322,6 +339,8 @@ def test_after_success_states():
     assert llm.kwargs['sb_state'] == 'llm' and llm.kwargs['sb_next_check_at'] is None
     assert _after(_yt_run('llm', []), {'sb_state': 'llm'}).kwargs['sb_state'] == 'llm'
     assert _after(_yt_run('llm', []), {'sb_state': 'exhausted'}).kwargs['sb_state'] == 'exhausted'
+    served = _after(_yt_run('passthrough', []), {'sb_state': 'watching'})
+    assert served.kwargs['sb_state'] == 'exhausted' and served.kwargs['sb_next_check_at'] is None
 
 
 def _after_with_storage(episode_data, has_artwork=False, download_error=None):
@@ -409,6 +428,11 @@ def test_deferral_restores_status_keeps_retry_count_and_arms_watch():
 def test_deferral_keeps_probing_state_while_probing():
     db, _ = _handle_deferral({'status': 'pending', 'sb_state': 'probing'})
     assert db.update_episode_sponsorblock.call_args.kwargs['sb_state'] == 'probing'
+
+
+def test_deferral_leaves_an_exhausted_row_exhausted():
+    db, _ = _handle_deferral({'status': 'pending', 'sb_state': 'exhausted'})
+    assert db.update_episode_sponsorblock.call_args.kwargs['sb_state'] == 'exhausted'
 
 
 def test_recut_success_stamps_uuids_from_stored_markers_and_failure_does_not():

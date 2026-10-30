@@ -248,13 +248,14 @@ def _build_recut_ad_list(slug, episode_id, segments, episode_duration,
 def _passthrough_episode(slug, episode_id, episode_url, episode_title,
                           podcast_name, episode_description,
                           episode_artwork_url, episode_published_at,
-                          start_time, episode_data, cancel_event=None, podcast=None):
+                          start_time, episode_data, cancel_event=None, podcast=None,
+                          preacquired_audio=None):
     """Pass-through mode (#521): download the episode and serve it exactly
     as published -- no transcription, detection, LLM, cutting, or assets.
     MinusPod acts as an archive/relay for the feed while the served feed
     URL stays stable, so turning processing back on later needs no change
     in the podcast app."""
-    audio_path = None
+    audio_path = preacquired_audio
     run_stats = {'mode': 'passthrough'}
     try:
         audio_logger.info(f"[{slug}:{episode_id}] Pass-through: \"{episode_title}\"")
@@ -274,7 +275,9 @@ def _passthrough_episode(slug, episode_id, episode_url, episode_title,
         # episode being re-run under pass-through): the CDN URL may have
         # expired, and the local copy IS the untouched audio.
         original_path = storage.get_original_path(slug, episode_id)
-        if original_path and os.path.exists(original_path):
+        if audio_path:
+            pass
+        elif original_path and os.path.exists(original_path):
             audio_path = common._copy_retained_original_to_temp(original_path)
             audio_logger.info(
                 f"[{slug}:{episode_id}] Pass-through: reusing retained original")

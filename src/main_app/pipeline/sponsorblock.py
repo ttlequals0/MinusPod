@@ -4,15 +4,16 @@ import logging
 import os
 import shutil
 import tempfile
+import re
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import timedelta
 from urllib.parse import parse_qs, urlparse
 
 from main_app.pipeline import common
 from main_app.pipeline.shared import audio_processor, db, storage
 from reprocess_modes import FORCE_TRANSCRIBE_MODES
 from utils.markers import parse_ad_markers
-from utils.time import utc_now
+from utils.time import epoch_to_iso, utc_now
 from youtube import captions, download, sponsorblock, ytdlp
 from youtube import settings as yt_settings
 from youtube.settings import YouTubeSettings, llm_on_top
@@ -38,6 +39,9 @@ class YouTubeRun:
     resolved: YouTubeSettings
 
 
+_DATE_ONLY = re.compile(r'^\d{4}-\d{2}-\d{2}$')
+
+
 def _retry_at(episode_data, resolved) -> str:
     """Next watcher check after a deferral: probe interval while probing, else the watch interval."""
     if (episode_data or {}).get('sb_state') in ('waiting', 'probing'):
@@ -60,8 +64,8 @@ def _fill_metadata(slug, episode_id, episode_data, info):
         fields['description'] = description
     timestamp = (info or {}).get('timestamp')
     published = (episode_data or {}).get('published_at')
-    if isinstance(timestamp, (int, float)) and (not published or len(str(published)) <= 10):
-        fields['published_at'] = datetime.fromtimestamp(timestamp, tz=timezone.utc).isoformat()
+    if isinstance(timestamp, (int, float)) and (not published or _DATE_ONLY.match(str(published))):
+        fields['published_at'] = epoch_to_iso(timestamp)
     if fields:
         db.upsert_episode(slug, episode_id, **fields)
 
@@ -114,9 +118,12 @@ def acquire(slug, episode_id, episode_url, podcast, episode_data, reprocess_mode
         forced = manual or exhausted
         no_captions = want_captions and not segments and not resolved.transcribe_fallback
         if no_captions:
-            if not markers:
+            if markers:
+                mode = 'sponsorblock'
+            elif forced:
+                mode = 'passthrough'
+            else:
                 raise SponsorBlockDeferred('No captions and transcription is off', _retry_at(episode_data, resolved))
-            mode = 'sponsorblock'
             note = f'{note},no_captions' if note else 'no_captions'
         elif markers and not llm_on_top(podcast):
             mode = 'sponsorblock'
@@ -147,6 +154,8 @@ def after_success(slug, episode_id, run: YouTubeRun, episode_data=None):
     if run.markers:
         state = 'done'
         next_check = (utc_now() + timedelta(hours=run.resolved.watch_interval_hours)).isoformat()
+    elif run.mode == 'passthrough':
+        state, next_check = 'exhausted', None
     elif prior in ('llm', 'exhausted'):
         state, next_check = prior, None
     else:
