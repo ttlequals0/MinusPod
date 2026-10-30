@@ -11,15 +11,30 @@ release notes.
 
 ## [Unreleased]
 
-### Added
-
-- Optional transcription fallback for YouTube feeds, off by default. **Transcribe when captions are missing** (global setting plus a per-feed override) runs the configured transcriber for videos without captions. With it off, such a video with SponsorBlock marks is cut from the marks alone (the LLM is skipped), one without marks keeps waiting, and the episode state shows `, no captions (transcription off)`.
+## [2.101.1] - 2026-10-30
 
 ### Fixed
 
-- SponsorBlock-only YouTube runs no longer call the LLM reviewer, which had nudged community mark boundaries.
-- YouTube caption transcripts drop speaker-change markers and bracketed sound cues such as `[Music]`.
-- YouTube episode descriptions (and a full publish time when the listing gave only a date) are filled from the video metadata at download when the listing carried none.
+- SponsorBlock-only runs no longer invoke the LLM reviewer, so community
+  timestamps are cut as given instead of being nudged.
+- YouTube episode descriptions and exact publish times are filled from the
+  video metadata at download when the listing had none (feeds listed with
+  yt-dlp carry no descriptions until then).
+- YouTube caption transcripts drop speaker-change markers and bracketed
+  sound cues.
+- The feed URL copy button shares the action row with Reprocess, Refresh
+  and Delete at phone widths.
+- The YouTube feed panel keeps the same spacing as its neighbours.
+
+### Added
+
+- Transcribe when captions are missing: an optional transcription fallback
+  for YouTube feeds (global toggle with a per-feed override, off by
+  default). With it off, a video without captions is cut from SponsorBlock
+  marks only, and once SponsorBlock gives up with no marks it is served
+  unmodified.
+- YouTube feeds take their author from the source and let you edit author,
+  explicit and categories, so the served channel carries the iTunes tags.
 
 ## [2.101.0] - 2026-10-29
 
