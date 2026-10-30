@@ -26,6 +26,7 @@ DEFAULTS = {
     'youtube_sb_watch_max_days': 7,
     'youtube_llm_fallback': True,
     'youtube_captions_as_transcript': True,
+    'youtube_transcribe_fallback': False,
     'youtube_ytdlp_auto_update': True,
 }
 
@@ -55,6 +56,7 @@ class YouTubeSettings:
     watch_max_days: int
     llm_fallback: bool
     captions_as_transcript: bool
+    transcribe_fallback: bool
     ytdlp_auto_update: bool
 
 
@@ -71,6 +73,8 @@ def load_global(db) -> YouTubeSettings:
         llm_fallback=db.get_setting_bool('youtube_llm_fallback', d['youtube_llm_fallback']),
         captions_as_transcript=db.get_setting_bool(
             'youtube_captions_as_transcript', d['youtube_captions_as_transcript']),
+        transcribe_fallback=db.get_setting_bool(
+            'youtube_transcribe_fallback', d['youtube_transcribe_fallback']),
         ytdlp_auto_update=db.get_setting_bool('youtube_ytdlp_auto_update', d['youtube_ytdlp_auto_update']),
     )
 
@@ -93,6 +97,7 @@ def resolve_feed(db, podcast: dict | None, base: YouTubeSettings | None = None) 
         probe_interval_minutes=_override(podcast, 'yt_probe_interval_minutes_override', base.probe_interval_minutes),
         llm_fallback=_override(podcast, 'yt_llm_fallback_override', base.llm_fallback, bool),
         captions_as_transcript=_override(podcast, 'yt_captions_override', base.captions_as_transcript, bool),
+        transcribe_fallback=_override(podcast, 'yt_transcribe_override', base.transcribe_fallback, bool),
     )
 
 

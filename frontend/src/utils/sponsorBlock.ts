@@ -41,7 +41,8 @@ export function sponsorBlockLabel(
     default:
       return null;
   }
-  if (sb.note === 'full') label += ', marked whole video as sponsored';
+  if (sb.note?.split(',').includes('full')) label += ', marked whole video as sponsored';
+  if (sb.note?.split(',').includes('no_captions')) label += ', no captions (transcription off)';
   if (sb.lastError) label += ', last check failed';
   return label;
 }

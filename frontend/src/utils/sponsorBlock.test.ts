@@ -36,6 +36,13 @@ describe('sponsorBlockLabel', () => {
       .toBe('Waiting for SponsorBlock, queued');
   });
 
+  it('appends the no-captions suffix and keeps the full note', () => {
+    expect(sponsorBlockLabel({ ...base, state: 'done', attempts: 1, segmentCount: 2, note: 'no_captions' }, 6, now))
+      .toBe('SponsorBlock: 2 segments, no captions (transcription off)');
+    expect(sponsorBlockLabel({ ...base, state: 'done', attempts: 1, segmentCount: 1, note: 'full,no_captions' }, 6, now))
+      .toBe('SponsorBlock: 1 segment, marked whole video as sponsored, no captions (transcription off)');
+  });
+
   it('appends the last-check failure', () => {
     expect(sponsorBlockLabel({ ...base, state: 'watching', nextCheckAt: '2026-10-29T12:30:00Z', lastError: 'boom' }, 6, now))
       .toBe('Watching SponsorBlock, next check in 30 min, last check failed');

@@ -1231,6 +1231,9 @@ paths:
                 ytCaptionsOverride:
                   type: [boolean, 'null']
                   description: YouTube feeds only. Use YouTube captions as the transcript. Null follows the global setting.
+                ytTranscribeOverride:
+                  type: [boolean, 'null']
+                  description: YouTube feeds only. Transcribe with the configured transcriber when captions are missing. Null follows the global setting.
                 youtubeIncludeShorts:
                   type: [boolean, 'null']
                   description: YouTube feeds only. Whether videos of 180 seconds or less are listed. Null follows the default.
@@ -9219,6 +9222,8 @@ paths:
                   type: boolean
                 captionsAsTranscript:
                   type: boolean
+                transcribeFallback:
+                  type: boolean
                 ytdlpAutoUpdate:
                   type: boolean
       responses:
@@ -12408,6 +12413,8 @@ components:
           type: boolean
         captionsAsTranscript:
           type: boolean
+        transcribeFallback:
+          type: boolean
         ytdlp:
           type: object
           properties:
@@ -14446,6 +14453,9 @@ components:
         ytCaptionsOverride:
           type: [boolean, 'null']
           description: YouTube feeds only. Use YouTube captions as the transcript. Null follows the global setting.
+        ytTranscribeOverride:
+          type: [boolean, 'null']
+          description: YouTube feeds only. Transcribe with the configured transcriber when captions are missing. Null follows the global setting.
         youtubeIncludeShorts:
           type: [boolean, 'null']
           description: YouTube feeds only. Whether videos of 180 seconds or less are listed. Null follows the default.

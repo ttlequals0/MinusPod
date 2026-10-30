@@ -15,13 +15,14 @@ def test_create_youtube_podcast(db):
     db.create_podcast('yt-show', 'youtube://channel/UCabc', title='YT Show', feed_type='youtube')
     db.update_podcast('yt-show', youtube_source_kind='channel', youtube_source_id='UCabc',
                       yt_process_delay_minutes_override=5, yt_llm_on_top_override=1,
-                      yt_captions_override=0)
+                      yt_captions_override=0, yt_transcribe_override=1)
     row = db.get_podcast_by_slug('yt-show')
     assert is_youtube_feed(row)
     assert row['youtube_source_kind'] == 'channel'
     assert row['yt_process_delay_minutes_override'] == 5
     assert row['yt_llm_on_top_override'] == 1
     assert row['yt_captions_override'] == 0
+    assert row['yt_transcribe_override'] == 1
     assert row['youtube_include_shorts'] is None
 
 

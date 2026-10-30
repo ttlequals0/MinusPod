@@ -10,6 +10,7 @@ _BOOL_KEYS = {
     'enabled': 'youtube_enabled',
     'llmFallback': 'youtube_llm_fallback',
     'captionsAsTranscript': 'youtube_captions_as_transcript',
+    'transcribeFallback': 'youtube_transcribe_fallback',
     'ytdlpAutoUpdate': 'youtube_ytdlp_auto_update',
 }
 
@@ -27,6 +28,7 @@ def youtube_status_payload(db) -> dict:
         'sbWatchMaxDays': s.watch_max_days,
         'llmFallback': s.llm_fallback,
         'captionsAsTranscript': s.captions_as_transcript,
+        'transcribeFallback': s.transcribe_fallback,
         'ytdlp': {
             'autoUpdate': s.ytdlp_auto_update,
             **ytdlp.status(db),

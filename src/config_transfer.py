@@ -129,7 +129,7 @@ YT_INT_COLUMNS = {
 }
 YOUTUBE_BOOL_COLUMNS = (
     'youtube_include_shorts', 'yt_llm_fallback_override', 'yt_llm_on_top_override',
-    'yt_captions_override',
+    'yt_captions_override', 'yt_transcribe_override',
 )
 _YOUTUBE_COLUMN_ORDER = ('youtube_source_kind', 'youtube_source_id', *YOUTUBE_BOOL_COLUMNS, *YT_INT_COLUMNS)
 YOUTUBE_COLUMNS = frozenset(_YOUTUBE_COLUMN_ORDER)

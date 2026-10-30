@@ -29,7 +29,7 @@ ACTIONS = {'sponsor': 'remove', 'self_promo': 'remove', 'intro': 'keep', 'outro'
 def _settings(**over):
     base = dict(enabled=True, process_delay_minutes=0, probe_attempts=6, probe_interval_minutes=30,
                 watch_interval_hours=6, watch_max_days=7, llm_fallback=True, captions_as_transcript=True,
-                ytdlp_auto_update=True)
+                transcribe_fallback=True, ytdlp_auto_update=True)
     base.update(over)
     return YouTubeSettings(**base)
 
@@ -39,7 +39,7 @@ def _pass_through_ads(slug, episode_id, ads_to_remove, *a, **k):
 
 
 def _run(markers, *, llm_on_top=False, llm_fallback=True, episode_row=None, captions=True,
-         saved_transcript=False, download_error=None, fetch_result=..., info=None):
+         saved_transcript=False, download_error=None, fetch_result=..., info=None, transcribe_fallback=True):
     """Drive process_episode for a YouTube feed; extra mocks land in _run.extras."""
     podcast = dict(PODCAST, yt_llm_on_top_override=1 if llm_on_top else None)
     work_dir = tempfile.mkdtemp(prefix='minuspod-yt-test-')
@@ -76,7 +76,8 @@ def _run(markers, *, llm_on_top=False, llm_fallback=True, episode_row=None, capt
             p(processing, 'get_available_memory_gb', return_value=None)
             p(finalize_stage, 'get_available_memory_gb', return_value=None)
             p(common, 'get_min_cut_confidence', return_value=0.8)
-            p(sb_stage.yt_settings, 'resolve_feed', return_value=_settings(llm_fallback=llm_fallback))
+            p(sb_stage.yt_settings, 'resolve_feed', return_value=_settings(llm_fallback=llm_fallback,
+                                                                           transcribe_fallback=transcribe_fallback))
             dl = MagicMock(audio_path=audio, info=info or {'id': 'vid000000001'},
                            captions_path='/tmp/c.json3' if captions else None)
             p(sb_stage.download, 'download', return_value=dl, side_effect=download_error)
@@ -185,6 +186,47 @@ def test_no_marks_no_captions_runs_whisper():
     ok, whisper, detect, *_ = _run([], captions=False)
     assert ok is True
     whisper.assert_called_once()
+    detect.assert_called_once()
+
+
+def test_no_captions_transcribe_off_with_marks_runs_sponsorblock_only():
+    ok, whisper, detect, verification, ap, fin, after, diff = _run(MARKERS, captions=False, transcribe_fallback=False)
+    assert ok is True
+    whisper.assert_not_called()
+    detect.assert_not_called()
+    cut = ap.return_value.process_episode.call_args.args[1]
+    assert [c['sb_uuid'] for c in cut] == ['u1']
+    run = after.call_args.args[2]
+    assert run.mode == 'sponsorblock' and run.note == 'no_captions'
+
+
+def test_no_captions_transcribe_off_skips_llm_on_top():
+    ok, whisper, detect, *_ = _run(MARKERS, captions=False, llm_on_top=True, transcribe_fallback=False)
+    assert ok is True
+    whisper.assert_not_called()
+    detect.assert_not_called()
+
+
+def test_no_captions_transcribe_off_without_marks_defers_even_when_forced():
+    with patch.object(processing.failure, '_handle_processing_failure') as handled:
+        ok, *_ = _run([], captions=False, transcribe_fallback=False, llm_fallback=True,
+                      episode_row={'episode_id': 'ep1', 'status': 'pending', 'sb_state': 'exhausted',
+                                   'youtube_video_id': 'vid000000001'})
+    error = handled.call_args.args[5]
+    assert ok is False and isinstance(error, sb_stage.SponsorBlockDeferred)
+    assert 'No captions and transcription is off' in str(error)
+
+
+def test_no_captions_transcribe_on_without_marks_runs_whisper():
+    ok, whisper, detect, *_ = _run([], captions=False, transcribe_fallback=True)
+    assert ok is True
+    whisper.assert_called_once()
+
+
+def test_captions_present_ignore_transcribe_off():
+    ok, whisper, detect, *_ = _run([], captions=True, transcribe_fallback=False)
+    assert ok is True
+    whisper.assert_not_called()
     detect.assert_called_once()
 
 

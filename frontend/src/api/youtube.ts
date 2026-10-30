@@ -10,6 +10,7 @@ export interface YouTubeSettings {
   sbWatchMaxDays: number;
   llmFallback: boolean;
   captionsAsTranscript: boolean;
+  transcribeFallback: boolean;
   ytdlp: {
     autoUpdate: boolean;
     version: string | null;
@@ -27,7 +28,7 @@ export interface YouTubeSettings {
 
 export type YouTubeSettingsUpdate = Partial<Pick<YouTubeSettings,
   'enabled' | 'processDelayMinutes' | 'sbProbeAttempts' | 'sbProbeIntervalMinutes'
-  | 'sbWatchIntervalHours' | 'sbWatchMaxDays' | 'llmFallback' | 'captionsAsTranscript'>>
+  | 'sbWatchIntervalHours' | 'sbWatchMaxDays' | 'llmFallback' | 'captionsAsTranscript' | 'transcribeFallback'>>
   & { apiKey?: string | null; ytdlpAutoUpdate?: boolean };
 
 export interface YouTubePreview {

@@ -963,7 +963,7 @@ def test_youtube_feed_round_trips(temp_db):
     db = temp_db
     db.create_podcast('yt-xfer', 'youtube://channel/UCabcdefghijklmnopqrstuv', 'YT', feed_type='youtube')
     db.update_podcast('yt-xfer', youtube_source_kind='channel', youtube_source_id='UCabcdefghijklmnopqrstuv',
-                      yt_probe_attempts_override=2, yt_captions_override=1,
+                      yt_probe_attempts_override=2, yt_captions_override=1, yt_transcribe_override=0,
                       p20_channel_json=json.dumps({'medium': 'podcast', 'locked': 'yes', 'guid': GUID}))
     db.create_podcast('plain-xfer', 'https://example.com/plain.xml', 'Plain')
     exported = config_transfer.export_config(db, '2.98.2')
@@ -972,6 +972,7 @@ def test_youtube_feed_round_trips(temp_db):
     assert feed['settings']['youtube_source_id'] == 'UCabcdefghijklmnopqrstuv'
     assert feed['settings']['yt_probe_attempts_override'] == 2
     assert feed['settings']['yt_captions_override'] is True
+    assert feed['settings']['yt_transcribe_override'] is False
     guid = feed['settings']['p20_channel_json']['guid']
     assert guid == GUID
     plain = next(f for f in exported['feeds'] if f['slug'] == 'plain-xfer')

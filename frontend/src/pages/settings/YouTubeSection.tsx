@@ -203,6 +203,15 @@ function YouTubeSection() {
               />
               <span className="text-sm text-foreground">Use YouTube captions as the transcript</span>
             </label>
+            <label className="flex items-center gap-3 cursor-pointer">
+              <ToggleSwitch
+                checked={data.transcribeFallback}
+                onChange={(transcribeFallback) => saveSettings.mutate({ transcribeFallback })}
+                disabled={saveSettings.isPending}
+                ariaLabel="Transcribe when captions are missing"
+              />
+              <span className="text-sm text-foreground">Transcribe when captions are missing</span>
+            </label>
           </div>
 
           <div className="pt-3 border-t border-border space-y-2">

@@ -131,11 +131,11 @@ def test_add_youtube_feed_and_patch_overrides(app_client):
 
         patched = app_client.patch(f'/api/v1/feeds/{slug}', json={
             'ytProcessDelayMinutesOverride': 5, 'ytLlmOnTopOverride': True, 'ytCaptionsOverride': False,
-            'youtubeIncludeShorts': True}, headers=headers)
+            'ytTranscribeOverride': True, 'youtubeIncludeShorts': True}, headers=headers)
         assert patched.status_code == 200, patched.get_json()
         body = patched.get_json()
         assert body['ytProcessDelayMinutesOverride'] == 5 and body['ytLlmOnTopOverride'] is True
-        assert body['ytCaptionsOverride'] is False and body['youtubeIncludeShorts'] is True
+        assert body['ytTranscribeOverride'] is True and body['ytCaptionsOverride'] is False and body['youtubeIncludeShorts'] is True
 
         bad = app_client.patch(f'/api/v1/feeds/{slug}', json={'ytProbeIntervalMinutesOverride': 2}, headers=headers)
         assert bad.status_code == 400

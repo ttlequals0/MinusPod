@@ -1023,6 +1023,7 @@ def _podcast_base_json(podcast, feed_url, db, global_actions=None) -> dict:
         'ytLlmFallbackOverride': _deserialize_nullable_bool(podcast.get('yt_llm_fallback_override')),
         'ytLlmOnTopOverride': _deserialize_nullable_bool(podcast.get('yt_llm_on_top_override')),
         'ytCaptionsOverride': _deserialize_nullable_bool(podcast.get('yt_captions_override')),
+        'ytTranscribeOverride': _deserialize_nullable_bool(podcast.get('yt_transcribe_override')),
     }
 
 
@@ -1977,6 +1978,7 @@ _YT_BOOL_OVERRIDES = (
     ('ytLlmFallbackOverride', 'yt_llm_fallback_override'),
     ('ytLlmOnTopOverride', 'yt_llm_on_top_override'),
     ('ytCaptionsOverride', 'yt_captions_override'),
+    ('ytTranscribeOverride', 'yt_transcribe_override'),
     ('youtubeIncludeShorts', 'youtube_include_shorts'),
 )
 

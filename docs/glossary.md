@@ -289,6 +289,8 @@ Every term the app uses, in plain words, with a link to the part of the docs tha
 
 **Title blacklist** - A per-feed list of case-insensitive glob patterns (e.g. `Bonus Episode *`) that skip processing for matching episode titles. A per-feed choice serves a skipped episode unmodified or hides it from the feed. Manual reprocess overrides it. [Configuration > Title blacklist](configuration.md#title-blacklist)
 
+**Transcription fallback** - A YouTube setting that lets the configured transcription backend run for videos with no captions. Off by default: such videos are cut from SponsorBlock marks only, or wait for marks. A global setting plus a per-feed override. [YouTube Feeds > Transcripts and chapters](youtube-feeds.md#transcripts-and-chapters)
+
 **Transcript (VTT)** - The Podcasting 2.0 transcript MinusPod generates for the processed audio, with cut regions accounted for. [Podcasting 2.0](podcasting-2.0.md)
 
 **Transcript differential** - Comparing the locally transcribed audio with a publisher transcript to find speech absent from the publisher's copy. Gaps need corroboration before they can be cut. [Upstream Transcript Differential](transcript-differential.md)

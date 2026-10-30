@@ -112,7 +112,13 @@ def acquire(slug, episode_id, episode_url, podcast, episode_data, reprocess_mode
         manual = bool(reprocess_mode) or (episode_data or {}).get('reprocess_source') is not None
         exhausted = (episode_data or {}).get('sb_state') == 'exhausted'
         forced = manual or exhausted
-        if markers and not llm_on_top(podcast):
+        no_captions = want_captions and not segments and not resolved.transcribe_fallback
+        if no_captions:
+            if not markers:
+                raise SponsorBlockDeferred('No captions and transcription is off', _retry_at(episode_data, resolved))
+            mode = 'sponsorblock'
+            note = f'{note},no_captions' if note else 'no_captions'
+        elif markers and not llm_on_top(podcast):
             mode = 'sponsorblock'
         elif markers or forced:
             mode = 'llm'

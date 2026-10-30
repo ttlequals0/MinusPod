@@ -11,7 +11,7 @@ import FeedArtworkUpload from './FeedArtworkUpload';
 import { fromTri, GlobalOverrideRow, rowLabelTop, toTri } from './OverrideRows';
 
 type NumberField = 'ytProcessDelayMinutesOverride' | 'ytProbeAttemptsOverride' | 'ytProbeIntervalMinutesOverride';
-type BoolField = 'ytLlmFallbackOverride' | 'ytLlmOnTopOverride' | 'ytCaptionsOverride' | 'youtubeIncludeShorts';
+type BoolField = 'ytLlmFallbackOverride' | 'ytLlmOnTopOverride' | 'ytCaptionsOverride' | 'ytTranscribeOverride' | 'youtubeIncludeShorts';
 
 function NumberOverrideRow({
   label, ariaLabel, value, globalValue, bounds, unit, disabled, onCommit, children,
@@ -155,6 +155,16 @@ function YouTubeFeedPanel({ feed, slug }: { feed: Feed; slug: string }) {
           onChange={setBool('ytCaptionsOverride')}
         >
           Use YouTube captions instead of transcribing the audio when they exist.
+        </GlobalOverrideRow>
+        <GlobalOverrideRow
+          label="Transcribe"
+          ariaLabel="Transcribe when captions are missing"
+          value={toTri(feed.ytTranscribeOverride)}
+          globalOn={!!globals?.transcribeFallback}
+          disabled={pending}
+          onChange={setBool('ytTranscribeOverride')}
+        >
+          Run the configured transcriber for videos with no captions. Off keeps such videos on SponsorBlock marks only.
         </GlobalOverrideRow>
         <GlobalOverrideRow
           label="Shorts"

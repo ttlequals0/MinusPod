@@ -496,6 +496,7 @@ export interface UpdateFeedPayload {
   ytLlmFallbackOverride?: boolean | null;
   ytLlmOnTopOverride?: boolean | null;
   ytCaptionsOverride?: boolean | null;
+  ytTranscribeOverride?: boolean | null;
   maxAdDurationRejectOverride?: number | null;
   adDetectionExcludeStartOverride?: number | null;
   cueGatedApproval?: boolean | null;

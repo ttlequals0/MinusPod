@@ -388,6 +388,7 @@ class PodcastMixin:
                 'yt_process_delay_minutes_override', 'yt_probe_attempts_override',
                 'yt_probe_interval_minutes_override', 'yt_llm_fallback_override',
                 'yt_llm_on_top_override', 'yt_captions_override',
+                'yt_transcribe_override',
             ):
                 fields.append(f"{key} = ?")
                 values.append(value)

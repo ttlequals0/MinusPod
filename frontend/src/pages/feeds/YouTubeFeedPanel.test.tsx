@@ -23,7 +23,7 @@ vi.mock('../../api/youtube', () => ({
   getYouTubeSettings: () => Promise.resolve({
     enabled: mockEnabled,
     processDelayMinutes: 60, sbProbeAttempts: 6, sbProbeIntervalMinutes: 30,
-    llmFallback: true, captionsAsTranscript: false,
+    llmFallback: true, captionsAsTranscript: false, transcribeFallback: true,
     bounds: { processDelayMinutes: [0, 1440], sbProbeAttempts: [1, 48], sbProbeIntervalMinutes: [1, 720] },
   }),
 }));
@@ -34,6 +34,7 @@ const feed = {
   youtubeIncludeShorts: null, ytProcessDelayMinutesOverride: null,
   ytProbeAttemptsOverride: null, ytProbeIntervalMinutesOverride: null,
   ytLlmFallbackOverride: null, ytLlmOnTopOverride: null, ytCaptionsOverride: null,
+  ytTranscribeOverride: null,
 } as unknown as Feed;
 
 function renderPanel(overrides: Partial<Feed> = {}) {
@@ -135,6 +136,15 @@ describe('YouTubeFeedPanel', () => {
     renderPanel({ ytProcessDelayMinutesOverride: 5 });
     await user.selectOptions(screen.getByLabelText('Delay mode'), 'global');
     await waitFor(() => expect(mockUpdateFeed).toHaveBeenCalledWith('yt', { ytProcessDelayMinutesOverride: null }));
+  });
+
+  it('shows the transcription override and sends it', async () => {
+    const user = userEvent.setup();
+    renderPanel();
+    const select = screen.getByLabelText('Transcribe when captions are missing') as HTMLSelectElement;
+    await waitFor(() => expect(select.selectedOptions[0].textContent).toBe('Use global (on)'));
+    await user.selectOptions(select, 'Off');
+    await waitFor(() => expect(mockUpdateFeed).toHaveBeenCalledWith('yt', { ytTranscribeOverride: false }));
   });
 
   it('sends false for Off on a boolean row', async () => {

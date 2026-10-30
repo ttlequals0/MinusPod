@@ -54,6 +54,7 @@ const youtubeSettings = {
   sbWatchMaxDays: 7,
   llmFallback: true,
   captionsAsTranscript: false,
+  transcribeFallback: false,
   ytdlp: {
     autoUpdate: true,
     version: '2026.10.15',
@@ -91,6 +92,7 @@ const youtubeFeed = {
   ytLlmFallbackOverride: null,
   ytLlmOnTopOverride: true,
   ytCaptionsOverride: null,
+  ytTranscribeOverride: null,
   description: 'Example description.',
 };
 const feeds = [

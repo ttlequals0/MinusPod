@@ -434,9 +434,10 @@ Settings > YouTube configures [YouTube feeds](youtube-feeds.md). The feature is 
 | Watch ceiling (`sbWatchMaxDays`) | 7 | 1 to 60 days | Days after publish before the watch ends |
 | LLM fallback (`llmFallback`) | on | on or off | Run the LLM pipeline when no marks appear |
 | Use YouTube captions as the transcript (`captionsAsTranscript`) | on | on or off | Skip Whisper when captions exist |
+| Transcribe when captions are missing (`transcribeFallback`) | off | on or off | Run the configured transcriber for videos with no captions; off keeps such videos on SponsorBlock marks only |
 | Update yt-dlp daily (`ytdlpAutoUpdate`) | on | on or off | Daily self-update of the data-volume copy |
 
-A YouTube feed overrides the delay, probe attempts, probe interval, LLM fallback, captions, and Shorts settings per feed, and adds an LLM on top switch. Null inherits the global value; 0 is a real value. The watch interval and ceiling are global only. API: `GET` and `PUT /api/v1/settings/youtube`; per-feed fields on `PATCH /api/v1/feeds/{slug}` are listed in [YouTube Feeds](youtube-feeds.md#per-feed-overrides).
+A YouTube feed overrides the delay, probe attempts, probe interval, LLM fallback, captions, transcription fallback, and Shorts settings per feed, and adds an LLM on top switch. Null inherits the global value; 0 is a real value. The watch interval and ceiling are global only. API: `GET` and `PUT /api/v1/settings/youtube`; per-feed fields on `PATCH /api/v1/feeds/{slug}` are listed in [YouTube Feeds](youtube-feeds.md#per-feed-overrides).
 
 ### Per-feed retention
 

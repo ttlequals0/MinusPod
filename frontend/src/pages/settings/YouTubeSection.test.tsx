@@ -23,7 +23,7 @@ vi.mock('../../api/youtube', () => ({
 const base: YouTubeSettings = {
   enabled: false, apiKeyConfigured: false, processDelayMinutes: 60, sbProbeAttempts: 6,
   sbProbeIntervalMinutes: 30, sbWatchIntervalHours: 6, sbWatchMaxDays: 7, llmFallback: true,
-  captionsAsTranscript: true,
+  captionsAsTranscript: true, transcribeFallback: false,
   ytdlp: { autoUpdate: true, version: '2026.10.26', lastUpdateAt: null, lastCheckAt: null, lastError: null,
            bakedVersion: '2026.10.20' },
   cookies: { set: false, lines: 0, updatedAt: null },
@@ -51,6 +51,15 @@ describe('YouTubeSection', () => {
     expect(screen.getByText(/yt-dlp 2026\.10\.26/)).toBeDefined();
     await userEvent.click(screen.getByRole('switch', { name: /enable youtube feeds/i }));
     await waitFor(() => expect(mockUpdate).toHaveBeenCalledWith({ enabled: true }));
+  });
+
+  it('saves the transcription fallback toggle', async () => {
+    mockUpdate.mockResolvedValue({ ...base, transcribeFallback: true });
+    renderSection();
+    const toggle = await screen.findByRole('switch', { name: /transcribe when captions are missing/i });
+    expect(toggle.getAttribute('aria-checked')).toBe('false');
+    await userEvent.click(toggle);
+    await waitFor(() => expect(mockUpdate).toHaveBeenCalledWith({ transcribeFallback: true }));
   });
 
   it('tests a typed key and reports the result', async () => {

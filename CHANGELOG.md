@@ -11,6 +11,10 @@ release notes.
 
 ## [Unreleased]
 
+### Added
+
+- Optional transcription fallback for YouTube feeds, off by default. **Transcribe when captions are missing** (global setting plus a per-feed override) runs the configured transcriber for videos without captions. With it off, such a video with SponsorBlock marks is cut from the marks alone (the LLM is skipped), one without marks keeps waiting, and the episode state shows `, no captions (transcription off)`.
+
 ### Fixed
 
 - SponsorBlock-only YouTube runs no longer call the LLM reviewer, which had nudged community mark boundaries.
