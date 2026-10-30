@@ -42,6 +42,8 @@ function YouTubeSection() {
   const [cookiesError, setCookiesError] = useState<string | null>(null);
   const [argsDraft, setArgsDraft] = useState<string | null>(null);
   const [argsError, setArgsError] = useState<string | null>(null);
+  const [proxyDraft, setProxyDraft] = useState<string | null>(null);
+  const [proxyError, setProxyError] = useState<string | null>(null);
   const [settingsError, setSettingsError] = useState<string | null>(null);
   const [updateNote, setUpdateNote] = useState<{ ok: boolean; text: string } | null>(null);
 
@@ -64,6 +66,12 @@ function YouTubeSection() {
     mutationFn: (ytdlpExtraArgs: string) => updateYouTubeSettings({ ytdlpExtraArgs }),
     onSuccess: () => { setArgsError(null); setArgsDraft(null); refresh(); },
     onError: (e: unknown) => setArgsError(getErrorMessage(e, 'Could not save the extra arguments.')),
+  });
+
+  const saveProxy = useMutation({
+    mutationFn: (proxyUrl: string) => updateYouTubeSettings({ proxyUrl }),
+    onSuccess: () => { setProxyError(null); setProxyDraft(null); refresh(); },
+    onError: (e: unknown) => setProxyError(getErrorMessage(e, 'Could not save the proxy URL.')),
   });
 
   const saveKey = useMutation({
@@ -291,6 +299,28 @@ function YouTubeSection() {
               />
               <span className="text-sm text-foreground">Update yt-dlp daily</span>
             </label>
+            <div className="space-y-1">
+              <label htmlFor="yt-proxy-url" className="text-sm text-foreground">Proxy URL</label>
+              <input
+                id="yt-proxy-url"
+                type="text"
+                autoComplete="off"
+                spellCheck={false}
+                className={`${inputBase} min-h-11 w-full font-mono`}
+                value={proxyDraft ?? data.proxyUrl}
+                onChange={(e) => setProxyDraft(e.target.value)}
+                onBlur={() => {
+                  if (proxyDraft !== null && proxyDraft.trim() !== data.proxyUrl) saveProxy.mutate(proxyDraft);
+                  else if (proxyDraft !== null) { setProxyDraft(null); setProxyError(null); }
+                }}
+                aria-invalid={proxyError ? true : undefined}
+                aria-describedby={proxyError ? 'yt-proxy-url-help yt-proxy-url-error' : 'yt-proxy-url-help'}
+              />
+              <p id="yt-proxy-url-help" className="text-sm text-muted-foreground">
+                Used for yt-dlp and YouTube Data API requests. Example: socks5h://proxy:1080
+              </p>
+              {proxyError && <p id="yt-proxy-url-error" role="alert" className="text-sm text-destructive">{proxyError}</p>}
+            </div>
             <div className="space-y-1">
               <label htmlFor="yt-extra-args" className="text-sm text-foreground">Extra yt-dlp arguments</label>
               <input

@@ -65,13 +65,13 @@ def parse_iso_duration(text) -> float | None:
     return float(days * 86400 + hours * 3600 + minutes * 60 + seconds)
 
 
-def _api_get(path: str, params: dict, key: str) -> dict:
+def _api_get(path: str, params: dict, key: str, *, proxy: str = '') -> dict:
     url = f"{API}/{path}?{urlencode(params)}"
     headers = {'User-Agent': f'MinusPod/{APP_VERSION}', 'X-Goog-Api-Key': key}
     # Error text may embed the request URL, so messages carry only the exception type.
     try:
         response = safe_get(url, URLTrust.OPERATOR_CONFIGURED, timeout=HTTP_TIMEOUT_API, stream=True,
-                            headers=headers)
+                            headers=headers, proxies={'http': proxy, 'https': proxy} if proxy else None)
     except (requests.RequestException, SSRFError) as exc:
         raise DiscoveryError(f'YouTube Data API request failed ({type(exc).__name__})') from None
     try:
@@ -128,7 +128,7 @@ def resolve_source(db, source: Source) -> SourceInfo:
     key = yt_settings.api_key(db)
     if key:
         try:
-            return _resolve_with_api(key, source)
+            return _resolve_with_api(key, source, proxy=ytdlp.configured_proxy(db))
         except DiscoveryError as exc:
             logger.warning(f'YouTube Data API failed ({type(exc).__name__}); resolving with yt-dlp')
     if source.kind == 'video':
@@ -150,16 +150,16 @@ def resolve_source(db, source: Source) -> SourceInfo:
                       author=title)
 
 
-def _resolve_with_api(key: str, source: Source) -> SourceInfo:
+def _resolve_with_api(key: str, source: Source, *, proxy: str = '') -> SourceInfo:
     try:
-        return _parse_api_source(key, source)
+        return _parse_api_source(key, source, proxy=proxy)
     except (KeyError, IndexError, TypeError, AttributeError):
         raise DiscoveryError('YouTube Data API returned an unexpected payload') from None
 
 
-def _parse_api_source(key: str, source: Source) -> SourceInfo:
+def _parse_api_source(key: str, source: Source, *, proxy: str = '') -> SourceInfo:
     if source.kind == 'video':
-        data = _api_get('videos', {'part': 'snippet', 'id': source.id}, key)
+        data = _api_get('videos', {'part': 'snippet', 'id': source.id}, key, proxy=proxy)
         items = data.get('items') or []
         if not items:
             raise SourceNotFound('Video not found or private')
@@ -167,7 +167,7 @@ def _parse_api_source(key: str, source: Source) -> SourceInfo:
         return SourceInfo('video', source.id, sn.get('title') or source.id, sn.get('description') or '',
                           _best_thumb(sn.get('thumbnails')), 1, author=sn.get('channelTitle') or '')
     if source.kind == 'playlist':
-        data = _api_get('playlists', {'part': 'snippet,contentDetails', 'id': source.id}, key)
+        data = _api_get('playlists', {'part': 'snippet,contentDetails', 'id': source.id}, key, proxy=proxy)
         items = data.get('items') or []
         if not items:
             raise SourceNotFound('Playlist not found or private')
@@ -176,7 +176,7 @@ def _parse_api_source(key: str, source: Source) -> SourceInfo:
                           _best_thumb(sn.get('thumbnails')), items[0].get('contentDetails', {}).get('itemCount'),
                           author=sn.get('channelTitle') or '')
     selector = {'channel': 'id', 'handle': 'forHandle', 'user': 'forUsername', 'custom': 'forHandle'}[source.kind]
-    data = _api_get('channels', {'part': 'snippet,statistics', selector: source.id}, key)
+    data = _api_get('channels', {'part': 'snippet,statistics', selector: source.id}, key, proxy=proxy)
     items = data.get('items') or []
     if not items:
         raise SourceNotFound('Channel not found')
@@ -225,7 +225,8 @@ def list_videos(db, podcast: dict, limit: int, settings=None) -> list[dict]:
     key = yt_settings.api_key(db)
     if key:
         try:
-            return _list_with_api(key, playlist_id, limit, include_shorts, longform, full, hide_private=hide_private)
+            return _list_with_api(key, playlist_id, limit, include_shorts, longform, full, hide_private=hide_private,
+                                  proxy=ytdlp.configured_proxy(db))
         except DiscoveryError as exc:
             logger.warning(f"[{podcast.get('slug')}] YouTube Data API failed ({type(exc).__name__}); "
                            "listing with yt-dlp")
@@ -237,7 +238,7 @@ def _list_single_video(db, podcast: dict) -> list[dict]:
     key = yt_settings.api_key(db)
     if key:
         try:
-            return _single_video_from_api(key, video_id)
+            return _single_video_from_api(key, video_id, proxy=ytdlp.configured_proxy(db))
         except DiscoveryError as exc:
             logger.warning(f"[{podcast.get('slug')}] YouTube Data API failed ({type(exc).__name__}); "
                            "listing with yt-dlp")
@@ -249,9 +250,10 @@ def _list_single_video(db, podcast: dict) -> list[dict]:
                      duration, _best_thumb(data.get('thumbnails')))]
 
 
-def _single_video_from_api(key: str, video_id: str) -> list[dict]:
+def _single_video_from_api(key: str, video_id: str, *, proxy: str = '') -> list[dict]:
     try:
-        data = _api_get('videos', {'part': 'contentDetails,snippet,liveStreamingDetails', 'id': video_id}, key)
+        data = _api_get('videos', {'part': 'contentDetails,snippet,liveStreamingDetails', 'id': video_id}, key,
+                        proxy=proxy)
         episodes = []
         for item in data.get('items') or []:
             live = item.get('liveStreamingDetails') or {}
@@ -266,21 +268,24 @@ def _single_video_from_api(key: str, video_id: str) -> list[dict]:
         raise DiscoveryError('YouTube Data API returned an unexpected payload') from None
 
 
-def _list_with_api(key, playlist_id, limit, include_shorts, longform, full=False, *, hide_private) -> list[dict]:
+def _list_with_api(key, playlist_id, limit, include_shorts, longform, full=False, *, hide_private,
+                   proxy='') -> list[dict]:
     try:
-        return _parse_api_listing(key, playlist_id, limit, include_shorts, longform, full, hide_private=hide_private)
+        return _parse_api_listing(key, playlist_id, limit, include_shorts, longform, full, hide_private=hide_private,
+                                  proxy=proxy)
     except (KeyError, IndexError, TypeError, AttributeError):
         raise DiscoveryError('YouTube Data API returned an unexpected payload') from None
 
 
-def _parse_api_listing(key, playlist_id, limit, include_shorts, longform, full=False, *, hide_private) -> list[dict]:
+def _parse_api_listing(key, playlist_id, limit, include_shorts, longform, full=False, *, hide_private,
+                       proxy='') -> list[dict]:
     items: list[tuple[str, str]] = []
     token = None
     while True:
         params = {'part': 'contentDetails', 'playlistId': playlist_id, 'maxResults': 50}
         if token:
             params['pageToken'] = token
-        page = _api_get('playlistItems', params, key)
+        page = _api_get('playlistItems', params, key, proxy=proxy)
         items.extend((i['contentDetails']['videoId'], i['contentDetails'].get('videoPublishedAt') or '')
                      for i in page.get('items') or [])
         token = page.get('nextPageToken')
@@ -294,7 +299,8 @@ def _parse_api_listing(key, playlist_id, limit, include_shorts, longform, full=F
     returned = set()
     for start in range(0, len(ids), 50):
         chunk = ids[start:start + 50]
-        data = _api_get('videos', {'part': 'contentDetails,snippet,liveStreamingDetails', 'id': ','.join(chunk)}, key)
+        data = _api_get('videos', {'part': 'contentDetails,snippet,liveStreamingDetails', 'id': ','.join(chunk)}, key,
+                        proxy=proxy)
         for item in data.get('items') or []:
             returned.add(item['id'])
             live = item.get('liveStreamingDetails') or {}

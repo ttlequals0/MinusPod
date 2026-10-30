@@ -13,6 +13,7 @@ export interface YouTubeSettings {
   hidePrivate: boolean;
   transcribeFallback: boolean;
   ytdlpExtraArgs: string;
+  proxyUrl: string;
   ytdlp: {
     autoUpdate: boolean;
     version: string | null;
@@ -30,7 +31,7 @@ export interface YouTubeSettings {
 
 export type YouTubeSettingsUpdate = Partial<Pick<YouTubeSettings,
   'enabled' | 'processDelayMinutes' | 'sbProbeAttempts' | 'sbProbeIntervalMinutes'
-  | 'sbWatchIntervalHours' | 'sbWatchMaxDays' | 'llmFallback' | 'captionsAsTranscript' | 'hidePrivate' | 'transcribeFallback' | 'ytdlpExtraArgs'>>
+  | 'sbWatchIntervalHours' | 'sbWatchMaxDays' | 'llmFallback' | 'captionsAsTranscript' | 'hidePrivate' | 'transcribeFallback' | 'ytdlpExtraArgs' | 'proxyUrl'>>
   & { apiKey?: string | null; ytdlpAutoUpdate?: boolean };
 
 export interface YouTubePreview {

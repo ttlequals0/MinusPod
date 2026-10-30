@@ -31,6 +31,7 @@ def youtube_status_payload(db) -> dict:
         'captionsAsTranscript': s.captions_as_transcript,
         'hidePrivate': s.hide_private,
         'transcribeFallback': s.transcribe_fallback,
+        'proxyUrl': s.proxy_url,
         'ytdlpExtraArgs': s.ytdlp_extra_args,
         'ytdlp': {
             'autoUpdate': s.ytdlp_auto_update,
@@ -83,6 +84,13 @@ def put_youtube_settings():
         except ValueError as exc:
             return error_response(str(exc), 400)
         writes.append(('youtube_ytdlp_extra_args', extra_args.strip()))
+    if 'proxyUrl' in data:
+        if not isinstance(data['proxyUrl'], str):
+            return error_response('proxyUrl must be a string', 400)
+        try:
+            writes.append(('youtube_proxy_url', ytdlp.parse_proxy_url(data['proxyUrl'])))
+        except ValueError as exc:
+            return error_response(str(exc), 400)
     if 'apiKey' in data and data['apiKey'] is not None and not isinstance(data['apiKey'], str):
         return error_response('apiKey must be a string or null', 400)
     if data.get('apiKey') and not crypto_available():

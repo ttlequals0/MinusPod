@@ -174,8 +174,11 @@ def safe_get(
     timeout: float = HTTP_TIMEOUT_FETCH,
     stream: bool = False,
     headers: dict | None = None,
+    proxies: dict | None = None,
 ) -> requests.Response:
     """GET ``url`` via a session that revalidates every redirect hop.
+
+    ``proxies`` is an operator-supplied requests proxy mapping; the origin URL is still validated.
 
     Raises ``SSRFError`` for disallowed URLs (initial or redirect targets)
     and ``requests.RequestException`` for network errors. Callers apply
@@ -185,7 +188,7 @@ def safe_get(
     _validate_for_tier(url, trust)
     session = _RevalidatingSession(trust, max_redirects)
     try:
-        return session.get(url, timeout=timeout, stream=stream, headers=headers)
+        return session.get(url, timeout=timeout, stream=stream, headers=headers, proxies=proxies)
     finally:
         if not stream:
             session.close()

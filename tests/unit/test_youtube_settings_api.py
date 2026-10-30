@@ -114,3 +114,24 @@ def test_ytdlp_extra_args_rejects_bad_values(app_client):
                               headers=_csrf_headers(app_client))
         assert resp.status_code == 400
         assert text in resp.get_json()['error']
+
+
+def test_proxy_url_round_trip_and_trim(app_client):
+    _authed(app_client)
+    assert app_client.get('/api/v1/settings/youtube').get_json()['proxyUrl'] == ''
+    resp = app_client.put('/api/v1/settings/youtube', json={'proxyUrl': ' socks5h://proxy:1080 '},
+                          headers=_csrf_headers(app_client))
+    assert resp.status_code == 200
+    assert resp.get_json()['proxyUrl'] == 'socks5h://proxy:1080'
+    resp = app_client.put('/api/v1/settings/youtube', json={'proxyUrl': ''}, headers=_csrf_headers(app_client))
+    assert resp.get_json()['proxyUrl'] == ''
+
+
+def test_proxy_url_rejects_bad_values(app_client):
+    _authed(app_client)
+    for value, text in (('ftp://u:SECRET@h', 'must start with'), ('http://', 'name a host'), (5, 'must be a string')):
+        resp = app_client.put('/api/v1/settings/youtube', json={'proxyUrl': value},
+                              headers=_csrf_headers(app_client))
+        assert resp.status_code == 400
+        assert text in resp.get_json()['error']
+        assert 'SECRET' not in resp.get_json()['error']

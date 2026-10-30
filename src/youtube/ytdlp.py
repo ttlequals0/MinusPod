@@ -8,6 +8,7 @@ import tempfile
 import threading
 from datetime import timedelta
 from pathlib import Path
+from urllib.parse import urlparse
 
 from utils.time import parse_iso_utc, utc_now, utc_now_iso
 
@@ -24,7 +25,11 @@ _baked_version: tuple[str, str | None] | None = None
 _fallback_for: Path | None = None
 _update_lock = threading.Lock()
 _warned_extra_args: set[str] = set()
+_warned_proxy: set[str] = set()
 MAX_EXTRA_ARGS_LENGTH = 1000
+MAX_PROXY_LENGTH = 500
+PROXY_SCHEMES = frozenset({'http', 'https', 'socks4', 'socks5', 'socks5h'})
+PROXY_ERROR = 'proxy URL must start with http://, https://, socks4://, socks5:// or socks5h:// and name a host'
 DENIED_FLAGS = frozenset({
     '--exec', '--exec-before-download', '--no-exec', '-o', '--output', '-P', '--paths', '-a', '--batch-file',
     '--load-info-json', '--config-location', '--config-locations', '--cookies', '--cookies-from-browser',
@@ -129,9 +134,40 @@ def parse_extra_args(text: str) -> list[str]:
         if token.startswith('-') and not token.startswith('--') and len(token) > 2:
             raise ValueError(f'extra yt-dlp arguments: use the long form for {token}')
         flag = token.split('=', 1)[0]
-        if token in DENIED_FLAGS or flag in DENIED_FLAGS:
+        if token in DENIED_FLAGS or flag in DENIED_FLAGS or (
+                flag.startswith('--') and (flag == '--' or any(d.startswith(flag) for d in DENIED_FLAGS))):
             raise ValueError(f'extra yt-dlp arguments: {flag} is not allowed')
     return tokens
+
+
+def parse_proxy_url(text: str) -> str:
+    """Validate the proxy URL setting; the error text never echoes the value (it may carry credentials)."""
+    text = (text or '').strip()
+    if not text:
+        return ''
+    if len(text) > MAX_PROXY_LENGTH:
+        raise ValueError(f'proxy URL: at most {MAX_PROXY_LENGTH} characters')
+    try:
+        parsed = urlparse(text)
+        valid = (parsed.scheme.lower() in PROXY_SCHEMES and bool(parsed.hostname) and parsed.port != 0
+                 and not any(c.isspace() for c in text))
+    except ValueError:
+        valid = False
+    if not valid:
+        raise ValueError(PROXY_ERROR)
+    return text
+
+
+def configured_proxy(db) -> str:
+    """Stored proxy URL, or '' when unset or invalid."""
+    text = db.get_setting('youtube_proxy_url') or ''
+    try:
+        return parse_proxy_url(text)
+    except ValueError as exc:
+        if text not in _warned_proxy:
+            _warned_proxy.add(text)
+            logger.warning('Ignoring stored YouTube proxy URL: %s', exc)
+        return ''
 
 
 def _configured_extra_args(db) -> list[str]:
@@ -155,7 +191,10 @@ def run(args: list[str], *, timeout: int, cwd=None, storage=None, db=None,
         binary = _ensured_path
     else:
         binary = ensure_runtime_binary(storage, db)
-    extra_args = _configured_extra_args(db) if extra else []
+    extra_args = []
+    if extra:
+        proxy = configured_proxy(db)
+        extra_args = [*(['--proxy', proxy] if proxy else []), *_configured_extra_args(db)]
     try:
         return subprocess.run([str(binary), *extra_args, *args], capture_output=True, text=True,
                               timeout=timeout, cwd=cwd)

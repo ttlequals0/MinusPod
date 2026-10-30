@@ -29,10 +29,20 @@ def test_normal_and_quoted_values():
     ('--update-to x@y', '--update-to'),
     ('--ffmpeg-location /tmp/x', '--ffmpeg-location'),
     ('-U', '-U'),
+    ('--exe x', '--exe'),
+    ('--ffmpeg-loc /tmp/x', '--ffmpeg-loc'),
+    ('--update-t x', '--update-t'),
+    ('--p x', '--p'),
+    ('--', '--'),
 ])
 def test_denied_flags(text, flag):
     with pytest.raises(ValueError, match=f'{flag} is not allowed'):
         ytdlp.parse_extra_args(text)
+
+
+def test_allowed_options_still_pass():
+    assert ytdlp.parse_extra_args('--proxy p --limit-rate 2M --extractor-args youtube:player_client=web') == [
+        '--proxy', 'p', '--limit-rate', '2M', '--extractor-args', 'youtube:player_client=web']
 
 
 def test_unbalanced_quotes():
@@ -45,9 +55,9 @@ def test_too_long():
         ytdlp.parse_extra_args('--x ' + 'a' * 1000)
 
 
-def _run(stored, **kwargs):
+def _run(stored, proxy='', **kwargs):
     db = MagicMock()
-    db.get_setting.return_value = stored
+    db.get_setting.side_effect = lambda k: {'youtube_ytdlp_extra_args': stored, 'youtube_proxy_url': proxy}.get(k)
     with patch.object(ytdlp, 'ensure_runtime_binary', return_value=Path('/bin/yt-dlp')), \
             patch.object(ytdlp, '_ensured_path', None), \
             patch.object(ytdlp.subprocess, 'run') as run:
@@ -79,3 +89,40 @@ def test_update_ignores_extra_args():
         ytdlp.update_binary(MagicMock(), db, target=Path('/data/yt-dlp'))
     assert run.call_args.args[0] == ['-U']
     assert run.call_args.kwargs['extra'] is False
+
+
+def test_run_places_proxy_before_extras():
+    cmd = _run('--limit-rate 2M', proxy='socks5h://proxy:1080')
+    assert cmd == ['/bin/yt-dlp', '--proxy', 'socks5h://proxy:1080', '--limit-rate', '2M', '--dump-single-json', 'u']
+
+
+def test_run_extra_false_skips_proxy():
+    assert _run('', proxy='http://p:1', extra=False) == ['/bin/yt-dlp', '--dump-single-json', 'u']
+
+
+def test_run_ignores_invalid_stored_proxy():
+    assert _run('', proxy='ftp://p') == ['/bin/yt-dlp', '--dump-single-json', 'u']
+
+
+@pytest.mark.parametrize('text', ['http://p:8080', 'https://u:pw@p', 'socks4://p:1', 'socks5://p:1080',
+                                  'SOCKS5H://p:1080'])
+def test_proxy_valid(text):
+    assert ytdlp.parse_proxy_url(f'  {text} ') == text
+
+
+def test_proxy_empty():
+    assert ytdlp.parse_proxy_url('  ') == ''
+
+
+@pytest.mark.parametrize('text', ['ftp://p:1', 'p:1080', 'socks5://', 'http://p:abc', 'http://a b', 'http:///x'])
+def test_proxy_invalid(text):
+    with pytest.raises(ValueError, match='must start with'):
+        ytdlp.parse_proxy_url(text)
+
+
+def test_proxy_too_long_and_no_credentials_in_error():
+    with pytest.raises(ValueError, match='at most 500'):
+        ytdlp.parse_proxy_url('http://u:SECRET@h/' + 'a' * 500)
+    with pytest.raises(ValueError) as err:
+        ytdlp.parse_proxy_url('ftp://u:SECRET@h')
+    assert 'SECRET' not in str(err.value)

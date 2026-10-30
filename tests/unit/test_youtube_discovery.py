@@ -27,6 +27,7 @@ def _podcast(kind='playlist', source_id='PL1', shorts=None):
 def _db(key=''):
     db = MagicMock()
     db.get_secret.return_value = key
+    db.get_setting.return_value = ''
     return db
 
 
@@ -424,3 +425,22 @@ def test_list_single_video_skips_a_live_stream():
     live = dict(YT_DLP_VIDEO, live_status='is_live')
     with patch.object(discovery.ytdlp, 'run', return_value=_completed(live)):
         assert discovery.list_videos(_db(), _podcast('video', 'abc123def45'), limit=50) == []
+
+
+def test_api_get_forwards_the_proxy():
+    with patch.object(discovery, 'safe_get', return_value=_resp()) as get, \
+            patch.object(discovery, 'read_response_capped', return_value=b'{}'):
+        discovery._api_get('videos', {}, 'KEY', proxy='socks5h://p:1080')
+        discovery._api_get('videos', {}, 'KEY')
+    assert get.call_args_list[0].kwargs['proxies'] == {'http': 'socks5h://p:1080', 'https': 'socks5h://p:1080'}
+    assert get.call_args_list[1].kwargs['proxies'] is None
+
+
+def test_list_videos_threads_the_stored_proxy_to_the_api():
+    db = _db('KEY')
+    db.get_setting.return_value = 'http://p:8080'
+    with patch.object(discovery, 'safe_get', return_value=_resp()) as get, \
+            patch.object(discovery, 'read_response_capped', side_effect=_api_pages()):
+        discovery.list_videos(db, _podcast(), limit=50)
+    assert all(c.kwargs['proxies'] == {'http': 'http://p:8080', 'https': 'http://p:8080'}
+               for c in get.call_args_list)

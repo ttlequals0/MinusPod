@@ -56,7 +56,8 @@ const youtubeSettings = {
   captionsAsTranscript: false,
   hidePrivate: true,
   transcribeFallback: false,
-  ytdlpExtraArgs: '--proxy socks5://proxy:1080 --limit-rate 2M',
+  proxyUrl: 'socks5h://proxy:1080',
+  ytdlpExtraArgs: '--limit-rate 2M',
   ytdlp: {
     autoUpdate: true,
     version: '2026.10.15',
@@ -245,8 +246,14 @@ for (const width of WIDTHS) {
       await expect(input).toBeVisible({ timeout: 15_000 });
       await input.scrollIntoViewIfNeeded();
       await page.waitForTimeout(400);
+      const proxy = page.getByLabel('Proxy URL');
+      await expect(proxy).toBeVisible();
       const box = (await input.boundingBox())!;
-      if (width < 768) expect(box.height).toBeGreaterThanOrEqual(44);
+      const proxyBox = (await proxy.boundingBox())!;
+      if (width < 768) {
+        expect(box.height).toBeGreaterThanOrEqual(44);
+        expect(proxyBox.height).toBeGreaterThanOrEqual(44);
+      }
       await expectNoOverflow(page);
       if (width === 390 || width === 1024) {
         await page.screenshot({ path: path.join(SHOTS, `ytdlp-args-${width}.png`), fullPage: false });
@@ -287,7 +294,7 @@ for (const width of WIDTHS) {
         contentType: 'application/json',
         body: JSON.stringify({
           enabled: true, rssMatches: [],
-          source: { kind: 'video', id: 'abc123def45', title: 'One Example Video', description: 'A single video added as its own feed.', author: 'Example Channel', artworkUrl: null, videoCount: 1, alreadyAdded: null },
+          source: { kind: 'video', id: 'abc123def45', title: 'One Example Video', description: 'One video served as a one-episode feed.', author: 'Example Channel', artworkUrl: null, videoCount: 1, alreadyAdded: null },
         }),
       }));
       await page.goto('add');

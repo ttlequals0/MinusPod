@@ -852,6 +852,9 @@ SETTINGS_REGISTRY: dict[str, SettingSpec] = {
     'youtube_ytdlp_extra_args': SettingSpec(
         default=yt_settings.DEFAULTS['youtube_ytdlp_extra_args'], seeded=True,
         validator=yt_settings.extra_args_valid),
+    'youtube_proxy_url': SettingSpec(
+        default=yt_settings.DEFAULTS['youtube_proxy_url'], seeded=True,
+        validator=yt_settings.proxy_url_valid),
     'youtube_ytdlp_version': SettingSpec(resettable=False),
     'youtube_ytdlp_last_update_at': SettingSpec(resettable=False),
     'youtube_ytdlp_last_check_at': SettingSpec(resettable=False),

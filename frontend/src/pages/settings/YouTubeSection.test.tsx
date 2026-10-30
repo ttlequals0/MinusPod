@@ -23,7 +23,7 @@ vi.mock('../../api/youtube', () => ({
 const base: YouTubeSettings = {
   enabled: false, apiKeyConfigured: false, processDelayMinutes: 60, sbProbeAttempts: 6,
   sbProbeIntervalMinutes: 30, sbWatchIntervalHours: 6, sbWatchMaxDays: 7, llmFallback: true,
-  captionsAsTranscript: true, hidePrivate: true, transcribeFallback: false, ytdlpExtraArgs: '',
+  captionsAsTranscript: true, hidePrivate: true, transcribeFallback: false, ytdlpExtraArgs: '', proxyUrl: '',
   ytdlp: { autoUpdate: true, version: '2026.10.26', lastUpdateAt: null, lastCheckAt: null, lastError: null,
            bakedVersion: '2026.10.20' },
   cookies: { set: false, lines: 0, updatedAt: null },
@@ -77,6 +77,14 @@ describe('YouTubeSection', () => {
     await userEvent.type(await screen.findByLabelText(/extra yt-dlp arguments/i), '--limit-rate 2M');
     await userEvent.tab();
     await waitFor(() => expect(mockUpdate).toHaveBeenCalledWith({ ytdlpExtraArgs: '--limit-rate 2M' }));
+  });
+
+  it('saves the proxy URL on blur', async () => {
+    mockUpdate.mockResolvedValue({ ...base, proxyUrl: 'socks5h://proxy:1080' });
+    renderSection();
+    await userEvent.type(await screen.findByLabelText(/proxy url/i), 'socks5h://proxy:1080');
+    await userEvent.tab();
+    await waitFor(() => expect(mockUpdate).toHaveBeenCalledWith({ proxyUrl: 'socks5h://proxy:1080' }));
   });
 
   it('shows the server message when the extra arguments are rejected', async () => {
