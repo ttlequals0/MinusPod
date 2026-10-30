@@ -15,6 +15,7 @@ from utils.app_version import APP_VERSION
 from utils.safe_http import URLTrust, read_response_capped, safe_get
 from utils.time import epoch_to_iso
 from utils.url import SSRFError
+from utils.youtube_fields import PLACEHOLDER_TITLES
 from youtube import download, settings as yt_settings, ytdlp
 from youtube.urls import Source, source_url, uploads_playlist, watch_url
 
@@ -25,8 +26,6 @@ API_MAX_BYTES = 2 * 1024 * 1024
 SHORTS_MAX_SECONDS = 180
 PLAYLIST_SCAN_CAP = 5000
 UNAVAILABLE_SLACK = 20
-PLACEHOLDER_TITLES = {'[Private video]': 'Private episode', '[Deleted video]': 'Deleted episode',
-                      '[Unavailable video]': 'Unavailable episode'}
 _UNAVAILABLE_TITLES = frozenset(PLACEHOLDER_TITLES)
 _ISO_DURATION = re.compile(r'^P(?:(\d+)D)?T?(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?$')
 _ids = RSSParser()

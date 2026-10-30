@@ -1312,11 +1312,13 @@ class TestBulkUpsertDiscoveredEpisodes:
         temp_db.bulk_upsert_discovered_episodes('yt', [
             full,
             self._make_episode('ep-midnight', title='Midnight', published='2026-10-20T00:00:00Z'),
-            {**full, 'id': 'ep-nodesc', 'title': 'No desc', 'description': ''}])
+            {**full, 'id': 'ep-nodesc', 'title': 'No desc', 'description': ''},
+            {**full, 'id': 'ep-placeholder', 'title': 'Private episode'}])
         temp_db.bulk_upsert_discovered_episodes('rss', [full])
         assert temp_db.get_episode('yt', 'ep-full')['yt_metadata_at']
         assert temp_db.get_episode('yt', 'ep-midnight')['yt_metadata_at'] is None
         assert temp_db.get_episode('yt', 'ep-nodesc')['yt_metadata_at'] is None
+        assert temp_db.get_episode('yt', 'ep-placeholder')['yt_metadata_at'] is None
         assert temp_db.get_episode('rss', 'ep-full')['yt_metadata_at'] is None
 
     def test_bulk_upsert_does_not_overwrite_existing_status(self, temp_db):

@@ -12,7 +12,8 @@ from database.podcasts import RECENTS_MEMBER_FEED_TYPES
 from database.stats import _PROCESSED_EPISODE_EXISTS_SQL
 from utils.constants import EpisodeStatus
 from utils.text import is_timezone_drift, normalize_title_for_match
-from utils.time import ISO_FORMAT, MIDNIGHT_ONLY, parse_iso_utc, utc_now, utc_now_iso
+from utils.time import ISO_FORMAT, parse_iso_utc, utc_now, utc_now_iso
+from utils.youtube_fields import MIDNIGHT_ONLY, PLACEHOLDER_TITLES
 
 logger = logging.getLogger(__name__)
 
@@ -1705,7 +1706,8 @@ class EpisodeMixin:
                     tags_json,
                     ep.get('video_id'),
                     stamp_now if stamp_now and ep.get('description') and iso_published
-                    and not MIDNIGHT_ONLY.match(iso_published) else None,
+                    and not MIDNIGHT_ONLY.match(iso_published)
+                    and ep.get('title') not in PLACEHOLDER_TITLES.values() else None,
                 )
             )
             if ep['id'] not in existing_by_id:
