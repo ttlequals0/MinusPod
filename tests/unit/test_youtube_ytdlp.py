@@ -13,9 +13,11 @@ from youtube import ytdlp
 def _reset_module_state():
     ytdlp._baked_version = None
     ytdlp._booted = False
+    ytdlp._fallback_for = None
     yield
     ytdlp._baked_version = None
     ytdlp._booted = False
+    ytdlp._fallback_for = None
 
 
 class FakeStorage:
@@ -133,3 +135,42 @@ def test_update_tick_swallows_errors_and_records(tmp_path):
             patch.object(ytdlp, 'ensure_runtime_binary', side_effect=PermissionError('denied')):
         ytdlp.update_tick(db)
     db.set_setting.assert_any_call('youtube_ytdlp_last_error', 'denied', is_default=False)
+
+
+def test_baked_fallback_is_decided_once_per_process(tmp_path):
+    baked = tmp_path / 'baked' / 'yt-dlp'
+    _fake_binary(baked, '2026.10.26')
+    storage = FakeStorage(tmp_path / 'data')
+    runtime = ytdlp.runtime_path(storage)
+    _fake_binary(runtime, '2026.10.26')
+    db = MagicMock()
+    with patch.object(ytdlp, 'BAKED_PATH', str(baked)), \
+            patch.object(ytdlp, 'binary_version', side_effect=lambda p: None if str(p) == str(runtime) else '2026.10.26') as probe:
+        ytdlp.ensure_runtime_binary(storage, db)
+        probes, writes = probe.call_count, db.set_setting.call_count
+        assert str(ytdlp.ensure_runtime_binary(storage, db)) == str(baked)
+    assert probe.call_count == probes and db.set_setting.call_count == writes
+
+
+def test_update_reports_a_failed_version_probe(tmp_path):
+    storage = FakeStorage(tmp_path / 'data')
+    _fake_binary(ytdlp.runtime_path(storage), '2026.10.26')
+    db = MagicMock()
+    done = subprocess.CompletedProcess(['yt-dlp', '-U'], 0, stdout='ok\n', stderr='')
+    with patch.object(ytdlp, 'run', return_value=done), \
+            patch.object(ytdlp, 'binary_version', side_effect=['2026.10.26', None]):
+        result = ytdlp.update_binary(storage, db, ytdlp.runtime_path(storage))
+    assert result['updated'] is False and result['error'] == 'version probe failed after update'
+
+
+def test_second_concurrent_update_returns_without_running(tmp_path):
+    db = MagicMock()
+    db.get_setting.return_value = '2026.10.26'
+    with patch.object(ytdlp, 'run') as run:
+        assert ytdlp._update_lock.acquire(blocking=False)
+        try:
+            result = ytdlp.update_binary(FakeStorage(tmp_path), db)
+        finally:
+            ytdlp._update_lock.release()
+    assert result == {'updated': False, 'version': '2026.10.26', 'error': 'update already running'}
+    run.assert_not_called()

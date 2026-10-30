@@ -29,6 +29,13 @@ describe('sponsorBlockLabel', () => {
       .toBe('Watching SponsorBlock, next check in 2 days');
   });
 
+  it('says queued when a waiting or probing row has no next check', () => {
+    expect(sponsorBlockLabel({ ...base, state: 'probing', attempts: 2 }, 6, now))
+      .toBe('Waiting for SponsorBlock, queued');
+    expect(sponsorBlockLabel({ ...base, state: 'waiting' }, 6, now))
+      .toBe('Waiting for SponsorBlock, queued');
+  });
+
   it('appends the last-check failure', () => {
     expect(sponsorBlockLabel({ ...base, state: 'watching', nextCheckAt: '2026-10-29T12:30:00Z', lastError: 'boom' }, 6, now))
       .toBe('Watching SponsorBlock, next check in 30 min, last check failed');

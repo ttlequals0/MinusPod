@@ -71,7 +71,7 @@ from database.podcasts import (EPISODE_STATUSES, RECENTS_SLUG, PodcastMixin, has
                                is_recents_feed, is_youtube_feed, recents_cutoff)
 from youtube import urls as yt_urls
 from youtube.feed import source_link as youtube_source_link
-from youtube.settings import validate_yt_int
+from youtube.settings import enabled as youtube_enabled, validate_yt_int
 from podping_listener import feed_url_domain
 from utils.time import utc_now_iso
 from utils.url import validate_url, SSRFError
@@ -1419,8 +1419,8 @@ def _add_local_feed(data, db):
 
 
 def _add_youtube_feed(data, db):
-    """Create a YouTube playlist/channel feed and run its first listing inline."""
-    if not db.get_setting_bool('youtube_enabled', False):
+    """Create a YouTube playlist/channel feed; its first listing runs in the background after the response."""
+    if not youtube_enabled(db):
         return error_response('YouTube feeds are disabled in Settings', 400)
     kind = data.get('sourceKind')
     source_id = str(data.get('sourceId') or '').strip()
@@ -1453,7 +1453,6 @@ def _add_youtube_feed(data, db):
         if err:
             return error_response(err, 400)
     try:
-        db.create_podcast(slug, canonical, title, feed_type='youtube')
         feed_url = _public_feed_url(slug, get_feed_auth_key(db))
         channel_json = {'medium': 'podcast', 'locked': 'yes', 'guid': compute_feed_guid(feed_url)}
         updates = {'youtube_source_kind': kind, 'youtube_source_id': source_id,
@@ -1465,7 +1464,9 @@ def _add_youtube_feed(data, db):
             updates['auto_process_override'] = auto_process
         if max_ep is not None:
             updates['max_episodes'] = max_ep
-        db.update_podcast(slug, **updates)
+        with db.transaction() as conn:
+            db.create_podcast(slug, canonical, title, feed_type='youtube', conn=conn)
+            db.update_podcast(slug, conn=conn, **updates)
         if data.get('artworkUrl'):
             get_storage().download_artwork(slug, [data['artworkUrl']])
         from main_app.feeds import invalidate_feed_cache, refresh_single_feed
@@ -2376,6 +2377,8 @@ def update_feed(slug):
     if 'sourceUrl' in data and not (
             isinstance(data['sourceUrl'], str)
             and data['sourceUrl'].strip() == podcast['source_url']):
+        if is_youtube_feed(podcast):
+            return error_response('sourceUrl is fixed for YouTube feeds', 400)
         new_url, url_err = _validate_source_url(
             data['sourceUrl'], podcast={**podcast, **updates})
         if url_err:

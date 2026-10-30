@@ -2,6 +2,7 @@
 import difflib
 import logging
 import re
+import subprocess
 
 from flask import request
 
@@ -110,3 +111,5 @@ def update_ytdlp_now():
         return json_response(ytdlp.update_binary(get_storage(), get_database()))
     except ytdlp.YtDlpNotInstalled as exc:
         return error_response(str(exc), 503)
+    except subprocess.TimeoutExpired:
+        return error_response('yt-dlp update timed out', 504)

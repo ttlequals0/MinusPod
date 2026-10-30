@@ -1,3 +1,4 @@
+import subprocess
 import time
 import io
 import os
@@ -137,6 +138,10 @@ def test_add_youtube_feed_and_patch_overrides(app_client):
 
         bad = app_client.patch(f'/api/v1/feeds/{slug}', json={'ytProbeIntervalMinutesOverride': 2}, headers=headers)
         assert bad.status_code == 400
+
+        moved = app_client.patch(f'/api/v1/feeds/{slug}', json={'sourceUrl': 'https://example.com/feed.xml'},
+                                 headers=headers)
+        assert moved.status_code == 400 and 'fixed for YouTube feeds' in moved.get_json()['error']
     finally:
         db.delete_podcast(slug)
 
@@ -224,3 +229,23 @@ def test_artwork_upload_allowed_on_youtube_feed(app_client):
         assert resp.status_code == 200, resp.get_json()
     finally:
         db.delete_podcast('yt-art-upload')
+
+
+def test_add_youtube_feed_failure_leaves_no_half_row(app_client):
+    _authed(app_client)
+    from api import get_database
+    db = get_database()
+    _enable(db)
+    with patch.object(type(db), 'update_podcast', side_effect=RuntimeError('boom')):
+        resp = app_client.post('/api/v1/feeds', json={
+            'feedType': 'youtube', 'sourceKind': 'playlist', 'sourceId': 'PLrollbackrollbackrollback0000001',
+            'title': 'Rollback Playlist', 'slug': 'yt-rollback'}, headers=_csrf_headers(app_client))
+    assert resp.status_code == 500
+    assert db.get_podcast_by_slug('yt-rollback') is None
+
+
+def test_ytdlp_update_timeout_is_a_504(app_client):
+    _authed(app_client)
+    with patch('api.youtube.ytdlp.update_binary', side_effect=subprocess.TimeoutExpired('yt-dlp', 300)):
+        resp = app_client.post('/api/v1/youtube/ytdlp/update', headers=_csrf_headers(app_client))
+    assert resp.status_code == 504 and resp.get_json()['error'] == 'yt-dlp update timed out'

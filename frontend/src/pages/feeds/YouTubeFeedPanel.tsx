@@ -107,6 +107,9 @@ function YouTubeFeedPanel({ feed, slug }: { feed: Feed; slug: string }) {
   return (
     <CollapsibleSection title="YouTube" storageKey={`youtube-feed-${slug}`}>
       <div className="space-y-4">
+        {globals?.enabled === false && (
+          <p className="text-xs text-muted-foreground">YouTube feeds are turned off in Settings.</p>
+        )}
         <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 text-sm">
           <span className={rowLabelTop}>{feed.youtubeSourceKind === 'playlist' ? 'Playlist' : 'Channel'}</span>
           {feed.youtubeSourceUrl && (

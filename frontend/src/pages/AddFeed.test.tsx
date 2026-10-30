@@ -394,6 +394,22 @@ describe('YouTube lookup', () => {
     expect(screen.queryByRole('button', { name: /add youtube feed/i })).toBeNull();
   });
 
+  it('aborts an in-flight lookup when the input changes', async () => {
+    let signal: AbortSignal | undefined;
+    mockPreviewYouTube.mockImplementation((_url: string, sig: AbortSignal) => {
+      signal = sig;
+      return new Promise(() => {});
+    });
+    renderAddFeed(enabled);
+    const input = await screen.findByLabelText(INPUT);
+    await userEvent.type(input, PLAYLIST);
+    await userEvent.click(screen.getByRole('button', { name: /look up/i }));
+    await waitFor(() => expect(signal).toBeDefined());
+    expect(signal?.aborted).toBe(false);
+    await userEvent.type(input, 'x');
+    expect(signal?.aborted).toBe(true);
+  });
+
   it('points at Settings when YouTube is disabled', async () => {
     renderAddFeed(defaultSettings);
     const input = await screen.findByLabelText(INPUT);

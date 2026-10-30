@@ -20,6 +20,10 @@ export function sponsorBlockLabel(
   switch (sb.state) {
     case 'waiting':
     case 'probing':
+      if (sb.nextCheckAt == null) {
+        label = 'Waiting for SponsorBlock, queued';
+        break;
+      }
       label = `Waiting for SponsorBlock, attempt ${sb.attempts}${probeAttempts != null ? ` of ${probeAttempts}` : ''}, next check in ${relativeTime(sb.nextCheckAt, now)}`;
       break;
     case 'watching':

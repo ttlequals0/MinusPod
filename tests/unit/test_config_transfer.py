@@ -1015,6 +1015,8 @@ def test_youtube_import_without_channel_block_mints_one(temp_db):
     {'youtube_source_kind': 'playlist'},
     {'youtube_source_kind': ['channel']},
     {'youtube_source_id': 'UCother'},
+    {'source_url': 'youtube://channel/UCabcdefghijklmnopqrstuv\n'},
+    {'youtube_source_id': 'UCabcdefghijklmnopqrstuv\n', 'source_url': 'youtube://channel/UCabcdefghijklmnopqrstuv\n'},
 ])
 def test_youtube_import_rejects_mismatched_source(temp_db, override):
     with pytest.raises(ConfigTransferError, match='YouTube|youtube_source_kind'):

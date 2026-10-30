@@ -581,12 +581,10 @@ function AddFeed() {
 
   const handleInputChange = (value: string) => {
     setInputValue(value);
-    if (youtubePreview || previewMutation.error || addYoutubeMutation.error) {
-      previewAbortRef.current?.abort();
-      setYoutubePreview(null);
-      previewMutation.reset();
-      addYoutubeMutation.reset();
-    }
+    previewAbortRef.current?.abort();
+    setYoutubePreview(null);
+    previewMutation.reset();
+    addYoutubeMutation.reset();
   };
 
   // Add feed from search result

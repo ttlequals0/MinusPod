@@ -18,8 +18,10 @@ vi.mock('../../api/feeds', () => ({
   uploadFeedArtwork: (...args: unknown[]) => mockUploadFeedArtwork(...args),
 }));
 
+let mockEnabled = true;
 vi.mock('../../api/youtube', () => ({
   getYouTubeSettings: () => Promise.resolve({
+    enabled: mockEnabled,
     processDelayMinutes: 60, sbProbeAttempts: 6, sbProbeIntervalMinutes: 30,
     llmFallback: true, captionsAsTranscript: false,
     bounds: { processDelayMinutes: [0, 1440], sbProbeAttempts: [1, 48], sbProbeIntervalMinutes: [1, 720] },
@@ -45,8 +47,21 @@ function renderPanel(overrides: Partial<Feed> = {}) {
 
 describe('YouTubeFeedPanel', () => {
   beforeEach(() => {
+    mockEnabled = true;
     mockUpdateFeed.mockReset();
     mockUpdateFeed.mockResolvedValue({});
+  });
+
+  it('shows a notice only when YouTube feeds are turned off globally', async () => {
+    mockEnabled = false;
+    renderPanel();
+    expect(await screen.findByText('YouTube feeds are turned off in Settings.')).toBeTruthy();
+  });
+
+  it('shows no notice when YouTube feeds are on', async () => {
+    renderPanel();
+    await screen.findByText('Delay');
+    expect(screen.queryByText('YouTube feeds are turned off in Settings.')).toBeNull();
   });
 
   it('links to the source on YouTube', () => {

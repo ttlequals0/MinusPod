@@ -161,8 +161,8 @@ FEED_COLUMNS = (
     'categories', 'p20_channel_json',
     *_YOUTUBE_COLUMN_ORDER,
 )
-YOUTUBE_SOURCE_RE = re.compile(r'^youtube://(playlist|channel)/[A-Za-z0-9_-]+$')
-YOUTUBE_ID_RE = re.compile(r'^[A-Za-z0-9_-]+$')
+YOUTUBE_SOURCE_RE = re.compile(r'youtube://(playlist|channel)/[A-Za-z0-9_-]+')
+YOUTUBE_ID_RE = re.compile(r'[A-Za-z0-9_-]+')
 FEED_JSON_COLUMNS = frozenset({
     'segment_category_actions', 'title_skip_patterns', 'description_skip_patterns',
     'user_tags', 'categories', 'p20_channel_json',
@@ -499,11 +499,11 @@ def _validate_document(document):
         if feed_type == 'recents' and fields.get('source_url') != 'recents://':
             raise ConfigTransferError(f'Recents feed {slug} has an invalid identity')
         if feed_type == 'youtube':
-            if not isinstance(source_url, str) or not YOUTUBE_SOURCE_RE.match(source_url):
+            if not isinstance(source_url, str) or not YOUTUBE_SOURCE_RE.fullmatch(source_url):
                 raise ConfigTransferError(f'YouTube feed {slug} has an invalid identity')
             yt_kind, yt_id = fields.get('youtube_source_kind'), fields.get('youtube_source_id')
             if (yt_kind not in ('playlist', 'channel') or not isinstance(yt_id, str)
-                    or not YOUTUBE_ID_RE.match(yt_id) or source_url != f'youtube://{yt_kind}/{yt_id}'):
+                    or not YOUTUBE_ID_RE.fullmatch(yt_id) or source_url != f'youtube://{yt_kind}/{yt_id}'):
                 raise ConfigTransferError(
                     f'Feed {slug} has a YouTube source that does not match its source_url')
         if feed_type != 'youtube' and not YOUTUBE_COLUMNS.isdisjoint(fields):

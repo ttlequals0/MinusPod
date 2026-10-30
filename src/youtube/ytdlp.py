@@ -4,6 +4,7 @@ import os
 import shutil
 import subprocess
 import tempfile
+import threading
 from datetime import timedelta
 from pathlib import Path
 
@@ -19,6 +20,8 @@ _UPDATE_HINTS = ('please report this issue', 'unable to extract',
 _booted = False
 _ensured_path: Path | None = None
 _baked_version: tuple[str, str | None] | None = None
+_fallback_for: Path | None = None
+_update_lock = threading.Lock()
 
 
 class YtDlpNotInstalled(RuntimeError):
@@ -75,8 +78,10 @@ def _install_baked(target: Path) -> None:
 
 
 def ensure_runtime_binary(storage, db) -> Path:
-    global _ensured_path
+    global _ensured_path, _fallback_for
     target = runtime_path(storage)
+    if _fallback_for == target:
+        return Path(BAKED_PATH)
     baked = baked_version()
     if not os.path.exists(target):
         if baked is None:
@@ -89,6 +94,7 @@ def ensure_runtime_binary(storage, db) -> Path:
     if current is None:
         db.set_setting('youtube_ytdlp_last_error', RUNTIME_NOT_EXECUTABLE, is_default=False)
         logger.warning(RUNTIME_NOT_EXECUTABLE)
+        _fallback_for = target
         return Path(BAKED_PATH)
     if _version_tuple(baked) > _version_tuple(current):
         _install_baked(target)
@@ -125,6 +131,15 @@ def needs_update(stderr: str) -> bool:
 
 def update_binary(storage, db, target: Path | None = None) -> dict:
     """Self-update the runtime copy; `target` is the already-ensured binary path."""
+    if not _update_lock.acquire(blocking=False):
+        return {'updated': False, 'version': db.get_setting('youtube_ytdlp_version'), 'error': 'update already running'}
+    try:
+        return _update_binary_locked(storage, db, target)
+    finally:
+        _update_lock.release()
+
+
+def _update_binary_locked(storage, db, target) -> dict:
     now = utc_now_iso()
     db.set_setting('youtube_ytdlp_last_check_at', now, is_default=False)
     target = target or ensure_runtime_binary(storage, db)
@@ -137,8 +152,12 @@ def update_binary(storage, db, target: Path | None = None) -> dict:
         db.set_setting('youtube_ytdlp_last_error', error, is_default=False)
         return {'updated': False, 'version': before, 'error': error}
     after = binary_version(target)
+    if after is None:
+        error = 'version probe failed after update'
+        db.set_setting('youtube_ytdlp_last_error', error, is_default=False)
+        return {'updated': False, 'version': before, 'error': error}
     updated = after != before or 'updated yt-dlp' in (result.stdout or '').lower()
-    db.set_setting('youtube_ytdlp_version', after or before or '', is_default=False)
+    db.set_setting('youtube_ytdlp_version', after, is_default=False)
     db.set_setting('youtube_ytdlp_last_error', '', is_default=False)
     if updated:
         db.set_setting('youtube_ytdlp_last_update_at', now, is_default=False)
