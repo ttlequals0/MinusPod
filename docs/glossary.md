@@ -135,6 +135,8 @@ Every term the app uses, in plain words, with a link to the part of the docs tha
 
 **Held remainder** - The part of a larger detection that stays held for review after a piece of it was cut or released. It inherits the original's reviewer proposal, which is dropped or clamped when it no longer overlaps the remainder. [Web Interface > Held for Review](web-interface.md#held-for-review)
 
+**Hide private videos** - A YouTube setting that drops playlist entries yt-dlp cannot see, such as private or deleted videos, instead of listing them as episodes that cannot download. On by default, with a per-feed override. Turn it off when the cookies file belongs to an account that can watch them. [YouTube Feeds > Private and deleted videos](youtube-feeds.md#private-and-deleted-videos)
+
 **Hold (queue)** - Any reason the queue is waiting rather than working: a rate-limit pause that stops new claims outright, or an offline-queue wait that parks specific episodes while the rest keep processing. The status bar names which one is in effect, and `GET /api/v1/status` reports it in a `hold` block. [Configuration > Rate-Limit Hold](configuration.md#rate-limit-hold)
 
 ## I

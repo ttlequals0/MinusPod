@@ -15,9 +15,8 @@ release notes.
 
 ### Fixed
 
-- YouTube discovery skips private and deleted playlist entries, which yt-dlp
-  returns as a bare video id, instead of listing them as episodes titled with
-  that id.
+- Private and deleted playlist entries no longer appear as episodes titled
+  with a bare video id.
 - A one-shot cleanup removes the undescribed placeholder episodes those
   entries already created.
 - Processing stats record the chapters stage when publisher chapters are
@@ -25,6 +24,9 @@ release notes.
 
 ### Changed
 
+- The YouTube playlist listing sends the cookies file and hides private and
+  deleted videos by default. A global "Hide private and deleted videos"
+  setting with a per-feed override lists them instead.
 - SponsorBlock-only runs skip audio analysis, since marks are cut as given
   and nothing reads the signals. The stats table shows the stage as skipped.
 

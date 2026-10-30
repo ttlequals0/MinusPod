@@ -434,10 +434,11 @@ Settings > YouTube configures [YouTube feeds](youtube-feeds.md). The feature is 
 | Watch ceiling (`sbWatchMaxDays`) | 7 | 1 to 60 days | Days after publish before the watch ends |
 | LLM fallback (`llmFallback`) | on | on or off | Run the LLM pipeline when no marks appear |
 | Use YouTube captions as the transcript (`captionsAsTranscript`) | on | on or off | Skip Whisper when captions exist |
+| Hide private and deleted videos (`hidePrivate`) | on | on or off | Skip playlist entries the listing cannot see; turn off when the cookies account can watch them |
 | Transcribe when captions are missing (`transcribeFallback`) | off | on or off | Run the configured transcriber for videos with no captions; off keeps such videos on SponsorBlock marks only |
 | Update yt-dlp daily (`ytdlpAutoUpdate`) | on | on or off | Daily self-update of the data-volume copy |
 
-A YouTube feed overrides the delay, probe attempts, probe interval, LLM fallback, captions, transcription fallback, and Shorts settings per feed, and adds a pass 1 detection switch, which runs the LLM detector in addition to SponsorBlock and cuts both sets of segments. Learned patterns run on every YouTube episode and learn from the SponsorBlock marks; Full reprocess and Re-detect ads force the LLM for that run. Null inherits the global value; 0 is a real value. The watch interval and ceiling are global only. API: `GET` and `PUT /api/v1/settings/youtube`; per-feed fields on `PATCH /api/v1/feeds/{slug}` are listed in [YouTube Feeds](youtube-feeds.md#per-feed-overrides).
+A YouTube feed overrides the delay, probe attempts, probe interval, LLM fallback, captions, private-video hiding, transcription fallback, and Shorts settings per feed, and adds a pass 1 detection switch, which runs the LLM detector in addition to SponsorBlock and cuts both sets of segments. Learned patterns run on every YouTube episode and learn from the SponsorBlock marks; Full reprocess and Re-detect ads force the LLM for that run. Null inherits the global value; 0 is a real value. The watch interval and ceiling are global only. API: `GET` and `PUT /api/v1/settings/youtube`; per-feed fields on `PATCH /api/v1/feeds/{slug}` are listed in [YouTube Feeds](youtube-feeds.md#per-feed-overrides).
 
 ### Per-feed retention
 
