@@ -1,7 +1,7 @@
 import type { Feed } from '../api/types';
 import { badgeBase, tint } from './badgeStyles';
 
-const LABELS: Record<string, string> = { local: 'Local', recents: 'Recents' };
+const LABELS: Record<string, string> = { local: 'Local', recents: 'Recents', youtube: 'YouTube' };
 
 // Feed type chip for feeds without an upstream; subscribed feeds show nothing.
 function FeedTypeBadge({ feedType, className = '' }: { feedType: Feed['feedType']; className?: string }) {

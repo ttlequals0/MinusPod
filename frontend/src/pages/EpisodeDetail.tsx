@@ -19,6 +19,8 @@ import { SkeletonPageHeader, SkeletonRows } from '../components/Skeleton';
 import Artwork from '../components/Artwork';
 import { episodeArtworkSrc } from '../utils/artworkUrl';
 import { isFailedStatus } from '../utils/episodeStatus';
+import { sponsorBlockLabel } from '../utils/sponsorBlock';
+import { getYouTubeSettings } from '../api/youtube';
 import StatusBadge from '../components/StatusBadge';
 import CloseButton from '../components/CloseButton';
 import { DETECTION_STAGE_META } from '../utils/detectionStage';
@@ -407,6 +409,11 @@ function EpisodeDetail() {
     queryKey: ['feed', slug],
     queryFn: () => getFeed(slug!),
     enabled: !!slug,
+  });
+  const { data: ytSettings } = useQuery({
+    queryKey: ['youtubeSettings'],
+    queryFn: getYouTubeSettings,
+    enabled: feed?.feedType === 'youtube',
   });
   const { data: settings, isPending: chapterSettingsPending, error: chapterSettingsError, refetch: reloadChapterSettings } = useQuery({
     queryKey: ['settings'],
@@ -884,6 +891,10 @@ function EpisodeDetail() {
     </div>
   );
 
+  const sbLabel = sponsorBlockLabel(
+    episode.sponsorBlock,
+    ytSettings ? (feed?.ytProbeAttemptsOverride ?? ytSettings.sbProbeAttempts) : undefined,
+  );
   const failureReason =
     isFailedStatus(episode.status) && episode.error ? episode.error : undefined;
 
@@ -1032,6 +1043,7 @@ function EpisodeDetail() {
                 className={failureReason ? 'cursor-help' : undefined}
                 title={failureReason}
               />
+              {sbLabel && <span className="text-xs text-muted-foreground">{sbLabel}</span>}
               {episode.passthroughEnabled && (
                 <span
                   className={`${badgeBase} ${tint.neutral} cursor-help`}

@@ -27,6 +27,7 @@ import PodpingBadge from '../components/PodpingBadge';
 import { feedDisplayTitle, feedHasUpstream, deleteStopsProcessingMessage } from '../utils/feedTitle';
 import FeedSettingsPanel from './feeds/FeedSettingsPanel';
 import LocalFeedPanel from './feeds/LocalFeedPanel';
+import YouTubeFeedPanel from './feeds/YouTubeFeedPanel';
 import FeedStatsCards from './feeds/FeedStatsCards';
 import PodcastAdDistributionPanel from './feeds/PodcastAdDistributionPanel';
 import RecentsFeedPanel from './feeds/RecentsFeedPanel';
@@ -733,6 +734,7 @@ function FeedDetail() {
       {slug && !isRecents && <FeedSettingsPanel key={slug} feed={feed} slug={slug} />}
 
       {slug && feed.feedType === 'local' && <LocalFeedPanel feed={feed} slug={slug} />}
+      {slug && feed.feedType === 'youtube' && <YouTubeFeedPanel feed={feed} slug={slug} />}
 
       {slug && !isRecents && <PodcastAdDistributionPanel slug={slug} />}
 

@@ -75,4 +75,19 @@ describe('EpisodeList', () => {
     render(<MemoryRouter><EpisodeList feedSlug="show" episodes={[episode]} /></MemoryRouter>);
     expect(screen.queryByText('Pass-through')).toBeNull();
   });
+
+  it('shows the SponsorBlock state under the title', () => {
+    const episode = {
+      id: 'ep8', title: 'Video', published: '2026-09-10T00:00:00Z', status: 'discovered',
+      sponsorBlock: { state: 'probing', attempts: 2, nextCheckAt: new Date(Date.now() + 25 * 60000 + 30000).toISOString(), segmentCount: 0, note: null, lastError: null },
+    } as Episode;
+    render(<MemoryRouter><EpisodeList feedSlug="yt" episodes={[episode]} /></MemoryRouter>);
+    expect(screen.getByText(/Waiting for SponsorBlock, attempt 2, next check in 2\d min/)).toBeTruthy();
+  });
+
+  it('shows no SponsorBlock text when the episode has none', () => {
+    const episode = { id: 'ep9', title: 'Plain', published: '2026-09-10T00:00:00Z', status: 'completed', sponsorBlock: null } as Episode;
+    render(<MemoryRouter><EpisodeList feedSlug="show" episodes={[episode]} /></MemoryRouter>);
+    expect(screen.queryByText(/SponsorBlock/)).toBeNull();
+  });
 });

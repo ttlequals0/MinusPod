@@ -15,7 +15,8 @@ export type DetectionStage =
   | 'heuristic_postroll'
   | 'dai_differential'
   | 'transcript_differential'
-  | 'description_chapter';
+  | 'description_chapter'
+  | 'sponsorblock';
 
 export const DETECTION_STAGE_META: Record<DetectionStage, { label: string; className: string }> = {
   first_pass: {
@@ -77,5 +78,9 @@ export const DETECTION_STAGE_META: Record<DetectionStage, { label: string; class
   description_chapter: {
     label: 'Description chapter',
     className: tint.warning,
+  },
+  sponsorblock: {
+    label: 'SponsorBlock',
+    className: tint.success,
   },
 };

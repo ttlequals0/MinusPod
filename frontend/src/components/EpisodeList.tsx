@@ -8,6 +8,7 @@ import Artwork from './Artwork';
 import { episodeArtworkSrc } from '../utils/artworkUrl';
 import Checkbox from './Checkbox';
 import { isActionBlocked } from '../utils/processingStage';
+import { sponsorBlockLabel } from '../utils/sponsorBlock';
 import StatusBadge from './StatusBadge';
 import { focusRing } from './fieldStyles';
 import { badgeBase, tint } from './badgeStyles';
@@ -83,6 +84,7 @@ function EpisodeRow({
   const canSelect = !isActionBlocked(episode.jobState, false);
   const failureReason =
     isFailedStatus(episode.status) && episode.error ? episode.error : undefined;
+  const sbLabel = sponsorBlockLabel(episode.sponsorBlock);
 
   return (
     <div className="relative flex items-stretch bg-card rounded-lg border border-border hover:border-primary/50 transition-colors">
@@ -113,6 +115,7 @@ function EpisodeRow({
         />
         <div className="flex-1 min-w-0">
           <h3 className="font-medium text-foreground truncate">{episode.title}</h3>
+          {sbLabel && <p className="text-xs text-muted-foreground">{sbLabel}</p>}
           {episode.feedTitle && (
             <p className="text-xs text-muted-foreground truncate">{episode.feedTitle}</p>
           )}
