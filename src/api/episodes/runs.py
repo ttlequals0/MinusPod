@@ -12,7 +12,7 @@ from config import (
     episode_matches_feed_filters, is_keep_like, is_pending_review, normalize_segment_category, resolve_processing_mode, DEFAULT_SEGMENT_ACTION,
     PROCESSING_MODE_PASSTHROUGH, PROCESSING_MODE_SKIP_DETECTION, PROCESSING_MODE_CUE_ONLY,
 )
-from database.podcasts import is_local_feed
+from database.podcasts import is_local_feed, is_youtube_feed
 from ad_validator import user_trimmed_keep_ranges
 from audio_processor import AudioProcessor
 from cancel import request_cancellation, wait_for_cancellation
@@ -447,7 +447,8 @@ def bulk_episode_action(slug):
                     # episodes at +20 once pinned a fresh episode 94th).
                     priority = compute_queue_priority(
                         podcast.get('queue_priority'), ep.get('published_at'), bulk=True)
-                    db.disarm_sponsorblock_watch(slug, episode_id)
+                    if is_youtube_feed(podcast):
+                        db.disarm_sponsorblock_watch(slug, episode_id)
                     db.upsert_episode_for_processing(
                         slug, episode_id,
                         ep.get('original_url', ''),
@@ -1173,6 +1174,8 @@ def _reprocess_episode_with_mode(slug, episode_id, legacy=False):
         # Mode, user-request mark, and the per-mode clear. The processed audio
         # stays until the new version is durable (orchestration-5).
         reset_episode_for_reprocess(db, slug, episode_id, mode)
+        if is_youtube_feed(podcast):
+            db.disarm_sponsorblock_watch(slug, episode_id)
         db.disarm_sponsorblock_watch(slug, episode_id)
 
         # Get episode metadata for processing

@@ -106,9 +106,25 @@ def test_legacy_non_json_or_empty_body_uses_the_default_mode(
     assert db.get_episode(slug, episode_id)['reprocess_mode'] == 'reprocess'
 
 
-def test_manual_reprocess_disarms_the_sponsorblock_watch(app_client, episode):
-    db, slug, episode_id, _segments, headers = episode
+@pytest.fixture
+def yt_episode(app_client):
+    from api import get_database, get_status_service, limiter
+
+    limiter.reset()
+    db = get_database()
+    slug, episode_id = 'yt-disarm-test', 'bb22cc33dd44'
+    db.create_podcast(slug, 'youtube://playlist/PL1', 'YT', feed_type='youtube')
+    db.upsert_episode(slug, episode_id, status='processed', title='Ep', original_url='https://example.com/v')
+    db.save_episode_details(slug, episode_id, transcript_text='t')
     db.update_episode_sponsorblock(slug, episode_id, sb_state='done', sb_next_check_at='2026-10-29T12:00:00+00:00')
+    headers = authenticate_test_client(app_client)
+    yield db, slug, episode_id, headers
+    get_status_service().remove_feed_from_queue(slug)
+    db.delete_podcast(slug)
+
+
+def test_manual_reprocess_disarms_the_sponsorblock_watch(app_client, yt_episode):
+    db, slug, episode_id, headers = yt_episode
     with patch('main_app.processing.start_background_processing', return_value=(False, 'busy')):
         response = app_client.post(
             f'/api/v1/feeds/{slug}/episodes/{episode_id}/reprocess',
@@ -118,9 +134,8 @@ def test_manual_reprocess_disarms_the_sponsorblock_watch(app_client, episode):
     assert db.get_episode(slug, episode_id)['sb_next_check_at'] is None
 
 
-def test_bulk_process_disarms_the_sponsorblock_watch(app_client, episode):
-    db, slug, episode_id, _segments, headers = episode
-    db.update_episode_sponsorblock(slug, episode_id, sb_state='watching', sb_next_check_at='2026-10-29T12:00:00+00:00')
+def test_bulk_process_disarms_the_sponsorblock_watch(app_client, yt_episode):
+    db, slug, episode_id, headers = yt_episode
     response = app_client.post(
         f'/api/v1/feeds/{slug}/episodes/bulk',
         json={'episodeIds': [episode_id], 'action': 'reprocess'}, headers=headers,

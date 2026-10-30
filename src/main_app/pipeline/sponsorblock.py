@@ -101,6 +101,10 @@ def acquire(slug, episode_id, episode_url, podcast, episode_data, reprocess_mode
             mode = 'sponsorblock'
         elif markers or forced:
             mode = 'llm'
+        elif note == 'duration_mismatch' and not resolved.llm_fallback:
+            # Persist the duration so the watcher sees the same mismatch and counts it as no marks.
+            db.upsert_episode(slug, episode_id, original_duration=duration)
+            raise SponsorBlockDeferred('SponsorBlock marks do not match the video', _retry_at(episode_data, resolved))
         elif marks is None:
             raise SponsorBlockDeferred('SponsorBlock request failed', _retry_at(episode_data, resolved))
         elif resolved.llm_fallback:

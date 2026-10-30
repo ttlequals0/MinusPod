@@ -56,7 +56,7 @@ def _parse_segment(seg, limit):
     try:
         votes = int(seg.get('votes') or 0)
         start, end = (float(x) for x in seg['segment'])
-    except (KeyError, TypeError, ValueError):
+    except (KeyError, TypeError, ValueError, OverflowError):
         return None
     if not (math.isfinite(start) and math.isfinite(end)):
         return None

@@ -274,3 +274,14 @@ def test_tick_corrupt_segment_uuids_do_not_raise(monkeypatch):
     watch.sponsorblock_tick(db)
     assert queued == [('a1', True)]
     assert db.update_episode_sponsorblock_by_pk.call_args.args == (7,)
+
+
+def test_tick_known_duration_mismatch_counts_as_no_marks(monkeypatch):
+    queued = _patch_tick(monkeypatch)
+    raw = [dict(MARK[0], videoDuration=500)]
+    monkeypatch.setattr(watch.sponsorblock, 'fetch_segments', lambda vid: raw)
+    db = _tick_db([dict(_tick_row('a1', state='probing', uuids='[]'), sb_attempts=1)])
+    watch.sponsorblock_tick(db)
+    assert queued == []
+    fields = db.update_episode_sponsorblock_by_pk.call_args.kwargs
+    assert fields['sb_attempts'] == 2 and fields['sb_state'] == 'probing' and fields['sb_next_check_at']

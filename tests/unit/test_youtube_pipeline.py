@@ -121,7 +121,7 @@ def _run(markers, *, llm_on_top=False, llm_fallback=True, episode_row=None, capt
             p(processing.os.path, 'exists', return_value=False)
             ok = processing.process_episode('yt-feed', 'ep1', 'https://www.youtube.com/watch?v=vid000000001',
                                             'Ep', 'YT', None, None, None)
-            _run.extras = dict(sweeps=sweeps, storage=storage, update_binary=update_binary, repair=repair)
+            _run.extras = dict(db=db, sweeps=sweeps, storage=storage, update_binary=update_binary, repair=repair)
             return ok, whisper, detect, verification, ap, fin, after, diff_spy
     finally:
         shutil.rmtree(work_dir, ignore_errors=True)
@@ -295,6 +295,20 @@ def test_request_failure_defers_even_with_fallback_on():
 def test_all_filtered_marks_defer():
     raw = [{'UUID': 'u2', 'votes': -3}]
     _deferred(fetch_result=raw)
+
+
+def test_duration_mismatch_without_fallback_defers_and_persists_the_duration():
+    raw = [{'UUID': 'u1', 'segment': [1, 2], 'category': 'sponsor', 'actionType': 'skip', 'votes': 1,
+            'locked': 0, 'videoDuration': 100}]
+    _deferred(fetch_result=raw)
+    _run.extras['db'].upsert_episode.assert_any_call('yt-feed', 'ep1', original_duration=3600.0)
+
+
+def test_duration_mismatch_with_fallback_runs_llm():
+    raw = [{'UUID': 'u1', 'segment': [1, 2], 'category': 'sponsor', 'actionType': 'skip', 'votes': 1,
+            'locked': 0, 'videoDuration': 100}]
+    ok, *_ = _run([], llm_fallback=True, fetch_result=raw)
+    assert ok is True
 
 
 def _handle_deferral(episode_data, error=None):

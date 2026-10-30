@@ -75,6 +75,7 @@ def test_to_markers_skips_malformed_segments():
         dict(good, UUID='nan', segment=[float('nan'), 5]),
         dict(good, UUID='inf', segment=[1, float('inf')]),
         dict(good, UUID='short', segment=[1]),
+        dict(good, UUID='inf-vote', votes=float('inf')),
         good,
         dict(good, UUID='past-end', segment=[90, 500]),
     ]
