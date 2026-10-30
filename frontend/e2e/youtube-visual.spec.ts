@@ -282,6 +282,64 @@ for (const width of WIDTHS) {
   });
 }
 
+const sponsorBlockRun = {
+  runNumber: 1,
+  processedAt: iso(-80_000_000),
+  status: 'completed',
+  adsDetected: 2,
+  processingDurationSeconds: 48,
+  errorMessage: null,
+  inputTokens: 0,
+  outputTokens: 0,
+  llmCost: 0,
+  stats: {
+    mode: 'auto',
+    verificationSkipped: true,
+    audioAnalysisSkipped: true,
+    downloadedDuration: 1800,
+    transcriptSegments: 0,
+    timings: {
+      downloadSeconds: 31,
+      sponsorblockSeconds: 1.4,
+      transcriptionSeconds: null,
+      audioAnalysisSeconds: null,
+      detectionSeconds: 2,
+      cutSeconds: 9,
+      chaptersSeconds: 0.6,
+      finalizeSeconds: 1,
+      ffmpegSeconds: 11,
+    },
+  },
+};
+
+for (const width of [390, 1024]) {
+  test.describe(`run stages at ${width}`, () => {
+    test.use({ viewport: { width, height: 900 }, hasTouch: width < 768, isMobile: width < 768 });
+
+    test('elapsed by stage shows SponsorBlock lookup and skipped audio analysis', async ({ page }) => {
+      await mockApi(page);
+      await page.route(`**/api/v1/feeds/${SLUG}/episodes/${EPISODE_ID}`, (route) => route.fulfill({
+        contentType: 'application/json',
+        body: JSON.stringify({ ...episodeDetail, processingRuns: [sponsorBlockRun] }),
+      }));
+      await page.goto(`feeds/${SLUG}/episodes/${EPISODE_ID}`);
+      await page.getByRole('heading', { name: 'Processing stats' }).click();
+      await page.getByRole('button', { name: /show phase breakdown for run #1/i }).click();
+      const heading = page.getByRole('heading', { name: 'Elapsed by stage' });
+      await expect(heading).toBeVisible({ timeout: 15_000 });
+      await expect(page.getByText('SponsorBlock lookup').locator('visible=true')).toBeVisible();
+      await expect(page.getByText('Audio analysis', { exact: true }).locator('visible=true').locator('xpath=following-sibling::dd')).toHaveText('Skipped');
+      await page.waitForTimeout(600);
+      await heading.evaluate((el) => el.scrollIntoView({ block: 'start' }));
+      await page.evaluate(() => window.scrollBy(0, -80));
+      await page.waitForTimeout(300);
+      expect(page.viewportSize()!.width).toBe(width);
+      await expectNoOverflow(page);
+      await page.screenshot({ path: path.join(SHOTS, `run-stages-${width}.png`), fullPage: false });
+    });
+  });
+}
+
 for (const width of [320, 390, 430]) {
   test.describe(`refreshing action row at ${width}`, () => {
     test.use({ viewport: { width, height: 900 }, hasTouch: true, isMobile: true });

@@ -121,7 +121,8 @@ def acquire(slug, episode_id, episode_url, podcast, episode_data, reprocess_mode
             shutil.rmtree(work_dir, ignore_errors=True)
     try:
         duration = audio_processor.get_audio_duration(audio_path)
-        marks = sponsorblock.fetch_segments(video_id)
+        with common._measure_run_stage('sponsorblock'):
+            marks = sponsorblock.fetch_segments(video_id)
         markers, note = sponsorblock.to_markers(marks or [], duration)
         _name_marks(markers, segments)
         manual = bool(reprocess_mode) or (episode_data or {}).get('reprocess_source') is not None

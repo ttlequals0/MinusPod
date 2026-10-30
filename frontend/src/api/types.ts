@@ -454,6 +454,8 @@ export interface ProcessingRunStats {
   transcriptionSkipped?: boolean;
   // Explicitly records that normalization was disabled for this run.
   normalizationSkipped?: boolean;
+  // SponsorBlock-only run: marks are cut as given, so audio analysis did not run.
+  audioAnalysisSkipped?: boolean;
   downloadedDuration?: number | null;
   transcriptSegments?: number;
   // failureClasses is absent when no window was lost; see CoverageGap for the
@@ -490,6 +492,7 @@ export interface ProcessingRunTimings {
   // Stage values may overlap. FFmpeg is the combined elapsed time for all
   // FFmpeg tasks in the run, including retries. Finalize ends before history.
   downloadSeconds?: number | null;
+  sponsorblockSeconds?: number | null;
   transcriptionSeconds?: number | null;
   transcriptDiffSeconds?: number | null;
   differentialSeconds?: number | null;

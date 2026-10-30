@@ -541,23 +541,24 @@ def _generate_assets(slug, episode_id, segments, all_cuts, episode_description,
                     return
             preserving_source = any(ch.get('_id3_id') for ch in publisher)
             if len(publisher) >= MIN_PRESERVED_CHAPTERS or preserving_source:
-                entries = _publisher_chapter_entries(publisher)
-                chapters_json = {'version': '1.2.0', 'chapters': entries}
-                if preserving_source:
-                    chapters_json[ID3_CHAPTER_SOURCE_KEY] = 'id3'
-                base = chapters_json['chapters']
-                _queue_chapter_trim(slug, episode_id, base, podcast_row, all_cuts,
-                                    replacement_duration, audio_duration,
-                                    original_duration, markers, 'upstream_chapter')
-                merged = merge_ad_chapters(base, markers, all_cuts or [],
-                                           audio_duration, replacement_duration,
-                                           ad_config)
-                # The cut step already embedded the publisher frames, so the
-                # re-embed only runs when ad entries were added on top.
-                _publish_chapters(
-                    slug, episode_id, chapters_json, merged, all_cuts,
-                    audio_path, audio_duration, merged != base,
-                    f"Preserved {len(publisher)} publisher chapter(s) (no AI call)", pending_assets=pending_assets)
+                with common._measure_run_stage('chapters'):
+                    entries = _publisher_chapter_entries(publisher)
+                    chapters_json = {'version': '1.2.0', 'chapters': entries}
+                    if preserving_source:
+                        chapters_json[ID3_CHAPTER_SOURCE_KEY] = 'id3'
+                    base = chapters_json['chapters']
+                    _queue_chapter_trim(slug, episode_id, base, podcast_row, all_cuts,
+                                        replacement_duration, audio_duration,
+                                        original_duration, markers, 'upstream_chapter')
+                    merged = merge_ad_chapters(base, markers, all_cuts or [],
+                                               audio_duration, replacement_duration,
+                                               ad_config)
+                    # The cut step already embedded the publisher frames, so the
+                    # re-embed only runs when ad entries were added on top.
+                    _publish_chapters(
+                        slug, episode_id, chapters_json, merged, all_cuts,
+                        audio_path, audio_duration, merged != base,
+                        f"Preserved {len(publisher)} publisher chapter(s) (no AI call)", pending_assets=pending_assets)
                 return
             # Embedded chapters came up short. Some feeds publish chapters
             # only as a separate podcast:chapters JSON file (issue #560
@@ -573,38 +574,39 @@ def _generate_assets(slug, episode_id, segments, all_cuts, episode_description,
             if chapters_mode == CHAPTERS_MODE_AUTO and original_duration:
                 episode_row = db.get_episode(slug, episode_id)
                 upstream_url = (episode_row or {}).get('upstream_chapters_url')
-                if upstream_url:
-                    fetched = fetch_upstream_chapters(upstream_url, user_agent=download_user_agent(podcast_row))
-                    if fetched is not None:
-                        remapped = _remap_chapters_for_recut(
-                            fetched, [], all_cuts or [], replacement_duration,
-                            original_duration, audio_duration)
-                        if len(remapped) >= MIN_PRESERVED_CHAPTERS:
-                            chapters_json = {
-                                'version': '1.2.0',
-                                'chapters': [
-                                    {**ch, 'title': ch.get('title') or f"Chapter {i + 1}"}
-                                    for i, ch in enumerate(remapped)
-                                ],
-                            }
-                            _queue_chapter_trim(
-                                slug, episode_id, fetched, podcast_row, all_cuts,
-                                replacement_duration, audio_duration,
-                                original_duration, markers, 'upstream_chapter',
-                                original_timeline=True)
-                            merged = merge_ad_chapters(
-                                chapters_json['chapters'], markers,
-                                all_cuts or [], audio_duration,
-                                replacement_duration, ad_config)
-                            # Unlike the embedded-preserve path above, the
-                            # served file has no chapter frames yet, so this
-                            # always embeds.
-                            _publish_chapters(
-                                slug, episode_id, chapters_json, merged,
-                                all_cuts, audio_path, audio_duration, True,
-                                f"Preserved {len(remapped)} upstream JSON "
-                                f"chapter(s) (no AI call)", pending_assets=pending_assets)
-                            return
+                with common._measure_run_stage('chapters'):
+                    if upstream_url:
+                        fetched = fetch_upstream_chapters(upstream_url, user_agent=download_user_agent(podcast_row))
+                        if fetched is not None:
+                            remapped = _remap_chapters_for_recut(
+                                fetched, [], all_cuts or [], replacement_duration,
+                                original_duration, audio_duration)
+                            if len(remapped) >= MIN_PRESERVED_CHAPTERS:
+                                chapters_json = {
+                                    'version': '1.2.0',
+                                    'chapters': [
+                                        {**ch, 'title': ch.get('title') or f"Chapter {i + 1}"}
+                                        for i, ch in enumerate(remapped)
+                                    ],
+                                }
+                                _queue_chapter_trim(
+                                    slug, episode_id, fetched, podcast_row, all_cuts,
+                                    replacement_duration, audio_duration,
+                                    original_duration, markers, 'upstream_chapter',
+                                    original_timeline=True)
+                                merged = merge_ad_chapters(
+                                    chapters_json['chapters'], markers,
+                                    all_cuts or [], audio_duration,
+                                    replacement_duration, ad_config)
+                                # Unlike the embedded-preserve path above, the
+                                # served file has no chapter frames yet, so this
+                                # always embeds.
+                                _publish_chapters(
+                                    slug, episode_id, chapters_json, merged,
+                                    all_cuts, audio_path, audio_duration, True,
+                                    f"Preserved {len(remapped)} upstream JSON "
+                                    f"chapter(s) (no AI call)", pending_assets=pending_assets)
+                                return
             chapters_gen = None
             chapter_setup_failed = False
             with common._measure_run_stage('chapters'):

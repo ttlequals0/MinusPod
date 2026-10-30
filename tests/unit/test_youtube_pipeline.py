@@ -104,7 +104,7 @@ def _run(markers, *, llm_on_top=False, llm_fallback=True, episode_row=None, capt
             p(transcribe, '_download_episode_audio', return_value=audio)
             p(signals, '_run_differential_fetch', return_value=None)
             diff_spy = signals._run_differential_fetch
-            p(signals, '_run_audio_analysis', return_value=None)
+            audio_analysis = p(signals, '_run_audio_analysis', return_value=None)
             p(processing, 'load_positional_prior', return_value=None)
             detect = p(detect_stage, '_detect_ads_first_pass',
                        return_value=(list(pattern_hits), len(pattern_hits), {}))
@@ -131,7 +131,7 @@ def _run(markers, *, llm_on_top=False, llm_fallback=True, episode_row=None, capt
             ok = processing.process_episode('yt-feed', 'ep1', 'https://www.youtube.com/watch?v=vid000000001',
                                             'Ep', 'YT', None, None, None)
             _run.extras = dict(fetch_captions=fetch_captions, db=db, sweeps=sweeps, storage=storage, update_binary=update_binary, repair=repair,
-                          reviewer=reviewer, refine=refine)
+                          reviewer=reviewer, refine=refine, audio_analysis=audio_analysis)
             return ok, whisper, detect, verification, ap, fin, after, diff_spy
     finally:
         shutil.rmtree(work_dir, ignore_errors=True)
@@ -333,6 +333,16 @@ def test_sponsorblock_only_skips_boundary_sweeps_but_llm_path_runs_them():
     assert all(not sweep.called for sweep in _run.extras['sweeps'])
     _run([])
     assert all(sweep.called for sweep in _run.extras['sweeps'])
+
+
+def test_sponsorblock_only_skips_audio_analysis_but_llm_path_runs_it():
+    ok, *_, fin, _after_mock, _diff = _run(MARKERS)
+    assert ok is True
+    _run.extras['audio_analysis'].assert_not_called()
+    assert fin.call_args.kwargs['run_stats']['audio_analysis_skipped'] is True
+    ok, *_, fin, _after_mock, _diff = _run([])
+    _run.extras['audio_analysis'].assert_called_once()
+    assert 'audio_analysis_skipped' not in fin.call_args.kwargs['run_stats']
 
 
 def test_saved_caption_transcript_is_reused_without_whisper_or_repair():

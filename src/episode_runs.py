@@ -34,6 +34,7 @@ def run_stats_to_api(stats):
         'cueOnly': stats.get('cue_only'),
         'transcriptionSkipped': stats.get('transcription_skipped'),
         'normalizationSkipped': stats.get('normalization_skipped'),
+        'audioAnalysisSkipped': stats.get('audio_analysis_skipped'),
         'downloadedDuration': stats.get('downloaded_duration'),
         'transcriptSegments': stats.get('transcript_segments'),
         'windows': stats.get('windows'),
@@ -57,6 +58,7 @@ def run_stats_to_api(stats):
         'replacementSecondsAdded': stats.get('replacement_seconds_added'),
         'timings': {
             'downloadSeconds': timings.get('download'),
+            'sponsorblockSeconds': timings.get('sponsorblock'),
             'transcriptionSeconds': timings.get('transcription'),
             'transcriptDiffSeconds': timings.get('transcript_diff'),
             'differentialSeconds': timings.get('differential'),

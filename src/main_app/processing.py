@@ -657,7 +657,10 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                 _check_cancel(cancel_event, slug, episode_id)
                 # Stage 2: Audio analysis (ad-cue detection; nothing to feed
                 # when detection is skipped)
-                if not detection_off:
+                # SponsorBlock-only marks are cut as given; nothing reads the signals.
+                if sponsorblock_only and not cue_only:
+                    run_stats['audio_analysis_skipped'] = True
+                elif not detection_off:
                     with common._measure_run_stage('audio_analysis'):
                         audio_analysis_result = signals._run_audio_analysis(
                             slug, episode_id, audio_path, segments,

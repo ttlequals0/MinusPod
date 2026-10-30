@@ -2592,7 +2592,8 @@ class AdDetector:
         _check_cancel(cancel_event, slug, episode_id)
 
         # Stage 3: Claude API for remaining content
-        logger.info(f"[{slug}:{episode_id}] Stage 3: Claude API detection")
+        logger.info(f"[{slug}:{episode_id}] Stage 3: "
+                    f"{'LLM detection skipped' if skip_llm else 'Claude API detection'}")
 
         # Keep-content (whitelist) mode -- opt-in per feed. Label the show
         # content and remove the complement. If the content pass produces

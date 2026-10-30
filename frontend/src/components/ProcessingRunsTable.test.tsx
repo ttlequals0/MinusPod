@@ -236,6 +236,34 @@ describe('ProcessingRunsTable', () => {
     expect(withoutValue.getByText('Chapters').nextSibling?.textContent).toBe('Unavailable');
   });
 
+  it('shows the SponsorBlock lookup row only when the run recorded it', () => {
+    const withLookup: EpisodeProcessingRun = {
+      ...statsRun,
+      runNumber: 9,
+      stats: {
+        ...statsRun.stats!,
+        timings: { ...statsRun.stats!.timings, sponsorblockSeconds: 2 },
+      },
+    };
+    const present = renderTable([withLookup]);
+    fireEvent.click(present.getByRole('button', { name: /show phase breakdown for run #9/i }));
+    expect(present.getByText('SponsorBlock lookup').nextSibling?.textContent).toBe('2s');
+
+    const absent = renderTable([statsRun]);
+    fireEvent.click(absent.getByRole('button', { name: /show phase breakdown for run #2/i }));
+    expect(absent.queryByText('SponsorBlock lookup')).toBeNull();
+  });
+
+  it('labels audio analysis as skipped on a marks-only run', () => {
+    const run: EpisodeProcessingRun = {
+      ...statsRun,
+      stats: { ...statsRun.stats!, audioAnalysisSkipped: true },
+    };
+    const table = renderTable([run]);
+    fireEvent.click(table.getByRole('button', { name: /show phase breakdown for run #2/i }));
+    expect(table.getByText('Audio analysis').nextSibling?.textContent).toBe('Skipped');
+  });
+
   it('marks a skip-detection run instead of showing zero stage hits', () => {
     const table = renderTable([skipDetectionRun]);
     expect(table.getByText('(no ad detection)')).toBeTruthy();

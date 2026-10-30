@@ -22,6 +22,7 @@ STATS_DB = {
     'downloaded_duration': 3305.7,
     'transcript_segments': 132,
     'normalization_skipped': False,
+    'audio_analysis_skipped': True,
     'windows': {'total': 7, 'failed': 0},
     'stage_hits': {'fingerprint': 0, 'text_pattern': 3, 'differential': 11, 'llm': 11},
     'detected': 12,
@@ -32,6 +33,7 @@ STATS_DB = {
     'replacement_seconds_added': 3.0,
     'timings': {
         'download': 42.0,
+        'sponsorblock': 1.5,
         'transcription': 180.0,
         'differential': 3.5,
         'audio_analysis': 8.0,
@@ -65,6 +67,7 @@ STATS_API = {
     'cueOnly': None,
     'transcriptionSkipped': None,
     'normalizationSkipped': False,
+    'audioAnalysisSkipped': True,
     'downloadedDuration': 3305.7,
     'transcriptSegments': 132,
     'windows': {'total': 7, 'failed': 0},
@@ -79,6 +82,7 @@ STATS_API = {
     'replacementSecondsAdded': 3.0,
     'timings': {
         'downloadSeconds': 42.0,
+        'sponsorblockSeconds': 1.5,
         'transcriptionSeconds': 180.0,
         'transcriptDiffSeconds': None,
         'differentialSeconds': 3.5,
@@ -213,6 +217,7 @@ def test_failed_run_preserves_partial_stage_timings(app_client, seeded):
     assert run['errorMessage'] == 'cut failed'
     assert run['stats']['timings'] == {
         'downloadSeconds': 42.0,
+        'sponsorblockSeconds': None,
         'transcriptionSeconds': 180.0,
         'transcriptDiffSeconds': None,
         'differentialSeconds': None,

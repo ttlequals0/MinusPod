@@ -37,6 +37,7 @@ from main_app import processing
 from main_app.pipeline import publish
 from main_app.pipeline import review, cuts, verify
 import rate_limit_hold
+import run_context
 from rate_limit_hold import hold_message
 from utils.time import utc_now_iso
 
@@ -155,6 +156,19 @@ def test_auto_preserves_publisher_chapters_no_llm_no_embed(monkeypatch):
             {'startTime': 100, 'title': 'Chapter 2'},
         ]}, 'applied_cuts': []},
     )
+
+
+def test_preserved_publisher_chapters_record_the_chapters_stage(monkeypatch):
+    publisher = [
+        {'start': 0.0, 'end': 30.0, 'title': 'Intro'},
+        {'start': 100.4, 'end': 200.0, 'title': 'Main'},
+    ]
+    ctx = run_context.begin('testslug', 'ep1')
+    try:
+        _run(monkeypatch, _db(chapters_mode='auto'), publisher)
+    finally:
+        run_context.end(ctx)
+    assert 'chapters' in ctx.timing.snapshot()
 
 
 def test_auto_with_zero_publisher_chapters_falls_back_to_generate(monkeypatch):
