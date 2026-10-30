@@ -211,7 +211,8 @@ def list_videos(db, podcast: dict, limit: int) -> list[dict]:
         except DiscoveryError as exc:
             logger.warning(f"[{podcast.get('slug')}] YouTube Data API failed ({type(exc).__name__}); "
                            "listing with yt-dlp")
-    return _list_with_ytdlp(playlist_id, limit, include_shorts, longform, full)
+    hide_private = yt_settings.resolve_feed(db, podcast).hide_private
+    return _list_with_ytdlp(playlist_id, limit, include_shorts, longform, full, hide_private=hide_private)
 
 
 def _list_with_api(key, playlist_id, limit, include_shorts, longform, full=False) -> list[dict]:
@@ -262,14 +263,14 @@ def _published_from_entry(entry: dict) -> str:
     return ''
 
 
-def _list_with_ytdlp(playlist_id, limit, include_shorts, longform, full=False) -> list[dict]:
+def _list_with_ytdlp(playlist_id, limit, include_shorts, longform, full=False, *, hide_private=True) -> list[dict]:
     extra = ['--extractor-args', 'youtubetab:approximate_date']
     if not full:
         extra = ['--playlist-end', str(limit + UNAVAILABLE_SLACK), *extra]
     data = _ytdlp_json(f'https://www.youtube.com/playlist?list={playlist_id}', extra, timeout=180)
-    # Private or deleted videos come back as a bare id.
-    entries = [e for e in data.get('entries') or []
-               if e and e.get('id') and e.get('title') and e['title'] not in _UNAVAILABLE_TITLES]
+    # Private or deleted videos come back as a bare id or a placeholder title.
+    entries = [e for e in data.get('entries') or [] if e and e.get('id')
+               and (not hide_private or (e.get('title') and e['title'] not in _UNAVAILABLE_TITLES))]
     if full:
         entries.sort(key=_published_from_entry, reverse=True)
     entries = entries[:limit]

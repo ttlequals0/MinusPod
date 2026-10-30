@@ -153,6 +153,7 @@ TABLE_DDL['podcasts'] = """CREATE TABLE IF NOT EXISTS podcasts (
     yt_llm_fallback_override INTEGER,
     yt_llm_on_top_override INTEGER,
     yt_captions_override INTEGER,
+    yt_hide_private_override INTEGER,
     yt_transcribe_override INTEGER,
     deletion_requested_at TEXT,
     created_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),

@@ -54,6 +54,7 @@ const youtubeSettings = {
   sbWatchMaxDays: 7,
   llmFallback: true,
   captionsAsTranscript: false,
+  hidePrivate: true,
   transcribeFallback: false,
   ytdlp: {
     autoUpdate: true,
@@ -92,6 +93,7 @@ const youtubeFeed = {
   ytLlmFallbackOverride: null,
   ytLlmOnTopOverride: true,
   ytCaptionsOverride: null,
+  ytHidePrivateOverride: null,
   ytTranscribeOverride: null,
   description: 'Example description.',
 };
@@ -379,3 +381,38 @@ test.describe('settings search', () => {
     await page.screenshot({ path: path.join(SHOTS, 'settings-search-youtube-1280.png'), fullPage: false });
   });
 });
+
+for (const width of [390, 1024]) {
+  test.describe(`hide private controls ${width}`, () => {
+    test.use({ viewport: { width, height: 900 }, hasTouch: width < 768, isMobile: width < 768 });
+
+    test.beforeEach(async ({ page }) => {
+      await mockApi(page);
+      await seedOpen(page);
+    });
+
+    test('settings toggle', async ({ page }) => {
+      await page.goto('settings#youtube');
+      const toggle = page.getByRole('switch', { name: 'Hide private and deleted videos' });
+      await expect(toggle).toBeVisible({ timeout: 15_000 });
+      await toggle.scrollIntoViewIfNeeded();
+      await page.waitForTimeout(400);
+      const box = (await toggle.boundingBox())!;
+      if (width < 768) expect(box.height).toBeGreaterThanOrEqual(44);
+      console.log(`hide-private settings toggle ${width}: ${box.width}x${box.height}`);
+      await page.screenshot({ path: path.join(SHOTS, `hide-private-settings-${width}.png`), fullPage: false });
+    });
+
+    test('feed override row', async ({ page }) => {
+      await page.goto(`feeds/${SLUG}`);
+      const select = page.getByLabel('Hide private and deleted videos');
+      await expect(select).toBeVisible({ timeout: 15_000 });
+      await select.scrollIntoViewIfNeeded();
+      await page.waitForTimeout(400);
+      const box = (await select.boundingBox())!;
+      if (width < 768) expect(box.height).toBeGreaterThanOrEqual(44);
+      console.log(`hide-private feed override ${width}: ${box.width}x${box.height}`);
+      await page.screenshot({ path: path.join(SHOTS, `hide-private-feed-${width}.png`), fullPage: false });
+    });
+  });
+}

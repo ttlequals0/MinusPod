@@ -174,6 +174,7 @@ SEED_SNAPSHOT = {
     'youtube_sb_watch_max_days': '7',
     'youtube_llm_fallback': 'true',
     'youtube_captions_as_transcript': 'true',
+    'youtube_hide_private': 'true',
     'youtube_transcribe_fallback': 'false',
     'youtube_ytdlp_auto_update': 'true',
 }

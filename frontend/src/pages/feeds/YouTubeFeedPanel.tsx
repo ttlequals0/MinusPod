@@ -12,7 +12,7 @@ import FeedMetadataForm from './FeedMetadataForm';
 import { fromTri, GlobalOverrideRow, rowLabelTop, toTri } from './OverrideRows';
 
 type NumberField = 'ytProcessDelayMinutesOverride' | 'ytProbeAttemptsOverride' | 'ytProbeIntervalMinutesOverride';
-type BoolField = 'ytLlmFallbackOverride' | 'ytLlmOnTopOverride' | 'ytCaptionsOverride' | 'ytTranscribeOverride' | 'youtubeIncludeShorts';
+type BoolField = 'ytLlmFallbackOverride' | 'ytLlmOnTopOverride' | 'ytCaptionsOverride' | 'ytHidePrivateOverride' | 'ytTranscribeOverride' | 'youtubeIncludeShorts';
 
 function NumberOverrideRow({
   label, ariaLabel, value, globalValue, bounds, unit, disabled, onCommit, children,
@@ -163,6 +163,16 @@ function YouTubeFeedPanel({ feed, slug }: { feed: Feed; slug: string }) {
             onChange={setBool('ytCaptionsOverride')}
           >
             Use YouTube captions instead of transcribing the audio when they exist.
+          </GlobalOverrideRow>
+          <GlobalOverrideRow
+            label="Private"
+            ariaLabel="Hide private and deleted videos"
+            value={toTri(feed.ytHidePrivateOverride)}
+            globalOn={!!globals?.hidePrivate}
+            disabled={pending}
+            onChange={setBool('ytHidePrivateOverride')}
+          >
+            Hide private and deleted videos. Off lists them, and they fail to download unless the cookies account can watch them.
           </GlobalOverrideRow>
           <GlobalOverrideRow
             label="Transcribe"

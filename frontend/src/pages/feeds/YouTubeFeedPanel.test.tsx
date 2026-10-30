@@ -23,7 +23,7 @@ vi.mock('../../api/youtube', () => ({
   getYouTubeSettings: () => Promise.resolve({
     enabled: mockEnabled,
     processDelayMinutes: 60, sbProbeAttempts: 6, sbProbeIntervalMinutes: 30,
-    llmFallback: true, captionsAsTranscript: false, transcribeFallback: true,
+    llmFallback: true, captionsAsTranscript: false, hidePrivate: true, transcribeFallback: true,
     bounds: { processDelayMinutes: [0, 1440], sbProbeAttempts: [1, 48], sbProbeIntervalMinutes: [1, 720] },
   }),
 }));
@@ -33,7 +33,7 @@ const feed = {
   youtubeSourceUrl: 'https://www.youtube.com/playlist?list=PL1',
   youtubeIncludeShorts: null, ytProcessDelayMinutesOverride: null,
   ytProbeAttemptsOverride: null, ytProbeIntervalMinutesOverride: null,
-  ytLlmFallbackOverride: null, ytLlmOnTopOverride: null, ytCaptionsOverride: null,
+  ytLlmFallbackOverride: null, ytLlmOnTopOverride: null, ytCaptionsOverride: null, ytHidePrivateOverride: null,
   ytTranscribeOverride: null, author: 'Old', explicit: false, categories: [],
 } as unknown as Feed;
 
@@ -150,6 +150,15 @@ describe('YouTubeFeedPanel', () => {
     await waitFor(() => expect(select.selectedOptions[0].textContent).toBe('Use global (on)'));
     await user.selectOptions(select, 'Off');
     await waitFor(() => expect(mockUpdateFeed).toHaveBeenCalledWith('yt', { ytTranscribeOverride: false }));
+  });
+
+  it('shows the hide private override and sends it', async () => {
+    const user = userEvent.setup();
+    renderPanel();
+    const select = screen.getByLabelText('Hide private and deleted videos') as HTMLSelectElement;
+    await waitFor(() => expect(select.selectedOptions[0].textContent).toBe('Use global (on)'));
+    await user.selectOptions(select, 'Off');
+    await waitFor(() => expect(mockUpdateFeed).toHaveBeenCalledWith('yt', { ytHidePrivateOverride: false }));
   });
 
   it('saves author, explicit and categories from the metadata form', async () => {

@@ -23,7 +23,7 @@ vi.mock('../../api/youtube', () => ({
 const base: YouTubeSettings = {
   enabled: false, apiKeyConfigured: false, processDelayMinutes: 60, sbProbeAttempts: 6,
   sbProbeIntervalMinutes: 30, sbWatchIntervalHours: 6, sbWatchMaxDays: 7, llmFallback: true,
-  captionsAsTranscript: true, transcribeFallback: false,
+  captionsAsTranscript: true, hidePrivate: true, transcribeFallback: false,
   ytdlp: { autoUpdate: true, version: '2026.10.26', lastUpdateAt: null, lastCheckAt: null, lastError: null,
            bakedVersion: '2026.10.20' },
   cookies: { set: false, lines: 0, updatedAt: null },
@@ -60,6 +60,15 @@ describe('YouTubeSection', () => {
     expect(toggle.getAttribute('aria-checked')).toBe('false');
     await userEvent.click(toggle);
     await waitFor(() => expect(mockUpdate).toHaveBeenCalledWith({ transcribeFallback: true }));
+  });
+
+  it('saves the hide private toggle', async () => {
+    mockUpdate.mockResolvedValue({ ...base, hidePrivate: false });
+    renderSection();
+    const toggle = await screen.findByRole('switch', { name: /hide private and deleted videos/i });
+    expect(toggle.getAttribute('aria-checked')).toBe('true');
+    await userEvent.click(toggle);
+    await waitFor(() => expect(mockUpdate).toHaveBeenCalledWith({ hidePrivate: false }));
   });
 
   it('tests a typed key and reports the result', async () => {

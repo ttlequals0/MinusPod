@@ -40,6 +40,7 @@ export interface Feed {
   ytLlmFallbackOverride?: boolean | null;
   ytLlmOnTopOverride?: boolean | null;
   ytCaptionsOverride?: boolean | null;
+  ytHidePrivateOverride?: boolean | null;
   ytTranscribeOverride?: boolean | null;
   description?: string;
   artworkUrl?: string;

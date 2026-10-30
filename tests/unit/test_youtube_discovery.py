@@ -74,6 +74,19 @@ def test_untitled_entry_does_not_use_a_limit_slot():
     assert {e['video_id'] for e in episodes} == {'vid000000001', 'vid000000002'}
 
 
+def test_hide_private_off_keeps_unavailable_entries():
+    listing = {**YT_DLP_LISTING, 'entries': [
+        {'id': 'abcdefghijk', 'upload_date': '20261009', 'duration': 600},
+        {'id': 'bcdefghijkl', 'title': '[Private video]', 'upload_date': '20261008', 'duration': 600},
+        *YT_DLP_LISTING['entries'][:1],
+    ]}
+    podcast = {**_podcast(), 'yt_hide_private_override': 0}
+    with patch.object(discovery.ytdlp, 'run', return_value=_completed(listing)):
+        episodes = discovery.list_videos(_db(), podcast, limit=50)
+    assert {e['video_id']: e['title'] for e in episodes} == {
+        'abcdefghijk': 'abcdefghijk', 'bcdefghijkl': '[Private video]', 'vid000000001': 'Long one'}
+
+
 def test_channel_listing_requests_slack_and_caps_after_the_filter():
     listing = _oldest_first_listing()
     listing['entries'] = [{'id': 'abcdefghijk'}, *listing['entries'][:2]]

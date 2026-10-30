@@ -693,6 +693,7 @@ class SchemaMixin:
             ('yt_llm_fallback_override', 'INTEGER'),
             ('yt_llm_on_top_override', 'INTEGER'),
             ('yt_captions_override', 'INTEGER'),
+            ('yt_hide_private_override', 'INTEGER'),
             ('yt_transcribe_override', 'INTEGER'),
         ]
         for col, definition in podcasts_migrations:
