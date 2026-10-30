@@ -12,7 +12,7 @@ from youtube.settings import YouTubeSettings  # noqa: E402
 NOW = datetime(2026, 10, 29, 12, 0, tzinfo=timezone.utc)
 SETTINGS = YouTubeSettings(enabled=True, process_delay_minutes=60, probe_attempts=3, probe_interval_minutes=30,
                            watch_interval_hours=6, watch_max_days=7, llm_fallback=True,
-                           captions_as_transcript=True, hide_private=True, transcribe_fallback=False, ytdlp_auto_update=True)
+                           captions_as_transcript=True, hide_private=True, transcribe_fallback=False, ytdlp_auto_update=True, ytdlp_extra_args='')
 MARK = [{'UUID': 'u1', 'segment': [1, 2], 'category': 'sponsor', 'actionType': 'skip', 'votes': 1, 'locked': 0}]
 
 

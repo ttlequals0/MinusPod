@@ -32,7 +32,7 @@ ACTIONS = {'sponsor': 'remove', 'self_promo': 'remove', 'intro': 'keep', 'outro'
 def _settings(**over):
     base = dict(enabled=True, process_delay_minutes=0, probe_attempts=6, probe_interval_minutes=30,
                 watch_interval_hours=6, watch_max_days=7, llm_fallback=True, captions_as_transcript=True,
-                hide_private=True, transcribe_fallback=True, ytdlp_auto_update=True)
+                hide_private=True, transcribe_fallback=True, ytdlp_auto_update=True, ytdlp_extra_args='')
     base.update(over)
     return YouTubeSettings(**base)
 

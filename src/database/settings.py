@@ -849,6 +849,9 @@ SETTINGS_REGISTRY: dict[str, SettingSpec] = {
                            **({'payload_key': 'youtubeEnabled', 'payload_kind': 'bool'}
                               if db_key == 'youtube_enabled' else {}))
        for db_key, default in yt_settings.DEFAULTS.items() if isinstance(default, bool)},
+    'youtube_ytdlp_extra_args': SettingSpec(
+        default=yt_settings.DEFAULTS['youtube_ytdlp_extra_args'], seeded=True,
+        validator=yt_settings.extra_args_valid),
     'youtube_ytdlp_version': SettingSpec(resettable=False),
     'youtube_ytdlp_last_update_at': SettingSpec(resettable=False),
     'youtube_ytdlp_last_check_at': SettingSpec(resettable=False),

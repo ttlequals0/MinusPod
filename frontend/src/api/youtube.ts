@@ -12,6 +12,7 @@ export interface YouTubeSettings {
   captionsAsTranscript: boolean;
   hidePrivate: boolean;
   transcribeFallback: boolean;
+  ytdlpExtraArgs: string;
   ytdlp: {
     autoUpdate: boolean;
     version: string | null;
@@ -29,7 +30,7 @@ export interface YouTubeSettings {
 
 export type YouTubeSettingsUpdate = Partial<Pick<YouTubeSettings,
   'enabled' | 'processDelayMinutes' | 'sbProbeAttempts' | 'sbProbeIntervalMinutes'
-  | 'sbWatchIntervalHours' | 'sbWatchMaxDays' | 'llmFallback' | 'captionsAsTranscript' | 'hidePrivate' | 'transcribeFallback'>>
+  | 'sbWatchIntervalHours' | 'sbWatchMaxDays' | 'llmFallback' | 'captionsAsTranscript' | 'hidePrivate' | 'transcribeFallback' | 'ytdlpExtraArgs'>>
   & { apiKey?: string | null; ytdlpAutoUpdate?: boolean };
 
 export interface YouTubePreview {

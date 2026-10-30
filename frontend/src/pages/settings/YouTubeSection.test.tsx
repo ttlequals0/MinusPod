@@ -23,7 +23,7 @@ vi.mock('../../api/youtube', () => ({
 const base: YouTubeSettings = {
   enabled: false, apiKeyConfigured: false, processDelayMinutes: 60, sbProbeAttempts: 6,
   sbProbeIntervalMinutes: 30, sbWatchIntervalHours: 6, sbWatchMaxDays: 7, llmFallback: true,
-  captionsAsTranscript: true, hidePrivate: true, transcribeFallback: false,
+  captionsAsTranscript: true, hidePrivate: true, transcribeFallback: false, ytdlpExtraArgs: '',
   ytdlp: { autoUpdate: true, version: '2026.10.26', lastUpdateAt: null, lastCheckAt: null, lastError: null,
            bakedVersion: '2026.10.20' },
   cookies: { set: false, lines: 0, updatedAt: null },
@@ -69,6 +69,22 @@ describe('YouTubeSection', () => {
     expect(toggle.getAttribute('aria-checked')).toBe('true');
     await userEvent.click(toggle);
     await waitFor(() => expect(mockUpdate).toHaveBeenCalledWith({ hidePrivate: false }));
+  });
+
+  it('saves the extra yt-dlp arguments on blur', async () => {
+    mockUpdate.mockResolvedValue({ ...base, ytdlpExtraArgs: '--limit-rate 2M' });
+    renderSection();
+    await userEvent.type(await screen.findByLabelText(/extra yt-dlp arguments/i), '--limit-rate 2M');
+    await userEvent.tab();
+    await waitFor(() => expect(mockUpdate).toHaveBeenCalledWith({ ytdlpExtraArgs: '--limit-rate 2M' }));
+  });
+
+  it('shows the server message when the extra arguments are rejected', async () => {
+    mockUpdate.mockRejectedValue(new Error('extra yt-dlp arguments: --exec is not allowed'));
+    renderSection();
+    await userEvent.type(await screen.findByLabelText(/extra yt-dlp arguments/i), '--exec x');
+    await userEvent.tab();
+    expect(await screen.findByText(/--exec is not allowed/i)).toBeDefined();
   });
 
   it('tests a typed key and reports the result', async () => {

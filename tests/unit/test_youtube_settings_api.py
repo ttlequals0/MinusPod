@@ -96,3 +96,21 @@ def test_put_key_without_crypto_is_409_and_writes_nothing(app_client, monkeypatc
     }, headers=_csrf_headers(app_client))
     assert resp.status_code == 409
     assert app_client.get('/api/v1/settings/youtube').get_json()['processDelayMinutes'] == 60
+
+
+def test_ytdlp_extra_args_round_trip_and_trim(app_client):
+    _authed(app_client)
+    assert app_client.get('/api/v1/settings/youtube').get_json()['ytdlpExtraArgs'] == ''
+    resp = app_client.put('/api/v1/settings/youtube', json={'ytdlpExtraArgs': '  --limit-rate 2M '},
+                          headers=_csrf_headers(app_client))
+    assert resp.status_code == 200
+    assert resp.get_json()['ytdlpExtraArgs'] == '--limit-rate 2M'
+
+
+def test_ytdlp_extra_args_rejects_bad_values(app_client):
+    _authed(app_client)
+    for value, text in (('--exec x', '--exec is not allowed'), ('--a "b', 'unbalanced quotes'), (5, 'must be a string')):
+        resp = app_client.put('/api/v1/settings/youtube', json={'ytdlpExtraArgs': value},
+                              headers=_csrf_headers(app_client))
+        assert resp.status_code == 400
+        assert text in resp.get_json()['error']

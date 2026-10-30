@@ -56,6 +56,7 @@ const youtubeSettings = {
   captionsAsTranscript: false,
   hidePrivate: true,
   transcribeFallback: false,
+  ytdlpExtraArgs: '--proxy socks5://proxy:1080 --limit-rate 2M',
   ytdlp: {
     autoUpdate: true,
     version: '2026.10.15',
@@ -236,6 +237,20 @@ for (const width of WIDTHS) {
       await expectTouchTargets(page, section, width);
       await expectAxe(page);
       await shoot(page, 'settings-youtube', width);
+    });
+
+    test('settings ytdlp extra arguments', async ({ page }) => {
+      await page.goto('settings#youtube');
+      const input = page.getByLabel('Extra yt-dlp arguments');
+      await expect(input).toBeVisible({ timeout: 15_000 });
+      await input.scrollIntoViewIfNeeded();
+      await page.waitForTimeout(400);
+      const box = (await input.boundingBox())!;
+      if (width < 768) expect(box.height).toBeGreaterThanOrEqual(44);
+      await expectNoOverflow(page);
+      if (width === 390 || width === 1024) {
+        await page.screenshot({ path: path.join(SHOTS, `ytdlp-args-${width}.png`), fullPage: false });
+      }
     });
 
     test('hide private settings toggle', async ({ page }) => {

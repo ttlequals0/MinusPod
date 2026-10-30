@@ -40,6 +40,8 @@ function YouTubeSection() {
   const [keyError, setKeyError] = useState<string | null>(null);
   const [keyTest, setKeyTest] = useState<{ ok: boolean; text: string } | null>(null);
   const [cookiesError, setCookiesError] = useState<string | null>(null);
+  const [argsDraft, setArgsDraft] = useState<string | null>(null);
+  const [argsError, setArgsError] = useState<string | null>(null);
   const [settingsError, setSettingsError] = useState<string | null>(null);
   const [updateNote, setUpdateNote] = useState<{ ok: boolean; text: string } | null>(null);
 
@@ -56,6 +58,12 @@ function YouTubeSection() {
     mutationFn: (p: YouTubeSettingsUpdate) => updateYouTubeSettings(p),
     onSuccess: () => { setSettingsError(null); refresh(); },
     onError: (e: unknown) => setSettingsError(getErrorMessage(e, 'Could not save YouTube settings.')),
+  });
+
+  const saveArgs = useMutation({
+    mutationFn: (ytdlpExtraArgs: string) => updateYouTubeSettings({ ytdlpExtraArgs }),
+    onSuccess: () => { setArgsError(null); setArgsDraft(null); refresh(); },
+    onError: (e: unknown) => setArgsError(getErrorMessage(e, 'Could not save the extra arguments.')),
   });
 
   const saveKey = useMutation({
@@ -283,6 +291,28 @@ function YouTubeSection() {
               />
               <span className="text-sm text-foreground">Update yt-dlp daily</span>
             </label>
+            <div className="space-y-1">
+              <label htmlFor="yt-extra-args" className="text-sm text-foreground">Extra yt-dlp arguments</label>
+              <input
+                id="yt-extra-args"
+                type="text"
+                autoComplete="off"
+                spellCheck={false}
+                className={`${inputBase} min-h-11 w-full font-mono`}
+                value={argsDraft ?? data.ytdlpExtraArgs}
+                onChange={(e) => setArgsDraft(e.target.value)}
+                onBlur={() => {
+                  if (argsDraft !== null && argsDraft.trim() !== data.ytdlpExtraArgs) saveArgs.mutate(argsDraft);
+                  else if (argsDraft !== null) { setArgsDraft(null); setArgsError(null); }
+                }}
+                aria-invalid={argsError ? true : undefined}
+                aria-describedby={argsError ? 'yt-extra-args-help yt-extra-args-error' : 'yt-extra-args-help'}
+              />
+              <p id="yt-extra-args-help" className="text-sm text-muted-foreground">
+                Added before MinusPod&apos;s own options on every yt-dlp call, so output format and paths stay fixed. Example: --proxy socks5://proxy:1080 --limit-rate 2M
+              </p>
+              {argsError && <p id="yt-extra-args-error" role="alert" className="text-sm text-destructive">{argsError}</p>}
+            </div>
             <div className="flex flex-wrap items-center gap-2">
               <button
                 type="button"

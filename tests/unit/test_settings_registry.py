@@ -177,6 +177,7 @@ SEED_SNAPSHOT = {
     'youtube_hide_private': 'true',
     'youtube_transcribe_fallback': 'false',
     'youtube_ytdlp_auto_update': 'true',
+    'youtube_ytdlp_extra_args': '',
 }
 
 # The pre-registry bulk reset endpoint reset exactly these keys

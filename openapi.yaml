@@ -9229,6 +9229,9 @@ paths:
                   type: boolean
                 transcribeFallback:
                   type: boolean
+                ytdlpExtraArgs:
+                  type: string
+                  description: Extra command line arguments added before the app's own options on every yt-dlp call. Options that change output paths, run commands or alter the JSON output are rejected.
                 ytdlpAutoUpdate:
                   type: boolean
       responses:
@@ -12422,6 +12425,9 @@ components:
           type: boolean
         transcribeFallback:
           type: boolean
+        ytdlpExtraArgs:
+          type: string
+          description: Extra command line arguments added before the app's own options on every yt-dlp call. Options that change output paths, run commands or alter the JSON output are rejected.
         ytdlp:
           type: object
           properties:

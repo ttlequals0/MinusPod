@@ -1,6 +1,7 @@
 """yt-dlp binary lifecycle: baked floor, self-updating data-dir copy, subprocess wrapper."""
 import logging
 import os
+import shlex
 import shutil
 import subprocess
 import tempfile
@@ -22,6 +23,13 @@ _ensured_path: Path | None = None
 _baked_version: tuple[str, str | None] | None = None
 _fallback_for: Path | None = None
 _update_lock = threading.Lock()
+_warned_extra_args: set[str] = set()
+MAX_EXTRA_ARGS_LENGTH = 1000
+DENIED_FLAGS = frozenset({
+    '--exec', '--exec-before-download', '--no-exec', '-o', '--output', '-P', '--paths', '-a', '--batch-file',
+    '--load-info-json', '--config-location', '--config-locations', '--cookies', '--cookies-from-browser',
+    '--download-archive', '-j', '--dump-json', '-J', '--dump-single-json', '--print', '--print-to-file',
+})
 
 
 class YtDlpNotInstalled(RuntimeError):
@@ -102,16 +110,47 @@ def ensure_runtime_binary(storage, db) -> Path:
     return target
 
 
-def run(args: list[str], *, timeout: int, cwd=None, storage=None, db=None) -> subprocess.CompletedProcess:
+def parse_extra_args(text: str) -> list[str]:
+    """Split the extra-arguments setting like a shell; reject unsafe or unparseable input."""
+    if not text or not text.strip():
+        return []
+    if len(text) > MAX_EXTRA_ARGS_LENGTH:
+        raise ValueError(f'extra yt-dlp arguments: at most {MAX_EXTRA_ARGS_LENGTH} characters')
+    try:
+        tokens = shlex.split(text)
+    except ValueError:
+        raise ValueError('extra yt-dlp arguments: unbalanced quotes') from None
+    for token in tokens:
+        flag = token.split('=', 1)[0]
+        if token in DENIED_FLAGS or flag in DENIED_FLAGS:
+            raise ValueError(f'extra yt-dlp arguments: {flag} is not allowed')
+    return tokens
+
+
+def _configured_extra_args(db) -> list[str]:
+    text = db.get_setting('youtube_ytdlp_extra_args') or ''
+    try:
+        return parse_extra_args(text)
+    except ValueError as exc:
+        if text not in _warned_extra_args:
+            _warned_extra_args.add(text)
+            logger.warning('Ignoring stored yt-dlp extra arguments: %s', exc)
+        return []
+
+
+def run(args: list[str], *, timeout: int, cwd=None, storage=None, db=None,
+        extra: bool = True) -> subprocess.CompletedProcess:
     # Lazy import: main_app imports this package at startup.
     from main_app import db as app_db, storage as app_storage
     storage = storage or app_storage
+    db = db or app_db
     if _ensured_path is not None and _ensured_path == runtime_path(storage) and _ensured_path.exists():
         binary = _ensured_path
     else:
-        binary = ensure_runtime_binary(storage, db or app_db)
+        binary = ensure_runtime_binary(storage, db)
+    extra_args = _configured_extra_args(db) if extra else []
     try:
-        return subprocess.run([str(binary), *args], capture_output=True, text=True,
+        return subprocess.run([str(binary), *extra_args, *args], capture_output=True, text=True,
                               timeout=timeout, cwd=cwd)
     except FileNotFoundError as exc:
         raise YtDlpNotInstalled(str(exc)) from exc

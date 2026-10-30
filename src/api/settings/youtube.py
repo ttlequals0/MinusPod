@@ -31,6 +31,7 @@ def youtube_status_payload(db) -> dict:
         'captionsAsTranscript': s.captions_as_transcript,
         'hidePrivate': s.hide_private,
         'transcribeFallback': s.transcribe_fallback,
+        'ytdlpExtraArgs': s.ytdlp_extra_args,
         'ytdlp': {
             'autoUpdate': s.ytdlp_auto_update,
             **ytdlp.status(db),
@@ -73,6 +74,15 @@ def put_youtube_settings():
             if not isinstance(data[key], bool):
                 return error_response(f'{key} must be a boolean', 400)
             writes.append((db_key, 'true' if data[key] else 'false'))
+    if 'ytdlpExtraArgs' in data:
+        extra_args = data['ytdlpExtraArgs']
+        if not isinstance(extra_args, str):
+            return error_response('ytdlpExtraArgs must be a string', 400)
+        try:
+            ytdlp.parse_extra_args(extra_args)
+        except ValueError as exc:
+            return error_response(str(exc), 400)
+        writes.append(('youtube_ytdlp_extra_args', extra_args.strip()))
     if 'apiKey' in data and data['apiKey'] is not None and not isinstance(data['apiKey'], str):
         return error_response('apiKey must be a string or null', 400)
     if data.get('apiKey') and not crypto_available():

@@ -1,6 +1,8 @@
 """Global and per-feed YouTube settings."""
 from dataclasses import dataclass, replace
 
+from youtube import ytdlp
+
 BOUNDS = {
     'processDelayMinutes': (0, 1440),
     'sbProbeAttempts': (0, 48),
@@ -29,6 +31,7 @@ DEFAULTS = {
     'youtube_hide_private': True,
     'youtube_transcribe_fallback': False,
     'youtube_ytdlp_auto_update': True,
+    'youtube_ytdlp_extra_args': '',
 }
 
 
@@ -60,6 +63,7 @@ class YouTubeSettings:
     hide_private: bool
     transcribe_fallback: bool
     ytdlp_auto_update: bool
+    ytdlp_extra_args: str
 
 
 def load_global(db) -> YouTubeSettings:
@@ -79,6 +83,7 @@ def load_global(db) -> YouTubeSettings:
         transcribe_fallback=db.get_setting_bool(
             'youtube_transcribe_fallback', d['youtube_transcribe_fallback']),
         ytdlp_auto_update=db.get_setting_bool('youtube_ytdlp_auto_update', d['youtube_ytdlp_auto_update']),
+        ytdlp_extra_args=db.get_setting('youtube_ytdlp_extra_args') or '',
     )
 
 
@@ -111,3 +116,12 @@ def llm_on_top(podcast: dict | None) -> bool:
 
 def api_key(db) -> str:
     return db.get_secret('youtube_api_key') or ''
+
+
+def extra_args_valid(value: str) -> bool:
+    """Registry validator for the extra yt-dlp arguments setting."""
+    try:
+        ytdlp.parse_extra_args(value)
+    except ValueError:
+        return False
+    return True
