@@ -11,6 +11,16 @@ release notes.
 
 ## [Unreleased]
 
+## [2.101.4] - 2026-10-30
+
+### Fixed
+
+- YouTube discovery skips private and deleted playlist entries, which yt-dlp
+  returns as a bare video id, instead of listing them as episodes titled with
+  that id.
+- A one-shot cleanup removes the undescribed placeholder episodes those
+  entries already created.
+
 ## [2.101.3] - 2026-10-30
 
 ### Changed
