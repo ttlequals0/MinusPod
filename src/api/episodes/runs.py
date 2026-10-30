@@ -1176,7 +1176,6 @@ def _reprocess_episode_with_mode(slug, episode_id, legacy=False):
         reset_episode_for_reprocess(db, slug, episode_id, mode)
         if is_youtube_feed(podcast):
             db.disarm_sponsorblock_watch(slug, episode_id)
-        db.disarm_sponsorblock_watch(slug, episode_id)
 
         # Get episode metadata for processing
         episode_url = episode.get('original_url')
