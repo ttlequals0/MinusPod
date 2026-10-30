@@ -4,6 +4,7 @@ Provides shared timestamp parsing, formatting, and adjustment functions
 used across the ad detection, transcription, and chapters pipeline.
 """
 
+import re
 from datetime import datetime, timezone
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
@@ -303,3 +304,5 @@ def ranges_overlap(start_a: float, end_a: float, start_b: float, end_b: float,
     treats touching or near-adjacent ranges as overlapping.
     """
     return start_a <= end_b + tolerance and end_a >= start_b - tolerance
+
+MIDNIGHT_ONLY = re.compile(r'^\d{4}-\d{2}-\d{2}(T00:00:00(Z|\+00:00)?)?$')

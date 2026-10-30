@@ -1305,13 +1305,19 @@ class TestBulkUpsertDiscoveredEpisodes:
             assert ep is not None
             assert ep['status'] == 'discovered'
 
-    def test_bulk_upsert_stamps_yt_metadata_at_only_for_complete_rows(self, temp_db):
-        slug = 'bulk-complete'
-        temp_db.create_podcast(slug, 'https://example.com/feed.xml', 'Test')
-        temp_db.bulk_upsert_discovered_episodes(slug, [
-            {**self._make_episode('ep-full'), 'metadata_complete': True}, self._make_episode('ep-bare')])
-        assert temp_db.get_episode(slug, 'ep-full')['yt_metadata_at']
-        assert temp_db.get_episode(slug, 'ep-bare')['yt_metadata_at'] is None
+    def test_bulk_upsert_stamps_yt_metadata_at_only_for_exact_described_youtube_rows(self, temp_db):
+        temp_db.create_podcast('yt', 'youtube://playlist/PL1', 'Test', feed_type='youtube')
+        temp_db.create_podcast('rss', 'https://example.com/rss.xml', 'Test')
+        full = self._make_episode('ep-full', published='2026-10-20T10:30:00Z')
+        temp_db.bulk_upsert_discovered_episodes('yt', [
+            full,
+            self._make_episode('ep-midnight', title='Midnight', published='2026-10-20T00:00:00Z'),
+            {**full, 'id': 'ep-nodesc', 'title': 'No desc', 'description': ''}])
+        temp_db.bulk_upsert_discovered_episodes('rss', [full])
+        assert temp_db.get_episode('yt', 'ep-full')['yt_metadata_at']
+        assert temp_db.get_episode('yt', 'ep-midnight')['yt_metadata_at'] is None
+        assert temp_db.get_episode('yt', 'ep-nodesc')['yt_metadata_at'] is None
+        assert temp_db.get_episode('rss', 'ep-full')['yt_metadata_at'] is None
 
     def test_bulk_upsert_does_not_overwrite_existing_status(self, temp_db):
         slug = 'bulk-no-overwrite'

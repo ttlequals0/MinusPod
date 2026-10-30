@@ -8,6 +8,7 @@ import pytest
 from tests.app_bootstrap import bootstrap
 
 _test_data_dir = bootstrap('youtube_metadata_test_')
+from database.episodes import PodcastNotFoundError  # noqa: E402
 from utils.time import utc_now  # noqa: E402
 from youtube import download, metadata, ytdlp  # noqa: E402
 
@@ -204,10 +205,22 @@ def test_batch_exception_throttles_and_clears_transaction():
 def test_batch_skips_a_row_whose_feed_was_deleted():
     rows = _two_rows()
     db = _db(rows)
-    db.upsert_episode.side_effect = [ValueError('Podcast not found: s'), None]
+    db.upsert_episode.side_effect = [PodcastNotFoundError('Podcast not found: s'), None]
     with _enabled(), patch.object(metadata, 'fetch_info', return_value={
             'vid1': {'id': 'vid1', 'description': 'A'}, 'vid2': {'id': 'vid2', 'description': 'B'}}), \
             patch.object(metadata.logger, 'exception') as err:
         metadata._run_batch(db)
     assert [c[0][1] for c in db.upsert_episode.call_args_list] == ['e1', 'e2']
+    err.assert_not_called()
+
+
+def test_give_up_stamp_skips_a_row_whose_feed_was_deleted():
+    metadata._misses.clear()
+    metadata._misses['vid1'] = metadata.MAX_MISSES - 1
+    db = _db(_two_rows()[:1])
+    db.upsert_episode.side_effect = PodcastNotFoundError('Podcast not found: s')
+    with _enabled(), patch.object(metadata, 'fetch_info', side_effect=download.DownloadError('boom')), \
+            patch.object(metadata.logger, 'exception') as err:
+        metadata._run_batch(db)
+    db.upsert_episode.assert_called_once()
     err.assert_not_called()

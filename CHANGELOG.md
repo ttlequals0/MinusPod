@@ -22,8 +22,8 @@ release notes.
 
 ### Changed
 
-- Videos listed through the Data API are not revisited by the metadata backfill,
-  since the listing already carries their description and publish time.
+- Listed videos that already carry a description and an exact publish time are
+  not revisited by the metadata backfill.
 
 ## [2.101.6] - 2026-10-30
 

@@ -466,16 +466,3 @@ def test_api_error_message_never_carries_the_proxy():
             discovery._api_get('videos', {}, 'KEY', proxy='http://u:SECRET@p:1')
     assert 'SECRET' not in str(err.value)
 
-
-def test_metadata_complete_flag_only_on_api_built_episodes():
-    with patch.object(discovery, 'safe_get', return_value=_resp()), \
-            patch.object(discovery, 'read_response_capped', side_effect=_api_listing_with_private()):
-        podcast = {**_podcast(), 'yt_hide_private_override': 0}
-        api = discovery.list_videos(_db('KEY'), podcast, limit=50)
-    assert [(e['video_id'], e.get('metadata_complete')) for e in api] == [
-        ('vid000000001', True), ('vid000000009', None)]
-    with patch.object(discovery.ytdlp, 'run', return_value=_completed(YT_DLP_LISTING)):
-        assert not any(e.get('metadata_complete') for e in discovery.list_videos(_db(), _podcast(), limit=50))
-    with patch.object(discovery, 'safe_get', return_value=_resp()), \
-            patch.object(discovery, 'read_response_capped', return_value=json.dumps(API_VIDEO).encode()):
-        assert discovery._single_video_from_api('KEY', 'abc123def45')[0]['metadata_complete'] is True

@@ -3045,7 +3045,7 @@ class AdDetector:
         return canonical_sponsor(sponsor)
 
     def _sponsor_blocked_by_gates(
-        self, sponsor: str, active_pattern_sponsors: set, ad: dict | None = None
+        self, sponsor: str, active_pattern_sponsors: set
     ) -> bool:
         """Apply Gate A (prefix-of-known) and Gate B (unknown short single word).
 
@@ -3180,7 +3180,7 @@ class AdDetector:
             if not sponsor:
                 continue
 
-            if self._sponsor_blocked_by_gates(sponsor, active_pattern_sponsors, candidate):
+            if self._sponsor_blocked_by_gates(sponsor, active_pattern_sponsors):
                 continue
 
             if candidate.get('_member_of'):
