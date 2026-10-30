@@ -46,19 +46,20 @@ def test_list_videos_without_key_uses_ytdlp_and_filters(monkeypatch):
     assert ep['rss_duration'] == 3600.0
     assert ep['published'].startswith('2026-10-20')
     assert len(ep['id']) == 12
-    assert '--playlist-end' in run.call_args.args[0]
+    assert '--playlist-end' not in run.call_args.args[0]
 
 
 def test_list_videos_keeps_shorts_when_enabled():
     with patch.object(discovery.ytdlp, 'run', return_value=_completed(YT_DLP_LISTING)):
         episodes = discovery.list_videos(_db(), _podcast(shorts=1), limit=50)
-    assert [e['video_id'] for e in episodes] == ['vid000000001', 'vid000000002']
+    assert [e['video_id'] for e in episodes] == ['vid000000002', 'vid000000001']
 
 
 def test_channel_feed_lists_long_form_playlist():
     with patch.object(discovery.ytdlp, 'run', return_value=_completed(YT_DLP_LISTING)) as run:
         discovery.list_videos(_db(), _podcast('channel', 'UCabcdefghijklmnopqrstuv'), limit=50)
     assert 'list=UULFabcdefghijklmnopqrstuv' in run.call_args.args[0][-1]
+    assert '--playlist-end' in run.call_args.args[0]
 
 
 def test_ytdlp_failure_is_a_discovery_error():
@@ -206,3 +207,36 @@ def test_api_item_without_snippet_does_not_escape_as_keyerror():
             patch.object(discovery, 'read_response_capped', return_value=payload):
         with pytest.raises(discovery.DiscoveryError, match='unexpected payload'):
             discovery._resolve_with_api('KEY', Source('handle', 'x'))
+
+
+def _oldest_first_listing():
+    return {'entries': [
+        {'id': f'vid00000000{n}', 'title': f'Ep {n}', 'duration': 3600, 'live_status': 'was_live',
+         'upload_date': f'2026100{n}'} for n in (1, 2, 3)]}
+
+
+def test_playlist_lists_everything_then_caps_to_the_newest_via_ytdlp():
+    with patch.object(discovery.ytdlp, 'run', return_value=_completed(_oldest_first_listing())):
+        episodes = discovery.list_videos(_db(), _podcast(), limit=2)
+    assert [e['video_id'] for e in episodes] == ['vid000000003', 'vid000000002']
+
+
+def test_playlist_pages_through_all_items_and_caps_to_the_newest_via_api():
+    def page(ids, token=None):
+        body = {'items': [{'contentDetails': {'videoId': v, 'videoPublishedAt': f'2026-10-0{v[-1]}T00:00:00Z'}}
+                          for v in ids]}
+        if token:
+            body['nextPageToken'] = token
+        return json.dumps(body).encode()
+
+    def videos(*ids):
+        return json.dumps({'items': [{'id': v, 'snippet': {'title': v, 'publishedAt': ''},
+                                      'contentDetails': {'duration': 'PT1H0M0S'}} for v in ids]}).encode()
+
+    bodies = [page(['vid000000001'], 'next'), page(['vid000000002', 'vid000000003']), videos('vid000000003', 'vid000000002')]
+    with patch.object(discovery, 'safe_get', return_value=_resp()) as get, \
+            patch.object(discovery, 'read_response_capped', side_effect=bodies):
+        episodes = discovery.list_videos(_db('KEY'), _podcast(), limit=2)
+    assert [e['video_id'] for e in episodes] == ['vid000000003', 'vid000000002']
+    assert 'pageToken=next' in get.call_args_list[1].args[0]
+    assert 'vid000000003%2Cvid000000002' in get.call_args_list[2].args[0]

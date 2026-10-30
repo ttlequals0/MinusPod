@@ -193,7 +193,7 @@ def test_refresh_feed_artwork_forces_download_for_youtube_feed():
         db.delete_podcast(slug)
 
 
-def test_youtube_feed_rss_rows_are_processed_only():
+def test_youtube_feed_rss_rows_are_published_only():
     from local_feed_builder import _fetch_local_feed_episodes
     db = feeds_mod.db
     slug = 'yt-rss-rows'
@@ -203,8 +203,10 @@ def test_youtube_feed_rss_rows_are_processed_only():
         db.upsert_episode(slug, 'done1', original_url='u', status='processed',
                           processed_file='x.mp3', published_at='2026-10-01T00:00:00Z')
         db.upsert_episode(slug, 'wait1', original_url='u', status='discovered')
+        db.upsert_episode(slug, 'redo1', original_url='u', status='processing',
+                          processed_file='y.mp3', published_at='2026-09-01T00:00:00Z')
         rows = _fetch_local_feed_episodes(db, pid, None, processed_only=True)
-        assert [r['episode_id'] for r in rows] == ['done1']
+        assert [r['episode_id'] for r in rows] == ['done1', 'redo1']
     finally:
         db.delete_podcast(slug)
 

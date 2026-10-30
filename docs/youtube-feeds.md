@@ -51,7 +51,7 @@ To turn the behavior down, use any of these:
 
 Open Settings > YouTube.
 
-1. Turn on **Enable YouTube feeds**. Until this is on, the Add feed page offers no YouTube lookup and the background watcher does nothing.
+1. Turn on **Enable YouTube feeds**. Until this is on, the Add feed page offers no YouTube lookup, and the watcher, feed refreshes, artwork lookups and playback processing do nothing for YouTube feeds.
 2. Optionally set a **YouTube Data API key**. Without one, MinusPod resolves sources and lists videos with yt-dlp. With one it uses the Data API, which is faster and returns exact publish dates. If the key's daily quota runs out, MinusPod falls back to yt-dlp until the quota resets.
 3. Choose **Test key** to check a key. It calls the Data API once against a public channel and reports the result.
 
@@ -74,7 +74,9 @@ Accepted forms:
 
 A channel feed lists long-form uploads by default (see [Shorts and duration filters](#shorts-and-duration-filters)). Adding a source that already exists is rejected, and the lookup reports the existing feed. A private or missing playlist returns "Playlist not found or private".
 
-The feed's first listing runs before the add request returns, so the new feed page already shows discovered episodes. Later listings run on the normal feed refresh schedule.
+The feed's first listing runs in the background after the add request returns, so the new feed page can be empty for a moment. Later listings run on the normal feed refresh schedule.
+
+A playlist feed reads the whole playlist, sorts it by publish date, and keeps the newest videos up to the feed's episode limit, so an oldest-first playlist still shows its latest videos. With a Data API key this costs one quota unit per 50 playlist items on each refresh. A channel feed reads the uploads list, which is already newest first, and stops at the limit.
 
 ## How processing works
 
@@ -87,7 +89,7 @@ A YouTube episode does not process the moment it is discovered. MinusPod gives t
 5. **After processing.** For the rest of the watch window MinusPod keeps checking. If the set of marks changes and the original audio is still retained, the episode is recut automatically.
 6. **LLM on top.** A per-feed switch. When on, the LLM pipeline runs even when marks exist, and its detections are added to the SponsorBlock marks.
 
-A failed SponsorBlock lookup is retried at the state's normal interval, capped at 24 hours.
+A failed SponsorBlock lookup is retried at the state's normal interval, capped at 24 hours. If a queued episode reaches the pipeline and no usable marks are left, or the lookup fails, the run steps aside instead of failing. The episode goes back to waiting and the watcher checks again.
 
 The served RSS contains processed episodes only. An episode that is still waiting for marks is not in the feed, so a podcast app never receives the original video audio.
 

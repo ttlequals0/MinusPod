@@ -23,6 +23,7 @@ logger = logging.getLogger(__name__)
 API = 'https://www.googleapis.com/youtube/v3'
 API_MAX_BYTES = 2 * 1024 * 1024
 SHORTS_MAX_SECONDS = 180
+PLAYLIST_SCAN_CAP = 5000
 _ISO_DURATION = re.compile(r'^P(?:(\d+)D)?T?(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?$')
 _ids = RSSParser()
 
@@ -193,36 +194,41 @@ def list_videos(db, podcast: dict, limit: int) -> list[dict]:
     include_shorts = bool(podcast.get('youtube_include_shorts'))
     playlist_id = _playlist_for(podcast, include_shorts)
     longform = podcast.get('youtube_source_kind') == 'channel' and not include_shorts
+    # Uploads playlists are newest-first, so only a user playlist needs the whole list sorted.
+    full = podcast.get('youtube_source_kind') == 'playlist'
     key = yt_settings.api_key(db)
     if key:
         try:
-            return _list_with_api(key, playlist_id, limit, include_shorts, longform)
+            return _list_with_api(key, playlist_id, limit, include_shorts, longform, full)
         except DiscoveryError as exc:
             logger.warning(f"[{podcast.get('slug')}] YouTube Data API failed ({type(exc).__name__}); "
                            "listing with yt-dlp")
-    return _list_with_ytdlp(playlist_id, limit, include_shorts, longform)
+    return _list_with_ytdlp(playlist_id, limit, include_shorts, longform, full)
 
 
-def _list_with_api(key, playlist_id, limit, include_shorts, longform) -> list[dict]:
+def _list_with_api(key, playlist_id, limit, include_shorts, longform, full=False) -> list[dict]:
     try:
-        return _parse_api_listing(key, playlist_id, limit, include_shorts, longform)
+        return _parse_api_listing(key, playlist_id, limit, include_shorts, longform, full)
     except (KeyError, IndexError, TypeError, AttributeError):
         raise DiscoveryError('YouTube Data API returned an unexpected payload') from None
 
 
-def _parse_api_listing(key, playlist_id, limit, include_shorts, longform) -> list[dict]:
-    ids: list[str] = []
+def _parse_api_listing(key, playlist_id, limit, include_shorts, longform, full=False) -> list[dict]:
+    items: list[tuple[str, str]] = []
     token = None
-    while len(ids) < limit:
+    while True:
         params = {'part': 'contentDetails', 'playlistId': playlist_id, 'maxResults': 50}
         if token:
             params['pageToken'] = token
         page = _api_get('playlistItems', params, key)
-        ids.extend(i['contentDetails']['videoId'] for i in page.get('items') or [])
+        items.extend((i['contentDetails']['videoId'], i['contentDetails'].get('videoPublishedAt') or '')
+                     for i in page.get('items') or [])
         token = page.get('nextPageToken')
-        if not token:
+        if not token or len(items) >= (PLAYLIST_SCAN_CAP if full else limit):
             break
-    ids = ids[:limit]
+    if full:
+        items.sort(key=lambda item: item[1], reverse=True)
+    ids = [video_id for video_id, _ in items][:limit]
     episodes = []
     for start in range(0, len(ids), 50):
         chunk = ids[start:start + 50]
@@ -248,13 +254,17 @@ def _published_from_entry(entry: dict) -> str:
     return ''
 
 
-def _list_with_ytdlp(playlist_id, limit, include_shorts, longform) -> list[dict]:
-    data = _ytdlp_json(f'https://www.youtube.com/playlist?list={playlist_id}',
-                       ['--playlist-end', str(limit), '--extractor-args', 'youtubetab:approximate_date'], timeout=180)
+def _list_with_ytdlp(playlist_id, limit, include_shorts, longform, full=False) -> list[dict]:
+    extra = ['--extractor-args', 'youtubetab:approximate_date']
+    if not full:
+        extra = ['--playlist-end', str(limit), *extra]
+    data = _ytdlp_json(f'https://www.youtube.com/playlist?list={playlist_id}', extra, timeout=180)
+    entries = [e for e in data.get('entries') or [] if e and e.get('id')]
+    if full:
+        entries.sort(key=_published_from_entry, reverse=True)
+        entries = entries[:limit]
     episodes = []
-    for entry in data.get('entries') or []:
-        if not entry or not entry.get('id'):
-            continue
+    for entry in entries:
         is_live = entry.get('live_status') in ('is_live', 'is_upcoming', 'post_live')
         duration = float(entry['duration']) if entry.get('duration') is not None else None
         if not _keep(duration, is_live, include_shorts, longform):

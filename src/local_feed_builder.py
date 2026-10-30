@@ -326,10 +326,10 @@ def _fetch_local_feed_episodes(db_, podcast_id: int, limit: int | None,
     ``limit`` is None or 0 for "every episode" (a local feed's default --
     there is no upstream to reconcile against, so nothing caps it unless the
     operator sets one) or a positive int to keep only the newest N.
-    ``processed_only`` keeps only episodes with a served file (YouTube feeds).
+    ``processed_only`` keeps only episodes with a published file (YouTube feeds), including ones being reprocessed.
     """
     conn = db_.get_connection()
-    served = "AND status = 'processed' AND processed_file IS NOT NULL " if processed_only else ""
+    served = "AND processed_file IS NOT NULL " if processed_only else ""
     query = (f"SELECT * FROM episodes WHERE podcast_id = ? {served}"  # noqa: S608
              "ORDER BY COALESCE(published_at, created_at) DESC")
     params = [podcast_id]

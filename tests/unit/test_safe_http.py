@@ -107,13 +107,15 @@ def test_rebuild_auth_strips_api_key_on_cross_host_redirect():
 
     redirected = requests.Request(
         'GET', 'https://attacker.example/v1',
-        headers={'x-api-key': 'secret', 'api-key': 'secret2', 'Authorization': 'Bearer t'},
+        headers={'x-api-key': 'secret', 'api-key': 'secret2', 'x-goog-api-key': 'secret3',
+                 'Authorization': 'Bearer t'},
     ).prepare()
 
     session.rebuild_auth(redirected, response)
 
     assert 'x-api-key' not in redirected.headers
     assert 'api-key' not in redirected.headers
+    assert 'x-goog-api-key' not in redirected.headers
     assert 'Authorization' not in redirected.headers
 
 

@@ -162,7 +162,7 @@ class _RevalidatingSession(requests.Session):
         # but not provider-specific auth headers; drop those too so a 3xx to an
         # attacker-controlled host cannot exfiltrate an API key (creds-5).
         if original_host and urlparse(target).hostname != original_host:
-            for header in ('x-api-key', 'api-key'):
+            for header in ('x-api-key', 'api-key', 'x-goog-api-key'):
                 prepared_request.headers.pop(header, None)
 
 
