@@ -11,6 +11,13 @@ release notes.
 
 ## [Unreleased]
 
+## [2.101.3] - 2026-10-30
+
+### Fixed
+
+- Processed YouTube episodes appear in the combined Recents feed and the
+  Recents list, like subscribed and local episodes.
+
 ## [2.101.2] - 2026-10-30
 
 ### Fixed
