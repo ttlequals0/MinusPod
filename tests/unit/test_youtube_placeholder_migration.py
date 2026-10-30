@@ -25,12 +25,15 @@ def test_drops_only_placeholder_rows_and_runs_once(temp_db):
     _add(conn, yt, 'withdesc0001', 'discovered', 'defghijklmn', 'defghijklmn', 'text')
     _add(conn, yt, 'processed001', 'processed', 'efghijklmno', 'efghijklmno')
     _add(conn, rss, 'rssepisode01', 'discovered', 'fghijklmnop', 'fghijklmnop')
+    temp_db.index_episodes([('placeholder01', 'yt-feed'), ('realtitle001', 'yt-feed')])
     conn.execute("DELETE FROM schema_migrations WHERE name = 'youtube_drop_private_placeholders'")
     conn.commit()
 
     temp_db._run_schema_migrations()
 
     assert _ids(conn) == {'realtitle001', 'withdesc0001', 'processed001', 'rssepisode01'}
+    indexed = {r[0] for r in conn.execute("SELECT content_id FROM search_index WHERE content_type = 'episode'")}
+    assert 'placeholder01' not in indexed and 'realtitle001' in indexed
     assert conn.execute(
         "SELECT 1 FROM schema_migrations WHERE name = 'youtube_drop_private_placeholders'"
     ).fetchone()

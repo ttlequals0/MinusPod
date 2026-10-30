@@ -1934,7 +1934,6 @@ class SchemaMixin:
             conn.rollback()
             logger.error(f"search index plain-text re-strip failed: {e}")
 
-        # Drop YouTube placeholder rows that private or deleted playlist entries created (2.101.4).
         try:
             self._run_youtube_drop_private_placeholders(conn)
         except Exception as e:
@@ -2849,15 +2848,20 @@ class SchemaMixin:
         name = 'youtube_drop_private_placeholders'
         if conn.execute("SELECT 1 FROM schema_migrations WHERE name = ?", (name,)).fetchone():
             return
-        deleted = conn.execute(
-            "DELETE FROM episodes WHERE status = 'discovered' AND youtube_video_id IS NOT NULL "
-            "AND title = youtube_video_id AND (description IS NULL OR description = '') "
-            "AND podcast_id IN (SELECT id FROM podcasts WHERE feed_type = 'youtube')"
-        ).rowcount
+        rows = conn.execute(
+            "SELECT e.id, e.episode_id, p.slug FROM episodes e JOIN podcasts p ON p.id = e.podcast_id "
+            "WHERE e.status = 'discovered' AND e.title = e.youtube_video_id "
+            "AND (e.description IS NULL OR e.description = '') AND p.feed_type = 'youtube'"
+        ).fetchall()
+        if rows:
+            conn.executemany("DELETE FROM episodes WHERE id = ?", [(r['id'],) for r in rows])
+            if self._table_exists(conn, 'search_index'):
+                pairs = [(r['episode_id'], r['slug']) for r in rows]
+                for start in range(0, len(pairs), _COLLAPSE_BATCH_ROWS):
+                    self._delete_indexed_episodes(conn, pairs[start:start + _COLLAPSE_BATCH_ROWS])
+            logger.info(f"youtube-private-placeholders: removed {len(rows)} placeholder episode(s)")
         conn.execute("INSERT OR IGNORE INTO schema_migrations (name) VALUES (?)", (name,))
         conn.commit()
-        if deleted > 0:
-            logger.info(f"youtube-private-placeholders: removed {deleted} placeholder episode(s)")
 
     def _run_reindex_search_plain_text(self, conn, already_rebuilt: bool = False,
                                        name: str = 'search_index_plain_text_2_100_12') -> bool:

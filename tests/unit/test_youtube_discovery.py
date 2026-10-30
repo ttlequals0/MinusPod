@@ -59,6 +59,14 @@ def test_ytdlp_listing_skips_entries_without_a_title():
     assert [e['video_id'] for e in episodes] == ['vid000000001']
 
 
+def test_untitled_entry_does_not_use_a_limit_slot():
+    listing = _oldest_first_listing()
+    listing['entries'] = [{'id': 'abcdefghijk', 'upload_date': '20261009'}, *listing['entries'][:2]]
+    with patch.object(discovery.ytdlp, 'run', return_value=_completed(listing)):
+        episodes = discovery.list_videos(_db(), _podcast(), limit=2)
+    assert {e['video_id'] for e in episodes} == {'vid000000001', 'vid000000002'}
+
+
 def test_list_videos_keeps_shorts_when_enabled():
     with patch.object(discovery.ytdlp, 'run', return_value=_completed(YT_DLP_LISTING)):
         episodes = discovery.list_videos(_db(), _podcast(shorts=1), limit=50)

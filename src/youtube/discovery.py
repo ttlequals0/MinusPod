@@ -265,15 +265,13 @@ def _list_with_ytdlp(playlist_id, limit, include_shorts, longform, full=False) -
     if not full:
         extra = ['--playlist-end', str(limit), *extra]
     data = _ytdlp_json(f'https://www.youtube.com/playlist?list={playlist_id}', extra, timeout=180)
-    entries = [e for e in data.get('entries') or [] if e and e.get('id')]
+    # Private or deleted videos come back as a bare id.
+    entries = [e for e in data.get('entries') or [] if e and e.get('id') and e.get('title')]
     if full:
         entries.sort(key=_published_from_entry, reverse=True)
         entries = entries[:limit]
     episodes = []
     for entry in entries:
-        # Private or deleted videos come back as a bare id.
-        if not entry.get('title'):
-            continue
         is_live = entry.get('live_status') in ('is_live', 'is_upcoming', 'post_live')
         duration = float(entry['duration']) if entry.get('duration') is not None else None
         if not _keep(duration, is_live, include_shorts, longform):
