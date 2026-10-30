@@ -166,13 +166,13 @@ function YouTubeFeedPanel({ feed, slug }: { feed: Feed; slug: string }) {
           </GlobalOverrideRow>
           <GlobalOverrideRow
             label="Private"
-            ariaLabel="Hide private and deleted videos"
+            ariaLabel="hide private and deleted episodes"
             value={toTri(feed.ytHidePrivateOverride)}
             globalOn={!!globals?.hidePrivate}
             disabled={pending}
             onChange={setBool('ytHidePrivateOverride')}
           >
-            Hide private and deleted videos. Off lists them, and they fail to download unless the cookies account can watch them.
+            hide private and deleted episodes. Off lists them, but they only download when the cookies account can watch them.
           </GlobalOverrideRow>
           <GlobalOverrideRow
             label="Transcribe"

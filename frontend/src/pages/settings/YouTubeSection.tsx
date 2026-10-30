@@ -208,14 +208,9 @@ function YouTubeSection() {
                 checked={data.hidePrivate}
                 onChange={(hidePrivate) => saveSettings.mutate({ hidePrivate })}
                 disabled={saveSettings.isPending}
-                ariaLabel="Hide private and deleted videos"
+                ariaLabel="hide private and deleted episodes"
               />
-              <span className="text-sm text-foreground">
-                Hide private and deleted videos
-                <span className="block text-xs text-muted-foreground">
-                  Skip playlist entries the listing cannot see. Turn off when the cookies file belongs to an account that can watch them.
-                </span>
-              </span>
+              <span className="text-sm text-foreground">hide private and deleted episodes</span>
             </label>
             <label className="flex items-center gap-3 cursor-pointer">
               <ToggleSwitch

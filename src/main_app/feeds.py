@@ -254,8 +254,9 @@ def _refresh_youtube_feed(slug, podcast, force, record_failure) -> RefreshOutcom
     db.update_podcast(slug, last_refresh_attempt_at=utc_now_iso())
     try:
         limit = db.get_max_episodes_for_podcast(slug, podcast=podcast)
+        resolved = yt_settings.resolve_feed(db, podcast)
         try:
-            episodes = discovery.list_videos(db, podcast, limit)
+            episodes = discovery.list_videos(db, podcast, limit, resolved)
         except discovery.DiscoveryError as exc:
             if record_failure:
                 _record_refresh_failure(slug, str(exc), podcast=podcast)
@@ -269,7 +270,6 @@ def _refresh_youtube_feed(slug, podcast, force, record_failure) -> RefreshOutcom
         scheduled = 0
         if db.is_auto_process_enabled_for_podcast(slug, podcast=podcast):
             cutoff = datetime.now(timezone.utc) - timedelta(hours=db.get_auto_process_max_age_hours(podcast))
-            resolved = yt_settings.resolve_feed(db, podcast)
             for ep in episodes:
                 if ep_statuses.get(ep['id']) not in (None, 'discovered'):
                     continue

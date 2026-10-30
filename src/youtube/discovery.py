@@ -25,7 +25,9 @@ API_MAX_BYTES = 2 * 1024 * 1024
 SHORTS_MAX_SECONDS = 180
 PLAYLIST_SCAN_CAP = 5000
 UNAVAILABLE_SLACK = 20
-_UNAVAILABLE_TITLES = frozenset({'[Private video]', '[Deleted video]', '[Unavailable video]'})
+PLACEHOLDER_TITLES = {'[Private video]': 'Private episode', '[Deleted video]': 'Deleted episode',
+                      '[Unavailable video]': 'Unavailable episode'}
+_UNAVAILABLE_TITLES = frozenset(PLACEHOLDER_TITLES)
 _ISO_DURATION = re.compile(r'^P(?:(\d+)D)?T?(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?$')
 _ids = RSSParser()
 
@@ -198,31 +200,31 @@ def _keep(duration, is_live_or_upcoming: bool, include_shorts: bool, from_channe
     return duration is None or duration > SHORTS_MAX_SECONDS
 
 
-def list_videos(db, podcast: dict, limit: int) -> list[dict]:
+def list_videos(db, podcast: dict, limit: int, settings=None) -> list[dict]:
     include_shorts = bool(podcast.get('youtube_include_shorts'))
     playlist_id = _playlist_for(podcast, include_shorts)
     longform = podcast.get('youtube_source_kind') == 'channel' and not include_shorts
     # Uploads playlists are newest-first, so only a user playlist needs the whole list sorted.
     full = podcast.get('youtube_source_kind') == 'playlist'
+    hide_private = (settings or yt_settings.resolve_feed(db, podcast)).hide_private
     key = yt_settings.api_key(db)
     if key:
         try:
-            return _list_with_api(key, playlist_id, limit, include_shorts, longform, full)
+            return _list_with_api(key, playlist_id, limit, include_shorts, longform, full, hide_private=hide_private)
         except DiscoveryError as exc:
             logger.warning(f"[{podcast.get('slug')}] YouTube Data API failed ({type(exc).__name__}); "
                            "listing with yt-dlp")
-    hide_private = yt_settings.resolve_feed(db, podcast).hide_private
     return _list_with_ytdlp(playlist_id, limit, include_shorts, longform, full, hide_private=hide_private)
 
 
-def _list_with_api(key, playlist_id, limit, include_shorts, longform, full=False) -> list[dict]:
+def _list_with_api(key, playlist_id, limit, include_shorts, longform, full=False, *, hide_private) -> list[dict]:
     try:
-        return _parse_api_listing(key, playlist_id, limit, include_shorts, longform, full)
+        return _parse_api_listing(key, playlist_id, limit, include_shorts, longform, full, hide_private=hide_private)
     except (KeyError, IndexError, TypeError, AttributeError):
         raise DiscoveryError('YouTube Data API returned an unexpected payload') from None
 
 
-def _parse_api_listing(key, playlist_id, limit, include_shorts, longform, full=False) -> list[dict]:
+def _parse_api_listing(key, playlist_id, limit, include_shorts, longform, full=False, *, hide_private) -> list[dict]:
     items: list[tuple[str, str]] = []
     token = None
     while True:
@@ -237,8 +239,10 @@ def _parse_api_listing(key, playlist_id, limit, include_shorts, longform, full=F
             break
     if full:
         items.sort(key=lambda item: item[1], reverse=True)
-    ids = [video_id for video_id, _ in items][:limit]
+    ids = [video_id for video_id, _ in items][:limit + UNAVAILABLE_SLACK]
+    published_by_id = dict(items)
     episodes = []
+    seen = set()
     for start in range(0, len(ids), 50):
         chunk = ids[start:start + 50]
         data = _api_get('videos', {'part': 'contentDetails,snippet,liveStreamingDetails', 'id': ','.join(chunk)}, key)
@@ -251,7 +255,12 @@ def _parse_api_listing(key, playlist_id, limit, include_shorts, longform, full=F
             sn = item.get('snippet', {})
             episodes.append(_episode(item['id'], sn.get('title'), sn.get('description'),
                                      sn.get('publishedAt') or '', duration, _best_thumb(sn.get('thumbnails'))))
-    return episodes
+            seen.add(item['id'])
+    if not hide_private:
+        # videos.list omits private and deleted ids
+        episodes.extend(_episode(vid, PLACEHOLDER_TITLES['[Private video]'], '', published_by_id.get(vid) or '', None, None)
+                        for vid in ids if vid not in seen)
+    return episodes[:limit]
 
 
 def _published_from_entry(entry: dict) -> str:
@@ -263,14 +272,15 @@ def _published_from_entry(entry: dict) -> str:
     return ''
 
 
-def _list_with_ytdlp(playlist_id, limit, include_shorts, longform, full=False, *, hide_private=True) -> list[dict]:
+def _list_with_ytdlp(playlist_id, limit, include_shorts, longform, full=False, *, hide_private) -> list[dict]:
     extra = ['--extractor-args', 'youtubetab:approximate_date']
     if not full:
         extra = ['--playlist-end', str(limit + UNAVAILABLE_SLACK), *extra]
     data = _ytdlp_json(f'https://www.youtube.com/playlist?list={playlist_id}', extra, timeout=180)
     # Private or deleted videos come back as a bare id or a placeholder title.
-    entries = [e for e in data.get('entries') or [] if e and e.get('id')
-               and (not hide_private or (e.get('title') and e['title'] not in _UNAVAILABLE_TITLES))]
+    entries = [e for e in data.get('entries') or [] if e and e.get('id')]
+    if hide_private:
+        entries = [e for e in entries if e.get('title') and e['title'] not in _UNAVAILABLE_TITLES]
     if full:
         entries.sort(key=_published_from_entry, reverse=True)
     entries = entries[:limit]
@@ -280,6 +290,7 @@ def _list_with_ytdlp(playlist_id, limit, include_shorts, longform, full=False, *
         duration = float(entry['duration']) if entry.get('duration') is not None else None
         if not _keep(duration, is_live, include_shorts, longform):
             continue
-        episodes.append(_episode(entry['id'], entry.get('title'), entry.get('description'),
+        title = PLACEHOLDER_TITLES.get(entry.get('title')) or entry.get('title') or PLACEHOLDER_TITLES['[Private video]']
+        episodes.append(_episode(entry['id'], title, entry.get('description'),
                                  _published_from_entry(entry), duration, _best_thumb(entry.get('thumbnails'))))
     return episodes

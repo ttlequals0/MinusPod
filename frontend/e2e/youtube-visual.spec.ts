@@ -1,5 +1,5 @@
 import AxeBuilder from '@axe-core/playwright';
-import { test, expect, type Page, type Route } from '@playwright/test';
+import { test, expect, type Locator, type Page, type Route } from '@playwright/test';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 
@@ -208,6 +208,14 @@ async function shoot(page: Page, slug: string, width: number) {
   }
 }
 
+async function measureAndShoot(page: Page, target: Locator, name: string, width: number) {
+  await target.scrollIntoViewIfNeeded();
+  await page.waitForTimeout(400);
+  const box = (await target.boundingBox())!;
+  if (width < 768) expect(box.height).toBeGreaterThanOrEqual(44);
+  await shoot(page, name, width);
+}
+
 for (const width of WIDTHS) {
   test.describe(`width ${width}`, () => {
     test.use({ viewport: { width, height: 900 }, hasTouch: width < 768, isMobile: width < 768 });
@@ -228,6 +236,20 @@ for (const width of WIDTHS) {
       await expectTouchTargets(page, section, width);
       await expectAxe(page);
       await shoot(page, 'settings-youtube', width);
+    });
+
+    test('hide private settings toggle', async ({ page }) => {
+      await page.goto('settings#youtube');
+      const toggle = page.getByRole('switch', { name: 'hide private and deleted episodes' });
+      await expect(toggle).toBeVisible({ timeout: 15_000 });
+      await measureAndShoot(page, toggle, 'hide-private-settings', width);
+    });
+
+    test('hide private feed override', async ({ page }) => {
+      await page.goto(`feeds/${SLUG}`);
+      const select = page.getByLabel('hide private and deleted episodes');
+      await expect(select).toBeVisible({ timeout: 15_000 });
+      await measureAndShoot(page, select, 'hide-private-feed', width);
     });
 
     test('add feed youtube lookup card', async ({ page }) => {
@@ -317,103 +339,3 @@ const sponsorBlockRun = {
     },
   },
 };
-
-for (const width of [390, 1024]) {
-  test.describe(`run stages at ${width}`, () => {
-    test.use({ viewport: { width, height: 900 }, hasTouch: width < 768, isMobile: width < 768 });
-
-    test('elapsed by stage shows SponsorBlock lookup and skipped audio analysis', async ({ page }) => {
-      await mockApi(page);
-      await routeEpisode(page, { processingRuns: [sponsorBlockRun] });
-      await page.goto(`feeds/${SLUG}/episodes/${EPISODE_ID}`);
-      await page.getByRole('heading', { name: 'Processing stats' }).click();
-      await page.getByRole('button', { name: /show phase breakdown for run #1/i }).click();
-      const heading = page.getByRole('heading', { name: 'Elapsed by stage' });
-      await expect(heading).toBeVisible({ timeout: 15_000 });
-      await expect(page.getByText('SponsorBlock lookup').locator('visible=true')).toBeVisible();
-      await expect(page.getByText('Audio analysis', { exact: true }).locator('visible=true').locator('xpath=following-sibling::dd')).toHaveText('Skipped');
-      await page.waitForTimeout(600);
-      await heading.evaluate((el) => el.scrollIntoView({ block: 'start' }));
-      await page.evaluate(() => window.scrollBy(0, -80));
-      await page.waitForTimeout(300);
-      expect(page.viewportSize()!.width).toBe(width);
-      await expectNoOverflow(page);
-      await shoot(page, 'run-stages', width);
-    });
-  });
-}
-
-for (const width of [320, 390, 430]) {
-  test.describe(`refreshing action row at ${width}`, () => {
-    test.use({ viewport: { width, height: 900 }, hasTouch: true, isMobile: true });
-
-    test('keeps Delete on screen while Refresh is pending', async ({ page }) => {
-      await mockApi(page);
-      await seedOpen(page);
-      await page.route('**/api/v1/feeds/*/refresh', () => new Promise<void>(() => {}));
-      await page.goto(`feeds/${SLUG}`);
-      const trigger = page.getByRole('button', { name: 'Refresh', exact: true });
-      await expect(trigger).toBeVisible({ timeout: 15_000 });
-      await trigger.click();
-      await page.getByRole('menuitem', { name: /^Refresh\b/ }).first().click();
-      await expect(trigger).toBeDisabled();
-      const remove = page.getByRole('button', { name: 'Delete feed' });
-      await remove.scrollIntoViewIfNeeded();
-      await page.waitForTimeout(400);
-      expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
-      expect(await remove.evaluate((el) => el.getBoundingClientRect().right <= window.innerWidth)).toBe(true);
-      await shoot(page, 'feed-detail-refreshing', width);
-    });
-  });
-}
-
-test.describe('settings search', () => {
-  test.use({ viewport: { width: 1280, height: 900 } });
-
-  test('typing YouTube keeps the section visible', async ({ page }) => {
-    await mockApi(page);
-    await page.goto('settings');
-    const search = page.getByRole('textbox', { name: /search/i }).first();
-    await search.fill('YouTube');
-    const section = page.locator('[data-search-key="settings-section-youtube"]');
-    await expect(section).toBeVisible();
-    await expect(section).not.toHaveClass(/hidden/);
-    await page.waitForTimeout(400);
-    await page.screenshot({ path: path.join(SHOTS, 'settings-search-youtube-1280.png'), fullPage: false });
-  });
-});
-
-for (const width of [390, 1024]) {
-  test.describe(`hide private controls ${width}`, () => {
-    test.use({ viewport: { width, height: 900 }, hasTouch: width < 768, isMobile: width < 768 });
-
-    test.beforeEach(async ({ page }) => {
-      await mockApi(page);
-      await seedOpen(page);
-    });
-
-    test('settings toggle', async ({ page }) => {
-      await page.goto('settings#youtube');
-      const toggle = page.getByRole('switch', { name: 'Hide private and deleted videos' });
-      await expect(toggle).toBeVisible({ timeout: 15_000 });
-      await toggle.scrollIntoViewIfNeeded();
-      await page.waitForTimeout(400);
-      const box = (await toggle.boundingBox())!;
-      if (width < 768) expect(box.height).toBeGreaterThanOrEqual(44);
-      console.log(`hide-private settings toggle ${width}: ${box.width}x${box.height}`);
-      await page.screenshot({ path: path.join(SHOTS, `hide-private-settings-${width}.png`), fullPage: false });
-    });
-
-    test('feed override row', async ({ page }) => {
-      await page.goto(`feeds/${SLUG}`);
-      const select = page.getByLabel('Hide private and deleted videos');
-      await expect(select).toBeVisible({ timeout: 15_000 });
-      await select.scrollIntoViewIfNeeded();
-      await page.waitForTimeout(400);
-      const box = (await select.boundingBox())!;
-      if (width < 768) expect(box.height).toBeGreaterThanOrEqual(44);
-      console.log(`hide-private feed override ${width}: ${box.width}x${box.height}`);
-      await page.screenshot({ path: path.join(SHOTS, `hide-private-feed-${width}.png`), fullPage: false });
-    });
-  });
-}

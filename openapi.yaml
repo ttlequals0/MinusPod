@@ -1233,7 +1233,7 @@ paths:
                   description: YouTube feeds only. Use YouTube captions as the transcript. Null follows the global setting.
                 ytHidePrivateOverride:
                   type: [boolean, 'null']
-                  description: YouTube feeds only. Hide private and deleted videos from the listing. Null follows the global setting.
+                  description: YouTube feeds only. hide private and deleted episodes from the listing. Null follows the global setting.
                 ytTranscribeOverride:
                   type: [boolean, 'null']
                   description: YouTube feeds only. Transcribe with the configured transcriber when captions are missing. Null follows the global setting.
@@ -14462,7 +14462,7 @@ components:
           description: YouTube feeds only. Use YouTube captions as the transcript. Null follows the global setting.
         ytHidePrivateOverride:
           type: [boolean, 'null']
-          description: YouTube feeds only. Hide private and deleted videos from the listing. Null follows the global setting.
+          description: YouTube feeds only. hide private and deleted episodes from the listing. Null follows the global setting.
         ytTranscribeOverride:
           type: [boolean, 'null']
           description: YouTube feeds only. Transcribe with the configured transcriber when captions are missing. Null follows the global setting.

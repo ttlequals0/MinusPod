@@ -8,7 +8,7 @@ from datetime import timedelta
 from urllib.parse import parse_qs, urlparse
 
 from utils.time import epoch_to_iso, utc_now, utc_now_iso
-from youtube import download, ytdlp
+from youtube import discovery, download, ytdlp
 from youtube import settings as yt_settings
 from youtube.urls import watch_url
 
@@ -37,6 +37,8 @@ def fill_fields(episode_row, info) -> dict:
     if description and not (episode_row or {}).get('description'):
         fields['description'] = description
     info = info or {}
+    if info.get('title') and (episode_row or {}).get('title') in discovery.PLACEHOLDER_TITLES.values():
+        fields['title'] = info['title']
     timestamp = info.get('timestamp')
     if not isinstance(timestamp, (int, float)):
         timestamp = info.get('release_timestamp')

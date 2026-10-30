@@ -84,7 +84,15 @@ def test_hide_private_off_keeps_unavailable_entries():
     with patch.object(discovery.ytdlp, 'run', return_value=_completed(listing)):
         episodes = discovery.list_videos(_db(), podcast, limit=50)
     assert {e['video_id']: e['title'] for e in episodes} == {
-        'abcdefghijk': 'abcdefghijk', 'bcdefghijkl': '[Private video]', 'vid000000001': 'Long one'}
+        'abcdefghijk': 'Private episode', 'bcdefghijkl': 'Private episode', 'vid000000001': 'Long one'}
+
+
+def test_hide_private_off_maps_deleted_placeholder_title():
+    listing = {**YT_DLP_LISTING, 'entries': [{'id': 'abcdefghijk', 'title': '[Deleted video]', 'duration': 600}]}
+    podcast = {**_podcast(), 'yt_hide_private_override': 0}
+    with patch.object(discovery.ytdlp, 'run', return_value=_completed(listing)):
+        episodes = discovery.list_videos(_db(), podcast, limit=50)
+    assert [e['title'] for e in episodes] == ['Deleted episode']
 
 
 def test_channel_listing_requests_slack_and_caps_after_the_filter():
@@ -139,6 +147,34 @@ def _api_pages():
     return [json.dumps(items).encode(), json.dumps(videos).encode()]
 
 
+def _api_listing_with_private():
+    items = {'items': [{'contentDetails': {'videoId': 'vid000000001', 'videoPublishedAt': '2026-10-20T10:00:00Z'}},
+                       {'contentDetails': {'videoId': 'vid000000009', 'videoPublishedAt': '2026-10-19T10:00:00Z'}}]}
+    videos = {'items': _api_pages_videos()[:1]}
+    return [json.dumps(items).encode(), json.dumps(videos).encode()]
+
+
+def _api_pages_videos():
+    return json.loads(_api_pages()[1])['items']
+
+
+def test_api_listing_hides_private_ids_by_default():
+    with patch.object(discovery, 'safe_get', return_value=_resp()), \
+            patch.object(discovery, 'read_response_capped', side_effect=_api_listing_with_private()):
+        episodes = discovery.list_videos(_db('KEY'), _podcast(), limit=50)
+    assert [e['video_id'] for e in episodes] == ['vid000000001']
+
+
+def test_api_listing_adds_placeholder_when_hide_private_off():
+    podcast = {**_podcast(), 'yt_hide_private_override': 0}
+    with patch.object(discovery, 'safe_get', return_value=_resp()), \
+            patch.object(discovery, 'read_response_capped', side_effect=_api_listing_with_private()):
+        episodes = discovery.list_videos(_db('KEY'), podcast, limit=50)
+    assert [(e['video_id'], e['title']) for e in episodes] == [
+        ('vid000000001', 'Long'), ('vid000000009', 'Private episode')]
+    assert episodes[1]['published'] == '2026-10-19T10:00:00Z' and episodes[1]['rss_duration'] is None
+
+
 def _resp(status=200, text=''):
     return MagicMock(status_code=status, text=text)
 
@@ -166,13 +202,13 @@ def test_quota_exhausted_falls_back_to_ytdlp():
 def test_api_404_is_source_not_found():
     with patch.object(discovery, 'safe_get', return_value=_resp(404)):
         with pytest.raises(discovery.SourceNotFound):
-            discovery._list_with_api('KEY', 'PL1', 50, False, False)
+            discovery._list_with_api('KEY', 'PL1', 50, False, False, hide_private=True)
 
 
 def test_api_other_status_is_discovery_error():
     with patch.object(discovery, 'safe_get', return_value=_resp(500)):
         with pytest.raises(discovery.DiscoveryError) as exc:
-            discovery._list_with_api('KEY', 'PL1', 50, False, False)
+            discovery._list_with_api('KEY', 'PL1', 50, False, False, hide_private=True)
     assert '500' in str(exc.value)
 
 
@@ -204,7 +240,7 @@ def test_api_network_error_does_not_leak_key():
     exc = requests.ConnectionError('failed https://www.googleapis.com/youtube/v3/x?key=SECRETKEY')
     with patch.object(discovery, 'safe_get', side_effect=exc):
         with pytest.raises(discovery.DiscoveryError) as err:
-            discovery._list_with_api('SECRETKEY', 'PL1', 50, False, False)
+            discovery._list_with_api('SECRETKEY', 'PL1', 50, False, False, hide_private=True)
     assert 'SECRETKEY' not in str(err.value)
     assert 'ConnectionError' in str(err.value)
 
@@ -213,7 +249,7 @@ def test_api_unreadable_body_is_discovery_error():
     with patch.object(discovery, 'safe_get', return_value=_resp()), \
             patch.object(discovery, 'read_response_capped', return_value=b'\xff not json'):
         with pytest.raises(discovery.DiscoveryError) as err:
-            discovery._list_with_api('KEY', 'PL1', 50, False, False)
+            discovery._list_with_api('KEY', 'PL1', 50, False, False, hide_private=True)
     assert 'unreadable' in str(err.value)
 
 
@@ -222,7 +258,7 @@ def test_api_malformed_page_is_discovery_error():
     with patch.object(discovery, 'safe_get', return_value=_resp()), \
             patch.object(discovery, 'read_response_capped', return_value=page):
         with pytest.raises(discovery.DiscoveryError) as err:
-            discovery._list_with_api('KEY', 'PL1', 50, False, False)
+            discovery._list_with_api('KEY', 'PL1', 50, False, False, hide_private=True)
     assert 'unexpected payload' in str(err.value)
 
 

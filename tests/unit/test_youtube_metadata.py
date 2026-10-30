@@ -23,6 +23,11 @@ def _run_result(stdout='', returncode=0, stderr=''):
     return subprocess.CompletedProcess([], returncode, stdout=stdout, stderr=stderr)
 
 
+def test_fill_fields_replaces_placeholder_title_only():
+    assert metadata.fill_fields({'title': 'Private episode'}, {'title': 'Real'}) == {'title': 'Real'}
+    assert metadata.fill_fields({'title': 'Mine'}, {'title': 'Real'}) == {}
+
+
 def test_fill_fields_description_only_when_empty():
     assert metadata.fill_fields({'description': ''}, {'description': 'Hi'}) == {'description': 'Hi'}
     assert metadata.fill_fields({'description': 'Old'}, {'description': 'New'}) == {}
