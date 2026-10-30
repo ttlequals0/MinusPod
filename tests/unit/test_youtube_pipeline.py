@@ -406,6 +406,16 @@ def test_manual_llm_reprocess_runs_llm_without_marks_or_fallback():
     detect.assert_called_once()
 
 
+def test_jit_stamped_play_without_marks_takes_the_forced_path():
+    row = {'episode_id': 'ep1', 'status': 'pending', 'sb_state': 'watching',
+           'youtube_video_id': 'vid000000001', 'reprocess_source': 'jit'}
+    ok, whisper, detect, *_ = _run([], llm_fallback=False, episode_row=row)
+    assert ok is True
+    detect.assert_called_once()
+    ok, whisper, detect, verification, ap, fin, after, diff = _no_caption_run({**row, 'reprocess_source': 'jit'})
+    assert ok is True and after.call_args.args[2].mode == 'passthrough'
+
+
 def test_exhausted_episode_runs_llm_without_marks_or_fallback():
     row = {'episode_id': 'ep1', 'status': 'pending', 'sb_state': 'exhausted',
            'youtube_video_id': 'vid000000001'}

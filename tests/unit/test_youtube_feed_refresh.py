@@ -98,20 +98,25 @@ def test_title_skip_pattern_video_is_not_scheduled():
         db.delete_podcast(slug)
 
 
-def test_served_feed_lists_only_processed_episodes():
+def test_served_feed_lists_discovered_episode_unless_only_processed():
     db = feeds_mod.db
-    slug = 'yt-served'
+    slug = 'yt-discovered'
     _make_feed(slug)
     try:
-        ep = {**_episode('vid000000005'), 'id': 'a1b2c3d4e5f6'}
-        outcome = _refresh(slug, [ep])
-        assert outcome.success
-        assert '<item>' not in feeds_mod.storage.get_rss(slug)
-        db.upsert_episode(slug, ep['id'], status='processed', processed_file=f'{slug}/{ep["id"]}.mp3')
+        done = {**_episode('vid000000006'), 'id': 'a1b2c3d4e5f7'}
+        new = {**_episode('vid000000007', published='2026-10-27T00:00:00Z'), 'id': 'b1b2c3d4e5f7'}
+        assert _refresh(slug, [done, new]).success
+        db.upsert_episode(slug, done['id'], status='processed', processed_file=f'{slug}/{done["id"]}.mp3')
         assert rebuild_youtube_feed(slug)
         xml = feeds_mod.storage.get_rss(slug)
-        assert xml.count('<item>') == 1
-        assert 'https://www.youtube.com/playlist?list=PL1' in xml
+        assert xml.count('<item>') == 2
+        item = xml.split(f'<guid isPermaLink="false">{new["id"]}</guid>')[1].split('</item>')[0]
+        assert f'/episodes/{slug}/{new["id"]}.mp3' in item and 'length=' not in item
+        assert 'Tue, 27 Oct 2026' in item and '<itunes:duration>1800</itunes:duration>' in item
+        assert 'podcast:transcript' not in item and 'podcast:chapters' not in item
+        db.update_podcast(slug, only_expose_processed_episodes=1)
+        assert rebuild_youtube_feed(slug)
+        assert feeds_mod.storage.get_rss(slug).count('<item>') == 1
     finally:
         db.delete_podcast(slug)
 

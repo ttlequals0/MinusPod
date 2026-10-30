@@ -33,6 +33,9 @@ def test_fill_fields_publish_time_upgrade():
     out = metadata.fill_fields({'published_at': '2026-10-29'}, info)
     assert out['published_at'].startswith('2026-09-21T')
     assert metadata.fill_fields({'published_at': '2026-10-29T08:00:00+00:00'}, info) == {}
+    out = metadata.fill_fields({'published_at': '2026-10-27T00:00:00Z'}, {'timestamp': 1790000000})
+    assert out['published_at'].startswith('2026-09-21T')
+    assert metadata.is_date_only('2026-10-27T00:00:00Z') and not metadata.is_date_only('2026-10-27T00:00:01Z')
     assert 'published_at' in metadata.fill_fields({'published_at': None}, info)
     assert metadata.fill_fields({}, {}) == {}
 

@@ -149,7 +149,7 @@ def _enclosure_audio_metadata(slug: str, ep: dict, storage_) -> tuple[str, float
         path = storage_.get_original_path(slug, ep['episode_id'])
         size = path.stat().st_size
     except OSError:
-        return '', ep.get('original_duration')
+        return '', ep.get('original_duration') or ep.get('rss_duration')
     return f' length="{size}"', ep.get('original_duration')
 
 

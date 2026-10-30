@@ -28,7 +28,7 @@ A YouTube feed is a podcast feed MinusPod builds from a YouTube playlist or chan
 
 YouTube's terms of service restrict downloading. This feature is for personal use with content you are allowed to keep; check the terms for your situation before enabling it. It is off by default.
 
-Like a [local feed](local-feeds.md), there is no podcast RSS upstream. MinusPod lists videos itself, on the normal feed refresh schedule, and publishes only the episodes it has processed.
+Like a [local feed](local-feeds.md), there is no podcast RSS upstream. MinusPod lists videos itself, on the normal feed refresh schedule, and serves every discovered video as an episode.
 
 ## What decides the cuts
 
@@ -98,7 +98,7 @@ A YouTube episode does not process the moment it is discovered. MinusPod gives t
 
 A failed SponsorBlock lookup is retried at the state's normal interval, capped at 24 hours. If a queued episode reaches the pipeline and no usable marks are left, or the lookup fails, the run steps aside instead of failing. The episode goes back to waiting and the watcher checks again.
 
-The served RSS contains processed episodes only. An episode that is still waiting for marks is not in the feed, so a podcast app never receives the original video audio.
+The served feed lists every discovered episode, up to the feed's episode cap, with its upload date. The first play of an unprocessed episode starts processing, and the app retries until the cut is ready. Turn on "Only expose processed episodes" for the feed to list finished episodes only.
 
 Processed YouTube episodes also appear in the combined Recents feed.
 

@@ -317,6 +317,11 @@ def _head_local(slug, episode_id, episode, requested_version=None):
         proxy_resp.headers['Content-Type'] = 'audio/mpeg'
         proxy_resp.content_length = path.stat().st_size
         return proxy_resp
+    if is_youtube_feed(db.get_podcast_by_slug(slug)):
+        # Discovered video not downloaded yet: apps probe with HEAD before the first play.
+        proxy_resp = Response('', status=200)
+        proxy_resp.headers['Content-Type'] = 'audio/mpeg'
+        return proxy_resp
     abort(404)
 
 
@@ -728,6 +733,12 @@ def register_routes(app):
                 feed_logger.info(
                     f"[{slug}:{episode_id}] JIT suppressed for blocked agent, serving original")
                 return redirect(original_url, code=302)
+
+        # An own-audio play is user intent; acquire treats a stamp as manual, never over an existing one.
+        if serves_own_audio and not (episode or {}).get('reprocess_requested_at'):
+            db.upsert_episode(slug, episode_id,
+                              reprocess_requested_at=utc_now_iso(),
+                              reprocess_source=REPROCESS_SOURCE_JIT)
 
         # Start background processing (non-blocking)
         started, reason = start_background_processing(

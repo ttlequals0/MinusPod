@@ -325,7 +325,7 @@ Every term the app uses, in plain words, with a link to the part of the docs tha
 
 ## Y
 
-**YouTube feed** - A podcast feed MinusPod builds from a YouTube playlist or channel: it lists the videos, downloads the audio with yt-dlp, removes sponsor segments and serves the processed episodes as RSS. Off by default. [YouTube Feeds](youtube-feeds.md)
+**YouTube feed** - A podcast feed MinusPod builds from a YouTube playlist or channel: it lists the videos, downloads the audio with yt-dlp, removes sponsor segments and serves the episodes as RSS. Off by default. [YouTube Feeds](youtube-feeds.md)
 
 **yt-dlp** - The command-line downloader MinusPod uses for YouTube. A pinned copy ships in the image, and a copy on the data volume updates daily. [YouTube Feeds > yt-dlp](youtube-feeds.md#yt-dlp)
 
