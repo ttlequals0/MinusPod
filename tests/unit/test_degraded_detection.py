@@ -182,58 +182,61 @@ class TestPersistEpisodeStateClearsFlag:
             slug, episode_id, original_url='local://episode', title='Episode',
             status='processing', retry_count=0)
 
-        with ExitStack() as stack:
-            p = lambda *a, **k: stack.enter_context(patch.object(*a, **k))
-            p(common, '_require_publication_owner')
-            p(common, '_publish_status')
-            p(finalize_stage, 'get_episode_token_totals', return_value={
-                'input_tokens': 0, 'output_tokens': 0, 'cost': 0.0,
-            })
-            p(failure, 'get_episode_token_totals', return_value={
-                'input_tokens': 0, 'output_tokens': 0, 'cost': 0.0,
-            })
-            p(finalize_stage, '_record_history_row')
-            p(finalize_stage, 'fire_event')
-            p(failure, 'fire_event')
+        try:
+            with ExitStack() as stack:
+                p = lambda *a, **k: stack.enter_context(patch.object(*a, **k))
+                p(common, '_require_publication_owner')
+                p(common, '_publish_status')
+                p(finalize_stage, 'get_episode_token_totals', return_value={
+                    'input_tokens': 0, 'output_tokens': 0, 'cost': 0.0,
+                })
+                p(failure, 'get_episode_token_totals', return_value={
+                    'input_tokens': 0, 'output_tokens': 0, 'cost': 0.0,
+                })
+                p(finalize_stage, '_record_history_row')
+                p(finalize_stage, 'fire_event')
+                p(failure, 'fire_event')
 
-            for attempt in range(3):
+                for attempt in range(3):
+                    episode = db.get_episode(slug, episode_id)
+                    failure._handle_processing_failure(
+                        slug, episode_id, 'Episode', 'Retry counter reset', episode,
+                        failure.AudioNotReadyError('CDN not ready (404)'),
+                        start_time=processing.time.time())
+                    if attempt < 2:
+                        db.upsert_episode(slug, episode_id, status='processing')
+                assert db.get_episode(slug, episode_id)['retry_count'] == 3
+
+                finalize._persist_episode_state(
+                    slug, episode_id, pass1_cut_count=0, verification_count=0,
+                    first_pass_count=0, original_duration=100.0, new_duration=100.0,
+                    processed_version=1)
+                assert db.get_episode(slug, episode_id)['retry_count'] == 0
+
+                episode = db.get_episode(slug, episode_id)
+                finalize._maybe_enqueue_degraded_redetect(
+                    slug, episode_id, 'local://episode', 'Episode',
+                    'Retry counter reset', None, None, episode,
+                    {'detection_degraded': 'transient detection failure'})
+                queue_row = db.get_connection().execute(
+                    "SELECT status, attempts FROM auto_process_queue WHERE episode_id = ?",
+                    (episode_id,),
+                ).fetchone()
+                assert queue_row['status'] == 'pending'
+                assert queue_row['attempts'] == 0
+
+                db.upsert_episode(slug, episode_id, status='processing')
                 episode = db.get_episode(slug, episode_id)
                 failure._handle_processing_failure(
                     slug, episode_id, 'Episode', 'Retry counter reset', episode,
                     failure.AudioNotReadyError('CDN not ready (404)'),
                     start_time=processing.time.time())
-                if attempt < 2:
-                    db.upsert_episode(slug, episode_id, status='processing')
-            assert db.get_episode(slug, episode_id)['retry_count'] == 3
-
-            finalize._persist_episode_state(
-                slug, episode_id, pass1_cut_count=0, verification_count=0,
-                first_pass_count=0, original_duration=100.0, new_duration=100.0,
-                processed_version=1)
-            assert db.get_episode(slug, episode_id)['retry_count'] == 0
 
             episode = db.get_episode(slug, episode_id)
-            finalize._maybe_enqueue_degraded_redetect(
-                slug, episode_id, 'local://episode', 'Episode',
-                'Retry counter reset', None, None, episode,
-                {'detection_degraded': 'transient detection failure'})
-            queue_row = db.get_connection().execute(
-                "SELECT status, attempts FROM auto_process_queue WHERE episode_id = ?",
-                (episode_id,),
-            ).fetchone()
-            assert queue_row['status'] == 'pending'
-            assert queue_row['attempts'] == 0
-
-            db.upsert_episode(slug, episode_id, status='processing')
-            episode = db.get_episode(slug, episode_id)
-            failure._handle_processing_failure(
-                slug, episode_id, 'Episode', 'Retry counter reset', episode,
-                failure.AudioNotReadyError('CDN not ready (404)'),
-                start_time=processing.time.time())
-
-        episode = db.get_episode(slug, episode_id)
-        assert episode['status'] == 'failed'
-        assert episode['retry_count'] == 1
+            assert episode['status'] == 'failed'
+            assert episode['retry_count'] == 1
+        finally:
+            db.delete_podcast(slug)
 
 
 class TestFinalizeEpisodeComposesPersistDegradedFlag:
