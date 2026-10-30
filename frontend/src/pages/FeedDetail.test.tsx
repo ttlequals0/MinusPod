@@ -5,11 +5,12 @@
  * exercised.
  */
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router';
 import FeedDetail from './FeedDetail';
+import { refreshFeed } from '../api/feeds';
 import type { Episode, Feed } from '../api/types';
 
 const mockNavigate = vi.fn();
@@ -153,6 +154,21 @@ describe('FeedDetail: local feed visibility matrix', () => {
 // #718: the copy control shrinks to an icon below sm to stay in the left group.
 // Label is hidden directly, not via hideLabelOnMobile: its sm:px-2/h-8 lose to
 // this call site's desktop padding since Tailwind orders same-utility conflicts by scale, not source.
+describe('FeedDetail: pending action labels', () => {
+  it('keeps the phone Refresh label fixed and moves the pending wording to sm and up', async () => {
+    vi.mocked(refreshFeed).mockReturnValue(new Promise(() => {}));
+    renderFeedDetail(makeFeed({}));
+    const trigger = await screen.findByTitle('Refresh feed');
+    fireEvent.click(trigger);
+    fireEvent.click(await screen.findByText('Check for new episodes'));
+    await waitFor(() => expect((trigger as HTMLButtonElement).disabled).toBe(true));
+    const phone = trigger.querySelector('span.sm\\:hidden');
+    expect(phone?.textContent).toBe('Refresh');
+    const wide = trigger.querySelector('span.hidden.sm\\:inline');
+    expect(wide?.textContent).toBe('Refreshing...');
+  });
+});
+
 describe('FeedDetail: copy control mobile sizing', () => {
   it('does not carry the unprefixed px-4 py-2 padding that fights icon-only sizing', async () => {
     renderFeedDetail(makeFeed());

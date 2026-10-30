@@ -265,6 +265,30 @@ for (const width of WIDTHS) {
   });
 }
 
+for (const width of [320, 390, 430]) {
+  test.describe(`refreshing action row at ${width}`, () => {
+    test.use({ viewport: { width, height: 900 }, hasTouch: true, isMobile: true });
+
+    test('keeps Delete on screen while Refresh is pending', async ({ page }) => {
+      await mockApi(page);
+      await seedOpen(page);
+      await page.route('**/api/v1/feeds/*/refresh', () => new Promise<void>(() => {}));
+      await page.goto(`feeds/${SLUG}`);
+      const trigger = page.getByRole('button', { name: 'Refresh', exact: true });
+      await expect(trigger).toBeVisible({ timeout: 15_000 });
+      await trigger.click();
+      await page.getByRole('menuitem', { name: /^Refresh\b/ }).first().click();
+      await expect(trigger).toBeDisabled();
+      const remove = page.getByRole('button', { name: 'Delete feed' });
+      await remove.scrollIntoViewIfNeeded();
+      await page.waitForTimeout(400);
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+      expect(await remove.evaluate((el) => el.getBoundingClientRect().right <= window.innerWidth)).toBe(true);
+      await shoot(page, 'feed-detail-refreshing', width);
+    });
+  });
+}
+
 test.describe('settings search', () => {
   test.use({ viewport: { width: 1280, height: 900 } });
 

@@ -648,13 +648,13 @@ function FeedDetail() {
             />
           </div>
           {/* Below sm: one row (copy first), a 2x2 grid under 360 px; from sm it wraps so nowrap buttons never overflow. */}
-          <div className="contents min-[360px]:flex min-[360px]:flex-1 gap-2 [&>div]:flex-1 sm:flex-none sm:flex-wrap sm:justify-end sm:[&>div]:flex-none">
+          <div className="contents min-[360px]:flex min-[360px]:flex-1 min-w-0 gap-2 [&>div]:flex-1 [&>div]:min-w-0 sm:flex-none sm:flex-wrap sm:justify-end sm:[&>div]:flex-none">
             {!isRecents && (
             <DropdownMenu
-              triggerLabel={reprocessAllMutation.isPending ? 'Queuing...' : (
-                <><span className="sm:hidden">Reprocess</span><span className="hidden sm:inline">Reprocess all</span></>
-              )}
-              triggerClassName={`${btnBase} ${btnSecondary} w-full sm:w-auto`}
+              triggerLabel={
+                <><span className="sm:hidden">Reprocess</span><span className="hidden sm:inline">{reprocessAllMutation.isPending ? 'Queuing...' : 'Reprocess all'}</span></>
+              }
+              triggerClassName={`${btnBase} ${btnSecondary} w-full min-w-0 sm:w-auto`}
               disabled={reprocessAllMutation.isPending}
               title="Reprocess all processed episodes"
               align="left"
@@ -688,10 +688,10 @@ function FeedDetail() {
             )}
             {feedHasUpstream(feed) && (
               <DropdownMenu
-                triggerLabel={refreshMutation.isPending ? 'Refreshing...' : (
-                  <><span className="sm:hidden">Refresh</span><span className="hidden sm:inline">Refresh feed</span></>
-                )}
-                triggerClassName={`${btnBase} ${btnPrimary} w-full sm:w-auto`}
+                triggerLabel={
+                  <><span className="sm:hidden">Refresh</span><span className="hidden sm:inline">{refreshMutation.isPending ? 'Refreshing...' : 'Refresh feed'}</span></>
+                }
+                triggerClassName={`${btnBase} ${btnPrimary} w-full min-w-0 sm:w-auto`}
                 disabled={refreshMutation.isPending}
                 title="Refresh feed"
                 items={[
