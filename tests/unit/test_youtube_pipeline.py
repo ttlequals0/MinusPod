@@ -22,6 +22,7 @@ SEGMENTS = [{'start': 0.0, 'end': 60.0, 'text': 'hello', 'words': []}]
 MARKERS = [{'start': 10.0, 'end': 40.0, 'category': 'sponsor', 'confidence': 1.0, 'source': 'sponsorblock',
             'sb_uuid': 'u1', 'sb_action': 'skip', 'sb_votes': 3, 'sb_locked': False,
             'reason': 'SponsorBlock sponsor', 'sponsor': None, 'detection_stage': 'sponsorblock', 'was_cut': True}]
+RETAINED = '/data/retained/original.mp3'
 ACTIONS = {'sponsor': 'remove', 'self_promo': 'remove', 'intro': 'keep', 'outro': 'remove',
            'recap': 'remove', 'interaction': 'remove', 'cross_promo': 'remove'}
 
@@ -39,7 +40,8 @@ def _pass_through_ads(slug, episode_id, ads_to_remove, *a, **k):
 
 
 def _run(markers, *, llm_on_top=False, llm_fallback=True, episode_row=None, captions=True,
-         saved_transcript=False, download_error=None, fetch_result=..., info=None, transcribe_fallback=True):
+         saved_transcript=False, download_error=None, fetch_result=..., info=None, transcribe_fallback=True,
+         retained=False, caption_file=None, reprocess_mode=None):
     """Drive process_episode for a YouTube feed; extra mocks land in _run.extras."""
     podcast = dict(PODCAST, yt_llm_on_top_override=1 if llm_on_top else None)
     work_dir = tempfile.mkdtemp(prefix='minuspod-yt-test-')
@@ -52,7 +54,8 @@ def _run(markers, *, llm_on_top=False, llm_fallback=True, episode_row=None, capt
             db.get_podcast_by_slug.return_value = podcast
             db.get_episode.return_value = episode_row or {'episode_id': 'ep1', 'status': 'pending',
                                                            'sb_state': 'probing',
-                                                           'youtube_video_id': 'vid000000001'}
+                                                           'youtube_video_id': 'vid000000001',
+                                                           'reprocess_mode': reprocess_mode}
             db.get_podcast_cue_settings_overrides.return_value = {}
             db.get_setting.side_effect = lambda key: 'false'
             db.get_setting_bool.return_value = False
@@ -63,7 +66,7 @@ def _run(markers, *, llm_on_top=False, llm_fallback=True, episode_row=None, capt
             db.resolve_segment_actions.return_value = ACTIONS
             p(processing, 'status_service')
             storage = p(processing, 'storage')
-            storage.get_original_path.return_value = MagicMock(exists=lambda: False)
+            storage.get_original_path.return_value = RETAINED if retained else MagicMock(exists=lambda: False)
             storage.get_transcript.return_value = 'saved text' if saved_transcript else None
             db.get_original_segments.return_value = SEGMENTS if saved_transcript else None
             db.get_repair_holes.return_value = []
@@ -84,6 +87,8 @@ def _run(markers, *, llm_on_top=False, llm_fallback=True, episode_row=None, capt
             update_binary = p(sb_stage.ytdlp, 'update_binary')
             repair = p(transcribe, '_repair_transcript',
                        side_effect=lambda slug, ep, path, segs, *a, **k: (segs, [], []))
+            fetch_captions = p(sb_stage.download, 'fetch_captions', return_value=caption_file)
+            p(common, '_copy_retained_original_to_temp', return_value=audio)
             p(sb_stage.captions, 'load_segments', return_value=SEGMENTS if captions else [])
             p(sb_stage.sponsorblock, 'fetch_segments',
               return_value=([{'UUID': 'u1'}] if markers else []) if fetch_result is ... else fetch_result)
@@ -119,10 +124,10 @@ def _run(markers, *, llm_on_top=False, llm_fallback=True, episode_row=None, capt
             after = p(sb_stage, 'after_success')
             p(processing.shutil, 'move')
             p(processing.os, 'unlink')
-            p(processing.os.path, 'exists', return_value=False)
+            p(processing.os.path, 'exists', side_effect=lambda path: retained and path == RETAINED)
             ok = processing.process_episode('yt-feed', 'ep1', 'https://www.youtube.com/watch?v=vid000000001',
                                             'Ep', 'YT', None, None, None)
-            _run.extras = dict(db=db, sweeps=sweeps, storage=storage, update_binary=update_binary, repair=repair,
+            _run.extras = dict(fetch_captions=fetch_captions, db=db, sweeps=sweeps, storage=storage, update_binary=update_binary, repair=repair,
                           reviewer=reviewer)
             return ok, whisper, detect, verification, ap, fin, after, diff_spy
     finally:
@@ -154,7 +159,8 @@ def test_download_fills_empty_description_and_date_only_published_at():
     info = {'id': 'vid000000001', 'description': 'Full text', 'timestamp': 1790000000}
     _run(MARKERS, episode_row=row, info=info)
     calls = [c.kwargs for c in _run.extras['db'].upsert_episode.call_args_list]
-    assert {'description': 'Full text', 'published_at': '2026-09-21T14:13:20Z'} in calls
+    assert any(c.get('description') == 'Full text' and c.get('published_at') == '2026-09-21T14:13:20Z'
+               and c.get('yt_metadata_at') for c in calls)
 
 
 def test_download_keeps_existing_description_and_full_published_at():
@@ -278,6 +284,47 @@ def test_saved_caption_transcript_is_reused_without_whisper_or_repair():
     whisper.assert_not_called()
     _run.extras['repair'].assert_not_called()
     detect.assert_called_once()
+
+
+def _caption_file(tmp_path):
+    (tmp_path / 'caps').mkdir()
+    path = tmp_path / 'caps' / 'vid000000001.en.json3'
+    path.write_text('{}')
+    return str(path)
+
+
+def test_retained_original_fetches_captions_as_the_transcript(tmp_path):
+    caption_file = _caption_file(tmp_path)
+    ok, whisper, *_ = _run([], retained=True, caption_file=caption_file)
+    assert ok is True
+    _run.extras['fetch_captions'].assert_called_once_with('vid000000001', language=None)
+    whisper.assert_not_called()
+    _run.extras['db'].clear_episode_details.assert_not_called()
+    assert not (tmp_path / 'caps').exists()
+
+
+def test_reprocess_without_captions_keeps_the_saved_transcript():
+    ok, whisper, *_ = _run(MARKERS, retained=True, saved_transcript=True, transcribe_fallback=False,
+                           reprocess_mode='reprocess')
+    assert ok is True
+    _run.extras['fetch_captions'].assert_called_once()
+    whisper.assert_not_called()
+    _run.extras['db'].clear_episode_details.assert_not_called()
+    _run.extras['db'].get_original_segments.assert_called()
+
+
+def test_retained_original_without_captions_or_transcript_skips_transcription():
+    ok, whisper, *_ = _run(MARKERS, retained=True, transcribe_fallback=False)
+    assert ok is True
+    whisper.assert_not_called()
+
+
+def test_caption_fetch_failure_does_not_fail_the_run():
+    with patch.object(sb_stage.download, 'fetch_captions',
+                      side_effect=sb_stage.download.DownloadError('timed out')) as fetch:
+        segments = sb_stage._fetch_retained_captions('yt-feed', 'ep1', 'vid000000001', 'en')
+    fetch.assert_called_once()
+    assert segments == []
 
 
 def _failed(error, **kw):

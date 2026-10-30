@@ -387,7 +387,7 @@ class EpisodeMixin:
                                'low_yield_rerun_at', 'reprocess_source',
                                'season_number', 'p20_item_json',
                                'pending_recut_at', 'chapters_regen_error',
-                               'processed_size_bytes'):
+                               'processed_size_bytes', 'yt_metadata_at'):
                         fields.append(f"{key} = ?")
                         values.append(value)
                     elif key == 'tags':

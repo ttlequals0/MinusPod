@@ -4,17 +4,15 @@ import logging
 import os
 import shutil
 import tempfile
-import re
 from dataclasses import dataclass
 from datetime import timedelta
-from urllib.parse import parse_qs, urlparse
 
 from main_app.pipeline import common
 from main_app.pipeline.shared import audio_processor, db, storage
 from reprocess_modes import FORCE_TRANSCRIBE_MODES
 from utils.markers import parse_ad_markers
-from utils.time import epoch_to_iso, utc_now
-from youtube import captions, download, sponsorblock, ytdlp
+from utils.time import utc_now, utc_now_iso
+from youtube import captions, download, metadata, sponsorblock, ytdlp
 from youtube import settings as yt_settings
 from youtube.settings import YouTubeSettings, llm_on_top
 
@@ -39,9 +37,6 @@ class YouTubeRun:
     resolved: YouTubeSettings
 
 
-_DATE_ONLY = re.compile(r'^\d{4}-\d{2}-\d{2}$')
-
-
 def _retry_at(episode_data, resolved) -> str:
     """Next watcher check after a deferral: probe interval while probing, else the watch interval."""
     if (episode_data or {}).get('sb_state') in ('waiting', 'probing'):
@@ -51,29 +46,31 @@ def _retry_at(episode_data, resolved) -> str:
     return (utc_now() + gap).isoformat()
 
 
-def _video_id(episode_data, episode_url) -> str:
-    vid = (episode_data or {}).get('youtube_video_id')
-    return vid or parse_qs(urlparse(episode_url).query).get('v', [''])[0]
-
-
 def _fill_metadata(slug, episode_id, episode_data, info):
     """Backfill the description and a full publish time that flat listings lack."""
-    fields = {}
-    description = (info or {}).get('description')
-    if description and not (episode_data or {}).get('description'):
-        fields['description'] = description
-    timestamp = (info or {}).get('timestamp')
-    published = (episode_data or {}).get('published_at')
-    if isinstance(timestamp, (int, float)) and (not published or _DATE_ONLY.match(str(published))):
-        fields['published_at'] = epoch_to_iso(timestamp)
-    if fields:
-        db.upsert_episode(slug, episode_id, **fields)
+    fields = metadata.fill_fields(episode_data, info)
+    db.upsert_episode(slug, episode_id, yt_metadata_at=utc_now_iso(), **fields)
+
+
+def _fetch_retained_captions(slug, episode_id, video_id, language):
+    """Captions for a run that reuses retained audio; a failed fetch leaves the run captionless."""
+    try:
+        path = download.fetch_captions(video_id, language=language)
+    except download.DownloadError as exc:
+        audio_logger.warning(f"[{slug}:{episode_id}] Caption fetch failed: {exc}")
+        return []
+    if not path:
+        return []
+    try:
+        return captions.load_segments(path)
+    finally:
+        shutil.rmtree(os.path.dirname(path), ignore_errors=True)
 
 
 def acquire(slug, episode_id, episode_url, podcast, episode_data, reprocess_mode) -> YouTubeRun:
     """Get the audio, captions and SponsorBlock marks, and pick the run mode."""
     resolved = yt_settings.resolve_feed(db, podcast)
-    video_id = _video_id(episode_data, episode_url)
+    video_id = metadata.video_id_of({**(episode_data or {}), 'original_url': episode_url})
     if not video_id:
         raise Exception('YouTube episode has no video id')
     db.update_episode_sponsorblock(slug, episode_id, youtube_video_id=video_id)
@@ -86,6 +83,8 @@ def acquire(slug, episode_id, episode_url, podcast, episode_data, reprocess_mode
     if original and os.path.exists(original):
         audio_logger.info(f"[{slug}:{episode_id}] Reusing retained original audio (skipped download)")
         audio_path = common._copy_retained_original_to_temp(original)
+        if want_captions:
+            segments = _fetch_retained_captions(slug, episode_id, video_id, language)
     else:
         common._publish_status('update_job_stage', slug, episode_id, 'downloading', 5)
         with common._measure_run_stage('download'):

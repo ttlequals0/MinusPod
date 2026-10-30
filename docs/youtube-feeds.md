@@ -58,7 +58,7 @@ Open Settings > YouTube.
 
 To create a key, open the Google Cloud console, create a project, enable the YouTube Data API v3, and create an API key. Restrict the key to that one API. MinusPod sends it in the `X-Goog-Api-Key` header, never in a URL, and stores it encrypted. The key is write-only: the API reports `apiKeyConfigured` and never returns the value. Saving a key requires secret encryption to be available.
 
-Without a key, yt-dlp listings carry no episode descriptions. MinusPod fills the description from the video's metadata when the episode is downloaded for processing. With a key, the Data API supplies descriptions when episodes are discovered.
+Without a key, yt-dlp listings carry no episode descriptions and only a date for the publish time. MinusPod fills the description and exact publish time from the video's metadata when the episode is downloaded, and a background backfill does the same for up to 10 episodes per refresh pass without downloading. With a key, the Data API supplies descriptions when episodes are discovered.
 
 ## Adding a playlist or channel
 

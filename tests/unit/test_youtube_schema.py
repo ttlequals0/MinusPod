@@ -73,3 +73,25 @@ def test_disarm_sponsorblock_watch_clears_only_an_armed_check(db):
     assert db.disarm_sponsorblock_watch('yt-show', 'a1b2c3d4e5f6') is True
     assert db.get_episode('yt-show', 'a1b2c3d4e5f6')['sb_next_check_at'] is None
     assert db.disarm_sponsorblock_watch('yt-show', 'a1b2c3d4e5f6') is False
+
+
+def test_yt_metadata_at_column_on_fresh_and_migrated_db(db, tmp_path):
+    cols = {r['name'] for r in db.get_connection().execute("PRAGMA table_info(episodes)")}
+    assert 'yt_metadata_at' in cols
+    conn = db.get_connection()
+    conn.execute("ALTER TABLE episodes DROP COLUMN yt_metadata_at")
+    conn.commit()
+    db._add_column_if_missing(conn, 'episodes', 'yt_metadata_at', 'TEXT', db._get_table_columns(conn, 'episodes'))
+    assert 'yt_metadata_at' in db._get_table_columns(conn, 'episodes')
+
+
+def test_missing_metadata_selection(db):
+    db.create_podcast('yt-show', 'youtube://playlist/PL1', feed_type='youtube')
+    db.create_podcast('rss-show', 'https://example.com/feed.xml')
+    for slug, eid, desc in (('yt-show', 'e1', ''), ('yt-show', 'e2', 'has one'), ('yt-show', 'e3', None),
+                            ('rss-show', 'e4', '')):
+        db.upsert_episode(slug, eid, original_url='https://www.youtube.com/watch?v=x', description=desc)
+    db.upsert_episode('yt-show', 'e3', yt_metadata_at='2026-10-30T00:00:00Z')
+    rows = db.get_youtube_episodes_missing_metadata(10)
+    assert [r['episode_id'] for r in rows] == ['e1']
+    assert rows[0]['slug'] == 'yt-show'

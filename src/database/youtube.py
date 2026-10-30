@@ -71,6 +71,17 @@ class YouTubeMixin:
             (now_iso, limit))
         return [dict(row) for row in cursor.fetchall()]
 
+    def get_youtube_episodes_missing_metadata(self, limit: int) -> list[dict]:
+        cursor = self.get_connection().execute(
+            """SELECT e.id, e.episode_id, e.youtube_video_id, e.original_url, e.published_at,
+                      e.description, p.slug
+               FROM episodes e JOIN podcasts p ON p.id = e.podcast_id
+               WHERE p.feed_type = 'youtube' AND e.yt_metadata_at IS NULL
+                     AND (e.description IS NULL OR e.description = '')
+               ORDER BY e.published_at DESC, e.id DESC LIMIT ?""",
+            (limit,))
+        return [dict(row) for row in cursor.fetchall()]
+
     def count_youtube_feeds(self) -> int:
         row = self.get_connection().execute(
             "SELECT COUNT(*) AS n FROM podcasts WHERE feed_type = 'youtube'").fetchone()

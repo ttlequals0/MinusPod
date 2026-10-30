@@ -709,7 +709,8 @@ class SchemaMixin:
                     ('sb_attempts', 'INTEGER NOT NULL DEFAULT 0'),
                     ('sb_segment_uuids', 'TEXT'),
                     ('sb_last_error', 'TEXT'),
-                    ('sb_note', 'TEXT')):
+                    ('sb_note', 'TEXT'),
+                    ('yt_metadata_at', 'TEXT')):
                 self._add_column_if_missing(conn, 'episodes', col, definition, episode_cols)
             conn.execute("CREATE INDEX IF NOT EXISTS idx_episodes_sb_next_check "
                          "ON episodes(sb_next_check_at) WHERE sb_next_check_at IS NOT NULL")

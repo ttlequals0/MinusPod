@@ -298,6 +298,7 @@ def background_rss_refresh():
     from db_backup_service import db_backup_tick
     from pattern_cleanup import pattern_cleanup_tick
     from update_checker import update_check_tick
+    from youtube.metadata import backfill_tick as metadata_backfill_tick
     from youtube.watch import sponsorblock_tick
     from youtube.ytdlp import update_tick as ytdlp_update_tick
     outage_passes = 0
@@ -324,6 +325,7 @@ def background_rss_refresh():
             _run_tick(update_check_tick, 'update_check_tick')
         # Both self-throttle, so they run every pass.
         _run_tick(sponsorblock_tick, 'youtube_sponsorblock_tick')
+        _run_tick(metadata_backfill_tick, 'youtube_metadata_backfill_tick')
         _run_tick(ytdlp_update_tick, 'youtube_ytdlp_update_tick')
         # Guard point for issue #566: a tick that swallowed a write failure
         # may have left a transaction open. Clear it before the wait so it
