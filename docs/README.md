@@ -22,6 +22,7 @@ Full documentation for MinusPod. Start with the [project README](../README.md) f
 - [Failover](failover.md) - standby LLM provider and transcriber, triggers, health probes, recovery, manual control, API
 - [Download History](download-history.md) - the History Downloads tab: what is recorded, filters, optional geo lookup, retention, privacy, API
 - [Local Feeds](local-feeds.md) - build a feed from your own audio files: creation, uploads, bulk archive import, naming scheme, JSON sidecar schema
+- [YouTube Feeds](youtube-feeds.md) - turn a playlist or channel into a feed: SponsorBlock-first processing, captions, yt-dlp lifecycle, cookies
 - [Configuration Import / Export](configuration-import-export.md) - export and restore global settings and selected feed configuration
 - [Intel GPU Transcription (OpenVINO)](transcription-openvino.md) - offload Whisper to an Intel GPU via OpenVINO Model Server
 - [API & Webhooks](api-and-webhooks.md) - REST endpoints, webhook events, payload templates, signing

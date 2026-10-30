@@ -401,7 +401,7 @@ The feed's **Episode filters** section has optional **Minimum (minutes)** and **
 
 Limits include their endpoints and use the publisher's RSS duration, before any download or ad removal. Episodes with missing, invalid, or zero duration stay eligible. The minimum cannot exceed the maximum.
 
-An episode outside the range skips automatic and just-in-time processing. **Skipped episodes** decides whether it stays in the served feed with original audio or is hidden. Manual reprocessing overrides duration, title, and description filters. Local feeds ignore these upstream filters.
+An episode outside the range skips automatic and just-in-time processing. **Skipped episodes** decides whether it stays in the served feed with original audio or is hidden. Manual reprocessing overrides duration, title, and description filters. Local feeds ignore these upstream filters. On YouTube feeds, videos of 180 seconds or less (Shorts) are skipped before these filters apply; see [YouTube Feeds](youtube-feeds.md#shorts-and-duration-filters).
 
 API: `minDurationSeconds` and `maxDurationSeconds` on `PATCH /api/v1/feeds/{slug}` accept finite, nonnegative numbers in seconds. Null clears a limit; omitted fields keep their saved values. Configuration Import / Export preserves both limits.
 
@@ -418,6 +418,25 @@ chapters, so nothing is copied. Episodes published before the feed existed
 stay out even when they are reprocessed. The modified OPML export lists it
 alongside your other feeds; the original export skips it, since it has no
 upstream URL.
+
+### YouTube
+
+Settings > YouTube configures [YouTube feeds](youtube-feeds.md). The feature is off until **Enable YouTube feeds** is on.
+
+| Setting (API field) | Default | Range | What it does |
+|---|---|---|---|
+| Enable YouTube feeds (`enabled`) | off | on or off | Master switch for lookup, listing and the SponsorBlock watcher |
+| YouTube Data API key (`apiKey`) | none | string | Optional. Write-only; the API reports `apiKeyConfigured` |
+| Processing delay (`processDelayMinutes`) | 60 | 0 to 1440 minutes | Wait after discovery before the first SponsorBlock check |
+| SponsorBlock probe attempts (`sbProbeAttempts`) | 6 | 0 to 48 | Lookups before the fallback or watch window |
+| Probe interval (`sbProbeIntervalMinutes`) | 30 | 5 to 1440 minutes | Gap between probes |
+| Watch interval (`sbWatchIntervalHours`) | 6 | 1 to 48 hours | Gap between checks in the watch window |
+| Watch ceiling (`sbWatchMaxDays`) | 7 | 1 to 60 days | Days after publish before the watch ends |
+| LLM fallback (`llmFallback`) | on | on or off | Run the LLM pipeline when no marks appear |
+| Use YouTube captions as the transcript (`captionsAsTranscript`) | on | on or off | Skip Whisper when captions exist |
+| Update yt-dlp daily (`ytdlpAutoUpdate`) | on | on or off | Daily self-update of the data-volume copy |
+
+A YouTube feed overrides the delay, probe attempts, probe interval, LLM fallback, captions, and Shorts settings per feed, and adds an LLM on top switch. Null inherits the global value; 0 is a real value. The watch interval and ceiling are global only. API: `GET` and `PUT /api/v1/settings/youtube`; per-feed fields on `PATCH /api/v1/feeds/{slug}` are listed in [YouTube Feeds](youtube-feeds.md#per-feed-overrides).
 
 ### Per-feed retention
 

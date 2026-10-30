@@ -22,7 +22,7 @@ You can also find RSS feeds manually:
 
 ### No RSS feed at all
 
-If a show never had an RSS feed to begin with, such as your own recordings or an archive of downloaded episodes, see [Local Feeds](local-feeds.md) for building a feed from your own audio files instead of finding one to subscribe to.
+If a show never had an RSS feed to begin with, such as your own recordings or an archive of downloaded episodes, see [Local Feeds](local-feeds.md) for building a feed from your own audio files instead of finding one to subscribe to. For a show that only exists on YouTube, see [YouTube Feeds](youtube-feeds.md).
 
 ## Usage
 

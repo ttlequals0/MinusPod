@@ -25,6 +25,7 @@ Every term the app uses, in plain words, with a link to the part of the docs tha
 - [U](#u)
 - [V](#v)
 - [W](#w)
+- [Y](#y)
 
 ## A
 
@@ -76,6 +77,10 @@ Every term the app uses, in plain words, with a link to the part of the docs tha
 
 **Cue pair** - Two bracketing template cues, an ad-break-start and an ad-break-end, that propose an ad span without reading the transcript. Each cue is included in the cut unless its removal option is off. Cutting from cue pairs is experimental and off by default. [Audio Cue Detection > Ad cutting](audio-cues.md#ad-cutting)
 
+**Captions as transcript** - Using the video's own caption track as the episode transcript instead of running Whisper. Creator captions win over auto-generated ones, in the feed's language, and a global setting plus a per-feed override turn it on or off. [YouTube Feeds > Transcripts and chapters](youtube-feeds.md#transcripts-and-chapters)
+
+**Cookies file** - An optional Netscape-format `cookies.txt` from a throwaway account that yt-dlp uses for videos that need a signed-in session. Stored on the data volume with mode 0600 and never logged. [YouTube Feeds > Cookies](youtube-feeds.md#cookies)
+
 ## D
 
 **DAI (dynamic ad insertion)** - Ads spliced into the audio by the publisher's server at download time, so every download can carry a different ad load. This is why the same episode can be 46 minutes one fetch and 55 the next. [How It Works > Cross-Fetch Differential](how-it-works.md#cross-fetch-differential)
@@ -97,6 +102,8 @@ Every term the app uses, in plain words, with a link to the part of the docs tha
 **Description chapter trim** - A per-feed rule that cuts a span regardless of detection. The span starts at a description timestamp line or a chapter (published or generated) whose title matches a pattern and runs to the end of the episode or to the next chapter. A matching generated chapter queues one recut. [Configuration > Chapter trim](configuration.md#chapter-trim)
 
 **Dry-run import plan** - The preview a bulk archive-import scan returns before anything is written: every file matched to an episode, every rejected file with a reason, and the publish date each episode would get. Committing re-checks the same files and refuses if anything changed underneath the plan. [Local Feeds > Scan, then commit](local-feeds.md#scan-then-commit)
+
+**Deno** - The JavaScript runtime yt-dlp needs to solve YouTube's player challenges. Both images install a pinned, checksum-verified copy. [YouTube Feeds > Troubleshooting](youtube-feeds.md#troubleshooting)
 
 ## E
 
@@ -150,6 +157,12 @@ Every term the app uses, in plain words, with a link to the part of the docs tha
 
 **Low ad yield** - The amber episode badge shown when a run removed far less ad time than the feed's recent average. Usually a lightly-filled DAI download, occasionally a missed ad worth a look. [Web Interface > Processing stats](web-interface.md#processing-stats)
 
+**LLM fallback** - On a YouTube feed, running the normal LLM pipeline when SponsorBlock has no marks after the last probe. On by default, with a per-feed override. [YouTube Feeds > How processing works](youtube-feeds.md#how-processing-works)
+
+**LLM on top** - A per-feed switch that runs the LLM pipeline on a YouTube episode even when SponsorBlock marks exist, adding its detections to them. [YouTube Feeds > What decides the cuts](youtube-feeds.md#what-decides-the-cuts)
+
+**Long-form playlist** - The channel uploads list without Shorts that a YouTube channel feed reads by default. Turn on Shorts for the feed to read the full list. [YouTube Feeds > Shorts and duration filters](youtube-feeds.md#shorts-and-duration-filters)
+
 ## M
 
 **MP3 stream copy** - An opt-in cut path that preserves source-coded MP3 audio outside splice transitions and falls back to re-encoding when the cut is incompatible or fails validation. [Configuration > Output audio](configuration.md#output-audio)
@@ -199,6 +212,8 @@ Every term the app uses, in plain words, with a link to the part of the docs tha
 **Processing stats** - The per-run table at the bottom of the episode page: what each run downloaded, detected, cut, held, and verified, plus elapsed stage and FFmpeg timing when available. [Web Interface > Processing stats](web-interface.md#processing-stats)
 
 **Provider A / Provider B** - The two LLM provider slots a pipeline stage can be routed to. The API also accepts the older `primary`/`secondary` slot values and `secondary*` settings keys. [LLM Providers > Per-Stage Providers](llm-providers.md#per-stage-providers)
+
+**Probe window** - The SponsorBlock lookups made right after a YouTube video is discovered: a set number of attempts at a set interval, after the processing delay. [YouTube Feeds > How processing works](youtube-feeds.md#how-processing-works)
 
 ## Q
 
@@ -262,6 +277,10 @@ Every term the app uses, in plain words, with a link to the part of the docs tha
 
 **System One Tuneables** - The Settings section for independent native-provider tuning profiles. [System One > Independent tuning profiles](system-one.md#independent-tuning-profiles)
 
+**SponsorBlock** - A community database of timestamps for sponsor reads, self-promotion, intros and similar spans in YouTube videos. On a YouTube feed its marks are the cut source by default. [YouTube Feeds > SponsorBlock categories](youtube-feeds.md#sponsorblock-categories)
+
+**SponsorBlock state** - Where a YouTube episode is in the SponsorBlock gate: waiting, probing, watching, done, exhausted or llm. The UI shows it as one line on the episode. [YouTube Feeds > Episode states](youtube-feeds.md#episode-states)
+
 ## T
 
 **Text pattern** - A learned chunk of ad transcript matched against new episodes by similarity. Deterministic: if the same ad copy appears, it hits. [How It Works > Pattern Learning](how-it-works.md#pattern-learning)
@@ -299,5 +318,13 @@ Every term the app uses, in plain words, with a link to the part of the docs tha
 **Webhook events** - Notifications MinusPod can send about episodes, feeds, the queue, services, and failover. Each can also go out by email. [API & Webhooks > Events](api-and-webhooks.md#events)
 
 **Webhook template fallback** - If a custom payload template cannot render for an event, MinusPod uses a default body. Webhook test results set a `templateFallback` flag whether or not delivery succeeds. Text content types get a readable line; other types get JSON. [API & Webhooks > Webhooks](api-and-webhooks.md#webhooks)
+
+**Watch window** - The days after a YouTube video is published during which MinusPod keeps checking SponsorBlock, queues the episode when marks appear, and recuts it when the marks change. The watch ceiling ends it. [YouTube Feeds > How processing works](youtube-feeds.md#how-processing-works)
+
+## Y
+
+**YouTube feed** - A podcast feed MinusPod builds from a YouTube playlist or channel: it lists the videos, downloads the audio with yt-dlp, removes sponsor segments and serves the processed episodes as RSS. Off by default. [YouTube Feeds](youtube-feeds.md)
+
+**yt-dlp** - The command-line downloader MinusPod uses for YouTube. A pinned copy ships in the image, and a copy on the data volume updates daily. [YouTube Feeds > yt-dlp](youtube-feeds.md#yt-dlp)
 
 [< Docs index](README.md) | [Project README](../README.md)

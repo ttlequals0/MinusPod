@@ -1535,8 +1535,9 @@ paths:
       summary: Upload cover art for a local, recents or YouTube feed
       description: >-
         Local, recents and YouTube feeds only (400 on a subscribed RSS
-        feed, whose artwork comes from the upstream RSS on refresh). JPEG or PNG, detected from the
-        file bytes rather than the client-supplied content type. Bound by
+        feed, whose artwork comes from the upstream RSS on refresh). JPEG
+        or PNG, detected from the file bytes rather than the
+        client-supplied content type. Bound by
         the app's default 10 MB request cap. A response under 1400x1400
         still succeeds but carries a warning field, since podcast
         directories generally expect at least that.

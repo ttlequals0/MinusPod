@@ -30,6 +30,13 @@ Key endpoints:
 - `POST /api/v1/feeds/{slug}/refresh` - Refresh one subscribed feed. Success includes a structured `outcome` with status, new and queued episode counts, plus refresh timestamps; source fetch or parse failures return 502.
 - `POST /api/v1/feeds/refresh` - Refresh every subscribed feed. Returns per-feed outcomes and totals; HTTP 207 means the pass completed with at least one feed failure.
 - `GET/HEAD /api/v1/feeds/{slug}/artwork` - Serve cached feed artwork without admin authentication. Traversal-like or over-200-character legacy slugs are rejected before this public exemption.
+- `POST /api/v1/feeds` with `feedType: "youtube"` - Create a YouTube feed. Send `sourceKind` (`playlist` or `channel`), `sourceId` and `title`; `artworkUrl`, `includeShorts` and `maxEpisodes` are optional. Needs YouTube feeds enabled. The first listing runs before the response
+- `GET/PUT /api/v1/settings/youtube` - Read or update the global YouTube settings, yt-dlp status, cookie status and setting bounds. The Data API key is write-only (`apiKeyConfigured` in responses)
+- `POST /api/v1/youtube/preview` - Resolve a pasted playlist, channel or handle URL to a source plus RSS directory matches. Returns `enabled: false` with no lookup when the feature is off
+- `POST /api/v1/youtube/test-key` - Check a Data API key, or the stored one when `apiKey` is omitted
+- `POST /api/v1/youtube/cookies`, `DELETE /api/v1/youtube/cookies` - Save or remove the Netscape cookies file used by yt-dlp
+- `POST /api/v1/youtube/ytdlp/update` - Update the data-volume yt-dlp now (6 per hour)
+- Episode responses on YouTube feeds include `sponsorBlock` (`state`, `attempts`, `nextCheckAt`, `segmentCount`, `note`, `lastError`); it is `null` elsewhere
 - `GET /api/v1/podcast-search?q=query` - Search podcasts through the configured directory (Apple iTunes by default, or Podcast Index)
 - `GET /api/v1/feeds/{slug}/episodes` - List episodes with sorting, status, pagination, and literal case-insensitive title `search`. Search applies across the full feed before pagination. `jobState` reports live queue state.
 - `GET /api/v1/feeds/{slug}/episodes?selection=true` - Return matching episode IDs and action eligibility without loading full episode rows, capped at 501 rows (`truncated` is `true` past that cap). The `selection` array contains `id`, `status`, `jobState`, `titleSkipped`, `descriptionSkipped`, and `durationSkipped`; `episodes` is empty. Pagination is ignored for this projection; bulk actions still accept at most 500 episode IDs.

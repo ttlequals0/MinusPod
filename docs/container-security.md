@@ -16,6 +16,10 @@ Additional manifests under `scripts/core-security/`, `scripts/misc-security/`, `
 
 The runtime image contains each family's manifest, package checksums, build script, build logs, and complete patched source trees under `/usr/share/minuspod/<family>-security/`. Source trees include the package recipe, applied patches, and license files. Installed packages retain their copyright notices. Package versions have a `+minuspod1` suffix to identify local builds. Archive and patch SHA-256 values are verified; this does not authenticate source signatures.
 
+## yt-dlp and Deno
+
+Both images install a pinned yt-dlp and a pinned Deno for [YouTube feeds](youtube-feeds.md). The build downloads each release asset and verifies its SHA-256 checksum before installing it to `/usr/local/bin`; a mismatch fails the build. yt-dlp changes often to follow YouTube, so MinusPod runs a copy on the data volume that updates daily, outside the image, instead of waiting for a rebuild. The image copy is the floor: a newer image replaces an older volume copy, and MinusPod falls back to the image copy if the volume copy cannot execute. Turn **Update yt-dlp daily** off to freeze the volume copy. The cookies file lives on the data volume with mode 0600, is read only by yt-dlp, and is never logged.
+
 ## Updating the packages
 
 1. Check the installed Ubuntu package versions and official upstream advisories. Prefer a public Ubuntu security update when it contains the required fixes.

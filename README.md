@@ -37,7 +37,7 @@ https://github.com/user-attachments/assets/3c64b0eb-5b52-457a-bd94-17b7ecdeef2c
 - Re-cut RSS feeds per podcast with versioned audio, a replacement sound at each cut, loudness leveling, and lossless MP3 stream copy where the cut allows
 - [Podcasting 2.0](docs/podcasting-2.0.md) tags regenerated: transcripts, chapters, AI-content disclosure, value-for-value passed through
 - Podping listener refreshes a feed seconds after the host announces an episode
-- OPML import and export, podcast search from Add feed, an optional cover-art badge, a combined Recents feed, and [local feeds](docs/local-feeds.md) built from your own audio files
+- OPML import and export, podcast search from Add feed, an optional cover-art badge, a combined Recents feed, [local feeds](docs/local-feeds.md) built from your own audio files, and [YouTube feeds](docs/youtube-feeds.md) built from a playlist or channel
 
 **Web UI and administration**
 - Feed, episode, queue, search, pattern, sponsor, history, stats, and settings views. Installs as an app on iOS, Android, macOS, and Windows. [Web interface](docs/web-interface.md)
@@ -100,7 +100,7 @@ Open `http://localhost:8000/ui/`, set an application password, and add a feed. T
 | [Podcasting 2.0](docs/podcasting-2.0.md) | What is emitted, regenerated, and stripped |
 | [Glossary](docs/glossary.md) | Every term the app uses |
 
-The [full docs index](docs/README.md) covers the rest: audio cues, community patterns, Pattern Cleanup, System One, failover, local feeds, download history, configuration import and export, deployment, releasing, and the [LLM benchmark report](benchmarks/llm/results/report.md).
+The [full docs index](docs/README.md) covers the rest: audio cues, community patterns, Pattern Cleanup, System One, failover, local feeds, YouTube feeds, download history, configuration import and export, deployment, releasing, and the [LLM benchmark report](benchmarks/llm/results/report.md).
 
 ## Contributing
 
@@ -109,6 +109,8 @@ Bug reports, feature requests, and pull requests are welcome. Open an issue firs
 ## Disclaimer
 
 This tool is for personal use only. Only use it with podcasts you have permission to modify or where such modification is permitted under applicable laws. Respect content creators and their terms of service.
+
+YouTube feeds download audio with yt-dlp. That can conflict with YouTube's terms of service; the feature is off by default and is yours to enable.
 
 ## License
 

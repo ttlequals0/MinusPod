@@ -15,9 +15,21 @@ release notes.
 
 ### Added
 
-- YouTube feeds cache each processed video's thumbnail so the served RSS carries per-episode artwork, accept an artwork upload, and re-fetch the source thumbnail when the cache is missing or on a manual artwork refresh.
+- YouTube feeds (#898). Add a playlist or channel from the Add feed page and
+  MinusPod turns it into a podcast feed. SponsorBlock community marks are the
+  cut source by default, with a configurable processing delay, probe loop and
+  watch window before the LLM pipeline takes over (or instead of it, per feed).
+  Video captions become the transcript when present, creator chapters are
+  kept, and every knob lives in Settings > YouTube with per-feed overrides.
+  Each processed video's thumbnail is cached for per-episode artwork, and feed
+  artwork can be uploaded or refreshed from the source. Off by default.
+- yt-dlp 2026.10.26 ships in both images (baked floor) and self-updates daily
+  on the data volume, with an Update now button and an optional global
+  cookies file for yt-dlp.
 
 ### Changed
+
+- Dockerfiles install Deno, the JavaScript runtime yt-dlp needs for YouTube.
 
 ### Security
 
