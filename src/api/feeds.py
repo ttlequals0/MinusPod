@@ -928,6 +928,7 @@ def _apply_p20_merge(base: dict, cleaned: dict) -> dict:
 # PATCH fields that only make sense on a local feed (no upstream RSS to
 # derive title/author/explicit/categories/p20 extras from).
 _LOCAL_ONLY_FIELDS = ('title', 'author', 'explicit', 'categories', 'p20')
+_YT_EDITABLE = frozenset({'author', 'explicit', 'categories'})
 
 
 def _validate_local_categories(value):
@@ -2048,7 +2049,7 @@ def update_feed(slug):
     # are only meaningful for a local feed (no upstream RSS to derive them
     # from), so a subscribed feed 400s rather than silently accepting a value
     # a refresh would immediately overwrite or ignore.
-    youtube_editable = ('author', 'explicit', 'categories') if is_youtube_feed(podcast) else ()
+    youtube_editable = _YT_EDITABLE if is_youtube_feed(podcast) else frozenset()
     for field in _LOCAL_ONLY_FIELDS:
         if field in data and has_upstream(podcast) and field not in youtube_editable:
             return error_response(

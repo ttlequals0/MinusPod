@@ -60,7 +60,8 @@ def preview_youtube_source():
     return json_response({
         'enabled': True,
         'source': {'kind': info.kind, 'id': info.id, 'title': info.title, 'description': info.description,
-                   'author': info.author, 'artworkUrl': info.artwork_url, 'videoCount': info.video_count, 'alreadyAdded': existing},
+                   'author': info.author, 'artworkUrl': info.artwork_url, 'videoCount': info.video_count,
+                   'alreadyAdded': existing},
         'rssMatches': _rss_matches(info.title),
     })
 

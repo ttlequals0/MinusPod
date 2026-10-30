@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { updateFeed } from '../../api/feeds';
 import { getErrorMessage } from '../../api/client';
@@ -104,29 +104,33 @@ export function FeedMetadataFields({ slug, idPrefix, fields, values, onChange }:
   );
 }
 
+// null clears the field server-side; undefined would drop the key
+const buildMetadataPatch = (values: MetadataValues, fields: MetadataField[]) => {
+  const categories = parseCategories(values.categoriesInput);
+  const all = {
+    author: values.author.trim() || null,
+    explicit: values.explicit,
+    categories: categories.length ? categories : null,
+  };
+  return Object.fromEntries(Object.entries(all).filter(([k]) => fields.includes(k as MetadataField)));
+};
+
 // Self-saving metadata form for panels without their own form (YouTube feeds).
 function FeedMetadataForm({ feed, slug, fields }: { feed: Feed; slug: string; fields: MetadataField[] }) {
   const queryClient = useQueryClient();
   const [values, setValues] = useState<MetadataValues>(() => metadataValuesFromFeed(feed));
   const [saved, setSaved] = useState(false);
+  const savedTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  useEffect(() => () => clearTimeout(savedTimer.current), []);
   useSyncFromQuery(feed, (f) => setValues(metadataValuesFromFeed(f)));
 
   const mutation = useMutation({
-    mutationFn: () => updateFeed(slug, {
-      ...(fields.includes('title') && { title: values.title.trim() }),
-      ...(fields.includes('description') && { description: values.description.trim() }),
-      // null clears the field server-side; undefined would drop the key
-      ...(fields.includes('author') && { author: values.author.trim() || null }),
-      ...(fields.includes('explicit') && { explicit: values.explicit }),
-      ...(fields.includes('categories') && {
-        categories: parseCategories(values.categoriesInput).length ? parseCategories(values.categoriesInput) : null,
-      }),
-    }),
+    mutationFn: () => updateFeed(slug, buildMetadataPatch(values, fields)),
     onSuccess: (updated) => {
       queryClient.setQueryData(['feed', slug], updated);
-      queryClient.invalidateQueries({ queryKey: ['feed', slug] });
       setSaved(true);
-      setTimeout(() => setSaved(false), 2000);
+      clearTimeout(savedTimer.current);
+      savedTimer.current = setTimeout(() => setSaved(false), 2000);
     },
   });
 
