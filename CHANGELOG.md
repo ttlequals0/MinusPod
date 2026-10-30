@@ -11,6 +11,33 @@ release notes.
 
 ## [Unreleased]
 
+## [2.101.2] - 2026-10-30
+
+### Fixed
+
+- YouTube episode descriptions and exact publish times are filled for
+  episodes that were only discovered, not downloaded. A background pass reads
+  the metadata of up to 10 episodes per refresh cycle without downloading
+  audio, so a feed added without an API key fills in over the first hour.
+- A reprocess that reuses the retained original audio of a YouTube episode
+  fetches the captions again instead of losing them, and a saved transcript is
+  never wiped when the run cannot regenerate it.
+- The known-sponsor hint no longer fails with a missing database when the
+  reviewer is its first caller.
+- The feed page action row keeps Delete on screen while Refresh is pending at
+  phone widths.
+
+### Changed
+
+- YouTube episodes with SponsorBlock marks also run the learned ad
+  patterns (audio fingerprints and text patterns) with the LLM off, and the
+  marks themselves are learned as patterns after the cut. A pattern hit that
+  overlaps a mark gives way to the mark. The LLM runs only without marks or
+  with Pass 1 detection on.
+- On a YouTube feed, Full reprocess and Re-detect ads force pass 1 LLM
+  detection for that episode even when marks exist. The episode and dashboard
+  menus say which mode runs marks, patterns and the LLM pass.
+
 ## [2.101.1] - 2026-10-30
 
 ### Fixed
