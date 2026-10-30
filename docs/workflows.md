@@ -95,13 +95,13 @@ The verify pass re-transcribes the cut file the same way.
 A YouTube feed has no upstream RSS, so MinusPod builds the episode list itself and waits for community SponsorBlock marks before it cuts. Detail for every step is in [YouTube Feeds](youtube-feeds.md).
 
 - **Discovery.** On the normal feed refresh schedule MinusPod lists the playlist, channel or single video. It uses the YouTube Data API when a key is set and yt-dlp otherwise. Private and deleted entries are hidden.
-- **Serving.** The served feed lists every discovered episode with its upload date. Nothing is processed at discovery: the first play of an unprocessed episode starts processing, and the app retries until the cut is ready.
-- **SponsorBlock gate.** An episode waits the processing delay, then MinusPod probes SponsorBlock a set number of times at a fixed interval. The first probe that finds marks queues the episode. If none appear after the last probe, the LLM pipeline runs as a fallback, or, with the fallback off, the episode enters a watch window and is checked at the watch interval until the watch ceiling.
+- **Serving.** The served feed lists every discovered episode with its upload date. Nothing is processed at discovery: the first play of an unprocessed episode starts processing, and the podcast app is told to retry until the cut is ready.
+- **SponsorBlock gate.** An episode waits the processing delay, then MinusPod probes SponsorBlock a set number of times at a fixed interval. The first probe that finds marks queues the episode. If none appear after the last probe, the LLM pipeline runs as a fallback. With the fallback off, the episode enters a watch window and is checked at the watch interval until the watch ceiling.
 - **Cutting.** Marks are cut as given, with no LLM call by default. Learned patterns (audio fingerprints and text patterns) always run, and MinusPod learns new patterns from the marks it cuts. Pass 1 detection, a per-feed switch, adds the LLM on top and cuts both sets of segments. If the marks change during the watch window, the episode is recut from the retained original.
 - **Transcript.** When captions exist and the captions setting is on, they become the transcript and Whisper is skipped. Creator chapters are reused, so the chapter generation call is skipped too.
 - **Metadata backfill.** A background pass fills missing descriptions and exact publish times from each video's metadata, for up to 10 episodes per refresh pass, without downloading.
 
-Global settings live in Settings > YouTube; the delay, probe, fallback, captions and Shorts settings can be overridden per feed, while the watch interval and ceiling are global only. See [Configuration](configuration.md#youtube) for the full table.
+Global settings live in Settings > YouTube. The delay, probe, fallback, captions, private-video hiding, transcription fallback and Shorts settings can be overridden per feed, while the watch interval and ceiling are global only. See [Configuration](configuration.md#youtube) for the full table.
 
 ---
 
