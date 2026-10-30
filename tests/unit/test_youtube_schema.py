@@ -95,3 +95,8 @@ def test_missing_metadata_selection(db):
     rows = db.get_youtube_episodes_missing_metadata(10)
     assert [r['episode_id'] for r in rows] == ['e1']
     assert rows[0]['slug'] == 'yt-show'
+    db.upsert_episode('yt-show', 'e5', original_url='https://www.youtube.com/watch?v=y',
+                      description='described')
+    db.get_connection().execute("UPDATE episodes SET published_at = '2026-10-29' WHERE episode_id = 'e5'")
+    db.get_connection().commit()
+    assert 'e5' in [r['episode_id'] for r in db.get_youtube_episodes_missing_metadata(10)]

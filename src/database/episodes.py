@@ -7,6 +7,7 @@ from email.utils import parsedate_to_datetime
 from typing import ClassVar
 
 from database.maintenance import _chunked
+from database.podcasts import RECENTS_MEMBER_FEED_TYPES
 # Shared with the stats mixin so both agree on what counts as processed.
 from database.stats import _PROCESSED_EPISODE_EXISTS_SQL
 from utils.constants import EpisodeStatus
@@ -1173,12 +1174,11 @@ class EpisodeMixin:
         )
         return [dict(row) for row in cursor.fetchall()]
 
-    # Membership of the recents feed (#721): processed episodes across
-    # subscribed, local and YouTube feeds published on or after the cutoff. Publish
-    # date only: a backlog episode processed later keeps its old date.
+    # Recents feed membership (#721): processed episodes of member feed types published on or after
+    # the cutoff. Publish date only; type list is constants, not user input.
     _RECENTS_WHERE = ("FROM episodes e JOIN podcasts p ON p.id = e.podcast_id "
                       "WHERE e.status = 'processed' AND e.processed_file IS NOT NULL "
-                      "AND p.feed_type IN ('subscribed', 'local', 'youtube') "
+                      "AND p.feed_type IN (" + ", ".join(f"'{t}'" for t in RECENTS_MEMBER_FEED_TYPES) + ") "
                       "AND e.published_at IS NOT NULL AND e.published_at >= ?")
     _RECENTS_SOURCE_COLS = ("p.slug AS source_slug, "
                             "COALESCE(NULLIF(p.title_override, ''), NULLIF(p.title, ''), p.slug) AS source_title, "

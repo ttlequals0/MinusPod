@@ -37,6 +37,11 @@ def test_fill_fields_publish_time_upgrade():
     assert metadata.fill_fields({}, {}) == {}
 
 
+def test_fill_fields_falls_back_to_release_timestamp():
+    out = metadata.fill_fields({'published_at': '2026-10-29'}, {'release_timestamp': 1790000000})
+    assert out['published_at'].startswith('2026-09-21T')
+
+
 def _patched_fetch(run):
     return patch.multiple(download, cookies_path=MagicMock(return_value=None),
                           _impersonate_target=MagicMock(return_value=None)), \

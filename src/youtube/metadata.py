@@ -36,7 +36,10 @@ def fill_fields(episode_row, info) -> dict:
     description = (info or {}).get('description')
     if description and not (episode_row or {}).get('description'):
         fields['description'] = description
-    timestamp = (info or {}).get('timestamp')
+    info = info or {}
+    timestamp = info.get('timestamp')
+    if not isinstance(timestamp, (int, float)):
+        timestamp = info.get('release_timestamp')
     published = (episode_row or {}).get('published_at')
     if isinstance(timestamp, (int, float)) and (not published or _DATE_ONLY.match(str(published))):
         fields['published_at'] = epoch_to_iso(timestamp)

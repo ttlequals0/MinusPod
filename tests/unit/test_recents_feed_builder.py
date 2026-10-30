@@ -27,6 +27,10 @@ def _seed():
     mf.db.upsert_episode('beta', 's01e01', original_url='local://s01e01', title='Beta one',
                          status='processed', published_at='2026-09-11T00:00:00Z',
                          processed_file='/b1.mp3')
+    mf.db.create_podcast('delta', 'youtube://delta', 'Delta Channel', feed_type='youtube')
+    mf.db.upsert_episode('delta', 'ddddddddddd1', original_url='https://example.com/d1.mp3',
+                         title='Delta one', status='processed',
+                         published_at='2026-09-12T00:00:00Z', processed_file='/d1.mp3')
     mf.db.create_podcast(RECENTS_SLUG, 'recents://', 'My Recents', feed_type='recents')
     mf.db.update_podcast(RECENTS_SLUG, description='Everything new')
     mf.db.get_connection().execute(
@@ -38,7 +42,7 @@ def _seed():
 @pytest.fixture
 def recents():
     yield _seed()
-    for slug in ('alpha', 'beta', RECENTS_SLUG):
+    for slug in ('alpha', 'beta', 'delta', RECENTS_SLUG):
         mf.db.delete_podcast(slug)
     mf.db.set_setting('chapters_in_notes', 'false', is_default=True)
 
@@ -52,25 +56,13 @@ def test_items_come_from_every_source_and_point_at_source_urls(recents):
     feed = feedparser.parse(xml)
     assert feed.feed.title == 'My Recents'
     assert feed.feed.description == 'Everything new'
-    assert [e.title for e in feed.entries] == ['Beta Archive: Beta one', 'Alpha Show: Alpha two']
+    assert [e.title for e in feed.entries] == [
+        'Delta Channel: Delta one', 'Beta Archive: Beta one', 'Alpha Show: Alpha two']
     assert 'Alpha one' not in xml
     enclosures = [e.enclosures[0].href for e in feed.entries]
-    assert enclosures[0].endswith('/episodes/beta/s01e01.mp3')
-    assert enclosures[1].endswith('/episodes/alpha/aaaaaaaaaaa2-v2.mp3')
+    assert enclosures[1].endswith('/episodes/beta/s01e01.mp3')
+    assert enclosures[2].endswith('/episodes/alpha/aaaaaaaaaaa2-v2.mp3')
     assert '/episodes/recents/' not in xml
-
-
-def test_youtube_source_episode_renders_with_its_title_prefix(recents):
-    mf.db.create_podcast('delta', 'youtube://delta', 'Delta Channel', feed_type='youtube')
-    try:
-        mf.db.upsert_episode('delta', 'ddddddddddd1', original_url='https://example.com/d1.mp3',
-                             title='Delta one', status='processed',
-                             published_at='2026-09-12T00:00:00Z', processed_file='/d1.mp3')
-        feed = feedparser.parse(build_recents_feed_xml(recents, _rows(recents), storage=mf.storage, db=mf.db))
-        assert feed.entries[0].title == 'Delta Channel: Delta one'
-        assert feed.entries[0].enclosures[0].href.endswith('/episodes/delta/ddddddddddd1.mp3')
-    finally:
-        mf.db.delete_podcast('delta')
 
 
 def test_transcript_and_chapter_tags_come_from_the_row(recents):

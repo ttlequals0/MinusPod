@@ -30,6 +30,7 @@ from db_backup_service import (
     DEFAULT_CRON as DB_BACKUP_DEFAULT_CRON,
     KEEP_COUNT_MAX, KEEP_COUNT_MIN, validate_backup_dest,
 )
+from database.podcasts import FEED_TYPES
 from database.settings import SETTINGS_REGISTRY, registry_default
 from systemone.tuning import SystemOneSettingsError, merge_profile, profile_from_snapshot
 from fx_rates import FxRateError, get_usd_rate
@@ -470,7 +471,7 @@ def _validate_document(document):
         if slug in seen:
             raise ConfigTransferError('File contains duplicate feed slugs')
         seen.add(slug)
-        if feed_type not in ('subscribed', 'local', 'recents', 'youtube'):
+        if feed_type not in FEED_TYPES:
             raise ConfigTransferError(f'Unsupported feed type for {slug}')
         fields = feed.get('settings', {})
         if set(fields) - set(FEED_COLUMNS):

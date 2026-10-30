@@ -77,7 +77,7 @@ class YouTubeMixin:
                       e.description, p.slug
                FROM episodes e JOIN podcasts p ON p.id = e.podcast_id
                WHERE p.feed_type = 'youtube' AND e.yt_metadata_at IS NULL
-                     AND (e.description IS NULL OR e.description = '')
+                     AND (e.description IS NULL OR e.description = '' OR LENGTH(e.published_at) = 10)
                ORDER BY e.published_at DESC, e.id DESC LIMIT ?""",
             (limit,))
         return [dict(row) for row in cursor.fetchall()]

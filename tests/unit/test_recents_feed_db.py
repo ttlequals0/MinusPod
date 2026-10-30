@@ -10,7 +10,9 @@ _test_data_dir = bootstrap('recents_db_test_')
 
 import database  # noqa: E402
 from database.episodes import normalize_published_at  # noqa: E402
-from database.podcasts import RECENTS_SLUG, has_upstream, is_recents_feed, recents_cutoff  # noqa: E402
+from database.podcasts import (  # noqa: E402
+    FEED_TYPES, RECENTS_MEMBER_FEED_TYPES, RECENTS_SLUG, has_upstream, is_recents_feed, recents_cutoff
+)  # noqa: E402
 
 
 def _db():
@@ -53,25 +55,17 @@ def test_membership_uses_publish_date_not_processing_time():
     _seed_episode('beta', 's01e01', '2026-09-11T00:00:00Z')
     _seed_episode('beta', 's01e02', '2026-09-12T00:00:00Z', status='pending', processed_file=None)
     _seed_episode('alpha', 'aaaaaaaaaaa3', None)
+    _seed_source('delta', feed_type='youtube')
+    _seed_episode('delta', 'ddddddddddd1', '2026-09-13T00:00:00Z')
     rows = db.get_recent_processed_episodes('2026-09-05')
     assert [(r['source_slug'], r['episode_id']) for r in rows] == [
-        ('beta', 's01e01'), ('alpha', 'aaaaaaaaaaa2')]
-    assert db.count_recent_processed_episodes('2026-09-05') == 2
-    assert rows[0]['source_title'] == 'Beta' and rows[0]['source_feed_type'] == 'local'
-    assert rows[0]['source_title_skip_patterns'] == json.dumps(['s01*'])
-
-
-def test_youtube_feed_episodes_are_members():
-    db = _db()
-    _seed_source('delta', feed_type='youtube')
-    _seed_episode('delta', 'ddddddddddd1', '2026-09-10T00:00:00Z')
-    _seed_episode('delta', 'ddddddddddd2', '2026-09-11T00:00:00Z', status='pending', processed_file=None)
-    rows = db.get_recent_processed_episodes('2026-09-05')
-    assert [(r['source_slug'], r['episode_id']) for r in rows] == [('delta', 'ddddddddddd1')]
+        ('delta', 'ddddddddddd1'), ('beta', 's01e01'), ('alpha', 'aaaaaaaaaaa2')]
+    assert db.count_recent_processed_episodes('2026-09-05') == 3
     assert rows[0]['source_feed_type'] == 'youtube'
-    assert db.count_recent_processed_episodes('2026-09-05') == 1
     assert db.is_recent_processed_episode('delta', 'ddddddddddd1', '2026-09-05') is True
-    assert db.is_recent_processed_episode('delta', 'ddddddddddd2', '2026-09-05') is False
+    assert db.is_recent_processed_episode('beta', 's01e02', '2026-09-05') is False
+    assert rows[1]['source_title'] == 'Beta' and rows[1]['source_feed_type'] == 'local'
+    assert rows[1]['source_title_skip_patterns'] == json.dumps(['s01*'])
 
 
 def test_membership_paginates_and_never_includes_a_recents_row():
@@ -144,3 +138,7 @@ def test_title_search_precedes_recents_pagination():
     rows = _db().get_recent_processed_episodes('2026-09-01', search='MATCH', limit=1, offset=1)
     assert [row['episode_id'] for row in rows] == ['match-first']
     assert _db().count_recent_processed_episodes('2026-09-01', search='MATCH') == 2
+
+
+def test_every_feed_type_is_classified_for_recents():
+    assert all(t in RECENTS_MEMBER_FEED_TYPES or t == 'recents' for t in FEED_TYPES)

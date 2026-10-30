@@ -66,6 +66,10 @@ def is_local_feed(podcast: dict | None) -> bool:
 # Combined feed of recent processed episodes (#721): one row, fixed slug.
 RECENTS_SLUG = 'recents'
 
+FEED_TYPES = ('subscribed', 'local', 'recents', 'youtube')
+# Recents membership is an allow-list so a new feed type stays out of the public feed until classified.
+RECENTS_MEMBER_FEED_TYPES = ('subscribed', 'local', 'youtube')
+
 
 def has_upstream(podcast) -> bool:
     """Subscribed feeds have an upstream RSS to fetch; local and recents feeds do not."""
