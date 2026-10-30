@@ -1,0 +1,88 @@
+import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import YouTubeSection from './YouTubeSection';
+import type { YouTubeSettings } from '../../api/youtube';
+
+const mockGet = vi.fn();
+const mockUpdate = vi.fn();
+const mockTestKey = vi.fn();
+const mockSaveCookies = vi.fn();
+const mockClearCookies = vi.fn();
+const mockUpdateNow = vi.fn();
+vi.mock('../../api/youtube', () => ({
+  getYouTubeSettings: (...a: unknown[]) => mockGet(...a),
+  updateYouTubeSettings: (...a: unknown[]) => mockUpdate(...a),
+  testYouTubeKey: (...a: unknown[]) => mockTestKey(...a),
+  saveYouTubeCookies: (...a: unknown[]) => mockSaveCookies(...a),
+  clearYouTubeCookies: (...a: unknown[]) => mockClearCookies(...a),
+  updateYtDlpNow: (...a: unknown[]) => mockUpdateNow(...a),
+}));
+
+const base: YouTubeSettings = {
+  enabled: false, apiKeyConfigured: false, processDelayMinutes: 60, sbProbeAttempts: 6,
+  sbProbeIntervalMinutes: 30, sbWatchIntervalHours: 6, sbWatchMaxDays: 7, llmFallback: true,
+  captionsAsTranscript: true,
+  ytdlp: { autoUpdate: true, version: '2026.10.26', lastUpdateAt: null, lastCheckAt: null, lastError: null,
+           runtimePath: '/data/youtube/bin/yt-dlp', bakedVersion: '2026.10.20' },
+  cookies: { set: false, lines: 0, updatedAt: null },
+  bounds: { processDelayMinutes: [0, 1440], sbProbeAttempts: [0, 48], sbProbeIntervalMinutes: [5, 1440],
+            sbWatchIntervalHours: [1, 48], sbWatchMaxDays: [1, 60] },
+};
+
+function renderSection(data: YouTubeSettings = base) {
+  mockGet.mockResolvedValue(data);
+  const qc = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
+  return render(<QueryClientProvider client={qc}><YouTubeSection /></QueryClientProvider>);
+}
+
+beforeEach(() => {
+  vi.clearAllMocks();
+  localStorage.setItem('settings-section-youtube', 'true');
+});
+
+describe('YouTubeSection', () => {
+  it('renders the settings and saves the toggle', async () => {
+    mockUpdate.mockResolvedValue({ ...base, enabled: true });
+    renderSection();
+    expect((await screen.findByRole('switch', { name: /enable youtube feeds/i })).getAttribute('aria-checked')).toBe('false');
+    expect((screen.getByLabelText(/processing delay/i) as HTMLInputElement).value).toBe('60');
+    expect(screen.getByText(/yt-dlp 2026\.10\.26/)).toBeDefined();
+    await userEvent.click(screen.getByRole('switch', { name: /enable youtube feeds/i }));
+    await waitFor(() => expect(mockUpdate).toHaveBeenCalledWith({ enabled: true }));
+  });
+
+  it('tests a typed key and reports the result', async () => {
+    mockTestKey.mockResolvedValue({ ok: true, channelTitle: 'YouTube' });
+    renderSection();
+    await userEvent.type(await screen.findByLabelText(/data api key/i), 'AIzaSyTEST');
+    await userEvent.click(screen.getByRole('button', { name: /test key/i }));
+    expect(await screen.findByText(/key works/i)).toBeDefined();
+    expect(mockTestKey).toHaveBeenCalledWith('AIzaSyTEST');
+  });
+
+  it('shows a rejected key save under the field', async () => {
+    mockUpdate.mockRejectedValue(new Error('A master passphrase is required to store the key'));
+    renderSection();
+    await userEvent.type(await screen.findByLabelText(/data api key/i), 'AIzaSyTEST');
+    await userEvent.click(screen.getByRole('button', { name: /save key/i }));
+    expect(await screen.findByText(/master passphrase is required/i)).toBeDefined();
+    expect(mockUpdate).toHaveBeenCalledWith({ apiKey: 'AIzaSyTEST' });
+  });
+
+  it('saves cookies and shows the status', async () => {
+    mockSaveCookies.mockResolvedValue({ set: true, lines: 12, updatedAt: '2026-10-29T10:00:00Z' });
+    renderSection();
+    await userEvent.type(await screen.findByLabelText(/cookies/i), '# Netscape HTTP Cookie File');
+    await userEvent.click(screen.getByRole('button', { name: /save cookies/i }));
+    expect(await screen.findByText(/12 lines/)).toBeDefined();
+  });
+
+  it('runs the yt-dlp update on demand', async () => {
+    mockUpdateNow.mockResolvedValue({ updated: true, version: '2026.10.27', error: null });
+    renderSection();
+    await userEvent.click(await screen.findByRole('button', { name: /update now/i }));
+    expect(await screen.findByText(/updated to 2026\.10\.27/i)).toBeDefined();
+  });
+});

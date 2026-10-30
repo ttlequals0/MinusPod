@@ -29,7 +29,17 @@ export interface Feed {
   // Local (imported-archive) feeds have no upstream RSS: subscribed is the
   // default for feeds pulled from a source URL. Absent on backends that
   // predate local feeds, which read as 'subscribed'.
-  feedType?: 'subscribed' | 'local' | 'recents';
+  feedType?: 'subscribed' | 'local' | 'recents' | 'youtube';
+  youtubeSourceKind?: 'playlist' | 'channel' | null;
+  youtubeSourceId?: string | null;
+  youtubeSourceUrl?: string | null;
+  youtubeIncludeShorts?: boolean | null;
+  ytProcessDelayMinutesOverride?: number | null;
+  ytProbeAttemptsOverride?: number | null;
+  ytProbeIntervalMinutesOverride?: number | null;
+  ytLlmFallbackOverride?: boolean | null;
+  ytLlmOnTopOverride?: boolean | null;
+  ytCaptionsOverride?: boolean | null;
   description?: string;
   artworkUrl?: string;
   // Explicit "do we hold an uploaded file" signal (artworkUrl is never
@@ -253,6 +263,14 @@ export interface Episode {
   // no transcription/detection/LLM, even when the feed itself is not in
   // pass-through mode.
   passthroughEnabled?: boolean | null;
+  sponsorBlock?: {
+    state: 'waiting' | 'probing' | 'watching' | 'done' | 'exhausted' | 'llm' | null;
+    attempts: number;
+    nextCheckAt: string | null;
+    segmentCount: number;
+    note: string | null;
+    lastError: string | null;
+  } | null;
 }
 
 export interface EpisodeNeighbor {
@@ -1016,6 +1034,8 @@ export interface Settings {
   modelPricingOverrides: { value: ModelPricingOverrides; isDefault: boolean };
   apiKeyConfigured: boolean;
   podcastIndexApiKeyConfigured: boolean;
+  youtubeEnabled: SettingValueBoolean;
+  youtubeApiKeyConfigured: boolean;
   podcastSearchProvider: SettingValue;
   // Whether podcastSearchProvider's resolved value can actually run search.
   podcastSearchReady: boolean;

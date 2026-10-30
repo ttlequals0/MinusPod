@@ -27,6 +27,7 @@ import SecuritySection from './settings/SecuritySection';
 import ConfirmResetButton from './settings/ConfirmResetButton';
 import AppearanceSection from './settings/AppearanceSection';
 import PodcastIndexSection from './settings/PodcastIndexSection';
+import YouTubeSection from './settings/YouTubeSection';
 import LLMProviderSection from './settings/LLMProviderSection';
 import {
   listProviders,
@@ -1317,6 +1318,10 @@ function Settings() {
           onApiSecretChange={setPodcastIndexApiSecret}
           onConnectionTest={testPodcastIndex}
         />
+      </div>
+
+      <div id="youtube">
+        <YouTubeSection />
       </div>
 
       <SettingsGroupHeader title="AI and processing" />

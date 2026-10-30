@@ -312,6 +312,25 @@ export async function addRecentsFeed(payload: AddRecentsFeedPayload): Promise<Ad
   });
 }
 
+export interface AddYoutubeFeedPayload {
+  sourceKind: 'playlist' | 'channel';
+  sourceId: string;
+  title: string;
+  description?: string;
+  artworkUrl?: string | null;
+  includeShorts?: boolean;
+  slug?: string;
+}
+
+export async function addYoutubeFeed(
+  payload: AddYoutubeFeedPayload,
+): Promise<{ slug: string; feedType: 'youtube'; feedUrl: string }> {
+  return apiRequest('/feeds', {
+    method: 'POST',
+    body: { feedType: 'youtube', ...payload },
+  });
+}
+
 export interface UploadFeedArtworkResult {
   message: string;
   artworkUrl: string;
@@ -468,6 +487,13 @@ export interface UpdateFeedPayload {
   spliceVetoEnabled?: boolean | null;
   transitionSnapEnabled?: boolean | null;
   maxAdDurationOverride?: number | null;
+  youtubeIncludeShorts?: boolean | null;
+  ytProcessDelayMinutesOverride?: number | null;
+  ytProbeAttemptsOverride?: number | null;
+  ytProbeIntervalMinutesOverride?: number | null;
+  ytLlmFallbackOverride?: boolean | null;
+  ytLlmOnTopOverride?: boolean | null;
+  ytCaptionsOverride?: boolean | null;
   maxAdDurationRejectOverride?: number | null;
   adDetectionExcludeStartOverride?: number | null;
   cueGatedApproval?: boolean | null;
