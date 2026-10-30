@@ -91,7 +91,7 @@ A failed SponsorBlock lookup is retried at the state's normal interval, capped a
 
 The served RSS contains processed episodes only. An episode that is still waiting for marks is not in the feed, so a podcast app never receives the original video audio.
 
-Manual **Process** or **Reprocess** on a waiting episode skips the wait and runs the LLM pipeline.
+Manual **Process** or **Reprocess** on a waiting episode skips the wait. With no marks yet it runs the LLM pipeline; with marks it uses them like an automatic run.
 
 ### Episode states
 
@@ -137,7 +137,7 @@ SponsorBlock categories map to MinusPod segment categories:
 | outro | outro |
 | preview | recap |
 
-What happens to a mark is decided by the per-category segment action in Settings > Segment categories, with a per-feed override: Remove, Beep, Keep or Mark. A SponsorBlock `mute` action always beeps instead of cutting. The `full` action (the whole video is a sponsored segment) is never cut; it only adds the note shown in the episode state.
+What happens to a mark is decided by the per-category segment action in Settings > Segment categories, with a per-feed override: Remove, Beep, Keep or Mark. A SponsorBlock `mute` mark is beeped when its category is set to cut, and left alone when the category is set to keep or mark. The `full` action (the whole video is a sponsored segment) is never cut; it only adds the note shown in the episode state.
 
 ## Cookies
 

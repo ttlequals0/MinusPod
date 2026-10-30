@@ -49,6 +49,8 @@ Every term the app uses, in plain words, with a link to the part of the docs tha
 
 **Cache hit rate** - Share of input tokens served from the prompt cache, computed as cache reads over input tokens. Shown on the Stats page per model, per run and per contributing call, with the raw read, write and input counts on hover. [Web Interface > LLM cost ledger](web-interface.md#llm-cost-ledger)
 
+**Captions as transcript** - Using the video's own caption track as the episode transcript instead of running Whisper. Creator captions win over auto-generated ones, in the feed's language, and a global setting plus a per-feed override turn it on or off. [YouTube Feeds > Transcripts and chapters](youtube-feeds.md#transcripts-and-chapters)
+
 **Chapters** - Chapter markers MinusPod preserves or generates for the processed audio, served as Podcasting 2.0 JSON and embedded in the MP3 as ID3 frames. [How It Works > Chapter Generation](how-it-works.md#chapter-generation)
 
 **Chapter regeneration** - Refreshing an episode's chapters on demand. Each attempt gets its own processing-history entry and usage record, plus an episode log when log storage is enabled. [How It Works > Chapter Generation](how-it-works.md#chapter-generation)
@@ -62,6 +64,8 @@ Every term the app uses, in plain words, with a link to the part of the docs tha
 **Configuration Import / Export** - Exporting and restoring runtime global settings and feed configuration. It preserves episodes, history, metrics, and media. [Configuration Import / Export](configuration-import-export.md)
 
 **Contaminated pattern** - A learned ad pattern that contains show content or other material that should not be matched as an ad. Pattern Cleanup can flag it for review; nothing changes until a suggestion is approved. [Pattern Cleanup](pattern-cleanup.md#suggestion-kinds)
+
+**Cookies file** - An optional Netscape-format `cookies.txt` from a throwaway account that yt-dlp uses for videos that need a signed-in session. Stored on the data volume with mode 0600 and never logged. [YouTube Feeds > Cookies](youtube-feeds.md#cookies)
 
 **Correction** - Your verdict on a detection: "Confirm" or "Not ad". Corrections train future detection for that feed and can trigger a recut. [Web Interface > Ad Review tab](web-interface.md#ad-review-tab)
 
@@ -77,15 +81,13 @@ Every term the app uses, in plain words, with a link to the part of the docs tha
 
 **Cue pair** - Two bracketing template cues, an ad-break-start and an ad-break-end, that propose an ad span without reading the transcript. Each cue is included in the cut unless its removal option is off. Cutting from cue pairs is experimental and off by default. [Audio Cue Detection > Ad cutting](audio-cues.md#ad-cutting)
 
-**Captions as transcript** - Using the video's own caption track as the episode transcript instead of running Whisper. Creator captions win over auto-generated ones, in the feed's language, and a global setting plus a per-feed override turn it on or off. [YouTube Feeds > Transcripts and chapters](youtube-feeds.md#transcripts-and-chapters)
-
-**Cookies file** - An optional Netscape-format `cookies.txt` from a throwaway account that yt-dlp uses for videos that need a signed-in session. Stored on the data volume with mode 0600 and never logged. [YouTube Feeds > Cookies](youtube-feeds.md#cookies)
-
 ## D
 
 **DAI (dynamic ad insertion)** - Ads spliced into the audio by the publisher's server at download time, so every download can carry a different ad load. This is why the same episode can be 46 minutes one fetch and 55 the next. [How It Works > Cross-Fetch Differential](how-it-works.md#cross-fetch-differential)
 
 **Defined pattern** - A user-created or synced community ad pattern. Its match always cuts the matched segment, overriding whatever action the segment's category resolves to. An auto-learned pattern is not defined and still respects segment actions. [How It Works > Pattern Learning](how-it-works.md#pattern-learning)
+
+**Deno** - The JavaScript runtime yt-dlp needs to solve YouTube's player challenges. Both images install a pinned, checksum-verified copy. [YouTube Feeds > Troubleshooting](youtube-feeds.md#troubleshooting)
 
 **Detections Not Cut** - The episode page section listing regions the detector flagged but left in the audio: rejected by validation, below the confidence threshold, or vetoed by the reviewer. [How It Works > Post-Detection Validation](how-it-works.md#post-detection-validation)
 
@@ -102,8 +104,6 @@ Every term the app uses, in plain words, with a link to the part of the docs tha
 **Description chapter trim** - A per-feed rule that cuts a span regardless of detection. The span starts at a description timestamp line or a chapter (published or generated) whose title matches a pattern and runs to the end of the episode or to the next chapter. A matching generated chapter queues one recut. [Configuration > Chapter trim](configuration.md#chapter-trim)
 
 **Dry-run import plan** - The preview a bulk archive-import scan returns before anything is written: every file matched to an episode, every rejected file with a reason, and the publish date each episode would get. Committing re-checks the same files and refuses if anything changed underneath the plan. [Local Feeds > Scan, then commit](local-feeds.md#scan-then-commit)
-
-**Deno** - The JavaScript runtime yt-dlp needs to solve YouTube's player challenges. Both images install a pinned, checksum-verified copy. [YouTube Feeds > Troubleshooting](youtube-feeds.md#troubleshooting)
 
 ## E
 
@@ -151,17 +151,17 @@ Every term the app uses, in plain words, with a link to the part of the docs tha
 
 ## L
 
-**LLM window cap** - The longest single ad the LLM may report within one detection window; a longer one is discarded. The global Longest single LLM detection setting defaults to 7 minutes (60 to 900 s), and a feed's max ad duration cap or reject override raises it for that feed. Also called the longest single LLM detection. [Configuration > Longest single LLM detection](configuration.md#longest-single-llm-detection)
-
-**Local feed** - A podcast feed MinusPod builds and serves from your own audio files, with no upstream RSS feed behind it. Episodes still run through the same ad-removal pipeline; MinusPod is the publisher rather than a proxy. [Local Feeds](local-feeds.md)
-
-**Low ad yield** - The amber episode badge shown when a run removed far less ad time than the feed's recent average. Usually a lightly-filled DAI download, occasionally a missed ad worth a look. [Web Interface > Processing stats](web-interface.md#processing-stats)
-
 **LLM fallback** - On a YouTube feed, running the normal LLM pipeline when SponsorBlock has no marks after the last probe. On by default, with a per-feed override. [YouTube Feeds > How processing works](youtube-feeds.md#how-processing-works)
 
 **LLM on top** - A per-feed switch that runs the LLM pipeline on a YouTube episode even when SponsorBlock marks exist, adding its detections to them. [YouTube Feeds > What decides the cuts](youtube-feeds.md#what-decides-the-cuts)
 
+**LLM window cap** - The longest single ad the LLM may report within one detection window; a longer one is discarded. The global Longest single LLM detection setting defaults to 7 minutes (60 to 900 s), and a feed's max ad duration cap or reject override raises it for that feed. Also called the longest single LLM detection. [Configuration > Longest single LLM detection](configuration.md#longest-single-llm-detection)
+
+**Local feed** - A podcast feed MinusPod builds and serves from your own audio files, with no upstream RSS feed behind it. Episodes still run through the same ad-removal pipeline; MinusPod is the publisher rather than a proxy. [Local Feeds](local-feeds.md)
+
 **Long-form playlist** - The channel uploads list without Shorts that a YouTube channel feed reads by default. Turn on Shorts for the feed to read the full list. [YouTube Feeds > Shorts and duration filters](youtube-feeds.md#shorts-and-duration-filters)
+
+**Low ad yield** - The amber episode badge shown when a run removed far less ad time than the feed's recent average. Usually a lightly-filled DAI download, occasionally a missed ad worth a look. [Web Interface > Processing stats](web-interface.md#processing-stats)
 
 ## M
 
@@ -186,6 +186,8 @@ Every term the app uses, in plain words, with a link to the part of the docs tha
 **Outbound Requests** - The settings section holding the two User-Agent strings MinusPod sends: one for audio, artwork, and chapters, one for RSS. Editable so a host that starts refusing ours can be worked around without a new release. [Configuration > Outbound Requests](configuration.md#outbound-requests)
 
 ## P
+
+**Probe window** - The SponsorBlock lookups made right after a YouTube video is discovered: a set number of attempts at a set interval, after the processing delay. [YouTube Feeds > How processing works](youtube-feeds.md#how-processing-works)
 
 **Prompt caching** - Reusing a static prompt prefix across LLM calls. MinusPod requests a 5-minute cache for Anthropic system prompts and records cache reads and writes inside input-token usage for every provider. Cached input on OpenAI-compatible and OpenRouter calls bills at the model's cache read rate when one is known. [LLM Providers > Prompt caching](llm-providers.md#prompt-caching)
 
@@ -212,8 +214,6 @@ Every term the app uses, in plain words, with a link to the part of the docs tha
 **Processing stats** - The per-run table at the bottom of the episode page: what each run downloaded, detected, cut, held, and verified, plus elapsed stage and FFmpeg timing when available. [Web Interface > Processing stats](web-interface.md#processing-stats)
 
 **Provider A / Provider B** - The two LLM provider slots a pipeline stage can be routed to. The API also accepts the older `primary`/`secondary` slot values and `secondary*` settings keys. [LLM Providers > Per-Stage Providers](llm-providers.md#per-stage-providers)
-
-**Probe window** - The SponsorBlock lookups made right after a YouTube video is discovered: a set number of attempts at a set interval, after the processing delay. [YouTube Feeds > How processing works](youtube-feeds.md#how-processing-works)
 
 ## Q
 
@@ -267,6 +267,10 @@ Every term the app uses, in plain words, with a link to the part of the docs tha
 
 **Sponsor** - The advertiser behind a detection. Sponsors accumulate history per feed, which gets fed back into detection as a hint. [Web Interface > Sponsors and Normalizations](web-interface.md#sponsors-and-normalizations)
 
+**SponsorBlock** - A community database of timestamps for sponsor reads, self-promotion, intros and similar spans in YouTube videos. On a YouTube feed its marks are the cut source by default. [YouTube Feeds > SponsorBlock categories](youtube-feeds.md#sponsorblock-categories)
+
+**SponsorBlock state** - Where a YouTube episode is in the SponsorBlock gate: waiting, probing, watching, done, exhausted or llm. The UI shows it as one line on the episode. [YouTube Feeds > Episode states](youtube-feeds.md#episode-states)
+
 **Staging area** - The per-feed holding folder for a local feed's uploaded archive-import batch, `<data>/import-staging/<slug>/`. Unlike the import directory, MinusPod fully manages it: it is populated by the upload endpoint and cleared out as the import commits. [Local Feeds > Bulk import](local-feeds.md#bulk-import)
 
 **Subscriber feed / subscriber key** - A credential scoped to one podcast, labelled for a person or device and revocable on its own, in the form of a 16-character key ID, a dot and a 64-character secret. Download history shows the label of the key that fetched each row. Revoking one leaves the global key and other subscribers working. [Security > Authenticated feeds](security-and-storage.md#authenticated-feeds-optional)
@@ -276,10 +280,6 @@ Every term the app uses, in plain words, with a link to the part of the docs tha
 **Synthesized publish date** - The publish date MinusPod assigns a local-feed episode when none was given explicitly: episodes are sorted by season and episode, the newest anchors at import time, and earlier ones step back a day each (or space evenly between two explicit dates). [Local Feeds > Publish dates](local-feeds.md#publish-dates)
 
 **System One Tuneables** - The Settings section for independent native-provider tuning profiles. [System One > Independent tuning profiles](system-one.md#independent-tuning-profiles)
-
-**SponsorBlock** - A community database of timestamps for sponsor reads, self-promotion, intros and similar spans in YouTube videos. On a YouTube feed its marks are the cut source by default. [YouTube Feeds > SponsorBlock categories](youtube-feeds.md#sponsorblock-categories)
-
-**SponsorBlock state** - Where a YouTube episode is in the SponsorBlock gate: waiting, probing, watching, done, exhausted or llm. The UI shows it as one line on the episode. [YouTube Feeds > Episode states](youtube-feeds.md#episode-states)
 
 ## T
 
@@ -311,6 +311,8 @@ Every term the app uses, in plain words, with a link to the part of the docs tha
 
 ## W
 
+**Watch window** - The days after a YouTube video is published during which MinusPod keeps checking SponsorBlock, queues the episode when marks appear, and recuts it when the marks change. The watch ceiling ends it. [YouTube Feeds > How processing works](youtube-feeds.md#how-processing-works)
+
 **Waveform Ad Editor** - The visual editor for a single detection: waveform, transcript context, and draggable boundaries, with the original audio for reference. [Web Interface > Waveform Ad Editor](web-interface.md#waveform-ad-editor)
 
 **Whisper (faster-whisper)** - The default local transcription backend (`WHISPER_BACKEND=local`). `WHISPER_MODEL` and `WHISPER_COMPUTE_TYPE` apply to it only. [Transcription > Whisper (faster-whisper)](transcription.md#whisper-faster-whisper)
@@ -318,8 +320,6 @@ Every term the app uses, in plain words, with a link to the part of the docs tha
 **Webhook events** - Notifications MinusPod can send about episodes, feeds, the queue, services, and failover. Each can also go out by email. [API & Webhooks > Events](api-and-webhooks.md#events)
 
 **Webhook template fallback** - If a custom payload template cannot render for an event, MinusPod uses a default body. Webhook test results set a `templateFallback` flag whether or not delivery succeeds. Text content types get a readable line; other types get JSON. [API & Webhooks > Webhooks](api-and-webhooks.md#webhooks)
-
-**Watch window** - The days after a YouTube video is published during which MinusPod keeps checking SponsorBlock, queues the episode when marks appear, and recuts it when the marks change. The watch ceiling ends it. [YouTube Feeds > How processing works](youtube-feeds.md#how-processing-works)
 
 ## Y
 

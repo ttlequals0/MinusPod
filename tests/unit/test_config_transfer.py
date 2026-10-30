@@ -55,6 +55,13 @@ def test_export_includes_only_config_fields_and_round_trips_recents(temp_db):
     assert 'user_tags' in subscribed['settings']
 
 
+def test_export_carries_youtube_settings_but_not_ytdlp_status(temp_db):
+    temp_db.set_setting('youtube_ytdlp_version', '2026.10.26', is_default=False)
+    exported = config_transfer.export_config(temp_db, '2.98.2')
+    assert 'youtube_process_delay_minutes' in exported['settings']
+    assert 'youtube_ytdlp_version' not in exported['settings']
+
+
 def test_export_budget_includes_worst_apply_envelope_and_utf8_bytes(temp_db, monkeypatch):
     db = temp_db
     db.create_podcast('example-feed', 'https://example.com/feed.xml', 'Example')
