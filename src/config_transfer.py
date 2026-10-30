@@ -157,6 +157,7 @@ YOUTUBE_COLUMNS = frozenset({
     'yt_llm_on_top_override', 'yt_captions_override',
 })
 YOUTUBE_SOURCE_RE = re.compile(r'^youtube://(playlist|channel)/[A-Za-z0-9_-]+$')
+YOUTUBE_ID_RE = re.compile(r'^[A-Za-z0-9_-]+$')
 YT_INT_COLUMNS = {
     'yt_process_delay_minutes_override': 'processDelayMinutes',
     'yt_probe_attempts_override': 'sbProbeAttempts',
@@ -396,9 +397,10 @@ def export_config(db, app_version):
     for row in rows:
         columns = FEED_COLUMNS
         if row['feed_type'] != 'local':
-            columns = tuple(column for column in columns if column not in {
-                'author', 'explicit', 'categories', 'p20_channel_json',
-            })
+            local_only = {'author', 'explicit', 'categories'}
+            if row['feed_type'] != 'youtube':
+                local_only.add('p20_channel_json')
+            columns = tuple(column for column in columns if column not in local_only)
         if row['feed_type'] != 'youtube':
             columns = tuple(column for column in columns if column not in YOUTUBE_COLUMNS)
         if row['feed_type'] == 'recents':
@@ -497,14 +499,19 @@ def _validate_document(document):
             raise ConfigTransferError(f'Recents feed {slug} contains unsupported settings')
         if feed_type == 'recents' and fields.get('source_url') != 'recents://':
             raise ConfigTransferError(f'Recents feed {slug} has an invalid identity')
-        if feed_type == 'youtube' and (
-                not isinstance(source_url, str) or not YOUTUBE_SOURCE_RE.match(source_url)
-                or not fields.get('youtube_source_kind') or not fields.get('youtube_source_id')):
-            raise ConfigTransferError(f'YouTube feed {slug} has an invalid identity')
+        if feed_type == 'youtube':
+            if not isinstance(source_url, str) or not YOUTUBE_SOURCE_RE.match(source_url):
+                raise ConfigTransferError(f'YouTube feed {slug} has an invalid identity')
+            yt_kind, yt_id = fields.get('youtube_source_kind'), fields.get('youtube_source_id')
+            if (yt_kind not in ('playlist', 'channel') or not isinstance(yt_id, str)
+                    or not YOUTUBE_ID_RE.match(yt_id) or source_url != f'youtube://{yt_kind}/{yt_id}'):
+                raise ConfigTransferError(
+                    f'Feed {slug} has a YouTube source that does not match its source_url')
         if feed_type != 'youtube' and set(fields) & YOUTUBE_COLUMNS:
             raise ConfigTransferError(f'Feed {slug} contains YouTube-only settings')
-        if feed_type != 'local' and set(fields) & {
-                'author', 'explicit', 'categories', 'p20_channel_json'}:
+        if feed_type != 'local' and set(fields) & (
+                {'author', 'explicit', 'categories'}
+                | (set() if feed_type == 'youtube' else {'p20_channel_json'})):
             raise ConfigTransferError(f'Feed {slug} contains local-only metadata')
     for key, value in settings.items():
         if key in PORTABLE_SETTINGS:
@@ -1404,7 +1411,7 @@ def apply_config(db, document, scope, selected_feeds, preview_token):
                         title = updates.pop('title', None)
                         source_url = updates.pop('source_url', f'local://{slug}')
                         db.create_podcast(slug, source_url, title, feed['feedType'], conn=conn)
-                        if feed['feedType'] == 'local' and 'p20_channel_json' not in updates:
+                        if feed['feedType'] in ('local', 'youtube') and 'p20_channel_json' not in updates:
                             from api.feeds import _apply_p20_merge, _public_feed_url
                             feed_url = _public_feed_url(slug, db.get_setting('feed_auth_key'))
                             channel = _apply_p20_merge(
