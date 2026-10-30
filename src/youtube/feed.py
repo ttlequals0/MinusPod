@@ -21,8 +21,8 @@ def rebuild_youtube_feed(slug: str, podcast: dict | None = None) -> bool:
         return False
     try:
         cap = db.get_max_episodes_for_podcast(slug, podcast=podcast)
-        episodes = _fetch_local_feed_episodes(db, podcast['id'], cap,
-                                                processed_only=db.is_only_expose_processed_for_podcast(slug, podcast=podcast))
+        processed_only = db.is_only_expose_processed_for_podcast(slug, podcast=podcast)
+        episodes = _fetch_local_feed_episodes(db, podcast['id'], cap, processed_only=processed_only)
         xml = build_local_feed_xml(podcast, episodes, storage=storage, db=db, channel_link=source_link(podcast))
         storage.save_rss(slug, xml)
         db.update_podcast(slug, last_checked_at=utc_now_iso())

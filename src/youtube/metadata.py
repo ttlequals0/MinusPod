@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 METADATA_TIMEOUT_S = 180
 BATCH = 10
 IDLE_INTERVAL = timedelta(minutes=10)
-_DATE_ONLY = re.compile(r'^\d{4}-\d{2}-\d{2}(T00:00:00(\.0+)?([Zz]|[+-]\d{2}:?\d{2})?)?$')
+_DATE_ONLY = re.compile(r'^\d{4}-\d{2}-\d{2}(T00:00:00(Z|\+00:00)?)?$')
 _next_run = None
 _executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix='yt-metadata')
 _future = None
@@ -28,11 +28,6 @@ _misses: dict[str, int] = {}
 def video_id_of(row, url=None) -> str:
     vid = (row or {}).get('youtube_video_id')
     return vid or parse_qs(urlparse(url or (row or {}).get('original_url') or '').query).get('v', [''])[0]
-
-
-def is_date_only(value) -> bool:
-    """True for a bare date or a midnight timestamp, which a flat listing stores."""
-    return bool(_DATE_ONLY.match(str(value)))
 
 
 def fill_fields(episode_row, info) -> dict:
@@ -46,7 +41,7 @@ def fill_fields(episode_row, info) -> dict:
     if not isinstance(timestamp, (int, float)):
         timestamp = info.get('release_timestamp')
     published = (episode_row or {}).get('published_at')
-    if isinstance(timestamp, (int, float)) and (not published or is_date_only(published)):
+    if isinstance(timestamp, (int, float)) and (not published or _DATE_ONLY.match(str(published))):
         fields['published_at'] = epoch_to_iso(timestamp)
     return fields
 

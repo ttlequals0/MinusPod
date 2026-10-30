@@ -48,11 +48,13 @@ def test_play_during_processing_serves_the_retained_original():
     db.upsert_episode(SLUG, EP, status='processing')
     path = storage.get_original_path(SLUG, EP)
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_bytes(b'ORIGINAL')
-    with _feed_map(), app.test_client() as c:
-        resp = c.get(f'/episodes/{SLUG}/{EP}.mp3')
-    assert resp.status_code == 200 and resp.data == b'ORIGINAL'
-    path.unlink()
+    try:
+        path.write_bytes(b'ORIGINAL')
+        with _feed_map(), app.test_client() as c:
+            resp = c.get(f'/episodes/{SLUG}/{EP}.mp3')
+        assert resp.status_code == 200 and resp.data == b'ORIGINAL'
+    finally:
+        path.unlink(missing_ok=True)
 
 
 def test_head_for_a_discovered_episode_is_200_without_processing():
@@ -60,5 +62,29 @@ def test_head_for_a_discovered_episode_is_200_without_processing():
         with app.test_client() as c:
             resp = c.head(f'/episodes/{SLUG}/{EP}.mp3')
     assert resp.status_code == 200 and resp.headers['Content-Type'] == 'audio/mpeg'
-    assert resp.data == b''
+    assert resp.data == b'' and 'Content-Length' not in resp.headers
     start.assert_not_called()
+
+
+def test_play_stamps_a_requeued_row_but_not_a_reprocess_with_a_mode():
+    db.upsert_episode(SLUG, EP, reprocess_requested_at='2026-10-28T00:00:00Z')
+    with _feed_map(), patch('main_app.processing.start_background_processing', return_value=(True, 'started')):
+        with app.test_client() as c:
+            c.get(f'/episodes/{SLUG}/{EP}.mp3')
+    assert db.get_episode(SLUG, EP)['reprocess_source'] == 'jit'
+    db.upsert_episode(SLUG, EP, reprocess_source=None, reprocess_mode='llm')
+    with _feed_map(), patch('main_app.processing.start_background_processing', return_value=(True, 'started')):
+        with app.test_client() as c:
+            c.get(f'/episodes/{SLUG}/{EP}.mp3')
+    assert db.get_episode(SLUG, EP)['reprocess_source'] is None
+
+
+def test_queue_busy_own_audio_play_stamps_once():
+    with _feed_map(), patch('main_app.processing.start_background_processing', return_value=(False, 'queue_busy')), \
+            patch('main_app.routes.status_service') as status, \
+            patch('main_app.routes.db.upsert_episode', wraps=db.upsert_episode) as upsert:
+        status.get_queue_position.return_value = 1
+        with app.test_client() as c:
+            c.get(f'/episodes/{SLUG}/{EP}.mp3')
+    stamps = [call for call in upsert.call_args_list if 'reprocess_source' in call.kwargs]
+    assert len(stamps) == 1

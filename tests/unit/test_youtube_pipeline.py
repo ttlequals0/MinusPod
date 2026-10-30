@@ -5,6 +5,8 @@ import tempfile
 from contextlib import ExitStack
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 from tests.app_bootstrap import bootstrap
 
 bootstrap('youtube_pipeline_test_')
@@ -263,6 +265,9 @@ def test_no_captions_transcribe_off_skips_llm_on_top():
     assert detect.call_args.kwargs['skip_llm'] is True
 
 
+FORCED_OVERRIDES = [{'reprocess_mode': 'llm'}, {'sb_state': 'exhausted'}, {'reprocess_source': 'jit'}]
+
+
 def _no_caption_run(row):
     with patch.object(recut, 'get_audio_codec', return_value='mp3'), patch.object(recut.shutil, 'move'):
         return _run([], captions=False, transcribe_fallback=False, llm_fallback=True, episode_row=row)
@@ -277,17 +282,17 @@ def test_no_captions_transcribe_off_without_marks_defers_when_not_forced():
     assert 'No captions and transcription is off' in str(error)
 
 
-def test_no_captions_transcribe_off_without_marks_serves_unmodified_when_exhausted_or_manual():
-    for row in ({'sb_state': 'exhausted'}, {'sb_state': 'watching', 'reprocess_mode': 'llm'}):
-        row = {'episode_id': 'ep1', 'status': 'pending', 'youtube_video_id': 'vid000000001', **row}
-        ok, whisper, detect, verification, ap, fin, after, diff = _no_caption_run(row)
-        assert ok is True
-        whisper.assert_not_called()
-        detect.assert_not_called()
-        ap.return_value.process_episode.assert_not_called()
-        fin.assert_called_once()
-        run = after.call_args.args[2]
-        assert run.mode == 'passthrough' and run.note == 'no_captions'
+@pytest.mark.parametrize('override', FORCED_OVERRIDES)
+def test_no_captions_transcribe_off_without_marks_serves_unmodified_when_forced(override):
+    row = {'episode_id': 'ep1', 'status': 'pending', 'youtube_video_id': 'vid000000001', **override}
+    ok, whisper, detect, verification, ap, fin, after, diff = _no_caption_run(row)
+    assert ok is True
+    whisper.assert_not_called()
+    detect.assert_not_called()
+    ap.return_value.process_episode.assert_not_called()
+    fin.assert_called_once()
+    run = after.call_args.args[2]
+    assert run.mode == 'passthrough' and run.note == 'no_captions'
 
 
 def test_no_captions_transcribe_on_without_marks_runs_whisper():
@@ -398,27 +403,10 @@ def test_bot_wall_error_does_not_update_ytdlp():
     _run.extras['update_binary'].assert_not_called()
 
 
-def test_manual_llm_reprocess_runs_llm_without_marks_or_fallback():
+@pytest.mark.parametrize('override', FORCED_OVERRIDES)
+def test_forced_episode_runs_llm_without_marks_or_fallback(override):
     row = {'episode_id': 'ep1', 'status': 'pending', 'sb_state': 'watching',
-           'youtube_video_id': 'vid000000001', 'reprocess_mode': 'llm'}
-    ok, whisper, detect, verification, ap, fin, after, diff = _run([], llm_fallback=False, episode_row=row)
-    assert ok is True
-    detect.assert_called_once()
-
-
-def test_jit_stamped_play_without_marks_takes_the_forced_path():
-    row = {'episode_id': 'ep1', 'status': 'pending', 'sb_state': 'watching',
-           'youtube_video_id': 'vid000000001', 'reprocess_source': 'jit'}
-    ok, whisper, detect, *_ = _run([], llm_fallback=False, episode_row=row)
-    assert ok is True
-    detect.assert_called_once()
-    ok, whisper, detect, verification, ap, fin, after, diff = _no_caption_run({**row, 'reprocess_source': 'jit'})
-    assert ok is True and after.call_args.args[2].mode == 'passthrough'
-
-
-def test_exhausted_episode_runs_llm_without_marks_or_fallback():
-    row = {'episode_id': 'ep1', 'status': 'pending', 'sb_state': 'exhausted',
-           'youtube_video_id': 'vid000000001'}
+           'youtube_video_id': 'vid000000001', **override}
     ok, whisper, detect, *_ = _run([], llm_fallback=False, episode_row=row)
     assert ok is True
     detect.assert_called_once()

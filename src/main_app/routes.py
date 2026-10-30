@@ -306,23 +306,39 @@ def _published_processed_path(slug, episode_id, episode,
     return None
 
 
-def _head_local(slug, episode_id, episode, requested_version=None):
+def _audio_head_response(size=None):
+    resp = Response(status=200)
+    resp.headers['Content-Type'] = 'audio/mpeg'
+    if size is None:
+        resp.automatically_set_content_length = False
+    else:
+        resp.content_length = size
+    return resp
+
+
+def _head_local(slug, episode_id, episode, podcast, requested_version=None):
     """HEAD the published local cut or retained original."""
     path = _published_processed_path(
         slug, episode_id, episode, requested_version)
     if path is None:
         path = storage.get_original_path(slug, episode_id)
     if path.exists():
-        proxy_resp = Response('', status=200)
-        proxy_resp.headers['Content-Type'] = 'audio/mpeg'
-        proxy_resp.content_length = path.stat().st_size
-        return proxy_resp
-    if is_youtube_feed(db.get_podcast_by_slug(slug)):
+        return _audio_head_response(path.stat().st_size)
+    if is_youtube_feed(podcast):
         # Discovered video not downloaded yet: apps probe with HEAD before the first play.
-        proxy_resp = Response('', status=200)
-        proxy_resp.headers['Content-Type'] = 'audio/mpeg'
-        return proxy_resp
+        return _audio_head_response()
     abort(404)
+
+
+def _stamp_jit_play(slug, episode_id, episode):
+    """Mark a play as user intent unless a reprocess or requeue already owns the row."""
+    episode = episode or {}
+    if episode.get('reprocess_source') or episode.get('reprocess_mode'):
+        return False
+    db.upsert_episode(slug, episode_id,
+                      reprocess_requested_at=utc_now_iso(),
+                      reprocess_source=REPROCESS_SOURCE_JIT)
+    return True
 
 
 def _record_download(slug, episode_id):
@@ -682,7 +698,7 @@ def register_routes(app):
             if ep_data:
                 if serves_own_audio:
                     return _routes._head_local(
-                        slug, episode_id, episode, requested_version)
+                        slug, episode_id, episode, podcast, requested_version)
                 return _routes._head_upstream(slug, episode_id, ep_data['url'])
             abort(404)
 
@@ -735,10 +751,8 @@ def register_routes(app):
                 return redirect(original_url, code=302)
 
         # An own-audio play is user intent; acquire treats a stamp as manual, never over an existing one.
-        if serves_own_audio and not (episode or {}).get('reprocess_requested_at'):
-            db.upsert_episode(slug, episode_id,
-                              reprocess_requested_at=utc_now_iso(),
-                              reprocess_source=REPROCESS_SOURCE_JIT)
+        if serves_own_audio:
+            _stamp_jit_play(slug, episode_id, episode)
 
         # Start background processing (non-blocking)
         started, reason = start_background_processing(
@@ -776,10 +790,8 @@ def register_routes(app):
             # feed with auto-process off.
             # Never over an existing stamp: relabelling a person's reprocess
             # as a play request would let automatic policies act on their run.
-            if not (episode or {}).get('reprocess_requested_at'):
-                db.upsert_episode(slug, episode_id,
-                                  reprocess_requested_at=utc_now_iso(),
-                                  reprocess_source=REPROCESS_SOURCE_JIT)
+            if not serves_own_audio:
+                _stamp_jit_play(slug, episode_id, episode)
             feed_priority = db.get_podcast_queue_priority(slug)
             priority = compute_queue_priority(
                 feed_priority, ep_data.get('published'), manual=True)

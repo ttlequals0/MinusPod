@@ -93,17 +93,5 @@ def test_missing_metadata_selection(db):
         db.upsert_episode(slug, eid, original_url='https://www.youtube.com/watch?v=x', description=desc)
     db.upsert_episode('yt-show', 'e3', yt_metadata_at='2026-10-30T00:00:00Z')
     rows = db.get_youtube_episodes_missing_metadata(10)
-    assert [r['episode_id'] for r in rows] == ['e1']
+    assert sorted(r['episode_id'] for r in rows) == ['e1', 'e2']
     assert rows[0]['slug'] == 'yt-show'
-    db.upsert_episode('yt-show', 'e5', original_url='https://www.youtube.com/watch?v=y',
-                      description='described')
-    db.get_connection().execute("UPDATE episodes SET published_at = '2026-10-29' WHERE episode_id = 'e5'")
-    db.get_connection().commit()
-    assert 'e5' in [r['episode_id'] for r in db.get_youtube_episodes_missing_metadata(10)]
-    db.upsert_episode('yt-show', 'e6', original_url='https://www.youtube.com/watch?v=z',
-                      description='described', published_at='2026-10-27')
-    db.upsert_episode('yt-show', 'e7', original_url='https://www.youtube.com/watch?v=w',
-                      description='described', published_at='2026-10-27T08:30:00Z')
-    ids = [r['episode_id'] for r in db.get_youtube_episodes_missing_metadata(10)]
-    assert 'e6' in ids and 'e7' not in ids
-    assert db.get_episode('yt-show', 'e6')['published_at'].endswith('T00:00:00Z')

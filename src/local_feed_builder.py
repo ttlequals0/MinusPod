@@ -149,7 +149,7 @@ def _enclosure_audio_metadata(slug: str, ep: dict, storage_) -> tuple[str, float
         path = storage_.get_original_path(slug, ep['episode_id'])
         size = path.stat().st_size
     except OSError:
-        return '', ep.get('original_duration') or ep.get('rss_duration')
+        return '', ep.get('original_duration')
     return f' length="{size}"', ep.get('original_duration')
 
 
@@ -209,6 +209,7 @@ def _append_local_episode_item(lines: list, slug: str, ep: dict, base: str,
     enclosure_url = episode_public_url(base, slug, ep_id, version=version,
                                        key=feed_auth_key)
     length_attr, duration = _enclosure_audio_metadata(slug, ep, storage_)
+    duration = duration or ep.get('rss_duration')
     lines.append(f'  <enclosure url="{enclosure_url}" type="audio/mpeg"{length_attr} />')
 
     if duration:

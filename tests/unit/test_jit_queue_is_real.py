@@ -117,7 +117,7 @@ def test_a_play_does_not_overwrite_a_manual_reprocess_stamp(
     mock_db.get_episode.return_value = {
         'episode_id': EP, 'status': 'pending',
         'original_url': 'https://example.com/ep.mp3',
-        'reprocess_requested_at': '2026-01-01T00:00:00Z',
+        'reprocess_requested_at': '2026-01-01T00:00:00Z', 'reprocess_mode': 'full',
     }
     mock_status.get_queue_position.return_value = 1
 
