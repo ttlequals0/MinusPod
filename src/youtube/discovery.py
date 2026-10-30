@@ -242,9 +242,6 @@ def list_videos(db, podcast: dict, limit: int, settings=None) -> list[dict]:
 
 def _list_single_video(db, podcast: dict) -> list[dict]:
     video_id = podcast['youtube_source_id']
-    episode_id = _ids.generate_episode_id(watch_url(video_id), f'yt:{video_id}')
-    if db.get_episode(podcast['slug'], episode_id):
-        return []
     key = yt_settings.api_key(db)
     if key:
         try:
@@ -253,9 +250,9 @@ def _list_single_video(db, podcast: dict) -> list[dict]:
             logger.warning(f"[{podcast.get('slug')}] YouTube Data API failed ({type(exc).__name__}); "
                            "listing with yt-dlp")
     data = _ytdlp_json(watch_url(video_id), ['--no-playlist'], timeout=120)
-    if data.get('live_status') in _LIVE_STATUSES:
-        return []
     duration = float(data['duration']) if data.get('duration') is not None else None
+    if not _keep(duration, data.get('live_status') in _LIVE_STATUSES, True, False):
+        return []
     return [_episode(video_id, data.get('title'), data.get('description'), _published_from_entry(data),
                      duration, _best_thumb(data.get('thumbnails')))]
 

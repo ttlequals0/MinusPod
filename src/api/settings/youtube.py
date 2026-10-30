@@ -91,8 +91,12 @@ def put_youtube_settings():
             proxy_url = ytdlp.parse_proxy_url(data['proxyUrl'])
         except ValueError as exc:
             return error_response(str(exc), 400)
-        if proxy_url != ytdlp.mask_proxy_url(get_database().get_setting('youtube_proxy_url') or ''):
-            writes.append(('youtube_proxy_url', proxy_url))
+        stored_proxy = get_database().get_setting('youtube_proxy_url') or ''
+        if proxy_url != ytdlp.mask_proxy_url(stored_proxy):
+            try:
+                writes.append(('youtube_proxy_url', ytdlp.restore_proxy_password(proxy_url, stored_proxy)))
+            except ValueError as exc:
+                return error_response(str(exc), 400)
     if 'apiKey' in data and data['apiKey'] is not None and not isinstance(data['apiKey'], str):
         return error_response('apiKey must be a string or null', 400)
     if data.get('apiKey') and not crypto_available():

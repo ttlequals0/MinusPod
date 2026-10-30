@@ -28,7 +28,6 @@ def _db(key=''):
     db = MagicMock()
     db.get_secret.return_value = key
     db.get_setting.return_value = ''
-    db.get_episode.return_value = None
     return db
 
 
@@ -447,15 +446,20 @@ def test_list_videos_threads_the_stored_proxy_to_the_api():
                for c in get.call_args_list)
 
 
-def test_single_video_with_an_existing_episode_skips_the_fetch():
-    db = _db('KEY')
-    db.get_episode.return_value = {'id': 'x'}
-    with patch.object(discovery, 'safe_get') as get, patch.object(discovery.ytdlp, 'run') as run:
-        assert discovery.list_videos(db, _podcast('video', 'abc123def45'), limit=50) == []
-    assert not get.called and not run.called
-    assert db.get_episode.call_args.args[0] == 'yt'
-
-
 def test_unsupported_source_kind_is_rejected():
     with pytest.raises(ValueError, match='unsupported YouTube source kind'):
         discovery.list_videos(_db(), _podcast('handle', 'x'), limit=5)
+
+
+def test_single_video_ytdlp_path_applies_the_same_filter_as_the_api():
+    for extra in ({'live_status': 'is_upcoming'}, {'live_status': 'post_live'}):
+        with patch.object(discovery.ytdlp, 'run', return_value=_completed(dict(YT_DLP_VIDEO, **extra))):
+            assert discovery.list_videos(_db(), _podcast('video', 'abc123def45'), limit=50) == []
+
+
+def test_api_error_message_never_carries_the_proxy():
+    exc = requests.ConnectionError('proxy http://u:SECRET@p:1 refused')
+    with patch.object(discovery, 'safe_get', side_effect=exc):
+        with pytest.raises(discovery.DiscoveryError) as err:
+            discovery._api_get('videos', {}, 'KEY', proxy='http://u:SECRET@p:1')
+    assert 'SECRET' not in str(err.value)

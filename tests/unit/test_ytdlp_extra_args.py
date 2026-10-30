@@ -16,8 +16,8 @@ def test_empty_is_no_args():
 
 
 def test_normal_and_quoted_values():
-    assert ytdlp.parse_extra_args('--proxy socks5://p:1080 --limit-rate 2M') == [
-        '--proxy', 'socks5://p:1080', '--limit-rate', '2M']
+    assert ytdlp.parse_extra_args('--sleep-requests 1 --limit-rate 2M') == [
+        '--sleep-requests', '1', '--limit-rate', '2M']
     assert ytdlp.parse_extra_args('--user-agent "Mozilla 5.0 test"') == ['--user-agent', 'Mozilla 5.0 test']
 
 
@@ -126,3 +126,50 @@ def test_proxy_too_long_and_no_credentials_in_error():
     with pytest.raises(ValueError) as err:
         ytdlp.parse_proxy_url('ftp://u:SECRET@h')
     assert 'SECRET' not in str(err.value)
+
+
+@pytest.mark.parametrize('text,token', [
+    ('https://example.com/x --limit-rate 2M', 'https://example.com/x'),
+    ('--limit-rate 2M 3M', '3M'),
+    ('--limit-rate=2M 3M', '3M'),
+    ('--proxy socks5://p:1', 'socks5://p:1'),
+    ('--x=http://p', '--x=http://p'),
+])
+def test_unexpected_bare_values_rejected(text, token):
+    with pytest.raises(ValueError, match=f'unexpected value {token}'):
+        ytdlp.parse_extra_args(text)
+
+
+def test_extractor_args_then_option_accepted():
+    assert ytdlp.parse_extra_args('--extractor-args youtube:player_client=web --limit-rate 2M') == [
+        '--extractor-args', 'youtube:player_client=web', '--limit-rate', '2M']
+
+
+def test_scrub_proxy_masks_url_and_password():
+    url = 'socks5h://u:S%40CRET@host:1080'
+    text = f'ERROR: proxy {url} failed; auth S%40CRET and S@CRET rejected'
+    out = ytdlp.scrub_proxy(text, url)
+    assert 'CRET' not in out and 'u:***@host:1080' in out
+    assert ytdlp.scrub_proxy('plain', 'http://h:1') == 'plain'
+
+
+def test_run_scrubs_proxy_credentials_from_output():
+    db = MagicMock()
+    db.get_setting.side_effect = lambda k: {'youtube_proxy_url': 'http://u:SECRET@p:1'}.get(k)
+    done = MagicMock(stdout='out http://u:SECRET@p:1', stderr='ERROR: via http://u:SECRET@p:1 SECRET')
+    with patch.object(ytdlp, 'ensure_runtime_binary', return_value=Path('/bin/yt-dlp')), \
+            patch.object(ytdlp, '_ensured_path', None), patch.object(ytdlp.subprocess, 'run', return_value=done):
+        result = ytdlp.run(['x'], timeout=5, storage=MagicMock(), db=db)
+    assert 'SECRET' not in result.stdout and 'SECRET' not in result.stderr
+    assert 'u:***@p:1' in result.stderr
+
+
+def test_restore_proxy_password():
+    stored = 'http://u:real@h:1'
+    assert ytdlp.restore_proxy_password('http://u:***@h:2', stored) == 'http://u:real@h:2'
+    assert ytdlp.restore_proxy_password('http://u:new@h:2', stored) == 'http://u:new@h:2'
+    assert ytdlp.restore_proxy_password('http://u:***@h:2', 'http://h:1') == 'http://u:***@h:2'
+    assert ytdlp.restore_proxy_password('http://u:***@H:1', stored) == 'http://u:real@H:1'
+    for bad in ('http://u:***@other:1', 'http://x:***@h:1', 'socks5://u:***@h:1'):
+        with pytest.raises(ValueError, match='host or user changed'):
+            ytdlp.restore_proxy_password(bad, stored)

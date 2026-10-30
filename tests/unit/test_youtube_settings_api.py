@@ -157,3 +157,27 @@ def test_mask_proxy_url_leaves_passwordless_urls():
     from youtube import ytdlp
     assert ytdlp.mask_proxy_url('http://u@h:1') == 'http://u@h:1'
     assert ytdlp.mask_proxy_url('socks5://h:1') == 'socks5://h:1'
+
+
+def test_masked_password_survives_editing_another_part_of_the_url(app_client):
+    from api import get_database
+    _authed(app_client)
+    headers = _csrf_headers(app_client)
+    app_client.put('/api/v1/settings/youtube', json={'proxyUrl': 'http://u:real@host:1080'}, headers=headers)
+    app_client.put('/api/v1/settings/youtube', json={'proxyUrl': 'http://u:***@host:2080'}, headers=headers)
+    assert get_database().get_setting('youtube_proxy_url') == 'http://u:real@host:2080'
+    app_client.put('/api/v1/settings/youtube', json={'proxyUrl': 'http://u:fresh@host:2080'}, headers=headers)
+    assert get_database().get_setting('youtube_proxy_url') == 'http://u:fresh@host:2080'
+
+
+def test_changed_proxy_host_with_masked_password_is_rejected(app_client):
+    from api import get_database
+    _authed(app_client)
+    headers = _csrf_headers(app_client)
+    app_client.put('/api/v1/settings/youtube', json={'proxyUrl': 'http://u:real@host:1080'}, headers=headers)
+    resp = app_client.put('/api/v1/settings/youtube', json={'proxyUrl': 'http://u:***@other:1080'}, headers=headers)
+    assert resp.status_code == 400 and 'enter the proxy password again' in resp.get_json()['error']
+    assert get_database().get_setting('youtube_proxy_url') == 'http://u:real@host:1080'
+    resp = app_client.put('/api/v1/settings/youtube', json={'proxyUrl': 'http://u:new@other:1080'}, headers=headers)
+    assert resp.status_code == 200
+    assert get_database().get_setting('youtube_proxy_url') == 'http://u:new@other:1080'

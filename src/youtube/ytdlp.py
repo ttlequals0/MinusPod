@@ -8,7 +8,7 @@ import tempfile
 import threading
 from datetime import timedelta
 from pathlib import Path
-from urllib.parse import urlparse, urlsplit
+from urllib.parse import unquote, urlparse, urlsplit
 
 from utils.time import parse_iso_utc, utc_now, utc_now_iso
 
@@ -128,7 +128,11 @@ def parse_extra_args(text: str) -> list[str]:
         tokens = shlex.split(text)
     except ValueError:
         raise ValueError('extra yt-dlp arguments: unbalanced quotes') from None
+    expects_value = False
     for token in tokens:
+        if '://' in token or (not token.startswith('-') and not expects_value):
+            raise ValueError(f'extra yt-dlp arguments: unexpected value {token}')
+        expects_value = token.startswith('-') and '=' not in token
         if token.startswith('-') and not token.startswith('--') and len(token) > 2:
             raise ValueError(f'extra yt-dlp arguments: use the long form for {token}')
         flag = token.split('=', 1)[0]
@@ -168,6 +172,37 @@ def mask_proxy_url(text: str) -> str:
     return parts._replace(netloc=f'{parts.username}:***@{host}').geturl()
 
 
+def restore_proxy_password(submitted: str, stored: str) -> str:
+    """Swap a masked *** password in `submitted` for the stored one; the scheme, host and user must be unchanged."""
+    try:
+        parts = urlsplit(submitted)
+        prior = urlsplit(stored)
+    except ValueError:
+        return submitted
+    old = prior.password
+    if parts.password != '***' or old is None:
+        return submitted
+    if (parts.scheme.lower(), (parts.hostname or '').lower(), parts.username) != (
+            prior.scheme.lower(), (prior.hostname or '').lower(), prior.username):
+        raise ValueError('proxy host or user changed: enter the proxy password again')
+    host = parts.netloc.rsplit('@', 1)[1]
+    return parts._replace(netloc=f'{parts.username}:{old}@{host}').geturl()
+
+
+def scrub_proxy(text: str, proxy_url: str) -> str:
+    """Mask the proxy URL and its password wherever they appear in `text`."""
+    try:
+        password = urlsplit(proxy_url).password
+    except ValueError:
+        return text
+    if not password or not text:
+        return text
+    text = text.replace(proxy_url, mask_proxy_url(proxy_url))
+    for secret in {password, unquote(password)}:
+        text = text.replace(secret, '***')
+    return text
+
+
 def _configured(db, key: str, parser, warned: set, label: str):
     """Parse a stored setting; an invalid value is logged once and ignored."""
     text = db.get_setting(key) or ''
@@ -202,10 +237,14 @@ def run(args: list[str], *, timeout: int, cwd=None, storage=None, db=None,
     proxy_url = configured_proxy(db) if proxy else ''
     leading = [*(['--proxy', proxy_url] if proxy_url else []), *(_configured_extra_args(db) if extra_args else [])]
     try:
-        return subprocess.run([str(binary), *leading, *args], capture_output=True, text=True,
-                              timeout=timeout, cwd=cwd)
+        result = subprocess.run([str(binary), *leading, *args], capture_output=True, text=True,
+                                timeout=timeout, cwd=cwd)
     except FileNotFoundError as exc:
         raise YtDlpNotInstalled(str(exc)) from exc
+    if proxy_url:
+        result.stdout = scrub_proxy(result.stdout, proxy_url)
+        result.stderr = scrub_proxy(result.stderr, proxy_url)
+    return result
 
 
 def trimmed_error(stderr: str) -> str:
