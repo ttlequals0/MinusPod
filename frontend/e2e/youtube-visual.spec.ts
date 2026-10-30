@@ -239,6 +239,7 @@ for (const width of WIDTHS) {
       const panel = page.locator(`[data-search-key="youtube-feed-${SLUG}"]`);
       await expect(panel.getByRole('heading', { name: 'YouTube' })).toBeVisible({ timeout: 15_000 });
       await expect(page.getByText(/Waiting for SponsorBlock, attempt 2/)).toBeVisible();
+      const actionRow = page.getByRole('button', { name: 'Delete feed' }).locator('xpath=../..');
       await panel.scrollIntoViewIfNeeded();
       await page.waitForTimeout(400);
       expect(page.viewportSize()!.width).toBe(width);
@@ -246,6 +247,8 @@ for (const width of WIDTHS) {
       await expectTouchTargets(page, panel, width);
       await expectAxe(page, { include: `[data-search-key="youtube-feed-${SLUG}"]` });
       await expectAxe(page, { disableRules: EPISODE_LIST_RULES });
+      await actionRow.scrollIntoViewIfNeeded();
+      await expectTouchTargets(page, actionRow, width);
       await shoot(page, 'feed-detail', width);
     });
 

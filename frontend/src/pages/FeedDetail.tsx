@@ -630,8 +630,8 @@ function FeedDetail() {
           </div>
         </div>
 
-        <div className="mt-6 pt-4 border-t border-border flex flex-wrap gap-2 sm:gap-4 items-center justify-between">
-          <div className="flex items-center gap-2 min-w-0">
+        <div className="mt-6 pt-4 border-t border-border grid grid-cols-2 min-[360px]:flex gap-2 sm:gap-4 items-center sm:flex-wrap sm:justify-between">
+          <div className="flex items-center gap-2 min-w-0 shrink-0 sm:shrink">
             <span className="hidden sm:inline text-sm text-muted-foreground shrink-0">Feed URL</span>
             <code className="hidden sm:block text-sm bg-secondary px-2 py-1 rounded truncate min-w-0">
               {feed.feedUrl}
@@ -642,23 +642,19 @@ function FeedDetail() {
             <CopyButton
               text={feed.feedUrl}
               label="Copy feed URL"
-              className={`px-2 py-2 sm:px-0 sm:py-0 sm:p-1.5 gap-2 ${btnSecondary} sm:bg-transparent sm:text-muted-foreground sm:hover:bg-accent`}
+              className={`max-[359px]:w-full px-2 py-2 sm:px-0 sm:py-0 sm:p-1.5 gap-2 ${btnSecondary} sm:bg-transparent sm:text-muted-foreground sm:hover:bg-accent`}
               copiedClassName="text-success bg-success/10 sm:bg-transparent"
               labelClassName="hidden sm:inline text-sm"
             />
           </div>
-          {/* Wraps rather than overflowing: every child is whitespace-nowrap, so
-              without this the group keeps its intrinsic width and pushes the last
-              button through the card's padding on a narrow screen. No
-              items-center, so the buttons keep flex's default stretch and the
-              icon-only delete stays the same height as the labelled ones. */}
-          <div className="flex flex-wrap justify-end gap-2">
+          {/* Below sm: one row (copy first), a 2x2 grid under 360 px; from sm it wraps so nowrap buttons never overflow. */}
+          <div className="contents min-[360px]:flex min-[360px]:flex-1 gap-2 [&>div]:flex-1 sm:flex-none sm:flex-wrap sm:justify-end sm:[&>div]:flex-none">
             {!isRecents && (
             <DropdownMenu
               triggerLabel={reprocessAllMutation.isPending ? 'Queuing...' : (
                 <><span className="sm:hidden">Reprocess</span><span className="hidden sm:inline">Reprocess all</span></>
               )}
-              triggerClassName={`${btnBase} ${btnSecondary}`}
+              triggerClassName={`${btnBase} ${btnSecondary} w-full sm:w-auto`}
               disabled={reprocessAllMutation.isPending}
               title="Reprocess all processed episodes"
               align="left"
@@ -695,7 +691,7 @@ function FeedDetail() {
                 triggerLabel={refreshMutation.isPending ? 'Refreshing...' : (
                   <><span className="sm:hidden">Refresh</span><span className="hidden sm:inline">Refresh feed</span></>
                 )}
-                triggerClassName={`${btnBase} ${btnPrimary}`}
+                triggerClassName={`${btnBase} ${btnPrimary} w-full sm:w-auto`}
                 disabled={refreshMutation.isPending}
                 title="Refresh feed"
                 items={[
@@ -716,7 +712,7 @@ function FeedDetail() {
             <button
               onClick={handleDeleteFeed}
               disabled={deleteMutation.isPending}
-              className={`${btnBase} ${btnDestructive}`}
+              className={`${btnBase} ${btnDestructive} shrink-0 max-[359px]:w-full`}
               title="Delete feed"
               aria-label="Delete feed"
             >
