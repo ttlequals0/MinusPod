@@ -20,6 +20,13 @@ release notes.
   that id.
 - A one-shot cleanup removes the undescribed placeholder episodes those
   entries already created.
+- Processing stats record the chapters stage when publisher chapters are
+  preserved, and show a SponsorBlock lookup stage on YouTube runs.
+
+### Changed
+
+- SponsorBlock-only runs skip audio analysis, since marks are cut as given
+  and nothing reads the signals. The stats table shows the stage as skipped.
 
 ## [2.101.3] - 2026-10-30
 
