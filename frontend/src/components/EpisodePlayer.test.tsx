@@ -113,6 +113,15 @@ describe('EpisodePlayer', () => {
     expect(screen.getByRole('button', { name: 'Playback speed 2x' })).toBeTruthy();
   });
 
+  it('falls back to 1x when storage throws', () => {
+    vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => { throw new Error('blocked'); });
+    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => { throw new Error('blocked'); });
+    render(<EpisodePlayer src="/a.mp3" />);
+    expect(screen.getByRole('button', { name: 'Playback speed 1x' })).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: /Playback speed/ }));
+    expect(screen.getByRole('button', { name: 'Playback speed 1.25x' })).toBeTruthy();
+  });
+
   it('navigates chapters with the 3 s rule and disables at the ends', async () => {
     const { container } = render(<EpisodePlayer src="/a.mp3" chaptersUrl="/c.json" />);
     await screen.findByText('Intro');

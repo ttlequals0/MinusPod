@@ -4,17 +4,14 @@
 // Clock-style timestamp: `H:MM:SS` at or above one hour, else `M:SS`. Integer
 // seconds (each field floored). Used for audio positions (cue rows, ad
 // boundaries) and, via settingsUtils.formatDuration, episode-length durations.
+// NaN, Infinity and negatives read 0:00.
 export function formatTimestamp(seconds: number): string {
+  if (!Number.isFinite(seconds) || seconds < 0) seconds = 0;
   const h = Math.floor(seconds / 3600);
   const m = Math.floor((seconds % 3600) / 60);
   const s = Math.floor(seconds % 60);
   if (h > 0) return `${h}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
   return `${m}:${s.toString().padStart(2, '0')}`;
-}
-
-// Player clock: formatTimestamp that tolerates NaN, Infinity and negatives (0:00).
-export function formatClock(seconds: number): string {
-  return formatTimestamp(Number.isFinite(seconds) && seconds > 0 ? seconds : 0);
 }
 
 // Locale date (no time), `-` for a missing value.

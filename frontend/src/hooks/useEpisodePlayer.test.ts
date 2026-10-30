@@ -1,9 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
-  RATE_STORAGE_KEY, clampSeek, currentChapterIndex, loadRate, nextChapterTarget, nextRate,
-  parseChapters, prevChapterTarget, saveRate,
+  clampSeek, currentChapterIndex, nextChapterTarget, nextRate, parseChapters, prevChapterTarget, validRate,
 } from './useEpisodePlayer';
-import { formatClock } from '../utils/format';
 
 const chapters = [
   { startTime: 0, title: 'Intro' },
@@ -28,44 +26,18 @@ describe('nextRate', () => {
   });
 });
 
-describe('rate persistence', () => {
-  it('defaults to 1x and round-trips a saved rate', () => {
-    expect(loadRate()).toBe(1);
-    saveRate(1.5);
-    expect(localStorage.getItem(RATE_STORAGE_KEY)).toBe('1.5');
-    expect(loadRate()).toBe(1.5);
-  });
-
-  it('ignores a stored value outside the presets', () => {
-    localStorage.setItem(RATE_STORAGE_KEY, '9');
-    expect(loadRate()).toBe(1);
-    localStorage.setItem(RATE_STORAGE_KEY, 'abc');
-    expect(loadRate()).toBe(1);
-  });
-
-  it('falls back to 1x when storage throws', () => {
-    vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => { throw new Error('blocked'); });
-    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => { throw new Error('blocked'); });
-    expect(loadRate()).toBe(1);
-    expect(() => saveRate(2)).not.toThrow();
+describe('validRate', () => {
+  it('accepts presets and falls back to 1x otherwise', () => {
+    expect(validRate(1.5)).toBe(1.5);
+    expect(validRate(0.8)).toBe(0.8);
+    expect(validRate(9)).toBe(1);
+    expect(validRate('abc')).toBe(1);
+    expect(validRate(null)).toBe(1);
   });
 });
 
-describe('formatClock', () => {
-  it.each([
-    [0, '0:00'],
-    [5.9, '0:05'],
-    [65, '1:05'],
-    [3599, '59:59'],
-    [3600, '1:00:00'],
-    [3725, '1:02:05'],
-    [-4, '0:00'],
-    [NaN, '0:00'],
-    [Infinity, '0:00'],
-  ])('formats %s as %s', (s, expected) => {
-    expect(formatClock(s)).toBe(expected);
-  });
-});
+const prev = (t: number, list = chapters) => prevChapterTarget(list, currentChapterIndex(list, t), t);
+const next = (t: number, list = chapters) => nextChapterTarget(list, currentChapterIndex(list, t));
 
 describe('clampSeek', () => {
   it('clamps to 0 and duration', () => {
@@ -96,29 +68,29 @@ describe('currentChapterIndex', () => {
 
 describe('chapter navigation', () => {
   it('previous restarts the current chapter after 3 s', () => {
-    expect(prevChapterTarget(chapters, 104)).toBe(100);
+    expect(prev(104)).toBe(100);
   });
 
   it('previous goes to the earlier chapter within 3 s', () => {
-    expect(prevChapterTarget(chapters, 103)).toBe(0);
-    expect(prevChapterTarget(chapters, 100)).toBe(0);
+    expect(prev(103)).toBe(0);
+    expect(prev(100)).toBe(0);
   });
 
   it('previous is unavailable within 3 s of the first chapter', () => {
-    expect(prevChapterTarget(chapters, 2)).toBeNull();
-    expect(prevChapterTarget(chapters, 4)).toBe(0);
-    expect(prevChapterTarget([], 4)).toBeNull();
+    expect(prev(2)).toBeNull();
+    expect(prev(4)).toBe(0);
+    expect(prev(4, [])).toBeNull();
   });
 
   it('next goes to the following chapter and ends at the last', () => {
-    expect(nextChapterTarget(chapters, 50)).toBe(100);
-    expect(nextChapterTarget(chapters, 120)).toBe(250.5);
-    expect(nextChapterTarget(chapters, 300)).toBeNull();
-    expect(nextChapterTarget([], 0)).toBeNull();
+    expect(next(50)).toBe(100);
+    expect(next(120)).toBe(250.5);
+    expect(next(300)).toBeNull();
+    expect(next(0, [])).toBeNull();
   });
 
   it('next from before the first chapter goes to the first', () => {
-    expect(nextChapterTarget([{ startTime: 10, title: 'A' }], 2)).toBe(10);
+    expect(next(2, [{ startTime: 10, title: 'A' }])).toBe(10);
   });
 });
 

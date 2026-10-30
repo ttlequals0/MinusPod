@@ -1,4 +1,4 @@
-import { ReactNode } from 'react';
+import { ReactNode, useMemo } from 'react';
 
 import { stripHtml } from '../utils/stripHtml';
 import { focusRing } from './fieldStyles';
@@ -152,16 +152,20 @@ interface RichTextProps {
   className?: string;
 }
 
+function parseRich(html: string): ReactNode[] | null {
+  if (typeof DOMParser === 'undefined') return null;
+  return tidy(walk(new DOMParser().parseFromString(html, 'text/html').body, 'rt'));
+}
+
 function RichText({ html, className }: RichTextProps) {
+  const nodes = useMemo(() => (html ? parseRich(html) : null), [html]);
   if (!html) return null;
-  if (typeof DOMParser === 'undefined') {
+  if (!nodes) {
     // No parser available: show the text rather than nothing, links inert.
     // stripHtml re-runs its strip until the string stops changing; a single
     // pass leaves "<scr<script>ipt>" as a live tag.
     return <span className={className}>{stripHtml(html)}</span>;
   }
-  const doc = new DOMParser().parseFromString(html, 'text/html');
-  const nodes = tidy(walk(doc.body, 'rt'));
   // whitespace-pre-line keeps the paragraph breaks that block tags produce;
   // without it a description collapses into one run-on line.
   return <span className={`whitespace-pre-line ${className ?? ''}`.trim()}>{nodes}</span>;

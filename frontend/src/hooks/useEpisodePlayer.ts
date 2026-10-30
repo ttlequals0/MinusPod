@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState, type RefObject } from 'react';
+import { useLocalStorageState } from './useLocalStorageState';
 
 export interface PlayerChapter {
   startTime: number;
@@ -21,21 +22,8 @@ export function formatRate(rate: number): string {
   return `${rate}x`;
 }
 
-export function loadRate(): number {
-  try {
-    const rate = Number(localStorage.getItem(RATE_STORAGE_KEY));
-    return SPEED_PRESETS.includes(rate as (typeof SPEED_PRESETS)[number]) ? rate : 1;
-  } catch {
-    return 1;
-  }
-}
-
-export function saveRate(rate: number): void {
-  try {
-    localStorage.setItem(RATE_STORAGE_KEY, String(rate));
-  } catch {
-    // Storage unavailable: the rate still applies for this session.
-  }
+export function validRate(rate: unknown): number {
+  return SPEED_PRESETS.includes(rate as (typeof SPEED_PRESETS)[number]) ? (rate as number) : 1;
 }
 
 // Clamp a seek target to [0, duration]; an unknown duration (0) only clamps at 0.
@@ -52,16 +40,14 @@ export function currentChapterIndex(chapters: PlayerChapter[], time: number): nu
 }
 
 // Restart the current chapter when more than 3 s in, else the previous one; null when at the start.
-export function prevChapterTarget(chapters: PlayerChapter[], time: number): number | null {
-  const idx = currentChapterIndex(chapters, time);
+export function prevChapterTarget(chapters: PlayerChapter[], idx: number, time: number): number | null {
   if (idx < 0) return null;
   if (time - chapters[idx].startTime > PREV_CHAPTER_RESTART_SECONDS) return chapters[idx].startTime;
   return idx > 0 ? chapters[idx - 1].startTime : null;
 }
 
-export function nextChapterTarget(chapters: PlayerChapter[], time: number): number | null {
-  const next = chapters[currentChapterIndex(chapters, time) + 1];
-  return next ? next.startTime : null;
+export function nextChapterTarget(chapters: PlayerChapter[], idx: number): number | null {
+  return chapters[idx + 1]?.startTime ?? null;
 }
 
 export function parseChapters(json: unknown): PlayerChapter[] {
@@ -77,7 +63,8 @@ export function useEpisodePlayer(audioRef: RefObject<HTMLAudioElement | null>, c
   const [playing, setPlaying] = useState(false);
   const [time, setTime] = useState(0);
   const [duration, setDuration] = useState(0);
-  const [rate, setRate] = useState(loadRate);
+  const [storedRate, setStoredRate] = useLocalStorageState<number>(RATE_STORAGE_KEY, 1);
+  const rate = validRate(storedRate);
   const [loaded, setLoaded] = useState<{ url: string; list: PlayerChapter[] } | null>(null);
   const [scrubTime, setScrubTime] = useState<number | null>(null);
 
@@ -92,11 +79,6 @@ export function useEpisodePlayer(audioRef: RefObject<HTMLAudioElement | null>, c
   }, [chaptersUrl]);
 
   const chapters = loaded && loaded.url === chaptersUrl ? loaded.list : NO_CHAPTERS;
-
-  const applyRate = useCallback(() => {
-    if (audioRef.current) audioRef.current.playbackRate = rate;
-  }, [audioRef, rate]);
-  useEffect(applyRate, [applyRate]);
 
   const readDuration = () => {
     const d = audioRef.current?.duration ?? 0;
@@ -119,19 +101,20 @@ export function useEpisodePlayer(audioRef: RefObject<HTMLAudioElement | null>, c
   }, [audioRef]);
 
   const skip = useCallback((delta: number) => {
-    if (audioRef.current) seek(audioRef.current.currentTime + delta);
+    seek((audioRef.current?.currentTime ?? 0) + delta);
   }, [audioRef, seek]);
 
   const cycleRate = useCallback(() => {
     const next = nextRate(rate);
-    setRate(next);
-    saveRate(next);
-  }, [rate]);
+    setStoredRate(next);
+    if (audioRef.current) audioRef.current.playbackRate = next;
+  }, [audioRef, rate, setStoredRate]);
 
   const shownTime = scrubTime ?? time;
   const chapterIndex = currentChapterIndex(chapters, shownTime);
-  const prevTarget = prevChapterTarget(chapters, shownTime);
-  const nextTarget = nextChapterTarget(chapters, shownTime);
+  const chapterTitle = chapters[Math.max(chapterIndex, 0)]?.title;
+  const prevTarget = prevChapterTarget(chapters, chapterIndex, shownTime);
+  const nextTarget = nextChapterTarget(chapters, chapterIndex);
 
   return {
     playing,
@@ -139,15 +122,13 @@ export function useEpisodePlayer(audioRef: RefObject<HTMLAudioElement | null>, c
     duration,
     rate,
     chapters,
-    chapterIndex,
-    canPrevChapter: prevTarget !== null,
-    canNextChapter: nextTarget !== null,
+    chapterTitle,
+    prevTarget,
+    nextTarget,
     toggle,
     skip,
     seek,
     cycleRate,
-    prevChapter: () => prevTarget !== null && seek(prevTarget),
-    nextChapter: () => nextTarget !== null && seek(nextTarget),
     setScrubTime,
     audioProps: {
       onPlay: () => setPlaying(true),
@@ -155,7 +136,10 @@ export function useEpisodePlayer(audioRef: RefObject<HTMLAudioElement | null>, c
       onEnded: () => setPlaying(false),
       onTimeUpdate: () => setTime(audioRef.current?.currentTime ?? 0),
       onDurationChange: readDuration,
-      onLoadedMetadata: () => { readDuration(); applyRate(); },
+      onLoadedMetadata: () => {
+        readDuration();
+        if (audioRef.current) audioRef.current.playbackRate = rate;
+      },
     },
   };
 }

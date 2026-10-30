@@ -719,6 +719,19 @@ function EpisodeDetail() {
   const markerAudition = useAuditionPlayer(
     episode?.hasOriginalAudio ? markerAudioUrl : undefined);
 
+  const description = episode?.description;
+  const chapterNotes = episode?.chapterNotes;
+  const descriptionBlock = useMemo(() => {
+    if (!description?.trim() && !chapterNotes?.trim()) return null;
+    // One block each: RichText collapses whitespace between block tags.
+    return (
+      <ExpandableText className="mt-4 text-muted-foreground" toggleText={{ more: 'Show more', less: 'Show less' }}>
+        {description?.trim() && <RichText html={description} className="block wrap-break-word" />}
+        {chapterNotes?.trim() && <RichText html={chapterNotes} className="mt-4 block wrap-break-word" />}
+      </ExpandableText>
+    );
+  }, [description, chapterNotes]);
+
   if (isLoading) {
     return (
       <div>
@@ -987,20 +1000,6 @@ function EpisodeDetail() {
         ? 'Verified: a second scan of the output audio found no remaining ads.'
         : `Verified: a second scan of the output audio found ${verificationAdsCut} more ad${verificationAdsCut === 1 ? '' : 's'} and cut ${verificationAdsCut === 1 ? 'it' : 'them'}.`
       : null;
-
-  const completed = episode.status === 'completed';
-  const hasDescription = Boolean(episode.description?.trim() || episode.chapterNotes?.trim());
-  // One block each: RichText collapses whitespace between block tags.
-  const descriptionBlock = hasDescription && (
-    <ExpandableText className="mt-4 text-muted-foreground" toggleText={{ more: 'Show more', less: 'Show less' }}>
-      {episode.description?.trim() && (
-        <RichText html={episode.description} className="block wrap-break-word" />
-      )}
-      {episode.chapterNotes?.trim() && (
-        <RichText html={episode.chapterNotes} className="mt-4 block wrap-break-word" />
-      )}
-    </ExpandableText>
-  );
 
   return (
     <div>
@@ -1309,7 +1308,6 @@ function EpisodeDetail() {
                 )}
               </div>
             )}
-            {descriptionBlock}
           </div>
         )}
 
@@ -1335,7 +1333,7 @@ function EpisodeDetail() {
           </div>
         )}
 
-        {!completed && descriptionBlock}
+        {descriptionBlock}
       </div>
 
       {feed?.feedType === 'local' && slug && episodeId && (

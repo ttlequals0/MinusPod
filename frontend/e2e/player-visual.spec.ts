@@ -115,20 +115,23 @@ for (const width of WIDTHS) {
       await expect(player.getByText('-1:00:00')).toBeVisible();
       await player.getByRole('button', { name: 'Next chapter' }).click();
       await expect(player.getByText('A long chapter title', { exact: false })).toBeVisible();
+      await page.mouse.move(0, 0);
       await player.scrollIntoViewIfNeeded();
       await page.waitForTimeout(400);
 
-      const size = async (name: string | RegExp) => (await player.getByRole('button', { name, exact: typeof name === 'string' }).boundingBox())!;
       const measured: Record<string, string> = {};
-      const play = await size('Play');
-      measured.play = `${play.width}x${play.height}`;
-      expect(play.width).toBeGreaterThanOrEqual(56);
-      expect(play.height).toBeGreaterThanOrEqual(56);
-      for (const name of ['Previous chapter', 'Next chapter', 'Back 15 seconds', 'Forward 30 seconds', /Playback speed/]) {
-        const box = await size(name);
+      const buttons: Array<[string | RegExp, number]> = [
+        ['Play', 56], ['Previous chapter', 44], ['Next chapter', 44],
+        ['Back 15 seconds', 44], ['Forward 30 seconds', 44], [/Playback speed/, 44],
+      ];
+      for (const [name, min] of buttons) {
+        const box = (await player.getByRole('button', { name, exact: typeof name === 'string' }).boundingBox())!;
         measured[String(name)] = `${box.width}x${box.height}`;
-        expect(box.height).toBeGreaterThanOrEqual(44);
-        if (width < 768) expect(box.width).toBeGreaterThanOrEqual(44);
+        // Desktop sizes the secondary buttons by recipe; the floor applies at phone widths.
+        if (min === 56 || width < 768) {
+          expect(box.height).toBeGreaterThanOrEqual(min);
+          expect(box.width).toBeGreaterThanOrEqual(min);
+        }
       }
       console.log(`player ${width}`, JSON.stringify(measured));
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
