@@ -41,7 +41,7 @@ import { focusRing, inputBase, selectBase } from '../components/fieldStyles';
 import { badgeBase, tint } from '../components/badgeStyles';
 import { pageTitle, cardTitle, sectionPad } from '../components/pageStyles';
 import { iconTarget, iconVisual } from '../components/rowActionStyles';
-import { reprocessMenuCopy } from '../utils/reprocessMenu';
+import { reprocessMenuCopy, reprocessModeKey } from '../utils/reprocessMenu';
 
 function reprocessModeLabel(mode: string, feedType?: string): string {
   if (mode === 'full') return 'Full reprocess';
@@ -52,7 +52,7 @@ function reprocessModeLabel(mode: string, feedType?: string): string {
 function reprocessModeDescription(mode: string, feedType?: string): string {
   if (feedType === 'youtube') {
     const copy = reprocessMenuCopy(feedType);
-    return copy[mode === 'llm' ? 'redetect' : mode === 'full' ? 'full' : 'reprocess'].tooltip;
+    return copy[reprocessModeKey(mode)].tooltip;
   }
   if (mode === 'full') return 'Fresh analysis without pattern database';
   if (mode === 'llm') return 'Reuses saved transcripts (skips re-transcription); re-cuts audio';
@@ -513,6 +513,8 @@ function FeedDetail() {
     />
   );
 
+  const copy = reprocessMenuCopy(feed.feedType);
+
   return (
     <div>
       <div className="flex items-center justify-between gap-3 mb-4">
@@ -667,7 +669,7 @@ function FeedDetail() {
               items={[
                 {
                   title: reprocessModeLabel('reprocess', feed.feedType),
-                  subtitle: reprocessMenuCopy(feed.feedType).reprocess.subtitle,
+                  subtitle: copy.reprocess.subtitle,
                   onClick: () => {
                     setSelectedReprocessMode('reprocess');
                     setShowReprocessConfirm(true);
@@ -675,7 +677,7 @@ function FeedDetail() {
                 },
                 {
                   title: 'Full reprocess',
-                  subtitle: reprocessMenuCopy(feed.feedType).full.subtitle,
+                  subtitle: copy.full.subtitle,
                   onClick: () => {
                     setSelectedReprocessMode('full');
                     setShowReprocessConfirm(true);
@@ -683,7 +685,7 @@ function FeedDetail() {
                 },
                 {
                   title: 'Re-detect ads',
-                  subtitle: reprocessMenuCopy(feed.feedType).redetect.subtitle,
+                  subtitle: copy.redetect.subtitle,
                   onClick: () => {
                     setSelectedReprocessMode('llm');
                     setShowReprocessConfirm(true);

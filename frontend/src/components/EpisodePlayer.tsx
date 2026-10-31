@@ -15,6 +15,15 @@ const skipBtn = `${ghostBtn} h-11 w-11 shrink-0 px-0`;
 const skipIcon = 'h-8 w-8';
 const skipNum = 'absolute inset-0 flex items-center justify-center text-[10px] font-semibold leading-none tabular-nums';
 
+function RetryNote({ message, label, onRetry }: { message: string; label: string; onRetry: () => void }) {
+  return (
+    <div role="alert" className="mt-3 flex flex-wrap items-center justify-between gap-2 text-sm">
+      <p className="text-destructive">{message}</p>
+      <button type="button" onClick={onRetry} className={`${btnBase} ${btnSecondary}`}>{label}</button>
+    </div>
+  );
+}
+
 export default function EpisodePlayer({ src, chaptersUrl }: EpisodePlayerProps) {
   const audioRef = useRef<HTMLAudioElement>(null);
   const p = useEpisodePlayer(audioRef, chaptersUrl);
@@ -129,18 +138,8 @@ export default function EpisodePlayer({ src, chaptersUrl }: EpisodePlayerProps) 
         </div>
       </div>
       {p.loading && !p.error && <p role="status" className="mt-2 text-center text-sm text-muted-foreground">Loading audio...</p>}
-      {p.error && (
-        <div role="alert" className="mt-3 flex flex-wrap items-center justify-between gap-2 text-sm">
-          <p className="text-destructive">Could not play this audio.</p>
-          <button type="button" onClick={p.retry} className={`${btnBase} ${btnSecondary}`}>Retry playback</button>
-        </div>
-      )}
-      {p.chaptersFailed && (
-        <div role="alert" className="mt-3 flex flex-wrap items-center justify-between gap-2 text-sm">
-          <p className="text-destructive">Could not load chapters.</p>
-          <button type="button" onClick={p.retryChapters} className={`${btnBase} ${btnSecondary}`}>Retry chapters</button>
-        </div>
-      )}
+      {p.error && <RetryNote message="Could not play this audio." label="Retry playback" onRetry={p.retry} />}
+      {p.chaptersFailed && <RetryNote message="Could not load chapters." label="Retry chapters" onRetry={p.retryChapters} />}
     </div>
   );
 }

@@ -300,10 +300,12 @@ const URL_PATTERN = /^https?:\/\/[a-zA-Z0-9][-a-zA-Z0-9]*(\.[a-zA-Z0-9][-a-zA-Z0
 const YOUTUBE_HOSTS = ['youtu.be', 'youtube.com', 'www.youtube.com', 'm.youtube.com', 'music.youtube.com'];
 const YOUTUBE_TOKEN = /^((PL|UU|UULF|UUSH|UULV)[A-Za-z0-9_-]{10,}|UC[A-Za-z0-9_-]{22}|@[A-Za-z0-9._-]{2,64})$/;
 
+const hasProtocol = (v: string) => /^https?:\/\//i.test(v);
+
 // Mirrors youtube.urls.parse acceptance.
 function isYouTubeInput(text: string): boolean {
   const value = text.trim();
-  if (/^https?:\/\//i.test(value)) {
+  if (hasProtocol(value)) {
     try {
       return YOUTUBE_HOSTS.includes(new URL(value).hostname.toLowerCase());
     } catch {
@@ -329,7 +331,7 @@ function validateUrl(url: string): UrlValidation {
   // Check for valid URL structure
   if (!URL_PATTERN.test(url)) {
     // Check if missing protocol
-    if (!/^https?:\/\//i.test(url)) {
+    if (!hasProtocol(url)) {
       return {
         isValid: false,
         error: 'URL must start with http:// or https://',
@@ -479,7 +481,7 @@ function AddFeed() {
   const [opmlResult, setOpmlResult] = useState<OpmlImportResult | null>(null);
 
   // Detect URL vs search
-  const isUrl = /^https?:\/\//i.test(inputValue.trim());
+  const isUrl = hasProtocol(inputValue.trim());
 
   // URL validation (only when it looks like a URL)
   const isYouTube = isYouTubeInput(inputValue);
@@ -555,13 +557,14 @@ function AddFeed() {
   const previewAbortRef = useRef<AbortController | null>(null);
   useEffect(() => () => previewAbortRef.current?.abort(), []);
   const previewMutation = useMutation({
-    mutationFn: (url: string) => {
+    mutationFn: async (url: string) => {
       previewAbortRef.current?.abort();
       const controller = new AbortController();
       previewAbortRef.current = controller;
-      return previewYouTube(url, controller.signal).then((data) => ({ data, signal: controller.signal }));
+      const data = await previewYouTube(url, controller.signal);
+      return controller.signal.aborted ? null : data;
     },
-    onSuccess: ({ data, signal }) => { if (!signal.aborted) setYoutubePreview(data); },
+    onSuccess: (data) => { if (data) setYoutubePreview(data); },
   });
   const addYoutubeMutation = useMutation({
     mutationFn: (source: NonNullable<YouTubePreview['source']>) => addYoutubeFeed({
@@ -582,6 +585,8 @@ function AddFeed() {
       navigate(`/feeds/${feed.slug}`);
     },
   });
+  const youtubeBusy = previewMutation.isPending || addYoutubeMutation.isPending;
+  const youtubeBlocked = !youtubeEnabled || !!settingsError;
   const youtubeError = previewMutation.error ?? addYoutubeMutation.error;
   const youtubeSource = youtubePreview?.source ?? null;
 
@@ -819,7 +824,7 @@ function AddFeed() {
               <button
                 type="submit"
                 disabled={isYouTube
-                  ? previewMutation.isPending || addYoutubeMutation.isPending || !youtubeEnabled || settingsError
+                  ? youtubeBusy || youtubeBlocked
                   : mutation.isPending || !inputValue.trim() || (touched && !urlValidation.isValid)}
                 className={`${btnLg} ${btnPrimary} flex-1`}
               >
@@ -875,7 +880,7 @@ function AddFeed() {
                 <button
                   type="button"
                   onClick={() => addYoutubeMutation.mutate(youtubeSource)}
-                  disabled={addYoutubeMutation.isPending || previewMutation.isPending || !youtubeEnabled || settingsError}
+                  disabled={youtubeBusy || youtubeBlocked}
                   className={`${btnLg} ${btnPrimary}`}
                 >
                   <Plus className="w-4 h-4" aria-hidden="true" />

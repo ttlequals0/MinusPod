@@ -36,6 +36,10 @@ const YOUTUBE_COPY: ReprocessMenuCopy = {
   },
 };
 
+export function reprocessModeKey(mode: string): keyof ReprocessMenuCopy {
+  return mode === 'llm' ? 'redetect' : mode === 'full' ? 'full' : 'reprocess';
+}
+
 export function reprocessMenuCopy(feedType?: string): ReprocessMenuCopy {
   return feedType === 'youtube' ? YOUTUBE_COPY : DEFAULT_COPY;
 }

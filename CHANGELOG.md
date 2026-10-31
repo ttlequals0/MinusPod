@@ -11,6 +11,8 @@ release notes.
 
 ## [Unreleased]
 
+## [2.101.9] - 2026-10-30
+
 ### Fixed
 
 - Episode player controls stay centered and fit narrow screens at every playback speed. Audio and chapter failures offer retry actions, and seeking waits for media metadata.

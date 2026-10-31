@@ -46,8 +46,7 @@ function YouTubeSection() {
   const [cookiesError, setCookiesError] = useState<string | null>(null);
   const [argsDraft, setArgsDraft] = useState<string | null>(null);
   const [proxyDraft, setProxyDraft] = useState<string | null>(null);
-  const [settingsError, setSettingsError] = useState<string | null>(null);
-  const [settingsErrorField, setSettingsErrorField] = useState<string | null>(null);
+  const [settingsError, setSettingsError] = useState<{ field: 'proxyUrl' | 'ytdlpExtraArgs' | null; message: string } | null>(null);
   const [updateNote, setUpdateNote] = useState<{ ok: boolean; text: string } | null>(null);
   useUnsavedChanges(!!keyDraft || !!cookiesDraft
     || (argsDraft !== null && argsDraft.trim() !== data?.ytdlpExtraArgs)
@@ -64,10 +63,10 @@ function YouTubeSection() {
 
   const saveSettings = useMutation({
     mutationFn: (p: YouTubeSettingsUpdate) => updateYouTubeSettings(p),
-    onSuccess: (updated) => { qc.setQueryData(['youtubeSettings'], updated); setSettingsError(null); refresh(); },
+    onSuccess: (updated) => { qc.setQueryData(['youtubeSettings'], updated); setSettingsError(null); qc.invalidateQueries({ queryKey: ['settings'] }); },
     onError: (e: unknown, values) => {
-      setSettingsErrorField('proxyUrl' in values ? 'proxyUrl' : 'ytdlpExtraArgs' in values ? 'ytdlpExtraArgs' : null);
-      setSettingsError(getErrorMessage(e, 'Could not save YouTube settings.'));
+      const field = 'proxyUrl' in values ? 'proxyUrl' : 'ytdlpExtraArgs' in values ? 'ytdlpExtraArgs' : null;
+      setSettingsError({ field, message: getErrorMessage(e, 'Could not save YouTube settings.') });
     },
   });
 
@@ -111,8 +110,10 @@ function YouTubeSection() {
   const resetAll = useMutation({
     mutationFn: resetYouTubeSettings,
     onSuccess: () => { setSettingsError(null); setArgsDraft(null); setProxyDraft(null); refresh(); },
-    onError: (e: unknown) => { setSettingsErrorField(null); setSettingsError(getErrorMessage(e, 'Could not reset YouTube settings.')); },
+    onError: (e: unknown) => setSettingsError({ field: null, message: getErrorMessage(e, 'Could not reset YouTube settings.') }),
   });
+  const proxyErr = settingsError?.field === 'proxyUrl' ? settingsError.message : null;
+  const argsErr = settingsError?.field === 'ytdlpExtraArgs' ? settingsError.message : null;
   const settingsBusy = saveSettings.isPending || resetAll.isPending;
   const keyBusy = saveKey.isPending || testKey.isPending;
   const cookiesBusy = saveCookies.isPending || clearCookies.isPending;
@@ -138,7 +139,7 @@ function YouTubeSection() {
             <p className="text-sm text-muted-foreground">
               Turns YouTube videos, playlists and channels into podcast feeds with yt-dlp.
             </p>
-            {settingsError && !settingsErrorField && <p role="alert" className="text-sm text-destructive">{settingsError}</p>}
+            {settingsError && !settingsError.field && <p role="alert" className="text-sm text-destructive">{settingsError.message}</p>}
           </div>
 
           <div className="pt-3 border-t border-border space-y-2">
@@ -309,13 +310,13 @@ function YouTubeSection() {
                   if (proxyDraft.trim() === data.proxyUrl) setProxyDraft(null);
                   else saveSettings.mutate({ proxyUrl: proxyDraft }, { onSuccess: () => setProxyDraft(null) });
                 }}
-                aria-invalid={!!settingsError && settingsErrorField === 'proxyUrl'}
-                aria-describedby={`yt-proxy-url-help${settingsError && settingsErrorField === 'proxyUrl' ? ' yt-proxy-url-error' : ''}`}
+                aria-invalid={!!proxyErr}
+                aria-describedby={`yt-proxy-url-help${proxyErr ? ' yt-proxy-url-error' : ''}`}
               />
               <p id="yt-proxy-url-help" className="text-sm text-muted-foreground">
                 Used for yt-dlp and YouTube Data API requests. Example: socks5h://proxy:1080
               </p>
-              {settingsError && settingsErrorField === 'proxyUrl' && <p id="yt-proxy-url-error" role="alert" className="text-sm text-destructive">{settingsError}</p>}
+              {proxyErr && <p id="yt-proxy-url-error" role="alert" className="text-sm text-destructive">{proxyErr}</p>}
             </div>
             <div className="space-y-1">
               <label htmlFor="yt-extra-args" className={labelBase}>Extra yt-dlp arguments</label>
@@ -333,13 +334,13 @@ function YouTubeSection() {
                   if (argsDraft.trim() === data.ytdlpExtraArgs) setArgsDraft(null);
                   else saveSettings.mutate({ ytdlpExtraArgs: argsDraft }, { onSuccess: () => setArgsDraft(null) });
                 }}
-                aria-invalid={!!settingsError && settingsErrorField === 'ytdlpExtraArgs'}
-                aria-describedby={`yt-extra-args-help${settingsError && settingsErrorField === 'ytdlpExtraArgs' ? ' yt-extra-args-error' : ''}`}
+                aria-invalid={!!argsErr}
+                aria-describedby={`yt-extra-args-help${argsErr ? ' yt-extra-args-error' : ''}`}
               />
               <p id="yt-extra-args-help" className="text-sm text-muted-foreground">
                 Added before MinusPod&apos;s options on every yt-dlp call. Example: --limit-rate 2M --extractor-args youtube:player_client=web
               </p>
-              {settingsError && settingsErrorField === 'ytdlpExtraArgs' && <p id="yt-extra-args-error" role="alert" className="text-sm text-destructive">{settingsError}</p>}
+              {argsErr && <p id="yt-extra-args-error" role="alert" className="text-sm text-destructive">{argsErr}</p>}
             </div>
             <div className="mt-3 text-sm text-muted-foreground">
               <div>
