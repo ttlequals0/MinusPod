@@ -175,7 +175,7 @@ describe('EpisodePlayer', () => {
     expect(audio.currentTime).toBe(200);
     fireEvent.change(slider, { target: { value: '10' } });
     fireEvent.pointerCancel(slider);
-    expect(audio.currentTime).toBe(10);
+    expect(audio.currentTime).toBe(200);
   });
 
   it('handles keyboard shortcuts on the player and leaves buttons alone', () => {
@@ -202,5 +202,55 @@ describe('EpisodePlayer', () => {
     await waitFor(() => expect(fetch).toHaveBeenCalled());
     expect(screen.queryByRole('button', { name: 'Next chapter' })).toBeNull();
     expect(screen.getByRole('button', { name: 'Play' })).toBeTruthy();
+    expect(await screen.findByText('Could not load chapters.')).toBeTruthy();
+  });
+
+  it('reports failed playback and retries the audio resource', async () => {
+    const load = vi.spyOn(HTMLMediaElement.prototype, 'load').mockImplementation(() => {});
+    const { container } = render(<EpisodePlayer src="/a.mp3" />);
+    const audio = ready(container);
+    fireEvent.error(audio);
+    expect(screen.getByRole('alert').textContent).toContain('Could not play this audio.');
+    expect((screen.getByRole('slider') as HTMLInputElement).disabled).toBe(true);
+    fireEvent.click(screen.getByRole('button', { name: 'Retry playback' }));
+    expect(load).toHaveBeenCalledOnce();
+    expect(play).toHaveBeenCalledOnce();
+    await waitFor(() => expect(screen.queryByRole('alert')).toBeNull());
+  });
+
+  it('reports a rejected play request without leaving the player playing', async () => {
+    play.mockRejectedValue(new Error('down'));
+    render(<EpisodePlayer src="/a.mp3" />);
+    fireEvent.click(screen.getByRole('button', { name: 'Play' }));
+    expect(await screen.findByText('Could not play this audio.')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Play' })).toBeTruthy();
+  });
+
+  it('reports buffering and clears it when playback resumes', () => {
+    const { container } = render(<EpisodePlayer src="/a.mp3" />);
+    const audio = ready(container);
+    fireEvent.waiting(audio);
+    expect(screen.getByRole('status').textContent).toBe('Loading audio...');
+    fireEvent.playing(audio);
+    expect(screen.queryByRole('status')).toBeNull();
+  });
+
+  it('does not seek before metadata and resets on a replacement resource', () => {
+    const { container } = render(<EpisodePlayer src="/a.mp3" />);
+    expect((screen.getByRole('button', { name: 'Back 15 seconds' }) as HTMLButtonElement).disabled).toBe(true);
+    const audio = ready(container, 60);
+    fireEvent.emptied(audio);
+    expect(screen.getByText('0:00')).toBeTruthy();
+    expect((screen.getByRole('slider') as HTMLInputElement).disabled).toBe(true);
+  });
+
+  it('retries chapter failures without replacing the audio player', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValueOnce(new Error('down')).mockResolvedValue({ ok: true, json: () => Promise.resolve(CHAPTERS) }));
+    const { container } = render(<EpisodePlayer src="/a.mp3" chaptersUrl="/c.json" />);
+    const audio = ready(container, 125);
+    fireEvent.click(await screen.findByRole('button', { name: 'Retry chapters' }));
+    expect(await screen.findByText('Middle part')).toBeTruthy();
+    expect(audio.currentTime).toBe(125);
+    expect(screen.queryByRole('alert')).toBeNull();
   });
 });

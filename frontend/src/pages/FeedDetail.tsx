@@ -41,14 +41,19 @@ import { focusRing, inputBase, selectBase } from '../components/fieldStyles';
 import { badgeBase, tint } from '../components/badgeStyles';
 import { pageTitle, cardTitle, sectionPad } from '../components/pageStyles';
 import { iconTarget, iconVisual } from '../components/rowActionStyles';
+import { reprocessMenuCopy } from '../utils/reprocessMenu';
 
-function reprocessModeLabel(mode: string): string {
+function reprocessModeLabel(mode: string, feedType?: string): string {
   if (mode === 'full') return 'Full reprocess';
   if (mode === 'llm') return 'Re-detect ads';
-  return 'Patterns + AI';
+  return feedType === 'youtube' ? 'SponsorBlock and patterns' : 'Patterns + AI';
 }
 
-function reprocessModeDescription(mode: string): string {
+function reprocessModeDescription(mode: string, feedType?: string): string {
+  if (feedType === 'youtube') {
+    const copy = reprocessMenuCopy(feedType);
+    return copy[mode === 'llm' ? 'redetect' : mode === 'full' ? 'full' : 'reprocess'].tooltip;
+  }
   if (mode === 'full') return 'Fresh analysis without pattern database';
   if (mode === 'llm') return 'Reuses saved transcripts (skips re-transcription); re-cuts audio';
   return 'Uses learned patterns for faster ad detection';
@@ -75,7 +80,8 @@ function ResultStatsGrid({ queued, skipped, queuedLabel }: {
   );
 }
 
-function reprocessModeVerb(mode: string): string {
+function reprocessModeVerb(mode: string, feedType?: string): string {
+  if (feedType === 'youtube') return mode === 'reprocess' ? 'SponsorBlock and pattern' : 'pass 1 LLM';
   if (mode === 'full') return 'full AI';
   if (mode === 'llm') return 'transcript-reuse';
   return 'pattern-assisted';
@@ -660,8 +666,8 @@ function FeedDetail() {
               align="left"
               items={[
                 {
-                  title: 'Patterns + AI',
-                  subtitle: 'Use learned patterns for faster detection',
+                  title: reprocessModeLabel('reprocess', feed.feedType),
+                  subtitle: reprocessMenuCopy(feed.feedType).reprocess.subtitle,
                   onClick: () => {
                     setSelectedReprocessMode('reprocess');
                     setShowReprocessConfirm(true);
@@ -669,7 +675,7 @@ function FeedDetail() {
                 },
                 {
                   title: 'Full reprocess',
-                  subtitle: 'Fresh analysis without patterns, AI only',
+                  subtitle: reprocessMenuCopy(feed.feedType).full.subtitle,
                   onClick: () => {
                     setSelectedReprocessMode('full');
                     setShowReprocessConfirm(true);
@@ -677,7 +683,7 @@ function FeedDetail() {
                 },
                 {
                   title: 'Re-detect ads',
-                  subtitle: 'Keep transcripts, skip re-transcription',
+                  subtitle: reprocessMenuCopy(feed.feedType).redetect.subtitle,
                   onClick: () => {
                     setSelectedReprocessMode('llm');
                     setShowReprocessConfirm(true);
@@ -723,6 +729,9 @@ function FeedDetail() {
         </div>
       </div>
 
+      {refreshMutation.isPending && <p role="status" className="mb-4 text-sm text-muted-foreground">Refreshing feed...</p>}
+      {reprocessAllMutation.isPending && <p role="status" className="mb-4 text-sm text-muted-foreground">Queuing episodes...</p>}
+
       {slug && !isRecents && <FeedStatsCards feed={feed} slug={slug} />}
 
       {slug && isRecents && <RecentsFeedPanel feed={feed} slug={slug} />}
@@ -730,7 +739,7 @@ function FeedDetail() {
       {slug && !isRecents && <FeedSettingsPanel key={slug} feed={feed} slug={slug} />}
 
       {slug && feed.feedType === 'local' && <LocalFeedPanel feed={feed} slug={slug} />}
-      {slug && feed.feedType === 'youtube' && <YouTubeFeedPanel feed={feed} slug={slug} />}
+      {slug && feed.feedType === 'youtube' && <YouTubeFeedPanel key={`youtube-${slug}`} feed={feed} slug={slug} />}
 
       {slug && !isRecents && <PodcastAdDistributionPanel slug={slug} />}
 
@@ -939,15 +948,17 @@ function FeedDetail() {
           <div className="p-4">
             <div className="mb-4 p-3 rounded-lg bg-accent/50">
               <p className="text-sm font-medium text-foreground">
-                Mode: {reprocessModeLabel(selectedReprocessMode)}
+                Mode: {reprocessModeLabel(selectedReprocessMode, feed.feedType)}
               </p>
               <p className="text-xs text-muted-foreground mt-1">
-                {reprocessModeDescription(selectedReprocessMode)}
+                {reprocessModeDescription(selectedReprocessMode, feed.feedType)}
               </p>
             </div>
             <p className="text-sm text-muted-foreground mb-4">
               {selectedReprocessMode === 'llm'
                 ? 'This will queue all processed episodes that have a saved transcript. The transcript is reused (no re-transcription); audio is re-analyzed and re-cut. Episodes without a transcript are skipped.'
+                : feed.feedType === 'youtube'
+                ? 'This will queue all processed episodes. SponsorBlock marks and captions are refreshed, and audio is re-cut using this mode.'
                 : 'This will queue all processed episodes for reprocessing. Existing processed audio files will be deleted and episodes will be re-transcribed and re-analyzed.'}
             </p>
             <p className="text-sm text-warning">
@@ -973,12 +984,12 @@ function FeedDetail() {
         >
           <div className="p-4">
             <p className="text-xs text-muted-foreground mb-4">
-              Mode: {reprocessModeLabel(reprocessResult.mode)}
+              Mode: {reprocessModeLabel(reprocessResult.mode, feed.feedType)}
             </p>
             <ResultStatsGrid queued={reprocessResult.queued} skipped={reprocessResult.skipped} queuedLabel="Queued" />
             {reprocessResult.queued > 0 && (
               <p className="text-sm text-muted-foreground">
-                {reprocessResult.queued} episodes have been queued for {reprocessModeVerb(reprocessResult.mode)} reprocessing. They will be processed in the background.
+                {reprocessResult.queued} episodes have been queued for {reprocessModeVerb(reprocessResult.mode, feed.feedType)} reprocessing. They will be processed in the background.
               </p>
             )}
           </div>

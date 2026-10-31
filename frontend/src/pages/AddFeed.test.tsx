@@ -3,7 +3,7 @@
  * local form fields, and the addLocalFeed submit path.
  */
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router';
@@ -86,7 +86,7 @@ describe('AddFeed: mode toggle', () => {
   it('starts in subscribe mode with the URL input and OPML section visible', async () => {
     renderAddFeed();
     await waitFor(() => {
-      expect(screen.getByLabelText('Search podcasts or enter RSS URL')).toBeDefined();
+      expect(screen.getByLabelText('Search podcasts or enter an RSS or YouTube URL')).toBeDefined();
     });
     expect(screen.getByText('Import from OPML')).toBeDefined();
     expect(screen.queryByLabelText('Title')).toBeNull();
@@ -96,7 +96,7 @@ describe('AddFeed: mode toggle', () => {
     const user = userEvent.setup();
     renderAddFeed();
     await waitFor(() => {
-      expect(screen.getByLabelText('Search podcasts or enter RSS URL')).toBeDefined();
+      expect(screen.getByLabelText('Search podcasts or enter an RSS or YouTube URL')).toBeDefined();
     });
 
     await user.click(screen.getByRole('button', { name: 'Create local feed' }));
@@ -104,7 +104,7 @@ describe('AddFeed: mode toggle', () => {
     expect(screen.getByLabelText('Title')).toBeDefined();
     expect(screen.getByLabelText('Slug')).toBeDefined();
     expect(screen.queryByText('Import from OPML')).toBeNull();
-    expect(screen.queryByLabelText('Search podcasts or enter RSS URL')).toBeNull();
+    expect(screen.queryByLabelText('Search podcasts or enter an RSS or YouTube URL')).toBeNull();
   });
 });
 
@@ -116,11 +116,11 @@ describe('AddFeed: podcast search gating', () => {
     ]);
     renderAddFeed();
     await waitFor(() => {
-      expect(screen.getByLabelText('Search podcasts or enter RSS URL')).toBeDefined();
+      expect(screen.getByLabelText('Search podcasts or enter an RSS or YouTube URL')).toBeDefined();
     });
     expect(screen.queryByText('Configure PodcastIndex API credentials')).toBeNull();
 
-    await user.type(screen.getByLabelText('Search podcasts or enter RSS URL'), 'daily');
+    await user.type(screen.getByLabelText('Search podcasts or enter an RSS or YouTube URL'), 'daily');
 
     await waitFor(() => {
       expect(mockSearchPodcasts).toHaveBeenCalledWith('daily', expect.any(AbortSignal));
@@ -134,10 +134,10 @@ describe('AddFeed: podcast search gating', () => {
     const user = userEvent.setup();
     renderAddFeed();
     await waitFor(() => {
-      expect(screen.getByLabelText('Search podcasts or enter RSS URL')).toBeDefined();
+      expect(screen.getByLabelText('Search podcasts or enter an RSS or YouTube URL')).toBeDefined();
     });
 
-    await user.type(screen.getByLabelText('Search podcasts or enter RSS URL'), 'https://example.com/feed.xml');
+    await user.type(screen.getByLabelText('Search podcasts or enter an RSS or YouTube URL'), 'https://example.com/feed.xml');
 
     await new Promise((r) => setTimeout(r, 500));
     expect(mockSearchPodcasts).not.toHaveBeenCalled();
@@ -145,7 +145,7 @@ describe('AddFeed: podcast search gating', () => {
 
   it('falls back to the URL-only label until settings report a provider', async () => {
     renderAddFeed(new Promise(() => {}));
-    expect(screen.getByLabelText('Podcast RSS feed URL')).toBeDefined();
+    expect(screen.getByLabelText('RSS or YouTube URL')).toBeDefined();
     expect(screen.queryByText('Configure PodcastIndex API credentials')).toBeNull();
   });
 
@@ -160,7 +160,7 @@ describe('AddFeed: podcast search gating', () => {
       expect(screen.getByText(/PodcastIndex is selected but its credentials are missing/)).toBeDefined();
     });
 
-    await user.type(screen.getByLabelText('Podcast RSS feed URL'), 'daily');
+    await user.type(screen.getByLabelText('RSS or YouTube URL'), 'daily');
     await new Promise((r) => setTimeout(r, 500));
     expect(mockSearchPodcasts).not.toHaveBeenCalled();
   });
@@ -171,7 +171,7 @@ describe('AddFeed: local feed form', () => {
     const user = userEvent.setup();
     renderAddFeed();
     await waitFor(() => {
-      expect(screen.getByLabelText('Search podcasts or enter RSS URL')).toBeDefined();
+      expect(screen.getByLabelText('Search podcasts or enter an RSS or YouTube URL')).toBeDefined();
     });
     await user.click(screen.getByRole('button', { name: 'Create local feed' }));
     return user;
@@ -267,7 +267,7 @@ describe('AddFeed: artwork upload after create', () => {
     const user = userEvent.setup();
     renderAddFeed();
     await waitFor(() => {
-      expect(screen.getByLabelText('Search podcasts or enter RSS URL')).toBeDefined();
+      expect(screen.getByLabelText('Search podcasts or enter an RSS or YouTube URL')).toBeDefined();
     });
     await user.click(screen.getByRole('button', { name: 'Create local feed' }));
     await user.type(screen.getByLabelText('Title'), 'My Archive Show');
@@ -356,7 +356,7 @@ describe('Recents feed mode', () => {
 });
 
 describe('YouTube lookup', () => {
-  const INPUT = /search podcasts or enter rss url/i;
+  const INPUT = /search podcasts or enter an RSS or YouTube URL/i;
   const PLAYLIST = 'https://www.youtube.com/playlist?list=PLbh0Jamvptwfp_qc439PLuyKJ-tWUt222';
   const enabled = { ...defaultSettings, youtubeEnabled: { value: true, isDefault: false } };
   const preview = {
@@ -381,7 +381,8 @@ describe('YouTube lookup', () => {
     await userEvent.click(screen.getByRole('button', { name: /add youtube feed/i }));
     await waitFor(() => expect(mockAddYoutubeFeed).toHaveBeenCalledWith({
       sourceKind: 'channel', sourceId: 'UCabcdefghijklmnopqrstuv', title: 'The Daily Tech Show',
-      description: 'desc', artworkUrl: null, includeShorts: false, slug: undefined }));
+      description: 'desc', artworkUrl: null, includeShorts: false, slug: undefined,
+      autoProcessOverride: null, maxEpisodes: undefined, onlyExposeProcessedEpisodes: null }));
     await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith('/feeds/the-daily-tech-show'));
   });
 
@@ -409,6 +410,34 @@ describe('YouTube lookup', () => {
     expect(signal?.aborted).toBe(false);
     await userEvent.type(input, 'x');
     expect(signal?.aborted).toBe(true);
+  });
+
+  it('discards a lookup result that arrives after the input changed', async () => {
+    let complete!: (value: typeof preview) => void;
+    mockPreviewYouTube.mockImplementation(() => new Promise((resolve) => { complete = resolve; }));
+    renderAddFeed(enabled);
+    const input = await screen.findByLabelText(INPUT);
+    await userEvent.type(input, PLAYLIST);
+    await userEvent.click(screen.getByRole('button', { name: /look up/i }));
+    await userEvent.type(input, 'x');
+    await act(async () => complete(preview));
+    expect(screen.queryByText('The Daily Tech Show')).toBeNull();
+  });
+
+  it('passes the advanced options when adding a YouTube source', async () => {
+    mockPreviewYouTube.mockResolvedValue(preview);
+    mockAddYoutubeFeed.mockResolvedValue({ slug: 'the-daily-tech-show', feedType: 'youtube', feedUrl: 'x' });
+    renderAddFeed(enabled);
+    await userEvent.type(await screen.findByLabelText(INPUT), PLAYLIST);
+    await userEvent.click(screen.getByText('Advanced options'));
+    await userEvent.selectOptions(screen.getByLabelText('Auto-process'), 'disable');
+    await userEvent.type(screen.getByLabelText('Max episodes in feed'), '50');
+    await userEvent.selectOptions(screen.getByLabelText('Only expose processed episodes in feed'), 'enable');
+    await userEvent.click(screen.getByRole('button', { name: /look up/i }));
+    await userEvent.click(await screen.findByRole('button', { name: /add youtube feed/i }));
+    await waitFor(() => expect(mockAddYoutubeFeed).toHaveBeenCalledWith(expect.objectContaining({
+      autoProcessOverride: false, maxEpisodes: 50, onlyExposeProcessedEpisodes: true,
+    })));
   });
 
   it('labels a single video and omits the video count', async () => {

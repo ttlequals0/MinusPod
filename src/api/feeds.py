@@ -1476,6 +1476,9 @@ def _add_youtube_feed(data, db):
             updates['auto_process_override'] = auto_process
         if max_ep is not None:
             updates['max_episodes'] = max_ep
+        if 'onlyExposeProcessedEpisodes' in data:
+            updates['only_expose_processed_episodes'] = _serialize_nullable_bool(
+                data['onlyExposeProcessedEpisodes'])
         with db.transaction() as conn:
             db.create_podcast(slug, canonical, title, feed_type='youtube', conn=conn)
             db.update_podcast(slug, conn=conn, **updates)

@@ -4,9 +4,10 @@ import { updateFeed } from '../../api/feeds';
 import { getErrorMessage } from '../../api/client';
 import type { Feed } from '../../api/types';
 import Checkbox from '../../components/Checkbox';
-import { btnLg, btnPrimary } from '../../components/buttonStyles';
+import { btnLg, btnPrimary, btnSecondary } from '../../components/buttonStyles';
 import { inputBase, labelBase, textareaBase } from '../../components/fieldStyles';
 import { useSyncFromQuery } from '../../hooks/useSyncFromQuery';
+import { useUnsavedChanges } from '../../hooks/useUnsavedChanges';
 
 export type MetadataField = 'author' | 'explicit' | 'categories' | 'title' | 'description';
 
@@ -119,14 +120,25 @@ const buildMetadataPatch = (values: MetadataValues, fields: MetadataField[]) => 
 function FeedMetadataForm({ feed, slug, fields }: { feed: Feed; slug: string; fields: MetadataField[] }) {
   const queryClient = useQueryClient();
   const [values, setValues] = useState<MetadataValues>(() => metadataValuesFromFeed(feed));
+  const [baseline, setBaseline] = useState(values);
+  const dirty = JSON.stringify(buildMetadataPatch(values, fields)) !== JSON.stringify(buildMetadataPatch(baseline, fields));
+  useUnsavedChanges(dirty);
   const [saved, setSaved] = useState(false);
   const savedTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   useEffect(() => () => clearTimeout(savedTimer.current), []);
-  useSyncFromQuery(feed, (f) => setValues(metadataValuesFromFeed(f)));
+  useSyncFromQuery(feed, (f) => {
+    if (dirty) return;
+    const next = metadataValuesFromFeed(f);
+    setValues(next);
+    setBaseline(next);
+  });
 
   const mutation = useMutation({
     mutationFn: () => updateFeed(slug, buildMetadataPatch(values, fields)),
     onSuccess: (updated) => {
+      const next = metadataValuesFromFeed(updated);
+      setValues(next);
+      setBaseline(next);
       queryClient.setQueryData(['feed', slug], updated);
       setSaved(true);
       clearTimeout(savedTimer.current);
@@ -145,14 +157,21 @@ function FeedMetadataForm({ feed, slug, fields }: { feed: Feed; slug: string; fi
           idPrefix="feed-meta"
           fields={fields}
           values={values}
-          onChange={(patch) => setValues((v) => ({ ...v, ...patch }))}
+          onChange={(patch) => { setSaved(false); setValues((v) => ({ ...v, ...patch })); }}
         />
         {mutation.isError && (
-          <p className="text-sm text-destructive">{getErrorMessage(mutation.error, 'Could not save this feed.')}</p>
+          <p role="alert" className="text-sm text-destructive">{getErrorMessage(mutation.error, 'Could not save this feed.')}</p>
         )}
-        <button type="submit" className={`${btnLg} ${btnPrimary}`}>
-          {mutation.isPending ? 'Saving...' : saved ? 'Saved' : 'Save metadata'}
-        </button>
+        <div className="flex flex-wrap items-center gap-2">
+          <button type="submit" disabled={!dirty} className={`${btnLg} ${btnPrimary}`}>
+            {mutation.isPending ? 'Saving...' : 'Save metadata'}
+          </button>
+          {dirty && <button type="button" className={`${btnLg} ${btnSecondary}`} onClick={() => {
+            const next = metadataValuesFromFeed(feed);
+            setValues(next); setBaseline(next); setSaved(false); mutation.reset();
+          }}>Cancel</button>}
+          {saved && <span role="status" className="text-sm text-success">Metadata saved.</span>}
+        </div>
       </fieldset>
     </form>
   );

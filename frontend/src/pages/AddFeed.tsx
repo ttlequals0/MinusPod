@@ -1,6 +1,6 @@
 import { useState, useMemo, useRef, useCallback, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router';
-import { Check, Mic, Plus, UploadCloud } from 'lucide-react';
+import { Check, Mic, Plus, Search as SearchIcon, UploadCloud } from 'lucide-react';
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
 import { getErrorMessage } from '../api/client';
 import { addFeed, addYoutubeFeed, addLocalFeed, addRecentsFeed, uploadFeedArtwork, importOpml, OpmlImportResult, feedsQueryOptions } from '../api/feeds';
@@ -12,6 +12,7 @@ import TriStateSelect from '../components/TriStateSelect';
 import Checkbox from '../components/Checkbox';
 import Artwork from '../components/Artwork';
 import ExpandableText from '../components/ExpandableText';
+import QueryError from '../components/QueryError';
 import { badgeBase, tint } from '../components/badgeStyles';
 import DraftNumberInput, { parseOptionalNumber } from '../components/DraftNumberInput';
 import { btnBase, btnLg, btnPrimary, btnSecondary, btnGhost, touchTarget } from '../components/buttonStyles';
@@ -295,7 +296,7 @@ function LocalFeedForm({ onCancel }: LocalFeedFormProps) {
 }
 
 // URL validation patterns
-const URL_PATTERN = /^https?:\/\/[a-zA-Z0-9][-a-zA-Z0-9]*(\.[a-zA-Z0-9][-a-zA-Z0-9]*)+.*$/;
+const URL_PATTERN = /^https?:\/\/[a-zA-Z0-9][-a-zA-Z0-9]*(\.[a-zA-Z0-9][-a-zA-Z0-9]*)+.*$/i;
 const YOUTUBE_HOSTS = ['youtu.be', 'youtube.com', 'www.youtube.com', 'm.youtube.com', 'music.youtube.com'];
 const YOUTUBE_TOKEN = /^((PL|UU|UULF|UUSH|UULV)[A-Za-z0-9_-]{10,}|UC[A-Za-z0-9_-]{22}|@[A-Za-z0-9._-]{2,64})$/;
 
@@ -328,7 +329,7 @@ function validateUrl(url: string): UrlValidation {
   // Check for valid URL structure
   if (!URL_PATTERN.test(url)) {
     // Check if missing protocol
-    if (!url.startsWith('http://') && !url.startsWith('https://')) {
+    if (!/^https?:\/\//i.test(url)) {
       return {
         isValid: false,
         error: 'URL must start with http:// or https://',
@@ -343,7 +344,7 @@ function validateUrl(url: string): UrlValidation {
   }
 
   // Check for HTTPS recommendation
-  const isHttps = url.startsWith('https://');
+  const isHttps = /^https:\/\//i.test(url);
 
   // Check if it looks like an RSS feed
   const looksLikeRss = RSS_EXTENSIONS.some(ext =>
@@ -478,19 +479,19 @@ function AddFeed() {
   const [opmlResult, setOpmlResult] = useState<OpmlImportResult | null>(null);
 
   // Detect URL vs search
-  const isUrl = /^https?:\/\//.test(inputValue);
+  const isUrl = /^https?:\/\//i.test(inputValue.trim());
 
   // URL validation (only when it looks like a URL)
   const isYouTube = isYouTubeInput(inputValue);
   const urlValidation = useMemo(() => {
     if (!isUrl) return { isValid: false, error: null, warning: null };
-    const result = validateUrl(inputValue);
+    const result = validateUrl(inputValue.trim());
     return isYouTube ? { ...result, warning: null } : result;
   }, [inputValue, isUrl, isYouTube]);
   const [touched, setTouched] = useState(false);
 
   // Search is gated on any resolved provider; iTunes needs no keys.
-  const { data: settings } = useQuery({
+  const { data: settings, isPending: settingsPending, isError: settingsError, isFetching: settingsFetching, refetch: refetchSettings } = useQuery({
     queryKey: ['settings'],
     queryFn: getSettings,
   });
@@ -552,14 +553,15 @@ function AddFeed() {
   // YouTube lookup: preview a channel, playlist or video before adding it
   const [youtubePreview, setYoutubePreview] = useState<YouTubePreview | null>(null);
   const previewAbortRef = useRef<AbortController | null>(null);
+  useEffect(() => () => previewAbortRef.current?.abort(), []);
   const previewMutation = useMutation({
     mutationFn: (url: string) => {
       previewAbortRef.current?.abort();
       const controller = new AbortController();
       previewAbortRef.current = controller;
-      return previewYouTube(url, controller.signal);
+      return previewYouTube(url, controller.signal).then((data) => ({ data, signal: controller.signal }));
     },
-    onSuccess: setYoutubePreview,
+    onSuccess: ({ data, signal }) => { if (!signal.aborted) setYoutubePreview(data); },
   });
   const addYoutubeMutation = useMutation({
     mutationFn: (source: NonNullable<YouTubePreview['source']>) => addYoutubeFeed({
@@ -571,6 +573,9 @@ function AddFeed() {
       artworkUrl: source.artworkUrl,
       includeShorts: false,
       slug: customSlug || undefined,
+      autoProcessOverride,
+      maxEpisodes: maxEpisodes ? Number(maxEpisodes) : undefined,
+      onlyExposeProcessedEpisodes,
     }),
     onSuccess: (feed) => {
       queryClient.invalidateQueries({ queryKey: ['feeds'] });
@@ -582,6 +587,7 @@ function AddFeed() {
 
   const handleInputChange = (value: string) => {
     setInputValue(value);
+    mutation.reset();
     previewAbortRef.current?.abort();
     setYoutubePreview(null);
     previewMutation.reset();
@@ -675,6 +681,8 @@ function AddFeed() {
 
       {mode === 'subscribe' && (
       <>
+      {settingsPending && <p role="status" className="mb-4 text-sm text-muted-foreground">Loading feed options...</p>}
+      {settingsError && <div className="mb-4"><QueryError title="Could not load feed options." onRetry={() => void refetchSettings()} retrying={settingsFetching} /></div>}
       {settings && !settings.podcastSearchReady && (
         <div className="mb-4 rounded-md border border-warning/40 bg-warning/10 p-3 text-sm text-warning">
           PodcastIndex is selected but its credentials are missing. Add them in{' '}
@@ -686,7 +694,7 @@ function AddFeed() {
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
           <label htmlFor="podcastInput" className={labelBase}>
-            {searchAvailable ? 'Search podcasts or enter RSS URL' : 'Podcast RSS feed URL'}
+            {searchAvailable ? 'Search podcasts or enter an RSS or YouTube URL' : 'RSS or YouTube URL'}
           </label>
           <input
             type="text"
@@ -694,15 +702,16 @@ function AddFeed() {
             aria-invalid={isUrl && touched && !!urlValidation.error}
             aria-describedby={[isUrl && touched && (urlValidation.error || urlValidation.warning) ? "podcast-url-feedback" : "", showYoutubeDisabled ? "youtube-disabled" : "", mutation.error || youtubeError ? "add-feed-error" : ""].filter(Boolean).join(" ") || undefined}
             value={inputValue}
+            disabled={addYoutubeMutation.isPending}
             onChange={(e) => handleInputChange(e.target.value)}
             onBlur={() => { if (isUrl) setTouched(true); }}
-            placeholder={searchAvailable ? 'Search by name or paste an RSS feed URL...' : 'https://example.com/podcast/feed.xml'}
-            className={`w-full px-4 py-2 rounded-lg border bg-background text-foreground placeholder:text-muted-foreground focus:outline-hidden focus:ring-2 focus:ring-ring ${
+            placeholder="Podcast name, RSS URL or YouTube URL"
+            className={`${inputBase} w-full placeholder:text-muted-foreground ${
               isUrl && touched && urlValidation.error
-                ? 'border-destructive focus:ring-destructive'
+                ? 'border-destructive focus-visible:ring-destructive'
                 : isUrl && touched && urlValidation.warning
-                  ? 'border-warning focus:ring-warning'
-                  : 'border-input'
+                  ? 'border-warning focus-visible:ring-warning'
+                  : ''
             }`}
           />
           {isUrl && touched && urlValidation.error && (
@@ -810,11 +819,11 @@ function AddFeed() {
               <button
                 type="submit"
                 disabled={isYouTube
-                  ? previewMutation.isPending || !youtubeEnabled
+                  ? previewMutation.isPending || addYoutubeMutation.isPending || !youtubeEnabled || settingsError
                   : mutation.isPending || !inputValue.trim() || (touched && !urlValidation.isValid)}
                 className={`${btnLg} ${btnPrimary} flex-1`}
               >
-                <Plus className="w-4 h-4" aria-hidden="true" />
+                {isYouTube ? <SearchIcon className="w-4 h-4" aria-hidden="true" /> : <Plus className="w-4 h-4" aria-hidden="true" />}
                 {isYouTube
                   ? (previewMutation.isPending ? 'Looking up...' : 'Look up')
                   : (mutation.isPending ? 'Adding feed...' : 'Add feed')}
@@ -866,9 +875,10 @@ function AddFeed() {
                 <button
                   type="button"
                   onClick={() => addYoutubeMutation.mutate(youtubeSource)}
-                  disabled={addYoutubeMutation.isPending}
+                  disabled={addYoutubeMutation.isPending || previewMutation.isPending || !youtubeEnabled || settingsError}
                   className={`${btnLg} ${btnPrimary}`}
                 >
+                  <Plus className="w-4 h-4" aria-hidden="true" />
                   {addYoutubeMutation.isPending ? 'Adding feed...' : 'Add YouTube feed'}
                 </button>
               </div>

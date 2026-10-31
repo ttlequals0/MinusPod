@@ -87,6 +87,16 @@ beforeEach(() => {
 });
 
 describe('FeedDetail: podping metadata line', () => {
+  it('uses YouTube processing descriptions in the feed menu and confirmation', async () => {
+    renderFeedDetail(makeFeed({ feedType: 'youtube' }));
+    await userEvent.click(await screen.findByRole('button', { name: /Reprocess all/ }));
+    expect(screen.getByText('SponsorBlock marks + patterns')).toBeTruthy();
+    await userEvent.click(screen.getByRole('menuitem', { name: /Full reprocess/ }));
+    const dialog = screen.getByRole('dialog', { name: 'Reprocess all episodes' });
+    expect(dialog.textContent).toContain('Also run pass 1 LLM detection');
+    expect(dialog.textContent).not.toContain('re-transcribed');
+  });
+
   it('shows the last ping time when one arrived', async () => {
     renderFeedDetail(makeFeed({
       podpingCoverage: 'received',

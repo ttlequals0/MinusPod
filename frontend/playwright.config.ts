@@ -9,6 +9,7 @@ export default defineConfig({
     baseURL: 'http://127.0.0.1:4174/ui/',
     screenshot: 'only-on-failure',
     trace: 'retain-on-failure',
+    storageState: process.env.MINUSPOD_STORAGE_STATE || undefined,
   },
   projects: [
     { name: 'phone-320', use: { channel: process.env.PLAYWRIGHT_CHANNEL, viewport: { width: 320, height: 844 }, hasTouch: true } },

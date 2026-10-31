@@ -2,7 +2,7 @@ import { useMemo, useRef, type KeyboardEvent } from 'react';
 import { ChevronLeft, ChevronRight, Gauge, Pause, Play, RotateCcw, RotateCw } from 'lucide-react';
 import { SKIP_BACK_SECONDS, SKIP_FORWARD_SECONDS, formatRate, useEpisodePlayer } from '../hooks/useEpisodePlayer';
 import { formatTimestamp } from '../utils/format';
-import { btnBase, btnGhost, btnPrimary, touchTarget } from './buttonStyles';
+import { btnBase, btnGhost, btnPrimary, btnSecondary, touchTarget } from './buttonStyles';
 import { focusRing } from './fieldStyles';
 
 interface EpisodePlayerProps {
@@ -11,7 +11,7 @@ interface EpisodePlayerProps {
 }
 
 const ghostBtn = `${btnBase} ${btnGhost} ${touchTarget} touch-manipulation`;
-const skipBtn = ghostBtn;
+const skipBtn = `${ghostBtn} h-11 w-11 shrink-0 px-0`;
 const skipIcon = 'h-8 w-8';
 const skipNum = 'absolute inset-0 flex items-center justify-center text-[10px] font-semibold leading-none tabular-nums';
 
@@ -19,6 +19,7 @@ export default function EpisodePlayer({ src, chaptersUrl }: EpisodePlayerProps) 
   const audioRef = useRef<HTMLAudioElement>(null);
   const p = useEpisodePlayer(audioRef, chaptersUrl);
   const hasChapters = p.chapters.length > 0;
+  const canSeek = p.duration > 0 && !p.error;
   const ticks = useMemo(
     () => (p.duration > 0 ? p.chapters.map((c, i) => ({ c, i })).filter(({ c }) => c.startTime > 0).map(({ c, i }) => ({ key: `${c.startTime}-${i}`, left: Math.min(c.startTime / p.duration, 1) * 100 })) : []),
     [p.chapters, p.duration],
@@ -30,12 +31,12 @@ export default function EpisodePlayer({ src, chaptersUrl }: EpisodePlayerProps) 
   };
 
   const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
-    if (e.defaultPrevented || e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return;
+    if (e.defaultPrevented || e.repeat || e.nativeEvent.isComposing || e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return;
     const target = e.target as HTMLElement;
-    if (target.closest('button, input, select, textarea')) return;
+    if (target.isContentEditable || target.closest('button, input, select, textarea')) return;
     if (e.key === ' ') p.toggle();
-    else if (e.key === 'ArrowLeft') p.skip(-SKIP_BACK_SECONDS);
-    else if (e.key === 'ArrowRight') p.skip(SKIP_FORWARD_SECONDS);
+    else if (e.key === 'ArrowLeft' && canSeek) p.skip(-SKIP_BACK_SECONDS);
+    else if (e.key === 'ArrowRight' && canSeek) p.skip(SKIP_FORWARD_SECONDS);
     else return;
     e.preventDefault();
   };
@@ -46,17 +47,17 @@ export default function EpisodePlayer({ src, chaptersUrl }: EpisodePlayerProps) 
       aria-label="Episode player"
       tabIndex={0}
       onKeyDown={onKeyDown}
-      className={`rounded-lg border border-border bg-card p-3 sm:p-4 ${focusRing}`}
+      className={`@container rounded-lg border border-border bg-card p-3 sm:p-4 ${focusRing}`}
     >
       <audio ref={audioRef} src={src} preload="metadata" {...p.audioProps} />
 
       {hasChapters && (
         <div className="flex items-center gap-1">
-          <button type="button" aria-label="Previous chapter" disabled={p.prevTarget === null} onClick={() => p.prevTarget !== null && p.seek(p.prevTarget)} className={ghostBtn}>
+          <button type="button" aria-label="Previous chapter" disabled={!canSeek || p.prevTarget === null} onClick={() => p.prevTarget !== null && p.seek(p.prevTarget)} className={ghostBtn}>
             <ChevronLeft className="h-5 w-5" aria-hidden="true" />
           </button>
           <p className="min-w-0 flex-1 truncate text-center text-sm font-medium text-foreground" title={p.chapterTitle}>{p.chapterTitle}</p>
-          <button type="button" aria-label="Next chapter" disabled={p.nextTarget === null} onClick={() => p.nextTarget !== null && p.seek(p.nextTarget)} className={ghostBtn}>
+          <button type="button" aria-label="Next chapter" disabled={!canSeek || p.nextTarget === null} onClick={() => p.nextTarget !== null && p.seek(p.nextTarget)} className={ghostBtn}>
             <ChevronRight className="h-5 w-5" aria-hidden="true" />
           </button>
         </div>
@@ -80,13 +81,13 @@ export default function EpisodePlayer({ src, chaptersUrl }: EpisodePlayerProps) 
           max={p.duration || 0}
           step={1}
           value={Math.min(p.time, p.duration || 0)}
-          disabled={p.duration <= 0}
+          disabled={!canSeek}
           onChange={(e) => {
             const v = Number(e.target.value);
             p.setScrubTime(v);
           }}
           onPointerUp={endScrub}
-          onPointerCancel={endScrub}
+          onPointerCancel={() => p.setScrubTime(null)}
           onKeyUp={endScrub}
           onBlur={endScrub}
           className={`absolute inset-0 h-11 w-full cursor-pointer touch-manipulation accent-primary disabled:cursor-default ${focusRing} rounded`}
@@ -94,13 +95,12 @@ export default function EpisodePlayer({ src, chaptersUrl }: EpisodePlayerProps) 
       </div>
       <div className="flex justify-between text-xs tabular-nums text-muted-foreground">
         <span>{formatTimestamp(p.time)}</span>
-        <span>-{formatTimestamp(p.duration - p.time)}</span>
+        <span>{p.duration > 0 ? `-${formatTimestamp(Math.max(0, p.duration - p.time))}` : '-'}</span>
       </div>
 
-      <div className="mt-2 grid grid-cols-[1fr_auto_1fr] items-center">
-        <span aria-hidden="true" />
-        <div className="flex items-center gap-3">
-          <button type="button" aria-label={`Back ${SKIP_BACK_SECONDS} seconds`} onClick={() => p.skip(-SKIP_BACK_SECONDS)} className={skipBtn}>
+      <div className="mt-2 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-y-1">
+        <div className="col-start-2 row-start-1 flex items-center gap-3">
+          <button type="button" aria-label={`Back ${SKIP_BACK_SECONDS} seconds`} disabled={!canSeek} onClick={() => p.skip(-SKIP_BACK_SECONDS)} className={skipBtn}>
             <span className="relative inline-flex">
               <RotateCcw className={skipIcon} aria-hidden="true" />
               <span className={skipNum}>{SKIP_BACK_SECONDS}</span>
@@ -114,20 +114,33 @@ export default function EpisodePlayer({ src, chaptersUrl }: EpisodePlayerProps) 
           >
             {p.playing ? <Pause className="h-6 w-6" aria-hidden="true" /> : <Play className="h-6 w-6" aria-hidden="true" />}
           </button>
-          <button type="button" aria-label={`Forward ${SKIP_FORWARD_SECONDS} seconds`} onClick={() => p.skip(SKIP_FORWARD_SECONDS)} className={skipBtn}>
+          <button type="button" aria-label={`Forward ${SKIP_FORWARD_SECONDS} seconds`} disabled={!canSeek} onClick={() => p.skip(SKIP_FORWARD_SECONDS)} className={skipBtn}>
             <span className="relative inline-flex">
               <RotateCw className={skipIcon} aria-hidden="true" />
               <span className={skipNum}>{SKIP_FORWARD_SECONDS}</span>
             </span>
           </button>
         </div>
-        <div className="flex justify-end">
+        <div className="col-start-2 row-start-2 justify-self-center @min-[21rem]:col-start-3 @min-[21rem]:row-start-1 @min-[21rem]:justify-self-end">
           <button type="button" aria-label={`Playback speed ${formatRate(p.rate)}`} onClick={p.cycleRate} className={`${ghostBtn} px-2 tabular-nums`}>
-            <Gauge className="hidden h-4 w-4 sm:block" aria-hidden="true" />
+            <Gauge className="h-4 w-4 shrink-0" aria-hidden="true" />
             {formatRate(p.rate)}
           </button>
         </div>
       </div>
+      {p.loading && !p.error && <p role="status" className="mt-2 text-center text-sm text-muted-foreground">Loading audio...</p>}
+      {p.error && (
+        <div role="alert" className="mt-3 flex flex-wrap items-center justify-between gap-2 text-sm">
+          <p className="text-destructive">Could not play this audio.</p>
+          <button type="button" onClick={p.retry} className={`${btnBase} ${btnSecondary}`}>Retry playback</button>
+        </div>
+      )}
+      {p.chaptersFailed && (
+        <div role="alert" className="mt-3 flex flex-wrap items-center justify-between gap-2 text-sm">
+          <p className="text-destructive">Could not load chapters.</p>
+          <button type="button" onClick={p.retryChapters} className={`${btnBase} ${btnSecondary}`}>Retry chapters</button>
+        </div>
+      )}
     </div>
   );
 }

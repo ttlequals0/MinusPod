@@ -19,6 +19,9 @@ function FeedArtworkUpload({ slug }: { slug: string }) {
         id={`local-artwork-${slug}`}
         type="file"
         accept="image/jpeg,image/png"
+        disabled={artworkMutation.isPending}
+        aria-invalid={artworkMutation.isError}
+        aria-describedby={artworkMutation.isError ? `artwork-error-${slug}` : undefined}
         onChange={(e) => {
           const file = e.target.files?.[0];
           e.target.value = '';
@@ -26,10 +29,10 @@ function FeedArtworkUpload({ slug }: { slug: string }) {
         }}
         className={fileInputBase}
       />
-      {artworkMutation.isPending && <p className="mt-1 text-sm text-muted-foreground">Uploading...</p>}
-      {artworkMutation.isSuccess && <p className="mt-1 text-sm text-success">Artwork updated.</p>}
+      {artworkMutation.isPending && <p role="status" className="mt-1 text-sm text-muted-foreground">Uploading artwork...</p>}
+      {artworkMutation.isSuccess && <p role="status" className="mt-1 text-sm text-success">Artwork updated.</p>}
       {artworkMutation.isError && (
-        <p className="mt-1 text-sm text-destructive">{getErrorMessage(artworkMutation.error, 'Could not upload artwork.')}</p>
+        <p id={`artwork-error-${slug}`} role="alert" className="mt-1 text-sm text-destructive">{getErrorMessage(artworkMutation.error, 'Could not upload artwork.')}</p>
       )}
     </div>
   );

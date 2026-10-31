@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useId, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { updateFeed, type UpdateFeedPayload } from '../../api/feeds';
 import { getYouTubeSettings, YOUTUBE_KIND_LABELS, type YouTubeSettings } from '../../api/youtube';
@@ -10,6 +10,9 @@ import { selectBase } from '../../components/fieldStyles';
 import FeedArtworkUpload from './FeedArtworkUpload';
 import FeedMetadataForm from './FeedMetadataForm';
 import { fromTri, GlobalOverrideRow, rowLabelTop, toTri } from './OverrideRows';
+import QueryError from '../../components/QueryError';
+import { SkeletonRows } from '../../components/Skeleton';
+import { useUnsavedChanges } from '../../hooks/useUnsavedChanges';
 
 type NumberField = 'ytProcessDelayMinutesOverride' | 'ytProbeAttemptsOverride' | 'ytProbeIntervalMinutesOverride';
 type BoolField = 'ytLlmFallbackOverride' | 'ytLlmOnTopOverride' | 'ytCaptionsOverride' | 'ytHidePrivateOverride' | 'ytTranscribeOverride' | 'youtubeIncludeShorts';
@@ -24,42 +27,52 @@ function NumberOverrideRow({
   bounds: [number, number] | undefined;
   unit: string;
   disabled: boolean;
-  onCommit: (value: number | null) => void;
+  onCommit: (value: number | null) => Promise<unknown>;
   children: string;
 }) {
   const [custom, setCustom] = useState(false);
   const isCustom = custom || value != null;
   const [draft, setDraft] = useState<number | null>(null);
+  const [touched, setTouched] = useState(false);
+  const fieldId = useId();
   const [lo, hi] = bounds ?? [0, 100000];
+  const invalid = touched && (draft === null || !Number.isInteger(draft) || draft < lo || draft > hi);
+  const dirty = isCustom && touched && (invalid || draft !== value);
+  useUnsavedChanges(dirty);
 
-  function commit() {
-    if (draft === null) return;
-    if (draft < lo || draft > hi || draft === (value ?? globalValue)) return;
-    onCommit(draft);
-    setDraft(null);
+  async function commit() {
+    if (!dirty || invalid) return;
+    try {
+      await onCommit(draft);
+      setDraft(null);
+      setTouched(false);
+    } catch { /* The panel reports the mutation error. */ }
   }
 
   return (
     <div className="flex flex-col sm:flex-row sm:items-start gap-2 sm:gap-3 text-sm">
-      <span className={rowLabelTop}>{label}</span>
+      <label htmlFor={`${fieldId}-mode`} className={rowLabelTop}>{label}</label>
       <div className="flex flex-col gap-1 flex-1 min-w-0">
         <div className="flex items-center gap-2 flex-wrap">
           <select
+            id={`${fieldId}-mode`}
             value={isCustom ? 'custom' : 'global'}
             onChange={(e) => {
+              setDraft(null);
+              setTouched(false);
               if (e.target.value === 'custom') {
                 setCustom(true);
-                setDraft(null);
               } else {
                 setCustom(false);
-                if (value != null) onCommit(null);
+                if (value != null) void onCommit(null).catch(() => {});
               }
             }}
             disabled={disabled}
             className={`self-start w-full sm:w-auto min-w-0 max-w-full ${selectBase}`}
             aria-label={`${ariaLabel} mode`}
+            aria-describedby={`${fieldId}-help`}
           >
-            <option value="global">Use global ({globalValue ?? '...'})</option>
+            <option value="global">Use global ({globalValue ?? '-'} {unit})</option>
             <option value="custom">Custom</option>
           </select>
           {isCustom && (
@@ -71,17 +84,20 @@ function NumberOverrideRow({
                 max={hi}
                 step={1}
                 parse={parseOptionalNumber}
-                onChange={setDraft}
-                onBlur={commit}
+                onChange={(v) => { setDraft(v); setTouched(true); }}
+                onBlur={() => void commit()}
                 disabled={disabled}
                 className="w-24"
                 ariaLabel={ariaLabel}
+                ariaInvalid={invalid}
+                ariaDescribedBy={`${fieldId}-help${invalid ? ` ${fieldId}-error` : ''}`}
               />
               <span className="text-xs text-muted-foreground">{unit}</span>
             </>
           )}
         </div>
-        <p className="text-xs text-muted-foreground">{children}</p>
+        <p id={`${fieldId}-help`} className="text-xs text-muted-foreground">{children}</p>
+        {invalid && <p id={`${fieldId}-error`} role="alert" className="text-xs text-destructive">Enter a whole number from {lo} to {hi} {unit}.</p>}
       </div>
     </div>
   );
@@ -90,7 +106,7 @@ function NumberOverrideRow({
 function YouTubeFeedPanel({ feed, slug }: { feed: Feed; slug: string }) {
   const queryClient = useQueryClient();
   const [error, setError] = useState<string | null>(null);
-  const { data: globals } = useQuery({ queryKey: ['youtubeSettings'], queryFn: getYouTubeSettings });
+  const { data: globals, isPending, isError, isFetching, refetch } = useQuery({ queryKey: ['youtubeSettings'], queryFn: getYouTubeSettings });
 
   const mutation = useMutation({
     mutationFn: (payload: UpdateFeedPayload) => updateFeed(slug, payload),
@@ -101,7 +117,7 @@ function YouTubeFeedPanel({ feed, slug }: { feed: Feed; slug: string }) {
 
   const setBool = (field: BoolField) => (v: 'on' | 'off' | null) =>
     mutation.mutate({ [field]: fromTri(v) });
-  const setNumber = (field: NumberField) => (v: number | null) => mutation.mutate({ [field]: v });
+  const setNumber = (field: NumberField) => (v: number | null) => mutation.mutateAsync({ [field]: v });
   const bound = (key: keyof YouTubeSettings['bounds']) => globals?.bounds[key];
   const pending = mutation.isPending;
 
@@ -134,6 +150,9 @@ function YouTubeFeedPanel({ feed, slug }: { feed: Feed; slug: string }) {
 
           <FeedArtworkUpload slug={slug} />
 
+          {isError ? (
+            <QueryError title="Could not load global YouTube settings." onRetry={() => void refetch()} retrying={isFetching} />
+          ) : isPending ? <SkeletonRows count={3} /> : <>
           <GlobalOverrideRow
             label="LLM fallback"
             ariaLabel="LLM fallback"
@@ -232,7 +251,10 @@ function YouTubeFeedPanel({ feed, slug }: { feed: Feed; slug: string }) {
             Time between SponsorBlock checks.
           </NumberOverrideRow>
 
-          {error && <p className="text-xs text-destructive">{error}</p>}
+          </>}
+          {pending && <p role="status" className="text-sm text-muted-foreground">Saving YouTube settings...</p>}
+          {mutation.isSuccess && !error && <p role="status" className="text-sm text-success">YouTube settings saved.</p>}
+          {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
         </div>
       </CollapsibleSection>
     </div>

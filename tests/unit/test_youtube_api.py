@@ -106,6 +106,7 @@ def test_add_youtube_feed_and_patch_overrides(app_client):
             'feedType': 'youtube', 'sourceKind': 'playlist', 'sourceId': 'PLbh0Jamvptwfp_qc439PLuyKJ-tWUt222',
             'title': 'Example Playlist', 'description': 'd', 'artworkUrl': 'https://i.ytimg.com/a.jpg',
             'includeShorts': False,
+            'autoProcessOverride': False, 'maxEpisodes': 50, 'onlyExposeProcessedEpisodes': True,
         }, headers=headers)
     assert resp.status_code == 201, resp.get_json()
     slug = resp.get_json()['slug']
@@ -118,6 +119,9 @@ def test_add_youtube_feed_and_patch_overrides(app_client):
         assert row['feed_type'] == 'youtube'
         assert row['source_url'] == 'youtube://playlist/PLbh0Jamvptwfp_qc439PLuyKJ-tWUt222'
         assert row['youtube_include_shorts'] == 0
+        assert row['auto_process_override'] == 'false'
+        assert row['max_episodes'] == 50
+        assert row['only_expose_processed_episodes'] == 1
 
         dup = app_client.post('/api/v1/feeds', json={
             'feedType': 'youtube', 'sourceKind': 'playlist', 'sourceId': 'PLbh0Jamvptwfp_qc439PLuyKJ-tWUt222',

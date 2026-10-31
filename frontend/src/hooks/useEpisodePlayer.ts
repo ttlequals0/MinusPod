@@ -54,7 +54,7 @@ export function parseChapters(json: unknown): PlayerChapter[] {
   const list = (json as { chapters?: unknown } | null)?.chapters;
   if (!Array.isArray(list)) return [];
   return list
-    .filter((c): c is PlayerChapter => typeof c?.startTime === 'number' && Number.isFinite(c.startTime) && typeof c?.title === 'string')
+    .filter((c): c is PlayerChapter => typeof c?.startTime === 'number' && Number.isFinite(c.startTime) && c.startTime >= 0 && typeof c?.title === 'string')
     .map((c) => ({ startTime: c.startTime, title: c.title }))
     .sort((a, b) => a.startTime - b.startTime);
 }
@@ -63,20 +63,28 @@ export function useEpisodePlayer(audioRef: RefObject<HTMLAudioElement | null>, c
   const [playing, setPlaying] = useState(false);
   const [time, setTime] = useState(0);
   const [duration, setDuration] = useState(0);
+  const [error, setError] = useState(false);
+  const [loading, setLoading] = useState(false);
   const [storedRate, setStoredRate] = useLocalStorageState<number>(RATE_STORAGE_KEY, 1);
   const rate = validRate(storedRate);
-  const [loaded, setLoaded] = useState<{ url: string; list: PlayerChapter[] } | null>(null);
+  const [loaded, setLoaded] = useState<{ url: string; list: PlayerChapter[]; failed?: boolean } | null>(null);
+  const [chapterAttempt, setChapterAttempt] = useState(0);
   const [scrubTime, setScrubTime] = useState<number | null>(null);
 
   useEffect(() => {
     if (!chaptersUrl) return;
     const ctrl = new AbortController();
     fetch(chaptersUrl, { credentials: 'include', signal: ctrl.signal })
-      .then((r) => (r.ok ? r.json().catch(() => { console.warn('chapters response was not JSON'); return null; }) : null))
+      .then((r) => {
+        if (!r.ok) throw new Error('Could not load chapters.');
+        return r.json().catch((err) => { console.warn('chapters response was not JSON'); throw err; });
+      })
       .then((json) => setLoaded({ url: chaptersUrl, list: parseChapters(json) }))
-      .catch(() => {});
+      .catch(() => {
+        if (!ctrl.signal.aborted) setLoaded({ url: chaptersUrl, list: [], failed: true });
+      });
     return () => ctrl.abort();
-  }, [chaptersUrl]);
+  }, [chaptersUrl, chapterAttempt]);
 
   const chapters = loaded && loaded.url === chaptersUrl ? loaded.list : NO_CHAPTERS;
 
@@ -96,7 +104,15 @@ export function useEpisodePlayer(audioRef: RefObject<HTMLAudioElement | null>, c
   const toggle = useCallback(() => {
     const audio = audioRef.current;
     if (!audio) return;
-    if (audio.paused) audio.play()?.catch(() => setPlaying(false));
+    if (audio.paused) {
+      setError(false);
+      audio.play()?.catch((err) => {
+        if (err?.name === 'AbortError') return;
+        setPlaying(false);
+        setLoading(false);
+        setError(true);
+      });
+    }
     else audio.pause();
   }, [audioRef]);
 
@@ -118,23 +134,35 @@ export function useEpisodePlayer(audioRef: RefObject<HTMLAudioElement | null>, c
 
   return {
     playing,
+    error,
+    loading,
     time: shownTime,
     scrubbing: scrubTime !== null,
     duration,
     rate,
     chapters,
+    chaptersFailed: loaded?.url === chaptersUrl && !!loaded?.failed,
+    retryChapters: () => { setLoaded(null); setChapterAttempt((n) => n + 1); },
     chapterTitle,
     prevTarget,
     nextTarget,
     toggle,
+    retry: () => { audioRef.current?.load(); toggle(); },
     skip,
     seek,
     cycleRate,
     setScrubTime,
     audioProps: {
-      onPlay: () => setPlaying(true),
-      onPause: () => setPlaying(false),
-      onEnded: () => setPlaying(false),
+      onPlay: () => { setPlaying(true); setError(false); },
+      onPlaying: () => setLoading(false),
+      onWaiting: () => setLoading(true),
+      onCanPlay: () => setLoading(false),
+      onPause: () => { setPlaying(false); setLoading(false); },
+      onEnded: () => { setPlaying(false); setLoading(false); },
+      onError: () => { setError(true); setPlaying(false); setLoading(false); setScrubTime(null); },
+      onEmptied: () => {
+        setPlaying(false); setTime(0); setDuration(0); setScrubTime(null); setError(false); setLoading(false);
+      },
       onTimeUpdate: () => setTime(audioRef.current?.currentTime ?? 0),
       onDurationChange: readDuration,
       onLoadedMetadata: () => {

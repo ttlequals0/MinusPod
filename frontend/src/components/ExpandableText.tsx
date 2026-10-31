@@ -44,6 +44,13 @@ function ExpandableText({ children, clampLines = 4, className, label = 'text', t
 
   useLayoutEffect(measure, [measure, children]);
 
+  useLayoutEffect(() => {
+    const active = document.activeElement;
+    if (expanded && active instanceof HTMLElement && ref.current?.contains(active)) {
+      active.scrollIntoView({ block: 'nearest' });
+    }
+  }, [expanded]);
+
   useEffect(() => {
     if (typeof ResizeObserver === 'undefined') return;
     const el = ref.current;
@@ -57,7 +64,8 @@ function ExpandableText({ children, clampLines = 4, className, label = 'text', t
 
   return (
     <div className={className}>
-      <div id={bodyId} ref={ref} className={`wrap-break-word ${clamp}`.trim()}>
+      <div id={bodyId} ref={ref} className={`wrap-break-word ${clamp}`.trim()}
+        onFocusCapture={() => { if (overflows) setExpanded(true); }}>
         {children}
       </div>
       {(overflows || expanded) && (

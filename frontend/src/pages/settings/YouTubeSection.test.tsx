@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import YouTubeSection from './YouTubeSection';
 import type { YouTubeSettings } from '../../api/youtube';
+import { hasUnsavedChanges } from '../../hooks/useUnsavedChanges';
 
 const mockGet = vi.fn();
 const mockUpdate = vi.fn();
@@ -95,6 +96,11 @@ describe('YouTubeSection', () => {
     await userEvent.type(await screen.findByLabelText(/extra yt-dlp arguments/i), '--exec x');
     await userEvent.tab();
     expect(await screen.findByText(/--exec is not allowed/i)).toBeDefined();
+    const input = screen.getByLabelText(/extra yt-dlp arguments/i);
+    expect(input.getAttribute('aria-invalid')).toBe('true');
+    expect(input.getAttribute('aria-describedby')).toContain('yt-extra-args-error');
+    expect((input as HTMLInputElement).value).toBe('--exec x');
+    expect(hasUnsavedChanges()).toBe(true);
   });
 
   it('tests a typed key and reports the result', async () => {
@@ -140,5 +146,30 @@ describe('YouTubeSection', () => {
     await userEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Reset to defaults' }));
     await waitFor(() => expect(mockReset).toHaveBeenCalledTimes(1));
     await waitFor(() => expect(mockGet.mock.calls.length).toBeGreaterThan(getCalls));
+  });
+
+  it('replaces failed loading with retry and recovers', async () => {
+    mockGet.mockRejectedValueOnce(new Error('down'));
+    renderSection();
+    expect((await screen.findByRole('alert')).textContent).toContain('Could not load YouTube settings.');
+    expect(screen.queryByTestId('skeleton-rows')).toBeNull();
+    await userEvent.click(screen.getByRole('button', { name: 'Retry' }));
+    expect(await screen.findByRole('switch', { name: /enable youtube feeds/i })).toBeTruthy();
+  });
+
+  it('tracks unsaved keys and cookies and blocks concurrent cookie changes', async () => {
+    mockSaveCookies.mockImplementation(() => new Promise(() => {}));
+    const view = renderSection({ ...base, cookies: { set: true, lines: 12, updatedAt: null } });
+    await userEvent.type(await screen.findByLabelText(/data api key/i), 'AIzaSyTEST');
+    expect(hasUnsavedChanges()).toBe(true);
+    await userEvent.clear(screen.getByLabelText(/data api key/i));
+    expect(hasUnsavedChanges()).toBe(false);
+    await userEvent.type(screen.getByLabelText('Cookies', { exact: true }), '# Netscape HTTP Cookie File');
+    await userEvent.click(screen.getByRole('button', { name: 'Save cookies' }));
+    expect((screen.getByRole('button', { name: 'Clear cookies' }) as HTMLButtonElement).disabled).toBe(true);
+    expect((screen.getByLabelText('Cookies', { exact: true }) as HTMLTextAreaElement).disabled).toBe(true);
+    expect(hasUnsavedChanges()).toBe(true);
+    view.unmount();
+    expect(hasUnsavedChanges()).toBe(false);
   });
 });

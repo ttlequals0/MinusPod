@@ -321,6 +321,9 @@ export interface AddYoutubeFeedPayload {
   artworkUrl?: string | null;
   includeShorts?: boolean;
   slug?: string;
+  autoProcessOverride?: boolean | null;
+  maxEpisodes?: number;
+  onlyExposeProcessedEpisodes?: boolean | null;
 }
 
 export async function addYoutubeFeed(

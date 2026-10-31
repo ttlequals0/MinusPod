@@ -97,9 +97,9 @@ test('discarding a nested editor restores the page and its trigger', async ({ pa
   const sponsors = await response.json();
   const name = (Array.isArray(sponsors) ? sponsors : sponsors.sponsors)[0].name;
   await page.goto(base + '/sponsors');
-  const trigger = page.getByRole('button', { name: '+ Add Sponsor', exact: true });
+  const trigger = page.getByRole('button', { name: 'Add sponsor', exact: true });
   await trigger.click();
-  const editor = page.getByRole('dialog', { name: 'Add Sponsor', exact: true });
+  const editor = page.getByRole('dialog', { name: 'Add sponsor', exact: true });
   await editor.locator('input[type="text"]').first().fill(name);
   await editor.getByRole('button', { name: 'Close', exact: true }).click();
   const confirmation = page.getByRole('dialog', { name: 'Discard unsaved changes?' });

@@ -2,7 +2,7 @@
  * ExpandableText shows its control only when the content actually overflows,
  * so short entries stay a plain paragraph (issue #591).
  */
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import ExpandableText from './ExpandableText';
@@ -106,5 +106,12 @@ describe('ExpandableText', () => {
       </ExpandableText>,
     );
     expect(screen.getByRole('link', { name: 'Pattern #1' })).toBeDefined();
+  });
+
+  it('reveals clipped content when a nested link receives keyboard focus', () => {
+    mockOverflow(true);
+    render(<ExpandableText><a href="/patterns/1">Pattern #1</a></ExpandableText>);
+    fireEvent.focus(screen.getByRole('link', { name: 'Pattern #1' }));
+    expect(screen.getByRole('button').getAttribute('aria-expanded')).toBe('true');
   });
 });

@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import YouTubeFeedPanel from './YouTubeFeedPanel';
 import type { Feed } from '../../api/types';
+import { hasUnsavedChanges } from '../../hooks/useUnsavedChanges';
 
 vi.mock('../../components/CollapsibleSection', () => ({
   default: ({ title, subtitle, children }: { title: string; subtitle?: string; children: React.ReactNode }) => (
@@ -19,14 +20,15 @@ vi.mock('../../api/feeds', () => ({
 }));
 
 let mockEnabled = true;
+const mockGetSettings = vi.fn();
 vi.mock('../../api/youtube', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../../api/youtube')>()),
-  getYouTubeSettings: () => Promise.resolve({
+  getYouTubeSettings: () => mockGetSettings().then(() => ({
     enabled: mockEnabled,
     processDelayMinutes: 60, sbProbeAttempts: 6, sbProbeIntervalMinutes: 30,
     llmFallback: true, captionsAsTranscript: false, hidePrivate: true, transcribeFallback: true,
     bounds: { processDelayMinutes: [0, 1440], sbProbeAttempts: [1, 48], sbProbeIntervalMinutes: [1, 720] },
-  }),
+  })),
 }));
 
 const feed = {
@@ -40,16 +42,21 @@ const feed = {
 
 function renderPanel(overrides: Partial<Feed> = {}) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  return render(
+  const view = render(
     <QueryClientProvider client={client}>
       <YouTubeFeedPanel feed={{ ...feed, ...overrides }} slug="yt" />
     </QueryClientProvider>,
   );
+  return { ...view, rerenderFeed: (next: Feed) => view.rerender(
+    <QueryClientProvider client={client}><YouTubeFeedPanel feed={next} slug="yt" /></QueryClientProvider>,
+  ) };
 }
 
 describe('YouTubeFeedPanel', () => {
   beforeEach(() => {
     mockEnabled = true;
+    mockGetSettings.mockReset();
+    mockGetSettings.mockResolvedValue(undefined);
     mockUpdateFeed.mockReset();
     mockUpdateFeed.mockResolvedValue({});
   });
@@ -97,7 +104,7 @@ describe('YouTubeFeedPanel', () => {
   it('sends a boolean override and null to inherit', async () => {
     const user = userEvent.setup();
     renderPanel();
-    const select = screen.getByLabelText('Pass 1 detection') as HTMLSelectElement;
+    const select = await screen.findByLabelText('Pass 1 detection') as HTMLSelectElement;
     expect(select.selectedOptions[0].textContent).toBe('Use global (off)');
     await user.selectOptions(select, 'On');
     await waitFor(() => expect(mockUpdateFeed).toHaveBeenCalledWith('yt', { ytLlmOnTopOverride: true }));
@@ -105,17 +112,17 @@ describe('YouTubeFeedPanel', () => {
 
   it('shows the inherited global from settings', async () => {
     renderPanel();
-    const select = screen.getByLabelText('LLM fallback') as HTMLSelectElement;
+    const select = await screen.findByLabelText('LLM fallback') as HTMLSelectElement;
     await waitFor(() => expect(select.selectedOptions[0].textContent).toBe('Use global (on)'));
   });
 
   it('commits a custom delay on blur', async () => {
     const user = userEvent.setup();
     renderPanel();
-    const mode = screen.getByLabelText('Delay mode') as HTMLSelectElement;
-    await waitFor(() => expect(mode.selectedOptions[0].textContent).toBe('Use global (60)'));
+    const mode = await screen.findByLabelText('Delay mode') as HTMLSelectElement;
+    await waitFor(() => expect(mode.selectedOptions[0].textContent).toBe('Use global (60 minutes)'));
     await user.selectOptions(mode, 'Custom');
-    const input = screen.getByLabelText('Delay');
+    const input = screen.getByRole('spinbutton', { name: 'Delay' });
     await user.clear(input);
     await user.type(input, '5');
     await user.tab();
@@ -125,10 +132,10 @@ describe('YouTubeFeedPanel', () => {
   it('does not write the global when the field is focused and blurred untouched', async () => {
     const user = userEvent.setup();
     renderPanel();
-    const mode = screen.getByLabelText('Delay mode') as HTMLSelectElement;
-    await waitFor(() => expect(mode.selectedOptions[0].textContent).toBe('Use global (60)'));
+    const mode = await screen.findByLabelText('Delay mode') as HTMLSelectElement;
+    await waitFor(() => expect(mode.selectedOptions[0].textContent).toBe('Use global (60 minutes)'));
     await user.selectOptions(mode, 'Custom');
-    await user.click(screen.getByLabelText('Delay'));
+    await user.click(screen.getByRole('spinbutton', { name: 'Delay' }));
     await user.tab();
     expect(mockUpdateFeed).not.toHaveBeenCalled();
   });
@@ -136,7 +143,7 @@ describe('YouTubeFeedPanel', () => {
   it('does not write when the typed value equals the saved override', async () => {
     const user = userEvent.setup();
     renderPanel({ ytProcessDelayMinutesOverride: 5 });
-    const input = screen.getByLabelText('Delay');
+    const input = await screen.findByRole('spinbutton', { name: 'Delay' });
     await user.clear(input);
     await user.type(input, '5');
     await user.tab();
@@ -146,14 +153,14 @@ describe('YouTubeFeedPanel', () => {
   it('sends null when switching back to the global', async () => {
     const user = userEvent.setup();
     renderPanel({ ytProcessDelayMinutesOverride: 5 });
-    await user.selectOptions(screen.getByLabelText('Delay mode'), 'global');
+    await user.selectOptions(await screen.findByLabelText('Delay mode'), 'global');
     await waitFor(() => expect(mockUpdateFeed).toHaveBeenCalledWith('yt', { ytProcessDelayMinutesOverride: null }));
   });
 
   it('shows the transcription override and sends it', async () => {
     const user = userEvent.setup();
     renderPanel();
-    const select = screen.getByLabelText('Transcribe when captions are missing') as HTMLSelectElement;
+    const select = await screen.findByLabelText('Transcribe when captions are missing') as HTMLSelectElement;
     await waitFor(() => expect(select.selectedOptions[0].textContent).toBe('Use global (on)'));
     await user.selectOptions(select, 'Off');
     await waitFor(() => expect(mockUpdateFeed).toHaveBeenCalledWith('yt', { ytTranscribeOverride: false }));
@@ -162,7 +169,7 @@ describe('YouTubeFeedPanel', () => {
   it('shows the hide private override and sends it', async () => {
     const user = userEvent.setup();
     renderPanel();
-    const select = screen.getByLabelText('Hide private and deleted episodes') as HTMLSelectElement;
+    const select = await screen.findByLabelText('Hide private and deleted episodes') as HTMLSelectElement;
     await waitFor(() => expect(select.selectedOptions[0].textContent).toBe('Use global (on)'));
     await user.selectOptions(select, 'Off');
     await waitFor(() => expect(mockUpdateFeed).toHaveBeenCalledWith('yt', { ytHidePrivateOverride: false }));
@@ -186,7 +193,44 @@ describe('YouTubeFeedPanel', () => {
   it('sends false for Off on a boolean row', async () => {
     const user = userEvent.setup();
     renderPanel();
-    await user.selectOptions(screen.getByLabelText('Include Shorts'), 'Off');
+    await user.selectOptions(await screen.findByLabelText('Include Shorts'), 'Off');
     await waitFor(() => expect(mockUpdateFeed).toHaveBeenCalledWith('yt', { youtubeIncludeShorts: false }));
+  });
+
+  it('does not claim globals are off when the request fails', async () => {
+    mockGetSettings.mockRejectedValueOnce(new Error('down'));
+    renderPanel();
+    expect(screen.queryByLabelText('LLM fallback')).toBeNull();
+    expect((await screen.findByRole('alert')).textContent).toContain('Could not load global YouTube settings.');
+    await userEvent.click(screen.getByRole('button', { name: 'Retry' }));
+    expect((await screen.findByLabelText('LLM fallback') as HTMLSelectElement).selectedOptions[0].textContent).toBe('Use global (on)');
+  });
+
+  it('preserves metadata drafts when unrelated feed settings refresh', async () => {
+    const view = renderPanel();
+    const author = screen.getByLabelText('Author') as HTMLInputElement;
+    await userEvent.clear(author);
+    await userEvent.type(author, 'New Author');
+    view.rerenderFeed({ ...feed, ytLlmFallbackOverride: true });
+    expect(author.value).toBe('New Author');
+    expect(hasUnsavedChanges()).toBe(true);
+    await userEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    expect(author.value).toBe('Old');
+    expect(hasUnsavedChanges()).toBe(false);
+  });
+
+  it('validates a custom number and saves an explicit override equal to the global', async () => {
+    renderPanel();
+    await userEvent.selectOptions(await screen.findByLabelText('Delay mode'), 'custom');
+    const input = screen.getByRole('spinbutton', { name: 'Delay' });
+    await userEvent.clear(input);
+    await userEvent.type(input, '-1');
+    await userEvent.tab();
+    expect((await screen.findByRole('alert')).textContent).toContain('Enter a whole number');
+    expect(mockUpdateFeed).not.toHaveBeenCalled();
+    await userEvent.clear(input);
+    await userEvent.type(input, '60');
+    await userEvent.tab();
+    await waitFor(() => expect(mockUpdateFeed).toHaveBeenCalledWith('yt', { ytProcessDelayMinutesOverride: 60 }));
   });
 });
