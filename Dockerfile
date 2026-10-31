@@ -1,3 +1,10 @@
+ARG BASE_APP_IMAGE=ubuntu:26.04
+
+# Set --build-arg SECURITY_SRC=stub to skip rebuilding patched packages (faster
+# local builds; stock Ubuntu packages are used). Example:
+# $ docker build . --build-arg SECURITY_SRC=stub -t minuspod:local
+ARG SECURITY_SRC=builder
+
 # Stage 1: Build frontend
 FROM node:26-alpine@sha256:e71ac5e964b9201072425d59d2e876359efa25dc96bb1768cb73295728d6e4ea AS frontend-builder
 
@@ -24,38 +31,30 @@ RUN mkdir -p /app/static/ui/swagger \
           node_modules/swagger-ui-dist/swagger-ui-standalone-preset.js \
           /app/static/ui/swagger/
 
-# Build patched media packages with Ubuntu's full build recipes.
-FROM ubuntu:26.04 AS media-security-dependencies
+# Stage 2: Build patched security packages
+FROM ${BASE_APP_IMAGE} AS base-security-builder
 ENV DEBIAN_FRONTEND=noninteractive
 RUN sed -i 's/^Types: deb$/Types: deb deb-src/' /etc/apt/sources.list.d/ubuntu.sources \
     && apt-get update \
-    && apt-get build-dep -y --no-install-recommends ffmpeg libass srt libsndfile \
     && apt-get install -y --no-install-recommends python3 ca-certificates devscripts quilt
-FROM media-security-dependencies AS media-security-builder
+
+# Build patched media packages with Ubuntu's full build recipes.
+FROM base-security-builder AS media-security-builder
+RUN apt-get build-dep -y --no-install-recommends ffmpeg libass srt libsndfile
 COPY scripts/build_media_security_packages.py /build/scripts/
 COPY scripts/media-security/ /build/scripts/media-security/
 RUN python3 /build/scripts/build_media_security_packages.py
 
 # Build core libraries independently from the media package cache.
-FROM ubuntu:26.04 AS core-security-dependencies
-ENV DEBIAN_FRONTEND=noninteractive
-RUN sed -i 's/^Types: deb$/Types: deb deb-src/' /etc/apt/sources.list.d/ubuntu.sources \
-    && apt-get update \
-    && apt-get build-dep -y --no-install-recommends -P nobiarch glibc pcre2 \
-    && apt-get install -y --no-install-recommends python3 ca-certificates devscripts quilt
-FROM core-security-dependencies AS core-security-builder
+FROM base-security-builder AS core-security-builder
+RUN apt-get build-dep -y --no-install-recommends -P nobiarch glibc pcre2
 COPY scripts/build_media_security_packages.py /build/scripts/
 COPY scripts/core-security/ /build/scripts/core-security/
 RUN python3 /build/scripts/build_media_security_packages.py --input-dir /build/scripts/core-security
 
 # Build ancillary libraries as an unprivileged package builder.
-FROM ubuntu:26.04 AS misc-security-dependencies
-ENV DEBIAN_FRONTEND=noninteractive
-RUN sed -i 's/^Types: deb$/Types: deb deb-src/' /etc/apt/sources.list.d/ubuntu.sources \
-    && apt-get update \
-    && apt-get build-dep -y --no-install-recommends cjson glib2.0 \
-    && apt-get install -y --no-install-recommends python3 ca-certificates devscripts quilt
-FROM misc-security-dependencies AS misc-security-builder
+FROM base-security-builder AS misc-security-builder
+RUN apt-get build-dep -y --no-install-recommends cjson glib2.0
 COPY scripts/build_media_security_packages.py /build/scripts/
 COPY scripts/misc-security/ /build/scripts/misc-security/
 RUN install -d -o ubuntu -g ubuntu /work/media-security /out
@@ -63,38 +62,44 @@ USER ubuntu
 RUN python3 /build/scripts/build_media_security_packages.py --input-dir /build/scripts/misc-security
 
 # Build the patched graphics and video libraries separately.
-FROM ubuntu:26.04 AS graphics-security-dependencies
-ENV DEBIAN_FRONTEND=noninteractive
-RUN sed -i 's/^Types: deb$/Types: deb deb-src/' /etc/apt/sources.list.d/ubuntu.sources \
-    && apt-get update \
-    && apt-get build-dep -y --no-install-recommends cairo x264 \
-    && apt-get install -y --no-install-recommends python3 ca-certificates devscripts quilt
-FROM graphics-security-dependencies AS graphics-security-builder
+FROM base-security-builder AS graphics-security-builder
+RUN apt-get build-dep -y --no-install-recommends cairo x264
 COPY scripts/build_media_security_packages.py /build/scripts/
 COPY scripts/graphics-security/ /build/scripts/graphics-security/
 RUN python3 /build/scripts/build_media_security_packages.py --input-dir /build/scripts/graphics-security
 
 # Build patched utilities with unprivileged package tests.
-FROM ubuntu:26.04 AS aux-security-dependencies
-ENV DEBIAN_FRONTEND=noninteractive
-RUN sed -i 's/^Types: deb$/Types: deb deb-src/' /etc/apt/sources.list.d/ubuntu.sources \
-    && apt-get update \
-    && apt-get build-dep -y --no-install-recommends p11-kit bubblewrap tar libxrender \
-    && apt-get install -y --no-install-recommends \
-        python3 ca-certificates devscripts quilt gtk-doc-tools dh-exec bison xutils-dev libselinux1-dev
-FROM aux-security-dependencies AS aux-security-builder
+FROM base-security-builder AS aux-security-builder
+RUN apt-get build-dep -y --no-install-recommends p11-kit bubblewrap tar libxrender \
+    && apt-get install -y --no-install-recommends gtk-doc-tools dh-exec bison xutils-dev libselinux1-dev
 COPY scripts/build_media_security_packages.py /build/scripts/
 COPY scripts/aux-security/ /build/scripts/aux-security/
 RUN install -d -o ubuntu -g ubuntu /work/media-security /out
 USER ubuntu
 RUN python3 /build/scripts/build_media_security_packages.py --input-dir /build/scripts/aux-security
 
+# Define stubs for each security package family
+FROM ${BASE_APP_IMAGE} AS base-security-stub
+RUN mkdir -p /out/packages /out/provenance
+FROM base-security-stub AS core-security-stub
+FROM base-security-stub AS media-security-stub
+FROM base-security-stub AS misc-security-stub
+FROM base-security-stub AS graphics-security-stub
+FROM base-security-stub AS aux-security-stub
+
+# Finally, define the final stage (builder or stub) for each security package family
+FROM core-security-${SECURITY_SRC} AS core-security-out
+FROM media-security-${SECURITY_SRC} AS media-security-out
+FROM misc-security-${SECURITY_SRC} AS misc-security-out
+FROM graphics-security-${SECURITY_SRC} AS graphics-security-out
+FROM aux-security-${SECURITY_SRC} AS aux-security-out
+
 # Python application
 # Plain Ubuntu base - no nvidia/cuda image. ctranslate2 statically links the
 # CUDA runtime, and cuDNN/cuBLAS come from the pip nvidia-* wheels (torch
 # deps) via LD_LIBRARY_PATH below. GPU access is injected by the NVIDIA
 # container runtime, driven by the NVIDIA_* env vars in the ENV block.
-FROM ubuntu:26.04
+FROM ${BASE_APP_IMAGE}
 ARG MINUSPOD_VERSION=dev
 
 # Install Python 3.12 from deadsnakes PPA and system dependencies
@@ -184,36 +189,46 @@ RUN --mount=type=cache,id=pipcache,target=/root/.cache/pip \
 # cublas 12, cufft 11, curand 10 from the torch nvidia wheels.
 RUN --mount=type=cache,id=pipcache,target=/root/.cache/pip \
     pip uninstall -y onnxruntime && pip install onnxruntime-gpu==1.24.4
-COPY --from=core-security-builder /out/packages/ /opt/core-security-packages/
-COPY --from=core-security-builder /out/provenance/ /usr/share/minuspod/core-security/
+COPY --from=core-security-out /out/packages/ /opt/core-security-packages/
+COPY --from=core-security-out /out/provenance/ /usr/share/minuspod/core-security/
 RUN apt-get update \
-    && apt-get purge -y \
-        linux-libc-dev python3.12-dev libpython3.12-dev libc6-dev libexpat1-dev \
-    && apt-get install -y --no-install-recommends /opt/core-security-packages/*.deb \
+    && if ls /opt/core-security-packages/*.deb >/dev/null 2>&1; then \
+        apt-get purge -y \
+            linux-libc-dev python3.12-dev libpython3.12-dev libc6-dev libexpat1-dev \
+        && apt-get install -y --no-install-recommends /opt/core-security-packages/*.deb; \
+    fi \
     && rm -rf /opt/core-security-packages /var/lib/apt/lists/*
 # Keep the matching shared-library family and corresponding patched source.
-COPY --from=media-security-builder /out/packages/ /opt/media-security-packages/
-COPY --from=media-security-builder /out/provenance/ /usr/share/minuspod/media-security/
+COPY --from=media-security-out /out/packages/ /opt/media-security-packages/
+COPY --from=media-security-out /out/provenance/ /usr/share/minuspod/media-security/
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends /opt/media-security-packages/*.deb \
+    && if ls /opt/media-security-packages/*.deb >/dev/null 2>&1; then \
+        apt-get install -y --no-install-recommends /opt/media-security-packages/*.deb; \
+    fi \
     && rm -rf /opt/media-security-packages /var/lib/apt/lists/*
 
-COPY --from=misc-security-builder /out/packages/ /opt/misc-security-packages/
-COPY --from=misc-security-builder /out/provenance/ /usr/share/minuspod/misc-security/
+COPY --from=misc-security-out /out/packages/ /opt/misc-security-packages/
+COPY --from=misc-security-out /out/provenance/ /usr/share/minuspod/misc-security/
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends /opt/misc-security-packages/*.deb \
+    && if ls /opt/misc-security-packages/*.deb >/dev/null 2>&1; then \
+        apt-get install -y --no-install-recommends /opt/misc-security-packages/*.deb; \
+    fi \
     && rm -rf /opt/misc-security-packages /var/lib/apt/lists/*
 
-COPY --from=graphics-security-builder /out/packages/ /opt/graphics-security-packages/
-COPY --from=graphics-security-builder /out/provenance/ /usr/share/minuspod/graphics-security/
+COPY --from=graphics-security-out /out/packages/ /opt/graphics-security-packages/
+COPY --from=graphics-security-out /out/provenance/ /usr/share/minuspod/graphics-security/
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends /opt/graphics-security-packages/*.deb \
+    && if ls /opt/graphics-security-packages/*.deb >/dev/null 2>&1; then \
+        apt-get install -y --no-install-recommends /opt/graphics-security-packages/*.deb; \
+    fi \
     && rm -rf /opt/graphics-security-packages /var/lib/apt/lists/*
 
-COPY --from=aux-security-builder /out/packages/ /opt/aux-security-packages/
-COPY --from=aux-security-builder /out/provenance/ /usr/share/minuspod/aux-security/
+COPY --from=aux-security-out /out/packages/ /opt/aux-security-packages/
+COPY --from=aux-security-out /out/provenance/ /usr/share/minuspod/aux-security/
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends /opt/aux-security-packages/*.deb \
+    && if ls /opt/aux-security-packages/*.deb >/dev/null 2>&1; then \
+        apt-get install -y --no-install-recommends /opt/aux-security-packages/*.deb; \
+    fi \
     && rm -rf /opt/aux-security-packages /var/lib/apt/lists/*
 
 # Use Ubuntu's supported GNU provider instead of the protected Rust provider.
@@ -223,11 +238,12 @@ RUN apt-get update \
     && apt-get purge -y --allow-remove-essential \
         software-properties-common python3-jwt systemd systemd-sysv libpam-systemd \
     && apt-get autoremove -y \
-    && python3.12 /usr/share/minuspod/core-security/build_media_security_packages.py --verify-installed \
-    && python3.12 /usr/share/minuspod/media-security/build_media_security_packages.py --verify-installed \
-    && python3.12 /usr/share/minuspod/misc-security/build_media_security_packages.py --verify-installed \
-    && python3.12 /usr/share/minuspod/graphics-security/build_media_security_packages.py --verify-installed \
-    && python3.12 /usr/share/minuspod/aux-security/build_media_security_packages.py --verify-installed \
+    && for family in core media misc graphics aux; do \
+        script=/usr/share/minuspod/$family-security/build_media_security_packages.py; \
+        if [ -f "$script" ]; then \
+            python3.12 "$script" --verify-installed || exit 1; \
+        fi; \
+    done \
     && python -m pip uninstall -y pip \
     && rm -rf /var/lib/apt/lists/* /root/.cache /tmp/* \
     && find /opt/venv -type d -name '__pycache__' -exec rm -rf {} +

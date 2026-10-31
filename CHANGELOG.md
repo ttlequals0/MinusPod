@@ -11,6 +11,12 @@ release notes.
 
 ## [Unreleased]
 
+### Changed
+
+- Docker build: A SECURITY_SRC=stub build argument skips the patched security
+  package builds and uses stock Ubuntu packages, for faster local development builds.
+  Published images keep the default.
+
 ## [2.101.9] - 2026-10-30
 
 ### Fixed

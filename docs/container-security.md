@@ -31,3 +31,7 @@ Both images install a pinned yt-dlp and a pinned Deno for [YouTube feeds](youtub
 Do not remove package records or add vulnerability exclusions to hide findings. A distro scanner can continue reporting a CVE for a locally patched package until the vendor tracker recognizes a fixed version. The manifest records the source fix; the scanner result remains part of the release evidence. A source-only fix for a disabled FFmpeg component does not establish a reduction in runtime exposure.
 
 Remaining vendor findings require separate assessment of the affected code, available fixes, and application exposure. A passing scan at a severity threshold does not mean every reported vulnerability has been fixed.
+
+## Creating unsecured builds
+
+Developers may build runtime images without the patched packages by using the `SECURITY_SRC=stub` argument. This significantly speeds up local development builds but results in images that contain the stock Ubuntu CVEs and **must not be published**. The per-family provenance directories under `/usr/share/minuspod/<family>-security/` will be empty in these unsecured builds.
