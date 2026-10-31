@@ -71,6 +71,9 @@ jobs:
           fi
           echo "version.py == $EXPECTED; ok to build."
 
+      - name: Check security packages pin
+        run: python3 scripts/security_packages_hash.py --check --resolve
+
       - name: Free unused hosted-runner SDK storage
         run: |
           df -h /
