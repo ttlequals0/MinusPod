@@ -34,12 +34,14 @@ for (const s of sizes) {
   await page.getByRole('button', { name: 'Play', exact: true }).click();
   await page.getByRole('button', { name: 'Pause', exact: true }).waitFor();
   const elapsed = player.locator('div.tabular-nums > span').first();
-  const before = await elapsed.textContent();
-  await page.getByRole('button', { name: 'Next chapter' }).click();
-  await page.waitForFunction(
-    ([sel, b]) => document.querySelector(sel)?.textContent !== b,
-    ['[aria-label="Episode player"] div.tabular-nums > span', before],
-  );
+  // Before the first chapter starts, Next only seeks to its start; click until the playhead jumps.
+  const next = page.getByRole('button', { name: 'Next chapter' });
+  for (let i = 0; i < 3; i++) {
+    const t0 = await page.evaluate(() => document.querySelector('audio').currentTime);
+    await next.click();
+    await page.waitForTimeout(800);
+    if (await page.evaluate((t) => document.querySelector('audio').currentTime - t > 30, t0)) break;
+  }
   await page.waitForTimeout(1500);
   await page.mouse.move(0, 0);
   console.log(s.name, 'chapter:', await player.locator('p[title]').first().textContent(), 'elapsed:', await elapsed.textContent());
