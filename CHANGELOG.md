@@ -11,6 +11,13 @@ release notes.
 
 ## [Unreleased]
 
+### Fixed
+- System One tuneables saved correctly, but the Settings page and the Troubleshooting configuration download always showed the shipped defaults. The form stayed dirty after a save and the unsaved-changes warning fired. The settings payload now reads saved profiles (#917).
+- System One HTTP errors now include the upstream error message, so a provider rejecting a request (for example a cap on questions per request) is visible in the logs (#917).
+
+### Changed
+- The "Questions per API request" help text and docs note that some third-party endpoints cap questions per request and that detection sends one question per transcript segment (#917).
+
 ## [2.101.9] - 2026-10-30
 
 ### Fixed

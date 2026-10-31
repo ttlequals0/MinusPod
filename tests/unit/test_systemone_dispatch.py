@@ -18,7 +18,8 @@ from database import Database
 from llm_client import ProviderRateLimitedError, is_review_inconclusive_error, is_retryable_error
 from rate_limit_hold import reserve_provider_request
 from systemone.transport import (
-    SystemOneTransport, DispatchResponse, _ledger_response, _request_error, _reserved_tokens,
+    SystemOneTransport, DispatchResponse, _error_detail, _ledger_response, _request_error,
+    _reserved_tokens,
     dispatch_systemone_request,
 )
 from systemone.protocol import JevReviewValidationError
@@ -521,3 +522,19 @@ def test_out_of_storage_range_tokens_remain_unknown_without_masking_outcome(temp
     assert row['state'] == ('success' if status == 200 else 'failure')
     assert row['finalized_at'] is not None
     assert row['input_tokens'] is None and row['output_tokens'] == 2 and row['cost_usd'] is None
+
+
+@pytest.mark.parametrize('body, expected', [
+    ({'error': {'message': 'too many  questions\n(max 64)'}}, 'too many questions (max 64)'),
+    ({'error': 'cap exceeded'}, 'cap exceeded'),
+    ({'error': None, 'message': 'cap exceeded'}, 'cap exceeded'),
+    ({'detail': 'question count exceeds 64'}, 'question count exceeds 64'),
+    ({'detail': [{'loc': ['body', 'questions'], 'msg': 'question count exceeds 64', 'type': 'value_error'}]},
+     'question count exceeds 64'),
+    ({'detail': []}, ''),
+    ('<!doctype html><html>Bad Gateway</html>', ''),
+    ('x' * 300, 'x' * 200),
+    (None, ''),
+])
+def test_error_detail_extracts_upstream_message(body, expected):
+    assert _error_detail(body) == expected

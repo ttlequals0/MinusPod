@@ -54,7 +54,7 @@ Open the System One Tuneables section under AI & Processing. It shows one profil
 | Programme match veto threshold | 0.85 | 0.85 | Confidence threshold for the review programme-speech veto. |
 | Maximum boundary change | 60 seconds | 60 seconds | Maximum review boundary adjustment offered. |
 | Review context | 30 seconds | 30 seconds | Transcript context included around a review candidate. |
-| Questions per API request | No limit | No limit | Optional protocol cap. Requests are split in order when a cap is set. |
+| Questions per API request | No limit | No limit | Optional protocol cap. Requests are split in order when a cap is set. Detection sends one question per transcript segment in a window, so uncapped requests can carry several hundred questions. Some third-party endpoints reject large requests (Bespoke Labs Nimble accepts 64); set the cap below that limit. |
 | Request size limit | No limit | No limit | Optional serialized JSON request-body cap. |
 | Maximum Choice options | 255 | No limit | TypeSafe's fixed limit is 255; compatible endpoints can use an operator-set limit. |
 | Maximum concurrent operations | 4 | 4 | Per-process capacity for logical operations sharing an endpoint and credential. A waiting operation uses the logical deadline. |

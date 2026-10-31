@@ -163,8 +163,28 @@ def _failure_response(body):
     return _ledger_response(parsed)
 
 
+def _error_detail(body):
+    # Accepts {"error": "..."}, {"error": {"message": ...}}, {"message": ...},
+    # and FastAPI {"detail": "..." | [{"msg": ...}]} bodies.
+    keys = ('error', 'message', 'detail', 'msg')
+    for _ in range(3):
+        if isinstance(body, list):
+            body = body[0] if body else None
+        elif isinstance(body, dict):
+            body = next((body[k] for k in keys if body.get(k)), None)
+        else:
+            break
+    # Proxy HTML error pages carry no usable message.
+    if not isinstance(body, str) or body.lstrip().startswith('<'):
+        return ''
+    return ' '.join(body.split())[:200]
+
+
 def _request_error(status, response, body):
     message = f'System One HTTP {status}'
+    detail = _error_detail(body)
+    if detail:
+        message = f'{message}: {detail}'
     error_type = {
         401: AuthenticationError,
         403: PermissionDeniedError,

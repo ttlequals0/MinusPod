@@ -68,7 +68,8 @@ def _build_settings_payload():
         SILENCE_SNAP_NOISE_DB, SILENCE_SNAP_MIN_DURATION_SECONDS,
         SILENCE_SNAP_MAX_DISTANCE_SECONDS,
     )
-    settings = common._settings_view(db.get_all_settings())
+    snapshot = db.get_all_settings()
+    settings = common._settings_view(snapshot)
 
     # Shorthand for building {value, isDefault} response dicts
     def _sv(key, value=None):
@@ -809,7 +810,8 @@ def _build_settings_payload():
             for payload_key, db_key, _ in STAGE_TUNABLE_PAYLOAD_KEYS
         },
     }
-    systemone_profiles, systemone_defaults, systemone_shipped = profile_payload(settings)
+    # profile_payload reads the raw {value, is_default} rows, not the SettingEntry view.
+    systemone_profiles, systemone_defaults, systemone_shipped = profile_payload(snapshot)
     payload['systemOneTunables'] = systemone_profiles
     payload['systemOneTunablesIsDefault'] = systemone_defaults
     payload['systemOneTunableDefaults'] = systemone_shipped

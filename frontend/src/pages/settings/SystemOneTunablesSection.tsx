@@ -138,7 +138,7 @@ function SystemOneTunablesSection({ connections, profiles, defaults, isDefault, 
                   {field === 'reviewEvidenceEnter' || field === 'reviewChoiceEnter'
                     ? 'Blank uses the detection confidence threshold.'
                     : field === 'maxQuestionsPerRequest'
-                      ? 'Blank removes the question-count limit.'
+                      ? 'Blank removes the question-count limit. Some third-party endpoints reject large requests (Bespoke Labs Nimble accepts 64 questions); set this below that limit.'
                       : field === 'maxRequestBytes'
                         ? 'Blank removes the request-size limit.'
                         : 'Blank removes the Choice option limit.'}
