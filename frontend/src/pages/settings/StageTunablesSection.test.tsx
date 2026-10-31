@@ -136,7 +136,7 @@ describe('StageTunablesSection: per-stage effective provider', () => {
     const reviewer = stageCard('Reviewer (pass 1 and pass 2)');
     expect(screen.getByText('Ad review with System One models is experimental.')).toBeDefined();
     expect(within(reviewer).getByText('Reasoning budget (legacy Anthropic models)')).toBeDefined();
-    for (const input of reviewer.querySelectorAll('input,select')) {
+    for (const input of reviewer.querySelectorAll('input:not([id$="Temperature"]),select')) {
       expect((input as HTMLInputElement).disabled).toBe(false);
     }
     expect(within(reviewer).queryByText('Chat settings do not apply to System One.')).toBeNull();
@@ -162,6 +162,19 @@ describe('StageTunablesSection: per-stage effective provider', () => {
     const verification = stageCard('Verification (ad detection pass 2)');
     expect(within(verification).getByText('Reasoning effort')).toBeDefined();
     expect(within(verification).queryByText('Reasoning budget (legacy Anthropic models)')).toBeNull();
+  });
+
+  it('disables temperature and explains why for a stage on Anthropic only', () => {
+    render(<Harness llmProvider="anthropic" verificationProvider="ollama" />);
+
+    const detection = stageCard('Ad detection (pass 1)');
+    const anthropicHelp = 'Not sent: the Anthropic API no longer accepts temperature.';
+    expect(within(detection).getByText(anthropicHelp)).toBeDefined();
+    expect((within(detection).getByLabelText('Temperature') as HTMLInputElement).disabled).toBe(true);
+
+    const verification = stageCard('Verification (ad detection pass 2)');
+    expect(within(verification).queryByText(anthropicHelp)).toBeNull();
+    expect((within(verification).getByLabelText('Temperature') as HTMLInputElement).disabled).toBe(false);
   });
 
   it('saves adaptive reasoning effort for an Anthropic stage', async () => {

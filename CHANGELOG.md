@@ -12,6 +12,7 @@ release notes.
 ## [Unreleased]
 
 ### Fixed
+- Anthropic requests failed with HTTP 400 "temperature: Extra inputs are not permitted" after the SDK bump to 2.1.0. That SDK uses API version 2026-10-21, which removed temperature on every model. The native Anthropic client no longer sends it, and the self-heal path recognizes the new error text on proxy routes (#926).
 - System One tuneables saved correctly, but the Settings page and the Troubleshooting configuration download always showed the shipped defaults. The form stayed dirty after a save and the unsaved-changes warning fired. The settings payload now reads saved profiles (#917).
 - System One HTTP errors now include the upstream error message, so a provider rejecting a request (for example a cap on questions per request) is visible in the logs (#917).
 

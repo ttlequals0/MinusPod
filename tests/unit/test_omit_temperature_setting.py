@@ -5,7 +5,6 @@ trip), and the resolution order in llm_capabilities.model_omits_temperature
 / llm_client's DB-backed override plumbing.
 """
 import json
-from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -89,14 +88,6 @@ class TestGetRoundTrip:
         assert data['omitTemperature']['isDefault'] is False
 
 
-def _make_anthropic_response(text="ok"):
-    response = MagicMock()
-    response.content = [MagicMock(text=text)]
-    response.usage = MagicMock(input_tokens=10, output_tokens=5)
-    response.stop_reason = "end_turn"
-    return response
-
-
 class TestModelOmitsTemperatureResolutionOrder:
     """operator override -> static list -> learned memo."""
 
@@ -116,88 +107,6 @@ class TestModelOmitsTemperatureResolutionOrder:
     def test_override_false_and_unknown_model_keeps_temperature(self):
         assert llm_capabilities.model_omits_temperature(
             "gpt-4o", operator_override=False) is False
-
-
-class TestOverrideOmitsTemperatureForAnthropicClient:
-    """With the operator override on, temperature is omitted for a model
-    that's in neither the static list nor the learned memo."""
-
-    def test_override_true_omits_temperature_for_unlisted_model(self):
-        from llm_client import AnthropicClient
-        client = AnthropicClient(api_key="dummy")
-        mock_sdk = MagicMock()
-        mock_sdk.messages.create.return_value = _make_anthropic_response()
-        client._client = mock_sdk
-
-        with patch("llm_client._omit_temperature_override", return_value=True):
-            client.messages_create(
-                model="claude-unlisted-model",
-                max_tokens=4096,
-                system="sys",
-                messages=[{"role": "user", "content": "hi"}],
-                temperature=0.2,
-            )
-
-        kwargs = mock_sdk.messages.create.call_args.kwargs
-        assert "extra_body" not in kwargs
-
-    def test_override_false_keeps_existing_behavior_for_unlisted_model(self):
-        from llm_client import AnthropicClient
-        client = AnthropicClient(api_key="dummy")
-        mock_sdk = MagicMock()
-        mock_sdk.messages.create.return_value = _make_anthropic_response()
-        client._client = mock_sdk
-
-        with patch("llm_client._omit_temperature_override", return_value=False):
-            client.messages_create(
-                model="claude-unlisted-model",
-                max_tokens=4096,
-                system="sys",
-                messages=[{"role": "user", "content": "hi"}],
-                temperature=0.2,
-            )
-
-        kwargs = mock_sdk.messages.create.call_args.kwargs
-        assert kwargs["extra_body"] == {"temperature": 0.2}
-
-    def test_override_false_static_list_still_omits_temperature(self):
-        from llm_client import AnthropicClient
-        client = AnthropicClient(api_key="dummy")
-        mock_sdk = MagicMock()
-        mock_sdk.messages.create.return_value = _make_anthropic_response()
-        client._client = mock_sdk
-
-        with patch("llm_client._omit_temperature_override", return_value=False):
-            client.messages_create(
-                model="claude-sonnet-5",
-                max_tokens=4096,
-                system="sys",
-                messages=[{"role": "user", "content": "hi"}],
-                temperature=0.0,
-            )
-
-        kwargs = mock_sdk.messages.create.call_args.kwargs
-        assert "extra_body" not in kwargs
-
-    def test_override_false_learned_memo_still_omits_temperature(self):
-        from llm_client import AnthropicClient
-        llm_capabilities.mark_model_omits_temperature("claude-unlisted-model")
-        client = AnthropicClient(api_key="dummy")
-        mock_sdk = MagicMock()
-        mock_sdk.messages.create.return_value = _make_anthropic_response()
-        client._client = mock_sdk
-
-        with patch("llm_client._omit_temperature_override", return_value=False):
-            client.messages_create(
-                model="claude-unlisted-model",
-                max_tokens=4096,
-                system="sys",
-                messages=[{"role": "user", "content": "hi"}],
-                temperature=0.3,
-            )
-
-        kwargs = mock_sdk.messages.create.call_args.kwargs
-        assert "extra_body" not in kwargs
 
 
 class TestOmitTemperatureOverrideReadsSetting:

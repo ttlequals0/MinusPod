@@ -147,7 +147,7 @@ Controls available on each:
 
 | Control | Range | Notes |
 |---|---|---|
-| Temperature | 0.0 - 2.0 | 0.0 is fully reproducible. Keep detection and chapter boundaries low. |
+| Temperature | 0.0 - 2.0 | 0.0 is fully reproducible. Keep detection and chapter boundaries low. Not sent to Anthropic: API version 2026-10-21 removed temperature, so Anthropic stages run at the model default. |
 | Max tokens | 128 - 32768 | Response cap. Truncated JSON fails parsing; the salvage helper only recovers single-ad cases. |
 | Reasoning | Provider-aware | Older Anthropic models use a token budget (1024-65536 tokens). Adaptive-only Anthropic models, OpenAI, OpenRouter, and Ollama use an effort level (`none`, `low`, `medium`, `high`). |
 

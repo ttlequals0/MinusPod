@@ -311,6 +311,11 @@ function StageBlockEditor({
   const levelEnv = readEnvOverride(tunables[block.levelKey]);
 
   const useAnthropic = stageProvider === LLM_PROVIDERS.ANTHROPIC;
+  const tempNotSent = omitTemperature || useAnthropic;
+  let tempHelp = '0.0 = deterministic. Higher = more variation.';
+  if (omitTemperature) tempHelp = 'Not sent: "Do not send temperature" is on.';
+  else if (useAnthropic) tempHelp = 'Not sent: the Anthropic API no longer accepts temperature.';
+  else if (tempEnv) tempHelp = `Default from ${tempEnv}.`;
 
   const tempDraft = draft[block.temperatureKey] as number | null;
   const maxDraft = draft[block.maxTokensKey] as number | null;
@@ -329,8 +334,8 @@ function StageBlockEditor({
         <NumberFieldRow
           label="Temperature"
           id={String(block.temperatureKey)}
-          labelMuted={omitTemperature}
-          resetDisabled={tempDraft === null || omitTemperature}
+          labelMuted={tempNotSent}
+          resetDisabled={tempDraft === null || tempNotSent}
           onReset={() => setField(block.temperatureKey, null)}
           value={tempDraft}
           fallback={defaults[block.temperatureKey] as number | null}
@@ -343,14 +348,8 @@ function StageBlockEditor({
             return Number.isFinite(v) ? v : null;
           }}
           onChange={(parsed) => setField(block.temperatureKey, parsed)}
-          disabled={omitTemperature || chatControlsDisabled}
-          help={
-            omitTemperature
-              ? 'Not sent: "Do not send temperature" is on.'
-              : tempEnv
-                ? `Default from ${tempEnv}.`
-                : '0.0 = deterministic. Higher = more variation.'
-          }
+          disabled={tempNotSent || chatControlsDisabled}
+          help={tempHelp}
         />
 
         <NumberFieldRow
@@ -574,7 +573,7 @@ function OmitTemperatureToggle({
       <p className="mt-2 text-sm text-muted-foreground ml-14">
         Some newer models reject the temperature parameter and fail the request. Turn
         this on to leave it out of every LLM call. MinusPod already skips it for models
-        known to reject it.
+        known to reject it, and Anthropic never receives it.
       </p>
     </div>
   );

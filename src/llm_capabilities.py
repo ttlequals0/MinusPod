@@ -166,9 +166,10 @@ def translate_reasoning_effort(
 
 
 # Anthropic's adaptive-thinking generation removed the sampling parameters
-# (temperature/top_p/top_k); sending any of them returns a 400. Older models
-# still accept them. Extend this tuple when Anthropic ships a new model that
-# drops sampling (same manual maintenance as DEFAULT_MODEL_PRICING). Matched as
+# (temperature/top_p/top_k); sending any returns a 400. This list and the learned
+# memo apply to proxy routes (OpenRouter, openai-compatible) only; the native
+# client never sends temperature. Extend this tuple when a new model drops
+# sampling (same manual maintenance as DEFAULT_MODEL_PRICING). Matched as
 # substrings so bare IDs ("claude-sonnet-5"), provider-prefixed IDs
 # ("anthropic/claude-sonnet-5"), and dated variants all resolve.
 _ANTHROPIC_NO_SAMPLING_MODELS = (
@@ -309,6 +310,9 @@ def is_temperature_rejection_error(error: Exception) -> bool:
     text = str(error).lower()
     if 'temperature' not in text:
         return False
+    # Pydantic field errors name the field: "temperature: Extra inputs are not permitted".
+    if 'temperature: extra inputs are not permitted' in text:
+        return True
     return any(marker in text for marker in ('deprecated', 'unsupported', 'not supported'))
 
 

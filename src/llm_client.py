@@ -814,12 +814,11 @@ class LLMClient(ABC):
         try:
             return send_fn(eff_max, eff_temp, eff_reasoning), eff_max, eff_temp, eff_reasoning
         except Exception as e:
-            if is_temperature_rejection_error(e):
-                # The model rejects temperature outright (Anthropic's
-                # adaptive-thinking generation); a default-temperature retry
-                # would 400 identically. Self-heal: mark_model_omits_temperature()
-                # makes model_omits_temperature() return True for `model` from
-                # now on, so re-invoking send_fn here picks that up immediately.
+            # Only proxy routes send temperature; the native Anthropic client never does.
+            if provider != PROVIDER_ANTHROPIC and is_temperature_rejection_error(e):
+                # A proxy route to a model that rejects temperature: a default-temperature
+                # retry would 400 identically. mark_model_omits_temperature() makes the
+                # immediate re-send (and every later call) omit it.
                 _log_temperature_omission(provider_label, episode_id, pass_name, model, e)
                 mark_model_omits_temperature(model)
                 _record_extra_dispatch()
@@ -1213,14 +1212,10 @@ class AnthropicClient(LLMClient):
                 "cache_control": {"type": "ephemeral", "ttl": "5m"},
             }]
 
-        # Operator override (settings.omit_temperature) takes priority over
-        # the static list / learned memo; see model_omits_temperature().
-        omit_temp_override = _omit_temperature_override()
+        self._log_messages("Anthropic", effective_system, messages, model, None, eff_max)
 
-        self._log_messages("Anthropic", effective_system, messages, model,
-                           None if model_omits_temperature(model, omit_temp_override) else eff_temp, eff_max)
-
-        def _send(tok, tmp, reasoning):
+        # _tmp is dropped: API version 2026-10-21 removed temperature on every model.
+        def _send(tok, _tmp, reasoning):
             kw = dict(
                 model=model,
                 max_tokens=tok,
@@ -1228,14 +1223,6 @@ class AnthropicClient(LLMClient):
                 messages=messages,
                 timeout=timeout,
             )
-            # Anthropic's adaptive-thinking models reject temperature with a 400.
-            # Re-consulted on every call (not hoisted) so a retry after
-            # mark_model_omits_temperature() picks up the freshly-learned state.
-            # anthropic>=1.0 dropped temperature from messages.create's
-            # signature, so it goes on the wire via extra_body; the API-side
-            # 400 for no-sampling models is unchanged.
-            if not model_omits_temperature(model, omit_temp_override):
-                kw["extra_body"] = {"temperature": tmp}
             reasoning_kwargs = translate_reasoning_effort(
                 PROVIDER_ANTHROPIC, reasoning, model)
             kw.update(reasoning_kwargs)

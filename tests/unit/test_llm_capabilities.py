@@ -293,6 +293,20 @@ class TestIsTemperatureRejectionError:
         err.args = ("Error code: 400 ... '`temperature` is deprecated for this model.'",)
         assert is_temperature_rejection_error(err) is True
 
+    def test_matches_extra_inputs_not_permitted_for_temperature(self):
+        err = _StatusError(400)
+        err.args = ("Error code: 400 - {'type': 'error', 'error': {'type': 'invalid_request_error', 'message': 'temperature: Extra inputs are not permitted'}}",)
+        assert is_temperature_rejection_error(err) is True
+
+    @pytest.mark.parametrize("message", [
+        "messages.0.name: Extra inputs are not permitted",
+        "top_p: Extra inputs are not permitted; temperature: must be between 0 and 1",
+    ])
+    def test_ignores_extra_inputs_not_permitted_for_other_field(self, message):
+        err = _StatusError(400)
+        err.args = (f"Error code: 400 - {{'type': 'error', 'error': {{'type': 'invalid_request_error', 'message': '{message}'}}}}",)
+        assert is_temperature_rejection_error(err) is False
+
     @pytest.mark.parametrize("phrase", [
         "temperature is deprecated for this model",
         "temperature is unsupported on this model",

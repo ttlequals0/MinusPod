@@ -24,6 +24,8 @@ https://github.com/user-attachments/assets/1c3800e7-5fb0-402b-b42f-89ae6140f45f
 
 Select Anthropic and save an API key under Settings > AI & Processing. Each stage can use its own model. MinusPod chooses a tool-call format that the selected model supports. Models that reject forced tool calls use automatic tool choice with a strict schema. A response without the requested tool result follows the normal bounded retry policy; its token usage still counts.
 
+Temperature is not sent to Anthropic. API version 2026-10-21 removed the parameter on every model, so Anthropic stages run at the model default.
+
 ### Reasoning settings
 
 Under LLM Tunables, use **Reasoning budget** for models that accept manual thinking budgets, such as Claude 4.5 and 4.6. Use **Reasoning effort** for adaptive-only models, including Opus 4.7, Opus 4.8, and Claude 5 models. MinusPod sends the applicable setting for the model assigned to each stage. Both values persist when switching models or providers.
