@@ -2,7 +2,7 @@ ARG BASE_APP_IMAGE=ubuntu:26.04
 
 # Patched packages image, pinned by digest; scripts/bump_security_packages.sh rewrites both lines.
 # patch-inputs-hash: 0586002b8159c406
-ARG SECURITY_PACKAGES_IMAGE=ttlequals0/minuspod-security-packages@sha256:0000000000000000000000000000000000000000000000000000000000000000
+ARG SECURITY_PACKAGES_IMAGE=ttlequals0/minuspod-security-packages@sha256:6cd21e5bb8a80a1c667446c968693ec53801fcfc76f44ed6037a141a901c0115
 # SECURITY_SRC=stub uses stock Ubuntu packages (local use only).
 ARG SECURITY_SRC=image
 
