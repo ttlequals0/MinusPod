@@ -34,6 +34,15 @@ Unsupported selections remain visible so they can be repaired. Capability checks
 
 TypeSafe and System One compatible providers are never offered as a chat failover target: a failover configuration whose provider and model resolve to a System One route is treated as unconfigured for failover purposes.
 
+## How detection is scored
+
+One detection window becomes one System One request. The whole window transcript is the shared state and there is one yes or no question per transcript line, so the per-question context is the window, not the question count. Questions per API request only decides how many questions share a request; every batch carries the same state. Windows overlap by the detection overlap setting, and the overlap is scored twice.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="images/wf-systemone-dark.svg">
+  <img alt="One detection window sent to System One: a shared state card holding the whole window, one yes or no question per line split into batches that each carry a copy of the state, server prefill per batch, answers flowing into the decision gate, and a max prompt tokens budget that splits oversized windows" src="images/wf-systemone-light.svg">
+</picture>
+
 ## Independent tuning profiles
 
 System One tuning is stored independently for each credential slot and provider type: Provider A TypeSafe, Provider A System One compatible, Provider B TypeSafe, and Provider B System One compatible. Switching providers or slots keeps each profile. Profiles also remain in configuration exports. Importing an older export merges only fields it contains, preserving newer values already saved at the destination. Reset profile restores that profile's defaults.
@@ -48,17 +57,20 @@ Open the System One Tuneables section under AI & Processing. It shows one profil
 | Neighboring segments for category context | 2 | 2 | Transcript segments included on either side for category classification. |
 | Default ad category | Sponsor | Sponsor | Category used when the category pass is disabled. |
 | Refine ad boundaries | Off | Off | Opt in to the source adapter's ordered refinement questions. |
-| Logical request deadline | 75 seconds | 75 seconds | One total budget for all stages of a logical adapter call. Each HTTP request also has the common slot timeout. |
+| Logical request deadline | 75 seconds | 75 seconds | One total budget for all stages of a logical adapter call. Each HTTP request also has the common slot timeout. The deadline applies per request and overrides a longer provider timeout. Local prefill on a 16k context can exceed 75 seconds, so raise it for slow local backends. |
 | Evidence enter threshold | Blank | Blank | Blank follows the detection threshold. |
 | Choice enter threshold | Blank | Blank | Blank follows the detection threshold. |
 | Programme match veto threshold | 0.85 | 0.85 | Confidence threshold for the review programme-speech veto. |
 | Maximum boundary change | 60 seconds | 60 seconds | Maximum review boundary adjustment offered. |
 | Review context | 30 seconds | 30 seconds | Transcript context included around a review candidate. |
-| Questions per API request | No limit | No limit | Optional protocol cap. Requests are split in order when a cap is set. Detection sends one question per transcript segment in a window, so uncapped requests can carry several hundred questions. Some third-party endpoints reject large requests (Bespoke Labs Nimble accepts 64); set the cap below that limit. |
+| Questions per API request | No limit | No limit | Optional protocol cap. Requests are split in order when a cap is set. Detection sends one question per transcript segment in a window, so uncapped requests can carry several hundred questions. Some third-party endpoints reject large requests (Bespoke Labs Nimble accepts 64); set the cap below that limit. This changes how many questions share one request, not the per-question context, which is the whole detection window. |
+| Prompt token budget | No limit | No limit | Optional budget in estimated tokens (4 characters per token) for one detection request. A window that estimates above it is split into the smallest number of equal parts that fit, each part is sent on its own, and the answers are merged. Set it a little under the model's context, for example about 7000 for an 8k model. Blank sends each window whole. The category pass is not split. |
 | Request size limit | No limit | No limit | Optional serialized JSON request-body cap. |
 | Maximum Choice options | 255 | No limit | TypeSafe's fixed limit is 255; compatible endpoints can use an operator-set limit. |
-| Maximum concurrent operations | 4 | 4 | Per-process capacity for logical operations sharing an endpoint and credential. A waiting operation uses the logical deadline. |
+| Maximum concurrent operations | 4 | 4 | Per-process capacity for logical operations sharing an endpoint and credential. A waiting operation uses the logical deadline. Set this to the backend's parallelism. |
 | Maximum Retry-After wait | 5 seconds | 5 seconds | Caps the upstream rate-limit wait on the first retry, within the logical deadline. Zero permits no upstream-hint wait. |
+
+If the backend still answers a detection request with a 400 that reports a context overflow, MinusPod splits that part in half and retries, up to 3 times (8 parts). If the smallest part still fails, the window is recorded as lost to a context overflow in the run summary. System One scores one question per transcript segment against the whole window, so cost scales with segment count, and overlapping windows score the overlap twice. On local servers whose model cannot reuse the prompt cache across batches (llama.cpp reports "forcing full prompt re-processing" for hybrid models), every batch pays a full prefill of the window. Smaller windows or a hosted System One model are the practical fixes. Ollama's context comes from the model (the Modelfile `num_ctx`) and is not sent on System One routes. A proxy such as LiteLLM may not pass it through.
 
 Concurrency capacity is shared across slots and provider types when the normalized endpoint and credential match. If profiles for the same endpoint and credential specify different capacities, active and queued work observes the stricter limit. The queue is process-local, not a distributed cluster limit. Waiting is bounded by the logical request deadline and observes cancellation and credential changes. A local queue timeout does not send an upstream request, create a request-usage row, trip the provider circuit breaker, or trigger chat failover.
 

@@ -574,6 +574,100 @@ def d_pool(t):
     return c.render()
 
 
+def d_systemone(t):
+    """System One: one detection window becomes batched yes/no questions."""
+    c = Canvas(t, 1180, 670, "One detection window sent to System One as batched yes or no questions")
+    mut, pri, war = t["mutedFg"], t["primary"], t["warning"]
+
+    def head(x, y, s):
+        c.text(x, y, s, 11, fill=mut, weight=500, spacing="0.1em")
+
+    # left: windows over the transcript
+    head(20, 34, "TRANSCRIPT WINDOWS")
+    c.card(20, 46, 300, 28, fill=t["bg"])
+    c.text(170, 65, "full episode transcript", 11, fill=mut, anchor="middle")
+    c.text(105, 94, "window size", 11, fill=mut, anchor="middle")
+    c.o.append(f'<path d="M 20 100 L 190 100 M 20 96 L 20 104 M 190 96 L 190 104" '
+               f'stroke="{mut}" stroke-width="1" fill="none"/>')
+    c.card(20, 110, 170, 30, fill=tint(pri, t["tintBase"]), stroke=pri, r=6)
+    c.text(105, 130, "window 1", 12, fill=pri, weight=500, anchor="middle")
+    c.card(150, 148, 170, 30, fill=tint(pri, t["tintBase"]), stroke=pri, r=6)
+    c.text(235, 168, "window 2", 12, fill=pri, weight=500, anchor="middle")
+    c.o.append(f'<rect x="150" y="106" width="40" height="76" rx="4" fill="{war}" '
+               f'fill-opacity="0.28" stroke="{war}" stroke-width="1" stroke-dasharray="3 3"/>')
+    c.arrow(170, 182, 170, 196, color=war)
+    c.text(170, 214, "overlap is scored twice", 12, fill=war, weight=500, anchor="middle")
+    c.curve(190, 125, 370, 82, color=pri)
+
+    # middle: one request
+    head(370, 34, "ONE WINDOW, ONE REQUEST")
+    c.card(370, 50, 440, 64, fill=tint(pri, t["tintBase"]), stroke=pri)
+    c.text(388, 72, "State: the whole window transcript", 14, fill=pri, weight=600)
+    c.text(388, 90, "L0001 ... L0148", 13, weight=500)
+    c.text(388, 106, "shared by every question", 12, fill=mut)
+
+    c.arrow(390, 114, 390, 178)
+    c.o.append(f'<path d="M 390 146 L 358 146 L 358 393 L 368 393" stroke="{mut}" '
+               f'stroke-width="1.5" fill="none" marker-end="url(#ar)"/>')
+    c.badge(408, 124, "questions per request", war)
+    c.text(408, 168, "the state travels with every batch", 11, fill=mut)
+
+    batches = [(178, "BATCH 1", (37, 38, 39)), (328, "BATCH 2", (40, 41, 148))]
+    for by, name, lines in batches:
+        c.card(370, by, 440, 130)
+        c.text(386, by + 20, name, 11, fill=mut, weight=500, spacing="0.1em")
+        c.text(556, by + 20, "ONE QUESTION PER SEGMENT", 11, fill=mut, weight=500,
+               spacing="0.1em")
+        c.card(386, by + 30, 150, 88, fill=tint(pri, t["tintBase"], 0.12), stroke=pri, r=6)
+        c.text(400, by + 54, "State (copy)", 13, fill=pri, weight=500)
+        c.text(400, by + 74, "L0001 ... L0148", 12)
+        c.text(400, by + 92, "whole window", 12, fill=mut)
+        for i, n in enumerate(lines):
+            qy = by + 30 + i * 31
+            c.card(556, qy, 240, 26, r=6)
+            c.text(570, qy + 18, f"Is line {n} advertising?", 12)
+
+    # right: server
+    head(850, 34, "SERVER")
+    for by, name in ((178, "batch 1"), (328, "batch 2")):
+        c.arrow(810, by + 30, 850, by + 30)
+        c.card(850, by, 280, 60)
+        c.text(866, by + 26, "Prefill: whole window", 14, weight=500)
+        c.text(866, by + 46, f"window plus the questions of {name}", 12, fill=mut)
+        c.o.append(f'<path d="M 1130 {by+30} L 1146 {by+30}" stroke="{mut}" '
+                   f'stroke-width="1.5" fill="none"/>')
+    c.card(850, 250, 280, 66, fill=tint(war, t["tintBase"], 0.10), stroke=war, dash="5 4")
+    for i, ln in enumerate(("a server that cannot reuse the prompt",
+                            "cache prefills the window again",
+                            "for every batch")):
+        c.text(866, 272 + i * 16, ln, 12, fill=war if i == 0 else t["cardFg"])
+    c.o.append(f'<path d="M 1146 208 L 1146 528" stroke="{mut}" stroke-width="1.5" fill="none"/>')
+    c.text(1138, 430, "yes or no per line", 12, fill=mut, anchor="end")
+
+    c.arrow(1146, 528, 1132, 528)
+    c.card(850, 500, 280, 56, fill=tint(pri, t["tintBase"]), stroke=pri)
+    c.text(990, 524, "Decision gate", 16, fill=pri, weight=600, anchor="middle")
+    c.text(990, 544, "cuts at 80% confidence by default", 12, fill=pri,
+           anchor="middle", opacity="0.85")
+    out = [("Cut", "Removed", t["destructive"]), ("Hold", "For review", war),
+           ("Keep", "Left in by policy", t["success"])]
+    for i, (a, b, col) in enumerate(out):
+        x = 850 + i * 96
+        c.vcurve(990, 556, x + 44, 590)
+        c.card(x, 590, 88, 62)
+        c.o.append(f'<rect x="{x}" y="590" width="88" height="4" fill="{col}" rx="2"/>')
+        c.text(x + 10, 616, a, 14, weight=600, fill=col)
+        c.text(x + 10, 636, b, 10, fill=mut)
+
+    # budget callout
+    c.card(370, 490, 440, 80, fill=tint(war, t["tintBase"], 0.10), stroke=war, dash="5 4")
+    c.badge(386, 500, "max prompt tokens", war)
+    c.text(386, 540, "A window over the budget is split before sending.", 12)
+    c.text(386, 558, "A context error retries at half size.", 12)
+    c.arrow(590, 490, 590, 460, color=war, dash="4 4")
+    return c.render()
+
+
 DIAGRAMS = [
     ("wf-overview", d_hero),
     ("wf-arrival", d_arrive),
@@ -584,6 +678,7 @@ DIAGRAMS = [
     ("wf-rerun", d_rerun),
     ("wf-learning", d_learn),
     ("wf-failure", d_fail),
+    ("wf-systemone", d_systemone),
 ]
 
 if __name__ == "__main__":
