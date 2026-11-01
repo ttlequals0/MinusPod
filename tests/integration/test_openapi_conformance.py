@@ -122,6 +122,7 @@ GET_ROUTES = [
     ('/settings/rate-limit-hold', ''),
     ('/settings/update-check', ''),
     ('/settings/youtube', ''),
+    ('/youtube/search', 'q=example'),
     ('/settings/audio', ''),
     ('/settings/processing-timeouts', ''),
     ('/settings/webhooks', ''),
