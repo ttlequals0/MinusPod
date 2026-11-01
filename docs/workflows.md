@@ -92,6 +92,11 @@ The verify pass re-transcribes the cut file the same way.
 
 ## The YouTube pipeline
 
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="images/wf-youtube-dark.svg">
+  <img alt="Six stages from top to bottom: discover, serve, wait, cut, transcript and serve the cut. Beside the wait stage, marks found are queued and no marks leads to an LLM fallback or watch window. A background backfill fills descriptions and times" src="images/wf-youtube-light.svg">
+</picture>
+
 A YouTube feed has no upstream RSS, so MinusPod builds the episode list itself and waits for community SponsorBlock marks before it cuts. Detail for every step is in [YouTube Feeds](youtube-feeds.md).
 
 - **Discovery.** On the normal feed refresh schedule MinusPod lists the playlist, channel or single video. It uses the YouTube Data API when a key is set and yt-dlp otherwise. Private and deleted entries are hidden.
@@ -117,6 +122,13 @@ comparison are gathered before the model reads the transcript, and go into its
 prompt as hints. Audio signals are measured then too, but only promote or extend
 a cut after detection runs. Whatever a source proposes still has to clear the
 gate.
+
+System One scores a window as one request with one question per line; see the diagram below and [System One](system-one.md#how-detection-is-scored).
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="images/wf-systemone-dark.svg">
+  <img alt="A transcript split into overlapping windows, where the overlap is scored twice. One window becomes one request: a shared state, one question per line split into batches that carry the same state, and a prefill per batch. A max prompt tokens budget splits oversized windows. Yes or no answers feed the decision gate, which cuts, holds or keeps" src="images/wf-systemone-light.svg">
+</picture>
 
 ---
 

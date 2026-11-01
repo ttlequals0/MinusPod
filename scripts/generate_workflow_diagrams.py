@@ -575,96 +575,122 @@ def d_pool(t):
 
 
 def d_systemone(t):
-    """System One: one detection window becomes batched yes/no questions."""
-    c = Canvas(t, 1180, 670, "One detection window sent to System One as batched yes or no questions")
+    """System One: one window, one request, one question per line."""
+    c = Canvas(t, 1180, 560, "One detection window scored by System One, one yes or no question per line")
     mut, pri, war = t["mutedFg"], t["primary"], t["warning"]
+    bd = lambda s: len(s) * 7 + 16
 
-    def head(x, y, s):
-        c.text(x, y, s, 11, fill=mut, weight=500, spacing="0.1em")
-
-    # left: windows over the transcript
-    head(20, 34, "TRANSCRIPT WINDOWS")
-    c.card(20, 46, 300, 28, fill=t["bg"])
-    c.text(170, 65, "full episode transcript", 11, fill=mut, anchor="middle")
-    c.text(105, 94, "window size", 11, fill=mut, anchor="middle")
-    c.o.append(f'<path d="M 20 100 L 190 100 M 20 96 L 20 104 M 190 96 L 190 104" '
-               f'stroke="{mut}" stroke-width="1" fill="none"/>')
-    c.card(20, 110, 170, 30, fill=tint(pri, t["tintBase"]), stroke=pri, r=6)
-    c.text(105, 130, "window 1", 12, fill=pri, weight=500, anchor="middle")
-    c.card(150, 148, 170, 30, fill=tint(pri, t["tintBase"]), stroke=pri, r=6)
-    c.text(235, 168, "window 2", 12, fill=pri, weight=500, anchor="middle")
-    c.o.append(f'<rect x="150" y="106" width="40" height="76" rx="4" fill="{war}" '
+    # top strip: transcript with two overlapping windows
+    c.text(20, 34, "TRANSCRIPT", 11, fill=mut, weight=500, spacing="0.1em")
+    c.card(20, 44, 1140, 24, fill=t["bg"], r=6)
+    c.card(20, 78, 400, 24, fill=tint(pri, t["tintBase"]), stroke=pri, r=6)
+    c.text(36, 94, "window 1", 12, fill=pri, weight=500)
+    c.card(360, 106, 400, 24, fill=tint(pri, t["tintBase"]), stroke=pri, r=6)
+    c.text(436, 122, "window 2", 12, fill=pri, weight=500)
+    c.o.append(f'<rect x="360" y="74" width="60" height="60" rx="4" fill="{war}" '
                f'fill-opacity="0.28" stroke="{war}" stroke-width="1" stroke-dasharray="3 3"/>')
-    c.arrow(170, 182, 170, 196, color=war)
-    c.text(170, 214, "overlap is scored twice", 12, fill=war, weight=500, anchor="middle")
-    c.curve(190, 125, 370, 82, color=pri)
+    c.text(436, 94, "overlap scored twice", 12, fill=war, weight=500)
+    c.arrow(126, 102, 126, 170, color=pri)
 
-    # middle: one request
-    head(370, 34, "ONE WINDOW, ONE REQUEST")
-    c.card(370, 50, 440, 64, fill=tint(pri, t["tintBase"]), stroke=pri)
-    c.text(388, 72, "State: the whole window transcript", 14, fill=pri, weight=600)
-    c.text(388, 90, "L0001 ... L0148", 13, weight=500)
-    c.text(388, 106, "shared by every question", 12, fill=mut)
+    # middle row: five equal cards
+    cw, gap, y = 212, 20, 170
+    cards = [("Window", "one request", None),
+             ("State", "the whole window, shared", None),
+             ("Questions", "one per line, split into batches", "QUESTIONS PER REQUEST"),
+             ("Prefill", "per batch, whole window again", None)]
+    for i, (a, b, tag) in enumerate(cards):
+        x = 20 + i * (cw + gap)
+        c.card(x, y, cw, 104, fill=tint(pri, t["tintBase"], 0.10) if i == 1 else None,
+               stroke=pri if i == 1 else None)
+        if tag:
+            c.badge(x + 16, y + 14, tag, war, bd(tag))
+        c.text(x + 16, y + 56, a, 14, weight=500)
+        c.text(x + 16, y + 76, b, 12, fill=mut)
+        if i < 3:
+            c.arrow(x + cw + 1, y + 48, x + cw + gap - 1, y + 48)
+    qx = 20 + 2 * (cw + gap)
+    sb = "SAME STATE IN EVERY BATCH"
+    c.badge(qx + (cw - bd(sb)) / 2, y + 112, sb, mut, bd(sb))
 
-    c.arrow(390, 114, 390, 178)
-    c.o.append(f'<path d="M 390 146 L 358 146 L 358 393 L 368 393" stroke="{mut}" '
-               f'stroke-width="1.5" fill="none" marker-end="url(#ar)"/>')
-    c.badge(408, 124, "questions per request", war)
-    c.text(408, 168, "the state travels with every batch", 11, fill=mut)
+    ox = 20 + 4 * (cw + gap)
+    c.card(ox, y, cw, 104, fill=tint(war, t["tintBase"], 0.10), stroke=war, dash="5 4")
+    c.badge(ox + 16, y + 14, "MAX PROMPT TOKENS", war, bd("MAX PROMPT TOKENS"))
+    c.text(ox + 16, y + 56, "Over budget", 14, weight=500)
+    c.text(ox + 16, y + 74, "split before sending,", 12, fill=mut)
+    c.text(ox + 16, y + 90, "halve on a context error", 12, fill=mut)
 
-    batches = [(178, "BATCH 1", (37, 38, 39)), (328, "BATCH 2", (40, 41, 148))]
-    for by, name, lines in batches:
-        c.card(370, by, 440, 130)
-        c.text(386, by + 20, name, 11, fill=mut, weight=500, spacing="0.1em")
-        c.text(556, by + 20, "ONE QUESTION PER SEGMENT", 11, fill=mut, weight=500,
-               spacing="0.1em")
-        c.card(386, by + 30, 150, 88, fill=tint(pri, t["tintBase"], 0.12), stroke=pri, r=6)
-        c.text(400, by + 54, "State (copy)", 13, fill=pri, weight=500)
-        c.text(400, by + 74, "L0001 ... L0148", 12)
-        c.text(400, by + 92, "whole window", 12, fill=mut)
-        for i, n in enumerate(lines):
-            qy = by + 30 + i * 31
-            c.card(556, qy, 240, 26, r=6)
-            c.text(570, qy + 18, f"Is line {n} advertising?", 12)
-
-    # right: server
-    head(850, 34, "SERVER")
-    for by, name in ((178, "batch 1"), (328, "batch 2")):
-        c.arrow(810, by + 30, 850, by + 30)
-        c.card(850, by, 280, 60)
-        c.text(866, by + 26, "Prefill: whole window", 14, weight=500)
-        c.text(866, by + 46, f"window plus the questions of {name}", 12, fill=mut)
-        c.o.append(f'<path d="M 1130 {by+30} L 1146 {by+30}" stroke="{mut}" '
-                   f'stroke-width="1.5" fill="none"/>')
-    c.card(850, 250, 280, 66, fill=tint(war, t["tintBase"], 0.10), stroke=war, dash="5 4")
-    for i, ln in enumerate(("a server that cannot reuse the prompt",
-                            "cache prefills the window again",
-                            "for every batch")):
-        c.text(866, 272 + i * 16, ln, 12, fill=war if i == 0 else t["cardFg"])
-    c.o.append(f'<path d="M 1146 208 L 1146 528" stroke="{mut}" stroke-width="1.5" fill="none"/>')
-    c.text(1138, 430, "yes or no per line", 12, fill=mut, anchor="end")
-
-    c.arrow(1146, 528, 1132, 528)
-    c.card(850, 500, 280, 56, fill=tint(pri, t["tintBase"]), stroke=pri)
-    c.text(990, 524, "Decision gate", 16, fill=pri, weight=600, anchor="middle")
-    c.text(990, 544, "cuts at 80% confidence by default", 12, fill=pri,
+    # gate and outcomes, as in the detection diagram
+    px = 20 + 3 * (cw + gap) + cw / 2
+    c.vcurve(px, y + 104, 590, 330)
+    c.text(px + 14, 306, "yes or no per line", 11, fill=mut)
+    c.card(420, 330, 340, 62, fill=tint(pri, t["tintBase"]), stroke=pri)
+    c.text(590, 356, "Decision gate", 16, fill=pri, weight=600, anchor="middle")
+    c.text(590, 376, "cuts at 80% confidence by default", 12, fill=pri,
            anchor="middle", opacity="0.85")
-    out = [("Cut", "Removed", t["destructive"]), ("Hold", "For review", war),
+    out = [("Cut", "Removed", t["destructive"]), ("Hold", "Waits for a person", war),
            ("Keep", "Left in by policy", t["success"])]
     for i, (a, b, col) in enumerate(out):
-        x = 850 + i * 96
-        c.vcurve(990, 556, x + 44, 590)
-        c.card(x, 590, 88, 62)
-        c.o.append(f'<rect x="{x}" y="590" width="88" height="4" fill="{col}" rx="2"/>')
-        c.text(x + 10, 616, a, 14, weight=600, fill=col)
-        c.text(x + 10, 636, b, 10, fill=mut)
+        x = 252 + i * (cw + gap)
+        c.vcurve(590, 392, x + cw / 2, 440)
+        c.card(x, 440, cw, 78)
+        c.o.append(f'<rect x="{x}" y="440" width="{cw}" height="4" fill="{col}" rx="2"/>')
+        c.text(x + 16, 476, a, 15, weight=600, fill=col)
+        c.text(x + 16, 496, b, 12, fill=mut)
+    return c.render()
 
-    # budget callout
-    c.card(370, 490, 440, 80, fill=tint(war, t["tintBase"], 0.10), stroke=war, dash="5 4")
-    c.badge(386, 500, "max prompt tokens", war)
-    c.text(386, 540, "A window over the budget is split before sending.", 12)
-    c.text(386, 558, "A context error retries at half size.", 12)
-    c.arrow(590, 490, 590, 460, color=war, dash="4 4")
+
+def d_youtube(t):
+    """YouTube feed as a top-to-bottom stage flow with branches beside Wait."""
+    mut, pri, war, ok = t["mutedFg"], t["primary"], t["warning"], t["success"]
+    W, X, FW, row, gap = 1180, 20, 740, 54, 16
+    H = 20 + 6 * row + 5 * gap + 20
+    c = Canvas(t, W, H, "The YouTube pipeline from discovery through the SponsorBlock wait to the served cut")
+    bd = lambda s: len(s) * 7 + 16
+
+    def stage(x, y, w, n, name, desc, accent, tags=(), dashed=()):
+        c.card(x, y, w, row)
+        c.o.append(f'<rect x="{x}" y="{y+1}" width="4" height="{row-2}" rx="2" fill="{accent}"/>')
+        if n:
+            c.text(x + 22, y + 23, n, 12, fill=mut, weight=500)
+        c.text(x + 52 if n else x + 22, y + 23, name, 15, weight=500)
+        c.text(x + 52 if n else x + 22, y + 41, desc, 12, fill=mut)
+        rx = x + w - 16
+        for label, col in tags:
+            bw = bd(label)
+            rx -= bw
+            c.badge(rx, y + 17, label, col, bw)
+            rx -= 8
+        for label in dashed:
+            bw = bd(label)
+            rx -= bw
+            c.card(rx, y + 17, bw, 20, fill="none", stroke=war, r=4, dash="3 3")
+            c.text(rx + bw / 2, y + 31, label, 11, fill=war, weight=500, anchor="middle")
+            rx -= 8
+
+    ys = [20 + i * (row + gap) for i in range(6)]
+    stage(X, ys[0], FW, "01", "Discover", "playlist, channel or video", pri,
+          tags=[("YT-DLP", mut), ("DATA API", pri)])
+    stage(X, ys[1], FW, "02", "Serve", "every episode listed, first play processes", pri)
+    stage(X, ys[2], FW, "03", "Wait", "processing delay, then probes", pri,
+          dashed=["SPONSORBLOCK DOWN: WAITS HELD"])
+    stage(X, ys[3], FW, "04", "Cut", "marks as given, patterns always run", t["destructive"],
+          tags=[("LLM ON TOP", war)], dashed=["MARKS CHANGE: RECUT"])
+    stage(X, ys[4], FW, "05", "Transcript", "captions, creator chapters", pri)
+    stage(X, ys[5], FW, "06", "Serve the cut", "feed and episode page", ok)
+    for i in range(5):
+        c.arrow(X + FW / 2, ys[i] + row, X + FW / 2, ys[i] + row + gap)
+
+    bx, bw = 820, 340
+    wy = ys[2]
+    stage(bx, wy - 34, bw, None, "Marks found", "queued", ok)
+    stage(bx, wy + 34, bw, None, "No marks", "LLM fallback or watch window", mut)
+    c.curve(X + FW, wy + 27, bx, wy - 34 + 27, color=ok)
+    c.curve(X + FW, wy + 27, bx, wy + 34 + 27)
+
+    c.card(bx, ys[0], bw, row, fill="none", dash="5 4")
+    c.text(bx + 22, ys[0] + 23, "Backfill", 15, weight=500)
+    c.text(bx + 22, ys[0] + 41, "descriptions and times, no download", 12, fill=mut)
+    c.badge(bx + bw - 16 - bd("BACKGROUND"), ys[0] + 17, "BACKGROUND", mut, bd("BACKGROUND"))
     return c.render()
 
 
@@ -679,6 +705,7 @@ DIAGRAMS = [
     ("wf-learning", d_learn),
     ("wf-failure", d_fail),
     ("wf-systemone", d_systemone),
+    ("wf-youtube", d_youtube),
 ]
 
 if __name__ == "__main__":

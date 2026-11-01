@@ -40,7 +40,7 @@ One detection window becomes one System One request. The whole window transcript
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="images/wf-systemone-dark.svg">
-  <img alt="One detection window sent to System One: a shared state card holding the whole window, one yes or no question per line split into batches that each carry a copy of the state, server prefill per batch, answers flowing into the decision gate, and a max prompt tokens budget that splits oversized windows" src="images/wf-systemone-light.svg">
+  <img alt="A transcript split into overlapping windows, where the overlap is scored twice. One window becomes one request: a shared state, one question per line split into batches that carry the same state, and a prefill per batch. A max prompt tokens budget splits oversized windows. Yes or no answers feed the decision gate, which cuts, holds or keeps" src="images/wf-systemone-light.svg">
 </picture>
 
 ## Independent tuning profiles
