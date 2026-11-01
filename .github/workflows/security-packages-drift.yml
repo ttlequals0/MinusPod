@@ -1,0 +1,52 @@
+name: Security packages drift
+
+# Weekly check that no pinned security package has fallen behind Ubuntu's candidate version.
+# Opens or updates one issue while behind and closes it once current.
+
+on:
+  schedule:
+    - cron: "0 6 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+env:
+  ISSUE_TITLE: "Security packages behind Ubuntu"
+
+jobs:
+  drift:
+    name: Check drift
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+
+      - name: Compare pins with Ubuntu 26.04
+        id: drift
+        run: |
+          set -euo pipefail
+          code=0
+          docker run --rm -v "$PWD:/repo:ro" ubuntu:26.04 bash -c \
+            "apt-get update -qq && apt-get install -y -qq --no-install-recommends python3 >/dev/null && python3 /repo/scripts/check_security_package_drift.py" > drift.md || code=$?
+          [ "$code" -le 1 ] || { cat drift.md >&2; exit "$code"; }
+          echo "behind=$([ "$code" -eq 1 ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+
+      - name: Update the drift issue
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          BEHIND: ${{ steps.drift.outputs.behind }}
+        run: |
+          set -euo pipefail
+          gh label create security-packages-drift --description "Opened by the weekly drift check" --color B60205 --force
+          number=$(gh issue list --state open --label security-packages-drift --json number --jq '.[0].number // empty')
+          if [ "$BEHIND" = "true" ]; then
+            { cat drift.md; printf '\nSee docs/container-security.md, "Updating the packages", for how to refresh the pins.\n'; } > body.md
+            if [ -n "$number" ]; then
+              gh issue edit "$number" --body-file body.md
+            else
+              gh issue create --title "$ISSUE_TITLE" --label security-packages-drift --body-file body.md
+            fi
+          elif [ -n "$number" ]; then
+            gh issue close "$number" --comment "Current as of $(date -u +%F)"
+          fi

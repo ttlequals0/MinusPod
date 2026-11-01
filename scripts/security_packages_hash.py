@@ -2,6 +2,7 @@
 """Content hash of the security package patch inputs, plus pin checks for the app Dockerfiles."""
 import argparse
 import hashlib
+import json
 import re
 import subprocess
 import sys
@@ -12,6 +13,7 @@ REPO = "ttlequals0/minuspod-security-packages"
 DOCKERFILES = ("Dockerfile", "Dockerfile.cpu")
 IMAGE_RE = re.compile(r"^ARG SECURITY_PACKAGES_IMAGE=(\S+)$", re.MULTILINE)
 HASH_RE = re.compile(r"^# patch-inputs-hash: (\S+)$", re.MULTILINE)
+LABEL = "io.minuspod.inputs-hash"
 ZERO_DIGEST = "sha256:" + "0" * 64
 
 
@@ -69,17 +71,23 @@ def check(repo_root=ROOT, resolve=False):
 def resolve_errors(computed, digest):
     try:
         result = subprocess.run(
-            ["docker", "buildx", "imagetools", "inspect", f"{REPO}:{computed}", "--format", "{{json .Manifest.Digest}}"],
+            ["docker", "buildx", "imagetools", "inspect", f"{REPO}@{digest}", "--format", "{{json .Image}}"],
             capture_output=True, text=True,
         )
     except FileNotFoundError:
         return ["docker is not installed; --resolve needs docker buildx."]
     if result.returncode != 0:
-        return [f"Tag {REPO}:{computed} not found. Open or update a PR so the security-packages workflow publishes it."]
-    published = result.stdout.strip().strip('"')
-    if published != digest:
-        return [f"Pinned digest {digest} differs from {REPO}:{computed} digest {published}."]
-    return []
+        return [f"Pinned digest {digest} not found in {REPO}."]
+    try:
+        data = json.loads(result.stdout)
+    except json.JSONDecodeError:
+        return [f"Could not parse the image config for {REPO}@{digest}."]
+    configs = list(data.values()) if data and all("/" in k for k in data) else [data]
+    labels = [((c or {}).get("config") or {}).get("Labels") or {} for c in configs]
+    found = [lab[LABEL] for lab in labels if LABEL in lab]
+    if computed in found:
+        return []
+    return [f"Pinned digest {digest} carries inputs hash {found[0] if found else 'none'}, expected {computed}."]
 
 
 def pin(image_ref, repo_root=ROOT):

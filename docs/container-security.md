@@ -22,11 +22,25 @@ CI builds `Dockerfile.security-packages` from the same manifests into `ttlequals
 
 To change the packages, open or update a pull request that changes any patch input. The security-packages workflow runs on that PR and publishes `ttlequals0/minuspod-security-packages:<hash>`. Fork PRs skip publishing.
 
-Then run `scripts/bump_security_packages.sh`, which pins the manifest digest in both Dockerfiles, and commit. CI checks the hash comment on every pull request, and the release builds check that the pinned digest matches that tag.
+Then run `scripts/bump_security_packages.sh`, which pins the manifest digest in both Dockerfiles, and commit. CI checks the hash comment on every pull request, and the release check verifies that the pinned digest carries the matching hash label.
 
 The hash is a change detector for the patch inputs. The digest is the pin, because the Ubuntu base and build dependencies are not frozen by the hash.
 
 Patched packages no longer rebuild on every release. To rebuild on demand, run the workflow with the `force` input and re-pin.
+
+### Keeping the packages current
+
+A weekly drift check compares each pinned runtime package with the Ubuntu 26.04 candidate. It opens the issue "Security packages behind Ubuntu" while any package is behind and closes it once all are current.
+
+The check compares against Ubuntu's candidate only. Packages pinned ahead of Ubuntu, listed as ahead in the report, are not covered.
+
+A package apt cannot resolve is listed as unknown, and the check fails only when nothing resolves.
+
+A monthly refresh run rebuilds the image with fresh build dependencies but keeps the pinned source versions. It opens a pull request that re-pins the new digest, and it does not clear a drift issue, which needs a manifest update.
+
+The bot pull request gets CI through an explicit dispatch and needs the repository setting that lets Actions open pull requests. CodeQL does not run on it; the change is two pin lines that CodeQL does not analyze, and CodeQL runs on main after the merge.
+
+Each image also gets a dated tag, `<hash>-<YYYYMMDD>`. It keeps every pinned digest pullable after a rebuild moves the hash tag.
 
 To build locally, run these commands. For the CPU image, add `-f Dockerfile.cpu` to the second command.
 

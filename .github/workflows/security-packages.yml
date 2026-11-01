@@ -33,6 +33,7 @@ jobs:
     outputs:
       hash: ${{ steps.hash.outputs.hash }}
       skip: ${{ steps.exists.outputs.skip }}
+      force: ${{ steps.exists.outputs.force }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
 
@@ -51,6 +52,7 @@ jobs:
           else
             echo "skip=false" >> "$GITHUB_OUTPUT"
           fi
+          echo "force=$([ "$FORCE" = "true" ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
 
   build:
     name: Build ${{ matrix.platform }}
@@ -99,6 +101,7 @@ jobs:
             org.opencontainers.image.revision=${{ github.sha }}
             org.opencontainers.image.source=https://github.com/ttlequals0/MinusPod
             io.minuspod.inputs-hash=${{ needs.plan.outputs.hash }}
+          no-cache: ${{ needs.plan.outputs.force == 'true' }}
           cache-from: type=registry,ref=${{ env.REGISTRY_IMAGE }}:buildcache-${{ matrix.arch_id }}
           cache-to: type=registry,ref=${{ env.REGISTRY_IMAGE }}:buildcache-${{ matrix.arch_id }},mode=max
 
@@ -150,8 +153,10 @@ jobs:
           set -euo pipefail
           AMD64_DIGEST=$(cat digest-amd64/amd64)
           ARM64_DIGEST=$(cat digest-arm64/arm64)
+          # The dated tag keeps every pinned digest pullable after the hash tag moves.
           docker buildx imagetools create \
             -t "${REGISTRY_IMAGE}:${HASH}" \
+            -t "${REGISTRY_IMAGE}:${HASH}-$(date -u +%Y%m%d)" \
             "${REGISTRY_IMAGE}@${AMD64_DIGEST}" \
             "${REGISTRY_IMAGE}@${ARM64_DIGEST}"
 

@@ -19,7 +19,9 @@ release notes.
 - Docker build: Patched security packages are built once per patch change by
   CI into the ttlequals0/minuspod-security-packages image (amd64 and arm64) and
   both app Dockerfiles copy them by pinned digest, so release and local builds
-  no longer compile them.
+  no longer compile them. A weekly check opens an issue when a pinned package
+  falls behind Ubuntu, and a monthly run rebuilds the image with fresh build
+  dependencies and opens a pin PR.
 
 ## [2.101.10] - 2026-10-31
 
