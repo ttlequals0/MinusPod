@@ -56,7 +56,9 @@ jobs:
       - name: Re-pin and open a PR
         run: |
           set -euo pipefail
-          scripts/bump_security_packages.sh
+          # Pin the digest this run published, not whatever the hash tag points at now.
+          scripts/bump_security_packages.sh "$(python3 scripts/security_packages_hash.py)-$(date -u +%Y%m%d)"
+          python3 scripts/security_packages_hash.py --check --resolve
           if git diff --quiet; then
             echo "::notice::The pinned digest is already current"
             exit 0
@@ -69,8 +71,8 @@ jobs:
           git push --force origin "$branch"
           title="Refresh the security packages image pin"
           existing=$(gh pr list --state open --head "$branch" --json number --jq '.[0].number // empty')
-          gh pr list --state open --search "\"$title\" in:title" --json number,headRefName \
-            --jq ".[] | select(.headRefName != \"$branch\") | .number" | while read -r n; do
+          gh pr list --state open --author "app/github-actions" --json number,headRefName \
+            --jq ".[] | select(.headRefName != \"$branch\" and (.headRefName | startswith(\"feature/security-packages-refresh-\"))) | .number" | while read -r n; do
             gh pr close "$n" --comment "Superseded by a newer refresh."
           done
           if [ -z "$existing" ]; then
