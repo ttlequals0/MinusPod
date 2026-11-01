@@ -1,4 +1,5 @@
 """Bounded, payload-free operational diagnostics for self-hosted support."""
+import ast
 import heapq
 import json
 import logging
@@ -20,6 +21,10 @@ RETENTION_DAYS = 7
 _SKIP_LOGGERS = ('podcast.llm_io',)
 _handler = None
 _SRC_ROOT = Path(__file__).resolve().parent
+_MESSAGE_MAX = 200
+_LOG_METHODS = frozenset(('warning', 'error', 'critical', 'exception'))
+_DETAIL_LEVELS = frozenset(('WARNING', 'ERROR', 'CRITICAL'))
+_EXCEPTION_RE = re.compile(r'^[A-Za-z_][A-Za-z0-9_]{0,99}$')
 _LEVELS = frozenset(('INFO', 'WARNING', 'ERROR', 'CRITICAL', 'OTHER'))
 _CATEGORIES = frozenset(('api', 'audio', 'llm', 'feed', 'application', 'external'))
 _VERSION_RE = re.compile(r'^[0-9]+\.[0-9]+\.[0-9]+(?:[-+][0-9A-Za-z.-]+)?$')
@@ -58,6 +63,36 @@ def _source_path(pathname: str) -> str:
     if relative.as_posix() not in _SOURCE_ALLOWLIST:
         return 'external'
     return relative.as_posix()
+
+
+@lru_cache(maxsize=None)
+def _templates(source: str) -> dict[int, str]:
+    """Map each warning-or-higher log call line to its literal first argument."""
+    if source not in _SOURCE_ALLOWLIST:
+        return {}
+    try:
+        tree = ast.parse((_SRC_ROOT / source).read_bytes())
+    except (OSError, SyntaxError, ValueError):
+        return {}
+    templates = {}
+    for node in ast.walk(tree):
+        if (isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
+                and node.func.attr in _LOG_METHODS and node.args
+                and isinstance(node.args[0], ast.Constant) and isinstance(node.args[0].value, str)):
+            # Keyed by the call line and the literal's line; record.lineno may be either.
+            templates[node.lineno] = node.args[0].value
+            templates[node.args[0].lineno] = node.args[0].value
+    return templates
+
+
+def _detail(level: str, source: str, message, exception) -> dict:
+    detail = {}
+    if (level in _DETAIL_LEVELS and source != 'external' and isinstance(message, str)
+            and 0 < len(message) <= _MESSAGE_MAX and message.isprintable()):
+        detail['message'] = message
+    if isinstance(exception, str) and _EXCEPTION_RE.fullmatch(exception):
+        detail['exception'] = exception
+    return detail
 
 
 def _source(pathname: str, line: int) -> tuple[str, int]:
@@ -118,10 +153,12 @@ def _canonical_event(raw):
             line = 0
     except (ValueError, KeyError, TypeError, OverflowError):
         return None
-    return {
+    event = {
         'ts': timestamp, 'level': level, 'category': category,
         'source': source, 'line': line, 'version': version,
     }
+    event.update(_detail(level, source, raw.get('message'), raw.get('exception')))
+    return event
 
 
 class DiagnosticHandler(logging.Handler):
@@ -148,6 +185,12 @@ class DiagnosticHandler(logging.Handler):
                 'line': line,
                 'version': _SAFE_VERSION,
             }
+            if record.levelno >= logging.WARNING:
+                # Only a literal first argument is a template; f-strings and variables carry logged values.
+                message = record.msg if _templates(source).get(line) == record.msg else None
+                exc_type = record.exc_info[0] if isinstance(record.exc_info, tuple) else None
+                exception = exc_type.__name__ if isinstance(exc_type, type) else None
+                event.update(_detail(event['level'], source, message, exception))
             encoded = (json.dumps(event, separators=(',', ':')) + '\n').encode()
             # Handler.handle already holds self.lock around emit.
             path = self.base_path.with_suffix('.jsonl')

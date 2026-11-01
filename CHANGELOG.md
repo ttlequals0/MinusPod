@@ -40,6 +40,10 @@ release notes.
   questions share a request rather than the per question context, and that
   the logical request deadline applies per request even when the provider
   timeout is longer.
+- The diagnostic export records the static message template and the exception
+  class name for warnings and errors, so a cluster of failures can be read
+  without the container log. Values formatted into a message and exception
+  text are still left out.
 
 ## [2.101.11] - 2026-10-31
 

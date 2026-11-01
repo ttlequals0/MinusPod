@@ -9221,9 +9221,11 @@ paths:
       summary: Download bounded operational diagnostics
       description: >-
         Downloads payload-free structured diagnostics for an optional UTC ISO
-        8601 start/end range. The range is limited to 24 hours and the export
-        omits prompts, transcripts, descriptions, responses, identifiers,
-        secrets, URLs, and exception text. Episode ratings and their notes
+        8601 start/end range. The range is limited to 24 hours. For warnings
+        and errors the export includes the static message template as written
+        in the source and the exception class name. It omits logged values,
+        exception text, prompts, transcripts, descriptions, responses,
+        identifiers, secrets, and URLs. Episode ratings and their notes
         are included for the range. Rate limited to 6/hour.
       operationId: exportDiagnosticLog
       parameters:

@@ -108,6 +108,7 @@ Key endpoints:
 - `GET /api/v1/system/status` - Active Podping node, per-node HTTP status, and manual check progress. Includes worker-scoped SQLite WAL, checkpoint, transaction, and busy diagnostics
 - `POST /api/v1/system/podping/check` - Check every Podping RPC node without changing the listener's active node; the request is deduplicated while a check is running
 - `POST /api/v1/system/database/checkpoint` - Run a passive WAL checkpoint; returns 409 when active readers prevent completion
+- `GET /api/v1/system/diagnostic-export` - Download bounded operational diagnostics for an optional UTC `start`/`end` range (24 hours at most). Each event has time, level, category, source file and line; warnings and errors also carry the static `message` template as written in the source and the `exception` class name. Logged values, exception text, prompts, transcripts, identifiers, secrets and URLs are never included. Rate limited to 6/hour
 - `GET /api/v1/system/backup` - Download an encrypted SQLite backup by default. Returns 409 when encryption is unavailable; `encrypted=false` explicitly requests plaintext. See the [security guide](security-and-storage.md#database-backup-sensitivity)
 - `POST /api/v1/system/db-backup/run` - Run a scheduled-style backup now, writing a plain SQLite snapshot to the configured destination (rate-limited to 6/hour; 409 if one is already running)
 - `GET/PUT /api/v1/settings/db-backup` - Get or update scheduled backup settings (`enabled`, `cron`, `dest`, `keepCount`)
