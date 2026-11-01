@@ -42,4 +42,5 @@ def get_systemone_settings(provider: str, credential_slot: str, model: str) -> S
         max_questions_per_request=values["maxQuestionsPerRequest"],
         max_request_bytes=values["maxRequestBytes"],
         max_choice_options=values["maxChoiceOptions"],
+        max_prompt_tokens=values["maxPromptTokens"],
     )

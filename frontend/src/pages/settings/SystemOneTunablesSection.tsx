@@ -132,6 +132,7 @@ function SystemOneTunablesSection({ connections, profiles, defaults, isDefault, 
                 ) : (
                   <NumberInput {...fieldProps} value={value[field] as number} fallback={defaults[slot][provider][field] as number} onCommit={(next) => change(slot, provider, field, next as SystemOneProfile[K])} />
                 )}
+                {field === 'requestDeadlineSeconds' && <p className="mt-1 text-xs text-muted-foreground">Applies per request even when the provider timeout is longer.</p>}
                 {fieldProps.max === 1 && typeof value[field] === 'number' && <p className="mt-1 text-xs text-muted-foreground">{formatPercent(value[field] as number)}</p>}
                 {field === 'maxChoiceOptions' && provider === 'typesafe' && <p className="mt-1 text-xs text-muted-foreground">TypeSafe has a fixed maximum of 255.</p>}
                 {nullable && <p className="mt-1 text-xs text-muted-foreground">
@@ -141,7 +142,9 @@ function SystemOneTunablesSection({ connections, profiles, defaults, isDefault, 
                       ? 'Blank removes the question-count limit. Some third-party endpoints reject large requests (Bespoke Labs Nimble accepts 64 questions); set this below that limit.'
                       : field === 'maxRequestBytes'
                         ? 'Blank removes the request-size limit.'
-                        : 'Blank removes the Choice option limit.'}
+                        : field === 'maxPromptTokens'
+                          ? "Blank sends each detection window whole. Set this a little under the model's context (about 7000 for an 8k model) and windows that estimate above it are split before sending."
+                          : 'Blank removes the Choice option limit.'}
                 </p>}
               </div>
               );
@@ -193,6 +196,7 @@ function SystemOneTunablesSection({ connections, profiles, defaults, isDefault, 
                   {number('maxQuestionsPerRequest', 'Questions per API request', 1, 1, true)}
                   {number('maxRequestBytes', 'Request size limit (bytes)', 1, 1, true)}
                   {number('maxChoiceOptions', 'Maximum Choice options', 1, 1, provider === 'systemone-compatible')}
+                  {number('maxPromptTokens', 'Maximum prompt tokens', 1, 1, true)}
                   </div>
                 </div>
               </div>

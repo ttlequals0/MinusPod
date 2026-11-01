@@ -1881,6 +1881,7 @@ SYSTEMONE_TUNABLE_DEFAULTS = {
         'retryAfterMaxSeconds': 5.0,
         'maxQuestionsPerRequest': None,
         'maxRequestBytes': None,
+        'maxPromptTokens': None,
         'maxChoiceOptions': 255,
     },
     PROVIDER_SYSTEMONE_COMPATIBLE: {
@@ -1900,6 +1901,7 @@ SYSTEMONE_TUNABLE_DEFAULTS = {
         'retryAfterMaxSeconds': 5.0,
         'maxQuestionsPerRequest': None,
         'maxRequestBytes': None,
+        'maxPromptTokens': None,
         'maxChoiceOptions': None,
     },
 }

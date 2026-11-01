@@ -22,6 +22,7 @@ const profile: SystemOneProfile = {
   maxQuestionsPerRequest: null,
   maxRequestBytes: null,
   maxChoiceOptions: null,
+  maxPromptTokens: null,
 };
 const connections = { primary: 'typesafe', secondary: 'systemone-compatible' };
 const profiles: SystemOneProfiles = {
@@ -160,5 +161,29 @@ describe('SystemOneTunablesSection', () => {
     expect(screen.queryByLabelText('Detection confidence threshold')).toBeNull();
     rerender(<SystemOneTunablesSection {...props} connections={connections} />);
     expect((screen.getByLabelText('Detection confidence threshold') as HTMLInputElement).value).toBe('0.83');
+  });
+
+  it('saves a number or null for the maximum prompt tokens field', async () => {
+    const user = userEvent.setup();
+    const onSave = vi.fn().mockResolvedValue(undefined);
+    const customized = structuredClone(profiles);
+    customized.primary.typesafe.maxPromptTokens = 7000;
+    render(<SystemOneTunablesSection connections={connections} profiles={customized} defaults={defaults} isDefault={isDefault} onSave={onSave} pending={false} error={null} />);
+    await user.click(screen.getByRole('button', { name: 'System One tuneables' }));
+    const field = screen.getByLabelText('Maximum prompt tokens') as HTMLInputElement;
+    expect(field.value).toBe('7000');
+    expect(screen.getByText(/Set this a little under the model's context/)).toBeTruthy();
+    await user.clear(field);
+    await user.click(screen.getByRole('button', { name: 'Save System One tuning' }));
+    expect(onSave).toHaveBeenLastCalledWith({ systemOneTunables: { primary: { typesafe: { maxPromptTokens: null } } } });
+    await user.type(field, '6500');
+    await user.click(screen.getByRole('button', { name: 'Save System One tuning' }));
+    expect(onSave).toHaveBeenLastCalledWith({ systemOneTunables: { primary: { typesafe: { maxPromptTokens: 6500 } } } });
+  });
+
+  it('explains that the deadline applies per request', async () => {
+    render(<SystemOneTunablesSection connections={connections} profiles={profiles} defaults={defaults} isDefault={isDefault} onSave={vi.fn()} pending={false} error={null} />);
+    await userEvent.setup().click(screen.getByRole('button', { name: 'System One tuneables' }));
+    expect(screen.getByText('Applies per request even when the provider timeout is longer.')).toBeTruthy();
   });
 });

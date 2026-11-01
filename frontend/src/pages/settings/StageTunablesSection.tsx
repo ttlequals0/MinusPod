@@ -453,7 +453,7 @@ function WindowConfigBlock({
       <div>
         <h4 className={subHeading}>Detection window</h4>
         <p className="text-xs text-muted-foreground mt-0.5">
-          Transcript chunk size for ad detection. Shrink for small-context local LLMs.
+          Transcript chunk size for ad detection. Shrink for small-context local LLMs. Also sizes System One windows.
         </p>
       </div>
 

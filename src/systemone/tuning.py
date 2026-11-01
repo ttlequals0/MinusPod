@@ -15,7 +15,7 @@ from config import (
 
 NULLABLE_FIELDS = frozenset({
     "reviewEvidenceEnter", "reviewChoiceEnter", "maxQuestionsPerRequest",
-    "maxRequestBytes", "maxChoiceOptions",
+    "maxRequestBytes", "maxChoiceOptions", "maxPromptTokens",
 })
 FLOAT_RANGES = {
     "detectionEnter": (0.0, 1.0),
@@ -83,7 +83,8 @@ def validate_profile(values: dict[str, Any], defaults: dict[str, Any] | None = N
         raise SystemOneSettingsError("categoryContext must be a non-negative integer")
     if values.get("defaultCategory") not in SEGMENT_CATEGORIES:
         raise SystemOneSettingsError("defaultCategory is not a supported category")
-    for field in ("maxQuestionsPerRequest", "maxRequestBytes", "maxChoiceOptions", "maxConcurrentOperations"):
+    for field in ("maxQuestionsPerRequest", "maxRequestBytes", "maxChoiceOptions", "maxPromptTokens",
+                  "maxConcurrentOperations"):
         value = values.get(field)
         if value is None and field in NULLABLE_FIELDS:
             continue

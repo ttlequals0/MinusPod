@@ -41,6 +41,7 @@ import requests
 import httpx
 
 from utils.circuit_breaker import CircuitBreaker, CircuitBreakerOpen
+from context_limits import CHARS_PER_TOKEN, ContextOverflowError
 from utils.rate_limit import (
     parse_retry_after, parse_groq_rate_limit_body, parse_upstream_reset,
     parse_google_retry_delay, parse_google_daily_quota,
@@ -1370,7 +1371,7 @@ class OllamaNativeChatError(Exception):
         self.response = response
 
 
-class OllamaContextOverflowError(Exception):
+class OllamaContextOverflowError(ContextOverflowError):
     """Ollama cut a prompt longer than num_ctx down to about num_ctx/2,
     dropping its start (system prompt and instructions included), and answered
     anyway (#893). Terminal: the same prompt overflows again. Carries the
@@ -1391,9 +1392,6 @@ OLLAMA_OVERFLOW_BAND_TOKENS = 64
 # The reported count must also sit well below the prompt's own size estimate,
 # so a prompt that is genuinely about num_ctx/2 long is not flagged.
 OLLAMA_OVERFLOW_ESTIMATE_RATIO = 1.5
-# Rough chars-per-token for the prompt size estimate.
-OLLAMA_PROMPT_CHARS_PER_TOKEN = 4
-
 
 def estimate_prompt_tokens(messages: list[dict]) -> int:
     """Rough token estimate for a chat prompt, from its character count."""
@@ -1401,7 +1399,7 @@ def estimate_prompt_tokens(messages: list[dict]) -> int:
     for message in messages:
         content = message.get('content')
         chars += len(content if isinstance(content, str) else str(content or ''))
-    return chars // OLLAMA_PROMPT_CHARS_PER_TOKEN
+    return chars // CHARS_PER_TOKEN
 
 
 def ollama_prompt_was_truncated(prompt_tokens, num_ctx, estimated_tokens) -> bool:

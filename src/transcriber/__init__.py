@@ -46,6 +46,7 @@ from config import (
     FFMPEG_LONG_TIMEOUT,
     FFMPEG_SHORT_TIMEOUT,
     HTTP_MAX_REDIRECTS_FEED,
+    HTTP_TIMEOUT_FETCH,
     log_download_query_enabled,
     HOLE_RETRANSCRIBE_MAX_HOLES, HOLE_RETRANSCRIBE_MAX_SECONDS, HOLE_RETRANSCRIBE_QUIET_DB,
 )
@@ -592,7 +593,7 @@ class Transcriber:
             if not success:
                 common.unlink_quiet(output_path)
 
-    def check_audio_availability(self, url: str, timeout: int = 10,
+    def check_audio_availability(self, url: str, timeout: float = HTTP_TIMEOUT_FETCH,
                                  user_agent: str = None) -> tuple:
         """Check if audio URL is accessible without downloading.
 
@@ -626,7 +627,9 @@ class Transcriber:
             logger.warning(f"SSRF blocked in check_audio_availability: {e}")
             return False, f"URL blocked: {e}"
         except requests.exceptions.Timeout:
-            return False, "CDN timeout"
+            # A slow HEAD says nothing about the file; the download has its own timeout and retry.
+            logger.warning("CDN check timed out, trying the download")
+            return True, None
         except requests.RequestException as e:
             return False, f"CDN check failed: {e}"
 

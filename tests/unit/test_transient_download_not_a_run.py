@@ -19,6 +19,15 @@ class TestDownloadRaisesTypedError(unittest.TestCase):
         self.assertIn('CDN not ready', str(caught.exception))
         self.assertTrue(common.is_transient_error(caught.exception))
 
+    def test_a_timed_out_cdn_check_still_downloads(self):
+        with patch.object(processing.transcriber, 'check_audio_availability',
+                          return_value=(True, None)), \
+             patch.object(processing.transcriber, 'download_audio',
+                          return_value='/tmp/e.mp3') as download:
+            path = transcribe._download_episode_audio('https://cdn.example.com/e.mp3')
+        self.assertEqual(path, '/tmp/e.mp3')
+        download.assert_called_once()
+
     def test_a_failed_download_raises_the_typed_error_too(self):
         with patch.object(processing.transcriber, 'check_audio_availability',
                           return_value=(True, None)), \
