@@ -20,10 +20,12 @@ import { SkeletonPageHeader, SkeletonRows } from '../components/Skeleton';
 import Artwork from '../components/Artwork';
 import { episodeArtworkSrc } from '../utils/artworkUrl';
 import { isFailedStatus } from '../utils/episodeStatus';
-import { sponsorBlockLabel } from '../utils/sponsorBlock';
+import { sponsorBlockLabel, sponsorBlockSubmitLabel } from '../utils/sponsorBlock';
 import { getYouTubeSettings } from '../api/youtube';
 import StatusBadge from '../components/StatusBadge';
 import CloseButton from '../components/CloseButton';
+import EpisodeRating from '../components/EpisodeRating';
+import SponsorBlockSubmit from '../components/SponsorBlockSubmit';
 import { DETECTION_STAGE_META } from '../utils/detectionStage';
 import { CORROBORATION_CLASS, CORROBORATION_META } from '../utils/corroboration';
 import { formatConfidence } from '../utils/confidence';
@@ -910,6 +912,7 @@ function EpisodeDetail() {
     episode.sponsorBlock,
     ytSettings ? (feed?.ytProbeAttemptsOverride ?? ytSettings.sbProbeAttempts) : undefined,
   );
+  const sbSubmitLabel = sponsorBlockSubmitLabel(episode.sponsorBlock);
   const failureReason =
     isFailedStatus(episode.status) && episode.error ? episode.error : undefined;
 
@@ -1067,6 +1070,7 @@ function EpisodeDetail() {
                 <span>{formatFileSize(episode.fileSize)}</span>
               )}
               {sbLabel && <span className="text-xs text-muted-foreground">{sbLabel}</span>}
+              {sbSubmitLabel && <span className="text-xs text-muted-foreground">{sbSubmitLabel}</span>}
               {episode.passthroughEnabled && (
                 <span
                   className={`${badgeBase} ${tint.neutral} cursor-help`}
@@ -1510,6 +1514,17 @@ function EpisodeDetail() {
               );
             })}
           </div>
+        </div>
+      )}
+
+      {episode.status === 'completed' && slug && episodeId && (
+        <div className="bg-card rounded-lg border border-border p-6 mb-6 space-y-4">
+          <EpisodeRating slug={slug} episodeId={episodeId} rating={episode.rating} />
+          {episode.sponsorBlock?.submitAllowed && (
+            <div className="pt-4 border-t border-border">
+              <SponsorBlockSubmit slug={slug} episodeId={episodeId} />
+            </div>
+          )}
         </div>
       )}
 

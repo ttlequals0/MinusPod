@@ -619,6 +619,9 @@ function FeedDetail() {
             )}
             <div className="mt-4 flex flex-wrap gap-4 text-sm text-muted-foreground">
               <span>{feed.episodeCount} episodes</span>
+              {!!feed.ratingCount && feed.ratingAverage != null && (
+                <span>Rating: {feed.ratingAverage.toFixed(1)} average over {feed.ratingCount} rated</span>
+              )}
               {feed.lastRefreshed && (
                 <span>Updated {formatDateTime(feed.lastRefreshed)}</span>
               )}

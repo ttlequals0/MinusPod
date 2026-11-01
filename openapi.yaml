@@ -2473,6 +2473,173 @@ paths:
         '500':
           $ref: '#/components/responses/ServerError'
 
+  /feeds/{slug}/episodes/{episode_id}/sponsorblock/candidates:
+    get:
+      tags:
+        - Episodes
+      summary: List segments reviewable for SponsorBlock
+      description: |
+        Lists the cut sponsor and self promotion segments of a YouTube episode that
+        carry evidence beyond the model, with any recorded submission outcome.
+        Segments already submitted are returned so they can be shown as sent.
+        allowed is false, with a reason, when submission is not possible.
+      operationId: getSponsorBlockCandidates
+      parameters:
+        - $ref: '#/components/parameters/slug'
+        - $ref: '#/components/parameters/episode_id'
+      responses:
+        '200':
+          description: Candidate segments
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [allowed, reason, segments]
+                properties:
+                  allowed: { type: boolean }
+                  reason:
+                    type: [string, 'null']
+                    enum: [not_youtube, not_completed, disabled, no_user_id, community_marks, no_video_id, marks_unverified, null]
+                  segments:
+                    type: array
+                    items:
+                      type: object
+                      required: [start, end, category, sbCategory, evidence, submission]
+                      properties:
+                        start: { type: number }
+                        end: { type: number }
+                        category: { type: [string, 'null'] }
+                        sbCategory: { type: string, enum: [sponsor, selfpromo] }
+                        evidence:
+                          type: array
+                          items: { type: string }
+                        submission:
+                          oneOf:
+                            - $ref: '#/components/schemas/SponsorBlockSubmission'
+                            - type: 'null'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /feeds/{slug}/episodes/{episode_id}/sponsorblock/submit:
+    post:
+      tags:
+        - Episodes
+      summary: Submit reviewed segments to SponsorBlock
+      description: |
+        Sends the segments a person selected to SponsorBlock. SponsorBlock forbids
+        automated submissions, so this is the only way MinusPod sends anything.
+        Each segment must match a candidate within 0.05 seconds and must not
+        already be submitted. Outcomes are recorded on the episode. A duplicate
+        or rejected result is a recorded outcome and returns 200. Rate limited to
+        10 per minute.
+      operationId: submitSponsorBlockSegments
+      parameters:
+        - $ref: '#/components/parameters/slug'
+        - $ref: '#/components/parameters/episode_id'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [segments]
+              properties:
+                segments:
+                  type: array
+                  minItems: 1
+                  maxItems: 20
+                  items:
+                    type: object
+                    required: [start, end]
+                    properties:
+                      start: { type: number }
+                      end: { type: number }
+      responses:
+        '200':
+          description: Recorded outcomes, one per segment
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SponsorBlockSubmitResult'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          description: SponsorBlock rate limited the submission, or the endpoint limit was reached. The outcome is recorded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SponsorBlockSubmitResult'
+        '502':
+          description: The request to SponsorBlock failed. The outcome is recorded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SponsorBlockSubmitResult'
+
+  /feeds/{slug}/episodes/{episode_id}/rating:
+    put:
+      tags:
+        - Episodes
+      summary: Rate an episode
+      description: |
+        Stores a 1 to 5 quality rating. Notes are trimmed, limited to 2000
+        characters and kept only below 5. A rating of 5 confirms every cut ad
+        segment through the same path as a confirm correction, without changing
+        the audio or queuing a recut.
+      operationId: putEpisodeRating
+      parameters:
+        - $ref: '#/components/parameters/slug'
+        - $ref: '#/components/parameters/episode_id'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [rating]
+              properties:
+                rating: { type: integer, minimum: 1, maximum: 5 }
+                notes: { type: [string, 'null'], maxLength: 2000 }
+      responses:
+        '200':
+          description: The stored rating and how many cut segments were newly confirmed
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [rating, confirmedMarkers]
+                properties:
+                  rating:
+                    $ref: '#/components/schemas/EpisodeRating'
+                  confirmedMarkers: { type: integer }
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      tags:
+        - Episodes
+      summary: Clear an episode rating
+      description: Clears the rating, notes and rating time. Confirmations already recorded stay.
+      operationId: deleteEpisodeRating
+      parameters:
+        - $ref: '#/components/parameters/slug'
+        - $ref: '#/components/parameters/episode_id'
+      responses:
+        '200':
+          description: The rating is now null
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  rating:
+                    type: 'null'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
   /feeds/{slug}/reprocess-all:
     post:
       tags:
@@ -8770,7 +8937,8 @@ paths:
         Downloads payload-free structured diagnostics for an optional UTC ISO
         8601 start/end range. The range is limited to 24 hours and the export
         omits prompts, transcripts, descriptions, responses, identifiers,
-        secrets, URLs, and exception text. Rate limited to 6/hour.
+        secrets, URLs, and exception text. Episode ratings and their notes
+        are included for the range. Rate limited to 6/hour.
       operationId: exportDiagnosticLog
       parameters:
         - name: start
@@ -8790,7 +8958,7 @@ paths:
             application/json:
               schema:
                 type: object
-                required: [events, truncated, start, end, coverage]
+                required: [events, truncated, episodeRatings, start, end, coverage]
                 properties:
                   events:
                     type: array
@@ -8798,6 +8966,24 @@ paths:
                       type: object
                   truncated:
                     type: boolean
+                  episodeRatings:
+                    type: array
+                    description: Episodes rated inside the range, newest first, at most 500.
+                    items:
+                      type: object
+                      properties:
+                        slug: { type: string }
+                        episodeId: { type: string }
+                        title: { type: [string, 'null'] }
+                        rating: { type: integer, minimum: 1, maximum: 5 }
+                        notes: { type: [string, 'null'] }
+                        ratedAt: { type: string, format: date-time }
+                        markers:
+                          type: object
+                          properties:
+                            cut: { type: integer }
+                            kept: { type: integer }
+                            held: { type: integer }
                   start:
                     type: string
                     format: date-time
@@ -9216,6 +9402,16 @@ paths:
                   type:
                     - string
                     - 'null'
+                sbSubmitEnabled:
+                  type: boolean
+                  description: Show the manual SponsorBlock submission review on YouTube episode pages. Nothing is ever sent automatically.
+                sbUserId:
+                  type:
+                    - string
+                    - 'null'
+                  minLength: 32
+                  maxLength: 200
+                  description: Private SponsorBlock user ID, 32 to 200 printable ASCII characters. Empty or null clears it. Returns 409 when secret encryption is unavailable.
                 processDelayMinutes:
                   type: integer
                   minimum: 0
@@ -12425,6 +12621,11 @@ components:
           type: boolean
         apiKeyConfigured:
           type: boolean
+        sbSubmitEnabled:
+          type: boolean
+        sbUserIdConfigured:
+          type: boolean
+          description: Whether a SponsorBlock user ID is stored. The value is write-only.
         processDelayMinutes:
           type: integer
         sbProbeAttempts:
@@ -14396,6 +14597,12 @@ components:
             - boolean
             - 'null'
           description: Legacy per-feed cross-fetch flag. Use differentialFetchMode for new clients; null selects automatic DAI detection.
+        ratingAverage:
+          type: [number, 'null']
+          description: Average episode quality rating for the feed. Null when no episode is rated. Feed detail only.
+        ratingCount:
+          type: integer
+          description: Number of rated episodes in the feed. Feed detail only.
         daiLikely:
           type: boolean
           description: Hint that this feed likely uses dynamic ad insertion, based on recent enclosure URLs matching known DAI or prefix domains. Returned on the feed detail response.
@@ -14654,6 +14861,21 @@ components:
             segmentCount: { type: [integer, 'null'] }
             note: { type: [string, 'null'] }
             lastError: { type: [string, 'null'] }
+            submitAllowed:
+              type: boolean
+              description: True when the episode detail may offer manual SponsorBlock submission. Absent in list payloads.
+            submissions:
+              type: array
+              description: Outcomes of segments a person submitted to SponsorBlock for this episode.
+              items:
+                $ref: '#/components/schemas/SponsorBlockSubmission'
+        rating:
+          type: [object, 'null']
+          description: The person's quality rating for the episode. Null when unrated.
+          properties:
+            value: { type: integer, minimum: 1, maximum: 5 }
+            notes: { type: [string, 'null'] }
+            ratedAt: { type: string, format: date-time }
         status:
           type: string
           enum: [discovered, pending, processing, completed, failed, permanently_failed, deferred]
@@ -15369,6 +15591,34 @@ components:
         queuedEpisodes:
           type: integer
           description: Episodes waiting in the auto-process queue
+    EpisodeRating:
+      type: object
+      properties:
+        value: { type: integer, minimum: 1, maximum: 5 }
+        notes: { type: [string, 'null'] }
+        ratedAt: { type: string, format: date-time }
+
+    SponsorBlockSubmission:
+      type: object
+      description: Recorded outcome of one segment sent to SponsorBlock.
+      properties:
+        start: { type: number }
+        end: { type: number }
+        category: { type: string, enum: [sponsor, selfpromo] }
+        status: { type: string, enum: [submitted, duplicate, rejected, rate_limited, error] }
+        at: { type: string, format: date-time }
+        uuid: { type: [string, 'null'] }
+        detail: { type: string }
+
+    SponsorBlockSubmitResult:
+      type: object
+      required: [results]
+      properties:
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/SponsorBlockSubmission'
+
     EpisodeProcessingRun:
       type: object
       description: One processing run of an episode, with its pipeline stats.

@@ -10,6 +10,17 @@ function relativeTime(iso: string | null, now: number): string {
   return `${Math.round(hours / 24)} days`;
 }
 
+export function sponsorBlockSubmitLabel(sb: Episode['sponsorBlock'] | undefined): string | null {
+  const subs = sb?.submissions;
+  if (!subs || subs.length === 0) return null;
+  const n = (c: number) => `${c} segment${c === 1 ? '' : 's'}`;
+  const count = (s: string) => subs.filter((x) => x.status === s).length;
+  const failed = subs.find((x) => ['rejected', 'rate_limited', 'error'].includes(x.status));
+  if (failed) return `SponsorBlock submission ${failed.status.replace('_', ' ')}${failed.detail ? `: ${failed.detail}` : ''}`;
+  if (count('submitted')) return `Submitted to SponsorBlock: ${n(count('submitted'))}`;
+  return `Already on SponsorBlock: ${n(count('duplicate'))}`;
+}
+
 export function sponsorBlockLabel(
   sb: Episode['sponsorBlock'] | undefined,
   probeAttempts?: number,

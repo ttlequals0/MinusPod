@@ -5,6 +5,8 @@ export const YOUTUBE_KIND_LABELS = { channel: 'Channel', playlist: 'Playlist', v
 export interface YouTubeSettings {
   enabled: boolean;
   apiKeyConfigured: boolean;
+  sbSubmitEnabled: boolean;
+  sbUserIdConfigured: boolean;
   processDelayMinutes: number;
   sbProbeAttempts: number;
   sbProbeIntervalMinutes: number;
@@ -34,7 +36,7 @@ export interface YouTubeSettings {
 export type YouTubeSettingsUpdate = Partial<Pick<YouTubeSettings,
   'enabled' | 'processDelayMinutes' | 'sbProbeAttempts' | 'sbProbeIntervalMinutes'
   | 'sbWatchIntervalHours' | 'sbWatchMaxDays' | 'llmFallback' | 'captionsAsTranscript' | 'hidePrivate' | 'transcribeFallback' | 'ytdlpExtraArgs' | 'proxyUrl'>>
-  & { apiKey?: string | null; ytdlpAutoUpdate?: boolean };
+  & { apiKey?: string | null; ytdlpAutoUpdate?: boolean; sbSubmitEnabled?: boolean; sbUserId?: string | null };
 
 export interface YouTubePreview {
   enabled: boolean;

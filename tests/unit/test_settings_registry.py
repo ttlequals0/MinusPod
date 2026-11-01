@@ -179,6 +179,7 @@ SEED_SNAPSHOT = {
     'youtube_ytdlp_auto_update': 'true',
     'youtube_ytdlp_extra_args': '',
     'youtube_proxy_url': '',
+    'youtube_sb_submit_enabled': 'false',
 }
 
 # The pre-registry bulk reset endpoint reset exactly these keys

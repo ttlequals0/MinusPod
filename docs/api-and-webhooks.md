@@ -46,6 +46,9 @@ Key endpoints:
 - `POST /api/v1/episodes/{slug}/{id}/reprocess` - Reprocess an episode (body `mode`: reprocess/full/llm/recut; `llm` re-detects on the existing transcript and `recut` re-cuts from the saved ad list, both skipping transcription). See [Reprocessing](configuration.md#reprocessing) for the full mode reference. The older `POST /api/v1/feeds/{slug}/episodes/{id}/reprocess` ignores `mode` and always runs a full reprocess.
 - `POST /api/v1/feeds/{slug}/episodes/{id}/cancel` - Cancel processing for a stuck episode
 - `POST /api/v1/feeds/{slug}/episodes/{id}/regenerate-chapters` - Regenerate chapter markers and rewrite the ID3 chapters embedded in the MP3. Returns 202 and runs in the background; the episode's `chaptersRegenerating` and `chaptersRegenError` fields report the run
+- `PUT /api/v1/feeds/{slug}/episodes/{id}/rating` - Rate an episode 1 to 5 with optional notes below 5; a 5 records a confirm correction for every cut ad marker. `DELETE` clears the rating
+- `GET /api/v1/feeds/{slug}/episodes/{id}/sponsorblock/candidates` - Segments a person may submit to SponsorBlock for a YouTube episode, with the evidence behind each, or the reason none are allowed
+- `POST /api/v1/feeds/{slug}/episodes/{id}/sponsorblock/submit` - Send the reviewed segments to SponsorBlock under the stored private user ID and record the outcome
 - `POST /api/v1/feeds/{slug}/reprocess-all` - Batch reprocess all episodes
 - `GET /api/v1/feeds/{slug}/ad-distribution` - Histogram of where ads have historically been cut across the feed's episodes, with learned prior zones. Informational; powers the feed detail Ad Distribution panel and is independent of the learned-positions experiment toggle.
 - `POST /api/v1/feeds/{slug}/episodes/{id}/retry-ad-detection` - Retry ad detection only

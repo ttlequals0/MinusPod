@@ -1,7 +1,7 @@
 """YouTube feed and SponsorBlock state queries."""
 SB_COLUMNS = frozenset({
     'youtube_video_id', 'sb_state', 'sb_next_check_at', 'sb_attempts',
-    'sb_segment_uuids', 'sb_last_error', 'sb_note',
+    'sb_segment_uuids', 'sb_last_error', 'sb_note', 'sb_submissions',
 })
 
 

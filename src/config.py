@@ -161,7 +161,6 @@ def normalize_segment_category(value: Any) -> str:
 
 
 AD_CATEGORIES = ('sponsor', 'cross_promo', 'self_promo', 'interaction')
-_KNOWN_AD_VALIDATION_KEYS = ('confirmed_span', 'user_confirmed', 'sponsor_confirmed')
 
 
 def _has_fingerprint_evidence(marker: dict) -> bool:
@@ -170,21 +169,31 @@ def _has_fingerprint_evidence(marker: dict) -> bool:
     return any(span.get('stage') == 'fingerprint' for span in recorded_member_spans(marker))
 
 
+def _validation(m: dict) -> dict:
+    return m.get('validation') or {}
+
+
+_KNOWN_AD_EVIDENCE = (
+    ('user confirmed', lambda m: bool(_validation(m).get('user_confirmed')) or m.get('_confirmed_correction') is not None),
+    ('reviewer confirmed', lambda m: m.get('reviewer_verdict') == 'confirmed'),
+    ('fingerprint', lambda m: m.get('fingerprint_match_start') is not None or _has_fingerprint_evidence(m)),
+    ('pattern', lambda m: bool(m.get('pattern_defined')
+                               or (m.get('pattern_id') is not None and m.get('sponsor')))),
+    ('known sponsor', lambda m: bool(m.get('sponsor_known') or _validation(m).get('sponsor_confirmed'))),
+    ('verified span', lambda m: bool(_validation(m).get('confirmed_span'))),
+    ('community mark', lambda m: m.get('source') == 'sponsorblock'),
+)
+
+
+def known_ad_evidence(marker: dict) -> list[str]:
+    """Labels of the evidence that makes a marker a known ad, in table order."""
+    return [label for label, hit in _KNOWN_AD_EVIDENCE if hit(marker)]
+
+
 def is_known_ad(marker: dict) -> bool:
     """An ad-category marker with evidence beyond an LLM guess; it always cuts."""
-    if normalize_segment_category(marker.get('category')) not in AD_CATEGORIES:
-        return False
-    validation = marker.get('validation') or {}
-    return bool(
-        marker.get('pattern_defined')
-        or (marker.get('pattern_id') is not None and marker.get('sponsor'))
-        or marker.get('sponsor_known')
-        or marker.get('fingerprint_match_start') is not None
-        or marker.get('_confirmed_correction') is not None
-        or marker.get('reviewer_verdict') == 'confirmed'
-        or marker.get('source') == 'sponsorblock'
-        or any(validation.get(key) for key in _KNOWN_AD_VALIDATION_KEYS)
-        or _has_fingerprint_evidence(marker))
+    return (normalize_segment_category(marker.get('category')) in AD_CATEGORIES
+            and bool(known_ad_evidence(marker)))
 
 
 # Per-category community-sync acceptance (issue #565): which categories this

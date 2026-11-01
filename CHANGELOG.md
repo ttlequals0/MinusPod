@@ -9,6 +9,18 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
+## [Unreleased]
+
+### Added
+
+- YouTube episodes can send ads to SponsorBlock by hand. SponsorBlock forbids
+  automated submissions, so nothing is ever sent on its own. A setting and a
+  private user ID enable a per-episode review where every segment starts
+  unchecked and each outcome is recorded.
+- Episodes take a 1 to 5 star quality rating with notes below 5. Five stars
+  confirms every cut ad segment without a recut. Feeds show the average, and
+  the diagnostics download includes the ratings and notes for its range.
+
 ## [2.101.10] - 2026-10-31
 
 ### Fixed

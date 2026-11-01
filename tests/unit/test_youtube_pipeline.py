@@ -605,4 +605,4 @@ def test_episode_json_carries_sponsorblock_block_only_for_youtube():
     assert core._episode_base_json(ep)['sponsorBlock'] is None
     block = core._episode_base_json(ep, is_youtube=True)['sponsorBlock']
     assert block == {'state': 'done', 'attempts': 2, 'nextCheckAt': 'n', 'segmentCount': 2,
-                     'note': 'nt', 'lastError': None}
+                     'note': 'nt', 'lastError': None, 'submissions': []}
