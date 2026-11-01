@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect } from 'react';
-import { createBrowserRouter, Outlet, Navigate, useBlocker } from 'react-router';
+import { createBrowserRouter, Outlet, Navigate, redirect, useBlocker } from 'react-router';
 import { captureDialogTrigger, ConfirmModal } from './components/Modal';
 import { hasUnsavedChanges, useAnyUnsavedChanges } from './hooks/useUnsavedChanges';
 import { useAppUpdate } from './utils/appUpdate';
@@ -21,12 +21,18 @@ const KeyedEpisodeDetail = lazy(() => import('./pages/EpisodeDetail').then(
 const AddFeed = lazy(() => import('./pages/AddFeed'));
 const Settings = lazy(() => import('./pages/Settings'));
 const PatternsPage = lazy(() => import('./pages/PatternsPage'));
-const SponsorsPage = lazy(() => import('./pages/SponsorsPage'));
 const HistoryPage = lazy(() => import('./pages/HistoryPage'));
 const StatsPage = lazy(() => import('./pages/StatsPage'));
 const QueuePage = lazy(() => import('./pages/QueuePage'));
 const Login = lazy(() => import('./pages/Login'));
 const Search = lazy(() => import('./pages/Search'));
+
+// The standalone Sponsors page moved to a Patterns tab; keep old links and ?q= working.
+export function sponsorsRedirectLoader({ request }: { request: Request }) {
+  const params = new URLSearchParams(new URL(request.url).search);
+  params.set('tab', 'sponsors');
+  return redirect(`/patterns?${params.toString()}`);
+}
 
 function RouteFallback() {
   return (
@@ -79,7 +85,7 @@ const router = createBrowserRouter(
             { path: 'add', element: <AddFeed /> },
             { path: 'search', element: <Search /> },
             { path: 'patterns', element: <PatternsPage /> },
-            { path: 'sponsors', element: <SponsorsPage /> },
+            { path: 'sponsors', loader: sponsorsRedirectLoader },
             { path: 'history', element: <HistoryPage /> },
             { path: 'stats', element: <StatsPage /> },
             { path: 'queue', element: <QueuePage /> },

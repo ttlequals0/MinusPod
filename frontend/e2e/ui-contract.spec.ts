@@ -96,7 +96,7 @@ test('discarding a nested editor restores the page and its trigger', async ({ pa
   const response = await request.get(new URL('/api/v1/sponsors', base).href);
   const sponsors = await response.json();
   const name = (Array.isArray(sponsors) ? sponsors : sponsors.sponsors)[0].name;
-  await page.goto(base + '/sponsors');
+  await page.goto(base + '/patterns?tab=sponsors');
   const trigger = page.getByRole('button', { name: 'Add sponsor', exact: true });
   await trigger.click();
   const editor = page.getByRole('dialog', { name: 'Add sponsor', exact: true });

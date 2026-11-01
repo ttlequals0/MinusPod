@@ -19,24 +19,11 @@ import { Plus } from 'lucide-react';
 import { ActiveBadge } from '../components/ActiveBadge';
 import { btnBase, btnPrimary, btnOutline, btnDestructiveOutline } from '../components/buttonStyles';
 import { focusRing, inputBase, selectBase, filterLabel, filterControl } from '../components/fieldStyles';
-import { pageHeader, pageTitle } from '../components/pageStyles';
 import { tableActionBtn } from '../components/rowActionStyles';
 
 type SortField = 'name' | 'category' | 'pattern_count' | 'created_at' | 'last_matched_at';
 
-function SponsorsPage() {
-  return (
-    <div>
-      <div className={pageHeader}>
-        <h1 className={pageTitle}>Sponsors</h1>
-      </div>
-
-      <SponsorsSection />
-    </div>
-  );
-}
-
-function SponsorsSection() {
+export function SponsorsSection() {
   const queryClient = useQueryClient();
   const [searchParams] = useSearchParams();
   const [tagFilter, setTagFilter] = useState('all');
@@ -286,5 +273,3 @@ function SponsorsSection() {
     </div>
   );
 }
-
-export default SponsorsPage;

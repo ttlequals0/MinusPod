@@ -108,7 +108,7 @@ function Search() {
         type: 'pattern', id: r.id, title: r.sponsor, subtitle: r.scope, snippet: r.snippet, link: `/patterns?q=${encodeURIComponent(r.sponsor)}`,
       })),
       sponsor: results.sponsors.map((r) => ({
-        type: 'sponsor', id: r.id, title: r.name, snippet: r.snippet, link: `/sponsors?q=${encodeURIComponent(r.name)}`,
+        type: 'sponsor', id: r.id, title: r.name, snippet: r.snippet, link: `/patterns?tab=sponsors&q=${encodeURIComponent(r.name)}`,
       })),
     };
   }, [results]);

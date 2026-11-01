@@ -91,3 +91,15 @@ describe('Search page episode results', () => {
     expect(screen.getByText((_, el) => el?.tagName === 'P' && el.textContent === 'about quartz mines')).toBeTruthy();
   });
 });
+
+describe('Search page sponsor results', () => {
+  it('links a sponsor hit to the Patterns Sponsors tab with the name as ?q=', async () => {
+    mockSearch.mockResolvedValue({
+      query: 'acme', shows: [], episodes: [], transcripts: [], patterns: [],
+      sponsors: [{ id: 7, name: 'Acme & Co', snippet: null }],
+    });
+    renderSearch('/search?q=acme');
+    const link = (await screen.findByText('Acme & Co')).closest('a');
+    expect(link?.getAttribute('href')).toBe('/patterns?tab=sponsors&q=Acme%20%26%20Co');
+  });
+});

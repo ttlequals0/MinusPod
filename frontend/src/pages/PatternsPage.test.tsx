@@ -33,12 +33,22 @@ vi.mock('../api/patterns', async (importOriginal) => ({
 vi.mock('../api/detections', () => ({
   getDetections: (...a: unknown[]) => mockGetDetections(...a),
 }));
+
+vi.mock('../api/sponsors', () => ({
+  getSponsors: vi.fn().mockResolvedValue([]),
+  deleteSponsor: vi.fn(), addSponsor: vi.fn(), updateSponsor: vi.fn(),
+}));
 vi.mock('../api/community', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../api/community')>()),
   getCommunitySyncStatus: vi.fn().mockResolvedValue({
     enabled: false, cron: '', lastRun: null, lastError: null,
     manifestVersion: null, lastSummary: null,
   }),
+  getTagVocabulary: vi.fn().mockResolvedValue({
+    vocabulary_version: 1, all_tags: [], podcast_genres: [],
+    sponsor_industries: [], special_tags: [],
+  }),
+  updateSponsorTags: vi.fn(),
 }));
 
 const mockCleanupStatus = vi.fn().mockResolvedValue({ pending: { total: 0, byKind: {} } });
@@ -61,6 +71,27 @@ function renderPage(initialEntry = '/patterns') {
 }
 
 describe('PatternsPage tabs', () => {
+  it('has Sponsors as the last tab and renders it in the matching panel', async () => {
+    renderPage('/patterns?tab=sponsors&q=acme');
+    const tabs = await screen.findAllByRole('tab');
+    const last = tabs[tabs.length - 1];
+    expect(last.textContent).toBe('Sponsors');
+    expect(last.getAttribute('aria-selected')).toBe('true');
+    const panel = document.getElementById(last.getAttribute('aria-controls')!);
+    expect(panel?.getAttribute('role')).toBe('tabpanel');
+    const search = await screen.findByPlaceholderText('Search by name, alias, category...');
+    expect(panel?.contains(search)).toBe(true);
+    expect((search as HTMLInputElement).value).toBe('acme');
+  });
+
+  it('does not push the sponsors ?q= into the patterns search', async () => {
+    const user = userEvent.setup();
+    renderPage('/patterns?tab=sponsors&q=acme');
+    await user.click(await screen.findByRole('tab', { name: 'Patterns' }));
+    const box = await screen.findByPlaceholderText(/search/i);
+    expect((box as HTMLInputElement).value).toBe('');
+  });
+
   it('shows the patterns tab by default', async () => {
     renderPage();
     const tab = await screen.findByRole('tab', { name: 'Patterns' });
@@ -156,11 +187,11 @@ describe('PatternsPage tabs', () => {
 });
 
 describe('PatternsPage cleanup tab', () => {
-  it('lists the tabs in order with Cleanup last', async () => {
+  it('lists the tabs in order with Sponsors last', async () => {
     renderPage();
     await screen.findByRole('tab', { name: 'Patterns' });
     expect(screen.getAllByRole('tab').map((t) => t.textContent)).toEqual([
-      'Patterns', 'Detected ads', 'Ad review', 'Cleanup',
+      'Patterns', 'Detected ads', 'Ad review', 'Cleanup', 'Sponsors',
     ]);
   });
 
