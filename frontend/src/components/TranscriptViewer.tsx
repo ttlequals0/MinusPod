@@ -428,25 +428,30 @@ function TranscriptViewer({ slug, episodeId, episode, onClose }: Props) {
             />
           </div>
         </div>
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-          <SegmentedToggle
-            variant="toolbar"
-            options={VIEW_OPTIONS}
-            value={view}
-            onChange={(v) => { writeView(v); setView(v); reset(); }}
-            ariaLabel="Transcript view"
-          />
-          <div className="flex flex-wrap items-center gap-x-2 gap-y-1" aria-describedby={needle ? undefined : 'transcript-context-hint'}>
-            <span className="text-sm text-muted-foreground">Context</span>
+        <div className="flex flex-wrap items-end gap-x-4 gap-y-2">
+          <div>
+            <span className={filterLabel}>View</span>
             <SegmentedToggle
               variant="toolbar"
-              options={CONTEXT_OPTIONS}
-              value={context}
-              onChange={(c) => { setContext(c); if (!showAll) reset(); }}
-              ariaLabel="Context segments"
-              disabled={!needle}
+              options={VIEW_OPTIONS}
+              value={view}
+              onChange={(v) => { writeView(v); setView(v); reset(); }}
+              ariaLabel="Transcript view"
             />
-            {!needle && <span id="transcript-context-hint" className="text-xs text-muted-foreground whitespace-nowrap">Needs a search term</span>}
+          </div>
+          <div aria-describedby={needle ? undefined : 'transcript-context-hint'}>
+            <span className={filterLabel}>Context</span>
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+              <SegmentedToggle
+                variant="toolbar"
+                options={CONTEXT_OPTIONS}
+                value={context}
+                onChange={(c) => { setContext(c); if (!showAll) reset(); }}
+                ariaLabel="Context segments"
+                disabled={!needle}
+              />
+              {!needle && <span id="transcript-context-hint" className="text-xs text-muted-foreground whitespace-nowrap">Needs a search term</span>}
+            </div>
           </div>
           {source === 'original' && markers.length > 0 && (
             <label className="flex items-center gap-2 min-h-11 text-sm text-muted-foreground">
