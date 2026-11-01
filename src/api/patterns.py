@@ -1119,9 +1119,12 @@ def _usable_reviewer_proposal(db, marker, start, end):
 
 
 def _handle_confirm_correction(
-    db, pattern_service, slug, episode_id, original_ad, data, addressing_mode=None
+    db, pattern_service, slug, episode_id, original_ad, data, addressing_mode=None,
+    podcast=None, transcript=None,
 ):
     """Handle correction_type='confirm'.
+
+    podcast and transcript may be passed in by a caller confirming many spans.
 
     Optional adjusted_start/adjusted_end approve a trimmed span instead of the
     full detected one (e.g. the reviewer's proposed trim on a
@@ -1195,13 +1198,13 @@ def _handle_confirm_correction(
         if has_trim:
             # A human-approved trim is at least as strong a signal as a
             # reviewer adjustment; narrow the pattern the same way.
-            transcript = db.get_transcript_for_timestamps(slug, episode_id)
+            transcript = transcript or db.get_transcript_for_timestamps(slug, episode_id)
             _maybe_rewrite_pattern_from_adjustment(
                 db, pattern_service, pattern_id, transcript,
                 original_start, original_end, adjusted_start, adjusted_end,
             )
     else:
-        transcript = db.get_transcript_for_timestamps(slug, episode_id)
+        transcript = transcript or db.get_transcript_for_timestamps(slug, episode_id)
         if transcript:
             ad_text = extract_transcript_segment(transcript, eff_start, eff_end)
             if ad_text and len(ad_text) >= 50:
@@ -1213,7 +1216,8 @@ def _handle_confirm_correction(
                         db, slug, episode_id, original_start, original_end),
                 )
 
-    deleted = db.delete_conflicting_corrections(db.get_podcast_by_slug(slug)['id'], episode_id, 'confirm', original_start, original_end)
+    podcast_id = (podcast or db.get_podcast_by_slug(slug))['id']
+    deleted = db.delete_conflicting_corrections(podcast_id, episode_id, 'confirm', original_start, original_end)
     if deleted:
         logger.info(f"Deleted {deleted} conflicting false_positive correction(s) for {slug}/{episode_id}")
 
@@ -1224,7 +1228,7 @@ def _handle_confirm_correction(
         original_bounds={'start': original_start, 'end': original_end},
         corrected_bounds={'start': eff_start, 'end': eff_end} if has_trim else None,
         text_snippet=data.get('notes'),
-        podcast_id=db.get_podcast_by_slug(slug)['id'],
+        podcast_id=podcast_id,
         addressing_mode=addressing_mode,
     )
 

@@ -204,6 +204,7 @@ def _sponsorblock_json(ep):
         'segmentCount': len(load_json_list(ep.get('sb_segment_uuids'))),
         'note': ep.get('sb_note'),
         'lastError': ep.get('sb_last_error'),
+        'submissions': load_json_list(ep.get('sb_submissions')),
     }
 
 
@@ -261,6 +262,7 @@ def _episode_base_json(ep, *, slug=None, is_local=False, is_youtube=False, stora
         # queued again reverts to 'pending', so status alone flips the label.
         'hasBeenProcessed': bool(ep.get('has_been_processed')),
         'sponsorBlock': _sponsorblock_json(ep) if is_youtube else None,
+        'rating': common.rating_json(ep),
     }
 
 
@@ -338,6 +340,8 @@ def get_episode(slug, episode_id):
         title_skip_patterns=podcast.get('title_skip_patterns'),
         description_skip_patterns=podcast.get('description_skip_patterns'),
         duration_filters=podcast)
+    if base.get('sponsorBlock') is not None:
+        base['sponsorBlock']['submitAllowed'] = common.sponsorblock_block_reason(db, podcast, episode) is None
     # Separate from description: the local-episode editor round-trips that
     # field, and the block must never be written back (#720).
     base['chapterNotes'] = (format_chapter_block(episode.get('chapters_json'))

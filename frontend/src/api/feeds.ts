@@ -1,5 +1,5 @@
 import { apiFileRequest, apiRequest, buildQueryString } from './client';
-import { Feed, Episode, EpisodeDetail, BulkActionResult, AdDistribution, JobState, LowAdYieldAction, EpisodeLogsOverride, RunLogResponse } from './types';
+import { Feed, Episode, EpisodeDetail, BulkActionResult, AdDistribution, JobState, LowAdYieldAction, EpisodeLogsOverride, RunLogResponse, SbCandidatesResponse, SbSubmission, EpisodeRating } from './types';
 import type { SegmentCategory, SegmentAction } from '../utils/segmentCategory';
 
 export const CUE_SCORE_MIN = 0.30;
@@ -844,4 +844,24 @@ export async function clearImportStaging(slug: string): Promise<{ message: strin
   return apiRequest<{ message: string }>(`/feeds/${slug}/import/staging`, {
     method: 'DELETE',
   });
+}
+
+export async function getSponsorBlockCandidates(slug: string, episodeId: string): Promise<SbCandidatesResponse> {
+  return apiRequest<SbCandidatesResponse>(`/feeds/${slug}/episodes/${episodeId}/sponsorblock/candidates`);
+}
+
+export async function submitSponsorBlock(
+  slug: string, episodeId: string, segments: { start: number; end: number }[],
+): Promise<{ results: SbSubmission[] }> {
+  return apiRequest(`/feeds/${slug}/episodes/${episodeId}/sponsorblock/submit`, { method: 'POST', body: { segments } });
+}
+
+export async function rateEpisode(
+  slug: string, episodeId: string, rating: number, notes: string | null,
+): Promise<{ rating: EpisodeRating; confirmedMarkers: number }> {
+  return apiRequest(`/feeds/${slug}/episodes/${episodeId}/rating`, { method: 'PUT', body: { rating, notes } });
+}
+
+export async function clearEpisodeRating(slug: string, episodeId: string): Promise<void> {
+  await apiRequest(`/feeds/${slug}/episodes/${episodeId}/rating`, { method: 'DELETE' });
 }

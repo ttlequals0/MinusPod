@@ -478,6 +478,41 @@ class EpisodeMixin:
         row = cursor.fetchone()
         return row['id'] if row else None
 
+    def set_episode_rating(self, slug: str, episode_id: str, rating: int | None,
+                           notes: str | None = None) -> bool:
+        """Store or (rating None) clear the quality rating, notes and stamp."""
+        db_id = self._get_episode_db_id(slug, episode_id)
+        if not db_id:
+            return False
+        conn = self.get_connection()
+        conn.execute(
+            "UPDATE episodes SET quality_rating = ?, quality_notes = ?, quality_rated_at = ? WHERE id = ?",
+            (rating, notes if rating is not None else None,
+             utc_now_iso() if rating is not None else None, db_id))
+        conn.commit()
+        return True
+
+    def get_feed_rating_summary(self, slug: str) -> tuple[float | None, int]:
+        """(average, count) of the quality ratings across one feed's episodes."""
+        row = self.get_connection().execute(
+            """SELECT AVG(e.quality_rating) AS average, COUNT(e.quality_rating) AS n
+               FROM episodes e JOIN podcasts p ON e.podcast_id = p.id
+               WHERE p.slug = ? AND e.quality_rating IS NOT NULL""", (slug,)).fetchone()
+        return (row['average'], row['n']) if row['n'] else (None, 0)
+
+    def get_rated_episodes(self, start_iso: str, end_iso: str, limit: int) -> list[dict]:
+        """Episodes rated inside [start_iso, end_iso], newest rating first."""
+        rows = self.get_connection().execute(
+            """SELECT p.slug, e.episode_id, e.title, e.quality_rating, e.quality_notes,
+                      e.quality_rated_at, ed.ad_markers_json
+               FROM episodes e
+               JOIN podcasts p ON e.podcast_id = p.id
+               LEFT JOIN episode_details ed ON e.id = ed.episode_id
+               WHERE e.quality_rating IS NOT NULL
+                 AND e.quality_rated_at >= ? AND e.quality_rated_at <= ?
+               ORDER BY e.quality_rated_at DESC LIMIT ?""", (start_iso, end_iso, limit)).fetchall()
+        return [dict(r) for r in rows]
+
     def get_episode_state(self, slug: str, episode_id: str) -> dict | None:
         """Just the fields a caller needs to decide whether to act on an episode."""
         conn = self.get_connection()

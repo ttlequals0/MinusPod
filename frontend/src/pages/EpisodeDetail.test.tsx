@@ -85,6 +85,10 @@ const mockUpdateLocalEpisode = vi.fn();
 const mockDownloadEpisodeAudio = vi.fn();
 const mockUploadLocalEpisodeArtwork = vi.fn();
 const mockSetEpisodesPassthrough = vi.fn();
+const mockRateEpisode = vi.fn();
+const mockClearRating = vi.fn();
+const mockGetCandidates = vi.fn();
+const mockSubmitSb = vi.fn();
 
 vi.mock('../api/feeds', () => ({
   getEpisode: vi.fn(),
@@ -99,6 +103,10 @@ vi.mock('../api/feeds', () => ({
   updateLocalEpisode: (...args: unknown[]) => mockUpdateLocalEpisode(...args),
   uploadLocalEpisodeArtwork: (...args: unknown[]) => mockUploadLocalEpisodeArtwork(...args),
   setEpisodesPassthrough: (...args: unknown[]) => mockSetEpisodesPassthrough(...args),
+  rateEpisode: (...args: unknown[]) => mockRateEpisode(...args),
+  clearEpisodeRating: (...args: unknown[]) => mockClearRating(...args),
+  getSponsorBlockCandidates: (...args: unknown[]) => mockGetCandidates(...args),
+  submitSponsorBlock: (...args: unknown[]) => mockSubmitSb(...args),
 }));
 
 vi.mock('../api/patterns', () => ({
@@ -2568,6 +2576,126 @@ describe('Detected ads: overlapping markers grouped into one block', () => {
     }));
     expect(await screen.findByText('Detected ads (2)')).not.toBeNull();
     expect(screen.queryByRole('button', { name: /segments/ })).toBeNull();
+  });
+});
+
+describe('SponsorBlock submission line', () => {
+  const sb = (submissions: unknown[]) => makeEpisode({
+    sponsorBlock: {
+      state: 'llm', attempts: 0, nextCheckAt: null, segmentCount: 0, note: null, lastError: null,
+      submissions, submitAllowed: false,
+    },
+  } as Partial<EpisodeDetailType>);
+  const seg = { start: 10, end: 40, category: 'sponsor', at: '2026-10-30T10:00:00Z' };
+
+  it('shows the submitted count', async () => {
+    renderDetail(sb([{ ...seg, status: 'submitted' }, { ...seg, start: 90, end: 120, status: 'submitted' }]));
+    expect(await screen.findByText('Submitted to SponsorBlock: 2 segments')).not.toBeNull();
+  });
+
+  it('shows a failure with its detail', async () => {
+    renderDetail(sb([{ ...seg, status: 'rate_limited', detail: 'HTTP 429' }]));
+    expect(await screen.findByText('SponsorBlock submission rate limited: HTTP 429')).not.toBeNull();
+  });
+});
+
+describe('Episode rating', () => {
+  beforeEach(() => {
+    mockRateEpisode.mockReset().mockResolvedValue({ rating: { value: 3, notes: 'missed one', ratedAt: '2026-10-31T10:00:00Z' }, confirmedMarkers: 0 });
+    mockClearRating.mockReset().mockResolvedValue(undefined);
+  });
+
+  it('saves a rating below 5 with notes', async () => {
+    const user = userEvent.setup();
+    renderDetail(makeEpisode());
+    expect(screen.queryByPlaceholderText(/What was wrong/)).toBeNull();
+    await user.click(await screen.findByRole('radio', { name: '3 stars' }));
+    await user.type(screen.getByPlaceholderText(/What was wrong/), 'missed one');
+    await user.click(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(mockRateEpisode).toHaveBeenCalledWith('test-feed', 'ep-1', 3, 'missed one'));
+    expect(await screen.findByText('Rating saved.')).not.toBeNull();
+  });
+
+  it('drops notes at 5 stars and shows the confirmed count', async () => {
+    const user = userEvent.setup();
+    mockRateEpisode.mockResolvedValue({ rating: { value: 5, notes: null, ratedAt: '2026-10-31T10:00:00Z' }, confirmedMarkers: 4 });
+    renderDetail(makeEpisode({ rating: { value: 3, notes: 'old note', ratedAt: '2026-10-30T10:00:00Z' } }));
+    await user.click(await screen.findByRole('radio', { name: '5 stars' }));
+    expect(screen.queryByPlaceholderText(/What was wrong/)).toBeNull();
+    await user.click(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(mockRateEpisode).toHaveBeenCalledWith('test-feed', 'ep-1', 5, null));
+    expect(await screen.findByText('Saved. 4 cut segments confirmed.')).not.toBeNull();
+  });
+
+  it('shows the current rating and clears it', async () => {
+    const user = userEvent.setup();
+    renderDetail(makeEpisode({ rating: { value: 2, notes: 'bad cut', ratedAt: '2026-10-30T10:00:00Z' } }));
+    expect(await screen.findByText('Current rating: 2 of 5')).not.toBeNull();
+    expect((screen.getByPlaceholderText(/What was wrong/) as HTMLTextAreaElement).value).toBe('bad cut');
+    await user.click(screen.getByRole('button', { name: 'Clear' }));
+    await waitFor(() => expect(mockClearRating).toHaveBeenCalledWith('test-feed', 'ep-1'));
+  });
+});
+
+describe('Submit to SponsorBlock dialog', () => {
+  const sbEpisode = makeEpisode({
+    sponsorBlock: {
+      state: 'llm', attempts: 0, nextCheckAt: null, segmentCount: 0, note: null, lastError: null,
+      submissions: [], submitAllowed: true,
+    },
+  } as Partial<EpisodeDetailType>);
+  const candidates = {
+    allowed: true,
+    reason: null,
+    segments: [
+      { start: 10, end: 40, category: 'sponsor', sbCategory: 'sponsor', evidence: ['fingerprint', 'text pattern'], submission: null },
+      { start: 125, end: 150, category: 'sponsor', sbCategory: 'sponsor', evidence: ['llm'], submission: null },
+      { start: 300, end: 330, category: 'sponsor', sbCategory: 'sponsor', evidence: [],
+        submission: { start: 300, end: 330, category: 'sponsor', status: 'submitted', at: '2026-10-30T10:00:00Z' } },
+    ],
+  };
+
+  beforeEach(() => {
+    mockGetCandidates.mockReset().mockResolvedValue(candidates);
+    mockSubmitSb.mockReset().mockResolvedValue({ results: [] });
+  });
+
+  it('hides the button when submissions are not allowed', async () => {
+    renderDetail(makeEpisode());
+    await screen.findByText('Rate this episode');
+    expect(screen.queryByRole('button', { name: 'Submit to SponsorBlock' })).toBeNull();
+  });
+
+  it('lists segments unchecked, gates the submit button and posts the chosen ones', async () => {
+    const user = userEvent.setup();
+    renderDetail(sbEpisode);
+    await user.click(await screen.findByRole('button', { name: 'Submit to SponsorBlock' }));
+    const dialog = await screen.findByRole('dialog');
+    expect(await within(dialog).findByText('0:10 - 0:40')).not.toBeNull();
+    expect(within(dialog).getByText('fingerprint, text pattern')).not.toBeNull();
+    const boxes = within(dialog).getAllByRole('checkbox') as HTMLInputElement[];
+    expect(boxes.map((b) => b.checked)).toEqual([false, false, false]);
+    expect(boxes[2].disabled).toBe(true);
+    expect(within(dialog).getByText('Submitted')).not.toBeNull();
+    const submit = within(dialog).getByRole('button', { name: 'Submit 0 segments' });
+    expect((submit as HTMLButtonElement).disabled).toBe(true);
+    await user.click(boxes[1]);
+    const ready = within(dialog).getByRole('button', { name: 'Submit 1 segment' });
+    expect((ready as HTMLButtonElement).disabled).toBe(false);
+    mockSubmitSb.mockResolvedValue({ results: [{ start: 125, end: 150, category: 'sponsor', status: 'submitted', at: 'x' }] });
+    await user.click(ready);
+    await waitFor(() => expect(mockSubmitSb).toHaveBeenCalledWith('test-feed', 'ep-1', [{ start: 125, end: 150 }]));
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+  });
+
+  it('shows the reason in words when the server disallows submission', async () => {
+    const user = userEvent.setup();
+    mockGetCandidates.mockResolvedValue({ allowed: false, reason: 'community_marks', segments: [] });
+    renderDetail(sbEpisode);
+    await user.click(await screen.findByRole('button', { name: 'Submit to SponsorBlock' }));
+    const dialog = await screen.findByRole('dialog');
+    expect(await within(dialog).findByText(/already has community SponsorBlock marks/)).not.toBeNull();
+    expect(within(dialog).queryByRole('button', { name: /^Submit \d/ })).toBeNull();
   });
 });
 

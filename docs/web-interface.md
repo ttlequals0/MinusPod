@@ -10,6 +10,7 @@
 - [Saving and updates](#saving-and-updates)
 - [Install as an app](#install-as-an-app)
 - [Dashboard views](#dashboard-views)
+- [Episode rating](#episode-rating)
 - [Episode actions and job state](#episode-actions-and-job-state)
 - [Feed Display Title](#feed-display-title)
 - [Sponsors and Normalizations](#sponsors-and-normalizations)
@@ -151,6 +152,12 @@ The POST form avoids URL-length limits for large selections. See
 ### Episode player
 
 A completed episode plays in a built-in player instead of the browser's native controls. When the episode has chapters, a row above the scrubber shows the current chapter title with previous and next chapter buttons. Previous restarts the current chapter when you are more than 3 seconds into it, otherwise it jumps to the chapter before. The scrubber marks chapter starts and shows elapsed and remaining time. Below it are skip back 15 seconds, play and pause, skip forward 30 seconds, and a speed button that cycles 1x, 1.25x, 1.5x, 1.75x, 2x and 0.8x. The speed is remembered per browser. With focus on the player, Space plays or pauses, Left Arrow skips back 15 seconds and Right Arrow skips forward 30 seconds. The episode description and chapter notes sit under the player, collapsed to a few lines with a Show more button when they are long.
+
+### Episode rating
+
+Rate how well MinusPod handled an episode from 1 to 5 stars on the episode page. Below 5 stars you can add notes of up to 2000 characters. Giving 5 stars clears any notes and records a confirm correction for every cut ad marker except community marks. This is the same as pressing Confirm on each, including pattern learning. The next reprocess force-accepts those spans. The audio is not changed and no recut is queued. Clearing a rating removes the stars and notes; confirmations already recorded stay.
+
+A feed's page shows the average rating and how many episodes are rated. Ratings and their notes are part of the diagnostics download, which includes up to 500 rated episodes in the chosen range, with how many segments were cut, kept and held.
 
 ### Episode actions and job state
 

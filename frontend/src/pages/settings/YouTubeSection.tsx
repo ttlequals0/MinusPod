@@ -41,6 +41,8 @@ function YouTubeSection() {
 
   const [keyDraft, setKeyDraft] = useState('');
   const [cookiesDraft, setCookiesDraft] = useState('');
+  const [idDraft, setIdDraft] = useState('');
+  const [idError, setIdError] = useState<string | null>(null);
   const [keyError, setKeyError] = useState<string | null>(null);
   const [keyTest, setKeyTest] = useState<{ ok: boolean; text: string } | null>(null);
   const [cookiesError, setCookiesError] = useState<string | null>(null);
@@ -48,7 +50,7 @@ function YouTubeSection() {
   const [proxyDraft, setProxyDraft] = useState<string | null>(null);
   const [settingsError, setSettingsError] = useState<{ field: 'proxyUrl' | 'ytdlpExtraArgs' | null; message: string } | null>(null);
   const [updateNote, setUpdateNote] = useState<{ ok: boolean; text: string } | null>(null);
-  useUnsavedChanges(!!keyDraft || !!cookiesDraft
+  useUnsavedChanges(!!keyDraft || !!idDraft || !!cookiesDraft
     || (argsDraft !== null && argsDraft.trim() !== data?.ytdlpExtraArgs)
     || (proxyDraft !== null && proxyDraft.trim() !== data?.proxyUrl));
 
@@ -74,6 +76,12 @@ function YouTubeSection() {
     mutationFn: (apiKey: string | null) => updateYouTubeSettings({ apiKey }),
     onSuccess: () => { setKeyError(null); setKeyTest(null); setKeyDraft(''); refresh(); },
     onError: (e: unknown) => setKeyError(getErrorMessage(e, 'Could not save the API key.')),
+  });
+
+  const saveId = useMutation({
+    mutationFn: (sbUserId: string | null) => updateYouTubeSettings({ sbUserId }),
+    onSuccess: (updated) => { qc.setQueryData(['youtubeSettings'], updated); setIdError(null); setIdDraft(''); qc.invalidateQueries({ queryKey: ['settings'] }); },
+    onError: (e: unknown) => setIdError(getErrorMessage(e, 'Could not save the SponsorBlock user ID.')),
   });
 
   const testKey = useMutation({
@@ -115,6 +123,7 @@ function YouTubeSection() {
   const proxyErr = settingsError?.field === 'proxyUrl' ? settingsError.message : null;
   const argsErr = settingsError?.field === 'ytdlpExtraArgs' ? settingsError.message : null;
   const settingsBusy = saveSettings.isPending || resetAll.isPending;
+  const idBusy = saveId.isPending || resetAll.isPending;
   const keyBusy = saveKey.isPending || testKey.isPending;
   const cookiesBusy = saveCookies.isPending || clearCookies.isPending;
 
@@ -189,6 +198,58 @@ function YouTubeSection() {
                 {keyTest.text}
               </p>
             )}
+          </div>
+
+          <div className="pt-3 border-t border-border space-y-2">
+            <h4 className={subHeading}>SponsorBlock submissions</h4>
+            <label className="flex items-center gap-3 cursor-pointer min-h-11">
+              <ToggleSwitch
+                checked={data.sbSubmitEnabled}
+                onChange={(sbSubmitEnabled) => saveSettings.mutate({ sbSubmitEnabled })}
+                disabled={settingsBusy}
+                ariaLabel="Allow SponsorBlock submissions"
+              />
+              <span className="text-sm font-medium text-foreground">Allow SponsorBlock submissions</span>
+            </label>
+            <p id="yt-sb-submit-help" className="text-sm text-muted-foreground">
+              Lets you send sponsor and self promotion cuts to SponsorBlock from an episode page after reviewing each segment. MinusPod never submits on its own. Submissions carry this user ID&apos;s reputation.
+            </p>
+            {data.sbSubmitEnabled && !data.sbUserIdConfigured && (
+              <p role="alert" className="text-sm text-warning">Submissions are enabled but no SponsorBlock private user ID is saved. The submit button stays unavailable until one is.</p>
+            )}
+            <label htmlFor="yt-sb-user-id" className={labelBase}>SponsorBlock private user ID</label>
+            <input
+              id="yt-sb-user-id"
+              type="password"
+              autoComplete="off"
+              className={`${inputBase} w-full max-w-md`}
+              placeholder={data.sbUserIdConfigured ? 'Stored' : ''}
+              value={idDraft}
+              disabled={idBusy}
+              onChange={(e) => setIdDraft(e.target.value)}
+              aria-invalid={idError ? true : undefined}
+              aria-describedby={`yt-sb-submit-help${idError ? ' yt-sb-user-id-error' : ''}`}
+            />
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                className={`${btnBase} ${btnSecondary}`}
+                disabled={!idDraft.trim() || idBusy}
+                onClick={() => saveId.mutate(idDraft.trim())}
+              >
+                {saveId.isPending ? 'Saving...' : 'Save user ID'}
+              </button>
+              <button
+                type="button"
+                className={`${btnBase} ${btnSecondary}`}
+                disabled={!data.sbUserIdConfigured || idBusy}
+                onClick={() => saveId.mutate(null)}
+              >
+                Clear user ID
+              </button>
+              {saveId.isSuccess && !idError && <SavedBadge />}
+            </div>
+            {idError && <p id="yt-sb-user-id-error" role="alert" className="text-sm text-destructive">{idError}</p>}
           </div>
 
           <div className="pt-3 border-t border-border space-y-3">
@@ -379,7 +440,7 @@ function YouTubeSection() {
           <div className="pt-3 border-t border-border flex flex-wrap items-center gap-2">
             <ConfirmResetButton
               label="Reset to defaults"
-              confirmHint="Reset YouTube settings to their defaults, including the daily yt-dlp update toggle? The feature switch, Data API key and cookies file are kept."
+              confirmHint="Reset YouTube settings to their defaults, including the daily yt-dlp update toggle? The feature switch, Data API key, SponsorBlock user ID and cookies file are kept."
               isPending={resetAll.isPending}
               disabled={saveSettings.isPending}
               onConfirm={() => resetAll.mutate()}

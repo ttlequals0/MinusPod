@@ -15,6 +15,7 @@
 - [Shorts and duration filters](#shorts-and-duration-filters)
 - [Private and deleted episodes](#private-and-deleted-episodes)
 - [SponsorBlock categories](#sponsorblock-categories)
+- [Submitting confirmed ads to SponsorBlock](#submitting-confirmed-ads-to-sponsorblock)
 - [Cookies](#cookies)
 - [yt-dlp](#yt-dlp)
 - [Per-feed overrides](#per-feed-overrides)
@@ -158,6 +159,28 @@ SponsorBlock categories map to MinusPod segment categories:
 | preview | recap |
 
 What happens to a mark is decided by the per-category segment action in Settings > Segment categories, with a per-feed override: Remove, Beep, Keep or Mark. A SponsorBlock `mute` mark is beeped when its category is set to cut, and left alone when the category is set to keep or mark. The `full` action (the whole video is a sponsored segment) is never cut; it only adds the note shown in the episode state.
+
+## Submitting confirmed ads to SponsorBlock
+
+MinusPod can help you send the ads it cut back to SponsorBlock, but only by hand. SponsorBlock's rules forbid automated submissions, so MinusPod never submits on its own. A person reviews each segment and chooses to send it.
+
+Turn on **Allow SponsorBlock submissions** in Settings > YouTube and enter your SponsorBlock user ID. It is off by default. The ID is stored encrypted and never shown again. Each submission carries the reputation of that ID, so use an account you are willing to be judged by.
+
+On the episode page of a YouTube episode, open the SponsorBlock review. Every box starts unchecked. Tick the segments you have checked against the video, then choose **Submit**. A request sends at most 20 segments. Submission waits until SponsorBlock has confirmed the video has no community marks.
+
+A segment is listed when all of these hold:
+
+- The episode belongs to a YouTube feed.
+- SponsorBlock had no community marks for the video.
+- The segment is a sponsor or self promotion cut.
+- The segment has evidence beyond the LLM, such as a verified span, a reviewer confirmation, a fingerprint or pattern match, or your own confirmation.
+- The segment is not held for review.
+
+Each row shows its evidence. Giving the episode 5 stars confirms every cut segment, so they all qualify afterwards.
+
+MinusPod records the outcome of each segment on the episode: submitted, duplicate, rejected, rate limited or error. Submitted and duplicate segments are shown greyed out and cannot be sent again. A rejected, rate limited or failed segment can be sent again. The user ID is never logged.
+
+Read the SponsorBlock guidelines on segment timing and categories before you submit.
 
 ## Cookies
 

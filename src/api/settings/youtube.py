@@ -1,5 +1,6 @@
 """YouTube settings: GET/PUT /settings/youtube and POST /settings/youtube/reset."""
 import logging
+import re
 
 from flask import request
 
@@ -11,6 +12,7 @@ from youtube import cookies, settings as yt_settings, ytdlp
 
 logger = logging.getLogger('podcast.api')
 
+_SB_USER_ID_RE = re.compile(r'[\x21-\x7e]{32,200}')
 _BOOL_KEYS = {
     'enabled': 'youtube_enabled',
     'llmFallback': 'youtube_llm_fallback',
@@ -18,6 +20,7 @@ _BOOL_KEYS = {
     'hidePrivate': 'youtube_hide_private',
     'transcribeFallback': 'youtube_transcribe_fallback',
     'ytdlpAutoUpdate': 'youtube_ytdlp_auto_update',
+    'sbSubmitEnabled': 'youtube_sb_submit_enabled',
 }
 
 
@@ -27,6 +30,8 @@ def youtube_status_payload(db) -> dict:
     return {
         'enabled': s.enabled,
         'apiKeyConfigured': bool(yt_settings.api_key(db)),
+        'sbSubmitEnabled': s.sb_submit_enabled,
+        'sbUserIdConfigured': bool(yt_settings.sb_user_id(db)),
         'processDelayMinutes': s.process_delay_minutes,
         'sbProbeAttempts': s.probe_attempts,
         'sbProbeIntervalMinutes': s.probe_interval_minutes,
@@ -102,9 +107,16 @@ def put_youtube_settings():
                 writes.append(('youtube_proxy_url', ytdlp.restore_proxy_password(proxy_url, stored_proxy)))
             except ValueError as exc:
                 return error_response(str(exc), 400)
+    sb_user_id = data.get('sbUserId')
+    if 'sbUserId' in data and sb_user_id is not None and not isinstance(sb_user_id, str):
+        return error_response('sbUserId must be a string or null', 400)
+    if sb_user_id is not None:
+        sb_user_id = sb_user_id.strip()
+    if sb_user_id and not _SB_USER_ID_RE.fullmatch(sb_user_id):
+        return error_response('sbUserId must be 32 to 200 printable ASCII characters', 400)
     if 'apiKey' in data and data['apiKey'] is not None and not isinstance(data['apiKey'], str):
         return error_response('apiKey must be a string or null', 400)
-    if data.get('apiKey') and not crypto_available():
+    if (data.get('apiKey') or sb_user_id) and not crypto_available():
         return error_response('provider_crypto_unavailable', 409)
     db = get_database()
     for db_key, value in writes:
@@ -114,13 +126,18 @@ def put_youtube_settings():
             set_or_clear_secret(db, 'youtube_api_key', data['apiKey'])
         except SecretWriteRejected:
             return error_response('provider_crypto_unavailable', 409)
+    if 'sbUserId' in data:
+        try:
+            set_or_clear_secret(db, 'youtube_sb_user_id', sb_user_id)
+        except SecretWriteRejected:
+            return error_response('provider_crypto_unavailable', 409)
     return json_response(youtube_status_payload(db))
 
 
 @api.route('/settings/youtube/reset', methods=['POST'])
 @log_request
 def reset_youtube_settings():
-    """Restore the YouTube tunables, proxy and extra arguments; keep the switch, key and cookies."""
+    """Restore the YouTube tunables, proxy and extra arguments; keep the switch, key, user id and cookies."""
     db = get_database()
     for key in YOUTUBE_RESET_SETTING_KEYS:
         db.reset_setting(key)

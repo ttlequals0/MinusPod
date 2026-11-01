@@ -79,7 +79,7 @@ def test_diagnostic_export_is_bounded_and_payload_free(app_client, db):
 
     assert response.status_code == 200
     body = response.get_json()
-    assert body['coverage']['description'] == 'structured operational metadata only'
+    assert body['coverage']['description'] == 'structured operational metadata plus episode ratings and notes'
     assert body['coverage']['version']
     assert all('message' not in event for event in body['events'])
     assert all('private' not in json.dumps(event) for event in body['events'])

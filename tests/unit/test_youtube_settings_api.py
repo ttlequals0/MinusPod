@@ -215,3 +215,54 @@ def test_reset_restores_defaults_and_keeps_switch_key_cookies(app_client, monkey
     assert body['apiKeyConfigured'] is True
     assert body['cookies'] == before['cookies']
     assert set(body) == set(app_client.get('/api/v1/settings/youtube').get_json())
+
+
+def test_sb_submit_defaults_to_off_and_toggles(app_client):
+    from api import get_database
+    from youtube.settings import load_global
+    db = get_database()
+    _authed(app_client)
+    body = app_client.get('/api/v1/settings/youtube').get_json()
+    assert body['sbSubmitEnabled'] is False and body['sbUserIdConfigured'] is False
+    try:
+        resp = app_client.put('/api/v1/settings/youtube', json={'sbSubmitEnabled': True},
+                              headers=_csrf_headers(app_client))
+        assert resp.get_json()['sbSubmitEnabled'] is True and load_global(db).sb_submit_enabled is True
+        assert app_client.put('/api/v1/settings/youtube', json={'sbSubmitEnabled': 'yes'},
+                              headers=_csrf_headers(app_client)).status_code == 400
+    finally:
+        db.set_setting('youtube_sb_submit_enabled', 'false', is_default=False)
+
+
+def test_put_sb_flag_and_user_id_round_trip(app_client, monkeypatch):
+    import secrets_crypto
+    monkeypatch.setenv('MINUSPOD_MASTER_PASSPHRASE', 'test-pass-youtube')
+    secrets_crypto.reset_cache()
+    _authed(app_client)
+    headers = _csrf_headers(app_client)
+    user_id = 'a' * 40
+    resp = app_client.put('/api/v1/settings/youtube', json={'sbSubmitEnabled': True, 'sbUserId': user_id},
+                          headers=headers)
+    assert resp.status_code == 200, resp.get_json()
+    body = resp.get_json()
+    assert body['sbSubmitEnabled'] is True and body['sbUserIdConfigured'] is True
+    assert user_id not in str(body)
+    from api import get_database
+    assert get_database().get_secret('youtube_sb_user_id') == user_id
+    reset = app_client.post('/api/v1/settings/youtube/reset', headers=headers).get_json()
+    assert reset['sbSubmitEnabled'] is False and reset['sbUserIdConfigured'] is True
+    cleared = app_client.put('/api/v1/settings/youtube', json={'sbUserId': None}, headers=headers).get_json()
+    assert cleared['sbUserIdConfigured'] is False
+
+
+def test_put_sb_validation(app_client, monkeypatch):
+    import secrets_crypto
+    monkeypatch.setenv('MINUSPOD_MASTER_PASSPHRASE', 'test-pass-youtube')
+    secrets_crypto.reset_cache()
+    _authed(app_client)
+    headers = _csrf_headers(app_client)
+    for payload in ({'sbUserId': 'short'}, {'sbUserId': 'a' * 201},
+                    {'sbUserId': 'a' * 31 + ' '}, {'sbUserId': 'a' * 31 + '\u00e9'}, {'sbUserId': 5}):
+        resp = app_client.put('/api/v1/settings/youtube', json=payload, headers=headers)
+        assert resp.status_code == 400, payload
+    assert app_client.get('/api/v1/settings/youtube').get_json()['sbUserIdConfigured'] is False

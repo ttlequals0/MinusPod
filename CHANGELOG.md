@@ -18,6 +18,13 @@ release notes.
   marked as podcast shows rank higher with a Podcast badge, and choosing
   one opens the lookup card with its RSS directory matches. Works with or
   without a Data API key.
+- YouTube episodes can send ads to SponsorBlock by hand. SponsorBlock forbids
+  automated submissions, so nothing is ever sent on its own. A setting and a
+  private user ID enable a per-episode review where every segment starts
+  unchecked and each outcome is recorded.
+- Episodes take a 1 to 5 star quality rating with notes below 5. Five stars
+  confirms every cut ad segment without a recut. Feeds show the average, and
+  the diagnostics download includes the ratings and notes for its range.
 
 ### Changed
 

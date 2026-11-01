@@ -59,6 +59,8 @@ export interface Feed {
   // backend's p20_channel_json.
   p20?: Record<string, unknown>;
   episodeCount: number;
+  ratingAverage?: number | null;
+  ratingCount?: number;
   processedCount?: number;
   statusCounts?: EpisodeStatusCounts;
   lastRefreshed?: string;
@@ -272,7 +274,43 @@ export interface Episode {
     segmentCount: number;
     note: string | null;
     lastError: string | null;
+    submissions?: SbSubmission[];
+    submitAllowed?: boolean;
   } | null;
+  rating?: EpisodeRating | null;
+}
+
+export interface EpisodeRating {
+  value: 1 | 2 | 3 | 4 | 5;
+  notes: string | null;
+  ratedAt: string;
+}
+
+export interface SbCandidate {
+  start: number;
+  end: number;
+  category: string;
+  sbCategory: string;
+  evidence: string[];
+  submission: SbSubmission | null;
+}
+
+export type SbCandidatesReason = 'not_youtube' | 'disabled' | 'no_user_id' | 'community_marks' | 'no_video_id' | 'marks_unverified' | 'not_completed';
+
+export interface SbCandidatesResponse {
+  allowed: boolean;
+  reason: SbCandidatesReason | null;
+  segments: SbCandidate[];
+}
+
+export interface SbSubmission {
+  start: number;
+  end: number;
+  category: string;
+  status: 'submitted' | 'duplicate' | 'rejected' | 'rate_limited' | 'error';
+  uuid?: string | null;
+  at: string;
+  detail?: string;
 }
 
 export interface EpisodeNeighbor {

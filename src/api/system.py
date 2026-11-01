@@ -20,7 +20,8 @@ from api import (
 from api.failover import probes_view, targets_view
 import transcriber
 from config import (
-    PARAKEET_MODEL_NAME, WHISPER_BACKEND_API, WHISPER_BACKEND_PARAKEET, resolve_whisper_device,
+    PARAKEET_MODEL_NAME, WHISPER_BACKEND_API, WHISPER_BACKEND_PARAKEET, is_keep_like, is_pending_review,
+    resolve_whisper_device,
 )
 from database.settings import registry_default
 from podping_listener import (
@@ -36,7 +37,8 @@ from secrets_crypto import (
 from db_backup_service import backup_now, BackupInProgressError
 from diagnostic_log import export as export_diagnostics, _parse_time
 from utils.http import safe_url_for_log
-from utils.time import parse_iso_utc, utc_now, utc_now_iso
+from utils.markers import parse_ad_markers
+from utils.time import ISO_FORMAT, parse_iso_utc, utc_now, utc_now_iso
 
 logger = logging.getLogger('podcast.api')
 
@@ -557,6 +559,30 @@ def export_config():
     return response
 
 
+EXPORT_RATING_LIMIT = 500
+
+
+def _marker_counts(markers) -> dict:
+    counts = {'cut': 0, 'kept': 0, 'held': 0}
+    for marker in markers or []:
+        if is_pending_review(marker):
+            counts['held'] += 1
+        elif is_keep_like(marker.get('action_applied')):
+            counts['kept'] += 1
+        elif marker.get('was_cut'):
+            counts['cut'] += 1
+    return counts
+
+
+def _episode_ratings(db, start, end) -> list[dict]:
+    rows = db.get_rated_episodes(start.strftime(ISO_FORMAT), end.strftime(ISO_FORMAT), EXPORT_RATING_LIMIT)
+    return [{
+        'slug': row['slug'], 'episodeId': row['episode_id'], 'title': row['title'],
+        'rating': row['quality_rating'], 'notes': row['quality_notes'], 'ratedAt': row['quality_rated_at'],
+        'markers': _marker_counts(parse_ad_markers(row['ad_markers_json'])),
+    } for row in rows]
+
+
 @api.route('/system/diagnostic-export', methods=['GET'])
 @limiter.limit('6 per hour')
 @log_request
@@ -572,11 +598,12 @@ def export_diagnostic_log():
         return error_response('diagnostic range must be between 0 and 24 hours', 400)
     document = export_diagnostics(get_storage().data_dir, start, end)
     document.update({
+        'episodeRatings': _episode_ratings(get_database(), start, end),
         'start': start.isoformat().replace('+00:00', 'Z'),
         'end': end.isoformat().replace('+00:00', 'Z'),
         'coverage': {
             **document.get('coverage', {}),
-            'description': 'structured operational metadata only',
+            'description': 'structured operational metadata plus episode ratings and notes',
         },
     })
     timestamp = now.strftime('%Y%m%d-%H%M%S')

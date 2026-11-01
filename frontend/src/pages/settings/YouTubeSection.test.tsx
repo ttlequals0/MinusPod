@@ -24,7 +24,7 @@ vi.mock('../../api/youtube', () => ({
 }));
 
 const base: YouTubeSettings = {
-  enabled: false, apiKeyConfigured: false, processDelayMinutes: 60, sbProbeAttempts: 6,
+  enabled: false, apiKeyConfigured: false, sbSubmitEnabled: false, sbUserIdConfigured: false, processDelayMinutes: 60, sbProbeAttempts: 6,
   sbProbeIntervalMinutes: 30, sbWatchIntervalHours: 6, sbWatchMaxDays: 7, llmFallback: true,
   captionsAsTranscript: true, hidePrivate: true, transcribeFallback: false, ytdlpExtraArgs: '', proxyUrl: '',
   ytdlp: { autoUpdate: true, version: '2026.10.26', lastUpdateAt: null, lastCheckAt: null, lastError: null,
@@ -121,6 +121,39 @@ describe('YouTubeSection', () => {
     expect(mockUpdate).toHaveBeenCalledWith({ apiKey: 'AIzaSyTEST' });
   });
 
+  it('saves the SponsorBlock submissions toggle', async () => {
+    mockUpdate.mockResolvedValue({ ...base, sbSubmitEnabled: true });
+    renderSection();
+    await userEvent.click(await screen.findByRole('switch', { name: 'Allow SponsorBlock submissions' }));
+    await waitFor(() => expect(mockUpdate).toHaveBeenCalledWith({ sbSubmitEnabled: true }));
+  });
+
+  it('saves and clears the SponsorBlock user ID', async () => {
+    mockUpdate.mockResolvedValue({ ...base, sbUserIdConfigured: true });
+    renderSection();
+    const input = await screen.findByLabelText('SponsorBlock private user ID') as HTMLInputElement;
+    expect(input.type).toBe('password');
+    expect(screen.getByRole('button', { name: 'Clear user ID' }).hasAttribute('disabled')).toBe(true);
+    await userEvent.type(input, 'secret-id');
+    expect(hasUnsavedChanges()).toBe(true);
+    await userEvent.click(screen.getByRole('button', { name: 'Save user ID' }));
+    await waitFor(() => expect(mockUpdate).toHaveBeenCalledWith({ sbUserId: 'secret-id' }));
+    await waitFor(() => expect(input.value).toBe(''));
+    expect(await screen.findByPlaceholderText('Stored')).toBeDefined();
+    mockUpdate.mockResolvedValue(base);
+    await userEvent.click(screen.getByRole('button', { name: 'Clear user ID' }));
+    await waitFor(() => expect(mockUpdate).toHaveBeenCalledWith({ sbUserId: null }));
+  });
+
+  it('warns when submissions are enabled without a user ID and not when one is stored', async () => {
+    const { unmount } = renderSection({ ...base, sbSubmitEnabled: true });
+    expect(await screen.findByText(/no sponsorblock private user id is saved/i)).toBeDefined();
+    unmount();
+    renderSection({ ...base, sbSubmitEnabled: true, sbUserIdConfigured: true });
+    await screen.findByRole('switch', { name: 'Allow SponsorBlock submissions' });
+    expect(screen.queryByText(/no sponsorblock private user id/i)).toBeNull();
+  });
+
   it('saves cookies and shows the status', async () => {
     mockSaveCookies.mockResolvedValue({ set: true, lines: 12, updatedAt: '2026-10-29T10:00:00Z' });
     renderSection();
@@ -140,7 +173,7 @@ describe('YouTubeSection', () => {
     mockReset.mockResolvedValue(base);
     renderSection({ ...base, processDelayMinutes: 5 });
     await userEvent.click(await screen.findByRole('button', { name: 'Reset to defaults' }));
-    expect(screen.getByText(/including the daily yt-dlp update toggle\? The feature switch, Data API key and cookies file are kept/)).toBeDefined();
+    expect(screen.getByText(/including the daily yt-dlp update toggle\? The feature switch, Data API key, SponsorBlock user ID and cookies file are kept/)).toBeDefined();
     expect(mockReset).not.toHaveBeenCalled();
     const getCalls = mockGet.mock.calls.length;
     await userEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Reset to defaults' }));

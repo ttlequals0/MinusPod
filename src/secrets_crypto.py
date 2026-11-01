@@ -54,6 +54,7 @@ SECRET_SETTING_KEYS = frozenset(
         "podcast_index_api_key",
         "podcast_index_api_secret",
         "youtube_api_key",
+        "youtube_sb_user_id",
         "email_smtp_password",
     }
 )

@@ -141,6 +141,19 @@ describe('FeedDetail: podping metadata line', () => {
   });
 });
 
+describe('FeedDetail: episode rating line', () => {
+  it('shows the average over rated episodes', async () => {
+    renderFeedDetail(makeFeed({ ratingAverage: 4.25, ratingCount: 12 }));
+    expect(await screen.findByText('Rating: 4.3 average over 12 rated')).toBeDefined();
+  });
+
+  it('shows nothing when no episode is rated', async () => {
+    renderFeedDetail(makeFeed({ ratingAverage: null, ratingCount: 0 }));
+    await screen.findByText('Test Feed');
+    expect(screen.queryByText(/Rating:/)).toBeNull();
+  });
+});
+
 describe('FeedDetail: local feed visibility matrix', () => {
   it('hides Refresh Feed and shows the Local badge for a local feed', async () => {
     renderFeedDetail(makeFeed({ feedType: 'local' }));

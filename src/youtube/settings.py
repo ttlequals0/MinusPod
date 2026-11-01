@@ -33,6 +33,7 @@ DEFAULTS = {
     'youtube_ytdlp_auto_update': True,
     'youtube_ytdlp_extra_args': '',
     'youtube_proxy_url': '',
+    'youtube_sb_submit_enabled': False,
 }
 
 
@@ -66,6 +67,7 @@ class YouTubeSettings:
     ytdlp_auto_update: bool
     ytdlp_extra_args: str
     proxy_url: str = ''
+    sb_submit_enabled: bool = False
 
 
 def load_global(db) -> YouTubeSettings:
@@ -87,6 +89,7 @@ def load_global(db) -> YouTubeSettings:
         ytdlp_auto_update=db.get_setting_bool('youtube_ytdlp_auto_update', d['youtube_ytdlp_auto_update']),
         ytdlp_extra_args=db.get_setting('youtube_ytdlp_extra_args') or '',
         proxy_url=db.get_setting('youtube_proxy_url') or '',
+        sb_submit_enabled=db.get_setting_bool('youtube_sb_submit_enabled', d['youtube_sb_submit_enabled']),
     )
 
 
@@ -119,6 +122,10 @@ def llm_on_top(podcast: dict | None) -> bool:
 
 def api_key(db) -> str:
     return db.get_secret('youtube_api_key') or ''
+
+
+def sb_user_id(db) -> str:
+    return db.get_secret('youtube_sb_user_id') or ''
 
 
 def extra_args_valid(value: str) -> bool:

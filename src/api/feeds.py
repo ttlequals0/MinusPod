@@ -1957,10 +1957,13 @@ def get_feed(slug):
     dai_likely = is_likely_dai_feed(
         [e.get('original_url') for e in recent_episodes])
 
+    rating_average, rating_count = db.get_feed_rating_summary(slug)
     return json_response({
         **_podcast_base_json(podcast, feed_url, db),
         **_podcast_listing_fields(podcast, _podping_context_for_feed(db)),
         'description': podcast.get('description'),
+        'ratingAverage': rating_average,
+        'ratingCount': rating_count,
         'daiLikely': dai_likely,
         'websiteUrl': podcast.get('website_url'),
         'networkIdOverride': podcast.get('network_id_override'),
