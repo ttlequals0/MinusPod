@@ -4,8 +4,9 @@
 // demo.searchTerm (a word in a transcript), youtube.feed (slug of a YouTube feed), youtube.episode (episode id in it, with SponsorBlock marks),
 // youtube.searchTerm (the show name typed into Add feed).
 import { sleep, smoothScroll, jumpTo, typeSlow, waitForWaveform, expandSection, openSection } from '../helpers.mjs';
-const adsEp = (T) => `/feeds/${T.demo.adsEpisode}`;
-const heldEp = (T) => `/feeds/${T.demo.heldEpisode}`;
+const epUrl = (se) => { const [slug, id] = se.split('/'); return `/feeds/${slug}/episodes/${id}`; };
+const adsEp = (T) => epUrl(T.demo.adsEpisode);
+const heldEp = (T) => epUrl(T.demo.heldEpisode);
 const ytFeed = (T) => `/feeds/${T.youtube.feed}`;
 const ytEp = (T) => `/feeds/${T.youtube.feed}/episodes/${T.youtube.episode}`;
 const sbLine = (p) => p.getByText(/SponsorBlock/).first();
@@ -32,7 +33,7 @@ export const BEATS = {
       await p.keyboard.press('Space'); await sleep(2500); await p.keyboard.press('Space'); await sleep(500); await p.keyboard.press('Escape'); await sleep(800);
     } },
   patterns: { dev: 'laptop', url: '/patterns',
-    prep: (p) => jumpTo(p, p.getByText(/^Scope:$/).first(), 130),
+    prep: (p) => jumpTo(p, p.locator('label[for="patterns-scope"]'), 130),
     run: async (p) => { await sleep(2000); await smoothScroll(p, 520, 3200); await sleep(800); } },
   search: { dev: 'phone', url: '/search',
     prep: async (p) => { await p.locator('#library-search').waitFor(); },
@@ -40,7 +41,7 @@ export const BEATS = {
   stats: { dev: 'laptop', url: '/stats',
     run: async (p) => { await sleep(1800); await smoothScroll(p, 800, 3600); await sleep(600); } },
   settings: { dev: 'laptop', url: '/settings',
-    prep: (p) => openSection(p, /^AI Models/, 130, { settings: true }),
+    prep: (p) => openSection(p, /^AI models/, 130, { settings: true }),
     run: async (p) => { await sleep(2500); await smoothScroll(p, 500, 3000); await sleep(500); } },
   // Toggles to the other theme and back; the choice lives in localStorage only.
   themes: { dev: 'phone', url: '/',
@@ -63,22 +64,12 @@ export const BEATS = {
       await sleep(2500); await smoothScroll(p, 360, 2200); await sleep(1200);
       const h = await expandSection(p, /^YouTube/); await smoothScroll(p, await h.evaluate((el) => el.getBoundingClientRect().top - 130), 1400); await sleep(2500);
     } },
-  // Scrolls to the SponsorBlock line, then the Rate this episode card (stars are not clicked) and the Submit button.
+  // Scrolls to the SponsorBlock line, then the Rate this episode card (stars are not clicked).
   ytepisode: { dev: 'laptop', url: ytEp,
     prep: async (p) => { await p.evaluate(() => window.scrollTo(0, 0)); },
     run: async (p) => {
       await sleep(1500); await smoothScroll(p, await sbLine(p).evaluate((el) => el.getBoundingClientRect().top - 220), 1600); await sleep(2500);
       const rate = p.getByRole('heading', { name: 'Rate this episode' }); await smoothScroll(p, await rate.evaluate((el) => el.getBoundingClientRect().top - 160), 2200); await sleep(2500);
-      const sub = p.getByRole('button', { name: 'Submit to SponsorBlock' }); await smoothScroll(p, await sub.evaluate((el) => el.getBoundingClientRect().top - 420), 1200); await sleep(1500);
-    } },
-  // The dialog lists segments with play buttons; one plays briefly, then Cancel closes it. Submit is never clicked.
-  ytsubmit: { dev: 'laptop', url: ytEp,
-    prep: (p) => jumpTo(p, p.getByRole('button', { name: 'Submit to SponsorBlock' }), 420),
-    run: async (p) => {
-      await sleep(1200); await p.getByRole('button', { name: 'Submit to SponsorBlock' }).click();
-      const d = p.getByRole('dialog'); await d.waitFor(); const play = d.getByRole('button', { name: /^Play/ }).first(); await play.waitFor({ timeout: 20000 }); await sleep(2500);
-      await play.click(); await sleep(3000); await play.click(); await sleep(800);
-      await d.getByRole('button', { name: 'Cancel' }).click(); await sleep(1200);
     } },
   // The user ID input is a password field: hideSensitive blanks it, and it is never revealed, copied or generated.
   ytsettings: { dev: 'laptop', url: '/settings',

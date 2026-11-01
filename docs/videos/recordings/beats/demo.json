@@ -161,20 +161,6 @@
    "sub": "The episode page shows the marks. Rate the cut while you are there."
   },
   {
-   "clip": "ytsubmit",
-   "dev": "laptop",
-   "start": 0.5,
-   "dur": 9,
-   "crop": [
-    104,
-    72,
-    1792,
-    1660
-   ],
-   "head": "Send confirmed cuts to SponsorBlock yourself.",
-   "sub": "Review each segment first. MinusPod never submits on its own."
-  },
-  {
    "clip": "ytsettings",
    "dev": "laptop",
    "start": 0.3,
