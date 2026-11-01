@@ -72,7 +72,7 @@ def removed_cue_cap_allowance(start: float, end: float, removed: bool) -> float:
     return (end - start) if removed else 0.0
 
 
-def _snap_record(original: float, proposed: float, cue, n_candidates: int = 1) -> dict:
+def snap_record(original: float, proposed: float, cue, n_candidates: int = 1) -> dict:
     """Build snap audit; sets ambiguous/candidates when 2+ eligible cues."""
     details = cue.details or {}
     rec = {
@@ -157,7 +157,7 @@ def snap_ad_boundaries_to_cues(
             continue
 
         used_cue_ids: set = set()
-        snap_record: dict = {}
+        new_snap: dict = {}
 
         # --- Start edge -------------------------------------------------
         start_cue, start_n = _pick_cue_for_start(
@@ -181,13 +181,13 @@ def snap_ad_boundaries_to_cues(
                 and shift >= 0.01
             ):
                 new_start = round(proposed_start, 3)
-                snap_record['start'] = _snap_record(
+                new_snap['start'] = snap_record(
                     original_start, proposed_start, start_cue, n_candidates=start_n)
                 used_cue_ids.add(id(start_cue))
                 logger.info(
                     f"Cue snap (start): {original_start:.3f}s -> {new_start:.3f}s "
                     f"(delta={new_start - original_start:+.3f}s, "
-                    f"cue={snap_record['start'].get('label') or 'spectral'}, "
+                    f"cue={new_snap['start'].get('label') or 'spectral'}, "
                     f"conf={start_cue.confidence:.2f})"
                 )
 
@@ -212,21 +212,21 @@ def snap_ad_boundaries_to_cues(
         if proposal is not None:
             proposed_end, end_in_span = proposal
             new_end = round(proposed_end, 3)
-            snap_record['end'] = _snap_record(
+            new_snap['end'] = snap_record(
                 original_end, proposed_end, end_cue, n_candidates=end_n)
             if end_in_span:
-                snap_record['end']['within_content_span'] = True
+                new_snap['end']['within_content_span'] = True
             logger.info(
                 f"Cue snap (end): {original_end:.3f}s -> {new_end:.3f}s "
                 f"(delta={new_end - original_end:+.3f}s, "
-                f"cue={snap_record['end'].get('label') or 'spectral'}, "
+                f"cue={new_snap['end'].get('label') or 'spectral'}, "
                 f"conf={end_cue.confidence:.2f})"
             )
 
-        if snap_record:
+        if new_snap:
             ad['start'] = new_start
             ad['end'] = new_end
-            ad['cue_snap'] = snap_record
+            ad['cue_snap'] = {**(ad.get('cue_snap') or {}), **new_snap}
 
     return ads
 

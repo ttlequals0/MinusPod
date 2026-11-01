@@ -1187,7 +1187,8 @@ def _format_cue_section(*, audio_analysis, ad_start: float, ad_end: float,
         moved = []
         for edge in ('start', 'end'):
             rec = cue_snap.get(edge)
-            if not rec:
+            # A zero shift is a cue-pair edge that already sat on the cue, not a snap.
+            if not rec or not rec.get('shift_seconds'):
                 continue
             # candidates counts the chosen cue too
             ambig = ""

@@ -33,7 +33,7 @@ from config import (
     AUDIO_CUE_END_EDGE_ROLES,
     is_template_cue,
 )
-from ad_detector.cue_boundary_snap import SNAP_GAP_SECONDS, cue_removal_enabled
+from ad_detector.cue_boundary_snap import SNAP_GAP_SECONDS, cue_removal_enabled, snap_record
 from ad_detector.cue_telemetry import cue_key as _diag_key
 
 # Skip-diagnostics reasons (#350 Phase 6). Keyed by (template_id, round(start,3))
@@ -79,6 +79,7 @@ class _Cue:
     role: str
     remove_with_ad: bool = True
     effective_role: str = ''
+    details: dict | None = None
 
     def __post_init__(self):
         if not self.effective_role:
@@ -237,6 +238,7 @@ def synthesize_ads_from_cue_pairs(
             template_id=(c.details or {}).get('template_id'),
             role=(c.details or {}).get('role', AUDIO_CUE_ROLE_DEFAULT),
             remove_with_ad=cue_removal_enabled(c.details),
+            details=c.details,
         ) for c in raw_cues
         if c.confidence >= min_confidence and is_template_cue(c.details)),
         key=lambda x: x.start,
@@ -316,6 +318,11 @@ def synthesize_ads_from_cue_pairs(
                 'confidence': confidence,
                 'reason': 'audio_cue_pair',
                 'detection_stage': 'cue_pair',
+                # Edges sit on the cues: the record the snap stage would write had it moved them.
+                'cue_snap': {
+                    'start': snap_record(synth_start, synth_start, cue_a, n_candidates=1),
+                    'end': snap_record(synth_end, synth_end, cue_b, n_candidates=1),
+                },
                 'cue_pair': {
                     'start': {
                         'cue_start': round(cue_a.start, 3),

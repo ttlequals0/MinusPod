@@ -733,11 +733,21 @@ def test_content_walk_does_not_extend_cue_match_marker():
 
 
 def _cue_pair_ad(start, end):
-    cue = {'cue_start': start, 'cue_end': end, 'confidence': 0.9,
-           'template_id': 2, 'label': 'ad-break', 'remove_with_ad': True}
-    return {'start': start, 'end': end, 'confidence': 0.9,
-            'reason': 'audio_cue_pair', 'detection_stage': 'cue_pair',
-            'cue_pair': {'start': dict(cue), 'end': dict(cue)}}
+    """Build the marker through the real synthesizer, kept cues flanking the span."""
+    from audio_analysis.base import AudioAnalysisResult, AudioSegmentSignal
+    from ad_detector.cue_pair_ads import synthesize_ads_from_cue_pairs
+
+    def cue(a, b):
+        return AudioSegmentSignal(
+            start=a, end=b, signal_type='audio_cue', confidence=0.9,
+            details={'source': 'template', 'label': 'ad-break',
+                     'template_id': 2, 'remove_with_ad': False})
+
+    result = AudioAnalysisResult()
+    result.signals = [cue(start - 0.55, start - 0.05), cue(end + 0.05, end + 0.55)]
+    ads, _ = synthesize_ads_from_cue_pairs([], result, min_break_s=1.0)
+    assert (ads[0]['start'], ads[0]['end']) == (start, end)
+    return ads[0]
 
 
 def test_refine_does_not_move_cue_pair_end_into_return_phrase():
@@ -779,3 +789,19 @@ def test_content_walk_does_not_extend_cue_pair_marker():
     assert (extended[0]['start'], extended[0]['end']) == (100.0, 103.0)
     assert 'start_extended_by_content' not in extended[0]
     assert 'end_extended_by_content' not in extended[0]
+
+
+def test_merge_keeps_cue_lock_only_on_the_cue_backed_edge():
+    from ad_detector.boundaries import _edge_locked, merge_same_sponsor_ads
+
+    read = 'Get it at acme.com today'
+    pair = _cue_pair_ad(100.0, 130.0)
+    later = {'start': 150.0, 'end': 180.0, 'confidence': 0.9, 'reason': read}
+    segments = [_seg(100.0, 130.0, read), _seg(150.0, 180.0, read)]
+
+    merged = merge_same_sponsor_ads([pair, later], segments, min_content_seconds=12.0)
+
+    assert len(merged) == 1
+    assert (merged[0]['start'], merged[0]['end']) == (100.0, 180.0)
+    assert _edge_locked(merged[0], 'start')
+    assert not _edge_locked(merged[0], 'end')
