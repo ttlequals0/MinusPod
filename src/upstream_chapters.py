@@ -22,6 +22,7 @@ logger = logging.getLogger(__name__)
 # few-hundred-chapter episode while capping a hostile or misconfigured
 # response before it grows unbounded in memory.
 MAX_UPSTREAM_CHAPTERS_BYTES = 1024 * 1024
+MAX_UPSTREAM_CHAPTER_COUNT = 1000
 
 
 def chapters_document(chapters: list) -> dict:
@@ -105,4 +106,8 @@ def fetch_upstream_chapters(url: str, user_agent: str | None = None) -> list[dic
             if isinstance(val, str) and val.startswith(('http://', 'https://')):
                 entry[key] = val
         chapters.append(entry)
+        if len(chapters) >= MAX_UPSTREAM_CHAPTER_COUNT:
+            logger.warning(f"Upstream chapters truncated at {MAX_UPSTREAM_CHAPTER_COUNT}: "
+                           f"{safe_url_for_log(url)}")
+            break
     return chapters
