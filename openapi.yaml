@@ -15470,6 +15470,12 @@ components:
                         - 'null'
             transcriptAvailable:
               type: boolean
+            transcriptSource:
+              type:
+                - string
+                - 'null'
+              enum: [whisper, upstream, null]
+              description: Where the transcript came from; null when there is none
             chaptersRegenerating:
               type: boolean
               description: A chapter regeneration started by regenerate-chapters is still running

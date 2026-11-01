@@ -379,6 +379,7 @@ export interface EpisodeDetail extends Episode {
   transcript?: string;
   originalTranscriptAvailable?: boolean;
   transcriptAvailable?: boolean;
+  transcriptSource?: 'whisper' | 'upstream' | null;
   transcriptVttAvailable?: boolean;
   transcriptVttUrl?: string;
   chaptersAvailable?: boolean;

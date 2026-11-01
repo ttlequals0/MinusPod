@@ -763,6 +763,19 @@ describe('Pass-through toggle', () => {
   });
 });
 
+describe('Publisher transcript badge', () => {
+  it('shows for an upstream transcript', async () => {
+    renderDetail(makeEpisode({ transcriptSource: 'upstream', pendingReviewMarkers: [] }));
+    await screen.findByText('Publisher transcript');
+  });
+
+  it('is absent for a whisper transcript', async () => {
+    renderDetail(makeEpisode({ transcriptSource: 'whisper', pendingReviewMarkers: [] }));
+    await screen.findByText('Test Episode');
+    expect(screen.queryByText('Publisher transcript')).toBeNull();
+  });
+});
+
 // ---- EpisodeList chip tests ----
 
 describe('EpisodeList: pending chip', () => {

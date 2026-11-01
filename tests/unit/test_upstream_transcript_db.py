@@ -37,6 +37,15 @@ class TestSchemaColumnsExist:
         assert 'upstream_transcript_json' in cols
         assert cols == fresh_cols
 
+    def test_transcript_source_column_fresh_and_migrated(self, temp_db):
+        conn = temp_db.get_connection()
+        fresh_cols = set(temp_db._get_table_columns(conn, 'episode_details'))
+        assert 'transcript_source' in fresh_cols
+        conn.execute("ALTER TABLE episode_details DROP COLUMN transcript_source")
+        conn.commit()
+        temp_db._run_schema_migrations()
+        assert set(temp_db._get_table_columns(conn, 'episode_details')) == fresh_cols
+
     def test_migrated_db_gains_podcast_column_matching_fresh_shape(self, temp_db):
         conn = temp_db.get_connection()
         fresh_cols = set(temp_db._get_table_columns(conn, 'podcasts'))

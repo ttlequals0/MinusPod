@@ -24,6 +24,13 @@ logger = logging.getLogger(__name__)
 MAX_UPSTREAM_CHAPTERS_BYTES = 1024 * 1024
 
 
+def chapters_document(chapters: list) -> dict:
+    """Wrap chapters in the served chapters JSON shape, filling missing titles."""
+    return {'version': '1.2.0',
+            'chapters': [{**ch, 'title': ch.get('title') or f"Chapter {i + 1}"}
+                         for i, ch in enumerate(chapters)]}
+
+
 def fetch_upstream_chapters(url: str, user_agent: str | None = None) -> list[dict] | None:
     """Fetch and parse a podcast:chapters JSON file.
 

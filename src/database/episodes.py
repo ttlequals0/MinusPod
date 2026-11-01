@@ -269,7 +269,7 @@ class EpisodeMixin:
                       ed.transcript_text,
                       (ed.original_transcript_text IS NOT NULL) as has_original_transcript,
                       {HAS_TRANSCRIPT_SQL.format(a='ed')} AS has_transcript,
-                      ed.transcript_vtt,
+                      ed.transcript_vtt, ed.transcript_source,
                       ed.chapters_json, ed.ad_markers_json,
                       ed.first_pass_response, ed.first_pass_prompt,
                       ed.second_pass_prompt, ed.second_pass_response,
@@ -784,8 +784,12 @@ class EpisodeMixin:
         fields = {
             'final_segments': 'final_segments_json', 'chapters': 'chapters_json',
             'applied_cuts': 'applied_cuts_json', 'transcript_vtt': 'transcript_vtt',
-            'transcript_text': 'transcript_text',
+            'transcript_text': 'transcript_text', 'transcript_source': 'transcript_source',
+            'original_segments': 'original_segments_json',
+            'upstream_transcript': 'upstream_transcript_json',
         }
+        json_keys = ('final_segments', 'chapters', 'applied_cuts',
+                     'original_segments', 'upstream_transcript')
         if not assets or any(key not in fields for key in assets):
             raise ValueError('Invalid processing asset fields')
         identifier = self._get_episode_db_id(slug, episode_id)
@@ -796,21 +800,25 @@ class EpisodeMixin:
         if normalized.get('applied_cuts') is not None:
             normalized['applied_cuts'] = [_serialize_applied_cut(cut) for cut in normalized['applied_cuts']]
         values = [None if normalized.get(key) is None else
-                  json.dumps(normalized[key]) if key in ('final_segments', 'chapters', 'applied_cuts')
+                  json.dumps(normalized[key]) if key in json_keys
                   else assets[key] for key in keys]
         present = [key in assets for key in keys]
         conn = self.get_connection()
         conn.execute(
             """INSERT INTO episode_details
                (episode_id, final_segments_json, chapters_json, applied_cuts_json,
-                transcript_vtt, transcript_text)
-               VALUES (?, ?, ?, ?, ?, ?)
+                transcript_vtt, transcript_text, transcript_source,
+                original_segments_json, upstream_transcript_json)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                ON CONFLICT(episode_id) DO UPDATE SET
                final_segments_json = CASE WHEN ? THEN excluded.final_segments_json ELSE final_segments_json END,
                chapters_json = CASE WHEN ? THEN excluded.chapters_json ELSE chapters_json END,
                applied_cuts_json = CASE WHEN ? THEN excluded.applied_cuts_json ELSE applied_cuts_json END,
                transcript_vtt = CASE WHEN ? THEN excluded.transcript_vtt ELSE transcript_vtt END,
-               transcript_text = CASE WHEN ? THEN excluded.transcript_text ELSE transcript_text END""",
+               transcript_text = CASE WHEN ? THEN excluded.transcript_text ELSE transcript_text END,
+               transcript_source = CASE WHEN ? THEN excluded.transcript_source ELSE transcript_source END,
+               original_segments_json = CASE WHEN ? THEN excluded.original_segments_json ELSE original_segments_json END,
+               upstream_transcript_json = CASE WHEN ? THEN excluded.upstream_transcript_json ELSE upstream_transcript_json END""",
             (identifier, *values, *present),
         )
         conn.commit()

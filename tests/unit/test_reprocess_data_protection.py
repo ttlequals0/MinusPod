@@ -144,6 +144,48 @@ class TestTranscribeStageClear:
         assert row is None
 
 
+class TestPublisherTranscriptDropped:
+    """A publisher transcript cannot stand in for Whisper output on reprocess."""
+
+    def _run(self, **tx_kwargs):
+        tx_kwargs = tx_kwargs or {'return_value': [{'start': 0.0, 'end': 2.0, 'text': 'fresh'}]}
+        with patch('main_app.processing.transcriber.transcribe_chunked', **tx_kwargs) as mock_tx, \
+             patch('main_app.pipeline.transcribe._retranscribe_tail_no_vad', return_value=[]), \
+             patch('main_app.pipeline.transcribe._retranscribe_holes_no_vad', return_value=([], [])), \
+             patch('main_app.pipeline.transcribe._download_episode_audio',
+                   return_value='/tmp/fake-audio.mp3'), \
+             patch('main_app.processing.status_service'):
+            _download_and_transcribe(SLUG, 'a1b2c3d4e5f6', 'https://example.com/ep1.mp3')
+        return mock_tx
+
+    def test_upstream_transcript_triggers_transcription(self, seeded_episode):
+        db.save_processing_assets(SLUG, seeded_episode, {
+            'transcript_text': 'publisher words',
+            'original_segments': [{'start': 0.0, 'end': 1.0, 'text': 'publisher words'}],
+            'final_segments': [{'start': 0.0, 'end': 1.0, 'text': 'publisher words'}],
+            'transcript_source': 'upstream'})
+        mock_tx = self._run()
+        mock_tx.assert_called_once()
+        assert _details_row(seeded_episode)['transcript_source'] is None
+
+    def test_failed_transcription_keeps_upstream_transcript(self, seeded_episode):
+        db.save_processing_assets(SLUG, seeded_episode, {
+            'transcript_text': 'publisher words',
+            'original_segments': [{'start': 0.0, 'end': 1.0, 'text': 'publisher words'}],
+            'final_segments': [{'start': 0.0, 'end': 1.0, 'text': 'publisher words'}],
+            'transcript_source': 'upstream'})
+        with pytest.raises(RuntimeError):
+            self._run(side_effect=RuntimeError('boom'))
+        row = _details_row(seeded_episode)
+        assert row['transcript_text'] == 'publisher words'
+        assert row['transcript_source'] == 'upstream'
+
+    def test_whisper_transcript_is_reused(self, seeded_episode):
+        mock_tx = self._run()
+        mock_tx.assert_not_called()
+        assert _details_row(seeded_episode)['transcript_text'] == 'old transcript'
+
+
 class TestRetryReusesForcedTranscript:
     """A retry of the same reprocess reuses the transcript an earlier attempt
     saved: the forced clear recreates the details row, so a row newer than

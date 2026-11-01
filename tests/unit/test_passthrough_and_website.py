@@ -32,6 +32,9 @@ def _run_passthrough(download_result='/tmp/pt.mp3', duration=3305.7,
          patch.object(processing, 'storage') as storage, \
          patch.object(processing, 'status_service'), \
          patch.object(recut, 'get_audio_codec', side_effect=codec_effect), \
+         patch.object(recut.passthrough_assets, 'import_upstream_assets',
+                      return_value={'upstream_chapters': 3,
+                                    'upstream_transcript': 'timed'}) as importer, \
          patch.object(finalize_stage, '_finalize_episode') as finalize, \
          patch.object(common, '_copy_retained_original_to_temp',
                       return_value='/tmp/retained.mp3') as copy_retained, \
@@ -46,6 +49,7 @@ def _run_passthrough(download_result='/tmp/pt.mp3', duration=3305.7,
             'pt-feed', 'ep1', 'https://example.com/ep1.mp3', 'Episode One',
             'PT Feed', None, None, None, start_time=0.0,
             episode_data={'processed_version': 0}, podcast=podcast)
+    _run_passthrough.importer = importer
     return result, transcriber, finalize, move, db, copy_retained
 
 
@@ -70,7 +74,11 @@ class TestPassthroughEpisode:
         assert kwargs['original_duration'] == 3305.7
         assert kwargs['new_duration'] == 3305.7
         assert kwargs['run_stats'] == {'mode': 'passthrough',
-                                       'downloaded_duration': 3305.7}
+                                       'downloaded_duration': 3305.7,
+                                       'upstream_chapters': 3,
+                                       'upstream_transcript': 'timed'}
+        _run_passthrough.importer.assert_called_once()
+        assert _run_passthrough.importer.call_args.args[:2] == ('pt-feed', 'ep1')
 
     def test_retained_original_reused_instead_of_download(self):
         result, transcriber, finalize, move, _, copy_retained = \

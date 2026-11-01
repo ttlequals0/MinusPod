@@ -150,7 +150,7 @@ def test_auto_preserves_publisher_chapters_no_llm_no_embed(monkeypatch):
     fetch_mock.assert_not_called()
     db.save_processing_assets.assert_called_once_with(
         'testslug', 'ep1',
-        {'final_segments': [], 'chapters': {'version': '1.2.0', 'chapters': [
+        {'final_segments': [], 'transcript_source': None, 'chapters': {'version': '1.2.0', 'chapters': [
             # startTime floors at 1, not 0 (some podcast apps require it).
             {'startTime': 1, 'title': 'Intro'},
             {'startTime': 100, 'title': 'Chapter 2'},
@@ -557,7 +557,7 @@ def test_auto_fetches_upstream_when_embedded_short_and_url_present(monkeypatch):
     generator_class.return_value.generate_chapters.assert_not_called()
     db.save_processing_assets.assert_called_once_with(
         'testslug', 'ep1',
-        {'final_segments': [], 'chapters': {'version': '1.2.0', 'chapters': [
+        {'final_segments': [], 'transcript_source': None, 'chapters': {'version': '1.2.0', 'chapters': [
             {'startTime': 5, 'title': 'Cold Open'},
             {'startTime': 50, 'img': 'https://cdn.example.com/2.jpg',
              'url': 'https://example.com/chapter2', 'title': 'Chapter 2'},

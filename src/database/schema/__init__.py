@@ -539,6 +539,7 @@ class SchemaMixin:
             ('repair_holes_json', 'TEXT'),
             # Upstream transcript differential result (2.98.0)
             ('upstream_transcript_json', 'TEXT'),
+            ('transcript_source', 'TEXT'),
         ]
         for col, definition in details_migrations:
             self._add_column_if_missing(conn, 'episode_details', col, definition, det_cols)

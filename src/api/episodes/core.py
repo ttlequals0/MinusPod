@@ -417,6 +417,8 @@ def get_episode(slug, episode_id):
         'transcriptAvailable': bool(episode.get('transcript_text')),
         'originalTranscriptAvailable': bool(episode.get('has_original_transcript')),
         'transcriptVttAvailable': transcript_vtt_available,
+        'transcriptSource': (episode.get('transcript_source')
+                             or ('whisper' if episode.get('transcript_text') else None)),
         'chaptersRegenerating': bool(episode.get('chapters_regen_active')),
         'chaptersRegenError': episode.get('chapters_regen_error'),
         'transcriptVttUrl': (f"/episodes/{slug}/{episode_id}.vtt{key_suffix}"

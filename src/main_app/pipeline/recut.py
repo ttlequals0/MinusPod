@@ -27,7 +27,10 @@ from config import (
 
 from utils.constants import EpisodeStatus
 
-from main_app.pipeline import common, transcribe, detect, cuts, keep_rules, verify, publish, finalize, failure
+from main_app.pipeline import (
+    common, transcribe, detect, cuts, keep_rules, verify, publish, finalize, failure,
+    passthrough_assets,
+)
 from main_app.pipeline.shared import (db, storage, audio_processor)
 
 audio_logger = logging.getLogger('podcast.audio')
@@ -315,10 +318,8 @@ def _passthrough_episode(slug, episode_id, episode_url, episode_title,
             os.unlink(audio_path)
             audio_path = converted
 
-        # Any assets left by an earlier interrupted processing run (VTT,
-        # chapters, ad markers) describe cut audio; the served RSS must not
-        # reference them next to the untouched file. Transcript inputs are
-        # kept so re-enabling processing skips re-transcription.
+        # Assets from an earlier run (VTT, chapters, ad markers) describe cut audio;
+        # transcript inputs are kept so re-enabling processing skips re-transcription.
         db.clear_episode_ad_data(slug, episode_id)
 
         new_version = transcribe._next_processed_version(episode_data)
@@ -329,6 +330,9 @@ def _passthrough_episode(slug, episode_id, episode_url, episode_title,
         shutil.move(audio_path, final_path)
         audio_path = None
 
+        # Network work runs after the publication-owner fence.
+        run_stats.update(passthrough_assets.import_upstream_assets(
+            slug, episode_id, episode_data, podcast))
         run_stats['downloaded_duration'] = round(duration, 2)
         finalize._finalize_episode(slug, episode_id, episode_title, podcast_name,
                            pass1_cut_count=0, verification_count=0,

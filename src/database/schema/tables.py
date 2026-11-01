@@ -266,6 +266,8 @@ TABLE_DDL['episode_details'] = """CREATE TABLE IF NOT EXISTS episode_details (
     -- Upstream transcript differential result (2.98.0): status, coverage,
     -- spans. Raw cues are not persisted here; re-fetched on re-detection.
     upstream_transcript_json TEXT,
+    -- NULL = MinusPod's own Whisper transcript; 'upstream' = imported from the publisher feed.
+    transcript_source TEXT,
     created_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
     FOREIGN KEY (episode_id) REFERENCES episodes(id) ON DELETE CASCADE
 )"""
