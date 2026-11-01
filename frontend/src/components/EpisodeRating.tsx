@@ -9,6 +9,7 @@ import { focusRing, textareaBase } from './fieldStyles';
 import { cardTitle } from './pageStyles';
 
 const STARS = [1, 2, 3, 4, 5] as const;
+const segments = (n: number, kind: string) => `${n} ${kind} ${n === 1 ? 'segment' : 'segments'}`;
 const NOTES_PLACEHOLDER = 'What was wrong? Missed ad, wrong boundary, kept segment, audio glitch...';
 
 function EpisodeRating({ slug, episodeId, rating }: { slug: string; episodeId: string; rating?: Rating | null }) {
@@ -36,9 +37,12 @@ function EpisodeRating({ slug, episodeId, rating }: { slug: string; episodeId: s
     onMutate: () => { setError(null); setMessage(null); },
     onSuccess: (result) => {
       if (value === 5) setNotes('');
-      setMessage(value === 5
-        ? `Saved. ${result.confirmedMarkers} cut ${result.confirmedMarkers === 1 ? 'segment' : 'segments'} confirmed.`
-        : 'Rating saved.');
+      const { confirmedMarkers: confirmed, dismissedMarkers: dismissed } = result;
+      const parts = [
+        ...(confirmed || !dismissed ? [`${segments(confirmed, 'cut')} confirmed`] : []),
+        ...(dismissed ? [`${segments(dismissed, 'held')} dismissed`] : []),
+      ];
+      setMessage(value === 5 ? `Saved. ${parts.join(', ')}.` : 'Rating saved.');
       setRating(result.rating);
     },
     onError: (e) => setError(getErrorMessage(e, 'Could not save the rating.')),
@@ -77,7 +81,7 @@ function EpisodeRating({ slug, episodeId, rating }: { slug: string; episodeId: s
         </p>
       </div>
       <p className="text-sm text-muted-foreground">
-        5 stars confirms every cut segment in this episode. Anything lower is kept as feedback.
+        5 stars confirms every cut segment in this episode and dismisses any held ones. Anything lower is kept as feedback.
       </p>
       <div role="radiogroup" aria-labelledby="episode-rating-title" className="flex items-center gap-1">
         {STARS.map((n) => (

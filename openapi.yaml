@@ -2598,7 +2598,8 @@ paths:
         Stores a 1 to 5 quality rating. Notes are trimmed, limited to 2000
         characters and kept only below 5. A rating of 5 confirms every cut ad
         segment through the same path as a confirm correction, without changing
-        the audio or queuing a recut.
+        the audio or queuing a recut. A 5 also dismisses every held segment
+        without recording a correction.
       operationId: putEpisodeRating
       parameters:
         - $ref: '#/components/parameters/slug'
@@ -2615,16 +2616,17 @@ paths:
                 notes: { type: [string, 'null'], maxLength: 2000 }
       responses:
         '200':
-          description: The stored rating and how many cut segments were newly confirmed
+          description: The stored rating, how many cut segments were newly confirmed and how many held segments were dismissed
           content:
             application/json:
               schema:
                 type: object
-                required: [rating, confirmedMarkers]
+                required: [rating, confirmedMarkers, dismissedMarkers]
                 properties:
                   rating:
                     $ref: '#/components/schemas/EpisodeRating'
                   confirmedMarkers: { type: integer }
+                  dismissedMarkers: { type: integer }
         '400':
           $ref: '#/components/responses/BadRequest'
         '404':

@@ -52,7 +52,7 @@ Key endpoints:
 - `POST /api/v1/episodes/awaiting-approval/approve` - Approve `{"episodes": [{"slug": "...", "episodeId": "..."}]}` or every waiting episode of `{"slug": "..."}`. Returns `{"approved": n, "skipped": n, "remaining": n}` (a `slug` request approves at most 500 oldest first; `remaining` is the rest), rebuilds each feed once (10 per minute)
 - `GET /api/v1/episodes/held?limit=&offset=` - Episodes with detections held for review across feeds, same row shape as awaiting-approval without `pendingSince`
 - `POST /api/v1/feeds/{slug}/episodes/{id}/regenerate-chapters` - Regenerate chapter markers and rewrite the ID3 chapters embedded in the MP3. Returns 202 and runs in the background; the episode's `chaptersRegenerating` and `chaptersRegenError` fields report the run
-- `PUT /api/v1/feeds/{slug}/episodes/{id}/rating` - Rate an episode 1 to 5 with optional notes below 5; a 5 records a confirm correction for every cut ad marker. `DELETE` clears the rating
+- `PUT /api/v1/feeds/{slug}/episodes/{id}/rating` - Rate an episode 1 to 5 with optional notes below 5. A 5 records a confirm correction for every cut ad marker and dismisses held ads without pattern learning; the response reports confirmedMarkers and dismissedMarkers. `DELETE` clears the rating
 - `GET /api/v1/feeds/{slug}/episodes/{id}/sponsorblock/candidates` - Segments a person may submit to SponsorBlock for a YouTube episode, with the evidence behind each, or the reason none are allowed
 - `POST /api/v1/feeds/{slug}/episodes/{id}/sponsorblock/submit` - Send the reviewed segments to SponsorBlock under the stored private user ID and record the outcome
 - `POST /api/v1/feeds/{slug}/reprocess-all` - Batch reprocess all episodes

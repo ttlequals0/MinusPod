@@ -1,4 +1,4 @@
-"""Episode quality rating; a 5-star rating confirms every cut ad segment."""
+"""Episode quality rating; a 5-star rating confirms every cut ad segment and dismisses held ones."""
 
 import logging
 
@@ -6,8 +6,10 @@ from flask import request
 
 from api import api, log_request, json_response, error_response, get_database
 from api.episodes.common import rating_json
-from api.patterns import _handle_confirm_correction
-from config import AD_CATEGORIES, is_keep_like, is_pending_review, normalize_segment_category
+from api.patterns import _dismiss_held_markers, _handle_confirm_correction
+from config import (
+    AD_CATEGORIES, is_keep_like, is_pending_review, normalize_segment_category,
+)
 from pattern_service import PatternService
 from utils.markers import parse_ad_markers, spans_match
 
@@ -55,7 +57,7 @@ def _confirm_cut_markers(db, slug, episode_id) -> int:
 @api.route('/feeds/<slug>/episodes/<episode_id>/rating', methods=['PUT'])
 @log_request
 def put_episode_rating(slug, episode_id):
-    """Rate the episode 1 to 5; notes are kept below 5 and a 5 confirms the cut ads."""
+    """Rate the episode 1 to 5; notes are kept below 5 and a 5 confirms the cut ads and dismisses held ones."""
     db = get_database()
     data = request.get_json(silent=True)
     if not isinstance(data, dict):
@@ -72,9 +74,12 @@ def put_episode_rating(slug, episode_id):
         notes = None
     if not db.set_episode_rating(slug, episode_id, rating, notes):
         return error_response('Episode not found', 404)
-    confirmed = _confirm_cut_markers(db, slug, episode_id) if rating == 5 else 0
+    confirmed = dismissed = 0
+    if rating == 5:
+        confirmed = _confirm_cut_markers(db, slug, episode_id)
+        dismissed = _dismiss_held_markers(db, slug, episode_id, is_pending_review)
     return json_response({'rating': rating_json(db.get_episode(slug, episode_id)),
-                          'confirmedMarkers': confirmed})
+                          'confirmedMarkers': confirmed, 'dismissedMarkers': dismissed})
 
 
 @api.route('/feeds/<slug>/episodes/<episode_id>/rating', methods=['DELETE'])

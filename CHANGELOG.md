@@ -9,6 +9,14 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
+## [Unreleased]
+
+### Changed
+
+- A 5-star episode rating also dismisses the episode's held-for-review ads,
+  without recording a rejection pattern, so the review chip clears and the
+  matcher learns nothing from spans the detector could not back up.
+
 ## [2.101.12] - 2026-11-01
 
 ### Added

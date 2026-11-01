@@ -158,7 +158,7 @@ A completed episode plays in a built-in player instead of the browser's native c
 
 ### Episode rating
 
-Rate how well MinusPod handled an episode from 1 to 5 stars on the episode page. Below 5 stars you can add notes of up to 2000 characters. Giving 5 stars clears any notes and records a confirm correction for every cut ad marker except community marks. This is the same as pressing Confirm on each, including pattern learning. The next reprocess force-accepts those spans. The audio is not changed and no recut is queued. Clearing a rating removes the stars and notes; confirmations already recorded stay.
+Rate how well MinusPod handled an episode from 1 to 5 stars on the episode page. Below 5 stars you can add notes of up to 2000 characters. Giving 5 stars clears any notes and records a confirm correction for every cut ad marker except community marks. This is the same as pressing Confirm on each, including pattern learning. The next reprocess force-accepts those spans. Five stars also dismisses any ads still held for review on that episode, like pressing Dismiss on each. Nothing is recorded for pattern learning, so a later reprocess may hold the same span again. The audio is not changed and no recut is queued. Clearing a rating removes the stars and notes; confirmations already recorded stay.
 
 A feed's page shows the average rating and how many episodes are rated. Ratings and their notes are part of the diagnostics download, which includes up to 500 rated episodes in the chosen range, with how many segments were cut, kept and held.
 
@@ -321,6 +321,8 @@ Ads that cannot auto-cut are held rather than cut; see [How It Works > Held for 
 
 - **Approve & Recut** - stores a confirm correction and immediately re-cuts the original audio if retained; otherwise the button reads Approve and the cut applies on the next reprocess.
 - **Dismiss** - records a rejection and leaves the audio unchanged.
+
+A 5-star rating dismisses every held ad on the episode without recording a rejection pattern.
 
 When the original audio is retained, a pencil button next to the play button opens the ad in the waveform editor, where you can drag the boundaries before confirming. Confirming with moved boundaries cuts only the span inside the pins. If the hold came from the ad reviewer proposing a boundary past the detected span, confirming at that position is accepted too, not just a narrower one.
 

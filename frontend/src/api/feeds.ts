@@ -863,7 +863,7 @@ export async function submitSponsorBlock(
 
 export async function rateEpisode(
   slug: string, episodeId: string, rating: number, notes: string | null,
-): Promise<{ rating: EpisodeRating; confirmedMarkers: number }> {
+): Promise<{ rating: EpisodeRating; confirmedMarkers: number; dismissedMarkers: number }> {
   return apiRequest(`/feeds/${slug}/episodes/${episodeId}/rating`, { method: 'PUT', body: { rating, notes } });
 }
 
