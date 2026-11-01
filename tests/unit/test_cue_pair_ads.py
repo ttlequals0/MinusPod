@@ -1,4 +1,5 @@
 """Unit tests for cue-pair ad synthesis (#350)."""
+from config import measured_evidence
 from ad_detector.cue_pair_ads import (
     synthesize_ads_from_cue_pairs as _synth_impl,
 )
@@ -45,6 +46,7 @@ def test_pair_synthesizes_ad_when_no_existing_ad_overlaps():
     for edge in ('start', 'end'):
         assert ads[0]['cue_snap'][edge]['shift_seconds'] == 0
         assert ads[0]['cue_snap'][edge]['template_id'] == 1
+    assert measured_evidence(ads[0]) == ['cue_pair']
 
 
 def test_pair_skipped_when_existing_ad_covers_it():

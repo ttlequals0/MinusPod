@@ -384,7 +384,8 @@ def measured_evidence(ad) -> list[str]:
     stages = {ad.get('detection_stage')}
     stages.update(span.get('stage') for span in recorded_member_spans(ad))
     evidence = sorted(s for s in stages if s in MEASURED_EVIDENCE_STAGES)
-    if is_edge_cue_snapped(ad, 'start') or is_edge_cue_snapped(ad, 'end'):
+    # A cue pair's snap records describe the same two cues the stage already counts.
+    if 'cue_pair' not in evidence and (is_edge_cue_snapped(ad, 'start') or is_edge_cue_snapped(ad, 'end')):
         evidence.append('cue_snap')
     if (ad.get('validation') or {}).get('sponsor_confirmed'):
         evidence.append('sponsor_confirmed')
