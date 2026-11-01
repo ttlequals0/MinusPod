@@ -9,7 +9,7 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
-## [Unreleased]
+## [2.101.13] - 2026-11-01
 
 ### Added
 - Pass-through episodes import the chapters and transcript the upstream feed publishes. They show on the episode page, in the player and in the served RSS from MinusPod's own URLs, with a Publisher transcript badge. Episodes already in pass-through pick them up on their next reprocess.
