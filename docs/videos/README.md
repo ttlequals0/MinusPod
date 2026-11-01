@@ -10,7 +10,7 @@ or music can be added in the posting app. The landscape cuts also play inline in
 
 | Video | Portrait | Landscape | Length | What it shows |
 |---|---|---|---|---|
-| UI tour | [minuspod-demo.mp4](minuspod-demo.mp4) | [minuspod-demo-landscape.mp4](minuspod-demo-landscape.mp4) | 85 s | Dashboard, processing queue, detected ads, the waveform editor, review, patterns, search, stats, settings and themes, then YouTube feeds: adding a show by name, SponsorBlock marks, rating, submitting to SponsorBlock and the YouTube settings. Recorded from a running instance. |
+| UI tour | [minuspod-demo.mp4](minuspod-demo.mp4) | [minuspod-demo-landscape.mp4](minuspod-demo-landscape.mp4) | 101 s | Dashboard, processing queue, detected ads, the waveform editor, review, patterns, search, stats, settings and themes, then YouTube feeds: adding a show by name, SponsorBlock marks, the episode rating and the YouTube settings. Recorded from a running instance. |
 | How it works | [minuspod-how-it-works.mp4](minuspod-how-it-works.mp4) | [minuspod-how-it-works-landscape.mp4](minuspod-how-it-works-landscape.mp4) | 107 s | One episode across all eleven pipeline stages: download, transcribe, second download and audio analysis, detect (free matches, then the model), validate, boundary review, cut, verify pass, transcript and chapters, publish. Then the learning loop and what happens when something fails. Follows [How It Works](../how-it-works.md) and [Episode Processing Workflows](../workflows.md). |
 | Review queue | [minuspod-review-queue.mp4](minuspod-review-queue.mp4) | [minuspod-review-queue-landscape.mp4](minuspod-review-queue-landscape.mp4) | 42 s | A held detection from the queue to the waveform editor: play the span, confirm it, watch the recut, see it on the record. Recorded from a running instance. |
 | Audio cues | [minuspod-audio-cues.mp4](minuspod-audio-cues.mp4) | [minuspod-audio-cues-landscape.mp4](minuspod-audio-cues-landscape.mp4) | 43 s | Find a show's ad-break chime on one episode, templates and their health on the feed, the cross-episode scan, cuts that snapped to a cue, and the settings behind it. Recorded. |
@@ -19,6 +19,7 @@ or music can be added in the posting app. The landscape cuts also play inline in
 | Providers and cost | [minuspod-providers.mp4](minuspod-providers.mp4) | [minuspod-providers-landscape.mp4](minuspod-providers-landscape.mp4) | 48 s | Two provider slots, a model per stage, failover, and the spend ledger from provider down to a single episode. Recorded. |
 | Podcasting 2.0 | [minuspod-podcasting-2.mp4](minuspod-podcasting-2.mp4) | [minuspod-podcasting-2-landscape.mp4](minuspod-podcasting-2-landscape.mp4) | 37 s | Chapters and transcript for the cut audio, the served feed's namespace tags, and the chapter settings. Recorded, plus one rendered feed excerpt. |
 | Patterns | [minuspod-patterns.mp4](minuspod-patterns.mp4) | [minuspod-patterns-landscape.mp4](minuspod-patterns-landscape.mp4) | 70 s | Learned patterns: the list, one created from a confirmed detection, its detail and edit forms, merge suggestions, then Pattern Cleanup from Run now to approve and undo. Recorded. |
+| YouTube feeds | [minuspod-youtube.mp4](minuspod-youtube.mp4) | [minuspod-youtube-landscape.mp4](minuspod-youtube-landscape.mp4) | 71 s | Search by show name and preview, the feed page and its YouTube panel, SponsorBlock marks on an episode, rating, submitting reviewed segments, the status bar during a SponsorBlock outage, and the settings with a generated user ID. Rating, submit and generate are answered by in-page mocks. |
 
 ## Rebuilding the animated videos
 
@@ -120,6 +121,8 @@ from Liberation Sans.
    the `output` field of the beats file. Pass beat indexes after the mode to
    rebuild only those segments while tuning a crop or a caption.
 
+A beat may export a `mock(page, T)` hook that registers `page.route` handlers before navigation. The YouTube beats use it to answer rating, submit and generate in the page, so the instance is untouched.
+
 The UI tour beats live in `beats/demo.mjs` and are read-only: they navigate, scroll and open dialogs, and never save, confirm, rate, submit or generate anything.
 
 Some beats change the instance: the review and patterns videos each confirm
@@ -171,6 +174,7 @@ and the doc that covers the feature carries that URL on a line of its own:
 | Providers and cost | [LLM Providers](../llm-providers.md) |
 | Podcasting 2.0 | [Podcasting 2.0](../podcasting-2.0.md) |
 | Patterns | [Pattern Cleanup](../pattern-cleanup.md) |
+| YouTube feeds | [YouTube Feeds](../youtube-feeds.md) |
 
 To replace a video, re-record or re-render it and commit the new files here.
 Then drag the new landscape file into a comment on a pull request or issue in

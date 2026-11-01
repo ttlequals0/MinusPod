@@ -1,0 +1,106 @@
+{
+ "output": "minuspod-youtube",
+ "beats": [
+  {
+   "card": true,
+   "dur": 3.8,
+   "head": "YouTube feeds",
+   "sub": "A playlist or channel, served as a podcast.",
+   "logo": "logo-dark.png"
+  },
+  {
+   "clip": "add",
+   "dev": "phone",
+   "start": 0.6,
+   "dur": 11.0,
+   "head": "Search by show name.",
+   "sub": "Look up previews a playlist or channel first. The Podcast badge marks a playlist YouTube lists as a podcast show."
+  },
+  {
+   "clip": "feedpage",
+   "dev": "laptop",
+   "start": 0.4,
+   "dur": 8.0,
+   "crop": [
+    48,
+    60,
+    1904,
+    1500
+   ],
+   "head": "A feed like any other.",
+   "sub": "The YouTube badge, then the panel with per-feed SponsorBlock and caption settings."
+  },
+  {
+   "clip": "episode",
+   "dev": "laptop",
+   "start": 0.4,
+   "dur": 9.0,
+   "crop": [
+    48,
+    60,
+    1904,
+    1500
+   ],
+   "head": "SponsorBlock marks first.",
+   "sub": "Community marks are cut as given. Each detected ad shows where it came from."
+  },
+  {
+   "clip": "rate",
+   "dev": "laptop",
+   "start": 0.4,
+   "dur": 7.0,
+   "crop": [
+    48,
+    60,
+    1904,
+    1300
+   ],
+   "head": "Rate the episode.",
+   "sub": "Five stars confirms every cut segment so they count as evidence."
+  },
+  {
+   "clip": "submit",
+   "dev": "laptop",
+   "start": 0.5,
+   "dur": 13.0,
+   "crop": [
+    48,
+    60,
+    1904,
+    1700
+   ],
+   "head": "Send a segment back.",
+   "sub": "Play it, tick it, submit it. MinusPod never submits on its own."
+  },
+  {
+   "clip": "status",
+   "dev": "phone",
+   "start": 0.5,
+   "dur": 6.5,
+   "head": "If SponsorBlock is down.",
+   "sub": "The status bar shows it and how many episodes are waiting. Others keep processing."
+  },
+  {
+   "clip": "settings",
+   "dev": "laptop",
+   "start": 0.5,
+   "dur": 11.0,
+   "crop": [
+    48,
+    60,
+    1904,
+    1700
+   ],
+   "head": "Off by default.",
+   "sub": "Submissions need a toggle and a private user ID. Generate one here. Nothing is sent until you choose."
+  },
+  {
+   "card": true,
+   "dur": 4.2,
+   "head": "YouTube feeds",
+   "sub": "Playlists and channels, ad-free, in any podcast app.",
+   "small": "github.com/ttlequals0/MinusPod",
+   "logo": "logo-dark.png"
+  }
+ ]
+}

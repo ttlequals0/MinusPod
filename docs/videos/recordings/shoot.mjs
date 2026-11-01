@@ -31,6 +31,7 @@ if (inner[0] !== DEV.W / DEV.DSF || inner[1] !== DEV.H / DEV.DSF) throw new Erro
 
 for (const name of beatNames) {
   const beat = BEATS[name]; if (!beat || beat.dev !== device) throw new Error(`no ${device} beat named ${name}`);
+  await page.unrouteAll({ behavior: 'ignoreErrors' }); if (beat.mock) await beat.mock(page, T);  // in-page mocks, registered before navigation
   await page.goto(T.baseUrl + (typeof beat.url === 'function' ? beat.url(T) : beat.url), { waitUntil: 'networkidle' });
   await page.addStyleTag({ content: PAGE_CSS[device] || PAGE_CSS.other });
   await sleep(600);
