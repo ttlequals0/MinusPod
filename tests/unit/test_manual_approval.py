@@ -183,6 +183,19 @@ class TestAudioRoute:
         if method == 'get':
             assert resp.get_json() == {'error': 'awaiting_approval'}
 
+    def test_local_fallback_does_not_serve_original_while_awaiting(self):
+        from main_app.routes import _local_original_response
+        import main_app.routes as routes_mod
+        db.upsert_episode(SLUG, HELD, status='processing')
+        try:
+            with patch.object(routes_mod.storage, 'get_original_path') as get_original:
+                resp = _local_original_response(SLUG, HELD)
+            get_original.assert_not_called()
+            assert resp.status_code == 503
+            assert resp.headers['Retry-After'] == '1800'
+        finally:
+            db.upsert_episode(SLUG, HELD, status='processed')
+
 
 class TestApproveRoutes:
     def test_single_approve(self, client, no_rebuild):
