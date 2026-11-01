@@ -125,7 +125,8 @@ def api_key(db) -> str:
 
 
 def sb_user_id(db) -> str:
-    return db.get_secret('youtube_sb_user_id') or ''
+    """The generated ID when set, else the pasted one."""
+    return db.get_secret('youtube_sb_user_id_generated') or db.get_secret('youtube_sb_user_id') or ''
 
 
 def extra_args_valid(value: str) -> bool:

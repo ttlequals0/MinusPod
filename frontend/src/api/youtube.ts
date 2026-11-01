@@ -7,6 +7,7 @@ export interface YouTubeSettings {
   apiKeyConfigured: boolean;
   sbSubmitEnabled: boolean;
   sbUserIdConfigured: boolean;
+  sbUserIdGenerated: boolean;
   processDelayMinutes: number;
   sbProbeAttempts: number;
   sbProbeIntervalMinutes: number;

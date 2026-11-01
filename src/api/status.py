@@ -13,7 +13,7 @@ from api import (
     get_database, get_status_service,
 )
 from api.failover import targets_view as failover_targets_view
-from config import DEFER_SERVICE_LLM, DEFER_SERVICE_WHISPER
+from config import DEFER_SERVICE_LLM, DEFER_SERVICE_SPONSORBLOCK, DEFER_SERVICE_WHISPER
 from offline_queue import get_probe_state
 from rate_limit_hold import get_any_active_hold
 from processing_queue import (
@@ -21,6 +21,7 @@ from processing_queue import (
 )
 from utils.ttl_cache import TTLCache
 from whisper_pool import get_pool
+from youtube import settings as yt_settings, sponsorblock
 from api.auth_state import (
     SESSION_GENERATION_KEY, authentication_required, current_generation,
     session_is_authenticated,
@@ -52,17 +53,26 @@ except ValueError:
 _SSE_SLOTS = threading.BoundedSemaphore(_SSE_SLOT_COUNT) if _SSE_SLOT_COUNT else None
 
 
-def _offline_service_view(db, service: str) -> dict | None:
-    """One offline-queue service's held count and last probe verdict, or None
-    when nothing is waiting on it."""
-    held = db.count_deferred_episodes(service=service)
-    if not held:
+def _offline_service_view(db, service: str, held: int, show_when_down: bool) -> dict | None:
+    """One service's held count and last probe verdict, or None when nothing
+    is waiting on it (a service shown when down stays listed while unreachable)."""
+    if service == DEFER_SERVICE_SPONSORBLOCK:
+        reachable, checked_at = sponsorblock.availability(db)  # same bound as the hold decision
+    else:
+        reachable, checked_at = get_probe_state(db, service)
+    if not held and not (show_when_down and reachable is False):
         return None
-    reachable, checked_at = get_probe_state(db, service)
     return {
         'service': service, 'held': held,
         'reachable': reachable, 'checkedAt': checked_at,
     }
+
+
+def _offline_service_views(db) -> list[dict]:
+    sources = [(s, db.count_deferred_episodes(service=s), False) for s in OFFLINE_SERVICES]
+    if yt_settings.enabled(db):
+        sources.append((DEFER_SERVICE_SPONSORBLOCK, db.count_sponsorblock_waiting(), True))
+    return [v for v in (_offline_service_view(db, *src) for src in sources) if v]
 
 
 def _build_hold_block(db) -> dict:
@@ -80,12 +90,9 @@ def _build_hold_block(db) -> dict:
         'queuePaused': hold_until is not None,
         'holdUntil': hold_until,
         'holdSince': hold_since,
-        # Every deferral, so the total agrees with /settings/offline-queue
-        # even for a service not broken out below.
+        # Deferred episodes only (not SponsorBlock waits), matching /settings/offline-queue.
         'offlineHeld': db.count_deferred_episodes(),
-        'offlineServices': [
-            v for v in (_offline_service_view(db, s) for s in OFFLINE_SERVICES) if v
-        ],
+        'offlineServices': _offline_service_views(db),
     }
 
 

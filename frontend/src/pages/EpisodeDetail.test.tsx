@@ -2697,6 +2697,15 @@ describe('Submit to SponsorBlock dialog', () => {
     expect(await within(dialog).findByText(/already has community SponsorBlock marks/)).not.toBeNull();
     expect(within(dialog).queryByRole('button', { name: /^Submit \d/ })).toBeNull();
   });
+
+  it('says SponsorBlock is unreachable on service_down', async () => {
+    const user = userEvent.setup();
+    mockGetCandidates.mockResolvedValue({ allowed: false, reason: 'service_down', segments: [] });
+    renderDetail(sbEpisode);
+    await user.click(await screen.findByRole('button', { name: 'Submit to SponsorBlock' }));
+    const dialog = await screen.findByRole('dialog');
+    expect(await within(dialog).findByText('SponsorBlock is unreachable right now. Try again later.')).not.toBeNull();
+  });
 });
 
 describe('Reprocess menu wording follows the feed type', () => {

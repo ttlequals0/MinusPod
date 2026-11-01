@@ -1,10 +1,11 @@
-"""YouTube settings: GET/PUT /settings/youtube and POST /settings/youtube/reset."""
+"""YouTube settings: GET/PUT /settings/youtube, POST /settings/youtube/reset and sb-user-id (GET, generate)."""
 import logging
 import re
+import secrets
 
 from flask import request
 
-from api import api, error_response, get_database, get_storage, json_response, log_request
+from api import api, error_response, get_database, get_storage, json_response, limiter, log_request
 from database.settings import YOUTUBE_RESET_SETTING_KEYS
 from secrets_crypto import is_available as crypto_available
 from utils.secret_writes import SecretWriteRejected, set_or_clear_secret
@@ -12,6 +13,8 @@ from youtube import cookies, settings as yt_settings, ytdlp
 
 logger = logging.getLogger('podcast.api')
 
+_SB_GENERATED_KEY = 'youtube_sb_user_id_generated'
+_SB_PASTED_KEY = 'youtube_sb_user_id'
 _SB_USER_ID_RE = re.compile(r'[\x21-\x7e]{32,200}')
 _BOOL_KEYS = {
     'enabled': 'youtube_enabled',
@@ -32,6 +35,7 @@ def youtube_status_payload(db) -> dict:
         'apiKeyConfigured': bool(yt_settings.api_key(db)),
         'sbSubmitEnabled': s.sb_submit_enabled,
         'sbUserIdConfigured': bool(yt_settings.sb_user_id(db)),
+        'sbUserIdGenerated': bool(db.get_secret(_SB_GENERATED_KEY)),
         'processDelayMinutes': s.process_delay_minutes,
         'sbProbeAttempts': s.probe_attempts,
         'sbProbeIntervalMinutes': s.probe_interval_minutes,
@@ -64,6 +68,7 @@ def get_youtube_settings():
 @api.route('/settings/youtube', methods=['PUT'])
 @log_request
 def put_youtube_settings():
+    db = get_database()
     data = request.get_json(silent=True) or {}
     writes = []
     for key, db_key in yt_settings.INT_KEYS.items():
@@ -101,7 +106,7 @@ def put_youtube_settings():
             proxy_url = ytdlp.parse_proxy_url(data['proxyUrl'])
         except ValueError as exc:
             return error_response(str(exc), 400)
-        stored_proxy = get_database().get_setting('youtube_proxy_url') or ''
+        stored_proxy = db.get_setting('youtube_proxy_url') or ''
         if proxy_url != ytdlp.mask_proxy_url(stored_proxy):
             try:
                 writes.append(('youtube_proxy_url', ytdlp.restore_proxy_password(proxy_url, stored_proxy)))
@@ -116,9 +121,10 @@ def put_youtube_settings():
         return error_response('sbUserId must be 32 to 200 printable ASCII characters', 400)
     if 'apiKey' in data and data['apiKey'] is not None and not isinstance(data['apiKey'], str):
         return error_response('apiKey must be a string or null', 400)
+    if 'sbUserId' in data and db.get_secret(_SB_GENERATED_KEY):
+        return error_response('generated', 409)
     if (data.get('apiKey') or sb_user_id) and not crypto_available():
         return error_response('provider_crypto_unavailable', 409)
-    db = get_database()
     for db_key, value in writes:
         db.set_setting(db_key, value, is_default=False)
     if 'apiKey' in data:
@@ -128,10 +134,42 @@ def put_youtube_settings():
             return error_response('provider_crypto_unavailable', 409)
     if 'sbUserId' in data:
         try:
-            set_or_clear_secret(db, 'youtube_sb_user_id', sb_user_id)
+            set_or_clear_secret(db, _SB_PASTED_KEY, sb_user_id)
         except SecretWriteRejected:
             return error_response('provider_crypto_unavailable', 409)
+        if db.get_secret(_SB_GENERATED_KEY):  # a generate landed after the check above; it wins
+            db.clear_secret(_SB_PASTED_KEY)
+            return error_response('generated', 409)
     return json_response(youtube_status_payload(db))
+
+
+@api.route('/settings/youtube/sb-user-id', methods=['GET'])
+@limiter.limit("10/minute")
+@log_request
+def get_sb_user_id():
+    """Reveal the stored SponsorBlock private user ID."""
+    sb_user_id = yt_settings.sb_user_id(get_database())
+    if not sb_user_id:
+        return error_response('not_configured', 404)
+    return json_response({'sbUserId': sb_user_id})
+
+
+@api.route('/settings/youtube/sb-user-id/generate', methods=['POST'])
+@limiter.limit("10/minute")
+@log_request
+def generate_sb_user_id():
+    """Create and store a SponsorBlock private user ID; refuses when one is stored."""
+    db = get_database()
+    if db.get_secret(_SB_GENERATED_KEY) or db.get_secret(_SB_PASTED_KEY):
+        return error_response('configured', 409)
+    new_id = secrets.token_hex(24)
+    try:
+        set_or_clear_secret(db, _SB_GENERATED_KEY, new_id)
+    except SecretWriteRejected:
+        return error_response('provider_crypto_unavailable', 409)
+    db.clear_secret(_SB_PASTED_KEY)  # a concurrent PUT may have written one; the generated key wins
+    logger.info('Generated a SponsorBlock user ID')
+    return json_response({'sbUserId': new_id})
 
 
 @api.route('/settings/youtube/reset', methods=['POST'])

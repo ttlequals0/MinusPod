@@ -179,6 +179,7 @@ UNCOVERED = {
     '/settings/providers/{slot}/affected-runs': 'needs an argument the seed cannot provide',
     '/system/updates': 'network call',
     '/settings/provider-budget/currencies': 'network call',
+    '/settings/youtube/sb-user-id': 'needs a stored secret and secret encryption; covered in test_youtube_settings_api',
     '/settings/provider-budget/rate/{currency}': 'network call',
     '/system/config-backup': 'binary or streaming body',
     '/system/config-export': 'binary or streaming body',

@@ -603,6 +603,7 @@ FEED_REFRESH_OUTAGE_RETRY_JITTER_SECONDS = 90  # Random extra delay, avoids thun
 # NULL reads as DEFER_SERVICE_LLM.
 DEFER_SERVICE_LLM = 'llm'
 DEFER_SERVICE_WHISPER = 'whisper'
+DEFER_SERVICE_SPONSORBLOCK = 'sponsorblock'
 
 # ============================================================
 # Text Pattern Matching Thresholds

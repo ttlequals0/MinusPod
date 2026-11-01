@@ -3,13 +3,18 @@ import hashlib
 import json
 import logging
 import math
+from datetime import timedelta
 
+from config import DEFER_SERVICE_SPONSORBLOCK
+from offline_queue import get_probe_state, record_probe_state
 from utils.app_version import APP_VERSION
 from utils.safe_http import URLTrust, safe_get
+from utils.time import parse_iso_utc, utc_now
 
 logger = logging.getLogger(__name__)
 
 API = 'https://sponsor.ajay.app/api/skipSegments'
+STATUS_API = 'https://sponsor.ajay.app/api/status'
 CATEGORY_MAP = {'sponsor': 'sponsor', 'selfpromo': 'self_promo', 'interaction': 'interaction',
                 'intro': 'intro', 'outro': 'outro', 'preview': 'recap'}
 # Pattern label for a mark whose caption text names no sponsor.
@@ -21,19 +26,54 @@ REQUEST_CATEGORIES = list(CATEGORY_MAP)
 ACTION_TYPES = ['skip', 'mute', 'full']
 DURATION_TOLERANCE_S = 2.0
 TIMEOUT_S = 15
+RETRY_SOON = timedelta(minutes=5)
+# A verdict older than this is unknown, not a hold (3 x RETRY_SOON).
+VERDICT_MAX_AGE = 3 * RETRY_SOON
+_HEADERS = {'X-CLIENT-NAME': f'MinusPod/{APP_VERSION}', 'User-Agent': f'MinusPod/{APP_VERSION}'}
 
 
 def hash_prefix(video_id: str) -> str:
     return hashlib.sha256(video_id.encode('utf-8')).hexdigest()[:4]
 
 
+def probe() -> bool:
+    """True when the SponsorBlock API answers its status endpoint; never raises."""
+    try:
+        resp = safe_get(STATUS_API, URLTrust.OPERATOR_CONFIGURED, timeout=TIMEOUT_S, headers=_HEADERS)
+        if resp.status_code != 200:
+            return False
+        body = resp.json()
+        return isinstance(body, dict) and 'uptime' in body
+    except Exception:
+        return False
+
+
+def record_availability(db) -> bool:
+    ok = probe()
+    record_probe_state(db, DEFER_SERVICE_SPONSORBLOCK, ok)
+    return ok
+
+
+def availability(db) -> tuple[bool | None, str | None]:
+    """Stored probe verdict and checkedAt; a False older than VERDICT_MAX_AGE (15 min) or undated reads as None."""
+    reachable, checked_at = get_probe_state(db, DEFER_SERVICE_SPONSORBLOCK)
+    if reachable is False:
+        checked = parse_iso_utc(checked_at)
+        if checked is None or utc_now() - checked > VERDICT_MAX_AGE:
+            return None, checked_at
+    return reachable, checked_at
+
+
+def is_unreachable(db) -> bool:
+    return availability(db)[0] is False
+
+
 def fetch_segments(video_id: str) -> list[dict] | None:
     url = (f"{API}/{hash_prefix(video_id)}?categories={json.dumps(REQUEST_CATEGORIES, separators=(',', ':'))}"
            f"&actionTypes={json.dumps(ACTION_TYPES, separators=(',', ':'))}&service=YouTube")
-    headers = {'X-CLIENT-NAME': f'MinusPod/{APP_VERSION}', 'User-Agent': f'MinusPod/{APP_VERSION}'}
     for _ in range(2):
         try:
-            resp = safe_get(url, URLTrust.OPERATOR_CONFIGURED, timeout=TIMEOUT_S, headers=headers)
+            resp = safe_get(url, URLTrust.OPERATOR_CONFIGURED, timeout=TIMEOUT_S, headers=_HEADERS)
         except Exception as exc:
             logger.warning(f"SponsorBlock request failed: {exc}")
             return None

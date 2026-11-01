@@ -143,6 +143,64 @@ describe('GlobalStatusBar queue holds', () => {
     expect(screen.getByText('Whisper endpoint unreachable')).toBeDefined();
   });
 
+  it('names SponsorBlock without implying the queue is paused', async () => {
+    await renderBar(makeStatus({
+      hold: emptyHold({
+        offlineHeld: 2,
+        offlineServices: [{
+          service: 'sponsorblock', held: 2, reachable: false,
+          checkedAt: new Date().toISOString(),
+        }],
+      }),
+    }));
+    expect(screen.getByText('SponsorBlock unreachable')).toBeDefined();
+    expect(screen.queryByText('Queue paused')).toBeNull();
+    act(() => {
+      screen.getByRole('button', { name: 'Expand status bar' }).click();
+    });
+    const detail = holdRow('SponsorBlock');
+    expect(detail.textContent).toContain('SponsorBlock unreachable.');
+    expect(detail.textContent).toContain('2 episodes waiting');
+    expect(detail.textContent).toContain('Others keep processing.');
+  });
+
+  it('surfaces a SponsorBlock-only outage that offlineHeld does not count', async () => {
+    await renderBar(makeStatus({
+      hold: emptyHold({
+        offlineHeld: 0,
+        queuePaused: false,
+        offlineServices: [{
+          service: 'sponsorblock', held: 2, reachable: false,
+          checkedAt: new Date().toISOString(),
+        }],
+      }),
+    }));
+    expect(screen.getByText('SponsorBlock unreachable')).toBeDefined();
+    expect(screen.queryByText('Queue paused')).toBeNull();
+    act(() => {
+      screen.getByRole('button', { name: 'Expand status bar' }).click();
+    });
+    const detail = holdRow('SponsorBlock');
+    expect(detail.textContent).toContain('SponsorBlock unreachable.');
+    expect(detail.textContent).toContain('2 episodes waiting');
+  });
+
+  it('words a reachable SponsorBlock wait as waiting, not unreachable', async () => {
+    await renderBar(makeStatus({
+      hold: emptyHold({
+        offlineHeld: 0,
+        queuePaused: false,
+        offlineServices: [{
+          service: 'sponsorblock', held: 3, reachable: true,
+          checkedAt: new Date().toISOString(),
+        }],
+      }),
+    }));
+    expect(screen.getByText('3 episodes waiting on SponsorBlock')).toBeDefined();
+    expect(screen.queryByText(/unreachable/)).toBeNull();
+    expect(screen.queryByText('Queue paused')).toBeNull();
+  });
+
   it('shows the reset time once expanded', async () => {
     const holdUntil = new Date(Date.now() + 30 * 60 * 1000).toISOString();
     await renderBar(makeStatus({

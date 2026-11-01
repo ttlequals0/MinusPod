@@ -1,4 +1,5 @@
 import json
+from datetime import timedelta
 from unittest.mock import MagicMock, patch
 
 from youtube import sponsorblock as sb
@@ -95,3 +96,51 @@ def test_fetch_logs_one_warning_when_the_server_keeps_failing(caplog):
         with caplog.at_level('WARNING', logger=sb.logger.name):
             assert sb.fetch_segments('vid000000001') is None
     assert len([r for r in caplog.records if 'server errors' in r.message]) == 1
+
+
+def test_probe_true_only_for_200_object_with_uptime():
+    with patch.object(sb, 'safe_get', return_value=_resp(200, {'uptime': 123, 'commit': 'x'})) as get:
+        assert sb.probe() is True
+    assert get.call_args.args[0] == sb.STATUS_API and get.call_args.kwargs['timeout'] == sb.TIMEOUT_S
+    for resp in (_resp(200, {'commit': 'x'}), _resp(200, [{'uptime': 1}]), _resp(503, {'uptime': 1}),
+                 _resp(200, None)):
+        with patch.object(sb, 'safe_get', return_value=resp):
+            assert sb.probe() is False
+
+
+def test_probe_false_on_exception_and_bad_json():
+    with patch.object(sb, 'safe_get', side_effect=OSError('down')):
+        assert sb.probe() is False
+    bad = MagicMock(status_code=200)
+    bad.json.side_effect = ValueError('no json')
+    with patch.object(sb, 'safe_get', return_value=bad):
+        assert sb.probe() is False
+
+
+def test_record_availability_stores_verdict_and_is_unreachable_reads_it():
+    db = MagicMock()
+    with patch.object(sb, 'probe', return_value=False), patch.object(sb, 'record_probe_state') as rec:
+        assert sb.record_availability(db) is False
+    rec.assert_called_once_with(db, 'sponsorblock', False)
+    fresh = (sb.utc_now() - timedelta(minutes=1)).isoformat()
+    with patch.object(sb, 'get_probe_state', return_value=(False, fresh)):
+        assert sb.is_unreachable(db) is True
+    for state in (None, True):
+        with patch.object(sb, 'get_probe_state', return_value=(state, fresh)):
+            assert sb.is_unreachable(db) is False
+
+
+def test_is_unreachable_ignores_stale_or_undated_verdict():
+    stale = (sb.utc_now() - sb.VERDICT_MAX_AGE - timedelta(seconds=1)).isoformat()
+    for checked_at in (stale, None):
+        with patch.object(sb, 'get_probe_state', return_value=(False, checked_at)):
+            assert sb.is_unreachable(MagicMock()) is False
+
+
+def test_availability_applies_the_age_bound():
+    fresh = (sb.utc_now() - timedelta(minutes=1)).isoformat()
+    stale = (sb.utc_now() - sb.VERDICT_MAX_AGE - timedelta(seconds=1)).isoformat()
+    for state, checked_at, want in ((False, fresh, False), (False, stale, None), (False, None, None),
+                                    (True, stale, True), (None, fresh, None)):
+        with patch.object(sb, 'get_probe_state', return_value=(state, checked_at)):
+            assert sb.availability(MagicMock()) == (want, checked_at)

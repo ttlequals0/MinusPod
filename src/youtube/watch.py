@@ -2,7 +2,9 @@
 import logging
 from datetime import datetime, timedelta
 
+from config import DEFER_SERVICE_SPONSORBLOCK
 from database.queue import compute_queue_priority
+from offline_queue import record_probe_state
 from utils.json_fields import load_json_list
 from utils.markers import parse_ad_markers
 from utils.time import parse_iso_utc, utc_now, utc_now_iso
@@ -14,7 +16,7 @@ BATCH = 50
 MAX_BACKOFF = timedelta(hours=24)
 TERMINAL = ('llm', 'exhausted')
 IN_FLIGHT = ('pending', 'processing')
-RETRY_SOON = timedelta(minutes=5)
+RETRY_SOON = sponsorblock.RETRY_SOON
 
 
 def schedule_new_episode(db, slug, episode_id, resolved) -> bool:
@@ -165,13 +167,24 @@ def sponsorblock_tick(db):
     """Probe SponsorBlock for due YouTube episodes and queue the ones that are ready."""
     if not yt_settings.enabled(db):
         return
-    from main_app import storage  # lazy: see queue_for_processing
     now = utc_now()
+    was_reachable = sponsorblock.availability(db)[0]
+    due = db.get_due_sponsorblock_episodes(now.isoformat(), BATCH)
+    # A good verdict stands until a fetch fails; probe only to find out or to detect recovery.
+    if was_reachable is not True:
+        reachable = sponsorblock.record_availability(db)
+        if reachable and was_reachable is False:
+            logger.info("SponsorBlock is reachable again; resuming held episodes")
+        elif not reachable and was_reachable is not False:
+            logger.warning("SponsorBlock is unreachable; holding YouTube episodes that wait on it")
+        if not reachable:
+            return
+    from main_app import storage  # lazy: see queue_for_processing
     base = yt_settings.load_global(db)
     podcasts = {}
     request_failed = False
     deferred = 0
-    for row in db.get_due_sponsorblock_episodes(now.isoformat(), BATCH):
+    for row in due:
         slug = row['slug']
         try:
             if request_failed:
@@ -193,5 +206,7 @@ def sponsorblock_tick(db):
             except Exception:
                 logger.exception(f"[{slug}:{row.get('episode_id')}] SponsorBlock retry reschedule failed")
     if request_failed:
+        if was_reachable is True:
+            record_probe_state(db, DEFER_SERVICE_SPONSORBLOCK, False)
         logger.warning(f"SponsorBlock request failed; deferred {deferred} remaining episode(s) by "
                        f"{int(RETRY_SOON.total_seconds() // 60)} min")

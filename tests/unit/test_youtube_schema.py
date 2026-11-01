@@ -95,3 +95,20 @@ def test_missing_metadata_selection(db):
     rows = db.get_youtube_episodes_missing_metadata(10)
     assert sorted(r['episode_id'] for r in rows) == ['e1', 'e2']
     assert rows[0]['slug'] == 'yt-show'
+
+
+def test_sb_waiting_index_is_created_on_upgrade_without_losing_rows(tmp_path):
+    Database._instance = None
+    first = Database(str(tmp_path))
+    first.create_podcast('yt-show', 'youtube://playlist/PL1', feed_type='youtube')
+    first.upsert_episode('yt-show', 'a1b2c3d4e5f6', original_url='u', status='discovered')
+    first.update_episode_sponsorblock('yt-show', 'a1b2c3d4e5f6', sb_state='waiting')
+    first.get_connection().execute("DROP INDEX idx_episodes_sb_waiting")
+    first.get_connection().commit()
+    Database._instance = None
+    upgraded = Database(str(tmp_path))
+    names = {r[0] for r in upgraded.get_connection().execute(
+        "SELECT name FROM sqlite_master WHERE type = 'index'")}
+    assert 'idx_episodes_sb_waiting' in names
+    assert upgraded.count_sponsorblock_waiting() == 1
+    Database._instance = None

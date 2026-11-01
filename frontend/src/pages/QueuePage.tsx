@@ -107,7 +107,7 @@ function ActiveQueue({
       ) : (
         <p className="text-sm text-muted-foreground">No episodes are processing right now.</p>
       )}
-      {hold && (hold.queuePaused || hold.offlineHeld > 0) && (
+      {hold && (hold.queuePaused || hold.offlineHeld > 0 || hold.offlineServices.some((s) => s.held > 0 || s.reachable === false)) && (
         <div className="mt-4 rounded-lg border border-warning/40 bg-warning/10 p-3 text-sm text-foreground">
           <p className="font-medium text-warning">Queue hold</p>
           {hold.queuePaused && <p className="mt-1">New work is waiting for the provider limit to reset.</p>}

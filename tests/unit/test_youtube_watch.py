@@ -121,6 +121,8 @@ def _patch_tick(monkeypatch, retained=True):
     monkeypatch.setattr('main_app.storage.get_original_path', lambda slug, eid: original)
     monkeypatch.setattr(watch.yt_settings, 'resolve_feed', lambda db, podcast, base=None: SETTINGS)
     queued = []
+    monkeypatch.setattr(watch.sponsorblock, 'record_availability', lambda db: True)
+    monkeypatch.setattr(watch.sponsorblock, 'availability', lambda db: (True, None))
     monkeypatch.setattr(watch, 'queue_for_processing',
                         lambda db, row, podcast, *, recut: queued.append((row['episode_id'], recut)))
     return queued
@@ -285,3 +287,68 @@ def test_tick_known_duration_mismatch_counts_as_no_marks(monkeypatch):
     assert queued == []
     fields = db.update_episode_sponsorblock_by_pk.call_args.kwargs
     assert fields['sb_attempts'] == 2 and fields['sb_state'] == 'probing' and fields['sb_next_check_at']
+
+
+def test_tick_returns_early_when_sponsorblock_is_unreachable(monkeypatch):
+    queued = _patch_tick(monkeypatch)
+    monkeypatch.setattr(watch.sponsorblock, 'availability', lambda db: (False, None))
+    monkeypatch.setattr(watch.sponsorblock, 'record_availability', lambda db: False)
+    fetched = []
+    monkeypatch.setattr(watch.sponsorblock, 'fetch_segments', lambda vid: fetched.append(vid) or MARK)
+    db = _tick_db([_tick_row('a1', state='waiting', uuids='[]')])
+    watch.sponsorblock_tick(db)
+    assert fetched == [] and queued == []
+    db.update_episode_sponsorblock_by_pk.assert_not_called()
+
+
+def _probe_calls(monkeypatch, stored, verdict, rows):
+    _patch_tick(monkeypatch)
+    probes = []
+    monkeypatch.setattr(watch.sponsorblock, 'availability', lambda db: (stored, None))
+    monkeypatch.setattr(watch.sponsorblock, 'record_availability', lambda db: probes.append(1) or verdict)
+    monkeypatch.setattr(watch.sponsorblock, 'fetch_segments', lambda vid: MARK)
+    watch.sponsorblock_tick(_tick_db(rows))
+    return probes
+
+
+def test_tick_probes_only_when_the_stored_verdict_is_not_true(monkeypatch):
+    row = [_tick_row('a1', state='waiting', uuids='[]')]
+    assert _probe_calls(monkeypatch, True, True, row) == []
+    assert _probe_calls(monkeypatch, True, True, []) == []
+    assert _probe_calls(monkeypatch, False, True, []) == [1]
+    assert _probe_calls(monkeypatch, None, True, []) == [1]
+
+
+def test_tick_false_verdict_probes_and_returns_early_while_down(monkeypatch):
+    probes = _probe_calls(monkeypatch, False, False, [_tick_row('a1', state='waiting', uuids='[]')])
+    assert probes == [1]
+
+
+def test_tick_fetch_failure_with_good_verdict_records_the_outage(monkeypatch):
+    _patch_tick(monkeypatch)
+    recorded = []
+    monkeypatch.setattr(watch, 'record_probe_state', lambda db, service, ok: recorded.append((service, ok)))
+    monkeypatch.setattr(watch.sponsorblock, 'fetch_segments', lambda vid: None)
+    db = _tick_db([_tick_row(f'a{i}', state='waiting', uuids='[]') for i in range(2)])
+    watch.sponsorblock_tick(db)
+    assert recorded == [('sponsorblock', False)]
+    assert db.update_episode_sponsorblock_by_pk.call_count == 2
+
+
+def test_tick_logs_transitions_from_the_stored_verdict(monkeypatch, caplog):
+    def run(stored, verdict):
+        caplog.clear()
+        with caplog.at_level('INFO', logger=watch.logger.name):
+            _probe_calls(monkeypatch, stored, verdict, [_tick_row('a1', state='waiting', uuids='[]')])
+        return [r.levelname for r in caplog.records if 'SponsorBlock is' in r.getMessage()]
+    assert run(None, False) == ['WARNING']
+    assert run(False, False) == []
+    assert run(False, True) == ['INFO']
+    assert run(None, True) == []
+
+
+def test_tick_processes_when_sponsorblock_is_reachable(monkeypatch):
+    queued = _patch_tick(monkeypatch)
+    monkeypatch.setattr(watch.sponsorblock, 'fetch_segments', lambda vid: MARK)
+    watch.sponsorblock_tick(_tick_db([_tick_row('a1', state='waiting', uuids='[]')]))
+    assert queued == [('a1', False)]

@@ -295,7 +295,7 @@ export interface SbCandidate {
   submission: SbSubmission | null;
 }
 
-export type SbCandidatesReason = 'not_youtube' | 'disabled' | 'no_user_id' | 'community_marks' | 'no_video_id' | 'marks_unverified' | 'not_completed';
+export type SbCandidatesReason = 'not_youtube' | 'disabled' | 'no_user_id' | 'community_marks' | 'no_video_id' | 'marks_unverified' | 'not_completed' | 'service_down';
 
 export interface SbCandidatesResponse {
   allowed: boolean;

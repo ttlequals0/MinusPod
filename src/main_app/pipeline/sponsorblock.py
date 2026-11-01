@@ -92,6 +92,13 @@ def acquire(slug, episode_id, episode_url, podcast, episode_data, reprocess_mode
     want_captions = resolved.captions_as_transcript and (
         reprocess_mode in FORCE_TRANSCRIBE_MODES or not storage.get_transcript(slug, episode_id))
 
+    manual = bool(reprocess_mode) or (episode_data or {}).get('reprocess_source') is not None
+    exhausted = (episode_data or {}).get('sb_state') == 'exhausted'
+    forced = manual or exhausted
+    if not forced and sponsorblock.is_unreachable(db):
+        gap = timedelta(minutes=resolved.probe_interval_minutes)
+        raise SponsorBlockDeferred('SponsorBlock is unreachable', (utc_now() + gap).isoformat())
+
     original = storage.get_original_path(slug, episode_id)
     segments = []
     if original and os.path.exists(original):
@@ -125,9 +132,6 @@ def acquire(slug, episode_id, episode_url, podcast, episode_data, reprocess_mode
             marks = sponsorblock.fetch_segments(video_id)
         markers, note = sponsorblock.to_markers(marks or [], duration)
         _name_marks(markers, segments)
-        manual = bool(reprocess_mode) or (episode_data or {}).get('reprocess_source') is not None
-        exhausted = (episode_data or {}).get('sb_state') == 'exhausted'
-        forced = manual or exhausted
         no_captions = want_captions and not segments and not resolved.transcribe_fallback
         if no_captions:
             if markers:

@@ -181,3 +181,13 @@ def test_submit_rate_limited_is_429_and_error_is_502_and_retryable(seeded):
     assert resp.status_code == 502 and resp.get_json()['results'][0]['status'] == 'error'
     with patch('youtube.sponsorblock_submit.submit', return_value=('submitted', '', [{'UUID': 'ok', 'segment': [10.0, 40.0]}])):
         assert _post(client, [{'start': 10.0, 'end': 40.0}]).status_code == 200
+
+
+def test_candidates_and_submit_refused_while_sponsorblock_is_unreachable(seeded):
+    client, db = seeded
+    with patch('youtube.sponsorblock.is_unreachable', return_value=True):
+        assert _candidates(client)['reason'] == 'service_down'
+        with patch('youtube.sponsorblock_submit.submit') as send:
+            assert _post(client, [{'start': 10.0, 'end': 40.0}]).status_code == 400
+        send.assert_not_called()
+    assert _candidates(client)['reason'] is None

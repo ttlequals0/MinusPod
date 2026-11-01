@@ -84,6 +84,8 @@ vi.mock('../api/settings', () => ({
   updateSettings: vi.fn(),
   resetSettings: vi.fn(),
   resetPrompts: vi.fn(),
+  generateSbUserId: vi.fn(),
+  getSbUserId: vi.fn(),
   resetPrompt: (...a: unknown[]) => mockResetPrompt(...a),
   getModels: vi.fn().mockResolvedValue([]),
   modelsQueryOptionsFor: (provider: string, slot: string) => ({

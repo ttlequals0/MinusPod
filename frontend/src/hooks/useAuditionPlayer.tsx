@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 // Shared windowed-audio player: one hidden <audio> element per consumer plays
 // the [startS, endS] window of an original-audio URL, one row at a time.
@@ -101,11 +101,16 @@ export function useAuditionPlayer(preloadSrc?: string) {
     else play(key, src, startS, endS);
   };
 
+  // React passes null on unmount; ignoring it keeps the element for the cleanup below.
+  const attachAudio = useCallback((el: HTMLAudioElement | null) => {
+    if (el) audioRef.current = el;
+  }, []);
+
   useEffect(() => () => { clearStop(); audioRef.current?.pause(); }, []);
 
   const audioElement = (
     <audio
-      ref={audioRef}
+      ref={attachAudio}
       src={preloadSrc}
       preload={preloadSrc ? 'metadata' : 'none'}
       onPause={() => {

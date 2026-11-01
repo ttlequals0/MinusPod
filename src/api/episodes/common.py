@@ -3,7 +3,7 @@
 from utils.markers import parse_ad_markers
 from database.podcasts import is_youtube_feed
 from utils.json_fields import load_json_list
-from youtube import settings as yt_settings
+from youtube import settings as yt_settings, sponsorblock
 from utils.constants import EpisodeStatus
 
 
@@ -57,4 +57,6 @@ def sponsorblock_block_reason(db, podcast, episode) -> str | None:
         return 'disabled'
     if not yt_settings.sb_user_id(db):
         return 'no_user_id'
+    if sponsorblock.is_unreachable(db):
+        return 'service_down'
     return None

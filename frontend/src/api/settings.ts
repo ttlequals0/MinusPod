@@ -581,3 +581,11 @@ export async function uploadReplacementAudio(file: File): Promise<ReplacementAud
 export async function revertReplacementAudio(): Promise<ReplacementAudio> {
   return apiRequest<ReplacementAudio>('/settings/replacement-audio', { method: 'DELETE' });
 }
+
+export async function generateSbUserId(): Promise<{ sbUserId: string }> {
+  return apiRequest('/settings/youtube/sb-user-id/generate', { method: 'POST' });
+}
+
+export async function getSbUserId(): Promise<{ sbUserId: string }> {
+  return apiRequest('/settings/youtube/sb-user-id');
+}

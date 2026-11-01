@@ -160,13 +160,17 @@ SponsorBlock categories map to MinusPod segment categories:
 
 What happens to a mark is decided by the per-category segment action in Settings > Segment categories, with a per-feed override: Remove, Beep, Keep or Mark. A SponsorBlock `mute` mark is beeped when its category is set to cut, and left alone when the category is set to keep or mark. The `full` action (the whole video is a sponsored segment) is never cut; it only adds the note shown in the episode state.
 
+When a SponsorBlock lookup fails, the watcher marks the API as down and checks it on every pass until it answers again. While it is unreachable, YouTube episodes waiting on it are held without counting attempts, submissions are refused, and the status bar shows SponsorBlock as unreachable. Other feeds keep processing, and the held episodes resume on the next pass once it is back.
+
 ## Submitting confirmed ads to SponsorBlock
 
 MinusPod can help you send the ads it cut back to SponsorBlock, but only by hand. SponsorBlock's rules forbid automated submissions, so MinusPod never submits on its own. A person reviews each segment and chooses to send it.
 
-Turn on **Allow SponsorBlock submissions** in Settings > YouTube and enter your SponsorBlock user ID. It is off by default. The ID is stored encrypted and never shown again. Each submission carries the reputation of that ID, so use an account you are willing to be judged by.
+Turn on **Allow SponsorBlock submissions** in Settings > YouTube and enter your SponsorBlock user ID. It is off by default. The ID is stored encrypted and hidden by default; **Show** reveals it and **Copy** copies it. Each submission carries the reputation of that ID, so use an account you are willing to be judged by.
 
-On the episode page of a YouTube episode, open the SponsorBlock review. Every box starts unchecked. Tick the segments you have checked against the video, then choose **Submit**. A request sends at most 20 segments. Submission waits until SponsorBlock has confirmed the video has no community marks.
+You do not need the SponsorBlock browser extension. Choose **Generate** beside the field and MinusPod makes a random ID and stores it. Use **Show** and **Copy** any time to read the stored ID. Pasting it into the extension under Options, Import lets you see your submissions there. Generate only works while no ID is stored, and a generated ID cannot be cleared or replaced. **Clear user ID** only applies to an ID you pasted yourself. A new ID has no reputation, so its first segments stay hidden from other users until they are upvoted.
+
+On the episode page of a YouTube episode, open the SponsorBlock review. Every box starts unchecked. Each segment has a play button so you can listen to the span before ticking it. Tick the segments you have checked against the video, then choose **Submit**. A request sends at most 20 segments. Submission waits until SponsorBlock has confirmed the video has no community marks.
 
 A segment is listed when all of these hold:
 

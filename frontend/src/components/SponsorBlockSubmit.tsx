@@ -1,9 +1,11 @@
 import { useId, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { getSponsorBlockCandidates, submitSponsorBlock } from '../api/feeds';
+import { episodeOriginalUrl, getSponsorBlockCandidates, submitSponsorBlock } from '../api/feeds';
 import { getErrorMessage } from '../api/client';
 import type { SbCandidate, SbCandidatesReason } from '../api/types';
+import { useAuditionPlayer } from '../hooks/useAuditionPlayer';
 import { formatTimestamp } from '../utils/format';
+import { AuditionPlayButton } from './AuditionPlayButton';
 import { btnBase, btnPrimary, btnSecondary } from './buttonStyles';
 import CloseButton from './CloseButton';
 import Checkbox from './Checkbox';
@@ -20,6 +22,7 @@ const REASON_TEXT: Record<SbCandidatesReason, string> = {
   no_video_id: 'This episode has no YouTube video ID to submit against.',
   marks_unverified: 'SponsorBlock has not confirmed yet that this video has no community marks.',
   not_completed: 'Submission opens once processing has completed.',
+  service_down: 'SponsorBlock is unreachable right now. Try again later.',
 };
 
 const STATUS_TEXT: Record<string, string> = {
@@ -32,10 +35,15 @@ const STATUS_TEXT: Record<string, string> = {
 
 const keyOf = (c: SbCandidate) => `${c.start}-${c.end}`;
 
-function SubmitDialog({ slug, episodeId, onClose }: { slug: string; episodeId: string; onClose: () => void }) {
+function SubmitDialog({ slug, episodeId, hasOriginalAudio, onClose }: {
+  slug: string; episodeId: string; hasOriginalAudio: boolean; onClose: () => void;
+}) {
   const queryClient = useQueryClient();
   const titleId = useId();
   const [picked, setPicked] = useState<Set<string>>(new Set());
+  // Candidate times are original-audio times; the hook pauses on unmount.
+  const audition = useAuditionPlayer();
+  const originalUrl = episodeOriginalUrl(slug, episodeId);
 
   const { data, isLoading, error: loadError } = useQuery({
     queryKey: ['sb-candidates', slug, episodeId],
@@ -110,9 +118,19 @@ function SubmitDialog({ slug, episodeId, onClose }: { slug: string; episodeId: s
               const key = keyOf(c);
               const done = c.submission?.status === 'submitted' || c.submission?.status === 'duplicate';
               const id = `sb-seg-${key}`;
+              const from = formatTimestamp(c.start);
+              const to = formatTimestamp(c.end);
               return (
-                <li key={key} className="rounded-lg border border-border p-3">
-                  <label htmlFor={id} className={`flex items-start gap-3 min-h-11 ${done ? '' : 'cursor-pointer'}`}>
+                <li key={key} className="flex items-start gap-3 rounded-lg border border-border p-3">
+                  {/* Outside the label so a tap on play never toggles the checkbox. */}
+                  <AuditionPlayButton
+                    playing={audition.playingKey === key}
+                    onClick={() => audition.toggle(key, originalUrl, c.start, c.end)}
+                    label={`segment ${from} to ${to}`}
+                    disabled={!hasOriginalAudio}
+                    title={hasOriginalAudio ? undefined : 'The original audio is no longer kept'}
+                  />
+                  <label htmlFor={id} className={`flex flex-1 min-w-0 items-start gap-3 min-h-11 ${done ? '' : 'cursor-pointer'}`}>
                     <Checkbox
                       id={id}
                       checked={picked.has(key)}
@@ -122,7 +140,7 @@ function SubmitDialog({ slug, episodeId, onClose }: { slug: string; episodeId: s
                     />
                     <span className="min-w-0 flex-1 space-y-1">
                       <span className="flex flex-wrap items-center gap-2">
-                        <span className="font-mono text-sm">{formatTimestamp(c.start)} - {formatTimestamp(c.end)}</span>
+                        <span className="font-mono text-sm">{from} - {to}</span>
                         <SegmentCategoryBadge category={c.category} />
                         {c.submission && (
                           <span className="text-xs text-muted-foreground">
@@ -140,20 +158,23 @@ function SubmitDialog({ slug, episodeId, onClose }: { slug: string; episodeId: s
             })}
           </ul>
         )}
+        {audition.audioElement}
         {submit.error && <p role="alert" className="text-sm text-destructive">{getErrorMessage(submit.error, 'Could not submit to SponsorBlock.')}</p>}
       </div>
     </Modal>
   );
 }
 
-function SponsorBlockSubmit({ slug, episodeId }: { slug: string; episodeId: string }) {
+function SponsorBlockSubmit({ slug, episodeId, hasOriginalAudio = true }: {
+  slug: string; episodeId: string; hasOriginalAudio?: boolean;
+}) {
   const [open, setOpen] = useState(false);
   return (
     <>
       <button type="button" className={`${btnBase} ${btnSecondary}`} onClick={() => setOpen(true)}>
         Submit to SponsorBlock
       </button>
-      {open && <SubmitDialog slug={slug} episodeId={episodeId} onClose={() => setOpen(false)} />}
+      {open && <SubmitDialog slug={slug} episodeId={episodeId} hasOriginalAudio={hasOriginalAudio} onClose={() => setOpen(false)} />}
     </>
   );
 }

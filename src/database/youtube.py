@@ -58,6 +58,11 @@ class YouTubeMixin:
         conn.commit()
         return cur.rowcount > 0
 
+    def count_sponsorblock_waiting(self) -> int:
+        row = self.get_connection().execute(
+            "SELECT COUNT(*) FROM episodes WHERE sb_state IN ('waiting', 'probing')").fetchone()
+        return row[0]
+
     def get_due_sponsorblock_episodes(self, now_iso: str, limit: int = 50) -> list[dict]:
         cursor = self.get_connection().execute(
             """SELECT e.id, e.episode_id, e.title, e.original_url, e.published_at, e.description,

@@ -92,6 +92,7 @@ def _run(markers, *, llm_on_top=False, llm_fallback=True, episode_row=None, capt
             fetch_captions = p(sb_stage.download, 'fetch_captions', return_value=caption_file)
             p(common, '_copy_retained_original_to_temp', return_value=audio)
             p(sb_stage.captions, 'load_segments', return_value=SEGMENTS if captions else [])
+            p(sb_stage.sponsorblock, 'is_unreachable', return_value=False)
             p(sb_stage.sponsorblock, 'fetch_segments',
               return_value=([{'UUID': 'u1'}] if markers else []) if fetch_result is ... else fetch_result)
             if fetch_result is ...:
@@ -606,3 +607,45 @@ def test_episode_json_carries_sponsorblock_block_only_for_youtube():
     block = core._episode_base_json(ep, is_youtube=True)['sponsorBlock']
     assert block == {'state': 'done', 'attempts': 2, 'nextCheckAt': 'n', 'segmentCount': 2,
                      'note': 'nt', 'lastError': None, 'submissions': []}
+
+
+class _Stop(Exception):
+    pass
+
+
+def _acquire(unreachable, *, episode_data=None, reprocess_mode=None):
+    """Call sb_stage.acquire with the download stubbed; returns (download mock, result or exception)."""
+    with ExitStack() as stack:
+        p = lambda *a, **k: stack.enter_context(patch.object(*a, **k))
+        p(sb_stage, 'db')
+        p(sb_stage.yt_settings, 'resolve_feed', return_value=_settings())
+        p(sb_stage.sponsorblock, 'is_unreachable', return_value=unreachable)
+        p(sb_stage, 'storage').get_original_path.return_value = None
+        p(sb_stage.common, '_publish_status')
+        download = p(sb_stage.download, 'download', side_effect=_Stop())
+        try:
+            sb_stage.acquire('yt-feed', 'ep1', 'https://example.com/v', PODCAST,
+                             dict(episode_data or {}, youtube_video_id='vid000000001'), reprocess_mode)
+            outcome = None
+        except (sb_stage.SponsorBlockDeferred, _Stop) as exc:
+            outcome = exc
+    return download, outcome
+
+
+def test_acquire_defers_before_download_when_sponsorblock_is_unreachable():
+    download, outcome = _acquire(True, episode_data={'sb_state': 'probing'})
+    assert isinstance(outcome, sb_stage.SponsorBlockDeferred) and 'unreachable' in str(outcome)
+    download.assert_not_called()
+
+
+def test_acquire_proceeds_when_forced_even_if_unreachable():
+    for data, mode in (({'sb_state': 'probing'}, 'full'), ({'sb_state': 'exhausted'}, None)):
+        download, outcome = _acquire(True, episode_data=data, reprocess_mode=mode)
+        assert isinstance(outcome, _Stop)
+        download.assert_called_once()
+
+
+def test_acquire_proceeds_when_reachable():
+    download, outcome = _acquire(False, episode_data={'sb_state': 'probing'})
+    assert isinstance(outcome, _Stop)
+    download.assert_called_once()

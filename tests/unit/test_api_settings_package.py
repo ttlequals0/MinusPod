@@ -68,6 +68,8 @@ EXPECTED_RULES = [
     ('/api/v1/settings/youtube', ('GET',)),
     ('/api/v1/settings/youtube', ('PUT',)),
     ('/api/v1/settings/youtube/reset', ('POST',)),
+    ('/api/v1/settings/youtube/sb-user-id', ('GET',)),
+    ('/api/v1/settings/youtube/sb-user-id/generate', ('POST',)),
 ]
 
 

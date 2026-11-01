@@ -1,10 +1,13 @@
 import { useState } from 'react';
+import { Eye, EyeOff } from 'lucide-react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import CollapsibleSection from '../../components/CollapsibleSection';
 import { SkeletonRows } from '../../components/Skeleton';
 import ToggleSwitch from '../../components/ToggleSwitch';
 import NumberInput from '../../components/NumberInput';
-import { getErrorMessage } from '../../api/client';
+import CopyButton from '../../components/CopyButton';
+import { ApiError, getErrorMessage } from '../../api/client';
+import { generateSbUserId, getSbUserId } from '../../api/settings';
 import {
   getYouTubeSettings,
   updateYouTubeSettings,
@@ -16,7 +19,7 @@ import {
   type YouTubeSettings,
   type YouTubeSettingsUpdate,
 } from '../../api/youtube';
-import { btnBase, btnSecondary } from '../../components/buttonStyles';
+import { btnBase, btnGhost, btnSecondary, touchTarget } from '../../components/buttonStyles';
 import { inputBase, labelBase, textareaBase } from '../../components/fieldStyles';
 import { subHeading } from '../../components/pageStyles';
 import { formatDateTime } from '../../utils/format';
@@ -35,6 +38,15 @@ const NUMBER_ROWS: { field: NumberField; label: string }[] = [
   { field: 'sbWatchMaxDays', label: 'Watch ceiling (days)' },
 ];
 
+const ID_ERRORS: Record<string, string> = {
+  generated: 'A generated user ID cannot be cleared or replaced. Reload the page.',
+  configured: 'A user ID is already saved. Clear it first to generate a new one.',
+  provider_crypto_unavailable: 'Secret encryption is unavailable, so an ID cannot be stored. Set the master passphrase first.',
+};
+
+const idErrorMessage = (e: unknown, fallback: string) =>
+  (e instanceof ApiError && e.status === 409 && ID_ERRORS[e.message]) || getErrorMessage(e, fallback);
+
 function YouTubeSection() {
   const qc = useQueryClient();
   const { data, isPending, isError, isFetching, refetch } = useQuery({ queryKey: ['youtubeSettings'], queryFn: getYouTubeSettings });
@@ -43,6 +55,7 @@ function YouTubeSection() {
   const [cookiesDraft, setCookiesDraft] = useState('');
   const [idDraft, setIdDraft] = useState('');
   const [idError, setIdError] = useState<string | null>(null);
+  const [shownId, setShownId] = useState<string | null>(null);
   const [keyError, setKeyError] = useState<string | null>(null);
   const [keyTest, setKeyTest] = useState<{ ok: boolean; text: string } | null>(null);
   const [cookiesError, setCookiesError] = useState<string | null>(null);
@@ -58,6 +71,8 @@ function YouTubeSection() {
     qc.invalidateQueries({ queryKey: ['youtubeSettings'] });
     qc.invalidateQueries({ queryKey: ['settings'] });
   };
+
+  const hideId = () => setShownId(null);
 
   const setCookies = (cookies: YouTubeSettings['cookies']) => {
     qc.setQueryData<YouTubeSettings>(['youtubeSettings'], (old) => (old ? { ...old, cookies } : old));
@@ -80,8 +95,25 @@ function YouTubeSection() {
 
   const saveId = useMutation({
     mutationFn: (sbUserId: string | null) => updateYouTubeSettings({ sbUserId }),
-    onSuccess: (updated) => { qc.setQueryData(['youtubeSettings'], updated); setIdError(null); setIdDraft(''); qc.invalidateQueries({ queryKey: ['settings'] }); },
-    onError: (e: unknown) => setIdError(getErrorMessage(e, 'Could not save the SponsorBlock user ID.')),
+    onSuccess: (updated) => { qc.setQueryData(['youtubeSettings'], updated); setIdError(null); setIdDraft(''); hideId(); qc.invalidateQueries({ queryKey: ['settings'] }); },
+    onError: (e: unknown) => setIdError(idErrorMessage(e, 'Could not save the SponsorBlock user ID.')),
+  });
+
+  const generateId = useMutation({
+    mutationFn: generateSbUserId,
+    onSuccess: (r) => {
+      setIdError(null);
+      setIdDraft('');
+      setShownId(r.sbUserId);
+      refresh();
+    },
+    onError: (e: unknown) => setIdError(idErrorMessage(e, 'Could not generate a SponsorBlock user ID.')),
+  });
+
+  const showId = useMutation({
+    mutationFn: getSbUserId,
+    onSuccess: (r) => { setIdError(null); setShownId(r.sbUserId); },
+    onError: (e: unknown) => setIdError(getErrorMessage(e, 'Could not read the SponsorBlock user ID.')),
   });
 
   const testKey = useMutation({
@@ -123,7 +155,9 @@ function YouTubeSection() {
   const proxyErr = settingsError?.field === 'proxyUrl' ? settingsError.message : null;
   const argsErr = settingsError?.field === 'ytdlpExtraArgs' ? settingsError.message : null;
   const settingsBusy = saveSettings.isPending || resetAll.isPending;
-  const idBusy = saveId.isPending || resetAll.isPending;
+  const idBusy = saveId.isPending || generateId.isPending || resetAll.isPending;
+  const revealed = shownId !== null;
+  const generated = data?.sbUserIdGenerated ?? false;
   const keyBusy = saveKey.isPending || testKey.isPending;
   const cookiesBusy = saveCookies.isPending || clearCookies.isPending;
 
@@ -217,39 +251,84 @@ function YouTubeSection() {
             {data.sbSubmitEnabled && !data.sbUserIdConfigured && (
               <p role="alert" className="text-sm text-warning">Submissions are enabled but no SponsorBlock private user ID is saved. The submit button stays unavailable until one is.</p>
             )}
-            <label htmlFor="yt-sb-user-id" className={labelBase}>SponsorBlock private user ID</label>
-            <input
-              id="yt-sb-user-id"
-              type="password"
-              autoComplete="off"
-              className={`${inputBase} w-full max-w-md`}
-              placeholder={data.sbUserIdConfigured ? 'Stored' : ''}
-              value={idDraft}
-              disabled={idBusy}
-              onChange={(e) => setIdDraft(e.target.value)}
-              aria-invalid={idError ? true : undefined}
-              aria-describedby={`yt-sb-submit-help${idError ? ' yt-sb-user-id-error' : ''}`}
-            />
-            <div className="flex flex-wrap items-center gap-2">
-              <button
-                type="button"
-                className={`${btnBase} ${btnSecondary}`}
-                disabled={!idDraft.trim() || idBusy}
-                onClick={() => saveId.mutate(idDraft.trim())}
-              >
-                {saveId.isPending ? 'Saving...' : 'Save user ID'}
-              </button>
-              <button
-                type="button"
-                className={`${btnBase} ${btnSecondary}`}
-                disabled={!data.sbUserIdConfigured || idBusy}
-                onClick={() => saveId.mutate(null)}
-              >
-                Clear user ID
-              </button>
-              {saveId.isSuccess && !idError && <SavedBadge />}
-            </div>
+            <label htmlFor={generated ? undefined : 'yt-sb-user-id'} className={labelBase}>SponsorBlock private user ID</label>
+            {!generated && (
+              <>
+                <input
+                  id="yt-sb-user-id"
+                  type="password"
+                  autoComplete="off"
+                  className={`${inputBase} w-full max-w-md`}
+                  placeholder={data.sbUserIdConfigured ? 'Stored' : ''}
+                  value={idDraft}
+                  disabled={idBusy}
+                  onChange={(e) => setIdDraft(e.target.value)}
+                  aria-invalid={idError ? true : undefined}
+                  aria-describedby={`yt-sb-submit-help${idError ? ' yt-sb-user-id-error' : ''}`}
+                />
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    className={`${btnBase} ${btnSecondary}`}
+                    disabled={!idDraft.trim() || idBusy}
+                    onClick={() => saveId.mutate(idDraft.trim())}
+                  >
+                    {saveId.isPending ? 'Saving...' : 'Save user ID'}
+                  </button>
+                  {data.sbUserIdConfigured ? (
+                    <button
+                      type="button"
+                      className={`${btnBase} ${btnSecondary}`}
+                      disabled={idBusy}
+                      onClick={() => saveId.mutate(null)}
+                    >
+                      Clear user ID
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      className={`${btnBase} ${btnGhost} ${touchTarget}`}
+                      disabled={idBusy}
+                      onClick={() => generateId.mutate()}
+                    >
+                      {generateId.isPending ? 'Generating...' : 'Generate'}
+                    </button>
+                  )}
+                  {saveId.isSuccess && !idError && <SavedBadge />}
+                </div>
+              </>
+            )}
             {idError && <p id="yt-sb-user-id-error" role="alert" className="text-sm text-destructive">{idError}</p>}
+            {data.sbUserIdConfigured && (
+              <div className="space-y-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  <code
+                    data-testid="sb-user-id-value"
+                    className={`${inputBase} min-w-0 flex-1 basis-64 max-w-md break-all font-mono h-auto ${revealed ? 'select-all' : 'tracking-widest'}`}
+                  >
+                    {shownId ?? '\u2022'.repeat(24)}
+                  </code>
+                  <button
+                    type="button"
+                    className={`${btnBase} ${btnGhost} ${touchTarget} shrink-0`}
+                    aria-pressed={revealed}
+                    disabled={idBusy}
+                    onClick={() => (revealed ? hideId() : showId.mutate())}
+                  >
+                    {revealed ? <EyeOff className="w-4 h-4" aria-hidden="true" /> : <Eye className="w-4 h-4" aria-hidden="true" />}
+                    {revealed ? 'Hide' : 'Show'}
+                  </button>
+                  {revealed && (
+                    <CopyButton text={shownId} label="Copy" className={`${touchTarget} px-3 py-1.5 text-sm shrink-0`} labelClassName="text-sm" />
+                  )}
+                </div>
+                {revealed && (
+                  <p className="text-sm text-muted-foreground">
+                    Keep this private. Anyone with it can submit as you. To see your submissions in the SponsorBlock extension, paste it under Options, Import.
+                  </p>
+                )}
+              </div>
+            )}
           </div>
 
           <div className="pt-3 border-t border-border space-y-3">

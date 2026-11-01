@@ -266,3 +266,156 @@ def test_put_sb_validation(app_client, monkeypatch):
         resp = app_client.put('/api/v1/settings/youtube', json=payload, headers=headers)
         assert resp.status_code == 400, payload
     assert app_client.get('/api/v1/settings/youtube').get_json()['sbUserIdConfigured'] is False
+
+
+GENERATE_URL = '/api/v1/settings/youtube/sb-user-id/generate'
+REVEAL_URL = '/api/v1/settings/youtube/sb-user-id'
+
+
+def _clear_sb(db):
+    db.clear_secret('youtube_sb_user_id')
+    db.clear_secret('youtube_sb_user_id_generated')
+
+
+def _enable_crypto(monkeypatch):
+    import secrets_crypto
+    monkeypatch.setenv('MINUSPOD_MASTER_PASSPHRASE', 'test-pass-youtube')
+    secrets_crypto.reset_cache()
+
+
+def test_generate_sb_user_id_stores_and_returns_once(app_client, monkeypatch):
+    from api import get_database
+    from tests.integration.openapi_conformance import assert_response_conforms
+    _enable_crypto(monkeypatch)
+    _authed(app_client)
+    _clear_sb(get_database())
+    resp = app_client.post(GENERATE_URL, headers=_csrf_headers(app_client))
+    assert_response_conforms('post', '/settings/youtube/sb-user-id/generate', resp)
+    body = resp.get_json()
+    assert len(body['sbUserId']) == 48 and 'sbUserIdConfigured' not in body
+    assert get_database().get_secret('youtube_sb_user_id_generated') == body['sbUserId']
+    assert not get_database().get_secret('youtube_sb_user_id')
+    settings = app_client.get('/api/v1/settings/youtube').get_json()
+    assert settings['sbUserIdConfigured'] is True
+    assert body['sbUserId'] not in str(settings) and 'sbUserId' not in settings
+
+
+def test_generate_sb_user_id_conflicts_when_stored_and_ignores_replace(app_client, monkeypatch):
+    from api import get_database
+    _enable_crypto(monkeypatch)
+    _authed(app_client)
+    _clear_sb(get_database())
+    first = app_client.post(GENERATE_URL, headers=_csrf_headers(app_client)).get_json()['sbUserId']
+    for body in ({}, {'replace': True}):
+        resp = app_client.post(GENERATE_URL, json=body, headers=_csrf_headers(app_client))
+        assert resp.status_code == 409 and resp.get_json()['error'] == 'configured'
+    assert get_database().get_secret('youtube_sb_user_id_generated') == first
+
+
+def test_get_sb_user_id_reveals_stored_or_404(app_client, monkeypatch):
+    from api import get_database
+    from tests.integration.openapi_conformance import assert_response_conforms
+    _enable_crypto(monkeypatch)
+    _authed(app_client)
+    _clear_sb(get_database())
+    resp = app_client.get(REVEAL_URL)
+    assert resp.status_code == 404 and resp.get_json()['error'] == 'not_configured'
+    generated = app_client.post(GENERATE_URL, headers=_csrf_headers(app_client)).get_json()['sbUserId']
+    resp = app_client.get(REVEAL_URL)
+    assert_response_conforms('get', '/settings/youtube/sb-user-id', resp)
+    assert resp.get_json() == {'sbUserId': generated}
+
+
+def test_generate_sb_user_id_without_crypto_is_409(app_client, monkeypatch):
+    import secrets_crypto
+    from api import get_database
+    monkeypatch.delenv('MINUSPOD_MASTER_PASSPHRASE', raising=False)
+    secrets_crypto.reset_cache()
+    _authed(app_client)
+    resp = app_client.post(GENERATE_URL, headers=_csrf_headers(app_client))
+    assert resp.status_code == 409 and resp.get_json()['error'] == 'provider_crypto_unavailable'
+    assert get_database().get_secret('youtube_sb_user_id') in (None, '')
+
+
+
+def test_generated_flag_blocks_put_and_pasted_id_can_be_cleared(app_client, monkeypatch):
+    from api import get_database
+    _enable_crypto(monkeypatch)
+    _authed(app_client)
+    db = get_database()
+    _clear_sb(db)
+    pasted = 'p' * 40
+    resp = app_client.put('/api/v1/settings/youtube', json={'sbUserId': pasted}, headers=_csrf_headers(app_client))
+    assert resp.status_code == 200
+    assert resp.get_json()['sbUserIdConfigured'] is True and resp.get_json()['sbUserIdGenerated'] is False
+    resp = app_client.put('/api/v1/settings/youtube', json={'sbUserId': None}, headers=_csrf_headers(app_client))
+    assert resp.get_json()['sbUserIdConfigured'] is False and resp.get_json()['sbUserIdGenerated'] is False
+    generated = app_client.post(GENERATE_URL, headers=_csrf_headers(app_client)).get_json()['sbUserId']
+    assert app_client.get('/api/v1/settings/youtube').get_json()['sbUserIdGenerated'] is True
+    for body in ({'sbUserId': None}, {'sbUserId': ''}, {'sbUserId': pasted}, {'sbUserId': None, 'processDelayMinutes': 5}):
+        resp = app_client.put('/api/v1/settings/youtube', json=body, headers=_csrf_headers(app_client))
+        assert resp.status_code == 409 and resp.get_json()['error'] == 'generated'
+    assert db.get_secret('youtube_sb_user_id_generated') == generated
+    assert not db.get_secret('youtube_sb_user_id')
+    settings = app_client.get('/api/v1/settings/youtube').get_json()
+    assert settings['sbUserIdGenerated'] is True and settings['processDelayMinutes'] == 60
+    resp = app_client.put('/api/v1/settings/youtube', json={'processDelayMinutes': 5}, headers=_csrf_headers(app_client))
+    assert resp.status_code == 200 and resp.get_json()['sbUserIdGenerated'] is True
+
+
+def test_generate_conflicts_when_pasted_id_stored_and_reset_keeps_generated(app_client, monkeypatch):
+    from api import get_database
+    _enable_crypto(monkeypatch)
+    _authed(app_client)
+    db = get_database()
+    _clear_sb(db)
+    pasted = 'p' * 40
+    app_client.put('/api/v1/settings/youtube', json={'sbUserId': pasted}, headers=_csrf_headers(app_client))
+    assert db.get_secret('youtube_sb_user_id') == pasted and not db.get_secret('youtube_sb_user_id_generated')
+    resp = app_client.post(GENERATE_URL, headers=_csrf_headers(app_client))
+    assert resp.status_code == 409 and resp.get_json()['error'] == 'configured'
+    assert app_client.get(REVEAL_URL).get_json() == {'sbUserId': pasted}
+    _clear_sb(db)
+    generated = app_client.post(GENERATE_URL, headers=_csrf_headers(app_client)).get_json()['sbUserId']
+    reset = app_client.post('/api/v1/settings/youtube/reset', headers=_csrf_headers(app_client)).get_json()
+    assert reset['sbUserIdGenerated'] is True and db.get_secret('youtube_sb_user_id_generated') == generated
+
+
+def test_put_loses_to_a_generate_that_lands_between_its_check_and_write(app_client, monkeypatch):
+    from api import get_database
+    from api.settings import youtube as yt_api
+    _enable_crypto(monkeypatch)
+    _authed(app_client)
+    db = get_database()
+    _clear_sb(db)
+    real = yt_api.set_or_clear_secret
+
+    def racing(db_, key, value):
+        if key == 'youtube_sb_user_id':
+            real(db_, 'youtube_sb_user_id_generated', 'g' * 48)
+        return real(db_, key, value)
+    monkeypatch.setattr(yt_api, 'set_or_clear_secret', racing)
+    resp = app_client.put('/api/v1/settings/youtube', json={'sbUserId': 'p' * 40}, headers=_csrf_headers(app_client))
+    assert resp.status_code == 409 and resp.get_json()['error'] == 'generated'
+    assert not db.get_secret('youtube_sb_user_id')
+    assert db.get_secret('youtube_sb_user_id_generated') == 'g' * 48
+
+
+def test_generate_clears_a_pasted_id_written_concurrently(app_client, monkeypatch):
+    from api import get_database
+    from api.settings import youtube as yt_api
+    _enable_crypto(monkeypatch)
+    _authed(app_client)
+    db = get_database()
+    _clear_sb(db)
+    real = yt_api.set_or_clear_secret
+
+    def racing(db_, key, value):
+        real(db_, key, value)
+        if key == 'youtube_sb_user_id_generated':
+            real(db_, 'youtube_sb_user_id', 'p' * 40)
+    monkeypatch.setattr(yt_api, 'set_or_clear_secret', racing)
+    resp = app_client.post(GENERATE_URL, headers=_csrf_headers(app_client))
+    assert resp.status_code == 200
+    assert not db.get_secret('youtube_sb_user_id')
+    assert db.get_secret('youtube_sb_user_id_generated') == resp.get_json()['sbUserId']

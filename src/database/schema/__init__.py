@@ -723,6 +723,8 @@ class SchemaMixin:
                 self._add_column_if_missing(conn, 'episodes', col, definition, episode_cols)
             conn.execute("CREATE INDEX IF NOT EXISTS idx_episodes_sb_next_check "
                          "ON episodes(sb_next_check_at) WHERE sb_next_check_at IS NOT NULL")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_episodes_sb_waiting "
+                         "ON episodes(sb_state) WHERE sb_state IN ('waiting','probing')")
 
         # -- audio_cue_templates table columns --
         act_cols = self._get_table_columns(conn, 'audio_cue_templates')

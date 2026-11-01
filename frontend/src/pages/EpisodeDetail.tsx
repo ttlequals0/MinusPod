@@ -1522,7 +1522,7 @@ function EpisodeDetail() {
           <EpisodeRating slug={slug} episodeId={episodeId} rating={episode.rating} />
           {episode.sponsorBlock?.submitAllowed && (
             <div className="pt-4 border-t border-border">
-              <SponsorBlockSubmit slug={slug} episodeId={episodeId} />
+              <SponsorBlockSubmit slug={slug} episodeId={episodeId} hasOriginalAudio={episode.hasOriginalAudio} />
             </div>
           )}
         </div>

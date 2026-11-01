@@ -31,7 +31,9 @@ Key endpoints:
 - `POST /api/v1/feeds/refresh` - Refresh every subscribed feed. Returns per-feed outcomes and totals; HTTP 207 means the pass completed with at least one feed failure.
 - `GET/HEAD /api/v1/feeds/{slug}/artwork` - Serve cached feed artwork without admin authentication. Traversal-like or over-200-character legacy slugs are rejected before this public exemption.
 - `POST /api/v1/feeds` with `feedType: "youtube"` - Create a YouTube feed. Send `sourceKind` (`playlist` or `channel`), `sourceId` and `title`; `artworkUrl`, `includeShorts` and `maxEpisodes` are optional. Needs YouTube feeds enabled. The first listing runs before the response
-- `GET/PUT /api/v1/settings/youtube` - Read or update the global YouTube settings, yt-dlp status, cookie status and setting bounds. The Data API key is write-only (`apiKeyConfigured` in responses)
+- `GET/PUT /api/v1/settings/youtube` - Read or update the global YouTube settings, yt-dlp status, cookie status and setting bounds. The Data API key is write-only (`apiKeyConfigured` in responses). A generated SponsorBlock ID cannot be cleared or replaced: `PUT` with `sbUserId` returns 409 `error: "generated"` while one is stored, and `sbUserIdGenerated` reports it
+- `GET /api/v1/settings/youtube/sb-user-id` - Reveal the stored SponsorBlock private user ID as `sbUserId`, or 404 `not_configured` (10 per minute)
+- `POST /api/v1/settings/youtube/sb-user-id/generate` - Create and store a SponsorBlock private user ID for people without the browser extension. Returns 409 with `error: "configured"` whenever an ID is stored, and 409 with `error: "provider_crypto_unavailable"` when secret encryption is unavailable (10 per minute)
 - `POST /api/v1/youtube/preview` - Resolve a pasted playlist, channel or handle URL to a source plus RSS directory matches. Returns `enabled: false` with no lookup when the feature is off
 - `POST /api/v1/youtube/test-key` - Check a Data API key, or the stored one when `apiKey` is omitted
 - `POST /api/v1/youtube/cookies`, `DELETE /api/v1/youtube/cookies` - Save or remove the Netscape cookies file used by yt-dlp
@@ -175,7 +177,7 @@ Key endpoints:
 }
 ```
 
-`queuePaused` is true only while a rate-limit hold is stopping new claims; `holdUntil` is the provider's own reset time and `holdSince` is when the pause began, both null once the reset has passed. An offline wait parks specific episodes and leaves the rest of the queue running, so it never sets `queuePaused`. `offlineHeld` counts every episode deferred outside the rate-limit hold, including any service `offlineServices` does not break out. A service's `reachable` is `null` until the tick has probed it once, which means "not checked yet" rather than "up".
+`queuePaused` is true only while a rate-limit hold is stopping new claims; `holdUntil` is the provider's own reset time and `holdSince` is when the pause began, both null once the reset has passed. An offline wait parks specific episodes and leaves the rest of the queue running, so it never sets `queuePaused`. `offlineHeld` counts every episode deferred outside the rate-limit hold, including any service `offlineServices` does not break out. `offlineServices` also carries a `sponsorblock` entry while YouTube feeds are on and the SponsorBlock API is unreachable or YouTube episodes are waiting on it; its `held` counts those episodes and it is not part of `offlineHeld`. A service's `reachable` is `null` until the tick has probed it once, which means "not checked yet" rather than "up".
 
 `jobs` lists every running job, oldest first, with the same fields as `currentJob`, which stays as the oldest one. `whisper` is the pool snapshot: whether it is on and active, the request cap, and how many requests and episodes are in flight. Pool counters are per gunicorn worker, so `inFlight` and `transcribingEpisodes` are only meaningful when `leader` is true; a non-leader worker always reports those as 0.
 

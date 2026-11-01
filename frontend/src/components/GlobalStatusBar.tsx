@@ -71,6 +71,7 @@ interface StatusData {
 const SERVICE_LABELS: Record<string, string> = {
   llm: 'LLM provider',
   whisper: 'Whisper endpoint',
+  sponsorblock: 'SponsorBlock',
 };
 
 function serviceLabel(service: string): string {
@@ -109,6 +110,11 @@ function rateLimitText(hold: QueueHold): string {
   return `Provider rate limit. ${resumesText(hold.holdUntil)}${started}`;
 }
 
+/** Services holding or blocking work. offlineHeld counts deferred episodes only, so waits such as SponsorBlock appear only here. */
+function affectedServices(hold: QueueHold): OfflineService[] {
+  return hold.offlineServices.filter((s) => s.held > 0 || s.reachable === false);
+}
+
 /** Queue-hold wording for the collapsed bar, or null when nothing is held; compact is the phone wording. */
 function queueHoldText(hold: QueueHold | undefined, compact = false): string | null {
   if (!hold) return null;
@@ -117,11 +123,14 @@ function queueHoldText(hold: QueueHold | undefined, compact = false): string | n
     const clock = formatClock(hold.holdUntil);
     return compact ? `Resumes ${clock}` : `Paused until ${clock}`;
   }
-  if (hold.offlineHeld > 0) {
-    const down = hold.offlineServices.filter((s) => s.reachable === false);
-    return down.length === 1
-      ? `${serviceLabel(down[0].service)} unreachable`
-      : 'Waiting on a service';
+  const affected = affectedServices(hold);
+  if (hold.offlineHeld > 0 || affected.length > 0) {
+    const down = affected.filter((s) => s.reachable === false);
+    if (down.length === 1) return `${serviceLabel(down[0].service)} unreachable`;
+    if (affected.length === 1 && affected[0].held > 0) {
+      return `${countLabel(affected[0].held, 'episode')} waiting on ${serviceLabel(affected[0].service)}`;
+    }
+    return 'Waiting on a service';
   }
   return null;
 }
