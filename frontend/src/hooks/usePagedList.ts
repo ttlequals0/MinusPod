@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 import type { UIEvent } from 'react';
 
 // Rows rendered before the reader scrolls, and how many more each time they
@@ -11,6 +11,9 @@ export function usePagedList(total: number) {
 
   const reset = () => setShown(PAGE);
 
+  // Grow the window so row `index` renders with a page of rows after it.
+  const reveal = useCallback((index: number) => setShown((n) => Math.max(n, index + PAGE)), []);
+
   const onScroll = (e: UIEvent<HTMLDivElement>) => {
     const el = e.currentTarget;
     if (el.scrollHeight - el.scrollTop - el.clientHeight < 400) {
@@ -18,5 +21,5 @@ export function usePagedList(total: number) {
     }
   };
 
-  return { shown, reset, onScroll };
+  return { shown, reset, reveal, onScroll };
 }

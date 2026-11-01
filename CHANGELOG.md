@@ -25,6 +25,9 @@ release notes.
 - Episodes take a 1 to 5 star quality rating with notes below 5. Five stars
   confirms every cut ad segment without a recut. Feeds show the average, and
   the diagnostics download includes the ratings and notes for its range.
+- The transcript dialog's search can show one or three neighbouring segments
+  around each match, jump to a match inside the full transcript, and step
+  through matches with Previous and Next or Enter.
 
 ### Changed
 

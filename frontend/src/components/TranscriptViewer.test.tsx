@@ -52,7 +52,7 @@ describe('TranscriptViewer', () => {
     expect(screen.queryByText('Welcome to the show.')).toBeNull();
     expect(screen.getByText(/brought to you by/)).toBeTruthy();
     expect(screen.getByText('Acme', { selector: 'mark' })).toBeTruthy();
-    expect(screen.getByText('1 of 3 segments')).toBeTruthy();
+    expect(screen.getByText('1 match in 3 segments')).toBeTruthy();
   });
 
   it('filters by time window and flags an unparsable time', async () => {
@@ -185,7 +185,7 @@ describe('TranscriptViewer paragraphs', () => {
     expect(screen.getAllByRole('listitem')).toHaveLength(1);
     expect(screen.getByText('Lithium', { selector: 'mark' })).toBeTruthy();
     expect(screen.queryByText(/Back to batteries/)).toBeNull();
-    expect(screen.getByText('1 of 6 segments')).toBeTruthy();
+    expect(screen.getByText('1 match in 6 segments')).toBeTruthy();
   });
 
   it('highlights only the ad member inside its paragraph', async () => {
@@ -212,5 +212,121 @@ describe('TranscriptViewer paragraphs', () => {
       get.mockRestore();
       set.mockRestore();
     }
+  });
+});
+
+describe('TranscriptViewer search context and navigation', () => {
+  const CSEGS = [
+    { start: 0, end: 10, text: 'Welcome to the show.' },
+    { start: 10, end: 20, text: 'Our blog has notes.' },
+    { start: 20, end: 30, text: 'Next topic is batteries.' },
+    { start: 30, end: 40, text: 'Lithium is everywhere.' },
+    { start: 40, end: 50, text: 'Read the blog today.' },
+    { start: 50, end: 60, text: 'Thanks for listening.' },
+  ];
+  const scroll = vi.fn();
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    localStorage.clear();
+    localStorage.setItem('minuspod.transcript.view', 'lines');
+    mockOriginal.mockResolvedValue({ episodeId: 'a1b2c3d4e5f6', segments: CSEGS });
+    Element.prototype.scrollIntoView = scroll;
+  });
+
+  it('disables Context without a search and shows muted neighbours with it', async () => {
+    renderViewer();
+    await waitFor(() => screen.getByText('Welcome to the show.'));
+    expect((screen.getByRole('button', { name: '1' }) as HTMLButtonElement).disabled).toBe(true);
+    expect(screen.getByText('Needs a search term')).toBeTruthy();
+    expect(document.querySelector('[aria-describedby="transcript-context-hint"]')).not.toBeNull();
+    await userEvent.type(screen.getByLabelText('Search'), 'blog');
+    await userEvent.click(screen.getByRole('button', { name: '1' }));
+    expect(localStorage.getItem('minuspod.transcript.context')).toBe('1');
+    expect(screen.getByText('Welcome to the show.').className).toContain('text-muted-foreground');
+    expect(screen.getAllByText('blog', { selector: 'mark' })).toHaveLength(2);
+    expect(screen.getByText(/Our/).className).not.toContain('text-muted-foreground');
+    expect(screen.queryByText('Lithium is everywhere.')).not.toBeNull();
+    expect(screen.getByText('2 matches in 6 segments')).toBeTruthy();
+  });
+
+  it('adds neighbours to paragraphs before grouping', async () => {
+    localStorage.setItem('minuspod.transcript.view', 'paragraphs');
+    localStorage.setItem('minuspod.transcript.context', '1');
+    renderViewer();
+    await waitFor(() => screen.getByText(/Welcome to the show\./));
+    await userEvent.type(screen.getByLabelText('Search'), 'blog');
+    expect(screen.getByText('Welcome to the show.').className).toContain('text-muted-foreground');
+  });
+
+  it('jumps to the match in the full transcript and back', async () => {
+    renderViewer();
+    await waitFor(() => screen.getByText('Welcome to the show.'));
+    await userEvent.type(screen.getByLabelText('Search'), 'blog');
+    expect(screen.queryByText('Welcome to the show.')).toBeNull();
+    await userEvent.click(screen.getAllByRole('button', { name: /^Show in transcript/ })[1]);
+    expect(screen.getByText('Welcome to the show.')).toBeTruthy();
+    expect(screen.getByText('2 matches in 6 segments')).toBeTruthy();
+    expect(scroll).toHaveBeenLastCalledWith({ block: 'start' });
+    const row = document.querySelector('[data-row="4"]');
+    expect(row?.className).toContain('bg-primary/20');
+    expect(screen.getAllByText('blog', { selector: 'mark' })).toHaveLength(2);
+    await userEvent.click(screen.getByRole('button', { name: 'Back to matches' }));
+    expect(screen.queryByText('Welcome to the show.')).toBeNull();
+    expect(screen.getByText('2 matches in 6 segments')).toBeTruthy();
+  });
+
+  it('cycles matches with Next and Previous and advances on Enter', async () => {
+    renderViewer();
+    await waitFor(() => screen.getByText('Welcome to the show.'));
+    const search = screen.getByLabelText('Search');
+    await userEvent.type(search, 'blog');
+    await userEvent.click(screen.getByRole('button', { name: 'Next' }));
+    expect(screen.getByText('Match 1 of 2')).toBeTruthy();
+    expect(scroll).toHaveBeenLastCalledWith({ block: 'center' });
+    await userEvent.click(screen.getByRole('button', { name: 'Next' }));
+    expect(screen.getByText('Match 2 of 2')).toBeTruthy();
+    await userEvent.click(screen.getByRole('button', { name: 'Next' }));
+    expect(screen.getByText('Match 1 of 2')).toBeTruthy();
+    await userEvent.click(screen.getByRole('button', { name: 'Previous' }));
+    expect(screen.getByText('Match 2 of 2')).toBeTruthy();
+    await userEvent.type(search, '{Enter}');
+    expect(screen.getByText('Match 1 of 2')).toBeTruthy();
+  });
+
+  it('counts one match per paragraph row in paragraphs view', async () => {
+    localStorage.setItem('minuspod.transcript.view', 'paragraphs');
+    mockOriginal.mockResolvedValue({ episodeId: 'a1b2c3d4e5f6', segments: [
+      { start: 0, end: 2, text: 'Blog one.' },
+      { start: 2, end: 4, text: 'Blog two.' },
+      { start: 10, end: 12, text: 'Other blog.' },
+    ] });
+    renderViewer();
+    await waitFor(() => screen.getByText(/Blog one\./));
+    await userEvent.type(screen.getByLabelText('Search'), 'blog');
+    await userEvent.click(screen.getByRole('button', { name: 'Next' }));
+    expect(screen.getByText('Match 1 of 2')).toBeTruthy();
+    expect(screen.getByText('3 matches in 3 segments')).toBeTruthy();
+  });
+
+  it('keeps the paged window when Context changes while browsing', async () => {
+    renderViewer();
+    await waitFor(() => screen.getByText('Welcome to the show.'));
+    await userEvent.type(screen.getByLabelText('Search'), 'blog');
+    await userEvent.click(screen.getAllByRole('button', { name: /^Show in transcript/ })[0]);
+    scroll.mockClear();
+    await userEvent.click(screen.getByRole('button', { name: '3' }));
+    expect(screen.getByText('Welcome to the show.')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Back to matches' })).toBeTruthy();
+  });
+
+  it('uses the Start/End window as the footer denominator', async () => {
+    renderViewer();
+    await waitFor(() => screen.getByText('Welcome to the show.'));
+    await userEvent.type(screen.getByLabelText('Start'), '0:00');
+    await userEvent.type(screen.getByLabelText('End'), '0:45');
+    expect(screen.queryByText('Thanks for listening.')).toBeNull();
+    await userEvent.type(screen.getByLabelText('Search'), 'blog');
+    expect(screen.getByText('2 matches in 5 segments')).toBeTruthy();
   });
 });
