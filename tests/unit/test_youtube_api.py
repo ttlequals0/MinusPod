@@ -11,7 +11,7 @@ import pytest
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 os.environ.setdefault('MINUSPOD_DATA_DIR', tempfile.mkdtemp(prefix='yt-api-test-'))
 
-from youtube.discovery import SourceInfo, SourceNotFound
+from youtube.discovery import DiscoveryError, SourceInfo, SourceNotFound
 
 
 def _authed(client):
@@ -331,3 +331,46 @@ def test_preview_video_url_returns_video_kind(app_client):
     assert resp.status_code == 200, resp.get_json()
     assert resolve.call_args.args[1].kind == 'video'
     assert resp.get_json()['source']['kind'] == 'video' and resp.get_json()['source']['videoCount'] == 1
+
+
+def test_search_disabled_short_circuits(app_client):
+    _authed(app_client)
+    from api import get_database
+    get_database().set_setting('youtube_enabled', 'false', is_default=False)
+    resp = app_client.get('/api/v1/youtube/search?q=example')
+    assert resp.status_code == 200
+    assert resp.get_json() == {'enabled': False, 'results': []}
+
+
+@pytest.fixture
+def yt_client(app_client):
+    from api import get_database
+    _authed(app_client)
+    _enable(get_database())
+    return app_client
+
+
+def test_search_requires_query(yt_client):
+    app_client = yt_client
+    resp = app_client.get('/api/v1/youtube/search?q=%20%20')
+    assert resp.status_code == 400
+    assert resp.get_json()['error'] == 'Search query is required'
+
+
+def test_search_returns_results(yt_client):
+    app_client = yt_client
+    results = [{'kind': 'playlist', 'id': 'PLabcdefghijklmn', 'title': 'Example Show', 'channelTitle': 'Example',
+                'videoCount': 12, 'podcast': True, 'artworkUrl': None, 'url': 'youtube://playlist/PLabcdefghijklmn'}]
+    with patch('api.youtube.discovery.search_sources', return_value=results) as search:
+        resp = app_client.get('/api/v1/youtube/search?q=example%20show')
+    assert resp.status_code == 200
+    assert resp.get_json() == {'enabled': True, 'results': results}
+    assert search.call_args.args[1] == 'example show'
+
+
+def test_search_upstream_failure_is_502(yt_client):
+    app_client = yt_client
+    with patch('api.youtube.discovery.search_sources', side_effect=DiscoveryError('boom')):
+        resp = app_client.get('/api/v1/youtube/search?q=example')
+    assert resp.status_code == 502
+    assert resp.get_json()['error'] == 'Could not search YouTube: boom'

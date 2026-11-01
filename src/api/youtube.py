@@ -1,7 +1,6 @@
 """YouTube feed helpers: source preview, cookies, yt-dlp update, Data API key test."""
 import difflib
 import logging
-import re
 import subprocess
 
 from flask import request
@@ -17,20 +16,16 @@ RSS_MATCH_THRESHOLD = 0.6
 _KEY_PROBE_CHANNEL = 'UC_x5XG1OV2P6uZZ5FSM9Ttw'
 
 
-def _normalize_title(text: str) -> str:
-    return re.sub(r'[^a-z0-9 ]+', ' ', (text or '').lower()).strip()
-
-
 def _rss_matches(title: str) -> list[dict]:
     try:
         results, _ = search_directory(title)
     except Exception as exc:
         logger.info(f"Directory lookup for YouTube preview skipped: {type(exc).__name__}")
         return []
-    wanted = _normalize_title(title)
+    wanted = discovery.normalize_title(title)
     scored = []
     for r in results:
-        score = difflib.SequenceMatcher(None, wanted, _normalize_title(r.get('title', ''))).ratio()
+        score = difflib.SequenceMatcher(None, wanted, discovery.normalize_title(r.get('title', ''))).ratio()
         if score >= RSS_MATCH_THRESHOLD:
             scored.append((score, {'title': r.get('title', ''), 'feedUrl': r.get('feedUrl', ''),
                                    'artworkUrl': r.get('artworkUrl', '')}))
@@ -64,6 +59,22 @@ def preview_youtube_source():
                    'alreadyAdded': existing},
         'rssMatches': _rss_matches(info.title),
     })
+
+
+@api.route('/youtube/search', methods=['GET'])
+@limiter.limit('20 per minute')
+@log_request
+def search_youtube_sources():
+    if not get_database().get_setting_bool('youtube_enabled', False):
+        return json_response({'enabled': False, 'results': []})
+    query = (request.args.get('q') or '').strip()
+    if not query:
+        return error_response('Search query is required', 400)
+    try:
+        results = discovery.search_sources(get_database(), query, discovery.SEARCH_LIMIT)
+    except (discovery.DiscoveryError, ytdlp.YtDlpNotInstalled) as exc:
+        return error_response(f'Could not search YouTube: {exc}', 502)
+    return json_response({'enabled': True, 'results': results})
 
 
 @api.route('/youtube/test-key', methods=['POST'])

@@ -1,5 +1,6 @@
 import json
 import subprocess
+import threading
 
 import requests
 from unittest.mock import MagicMock, patch
@@ -466,3 +467,176 @@ def test_api_error_message_never_carries_the_proxy():
             discovery._api_get('videos', {}, 'KEY', proxy='http://u:SECRET@p:1')
     assert 'SECRET' not in str(err.value)
 
+
+
+def _entry(source_id, title, channel='Example Channel', channel_id=None):
+    entry = {'id': source_id, 'ie_key': 'YoutubeTab', 'title': title, 'channel': channel,
+             'url': f'https://www.youtube.com/playlist?list={source_id}'}
+    if channel_id:
+        entry['channel_id'] = channel_id
+    return entry
+
+
+CHAN = 'UCabcdefghijklmnopqrstuv'
+CHAN2 = 'UCzyxwvutsrqponmlkjihgfe'
+PL_PLAIN = 'PLplain0000000000'
+PL_POD = 'PLpodcast000000000'
+PL_ONLY_TAB = 'PLtabonly000000000'
+CHANNEL_ENTRY = {'id': CHAN, 'ie_key': 'YoutubeTab', 'title': 'Example Channel'}
+
+
+@pytest.fixture(autouse=True)
+def _clean_search_caches():
+    discovery._search_cache.clear()
+    discovery._podcast_tab_cache.clear()
+    yield
+    discovery._search_cache.clear()
+    discovery._podcast_tab_cache.clear()
+
+
+def _fake_ytdlp(search_entries, podcasts=None, fail=False):
+    def fake(url, extra, timeout):
+        if '/podcasts' in url:
+            if fail:
+                raise discovery.DiscoveryError('This channel does not have a podcasts tab')
+            return {'entries': podcasts or []}
+        return {'entries': search_entries}
+    return fake
+
+
+def test_search_strong_title_match_outranks_unrelated_tab_podcast():
+    entries = [_entry(PL_PLAIN, 'Daily Tech Show', channel_id=CHAN)]
+    fake = _fake_ytdlp(entries, podcasts=[_entry(PL_POD, 'Weekly Gardening Hour')])
+    with patch.object(discovery, '_ytdlp_json', side_effect=fake):
+        results = discovery.search_sources(_db(), 'daily tech show')
+    assert [r['id'] for r in results] == [PL_PLAIN, PL_POD]
+    assert results[0]['podcast'] is False and results[1]['podcast'] is True
+    assert results[0]['url'] == f'https://www.youtube.com/playlist?list={PL_PLAIN}'
+
+
+def test_search_podcast_marked_exact_match_outranks_plain_exact_match():
+    entries = [_entry(PL_PLAIN, 'Daily Tech Show', channel_id=CHAN),
+               _entry(PL_POD, 'Daily Tech Show', channel_id=CHAN)]
+    fake = _fake_ytdlp(entries, podcasts=[_entry(PL_POD, 'Daily Tech Show')])
+    with patch.object(discovery, '_ytdlp_json', side_effect=fake):
+        results = discovery.search_sources(_db(), 'daily tech show')
+    assert [r['id'] for r in results] == [PL_POD, PL_PLAIN]
+
+
+def test_search_adds_podcast_playlist_missing_from_results():
+    fake = _fake_ytdlp([CHANNEL_ENTRY], podcasts=[_entry(PL_ONLY_TAB, 'Example Show', channel='')])
+    with patch.object(discovery, '_ytdlp_json', side_effect=fake):
+        results = discovery.search_sources(_db(), 'example show')
+    added = next(r for r in results if r['id'] == PL_ONLY_TAB)
+    assert added['podcast'] is True and added['channelTitle'] == 'Example Channel'
+    channel = next(r for r in results if r['kind'] == 'channel')
+    assert channel['podcast'] is None and channel['channelTitle'] == 'Example Channel'
+
+
+def test_search_failed_podcasts_lookup_leaves_podcast_unknown():
+    entries = [CHANNEL_ENTRY, _entry(PL_PLAIN, 'Example Show', channel_id=CHAN)]
+    with patch.object(discovery, '_ytdlp_json', side_effect=_fake_ytdlp(entries, fail=True)):
+        results = discovery.search_sources(_db(), 'example')
+    assert {r['id'] for r in results} == {CHAN, PL_PLAIN}
+    assert all(r['podcast'] is None for r in results)
+
+
+def test_search_full_tab_listing_leaves_unlisted_playlists_unknown():
+    tab = [_entry(f'PLtab{i:012d}', f'Show {i}') for i in range(discovery.SEARCH_PODCAST_TAB_CAP)]
+    entries = [_entry(PL_PLAIN, 'Example Show', channel_id=CHAN)]
+    with patch.object(discovery, '_ytdlp_json', side_effect=_fake_ytdlp(entries, podcasts=tab)):
+        results = discovery.search_sources(_db(), 'example show')
+    assert next(r for r in results if r['id'] == PL_PLAIN)['podcast'] is None
+
+
+def test_search_channel_tab_is_cached_across_queries():
+    entries = [CHANNEL_ENTRY]
+    with patch.object(discovery, '_ytdlp_json', side_effect=_fake_ytdlp(entries)) as run:
+        discovery.search_sources(_db(), 'example one')
+        discovery.search_sources(_db(), 'example two')
+    tab_calls = [c for c in run.call_args_list if '/podcasts' in c.args[0]]
+    assert len(tab_calls) == 1 and run.call_count == 3
+
+
+def test_search_looks_up_at_most_three_channels():
+    ids = [f'UC{i:022d}' for i in range(5)]
+    entries = [{'id': i, 'ie_key': 'YoutubeTab', 'title': f'Channel {i}'} for i in ids]
+    with patch.object(discovery, '_ytdlp_json', side_effect=_fake_ytdlp(entries)) as run:
+        discovery.search_sources(_db(), 'channel')
+    assert len([c for c in run.call_args_list if '/podcasts' in c.args[0]]) == discovery.SEARCH_CHANNEL_LOOKUPS
+
+
+def test_search_caches_same_query():
+    entries = [_entry(PL_PLAIN, 'Example Show')]
+    with patch.object(discovery, '_ytdlp_json', side_effect=_fake_ytdlp(entries)) as run:
+        first = discovery.search_sources(_db(), 'Example  Show')
+        second = discovery.search_sources(_db(), 'example show')
+    assert first == second and run.call_count == 1
+
+
+def test_search_concurrent_same_query_runs_one_search():
+    entries = [_entry(PL_PLAIN, 'Example Show')]
+    results = []
+    with patch.object(discovery, '_ytdlp_json', side_effect=_fake_ytdlp(entries)) as run:
+        threads = [threading.Thread(target=lambda: results.append(discovery.search_sources(_db(), 'example show')))
+                   for _ in range(2)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+    assert len(results) == 2 and run.call_count == 1
+
+
+def test_search_cache_is_bounded():
+    with patch.object(discovery, '_ytdlp_json', side_effect=_fake_ytdlp([])):
+        for i in range(discovery._search_cache._max_size + 5):
+            discovery.search_sources(_db(), f'query {i}')
+    assert len(discovery._search_cache._store) == discovery._search_cache._max_size
+
+
+def _api_search(podcast_status):
+    def fake_api(path, params, key, *, proxy=''):
+        assert path != 'channels'
+        if path == 'search':
+            return {'items': [
+                {'id': {'kind': 'youtube#playlist', 'playlistId': PL_PLAIN},
+                 'snippet': {'title': 'Example Show', 'channelTitle': 'Example Channel', 'channelId': CHAN,
+                             'thumbnails': {'high': {'url': 'https://i.ytimg.com/p.jpg'}}}},
+                {'id': {'kind': 'youtube#channel', 'channelId': CHAN},
+                 'snippet': {'title': 'Example Channel', 'channelTitle': 'Example Channel'}}]}
+        assert path == 'playlists' and params['id'] == PL_PLAIN
+        status = {'podcastStatus': podcast_status} if podcast_status else {}
+        return {'items': [{'id': PL_PLAIN, 'status': status, 'contentDetails': {'itemCount': 42}}]}
+    return fake_api
+
+
+@pytest.mark.parametrize('status,expected', [('enabled', True), ('disabled', False),
+                                             ('unspecified', None), (None, None)])
+def test_search_with_api_maps_podcast_status(status, expected):
+    with patch.object(discovery, '_api_get', side_effect=_api_search(status)), \
+            patch.object(discovery.ytdlp, 'configured_proxy', return_value=''), \
+            patch.object(discovery, '_channel_podcasts', return_value=None):
+        results = discovery.search_sources(_db(key='k'), 'example show')
+    playlist = next(r for r in results if r['kind'] == 'playlist')
+    channel = next(r for r in results if r['kind'] == 'channel')
+    assert playlist['podcast'] is expected and playlist['videoCount'] == 42
+    assert playlist['artworkUrl'] == 'https://i.ytimg.com/p.jpg'
+    assert channel['videoCount'] is None
+
+
+def test_search_with_api_expands_owner_podcasts_tab():
+    tab = [_entry(PL_ONLY_TAB, 'Example Show Extra')]
+    with patch.object(discovery, '_api_get', side_effect=_api_search('disabled')), \
+            patch.object(discovery.ytdlp, 'configured_proxy', return_value=''), \
+            patch.object(discovery, '_ytdlp_json', side_effect=_fake_ytdlp([], podcasts=tab)):
+        results = discovery.search_sources(_db(key='k'), 'example show')
+    assert next(r for r in results if r['id'] == PL_ONLY_TAB)['podcast'] is True
+
+
+def test_search_falls_back_to_ytdlp_when_api_fails():
+    entries = [_entry(PL_PLAIN, 'Example Show')]
+    with patch.object(discovery, '_api_get', side_effect=discovery.QuotaExceeded('quota')), \
+            patch.object(discovery.ytdlp, 'configured_proxy', return_value=''), \
+            patch.object(discovery, '_ytdlp_json', side_effect=_fake_ytdlp(entries)):
+        results = discovery.search_sources(_db(key='k'), 'example show')
+    assert [r['id'] for r in results] == [PL_PLAIN]

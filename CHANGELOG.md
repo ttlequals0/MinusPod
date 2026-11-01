@@ -9,6 +9,22 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
+## [Unreleased]
+
+### Added
+
+- Add feed searches YouTube by show name when YouTube feeds are on.
+  Playlists and channels appear under the directory results, playlists
+  marked as podcast shows rank higher with a Podcast badge, and choosing
+  one opens the lookup card with its RSS directory matches. Works with or
+  without a Data API key.
+
+### Changed
+
+- Docker build: A SECURITY_SRC=stub build argument skips the patched security
+  package builds and uses stock Ubuntu packages, for faster local development builds.
+  Published images keep the default.
+
 ## [2.101.10] - 2026-10-31
 
 ### Fixed
@@ -20,12 +36,6 @@ release notes.
 ### Changed
 
 - The "Questions per API request" help text and docs note that some third-party endpoints cap questions per request and that detection sends one question per transcript segment (#917).
-
-### Changed
-
-- Docker build: A SECURITY_SRC=stub build argument skips the patched security
-  package builds and uses stock Ubuntu packages, for faster local development builds.
-  Published images keep the default.
 
 ## [2.101.9] - 2026-10-30
 

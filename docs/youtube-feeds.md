@@ -67,6 +67,8 @@ Without a key, yt-dlp listings carry no episode descriptions and only a date for
 
 On the Add feed page, paste a YouTube address and choose **Look up**. The card shows the title, artwork, video count and any podcast directory matches that offer the same show as an RSS feed. If a directory match exists, prefer the RSS feed: it is the publisher's own audio. To use the YouTube source anyway, choose **Add YouTube feed**. The page also keeps the normal RSS form under **Or add by RSS feed**.
 
+Typing a show name instead of an address searches YouTube. Matching playlists and channels are listed under the directory results. The search reads the Podcasts tab of up to three channels from the results. A playlist is marked as a podcast when that tab lists it, and marked playlists rank higher. Choosing one opens the same lookup card, including any RSS directory matches. Without a Data API key a search usually takes a few seconds.
+
 Accepted forms:
 
 | Input | Example |

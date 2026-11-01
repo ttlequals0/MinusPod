@@ -1,11 +1,14 @@
 """List videos for a YouTube feed through the Data API or yt-dlp."""
+import difflib
 import json
 import logging
 import re
 import subprocess
+import threading
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from urllib.parse import urlencode
+from urllib.parse import quote_plus, urlencode
 
 import requests
 
@@ -14,10 +17,11 @@ from rss_parser import RSSParser
 from utils.app_version import APP_VERSION
 from utils.safe_http import URLTrust, read_response_capped, safe_get
 from utils.time import epoch_to_iso
+from utils.ttl_cache import TTLCache
 from utils.url import SSRFError
 from utils.youtube_fields import PLACEHOLDER_TITLES
 from youtube import download, settings as yt_settings, ytdlp
-from youtube.urls import Source, source_url, uploads_playlist, watch_url
+from youtube.urls import Source, parse as parse_source, source_url, uploads_playlist, watch_url
 
 logger = logging.getLogger(__name__)
 
@@ -28,7 +32,18 @@ PLAYLIST_SCAN_CAP = 5000
 UNAVAILABLE_SLACK = 20
 _UNAVAILABLE_TITLES = frozenset(PLACEHOLDER_TITLES)
 _ISO_DURATION = re.compile(r'^P(?:(\d+)D)?T?(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?$')
+SEARCH_FETCH = 12
+SEARCH_CHANNEL_LOOKUPS = 3
+SEARCH_LIMIT = 8
+SEARCH_PODCAST_TAB_CAP = 20
+PODCAST_BONUS = 0.25
+_SEARCH_FILTER = 'EgIQAw%3D%3D'
 _ids = RSSParser()
+_search_cache = TTLCache(ttl_seconds=600, max_size=64)
+_podcast_tab_cache = TTLCache(ttl_seconds=3600, max_size=256)
+_search_lock = threading.Lock()
+_inflight: dict[tuple[str, bool], threading.Lock] = {}
+_MISS = object()
 
 
 class DiscoveryError(Exception):
@@ -360,3 +375,165 @@ def _list_with_ytdlp(playlist_id, limit, include_shorts, longform, full=False, *
         episodes.append(_episode(entry['id'], title, entry.get('description'),
                                  _published_from_entry(entry), duration, _best_thumb(entry.get('thumbnails'))))
     return episodes
+
+
+def normalize_title(text: str) -> str:
+    return re.sub(r'[^a-z0-9 ]+', ' ', (text or '').lower()).strip()
+
+
+def _candidate(kind, source_id, title, channel_title, video_count, podcast, artwork) -> dict:
+    return {'kind': kind, 'id': source_id, 'title': title or source_id,
+            'channelTitle': channel_title or (title if kind == 'channel' else '') or '',
+            'videoCount': video_count, 'podcast': podcast, 'artworkUrl': artwork,
+            'url': source_url(Source(kind, source_id))}
+
+
+def _rank(candidates: list[dict], query: str) -> list[dict]:
+    wanted = normalize_title(query)
+
+    def sort_key(c):
+        ratio = difflib.SequenceMatcher(None, wanted, normalize_title(c['title'])).ratio()
+        return (-(ratio + (PODCAST_BONUS if c['podcast'] is True else 0.0)), c['kind'] != 'playlist')
+    return sorted(candidates, key=sort_key)
+
+
+def _api_rows(found: dict) -> list[tuple[str, str, dict]]:
+    try:
+        rows = []
+        for item in found.get('items') or []:
+            ident = item['id']
+            kind, source_id = ('playlist', ident['playlistId']) if ident.get('playlistId') else ('channel', ident['channelId'])
+            rows.append((kind, source_id, item['snippet']))
+        return rows
+    except (KeyError, TypeError, AttributeError):
+        raise DiscoveryError('YouTube Data API returned an unexpected payload') from None
+
+
+def _api_candidates(rows, detail_items) -> tuple[dict, dict]:
+    try:
+        details = {p['id']: p for p in detail_items}
+        candidates: dict[tuple[str, str], dict] = {}
+        owners: dict[str, str] = {}
+        for kind, source_id, sn in rows:
+            podcast = count = None
+            if kind == 'playlist':
+                detail = details.get(source_id) or {}
+                status = (detail.get('status') or {}).get('podcastStatus')
+                podcast = None if status in (None, 'unspecified') else status == 'enabled'
+                count = (detail.get('contentDetails') or {}).get('itemCount')
+                if sn.get('channelId'):
+                    owners[source_id] = sn['channelId']
+            candidates[(kind, source_id)] = _candidate(
+                kind, source_id, sn.get('title'), sn.get('channelTitle'),
+                int(count) if count is not None else None, podcast, _best_thumb(sn.get('thumbnails')))
+        return candidates, owners
+    except (KeyError, TypeError, AttributeError, ValueError):
+        raise DiscoveryError('YouTube Data API returned an unexpected payload') from None
+
+
+def _search_with_api(key: str, query: str, *, proxy: str = '') -> tuple[dict, dict]:
+    found = _api_get('search', {'part': 'snippet', 'q': query, 'type': 'playlist,channel',
+                                'maxResults': SEARCH_FETCH}, key, proxy=proxy)
+    rows = _api_rows(found)
+    playlist_ids = [i for k, i, _ in rows if k == 'playlist']
+    detail_items = []
+    if playlist_ids:
+        data = _api_get('playlists', {'part': 'snippet,status,contentDetails', 'id': ','.join(playlist_ids)},
+                        key, proxy=proxy)
+        detail_items = data.get('items') or []
+    return _api_candidates(rows, detail_items)
+
+
+def _channel_podcasts(channel_id: str) -> list[dict] | None:
+    """Podcasts-tab entries, or None when the tab is missing or the lookup failed (deliberately conflated)."""
+    with _search_lock:
+        cached = _podcast_tab_cache.get(channel_id, _MISS)
+    if cached is not _MISS:
+        return cached
+    try:
+        data = _ytdlp_json(f'https://www.youtube.com/channel/{channel_id}/podcasts',
+                           ['--playlist-end', str(SEARCH_PODCAST_TAB_CAP)], timeout=45)
+        entries = [e for e in data.get('entries') or [] if e and e.get('id')]
+    except DiscoveryError:
+        entries = None
+    with _search_lock:
+        _podcast_tab_cache.set(channel_id, entries)
+    return entries
+
+
+def _expand_channel_podcasts(candidates: dict, owners: dict) -> None:
+    channel_ids = list(dict.fromkeys(
+        [i for k, i in candidates if k == 'channel'] + list(owners.values())))[:SEARCH_CHANNEL_LOOKUPS]
+    if not channel_ids:
+        return
+    with ThreadPoolExecutor(max_workers=SEARCH_CHANNEL_LOOKUPS) as pool:
+        lookups = dict(zip(channel_ids, pool.map(_channel_podcasts, channel_ids), strict=True))
+    listed = set()
+    for channel_id, entries in lookups.items():
+        channel = candidates.get(('channel', channel_id))
+        for entry in entries or []:
+            listed.add(entry['id'])
+            if ('playlist', entry['id']) not in candidates:
+                candidates[('playlist', entry['id'])] = _candidate(
+                    'playlist', entry['id'], entry.get('title'),
+                    entry.get('channel') or entry.get('uploader') or (channel or {}).get('title'),
+                    entry.get('playlist_count'), True, _best_thumb(entry.get('thumbnails')))
+    for (kind, source_id), cand in candidates.items():
+        if kind != 'playlist':
+            continue
+        tab = lookups.get(owners.get(source_id))
+        if source_id in listed:
+            cand['podcast'] = True
+        elif tab is not None and len(tab) < SEARCH_PODCAST_TAB_CAP:
+            cand['podcast'] = False
+
+
+def _search_with_ytdlp(query: str) -> tuple[dict, dict]:
+    url = f'https://www.youtube.com/results?search_query={quote_plus(query)}&sp={_SEARCH_FILTER}'
+    data = _ytdlp_json(url, ['--playlist-end', str(SEARCH_FETCH)], timeout=60)
+    candidates: dict[tuple[str, str], dict] = {}
+    owners: dict[str, str] = {}
+    for entry in data.get('entries') or []:
+        source = parse_source(str((entry or {}).get('id') or ''))
+        if source is None or source.kind not in ('playlist', 'channel'):
+            continue
+        owner = entry.get('channel_id') or entry.get('uploader_id') or ''
+        if source.kind == 'playlist' and owner.startswith('UC'):
+            owners[source.id] = owner
+        candidates.setdefault((source.kind, source.id), _candidate(
+            source.kind, source.id, entry.get('title'), entry.get('channel') or entry.get('uploader'),
+            entry.get('playlist_count'), None, _best_thumb(entry.get('thumbnails'))))
+    return candidates, owners
+
+
+def search_sources(db, query: str, limit: int = SEARCH_LIMIT) -> list[dict]:
+    q = ' '.join((query or '').split())
+    key = yt_settings.api_key(db)
+    cache_key = (normalize_title(q), bool(key))
+    with _search_lock:
+        ranked = _search_cache.get(cache_key)
+        if ranked is None:
+            lock = _inflight.setdefault(cache_key, threading.Lock())
+    if ranked is not None:
+        return ranked[:limit]
+    with lock:
+        try:
+            with _search_lock:
+                ranked = _search_cache.get(cache_key)
+            if ranked is None:
+                found = None
+                if key:
+                    try:
+                        found = _search_with_api(key, q, proxy=ytdlp.configured_proxy(db))
+                    except DiscoveryError as exc:
+                        logger.warning(f'YouTube Data API failed ({type(exc).__name__}); searching with yt-dlp')
+                candidates, owners = found if found is not None else _search_with_ytdlp(q)
+                # API results already carry podcast status; only channel hits need the tab.
+                _expand_channel_podcasts(candidates, {} if found is not None else owners)
+                ranked = _rank(list(candidates.values()), q)
+                with _search_lock:
+                    _search_cache.set(cache_key, ranked)
+        finally:
+            with _search_lock:
+                _inflight.pop(cache_key, None)
+    return ranked[:limit]

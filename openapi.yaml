@@ -4935,6 +4935,62 @@ paths:
           description: Source not found or private
         '502':
           description: The lookup failed upstream
+  /youtube/search:
+    get:
+      tags:
+        - YouTube
+      summary: Search YouTube playlists and channels by name
+      description: >-
+        Returns ranked playlist and channel candidates for a show name. Playlists the channel
+        owner marked as a podcast rank first. Uses the Data API when a key is set and yt-dlp
+        otherwise. Results are cached for 10 minutes. Returns enabled false with no lookup
+        when YouTube feeds are disabled.
+      operationId: searchYoutubeSources
+      parameters:
+        - name: q
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Show name to search for.
+      responses:
+        '200':
+          description: Ranked candidates
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  enabled:
+                    type: boolean
+                  results:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        kind:
+                          type: string
+                          enum: [playlist, channel]
+                        id:
+                          type: string
+                        title:
+                          type: string
+                        channelTitle:
+                          type: string
+                        videoCount:
+                          type: [integer, 'null']
+                        podcast:
+                          type: [boolean, 'null']
+                          description: True when YouTube marks the playlist as a podcast show. Null for channels and unknown status.
+                        artworkUrl:
+                          type: [string, 'null']
+                        url:
+                          type: string
+                          description: Public YouTube URL to paste into the Add feed lookup, for example https://www.youtube.com/playlist?list=PL...
+        '400':
+          description: Missing search query
+        '502':
+          description: The search failed upstream
   /youtube/test-key:
     post:
       tags:

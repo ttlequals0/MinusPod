@@ -43,9 +43,11 @@ vi.mock('../api/podcastSearch', () => ({
 }));
 
 const mockPreviewYouTube = vi.fn();
+const mockSearchYouTube = vi.fn();
 vi.mock('../api/youtube', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../api/youtube')>()),
   previewYouTube: (...a: unknown[]) => mockPreviewYouTube(...a),
+  searchYouTube: (...a: unknown[]) => mockSearchYouTube(...a),
 }));
 
 const mockGetSettings = vi.fn();
@@ -497,5 +499,70 @@ describe('YouTube lookup', () => {
     renderAddFeed(enabled);
     await userEvent.type(await screen.findByLabelText(INPUT), text);
     expect(!!screen.queryByRole('button', { name: /look up/i })).toBe(expected);
+  });
+});
+
+describe('YouTube name search', () => {
+  const INPUT = /search podcasts or enter an RSS or YouTube URL/i;
+  const enabled = { ...defaultSettings, youtubeEnabled: { value: true, isDefault: false } };
+  const SLOW = { timeout: 3000 }; // outlasts the 900 ms YouTube debounce
+  const makeYoutubeResult = (overrides: Record<string, unknown> = {}) => ({
+    kind: 'playlist', id: 'PLpod', title: 'Daily Tech Playlist', channelTitle: 'Acme Channel', videoCount: 120,
+    podcast: true, artworkUrl: null, url: 'https://www.youtube.com/playlist?list=PLpod', ...overrides,
+  });
+  const podcastResult = makeYoutubeResult();
+  const plainResult = makeYoutubeResult({
+    kind: 'channel', id: 'UCplain', title: 'Daily Tech Channel', videoCount: null, podcast: null,
+    url: 'https://www.youtube.com/channel/UCplain',
+  });
+
+  beforeEach(() => {
+    mockSearchPodcasts.mockResolvedValue([
+      { id: 1, title: 'The Daily Tech Show', description: '', artworkUrl: '', feedUrl: 'https://example.com/feed.xml', author: 'Acme', link: '' },
+    ]);
+  });
+
+  it('renders the group with a Podcast badge only on podcast results', async () => {
+    mockSearchYouTube.mockResolvedValue([podcastResult, plainResult]);
+    renderAddFeed(enabled);
+    await userEvent.type(await screen.findByLabelText(INPUT), 'daily');
+
+    expect(await screen.findByText('Daily Tech Playlist', undefined, SLOW)).toBeDefined();
+    expect(mockSearchYouTube).toHaveBeenCalledWith('daily', expect.any(AbortSignal));
+    expect(screen.getByRole('heading', { name: 'YouTube' })).toBeDefined();
+    expect(screen.getAllByText('Podcast')).toHaveLength(1);
+    expect(screen.getByText('120 videos')).toBeDefined();
+    expect(screen.getByText('Daily Tech Channel')).toBeDefined();
+  });
+
+  it('looks up the result url through the preview', async () => {
+    mockSearchYouTube.mockResolvedValue([podcastResult]);
+    mockPreviewYouTube.mockResolvedValue({ enabled: true, source: null, rssMatches: [] });
+    renderAddFeed(enabled);
+    await userEvent.type(await screen.findByLabelText(INPUT), 'daily');
+    await userEvent.click(await screen.findByRole('button', { name: /look up daily tech playlist/i }, SLOW));
+
+    await waitFor(() => {
+      expect(mockPreviewYouTube).toHaveBeenCalledWith(podcastResult.url, expect.any(AbortSignal));
+    });
+  });
+
+  it('keeps directory results when the YouTube search fails', async () => {
+    mockSearchYouTube.mockRejectedValue(new Error('YouTube lookup failed'));
+    renderAddFeed(enabled);
+    await userEvent.type(await screen.findByLabelText(INPUT), 'daily');
+
+    expect(await screen.findByText('YouTube lookup failed', undefined, SLOW)).toBeDefined();
+    expect(await screen.findByText('The Daily Tech Show')).toBeDefined();
+  });
+
+  it('renders nothing when YouTube feeds are disabled', async () => {
+    mockSearchYouTube.mockResolvedValue([podcastResult]);
+    renderAddFeed();
+    await userEvent.type(await screen.findByLabelText(INPUT), 'daily');
+
+    expect(await screen.findByText('The Daily Tech Show')).toBeDefined();
+    expect(mockSearchYouTube).not.toHaveBeenCalled();
+    expect(screen.queryByRole('heading', { name: 'YouTube' })).toBeNull();
   });
 });

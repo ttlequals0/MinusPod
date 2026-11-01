@@ -1,11 +1,11 @@
 import { useState, useMemo, useRef, useCallback, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router';
 import { Check, Mic, Plus, Search as SearchIcon, UploadCloud } from 'lucide-react';
-import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
+import { useMutation, useQueryClient, useQuery, keepPreviousData } from '@tanstack/react-query';
 import { getErrorMessage } from '../api/client';
 import { addFeed, addYoutubeFeed, addLocalFeed, addRecentsFeed, uploadFeedArtwork, importOpml, OpmlImportResult, feedsQueryOptions } from '../api/feeds';
 import { searchPodcasts, PodcastSearchResult } from '../api/podcastSearch';
-import { previewYouTube, YOUTUBE_KIND_LABELS, YouTubePreview } from '../api/youtube';
+import { previewYouTube, searchYouTube, YOUTUBE_KIND_LABELS, YouTubePreview, YouTubeSearchResult } from '../api/youtube';
 import { getSettings } from '../api/settings';
 import LoadingSpinner from '../components/LoadingSpinner';
 import TriStateSelect from '../components/TriStateSelect';
@@ -17,7 +17,11 @@ import { badgeBase, tint } from '../components/badgeStyles';
 import DraftNumberInput, { parseOptionalNumber } from '../components/DraftNumberInput';
 import { btnBase, btnLg, btnPrimary, btnSecondary, btnGhost, touchTarget } from '../components/buttonStyles';
 import { focusRing, inputBase, textareaBase, labelBase, fileInputBase } from '../components/fieldStyles';
+import { useDebouncedValue } from '../hooks/useDebouncedValue';
 import { pageHeader, pageTitle, cardTitle, subHeading } from '../components/pageStyles';
+
+const YOUTUBE_SEARCH_DEBOUNCE_MS = 900;
+const YOUTUBE_SEARCH_MIN_CHARS = 3;
 
 type AddFeedMode = 'subscribe' | 'local' | 'recents';
 
@@ -364,6 +368,27 @@ function validateUrl(url: string): UrlValidation {
   };
 }
 
+function ResultArtwork({ url }: { url?: string | null }) {
+  const [imageError, setImageError] = useState(false);
+  if (url && !imageError) {
+    return (
+      <img
+        src={url}
+        alt=""
+        className="w-14 h-14 rounded object-cover shrink-0 bg-muted"
+        loading="lazy"
+        referrerPolicy="no-referrer"
+        onError={() => setImageError(true)}
+      />
+    );
+  }
+  return (
+    <div className="w-14 h-14 rounded bg-muted shrink-0 flex items-center justify-center">
+      <Mic className="w-6 h-6 text-muted-foreground" aria-hidden="true" />
+    </div>
+  );
+}
+
 function SearchResultItem({ result, isSubscribed, isAdding, onAdd }: {
   result: PodcastSearchResult;
   isSubscribed: boolean;
@@ -371,7 +396,6 @@ function SearchResultItem({ result, isSubscribed, isAdding, onAdd }: {
   onAdd: (feedUrl: string) => Promise<void>;
 }) {
   const [error, setError] = useState<string | null>(null);
-  const [imageError, setImageError] = useState(false);
 
   const handleAdd = async () => {
     setError(null);
@@ -384,20 +408,7 @@ function SearchResultItem({ result, isSubscribed, isAdding, onAdd }: {
 
   return (
     <div className="flex items-start gap-3 p-3 rounded-lg border border-border hover:bg-accent/30 transition-colors">
-      {result.artworkUrl && !imageError ? (
-        <img
-          src={result.artworkUrl}
-          alt=""
-          className="w-14 h-14 rounded object-cover shrink-0 bg-muted"
-          loading="lazy"
-          referrerPolicy="no-referrer"
-          onError={() => setImageError(true)}
-        />
-      ) : (
-        <div className="w-14 h-14 rounded bg-muted shrink-0 flex items-center justify-center">
-          <Mic className="w-6 h-6 text-muted-foreground" aria-hidden="true" />
-        </div>
-      )}
+      <ResultArtwork url={result.artworkUrl} />
       <div className="flex-1 min-w-0">
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0">
@@ -445,6 +456,41 @@ function SearchResultItem({ result, isSubscribed, isAdding, onAdd }: {
         {error && (
           <p className="text-xs text-destructive mt-1">{error}</p>
         )}
+      </div>
+    </div>
+  );
+}
+
+function YouTubeSearchResultItem({ result, disabled, onLookup }: {
+  result: YouTubeSearchResult;
+  disabled: boolean;
+  onLookup: (url: string) => void;
+}) {
+
+  return (
+    <div className="flex items-start gap-3 p-3 rounded-lg border border-border hover:bg-accent/30 transition-colors">
+      <ResultArtwork url={result.artworkUrl} />
+      <div className="flex-1 min-w-0">
+        <div className="flex items-start justify-between gap-2">
+          <div className="min-w-0">
+            <span className="text-sm font-semibold text-foreground truncate block" title={result.title}>{result.title}</span>
+            {result.channelTitle && <p className="text-xs text-muted-foreground truncate">{result.channelTitle}</p>}
+          </div>
+          <button
+            type="button"
+            onClick={() => onLookup(result.url)}
+            disabled={disabled}
+            className={`${btnBase} ${btnGhost} ${touchTarget} shrink-0 text-primary disabled:opacity-50`}
+            aria-label={`Look up ${result.title}`}
+          >
+            Look up
+          </button>
+        </div>
+        <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+          <span className={`${badgeBase} ${tint.primary}`}>{YOUTUBE_KIND_LABELS[result.kind]}</span>
+          {result.podcast === true && <span className={`${badgeBase} ${tint.success}`}>Podcast</span>}
+          {result.videoCount != null && <span>{result.videoCount} videos</span>}
+        </div>
       </div>
     </div>
   );
@@ -510,7 +556,9 @@ function AddFeed() {
   }, [feedsData]);
 
   const inputTrimmed = inputValue.trim();
-  const shouldSearch = !isUrl && !isYouTube && searchAvailable && inputTrimmed.length >= 2;
+  const isNameQuery = !isUrl && !isYouTube && inputTrimmed.length >= 2;
+  const shouldSearch = isNameQuery && searchAvailable;
+  const shouldSearchYoutube = isNameQuery && youtubeEnabled;
 
   // Clear stale search state during render when the search is no longer
   // applicable. Avoids a setState-in-effect for the early-return branch.
@@ -542,6 +590,18 @@ function AddFeed() {
 
     return () => { controller.abort(); clearTimeout(timer); };
   }, [inputTrimmed, shouldSearch]);
+
+  // YouTube name search runs independently so a slow lookup never delays directory results
+  const debouncedYtQuery = useDebouncedValue(inputTrimmed, YOUTUBE_SEARCH_DEBOUNCE_MS);
+  const ytSearchEnabled = shouldSearchYoutube && debouncedYtQuery.length >= YOUTUBE_SEARCH_MIN_CHARS;
+  const { data: ytResults = [], isFetching: isYtSearching, error: ytSearchError } = useQuery({
+    queryKey: ['youtube-search', debouncedYtQuery],
+    queryFn: ({ signal }) => searchYouTube(debouncedYtQuery, signal),
+    enabled: ytSearchEnabled,
+    staleTime: 600_000,
+    placeholderData: keepPreviousData,
+    retry: false,
+  });
 
   // Add feed mutation (for URL submit)
   const mutation = useMutation({
@@ -597,6 +657,11 @@ function AddFeed() {
     setYoutubePreview(null);
     previewMutation.reset();
     addYoutubeMutation.reset();
+  };
+
+  const lookupYoutubeResult = (url: string) => {
+    handleInputChange(url);
+    previewMutation.mutate(url);
   };
 
   // Add feed from search result
@@ -947,6 +1012,22 @@ function AddFeed() {
               />
             );
           })}
+        </div>
+      )}
+
+      {ytSearchEnabled && (isYtSearching || ytSearchError || ytResults.length > 0) && (
+        <div className="mt-6 space-y-2">
+          <h2 className={subHeading}>YouTube</h2>
+          {isYtSearching && ytResults.length === 0 && <p className="text-sm text-muted-foreground" role="status">Searching YouTube...</p>}
+          {ytSearchError && <p className="text-sm text-destructive" role="alert">{getErrorMessage(ytSearchError)}</p>}
+          {ytResults.map((result) => (
+            <YouTubeSearchResultItem
+              key={`${result.kind}:${result.id}`}
+              result={result}
+              disabled={previewMutation.isPending}
+              onLookup={lookupYoutubeResult}
+            />
+          ))}
         </div>
       )}
 
