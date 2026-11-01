@@ -29,6 +29,7 @@ from utils.episode_paths import episode_relative_path
 from utils.gpu import get_available_memory_gb, clear_gpu_memory
 from webhook_service import (
     fire_event, EVENT_EPISODE_PROCESSED, EVENT_EPISODE_AWAITING_APPROVAL,
+    EVENT_EPISODE_PENDING_REVIEW,
 )
 
 from main_app.pipeline import common
@@ -383,14 +384,15 @@ def _record_history_and_event(slug, episode_id, episode_title, podcast_name,
                                processing_time, token_totals, db,
                                audio_cue_detections=0, run_stats=None,
                                ads_held=0, ads_not_cut=0, approval=None):
-    """Record processing history row and fire the episode-processed webhook.
+    """Record the processing history row and fire Episode Processed or Episode Awaiting Approval,
+    plus Episode Pending Review when any detections are held.
 
     The webhook fires whenever the episode pipeline completed, including
     the case where the podcast row is missing (we still have slug +
     episode_id + counts for the payload). The webhook is skipped only
     when `record_processing_history` raised, which signals a real DB
     write failure that would leave the History page out of sync.
-    ``approval`` is the persisted stamp; one still pending fires Episode Awaiting Approval instead.
+    ``approval`` is the persisted stamp.
     """
     common._require_publication_owner(slug, episode_id)
     ads_removed_total = pass1_cut_count + verification_count
@@ -414,19 +416,23 @@ def _record_history_and_event(slug, episode_id, episode_title, podcast_name,
         )
         return
 
-    try:
-        fire_event(
-            event=(EVENT_EPISODE_AWAITING_APPROVAL if (approval or {}).get('approval_pending_at')
-                   else EVENT_EPISODE_PROCESSED),
-            episode_id=episode_id, slug=slug, episode_title=episode_title,
-            processing_time=processing_time, llm_cost=token_totals['cost'],
-            ads_removed=ads_removed_total,
-            ads_held=ads_held, ads_not_cut=ads_not_cut,
-            original_duration=original_duration, new_duration=new_duration,
-            podcast_name=podcast_name,
-        )
-    except Exception as wh_err:
-        audio_logger.warning(f"[{slug}:{episode_id}] Webhook fire failed: {wh_err}")
+    event_kwargs = dict(
+        episode_id=episode_id, slug=slug, episode_title=episode_title,
+        processing_time=processing_time, llm_cost=token_totals['cost'],
+        ads_removed=ads_removed_total,
+        ads_held=ads_held, ads_not_cut=ads_not_cut,
+        original_duration=original_duration, new_duration=new_duration,
+        podcast_name=podcast_name,
+    )
+    events = [EVENT_EPISODE_AWAITING_APPROVAL if (approval or {}).get('approval_pending_at')
+              else EVENT_EPISODE_PROCESSED]
+    if ads_held:
+        events.append(EVENT_EPISODE_PENDING_REVIEW)
+    for event in events:
+        try:
+            fire_event(event=event, **event_kwargs)
+        except Exception as wh_err:
+            audio_logger.warning(f"[{slug}:{episode_id}] {event} webhook fire failed: {wh_err}")
 
 
 def _finalize_episode(slug, episode_id, episode_title, podcast_name,

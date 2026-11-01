@@ -55,11 +55,8 @@ def client():
 
 @pytest.fixture
 def no_rebuild():
-    with patch('main_app.feeds.refresh_rss_feed') as refresh, \
+    with patch('main_app.feeds.rebuild_served_rss') as refresh, \
             patch('recents_feed.rebuild_recents_feed'), \
-            patch('main_app.feeds.get_feed_map', return_value={
-                SLUG: {'in': 'https://example.com/a.xml'},
-                OTHER: {'in': 'https://example.com/b.xml'}}), \
             patch('api.episodes.approval.fire_event') as fired:
         yield refresh, fired
 
@@ -206,7 +203,7 @@ class TestApproveRoutes:
         assert body['approved'] is True
         assert body['episode']['awaitingApproval'] is False and body['episode']['approvedAt']
         assert db.get_episode(SLUG, HELD)['approval_pending_at'] is None
-        refresh.assert_called_once()
+        refresh.assert_called_once_with(SLUG)
         assert fired.call_args.kwargs['event'] == webhook_service.EVENT_EPISODE_PROCESSED
 
     def test_single_approve_conflicts_when_not_waiting(self, client, no_rebuild):
@@ -290,24 +287,44 @@ class TestApiFields:
         assert got['requireManualApprovalDefault']['value'] is True
 
 
+EVENT_CASES = [
+    ('Episode Awaiting Approval', 'EVENT_EPISODE_AWAITING_APPROVAL', '[MinusPod] Episode Awaiting Approval:', 'approve'),
+    ('Episode Pending Review', 'EVENT_EPISODE_PENDING_REVIEW', '[MinusPod] Episode Pending Review:', 'held'),
+]
+
+
+@pytest.mark.parametrize('event,const,prefix,word', EVENT_CASES)
 class TestEvent:
-    def test_registered_everywhere(self):
-        event = 'Episode Awaiting Approval'
-        assert webhook_service.EVENT_EPISODE_AWAITING_APPROVAL == event
+    def test_registered_everywhere(self, event, const, prefix, word):
+        assert getattr(webhook_service, const) == event
         assert event in webhook_service.VALID_EVENTS
         assert event in email_service.FORMATTERS
 
-    def test_email_and_test_context(self):
-        ctx = webhook_service._build_test_context('Episode Awaiting Approval')
-        assert ctx['event'] == 'Episode Awaiting Approval'
-        subject, rows, note = email_service.FORMATTERS['Episode Awaiting Approval'](ctx)
-        assert subject.startswith('[MinusPod] Episode Awaiting Approval:')
-        assert 'approve' in note
+    def test_email_and_test_context(self, event, const, prefix, word):
+        ctx = webhook_service._build_test_context(event)
+        assert ctx['event'] == event
+        subject, rows, note = email_service.FORMATTERS[event](ctx)
+        assert subject.startswith(prefix)
+        assert word in note
 
-    def test_notification_validation_accepts_it(self, client):
+    def test_notification_validation_accepts_it(self, client, event, const, prefix, word):
         resp = client.post('/api/v1/settings/webhooks', json={
-            'url': 'https://example.com/hook', 'events': ['Episode Awaiting Approval']})
+            'url': 'https://example.com/hook', 'events': [event]})
         assert resp.status_code in (200, 201)
+
+
+class TestPendingReviewFinalize:
+    @pytest.mark.parametrize('held,side_effect,events', [
+        (2, None, ['Episode Processed', 'Episode Pending Review']),
+        (0, None, ['Episode Processed']),
+        (2, [RuntimeError('boom'), None], ['Episode Processed', 'Episode Pending Review'])])
+    def test_finalize_fires_pending_review_only_with_held_ads(self, held, side_effect, events):
+        with patch.object(finalize.common, '_refresh_rss_for_slug'), \
+                patch.object(finalize, 'fire_event', side_effect=side_effect) as fired:
+            finalize._finalize_episode(SLUG, OPEN, 'Open', SLUG, 1, 0, 1, 100.0, 90.0,
+                                       0.0, processed_version=1, ads_held=held)
+        assert [c.kwargs['event'] for c in fired.call_args_list] == events
+        assert fired.call_args.kwargs['ads_held'] == held
 
 
 def test_feed_field_survives_config_transfer_round_trip(temp_db, monkeypatch):

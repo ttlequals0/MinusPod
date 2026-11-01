@@ -95,7 +95,7 @@ The server includes a web-based management UI at `/ui/`. Opening the server root
 - Global Defaults group in settings: Auto-Process, the auto-process window, Max Feed Episodes, Only Expose Processed, verification, and cross-fetch differential. Each feed can inherit or override them; see [Configuration > Global feed defaults](configuration.md#global-feed-defaults)
 - Chapter mode default in Settings > Transcripts & Chapters, with the same per-feed inheritance
 - Queue priority boosts in Queue > Queue Control, see [Configuration > Queue priority](configuration.md#queue-priority)
-- Notifications for processed episodes, permanent failures, auth failures, exhausted spend limits, and structural rate-limit hits, delivered by webhooks or native email (Settings > Notifications)
+- Notifications for processed episodes, permanent failures, auth failures, exhausted spend limits, structural rate-limit hits, and episodes awaiting approval or holding detections for review, delivered by webhooks or native email (Settings > Notifications). See [API and Webhooks > Events](api-and-webhooks.md#events)
 - Podcast search from Add feed, using Apple's iTunes directory by default or Podcast Index when configured
 - Search: press Ctrl+K on Windows/Linux or Cmd+K on macOS to open the keyboard palette, or use the search field on the Dashboard. Both return shows, episodes, and transcript matches together, spanning every episode status. The header magnifier, or the palette's own "Advanced search" link, opens a dedicated search page with type filters plus pattern and sponsor matches
 - Multiple dark themes (Tokyo Night, Dracula, Catppuccin, Nord, Gruvbox, Solarized, and more) with light/dark toggle
@@ -317,7 +317,7 @@ A held detection from the queue to the waveform editor: play the span, confirm i
 
 https://github.com/user-attachments/assets/ce18b17f-c99c-41fd-a973-62a686bb2d89
 
-Ads that cannot auto-cut are held rather than cut; see [How It Works > Held for Review](how-it-works.md#held-for-review) for the causes. The episode publishes with the audio intact. Held ads appear on the episode page in an amber "Held for Review" section with two actions per row:
+Ads that cannot auto-cut are held rather than cut; see [How It Works > Held for Review](how-it-works.md#held-for-review) for the causes. The episode publishes with the audio intact, and the Episode Pending Review notification event fires when an episode finishes with held ads (Settings > Notifications). Held ads appear on the episode page in an amber "Held for Review" section with two actions per row:
 
 - **Approve & Recut** - stores a confirm correction and immediately re-cuts the original audio if retained; otherwise the button reads Approve and the cut applies on the next reprocess.
 - **Dismiss** - records a rejection and leaves the audio unchanged.

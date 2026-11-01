@@ -216,6 +216,7 @@ Webhooks fire an HTTP POST to configured URLs. Works with any HTTP endpoint. Use
 |---|---|
 | `Episode Processed` | Episode completes processing successfully |
 | `Episode Awaiting Approval` | Episode finishes processing but is held out of the served feed until approved (Require manual approval). On a feed that requires approval, `Episode Awaiting Approval` fires when processing finishes and `Episode Processed` fires when the episode is approved, so `Episode Processed` always means the episode is now served. Same payload as `Episode Processed` |
+| `Episode Pending Review` | Episode finishes processing with one or more detections held for review. Fires alongside `Episode Processed` or `Episode Awaiting Approval`. The episode is served with the held detections left in until they are approved or rejected, unless it is also awaiting approval. Same payload as `Episode Processed`; `ads_held` carries the count |
 | `Episode Failed` | Episode reaches permanently failed status |
 | `Auth Failure` | LLM provider rejects the API key as invalid or expired (401/403 without billing markers; rate-limited to one per 5 minutes) |
 | `Limit Exceeded` | LLM provider rejects a request because a spend or usage limit is exhausted: a monthly key limit (OpenRouter 403), out of credits (402, Anthropic low balance), or OpenAI `insufficient_quota` (rate-limited to one per 5 minutes). The key is valid; add credits or raise the limit, then reprocess the episode (it is marked permanently failed rather than retried). |
@@ -245,7 +246,7 @@ Custom payload templates are Jinja2 strings rendered against these variables:
 
 | Variable | Type | Description |
 |---|---|---|
-| `event` | string | `Episode Processed`, `Episode Awaiting Approval`, `Episode Failed`, `Auth Failure`, `Limit Exceeded`, `Rate Limit Structural`, `Feed Refresh Failed`, `Update Available`, `Cue Template Quiet`, `Queue Held`, `Queue Resumed`, `Service Offline`, `Service Reachable`, `Failover Triggered`, or `Failover Cancelled` |
+| `event` | string | `Episode Processed`, `Episode Awaiting Approval`, `Episode Pending Review`, `Episode Failed`, `Auth Failure`, `Limit Exceeded`, `Rate Limit Structural`, `Feed Refresh Failed`, `Update Available`, `Cue Template Quiet`, `Queue Held`, `Queue Resumed`, `Service Offline`, `Service Reachable`, `Failover Triggered`, or `Failover Cancelled` |
 | `timestamp` | string | ISO 8601 UTC timestamp |
 | `timestamp_local` | string | ISO 8601 local timestamp with UTC offset, per the notification_timezone setting |
 | `podcast.name` | string | Podcast title (falls back to slug if unavailable) |

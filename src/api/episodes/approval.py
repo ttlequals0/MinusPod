@@ -41,6 +41,7 @@ def _approve(db, slug, episode_id, podcast_title):
             event=EVENT_EPISODE_PROCESSED, episode_id=episode_id, slug=slug,
             episode_title=episode.get('title'), processing_time=None, llm_cost=None,
             ads_removed=episode.get('ads_removed') or 0,
+            ads_held=episode.get('pending_review_count') or 0,
             original_duration=episode.get('original_duration'),
             new_duration=episode.get('new_duration'),
             podcast_name=podcast_title)
@@ -50,13 +51,14 @@ def _approve(db, slug, episode_id, podcast_title):
 
 
 def _publish_feeds(db, slugs):
-    """Clear each feed's etag so the next poll re-renders, rebuild its RSS, then the Recents feed."""
-    # lazy: pipeline.common pulls in main_app, which imports this package
+    """Clear each feed's etag so the next poll re-renders, rebuild its served RSS by feed type, then the Recents feed."""
+    # lazy: main_app imports this package
+    from main_app.feeds import rebuild_served_rss
     from main_app.pipeline import common
     for slug in slugs:
         try:
             db.update_podcast(slug, etag=None, last_modified_header=None)
-            common.refresh_feed_rss(slug)
+            rebuild_served_rss(slug)
         except Exception:
             logger.exception(f"[{slug}] RSS refresh after approval failed")
     try:

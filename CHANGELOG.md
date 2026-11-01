@@ -27,6 +27,9 @@ release notes.
   server rejects for its context size is retried at half the window (#932).
 - Workflow diagrams for the YouTube pipeline and for how System One scores a
   detection window.
+- A new Episode Pending Review webhook and email event fires alongside the
+  processed or awaiting-approval event when a finished episode has
+  detections held for review.
 
 ### Changed
 
