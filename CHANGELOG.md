@@ -20,6 +20,10 @@ release notes.
   without recording a rejection pattern, so the review chip clears and the
   matcher learns nothing from spans the detector could not back up.
 
+### Fixed
+
+- Cue-cut and cue-pair markers keep both edges where the matched cue put them. The end-phrase search and the content walk could move a cue-cut end past the stinger into the host's return phrase, clipping the first words after an ad break (#935, #936). Cue-pair markers were open to the same moves, since their edges already sit where the cue snap would put them and so carry no snap record; they are locked the same way.
+
 ## [2.101.12] - 2026-11-01
 
 ### Added

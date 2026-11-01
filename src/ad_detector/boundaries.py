@@ -62,11 +62,10 @@ EARLY_AD_SNAP_THRESHOLD = 30.0
 def _edge_locked(ad: dict, edge: str) -> bool:
     """Whether an edge is pinned by a cue snap, a valid quote or valid word timing.
 
-    A cue-cut marker (#874) spans exactly the matched cue, so both of its
-    edges are measured; a return phrase right after an ad-break-end cue must
-    not pull the end into the host's speech.
+    Cue-pair and cue-cut markers (#935, #936) are bounded by measured cues, and the
+    snap stage records nothing for an edge it would not move, so lock them by stage.
     """
-    return (ad.get('detection_stage') == CUE_MATCH_STAGE
+    return (ad.get('detection_stage') in ('cue_pair', CUE_MATCH_STAGE)
             or is_edge_cue_snapped(ad, edge) or _quote_edge_valid(ad, edge)
             or word_timed_edge_valid(ad, edge))
 

@@ -730,3 +730,52 @@ def test_content_walk_does_not_extend_cue_match_marker():
     assert (extended[0]['start'], extended[0]['end']) == (100.0, 103.0)
     assert 'start_extended_by_content' not in extended[0]
     assert 'end_extended_by_content' not in extended[0]
+
+
+def _cue_pair_ad(start, end):
+    cue = {'cue_start': start, 'cue_end': end, 'confidence': 0.9,
+           'template_id': 2, 'label': 'ad-break', 'remove_with_ad': True}
+    return {'start': start, 'end': end, 'confidence': 0.9,
+            'reason': 'audio_cue_pair', 'detection_stage': 'cue_pair',
+            'cue_pair': {'start': dict(cue), 'end': dict(cue)}}
+
+
+def test_refine_does_not_move_cue_pair_end_into_return_phrase():
+    from ad_detector.boundaries import refine_ad_boundaries
+
+    segments = [
+        _seg(1855.0, 1861.0, 'lexus rx defy expectations'),
+        _seg(1867.5, 1875.0, 'we are back to college football enquirer'),
+    ]
+    refined = refine_ad_boundaries([_cue_pair_ad(1861.86, 1865.11)], segments)
+
+    assert refined[0]['start'] == 1861.86
+    assert refined[0]['end'] == 1865.11
+    assert 'end_refined' not in refined[0]
+
+
+def test_refine_does_not_move_cue_pair_start():
+    from ad_detector.boundaries import refine_ad_boundaries
+
+    segments = [
+        _seg(1760.0, 1767.0, "let's take a break here"),
+        _seg(1768.0, 1771.0, 'jingle'),
+    ]
+    refined = refine_ad_boundaries([_cue_pair_ad(1768.01, 1770.51)], segments)
+
+    assert refined[0]['start'] == 1768.01
+    assert 'start_refined' not in refined[0]
+
+
+def test_content_walk_does_not_extend_cue_pair_marker():
+    segments = [
+        _seg(95.0, 99.0, 'visit example dot com for a discount'),
+        _seg(100.0, 103.0, 'jingle'),
+        _seg(103.0, 108.0, 'go to example dot com slash offer'),
+    ]
+    extended = extend_ad_boundaries_by_content(
+        [_cue_pair_ad(100.0, 103.0)], segments)
+
+    assert (extended[0]['start'], extended[0]['end']) == (100.0, 103.0)
+    assert 'start_extended_by_content' not in extended[0]
+    assert 'end_extended_by_content' not in extended[0]
