@@ -1168,24 +1168,23 @@ function EpisodeDetail() {
                 />
               )}
             </div>
-            {episode.awaitingApproval && (
-              <div className="flex flex-col items-start gap-1">
+            <div className="flex flex-wrap items-center gap-2">
+              {episode.awaitingApproval && (
                 <button
                   type="button"
                   onClick={() => approveMutation.mutate()}
                   disabled={approveMutation.isPending}
                   className={`${btnBase} ${btnPrimary} ${touchTarget}`}
+                  aria-label="Approve and publish"
                 >
-                  {approveMutation.isPending ? 'Approving...' : 'Approve and publish'}
+                  {approveMutation.isPending ? 'Approving...' : (
+                    <>
+                      <span className="sm:hidden">Approve</span>
+                      <span className="hidden sm:inline">Approve and publish</span>
+                    </>
+                  )}
                 </button>
-                {approveMutation.isError && (
-                  <p role="alert" className="text-sm text-destructive">
-                    {getErrorMessage(approveMutation.error, 'Could not approve this episode.')}
-                  </p>
-                )}
-              </div>
-            )}
-            <div className="flex flex-nowrap items-center gap-2">
+              )}
               {downloadItems.length > 0 && (
                 <DropdownMenu
                   triggerLabel="Download"
@@ -1229,6 +1228,11 @@ function EpisodeDetail() {
                 ]}
               />
             </div>
+            {approveMutation.isError && (
+              <p role="alert" className="text-sm text-destructive">
+                {getErrorMessage(approveMutation.error, 'Could not approve this episode.')}
+              </p>
+            )}
           </div>
         </div>
 
