@@ -24,6 +24,10 @@
 - [Troubleshooting](#troubleshooting)
 - [Reference](#reference)
 
+Adding a show by name, SponsorBlock marks on an episode, the rating, submitting reviewed segments, the status bar during a SponsorBlock outage and the settings. Portrait cut and the file itself in [Videos](videos/README.md).
+
+https://github.com/user-attachments/assets/5ba14213-c2f7-4bec-a70d-b7d722a7209d
+
 ## What a YouTube feed is
 
 A YouTube feed is a podcast feed MinusPod builds from a YouTube playlist or channel. MinusPod lists the videos, downloads their audio with yt-dlp, removes sponsor segments, and serves the result as RSS like any other feed. Use it for a show that only exists on YouTube.

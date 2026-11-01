@@ -31,7 +31,7 @@
 
 A tour of the web UI: dashboard, queue, detected ads, the waveform editor, review, patterns, search, stats and settings. Portrait cut and the file itself in [Videos](videos/README.md).
 
-https://github.com/user-attachments/assets/3c64b0eb-5b52-457a-bd94-17b7ecdeef2c
+https://github.com/user-attachments/assets/26e4f083-a398-44b4-ad22-e6f753e03f52
 
 ## Overview
 
