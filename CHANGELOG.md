@@ -9,6 +9,14 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
+## [Unreleased]
+
+### Added
+
+- The transcript dialog's search can show one or three neighbouring segments
+  around each match, jump to a match inside the full transcript, and step
+  through matches with Previous and Next or Enter.
+
 ## [2.101.10] - 2026-10-31
 
 ### Fixed

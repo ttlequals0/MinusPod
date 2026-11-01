@@ -2,7 +2,7 @@ import { useRef } from 'react';
 import { btnSecondary } from './buttonStyles';
 import { focusRing } from './fieldStyles';
 
-export interface SegmentedOption<T extends string> {
+export interface SegmentedOption<T extends string | number> {
   value: T;
   label: string;
   title?: string;
@@ -10,7 +10,7 @@ export interface SegmentedOption<T extends string> {
   ariaLabel?: string;
 }
 
-interface SegmentedToggleProps<T extends string> {
+interface SegmentedToggleProps<T extends string | number> {
   options: readonly SegmentedOption<T>[];
   value: T;
   onChange: (value: T) => void;
@@ -43,7 +43,7 @@ const VARIANTS = {
 
 // One button group, one selected segment. A portaled surface that needs
 // ring-inset on focus applies it itself.
-function SegmentedToggle<T extends string>({
+function SegmentedToggle<T extends string | number>({
   options, value, onChange, ariaLabel, variant = 'settings', muted, fill, disabled,
   mobileTouchTarget = false,
 }: SegmentedToggleProps<T>) {
