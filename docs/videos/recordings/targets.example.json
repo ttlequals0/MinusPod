@@ -4,7 +4,8 @@
   "leakPatterns": [
     "your-server",
     "your-feed-host",
-    "[?&]key="
+    "[?&]key=",
+    "Example Channel Name"
   ],
   "excludeShows": [],
   "review": {
@@ -42,5 +43,15 @@
     "sponsor": "Acme",
     "patternId": 1234,
     "editSearch": "Globex"
+  },
+  "demo": {
+    "adsEpisode": "example-podcast/a1b2c3d4e5f6",
+    "heldEpisode": "example-podcast/f6e5d4c3b2a1",
+    "searchTerm": "word that appears in the transcript"
+  },
+  "youtube": {
+    "feed": "example-youtube-feed",
+    "episode": "b2c3d4e5f6a1",
+    "searchTerm": "The Daily Tech Show"
   }
 }

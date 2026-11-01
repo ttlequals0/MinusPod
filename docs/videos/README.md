@@ -10,7 +10,7 @@ or music can be added in the posting app. The landscape cuts also play inline in
 
 | Video | Portrait | Landscape | Length | What it shows |
 |---|---|---|---|---|
-| UI tour | [minuspod-demo.mp4](minuspod-demo.mp4) | [minuspod-demo-landscape.mp4](minuspod-demo-landscape.mp4) | 85 s | Dashboard, processing queue, detected ads, the waveform editor, review, patterns, search, stats, settings and themes. Recorded from a running instance. |
+| UI tour | [minuspod-demo.mp4](minuspod-demo.mp4) | [minuspod-demo-landscape.mp4](minuspod-demo-landscape.mp4) | 85 s | Dashboard, processing queue, detected ads, the waveform editor, review, patterns, search, stats, settings and themes, then YouTube feeds: adding a show by name, SponsorBlock marks, rating, submitting to SponsorBlock and the YouTube settings. Recorded from a running instance. |
 | How it works | [minuspod-how-it-works.mp4](minuspod-how-it-works.mp4) | [minuspod-how-it-works-landscape.mp4](minuspod-how-it-works-landscape.mp4) | 107 s | One episode across all eleven pipeline stages: download, transcribe, second download and audio analysis, detect (free matches, then the model), validate, boundary review, cut, verify pass, transcript and chapters, publish. Then the learning loop and what happens when something fails. Follows [How It Works](../how-it-works.md) and [Episode Processing Workflows](../workflows.md). |
 | Review queue | [minuspod-review-queue.mp4](minuspod-review-queue.mp4) | [minuspod-review-queue-landscape.mp4](minuspod-review-queue-landscape.mp4) | 42 s | A held detection from the queue to the waveform editor: play the span, confirm it, watch the recut, see it on the record. Recorded from a running instance. |
 | Audio cues | [minuspod-audio-cues.mp4](minuspod-audio-cues.mp4) | [minuspod-audio-cues-landscape.mp4](minuspod-audio-cues-landscape.mp4) | 43 s | Find a show's ad-break chime on one episode, templates and their health on the feed, the cross-episode scan, cuts that snapped to a cue, and the settings behind it. Recorded. |
@@ -119,6 +119,8 @@ from Liberation Sans.
    The result is `out/<output>.mp4` and `out/<output>-landscape.mp4`, named by
    the `output` field of the beats file. Pass beat indexes after the mode to
    rebuild only those segments while tuning a crop or a caption.
+
+The UI tour beats live in `beats/demo.mjs` and are read-only: they navigate, scroll and open dialogs, and never save, confirm, rate, submit or generate anything.
 
 Some beats change the instance: the review and patterns videos each confirm
 a held marker and recut its episode, the patterns video sets one pattern's

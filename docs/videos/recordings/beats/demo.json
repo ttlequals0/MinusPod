@@ -1,0 +1,200 @@
+{
+ "output": "minuspod-demo",
+ "beats": [
+  {
+   "card": true,
+   "dur": 3.5,
+   "head": "",
+   "sub": "Strip the ads. Keep the show.",
+   "logo": "logo-dark.png"
+  },
+  {
+   "clip": "dashboard",
+   "dev": "phone",
+   "start": 0.5,
+   "dur": 7,
+   "head": "Every feed in one place.",
+   "sub": "Subscriptions, new episodes and processing status."
+  },
+  {
+   "clip": "queue",
+   "dev": "phone",
+   "start": 0.5,
+   "dur": 5.5,
+   "head": "Watch the queue.",
+   "sub": "Active and waiting jobs, stage by stage."
+  },
+  {
+   "clip": "ads",
+   "dev": "laptop",
+   "start": 0.3,
+   "dur": 7,
+   "crop": [
+    48,
+    100,
+    1904,
+    1700
+   ],
+   "head": "Every detected ad, listed.",
+   "sub": "Start, end, confidence and where each one came from."
+  },
+  {
+   "clip": "editor",
+   "dev": "laptop",
+   "start": 0.5,
+   "dur": 8,
+   "crop": [
+    104,
+    72,
+    1792,
+    1660
+   ],
+   "head": "Adjust it on the waveform.",
+   "sub": "Play the span and move the edges to the exact word."
+  },
+  {
+   "clip": "review",
+   "dev": "laptop",
+   "start": 0.5,
+   "dur": 8,
+   "crop": [
+    104,
+    72,
+    1792,
+    1660
+   ],
+   "head": "Unsure cases wait for review.",
+   "sub": "Hear a held detection before anything is cut."
+  },
+  {
+   "clip": "patterns",
+   "dev": "laptop",
+   "start": 0.3,
+   "dur": 6,
+   "crop": [
+    48,
+    180,
+    1904,
+    1420
+   ],
+   "head": "Patterns that learn.",
+   "sub": "Built from the detections you confirmed."
+  },
+  {
+   "clip": "search",
+   "dev": "phone",
+   "start": 0.5,
+   "dur": 7,
+   "head": "Search everything.",
+   "sub": "Titles, transcripts and patterns."
+  },
+  {
+   "clip": "stats",
+   "dev": "laptop",
+   "start": 0.3,
+   "dur": 6,
+   "crop": [
+    48,
+    100,
+    1904,
+    1700
+   ],
+   "head": "Stats and spend.",
+   "sub": "Ads removed, time saved, cost per call."
+  },
+  {
+   "clip": "settings",
+   "dev": "laptop",
+   "start": 0.3,
+   "dur": 6,
+   "crop": [
+    48,
+    180,
+    1904,
+    1420
+   ],
+   "head": "Settings for every stage.",
+   "sub": "Models, providers, audio and output."
+  },
+  {
+   "clip": "themes",
+   "dev": "phone",
+   "start": 0.5,
+   "dur": 6,
+   "head": "Light or dark.",
+   "sub": "Follows the system, or pick one."
+  },
+  {
+   "clip": "ytadd",
+   "dev": "phone",
+   "start": 0.5,
+   "dur": 9,
+   "head": "Add a YouTube show by name.",
+   "sub": "Podcast results are flagged. Look up before you add."
+  },
+  {
+   "clip": "ytfeed",
+   "dev": "laptop",
+   "start": 0.3,
+   "dur": 7,
+   "crop": [
+    48,
+    100,
+    1904,
+    1700
+   ],
+   "head": "A playlist or channel becomes a feed.",
+   "sub": "Marked YouTube, with its own SponsorBlock settings."
+  },
+  {
+   "clip": "ytepisode",
+   "dev": "laptop",
+   "start": 0.3,
+   "dur": 9,
+   "crop": [
+    48,
+    100,
+    1904,
+    1700
+   ],
+   "head": "SponsorBlock marks are cut as given.",
+   "sub": "The episode page shows the marks. Rate the cut while you are there."
+  },
+  {
+   "clip": "ytsubmit",
+   "dev": "laptop",
+   "start": 0.5,
+   "dur": 9,
+   "crop": [
+    104,
+    72,
+    1792,
+    1660
+   ],
+   "head": "Send confirmed cuts to SponsorBlock yourself.",
+   "sub": "Review each segment first. MinusPod never submits on its own."
+  },
+  {
+   "clip": "ytsettings",
+   "dev": "laptop",
+   "start": 0.3,
+   "dur": 7,
+   "crop": [
+    48,
+    180,
+    1904,
+    1420
+   ],
+   "head": "Off by default.",
+   "sub": "Turn on YouTube feeds and submissions in Settings. The user ID stays masked."
+  },
+  {
+   "card": true,
+   "dur": 4,
+   "head": "MinusPod",
+   "sub": "Podcasts and YouTube, without the ads.",
+   "logo": "logo-dark.png",
+   "small": "github.com/ttlequals0/MinusPod"
+  }
+ ]
+}
