@@ -26,7 +26,9 @@ EPISODE_STATUSES = tuple(
 _STATUS_COUNT_SELECT = ',\n'.join(
     f"SUM(CASE WHEN e.status = '{s}' THEN 1 ELSE 0 END) as status_{s}"
     for s in EPISODE_STATUSES
-)
+) + (",\n"
+     "SUM(CASE WHEN e.approval_pending_at IS NOT NULL THEN 1 ELSE 0 END) "
+     "as awaiting_approval_count")
 
 
 def podping_declaration_columns(uses_podping: bool | None,
@@ -371,6 +373,7 @@ class PodcastMixin:
                 *self._DIFFERENTIAL_COLS,
                 'max_episodes', 'etag',
                 'last_modified_header', 'only_expose_processed_episodes',
+                'require_manual_approval',
                 'refresh_failure_count', 'last_refresh_error',
                 'last_refresh_error_at', 'last_refresh_failure_at',
                 'parse_failure_count', 'last_parse_failure_at',
@@ -732,6 +735,16 @@ class PodcastMixin:
         if per_feed is not None:
             return bool(per_feed)
         return self.get_setting('only_expose_processed_default') == 'true'
+
+    def requires_manual_approval(self, slug: str,
+                                 podcast: dict | None = None) -> bool:
+        """Per-feed require_manual_approval if non-NULL, else the global default."""
+        if podcast is None:
+            podcast = self.get_podcast_by_slug(slug)
+        per_feed = podcast.get('require_manual_approval') if podcast else None
+        if per_feed is not None:
+            return bool(per_feed)
+        return self.get_setting('require_manual_approval_default') == 'true'
 
     def resolve_detect_show_segments(self, slug: str,
                                      podcast: dict | None = None) -> bool:

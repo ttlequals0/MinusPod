@@ -331,6 +331,13 @@ def json_response(data, status=200):
     return response
 
 
+def paged_args(default_limit=50, max_limit=100):
+    """The clamped ?limit and ?offset query args as a (limit, offset) pair."""
+    limit = min(max(1, request.args.get('limit', default_limit, type=int)), max_limit)
+    offset = max(0, request.args.get('offset', 0, type=int))
+    return limit, offset
+
+
 def error_response(message, status=400, details=None):
     """Create error response. `details` is logged server-side and dropped from
     the client payload for 5xx, so internal state never leaks externally."""

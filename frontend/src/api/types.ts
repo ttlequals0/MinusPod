@@ -147,6 +147,9 @@ export interface Feed {
   skipTranscription?: boolean | null;
   maxEpisodes?: number | null;
   onlyExposeProcessedEpisodes?: boolean | null;
+  // Hold new episodes out of the served feed until approved. Null inherits the global default.
+  requireManualApproval?: boolean | null;
+  awaitingApprovalCount?: number;
   // Per-feed retention: null inherits the global window, 0 archives the feed
   // so nothing is ever deleted, a positive value is a day count.
   retentionDaysOverride?: number | null;
@@ -206,6 +209,9 @@ export interface EpisodeSummary {
   description?: string | null;
   error?: string | null;
   pendingReviewCount?: number;
+  awaitingApproval?: boolean;
+  approvalPendingAt?: string | null;
+  approvedAt?: string | null;
   titleSkipped?: boolean;
   descriptionSkipped?: boolean;
   durationSkipped?: boolean;
@@ -251,6 +257,9 @@ export interface Episode {
   ad_count?: number;
   hasOriginalAudio?: boolean;
   pendingReviewCount?: number;
+  awaitingApproval?: boolean;
+  approvalPendingAt?: string | null;
+  approvedAt?: string | null;
   titleSkipped?: boolean;
   descriptionSkipped?: boolean;
   durationSkipped?: boolean;
@@ -845,6 +854,7 @@ export interface SystemOneProfile {
   maxQuestionsPerRequest: number | null;
   maxRequestBytes: number | null;
   maxChoiceOptions: number | null;
+  maxPromptTokens: number | null;
 }
 
 export type SystemOneProfiles = Record<SystemOneCredentialSlot, Record<SystemOneProvider, SystemOneProfile>>;
@@ -916,6 +926,7 @@ export interface Settings {
   queueBulkBoost: SettingValueNumber;
   segmentCategoryActions: { value: Record<SegmentCategory, SegmentAction>; isDefault: boolean };
   onlyExposeProcessedDefault: SettingValueBoolean;
+  requireManualApprovalDefault?: SettingValueBoolean;
   detectShowSegments: SettingValueBoolean;
   textRecurrenceHints: SettingValueBoolean;
   adAddressingMode: SettingValue;
@@ -1106,6 +1117,7 @@ export interface Settings {
     rssRefreshIntervalMinutes: number;
     segmentCategoryActions: Record<SegmentCategory, SegmentAction>;
     onlyExposeProcessedDefault: boolean;
+    requireManualApprovalDefault?: boolean;
     detectShowSegments: boolean;
     textRecurrenceHints: boolean;
     adAddressingMode: string;
@@ -1256,6 +1268,7 @@ export interface UpdateSettingsPayload {
   // PATCH, which replaces the stored map outright).
   segmentCategoryActions?: Partial<Record<SegmentCategory, SegmentAction>>;
   onlyExposeProcessedDefault?: boolean;
+  requireManualApprovalDefault?: boolean;
   detectShowSegments?: boolean;
   textRecurrenceHints?: boolean;
   adAddressingMode?: string;

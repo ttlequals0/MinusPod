@@ -135,6 +135,7 @@ TABLE_DDL['podcasts'] = """CREATE TABLE IF NOT EXISTS podcasts (
     audio_mp3_stream_copy_override INTEGER,
     max_episodes INTEGER,
     only_expose_processed_episodes INTEGER,
+    require_manual_approval INTEGER,
     tags TEXT NOT NULL DEFAULT '[]',
     user_tags TEXT NOT NULL DEFAULT '[]',
     -- 'subscribed' (upstream RSS), 'local' (imported archive), or
@@ -190,6 +191,8 @@ TABLE_DDL['episodes'] = """CREATE TABLE IF NOT EXISTS episodes (
     ads_removed_secondpass INTEGER DEFAULT 0,
     pending_review_count INTEGER NOT NULL DEFAULT 0,
     pending_recut_at TEXT,
+    approval_pending_at TEXT,
+    approved_at TEXT,
     error_message TEXT,
     -- Offline queue (#482): when the episode FIRST entered the offline queue
     -- and which service ('llm' or 'whisper') was unreachable. deferred_at
@@ -950,6 +953,7 @@ CREATE INDEX IF NOT EXISTS idx_episodes_status ON episodes(status);
 CREATE INDEX IF NOT EXISTS idx_episodes_created_at ON episodes(created_at);
 CREATE INDEX IF NOT EXISTS idx_episodes_sb_next_check ON episodes(sb_next_check_at) WHERE sb_next_check_at IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_episodes_sb_waiting ON episodes(sb_state) WHERE sb_state IN ('waiting','probing');
+CREATE INDEX IF NOT EXISTS idx_episodes_approval_pending ON episodes(approval_pending_at) WHERE approval_pending_at IS NOT NULL;
 
 -- Cross-episode training indexes (indexes on new columns created in migrations)
 CREATE INDEX IF NOT EXISTS idx_patterns_sponsor_id ON ad_patterns(sponsor_id) WHERE is_active = 1;

@@ -770,7 +770,7 @@ describe('FeedSettingsPanel show-segments tri-state control (#565)', () => {
     await waitFor(() => {
       expect(within(group).getByRole('radio', { name: 'Inherit' }).getAttribute('aria-checked')).toBe('true');
     });
-    expect(screen.getByText('Following the global setting (currently off).')).toBeDefined();
+    expect(within(group.parentElement as HTMLElement).getByText('Following the global setting (currently off).')).toBeDefined();
   });
 
   it('reflects a global default of on in the helper text', async () => {
@@ -778,7 +778,7 @@ describe('FeedSettingsPanel show-segments tri-state control (#565)', () => {
     renderPanel(makeFeed());
 
     await waitFor(() => {
-      expect(screen.getByText('Following the global setting (currently on).')).toBeDefined();
+      expect(within(screen.getByRole('radiogroup', { name: 'Show segments' }).parentElement as HTMLElement).getByText('Following the global setting (currently on).')).toBeDefined();
     });
   });
 
@@ -801,7 +801,7 @@ describe('FeedSettingsPanel show-segments tri-state control (#565)', () => {
 
     const group = screen.getByRole('radiogroup', { name: 'Show segments' });
     expect(within(group).getByRole('radio', { name: 'On' }).getAttribute('aria-checked')).toBe('true');
-    expect(screen.queryByText(/Following the global setting/)).toBeNull();
+    expect(within(group.parentElement as HTMLElement).queryByText(/Following the global setting/)).toBeNull();
   });
 
   it('selecting Inherit fires updateFeed with detectShowSegments null', async () => {
@@ -1759,5 +1759,32 @@ describe('FeedSettingsPanel chapter notes', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Clear chapter notes' }));
     await userEvent.click(screen.getByRole('button', { name: 'Save chapter notes' }));
     expect(mockUpdateFeed).toHaveBeenCalledWith('test-feed', { chapterNotes: null });
+  });
+});
+
+describe('FeedSettingsPanel require manual approval tri-state control', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockGetSettings.mockResolvedValue({});
+    mockUpdateFeed.mockResolvedValue(makeFeed());
+  });
+
+  it('defaults to Inherit and shows the global value', async () => {
+    mockGetSettings.mockResolvedValue({ requireManualApprovalDefault: { value: true, isDefault: false } });
+    renderPanel(makeFeed());
+    const group = screen.getByRole('radiogroup', { name: 'Require manual approval' });
+    expect(within(group).getByRole('radio', { name: 'Inherit' }).getAttribute('aria-checked')).toBe('true');
+    await waitFor(() => expect(within(group.parentElement as HTMLElement).getByText('Following the global setting (currently on).')).toBeDefined());
+  });
+
+  it('sends true, false and null', async () => {
+    renderPanel(makeFeed({ requireManualApproval: false }));
+    const group = screen.getByRole('radiogroup', { name: 'Require manual approval' });
+    await userEvent.click(within(group).getByRole('radio', { name: 'On' }));
+    expect(mockUpdateFeed).toHaveBeenLastCalledWith('test-feed', { requireManualApproval: true });
+    await userEvent.click(within(group).getByRole('radio', { name: 'Inherit' }));
+    expect(mockUpdateFeed).toHaveBeenLastCalledWith('test-feed', { requireManualApproval: null });
+    await userEvent.click(within(group).getByRole('radio', { name: 'Off' }));
+    expect(mockUpdateFeed).toHaveBeenLastCalledWith('test-feed', { requireManualApproval: false });
   });
 });

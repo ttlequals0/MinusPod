@@ -1330,6 +1330,38 @@ function FeedSettingsPanel({ feed, slug }: Props) {
               </div>
               )}
 
+              {/* Hold new episodes out of the served feed until approved. */}
+              {!isLocal && (
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-3 text-sm">
+                <div className="min-w-0">
+                  <span className="text-muted-foreground block">Require manual approval</span>
+                  <span className="text-xs text-muted-foreground/70 block">
+                    New episodes stay out of the served feed until you approve them.
+                  </span>
+                </div>
+                <div className="flex flex-col items-start sm:items-end gap-1">
+                  <SegmentedToggle
+                    value={feed.requireManualApproval == null ? 'inherit' : feed.requireManualApproval ? 'on' : 'off'}
+                    options={[
+                      { value: 'inherit', label: 'Inherit' },
+                      { value: 'on', label: 'On' },
+                      { value: 'off', label: 'Off' },
+                    ]}
+                    onChange={(v) => updateMutation.mutate({
+                      requireManualApproval: v === 'inherit' ? null : v === 'on',
+                    })}
+                    disabled={updateMutation.isPending}
+                    ariaLabel="Require manual approval"
+                  />
+                  {feed.requireManualApproval == null && (
+                    <p className="text-xs text-muted-foreground">
+                      Following the global setting (currently {(settings?.requireManualApprovalDefault?.value ?? false) ? 'on' : 'off'}).
+                    </p>
+                  )}
+                </div>
+              </div>
+              )}
+
               {/* Served-feed GUID scheme (#598). Local feeds always serve their
                   own episode IDs; there's no publisher GUID to fall back to. */}
               {!isLocal && (

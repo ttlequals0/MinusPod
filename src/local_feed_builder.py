@@ -20,6 +20,7 @@ import json
 import logging
 
 from chapter_notes import append_chapters, chapter_notes_for
+from database.episodes import NOT_AWAITING_APPROVAL
 from main_app import db, rss_parser, storage
 from main_app.feed_auth import active_feed_key
 from main_app.shared_state import invalidate_episode_lookup_cache
@@ -330,7 +331,9 @@ def _fetch_local_feed_episodes(db_, podcast_id: int, limit: int | None,
     ``processed_only`` keeps only episodes with a published file (YouTube feeds), including ones being reprocessed.
     """
     conn = db_.get_connection()
-    served = "AND processed_file IS NOT NULL " if processed_only else ""
+    served = f"AND {NOT_AWAITING_APPROVAL} "
+    if processed_only:
+        served += "AND processed_file IS NOT NULL "
     query = (f"SELECT * FROM episodes WHERE podcast_id = ? {served}"  # noqa: S608
              "ORDER BY COALESCE(published_at, created_at) DESC")
     params = [podcast_id]

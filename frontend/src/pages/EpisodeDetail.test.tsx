@@ -80,6 +80,7 @@ vi.mock('../utils/confidence', () => ({
 // Mutable mutation stubs; reassigned per test.
 const mockSubmitCorrection = vi.fn();
 const mockReprocessEpisode = vi.fn();
+const mockApproveEpisode = vi.fn();
 const mockRegenerateChapters = vi.fn();
 const mockUpdateLocalEpisode = vi.fn();
 const mockDownloadEpisodeAudio = vi.fn();
@@ -96,6 +97,7 @@ vi.mock('../api/feeds', () => ({
   getOriginalSegments: vi.fn(),
   getFinalSegments: vi.fn(),
   reprocessEpisode: (...args: unknown[]) => mockReprocessEpisode(...args),
+  approveEpisode: (...args: unknown[]) => mockApproveEpisode(...args),
   regenerateChapters: (...args: unknown[]) => mockRegenerateChapters(...args),
   episodeOriginalUrl: (slug: string, episodeId: string) =>
     `/api/v1/feeds/${slug}/episodes/${episodeId}/original.mp3`,
@@ -153,7 +155,10 @@ function makeEpisode(overrides: Partial<EpisodeDetailType> = {}): EpisodeDetailT
 // Wrap getEpisode to return a resolved episode; getFeed returns minimal data.
 import { getEpisode, getFeed } from '../api/feeds';
 
-vi.mock('../api/settings', () => ({ getSettings: vi.fn() }));
+vi.mock('../api/settings', async (importActual) => ({
+  APPROVAL_INVALIDATE_KEYS: (await importActual<typeof import('../api/settings')>()).APPROVAL_INVALIDATE_KEYS,
+  getSettings: vi.fn(),
+}));
 beforeEach(() => {
   vi.mocked(getSettings).mockResolvedValue({
     llmProvider: { value: 'anthropic' }, claudeModel: { value: 'claude-sonnet' },
@@ -2736,5 +2741,39 @@ describe('Reprocess menu wording follows the feed type', () => {
     expect(await screen.findByText('Use patterns + AI')).toBeTruthy();
     expect(screen.getByText('Skip patterns, AI only')).toBeTruthy();
     expect(screen.getByText('Keep transcript, re-cut')).toBeTruthy();
+  });
+});
+
+describe('Awaiting approval', () => {
+  beforeEach(() => {
+    mockApproveEpisode.mockReset();
+    mockApproveEpisode.mockResolvedValue({});
+  });
+
+  it('shows the badge and Approve and publish button only while awaiting', async () => {
+    renderDetail(makeEpisode({ awaitingApproval: true, pendingReviewMarkers: [] }));
+    expect(await screen.findByText('Awaiting approval')).toBeDefined();
+    expect(screen.getByRole('button', { name: 'Approve and publish' })).toBeDefined();
+  });
+
+  it('hides both once the episode is approved', async () => {
+    renderDetail(makeEpisode({ awaitingApproval: false, pendingReviewMarkers: [] }));
+    await screen.findByText('Test Episode');
+    expect(screen.queryByText('Awaiting approval')).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Approve and publish' })).toBeNull();
+  });
+
+  it('calls the approve route and refetches the episode', async () => {
+    const user = userEvent.setup();
+    renderDetail(makeEpisode({ awaitingApproval: true, pendingReviewMarkers: [] }));
+    await user.click(await screen.findByRole('button', { name: 'Approve and publish' }));
+    await waitFor(() => expect(mockApproveEpisode).toHaveBeenCalledWith('test-feed', 'ep-1'));
+    await waitFor(() => expect((getEpisode as ReturnType<typeof vi.fn>).mock.calls.length).toBeGreaterThan(1));
+  });
+
+  it('gives the held section an anchor id', async () => {
+    renderDetail(makeEpisode());
+    const section = await screen.findByTestId('held-for-review-section');
+    expect(section.id).toBe('held-for-review-section');
   });
 });

@@ -249,7 +249,7 @@ def _passthrough_episode(slug, episode_id, episode_url, episode_title,
                           podcast_name, episode_description,
                           episode_artwork_url, episode_published_at,
                           start_time, episode_data, cancel_event=None, podcast=None,
-                          preacquired_audio=None):
+                          preacquired_audio=None, hold_for_approval=False):
     """Pass-through mode (#521): download the episode and serve it exactly
     as published -- no transcription, detection, LLM, cutting, or assets.
     MinusPod acts as an archive/relay for the feed while the served feed
@@ -337,7 +337,8 @@ def _passthrough_episode(slug, episode_id, episode_url, episode_title,
                            start_time=start_time,
                            processed_version=new_version,
                            audio_cue_detections=0,
-                           run_stats=run_stats)
+                           run_stats=run_stats,
+                           hold_for_approval=hold_for_approval, podcast_row=podcast)
         common._publish_status('complete_job', slug, episode_id)
         return True
 
@@ -386,7 +387,7 @@ def _recut_episode(slug, episode_id, episode_title, podcast_name,
                     episode_description, start_time, cancel_event=None,
                     run_stats=None, verification_count=0,
                     audio_cue_detections=0, owns_failure=True, progress=None,
-                    podcast_row=None):
+                    podcast_row=None, hold_for_approval=False):
     """Recut mode (issue #422): re-cut the retained original audio from the
     current ad detections and re-time the saved transcript -- no download,
     transcription, detection, LLM, or verification pass. Preconditions
@@ -400,6 +401,7 @@ def _recut_episode(slug, episode_id, episode_title, podcast_name,
     run_stats, verification_count, and audio_cue_detections are forwarded to
     the history row, so a folded approval recut keeps the run's stats.
     podcast_row, when given, is the caller's already-fetched podcasts row.
+    hold_for_approval=True keeps an in-run recut under the manual-approval rule.
     owns_failure=False leaves the failure to the caller. ``progress`` is a dict
     the recut stamps 'mutated' on before it overwrites the episode's audio, so a
     caller that means to fall back knows whether anything it would finalize is
@@ -567,7 +569,8 @@ def _recut_episode(slug, episode_id, episode_title, podcast_name,
                            audio_cue_detections=audio_cue_detections,
                            run_stats=finalize_run_stats,
                            ads_held=held_count, ads_not_cut=not_cut_count,
-                           on_persisted=_mark_published)
+                           on_persisted=_mark_published,
+                           hold_for_approval=hold_for_approval, podcast_row=podcast_row)
         common._publish_status('complete_job', slug, episode_id)
         return True
 

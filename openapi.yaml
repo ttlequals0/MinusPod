@@ -463,6 +463,11 @@ paths:
                     - boolean
                     - 'null'
                   description: Per-feed override. true hides non-processed episodes; false shows everything; null falls back to the global onlyExposeProcessedDefault setting.
+                requireManualApproval:
+                  type:
+                    - boolean
+                    - 'null'
+                  description: Per-feed override. true keeps newly processed episodes out of the served feed until approved; false publishes them at once; null falls back to the global requireManualApprovalDefault setting.
                 retentionDaysOverride:
                   type:
                     - integer
@@ -1189,6 +1194,11 @@ paths:
                     - boolean
                     - 'null'
                   description: Per-feed override. true hides non-processed episodes; false shows everything; null falls back to the global onlyExposeProcessedDefault setting.
+                requireManualApproval:
+                  type:
+                    - boolean
+                    - 'null'
+                  description: Per-feed override. true keeps newly processed episodes out of the served feed until approved; false publishes them at once; null falls back to the global requireManualApprovalDefault setting.
                 retentionDaysOverride:
                   type:
                     - integer
@@ -3070,6 +3080,222 @@ paths:
                     type: integer
         '429':
           description: Rate limited (5 per minute)
+
+  /episodes/awaiting-approval:
+    get:
+      tags:
+        - Episodes
+      summary: Episodes waiting for manual approval
+      description: >-
+        Processed episodes held out of the served feed and audio until
+        approved, oldest first, across feeds.
+      operationId: listAwaitingApproval
+      parameters:
+        - name: slug
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Limit the list to one feed's episodes.
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 500
+            default: 100
+        - name: offset
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+      responses:
+        '200':
+          description: Awaiting episodes and the total count
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  count:
+                    type: integer
+                    description: Total waiting episodes, ignoring limit and offset.
+                  episodes:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        slug:
+                          type: string
+                        episodeId:
+                          type: string
+                        title:
+                          type: string
+                        podcast:
+                          type: string
+                        pendingSince:
+                          type: string
+                          description: When the episode began waiting for approval. Omitted from the held-detections list.
+                        adCount:
+                          type: integer
+                        pendingReviewCount:
+                          type: integer
+
+  /episodes/awaiting-approval/approve:
+    post:
+      tags:
+        - Episodes
+      summary: Approve several waiting episodes
+      description: >-
+        Approves the listed episodes, or every waiting episode of one feed
+        when `slug` is sent instead of `episodes`. Each feed's RSS is rebuilt
+        once. An episode that is not waiting is counted as skipped.
+      operationId: approveAwaitingEpisodes
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                episodes:
+                  type: array
+                  maxItems: 500
+                  items:
+                    type: object
+                    required:
+                      - slug
+                      - episodeId
+                    properties:
+                      slug:
+                        type: string
+                      episodeId:
+                        type: string
+                slug:
+                  type: string
+                  description: Approve every waiting episode of this feed. Ignored when `episodes` is sent.
+      responses:
+        '200':
+          description: How many episodes were approved and how many were skipped
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  approved:
+                    type: integer
+                  skipped:
+                    type: integer
+                  remaining:
+                    type: integer
+                    description: Waiting episodes of the feed left after the 500 oldest were approved. 0 for an `episodes` request.
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          description: Rate limited (10 per minute)
+
+  /episodes/held:
+    get:
+      tags:
+        - Episodes
+      summary: Episodes with detections held for review
+      description: >-
+        Processed episodes with at least one detection held for human review,
+        newest first, across feeds.
+      operationId: listHeldEpisodes
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 500
+            default: 100
+        - name: offset
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+      responses:
+        '200':
+          description: Held episodes and the total count
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  count:
+                    type: integer
+                    description: Total episodes with held detections, ignoring limit and offset.
+                  episodes:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        slug:
+                          type: string
+                        episodeId:
+                          type: string
+                        title:
+                          type: string
+                        podcast:
+                          type: string
+                        pendingSince:
+                          type: string
+                          description: When the episode began waiting for approval. Omitted from the held-detections list.
+                        adCount:
+                          type: integer
+                        pendingReviewCount:
+                          type: integer
+
+  /feeds/{slug}/episodes/{episode_id}/approve:
+    post:
+      tags:
+        - Episodes
+      summary: Approve a waiting episode
+      description: >-
+        Clears the approval wait, stamps `approvedAt`, rebuilds the feed RSS
+        and fires the Episode Processed event.
+      operationId: approveEpisode
+      parameters:
+        - name: slug
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: episode_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: The approved episode
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  approved:
+                    type: boolean
+                  episode:
+                    $ref: '#/components/schemas/EpisodeSummary'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: The episode is not awaiting approval, or does not exist
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
 
   /episodes/{slug}/{episode_id}/corrections:
     post:
@@ -7135,6 +7361,9 @@ paths:
                 onlyExposeProcessedDefault:
                   type: boolean
                   description: Global default for hiding upstream episodes whose status is not 'processed' from served RSS feeds. Overridden by per-feed onlyExposeProcessedEpisodes when set.
+                requireManualApprovalDefault:
+                  type: boolean
+                  description: Global default for holding newly processed episodes out of served feeds until approved. Overridden by per-feed requireManualApproval when set.
                 detectShowSegments:
                   type: boolean
                   description: Global default for detecting intro, outro, and recap/housekeeping segments in addition to the always-detected ad-side categories. Overridden by per-feed detectShowSegments when set.
@@ -9784,6 +10013,7 @@ paths:
                     type: string
                     enum:
                       - Episode Processed
+                      - Episode Awaiting Approval
                       - Episode Failed
                       - Auth Failure
                       - Limit Exceeded
@@ -9797,7 +10027,7 @@ paths:
                       - Service Reachable
                       - Failover Triggered
                       - Failover Cancelled
-                  description: List of event types to subscribe to. `Auth Failure` fires on credential errors (invalid or expired API key). `Limit Exceeded` fires when the provider rejects a request because a spend or usage limit is exhausted (monthly key limit, out of credits). `Rate Limit Structural` fires when one detection-window request exceeds the provider's per-minute token cap. `Feed Refresh Failed` fires after several consecutive failures to fetch a podcast's origin RSS feed. `Update Available` fires when the daily update check finds a newer release on the selected channel. `Cue Template Quiet` fires when an enabled cue template on a cue_only feed stops matching recent episodes. `Queue Held` fires when a provider rate limit pauses the queue; `Queue Resumed` when that hold clears. `Service Offline` fires when an episode defers because the LLM or Whisper endpoint is unreachable; `Service Reachable` when the probe finds it back up. `Failover Triggered` fires when a target switches to its failover provider; `Failover Cancelled` when it switches back.
+                  description: List of event types to subscribe to. `Episode Awaiting Approval` fires instead of `Episode Processed` when a finished episode is held for manual approval. `Auth Failure` fires on credential errors (invalid or expired API key). `Limit Exceeded` fires when the provider rejects a request because a spend or usage limit is exhausted (monthly key limit, out of credits). `Rate Limit Structural` fires when one detection-window request exceeds the provider's per-minute token cap. `Feed Refresh Failed` fires after several consecutive failures to fetch a podcast's origin RSS feed. `Update Available` fires when the daily update check finds a newer release on the selected channel. `Cue Template Quiet` fires when an enabled cue template on a cue_only feed stops matching recent episodes. `Queue Held` fires when a provider rate limit pauses the queue; `Queue Resumed` when that hold clears. `Service Offline` fires when an episode defers because the LLM or Whisper endpoint is unreachable; `Service Reachable` when the probe finds it back up. `Failover Triggered` fires when a target switches to its failover provider; `Failover Cancelled` when it switches back.
                 enabled:
                   type: boolean
                   description: Whether the webhook is active
@@ -12905,6 +13135,14 @@ components:
           - 'null'
           minimum: 1
           description: Compatible backend Choice option cap, or null. TypeSafe uses a fixed cap of 255 options.
+        maxPromptTokens:
+          type:
+          - integer
+          - 'null'
+          minimum: 1
+          default: null
+          description: Estimated request token budget (4 characters per token). A detection window above it is split
+            into equal parts before sending; null sends each window whole.
     SystemOneTypeSafeTuning:
       allOf:
       - $ref: '#/components/schemas/SystemOneTuning'
@@ -14761,6 +14999,14 @@ components:
             - boolean
             - 'null'
           description: Per-feed override for hiding upstream episodes whose status is not 'processed' from the served RSS feed. Null means use the global onlyExposeProcessedDefault setting. true/false override the global for this feed (issue #181).
+        requireManualApproval:
+          type:
+            - boolean
+            - 'null'
+          description: Per-feed override for holding newly processed episodes out of the served feed until approved. Null means use the global requireManualApprovalDefault setting.
+        awaitingApprovalCount:
+          type: integer
+          description: Number of this feed's episodes waiting for manual approval.
         retentionDaysOverride:
           type:
             - integer
@@ -14909,6 +15155,19 @@ components:
         pendingReviewCount:
           type: integer
           description: Ads held for human review on this episode, so a dashboard row can show the hold chip.
+        awaitingApproval:
+          type: boolean
+          description: True while the processed episode is held out of the served feed and audio until approved.
+        approvalPendingAt:
+          type:
+            - string
+            - 'null'
+          description: When the episode began waiting for manual approval.
+        approvedAt:
+          type:
+            - string
+            - 'null'
+          description: When a person or a recut approved the episode. Null for episodes that never needed approval.
         titleSkipped:
           type: boolean
           description: Whether the episode title matches this feed's title-skip patterns and is ineligible for the bulk Process action.
@@ -15017,6 +15276,19 @@ components:
         pendingReviewCount:
           type: integer
           description: Number of ads held for human review (not yet approved or dismissed)
+        awaitingApproval:
+          type: boolean
+          description: True while the processed episode is held out of the served feed and audio until approved.
+        approvalPendingAt:
+          type:
+            - string
+            - 'null'
+          description: When the episode began waiting for manual approval.
+        approvedAt:
+          type:
+            - string
+            - 'null'
+          description: When a person or a recut approved the episode. Null for episodes that never needed approval.
         titleSkipped:
           type: boolean
           description: Whether the episode title matches this feed's title-skip patterns and is ineligible for the bulk Process action.
@@ -17374,6 +17646,14 @@ components:
               description: Global default for hiding non-processed episodes from served feeds (per-feed onlyExposeProcessedEpisodes overrides when set)
             isDefault:
               type: boolean
+        requireManualApprovalDefault:
+          type: object
+          properties:
+            value:
+              type: boolean
+              description: Global default for holding newly processed episodes out of served feeds until approved (per-feed requireManualApproval overrides when set)
+            isDefault:
+              type: boolean
         detectShowSegments:
           type: object
           properties:
@@ -18407,6 +18687,8 @@ components:
             maxFeedEpisodes:
               type: integer
             onlyExposeProcessedDefault:
+              type: boolean
+            requireManualApprovalDefault:
               type: boolean
             detectShowSegments:
               type: boolean
@@ -19595,6 +19877,7 @@ components:
             type: string
             enum:
               - Episode Processed
+              - Episode Awaiting Approval
               - Episode Failed
               - Auth Failure
               - Limit Exceeded

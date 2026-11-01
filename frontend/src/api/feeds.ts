@@ -431,6 +431,10 @@ export async function getEpisode(slug: string, episodeId: string): Promise<Episo
   return apiRequest<EpisodeDetail>(`/feeds/${slug}/episodes/${episodeId}`);
 }
 
+export async function approveEpisode(slug: string, episodeId: string): Promise<Episode> {
+  return apiRequest<Episode>(`/feeds/${slug}/episodes/${episodeId}/approve`, { method: 'POST' });
+}
+
 export interface ReprocessEpisodeResult {
   message: string;
   mode: string;
@@ -515,6 +519,7 @@ export interface UpdateFeedPayload {
   skipTranscription?: boolean | null;
   maxEpisodes?: number | null;
   onlyExposeProcessedEpisodes?: boolean | null;
+  requireManualApproval?: boolean | null;
   retentionDaysOverride?: number | null;
   keepOriginalAudioOverride?: boolean | null;
   audioReplacementSoundOverride?: boolean | null;

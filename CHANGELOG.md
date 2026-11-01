@@ -9,6 +9,38 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
+## [Unreleased]
+
+### Added
+
+- Require manual approval, off by default, as a global default and a per
+  feed Inherit, On or Off override. A processed episode on such a feed stays
+  out of the served feed, Recents and the audio route until it is approved
+  on its episode page, through the Queue page's new Episode review tab with
+  bulk approve, or by a recut. A new Episode Awaiting Approval webhook and
+  email event fires when an episode starts waiting (#933).
+- The Queue page has two tabs. Episode review lists episodes awaiting
+  approval and episodes with held detections, each linking to its episode
+  page.
+- System One profiles take a Maximum prompt tokens budget. A detection
+  window that estimates above it is split before sending, and a request the
+  server rejects for its context size is retried at half the window (#932).
+- Workflow diagrams for the YouTube pipeline and for how System One scores a
+  detection window.
+
+### Changed
+
+- The Sponsors page is a tab on the Patterns page. The old address
+  redirects there and keeps a search term.
+- The pre-download CDN check waits up to 30 seconds and treats a timeout as
+  inconclusive, so a slow host with several redirects no longer fails the
+  episode before the download is tried (#931).
+- Docs and settings help explain that the detection window also sizes
+  System One windows, that Questions per API request changes how many
+  questions share a request rather than the per question context, and that
+  the logical request deadline applies per request even when the provider
+  timeout is longer.
+
 ## [2.101.11] - 2026-10-31
 
 ### Added

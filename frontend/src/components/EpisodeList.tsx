@@ -137,6 +137,11 @@ function EpisodeRow({
                 {episode.pendingReviewCount} held
               </span>
             )}
+            {episode.awaitingApproval && (
+              <span className={`${badgeBase} ${tint.warning}`}>
+                awaiting approval
+              </span>
+            )}
             {episode.passthroughEnabled && (
               <span
                 className={`${badgeBase} ${tint.neutral}`}

@@ -35,6 +35,8 @@ Settings > Global Defaults controls verification and cross-fetch differential. V
 
 New feeds use each global choice. A feed set to Inherit continues using that choice; an explicit Feed Settings value overrides it. The same controls are available through `PUT /api/v1/settings/ad-detection` and `PATCH /api/v1/feeds/{slug}`; see the [OpenAPI specification](../openapi.yaml) for fields and accepted values.
 
+**Require manual approval.** Off by default. Turn it on in Settings > Global Defaults, or set one feed to On in Feed Settings (Inherit follows the global choice). A finished episode then stays out of the served RSS feed, the Recents feed and the audio URL until you approve it. Meanwhile the audio URL answers 503 with `Retry-After: 1800`, and an `Episode Awaiting Approval` event replaces `Episode Processed`. Approve from the episode page, the Queue page's Episode review tab, or `POST /api/v1/feeds/{slug}/episodes/{id}/approve`. A recut also approves the episode. Once approved, an episode stays approved through later reprocesses. The API fields are `requireManualApprovalDefault` on `PUT /api/v1/settings/ad-detection` and `requireManualApproval` on `PATCH /api/v1/feeds/{slug}`.
+
 ### Auto-process window
 
 A new episode is auto-queued only if it was published within the auto-process window; older ones stay discovered until you process them. The default is 48 hours and the range is 1 to 720 hours. A feed can set its own window in Feed Settings; leave it empty to inherit the global value. API fields: `autoProcessMaxAgeHours` on `PUT /api/v1/settings/ad-detection` and `autoProcessMaxAgeHoursOverride` (null inherits) on `PATCH /api/v1/feeds/{slug}`.
@@ -183,6 +185,8 @@ Long episodes are chunked into overlapping windows before being sent to the dete
 |---|---|---|---|
 | Window size | 120-10800 seconds | 600s | How much audio each detection request covers. Lower values reduce tokens per request and help small local models or low-tier provider plans stay under per-minute caps. Raise it toward the top of the range for low-request-rate providers (e.g. free tiers capped at a few requests per minute) so more of the transcript fits in fewer calls. |
 | Window overlap | 0-1770 seconds | 180s | Trailing overlap between consecutive windows so an ad straddling a boundary is still visible in the next window. Must be strictly less than window size. |
+
+Window size and overlap also size System One windows. A dense transcript at 600s can reach about 9000 tokens, so set the System One **Prompt token budget** (`maxPromptTokens`) to split windows automatically when they estimate above it.
 
 API: `PUT /api/v1/settings` accepts `windowSizeSeconds` and `windowOverlapSeconds`. Cross-field validation rejects `overlap >= size` with a 400. The reset-to-default buttons in the UI clear the stored value so the built-in defaults apply on the next episode; no restart needed.
 

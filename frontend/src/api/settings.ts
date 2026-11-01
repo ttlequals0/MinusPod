@@ -233,7 +233,7 @@ export interface PendingRecut {
   episodeId: string;
   title: string;
   podcast: string;
-  pendingSince: string;
+  pendingSince?: string;
   /** An apply would queue this row now: its recut inputs exist and no run
       of its own is queued or underway. */
   recutReady: boolean;
@@ -258,6 +258,55 @@ export async function applyPendingRecuts(slug?: string): Promise<{
     method: 'POST',
     body: slug ? { slug } : {},
   });
+}
+
+export interface ApprovalEpisodeRow {
+  slug: string;
+  episodeId: string;
+  title: string;
+  podcast: string;
+  pendingSince?: string;
+  adCount: number;
+  pendingReviewCount: number;
+}
+
+export interface ApprovalEpisodeList {
+  count: number;
+  episodes: ApprovalEpisodeRow[];
+}
+
+/** Episodes waiting for manual approval. `slug` scopes the list to one feed. */
+export async function getAwaitingApproval(params?: {
+  slug?: string; limit?: number; offset?: number;
+}): Promise<ApprovalEpisodeList> {
+  const search = new URLSearchParams();
+  if (params?.slug) search.set('slug', params.slug);
+  if (params?.limit) search.set('limit', String(params.limit));
+  if (params?.offset) search.set('offset', String(params.offset));
+  const qs = search.toString();
+  return apiRequest(`/episodes/awaiting-approval${qs ? `?${qs}` : ''}`);
+}
+
+export async function approveAwaitingEpisodes(
+  episodes: { slug: string; episodeId: string }[],
+): Promise<{ approved: number; skipped: number }> {
+  return apiRequest('/episodes/awaiting-approval/approve', { method: 'POST', body: { episodes } });
+}
+
+/** Query keys to invalidate after an approval changes what is served. */
+export const APPROVAL_INVALIDATE_KEYS = [
+  'awaiting-approval', 'held-episodes', 'episodes', 'episode', 'feeds', 'feed',
+] as const;
+
+/** Episodes that hold detections needing review. */
+export async function getHeldEpisodes(params?: {
+  limit?: number; offset?: number;
+}): Promise<ApprovalEpisodeList> {
+  const search = new URLSearchParams();
+  if (params?.limit) search.set('limit', String(params.limit));
+  if (params?.offset) search.set('offset', String(params.offset));
+  const qs = search.toString();
+  return apiRequest(`/episodes/held${qs ? `?${qs}` : ''}`);
 }
 
 export async function cancelProcessing(slug: string, episodeId: string): Promise<{ message: string }> {

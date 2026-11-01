@@ -51,6 +51,9 @@ function FeedCard({ feed, onRefresh, onDelete, isRefreshing }: FeedCardProps) {
           </div>
           <p className="text-sm text-muted-foreground mt-1">
             {feed.episodeCount} episodes
+            {(feed.awaitingApprovalCount ?? 0) > 0 && (
+              <span className="ml-2 text-warning">{feed.awaitingApprovalCount} awaiting approval</span>
+            )}
           </p>
           {/* Every slot below always renders so cards share one height. */}
           <p className="text-xs text-muted-foreground mt-1 truncate">

@@ -47,6 +47,10 @@ Key endpoints:
 - `GET /api/v1/feeds/{slug}/episodes/{id}/artwork` - Serve an episode's cover, fetching and caching it from the publisher on first request. Publishers block images requested with a cross-site Referer, so the web UI asks here instead of loading them directly. Redirects to the feed cover when the episode has none or the fetch is refused. The URL comes from the episode record, never from the caller
 - `POST /api/v1/episodes/{slug}/{id}/reprocess` - Reprocess an episode (body `mode`: reprocess/full/llm/recut; `llm` re-detects on the existing transcript and `recut` re-cuts from the saved ad list, both skipping transcription). See [Reprocessing](configuration.md#reprocessing) for the full mode reference. The older `POST /api/v1/feeds/{slug}/episodes/{id}/reprocess` ignores `mode` and always runs a full reprocess.
 - `POST /api/v1/feeds/{slug}/episodes/{id}/cancel` - Cancel processing for a stuck episode
+- `POST /api/v1/feeds/{slug}/episodes/{id}/approve` - Publish an episode waiting for manual approval. Returns `{"approved": true, "episode": {...}}`, or 409 when the episode is not waiting or does not exist. Episode payloads carry `awaitingApproval`, `approvalPendingAt` and `approvedAt`; feed payloads carry `awaitingApprovalCount` and `requireManualApproval`
+- `GET /api/v1/episodes/awaiting-approval?slug=&limit=&offset=` - Episodes waiting for manual approval across feeds, oldest first: `{"count": n, "episodes": [{"slug", "episodeId", "title", "podcast", "pendingSince", "adCount", "pendingReviewCount"}]}`
+- `POST /api/v1/episodes/awaiting-approval/approve` - Approve `{"episodes": [{"slug": "...", "episodeId": "..."}]}` or every waiting episode of `{"slug": "..."}`. Returns `{"approved": n, "skipped": n, "remaining": n}` (a `slug` request approves at most 500 oldest first; `remaining` is the rest), rebuilds each feed once (10 per minute)
+- `GET /api/v1/episodes/held?limit=&offset=` - Episodes with detections held for review across feeds, same row shape as awaiting-approval without `pendingSince`
 - `POST /api/v1/feeds/{slug}/episodes/{id}/regenerate-chapters` - Regenerate chapter markers and rewrite the ID3 chapters embedded in the MP3. Returns 202 and runs in the background; the episode's `chaptersRegenerating` and `chaptersRegenError` fields report the run
 - `PUT /api/v1/feeds/{slug}/episodes/{id}/rating` - Rate an episode 1 to 5 with optional notes below 5; a 5 records a confirm correction for every cut ad marker. `DELETE` clears the rating
 - `GET /api/v1/feeds/{slug}/episodes/{id}/sponsorblock/candidates` - Segments a person may submit to SponsorBlock for a YouTube episode, with the evidence behind each, or the reason none are allowed
@@ -210,6 +214,7 @@ Webhooks fire an HTTP POST to configured URLs. Works with any HTTP endpoint. Use
 | Event | Fires when |
 |---|---|
 | `Episode Processed` | Episode completes processing successfully |
+| `Episode Awaiting Approval` | Episode finishes processing but is held out of the served feed until approved (Require manual approval). On a feed that requires approval, `Episode Awaiting Approval` fires when processing finishes and `Episode Processed` fires when the episode is approved, so `Episode Processed` always means the episode is now served. Same payload as `Episode Processed` |
 | `Episode Failed` | Episode reaches permanently failed status |
 | `Auth Failure` | LLM provider rejects the API key as invalid or expired (401/403 without billing markers; rate-limited to one per 5 minutes) |
 | `Limit Exceeded` | LLM provider rejects a request because a spend or usage limit is exhausted: a monthly key limit (OpenRouter 403), out of credits (402, Anthropic low balance), or OpenAI `insufficient_quota` (rate-limited to one per 5 minutes). The key is valid; add credits or raise the limit, then reprocess the episode (it is marked permanently failed rather than retried). |
@@ -239,7 +244,7 @@ Custom payload templates are Jinja2 strings rendered against these variables:
 
 | Variable | Type | Description |
 |---|---|---|
-| `event` | string | `Episode Processed`, `Episode Failed`, `Auth Failure`, `Limit Exceeded`, `Rate Limit Structural`, `Feed Refresh Failed`, `Update Available`, `Cue Template Quiet`, `Queue Held`, `Queue Resumed`, `Service Offline`, `Service Reachable`, `Failover Triggered`, or `Failover Cancelled` |
+| `event` | string | `Episode Processed`, `Episode Awaiting Approval`, `Episode Failed`, `Auth Failure`, `Limit Exceeded`, `Rate Limit Structural`, `Feed Refresh Failed`, `Update Available`, `Cue Template Quiet`, `Queue Held`, `Queue Resumed`, `Service Offline`, `Service Reachable`, `Failover Triggered`, or `Failover Cancelled` |
 | `timestamp` | string | ISO 8601 UTC timestamp |
 | `timestamp_local` | string | ISO 8601 local timestamp with UTC offset, per the notification_timezone setting |
 | `podcast.name` | string | Podcast title (falls back to slug if unavailable) |

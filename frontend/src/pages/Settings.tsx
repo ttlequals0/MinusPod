@@ -227,6 +227,7 @@ function Settings() {
   const [podpingEnabled, setPodpingEnabled] = useState(false);
   const [rssRefreshIntervalMinutes, setRssRefreshIntervalMinutes] = useState(15);
   const [onlyExposeProcessedDefault, setOnlyExposeProcessedDefault] = useState(false);
+  const [requireManualApprovalDefault, setRequireManualApprovalDefault] = useState(false);
   const [artworkWatermarkEnabled, setArtworkWatermarkEnabled] = useState(false);
   const [artworkBadgePosition, setArtworkBadgePosition] = useState<BadgePosition>('bottom-right');
   const [lowAdYieldAction, setLowAdYieldAction] = useState<LowAdYieldAction>('nothing');
@@ -897,6 +898,7 @@ function Settings() {
     { key: 'autoProcessEnabled', kind: 'val', useDefault: true, value: autoProcessEnabled, set: setAutoProcessEnabled },
     { key: 'autoProcessMaxAgeHours', kind: 'val', useDefault: true, literal: AUTO_PROCESS_WINDOW.default, value: autoProcessMaxAgeHours, set: setAutoProcessMaxAgeHours },
     { key: 'onlyExposeProcessedDefault', kind: 'val', useDefault: true, value: onlyExposeProcessedDefault, set: setOnlyExposeProcessedDefault },
+    { key: 'requireManualApprovalDefault', kind: 'val', literal: false, value: requireManualApprovalDefault, set: setRequireManualApprovalDefault },
     { key: 'artworkWatermarkEnabled', kind: 'val', useDefault: true, value: artworkWatermarkEnabled, set: setArtworkWatermarkEnabled },
     { key: 'artworkBadgePosition', kind: 'str', useDefault: true, value: artworkBadgePosition, set: (v) => setArtworkBadgePosition(v as BadgePosition) },
     { key: 'lowAdYieldAction', kind: 'str', useDefault: true, value: lowAdYieldAction, set: (v) => setLowAdYieldAction(v as LowAdYieldAction) },
@@ -1343,6 +1345,8 @@ function Settings() {
         onMaxFeedEpisodesChange={setMaxFeedEpisodes}
         onlyExposeProcessedDefault={onlyExposeProcessedDefault}
         onOnlyExposeProcessedDefaultChange={setOnlyExposeProcessedDefault}
+        requireManualApprovalDefault={requireManualApprovalDefault}
+        onRequireManualApprovalDefaultChange={setRequireManualApprovalDefault}
         lowAdYieldAction={lowAdYieldAction}
         onLowAdYieldActionChange={setLowAdYieldAction}
         episodeLogRetentionDays={episodeLogRetentionDays}

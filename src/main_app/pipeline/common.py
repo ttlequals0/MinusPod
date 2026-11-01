@@ -228,15 +228,25 @@ def _setting_float(db, key: str, default: float, allow_zero: bool = False) -> fl
     return default
 
 
+def refresh_feed_rss(slug):
+    """Force-rebuild one feed's served RSS when the feed is configured."""
+    from main_app.feeds import get_feed_map, refresh_rss_feed
+    feed_map = get_feed_map()
+    if slug in feed_map:
+        refresh_rss_feed(slug, feed_map[slug]['in'], force=True)
+
+
+def rebuild_recents():
+    """Rebuild the Recents feed from the current servable episodes."""
+    from recents_feed import rebuild_recents_feed
+    rebuild_recents_feed()
+
+
 def _refresh_rss_for_slug(slug, episode_id):
     """Force-refresh the RSS feed cache for ``slug``, logging on failure."""
-    from main_app.feeds import get_feed_map, refresh_rss_feed
     try:
-        feed_map = get_feed_map()
-        if slug in feed_map:
-            refresh_rss_feed(slug, feed_map[slug]['in'], force=True)
-        from recents_feed import rebuild_recents_feed
-        rebuild_recents_feed()
+        refresh_feed_rss(slug)
+        rebuild_recents()
     except Exception as cache_err:
         audio_logger.warning(f"[{slug}:{episode_id}] Failed to regenerate RSS cache: {cache_err}")
 

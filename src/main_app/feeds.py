@@ -1,4 +1,5 @@
 """Feed management: get_feed_map, invalidate_feed_cache, refresh_rss_feed, refresh_all_feeds."""
+import copy
 import logging
 import random
 import re
@@ -825,6 +826,20 @@ def refresh_single_feed(slug: str) -> bool:
         return False
 
 
+def _without_episodes(parsed_feed, episode_ids):
+    """A shallow copy of the parsed feed minus entries whose episode_id is in episode_ids."""
+    if not episode_ids or parsed_feed is None:
+        return parsed_feed
+    def entry_id(entry):
+        for enclosure in entry.get('enclosures', []):
+            if 'audio' in enclosure.get('type', ''):
+                return rss_parser.generate_episode_id(enclosure.get('href', ''), entry.get('id'))
+        return None
+    trimmed = copy.copy(parsed_feed)
+    trimmed.entries = [e for e in parsed_feed.entries if entry_id(e) not in episode_ids]
+    return trimmed
+
+
 def _build_and_save_served_rss(slug, feed_content, parsed_feed, podcast):
     """Run modify_feed for the current feed/output settings and persist the
     served RSS. Both feed_cap and processed_only resolve per-feed override ->
@@ -841,10 +856,12 @@ def _build_and_save_served_rss(slug, feed_content, parsed_feed, podcast):
     # finished processing so auto-downloading clients don't hit 503.
     processed_only = db.is_only_expose_processed_for_podcast(slug, podcast=podcast)
     processed_ids = None
+    awaiting_ids = set(db.get_awaiting_approval_episode_ids(podcast['id']))
+    parsed_feed = _without_episodes(parsed_feed, awaiting_ids)
     if processed_only:
         statuses, _ = db.get_episode_statuses_for_podcast(slug)
         processed_ids = {eid for eid, status in statuses.items()
-                         if status == 'processed'}
+                         if status == 'processed' and eid not in awaiting_ids}
 
     watermark_artwork = db.get_setting_bool('artwork_watermark_enabled', False)
     # None while feed auth is disabled, so serving reverts to keyless URLs

@@ -363,6 +363,9 @@ class SchemaMixin:
             ('passthrough_enabled', 'INTEGER'),
             # Served enclosure length (RSS spec): byte size of processed_file.
             ('processed_size_bytes', 'INTEGER'),
+            # Manual approval: set while a processed episode waits to be served.
+            ('approval_pending_at', 'TEXT'),
+            ('approved_at', 'TEXT'),
         ]
         for col, definition in episodes_migrations:
             self._add_column_if_missing(conn, 'episodes', col, definition, ep_cols)
@@ -587,6 +590,7 @@ class SchemaMixin:
             # databases created at 2.0.19 the column was INTEGER DEFAULT 0;
             # the conversion step below rewrites that to match.
             ('only_expose_processed_episodes', 'INTEGER'),
+            ('require_manual_approval', 'INTEGER'),
             # Last refresh attempt (success or failure), so the staggered
             # scheduler does not re-select a failing feed every tick.
             ('last_refresh_attempt_at', 'TEXT'),
@@ -725,6 +729,9 @@ class SchemaMixin:
                          "ON episodes(sb_next_check_at) WHERE sb_next_check_at IS NOT NULL")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_episodes_sb_waiting "
                          "ON episodes(sb_state) WHERE sb_state IN ('waiting','probing')")
+            if 'approval_pending_at' in self._get_table_columns(conn, 'episodes'):
+                conn.execute("CREATE INDEX IF NOT EXISTS idx_episodes_approval_pending "
+                             "ON episodes(approval_pending_at) WHERE approval_pending_at IS NOT NULL")
 
         # -- audio_cue_templates table columns --
         act_cols = self._get_table_columns(conn, 'audio_cue_templates')
