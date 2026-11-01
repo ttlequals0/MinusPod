@@ -1,0 +1,84 @@
+name: Security packages refresh
+
+# Pushes with the workflow token do not trigger CI, so the last step dispatches ci.yml.
+
+on:
+  schedule:
+    - cron: "0 5 1 * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+  actions: write
+
+jobs:
+  refresh:
+    name: Rebuild and re-pin
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          ref: main
+
+      - name: Docker Hub login
+        uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6  # v4.7.0
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Rebuild the image
+        run: |
+          set -euo pipefail
+          latest() {
+            gh run list --workflow=security-packages.yml --branch main --event workflow_dispatch --limit 1 --json databaseId --jq '.[0].databaseId // ""'
+          }
+          before=$(latest)
+          gh workflow run security-packages.yml --ref main -f force=true
+          id=""
+          for _ in $(seq 1 18); do
+            sleep 10
+            id=$(latest)
+            if [ -n "$id" ] && [ "$id" != "$before" ]; then
+              break
+            fi
+            id=""
+          done
+          if [ -z "$id" ]; then
+            echo "::error::The dispatched security-packages run did not appear within 3 minutes"
+            exit 1
+          fi
+          gh run watch "$id" --exit-status --interval 60
+
+      - name: Re-pin and open a PR
+        run: |
+          set -euo pipefail
+          # Pin the digest this run published, not whatever the hash tag points at now.
+          scripts/bump_security_packages.sh "$(python3 scripts/security_packages_hash.py)-$(date -u +%Y%m%d)"
+          python3 scripts/security_packages_hash.py --check --resolve
+          if git diff --quiet; then
+            echo "::notice::The pinned digest is already current"
+            exit 0
+          fi
+          branch="feature/security-packages-refresh-$(date -u +%Y%m%d)"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -B "$branch"
+          git commit -am "Refresh the security packages image pin"
+          git push --force origin "$branch"
+          title="Refresh the security packages image pin"
+          existing=$(gh pr list --state open --head "$branch" --json number --jq '.[0].number // empty')
+          gh pr list --state open --author "app/github-actions" --json number,headRefName \
+            --jq ".[] | select(.headRefName != \"$branch\" and (.headRefName | startswith(\"feature/security-packages-refresh-\"))) | .number" | while read -r n; do
+            gh pr close "$n" --comment "Superseded by a newer refresh."
+          done
+          if [ -z "$existing" ]; then
+            gh pr create --base main --head "$branch" --title "$title" \
+              --body "Rebuilt from the same patch inputs with fresh build dependencies. See the Dockerfile diff for the digest change."
+          else
+            echo "::notice::PR #$existing already open for $branch; updated by the force push"
+          fi
+          gh workflow run ci.yml --ref "$branch"

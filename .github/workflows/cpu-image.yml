@@ -92,6 +92,9 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
+      - name: Check security packages pin
+        run: python3 scripts/security_packages_hash.py --check --resolve
+
       - name: Install Trivy
         uses: aquasecurity/setup-trivy@81e514348e19b6112ce2a7e3ecbafe19c1e1f567
         with:

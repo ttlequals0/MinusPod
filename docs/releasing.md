@@ -26,6 +26,7 @@ carry curated, operator-facing notes.
 ## Per-release flow (maintainer)
 
 1. Run `scripts/bump_ytdlp.sh` so the image ships the latest yt-dlp release as its floor. Commit the `ytdlp-version.txt` change with the release.
+   Run `python3 scripts/security_packages_hash.py --check --resolve`, which also verifies the pinned digest's hash label; a patch-input change needs the security-packages workflow and `scripts/bump_security_packages.sh` before the GPU build. Release builds pull `ttlequals0/minuspod-security-packages`.
 2. On the release branch, build the GPU image for `linux/amd64`. Run the
    container smoke check below, scan it, and push the version tag. Stop
    if any GPU step fails.

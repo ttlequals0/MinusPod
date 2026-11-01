@@ -34,6 +34,12 @@ release notes.
 - Docker build: A SECURITY_SRC=stub build argument skips the patched security
   package builds and uses stock Ubuntu packages, for faster local development builds.
   Published images keep the default.
+- Docker build: Patched security packages are built once per patch change by
+  CI into the ttlequals0/minuspod-security-packages image (amd64 and arm64) and
+  both app Dockerfiles copy them by pinned digest, so release and local builds
+  no longer compile them. A weekly check opens an issue when a pinned package
+  falls behind Ubuntu, and a monthly run rebuilds the image with fresh build
+  dependencies and opens a pin PR.
 
 ## [2.101.10] - 2026-10-31
 

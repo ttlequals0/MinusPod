@@ -1,0 +1,57 @@
+# Patched security packages for the MinusPod images, one /<family>/{packages,provenance} tree each.
+# Built by .github/workflows/security-packages.yml and tagged by content hash of the patch inputs.
+
+ARG BASE_APP_IMAGE=ubuntu:26.04
+
+FROM ${BASE_APP_IMAGE} AS base-security-builder
+ENV DEBIAN_FRONTEND=noninteractive
+RUN sed -i 's/^Types: deb$/Types: deb deb-src/' /etc/apt/sources.list.d/ubuntu.sources \
+    && apt-get update \
+    && apt-get install -y --no-install-recommends python3 ca-certificates devscripts quilt
+
+# Build patched media packages with Ubuntu's full build recipes.
+FROM base-security-builder AS media-security-builder
+RUN apt-get build-dep -y --no-install-recommends ffmpeg libass srt libsndfile
+COPY scripts/build_media_security_packages.py /build/scripts/
+COPY scripts/media-security/ /build/scripts/media-security/
+RUN python3 /build/scripts/build_media_security_packages.py
+
+# Build core libraries independently from the media package cache.
+FROM base-security-builder AS core-security-builder
+RUN apt-get build-dep -y --no-install-recommends -P nobiarch glibc pcre2
+COPY scripts/build_media_security_packages.py /build/scripts/
+COPY scripts/core-security/ /build/scripts/core-security/
+RUN python3 /build/scripts/build_media_security_packages.py --input-dir /build/scripts/core-security
+
+# Build ancillary libraries as an unprivileged package builder.
+FROM base-security-builder AS misc-security-builder
+RUN apt-get build-dep -y --no-install-recommends cjson glib2.0
+COPY scripts/build_media_security_packages.py /build/scripts/
+COPY scripts/misc-security/ /build/scripts/misc-security/
+RUN install -d -o ubuntu -g ubuntu /work/media-security /out
+USER ubuntu
+RUN python3 /build/scripts/build_media_security_packages.py --input-dir /build/scripts/misc-security
+
+# Build the patched graphics and video libraries separately.
+FROM base-security-builder AS graphics-security-builder
+RUN apt-get build-dep -y --no-install-recommends cairo x264
+COPY scripts/build_media_security_packages.py /build/scripts/
+COPY scripts/graphics-security/ /build/scripts/graphics-security/
+RUN python3 /build/scripts/build_media_security_packages.py --input-dir /build/scripts/graphics-security
+
+# Build patched utilities with unprivileged package tests.
+FROM base-security-builder AS aux-security-builder
+RUN apt-get build-dep -y --no-install-recommends p11-kit bubblewrap tar libxrender \
+    && apt-get install -y --no-install-recommends gtk-doc-tools dh-exec bison xutils-dev libselinux1-dev
+COPY scripts/build_media_security_packages.py /build/scripts/
+COPY scripts/aux-security/ /build/scripts/aux-security/
+RUN install -d -o ubuntu -g ubuntu /work/media-security /out
+USER ubuntu
+RUN python3 /build/scripts/build_media_security_packages.py --input-dir /build/scripts/aux-security
+
+FROM scratch
+COPY --from=core-security-builder /out/ /core/
+COPY --from=media-security-builder /out/ /media/
+COPY --from=misc-security-builder /out/ /misc/
+COPY --from=graphics-security-builder /out/ /graphics/
+COPY --from=aux-security-builder /out/ /aux/
