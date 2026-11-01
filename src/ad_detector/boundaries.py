@@ -39,6 +39,7 @@ from config import (
     MIN_CONTENT_BETWEEN_ADS_SECONDS,
     BOUNDARY_EXTENSION_WINDOW, BOUNDARY_EXTENSION_MAX,
     BOUNDARY_EXTENSION_CONNECTOR_SKIP, BOUNDARY_EXTENSION_SKIP_MAX,
+    CUE_MATCH_STAGE,
     is_edge_cue_snapped,
     AD_CONTENT_URL_PATTERNS, AD_CONTENT_PROMO_PHRASES,
     AD_CONTENT_PHONE_PATTERNS, AD_COPY_PHRASES, AD_OFFER_PHRASES,
@@ -59,8 +60,14 @@ EARLY_AD_SNAP_THRESHOLD = 30.0
 
 
 def _edge_locked(ad: dict, edge: str) -> bool:
-    """Whether an edge is pinned by a cue snap, a valid quote or valid word timing."""
-    return (is_edge_cue_snapped(ad, edge) or _quote_edge_valid(ad, edge)
+    """Whether an edge is pinned by a cue snap, a valid quote or valid word timing.
+
+    A cue-cut marker (#874) spans exactly the matched cue, so both of its
+    edges are measured; a return phrase right after an ad-break-end cue must
+    not pull the end into the host's speech.
+    """
+    return (ad.get('detection_stage') == CUE_MATCH_STAGE
+            or is_edge_cue_snapped(ad, edge) or _quote_edge_valid(ad, edge)
             or word_timed_edge_valid(ad, edge))
 
 # Transition phrases for intelligent ad boundary detection
