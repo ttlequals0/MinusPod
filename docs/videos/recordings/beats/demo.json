@@ -118,11 +118,17 @@
   },
   {
    "clip": "themes",
-   "dev": "phone",
-   "start": 0.5,
-   "dur": 6,
-   "head": "Light or dark.",
-   "sub": "Follows the system, or pick one."
+   "dev": "laptop",
+   "start": 1.0,
+   "dur": 9,
+   "head": "Twenty themes, light and dark.",
+   "sub": "Pick one in Settings. It applies at once.",
+   "crop": [
+    48,
+    60,
+    1904,
+    1500
+   ]
   },
   {
    "clip": "ytadd",

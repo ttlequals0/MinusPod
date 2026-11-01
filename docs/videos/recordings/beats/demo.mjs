@@ -43,11 +43,15 @@ export const BEATS = {
   settings: { dev: 'laptop', url: '/settings',
     prep: (p) => openSection(p, /^AI models/, 130, { settings: true }),
     run: async (p) => { await sleep(2500); await smoothScroll(p, 500, 3000); await sleep(500); } },
-  // Toggles to the other theme and back; the choice lives in localStorage only.
-  themes: { dev: 'phone', url: '/',
+  // Picks theme buttons in Settings, then toggles light and dark; the choice lives in localStorage only.
+  themes: { dev: 'laptop', url: '/settings',
+    prep: (p) => openSection(p, /^Appearance/, 130, { settings: true }),
     run: async (p) => {
+      await sleep(1200);
+      for (const n of ['Mocha', 'Nord', 'Pink', 'Gruvbox', 'Solarized']) { await p.getByRole('button', { name: new RegExp(`^${n}(\\s*\\(dark only\\))?$`) }).click(); await sleep(900); }
       const t = p.getByRole('button', { name: 'Toggle theme' });
-      await sleep(1500); await t.click(); await sleep(2500); await t.click(); await sleep(1500);
+      await t.click(); await sleep(1300); await t.click(); await sleep(1300);
+      await p.getByRole('button', { name: /^Default(\s*\(dark only\))?$/ }).click(); await sleep(1200);
     } },
   // Typing only searches; Look up previews the source and adds nothing, and the preview is not added.
   ytadd: { dev: 'phone', url: '/add',
