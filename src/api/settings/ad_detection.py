@@ -638,6 +638,11 @@ def _apply_processing_flags(db, data):
             common.after_commit(db.clear_all_podcast_etags)
         logger.info(f"Updated only-expose-processed default to: {value}")
 
+    if 'requireManualApprovalDefault' in data:
+        value = 'true' if data['requireManualApprovalDefault'] else 'false'
+        db.set_setting('require_manual_approval_default', value, is_default=False)
+        logger.info(f"Updated require-manual-approval default to: {value}")
+
     if 'detectShowSegments' in data:
         value = 'true' if data['detectShowSegments'] else 'false'
         db.set_setting('detect_show_segments', value, is_default=False)

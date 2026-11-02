@@ -1,3 +1,4 @@
+import importlib.util
 import json
 import logging
 import os
@@ -293,3 +294,110 @@ def test_export_keeps_only_the_newest_records_while_scanning(tmp_path, monkeypat
         timespec='milliseconds').replace('+00:00', 'Z')
     assert [e['ts'] for e in events] == sorted(e['ts'] for e in events)
     assert max(held) == diagnostic_log.MAX_EXPORT_RECORDS
+
+
+DIAG_MODULE = """import logging
+
+logger = logging.getLogger('podcast.feed.diag_test')
+
+
+def percent(url):
+    logger.warning("refresh failed for %s", url)
+
+
+def fstring(url):
+    logger.warning(f"refresh failed for {url}")
+
+
+def info(url):
+    logger.info("refresh started %s", url)
+
+
+def multiline():
+    try:
+        raise ValueError('secret token')
+    except ValueError:
+        logger.error(
+            "download raised",
+            exc_info=True,
+        )
+"""
+
+
+@pytest.fixture
+def diag_module(tmp_path, monkeypatch):
+    src = tmp_path / 'src'
+    src.mkdir()
+    (src / 'diag_mod.py').write_text(DIAG_MODULE)
+    monkeypatch.setattr(diagnostic_log, '_SRC_ROOT', src)
+    monkeypatch.setattr(diagnostic_log, '_SOURCE_ALLOWLIST', frozenset({'diag_mod.py'}))
+    diagnostic_log._source_path.cache_clear()
+    diagnostic_log._templates.cache_clear()
+    spec = importlib.util.spec_from_file_location('diag_mod', src / 'diag_mod.py')
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    handler = DiagnosticHandler(tmp_path)
+    module.logger.addHandler(handler)
+    module.logger.propagate = False
+    module.logger.setLevel(logging.INFO)
+    yield module, tmp_path / 'logs' / 'diagnostics'
+    module.logger.removeHandler(handler)
+    diagnostic_log._source_path.cache_clear()
+    diagnostic_log._templates.cache_clear()
+
+
+def _events(directory):
+    raw = ''.join(path.read_text() for path in sorted(directory.glob('diagnostic-*.jsonl')))
+    return [json.loads(line) for line in raw.splitlines()], raw
+
+
+@pytest.mark.parametrize('call, expect_message', [
+    ('percent', 'refresh failed for %s'),
+    ('fstring', None),
+    ('info', None),
+])
+def test_handler_records_message_only_for_literal_warning_templates(diag_module, call, expect_message):
+    module, directory = diag_module
+
+    getattr(module, call)('https://x.example/feed')
+
+    events, raw = _events(directory)
+    assert len(events) == 1
+    assert events[0].get('message') == expect_message
+    assert 'x.example' not in raw
+
+
+def test_handler_records_exception_class_from_multiline_call(diag_module):
+    module, directory = diag_module
+
+    module.multiline()
+
+    events, raw = _events(directory)
+    assert events[0]['message'] == 'download raised'
+    assert events[0]['exception'] == 'ValueError'
+    assert 'secret token' not in raw
+
+
+def test_export_keeps_detail_fields_only_when_well_formed(tmp_path):
+    directory = tmp_path / 'logs' / 'diagnostics'
+    directory.mkdir(parents=True)
+
+    def event(level='WARNING', **extra):
+        return json.dumps({'ts': '2026-01-02T12:00:00Z', 'level': level, 'category': 'feed',
+                           'source': 'diag_mod.py', 'line': 1, **extra})
+
+    (directory / 'diagnostic-1.jsonl').write_text('\n'.join([
+        event(message='refresh failed for %s', exception='TimeoutError'),
+        event(message='x' * 201),
+        event(message='bad\x00text'),
+        event(exception='Bad Name!'),
+        event(level='INFO', message='refresh started %s'),
+    ]) + '\n')
+
+    with pytest.MonkeyPatch.context() as mp:
+        mp.setattr(diagnostic_log, '_SOURCE_ALLOWLIST', frozenset({'diag_mod.py'}))
+        result = export(tmp_path, datetime(2026, 1, 2, 11, tzinfo=timezone.utc),
+                        datetime(2026, 1, 2, 13, tzinfo=timezone.utc))
+
+    pairs = sorted(((e.get('message') or ''), (e.get('exception') or '')) for e in result['events'])
+    assert pairs == [('', ''), ('', ''), ('', ''), ('', ''), ('refresh failed for %s', 'TimeoutError')]

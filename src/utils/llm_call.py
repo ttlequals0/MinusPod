@@ -33,7 +33,6 @@ from llm_client import (
     StructuralRateLimitError,
     ProviderAccountChangedError,
     ProviderRateLimitedError,
-    OllamaContextOverflowError,
     supports_json_schema_for_calls,
 )
 from llm_route import (
@@ -43,6 +42,7 @@ from rate_limit_hold import (
     MAX_RESET_SECONDS, MIN_HOLD_RESET_SECONDS, enforce_provider_rate_limit,
     is_rate_limit_hold_enabled, reserve_provider_request,
 )
+from context_limits import CHARS_PER_TOKEN, ContextOverflowError
 from utils.shutdown import shutdown_event
 from utils.time import parse_iso_utc, utc_now, utc_now_iso
 # webhook_service, database and cancel are lazy-imported at the call sites
@@ -202,11 +202,6 @@ def _invoking_pass_from_name(pass_name: str | None) -> int | None:
     return None
 
 
-# Rough provider-agnostic prompt estimate for the token reservation; the
-# attempt reconciles to real usage when it finalizes.
-_CHARS_PER_TOKEN = 4
-
-
 def _reserved_tokens(llm_kwargs) -> int:
     """Tokens to reserve for one dispatch: a prompt estimate plus the whole
     output budget, so a TPM cap sees a large call before it is billed."""
@@ -214,7 +209,7 @@ def _reserved_tokens(llm_kwargs) -> int:
     for message in llm_kwargs.get('messages') or []:
         content = message.get('content')
         chars += len(content if isinstance(content, str) else str(content))
-    return chars // _CHARS_PER_TOKEN + int(llm_kwargs.get('max_tokens') or 0)
+    return chars // CHARS_PER_TOKEN + int(llm_kwargs.get('max_tokens') or 0)
 
 
 def _ledger_call_once(llm_client, llm_kwargs, model, *, phase_key, invoking_pass,
@@ -464,8 +459,8 @@ def _is_retryable(error) -> bool:
     # A truncated answer is terminal: the same budget truncates again.
     if isinstance(error, OutputTruncatedError):
         return False
-    # So is a prompt Ollama cut to fit num_ctx: it overflows again.
-    if isinstance(error, OllamaContextOverflowError):
+    # So is a prompt over the context window: it overflows again.
+    if isinstance(error, ContextOverflowError):
         return False
     if isinstance(error, CircuitBreakerOpen):
         return True
@@ -494,7 +489,7 @@ def window_loss_class(error) -> str:
         return LOSS_OUTPUT_TRUNCATED
     if isinstance(error, EmptyCompletionError):
         return LOSS_EMPTY_COMPLETION
-    if isinstance(error, OllamaContextOverflowError):
+    if isinstance(error, ContextOverflowError):
         return LOSS_CONTEXT_OVERFLOW
     if isinstance(error, (StructuralRateLimitError, ProviderRateLimitedError)):
         return LOSS_RATE_LIMIT

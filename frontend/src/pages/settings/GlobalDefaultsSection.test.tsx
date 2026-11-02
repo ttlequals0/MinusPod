@@ -54,6 +54,8 @@ function Harness({ onCommit, overrides }: {
         onMaxFeedEpisodesChange={() => {}}
         onlyExposeProcessedDefault={false}
         onOnlyExposeProcessedDefaultChange={() => {}}
+        requireManualApprovalDefault={false}
+        onRequireManualApprovalDefaultChange={() => {}}
         lowAdYieldAction="nothing"
         onLowAdYieldActionChange={() => {}}
         episodeLogRetentionDays={30}
@@ -94,6 +96,8 @@ function PodpingHarness({ onCommit }: { onCommit: (payload: PodpingState) => voi
         onMaxFeedEpisodesChange={() => {}}
         onlyExposeProcessedDefault={false}
         onOnlyExposeProcessedDefaultChange={() => {}}
+        requireManualApprovalDefault={false}
+        onRequireManualApprovalDefaultChange={() => {}}
         lowAdYieldAction="nothing"
         onLowAdYieldActionChange={() => {}}
         episodeLogRetentionDays={30}
@@ -230,6 +234,8 @@ function LowAdYieldHarness({ onCommit }: { onCommit: (payload: LowAdYieldState) 
         onMaxFeedEpisodesChange={() => {}}
         onlyExposeProcessedDefault={false}
         onOnlyExposeProcessedDefaultChange={() => {}}
+        requireManualApprovalDefault={false}
+        onRequireManualApprovalDefaultChange={() => {}}
         lowAdYieldAction={lowAdYieldAction}
         onLowAdYieldActionChange={setLowAdYieldAction}
         episodeLogRetentionDays={30}
@@ -297,6 +303,8 @@ function EpisodeLogHarness({ onCommit }: { onCommit: (payload: EpisodeLogState) 
         onMaxFeedEpisodesChange={() => {}}
         onlyExposeProcessedDefault={false}
         onOnlyExposeProcessedDefaultChange={() => {}}
+        requireManualApprovalDefault={false}
+        onRequireManualApprovalDefaultChange={() => {}}
         lowAdYieldAction="nothing"
         onLowAdYieldActionChange={() => {}}
         episodeLogRetentionDays={retentionDays}
@@ -367,6 +375,8 @@ function TextRecurrenceHintsHarness({ onCommit }: { onCommit: (payload: TextRecu
         onMaxFeedEpisodesChange={() => {}}
         onlyExposeProcessedDefault={false}
         onOnlyExposeProcessedDefaultChange={() => {}}
+        requireManualApprovalDefault={false}
+        onRequireManualApprovalDefaultChange={() => {}}
         lowAdYieldAction="nothing"
         onLowAdYieldActionChange={() => {}}
         episodeLogRetentionDays={30}
@@ -401,5 +411,17 @@ describe('GlobalDefaultsSection: Text recurrence hints toggle', () => {
     await user.click(screen.getByRole('button', { name: 'Commit' }));
 
     expect(committed).toEqual({ textRecurrenceHints: true });
+  });
+});
+
+describe('GlobalDefaultsSection: Require manual approval toggle', () => {
+  it('reflects the prop and reports changes', async () => {
+    const onChange = vi.fn();
+    render(<Harness onCommit={() => {}} overrides={{ requireManualApprovalDefault: false, onRequireManualApprovalDefaultChange: onChange }} />);
+    const toggle = screen.getByRole('switch', { name: 'Require manual approval' });
+    expect(toggle.getAttribute('aria-checked')).toBe('false');
+    await userEvent.setup().click(toggle);
+    expect(onChange).toHaveBeenCalledWith(true);
+    expect(screen.getByText(/Episode review tab/)).toBeTruthy();
   });
 });

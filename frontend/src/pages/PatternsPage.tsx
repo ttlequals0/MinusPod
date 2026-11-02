@@ -28,6 +28,7 @@ import {
 import AdReviewTab from './patterns/AdReviewTab';
 import DetectedAdsTab from './patterns/DetectedAdsTab';
 import CleanupTab from './patterns/CleanupTab';
+import { SponsorsSection } from './SponsorsPage';
 import { getPatternCleanupStatus, patternCleanupQueryKey } from '../api/patternCleanup';
 import UnresolvedCorrectionsPanel from './patterns/UnresolvedCorrectionsPanel';
 import { RefreshCw } from 'lucide-react';
@@ -46,20 +47,25 @@ import { tableActionBtn } from '../components/rowActionStyles';
 type ScopeFilter = 'all' | 'global' | 'network' | 'podcast';
 type OriginFilter = 'all' | 'auto' | 'user';
 type SourceFilter = 'all' | 'local' | 'community' | 'imported';
-type PatternsTab = 'patterns' | 'ad-review' | 'detected-ads' | 'cleanup';
-const OTHER_TABS: readonly string[] = ['ad-review', 'detected-ads', 'cleanup'];
+type PatternsTab = 'patterns' | 'ad-review' | 'detected-ads' | 'cleanup' | 'sponsors';
+const OTHER_TABS: readonly string[] = ['ad-review', 'detected-ads', 'cleanup', 'sponsors'];
 
 function PatternsPage() {
   const [searchParams, setSearchParams] = useSearchParams();
+  const tabParam = searchParams.get('tab');
+  const activeTab: PatternsTab =
+    tabParam && OTHER_TABS.includes(tabParam) ? (tabParam as PatternsTab) : 'patterns';
+  // ?q= belongs to the visible tab; the sponsors tab reads it itself.
+  const patternsQuery = activeTab === 'patterns' ? searchParams.get('q') : null;
   const [scopeFilter, setScopeFilter] = useState<ScopeFilter>('all');
   const [originFilter, setOriginFilter] = useState<OriginFilter>('all');
   const [sourceFilter, setSourceFilter] = useState<SourceFilter>('all');
   const [categoryFilter, setCategoryFilter] = useState('');
-  const [searchQuery, setSearchQuery] = useState(searchParams.get('q') || '');
+  const [searchQuery, setSearchQuery] = useState(patternsQuery || '');
   const [showInactive, setShowInactive] = useState(false);
   const [selectedPattern, setSelectedPattern] = useState<AdPattern | null>(null);
   // A search-result link can land here while the page is already mounted.
-  useSyncFromQuery(searchParams.get('q') ?? undefined, setSearchQuery);
+  useSyncFromQuery(patternsQuery ?? undefined, setSearchQuery);
   const [page, setPage] = useState(1);
   // Reset to first page on sort change.
   const { sortField, sortDirection, handleSort } =
@@ -69,9 +75,6 @@ function PatternsPage() {
   const limit = 20;
 
 
-  const tabParam = searchParams.get('tab');
-  const activeTab: PatternsTab =
-    tabParam && OTHER_TABS.includes(tabParam) ? (tabParam as PatternsTab) : 'patterns';
   const switchTab = (tab: PatternsTab) => {
     setSearchParams(tab === 'patterns' ? {} : { tab });
   };
@@ -264,11 +267,13 @@ function PatternsPage() {
         { value: 'ad-review', label: 'Ad review' },
         { value: 'cleanup', label: 'Cleanup', accessibleLabel: cleanupPending > 0 ? `Cleanup, ${cleanupPending} pending` : undefined,
           badge: cleanupPending > 0 ? <span className={`ml-2 ${countPill} ${tint.warning}`}>{cleanupPending}</span> : undefined },
+        { value: 'sponsors', label: 'Sponsors' },
       ]} />
       <div role="tabpanel" id={`patterns-panel-${activeTab}`} aria-labelledby={`patterns-tab-${activeTab}`} tabIndex={0}>
       {activeTab === 'detected-ads' && <DetectedAdsTab />}
       {activeTab === 'ad-review' && <AdReviewTab />}
       {activeTab === 'cleanup' && <CleanupTab />}
+      {activeTab === 'sponsors' && <SponsorsSection />}
 
       {activeTab === 'patterns' && (<>
 

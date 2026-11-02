@@ -90,3 +90,15 @@ describe('FeedCard fixed slots', () => {
     expect(warning.closest('details')?.textContent).toContain('boom');
   });
 });
+
+describe('FeedCard awaiting approval', () => {
+  it('shows the count when episodes await approval', () => {
+    renderCard(makeFeed({ awaitingApprovalCount: 3 }));
+    expect(screen.getByText('3 awaiting approval')).toBeTruthy();
+  });
+
+  it('shows nothing when the count is zero', () => {
+    renderCard(makeFeed({ awaitingApprovalCount: 0 }));
+    expect(screen.queryByText(/awaiting approval/)).toBeNull();
+  });
+});

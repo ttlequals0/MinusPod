@@ -235,6 +235,10 @@ def _download_and_transcribe(slug, episode_id, episode_url,
         return audio_path, []
 
     segments = None
+    # A publisher transcript cannot stand in for Whisper output.
+    if not force_transcription and (db.get_episode(slug, episode_id) or {}).get('transcript_source') == 'upstream':
+        audio_logger.info(f"[{slug}:{episode_id}] Publisher transcript cannot be reused; transcribing")
+        force_transcription = True
     transcript_text = None if force_transcription else storage.get_transcript(slug, episode_id)
 
     if transcript_text:

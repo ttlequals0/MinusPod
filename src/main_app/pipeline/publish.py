@@ -31,7 +31,7 @@ from config import (
 
 from embedded_chapters import embed_chapters, probe_chapters, MIN_CHAPTER_SECONDS
 from id3_chapters import ChapterTagError
-from upstream_chapters import fetch_upstream_chapters
+from upstream_chapters import chapters_document, fetch_upstream_chapters
 from llm_capabilities import (
     PASS_CHAPTER_GENERATION, clear_fallback,
 )
@@ -490,6 +490,7 @@ def _generate_assets(slug, episode_id, segments, all_cuts, episode_description,
         # Successful asset publication includes final segments even when VTT is disabled.
         final_segments = transcript_gen.compute_final_segments(segments, all_cuts, replacement_duration)
         pending_assets['final_segments'] = final_segments
+        pending_assets['transcript_source'] = None
 
         if vtt_enabled is None or vtt_enabled.lower() == 'true':
             vtt_content = transcript_gen.generate_vtt(segments, all_cuts, replacement_duration)
@@ -582,13 +583,7 @@ def _generate_assets(slug, episode_id, segments, all_cuts, episode_description,
                                     fetched, [], all_cuts or [], replacement_duration,
                                     original_duration, audio_duration)
                                 if len(remapped) >= MIN_PRESERVED_CHAPTERS:
-                                    chapters_json = {
-                                        'version': '1.2.0',
-                                        'chapters': [
-                                            {**ch, 'title': ch.get('title') or f"Chapter {i + 1}"}
-                                            for i, ch in enumerate(remapped)
-                                        ],
-                                    }
+                                    chapters_json = chapters_document(remapped)
                                     _queue_chapter_trim(
                                         slug, episode_id, fetched, podcast_row, all_cuts,
                                         replacement_duration, audio_duration,

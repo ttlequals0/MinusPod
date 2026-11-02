@@ -105,6 +105,8 @@ returns 503 with a JIT-triggered processing job behind it.
 | `itunes:duration` | Recomputed from the processed file's actual length. |
 | `enclosure length` | The processed file's byte size. An unprocessed episode passes through upstream's `length` when declared, omitting the attribute otherwise. |
 
+Pass-through episodes are the exception: nothing is cut, so the publisher's timestamps stay valid. At processing time MinusPod imports the item's `podcast:chapters` and `podcast:transcript` and serves them from its own URLs, never the publisher's. A timed transcript (VTT, SRT or JSON) is stored as the episode transcript with a VTT when VTT transcripts are enabled; an untimed one (HTML or plain text) appears in the Transcript card only, with no VTT. Once the feed leaves pass-through, the next reprocess transcribes the episode with Whisper; the publisher transcript is not used for detection.
+
 ### Chapter modes
 
 Settings > Transcripts & Chapters sets the chapter mode: **Auto** (the default),

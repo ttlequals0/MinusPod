@@ -22,6 +22,9 @@ HAS_TRANSCRIPT_SQL = (
     "({a}.transcript_text IS NOT NULL OR {a}.original_transcript_text IS NOT NULL "
     "OR {a}.transcript_vtt IS NOT NULL)")
 
+# Servable means not held for manual approval; episodes is the only table with the column.
+NOT_AWAITING_APPROVAL = "approval_pending_at IS NULL"
+
 # Columns the ad-detection and cut stages regenerate (issue #349 LLM-only
 # reprocess). Shared by clear_episode_ad_data and batch_clear_episode_ad_data.
 # Episodes per discovery write transaction. One transaction spanning a large
@@ -266,7 +269,7 @@ class EpisodeMixin:
                       ed.transcript_text,
                       (ed.original_transcript_text IS NOT NULL) as has_original_transcript,
                       {HAS_TRANSCRIPT_SQL.format(a='ed')} AS has_transcript,
-                      ed.transcript_vtt,
+                      ed.transcript_vtt, ed.transcript_source,
                       ed.chapters_json, ed.ad_markers_json,
                       ed.first_pass_response, ed.first_pass_prompt,
                       ed.second_pass_prompt, ed.second_pass_response,
@@ -393,7 +396,8 @@ class EpisodeMixin:
                                'low_yield_rerun_at', 'reprocess_source',
                                'season_number', 'p20_item_json',
                                'pending_recut_at', 'chapters_regen_error',
-                               'processed_size_bytes', 'yt_metadata_at'):
+                               'processed_size_bytes', 'yt_metadata_at',
+                               'approval_pending_at', 'approved_at'):
                         fields.append(f"{key} = ?")
                         values.append(value)
                     elif key == 'tags':
@@ -780,8 +784,12 @@ class EpisodeMixin:
         fields = {
             'final_segments': 'final_segments_json', 'chapters': 'chapters_json',
             'applied_cuts': 'applied_cuts_json', 'transcript_vtt': 'transcript_vtt',
-            'transcript_text': 'transcript_text',
+            'transcript_text': 'transcript_text', 'transcript_source': 'transcript_source',
+            'original_segments': 'original_segments_json',
+            'upstream_transcript': 'upstream_transcript_json',
         }
+        json_keys = ('final_segments', 'chapters', 'applied_cuts',
+                     'original_segments', 'upstream_transcript')
         if not assets or any(key not in fields for key in assets):
             raise ValueError('Invalid processing asset fields')
         identifier = self._get_episode_db_id(slug, episode_id)
@@ -792,21 +800,25 @@ class EpisodeMixin:
         if normalized.get('applied_cuts') is not None:
             normalized['applied_cuts'] = [_serialize_applied_cut(cut) for cut in normalized['applied_cuts']]
         values = [None if normalized.get(key) is None else
-                  json.dumps(normalized[key]) if key in ('final_segments', 'chapters', 'applied_cuts')
+                  json.dumps(normalized[key]) if key in json_keys
                   else assets[key] for key in keys]
         present = [key in assets for key in keys]
         conn = self.get_connection()
         conn.execute(
             """INSERT INTO episode_details
                (episode_id, final_segments_json, chapters_json, applied_cuts_json,
-                transcript_vtt, transcript_text)
-               VALUES (?, ?, ?, ?, ?, ?)
+                transcript_vtt, transcript_text, transcript_source,
+                original_segments_json, upstream_transcript_json)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                ON CONFLICT(episode_id) DO UPDATE SET
                final_segments_json = CASE WHEN ? THEN excluded.final_segments_json ELSE final_segments_json END,
                chapters_json = CASE WHEN ? THEN excluded.chapters_json ELSE chapters_json END,
                applied_cuts_json = CASE WHEN ? THEN excluded.applied_cuts_json ELSE applied_cuts_json END,
                transcript_vtt = CASE WHEN ? THEN excluded.transcript_vtt ELSE transcript_vtt END,
-               transcript_text = CASE WHEN ? THEN excluded.transcript_text ELSE transcript_text END""",
+               transcript_text = CASE WHEN ? THEN excluded.transcript_text ELSE transcript_text END,
+               transcript_source = CASE WHEN ? THEN excluded.transcript_source ELSE transcript_source END,
+               original_segments_json = CASE WHEN ? THEN excluded.original_segments_json ELSE original_segments_json END,
+               upstream_transcript_json = CASE WHEN ? THEN excluded.upstream_transcript_json ELSE upstream_transcript_json END""",
             (identifier, *values, *present),
         )
         conn.commit()
@@ -1203,23 +1215,70 @@ class EpisodeMixin:
         """Get all processed episodes with files for inclusion in RSS feed."""
         conn = self.get_connection()
         cursor = conn.execute(
-            """SELECT episode_id, title, description, published_at,
+            f"""SELECT episode_id, title, description, published_at,
                       new_duration, episode_number, original_url, rss_duration,
                       processed_version, processed_size_bytes
                FROM episodes
                WHERE podcast_id = ? AND status = 'processed'
                      AND processed_file IS NOT NULL
-               ORDER BY published_at DESC""",
+                     AND {NOT_AWAITING_APPROVAL}
+               ORDER BY published_at DESC""",  # noqa: S608
             (podcast_id,)
         )
         return [dict(row) for row in cursor.fetchall()]
+
+    _APPROVAL_ROW_COLS = ("e.episode_id, e.title, e.ads_removed, e.pending_review_count, "
+                          "e.approval_pending_at, e.processed_at, p.slug AS podcast_slug, "
+                          "p.title AS podcast_title")
+
+    def list_review_episodes(self, kind: str, slug: str | None = None, limit: int = 100,
+                             offset: int = 0) -> tuple[list[dict], int]:
+        """Episodes needing a decision plus the total: kind 'awaiting' (oldest first) or 'held' (newest first)."""
+        if kind == 'awaiting':
+            cond = "e.approval_pending_at IS NOT NULL AND (? IS NULL OR p.slug = ?)"
+            params: tuple = (slug, slug)
+            order = "e.approval_pending_at ASC, e.id ASC"
+        elif kind == 'held':
+            cond = "e.pending_review_count > 0 AND e.status = 'processed'"
+            params = ()
+            order = "e.processed_at DESC, e.id DESC"
+        else:
+            raise ValueError(f"unknown review kind: {kind}")
+        conn = self.get_connection()
+        where = f"FROM episodes e JOIN podcasts p ON p.id = e.podcast_id WHERE {cond}"
+        total = conn.execute(f"SELECT COUNT(*) {where}", params).fetchone()[0]  # noqa: S608
+        rows = conn.execute(
+            f"SELECT {self._APPROVAL_ROW_COLS} {where} ORDER BY {order} LIMIT ? OFFSET ?",  # noqa: S608
+            (*params, limit, offset)).fetchall()
+        return [dict(r) for r in rows], total
+
+    def approve_episode(self, slug: str, episode_id: str, approved_at: str) -> bool:
+        """Clear the approval wait. False when the episode was not waiting."""
+        conn = self.get_connection()
+        cursor = conn.execute(
+            "UPDATE episodes SET approval_pending_at = NULL, approved_at = ?, "
+            "updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now') "
+            "WHERE approval_pending_at IS NOT NULL AND episode_id = ? "
+            "AND podcast_id = (SELECT id FROM podcasts WHERE slug = ?)",
+            (approved_at, episode_id, slug))
+        conn.commit()
+        return cursor.rowcount > 0
+
+    def get_awaiting_approval_episode_ids(self, podcast_id: int) -> list[str]:
+        """episode_ids of a feed's episodes waiting for manual approval, oldest wait first."""
+        cursor = self.get_connection().execute(
+            "SELECT episode_id FROM episodes WHERE podcast_id = ? "
+            "AND approval_pending_at IS NOT NULL ORDER BY approval_pending_at ASC, id ASC",
+            (podcast_id,))
+        return [row['episode_id'] for row in cursor.fetchall()]
 
     # Recents feed membership (#721): processed episodes of member feed types published on or after
     # the cutoff. Publish date only; type list is constants, not user input.
     _RECENTS_WHERE = ("FROM episodes e JOIN podcasts p ON p.id = e.podcast_id "
                       "WHERE e.status = 'processed' AND e.processed_file IS NOT NULL "
                       "AND p.feed_type IN (" + ", ".join(f"'{t}'" for t in RECENTS_MEMBER_FEED_TYPES) + ") "
-                      "AND e.published_at IS NOT NULL AND e.published_at >= ?")
+                      "AND e.published_at IS NOT NULL AND e.published_at >= ? "
+                      "AND " + NOT_AWAITING_APPROVAL)
     _RECENTS_SOURCE_COLS = ("p.slug AS source_slug, "
                             "COALESCE(NULLIF(p.title_override, ''), NULLIF(p.title, ''), p.slug) AS source_title, "
                             "p.feed_type AS source_feed_type, p.chapters_in_notes AS source_chapters_in_notes, "

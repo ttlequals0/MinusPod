@@ -730,3 +730,78 @@ def test_content_walk_does_not_extend_cue_match_marker():
     assert (extended[0]['start'], extended[0]['end']) == (100.0, 103.0)
     assert 'start_extended_by_content' not in extended[0]
     assert 'end_extended_by_content' not in extended[0]
+
+
+def _cue_pair_ad(start, end):
+    """Build the marker through the real synthesizer, kept cues flanking the span."""
+    from audio_analysis.base import AudioAnalysisResult, AudioSegmentSignal
+    from ad_detector.cue_pair_ads import synthesize_ads_from_cue_pairs
+
+    def cue(a, b):
+        return AudioSegmentSignal(
+            start=a, end=b, signal_type='audio_cue', confidence=0.9,
+            details={'source': 'template', 'label': 'ad-break',
+                     'template_id': 2, 'remove_with_ad': False})
+
+    result = AudioAnalysisResult()
+    result.signals = [cue(start - 0.55, start - 0.05), cue(end + 0.05, end + 0.55)]
+    ads, _ = synthesize_ads_from_cue_pairs([], result, min_break_s=1.0)
+    assert (ads[0]['start'], ads[0]['end']) == (start, end)
+    return ads[0]
+
+
+def test_refine_does_not_move_cue_pair_end_into_return_phrase():
+    from ad_detector.boundaries import refine_ad_boundaries
+
+    segments = [
+        _seg(1855.0, 1861.0, 'lexus rx defy expectations'),
+        _seg(1867.5, 1875.0, 'we are back to college football enquirer'),
+    ]
+    refined = refine_ad_boundaries([_cue_pair_ad(1861.86, 1865.11)], segments)
+
+    assert refined[0]['start'] == 1861.86
+    assert refined[0]['end'] == 1865.11
+    assert 'end_refined' not in refined[0]
+
+
+def test_refine_does_not_move_cue_pair_start():
+    from ad_detector.boundaries import refine_ad_boundaries
+
+    segments = [
+        _seg(1760.0, 1767.0, "let's take a break here"),
+        _seg(1768.0, 1771.0, 'jingle'),
+    ]
+    refined = refine_ad_boundaries([_cue_pair_ad(1768.01, 1770.51)], segments)
+
+    assert refined[0]['start'] == 1768.01
+    assert 'start_refined' not in refined[0]
+
+
+def test_content_walk_does_not_extend_cue_pair_marker():
+    segments = [
+        _seg(95.0, 99.0, 'visit example dot com for a discount'),
+        _seg(100.0, 103.0, 'jingle'),
+        _seg(103.0, 108.0, 'go to example dot com slash offer'),
+    ]
+    extended = extend_ad_boundaries_by_content(
+        [_cue_pair_ad(100.0, 103.0)], segments)
+
+    assert (extended[0]['start'], extended[0]['end']) == (100.0, 103.0)
+    assert 'start_extended_by_content' not in extended[0]
+    assert 'end_extended_by_content' not in extended[0]
+
+
+def test_merge_keeps_cue_lock_only_on_the_cue_backed_edge():
+    from ad_detector.boundaries import _edge_locked, merge_same_sponsor_ads
+
+    read = 'Get it at acme.com today'
+    pair = _cue_pair_ad(100.0, 130.0)
+    later = {'start': 150.0, 'end': 180.0, 'confidence': 0.9, 'reason': read}
+    segments = [_seg(100.0, 130.0, read), _seg(150.0, 180.0, read)]
+
+    merged = merge_same_sponsor_ads([pair, later], segments, min_content_seconds=12.0)
+
+    assert len(merged) == 1
+    assert (merged[0]['start'], merged[0]['end']) == (100.0, 180.0)
+    assert _edge_locked(merged[0], 'start')
+    assert not _edge_locked(merged[0], 'end')

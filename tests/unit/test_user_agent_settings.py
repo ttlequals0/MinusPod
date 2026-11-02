@@ -140,6 +140,22 @@ class TestAudioAvailabilityProbe:
         assert _probe().check_audio_availability(
             'https://cdn.example/media.mp3') == (available, message)
 
+    def test_timeout_proceeds_to_the_download(self, monkeypatch, caplog):
+        import requests
+
+        seen = {}
+
+        def slow_head(*a, **k):
+            seen['timeout'] = k.get('timeout')
+            raise requests.exceptions.ReadTimeout('slow')
+
+        monkeypatch.setattr('utils.safe_http.safe_head', slow_head)
+        with caplog.at_level('WARNING'):
+            result = _probe().check_audio_availability('https://cdn.example/media.mp3')
+        assert result == (True, None)
+        assert seen['timeout'] == 30.0
+        assert sum('CDN check timed out' in r.message for r in caplog.records) == 1
+
     def test_probe_sends_the_configured_user_agent(self, monkeypatch):
         Database().set_setting(user_agent.DOWNLOAD_UA_SETTING, 'CustomAgent/9.9')
         user_agent.invalidate_cache()

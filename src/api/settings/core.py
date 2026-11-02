@@ -122,6 +122,9 @@ def _build_settings_payload():
         registry_default('only_expose_processed_default'))
     only_expose_processed_default = (
         only_expose_processed_value.lower() in ('true', '1', 'yes'))
+    require_manual_approval_default = coerce_bool_setting(common._setting_value(
+        settings, 'require_manual_approval_default',
+        registry_default('require_manual_approval_default')))
     detect_show_segments_default = coerce_bool_setting(common._setting_value(
         settings, 'detect_show_segments', registry_default('detect_show_segments')))
     text_recurrence_hints = coerce_bool_setting(common._setting_value(
@@ -591,6 +594,8 @@ def _build_settings_payload():
         'jitBlockedUserAgents': _sv('jit_blocked_user_agents', jit_blocked_user_agents),
         'onlyExposeProcessedDefault': _sv(
             'only_expose_processed_default', only_expose_processed_default),
+        'requireManualApprovalDefault': _sv(
+            'require_manual_approval_default', require_manual_approval_default),
         'detectShowSegments': _sv(
             'detect_show_segments', detect_show_segments_default),
         'textRecurrenceHints': _sv(

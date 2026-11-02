@@ -71,6 +71,15 @@ from utils.opml import build_opml_xml
 # Resolved once at registration time
 STATIC_DIR = None
 
+AWAITING_APPROVAL_RETRY_SECONDS = 1800
+
+
+def _awaiting_approval_response(slug, episode_id):
+    feed_logger.info(f"[{slug}:{episode_id}] Awaiting manual approval")
+    return Response('{"error": "awaiting_approval"}', status=503,
+                    mimetype='application/json',
+                    headers={'Retry-After': str(AWAITING_APPROVAL_RETRY_SECONDS)})
+
 
 def _personalize_rss_for_subscriber(cached_rss: str) -> str:
     supplied = request.args.get('key') or ''
@@ -379,6 +388,9 @@ def _local_original_response(slug, episode_id, requested_version=None):
     normal response) when nothing at all is retained.
     """
     episode = db.get_episode(slug, episode_id)
+    # A gated episode must not fall back to its original while it reprocesses.
+    if episode and episode.get('approval_pending_at') and not episode.get('approved_at'):
+        return _awaiting_approval_response(slug, episode_id)
     processed_path = _published_processed_path(
         slug, episode_id, episode, requested_version)
     if processed_path is not None:
@@ -603,6 +615,8 @@ def register_routes(app):
         status = episode['status'] if episode else None
 
         if status == EpisodeStatus.PROCESSED:
+            if episode.get('approval_pending_at'):
+                return _awaiting_approval_response(slug, episode_id)
             file_path = _published_processed_path(
                 slug, episode_id, episode, requested_version)
             if file_path is not None:

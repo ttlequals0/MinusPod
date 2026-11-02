@@ -152,6 +152,7 @@ FEED_COLUMNS = (
     'max_ad_duration_reject_override', 'ad_detection_exclude_start_override',
     'splice_veto_enabled', 'cue_gated_approval', 'differential_fetch_enabled',
     'differential_fetch_mode', 'max_episodes', 'only_expose_processed_episodes',
+    'require_manual_approval',
     'website_url', 'passthrough_enabled', 'skip_ad_detection',
     'segment_category_actions', 'detect_show_segments', 'skip_second_pass',
     'transcript_differential', 'skip_transcription', 'cue_only_safety',
@@ -173,6 +174,7 @@ FEED_JSON_COLUMNS = frozenset({
 FEED_BOOL_COLUMNS = frozenset({
     'own_episode_guids', 'silence_snap_enabled', 'transition_snap_enabled',
     'splice_veto_enabled', 'cue_gated_approval', 'only_expose_processed_episodes',
+    'require_manual_approval',
     'passthrough_enabled', 'skip_ad_detection', 'detect_show_segments',
     'skip_second_pass', 'transcript_differential', 'skip_transcription',
     'explicit', 'cue_create_from_pairs_override', 'cue_cut_matches_override',
@@ -1296,6 +1298,7 @@ def apply_config(db, document, scope, selected_feeds, preview_token):
     refresh_slugs = set()
     rss_fields = {
         'max_episodes', 'only_expose_processed_episodes', 'title_override',
+        'require_manual_approval',
         'source_url', 'own_episode_guids', 'title_skip_patterns',
         'description_skip_patterns',
         'title_skip_action', 'min_duration_seconds', 'max_duration_seconds',

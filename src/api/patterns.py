@@ -1374,6 +1374,25 @@ def _handle_recategorize_correction(db, slug, episode_id, original_ad, data):
     })
 
 
+def _dismiss_held_markers(db, slug, episode_id, predicate, markers=None) -> int:
+    """Demote held markers matching predicate to rejected, save once, return how many."""
+    if markers is None:
+        markers = _load_markers(db, slug, episode_id)
+    if markers is None:
+        return 0
+    matched = [m for m in markers if predicate(m)]
+    for m in matched:
+        m['held_for_review'] = False
+        m.pop('hold_reason', None)
+        m.pop('approved', None)
+        m['was_cut'] = False
+        m.setdefault('validation', {})['decision'] = 'REJECT'
+    if matched:
+        db.save_episode_details(slug, episode_id, ad_markers=markers,
+                                pending_review_count=count_pending_review(markers))
+    return len(matched)
+
+
 def _clear_held_marker_on_reject(db, slug, episode_id, start, end, tol=0.5,
                                  markers=None):
     """When the rejected range matches a held marker, demote it to a plain
@@ -1383,26 +1402,8 @@ def _clear_held_marker_on_reject(db, slug, episode_id, start, end, tol=0.5,
     markers, when given, is reused instead of re-fetching episode_details --
     the reject path already loads it to resolve source_hold_reason before
     calling here."""
-    if markers is None:
-        markers = _load_markers(db, slug, episode_id)
-    if markers is None:
-        return
-
-    changed = False
-    for m in markers:
-        if _matches_held_marker(m, start, end, tol):
-            m['held_for_review'] = False
-            m.pop('hold_reason', None)
-            m.pop('approved', None)
-            m['was_cut'] = False
-            m.setdefault('validation', {})['decision'] = 'REJECT'
-            changed = True
-
-    if not changed:
-        return
-
-    db.save_episode_details(slug, episode_id, ad_markers=markers,
-                            pending_review_count=count_pending_review(markers))
+    _dismiss_held_markers(db, slug, episode_id,
+                          lambda m: _matches_held_marker(m, start, end, tol), markers)
 
 
 def _mark_held_marker_approved(db, slug, episode_id, start, end, tol=0.5,

@@ -25,6 +25,8 @@ logger = logging.getLogger('podcast.webhooks')
 
 EVENT_EPISODE_PROCESSED = 'Episode Processed'
 EVENT_EPISODE_FAILED = 'Episode Failed'
+EVENT_EPISODE_AWAITING_APPROVAL = 'Episode Awaiting Approval'
+EVENT_EPISODE_PENDING_REVIEW = 'Episode Pending Review'
 EVENT_AUTH_FAILURE = 'Auth Failure'
 EVENT_RATE_LIMIT_STRUCTURAL = 'Rate Limit Structural'
 EVENT_LIMIT_EXCEEDED = 'Limit Exceeded'
@@ -39,6 +41,8 @@ EVENT_FAILOVER_TRIGGERED = 'Failover Triggered'
 EVENT_FAILOVER_CANCELLED = 'Failover Cancelled'
 VALID_EVENTS = {
     EVENT_EPISODE_PROCESSED,
+    EVENT_EPISODE_AWAITING_APPROVAL,
+    EVENT_EPISODE_PENDING_REVIEW,
     EVENT_EPISODE_FAILED,
     EVENT_AUTH_FAILURE,
     EVENT_RATE_LIMIT_STRUCTURAL,
@@ -53,6 +57,8 @@ VALID_EVENTS = {
     EVENT_FAILOVER_TRIGGERED,
     EVENT_FAILOVER_CANCELLED,
 }
+_EPISODE_EVENTS = frozenset((
+    EVENT_EPISODE_PROCESSED, EVENT_EPISODE_AWAITING_APPROVAL, EVENT_EPISODE_PENDING_REVIEW))
 
 # Maps the API-facing failover target names to webhook/email payload values,
 # kept local to avoid importing failover (which imports this module).
@@ -696,7 +702,7 @@ def _episode_test_context(event):
     (existing behavior). Episode Failed always uses placeholder data; there
     is no comparable "most recent failure" query.
     """
-    if event == EVENT_EPISODE_PROCESSED:
+    if event in _EPISODE_EVENTS:
         try:
             db = database.Database()
             row = db.get_latest_completed_processing()
@@ -718,6 +724,7 @@ def _episode_test_context(event):
             logger.debug("Could not load real data for test webhook, using placeholders")
         context = dict(_DUMMY_CONTEXT)
         context.update(_timestamp_fields())
+        context['event'] = event
         return context
 
     payload = WebhookPayload(event=EVENT_EPISODE_FAILED, **_FAILED_SAMPLE)
@@ -727,7 +734,7 @@ def _episode_test_context(event):
 def _build_test_context(event):
     """Build the render context for one test delivery, matching the real
     payload shape for `event` (see docs/api-and-webhooks.md)."""
-    if event in (EVENT_EPISODE_PROCESSED, EVENT_EPISODE_FAILED):
+    if event in _EPISODE_EVENTS or event == EVENT_EPISODE_FAILED:
         return _episode_test_context(event)
     sample = _ALERT_SAMPLE_CONTEXTS.get(event)
     if sample is None:

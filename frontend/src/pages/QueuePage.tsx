@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link } from 'react-router';
+import { Link, useSearchParams } from 'react-router';
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   cancelProcessing,
@@ -15,6 +15,8 @@ import { getProcessingStatus } from '../api/status';
 import type { ProcessingStatus } from '../api/status';
 import ProcessingQueueSection, { QUEUE_PAGE_SIZE } from './settings/ProcessingQueueSection';
 import QueueControlSection from './settings/QueueControlSection';
+import ReviewTab from './queue/ReviewTab';
+import PageTabs from '../components/PageTabs';
 import { getStageLabel } from '../utils/processingStage';
 import LoadingSpinner from '../components/LoadingSpinner';
 import ProcessingJobProgress from '../components/ProcessingJobProgress';
@@ -122,8 +124,15 @@ function ActiveQueue({
   );
 }
 
+const QUEUE_TABS = [
+  { value: 'queue', label: 'Queue' },
+  { value: 'review', label: 'Episode review' },
+] as const;
+
 function QueuePage() {
   const queryClient = useQueryClient();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const activeTab = searchParams.get('tab') === 'review' ? 'review' : 'queue';
   const [queuePage, setQueuePage] = useState(1);
   const episodes = useQuery({
     queryKey: ['processing-episodes', queuePage],
@@ -169,53 +178,60 @@ function QueuePage() {
         </div>
       </div>
 
-      <ActiveQueue
-        status={status.data}
-        activeEpisodes={(episodes.data ?? []).filter((episode) => episode.stage !== 'queued')}
-        onCancel={(params) => cancel.mutate(params)}
-        cancelIsPending={cancel.isPending}
-        cancelingKey={cancel.variables ? `${cancel.variables.slug}:${cancel.variables.episodeId}` : null}
-        loading={status.isPending && episodes.isPending}
-        failed={episodes.isError && !episodes.data && !status.data}
-        onRetry={() => { void episodes.refetch(); void status.refetch(); }}
-      />
-      {cancel.isError && <p className="text-sm text-destructive">Could not cancel the selected episode. Refresh and try again.</p>}
-      {priority.isError && <p className="text-sm text-destructive">Could not update queue priority. Refresh and try again.</p>}
+      <PageTabs id="queue" label="Queue sections" tabs={QUEUE_TABS} active={activeTab} wrap
+        onChange={(value) => setSearchParams(value === 'queue' ? {} : { tab: value })} />
 
-      {settings.isPending && <LoadingSpinner size="sm" />}
-      {settings.isError && <p className="text-sm text-destructive">Could not load queue controls.</p>}
-      {configured && <QueueControlSection
-        storageKey="queue-page-control"
-        processNewEpisodesFirst={configured?.processNewEpisodesFirst?.value ?? configured?.defaults.processNewEpisodesFirst ?? true}
-        onProcessNewEpisodesFirstChange={(value) => tunable.mutate({ processNewEpisodesFirst: value })}
-        queueManualBoost={configured?.queueManualBoost?.value ?? 20}
-        onQueueManualBoostChange={(value) => tunable.mutate({ queueManualBoost: value })}
-        queueFreshBoost={configured?.queueFreshBoost?.value ?? 5}
-        onQueueFreshBoostChange={(value) => tunable.mutate({ queueFreshBoost: value })}
-        queueBulkBoost={configured?.queueBulkBoost?.value ?? 0}
-        onQueueBulkBoostChange={(value) => tunable.mutate({ queueBulkBoost: value })}
-      />}
-      {tunable.isError && <p className="text-sm text-destructive">Could not save queue controls. Try again.</p>}
+      {activeTab === 'review' ? <ReviewTab /> : (
+      <div role="tabpanel" id="queue-panel-queue" aria-labelledby="queue-tab-queue" className="space-y-4">
+        <ActiveQueue
+          status={status.data}
+          activeEpisodes={(episodes.data ?? []).filter((episode) => episode.stage !== 'queued')}
+          onCancel={(params) => cancel.mutate(params)}
+          cancelIsPending={cancel.isPending}
+          cancelingKey={cancel.variables ? `${cancel.variables.slug}:${cancel.variables.episodeId}` : null}
+          loading={status.isPending && episodes.isPending}
+          failed={episodes.isError && !episodes.data && !status.data}
+          onRetry={() => { void episodes.refetch(); void status.refetch(); }}
+        />
+        {cancel.isError && <p className="text-sm text-destructive">Could not cancel the selected episode. Refresh and try again.</p>}
+        {priority.isError && <p className="text-sm text-destructive">Could not update queue priority. Refresh and try again.</p>}
 
-      {episodes.isPending && <LoadingSpinner size="sm" />}
-      {episodes.isError && <p className="text-sm text-destructive">Could not load queued episodes.</p>}
-      {episodes.data && <ProcessingQueueSection
-        processingEpisodes={episodes.data}
-        showActive={false}
-        defaultOpen
-        storageKey="queue-page-episodes"
-        onCancel={(params) => cancel.mutate(params)}
-        cancelIsPending={cancel.isPending}
-        cancelingKey={cancel.variables ? `${cancel.variables.slug}:${cancel.variables.episodeId}` : null}
-        queuePage={queuePage}
-        onQueuePage={setQueuePage}
-        onPriorityChange={(params) => priority.mutate(params)}
-        priorityIsPending={priority.isPending}
-      />}
-      {admission.data?.paused && (
-        <p className="text-sm text-muted-foreground">
-          New work is paused. <Link to="/settings" className={`text-primary hover:underline ${focusRing}`}>Open settings</Link> to change other processing defaults.
-        </p>
+        {settings.isPending && <LoadingSpinner size="sm" />}
+        {settings.isError && <p className="text-sm text-destructive">Could not load queue controls.</p>}
+        {configured && <QueueControlSection
+          storageKey="queue-page-control"
+          processNewEpisodesFirst={configured?.processNewEpisodesFirst?.value ?? configured?.defaults.processNewEpisodesFirst ?? true}
+          onProcessNewEpisodesFirstChange={(value) => tunable.mutate({ processNewEpisodesFirst: value })}
+          queueManualBoost={configured?.queueManualBoost?.value ?? 20}
+          onQueueManualBoostChange={(value) => tunable.mutate({ queueManualBoost: value })}
+          queueFreshBoost={configured?.queueFreshBoost?.value ?? 5}
+          onQueueFreshBoostChange={(value) => tunable.mutate({ queueFreshBoost: value })}
+          queueBulkBoost={configured?.queueBulkBoost?.value ?? 0}
+          onQueueBulkBoostChange={(value) => tunable.mutate({ queueBulkBoost: value })}
+        />}
+        {tunable.isError && <p className="text-sm text-destructive">Could not save queue controls. Try again.</p>}
+
+        {episodes.isPending && <LoadingSpinner size="sm" />}
+        {episodes.isError && <p className="text-sm text-destructive">Could not load queued episodes.</p>}
+        {episodes.data && <ProcessingQueueSection
+          processingEpisodes={episodes.data}
+          showActive={false}
+          defaultOpen
+          storageKey="queue-page-episodes"
+          onCancel={(params) => cancel.mutate(params)}
+          cancelIsPending={cancel.isPending}
+          cancelingKey={cancel.variables ? `${cancel.variables.slug}:${cancel.variables.episodeId}` : null}
+          queuePage={queuePage}
+          onQueuePage={setQueuePage}
+          onPriorityChange={(params) => priority.mutate(params)}
+          priorityIsPending={priority.isPending}
+        />}
+        {admission.data?.paused && (
+          <p className="text-sm text-muted-foreground">
+            New work is paused. <Link to="/settings" className={`text-primary hover:underline ${focusRing}`}>Open settings</Link> to change other processing defaults.
+          </p>
+        )}
+      </div>
       )}
     </div>
   );

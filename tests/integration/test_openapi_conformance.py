@@ -76,6 +76,8 @@ GET_ROUTES = [
     ('/feeds/{slug}/episodes/{episode_id}/detected-cues', ''),
     ('/feeds/{slug}/episodes/{episode_id}/sponsorblock/candidates', ''),
     ('/episodes/pending-recuts', ''),
+    ('/episodes/awaiting-approval', ''),
+    ('/episodes/held', ''),
     ('/episodes/processing', ''),
     ('/stats/dashboard', ''),
     ('/stats/by-day', ''),

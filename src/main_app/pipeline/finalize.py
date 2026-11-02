@@ -28,7 +28,8 @@ from utils.constants import (
 from utils.episode_paths import episode_relative_path
 from utils.gpu import get_available_memory_gb, clear_gpu_memory
 from webhook_service import (
-    fire_event, EVENT_EPISODE_PROCESSED,
+    fire_event, EVENT_EPISODE_PROCESSED, EVENT_EPISODE_AWAITING_APPROVAL,
+    EVENT_EPISODE_PENDING_REVIEW,
 )
 
 from main_app.pipeline import common
@@ -37,16 +38,30 @@ from main_app.pipeline.shared import (db, storage)
 audio_logger = logging.getLogger('podcast.audio')
 
 
+def _approval_stamp(slug, episode_id, hold_for_approval, podcast_row=None):
+    """Approval columns to persist: held when asked to and the feed requires it, else published."""
+    now_iso = utc_now_iso()
+    if not hold_for_approval:
+        return {'approval_pending_at': None, 'approved_at': now_iso}
+    row = db.get_episode(slug, episode_id) or {}
+    if row.get('approved_at'):
+        return {'approval_pending_at': None}
+    if db.requires_manual_approval(slug, podcast=podcast_row):
+        return {'approval_pending_at': row.get('approval_pending_at') or now_iso}
+    return {'approval_pending_at': None}
+
+
 def _persist_episode_state(slug, episode_id, pass1_cut_count, verification_count,
                             first_pass_count, original_duration, new_duration,
                             processed_version, detection_degraded=None,
-                            run_started_iso=None):
+                            run_started_iso=None, approval=None):
     """Upsert the processed episode row and update related DB state.
 
     ``detection_degraded``: the sanitized reason string when this run
     degraded, else None to clear a flag left by an earlier failure.
     ``run_started_iso``: when the run began; only pending-recut stamps from
     before then are cleared, so a decision recorded mid-run survives.
+    ``approval``: the stamp from ``_approval_stamp``; default publishes.
     """
     common._require_publication_owner(slug, episode_id)
     original_final = storage.get_original_path(slug, episode_id)
@@ -57,6 +72,8 @@ def _persist_episode_state(slug, episode_id, pass1_cut_count, verification_count
             slug, episode_id, version=processed_version).stat().st_size
     except OSError:
         processed_size_bytes = None
+    if approval is None:
+        approval = _approval_stamp(slug, episode_id, hold_for_approval=False)
     db.upsert_episode(slug, episode_id,
         status=EpisodeStatus.PROCESSED.value,
         processed_at=utc_now_iso(),
@@ -82,7 +99,8 @@ def _persist_episode_state(slug, episode_id, pass1_cut_count, verification_count
         # A clean run clears a degraded flag from an earlier failure; a
         # degraded run re-stamps its own reason so this unconditional
         # write does not clobber the flag detection just set.
-        detection_degraded=detection_degraded)
+        detection_degraded=detection_degraded,
+        **approval)
 
     # A completed run cuts from the markers it loaded, so only decisions
     # waiting when it started are now in the audio; a stamp from mid-run
@@ -365,14 +383,16 @@ def _record_history_and_event(slug, episode_id, episode_title, podcast_name,
                                original_duration, new_duration,
                                processing_time, token_totals, db,
                                audio_cue_detections=0, run_stats=None,
-                               ads_held=0, ads_not_cut=0):
-    """Record processing history row and fire the episode-processed webhook.
+                               ads_held=0, ads_not_cut=0, approval=None):
+    """Record the processing history row and fire Episode Processed or Episode Awaiting Approval,
+    plus Episode Pending Review when any detections are held.
 
     The webhook fires whenever the episode pipeline completed, including
     the case where the podcast row is missing (we still have slug +
     episode_id + counts for the payload). The webhook is skipped only
     when `record_processing_history` raised, which signals a real DB
     write failure that would leave the History page out of sync.
+    ``approval`` is the persisted stamp.
     """
     common._require_publication_owner(slug, episode_id)
     ads_removed_total = pass1_cut_count + verification_count
@@ -396,34 +416,42 @@ def _record_history_and_event(slug, episode_id, episode_title, podcast_name,
         )
         return
 
-    try:
-        fire_event(
-            event=EVENT_EPISODE_PROCESSED,
-            episode_id=episode_id, slug=slug, episode_title=episode_title,
-            processing_time=processing_time, llm_cost=token_totals['cost'],
-            ads_removed=ads_removed_total,
-            ads_held=ads_held, ads_not_cut=ads_not_cut,
-            original_duration=original_duration, new_duration=new_duration,
-            podcast_name=podcast_name,
-        )
-    except Exception as wh_err:
-        audio_logger.warning(f"[{slug}:{episode_id}] Webhook fire failed: {wh_err}")
+    event_kwargs = dict(
+        episode_id=episode_id, slug=slug, episode_title=episode_title,
+        processing_time=processing_time, llm_cost=token_totals['cost'],
+        ads_removed=ads_removed_total,
+        ads_held=ads_held, ads_not_cut=ads_not_cut,
+        original_duration=original_duration, new_duration=new_duration,
+        podcast_name=podcast_name,
+    )
+    events = [EVENT_EPISODE_AWAITING_APPROVAL if (approval or {}).get('approval_pending_at')
+              else EVENT_EPISODE_PROCESSED]
+    if ads_held:
+        events.append(EVENT_EPISODE_PENDING_REVIEW)
+    for event in events:
+        try:
+            fire_event(event=event, **event_kwargs)
+        except Exception as wh_err:
+            audio_logger.warning(f"[{slug}:{episode_id}] {event} webhook fire failed: {wh_err}")
 
 
 def _finalize_episode(slug, episode_id, episode_title, podcast_name,
                        pass1_cut_count, verification_count, first_pass_count,
                        original_duration, new_duration, start_time,
                        processed_version=0, audio_cue_detections=0,
-                       run_stats=None, ads_held=0, ads_not_cut=0, on_persisted=None):
+                       run_stats=None, ads_held=0, ads_not_cut=0, on_persisted=None,
+                       hold_for_approval=False, podcast_row=None):
     """Pipeline stage: Update DB, record history, refresh RSS."""
     # Stop this timer before history snapshots it. The history write and event
     # happen afterward, so finalizeSeconds has one stable, documented bound.
     with common._measure_run_stage('finalize'):
+        approval = _approval_stamp(slug, episode_id, hold_for_approval, podcast_row)
         _persist_episode_state(slug, episode_id, pass1_cut_count, verification_count,
                                 first_pass_count, original_duration, new_duration,
                                 processed_version,
                                 detection_degraded=(run_stats or {}).get('detection_degraded'),
-                                run_started_iso=epoch_to_iso(start_time))
+                                run_started_iso=epoch_to_iso(start_time),
+                                approval=approval)
         # The row now points at the new audio, so a later failure must not roll markers back.
         if on_persisted is not None:
             on_persisted()
@@ -448,4 +476,5 @@ def _finalize_episode(slug, episode_id, episode_title, podcast_name,
         audio_cue_detections=audio_cue_detections,
         run_stats=run_stats,
         ads_held=ads_held, ads_not_cut=ads_not_cut,
+        approval=approval,
     )

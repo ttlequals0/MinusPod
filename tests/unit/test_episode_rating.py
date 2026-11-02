@@ -1,7 +1,9 @@
 import datetime
+import json
 import os
 import sys
 import tempfile
+from unittest.mock import patch
 
 import pytest
 
@@ -96,14 +98,53 @@ def test_five_stars_skips_community_marks_and_confirms_other_cut_ads(seeded):
     before = db.get_episode(SLUG, EPISODE)['ad_markers_json']
     resp = _put(client, {'rating': 5})
     assert resp.get_json()['confirmedMarkers'] == 2
+    assert resp.get_json()['dismissedMarkers'] == 1
     corrections = db.get_episode_corrections(podcast_id, EPISODE)
     assert sorted(c['original_bounds']['start'] for c in corrections) == [10.0, 500.0]
     assert {c['correction_type'] for c in corrections} == {'confirm'}
     row = db.get_episode(SLUG, EPISODE)
-    assert row['ad_markers_json'] == before
+    after, prior = json.loads(row['ad_markers_json']), json.loads(before)
+    def untouched(markers):
+        return [m for m in markers if m['start'] != MARKERS[2]['start']]
+    assert untouched(after) == untouched(prior)
     assert row['pending_recut_at'] is None
     assert _put(client, {'rating': 5}).get_json()['confirmedMarkers'] == 0
     assert len(db.get_episode_corrections(podcast_id, EPISODE)) == 2
+
+
+def _seed_cut_and_held(db):
+    held = {**MARKERS[2], 'hold_reason': 'max_duration'}
+    db.save_episode_details(SLUG, EPISODE, ad_markers=[MARKERS[0], held], pending_review_count=1)
+
+
+def test_five_stars_dismisses_held_markers_without_a_correction(seeded):
+    client, db = seeded
+    _seed_cut_and_held(db)
+    body = _put(client, {'rating': 5}).get_json()
+    assert (body['confirmedMarkers'], body['dismissedMarkers']) == (1, 1)
+    row = db.get_episode(SLUG, EPISODE)
+    held = json.loads(row['ad_markers_json'])[1]
+    assert held['held_for_review'] is False and held['was_cut'] is False
+    assert 'hold_reason' not in held and held['validation']['decision'] == 'REJECT'
+    assert not row['pending_review_count']
+    podcast_id = db.get_podcast_by_slug(SLUG)['id']
+    assert not [c for c in db.get_episode_corrections(podcast_id, EPISODE)
+                if c['correction_type'] == 'false_positive']
+
+
+def test_four_stars_leaves_held_markers(seeded):
+    client, db = seeded
+    _seed_cut_and_held(db)
+    assert _put(client, {'rating': 4}).get_json()['dismissedMarkers'] == 0
+    assert json.loads(db.get_episode(SLUG, EPISODE)['ad_markers_json'])[1]['held_for_review'] is True
+
+
+def test_five_stars_without_held_markers_does_not_rewrite_markers(seeded):
+    client, db = seeded
+    db.save_episode_details(SLUG, EPISODE, ad_markers=[MARKERS[0]])
+    with patch.object(type(db), 'save_episode_details') as save:
+        assert _put(client, {'rating': 5}).get_json()['dismissedMarkers'] == 0
+    save.assert_not_called()
 
 
 def test_rating_in_episode_and_feed_payloads(seeded):

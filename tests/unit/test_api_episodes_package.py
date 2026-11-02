@@ -13,11 +13,15 @@ PKG = pathlib.Path(__file__).resolve().parents[2] / 'src/api/episodes'
 # (rule, methods) of every view function under api.episodes, recorded before the split.
 EXPECTED_RULES = [
     ('/api/v1/episodes/<slug>/<episode_id>/reprocess', ('POST',)),
+    ('/api/v1/episodes/awaiting-approval', ('GET',)),
+    ('/api/v1/episodes/awaiting-approval/approve', ('POST',)),
+    ('/api/v1/episodes/held', ('GET',)),
     ('/api/v1/episodes/pending-recuts', ('GET',)),
     ('/api/v1/episodes/pending-recuts/apply', ('POST',)),
     ('/api/v1/episodes/processing', ('GET',)),
     ('/api/v1/feeds/<slug>/episodes', ('GET',)),
     ('/api/v1/feeds/<slug>/episodes/<episode_id>', ('GET',)),
+    ('/api/v1/feeds/<slug>/episodes/<episode_id>/approve', ('POST',)),
     ('/api/v1/feeds/<slug>/episodes/<episode_id>/artwork', ('GET',)),
     ('/api/v1/feeds/<slug>/episodes/<episode_id>/cancel', ('POST',)),
     ('/api/v1/feeds/<slug>/episodes/<episode_id>/final-segments', ('GET',)),

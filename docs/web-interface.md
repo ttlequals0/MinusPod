@@ -48,6 +48,7 @@ The server includes a web-based management UI at `/ui/`. Opening the server root
 - Per-feed max ad duration cap: ads longer than the cap are held for review instead of cut (empty = no cap; applies on the next reprocess). The cap also raises the longest single ad the model may report for the feed, see [Longest single LLM detection](configuration.md#longest-single-llm-detection)
 - Per-feed opening window exclusion: ad markers that begin inside the first N seconds of an episode are ignored, so an intro cue is not cut as an ad (empty = inherit the global setting, 0 = off, 1 to 600 s = this feed's window; applies on the next reprocess)
 - Per-feed cue-gated approval: only ads with audio-cue evidence auto-cut; others are held for review (requires cue templates)
+- Require manual approval: a Settings > Global defaults toggle beside Only expose processed episodes, with a per-feed Inherit / On / Off select next to Hide unprocessed that overrides it. New episodes stay out of the served feed until approved
 - Per-feed Transcript diff select (Inherit / On / Off) under Feed Settings > Advanced, next to Cross-fetch diff: overrides the global "Compare with the publisher transcript" default for that feed. Hidden on local feeds. See [Upstream Transcript Differential](transcript-differential.md)
 - Per-feed processing mode: one select with five presets: standard (detect and cut ads, the default), keep content only (experimental; marks show content and removes everything else, see [How It Works](how-it-works.md)), skip ad detection (still transcribes and builds chapters, but nothing is scanned or cut; for ad-free shows), pass-through (relays episodes with no transcription or ad removal, though audio may be transcoded for serving), or cue-only (experimental; cuts from cue pairs and previously learned ad patterns, no LLM call; needs one enabled ad-break-start and one enabled ad-break-end template, and exposes a per-feed safety policy and a skip-transcription toggle, see [Audio Cue Detection > Cue-only preset](audio-cues.md#cue-only-preset))
 - Feed detail page groups its controls into collapsible sections so the page stays scannable. Feed Settings keeps common controls at the top. Segment actions, Cue tuning, and Advanced controls each fold into their own card. Episode filters groups title rules and optional duration limits in a separate section
@@ -63,7 +64,7 @@ The server includes a web-based management UI at `/ui/`. Opening the server root
 - Feed page artwork links to the show's website in a new tab, when the feed declares one
 - Episode discovery: all episodes surface on refresh, process any episode from the feed detail page
 - Bulk actions: select multiple episodes to process, reprocess, run a full analysis, re-detect ads on the existing transcript, delete, or set/clear pass-through (the per-episode Recut Audio mode is not a bulk action)
-- Pass-through can also be set or cleared for a single episode from its detail page (in the Reprocess menu). A pass-through episode skips transcription and ad removal, and its audio may be transcoded for serving; a chip on the episode header and a compact indicator in the episode list show which ones are set. Redundant when the whole feed already runs in pass-through mode, in which case the per-episode control is disabled
+- Pass-through can also be set or cleared for a single episode from its detail page (in the Reprocess menu). A pass-through episode skips transcription and ad removal, and its audio may be transcoded for serving; a chip on the episode header and a compact indicator in the episode list show which ones are set. Chapters and a transcript published upstream are imported and shown, with a Publisher transcript badge. Episodes already in pass-through pick them up on their next reprocess. Redundant when the whole feed already runs in pass-through mode, in which case the per-episode control is disabled
 - Live title search filters the full feed as you type, including episodes outside the current page. Search is case-insensitive and treats wildcard characters literally.
 - Select all on page selects the visible rows. Select all matching episodes spans every page and skips queued or running episodes. Bulk actions accept at most 500 episodes; larger selections show a message and disable the actions.
 - Sort by publish date, episode number, or creation date; paginated (25/50/100/500 episodes per page). Changing search, status, or sort clears the selection.
@@ -77,10 +78,12 @@ The server includes a web-based management UI at `/ui/`. Opening the server root
 - JSON schema response format (Settings > LLM Provider): opt-in for OpenAI-compatible endpoints, probed per model and falling back to plain JSON mode where it is not supported, and for Ollama (see [Configuration](configuration.md#json-schema-response-format))
 - Settings for LLM provider, AI models, ad detection prompts, retention, system stats, token usage and cost. Each customizable prompt has its own Reset button; see [Configuration > Ad Detection Settings](configuration.md#ad-detection-settings)
 - Database backups (Settings > Data & Security): encrypted downloads and scheduled plain SQLite snapshots with a Back up now button. See [Configuration > Scheduled Database Backups](configuration.md#scheduled-database-backups)
+- Troubleshooting (Settings > Troubleshooting): a Configuration export card (redacted settings and feed configuration as JSON) and a Diagnostic export card covering the last 1, 6 or 24 hours. The diagnostic export holds event times and source locations plus, for warnings and errors, the message template and exception type; logged values are never included. See [API and Webhooks](api-and-webhooks.md)
 - Offline queue (Queue > Queue Control): hold episodes while a self-hosted LLM or Whisper endpoint is down. See [Configuration > Offline Queue](configuration.md#offline-queue)
 - Whisper pool (Settings > Transcription): process several episodes at once on a remote Whisper backend. See [Configuration > Whisper Pool](configuration.md#whisper-pool)
 - Rate-limit hold (Queue > Queue Control): pause the queue while the LLM provider reports a 429 with a reset time. See [Configuration > Rate-Limit Hold](configuration.md#rate-limit-hold)
 - Queue page: active jobs show progress and cancellation controls. The full waiting list is paginated, and each row has links and -/+ buttons that can raise or lower its priority. A row the scheduler will not admit yet says why, naming the blocked phase, the account slot, the reason, and when the block lifts
+- Queue page tabs: **Queue** holds the content above and **Episode review** (`?tab=review`) lists the episodes that need you. Its Awaiting approval section has a checkbox per episode, Select all and Approve selected (n). Each row shows the feed, how long the episode has waited, and its ad and held counts. Its Held detections section lists episodes with held ads and links to the episode page's Held for Review section
 - Provider account switch (Settings > LLM Provider): changing a slot's endpoint or provider type lists the runs still bound to the current account before you save, and asks whether to requeue them on the new account (the default) or cancel them, so in-flight work is never moved silently
 - Failover (Settings > AI & Processing): standby LLM provider and transcriber with a status row per target and manual Trigger/Cancel/Probe now controls. See [Failover](failover.md)
 - Pattern Cleanup (Settings > Experiments): scheduled LLM review of learned patterns, reviewed on the Patterns page's Cleanup tab. Experimental, off by default. See [Pattern Cleanup](pattern-cleanup.md)
@@ -92,7 +95,7 @@ The server includes a web-based management UI at `/ui/`. Opening the server root
 - Global Defaults group in settings: Auto-Process, the auto-process window, Max Feed Episodes, Only Expose Processed, verification, and cross-fetch differential. Each feed can inherit or override them; see [Configuration > Global feed defaults](configuration.md#global-feed-defaults)
 - Chapter mode default in Settings > Transcripts & Chapters, with the same per-feed inheritance
 - Queue priority boosts in Queue > Queue Control, see [Configuration > Queue priority](configuration.md#queue-priority)
-- Notifications for processed episodes, permanent failures, auth failures, exhausted spend limits, and structural rate-limit hits, delivered by webhooks or native email (Settings > Notifications)
+- Notifications for processed episodes, permanent failures, auth failures, exhausted spend limits, structural rate-limit hits, and episodes awaiting approval or holding detections for review, delivered by webhooks or native email (Settings > Notifications). See [API and Webhooks > Events](api-and-webhooks.md#events)
 - Podcast search from Add feed, using Apple's iTunes directory by default or Podcast Index when configured
 - Search: press Ctrl+K on Windows/Linux or Cmd+K on macOS to open the keyboard palette, or use the search field on the Dashboard. Both return shows, episodes, and transcript matches together, spanning every episode status. The header magnifier, or the palette's own "Advanced search" link, opens a dedicated search page with type filters plus pattern and sponsor matches
 - Multiple dark themes (Tokyo Night, Dracula, Catppuccin, Nord, Gruvbox, Solarized, and more) with light/dark toggle
@@ -155,7 +158,7 @@ A completed episode plays in a built-in player instead of the browser's native c
 
 ### Episode rating
 
-Rate how well MinusPod handled an episode from 1 to 5 stars on the episode page. Below 5 stars you can add notes of up to 2000 characters. Giving 5 stars clears any notes and records a confirm correction for every cut ad marker except community marks. This is the same as pressing Confirm on each, including pattern learning. The next reprocess force-accepts those spans. The audio is not changed and no recut is queued. Clearing a rating removes the stars and notes; confirmations already recorded stay.
+Rate how well MinusPod handled an episode from 1 to 5 stars on the episode page. Below 5 stars you can add notes of up to 2000 characters. Giving 5 stars clears any notes and records a confirm correction for every cut ad marker except community marks. This is the same as pressing Confirm on each, including pattern learning. The next reprocess force-accepts those spans. Five stars also dismisses any ads still held for review on that episode, like pressing Dismiss on each. Nothing is recorded for pattern learning, so a later reprocess may hold the same span again. The audio is not changed and no recut is queued. Clearing a rating removes the stars and notes; confirmations already recorded stay.
 
 A feed's page shows the average rating and how many episodes are rated. Ratings and their notes are part of the diagnostics download, which includes up to 500 rated episodes in the chosen range, with how many segments were cut, kept and held.
 
@@ -169,6 +172,10 @@ Process, Reprocess, Re-detect Ads, and Recut all read their enabled state from t
 
 Error states are scoped to the action that produced them. A failed correction in the review panel marks only the button that was clicked, so a failure on Confirm, Confirm trimmed, or Not ad marks only that button. A rejected reprocess shows the server's own message. A failed run shows its reason under the episode title on the history page and in the header on the episode page. In the Processing stats table the word "failed" is a button: expanding it shows the error text inline with a Copy error action, so the reason is readable on a phone or by keyboard rather than only on hover.
 
+### Manual approval
+
+When Require manual approval applies to a feed, a processed episode shows an amber "Awaiting approval" badge in the episode header with an **Approve and publish** button, and an "awaiting approval" chip in episode lists. The feed card shows "N awaiting approval". Approving adds the episode to the served feed at once. A recut also approves the episode. The same episodes can be approved in bulk from Queue > Episode review. The Episode Awaiting Approval notification event fires when an episode starts waiting.
+
 ### Feed Display Title
 
 Each feed's title is editable. On the feed detail page, click the pencil next to the feed name, type a new name, and Save. Subscribers see this name in their podcast app: MinusPod rewrites the `<title>` in the served RSS and leaves the source feed's own title untouched. A "Custom" badge marks a feed that has an override; saving the field blank drops back to the source title.
@@ -177,7 +184,7 @@ Titles are capped at 500 characters and collapsed to one line, so a rename or a 
 
 ### Sponsors and Normalizations
 
-The Sponsors page lists known sponsors, each with its linked ad-pattern count, created date, last-matched date, and tags. You can add and edit a sponsor's name, aliases, category, and tags, toggle it active or inactive, filter by tag, search by name, and reveal inactive sponsors.
+The list of known sponsors lives on the Patterns page under the Sponsors tab (the old `/sponsors` address still redirects there, keeping any `?q=` search). It shows each sponsor with its linked ad-pattern count, created date, last-matched date, and tags. You can add and edit a sponsor's name, aliases, category, and tags, toggle it active or inactive, filter by tag, search by name, and reveal inactive sponsors.
 
 A sponsor can also carry a segment category. When set, every read that names the sponsor is filed under that category, whatever the detector called it. The marker takes it before the per-category action is applied, existing patterns for the sponsor show and match with it, the pass-1 prompt hint states it, and a pattern learned from a cut stores it. Use it for a host's own product that the model keeps labeling as a paid sponsor: set the sponsor to Self-promo once instead of re-categorizing each learned pattern.
 
@@ -310,10 +317,12 @@ A held detection from the queue to the waveform editor: play the span, confirm i
 
 https://github.com/user-attachments/assets/ce18b17f-c99c-41fd-a973-62a686bb2d89
 
-Ads that cannot auto-cut are held rather than cut; see [How It Works > Held for Review](how-it-works.md#held-for-review) for the causes. The episode publishes with the audio intact. Held ads appear on the episode page in an amber "Held for Review" section with two actions per row:
+Ads that cannot auto-cut are held rather than cut; see [How It Works > Held for Review](how-it-works.md#held-for-review) for the causes. The episode publishes with the audio intact, and the Episode Pending Review notification event fires when an episode finishes with held ads (Settings > Notifications). Held ads appear on the episode page in an amber "Held for Review" section with two actions per row:
 
 - **Approve & Recut** - stores a confirm correction and immediately re-cuts the original audio if retained; otherwise the button reads Approve and the cut applies on the next reprocess.
 - **Dismiss** - records a rejection and leaves the audio unchanged.
+
+A 5-star rating dismisses every held ad on the episode without recording a rejection pattern.
 
 When the original audio is retained, a pencil button next to the play button opens the ad in the waveform editor, where you can drag the boundaries before confirming. Confirming with moved boundaries cuts only the span inside the pins. If the hold came from the ad reviewer proposing a boundary past the detected span, confirming at that position is accepted too, not just a narrower one.
 

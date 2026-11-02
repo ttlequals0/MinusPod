@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import functools
 import json
 import logging
 import math
@@ -14,6 +15,8 @@ from typing import Any, NoReturn
 
 import httpx
 from config import SEGMENT_CATEGORIES
+from context_limits import CHARS_PER_TOKEN, ContextOverflowError
+from openai import APIStatusError
 
 from systemone.protocol import (
     CATEGORY_DESCRIPTIONS,
@@ -23,11 +26,13 @@ from systemone.protocol import (
     MAX_QUESTIONS_PER_REQUEST,
     MAX_REQUEST_BYTES,
     TYPESAFE_MAX_CHOICE_OPTIONS,
+    build_payload,
     build_state,
     jev_ask,
     jev_category,
     jev_review_questions,
 )
+from systemone.spans import spans_from_probabilities
 
 logger = logging.getLogger(__name__)
 
@@ -77,6 +82,11 @@ _EVIDENCE_MAX_CHARS = 400
 _PROGRAMME_VETO = 0.85
 _BOUNDARY_CANDIDATE_CAP_SECONDS = 60.0
 _BOUNDARY_CONTEXT_SECONDS = 30.0
+_MAX_OVERFLOW_SPLIT_DEPTH = 3
+_CONTEXT_OVERFLOW_RE = re.compile(
+    r"context size|context_length|too many tokens|exceeds the available context|prompt is too long",
+    re.IGNORECASE,
+)
 
 
 @dataclass(frozen=True)
@@ -100,6 +110,7 @@ class SystemOneSettings:
     max_questions_per_request: int | None = MAX_QUESTIONS_PER_REQUEST
     max_request_bytes: int | None = MAX_REQUEST_BYTES
     max_choice_options: int | None = TYPESAFE_MAX_CHOICE_OPTIONS
+    max_prompt_tokens: int | None = None
 
 
 class _CategoryPolicyConflictError(ValueError):
@@ -556,6 +567,81 @@ def _explicit_inconclusive_dispatch(exc: Exception) -> ReviewInconclusiveError |
     )
 
 
+class SystemOneContextOverflowError(ContextOverflowError):
+    """The backend rejected the smallest retried window as over its context."""
+
+    def __init__(self, message: str, *, estimated_tokens: int, server_text: str):
+        super().__init__(message)
+        self.estimated_tokens = estimated_tokens
+        self.server_text = server_text
+
+
+def _estimate_request_tokens(segments: Sequence[dict[str, Any]], guidance: str) -> int:
+    # State plus one question: the server expands the shared state per question, so this is the per-question context.
+    payload = build_payload(segments, model="", guidance=guidance)
+    question = next(iter(payload["questions"].values()), {})
+    chars = len(json.dumps(payload["state"], ensure_ascii=False)) + len(json.dumps(question, ensure_ascii=False))
+    return chars // CHARS_PER_TOKEN
+
+
+def _merge_detection(
+    results: Sequence[dict[str, Any]], segments: Sequence[dict[str, Any]], enter: float, stay: float
+) -> dict[str, Any]:
+    probabilities: dict[str, float] = {}
+    for result in results:
+        probabilities.update(result["probabilities"])
+    usage: dict[str, Any] = {}
+    for key in ("input_tokens", "output_tokens", "cost"):
+        values = [result["usage"].get(key) for result in results]
+        usage[key] = None if any(v is None for v in values) else sum(values)
+    return {
+        **results[0],
+        "probabilities": probabilities,
+        "usage": usage,
+        "spans": spans_from_probabilities(segments, probabilities, enter=enter, stay=stay),
+    }
+
+
+def _ask_window(
+    segments: list[dict[str, Any]],
+    ask: Callable[[list[dict[str, Any]]], dict[str, Any]],
+    *,
+    guidance: str,
+    enter: float,
+    stay: float,
+    budget: int | None,
+    depth: int = 0,
+) -> dict[str, Any]:
+    """Ask one window, halving it when it estimates over the budget or the server rejects it as over context."""
+    can_split = depth < _MAX_OVERFLOW_SPLIT_DEPTH and len(segments) >= 2
+    estimated = _estimate_request_tokens(segments, guidance)
+    if can_split and budget is not None and estimated > budget:
+        logger.info("detection: window estimated at %d tokens exceeds budget %d, halving", estimated, budget)
+    else:
+        try:
+            return ask(segments)
+        except APIStatusError as exc:
+            server_text = f"{exc} {exc.body or ''}".strip()
+            if exc.status_code != 400 or not _CONTEXT_OVERFLOW_RE.search(server_text):
+                raise
+            logger.warning(
+                "detection: context overflow at depth %d, estimated %d tokens, server said: %s",
+                depth, estimated, server_text[:300],
+            )
+            if not can_split:
+                raise SystemOneContextOverflowError(
+                    f"System One backend rejected a window of about {estimated} tokens as over its context",
+                    estimated_tokens=estimated,
+                    server_text=server_text,
+                ) from exc
+    mid = len(segments) // 2
+    halves = [
+        _ask_window(half, ask, guidance=guidance, enter=enter, stay=stay, budget=budget, depth=depth + 1)
+        for half in (segments[:mid], segments[mid:])
+    ]
+    return _merge_detection(halves, segments, enter, stay)
+
+
 def _run_chat_completion(
     *,
     messages: Sequence[dict[str, Any]],
@@ -586,6 +672,7 @@ def _run_chat_completion(
     max_questions_per_request: int | None = MAX_QUESTIONS_PER_REQUEST,
     max_request_bytes: int | None = MAX_REQUEST_BYTES,
     max_choice_options: int | None = TYPESAFE_MAX_CHOICE_OPTIONS,
+    max_prompt_tokens: int | None = None,
     sponsor_lookup: Callable[[], Sequence[dict[str, Any]]],
     diagnostics: dict[str, Any] | None = None,
     fetcher: Callable[..., dict[str, Any]] | None = None,
@@ -638,27 +725,30 @@ def _run_chat_completion(
         logger.warning("chat_completions: no transcript lines parsed; returning empty ads")
         return _empty_envelope(echo_model)
 
-    detection = jev_ask(
-        segments,
+    ask = functools.partial(
+        jev_ask,
+        enter=enter,
+        stay=stay,
+        guidance=detection_guidance,
         url=url,
         api_key=api_key,
         timeout=timeout,
         cache_path=cache_path,
         model=model,
         uid=uid,
-        enter=enter,
-        stay=stay,
         max_retries=max_retries,
         retry_after_max=retry_after_max,
         request_deadline=request_deadline,
         deadline_at=deadline_at,
         cache_max_entries=cache_max_entries,
-        guidance=detection_guidance,
         request_kind="detection",
         max_questions=max_questions_per_request,
         max_request_bytes=max_request_bytes,
         max_choice_options=max_choice_options,
         fetcher=fetcher,
+    )
+    detection = _ask_window(
+        segments, ask, guidance=detection_guidance, enter=enter, stay=stay, budget=max_prompt_tokens
     )
     probabilities: dict[str, float] = detection["probabilities"]
     input_tokens = detection["usage"]["input_tokens"]
@@ -788,6 +878,7 @@ def run_chat_completion(
             max_questions_per_request=settings.max_questions_per_request,
             max_request_bytes=settings.max_request_bytes,
             max_choice_options=settings.max_choice_options,
+            max_prompt_tokens=settings.max_prompt_tokens,
             review_request_id=review_request_id,
             sponsor_lookup=stable_sponsor_lookup,
             diagnostics=diagnostics,

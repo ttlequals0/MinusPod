@@ -6,7 +6,7 @@ import { MemoryRouter } from 'react-router';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import SponsorsPage from './SponsorsPage';
+import { SponsorsSection } from './SponsorsPage';
 
 const mockGetSponsors = vi.fn();
 
@@ -29,7 +29,7 @@ function renderPage() {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={qc}>
-      <MemoryRouter><SponsorsPage /></MemoryRouter>
+      <MemoryRouter><SponsorsSection /></MemoryRouter>
     </QueryClientProvider>,
   );
 }
@@ -45,7 +45,6 @@ describe('SponsorsPage loading placeholder', () => {
     renderPage();
     expect(screen.getByTestId('skeleton-filter-card')).toBeTruthy();
     expect(screen.getByTestId('skeleton-rows')).toBeTruthy();
-    // The page's own h1 is the only title during the wait.
     expect(screen.queryByTestId('skeleton-page-header')).toBeNull();
   });
 

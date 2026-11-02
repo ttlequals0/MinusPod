@@ -94,7 +94,7 @@ function TroubleshootingSection() {
             <div className="flex-1 min-w-0">
               <h4 className={subHeading}>Diagnostic export</h4>
               <p className="text-xs text-muted-foreground mt-1">
-                Download event times and source locations without message text.
+                Download event times, source locations, and for warnings and errors the message template and exception type. Logged values are never included.
               </p>
             </div>
           </div>

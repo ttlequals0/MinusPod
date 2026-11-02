@@ -626,6 +626,7 @@ _NULLABLE_BOOL_FIELDS = [
     ('skipSecondPass', 'skip_second_pass'),
     ('skipTranscription', 'skip_transcription'),
     ('transcriptDifferential', 'transcript_differential'),
+    ('requireManualApproval', 'require_manual_approval'),
 ]
 
 def _cue_override_fields(podcast) -> dict:
@@ -1008,6 +1009,7 @@ def _podcast_base_json(podcast, feed_url, db, global_actions=None) -> dict:
         'sourceUrl': podcast['source_url'],
         'feedUrl': feed_url,
         'statusCounts': _status_counts(podcast),
+        'awaitingApprovalCount': podcast.get('awaiting_approval_count') or 0,
         'networkId': podcast.get('network_id'),
         'daiPlatform': podcast.get('dai_platform'),
         'maxEpisodes': podcast.get('max_episodes'),

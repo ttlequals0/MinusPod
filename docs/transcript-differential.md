@@ -29,6 +29,8 @@ held-for-review marker for a human to confirm. It is best effort, so a fetch
 or parsing failure never fails the run; the episode processes as if the stage
 had not run.
 
+Pass-through episodes skip the diff: MinusPod stores the upstream transcript as the episode transcript instead.
+
 ## Which episodes qualify
 
 - The feed must carry a `podcast:transcript` tag MinusPod can read: `text/vtt`,

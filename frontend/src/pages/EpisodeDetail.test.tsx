@@ -80,6 +80,7 @@ vi.mock('../utils/confidence', () => ({
 // Mutable mutation stubs; reassigned per test.
 const mockSubmitCorrection = vi.fn();
 const mockReprocessEpisode = vi.fn();
+const mockApproveEpisode = vi.fn();
 const mockRegenerateChapters = vi.fn();
 const mockUpdateLocalEpisode = vi.fn();
 const mockDownloadEpisodeAudio = vi.fn();
@@ -96,6 +97,7 @@ vi.mock('../api/feeds', () => ({
   getOriginalSegments: vi.fn(),
   getFinalSegments: vi.fn(),
   reprocessEpisode: (...args: unknown[]) => mockReprocessEpisode(...args),
+  approveEpisode: (...args: unknown[]) => mockApproveEpisode(...args),
   regenerateChapters: (...args: unknown[]) => mockRegenerateChapters(...args),
   episodeOriginalUrl: (slug: string, episodeId: string) =>
     `/api/v1/feeds/${slug}/episodes/${episodeId}/original.mp3`,
@@ -153,7 +155,10 @@ function makeEpisode(overrides: Partial<EpisodeDetailType> = {}): EpisodeDetailT
 // Wrap getEpisode to return a resolved episode; getFeed returns minimal data.
 import { getEpisode, getFeed } from '../api/feeds';
 
-vi.mock('../api/settings', () => ({ getSettings: vi.fn() }));
+vi.mock('../api/settings', async (importActual) => ({
+  APPROVAL_INVALIDATE_KEYS: (await importActual<typeof import('../api/settings')>()).APPROVAL_INVALIDATE_KEYS,
+  getSettings: vi.fn(),
+}));
 beforeEach(() => {
   vi.mocked(getSettings).mockResolvedValue({
     llmProvider: { value: 'anthropic' }, claudeModel: { value: 'claude-sonnet' },
@@ -755,6 +760,19 @@ describe('Pass-through toggle', () => {
       expect(screen.getByText('Test Episode')).toBeDefined();
     });
     expect(screen.queryByText('Pass-through')).toBeNull();
+  });
+});
+
+describe('Publisher transcript badge', () => {
+  it('shows for an upstream transcript', async () => {
+    renderDetail(makeEpisode({ transcriptSource: 'upstream', pendingReviewMarkers: [] }));
+    await screen.findByText('Publisher transcript');
+  });
+
+  it('is absent for a whisper transcript', async () => {
+    renderDetail(makeEpisode({ transcriptSource: 'whisper', pendingReviewMarkers: [] }));
+    await screen.findByText('Test Episode');
+    expect(screen.queryByText('Publisher transcript')).toBeNull();
   });
 });
 
@@ -2601,7 +2619,7 @@ describe('SponsorBlock submission line', () => {
 
 describe('Episode rating', () => {
   beforeEach(() => {
-    mockRateEpisode.mockReset().mockResolvedValue({ rating: { value: 3, notes: 'missed one', ratedAt: '2026-10-31T10:00:00Z' }, confirmedMarkers: 0 });
+    mockRateEpisode.mockReset().mockResolvedValue({ rating: { value: 3, notes: 'missed one', ratedAt: '2026-10-31T10:00:00Z' }, confirmedMarkers: 0, dismissedMarkers: 0 });
     mockClearRating.mockReset().mockResolvedValue(undefined);
   });
 
@@ -2618,13 +2636,31 @@ describe('Episode rating', () => {
 
   it('drops notes at 5 stars and shows the confirmed count', async () => {
     const user = userEvent.setup();
-    mockRateEpisode.mockResolvedValue({ rating: { value: 5, notes: null, ratedAt: '2026-10-31T10:00:00Z' }, confirmedMarkers: 4 });
+    mockRateEpisode.mockResolvedValue({ rating: { value: 5, notes: null, ratedAt: '2026-10-31T10:00:00Z' }, confirmedMarkers: 4, dismissedMarkers: 0 });
     renderDetail(makeEpisode({ rating: { value: 3, notes: 'old note', ratedAt: '2026-10-30T10:00:00Z' } }));
     await user.click(await screen.findByRole('radio', { name: '5 stars' }));
     expect(screen.queryByPlaceholderText(/What was wrong/)).toBeNull();
     await user.click(screen.getByRole('button', { name: 'Save' }));
     await waitFor(() => expect(mockRateEpisode).toHaveBeenCalledWith('test-feed', 'ep-1', 5, null));
     expect(await screen.findByText('Saved. 4 cut segments confirmed.')).not.toBeNull();
+  });
+
+  it('reports dismissed held segments after a 5-star rating', async () => {
+    const user = userEvent.setup();
+    mockRateEpisode.mockResolvedValue({ rating: { value: 5, notes: null, ratedAt: '2026-10-31T10:00:00Z' }, confirmedMarkers: 2, dismissedMarkers: 1 });
+    renderDetail(makeEpisode({ rating: { value: 3, notes: 'old note', ratedAt: '2026-10-30T10:00:00Z' } }));
+    await user.click(await screen.findByRole('radio', { name: '5 stars' }));
+    await user.click(screen.getByRole('button', { name: 'Save' }));
+    expect(await screen.findByText('Saved. 2 cut segments confirmed, 1 held segment dismissed.')).not.toBeNull();
+  });
+
+  it('omits the zero confirmed count when only held segments were dismissed', async () => {
+    const user = userEvent.setup();
+    mockRateEpisode.mockResolvedValue({ rating: { value: 5, notes: null, ratedAt: '2026-10-31T10:00:00Z' }, confirmedMarkers: 0, dismissedMarkers: 2 });
+    renderDetail(makeEpisode({ rating: null }));
+    await user.click(await screen.findByRole('radio', { name: '5 stars' }));
+    await user.click(screen.getByRole('button', { name: 'Save' }));
+    expect(await screen.findByText('Saved. 2 held segments dismissed.')).not.toBeNull();
   });
 
   it('shows the current rating and clears it', async () => {
@@ -2736,5 +2772,39 @@ describe('Reprocess menu wording follows the feed type', () => {
     expect(await screen.findByText('Use patterns + AI')).toBeTruthy();
     expect(screen.getByText('Skip patterns, AI only')).toBeTruthy();
     expect(screen.getByText('Keep transcript, re-cut')).toBeTruthy();
+  });
+});
+
+describe('Awaiting approval', () => {
+  beforeEach(() => {
+    mockApproveEpisode.mockReset();
+    mockApproveEpisode.mockResolvedValue({});
+  });
+
+  it('shows the badge and Approve and publish button only while awaiting', async () => {
+    renderDetail(makeEpisode({ awaitingApproval: true, pendingReviewMarkers: [] }));
+    expect(await screen.findByText('Awaiting approval')).toBeDefined();
+    expect(screen.getByRole('button', { name: 'Approve and publish' })).toBeDefined();
+  });
+
+  it('hides both once the episode is approved', async () => {
+    renderDetail(makeEpisode({ awaitingApproval: false, pendingReviewMarkers: [] }));
+    await screen.findByText('Test Episode');
+    expect(screen.queryByText('Awaiting approval')).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Approve and publish' })).toBeNull();
+  });
+
+  it('calls the approve route and refetches the episode', async () => {
+    const user = userEvent.setup();
+    renderDetail(makeEpisode({ awaitingApproval: true, pendingReviewMarkers: [] }));
+    await user.click(await screen.findByRole('button', { name: 'Approve and publish' }));
+    await waitFor(() => expect(mockApproveEpisode).toHaveBeenCalledWith('test-feed', 'ep-1'));
+    await waitFor(() => expect((getEpisode as ReturnType<typeof vi.fn>).mock.calls.length).toBeGreaterThan(1));
+  });
+
+  it('gives the held section an anchor id', async () => {
+    renderDetail(makeEpisode());
+    const section = await screen.findByTestId('held-for-review-section');
+    expect(section.id).toBe('held-for-review-section');
   });
 });

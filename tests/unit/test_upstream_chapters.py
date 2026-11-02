@@ -92,6 +92,15 @@ class TestFetchUpstreamChapters:
             {'startTime': 90.5, 'title': 'Segment 2'},
         ]
 
+    def test_chapter_count_is_capped(self, monkeypatch):
+        body = json.dumps({'chapters': [{'startTime': i} for i in range(1500)]}).encode('utf-8')
+        monkeypatch.setattr('upstream_chapters.safe_get', lambda *a, **k: _response(body))
+
+        result = fetch_upstream_chapters('https://feed.example.com/ch.json')
+
+        assert len(result) == 1000
+        assert result[-1] == {'startTime': 999}
+
     def test_oversized_body_returns_none(self, monkeypatch):
         def _boom(*a, **k):
             raise ResponseTooLargeError('too big')

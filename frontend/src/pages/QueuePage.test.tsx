@@ -11,6 +11,8 @@ const mockGetAdmission = vi.fn();
 const mockCancel = vi.fn();
 const mockSetPriority = vi.fn();
 const mockUpdateSettings = vi.fn();
+const mockAwaiting = vi.fn();
+const mockHeld = vi.fn();
 
 vi.mock('../api/settings', () => ({
   getProcessingEpisodes: (...args: unknown[]) => mockGetEpisodes(...args),
@@ -19,6 +21,9 @@ vi.mock('../api/settings', () => ({
   cancelProcessing: (...args: unknown[]) => mockCancel(...args),
   setQueuePriority: (...args: unknown[]) => mockSetPriority(...args),
   updateSettings: (...args: unknown[]) => mockUpdateSettings(...args),
+  getAwaitingApproval: (...args: unknown[]) => mockAwaiting(...args),
+  getHeldEpisodes: (...args: unknown[]) => mockHeld(...args),
+  approveAwaitingEpisodes: vi.fn(),
   setProcessingAdmission: vi.fn(),
   getOfflineQueueSettings: vi.fn(),
   getProviderBudget: vi.fn(),
@@ -55,13 +60,13 @@ function episode(position: number, stage = 'queued') {
   };
 }
 
-function renderPage() {
+function renderPage(initial = '/queue') {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   });
   render(
     <QueryClientProvider client={client}>
-      <MemoryRouter>
+      <MemoryRouter initialEntries={[initial]}>
         <QueuePage />
       </MemoryRouter>
     </QueryClientProvider>,
@@ -84,7 +89,7 @@ describe('QueuePage', () => {
   it('shows loading and API error states for the queue rows', async () => {
     mockGetEpisodes.mockReturnValue(new Promise(() => {}));
     renderPage();
-    expect(screen.getByText('Queue')).toBeDefined();
+    expect(screen.getByRole('heading', { name: 'Queue' })).toBeDefined();
     expect(screen.getByText('Episodes currently moving through the pipeline.')).toBeDefined();
 
     mockGetEpisodes.mockRejectedValueOnce(new Error('queue unavailable'));
@@ -144,5 +149,29 @@ describe('QueuePage', () => {
     expect(screen.getByText('1 active run and 0 queued episodes.')).toBeDefined();
     expect(screen.getByText('No queued episodes')).toBeDefined();
     expect(screen.queryByText('No episodes processing or queued')).toBeNull();
+  });
+
+  it('shows the Queue tab by default and switches to Episode review', async () => {
+    mockGetEpisodes.mockResolvedValue([]);
+    mockAwaiting.mockResolvedValue({ count: 1, episodes: [{ slug: 's', episodeId: 'e1', title: 'Waiting one', podcast: 'P', pendingSince: new Date().toISOString(), adCount: 1, pendingReviewCount: 0 }] });
+    mockHeld.mockResolvedValue({ count: 0, episodes: [] });
+    renderPage();
+    expect(screen.getByRole('tab', { name: 'Queue' }).getAttribute('aria-selected')).toBe('true');
+    expect(screen.getByRole('tabpanel').id).toBe('queue-panel-queue');
+    expect(screen.queryByText('Awaiting approval')).toBeNull();
+    await userEvent.click(screen.getByRole('tab', { name: 'Episode review' }));
+    expect(await screen.findByRole('link', { name: 'Waiting one' })).toBeTruthy();
+    expect(screen.getByRole('tab', { name: 'Episode review' }).getAttribute('aria-selected')).toBe('true');
+    expect(screen.getByRole('tabpanel').id).toBe('queue-panel-review');
+    expect(screen.queryByText('Episodes currently moving through the pipeline.')).toBeNull();
+  });
+
+  it('opens the Episode review tab from ?tab=review', async () => {
+    mockGetEpisodes.mockResolvedValue([]);
+    mockAwaiting.mockResolvedValue({ count: 0, episodes: [] });
+    mockHeld.mockResolvedValue({ count: 0, episodes: [] });
+    renderPage('/queue?tab=review');
+    expect(screen.getByRole('tab', { name: 'Episode review' }).getAttribute('aria-selected')).toBe('true');
+    expect(await screen.findByText('No episodes are awaiting approval.')).toBeTruthy();
   });
 });

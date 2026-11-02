@@ -9,6 +9,60 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
+## [2.101.13] - 2026-11-01
+
+### Added
+- Pass-through episodes import the chapters and transcript the upstream feed publishes. They show on the episode page, in the player and in the served RSS from MinusPod's own URLs, with a Publisher transcript badge. Episodes already in pass-through pick them up on their next reprocess.
+
+### Changed
+
+- A 5-star episode rating also dismisses the episode's held-for-review ads,
+  without recording a rejection pattern, so the review chip clears and the
+  matcher learns nothing from spans the detector could not back up.
+
+### Fixed
+
+- Cue-cut and cue-pair markers keep both edges where the matched cue put them. The end-phrase search and the content walk could move a cue-cut end past the stinger into the host's return phrase, clipping the first words after an ad break (#935, #936). Cue-pair markers were open to the same moves, since their edges sit where the cue snap would put them and carried no snap record; they now carry the same per-edge snap record the snap stage writes, so the lock and the merge bookkeeping apply to them.
+
+## [2.101.12] - 2026-11-01
+
+### Added
+
+- Require manual approval, off by default, as a global default and a per
+  feed Inherit, On or Off override. A processed episode on such a feed stays
+  out of the served feed, Recents and the audio route until it is approved
+  on its episode page, through the Queue page's new Episode review tab with
+  bulk approve, or by a recut. A new Episode Awaiting Approval webhook and
+  email event fires when an episode starts waiting (#933).
+- The Queue page has two tabs. Episode review lists episodes awaiting
+  approval and episodes with held detections, each linking to its episode
+  page.
+- System One profiles take a Maximum prompt tokens budget. A detection
+  window that estimates above it is split before sending, and a request the
+  server rejects for its context size is retried at half the window (#932).
+- Workflow diagrams for the YouTube pipeline and for how System One scores a
+  detection window.
+- A new Episode Pending Review webhook and email event fires alongside the
+  processed or awaiting-approval event when a finished episode has
+  detections held for review.
+
+### Changed
+
+- The Sponsors page is a tab on the Patterns page. The old address
+  redirects there and keeps a search term.
+- The pre-download CDN check waits up to 30 seconds and treats a timeout as
+  inconclusive, so a slow host with several redirects no longer fails the
+  episode before the download is tried (#931).
+- Docs and settings help explain that the detection window also sizes
+  System One windows, that Questions per API request changes how many
+  questions share a request rather than the per question context, and that
+  the logical request deadline applies per request even when the provider
+  timeout is longer.
+- The diagnostic export records the static message template and the exception
+  class name for warnings and errors, so a cluster of failures can be read
+  without the container log. Values formatted into a message and exception
+  text are still left out.
+
 ## [2.101.11] - 2026-10-31
 
 ### Added

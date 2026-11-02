@@ -130,7 +130,7 @@ A fourth outcome is **held for review**. An ad is held when one of these rules b
 - **Uncorroborated transcript differential gap** - global tunable, per-feed override. A block of speech is missing from the publisher's transcript, but no other stage backs the region as an ad. See [Transcript Differential](#transcript-differential).
 - **Reviewer boundary conflict** - a reviewer proposed moving inside protected evidence from a merged candidate. The original span stays in the audio and the proposed boundaries appear for manual review.
 
-Held ads stay in the audio and the episode publishes with them intact. Approve & Recut re-cuts via the Recut Audio mode (no LLM re-run) when the original audio is retained; Dismiss leaves the audio unchanged. The buttons and the "N held" chip are described in [Web Interface > Held for Review](web-interface.md#held-for-review).
+Held ads stay in the audio and the episode publishes with them intact. Each such episode also fires the Episode Pending Review notification event. Approve & Recut re-cuts via the Recut Audio mode (no LLM re-run) when the original audio is retained; Dismiss leaves the audio unchanged. The buttons and the "N held" chip are described in [Web Interface > Held for Review](web-interface.md#held-for-review).
 
 The API returns held ads as `pendingReviewMarkers` on the episode detail response; episode entries carry a `pendingReviewCount` (see `openapi.yaml`).
 

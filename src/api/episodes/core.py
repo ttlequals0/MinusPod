@@ -252,6 +252,9 @@ def _episode_base_json(ep, *, slug=None, is_local=False, is_youtube=False, stora
         'error': ep.get('error_message'),
         'artworkUrl': artwork_url,
         'pendingReviewCount': ep.get('pending_review_count', 0),
+        'awaitingApproval': bool(ep.get('approval_pending_at')),
+        'approvalPendingAt': ep.get('approval_pending_at'),
+        'approvedAt': ep.get('approved_at'),
         'titleSkipped': title_matches_skip_patterns(
             ep.get('title'), title_skip_patterns),
         'descriptionSkipped': description_matches_skip_patterns(
@@ -414,6 +417,8 @@ def get_episode(slug, episode_id):
         'transcriptAvailable': bool(episode.get('transcript_text')),
         'originalTranscriptAvailable': bool(episode.get('has_original_transcript')),
         'transcriptVttAvailable': transcript_vtt_available,
+        'transcriptSource': (episode.get('transcript_source')
+                             or ('whisper' if episode.get('transcript_text') else None)),
         'chaptersRegenerating': bool(episode.get('chapters_regen_active')),
         'chaptersRegenError': episode.get('chapters_regen_error'),
         'transcriptVttUrl': (f"/episodes/{slug}/{episode_id}.vtt{key_suffix}"

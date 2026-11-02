@@ -86,3 +86,13 @@ def test_run_stats_without_transcript_diff():
     assert out['stageHits']['transcriptDifferential'] == 0
     assert out['timings']['transcriptDiffSeconds'] is None
     assert 'transcriptDiff' not in out
+
+
+def test_transcript_source_values(app_client, seeded):
+    db, episode_id = seeded
+    assert _detail(app_client, episode_id)['transcriptSource'] is None
+    db.save_episode_details(SLUG, episode_id, transcript_text='whisper words')
+    assert _detail(app_client, episode_id)['transcriptSource'] == 'whisper'
+    db.save_processing_assets(SLUG, episode_id, {
+        'transcript_text': 'publisher words', 'transcript_source': 'upstream'})
+    assert _detail(app_client, episode_id)['transcriptSource'] == 'upstream'

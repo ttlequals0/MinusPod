@@ -47,6 +47,9 @@ function FeedListItem({ feed, onRefresh, onDelete, isRefreshing }: FeedListItemP
         </div>
         <p className="text-xs text-muted-foreground truncate">
           {feed.episodeCount} episodes
+          {(feed.awaitingApprovalCount ?? 0) > 0 && (
+            <span className="ml-2 text-warning">{feed.awaitingApprovalCount} awaiting approval</span>
+          )}
           {feed.lastRefreshed && (
             <span className="ml-2">
               Updated {formatDate(feed.lastRefreshed)}

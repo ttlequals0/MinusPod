@@ -393,7 +393,8 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                                      episode_description, episode_artwork_url,
                                      episode_published_at, start_time,
                                      episode_data, cancel_event=cancel_event,
-                                     podcast=podcast_settings)
+                                     podcast=podcast_settings,
+                                     hold_for_approval=True)
 
     # Skip ad detection (#538): episodes still get transcription, chapters,
     # and a transcript, but the detection stages and the cut are skipped.
@@ -558,7 +559,8 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                 slug, episode_id, episode_url, episode_title, podcast_name,
                 episode_description, episode_artwork_url, episode_published_at,
                 start_time, episode_data, cancel_event=cancel_event,
-                podcast=podcast_settings, preacquired_audio=yt_run.audio_path)
+                podcast=podcast_settings, preacquired_audio=yt_run.audio_path,
+                hold_for_approval=True)
             if served:
                 sb_stage.after_success(slug, episode_id, yt_run, episode_data)
             return served
@@ -1218,7 +1220,8 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                                    audio_cue_detections=audio_cue_count,
                                    owns_failure=False,
                                    progress=recut_progress,
-                                   podcast_row=podcast_settings):
+                                   podcast_row=podcast_settings,
+                                   hold_for_approval=True):
                     markers_published = True
                     _reconcile_provider_actuals()
                     _fire_post_completion_actions()
@@ -1249,7 +1252,8 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                                audio_cue_detections=audio_cue_count,
                                run_stats=run_stats,
                                ads_held=held_count, ads_not_cut=not_cut_count,
-                               on_persisted=_mark_markers_published)
+                               on_persisted=_mark_markers_published,
+                               hold_for_approval=True, podcast_row=podcast_settings)
 
             if yt_run:
                 sb_stage.after_success(slug, episode_id, yt_run, episode_data)

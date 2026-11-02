@@ -90,4 +90,20 @@ describe('EpisodeList', () => {
     render(<MemoryRouter><EpisodeList feedSlug="show" episodes={[episode]} /></MemoryRouter>);
     expect(screen.queryByText(/SponsorBlock/)).toBeNull();
   });
+
+  it('shows an awaiting approval chip beside the held chip', () => {
+    const episode = {
+      id: 'ep10', title: 'Waiting', published: '2026-09-10T00:00:00Z', status: 'completed',
+      awaitingApproval: true, pendingReviewCount: 2,
+    } as Episode;
+    render(<MemoryRouter><EpisodeList feedSlug="show" episodes={[episode]} /></MemoryRouter>);
+    expect(screen.getByText('awaiting approval')).toBeTruthy();
+    expect(screen.getByText('2 held')).toBeTruthy();
+  });
+
+  it('omits the awaiting approval chip for an approved episode', () => {
+    const episode = { id: 'ep11', title: 'Done', published: '2026-09-10T00:00:00Z', status: 'completed', awaitingApproval: false } as Episode;
+    render(<MemoryRouter><EpisodeList feedSlug="show" episodes={[episode]} /></MemoryRouter>);
+    expect(screen.queryByText('awaiting approval')).toBeNull();
+  });
 });

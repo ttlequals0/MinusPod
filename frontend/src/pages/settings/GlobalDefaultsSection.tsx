@@ -20,6 +20,8 @@ interface GlobalDefaultsSectionProps {
   onMaxFeedEpisodesChange: (n: number) => void;
   onlyExposeProcessedDefault: boolean;
   onOnlyExposeProcessedDefaultChange: (enabled: boolean) => void;
+  requireManualApprovalDefault: boolean;
+  onRequireManualApprovalDefaultChange: (enabled: boolean) => void;
   lowAdYieldAction: LowAdYieldAction;
   onLowAdYieldActionChange: (action: LowAdYieldAction) => void;
   episodeLogRetentionDays: number;
@@ -47,6 +49,8 @@ function GlobalDefaultsSection({
   onMaxFeedEpisodesChange,
   onlyExposeProcessedDefault,
   onOnlyExposeProcessedDefaultChange,
+  requireManualApprovalDefault,
+  onRequireManualApprovalDefaultChange,
   lowAdYieldAction,
   onLowAdYieldActionChange,
   episodeLogRetentionDays,
@@ -294,6 +298,23 @@ function GlobalDefaultsSection({
           </label>
           <p className="mt-2 text-sm text-muted-foreground">
             Hides upstream episodes that haven't finished processing from served RSS feeds, so podcast apps don't auto-download an episode that would 503. Per-feed override is available on each feed's settings.
+          </p>
+        </div>
+
+        {/* Require manual approval */}
+        <div className="pt-4 border-t border-border">
+          <label className="flex items-center gap-3 cursor-pointer">
+            <ToggleSwitch
+              checked={requireManualApprovalDefault}
+              onChange={onRequireManualApprovalDefaultChange}
+              ariaLabel="Require manual approval"
+            />
+            <span className="text-sm font-medium text-foreground">
+              Require manual approval
+            </span>
+          </label>
+          <p className="mt-2 text-sm text-muted-foreground">
+            New episodes stay out of the served feed until you approve them on the episode page or the Queue's Episode review tab. A recut approves the episode. Per-feed override is available on each feed's settings.
           </p>
         </div>
 

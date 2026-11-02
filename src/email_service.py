@@ -135,6 +135,49 @@ def _fmt_episode_processed(ctx):
     return subject, rows, None
 
 
+def _fmt_episode_awaiting_approval(ctx):
+    podcast = ctx.get('podcast', {})
+    episode = ctx.get('episode', {})
+    subject = (f"[MinusPod] Episode Awaiting Approval: {podcast.get('name', 'unknown')}"
+               f" - {episode.get('title', 'unknown')}")
+    rows = [
+        ('Podcast', _value(podcast.get('name'))),
+        ('Episode', _value(episode.get('title'))),
+        ('Ads removed', _value(episode.get('ads_removed'))),
+        ('Time saved', _value(episode.get('time_saved'))),
+        ('Processing time', _value(episode.get('processing_time'))),
+        ('LLM cost', _value(episode.get('llm_cost_display'))),
+    ]
+    if episode.get('ads_held'):
+        rows.append(('Ads held for review', _value(episode.get('ads_held'))))
+    rows += [
+        ('URL', _value(episode.get('url'))),
+        ('Timestamp', _display_timestamp(ctx)),
+    ]
+    return subject, rows, ('The episode stays out of your feed until you approve it '
+                           'on the episode page or the Queue page.')
+
+
+def _fmt_episode_pending_review(ctx):
+    podcast = ctx.get('podcast', {})
+    episode = ctx.get('episode', {})
+    subject = (f"[MinusPod] Episode Pending Review: {podcast.get('name', 'unknown')}"
+               f" - {episode.get('title', 'unknown')}")
+    rows = [
+        ('Podcast', _value(podcast.get('name'))),
+        ('Episode', _value(episode.get('title'))),
+        ('Detections held for review', _value(episode.get('ads_held'))),
+        ('Ads removed', _value(episode.get('ads_removed'))),
+        ('Time saved', _value(episode.get('time_saved'))),
+        ('URL', _value(episode.get('url'))),
+        ('Timestamp', _display_timestamp(ctx)),
+    ]
+    return subject, rows, ('Approve or reject the held detections on the episode page or '
+                           'the Queue page Episode review tab. Unless the episode is also '
+                           'awaiting approval, it is already served with those '
+                           'detections left in.')
+
+
 def _fmt_episode_failed(ctx):
     podcast = ctx.get('podcast', {})
     episode = ctx.get('episode', {})
@@ -314,6 +357,8 @@ def _fmt_failover_cancelled(ctx):
 
 FORMATTERS = {
     'Episode Processed': _fmt_episode_processed,
+    'Episode Awaiting Approval': _fmt_episode_awaiting_approval,
+    'Episode Pending Review': _fmt_episode_pending_review,
     'Episode Failed': _fmt_episode_failed,
     'Auth Failure': _fmt_auth_failure,
     'Limit Exceeded': _fmt_limit_exceeded,

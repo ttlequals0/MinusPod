@@ -15,7 +15,6 @@ const NAV_ITEMS: { to: string; label: string }[] = [
   { to: '/', label: 'Feeds' },
   { to: '/add', label: 'Add feed' },
   { to: '/patterns', label: 'Patterns' },
-  { to: '/sponsors', label: 'Sponsors' },
   { to: '/history', label: 'History' },
   { to: '/stats', label: 'Stats' },
   { to: '/queue', label: 'Queue' },

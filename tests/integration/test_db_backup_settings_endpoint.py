@@ -68,8 +68,8 @@ def test_get_defaults(app_client, db):
 
 
 def test_diagnostic_export_is_bounded_and_payload_free(app_client, db):
-    from diagnostic_log import DiagnosticHandler
-    handler = DiagnosticHandler(db.data_dir)
+    import diagnostic_log
+    handler = diagnostic_log.DiagnosticHandler(db.data_dir)
     record = logging.LogRecord(
         'podcast.api', logging.WARNING, __file__, 1,
         'private message %s', ('value',), None)
@@ -81,7 +81,9 @@ def test_diagnostic_export_is_bounded_and_payload_free(app_client, db):
     body = response.get_json()
     assert body['coverage']['description'] == 'structured operational metadata plus episode ratings and notes'
     assert body['coverage']['version']
-    assert all('message' not in event for event in body['events'])
+    assert all('message' not in event for event in body['events'] if event['source'] == 'external')
+    assert all(diagnostic_log._templates(event['source']).get(event['line']) == event['message']
+               for event in body['events'] if 'message' in event)
     assert all('private' not in json.dumps(event) for event in body['events'])
 
 
