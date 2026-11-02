@@ -2,7 +2,7 @@
   <img src="frontend/public/logo.png" alt="MinusPod" width="400" />
 </p>
 
-MinusPod is a self-hosted server that removes ads from podcasts and YouTube shows before you ever hit play. Point it at an RSS feed, a YouTube playlist or a channel, and subscribe to the feed it serves instead. Podcast episodes are transcribed locally with faster-whisper or Parakeet (or through a remote API), and an LLM finds and cuts the ad segments. Your corrections build cross-episode ad patterns, so repeat sponsors get caught without re-asking the LLM. YouTube episodes arrive through yt-dlp with the video's captions as the transcript, and SponsorBlock's community marks decide the cuts. Bring your own LLM: Claude, Ollama, OpenRouter, OpenAI-compatible providers, or System One.
+MinusPod is a self-hosted server that strips ads from podcasts and YouTube shows before you hit play. Point it at an RSS feed, playlist or channel and subscribe to the feed it serves. Podcasts are transcribed locally (faster-whisper, Parakeet or a remote API) and an LLM cuts the ads. Your corrections become patterns that catch repeat sponsors without another LLM call. YouTube audio comes through yt-dlp and SponsorBlock marks decide the cuts. Bring your own LLM: Claude, Ollama, OpenRouter, OpenAI-compatible providers or System One.
 
 <p align="center">
   <img src="docs/screenshots/dashboard-desktop-hulu.png" alt="MinusPod dashboard on desktop" width="600" />
