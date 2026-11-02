@@ -108,7 +108,7 @@ The [full docs index](docs/README.md) covers the rest: audio cues, community pat
 
 ## Contributing
 
-Bug reports, feature requests, and pull requests are welcome. Open an issue first for larger changes so we can agree on the approach. Ad patterns go through [Community Patterns](patterns/README.md) and benchmark results through [Benchmark Contributing](benchmarks/llm/CONTRIBUTING.md). Fork-derived features and community bug reports are credited in the CHANGELOG entry that ships them.
+Bug reports, feature requests, and pull requests are welcome. Open an issue first for larger changes so we can agree on the approach. See the [contributor guide](docs/CONTRIBUTING.md) for development setup, build instructions, and tests. Ad patterns go through [Community Patterns](patterns/README.md) and benchmark results through [Benchmark Contributing](benchmarks/llm/CONTRIBUTING.md). Fork-derived features and community bug reports are credited in the CHANGELOG entry that ships them.
 
 ## Disclaimer
 

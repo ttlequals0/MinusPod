@@ -4,6 +4,7 @@ Full documentation for MinusPod. Start with the [project README](../README.md) f
 
 ## Contents
 
+- [Contributing](CONTRIBUTING.md) - development prerequisites, setup, builds, tests, and pull requests
 - [Installation](installation.md) - requirements, Whisper/Parakeet sizing, resource measurement, quick start, CPU-only image, Intel hybrid CPU tuning
 - [Environment Variables](environment-variables.md) - every env var, grouped by how often you touch it
 - [LLM Providers](llm-providers.md) - Claude Code wrapper, Ollama (local/cloud), OpenRouter, recommended models, pricing
