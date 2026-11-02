@@ -9,6 +9,13 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
+## [Unreleased]
+
+### Added
+- Added a comprehensive contributor guide at `docs/CONTRIBUTING.md` for new developers, 
+  that details development prerequisites, environment setup, build instructions, running
+  tests, and pull request guidelines.
+
 ## [2.101.13] - 2026-11-01
 
 ### Added
