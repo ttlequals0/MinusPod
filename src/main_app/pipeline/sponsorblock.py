@@ -190,8 +190,7 @@ def after_success(slug, episode_id, run: YouTubeRun, episode_data=None):
     """Persist the SponsorBlock watch state once the episode is published."""
     prior = (episode_data or {}).get('sb_state')
     if run.markers:
-        state = 'done'
-        next_check = (utc_now() + timedelta(hours=run.resolved.watch_interval_hours)).isoformat()
+        state, next_check = 'done', None
     elif run.mode == 'passthrough':
         state, next_check = 'exhausted', None
     elif prior in ('llm', 'exhausted'):
@@ -215,11 +214,8 @@ def _cache_thumbnail(slug, episode_id, artwork_url):
         audio_logger.debug(f"[{slug}:{episode_id}] Thumbnail cache failed: {exc}")
 
 
-def stamp_recut(slug, episode_id, podcast):
-    """After a successful recut, record the SponsorBlock uuids now in the stored markers and re-arm the watch."""
+def stamp_recut(slug, episode_id):
+    """After a successful recut, record the SponsorBlock uuids now in the stored markers."""
     row = db.get_episode(slug, episode_id) or {}
     stored = [m for m in (parse_ad_markers(row.get('ad_markers_json')) or []) if m.get('source') == 'sponsorblock']
-    resolved = yt_settings.resolve_feed(db, podcast)
-    next_check = (utc_now() + timedelta(hours=resolved.watch_interval_hours)).isoformat()
-    db.update_episode_sponsorblock(slug, episode_id, sb_segment_uuids=json.dumps(sponsorblock.uuid_set(stored)),
-                                   sb_next_check_at=next_check)
+    db.update_episode_sponsorblock(slug, episode_id, sb_segment_uuids=json.dumps(sponsorblock.uuid_set(stored)))

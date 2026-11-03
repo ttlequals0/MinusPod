@@ -21,6 +21,9 @@ release notes.
 - History and Stats ledger table and card links render in foreground text with a shared `tableLink` recipe.
 - Dependency bumps: anthropic 2.3.0, openai 3.41.0, certifi 2026.10.23, flask-compress 1.26, ctranslate2 4.8.4, eslint 10.13.0, typescript-eslint 8.72.1, react-router 8.5.1, react-is 19.3.1, lucide-react 1.64.0.
 
+### Fixed
+- YouTube episodes processed from SponsorBlock marks are no longer watched for changed marks, which recut the same episode every watch interval when SponsorBlock held duplicate submissions. Reprocess still fetches fresh marks.
+
 ### Security
 - Frontend build resolves minimatch 11.0.1 or newer (GHSA-g3hv-75wg-m249).
 

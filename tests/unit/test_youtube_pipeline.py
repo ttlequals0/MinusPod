@@ -440,7 +440,7 @@ def _yt_run(mode, markers):
 
 def test_after_success_states():
     done = _after(_yt_run('sponsorblock', MARKERS))
-    assert done.kwargs['sb_state'] == 'done' and done.kwargs['sb_next_check_at']
+    assert done.kwargs['sb_state'] == 'done' and done.kwargs['sb_next_check_at'] is None
     assert done.kwargs['sb_last_error'] is None and done.kwargs['sb_segment_uuids'] == '["u1"]'
     top = _after(_yt_run('llm', MARKERS))
     assert top.kwargs['sb_state'] == 'done'
@@ -547,11 +547,11 @@ def test_deferral_leaves_an_exhausted_row_exhausted():
 def test_recut_success_stamps_uuids_from_stored_markers_and_failure_does_not():
     import json
     stored = json.dumps(MARKERS + [{'start': 1.0, 'end': 2.0, 'source': 'llm'}])
-    with patch.object(sb_stage, 'db') as db, patch.object(sb_stage.yt_settings, 'resolve_feed', return_value=_settings()):
+    with patch.object(sb_stage, 'db') as db:
         db.get_episode.return_value = {'ad_markers_json': stored}
-        sb_stage.stamp_recut('yt-feed', 'ep1', PODCAST)
+        sb_stage.stamp_recut('yt-feed', 'ep1')
     fields = db.update_episode_sponsorblock.call_args.kwargs
-    assert fields['sb_segment_uuids'] == '["u1"]' and fields['sb_next_check_at']
+    assert fields == {'sb_segment_uuids': '["u1"]'}
     for outcome in (True, False):
         with patch.object(processing, 'db') as pdb, patch.object(processing.recut, '_recut_episode', return_value=outcome), \
                 patch.object(processing, 'start_episode_token_tracking'), \
