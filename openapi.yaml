@@ -7368,7 +7368,7 @@ paths:
                   description: Global default for holding newly processed episodes out of served feeds until approved. Overridden by per-feed requireManualApproval when set.
                 whatsNewOnUpgrade:
                   type: boolean
-                  description: Show the What's new dialog once per browser after the app version changes.
+                  description: Show the What's new dialog once per browser after the app version changes, or on a browser's first load.
                 detectShowSegments:
                   type: boolean
                   description: Global default for detecting intro, outro, and recap/housekeeping segments in addition to the always-detected ad-side categories. Overridden by per-feed detectShowSegments when set.
@@ -17727,7 +17727,7 @@ components:
           properties:
             value:
               type: boolean
-              description: Show the What's new dialog once per browser after the app version changes
+              description: Show the What's new dialog once per browser after the app version changes, or on a browser's first load
             isDefault:
               type: boolean
         requireManualApprovalDefault:

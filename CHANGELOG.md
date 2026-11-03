@@ -24,6 +24,11 @@ release notes.
   instead of the native attribute), so a screen reader reaches the "Needs a
   search term" hint that describes the Context group. Clicks and arrow keys
   are still ignored while disabled.
+- The What's new dialog now opens on a browser's first load as well as after
+  an upgrade, and the first load shows only the running version's section.
+  The dialog's first release stayed silent everywhere because no browser had
+  a recorded version yet. When the newest changelog section is older than
+  the app, the browser records the version and shows nothing.
 
 ## [2.101.17] - 2026-11-03
 
