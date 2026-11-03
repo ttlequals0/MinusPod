@@ -98,7 +98,7 @@ The server includes a web-based management UI at `/ui/`. Opening the server root
 - Notifications for processed episodes, permanent failures, auth failures, exhausted spend limits, structural rate-limit hits, and episodes awaiting approval or holding detections for review, delivered by webhooks or native email (Settings > Notifications). See [API and Webhooks > Events](api-and-webhooks.md#events)
 - Podcast search from Add feed, using Apple's iTunes directory by default or Podcast Index when configured
 - Search: press Ctrl+K on Windows/Linux or Cmd+K on macOS to open the keyboard palette, or use the search field on the Dashboard. Both return shows, episodes, and transcript matches together, spanning every episode status. The header magnifier, or the palette's own "Advanced search" link, opens a dedicated search page with type filters plus pattern and sponsor matches
-- Multiple dark themes (Tokyo Night, Dracula, Catppuccin, Nord, Gruvbox, Solarized, and more) with light/dark toggle
+- 32 themes (Catppuccin, Dracula, Nord, Gruvbox, Solarized, Tokyo Night, Rose Pine, Kanagawa, Ayu, One Dark, Everforest, Night Owl, Monokai, and more) with a light/dark toggle; see the theme sheet under Screenshots
 - Installs as an app on phones, tablets and desktops ([Install as an app](#install-as-an-app))
 
 ### Saving and updates
@@ -388,6 +388,11 @@ A row of section links sits under the Stats heading and jumps straight to Overvi
 | Desktop | Mobile |
 |---------|--------|
 | <img src="screenshots/dashboard-desktop.png" width="500"> | <img src="screenshots/dashboard-mobile.png" width="200"> |
+
+#### Themes
+Every theme and mode on the dashboard. Pick one under Settings, Appearance.
+
+<img src="screenshots/dashboard-themes.png" width="700">
 
 #### Feed Detail
 | Desktop | Mobile |
