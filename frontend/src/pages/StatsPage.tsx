@@ -24,7 +24,8 @@ import { SortHeader, useSortState } from '../components/SortHeader';
 import DisclosureButton from '../components/DisclosureButton';
 import CostAmount from '../components/CostAmount';
 import DateField from '../components/DateField';
-import { selectBase, focusRing, filterGrid, filterLabel, filterControl } from '../components/fieldStyles';
+import { selectBase, filterGrid, filterLabel, filterControl } from '../components/fieldStyles';
+import { tableLink } from '../components/rowActionStyles';
 import { SLOT_LABELS } from '../api/types';
 import { ArrowDown, ArrowUp } from 'lucide-react';
 import { tabStrip, tabItem } from '../components/PageTabs';
@@ -51,18 +52,6 @@ function Metric({ label, value }: { label: string; value: number | string }) {
       <p className={`${summaryValue} text-foreground`}>{value}</p>
     </div>
   );
-}
-
-function generateChartColors(primary: string, count: number): string[] {
-  const match = primary.match(/hsl\((\d[\d.]*)\s*[ ,]\s*(\d[\d.]*)%?\s*[ ,]\s*(\d[\d.]*)%?\)/);
-  if (!match) return Array(count).fill(primary);
-  const hue = parseFloat(match[1]);
-  const sat = parseFloat(match[2]);
-  return Array.from({ length: count }, (_, i) => {
-    const h = (hue + i * 20) % 360;
-    const l = 50 + (i % 4) * 8;
-    return `hsl(${h}, ${Math.max(sat, 55)}%, ${l}%)`;
-  });
 }
 
 const LEDGER_LIMIT = 20;
@@ -462,12 +451,12 @@ function EpisodeCostTable({
                         <DisclosureButton expanded={isOpen} onToggle={() => onToggle(key)} label={label} />
                       </td>
                       <td className="px-4 py-3">
-                        <Link to={`/feeds/${stat.podcastSlug}`} className={`text-primary hover:underline text-sm truncate max-w-[150px] block ${focusRing}`} title={stat.podcastTitle}>
+                        <Link to={`/feeds/${stat.podcastSlug}`} className={`${tableLink} text-sm truncate max-w-[150px] block`} title={stat.podcastTitle}>
                           {stat.podcastTitle}
                         </Link>
                       </td>
                       <td className="px-4 py-3">
-                        <Link to={`/feeds/${stat.podcastSlug}/episodes/${stat.episodeId}`} className={`text-primary hover:underline text-sm truncate max-w-[200px] block ${focusRing}`} title={stat.episodeTitle}>
+                        <Link to={`/feeds/${stat.podcastSlug}/episodes/${stat.episodeId}`} className={`${tableLink} text-sm truncate max-w-[200px] block`} title={stat.episodeTitle}>
                           {stat.episodeTitle}
                         </Link>
                       </td>
@@ -542,10 +531,10 @@ function EpisodeCostTable({
           const label = isOpen ? 'Hide run breakdown' : 'Show run breakdown';
           return (
           <div key={key} className="bg-card rounded-lg border border-border p-4">
-            <Link to={`/feeds/${stat.podcastSlug}`} className={`text-primary hover:underline text-sm font-medium truncate max-w-[200px] block ${focusRing}`} title={stat.podcastTitle}>
+            <Link to={`/feeds/${stat.podcastSlug}`} className={`${tableLink} text-sm font-medium truncate max-w-[200px] block`} title={stat.podcastTitle}>
               {stat.podcastTitle}
             </Link>
-            <Link to={`/feeds/${stat.podcastSlug}/episodes/${stat.episodeId}`} className={`text-primary hover:underline text-sm block truncate mb-2 ${focusRing}`} title={stat.episodeTitle}>
+            <Link to={`/feeds/${stat.podcastSlug}/episodes/${stat.episodeId}`} className={`${tableLink} text-sm block truncate mb-2`} title={stat.episodeTitle}>
               {stat.episodeTitle}
             </Link>
             <p className="text-xs text-muted-foreground truncate mb-1">
@@ -695,11 +684,6 @@ export default function StatsPage() {
     if (!byPodcast?.podcasts) return [];
     return byPodcast.podcasts.slice(0, 10);
   }, [byPodcast]);
-
-  const chartColors = useMemo(
-    () => generateChartColors(theme.primary, topPodcasts.length),
-    [theme.primary, topPodcasts.length]
-  );
 
   // Shared ledger filters (date interval, podcast, provider, model) drive both
   // the model-usage and episode-cost lists below, and all of it round-trips
@@ -986,9 +970,10 @@ export default function StatsPage() {
                 />
                 <Tooltip {...tooltipStyle} />
                 <Bar dataKey="totalAds" name="Total Ads" radius={[0, 4, 4, 0]}>
-                  {topPodcasts.map((_, i) => (
-                    <Cell key={i} fill={chartColors[i]} />
-                  ))}
+                  {topPodcasts.map((_, i) => {
+                    const lead = i === 0;
+                    return <Cell key={i} fill={lead ? theme.primary : theme.foreground} fillOpacity={lead ? 0.85 : 0.3} />;
+                  })}
                 </Bar>
               </BarChart>
             </ResponsiveContainer>

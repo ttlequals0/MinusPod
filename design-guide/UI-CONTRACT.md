@@ -1,6 +1,6 @@
 # UI behavior and review contract
 
-Reviewed: 2026-10-30. Applies to desktop, phone, and tablet interfaces.
+Reviewed: 2026-11-02. Applies to desktop, phone, and tablet interfaces.
 
 The HTML guide contains visual examples. Production components own behavior. Change a shared component when a rule applies across screens; do not patch each caller with a different recipe.
 
@@ -55,6 +55,7 @@ There is no `<Button>` component. Recipes are class strings composed at the call
 | `cardActionBtn` | Review and detection card actions | 44 px floor; labels wrap on a phone; carries `focusRing` |
 | `dialogFooterBtn` | Dialog footer action | Text label at every width. Derives from `btnBase` as `${btnBase} border border-transparent` |
 | `dialogFooterGrid` | Dialog footer with 3 or more actions | Two columns below 360 px, one row of equal columns from 360 to 639 px, flex row from sm |
+| `tableLink` | Podcast and episode links inside data tables and their card fallbacks | Foreground text with a muted underline that strengthens on hover; carries `focusRing` |
 | `iconTarget` + `iconVisual` | Icon button with a smaller filled square (AuditionPlayButton, OpenEditorButton) | 44 px hit box on coarse pointers; visual fills the 44 px target below sm, 28 px from sm |
 
 - Every button recipe carries `focusRing` and the disabled state through `btnBase` (or `btnLg`). `rowActionBtn`, `cardActionBtn`, and `tableActionBtn` carry `focusRing` too.
@@ -99,6 +100,13 @@ There is no `<Button>` component. Recipes are class strings composed at the call
 - `StatTile` is the metric card: label above value, optional hint below, `h-full` so tiles in a grid row stretch to equal height. `tone` colors the value only.
 - `CloseButton` is the one close X. It uses the `iconTarget` and `iconVisual` pair, so it has a 44 px hit box on phones.
 - Numbers: `formatPercent` prints a whole-number percent with no decimals, and the same quantity uses the same label text in every place. Use the clock form `m:ss` (`formatTimestamp`) for positions, `Xm Ys` (`formatElapsed`) for elapsed or summed durations, and tenths of a second only in the editor scrub readout.
+
+### Charts
+
+- A chart with one series gets one accent on the bars that matter (the leading bar, or the bars inside the highlighted zone); the rest are the foreground color or the accent at low opacity.
+- Use several hues only when the chart has several series and each hue means one series.
+- The accent is `theme.primary` from `useThemeColors`, so it follows the selected theme.
+- Grid lines and axis ticks use the border and foreground tokens.
 
 ## Copy
 
