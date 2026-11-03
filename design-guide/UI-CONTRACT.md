@@ -1,6 +1,6 @@
 # UI behavior and review contract
 
-Reviewed: 2026-11-02. Applies to desktop, phone, and tablet interfaces.
+Reviewed: 2026-11-03. Applies to desktop, phone, and tablet interfaces.
 
 The HTML guide contains visual examples. Production components own behavior. Change a shared component when a rule applies across screens; do not patch each caller with a different recipe.
 
@@ -23,7 +23,7 @@ Run these commands from `frontend`. The guide's theme catalog and default tokens
 
 - Use at least 44 x 44 CSS px for standalone controls on coarse pointers, including tablets. An icon may be smaller. Padding outside the clickable element does not enlarge its target. On coarse pointers the global CSS makes the 44px height a hard floor. The 44px width is a base-layer default that any `min-w-*` utility overrides, so a flex row can give a button its own wider floor.
 - Inline text links and range-slider tracks are exceptions to the square target rule. Checkbox and radio measurements use their associated clickable label, not an intentionally hidden native input.
-- Preserve action and sorting access when tables become cards. Processing History and episode costs use cards below 1280 CSS px. Downloads uses cards below 768 CSS px and progressively reveals columns.
+- Preserve action and sorting access when tables become cards. Processing History, Stats episode costs, the Queue list and both Episode review lists use cards below 1280 CSS px. Downloads uses cards below 768 CSS px and progressively reveals columns. Every data table builds from the recipe in `tableStyles.ts` (rows below).
 - Choose table breakpoints from populated content. Check long titles, large counts, IPv4 and IPv6 values, and error messages. Routine lists must fit their containers. Detailed comparison tables may scroll within a named, keyboard-focusable region.
 - Keep Since and Until together in a two-column group at 320 CSS px. Each field has a label and reciprocal date limit. Date-only filters must retain their date-only semantics.
 - Navigation collapses below 1280 CSS px. Keep the active route marked with `aria-current="page"` in both navigation layouts.
@@ -195,7 +195,8 @@ Feed deletion, resets, and replace-mode imports use `ConfirmModal`. Name the obj
 
 ## Contrast, hierarchy, layers, and motion
 
-- Normal text requires at least 4.5:1 contrast against its rendered surface. Test ordinary text, muted text, status text, links, solid controls, hover states, and tinted badges across every theme and mode.
+- Normal text requires at least 4.5:1 contrast against its rendered surface. Test ordinary text, muted text, status text, links, solid controls, hover states, and tinted badges across every theme and mode. `themes.test.tsx` enforces this for every theme pair; a ported palette moves lightness, never hue, to pass.
+- A theme with one mode shows "(dark only)" or "(light only)" in the Appearance picker, with the fallback named in its title. The missing mode renders the default Slate palette.
 - Use the appropriate paired foreground token. Being token-based does not prove sufficient contrast. Disabled controls and decorative marks require separate interpretation; do not dilute active text with opacity.
 - Card and section titles use `cardTitle` (18 CSS px, 600) and sub-headings use `subHeading` (14 CSS px, 600), always `text-foreground`. Data cards pad with `cardPad` (16 CSS px) and section cards with `sectionPad` (24 CSS px).
 - Use one visible page `h1` at 24 CSS px, section headings at 18 CSS px, and consistent summary-card labels/values. Keep numeric column headings aligned with their values.
