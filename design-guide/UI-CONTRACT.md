@@ -103,7 +103,7 @@ There is no `<Button>` component. Recipes are class strings composed at the call
 
 ### Charts
 
-- A chart with one series gets one accent on the bar that leads (largest or current) and neutral steps of the foreground color at low opacity for the rest.
+- A chart with one series gets one accent on the bars that matter (the leading bar, or the bars inside the highlighted zone); the rest are the foreground color or the accent at low opacity.
 - Use several hues only when the chart has several series and each hue means one series.
 - The accent is `theme.primary` from `useThemeColors`, so it follows the selected theme.
 - Grid lines and axis ticks use the border and foreground tokens.
