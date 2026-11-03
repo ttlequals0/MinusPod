@@ -9,7 +9,7 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
-## [Unreleased]
+## [2.101.14] - 2026-11-02
 
 ### Added
 - Added a comprehensive contributor guide at `docs/CONTRIBUTING.md` for new developers, 
@@ -19,7 +19,10 @@ release notes.
 ### Changed
 - The Stats "Top podcasts by ads removed" chart uses a single accent on the leading bar and neutral bars for the rest.
 - History and Stats ledger table and card links render in foreground text with a shared `tableLink` recipe.
-- Dependency bumps: anthropic 2.3.0, openai 3.41.0, certifi 2026.10.23, flask-compress 1.26, ctranslate2 4.8.4, eslint 10.13.0, typescript-eslint 8.72.1, react-router 8.5.1, react-is 19.3.1, lucide-react 1.64.0.
+- Dependency bumps: anthropic 2.3.0, openai 3.42.0, certifi 2026.10.23, flask-compress 1.26, ctranslate2 4.8.4, eslint 10.14.0, typescript-eslint 8.72.1, react-router 8.5.1, react-is 19.3.1, lucide-react 1.65.0.
+
+### Fixed
+- YouTube episodes processed from SponsorBlock marks are no longer watched afterwards. The watch recut the same episode every interval when SponsorBlock held duplicate submissions. Reprocess still fetches fresh marks.
 
 ### Security
 - Frontend build resolves minimatch 11.0.1 or newer (GHSA-g3hv-75wg-m249).

@@ -43,15 +43,15 @@ Cuts on a YouTube feed come from SponsorBlock, a community database of timestamp
 - Community marks drive the cuts. By default MinusPod cuts where SponsorBlock says to cut, without asking the LLM.
 - Learned patterns (audio fingerprints and text patterns) always run, including when marks exist. Cuts are the marks plus any validated pattern hits, and MinusPod learns new patterns from the marks it cuts.
 - The LLM runs only when an episode has no marks or Pass 1 detection is on. **Full reprocess** and **Re-detect ads** on an episode force pass 1 for that run.
-- Marks keep arriving after an episode is published. During the watch window, a changed set of marks triggers an automatic recut from the retained original audio.
+- Marks are read until the episode is processed and not watched after that. **Reprocess** fetches fresh marks.
 - Marks are filtered before use. A mark with a negative vote total is dropped unless a SponsorBlock moderator locked it. Marks of unknown category are dropped. If a mark declares a video duration that differs from the downloaded audio by more than 2 seconds, all marks for that video are ignored. A mark whose end is not after its start is dropped.
-- A short watch ceiling limits how long late marks can change an episode.
+- A short watch ceiling limits how long MinusPod waits for marks to appear.
 
 To turn the behavior down, use any of these:
 
 | Goal | Setting |
 |---|---|
-| Stop accepting late marks sooner | Lower **Watch ceiling (days)** in Settings > YouTube (global only) |
+| Stop waiting for marks sooner | Lower **Watch ceiling (days)** in Settings > YouTube (global only) |
 | Have the LLM review every episode as well | Turn on **Pass 1 detection** for the feed |
 | Skip the wait for marks | Set **SponsorBlock probe attempts** to 0 with the LLM fallback on; episodes with no marks at the first check go straight to the LLM |
 | Never trust marks for one category | Set that category's segment action to Keep in Settings > Segment categories, or per feed |
@@ -102,8 +102,7 @@ A YouTube episode does not process the moment it is discovered. MinusPod gives t
 2. **Probe loop.** MinusPod asks SponsorBlock for marks up to **SponsorBlock probe attempts** times (default 6, range 0 to 48), **Probe interval (minutes)** apart (default 30, range 5 to 1440). The first attempt that finds marks queues the episode.
 3. **No marks after the last probe.** If **Fall back to the LLM pipeline when no marks appear** is on (default), the episode is queued for the normal LLM pipeline. If it is off, the episode enters the watch window and keeps waiting.
 4. **Watch window.** Every **Watch interval (hours)** (default 6, range 1 to 48) MinusPod checks again. When marks appear the episode is queued. If none appear by the **Watch ceiling (days)** (default 7, range 1 to 60), measured from the publish date, the episode is processed with the LLM pipeline.
-5. **After processing.** For the rest of the watch window MinusPod keeps checking. If the set of marks changes and the original audio is still retained, the episode is recut automatically.
-6. **Pass 1 detection.** A per-feed switch. When on, the LLM detector runs in addition to SponsorBlock even when marks exist, and both sets of segments are cut.
+5. **Pass 1 detection.** A per-feed switch. When on, the LLM detector runs in addition to SponsorBlock even when marks exist, and both sets of segments are cut.
 
 A failed SponsorBlock lookup is retried at the state's normal interval, capped at 24 hours. If a queued episode reaches the pipeline and no usable marks are left, or the lookup fails, the run steps aside instead of failing. The episode goes back to waiting and the watcher checks again.
 
@@ -122,7 +121,7 @@ The episode list and episode page show one of these lines.
 | waiting | `Waiting for SponsorBlock, attempt N of M, next check in 30 min` | Delay or probe loop; the first check has not found marks |
 | probing | same text as waiting | A probe is under way or marks were found and the episode is queued |
 | watching | `Watching SponsorBlock, next check in 6 h` | Probes finished with fallback off; checking every watch interval |
-| done | `SponsorBlock: N segments` | Processed from SponsorBlock marks; still watching for changes until the ceiling |
+| done | `SponsorBlock: N segments` | Processed from SponsorBlock marks; no further checks. Reprocess fetches fresh marks |
 | exhausted | `SponsorBlock timed out, processed with LLM` | The watch ceiling passed with no marks |
 | llm | `No SponsorBlock marks, processed with LLM` | The probe loop found nothing and the LLM fallback ran |
 | exhausted, no captions | `No marks and no captions, served unmodified` | No marks and no captions with transcription off, after the watch ceiling or a manual reprocess; the audio is served as published |

@@ -112,3 +112,21 @@ def test_sb_waiting_index_is_created_on_upgrade_without_losing_rows(tmp_path):
     assert 'idx_episodes_sb_waiting' in names
     assert upgraded.count_sponsorblock_waiting() == 1
     Database._instance = None
+
+
+def test_terminal_sponsorblock_rows_lose_their_next_check_on_upgrade(tmp_path):
+    Database._instance = None
+    first = Database(str(tmp_path))
+    first.create_podcast('yt-show', 'youtube://playlist/PL1', feed_type='youtube')
+    due = '2026-10-29T10:00:00+00:00'
+    for eid, state in (('e1', 'done'), ('e2', 'watching')):
+        first.upsert_episode('yt-show', eid, original_url='u', status='discovered')
+        first.update_episode_sponsorblock('yt-show', eid, sb_state=state, sb_next_check_at=due)
+    conn = first.get_connection()
+    conn.execute("DELETE FROM schema_migrations WHERE name = 'sponsorblock_terminal_clear_next_check'")
+    conn.commit()
+    Database._instance = None
+    upgraded = Database(str(tmp_path))
+    assert upgraded.get_episode('yt-show', 'e1')['sb_next_check_at'] is None
+    assert upgraded.get_episode('yt-show', 'e2')['sb_next_check_at'] == due
+    Database._instance = None

@@ -191,15 +191,14 @@ def after_success(slug, episode_id, run: YouTubeRun, episode_data=None):
     prior = (episode_data or {}).get('sb_state')
     if run.markers:
         state = 'done'
-        next_check = (utc_now() + timedelta(hours=run.resolved.watch_interval_hours)).isoformat()
     elif run.mode == 'passthrough':
-        state, next_check = 'exhausted', None
+        state = 'exhausted'
     elif prior in ('llm', 'exhausted'):
-        state, next_check = prior, None
+        state = prior
     else:
-        state, next_check = 'llm', None
+        state = 'llm'
     db.update_episode_sponsorblock(
-        slug, episode_id, sb_state=state, sb_next_check_at=next_check, sb_last_error=None,
+        slug, episode_id, sb_state=state, sb_next_check_at=None, sb_last_error=None,
         sb_segment_uuids=json.dumps(sponsorblock.uuid_set(run.markers)), sb_note=run.note)
     _cache_thumbnail(slug, episode_id, (episode_data or {}).get('artwork_url'))
 
@@ -215,11 +214,10 @@ def _cache_thumbnail(slug, episode_id, artwork_url):
         audio_logger.debug(f"[{slug}:{episode_id}] Thumbnail cache failed: {exc}")
 
 
-def stamp_recut(slug, episode_id, podcast):
-    """After a successful recut, record the SponsorBlock uuids now in the stored markers and re-arm the watch."""
+def stamp_recut(slug, episode_id):
+    """After a successful recut, record the SponsorBlock uuids now in the stored markers."""
     row = db.get_episode(slug, episode_id) or {}
+    if not row.get('youtube_video_id'):
+        return
     stored = [m for m in (parse_ad_markers(row.get('ad_markers_json')) or []) if m.get('source') == 'sponsorblock']
-    resolved = yt_settings.resolve_feed(db, podcast)
-    next_check = (utc_now() + timedelta(hours=resolved.watch_interval_hours)).isoformat()
-    db.update_episode_sponsorblock(slug, episode_id, sb_segment_uuids=json.dumps(sponsorblock.uuid_set(stored)),
-                                   sb_next_check_at=next_check)
+    db.update_episode_sponsorblock(slug, episode_id, sb_segment_uuids=json.dumps(sponsorblock.uuid_set(stored)))
