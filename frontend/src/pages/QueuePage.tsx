@@ -23,6 +23,7 @@ import ProcessingJobProgress from '../components/ProcessingJobProgress';
 import QueryError from '../components/QueryError';
 import { btnBase, btnDestructiveOutline } from '../components/buttonStyles';
 import { focusRing } from '../components/fieldStyles';
+import { tableLink } from '../components/tableStyles';
 import { countPill, tint } from '../components/badgeStyles';
 import { pageHeader, pageTitle, cardTitle, pageDescription } from '../components/pageStyles';
 
@@ -89,7 +90,7 @@ function ActiveQueue({
               <div className="min-w-0">
                 <Link
                   to={`/feeds/${episode.slug}/episodes/${episode.episodeId}`}
-                  className={`block font-medium text-primary hover:underline truncate ${focusRing}`}
+                  className={`block font-medium truncate ${tableLink}`}
                 >
                   {episode.title}
                 </Link>

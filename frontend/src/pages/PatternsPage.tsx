@@ -14,6 +14,7 @@ import PatternDetailModal from '../components/PatternDetailModal';
 import PatternMergeSuggestions from '../components/PatternMergeSuggestions';
 import { SkeletonRows } from '../components/Skeleton';
 import { Pagination } from '../components/Pagination';
+import { tableBody, tableCard, tableHead, tableRow, td, tdEmpty, tdMuted, thBase, rowCard } from '../components/tableStyles';
 import { SortHeader, useSortState } from '../components/SortHeader';
 import { ScopeBadge } from '../components/ScopeBadge';
 import { CommunityBadge } from '../components/CommunityBadge';
@@ -414,7 +415,7 @@ function PatternsPage() {
         {paginatedPatterns?.map((pattern) => (
           <div
             key={pattern.id}
-            className="bg-card rounded-lg border border-border p-4 cursor-pointer hover:bg-accent/50 transition-colors"
+            className={`${rowCard} cursor-pointer hover:bg-accent/50 transition-colors`}
             onClick={() => setSelectedPattern(pattern)}
           >
             <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
@@ -473,16 +474,16 @@ function PatternsPage() {
           </div>
         ))}
         {paginatedPatterns?.length === 0 && (
-          <div className="bg-card rounded-lg border border-border p-8 text-center text-muted-foreground">
+          <div className={`${rowCard} p-8 text-center text-muted-foreground`}>
             {patterns.length === 0 ? 'No patterns yet.' : 'No patterns match these filters.'}
           </div>
         )}
       </div>
 
       {/* Desktop Table Layout */}
-      <div className="hidden sm:block bg-card rounded-lg border border-border overflow-hidden">
+      <div className={`hidden sm:block ${tableCard}`}>
         <div className="overflow-x-auto" role="region" aria-label="Patterns table" tabIndex={0}>
-          <table className="w-full min-w-[960px] table-fixed divide-y divide-border">
+          <table className="w-full min-w-[960px] table-fixed">
             <colgroup>
               <col className="w-[5%]" />
               <col className="w-[12%]" />
@@ -495,37 +496,37 @@ function PatternsPage() {
               <col className="w-[7%]" />
               <col className="w-[9%]" />
             </colgroup>
-            <thead className="bg-muted/50">
+            <thead className={tableHead}>
               <tr>
                 <SortHeader field="id" label="ID" className="px-2" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} />
                 <SortHeader field="scope" label="Scope" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} />
                 <SortHeader field="sponsor" label="Sponsor" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} />
-                <th className="px-2 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                <th className={`${thBase} px-2 text-left`}>
                   Category
                 </th>
                 <SortHeader field="confirmation_count" label="Confirmed" className="px-2 whitespace-nowrap" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} />
                 <SortHeader field="false_positive_count" label="False pos." className="px-2 whitespace-nowrap" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} />
                 <SortHeader field="created_at" label="Created" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} />
                 <SortHeader field="last_matched_at" label="Last matched" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} />
-                <th className="px-2 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                <th className={`${thBase} px-2 text-left`}>
                   Status
                 </th>
-                <th className="px-2 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                <th className={`${thBase} px-2 text-left`}>
                   Actions
                 </th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-border">
+            <tbody className={tableBody}>
               {paginatedPatterns?.map((pattern) => (
                 <tr
                   key={pattern.id}
-                  className="hover:bg-accent/50 cursor-pointer transition-colors"
+                  className={`${tableRow} cursor-pointer`}
                   onClick={() => setSelectedPattern(pattern)}
                 >
                   <td className="px-2 py-3 whitespace-nowrap text-sm font-mono text-muted-foreground">
                     #{pattern.id}
                   </td>
-                  <td className="px-4 py-3 overflow-hidden">
+                  <td className={`${td} overflow-hidden`}>
                     <div className="flex items-center gap-1 flex-wrap">
                       <ScopeBadge pattern={pattern} podcastClassName="truncate block" />
                       <SegmentCategoryBadge category={pattern.category} />
@@ -546,7 +547,7 @@ function PatternsPage() {
                       )}
                     </div>
                   </td>
-                  <td className="px-4 py-3 overflow-hidden">
+                  <td className={`${td} overflow-hidden`}>
                     <div className="text-sm font-medium text-foreground truncate">
                       {pattern.sponsor || '(Unknown)'}
                     </div>
@@ -590,10 +591,10 @@ function PatternsPage() {
                       {pattern.false_positive_count}
                     </span>
                   </td>
-                  <td className="px-4 py-3 whitespace-nowrap text-sm text-muted-foreground">
+                  <td className={`${tdMuted} whitespace-nowrap`}>
                     {formatDate(pattern.created_at)}
                   </td>
-                  <td className="px-4 py-3 whitespace-nowrap text-sm text-muted-foreground">
+                  <td className={`${tdMuted} whitespace-nowrap`}>
                     {formatDate(pattern.last_matched_at)}
                   </td>
                   <td className="px-2 py-3 whitespace-nowrap">
@@ -614,7 +615,7 @@ function PatternsPage() {
               ))}
               {paginatedPatterns?.length === 0 && (
                 <tr>
-                  <td colSpan={10} className="px-4 py-8 text-center text-muted-foreground">
+                  <td colSpan={10} className={tdEmpty}>
                     {patterns.length === 0 ? 'No patterns yet.' : 'No patterns match these filters.'}
                   </td>
                 </tr>

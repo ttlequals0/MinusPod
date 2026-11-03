@@ -17,7 +17,7 @@ import { SortHeader, useSortState } from '../../components/SortHeader';
 import DownloadRowActions from './DownloadRowActions';
 import SortControls from '../../components/SortControls';
 import QueryError from '../../components/QueryError';
-import { tableLink } from '../../components/rowActionStyles';
+import { tableLink, tableCard, tableHead, th, thRight, tableBody, tableRow, td, tdMuted, tdNum, tdEmpty, rowCard } from '../../components/tableStyles';
 import { inputBase, selectBase, filterGrid, filterLabel, filterControl } from '../../components/fieldStyles';
 import { badgeBase, tint } from '../../components/badgeStyles';
 import { pageHeader, pageTitle } from '../../components/pageStyles';
@@ -127,7 +127,6 @@ function DownloadsTab({ tabs }: Props) {
     setPage(1);
   };
 
-  const th = 'px-3 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider';
 
   return (
     <div>
@@ -213,11 +212,11 @@ function DownloadsTab({ tabs }: Props) {
           {/* Mobile cards */}
           <div className="md:hidden space-y-3 mb-4">
             {rows.length === 0 ? (
-              <div className="bg-card rounded-lg border border-border p-8 text-center text-muted-foreground">
+              <div className={`${rowCard} p-8 text-center text-muted-foreground`}>
                 No downloads yet.
               </div>
             ) : rows.map((row) => (
-              <div key={row.id} className="bg-card rounded-lg border border-border p-4">
+              <div key={row.id} className={rowCard}>
                 <div className="flex items-start justify-between gap-3 mb-1">
                   <EpisodeLink row={row} className="font-medium min-w-0" />
                   <div className="shrink-0">
@@ -246,38 +245,38 @@ function DownloadsTab({ tabs }: Props) {
           </div>
 
           {/* Desktop table */}
-          <div className="hidden md:block bg-card border border-border rounded-lg overflow-hidden">
+          <div className={`hidden md:block ${tableCard}`}>
             <div className="overflow-x-auto">
               <table className="w-full">
-                <thead className="bg-muted/50">
+                <thead className={tableHead}>
                   <tr>
-                    <SortHeader field="last_seen_at" label="Time" className="px-3" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} />
+                    <SortHeader field="last_seen_at" label="Time" className="px-4" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} />
                     <th scope="col" className={th}>Episode</th>
-                    <SortHeader field="podcast" label="Podcast" className="px-3 hidden lg:table-cell" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} />
-                    <SortHeader field="client_ip" label="Client IP" className="px-3" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} />
-                    <SortHeader field="location" label="Location" className="px-3 hidden xl:table-cell" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} />
-                    <SortHeader field="subscriber" label="Subscriber" className="px-3 hidden lg:table-cell" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} />
+                    <SortHeader field="podcast" label="Podcast" className="px-4 hidden lg:table-cell" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} />
+                    <SortHeader field="client_ip" label="Client IP" className="px-4" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} />
+                    <SortHeader field="location" label="Location" className="px-4 hidden xl:table-cell" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} />
+                    <SortHeader field="subscriber" label="Subscriber" className="px-4 hidden lg:table-cell" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} />
                     <th scope="col" className={`${th} hidden xl:table-cell`}>Client</th>
-                    <th scope="col" className={`${th} text-right`}>Requests</th>
-                    <th scope="col" className="px-3 py-3"><span className="sr-only">Actions</span></th>
+                    <th scope="col" className={thRight}>Requests</th>
+                    <th scope="col" className={th}><span className="sr-only">Actions</span></th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-border">
+                <tbody className={tableBody}>
                   {rows.length === 0 ? (
                     <tr>
-                      <td colSpan={9} className="px-3 py-8 text-center text-muted-foreground">
+                      <td colSpan={9} className={tdEmpty}>
                         No downloads yet.
                       </td>
                     </tr>
                   ) : rows.map((row) => (
-                    <tr key={row.id} className="hover:bg-muted/50">
-                      <td className="px-3 py-3 text-sm text-muted-foreground whitespace-nowrap" title={`First seen ${formatDateTime(row.firstSeenAt)}`}>
+                    <tr key={row.id} className={tableRow}>
+                      <td className={`${tdMuted} whitespace-nowrap`} title={`First seen ${formatDateTime(row.firstSeenAt)}`}>
                         {formatDateTime(row.lastSeenAt)}
                       </td>
-                      <td className="px-3 py-3">
+                      <td className={td}>
                         <EpisodeLink row={row} className="max-w-[150px] block" />
                       </td>
-                      <td className="px-3 py-3 hidden lg:table-cell">
+                      <td className={`${td} hidden lg:table-cell`}>
                         <Link
                           to={`/feeds/${row.podcastSlug}`}
                           className={`${tableLink} text-sm truncate max-w-[110px] block`}
@@ -286,18 +285,18 @@ function DownloadsTab({ tabs }: Props) {
                           {row.podcastTitle}
                         </Link>
                       </td>
-                      <td className="px-3 py-3 text-sm text-foreground font-mono min-w-[9rem]"><ClientIp ip={row.clientIp} /></td>
-                      <td className="px-3 py-3 text-sm text-muted-foreground hidden xl:table-cell">
+                      <td className={`${td} text-foreground font-mono min-w-[9rem]`}><ClientIp ip={row.clientIp} /></td>
+                      <td className={`${tdMuted} hidden xl:table-cell`}>
                         <Location row={row} geoEnabled={geoEnabled} />
                       </td>
-                      <td className="px-3 py-3 text-sm text-muted-foreground hidden lg:table-cell">
+                      <td className={`${tdMuted} hidden lg:table-cell`}>
                         <SubscriberCell row={row} />
                       </td>
-                      <td className="px-3 py-3 text-sm text-muted-foreground hidden xl:table-cell">
+                      <td className={`${tdMuted} hidden xl:table-cell`}>
                         <ClientCell row={row} className="block truncate max-w-[140px]" />
                       </td>
-                      <td className="px-3 py-3 text-sm text-foreground text-right tabular-nums">{row.requestCount}</td>
-                      <td className="px-3 py-3 text-right">
+                      <td className={`${tdNum} text-foreground`}>{row.requestCount}</td>
+                      <td className={`${td} text-right`}>
                         <DownloadRowActions row={row} blocked={blocked} />
                       </td>
                     </tr>

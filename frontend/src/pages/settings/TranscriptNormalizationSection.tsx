@@ -10,6 +10,7 @@ import NormalizationEditModal from '../../components/NormalizationEditModal';
 import { ConfirmModal } from '../../components/Modal';
 import { SkeletonRows } from '../../components/Skeleton';
 import { btnBase, btnPrimary, btnOutline, btnDestructiveOutline } from '../../components/buttonStyles';
+import { tableBody, tableCard, tableHead, tableRow, td, tdEmpty, th, thBase } from '../../components/tableStyles';
 import { badgeBase, tint } from '../../components/badgeStyles';
 
 const STORAGE_KEY = 'settings-section-transcript-normalization';
@@ -90,29 +91,29 @@ function TranscriptNormalizationSection() {
           </div>
 
           {/* Desktop table */}
-          <div className="hidden sm:block bg-card rounded-lg border border-border overflow-hidden">
+          <div className={`hidden sm:block ${tableCard}`}>
             <div className="overflow-x-auto">
-              <table className="w-full table-fixed divide-y divide-border">
+              <table className="w-full table-fixed">
                 <colgroup>
                   <col className="w-[34%]" />
                   <col className="w-[30%]" />
                   <col className="w-[14%]" />
                   <col className="w-[22%]" />
                 </colgroup>
-                <thead className="bg-muted/50">
+                <thead className={tableHead}>
                   <tr>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Pattern</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Replacement</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Category</th>
-                    <th className="px-2 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Actions</th>
+                    <th className={th}>Pattern</th>
+                    <th className={th}>Replacement</th>
+                    <th className={th}>Category</th>
+                    <th className={`${thBase} px-2 text-left`}>Actions</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-border">
+                <tbody className={tableBody}>
                   {norms?.map((n) => (
-                    <tr key={n.id} className="hover:bg-accent/50 transition-colors">
-                      <td className="px-4 py-3 overflow-hidden"><span className="text-sm font-mono text-foreground truncate block">{n.terms}</span></td>
-                      <td className="px-4 py-3 overflow-hidden"><span className="text-sm text-foreground truncate block">{n.canonical}</span></td>
-                      <td className="px-4 py-3 whitespace-nowrap">
+                    <tr key={n.id} className={tableRow}>
+                      <td className={`${td} overflow-hidden`}><span className="text-sm font-mono text-foreground truncate block">{n.terms}</span></td>
+                      <td className={`${td} overflow-hidden`}><span className="text-sm text-foreground truncate block">{n.canonical}</span></td>
+                      <td className={`${td} whitespace-nowrap`}>
                         <span className={`${badgeBase} ${tint.neutral}`}>{n.category}</span>
                       </td>
                       <td className="px-2 py-3 whitespace-nowrap text-xs">
@@ -124,7 +125,7 @@ function TranscriptNormalizationSection() {
                     </tr>
                   ))}
                   {norms?.length === 0 && (
-                    <tr><td colSpan={4} className="px-4 py-8 text-center text-muted-foreground">No normalizations yet.</td></tr>
+                    <tr><td colSpan={4} className={tdEmpty}>No normalizations yet.</td></tr>
                   )}
                 </tbody>
               </table>

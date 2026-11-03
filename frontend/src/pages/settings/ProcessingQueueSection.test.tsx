@@ -4,7 +4,7 @@
  * stepper), and per-row cancel.
  */
 import { beforeEach, describe, it, expect, vi } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { btnBase } from '../../components/buttonStyles';
 import ProcessingQueueSection from './ProcessingQueueSection';
@@ -56,6 +56,9 @@ interface RenderOptions {
   cancelIsPending?: boolean;
   cancelingKey?: string | null;
 }
+
+const table = () => within(screen.getByRole('table'));
+const cards = () => within(screen.getByTestId('queue-cards'));
 
 function renderSection(
   episodes: ProcessingEpisode[] | undefined,
@@ -109,10 +112,13 @@ describe('ProcessingQueueSection', () => {
     renderSection([active(), queued(1), queued(2), queued(3)]);
 
     expect(screen.getByText('Waiting (3)')).toBeTruthy();
-    const link = screen.getByRole('link', { name: 'Queued Episode 1' });
+    const link = table().getByRole('link', { name: 'Queued Episode 1' });
     expect(link.getAttribute('href')).toBe('/feeds/pod/episodes/ep-1');
-    expect(screen.getByText('Queued Episode 3')).toBeTruthy();
-    expect(screen.getByText('3')).toBeTruthy();
+    expect(table().getByText('Queued Episode 3')).toBeTruthy();
+    expect(table().getByText('3')).toBeTruthy();
+    ['Position', 'Episode', 'Podcast', 'Priority'].forEach((name) =>
+      expect(table().getByRole('columnheader', { name })).toBeTruthy());
+    expect(cards().getByRole('link', { name: 'Queued Episode 1' }).getAttribute('href')).toBe('/feeds/pod/episodes/ep-1');
   });
 
   it('does not paginate a backlog that fits one page', () => {
@@ -128,7 +134,7 @@ describe('ProcessingQueueSection', () => {
     renderSection(episodes, vi.fn(), { queuePage: 2 });
 
     expect(screen.getByText('Waiting (30)')).toBeTruthy();
-    expect(screen.getByText('Queued Episode 30')).toBeTruthy();
+    expect(table().getByText('Queued Episode 30')).toBeTruthy();
     expect(screen.queryByText('Queued Episode 1')).toBeNull();
     expect(screen.getByText('Page 2 of 2 (30 total)')).toBeTruthy();
   });
@@ -140,13 +146,13 @@ describe('ProcessingQueueSection', () => {
 
     // Deltas, not priority+n: the list refetches every 5s, so a click made
     // against a stale value must still land on whatever the row now holds.
-    const raise = screen.getByRole('button', { name: 'Raise priority for Queued Episode 1' });
+    const raise = table().getByRole('button', { name: 'Raise priority for Queued Episode 1' });
     expect(raise.className).toContain('min-h-11');
     await user.click(raise);
     expect(onPriorityChange).toHaveBeenCalledWith({
       slug: 'pod', episodeId: 'ep-1', delta: 5,
     });
-    await user.click(screen.getByRole('button', { name: 'Lower priority for Queued Episode 1' }));
+    await user.click(table().getByRole('button', { name: 'Lower priority for Queued Episode 1' }));
     expect(onPriorityChange).toHaveBeenLastCalledWith({
       slug: 'pod', episodeId: 'ep-1', delta: -5,
     });
@@ -157,7 +163,7 @@ describe('ProcessingQueueSection', () => {
     const onPriorityChange = vi.fn();
     renderSection([queued(1, { priority: 4 })], vi.fn(), { onPriorityChange });
 
-    const field = screen.getByRole('spinbutton', { name: 'Priority for Queued Episode 1' });
+    const field = table().getByRole('spinbutton', { name: 'Priority for Queued Episode 1' });
     await user.clear(field);
     await user.type(field, '40');
     // commitOn="blur": nothing is written while the user is still typing.
@@ -177,10 +183,9 @@ describe('ProcessingQueueSection', () => {
     const user = userEvent.setup();
     const onCancel = renderSection([active(), queued(1), queued(2)]);
 
-    const cancelButtons = screen.getAllByRole('button', { name: 'Cancel' });
+    const cancelButtons = table().getAllByRole('button', { name: 'Cancel' });
     expect(cancelButtons[0].className).toContain(btnBase);
-    // [active, queued 1, queued 2]
-    await user.click(cancelButtons[2]);
+    await user.click(cancelButtons[1]);
 
     expect(onCancel).toHaveBeenCalledWith({ slug: 'pod', episodeId: 'ep-2' });
   });
@@ -191,8 +196,8 @@ describe('ProcessingQueueSection', () => {
       cancelingKey: 'pod:ep-2',
     });
 
-    expect(screen.getAllByRole('button', { name: 'Cancel' })).toHaveLength(1);
-    expect(screen.getByRole('button', { name: 'Canceling...' })).toBeTruthy();
+    expect(table().getAllByRole('button', { name: 'Cancel' })).toHaveLength(1);
+    expect(table().getByRole('button', { name: 'Canceling...' })).toBeTruthy();
   });
 });
 
@@ -205,7 +210,7 @@ describe('queue admission explanation', () => {
       },
     })]);
 
-    const note = await screen.findByText(/Held on the detection phase, secondary account/);
+    const note = (await table().findAllByText(/Held on the detection phase, secondary account/))[0];
     expect(note.textContent).toContain('rate limit reached');
     expect(note.textContent).toMatch(/Resumes/);
   });
@@ -215,14 +220,14 @@ describe('queue admission explanation', () => {
       admission: { blocked: false, phase: null, slot: null, reason: null, resumesAt: null },
     })]);
 
-    await screen.findByText('Queued Episode 1');
+    await table().findByText('Queued Episode 1');
     expect(screen.queryByText(/^Held/)).toBeNull();
   });
 
   it('renders normally when the endpoint reports no admission at all', async () => {
     renderSection([queued(1)]);
 
-    await screen.findByText('Queued Episode 1');
+    await table().findByText('Queued Episode 1');
     expect(screen.queryByText(/^Held/)).toBeNull();
   });
 });

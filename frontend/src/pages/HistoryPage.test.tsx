@@ -84,6 +84,12 @@ describe('HistoryPage: Version column', () => {
     expect(episode.className).toContain('text-foreground');
   });
 
+  it('labels the run time and audio length columns', async () => {
+    renderPage([makeEntry()]);
+    expect(await screen.findByRole('columnheader', { name: /Run time/ })).toBeTruthy();
+    expect(screen.getByRole('columnheader', { name: 'Audio length' })).toBeTruthy();
+  });
+
   it('renders a dash for a row with no version', async () => {
     renderPage([makeEntry({ appVersion: null })]);
     let row: HTMLElement | null | undefined;

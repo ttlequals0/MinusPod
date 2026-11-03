@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { focusRing } from './fieldStyles';
+import { thBase } from './tableStyles';
 
 export type SortDirection = 'asc' | 'desc';
 
@@ -29,7 +30,7 @@ export function SortHeader<T extends string>({
     <th
       scope="col"
       aria-sort={active ? (sortDirection === 'asc' ? 'ascending' : 'descending') : 'none'}
-      className={`py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider ${right ? 'text-right' : 'text-left'} ${className}`}
+      className={[thBase, right ? 'text-right' : 'text-left', className].filter(Boolean).join(' ')}
     >
       {/* Hover lives on the button, and the button fills the cell's height, so
           the highlighted area is the area that actually sorts. */}

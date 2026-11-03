@@ -538,8 +538,9 @@ export interface ProcessingRunStats {
 }
 
 export interface ProcessingRunTimings {
-  // Stage values may overlap. FFmpeg is the combined elapsed time for all
-  // FFmpeg tasks in the run, including retries. Finalize ends before history.
+  // Stages run back to back except chapters, measured inside assets. FFmpeg is
+  // the combined elapsed time of all FFmpeg tasks, including retries, across
+  // every stage. Finalize ends before history.
   downloadSeconds?: number | null;
   sponsorblockSeconds?: number | null;
   transcriptionSeconds?: number | null;

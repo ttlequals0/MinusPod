@@ -1,6 +1,6 @@
 import { Fragment, ReactNode, useState } from 'react';
 import { ChevronDown, ChevronRight } from 'lucide-react';
-import { EpisodeProcessingRun, LLM_PROVIDER_LABELS, LlmProvider, RunPhaseUsage } from '../api/types';
+import { EpisodeProcessingRun, LLM_PROVIDER_LABELS, LlmProvider, ProcessingRunTimings, RunPhaseUsage } from '../api/types';
 import { cacheHit, formatCost, formatDateTime, formatElapsed, formatPercent, formatTokenCount, sentenceCase } from '../utils/format';
 import { formatTokenRange } from '../pages/settings/settingsUtils';
 import DisclosureButton from './DisclosureButton';
@@ -9,6 +9,7 @@ import CostAmount from './CostAmount';
 import StatusBadge from './StatusBadge';
 import { focusRing } from './fieldStyles';
 import { badgeBase, tint } from './badgeStyles';
+import { tableHead, thBase } from './tableStyles';
 
 interface ProcessingRunsTableProps {
   runs: EpisodeProcessingRun[];
@@ -33,10 +34,10 @@ const TIMING_STAGES = [
   ['verificationSeconds', 'Verification'],
   ['normalizationSeconds', 'Normalization'],
   ['assetsSeconds', 'Assets'],
-  ['chaptersSeconds', 'Chapters'],
   ['finalizeSeconds', 'Save episode and feed'],
-  ['ffmpegSeconds', 'FFmpeg'],
 ] as const;
+
+type TimingKey = keyof ProcessingRunTimings;
 
 function rssDeltaNote(runs: EpisodeProcessingRun[], rssDuration?: number | null): string | null {
   // Most recent run that actually downloaded audio: recuts and early
@@ -111,7 +112,7 @@ function transcriptDiffSummary(run: EpisodeProcessingRun): string {
   }
 }
 
-function timingValue(run: EpisodeProcessingRun, key: typeof TIMING_STAGES[number][0]): string {
+function timingValue(run: EpisodeProcessingRun, key: TimingKey): string {
   const timings = run.stats?.timings;
   if (run.stats?.mode === 'chapters' && key !== 'chaptersSeconds' && key !== 'ffmpegSeconds') {
     return 'Not applicable';
@@ -132,27 +133,49 @@ function timingValue(run: EpisodeProcessingRun, key: typeof TIMING_STAGES[number
   return 'Unavailable';
 }
 
+function TimingRow({ label, value, className = '' }: { label: string; value: string; className?: string }) {
+  return (
+    <div className={`flex justify-between gap-3 ${className}`.trim()}>
+      <dt className="text-muted-foreground">{label}</dt>
+      <dd className="text-right">{value}</dd>
+    </div>
+  );
+}
+
+// Chapters runs inside Assets and FFmpeg is summed across stages, so both are listed apart.
 function TimingBreakdown({ run }: { run: EpisodeProcessingRun }) {
   if (!run.stats?.timings) {
     return <p className="mt-3 border-t border-border/40 pt-2 text-xs text-muted-foreground">Timing unavailable for this run</p>;
   }
+  const chaptersOnly = run.stats.mode === 'chapters';
   const stages = TIMING_STAGES.filter(
     ([key]) => key !== 'sponsorblockSeconds' || run.stats?.timings?.sponsorblockSeconds != null,
   );
   return (
     <div className="mt-3 w-full border-t border-border/40 pt-2 sm:w-[calc(100cqw-1.5rem)]">
       <h4 className="text-xs font-medium text-muted-foreground">Elapsed by stage</h4>
-      <p className="mt-1 text-xs text-muted-foreground">
-        Stage times may overlap. FFmpeg totals include all tasks and retries.
-      </p>
       <dl className="mt-2 grid grid-cols-1 gap-x-6 gap-y-1 text-xs tabular-nums sm:grid-cols-2 lg:grid-cols-3">
         {stages.map(([key, label]) => (
-          <div key={key} className="flex justify-between gap-3">
-            <dt className="text-muted-foreground">{label}</dt>
-            <dd className="text-right">{timingValue(run, key)}</dd>
+          <div key={key}>
+            {key === 'assetsSeconds' && chaptersOnly ? (
+              <TimingRow label="Chapters" value={timingValue(run, 'chaptersSeconds')} />
+            ) : (
+              <TimingRow label={label} value={timingValue(run, key)} />
+            )}
+            {key === 'assetsSeconds' && !chaptersOnly && (
+              <TimingRow label="Chapters" value={timingValue(run, 'chaptersSeconds')} className="pl-3" />
+            )}
           </div>
         ))}
       </dl>
+      <div className="mt-2 border-t border-border/40 pt-2 text-xs">
+        <dl className="tabular-nums">
+          <TimingRow label="FFmpeg" value={timingValue(run, 'ffmpegSeconds')} />
+        </dl>
+        <p className="mt-1 text-muted-foreground">
+          {chaptersOnly ? 'Counted within Chapters.' : 'Counted within the stages above.'} Includes all tasks and retries.
+        </p>
+      </div>
     </div>
   );
 }
@@ -167,11 +190,13 @@ function failoverNote(run: EpisodeProcessingRun): string | null {
   return parts.length ? `ran on failover: ${parts.join(', ')}` : null;
 }
 
-const HEADER_CLASS = 'py-2 pr-4 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider';
+// Compact variant of thBase: py-2 replaces the recipe's py-3.
+const HEADER_CLASS = `${thBase.replace('py-3', 'py-2')} pr-4 text-left`;
 
 interface Column {
   label: string;
   title?: string;
+  titleFor?: (run: EpisodeProcessingRun) => string | undefined;
   // Dropped from the table between sm and lg; the mobile cards still list it.
   lowPriority?: boolean;
   render: (run: EpisodeProcessingRun) => ReactNode;
@@ -206,15 +231,16 @@ const COLUMNS: Column[] = [
   { label: 'When', render: (run) => formatDateTime(run.processedAt) },
   { label: 'Result', render: (run) => <RunResult run={run} /> },
   {
-    label: 'Duration',
+    label: 'Run time',
     title: 'Wall-clock time for the whole run',
     lowPriority: true,
     render: (run) => (run.processingDurationSeconds != null
       ? formatElapsed(run.processingDurationSeconds) : '-'),
   },
   {
-    label: 'Downloaded',
+    label: 'Audio length',
     title: 'Length of the downloaded copy this run processed',
+    titleFor: (run) => (run.stats?.transcriptSegments != null ? `${run.stats.transcriptSegments} transcript segments` : undefined),
     lowPriority: true,
     render: (run) => (run.stats?.downloadedDuration ? formatElapsed(run.stats.downloadedDuration) : '-'),
   },
@@ -456,8 +482,8 @@ function ProcessingRunsTable({ runs, rssDuration }: ProcessingRunsTableProps) {
 
       <div role="region" aria-label="Processing runs; scroll for more columns" tabIndex={0} className="hidden sm:block overflow-x-auto" style={{ containerType: 'inline-size' }}>
         <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b border-border">
+          <thead className={tableHead}>
+            <tr>
               <th className={`${HEADER_CLASS} w-6`} aria-hidden="true" />
               {COLUMNS.map((col, i) => (
                 <th
@@ -483,9 +509,7 @@ function ProcessingRunsTable({ runs, rssDuration }: ProcessingRunsTableProps) {
                     {COLUMNS.map((col, i) => (
                       <td
                         key={col.label}
-                        title={col.label === 'Downloaded' && run.stats?.transcriptSegments != null
-                          ? `${run.stats.transcriptSegments} transcript segments`
-                          : undefined}
+                        title={col.titleFor?.(run)}
                         className={`${i === COLUMNS.length - 1 ? 'py-2 whitespace-nowrap' : 'py-2 pr-4 whitespace-nowrap'}${col.lowPriority ? ` ${LOW_PRIORITY_CLASS}` : ''}`}
                       >
                         {col.render(run)}

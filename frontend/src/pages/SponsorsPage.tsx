@@ -12,6 +12,7 @@ import { TagChips } from '../components/TagChips';
 import { SegmentCategoryBadge } from '../components/SegmentCategoryBadge';
 import { Skeleton, SkeletonRows } from '../components/Skeleton';
 import { Pagination } from '../components/Pagination';
+import { tableBody, tableCard, tableHead, tableRow, td, tdEmpty, tdMuted, th, thBase, rowCard } from '../components/tableStyles';
 import { SortHeader, useSortState } from '../components/SortHeader';
 import { formatDate } from '../utils/format';
 import Checkbox from '../components/Checkbox';
@@ -150,7 +151,7 @@ export function SponsorsSection() {
       {/* Mobile cards */}
       <div className="sm:hidden space-y-3 mb-4">
         {paginated?.map((s) => (
-          <div key={s.id} className="bg-card rounded-lg border border-border p-4">
+          <div key={s.id} className={rowCard}>
             <div className="flex items-start justify-between gap-2 mb-2">
               <div className="text-sm font-medium text-foreground">{s.name}</div>
               <ActiveBadge active={s.is_active} />
@@ -173,14 +174,14 @@ export function SponsorsSection() {
           </div>
         ))}
         {paginated?.length === 0 && (
-          <div className="bg-card rounded-lg border border-border p-8 text-center text-muted-foreground">No sponsors yet.</div>
+          <div className={`${rowCard} p-8 text-center text-muted-foreground`}>No sponsors yet.</div>
         )}
       </div>
 
       {/* Desktop table */}
-      <div className="hidden sm:block bg-card rounded-lg border border-border overflow-hidden">
+      <div className={`hidden sm:block ${tableCard}`}>
         <div className="overflow-x-auto">
-          <table className="w-full table-fixed divide-y divide-border">
+          <table className="w-full table-fixed">
             <colgroup>
               <col className="w-[16%]" />
               <col className="w-[15%]" />
@@ -191,40 +192,40 @@ export function SponsorsSection() {
               <col className="w-[10%]" />
               <col className="w-[14%]" />
             </colgroup>
-            <thead className="bg-muted/50">
+            <thead className={tableHead}>
               <tr>
                 <SortHeader field="name" label="Name" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} />
-                <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Aliases</th>
+                <th className={th}>Aliases</th>
                 <SortHeader field="category" label="Category" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} />
-                <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Tags</th>
+                <th className={th}>Tags</th>
                 <SortHeader field="pattern_count" label="Patterns" className="px-2" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} />
                 <SortHeader field="created_at" label="Created" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} />
                 <SortHeader field="last_matched_at" label="Last matched" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} />
-                <th className="px-2 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Actions</th>
+                <th className={`${thBase} px-2 text-left`}>Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-border">
+            <tbody className={tableBody}>
               {paginated?.map((s) => (
-                <tr key={s.id} className="hover:bg-accent/50 transition-colors">
-                  <td className="px-4 py-3 overflow-hidden">
+                <tr key={s.id} className={tableRow}>
+                  <td className={`${td} overflow-hidden`}>
                     <div className="flex items-center gap-2">
                       <span className="text-sm font-medium text-foreground truncate">{s.name}</span>
                       {!s.is_active && <ActiveBadge active={false} />}
                     </div>
                   </td>
-                  <td className="px-4 py-3 overflow-hidden">
+                  <td className={`${td} overflow-hidden`}>
                     <div className="text-xs text-muted-foreground truncate">{s.aliases.join(', ') || '-'}</div>
                   </td>
-                  <td className="px-4 py-3 overflow-hidden">
+                  <td className={`${td} overflow-hidden`}>
                     <div className="flex items-center gap-2 min-w-0">
                       <span className="text-sm text-muted-foreground truncate">{s.category || '-'}</span>
                       {s.segment_category && <SegmentCategoryBadge category={s.segment_category} />}
                     </div>
                   </td>
-                  <td className="px-4 py-3 overflow-hidden"><TagChips tags={s.tags} /></td>
+                  <td className={`${td} overflow-hidden`}><TagChips tags={s.tags} /></td>
                   <td className="px-2 py-3 whitespace-nowrap text-sm text-foreground">{s.pattern_count}</td>
-                  <td className="px-4 py-3 whitespace-nowrap text-sm text-muted-foreground">{formatDate(s.created_at)}</td>
-                  <td className="px-4 py-3 whitespace-nowrap text-sm text-muted-foreground">{formatDate(s.last_matched_at)}</td>
+                  <td className={`${tdMuted} whitespace-nowrap`}>{formatDate(s.created_at)}</td>
+                  <td className={`${tdMuted} whitespace-nowrap`}>{formatDate(s.last_matched_at)}</td>
                   <td className="px-2 py-3 whitespace-nowrap text-xs">
                     <div className="flex gap-1">
                       <button onClick={() => setEditing(s)} className={`${tableActionBtn} ${btnOutline} ${focusRing}`}>Edit</button>
@@ -234,7 +235,7 @@ export function SponsorsSection() {
                 </tr>
               ))}
               {paginated?.length === 0 && (
-                <tr><td colSpan={8} className="px-4 py-8 text-center text-muted-foreground">No sponsors yet.</td></tr>
+                <tr><td colSpan={8} className={tdEmpty}>No sponsors yet.</td></tr>
               )}
             </tbody>
           </table>
