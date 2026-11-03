@@ -27,6 +27,8 @@ release notes.
 - Twelve more themes. UniFi OLED (true black UniFi dark, paired with UniFi light) and Harbor (light only, blue-grey surfaces with a deep sea-blue accent) follow the ProxMorph palettes. One Dark with One Light, Everforest, Night Owl with Light Owl, Rose Pine (Main and Moon, both with Dawn), Kanagawa (Wave and Dragon, both with Lotus), Ayu (Dark and Mirage, both with Ayu Light) and classic Monokai (dark only) follow their upstream palettes. Lightness moves where a value missed the 4.5:1 contrast gate. No fonts or icons are bundled.
 
 ### Changed
+- Screenshots in the README and web interface docs are refreshed in the Rose Pine theme, with a Queue page pair and a sheet of the dashboard in every theme and mode.
+- Feed cards, feed list rows and the feed page lead with artwork and title. Refresh and Delete are outline buttons in their accent hues, Copy URL keeps its label on phones, and each card shows a processed-of-total bar under the status pills.
 - Every data table (History, Stats, Queue, Episode review, Patterns, Sponsors, Settings) shares one recipe: card, header strip, row dividers, foreground links. The History table headers say Run time and Audio length, Stats podcast totals link to the feed, and the Queue and Episode review lists are tables on desktop.
 - Processing stats: the run table now says Run time and Audio length instead of Duration and Downloaded. The stage breakdown nests Chapters under Assets and lists FFmpeg apart, since both are counted inside other stages, so no stage row double counts another. The History sort option uses the same Run time label.
 
@@ -55,8 +57,6 @@ release notes.
 
 ### Changed
 
-- Screenshots in the README and web interface docs are refreshed in the Rose Pine theme, with a Queue page pair and a sheet of the dashboard in every theme and mode.
-- Feed cards, feed list rows and the feed page lead with artwork and title. Refresh and Delete are outline buttons in their accent hues, Copy URL keeps its label on phones, and each card shows a processed-of-total bar under the status pills.
 - A 5-star episode rating also dismisses the episode's held-for-review ads,
   without recording a rejection pattern, so the review chip clears and the
   matcher learns nothing from spans the detector could not back up.
