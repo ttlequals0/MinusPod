@@ -10,6 +10,14 @@ _SECTION_START_RE = re.compile(r"^## \[", re.M)
 _cache: list[dict] | None = None
 
 
+def version_key(version: str) -> tuple[int, ...] | None:
+    """Sort key for an X.Y.Z version string, or None when it is malformed."""
+    parts = version.split(".")
+    if len(parts) != 3 or not all(p.isdigit() for p in parts):
+        return None
+    return tuple(int(p) for p in parts)
+
+
 def unwrap_lines(text: str) -> str:
     """Fold two-space continuation lines into the line above; leave headers, blanks, list items and fences alone."""
     out: list[str] = []

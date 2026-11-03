@@ -11,8 +11,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from changelog import parse_changelog, unwrap_lines  # noqa: E402
-from update_checker import parse_version  # noqa: E402
+from changelog import parse_changelog, unwrap_lines, version_key  # noqa: E402
 
 
 def extract_section(text: str, version: str) -> str:
@@ -29,12 +28,12 @@ def extract_rollup(text: str, version: str, since_exclusive: str) -> str:
     range; otherwise each section is prefixed with a `## <version>` header,
     newest first (changelog order).
     """
-    low, high = parse_version(since_exclusive), parse_version(version)
+    low, high = version_key(since_exclusive), version_key(version)
     if low is None or high is None:
         raise KeyError(version)
     versions = [
         s["version"] for s in parse_changelog(text)
-        if low < parse_version(s["version"]) <= high
+        if low < version_key(s["version"]) <= high
     ]
     if version not in versions:
         raise KeyError(version)

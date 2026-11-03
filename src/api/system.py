@@ -19,7 +19,7 @@ from api import (
 )
 from api.failover import probes_view, targets_view
 import transcriber
-from changelog import load_sections
+from changelog import load_sections, version_key
 from config import (
     PARAKEET_MODEL_NAME, WHISPER_BACKEND_API, WHISPER_BACKEND_PARAKEET, is_keep_like, is_pending_review,
     resolve_whisper_device,
@@ -37,7 +37,6 @@ from secrets_crypto import (
 )
 from db_backup_service import backup_now, BackupInProgressError
 from diagnostic_log import export as export_diagnostics, _parse_time
-from update_checker import parse_version
 from utils.http import safe_url_for_log
 from utils.markers import parse_ad_markers
 from utils.time import ISO_FORMAT, parse_iso_utc, utc_now, utc_now_iso
@@ -151,7 +150,7 @@ def get_changelog():
     since = request.args.get('since', '').strip()
     since_key = None
     if since:
-        since_key = parse_version(since)
+        since_key = version_key(since)
         if since_key is None:
             return json_response({'error': 'bad_since'}, 400)
     limit = request.args.get('limit', default=10, type=int)
@@ -159,7 +158,7 @@ def get_changelog():
         return json_response({'error': 'bad_limit'}, 400)
     sections = load_sections()
     if since_key is not None:
-        sections = [s for s in sections if parse_version(s['version']) > since_key]
+        sections = [s for s in sections if version_key(s['version']) > since_key]
     public = [{k: s[k] for k in ('version', 'date', 'body')} for s in sections[:min(limit, 50)]]
     return json_response({'current': _get_version(), 'sections': public})
 
