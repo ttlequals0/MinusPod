@@ -1,6 +1,5 @@
 # Changelog
 
-
 All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
@@ -35,7 +34,7 @@ release notes.
 ## [2.101.14] - 2026-11-02
 
 ### Added
-- Added a comprehensive contributor guide at `docs/CONTRIBUTING.md` for new developers, 
+- Added a contributor guide at `docs/CONTRIBUTING.md` for new developers, 
   that details development prerequisites, environment setup, build instructions, running
   tests, and pull request guidelines.
 
@@ -1022,7 +1021,7 @@ Maintenance release with no new functionality. The processing pipeline, API, and
 - Exhausted transcription timeouts and throttling switch to the failover transcriber.
 - LLM rate limits and exhausted daily quotas never trigger failover; the rate-limit hold waits out the provider reset. A rate limit on the failover provider holds only the failover account. Transcription 429s that outlast their retry deadline still switch to the failover transcriber. Installs without a failover provider see no change in daily-quota handling.
 - Fixed-provider probes validate response bodies, and transcription probes no longer count timeout or rate-limit responses as healthy.
-- Processing history marks runs that actually dispatched to the failover provider, and retains that usage after recovery. Deferred, held, cancelled, and requeued runs no longer add failed history rows.
+- Processing history marks runs that dispatched to the failover provider, and retains that usage after recovery. Deferred, held, cancelled, and requeued runs no longer add failed history rows.
 - Manual failover changes take effect on subsequent calls across workers without waiting for the settings cache.
 - Running episodes return to their original LLM routes after recovery or cancellation; legacy failover snapshots requeue safely.
 - LLM recovery requires a valid successful endpoint response; malformed responses and rate limits no longer mark a provider healthy.
@@ -1359,7 +1358,7 @@ Maintenance release with no new functionality. The processing pipeline, API, and
 
 ### Fixed
 
-- Ad validation cuts the measured part of a detected ad and holds only the unmeasured estimated-pattern remainder for review. Previously the whole merged marker was held. Approving just the held remainder and reprocessing still cuts the measured part.
+- Ad validation cuts the measured part of a detected ad and holds only the unmeasured estimated-pattern remainder for review. Previously the whole merged marker was held. Approving only the held remainder and reprocessing still cuts the measured part.
 - Pass 2 can auto-approve an estimated-pattern hold when an independent pass-2 re-detection corroborates it.
 - The sponsor gate for long LLM detection windows now accepts a window that names a known sponsor. A sponsor from this episode's pattern or fingerprint matches (in verification, its first-pass cuts) counts anywhere in the detection, including the quoted start or end text. Sponsors from the episode description or the sponsor registry count only in the reason or description, because names like "Calm" or "Indeed" are also common words. A long correct read is no longer dropped for lacking its own ad-language cue.
 - Sponsor names extracted from an episode description now match whole words only, so words like "romance" or "factory" no longer count as sponsors.
@@ -1595,7 +1594,7 @@ Maintenance release with no new functionality. The processing pipeline, API, and
 - Ads parsed from a detection window carry their stage (`claude`, or `verification` in pass 2) before the window-dedup merge records them as members. An unstamped member reads as measured evidence at the reviewer's protection check, so any trim beyond 0.1 s held the merged ad. On one feed 51 of 92 members had no stage, and 31 of 33 episodes held a merged ad the reviewer only meant to trim. Markers persisted before this change keep the old union rule.
 - A reviewer reject no longer drops an ad outright. When the span carries measured evidence (fingerprint, cue, text pattern) or a sponsor the validator confirmed, it is held for review under the new `reviewer_reject_conflict` reason. One reject discarded a 191 s sponsor-confirmed block that pass 2 then re-found at 0.99 confidence, at the cost of a second transcription and a recut. Another run rejected 8 of 9 ads in a single pass.
 - A detection window proposal that runs past either edge of its window is clamped instead of being discarded. The clamp targets what the model was shown: the window bounds the prompt prints, widened by any straddling transcript segment and by the two-minute placement tolerance. An ad that straddles a window edge keeps its full span, and the cross-window merge re-unions it. A proposal starting beyond that tolerance is still dropped as out of window. The seven-minute ceiling is judged on the raw span, so an over-long guess is refused rather than trimmed until it fits. One verification window returned the whole episode (0.0 s to 1789.1 s).
-- Review calls send no reasoning effort unless one is set. `reviewerReasoningLevel` caps it. One 188-character verdict had cost about 2k reasoning tokens. A default effort, though, costs a rejected request and a retry per reviewed ad on a model that takes no reasoning parameter. Which key a stage reads (Anthropic's token budget or an effort level) now follows that stage's resolved route, not the global provider.
+- Review calls send no reasoning effort unless one is set. `reviewerReasoningLevel` caps it. One 188-character verdict had cost about 2k reasoning tokens. A default effort costs a rejected request and a retry per reviewed ad on a model that takes no reasoning parameter. Which key a stage reads (Anthropic's token budget or an effort level) now follows that stage's resolved route, not the global provider.
 - The detection summary line reports the differential stage alongside the fingerprint, text, and LLM counts. Differential matches were tracked but never printed.
 - A feed whose body never parses is no longer re-downloaded every cycle. Each unparseable body is counted on the feed, and the full fetches are held for a window that doubles from 30 minutes to a 6 hour ceiling. The conditional GET still runs, so a 304 stays free and a changed body is read at once. A feed that sends no ETag or Last-Modified stops re-downloading the same body, and a manual force refresh still fetches. The count waits for the batch verdict during a full sweep, so a shared outage does not put every feed into backoff. Only a body that parses clears the counter, and a refresh during the window says how long is left. One feed serving a 4 MB body that ended mid-token had been refetched 101 times in 10 hours.
 - A host that claims gzip but sends an undecodable stream is asked for identity encoding on the next fetch, for an hour. The plain retry already recovered the body, but every cycle still paid for the failed transfer first.
@@ -2303,7 +2302,7 @@ Maintenance release with no new functionality. The processing pipeline, API, and
   therefore became a pattern keyed on that content, which then matched the
   same overshoot on later episodes and invited another confirm. Single-segment
   confirms now go through `create_pattern_from_ad`; a span that fails a gate
-  still records its correction for that episode, it just does not generalise.
+  still records its correction for that episode but does not generalise.
 
 ### Added
 
@@ -2343,7 +2342,7 @@ Maintenance release with no new functionality. The processing pipeline, API, and
 - The detection and verification passes DEBUG-log the fully assembled
   system prompt, not just its length (#708). Dynamic sections are appended
   after the stored setting, so the settings UI cannot show what was
-  actually sent; the episode run log is where prompt debugging happens.
+  sent; the episode run log is where prompt debugging happens.
 
 ## [2.94.4] - 2026-08-31
 
@@ -2581,7 +2580,7 @@ Maintenance release with no new functionality. The processing pipeline, API, and
   or container restart mid-run leaves the prior results intact instead of
   emptying the episode.
 - The ad reviewer's system prompt examples now show the same shape the
-  reviewer actually sends (#695): candidate markers, and a [start-end]
+  reviewer sends (#695): candidate markers, and a [start-end]
   stamp on every line including the 60 seconds of context on each side.
   The model can now read a trim boundary off a context line instead of
   interpolating one. Installs still on the shipped default get the
@@ -2593,7 +2592,7 @@ Maintenance release with no new functionality. The processing pipeline, API, and
   Not-an-ad buttons that the API always refused with a 409. The row says the
   span is left in because of its category and offers Edit, which is where
   the category can now be changed.
-- Correction failures show what the server actually said instead of a fixed
+- Correction failures show what the server said instead of a fixed
   "Try again", which sent you in circles on a refusal that would never
   succeed.
 - The offline queue's "waiting" count included only LLM deferrals, so a
@@ -2629,7 +2628,7 @@ Maintenance release with no new functionality. The processing pipeline, API, and
 
 - Each new file selection in bulk import replaces the staged set instead of
   piling on top of earlier attempts, so the preview always shows what you
-  just picked.
+  picked.
 - The post-commit staging sweep keeps files that belong to errored or
   skipped entries instead of deleting them with the junk.
 - The upload response carries the episode's artwork URL instead of null.
@@ -2825,7 +2824,6 @@ Maintenance release with no new functionality. The processing pipeline, API, and
   registry, and parallel detection windows shipped in 2.5.23-2.5.25 were
   first implemented in the leboff/MinusPod fork. The 2.5.23 and 2.5.25
   entries now say so, and the README points at where credit lives.
-
 
 ## [2.91.0] - 2026-08-26
 
@@ -3259,7 +3257,7 @@ Maintenance release with no new functionality. The processing pipeline, API, and
   duplicated elsewhere or noise: the largest entry restated what the JSON mode
   column already says, and thirteen of fifteen rows covered under 1% of a
   model's work units. Unresolved failures keep their own tables, which is where
-  a provider refusal or a rate-limit ceiling actually belongs.
+  a provider refusal or a rate-limit ceiling belongs.
 - Provider-policy blocks no longer classify as `Unknown model (404)`. OpenRouter
   answers 404 when an account blocks a provider, so a correct slug read as a
   wrong one; these now bucket as `Account gating (provider policy)`.
@@ -3705,7 +3703,7 @@ Maintenance release with no new functionality. The processing pipeline, API, and
   and categories as the show's, both in the web UI and in the feed served to
   podcast apps. This also separates `<description>` from `<itunes:summary>`,
   which the parser had aliased onto each other: a feed whose two differ now
-  publishes the `<description>` it actually declares, so some stored
+  publishes the `<description>` it declares, so some stored
   descriptions change on the next refresh.
 - A feed that changed its cover art kept serving the old image (#596). The
   refresh writes the new artwork URL to the podcast row before the download
@@ -4118,7 +4116,7 @@ Maintenance release with no new functionality. The processing pipeline, API, and
   first. One episode detected a sponsor read, a self-promo and a cross-promo
   and labelled all four surviving markers "sponsor". The label now goes to the
   member that classified the most audio, counting only the audio that member
-  actually covered, and a member naming nothing, or naming something outside
+  covered, and a member naming nothing, or naming something outside
   the vocabulary, never displaces one that named a real category.
 - A verification-pass ad reported its category as the sponsor name, so the
   logs read `Rejecting verification miss for 'self_promo'` and pattern
@@ -4254,7 +4252,7 @@ Maintenance release with no new functionality. The processing pipeline, API, and
   its chunks from VAD output and had none. Shorter tails used faster-whisper's
   own single-clip fallback and were unaffected. The no-VAD path now supplies
   its own 30 second clips covering the whole span, measured against the file
-  actually transcribed, so a quiet tail gets transcribed and reviewed instead
+  transcribed, so a quiet tail gets transcribed and reviewed instead
   of reaching the detector with no text.
 - A failed tail re-transcription logged the same line as a tail that held no
   speech, so the failure only showed up if you grepped for the transcriber's
@@ -4439,7 +4437,6 @@ Maintenance release with no new functionality. The processing pipeline, API, and
 ## [2.78.6] - 2026-07-25
 
 ### Fixed
-
 
 - Anthropic responses that begin with a thinking block no longer fail to
   parse. The reader took the first content block and asked for its text;
@@ -4892,7 +4889,7 @@ Maintenance release with no new functionality. The processing pipeline, API, and
   one feed scored 89.9 percent coverage, missed the bar by 0.3 seconds,
   and shipped audible after a reprocess. The bar drops to 75 percent, and
   in exchange the auto-filed confirm is trimmed to the sub-span pass 2
-  actually attested (the same shape a human trimmed approval files), so
+  attested (the same shape a human trimmed approval files), so
   the uncovered padding is never cut on the detection's authority. The
   recut clamps to the attested span through the existing confirmed_span
   path.
@@ -5014,8 +5011,8 @@ Maintenance release with no new functionality. The processing pipeline, API, and
   answers under its versioned base such as /v3), endpoint present but
   rejecting the request (wrong model name, missing API key, FLAC upload to
   a server without a FLAC decoder), and a reachable server that is just
-  slow to answer (model cold-load), which is reported as such instead of
-  as down. Unsaved values can be tested before saving, and a stale result
+  slow to answer (model cold-load), which is reported as slow instead of
+  down. Unsaved values can be tested before saving, and a stale result
   clears as soon as any tested field changes. The saved API key is sent
   only when the tested URL points at the same server as the saved base
   URL, so the key cannot be pointed at an arbitrary host. Unlike the
@@ -5054,8 +5051,8 @@ Maintenance release with no new functionality. The processing pipeline, API, and
 - The boundary reviewer now sees per-segment timestamps for the candidate ad
   span instead of timestamp-stripped text, so a proposed trim can land on the
   sentence it names. A warning logs when a trim's number disagrees with the
-  seconds figure in its own reasoning. Root cause of a partial preroll ad
-  shipping on a DAI feed: the reviewer trimmed a 35 second candidate to 20
+  seconds figure in its own reasoning. This caused a partial preroll ad
+  to ship on a DAI feed: the reviewer trimmed a 35 second candidate to 20
   seconds while its reasoning named the sentence ending at 28.4 seconds, a
   number it was never shown.
 - Verification-pass contradiction holds are no longer discarded: a pass-2 ad
@@ -5085,7 +5082,7 @@ Maintenance release with no new functionality. The processing pipeline, API, and
   transcript:
   - Whole-file re-encode guard: the differential is discarded (status
     `unreliable_reencode`, zero regions) only when BOTH more than 70% of the run
-    reads as differential AND confirmed-identical coverage is under 15% -- the
+    reads as differential AND confirmed-identical coverage is under 15%, the
     wholesale-misalignment signature of a re-encode. A real show, even an
     ad-heavy one, keeps meaningful identical coverage, so requiring both keeps a
     correctly-aligned episode's discrete ads.
@@ -5512,7 +5509,7 @@ Maintenance release with no new functionality. The processing pipeline, API, and
   env var seeds the default, and a value saved in the Settings UI wins
   after the first edit. Stage tunables (temperatures, token budgets,
   window geometry, `OLLAMA_NUM_CTX`) previously worked the other way
-  around -- a set env var beat the UI and rendered the control
+  around: a set env var beat the UI and rendered the control
   read-only. They now follow the same env-seeds-default model as every
   other env-backed setting; the UI control stays editable and shows the
   env var as the source of its default.
@@ -5522,7 +5519,7 @@ Maintenance release with no new functionality. The processing pipeline, API, and
   `ARTWORK_WATERMARK_ENABLED`) so a fresh deploy is fully configurable
   from compose. A one-shot corrective migration protects rows customized
   before the is_default flag existed from being clobbered by the boot
-  resync -- customized values are never overwritten.
+  resync. Customized values are never overwritten.
 
 ### Added
 - The three size caps are now runtime settings with UI controls and API
@@ -5730,7 +5727,7 @@ Maintenance release with no new functionality. The processing pipeline, API, and
   Update webhook subscriptions if you relied on the old routing.
 - Limit-exceeded errors are now non-retryable at every level: no window
   retry backoff (an OpenAI `insufficient_quota` 429 previously burned the
-  full cycle) and no episode re-queue -- the episode is marked permanently
+  full cycle) and no episode re-queue. The episode is marked permanently
   failed right away, since retrying cannot succeed until credits are added
   or the limit is raised. Reprocess the episode after fixing the limit.
 
@@ -5806,7 +5803,7 @@ Maintenance release with no new functionality. The processing pipeline, API, and
   cards and list rows show compact per-status count pills.
 - Offline queue (#482, off by default): when the LLM provider or Whisper API
   endpoint is unreachable (connection refused, DNS failure, timeout, or
-  repeated 5xx -- including a tripped circuit breaker), episodes defer with a
+  repeated 5xx, including a tripped circuit breaker), episodes defer with a
   new `deferred` status instead of failing. A background tick probes the
   unreachable service about every 5 minutes, resets the LLM circuit breaker
   when it answers, and re-queues the deferred episodes automatically.
@@ -5938,7 +5935,7 @@ Maintenance release with no new functionality. The processing pipeline, API, and
 
 ### Added
 
-- Silence boundary snap (per-feed opt-in): two new Feed settings toggles, "Snap cuts to silence" and "Snap to content transitions", and three global tunables -- silence threshold (dBFS), minimum silence duration, and maximum snap distance (Settings > Audio Cue Detection > Ad cutting). When "Snap cuts to silence" is on, LLM-detected ad edges are snapped to the midpoint of the nearest qualifying silence span (within 2s, at least 0.3s long). Cue snap takes precedence; silence snap skips any edge already committed by cue snap. Two guards prevent broken cuts: an edge snap that would reduce a removable ad below the minimum removal duration (10s) is reverted for the entire ad; a snap that would leave less than 1s gap between adjacent ads is rejected. Snap details are stored per edge in `silence_snap` and surfaced as a "Silence snapped" badge in the episode ad list.
+- Silence boundary snap (per-feed opt-in): two new Feed settings toggles, "Snap cuts to silence" and "Snap to content transitions", and three global tunables: silence threshold (dBFS), minimum silence duration, and maximum snap distance (Settings > Audio Cue Detection > Ad cutting). When "Snap cuts to silence" is on, LLM-detected ad edges are snapped to the midpoint of the nearest qualifying silence span (within 2s, at least 0.3s long). Cue snap takes precedence; silence snap skips any edge already committed by cue snap. Two guards prevent broken cuts: an edge snap that would reduce a removable ad below the minimum removal duration (10s) is reverted for the entire ad; a snap that would leave less than 1s gap between adjacent ads is rejected. Snap details are stored per edge in `silence_snap` and surfaced as a "Silence snapped" badge in the episode ad list.
 
 ### Fixed
 
@@ -6099,9 +6096,9 @@ Maintenance release with no new functionality. The processing pipeline, API, and
 
 ### API
 
-- `GET /api/v1/cue-templates/{templateId}/audio` -- streams the template's raw
+- `GET /api/v1/cue-templates/{templateId}/audio`: streams the template's raw
   audio as `audio/wav` (404 unknown, 422 no audio stored).
-- `POST /api/v1/feeds/{slug}/cue-threshold-suggest` -- runs a threshold sweep
+- `POST /api/v1/feeds/{slug}/cue-threshold-suggest`: runs a threshold sweep
   and returns `{episodeId, status, suggestion?, sampleEpisodes?, floorUsed?,
   perTemplate?, error?}`.
 
@@ -6130,7 +6127,7 @@ found by review, removes dead code, and adds the repo's first Python lint gate.
 - Consolidated the duplicated frontend clock and date formatters into `frontend/src/utils/format.ts`, and the list-page pagination controls into a shared `Pagination` component (Patterns, Sponsors, History).
 - The status broadcaster logs a failing subscriber once at warning and then at debug, instead of silently swallowing the error or warning on every update.
 - Performance: the text matcher reuses TF-IDF vectors built at load instead of re-vectorizing short templates per episode; feed rendering parses the upstream XML once instead of three times; re-detect no longer fetches the same podcast row twice.
-- Robustness: non-security MD5 hashing is marked `usedforsecurity=False`, exception chaining was added to several raises, and the OpenAI error-classification path no longer crashes if a future SDK drops an error class.
+- Hardening: non-security MD5 hashing is marked `usedforsecurity=False`, exception chaining was added to several raises, and the OpenAI error-classification path no longer crashes if a future SDK drops an error class.
 - The detection-stage labels in the UI now cover all backend stages, and post-roll detection honors full-reprocess mode symmetrically with pre-roll.
 
 ### Removed
@@ -6159,7 +6156,7 @@ found by review, removes dead code, and adds the repo's first Python lint gate.
 
 ### Added
 
-- Voiceover-robust cue matching (#350). A saved cue that is a music bed under a per-episode voiceover (e.g. the WSJ "The Journal" jingle) matched poorly across episodes because the voiceover varies. The new `audio_cue_formant_atten_db` setting (off by default) attenuates the 800-3400 Hz speech band during template matching so the cue keys on its constant bed. Only that band is touched, so bass beds and high stings are unaffected, and existing cues are unchanged until you enable it.
+- Voiceover-robust cue matching (#350). A saved cue that is a music bed under a per-episode voiceover (e.g. a news show's jingle) matched poorly across episodes because the voiceover varies. The new `audio_cue_formant_atten_db` setting (off by default) attenuates the 800-3400 Hz speech band during template matching so the cue keys on its constant bed. Only that band is touched, so bass beds and high stings are unaffected, and existing cues are unchanged until you enable it.
 
 ### Changed
 
@@ -6264,13 +6261,13 @@ found by review, removes dead code, and adds the repo's first Python lint gate.
 
 ### Fixed
 
-- The cover-art badge now reaches podcast apps. The served feed pointed its channel image at the `/api/v1` artwork endpoint, which the public feed host blocks (403), so apps never fetched the badged cover. The badge is now served from `/episodes/<slug>/cover-minuspod.jpg` -- the same public path the feed already uses for audio and transcripts. Re-run "Refresh all artwork" (or wait for the next feed refresh) after upgrading.
+- The cover-art badge now reaches podcast apps. The served feed pointed its channel image at the `/api/v1` artwork endpoint, which the public feed host blocks (403), so apps never fetched the badged cover. The badge is now served from `/episodes/<slug>/cover-minuspod.jpg`, the same public path the feed already uses for audio and transcripts. Re-run "Refresh all artwork" (or wait for the next feed refresh) after upgrading.
 
 ## [2.24.1] - 2026-06-26
 
 ### Added
 
-- A "Refresh all artwork" button under Settings -> Output -> Cover Art, plus a `POST /feeds/refresh-artwork` endpoint. It re-pulls each feed's cover and rebuilds the served feeds so a change to the cover-art badge setting shows up, without re-discovering or queuing episodes -- so it never starts processing. Your podcast app still re-fetches the feed on its own schedule.
+- A "Refresh all artwork" button under Settings -> Output -> Cover Art, plus a `POST /feeds/refresh-artwork` endpoint. It re-pulls each feed's cover and rebuilds the served feeds so a change to the cover-art badge setting shows up, without re-discovering or queuing episodes, so it never starts processing. Your podcast app still re-fetches the feed on its own schedule.
 
 ### Changed
 
@@ -6280,7 +6277,7 @@ found by review, removes dead code, and adds the repo's first Python lint gate.
 
 ### Added
 
-- Previous/next episode controls on the episode page, next to "Back to Feed". They follow the feed's newest-first order -- right goes to the older episode, left to the newer one -- so you can move between adjacent episodes without going back to the feed list (issue #417).
+- Previous/next episode controls on the episode page, next to "Back to Feed". They follow the feed's newest-first order (right goes to the older episode, left to the newer one), so you can move between adjacent episodes without going back to the feed list (issue #417).
 - An optional MinusPod badge on served cover art. Turn it on under Settings -> Output -> Cover Art and the feed's channel art gets a small badge in the bottom-right corner, so the filtered version is easy to tell apart from the original in a podcast app. Off by default (issue #420).
 
 ## [2.23.1] - 2026-06-26
@@ -6769,7 +6766,7 @@ found by review, removes dead code, and adds the repo's first Python lint gate.
 
 ### Added
 
-- The OpenRouter model dropdown now lists the `openrouter/free` and `openrouter/auto` router aliases (issue #331). Both are valid OpenRouter model IDs -- `openrouter/free` routes each request to one of OpenRouter's free models, `openrouter/auto` picks a model for the prompt -- but neither appears in OpenRouter's `/api/v1/models` response, so they never showed up in the dropdown and could not be selected. MinusPod now injects them when the provider is OpenRouter.
+- The OpenRouter model dropdown now lists the `openrouter/free` and `openrouter/auto` router aliases (issue #331). Both are valid OpenRouter model IDs (`openrouter/free` routes each request to one of OpenRouter's free models, `openrouter/auto` picks a model for the prompt), but neither appears in OpenRouter's `/api/v1/models` response, so they never showed up in the dropdown and could not be selected. MinusPod now injects them when the provider is OpenRouter.
 
 ### Fixed
 
@@ -6777,13 +6774,13 @@ found by review, removes dead code, and adds the repo's first Python lint gate.
 
 ### Documentation
 
-- Clarified model selection for issue #331: there is no `LLM_MODEL` environment variable (only `LLM_PROVIDER` selects the provider), and `OPENAI_MODEL` only seeds the model on first startup -- after that the stored value wins, so the model is changed in the Settings UI. Updated `docs/llm-providers.md`, `docs/environment-variables.md`, `.env.example`, and the Settings UI help text, and documented the `openrouter/free` and `openrouter/auto` aliases.
+- Clarified model selection for issue #331: there is no `LLM_MODEL` environment variable (only `LLM_PROVIDER` selects the provider), and `OPENAI_MODEL` only seeds the model on first startup. After that the stored value wins, so the model is changed in the Settings UI. Updated `docs/llm-providers.md`, `docs/environment-variables.md`, `.env.example`, and the Settings UI help text, and documented the `openrouter/free` and `openrouter/auto` aliases.
 
 ## [2.7.4] - 2026-06-05
 
 ### Fixed
 
-- Stopped a `Migration failed for match_key backfill: UNIQUE constraint failed: model_pricing.match_key` warning that logged on every startup. The pricing migration backfills `match_key` for older rows, but when a row's normalized key already belonged to another row (for example a live-fetched variant of the same model), the per-row `UPDATE` hit the existing UNIQUE index and aborted the whole migration before its dedup step could run, so the row stayed unkeyed and the warning came back on the next boot. The backfill now skips a row whose key another row already owns -- that row is a redundant duplicate the cost lookup never uses -- and the dedup step only touches real keyed collisions, never the NULL rows. No pricing data is removed.
+- Stopped a `Migration failed for match_key backfill: UNIQUE constraint failed: model_pricing.match_key` warning that logged on every startup. The pricing migration backfills `match_key` for older rows, but when a row's normalized key already belonged to another row (for example a live-fetched variant of the same model), the per-row `UPDATE` hit the existing UNIQUE index and aborted the whole migration before its dedup step could run, so the row stayed unkeyed and the warning came back on the next boot. The backfill now skips a row whose key another row already owns, since that row is a redundant duplicate the cost lookup never uses. The dedup step only touches real keyed collisions, never the NULL rows. No pricing data is removed.
 
 ### Documentation
 
@@ -6794,14 +6791,14 @@ found by review, removes dead code, and adds the repo's first Python lint gate.
 
 ### Added
 
-- `GUNICORN_BIND` now accepts a comma-separated list of addresses, so gunicorn can listen on more than one socket. This is mainly for rootless Podman, where you may want IPv4, IPv6, or both. For dual-stack, set `GUNICORN_BIND=[::]:8000` -- a single IPv6 wildcard also accepts IPv4 when the kernel keeps `bindv6only=0` (the Linux default). The default is unchanged (`0.0.0.0:8000`, IPv4), so existing Docker deployments behave as before. One caveat: don't list both `0.0.0.0:8000` and `[::]:8000` on a `bindv6only=0` kernel -- the IPv6 wildcard already claims the IPv4 port, so the second bind hits `EADDRINUSE` and gunicorn exits.
+- `GUNICORN_BIND` now accepts a comma-separated list of addresses, so gunicorn can listen on more than one socket. This is mainly for rootless Podman, where you may want IPv4, IPv6, or both. For dual-stack, set `GUNICORN_BIND=[::]:8000`. A single IPv6 wildcard also accepts IPv4 when the kernel keeps `bindv6only=0` (the Linux default). The default is unchanged (`0.0.0.0:8000`, IPv4), so existing Docker deployments behave as before. One caveat: don't list both `0.0.0.0:8000` and `[::]:8000` on a `bindv6only=0` kernel: the IPv6 wildcard already claims the IPv4 port, so the second bind hits `EADDRINUSE` and gunicorn exits.
 
 ## [2.7.2] - 2026-06-04
 
 ### Fixed
 
-- **Settings reset to defaults when you reopen the page (issue #323, reopened).** Navigating away from Settings and back within the React Query cache window made every field show its hardcoded placeholder again -- LLM provider back to Anthropic, no key, models blank -- even though the values were still saved in the database. The 2.6.0 fix seeded the hydration snapshot from the loaded settings, so on a remount with cached data the form never re-hydrated and fell through to the component's hardcoded `useState` initializers. The snapshot now starts empty so the form always re-hydrates from the loaded settings (the unsaved-edit guard is unchanged), and the page renders a loader until settings load so the placeholders are never shown. The earlier "fixed in 2.6.0" call was wrong because it was tested via a full page reload (always a cold load); the bug only appears on in-app navigation. Confirmed reproduced and fixed with the navigate-away-and-back flow.
-- **No more hardcoded provider/model defaults in the Settings form.** The form's field defaults (provider, base URL, models, whisper backend/language/compute, audio bitrate, min-cut confidence, etc.) now come from the backend `GET /settings` `defaults` block -- the single source of truth -- instead of literals duplicated in the frontend. The hydration and change-detection paths share that source so the "Save Changes" button no longer risks getting stuck. On the backend, the OpenAI-compatible base URL default is now the `DEFAULT_OPENAI_BASE_URL` config constant (used by `get_effective_base_url`, the `LLMClient` fallback, and the defaults block), and the provider default in the defaults block resolves through the `ENV_BACKED_SETTINGS` registry, so each default is defined once. No default values changed.
+- **Settings reset to defaults when you reopen the page (issue #323, reopened).** Navigating away from Settings and back within the React Query cache window made every field show its hardcoded placeholder again (LLM provider back to Anthropic, no key, models blank), even though the values were still saved in the database. The 2.6.0 fix seeded the hydration snapshot from the loaded settings, so on a remount with cached data the form never re-hydrated and fell through to the component's hardcoded `useState` initializers. The snapshot now starts empty so the form always re-hydrates from the loaded settings (the unsaved-edit guard is unchanged), and the page renders a loader until settings load so the placeholders are never shown. The earlier "fixed in 2.6.0" call was wrong because it was tested via a full page reload (always a cold load); the bug only appears on in-app navigation. Confirmed reproduced and fixed with the navigate-away-and-back flow.
+- **No more hardcoded provider/model defaults in the Settings form.** The form's field defaults (provider, base URL, models, whisper backend/language/compute, audio bitrate, min-cut confidence, etc.) now come from the backend `GET /settings` `defaults` block (the single source of truth) instead of literals duplicated in the frontend. The hydration and change-detection paths share that source so the "Save Changes" button no longer risks getting stuck. On the backend, the OpenAI-compatible base URL default is now the `DEFAULT_OPENAI_BASE_URL` config constant (used by `get_effective_base_url`, the `LLMClient` fallback, and the defaults block), and the provider default in the defaults block resolves through the `ENV_BACKED_SETTINGS` registry, so each default is defined once. No default values changed.
 
 ## [2.7.1] - 2026-06-03
 
@@ -6840,7 +6837,7 @@ found by review, removes dead code, and adds the repo's first Python lint gate.
 
 ### Added
 
-- LLM benchmark: `benchmark run --snapshot <file>` and `benchmark report --snapshot <file>` pin the system prompt to a frozen file instead of the live `get_static_system_prompt()`. This decouples the stored corpus from the production `SEED_SPONSORS` list -- editing the sponsor list (or the prompt prose) no longer changes the prompt hashes and forces a full re-run. With no flag the live prompt is used as before. `benchmark dump-prompt <file>` writes the current live prompt to a file to seed a snapshot. The report's Run Metadata section records which prompt produced the run (`live` or `snapshot:<name>`) with a sha256 prefix.
+- LLM benchmark: `benchmark run --snapshot <file>` and `benchmark report --snapshot <file>` pin the system prompt to a frozen file instead of the live `get_static_system_prompt()`. This decouples the stored corpus from the production `SEED_SPONSORS` list: editing the sponsor list (or the prompt prose) no longer changes the prompt hashes and forces a full re-run. With no flag the live prompt is used as before. `benchmark dump-prompt <file>` writes the current live prompt to a file to seed a snapshot. The report's Run Metadata section records which prompt produced the run (`live` or `snapshot:<name>`) with a sha256 prefix.
 
 ### Changed
 
@@ -6886,19 +6883,19 @@ found by review, removes dead code, and adds the repo's first Python lint gate.
 ### Fixed
 
 - **Ad Reviewer prompts no longer get stuck blank, and the "Reset Reviewer Prompts to Default" button works (issue #301).** `review_prompt` and `resurrect_prompt` were missing from the defaults map in `reset_setting` (`src/database/settings.py`), so resetting them was a silent no-op and a cleared-then-saved prompt stayed empty with no way back. Both keys are now in the map. The settings GET handler also falls back to the default when a stored prompt is empty or whitespace, so an already-stuck install heals on the next load, and `_apply_prompt_fields` reverts a blank prompt to its default on save instead of storing the empty value.
-- **`src/tools/generate_manifest.py` no longer rewrites `published_at` on no-op runs.** `build_manifest` stamped the current UTC time on every invocation, so the regenerate-manifest workflow's `git diff --quiet` was never quiet and it committed a timestamp-only change even when no pattern content changed (surfaced on PR #299). `main()` now reuses the prior timestamp when re-rendering the manifest with it reproduces the on-disk `index.json` byte-for-byte (`reuse_published_at`) -- the same rendered-bytes comparison the workflow's `git diff` makes, so a true no-op stays byte-identical and the commit step is skipped, while any real content change still bumps the timestamp.
+- **`src/tools/generate_manifest.py` no longer rewrites `published_at` on no-op runs.** `build_manifest` stamped the current UTC time on every invocation, so the regenerate-manifest workflow's `git diff --quiet` was never quiet and it committed a timestamp-only change even when no pattern content changed (surfaced on PR #299). `main()` now reuses the prior timestamp when re-rendering the manifest with it reproduces the on-disk `index.json` byte-for-byte (`reuse_published_at`). This is the same rendered-bytes comparison the workflow's `git diff` makes, so a true no-op stays byte-identical and the commit step is skipped, while any real content change still bumps the timestamp.
 
 ## [2.5.34] - 2026-05-29
 
 ### Added
 
-- **Three new benchmark corpus episodes** verified into `benchmarks/llm/data/corpus/`: `ep-crime-junkie-8ce498f299d7`, `ep-daily-gist-chicago-70a82fe93a5c`, `ep-drink-champs-30c9a2d49f13`. Each ships with `metadata.toml`, `truth.txt` (timestamps realigned via `scripts/realign_truth.py` to match the word-level whisper output), `segments.json`, and `windows.json`. Corpus grows from 11 to 14 episodes (now 10 ad-bearing + 4 no-ad). A fourth candidate (`ep-politics-politics-politics-9d7642c84fc9`) was verified, swept, then dropped: its single labeled sponsor read (4 seconds) was too tight to score against window-aligned predictions, and the episode's actual self-promo ads were missing from truth -- the net effect was every model scoring F1 = 0 on that episode regardless of correctness.
+- **Three new benchmark corpus episodes** verified into `benchmarks/llm/data/corpus/`: `ep-crime-junkie-8ce498f299d7`, `ep-daily-gist-chicago-70a82fe93a5c`, `ep-drink-champs-30c9a2d49f13`. Each ships with `metadata.toml`, `truth.txt` (timestamps realigned via `scripts/realign_truth.py` to match the word-level whisper output), `segments.json`, and `windows.json`. Corpus grows from 11 to 14 episodes (now 10 ad-bearing + 4 no-ad). A fourth candidate (`ep-politics-politics-politics-9d7642c84fc9`) was verified, swept, then dropped: its single labeled sponsor read (4 seconds) was too tight to score against window-aligned predictions, and the episode's actual self-promo ads were missing from truth. Every model scored F1 = 0 on that episode regardless of correctness.
 - **Full sweep against all 44 cloud models** including the 10 added this PR plus two more user-added Google Gemini 3.x variants (`google/gemini-3.5-flash`, `google/gemini-3.1-flash-lite`). `calls.jsonl` carries ~38,000 rows; `episode_results.jsonl`, `report.md`, and all 14 SVG assets regenerated. The full per-call raw text artifacts (`results/raw/prompts/*.txt` and `results/raw/responses/*.txt`) are committed so the report is reproducible from raw data without rerunning.
 - **Updated cloud-LLM model recommendations in `docs/llm-providers.md`** to reflect the new sweep. New rank-1: `qwen/qwen3.6-plus` (F1 0.693, $1.11/episode) edges out `qwen3.5-plus-02-15` (F1 0.679) by 0.014, inside the trial-stdev noise floor. New "fast + accurate" tier added: `qwen/qwen3.6-flash` (F1 0.660, p50 13.0s, $0.55/episode).
 - **Benchmark tool gains 10 new cloud models** in `benchmarks/llm/benchmark.toml.example` (also added to the gitignored live `benchmark.toml`): `qwen/qwen3-235b-a22b-2507`, `qwen/qwen3.6-plus`, `qwen/qwen3.6-flash`, `qwen/qwen3-8b`, `qwen/qwen3-14b`, `qwen/qwen3.5-27b`, `openai/gpt-5.4-mini`, `openai/gpt-oss-120b`, `deepseek/deepseek-v4-pro`, `google/gemini-2.5-flash-lite`. These are the cloud counterparts of the local recommendations in `docs/llm-providers.md`; they will populate the leaderboard after the next `benchmark run`.
 - **Benchmark report TL;DR tables now expose F1 stdev and JSON mode columns.** The F1 stdev column reads from the existing `ModelStats.mean_f1_stdev` (the mean across episodes of within-episode trial stdev) so rank gaps inside the noise floor are no longer easy to over-read. The JSON mode column classifies each model as `native`, `prompt-inject`, or `mixed` based on the `json_format_used` field that the runner has been writing to `calls.jsonl` for some time; a model is `native` or `prompt-inject` only when >=95% of calls used that mode, otherwise `mixed`. The per-model detail block also shows the JSON-mode primary, the native percent, and the call count.
-- **`src/tools/scaffold_community_pattern.py`** -- CLI helper for hand-crafting community pattern JSON. Writes a schema-correct file to `patterns/community/<slug>-<short_uuid>.json` so the filename matches the sponsor by construction. Closes the manual-contributor footgun behind PR #292.
-- **`src/tools/split_bundle.py`** -- maintainer helper that explodes a `minuspod-submission-*.json` bundle into per-pattern `<slug>-<short>.json` files in the same directory using the shared `slugify` helper. Refuses to overwrite existing files; removes the bundle on success unless `--keep-original` is passed.
+- **`src/tools/scaffold_community_pattern.py`**: CLI helper for hand-crafting community pattern JSON. Writes a schema-correct file to `patterns/community/<slug>-<short_uuid>.json` so the filename matches the sponsor by construction. Closes the manual-contributor footgun behind PR #292.
+- **`src/tools/split_bundle.py`**: maintainer helper that explodes a `minuspod-submission-*.json` bundle into per-pattern `<slug>-<short>.json` files in the same directory using the shared `slugify` helper. Refuses to overwrite existing files; removes the bundle on success unless `--keep-original` is passed.
 - **Pattern Export dialog lets the contributor refine sponsor, aliases, and tags per pattern before download.** Each row in the Export dialog grows an `Edit` toggle when the destination is `community`; the inline panel shows the sponsor / aliases / tags fields plus a live filename preview that matches what the PR validator's filename check will expect. Overrides are per-export only; the local pattern row is not modified. Backend routes (`/patterns/preview-export`, `/patterns/submit-bundle`) gained an additive optional `overrides` body field shaped `{ <pattern_id>: { sponsor?, sponsor_aliases?, sponsor_tags? } }`; existing callers that send no overrides keep the prior behaviour. Closes the upstream cause of the filename mismatches #294 catches at PR time.
 
 ### Changed
@@ -6906,13 +6903,13 @@ found by review, removes dead code, and adds the repo's first Python lint gate.
 - **`benchmarks/llm/src/benchmark/pricing.py:fetch_current` now unions LiteLLM with OpenRouter's `/api/v1/models` endpoint** (via the production `fetch_openrouter_pricing` helper). OpenRouter wins on key collisions when its entry carries a non-zero price; zero-price OR entries are skipped so they cannot clobber valid LiteLLM prices. The change closes a latency gap where benchmarked models with new OpenRouter slugs showed up at $0.00 cost until LiteLLM indexed them. The module docstring is updated to reflect the dual-source merge.
 - **Metric Key in the benchmark report (`_render_how_to_read`) documents the new JSON mode column** alongside JSON compliance and F1 stdev, restoring the "every column has a definition" contract.
 - **Community pattern validator now hard-rejects filename / sponsor / community_id mismatches** in per-pattern files. The PR #292 round surfaced two cases (`spotify-07df78ed.json` containing a Shopify pattern; `merck-ca6c0db7.json` with `sponsor: "badcholesterol.com"`) that today only revealed themselves on human review. The check uses the same `slugify` helper the exporter uses, so files produced by the in-app export pipeline pass by construction. Bundle / per-pattern filename shape mismatches downgrade to warnings.
-- **Truncated intro/outro variants surface as validator warnings** -- variants ending in `com`, `slash`, `the`, `at`, `and`, `or`, `to`, `of`, `a`, `an`, `for`, `in`, `on`, or a single non-`a`/`i` letter are flagged. Recall-only variants that look cut mid-clause (e.g. PR #292's vanta outro `"Go to V-A-N-T-A dot com slash com"`) clutter the pattern without matching anything new.
+- **Truncated intro/outro variants surface as validator warnings**: variants ending in `com`, `slash`, `the`, `at`, `and`, `or`, `to`, `of`, `a`, `an`, `for`, `in`, `on`, or a single non-`a`/`i` letter are flagged. Recall-only variants that look cut mid-clause (e.g. PR #292's vanta outro `"Go to V-A-N-T-A dot com slash com"`) clutter the pattern without matching anything new.
 - **Renamed `src/seed_data/sponsors_final.csv` to `src/seed_data/validator_known_sponsors.csv`** to match its actual job today. The file was originally the v2.4.0 one-shot DB seed for `known_sponsors`; that migration is now gated by `sponsor_seed_revision = '2.4.0'` and CSV edits no longer reach existing instances. The only ongoing consumer is the PR validator's multi-sponsor-contamination check (`find_foreign_sponsors`), so the file name now reflects that. Docstrings in `community_tags.sponsor_seed` and `_reseed_known_sponsors` were updated to call out the divergence and to clarify that new entries should be added only when a brand commonly appears as a foreign mention inside other sponsors' ad copy (the Keeps / Grubhub leakage case the check was built for). No behaviour change.
 
 ### Fixed
 
 - **Dropped a duplicate `[run]` / `[corpus]` block** at the bottom of `benchmarks/llm/benchmark.toml.example` that would have made the file unparseable as TOML for anyone copying it as their starting point.
-- **CI pip-audit step now ignores PYSEC-2024-277 (joblib 1.5.3) and PYSEC-2025-183 (pyjwt 2.12.1)** while upstream fixes are pending. Both packages are at the latest release on PyPI; the advisories landed in pip-audit's database between today's main-branch run and this PR. The ignore list is targeted to these two PYSEC IDs only -- any future vulnerability still trips the gate.
+- **CI pip-audit step now ignores PYSEC-2024-277 (joblib 1.5.3) and PYSEC-2025-183 (pyjwt 2.12.1)** while upstream fixes are pending. Both packages are at the latest release on PyPI; the advisories landed in pip-audit's database between today's main-branch run and this PR. The ignore list is targeted to these two PYSEC IDs only, so any future vulnerability still trips the gate.
 
 ### Notes for maintainers
 
@@ -6922,7 +6919,7 @@ found by review, removes dead code, and adds the repo's first Python lint gate.
 
 ### Changed
 
-- **Re-publish under a new tag so Portainer's webhook pulls a fresh image.** No code changes vs `2.5.32` -- the `ttlequals0/minuspod:2.5.32` push contained the `bulk_upsert` discovery-count fix, but the running stack restarted from its local image cache (the tag string was unchanged) and never picked up the new layers. Bumping the tag forces a registry pull on the next webhook fire. Future deploys against a same-tag rebuild should either set the stack's pull policy to always or follow this same pattern.
+- **Re-publish under a new tag so Portainer's webhook pulls a fresh image.** No code changes vs `2.5.32`. The `ttlequals0/minuspod:2.5.32` push contained the `bulk_upsert` discovery-count fix, but the running stack restarted from its local image cache (the tag string was unchanged) and never picked up the new layers. Bumping the tag forces a registry pull on the next webhook fire. Future deploys against a same-tag rebuild should either set the stack's pull policy to always or follow this same pattern.
 
 ## [2.5.32] - 2026-05-27
 
@@ -6937,10 +6934,10 @@ found by review, removes dead code, and adds the repo's first Python lint gate.
 
 - **`POST /feeds/refresh` now actually forces a re-fetch when `force=true`.** The handler used to clear every podcast's stored ETag and then call `refresh_all_feeds()` with no force argument, so per-feed work hit `refresh_rss_feed`'s 30-second `_refresh_coalesce` gate and silently skipped feeds touched recently (e.g. by the 15-minute background tick). `refresh_all_feeds(force=False)` now accepts the flag and threads it through to `refresh_rss_feed(force=True)`, which bypasses both the coalesce window and the conditional GET. New unit tests in `tests/unit/test_refresh_all_feeds_force.py` cover the propagation in both directions and the coalesce bypass.
 - **Force-refresh now clears stale ETag/Last-Modified when upstream drops the header.** Previously `refresh_rss_feed` only updated the DB ETag when the new response carried at least one of the two headers; on `force=True` with a 200 OK that omits both, the old DB value persisted and could cause the next scheduled conditional GET to send a stale validator and get a false 304. The guard now also fires whenever `force=True`, so a force refresh always brings the stored validators back into sync with the actual response (even if that means clearing them).
-- **`bulk_upsert_discovered_episodes` now returns the real new-row count.** SQLite's `cursor.rowcount` reports `1` for both the INSERT and the UPDATE branch of an `INSERT ... ON CONFLICT DO UPDATE` (and even for a UPDATE that sets every column to its current value), so the counter was incrementing for every re-touched row -- harmless for the DB but the downstream `Discovered N new episode(s)` log over-reported by orders of magnitude on a force refresh (e.g. `2697 new` when zero rows were actually inserted). The function now snapshots the existing GUID set up front and only counts genuinely new GUIDs. Added regression test in `tests/unit/test_database.py::TestBulkUpsertDiscoveredEpisodes::test_bulk_upsert_returns_zero_when_all_episodes_already_exist`.
+- **`bulk_upsert_discovered_episodes` now returns the real new-row count.** SQLite's `cursor.rowcount` reports `1` for both the INSERT and the UPDATE branch of an `INSERT ... ON CONFLICT DO UPDATE` (and even for a UPDATE that sets every column to its current value), so the counter was incrementing for every re-touched row. That is harmless for the DB, but the downstream `Discovered N new episode(s)` log over-reported by orders of magnitude on a force refresh (e.g. `2697 new` when zero rows were actually inserted). The function now snapshots the existing GUID set up front and only counts genuinely new GUIDs. Added regression test in `tests/unit/test_database.py::TestBulkUpsertDiscoveredEpisodes::test_bulk_upsert_returns_zero_when_all_episodes_already_exist`.
 - **FeedCard dropdown panel no longer clipped by the card's `overflow-hidden`.** The card root previously needed `overflow-hidden` to clip the artwork's square corner to the card's rounded top-left; the same property silently clipped the Refresh dropdown panel hanging below the footer. The artwork wrapper now owns its own `overflow-hidden rounded-tl-lg`, the footer carries `rounded-b-lg`, and the card root is free to overflow so dropdowns can escape.
 - **Dashboard toolbar `overflow-x-auto` no longer clips the Refresh All dropdown panel.** Segmented-control scrolling moved into an inner wrapper; the outer toolbar row is now plain flex so the dropdown can render below the trigger without being cut off.
-- **`DropdownMenu` now closes on outside click and `Escape`.** Pre-existing bug across all call sites (FeedCard, FeedListItem, FeedDetail, Dashboard) -- the menu only closed on trigger or item click, so users who opened it and then clicked elsewhere were left with a stuck-open menu. A new effect listens for `mousedown` / `touchstart` outside the menu root and for the `Escape` keypress.
+- **`DropdownMenu` now closes on outside click and `Escape`.** Pre-existing bug across all call sites (FeedCard, FeedListItem, FeedDetail, Dashboard): the menu only closed on trigger or item click, so users who opened it and then clicked elsewhere were left with a stuck-open menu. A new effect listens for `mousedown` / `touchstart` outside the menu root and for the `Escape` keypress.
 
 ### Documentation
 
@@ -7009,7 +7006,7 @@ found by review, removes dead code, and adds the repo's first Python lint gate.
 
 ### Fixed
 
-- **`openapi.yaml`: duplicate keys in the `PUT /settings/ad-detection` request body.** The request-body schema redundantly defined `audioBitrate`, `skipFlacCompression`, `adDetectionParallelWindows`, and `adReviewerParallelAds` twice -- once with the GET-response shape (`{value, isDefault}` object) and once with the actual request shape (plain string / boolean / integer). YAML parsers silently keep the last occurrence; OpenAPI validators warn or fail. The misplaced object-shape entries were copied from the response-side schema; the API only accepts plain values (e.g. `{"audioBitrate": "192k"}`), and the `_apply_audio_fields` handler in `src/api/settings.py` reads `data['audioBitrate']` directly as a string. Removed the misplaced object-shape block from the PUT request body and kept the plain-type entries. The other two locations where these fields appear (the `Settings` response schema at line 4922 with object shape, and the `Settings.defaults` sub-object at line 5078 with plain shape) are intentional and unchanged -- they describe distinct response shapes, not the request body. Original duplicate-key bug was for `audioBitrate` only; the same broken pattern was extended to the three new fields when they were added in 2.5.23. The bug went undetected because PyYAML silently keeps the last occurrence on duplicate keys -- no parse error, no warning, no CI step validated the spec. External fork user `s1shed` flagged the original `audioBitrate` duplicate (PR #287).
+- **`openapi.yaml`: duplicate keys in the `PUT /settings/ad-detection` request body.** The request-body schema redundantly defined `audioBitrate`, `skipFlacCompression`, `adDetectionParallelWindows`, and `adReviewerParallelAds` twice, once with the GET-response shape (`{value, isDefault}` object) and once with the actual request shape (plain string / boolean / integer). YAML parsers silently keep the last occurrence; OpenAPI validators warn or fail. The misplaced object-shape entries were copied from the response-side schema; the API only accepts plain values (e.g. `{"audioBitrate": "192k"}`), and the `_apply_audio_fields` handler in `src/api/settings.py` reads `data['audioBitrate']` directly as a string. Removed the misplaced object-shape block from the PUT request body and kept the plain-type entries. The other two locations where these fields appear (the `Settings` response schema at line 4922 with object shape, and the `Settings.defaults` sub-object at line 5078 with plain shape) are intentional and unchanged: they describe distinct response shapes, not the request body. Original duplicate-key bug was for `audioBitrate` only; the same broken pattern was extended to the three new fields when they were added in 2.5.23. The bug went undetected because PyYAML silently keeps the last occurrence on duplicate keys, with no parse error, no warning, and no CI step validating the spec. External fork user `s1shed` flagged the original `audioBitrate` duplicate (PR #287).
 
 ### Added
 
@@ -7042,14 +7039,14 @@ found by review, removes dead code, and adds the repo's first Python lint gate.
 
 ### Changed
 
-- **`ENV_BACKED_SETTINGS` registry with data-preserving migration.** Central registry in `src/config.py` describes every setting whose default comes from an environment variable: `(db_key, env_var, fallback, validator)`. First four entries: `llm_provider`, `audio_bitrate`, `skip_flac_compression`, `ad_detection_parallel_windows`. On every boot `_run_env_backed_settings_migration` in `src/database/schema/__init__.py` (a) ensures a `schema_migrations` table exists, (b) logs an audit line per registered key, (c) runs a one-shot corrective gate that flips `is_default` to 0 for any row where `is_default=1` but value diverges from env, **preserving the stored value** -- no deployer's DB loses data, (d) re-syncs `is_default=1` rows to the current env on every subsequent boot. Stops the recurrence pattern that caused issue #266 (env-backed settings ignored after first DB init) without overwriting customizations made via the UI. First implemented in the leboff/MinusPod fork; attribution added retroactively.
+- **`ENV_BACKED_SETTINGS` registry with data-preserving migration.** Central registry in `src/config.py` describes every setting whose default comes from an environment variable: `(db_key, env_var, fallback, validator)`. First four entries: `llm_provider`, `audio_bitrate`, `skip_flac_compression`, `ad_detection_parallel_windows`. On every boot `_run_env_backed_settings_migration` in `src/database/schema/__init__.py` (a) ensures a `schema_migrations` table exists, (b) logs an audit line per registered key, (c) runs a one-shot corrective gate that flips `is_default` to 0 for any row where `is_default=1` but value diverges from env, **preserving the stored value** so no deployer's DB loses data, (d) re-syncs `is_default=1` rows to the current env on every subsequent boot. Stops the recurrence pattern that caused issue #266 (env-backed settings ignored after first DB init) without overwriting customizations made via the UI. First implemented in the leboff/MinusPod fork; attribution added retroactively.
 - **Per-episode token accumulator is now lock-protected instead of thread-local.** `_episode_accumulator` in `src/llm_client.py` was a `threading.local()` so different gunicorn threads couldn't corrupt each other. With ad-detection windows now running on a `ThreadPoolExecutor`, worker threads need to contribute to the same totals as the main thread. The accumulator is now a single `_EpisodeAccumulator` object guarded by `threading.Lock`. Single-episode isolation is enforced upstream by the fcntl flock on `.processing_queue.lock`, so the global accumulator is correct in practice. The existing `start_episode_token_tracking()` / `get_episode_token_totals()` public API is unchanged.
 
 ## [2.5.22] - 2026-05-25
 
 ### Fixed
 
-- **Third-party HTTP/LLM SDK DEBUG output no longer bleeds into Loki when `LOG_LEVEL=DEBUG`.** Production runs at DEBUG so the application's own loggers (`podcast.refresh`, `podcast.patterns`, `pricing_fetcher`, `storage`, etc.) can be inspected, but the same setting was letting `openai._base_client`, `httpcore.http11`, and `httpx` emit full request/response dumps -- request headers, idempotency keys, response bodies -- on every LLM call. `setup_logging` in `src/main_app/__init__.py` now pins `openai`, `httpx`, `httpcore`, `anthropic`, `asyncio`, `charset_normalizer`, and `requests` to WARNING regardless of root level. The application's `podcast.llm_io` logger is unaffected so prompt/response capture still works on demand. Loki triage post-2.5.21 surfaced roughly 35 of these DEBUG lines per ad-detection run, plus continuous chatter from RSS refresh and pricing-fetcher; that volume now stays out of the log stream.
+- **Third-party HTTP/LLM SDK DEBUG output no longer bleeds into Loki when `LOG_LEVEL=DEBUG`.** Production runs at DEBUG so the application's own loggers (`podcast.refresh`, `podcast.patterns`, `pricing_fetcher`, `storage`, etc.) can be inspected, but the same setting was letting `openai._base_client`, `httpcore.http11`, and `httpx` emit full request/response dumps (request headers, idempotency keys, response bodies) on every LLM call. `setup_logging` in `src/main_app/__init__.py` now pins `openai`, `httpx`, `httpcore`, `anthropic`, `asyncio`, `charset_normalizer`, and `requests` to WARNING regardless of root level. The application's `podcast.llm_io` logger is unaffected so prompt/response capture still works on demand. Loki triage post-2.5.21 surfaced roughly 35 of these DEBUG lines per ad-detection run, plus continuous chatter from RSS refresh and pricing-fetcher; that volume now stays out of the log stream.
 
 ## [2.5.21] - 2026-05-24
 
@@ -7073,7 +7070,7 @@ found by review, removes dead code, and adds the repo's first Python lint gate.
 
 ### Added
 
-- **Pull-to-refresh in the PWA.** Native browser pull-to-refresh is disabled in installed (`display: standalone`) PWAs, so users on the home-screen icon had no way to refresh short of force-quitting the app. Adds whole-app pull-to-refresh via `pulltorefreshjs` (~5 KB gzipped). Triggers `window.location.reload()` only when the user has pulled at least 80 px past the top AND held there for 300 ms before releasing -- a fast flick or short pull snaps back with no action. Implementation is in `frontend/src/App.tsx`: `PullToRefresh.init` mounted from a `useEffect`, plus a side-channel `touchmove` listener that runs the 300 ms dwell timer (the library exposes no per-frame pull callback). The library's standard `.ptr--ptr` indicator colour-shifts to the primary theme token while the dwell timer is running so the user gets a "keep holding" cue. Suppressed when `window.scrollY != 0`, on the Login route, while an `input`/`textarea`/`select` has focus, and against re-entrant touchstart so a second finger does not overwrite the pull origin. `overscroll-behavior-y: contain` added to `html` to block the browser's own pull-to-refresh / rubber-band so the two handlers do not fight.
+- **Pull-to-refresh in the PWA.** Native browser pull-to-refresh is disabled in installed (`display: standalone`) PWAs, so users on the home-screen icon had no way to refresh short of force-quitting the app. Adds whole-app pull-to-refresh via `pulltorefreshjs` (~5 KB gzipped). Triggers `window.location.reload()` only when the user has pulled at least 80 px past the top AND held there for 300 ms before releasing. A fast flick or short pull snaps back with no action. Implementation is in `frontend/src/App.tsx`: `PullToRefresh.init` mounted from a `useEffect`, plus a side-channel `touchmove` listener that runs the 300 ms dwell timer (the library exposes no per-frame pull callback). The library's standard `.ptr--ptr` indicator colour-shifts to the primary theme token while the dwell timer is running so the user gets a "keep holding" cue. Suppressed when `window.scrollY != 0`, on the Login route, while an `input`/`textarea`/`select` has focus, and against re-entrant touchstart so a second finger does not overwrite the pull origin. `overscroll-behavior-y: contain` added to `html` to block the browser's own pull-to-refresh / rubber-band so the two handlers do not fight.
 
 ## [2.5.17] - 2026-05-22
 
@@ -7215,8 +7212,6 @@ found by review, removes dead code, and adds the repo's first Python lint gate.
 
 Tag `2.5.0` was published to Docker Hub but pulled stale bytes through a Portainer/registry cache layer on deploy. `2.5.1` is the first working release that ships the changes below. Treat `2.5.0` as withdrawn.
 
-
-
 ### Fixed
 
 - **Feed-detail and episode-detail pages now render the channel description as plaintext.** `FeedDetail.tsx` rendered `{feed.description}` directly, while the existing `EpisodeList`/`EpisodeDetail` paths already pipe descriptions through `stripHtml()`. Feeds whose channel description contains HTML (typical: Wordpress-generated `<p>` blocks) were rendering literal `<p>` and `<strong>` tags as visible text. Same `stripHtml` helper now used at the feed-detail callsite.
@@ -7291,7 +7286,7 @@ Tag `2.5.0` was published to Docker Hub but pulled stale bytes through a Portain
 
 ### Changed
 
-- **`ad_patterns.source_language` column (#252).** Patterns are now stamped with the ISO 639-1 transcript language they were learned from (read from the `whisper_language` setting; `'auto'` leaves the column null for language-agnostic behavior). `text_pattern_matcher.find_matches` accepts a `language=` argument and excludes patterns whose `source_language` is set and differs; nulls match any language so existing rows behave as before. The community export bundle includes `source_language` so a Spanish pattern submitted from Mexico won't get treated as a generic English-corpus global pattern on import. Helper at `src/utils/language.py:get_pattern_language(db)`. Schema migration is additive and idempotent. Defense-in-depth metadata only -- runtime impact is minimal because TF-IDF already self-prunes across languages.
+- **`ad_patterns.source_language` column (#252).** Patterns are now stamped with the ISO 639-1 transcript language they were learned from (read from the `whisper_language` setting; `'auto'` leaves the column null for language-agnostic behavior). `text_pattern_matcher.find_matches` accepts a `language=` argument and excludes patterns whose `source_language` is set and differs; nulls match any language so existing rows behave as before. The community export bundle includes `source_language` so a Spanish pattern submitted from Mexico won't get treated as a generic English-corpus global pattern on import. Helper at `src/utils/language.py:get_pattern_language(db)`. Schema migration is additive and idempotent. Defense-in-depth metadata only: runtime impact is minimal because TF-IDF already self-prunes across languages.
 
 ### Dependencies
 
@@ -7694,7 +7689,7 @@ Tag `2.5.0` was published to Docker Hub but pulled stale bytes through a Portain
 ### Changed
 
 - Benchmark docs now disclose how the corpus transcripts were produced. `benchmarks/llm/README.md` has a new "Transcript source" section listing the faster-whisper `large-v3` config, the exact `model.transcribe()` parameters (`beam_size=5`, adaptive `batch_size`, `word_timestamps=True`, `vad_filter=True` with custom `vad_parameters`, forced `language="en"`, and the sponsor-vocabulary `initial_prompt`), and a sample of `SEED_SPONSORS`. `benchmarks/llm/data/README.md` has a short pointer paragraph at the top. The generated `results/report.md` now contains a "Transcript source" section between "Methodology" and "Run Metadata" with the full sponsor list (254 entries) pulled lazily from `src/utils/constants.SEED_SPONSORS` at report time.
-- Full humanizer pass on `benchmarks/llm/README.md`, `benchmarks/llm/data/README.md`, `benchmarks/llm/CONTRIBUTING.md`, and prose strings in `benchmarks/llm/src/benchmark/report.py`. All ASCII pseudo-em-dashes (` -- `) replaced with sentence breaks, semicolons, or colons depending on context. No Unicode em/en-dashes, smart quotes, bullets, or ellipsis chars in any benchmark doc.
+- Full humanizer pass on `benchmarks/llm/README.md`, `benchmarks/llm/data/README.md`, `benchmarks/llm/CONTRIBUTING.md`, and prose strings in `benchmarks/llm/src/benchmark/report.py`. All ASCII pseudo-em-dashes (`--`) replaced with sentence breaks, semicolons, or colons depending on context. No Unicode em/en-dashes, smart quotes, bullets, or ellipsis chars in any benchmark doc.
 
 ## [2.1.7] - 2026-05-10
 
@@ -7806,7 +7801,7 @@ Tag `2.5.0` was published to Docker Hub but pulled stale bytes through a Portain
 ### Fixed
 
 - Settings page: editing one field and clicking Save no longer ships the entire form as a payload. The `updateMutation.mutationFn` in `frontend/src/pages/Settings.tsx` now compares each state variable to its loaded value (`settings.X?.value`) and includes the field in the request body only when it changed. A short-circuit guard throws if `settings` is undefined at Save time, closing a sub-frame hydration window where the Save button could briefly render before the loaded values were applied to local state. The backend `if 'fieldName' in data:` guards in `update_ad_detection_settings()` already left omitted fields untouched in the DB; this PR adds two regression tests (`test_single_field_save_leaves_others_untouched`, `test_revert_to_defaults_is_accepted`) that lock that behaviour in. (#201)
-- Slug length cap raised from 64 to 200 chars in `src/utils/validation.py`. The strict canonical `SLUG_RE` was rejecting auto-generated slugs from long podcast titles -- representative example: an "Artificial Intelligence (AI) News, ChatGPT, OpenAI..." podcast generates a 78-char slug. Such podcasts created successfully (read-side validators are permissive) but every WRITE endpoint that re-validates the slug -- including `POST /api/v1/feeds/{slug}/episodes/{episode_id}/corrections` -- silently returned 400 with no obvious user-facing signal. Path-traversal characters and the must-start-with-alphanumeric rule are unchanged. (#202)
+- Slug length cap raised from 64 to 200 chars in `src/utils/validation.py`. The strict canonical `SLUG_RE` was rejecting auto-generated slugs from long podcast titles. Representative example: an "Artificial Intelligence (AI) News, ChatGPT, OpenAI..." podcast generates a 78-char slug. Such podcasts created successfully (read-side validators are permissive) but every WRITE endpoint that re-validates the slug (including `POST /api/v1/feeds/{slug}/episodes/{episode_id}/corrections`) silently returned 400 with no obvious user-facing signal. Path-traversal characters and the must-start-with-alphanumeric rule are unchanged. (#202)
 
 ## [2.0.26] - 2026-05-06
 
@@ -7830,20 +7825,20 @@ Tag `2.5.0` was published to Docker Hub but pulled stale bytes through a Portain
 - Pre-work for an offline LLM benchmark that imports MinusPod modules directly. All changes are behavior-preserving for production:
   - Lifted `_extract_json_ads_array` and `_parse_ads_from_response` from `AdDetector` instance methods to module-level functions in `src/ad_detector.py` (`extract_json_ads_array`, `parse_ads_from_response`). The 3 in-tree call sites are updated; no external callers existed. `parse_ads_from_response` gains an optional `sponsor_service` keyword arg (defaults to `None`) so the benchmark can call it without an `AdDetector` instance.
   - Lifted the per-window prompt assembly to a module-level `format_window_prompt(...)` function. Both first-pass detection and verification-pass loops now call it instead of duplicating the assembly inline.
-  - Added a module-level `get_static_system_prompt()` that returns `DEFAULT_SYSTEM_PROMPT` + the static `SEED_SPONSORS` list -- a deterministic, source-controlled prompt for the benchmark. `AdDetector.get_system_prompt()` (the production instance method that loads stored prompts and merges DB-derived sponsors) is unchanged. The two functions live side-by-side; production never calls the module-level one.
+  - Added a module-level `get_static_system_prompt()` that returns `DEFAULT_SYSTEM_PROMPT` + the static `SEED_SPONSORS` list: a deterministic, source-controlled prompt for the benchmark. `AdDetector.get_system_prompt()` (the production instance method that loads stored prompts and merges DB-derived sponsors) is unchanged. The two functions live side-by-side; production never calls the module-level one.
   - Moved `SEED_SPONSORS` and `SEED_NORMALIZATIONS` from `src/sponsor_service.py` into `src/utils/constants.py`. Re-exported from `sponsor_service` so existing imports (incl. `tests/unit/test_sponsor_seed_idempotent.py`) keep working without modification.
   - Renamed `_parse_vtt_to_segments` -> `parse_vtt_to_segments` in `src/api/episodes.py` (single in-tree caller updated). The benchmark imports it directly to feed transcripts through the same parser production uses.
   - Added `benchmarks/` to `.dockerignore` so the offline benchmark corpus, raw LLM responses, and reports never land in the production image.
 
 ### Tuned
 
-- `AD_DETECTION_MAX_TOKENS` default raised from 2000 to 4096. The 2000-token ceiling was tight for verbose-but-correct LLM responses (multi-sponsor transcripts with detailed `reason` fields could truncate mid-JSON, surfacing as parse failures rather than truncation). 4096 doubles headroom while still bounding cost. **Cost note:** operators using the default will see higher max output tokens per detection call -- typical responses are well under 2000 already, so practical token spend is unchanged for short responses but larger for verbose ones. Operators with a custom `AD_DETECTION_MAX_TOKENS` env override are unaffected.
+- `AD_DETECTION_MAX_TOKENS` default raised from 2000 to 4096. The 2000-token ceiling was tight for verbose-but-correct LLM responses (multi-sponsor transcripts with detailed `reason` fields could truncate mid-JSON, surfacing as parse failures rather than truncation). 4096 doubles headroom while still bounding cost. **Cost note:** operators using the default will see higher max output tokens per detection call. Typical responses are well under 2000 already, so practical token spend is unchanged for short responses but larger for verbose ones. Operators with a custom `AD_DETECTION_MAX_TOKENS` env override are unaffected.
 
 ## [2.0.24] - 2026-05-05
 
 ### Fixed
 
-- Pattern auto-creation from user corrections (`POST /api/v1/episodes/{slug}/{episode_id}/corrections` with `correction_type=confirm` or `boundary_adjustment`) stored the numeric `podcasts.id` in `ad_patterns.podcast_id`, while every other creation path (`learn_from_detections`, verification-miss auto-create) and the detection-side query (`get_ad_patterns(podcast_id=slug)`) use the slug. Patterns created this way were scoped to a value the matcher never queries with, so they were silently orphaned -- never retrieved during detection on subsequent episodes. `src/api/patterns.py` now stores the slug at both call sites, matching the `ap.podcast_id = p.slug` join the rest of the schema assumes (see `src/database/patterns.py:17`). Existing orphaned rows can be repaired by rewriting `ad_patterns.podcast_id` from numeric ids to the corresponding `podcasts.slug`.
+- Pattern auto-creation from user corrections (`POST /api/v1/episodes/{slug}/{episode_id}/corrections` with `correction_type=confirm` or `boundary_adjustment`) stored the numeric `podcasts.id` in `ad_patterns.podcast_id`, while every other creation path (`learn_from_detections`, verification-miss auto-create) and the detection-side query (`get_ad_patterns(podcast_id=slug)`) use the slug. Patterns created this way were scoped to a value the matcher never queries with, so they were silently orphaned and never retrieved during detection on subsequent episodes. `src/api/patterns.py` now stores the slug at both call sites, matching the `ap.podcast_id = p.slug` join the rest of the schema assumes (see `src/database/patterns.py:17`). Existing orphaned rows can be repaired by rewriting `ad_patterns.podcast_id` from numeric ids to the corresponding `podcasts.slug`.
 
 ## [2.0.23] - 2026-05-05
 
@@ -7882,7 +7877,7 @@ Tag `2.5.0` was published to Docker Hub but pulled stale bytes through a Portain
 
 ### Added
 
-- `Dockerfile.cpu` and `docker-compose.cpu.yml` -- CPU-only variant for hosts without an NVIDIA GPU (issue #184). Drops the CUDA runtime base layer (~3.3 GB) and the bundled `nvidia-*` wheels (~2.8 GB) by installing the CPU torch wheels from `https://download.pytorch.org/whl/cpu`. Final image lands around 3 GB versus ~16 GB for the GPU image. Published to Docker Hub as `ttlequals0/minuspod:2.0.21-cpu` and the floating `:cpu` tag. Pull with `docker compose -f docker-compose.cpu.yml up -d`. The `:latest` tag still points at the GPU image; CPU users should track `:cpu` or a versioned `-cpu` tag. CPU transcription is slow -- for non-trivial feeds, set `WHISPER_BACKEND=openai-api` and point at Groq, OpenAI, or a self-hosted whisper.cpp server.
+- `Dockerfile.cpu` and `docker-compose.cpu.yml`: CPU-only variant for hosts without an NVIDIA GPU (issue #184). Drops the CUDA runtime base layer (~3.3 GB) and the bundled `nvidia-*` wheels (~2.8 GB) by installing the CPU torch wheels from `https://download.pytorch.org/whl/cpu`. Final image lands around 3 GB versus ~16 GB for the GPU image. Published to Docker Hub as `ttlequals0/minuspod:2.0.21-cpu` and the floating `:cpu` tag. Pull with `docker compose -f docker-compose.cpu.yml up -d`. The `:latest` tag still points at the GPU image; CPU users should track `:cpu` or a versioned `-cpu` tag. CPU transcription is slow: for non-trivial feeds, set `WHISPER_BACKEND=openai-api` and point at Groq, OpenAI, or a self-hosted whisper.cpp server.
 
 ### Changed
 
@@ -7890,7 +7885,7 @@ Tag `2.5.0` was published to Docker Hub but pulled stale bytes through a Portain
 
 ### Removed
 
-- `docker-compose.openrouter.yml` -- superseded by `docker-compose.cpu.yml` (which delivers the same no-GPU path with a 3 GB image instead of the 16 GB GPU image the openrouter compose was pulling). Switch to OpenRouter on either main or CPU compose by setting `LLM_PROVIDER=openrouter` and `OPENROUTER_API_KEY` in `.env`.
+- `docker-compose.openrouter.yml`: superseded by `docker-compose.cpu.yml` (which delivers the same no-GPU path with a 3 GB image instead of the 16 GB GPU image the openrouter compose was pulling). Switch to OpenRouter on either main or CPU compose by setting `LLM_PROVIDER=openrouter` and `OPENROUTER_API_KEY` in `.env`.
 
 ## [2.0.20] - 2026-05-02
 
@@ -7898,7 +7893,7 @@ Adds a Global Defaults group to the settings page (under "AI & Processing") that
 
 ### Added
 
-- Settings: two new keys in the settings table -- `max_feed_episodes` (int, default 300) and `only_expose_processed_default` (bool, default false). Seeded via `_seed_default_settings()`. Existing `auto_process_enabled` is now grouped with them in the UI.
+- Settings: two new keys in the settings table: `max_feed_episodes` (int, default 300) and `only_expose_processed_default` (bool, default false). Seeded via `_seed_default_settings()`. Existing `auto_process_enabled` is now grouped with them in the UI.
 - `src/database/podcasts.py`: `get_max_episodes_for_podcast(slug, podcast=None)` and `is_only_expose_processed_for_podcast(slug, podcast=None)` resolvers (per-feed value when set, else global, else hard fallback). Mirror the `is_auto_process_enabled_for_podcast` shape.
 - `src/api/__init__.py`: `_serialize_nullable_bool` / `_deserialize_nullable_bool` for tri-state INTEGER columns where None means "use the matching global default."
 - `frontend/src/pages/settings/GlobalDefaultsSection.tsx`: new section component matching the project's CollapsibleSection + custom toggle div + number input patterns.
@@ -7911,7 +7906,7 @@ Adds a Global Defaults group to the settings page (under "AI & Processing") that
 - `frontend/src/pages/AddFeed.tsx` + `FeedDetail.tsx`: per-feed control becomes a tri-state select (Global Default / Enabled / Disabled), matching the existing `autoProcessOverride` pattern.
 - `src/main_app/feeds.py` `refresh_rss_feed`: routes both `feed_cap` and `processed_only` through the new resolvers instead of inline `or 300` and `bool(...)`.
 - `src/api/feeds.py`: `maxEpisodes` and `onlyExposeProcessedEpisodes` in feed responses now return null when the per-feed value is not set (was: false / 300). Frontend types updated to `boolean | null` and `number | null`.
-- `Settings` page "Audio" section: removed the static "Audio Analysis" subsection (no controls, just descriptive text -- the section already documented behavior elsewhere).
+- `Settings` page "Audio" section: removed the static "Audio Analysis" subsection (no controls, just descriptive text; the section already documented behavior elsewhere).
 - `frontend/src/pages/settings/AdDetectionSection.tsx`: auto-process toggle moved out (now in Global Defaults). Section now hosts only the minimum-confidence slider.
 
 ## [2.0.19] - 2026-05-02
@@ -7977,7 +7972,7 @@ Direct evidence: at 2026-04-25 23:27:09 the user switched provider from ``openro
 
 ### Fixed
 
-- ``src/llm_client.py`` ``get_llm_client()`` now compares the cached client's config to the current effective config on every call and rebuilds when they differ. New ``_current_config_key()`` returns a stable string of the effective ``provider`` plus ``base_url`` (and applies the same Ollama ``/v1`` normalization ``_build_client`` applies). The ``_cached_client_config_key`` module global is set when the cache is populated and compared on each subsequent call. Cost: one ``get_effective_provider()`` plus one ``get_effective_base_url()`` per call -- both go through the existing 5s settings cache, so the steady-state hot path is two ``dict`` lookups under the existing ``_provider_cache_lock``. After at most ``_PROVIDER_CACHE_TTL`` seconds, every worker sees the new config and rebuilds without IPC. The settings handler still calls ``force_new=True`` for an immediate rebuild on the worker that handled the PUT.
+- ``src/llm_client.py`` ``get_llm_client()`` now compares the cached client's config to the current effective config on every call and rebuilds when they differ. New ``_current_config_key()`` returns a stable string of the effective ``provider`` plus ``base_url`` (and applies the same Ollama ``/v1`` normalization ``_build_client`` applies). The ``_cached_client_config_key`` module global is set when the cache is populated and compared on each subsequent call. Cost: one ``get_effective_provider()`` plus one ``get_effective_base_url()`` per call. Both go through the existing 5s settings cache, so the steady-state hot path is two ``dict`` lookups under the existing ``_provider_cache_lock``. After at most ``_PROVIDER_CACHE_TTL`` seconds, every worker sees the new config and rebuilds without IPC. The settings handler still calls ``force_new=True`` for an immediate rebuild on the worker that handled the PUT.
 
 ### Added
 
@@ -7991,11 +7986,11 @@ Two related fixes to LLM-client behavior that surfaced together while running an
 
 - `src/ad_detector.py` and `src/chapters_generator.py` no longer cache the LLM client instance on `self._llm_client`. Both classes now expose `_llm_client` as a `@property` that reads through `get_llm_client()` on every access. Direct evidence: on 2026-04-25 the user switched provider via `/settings` from openai-compatible to openrouter, the global cached client correctly rebuilt to `https://openrouter.ai/api/v1`, but `AdDetector` (a module-level singleton in `src/main_app/__init__.py`) still held the old instance whose `base_url` was `http://your-server:8000/v1`. Three POSTs at 22:28-22:29 routed `deepseek/deepseek-v4-flash` to the local endpoint and got 502s. The property closes the per-instance cache layer entirely; only the global, lock-protected, settings-API-invalidated cache in `llm_client._cached_client` remains. A test-only setter writes to a `_llm_client_override` slot so existing tests that mock `det._llm_client = MagicMock()` keep working.
 - `src/llm_client.py` now skips `circuit_breaker.record_failure()` when `is_rate_limit_error(e)` is true in both `AnthropicClient.messages_create` and `OpenAICompatibleClient.messages_create`. Throttling is the provider asking us to slow down, not a provider outage; counting it would open the breaker after 5 free-tier 429s and block the entire provider for 60s. Non-rate-limit errors (5xx, network, timeout) still record failure as before.
-- `src/ad_detector._call_llm_for_window` honors the `Retry-After` header on 429s. New helper `extract_retry_after()` in `src/llm_client.py` reads the header off `error.response.headers` (both Anthropic and OpenAI SDK shapes), routed through `parse_retry_after()` in the new `src/utils/rate_limit.py` (delta-seconds + RFC 7231 HTTP-date, clamped to 300s). Server hint gets an additive 0-2s jitter so concurrent workers don't all wake on the same tick. When the header is absent, the rate-limit branch uses `calculate_backoff(attempt, base_delay=30.0, max_delay=120.0)` -- closer to the prior 60s minute-window behavior than the default 2s exponential backoff would have been. The previous unconditional `delay = 60.0` is gone.
+- `src/ad_detector._call_llm_for_window` honors the `Retry-After` header on 429s. New helper `extract_retry_after()` in `src/llm_client.py` reads the header off `error.response.headers` (both Anthropic and OpenAI SDK shapes), routed through `parse_retry_after()` in the new `src/utils/rate_limit.py` (delta-seconds + RFC 7231 HTTP-date, clamped to 300s). Server hint gets an additive 0-2s jitter so concurrent workers don't all wake on the same tick. When the header is absent, the rate-limit branch uses `calculate_backoff(attempt, base_delay=30.0, max_delay=120.0)`, closer to the prior 60s minute-window behavior than the default 2s exponential backoff would have been. The previous unconditional `delay = 60.0` is gone.
 
 ### Added
 
-- `src/utils/rate_limit.py` with `parse_retry_after(value, *, max_seconds=300.0)` -- the only HTTP `Retry-After` parser in the repo. Accepts delta-seconds and HTTP-date forms.
+- `src/utils/rate_limit.py` with `parse_retry_after(value, *, max_seconds=300.0)`, the only HTTP `Retry-After` parser in the repo. Accepts delta-seconds and HTTP-date forms.
 - `src/llm_client.extract_retry_after(error, *, max_seconds=300.0)` for pulling the header off provider exceptions.
 - `tests/unit/test_rate_limit_helpers.py` (14 cases) and 10 new cases in `tests/unit/test_llm_client_openrouter.py` covering: header presence/absence, lowercase header name, max-seconds clamp, circuit breaker stays closed across 5 consecutive 429s on both client classes, non-429 errors still trip the breaker, and the AdDetector property re-reads `get_llm_client()` on every access. 803 tests pass; was 779 + 24 new.
 
@@ -8242,7 +8237,7 @@ Coordinated security hardening pass across the auth surface, crypto, SSRF, path 
 - `graceful_shutdown` now explicitly releases the background-leader `fcntl.flock` on signal, and calls `utils.subprocess_registry.terminate_all` to escalate SIGTERM -> SIGKILL on any tracked ffmpeg / whisper child. On Linux the close-on-exit semantics released the lock anyway; the explicit `LOCK_UN` is defensive for NFS and weirder filesystem layers.
 - `/ui/*` static responses now ship per-class `Cache-Control` headers: `assets/*` (Vite-fingerprinted bundles) get `public, max-age=31536000, immutable`; `index.html` gets `no-cache, must-revalidate` so the next deploy is picked up immediately; other static files get `public, max-age=3600`.
 - `Access-Control-Allow-Origin: *` on `/episodes/<slug>/<episode_id>.vtt` and `/episodes/<slug>/<episode_id>/chapters.json` is now annotated in code as intentional (Podcasting 2.0 cross-origin fetch; no credentials) so future CORS-removal passes do not regress the spec-standard behavior.
-- **Breaking:** `/docs` and `/openapi.yaml` moved under `/api/v1/`. The legacy root paths are no longer served -- operators must update any existing bookmarks or Portainer health checks to point at `/api/v1/docs` and `/api/v1/openapi.yaml`. The root paths return 404 via the slug preprocessor (both entries are in `RESERVED_SLUGS`). Swagger UI now loads `swagger-ui-dist` assets from `/ui/swagger/*` (bundled in the Docker image at build time) instead of the `unpkg.com` CDN. CSP and air-gapped deployments no longer require an external exception.
+- **Breaking:** `/docs` and `/openapi.yaml` moved under `/api/v1/`. The legacy root paths are no longer served, so operators must update any existing bookmarks or Portainer health checks to point at `/api/v1/docs` and `/api/v1/openapi.yaml`. The root paths return 404 via the slug preprocessor (both entries are in `RESERVED_SLUGS`). Swagger UI now loads `swagger-ui-dist` assets from `/ui/swagger/*` (bundled in the Docker image at build time) instead of the `unpkg.com` CDN. CSP and air-gapped deployments no longer require an external exception.
 - `POST /api/v1/sponsors/normalizations` and `PUT /api/v1/sponsors/normalizations/<id>` accept a v2 body shape `{terms, canonical, category}`. The legacy `{pattern, replacement, category}` shape is still accepted for one release with a deprecation log; `GET` responses now return the v2 shape.
 - `get_or_create_secret_key` acquires an exclusive `fcntl.flock` on `<data-dir>/.secret_key.lock` before reading or writing the persisted key. Two gunicorn workers booting simultaneously can no longer mint two different keys and invalidate each other's sessions. Data-dir resolution now honors `DATA_DIR`, `DATA_PATH`, and `MINUSPOD_DATA_DIR` for consistency with Storage / StatusService / ProcessingQueue.
 - Blueprint-wide `url_value_preprocessor` rejects path-traversal slugs on every `/api/v1/*` route before the handler runs. Reads use the permissive `is_dangerous_slug`; writes use strict `is_valid_slug` and return 400. Public `/<slug>` RSS and `/episodes/<slug>/...` routes continue to rely on the storage-layer containment guard.
@@ -8427,7 +8422,7 @@ Coordinated security hardening pass across the auth surface, crypto, SSRF, path 
 ## [1.0.100] - 2026-04-12
 
 ### Fixed
-- **Verification pass 413 on long episodes (>~30min)**: Verification re-transcription now uses `transcribe_chunked()` instead of single-shot `transcribe()`, matching the first pass. Episodes over the Whisper API's 25MB limit no longer silently report "clean" after a 413 -- they're chunked into ~10min segments and transcribed normally. Fixes #114.
+- **Verification pass 413 on long episodes (>~30min)**: Verification re-transcription now uses `transcribe_chunked()` instead of single-shot `transcribe()`, matching the first pass. Episodes over the Whisper API's 25MB limit no longer silently report "clean" after a 413. They're chunked into ~10min segments and transcribed normally. Fixes #114.
 
 ## [1.0.99] - 2026-04-12
 
@@ -8454,10 +8449,10 @@ Coordinated security hardening pass across the auth surface, crypto, SSRF, path 
 ## [1.0.95] - 2026-04-09
 
 ### Fixed
-- **History page filter broken**: Podcast name filter did nothing due to parameter mismatch -- frontend sent `podcast_slug`, backend read `podcast`. Fixed in both history list and export endpoints.
+- **History page filter broken**: Podcast name filter did nothing due to parameter mismatch: frontend sent `podcast_slug`, backend read `podcast`. Fixed in both history list and export endpoints.
 - **Ad detection confidence threshold**: Lowered `medium`/`moderate` confidence mapping from 0.80 to 0.75. The previous value exactly equaled `MIN_CUT_CONFIDENCE`, causing borderline ads to be silently dropped. Added warning logs for discarded ad candidates (missing timestamps, invalid ranges) to aid debugging.
 - **Ad editor seek-to-marker plays from start**: Jumping to an ad marker from the episode detail page reset audio to the ad start instead of the clicked timestamp. Fixed competing useEffect race condition with a ref-based guard.
-- **Feed 404s logged as ERROR**: Bot/crawler requests for non-existent feeds (e.g. security-weekly, lex-fridman) logged as ERROR. Now logged as WARNING since these are expected for unknown feeds.
+- **Feed 404s logged as ERROR**: Bot/crawler requests for non-existent feeds (e.g. example-podcast) logged as ERROR. Now logged as WARNING since these are expected for unknown feeds.
 
 ### Added
 - **LLM auth failure webhook**: New `Auth Failure` webhook event fires when LLM provider returns 401/403, with 5-minute dedup to prevent spam. Integrates with existing webhook infrastructure (HMAC signatures, enabled/events filtering).
@@ -8477,7 +8472,7 @@ Coordinated security hardening pass across the auth surface, crypto, SSRF, path 
 ## [1.0.92] - 2026-04-06
 
 ### Fixed
-- **LLM returning non-numeric timestamps/confidence**: Added explicit type instructions to both detection and verification prompts -- "start", "end", and "confidence" fields must be numeric floats, never strings like "high", "low", or "95%". Includes sample values in the schema line for clarity.
+- **LLM returning non-numeric timestamps/confidence**: Added explicit type instructions to both detection and verification prompts: "start", "end", and "confidence" fields must be numeric floats, never strings like "high", "low", or "95%". Includes sample values in the schema line for clarity.
 
 ## [1.0.91] - 2026-04-06
 
@@ -8521,8 +8516,8 @@ Coordinated security hardening pass across the auth surface, crypto, SSRF, path 
 ## [1.0.88] - 2026-03-25
 
 ### Fixed
-- **RSS feed refresh broken for feeds with new episodes**: v1.0.86 regression -- removing inline date parsing left `published_str` undefined, crashing `refresh_rss_feed` for any feed with discovered episodes. This prevented RSS feeds from updating after processing and blocked auto-process queuing.
-- **RSS feed stale after 304 when episodes finish processing**: When upstream returns 304 Not Modified, the periodic refresh returned early without regenerating the modified RSS -- missing any episodes that completed processing since the last full refresh. Now checks if the cached RSS is missing processed episodes and forces a full re-fetch if so.
+- **RSS feed refresh broken for feeds with new episodes**: v1.0.86 regression: removing inline date parsing left `published_str` undefined, crashing `refresh_rss_feed` for any feed with discovered episodes. This prevented RSS feeds from updating after processing and blocked auto-process queuing.
+- **RSS feed stale after 304 when episodes finish processing**: When upstream returns 304 Not Modified, the periodic refresh returned early without regenerating the modified RSS, missing any episodes that completed processing since the last full refresh. Now checks if the cached RSS is missing processed episodes and forces a full re-fetch if so.
 
 ## [1.0.87] - 2026-03-25
 
@@ -8570,7 +8565,7 @@ Coordinated security hardening pass across the auth surface, crypto, SSRF, path 
 
 ### Changed
 - **Codebase simplification pass**: Consolidated duplicate code, extracted shared utilities, and improved efficiency across backend Python source.
-- **Extracted shared utilities**: `parse_iso_datetime()` in `utils/time.py`, `parse_transcript_segments()` and `get_transcript_text_for_range()` in `utils/text.py`, `get_with_retry()` in `utils/http.py`, `calculate_backoff()` in `utils/retry.py` -- replaces inline duplicates across 10+ files.
+- **Extracted shared utilities**: `parse_iso_datetime()` in `utils/time.py`, `parse_transcript_segments()` and `get_transcript_text_for_range()` in `utils/text.py`, `get_with_retry()` in `utils/http.py`, `calculate_backoff()` in `utils/retry.py`. This replaces inline duplicates across 10+ files.
 - **Provider constants moved to config.py**: `PROVIDER_ANTHROPIC`, `PROVIDER_OPENROUTER`, `PROVIDER_OLLAMA`, `PROVIDERS_NON_ANTHROPIC` now defined in `config.py` instead of `llm_client.py`.
 - **Webhook service refactored**: Replaced `urllib.request`/`_dispatch_webhook()` with `post_with_retry()`, replaced inline datetime formatting with `utc_now_iso()`, added `WebhookPayload` dataclass. Webhook retry now only retries transient errors (429/5xx) instead of all HTTP errors.
 - **Stats query consolidated**: Replaced 7 separate `SELECT COUNT/AVG/SUM` queries in `get_processing_history_stats()` with a single `CASE WHEN` conditional aggregation query.
@@ -8582,17 +8577,17 @@ Coordinated security hardening pass across the auth surface, crypto, SSRF, path 
 - **Pricing fetcher**: Added retry via `get_with_retry()` to `fetch_openrouter_pricing()` and `fetch_pricepertoken_pricing()`, replaced inline ISO datetime parsing with `parse_iso_datetime()`.
 
 ### Removed
-- Legacy OpenRouter Whisper migration code in `transcriber.py` (`_LEGACY_BACKEND_OPENROUTER`, migration fallback blocks) -- migration was completed in v1.0.68.
+- Legacy OpenRouter Whisper migration code in `transcriber.py` (`_LEGACY_BACKEND_OPENROUTER`, migration fallback blocks). The migration was completed in v1.0.68.
 - `_dispatch_webhook()` in webhook_service.py (replaced by `post_with_retry()` from utils).
 - `_segments_to_text()` in roll_detector.py (replaced by `get_transcript_text_for_range()` from utils).
 - `get_transcript_text_for_range()` in ad_detector.py (moved to utils/text.py).
 - `httpx` dependency usage in llm_client.py (replaced with `requests`).
-- Legacy `openai` and `wrapper` provider aliases from `PROVIDERS_NON_ANTHROPIC` -- standardized on `openai-compatible` and `ollama` only.
+- Legacy `openai` and `wrapper` provider aliases from `PROVIDERS_NON_ANTHROPIC`. Standardized on `openai-compatible` and `ollama` only.
 
 ## [1.0.82] - 2026-03-17
 
 ### Fixed
-- **Duplicate pricing fetches across gunicorn workers**: Each worker had its own in-memory `_last_fetch` counter, causing independent pricing fetches on every container start. Added DB-level coordination via `MAX(updated_at)` from `model_pricing` table -- if another worker recently wrote pricing within TTL, the second worker syncs its in-memory timer and skips the HTTP fetch.
+- **Duplicate pricing fetches across gunicorn workers**: Each worker had its own in-memory `_last_fetch` counter, causing independent pricing fetches on every container start. Added DB-level coordination via `MAX(updated_at)` from `model_pricing` table: if another worker recently wrote pricing within TTL, the second worker syncs its in-memory timer and skips the HTTP fetch.
 - **Pre-roll detection gap in Full reprocess mode**: Full mode (`skip_patterns=True`) bypasses Stages 1 & 2, leaving `detect_preroll()` as the sole safety net for short pre-roll ads. Lowered the ad pattern match threshold from 2 to 1 when `skip_patterns=True` so DAI pre-rolls with a single obvious ad indicator are caught.
 - **Prefix match pricing lookup matched wrong models**: `_calculate_token_cost` prefix fallback could match a shorter stored key to a longer distinct model (e.g., `gpt4o` incorrectly matching `gpt4omini`). Added 80% length coverage requirement so stored keys must cover most of the lookup key.
 - **Per-window LLM retry retried non-retryable errors**: `_call_llm_for_window` per-window retry loop retried unconditionally, including auth and forbidden errors. Now checks `is_retryable_error()` before entering per-window retries.
@@ -8703,7 +8698,7 @@ Coordinated security hardening pass across the auth surface, crypto, SSRF, path 
 ## [1.0.68] - 2026-03-15
 
 ### Removed
-- **OpenRouter as Whisper backend**: OpenRouter does not support the `/v1/audio/transcriptions` endpoint -- all transcription attempts returned 500 errors. The `openrouter-api` whisper backend has been removed from config, settings API, frontend UI, and documentation. Users who had this backend configured will automatically fall back to local Whisper with a warning log. For cloud transcription without a GPU, use `WHISPER_BACKEND=openai-api` with Groq or another OpenAI-compatible provider. OpenRouter remains fully supported as an LLM provider.
+- **OpenRouter as Whisper backend**: OpenRouter does not support the `/v1/audio/transcriptions` endpoint, and all transcription attempts returned 500 errors. The `openrouter-api` whisper backend has been removed from config, settings API, frontend UI, and documentation. Users who had this backend configured will automatically fall back to local Whisper with a warning log. For cloud transcription without a GPU, use `WHISPER_BACKEND=openai-api` with Groq or another OpenAI-compatible provider. OpenRouter remains fully supported as an LLM provider.
 
 ## [1.0.67] - 2026-03-15
 
@@ -8748,7 +8743,7 @@ Coordinated security hardening pass across the auth surface, crypto, SSRF, path 
 
 ### Added
 - **OpenRouter LLM provider**: Use 200+ models via one API key. Set `LLM_PROVIDER=openrouter` and `OPENROUTER_API_KEY`, or switch from the Settings UI at runtime.
-- **OpenRouter Whisper backend**: `WHISPER_BACKEND=openrouter-api` routes transcription through OpenRouter -- no NVIDIA GPU needed.
+- **OpenRouter Whisper backend**: `WHISPER_BACKEND=openrouter-api` routes transcription through OpenRouter, so no NVIDIA GPU is needed.
 - **Frontend OpenRouter UI**: Provider dropdown, inline API key input, and status badges in Settings.
 - **docker-compose.openrouter.yml**: Ready-to-use compose file for GPU-free OpenRouter setup.
 - **.env.example**: Template covering all LLM and Whisper provider options.
@@ -8772,7 +8767,7 @@ Coordinated security hardening pass across the auth surface, crypto, SSRF, path 
 ## [1.0.60] - 2026-03-15
 
 ### Security
-- **PyTorch 2.5.0 -> 2.6.0**: Fixes CVE-2025-32434 (CRITICAL, CVSS 9.3) -- RCE via `torch.load` weights_only bypass. CUDA variant moved from cu121 to cu124.
+- **PyTorch 2.5.0 -> 2.6.0**: Fixes CVE-2025-32434 (CRITICAL, CVSS 9.3): RCE via `torch.load` weights_only bypass. CUDA variant moved from cu121 to cu124.
 - **cryptography >= 46.0.5**: Fixes CVE-2026-26007 (HIGH, CVSS 8.2), CVE-2023-50782 (HIGH, CVSS 8.7), CVE-2024-26130 (HIGH, CVSS 7.5), CVE-2024-0727 (MEDIUM), GHSA-h4gh-qq45-vh27
 - **flask-cors 4.0.2 -> >= 6.0.0**: Fixes CVE-2024-6844, CVE-2024-6866, CVE-2024-6839 (CORS bypass)
 - **flask 3.0.3 -> >= 3.1.3**: Fixes CVE-2026-27205 (LOW, CVSS 2.3)
@@ -8783,7 +8778,7 @@ Coordinated security hardening pass across the auth surface, crypto, SSRF, path 
 ## [1.0.59] - 2026-03-14
 
 ### Security
-- **PyTorch 2.3.0 -> 2.5.0**: Fixes CVE-2024-48063 (CRITICAL, CVSS 9.8) -- RCE via `torch.distributed.rpc.RemoteModule` deserialization
+- **PyTorch 2.3.0 -> 2.5.0**: Fixes CVE-2024-48063 (CRITICAL, CVSS 9.8): RCE via `torch.distributed.rpc.RemoteModule` deserialization
 - **flask-cors 4.0.0 -> 4.0.2**: Fixes CVE-2024-6221 (HIGH, CVSS 8.7) and 3 additional CORS bypass CVEs
 - **requests >= 2.32.4**: Fixes CVE-2024-47081 (MEDIUM, CVSS 5.3)
 - **Pin cryptography >= 42.0.4**: Fixes 3 HIGH CVEs in transitive dependency
@@ -8801,7 +8796,7 @@ Coordinated security hardening pass across the auth surface, crypto, SSRF, path 
 
 ### Fixed
 - **Verification pass ignoring whisper backend**: Second pass (verification) was hardcoded to use local GPU whisper via `WhisperModelSingleton`, bypassing `WHISPER_BACKEND` config. Now routes through `Transcriber.transcribe()` when backend is `openai-api`, matching first pass behavior. (GitHub #7)
-- **SSE queue unbounded growth**: `queue.Queue()` had no maxsize, so `put_nowait` could never raise `queue.Full` -- the "drop if full" logic was dead code. Status updates accumulated unboundedly during long processing runs, causing large SSE payloads. Added `maxsize=50` so stale updates are dropped.
+- **SSE queue unbounded growth**: `queue.Queue()` had no maxsize, so `put_nowait` could never raise `queue.Full`, so the "drop if full" logic was dead code. Status updates accumulated unboundedly during long processing runs, causing large SSE payloads. Added `maxsize=50` so stale updates are dropped.
 - **Fingerprint comparison TypeError**: `compare_fingerprints()` passed `str` to `chromaprint.decode_fingerprint()` which expects `bytes` (ctypes `c_char` pointer). Now encodes to bytes before calling the C library.
 - **Episode ID churn on every refresh**: Acast/Megaphone feeds change RSS GUIDs between fetches, causing repeated "Episode ID changed" warnings. Now updates the stored `episode_id` for discovered episodes to match the new GUID, and downgrades the log from WARNING to DEBUG.
 - **Duplicate worker processing (broken leader election)**: `open(lock_path, 'w')` truncated the lock file, creating a race where both Gunicorn workers could acquire `flock()`. Changed to `open(lock_path, 'a')` (append mode) which doesn't truncate, so `flock(LOCK_EX|LOCK_NB)` works correctly.
@@ -8817,7 +8812,7 @@ Coordinated security hardening pass across the auth surface, crypto, SSRF, path 
 ## [1.0.55] - 2026-03-13
 
 ### Fixed
-- **Remote whisper empty segments**: Removed `--convert` flag from `docker-compose.whisper.yml` -- whisper.cpp fails silently when it cannot write temp files to the CWD in Docker, returning 200 with 0 segments. MinusPod already sends preprocessed 16kHz mono WAV so conversion is unnecessary.
+- **Remote whisper empty segments**: Removed `--convert` flag from `docker-compose.whisper.yml`. whisper.cpp fails silently when it cannot write temp files to the CWD in Docker, returning 200 with 0 segments. MinusPod already sends preprocessed 16kHz mono WAV so conversion is unnecessary.
 - Added `working_dir: /tmp` to whisper compose service as a safety net for any temp file writes
 - Added `--no-flash-attn` to whisper compose so DTW word-level timestamps work (flash attention silently disables DTW)
 - Log warning when whisper API returns 200 with 0 usable segments, including raw response body for diagnosis
@@ -8894,7 +8889,7 @@ Coordinated security hardening pass across the auth surface, crypto, SSRF, path 
 - **README ToC**: Trimmed deeply nested sub-items to top-level sections with select sub-items
 
 ### Note
-- Episodes processed before v1.0.51 will not have an original transcript. To populate it, reprocess the episode -- the next transcription will be captured as the original.
+- Episodes processed before v1.0.51 will not have an original transcript. To populate it, reprocess the episode. The next transcription will be captured as the original.
 
 ## [1.0.50] - 2026-03-11
 
@@ -8959,7 +8954,7 @@ Coordinated security hardening pass across the auth surface, crypto, SSRF, path 
 ## [1.0.46] - 2026-03-11
 
 ### Improved
-- **Pattern matching accuracy**: Paired boundary scanning -- when an intro phrase is matched, scan forward for the outro (and vice versa) before falling back to duration estimation
+- **Pattern matching accuracy**: Paired boundary scanning: when an intro phrase is matched, scan forward for the outro (and vice versa) before falling back to duration estimation
 - **Duration tracking**: Patterns now store avg_duration and duration_samples; used for boundary estimation when paired phrase not found
 - **Duration feedback from Claude**: When Claude detections overlap pattern regions >= 50%, pattern avg_duration is updated toward Claude's more accurate boundaries
 - **Sentence-boundary extraction**: Intro/outro phrases extracted at sentence boundaries instead of naive word counts, improving fuzzy match quality
@@ -8988,7 +8983,7 @@ Coordinated security hardening pass across the auth surface, crypto, SSRF, path 
 
 ### Added
 - **Episode sort by episode number**: Episodes can now be sorted by episode number (from `itunes:episode` tag), publish date, or creation date. Sort dropdown on feed detail page with options: Newest First, Oldest First, Episode # High-Low, Episode # Low-High.
-- **`episode_number` field**: Parsed from RSS `itunes:episode` tag end-to-end -- RSS parsing, DB storage, API response (`episodeNumber`), and RSS feed output.
+- **`episode_number` field**: Parsed from RSS `itunes:episode` tag end-to-end: RSS parsing, DB storage, API response (`episodeNumber`), and RSS feed output.
 - **`sort_by` / `sort_dir` API params**: `GET /api/v1/feeds/{slug}/episodes` now accepts `sort_by` (published_at, created_at, episode_number, title, status) and `sort_dir` (asc, desc).
 - **Processed episodes appended beyond RSS cap**: RSS feed now appends processed episodes from the DB that fall outside the `max_episodes` cap. Podcast clients can see and download older processed episodes that would otherwise be invisible.
 - **DB fallback for old episodes**: `_lookup_episode()` now falls back to the database when an episode is not in the upstream RSS feed (e.g., dropped off due to age/cap). On-demand processing works for any discovered episode.
@@ -9068,7 +9063,7 @@ Coordinated security hardening pass across the auth surface, crypto, SSRF, path 
 ### Fixed
 - **Auto-process race on feed creation**: New feeds could queue episodes for processing before the user could disable auto-process. The `POST /feeds` endpoint now accepts `autoProcessOverride` so the override is applied before the initial RSS refresh runs.
 - **Cancel does not stop in-flight processing**: The cancel endpoint previously reset DB status but did not signal the running thread. Added cooperative cancellation using `threading.Event` with checkpoints between pipeline stages. Cancelling now actually stops the processing thread and cleans up partial output files.
-- **Cancel endpoint race with background thread**: Cancel endpoint no longer resets DB status when a live thread is signalled -- the thread handles DB reset, file cleanup, and queue release to prevent re-queue races. Endpoint only does direct cleanup as a stuck-episode fallback.
+- **Cancel endpoint race with background thread**: Cancel endpoint no longer resets DB status when a live thread is signalled. The thread handles DB reset, file cleanup, and queue release to prevent re-queue races. Endpoint only does direct cleanup as a stuck-episode fallback.
 - **Duplicated auto_process_override conversion**: Extracted `_serialize_auto_process` / `_deserialize_auto_process` helpers replacing identical 6-line if/elif blocks in 3 API endpoints. Non-boolean values now consistently map to None.
 
 ### Added
@@ -9093,7 +9088,7 @@ Coordinated security hardening pass across the auth surface, crypto, SSRF, path 
 ### Fixed
 - **Thread-safe provider cache**: Added `threading.Lock` to protect `_provider_cache` reads, writes, and clears in `llm_client.py`, preventing race conditions under concurrent requests.
 - **Reset settings consistency**: `reset_ad_detection_settings()` now uses `db.reset_setting()` for `llm_provider` and `openai_base_url` instead of manually re-deriving env var defaults, matching the pattern used by every other setting in the function.
-- **URL format validation**: `openaiBaseUrl` setting now validated via `urlparse` before storing -- rejects values without a valid `http://` or `https://` scheme or missing hostname.
+- **URL format validation**: `openaiBaseUrl` setting now validated via `urlparse` before storing. It rejects values without a valid `http://` or `https://` scheme or missing hostname.
 - **Security subtitle clarity**: Settings Security section shows "No password set - app is publicly accessible" instead of bare "No password set".
 - **LLM message logging**: Multi-part (list-type) message content now extracts text parts for readable debug logs instead of dumping raw `str()` representation, in both Anthropic and OpenAI-compatible clients.
 
@@ -9148,7 +9143,7 @@ Coordinated security hardening pass across the auth surface, crypto, SSRF, path 
 ## [1.0.32] - 2026-03-01
 
 ### Fixed
-- **Chapters model DB lookup broken**: `get_chapters_model()` used `from database import PodcastDatabase` but the class is actually `Database`. Both the `chapters_model` and `claude_model` DB lookups silently failed via the caught exception, causing the function to always fall through to the hardcoded Anthropic model name -- breaking Ollama setups even after the 1.0.31 provider-aware fallback was added.
+- **Chapters model DB lookup broken**: `get_chapters_model()` used `from database import PodcastDatabase` but the class is actually `Database`. Both the `chapters_model` and `claude_model` DB lookups silently failed via the caught exception, causing the function to always fall through to the hardcoded Anthropic model name, which broke Ollama setups even after the 1.0.31 provider-aware fallback was added.
 
 ## [1.0.31] - 2026-03-01
 
@@ -9272,7 +9267,7 @@ Coordinated security hardening pass across the auth surface, crypto, SSRF, path 
 ## [1.0.15] - 2026-02-26
 
 ### Fixed
-- **Processing history not saved due to SQL column mismatch**: `record_processing_history()` INSERT had 14 columns but only 13 VALUES placeholders -- the `?` for `llm_cost` was missing. All processing runs since v1.0.12 silently failed to write history rows (caught by try/except, logged as "Failed to record history: 13 values for 14 columns"). Token accumulator was working correctly but data was discarded at the DB write step.
+- **Processing history not saved due to SQL column mismatch**: `record_processing_history()` INSERT had 14 columns but only 13 VALUES placeholders: the `?` for `llm_cost` was missing. All processing runs since v1.0.12 silently failed to write history rows (caught by try/except, logged as "Failed to record history: 13 values for 14 columns"). Token accumulator was working correctly but data was discarded at the DB write step.
 
 ## [1.0.14] - 2026-02-26
 
@@ -9337,7 +9332,7 @@ Coordinated security hardening pass across the auth surface, crypto, SSRF, path 
 - **Stored XSS fix in search snippets**: FTS5 search snippets containing unsanitized RSS description HTML are now sanitized server-side via `nh3` (only `<mark>` tags preserved). Frontend `Search.tsx` replaced unsafe innerHTML rendering with a safe React rendering helper that splits on `<mark>` boundaries and renders all other content as escaped text.
 
 ### Added
-- `src/utils/url.py` -- SSRF URL validation module (`validate_url`, `SSRFError`)
+- `src/utils/url.py`: SSRF URL validation module (`validate_url`, `SSRFError`)
 - `ALLOWED_URL_SCHEMES` and `ALLOWED_URL_PORTS` constants in `src/utils/constants.py`
 - `nh3` dependency for HTML sanitization
 
@@ -9389,7 +9384,7 @@ Coordinated security hardening pass across the auth surface, crypto, SSRF, path 
 
 ### Fixed
 - **Missed tagline-style DAI ads**: Added detection guidance for short (15-45s) brand tagline
-  ads that lack promo codes or URLs -- polished radio-commercial-style spots with concentrated
+  ads that lack promo codes or URLs, polished radio-commercial-style spots with concentrated
   marketing language. Added synthetic example to prompt and GNC to brand list. DB migration
   auto-updates default prompts (preserves user customizations).
 - **Claude timestamp hallucination**: New `validate_ad_timestamps()` checks whether ad keywords
@@ -9462,7 +9457,7 @@ Major release: pipeline redesign, MinusPod rebrand, and ad detection overhaul.
 ## [0.1.257] - 2026-02-14
 
 ### Fixed
-- **Ad marker reasons show bare sponsor names instead of descriptions**: Three independent bugs caused ad markers to display unhelpful reasons like "Ironclad" or "Contains" instead of descriptive text. (1) Cross-stage merge in `_merge_detection_results` never updated the `reason` field when merging overlapping ads from different detection stages -- now picks the longer (more descriptive) reason. (2) Window deduplication in `deduplicate_window_ads` replaced reason based solely on confidence -- now keeps the more descriptive reason regardless of which window had higher confidence. (3) Claude reason extraction preferred `extract_sponsor_name` (bare name) over Claude's raw `reason` field -- now falls back to Claude's reason when it is substantially more descriptive than the bare sponsor name.
+- **Ad marker reasons show bare sponsor names instead of descriptions**: Three independent bugs caused ad markers to display unhelpful reasons like "Ironclad" or "Contains" instead of descriptive text. (1) Cross-stage merge in `_merge_detection_results` never updated the `reason` field when merging overlapping ads from different detection stages. It now picks the longer (more descriptive) reason. (2) Window deduplication in `deduplicate_window_ads` replaced reason based solely on confidence. It now keeps the more descriptive reason regardless of which window had higher confidence. (3) Claude reason extraction preferred `extract_sponsor_name` (bare name) over Claude's raw `reason` field. It now falls back to Claude's reason when it is substantially more descriptive than the bare sponsor name.
 
 ## [0.1.256] - 2026-02-14
 
@@ -9490,7 +9485,7 @@ Major release: pipeline redesign, MinusPod rebrand, and ad detection overhaul.
 ## [0.1.254] - 2026-02-13
 
 ### Fixed
-- **Stuck episode caused by corrupt audio fingerprint in database**: A corrupt fingerprint stored in the database caused `acoustid.chromaprint.decode_fingerprint()` to throw `TypeError` on every comparison. The `find_matches()` sliding window loop (3300 iterations for a 6605s episode) caught and swallowed the error each time, taking ~47 minutes of wasted work -- longer than the 37-minute orphan detector timeout. The episode was killed, reset, and retried in a loop it could never escape. Fix: `compare_fingerprints()` now returns -1.0 for TypeError (distinguishing broken data from no-match), and `find_matches()` tracks broken pattern IDs in a set, skipping them after the first failure. Corrupt fingerprints are auto-deleted from the database. A 47-minute scan of errors becomes 1 warning + fast completion.
+- **Stuck episode caused by corrupt audio fingerprint in database**: A corrupt fingerprint stored in the database caused `acoustid.chromaprint.decode_fingerprint()` to throw `TypeError` on every comparison. The `find_matches()` sliding window loop (3300 iterations for a 6605s episode) caught and swallowed the error each time, taking ~47 minutes of wasted work, longer than the 37-minute orphan detector timeout. The episode was killed, reset, and retried in a loop it could never escape. Fix: `compare_fingerprints()` now returns -1.0 for TypeError (distinguishing broken data from no-match), and `find_matches()` tracks broken pattern IDs in a set, skipping them after the first failure. Corrupt fingerprints are auto-deleted from the database. A 47-minute scan of errors becomes 1 warning + fast completion.
 
 ## [0.1.253] - 2026-02-12
 
@@ -9551,7 +9546,7 @@ Major release: pipeline redesign, MinusPod rebrand, and ad detection overhaul.
 
 ### Fixed
 - **Verification pass uses GPU instead of CPU**: Verification transcription was creating a fresh CPU model (20-30x slower) instead of reusing the GPU singleton. Now calls `WhisperModelSingleton.get_instance()` which lazy-reloads the GPU model after it was freed for audio analysis. ~30-min episodes go from 15-30 min to ~1-2 min for verification transcription.
-- **ACCEPT decisions now always cut**: Validator ACCEPT (confidence >= 0.60) and the cutting filter (MIN_CUT_CONFIDENCE = 0.80) were contradictory -- ads with 0.60-0.79 confidence were ACCEPTed then not cut. Now ACCEPT = always cut, REJECT = never cut, REVIEW = confidence gate. This prevents validated ads like sponsor reads from being silently kept in audio.
+- **ACCEPT decisions now always cut**: Validator ACCEPT (confidence >= 0.60) and the cutting filter (MIN_CUT_CONFIDENCE = 0.80) were contradictory: ads with 0.60-0.79 confidence were ACCEPTed then not cut. Now ACCEPT = always cut, REJECT = never cut, REVIEW = confidence gate. This prevents validated ads like sponsor reads from being silently kept in audio.
 - **AudioEnforcer false positives from confidence-only path**: DAI transition pairs with confidence >= 0.80 could create ads without any ad language in the transcript, causing false positives when strong audio transitions occurred during normal show content. Raised threshold from 0.80 to 0.95 (`DAI_CONFIDENCE_ONLY_THRESHOLD`). Ads with ad language in transcript are unaffected.
 - **Mid-roll position boost gaps**: Position windows had dead zones (0.35-0.45, 0.55-0.65) where ads received no position boost. Simplified from three narrow windows (`MID_ROLL_1/2/3`) to a single continuous range (0.15-0.85) so all mid-roll ads get the +0.05 confidence boost.
 
@@ -9566,7 +9561,7 @@ Major release: pipeline redesign, MinusPod rebrand, and ad detection overhaul.
 - **Restore nvidia-cudnn-cu12 dependency**: CTranslate2 (faster-whisper GPU backend) requires cuDNN for CUDA inference. Removal in v0.1.242 caused worker SIGABRT crashes during transcription. Re-added `nvidia-cudnn-cu12==8.9.2.26`.
 - **Pattern backfill crash**: `extract_transcript_segment` was called in `database.py` but never imported. Replaced with already-imported `extract_text_in_range` (identical behavior).
 - **Stuck episode reset killing active jobs**: `reset_stuck_processing_episodes()` ran on every Gunicorn worker boot and reset ALL processing episodes with no time check. A worker restart during active transcription would kill the in-progress job. Added 30-minute guard so only genuinely stuck episodes are reset.
-- **Orphaned queue state blocking reprocessing**: When a worker crashes (SIGABRT), the flock is released by the OS but the state file still says "processing". `_clear_stale_state()` only checked the 60-minute timeout, so any reprocess attempt got "already_processing" for up to an hour. Now probes the flock to detect orphaned state immediately -- if no process holds the lock, the state is cleared regardless of elapsed time.
+- **Orphaned queue state blocking reprocessing**: When a worker crashes (SIGABRT), the flock is released by the OS but the state file still says "processing". `_clear_stale_state()` only checked the 60-minute timeout, so any reprocess attempt got "already_processing" for up to an hour. Now probes the flock to detect orphaned state immediately: if no process holds the lock, the state is cleared regardless of elapsed time.
 
 ## [0.1.244] - 2026-02-10
 
@@ -9676,7 +9671,7 @@ Major release: pipeline redesign, MinusPod rebrand, and ad detection overhaul.
 - **Non-ads extracted as ads when Claude marks them `is_ad: false`**: Added filtering in `_parse_ads_from_response()` to skip entries where `is_ad` is explicitly false/no/0 or where `classification`/`type` indicates non-ad content (content, editorial, organic, interview, etc.). This was the root cause of some episodes losing over half their duration: Claude's second pass returned segments with `is_ad: false` and `classification: "content"` but the parser treated ALL entries as ads regardless.
 - **Generic "Advertisement detected" fallback from unknown field names**: Replaced static allowlists for sponsor and description extraction with dynamic field scanning. Instead of maintaining lists of field names Claude might use, the parser now defines STRUCTURAL_FIELDS (timestamps, booleans, config) and treats everything else as a candidate for sponsor/description info. This eliminates the recurring need to patch field names (previously patched in v0.1.217, 218, 220, 232, 234, 235).
 - **Reason field duplication when sponsor and description overlap**: Added `_text_is_duplicate()` helper that checks if one string starts with the other or they share >80% of words. Prevents output like "BetterHelp advertisement: BetterHelp advertisement for therapy services".
-- **Processing queue kills long-running jobs via stale lock detection**: `_clear_stale_state()` was called from `is_busy()`/`get_current()` without `_fd_lock` protection. When a long episode exceeded `MAX_JOB_DURATION`, stale detection would release the lock from under the running thread, allowing another episode to acquire it and causing concurrent processing failures. Now checks if the current process holds the lock before clearing -- if it does, the job is still alive (just long-running) and only a warning is logged.
+- **Processing queue kills long-running jobs via stale lock detection**: `_clear_stale_state()` was called from `is_busy()`/`get_current()` without `_fd_lock` protection. When a long episode exceeded `MAX_JOB_DURATION`, stale detection would release the lock from under the running thread, allowing another episode to acquire it and causing concurrent processing failures. Now checks if the current process holds the lock before clearing: if it does, the job is still alive (just long-running) and only a warning is logged.
 - **Queue timeouts too aggressive for long episodes**: Increased `MAX_JOB_DURATION` from 30 to 60 minutes in both `processing_queue.py` and `status_service.py`. Increased `background_queue_processor()` max_wait from 10 to 60 minutes and orphan check threshold from 35 to 65 minutes.
 
 ---
@@ -9963,7 +9958,7 @@ Major release: pipeline redesign, MinusPod rebrand, and ad detection overhaul.
 ## [0.1.205] - 2026-01-31
 
 ### Fixed
-- **JSON response format for OpenAI-compatible LLM backends**: Added `response_format` parameter to `LLMClient.messages_create()` interface and pass `{"type": "json_object"}` for ad detection calls. This triggers JSON mode in the Claude Code OpenAI wrapper, ensuring clean JSON responses instead of markdown-wrapped output that caused "No valid JSON array found in response" warnings.
+- **JSON response format for OpenAI-compatible LLM backends**: Added `response_format` parameter to `LLMClient.messages_create()` interface and pass `{"type": "json_object"}` for ad detection calls. This triggers JSON mode in the Claude Code OpenAI wrapper. Responses are clean JSON instead of markdown-wrapped output, which caused "No valid JSON array found in response" warnings.
 
 ---
 
@@ -10109,7 +10104,7 @@ Major release: pipeline redesign, MinusPod rebrand, and ad detection overhaul.
 - **Race condition in ad merging**: Extracted sponsor mismatch extension into separate `_extend_ads_for_sponsor_mismatch()` function to prevent mutation during iteration
 - **Temp file leak in audio preprocessing**: Added `finally` block cleanup in `preprocess_audio()` to prevent orphaned temp files on error paths
 - **Division by zero in ad validation**: Added MIN_DURATION_THRESHOLD constant (1ms) to protect against edge cases in duration calculations
-- **Pattern scope filtering not working**: Fixed `_filter_patterns_by_scope()` to actually compare podcast_id and network_id instead of just checking scope string
+- **Pattern scope filtering not working**: Fixed `_filter_patterns_by_scope()` to compare podcast_id and network_id instead of just checking scope string
 - **TF-IDF vocabulary mismatch**: Added BASE_AD_VOCABULARY with common podcast ad terms to prevent sklearn vectorizer from ignoring unseen terms in new text
 
 ### Added
@@ -10172,7 +10167,7 @@ Major release: pipeline redesign, MinusPod rebrand, and ad detection overhaul.
 ## [0.1.187] - 2026-01-07
 
 ### Fixed
-- **Transcripts/chapters now appear immediately in podcast apps**: RSS cache is now invalidated after episode processing completes, ensuring Podcasting 2.0 tags are included right away instead of waiting for next feed refresh
+- **Transcripts/chapters now appear immediately in podcast apps**: RSS cache is now invalidated after episode processing completes, so Podcasting 2.0 tags are included right away instead of waiting for next feed refresh
 - **Reduced failures for newly published episodes**: Added CDN availability check (HEAD request) before downloading audio. When CDN returns 4xx/5xx, the error is classified as transient and will be retried instead of failing immediately
 - **Improved back-to-back ad detection**: When an ad's end_text contains a different sponsor's URL (e.g., ad for "Better Wild" ending with "mintmobile.com"), the system now looks for the next detected ad. If that ad's sponsor matches the end_text URL, the current ad is extended to meet it, eliminating gaps between consecutive ads from different sponsors
 
@@ -11329,7 +11324,7 @@ Major release: pipeline redesign, MinusPod rebrand, and ad detection overhaul.
   - "Auto-detect" option clears override
 
 - **Reprocessing Mode Dropdown** (Gap 3 - BUG FIX)
-  - Fixed bug where reprocess mode was accepted but not actually used
+  - Fixed bug where reprocess mode was accepted but not used
   - Added `reprocess_mode` column to episodes table
   - "Reprocess" mode: Uses pattern DB + Claude (default)
   - "Full Analysis" mode: Skips pattern DB, Claude analyzes fresh
@@ -11593,7 +11588,7 @@ Major release: pipeline redesign, MinusPod rebrand, and ad detection overhaul.
 ### Fixed
 - Database schema migration failing on existing databases
   - Rewrote schema initialization to detect existing databases and only run migrations
-  - Added comprehensive migrations for all new columns (network_id, dai_platform, created_at, processed_file, etc.)
+  - Added migrations for all new columns (network_id, dai_platform, created_at, processed_file, etc.)
   - Fixed known_sponsors table to include common_ctas column
   - New tables for cross-episode training created separately from indexes
   - Added get_podcast() alias method for backwards compatibility
@@ -11693,7 +11688,7 @@ Major release: pipeline redesign, MinusPod rebrand, and ad detection overhaul.
 - Speaker diarization failing with cuDNN version mismatch
   - pyannote LSTMs triggered cuDNN RNN code path incompatible with our cuDNN 8
   - Disable cuDNN temporarily when moving pipeline to GPU
-  - Still uses GPU acceleration, just PyTorch native RNN instead of cuDNN
+  - Still uses GPU acceleration, using PyTorch native RNN instead of cuDNN
 
 ---
 
@@ -11909,7 +11904,7 @@ Major release: pipeline redesign, MinusPod rebrand, and ad detection overhaul.
 ## [0.1.85] - 2025-12-11
 
 ### Added
-- Comprehensive audio analysis module for enhanced ad detection
+- Audio analysis module for ad detection
   - Volume/loudness analysis using ffmpeg loudnorm to detect dynamically inserted ads
   - Music bed detection using librosa spectral analysis (spectral flatness, low-freq energy, harmonic ratio)
   - Speaker diarization using pyannote.audio to detect monologue ad reads in conversational podcasts
@@ -12693,7 +12688,7 @@ Major release: pipeline redesign, MinusPod rebrand, and ad detection overhaul.
 ## [0.1.33] - 2025-11-28
 
 ### Fixed
-- Redundant file storage not actually removed in v0.1.26
+- Redundant file storage not removed in v0.1.26
   - `save_transcript()` and `save_ads_json()` were still writing `-transcript.txt` and `-ads.json` files
   - Now stores transcript and ad data exclusively in database (no more duplicate files)
   - Removed dead `save_prompt()` function (unused since v0.1.32)
@@ -12731,7 +12726,7 @@ Major release: pipeline redesign, MinusPod rebrand, and ad detection overhaul.
 
 ### Removed
 - `userPromptTemplate` from Settings UI/API
-  - This setting was not useful to customize (just formats the transcript)
+  - This setting was not useful to customize (it only formats the transcript)
   - Template is now hardcoded in ad_detector.py
   - Reduces API surface area and simplifies settings
 
@@ -13095,3 +13090,4 @@ Major release: pipeline redesign, MinusPod rebrand, and ad detection overhaul.
 - Multi-stage Docker build for frontend assets
 - Added RETENTION_PERIOD environment variable for episode cleanup
 - Docker image: ttlequals0/podcast-server:0.1.0
+
