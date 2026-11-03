@@ -14,6 +14,17 @@ release notes.
 
 - The status filter on each feed page has a new Filters applied option. It shows the feed with the title, description, and duration filters applied, as if Skipped episodes were set to Hide from feed, whatever that setting is on the feed. It works with search, sorting, paging and Select all matches. API: `GET /api/v1/feeds/{slug}/episodes?status=filters_applied`.
 
+### Fixed
+
+- In the transcript dialog on phones, the Context toggle no longer drops
+  below the View toggle while no search term is set. The "Needs a search
+  term" hint takes its own line under the toggles at phone widths. From the
+  small breakpoint up it stays beside the toggle.
+- Disabled segmented toggles keep their segments focusable (aria-disabled
+  instead of the native attribute), so a screen reader reaches the "Needs a
+  search term" hint that describes the Context group. Clicks and arrow keys
+  are still ignored while disabled.
+
 ## [2.101.17] - 2026-11-03
 
 ### Added

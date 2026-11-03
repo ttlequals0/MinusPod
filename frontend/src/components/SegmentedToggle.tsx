@@ -25,6 +25,8 @@ interface SegmentedToggleProps<T extends string | number> {
   // for a popover row. A toolbar row sizes to its labels so it fits a phone.
   fill?: boolean;
   disabled?: boolean;
+  // Id of a hint describing the whole group.
+  describedBy?: string;
   mobileTouchTarget?: boolean;
 }
 
@@ -45,7 +47,7 @@ const VARIANTS = {
 // ring-inset on focus applies it itself.
 function SegmentedToggle<T extends string | number>({
   options, value, onChange, ariaLabel, variant = 'settings', muted, fill, disabled,
-  mobileTouchTarget = false,
+  describedBy, mobileTouchTarget = false,
 }: SegmentedToggleProps<T>) {
   const buttonRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const isRadio = variant === 'settings';
@@ -92,6 +94,7 @@ function SegmentedToggle<T extends string | number>({
     <div
       role={isRadio ? 'radiogroup' : 'group'}
       aria-label={ariaLabel}
+      aria-describedby={describedBy}
       className={`${sizing.group} border border-border overflow-hidden${fill ? ' w-full' : ''}`}
     >
       {options.map((option, i) => {
@@ -108,10 +111,11 @@ function SegmentedToggle<T extends string | number>({
             tabIndex={isRadio ? (selected ? 0 : -1) : undefined}
             aria-label={option.ariaLabel}
             title={option.title}
-            disabled={disabled}
-            onClick={() => onChange(option.value)}
+            // aria-disabled keeps the segments focusable so the group's description is still read.
+            aria-disabled={disabled || undefined}
+            onClick={() => { if (!disabled) onChange(option.value); }}
             onKeyDown={isRadio ? (e) => handleKeyDown(e, i) : undefined}
-            className={`${sizing.segment}${fill ? ' flex-1 min-w-11' : ''}${mobileTouchTarget ? ' max-sm:min-h-11' : ''} transition-colors disabled:opacity-50 ${
+            className={`${sizing.segment}${fill ? ' flex-1 min-w-11' : ''}${mobileTouchTarget ? ' max-sm:min-h-11' : ''} transition-colors aria-disabled:opacity-50 aria-disabled:cursor-not-allowed ${
               sizing.divided && i > 0 ? 'border-l border-border' : ''
             } ${selected ? selectedFill : btnSecondary} ${focusRing}`}
           >
