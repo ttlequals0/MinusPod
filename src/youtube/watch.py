@@ -74,7 +74,6 @@ def transition(row, resolved, marks, now) -> dict:
             out.update(sb_state='exhausted', queue=True)
         else:
             out['sb_next_check_at'] = watch_next
-        return out
     return out
 
 
@@ -104,16 +103,9 @@ def _process_row(db, row, podcast, now, base) -> bool:
     if row.get('status') in IN_FLIGHT:
         db.update_episode_sponsorblock_by_pk(row['id'], sb_next_check_at=(now + RETRY_SOON).isoformat())
         return False
-    if row.get('sb_state') in TERMINAL:
-        db.update_episode_sponsorblock_by_pk(row['id'], sb_next_check_at=None)
-        return False
     resolved = yt_settings.resolve_feed(db, podcast, base=base)
     marks = sponsorblock.fetch_segments(row['youtube_video_id']) if row.get('youtube_video_id') else []
-    if marks is None:
-        marks_present = None
-    else:
-        markers, _ = sponsorblock.to_markers(marks, row.get('original_duration'))
-        marks_present = bool(markers)
+    marks_present = None if marks is None else bool(sponsorblock.to_markers(marks, row.get('original_duration'))[0])
     out = transition(row, resolved, marks_present, now)
     fields = {k: out[k] for k in ('sb_state', 'sb_attempts', 'sb_next_check_at', 'sb_last_error')}
     if out['queue']:

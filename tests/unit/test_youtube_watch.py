@@ -15,9 +15,9 @@ SETTINGS = YouTubeSettings(enabled=True, process_delay_minutes=60, probe_attempt
 MARK = [{'UUID': 'u1', 'segment': [1, 2], 'category': 'sponsor', 'actionType': 'skip', 'votes': 1, 'locked': 0}]
 
 
-def _row(state, attempts=0, published=NOW - timedelta(days=1), uuids='[]', last_gap_minutes=30):
+def _row(state, attempts=0, published=NOW - timedelta(days=1), last_gap_minutes=30):
     return {'sb_state': state, 'sb_attempts': attempts, 'published_at': published.isoformat(),
-            'created_at': published.isoformat(), 'sb_segment_uuids': uuids,
+            'created_at': published.isoformat(),
             'sb_next_check_at': (NOW - timedelta(minutes=last_gap_minutes)).isoformat()}
 
 
@@ -58,13 +58,6 @@ def test_zero_probe_attempts_skips_probing():
     assert out['queue'] is True and out['sb_state'] == 'llm'
 
 
-def test_done_is_terminal_regardless_of_ceiling():
-    for age in (1, 8):
-        row = _row('done', published=NOW - timedelta(days=age), uuids='["u0"]')
-        out = watch.transition(row, SETTINGS, MARK, NOW)
-        assert out['sb_state'] == 'done' and out['sb_next_check_at'] is None and out['queue'] is False
-
-
 def test_ceiling_falls_back_to_created_at():
     row = _row('watching')
     row['published_at'] = None
@@ -84,9 +77,8 @@ def test_error_retries_at_normal_interval_and_records():
     assert out['sb_state'] == 'probing' and out['sb_attempts'] == 1
     assert out['sb_next_check_at'] == (NOW + timedelta(minutes=30)).isoformat()
     assert out['sb_last_error'] == 'SponsorBlock request failed'
-    for state in ('watching',):
-        out = watch.transition(_row(state), SETTINGS, None, NOW)
-        assert out['sb_next_check_at'] == (NOW + timedelta(hours=6)).isoformat()
+    out = watch.transition(_row('watching'), SETTINGS, None, NOW)
+    assert out['sb_next_check_at'] == (NOW + timedelta(hours=6)).isoformat()
     s = replace(SETTINGS, probe_interval_minutes=2000)
     out = watch.transition(_row('probing'), s, None, NOW)
     assert out['sb_next_check_at'] == (NOW + timedelta(hours=24)).isoformat()
@@ -100,8 +92,8 @@ def _tick_db(rows):
     return db
 
 
-def _tick_row(episode_id, state='done', uuids='["u0"]'):
-    row = _row(state, uuids=uuids)
+def _tick_row(episode_id, state='waiting'):
+    row = _row(state)
     row.update(id=7, slug='example-podcast', episode_id=episode_id, youtube_video_id='vid' + episode_id,
                original_url='https://example.com/v', title='T', description='', original_duration=100.0)
     return row
@@ -115,17 +107,6 @@ def _patch_tick(monkeypatch):
     monkeypatch.setattr(watch, 'queue_for_processing',
                         lambda db, row, podcast: queued.append(row['episode_id']))
     return queued
-
-
-def test_tick_done_row_clears_next_check_without_fetching(monkeypatch):
-    queued = _patch_tick(monkeypatch)
-    fetched = []
-    monkeypatch.setattr(watch.sponsorblock, 'fetch_segments', lambda vid: fetched.append(vid) or MARK)
-    db = _tick_db([_tick_row('a1')])
-    watch.sponsorblock_tick(db)
-    assert fetched == [] and queued == []
-    db.update_episode_sponsorblock_by_pk.assert_called_once_with(7, sb_next_check_at=None)
-    db.save_episode_details.assert_not_called()
 
 
 def test_tick_duration_mismatch_only_reschedules(monkeypatch):
@@ -143,7 +124,7 @@ def test_tick_filtered_marks_count_as_no_marks_while_waiting(monkeypatch):
     queued = _patch_tick(monkeypatch)
     raw = [{'UUID': 'u2', 'segment': [5, 6], 'category': 'sponsor', 'actionType': 'skip', 'votes': -3, 'locked': 0}]
     monkeypatch.setattr(watch.sponsorblock, 'fetch_segments', lambda vid: raw)
-    db = _tick_db([_tick_row('a1', state='waiting', uuids='[]')])
+    db = _tick_db([_tick_row('a1', state='waiting')])
     watch.sponsorblock_tick(db)
     assert queued == []
     assert db.update_episode_sponsorblock_by_pk.call_args.kwargs['sb_state'] == 'probing'
@@ -153,7 +134,7 @@ def test_tick_skips_in_flight_episodes(monkeypatch):
     queued = _patch_tick(monkeypatch)
     fetched = []
     monkeypatch.setattr(watch.sponsorblock, 'fetch_segments', lambda vid: fetched.append(vid) or MARK)
-    rows = [dict(_tick_row('a1', state='waiting', uuids='[]'), status=status) for status in ('pending', 'processing')]
+    rows = [dict(_tick_row('a1', state='waiting'), status=status) for status in ('pending', 'processing')]
     db = _tick_db(rows)
     before = datetime.now(timezone.utc)
     watch.sponsorblock_tick(db)
@@ -167,7 +148,7 @@ def test_tick_request_failure_stops_the_batch(monkeypatch):
     queued = _patch_tick(monkeypatch)
     fetched = []
     monkeypatch.setattr(watch.sponsorblock, 'fetch_segments', lambda vid: fetched.append(vid))
-    db = _tick_db([_tick_row(f'a{i}', state='waiting', uuids='[]') for i in range(3)])
+    db = _tick_db([_tick_row(f'a{i}', state='waiting') for i in range(3)])
     watch.sponsorblock_tick(db)
     assert fetched == ['vida0'] and queued == []
     calls = db.update_episode_sponsorblock_by_pk.call_args_list
@@ -179,7 +160,7 @@ def test_tick_request_failure_stops_the_batch(monkeypatch):
 def test_tick_persists_state_with_a_check_time_before_queueing(monkeypatch):
     _patch_tick(monkeypatch)
     order = []
-    db = _tick_db([_tick_row('a1', state='waiting', uuids='[]')])
+    db = _tick_db([_tick_row('a1', state='waiting')])
     db.update_episode_sponsorblock_by_pk.side_effect = lambda pk, **f: order.append(('write', f))
     monkeypatch.setattr(watch, 'queue_for_processing', lambda *a, **k: order.append(('queue', None)))
     monkeypatch.setattr(watch.sponsorblock, 'fetch_segments', lambda vid: MARK)
@@ -198,7 +179,7 @@ def test_tick_row_failure_does_not_abort_batch(monkeypatch):
         return MARK
 
     monkeypatch.setattr(watch.sponsorblock, 'fetch_segments', fetch)
-    db = _tick_db([_tick_row('a1', state='waiting', uuids='[]'), _tick_row('a2', state='waiting', uuids='[]')])
+    db = _tick_db([_tick_row('a1', state='waiting'), _tick_row('a2', state='waiting')])
     watch.sponsorblock_tick(db)
     assert queued == ['a2']
 
@@ -218,7 +199,7 @@ def test_tick_queue_failure_keeps_state_and_retries_soon(monkeypatch):
 
     monkeypatch.setattr(watch, 'queue_for_processing', boom)
     monkeypatch.setattr(watch.sponsorblock, 'fetch_segments', lambda vid: MARK)
-    db = _tick_db([_tick_row('a1', state='waiting', uuids='[]')])
+    db = _tick_db([_tick_row('a1', state='waiting')])
     before = datetime.now(timezone.utc)
     watch.sponsorblock_tick(db)
     calls = db.update_episode_sponsorblock_by_pk.call_args_list
@@ -233,7 +214,7 @@ def test_tick_known_duration_mismatch_counts_as_no_marks(monkeypatch):
     queued = _patch_tick(monkeypatch)
     raw = [dict(MARK[0], videoDuration=500)]
     monkeypatch.setattr(watch.sponsorblock, 'fetch_segments', lambda vid: raw)
-    db = _tick_db([dict(_tick_row('a1', state='probing', uuids='[]'), sb_attempts=1)])
+    db = _tick_db([dict(_tick_row('a1', state='probing'), sb_attempts=1)])
     watch.sponsorblock_tick(db)
     assert queued == []
     fields = db.update_episode_sponsorblock_by_pk.call_args.kwargs
@@ -246,7 +227,7 @@ def test_tick_returns_early_when_sponsorblock_is_unreachable(monkeypatch):
     monkeypatch.setattr(watch.sponsorblock, 'record_availability', lambda db: False)
     fetched = []
     monkeypatch.setattr(watch.sponsorblock, 'fetch_segments', lambda vid: fetched.append(vid) or MARK)
-    db = _tick_db([_tick_row('a1', state='waiting', uuids='[]')])
+    db = _tick_db([_tick_row('a1', state='waiting')])
     watch.sponsorblock_tick(db)
     assert fetched == [] and queued == []
     db.update_episode_sponsorblock_by_pk.assert_not_called()
@@ -263,7 +244,7 @@ def _probe_calls(monkeypatch, stored, verdict, rows):
 
 
 def test_tick_probes_only_when_the_stored_verdict_is_not_true(monkeypatch):
-    row = [_tick_row('a1', state='waiting', uuids='[]')]
+    row = [_tick_row('a1', state='waiting')]
     assert _probe_calls(monkeypatch, True, True, row) == []
     assert _probe_calls(monkeypatch, True, True, []) == []
     assert _probe_calls(monkeypatch, False, True, []) == [1]
@@ -271,7 +252,7 @@ def test_tick_probes_only_when_the_stored_verdict_is_not_true(monkeypatch):
 
 
 def test_tick_false_verdict_probes_and_returns_early_while_down(monkeypatch):
-    probes = _probe_calls(monkeypatch, False, False, [_tick_row('a1', state='waiting', uuids='[]')])
+    probes = _probe_calls(monkeypatch, False, False, [_tick_row('a1', state='waiting')])
     assert probes == [1]
 
 
@@ -280,7 +261,7 @@ def test_tick_fetch_failure_with_good_verdict_records_the_outage(monkeypatch):
     recorded = []
     monkeypatch.setattr(watch, 'record_probe_state', lambda db, service, ok: recorded.append((service, ok)))
     monkeypatch.setattr(watch.sponsorblock, 'fetch_segments', lambda vid: None)
-    db = _tick_db([_tick_row(f'a{i}', state='waiting', uuids='[]') for i in range(2)])
+    db = _tick_db([_tick_row(f'a{i}', state='waiting') for i in range(2)])
     watch.sponsorblock_tick(db)
     assert recorded == [('sponsorblock', False)]
     assert db.update_episode_sponsorblock_by_pk.call_count == 2
@@ -290,7 +271,7 @@ def test_tick_logs_transitions_from_the_stored_verdict(monkeypatch, caplog):
     def run(stored, verdict):
         caplog.clear()
         with caplog.at_level('INFO', logger=watch.logger.name):
-            _probe_calls(monkeypatch, stored, verdict, [_tick_row('a1', state='waiting', uuids='[]')])
+            _probe_calls(monkeypatch, stored, verdict, [_tick_row('a1', state='waiting')])
         return [r.levelname for r in caplog.records if 'SponsorBlock is' in r.getMessage()]
     assert run(None, False) == ['WARNING']
     assert run(False, False) == []
@@ -301,5 +282,5 @@ def test_tick_logs_transitions_from_the_stored_verdict(monkeypatch, caplog):
 def test_tick_processes_when_sponsorblock_is_reachable(monkeypatch):
     queued = _patch_tick(monkeypatch)
     monkeypatch.setattr(watch.sponsorblock, 'fetch_segments', lambda vid: MARK)
-    watch.sponsorblock_tick(_tick_db([_tick_row('a1', state='waiting', uuids='[]')]))
+    watch.sponsorblock_tick(_tick_db([_tick_row('a1', state='waiting')]))
     assert queued == ['a1']

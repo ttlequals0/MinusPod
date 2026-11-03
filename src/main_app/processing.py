@@ -366,9 +366,7 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
         recut_ok = recut._recut_episode(slug, episode_id, episode_title, podcast_name,
                               episode_description, start_time, cancel_event)
         if recut_ok:
-            recut_podcast = db.get_podcast_by_slug(slug)
-            if is_youtube_feed(recut_podcast):
-                sb_stage.stamp_recut(slug, episode_id)
+            sb_stage.stamp_recut(slug, episode_id)
         return recut_ok
 
     podcast_settings = db.get_podcast_by_slug(slug)

@@ -190,15 +190,15 @@ def after_success(slug, episode_id, run: YouTubeRun, episode_data=None):
     """Persist the SponsorBlock watch state once the episode is published."""
     prior = (episode_data or {}).get('sb_state')
     if run.markers:
-        state, next_check = 'done', None
+        state = 'done'
     elif run.mode == 'passthrough':
-        state, next_check = 'exhausted', None
+        state = 'exhausted'
     elif prior in ('llm', 'exhausted'):
-        state, next_check = prior, None
+        state = prior
     else:
-        state, next_check = 'llm', None
+        state = 'llm'
     db.update_episode_sponsorblock(
-        slug, episode_id, sb_state=state, sb_next_check_at=next_check, sb_last_error=None,
+        slug, episode_id, sb_state=state, sb_next_check_at=None, sb_last_error=None,
         sb_segment_uuids=json.dumps(sponsorblock.uuid_set(run.markers)), sb_note=run.note)
     _cache_thumbnail(slug, episode_id, (episode_data or {}).get('artwork_url'))
 
@@ -217,5 +217,7 @@ def _cache_thumbnail(slug, episode_id, artwork_url):
 def stamp_recut(slug, episode_id):
     """After a successful recut, record the SponsorBlock uuids now in the stored markers."""
     row = db.get_episode(slug, episode_id) or {}
+    if not row.get('youtube_video_id'):
+        return
     stored = [m for m in (parse_ad_markers(row.get('ad_markers_json')) or []) if m.get('source') == 'sponsorblock']
     db.update_episode_sponsorblock(slug, episode_id, sb_segment_uuids=json.dumps(sponsorblock.uuid_set(stored)))

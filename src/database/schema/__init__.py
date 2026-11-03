@@ -2524,6 +2524,24 @@ class SchemaMixin:
             conn.rollback()
             logger.error(f"mark action from ad chapters migration failed: {e}")
 
+        try:
+            self._run_sponsorblock_terminal_clear_next_check(conn)
+        except Exception as e:
+            conn.rollback()
+            logger.error(f"sponsorblock terminal next-check clear failed: {e}")
+
+    def _run_sponsorblock_terminal_clear_next_check(self, conn):
+        """One-shot: terminal SponsorBlock rows left armed by older builds stop being polled."""
+        gate = 'sponsorblock_terminal_clear_next_check'
+        if conn.execute("SELECT 1 FROM schema_migrations WHERE name = ?", (gate,)).fetchone():
+            return
+        if not self._table_exists(conn, 'episodes'):
+            return
+        conn.execute("UPDATE episodes SET sb_next_check_at = NULL "
+                     "WHERE sb_state IN ('done', 'llm', 'exhausted') AND sb_next_check_at IS NOT NULL")
+        conn.execute("INSERT INTO schema_migrations (name) VALUES (?)", (gate,))
+        conn.commit()
+
     def _run_retag_network_cue_templates(self, conn):
         """Re-tag network-scope cue templates to their owning feed's current
         effective network; an empty effective network demotes to podcast scope."""
