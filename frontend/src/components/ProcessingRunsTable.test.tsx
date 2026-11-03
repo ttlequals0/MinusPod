@@ -193,8 +193,22 @@ describe('ProcessingRunsTable', () => {
     const table = renderTable([legacyRun]);
     expect(table.getByText('#1')).toBeTruthy();
     expect(table.getByText('1 cut')).toBeTruthy();
-    // Downloaded, Windows, Stage hits, Transcript diff, Removed, Second scan all dash out.
+    // Audio length, Windows, Stage hits, Transcript diff, Removed, Second scan all dash out.
     expect(table.getAllByText('-')).toHaveLength(6);
+  });
+
+  it('lists Chapters as a top-level row without Assets for chapter regeneration', () => {
+    const chapterRun: EpisodeProcessingRun = {
+      ...statsRun,
+      runNumber: 9,
+      stats: { mode: 'chapters', timings: { chaptersSeconds: 12, ffmpegSeconds: 2 } },
+    };
+    const table = renderTable([chapterRun]);
+    fireEvent.click(table.getByRole('button', { name: /show phase breakdown for run #9/i }));
+    const chapters = table.getByText('Chapters');
+    expect(chapters.nextSibling?.textContent).toBe('12s');
+    expect(chapters.parentElement?.className).not.toContain('pl-3');
+    expect(table.queryByText('Assets')).toBeNull();
   });
 
   it('shows elapsed stage timings when the run has them', () => {
@@ -202,7 +216,14 @@ describe('ProcessingRunsTable', () => {
     fireEvent.click(table.getByRole('button', { name: /show phase breakdown for run #2/i }));
     expect(table.getByText('Elapsed by stage')).toBeTruthy();
     expect(table.getByText('Elapsed by stage').parentElement?.className).toContain('sm:w-[calc(100cqw-1.5rem)]');
-    expect(table.getByText('Stage times may overlap. FFmpeg totals include all tasks and retries.')).toBeTruthy();
+    expect(table.queryByText(/Stage times may overlap/)).toBeNull();
+    expect(table.getByText('Counted within the stages above. Includes all tasks and retries.')).toBeTruthy();
+    expect(table.getByText('FFmpeg').nextSibling?.textContent).toBe('12s');
+    const assets = table.getByText('Assets');
+    const chapters = table.getByText('Chapters');
+    expect(chapters.closest('dl')).toBe(assets.closest('dl'));
+    expect(assets.parentElement?.parentElement).toBe(chapters.parentElement?.parentElement);
+    expect(table.getByText('FFmpeg').closest('dl')).not.toBe(assets.closest('dl'));
     expect(table.getByText('42s')).toBeTruthy();
     expect(table.getByText('12s')).toBeTruthy();
     expect(table.getAllByText('Unavailable').length).toBeGreaterThan(0);
@@ -408,7 +429,7 @@ describe('ProcessingRunsTable: wide-table layout', () => {
 
   it('drops the low-priority columns below lg', () => {
     const table = renderTable([statsRun]);
-    for (const label of ['Downloaded', 'Windows', 'Stage hits', 'Transcript diff', 'Second scan']) {
+    for (const label of ['Audio length', 'Windows', 'Stage hits', 'Transcript diff', 'Second scan']) {
       expect(table.getByRole('columnheader', { name: label }).className).toContain('hidden lg:table-cell');
     }
     expect(table.getByRole('columnheader', { name: 'Cost' }).className).not.toContain('hidden');

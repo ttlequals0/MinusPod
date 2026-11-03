@@ -11,7 +11,7 @@ import LoadingSpinner from '../../components/LoadingSpinner';
 import { Pagination } from '../../components/Pagination';
 import QueryError from '../../components/QueryError';
 import { btnBase, btnPrimary, touchTarget } from '../../components/buttonStyles';
-import { focusRing } from '../../components/fieldStyles';
+import { tableBody, tableCard, tableHead, tableLink, tableRow, td, tdMuted, tdNum, th, thRight } from '../../components/tableStyles';
 import { badgeBase, tint } from '../../components/badgeStyles';
 import { cardTitle } from '../../components/pageStyles';
 import { formatTimeAgo } from '../../utils/format';
@@ -32,6 +32,42 @@ function usePagedQuery(key: string, fetcher: (params: { limit: number; offset: n
   return { query, page, setPage };
 }
 
+interface ReviewColumn {
+  label: string;
+  srLabel?: string;
+  align?: 'right';
+  cell?: string;
+  render: (row: ApprovalEpisodeRow) => ReactNode;
+}
+
+const episodeCell = (to: (row: ApprovalEpisodeRow) => string): ReviewColumn => ({
+  label: 'Episode',
+  render: (row) => <Link to={to(row)} className={`${tableLink} block truncate max-w-[320px]`} title={row.title}>{row.title}</Link>,
+});
+const podcastCell: ReviewColumn = {
+  label: 'Podcast',
+  cell: tdMuted,
+  render: (row) => <span className="block truncate max-w-[220px]" title={row.podcast}>{row.podcast}</span>,
+};
+const adsCell: ReviewColumn = { label: 'Ads', align: 'right', cell: tdNum, render: (row) => row.adCount };
+const heldCell: ReviewColumn = {
+  label: 'Held',
+  cell: tdMuted,
+  render: (row) => row.pendingReviewCount > 0
+    ? <span className={`${badgeBase} ${tint.warning}`}>{row.pendingReviewCount} held</span>
+    : '-',
+};
+const waitingCell: ReviewColumn = {
+  label: 'Waiting',
+  cell: tdMuted,
+  render: (row) => row.pendingSince ? formatTimeAgo(row.pendingSince) : '-',
+};
+const selectColumn = (selectBox: (row: ApprovalEpisodeRow) => ReactNode): ReviewColumn => ({
+  label: '',
+  srLabel: 'Select',
+  render: selectBox,
+});
+
 interface ReviewSectionProps {
   id: string;
   title: string;
@@ -40,13 +76,14 @@ interface ReviewSectionProps {
   emptyText: string;
   errorTitle: string;
   rows: ApprovalEpisodeRow[];
+  columns: ReviewColumn[];
   renderRow: (row: ApprovalEpisodeRow) => ReactNode;
   page: number;
   onPage: (page: number) => void;
   toolbar?: ReactNode;
 }
 
-function ReviewSection({ id, title, blurb, query, emptyText, errorTitle, rows, renderRow, page, onPage, toolbar }: ReviewSectionProps) {
+function ReviewSection({ id, title, blurb, query, emptyText, errorTitle, rows, columns, renderRow, page, onPage, toolbar }: ReviewSectionProps) {
   const total = query.data?.count ?? 0;
   return (
     <section className="bg-card rounded-lg border border-border p-4 sm:p-6" aria-labelledby={`${id}-title`}>
@@ -59,7 +96,29 @@ function ReviewSection({ id, title, blurb, query, emptyText, errorTitle, rows, r
       ) : (
         <>
           {toolbar}
-          <ul className="space-y-2">
+          <div className={`hidden xl:block ${tableCard}`}>
+            <table className="w-full">
+              <thead className={tableHead}>
+                <tr>
+                  {columns.map((col) => (
+                    <th key={col.label || col.srLabel} scope="col" className={col.align === 'right' ? thRight : th}>
+                      {col.srLabel ? <span className="sr-only">{col.srLabel}</span> : col.label}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className={tableBody}>
+                {rows.map((row) => (
+                  <tr key={rowKey(row)} className={tableRow}>
+                    {columns.map((col) => (
+                      <td key={col.label || col.srLabel} className={col.cell ?? td}>{col.render(row)}</td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <ul className="space-y-2 xl:hidden">
             {rows.map((row) => (
               <li key={rowKey(row)} className="rounded-lg bg-secondary/50 p-3 flex items-start gap-3">
                 {renderRow(row)}
@@ -77,7 +136,7 @@ function ReviewSection({ id, title, blurb, query, emptyText, errorTitle, rows, r
 function rowBody(row: ApprovalEpisodeRow, to: string, extra?: ReactNode) {
   return (
     <div className="min-w-0 flex-1">
-      <Link to={to} className={`block font-medium text-primary hover:underline break-words ${focusRing}`}>
+      <Link to={to} className={`block font-medium break-words ${tableLink}`}>
         {row.title}
       </Link>
       <p className="text-sm text-muted-foreground flex flex-wrap gap-x-3 gap-y-1">
@@ -119,6 +178,14 @@ function AwaitingApproval() {
     if (checked) next.add(rowKey(row)); else next.delete(rowKey(row));
     return next;
   });
+  const selectBox = (row: ApprovalEpisodeRow) => (
+    <Checkbox
+      checked={selected.has(rowKey(row))}
+      onChange={(checked) => toggle(row, checked)}
+      ariaLabel={`Select ${row.title}`}
+      className="pointer-coarse:min-h-11 pointer-coarse:min-w-11 justify-center"
+    />
+  );
 
   return (
     <ReviewSection
@@ -155,14 +222,17 @@ function AwaitingApproval() {
           {message && <p role="alert" className="text-sm text-destructive mb-3">{message}</p>}
         </>
       )}
+      columns={[
+        selectColumn(selectBox),
+        episodeCell(episodePath),
+        podcastCell,
+        adsCell,
+        heldCell,
+        waitingCell,
+      ]}
       renderRow={(row) => (
         <>
-          <Checkbox
-            checked={selected.has(rowKey(row))}
-            onChange={(checked) => toggle(row, checked)}
-            ariaLabel={`Select ${row.title}`}
-            className="pointer-coarse:min-h-11 pointer-coarse:min-w-11 justify-center"
-          />
+          {selectBox(row)}
           {rowBody(row, episodePath(row), row.pendingSince && <span className="whitespace-nowrap">Waiting {formatTimeAgo(row.pendingSince)}</span>)}
         </>
       )}
@@ -179,6 +249,7 @@ function HeldDetections() {
       blurb="Episodes with detections that need a decision on the episode page."
       query={held}
       rows={held.data?.episodes ?? []}
+      columns={[episodeCell((row) => `${episodePath(row)}#held-for-review-section`), podcastCell, adsCell, heldCell]}
       emptyText="No detections are held for review."
       errorTitle="Could not load held detections."
       page={page}

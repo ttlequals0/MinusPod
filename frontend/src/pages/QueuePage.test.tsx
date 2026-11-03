@@ -160,7 +160,7 @@ describe('QueuePage', () => {
     expect(screen.getByRole('tabpanel').id).toBe('queue-panel-queue');
     expect(screen.queryByText('Awaiting approval')).toBeNull();
     await userEvent.click(screen.getByRole('tab', { name: 'Episode review' }));
-    expect(await screen.findByRole('link', { name: 'Waiting one' })).toBeTruthy();
+    expect((await screen.findAllByRole('link', { name: 'Waiting one' })).length).toBe(2);
     expect(screen.getByRole('tab', { name: 'Episode review' }).getAttribute('aria-selected')).toBe('true');
     expect(screen.getByRole('tabpanel').id).toBe('queue-panel-review');
     expect(screen.queryByText('Episodes currently moving through the pipeline.')).toBeNull();

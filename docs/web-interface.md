@@ -82,8 +82,8 @@ The server includes a web-based management UI at `/ui/`. Opening the server root
 - Offline queue (Queue > Queue Control): hold episodes while a self-hosted LLM or Whisper endpoint is down. See [Configuration > Offline Queue](configuration.md#offline-queue)
 - Whisper pool (Settings > Transcription): process several episodes at once on a remote Whisper backend. See [Configuration > Whisper Pool](configuration.md#whisper-pool)
 - Rate-limit hold (Queue > Queue Control): pause the queue while the LLM provider reports a 429 with a reset time. See [Configuration > Rate-Limit Hold](configuration.md#rate-limit-hold)
-- Queue page: active jobs show progress and cancellation controls. The full waiting list is paginated, and each row has links and -/+ buttons that can raise or lower its priority. A row the scheduler will not admit yet says why, naming the blocked phase, the account slot, the reason, and when the block lifts
-- Queue page tabs: **Queue** holds the content above and **Episode review** (`?tab=review`) lists the episodes that need you. Its Awaiting approval section has a checkbox per episode, Select all and Approve selected (n). Each row shows the feed, how long the episode has waited, and its ad and held counts. Its Held detections section lists episodes with held ads and links to the episode page's Held for Review section
+- Queue page: active jobs show progress and cancellation controls. The full waiting list is paginated, shown as a table from 1280 px and as cards below that. Each row has links and -/+ buttons that can raise or lower its priority. A row the scheduler will not admit yet says why, naming the blocked phase, the account slot, the reason, and when the block lifts
+- Queue page tabs: **Queue** holds the content above and **Episode review** (`?tab=review`) lists the episodes that need you. Its Awaiting approval section has a checkbox per episode, Select all and Approve selected (n). Each row shows the feed, how long the episode has waited, and its ad and held counts. Both lists are tables from 1280 px and cards below that. Its Held detections section lists episodes with held ads and links to the episode page's Held for Review section
 - Provider account switch (Settings > LLM Provider): changing a slot's endpoint or provider type lists the runs still bound to the current account before you save, and asks whether to requeue them on the new account (the default) or cancel them, so in-flight work is never moved silently
 - Failover (Settings > AI & Processing): standby LLM provider and transcriber with a status row per target and manual Trigger/Cancel/Probe now controls. See [Failover](failover.md)
 - Pattern Cleanup (Settings > Experiments): scheduled LLM review of learned patterns, reviewed on the Patterns page's Cleanup tab. Experimental, off by default. See [Pattern Cleanup](pattern-cleanup.md)
@@ -98,7 +98,7 @@ The server includes a web-based management UI at `/ui/`. Opening the server root
 - Notifications for processed episodes, permanent failures, auth failures, exhausted spend limits, structural rate-limit hits, and episodes awaiting approval or holding detections for review, delivered by webhooks or native email (Settings > Notifications). See [API and Webhooks > Events](api-and-webhooks.md#events)
 - Podcast search from Add feed, using Apple's iTunes directory by default or Podcast Index when configured
 - Search: press Ctrl+K on Windows/Linux or Cmd+K on macOS to open the keyboard palette, or use the search field on the Dashboard. Both return shows, episodes, and transcript matches together, spanning every episode status. The header magnifier, or the palette's own "Advanced search" link, opens a dedicated search page with type filters plus pattern and sponsor matches
-- Multiple dark themes (Tokyo Night, Dracula, Catppuccin, Nord, Gruvbox, Solarized, and more) with light/dark toggle
+- 32 themes (Catppuccin, Dracula, Nord, Gruvbox, Solarized, Tokyo Night, Rose Pine, Kanagawa, Ayu, One Dark, Everforest, Night Owl, Monokai, and more) with a light/dark toggle; see the theme sheet under Screenshots
 - Installs as an app on phones, tablets and desktops ([Install as an app](#install-as-an-app))
 
 ### Saving and updates
@@ -342,9 +342,9 @@ Every processing run records what it actually worked with, and the episode page 
 
 Completed runs show a chapter warning when generation used a fallback, with the recorded reason available in the run details. If manual chapter regeneration fails, existing chapters stay in place and the episode reports the regeneration error.
 
-Durations use clock formatting (`M:SS` or `H:MM:SS`). The total is elapsed wall-clock time through saving the episode and feed. Stage times can overlap, and FFmpeg runs inside those stages, so the timing columns are not meant to be added together. The FFmpeg total sums every FFmpeg task in the run, including retries. Transcription, detection, or verification configured not to run says Skipped. A missing time in another measured run says Unavailable; a run saved before timing was recorded says Timing unavailable.
+Durations use clock formatting (`M:SS` or `H:MM:SS`). Run time is elapsed wall-clock time through saving the episode and feed. Audio length is the length of the downloaded copy. Chapters runs inside Assets, so it sits under that row. FFmpeg time is spent inside the other stages, so it is listed apart and sums every FFmpeg task in the run, including retries. The remaining rows do not overlap, but time between stages counts toward the run time and appears in no row. Transcription, detection, or verification configured not to run says Skipped. A missing time in another measured run says Unavailable; a run saved before timing was recorded says Timing unavailable.
 
-Two things make this table earn its place. First, feeds with dynamic ad insertion serve a different copy per download: the Downloaded column shows it directly, and a note calls out when the copy differs from the duration the feed declares. Second, when a run removes far less ad time than the feed's recent average, the episode header shows an amber "Low ad yield" badge with the numbers, so a lightly-filled download does not read as a detection failure.
+Two things make this table earn its place. First, feeds with dynamic ad insertion serve a different copy per download: the Audio length column shows it directly, and a note calls out when the copy differs from the duration the feed declares. Second, when a run removes far less ad time than the feed's recent average, the episode header shows an amber "Low ad yield" badge with the numbers, so a lightly-filled download does not read as a detection failure.
 
 Completed episodes also state the verification result under the header: whether the second scan of the output audio found anything left to cut.
 
@@ -389,6 +389,11 @@ A row of section links sits under the Stats heading and jumps straight to Overvi
 |---------|--------|
 | <img src="screenshots/dashboard-desktop.png" width="500"> | <img src="screenshots/dashboard-mobile.png" width="200"> |
 
+#### Themes
+Every theme and mode on the dashboard. Pick one under Settings, Appearance.
+
+<img src="screenshots/dashboard-themes.png" width="700">
+
 #### Feed Detail
 | Desktop | Mobile |
 |---------|--------|
@@ -428,6 +433,11 @@ A row of section links sits under the Stats heading and jumps straight to Overvi
 | Desktop | Mobile |
 |---------|--------|
 | <img src="screenshots/stats-desktop.png" width="500"> | <img src="screenshots/stats-mobile.png" width="200"> |
+
+#### Queue
+| Desktop | Mobile |
+|---------|--------|
+| <img src="screenshots/queue-desktop.png" width="500"> | <img src="screenshots/queue-mobile.png" width="200"> |
 
 #### Settings
 | Desktop | Mobile |

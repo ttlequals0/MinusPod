@@ -913,6 +913,13 @@ describe('StatsPage spend section: copy, labels and table chrome', () => {
     expect(header.getAttribute('aria-sort')).toBe('none');
     expect(within(header).getByRole('button', { name: 'Episodes' })).toBeTruthy();
   });
+
+  it('links the podcast title in the by-podcast table to the feed', async () => {
+    mockGetStatsByPodcast.mockResolvedValue(PODCASTS);
+    renderPage();
+    const table = await screen.findByRole('table', { name: 'Podcast totals' });
+    expect(within(table).getByRole('link', { name: 'A Show' }).getAttribute('href')).toBe('/feeds/a-show');
+  });
 });
 
 // Populated ledger fixtures: the empty-state page hides the table chrome the

@@ -12,7 +12,7 @@ import DropdownMenu from './DropdownMenu';
 import FeedStatusSummary from './FeedStatusSummary';
 import FeedTypeBadge from './FeedTypeBadge';
 import PodpingBadge from './PodpingBadge';
-import { btnBase, btnPrimary, btnDestructive } from './buttonStyles';
+import { btnBase, btnPrimaryOutline, btnDestructiveOutline } from './buttonStyles';
 import { focusRing } from './fieldStyles';
 
 interface FeedListItemProps {
@@ -84,7 +84,7 @@ function FeedListItem({ feed, onRefresh, onDelete, isRefreshing }: FeedListItemP
                     <span className="hidden sm:inline">{isRefreshing ? 'Refreshing' : 'Refresh'}</span>
                   </>
                 }
-                triggerClassName={`${btnBase} ${btnPrimary}`}
+                triggerClassName={`${btnBase} ${btnPrimaryOutline}`}
                 disabled={isRefreshing}
                 title={isRefreshing ? 'Refreshing' : 'Refresh feed'}
                 chevronClassName="w-3 h-3"
@@ -106,7 +106,7 @@ function FeedListItem({ feed, onRefresh, onDelete, isRefreshing }: FeedListItemP
         )}
         <button
           onClick={() => onDelete(feed.slug)}
-          className={`${btnBase} ${btnDestructive}`}
+          className={`${btnBase} ${btnDestructiveOutline}`}
           title="Delete feed"
           aria-label="Delete feed"
         >

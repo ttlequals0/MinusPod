@@ -11,7 +11,7 @@ import DropdownMenu from './DropdownMenu';
 import FeedStatusSummary from './FeedStatusSummary';
 import FeedTypeBadge from './FeedTypeBadge';
 import PodpingBadge from './PodpingBadge';
-import { btnBase, btnPrimary, btnDestructive } from './buttonStyles';
+import { btnBase, btnPrimaryOutline, btnDestructiveOutline } from './buttonStyles';
 import { focusRing } from './fieldStyles';
 import { cardTitle, cardPad } from './pageStyles';
 
@@ -25,6 +25,9 @@ interface FeedCardProps {
 function FeedCard({ feed, onRefresh, onDelete, isRefreshing }: FeedCardProps) {
   const artworkUrl = feedArtworkSrc(feed.slug, feed.artworkUrl);
   const hasUpstream = feedHasUpstream(feed);
+  const total = feed.episodeCount;
+  const processed = Math.min(total, feed.statusCounts?.completed ?? feed.processedCount ?? 0);
+  const percent = total > 0 ? (processed / total) * 100 : 0;
 
   return (
     <div className="bg-card rounded-lg border border-border h-full flex flex-col">
@@ -75,15 +78,26 @@ function FeedCard({ feed, onRefresh, onDelete, isRefreshing }: FeedCardProps) {
           <div className="mt-2 min-h-[1.375rem]">
             <FeedStatusSummary counts={feed.statusCounts} />
           </div>
+          <p className="text-xs text-muted-foreground mt-2">{processed} of {total} processed</p>
+          <div
+            role="progressbar"
+            aria-label="Episodes processed"
+            aria-valuemin={0}
+            aria-valuemax={Math.max(total, 1)}
+            aria-valuenow={processed}
+            className="h-1.5 rounded-full bg-secondary overflow-hidden mt-1"
+          >
+            <div className="h-full bg-primary" style={{ width: `${percent}%` }} />
+          </div>
         </div>
       </div>
       <div className="px-4 py-3 bg-secondary/50 border-t border-border rounded-b-lg flex justify-between items-center">
-        <CopyButton text={feed.feedUrl} hideLabelOnMobile />
+        <CopyButton text={feed.feedUrl} className="h-8 px-2" />
         <div className="flex gap-2">
           {hasUpstream && (
             <DropdownMenu
               triggerLabel={isRefreshing ? 'Refreshing...' : 'Refresh'}
-              triggerClassName={`${btnBase} ${btnPrimary}`}
+              triggerClassName={`${btnBase} ${btnPrimaryOutline}`}
               disabled={isRefreshing}
               title="Refresh feed"
               items={[
@@ -102,7 +116,7 @@ function FeedCard({ feed, onRefresh, onDelete, isRefreshing }: FeedCardProps) {
           )}
           <button
             onClick={() => onDelete(feed.slug)}
-            className={`${btnBase} ${btnDestructive}`}
+            className={`${btnBase} ${btnDestructiveOutline}`}
             title="Delete feed"
             aria-label="Delete feed"
           >

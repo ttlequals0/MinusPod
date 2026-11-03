@@ -7,9 +7,13 @@ import { useSubscriberKeyActions } from '../../hooks/useSubscriberKeyActions';
 import { formatDateTime, keyLabel } from '../../utils/format';
 import { btnBase, btnOutline, btnDestructive } from '../../components/buttonStyles';
 import { badgeBase, tint } from '../../components/badgeStyles';
+import { tableBody, tableCard, tableHead, tableRow, thBase } from '../../components/tableStyles';
 import { subHeading } from '../../components/pageStyles';
 
-const thClass = 'px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider';
+// The settings card is 768 px wide, so this six-column table uses px-3 cells.
+const head = `${thBase} px-3 py-3 text-left`;
+const cell = 'px-3 py-3 text-sm';
+const cellMuted = `${cell} text-muted-foreground`;
 const revokeClass = `${btnBase} ${btnDestructive}`;
 const deleteClass = `${btnBase} ${btnOutline}`;
 
@@ -62,31 +66,33 @@ function AllSubscriberKeys({ hasFeeds }: { hasFeeds: boolean }) {
         )
       ) : (
         <>
-          <div className="hidden sm:block bg-card border border-border rounded-lg overflow-hidden">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="bg-muted/50">
-                  <th className={thClass}>Feed</th>
-                  <th className={thClass}>Label</th>
-                  <th className={thClass}>Created</th>
-                  <th className={thClass}>Last used</th>
-                  <th className={thClass}>Status</th>
-                  <th className={thClass}><span className="sr-only">Actions</span></th>
+          <div className={`hidden sm:block ${tableCard}`}>
+            <div role="region" aria-label="Subscriber feeds; scroll for more columns" tabIndex={0} className="overflow-x-auto">
+            <table className="w-full">
+              <thead className={tableHead}>
+                <tr>
+                  <th className={head}>Feed</th>
+                  <th className={head}>Label</th>
+                  <th className={head}>Created</th>
+                  <th className={head}>Last used</th>
+                  <th className={head}>Status</th>
+                  <th className={head}><span className="sr-only">Actions</span></th>
                 </tr>
               </thead>
-              <tbody>
+              <tbody className={tableBody}>
                 {keys.map((key) => (
-                  <tr key={key.id} className="border-t border-border hover:bg-muted/50">
-                    <td className="px-4 py-3 text-foreground">{key.feedTitle}</td>
-                    <td className="px-4 py-3 text-foreground">{keyLabel(key)}</td>
-                    <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">{formatDateTime(key.createdAt)}</td>
-                    <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">{formatDateTime(key.lastUsedAt ?? null)}</td>
-                    <td className="px-4 py-3"><StatusBadge revoked={Boolean(key.revokedAt)} /></td>
-                    <td className="px-4 py-3 text-right whitespace-nowrap">{actionButton(key)}</td>
+                  <tr key={key.id} className={tableRow}>
+                    <td className={`${cell} text-foreground`}>{key.feedTitle}</td>
+                    <td className={`${cell} text-foreground`}>{keyLabel(key)}</td>
+                    <td className={`${cellMuted} whitespace-nowrap`}>{formatDateTime(key.createdAt)}</td>
+                    <td className={`${cellMuted} whitespace-nowrap`}>{formatDateTime(key.lastUsedAt ?? null)}</td>
+                    <td className={cell}><StatusBadge revoked={Boolean(key.revokedAt)} /></td>
+                    <td className={`${cell} text-right whitespace-nowrap`}>{actionButton(key)}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
+            </div>
           </div>
           <div className="sm:hidden space-y-2">
             {keys.map((key) => (

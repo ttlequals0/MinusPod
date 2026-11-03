@@ -23,7 +23,7 @@ import StatusBadge from '../components/StatusBadge';
 import DownloadsTab from './history/DownloadsTab';
 import { btnBase, btnSecondary } from '../components/buttonStyles';
 import { focusRing, selectBase, filterGrid, filterLabel, filterControl } from '../components/fieldStyles';
-import { tableLink } from '../components/rowActionStyles';
+import { tableLink, tableCard, tableHead, th, tableBody, tableRow, td, tdMuted, tdNum, tdEmpty, rowCard } from '../components/tableStyles';
 import { pageHeader, pageTitle } from '../components/pageStyles';
 
 type StatusFilter = 'all' | 'completed' | 'failed';
@@ -209,19 +209,19 @@ function ProcessingTab({ tabs }: { tabs: ReactNode }) {
       </div>
 
       <SortControls className="xl:hidden" field={sortField} direction={sortDirection} onSort={handleSort} options={[
-        { value: 'processedAt', label: 'Processed' }, { value: 'processingDurationSeconds', label: 'Duration' },
+        { value: 'processedAt', label: 'Processed' }, { value: 'processingDurationSeconds', label: 'Run time' },
         { value: 'adsDetected', label: 'Ads' }, { value: 'llmCost', label: 'Cost' },
         { value: 'reprocessNumber', label: 'Reprocess number' }, { value: 'appVersion', label: 'Version' },
       ]} />
       {/* Mobile Card Layout */}
       <div className="xl:hidden space-y-3 mb-4">
         {history.length === 0 ? (
-          <div className="bg-card rounded-lg border border-border p-8 text-center text-muted-foreground">
+          <div className={`${rowCard} p-8 text-center text-muted-foreground`}>
             No processing history yet.
           </div>
         ) : (
           history.map((entry: ProcessingHistoryEntry) => (
-            <div key={entry.id} className="bg-card rounded-lg border border-border p-4">
+            <div key={entry.id} className={rowCard}>
               <div className="flex items-center justify-between mb-2">
                 <Link
                   to={`/feeds/${entry.podcastSlug}`}
@@ -274,45 +274,45 @@ function ProcessingTab({ tabs }: { tabs: ReactNode }) {
       </div>
 
       {/* Desktop Table Layout */}
-      <div className="hidden xl:block bg-card border border-border rounded-lg overflow-hidden">
+      <div className={`hidden xl:block ${tableCard}`}>
         <div className="overflow-x-auto" role="region" aria-label="Processing history table" tabIndex={0}>
           <table className="w-full">
-            <thead className="bg-muted/50">
+            <thead className={tableHead}>
               <tr>
-                <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                <th className={th}>
                   Podcast
                 </th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                <th className={th}>
                   Episode
                 </th>
                 <SortHeader field="processedAt" label="Processed" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} />
-                <SortHeader align="right" field="processingDurationSeconds" label="Duration" className="px-4 hidden md:table-cell" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} />
+                <SortHeader align="right" field="processingDurationSeconds" label="Run time"  sortField={sortField} sortDirection={sortDirection} onSort={handleSort} />
                 <th
-                  className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider hidden lg:table-cell"
+                  className={`${th}`}
                   title="Length of the downloaded copy each run processed"
                 >
-                  Audio
+                  Audio length
                 </th>
                 <SortHeader align="right" field="adsDetected" label="Ads" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} />
-                <SortHeader align="right" field="llmCost" label="Cost" className="px-4 hidden md:table-cell" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} />
-                <SortHeader align="right" field="reprocessNumber" label="Reprocess #" className="px-4 hidden md:table-cell" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} />
-                <SortHeader field="appVersion" label="Version" className="px-4 hidden md:table-cell" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} />
-                <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                <SortHeader align="right" field="llmCost" label="Cost"  sortField={sortField} sortDirection={sortDirection} onSort={handleSort} />
+                <SortHeader align="right" field="reprocessNumber" label="Reprocess #"  sortField={sortField} sortDirection={sortDirection} onSort={handleSort} />
+                <SortHeader field="appVersion" label="Version"  sortField={sortField} sortDirection={sortDirection} onSort={handleSort} />
+                <th className={th}>
                   Status
                 </th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-border">
+            <tbody className={tableBody}>
               {history.length === 0 ? (
                 <tr>
-                  <td colSpan={10} className="px-4 py-8 text-center text-muted-foreground">
+                  <td colSpan={10} className={tdEmpty}>
                     No processing history yet.
                   </td>
                 </tr>
               ) : (
                 history.map((entry: ProcessingHistoryEntry) => (
-                  <tr key={entry.id} className="hover:bg-muted/50">
-                    <td className="px-4 py-3">
+                  <tr key={entry.id} className={tableRow}>
+                    <td className={td}>
                       <Link
                         to={`/feeds/${entry.podcastSlug}`}
                         className={`${tableLink} text-sm truncate max-w-[150px] block`}
@@ -321,7 +321,7 @@ function ProcessingTab({ tabs }: { tabs: ReactNode }) {
                         {entry.podcastTitle}
                       </Link>
                     </td>
-                    <td className="px-4 py-3">
+                    <td className={td}>
                       <Link
                         to={`/feeds/${entry.podcastSlug}/episodes/${entry.episodeId}`}
                         className={`${tableLink} text-sm truncate max-w-[200px] block`}
@@ -341,30 +341,30 @@ function ProcessingTab({ tabs }: { tabs: ReactNode }) {
                         </span>
                       )}
                     </td>
-                    <td className="px-4 py-3 text-sm text-muted-foreground whitespace-nowrap">
+                    <td className={`${tdMuted} whitespace-nowrap`}>
                       {formatDateTime(entry.processedAt)}
                     </td>
-                    <td className="px-4 py-3 text-sm text-muted-foreground hidden md:table-cell">
+                    <td className={`${tdNum}`}>
                       {elapsedOrDash(entry.processingDurationSeconds)}
                     </td>
-                    <td className="px-4 py-3 text-sm text-muted-foreground hidden lg:table-cell">
+                    <td className={`${tdMuted}`}>
                       {entry.downloadedDuration != null
                         ? elapsedOrDash(entry.downloadedDuration)
                         : '-'}
                     </td>
-                    <td className="px-4 py-3 text-sm text-foreground">
+                    <td className={`${tdNum} text-foreground`}>
                       {entry.mode === 'chapters' ? '-' : entry.adsDetected}
                     </td>
-                    <td className="px-4 py-3 text-sm text-muted-foreground hidden md:table-cell">
+                    <td className={`${tdNum}`}>
                       {entry.llmCost != null && entry.llmCost > 0 ? `$${entry.llmCost.toFixed(2)}` : '-'}
                     </td>
-                    <td className="px-4 py-3 text-sm text-muted-foreground hidden md:table-cell">
+                    <td className={`${tdNum}`}>
                       {entry.reprocessNumber > 1 ? `#${entry.reprocessNumber}` : '-'}
                     </td>
-                    <td className="px-4 py-3 text-sm text-muted-foreground hidden md:table-cell">
+                    <td className={`${tdMuted}`}>
                       {entry.appVersion || '-'}
                     </td>
-                    <td className="px-4 py-3">
+                    <td className={td}>
                       {entry.status === 'completed' ? (
                   <StatusBadge status="completed" />
                 ) : (

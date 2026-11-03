@@ -11,7 +11,8 @@ import { getStageLabel } from '../../utils/processingStage';
 import { getProcessingAdmission, setProcessingAdmission } from '../../api/settings';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { btnBase, btnSecondary, btnGhost, btnDestructive } from '../../components/buttonStyles';
-import { focusRing, inputBase } from '../../components/fieldStyles';
+import { inputBase } from '../../components/fieldStyles';
+import { tableBody, tableCard, tableHead, tableLink, tableRow, td, tdMuted, tdNum, th, thRight } from '../../components/tableStyles';
 import { subHeading } from '../../components/pageStyles';
 import { iconTarget, iconVisual } from '../../components/rowActionStyles';
 
@@ -211,7 +212,7 @@ function ProcessingQueueSection({
                   <div className="flex-1 min-w-0">
                     <Link
                       to={`/feeds/${episode.slug}/episodes/${episode.episodeId}`}
-                      className={`block font-medium text-primary hover:underline truncate ${focusRing}`}
+                      className={`block font-medium truncate ${tableLink}`}
                     >
                       {episode.title}
                     </Link>
@@ -231,6 +232,42 @@ function ProcessingQueueSection({
               <p className="text-sm font-medium text-muted-foreground">
                 Waiting ({queueTotal})
               </p>
+              <div className={`hidden xl:block ${tableCard}`}>
+                <table className="w-full">
+                  <thead className={tableHead}>
+                    <tr>
+                      <th scope="col" className={thRight}>Position</th>
+                      <th scope="col" className={th}>Episode</th>
+                      <th scope="col" className={th}>Podcast</th>
+                      <th scope="col" className={thRight}>Priority</th>
+                      <th scope="col" className={thRight}><span className="sr-only">Actions</span></th>
+                    </tr>
+                  </thead>
+                  <tbody className={tableBody}>
+                    {queued.map((episode) => (
+                      <tr key={episodeKey(episode)} className={tableRow}>
+                        <td className={tdNum}>{episode.queuePosition}</td>
+                        <td className={td}>
+                          <Link
+                            to={`/feeds/${episode.slug}/episodes/${episode.episodeId}`}
+                            className={`${tableLink} block truncate max-w-[320px]`}
+                            title={episode.title}
+                          >
+                            {episode.title}
+                          </Link>
+                          <AdmissionNote admission={episode.admission} />
+                        </td>
+                        <td className={tdMuted}>
+                          <span className="block truncate max-w-[220px]" title={episode.podcast}>{episode.podcast}</span>
+                        </td>
+                        <td className={td}><div className="flex justify-end">{priorityControl(episode)}</div></td>
+                        <td className={`${td} text-right`}>{cancelButton(episode)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <div className="space-y-2 xl:hidden" data-testid="queue-cards">
               {queued.map((episode) => (
                 <div
                   key={episodeKey(episode)}
@@ -243,7 +280,7 @@ function ProcessingQueueSection({
                     <div className="min-w-0">
                       <Link
                         to={`/feeds/${episode.slug}/episodes/${episode.episodeId}`}
-                        className={`block text-sm font-medium text-primary hover:underline truncate ${focusRing}`}
+                        className={`block text-sm font-medium truncate ${tableLink}`}
                       >
                         {episode.title}
                       </Link>
@@ -257,6 +294,7 @@ function ProcessingQueueSection({
                   </div>
                 </div>
               ))}
+              </div>
               <Pagination
                 page={page}
                 totalPages={totalPages}

@@ -36,7 +36,7 @@ import { formatStorage } from './settings/settingsUtils';
 import { formatDateTime } from '../utils/format';
 import RichText from '../components/RichText';
 import { Modal, ConfirmModal, dialogFooterBtn } from '../components/Modal';
-import { btnBase, btnPrimary, btnSecondary, btnGhost, btnDestructive } from '../components/buttonStyles';
+import { btnBase, btnPrimary, btnSecondary, btnGhost, btnDestructive, btnPrimaryOutline, btnDestructiveOutline } from '../components/buttonStyles';
 import { focusRing, inputBase, selectBase } from '../components/fieldStyles';
 import { badgeBase, tint } from '../components/badgeStyles';
 import { pageTitle, cardTitle, sectionPad } from '../components/pageStyles';
@@ -702,7 +702,7 @@ function FeedDetail() {
                 triggerLabel={
                   <><span className="sm:hidden">Refresh</span><span className="hidden sm:inline">{refreshMutation.isPending ? 'Refreshing...' : 'Refresh feed'}</span></>
                 }
-                triggerClassName={`${btnBase} ${btnPrimary} w-full sm:w-auto`}
+                triggerClassName={`${btnBase} ${btnPrimaryOutline} w-full sm:w-auto`}
                 disabled={refreshMutation.isPending}
                 title="Refresh feed"
                 items={[
@@ -723,7 +723,7 @@ function FeedDetail() {
             <button
               onClick={handleDeleteFeed}
               disabled={deleteMutation.isPending}
-              className={`${btnBase} ${btnDestructive} shrink-0 max-[359px]:w-full`}
+              className={`${btnBase} ${btnDestructiveOutline} shrink-0 max-[359px]:w-full`}
               title="Delete feed"
               aria-label="Delete feed"
             >

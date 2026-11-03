@@ -25,7 +25,7 @@ import DisclosureButton from '../components/DisclosureButton';
 import CostAmount from '../components/CostAmount';
 import DateField from '../components/DateField';
 import { selectBase, filterGrid, filterLabel, filterControl } from '../components/fieldStyles';
-import { tableLink } from '../components/rowActionStyles';
+import { tableLink, tableCard, tableHead, th, thRight, tableBody, tableRow, td, tdMuted, tdNum, tdEmpty, rowCard } from '../components/tableStyles';
 import { SLOT_LABELS } from '../api/types';
 import { ArrowDown, ArrowUp } from 'lucide-react';
 import { tabStrip, tabItem } from '../components/PageTabs';
@@ -144,10 +144,10 @@ function ModelUsageTable({
 }) {
   return (
     <>
-      <div className="hidden sm:block bg-card border border-border rounded-lg overflow-hidden">
+      <div className={`hidden sm:block ${tableCard}`}>
         <div role="region" aria-label="Statistics table; scroll for more columns" tabIndex={0} className="overflow-x-auto">
           <table aria-label="Provider and model usage" className="w-full">
-            <thead className="bg-muted/50">
+            <thead className={tableHead}>
               <tr>
                 <th className="w-8 px-2" aria-hidden="true" />
                 <SortHeader field="provider" label="Provider" sortField={sortField} sortDirection={sortDir} onSort={onSort} />
@@ -158,10 +158,10 @@ function ModelUsageTable({
                 <SortHeader field="unknownCostCount" label="Coverage" align="right" sortField={sortField} sortDirection={sortDir} onSort={onSort} />
               </tr>
             </thead>
-            <tbody className="divide-y divide-border">
+            <tbody className={tableBody}>
               {items.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-4 py-8 text-center text-muted-foreground">
+                  <td colSpan={7} className={tdEmpty}>
                     No model usage matches these filters.
                   </td>
                 </tr>
@@ -174,21 +174,21 @@ function ModelUsageTable({
                   : `Show usage detail for ${stat.provider} ${stat.model}`;
                 return (
                   <Fragment key={key}>
-                    <tr className="hover:bg-muted/50">
+                    <tr className={tableRow}>
                       <td className="pl-4 py-3">
                         <DisclosureButton expanded={isOpen} onToggle={() => onToggle(key)} label={label} />
                       </td>
-                      <td className="px-4 py-3 text-sm text-foreground">{stat.provider}</td>
-                      <td className="px-4 py-3 text-sm text-foreground">{stat.model}</td>
-                      <td className="px-4 py-3 text-sm text-muted-foreground text-right tabular-nums">{stat.calls}</td>
-                      <td className="px-4 py-3 text-sm text-muted-foreground text-right tabular-nums"
+                      <td className={`${td} text-foreground`}>{stat.provider}</td>
+                      <td className={`${td} text-foreground`}>{stat.model}</td>
+                      <td className={tdNum}>{stat.calls}</td>
+                      <td className={tdNum}
                           title={hit.title}>
                         {hit.text || '-'}
                       </td>
-                      <td className="px-4 py-3 text-sm text-muted-foreground text-right tabular-nums">
+                      <td className={tdNum}>
                         <CostAmount amount={parseFloat(stat.knownCostUsd)} unpricedCount={stat.unknownCostCount} />
                       </td>
-                      <td className="px-4 py-3 text-sm text-muted-foreground text-right tabular-nums">{formatCoverage(stat.calls, stat.unknownCostCount)}</td>
+                      <td className={tdNum}>{formatCoverage(stat.calls, stat.unknownCostCount)}</td>
                     </tr>
                     {isOpen && (
                       <tr className="bg-muted/20">
@@ -230,7 +230,7 @@ function ModelUsageTable({
           </button>
         </div>
         {items.length === 0 ? (
-          <div className="bg-card rounded-lg border border-border p-8 text-center text-muted-foreground">
+          <div className={`${rowCard} p-8 text-center text-muted-foreground`}>
             No model usage matches these filters.
           </div>
         ) : items.map((stat) => {
@@ -239,7 +239,7 @@ function ModelUsageTable({
           const label = isOpen ? 'Hide usage detail' : 'Show usage detail';
           const hit = cacheHit(stat.cacheReadTokens, stat.cacheWriteTokens, stat.inputTokens);
           return (
-            <div key={key} className="bg-card rounded-lg border border-border p-4">
+            <div key={key} className={rowCard}>
               <div className="mb-2">
                 <p className="text-sm font-semibold text-foreground break-words">{stat.provider} / {stat.model}</p>
                 <p className="mt-1.5 text-sm text-muted-foreground text-right">
@@ -414,15 +414,15 @@ function EpisodeCostTable({
   const [attemptRows, toggleAttemptRows] = useExpandedKeys();
   return (
     <>
-      <div className="hidden xl:block bg-card border border-border rounded-lg overflow-hidden">
+      <div className={`hidden xl:block ${tableCard}`}>
         <div role="region" aria-label="Statistics table; scroll for more columns" tabIndex={0} className="overflow-x-auto">
           <table aria-label="Episode costs" className="w-full">
-            <thead className="bg-muted/50">
+            <thead className={tableHead}>
               <tr>
                 <th className="w-8 px-2" aria-hidden="true" />
                 <SortHeader field="podcastTitle" label="Podcast" sortField={sortField} sortDirection={sortDir} onSort={onSort} />
                 <SortHeader field="episodeTitle" label="Episode" sortField={sortField} sortDirection={sortDir} onSort={onSort} />
-                <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                <th className={th}>
                   Models used
                 </th>
                 <SortHeader field="runCount" label="Runs" align="right" sortField={sortField} sortDirection={sortDir} onSort={onSort} />
@@ -431,10 +431,10 @@ function EpisodeCostTable({
                 <SortHeader field="lastActivityAt" label="Last activity" sortField={sortField} sortDirection={sortDir} onSort={onSort} />
               </tr>
             </thead>
-            <tbody className="divide-y divide-border">
+            <tbody className={tableBody}>
               {items.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="px-4 py-8 text-center text-muted-foreground">
+                  <td colSpan={8} className={tdEmpty}>
                     No episode costs match these filters.
                   </td>
                 </tr>
@@ -446,28 +446,28 @@ function EpisodeCostTable({
                   : `Show run breakdown for ${stat.episodeTitle}`;
                 return (
                   <Fragment key={key}>
-                    <tr className="hover:bg-muted/50">
+                    <tr className={tableRow}>
                       <td className="pl-4 py-3">
                         <DisclosureButton expanded={isOpen} onToggle={() => onToggle(key)} label={label} />
                       </td>
-                      <td className="px-4 py-3">
+                      <td className={td}>
                         <Link to={`/feeds/${stat.podcastSlug}`} className={`${tableLink} text-sm truncate max-w-[150px] block`} title={stat.podcastTitle}>
                           {stat.podcastTitle}
                         </Link>
                       </td>
-                      <td className="px-4 py-3">
+                      <td className={td}>
                         <Link to={`/feeds/${stat.podcastSlug}/episodes/${stat.episodeId}`} className={`${tableLink} text-sm truncate max-w-[200px] block`} title={stat.episodeTitle}>
                           {stat.episodeTitle}
                         </Link>
                       </td>
-                      <td className="px-4 py-3 text-sm text-muted-foreground truncate max-w-[160px]">
+                      <td className={`${tdMuted} truncate max-w-[160px]`}>
                         <ModelsSummary stat={stat} />
                       </td>
-                      <td className="px-4 py-3 text-sm text-muted-foreground text-right tabular-nums">{stat.runCount}</td>
-                      <td className="px-4 py-3 text-sm text-muted-foreground text-right tabular-nums">
+                      <td className={tdNum}>{stat.runCount}</td>
+                      <td className={tdNum}>
                         <CostAmount amount={parseFloat(stat.latestRunCostUsd)} unpriced={stat.latestRunUnknownCount > 0} unpricedCount={stat.latestRunUnknownCount} />
                       </td>
-                      <td className="px-4 py-3 text-sm text-muted-foreground text-right tabular-nums">
+                      <td className={tdNum}>
                         <CostAmount
                           amount={parseFloat(stat.cumulativeCostUsd)}
                           unpriced={stat.hasUnknownCost}
@@ -476,7 +476,7 @@ function EpisodeCostTable({
                           inspectExpanded={attemptRows.has(key)}
                         />
                       </td>
-                      <td className="px-4 py-3 text-sm text-muted-foreground whitespace-nowrap tabular-nums">{formatDateTime(stat.lastActivityAt)}</td>
+                      <td className={`${tdMuted} whitespace-nowrap tabular-nums`}>{formatDateTime(stat.lastActivityAt)}</td>
                     </tr>
                     {attemptRows.has(key) && (
                       <tr className="bg-muted/20">
@@ -522,7 +522,7 @@ function EpisodeCostTable({
           </button>
         </div>
         {items.length === 0 ? (
-          <div className="bg-card rounded-lg border border-border p-8 text-center text-muted-foreground">
+          <div className={`${rowCard} p-8 text-center text-muted-foreground`}>
             No episode costs match these filters.
           </div>
         ) : items.map((stat) => {
@@ -530,7 +530,7 @@ function EpisodeCostTable({
           const isOpen = expanded.has(key);
           const label = isOpen ? 'Hide run breakdown' : 'Show run breakdown';
           return (
-          <div key={key} className="bg-card rounded-lg border border-border p-4">
+          <div key={key} className={rowCard}>
             <Link to={`/feeds/${stat.podcastSlug}`} className={`${tableLink} text-sm font-medium truncate max-w-[200px] block`} title={stat.podcastTitle}>
               {stat.podcastTitle}
             </Link>
@@ -1292,24 +1292,26 @@ export default function StatsPage() {
               {Object.keys(llmStats.byPhase).length > 0 && (
                 <div className="mt-4 border-t border-border pt-3">
                   <h4 className="text-sm font-semibold text-foreground mb-2">Calls by phase</h4>
-                  <table aria-label="Calls by phase" className="w-full max-w-md">
-                    <thead className="bg-muted/50">
+                  <div className={`max-w-md ${tableCard}`}>
+                  <table aria-label="Calls by phase" className="w-full">
+                    <thead className={tableHead}>
                       <tr>
-                        <th scope="col" className="px-3 py-2 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Phase</th>
-                        <th scope="col" className="px-3 py-2 text-right text-xs font-medium text-muted-foreground uppercase tracking-wider">Calls</th>
-                        <th scope="col" className="px-3 py-2 text-right text-xs font-medium text-muted-foreground uppercase tracking-wider">Cost</th>
+                        <th scope="col" className={th}>Phase</th>
+                        <th scope="col" className={thRight}>Calls</th>
+                        <th scope="col" className={thRight}>Cost</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-border">
+                    <tbody className={tableBody}>
                       {Object.entries(llmStats.byPhase).sort(([, x], [, y]) => y.calls - x.calls).map(([phase, entry]) => (
-                        <tr key={phase}>
-                          <td className="px-3 py-2 text-sm text-foreground">{phase}</td>
-                          <td className="px-3 py-2 text-sm text-muted-foreground text-right tabular-nums">{entry.calls}</td>
-                          <td className="px-3 py-2 text-sm text-muted-foreground text-right tabular-nums">{formatKnownCallCost(entry.costUsd)}</td>
+                        <tr key={phase} className={tableRow}>
+                          <td className={`${td} text-foreground`}>{phase}</td>
+                          <td className={tdNum}>{entry.calls}</td>
+                          <td className={tdNum}>{formatKnownCallCost(entry.costUsd)}</td>
                         </tr>
                       ))}
                     </tbody>
                   </table>
+                  </div>
                 </div>
               )}
             </div>
@@ -1404,18 +1406,29 @@ export default function StatsPage() {
             <div className="mt-5">
               <h4 className="text-sm font-semibold text-foreground mb-2">Suggested and applied actions</h4>
               <p className="text-xs text-muted-foreground mb-2">Counts by action type. Accepted includes reverted actions.</p>
-              <div className="hidden sm:block">
-                <table className="w-full text-sm">
-                  <thead><tr className="border-b border-border text-left text-muted-foreground">
-                    <th className="py-2 pr-3 font-medium">Action</th><th className="py-2 px-3 font-medium">Proposed</th><th className="py-2 px-3 font-medium">Accepted</th><th className="py-2 px-3 font-medium">Applied</th><th className="py-2 pl-3 font-medium">Reverted</th>
-                  </tr></thead>
-                  <tbody>{Object.entries(cleanupStats.actions).map(([action, counts]) => (
-                    <tr key={action} className="border-b border-border last:border-0">
-                      <th scope="row" className="py-2 pr-3 text-left font-medium">{CLEANUP_ACTION_LABELS[action] ?? action}</th>
-                      <td className="py-2 px-3 tabular-nums">{counts.proposed}</td><td className="py-2 px-3 tabular-nums">{counts.accepted}</td><td className="py-2 px-3 tabular-nums">{counts.applied}</td><td className="py-2 pl-3 tabular-nums">{counts.reverted}</td>
-                    </tr>
-                  ))}</tbody>
-                </table>
+              <div className={`hidden sm:block ${tableCard}`}>
+                <div role="region" aria-label="Cleanup actions table; scroll for more columns" tabIndex={0} className="overflow-x-auto">
+                  <table aria-label="Cleanup actions" className="w-full">
+                    <thead className={tableHead}>
+                      <tr>
+                        <th scope="col" className={th}>Action</th>
+                        <th scope="col" className={thRight}>Proposed</th>
+                        <th scope="col" className={thRight}>Accepted</th>
+                        <th scope="col" className={thRight}>Applied</th>
+                        <th scope="col" className={thRight}>Reverted</th>
+                      </tr>
+                    </thead>
+                    <tbody className={tableBody}>{Object.entries(cleanupStats.actions).map(([action, counts]) => (
+                      <tr key={action} className={tableRow}>
+                        <th scope="row" className={`${td} text-left font-normal text-foreground`}>{CLEANUP_ACTION_LABELS[action] ?? action}</th>
+                        <td className={tdNum}>{counts.proposed}</td>
+                        <td className={tdNum}>{counts.accepted}</td>
+                        <td className={tdNum}>{counts.applied}</td>
+                        <td className={tdNum}>{counts.reverted}</td>
+                      </tr>
+                    ))}</tbody>
+                  </table>
+                </div>
               </div>
               <div className="sm:hidden space-y-3">
                 {Object.entries(cleanupStats.actions).map(([action, counts]) => (
@@ -1459,7 +1472,7 @@ export default function StatsPage() {
         <div className="sm:hidden space-y-3">
           <h2 className={cardTitle}>All podcasts</h2>
           {sortedPodcasts.map((p) => (
-            <div key={p.podcastSlug} className="bg-card rounded-lg border border-border p-4">
+            <div key={p.podcastSlug} className={rowCard}>
               <p className="text-sm font-semibold text-foreground mb-2">{p.podcastTitle}</p>
               <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
                 <span className="text-muted-foreground">Episodes</span>
@@ -1486,11 +1499,11 @@ export default function StatsPage() {
 
       {/* Desktop Table Layout */}
       {sortedPodcasts.length > 0 && (
-        <div className="hidden sm:block bg-card rounded-lg border border-border overflow-hidden">
+        <div className={`hidden sm:block ${tableCard}`}>
           <h2 className={`${cardTitle} p-4 pb-2`}>All podcasts</h2>
           <div role="region" aria-label="Statistics table; scroll for more columns" tabIndex={0} className="overflow-x-auto">
             <table aria-label="Podcast totals" className="w-full">
-              <thead className="bg-muted/50">
+              <thead className={tableHead}>
                 <tr>
                   <SortHeader field="podcastTitle" label="Podcast" sortField={sortField} sortDirection={sortDir} onSort={handleSort} />
                   <SortHeader field="episodeCount" label="Episodes" align="right" sortField={sortField} sortDirection={sortDir} onSort={handleSort} />
@@ -1503,18 +1516,20 @@ export default function StatsPage() {
                   <SortHeader field="avgTokensPerEpisode" label="Avg tokens per run" className="px-4 hidden lg:table-cell" align="right" sortField={sortField} sortDirection={sortDir} onSort={handleSort} />
                 </tr>
               </thead>
-              <tbody className="divide-y divide-border">
+              <tbody className={tableBody}>
                 {sortedPodcasts.map((p) => (
-                  <tr key={p.podcastSlug} className="hover:bg-muted/50">
-                    <td className="px-4 py-3 text-sm text-foreground font-medium truncate max-w-[200px]">{p.podcastTitle}</td>
-                    <td className="px-4 py-3 text-sm text-muted-foreground text-right tabular-nums">{p.episodeCount}</td>
-                    <td className="px-4 py-3 text-sm text-muted-foreground text-right tabular-nums hidden lg:table-cell">{p.runCount}</td>
-                    <td className="px-4 py-3 text-sm text-muted-foreground text-right tabular-nums">{p.totalAds}</td>
-                    <td className="px-4 py-3 text-sm text-muted-foreground text-right tabular-nums">{p.avgAds}</td>
-                    <td className="px-4 py-3 text-sm text-muted-foreground text-right tabular-nums">{formatElapsed(p.avgTimeSavedSeconds)}</td>
-                    <td className="px-4 py-3 text-sm text-muted-foreground text-right tabular-nums hidden lg:table-cell">{formatElapsed(p.avgEpisodeLengthSeconds)}</td>
-                    <td className="px-4 py-3 text-sm text-muted-foreground text-right tabular-nums hidden lg:table-cell">{formatCost(p.totalCost)}</td>
-                    <td className="px-4 py-3 text-sm text-muted-foreground text-right tabular-nums hidden lg:table-cell">
+                  <tr key={p.podcastSlug} className={tableRow}>
+                    <td className={td}>
+                      <Link to={`/feeds/${p.podcastSlug}`} className={`${tableLink} text-sm truncate max-w-[200px] block`} title={p.podcastTitle}>{p.podcastTitle}</Link>
+                    </td>
+                    <td className={tdNum}>{p.episodeCount}</td>
+                    <td className={`${tdNum} hidden lg:table-cell`}>{p.runCount}</td>
+                    <td className={tdNum}>{p.totalAds}</td>
+                    <td className={tdNum}>{p.avgAds}</td>
+                    <td className={tdNum}>{formatElapsed(p.avgTimeSavedSeconds)}</td>
+                    <td className={`${tdNum} hidden lg:table-cell`}>{formatElapsed(p.avgEpisodeLengthSeconds)}</td>
+                    <td className={`${tdNum} hidden lg:table-cell`}>{formatCost(p.totalCost)}</td>
+                    <td className={`${tdNum} hidden lg:table-cell`}>
                       <span>{formatTokenCount(p.avgTokensPerEpisode)}</span>
                       <span className="text-xs text-muted-foreground ml-1">({formatTokenCount(p.totalInputTokens)}/{formatTokenCount(p.totalOutputTokens)})</span>
                     </td>
