@@ -207,6 +207,7 @@ ENV HOME=/app/data \
 # Copy application code
 COPY src/ ./src/
 COPY version.py ./
+COPY CHANGELOG.md ./
 COPY assets/ ./assets/
 COPY assets/ ./assets_builtin/
 COPY openapi.yaml ./

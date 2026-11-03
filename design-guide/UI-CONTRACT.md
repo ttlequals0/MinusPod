@@ -196,7 +196,7 @@ Feed deletion, resets, and replace-mode imports use `ConfirmModal`. Name the obj
 
 ## Contrast, hierarchy, layers, and motion
 
-- Normal text requires at least 4.5:1 contrast against its rendered surface. Test ordinary text, muted text, status text, links, solid controls, hover states, and tinted badges across every theme and mode. `themes.test.tsx` enforces this for every theme pair; a ported palette moves lightness, never hue, to pass.
+- Normal text requires at least 4.5:1 contrast against its rendered surface. Test ordinary text, muted text, status text, links, solid controls, hover states, and tinted badges across every theme and mode. `themes.test.tsx` enforces this for every theme pair; a ported palette moves lightness, never hue, to pass. Body text clears 9.5:1 and muted text 7:1 on card and page surfaces, so both are AAA and the hierarchy between them survives; colored text, button labels and badge tints keep the 4.5:1 AA floor.
 - A theme with one mode shows "(dark only)" or "(light only)" in the Appearance picker, with the fallback named in its title. The missing mode renders the default Slate palette.
 - Use the appropriate paired foreground token. Being token-based does not prove sufficient contrast. Disabled controls and decorative marks require separate interpretation; do not dilute active text with opacity.
 - Feed cards lead with artwork and title; the processed bar under the status pills reads processed of total.

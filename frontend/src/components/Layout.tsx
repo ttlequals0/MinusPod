@@ -5,6 +5,8 @@ import { useQuery } from '@tanstack/react-query';
 import { useTheme } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
 import UpdateBanner from './UpdateBanner';
+import WhatsNewDialog from './WhatsNewDialog';
+import { useWhatsNew } from '../hooks/useWhatsNew';
 import QuickSearch, { useQuickSearchHotkey } from './QuickSearch';
 import { getProcessingStatus } from '../api/status';
 import { btnBase, btnPrimary, btnGhost, touchTarget } from './buttonStyles';
@@ -61,7 +63,7 @@ function isPathActive(pathname: string, to: string): boolean {
 
 function Layout() {
   const { theme, toggleTheme } = useTheme();
-  const { logout, isPasswordSet } = useAuth();
+  const { logout, isPasswordSet, isAuthenticated } = useAuth();
   const location = useLocation();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [searchSeed, setSearchSeed] = useState<string | null>(null);
@@ -75,6 +77,7 @@ function Layout() {
   const openSearch = useCallback((seed: string) => setSearchSeed(seed), []);
   const closeSearch = useCallback(() => setSearchSeed(null), []);
   useQuickSearchHotkey(openSearch);
+  const whatsNew = useWhatsNew(isAuthenticated === true);
 
   const handleLogout = async () => {
     await logout();
@@ -179,6 +182,9 @@ function Layout() {
         <Outlet />
       </main>
       <QuickSearch seed={searchSeed} onClose={closeSearch} />
+      {whatsNew.open && (
+        <WhatsNewDialog current={whatsNew.current} sections={whatsNew.sections} onClose={whatsNew.close} />
+      )}
     </div>
   );
 }

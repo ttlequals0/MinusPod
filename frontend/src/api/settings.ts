@@ -1,6 +1,6 @@
 import { apiRequest, apiFileRequest } from './client';
 import { downloadBlob } from './history';
-import { Settings, ClaudeModel, WhisperModel, SystemStatus, UpdateSettingsPayload, RetentionSettings, ProcessingTimeouts, ReplacementAudio, WhisperCapacity, ProviderSlot, QueueAdmission, PodpingCheck, SLOT_PRIMARY } from './types';
+import { Settings, ClaudeModel, WhisperModel, SystemStatus, UpdateSettingsPayload, RetentionSettings, ProcessingTimeouts, ReplacementAudio, WhisperCapacity, ProviderSlot, QueueAdmission, PodpingCheck, ChangelogResponse, HealthResponse, SLOT_PRIMARY } from './types';
 
 export async function getSettings(): Promise<Settings> {
   return apiRequest<Settings>('/settings');
@@ -160,6 +160,18 @@ export async function refreshModels(
 
 export async function getSystemStatus(): Promise<SystemStatus> {
   return apiRequest<SystemStatus>('/system/status');
+}
+
+export async function getHealth(): Promise<HealthResponse> {
+  return apiRequest<HealthResponse>('/health');
+}
+
+export async function getChangelog(params?: { since?: string; limit?: number }): Promise<ChangelogResponse> {
+  const query = new URLSearchParams();
+  if (params?.since) query.set('since', params.since);
+  if (params?.limit) query.set('limit', String(params.limit));
+  const qs = query.toString();
+  return apiRequest<ChangelogResponse>(`/changelog${qs ? `?${qs}` : ''}`);
 }
 
 export async function requestPodpingCheck(): Promise<PodpingCheck> {

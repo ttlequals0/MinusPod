@@ -125,6 +125,9 @@ def _build_settings_payload():
     require_manual_approval_default = coerce_bool_setting(common._setting_value(
         settings, 'require_manual_approval_default',
         registry_default('require_manual_approval_default')))
+    whats_new_on_upgrade = coerce_bool_setting(common._setting_value(
+        settings, 'whats_new_on_upgrade',
+        registry_default('whats_new_on_upgrade')))
     detect_show_segments_default = coerce_bool_setting(common._setting_value(
         settings, 'detect_show_segments', registry_default('detect_show_segments')))
     text_recurrence_hints = coerce_bool_setting(common._setting_value(
@@ -596,6 +599,7 @@ def _build_settings_payload():
             'only_expose_processed_default', only_expose_processed_default),
         'requireManualApprovalDefault': _sv(
             'require_manual_approval_default', require_manual_approval_default),
+        'whatsNewOnUpgrade': _sv('whats_new_on_upgrade', whats_new_on_upgrade),
         'detectShowSegments': _sv(
             'detect_show_segments', detect_show_segments_default),
         'textRecurrenceHints': _sv(

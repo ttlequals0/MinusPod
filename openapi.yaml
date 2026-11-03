@@ -7366,6 +7366,9 @@ paths:
                 requireManualApprovalDefault:
                   type: boolean
                   description: Global default for holding newly processed episodes out of served feeds until approved. Overridden by per-feed requireManualApproval when set.
+                whatsNewOnUpgrade:
+                  type: boolean
+                  description: Show the What's new dialog once per browser after the app version changes.
                 detectShowSegments:
                   type: boolean
                   description: Global default for detecting intro, outro, and recap/housekeeping segments in addition to the always-detected ad-side categories. Overridden by per-feed detectShowSegments when set.
@@ -8412,6 +8415,68 @@ paths:
                   status:
                     type: string
                     enum: [ok]
+
+  /changelog:
+    get:
+      tags:
+        - System
+      summary: Get changelog sections
+      description: >-
+        Returns released CHANGELOG.md sections, newest first, capped by
+        `limit`. `since` optionally keeps only sections newer than that version.
+        An empty list means the changelog is not bundled in this build.
+      operationId: getChangelog
+      parameters:
+        - name: since
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Optional X.Y.Z version; only newer sections are returned.
+          example: 2.101.14
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 50
+            default: 10
+          description: Values above 50 are clamped to 50.
+      responses:
+        '400':
+          description: Malformed `since` (`bad_since`) or `limit` below 1 (`bad_limit`)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+        '200':
+          description: Changelog sections
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [current, sections]
+                properties:
+                  current:
+                    type: string
+                    description: Running app version
+                  sections:
+                    type: array
+                    items:
+                      type: object
+                      required: [version, date, body]
+                      properties:
+                        version:
+                          type: string
+                        date:
+                          type: string
+                        body:
+                          type: string
+                          description: Markdown section body without its header
 
   /system/status:
     get:
@@ -17657,6 +17722,14 @@ components:
               description: Global default for hiding non-processed episodes from served feeds (per-feed onlyExposeProcessedEpisodes overrides when set)
             isDefault:
               type: boolean
+        whatsNewOnUpgrade:
+          type: object
+          properties:
+            value:
+              type: boolean
+              description: Show the What's new dialog once per browser after the app version changes
+            isDefault:
+              type: boolean
         requireManualApprovalDefault:
           type: object
           properties:
@@ -18700,6 +18773,8 @@ components:
             onlyExposeProcessedDefault:
               type: boolean
             requireManualApprovalDefault:
+              type: boolean
+            whatsNewOnUpgrade:
               type: boolean
             detectShowSegments:
               type: boolean

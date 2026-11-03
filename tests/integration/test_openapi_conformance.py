@@ -138,6 +138,7 @@ GET_ROUTES = [
     ('/health', ''),
     ('/health/live', ''),
     ('/system/status', ''),
+    ('/changelog', ''),
     ('/system/token-usage', ''),
     ('/system/model-pricing', ''),
     ('/system/queue', ''),

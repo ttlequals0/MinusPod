@@ -8,9 +8,11 @@ import SystemStatusSection from './SystemStatusSection';
 import type { SystemStatus } from '../../api/types';
 
 const mockCheckpoint = vi.fn();
+const mockChangelog = vi.fn();
 
 vi.mock('../../api/settings', () => ({
   checkpointDatabase: (...args: unknown[]) => mockCheckpoint(...args),
+  getChangelog: (...args: unknown[]) => mockChangelog(...args),
 }));
 
 vi.mock('./UpdateStatusPanel', () => ({ default: () => null }));
@@ -68,18 +70,51 @@ describe('DatabaseStatsSection', () => {
   });
 });
 
+function renderStatus(onToggle = vi.fn()) {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  render(
+    <QueryClientProvider client={client}>
+      <MemoryRouter>
+        <SystemStatusSection
+          status={STATUS}
+          statusLoading={false}
+          whatsNewOnUpgrade
+          onWhatsNewOnUpgradeChange={onToggle}
+        />
+      </MemoryRouter>
+    </QueryClientProvider>,
+  );
+}
+
 describe('SystemStatusSection', () => {
   it('shows the instance cells', () => {
-    render(
-      <MemoryRouter>
-        <SystemStatusSection status={STATUS} statusLoading={false} />
-      </MemoryRouter>,
-    );
+    renderStatus();
     for (const label of ['Version', 'Feeds', 'Episodes', 'Storage', 'Uptime']) {
       expect(screen.getByText(label)).toBeTruthy();
     }
     for (const label of ['Time Saved', 'LLM Tokens', 'Cost']) {
       expect(screen.queryByText(label)).toBeNull();
     }
+  });
+
+  it('opens the What\'s new dialog from the version button', async () => {
+    mockChangelog.mockResolvedValue({
+      current: '2.76.0',
+      sections: [{ version: '2.76.0', date: '2026-01-01', body: '### Added\n- Something' }],
+    });
+    renderStatus();
+    await userEvent.click(screen.getByRole('button', { name: '2.76.0' }));
+    expect(await screen.findByRole('dialog', { name: "What's new in 2.76.0" })).toBeTruthy();
+    expect(mockChangelog).toHaveBeenCalledWith({ limit: 10 });
+    expect(await screen.findByText('Something')).toBeTruthy();
+  });
+
+  it('binds the upgrade toggle to the setting', async () => {
+    const onToggle = vi.fn();
+    renderStatus(onToggle);
+    const toggle = screen.getByRole('switch', { name: "Show what's new after an upgrade" });
+    expect(toggle.getAttribute('aria-checked')).toBe('true');
+    await userEvent.click(toggle);
+    expect(onToggle).toHaveBeenCalledWith(false);
   });
 });

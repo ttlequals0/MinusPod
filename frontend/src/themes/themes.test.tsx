@@ -8,6 +8,9 @@ import { THEMES, THEME_VAR_KEYS } from './themes';
 const FILLS = [0.2, 0.3];
 const PANELS = [0, 0.1];
 const MIN_RATIO = 4.5;
+// Body text sits well above muted text so the hierarchy survives; both clear AAA.
+const MIN_BODY_RATIO = 9.5;
+const MIN_MUTED_RATIO = 7;
 
 type Rgb = [number, number, number];
 
@@ -62,9 +65,9 @@ type Mode = 'light' | 'dark';
 
 function failures(vars: Record<string, string>, mode: Mode): string[] {
   const out: string[] = [];
-  const check = (label: string, text: Rgb, bg: Rgb) => {
+  const check = (label: string, text: Rgb, bg: Rgb, min = MIN_RATIO) => {
     const ratio = contrast(text, bg);
-    if (ratio < MIN_RATIO) out.push(`${label}: ${ratio.toFixed(2)}`);
+    if (ratio < min) out.push(`${label}: ${ratio.toFixed(2)}`);
   };
   const tints: [string, Record<string, string>][] = [
     ...CSS_HUES.map((h) => [h, DEFAULTS[mode]] as [string, Record<string, string>]),
@@ -89,7 +92,8 @@ function failures(vars: Record<string, string>, mode: Mode): string[] {
   }
   for (const surface of ['background', 'card']) {
     for (const token of ['foreground', 'muted-foreground', 'primary', 'destructive', 'success', 'warning']) {
-      check(`${token} on ${surface}`, hslToRgb(vars[token]), hslToRgb(vars[surface]));
+      check(`${token} on ${surface}`, hslToRgb(vars[token]), hslToRgb(vars[surface]),
+        token === 'foreground' ? MIN_BODY_RATIO : token === 'muted-foreground' ? MIN_MUTED_RATIO : MIN_RATIO);
     }
     for (const token of ['primary', 'destructive', 'success', 'warning']) {
       for (const opacity of [1, 0.9]) {
@@ -98,7 +102,8 @@ function failures(vars: Record<string, string>, mode: Mode): string[] {
       }
     }
   }
-  for (const [text, surface] of [['card-foreground', 'card'], ['muted-foreground', 'muted'],
+  check('card-foreground on card', hslToRgb(vars['card-foreground']), hslToRgb(vars['card']), MIN_BODY_RATIO);
+  for (const [text, surface] of [['muted-foreground', 'muted'],
     ['muted-foreground', 'secondary'], ['accent-foreground', 'accent']]) {
     check(`${text} on ${surface}`, hslToRgb(vars[text]), hslToRgb(vars[surface]));
   }

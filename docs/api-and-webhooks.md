@@ -105,6 +105,7 @@ Key endpoints:
 - `POST /api/v1/system/model-pricing/refresh` - Force refresh pricing from provider source
 - `GET /api/v1/system/queue` - Auto-process queue status
 - `POST /api/v1/system/vacuum` - Trigger SQLite VACUUM to reclaim disk space
+- `GET /api/v1/changelog` - Released changelog sections, newest first (`limit` 1 to 50, default 10, larger values clamp); optional `since` X.Y.Z keeps only newer sections; 400 on a malformed `since` or `limit` below 1. Drives the What's new dialog
 - `GET /api/v1/system/status` - Active Podping node, per-node HTTP status, and manual check progress. Includes worker-scoped SQLite WAL, checkpoint, transaction, and busy diagnostics
 - `POST /api/v1/system/podping/check` - Check every Podping RPC node without changing the listener's active node; the request is deduplicated while a check is running
 - `POST /api/v1/system/database/checkpoint` - Run a passive WAL checkpoint; returns 409 when active readers prevent completion

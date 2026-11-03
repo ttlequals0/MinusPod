@@ -109,6 +109,7 @@ SEED_SNAPSHOT = {
     'omit_temperature': 'false',
     'only_expose_processed_default': 'false',
     'require_manual_approval_default': 'false',
+    'whats_new_on_upgrade': 'true',
     'openai_base_url': 'http://localhost:8000/v1',
     'systemone_base_url': '',
     'systemone_tunables_primary_typesafe': '{"categoryContext":2,"categoryPass":true,"defaultCategory":"sponsor","detectionEnter":0.95,"detectionStay":0.4,"maxChoiceOptions":255,"maxConcurrentOperations":4,"maxPromptTokens":null,"maxQuestionsPerRequest":null,"maxRequestBytes":null,"refineBoundaries":false,"requestDeadlineSeconds":75.0,"retryAfterMaxSeconds":5.0,"reviewBoundaryCapSeconds":60.0,"reviewChoiceEnter":null,"reviewContextSeconds":30.0,"reviewEvidenceEnter":null,"reviewProgrammeVeto":0.85}',
@@ -262,7 +263,7 @@ NON_RESETTABLE_KEYS = (
     'enable_ad_review', 'feed_auth_key', 'keep_original_audio',
     'max_feed_episodes', 'offline_queue_enabled', 'offline_queue_ttl_hours',
     'only_expose_processed_default', 'omit_temperature',
-    'require_manual_approval_default',
+    'require_manual_approval_default', 'whats_new_on_upgrade',
     'podping_enabled', 'positional_prior_enabled',
     'processing_hard_timeout_seconds', 'processing_soft_timeout_seconds',
     'retention_days', 'review_max_boundary_shift', 'review_model',
@@ -560,11 +561,12 @@ class TestGetDefaults:
         # localUploadMaxMb added after that (172 -> 173).
         # youtubeEnabled added after that (173 -> 174).
         # requireManualApprovalDefault added after that (174 -> 175).
+        # whatsNewOnUpgrade added after that (175 -> 176).
         payload_keys = {
             spec.payload_key for spec in SETTINGS_REGISTRY.values()
             if spec.payload_key
         }
-        assert len(payload_keys) == 175
+        assert len(payload_keys) == 176
         assert 'systemoneBaseUrl' in payload_keys
         assert 'failoverWhisperMaxAttempts' in payload_keys
         assert 'audioCuePairOrientWindowSeconds' not in payload_keys

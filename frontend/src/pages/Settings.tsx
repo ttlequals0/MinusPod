@@ -228,6 +228,7 @@ function Settings() {
   const [rssRefreshIntervalMinutes, setRssRefreshIntervalMinutes] = useState(15);
   const [onlyExposeProcessedDefault, setOnlyExposeProcessedDefault] = useState(false);
   const [requireManualApprovalDefault, setRequireManualApprovalDefault] = useState(false);
+  const [whatsNewOnUpgrade, setWhatsNewOnUpgrade] = useState(true);
   const [artworkWatermarkEnabled, setArtworkWatermarkEnabled] = useState(false);
   const [artworkBadgePosition, setArtworkBadgePosition] = useState<BadgePosition>('bottom-right');
   const [lowAdYieldAction, setLowAdYieldAction] = useState<LowAdYieldAction>('nothing');
@@ -899,6 +900,7 @@ function Settings() {
     { key: 'autoProcessMaxAgeHours', kind: 'val', useDefault: true, literal: AUTO_PROCESS_WINDOW.default, value: autoProcessMaxAgeHours, set: setAutoProcessMaxAgeHours },
     { key: 'onlyExposeProcessedDefault', kind: 'val', useDefault: true, value: onlyExposeProcessedDefault, set: setOnlyExposeProcessedDefault },
     { key: 'requireManualApprovalDefault', kind: 'val', literal: false, value: requireManualApprovalDefault, set: setRequireManualApprovalDefault },
+    { key: 'whatsNewOnUpgrade', kind: 'val', literal: true, value: whatsNewOnUpgrade, set: setWhatsNewOnUpgrade },
     { key: 'artworkWatermarkEnabled', kind: 'val', useDefault: true, value: artworkWatermarkEnabled, set: setArtworkWatermarkEnabled },
     { key: 'artworkBadgePosition', kind: 'str', useDefault: true, value: artworkBadgePosition, set: (v) => setArtworkBadgePosition(v as BadgePosition) },
     { key: 'lowAdYieldAction', kind: 'str', useDefault: true, value: lowAdYieldAction, set: (v) => setLowAdYieldAction(v as LowAdYieldAction) },
@@ -1292,6 +1294,8 @@ function Settings() {
       <SystemStatusSection
         status={status}
         statusLoading={statusLoading}
+        whatsNewOnUpgrade={whatsNewOnUpgrade}
+        onWhatsNewOnUpgradeChange={setWhatsNewOnUpgrade}
       />
 
       {/* Settings search: filters the configurable sections below by matching a
