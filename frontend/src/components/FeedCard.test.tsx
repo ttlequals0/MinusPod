@@ -102,3 +102,29 @@ describe('FeedCard awaiting approval', () => {
     expect(screen.queryByText(/awaiting approval/)).toBeNull();
   });
 });
+
+describe('FeedCard processed bar and buttons', () => {
+  it('shows completed of total as a progressbar', () => {
+    renderCard(makeFeed({
+      episodeCount: 10,
+      statusCounts: {
+        discovered: 0, pending: 0, processing: 0, completed: 4,
+        failed: 0, permanently_failed: 0, deferred: 0,
+      },
+    }));
+    expect(screen.getByRole('progressbar', { name: 'Episodes processed' }).getAttribute('aria-valuenow')).toBe('4');
+    expect(screen.getByText('4 of 10 processed')).toBeDefined();
+  });
+
+  it('renders the bar at zero when the feed has no episodes', () => {
+    renderCard(makeFeed({ episodeCount: 0 }));
+    expect(screen.getByText('0 of 0 processed')).toBeDefined();
+    expect(screen.getByRole('progressbar', { name: 'Episodes processed' }).getAttribute('aria-valuenow')).toBe('0');
+  });
+
+  it('uses outline recipes for Refresh and Delete', () => {
+    renderCard(makeFeed());
+    expect(screen.getByRole('button', { name: /Refresh/ }).className).toContain('border-primary/40');
+    expect(screen.getByRole('button', { name: 'Delete feed' }).className).toContain('border-destructive/40');
+  });
+});

@@ -9,7 +9,7 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
-## [2.101.15] - 2026-11-03
+## [2.101.16] - 2026-11-03
 
 ### Added
 
@@ -44,6 +44,7 @@ release notes.
 
 ### Changed
 
+- Feed cards, feed list rows and the feed page lead with artwork and title. Refresh and Delete are outline buttons in their accent hues, Copy URL keeps its label on phones, and each card shows a processed-of-total bar under the status pills.
 - A 5-star episode rating also dismisses the episode's held-for-review ads,
   without recording a rejection pattern, so the review chip clears and the
   matcher learns nothing from spans the detector could not back up.

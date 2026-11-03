@@ -45,6 +45,7 @@ There is no `<Button>` component. Recipes are class strings composed at the call
 | `btnSecondary` | Default action beside a primary one | Fill, no border |
 | `btnOutline` | Same as secondary | Alias kept for call-site intent |
 | `btnGhost` | Low-emphasis action, icon toggles | Muted text, accent hover |
+| `btnPrimaryOutline` | Accent action that must not dominate its card: Refresh on feed cards and the feed page | Primary text and 40 percent primary border, 10 percent primary fill on hover |
 | `btnDestructive` | The primary action is destructive (confirm delete) | Solid fill |
 | `btnDestructiveOutline` | Destructive action beside a primary one (Delete beside Edit) | Tinted border and hover |
 | `touchTarget` | Standalone control that needs a 44 px box on a phone | `min-h-11 min-w-11` below sm |
@@ -198,6 +199,7 @@ Feed deletion, resets, and replace-mode imports use `ConfirmModal`. Name the obj
 - Normal text requires at least 4.5:1 contrast against its rendered surface. Test ordinary text, muted text, status text, links, solid controls, hover states, and tinted badges across every theme and mode. `themes.test.tsx` enforces this for every theme pair; a ported palette moves lightness, never hue, to pass.
 - A theme with one mode shows "(dark only)" or "(light only)" in the Appearance picker, with the fallback named in its title. The missing mode renders the default Slate palette.
 - Use the appropriate paired foreground token. Being token-based does not prove sufficient contrast. Disabled controls and decorative marks require separate interpretation; do not dilute active text with opacity.
+- Feed cards lead with artwork and title; the processed bar under the status pills reads processed of total.
 - Card and section titles use `cardTitle` (18 CSS px, 600) and sub-headings use `subHeading` (14 CSS px, 600), always `text-foreground`. Data cards pad with `cardPad` (16 CSS px) and section cards with `sectionPad` (24 CSS px).
 - Use one visible page `h1` at 24 CSS px, section headings at 18 CSS px, and consistent summary-card labels/values. Keep numeric column headings aligned with their values.
 - Use `pageHeader`, `pageTitle`, and `pageDescription`: 24 CSS px titles, 16 CSS px header gaps, 24 CSS px bottom spacing, and actions below the title on phones.
