@@ -75,6 +75,7 @@ function DashboardControlsMenu({
                   ariaLabel="Layout"
                   variant="toolbar"
                   fill
+                  tall
                 />
               </div>
             )}
@@ -87,6 +88,7 @@ function DashboardControlsMenu({
                 ariaLabel="Sort"
                 variant="toolbar"
                 fill
+                tall
               />
             </div>
             {dashboardView === 'episodes' && (

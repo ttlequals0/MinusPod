@@ -161,7 +161,7 @@ a:hover{text-decoration:underline}
       <div style="display:flex;flex-direction:column;gap:6px">
         <div style="display:flex;gap:8px">
           <button style="padding:6px 12px;font-size:14px;border-radius:4px;border:none;cursor:pointer;font-family:inherit;background:hsl(var(--secondary));color:hsl(var(--secondary-foreground))">Edit</button>
-          <button style="padding:6px 12px;font-size:14px;border-radius:4px;border:1px solid hsl(var(--destructive) / 0.4);cursor:pointer;font-family:inherit;background:transparent;color:hsl(var(--destructive))" style-hover="background:hsl(var(--destructive) / 0.1)">Delete</button>
+          <button style="padding:6px 12px;font-size:14px;border-radius:4px;border:1px solid hsl(var(--destructive) / 0.8);cursor:pointer;font-family:inherit;background:transparent;color:hsl(var(--destructive))" style-hover="background:hsl(var(--destructive) / 0.1)">Delete</button>
         </div>
         <span style="font-size:12px;color:hsl(var(--muted-foreground))"><span style="font-family:ui-monospace,monospace;font-size:12px">btnDestructiveOutline</span>: destructive, but not the primary action</span>
       </div>
@@ -355,8 +355,8 @@ No &lt;Button&gt; component: pair a base with a colour variant; call sites add l
       <div style="padding:12px 16px;background:hsl(var(--secondary) / 0.5);border-top:1px solid hsl(var(--border));display:flex;justify-content:space-between;align-items:center;gap:8px">
         <span style="font-size:12px;color:hsl(var(--muted-foreground))">Copy URL</span>
         <div style="display:flex;gap:8px">
-          <button style="padding:6px 12px;font-size:14px;border-radius:4px;border:1px solid hsl(var(--primary) / 0.4);cursor:pointer;font-family:inherit;background:transparent;color:hsl(var(--primary))" style-hover="background:hsl(var(--primary) / 0.1)">Refresh</button>
-          <button style="padding:6px 12px;font-size:14px;border-radius:4px;border:1px solid hsl(var(--destructive) / 0.4);cursor:pointer;font-family:inherit;background:transparent;color:hsl(var(--destructive))" style-hover="background:hsl(var(--destructive) / 0.1)">Delete</button>
+          <button style="padding:6px 12px;font-size:14px;border-radius:4px;border:1px solid hsl(var(--primary) / 0.8);cursor:pointer;font-family:inherit;background:transparent;color:hsl(var(--primary))" style-hover="background:hsl(var(--primary) / 0.1)">Refresh</button>
+          <button style="padding:6px 12px;font-size:14px;border-radius:4px;border:1px solid hsl(var(--destructive) / 0.8);cursor:pointer;font-family:inherit;background:transparent;color:hsl(var(--destructive))" style-hover="background:hsl(var(--destructive) / 0.1)">Delete</button>
         </div>
       </div>
     </div>
@@ -376,7 +376,7 @@ No &lt;Button&gt; component: pair a base with a colour variant; call sites add l
         <div style="font-size:14px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">List row variant: p-3, 44px art</div>
         <div style="font-size:12px;color:hsl(var(--muted-foreground))">142 episodes &middot; Updated Aug 1</div>
       </div>
-      <button aria-label="Refresh" style="width:44px;height:44px;display:inline-flex;align-items:center;justify-content:center;border-radius:4px;border:1px solid hsl(var(--primary) / 0.4);cursor:pointer;background:transparent;color:hsl(var(--primary));flex-shrink:0" style-hover="background:hsl(var(--primary) / 0.1)"><svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg></button>
+      <button aria-label="Refresh" style="width:44px;height:44px;display:inline-flex;align-items:center;justify-content:center;border-radius:4px;border:1px solid hsl(var(--primary) / 0.8);cursor:pointer;background:transparent;color:hsl(var(--primary));flex-shrink:0" style-hover="background:hsl(var(--primary) / 0.1)"><svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg></button>
     </div>
   </div>
   <div style="background:hsl(var(--card));border:1px solid hsl(var(--border));border-radius:8px;padding:20px;display:flex;flex-direction:column;gap:12px">
@@ -554,7 +554,7 @@ tab&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;= px-4 py-2 text-sm fon
 
   <div style="background:hsl(var(--card));border:1px solid hsl(var(--border));border-radius:8px;padding:20px;display:flex;flex-direction:column;gap:12px">
     <div style="font-size:15px;font-weight:600">SegmentedToggle</div>
-    <p style="margin:0;font-size:13px;color:hsl(var(--muted-foreground));text-wrap:pretty">One button group, one selected segment, two variants. <span style="font-family:ui-monospace,monospace;font-size:12px">settings</span> is the compact ARIA radio row; <span style="font-family:ui-monospace,monospace;font-size:12px">toolbar</span> is the 44px button group used in toolbars and popover rows.</p>
+    <p style="margin:0;font-size:13px;color:hsl(var(--muted-foreground));text-wrap:pretty">One button group, one selected segment, two variants. <span style="font-family:ui-monospace,monospace;font-size:12px">settings</span> is the compact ARIA radio row; <span style="font-family:ui-monospace,monospace;font-size:12px">toolbar</span> is the button group used in toolbars and popover rows, 32px tall like btnBase; pass <span style="font-family:ui-monospace,monospace;font-size:12px">tall</span> in a 44px filter row or popover.</p>
     <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
       <div style="display:flex;border:1px solid hsl(var(--border));border-radius:8px;overflow:hidden">
         <span style="padding:6px 12px;font-size:14px;background:hsl(var(--primary) / 0.1);color:hsl(var(--primary));font-weight:500">Timestamps</span>
@@ -567,18 +567,18 @@ tab&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;= px-4 py-2 text-sm fon
       </div>
       <span style="font-size:12px;color:hsl(var(--muted-foreground))">toolbar variant</span>
     </div>
-    <div style="font-family:ui-monospace,monospace;font-size:12px;line-height:1.8;color:hsl(var(--muted-foreground));background:hsl(var(--muted) / 0.5);border-radius:6px;padding:12px 14px;overflow-x:auto;white-space:pre-wrap;word-break:break-word">settings group   = inline-flex rounded-lg border border-border overflow-hidden
+    <div style="font-family:ui-monospace,monospace;font-size:12px;line-height:1.8;color:hsl(var(--muted-foreground));background:hsl(var(--muted) / 0.5);border-radius:6px;padding:12px 14px;overflow-x:auto;white-space:pre-wrap;word-break:break-word">settings group   = inline-flex rounded-lg outline outline-1 -outline-offset-1 outline-border overflow-hidden
 settings segment = px-3 py-1.5 text-sm  (divided: border-l border-border from the second on)
 settings chosen  = bg-primary/10 text-primary font-medium   muted: bg-muted text-muted-foreground font-medium
-toolbar group    = flex h-11 rounded shrink-0 border border-border overflow-hidden
-toolbar segment  = inline-flex items-center justify-center h-11 px-2.5 sm:px-3 text-sm
+toolbar group    = flex rounded shrink-0 outline outline-1 -outline-offset-1 outline-border overflow-hidden   (+ h-11 with tall)
+toolbar segment  = inline-flex items-center justify-center py-1.5 px-2.5 sm:px-3 text-sm   (py-1.5 is btnBase's btnPadY)
 toolbar chosen   = bg-primary text-primary-foreground
 unchosen         = btnSecondary          every segment: transition-colors disabled:opacity-50 focusRing
 fill             = adds w-full to the group and flex-1 min-w-11 to each segment</div>
     <ul style="margin:0;padding-left:18px;font-size:13px;line-height:1.8;color:hsl(var(--foreground))">
       <li><b>Selected and disabled.</b> The settings variant is a real <span style="font-family:ui-monospace,monospace;font-size:12px">radiogroup</span>: <span style="font-family:ui-monospace,monospace;font-size:12px">role=radio</span> plus <span style="font-family:ui-monospace,monospace;font-size:12px">aria-checked</span>. The toolbar variant is a <span style="font-family:ui-monospace,monospace;font-size:12px">group</span> of buttons and carries <span style="font-family:ui-monospace,monospace;font-size:12px">aria-pressed</span> instead, so selection still reaches a screen reader outside the radio pattern. <span style="font-family:ui-monospace,monospace;font-size:12px">disabled</span> applies to every segment and renders at <span style="font-family:ui-monospace,monospace;font-size:12px">opacity-50</span>; arrow keys do nothing while disabled.</li>
       <li><b>Focus movement.</b> Settings uses a roving tabindex: only the selected segment is tabbable, and Arrow&larr;/&uarr;/&rarr;/&darr; wrap through the options, Home and End jump to the ends. Selecting moves real DOM focus, since a re-render alone does not. The toolbar variant leaves every button in the tab order.</li>
-      <li><b>Mobile.</b> Toolbar segments are 44px tall at every width and size to their labels so a row of them fits a phone; <span style="font-family:ui-monospace,monospace;font-size:12px">fill</span> stretches them to a popover row instead. A portaled surface that needs <span style="font-family:ui-monospace,monospace;font-size:12px">ring-inset</span> applies it itself.</li>
+      <li><b>Mobile.</b> Toolbar segments match the 32px btnBase height, which the coarse-pointer floor lifts to 44px on phones; a 44px filter row or popover passes tall. The group boundary is an inset outline, so it adds no height. They size to their labels so a row of them fits a phone; <span style="font-family:ui-monospace,monospace;font-size:12px">fill</span> stretches them to a popover row instead. A portaled surface that needs <span style="font-family:ui-monospace,monospace;font-size:12px">ring-inset</span> applies it itself.</li>
     </ul>
   </div>
 

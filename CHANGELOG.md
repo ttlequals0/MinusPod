@@ -30,6 +30,22 @@ release notes.
   a recorded version yet. When the newest changelog section is older than
   the app, the browser records the version and shows nothing.
 
+### Changed
+
+- The dashboard Feeds/Episodes switch is the same height as the View,
+  Refresh all and Export OPML buttons beside it. It was a 44 px control on
+  desktop while the buttons were 32 px. The transcript dialog and View menu
+  keep their 44 px toggles.
+- Outline buttons (Refresh and Delete on feed cards and the feed page,
+  Actions on dashboard episode rows) draw their border at 80 percent of the
+  accent instead of 40 percent. The lighter border sat below the 3:1
+  non-text contrast floor on every theme, so the buttons read as plain text
+  on muted palettes such as Nord. The unchecked checkbox box moves from 40
+  to 70 percent of the muted text colour for the same reason.
+- The Actions menu on dashboard episode rows uses the same quiet outline
+  button as the feed card actions instead of a solid primary button, so the
+  row content keeps the emphasis.
+
 ## [2.101.17] - 2026-11-03
 
 ### Added

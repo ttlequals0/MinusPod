@@ -433,6 +433,7 @@ function TranscriptViewer({ slug, episodeId, episode, onClose }: Props) {
             <span className={filterLabel}>View</span>
             <SegmentedToggle
               variant="toolbar"
+              tall
               options={VIEW_OPTIONS}
               value={view}
               onChange={(v) => { writeView(v); setView(v); reset(); }}
@@ -443,6 +444,7 @@ function TranscriptViewer({ slug, episodeId, episode, onClose }: Props) {
             <span className={filterLabel}>Context</span>
             <SegmentedToggle
               variant="toolbar"
+              tall
               options={CONTEXT_OPTIONS}
               value={context}
               onChange={(c) => { setContext(c); if (!showAll) reset(); }}

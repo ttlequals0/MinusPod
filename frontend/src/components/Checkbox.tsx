@@ -38,7 +38,7 @@ function Checkbox({
       <span className={`h-4 w-4 shrink-0 rounded-sm border-2 transition-colors flex items-center justify-center ${
         checked
           ? 'bg-primary border-primary'
-          : 'border-muted-foreground/40 bg-transparent hover:border-primary/60'
+          : 'border-muted-foreground/70 bg-transparent hover:border-primary/80'
       } peer-focus-visible:ring-2 peer-focus-visible:ring-ring peer-focus-visible:ring-offset-1 peer-focus-visible:ring-offset-card`}>
         {checked && (
           <Check className="h-3 w-3 text-primary-foreground" strokeWidth={3} aria-hidden="true" />

@@ -45,9 +45,9 @@ There is no `<Button>` component. Recipes are class strings composed at the call
 | `btnSecondary` | Default action beside a primary one | Fill, no border |
 | `btnOutline` | Same as secondary | Alias kept for call-site intent |
 | `btnGhost` | Low-emphasis action, icon toggles | Muted text, accent hover |
-| `btnPrimaryOutline` | Accent action that must not dominate its card: Refresh on feed cards and the feed page | Primary text and 40 percent primary border, 10 percent primary fill on hover |
+| `btnPrimaryOutline` | Accent action that must not dominate its card: Refresh on feed cards and the feed page, Actions on dashboard episode rows | Primary text and 80 percent primary border, 10 percent primary fill on hover. 40 percent fell below 3:1 on every theme |
 | `btnDestructive` | The primary action is destructive (confirm delete) | Solid fill |
-| `btnDestructiveOutline` | Destructive action beside a primary one (Delete beside Edit) | Tinted border and hover |
+| `btnDestructiveOutline` | Destructive action beside a primary one (Delete beside Edit) | 80 percent destructive border and 10 percent hover fill, same 3:1 floor |
 | `touchTarget` | Standalone control that needs a 44 px box on a phone | `min-h-11 min-w-11` below sm |
 | `touchCompact` | Icon-only header action beside a heading | 36 px square below sm, text button from sm |
 | `touchTargetRow` | Row that must stay on one line on a phone | Full height, shared width below sm |
@@ -70,7 +70,10 @@ There is no `<Button>` component. Recipes are class strings composed at the call
 - Pair `iconTarget` with `iconVisual`. The focus ring sits on the visual through `group-focus-visible`. `AuditionPlayButton` is the reference and is one size everywhere; `OpenEditorButton` is the second.
 - An icon-only control centers its icon with inline-flex items-center justify-center or the iconTarget and iconVisual pair. Padding alone places the icon top-left once the coarse-pointer floor stretches the box.
 - Dialog footers with 3 or more actions keep their text labels at every width. Below 360 CSS px they become two equal columns in two rows, and from 360 to 639 px one row of equal-width columns (dialogFooterGrid), so nothing is icon-only. PatternDetailModal is the reference.
-- Inline link-style actions (`text-primary hover:underline`, "Show full match") and selected-state toggles (`PageTabs`, `SegmentedToggle`, pagination numbers) are intentionally not button recipes.
+- Inline link-style actions (`text-primary hover:underline`, "Show full match") and selected-state toggles (`PageTabs`, `SegmentedToggle`, pagination numbers) are intentionally not button colour recipes.
+- A toolbar `SegmentedToggle` shares the `btnBase` vertical padding and draws its boundary as an inset outline, so the group is exactly 32 px beside buttons on fine pointers and 44 px on coarse ones. The dashboard Feeds/Episodes switch is the reference. In a 44 px filter row or popover (transcript dialog, View menu) pass `tall` so it matches the fields.
+- Control boundaries (outline button borders, the unchecked checkbox box) stay at or above 3:1 against card and page on every theme: accent borders at 80 percent, the muted checkbox border at 70 percent. `themes.test.tsx` enforces it. Callout and card borders at 40 percent are decorative and exempt.
+- Episode rows on the dashboard use the same quiet `btnPrimaryOutline` Actions trigger as the feed card actions, so no row competes with the content.
 
 ### Media player
 

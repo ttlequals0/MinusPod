@@ -11,6 +11,9 @@ const MIN_RATIO = 4.5;
 // Body text sits well above muted text so the hierarchy survives; both clear AAA.
 const MIN_BODY_RATIO = 9.5;
 const MIN_MUTED_RATIO = 7;
+// WCAG 1.4.11 non-text contrast for control boundaries: outline buttons and the unchecked checkbox.
+const MIN_BOUNDARY_RATIO = 3;
+const BOUNDARIES: [string, number][] = [['primary', 0.8], ['destructive', 0.8], ['muted-foreground', 0.7]];
 
 type Rgb = [number, number, number];
 
@@ -103,6 +106,12 @@ function failures(vars: Record<string, string>, mode: Mode): string[] {
     }
   }
   check('card-foreground on card', hslToRgb(vars['card-foreground']), hslToRgb(vars['card']), MIN_BODY_RATIO);
+  for (const [token, opacity] of BOUNDARIES) {
+    for (const surface of ['background', 'card']) {
+      const base = hslToRgb(vars[surface]);
+      check(`${token} border at ${opacity} on ${surface}`, composite(hslToRgb(vars[token]), base, opacity), base, MIN_BOUNDARY_RATIO);
+    }
+  }
   for (const [text, surface] of [['muted-foreground', 'muted'],
     ['muted-foreground', 'secondary'], ['accent-foreground', 'accent']]) {
     check(`${text} on ${surface}`, hslToRgb(vars[text]), hslToRgb(vars[surface]));

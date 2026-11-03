@@ -459,11 +459,13 @@ describe('Dashboard toolbar heights', () => {
     localStorage.removeItem('dashboardEpisodesPerPodcast');
   });
 
-  it('gives the Feeds/Episodes switch a 44px outer height', async () => {
+  it('sizes the Feeds/Episodes switch like the buttons beside it', async () => {
     renderDashboard();
     const group = await screen.findByRole('group', { name: 'Feeds view' });
-    expect(group.className).toContain('h-11');
+    expect(group.className).not.toContain('h-11');
     const feedsButton = screen.getByRole('button', { name: 'Feeds' });
+    expect(feedsButton.className).toContain('py-1.5');
+    expect(feedsButton.className).toContain('text-sm');
     expect(feedsButton.className).toContain('inline-flex');
     expect(feedsButton.className).toContain('items-center');
     expect(feedsButton.className).toContain('justify-center');
