@@ -429,6 +429,11 @@ A row of section links sits under the Stats heading and jumps straight to Overvi
 |---------|--------|
 | <img src="screenshots/stats-desktop.png" width="500"> | <img src="screenshots/stats-mobile.png" width="200"> |
 
+#### Queue
+| Desktop | Mobile |
+|---------|--------|
+| <img src="screenshots/queue-desktop.png" width="500"> | <img src="screenshots/queue-mobile.png" width="200"> |
+
 #### Settings
 | Desktop | Mobile |
 |---------|--------|

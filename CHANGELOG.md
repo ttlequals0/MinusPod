@@ -44,6 +44,7 @@ release notes.
 
 ### Changed
 
+- Screenshots in the README and web interface docs are refreshed in the Rose Pine theme, with a Queue page pair added.
 - Feed cards, feed list rows and the feed page lead with artwork and title. Refresh and Delete are outline buttons in their accent hues, Copy URL keeps its label on phones, and each card shows a processed-of-total bar under the status pills.
 - A 5-star episode rating also dismisses the episode's held-for-review ads,
   without recording a rejection pattern, so the review chip clears and the
