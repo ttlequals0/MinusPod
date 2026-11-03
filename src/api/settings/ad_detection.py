@@ -643,6 +643,11 @@ def _apply_processing_flags(db, data):
         db.set_setting('require_manual_approval_default', value, is_default=False)
         logger.info(f"Updated require-manual-approval default to: {value}")
 
+    if 'whatsNewOnUpgrade' in data:
+        value = 'true' if data['whatsNewOnUpgrade'] else 'false'
+        db.set_setting('whats_new_on_upgrade', value, is_default=False)
+        logger.info(f"Updated whats-new-on-upgrade to: {value}")
+
     if 'detectShowSegments' in data:
         value = 'true' if data['detectShowSegments'] else 'false'
         db.set_setting('detect_show_segments', value, is_default=False)

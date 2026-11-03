@@ -929,6 +929,7 @@ export interface Settings {
   segmentCategoryActions: { value: Record<SegmentCategory, SegmentAction>; isDefault: boolean };
   onlyExposeProcessedDefault: SettingValueBoolean;
   requireManualApprovalDefault?: SettingValueBoolean;
+  whatsNewOnUpgrade?: SettingValueBoolean;
   detectShowSegments: SettingValueBoolean;
   textRecurrenceHints: SettingValueBoolean;
   adAddressingMode: SettingValue;
@@ -1120,6 +1121,7 @@ export interface Settings {
     segmentCategoryActions: Record<SegmentCategory, SegmentAction>;
     onlyExposeProcessedDefault: boolean;
     requireManualApprovalDefault?: boolean;
+    whatsNewOnUpgrade?: boolean;
     detectShowSegments: boolean;
     textRecurrenceHints: boolean;
     adAddressingMode: string;
@@ -1271,6 +1273,7 @@ export interface UpdateSettingsPayload {
   segmentCategoryActions?: Partial<Record<SegmentCategory, SegmentAction>>;
   onlyExposeProcessedDefault?: boolean;
   requireManualApprovalDefault?: boolean;
+  whatsNewOnUpgrade?: boolean;
   detectShowSegments?: boolean;
   textRecurrenceHints?: boolean;
   adAddressingMode?: string;
@@ -2059,4 +2062,20 @@ export interface ReplacementAudio {
   channels: number | null;
   sampleRateHz: number | null;
   reverted?: boolean;
+}
+
+export interface ChangelogSection {
+  version: string;
+  date: string;
+  body: string;
+}
+
+export interface HealthResponse {
+  status: string;
+  version: string;
+}
+
+export interface ChangelogResponse {
+  current: string;
+  sections: ChangelogSection[];
 }

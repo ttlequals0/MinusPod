@@ -9,6 +9,17 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
+## [Unreleased]
+
+### Added
+
+- A What's new dialog opens once per browser after an upgrade and lists the changelog sections since the version that browser last saw. The Version entry under Settings, System status reopens it, and the dialog's footer links to the repository and the release notes. Turn it off with the new Show what's new after an upgrade setting (#952).
+- `GET /api/v1/changelog` serves the bundled changelog as version sections, newest first, with optional `since` and `limit`.
+
+### Changed
+
+- Body text clears 9.5:1 and muted text 7:1 on card and page surfaces in every theme and mode (AAA). Colored text, button labels and badge tints keep the 4.5:1 AA floor. Small card text such as Updated and Podping reads clearly on the ported themes.
+
 ## [2.101.16] - 2026-11-03
 
 ### Added

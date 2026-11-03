@@ -6,54 +6,20 @@ newer than the given version is included, so a release whose PR shipped
 multiple version bumps carries all of them as a rollup.
 """
 import argparse
-import re
 import sys
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-def _version_key(version: str) -> tuple:
-    return tuple(int(part) for part in version.split("."))
-
-
-def unwrap_lines(text: str) -> str:
-    """Join hard-wrapped continuation lines for GitHub release bodies.
-
-    Release bodies render every single newline as a hard line break, so
-    the changelog's 72-column wrapping displays as ragged short lines.
-    Two-space continuation lines are folded into the line above; headers,
-    blank lines, list items, and fenced code blocks are left alone.
-    """
-    out: list[str] = []
-    fence = False
-    for line in text.splitlines():
-        if line.lstrip().startswith("```"):
-            fence = not fence
-            out.append(line)
-            continue
-        is_cont = (
-            not fence
-            and re.match(r"^  \S", line)
-            and not re.match(r"^\s*[-*] ", line)
-            and out and out[-1].strip()
-            and not out[-1].lstrip().startswith("#")
-            and not out[-1].lstrip().startswith("```")
-        )
-        if is_cont:
-            out[-1] += " " + line.strip()
-        else:
-            out.append(line)
-    return "\n".join(out) + "\n"
+from changelog import parse_changelog, unwrap_lines  # noqa: E402
+from update_checker import parse_version  # noqa: E402
 
 
 def extract_section(text: str, version: str) -> str:
-    pattern = re.compile(
-        r"^## \[" + re.escape(version) + r"\][^\n]*\n(.*?)(?=^## \[|\Z)",
-        re.M | re.S,
-    )
-    match = pattern.search(text)
-    if not match:
-        raise KeyError(version)
-    return match.group(1).strip() + "\n"
+    for section in parse_changelog(text):
+        if section["version"] == version:
+            return section["raw"] + "\n"
+    raise KeyError(version)
 
 
 def extract_rollup(text: str, version: str, since_exclusive: str) -> str:
@@ -63,9 +29,12 @@ def extract_rollup(text: str, version: str, since_exclusive: str) -> str:
     range; otherwise each section is prefixed with a `## <version>` header,
     newest first (changelog order).
     """
+    low, high = parse_version(since_exclusive), parse_version(version)
+    if low is None or high is None:
+        raise KeyError(version)
     versions = [
-        v for v in re.findall(r"^## \[([0-9.]+)\]", text, re.M)
-        if _version_key(since_exclusive) < _version_key(v) <= _version_key(version)
+        s["version"] for s in parse_changelog(text)
+        if low < parse_version(s["version"]) <= high
     ]
     if version not in versions:
         raise KeyError(version)

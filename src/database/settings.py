@@ -534,6 +534,9 @@ SETTINGS_REGISTRY: dict[str, SettingSpec] = {
     'require_manual_approval_default': SettingSpec(
         default='false', seeded=True, resettable=False,
         payload_key='requireManualApprovalDefault', payload_kind='bool'),
+    'whats_new_on_upgrade': SettingSpec(
+        default='true', seeded=True, resettable=False,
+        payload_key='whatsNewOnUpgrade', payload_kind='bool'),
     # Global default for show-segment (intro/outro/recap) detection. Per-feed
     # detect_show_segments (INTEGER) stays NULL = inherit this, 0 = explicit
     # off, 1 = explicit on; existing rows keep whatever they already stored.

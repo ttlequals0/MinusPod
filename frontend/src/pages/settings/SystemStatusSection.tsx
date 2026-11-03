@@ -1,3 +1,6 @@
+import { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { getChangelog } from '../../api/settings';
 import type { SystemStatus } from '../../api/types';
 import CollapsibleSection from '../../components/CollapsibleSection';
 import LoadingSpinner from '../../components/LoadingSpinner';
@@ -5,16 +8,28 @@ import { formatUptime, formatStorage } from './settingsUtils';
 import UpdateStatusPanel from './UpdateStatusPanel';
 import SystemHealthPanel from '../../components/SystemHealthPanel';
 import { focusRing } from '../../components/fieldStyles';
+import ToggleSwitch from '../../components/ToggleSwitch';
+import WhatsNewDialog from '../../components/WhatsNewDialog';
 
 interface SystemStatusSectionProps {
   status: SystemStatus | undefined;
   statusLoading: boolean;
+  whatsNewOnUpgrade: boolean;
+  onWhatsNewOnUpgradeChange: (enabled: boolean) => void;
 }
 
 function SystemStatusSection({
   status,
   statusLoading,
+  whatsNewOnUpgrade,
+  onWhatsNewOnUpgradeChange,
 }: SystemStatusSectionProps) {
+  const [showWhatsNew, setShowWhatsNew] = useState(false);
+  const changelog = useQuery({
+    queryKey: ['changelog', 'recent'],
+    queryFn: () => getChangelog({ limit: 10 }),
+    enabled: showWhatsNew,
+  });
   return (
     <CollapsibleSection title="System status" defaultOpen storageKey="settings-section-system-status">
       {statusLoading ? (
@@ -23,14 +38,13 @@ function SystemStatusSection({
         <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
           <div>
             <p className="text-sm text-muted-foreground">Version</p>
-            <a
-              href="https://github.com/ttlequals0/minuspod"
-              target="_blank"
-              rel="noopener noreferrer"
+            <button
+              type="button"
+              onClick={() => setShowWhatsNew(true)}
               className={`font-medium text-primary hover:underline ${focusRing}`}
             >
               {status.version}
-            </a>
+            </button>
           </div>
           <div>
             <p className="text-sm text-muted-foreground">Feeds</p>
@@ -50,6 +64,24 @@ function SystemStatusSection({
           </div>
         </div>
       ) : null}
+      {status && (
+        <label className="mt-4 flex items-center gap-3 cursor-pointer">
+          <ToggleSwitch
+            checked={whatsNewOnUpgrade}
+            onChange={onWhatsNewOnUpgradeChange}
+            ariaLabel="Show what's new after an upgrade"
+          />
+          <span className="text-sm font-medium text-foreground">Show what's new after an upgrade</span>
+        </label>
+      )}
+      {status && showWhatsNew && (
+        <WhatsNewDialog
+          current={status.version}
+          sections={changelog.data?.sections}
+          isError={changelog.isError}
+          onClose={() => setShowWhatsNew(false)}
+        />
+      )}
       {status && <SystemHealthPanel status={status} />}
       <UpdateStatusPanel />
     </CollapsibleSection>
