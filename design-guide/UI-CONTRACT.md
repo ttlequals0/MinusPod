@@ -55,7 +55,7 @@ There is no `<Button>` component. Recipes are class strings composed at the call
 | `cardActionBtn` | Review and detection card actions | 44 px floor; labels wrap on a phone; carries `focusRing` |
 | `dialogFooterBtn` | Dialog footer action | Text label at every width. Derives from `btnBase` as `${btnBase} border border-transparent` |
 | `dialogFooterGrid` | Dialog footer with 3 or more actions | Two columns below 360 px, one row of equal columns from 360 to 639 px, flex row from sm |
-| `tableLink` | Podcast and episode links inside data tables and their card fallbacks | Foreground text, underline on hover; the row carries the hover surface, so the table does not read as a wall of accent links |
+| `tableLink` | Podcast and episode links inside data tables and their card fallbacks | Foreground text with a muted underline that strengthens on hover; carries `focusRing` |
 | `iconTarget` + `iconVisual` | Icon button with a smaller filled square (AuditionPlayButton, OpenEditorButton) | 44 px hit box on coarse pointers; visual fills the 44 px target below sm, 28 px from sm |
 
 - Every button recipe carries `focusRing` and the disabled state through `btnBase` (or `btnLg`). `rowActionBtn`, `cardActionBtn`, and `tableActionBtn` carry `focusRing` too.

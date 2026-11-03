@@ -225,7 +225,7 @@ function ProcessingTab({ tabs }: { tabs: ReactNode }) {
               <div className="flex items-center justify-between mb-2">
                 <Link
                   to={`/feeds/${entry.podcastSlug}`}
-                  className={`${tableLink} text-sm font-medium truncate max-w-[200px] ${focusRing}`}
+                  className={`${tableLink} text-sm font-medium truncate max-w-[200px]`}
                   title={entry.podcastTitle}
                 >
                   {entry.podcastTitle}
@@ -239,7 +239,7 @@ function ProcessingTab({ tabs }: { tabs: ReactNode }) {
               <div className="mb-3">
                 <Link
                   to={`/feeds/${entry.podcastSlug}/episodes/${entry.episodeId}`}
-                  className={`${tableLink} text-sm block truncate ${focusRing}`}
+                  className={`${tableLink} text-sm block truncate`}
                   title={entry.episodeTitle}
                 >
                   {entry.episodeTitle}
@@ -315,7 +315,7 @@ function ProcessingTab({ tabs }: { tabs: ReactNode }) {
                     <td className="px-4 py-3">
                       <Link
                         to={`/feeds/${entry.podcastSlug}`}
-                        className={`${tableLink} text-sm truncate max-w-[150px] block ${focusRing}`}
+                        className={`${tableLink} text-sm truncate max-w-[150px] block`}
                         title={entry.podcastTitle}
                       >
                         {entry.podcastTitle}
@@ -324,7 +324,7 @@ function ProcessingTab({ tabs }: { tabs: ReactNode }) {
                     <td className="px-4 py-3">
                       <Link
                         to={`/feeds/${entry.podcastSlug}/episodes/${entry.episodeId}`}
-                        className={`${tableLink} text-sm truncate max-w-[200px] block ${focusRing}`}
+                        className={`${tableLink} text-sm truncate max-w-[200px] block`}
                         title={entry.episodeTitle}
                       >
                         {entry.episodeTitle}

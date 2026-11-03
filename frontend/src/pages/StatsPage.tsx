@@ -24,7 +24,7 @@ import { SortHeader, useSortState } from '../components/SortHeader';
 import DisclosureButton from '../components/DisclosureButton';
 import CostAmount from '../components/CostAmount';
 import DateField from '../components/DateField';
-import { selectBase, focusRing, filterGrid, filterLabel, filterControl } from '../components/fieldStyles';
+import { selectBase, filterGrid, filterLabel, filterControl } from '../components/fieldStyles';
 import { tableLink } from '../components/rowActionStyles';
 import { SLOT_LABELS } from '../api/types';
 import { ArrowDown, ArrowUp } from 'lucide-react';
@@ -451,12 +451,12 @@ function EpisodeCostTable({
                         <DisclosureButton expanded={isOpen} onToggle={() => onToggle(key)} label={label} />
                       </td>
                       <td className="px-4 py-3">
-                        <Link to={`/feeds/${stat.podcastSlug}`} className={`${tableLink} text-sm truncate max-w-[150px] block ${focusRing}`} title={stat.podcastTitle}>
+                        <Link to={`/feeds/${stat.podcastSlug}`} className={`${tableLink} text-sm truncate max-w-[150px] block`} title={stat.podcastTitle}>
                           {stat.podcastTitle}
                         </Link>
                       </td>
                       <td className="px-4 py-3">
-                        <Link to={`/feeds/${stat.podcastSlug}/episodes/${stat.episodeId}`} className={`${tableLink} text-sm truncate max-w-[200px] block ${focusRing}`} title={stat.episodeTitle}>
+                        <Link to={`/feeds/${stat.podcastSlug}/episodes/${stat.episodeId}`} className={`${tableLink} text-sm truncate max-w-[200px] block`} title={stat.episodeTitle}>
                           {stat.episodeTitle}
                         </Link>
                       </td>
@@ -531,10 +531,10 @@ function EpisodeCostTable({
           const label = isOpen ? 'Hide run breakdown' : 'Show run breakdown';
           return (
           <div key={key} className="bg-card rounded-lg border border-border p-4">
-            <Link to={`/feeds/${stat.podcastSlug}`} className={`${tableLink} text-sm font-medium truncate max-w-[200px] block ${focusRing}`} title={stat.podcastTitle}>
+            <Link to={`/feeds/${stat.podcastSlug}`} className={`${tableLink} text-sm font-medium truncate max-w-[200px] block`} title={stat.podcastTitle}>
               {stat.podcastTitle}
             </Link>
-            <Link to={`/feeds/${stat.podcastSlug}/episodes/${stat.episodeId}`} className={`${tableLink} text-sm block truncate mb-2 ${focusRing}`} title={stat.episodeTitle}>
+            <Link to={`/feeds/${stat.podcastSlug}/episodes/${stat.episodeId}`} className={`${tableLink} text-sm block truncate mb-2`} title={stat.episodeTitle}>
               {stat.episodeTitle}
             </Link>
             <p className="text-xs text-muted-foreground truncate mb-1">
@@ -972,7 +972,7 @@ export default function StatsPage() {
                 <Bar dataKey="totalAds" name="Total Ads" radius={[0, 4, 4, 0]}>
                   {topPodcasts.map((_, i) => {
                     const lead = i === 0;
-                    return <Cell key={i} fill={lead ? theme.primary : theme.foreground} fillOpacity={lead ? 0.85 : 0.22} />;
+                    return <Cell key={i} fill={lead ? theme.primary : theme.foreground} fillOpacity={lead ? 0.85 : 0.3} />;
                   })}
                 </Bar>
               </BarChart>

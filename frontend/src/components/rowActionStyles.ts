@@ -33,4 +33,5 @@ export const iconVisual =
   + ' group-focus-visible:ring-2 group-focus-visible:ring-ring';
 
 /** Podcast and episode links in data tables and card fallbacks. */
-export const tableLink = 'text-foreground hover:underline';
+export const tableLink =
+  `text-foreground underline decoration-muted-foreground/50 underline-offset-2 hover:decoration-foreground ${focusRing}`;
