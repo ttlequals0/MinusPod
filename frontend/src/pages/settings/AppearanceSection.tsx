@@ -21,7 +21,7 @@ function AppearanceSection() {
               <div className="grid grid-cols-2 gap-2">
                 {groupThemes.map((t) => {
                   const isActive = t.id === themeId;
-                  const isDarkOnly = t.light === null && t.dark !== null;
+                  const only = t.light === null && t.dark ? 'dark' : t.dark === null && t.light ? 'light' : null;
                   return (
                     <button
                       key={t.id}
@@ -40,8 +40,13 @@ function AppearanceSection() {
                       />
                       <span className="truncate">
                         {t.label}
-                        {isDarkOnly && (
-                          <span className="text-muted-foreground text-xs ml-1">(dark only)</span>
+                        {only && (
+                          <span
+                            className="text-muted-foreground text-xs ml-1"
+                            title={`${only === 'dark' ? 'Light' : 'Dark'} mode uses the default ${only === 'dark' ? 'light' : 'dark'} theme`}
+                          >
+                            ({only} only)
+                          </span>
                         )}
                       </span>
                       {isActive && (
