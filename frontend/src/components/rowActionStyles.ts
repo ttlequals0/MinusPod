@@ -31,3 +31,6 @@ export const iconTarget = `${rowActionIcon} group shrink-0 touch-manipulation fo
 export const iconVisual =
   'h-11 w-11 sm:h-7 sm:w-7 inline-flex items-center justify-center rounded transition-colors'
   + ' group-focus-visible:ring-2 group-focus-visible:ring-ring';
+
+/** Podcast and episode links in data tables and their card fallbacks; the row carries the hover surface. */
+export const tableLink = 'text-foreground hover:underline';

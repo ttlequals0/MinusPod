@@ -17,6 +17,7 @@ import { SortHeader, useSortState } from '../../components/SortHeader';
 import DownloadRowActions from './DownloadRowActions';
 import SortControls from '../../components/SortControls';
 import QueryError from '../../components/QueryError';
+import { tableLink } from '../../components/rowActionStyles';
 import { focusRing, inputBase, selectBase, filterGrid, filterLabel, filterControl } from '../../components/fieldStyles';
 import { badgeBase, tint } from '../../components/badgeStyles';
 import { pageHeader, pageTitle } from '../../components/pageStyles';
@@ -33,7 +34,7 @@ function EpisodeLink({ row, className }: { row: DownloadHistoryEntry; className:
   return (
     <Link
       to={`/feeds/${row.podcastSlug}/episodes/${row.episodeId}`}
-      className={`text-primary hover:underline text-sm truncate ${className} ${focusRing}`}
+      className={`${tableLink} text-sm truncate ${className} ${focusRing}`}
       title={title}
     >
       {title}
@@ -279,7 +280,7 @@ function DownloadsTab({ tabs }: Props) {
                       <td className="px-3 py-3 hidden lg:table-cell">
                         <Link
                           to={`/feeds/${row.podcastSlug}`}
-                          className={`text-primary hover:underline text-sm truncate max-w-[110px] block ${focusRing}`}
+                          className={`${tableLink} text-sm truncate max-w-[110px] block ${focusRing}`}
                           title={row.podcastTitle}
                         >
                           {row.podcastTitle}

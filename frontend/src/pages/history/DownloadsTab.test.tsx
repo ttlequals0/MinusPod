@@ -97,6 +97,14 @@ describe('DownloadsTab', () => {
     expect(within(table).getByText('Phone')).toBeTruthy();
   });
 
+  it('renders podcast and episode links in foreground text', async () => {
+    renderTab([makeRow()]);
+    const table = await screen.findByRole('table');
+    const links = within(table).getAllByRole('link');
+    expect(links.length).toBeGreaterThan(1);
+    links.forEach(link => expect(link.className).toContain('text-foreground'));
+  });
+
   it('shows Local network, Unknown and the lookup-off hint', async () => {
     renderTab([
       makeRow({ id: 1, geoStatus: 'private', city: null }),

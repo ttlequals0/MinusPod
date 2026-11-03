@@ -53,18 +53,6 @@ function Metric({ label, value }: { label: string; value: number | string }) {
   );
 }
 
-function generateChartColors(primary: string, count: number): string[] {
-  const match = primary.match(/hsl\((\d[\d.]*)\s*[ ,]\s*(\d[\d.]*)%?\s*[ ,]\s*(\d[\d.]*)%?\)/);
-  if (!match) return Array(count).fill(primary);
-  const hue = parseFloat(match[1]);
-  const sat = parseFloat(match[2]);
-  return Array.from({ length: count }, (_, i) => {
-    const h = (hue + i * 20) % 360;
-    const l = 50 + (i % 4) * 8;
-    return `hsl(${h}, ${Math.max(sat, 55)}%, ${l}%)`;
-  });
-}
-
 const LEDGER_LIMIT = 20;
 
 // Spend filters, sort and page live in the URL so a cost investigation can be
@@ -696,11 +684,6 @@ export default function StatsPage() {
     return byPodcast.podcasts.slice(0, 10);
   }, [byPodcast]);
 
-  const chartColors = useMemo(
-    () => generateChartColors(theme.primary, topPodcasts.length),
-    [theme.primary, topPodcasts.length]
-  );
-
   // Shared ledger filters (date interval, podcast, provider, model) drive both
   // the model-usage and episode-cost lists below, and all of it round-trips
   // through the URL.
@@ -987,7 +970,7 @@ export default function StatsPage() {
                 <Tooltip {...tooltipStyle} />
                 <Bar dataKey="totalAds" name="Total Ads" radius={[0, 4, 4, 0]}>
                   {topPodcasts.map((_, i) => (
-                    <Cell key={i} fill={chartColors[i]} />
+                    <Cell key={i} fill={i === 0 ? theme.primary : theme.foreground} fillOpacity={i === 0 ? 0.85 : 0.22} />
                   ))}
                 </Bar>
               </BarChart>

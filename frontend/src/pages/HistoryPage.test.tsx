@@ -76,6 +76,14 @@ describe('HistoryPage: Version column', () => {
     });
   });
 
+  it('renders podcast and episode links in foreground text', async () => {
+    renderPage([makeEntry()]);
+    const podcast = (await screen.findAllByRole('link', { name: 'Test Feed' }))[0];
+    const episode = screen.getAllByRole('link', { name: 'Episode One' })[0];
+    expect(podcast.className).toContain('text-foreground');
+    expect(episode.className).toContain('text-foreground');
+  });
+
   it('renders a dash for a row with no version', async () => {
     renderPage([makeEntry({ appVersion: null })]);
     let row: HTMLElement | null | undefined;

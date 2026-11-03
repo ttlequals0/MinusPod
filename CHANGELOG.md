@@ -16,6 +16,10 @@ release notes.
   that details development prerequisites, environment setup, build instructions, running
   tests, and pull request guidelines.
 
+### Changed
+- The Stats "Top podcasts by ads removed" chart uses a single accent on the leading bar and neutral bars for the rest.
+- History table and card links render in foreground text with a shared `tableLink` recipe.
+
 ## [2.101.13] - 2026-11-01
 
 ### Added

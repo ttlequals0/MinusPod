@@ -23,6 +23,7 @@ import StatusBadge from '../components/StatusBadge';
 import DownloadsTab from './history/DownloadsTab';
 import { btnBase, btnSecondary } from '../components/buttonStyles';
 import { focusRing, selectBase, filterGrid, filterLabel, filterControl } from '../components/fieldStyles';
+import { tableLink } from '../components/rowActionStyles';
 import { pageHeader, pageTitle } from '../components/pageStyles';
 
 type StatusFilter = 'all' | 'completed' | 'failed';
@@ -224,7 +225,7 @@ function ProcessingTab({ tabs }: { tabs: ReactNode }) {
               <div className="flex items-center justify-between mb-2">
                 <Link
                   to={`/feeds/${entry.podcastSlug}`}
-                  className={`text-primary hover:underline text-sm font-medium truncate max-w-[200px] ${focusRing}`}
+                  className={`${tableLink} text-sm font-medium truncate max-w-[200px] ${focusRing}`}
                   title={entry.podcastTitle}
                 >
                   {entry.podcastTitle}
@@ -238,7 +239,7 @@ function ProcessingTab({ tabs }: { tabs: ReactNode }) {
               <div className="mb-3">
                 <Link
                   to={`/feeds/${entry.podcastSlug}/episodes/${entry.episodeId}`}
-                  className={`text-primary hover:underline text-sm block truncate ${focusRing}`}
+                  className={`${tableLink} text-sm block truncate ${focusRing}`}
                   title={entry.episodeTitle}
                 >
                   {entry.episodeTitle}
@@ -314,7 +315,7 @@ function ProcessingTab({ tabs }: { tabs: ReactNode }) {
                     <td className="px-4 py-3">
                       <Link
                         to={`/feeds/${entry.podcastSlug}`}
-                        className={`text-primary hover:underline text-sm truncate max-w-[150px] block ${focusRing}`}
+                        className={`${tableLink} text-sm truncate max-w-[150px] block ${focusRing}`}
                         title={entry.podcastTitle}
                       >
                         {entry.podcastTitle}
@@ -323,7 +324,7 @@ function ProcessingTab({ tabs }: { tabs: ReactNode }) {
                     <td className="px-4 py-3">
                       <Link
                         to={`/feeds/${entry.podcastSlug}/episodes/${entry.episodeId}`}
-                        className={`text-primary hover:underline text-sm truncate max-w-[200px] block ${focusRing}`}
+                        className={`${tableLink} text-sm truncate max-w-[200px] block ${focusRing}`}
                         title={entry.episodeTitle}
                       >
                         {entry.episodeTitle}
