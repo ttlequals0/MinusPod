@@ -43,7 +43,7 @@ Cuts on a YouTube feed come from SponsorBlock, a community database of timestamp
 - Community marks drive the cuts. By default MinusPod cuts where SponsorBlock says to cut, without asking the LLM.
 - Learned patterns (audio fingerprints and text patterns) always run, including when marks exist. Cuts are the marks plus any validated pattern hits, and MinusPod learns new patterns from the marks it cuts.
 - The LLM runs only when an episode has no marks or Pass 1 detection is on. **Full reprocess** and **Re-detect ads** on an episode force pass 1 for that run.
-- Marks are read until the episode is processed. After that it is not watched again; **Reprocess** fetches fresh marks.
+- Marks are read until the episode is processed and not watched after that. **Reprocess** fetches fresh marks.
 - Marks are filtered before use. A mark with a negative vote total is dropped unless a SponsorBlock moderator locked it. Marks of unknown category are dropped. If a mark declares a video duration that differs from the downloaded audio by more than 2 seconds, all marks for that video are ignored. A mark whose end is not after its start is dropped.
 - A short watch ceiling limits how long MinusPod waits for marks to appear.
 
