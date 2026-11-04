@@ -100,6 +100,8 @@ def _tick_row(episode_id, state='waiting'):
 
 
 def _patch_tick(monkeypatch):
+    # Rows are built relative to NOW, so the tick must read the same clock.
+    monkeypatch.setattr(watch, 'utc_now', lambda: NOW)
     monkeypatch.setattr(watch.yt_settings, 'resolve_feed', lambda db, podcast, base=None: SETTINGS)
     queued = []
     monkeypatch.setattr(watch.sponsorblock, 'record_availability', lambda db: True)
@@ -136,12 +138,11 @@ def test_tick_skips_in_flight_episodes(monkeypatch):
     monkeypatch.setattr(watch.sponsorblock, 'fetch_segments', lambda vid: fetched.append(vid) or MARK)
     rows = [dict(_tick_row('a1', state='waiting'), status=status) for status in ('pending', 'processing')]
     db = _tick_db(rows)
-    before = datetime.now(timezone.utc)
     watch.sponsorblock_tick(db)
     assert queued == [] and fetched == []
     for call in db.update_episode_sponsorblock_by_pk.call_args_list:
         assert set(call.kwargs) == {'sb_next_check_at'}
-        assert timedelta(minutes=4) < datetime.fromisoformat(call.kwargs['sb_next_check_at']) - before < timedelta(minutes=6)
+        assert timedelta(minutes=4) < datetime.fromisoformat(call.kwargs['sb_next_check_at']) - NOW < timedelta(minutes=6)
 
 
 def test_tick_request_failure_stops_the_batch(monkeypatch):
@@ -200,14 +201,13 @@ def test_tick_queue_failure_keeps_state_and_retries_soon(monkeypatch):
     monkeypatch.setattr(watch, 'queue_for_processing', boom)
     monkeypatch.setattr(watch.sponsorblock, 'fetch_segments', lambda vid: MARK)
     db = _tick_db([_tick_row('a1', state='waiting')])
-    before = datetime.now(timezone.utc)
     watch.sponsorblock_tick(db)
     calls = db.update_episode_sponsorblock_by_pk.call_args_list
     assert calls[1].kwargs['sb_state'] == 'waiting'
     fields = calls[-1].kwargs
     assert 'sb_state' not in fields and fields['sb_last_error'] == 'RuntimeError'
     due = datetime.fromisoformat(fields['sb_next_check_at'])
-    assert timedelta(minutes=4) < due - before < timedelta(minutes=6)
+    assert timedelta(minutes=4) < due - NOW < timedelta(minutes=6)
 
 
 def test_tick_known_duration_mismatch_counts_as_no_marks(monkeypatch):
