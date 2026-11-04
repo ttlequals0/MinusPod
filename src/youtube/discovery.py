@@ -1,5 +1,6 @@
 """List videos for a YouTube feed through the Data API or yt-dlp."""
 import difflib
+import html
 import json
 import logging
 import re
@@ -8,14 +9,16 @@ import threading
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from urllib.parse import quote_plus, urlencode
+from urllib.parse import quote_plus, urlencode, urlparse
 
 import requests
 
 from config import HTTP_TIMEOUT_API
 from rss_parser import RSSParser
 from utils.app_version import APP_VERSION
-from utils.safe_http import URLTrust, read_response_capped, safe_get
+from utils.safe_http import (
+    IncompleteResponseError, ResponseDeadlineError, ResponseTooLargeError, URLTrust, read_response_capped, safe_get,
+)
 from utils.time import epoch_to_iso
 from utils.ttl_cache import TTLCache
 from utils.url import SSRFError
@@ -27,10 +30,13 @@ logger = logging.getLogger(__name__)
 
 API = 'https://www.googleapis.com/youtube/v3'
 API_MAX_BYTES = 2 * 1024 * 1024
+PLAYLIST_PAGE_MAX_BYTES = 4 * 1024 * 1024
 SHORTS_MAX_SECONDS = 180
 PLAYLIST_SCAN_CAP = 5000
 UNAVAILABLE_SLACK = 20
 _UNAVAILABLE_TITLES = frozenset(PLACEHOLDER_TITLES)
+_HEADERS = {'User-Agent': f'MinusPod/{APP_VERSION}'}
+_OG_IMAGE = re.compile(r'<meta\b[^>]*\bproperty="og:image"[^>]*\bcontent="([^"]+)"')
 _ISO_DURATION = re.compile(r'^P(?:(\d+)D)?T?(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?$')
 SEARCH_FETCH = 12
 SEARCH_CHANNEL_LOOKUPS = 3
@@ -82,13 +88,16 @@ def parse_iso_duration(text) -> float | None:
 _LIVE_STATUSES = ('is_live', 'is_upcoming', 'post_live')
 
 
+def _proxies(proxy: str):
+    return {'http': proxy, 'https': proxy} if proxy else None
+
+
 def _api_get(path: str, params: dict, key: str, *, proxy: str = '') -> dict:
     url = f"{API}/{path}?{urlencode(params)}"
-    headers = {'User-Agent': f'MinusPod/{APP_VERSION}', 'X-Goog-Api-Key': key}
     # Error text may embed the request URL, so messages carry only the exception type.
     try:
         response = safe_get(url, URLTrust.OPERATOR_CONFIGURED, timeout=HTTP_TIMEOUT_API, stream=True,
-                            headers=headers, proxies={'http': proxy, 'https': proxy} if proxy else None)
+                            headers={**_HEADERS, 'X-Goog-Api-Key': key}, proxies=_proxies(proxy))
     except (requests.RequestException, SSRFError) as exc:
         raise DiscoveryError(f'YouTube Data API request failed ({type(exc).__name__})') from None
     try:
@@ -141,6 +150,29 @@ def _best_thumb(thumbs) -> str | None:
     return None
 
 
+def _playlist_cover(playlist_id: str, *, proxy: str = '') -> str | None:
+    """Owner-set playlist cover URL; None if the page shows none, DiscoveryError if it cannot be read."""
+    try:
+        response = safe_get(source_url(Source('playlist', playlist_id)), URLTrust.OPERATOR_CONFIGURED,
+                            timeout=HTTP_TIMEOUT_API, stream=True, headers=_HEADERS, proxies=_proxies(proxy))
+    except (requests.RequestException, SSRFError) as exc:
+        raise DiscoveryError(f'Playlist page request failed ({type(exc).__name__})') from None
+    try:
+        if response.status_code != 200:
+            raise DiscoveryError(f'Playlist page error {response.status_code}')
+        page = read_response_capped(response, PLAYLIST_PAGE_MAX_BYTES).decode('utf-8', errors='replace')
+    except (requests.RequestException, ValueError, ResponseTooLargeError, IncompleteResponseError,
+            ResponseDeadlineError) as exc:
+        raise DiscoveryError(f'Playlist page read failed ({type(exc).__name__})') from None
+    finally:
+        response.close()
+    images = [html.unescape(u) for u in _OG_IMAGE.findall(page)]
+    if not images:
+        logger.debug('Playlist page had no og:image tag')
+    # Sizes ascend, so the last cover wins; playlists without one list a first-video thumbnail instead.
+    return next((u for u in reversed(images) if urlparse(u).path.startswith('/pl_c/')), None)
+
+
 def resolve_source(db, source: Source) -> SourceInfo:
     key = yt_settings.api_key(db)
     if key:
@@ -190,7 +222,8 @@ def _parse_api_source(key: str, source: Source, *, proxy: str = '') -> SourceInf
             raise SourceNotFound('Playlist not found or private')
         sn = items[0]['snippet']
         return SourceInfo('playlist', source.id, sn.get('title') or source.id, sn.get('description') or '',
-                          _best_thumb(sn.get('thumbnails')), items[0].get('contentDetails', {}).get('itemCount'),
+                          _playlist_cover(source.id, proxy=proxy) or _best_thumb(sn.get('thumbnails')),
+                          items[0].get('contentDetails', {}).get('itemCount'),
                           author=sn.get('channelTitle') or '')
     selector = {'channel': 'id', 'handle': 'forHandle', 'user': 'forUsername', 'custom': 'forHandle'}[source.kind]
     data = _api_get('channels', {'part': 'snippet,statistics', selector: source.id}, key, proxy=proxy)

@@ -8,6 +8,16 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
+## [Unreleased]
+
+### Fixed
+
+- YouTube playlist feeds use the cover set for the playlist on YouTube as
+  their artwork. With a Data API key configured, the artwork was the first
+  video's thumbnail, so it changed with every upload. Playlists with no
+  cover keep the newest video's thumbnail. Existing feeds pick up the cover
+  on the next artwork refresh from the feed's YouTube panel.
+
 ## [2.101.17] - 2026-11-03
 
 ### Added
