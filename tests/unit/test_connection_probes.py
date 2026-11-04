@@ -21,6 +21,9 @@ from config import DEFAULT_OPENAI_BASE_URL  # noqa: E402
 from api.providers import _probe_models_endpoint, _same_server  # noqa: E402
 from api.podcast_search import _podcast_index_headers  # noqa: E402
 from llm_client import invalidate_provider_cache  # noqa: E402
+from provider_probe import MODELS_PROBE_CAP_BYTES  # noqa: E402
+from utils.connection_probe import PROBE_RESPONSE_CAP_BYTES  # noqa: E402
+from utils.safe_http import IncompleteResponseError  # noqa: E402
 
 
 @pytest.fixture(autouse=True)
@@ -60,6 +63,32 @@ class TestProbeModelsEndpoint:
         assert result['status'] == 200
         assert sg.call_args[0][0] == 'http://localhost:11434/v1/models'
         assert sg.call_args[1]['headers']['Authorization'] == 'Bearer sk-x'
+
+    def test_catalog_over_old_64k_cap_is_ok(self):
+        body = {'data': [{'id': f'model-{i}', 'object': 'model'} for i in range(3000)]}
+        assert PROBE_RESPONSE_CAP_BYTES < len(json.dumps(body)) < MODELS_PROBE_CAP_BYTES
+        with patch('provider_probe.safe_get', return_value=_response(200, json_body=body)):
+            result = _probe_models_endpoint('http://localhost:11434/v1', 'sk-x')
+        assert result['ok'] is True
+
+    def test_catalog_over_cap_is_reported_as_too_large(self):
+        body = b'x' * (MODELS_PROBE_CAP_BYTES + 1)
+        with patch('provider_probe.safe_get', return_value=_response(200, body)):
+            result = _probe_models_endpoint('http://localhost:11434/v1', 'sk-x')
+        assert result['ok'] is False
+        assert result['reachable'] is True
+        assert result['status'] == 200
+        assert 'larger than 4 MB' in result['detail']
+
+    def test_truncated_body_is_reported_as_closed_early(self):
+        with patch('provider_probe.safe_get', return_value=_response(200, b'{}')), \
+                patch('utils.connection_probe.read_response_capped',
+                      side_effect=IncompleteResponseError('short')):
+            result = _probe_models_endpoint('http://localhost:11434/v1', 'sk-x')
+        assert result['ok'] is False
+        assert result['reachable'] is True
+        assert result['status'] == 200
+        assert 'closed before the full reply' in result['detail']
 
     def test_no_key_sends_no_auth_header(self):
         with patch('provider_probe.safe_get',

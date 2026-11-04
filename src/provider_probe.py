@@ -71,6 +71,10 @@ def same_server(url_a: str, url_b: str) -> bool:
         return False
 
 
+# Multi-provider gateways serve /models catalogs of roughly 1 MB.
+MODELS_PROBE_CAP_BYTES = 4 * 1024 * 1024
+
+
 def models_request(base_url: str, api_key: str):
     """URL + auth headers for an OpenAI-compatible /models request. Shared
     by /test and /test-connection so the discovery contract lives once."""
@@ -94,6 +98,7 @@ def probe_models_endpoint(base_url: str, api_key: str) -> dict:
         ),
         HTTP_TIMEOUT_PROBE,
         log_context=safe_url_for_log(url),
+        cap_bytes=MODELS_PROBE_CAP_BYTES,
     )
     if error:
         return error
@@ -148,6 +153,7 @@ def probe_systemone_connection(provider: str, base_url: str | None, api_key: str
             timeout=HTTP_TIMEOUT_PROBE, max_redirects=HTTP_MAX_REDIRECTS_API,
             headers=headers, stream=True,
         ), HTTP_TIMEOUT_PROBE, log_context=safe_url_for_log(url),
+        cap_bytes=MODELS_PROBE_CAP_BYTES,
     )
     if error:
         return {**result, **error}
