@@ -159,7 +159,8 @@ FEED_COLUMNS = (
     'queue_priority', 'title_skip_patterns', 'description_skip_patterns',
     'description_trim_pattern', 'description_trim_mode',
     'title_skip_action', 'min_duration_seconds', 'max_duration_seconds',
-    'low_ad_yield_action', 'episode_logs', 'retention_days_override',
+    'low_ad_yield_action', 'episode_logs', 'unprocessed_playback',
+    'processed_title_marker', 'retention_days_override',
     'keep_original_audio_override', 'user_tags', 'author', 'explicit',
     'audio_replacement_sound_override', 'audio_mp3_stream_copy_override',
     'categories', 'p20_channel_json',
@@ -1109,6 +1110,14 @@ def _validated_feed_updates(db, podcast, payload, feed_type, *, confirmed_ceilin
                 raise ConfigTransferError(error)
         elif key == 'low_ad_yield_action':
             value, error = feed_api._normalize_low_ad_yield_action(value)
+            if error:
+                raise ConfigTransferError(error)
+        elif key == 'unprocessed_playback':
+            value, error = feed_api._normalize_unprocessed_playback(value)
+            if error:
+                raise ConfigTransferError(error)
+        elif key == 'processed_title_marker':
+            value, error = feed_api._normalize_processed_title_marker(value)
             if error:
                 raise ConfigTransferError(error)
         elif key == 'episode_logs':

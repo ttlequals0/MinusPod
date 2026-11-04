@@ -1016,6 +1016,59 @@ def resolve_low_ad_yield_action(db, podcast_row) -> str:
     return value if value in LOW_AD_YIELD_ACTIONS else LOW_AD_YIELD_ACTION_NOTHING
 
 
+# Original-until-processed playback: what a play request for an episode that
+# is not processed yet does. 'process' (default) starts a just-in-time run;
+# 'original' answers 302 to the upstream enclosure and never starts one.
+UNPROCESSED_PLAYBACK_PROCESS = 'process'
+UNPROCESSED_PLAYBACK_ORIGINAL = 'original'
+UNPROCESSED_PLAYBACK_VALUES = (UNPROCESSED_PLAYBACK_PROCESS, UNPROCESSED_PLAYBACK_ORIGINAL)
+
+
+def resolve_unprocessed_playback(db, podcast_row) -> str:
+    """Per-feed unprocessed_playback if set, else the global setting.
+
+    Unknown or unset values resolve to 'process' (today's behaviour).
+    """
+    feed_value = (podcast_row or {}).get('unprocessed_playback')
+    if feed_value in UNPROCESSED_PLAYBACK_VALUES:
+        return feed_value
+    try:
+        value = db.get_setting('unprocessed_playback')
+    except Exception:
+        return UNPROCESSED_PLAYBACK_PROCESS
+    return value if value in UNPROCESSED_PLAYBACK_VALUES else UNPROCESSED_PLAYBACK_PROCESS
+
+
+# Processed-episode title marker: a short prefix (e.g. "[a] ") added at RSS
+# render time to the <item><title> of processed episodes. Empty = off.
+PROCESSED_TITLE_MARKER_MAX_LENGTH = 16
+
+
+def validate_processed_title_marker(value):
+    """Return (marker, error). Empty string is valid (off)."""
+    if not isinstance(value, str):
+        return None, "processedTitleMarker must be a string"
+    if len(value) > PROCESSED_TITLE_MARKER_MAX_LENGTH:
+        return None, (f"processedTitleMarker must be {PROCESSED_TITLE_MARKER_MAX_LENGTH} "
+                      "characters or fewer (keep it short so it does not eat title space)")
+    if any(ord(ch) < 32 or ord(ch) == 127 for ch in value):
+        return None, "processedTitleMarker must not contain control characters"
+    return value, None
+
+
+def resolve_processed_title_marker(db, podcast_row) -> str:
+    """Per-feed marker if set (an empty string is an explicit "off" for the
+    feed), else the global setting, else ''."""
+    feed_value = (podcast_row or {}).get('processed_title_marker')
+    if feed_value is not None:
+        return feed_value
+    try:
+        value = db.get_setting('processed_title_marker')
+    except Exception:
+        return ''
+    return value if isinstance(value, str) else ''
+
+
 # Episode run logs (#660): per-feed override values and the global bounds.
 EPISODE_LOGS_ON = 'on'
 EPISODE_LOGS_OFF = 'off'

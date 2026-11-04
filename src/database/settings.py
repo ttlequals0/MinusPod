@@ -820,6 +820,14 @@ SETTINGS_REGISTRY: dict[str, SettingSpec] = {
     # reprocess | full); per-feed overridable.
     'low_ad_yield_action': SettingSpec(
         env_backed=True, payload_key='lowAdYieldAction'),
+    # Original-until-processed playback (process | original) and the short
+    # processed-episode title marker (empty = off); both per-feed overridable.
+    'unprocessed_playback': SettingSpec(
+        default='process', seeded=True, resettable=False,
+        payload_key='unprocessedPlayback'),
+    'processed_title_marker': SettingSpec(
+        default='', seeded=True, resettable=False,
+        payload_key='processedTitleMarker'),
     # Episode run logs (#660): retention days (0 disables storage) and the
     # minimum level kept in a run log.
     'episode_log_retention_days': SettingSpec(

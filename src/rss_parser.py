@@ -1049,7 +1049,8 @@ class RSSParser:
                     chapter_notes: dict[str, str] | None = None,
                     hide_min_duration_seconds: float | None = None,
                     hide_max_duration_seconds: float | None = None,
-                    hide_description_patterns: str | None = None) -> str:
+                    hide_description_patterns: str | None = None,
+                    processed_title_marker: str | None = None) -> str:
         """Modify RSS feed to use our server URLs.
 
         Args:
@@ -1089,6 +1090,9 @@ class RSSParser:
                 served feed, both upstream and DB-appended.
             hide_description_patterns: Same as hide_title_patterns, matched
                 against the plain-text description instead (#835).
+            processed_title_marker: Short prefix (e.g. "[a] ") added to the
+                <item><title> of processed episodes at render time; empty or
+                None = off. Unprocessed items and the channel title are unchanged.
         """
         feed = (parsed_feed if parsed_feed is not None
                 else self.parse_feed(feed_content, source=slug))
@@ -1237,7 +1241,10 @@ class RSSParser:
             description = append_chapters(self._get_episode_description(entry),
                                           (chapter_notes or {}).get(episode_id))
             lines.append('<item>')
-            lines.append(f'  <title>{self._escape_xml(entry.get("title", ""))}</title>')
+            item_title = entry.get("title", "")
+            if episode_id in processed_meta:
+                item_title = self.apply_title_marker(item_title, processed_title_marker)
+            lines.append(f'  <title>{self._escape_xml(item_title)}</title>')
             lines.append(f'  <description><![CDATA[{self._escape_cdata(description)}]]></description>')
             lines.append(f'  <link>{self._escape_xml(entry.get("link", ""))}</link>')
             # Per-feed GUID scheme (#598): our stable episode id matches the
@@ -1312,7 +1319,8 @@ class RSSParser:
                     continue
                 self._append_db_episode_item(lines, slug, ep, storage,
                                              feed_auth_key,
-                                             chapter_notes=chapter_notes)
+                                             chapter_notes=chapter_notes,
+                                             processed_title_marker=processed_title_marker)
                 appended_count += 1
 
         lines.append('</channel>')
@@ -1328,6 +1336,13 @@ class RSSParser:
                 "title and date"
             )
         return modified_rss
+
+    @staticmethod
+    def apply_title_marker(title: str, marker: str | None) -> str:
+        """Prefix `title` with `marker` unless off or already present."""
+        if not marker or (title or '').startswith(marker):
+            return title
+        return f"{marker}{title or ''}"
 
     @staticmethod
     def _matches_db_duplicate(entry, db_title_dates) -> bool:
@@ -1393,7 +1408,8 @@ class RSSParser:
         return size
 
     def _append_db_episode_item(self, lines: list, slug: str, ep: dict, storage,
-                                feed_auth_key=None, chapter_notes=None) -> None:
+                                feed_auth_key=None, chapter_notes=None,
+                                processed_title_marker=None) -> None:
         """Append a single <item> for a processed episode from the database."""
         ep_id = ep['episode_id']
         modified_url = episode_public_url(self._resolved_base_url(), slug, ep_id,
@@ -1401,7 +1417,8 @@ class RSSParser:
                                            key=feed_auth_key)
         description = append_chapters(ep.get('description'), (chapter_notes or {}).get(ep_id))
         lines.append('<item>')
-        lines.append(f'  <title>{self._escape_xml(ep.get("title") or "Unknown")}</title>')
+        db_title = self.apply_title_marker(ep.get("title") or "Unknown", processed_title_marker)
+        lines.append(f'  <title>{self._escape_xml(db_title)}</title>')
         if description:
             lines.append(f'  <description><![CDATA[{self._escape_cdata(description)}]]></description>')
         size = ep.get('processed_size_bytes')

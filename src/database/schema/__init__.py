@@ -660,6 +660,10 @@ class SchemaMixin:
             # Per-feed low-ad-yield action override; NULL = use the global
             # low_ad_yield_action setting.
             ('low_ad_yield_action', 'TEXT'),
+            # Per-feed unprocessed_playback / processed_title_marker overrides;
+            # NULL = use the global setting.
+            ('unprocessed_playback', 'TEXT'),
+            ('processed_title_marker', 'TEXT'),
             # Per-feed episode run log storage (#660); NULL = follow the
             # global setting, 'on' = store, 'off' = never store.
             ('episode_logs', 'TEXT'),

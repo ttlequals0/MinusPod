@@ -19,6 +19,8 @@ from werkzeug.utils import safe_join
 
 from api import image_response
 from config import (
+    UNPROCESSED_PLAYBACK_ORIGINAL,
+    resolve_unprocessed_playback,
     HTTP_MAX_REDIRECTS_FEED,
     HTTP_TIMEOUT_API,
     JIT_RETRY_COOLDOWN_SECONDS,
@@ -638,6 +640,18 @@ def register_routes(app):
         # podcast row it never uses.
         podcast = db.get_podcast_by_slug(slug)
         serves_own_audio = not has_upstream_audio(podcast)
+
+        # Original-until-processed: an episode that is not processed yet plays
+        # from upstream; playback never starts (or waits on) a processing run.
+        if (not serves_own_audio and status != EpisodeStatus.PROCESSED
+                and resolve_unprocessed_playback(db, podcast)
+                == UNPROCESSED_PLAYBACK_ORIGINAL):
+            ep_data, _ = _routes._lookup_episode(
+                slug, episode_id, feed_map, episode_row=episode)
+            if ep_data:
+                feed_logger.info(
+                    f"[{slug}:{episode_id}] Not processed yet, serving original")
+                return redirect(ep_data['url'], code=302)
 
         if status == EpisodeStatus.PERMANENTLY_FAILED:
             ep_key = f"{slug}:{episode_id}"

@@ -154,6 +154,10 @@ def _build_settings_payload():
     low_ad_yield_action = common._setting_value(
         settings, 'low_ad_yield_action',
         registry_default('low_ad_yield_action'))
+    unprocessed_playback = common._setting_value(
+        settings, 'unprocessed_playback', registry_default('unprocessed_playback'))
+    processed_title_marker = common._setting_value(
+        settings, 'processed_title_marker', registry_default('processed_title_marker'))
     episode_log_retention_days = get_env_backed_int(
         'episode_log_retention_days',
         floor=EPISODE_LOG_RETENTION_DAYS_MIN,
@@ -621,6 +625,8 @@ def _build_settings_payload():
         'artworkBadgePosition': _sv(
             'artwork_badge_position', artwork_badge_position),
         'lowAdYieldAction': _sv('low_ad_yield_action', low_ad_yield_action),
+        'unprocessedPlayback': _sv('unprocessed_playback', unprocessed_playback),
+        'processedTitleMarker': _sv('processed_title_marker', processed_title_marker),
         'episodeLogRetentionDays': _sv(
             'episode_log_retention_days', episode_log_retention_days),
         'episodeLogLevel': _sv('episode_log_level', episode_log_level),

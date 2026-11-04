@@ -8,6 +8,7 @@ from dataclasses import asdict, dataclass
 from datetime import datetime, timedelta, timezone
 
 from config import (
+    resolve_processed_title_marker,
     FEED_REFRESH_FAILURE_ALERT_THRESHOLD,
     FEED_REFRESH_FAILURE_COUNT_INTERVAL,
     FEED_REFRESH_OUTAGE_FRACTION,
@@ -884,7 +885,8 @@ def _build_and_save_served_rss(slug, feed_content, parsed_feed, podcast):
                                           hide_description_patterns=hide_filters.get('description_skip_patterns'),
                                           hide_min_duration_seconds=hide_filters.get('min_duration_seconds'),
                                           hide_max_duration_seconds=hide_filters.get('max_duration_seconds'),
-                                          chapter_notes=chapter_notes)
+                                          chapter_notes=chapter_notes,
+                                          processed_title_marker=resolve_processed_title_marker(db, podcast))
     storage.save_rss(slug, modified_rss)
     db.update_podcast(slug, last_checked_at=utc_now_iso())
     # A re-render means the upstream feed moved, so any episode lookups

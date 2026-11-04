@@ -976,6 +976,21 @@ paths:
                     ad time than the feed's recent average: 'nothing' (default),
                     'redetect' (LLM-only rerun from the stored transcript),
                     'reprocess', or 'full'. Fires at most once per episode.
+                unprocessedPlayback:
+                  type:
+                    - string
+                    - 'null'
+                  enum:
+                    - process
+                    - original
+                    - null
+                  description: Per-feed override of the global unprocessedPlayback setting; null uses the global value.
+                processedTitleMarker:
+                  type:
+                    - string
+                    - 'null'
+                  maxLength: 16
+                  description: Per-feed override of the global processedTitleMarker setting; null uses the global value, an empty string turns the marker off for this feed.
                 episodeLogs:
                   type:
                     - string
@@ -7456,6 +7471,20 @@ paths:
                     ad time than the feed's recent average: 'nothing' (default),
                     'redetect' (LLM-only rerun from the stored transcript),
                     'reprocess', or 'full'. Fires at most once per episode.
+                unprocessedPlayback:
+                  type: string
+                  enum: [process, original]
+                  description: >-
+                    What playing an episode that is not processed yet does: process
+                    (default) starts a just-in-time run; original redirects (302) to
+                    the upstream enclosure. Per-feed overridable.
+                processedTitleMarker:
+                  type: string
+                  maxLength: 16
+                  description: >-
+                    Short prefix (for example "[a] ", at most 16 characters) added to the
+                    served <item><title> of processed episodes. Empty (default) is off.
+                    Per-feed overridable.
                 episodeLogRetentionDays:
                   type: integer
                   minimum: 0
@@ -14852,6 +14881,21 @@ components:
           description: >-
             Per-feed override of the global lowAdYieldAction setting; null
             means the global value applies.
+        unprocessedPlayback:
+          type:
+            - string
+            - 'null'
+          enum:
+            - process
+            - original
+            - null
+          description: Per-feed override of the global unprocessedPlayback setting; null means the global value applies.
+        processedTitleMarker:
+          type:
+            - string
+            - 'null'
+          maxLength: 16
+          description: Per-feed override of the global processedTitleMarker setting; null means the global value applies, an empty string turns the marker off for this feed.
         episodeLogs:
           type:
             - string
@@ -17918,6 +17962,29 @@ components:
                 'reprocess', or 'full'. Fires at most once per episode.
             isDefault:
               type: boolean
+        unprocessedPlayback:
+          type: object
+          properties:
+            value:
+              type: string
+              enum: [process, original]
+              description: >-
+                What playing an episode that is not processed yet does: process
+                (default) starts a just-in-time run; original redirects (302) to
+                the upstream enclosure.
+            isDefault:
+              type: boolean
+        processedTitleMarker:
+          type: object
+          properties:
+            value:
+              type: string
+              maxLength: 16
+              description: >-
+                Short prefix (for example "[a] ") added to the served title of
+                processed episodes. Empty (default) is off.
+            isDefault:
+              type: boolean
         episodeLogRetentionDays:
           type: object
           properties:
@@ -18819,6 +18886,12 @@ components:
             lowAdYieldAction:
               type: string
               enum: [nothing, redetect, reprocess, full]
+            unprocessedPlayback:
+              type: string
+              enum: [process, original]
+            processedTitleMarker:
+              type: string
+              maxLength: 16
             episodeLogRetentionDays:
               type: integer
             episodeLogLevel:

@@ -45,6 +45,8 @@ from config import (
     PROCESSING_MODE_COLUMN_UPDATES,
     CUE_ONLY_SAFETY_VALUES,
     LOW_AD_YIELD_ACTIONS,
+    UNPROCESSED_PLAYBACK_VALUES,
+    validate_processed_title_marker,
     EPISODE_LOGS_VALUES,
     cue_only_missing_roles_for_feed,
 )
@@ -361,6 +363,19 @@ def _normalize_low_ad_yield_action(value):
     if value in LOW_AD_YIELD_ACTIONS:
         return value, None
     return None, f"lowAdYieldAction must be one of: {', '.join(LOW_AD_YIELD_ACTIONS)}"
+
+
+def _normalize_unprocessed_playback(value):
+    """Per-feed unprocessedPlayback override; None clears it (inherit global)."""
+    return _normalize_override(value, UNPROCESSED_PLAYBACK_VALUES, 'unprocessedPlayback')
+
+
+def _normalize_processed_title_marker(value):
+    """Per-feed processedTitleMarker override. None clears it (inherit global);
+    an empty string turns the marker off for this feed."""
+    if value is None:
+        return None, None
+    return validate_processed_title_marker(value)
 
 
 def _normalize_override(value, allowed, key):
@@ -993,6 +1008,8 @@ def _podcast_base_json(podcast, feed_url, db, global_actions=None) -> dict:
         'adChapterCategories': ad_chapter_categories,
         'queuePriority': _serialize_queue_priority(podcast.get('queue_priority')),
         'lowAdYieldAction': podcast.get('low_ad_yield_action'),
+        'unprocessedPlayback': podcast.get('unprocessed_playback'),
+        'processedTitleMarker': podcast.get('processed_title_marker'),
         'episodeLogs': podcast.get('episode_logs'),
         'titleSkipPatterns': _deserialize_skip_patterns(podcast.get('title_skip_patterns')),
         'descriptionSkipPatterns': _deserialize_skip_patterns(podcast.get('description_skip_patterns')),
@@ -2239,6 +2256,18 @@ def update_feed(slug):
             return error_response(ly_err, 400)
         updates['low_ad_yield_action'] = ly_val
 
+    if 'unprocessedPlayback' in data:
+        up_val, up_err = _normalize_unprocessed_playback(data['unprocessedPlayback'])
+        if up_err:
+            return error_response(up_err, 400)
+        updates['unprocessed_playback'] = up_val
+
+    if 'processedTitleMarker' in data:
+        ptm_val, ptm_err = _normalize_processed_title_marker(data['processedTitleMarker'])
+        if ptm_err:
+            return error_response(ptm_err, 400)
+        updates['processed_title_marker'] = ptm_val
+
     if 'episodeLogs' in data:
         logs_val, logs_err = _normalize_episode_logs(data['episodeLogs'])
         if logs_err:
@@ -2465,7 +2494,8 @@ def update_feed(slug):
                 or 'title' in updates or 'author' in updates
                 or 'explicit' in updates or 'categories' in updates
                 or 'p20_channel_json' in updates or 'description' in updates
-                or 'chapters_in_notes' in updates):
+                or 'chapters_in_notes' in updates
+                or 'processed_title_marker' in updates):
             db.update_podcast_etag(slug, None, None)
             try:
                 from main_app.feeds import refresh_rss_feed

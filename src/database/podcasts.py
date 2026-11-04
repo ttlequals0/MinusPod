@@ -387,6 +387,7 @@ class PodcastMixin:
                 'description_trim_pattern', 'description_trim_mode',
                 'title_skip_action', 'min_duration_seconds', 'max_duration_seconds',
                 'low_ad_yield_action', 'episode_logs',
+                'unprocessed_playback', 'processed_title_marker',
                 'retention_days_override', 'keep_original_audio_override',
                 'audio_replacement_sound_override', 'audio_mp3_stream_copy_override',
                 'p20_channel_json', 'author', 'explicit', 'categories',
