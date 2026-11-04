@@ -26,9 +26,9 @@ const heldTable = () => within(screen.getAllByRole('table')[1]);
 
 const tablesReady = () => waitFor(() => expect(screen.getAllByRole('table')).toHaveLength(2));
 
-function renderTab() {
+function renderTab(entry = '/') {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
-  render(<QueryClientProvider client={client}><MemoryRouter><ReviewTab /></MemoryRouter></QueryClientProvider>);
+  render(<QueryClientProvider client={client}><MemoryRouter initialEntries={[entry]}><ReviewTab /></MemoryRouter></QueryClientProvider>);
 }
 
 describe('ReviewTab', () => {
@@ -96,5 +96,28 @@ describe('ReviewTab', () => {
     const section = (await screen.findByRole('heading', { name: 'Awaiting approval' })).closest('section') as HTMLElement;
     expect(await within(section).findByRole('button', { name: 'Retry' })).toBeTruthy();
     expect(within(section).queryByText('No episodes are awaiting approval.')).toBeNull();
+  });
+});
+
+describe('ReviewTab pages in the URL', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockAwaiting.mockResolvedValue({ count: 60, episodes: [row(1)] });
+    mockHeld.mockResolvedValue({ count: 60, episodes: [row(4, 2)] });
+  });
+
+  it('requests each section at the offset its page param names', async () => {
+    renderTab('/?awaitingPage=2&heldPage=3');
+    await tablesReady();
+    expect(mockAwaiting).toHaveBeenLastCalledWith({ limit: 25, offset: 25 });
+    expect(mockHeld).toHaveBeenLastCalledWith({ limit: 25, offset: 50 });
+  });
+
+  it('keeps the other section on its page when one pager moves', async () => {
+    renderTab('/?heldPage=2');
+    await tablesReady();
+    await userEvent.click(within(screen.getAllByRole('table')[0].closest('section')!).getAllByRole('button', { name: 'Next' })[0]);
+    await waitFor(() => expect(mockAwaiting).toHaveBeenLastCalledWith({ limit: 25, offset: 25 }));
+    expect(mockHeld).toHaveBeenLastCalledWith({ limit: 25, offset: 25 });
   });
 });

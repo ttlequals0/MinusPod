@@ -12,10 +12,21 @@ release notes.
 
 ### Changed
 
+- Every list page keeps its page, sort and filters in the address bar, the
+  way feed pages already did: the dashboard feeds list, Processing history,
+  Downloads, Sponsors, Patterns, Detected ads, Ad review and the Queue. Back
+  and reload return to the same place, and a filtered view can be shared as
+  a link.
 - The feed page status filter's Filters applied option is now Filtered and
   lists the episodes a feed filter rule matches, the same episodes that carry
   the Filtered chip. It listed the episodes the rules keep, which the served
   feed already shows. API: `status=filtered` replaces `status=filters_applied`.
+
+### Fixed
+
+- A refreshed or uploaded feed cover now shows in the web UI without a hard
+  reload. Artwork responses carry an ETag and revalidate on every load, and
+  the feed's artwork URL changes with the stored file.
 
 ## [2.101.18] - 2026-11-04
 

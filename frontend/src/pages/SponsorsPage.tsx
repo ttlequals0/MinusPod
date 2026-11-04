@@ -1,6 +1,5 @@
 import { useState } from 'react';
-import { useSyncFromQuery } from '../hooks/useSyncFromQuery';
-import { useSearchParams } from 'react-router';
+import { useUrlParams, useUrlSearch, useUrlSort } from '../hooks/useUrlParams';
 import QueryError from '../components/QueryError';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { getSponsors, deleteSponsor } from '../api/sponsors';
@@ -13,7 +12,7 @@ import { SegmentCategoryBadge } from '../components/SegmentCategoryBadge';
 import { Skeleton, SkeletonRows } from '../components/Skeleton';
 import { Pagination } from '../components/Pagination';
 import { tableBody, tableCard, tableHead, tableRow, td, tdEmpty, tdMuted, th, thBase, rowCard } from '../components/tableStyles';
-import { SortHeader, useSortState } from '../components/SortHeader';
+import { SortHeader } from '../components/SortHeader';
 import { formatDate } from '../utils/format';
 import Checkbox from '../components/Checkbox';
 import { Plus } from 'lucide-react';
@@ -23,17 +22,18 @@ import { focusRing, inputBase, selectBase, filterLabel, filterControl } from '..
 import { tableActionBtn } from '../components/rowActionStyles';
 
 type SortField = 'name' | 'category' | 'pattern_count' | 'created_at' | 'last_matched_at';
+const SORT_FIELDS: SortField[] = ['name', 'category', 'pattern_count', 'created_at', 'last_matched_at'];
+
+// Page, filters, search and sort live in the URL so Back and reload return to the same place.
+const SPONSOR_PARAM_DEFAULTS = { page: '1', tag: 'all', inactive: '' };
 
 export function SponsorsSection() {
   const queryClient = useQueryClient();
-  const [searchParams] = useSearchParams();
-  const [tagFilter, setTagFilter] = useState('all');
-  const [search, setSearch] = useState(searchParams.get('q') || '');
-  const [showInactive, setShowInactive] = useState(false);
-  const [page, setPage] = useState(1);
-  useSyncFromQuery(searchParams.get('q') ?? undefined, setSearch);
-  const { sortField, sortDirection, handleSort } =
-    useSortState<SortField>('name', 'asc', () => setPage(1));
+  const { read, readPage, write } = useUrlParams(SPONSOR_PARAM_DEFAULTS, { resetKey: 'page' });
+  const tagFilter = read('tag');
+  const showInactive = read('inactive') === '1';
+  const [searchInput, setSearchInput, search] = useUrlSearch();
+  const { sortBy: sortField, sortDirection, onSort: handleSort } = useUrlSort(SORT_FIELDS, 'name', 'asc');
   const [editing, setEditing] = useState<Sponsor | null | undefined>(undefined); // undefined = closed, null = new
   const [deleteTarget, setDeleteTarget] = useState<Sponsor | null>(null);
   const limit = 20;
@@ -76,6 +76,8 @@ export function SponsorsSection() {
   });
 
   const totalPages = Math.ceil((sorted?.length || 0) / limit);
+  const page = readPage('page', totalPages);
+  const setPage = (next: number) => write({ page: String(next) });
   const paginated = sorted?.slice((page - 1) * limit, page * limit);
 
   if (isLoading) {
@@ -110,7 +112,7 @@ export function SponsorsSection() {
             <select
               id="sponsors-tag"
               value={tagFilter}
-              onChange={(e) => { setTagFilter(e.target.value); setPage(1); }}
+              onChange={(e) => write({ tag: e.target.value })}
               className={`${filterControl} ${selectBase}`}
             >
               <option value="all">All</option>
@@ -122,8 +124,8 @@ export function SponsorsSection() {
             <input
               id="sponsors-search"
               type="text"
-              value={search}
-              onChange={(e) => { setSearch(e.target.value); setPage(1); }}
+              value={searchInput}
+              onChange={(e) => setSearchInput(e.target.value)}
               placeholder="Search by name, alias, category..."
               className={`${filterControl} ${inputBase}`}
             />
@@ -131,7 +133,7 @@ export function SponsorsSection() {
           <Checkbox
             className="min-h-11"
             checked={showInactive}
-            onChange={(v) => { setShowInactive(v); setPage(1); }}
+            onChange={(v) => write({ inactive: v ? '1' : '' })}
             label="Show inactive"
             labelClassName="text-sm text-muted-foreground"
           />

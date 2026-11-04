@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Link, useSearchParams } from 'react-router';
+import { Link } from 'react-router';
+import { useUrlParams } from '../hooks/useUrlParams';
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   cancelProcessing,
@@ -130,11 +130,16 @@ const QUEUE_TABS = [
   { value: 'review', label: 'Episode review' },
 ] as const;
 
+// Tab and queue page live in the URL so Back and reload return to the same place.
+const QUEUE_TAB_VALUES = QUEUE_TABS.map((t) => t.value);
+const QUEUE_PARAM_DEFAULTS = { tab: 'queue', page: '1' };
+
 function QueuePage() {
   const queryClient = useQueryClient();
-  const [searchParams, setSearchParams] = useSearchParams();
-  const activeTab = searchParams.get('tab') === 'review' ? 'review' : 'queue';
-  const [queuePage, setQueuePage] = useState(1);
+  const { readOneOf, readPage, write } = useUrlParams(QUEUE_PARAM_DEFAULTS, { resetKey: 'page' });
+  const activeTab = readOneOf('tab', QUEUE_TAB_VALUES, 'queue');
+  const queuePage = readPage('page');
+  const setQueuePage = (next: number) => write({ page: String(next) });
   const episodes = useQuery({
     queryKey: ['processing-episodes', queuePage],
     queryFn: () => getProcessingEpisodes({
@@ -180,7 +185,7 @@ function QueuePage() {
       </div>
 
       <PageTabs id="queue" label="Queue sections" tabs={QUEUE_TABS} active={activeTab} wrap
-        onChange={(value) => setSearchParams(value === 'queue' ? {} : { tab: value })} />
+        onChange={(value) => write({ tab: value })} />
 
       {activeTab === 'review' ? <ReviewTab /> : (
       <div role="tabpanel" id="queue-panel-queue" aria-labelledby="queue-tab-queue" className="space-y-4">

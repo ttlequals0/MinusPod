@@ -6,6 +6,7 @@ import type { UseQueryResult } from '@tanstack/react-query';
 import { APPROVAL_INVALIDATE_KEYS, approveAwaitingEpisodes, getAwaitingApproval, getHeldEpisodes } from '../../api/settings';
 import type { ApprovalEpisodeList, ApprovalEpisodeRow } from '../../api/settings';
 import { getErrorMessage } from '../../api/client';
+import { useUrlParams } from '../../hooks/useUrlParams';
 import Checkbox from '../../components/Checkbox';
 import LoadingSpinner from '../../components/LoadingSpinner';
 import { Pagination } from '../../components/Pagination';
@@ -22,13 +23,26 @@ const rowKey = (row: ApprovalEpisodeRow) => `${row.slug}:${row.episodeId}`;
 const episodePath = (row: ApprovalEpisodeRow) => `/feeds/${row.slug}/episodes/${row.episodeId}`;
 const emptyBox = 'rounded-lg bg-secondary/50 p-4 text-sm text-muted-foreground';
 
-function usePagedQuery(key: string, fetcher: (params: { limit: number; offset: number }) => Promise<ApprovalEpisodeList>) {
-  const [page, setPage] = useState(1);
+// Each section keeps its own page in the URL so Back and reload return to the same place.
+const REVIEW_PARAM_DEFAULTS = { awaitingPage: '1', heldPage: '1' };
+
+function usePagedQuery(
+  key: string,
+  param: keyof typeof REVIEW_PARAM_DEFAULTS,
+  fetcher: (params: { limit: number; offset: number }) => Promise<ApprovalEpisodeList>,
+) {
+  const { readPage, write } = useUrlParams(REVIEW_PARAM_DEFAULTS);
+  // Last page count the server reported; clamps the URL page when a section's last page empties.
+  const [knownPages, setKnownPages] = useState<number | undefined>(undefined);
+  const page = readPage(param, knownPages);
+  const setPage = (next: number) => write({ [param]: String(next) });
   const query = useQuery({
     queryKey: [key, page],
     queryFn: () => fetcher({ limit: REVIEW_PAGE_SIZE, offset: (page - 1) * REVIEW_PAGE_SIZE }),
     placeholderData: keepPreviousData,
   });
+  const pages = query.isPlaceholderData || !query.data ? undefined : Math.max(1, Math.ceil(query.data.count / REVIEW_PAGE_SIZE));
+  if (pages !== undefined && pages !== knownPages) setKnownPages(pages);
   return { query, page, setPage };
 }
 
@@ -153,7 +167,7 @@ function rowBody(row: ApprovalEpisodeRow, to: string, extra?: ReactNode) {
 
 function AwaitingApproval() {
   const queryClient = useQueryClient();
-  const { query: awaiting, page, setPage } = usePagedQuery('awaiting-approval', getAwaitingApproval);
+  const { query: awaiting, page, setPage } = usePagedQuery('awaiting-approval', 'awaitingPage', getAwaitingApproval);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [message, setMessage] = useState<string | null>(null);
   const approve = useMutation({
@@ -241,7 +255,7 @@ function AwaitingApproval() {
 }
 
 function HeldDetections() {
-  const { query: held, page, setPage } = usePagedQuery('held-episodes', getHeldEpisodes);
+  const { query: held, page, setPage } = usePagedQuery('held-episodes', 'heldPage', getHeldEpisodes);
   return (
     <ReviewSection
       id="held-detections"

@@ -1,4 +1,4 @@
-import { Fragment, useState, type ReactNode } from 'react';
+import { Fragment, type ReactNode } from 'react';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router';
 import { getDownloadHistory, type DownloadQueryParams, type DownloadSortField } from '../../api/history';
@@ -9,11 +9,11 @@ import { feedDisplayTitle } from '../../utils/feedTitle';
 import { sortFeeds } from '../../utils/feedSort';
 import { formatDateTime } from '../../utils/format';
 import { clientName } from '../../utils/userAgent';
-import { SEARCH_DEBOUNCE_MS, useDebouncedValue } from '../../hooks/useDebouncedValue';
+import { useUrlParams, useUrlSearch, useUrlSort } from '../../hooks/useUrlParams';
 import DateField from '../../components/DateField';
 import { SkeletonRows } from '../../components/Skeleton';
 import { Pagination } from '../../components/Pagination';
-import { SortHeader, useSortState } from '../../components/SortHeader';
+import { SortHeader } from '../../components/SortHeader';
 import DownloadRowActions from './DownloadRowActions';
 import SortControls from '../../components/SortControls';
 import QueryError from '../../components/QueryError';
@@ -23,6 +23,12 @@ import { badgeBase, tint } from '../../components/badgeStyles';
 import { pageHeader, pageTitle } from '../../components/pageStyles';
 
 const LIMIT = 20;
+const SORT_FIELDS: DownloadSortField[] = ['last_seen_at', 'podcast', 'client_ip', 'location', 'subscriber'];
+
+// Page, filters, search and sort live in the URL so Back and reload return to the same place.
+const DOWNLOAD_PARAM_DEFAULTS = {
+  page: '1', podcast: '', subscriber: '', since: '', until: '',
+};
 
 function BlockedBadge({ row }: { row: DownloadHistoryEntry }) {
   if (!row.userAgentBlocked) return null;
@@ -82,15 +88,15 @@ interface Props {
 }
 
 function DownloadsTab({ tabs }: Props) {
-  const [podcast, setPodcast] = useState('');
-  const [subscriber, setSubscriber] = useState('');
-  const [since, setSince] = useState('');
-  const [until, setUntil] = useState('');
-  const [searchInput, setSearchInput] = useState('');
-  const search = useDebouncedValue(searchInput, SEARCH_DEBOUNCE_MS).trim();
-  const [page, setPage] = useState(1);
-  const { sortField, sortDirection, handleSort } =
-    useSortState<DownloadSortField>('last_seen_at', 'desc', () => setPage(1));
+  const { read, readPage, write } = useUrlParams(DOWNLOAD_PARAM_DEFAULTS, { resetKey: 'page' });
+  const podcast = read('podcast');
+  const subscriber = read('subscriber');
+  const since = read('since');
+  const until = read('until');
+  const page = readPage('page');
+  const setPage = (next: number) => write({ page: String(next) });
+  const { sortBy: sortField, sortDirection, onSort: handleSort } = useUrlSort(SORT_FIELDS, 'last_seen_at', 'desc');
+  const [searchInput, setSearchInput, search] = useUrlSearch('q', { trim: true });
 
   const params: DownloadQueryParams = {
     page,
@@ -122,11 +128,6 @@ function DownloadsTab({ tabs }: Props) {
   const total = data?.total ?? 0;
   const totalPages = Math.max(1, Math.ceil(total / LIMIT));
 
-  const setFilter = (set: (value: string) => void, value: string) => {
-    set(value);
-    setPage(1);
-  };
-
 
   return (
     <div>
@@ -143,7 +144,7 @@ function DownloadsTab({ tabs }: Props) {
           <select
             id="downloads-podcast"
             value={podcast}
-            onChange={(e) => setFilter(setPodcast, e.target.value)}
+            onChange={(e) => write({ podcast: e.target.value })}
             className={`${filterControl} ${selectBase}`}
           >
             <option value="">All podcasts</option>
@@ -157,7 +158,7 @@ function DownloadsTab({ tabs }: Props) {
           <select
             id="downloads-subscriber"
             value={subscriber}
-            onChange={(e) => setFilter(setSubscriber, e.target.value)}
+            onChange={(e) => write({ subscriber: e.target.value })}
             className={`${filterControl} ${selectBase}`}
           >
             <option value="">All subscribers</option>
@@ -174,14 +175,14 @@ function DownloadsTab({ tabs }: Props) {
           label="Since"
           value={since}
           max={until || undefined}
-          onChange={(value) => setFilter(setSince, value)}
+          onChange={(value) => write({ since: value })}
         />
         <DateField
           id="downloads-until"
           label="Until"
           value={until}
           min={since || undefined}
-          onChange={(value) => setFilter(setUntil, value)}
+          onChange={(value) => write({ until: value })}
         />
         </div>
         <div className="min-w-0 min-[375px]:col-span-2 lg:col-span-1">
@@ -190,7 +191,7 @@ function DownloadsTab({ tabs }: Props) {
             id="downloads-search"
             type="search"
             value={searchInput}
-            onChange={(e) => setFilter(setSearchInput, e.target.value)}
+            onChange={(e) => setSearchInput(e.target.value)}
             placeholder="IP or client"
             className={`${filterControl} ${inputBase}`}
           />

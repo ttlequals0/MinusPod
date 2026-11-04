@@ -105,11 +105,11 @@ vi.mock('react-router', async (importOriginal) => ({
   useNavigate: () => mockNavigate,
 }));
 
-function renderDashboard() {
+function renderDashboard(entry = '/') {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={client}>
-      <MemoryRouter>
+      <MemoryRouter initialEntries={[entry]}>
         <Dashboard />
       </MemoryRouter>
     </QueryClientProvider>,
@@ -513,5 +513,35 @@ describe('Dashboard toolbar heights', () => {
     await userEvent.click(await screen.findByRole('button', { name: 'View options' }));
     const select = await screen.findByRole('combobox', { name: 'Episodes per podcast' });
     expect(select.className).toContain('min-h-10');
+  });
+});
+
+describe('Dashboard page in the URL', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    feedsQueryParams.length = 0;
+    localStorage.removeItem('dashboardView');
+    mockFeedsQueryFn.mockImplementation(async () => ({ ...page([FEED]), total: 48, totalPages: 2 }));
+  });
+
+  afterEach(() => {
+    mockFeedsQueryFn.mockImplementation(async () => page([FEED]));
+  });
+
+  it('requests the page named by ?page=2', async () => {
+    renderDashboard('/?page=2');
+    await screen.findByText('Existing Feed');
+    expect(feedsQueryParams.some((p) => p.page === 2)).toBe(true);
+    expect(feedsQueryParams.some((p) => p.page === 1)).toBe(false);
+  });
+
+  it('resets to page 1 when the sort changes', async () => {
+    renderDashboard('/?page=2');
+    await screen.findByText('Existing Feed');
+    feedsQueryParams.length = 0;
+    await userEvent.click(screen.getByRole('button', { name: 'View options' }));
+    await userEvent.click(await screen.findByRole('button', { name: /sort by title/i }));
+    await waitFor(() => expect(feedsQueryParams.some((p) => p.page === 1)).toBe(true));
+    expect(feedsQueryParams[feedsQueryParams.length - 1]?.page).toBe(1);
   });
 });

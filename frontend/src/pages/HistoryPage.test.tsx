@@ -45,7 +45,7 @@ function makeEntry(overrides: Partial<ProcessingHistoryEntry> = {}): ProcessingH
   };
 }
 
-function renderPage(entries: ProcessingHistoryEntry[], avgProcessingTimeSeconds = 12.5) {
+function renderPage(entries: ProcessingHistoryEntry[], avgProcessingTimeSeconds = 12.5, entry = '/') {
   mockGetProcessingHistory.mockResolvedValue({
     history: entries, total: entries.length, page: 1, limit: 20, totalPages: 1,
   });
@@ -57,7 +57,7 @@ function renderPage(entries: ProcessingHistoryEntry[], avgProcessingTimeSeconds 
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={qc}>
-      <MemoryRouter>
+      <MemoryRouter initialEntries={[entry]}>
         <HistoryPage />
       </MemoryRouter>
     </QueryClientProvider>,
@@ -179,5 +179,35 @@ describe('HistoryPage loading placeholder', () => {
     renderPage([makeEntry()]);
     await screen.findAllByText('Episode One');
     expect(screen.queryByTestId('skeleton-rows')).toBeNull();
+  });
+});
+
+describe('HistoryPage list state in the URL', () => {
+  const lastParams = () => mockGetProcessingHistory.mock.lastCall?.[0];
+
+  it('requests the page named by ?page=2', async () => {
+    renderPage([makeEntry()], 12.5, '/?page=2');
+    await screen.findAllByText('Episode One');
+    expect(lastParams()).toMatchObject({ page: 2 });
+  });
+
+  it('restores filter and sort from the URL', async () => {
+    renderPage([makeEntry()], 12.5, '/?status=failed&sort=llmCost&dir=asc');
+    await screen.findAllByText('Episode One');
+    expect(lastParams()).toMatchObject({ status: 'failed', sortBy: 'llm_cost', sortDir: 'asc' });
+  });
+
+  it('resets to page 1 when the status filter changes', async () => {
+    renderPage([makeEntry()], 12.5, '/?page=2');
+    await screen.findAllByText('Episode One');
+    await userEvent.selectOptions(screen.getByLabelText('Status'), 'failed');
+    await waitFor(() => expect(lastParams()).toMatchObject({ page: 1, status: 'failed' }));
+  });
+
+  it('resets to page 1 when the sort changes', async () => {
+    renderPage([makeEntry()], 12.5, '/?page=2');
+    await screen.findAllByText('Episode One');
+    await userEvent.click(screen.getByRole('button', { name: /Ads/ }));
+    await waitFor(() => expect(lastParams()).toMatchObject({ page: 1, sortBy: 'ads_detected' }));
   });
 });

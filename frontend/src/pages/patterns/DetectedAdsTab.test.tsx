@@ -77,11 +77,11 @@ const SUMMARY: CutSummary = {
   distinctPodcasts: 2,
 };
 
-function renderTab() {
+function renderTab(entry = '/') {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={qc}>
-      <MemoryRouter>
+      <MemoryRouter initialEntries={[entry]}>
         <DetectedAdsTab />
       </MemoryRouter>
     </QueryClientProvider>,
@@ -316,5 +316,21 @@ describe('DetectedAdsTab loading placeholder', () => {
     renderTab();
     await screen.findAllByText('Episode One');
     expect(screen.queryByTestId('skeleton-rows')).toBeNull();
+  });
+});
+
+describe('DetectedAdsTab list state in the URL', () => {
+  it('requests the page named by ?page=2', async () => {
+    renderTab('/?page=2');
+    await screen.findAllByRole('link', { name: 'Episode One' });
+    expect(mockGetDetections.mock.lastCall?.[0]).toMatchObject({ page: 2 });
+  });
+
+  it('resets to page 1 when a filter changes', async () => {
+    const user = userEvent.setup();
+    renderTab('/?page=2');
+    await screen.findAllByRole('link', { name: 'Episode One' });
+    await user.selectOptions(screen.getByLabelText('Reviewer'), 'unadjusted');
+    await waitFor(() => expect(mockGetDetections.mock.lastCall?.[0]).toMatchObject({ page: 1, reviewer: 'unadjusted' }));
   });
 });

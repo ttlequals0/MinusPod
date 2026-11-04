@@ -1,4 +1,5 @@
 import { useState, type ReactNode } from 'react';
+import { useUrlParams, useUrlSort } from '../hooks/useUrlParams';
 import PageTabs from '../components/PageTabs';
 import SortControls from '../components/SortControls';
 import QueryError from '../components/QueryError';
@@ -17,7 +18,7 @@ import { formatDateTime, formatElapsed } from '../utils/format';
 import { ProcessingHistoryEntry } from '../api/types';
 import { SkeletonRows } from '../components/Skeleton';
 import { Pagination } from '../components/Pagination';
-import { SortHeader, useSortState } from '../components/SortHeader';
+import { SortHeader } from '../components/SortHeader';
 import StatTile from '../components/StatTile';
 import StatusBadge from '../components/StatusBadge';
 import DownloadsTab from './history/DownloadsTab';
@@ -28,17 +29,23 @@ import { pageHeader, pageTitle } from '../components/pageStyles';
 
 type StatusFilter = 'all' | 'completed' | 'failed';
 type SortField = 'processedAt' | 'processingDurationSeconds' | 'adsDetected' | 'reprocessNumber' | 'llmCost' | 'appVersion';
+const SORT_FIELDS: SortField[] = ['processedAt', 'processingDurationSeconds', 'adsDetected', 'reprocessNumber', 'llmCost', 'appVersion'];
+
+// Page, filters and sort live in the URL so Back and reload return to the same place.
+const PROCESSING_PARAM_DEFAULTS = { page: '1', status: 'all', podcast: '' };
+const STATUS_FILTERS: readonly StatusFilter[] = ['all', 'completed', 'failed'];
 
 const FILTER_TILE_CLASS = 'h-full w-full rounded-lg cursor-pointer transition-colors hover:border-primary/50';
 
 const elapsedOrDash = (seconds: number | null | undefined) => (seconds == null ? '-' : formatElapsed(seconds));
 
 function ProcessingTab({ tabs }: { tabs: ReactNode }) {
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
-  const [podcastFilter, setPodcastFilter] = useState<string>('');
-  const [page, setPage] = useState(1);
-  const { sortField, sortDirection, handleSort } =
-    useSortState<SortField>('processedAt', 'desc', () => setPage(1));
+  const { read, readOneOf, readPage, write } = useUrlParams(PROCESSING_PARAM_DEFAULTS, { resetKey: 'page' });
+  const statusFilter = readOneOf('status', STATUS_FILTERS, 'all');
+  const podcastFilter = read('podcast');
+  const page = readPage('page');
+  const setPage = (next: number) => write({ page: String(next) });
+  const { sortBy: sortField, sortDirection, onSort: handleSort } = useUrlSort(SORT_FIELDS, 'processedAt', 'desc');
   const [exporting, setExporting] = useState<'csv' | 'json' | null>(null);
   const [exportError, setExportError] = useState('');
   const limit = 20;
@@ -137,7 +144,7 @@ function ProcessingTab({ tabs }: { tabs: ReactNode }) {
           <StatTile label="Total processed" value={stats.totalProcessed} />
           <button
             type="button"
-            onClick={() => { setStatusFilter((f) => (f === 'completed' ? 'all' : 'completed')); setPage(1); }}
+            onClick={() => write({ status: statusFilter === 'completed' ? '' : 'completed' })}
             aria-pressed={statusFilter === 'completed'}
             title="Filter the list below by completed runs"
             className={`block h-full min-w-0 rounded-lg ${focusRing}`}
@@ -147,7 +154,7 @@ function ProcessingTab({ tabs }: { tabs: ReactNode }) {
           </button>
           <button
             type="button"
-            onClick={() => { setStatusFilter((f) => (f === 'failed' ? 'all' : 'failed')); setPage(1); }}
+            onClick={() => write({ status: statusFilter === 'failed' ? '' : 'failed' })}
             aria-pressed={statusFilter === 'failed'}
             title="Filter the list below by failed runs"
             className={`block h-full min-w-0 rounded-lg ${focusRing}`}
@@ -168,10 +175,7 @@ function ProcessingTab({ tabs }: { tabs: ReactNode }) {
           <select
             id="history-status"
             value={statusFilter}
-            onChange={(e) => {
-              setStatusFilter(e.target.value as StatusFilter);
-              setPage(1);
-            }}
+            onChange={(e) => write({ status: e.target.value })}
             className={`${filterControl} ${selectBase}`}
           >
             <option value="all">All statuses</option>
@@ -184,10 +188,7 @@ function ProcessingTab({ tabs }: { tabs: ReactNode }) {
           <select
             id="history-podcast"
             value={podcastFilter}
-            onChange={(e) => {
-              setPodcastFilter(e.target.value);
-              setPage(1);
-            }}
+            onChange={(e) => write({ podcast: e.target.value })}
             className={`${filterControl} ${selectBase}`}
           >
             <option value="">All podcasts</option>

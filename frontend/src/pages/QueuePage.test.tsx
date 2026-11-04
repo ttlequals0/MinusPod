@@ -175,3 +175,16 @@ describe('QueuePage', () => {
     expect(await screen.findByText('No episodes are awaiting approval.')).toBeTruthy();
   });
 });
+
+describe('QueuePage page in the URL', () => {
+  beforeEach(() => {
+    mockGetSettings.mockResolvedValue(settings());
+    mockGetAdmission.mockResolvedValue({ paused: false, activeRuns: 0, queuedEpisodes: 26 });
+    mockGetEpisodes.mockResolvedValue([episode(26)]);
+  });
+
+  it('requests the queue offset named by ?page=2', async () => {
+    renderPage('/queue?page=2');
+    await waitFor(() => expect(mockGetEpisodes).toHaveBeenCalledWith({ queueOffset: 25, queueLimit: 25 }));
+  });
+});

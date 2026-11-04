@@ -1,8 +1,8 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { MemoryRouter } from 'react-router';
-import { describe, expect, it, vi } from 'vitest';
+import { MemoryRouter, useLocation } from 'react-router';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import PatternsPage from './PatternsPage';
 
 const mockGetPatterns = vi.fn().mockResolvedValue([]);
@@ -59,12 +59,17 @@ vi.mock('../api/patternCleanup', async (importOriginal) => ({
   getPatternCleanupSuggestions: (...a: unknown[]) => mockCleanupSuggestions(...a),
 }));
 
+function LocationProbe() {
+  return <div data-testid="loc">{useLocation().search}</div>;
+}
+
 function renderPage(initialEntry = '/patterns') {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={qc}>
       <MemoryRouter initialEntries={[initialEntry]}>
         <PatternsPage />
+        <LocationProbe />
       </MemoryRouter>
     </QueryClientProvider>,
   );
@@ -310,5 +315,52 @@ describe('PatternsPage loading state', () => {
     mockGetPatterns.mockReturnValueOnce(new Promise(() => {}));
     renderPage();
     expect(screen.getByTestId('skeleton-rows')).toBeDefined();
+  });
+});
+
+describe('PatternsPage list state in the URL', () => {
+  const many = (count: number) => Array.from({ length: count }, (_, i) => {
+    const id = i + 1;
+    return {
+      id, scope: 'global', network_id: null, podcast_id: null,
+      dai_platform: null, text_template: 'x'.repeat(60),
+      intro_variants: '[]', outro_variants: '[]', sponsor: `Sponsor ${String(id).padStart(2, '0')}`,
+      confirmation_count: 0, false_positive_count: 0, last_matched_at: null,
+      created_at: `2026-01-${String(id).padStart(2, '0')}T00:00:00Z`, created_from_episode_id: null,
+      is_active: true, disabled_at: null, disabled_reason: null, category: null,
+    };
+  });
+
+  it('shows the second page for ?page=2', async () => {
+    mockGetPatterns.mockResolvedValue(many(25));
+    renderPage('/patterns?page=2&sort=id&dir=asc');
+    expect((await screen.findAllByText('Sponsor 25')).length).toBeGreaterThan(0);
+    expect(screen.queryByText('Sponsor 01')).toBeNull();
+  });
+
+  it('returns to the first page when a filter changes', async () => {
+    mockGetPatterns.mockResolvedValue(many(25));
+    renderPage('/patterns?page=2&sort=id&dir=asc');
+    await screen.findAllByText('Sponsor 25');
+    await userEvent.selectOptions(screen.getByLabelText('Origin'), 'auto');
+    expect((await screen.findAllByText('Sponsor 01')).length).toBeGreaterThan(0);
+  });
+});
+
+describe('PatternsPage search across tabs', () => {
+  afterEach(() => vi.useRealTimers());
+
+  it('does not carry the patterns search into another tab after a tab switch', async () => {
+    renderPage('/patterns');
+    const box = await screen.findByPlaceholderText(/search by sponsor/i);
+    vi.useFakeTimers();
+    fireEvent.change(box, { target: { value: 'foo' } });
+    fireEvent.click(screen.getByRole('tab', { name: 'Ad review' }));
+    mockGetDetections.mockClear();
+    await act(async () => { await vi.advanceTimersByTimeAsync(1500); });
+    expect(screen.getByTestId('loc').textContent).toBe('?tab=ad-review');
+    for (const [params] of mockGetDetections.mock.calls) {
+      expect(JSON.stringify(params)).not.toContain('foo');
+    }
   });
 });

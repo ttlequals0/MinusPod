@@ -78,11 +78,11 @@ function detection(over: Partial<ReviewDetection> = {}): ReviewDetection {
   };
 }
 
-function renderTab() {
+function renderTab(entry = '/') {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={qc}>
-      <MemoryRouter>
+      <MemoryRouter initialEntries={[entry]}>
         <AdReviewTab />
       </MemoryRouter>
     </QueryClientProvider>,
@@ -442,5 +442,21 @@ describe('AdReviewTab hold-reason filter', () => {
       expect(mockGetDetections.mock.lastCall?.[0]).toMatchObject({ status: 'all' });
     });
     expect(mockGetDetections.mock.lastCall?.[0].holdReason).toBeUndefined();
+  });
+});
+
+describe('AdReviewTab list state in the URL', () => {
+  it('requests the page named by ?page=2', async () => {
+    renderTab('/?page=2');
+    await screen.findAllByRole('link', { name: 'Episode One' });
+    expect(mockGetDetections.mock.lastCall?.[0]).toMatchObject({ page: 2 });
+  });
+
+  it('resets to page 1 when a filter changes', async () => {
+    const user = userEvent.setup();
+    renderTab('/?page=2');
+    await screen.findAllByRole('link', { name: 'Episode One' });
+    await user.selectOptions(screen.getByLabelText('Status'), 'all');
+    await waitFor(() => expect(mockGetDetections.mock.lastCall?.[0]).toMatchObject({ page: 1, status: 'all' }));
   });
 });
