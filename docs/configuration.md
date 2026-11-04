@@ -379,6 +379,8 @@ Matching is against the description's plain text, with HTML tags removed, as a s
 
 API: `descriptionSkipPatterns` (array of strings, max 50 patterns, 200 characters each) on `PATCH /api/v1/feeds/{slug}`; `titleSkipAction` governs served-RSS visibility for all three filters.
 
+To see the feed with the filters applied, choose **Filters applied** in the status filter on the feed's Episodes list. It shows the feed with the title, description, and duration filters applied, as if **Skipped episodes > Hide from feed** were set, whatever that setting is on the feed. **Hide from feed** only changes the served RSS, not the UI Episodes list.
+
 ### Chapter trim
 
 Some shows publish an episode whose second half is a re-run, and the description lists the cut point as a timestamp line such as `(31:26) - Throwback ...`. Under **Chapter trim** (beside Chapters in the feed's settings), enter a chapter title pattern (whole title, case-insensitive, `*` is a wildcard, for example `*Throwback*`) and choose **Cut to the end of the episode** or **Cut until the next chapter**.

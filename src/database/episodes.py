@@ -154,8 +154,14 @@ class EpisodeMixin:
     def get_episodes(self, slug: str, status: str = None,
                      limit: int = 50, offset: int = 0,
                      sort_by: str = 'created_at', sort_dir: str = 'desc',
-                     search: str = '', selection: bool = False) -> tuple[list[dict], int]:
-        """Get episodes for a podcast with pagination and sorting."""
+                     search: str = '', selection: bool = False,
+                     episode_ids: list[str] | None = None) -> tuple[list[dict], int]:
+        """Get episodes for a podcast with pagination and sorting.
+
+        ``episode_ids`` restricts the result to those episodes (still sorted
+        and counted as usual); an empty list matches nothing. ``limit=None``
+        returns every matching row.
+        """
         conn = self.get_connection()
 
         # Get podcast ID
@@ -176,6 +182,12 @@ class EpisodeMixin:
         if search:
             where_clause += " AND INSTR(LOWER(COALESCE(e.title, '')), LOWER(?)) > 0"
             params.append(search)
+
+        if episode_ids is not None:
+            if not episode_ids:
+                return [], 0
+            where_clause += f" AND e.episode_id IN ({','.join('?' * len(episode_ids))})"
+            params.extend(episode_ids)
 
         # Get total count
         cursor = conn.execute(

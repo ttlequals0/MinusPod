@@ -8,6 +8,12 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
+## [Unreleased]
+
+### Added
+
+- The status filter on each feed page has a new Filters applied option. It shows the feed with the title, description, and duration filters applied, as if Skipped episodes were set to Hide from feed, whatever that setting is on the feed. It works with search, sorting, paging and Select all matches. API: `GET /api/v1/feeds/{slug}/episodes?status=filters_applied`.
+
 ## [2.101.17] - 2026-11-03
 
 ### Added
