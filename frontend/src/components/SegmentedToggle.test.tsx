@@ -85,7 +85,7 @@ describe('SegmentedToggle: radiogroup semantics', () => {
     render(<Harness onChange={onChange} disabled />);
 
     const first = screen.getByRole('radio', { name: 'One' });
-    expect(first).toHaveProperty('disabled', true);
+    expect(first.getAttribute('aria-disabled')).toBe('true');
     await user.click(screen.getByRole('radio', { name: 'Two' }));
     first.focus();
     await user.keyboard('{ArrowRight}');

@@ -76,6 +76,33 @@ describe('EpisodeList', () => {
     expect(screen.queryByText('Pass-through')).toBeNull();
   });
 
+  it('shows a Filtered chip naming the matched filter', () => {
+    const episode = {
+      id: 'ep9', title: 'Skipped', published: '2026-09-10T00:00:00Z', status: 'discovered', titleSkipped: true,
+    } as Episode;
+    render(<MemoryRouter><EpisodeList feedSlug="show" episodes={[episode]} /></MemoryRouter>);
+    expect(screen.getByText('Filtered').getAttribute('title')).toBe(
+      "Matches this feed's title filter, so automatic processing skips it"
+    );
+  });
+
+  it('names every matched filter in the Filtered chip tooltip', () => {
+    const episode = {
+      id: 'ep10', title: 'Skipped', published: '2026-09-10T00:00:00Z', status: 'discovered',
+      titleSkipped: true, descriptionSkipped: true, durationSkipped: true,
+    } as Episode;
+    render(<MemoryRouter><EpisodeList feedSlug="show" episodes={[episode]} /></MemoryRouter>);
+    expect(screen.getByText('Filtered').getAttribute('title')).toContain('title, description and duration filter');
+  });
+
+  it('omits the Filtered chip when no filter matches', () => {
+    const episode = {
+      id: 'ep11', title: 'Normal', published: '2026-09-10T00:00:00Z', status: 'discovered',
+    } as Episode;
+    render(<MemoryRouter><EpisodeList feedSlug="show" episodes={[episode]} /></MemoryRouter>);
+    expect(screen.queryByText('Filtered')).toBeNull();
+  });
+
   it('shows the SponsorBlock state under the title', () => {
     const episode = {
       id: 'ep8', title: 'Video', published: '2026-09-10T00:00:00Z', status: 'discovered',

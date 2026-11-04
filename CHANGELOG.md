@@ -8,11 +8,78 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
-## [Unreleased]
+## [2.101.19] - 2026-11-04
+
+### Changed
+
+- Every list page keeps its page, sort and filters in the address bar, the
+  way feed pages already did: the dashboard feeds list, Processing history,
+  Downloads, Sponsors, Patterns, Detected ads, Ad review and the Queue. Back
+  and reload return to the same place, and a filtered view can be shared as
+  a link.
+- The feed page status filter's Filters applied option is now Filtered and
+  lists the episodes a feed filter rule matches, the same episodes that carry
+  the Filtered chip. It listed the episodes the rules keep, which the served
+  feed already shows. API: `status=filtered` replaces `status=filters_applied`.
+
+### Fixed
+
+- A refreshed or uploaded feed cover now shows in the web UI without a hard
+  reload. Artwork responses carry an ETag and revalidate on every load, and
+  the feed's artwork URL changes with the stored file.
+
+## [2.101.18] - 2026-11-04
 
 ### Added
 
 - The status filter on each feed page has a new Filters applied option. It shows the feed with the title, description, and duration filters applied, as if Skipped episodes were set to Hide from feed, whatever that setting is on the feed. It works with search, sorting, paging and Select all matches. API: `GET /api/v1/feeds/{slug}/episodes?status=filters_applied`.
+- Episode list rows show a Filtered chip on episodes that a feed's title,
+  description or duration filter matches. The chip's tooltip names the
+  rule. These episodes looked like any other Discovered episode even
+  though automatic processing skips them.
+
+### Fixed
+
+- In the transcript dialog on phones, the Context toggle no longer drops
+  below the View toggle while no search term is set. The "Needs a search
+  term" hint takes its own line under the toggles at phone widths. From the
+  small breakpoint up it stays beside the toggle.
+- Disabled segmented toggles keep their segments focusable (aria-disabled
+  instead of the native attribute), so a screen reader reaches the "Needs a
+  search term" hint that describes the Context group. Clicks and arrow keys
+  are still ignored while disabled.
+- The What's new dialog now opens on a browser's first load as well as after
+  an upgrade, and the first load shows only the running version's section.
+  The dialog's first release stayed silent everywhere because no browser had
+  a recorded version yet. When the newest changelog section is older than
+  the app, the browser records the version and shows nothing.
+- YouTube playlist feeds use the cover set for the playlist on YouTube as
+  their artwork. With a Data API key configured, the artwork was the first
+  video's thumbnail, so it changed with every upload. Playlists with no
+  cover keep the newest video's thumbnail. Existing feeds pick up the cover
+  on the next artwork refresh from the feed's YouTube panel.
+- The provider Test connection no longer reports "did not return a model
+  list" for an OpenAI-compatible endpoint whose model catalog is larger
+  than 64 KB. Gateways that front several providers list hundreds of
+  models with long descriptions, so the probe gave up on a working
+  endpoint. The probe now reads up to 4 MB and says so when a reply is
+  larger than that. (#959)
+
+### Changed
+
+- The dashboard Feeds/Episodes switch is the same height as the View,
+  Refresh all and Export OPML buttons beside it. It was a 44 px control on
+  desktop while the buttons were 32 px. The transcript dialog and View menu
+  keep their 44 px toggles.
+- Outline buttons (Refresh and Delete on feed cards and the feed page,
+  Actions on dashboard episode rows) draw their border at 80 percent of the
+  accent instead of 40 percent. The lighter border sat below the 3:1
+  non-text contrast floor on every theme, so the buttons read as plain text
+  on muted palettes such as Nord. The unchecked checkbox box moves from 40
+  to 70 percent of the muted text colour for the same reason.
+- The Actions menu on dashboard episode rows uses the same quiet outline
+  button as the feed card actions instead of a solid primary button, so the
+  row content keeps the emphasis.
 
 ## [2.101.17] - 2026-11-03
 

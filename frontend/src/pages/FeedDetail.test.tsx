@@ -28,7 +28,7 @@ vi.mock('./feeds/FeedSettingsPanel', () => ({ default: () => <div data-testid="f
 vi.mock('./feeds/FeedStatsCards', () => ({ default: () => <div data-testid="feed-stats-cards" /> }));
 vi.mock('./feeds/PodcastAdDistributionPanel', () => ({ default: () => <div data-testid="ad-distribution-panel" /> }));
 vi.mock('./feeds/CueTemplatesPanel', () => ({ default: () => <div data-testid="cue-templates-panel" /> }));
-vi.mock('../components/Artwork', () => ({ default: ({ alt }: { alt: string }) => <img alt={alt} /> }));
+vi.mock('../components/Artwork', () => ({ default: ({ alt, src }: { alt: string; src?: string }) => <img alt={alt} src={src} /> }));
 
 const mockGetFeed = vi.fn();
 const mockGetFeedsResponse = vi.fn();
@@ -174,6 +174,14 @@ describe('FeedDetail: local feed visibility matrix', () => {
   });
 });
 
+describe('FeedDetail: artwork URL', () => {
+  it('uses the versioned artworkUrl from the API as the header cover', async () => {
+    renderFeedDetail(makeFeed({ artworkUrl: '/api/v1/feeds/test-feed/artwork?v=5' }));
+    const cover = await screen.findByAltText(/Test Feed/);
+    expect(cover.getAttribute('src')).toBe('/api/v1/feeds/test-feed/artwork?v=5');
+  });
+});
+
 // #718: the copy control shrinks to an icon below sm to stay in the left group.
 // Label is hidden directly, not via hideLabelOnMobile: its sm:px-2/h-8 lose to
 // this call site's desktop padding since Tailwind orders same-utility conflicts by scale, not source.
@@ -245,13 +253,13 @@ describe('FeedDetail: episode list URL state', () => {
     });
   });
 
-  it('offers a Filters applied status that requests the feed minus the filtered episodes', async () => {
+  it('offers a Filtered status that requests the episodes the feed rules match', async () => {
     renderFeedDetail(makeFeed());
     await screen.findByText('Test Feed');
-    expect(screen.getByRole('option', { name: 'Filters applied' })).toBeTruthy();
-    await userEvent.selectOptions(screen.getByDisplayValue('All statuses'), 'filters_applied');
+    expect(screen.getByRole('option', { name: 'Filtered' })).toBeTruthy();
+    await userEvent.selectOptions(screen.getByDisplayValue('All statuses'), 'filtered');
     await waitFor(() => {
-      expect(mockGetEpisodes).toHaveBeenLastCalledWith('test-feed', expect.objectContaining({ offset: 0, status: 'filters_applied' }));
+      expect(mockGetEpisodes).toHaveBeenLastCalledWith('test-feed', expect.objectContaining({ offset: 0, status: 'filtered' }));
     });
   });
 });

@@ -433,26 +433,32 @@ function TranscriptViewer({ slug, episodeId, episode, onClose }: Props) {
             <span className={filterLabel}>View</span>
             <SegmentedToggle
               variant="toolbar"
+              tall
               options={VIEW_OPTIONS}
               value={view}
               onChange={(v) => { writeView(v); setView(v); reset(); }}
               ariaLabel="Transcript view"
             />
           </div>
-          <div aria-describedby={needle ? undefined : 'transcript-context-hint'}>
+          <div>
             <span className={filterLabel}>Context</span>
-            <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-              <SegmentedToggle
-                variant="toolbar"
-                options={CONTEXT_OPTIONS}
-                value={context}
-                onChange={(c) => { setContext(c); if (!showAll) reset(); }}
-                ariaLabel="Context segments"
-                disabled={!needle}
-              />
-              {!needle && <span id="transcript-context-hint" className="text-xs text-muted-foreground whitespace-nowrap">Needs a search term</span>}
-            </div>
+            <SegmentedToggle
+              variant="toolbar"
+              tall
+              options={CONTEXT_OPTIONS}
+              value={context}
+              onChange={(c) => { setContext(c); if (!showAll) reset(); }}
+              ariaLabel="Context segments"
+              describedBy={needle ? undefined : 'transcript-context-hint'}
+              disabled={!needle}
+            />
           </div>
+          {/* Own row on phones so View and Context fit side by side. */}
+          {!needle && (
+            <span id="transcript-context-hint" className="max-sm:basis-full sm:leading-11 text-xs text-muted-foreground">
+              Needs a search term
+            </span>
+          )}
           {source === 'original' && markers.length > 0 && (
             <label className="flex items-center gap-2 min-h-11 text-sm text-muted-foreground">
               <input

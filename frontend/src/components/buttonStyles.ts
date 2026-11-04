@@ -3,7 +3,9 @@ import { focusRing } from './fieldStyles';
 // Compose `${btnBase} ${btnPrimary}`: the base carries size, radius, and focus; the variant carries colour only.
 // Call sites add only layout classes (w-full, gap overrides). btnLg is for page-level form actions.
 const btnShape = 'inline-flex items-center justify-center gap-1.5 text-sm rounded whitespace-nowrap transition-colors disabled:opacity-50 disabled:pointer-events-none';
-export const btnBase = `${btnShape} px-3 py-1.5 ${focusRing}`;
+// Shared with the toolbar SegmentedToggle so it stays the height of the buttons beside it.
+export const btnPadY = 'py-1.5';
+export const btnBase = `${btnShape} px-3 ${btnPadY} ${focusRing}`;
 export const btnLg = `${btnShape} px-4 py-2 ${focusRing}`;
 export const btnPrimary = 'bg-primary text-primary-foreground hover:bg-primary/90';
 export const btnSecondary = 'bg-secondary text-secondary-foreground hover:bg-secondary/80';
@@ -24,6 +26,7 @@ export const touchCompact =
 export const touchTargetRow =
   'inline-flex items-center justify-center min-h-11 sm:min-h-0 max-sm:min-w-0';
 // Accent action that should not dominate its surface (Refresh on feed cards, rows and page).
-export const btnPrimaryOutline = 'border border-primary/40 text-primary hover:bg-primary/10';
+// 80 percent keeps the border above the 3:1 non-text floor on every theme.
+export const btnPrimaryOutline = 'border border-primary/80 text-primary hover:bg-primary/10';
 // Destructive action that is not the primary one in its group (Delete beside Edit).
-export const btnDestructiveOutline = 'border border-destructive/40 text-destructive hover:bg-destructive/10';
+export const btnDestructiveOutline = 'border border-destructive/80 text-destructive hover:bg-destructive/10';

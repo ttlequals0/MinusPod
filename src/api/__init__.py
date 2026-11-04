@@ -6,7 +6,7 @@ import re
 import secrets
 import time
 from typing import Optional
-from flask import Blueprint, abort, g, jsonify, request, session
+from flask import Blueprint, abort, g, jsonify, request, send_file, session
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from functools import wraps
@@ -336,6 +336,16 @@ def paged_args(default_limit=50, max_limit=100):
     limit = min(max(1, request.args.get('limit', default_limit, type=int)), max_limit)
     offset = max(0, request.args.get('offset', 0, type=int))
     return limit, offset
+
+
+def image_response(path, content_type):
+    """Serve a cached image with stat-based ETag/Last-Modified revalidation."""
+    response = send_file(path, mimetype=content_type, conditional=True, max_age=0)
+    response.headers['Cache-Control'] = 'no-cache'
+    # Magic-number checked on write: forbid sniffing and any script load.
+    response.headers['X-Content-Type-Options'] = 'nosniff'
+    response.headers['Content-Security-Policy'] = "default-src 'none'"
+    return response
 
 
 def error_response(message, status=400, details=None):

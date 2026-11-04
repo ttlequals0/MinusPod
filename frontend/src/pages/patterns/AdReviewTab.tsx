@@ -1,9 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useUrlParams, useUrlSearch, useUrlSort } from '../../hooks/useUrlParams';
 import {
   getDetections,
   type DetectionReviewerFilter,
-  type DetectionSort,
   type DetectionStatusFilter,
   type HoldReason,
   type ReviewDetection,
@@ -21,7 +21,7 @@ import { SkeletonRows } from '../../components/Skeleton';
 import {
   DetectionRows, RESOLUTION_BADGE, STATUS_BADGE,
 } from './DetectionRows';
-import { DetectionFilterBar } from './DetectionFilterBar';
+import { DETECTION_REVIEWERS, DETECTION_SORTS, DetectionFilterBar } from './DetectionFilterBar';
 import { useDetectionCorrections } from './useDetectionCorrections';
 import { PendingRecutsBar } from './PendingRecutsBar';
 import { sortFeeds } from '../../utils/feedSort';
@@ -34,34 +34,35 @@ const STATUS_OPTIONS: Array<[DetectionStatusFilter, string]> = [
   ['all', 'All'],
 ];
 
+const STATUS_VALUES = STATUS_OPTIONS.map(([value]) => value);
+const HOLD_VALUES: ReadonlyArray<HoldReason | ''> = ['', ...(Object.keys(HOLD_REASON_LABELS) as HoldReason[])];
+
 // Hold reasons only exist on held detections.
 const HOLD_REASON_STATUSES: DetectionStatusFilter[] = ['needs_review'];
 
+
+// Page, filters, search and sort live in the URL so Back and reload return to the same place.
+const REVIEW_PARAM_DEFAULTS = {
+  page: '1', status: 'needs_review', feed: '', category: '', reviewer: '', hold: '',
+};
+
 export default function AdReviewTab() {
-  const [page, setPage] = useState(1);
-  const [status, setStatus] = useState<DetectionStatusFilter>('needs_review');
-  const [feed, setFeed] = useState('');
-  const [category, setCategory] = useState('');
-  const [reviewer, setReviewer] = useState<DetectionReviewerFilter>('');
-  const [holdReason, setHoldReason] = useState<HoldReason | ''>('');
-  const [q, setQ] = useState('');
-  const [debouncedQ, setDebouncedQ] = useState('');
-  const [sort, setSort] = useState<DetectionSort>('date');
-  const [order, setOrder] = useState<'asc' | 'desc'>('desc');
+  const { read, readOneOf, readPage, write } = useUrlParams(REVIEW_PARAM_DEFAULTS, { resetKey: 'page' });
+  const page = readPage('page');
+  const status = readOneOf('status', STATUS_VALUES, 'needs_review');
+  const feed = read('feed');
+  const category = read('category');
+  const reviewer = readOneOf<DetectionReviewerFilter>('reviewer', DETECTION_REVIEWERS, '');
+  const holdReason = readOneOf<HoldReason | ''>('hold', HOLD_VALUES, '');
+  const [q, setQ, debouncedQ] = useUrlSearch();
+  const { sortBy: sort, sortDirection: order, onField: setSort, onDirection: setOrder } =
+    useUrlSort(DETECTION_SORTS, 'date', 'desc');
 
   const audition = useAuditionPlayer();
   const [editing, setEditing] = useState<ReviewDetection | null>(null);
   const [splitting, setSplitting] = useState<ReviewDetection | null>(null);
   const queryClient = useQueryClient();
   const closeModal = () => setEditing(null);
-
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setDebouncedQ(q);
-      setPage(1);
-    }, 300);
-    return () => clearTimeout(timer);
-  }, [q]);
 
   const {
     approve, dismiss, recategorize, adjust, busy, actionError,
@@ -118,29 +119,28 @@ export default function AdReviewTab() {
         idPrefix="ad-review"
         feeds={sortedFeeds}
         feed={feed}
-        onFeedChange={(v) => { setFeed(v); setPage(1); }}
+        onFeedChange={(v) => write({ feed: v })}
         category={category}
-        onCategoryChange={(v) => { setCategory(v); setPage(1); }}
+        onCategoryChange={(v) => write({ category: v })}
         reviewer={reviewer}
-        onReviewerChange={(v) => { setReviewer(v); setPage(1); }}
+        onReviewerChange={(v) => write({ reviewer: v })}
         q={q}
         onQChange={setQ}
         sort={sort}
-        onSortChange={(v) => { setSort(v); setOrder('desc'); setPage(1); }}
+        onSortChange={setSort}
         order={order}
-        onOrderChange={(v) => { setOrder(v); setPage(1); }}
+        onOrderChange={setOrder}
         status={{
           value: status,
-          onChange: (v) => {
-            setStatus(v);
-            if (!HOLD_REASON_STATUSES.includes(v)) setHoldReason('');
-            setPage(1);
-          },
+          onChange: (v) => write({
+            status: v,
+            ...(!HOLD_REASON_STATUSES.includes(v) && { hold: '' }),
+          }),
           options: STATUS_OPTIONS,
         }}
         holdReason={HOLD_REASON_STATUSES.includes(status) ? {
           value: holdReason,
-          onChange: (v) => { setHoldReason(v as HoldReason | ''); setPage(1); },
+          onChange: (v) => write({ hold: v }),
           options: holdReasonOptions,
         } : undefined}
       />
@@ -175,7 +175,7 @@ export default function AdReviewTab() {
               busy,
             }}
           />
-          <Pagination page={data.page} totalPages={data.totalPages} total={data.total} onPage={setPage} />
+          <Pagination page={data.page} totalPages={data.totalPages} total={data.total} onPage={(next) => write({ page: String(next) })} />
         </>
       ))}
 

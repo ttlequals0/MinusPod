@@ -18,6 +18,9 @@ const REVIEWER_OPTIONS: Array<[DetectionReviewerFilter, string]> = [
   ['unadjusted', 'Not adjusted'],
 ];
 
+export const DETECTION_SORTS = SORT_OPTIONS.map(([value]) => value);
+export const DETECTION_REVIEWERS = REVIEWER_OPTIONS.map(([value]) => value);
+
 const SELECT_CLASS = `${filterControl} ${selectBase}`;
 
 interface FeedOption {

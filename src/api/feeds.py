@@ -15,7 +15,7 @@ import defusedxml.ElementTree as DefusedET
 from flask import request, Response
 
 from api import (
-    api, limiter, log_request, json_response, error_response,
+    api, limiter, log_request, json_response, error_response, image_response,
     get_database, get_storage, get_feed_auth_key, get_status_service,
     _serialize_auto_process, _deserialize_auto_process,
     _serialize_nullable_bool, _deserialize_nullable_bool,
@@ -1068,10 +1068,11 @@ def _podping_coverage(podcast, enabled, host_is_active):
 
 
 def _feed_artwork_url(podcast) -> str:
-    """Proxy path when we hold the file, else an https publisher URL."""
+    """Versioned proxy path when we hold the file, else an https publisher URL."""
     proxied = f"/api/v1/feeds/{podcast['slug']}/artwork"
-    if get_storage().has_artwork(podcast['slug']):
-        return proxied
+    version = get_storage().artwork_mtime_ns(podcast['slug'])
+    if version is not None:
+        return f"{proxied}?v={version}"
     upstream = podcast.get('artwork_url') or ''
     return upstream if upstream.startswith('https://') else proxied
 
@@ -2840,7 +2841,7 @@ def get_artwork(slug):
     """Get cached artwork for a podcast."""
     storage = get_storage()
 
-    artwork = storage.get_artwork(slug)
+    artwork = storage.artwork_file(slug)
     if not artwork:
         # Only auto-recover when the DB flag claims artwork IS cached
         # (the file got deleted out from under us). When cached=0, a prior
@@ -2860,19 +2861,12 @@ def get_artwork(slug):
                 candidates.append(artwork_url)
             if candidates:
                 storage.download_artwork(slug, candidates)
-                artwork = storage.get_artwork(slug)
+                artwork = storage.artwork_file(slug)
 
     if not artwork:
         return error_response('Artwork not found', 404)
 
-    image_data, content_type = artwork
-    # content_type was validated by magic-number check on write; tell the
-    # browser not to sniff it and deny any script loading from this
-    # response even if a downstream intermediary rewrites the type.
-    response = Response(image_data, mimetype=content_type)
-    response.headers['X-Content-Type-Options'] = 'nosniff'
-    response.headers['Content-Security-Policy'] = "default-src 'none'"
-    return response
+    return image_response(*artwork)
 
 
 @api.route('/feeds/<slug>/artwork', methods=['POST'])

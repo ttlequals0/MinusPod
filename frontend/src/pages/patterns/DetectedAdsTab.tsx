@@ -1,10 +1,10 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useUrlParams, useUrlSearch, useUrlSort } from '../../hooks/useUrlParams';
 import {
   getDetections,
   type CutSummary,
   type DetectionReviewerFilter,
-  type DetectionSort,
   type ReviewDetection,
 } from '../../api/detections';
 import { feedsQueryOptions } from '../../api/feeds';
@@ -22,7 +22,7 @@ import { sortFeeds } from '../../utils/feedSort';
 import { UNSET_CATEGORY } from '../../utils/segmentCategory';
 import SplitMarkerModal from '../../components/SplitMarkerModal';
 import { DetectionRows } from './DetectionRows';
-import { DetectionFilterBar } from './DetectionFilterBar';
+import { DETECTION_REVIEWERS, DETECTION_SORTS, DetectionFilterBar } from './DetectionFilterBar';
 import { useDetectionCorrections } from './useDetectionCorrections';
 import { PendingRecutsBar } from './PendingRecutsBar';
 
@@ -68,15 +68,20 @@ function CutStats({ summary }: { summary: CutSummary }) {
   );
 }
 
+// Page, filters, search and sort live in the URL so Back and reload return to the same place.
+const DETECTED_PARAM_DEFAULTS = {
+  page: '1', feed: '', category: '', reviewer: '',
+};
+
 export default function DetectedAdsTab() {
-  const [page, setPage] = useState(1);
-  const [feed, setFeed] = useState('');
-  const [category, setCategory] = useState('');
-  const [reviewer, setReviewer] = useState<DetectionReviewerFilter>('');
-  const [q, setQ] = useState('');
-  const [debouncedQ, setDebouncedQ] = useState('');
-  const [sort, setSort] = useState<DetectionSort>('date');
-  const [order, setOrder] = useState<'asc' | 'desc'>('desc');
+  const { read, readOneOf, readPage, write } = useUrlParams(DETECTED_PARAM_DEFAULTS, { resetKey: 'page' });
+  const page = readPage('page');
+  const feed = read('feed');
+  const category = read('category');
+  const reviewer = readOneOf<DetectionReviewerFilter>('reviewer', DETECTION_REVIEWERS, '');
+  const [q, setQ, debouncedQ] = useUrlSearch();
+  const { sortBy: sort, sortDirection: order, onField: setSort, onDirection: setOrder } =
+    useUrlSort(DETECTION_SORTS, 'date', 'desc');
 
   const queryClient = useQueryClient();
   const audition = useAuditionPlayer();
@@ -84,14 +89,6 @@ export default function DetectedAdsTab() {
   const [splitting, setSplitting] = useState<ReviewDetection | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const closeModal = () => setEditing(null);
-
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setDebouncedQ(q);
-      setPage(1);
-    }, 300);
-    return () => clearTimeout(timer);
-  }, [q]);
 
   const {
     dismiss, recategorize, adjust, triggerRecut, busy, actionError,
@@ -143,17 +140,17 @@ export default function DetectedAdsTab() {
         idPrefix="detected-ads"
         feeds={sortedFeeds}
         feed={feed}
-        onFeedChange={(v) => { setFeed(v); setPage(1); }}
+        onFeedChange={(v) => write({ feed: v })}
         category={category}
-        onCategoryChange={(v) => { setCategory(v); setPage(1); }}
+        onCategoryChange={(v) => write({ category: v })}
         reviewer={reviewer}
-        onReviewerChange={(v) => { setReviewer(v); setPage(1); }}
+        onReviewerChange={(v) => write({ reviewer: v })}
         q={q}
         onQChange={setQ}
         sort={sort}
-        onSortChange={(v) => { setSort(v); setOrder('desc'); setPage(1); }}
+        onSortChange={setSort}
         order={order}
-        onOrderChange={(v) => { setOrder(v); setPage(1); }}
+        onOrderChange={setOrder}
       />
 
       <PendingRecutsBar />
@@ -190,7 +187,7 @@ export default function DetectedAdsTab() {
             }}
             showCategory
           />
-          <Pagination page={data.page} totalPages={data.totalPages} total={data.total} onPage={setPage} />
+          <Pagination page={data.page} totalPages={data.totalPages} total={data.total} onPage={(next) => write({ page: String(next) })} />
         </>
       ))}
 

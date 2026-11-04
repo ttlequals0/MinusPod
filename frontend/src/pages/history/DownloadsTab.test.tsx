@@ -66,7 +66,7 @@ function makeRow(overrides: Partial<DownloadHistoryEntry> = {}): DownloadHistory
   };
 }
 
-function renderTab(rows: DownloadHistoryEntry[], geoEnabled = true, blocked: string[] = []) {
+function renderTab(rows: DownloadHistoryEntry[], geoEnabled = true, blocked: string[] = [], entry = '/history?tab=downloads') {
   mockGetDownloadHistory.mockResolvedValue({ downloads: rows, total: rows.length, page: 1, limit: 20 });
   mockGetSettings.mockResolvedValue({
     downloadGeoLookupEnabled: { value: geoEnabled, isDefault: true },
@@ -75,7 +75,7 @@ function renderTab(rows: DownloadHistoryEntry[], geoEnabled = true, blocked: str
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={client}>
-      <MemoryRouter initialEntries={['/history?tab=downloads']}>
+      <MemoryRouter initialEntries={[entry]}>
         <HistoryPage />
       </MemoryRouter>
     </QueryClientProvider>,
@@ -315,5 +315,29 @@ describe('DownloadsTab row actions', () => {
     await userEvent.click(screen.getByRole('menuitem', { name: 'Block user agent' }));
     await userEvent.click(await screen.findByRole('button', { name: 'Block user agent' }));
     expect(await screen.findByText('entries must be 1-200 characters')).toBeTruthy();
+  });
+});
+
+describe('DownloadsTab list state in the URL', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('requests the page named by ?page=2', async () => {
+    renderTab([makeRow()], true, [], '/history?tab=downloads&page=2');
+    await screen.findByRole('table');
+    expect(lastParams()).toMatchObject({ page: 2 });
+  });
+
+  it('resets to page 1 when a filter changes', async () => {
+    renderTab([makeRow()], true, [], '/history?tab=downloads&page=2');
+    await screen.findByRole('table');
+    await userEvent.selectOptions(screen.getByLabelText('Podcast'), 'example-podcast');
+    await waitFor(() => expect(lastParams()).toMatchObject({ page: 1, podcastSlug: 'example-podcast' }));
+  });
+
+  it('resets to page 1 when the sort changes', async () => {
+    renderTab([makeRow()], true, [], '/history?tab=downloads&page=2');
+    await screen.findByRole('table');
+    await userEvent.click(within(screen.getByRole('table')).getByRole('button', { name: /Client IP/ }));
+    await waitFor(() => expect(lastParams()).toMatchObject({ page: 1, sortBy: 'client_ip' }));
   });
 });

@@ -85,6 +85,14 @@ function EpisodeRow({
   const failureReason =
     isFailedStatus(episode.status) && episode.error ? episode.error : undefined;
   const sbLabel = sponsorBlockLabel(episode.sponsorBlock);
+  const filterRules = [
+    episode.titleSkipped && 'title',
+    episode.descriptionSkipped && 'description',
+    episode.durationSkipped && 'duration',
+  ].filter(Boolean);
+  const filterList = filterRules.length > 1
+    ? `${filterRules.slice(0, -1).join(', ')} and ${filterRules[filterRules.length - 1]}`
+    : filterRules[0];
 
   return (
     <div className="relative flex items-stretch bg-card rounded-lg border border-border hover:border-primary/50 transition-colors">
@@ -131,7 +139,7 @@ function EpisodeRow({
               <span className="whitespace-nowrap">{episode.ad_count} ads detected</span>
             )}
           </div>
-          <div className="flex items-center gap-2 mt-1 min-h-6">
+          <div className="flex flex-wrap items-center gap-2 mt-1 min-h-6">
             {episode.pendingReviewCount !== undefined && episode.pendingReviewCount > 0 && (
               <span className={`${badgeBase} ${tint.warning}`}>
                 {episode.pendingReviewCount} held
@@ -148,6 +156,14 @@ function EpisodeRow({
                 title="Served unmodified; ad processing is skipped for this episode"
               >
                 Pass-through
+              </span>
+            )}
+            {filterRules.length > 0 && (
+              <span
+                className={`${badgeBase} ${tint.neutral}`}
+                title={`Matches this feed's ${filterList} filter, so automatic processing skips it`}
+              >
+                Filtered
               </span>
             )}
             <StatusBadge

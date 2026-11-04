@@ -42,11 +42,30 @@ describe('useWhatsNew', () => {
     expect(result.current.open).toBe(false);
   });
 
-  it('stores the version silently on a fresh browser', async () => {
+  it('shows only the newest section on a fresh browser', async () => {
+    const { result } = renderHook(() => useWhatsNew(true), { wrapper });
+    await waitFor(() => expect(result.current.open).toBe(true));
+    expect(mockChangelog).toHaveBeenCalledWith({ limit: 1 });
+    expect(localStorage.getItem(WHATS_NEW_SEEN_KEY)).toBe(JSON.stringify(''));
+    act(() => result.current.close());
+    expect(localStorage.getItem(WHATS_NEW_SEEN_KEY)).toBe(JSON.stringify('2.101.17'));
+  });
+
+  it('stays silent on a fresh browser when the newest section is older than the app', async () => {
+    mockChangelog.mockResolvedValue({
+      current: '2.101.17',
+      sections: [{ version: '2.101.16', date: '2026-11-03', body: '- x' }],
+    });
     const { result } = renderHook(() => useWhatsNew(true), { wrapper });
     await waitFor(() => expect(localStorage.getItem(WHATS_NEW_SEEN_KEY)).toBe(JSON.stringify('2.101.17')));
     expect(result.current.open).toBe(false);
-    expect(mockSettings).not.toHaveBeenCalled();
+  });
+
+  it('records the version without fetching the changelog on a fresh browser that opted out', async () => {
+    mockSettings.mockResolvedValue({ whatsNewOnUpgrade: { value: false, isDefault: false } });
+    const { result } = renderHook(() => useWhatsNew(true), { wrapper });
+    await waitFor(() => expect(localStorage.getItem(WHATS_NEW_SEEN_KEY)).toBe(JSON.stringify('2.101.17')));
+    expect(result.current.open).toBe(false);
     expect(mockChangelog).not.toHaveBeenCalled();
   });
 

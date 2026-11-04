@@ -1,5 +1,5 @@
 import { useRef } from 'react';
-import { btnSecondary } from './buttonStyles';
+import { btnPadY, btnSecondary } from './buttonStyles';
 import { focusRing } from './fieldStyles';
 
 export interface SegmentedOption<T extends string | number> {
@@ -16,7 +16,7 @@ interface SegmentedToggleProps<T extends string | number> {
   onChange: (value: T) => void;
   ariaLabel: string;
   // 'settings' is the compact ARIA radio row (roving tabindex, arrow keys);
-  // 'toolbar' is the 44px button group in the toolbar and popover rows.
+  // 'toolbar' is the button group in toolbar and popover rows, sized like btnBase.
   variant?: 'settings' | 'toolbar';
   // Settings only: the value is still inherited, so it reads muted rather
   // than as an explicit choice.
@@ -24,7 +24,11 @@ interface SegmentedToggleProps<T extends string | number> {
   // Toolbar only: stretch the group and its segments to the container width,
   // for a popover row. A toolbar row sizes to its labels so it fits a phone.
   fill?: boolean;
+  // Toolbar only: 44 px tall to match a filter row or popover field.
+  tall?: boolean;
   disabled?: boolean;
+  // Id of a hint describing the whole group.
+  describedBy?: string;
   mobileTouchTarget?: boolean;
 }
 
@@ -35,17 +39,17 @@ const VARIANTS = {
     divided: true,
   },
   toolbar: {
-    group: 'flex h-11 rounded shrink-0',
-    segment: 'inline-flex items-center justify-center h-11 px-2.5 sm:px-3 text-sm',
+    group: 'flex rounded shrink-0',
+    segment: `inline-flex items-center justify-center ${btnPadY} px-2.5 sm:px-3 text-sm`,
     divided: false,
   },
 } as const;
 
-// One button group, one selected segment. A portaled surface that needs
-// ring-inset on focus applies it itself.
+// One button group, one selected segment. The focus ring is inset so the
+// group's overflow-hidden cannot clip it.
 function SegmentedToggle<T extends string | number>({
-  options, value, onChange, ariaLabel, variant = 'settings', muted, fill, disabled,
-  mobileTouchTarget = false,
+  options, value, onChange, ariaLabel, variant = 'settings', muted, fill, tall, disabled,
+  describedBy, mobileTouchTarget = false,
 }: SegmentedToggleProps<T>) {
   const buttonRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const isRadio = variant === 'settings';
@@ -92,7 +96,9 @@ function SegmentedToggle<T extends string | number>({
     <div
       role={isRadio ? 'radiogroup' : 'group'}
       aria-label={ariaLabel}
-      className={`${sizing.group} border border-border overflow-hidden${fill ? ' w-full' : ''}`}
+      aria-describedby={describedBy}
+      // Inset outline, not a border, so the group is exactly the segments' height.
+      className={`${sizing.group} outline outline-1 -outline-offset-1 outline-border overflow-hidden${fill ? ' w-full' : ''}${tall ? ' h-11' : ''}`}
     >
       {options.map((option, i) => {
         const selected = option.value === value;
@@ -108,12 +114,13 @@ function SegmentedToggle<T extends string | number>({
             tabIndex={isRadio ? (selected ? 0 : -1) : undefined}
             aria-label={option.ariaLabel}
             title={option.title}
-            disabled={disabled}
-            onClick={() => onChange(option.value)}
+            // aria-disabled keeps the segments focusable so the group's description is still read.
+            aria-disabled={disabled || undefined}
+            onClick={() => { if (!disabled) onChange(option.value); }}
             onKeyDown={isRadio ? (e) => handleKeyDown(e, i) : undefined}
-            className={`${sizing.segment}${fill ? ' flex-1 min-w-11' : ''}${mobileTouchTarget ? ' max-sm:min-h-11' : ''} transition-colors disabled:opacity-50 ${
+            className={`${sizing.segment}${fill ? ' flex-1 min-w-11' : ''}${mobileTouchTarget ? ' max-sm:min-h-11' : ''} transition-colors aria-disabled:opacity-50 aria-disabled:cursor-not-allowed ${
               sizing.divided && i > 0 ? 'border-l border-border' : ''
-            } ${selected ? selectedFill : btnSecondary} ${focusRing}`}
+            } ${selected ? selectedFill : btnSecondary} ${focusRing} focus-visible:ring-inset`}
           >
             {option.label}
           </button>

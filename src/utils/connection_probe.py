@@ -22,13 +22,14 @@ from utils.url import SSRFError
 
 logger = logging.getLogger(__name__)
 
-# Probe responses are tiny (a model list, a short transcript, a one-result
-# search); anything bigger means the URL points at something else entirely.
+# Probe responses are tiny (a short transcript, a one-result search); anything
+# bigger means the URL points at something else. Model catalogs pass their own cap.
 PROBE_RESPONSE_CAP_BYTES = 64 * 1024
 
 
 def run_probe(send, timeout_seconds: float, log_context: str = '',
-              slow_hint: str = ''):
+              slow_hint: str = '',
+              cap_bytes: int = PROBE_RESPONSE_CAP_BYTES):
     """Execute ``send`` (a zero-arg callable performing the HTTP request with
     ``stream=True``) and normalize transport failures.
 
@@ -36,9 +37,9 @@ def run_probe(send, timeout_seconds: float, log_context: str = '',
     where a slow first answer has a known benign cause (model cold-load).
 
     Returns ``(error_result, status, body_bytes)``. ``error_result`` is a
-    complete result dict when the request never produced an HTTP response,
-    else None with ``status`` and the capped ``body_bytes`` (None when the
-    body was oversized or died mid-read) filled in.
+    complete result dict when the request failed or an accepted reply could
+    not be read, else None with ``status`` and the capped ``body_bytes``
+    (None when a rejected reply could not be read).
     """
     try:
         response = send()
@@ -73,13 +74,22 @@ def run_probe(send, timeout_seconds: float, log_context: str = '',
                 None, None)
 
     status = response.status_code
+    body_bytes = None
+    unread = ''
     try:
-        body_bytes = read_response_capped(response, PROBE_RESPONSE_CAP_BYTES)
-    except (ResponseTooLargeError, IncompleteResponseError,
-            requests.RequestException):
-        body_bytes = None
+        body_bytes = read_response_capped(response, cap_bytes)
+    except ResponseTooLargeError:
+        cap = f'{cap_bytes // (1024 * 1024)} MB' if cap_bytes >= 1024 * 1024 else f'{cap_bytes // 1024} KB'
+        unread = f'with a reply larger than {cap}, so the test could not read it'
+    except (IncompleteResponseError, requests.RequestException):
+        unread = 'but the connection closed before the full reply arrived'
     finally:
         response.close()
+    # An error status keeps its own message in the caller; only an accepted
+    # probe whose body could not be read is reported here.
+    if unread and status < 400:
+        return ({'ok': False, 'reachable': True, 'status': status,
+                 'detail': f'The server answered HTTP {status} {unread}.'}, status, None)
     return None, status, body_bytes
 
 

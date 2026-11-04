@@ -5,6 +5,7 @@ import logging
 import os
 import re
 import threading
+import time
 from pathlib import Path
 from typing import Any
 import tempfile
@@ -81,6 +82,7 @@ _ARTWORK_EXTENSIONS = (
 
 # Per-feed episode covers live here, one file per episode id (issue #617).
 _EPISODE_ARTWORK_DIR = "episode-artwork"
+_EPISODE_ARTWORK_TOUCH_SECONDS = 86400
 _CHAPTER_IMAGE_NAME_RE = re.compile(r'[0-9a-f]{64}\.(jpg|png)')
 # Per-feed ceiling on that directory. Publisher episode covers run large (a
 # 3000x3000 JPEG is ~600 KB), and a long back catalogue would otherwise grow
@@ -609,19 +611,36 @@ class Storage:
         podcast_dir = self._podcast_path(slug)
         return podcast_dir if podcast_dir.is_dir() else None
 
-    def get_artwork(self, slug: str) -> tuple[bytes, str] | None:
-        """Get cached artwork. Returns (data, content_type) or None."""
+    def artwork_file(self, slug: str) -> tuple[Path, str] | None:
+        """Path and content type of the cached artwork, or None."""
         podcast_dir = self.podcast_dir_if_exists(slug)
         if not podcast_dir:
             return None
-
         for ext, content_type in _ARTWORK_EXTENSIONS:
             artwork_path = podcast_dir / f"artwork{ext}"
             if artwork_path.exists():
-                with open(artwork_path, 'rb') as f:
-                    return f.read(), content_type
-
+                return artwork_path.resolve(), content_type
         return None
+
+    def artwork_mtime_ns(self, slug: str) -> int | None:
+        """mtime_ns of the cached artwork (one stat, no read), or None."""
+        found = self.artwork_file(slug)
+        if not found:
+            return None
+        try:
+            return found[0].stat().st_mtime_ns
+        except OSError:
+            return None
+
+    def get_artwork(self, slug: str) -> tuple[bytes, str] | None:
+        """Get cached artwork. Returns (data, content_type) or None."""
+        found = self.artwork_file(slug)
+        if not found:
+            return None
+        try:
+            return found[0].read_bytes(), found[1]
+        except OSError:
+            return None
 
     def _chapter_images_dir(self, slug: str, episode_id: str,
                             create: bool = False) -> Path | None:
@@ -759,31 +778,38 @@ class Storage:
                         f"[{slug}:{episode_id}] Failed to delete episode artwork: {exc}")
         return removed
 
-    def get_episode_artwork(self, slug: str,
-                            episode_id: str) -> tuple[bytes, str] | None:
-        """Cached episode cover. Returns (data, content_type) or None.
+    def episode_artwork_file(self, slug: str,
+                             episode_id: str) -> tuple[Path, str] | None:
+        """Path and content type of a cached episode cover, or None.
 
-        Serving bumps the mtime so eviction can drop the covers nobody is
-        looking at rather than the oldest episodes.
+        Refreshes the mtime for LRU eviction at most daily so the ETag stays stable.
         """
         if not is_valid_episode_id(episode_id):
             return None
         art_dir = self._episode_artwork_dir(slug)
         if not art_dir or not art_dir.is_dir():
             return None
-
         for ext, content_type in _ARTWORK_EXTENSIONS:
             path = _safe_join_under(art_dir, f"{episode_id}{ext}")
             if path.exists():
-                with open(path, 'rb') as f:
-                    data = f.read()
                 try:
-                    os.utime(path, None)
+                    if time.time() - path.stat().st_mtime > _EPISODE_ARTWORK_TOUCH_SECONDS:
+                        os.utime(path, None)
                 except OSError:
                     pass
-                return data, content_type
-
+                return path.resolve(), content_type
         return None
+
+    def get_episode_artwork(self, slug: str,
+                            episode_id: str) -> tuple[bytes, str] | None:
+        """Cached episode cover. Returns (data, content_type) or None."""
+        found = self.episode_artwork_file(slug, episode_id)
+        if not found:
+            return None
+        try:
+            return found[0].read_bytes(), found[1]
+        except OSError:
+            return None
 
     def download_episode_artwork(self, slug: str, episode_id: str,
                                  artwork_url: str) -> bool:

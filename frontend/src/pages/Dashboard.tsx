@@ -4,6 +4,7 @@ import DashboardControlsMenu from '../components/DashboardControlsMenu';
 import SegmentedToggle from '../components/SegmentedToggle';
 import { keepPreviousData, useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate, Link } from 'react-router';
+import { useUrlParams } from '../hooks/useUrlParams';
 import { Download, PanelsTopLeft, Plus, RefreshCw, Search } from 'lucide-react';
 import { feedsQueryOptionsFor, refreshFeed, refreshAllFeeds, deleteFeed } from '../api/feeds';
 import { FeedOpmlExportDialog } from '../components/FeedOpmlExportDialog';
@@ -45,6 +46,9 @@ const DASHBOARD_VIEW_OPTIONS = [
 // full page never leaves a ragged last row.
 const FEEDS_PER_PAGE = 24;
 
+// Feeds page lives in the URL so Back from a feed returns to the same page.
+const DASHBOARD_PARAM_DEFAULTS = { page: '1' };
+
 // Labelled actions show from md; they sit beside the title only from lg.
 const dashboardHeader = 'flex min-w-0 flex-col gap-4 mb-6 lg:flex-row lg:items-start lg:justify-between';
 // Boxed keyboard-shortcut badge, matching the mockup's shortcut hints.
@@ -68,7 +72,11 @@ function Dashboard() {
   // not only under Settings > Data Management.
   const [opmlExportOpen, setOpmlExportOpen] = useState(false);
 
-  const [feedsPage, setFeedsPage] = useState(1);
+  const { readPage, write } = useUrlParams(DASHBOARD_PARAM_DEFAULTS, { resetKey: 'page' });
+  // Last page count the server reported; clamps the URL page so a shrunken list never strands the pager.
+  const [knownPages, setKnownPages] = useState<number | undefined>(undefined);
+  const feedsPage = readPage('page', knownPages);
+  const setFeedsPage = (next: number) => write({ page: String(next) });
   const isEpisodesView = dashboardView === 'episodes';
   // The server orders the whole list before slicing the page, so the browser
   // must not re-sort what it receives.
@@ -100,10 +108,7 @@ function Dashboard() {
   const lastRefreshCompletedAt = data?.lastRefreshCompletedAt ?? null;
   const totalFeeds = data?.total ?? 0;
   const totalPages = data?.totalPages ?? 1;
-  // A shrinking list strands the pager past the last page, and only the
-  // response knows where the end now is. Adjusted during render, not in an
-  // effect, so the next fetch already uses the corrected page.
-  if (feedsPage > totalPages) setFeedsPage(totalPages);
+  if (data !== undefined && !isPlaceholderData && totalPages !== knownPages) setKnownPages(totalPages);
 
   const refreshMutation = useMutation({
     mutationFn: ({ slug, options }: { slug: string; options?: { force?: boolean } }) =>
@@ -294,7 +299,7 @@ function Dashboard() {
             viewMode={viewMode}
             onViewModeChange={setViewMode}
             sortBy={sortBy}
-            onSortChange={(next) => { setSortBy(next); setFeedsPage(1); }}
+            onSortChange={(next) => { setSortBy(next); write({}); }}
             episodesPerPodcast={episodesPerPodcast}
             onEpisodesPerPodcastChange={(n) => setEpisodesPerPodcast(clampEpisodesPerPodcast(n))}
             perPodcastMin={MIN_EPISODES_PER_PODCAST}

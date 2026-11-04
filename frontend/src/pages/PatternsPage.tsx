@@ -1,8 +1,8 @@
 import { useState, useEffect, useMemo } from 'react';
-import { useSyncFromQuery } from '../hooks/useSyncFromQuery';
 import PageTabs from '../components/PageTabs';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router';
+import { useUrlParams, useUrlSearch, useUrlSort } from '../hooks/useUrlParams';
 import {
   getPatterns, getPatternStats, AdPattern, updatePattern,
   protectPattern, unprotectPattern, PATTERN_SOURCE_COMMUNITY,
@@ -15,7 +15,7 @@ import PatternMergeSuggestions from '../components/PatternMergeSuggestions';
 import { SkeletonRows } from '../components/Skeleton';
 import { Pagination } from '../components/Pagination';
 import { tableBody, tableCard, tableHead, tableRow, td, tdEmpty, tdMuted, thBase, rowCard } from '../components/tableStyles';
-import { SortHeader, useSortState } from '../components/SortHeader';
+import { SortHeader } from '../components/SortHeader';
 import { ScopeBadge } from '../components/ScopeBadge';
 import { CommunityBadge } from '../components/CommunityBadge';
 import { PatternTrustBadge } from '../components/PatternTrustBadge';
@@ -50,27 +50,33 @@ type OriginFilter = 'all' | 'auto' | 'user';
 type SourceFilter = 'all' | 'local' | 'community' | 'imported';
 type PatternsTab = 'patterns' | 'ad-review' | 'detected-ads' | 'cleanup' | 'sponsors';
 const OTHER_TABS: readonly string[] = ['ad-review', 'detected-ads', 'cleanup', 'sponsors'];
+const SORT_FIELDS: readonly (keyof AdPattern)[] = [
+  'id', 'scope', 'sponsor', 'confirmation_count', 'false_positive_count', 'created_at', 'last_matched_at',
+];
+const SCOPE_FILTERS: readonly ScopeFilter[] = ['all', 'global', 'network', 'podcast'];
+const ORIGIN_FILTERS: readonly OriginFilter[] = ['all', 'auto', 'user'];
+const SOURCE_FILTERS: readonly SourceFilter[] = ['all', 'local', 'community', 'imported'];
+
+// Page, filters, search and sort live in the URL so Back and reload return to the same place.
+const PATTERN_PARAM_DEFAULTS = {
+  page: '1', scope: 'all', origin: 'all', source: 'all', category: '', inactive: '',
+};
 
 function PatternsPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const tabParam = searchParams.get('tab');
   const activeTab: PatternsTab =
     tabParam && OTHER_TABS.includes(tabParam) ? (tabParam as PatternsTab) : 'patterns';
+  const { read, readOneOf, readPage, write } = useUrlParams(PATTERN_PARAM_DEFAULTS, { resetKey: 'page' });
+  const scopeFilter = readOneOf('scope', SCOPE_FILTERS, 'all');
+  const originFilter = readOneOf('origin', ORIGIN_FILTERS, 'all');
+  const sourceFilter = readOneOf('source', SOURCE_FILTERS, 'all');
+  const categoryFilter = read('category');
+  const showInactive = read('inactive') === '1';
   // ?q= belongs to the visible tab; the sponsors tab reads it itself.
-  const patternsQuery = activeTab === 'patterns' ? searchParams.get('q') : null;
-  const [scopeFilter, setScopeFilter] = useState<ScopeFilter>('all');
-  const [originFilter, setOriginFilter] = useState<OriginFilter>('all');
-  const [sourceFilter, setSourceFilter] = useState<SourceFilter>('all');
-  const [categoryFilter, setCategoryFilter] = useState('');
-  const [searchQuery, setSearchQuery] = useState(patternsQuery || '');
-  const [showInactive, setShowInactive] = useState(false);
+  const [searchInput, setSearchInput, searchQuery] = useUrlSearch('q', { enabled: activeTab === 'patterns' });
   const [selectedPattern, setSelectedPattern] = useState<AdPattern | null>(null);
-  // A search-result link can land here while the page is already mounted.
-  useSyncFromQuery(patternsQuery ?? undefined, setSearchQuery);
-  const [page, setPage] = useState(1);
-  // Reset to first page on sort change.
-  const { sortField, sortDirection, handleSort } =
-    useSortState<keyof AdPattern>('created_at', 'desc', () => setPage(1));
+  const { sortBy: sortField, sortDirection, onSort: handleSort } = useUrlSort(SORT_FIELDS, 'created_at', 'desc');
   const [importOpen, setImportOpen] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
   const limit = 20;
@@ -208,6 +214,8 @@ function PatternsPage() {
 
   // Pagination
   const totalPages = Math.ceil((sortedPatterns?.length || 0) / limit);
+  const page = readPage('page', totalPages);
+  const setPage = (next: number) => write({ page: String(next) });
   const paginatedPatterns = sortedPatterns?.slice((page - 1) * limit, page * limit);
 
   return (
@@ -314,10 +322,7 @@ function PatternsPage() {
             <select
               id="patterns-scope"
               value={scopeFilter}
-              onChange={(e) => {
-                setScopeFilter(e.target.value as ScopeFilter);
-                setPage(1);
-              }}
+              onChange={(e) => write({ scope: e.target.value })}
               className={`${filterControl} ${selectBase}`}
             >
               <option value="all">All</option>
@@ -333,10 +338,7 @@ function PatternsPage() {
             <select
               id="patterns-origin"
               value={originFilter}
-              onChange={(e) => {
-                setOriginFilter(e.target.value as OriginFilter);
-                setPage(1);
-              }}
+              onChange={(e) => write({ origin: e.target.value })}
               className={`${filterControl} ${selectBase}`}
             >
               <option value="all">All</option>
@@ -351,10 +353,7 @@ function PatternsPage() {
             <select
               id="patterns-source"
               value={sourceFilter}
-              onChange={(e) => {
-                setSourceFilter(e.target.value as SourceFilter);
-                setPage(1);
-              }}
+              onChange={(e) => write({ source: e.target.value })}
               className={`${filterControl} ${selectBase}`}
             >
               <option value="all">All</option>
@@ -370,10 +369,7 @@ function PatternsPage() {
             <select
               id="patterns-category"
               value={categoryFilter}
-              onChange={(e) => {
-                setCategoryFilter(e.target.value);
-                setPage(1);
-              }}
+              onChange={(e) => write({ category: e.target.value })}
               className={`${filterControl} ${selectBase}`}
             >
               {SEGMENT_CATEGORY_FILTER_OPTIONS.map(([value, label]) => (
@@ -388,11 +384,8 @@ function PatternsPage() {
             <input
               id="patterns-search"
               type="text"
-              value={searchQuery}
-              onChange={(e) => {
-                setSearchQuery(e.target.value);
-                setPage(1);
-              }}
+              value={searchInput}
+              onChange={(e) => setSearchInput(e.target.value)}
               placeholder="Search by sponsor, text, network..."
               aria-label="Search patterns"
               className={`${filterControl} ${inputBase}`}
@@ -403,7 +396,7 @@ function PatternsPage() {
           <Checkbox
             className="min-h-11"
             checked={showInactive}
-            onChange={(v) => { setShowInactive(v); setPage(1); }}
+            onChange={(v) => write({ inactive: v ? '1' : '' })}
             label="Show inactive"
             labelClassName="text-sm text-muted-foreground"
           />

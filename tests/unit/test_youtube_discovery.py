@@ -247,10 +247,59 @@ def test_resolve_handle_without_key():
 def test_api_playlist_author_is_the_owning_channel():
     page = {'items': [{'snippet': {'title': 'List', 'channelTitle': 'Owner Channel', 'thumbnails': {}},
                        'contentDetails': {'itemCount': 4}}]}
-    with patch.object(discovery, 'safe_get', return_value=_resp()), \
-            patch.object(discovery, 'read_response_capped', return_value=json.dumps(page).encode()):
-        info = discovery.resolve_source(_db('KEY'), Source('playlist', 'PL1'))
+    info, _ = _resolve_playlist([json.dumps(page).encode(), _page()])
     assert info.author == 'Owner Channel'
+
+
+_COVER = 'https://i.ytimg.com/pl_c/PL1/studio_square_thumbnail.jpg?sqp=abc&rs=def'
+_API_PLAYLIST = json.dumps({'items': [{'snippet': {
+    'title': 'List', 'channelTitle': 'Owner', 'thumbnails': {'high': {'url': 'https://i.ytimg.com/vi/v1/hq.jpg'}}},
+    'contentDetails': {'itemCount': 4}}]}).encode()
+
+
+def _page(*urls):
+    return ''.join(f'<meta property="og:image" content="{u}">' for u in urls).encode()
+
+
+def _resolve_playlist(bodies, safe_get_effect=None):
+    effect = safe_get_effect or [_resp(), _resp()]
+    with patch.object(discovery, 'safe_get', side_effect=effect) as get, \
+            patch.object(discovery, 'read_response_capped', side_effect=bodies):
+        info = discovery.resolve_source(_db('KEY'), Source('playlist', 'PL1'))
+    return info, get
+
+
+def test_api_playlist_uses_the_owner_set_cover():
+    page = _page('https://i.ytimg.com/pl_c/PL1/a.jpg?x=1', _COVER.replace('&', '&amp;'),
+                 'https://i.ytimg.com/vi/v1/hqdefault.jpg')
+    info, get = _resolve_playlist([_API_PLAYLIST, page])
+    assert info.artwork_url == _COVER
+    assert get.call_args_list[1].args[0] == 'https://www.youtube.com/playlist?list=PL1'
+
+
+def test_api_playlist_without_a_cover_keeps_the_api_thumbnail():
+    info, _ = _resolve_playlist([_API_PLAYLIST, _page('https://i.ytimg.com/vi/abc/hqdefault.jpg')])
+    assert info.artwork_url == 'https://i.ytimg.com/vi/v1/hq.jpg'
+
+
+_YTDLP_PLAYLIST = {'_type': 'playlist', 'id': 'PL1', 'title': 'List', 'playlist_count': 4, 'channel': 'Owner',
+                   'thumbnails': [{'url': 'https://i.ytimg.com/pl_c/PL1/a.jpg'}, {'url': _COVER}], 'entries': []}
+
+
+@pytest.mark.parametrize('page_effect', [requests.ConnectionError(), _resp(500)])
+def test_playlist_page_failure_falls_back_to_ytdlp(page_effect):
+    with patch.object(discovery.ytdlp, 'run', return_value=_completed(_YTDLP_PLAYLIST)):
+        info, _ = _resolve_playlist([_API_PLAYLIST], [_resp(), page_effect])
+    assert info.artwork_url == _COVER
+
+
+def test_api_channel_fetches_no_playlist_page():
+    channel = json.dumps({'items': [{'id': 'UCabcdefghijklmnopqrstuv', 'snippet': {'title': 'Chan', 'thumbnails': {}},
+                                     'statistics': {'videoCount': '3'}}]}).encode()
+    with patch.object(discovery, 'safe_get', return_value=_resp()) as get, \
+            patch.object(discovery, 'read_response_capped', return_value=channel):
+        discovery.resolve_source(_db('KEY'), Source('channel', 'UCabcdefghijklmnopqrstuv'))
+    assert get.call_count == 1
 
 
 def test_parse_iso8601_duration():

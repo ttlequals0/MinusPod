@@ -237,7 +237,7 @@ describe('TranscriptViewer search context and navigation', () => {
   it('disables Context without a search and shows muted neighbours with it', async () => {
     renderViewer();
     await waitFor(() => screen.getByText('Welcome to the show.'));
-    expect((screen.getByRole('button', { name: '1' }) as HTMLButtonElement).disabled).toBe(true);
+    expect(screen.getByRole('button', { name: '1' }).getAttribute('aria-disabled')).toBe('true');
     expect(screen.getByText('Needs a search term')).toBeTruthy();
     expect(document.querySelector('[aria-describedby="transcript-context-hint"]')).not.toBeNull();
     await userEvent.type(screen.getByLabelText('Search'), 'blog');

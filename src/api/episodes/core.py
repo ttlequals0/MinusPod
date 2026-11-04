@@ -2,9 +2,9 @@
 
 import json
 import logging
-from flask import Response, redirect, request, send_file, url_for
+from flask import redirect, request, send_file, url_for
 from api import (
-    api, log_request, json_response, error_response,
+    api, log_request, json_response, error_response, image_response,
     get_database, get_storage, get_feed_auth_key,
 )
 from config import (
@@ -29,10 +29,8 @@ logger = logging.getLogger('podcast.api')
 # One more than the 500-episode bulk-action cap enforced in runs.
 SELECTION_FETCH_CAP = 501
 
-# Pseudo-status for the episode list: the feed with the title, description,
-# and duration filters applied. The rules run in Python (fnmatch, HTML stripping),
-# not SQL, so this value is resolved here rather than by get_episodes.
-FILTER_RULES_STATUS = 'filters_applied'
+# Pseudo-status: episodes a feed filter rule matches. Resolved here because the rules are fnmatch and HTML stripping, not SQL.
+FILTERED_STATUS = 'filtered'
 
 
 def _processed_url(slug: str, episode_id: str, version: int,
@@ -106,8 +104,8 @@ def list_episodes(slug):
             total = db.count_recent_processed_episodes(cutoff, search=search)
         else:
             episodes, total = [], 0
-    elif status == FILTER_RULES_STATUS:
-        episodes, total = _episodes_after_filter_rules(
+    elif status == FILTERED_STATUS:
+        episodes, total = _filtered_episodes(
             db, slug, podcast, limit=query_limit, offset=offset,
             sort_by=sort_by, sort_dir=sort_dir, search=search, selection=selection)
     else:
@@ -171,19 +169,17 @@ def list_episodes(slug):
     })
 
 
-def _episodes_after_filter_rules(db, slug, podcast, *, limit, offset, sort_by, sort_dir,
-                                 search, selection):
-    """The feed's episodes minus those its skip rules match, paged like get_episodes.
+def _filtered_episodes(db, slug, podcast, *, limit, offset, sort_by, sort_dir,
+                       search, selection):
+    """The episodes the feed's filter rules match, paged like get_episodes.
 
-    Reads every episode's title, description and duration (no audio, no
-    transcript), drops those episode_matches_feed_filters skips, then loads
-    full rows for just the requested page. The total counts the episodes kept.
+    Only the requested page is loaded as full rows; total counts every match.
     """
     candidates, _ = db.get_episodes(slug, limit=None, sort_by=sort_by, sort_dir=sort_dir,
                                     search=search, selection=True)
-    kept = [ep for ep in candidates if not episode_matches_feed_filters(ep, podcast)]
-    total = len(kept)
-    page = kept[offset:offset + limit]
+    matched = [ep for ep in candidates if episode_matches_feed_filters(ep, podcast)]
+    total = len(matched)
+    page = matched[offset:offset + limit]
     if selection:
         return page, total
     full, _ = db.get_episodes(slug, limit=None, episode_ids=[ep['episode_id'] for ep in page])
@@ -488,26 +484,20 @@ def get_episode_artwork(slug, episode_id):
     storage = get_storage()
     db = get_database()
 
-    artwork = storage.get_episode_artwork(slug, episode_id)
+    artwork = storage.episode_artwork_file(slug, episode_id)
     if not artwork:
         episode = db.get_episode(slug, episode_id)
         artwork_url = (episode or {}).get('artwork_url')
         if artwork_url and storage.download_episode_artwork(
                 slug, episode_id, artwork_url):
-            artwork = storage.get_episode_artwork(slug, episode_id)
+            artwork = storage.episode_artwork_file(slug, episode_id)
 
     if not artwork:
         # No episode cover to be had: hand back the show cover so the row
         # keeps an image rather than collapsing to the grey placeholder.
         return redirect(url_for('api.get_artwork', slug=slug))
 
-    image_data, content_type = artwork
-    # content_type came from the magic-number check on write; forbid sniffing
-    # and deny any script loading from this response.
-    response = Response(image_data, mimetype=content_type)
-    response.headers['X-Content-Type-Options'] = 'nosniff'
-    response.headers['Content-Security-Policy'] = "default-src 'none'"
-    return response
+    return image_response(*artwork)
 
 
 # Straight from the stdlib so warning/critical aliases cannot drift from what

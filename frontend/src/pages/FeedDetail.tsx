@@ -769,13 +769,13 @@ function FeedDetail() {
           >
             <option value="all">All statuses</option>
             <option value="discovered">Discovered</option>
+            <option value="filtered">Filtered</option>
             <option value="pending">Pending</option>
             <option value="processing">Processing</option>
             <option value="processed">Completed</option>
             <option value="failed">Failed</option>
             <option value="permanently_failed">Permanently failed</option>
             <option value="deferred">Queued (offline)</option>
-            <option value="filters_applied">Filters applied</option>
           </select>
           <select
             value={`${sortBy}:${sortDir}`}

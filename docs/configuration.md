@@ -377,9 +377,9 @@ Add glob patterns under **Episode filters > Skip episodes by description**. Use 
 
 Matching is against the description's plain text, with HTML tags removed, as a single whole-text string, case-insensitive. `*` is a wildcard, so a phrase needs `*` on both sides, for example `*This is a preview. To hear the entire episode*`.
 
-API: `descriptionSkipPatterns` (array of strings, max 50 patterns, 200 characters each) on `PATCH /api/v1/feeds/{slug}`; `titleSkipAction` governs served-RSS visibility for all three filters.
+API: `descriptionSkipPatterns` (array of strings, max 50 patterns, 200 characters each) on `PATCH /api/v1/feeds/{slug}`; `titleSkipAction` governs served-RSS visibility for all three filters. The episode list shows a Filtered chip on episodes a rule matches.
 
-To see the feed with the filters applied, choose **Filters applied** in the status filter on the feed's Episodes list. It shows the feed with the title, description, and duration filters applied, as if **Skipped episodes > Hide from feed** were set, whatever that setting is on the feed. **Hide from feed** only changes the served RSS, not the UI Episodes list.
+To see which episodes the filters match, choose **Filtered** in the status filter on the feed's Episodes list; it lists the same episodes that carry the Filtered chip. The served feed shows what the rules leave in.
 
 ### Chapter trim
 
