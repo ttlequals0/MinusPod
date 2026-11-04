@@ -13,6 +13,10 @@ release notes.
 ### Added
 
 - The status filter on each feed page has a new Filters applied option. It shows the feed with the title, description, and duration filters applied, as if Skipped episodes were set to Hide from feed, whatever that setting is on the feed. It works with search, sorting, paging and Select all matches. API: `GET /api/v1/feeds/{slug}/episodes?status=filters_applied`.
+- Episode list rows show a Filtered chip on episodes that a feed's title,
+  description or duration filter matches. The chip's tooltip names the
+  rule. These episodes looked like any other Discovered episode even
+  though automatic processing skips them.
 
 ### Fixed
 
@@ -34,6 +38,12 @@ release notes.
   video's thumbnail, so it changed with every upload. Playlists with no
   cover keep the newest video's thumbnail. Existing feeds pick up the cover
   on the next artwork refresh from the feed's YouTube panel.
+- The provider Test connection no longer reports "did not return a model
+  list" for an OpenAI-compatible endpoint whose model catalog is larger
+  than 64 KB. Gateways that front several providers list hundreds of
+  models with long descriptions, so the probe gave up on a working
+  endpoint. The probe now reads up to 4 MB and says so when a reply is
+  larger than that. (#959)
 
 ### Changed
 
