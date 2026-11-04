@@ -17,6 +17,7 @@ from flask import Response, g, send_file, abort, redirect, send_from_directory, 
 from werkzeug.exceptions import NotFound
 from werkzeug.utils import safe_join
 
+from api import image_response
 from config import (
     HTTP_MAX_REDIRECTS_FEED,
     HTTP_TIMEOUT_API,
@@ -909,14 +910,11 @@ def register_routes(app):
         Never fetches on demand -- the cache is populated out of band. 404
         when nothing is cached, same as the transcript/chapters routes.
         """
-        result = storage.get_episode_artwork(slug, episode_id)
+        result = storage.episode_artwork_file(slug, episode_id)
         if not result:
             feed_logger.info(f"[{slug}:{episode_id}] Episode artwork not found")
             abort(404)
-        image_data, content_type = result
-        response = Response(image_data, mimetype=content_type)
-        response.headers['X-Content-Type-Options'] = 'nosniff'
-        response.headers['Content-Security-Policy'] = "default-src 'none'"
+        response = image_response(*result)
         response.headers['Access-Control-Allow-Origin'] = '*'
         return response
 

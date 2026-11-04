@@ -9,6 +9,7 @@ podcasts.artwork_failure_state column, with a longer backoff for a
 confirmed-missing (404) resource than for a transient error.
 """
 import json
+import os
 from datetime import timedelta
 from unittest.mock import MagicMock, patch
 
@@ -399,3 +400,92 @@ def test_recovery_endpoint_uses_candidate_fallback():
     row = db.get_podcast_by_slug(slug)
     assert row['artwork_url'] == alt
     assert row['artwork_cached'] == 1
+
+
+# --- artwork routes revalidate so a refreshed cover shows on the next load ---
+
+def _cache_feed_artwork(slug):
+    db = get_database()
+    db.create_podcast(slug, f'https://example.com/{slug}.xml', slug)
+    storage_mod.Storage().save_artwork(slug, PNG, 'image/png')
+    db.update_podcast(slug, artwork_cached=1)
+
+
+def test_feed_artwork_sends_etag_and_no_cache():
+    slug = 'etag-feed'
+    _cache_feed_artwork(slug)
+    with app.test_client() as client:
+        resp = client.get(f'/api/v1/feeds/{slug}/artwork')
+    assert resp.status_code == 200
+    assert resp.headers['ETag'].startswith('"')
+    assert resp.headers['Cache-Control'] == 'no-cache'
+    assert resp.headers['X-Content-Type-Options'] == 'nosniff'
+
+
+def test_feed_artwork_matching_if_none_match_returns_304():
+    slug = 'etag-feed-304'
+    _cache_feed_artwork(slug)
+    with app.test_client() as client:
+        etag = client.get(f'/api/v1/feeds/{slug}/artwork').headers['ETag']
+        resp = client.get(f'/api/v1/feeds/{slug}/artwork', headers={'If-None-Match': etag})
+    assert resp.status_code == 304
+    assert resp.data == b''
+    assert resp.headers['ETag'] == etag
+    assert resp.headers['Cache-Control'] == 'no-cache'
+    assert resp.headers['X-Content-Type-Options'] == 'nosniff'
+
+
+def test_feed_artwork_weak_if_none_match_returns_304():
+    slug = 'etag-feed-weak'
+    _cache_feed_artwork(slug)
+    with app.test_client() as client:
+        etag = client.get(f'/api/v1/feeds/{slug}/artwork').headers['ETag']
+        resp = client.get(f'/api/v1/feeds/{slug}/artwork',
+                          headers={'If-None-Match': f'W/{etag}'})
+    assert resp.status_code == 304
+    assert resp.data == b''
+
+
+def test_feed_artwork_url_is_versioned_and_changes_with_file():
+    slug = 'etag-feed-version'
+    _cache_feed_artwork(slug)
+    path = storage_mod.Storage().artwork_file(slug)[0]
+    podcast = {'slug': slug, 'artwork_url': 'https://example.com/a.png'}
+    with app.test_request_context():
+        first = api_feeds._feed_artwork_url(podcast)
+        st = path.stat()
+        os.utime(path, ns=(st.st_atime_ns, st.st_mtime_ns + 5_000_000_000))
+        second = api_feeds._feed_artwork_url(podcast)
+    assert first.startswith(f'/api/v1/feeds/{slug}/artwork?v=')
+    assert second.startswith(f'/api/v1/feeds/{slug}/artwork?v=')
+    assert first != second
+
+
+def test_episode_artwork_sends_etag_and_honours_if_none_match():
+    slug = 'etag-episode'
+    _cache_feed_artwork(slug)
+    storage_mod.Storage().save_episode_artwork(slug, 'a1b2c3d4e5f6', PNG, 'image/png')
+    url = f'/api/v1/feeds/{slug}/episodes/a1b2c3d4e5f6/artwork'
+    with app.test_client() as client:
+        first = client.get(url)
+        second = client.get(url, headers={'If-None-Match': first.headers['ETag']})
+    assert first.status_code == 200
+    assert first.headers['Cache-Control'] == 'no-cache'
+    assert second.status_code == 304
+    assert second.data == b''
+
+
+def test_public_episode_artwork_revalidates_and_keeps_cors():
+    slug = 'etag-public-episode'
+    _cache_feed_artwork(slug)
+    storage_mod.Storage().save_episode_artwork(slug, 'a1b2c3d4e5f6', PNG, 'image/png')
+    url = f'/episodes/{slug}/a1b2c3d4e5f6/artwork'
+    with app.test_client() as client:
+        first = client.get(url)
+        second = client.get(url, headers={'If-None-Match': first.headers['ETag']})
+    assert first.status_code == 200
+    assert first.headers['Cache-Control'] == 'no-cache'
+    assert first.headers['Access-Control-Allow-Origin'] == '*'
+    assert second.status_code == 304
+    assert second.data == b''
+    assert second.headers['Access-Control-Allow-Origin'] == '*'

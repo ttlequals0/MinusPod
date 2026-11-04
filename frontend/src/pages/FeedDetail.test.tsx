@@ -28,7 +28,7 @@ vi.mock('./feeds/FeedSettingsPanel', () => ({ default: () => <div data-testid="f
 vi.mock('./feeds/FeedStatsCards', () => ({ default: () => <div data-testid="feed-stats-cards" /> }));
 vi.mock('./feeds/PodcastAdDistributionPanel', () => ({ default: () => <div data-testid="ad-distribution-panel" /> }));
 vi.mock('./feeds/CueTemplatesPanel', () => ({ default: () => <div data-testid="cue-templates-panel" /> }));
-vi.mock('../components/Artwork', () => ({ default: ({ alt }: { alt: string }) => <img alt={alt} /> }));
+vi.mock('../components/Artwork', () => ({ default: ({ alt, src }: { alt: string; src?: string }) => <img alt={alt} src={src} /> }));
 
 const mockGetFeed = vi.fn();
 const mockGetFeedsResponse = vi.fn();
@@ -171,6 +171,14 @@ describe('FeedDetail: local feed visibility matrix', () => {
     });
     expect(screen.queryByText('Local')).toBeNull();
     expect(screen.getByTitle('Refresh feed')).toBeDefined();
+  });
+});
+
+describe('FeedDetail: artwork URL', () => {
+  it('uses the versioned artworkUrl from the API as the header cover', async () => {
+    renderFeedDetail(makeFeed({ artworkUrl: '/api/v1/feeds/test-feed/artwork?v=5' }));
+    const cover = await screen.findByAltText(/Test Feed/);
+    expect(cover.getAttribute('src')).toBe('/api/v1/feeds/test-feed/artwork?v=5');
   });
 });
 

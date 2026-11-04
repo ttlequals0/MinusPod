@@ -2,9 +2,9 @@
 
 import json
 import logging
-from flask import Response, redirect, request, send_file, url_for
+from flask import redirect, request, send_file, url_for
 from api import (
-    api, log_request, json_response, error_response,
+    api, log_request, json_response, error_response, image_response,
     get_database, get_storage, get_feed_auth_key,
 )
 from config import (
@@ -484,26 +484,20 @@ def get_episode_artwork(slug, episode_id):
     storage = get_storage()
     db = get_database()
 
-    artwork = storage.get_episode_artwork(slug, episode_id)
+    artwork = storage.episode_artwork_file(slug, episode_id)
     if not artwork:
         episode = db.get_episode(slug, episode_id)
         artwork_url = (episode or {}).get('artwork_url')
         if artwork_url and storage.download_episode_artwork(
                 slug, episode_id, artwork_url):
-            artwork = storage.get_episode_artwork(slug, episode_id)
+            artwork = storage.episode_artwork_file(slug, episode_id)
 
     if not artwork:
         # No episode cover to be had: hand back the show cover so the row
         # keeps an image rather than collapsing to the grey placeholder.
         return redirect(url_for('api.get_artwork', slug=slug))
 
-    image_data, content_type = artwork
-    # content_type came from the magic-number check on write; forbid sniffing
-    # and deny any script loading from this response.
-    response = Response(image_data, mimetype=content_type)
-    response.headers['X-Content-Type-Options'] = 'nosniff'
-    response.headers['Content-Security-Policy'] = "default-src 'none'"
-    return response
+    return image_response(*artwork)
 
 
 # Straight from the stdlib so warning/critical aliases cannot drift from what
