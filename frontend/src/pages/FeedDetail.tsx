@@ -775,6 +775,7 @@ function FeedDetail() {
             <option value="failed">Failed</option>
             <option value="permanently_failed">Permanently failed</option>
             <option value="deferred">Queued (offline)</option>
+            <option value="filters_applied">Filters applied</option>
           </select>
           <select
             value={`${sortBy}:${sortDir}`}

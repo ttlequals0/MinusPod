@@ -10,7 +10,7 @@ from api import (
 from config import (
     is_keep_like, is_pending_review, resolve_chapters_in_notes,
     title_matches_skip_patterns, description_matches_skip_patterns,
-    duration_outside_feed_range,
+    duration_outside_feed_range, episode_matches_feed_filters,
 )
 from ad_chapters import refresh_keep_like_markers
 from ad_yield import latest_completed_run, low_ad_yield
@@ -28,6 +28,11 @@ logger = logging.getLogger('podcast.api')
 
 # One more than the 500-episode bulk-action cap enforced in runs.
 SELECTION_FETCH_CAP = 501
+
+# Pseudo-status for the episode list: the feed with the title, description,
+# and duration filters applied. The rules run in Python (fnmatch, HTML stripping),
+# not SQL, so this value is resolved here rather than by get_episodes.
+FILTER_RULES_STATUS = 'filters_applied'
 
 
 def _processed_url(slug: str, episode_id: str, version: int,
@@ -101,6 +106,10 @@ def list_episodes(slug):
             total = db.count_recent_processed_episodes(cutoff, search=search)
         else:
             episodes, total = [], 0
+    elif status == FILTER_RULES_STATUS:
+        episodes, total = _episodes_after_filter_rules(
+            db, slug, podcast, limit=query_limit, offset=offset,
+            sort_by=sort_by, sort_dir=sort_dir, search=search, selection=selection)
     else:
         episodes, total = db.get_episodes(slug, status=status, limit=query_limit, offset=offset,
                                           sort_by=sort_by, sort_dir=sort_dir, search=search, selection=selection)
@@ -160,6 +169,26 @@ def list_episodes(slug):
         'offset': offset,
         **({'truncated': total > len(episode_list)} if selection else {}),
     })
+
+
+def _episodes_after_filter_rules(db, slug, podcast, *, limit, offset, sort_by, sort_dir,
+                                 search, selection):
+    """The feed's episodes minus those its skip rules match, paged like get_episodes.
+
+    Reads every episode's title, description and duration (no audio, no
+    transcript), drops those episode_matches_feed_filters skips, then loads
+    full rows for just the requested page. The total counts the episodes kept.
+    """
+    candidates, _ = db.get_episodes(slug, limit=None, sort_by=sort_by, sort_dir=sort_dir,
+                                    search=search, selection=True)
+    kept = [ep for ep in candidates if not episode_matches_feed_filters(ep, podcast)]
+    total = len(kept)
+    page = kept[offset:offset + limit]
+    if selection:
+        return page, total
+    full, _ = db.get_episodes(slug, limit=None, episode_ids=[ep['episode_id'] for ep in page])
+    by_id = {ep['episode_id']: ep for ep in full}
+    return [by_id[ep['episode_id']] for ep in page if ep['episode_id'] in by_id], total
 
 
 def _secure_artwork_url(url):

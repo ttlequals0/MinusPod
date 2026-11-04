@@ -788,6 +788,78 @@ def test_feed_episode_search_filters_full_dataset_and_returns_all_selection(app_
     assert literal.get_json()['episodes'][0]['titleSkipped'] is False
 
 
+def _seed_filter_rule_feed(db, slug):
+    db.bulk_upsert_discovered_episodes(slug, [
+        {'id': 'preview-1', 'url': 'https://example.com/p1.mp3',
+         'title': '*PREVIEW* Part 6', 'description': 'Full show', 'rss_duration': 1200},
+        {'id': 'preview-2', 'url': 'https://example.com/p2.mp3',
+         'title': '*PREVIEW* Live in Cork', 'description': 'Full show', 'rss_duration': 1200},
+        {'id': 'teaser', 'url': 'https://example.com/t.mp3',
+         'title': 'Episode 9', 'description': 'Get the whole episode on Patreon', 'rss_duration': 1200},
+        {'id': 'clip', 'url': 'https://example.com/c.mp3',
+         'title': 'Episode 8', 'description': 'Full show', 'rss_duration': 30},
+        {'id': 'regular-1', 'url': 'https://example.com/r1.mp3',
+         'title': 'Episode 7', 'description': 'Full show', 'rss_duration': 1200},
+        {'id': 'regular-2', 'url': 'https://example.com/r2.mp3',
+         'title': 'Episode 6', 'description': 'Full show', 'rss_duration': 1200},
+        {'id': 'regular-3', 'url': 'https://example.com/r3.mp3',
+         'title': 'Episode 5 Cork special', 'description': 'Full show', 'rss_duration': 1200},
+    ])
+    db.update_podcast(slug, title_skip_patterns='["*PREVIEW*"]',
+                      description_skip_patterns='["*get the whole episode*"]',
+                      min_duration_seconds=60)
+
+
+def test_filters_applied_status_drops_episodes_the_feed_rules_skip(app_client, seeded_feed):
+    _authed(app_client)
+    slug, db = seeded_feed['slug'], seeded_feed['db']
+    _seed_filter_rule_feed(db, slug)
+
+    everything = app_client.get(f'/api/v1/feeds/{slug}/episodes?limit=25').get_json()
+    assert everything['total'] == 7
+
+    body = app_client.get(f'/api/v1/feeds/{slug}/episodes?status=filters_applied&limit=25').get_json()
+    assert body['total'] == 3
+    assert {ep['id'] for ep in body['episodes']} == {'regular-1', 'regular-2', 'regular-3'}
+    assert not any(ep['titleSkipped'] or ep['descriptionSkipped'] or ep['durationSkipped']
+                   for ep in body['episodes'])
+
+
+def test_filters_applied_status_pages_sorts_searches_and_selects_across_the_kept_set(app_client, seeded_feed):
+    _authed(app_client)
+    slug, db = seeded_feed['slug'], seeded_feed['db']
+    _seed_filter_rule_feed(db, slug)
+    base = f'/api/v1/feeds/{slug}/episodes?status=filters_applied&sort_by=title&sort_dir=asc'
+
+    first = app_client.get(f'{base}&limit=2&offset=0').get_json()
+    second = app_client.get(f'{base}&limit=2&offset=2').get_json()
+    assert first['total'] == second['total'] == 3
+    assert [ep['title'] for ep in first['episodes'] + second['episodes']] == [
+        'Episode 5 Cork special', 'Episode 6', 'Episode 7']
+
+    searched = app_client.get(f'{base}&search=cork').get_json()
+    assert [ep['id'] for ep in searched['episodes']] == ['regular-3']
+    assert searched['total'] == 1
+
+    selection = app_client.get(f'{base}&selection=true&limit=1').get_json()
+    assert selection['total'] == 3
+    assert selection['truncated'] is False
+    assert {ep['id'] for ep in selection['selection']} == {'regular-1', 'regular-2', 'regular-3'}
+    assert set(selection['selection'][0]) == {
+        'id', 'status', 'jobState', 'titleSkipped', 'descriptionSkipped', 'durationSkipped'}
+
+
+def test_filters_applied_status_matches_the_whole_feed_when_it_has_no_rules(app_client, seeded_feed):
+    _authed(app_client)
+    slug, db = seeded_feed['slug'], seeded_feed['db']
+    db.bulk_upsert_discovered_episodes(slug, [{
+        'id': 'regular', 'url': 'https://example.com/r.mp3', 'title': '*PREVIEW* Part 1'}])
+
+    body = app_client.get(f'/api/v1/feeds/{slug}/episodes?status=filters_applied').get_json()
+    assert body['total'] == 1
+    assert [ep['id'] for ep in body['episodes']] == ['regular']
+
+
 def test_selection_fetch_caps_at_501_and_flags_truncation(app_client, seeded_feed):
     _authed(app_client)
     slug, db = seeded_feed['slug'], seeded_feed['db']

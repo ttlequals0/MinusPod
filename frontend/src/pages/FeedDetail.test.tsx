@@ -244,6 +244,16 @@ describe('FeedDetail: episode list URL state', () => {
       expect(mockGetEpisodes).toHaveBeenLastCalledWith('test-feed', expect.objectContaining({ offset: 0, status: 'failed' }));
     });
   });
+
+  it('offers a Filters applied status that requests the feed minus the filtered episodes', async () => {
+    renderFeedDetail(makeFeed());
+    await screen.findByText('Test Feed');
+    expect(screen.getByRole('option', { name: 'Filters applied' })).toBeTruthy();
+    await userEvent.selectOptions(screen.getByDisplayValue('All statuses'), 'filters_applied');
+    await waitFor(() => {
+      expect(mockGetEpisodes).toHaveBeenLastCalledWith('test-feed', expect.objectContaining({ offset: 0, status: 'filters_applied' }));
+    });
+  });
 });
 
 describe('FeedDetail: notice from router state', () => {
