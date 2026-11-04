@@ -1635,10 +1635,10 @@ paths:
         - $ref: '#/components/parameters/slug'
         - name: status
           in: query
-          description: Filter by episode status. `filters_applied` shows the feed with the title, description, and duration filters applied.
+          description: Filter by episode status. `filtered` lists the episodes the feed's title, description, and duration filters match.
           schema:
             type: string
-            enum: [all, discovered, pending, processing, processed, failed, permanently_failed, deferred, filters_applied]
+            enum: [all, discovered, pending, processing, processed, failed, permanently_failed, deferred, filtered]
             default: all
         - name: limit
           in: query

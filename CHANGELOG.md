@@ -8,6 +8,15 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
+## [Unreleased]
+
+### Changed
+
+- The feed page status filter's Filters applied option is now Filtered and
+  lists the episodes a feed filter rule matches, the same episodes that carry
+  the Filtered chip. It listed the episodes the rules keep, which the served
+  feed already shows. API: `status=filtered` replaces `status=filters_applied`.
+
 ## [2.101.18] - 2026-11-04
 
 ### Added

@@ -245,13 +245,13 @@ describe('FeedDetail: episode list URL state', () => {
     });
   });
 
-  it('offers a Filters applied status that requests the feed minus the filtered episodes', async () => {
+  it('offers a Filtered status that requests the episodes the feed rules match', async () => {
     renderFeedDetail(makeFeed());
     await screen.findByText('Test Feed');
-    expect(screen.getByRole('option', { name: 'Filters applied' })).toBeTruthy();
-    await userEvent.selectOptions(screen.getByDisplayValue('All statuses'), 'filters_applied');
+    expect(screen.getByRole('option', { name: 'Filtered' })).toBeTruthy();
+    await userEvent.selectOptions(screen.getByDisplayValue('All statuses'), 'filtered');
     await waitFor(() => {
-      expect(mockGetEpisodes).toHaveBeenLastCalledWith('test-feed', expect.objectContaining({ offset: 0, status: 'filters_applied' }));
+      expect(mockGetEpisodes).toHaveBeenLastCalledWith('test-feed', expect.objectContaining({ offset: 0, status: 'filtered' }));
     });
   });
 });

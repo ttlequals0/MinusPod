@@ -810,7 +810,7 @@ def _seed_filter_rule_feed(db, slug):
                       min_duration_seconds=60)
 
 
-def test_filters_applied_status_drops_episodes_the_feed_rules_skip(app_client, seeded_feed):
+def test_filtered_status_lists_episodes_the_feed_rules_match(app_client, seeded_feed):
     _authed(app_client)
     slug, db = seeded_feed['slug'], seeded_feed['db']
     _seed_filter_rule_feed(db, slug)
@@ -818,46 +818,46 @@ def test_filters_applied_status_drops_episodes_the_feed_rules_skip(app_client, s
     everything = app_client.get(f'/api/v1/feeds/{slug}/episodes?limit=25').get_json()
     assert everything['total'] == 7
 
-    body = app_client.get(f'/api/v1/feeds/{slug}/episodes?status=filters_applied&limit=25').get_json()
-    assert body['total'] == 3
-    assert {ep['id'] for ep in body['episodes']} == {'regular-1', 'regular-2', 'regular-3'}
-    assert not any(ep['titleSkipped'] or ep['descriptionSkipped'] or ep['durationSkipped']
-                   for ep in body['episodes'])
+    body = app_client.get(f'/api/v1/feeds/{slug}/episodes?status=filtered&limit=25').get_json()
+    assert body['total'] == 4
+    assert {ep['id'] for ep in body['episodes']} == {'preview-1', 'preview-2', 'teaser', 'clip'}
+    assert all(ep['titleSkipped'] or ep['descriptionSkipped'] or ep['durationSkipped']
+               for ep in body['episodes'])
 
 
-def test_filters_applied_status_pages_sorts_searches_and_selects_across_the_kept_set(app_client, seeded_feed):
+def test_filtered_status_pages_sorts_searches_and_selects_across_the_matched_set(app_client, seeded_feed):
     _authed(app_client)
     slug, db = seeded_feed['slug'], seeded_feed['db']
     _seed_filter_rule_feed(db, slug)
-    base = f'/api/v1/feeds/{slug}/episodes?status=filters_applied&sort_by=title&sort_dir=asc'
+    base = f'/api/v1/feeds/{slug}/episodes?status=filtered&sort_by=title&sort_dir=asc'
 
     first = app_client.get(f'{base}&limit=2&offset=0').get_json()
     second = app_client.get(f'{base}&limit=2&offset=2').get_json()
-    assert first['total'] == second['total'] == 3
+    assert first['total'] == second['total'] == 4
     assert [ep['title'] for ep in first['episodes'] + second['episodes']] == [
-        'Episode 5 Cork special', 'Episode 6', 'Episode 7']
+        '*PREVIEW* Live in Cork', '*PREVIEW* Part 6', 'Episode 8', 'Episode 9']
 
     searched = app_client.get(f'{base}&search=cork').get_json()
-    assert [ep['id'] for ep in searched['episodes']] == ['regular-3']
+    assert [ep['id'] for ep in searched['episodes']] == ['preview-2']
     assert searched['total'] == 1
 
     selection = app_client.get(f'{base}&selection=true&limit=1').get_json()
-    assert selection['total'] == 3
+    assert selection['total'] == 4
     assert selection['truncated'] is False
-    assert {ep['id'] for ep in selection['selection']} == {'regular-1', 'regular-2', 'regular-3'}
+    assert {ep['id'] for ep in selection['selection']} == {'preview-1', 'preview-2', 'teaser', 'clip'}
     assert set(selection['selection'][0]) == {
         'id', 'status', 'jobState', 'titleSkipped', 'descriptionSkipped', 'durationSkipped'}
 
 
-def test_filters_applied_status_matches_the_whole_feed_when_it_has_no_rules(app_client, seeded_feed):
+def test_filtered_status_is_empty_when_the_feed_has_no_rules(app_client, seeded_feed):
     _authed(app_client)
     slug, db = seeded_feed['slug'], seeded_feed['db']
     db.bulk_upsert_discovered_episodes(slug, [{
         'id': 'regular', 'url': 'https://example.com/r.mp3', 'title': '*PREVIEW* Part 1'}])
 
-    body = app_client.get(f'/api/v1/feeds/{slug}/episodes?status=filters_applied').get_json()
-    assert body['total'] == 1
-    assert [ep['id'] for ep in body['episodes']] == ['regular']
+    body = app_client.get(f'/api/v1/feeds/{slug}/episodes?status=filtered').get_json()
+    assert body['total'] == 0
+    assert body['episodes'] == []
 
 
 def test_selection_fetch_caps_at_501_and_flags_truncation(app_client, seeded_feed):
