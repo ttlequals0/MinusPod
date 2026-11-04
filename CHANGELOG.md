@@ -29,6 +29,11 @@ release notes.
   The dialog's first release stayed silent everywhere because no browser had
   a recorded version yet. When the newest changelog section is older than
   the app, the browser records the version and shows nothing.
+- YouTube playlist feeds use the cover set for the playlist on YouTube as
+  their artwork. With a Data API key configured, the artwork was the first
+  video's thumbnail, so it changed with every upload. Playlists with no
+  cover keep the newest video's thumbnail. Existing feeds pick up the cover
+  on the next artwork refresh from the feed's YouTube panel.
 
 ### Changed
 
