@@ -53,11 +53,17 @@ def test_marker_on_processed_only():
     assert channel == 'Show'
 
 
-def test_marker_not_doubled():
+def test_marker_added_once_per_render_and_not_stored():
+    first = _titles(_render('[a] ', ['Alpha']))[0]
+    second = _titles(_render('[a] ', ['Alpha']))[0]
+    assert first == second == ['[a] Alpha', 'Beta']
+
+
+def test_upstream_title_starting_with_marker_text_is_still_marked():
     parser = RSSParser()
-    assert parser.apply_title_marker('[a] Alpha', '[a] ') == '[a] Alpha'
-    assert parser.apply_title_marker('Alpha', '[a] ') == '[a] Alpha'
+    assert parser.apply_title_marker('[a] Alpha', '[a] ') == '[a] [a] Alpha'
     assert parser.apply_title_marker('Alpha', '') == 'Alpha'
+    assert parser.apply_title_marker('Alpha', None) == 'Alpha'
 
 
 def test_channel_title_override_still_applies_and_is_not_prefixed():
@@ -69,7 +75,7 @@ def test_channel_title_override_still_applies_and_is_not_prefixed():
 def test_db_appended_processed_item_gets_marker():
     parser = RSSParser()
     lines = []
-    parser._append_db_episode_item(lines, SLUG, {'episode_id': 'e1', 'title': 'Old'},
+    parser._append_db_episode_item(lines, SLUG, {'episode_id': 'abc123def456', 'title': 'Old'},
                                    MagicMock(), processed_title_marker='[a] ')
     assert '<title>[a] Old</title>' in '\n'.join(lines)
 
@@ -85,6 +91,8 @@ def test_validator():
     assert validate_processed_title_marker('x' * PROCESSED_TITLE_MARKER_MAX_LENGTH)[1] is None
     assert validate_processed_title_marker('x' * (PROCESSED_TITLE_MARKER_MAX_LENGTH + 1))[1]
     assert PROCESSED_TITLE_MARKER_MAX_LENGTH == 16
+    assert validate_processed_title_marker('   ')[1]
+    assert validate_processed_title_marker(' ')[1]
     assert validate_processed_title_marker('a\nb')[1]
     assert validate_processed_title_marker(5)[1]
 
@@ -153,3 +161,68 @@ def test_settings_api_validates_and_clears_etags(feed):
         assert ok.get_json()['processedTitleMarker'] == '[b] '
         cleared = c.patch(f'/api/v1/feeds/{SLUG}', json={'processedTitleMarker': None})
         assert cleared.get_json()['processedTitleMarker'] is None
+
+
+def test_original_mode_changes_enclosure_url_of_processed_items_only():
+    """Apps that auto-downloaded the original must see a new URL once the
+    item is processed, or they never re-fetch the ad-free file."""
+    def enclosures(rss):
+        return [i.find('enclosure').get('url') for i in ET.fromstring(rss).iter('item')]
+
+    parser = RSSParser()
+    feed = parser.parse_feed(UP, source=SLUG)
+    eid = parser.generate_episode_id(feed.entries[0].enclosures[0]['href'], feed.entries[0].get('id'))
+
+    def render(mode, version):
+        extra = [{'episode_id': eid, 'processed_size_bytes': 5, 'new_duration': 10,
+                  'processed_version': version}]
+        return enclosures(parser.modify_feed(
+            UP, SLUG, storage=MagicMock(has_artwork=lambda s: False),
+            extra_episodes=extra, unprocessed_playback=mode))
+
+    default = render('process', 0)
+    assert default[0].endswith(f'/{eid}.mp3')          # today's URL, untouched
+    unprocessed_form = default[0]
+    v0 = render('original', 0)
+    v1 = render('original', 1)
+    assert v0[0].endswith(f'/{eid}-v1.mp3') and v0[0] != unprocessed_form
+    assert v1[0].endswith(f'/{eid}-v2.mp3') and v1[0] != v0[0]   # reprocess changes it again
+    assert v0[1] == default[1]                                    # unprocessed item unchanged
+
+
+def test_original_mode_versioned_url_is_served(feed):
+    from unittest.mock import patch
+    import tempfile, os
+    db.upsert_episode(SLUG, 'abc123def456', original_url='https://cdn.example.com/a.mp3',
+                      title='A', status='processed')
+    with tempfile.NamedTemporaryFile(suffix='.mp3', delete=False) as f:
+        f.write(b'ID3')
+        path = f.name
+    try:
+        with patch('main_app.routes.get_feed_map',
+                   return_value={SLUG: {'in': 'x', 'out': SLUG}}), \
+             patch('main_app.routes._published_processed_path', return_value=path) as pp, \
+             app.test_client() as c:
+            assert c.get(f'/episodes/{SLUG}/abc123def456-v1.mp3').status_code == 200
+            assert pp.call_args[0][3] == 1
+    finally:
+        os.unlink(path)
+
+
+def test_recents_feed_applies_per_feed_marker(feed):
+    import recents_feed
+    db.set_setting('processed_title_marker', '[g] ', is_default=False)
+    ep = {'episode_id': 'r1', 'title': 'T', 'source_slug': SLUG, 'source_title': 'Show',
+          'source_processed_title_marker': None, 'source_chapters_in_notes': None,
+          'chapters_json': None, 'has_transcript_vtt': 0}
+    captured = []
+    def fake_item(lines, slug, ep, base, storage, key, **kw):
+        captured.append(kw['title_prefix'])
+    from unittest.mock import patch
+    podcast = {'title': 'Recents', 'description': ''}
+    for src_marker, expected in ((None, '[g] Show: '), ('[b] ', '[b] Show: '), ('', 'Show: ')):
+        captured.clear()
+        ep['source_processed_title_marker'] = src_marker
+        with patch.object(recents_feed, '_append_local_episode_item', fake_item):
+            recents_feed.build_recents_feed_xml(podcast, [ep], storage=MagicMock(has_artwork=lambda s: False), db=db)
+        assert captured == [expected]

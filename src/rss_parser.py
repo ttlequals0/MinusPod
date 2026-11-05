@@ -1050,7 +1050,8 @@ class RSSParser:
                     hide_min_duration_seconds: float | None = None,
                     hide_max_duration_seconds: float | None = None,
                     hide_description_patterns: str | None = None,
-                    processed_title_marker: str | None = None) -> str:
+                    processed_title_marker: str | None = None,
+                    unprocessed_playback: str | None = None) -> str:
         """Modify RSS feed to use our server URLs.
 
         Args:
@@ -1093,6 +1094,11 @@ class RSSParser:
             processed_title_marker: Short prefix (e.g. "[a] ") added to the
                 <item><title> of processed episodes at render time; empty or
                 None = off. Unprocessed items and the channel title are unchanged.
+            unprocessed_playback: 'original' makes a processed item's enclosure
+                URL carry a -vN suffix (N = processed version + 1) so it differs
+                from the URL the item had while unprocessed; clients that
+                auto-downloaded the original then re-fetch the ad-free file.
+                Anything else keeps today's URLs.
         """
         feed = (parsed_feed if parsed_feed is not None
                 else self.parse_feed(feed_content, source=slug))
@@ -1235,8 +1241,11 @@ class RSSParser:
                 suppressed_upstream_duplicates += 1
                 continue
             included_episode_ids.add(episode_id)
-            modified_url = episode_public_url(self._resolved_base_url(), slug,
-                                              episode_id, key=feed_auth_key)
+            modified_url = episode_public_url(
+                self._resolved_base_url(), slug, episode_id,
+                self._original_mode_version(processed_meta.get(episode_id),
+                                            unprocessed_playback),
+                key=feed_auth_key)
 
             description = append_chapters(self._get_episode_description(entry),
                                           (chapter_notes or {}).get(episode_id))
@@ -1320,7 +1329,8 @@ class RSSParser:
                 self._append_db_episode_item(lines, slug, ep, storage,
                                              feed_auth_key,
                                              chapter_notes=chapter_notes,
-                                             processed_title_marker=processed_title_marker)
+                                             processed_title_marker=processed_title_marker,
+                                             unprocessed_playback=unprocessed_playback)
                 appended_count += 1
 
         lines.append('</channel>')
@@ -1338,10 +1348,26 @@ class RSSParser:
         return modified_rss
 
     @staticmethod
+    def _original_mode_version(processed_ep, unprocessed_playback):
+        """URL version for a processed item in original mode, else None.
+
+        Version 0 renders without a suffix, which is the very URL the item had
+        while it was unprocessed, so the URL number is processed_version + 1.
+        The serve route falls back to the current cut for a number above the
+        stored version, so the URL always plays the latest published audio.
+        """
+        if unprocessed_playback != 'original' or not processed_ep:
+            return None
+        return int(processed_ep.get('processed_version') or 0) + 1
+
+    @staticmethod
     def apply_title_marker(title: str, marker: str | None) -> str:
         """Prefix `title` with `marker` unless off or already present."""
-        if not marker or (title or '').startswith(marker):
+        if not marker:
             return title
+        # Unconditional: the marker is render-time only and stored titles never
+        # carry it, so a title that happens to start with the marker text still
+        # gets marked.
         return f"{marker}{title or ''}"
 
     @staticmethod
@@ -1409,12 +1435,15 @@ class RSSParser:
 
     def _append_db_episode_item(self, lines: list, slug: str, ep: dict, storage,
                                 feed_auth_key=None, chapter_notes=None,
-                                processed_title_marker=None) -> None:
+                                processed_title_marker=None,
+                                unprocessed_playback=None) -> None:
         """Append a single <item> for a processed episode from the database."""
         ep_id = ep['episode_id']
-        modified_url = episode_public_url(self._resolved_base_url(), slug, ep_id,
-                                           ep.get('processed_version'),
-                                           key=feed_auth_key)
+        original_version = self._original_mode_version(ep, unprocessed_playback)
+        modified_url = episode_public_url(
+            self._resolved_base_url(), slug, ep_id,
+            original_version if original_version is not None else ep.get('processed_version'),
+            key=feed_auth_key)
         description = append_chapters(ep.get('description'), (chapter_notes or {}).get(ep_id))
         lines.append('<item>')
         db_title = self.apply_title_marker(ep.get("title") or "Unknown", processed_title_marker)

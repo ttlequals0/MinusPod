@@ -1297,7 +1297,8 @@ class EpisodeMixin:
                             "p.title_skip_patterns AS source_title_skip_patterns, "
                             "p.description_skip_patterns AS source_description_skip_patterns, "
                             "p.min_duration_seconds AS source_min_duration_seconds, "
-                            "p.max_duration_seconds AS source_max_duration_seconds")
+                            "p.max_duration_seconds AS source_max_duration_seconds, "
+                            "p.processed_title_marker AS source_processed_title_marker")
 
     def count_recent_processed_episodes(self, since: str, search: str = '') -> int:
         where = self._RECENTS_WHERE

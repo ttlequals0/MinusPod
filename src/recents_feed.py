@@ -2,7 +2,7 @@
 from a cross-feed membership query with every item under its source slug."""
 import logging
 
-from config import CHAPTERS_IN_NOTES_VALUES
+from config import CHAPTERS_IN_NOTES_VALUES, resolve_processed_title_marker
 from database.podcasts import RECENTS_SLUG, is_recents_feed, recents_cutoff
 from local_feed_builder import _append_channel_image, _channel_open, _append_local_episode_item, _channel_artwork_url
 from main_app import db, rss_parser, storage
@@ -36,8 +36,12 @@ def build_recents_feed_xml(podcast: dict, episodes: list[dict], *, storage, db) 
         list_chapters = override == 'on' if override in CHAPTERS_IN_NOTES_VALUES else chapters_default
         # Per-item map: episode ids are only unique within a feed.
         notes = {ep['episode_id']: ep['chapters_json']} if list_chapters else {}
+        # Every Recents item is processed, so the source feed's marker applies.
+        marker = resolve_processed_title_marker(
+            db, {'processed_title_marker': ep.get('source_processed_title_marker')}) or ''
         _append_local_episode_item(lines, ep['source_slug'], ep, base, storage, feed_auth_key,
-                                   chapter_notes=notes, title_prefix=f"{ep['source_title']}: ",
+                                   chapter_notes=notes,
+                                   title_prefix=f"{marker}{ep['source_title']}: ",
                                    has_transcript=bool(ep['has_transcript_vtt']),
                                    has_chapters=bool(ep['chapters_json']))
     lines += ['</channel>', '</rss>']

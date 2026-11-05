@@ -11,7 +11,7 @@ from api import (
     get_database,
 )
 from config import (
-    UNPROCESSED_PLAYBACK_VALUES, validate_processed_title_marker,
+    normalize_unprocessed_playback, validate_processed_title_marker,
     PRICING_OVERRIDE_OPTIONAL, PRICING_OVERRIDE_REQUIRED,
     ALLOWED_AUDIO_BITRATES, ALLOWED_AUDIO_ENCODER_COMPRESSION_LEVELS, AD_DETECTION_PARALLEL_WINDOWS_MIN,
     AD_DETECTION_PARALLEL_WINDOWS_MAX,
@@ -287,13 +287,12 @@ def _validate_processing_defaults_payload(data):
         return f'artworkBadgePosition must be one of: {", ".join(BADGE_POSITIONS)}', 400
     if 'lowAdYieldAction' in data and data['lowAdYieldAction'] not in LOW_AD_YIELD_ACTIONS:
         return f'lowAdYieldAction must be one of: {", ".join(LOW_AD_YIELD_ACTIONS)}', 400
-    if ('unprocessedPlayback' in data
-            and data['unprocessedPlayback'] not in UNPROCESSED_PLAYBACK_VALUES):
-        return f'unprocessedPlayback must be one of: {", ".join(UNPROCESSED_PLAYBACK_VALUES)}', 400
-    if 'processedTitleMarker' in data:
-        _, marker_err = validate_processed_title_marker(data['processedTitleMarker'])
-        if marker_err:
-            return marker_err, 400
+    for key, check in (('unprocessedPlayback', normalize_unprocessed_playback),
+                       ('processedTitleMarker', validate_processed_title_marker)):
+        if key in data:
+            _, err = check(data[key])
+            if err:
+                return err, 400
     if 'episodeLogRetentionDays' in data:
         days = data['episodeLogRetentionDays']
         if (not isinstance(days, int) or isinstance(days, bool)
@@ -716,25 +715,22 @@ def _apply_processing_flags(db, data):
                        is_default=False)
         logger.info(f"Updated low-ad-yield action to: {data['lowAdYieldAction']}")
 
+    # Both values were validated in _validate_processing_defaults_payload.
+    # They are rendered into the served RSS (marker text, enclosure URLs), so a
+    # change forces a full re-render instead of a 304-skip on the next refresh.
+    rss_changed = False
     if 'unprocessedPlayback' in data:
-        if data['unprocessedPlayback'] not in UNPROCESSED_PLAYBACK_VALUES:
-            return error_response(
-                f'unprocessedPlayback must be one of: {", ".join(UNPROCESSED_PLAYBACK_VALUES)}', 400)
+        rss_changed |= db.get_setting('unprocessed_playback') != data['unprocessedPlayback']
         db.set_setting('unprocessed_playback', data['unprocessedPlayback'],
                        is_default=False)
         logger.info(f"Updated unprocessed playback to: {data['unprocessedPlayback']}")
-
     if 'processedTitleMarker' in data:
-        marker, marker_err = validate_processed_title_marker(data['processedTitleMarker'])
-        if marker_err:
-            return error_response(marker_err, 400)
-        changed = (db.get_setting('processed_title_marker') or '') != marker
-        db.set_setting('processed_title_marker', marker, is_default=False)
-        if changed:
-            # The marker is rendered into the served RSS; force a full
-            # re-render instead of a 304-skip on the next refresh.
-            common.after_commit(db.clear_all_podcast_etags)
-        logger.info(f"Updated processed title marker to: {marker!r}")
+        rss_changed |= (db.get_setting('processed_title_marker') or '') != data['processedTitleMarker']
+        db.set_setting('processed_title_marker', data['processedTitleMarker'],
+                       is_default=False)
+        logger.info(f"Updated processed title marker to: {data['processedTitleMarker']!r}")
+    if rss_changed:
+        common.after_commit(db.clear_all_podcast_etags)
 
     if 'episodeLogRetentionDays' in data:
         days = data['episodeLogRetentionDays']

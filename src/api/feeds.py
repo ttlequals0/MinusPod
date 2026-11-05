@@ -45,7 +45,7 @@ from config import (
     PROCESSING_MODE_COLUMN_UPDATES,
     CUE_ONLY_SAFETY_VALUES,
     LOW_AD_YIELD_ACTIONS,
-    UNPROCESSED_PLAYBACK_VALUES,
+    normalize_unprocessed_playback,
     validate_processed_title_marker,
     EPISODE_LOGS_VALUES,
     cue_only_missing_roles_for_feed,
@@ -367,7 +367,9 @@ def _normalize_low_ad_yield_action(value):
 
 def _normalize_unprocessed_playback(value):
     """Per-feed unprocessedPlayback override; None clears it (inherit global)."""
-    return _normalize_override(value, UNPROCESSED_PLAYBACK_VALUES, 'unprocessedPlayback')
+    if value is None:
+        return None, None
+    return normalize_unprocessed_playback(value)
 
 
 def _normalize_processed_title_marker(value):
@@ -2495,7 +2497,8 @@ def update_feed(slug):
                 or 'explicit' in updates or 'categories' in updates
                 or 'p20_channel_json' in updates or 'description' in updates
                 or 'chapters_in_notes' in updates
-                or 'processed_title_marker' in updates):
+                or 'processed_title_marker' in updates
+                or 'unprocessed_playback' in updates):
             db.update_podcast_etag(slug, None, None)
             try:
                 from main_app.feeds import refresh_rss_feed

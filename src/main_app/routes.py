@@ -589,6 +589,32 @@ def register_routes(app):
             feed_logger.error(f"[{slug}] RSS feed not available")
             abort(503)
 
+    def _original_playback_response(slug, episode_id, episode, podcast, feed_map):
+        """Original-until-processed: play the upstream audio while the
+        processed cut is not published.
+
+        Returns None when the mode is off for this feed or the feed has no
+        upstream audio (local, YouTube, Recents). Otherwise never returns None
+        and never starts or waits on a processing run: HEAD proxies the
+        upstream headers, GET answers 302 to the upstream enclosure, and an
+        episode with no known upstream URL is 404. Retry bookkeeping for
+        FAILED episodes stays with the auto-process queue.
+        """
+        import main_app.routes as _routes
+        if (not has_upstream_audio(podcast)
+                or resolve_unprocessed_playback(db, podcast)
+                != UNPROCESSED_PLAYBACK_ORIGINAL):
+            return None
+        ep_data, _ = _routes._lookup_episode(
+            slug, episode_id, feed_map, episode_row=episode)
+        if not ep_data:
+            feed_logger.error(f"[{slug}:{episode_id}] Episode not found in RSS or database")
+            abort(404)
+        feed_logger.info(f"[{slug}:{episode_id}] Not published yet, serving original")
+        if request.method == 'HEAD':
+            return _routes._head_upstream(slug, episode_id, ep_data['url'])
+        return redirect(ep_data['url'], code=302)
+
     @app.route('/episodes/<slug>/<episode_id>.mp3')
     @app.route('/episodes/<slug>/<episode_id>-v<int:requested_version>.mp3')
     @validate_slug_and_episode_params
@@ -619,6 +645,11 @@ def register_routes(app):
 
         if status == EpisodeStatus.PROCESSED:
             if episode.get('approval_pending_at'):
+                original = _original_playback_response(
+                    slug, episode_id, episode,
+                    db.get_podcast_by_slug(slug), feed_map)
+                if original is not None:
+                    return original
                 return _awaiting_approval_response(slug, episode_id)
             file_path = _published_processed_path(
                 slug, episode_id, episode, requested_version)
@@ -641,17 +672,13 @@ def register_routes(app):
         podcast = db.get_podcast_by_slug(slug)
         serves_own_audio = not has_upstream_audio(podcast)
 
-        # Original-until-processed: an episode that is not processed yet plays
-        # from upstream; playback never starts (or waits on) a processing run.
-        if (not serves_own_audio and status != EpisodeStatus.PROCESSED
-                and resolve_unprocessed_playback(db, podcast)
-                == UNPROCESSED_PLAYBACK_ORIGINAL):
-            ep_data, _ = _routes._lookup_episode(
-                slug, episode_id, feed_map, episode_row=episode)
-            if ep_data:
-                feed_logger.info(
-                    f"[{slug}:{episode_id}] Not processed yet, serving original")
-                return redirect(ep_data['url'], code=302)
+        # Original-until-processed. Every non-published case reaches here with
+        # status != PROCESSED (a processed row whose file is missing was reset
+        # to None above), so no status guard is needed.
+        original = _original_playback_response(
+            slug, episode_id, episode, podcast, feed_map)
+        if original is not None:
+            return original
 
         if status == EpisodeStatus.PERMANENTLY_FAILED:
             ep_key = f"{slug}:{episode_id}"

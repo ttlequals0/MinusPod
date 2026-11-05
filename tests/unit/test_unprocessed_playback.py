@@ -115,3 +115,107 @@ def test_settings_api_roundtrip_and_validation():
         feed_ok = c.patch(f'/api/v1/feeds/{SLUG}', json={'unprocessedPlayback': 'process'})
         assert feed_ok.status_code == 200
         assert feed_ok.get_json()['unprocessedPlayback'] == 'process'
+
+
+def test_awaiting_approval_episode_redirects_in_original_mode():
+    db.set_setting('unprocessed_playback', 'original', is_default=False)
+    db.upsert_episode(SLUG, EPISODE_ID, original_url=EP['url'],
+                      title='Ep 1', status='processed')
+    with db.get_connection() as conn:
+        conn.execute("UPDATE episodes SET approval_pending_at='2026-11-05T10:00:00Z' "
+                     "WHERE episode_id=?", (EPISODE_ID,))
+    resp, start = _get()
+    assert resp.status_code == 302
+    assert resp.headers['Location'] == EP['url']
+    start.assert_not_called()
+
+
+def test_awaiting_approval_unchanged_in_process_mode():
+    db.upsert_episode(SLUG, EPISODE_ID, original_url=EP['url'],
+                      title='Ep 1', status='processed')
+    with db.get_connection() as conn:
+        conn.execute("UPDATE episodes SET approval_pending_at='2026-11-05T10:00:00Z' "
+                     "WHERE episode_id=?", (EPISODE_ID,))
+    resp, _ = _get()
+    assert resp.status_code == 503
+
+
+def test_processed_with_missing_file_redirects_in_original_mode():
+    db.set_setting('unprocessed_playback', 'original', is_default=False)
+    db.upsert_episode(SLUG, EPISODE_ID, original_url=EP['url'],
+                      title='Ep 1', status='processed')
+    with patch('main_app.routes._published_processed_path', return_value=None):
+        resp, start = _get()
+    assert resp.status_code == 302
+    start.assert_not_called()
+
+
+def test_unknown_episode_in_original_mode_is_404_and_never_processes():
+    db.set_setting('unprocessed_playback', 'original', is_default=False)
+    with patch('main_app.routes.get_feed_map', return_value=FEED_MAP), \
+         patch('main_app.routes._lookup_episode', return_value=(None, None)), \
+         patch('main_app.processing.start_background_processing') as start:
+        with app.test_client() as c:
+            resp = c.get(f'/episodes/{SLUG}/{EPISODE_ID}.mp3')
+    assert resp.status_code == 404
+    start.assert_not_called()
+
+
+def test_head_in_original_mode_proxies_upstream_headers():
+    db.set_setting('unprocessed_playback', 'original', is_default=False)
+    from flask import Response
+    with patch('main_app.routes.get_feed_map', return_value=FEED_MAP), \
+         patch('main_app.routes._lookup_episode', return_value=(EP, 'Show')), \
+         patch('main_app.routes._head_upstream',
+               return_value=Response(status=200)) as head, \
+         patch('main_app.processing.start_background_processing') as start:
+        with app.test_client() as c:
+            resp = c.head(f'/episodes/{SLUG}/{EPISODE_ID}.mp3')
+    assert resp.status_code == 200
+    head.assert_called_once_with(SLUG, EPISODE_ID, EP['url'])
+    start.assert_not_called()
+
+
+def test_failed_episode_redirects_without_touching_retry_state():
+    """Playback in original mode never bumps FAILED -> PERMANENTLY_FAILED;
+    retries stay with the auto-process queue."""
+    db.set_setting('unprocessed_playback', 'original', is_default=False)
+    db.upsert_episode(SLUG, EPISODE_ID, original_url=EP['url'], title='Ep 1',
+                      status='failed')
+    with db.get_connection() as conn:
+        conn.execute("UPDATE episodes SET retry_count=99 WHERE episode_id=?", (EPISODE_ID,))
+    resp, start = _get()
+    assert resp.status_code == 302
+    start.assert_not_called()
+    assert db.get_episode(SLUG, EPISODE_ID)['status'] == 'failed'
+
+
+def test_local_feed_ignores_original_mode():
+    slug = 'unproc-local'
+    db.create_podcast(slug, f'local://{slug}', 'Archive', feed_type='local')
+    db.set_setting('unprocessed_playback', 'original', is_default=False)
+    local_ep = {'url': f'local://{slug}', 'title': 'Ep 1', 'description': '',
+                'artwork_url': None, 'published': None}
+    feed_map = {slug: {'in': f'local://{slug}', 'out': slug}}
+    try:
+        with patch('main_app.routes.get_feed_map', return_value=feed_map), \
+             patch('main_app.routes._lookup_episode', return_value=(local_ep, 'Archive')), \
+             patch('main_app.processing.start_background_processing',
+                   return_value=(True, None)) as start:
+            with app.test_client() as c:
+                resp = c.get(f'/episodes/{slug}/{EPISODE_ID}.mp3')
+        assert resp.status_code == 503
+        start.assert_called_once()
+    finally:
+        db.delete_podcast(slug)
+
+
+def test_import_and_patch_treat_new_fields_as_rss_affecting():
+    from config_transfer import RSS_AFFECTING_FEED_FIELDS
+    assert {'processed_title_marker', 'unprocessed_playback'} <= RSS_AFFECTING_FEED_FIELDS
+    with patch('main_app.feeds.refresh_rss_feed') as refresh, \
+         app.test_client() as c:
+        for body in ({'unprocessedPlayback': 'original'}, {'processedTitleMarker': '[a] '}):
+            refresh.reset_mock()
+            assert c.patch(f'/api/v1/feeds/{SLUG}', json=body).status_code == 200
+            refresh.assert_called_once()

@@ -192,6 +192,19 @@ class ConfigTransferError(ValueError):
         self.status = status
 
 
+# Imported feed fields that change the served RSS body and so force a refresh.
+RSS_AFFECTING_FEED_FIELDS = {
+    'max_episodes', 'only_expose_processed_episodes', 'title_override',
+    'require_manual_approval',
+    'source_url', 'own_episode_guids', 'title_skip_patterns',
+    'description_skip_patterns',
+    'title_skip_action', 'min_duration_seconds', 'max_duration_seconds',
+    'title', 'author', 'explicit', 'categories',
+    'p20_channel_json', 'description', 'chapters_in_notes',
+    'processed_title_marker', 'unprocessed_playback',
+}
+
+
 def _setting_raw_value(db, key, raw_settings=None):
     raw_settings = raw_settings if raw_settings is not None else db.get_all_settings()
     raw_entry = raw_settings.get(key)
@@ -1305,15 +1318,7 @@ def apply_config(db, document, scope, selected_feeds, preview_token):
     added_feeds = []
     priority_changes = []
     refresh_slugs = set()
-    rss_fields = {
-        'max_episodes', 'only_expose_processed_episodes', 'title_override',
-        'require_manual_approval',
-        'source_url', 'own_episode_guids', 'title_skip_patterns',
-        'description_skip_patterns',
-        'title_skip_action', 'min_duration_seconds', 'max_duration_seconds',
-        'title', 'author', 'explicit', 'categories',
-        'p20_channel_json', 'description', 'chapters_in_notes',
-    }
+    rss_fields = RSS_AFFECTING_FEED_FIELDS
     with common.post_commit_scope() as _deferred:
         try:
             with db.settings_transaction() as conn:
