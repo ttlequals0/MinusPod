@@ -2684,7 +2684,19 @@ describe('Episode rating', () => {
       expect(screen.getByRole('button', { name: 'Undo' })).not.toBeNull();
     });
 
-    it('Undo clears the rating', async () => {
+    it('Undo restores the rating the episode had before the link', async () => {
+      const user = userEvent.setup();
+      const THREE = { rating: { value: 3, notes: 'missed one', ratedAt: '2026-10-31T11:00:00Z' }, confirmedMarkers: 0, dismissedMarkers: 0 };
+      mockRateEpisode.mockResolvedValueOnce(FIVE).mockResolvedValueOnce(THREE);
+      renderDetail(makeEpisode({ rating: { value: 3, notes: 'missed one', ratedAt: '2026-10-30T10:00:00Z' } }));
+      await user.click(await screen.findByRole('button', { name: 'Undo' }));
+      await waitFor(() => expect(mockRateEpisode).toHaveBeenLastCalledWith('test-feed', 'ep-1', 3, 'missed one'));
+      expect(await screen.findByText('Restored 3 stars')).not.toBeNull();
+      expect(mockClearRating).not.toHaveBeenCalled();
+      expect(screen.queryByRole('button', { name: 'Undo' })).toBeNull();
+    });
+
+    it('Undo clears the rating when there was none', async () => {
       const user = userEvent.setup();
       mockRateEpisode.mockResolvedValue(FIVE);
       renderDetail(makeEpisode({ rating: null }));

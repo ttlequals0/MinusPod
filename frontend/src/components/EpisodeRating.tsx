@@ -28,6 +28,8 @@ function EpisodeRating({ slug, episodeId, rating, requestedRating, onRequestedRa
   const rootRef = useRef<HTMLDivElement>(null);
   const requestHandled = useRef(false);
   const scrollToMessage = useRef(false);
+  // What the episode had before a feed link rated it, so Undo puts it back.
+  const priorRating = useRef<Rating | null>(null);
   const queryClient = useQueryClient();
   const [value, setValue] = useState<number>(rating?.value ?? 0);
   const [notes, setNotes] = useState(rating?.notes ?? '');
@@ -50,13 +52,16 @@ function EpisodeRating({ slug, episodeId, rating, requestedRating, onRequestedRa
   };
 
   const save = useMutation({
-    mutationFn: ({ count }: { count: number; viaLink?: boolean }) =>
-      rateEpisode(slug, episodeId, count, count < 5 ? notes.trim() || null : null),
+    mutationFn: ({ count, restoreNotes }: { count: number; viaLink?: boolean; restoreNotes?: string | null }) =>
+      rateEpisode(slug, episodeId, count, count < 5 ? (restoreNotes ?? (notes.trim() || null)) : null),
     onMutate: () => { setError(null); setMessage(null); },
-    onSuccess: (result, { count, viaLink }) => {
+    onSuccess: (result, { count, viaLink, restoreNotes }) => {
       setValue(count);
       if (count === 5) setNotes('');
-      if (viaLink) {
+      if (restoreNotes !== undefined) {
+        setNotes(restoreNotes ?? '');
+        setMessage(`Restored ${stars(count)}`);
+      } else if (viaLink) {
         setMessage(`Rated ${stars(count)} from the feed link`);
       } else {
         const { confirmedMarkers: confirmed, dismissedMarkers: dismissed } = result;
@@ -86,10 +91,13 @@ function EpisodeRating({ slug, episodeId, rating, requestedRating, onRequestedRa
   useEffect(() => {
     if (requestHandled.current || !validRequest(requestedRating)) return;
     requestHandled.current = true;
-    if (requestedRating !== rating?.value) save.mutate({ count: requestedRating, viaLink: true });
+    if (requestedRating !== rating?.value) {
+      priorRating.current = rating ?? null;
+      save.mutate({ count: requestedRating, viaLink: true });
+    }
     scrollToMessage.current = true;
     onRequestedRatingHandled?.();
-  }, [requestedRating, rating?.value, save, onRequestedRatingHandled]);
+  }, [requestedRating, rating, save, onRequestedRatingHandled]);
 
   // The confirmation renders below the stars, so scroll once it exists.
   useEffect(() => {
@@ -99,6 +107,11 @@ function EpisodeRating({ slug, episodeId, rating, requestedRating, onRequestedRa
   }, [message]);
 
   const undoable = save.isSuccess && !!save.variables?.viaLink && !clear.isSuccess && !clear.isPending;
+  const undo = () => {
+    const prior = priorRating.current;
+    if (prior?.value) save.mutate({ count: prior.value, restoreNotes: prior.notes ?? null });
+    else clear.mutate();
+  };
   const busy = save.isPending || clear.isPending;
   const dirty = value !== (rating?.value ?? 0) || (value < 5 && notes.trim() !== (rating?.notes ?? ''));
 
@@ -173,7 +186,7 @@ function EpisodeRating({ slug, episodeId, rating, requestedRating, onRequestedRa
       <div aria-live="polite" className="flex flex-wrap items-center gap-x-3 gap-y-1">
         {message && <p className="text-sm text-success">{message}</p>}
         {undoable && (
-          <button type="button" className={`${btnBase} ${btnSecondary}`} disabled={busy} onClick={() => clear.mutate()}>
+          <button type="button" className={`${btnBase} ${btnSecondary}`} disabled={busy} onClick={undo}>
             Undo
           </button>
         )}
