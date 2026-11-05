@@ -1986,3 +1986,34 @@ describe('FeedSettingsPanel require manual approval tri-state control', () => {
     expect(mockUpdateFeed).toHaveBeenLastCalledWith('test-feed', { requireManualApproval: false });
   });
 });
+
+describe('FeedSettingsPanel unprocessed playback help', () => {
+  const NAME = 'Unprocessed playback';
+  const helpText = () => screen.getByRole('combobox', { name: NAME }).parentElement!.querySelector('p')!.textContent ?? '';
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockUpdateFeed.mockResolvedValue(makeFeed());
+  });
+
+  it('use global names what the global value does', async () => {
+    mockGetSettings.mockResolvedValue({ unprocessedPlayback: { value: 'original' } });
+    renderPanel(makeFeed());
+    await waitFor(() => expect(helpText()).toContain('plays the original audio with ads until the ad-free version is ready'));
+    expect(helpText()).toContain('global');
+  });
+
+  it('use global with a processing global says a podcast app waits', async () => {
+    mockGetSettings.mockResolvedValue({ unprocessedPlayback: { value: 'process' } });
+    renderPanel(makeFeed());
+    await waitFor(() => expect(helpText()).toContain('waits while it is processed'));
+    expect(helpText()).not.toContain('plays the original audio');
+  });
+
+  it('an own override describes that option', () => {
+    mockGetSettings.mockResolvedValue({ unprocessedPlayback: { value: 'original' } });
+    renderPanel(makeFeed({ unprocessedPlayback: 'process' } as Partial<Feed>));
+    expect(helpText()).toContain('waits while it is processed');
+    expect(helpText()).not.toContain('plays the original audio');
+  });
+});

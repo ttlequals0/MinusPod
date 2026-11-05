@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import CollapsibleSection from '../../components/CollapsibleSection';
 import { LOW_AD_YIELD_ACTION_LABELS } from '../../utils/lowAdYield';
-import { UNPROCESSED_PLAYBACK_LABELS } from '../../utils/unprocessedPlayback';
+import { UNPROCESSED_PLAYBACK_HELP, UNPROCESSED_PLAYBACK_LABELS } from '../../utils/unprocessedPlayback';
 import { markerProblem } from '../../utils/processedTitleMarker';
 import type { EpisodeLogLevel, LowAdYieldAction, UnprocessedPlayback } from '../../api/types';
 import { AUTO_PROCESS_WINDOW, PROCESSED_TITLE_MARKER_MAX_LENGTH } from '../../api/types';
@@ -283,7 +283,7 @@ function GlobalDefaultsSection({
             ))}
           </select>
           <p id="unprocessedPlayback-help" className="mt-2 text-sm text-muted-foreground">
-            Play the original redirects to the upstream audio until the ad-free cut is ready and never starts a processing run on playback. Apps get a new enclosure URL once the episode is processed. Per-feed settings can override this.
+            {UNPROCESSED_PLAYBACK_HELP[unprocessedPlayback] ?? UNPROCESSED_PLAYBACK_HELP.process} Per-feed settings can override this.
           </p>
         </div>
 

@@ -30,7 +30,7 @@ import SavedBadge from '../settings/SavedBadge';
 import DraftNumberInput, { parseOptionalNumber } from '../../components/DraftNumberInput';
 import { inputBase, labelBase, selectBase } from '../../components/fieldStyles';
 import { LOW_AD_YIELD_ACTION_LABELS } from '../../utils/lowAdYield';
-import { UNPROCESSED_PLAYBACK_LABELS } from '../../utils/unprocessedPlayback';
+import { UNPROCESSED_PLAYBACK_HELP, UNPROCESSED_PLAYBACK_LABELS } from '../../utils/unprocessedPlayback';
 import { markerProblem } from '../../utils/processedTitleMarker';
 import { GlobalOverrideRow, rowLabel, rowLabelTop } from './OverrideRows';
 import { SkipPatternsField } from './SkipPatternsField';
@@ -1057,8 +1057,9 @@ function FeedSettingsPanel({ feed, slug, focusPlayback = false }: Props) {
                     ))}
                   </select>
                   <p className="text-xs text-muted-foreground">
-                    What playing an episode that is not processed yet does. Playing the original
-                    redirects to the upstream audio and never starts a processing run.
+                    {UNPROCESSED_PLAYBACK_HELP[feed.unprocessedPlayback ?? globalUnprocessedPlayback]
+                      ?? UNPROCESSED_PLAYBACK_HELP.process}
+                    {!feed.unprocessedPlayback && ' This follows the global setting.'}
                   </p>
                 </div>
               </div>

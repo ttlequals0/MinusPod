@@ -561,3 +561,16 @@ describe('GlobalDefaultsSection: marker length and deep link', () => {
     expect(localStorage.getItem('settings-section-global-defaults')).toBe('false');
   });
 });
+
+describe('GlobalDefaultsSection: playback help follows the selected option', () => {
+  it('describes what the selected option does', async () => {
+    render(<PlaybackHarness onCommit={() => {}} />);
+    const select = screen.getByLabelText('When an unprocessed episode is played');
+    const help = () => document.getElementById('unprocessedPlayback-help')!.textContent ?? '';
+    expect(help()).toContain('waits while it is processed');
+    expect(help()).not.toContain('plays the original audio');
+    await userEvent.setup().selectOptions(select, 'original');
+    expect(help()).toContain('plays the original audio with ads until the ad-free version is ready');
+    expect(help()).not.toContain('waits while it is processed');
+  });
+});
