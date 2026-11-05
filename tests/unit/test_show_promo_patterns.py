@@ -340,10 +340,10 @@ def test_a_show_promo_is_not_merged_with_a_neighbouring_non_show_promo_match():
                       category='interaction', show_promo=False)
     merged = matcher._merge_matches([promo, other])
     assert [(m.pattern_id, m.show_promo) for m in merged] == [(1, True), (2, False)]
+    # Nor with another show read: it would cut the talk between the two.
     twin = TextMatch(pattern_id=3, start=131.0, end=160.0, confidence=0.8,
                      category='interaction', show_promo=True)
-    both = matcher._merge_matches([promo, twin])
-    assert len(both) == 1 and both[0].show_promo is True
+    assert len(matcher._merge_matches([promo, twin])) == 2
 
 
 def test_the_flag_is_carried_from_the_match_onto_the_ad(temp_db):
@@ -857,7 +857,7 @@ def test_a_confirm_with_the_pattern_id_records_a_match_and_learns_nothing(temp_d
             if p['sponsor_id'] is None] == [pid]
 
 
-def test_two_adjacent_learned_reads_still_merge_into_one_cut(temp_db):
+def test_two_adjacent_learned_reads_are_two_cuts_each_bounded_to_its_read(temp_db):
     _seed(temp_db)
     words = ASK.split()
     ask_lines = [' '.join(words[i:i + 8]) for i in range(0, len(words), 8)]
@@ -870,25 +870,183 @@ def test_two_adjacent_learned_reads_still_merge_into_one_cut(temp_db):
     b, _ = _confirm(temp_db, ' '.join(ask_lines), 'interaction',
                     start=read_b[0]['start'], end=read_b[-1]['end'])
     assert a and b and a != b
-    hits = [m for m in TextPatternMatcher(db=temp_db).find_matches(
-        before + read_a + read_b + after, podcast_id=SLUG) if m.show_promo]
-    assert len(hits) == 1
+    hits = sorted((m for m in TextPatternMatcher(db=temp_db).find_matches(
+        before + read_a + read_b + after, podcast_id=SLUG) if m.show_promo),
+        key=lambda m: m.start)
+    assert [m.pattern_id for m in hits] == [a, b]
     assert hits[0].start == pytest.approx(read_a[0]['start'], abs=0.5)
-    assert hits[0].end == pytest.approx(read_b[-1]['end'], abs=0.5)
+    assert hits[0].end == pytest.approx(read_a[-1]['end'], abs=0.5)
+    assert hits[1].start == pytest.approx(read_b[0]['start'], abs=0.5)
+    assert hits[1].end == pytest.approx(read_b[-1]['end'], abs=0.5)
+
+
+def test_two_show_matches_a_few_seconds_apart_are_never_merged():
+    first = TextMatch(pattern_id=1, start=100.0, end=130.0, confidence=0.9,
+                      show_promo=True, category='interaction')
+    second = TextMatch(pattern_id=2, start=133.0, end=160.0, confidence=0.9,
+                       show_promo=True, category='interaction')
+    merged = TextPatternMatcher()._merge_matches([first, second])
+    assert [(m.start, m.end) for m in merged] == [(100.0, 130.0), (133.0, 160.0)]
+
+
+def _learned_read(db):
+    segments, read_start, read_end = _episode_with_read()
+    pid, _ = _confirm(db, READ_TEXT, 'interaction', start=read_start, end=read_end)
+    return pid, read_start, read_end
+
+
+def _match_from_windows(db, pid, segments, start, end):
+    """find_matches with the content windows replaced by one run start-end."""
+    matcher = TextPatternMatcher(db=db)
+    matcher._find_content_matches = lambda *a, **k: [TextMatch(
+        pattern_id=pid, start=start, end=end, confidence=0.9, match_type='content',
+        show_promo=True, category='interaction')]
+    return [m for m in matcher.find_matches(segments, podcast_id=SLUG) if m.pattern_id == pid]
+
+
+def test_an_opening_aligned_at_the_end_of_the_windows_never_leaves_a_sliver(temp_db):
+    _seed(temp_db)
+    pid, read_start, _ = _learned_read(temp_db)
+    segments, _, _ = _episode_with_read()
+    # The run ends inside the read's third line: its opening aligns 5.3 s
+    # before the run's end.
+    for hit in _match_from_windows(temp_db, pid, segments, 72.0, read_start + 5.3):
+        assert hit.end - hit.start >= 7.0
+
+
+def test_when_opening_and_closing_align_too_close_the_opening_is_kept(temp_db):
+    _seed(temp_db)
+    pid, _, _ = _learned_read(temp_db)
+    talk = _lines(_TALK_BEFORE, 70.0)
+    edges = _lines(_READ[:3] + _READ[-3:], 90.0, step=1.0)
+    segments = talk + edges + _lines(_TALK_AFTER, 97.0)
+    [hit] = _match_from_windows(temp_db, pid, segments, 72.0, 110.0)
+    assert hit.start == pytest.approx(90.0, abs=0.2)
+
+
+def test_an_estimated_end_keeps_only_the_aligned_opening_as_grounded_text(temp_db):
+    _seed(temp_db)
+    pid, read_start, read_end = _learned_read(temp_db)
+    changed = _READ[:-3] + ["Thanks, now on with the show and our guest."] * 3
+    segments, start, _ = _episode_with_read(changed)
+    [hit] = _show_matches(temp_db, segments, pid)
+    assert hit.span_estimated is True
+    assert hit.text_start == pytest.approx(hit.start)
+    # The opening phrase ends well inside the span: a precise detection can
+    # still tighten the guessed end (boundaries.tighten needs text_end < end - 1).
+    assert hit.text_end < hit.end - 1.0
+
+
+def test_edges_are_word_timed_when_the_segment_carries_words(temp_db):
+    """The read starts mid-segment after talk: its edge is the word, not the
+    segment start (without word timestamps it is the segment edge)."""
+    _seed(temp_db)
+    pid, _, _ = _learned_read(temp_db)
+    segments, read_start, _ = _episode_with_read()
+    k = len(_TALK_BEFORE)
+    talk, first = segments[k - 1], segments[k]
+    text = talk['text'] + ' ' + first['text']
+    tokens = text.split()
+    span = first['end'] - talk['start']
+    words = [{'word': w, 'start': round(talk['start'] + span * n / len(tokens), 3),
+              'end': round(talk['start'] + span * (n + 1) / len(tokens) - 0.01, 3)}
+             for n, w in enumerate(tokens)]
+    joined = {'start': talk['start'], 'end': first['end'], 'text': text, 'words': words}
+    segments = segments[:k - 1] + [joined] + segments[k + 1:]
+    guys = next(w for w in words if w['word'] == 'Guys,')
+    [hit] = _show_matches(temp_db, segments, pid)
+    assert hit.start == pytest.approx(guys['start'], abs=0.01)
+    assert hit.start > talk['start'] + 1.0
+
+
+def test_an_unpunctuated_template_gives_capped_edge_phrases():
+    from text_pattern_matcher import AdPattern, SHOW_PROMO_EDGE_PHRASE_WORDS
+    words = READ_TEXT.replace('.', '').replace(',', '').split()
+    pattern = AdPattern(id=1, text_template=' '.join(words * 2), intro_variants=[],
+                        outro_variants=[], sponsor=None, scope='podcast',
+                        podcast_id=SLUG, network_id=None, created_by='show_promo',
+                        category='interaction')
+    intro, outro = TextPatternMatcher._boundary_variants(pattern)
+    assert len(intro[0].split()) == SHOW_PROMO_EDGE_PHRASE_WORDS
+    assert len(outro[0].split()) == SHOW_PROMO_EDGE_PHRASE_WORDS
+    assert intro[0].split() == words[:SHOW_PROMO_EDGE_PHRASE_WORDS]
+    assert outro[0].split() == words[-SHOW_PROMO_EDGE_PHRASE_WORDS:]
+
+
+def _show_pattern_ids(db):
+    return sorted(p['id'] for p in db.get_ad_patterns(active_only=False)
+                  if p['sponsor_id'] is None)
+
+
+def test_a_learned_ask_inside_a_confirmed_promo_of_another_category_does_not_absorb_it(temp_db):
+    _seed(temp_db)
+    pid, read_start, read_end = _learned_read(temp_db)
+    promo = ' '.join(_READ + _TALK_AFTER[:4])
+    new, _ = _confirm(temp_db, promo, 'cross_promo', start=read_start, end=read_end + 12)
+    assert new and new != pid
+
+
+def test_a_short_learned_ask_inside_a_long_confirmed_read_does_not_absorb_it(temp_db):
+    _seed(temp_db)
+    pid, _ = _confirm(temp_db, ' '.join(_READ[:8]), 'interaction', start=90.0, end=111.0)
+    longer = ' '.join(_READ[:8] + _TALK_AFTER + _TALK_BEFORE)
+    new, _ = _confirm(temp_db, longer, 'interaction', start=90.0, end=150.0)
+    assert pid and new and new != pid
+
+
+def test_the_best_contained_read_is_credited(temp_db):
+    _seed(temp_db)
+    near = (READ_TEXT.replace('favor', 'favour').replace('algorithm', 'algorithms')
+            .replace('hugely', 'really').replace('grateful', 'thankful'))
+    worse = temp_db.create_ad_pattern(
+        scope='podcast', text_template=near, intro_variants=[], outro_variants=[],
+        podcast_id=SLUG, duration=36.0, created_by='show_promo', category='interaction')
+    best = temp_db.create_ad_pattern(
+        scope='podcast', text_template=READ_TEXT, intro_variants=[], outro_variants=[],
+        podcast_id=SLUG, duration=36.0, created_by='show_promo', category='interaction')
+    wider = ' '.join(_TALK_BEFORE[-1:] + _READ + _TALK_AFTER[:2])
+    got, _ = _confirm(temp_db, wider, 'interaction', start=85.0, end=130.0)
+    assert worse < best and got == best
+
+
+def test_learning_a_show_read_reads_the_show_patterns_once(temp_db, monkeypatch):
+    _seed(temp_db)
+    calls = []
+    real = temp_db.get_ad_patterns
+
+    def spy(*a, **k):
+        if k.get('podcast_id') == SLUG:
+            calls.append(k)
+        return real(*a, **k)
+
+    monkeypatch.setattr(temp_db, 'get_ad_patterns', spy)
+    TextPatternMatcher(db=temp_db).create_show_promo_pattern_from_ad(
+        segments=[], start=88.0, end=124.0, category='interaction',
+        podcast_id=SLUG, episode_id=EPISODE_ID, ad_text=READ_TEXT)
+    assert len(calls) == 1
+
+
+def test_a_failed_pattern_read_is_logged_and_the_read_still_learned(temp_db, monkeypatch, caplog):
+    _seed(temp_db)
+    real = temp_db.get_ad_patterns
+
+    def failing(*a, **k):
+        if k.get('podcast_id') == SLUG:
+            raise RuntimeError('db locked')
+        return real(*a, **k)
+
+    monkeypatch.setattr(temp_db, 'get_ad_patterns', failing)
+    with caplog.at_level(logging.WARNING):
+        pid = TextPatternMatcher(db=temp_db).create_show_promo_pattern_from_ad(
+            segments=[], start=88.0, end=124.0, category='interaction',
+            podcast_id=SLUG, episode_id=EPISODE_ID, ad_text=READ_TEXT)
+    assert pid
+    assert 'db locked' in caplog.text
 
 
 def test_an_over_long_span_with_neither_end_of_the_read_aligned_is_not_cut(temp_db):
     _seed(temp_db)
-    _, read_start, read_end = _episode_with_read()
-    pid, _ = _confirm(temp_db, READ_TEXT, 'interaction', start=read_start, end=read_end)
-    matcher = TextPatternMatcher(db=temp_db)
-    matcher._ensure_initialized()
-    matcher._load_patterns()
-    [pattern] = [p for p in matcher._patterns if p.id == pid]
-    middle = _READ[3:11]
-    segments = _lines(_TALK_BEFORE, 70.0) + _lines(middle, 90.0) + _lines(_TALK_AFTER, 112.0)
-    full_text, segment_map = matcher._concat_segments(segments)
-    run = TextMatch(pattern_id=pid, start=72.0, end=128.0, confidence=0.8,
-                    show_promo=True, category='interaction')
-    assert matcher._align_show_read(
-        run, pattern, full_text.lower(), segments, segment_map) is None
+    pid, _, _ = _learned_read(temp_db)
+    segments = (_lines(_TALK_BEFORE, 70.0) + _lines(_READ[3:11], 90.0)
+                + _lines(_TALK_AFTER, 112.0))
+    assert _match_from_windows(temp_db, pid, segments, 72.0, 128.0) == []

@@ -23,8 +23,11 @@ release notes.
   the show where it used to read (Unknown), and these patterns no longer
   count toward Unknown sponsor or the community export. A match cuts the
   learned read, from where its opening sentence aligns to where its closing
-  sentence does, and not the talk around it; confirming a span that holds a
-  learned read credits that read instead of learning a longer one.
+  sentence does (to the word when the transcript has word timestamps,
+  otherwise to the transcript segment), capped near the read's learned
+  length, and two learned reads are never merged across the talk between
+  them; confirming a span that is mostly a learned read of the same category
+  credits that read instead of learning a longer one.
 
 ## [2.101.19] - 2026-11-04
 
