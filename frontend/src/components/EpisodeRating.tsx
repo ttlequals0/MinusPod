@@ -31,7 +31,9 @@ function EpisodeRating({ slug, episodeId, rating, requestedRating, onRequestedRa
   const queryClient = useQueryClient();
   const [value, setValue] = useState<number>(rating?.value ?? 0);
   const [notes, setNotes] = useState(rating?.notes ?? '');
-  const [message, setMessage] = useState<string | null>(null);
+  // A link asking for the rating already stored needs no request, only the notice.
+  const [message, setMessage] = useState<string | null>(() =>
+    validRequest(requestedRating) && requestedRating === rating?.value ? `Already rated ${stars(requestedRating)}` : null);
   const [error, setError] = useState<string | null>(null);
   const [syncedAt, setSyncedAt] = useState(rating?.ratedAt ?? null);
 
@@ -84,10 +86,7 @@ function EpisodeRating({ slug, episodeId, rating, requestedRating, onRequestedRa
   useEffect(() => {
     if (requestHandled.current || !validRequest(requestedRating)) return;
     requestHandled.current = true;
-    // One-shot link handling; the message depends on the rating at mount.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    if (requestedRating === rating?.value) setMessage(`Already rated ${stars(requestedRating)}`);
-    else save.mutate({ count: requestedRating, viaLink: true });
+    if (requestedRating !== rating?.value) save.mutate({ count: requestedRating, viaLink: true });
     scrollToMessage.current = true;
     onRequestedRatingHandled?.();
   }, [requestedRating, rating?.value, save, onRequestedRatingHandled]);

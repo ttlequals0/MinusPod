@@ -1182,6 +1182,7 @@ def _resolve_feed_toggle(db, podcast_row, column, setting, default) -> bool:
     override = (podcast_row or {}).get(column)
     if override in EPISODE_LOGS_VALUES:
         return resolve_toggle(override, default)
+    # The global read is deferred so an override never costs a settings query.
     return db.get_setting_bool(setting, default)
 
 
