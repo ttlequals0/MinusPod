@@ -212,7 +212,7 @@ def test_original_mode_versioned_url_is_served(feed):
 def test_recents_feed_applies_per_feed_marker(feed):
     import recents_feed
     db.set_setting('processed_title_marker', '[g] ', is_default=False)
-    ep = {'episode_id': 'r1', 'title': 'T', 'source_slug': SLUG, 'source_title': 'Show',
+    ep = {'episode_id': 'r1', 'podcast_id': 0, 'title': 'T', 'source_slug': SLUG, 'source_title': 'Show',
           'source_processed_title_marker': None, 'source_chapters_in_notes': None,
           'chapters_json': None, 'has_transcript_vtt': 0}
     captured = []
@@ -274,59 +274,3 @@ def test_unchanged_global_value_does_not_rebuild(feed):
         rebuild.assert_not_called()
         c.put('/api/v1/settings/ad-detection', json={'processedTitleMarker': '[b] '})
         rebuild.assert_called_once()
-
-
-def test_passthrough_and_skip_detection_feeds_are_not_marked(feed):
-    parser = RSSParser()
-    _processed_alpha(parser)
-    import main_app.feeds as feeds
-    saved = {}
-    from unittest.mock import patch
-    db.set_setting('processed_title_marker', '[a] ', is_default=False)
-    with patch.object(feeds.storage, 'save_rss', lambda s, r: saved.update(rss=r)):
-        for column, expected in ((None, ['[a] Alpha', 'Beta']),
-                                 ('passthrough_enabled', ['Alpha', 'Beta']),
-                                 ('skip_ad_detection', ['Alpha', 'Beta'])):
-            db.update_podcast(SLUG, passthrough_enabled=0, skip_ad_detection=0)
-            if column:
-                db.update_podcast(SLUG, **{column: 1})
-            feeds._build_and_save_served_rss(
-                SLUG, UP, parser.parse_feed(UP, source=SLUG), db.get_podcast_by_slug(SLUG))
-            assert _titles(saved['rss'])[0] == expected, column
-
-
-def test_episode_level_passthrough_override_is_not_marked():
-    parser = RSSParser()
-    feed = parser.parse_feed(UP, source=SLUG)
-    eid = parser.generate_episode_id(feed.entries[0].enclosures[0]['href'], feed.entries[0].get('id'))
-    extra = [{'episode_id': eid, 'processed_size_bytes': 5, 'new_duration': 10,
-              'passthrough_enabled': 1}]
-    rss = parser.modify_feed(UP, SLUG, storage=MagicMock(has_artwork=lambda s: False),
-                             extra_episodes=extra, processed_title_marker='[a] ')
-    assert _titles(rss)[0] == ['Alpha', 'Beta']
-    lines = []
-    parser._append_db_episode_item(lines, SLUG, {'episode_id': 'x', 'title': 'Old',
-                                                 'passthrough_enabled': 1},
-                                   MagicMock(), processed_title_marker='[a] ')
-    assert '<title>Old</title>' in '\n'.join(lines)
-
-
-def test_recents_skips_marker_for_passthrough_sources(feed):
-    import recents_feed
-    from unittest.mock import patch
-    db.set_setting('processed_title_marker', '[g] ', is_default=False)
-    base = {'episode_id': 'r1', 'title': 'T', 'source_slug': SLUG, 'source_title': 'Show',
-            'source_processed_title_marker': None, 'source_chapters_in_notes': None,
-            'chapters_json': None, 'has_transcript_vtt': 0}
-    captured = []
-    for extra, expected in (({}, '[g] Show: '),
-                            ({'source_passthrough_enabled': 1}, 'Show: '),
-                            ({'source_skip_ad_detection': 1}, 'Show: '),
-                            ({'passthrough_enabled': 1}, 'Show: ')):
-        captured.clear()
-        with patch.object(recents_feed, '_append_local_episode_item',
-                          lambda lines, slug, ep, base_, st, k, **kw: captured.append(kw['title_prefix'])):
-            recents_feed.build_recents_feed_xml(
-                {'title': 'Recents', 'description': ''}, [{**base, **extra}],
-                storage=MagicMock(has_artwork=lambda s: False), db=db)
-        assert captured == [expected], extra

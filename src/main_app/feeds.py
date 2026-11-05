@@ -10,7 +10,6 @@ from datetime import datetime, timedelta, timezone
 from config import (
     resolve_unprocessed_playback,
     resolve_processed_title_marker,
-    processed_marker_applies,
     FEED_REFRESH_FAILURE_ALERT_THRESHOLD,
     FEED_REFRESH_FAILURE_COUNT_INTERVAL,
     FEED_REFRESH_OUTAGE_FRACTION,
@@ -850,6 +849,11 @@ def _build_and_save_served_rss(slug, feed_content, parsed_feed, podcast):
     """
     feed_cap = db.get_max_episodes_for_podcast(slug, podcast=podcast)
     extra_episodes = db.get_processed_episodes_for_feed(podcast['id'])
+    # The marker means the published cut came out of a run with ad detection
+    # on; decided per episode from the run record, not the feed's current mode.
+    unmodified = db.get_unmodified_episode_ids([podcast['id']])
+    for ep in extra_episodes:
+        ep['ad_removal_skipped'] = (podcast['id'], ep['episode_id']) in unmodified
     # Backfill the enclosure length for rows finalized before the
     # processed_size_bytes column existed; a one-time stat per episode.
     for ep in extra_episodes:
@@ -888,8 +892,7 @@ def _build_and_save_served_rss(slug, feed_content, parsed_feed, podcast):
                                           hide_min_duration_seconds=hide_filters.get('min_duration_seconds'),
                                           hide_max_duration_seconds=hide_filters.get('max_duration_seconds'),
                                           chapter_notes=chapter_notes,
-                                          processed_title_marker=(resolve_processed_title_marker(db, podcast)
-                                                  if processed_marker_applies(podcast) else ''),
+                                          processed_title_marker=resolve_processed_title_marker(db, podcast),
                                           unprocessed_playback=resolve_unprocessed_playback(db, podcast))
     storage.save_rss(slug, modified_rss)
     db.update_podcast(slug, last_checked_at=utc_now_iso())

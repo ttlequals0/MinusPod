@@ -202,7 +202,6 @@ RSS_AFFECTING_FEED_FIELDS = {
     'title', 'author', 'explicit', 'categories',
     'p20_channel_json', 'description', 'chapters_in_notes',
     'processed_title_marker', 'unprocessed_playback',
-    'passthrough_enabled', 'skip_ad_detection',
 }
 
 

@@ -2,7 +2,7 @@
 from a cross-feed membership query with every item under its source slug."""
 import logging
 
-from config import CHAPTERS_IN_NOTES_VALUES, processed_marker_applies, resolve_processed_title_marker
+from config import CHAPTERS_IN_NOTES_VALUES, resolve_processed_title_marker
 from database.podcasts import RECENTS_SLUG, is_recents_feed, recents_cutoff
 from local_feed_builder import _append_channel_image, _channel_open, _append_local_episode_item, _channel_artwork_url
 from main_app import db, rss_parser, storage
@@ -30,6 +30,7 @@ def build_recents_feed_xml(podcast: dict, episodes: list[dict], *, storage, db) 
     lines.append('<podcast:medium>podcast</podcast:medium>')
     lines.append('<podcast:txt purpose="ai-content">true</podcast:txt>')
 
+    unmodified = db.get_unmodified_episode_ids(sorted({ep['podcast_id'] for ep in episodes}))
     for ep in episodes:
         # Same per-feed override the source feed's own RSS honours.
         override = ep.get('source_chapters_in_notes')
@@ -39,9 +40,7 @@ def build_recents_feed_xml(podcast: dict, episodes: list[dict], *, storage, db) 
         # Every Recents item is processed, so the source feed's marker applies.
         marker = resolve_processed_title_marker(
             db, {'processed_title_marker': ep.get('source_processed_title_marker')}) or ''
-        if not processed_marker_applies(
-                {'passthrough_enabled': ep.get('source_passthrough_enabled'),
-                 'skip_ad_detection': ep.get('source_skip_ad_detection')}, ep):
+        if (ep['podcast_id'], ep['episode_id']) in unmodified:
             marker = ''
         _append_local_episode_item(lines, ep['source_slug'], ep, base, storage, feed_auth_key,
                                    chapter_notes=notes,

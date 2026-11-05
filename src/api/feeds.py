@@ -2498,7 +2498,6 @@ def update_feed(slug):
                 or 'p20_channel_json' in updates or 'description' in updates
                 or 'chapters_in_notes' in updates
                 or 'processed_title_marker' in updates
-                or 'passthrough_enabled' in updates or 'skip_ad_detection' in updates
                 or 'unprocessed_playback' in updates):
             db.update_podcast_etag(slug, None, None)
             try:

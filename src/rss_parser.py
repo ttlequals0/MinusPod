@@ -1252,7 +1252,7 @@ class RSSParser:
             lines.append('<item>')
             item_title = entry.get("title", "")
             processed_ep = processed_meta.get(episode_id)
-            if processed_ep is not None and not processed_ep.get('passthrough_enabled'):
+            if processed_ep is not None and not processed_ep.get('ad_removal_skipped'):
                 item_title = self.apply_title_marker(item_title, processed_title_marker)
             lines.append(f'  <title>{self._escape_xml(item_title)}</title>')
             lines.append(f'  <description><![CDATA[{self._escape_cdata(description)}]]></description>')
@@ -1448,7 +1448,7 @@ class RSSParser:
         description = append_chapters(ep.get('description'), (chapter_notes or {}).get(ep_id))
         lines.append('<item>')
         db_title = ep.get("title") or "Unknown"
-        if not ep.get('passthrough_enabled'):
+        if not ep.get('ad_removal_skipped'):
             db_title = self.apply_title_marker(db_title, processed_title_marker)
         lines.append(f'  <title>{self._escape_xml(db_title)}</title>')
         if description:
