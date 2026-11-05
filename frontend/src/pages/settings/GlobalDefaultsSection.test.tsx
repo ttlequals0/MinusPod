@@ -54,6 +54,8 @@ function Harness({ onCommit, overrides }: {
         onMaxFeedEpisodesChange={() => {}}
         onlyExposeProcessedDefault={false}
         onOnlyExposeProcessedDefaultChange={() => {}}
+        feedItunesBlock={true}
+        onFeedItunesBlockChange={() => {}}
         requireManualApprovalDefault={false}
         onRequireManualApprovalDefaultChange={() => {}}
         lowAdYieldAction="nothing"
@@ -96,6 +98,8 @@ function PodpingHarness({ onCommit }: { onCommit: (payload: PodpingState) => voi
         onMaxFeedEpisodesChange={() => {}}
         onlyExposeProcessedDefault={false}
         onOnlyExposeProcessedDefaultChange={() => {}}
+        feedItunesBlock={true}
+        onFeedItunesBlockChange={() => {}}
         requireManualApprovalDefault={false}
         onRequireManualApprovalDefaultChange={() => {}}
         lowAdYieldAction="nothing"
@@ -234,6 +238,8 @@ function LowAdYieldHarness({ onCommit }: { onCommit: (payload: LowAdYieldState) 
         onMaxFeedEpisodesChange={() => {}}
         onlyExposeProcessedDefault={false}
         onOnlyExposeProcessedDefaultChange={() => {}}
+        feedItunesBlock={true}
+        onFeedItunesBlockChange={() => {}}
         requireManualApprovalDefault={false}
         onRequireManualApprovalDefaultChange={() => {}}
         lowAdYieldAction={lowAdYieldAction}
@@ -303,6 +309,8 @@ function EpisodeLogHarness({ onCommit }: { onCommit: (payload: EpisodeLogState) 
         onMaxFeedEpisodesChange={() => {}}
         onlyExposeProcessedDefault={false}
         onOnlyExposeProcessedDefaultChange={() => {}}
+        feedItunesBlock={true}
+        onFeedItunesBlockChange={() => {}}
         requireManualApprovalDefault={false}
         onRequireManualApprovalDefaultChange={() => {}}
         lowAdYieldAction="nothing"
@@ -375,6 +383,8 @@ function TextRecurrenceHintsHarness({ onCommit }: { onCommit: (payload: TextRecu
         onMaxFeedEpisodesChange={() => {}}
         onlyExposeProcessedDefault={false}
         onOnlyExposeProcessedDefaultChange={() => {}}
+        feedItunesBlock={true}
+        onFeedItunesBlockChange={() => {}}
         requireManualApprovalDefault={false}
         onRequireManualApprovalDefaultChange={() => {}}
         lowAdYieldAction="nothing"
@@ -423,5 +433,17 @@ describe('GlobalDefaultsSection: Require manual approval toggle', () => {
     await userEvent.setup().click(toggle);
     expect(onChange).toHaveBeenCalledWith(true);
     expect(screen.getByText(/Episode review tab/)).toBeTruthy();
+  });
+});
+
+describe('GlobalDefaultsSection: Mark served feeds private toggle', () => {
+  it('reflects the prop and reports changes', async () => {
+    const onChange = vi.fn();
+    render(<Harness onCommit={() => {}} overrides={{ feedItunesBlock: true, onFeedItunesBlockChange: onChange }} />);
+    const toggle = screen.getByRole('switch', { name: 'Mark served feeds private' });
+    expect(toggle.getAttribute('aria-checked')).toBe('true');
+    await userEvent.setup().click(toggle);
+    expect(onChange).toHaveBeenCalledWith(false);
+    expect(screen.getByText(/removed and added again/)).toBeTruthy();
   });
 });

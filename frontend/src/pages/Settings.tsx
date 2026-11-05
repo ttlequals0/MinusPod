@@ -228,6 +228,7 @@ function Settings() {
   const [podpingEnabled, setPodpingEnabled] = useState(false);
   const [rssRefreshIntervalMinutes, setRssRefreshIntervalMinutes] = useState(15);
   const [onlyExposeProcessedDefault, setOnlyExposeProcessedDefault] = useState(false);
+  const [feedItunesBlock, setFeedItunesBlock] = useState(true);
   const [requireManualApprovalDefault, setRequireManualApprovalDefault] = useState(false);
   const [whatsNewOnUpgrade, setWhatsNewOnUpgrade] = useState(true);
   const [artworkWatermarkEnabled, setArtworkWatermarkEnabled] = useState(false);
@@ -901,6 +902,7 @@ function Settings() {
     { key: 'autoProcessEnabled', kind: 'val', useDefault: true, value: autoProcessEnabled, set: setAutoProcessEnabled },
     { key: 'autoProcessMaxAgeHours', kind: 'val', useDefault: true, literal: AUTO_PROCESS_WINDOW.default, value: autoProcessMaxAgeHours, set: setAutoProcessMaxAgeHours },
     { key: 'onlyExposeProcessedDefault', kind: 'val', useDefault: true, value: onlyExposeProcessedDefault, set: setOnlyExposeProcessedDefault },
+    { key: 'feedItunesBlock', kind: 'val', useDefault: true, value: feedItunesBlock, set: setFeedItunesBlock },
     { key: 'requireManualApprovalDefault', kind: 'val', literal: false, value: requireManualApprovalDefault, set: setRequireManualApprovalDefault },
     { key: 'whatsNewOnUpgrade', kind: 'val', literal: true, value: whatsNewOnUpgrade, set: setWhatsNewOnUpgrade },
     { key: 'artworkWatermarkEnabled', kind: 'val', useDefault: true, value: artworkWatermarkEnabled, set: setArtworkWatermarkEnabled },
@@ -1352,6 +1354,8 @@ function Settings() {
         onMaxFeedEpisodesChange={setMaxFeedEpisodes}
         onlyExposeProcessedDefault={onlyExposeProcessedDefault}
         onOnlyExposeProcessedDefaultChange={setOnlyExposeProcessedDefault}
+        feedItunesBlock={feedItunesBlock}
+        onFeedItunesBlockChange={setFeedItunesBlock}
         requireManualApprovalDefault={requireManualApprovalDefault}
         onRequireManualApprovalDefaultChange={setRequireManualApprovalDefault}
         lowAdYieldAction={lowAdYieldAction}

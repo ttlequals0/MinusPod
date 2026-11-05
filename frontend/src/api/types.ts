@@ -930,6 +930,7 @@ export interface Settings {
   queueBulkBoost: SettingValueNumber;
   segmentCategoryActions: { value: Record<SegmentCategory, SegmentAction>; isDefault: boolean };
   onlyExposeProcessedDefault: SettingValueBoolean;
+  feedItunesBlock: SettingValueBoolean;
   requireManualApprovalDefault?: SettingValueBoolean;
   whatsNewOnUpgrade?: SettingValueBoolean;
   detectShowSegments: SettingValueBoolean;
@@ -1275,6 +1276,7 @@ export interface UpdateSettingsPayload {
   // PATCH, which replaces the stored map outright).
   segmentCategoryActions?: Partial<Record<SegmentCategory, SegmentAction>>;
   onlyExposeProcessedDefault?: boolean;
+  feedItunesBlock?: boolean;
   requireManualApprovalDefault?: boolean;
   whatsNewOnUpgrade?: boolean;
   detectShowSegments?: boolean;
