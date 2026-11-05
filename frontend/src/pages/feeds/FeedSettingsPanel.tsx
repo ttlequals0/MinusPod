@@ -4,8 +4,8 @@ import { getNetworks, updateFeed, UpdateFeedPayload, CUE_SCORE_MIN, CUE_SCORE_MA
 import { listCueTemplates } from '../../api/cueTemplates';
 import { getSettings, getAudioSettings } from '../../api/settings';
 import { getErrorMessage } from '../../api/client';
-import type { Feed, LowAdYieldAction, EpisodeLogsOverride } from '../../api/types';
-import { AUTO_PROCESS_WINDOW } from '../../api/types';
+import type { Feed, LowAdYieldAction, UnprocessedPlayback, EpisodeLogsOverride } from '../../api/types';
+import { AUTO_PROCESS_WINDOW, PROCESSED_TITLE_MARKER_MAX_LENGTH } from '../../api/types';
 import CollapsibleSection, { useCollapsibleOpen } from '../../components/CollapsibleSection';
 import CopyButton from '../../components/CopyButton';
 import SubscriberKeysPanel from '../../components/SubscriberKeysPanel';
@@ -30,6 +30,7 @@ import SavedBadge from '../settings/SavedBadge';
 import DraftNumberInput, { parseOptionalNumber } from '../../components/DraftNumberInput';
 import { inputBase, labelBase, selectBase } from '../../components/fieldStyles';
 import { LOW_AD_YIELD_ACTION_LABELS } from '../../utils/lowAdYield';
+import { UNPROCESSED_PLAYBACK_LABELS } from '../../utils/unprocessedPlayback';
 import { GlobalOverrideRow, rowLabel, rowLabelTop } from './OverrideRows';
 import { SkipPatternsField } from './SkipPatternsField';
 import { UserAgentOverrideField } from './UserAgentOverrideField';
@@ -197,6 +198,11 @@ function FeedSettingsPanel({ feed, slug }: Props) {
 
   const globalLowAdYieldAction =
     (settings?.lowAdYieldAction?.value as LowAdYieldAction | undefined) ?? 'nothing';
+  const globalUnprocessedPlayback =
+    (settings?.unprocessedPlayback?.value as UnprocessedPlayback | undefined) ?? 'process';
+  const globalUnprocessedPlaybackLabel = UNPROCESSED_PLAYBACK_LABELS[globalUnprocessedPlayback]
+    ?? UNPROCESSED_PLAYBACK_LABELS.process;
+  const globalMarker = (settings?.processedTitleMarker?.value as string | undefined) ?? '';
   const globalLowAdYieldLabel = LOW_AD_YIELD_ACTION_LABELS[globalLowAdYieldAction]
     ?? LOW_AD_YIELD_ACTION_LABELS.nothing;
 
@@ -254,6 +260,10 @@ function FeedSettingsPanel({ feed, slug }: Props) {
   // Retention days edits stay local until blur. Committing per keystroke
   // would PATCH every intermediate digit (typing 365 sends 3, then 36) and
   // retention is the one field where an intermediate value deletes audio.
+  // Per-feed processed-title marker: null inherits, '' is off, text is custom.
+  // 'Custom' is held locally until a non-blank marker is committed.
+  const markerField = useDraftField(feed, (f) => f.processedTitleMarker ?? '');
+  const [markerCustomPending, setMarkerCustomPending] = useState(false);
   const trimPatternField = useDraftField(feed, (f) => f.descriptionTrimPattern ?? '', (v) => v.trim());
   const retentionDaysField = useDraftField(feed, (f) =>
     f.retentionDaysOverride != null && f.retentionDaysOverride > 0 ? String(f.retentionDaysOverride) : '');
@@ -429,6 +439,26 @@ function FeedSettingsPanel({ feed, slug }: Props) {
       draftField.markClean(serverValue != null ? String(serverValue) : '');
     }
   }
+
+  const markerMode = feed.processedTitleMarker == null
+    ? (markerCustomPending ? 'custom' : 'global')
+    : (feed.processedTitleMarker === '' && !markerCustomPending ? 'off' : 'custom');
+  const changeMarkerMode = (mode: string) => {
+    setMarkerCustomPending(mode === 'custom');
+    if (mode === 'global') updateMutation.mutate({ processedTitleMarker: null });
+    else if (mode === 'off') updateMutation.mutate({ processedTitleMarker: '' });
+  };
+  const commitMarker = () => {
+    const next = markerField.value;
+    if (next.trim() === '') {
+      markerField.markClean(feed.processedTitleMarker ?? '');
+      return;
+    }
+    if (next !== feed.processedTitleMarker) {
+      updateMutation.mutate({ processedTitleMarker: next });
+    }
+    markerField.markClean(next);
+  };
 
   const commitTrimPattern = () => {
     const next = trimPatternField.value.trim();
@@ -967,6 +997,70 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                   <p className="text-xs text-muted-foreground">
                     When an episode finishes with far less ad time removed than this feed usually
                     yields, run this action automatically (once per episode).
+                  </p>
+                </div>
+              </div>
+
+              {/* Per-feed unprocessed playback override */}
+              <div className="flex flex-col sm:flex-row sm:items-start gap-2 sm:gap-3 text-sm">
+                <span className={rowLabelTop}>Unprocessed play</span>
+                <div className="flex flex-col gap-1 flex-1 min-w-0">
+                  <select
+                    value={feed.unprocessedPlayback ?? ''}
+                    onChange={(e) => updateMutation.mutate({
+                      unprocessedPlayback: e.target.value === ''
+                        ? null : (e.target.value as UnprocessedPlayback),
+                    })}
+                    disabled={updateMutation.isPending}
+                    className={`self-start min-w-0 max-w-full disabled:opacity-50 ${selectBase}`}
+                    aria-label="Unprocessed playback"
+                  >
+                    <option value="">Use global ({globalUnprocessedPlaybackLabel})</option>
+                    {(Object.keys(UNPROCESSED_PLAYBACK_LABELS) as UnprocessedPlayback[]).map((mode) => (
+                      <option key={mode} value={mode}>{UNPROCESSED_PLAYBACK_LABELS[mode]}</option>
+                    ))}
+                  </select>
+                  <p className="text-xs text-muted-foreground">
+                    What playing an episode that is not processed yet does. Playing the original
+                    redirects to the upstream audio and never starts a processing run.
+                  </p>
+                </div>
+              </div>
+
+              {/* Per-feed processed title marker override */}
+              <div className="flex flex-col sm:flex-row sm:items-start gap-2 sm:gap-3 text-sm">
+                <span className={rowLabelTop}>Title marker</span>
+                <div className="flex flex-col gap-2 flex-1 min-w-0">
+                  <select
+                    value={markerMode}
+                    onChange={(e) => changeMarkerMode(e.target.value)}
+                    disabled={updateMutation.isPending}
+                    className={`self-start min-w-0 max-w-full disabled:opacity-50 ${selectBase}`}
+                    aria-label="Processed title marker"
+                  >
+                    <option value="global">
+                      Use global ({globalMarker.trim() ? `"${globalMarker}"` : 'off'})
+                    </option>
+                    <option value="off">Off</option>
+                    <option value="custom">Custom</option>
+                  </select>
+                  {markerMode === 'custom' && (
+                    <input
+                      type="text"
+                      value={markerField.value}
+                      onChange={(e) => markerField.setValue(e.target.value)}
+                      onBlur={commitMarker}
+                      onKeyDown={(e) => { if (e.key === 'Enter') commitMarker(); }}
+                      maxLength={PROCESSED_TITLE_MARKER_MAX_LENGTH}
+                      placeholder="e.g. [a] "
+                      disabled={updateMutation.isPending}
+                      aria-label="Processed title marker text"
+                      className={`${inputBase} w-full max-w-xs`}
+                    />
+                  )}
+                  <p className="text-xs text-muted-foreground">
+                    Added in front of the title of processed episodes in this feed. Keep it short
+                    ({PROCESSED_TITLE_MARKER_MAX_LENGTH} characters at most).
                   </p>
                 </div>
               </div>

@@ -1139,6 +1139,84 @@ describe('FeedSettingsPanel low ad yield action override', () => {
   });
 });
 
+describe('FeedSettingsPanel unprocessed playback override', () => {
+  const NAME = 'Unprocessed playback';
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockGetSettings.mockResolvedValue({ unprocessedPlayback: { value: 'original' } });
+    mockUpdateFeed.mockResolvedValue(makeFeed());
+  });
+
+  it('inherits by default and names the global mode', async () => {
+    renderPanel(makeFeed());
+    const select = screen.getByRole('combobox', { name: NAME }) as HTMLSelectElement;
+    expect(select.value).toBe('');
+    await waitFor(() => {
+      expect(within(select).getByRole('option', { name: 'Use global (Play the original)' })).toBeTruthy();
+    });
+  });
+
+  it('selecting a mode fires updateFeed, the global option clears it', async () => {
+    renderPanel(makeFeed({ unprocessedPlayback: 'original' }));
+    const select = screen.getByRole('combobox', { name: NAME });
+    expect((select as HTMLSelectElement).value).toBe('original');
+    await userEvent.selectOptions(select, 'process');
+    expect(mockUpdateFeed).toHaveBeenCalledWith('test-feed', { unprocessedPlayback: 'process' });
+    await userEvent.selectOptions(select, '');
+    expect(mockUpdateFeed).toHaveBeenCalledWith('test-feed', { unprocessedPlayback: null });
+  });
+});
+
+describe('FeedSettingsPanel processed title marker override', () => {
+  const MODE = 'Processed title marker';
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockGetSettings.mockResolvedValue({ processedTitleMarker: { value: '[g] ' } });
+    mockUpdateFeed.mockResolvedValue(makeFeed());
+  });
+
+  it('inherits by default, naming the global marker, with no text field', async () => {
+    renderPanel(makeFeed());
+    const select = screen.getByRole('combobox', { name: MODE }) as HTMLSelectElement;
+    expect(select.value).toBe('global');
+    expect(screen.queryByLabelText('Processed title marker text')).toBeNull();
+    await waitFor(() => {
+      expect(within(select).getByRole('option', { name: 'Use global ("[g] ")' })).toBeTruthy();
+    });
+  });
+
+  it('Off sends an empty string, Use global sends null', async () => {
+    renderPanel(makeFeed({ processedTitleMarker: '[b] ' }));
+    const select = screen.getByRole('combobox', { name: MODE });
+    await userEvent.selectOptions(select, 'off');
+    expect(mockUpdateFeed).toHaveBeenCalledWith('test-feed', { processedTitleMarker: '' });
+    await userEvent.selectOptions(select, 'global');
+    expect(mockUpdateFeed).toHaveBeenCalledWith('test-feed', { processedTitleMarker: null });
+  });
+
+  it('shows the feed marker and commits an edited custom marker on blur', async () => {
+    renderPanel(makeFeed({ processedTitleMarker: '[b] ' }));
+    const input = screen.getByLabelText('Processed title marker text') as HTMLInputElement;
+    expect(input.value).toBe('[b] ');
+    expect(input.maxLength).toBe(16);
+    await userEvent.clear(input);
+    await userEvent.type(input, '[[a] ');
+    await userEvent.tab();
+    expect(mockUpdateFeed).toHaveBeenCalledWith('test-feed', { processedTitleMarker: '[a] ' });
+  });
+
+  it('Custom reveals the field and a blank entry sends nothing', async () => {
+    renderPanel(makeFeed());
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: MODE }), 'custom');
+    const input = screen.getByLabelText('Processed title marker text');
+    await userEvent.click(input);
+    await userEvent.tab();
+    expect(mockUpdateFeed).not.toHaveBeenCalled();
+  });
+});
+
 describe('FeedSettingsPanel run log override', () => {
   const RUN_LOG_SELECT_NAME = 'Run log storage';
 

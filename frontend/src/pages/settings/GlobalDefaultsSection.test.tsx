@@ -12,7 +12,7 @@ import { render as rtlRender, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import GlobalDefaultsSection from './GlobalDefaultsSection';
-import type { EpisodeLogLevel, LowAdYieldAction } from '../../api/types';
+import type { EpisodeLogLevel, LowAdYieldAction, UnprocessedPlayback } from '../../api/types';
 
 const { mockGetPodpingNodes } = vi.hoisted(() => ({
   mockGetPodpingNodes: vi.fn(),
@@ -58,6 +58,10 @@ function Harness({ onCommit, overrides }: {
         onRequireManualApprovalDefaultChange={() => {}}
         lowAdYieldAction="nothing"
         onLowAdYieldActionChange={() => {}}
+        unprocessedPlayback="process"
+        onUnprocessedPlaybackChange={() => {}}
+        processedTitleMarker=""
+        onProcessedTitleMarkerChange={() => {}}
         episodeLogRetentionDays={30}
         onEpisodeLogRetentionDaysChange={() => {}}
         episodeLogLevel="debug"
@@ -100,6 +104,10 @@ function PodpingHarness({ onCommit }: { onCommit: (payload: PodpingState) => voi
         onRequireManualApprovalDefaultChange={() => {}}
         lowAdYieldAction="nothing"
         onLowAdYieldActionChange={() => {}}
+        unprocessedPlayback="process"
+        onUnprocessedPlaybackChange={() => {}}
+        processedTitleMarker=""
+        onProcessedTitleMarkerChange={() => {}}
         episodeLogRetentionDays={30}
         onEpisodeLogRetentionDaysChange={() => {}}
         episodeLogLevel="debug"
@@ -238,6 +246,10 @@ function LowAdYieldHarness({ onCommit }: { onCommit: (payload: LowAdYieldState) 
         onRequireManualApprovalDefaultChange={() => {}}
         lowAdYieldAction={lowAdYieldAction}
         onLowAdYieldActionChange={setLowAdYieldAction}
+        unprocessedPlayback="process"
+        onUnprocessedPlaybackChange={() => {}}
+        processedTitleMarker=""
+        onProcessedTitleMarkerChange={() => {}}
         episodeLogRetentionDays={30}
         onEpisodeLogRetentionDaysChange={() => {}}
         episodeLogLevel="debug"
@@ -307,6 +319,10 @@ function EpisodeLogHarness({ onCommit }: { onCommit: (payload: EpisodeLogState) 
         onRequireManualApprovalDefaultChange={() => {}}
         lowAdYieldAction="nothing"
         onLowAdYieldActionChange={() => {}}
+        unprocessedPlayback="process"
+        onUnprocessedPlaybackChange={() => {}}
+        processedTitleMarker=""
+        onProcessedTitleMarkerChange={() => {}}
         episodeLogRetentionDays={retentionDays}
         onEpisodeLogRetentionDaysChange={setRetentionDays}
         episodeLogLevel={level}
@@ -379,6 +395,10 @@ function TextRecurrenceHintsHarness({ onCommit }: { onCommit: (payload: TextRecu
         onRequireManualApprovalDefaultChange={() => {}}
         lowAdYieldAction="nothing"
         onLowAdYieldActionChange={() => {}}
+        unprocessedPlayback="process"
+        onUnprocessedPlaybackChange={() => {}}
+        processedTitleMarker=""
+        onProcessedTitleMarkerChange={() => {}}
         episodeLogRetentionDays={30}
         onEpisodeLogRetentionDaysChange={() => {}}
         episodeLogLevel="debug"
@@ -423,5 +443,77 @@ describe('GlobalDefaultsSection: Require manual approval toggle', () => {
     await userEvent.setup().click(toggle);
     expect(onChange).toHaveBeenCalledWith(true);
     expect(screen.getByText(/Episode review tab/)).toBeTruthy();
+  });
+});
+
+
+function PlaybackHarness({ onCommit }: {
+  onCommit: (payload: { mode: UnprocessedPlayback; marker: string }) => void;
+}) {
+  const [mode, setMode] = useState<UnprocessedPlayback>('process');
+  const [marker, setMarker] = useState('');
+  return (
+    <>
+      <GlobalDefaultsSection
+        autoProcessEnabled={false}
+        onAutoProcessEnabledChange={() => {}}
+        autoProcessMaxAgeHours={48}
+        onAutoProcessMaxAgeHoursChange={() => {}}
+        rssRefreshIntervalMinutes={15}
+        onRssRefreshIntervalMinutesChange={() => {}}
+        podpingEnabled={false}
+        onPodpingEnabledChange={() => {}}
+        maxFeedEpisodes={10}
+        onMaxFeedEpisodesChange={() => {}}
+        onlyExposeProcessedDefault={false}
+        onOnlyExposeProcessedDefaultChange={() => {}}
+        requireManualApprovalDefault={false}
+        onRequireManualApprovalDefaultChange={() => {}}
+        lowAdYieldAction="nothing"
+        onLowAdYieldActionChange={() => {}}
+        unprocessedPlayback={mode}
+        onUnprocessedPlaybackChange={setMode}
+        processedTitleMarker={marker}
+        onProcessedTitleMarkerChange={setMarker}
+        episodeLogRetentionDays={30}
+        onEpisodeLogRetentionDaysChange={() => {}}
+        episodeLogLevel="debug"
+        onEpisodeLogLevelChange={() => {}}
+        textRecurrenceHints={false}
+        onTextRecurrenceHintsChange={() => {}}
+        skipSecondPass={false}
+        onSkipSecondPassChange={() => {}}
+        differentialFetchMode="auto"
+        onDifferentialFetchModeChange={() => {}}
+      />
+      <button onClick={() => onCommit({ mode, marker })}>Commit</button>
+    </>
+  );
+}
+
+describe('GlobalDefaultsSection: original until processed and title marker', () => {
+  it('defaults to starting processing with no marker', () => {
+    render(<PlaybackHarness onCommit={() => {}} />);
+    const select = screen.getByLabelText('When an unprocessed episode is played') as HTMLSelectElement;
+    expect(select.value).toBe('process');
+    expect([...select.options].map((o) => o.value)).toEqual(['process', 'original']);
+    expect((screen.getByLabelText('Processed episode title marker') as HTMLInputElement).value).toBe('');
+  });
+
+  it('caps the marker length at 16 and hints a short example', () => {
+    render(<PlaybackHarness onCommit={() => {}} />);
+    const input = screen.getByLabelText('Processed episode title marker') as HTMLInputElement;
+    expect(input.maxLength).toBe(16);
+    expect(input.placeholder).toBe('e.g. [a] ');
+  });
+
+  it('commits the chosen mode and marker', async () => {
+    let committed: { mode: UnprocessedPlayback; marker: string } | null = null;
+    render(<PlaybackHarness onCommit={(p) => { committed = p; }} />);
+    const user = userEvent.setup();
+    await user.selectOptions(screen.getByLabelText('When an unprocessed episode is played'), 'original');
+    await user.type(screen.getByLabelText('Processed episode title marker'), '[[a] ');
+    await user.click(screen.getByRole('button', { name: 'Commit' }));
+    expect(committed).toEqual({ mode: 'original', marker: '[a] ' });
   });
 });

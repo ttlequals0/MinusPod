@@ -96,7 +96,7 @@ The server includes a web-based management UI at `/ui/`. Opening the server root
 - Outbound Requests (Settings > Data & Security): the User-Agent strings MinusPod sends when it fetches feeds, audio, and artwork, plus a toggle for URL query strings in download logs. See [Configuration > Outbound Requests](configuration.md#outbound-requests)
 - OPML export with original or ad-free (modified) feed URLs
 - Optional cover-art badge that marks the filtered feed (Settings > Cover Art), with a Refresh all artwork button
-- Original until processed and the processed title marker (for example `[a] `, kept short) are API-configurable for now; see [Configuration > Global feed defaults](configuration.md#global-feed-defaults)
+- Original until processed and the processed title marker: Settings > Global Defaults has "When an unprocessed episode is played" (start processing, or play the original) and "Processed episode title marker" (text, 16 characters at most, blank is off; keep it short, for example `[a] `). Each feed can inherit or override both in Feed Settings (Unprocessed play, Title marker: use global, off or custom). See [Configuration > Global feed defaults](configuration.md#global-feed-defaults)
 - Global Defaults group in settings: Auto-Process, the auto-process window, Max Feed Episodes, Only Expose Processed, verification, and cross-fetch differential. Each feed can inherit or override them; see [Configuration > Global feed defaults](configuration.md#global-feed-defaults)
 - Chapter mode default in Settings > Transcripts & Chapters, with the same per-feed inheritance
 - Queue priority boosts in Queue > Queue Control, see [Configuration > Queue priority](configuration.md#queue-priority)

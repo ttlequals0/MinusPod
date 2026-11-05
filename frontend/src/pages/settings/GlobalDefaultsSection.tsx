@@ -1,11 +1,12 @@
 import CollapsibleSection from '../../components/CollapsibleSection';
 import { LOW_AD_YIELD_ACTION_LABELS } from '../../utils/lowAdYield';
-import type { EpisodeLogLevel, LowAdYieldAction } from '../../api/types';
-import { AUTO_PROCESS_WINDOW } from '../../api/types';
+import { UNPROCESSED_PLAYBACK_LABELS } from '../../utils/unprocessedPlayback';
+import type { EpisodeLogLevel, LowAdYieldAction, UnprocessedPlayback } from '../../api/types';
+import { AUTO_PROCESS_WINDOW, PROCESSED_TITLE_MARKER_MAX_LENGTH } from '../../api/types';
 import NumberInput from '../../components/NumberInput';
 import ToggleSwitch from '../../components/ToggleSwitch';
 import PodpingServersSection from './PodpingServersSection';
-import { selectBase, labelBase } from '../../components/fieldStyles';
+import { inputBase, selectBase, labelBase } from '../../components/fieldStyles';
 
 interface GlobalDefaultsSectionProps {
   autoProcessEnabled: boolean;
@@ -24,6 +25,10 @@ interface GlobalDefaultsSectionProps {
   onRequireManualApprovalDefaultChange: (enabled: boolean) => void;
   lowAdYieldAction: LowAdYieldAction;
   onLowAdYieldActionChange: (action: LowAdYieldAction) => void;
+  unprocessedPlayback: UnprocessedPlayback;
+  onUnprocessedPlaybackChange: (mode: UnprocessedPlayback) => void;
+  processedTitleMarker: string;
+  onProcessedTitleMarkerChange: (marker: string) => void;
   episodeLogRetentionDays: number;
   onEpisodeLogRetentionDaysChange: (days: number) => void;
   episodeLogLevel: EpisodeLogLevel;
@@ -53,6 +58,10 @@ function GlobalDefaultsSection({
   onRequireManualApprovalDefaultChange,
   lowAdYieldAction,
   onLowAdYieldActionChange,
+  unprocessedPlayback,
+  onUnprocessedPlaybackChange,
+  processedTitleMarker,
+  onProcessedTitleMarkerChange,
   episodeLogRetentionDays,
   onEpisodeLogRetentionDaysChange,
   episodeLogLevel,
@@ -235,6 +244,47 @@ function GlobalDefaultsSection({
           </select>
           <p id="lowAdYieldAction-help" className="mt-2 text-sm text-muted-foreground">
             When an episode finishes with far less ad time removed than its feed usually yields, run this action automatically (once per episode).
+          </p>
+        </div>
+
+        {/* Playing an episode that is not processed yet */}
+        <div className="pt-4 border-t border-border">
+          <label htmlFor="unprocessedPlayback" className={labelBase}>
+            When an unprocessed episode is played
+          </label>
+          <select
+            id="unprocessedPlayback"
+            value={unprocessedPlayback}
+            onChange={(e) => onUnprocessedPlaybackChange(e.target.value as UnprocessedPlayback)}
+            className={`w-full ${selectBase}`}
+            aria-describedby="unprocessedPlayback-help"
+          >
+            {(Object.keys(UNPROCESSED_PLAYBACK_LABELS) as UnprocessedPlayback[]).map((mode) => (
+              <option key={mode} value={mode}>{UNPROCESSED_PLAYBACK_LABELS[mode]}</option>
+            ))}
+          </select>
+          <p id="unprocessedPlayback-help" className="mt-2 text-sm text-muted-foreground">
+            Play the original redirects to the upstream audio until the ad-free cut is ready and never starts a processing run on playback. Apps get a new enclosure URL once the episode is processed. Per-feed settings can override this.
+          </p>
+        </div>
+
+        {/* Processed episode title marker */}
+        <div className="pt-4 border-t border-border">
+          <label htmlFor="processedTitleMarker" className={labelBase}>
+            Processed episode title marker
+          </label>
+          <input
+            id="processedTitleMarker"
+            type="text"
+            value={processedTitleMarker}
+            maxLength={PROCESSED_TITLE_MARKER_MAX_LENGTH}
+            placeholder="e.g. [a] "
+            onChange={(e) => onProcessedTitleMarkerChange(e.target.value)}
+            className={`w-full max-w-xs ${inputBase}`}
+            aria-describedby="processedTitleMarker-help"
+          />
+          <p id="processedTitleMarker-help" className="mt-2 text-sm text-muted-foreground">
+            Added in front of the title of processed episodes in the served feed. Leave blank to turn it off. Keep it short ({PROCESSED_TITLE_MARKER_MAX_LENGTH} characters at most) so it does not eat title space in podcast apps. Per-feed settings can override this.
           </p>
         </div>
 

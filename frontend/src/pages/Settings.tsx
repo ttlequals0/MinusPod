@@ -13,7 +13,7 @@ import { getReviewerSettings, updateReviewerSettings } from '../api/community';
 import { getErrorMessage } from '../api/client';
 import { useAuth } from '../context/AuthContext';
 import { SkeletonRows } from '../components/Skeleton';
-import type { AffectedRunsAction, BadgePosition, EpisodeLogLevel, LowAdYieldAction, LlmProvider, ModelPricingOverride, ProviderSlot, SystemStatus, WhisperBackend, WhisperApiConfig, UpdateSettingsPayload, Settings as SettingsShape } from '../api/types';
+import type { AffectedRunsAction, BadgePosition, EpisodeLogLevel, LowAdYieldAction, UnprocessedPlayback, LlmProvider, ModelPricingOverride, ProviderSlot, SystemStatus, WhisperBackend, WhisperApiConfig, UpdateSettingsPayload, Settings as SettingsShape } from '../api/types';
 import { AUTO_PROCESS_WINDOW, LLM_PROVIDERS, SAME_AS_PASS, SLOT_PRIMARY, SLOT_SECONDARY } from '../api/types';
 
 import SystemStatusSection from './settings/SystemStatusSection';
@@ -232,6 +232,8 @@ function Settings() {
   const [artworkWatermarkEnabled, setArtworkWatermarkEnabled] = useState(false);
   const [artworkBadgePosition, setArtworkBadgePosition] = useState<BadgePosition>('bottom-right');
   const [lowAdYieldAction, setLowAdYieldAction] = useState<LowAdYieldAction>('nothing');
+  const [unprocessedPlayback, setUnprocessedPlayback] = useState<UnprocessedPlayback>('process');
+  const [processedTitleMarker, setProcessedTitleMarker] = useState('');
   const [episodeLogRetentionDays, setEpisodeLogRetentionDays] = useState(30);
   const [episodeLogLevel, setEpisodeLogLevel] = useState<EpisodeLogLevel>('debug');
   const [audioBitrate, setAudioBitrate] = useState('');
@@ -904,6 +906,8 @@ function Settings() {
     { key: 'artworkWatermarkEnabled', kind: 'val', useDefault: true, value: artworkWatermarkEnabled, set: setArtworkWatermarkEnabled },
     { key: 'artworkBadgePosition', kind: 'str', useDefault: true, value: artworkBadgePosition, set: (v) => setArtworkBadgePosition(v as BadgePosition) },
     { key: 'lowAdYieldAction', kind: 'str', useDefault: true, value: lowAdYieldAction, set: (v) => setLowAdYieldAction(v as LowAdYieldAction) },
+    { key: 'unprocessedPlayback', kind: 'str', useDefault: true, value: unprocessedPlayback, set: (v) => setUnprocessedPlayback(v as UnprocessedPlayback) },
+    { key: 'processedTitleMarker', kind: 'str', useDefault: true, value: processedTitleMarker, set: setProcessedTitleMarker },
     { key: 'episodeLogRetentionDays', kind: 'val', useDefault: true, literal: 30, value: episodeLogRetentionDays, set: setEpisodeLogRetentionDays },
     { key: 'episodeLogLevel', kind: 'str', useDefault: true, value: episodeLogLevel, set: (v) => setEpisodeLogLevel(v as EpisodeLogLevel) },
     { key: 'vttTranscriptsEnabled', kind: 'val', useDefault: true, value: vttTranscriptsEnabled, set: setVttTranscriptsEnabled },
@@ -1353,6 +1357,10 @@ function Settings() {
         onRequireManualApprovalDefaultChange={setRequireManualApprovalDefault}
         lowAdYieldAction={lowAdYieldAction}
         onLowAdYieldActionChange={setLowAdYieldAction}
+        unprocessedPlayback={unprocessedPlayback}
+        onUnprocessedPlaybackChange={setUnprocessedPlayback}
+        processedTitleMarker={processedTitleMarker}
+        onProcessedTitleMarkerChange={setProcessedTitleMarker}
         episodeLogRetentionDays={episodeLogRetentionDays}
         onEpisodeLogRetentionDaysChange={setEpisodeLogRetentionDays}
         episodeLogLevel={episodeLogLevel}

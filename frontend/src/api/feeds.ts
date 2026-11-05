@@ -1,5 +1,5 @@
 import { apiFileRequest, apiRequest, buildQueryString } from './client';
-import { Feed, Episode, EpisodeDetail, BulkActionResult, AdDistribution, JobState, LowAdYieldAction, EpisodeLogsOverride, RunLogResponse, SbCandidatesResponse, SbSubmission, EpisodeRating } from './types';
+import { Feed, Episode, EpisodeDetail, BulkActionResult, AdDistribution, JobState, LowAdYieldAction, UnprocessedPlayback, EpisodeLogsOverride, RunLogResponse, SbCandidatesResponse, SbSubmission, EpisodeRating } from './types';
 import type { SegmentCategory, SegmentAction } from '../utils/segmentCategory';
 
 export const CUE_SCORE_MIN = 0.30;
@@ -482,6 +482,8 @@ export interface UpdateFeedPayload {
   chaptersInNotes?: 'on' | 'off' | null;
   queuePriority?: 'high' | 'normal' | 'low' | null;
   lowAdYieldAction?: LowAdYieldAction | null;
+  unprocessedPlayback?: UnprocessedPlayback | null;
+  processedTitleMarker?: string | null;
   episodeLogs?: EpisodeLogsOverride | null;
   cueTemplateScoreOverride?: number | null;
   cueCreateFromPairsOverride?: boolean | null;

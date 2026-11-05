@@ -105,6 +105,10 @@ export interface Feed {
   // one of the three values; null/absent reads as 'normal'.
   queuePriority?: 'high' | 'normal' | 'low' | null;
   lowAdYieldAction?: LowAdYieldAction | null;
+  // Per-feed original-until-processed overrides; null follows the global setting.
+  // An empty processedTitleMarker turns the marker off for this feed.
+  unprocessedPlayback?: UnprocessedPlayback | null;
+  processedTitleMarker?: string | null;
   episodeLogs?: EpisodeLogsOverride | null;
   cueTemplateScoreOverride?: number | null;
   cueCreateFromPairsOverride?: boolean | null;
@@ -796,6 +800,10 @@ export type BadgePosition = 'bottom-right' | 'bottom-left' | 'top-right' | 'top-
 // Automatic response to a run that removed far less ad time than the feed
 // usually yields. Per-feed null means "use the global setting".
 export type LowAdYieldAction = 'nothing' | 'redetect' | 'reprocess' | 'full';
+// What playing an episode that is not processed yet does: start a processing
+// run, or redirect to the upstream (original) audio.
+export type UnprocessedPlayback = 'process' | 'original';
+export const PROCESSED_TITLE_MARKER_MAX_LENGTH = 16;
 // Per-feed run log storage (#660); null means "follow the global setting".
 export type EpisodeLogsOverride = 'on' | 'off';
 export type EpisodeLogLevel = 'debug' | 'info';
@@ -941,6 +949,8 @@ export interface Settings {
   artworkWatermarkEnabled: SettingValueBoolean;
   artworkBadgePosition: SettingValue;
   lowAdYieldAction: SettingValue;
+  unprocessedPlayback: SettingValue;
+  processedTitleMarker: SettingValue;
   episodeLogRetentionDays: SettingValueNumber;
   episodeLogLevel: SettingValue;
   downloadUserAgent: SettingValue;
@@ -1133,6 +1143,8 @@ export interface Settings {
     artworkWatermarkEnabled: boolean;
     artworkBadgePosition: string;
     lowAdYieldAction: string;
+    unprocessedPlayback: string;
+    processedTitleMarker: string;
     feedAuthEnabled: boolean;
     vttTranscriptsEnabled: boolean;
     chaptersEnabled: boolean;
@@ -1285,6 +1297,8 @@ export interface UpdateSettingsPayload {
   artworkWatermarkEnabled?: boolean;
   artworkBadgePosition?: string;
   lowAdYieldAction?: LowAdYieldAction;
+  unprocessedPlayback?: UnprocessedPlayback;
+  processedTitleMarker?: string;
   episodeLogRetentionDays?: number;
   episodeLogLevel?: EpisodeLogLevel;
   downloadUserAgent?: string;
