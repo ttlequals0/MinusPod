@@ -397,3 +397,15 @@ def test_settings_and_feed_apis_reject_a_hidden_character_marker(feed):
                      json={'processedTitleMarker': '[a]\u200b'}).status_code == 400
         assert c.patch(f'/api/v1/feeds/{SLUG}',
                        json={'processedTitleMarker': '[a]\u202e'}).status_code == 400
+
+
+def test_validator_counts_code_points_and_names_the_offending_character():
+    emoji16 = '\U0001F600' * 16
+    assert validate_processed_title_marker(emoji16) == (emoji16, None)
+    err = validate_processed_title_marker('\U0001F600' * 17)[1]
+    assert err and '16' in err
+    # a combined (ZWJ) sequence is invisible-character territory, and is named
+    msg = validate_processed_title_marker('[a]\u200b')[1]
+    assert 'U+200B' in msg and 'invisible' in msg
+    assert 'U+0085' in validate_processed_title_marker('\u0085')[1]
+    assert 'U+202E' in validate_processed_title_marker('x\u202e')[1]

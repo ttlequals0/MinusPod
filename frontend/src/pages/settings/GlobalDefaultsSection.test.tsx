@@ -440,8 +440,9 @@ describe('GlobalDefaultsSection: Require manual approval toggle', () => {
 });
 
 
-function PlaybackHarness({ onCommit }: {
+function PlaybackHarness({ onCommit, focusPlayback = false }: {
   onCommit: (payload: { mode: UnprocessedPlayback; marker: string }) => void;
+  focusPlayback?: boolean;
 }) {
   const [mode, setMode] = useState<UnprocessedPlayback>('process');
   const [marker, setMarker] = useState('');
@@ -468,6 +469,7 @@ function PlaybackHarness({ onCommit }: {
         onUnprocessedPlaybackChange={setMode}
         processedTitleMarker={marker}
         onProcessedTitleMarkerChange={setMarker}
+        focusPlayback={focusPlayback}
         episodeLogRetentionDays={30}
         onEpisodeLogRetentionDaysChange={() => {}}
         episodeLogLevel="debug"
@@ -496,7 +498,8 @@ describe('GlobalDefaultsSection: original until processed and title marker', () 
   it('caps the marker length at 16 and hints a short example', () => {
     render(<PlaybackHarness onCommit={() => {}} />);
     const input = screen.getByLabelText('Processed episode title marker') as HTMLInputElement;
-    expect(input.maxLength).toBe(16);
+    // No maxLength: the browser would cut by UTF-16 units and silently truncate.
+    expect(input.hasAttribute('maxlength')).toBe(false);
     expect(input.placeholder).toBe('e.g. [a] ');
   });
 
@@ -526,8 +529,35 @@ describe('GlobalDefaultsSection: marker problems in plain words', () => {
     render(<PlaybackHarness onCommit={() => {}} />);
     const input = screen.getByLabelText('Processed episode title marker');
     fireEvent.change(input, { target: { value: '[a]\u200b' } });
-    expect(screen.getByRole('alert').textContent).toBe("The marker can't contain hidden or control characters.");
+    expect(screen.getByRole('alert').textContent).toBe("The marker can't contain a hidden or control character (U+200B).");
     fireEvent.change(input, { target: { value: '[a] ' } });
     expect(screen.queryByRole('alert')).toBeNull();
+  });
+});
+
+
+describe('GlobalDefaultsSection: marker length and deep link', () => {
+  it('lets a long marker be typed whole and says it is too long', async () => {
+    render(<PlaybackHarness onCommit={() => {}} />);
+    const input = screen.getByLabelText('Processed episode title marker') as HTMLInputElement;
+    fireEvent.change(input, { target: { value: 'x'.repeat(20) } });
+    expect(input.value).toBe('x'.repeat(20));                      // never truncated
+    expect(screen.getByRole('alert').textContent).toBe('The marker can be at most 16 characters.');
+  });
+
+  it('accepts 16 emoji (16 characters, 32 UTF-16 units)', () => {
+    render(<PlaybackHarness onCommit={() => {}} />);
+    const input = screen.getByLabelText('Processed episode title marker');
+    fireEvent.change(input, { target: { value: '\u{1F600}'.repeat(16) } });
+    expect(screen.queryByRole('alert')).toBeNull();
+  });
+
+  it('opens its section and focuses the playback control when asked to', async () => {
+    localStorage.setItem('settings-section-global-defaults', 'false');
+    render(<PlaybackHarness onCommit={() => {}} focusPlayback />);
+    const select = screen.getByLabelText('When an unprocessed episode is played');
+    await waitFor(() => expect(document.activeElement).toBe(select));
+    // the collapsed section was forced open without rewriting the saved preference
+    expect(localStorage.getItem('settings-section-global-defaults')).toBe('false');
   });
 });

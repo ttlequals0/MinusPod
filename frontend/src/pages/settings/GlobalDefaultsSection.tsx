@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from 'react';
 import CollapsibleSection from '../../components/CollapsibleSection';
 import { LOW_AD_YIELD_ACTION_LABELS } from '../../utils/lowAdYield';
 import { UNPROCESSED_PLAYBACK_LABELS } from '../../utils/unprocessedPlayback';
@@ -30,6 +31,8 @@ interface GlobalDefaultsSectionProps {
   onUnprocessedPlaybackChange: (mode: UnprocessedPlayback) => void;
   processedTitleMarker: string;
   onProcessedTitleMarkerChange: (marker: string) => void;
+  // Deep link (#unprocessed-playback): open the section and focus that control.
+  focusPlayback?: boolean;
   episodeLogRetentionDays: number;
   onEpisodeLogRetentionDaysChange: (days: number) => void;
   episodeLogLevel: EpisodeLogLevel;
@@ -63,6 +66,7 @@ function GlobalDefaultsSection({
   onUnprocessedPlaybackChange,
   processedTitleMarker,
   onProcessedTitleMarkerChange,
+  focusPlayback = false,
   episodeLogRetentionDays,
   onEpisodeLogRetentionDaysChange,
   episodeLogLevel,
@@ -74,9 +78,22 @@ function GlobalDefaultsSection({
   differentialFetchMode,
   onDifferentialFetchModeChange,
 }: GlobalDefaultsSectionProps) {
+  const playbackRef = useRef<HTMLSelectElement>(null);
+  const [highlight, setHighlight] = useState(false);
+  useEffect(() => {
+    if (!focusPlayback) return;
+    const el = playbackRef.current;
+    el?.focus({ preventScroll: true });
+    const mark = setTimeout(() => setHighlight(true), 0);
+    // The section animates open; scroll once it has its height.
+    const scroll = setTimeout(() => el?.scrollIntoView?.({ block: 'center', behavior: 'smooth' }), 350);
+    const fade = setTimeout(() => setHighlight(false), 4000);
+    return () => { clearTimeout(mark); clearTimeout(scroll); clearTimeout(fade); };
+  }, [focusPlayback]);
   return (
     <CollapsibleSection
       title="Global defaults"
+      forceOpen={focusPlayback}
       subtitle="Applied to every feed unless overridden on the feed's own settings."
     >
       <div className="space-y-6">
@@ -255,9 +272,10 @@ function GlobalDefaultsSection({
           </label>
           <select
             id="unprocessedPlayback"
+            ref={playbackRef}
             value={unprocessedPlayback}
             onChange={(e) => onUnprocessedPlaybackChange(e.target.value as UnprocessedPlayback)}
-            className={`w-full ${selectBase}`}
+            className={`w-full ${selectBase}${highlight ? ' ring-2 ring-ring' : ''}`}
             aria-describedby="unprocessedPlayback-help"
           >
             {(Object.keys(UNPROCESSED_PLAYBACK_LABELS) as UnprocessedPlayback[]).map((mode) => (
@@ -278,7 +296,6 @@ function GlobalDefaultsSection({
             id="processedTitleMarker"
             type="text"
             value={processedTitleMarker}
-            maxLength={PROCESSED_TITLE_MARKER_MAX_LENGTH}
             placeholder="e.g. [a] "
             onChange={(e) => onProcessedTitleMarkerChange(e.target.value)}
             className={`w-full max-w-xs ${inputBase}`}

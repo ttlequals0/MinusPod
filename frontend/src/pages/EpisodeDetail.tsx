@@ -417,7 +417,7 @@ function EpisodeDetail() {
   // An episode that has never been processed on a feed that fetches upstream
   // audio: what a podcast app gets for it depends on the playback setting.
   const awaitingFirstProcessing = !!episode && !!feed && !episode.processedAt
-    && (episode.status === 'discovered' || episode.status === 'pending')
+    && (episode.status === 'discovered' || episode.status === 'pending' || isFailedStatus(episode.status))
     && (feed.feedType ?? 'subscribed') === 'subscribed';
   const { data: ytSettings } = useQuery({
     queryKey: ['youtubeSettings'],
@@ -1402,8 +1402,12 @@ function EpisodeDetail() {
             <p className="mt-4 pt-4 border-t border-border text-sm text-muted-foreground">
               {mode === 'original'
                 ? 'A podcast app that plays this episode now gets the original, with its ads, until it has been processed.'
-                : 'A podcast app that plays this episode now has to wait while the episode is processed first.'}{' '}
-              <Link to={feedOverrides ? `/feeds/${slug}` : '/settings'} className={`text-primary hover:underline ${focusRing}`}>
+                : episode.status === 'permanently_failed'
+                  ? 'Processing this episode failed for good, so a podcast app cannot play it.'
+                  : episode.status === 'failed'
+                    ? 'Processing this episode failed. A podcast app that plays it now has to wait until a retry succeeds.'
+                    : 'A podcast app that plays this episode now has to wait while the episode is processed first.'}{' '}
+              <Link to={`${feedOverrides ? `/feeds/${slug}` : '/settings'}#unprocessed-playback`} className={`text-primary hover:underline ${focusRing}`}>
                 {feedOverrides ? 'Change this in feed settings' : 'Change this in Settings'}
               </Link>
             </p>

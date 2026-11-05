@@ -1362,6 +1362,7 @@ function Settings() {
         onUnprocessedPlaybackChange={setUnprocessedPlayback}
         processedTitleMarker={processedTitleMarker}
         onProcessedTitleMarkerChange={setProcessedTitleMarker}
+        focusPlayback={location.hash === '#unprocessed-playback'}
         episodeLogRetentionDays={episodeLogRetentionDays}
         onEpisodeLogRetentionDaysChange={setEpisodeLogRetentionDays}
         episodeLogLevel={episodeLogLevel}

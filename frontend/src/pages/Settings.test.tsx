@@ -3,7 +3,7 @@
  * the two-click confirm fires the single-prompt reset endpoint, not the bulk
  * one, and re-seeds the textarea from the refetched settings.
  */
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { render, screen, within, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -19,8 +19,9 @@ function resetButtonFor(label: string) {
   return within(field).getByRole('button', { name: 'Reset' });
 }
 
+const mockLocation = vi.hoisted(() => ({ hash: '' }));
 vi.mock('react-router', () => ({
-  useLocation: () => ({ hash: '', pathname: '/settings', search: '' }),
+  useLocation: () => ({ hash: mockLocation.hash, pathname: '/settings', search: '' }),
 }));
 
 vi.mock('../context/AuthContext', () => ({
@@ -58,7 +59,11 @@ vi.mock('./settings/TranscriptionSection', () => ({ default: () => null }));
 vi.mock('./settings/AudioSection', () => ({ default: () => null }));
 vi.mock('./settings/CoverArtSection', () => ({ default: () => null }));
 vi.mock('./settings/AdDetectionSection', () => ({ default: () => null }));
-vi.mock('./settings/GlobalDefaultsSection', () => ({ default: () => null }));
+vi.mock('./settings/GlobalDefaultsSection', () => ({
+  default: ({ focusPlayback }: { focusPlayback?: boolean }) => (
+    <div data-testid="global-defaults" data-focus-playback={String(!!focusPlayback)} />
+  ),
+}));
 vi.mock('./settings/SegmentActionsSection', () => ({ default: () => null }));
 vi.mock('./settings/Podcasting20Section', () => ({ default: () => null }));
 vi.mock('./settings/AudioCueDetectionSection', () => ({ default: () => null }));
@@ -554,5 +559,23 @@ describe('Settings search', () => {
     expect(screen.queryByText(/No settings match/)).toBeNull();
     expect(card('Seed sponsors').className).not.toContain('hidden');
     expect(screen.getByRole('button', { name: 'Expand all' })).toHaveProperty('disabled', false);
+  });
+});
+
+
+describe('Settings: deep link to the unprocessed playback control', () => {
+  afterEach(() => { mockLocation.hash = ''; });
+
+  it('tells Global defaults to open and focus the control for #unprocessed-playback', async () => {
+    mockLocation.hash = '#unprocessed-playback';
+    renderSettings();
+    const section = await screen.findByTestId('global-defaults');
+    expect(section.getAttribute('data-focus-playback')).toBe('true');
+  });
+
+  it('does nothing special without the hash', async () => {
+    renderSettings();
+    const section = await screen.findByTestId('global-defaults');
+    expect(section.getAttribute('data-focus-playback')).toBe('false');
   });
 });

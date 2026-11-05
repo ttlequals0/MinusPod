@@ -1077,13 +1077,16 @@ def validate_processed_title_marker(value, allow_none=False):
         return None, None
     if not isinstance(value, str):
         return None, "processedTitleMarker must be a string"
-    if len(value) > PROCESSED_TITLE_MARKER_MAX_LENGTH:
+    if len(value) > PROCESSED_TITLE_MARKER_MAX_LENGTH:   # Unicode code points
         return None, (f"processedTitleMarker must be {PROCESSED_TITLE_MARKER_MAX_LENGTH} "
                       "characters or fewer (keep it short so it does not eat title space)")
+    hidden = next((ch for ch in value
+                   if unicodedata.category(ch) in _MARKER_FORBIDDEN_CATEGORIES), None)
+    if hidden is not None:
+        return None, ("processedTitleMarker must not contain control, invisible or "
+                      f"line-separator characters (found U+{ord(hidden):04X})")
     if value and not value.strip():
         return None, "processedTitleMarker must not be only whitespace (use an empty string to turn it off)"
-    if any(unicodedata.category(ch) in _MARKER_FORBIDDEN_CATEGORIES for ch in value):
-        return None, "processedTitleMarker must not contain control, invisible or line-separator characters"
     return value, None
 
 

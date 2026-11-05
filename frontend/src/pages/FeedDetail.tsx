@@ -741,7 +741,7 @@ function FeedDetail() {
 
       {slug && isRecents && <RecentsFeedPanel feed={feed} slug={slug} />}
 
-      {slug && !isRecents && <FeedSettingsPanel key={slug} feed={feed} slug={slug} />}
+      {slug && !isRecents && <FeedSettingsPanel key={slug} feed={feed} slug={slug} focusPlayback={location.hash === '#unprocessed-playback'} />}
 
       {slug && feed.feedType === 'local' && <LocalFeedPanel feed={feed} slug={slug} />}
       {slug && feed.feedType === 'youtube' && <YouTubeFeedPanel key={`youtube-${slug}`} feed={feed} slug={slug} />}

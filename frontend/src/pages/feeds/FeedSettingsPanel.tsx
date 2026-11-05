@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { getNetworks, updateFeed, UpdateFeedPayload, CUE_SCORE_MIN, CUE_SCORE_MAX, rerenderSegments, RerenderSegmentsResult } from '../../api/feeds';
 import { listCueTemplates } from '../../api/cueTemplates';
@@ -48,6 +48,8 @@ const rowLabelTopSm = `${rowLabel} sm:pt-0.5`;
 interface Props {
   feed: Feed;
   slug: string;
+  // Deep link (#unprocessed-playback): open the panel and focus that control.
+  focusPlayback?: boolean;
 }
 
 // Hint shown below the processing-mode select, keyed by the resolved mode
@@ -142,8 +144,19 @@ function CueOverrideRow({
   );
 }
 
-function FeedSettingsPanel({ feed, slug }: Props) {
+function FeedSettingsPanel({ feed, slug, focusPlayback = false }: Props) {
   const queryClient = useQueryClient();
+  const playbackRef = useRef<HTMLSelectElement>(null);
+  const [highlightPlayback, setHighlightPlayback] = useState(false);
+  useEffect(() => {
+    if (!focusPlayback) return;
+    const el = playbackRef.current;
+    el?.focus({ preventScroll: true });
+    const mark = setTimeout(() => setHighlightPlayback(true), 0);
+    const scroll = setTimeout(() => el?.scrollIntoView?.({ block: 'center', behavior: 'smooth' }), 350);
+    const fade = setTimeout(() => setHighlightPlayback(false), 4000);
+    return () => { clearTimeout(mark); clearTimeout(scroll); clearTimeout(fade); };
+  }, [focusPlayback]);
   // Mirrors the CollapsibleSection's persisted open state (same storage key)
   // so the networks list is only fetched once the panel is actually visible.
   const [panelOpen, setPanelOpen] = useCollapsibleOpen(`feed-settings-${slug}`);
@@ -589,6 +602,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
         defaultOpen={false}
         storageKey={`feed-settings-${slug}`}
         onToggle={setPanelOpen}
+        forceOpen={focusPlayback}
       >
         <div className="space-y-4">
           <p className="text-sm text-muted-foreground">Notes, source URL, and network edits need Save. Other controls apply when changed; numeric fields save when you leave the field.</p>
@@ -603,6 +617,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
             title="Source and network"
             defaultOpen
             storageKey={`feed-source-${slug}`}
+            forceOpen={focusPlayback}
           >
             <div className="space-y-4 pt-1">
               {/* Network / DAI / Feed cap */}
@@ -1032,8 +1047,9 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                         ? null : (e.target.value as UnprocessedPlayback),
                     })}
                     disabled={updateMutation.isPending}
-                    className={`self-start min-w-0 max-w-full disabled:opacity-50 ${selectBase}`}
+                    className={`self-start min-w-0 max-w-full disabled:opacity-50 ${selectBase}${highlightPlayback ? ' ring-2 ring-ring' : ''}`}
                     aria-label="Unprocessed playback"
+                    ref={playbackRef}
                   >
                     <option value="">Use global ({globalUnprocessedPlaybackLabel})</option>
                     {(Object.keys(UNPROCESSED_PLAYBACK_LABELS) as UnprocessedPlayback[]).map((mode) => (
@@ -1070,9 +1086,8 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                       value={markerField.value}
                       onChange={(e) => markerField.setValue(e.target.value)}
                       onBlur={(e) => commitMarker(e.currentTarget.value)}
-                      onKeyDown={(e) => { if (e.key === 'Enter') commitMarker(e.currentTarget.value); }}
+                      onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); }}
                       aria-invalid={markerError ? true : undefined}
-                      maxLength={PROCESSED_TITLE_MARKER_MAX_LENGTH}
                       placeholder="e.g. [a] "
                       disabled={updateMutation.isPending}
                       aria-label="Processed title marker text"

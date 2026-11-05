@@ -15,16 +15,17 @@ import type { Episode, Feed } from '../api/types';
 
 const mockNavigate = vi.fn();
 let mockInitialSearch = '';
+let mockInitialHash = '';
 let mockLocationState: { notice?: string } | null = null;
 
 vi.mock('react-router', async (importOriginal) => ({
   ...(await importOriginal<typeof import('react-router')>()),
   useParams: () => ({ slug: 'test-feed' }),
   useNavigate: () => mockNavigate,
-  useLocation: () => ({ pathname: '/feeds/test-feed', state: mockLocationState }),
+  useLocation: () => ({ pathname: '/feeds/test-feed', state: mockLocationState, hash: mockInitialHash }),
 }));
 
-vi.mock('./feeds/FeedSettingsPanel', () => ({ default: () => <div data-testid="feed-settings-panel" /> }));
+vi.mock('./feeds/FeedSettingsPanel', () => ({ default: ({ focusPlayback }: { focusPlayback?: boolean }) => <div data-testid="feed-settings-panel" data-focus-playback={String(!!focusPlayback)} /> }));
 vi.mock('./feeds/FeedStatsCards', () => ({ default: () => <div data-testid="feed-stats-cards" /> }));
 vi.mock('./feeds/PodcastAdDistributionPanel', () => ({ default: () => <div data-testid="ad-distribution-panel" /> }));
 vi.mock('./feeds/CueTemplatesPanel', () => ({ default: () => <div data-testid="cue-templates-panel" /> }));
@@ -73,7 +74,7 @@ function renderFeedDetail(feed: Feed, episodes: Episode[] = []) {
   mockGetEpisodes.mockResolvedValue({ episodes, total: episodes.length });
   return render(
     <QueryClientProvider client={makeClient()}>
-      <MemoryRouter initialEntries={[`/feeds/test-feed?${mockInitialSearch}`]}>
+      <MemoryRouter initialEntries={[`/feeds/test-feed?${mockInitialSearch}${mockInitialHash}`]}>
         <FeedDetail />
       </MemoryRouter>
     </QueryClientProvider>,
@@ -84,6 +85,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   mockLocationState = null;
   mockInitialSearch = '';
+  mockInitialHash = '';
 });
 
 describe('FeedDetail: podping metadata line', () => {
@@ -704,4 +706,20 @@ it('allows explicit bulk reprocessing of duration-filtered matching episodes', a
   await user.click(screen.getByRole('button', { name: 'Full reprocess (1)' }));
   await waitFor(() => expect(mockBulkEpisodeAction).toHaveBeenCalledWith(
     'test-feed', ['filtered-completed'], 'reprocess_full'));
+});
+
+
+describe('FeedDetail: deep link to the unprocessed playback control', () => {
+  it('tells the settings panel to focus the control for #unprocessed-playback', async () => {
+    mockInitialHash = '#unprocessed-playback';
+    renderFeedDetail(makeFeed());
+    const panel = await screen.findByTestId('feed-settings-panel');
+    expect(panel.getAttribute('data-focus-playback')).toBe('true');
+  });
+
+  it('does not without the hash', async () => {
+    renderFeedDetail(makeFeed());
+    const panel = await screen.findByTestId('feed-settings-panel');
+    expect(panel.getAttribute('data-focus-playback')).toBe('false');
+  });
 });

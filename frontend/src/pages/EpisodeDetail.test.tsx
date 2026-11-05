@@ -2830,7 +2830,8 @@ describe('Hint about what a podcast app gets for an unprocessed episode', () => 
   it('says the episode is processed first by default, linking to the global setting', async () => {
     setup({}, {});
     expect(await screen.findByText(HINT_PROCESS)).toBeTruthy();
-    expect(screen.getByRole('link', { name: /change this in settings/i }).getAttribute('href')).toBe('/settings');
+    expect(screen.getByRole('link', { name: /change this in settings/i }).getAttribute('href'))
+      .toBe('/settings#unprocessed-playback');
   });
 
   it('says the original plays when the global mode is original', async () => {
@@ -2841,7 +2842,23 @@ describe('Hint about what a podcast app gets for an unprocessed episode', () => 
   it('follows the feed override and links to the feed settings', async () => {
     setup({ status: 'pending' }, { unprocessedPlayback: 'original' }, 'process');
     expect(await screen.findByText(HINT_ORIGINAL)).toBeTruthy();
-    expect(screen.getByRole('link', { name: /change this in feed settings/i }).getAttribute('href')).toBe('/feeds/test-feed');
+    expect(screen.getByRole('link', { name: /change this in feed settings/i }).getAttribute('href'))
+      .toBe('/feeds/test-feed#unprocessed-playback');
+  });
+
+  it('also covers a failed episode: the original in original mode', async () => {
+    setup({ status: 'failed', error: 'boom' }, {}, 'original');
+    expect(await screen.findByText(HINT_ORIGINAL)).toBeTruthy();
+  });
+
+  it('describes a failed episode accurately in process mode', async () => {
+    setup({ status: 'failed', error: 'boom' }, {});
+    expect(await screen.findByText(/processing this episode failed.*has to wait until a retry succeeds/i)).toBeTruthy();
+  });
+
+  it('describes a permanently failed episode accurately in process mode', async () => {
+    setup({ status: 'permanently_failed', error: 'boom' }, {});
+    expect(await screen.findByText(/processing this episode failed for good.*cannot play it/i)).toBeTruthy();
   });
 
   it('is not shown for a processed, local or once-processed episode', async () => {

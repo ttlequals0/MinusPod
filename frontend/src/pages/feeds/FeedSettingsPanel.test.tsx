@@ -93,13 +93,13 @@ function makeCueTemplate(overrides: Partial<CueTemplate> = {}): CueTemplate {
   };
 }
 
-function renderPanel(feed: Feed) {
+function renderPanel(feed: Feed, focusPlayback = false) {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   });
   const result = render(
     <QueryClientProvider client={client}>
-      <FeedSettingsPanel feed={feed} slug={feed.slug} />
+      <FeedSettingsPanel feed={feed} slug={feed.slug} focusPlayback={focusPlayback} />
     </QueryClientProvider>,
   );
   // Re-render with a new feed object of the same shape, simulating a
@@ -1200,7 +1200,7 @@ describe('FeedSettingsPanel processed title marker override', () => {
     renderPanel(makeFeed({ processedTitleMarker: '[b] ' }));
     const input = screen.getByLabelText('Processed title marker text') as HTMLInputElement;
     expect(input.value).toBe('[b] ');
-    expect(input.maxLength).toBe(16);
+    expect(input.hasAttribute('maxlength')).toBe(false);   // counted in code points, never cut by the browser
     await userEvent.clear(input);
     await userEvent.type(input, '[[a] ');
     await userEvent.tab();
@@ -1270,8 +1270,37 @@ describe('FeedSettingsPanel processed title marker override', () => {
     const input = screen.getByLabelText('Processed title marker text');
     fireEvent.change(input, { target: { value: '[a]\u200b' } });
     fireEvent.blur(input);
-    expect(await screen.findByText("The marker can't contain hidden or control characters.")).toBeTruthy();
+    expect(await screen.findByText("The marker can't contain a hidden or control character (U+200B).")).toBeTruthy();
     expect(mockUpdateFeed).not.toHaveBeenCalled();
+  });
+
+  it('Enter saves once, not again when the field then loses focus', async () => {
+    renderPanel(makeFeed());
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Processed title marker' }), 'custom');
+    await userEvent.type(screen.getByLabelText('Processed title marker text'), '[[e] {Enter}');
+    await userEvent.tab();
+    await waitFor(() => expect(mockUpdateFeed).toHaveBeenCalled());
+    expect(mockUpdateFeed).toHaveBeenCalledTimes(1);
+    expect(mockUpdateFeed).toHaveBeenCalledWith('test-feed', { processedTitleMarker: '[e] ' });
+  });
+
+  it('lets a long marker be typed whole and explains it instead of cutting it', async () => {
+    renderPanel(makeFeed());
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Processed title marker' }), 'custom');
+    const input = screen.getByLabelText('Processed title marker text') as HTMLInputElement;
+    fireEvent.change(input, { target: { value: 'x'.repeat(20) } });
+    expect(input.value).toBe('x'.repeat(20));
+    fireEvent.blur(input);
+    expect(await screen.findByText('The marker can be at most 16 characters.')).toBeTruthy();
+    expect(mockUpdateFeed).not.toHaveBeenCalled();
+  });
+
+  it('opens Feed settings and focuses the playback control when asked to', async () => {
+    localStorage.setItem('feed-settings-test-feed', 'false');
+    localStorage.setItem('feed-source-test-feed', 'false');
+    renderPanel(makeFeed(), true);
+    const select = screen.getByRole('combobox', { name: 'Unprocessed playback' });
+    await waitFor(() => expect(document.activeElement).toBe(select));
   });
 
   it('a blank custom entry falls back to the stored mode', async () => {
