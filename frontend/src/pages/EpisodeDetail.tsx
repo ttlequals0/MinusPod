@@ -44,6 +44,7 @@ import CueDetectionsSection from '../components/CueDetectionsSection';
 import CueCandidatesSection from '../components/CueCandidatesSection';
 import { useLocalStorageState } from '../hooks/useLocalStorageState';
 import { useSyncFromQuery } from '../hooks/useSyncFromQuery';
+import { useUrlParams } from '../hooks/useUrlParams';
 import { formatStorage, formatDuration, formatTokenRange } from './settings/settingsUtils';
 import { groupAdBlocks } from '../utils/adBlocks';
 import { formatDate, formatPercent, formatTimestamp, toDatetimeLocalInput, fromDatetimeLocalInput } from '../utils/format';
@@ -361,8 +362,13 @@ function blockedRunReason(jobState?: JobState): string {
 
 const downloadChip = btnBase;
 
+// ?rate=N from a feed description link; stripped once applied.
+const URL_PARAM_DEFAULTS = { rate: '' };
+
 function EpisodeDetail() {
   const { slug, episodeId } = useParams<{ slug: string; episodeId: string }>();
+  const urlParams = useUrlParams(URL_PARAM_DEFAULTS);
+  const clearRateParam = () => urlParams.write({ rate: '' });
   const [showEditor, setShowEditor] = useState(false);
   const [createModeRequested, setCreateModeRequested] = useState(false);
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle');
@@ -1569,7 +1575,13 @@ function EpisodeDetail() {
 
       {episode.status === 'completed' && slug && episodeId && (
         <div className="bg-card rounded-lg border border-border p-6 mb-6 space-y-4">
-          <EpisodeRating slug={slug} episodeId={episodeId} rating={episode.rating} />
+          <EpisodeRating
+            slug={slug}
+            episodeId={episodeId}
+            rating={episode.rating}
+            requestedRating={Number(urlParams.read('rate')) || undefined}
+            onRequestedRatingHandled={clearRateParam}
+          />
           {episode.sponsorBlock?.submitAllowed && (
             <div className="pt-4 border-t border-border">
               <SponsorBlockSubmit slug={slug} episodeId={episodeId} hasOriginalAudio={episode.hasOriginalAudio} />

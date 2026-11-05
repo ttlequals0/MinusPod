@@ -43,6 +43,7 @@ vi.mock('react-router', async (importOriginal) => {
   return {
     ...mod,
     useParams: () => ({ slug: 'test-feed', episodeId: 'ep-1' }),
+    useSearchParams: () => [new URLSearchParams(), () => {}],
     Link: ({ children }: { children: React.ReactNode }) => <a>{children}</a>,
   };
 });

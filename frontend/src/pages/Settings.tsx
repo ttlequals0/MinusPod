@@ -249,6 +249,7 @@ function Settings() {
   const [vttTranscriptsEnabled, setVttTranscriptsEnabled] = useState(false);
   const [chaptersEnabled, setChaptersEnabled] = useState(false);
   const [chaptersInNotes, setChaptersInNotes] = useState(false);
+  const [reviewLinksInNotes, setReviewLinksInNotes] = useState(false);
   const [adChaptersIncludeHeld, setAdChaptersIncludeHeld] = useState(false);
   const [adChapterTitleFormat, setAdChapterTitleFormat] = useState('Ad: {label}');
   const [adChapterHeldTitleFormat, setAdChapterHeldTitleFormat] = useState('Possible ad: {label}');
@@ -910,6 +911,7 @@ function Settings() {
     { key: 'vttTranscriptsEnabled', kind: 'val', useDefault: true, value: vttTranscriptsEnabled, set: setVttTranscriptsEnabled },
     { key: 'chaptersEnabled', kind: 'val', useDefault: true, value: chaptersEnabled, set: setChaptersEnabled },
     { key: 'chaptersInNotes', kind: 'val', useDefault: true, value: chaptersInNotes, set: setChaptersInNotes },
+    { key: 'reviewLinksInNotes', kind: 'val', useDefault: true, value: reviewLinksInNotes, set: setReviewLinksInNotes },
     { key: 'adChaptersIncludeHeld', kind: 'val', useDefault: true, value: adChaptersIncludeHeld, set: setAdChaptersIncludeHeld },
     { key: 'adChapterTitleFormat', kind: 'str', useDefault: true, value: adChapterTitleFormat, set: setAdChapterTitleFormat },
     { key: 'adChapterHeldTitleFormat', kind: 'str', useDefault: true, value: adChapterHeldTitleFormat, set: setAdChapterHeldTitleFormat },
@@ -1725,9 +1727,11 @@ function Settings() {
         vttTranscriptsEnabled={vttTranscriptsEnabled}
         chaptersEnabled={chaptersEnabled}
         chaptersInNotes={chaptersInNotes}
+        reviewLinksInNotes={reviewLinksInNotes}
         onVttTranscriptsEnabledChange={setVttTranscriptsEnabled}
         onChaptersEnabledChange={setChaptersEnabled}
         onChaptersInNotesChange={setChaptersInNotes}
+        onReviewLinksInNotesChange={setReviewLinksInNotes}
         chaptersMode={(settings?.chaptersMode?.value ?? settings?.defaults?.chaptersMode ?? 'auto') as 'auto' | 'generate' | 'off'}
         unsupportedChaptersRoute={unsupportedChaptersRoute}
         onChaptersModeChange={(v) => tunableMutation.mutate({ chaptersMode: v })}

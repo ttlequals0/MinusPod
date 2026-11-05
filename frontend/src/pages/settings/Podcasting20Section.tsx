@@ -154,9 +154,11 @@ interface Podcasting20SectionProps {
   vttTranscriptsEnabled: boolean;
   chaptersEnabled: boolean;
   chaptersInNotes: boolean;
+  reviewLinksInNotes: boolean;
   onVttTranscriptsEnabledChange: (enabled: boolean) => void;
   onChaptersEnabledChange: (enabled: boolean) => void;
   onChaptersInNotesChange: (enabled: boolean) => void;
+  onReviewLinksInNotesChange: (enabled: boolean) => void;
   chaptersMode: 'auto' | 'generate' | 'off';
   onChaptersModeChange: (mode: 'auto' | 'generate' | 'off') => void;
   unsupportedChaptersRoute?: string | null;
@@ -168,9 +170,11 @@ function Podcasting20Section({
   vttTranscriptsEnabled,
   chaptersEnabled,
   chaptersInNotes,
+  reviewLinksInNotes,
   onVttTranscriptsEnabledChange,
   onChaptersEnabledChange,
   onChaptersInNotesChange,
+  onReviewLinksInNotesChange,
   chaptersMode,
   onChaptersModeChange,
   unsupportedChaptersRoute = null,
@@ -216,6 +220,12 @@ function Podcasting20Section({
           Append the chapter list (timestamp and title) to each episode&apos;s
           description in the served feed and on the episode page, for apps
           that only show chapters during playback. Feeds can override this.
+        </ToggleRow>
+
+        <ToggleRow checked={reviewLinksInNotes} onChange={onReviewLinksInNotesChange}
+          label="Add review links to episode descriptions">
+          Links to the episode page and a one-tap 5-star rating, shown to
+          anyone reading the feed. Feeds can override this.
         </ToggleRow>
 
         {geometry && <ChapterGeometryBlock {...geometry} />}

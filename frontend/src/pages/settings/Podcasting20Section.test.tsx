@@ -11,18 +11,22 @@ import { baseDefaults, baseTunables, inputFor } from './tunablesTestFixtures';
 function Harness({
   onSave = () => {},
   onChaptersInNotesChange = () => {},
+  onReviewLinksInNotesChange = () => {},
 }: {
   onSave?: (payload: UpdateSettingsPayload) => void;
   onChaptersInNotesChange?: (enabled: boolean) => void;
+  onReviewLinksInNotesChange?: (enabled: boolean) => void;
 }) {
   return (
     <Podcasting20Section
       vttTranscriptsEnabled
       chaptersEnabled
       chaptersInNotes={false}
+      reviewLinksInNotes={false}
       onVttTranscriptsEnabledChange={() => {}}
       onChaptersEnabledChange={() => {}}
       onChaptersInNotesChange={onChaptersInNotesChange}
+      onReviewLinksInNotesChange={onReviewLinksInNotesChange}
       chaptersMode="auto"
       onChaptersModeChange={() => {}}
       geometry={{
@@ -103,6 +107,15 @@ describe('chapters in episode description toggle', () => {
     const onChange = vi.fn();
     render(<Harness onChaptersInNotesChange={onChange} />);
     await userEvent.click(screen.getByRole('switch', { name: 'List chapters in episode descriptions' }));
+    expect(onChange).toHaveBeenCalledWith(true);
+  });
+});
+
+describe('review links in episode description toggle', () => {
+  it('fires the change handler when switched on', async () => {
+    const onChange = vi.fn();
+    render(<Harness onReviewLinksInNotesChange={onChange} />);
+    await userEvent.click(screen.getByRole('switch', { name: 'Add review links to episode descriptions' }));
     expect(onChange).toHaveBeenCalledWith(true);
   });
 });

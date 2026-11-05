@@ -1597,6 +1597,32 @@ describe('FeedSettingsPanel chapters in description control', () => {
   });
 });
 
+describe('FeedSettingsPanel review links control', () => {
+  const NAME = 'Review links in descriptions';
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockUpdateFeed.mockResolvedValue(makeFeed());
+  });
+
+  it('renders the global default when unset', () => {
+    renderPanel(makeFeed());
+    expect((screen.getByRole('combobox', { name: NAME }) as HTMLSelectElement).value).toBe('');
+  });
+
+  it('selecting On fires updateFeed with reviewLinksInNotes on', async () => {
+    renderPanel(makeFeed());
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: NAME }), 'on');
+    expect(mockUpdateFeed).toHaveBeenCalledWith('test-feed', { reviewLinksInNotes: 'on' });
+  });
+
+  it('selecting the default clears the override', async () => {
+    renderPanel(makeFeed({ reviewLinksInNotes: 'off' }));
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: NAME }), '');
+    expect(mockUpdateFeed).toHaveBeenCalledWith('test-feed', { reviewLinksInNotes: null });
+  });
+});
+
 describe('Feed duration filters', () => {
   beforeEach(() => {
     vi.clearAllMocks();

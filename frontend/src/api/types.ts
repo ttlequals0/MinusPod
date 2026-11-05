@@ -101,6 +101,8 @@ export interface Feed {
   differentialFetchMode?: 'inherit' | 'auto' | 'on' | 'off' | null;
   // Chapter list in served descriptions (#720): null follows the global setting.
   chaptersInNotes?: 'on' | 'off' | null;
+  // Review and rate links in served descriptions: null follows the global setting.
+  reviewLinksInNotes?: 'on' | 'off' | null;
   // Per-feed auto-process queue priority (#625). Server always resolves to
   // one of the three values; null/absent reads as 'normal'.
   queuePriority?: 'high' | 'normal' | 'low' | null;
@@ -1018,6 +1020,7 @@ export interface Settings {
   chaptersEnabled: SettingValueBoolean;
   chaptersMode: SettingValue;
   chaptersInNotes: SettingValueBoolean;
+  reviewLinksInNotes: SettingValueBoolean;
   skipSecondPass: SettingValueBoolean;
   transcriptDifferentialEnabled: SettingValueBoolean;
   differentialFetchMode: SettingValue;
@@ -1358,6 +1361,7 @@ export interface UpdateSettingsPayload {
   chaptersEnabled?: boolean;
   chaptersMode?: 'auto' | 'generate' | 'off';
   chaptersInNotes?: boolean;
+  reviewLinksInNotes?: boolean;
   skipSecondPass?: boolean;
   transcriptDifferentialEnabled?: boolean;
   differentialFetchMode?: 'auto' | 'on' | 'off';

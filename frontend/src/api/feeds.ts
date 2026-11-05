@@ -481,6 +481,7 @@ export interface UpdateFeedPayload {
   chaptersMode?: 'auto' | 'generate' | 'off' | null;
   differentialFetchMode?: 'inherit' | 'auto' | 'on' | 'off' | null;
   chaptersInNotes?: 'on' | 'off' | null;
+  reviewLinksInNotes?: 'on' | 'off' | null;
   queuePriority?: 'high' | 'normal' | 'low' | null;
   lowAdYieldAction?: LowAdYieldAction | null;
   episodeLogs?: EpisodeLogsOverride | null;

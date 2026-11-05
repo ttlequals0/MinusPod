@@ -9,7 +9,7 @@
  *   - EpisodeList chip renders when pendingReviewCount>0, absent at 0/undefined.
  *   - Description and chapter notes render as separate blocks.
  */
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import EpisodeDetail, { KeyedEpisodeDetail } from './EpisodeDetail';
@@ -20,8 +20,13 @@ import { getSettings } from '../api/settings';
 
 // react-router stubs. Mutable so a test can move the view to another episode.
 const routeParams = vi.hoisted(() => ({ slug: 'test-feed', episodeId: 'ep-1' }));
+const routeSearch = vi.hoisted(() => ({ value: '' }));
 vi.mock('react-router', () => ({
   useParams: () => ({ ...routeParams }),
+  useSearchParams: () => [
+    new URLSearchParams(routeSearch.value),
+    (next: URLSearchParams) => { routeSearch.value = next.toString(); },
+  ],
   Link: ({ children, to }: { children: React.ReactNode; to: string }) => (
     <a href={to}>{children}</a>
   ),
@@ -2661,6 +2666,54 @@ describe('Episode rating', () => {
     await user.click(await screen.findByRole('radio', { name: '5 stars' }));
     await user.click(screen.getByRole('button', { name: 'Save' }));
     expect(await screen.findByText('Saved. 2 held segments dismissed.')).not.toBeNull();
+  });
+
+  describe('?rate= from a feed link', () => {
+    const FIVE = { rating: { value: 5, notes: null, ratedAt: '2026-10-31T10:00:00Z' }, confirmedMarkers: 1, dismissedMarkers: 0 };
+
+    beforeEach(() => { routeSearch.value = 'rate=5'; });
+    afterEach(() => { routeSearch.value = ''; });
+
+    it('applies the rating once with no notes, confirms with Undo and strips the parameter', async () => {
+      mockRateEpisode.mockResolvedValue(FIVE);
+      renderDetail(makeEpisode({ rating: null }));
+      expect(await screen.findByText('Rated 5 stars from the feed link')).not.toBeNull();
+      expect(mockRateEpisode).toHaveBeenCalledTimes(1);
+      expect(mockRateEpisode).toHaveBeenCalledWith('test-feed', 'ep-1', 5, null);
+      expect(routeSearch.value).toBe('');
+      expect(screen.getByRole('button', { name: 'Undo' })).not.toBeNull();
+    });
+
+    it('Undo clears the rating', async () => {
+      const user = userEvent.setup();
+      mockRateEpisode.mockResolvedValue(FIVE);
+      renderDetail(makeEpisode({ rating: null }));
+      await user.click(await screen.findByRole('button', { name: 'Undo' }));
+      await waitFor(() => expect(mockClearRating).toHaveBeenCalledWith('test-feed', 'ep-1'));
+      expect(await screen.findByText('Rating cleared.')).not.toBeNull();
+      expect(screen.queryByRole('button', { name: 'Undo' })).toBeNull();
+    });
+
+    it('only reports when the episode already has that rating', async () => {
+      renderDetail(makeEpisode({ rating: { value: 5, notes: null, ratedAt: '2026-10-30T10:00:00Z' } }));
+      expect(await screen.findByText('Already rated 5 stars')).not.toBeNull();
+      expect(mockRateEpisode).not.toHaveBeenCalled();
+      expect(routeSearch.value).toBe('');
+    });
+
+    it('does nothing while the episode is not completed', async () => {
+      renderDetail(makeEpisode({ status: 'processing', rating: null }));
+      await screen.findByText('Test Episode');
+      expect(mockRateEpisode).not.toHaveBeenCalled();
+      expect(routeSearch.value).toBe('rate=5');
+    });
+
+    it('ignores a value outside 1 to 5', async () => {
+      routeSearch.value = 'rate=9';
+      renderDetail(makeEpisode({ rating: null }));
+      await screen.findByText('Not rated yet');
+      expect(mockRateEpisode).not.toHaveBeenCalled();
+    });
   });
 
   it('shows the current rating and clears it', async () => {

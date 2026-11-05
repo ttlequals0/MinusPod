@@ -1,4 +1,4 @@
-import { useState, type KeyboardEvent } from 'react';
+import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
 import { Star } from 'lucide-react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { clearEpisodeRating, rateEpisode } from '../api/feeds';
@@ -12,11 +12,27 @@ const STARS = [1, 2, 3, 4, 5] as const;
 const segments = (n: number, kind: string) => `${n} ${kind} ${n === 1 ? 'segment' : 'segments'}`;
 const NOTES_PLACEHOLDER = 'What was wrong? Missed ad, wrong boundary, kept segment, audio glitch...';
 
-function EpisodeRating({ slug, episodeId, rating }: { slug: string; episodeId: string; rating?: Rating | null }) {
+const validRequest = (n?: number): n is number => Number.isInteger(n) && n! >= 1 && n! <= 5;
+const stars = (n: number) => `${n} ${n === 1 ? 'star' : 'stars'}`;
+
+interface EpisodeRatingProps {
+  slug: string;
+  episodeId: string;
+  rating?: Rating | null;
+  /** 1..5 from a feed link (?rate=N); applied once on mount. */
+  requestedRating?: number;
+  onRequestedRatingHandled?: () => void;
+}
+
+function EpisodeRating({ slug, episodeId, rating, requestedRating, onRequestedRatingHandled }: EpisodeRatingProps) {
+  const rootRef = useRef<HTMLDivElement>(null);
+  const requestHandled = useRef(false);
+  const [undoable, setUndoable] = useState(false);
   const queryClient = useQueryClient();
   const [value, setValue] = useState<number>(rating?.value ?? 0);
   const [notes, setNotes] = useState(rating?.notes ?? '');
-  const [message, setMessage] = useState<string | null>(null);
+  const [message, setMessage] = useState<string | null>(() =>
+    validRequest(requestedRating) && requestedRating === rating?.value ? `Already rated ${stars(requestedRating)}` : null);
   const [error, setError] = useState<string | null>(null);
   const [syncedAt, setSyncedAt] = useState(rating?.ratedAt ?? null);
 
@@ -33,16 +49,25 @@ function EpisodeRating({ slug, episodeId, rating }: { slug: string; episodeId: s
   };
 
   const save = useMutation({
-    mutationFn: () => rateEpisode(slug, episodeId, value, value < 5 ? notes.trim() || null : null),
-    onMutate: () => { setError(null); setMessage(null); },
-    onSuccess: (result) => {
-      if (value === 5) setNotes('');
+    mutationFn: ({ count, viaLink }: { count: number; viaLink?: boolean }) =>
+      rateEpisode(slug, episodeId, count, count < 5 && !viaLink ? notes.trim() || null : null),
+    onMutate: () => { setError(null); setMessage(null); setUndoable(false); },
+    onSuccess: (result, { count, viaLink }) => {
+      if (viaLink) {
+        setValue(count);
+        setNotes('');
+        setMessage(`Rated ${stars(count)} from the feed link`);
+        setUndoable(true);
+        setRating(result.rating);
+        return;
+      }
+      if (count === 5) setNotes('');
       const { confirmedMarkers: confirmed, dismissedMarkers: dismissed } = result;
       const parts = [
         ...(confirmed || !dismissed ? [`${segments(confirmed, 'cut')} confirmed`] : []),
         ...(dismissed ? [`${segments(dismissed, 'held')} dismissed`] : []),
       ];
-      setMessage(value === 5 ? `Saved. ${parts.join(', ')}.` : 'Rating saved.');
+      setMessage(count === 5 ? `Saved. ${parts.join(', ')}.` : 'Rating saved.');
       setRating(result.rating);
     },
     onError: (e) => setError(getErrorMessage(e, 'Could not save the rating.')),
@@ -50,7 +75,7 @@ function EpisodeRating({ slug, episodeId, rating }: { slug: string; episodeId: s
 
   const clear = useMutation({
     mutationFn: () => clearEpisodeRating(slug, episodeId),
-    onMutate: () => { setError(null); setMessage(null); },
+    onMutate: () => { setError(null); setMessage(null); setUndoable(false); },
     onSuccess: () => {
       setValue(0);
       setNotes('');
@@ -59,6 +84,14 @@ function EpisodeRating({ slug, episodeId, rating }: { slug: string; episodeId: s
     },
     onError: (e) => setError(getErrorMessage(e, 'Could not clear the rating.')),
   });
+
+  useEffect(() => {
+    if (requestHandled.current || !validRequest(requestedRating)) return;
+    requestHandled.current = true;
+    if (requestedRating !== rating?.value) save.mutate({ count: requestedRating, viaLink: true });
+    rootRef.current?.scrollIntoView?.({ block: 'nearest' });
+    onRequestedRatingHandled?.();
+  }, [requestedRating, rating?.value, save, onRequestedRatingHandled]);
 
   const busy = save.isPending || clear.isPending;
   const dirty = value !== (rating?.value ?? 0) || (value < 5 && notes.trim() !== (rating?.notes ?? ''));
@@ -73,7 +106,7 @@ function EpisodeRating({ slug, episodeId, rating }: { slug: string; episodeId: s
   };
 
   return (
-    <div className="space-y-3">
+    <div ref={rootRef} className="space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
         <h2 id="episode-rating-title" className={cardTitle}>Rate this episode</h2>
         <p className="text-sm text-muted-foreground">
@@ -121,7 +154,7 @@ function EpisodeRating({ slug, episodeId, rating }: { slug: string; episodeId: s
           type="button"
           className={`${btnBase} ${btnPrimary}`}
           disabled={value === 0 || !dirty || busy}
-          onClick={() => save.mutate()}
+          onClick={() => save.mutate({ count: value })}
         >
           {save.isPending ? 'Saving...' : 'Save'}
         </button>
@@ -131,8 +164,13 @@ function EpisodeRating({ slug, episodeId, rating }: { slug: string; episodeId: s
           </button>
         )}
       </div>
-      <div aria-live="polite">
+      <div aria-live="polite" className="flex flex-wrap items-center gap-x-3 gap-y-1">
         {message && <p className="text-sm text-success">{message}</p>}
+        {undoable && (
+          <button type="button" className={`${btnBase} ${btnSecondary}`} disabled={busy} onClick={() => clear.mutate()}>
+            Undo
+          </button>
+        )}
       </div>
       {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
     </div>

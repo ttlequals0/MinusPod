@@ -1229,6 +1229,18 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                 feed, so apps show it without starting playback.
               </GlobalOverrideRow>
 
+              <GlobalOverrideRow
+                label="Review links"
+                ariaLabel="Review links in descriptions"
+                value={feed.reviewLinksInNotes}
+                globalOn={!!settings?.reviewLinksInNotes?.value}
+                disabled={updateMutation.isPending}
+                onChange={(reviewLinksInNotes) => updateMutation.mutate({ reviewLinksInNotes })}
+              >
+                Add a link to the episode page and a 5-star rating link to the
+                description of each processed episode in this feed.
+              </GlobalOverrideRow>
+
             </div>
           </CollapsibleSection>
 
