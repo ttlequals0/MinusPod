@@ -27,6 +27,7 @@ interface EpisodeRatingProps {
 function EpisodeRating({ slug, episodeId, rating, requestedRating, onRequestedRatingHandled }: EpisodeRatingProps) {
   const rootRef = useRef<HTMLDivElement>(null);
   const requestHandled = useRef(false);
+  const scrollToMessage = useRef(false);
   const [undoable, setUndoable] = useState(false);
   const queryClient = useQueryClient();
   const [value, setValue] = useState<number>(rating?.value ?? 0);
@@ -89,9 +90,16 @@ function EpisodeRating({ slug, episodeId, rating, requestedRating, onRequestedRa
     if (requestHandled.current || !validRequest(requestedRating)) return;
     requestHandled.current = true;
     if (requestedRating !== rating?.value) save.mutate({ count: requestedRating, viaLink: true });
-    rootRef.current?.scrollIntoView?.({ block: 'nearest' });
+    scrollToMessage.current = true;
     onRequestedRatingHandled?.();
   }, [requestedRating, rating?.value, save, onRequestedRatingHandled]);
+
+  // The confirmation renders below the stars, so scroll once it exists.
+  useEffect(() => {
+    if (!scrollToMessage.current || !message) return;
+    scrollToMessage.current = false;
+    rootRef.current?.scrollIntoView?.({ block: 'nearest' });
+  }, [message]);
 
   const busy = save.isPending || clear.isPending;
   const dirty = value !== (rating?.value ?? 0) || (value < 5 && notes.trim() !== (rating?.notes ?? ''));
