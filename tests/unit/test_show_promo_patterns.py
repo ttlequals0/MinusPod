@@ -633,3 +633,47 @@ def test_keep_action_marker_never_reaches_the_reviewer_d(temp_db):
     actions['self_promo'] = 'keep'
     keep_ads, remove_ads = keep_rules._partition_keep_ads([marker], actions)
     assert remove_ads == [] and keep_ads[0]['action_applied'] == 'keep'
+
+
+# ------------------------------------------------ one predicate, one rules payload
+
+def test_one_predicate_for_sponsorless_plus_promo_category():
+    from utils.constants import is_show_promo_candidate
+    assert is_show_promo_candidate(None, 'interaction')
+    assert is_show_promo_candidate('  ', 'cross_promo')
+    assert not is_show_promo_candidate('Acme', 'interaction')
+    assert not is_show_promo_candidate(None, 'sponsor')
+    assert not is_show_promo_candidate(None, None)
+
+
+def test_public_duration_bounds_and_rules_use_the_configured_minimum(temp_db):
+    from text_pattern_matcher import get_pattern_duration_bounds, show_promo_rules
+    assert get_pattern_duration_bounds(temp_db) == (15, 120)
+    assert show_promo_rules(temp_db) == {
+        'floors': {'interaction': {'seconds': 20, 'chars': 150},
+                   'self_promo': {'seconds': 20, 'chars': 150},
+                   'cross_promo': {'seconds': 30, 'chars': 225}},
+        'maxSeconds': 120}
+    temp_db.set_setting('learning_min_pattern_duration', '40')
+    rules = show_promo_rules(temp_db)
+    assert rules['floors']['interaction']['seconds'] == 40
+    assert rules['floors']['cross_promo']['seconds'] == 40
+
+
+def test_pattern_rows_serialize_is_show_promo(temp_db, client):
+    _seed(temp_db)
+    pid, _ = _confirm(temp_db, ASK, 'interaction')
+    legacy = temp_db.create_ad_pattern(scope='podcast', text_template='z' * 80,
+                                       podcast_id=SLUG, category='interaction')
+    rows = {p['id']: p for p in client.get('/api/v1/patterns').get_json()['patterns']}
+    assert rows[pid]['is_show_promo'] is True
+    assert rows[legacy]['is_show_promo'] is False
+    assert client.get(f'/api/v1/patterns/{pid}').get_json()['is_show_promo'] is True
+
+
+def test_settings_payload_carries_the_rules_but_the_config_export_does_not(temp_db, client):
+    body = client.get('/api/v1/settings').get_json()
+    assert body['showPromoRules']['floors']['cross_promo'] == {'seconds': 30, 'chars': 225}
+    assert body['showPromoRules']['maxSeconds'] == 120
+    from api.settings.core import _build_settings_payload
+    assert 'showPromoRules' not in _build_settings_payload()

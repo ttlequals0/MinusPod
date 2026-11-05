@@ -262,6 +262,16 @@ def show_promo_floor_problem(category, duration, chars, min_duration, max_durati
 SHOW_PROMO_CREATED_BY = 'show_promo'
 
 
+def is_show_promo_category(category) -> bool:
+    return category in NON_SPONSOR_PATTERN_CATEGORIES
+
+
+def is_show_promo_candidate(sponsor, category) -> bool:
+    """No advertiser named and a category that names none: a read the show path
+    (not the sponsor path) can learn. The one predicate every site shares."""
+    return not (sponsor and str(sponsor).strip()) and is_show_promo_category(category)
+
+
 def is_show_promo_pattern(pattern: dict) -> bool:
     """A subscribe ask, self-promo or own-network promo learned for one show
     through the gated path (floors, podcast scope, human confirm)."""

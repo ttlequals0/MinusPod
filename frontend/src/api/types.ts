@@ -893,7 +893,16 @@ export const WHISPER_BACKENDS = {
   PARAKEET: 'parakeet' as const,
 };
 
+// What a span must satisfy to be learned as a show pattern, as the server
+// judges it (the configured minimum duration is already applied to seconds).
+export interface ShowPromoRules {
+  floors: Record<string, { seconds: number; chars: number }>;
+  maxSeconds: number;
+}
+
 export interface Settings {
+  // Read-only; present on GET /settings only.
+  showPromoRules?: ShowPromoRules;
   systemPrompt: SettingValue;
   verificationPrompt: SettingValue;
   reviewPrompt: SettingValue;

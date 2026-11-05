@@ -30,11 +30,12 @@ import { DETECTION_STAGE_META } from '../utils/detectionStage';
 import { CORROBORATION_CLASS, CORROBORATION_META } from '../utils/corroboration';
 import { formatConfidence } from '../utils/confidence';
 import { isActionBlocked } from '../utils/processingStage';
+import { useShowPromoRules } from '../hooks/useShowPromoRules';
 import { confirmLabel, isKeepLike, rejectLabel, teachesShowHint } from '../utils/segmentCategory';
 import { applyEpisodeJobState, jobStateFromError } from '../utils/jobStateCache';
 import AdEditor, { AdCorrection } from '../components/AdEditor';
 import AdReviewModal from '../components/AdReviewModal';
-import type { AdSegment, EpisodeCorrection, Feed, EpisodeDetail as EpisodeDetailApi, JobState, ThinkingNoticePass, UpstreamTranscript } from '../api/types';
+import type { AdSegment, EpisodeCorrection, Feed, EpisodeDetail as EpisodeDetailApi, JobState, ShowPromoRules, ThinkingNoticePass, UpstreamTranscript } from '../api/types';
 import PatternLink from '../components/PatternLink';
 import ExpandableText from '../components/ExpandableText';
 import RichText from '../components/RichText';
@@ -144,6 +145,18 @@ function toOriginalAd(segment: AdSegment) {
     confidence: segment.confidence,
     reason: segment.reason || '',
   };
+}
+
+// Under a Confirm button: says confirming will teach this show, but only when
+// the server's rules say it will (see teachesShowHint).
+function TeachShowHint({ segment, rules }: { segment: AdSegment; rules?: ShowPromoRules }) {
+  const hint = teachesShowHint(rules, {
+    category: segment.category, sponsor: segment.sponsor,
+    patternId: segment.pattern_id, start: segment.start, end: segment.end,
+  });
+  return hint ? (
+    <p className="text-xs text-muted-foreground mt-2" data-testid="teach-show-hint">{hint}</p>
+  ) : null;
 }
 
 // This row is one piece of a detection the render split.
@@ -424,6 +437,7 @@ function EpisodeDetail() {
     queryFn: getSettings,
     enabled: !!episode?.transcriptVttAvailable,
   });
+  const showPromoRules = useShowPromoRules();
   const unsupportedChapterRoute = isSystemOneChapterRoute(settings);
   const chapterRouteWarning = 'System One cannot generate chapters. Select a chat provider and model.';
   const chapterActionTooltip = chapterSettingsError ? 'Load chapter settings before regenerating chapters.'
@@ -1706,10 +1720,6 @@ function EpisodeDetail() {
                 ? HOLD_REASON_LABELS[segment.hold_reason]
                 : 'Held';
               const confirmStatus = rowSaveStatus(segment, 'confirm');
-              const showHint = teachesShowHint({
-                category: segment.category, sponsor: segment.sponsor,
-                patternId: segment.pattern_id, start: segment.start, end: segment.end,
-              });
               const trimmedStatus = rowSaveStatus(segment, 'confirm-trimmed');
               const rejectStatus = rowSaveStatus(segment, 'reject');
               const heldKey = `held-${segment.start}-${segment.end}`;
@@ -1814,10 +1824,8 @@ function EpisodeDetail() {
                       {pass2Review.verdict}. {pass2Review.reason}
                     </p>
                   )}
-                  {!correction && !segment.approved && showHint && (
-                    <p className="text-xs text-muted-foreground mt-2" data-testid="teach-show-hint">
-                      {showHint}
-                    </p>
+                  {!correction && !segment.approved && (
+                    <TeachShowHint segment={segment} rules={showPromoRules} />
                   )}
                   {!correction && !segment.approved && (
                     <div className="flex flex-col sm:flex-row gap-2 mt-3">

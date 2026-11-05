@@ -29,6 +29,7 @@ import {
   savePlayWhileDragging,
 } from '../utils/adReviewHelpers';
 import Checkbox from './Checkbox';
+import { useShowPromoRules } from '../hooks/useShowPromoRules';
 import {
   SEGMENT_CATEGORIES,
   SEGMENT_CATEGORY_DESCRIPTIONS,
@@ -340,12 +341,21 @@ function AdReviewModal({
   // No sponsor and a subscribe / self-promo / cross-promo category: the server
   // teaches the show a podcast-only pattern and applies per-category floors.
   // Mirror that gate here so Save never starts a create the server will refuse.
-  const showPromoCreate = !sponsorInput.trim() && isShowPromoCategory(categoryInput);
+  const showPromoRules = useShowPromoRules();
+  const showPromoCreate = !sponsorInput.trim() && isShowPromoCategory(showPromoRules, categoryInput);
   const effectiveScope = showPromoCreate ? 'podcast' : scopeInput;
-  const showPromoProblem: string | null = !showPromoCreate ? null : isMultiSpan
-    ? (orderedRuns.map((r) => showPromoSpanProblem(
-        categoryInput, r.end - r.start, r.text.trim().length)).find((m) => m !== null) ?? null)
-    : showPromoSpanProblem(categoryInput, adEnd - adStart, textTemplateInput.trim().length);
+  const showPromoProblem = useMemo(() => {
+    if (!showPromoCreate) return null;
+    const spans = isMultiSpan
+      ? orderedRuns.map((r) => ({ seconds: r.end - r.start, chars: r.text.trim().length }))
+      : [{ seconds: adEnd - adStart, chars: textTemplateInput.trim().length }];
+    for (const span of spans) {
+      const problem = showPromoSpanProblem(showPromoRules, categoryInput, span.seconds, span.chars);
+      if (problem) return problem;
+    }
+    return null;
+  }, [showPromoCreate, showPromoRules, categoryInput, isMultiSpan, orderedRuns,
+    adStart, adEnd, textTemplateInput]);
 
   // One `create` correction per run, in time order. Stops on the first
   // failure; already-saved runs are not re-submitted, and the modal stays

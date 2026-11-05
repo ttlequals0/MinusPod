@@ -374,7 +374,7 @@ describe('PatternsPage show promo patterns', () => {
     confirmation_count: 1, false_positive_count: 0, last_matched_at: null,
     created_at: '2026-01-01T00:00:00Z', created_from_episode_id: null,
     is_active: true, disabled_at: null, disabled_reason: null,
-    category: 'interaction', created_by: 'show_promo',
+    category: 'interaction', created_by: 'show_promo', is_show_promo: true,
   };
 
   it('shows the category badge and the show instead of (Unknown)', async () => {
@@ -386,7 +386,7 @@ describe('PatternsPage show promo patterns', () => {
   });
 
   it('still shows (Unknown) for a legacy sponsorless row in the same category', async () => {
-    mockGetPatterns.mockResolvedValueOnce([{ ...showPromo, id: 11, created_by: 'auto' }]);
+    mockGetPatterns.mockResolvedValueOnce([{ ...showPromo, id: 11, created_by: 'auto', is_show_promo: false }]);
     renderPage();
     expect((await screen.findAllByText('(Unknown)')).length).toBeGreaterThan(0);
   });
@@ -405,7 +405,7 @@ describe('PatternsPage show promo patterns', () => {
   });
 
   it('still shows (Unknown) for a sponsorless sponsor-category pattern', async () => {
-    mockGetPatterns.mockResolvedValueOnce([{ ...showPromo, id: 10, category: 'sponsor' }]);
+    mockGetPatterns.mockResolvedValueOnce([{ ...showPromo, id: 10, category: 'sponsor', is_show_promo: false }]);
     renderPage();
     expect((await screen.findAllByText('(Unknown)')).length).toBeGreaterThan(0);
   });

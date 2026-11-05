@@ -11,9 +11,9 @@ from config import (
     SNIPPET_EXCLUDED_HOLD_REASONS, SNIPPET_EXCLUDED_SQL, SNIPPET_EXCLUDED_SQL_PARAMS,
     SNIPPET_EXCLUDED_STAGE_REASONS,
 )
-from utils.constants import (NON_SPONSOR_PATTERN_CATEGORIES, SHOW_PROMO_CREATED_BY,
-                             is_show_promo_pattern, sanitize_sponsor_label,
-                             show_promo_floor_problem)
+from utils.constants import (SHOW_PROMO_CREATED_BY, is_show_promo_candidate,
+                             is_show_promo_category, is_show_promo_pattern,
+                             sanitize_sponsor_label, show_promo_floor_problem)
 from utils.markers import clip_merge_spans, find_marker_in_list, parse_ad_markers
 from utils.time import utc_now_iso, utc_now, parse_iso_datetime
 from sponsor_normalize import get_or_create_known_sponsor
@@ -27,7 +27,8 @@ from utils.text import (
     parse_transcript_segments,
 )
 from text_pattern_matcher import (
-    split_template_text, can_split_pattern, MAX_PATTERN_CHARS, TextPatternMatcher,
+    split_template_text, can_split_pattern, get_pattern_duration_bounds, MAX_PATTERN_CHARS,
+    TextPatternMatcher,
 )
 
 from flask import Response, request
@@ -80,6 +81,7 @@ def list_patterns():
         pattern['is_active'] = bool(pattern.get('is_active'))
         pattern['trust'] = compute_pattern_trust(pattern, now)
         pattern['can_split'] = can_split_pattern(pattern)
+        pattern['is_show_promo'] = is_show_promo_pattern(pattern)
 
     return json_response({'patterns': patterns})
 
@@ -363,6 +365,7 @@ def get_pattern(pattern_id):
         return error_response('Pattern not found', 404)
 
     pattern['is_active'] = bool(pattern.get('is_active'))
+    pattern['is_show_promo'] = is_show_promo_pattern(pattern)
     return json_response(pattern)
 
 
@@ -633,7 +636,7 @@ def _validate_create_correction_input(data):
         return None, error_response('start and end must be numbers', 400)
     if not (start >= 0 and end > start):
         return None, error_response('require 0 <= start < end', 400)
-    show_promo = not sponsor_text and category in NON_SPONSOR_PATTERN_CATEGORIES
+    show_promo = is_show_promo_candidate(sponsor_text, category)
     if not sponsor_text and not show_promo:
         return None, error_response('Sponsor is required', 400)
     if len(text_template) < 50:
@@ -732,8 +735,7 @@ def _create_patterns_from_segments(
             if pattern_service:
                 pattern_service.record_pattern_match(pid, episode_id)
         else:
-            if (not is_primary_segment and not seg['sponsor']
-                    and category in NON_SPONSOR_PATTERN_CATEGORIES):
+            if not is_primary_segment and is_show_promo_candidate(seg['sponsor'], category):
                 # A piece with no sponsor in a show-promo category would be
                 # stored without the floors or the podcast-scope rule the show
                 # path applies. It has no span of its own to judge, so it is
@@ -816,24 +818,23 @@ def _submit_correction_create(db, slug, episode_id, data):
             f'end ({end}) exceeds episode duration ({duration})', 400
         )
 
-    if not sponsor_text:
-        # A show pattern: the one floor function the confirm path also uses.
-        min_s, max_s = TextPatternMatcher(db=db)._pattern_duration_bounds()
+    show_promo = is_show_promo_candidate(sponsor_text, category)
+    if show_promo:
+        # A subscribe ask or promo: a sponsorless, podcast-scoped show pattern,
+        # judged by the one floor function the confirm path also uses.
+        min_s, max_s = get_pattern_duration_bounds(db)
         problem = show_promo_floor_problem(
             category, end - start, len(text_template), min_s, max_s)
         if problem:
             return error_response(f'Not learned as a {category} pattern: {problem}', 400)
-
-    if sponsor_text:
+        sponsor_id = None
+        canonical_sponsor_name = None
+    else:
         sponsor_id = get_or_create_known_sponsor(db, sponsor_text)
         if sponsor_id is None:
             return error_response('Invalid sponsor name', 400)
         sponsor_row = db.get_known_sponsor_by_id(sponsor_id)
         canonical_sponsor_name = sponsor_row['name'] if sponsor_row else sponsor_text
-    else:
-        # A subscribe ask or promo: a sponsorless, podcast-scoped show pattern.
-        sponsor_id = None
-        canonical_sponsor_name = None
 
     markers = _insert_manual_marker(
         episode, start, end, canonical_sponsor_name, reason,
@@ -844,16 +845,26 @@ def _submit_correction_create(db, slug, episode_id, data):
     podcast_id_str = episode.get('slug') if scope == 'podcast' else None
     network_id = episode.get('network_id') if scope == 'global' else None
 
-    segments = split_template_text(text_template) if sponsor_text else [None]
+    segments = split_template_text(text_template)
 
-    if len(segments) == 1:
+    if show_promo:
+        # Matched on its template alone: no phrase variants.
+        new_pattern_id = db.create_ad_pattern(
+            scope='podcast',
+            text_template=text_template,
+            podcast_id=podcast_id_str,
+            created_from_episode_id=episode_id,
+            duration=end - start,
+            created_by=SHOW_PROMO_CREATED_BY,
+            category=category,
+        )
+        pattern_ids = [new_pattern_id]
+    elif len(segments) == 1:
         # Single-segment path is byte-identical to pre-#563 behavior: manual
         # patterns were born with empty variant arrays, giving them worse
         # boundary placement than auto-created ones; derive intro/outro up
         # front, and never dedupe (this function never has).
-        # A show pattern is matched on its template alone (no phrase variants).
-        intro_variants, outro_variants = (
-            derive_intro_outro(text_template) if sponsor_text else ([], []))
+        intro_variants, outro_variants = derive_intro_outro(text_template)
         new_pattern_id = db.create_ad_pattern(
             scope=scope,
             text_template=text_template,
@@ -864,7 +875,7 @@ def _submit_correction_create(db, slug, episode_id, data):
             outro_variants=outro_variants,
             created_from_episode_id=episode_id,
             duration=end - start,
-            created_by='user' if sponsor_text else SHOW_PROMO_CREATED_BY,
+            created_by='user',
             category=category,
         )
         pattern_ids = [new_pattern_id]
@@ -1088,7 +1099,7 @@ def _resolve_or_create_pattern_from_text(
     # A subscribe ask or promo has no advertiser; a brand scraped out of its
     # prose ("the app you're listening on") is not one, so only a sponsor the
     # reviewer or detector named counts for those categories.
-    scrape_sponsor = category not in NON_SPONSOR_PATTERN_CATEGORIES
+    scrape_sponsor = not is_show_promo_category(category)
     if not sponsor and label == 'confirmed' and scrape_sponsor:
         reason = original_ad.get('reason', '')
         sponsor = extract_sponsor_from_text(reason)
@@ -1097,22 +1108,20 @@ def _resolve_or_create_pattern_from_text(
 
     # A show-name or segment label in the sponsor slot is no advertiser: for a
     # subscribe ask or promo it must not block the show pattern below.
-    if (sponsor and category in NON_SPONSOR_PATTERN_CATEGORIES
+    if (sponsor and is_show_promo_category(category)
             and sanitize_sponsor_label(sponsor, show_name=slug) is None):
         sponsor = None
 
-    if not sponsor and category in NON_SPONSOR_PATTERN_CATEGORIES:
+    if is_show_promo_candidate(sponsor, category):
         # One sponsorless pattern for the whole confirmed read, never split on
         # ad transitions: there is no brand to split between.
-        new_pattern_id = TextPatternMatcher(db=db).create_pattern_from_ad(
+        new_pattern_id = TextPatternMatcher(db=db).create_show_promo_pattern_from_ad(
             segments=[],
             start=float(original_ad.get('start') or 0),
             end=float(original_ad.get('end') or 0),
-            sponsor=None,
-            scope='podcast',
+            category=category,
             podcast_id=podcast_id_str,
             episode_id=episode_id,
-            category=category,
             ad_text=ad_text,
         )
         if not new_pattern_id:

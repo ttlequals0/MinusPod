@@ -44,6 +44,9 @@ export interface AdPattern {
   created_from_episode_id: string | null;
   is_active: boolean;
   can_split: boolean;
+  // Server-decided: a podcast-scoped, sponsorless interaction / self-promo /
+  // cross-promo pattern learned through the show-pattern path.
+  is_show_promo?: boolean;
   disabled_at: string | null;
   disabled_reason: string | null;
   created_by?: string | null;

@@ -36,8 +36,9 @@ from utils.constants import (
     LEARNING_MAX_PATTERN_DURATION,
     LEARNING_MIN_PATTERN_DURATION,
     LEARNING_SPLIT_DURATION_FACTOR,
-    NON_SPONSOR_PATTERN_CATEGORIES,
+    LEARNING_SHOW_PROMO_FLOORS,
     SHOW_PROMO_CREATED_BY,
+    is_show_promo_candidate,
     is_show_promo_pattern,
     show_promo_floor_problem,
     is_non_brand_name,
@@ -511,16 +512,53 @@ class AdPattern:
     category: str | None = None  # Segment category (#565); None on a legacy/unmigrated row
     created_by: str | None = None  # 'user', 'auto', 'community'; feeds is_defined_pattern
 
-    @property
-    def is_show_promo(self) -> bool:
-        return is_show_promo_pattern({'created_by': self.created_by, 'scope': self.scope,
-                                      'sponsor_id': self.sponsor_id, 'category': self.category})
+    # Decided once, when the pattern is loaded (or rebuilt with replace()), not
+    # on every match. created_by 'show_promo' is not 'user', so a show promo is
+    # never tier-1: a feed's keep/mark action for its category still wins.
+    is_defined: bool = field(init=False, default=False)
+    is_show_promo: bool = field(init=False, default=False)
 
-    @property
-    def is_defined(self) -> bool:
-        # created_by 'show_promo' is not 'user', so a show promo is never tier-1:
-        # a feed's keep/mark action for its category still wins over it.
-        return is_defined_pattern({'created_by': self.created_by, 'source': self.source})
+    def __post_init__(self):
+        self.is_defined = is_defined_pattern(
+            {'created_by': self.created_by, 'source': self.source})
+        self.is_show_promo = is_show_promo_pattern(
+            {'created_by': self.created_by, 'scope': self.scope,
+             'sponsor_id': self.sponsor_id, 'category': self.category})
+
+
+def _pattern_match(pattern: AdPattern, **fields) -> TextMatch:
+    """A TextMatch for `pattern`, carrying the pattern's identity, label and trust
+    flags so no match site copies them by hand."""
+    return TextMatch(
+        pattern_id=pattern.id, sponsor=pattern.sponsor, category=pattern.category,
+        defined=pattern.is_defined, show_promo=pattern.is_show_promo, **fields)
+
+
+def get_pattern_duration_bounds(db) -> tuple[int, int]:
+    """Configured [min, max] source-span duration for a learned pattern.
+
+    isinstance rather than int(): a MagicMock db converts to 1 and would
+    cap every span at one second, which several fixtures would hit.
+    """
+    def read(key: str, fallback: int) -> int:
+        value = db.get_setting_int(key, fallback) if db else None
+        return int(value) if isinstance(value, int) and not isinstance(value, bool) else fallback
+
+    return (read('learning_min_pattern_duration', LEARNING_MIN_PATTERN_DURATION),
+            read('learning_max_pattern_duration', LEARNING_MAX_PATTERN_DURATION))
+
+
+def show_promo_rules(db) -> dict:
+    """What a span must satisfy to become a show pattern, as the server will
+    judge it: per-category seconds (the configured minimum applied) and
+    characters, and the maximum seconds. The UI validates against this instead
+    of keeping its own copy."""
+    min_s, max_s = get_pattern_duration_bounds(db)
+    return {
+        'floors': {category: {'seconds': max(min_s, seconds), 'chars': chars}
+                   for category, (seconds, chars) in LEARNING_SHOW_PROMO_FLOORS.items()},
+        'maxSeconds': max_s,
+    }
 
 
 class TextPatternMatcher:
@@ -1026,16 +1064,12 @@ class TextPatternMatcher:
                         start_pos, end_pos, segment_map, segments
                     )
 
-                    matches.append(TextMatch(
-                        pattern_id=pattern.id,
+                    matches.append(_pattern_match(
+                        pattern,
                         start=start_time,
                         end=end_time,
                         confidence=float(best_score),
-                        sponsor=pattern.sponsor,
                         match_type="content",
-                        category=pattern.category,
-                        defined=pattern.is_defined,
-                        show_promo=pattern.is_show_promo,
                     ))
 
         window_bounds = []
@@ -1105,17 +1139,13 @@ class TextPatternMatcher:
                         end_time = (self._estimate_end_from_duration(pattern, start_time)
                                     if span_estimated else scanned_end)
 
-                        matches.append(TextMatch(
-                            pattern_id=pattern.id,
+                        matches.append(_pattern_match(
+                            pattern,
                             start=start_time,
                             end=end_time,
                             confidence=best_score / 100,
-                            sponsor=pattern.sponsor,
                             match_type="intro",
-                            category=pattern.category,
                             matched_text=matched,
-                            defined=pattern.is_defined,
-                        show_promo=pattern.is_show_promo,
                             span_estimated=span_estimated,
                             text_start=start_time,
                             text_end=intro_text_end if span_estimated else end_time,
@@ -1145,17 +1175,13 @@ class TextPatternMatcher:
                         start_time = (self._estimate_start_from_duration(pattern, end_time)
                                       if span_estimated else scanned_start)
 
-                        matches.append(TextMatch(
-                            pattern_id=pattern.id,
+                        matches.append(_pattern_match(
+                            pattern,
                             start=start_time,
                             end=end_time,
                             confidence=best_score / 100,
-                            sponsor=pattern.sponsor,
                             match_type="outro",
-                            category=pattern.category,
                             matched_text=matched,
-                            defined=pattern.is_defined,
-                        show_promo=pattern.is_show_promo,
                             span_estimated=span_estimated,
                             text_start=outro_text_start if span_estimated else start_time,
                             text_end=end_time,
@@ -1626,17 +1652,7 @@ class TextPatternMatcher:
     INVALID_SPONSORS = INVALID_SPONSOR_VALUES
 
     def _pattern_duration_bounds(self) -> tuple[int, int]:
-        """Configured [min, max] source-span duration for a learned pattern.
-
-        isinstance rather than int(): a MagicMock db converts to 1 and would
-        cap every span at one second, which several fixtures would hit.
-        """
-        def read(key: str, fallback: int) -> int:
-            value = self.db.get_setting_int(key, fallback) if self.db else None
-            return int(value) if isinstance(value, int) and not isinstance(value, bool) else fallback
-
-        return (read('learning_min_pattern_duration', LEARNING_MIN_PATTERN_DURATION),
-                read('learning_max_pattern_duration', LEARNING_MAX_PATTERN_DURATION))
+        return get_pattern_duration_bounds(self.db)
 
     def _registry(self):
         """The SponsorService backing brand lookups, built from db on first use."""
@@ -1911,40 +1927,32 @@ class TextPatternMatcher:
         if not self.db:
             return None
 
-        # A subscribe ask, self-promo or own-network promo names no advertiser.
-        # With no sponsor, one of those categories and a podcast scope it
-        # becomes a sponsorless show pattern; everything else needs a sponsor.
-        show_promo = (not (sponsor and sponsor.strip())
-                      and category in NON_SPONSOR_PATTERN_CATEGORIES)
-        if show_promo:
-            if scope != 'podcast' or not podcast_id:
-                logger.warning(
-                    f"Rejecting {category} pattern: a sponsorless pattern is "
-                    f"podcast-scoped only")
-                return None
-            sponsor = None
-        else:
-            # Validate sponsor name before creating pattern
-            if not sponsor or len(sponsor.strip()) < 2:
-                logger.warning(f"Rejecting pattern: invalid sponsor name '{sponsor}'")
-                return None
+        if is_show_promo_candidate(sponsor, category):
+            return self.create_show_promo_pattern_from_ad(
+                segments, start, end, category, scope=scope, podcast_id=podcast_id,
+                network_id=network_id, episode_id=episode_id, ad_text=ad_text)
 
-            sponsor_lower = sponsor.lower().strip()
-            if sponsor_lower in self.INVALID_SPONSORS:
-                logger.warning(f"Rejecting pattern: generic/invalid sponsor '{sponsor}'")
-                return None
-            # Segment, structure, and show-name labels arrive here as sponsors when
-            # the model has no advertiser to name. podcast_id is the feed slug, and
-            # names_the_show compares with separators stripped, so it matches.
-            clean_sponsor = sanitize_sponsor_label(sponsor, show_name=podcast_id)
-            if clean_sponsor is None:
-                logger.warning(
-                    f"Rejecting pattern: '{sponsor}' is a segment or structure "
-                    f"name, not an advertiser")
-                return None
-            # The normalized label is what is stored: a lead-in the model left on
-            # ("Sponsored by Acme") would otherwise become the pattern's brand.
-            sponsor = clean_sponsor
+        # Validate sponsor name before creating pattern
+        if not sponsor or len(sponsor.strip()) < 2:
+            logger.warning(f"Rejecting pattern: invalid sponsor name '{sponsor}'")
+            return None
+
+        sponsor_lower = sponsor.lower().strip()
+        if sponsor_lower in self.INVALID_SPONSORS:
+            logger.warning(f"Rejecting pattern: generic/invalid sponsor '{sponsor}'")
+            return None
+        # Segment, structure, and show-name labels arrive here as sponsors when
+        # the model has no advertiser to name. podcast_id is the feed slug, and
+        # names_the_show compares with separators stripped, so it matches.
+        clean_sponsor = sanitize_sponsor_label(sponsor, show_name=podcast_id)
+        if clean_sponsor is None:
+            logger.warning(
+                f"Rejecting pattern: '{sponsor}' is a segment or structure "
+                f"name, not an advertiser")
+            return None
+        # The normalized label is what is stored: a lead-in the model left on
+        # ("Sponsored by Acme") would otherwise become the pattern's brand.
+        sponsor = clean_sponsor
 
         # Validate ad duration - reject contaminated multi-ad spans on the
         # upper end, and short spans on the lower end. Pattern #356 (Patreon,
@@ -1952,9 +1960,7 @@ class TextPatternMatcher:
         # never fit in under 15 seconds.
         MIN_PATTERN_DURATION, MAX_PATTERN_DURATION = self._pattern_duration_bounds()
         duration = end - start
-        # A show promo's duration and length are judged together below by the
-        # one floor function the manual create path shares.
-        if not show_promo and duration < MIN_PATTERN_DURATION:
+        if duration < MIN_PATTERN_DURATION:
             logger.warning(
                 f"Skipping pattern creation: duration {duration:.0f}s below "
                 f"min {MIN_PATTERN_DURATION}s (likely a fragment or host mention, "
@@ -1985,12 +1991,6 @@ class TextPatternMatcher:
         if len(ad_text) < MIN_TEXT_LENGTH:
             logger.debug("Ad text too short for pattern creation")
             return None
-        if show_promo:
-            problem = show_promo_floor_problem(
-                category, duration, len(ad_text), MIN_PATTERN_DURATION, MAX_PATTERN_DURATION)
-            if problem:
-                logger.warning(f"Skipping {category} pattern creation: {problem}")
-                return None
 
         # Sanity check on extracted text length to catch contaminated patterns
         if len(ad_text) > MAX_PATTERN_CHARS:
@@ -2018,8 +2018,7 @@ class TextPatternMatcher:
         # Duration alone missed the contaminated spans that fit under the
         # ceiling: a second advertiser read inside the span makes the template
         # match neither brand's ad.
-        foreign = ([] if show_promo
-                   else self._contaminating_brands(ad_text, sponsor, brand_rows))
+        foreign = self._contaminating_brands(ad_text, sponsor, brand_rows)
         if foreign:
             logger.warning(
                 f"Skipping pattern creation: span also reads "
@@ -2068,6 +2067,45 @@ class TextPatternMatcher:
         # Only a span that passed every validation gate above may credit an
         # existing pattern's confirmation_count, and reuses a near-identical
         # existing pattern instead of inserting a duplicate (#565).
+        reused = self._reuse_near_duplicate(ad_text, podcast_id)
+        if reused is not None:
+            return reused
+
+        try:
+            sponsor_id = (
+                get_or_create_known_sponsor(self.db, sponsor) if sponsor else None
+            )
+            # The operator's per-sponsor category outranks the detector's label.
+            category = segment_category_for(
+                sponsor, self.db.get_sponsor_segment_categories()) or category
+            pattern_id = self.db.create_ad_pattern(
+                scope=scope,
+                text_template=ad_text,
+                intro_variants=[intro] if intro else [],
+                outro_variants=[outro] if outro else [],
+                sponsor_id=sponsor_id,
+                podcast_id=podcast_id,
+                network_id=network_id,
+                created_from_episode_id=episode_id,
+                duration=duration,
+                source_language=get_pattern_language(self.db, slug=podcast_id),
+                category=category if category in SEGMENT_CATEGORIES else None,
+            )
+
+            logger.info(f"Created text pattern {pattern_id} for sponsor: {sponsor}")
+
+            # Reload patterns
+            self._load_patterns()
+
+            return pattern_id
+
+        except Exception as e:
+            logger.error(f"Failed to create pattern: {e}")
+            return None
+
+    def _reuse_near_duplicate(self, ad_text: str, podcast_id: str | None) -> int | None:
+        """The id of an existing pattern of this podcast whose text is a near
+        duplicate of ad_text (its match is credited), else None."""
         try:
             existing_patterns = (
                 self.db.get_ad_patterns(podcast_id=podcast_id) if podcast_id else []
@@ -2089,41 +2127,78 @@ class TextPatternMatcher:
                 except Exception as e:
                     logger.warning(f"Failed to record dedupe match: {e}")
                 return existing_pattern['id']
+        return None
 
+    def create_show_promo_pattern_from_ad(
+        self,
+        segments: list[dict],
+        start: float,
+        end: float,
+        category: str,
+        scope: str = "podcast",
+        podcast_id: str = None,
+        network_id: str = None,
+        episode_id: str = None,
+        ad_text: str = None,
+    ) -> int | None:
+        """Learn a subscribe ask, self-promo or own-network promo for one show.
+
+        The show path of create_pattern_from_ad: no advertiser, so no sponsor or
+        brand gates; instead podcast scope, the category's floors and the usual
+        ceilings. The pattern is marked created_by='show_promo' and stores no
+        intro/outro phrases (with no sponsor there is no evidence that a phrase,
+        which may be dialogue, marks the edge of the read), so it matches on its
+        template alone.
+        """
+        if not self.db:
+            return None
+        if scope != 'podcast' or not podcast_id:
+            logger.warning(f"Rejecting {category} pattern: a sponsorless pattern is podcast-scoped only")
+            return None
+        duration = end - start
+        if ad_text is None:
+            learning_segments = _segments_for_pattern_learning(segments, start, end)
+            if learning_segments is None:
+                return None
+            ad_text = self._get_text_around_time(learning_segments, start, end)
+        min_s, max_s = get_pattern_duration_bounds(self.db)
+        problem = show_promo_floor_problem(category, duration, len(ad_text), min_s, max_s)
+        if problem:
+            logger.warning(f"Skipping {category} pattern creation: {problem}")
+            return None
+        if len(ad_text) > MAX_PATTERN_CHARS:
+            logger.warning(
+                f"Skipping {category} pattern creation: text length {len(ad_text)} "
+                f"exceeds max {MAX_PATTERN_CHARS} chars")
+            return None
+        transitions = len(find_transition_offsets(ad_text))
+        if transitions > 1:
+            logger.warning(
+                f"Skipping {category} pattern creation: found {transitions} ad "
+                f"transitions - likely more than one read")
+            return None
+        reused = self._reuse_near_duplicate(ad_text, podcast_id)
+        if reused is not None:
+            return reused
         try:
-            sponsor_id = (
-                get_or_create_known_sponsor(self.db, sponsor) if sponsor else None
-            )
-            # The operator's per-sponsor category outranks the detector's label.
-            category = segment_category_for(
-                sponsor, self.db.get_sponsor_segment_categories()) or category
             pattern_id = self.db.create_ad_pattern(
                 scope=scope,
                 text_template=ad_text,
-                # A show promo is matched on its template alone: with no sponsor
-                # there is no evidence that a phrase variant (its last sentence
-                # may be dialogue) marks the edge of the read.
-                intro_variants=[] if show_promo else ([intro] if intro else []),
-                outro_variants=[] if show_promo else ([outro] if outro else []),
-                sponsor_id=sponsor_id,
+                intro_variants=[],
+                outro_variants=[],
                 podcast_id=podcast_id,
                 network_id=network_id,
                 created_from_episode_id=episode_id,
                 duration=duration,
-                created_by=SHOW_PROMO_CREATED_BY if show_promo else 'auto',
+                created_by=SHOW_PROMO_CREATED_BY,
                 source_language=get_pattern_language(self.db, slug=podcast_id),
-                category=category if category in SEGMENT_CATEGORIES else None,
+                category=category,
             )
-
-            logger.info(f"Created text pattern {pattern_id} for sponsor: {sponsor}")
-
-            # Reload patterns
+            logger.info(f"Created {category} show pattern {pattern_id} for {podcast_id}")
             self._load_patterns()
-
             return pattern_id
-
         except Exception as e:
-            logger.error(f"Failed to create pattern: {e}")
+            logger.error(f"Failed to create show pattern: {e}")
             return None
 
     def split_pattern(self, pattern_id: int) -> list[int]:

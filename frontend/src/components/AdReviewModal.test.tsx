@@ -1,8 +1,9 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import AdReviewModal, { type AdReviewItem } from './AdReviewModal';
+import { getSettings } from '../api/settings';
 
 const mockReprocess = vi.fn();
 
@@ -18,6 +19,19 @@ vi.mock('wavesurfer.js/dist/plugins/regions.esm.js', () => ({
 }));
 vi.mock('./ad-editor/usePeaks', () => ({
   usePeaks: () => ({ peaks: [0.2, 0.5, 0.3], peakResolutionMs: 100, peaksError: null }),
+}));
+vi.mock('../api/settings', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../api/settings')>()),
+  getSettings: vi.fn().mockResolvedValue({
+    showPromoRules: {
+      floors: {
+        interaction: { seconds: 20, chars: 150 },
+        self_promo: { seconds: 20, chars: 150 },
+        cross_promo: { seconds: 30, chars: 225 },
+      },
+      maxSeconds: 120,
+    },
+  }),
 }));
 vi.mock('../api/sponsors', () => ({
   getSponsors: vi.fn().mockResolvedValue([]),
@@ -522,6 +536,8 @@ describe('AdReviewModal manual create without a sponsor', () => {
     const user = userEvent.setup();
     await user.click(screen.getByRole('button', { name: 'By text' }));
     await user.click(screen.getByRole('button', { name: button }));
+    await waitFor(() => expect(getSettings).toHaveBeenCalled());
+    await act(async () => {});
     return user;
   }
 

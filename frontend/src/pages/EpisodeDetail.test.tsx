@@ -637,6 +637,12 @@ describe('Held for review: confirm label names the category', () => {
   });
 
   it('says confirming teaches the show only when it will create a show pattern', async () => {
+    vi.mocked(getSettings).mockResolvedValue({
+      llmProvider: { value: 'anthropic' }, claudeModel: { value: 'claude-sonnet' },
+      showPromoRules: {
+        floors: { interaction: { seconds: 20, chars: 150 } }, maxSeconds: 120,
+      },
+    } as unknown as Settings);
     const promo = { ...heldMarker, start: 100, end: 130, category: 'interaction' as const };
     renderDetail(makeEpisode({
       hasOriginalAudio: true,
@@ -648,6 +654,7 @@ describe('Held for review: confirm label names the category', () => {
         { ...promo, start: 500, end: 530, category: 'sponsor' as const },  // not a promo category
       ],
     }));
+    await waitFor(() => expect(getSettings).toHaveBeenCalled());
     await waitFor(() => {
       expect(screen.getByTestId('approve-recut-0')).toBeDefined();
     });
