@@ -20,7 +20,8 @@ import json
 import logging
 
 from chapter_notes import append_chapters, chapter_notes_for
-from review_links import append_review_links, review_links_for
+from config import resolve_review_links_in_notes
+from review_links import append_review_links
 from database.episodes import NOT_AWAITING_APPROVAL
 from main_app import db, rss_parser, storage
 from main_app.feed_auth import active_feed_key
@@ -256,7 +257,7 @@ def build_local_feed_xml(podcast: dict, episodes: list[dict], *, storage, db,
     slug = podcast['slug']
     base = rss_parser._resolved_base_url()
     chapter_notes = chapter_notes_for(db, podcast)
-    review_links = review_links_for(db, podcast)
+    review_links = resolve_review_links_in_notes(db, podcast)
     feed_auth_key = active_feed_key(db)
     channel_json = _load_json_dict(podcast.get('p20_channel_json'))
 

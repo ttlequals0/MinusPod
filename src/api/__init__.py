@@ -229,12 +229,16 @@ def get_database():
     return Database()
 
 
+_UI_PATH_START = re.compile(r'(["\'])/ui/')
+
+
 def apply_url_prefix(text: str) -> str:
     """Move baked /ui/ URLs under the prefix and tell the SPA and Swagger init the prefix via a meta tag."""
     prefix = config.URL_PREFIX
     if not prefix:
         return text
-    text = text.replace('/ui/', f'{prefix}/ui/')
+    # Quoted path starts only, so a third-party URL or text containing /ui/ is left alone.
+    text = _UI_PATH_START.sub(lambda m: f'{m.group(1)}{prefix}/ui/', text)
     return text.replace('</head>', f'<meta name="minuspod-url-prefix" content="{prefix}"></head>', 1)
 
 

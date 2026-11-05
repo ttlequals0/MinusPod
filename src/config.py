@@ -18,7 +18,7 @@ from urllib.parse import urlparse
 _tunable_logger = logging.getLogger(__name__)
 
 _URL_PREFIX_RE = re.compile(r'^/[A-Za-z0-9_~-]+(/[A-Za-z0-9_~-]+)*$')
-_URL_PREFIX_RESERVED = frozenset({'ui', 'api', 'episodes', 'health', 'opml'})
+_URL_PREFIX_RESERVED = frozenset({'ui', 'api', 'episodes', 'health', 'opml', 'login'})
 
 
 def normalize_url_prefix(raw: str) -> str:

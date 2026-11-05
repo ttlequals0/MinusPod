@@ -73,7 +73,7 @@ location /minuspod/ {
 - `BASE_URL` must include the prefix. Startup logs a warning when it does not, and feed URLs are wrong until it does.
 - Adding a prefix to an existing install changes feed GUIDs the same way any other `BASE_URL` change does, so subscribers may see the feed as new.
 - The container healthcheck keeps calling the unprefixed `/api/v1/health`, which the app still answers.
-- The first prefix segment cannot be `ui`, `api`, `episodes`, `health` or `opml`.
+- The first prefix segment cannot be `ui`, `api`, `episodes`, `health`, `opml` or `login`.
 
 ## Health monitoring
 

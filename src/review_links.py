@@ -1,12 +1,7 @@
 """Review and rate links appended to served descriptions of processed episodes."""
 import html
 
-from config import resolve_review_links_in_notes
 from utils.episode_paths import episode_ui_url
-
-
-def review_links_for(db, podcast) -> bool:
-    return resolve_review_links_in_notes(db, podcast)
 
 
 def format_review_links(slug, episode_id) -> str:
