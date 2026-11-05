@@ -21,6 +21,7 @@ from database.episodes import normalize_published_at
 from database.podcasts import is_local_feed, is_recents_feed, is_youtube_feed, podping_declaration_columns
 from database.queue import compute_queue_priority
 from chapter_notes import chapter_notes_for
+from review_links import review_links_for
 from local_feed_builder import rebuild_local_feed
 from recents_feed import rebuild_recents_feed
 from utils.http import safe_url_for_log
@@ -868,6 +869,7 @@ def _build_and_save_served_rss(slug, feed_content, parsed_feed, podcast):
     # even though the stored key is retained for re-enable.
     feed_auth_key = active_feed_key(db)
     chapter_notes = chapter_notes_for(db, podcast)
+    review_links = review_links_for(db, podcast)
     # Hide applies both title and duration exclusions to served RSS.
     hide_filters = podcast if podcast.get('title_skip_action') == 'hide' else {}
     modified_rss = rss_parser.modify_feed(feed_content, slug, storage=storage,
@@ -884,7 +886,8 @@ def _build_and_save_served_rss(slug, feed_content, parsed_feed, podcast):
                                           hide_description_patterns=hide_filters.get('description_skip_patterns'),
                                           hide_min_duration_seconds=hide_filters.get('min_duration_seconds'),
                                           hide_max_duration_seconds=hide_filters.get('max_duration_seconds'),
-                                          chapter_notes=chapter_notes)
+                                          chapter_notes=chapter_notes,
+                                          review_links=review_links)
     storage.save_rss(slug, modified_rss)
     db.update_podcast(slug, last_checked_at=utc_now_iso())
     # A re-render means the upstream feed moved, so any episode lookups

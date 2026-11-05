@@ -4,7 +4,6 @@ import hashlib
 import hmac
 import json
 import logging
-import os
 import threading
 import time
 from dataclasses import dataclass
@@ -15,6 +14,7 @@ from jinja2.sandbox import SandboxedEnvironment
 from config import FAILOVER_API_TARGET_NAMES, HTTP_MAX_REDIRECTS_API, HTTP_TIMEOUT_PROBE
 import database
 import database.settings as db_settings
+from utils.episode_paths import episode_ui_url
 from utils.http import safe_url_for_log
 from utils.safe_http import URLTrust, safe_post
 from utils.time import format_duration, utc_now_iso, local_now_iso, local_iso
@@ -237,8 +237,7 @@ _DUMMY_CONTEXT = {
 
 def _build_context(payload: WebhookPayload) -> dict:
     """Build the template/payload context dict for a webhook event."""
-    ui_base_url = os.environ.get('UI_BASE_URL') or os.environ.get('BASE_URL', 'http://localhost:8000')
-    episode_url = f"{ui_base_url}/ui/feeds/{payload.slug}/episodes/{payload.episode_id}"
+    episode_url = episode_ui_url(payload.slug, payload.episode_id)
 
     if payload.original_duration is not None and payload.new_duration is not None:
         time_saved_secs = round(payload.original_duration - payload.new_duration, 2)

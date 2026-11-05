@@ -986,6 +986,7 @@ def _podcast_base_json(podcast, feed_url, db, global_actions=None) -> dict:
             if podcast.get('differential_fetch_mode') in ('auto', 'on', 'off')
             else 'inherit'),
         'chaptersInNotes': podcast.get('chapters_in_notes'),
+        'reviewLinksInNotes': podcast.get('review_links_in_notes'),
         # Compatibility fields (spec 1.4): derived from the feed's resolved
         # segment actions, not the retired ad_chapters_enabled_override /
         # ad_chapter_categories_override columns.
@@ -2227,6 +2228,13 @@ def update_feed(slug):
             return error_response(notes_err, 400)
         updates['chapters_in_notes'] = notes_val
 
+    if 'reviewLinksInNotes' in data:
+        links_val, links_err = _normalize_override(
+            data['reviewLinksInNotes'], CHAPTERS_IN_NOTES_VALUES, 'reviewLinksInNotes')
+        if links_err:
+            return error_response(links_err, 400)
+        updates['review_links_in_notes'] = links_val
+
     if 'queuePriority' in data:
         qp_val, qp_err = _normalize_queue_priority(data['queuePriority'])
         if qp_err:
@@ -2465,11 +2473,15 @@ def update_feed(slug):
                 or 'title' in updates or 'author' in updates
                 or 'explicit' in updates or 'categories' in updates
                 or 'p20_channel_json' in updates or 'description' in updates
-                or 'chapters_in_notes' in updates):
+                or 'chapters_in_notes' in updates
+                or 'review_links_in_notes' in updates):
             db.update_podcast_etag(slug, None, None)
             try:
                 from main_app.feeds import refresh_rss_feed
                 refresh_rss_feed(slug, podcast['source_url'], force=True)
+                if 'chapters_in_notes' in updates or 'review_links_in_notes' in updates:
+                    from recents_feed import rebuild_recents_feed
+                    rebuild_recents_feed()
             except Exception as e:
                 logger.warning(f"Feed refresh after settings change failed for {slug}: {e}")
 

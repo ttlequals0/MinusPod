@@ -593,6 +593,9 @@ SETTINGS_REGISTRY: dict[str, SettingSpec] = {
     'chapters_in_notes': SettingSpec(
         default='false', seeded=True, in_ad_reset=True,
         payload_key='chaptersInNotes', payload_kind='bool'),
+    'review_links_in_notes': SettingSpec(
+        default='false', seeded=True, in_ad_reset=True,
+        payload_key='reviewLinksInNotes', payload_kind='bool'),
     'skip_second_pass': SettingSpec(
         default='false', seeded=True, in_ad_reset=True,
         payload_key='skipSecondPass', payload_kind='bool'),

@@ -60,6 +60,7 @@ SEED_SNAPSHOT = {
     'chapters_enabled': 'true',
     'chapters_mode': 'auto',
     'chapters_in_notes': 'false',
+    'review_links_in_notes': 'false',
     'ad_chapters_include_held': 'false',
     'ad_chapter_title_format': 'Ad: {label}',
     'ad_chapter_held_title_format': 'Possible ad: {label}',
@@ -191,7 +192,8 @@ SEED_SNAPSHOT = {
 EXPECTED_AD_RESET_KEYS = {
     'system_prompt', 'verification_prompt', 'claude_model',
     'verification_model', 'whisper_model', 'vtt_transcripts_enabled',
-    'chapters_enabled', 'chapters_mode', 'chapters_in_notes', 'chapters_model',
+    'chapters_enabled', 'chapters_mode', 'chapters_in_notes',
+    'review_links_in_notes', 'chapters_model',
     'skip_second_pass', 'differential_fetch_mode',
     'transcript_differential_enabled',
     'ad_chapters_include_held', 'ad_chapter_title_format',
@@ -562,11 +564,12 @@ class TestGetDefaults:
         # youtubeEnabled added after that (173 -> 174).
         # requireManualApprovalDefault added after that (174 -> 175).
         # whatsNewOnUpgrade added after that (175 -> 176).
+        # reviewLinksInNotes added after that (176 -> 177).
         payload_keys = {
             spec.payload_key for spec in SETTINGS_REGISTRY.values()
             if spec.payload_key
         }
-        assert len(payload_keys) == 176
+        assert len(payload_keys) == 177
         assert 'systemoneBaseUrl' in payload_keys
         assert 'failoverWhisperMaxAttempts' in payload_keys
         assert 'audioCuePairOrientWindowSeconds' not in payload_keys

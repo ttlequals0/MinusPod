@@ -10,6 +10,7 @@ import os
 import sqlite3
 import sys
 import tempfile
+from unittest.mock import patch
 
 import pytest
 
@@ -666,6 +667,49 @@ def test_patch_rejects_unknown_chapters_in_notes_value(app_client, seeded_feed):
     resp = app_client.patch(f"/api/v1/feeds/{seeded_feed['slug']}", json={'chaptersInNotes': 'maybe'},
                             headers=_csrf_headers(app_client))
     assert resp.status_code == 400
+
+
+def test_get_feed_echoes_null_review_links_in_notes(app_client, seeded_feed):
+    _authed(app_client)
+    assert app_client.get(f"/api/v1/feeds/{seeded_feed['slug']}").get_json()['reviewLinksInNotes'] is None
+
+
+@pytest.mark.parametrize('value', ['on', 'off'])
+def test_patch_sets_review_links_in_notes_override(app_client, seeded_feed, value):
+    slug = seeded_feed['slug']
+    _authed(app_client)
+    resp = app_client.patch(f'/api/v1/feeds/{slug}', json={'reviewLinksInNotes': value},
+                            headers=_csrf_headers(app_client))
+    assert resp.status_code == 200
+    assert resp.get_json()['reviewLinksInNotes'] == value
+    assert seeded_feed['db'].get_podcast_by_slug(slug)['review_links_in_notes'] == value
+
+
+def test_patch_null_clears_review_links_in_notes_override(app_client, seeded_feed):
+    slug = seeded_feed['slug']
+    _authed(app_client)
+    headers = _csrf_headers(app_client)
+    app_client.patch(f'/api/v1/feeds/{slug}', json={'reviewLinksInNotes': 'on'}, headers=headers)
+    resp = app_client.patch(f'/api/v1/feeds/{slug}', json={'reviewLinksInNotes': None}, headers=headers)
+    assert resp.get_json()['reviewLinksInNotes'] is None
+
+
+def test_patch_rejects_unknown_review_links_in_notes_value(app_client, seeded_feed):
+    _authed(app_client)
+    resp = app_client.patch(f"/api/v1/feeds/{seeded_feed['slug']}", json={'reviewLinksInNotes': 'maybe'},
+                            headers=_csrf_headers(app_client))
+    assert resp.status_code == 400
+
+
+@pytest.mark.parametrize('field', ['chaptersInNotes', 'reviewLinksInNotes'])
+def test_patch_of_a_notes_override_rebuilds_the_recents_feed(app_client, seeded_feed, field):
+    _authed(app_client)
+    with patch('main_app.feeds.refresh_rss_feed'), \
+         patch('recents_feed.rebuild_recents_feed') as rebuild:
+        resp = app_client.patch(f"/api/v1/feeds/{seeded_feed['slug']}", json={field: 'on'},
+                                headers=_csrf_headers(app_client))
+    assert resp.status_code == 200
+    rebuild.assert_called_once()
 
 
 # transcriptDifferential (2.98.0)

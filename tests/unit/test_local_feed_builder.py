@@ -456,3 +456,18 @@ def test_chapter_list_in_description_follows_the_feed_override():
     xml = build_local_feed_xml(podcast, episodes, storage=mf.storage, db=mf.db)
     assert 'Second episode\n\n<p>Chapters</p><p>00:00 Intro<br>01:15 Topic</p>' in xml
     assert 'First episode<p>' not in xml
+
+
+def test_review_links_follow_the_feed_override_and_skip_unprocessed():
+    slug = 'archive-review-links'
+    podcast = _seed(slug)
+    episodes = _fetch_local_feed_episodes(mf.db, podcast['id'], 500)
+
+    plain = build_local_feed_xml(podcast, episodes, storage=mf.storage, db=mf.db)
+    assert 'Review in MinusPod' not in plain
+
+    mf.db.update_podcast(slug, review_links_in_notes='on')
+    podcast = mf.db.get_podcast_by_slug(slug)
+    xml = build_local_feed_xml(podcast, episodes, storage=mf.storage, db=mf.db)
+    assert f'Second episode\n\n<p><a href="http://localhost:8000/ui/feeds/{slug}/episodes/s01e02">' in xml
+    assert 's01e01">Review' not in xml

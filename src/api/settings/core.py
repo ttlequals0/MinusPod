@@ -117,6 +117,8 @@ def _build_settings_payload():
         settings, 'differential_fetch_mode', registry_default('differential_fetch_mode'))
     chapters_in_notes = coerce_bool_setting(common._setting_value(
         settings, 'chapters_in_notes', registry_default('chapters_in_notes')))
+    review_links_in_notes = coerce_bool_setting(common._setting_value(
+        settings, 'review_links_in_notes', registry_default('review_links_in_notes')))
     only_expose_processed_value = common._setting_value(
         settings, 'only_expose_processed_default',
         registry_default('only_expose_processed_default'))
@@ -641,6 +643,7 @@ def _build_settings_payload():
         'chaptersEnabled': _sv('chapters_enabled', chapters_enabled),
         'chaptersMode': _sv('chapters_mode', chapters_mode),
         'chaptersInNotes': _sv('chapters_in_notes', chapters_in_notes),
+        'reviewLinksInNotes': _sv('review_links_in_notes', review_links_in_notes),
         'skipSecondPass': _sv('skip_second_pass', skip_second_pass),
         'transcriptDifferentialEnabled': _sv(
             'transcript_differential_enabled', transcript_differential_enabled),

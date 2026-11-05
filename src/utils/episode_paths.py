@@ -1,4 +1,13 @@
 """Shared builders for versioned episode filenames and URLs."""
+import os
+
+
+def episode_ui_url(slug: str, episode_id: str) -> str:
+    """Absolute web UI URL of an episode page (UI_BASE_URL, else BASE_URL)."""
+    base = os.environ.get('UI_BASE_URL') or os.environ.get('BASE_URL', 'http://localhost:8000')
+    if base.endswith('/'):
+        base = base[:-1]
+    return f"{base}/ui/feeds/{slug}/episodes/{episode_id}"
 
 
 def episode_version_suffix(version: int | None) -> str:

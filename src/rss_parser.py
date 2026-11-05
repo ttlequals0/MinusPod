@@ -8,6 +8,7 @@ import re
 import threading
 import time
 from chapter_notes import append_chapters
+from review_links import append_review_links
 from datetime import datetime, timezone
 from email.utils import format_datetime, parsedate_to_datetime
 import requests
@@ -1049,7 +1050,8 @@ class RSSParser:
                     chapter_notes: dict[str, str] | None = None,
                     hide_min_duration_seconds: float | None = None,
                     hide_max_duration_seconds: float | None = None,
-                    hide_description_patterns: str | None = None) -> str:
+                    hide_description_patterns: str | None = None,
+                    review_links: bool = False) -> str:
         """Modify RSS feed to use our server URLs.
 
         Args:
@@ -1075,6 +1077,7 @@ class RSSParser:
                 feed_content for backwards compatibility.
             chapter_notes: {episode_id: chapters_json} to append to
                 descriptions (#720); empty or None appends nothing.
+            review_links: Append review and rate links to processed items.
             feed_auth_key: Global feed auth key (authenticated feeds). When
                 set, enclosure/vtt/chapters URLs carry ``?key=`` and the
                 badged cover embeds it in the path token (image URLs must
@@ -1236,6 +1239,8 @@ class RSSParser:
 
             description = append_chapters(self._get_episode_description(entry),
                                           (chapter_notes or {}).get(episode_id))
+            if episode_id in processed_meta:
+                description = append_review_links(description, slug, episode_id, review_links)
             lines.append('<item>')
             lines.append(f'  <title>{self._escape_xml(entry.get("title", ""))}</title>')
             lines.append(f'  <description><![CDATA[{self._escape_cdata(description)}]]></description>')
@@ -1312,7 +1317,8 @@ class RSSParser:
                     continue
                 self._append_db_episode_item(lines, slug, ep, storage,
                                              feed_auth_key,
-                                             chapter_notes=chapter_notes)
+                                             chapter_notes=chapter_notes,
+                                             review_links=review_links)
                 appended_count += 1
 
         lines.append('</channel>')
@@ -1393,13 +1399,15 @@ class RSSParser:
         return size
 
     def _append_db_episode_item(self, lines: list, slug: str, ep: dict, storage,
-                                feed_auth_key=None, chapter_notes=None) -> None:
+                                feed_auth_key=None, chapter_notes=None,
+                                review_links=False) -> None:
         """Append a single <item> for a processed episode from the database."""
         ep_id = ep['episode_id']
         modified_url = episode_public_url(self._resolved_base_url(), slug, ep_id,
                                            ep.get('processed_version'),
                                            key=feed_auth_key)
         description = append_chapters(ep.get('description'), (chapter_notes or {}).get(ep_id))
+        description = append_review_links(description, slug, ep_id, review_links)
         lines.append('<item>')
         lines.append(f'  <title>{self._escape_xml(ep.get("title") or "Unknown")}</title>')
         if description:

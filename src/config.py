@@ -1185,6 +1185,11 @@ def resolve_chapters_in_notes(db, podcast_row) -> bool:
                                 'chapters_in_notes', False)
 
 
+def resolve_review_links_in_notes(db, podcast_row) -> bool:
+    return _resolve_feed_toggle(db, podcast_row, 'review_links_in_notes',
+                                'review_links_in_notes', False)
+
+
 def resolve_cue_template_score_with_source(db, podcast_id):
     """Per-feed cue match threshold with source tag ('override' or 'global')."""
     try:

@@ -815,6 +815,14 @@ def _apply_processing_flags(db, data):
             # scheduled refresh that would 304-skip the change.
             common.after_commit(_rebuild_served_feeds)
 
+    if 'reviewLinksInNotes' in data:
+        value = 'true' if data['reviewLinksInNotes'] else 'false'
+        changed = (db.get_setting('review_links_in_notes') or 'false') != value
+        db.set_setting('review_links_in_notes', value, is_default=False)
+        logger.info(f"Updated review links in descriptions to: {value}")
+        if changed:
+            common.after_commit(_rebuild_served_feeds)
+
     if 'omitTemperature' in data:
         value = 'true' if data['omitTemperature'] else 'false'
         db.set_setting('omit_temperature', value, is_default=False)

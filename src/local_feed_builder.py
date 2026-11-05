@@ -20,6 +20,7 @@ import json
 import logging
 
 from chapter_notes import append_chapters, chapter_notes_for
+from review_links import append_review_links, review_links_for
 from database.episodes import NOT_AWAITING_APPROVAL
 from main_app import db, rss_parser, storage
 from main_app.feed_auth import active_feed_key
@@ -185,10 +186,13 @@ def _append_local_episode_item(lines: list, slug: str, ep: dict, base: str,
                                chapter_notes: dict[str, str],
                                title_prefix: str = '',
                                has_transcript: bool | None = None,
-                               has_chapters: bool | None = None) -> None:
+                               has_chapters: bool | None = None,
+                               review_links: bool = False) -> None:
     ep_id = ep['episode_id']
     item_json = _load_json_dict(ep.get('p20_item_json'))
     description = append_chapters(ep.get('description'), chapter_notes.get(ep_id))
+    description = append_review_links(description, slug, ep_id,
+                                      review_links and ep.get('status') == 'processed')
 
     lines.append('<item>')
     lines.append(f'  <title>{rss_parser._escape_xml(title_prefix + (ep.get("title") or ""))}</title>')
@@ -252,6 +256,7 @@ def build_local_feed_xml(podcast: dict, episodes: list[dict], *, storage, db,
     slug = podcast['slug']
     base = rss_parser._resolved_base_url()
     chapter_notes = chapter_notes_for(db, podcast)
+    review_links = review_links_for(db, podcast)
     feed_auth_key = active_feed_key(db)
     channel_json = _load_json_dict(podcast.get('p20_channel_json'))
 
@@ -311,7 +316,7 @@ def build_local_feed_xml(podcast: dict, episodes: list[dict], *, storage, db,
 
     for ep in episodes:
         _append_local_episode_item(lines, slug, ep, base, storage, feed_auth_key,
-                                   chapter_notes=chapter_notes)
+                                   chapter_notes=chapter_notes, review_links=review_links)
 
     lines.append('</channel>')
     lines.append('</rss>')

@@ -934,6 +934,15 @@ paths:
                     - 'off'
                     - null
                   description: Per-feed override for listing generated chapters in served episode descriptions. null follows the global chaptersInNotes setting.
+                reviewLinksInNotes:
+                  type:
+                    - string
+                    - 'null'
+                  enum:
+                    - 'on'
+                    - 'off'
+                    - null
+                  description: Per-feed override for review and rate links in served episode descriptions. null follows the global reviewLinksInNotes setting.
                 adChaptersEnabled:
                   type:
                     - boolean
@@ -7531,6 +7540,10 @@ paths:
                 chaptersInNotes:
                   type: boolean
                   description: Append the generated chapter list to served episode descriptions and the episode API description. Feeds can override per feed.
+                  example: false
+                reviewLinksInNotes:
+                  type: boolean
+                  description: Append review and rate links (episode page and a 5-star rating link) to the served description of processed episodes. Feeds can override per feed.
                   example: false
                 adChaptersEnabled:
                   type: [boolean, string]
@@ -14822,6 +14835,15 @@ components:
             - 'off'
             - null
           description: Per-feed override for listing generated chapters in served episode descriptions. null follows the global chaptersInNotes setting.
+        reviewLinksInNotes:
+          type:
+            - string
+            - 'null'
+          enum:
+            - 'on'
+            - 'off'
+            - null
+          description: Per-feed override for review and rate links in served episode descriptions. null follows the global reviewLinksInNotes setting.
         adChaptersEnabled:
           type: boolean
           deprecated: true
@@ -18062,6 +18084,14 @@ components:
         chaptersInNotes:
           type: object
           description: Append the generated chapter list to served episode descriptions and the episode API description.
+          properties:
+            value:
+              type: boolean
+            isDefault:
+              type: boolean
+        reviewLinksInNotes:
+          type: object
+          description: Append review and rate links to the served description of processed episodes. Feeds can override per feed.
           properties:
             value:
               type: boolean

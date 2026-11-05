@@ -2116,6 +2116,20 @@ class TestChaptersInNotes:
         database.Database().set_setting('chapters_in_notes', 'false', is_default=True)
 
 
+class TestReviewLinksInNotes:
+    def test_round_trips_and_rebuilds_served_feeds(self, client):
+        assert client.get('/api/v1/settings').get_json()['reviewLinksInNotes']['value'] is False
+        with patch('main_app.feeds.rebuild_all_served_feeds') as rebuild:
+            resp = client.put('/api/v1/settings/ad-detection',
+                              data=json.dumps({'reviewLinksInNotes': True}),
+                              content_type='application/json')
+        assert resp.status_code == 200, resp.data
+        rebuild.assert_called_once()
+        assert database.Database().get_setting('review_links_in_notes') == 'true'
+        assert client.get('/api/v1/settings').get_json()['reviewLinksInNotes']['value'] is True
+        database.Database().set_setting('review_links_in_notes', 'false', is_default=True)
+
+
 class TestProviderChangeLiftsRateLimitHold:
     """A rate-limit hold (#696) belongs to the account and endpoint that
     returned the 429, so pointing the app at a different provider, endpoint,
