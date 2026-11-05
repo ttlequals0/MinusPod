@@ -11,8 +11,9 @@ from config import (
     SNIPPET_EXCLUDED_HOLD_REASONS, SNIPPET_EXCLUDED_SQL, SNIPPET_EXCLUDED_SQL_PARAMS,
     SNIPPET_EXCLUDED_STAGE_REASONS,
 )
-from utils.constants import (LEARNING_SHOW_PROMO_FLOORS, NON_SPONSOR_PATTERN_CATEGORIES,
-                             is_show_promo_pattern, sanitize_sponsor_label)
+from utils.constants import (NON_SPONSOR_PATTERN_CATEGORIES, SHOW_PROMO_CREATED_BY,
+                             is_show_promo_pattern, sanitize_sponsor_label,
+                             show_promo_floor_problem)
 from utils.markers import clip_merge_spans, find_marker_in_list, parse_ad_markers
 from utils.time import utc_now_iso, utc_now, parse_iso_datetime
 from sponsor_normalize import get_or_create_known_sponsor
@@ -641,19 +642,9 @@ def _validate_create_correction_input(data):
         return None, error_response("scope must be 'podcast' or 'global'", 400)
     if category is not None and category not in SEGMENT_CATEGORIES:
         return None, error_response('Invalid category', 400)
-    if show_promo:
-        # Same floors the confirm path applies, so one rule decides what a
-        # show pattern is.
-        floor_s, floor_chars = LEARNING_SHOW_PROMO_FLOORS[category]
-        if scope != 'podcast':
-            return None, error_response(
-                'A pattern without a sponsor is limited to this podcast', 400)
-        if end - start < floor_s:
-            return None, error_response(
-                f'A {category} pattern needs a span of at least {floor_s} seconds', 400)
-        if len(text_template) < floor_chars:
-            return None, error_response(
-                f'A {category} pattern needs at least {floor_chars} characters of text', 400)
+    if show_promo and scope != 'podcast':
+        return None, error_response(
+            'A pattern without a sponsor is limited to this podcast', 400)
 
     return {
         'start': start,
@@ -741,6 +732,17 @@ def _create_patterns_from_segments(
             if pattern_service:
                 pattern_service.record_pattern_match(pid, episode_id)
         else:
+            if (not is_primary_segment and not seg['sponsor']
+                    and category in NON_SPONSOR_PATTERN_CATEGORIES):
+                # A piece with no sponsor in a show-promo category would be
+                # stored without the floors or the podcast-scope rule the show
+                # path applies. It has no span of its own to judge, so it is
+                # refused rather than stored ungated.
+                logger.info(
+                    f"Skipping sponsorless {category} piece in auto-split "
+                    f"{log_context}: only a whole confirmed read can become a show pattern"
+                )
+                continue
             if is_primary_segment:
                 seg_sponsor = primary_sponsor
                 seg_sponsor_id = (
@@ -814,6 +816,14 @@ def _submit_correction_create(db, slug, episode_id, data):
             f'end ({end}) exceeds episode duration ({duration})', 400
         )
 
+    if not sponsor_text:
+        # A show pattern: the one floor function the confirm path also uses.
+        min_s, max_s = TextPatternMatcher(db=db)._pattern_duration_bounds()
+        problem = show_promo_floor_problem(
+            category, end - start, len(text_template), min_s, max_s)
+        if problem:
+            return error_response(f'Not learned as a {category} pattern: {problem}', 400)
+
     if sponsor_text:
         sponsor_id = get_or_create_known_sponsor(db, sponsor_text)
         if sponsor_id is None:
@@ -841,7 +851,9 @@ def _submit_correction_create(db, slug, episode_id, data):
         # patterns were born with empty variant arrays, giving them worse
         # boundary placement than auto-created ones; derive intro/outro up
         # front, and never dedupe (this function never has).
-        intro_variants, outro_variants = derive_intro_outro(text_template)
+        # A show pattern is matched on its template alone (no phrase variants).
+        intro_variants, outro_variants = (
+            derive_intro_outro(text_template) if sponsor_text else ([], []))
         new_pattern_id = db.create_ad_pattern(
             scope=scope,
             text_template=text_template,
@@ -852,7 +864,7 @@ def _submit_correction_create(db, slug, episode_id, data):
             outro_variants=outro_variants,
             created_from_episode_id=episode_id,
             duration=end - start,
-            created_by='user',
+            created_by='user' if sponsor_text else SHOW_PROMO_CREATED_BY,
             category=category,
         )
         pattern_ids = [new_pattern_id]

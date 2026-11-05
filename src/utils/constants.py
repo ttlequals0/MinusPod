@@ -239,10 +239,35 @@ LEARNING_SHOW_PROMO_FLOORS = {
     'cross_promo': (30, 225),
 }
 
+def show_promo_floor_problem(category, duration, chars, min_duration, max_duration):
+    """Why a span cannot become a show pattern, or None. The one rule the
+    confirm path and the manual create path both apply: the configured minimum
+    duration can only raise the category floor, the category's character floor
+    applies, and the existing maximum duration is the ceiling."""
+    floor_s, floor_chars = LEARNING_SHOW_PROMO_FLOORS[category]
+    floor_s = max(min_duration, floor_s)
+    if duration < floor_s:
+        return (f"duration {duration:.0f}s is below the {floor_s}s floor "
+                f"(a short line would match anywhere on the show)")
+    if duration > max_duration:
+        return f"duration {duration:.0f}s exceeds the {max_duration}s maximum"
+    if chars < floor_chars:
+        return f"text length {chars} is below the {floor_chars} character floor"
+    return None
+
+
+# created_by value of a pattern made through the gated show-promo path. Show
+# promo is a provenance, not something inferred from "no sponsor": legacy
+# sponsorless rows, rows whose sponsor was deleted and global rows are not.
+SHOW_PROMO_CREATED_BY = 'show_promo'
+
+
 def is_show_promo_pattern(pattern: dict) -> bool:
-    """A sponsorless pattern in a non-sponsor category: a subscribe ask,
-    self-promo or own-network promo the show's operator confirmed."""
-    return (pattern.get('sponsor_id') is None and not pattern.get('sponsor')
+    """A subscribe ask, self-promo or own-network promo learned for one show
+    through the gated path (floors, podcast scope, human confirm)."""
+    return (pattern.get('created_by') == SHOW_PROMO_CREATED_BY
+            and pattern.get('scope') == 'podcast'
+            and pattern.get('sponsor_id') is None
             and pattern.get('category') in NON_SPONSOR_PATTERN_CATEGORIES)
 
 

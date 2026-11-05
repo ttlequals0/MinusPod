@@ -717,6 +717,8 @@ export interface AdSegment {
   // What kind of content this span is (issue #565). Unset when no stage
   // classified it; the UI shows Uncategorized.
   category?: SegmentCategory;
+  // Pattern this marker matched or was learned into, when it has one.
+  pattern_id?: number | null;
   // What the resolved segment-action map did with this marker's category.
   // Null when the marker predates the feature or the action never resolved.
   actionApplied?: SegmentAction | null;

@@ -82,6 +82,26 @@ vi.mock('./ad-editor/TextSelectionPanel', () => ({
       >
         keep only saved run
       </button>
+      <button
+        type="button"
+        disabled={disabled}
+        onClick={() => updateRuns([
+          { start: 100, end: 130, text: 'a'.repeat(200) },
+          { start: 200, end: 230, text: 'b'.repeat(200) },
+        ])}
+      >
+        set two long runs
+      </button>
+      <button
+        type="button"
+        disabled={disabled}
+        onClick={() => updateRuns([
+          { start: 100, end: 130, text: 'a'.repeat(200) },
+          { start: 200, end: 210, text: 'b'.repeat(200) },
+        ])}
+      >
+        set one long and one short-duration run
+      </button>
       <button type="button" aria-label="Remove span 0:10.0 to 0:20.0" disabled={disabled} />
     </div>
     );
@@ -494,12 +514,20 @@ describe('AdReviewModal multi-span create', () => {
 });
 
 describe('AdReviewModal manual create without a sponsor', () => {
-  it('needs a sponsor unless the category is interaction, self-promo or cross-promo', async () => {
-    const onCreate = vi.fn().mockResolvedValue(undefined);
-    renderModal({ mode: 'create', onCreate, item: { ...ITEM, sponsor: '' } });
+  const blank = { ...ITEM, sponsor: '' };
+
+  async function openTextMode(
+    onCreate: NonNullable<React.ComponentProps<typeof AdReviewModal>['onCreate']>, button = 'set two long runs') {
+    renderModal({ mode: 'create', onCreate, item: blank });
     const user = userEvent.setup();
     await user.click(screen.getByRole('button', { name: 'By text' }));
-    await user.click(screen.getByRole('button', { name: 'set two valid runs' }));
+    await user.click(screen.getByRole('button', { name: button }));
+    return user;
+  }
+
+  it('needs a sponsor unless the category is interaction, self-promo or cross-promo', async () => {
+    const onCreate = vi.fn().mockResolvedValue(undefined);
+    const user = await openTextMode(onCreate);
     const mark = screen.getByRole('button', { name: 'Mark ad (2 spans)' }) as HTMLButtonElement;
     expect(mark.disabled).toBe(true);
 
@@ -510,6 +538,45 @@ describe('AdReviewModal manual create without a sponsor', () => {
     expect(mark.disabled).toBe(false);
     await user.click(mark);
     await waitFor(() => expect(onCreate).toHaveBeenCalledTimes(2));
-    expect(onCreate.mock.calls[0][0]).toMatchObject({ sponsor: '', category: 'interaction' });
+    expect(onCreate.mock.calls[0][0]).toMatchObject({
+      sponsor: '', category: 'interaction', scope: 'podcast',
+    });
+  });
+
+  it('is limited to this podcast: the global option is off and explained', async () => {
+    const user = await openTextMode(vi.fn().mockResolvedValue(undefined));
+    const global = screen.getByRole('checkbox', { name: /Apply across all podcasts/ }) as HTMLInputElement;
+    await user.click(global);                                  // global with a sponsor is allowed
+    expect(global.checked).toBe(true);
+    await user.selectOptions(screen.getByLabelText(/^Category/), 'self_promo');
+    expect(global.disabled).toBe(true);
+    expect(global.checked).toBe(false);
+    expect(screen.getByText(/learned for this show only/i)).toBeTruthy();
+  });
+
+  it('checks every span against the floors before creating any', async () => {
+    const onCreate = vi.fn().mockResolvedValue(undefined);
+    const user = await openTextMode(onCreate, 'set one long and one short-duration run');
+    await user.selectOptions(screen.getByLabelText(/^Category/), 'interaction');
+    const mark = screen.getByRole('button', { name: 'Mark ad (2 spans)' }) as HTMLButtonElement;
+    expect(mark.disabled).toBe(true);
+    expect(screen.getByText(/at least 20 seconds/i)).toBeTruthy();
+    expect(onCreate).not.toHaveBeenCalled();
+  });
+
+  it('applies the cross-promo floor, which is stricter', async () => {
+    const onCreate = vi.fn().mockResolvedValue(undefined);
+    const user = await openTextMode(onCreate, 'set two valid runs');
+    await user.selectOptions(screen.getByLabelText(/^Category/), 'cross_promo');
+    expect((screen.getByRole('button', { name: 'Mark ad (2 spans)' }) as HTMLButtonElement).disabled).toBe(true);
+    expect(screen.getByText(/at least 30 seconds/i)).toBeTruthy();
+  });
+
+  it('keeps the sponsor path unchanged: a sponsor needs no floors', async () => {
+    const onCreate = vi.fn().mockResolvedValue(undefined);
+    const user = await openTextMode(onCreate, 'set two valid runs');
+    await user.type(screen.getByLabelText(/Sponsor name/), 'Acme');
+    await user.selectOptions(screen.getByLabelText(/^Category/), 'interaction');
+    expect((screen.getByRole('button', { name: 'Mark ad (2 spans)' }) as HTMLButtonElement).disabled).toBe(false);
   });
 });

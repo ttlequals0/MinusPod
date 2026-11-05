@@ -44,7 +44,6 @@ from ad_detector.cue_boundary_snap import (
     cue_snap_edge_limit,
 )
 from text_pattern_matcher import is_defined_pattern
-from utils.constants import is_show_promo_pattern
 from database import DEFAULT_REVIEW_PROMPT, DEFAULT_RESURRECT_PROMPT
 from llm_capabilities import PASS_REVIEWER_1, PASS_REVIEWER_2
 from llm_route import (
@@ -65,7 +64,7 @@ from utils.markers import (
     COARSE_MEMBER_STAGES, EDGE_TOLERANCE, clip_merge_spans,
     dai_core_bounds, dai_core_spans, dai_probe_spans, edge_support,
     finite_number, hard_member_spans, hard_members, invalidate_tail_provenance,
-    member_spans, reviewer_independent_spans, set_reviewer_locks, span_bounds, spans_match,
+    member_spans, recorded_member_spans, reviewer_independent_spans, set_reviewer_locks, span_bounds, spans_match,
     silent_absorbed_spans, TimedWords, timed_span, union_cover,
 )
 from utils.prompt import (
@@ -131,28 +130,24 @@ _INCONCLUSIVE_STAGES = frozenset({
 })
 
 
-def _matches_show_promo_pattern(ad, db) -> bool:
-    """A text-pattern match of an active sponsorless interaction / self_promo /
-    cross_promo pattern. A human confirmed that read for this show; the
-    reviewer's category-blind prompt would only reject it again."""
-    pattern_id = ad.get('pattern_id')
-    if (db is None or pattern_id is None or ad.get('detection_stage') != 'text_pattern'
+def _matches_show_promo_pattern(ad) -> bool:
+    """A text-pattern match of a learned show promo (interaction / self_promo /
+    cross_promo, learned from a human confirm). The reviewer's prompt treats a
+    host's own subscribe ask as show content and would reject it again. The
+    flag is set when the match is made; a merged marker qualifies only when
+    every member it absorbed is a show promo too."""
+    if (ad.get('detection_stage') != 'text_pattern' or ad.get('show_promo') is not True
             or ad.get('merged_distinct_ads')):
         return False
-    try:
-        pattern = db.get_ad_pattern_by_id(pattern_id)
-    except Exception:
-        return False
-    return (isinstance(pattern, dict) and bool(pattern.get('is_active'))
-            and is_show_promo_pattern(pattern))
+    return all(member.get('show_promo') is True for member in recorded_member_spans(ad))
 
 
-def _skips_reviewer(ad, db=None) -> bool:
+def _skips_reviewer(ad) -> bool:
     """Human-confirmed ads, cue_match markers (a measured cue, no spoken ad) and
-    matches of a learned show-promo pattern skip the LLM."""
+    matches of a learned show promo skip the LLM."""
     return (bool((ad.get("validation") or {}).get("user_confirmed"))
             or ad.get("detection_stage") == CUE_MATCH_STAGE
-            or _matches_show_promo_pattern(ad, db))
+            or _matches_show_promo_pattern(ad))
 
 
 def _review_inconclusive_reason(error: Exception) -> str:
@@ -1467,7 +1462,7 @@ class AdReviewer:
         """Apply the per-ad failure rule to every accepted ad after a batch failure."""
         result = ReviewResult()
         for ad in accepted_ads:
-            if _skips_reviewer(ad, self.db):
+            if _skips_reviewer(ad):
                 result.accepted_after_review.append(ad)
                 continue
             verdict = ReviewVerdict(
@@ -1761,7 +1756,7 @@ class AdReviewer:
             return []
 
         def _run_one(idx):
-            if pool == "accepted" and _skips_reviewer(ads[idx], self.db):
+            if pool == "accepted" and _skips_reviewer(ads[idx]):
                 return None, ads[idx]
             verdict, updated = self._review_single(
                 ad=ads[idx],

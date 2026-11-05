@@ -636,10 +636,17 @@ describe('Held for review: confirm label names the category', () => {
     expect(screen.getByTestId('approve-recut-1').textContent).toBe('Confirm');
   });
 
-  it('says confirming an interaction, self-promo or cross-promo marker teaches the show', async () => {
+  it('says confirming teaches the show only when it will create a show pattern', async () => {
+    const promo = { ...heldMarker, start: 100, end: 130, category: 'interaction' as const };
     renderDetail(makeEpisode({
       hasOriginalAudio: true,
-      pendingReviewMarkers: [{ ...heldMarker, category: 'interaction' }, secondHeldMarker],
+      pendingReviewMarkers: [
+        promo,                                                             // will teach
+        { ...promo, start: 200, end: 230, sponsor: 'Patreon' },            // names a sponsor
+        { ...promo, start: 300, end: 310 },                                // under the floor
+        { ...promo, start: 400, end: 430, pattern_id: 9 },                 // already linked
+        { ...promo, start: 500, end: 530, category: 'sponsor' as const },  // not a promo category
+      ],
     }));
     await waitFor(() => {
       expect(screen.getByTestId('approve-recut-0')).toBeDefined();

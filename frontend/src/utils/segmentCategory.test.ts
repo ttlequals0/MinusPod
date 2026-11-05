@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
-  confirmLabel, isShowPromoPattern, patternSponsorLabel, rejectLabel, teachesShowHint,
+  confirmLabel, isShowPromoPattern, patternSponsorLabel, rejectLabel, showPromoSpanProblem,
+  teachesShowHint,
 } from './segmentCategory';
 
 describe('confirmLabel', () => {
@@ -42,30 +43,56 @@ describe('rejectLabel', () => {
   });
 });
 
+const promoRow = {
+  created_by: 'show_promo', scope: 'podcast', sponsor: null, category: 'interaction',
+};
+
 describe('show promo patterns', () => {
-  it('recognises a sponsorless pattern in a non-sponsor ad category', () => {
-    expect(isShowPromoPattern({ sponsor: null, category: 'interaction' })).toBe(true);
-    expect(isShowPromoPattern({ sponsor: '', category: 'self_promo' })).toBe(true);
-    expect(isShowPromoPattern({ sponsor: null, category: 'cross_promo' })).toBe(true);
-    expect(isShowPromoPattern({ sponsor: 'Acme', category: 'cross_promo' })).toBe(false);
-    expect(isShowPromoPattern({ sponsor: null, category: 'sponsor' })).toBe(false);
-    expect(isShowPromoPattern({ sponsor: null, category: 'intro' })).toBe(false);
-    expect(isShowPromoPattern({ sponsor: null })).toBe(false);
+  it('needs the explicit provenance, podcast scope, no sponsor and a promo category', () => {
+    expect(isShowPromoPattern(promoRow)).toBe(true);
+    expect(isShowPromoPattern({ ...promoRow, sponsor: '' })).toBe(true);
+    expect(isShowPromoPattern({ ...promoRow, category: 'cross_promo' })).toBe(true);
+    // legacy sponsorless rows, hand-made rows and rows whose sponsor was deleted
+    expect(isShowPromoPattern({ ...promoRow, created_by: 'auto' })).toBe(false);
+    expect(isShowPromoPattern({ ...promoRow, created_by: 'user' })).toBe(false);
+    expect(isShowPromoPattern({ ...promoRow, created_by: null })).toBe(false);
+    expect(isShowPromoPattern({ sponsor: null, category: 'interaction' })).toBe(false);
+    // global rows, rows with a sponsor, other categories
+    expect(isShowPromoPattern({ ...promoRow, scope: 'global' })).toBe(false);
+    expect(isShowPromoPattern({ ...promoRow, sponsor: 'Acme' })).toBe(false);
+    expect(isShowPromoPattern({ ...promoRow, category: 'sponsor' })).toBe(false);
+    expect(isShowPromoPattern({ ...promoRow, category: 'intro' })).toBe(false);
   });
 
-  it('names the sponsor, else the show, else Unknown', () => {
-    expect(patternSponsorLabel({ sponsor: 'Acme', category: 'sponsor' })).toBe('Acme');
-    expect(patternSponsorLabel({ sponsor: null, category: 'interaction', podcast_name: 'The Diary' }))
-      .toBe('The Diary');
-    expect(patternSponsorLabel({ sponsor: null, category: 'interaction' })).toBe('This show');
-    expect(patternSponsorLabel({ sponsor: null, category: 'sponsor' })).toBe('(Unknown)');
+  it('names the sponsor, else the show for a show promo, else Unknown', () => {
+    expect(patternSponsorLabel({ ...promoRow, sponsor: 'Acme', category: 'sponsor' })).toBe('Acme');
+    expect(patternSponsorLabel({ ...promoRow, podcast_name: 'The Diary' })).toBe('The Diary');
+    expect(patternSponsorLabel(promoRow)).toBe('This show');
+    expect(patternSponsorLabel({ ...promoRow, created_by: 'auto' })).toBe('(Unknown)');
   });
 
-  it('says confirming teaches the show only for those categories', () => {
-    expect(teachesShowHint('interaction')).toMatch(/this show/i);
-    expect(teachesShowHint('cross_promo')).toMatch(/this show/i);
-    expect(teachesShowHint('sponsor')).toBeNull();
-    expect(teachesShowHint('intro')).toBeNull();
-    expect(teachesShowHint(undefined)).toBeNull();
+  it('mirrors the server floors', () => {
+    expect(showPromoSpanProblem('interaction', 20, 150)).toBeNull();
+    expect(showPromoSpanProblem('self_promo', 19, 200)).toMatch(/at least 20 seconds/);
+    expect(showPromoSpanProblem('interaction', 30, 149)).toMatch(/at least 150 characters/);
+    expect(showPromoSpanProblem('cross_promo', 29, 300)).toMatch(/at least 30 seconds/);
+    expect(showPromoSpanProblem('cross_promo', 31, 224)).toMatch(/at least 225 characters/);
+    expect(showPromoSpanProblem('interaction', 300, 200)).toMatch(/at most 120 seconds/);
+    // characters unknown: only the duration is judged
+    expect(showPromoSpanProblem('interaction', 25)).toBeNull();
+    expect(showPromoSpanProblem('sponsor', 1, 1)).toBeNull();
+  });
+
+  it('hints that confirming teaches the show only when it really will', () => {
+    const base = { category: 'interaction', sponsor: undefined, patternId: null, start: 100, end: 130 };
+    expect(teachesShowHint(base)).toMatch(/teaches this show/i);
+    expect(teachesShowHint({ ...base, category: 'cross_promo', end: 140 })).toMatch(/teaches this show/i);
+    expect(teachesShowHint({ ...base, sponsor: 'Patreon' })).toBeNull();      // a named sponsor
+    expect(teachesShowHint({ ...base, patternId: 4 })).toBeNull();            // already linked
+    expect(teachesShowHint({ ...base, end: 110 })).toBeNull();                // under the floor
+    expect(teachesShowHint({ ...base, end: 400 })).toBeNull();                // over the ceiling
+    expect(teachesShowHint({ ...base, category: 'cross_promo', end: 129 })).toBeNull();
+    expect(teachesShowHint({ ...base, category: 'sponsor' })).toBeNull();
+    expect(teachesShowHint({ ...base, category: undefined })).toBeNull();
   });
 });

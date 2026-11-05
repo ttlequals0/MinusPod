@@ -430,7 +430,7 @@ MERGED_MEMBER_SPANS = 'merged_member_spans'
 # Per-member evidence recorded at merge time, before merges move the edges.
 _MEMBER_FIELDS = ('confidence', 'precise_start', 'precise_end',
                   'fingerprint_match_start', 'fingerprint_match_end',
-                  'span_estimated', 'pattern_id', 'sponsor', 'category')
+                  'span_estimated', 'pattern_id', 'sponsor', 'category', 'show_promo')
 
 # Stages measured from audio or matched transcript text, not proposed by a model.
 # dai_differential is not one: a cross-fetch diff earns KeepDifferentialOverride
@@ -572,6 +572,10 @@ def member_spans(marker: dict) -> list[dict]:
     category = repair_segment_category(marker.get('category'))
     if category:
         member['category'] = category
+    # Whether this member is a learned show promo: the reviewer skips a merged
+    # marker only when every member is one.
+    if marker.get('show_promo'):
+        member['show_promo'] = True
     if stage in COARSE_MEMBER_STAGES:
         confidence = finite_number(marker.get('confidence'))
         if confidence is not None:
@@ -624,6 +628,7 @@ def _coalesce_coarse_members(spans: list[dict]) -> list[dict]:
             (m for m in merged if m.get('stage') == stage
              and stage in COARSE_MEMBER_STAGES
              and labels_compatible(member_label(m), member_label(span))
+             and bool(m.get('show_promo')) == bool(span.get('show_promo'))
              and span['start'] <= m['end'] and span['end'] >= m['start']),
             None) if stage in COARSE_MEMBER_STAGES else None
         if prior is None:

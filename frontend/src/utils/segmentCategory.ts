@@ -60,21 +60,41 @@ export function rejectLabel(category?: string | null): string {
 
 // Categories whose reads name no advertiser. Mirrors
 // NON_SPONSOR_PATTERN_CATEGORIES in src/utils/constants.py: confirming one
-// teaches the show a sponsorless, podcast-scoped pattern.
-const SHOW_PROMO_CATEGORIES: readonly string[] = ['interaction', 'self_promo', 'cross_promo'];
+// with no sponsor teaches the show a podcast-scoped pattern.
+type ShowPromoCategory = 'interaction' | 'self_promo' | 'cross_promo';
 
-// A sponsorless pattern in one of those categories. Mirrors is_show_promo_pattern.
-export function isShowPromoPattern(
-  pattern: { sponsor?: string | null; category?: string | null },
-): boolean {
-  return !pattern.sponsor && !!pattern.category && SHOW_PROMO_CATEGORIES.includes(pattern.category);
+// Minimum span of a show pattern, per category. Mirrors
+// LEARNING_SHOW_PROMO_FLOORS and the default maximum pattern duration in
+// src/utils/constants.py. The server also applies the operator's configured
+// minimum duration, which can only raise the seconds.
+export const SHOW_PROMO_FLOORS: Record<ShowPromoCategory, { seconds: number; chars: number }> = {
+  interaction: { seconds: 20, chars: 150 },
+  self_promo: { seconds: 20, chars: 150 },
+  cross_promo: { seconds: 30, chars: 225 },
+};
+export const SHOW_PROMO_MAX_SECONDS = 120;
+
+export function isShowPromoCategory(category?: string | null): category is ShowPromoCategory {
+  return !!category && category in SHOW_PROMO_FLOORS;
+}
+
+// A learned show pattern. Mirrors is_show_promo_pattern: the explicit
+// provenance, podcast scope, no sponsor and a promo category. A legacy
+// sponsorless row, or one whose sponsor was deleted, is not one.
+export function isShowPromoPattern(pattern: {
+  created_by?: string | null; scope?: string | null;
+  sponsor?: string | null; category?: string | null;
+}): boolean {
+  return pattern.created_by === 'show_promo' && pattern.scope === 'podcast'
+    && !pattern.sponsor && isShowPromoCategory(pattern.category);
 }
 
 // What the Patterns page shows where a sponsor name goes: a show promo has no
 // sponsor by design, so it names the show instead of reading as a defect.
-export function patternSponsorLabel(
-  pattern: { sponsor?: string | null; category?: string | null; podcast_name?: string | null },
-): string {
+export function patternSponsorLabel(pattern: {
+  created_by?: string | null; scope?: string | null; sponsor?: string | null;
+  category?: string | null; podcast_name?: string | null;
+}): string {
   if (pattern.sponsor) {
     return pattern.sponsor;
   }
@@ -84,10 +104,40 @@ export function patternSponsorLabel(
   return '(Unknown)';
 }
 
-// One line under a Confirm button: confirming such a marker adds it to the
-// show's learned patterns. Null for every other category.
-export function teachesShowHint(category?: string | null): string | null {
-  if (!category || !SHOW_PROMO_CATEGORIES.includes(category)) {
+// Why a span cannot become a show pattern, in plain words, or null. Mirrors
+// show_promo_floor_problem; characters are optional because an episode row
+// does not carry the transcript text.
+export function showPromoSpanProblem(
+  category: string | null | undefined, seconds: number, chars?: number,
+): string | null {
+  if (!isShowPromoCategory(category)) {
+    return null;
+  }
+  const label = SEGMENT_CATEGORY_LABELS[category].toLowerCase();
+  const floor = SHOW_PROMO_FLOORS[category];
+  if (seconds < floor.seconds) {
+    return `A ${label} read must run at least ${floor.seconds} seconds to be learned for this show.`;
+  }
+  if (seconds > SHOW_PROMO_MAX_SECONDS) {
+    return `A ${label} read can run at most ${SHOW_PROMO_MAX_SECONDS} seconds to be learned for this show.`;
+  }
+  if (chars !== undefined && chars < floor.chars) {
+    return `A ${label} read needs at least ${floor.chars} characters of text to be learned for this show.`;
+  }
+  return null;
+}
+
+// One line under a Confirm button, shown only when confirming will really
+// create a show pattern: a promo category, no sponsor named, no pattern
+// already linked and a span within the floors.
+export function teachesShowHint(marker: {
+  category?: string | null; sponsor?: string | null; patternId?: number | null;
+  start: number; end: number;
+}): string | null {
+  if (!isShowPromoCategory(marker.category) || marker.sponsor || marker.patternId != null) {
+    return null;
+  }
+  if (showPromoSpanProblem(marker.category, marker.end - marker.start) !== null) {
     return null;
   }
   return 'Confirming teaches this show to cut this read automatically in later episodes.';

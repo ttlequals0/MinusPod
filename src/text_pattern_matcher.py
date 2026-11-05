@@ -35,10 +35,11 @@ from utils.constants import (
     LEARNING_BRAND_ONSET_FRACTION,
     LEARNING_MAX_PATTERN_DURATION,
     LEARNING_MIN_PATTERN_DURATION,
-    LEARNING_SHOW_PROMO_FLOORS,
     LEARNING_SPLIT_DURATION_FACTOR,
     NON_SPONSOR_PATTERN_CATEGORIES,
+    SHOW_PROMO_CREATED_BY,
     is_show_promo_pattern,
+    show_promo_floor_problem,
     is_non_brand_name,
     sanitize_sponsor_label,
 )
@@ -475,6 +476,9 @@ class TextMatch:
     category: str | None = None
     # Tier-1 trust (user-created or community pattern); see is_defined_pattern.
     defined: bool = False
+    # The matched pattern was learned through the show-promo path. Carried on
+    # the match so the reviewer never needs a database lookup to know.
+    show_promo: bool = False
     # pattern_ids of matches merged into this one, for match-credit recording.
     absorbed_ids: list = field(default_factory=list)
     # True when an edge came from duration estimation, not matched text
@@ -509,16 +513,14 @@ class AdPattern:
 
     @property
     def is_show_promo(self) -> bool:
-        return is_show_promo_pattern({'sponsor_id': self.sponsor_id, 'sponsor': self.sponsor,
-                                      'category': self.category})
+        return is_show_promo_pattern({'created_by': self.created_by, 'scope': self.scope,
+                                      'sponsor_id': self.sponsor_id, 'category': self.category})
 
     @property
     def is_defined(self) -> bool:
-        # A show promo is learned from the show's own confirmed read, so it
-        # never counts as tier-1 trust: a feed's keep/mark action for its
-        # category must still win over it.
-        return (not self.is_show_promo
-                and is_defined_pattern({'created_by': self.created_by, 'source': self.source}))
+        # created_by 'show_promo' is not 'user', so a show promo is never tier-1:
+        # a feed's keep/mark action for its category still wins over it.
+        return is_defined_pattern({'created_by': self.created_by, 'source': self.source})
 
 
 class TextPatternMatcher:
@@ -785,9 +787,7 @@ class TextPatternMatcher:
         phrase_patterns = []
         sponsor_brands = {}
         for pattern in applicable_patterns:
-            # A show promo has no sponsor to find in its outro, so the outro
-            # evidence rule below would always drop it from content matching.
-            if pattern.is_defined or pattern.is_show_promo or not pattern.outro_variants:
+            if pattern.is_defined or not pattern.outro_variants:
                 content_patterns.append(pattern)
                 phrase_patterns.append(pattern)
                 continue
@@ -1035,6 +1035,7 @@ class TextPatternMatcher:
                         match_type="content",
                         category=pattern.category,
                         defined=pattern.is_defined,
+                        show_promo=pattern.is_show_promo,
                     ))
 
         window_bounds = []
@@ -1114,6 +1115,7 @@ class TextPatternMatcher:
                             category=pattern.category,
                             matched_text=matched,
                             defined=pattern.is_defined,
+                        show_promo=pattern.is_show_promo,
                             span_estimated=span_estimated,
                             text_start=start_time,
                             text_end=intro_text_end if span_estimated else end_time,
@@ -1153,6 +1155,7 @@ class TextPatternMatcher:
                             category=pattern.category,
                             matched_text=matched,
                             defined=pattern.is_defined,
+                        show_promo=pattern.is_show_promo,
                             span_estimated=span_estimated,
                             text_start=outro_text_start if span_estimated else start_time,
                             text_end=end_time,
@@ -1355,7 +1358,11 @@ class TextPatternMatcher:
             same_sponsor = (
                 (current.sponsor or '').lower() == (match.sponsor or '').lower()
             )
-            if same_sponsor and match.start <= current.end + 5.0:
+            # A show promo never merges with anything else: two unattributed
+            # matches are not "the same sponsor" when one is a learned show
+            # read and the other is not.
+            if (same_sponsor and current.show_promo == match.show_promo
+                    and match.start <= current.end + 5.0):
                 # Merge - a defined (tier-1) match wins ownership regardless
                 # of confidence; otherwise keep higher confidence.
                 if current.defined != match.defined:
@@ -1944,24 +1951,15 @@ class TextPatternMatcher:
         # 8 s) is the canonical floor false-positive: real sponsor reads almost
         # never fit in under 15 seconds.
         MIN_PATTERN_DURATION, MAX_PATTERN_DURATION = self._pattern_duration_bounds()
-        if show_promo:
-            # The configured minimum can only raise the category floor.
-            MIN_PATTERN_DURATION = max(
-                MIN_PATTERN_DURATION, LEARNING_SHOW_PROMO_FLOORS[category][0])
         duration = end - start
-        if duration < MIN_PATTERN_DURATION:
-            if show_promo:
-                logger.warning(
-                    f"Skipping {category} pattern creation: duration "
-                    f"{duration:.0f}s is below the {MIN_PATTERN_DURATION}s floor "
-                    f"(a short line would match anywhere on the show)"
-                )
-            else:
-                logger.warning(
-                    f"Skipping pattern creation: duration {duration:.0f}s below "
-                    f"min {MIN_PATTERN_DURATION}s (likely a fragment or host mention, "
-                    f"not a sponsor read)"
-                )
+        # A show promo's duration and length are judged together below by the
+        # one floor function the manual create path shares.
+        if not show_promo and duration < MIN_PATTERN_DURATION:
+            logger.warning(
+                f"Skipping pattern creation: duration {duration:.0f}s below "
+                f"min {MIN_PATTERN_DURATION}s (likely a fragment or host mention, "
+                f"not a sponsor read)"
+            )
             return None
         # A piece cut at its own ad transitions has passed the contamination
         # screen, so it may run past the ceiling, but only so far: an undetected
@@ -1987,11 +1985,12 @@ class TextPatternMatcher:
         if len(ad_text) < MIN_TEXT_LENGTH:
             logger.debug("Ad text too short for pattern creation")
             return None
-        if show_promo and len(ad_text) < LEARNING_SHOW_PROMO_FLOORS[category][1]:
-            logger.warning(
-                f"Skipping {category} pattern creation: text length {len(ad_text)} "
-                f"is below the {LEARNING_SHOW_PROMO_FLOORS[category][1]} character floor")
-            return None
+        if show_promo:
+            problem = show_promo_floor_problem(
+                category, duration, len(ad_text), MIN_PATTERN_DURATION, MAX_PATTERN_DURATION)
+            if problem:
+                logger.warning(f"Skipping {category} pattern creation: {problem}")
+                return None
 
         # Sanity check on extracted text length to catch contaminated patterns
         if len(ad_text) > MAX_PATTERN_CHARS:
@@ -2101,13 +2100,17 @@ class TextPatternMatcher:
             pattern_id = self.db.create_ad_pattern(
                 scope=scope,
                 text_template=ad_text,
-                intro_variants=[intro] if intro else [],
-                outro_variants=[outro] if outro else [],
+                # A show promo is matched on its template alone: with no sponsor
+                # there is no evidence that a phrase variant (its last sentence
+                # may be dialogue) marks the edge of the read.
+                intro_variants=[] if show_promo else ([intro] if intro else []),
+                outro_variants=[] if show_promo else ([outro] if outro else []),
                 sponsor_id=sponsor_id,
                 podcast_id=podcast_id,
                 network_id=network_id,
                 created_from_episode_id=episode_id,
                 duration=duration,
+                created_by=SHOW_PROMO_CREATED_BY if show_promo else 'auto',
                 source_language=get_pattern_language(self.db, slug=podcast_id),
                 category=category if category in SEGMENT_CATEGORIES else None,
             )

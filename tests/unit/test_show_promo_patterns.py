@@ -6,19 +6,22 @@ patterns, floors and prompts are unchanged.
 """
 import logging
 from unittest.mock import MagicMock
-
 import pytest
 
 from tests.app_bootstrap import bootstrap
 
 bootstrap('show_promo_patterns_test_')
 
+from ad_detector import AdDetector
 from ad_reviewer import _skips_reviewer
-from api.patterns import _handle_reject_correction, _resolve_or_create_pattern_from_text
+from api.patterns import (_create_patterns_from_segments, _handle_reject_correction,
+                          _resolve_or_create_pattern_from_text)
 from main_app.pipeline import keep_rules
 from pattern_service import PatternService
-from text_pattern_matcher import TextPatternMatcher, is_show_promo_pattern
-from utils.constants import LEARNING_SHOW_PROMO_FLOORS, NON_SPONSOR_PATTERN_CATEGORIES
+from text_pattern_matcher import TextMatch, TextPatternMatcher, is_show_promo_pattern
+from utils.markers import note_merged_members
+from utils.constants import (LEARNING_SHOW_PROMO_FLOORS, NON_SPONSOR_PATTERN_CATEGORIES,
+                             show_promo_floor_problem)
 
 SLUG = 'show-promo-test'
 EPISODE_ID = 'abcdef012345'
@@ -74,6 +77,12 @@ def test_confirm_creates_sponsorless_podcast_pattern_with_category(temp_db, cate
     assert pattern['category'] == category
     assert pattern['scope'] == 'podcast' and pattern['podcast_id'] == SLUG
     assert pattern['text_template'] == ASK
+    assert pattern['created_by'] == 'show_promo'
+    # a show promo is matched on its template alone: no phrase variants whose
+    # last sentence could be dialogue
+    import json
+    assert json.loads(pattern['intro_variants']) == []
+    assert json.loads(pattern['outro_variants']) == []
 
 
 @pytest.mark.parametrize('category', [None, 'sponsor'])
@@ -254,17 +263,48 @@ def test_another_show_does_not_match(temp_db):
         _later_episode_segments(), podcast_id='some-other-show') == []
 
 
-def test_sponsorless_pattern_with_an_outro_stays_in_content_matching(temp_db):
-    """An auto pattern with outro variants normally needs sponsor evidence in
-    the outro to stay in content matching; a show promo has no sponsor."""
+def _row(**kw):
+    row = {'created_by': 'show_promo', 'scope': 'podcast', 'sponsor_id': None,
+           'category': 'interaction'}
+    row.update(kw)
+    return row
+
+
+def test_is_show_promo_pattern_needs_the_explicit_provenance():
+    assert is_show_promo_pattern(_row())
+    assert is_show_promo_pattern(_row(category='cross_promo'))
+    # legacy sponsorless rows, hand-made rows and rows that lost their sponsor
+    assert not is_show_promo_pattern(_row(created_by='auto'))
+    assert not is_show_promo_pattern(_row(created_by='user'))
+    assert not is_show_promo_pattern(_row(created_by=None))
+    # global / network rows, rows with a sponsor, other categories
+    assert not is_show_promo_pattern(_row(scope='global'))
+    assert not is_show_promo_pattern(_row(scope='network'))
+    assert not is_show_promo_pattern(_row(sponsor_id=3))
+    assert not is_show_promo_pattern(_row(category='sponsor'))
+    assert not is_show_promo_pattern(_row(category=None))
+
+
+def test_legacy_sponsorless_rows_keep_their_old_behaviour(temp_db):
     _seed(temp_db)
-    pid, _ = _confirm(temp_db, ASK, 'interaction')
-    pattern = temp_db.get_ad_pattern_by_id(pid)
-    assert pattern['outro_variants']
+    legacy = temp_db.create_ad_pattern(scope='podcast', text_template=ASK, podcast_id=SLUG,
+                                       category='interaction')           # created_by 'auto'
+    hand_made = temp_db.create_ad_pattern(scope='podcast', text_template=ASK + ' Again.',
+                                          podcast_id=SLUG, created_by='user',
+                                          category='interaction')
     matcher = TextPatternMatcher(db=temp_db)
     matcher._load_patterns()
-    loaded = [p for p in matcher._patterns if p.id == pid][0]
-    assert loaded.is_show_promo is True and loaded.is_defined is False
+    loaded = {p.id: p for p in matcher._patterns}
+    assert loaded[legacy].is_show_promo is False
+    assert loaded[hand_made].is_show_promo is False
+    assert loaded[hand_made].is_defined is True        # unchanged tier-1 trust
+    assert loaded[legacy].is_defined is False
+
+
+def test_show_promo_stays_in_content_matching_without_phrase_variants(temp_db):
+    _seed(temp_db)
+    pid, _ = _confirm(temp_db, ASK, 'interaction')
+    matcher = TextPatternMatcher(db=temp_db)
     seen = []
     original = matcher._find_content_matches
 
@@ -277,11 +317,43 @@ def test_sponsorless_pattern_with_an_outro_stays_in_content_matching(temp_db):
     assert pid in seen
 
 
-def test_is_show_promo_pattern_helper():
-    assert is_show_promo_pattern({'sponsor_id': None, 'category': 'cross_promo'})
-    assert not is_show_promo_pattern({'sponsor_id': 3, 'category': 'cross_promo'})
-    assert not is_show_promo_pattern({'sponsor_id': None, 'category': 'sponsor'})
-    assert not is_show_promo_pattern({'sponsor_id': None, 'category': None})
+def test_a_dialogue_sentence_at_the_end_of_the_confirmed_span_is_never_a_boundary(temp_db):
+    """The confirmed span ran into dialogue. That sentence must not become an
+    outro phrase that cuts the same words wherever they are spoken later."""
+    _seed(temp_db)
+    dialogue = ("So anyway my first guest today built a company from nothing and "
+                "I cannot wait to hear how she did it, let us get started.")
+    pid, _ = _confirm(temp_db, ASK + ' ' + dialogue, 'interaction')
+    segs = _later_episode_segments()
+    segs.append({'start': 300.0, 'end': 330.0, 'text': dialogue})
+    matches = [m for m in TextPatternMatcher(db=temp_db).find_matches(segs, podcast_id=SLUG)
+               if m.pattern_id == pid]
+    assert not [m for m in matches if m.end > 250.0]
+
+
+def test_a_show_promo_is_not_merged_with_a_neighbouring_non_show_promo_match():
+    matcher = TextPatternMatcher(db=None)
+    promo = TextMatch(pattern_id=1, start=100.0, end=130.0, confidence=0.9,
+                      category='interaction', show_promo=True)
+    other = TextMatch(pattern_id=2, start=131.0, end=160.0, confidence=0.95,
+                      category='interaction', show_promo=False)
+    merged = matcher._merge_matches([promo, other])
+    assert [(m.pattern_id, m.show_promo) for m in merged] == [(1, True), (2, False)]
+    twin = TextMatch(pattern_id=3, start=131.0, end=160.0, confidence=0.8,
+                     category='interaction', show_promo=True)
+    both = matcher._merge_matches([promo, twin])
+    assert len(both) == 1 and both[0].show_promo is True
+
+
+def test_the_flag_is_carried_from_the_match_onto_the_ad(temp_db):
+    _seed(temp_db)
+    pid, _ = _confirm(temp_db, ASK, 'interaction')
+    match = [m for m in TextPatternMatcher(db=temp_db).find_matches(
+        _later_episode_segments(), podcast_id=SLUG) if m.pattern_id == pid][0]
+    assert match.show_promo is True
+    ads, regions = [], []
+    AdDetector._add_pattern_match(MagicMock(), match, 'text_pattern', 'content', ads, regions, 'ep')
+    assert ads[0]['show_promo'] is True and ads[0]['pattern_defined'] is False
 
 
 # ------------------------------------------------- feed keep action honoured
@@ -315,16 +387,6 @@ def test_default_action_removes_a_matched_show_promo(temp_db):
     assert keep_ads == [] and remove_ads == [marker]
 
 
-def test_user_created_sponsorless_pattern_is_not_defined_either(temp_db):
-    _seed(temp_db)
-    pid = temp_db.create_ad_pattern(scope='podcast', text_template=ASK, podcast_id=SLUG,
-                                    created_by='user', category='interaction')
-    matcher = TextPatternMatcher(db=temp_db)
-    matcher._load_patterns()
-    loaded = [p for p in matcher._patterns if p.id == pid][0]
-    assert loaded.is_defined is False
-
-
 # ------------------------------------------------------- reject escape hatch
 
 def test_reject_correction_counts_a_false_positive_and_disable_works(temp_db):
@@ -351,6 +413,8 @@ def test_community_export_refuses_sponsorless_with_a_clear_reason(temp_db):
     reasons = _quality_gates(pattern, [])
     assert any('show-specific' in r and 'not exported' in r for r in reasons)
     assert 'sponsor_id is required' not in reasons
+    legacy = dict(pattern, created_by='auto')
+    assert 'sponsor_id is required' in _quality_gates(legacy, [])
 
 
 # ----------------------------------------------------------------- stats
@@ -362,11 +426,13 @@ def test_stats_do_not_count_show_promos_as_unknown_sponsor(temp_db):
     _seed(temp_db)
     _confirm(temp_db, ASK, 'interaction')
     temp_db.create_ad_pattern(scope='podcast', text_template='x' * 80, podcast_id=SLUG)
+    temp_db.create_ad_pattern(scope='podcast', text_template='y' * 80, podcast_id=SLUG,
+                              category='interaction')      # legacy sponsorless row
     with app.test_request_context(), patch('api.patterns.get_database', return_value=temp_db):
         stats = get_pattern_stats().get_json()
-    assert stats['no_sponsor'] == 1
+    assert stats['no_sponsor'] == 2      # both legacy rows stay unknown-sponsor defects
     assert stats['show_promo'] == 1
-    assert len(stats['no_sponsor_patterns']) == 1
+    assert len(stats['no_sponsor_patterns']) == 2
 
 
 # -------------------------------------------------------- manual create path
@@ -399,7 +465,7 @@ def test_manual_create_without_sponsor_for_a_promo_category(temp_db, client):
     assert resp.status_code == 200, resp.get_json()
     pattern = temp_db.get_ad_pattern_by_id(resp.get_json()['pattern_id'])
     assert pattern['sponsor'] is None and pattern['category'] == 'interaction'
-    assert pattern['scope'] == 'podcast'
+    assert pattern['scope'] == 'podcast' and pattern['created_by'] == 'show_promo'
     markers = __import__('json').loads(temp_db.get_episode(SLUG, EPISODE_ID)['ad_markers_json'])
     assert markers[0]['sponsor'] is None and markers[0]['category'] == 'interaction'
 
@@ -419,38 +485,97 @@ def test_manual_create_sponsorless_is_podcast_scope_only(temp_db, client):
 
 def test_manual_create_applies_the_floors(temp_db, client):
     _seed(temp_db)
-    resp = _post(client, _create_payload(text=MID_TEXT, category='cross_promo'))
+    resp = _post(client, _create_payload(text=MID_TEXT, category='cross_promo',
+                                         start=110.0, end=145.0))
     assert resp.status_code == 400 and '225' in resp.get_data(as_text=True)
     resp = _post(client, _create_payload(start=110.0, end=115.0))
     assert resp.status_code == 400 and '20' in resp.get_data(as_text=True)
 
 
+# --------------------------------------------------------- one floor function
+
+def test_floor_function_is_the_one_rule():
+    assert show_promo_floor_problem('interaction', 30, 200, 15, 120) is None
+    assert 'below the 20s floor' in show_promo_floor_problem('interaction', 19, 200, 15, 120)
+    assert 'below the 150 character floor' in show_promo_floor_problem('interaction', 30, 149, 15, 120)
+    assert 'below the 30s floor' in show_promo_floor_problem('cross_promo', 29, 300, 15, 120)
+    assert 'below the 225 character floor' in show_promo_floor_problem('cross_promo', 31, 224, 15, 120)
+    # the configured minimum can only raise the duration floor
+    assert 'below the 30s floor' in show_promo_floor_problem('interaction', 22, 200, 30, 120)
+    assert show_promo_floor_problem('interaction', 22, 200, 10, 120) is None
+    assert 'exceeds the 120s maximum' in show_promo_floor_problem('interaction', 300, 200, 15, 120)
+
+
+def test_confirm_and_manual_create_agree_on_a_22_second_span_with_a_30_second_minimum(temp_db, client):
+    _seed(temp_db)
+    temp_db.set_setting('learning_min_pattern_duration', '30')
+    assert _learn(temp_db, ASK, 'interaction', 110.0, 132.0) is None
+    resp = _post(client, _create_payload(start=110.0, end=132.0))
+    assert resp.status_code == 400
+
+
+def test_confirm_and_manual_create_agree_on_a_300_second_span(temp_db, client):
+    _seed(temp_db)
+    assert _learn(temp_db, ASK, 'interaction', 0.0, 300.0) is None
+    resp = _post(client, _create_payload(start=0.0, end=300.0))
+    assert resp.status_code == 400
+
+
+# ------------------------------------------- multi-segment pieces are gated too
+
+def test_a_sponsorless_piece_in_a_show_promo_category_is_refused_not_stored_ungated(temp_db):
+    _seed(temp_db)
+    segments = [
+        {'text': 'Support the show on Patreon, Patreon members get bonus episodes every week.',
+         'sponsor': 'Patreon'},
+        {'text': 'Also hit follow on the app you are listening on and leave a short review.',
+         'sponsor': None},
+    ]
+    primary, ids = _create_patterns_from_segments(
+        temp_db, segments, scope='podcast', podcast_id_str=SLUG, network_id=None,
+        episode_id=EPISODE_ID, primary_sponsor='Patreon', category='self_promo',
+        log_context='test')
+    assert len(ids) == 1
+    assert temp_db.get_ad_pattern_by_id(primary)['sponsor'] == 'Patreon'
+    assert [p for p in temp_db.get_ad_patterns(active_only=False) if p['sponsor_id'] is None] == []
+
+
 # ------------------------------------------------------------ reviewer skip
 
-def _text_pattern_ad(pattern_id, **kw):
+def _flagged_ad(**kw):
     ad = {'start': 110.0, 'end': 140.0, 'confidence': 0.9,
-          'detection_stage': 'text_pattern', 'pattern_id': pattern_id,
+          'detection_stage': 'text_pattern', 'pattern_id': 7, 'show_promo': True,
           'category': 'interaction', 'sponsor': None}
     ad.update(kw)
     return ad
 
 
-def test_reviewer_skips_a_sponsorless_promo_pattern_match(temp_db):
+def _matched_ad(temp_db, pid):
+    match = [m for m in TextPatternMatcher(db=temp_db).find_matches(
+        _later_episode_segments(), podcast_id=SLUG) if m.pattern_id == pid][0]
+    ads, regions = [], []
+    AdDetector._add_pattern_match(MagicMock(), match, 'text_pattern', 'content', ads, regions, 'ep')
+    return ads[0]
+
+
+def test_reviewer_skips_a_show_promo_match_and_keeps_it_cut(temp_db):
     """(a) not sent to the reviewer, and the ad stays in the cut list."""
     from tests.unit.reviewer_test_utils import _build_reviewer, _mock_episode_meta
     _seed(temp_db)
     pid, _ = _confirm(temp_db, ASK, 'interaction')
-    ad = _text_pattern_ad(pid)
-    assert _skips_reviewer(ad, temp_db) is True
-
+    ad = _matched_ad(temp_db, pid)
+    assert _skips_reviewer(ad) is True
     reviewer = _build_reviewer({'review_prompt': 'review', 'resurrect_prompt': 'resurrect'})
-    reviewer.db = temp_db
     result = reviewer.review(accepted_ads=[ad], resurrection_eligible=[], segments=[],
                              episode_meta=_mock_episode_meta(), pass_num=1,
                              pass_model='claude-test')
     assert result.accepted_after_review == [ad]
     assert result.verdicts == []
     reviewer._llm_client.messages_create.assert_not_called()
+
+
+def test_reviewer_does_not_query_the_database_to_decide(temp_db):
+    assert _skips_reviewer(_flagged_ad()) is True        # flag only, no db argument at all
 
 
 def test_reviewer_still_reviews_a_sponsor_text_pattern_match(temp_db):
@@ -460,38 +585,44 @@ def test_reviewer_still_reviews_a_sponsor_text_pattern_match(temp_db):
             "since 1999, visit acme dot com today for a special discount code.")
     pid, _ = _confirm(temp_db, text, 'sponsor',
                       original_ad={'sponsor': 'Acme', 'start': 0.0, 'end': 60.0})
-    assert _skips_reviewer(_text_pattern_ad(pid, sponsor='Acme', category='sponsor'), temp_db) is False
-    # a sponsor pattern that merely carries a promo category is still a sponsor pattern
-    promo_with_sponsor, _ = _confirm(
-        temp_db, text + ' Acme again.', 'self_promo',
-        original_ad={'sponsor': 'Acme', 'start': 0.0, 'end': 60.0})
-    assert _skips_reviewer(_text_pattern_ad(promo_with_sponsor, sponsor='Acme',
-                                            category='self_promo'), temp_db) is False
+    match = TextMatch(pattern_id=pid, start=0.0, end=60.0, confidence=0.9, sponsor='Acme',
+                      category='sponsor')
+    ads, regions = [], []
+    AdDetector._add_pattern_match(MagicMock(), match, 'text_pattern', 'content', ads, regions, 'ep')
+    assert ads[0]['show_promo'] is False
+    assert _skips_reviewer(ads[0]) is False
 
 
-def test_reviewer_does_not_skip_an_inactive_sponsorless_pattern(temp_db):
-    """(c) disabled pattern, no skip."""
+def test_a_disabled_show_promo_pattern_produces_no_match_and_no_skip(temp_db):
+    """(c) an inactive pattern is not loaded, so nothing carries the flag."""
     _seed(temp_db)
     pid, _ = _confirm(temp_db, ASK, 'interaction')
     temp_db.update_ad_pattern(pid, is_active=0, disabled_reason='test')
-    assert _skips_reviewer(_text_pattern_ad(pid), temp_db) is False
+    assert TextPatternMatcher(db=temp_db).find_matches(
+        _later_episode_segments(), podcast_id=SLUG) == []
+    assert _skips_reviewer(_flagged_ad(show_promo=False)) is False
+    assert _skips_reviewer({k: v for k, v in _flagged_ad().items() if k != 'show_promo'}) is False
 
 
-def test_reviewer_skip_needs_the_text_pattern_stage_and_a_db(temp_db):
-    _seed(temp_db)
-    pid, _ = _confirm(temp_db, ASK, 'interaction')
-    assert _skips_reviewer(_text_pattern_ad(pid, detection_stage='claude'), temp_db) is False
-    assert _skips_reviewer(_text_pattern_ad(pid, merged_distinct_ads=[{}]), temp_db) is False
-    assert _skips_reviewer(_text_pattern_ad(pid), None) is False
-    assert _skips_reviewer(_text_pattern_ad(None), temp_db) is False
-    assert _skips_reviewer(_text_pattern_ad(pid), MagicMock()) is False
+def test_reviewer_skip_needs_the_text_pattern_stage_and_no_distinct_merge():
+    assert _skips_reviewer(_flagged_ad(detection_stage='claude')) is False
+    assert _skips_reviewer(_flagged_ad(merged_distinct_ads=True)) is False
 
 
-def test_reviewer_skip_does_not_apply_to_a_sponsorless_pattern_without_a_promo_category(temp_db):
-    _seed(temp_db)
-    pid = temp_db.create_ad_pattern(scope='podcast', text_template=ASK, podcast_id=SLUG,
-                                    category='intro')
-    assert _skips_reviewer(_text_pattern_ad(pid, category='intro'), temp_db) is False
+def test_a_show_promo_folded_with_any_other_member_is_reviewed():
+    promo = _flagged_ad()
+    claude = {'start': 120.0, 'end': 150.0, 'confidence': 0.9, 'detection_stage': 'claude',
+              'category': 'interaction'}
+    note_merged_members(promo, claude)
+    promo['end'] = 150.0
+    assert _skips_reviewer(promo) is False
+
+
+def test_two_show_promo_members_still_skip():
+    promo = _flagged_ad()
+    twin = _flagged_ad(start=125.0, end=150.0, pattern_id=8)
+    note_merged_members(promo, twin)
+    assert _skips_reviewer(promo) is True
 
 
 def test_keep_action_marker_never_reaches_the_reviewer_d(temp_db):

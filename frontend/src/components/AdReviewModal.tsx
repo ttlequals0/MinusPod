@@ -35,7 +35,8 @@ import {
   SEGMENT_CATEGORY_LABELS,
   isKeepLike,
   rejectLabel,
-  teachesShowHint,
+  isShowPromoCategory,
+  showPromoSpanProblem,
   type SegmentCategory,
 } from '../utils/segmentCategory';
 import { btnBase, btnPrimary, btnOutline, btnDestructive } from './buttonStyles';
@@ -336,6 +337,16 @@ function AdReviewModal({
     ? orderedRuns.find((r) => r.text.trim().length < 50)
     : undefined;
 
+  // No sponsor and a subscribe / self-promo / cross-promo category: the server
+  // teaches the show a podcast-only pattern and applies per-category floors.
+  // Mirror that gate here so Save never starts a create the server will refuse.
+  const showPromoCreate = !sponsorInput.trim() && isShowPromoCategory(categoryInput);
+  const effectiveScope = showPromoCreate ? 'podcast' : scopeInput;
+  const showPromoProblem: string | null = !showPromoCreate ? null : isMultiSpan
+    ? (orderedRuns.map((r) => showPromoSpanProblem(
+        categoryInput, r.end - r.start, r.text.trim().length)).find((m) => m !== null) ?? null)
+    : showPromoSpanProblem(categoryInput, adEnd - adStart, textTemplateInput.trim().length);
+
   // One `create` correction per run, in time order. Stops on the first
   // failure; already-saved runs are not re-submitted, and the modal stays
   // open with each run's outcome visible.
@@ -363,7 +374,7 @@ function AdReviewModal({
           end: run.end,
           sponsor: sponsorInput.trim(),
           textTemplate: run.text.trim(),
-          scope: scopeInput,
+          scope: effectiveScope,
           reason: reasonInput,
           category: categoryInput === '' ? null : categoryInput,
         }, { silent: true });
@@ -1522,12 +1533,20 @@ function AdReviewModal({
               />
             </label>
             <Checkbox
-              checked={scopeInput === 'global'}
+              checked={effectiveScope === 'global'}
               onChange={(v) => setScopeInput(v ? 'global' : 'podcast')}
-              disabled={lockMultiFields}
+              disabled={lockMultiFields || showPromoCreate}
               label="Apply across all podcasts (global pattern)"
               labelClassName="text-sm"
             />
+            {showPromoCreate && (
+              <p className="text-xs text-muted-foreground">
+                With no sponsor, this read is learned for this show only.
+              </p>
+            )}
+            {showPromoProblem && (
+              <p className="text-xs text-destructive">{showPromoProblem}</p>
+            )}
             {isMultiSpan && shortRun && (
               <p className="text-xs text-destructive">
                 The {formatTime(shortRun.start)} - {formatTime(shortRun.end)} span is only{' '}
@@ -1623,7 +1642,8 @@ function AdReviewModal({
                 <button
                   type="button"
                   disabled={
-                    (!sponsorInput.trim() && !teachesShowHint(categoryInput)) ||
+                    (!sponsorInput.trim() && !showPromoCreate) ||
+                    showPromoProblem !== null ||
                     multiSubmitting ||
                     (isMultiSpan
                       ? shortRun !== undefined
@@ -1643,7 +1663,7 @@ function AdReviewModal({
                         end: adEnd,
                         sponsor: sponsorInput.trim(),
                         textTemplate: textTemplateInput.trim(),
-                        scope: scopeInput,
+                        scope: effectiveScope,
                         reason: reasonInput,
                         category: categoryInput === '' ? null : categoryInput,
                       });

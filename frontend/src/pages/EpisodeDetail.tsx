@@ -1706,6 +1706,10 @@ function EpisodeDetail() {
                 ? HOLD_REASON_LABELS[segment.hold_reason]
                 : 'Held';
               const confirmStatus = rowSaveStatus(segment, 'confirm');
+              const showHint = teachesShowHint({
+                category: segment.category, sponsor: segment.sponsor,
+                patternId: segment.pattern_id, start: segment.start, end: segment.end,
+              });
               const trimmedStatus = rowSaveStatus(segment, 'confirm-trimmed');
               const rejectStatus = rowSaveStatus(segment, 'reject');
               const heldKey = `held-${segment.start}-${segment.end}`;
@@ -1810,9 +1814,9 @@ function EpisodeDetail() {
                       {pass2Review.verdict}. {pass2Review.reason}
                     </p>
                   )}
-                  {!correction && !segment.approved && teachesShowHint(segment.category) && (
+                  {!correction && !segment.approved && showHint && (
                     <p className="text-xs text-muted-foreground mt-2" data-testid="teach-show-hint">
-                      {teachesShowHint(segment.category)}
+                      {showHint}
                     </p>
                   )}
                   {!correction && !segment.approved && (
