@@ -26,6 +26,30 @@ def _feed(chapter_notes, extra=None):
                               extra_episodes=extra or [])
 
 
+def _block_feed(itunes_block, upstream_block=None):
+    xml = UPSTREAM
+    xml = xml.replace('<rss version="2.0">', '<rss version="2.0" xmlns:itunes="http://www.itunes.com/dtds/podcast-1.0.dtd">')
+    if upstream_block:
+        xml = xml.replace('<item>', f'<itunes:block>{upstream_block}</itunes:block><item>', 1)
+    return RSSParser(base_url='https://mp.example.com').modify_feed(
+        xml, 'show', itunes_block=itunes_block)
+
+
+def test_itunes_block_emitted_once_and_replaces_upstream():
+    out = _block_feed(True, upstream_block='no')
+    assert out.count('<itunes:block>') == 1
+    assert '<itunes:block>Yes</itunes:block>' in out
+
+
+def test_itunes_block_added_without_upstream_tag():
+    assert _block_feed(True).count('<itunes:block>Yes</itunes:block>') == 1
+
+
+def test_itunes_block_off_keeps_upstream_and_adds_nothing():
+    assert '<itunes:block>no</itunes:block>' in _block_feed(False, upstream_block='no')
+    assert '<itunes:block>' not in _block_feed(False)
+
+
 def test_upstream_item_gets_the_block_when_enabled():
     assert '<p>Notes</p>\n\n' + BLOCK in _feed({UPSTREAM_ID: CHAPTERS})
 

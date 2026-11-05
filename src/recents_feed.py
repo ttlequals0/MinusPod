@@ -22,7 +22,8 @@ def build_recents_feed_xml(podcast: dict, episodes: list[dict], *, storage, db) 
     title = podcast.get('title') or 'Recents'
     channel_link = f"{base}/{RECENTS_SLUG}"
 
-    lines = _channel_open(title, channel_link, podcast.get('description') or '')
+    lines = _channel_open(title, channel_link, podcast.get('description') or '',
+                          itunes_block=db.get_setting_bool('feed_itunes_block', True))
     _append_channel_image(lines, _channel_artwork_url(RECENTS_SLUG, base, feed_auth_key, storage),
                           title, channel_link)
     guid = compute_feed_guid(f"{base.rstrip('/')}/{RECENTS_SLUG}")

@@ -1051,7 +1051,8 @@ class RSSParser:
                     hide_min_duration_seconds: float | None = None,
                     hide_max_duration_seconds: float | None = None,
                     hide_description_patterns: str | None = None,
-                    review_links: bool = False) -> str:
+                    review_links: bool = False,
+                    itunes_block: bool = False) -> str:
         """Modify RSS feed to use our server URLs.
 
         Args:
@@ -1078,6 +1079,7 @@ class RSSParser:
             chapter_notes: {episode_id: chapters_json} to append to
                 descriptions (#720); empty or None appends nothing.
             review_links: Append review and rate links to processed items.
+            itunes_block: Emit itunes:block Yes and drop the upstream value.
             feed_auth_key: Global feed auth key (authenticated feeds). When
                 set, enclosure/vtt/chapters URLs carry ``?key=`` and the
                 badged cover embeds it in the path token (image URLs must
@@ -1127,7 +1129,8 @@ class RSSParser:
         # (author, category, explicit, owner, etc.). Required by Apple
         # Podcasts and most apps; without these the feed is silently
         # dropped from the directory and artwork won't render.
-        self._emit_channel_metadata_passthrough(lines, feed_content, channel=channel_elem)
+        self._emit_channel_metadata_passthrough(lines, feed_content, channel=channel_elem,
+                                                itunes_block=itunes_block)
 
         # Channel artwork: take the correct channel-level URL from raw XML
         # (feedparser corrupts feed.image.href with per-episode itunes:image
@@ -1666,7 +1669,8 @@ class RSSParser:
             return f'<{emit_prefix}{local}{attr_str} />'
         return f'<{emit_prefix}{local}{attr_str}>{text_xml}{"".join(child_xml)}</{emit_prefix}{local}>'
 
-    def _emit_channel_metadata_passthrough(self, lines: list, feed_content: str, channel=None) -> None:
+    def _emit_channel_metadata_passthrough(self, lines: list, feed_content: str, channel=None,
+                                           itunes_block: bool = False) -> None:
         # Pass through standard RSS and iTunes channel-level metadata from
         # upstream. Apple Podcasts and most podcast apps require several of
         # the iTunes tags (author/category/explicit/owner) to ingest a feed
@@ -1687,10 +1691,14 @@ class RSSParser:
                     continue
                 if tag.startswith(itunes_prefix):
                     local = tag[len(itunes_prefix):]
-                    if local in _ITUNES_CHANNEL_PASSTHROUGH:
+                    if local in _ITUNES_CHANNEL_PASSTHROUGH and not (itunes_block and local == "block"):
                         lines.append(self._serialize_namespaced_element(elem, "itunes:", _ITUNES_NS))
                 elif not tag.startswith("{") and tag in _RSS_CHANNEL_PASSTHROUGH:
                     lines.append(self._serialize_namespaced_element(elem, "", ""))
+
+        if itunes_block:
+            # Keeps directories from indexing the feed and stops app-side matching to the public show.
+            lines.append('<itunes:block>Yes</itunes:block>')
 
         # Always-emit channel timestamps and identifier so apps that rely on
         # these for refresh detection or attribution see fresh values from

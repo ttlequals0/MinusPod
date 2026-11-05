@@ -531,6 +531,9 @@ SETTINGS_REGISTRY: dict[str, SettingSpec] = {
     'only_expose_processed_default': SettingSpec(
         default='false', seeded=True, resettable=False,
         payload_key='onlyExposeProcessedDefault', payload_kind='bool'),
+    'feed_itunes_block': SettingSpec(
+        default='true', seeded=True, resettable=False,
+        payload_key='feedItunesBlock', payload_kind='bool'),
     'require_manual_approval_default': SettingSpec(
         default='false', seeded=True, resettable=False,
         payload_key='requireManualApprovalDefault', payload_kind='bool'),

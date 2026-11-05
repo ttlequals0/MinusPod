@@ -124,6 +124,8 @@ def _build_settings_payload():
         registry_default('only_expose_processed_default'))
     only_expose_processed_default = (
         only_expose_processed_value.lower() in ('true', '1', 'yes'))
+    feed_itunes_block = coerce_bool_setting(common._setting_value(
+        settings, 'feed_itunes_block', registry_default('feed_itunes_block')))
     require_manual_approval_default = coerce_bool_setting(common._setting_value(
         settings, 'require_manual_approval_default',
         registry_default('require_manual_approval_default')))
@@ -599,6 +601,7 @@ def _build_settings_payload():
         'jitBlockedUserAgents': _sv('jit_blocked_user_agents', jit_blocked_user_agents),
         'onlyExposeProcessedDefault': _sv(
             'only_expose_processed_default', only_expose_processed_default),
+        'feedItunesBlock': _sv('feed_itunes_block', feed_itunes_block),
         'requireManualApprovalDefault': _sv(
             'require_manual_approval_default', require_manual_approval_default),
         'whatsNewOnUpgrade': _sv('whats_new_on_upgrade', whats_new_on_upgrade),

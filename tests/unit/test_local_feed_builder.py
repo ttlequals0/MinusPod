@@ -458,6 +458,20 @@ def test_chapter_list_in_description_follows_the_feed_override():
     assert 'First episode<p>' not in xml
 
 
+def test_itunes_block_follows_the_global_setting():
+    slug = 'archive-itunes-block'
+    podcast = _seed(slug)
+    episodes = _fetch_local_feed_episodes(mf.db, podcast['id'], 500)
+    xml = build_local_feed_xml(podcast, episodes, storage=mf.storage, db=mf.db)
+    assert xml.count('<itunes:block>Yes</itunes:block>') == 1
+    mf.db.set_setting('feed_itunes_block', 'false', is_default=False)
+    try:
+        xml = build_local_feed_xml(podcast, episodes, storage=mf.storage, db=mf.db)
+        assert 'itunes:block' not in xml
+    finally:
+        mf.db.set_setting('feed_itunes_block', 'true', is_default=True)
+
+
 def test_review_links_follow_the_feed_override_and_skip_unprocessed():
     slug = 'archive-review-links'
     podcast = _seed(slug)

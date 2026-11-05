@@ -805,11 +805,12 @@ def _apply_processing_flags(db, data):
             return error_response('differentialFetchMode must be auto, on, or off', 400)
         db.set_setting('differential_fetch_mode', value, is_default=False)
 
-    for key, setting in (('chaptersInNotes', 'chapters_in_notes'),
-                         ('reviewLinksInNotes', 'review_links_in_notes')):
+    for key, setting, fallback in (('chaptersInNotes', 'chapters_in_notes', 'false'),
+                                   ('reviewLinksInNotes', 'review_links_in_notes', 'false'),
+                                   ('feedItunesBlock', 'feed_itunes_block', 'true')):
         if key in data:
             value = 'true' if data[key] else 'false'
-            changed = (db.get_setting(setting) or 'false') != value
+            changed = (db.get_setting(setting) or fallback) != value
             db.set_setting(setting, value, is_default=False)
             logger.info(f"Updated {setting} to: {value}")
             if changed:

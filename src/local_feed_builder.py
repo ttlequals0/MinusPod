@@ -156,9 +156,10 @@ def _enclosure_audio_metadata(slug: str, ep: dict, storage_) -> tuple[str, float
     return f' length="{size}"', ep.get('original_duration')
 
 
-def _channel_open(title: str, channel_link: str, description: str, language: str = 'en') -> list[str]:
+def _channel_open(title: str, channel_link: str, description: str, language: str = 'en',
+                  itunes_block: bool = False) -> list[str]:
     """XML prologue through <generator>, shared by the local and recents renderers."""
-    return ['<?xml version="1.0" encoding="UTF-8"?>',
+    lines = ['<?xml version="1.0" encoding="UTF-8"?>',
             f'<!-- minuspod-rss-render-version:{RSS_RENDER_VERSION} -->',
             '<rss version="2.0" xmlns:itunes="http://www.itunes.com/dtds/podcast-1.0.dtd" '
             f'xmlns:podcast="{_PODCAST_NS}">',
@@ -169,6 +170,10 @@ def _channel_open(title: str, channel_link: str, description: str, language: str
             f'<language>{rss_parser._escape_xml(language)}</language>',
             f'<lastBuildDate>{rss_parser._format_rfc2822(utc_now_iso())}</lastBuildDate>',
             '<generator>MinusPod</generator>']
+    if itunes_block:
+        # Keeps directories from indexing the feed and stops app-side matching to the public show.
+        lines.append('<itunes:block>Yes</itunes:block>')
+    return lines
 
 
 def _append_channel_image(lines: list, artwork_url: str | None, title: str, channel_link: str) -> None:
@@ -270,7 +275,8 @@ def build_local_feed_xml(podcast: dict, episodes: list[dict], *, storage, db,
     if str(language).strip().lower() == 'auto':
         language = 'en'
 
-    lines = _channel_open(title, channel_link, description, language)
+    lines = _channel_open(title, channel_link, description, language,
+                          itunes_block=db.get_setting_bool('feed_itunes_block', True))
 
     author = podcast.get('author')
     if author:

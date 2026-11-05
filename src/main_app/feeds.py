@@ -870,6 +870,7 @@ def _build_and_save_served_rss(slug, feed_content, parsed_feed, podcast):
     feed_auth_key = active_feed_key(db)
     chapter_notes = chapter_notes_for(db, podcast)
     review_links = resolve_review_links_in_notes(db, podcast)
+    itunes_block = db.get_setting_bool('feed_itunes_block', True)
     # Hide applies both title and duration exclusions to served RSS.
     hide_filters = podcast if podcast.get('title_skip_action') == 'hide' else {}
     modified_rss = rss_parser.modify_feed(feed_content, slug, storage=storage,
@@ -887,7 +888,8 @@ def _build_and_save_served_rss(slug, feed_content, parsed_feed, podcast):
                                           hide_min_duration_seconds=hide_filters.get('min_duration_seconds'),
                                           hide_max_duration_seconds=hide_filters.get('max_duration_seconds'),
                                           chapter_notes=chapter_notes,
-                                          review_links=review_links)
+                                          review_links=review_links,
+                                          itunes_block=itunes_block)
     storage.save_rss(slug, modified_rss)
     db.update_podcast(slug, last_checked_at=utc_now_iso())
     # A re-render means the upstream feed moved, so any episode lookups

@@ -7372,6 +7372,9 @@ paths:
                 onlyExposeProcessedDefault:
                   type: boolean
                   description: Global default for hiding upstream episodes whose status is not 'processed' from served RSS feeds. Overridden by per-feed onlyExposeProcessedEpisodes when set.
+                feedItunesBlock:
+                  type: boolean
+                  description: Add itunes:block Yes to every served feed so app directories skip it and Pocket Casts stops matching it to the public show. Default true.
                 requireManualApprovalDefault:
                   type: boolean
                   description: Global default for holding newly processed episodes out of served feeds until approved. Overridden by per-feed requireManualApproval when set.
@@ -17744,6 +17747,14 @@ components:
               description: Global default for hiding non-processed episodes from served feeds (per-feed onlyExposeProcessedEpisodes overrides when set)
             isDefault:
               type: boolean
+        feedItunesBlock:
+          type: object
+          properties:
+            value:
+              type: boolean
+              description: Whether every served feed carries itunes:block Yes (default true)
+            isDefault:
+              type: boolean
         whatsNewOnUpgrade:
           type: object
           properties:
@@ -18801,6 +18812,8 @@ components:
             maxFeedEpisodes:
               type: integer
             onlyExposeProcessedDefault:
+              type: boolean
+            feedItunesBlock:
               type: boolean
             requireManualApprovalDefault:
               type: boolean
