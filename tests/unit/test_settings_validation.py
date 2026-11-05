@@ -2130,6 +2130,16 @@ class TestReviewLinksInNotes:
         database.Database().set_setting('review_links_in_notes', 'false', is_default=True)
 
 
+class TestFeedFlagsRejectNonBooleans:
+    @pytest.mark.parametrize('key', ['onlyExposeProcessedDefault', 'chaptersInNotes', 'reviewLinksInNotes', 'feedItunesBlock'])
+    def test_string_value_is_rejected(self, client, key):
+        resp = client.put('/api/v1/settings/ad-detection',
+                          data=json.dumps({key: 'false'}),
+                          content_type='application/json')
+        assert resp.status_code == 400
+        assert f'{key} must be a boolean' in resp.get_data(as_text=True)
+
+
 class TestProviderChangeLiftsRateLimitHold:
     """A rate-limit hold (#696) belongs to the account and endpoint that
     returned the 429, so pointing the app at a different provider, endpoint,

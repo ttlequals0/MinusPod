@@ -266,6 +266,9 @@ def _validate_processing_defaults_payload(data):
         return 'transcriptDifferentialEnabled must be a boolean', 400
     if 'spliceVetoEnabled' in data and not isinstance(data['spliceVetoEnabled'], bool):
         return 'spliceVetoEnabled must be a boolean', 400
+    for key in ('onlyExposeProcessedDefault', 'chaptersInNotes', 'reviewLinksInNotes', 'feedItunesBlock'):
+        if key in data and not isinstance(data[key], bool):
+            return f'{key} must be a boolean', 400
     if 'differentialFetchMode' in data:
         value = str(data['differentialFetchMode'] or '').strip().lower()
         if value not in ('auto', 'on', 'off'):
@@ -630,7 +633,7 @@ def _apply_processing_flags(db, data):
 
     if 'onlyExposeProcessedDefault' in data:
         value = 'true' if data['onlyExposeProcessedDefault'] else 'false'
-        changed = (db.get_setting('only_expose_processed_default') or 'false') != value
+        changed = db.get_setting_bool('only_expose_processed_default', False) != data['onlyExposeProcessedDefault']
         db.set_setting('only_expose_processed_default', value, is_default=False)
         if changed:
             # Inheriting feeds 304-skip the rebuild that would hide or show

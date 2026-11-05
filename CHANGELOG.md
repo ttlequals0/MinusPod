@@ -10,13 +10,13 @@ release notes.
 
 ## [2.101.21] - 2026-11-05
 
-### Added
+### Breaking
 
 - Served feeds now carry `itunes:block` Yes by default, so app directories
   skip them and Pocket Casts stops matching an added feed to the public show
-  with the same title, author, website and artwork. The global **Mark served
-  feeds private** setting turns it off. A feed Pocket Casts already matched
-  must be removed and added again.
+  with the same title, author, website and artwork. A feed Pocket Casts
+  already matched keeps that match until you remove it and add it again.
+  The global **Mark served feeds private** setting turns the tag off.
 
 ## [2.101.20] - 2026-11-05
 
