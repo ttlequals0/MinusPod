@@ -122,7 +122,7 @@ Key endpoints:
 - `GET/POST /api/v1/feeds/{slug}/subscriber-keys` - List scoped subscriber credentials or create one; the secret and feed URL appear only in the create response
 - `DELETE /api/v1/feeds/{slug}/subscriber-keys/{id}` - Revoke one scoped subscriber credential without changing global or sibling credentials
 - `DELETE /api/v1/feeds/{slug}/subscriber-keys/{id}/record` - Delete the audit record for a revoked key. Active keys return 409; deleting the record never revalidates the token.
-- `GET /api/v1/settings` - Get current settings (includes LLM provider, API key status). `reviewLinksInNotes` reports whether served episode descriptions carry the review and rate links; set it with `PUT /api/v1/settings/ad-detection`.
+- `GET /api/v1/settings` - Get current settings (includes LLM provider, API key status). `reviewLinksInNotes` reports whether served episode descriptions carry the review and rate links; set it with `PUT /api/v1/settings/ad-detection`. `feedItunesBlock` reports whether every served feed carries `itunes:block` (default on) and is set the same way.
 - `GET/PUT /api/v1/settings/retention` - Get or update retention configuration. `retentionDays` controls how long the processed audio survives; `originalRetentionDays` controls the pre-cut original separately. Server clamps `originalRetentionDays` to `retentionDays` on save.
 - `GET/PUT /api/v1/settings/audio` - Toggle whether originals are kept for ad editor review (`keepOriginalAudio`)
 - `GET/PUT /api/v1/settings/processing-timeouts` - Soft and hard processing timeouts in seconds

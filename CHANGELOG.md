@@ -8,6 +8,16 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
+## [2.101.21] - 2026-11-05
+
+### Added
+
+- Served feeds now carry `itunes:block` Yes by default, so app directories
+  skip them and Pocket Casts stops matching an added feed to the public show
+  with the same title, author, website and artwork. The global **Mark served
+  feeds private** setting turns it off. A feed Pocket Casts already matched
+  must be removed and added again.
+
 ## [2.101.20] - 2026-11-05
 
 ### Added

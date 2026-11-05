@@ -181,6 +181,21 @@ are built from `UI_BASE_URL`, or `BASE_URL` when that is unset. Each feed can
 override the global value from its Feed Settings page (`reviewLinksInNotes`:
 `on`, `off`, or unset to follow the global setting).
 
+### Served feeds are marked private
+
+Pocket Casts matches an added feed to a public listing when the Title,
+Author, Website URL and Thumbnail URL match, then shows the public show's
+metadata instead of yours. The documented fix is `<itunes:block>Yes</itunes:block>`
+in the feed. MinusPod adds that tag to every feed it serves and replaces any
+upstream `itunes:block` value, so directories skip the feed and Pocket Casts
+stops matching it. Apple Podcasts and Overcast treat the feed as private but
+still accept it when added by URL.
+
+Turn it off with **Mark served feeds private** in Settings
+(`feedItunesBlock`, on by default). The upstream value then passes through
+unchanged. Pocket Casts keeps a match it already made, so remove a matched
+feed and add it again.
+
 ### Ad chapters
 
 A segment kept in the audio by its category action still sits in the file.
