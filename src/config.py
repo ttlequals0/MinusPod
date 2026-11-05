@@ -1065,6 +1065,14 @@ def validate_processed_title_marker(value):
     return value, None
 
 
+def processed_marker_applies(podcast_row, episode_row=None) -> bool:
+    """The marker means "went through ad removal": pass-through (feed or
+    per-episode) and skip-detection runs serve the audio unmodified, so their
+    episodes are never marked."""
+    return resolve_processing_mode(podcast_row, episode_row) not in (
+        PROCESSING_MODE_PASSTHROUGH, PROCESSING_MODE_SKIP_DETECTION)
+
+
 def resolve_processed_title_marker(db, podcast_row) -> str:
     """Per-feed marker if set (an empty string is an explicit "off" for the
     feed), else the global setting, else ''."""

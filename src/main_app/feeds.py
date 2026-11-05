@@ -10,6 +10,7 @@ from datetime import datetime, timedelta, timezone
 from config import (
     resolve_unprocessed_playback,
     resolve_processed_title_marker,
+    processed_marker_applies,
     FEED_REFRESH_FAILURE_ALERT_THRESHOLD,
     FEED_REFRESH_FAILURE_COUNT_INTERVAL,
     FEED_REFRESH_OUTAGE_FRACTION,
@@ -887,7 +888,8 @@ def _build_and_save_served_rss(slug, feed_content, parsed_feed, podcast):
                                           hide_min_duration_seconds=hide_filters.get('min_duration_seconds'),
                                           hide_max_duration_seconds=hide_filters.get('max_duration_seconds'),
                                           chapter_notes=chapter_notes,
-                                          processed_title_marker=resolve_processed_title_marker(db, podcast),
+                                          processed_title_marker=(resolve_processed_title_marker(db, podcast)
+                                                  if processed_marker_applies(podcast) else ''),
                                           unprocessed_playback=resolve_unprocessed_playback(db, podcast))
     storage.save_rss(slug, modified_rss)
     db.update_podcast(slug, last_checked_at=utc_now_iso())

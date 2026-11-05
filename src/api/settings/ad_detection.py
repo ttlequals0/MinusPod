@@ -717,7 +717,7 @@ def _apply_processing_flags(db, data):
 
     # Both values were validated in _validate_processing_defaults_payload.
     # They are rendered into the served RSS (marker text, enclosure URLs), so a
-    # change forces a full re-render instead of a 304-skip on the next refresh.
+    # change re-renders every served feed now and clears the 304 validators.
     rss_changed = False
     if 'unprocessedPlayback' in data:
         rss_changed |= db.get_setting('unprocessed_playback') != data['unprocessedPlayback']
@@ -731,6 +731,9 @@ def _apply_processing_flags(db, data):
         logger.info(f"Updated processed title marker to: {data['processedTitleMarker']!r}")
     if rss_changed:
         common.after_commit(db.clear_all_podcast_etags)
+        # Inheriting feeds must show the change on the next fetch, as a
+        # per-feed PATCH does, not after the next upstream refresh.
+        common.after_commit(_rebuild_served_feeds)
 
     if 'episodeLogRetentionDays' in data:
         days = data['episodeLogRetentionDays']

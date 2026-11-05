@@ -1229,7 +1229,7 @@ class EpisodeMixin:
         cursor = conn.execute(
             f"""SELECT episode_id, title, description, published_at,
                       new_duration, episode_number, original_url, rss_duration,
-                      processed_version, processed_size_bytes
+                      processed_version, processed_size_bytes, passthrough_enabled
                FROM episodes
                WHERE podcast_id = ? AND status = 'processed'
                      AND processed_file IS NOT NULL
@@ -1298,6 +1298,8 @@ class EpisodeMixin:
                             "p.description_skip_patterns AS source_description_skip_patterns, "
                             "p.min_duration_seconds AS source_min_duration_seconds, "
                             "p.max_duration_seconds AS source_max_duration_seconds, "
+                            "p.passthrough_enabled AS source_passthrough_enabled, "
+                            "p.skip_ad_detection AS source_skip_ad_detection, "
                             "p.processed_title_marker AS source_processed_title_marker")
 
     def count_recent_processed_episodes(self, since: str, search: str = '') -> int:
