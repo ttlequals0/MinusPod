@@ -17,7 +17,7 @@ from urllib.parse import urlparse
 
 _tunable_logger = logging.getLogger(__name__)
 
-_URL_PREFIX_RE = re.compile(r'^/[A-Za-z0-9._~-]+(/[A-Za-z0-9._~-]+)*$')
+_URL_PREFIX_RE = re.compile(r'^/[A-Za-z0-9_~-]+(/[A-Za-z0-9_~-]+)*$')
 _URL_PREFIX_RESERVED = frozenset({'ui', 'api', 'episodes', 'health', 'opml'})
 
 
@@ -28,16 +28,20 @@ def normalize_url_prefix(raw: str) -> str:
         return ''
     if not value.startswith('/'):
         value = '/' + value
-    if not _URL_PREFIX_RE.match(value) or any(seg in ('.', '..') for seg in value.split('/')):
+    if not _URL_PREFIX_RE.match(value):
         raise ValueError(
             f"MINUSPOD_URL_PREFIX must be one or more path segments such as /minuspod, got {raw!r}")
-    if value.split('/')[1] in _URL_PREFIX_RESERVED:
-        raise ValueError(
-            f"MINUSPOD_URL_PREFIX first segment {value.split('/')[1]!r} collides with an app route")
+    first = value.split('/')[1]
+    if first in _URL_PREFIX_RESERVED:
+        raise ValueError(f"MINUSPOD_URL_PREFIX first segment {first!r} collides with an app route")
     return value
 
 
 URL_PREFIX = normalize_url_prefix(os.environ.get('MINUSPOD_URL_PREFIX', ''))
+
+
+def cookie_path() -> str:
+    return URL_PREFIX or '/'
 
 # ============================================================
 # Confidence Thresholds (0.0 - 1.0 scale)

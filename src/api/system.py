@@ -15,7 +15,7 @@ from flask import Response, abort, jsonify, request, send_file
 
 from api import (
     api, limiter, log_request, json_response, error_response,
-    get_database, get_storage, _get_version, _start_time, url_prefix_meta,
+    get_database, get_storage, _get_version, _start_time, apply_url_prefix,
 )
 from api.failover import probes_view, targets_view
 import transcriber
@@ -680,20 +680,11 @@ _SWAGGER_HTML = '''<!DOCTYPE html>
 </html>'''
 
 
-def _render_swagger_html() -> str:
-    """Swagger page with the runtime URL prefix applied; unchanged when unset."""
-    prefix = config.URL_PREFIX
-    if not prefix:
-        return _SWAGGER_HTML
-    html = _SWAGGER_HTML.replace('/ui/', f'{prefix}/ui/')
-    return html.replace('</head>', f'    {url_prefix_meta()}\n</head>', 1)
-
-
 @api.route('/docs', methods=['GET'])
 @api.route('/docs/', methods=['GET'])
 def swagger_ui():
     """Serve Swagger UI for API documentation (assets bundled locally)."""
-    return _render_swagger_html()
+    return apply_url_prefix(_SWAGGER_HTML)
 
 
 @lru_cache(maxsize=1)
@@ -705,8 +696,7 @@ def _render_openapi_yaml(openapi_path_str: str, version: str, prefix: str = '') 
     """
     content = Path(openapi_path_str).read_text()
     if prefix:
-        content = re.sub(r'^([ \t]*- url: )/api/v1[ \t]*$', rf'\g<1>{prefix}/api/v1', content, flags=re.MULTILINE)
-        content = re.sub(r'^([ \t]*- url: )/[ \t]*$', rf'\g<1>{prefix}/', content, flags=re.MULTILINE)
+        content = re.sub(r'^([ \t]*- url: )(/api/v1|/)[ \t]*$', rf'\g<1>{prefix}\g<2>', content, flags=re.MULTILINE)
     return re.sub(
         r'^(\s*version:\s*).*$',
         rf'\g<1>{version}',

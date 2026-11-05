@@ -1,4 +1,5 @@
 """Flask routes: serve_ui, serve_rss, serve_episode, serve_transcript_vtt, serve_chapters_json, health_check."""
+import hashlib
 import json
 import logging
 import mimetypes
@@ -19,7 +20,7 @@ from werkzeug.exceptions import NotFound
 from werkzeug.utils import safe_join
 
 import config
-from api import image_response, url_prefix_meta
+from api import apply_url_prefix, image_response, public_path
 from config import (
     HTTP_MAX_REDIRECTS_FEED,
     HTTP_TIMEOUT_API,
@@ -52,23 +53,23 @@ from utils.validation import (
     validate_slug_and_episode_params,
 )
 
-# Prefix-rewritten SPA files keyed by (file, prefix); built once per process.
-_PREFIXED_UI_FILES = ('index.html', 'sw.js', 'manifest.webmanifest')
+# The only build outputs with baked /ui/ URLs; always served no-cache.
+_REVALIDATED_UI_FILES = ('index.html', 'sw.js', 'manifest.webmanifest')
+# Prefix-rewritten bodies keyed by (file, prefix); built once per process.
 _prefixed_ui_cache: dict[tuple[str, str], bytes] = {}
 
 
 def _prefixed_ui_response(static_dir, name):
     """Serve a baked SPA file with every /ui/ URL moved under the URL prefix."""
-    prefix = config.URL_PREFIX
-    body = _prefixed_ui_cache.get((name, prefix))
+    key = (name, config.URL_PREFIX)
+    body = _prefixed_ui_cache.get(key)
     if body is None:
-        text = (Path(static_dir) / name).read_text(encoding='utf-8').replace('/ui/', f'{prefix}/ui/')
-        if name == 'index.html':
-            text = text.replace('</head>', f'{url_prefix_meta()}</head>', 1)
-        body = _prefixed_ui_cache.setdefault((name, prefix), text.encode('utf-8'))
+        text = apply_url_prefix((Path(static_dir) / name).read_text(encoding='utf-8'))
+        body = _prefixed_ui_cache[key] = text.encode('utf-8')
     response = Response(body, mimetype=mimetypes.guess_type(name)[0])
     response.headers['Cache-Control'] = 'no-cache, must-revalidate'
-    return response
+    response.set_etag(hashlib.sha1(body).hexdigest())
+    return response.make_conditional(request)
 
 
 feed_logger = logging.getLogger('podcast.feed')
@@ -446,7 +447,7 @@ def register_routes(app):
     @app.route('/')
     def root_redirect():
         """Send a bare host:port visit to the UI instead of a 404."""
-        return redirect(f"{config.URL_PREFIX}/ui/", code=302)
+        return redirect(public_path('/ui/'), code=302)
 
     @app.route('/ui/')
     @app.route('/ui/<path:path>')
@@ -472,19 +473,18 @@ def register_routes(app):
             return response
 
         is_file = bool(path and safe_path and os.path.isfile(safe_path))
-        if config.URL_PREFIX and (not is_file or path in _PREFIXED_UI_FILES):
-            return _prefixed_ui_response(STATIC_DIR, path if is_file else 'index.html')
-
-        if not is_file:
-            response = send_from_directory(STATIC_DIR, 'index.html')
+        # Unknown paths are SPA routes and get index.html; a cached copy of
+        # these files would delay update detection, so they always revalidate.
+        if not is_file or path in _REVALIDATED_UI_FILES:
+            name = path if is_file else 'index.html'
+            if config.URL_PREFIX:
+                return _prefixed_ui_response(STATIC_DIR, name)
+            response = send_from_directory(STATIC_DIR, name)
             response.headers['Cache-Control'] = 'no-cache, must-revalidate'
             return response
 
         response = send_from_directory(STATIC_DIR, path)
-        # sw.js, index.html, and manifest.webmanifest must always revalidate,
-        # or a cached copy delays update detection.
-        no_cache = path in ('sw.js', 'index.html', 'manifest.webmanifest')
-        response.headers['Cache-Control'] = 'no-cache, must-revalidate' if no_cache else 'public, max-age=3600'
+        response.headers['Cache-Control'] = 'public, max-age=3600'
         return response
 
     # /api/v1/docs and /api/v1/openapi.yaml are defined in

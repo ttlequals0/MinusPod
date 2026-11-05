@@ -13,9 +13,9 @@ from __future__ import annotations
 
 import secrets
 
-import config
-
 from flask import Request, Response, session
+
+import config
 
 
 CSRF_COOKIE_NAME = 'minuspod_csrf'
@@ -58,7 +58,7 @@ def apply_csrf_cookie(response: Response, cookie_secure: bool) -> Response:
             secure=cookie_secure,
             httponly=False,
             samesite='Strict',
-            path=config.URL_PREFIX or '/',
+            path=config.cookie_path(),
         )
     return response
 

@@ -2,7 +2,6 @@ import { storeLoginRedirect } from '../utils/loginRedirect';
 import type { JobState } from './types';
 import { API_BASE, uiUrl } from '../urlPrefix';
 
-
 const RETRY_DELAYS = [1000, 3000]; // 2 retries with 1s and 3s backoff
 
 const JOB_STATES = new Set(['idle', 'submitting', 'queued', 'processing']);

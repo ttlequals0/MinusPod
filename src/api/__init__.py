@@ -229,9 +229,13 @@ def get_database():
     return Database()
 
 
-def url_prefix_meta() -> str:
-    """Meta tag the SPA and Swagger init read to learn the runtime prefix."""
-    return f'<meta name="minuspod-url-prefix" content="{config.URL_PREFIX}">' if config.URL_PREFIX else ''
+def apply_url_prefix(text: str) -> str:
+    """Move baked /ui/ URLs under the prefix and tell the SPA and Swagger init the prefix via a meta tag."""
+    prefix = config.URL_PREFIX
+    if not prefix:
+        return text
+    text = text.replace('/ui/', f'{prefix}/ui/')
+    return text.replace('</head>', f'<meta name="minuspod-url-prefix" content="{prefix}"></head>', 1)
 
 
 def public_path(path: str) -> str:

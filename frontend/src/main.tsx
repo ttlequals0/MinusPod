@@ -12,11 +12,7 @@ if ('serviceWorker' in navigator) {
   const wb = new Workbox(`${UI_BASE}/sw.js`, { scope: `${UI_BASE}/` });
   wb.addEventListener('waiting', () => {
     offerAppUpdate(() => {
-      const reload = () => {
-        wb.removeEventListener('controlling', reload);
-        window.location.reload();
-      };
-      wb.addEventListener('controlling', reload);
+      wb.addEventListener('controlling', () => window.location.reload());
       wb.messageSkipWaiting();
     });
   });

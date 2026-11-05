@@ -16,7 +16,6 @@ from utils.paths import resolve_data_dir
 # Re-exported: main_app.shutdown_event stays the same object every waiter uses.
 from utils.shutdown import shutdown_event
 from pathlib import Path
-from urllib.parse import urlsplit
 
 import defusedxml
 # Neutralize DTD/external-entity expansion in every stdlib XML parser
@@ -26,9 +25,9 @@ import defusedxml
 defusedxml.defuse_stdlib()
 
 from flask import Flask
+from flask_compress import Compress
 
 import config
-from flask_compress import Compress
 
 # Configure structured logging
 _logging_configured = False
@@ -583,7 +582,6 @@ else:
         )
 
 
-
 class _UrlPrefixMiddleware:
     """Serve the app under config.URL_PREFIX whether or not the proxy strips it."""
 
@@ -605,7 +603,7 @@ app.wsgi_app = _UrlPrefixMiddleware(app.wsgi_app)
 # Session configuration for authentication
 app.secret_key = os.environ.get('SECRET_KEY') or get_or_create_secret_key()
 app.config['SESSION_COOKIE_SECURE'] = _default_session_cookie_secure()
-app.config['SESSION_COOKIE_PATH'] = config.URL_PREFIX or '/'
+app.config['SESSION_COOKIE_PATH'] = config.cookie_path()
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = os.environ.get('SESSION_COOKIE_SAMESITE', 'Strict')
 app.config['PERMANENT_SESSION_LIFETIME'] = int(os.environ.get('SESSION_LIFETIME_HOURS', '24')) * 3600
@@ -833,7 +831,7 @@ def _startup():
         logger.info(f"MinusPod v{APP_VERSION} starting...")
 
         logger.info(f"BASE_URL: {base_url}")
-        if config.URL_PREFIX and not urlsplit(base_url).path.rstrip('/').endswith(config.URL_PREFIX):
+        if config.URL_PREFIX and not base_url.rstrip('/').endswith(config.URL_PREFIX):
             logger.warning(
                 "MINUSPOD_URL_PREFIX is set but BASE_URL does not include it; "
                 "feed URLs will be wrong until BASE_URL ends with the prefix")

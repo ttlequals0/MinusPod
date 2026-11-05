@@ -769,6 +769,9 @@ function EpisodeDetail() {
     );
   }
 
+  // Server-built when available: it carries the feed auth key, which a hardcoded path lacks.
+  const audioUrl = episode.processedUrl ?? `${URL_PREFIX}/episodes/${slug}/${episode.id}.mp3`;
+
   const renderAdMarkerCard = (segment: AdSegment, index: number) => (
     <div
       key={index}
@@ -1337,10 +1340,8 @@ function EpisodeDetail() {
 
         {episode.status === 'completed' && (
           <div className="mt-4 pt-4 border-t border-border">
-            {/* processedUrl is server-built and carries the feed auth key when
-                enabled; a hardcoded path would 401 under authenticated feeds. */}
             <EpisodePlayer
-              src={episode.processedUrl ?? `${URL_PREFIX}/episodes/${slug}/${episode.id}.mp3`}
+              src={audioUrl}
               chaptersUrl={episode.chaptersAvailable ? episode.chaptersUrl : undefined}
             />
             {(episode.transcriptVttAvailable || episode.chaptersAvailable) && (
@@ -1495,7 +1496,7 @@ function EpisodeDetail() {
               <AdEditor
                 detectedAds={detectedAds}
                 audioDuration={episode.originalDuration ?? 0}
-                audioUrl={episode.processedUrl ?? `${URL_PREFIX}/episodes/${slug}/${episode.id}.mp3`}
+                audioUrl={audioUrl}
                 audioMode={reviewMode}
                 hasOriginal={!!episode.hasOriginalAudio}
                 onAudioModeChange={setReviewMode}
