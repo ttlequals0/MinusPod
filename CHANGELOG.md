@@ -8,6 +8,14 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
+## [2.101.22] - 2026-11-05
+
+### Fixed
+
+- Served feeds cached before this release are re-rendered on their next
+  fetch, so the private-feed tag from 2.101.21 reaches every feed without a
+  manual refresh.
+
 ## [2.101.21] - 2026-11-05
 
 ### Breaking
