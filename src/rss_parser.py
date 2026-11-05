@@ -1239,8 +1239,8 @@ class RSSParser:
 
             description = append_chapters(self._get_episode_description(entry),
                                           (chapter_notes or {}).get(episode_id))
-            if episode_id in processed_meta:
-                description = append_review_links(description, slug, episode_id, review_links)
+            if review_links and episode_id in processed_meta:
+                description = append_review_links(description, slug, episode_id)
             lines.append('<item>')
             lines.append(f'  <title>{self._escape_xml(entry.get("title", ""))}</title>')
             lines.append(f'  <description><![CDATA[{self._escape_cdata(description)}]]></description>')
@@ -1407,7 +1407,8 @@ class RSSParser:
                                            ep.get('processed_version'),
                                            key=feed_auth_key)
         description = append_chapters(ep.get('description'), (chapter_notes or {}).get(ep_id))
-        description = append_review_links(description, slug, ep_id, review_links)
+        if review_links:
+            description = append_review_links(description, slug, ep_id)
         lines.append('<item>')
         lines.append(f'  <title>{self._escape_xml(ep.get("title") or "Unknown")}</title>')
         if description:

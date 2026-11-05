@@ -102,20 +102,14 @@ describe('chapter density controls', () => {
   });
 });
 
-describe('chapters in episode description toggle', () => {
+describe.each([
+  { label: 'chapters', name: 'List chapters in episode descriptions', prop: 'onChaptersInNotesChange' },
+  { label: 'review links', name: 'Add review links to episode descriptions', prop: 'onReviewLinksInNotesChange' },
+])('$label in episode description toggle', ({ name, prop }) => {
   it('fires the change handler when switched on', async () => {
     const onChange = vi.fn();
-    render(<Harness onChaptersInNotesChange={onChange} />);
-    await userEvent.click(screen.getByRole('switch', { name: 'List chapters in episode descriptions' }));
-    expect(onChange).toHaveBeenCalledWith(true);
-  });
-});
-
-describe('review links in episode description toggle', () => {
-  it('fires the change handler when switched on', async () => {
-    const onChange = vi.fn();
-    render(<Harness onReviewLinksInNotesChange={onChange} />);
-    await userEvent.click(screen.getByRole('switch', { name: 'Add review links to episode descriptions' }));
+    render(<Harness {...{ [prop]: onChange }} />);
+    await userEvent.click(screen.getByRole('switch', { name }));
     expect(onChange).toHaveBeenCalledWith(true);
   });
 });

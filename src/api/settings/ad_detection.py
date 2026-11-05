@@ -805,23 +805,16 @@ def _apply_processing_flags(db, data):
             return error_response('differentialFetchMode must be auto, on, or off', 400)
         db.set_setting('differential_fetch_mode', value, is_default=False)
 
-    if 'chaptersInNotes' in data:
-        value = 'true' if data['chaptersInNotes'] else 'false'
-        changed = (db.get_setting('chapters_in_notes') or 'false') != value
-        db.set_setting('chapters_in_notes', value, is_default=False)
-        logger.info(f"Updated chapters in descriptions to: {value}")
-        if changed:
-            # Re-render now (local feeds included) rather than wait for a
-            # scheduled refresh that would 304-skip the change.
-            common.after_commit(_rebuild_served_feeds)
-
-    if 'reviewLinksInNotes' in data:
-        value = 'true' if data['reviewLinksInNotes'] else 'false'
-        changed = (db.get_setting('review_links_in_notes') or 'false') != value
-        db.set_setting('review_links_in_notes', value, is_default=False)
-        logger.info(f"Updated review links in descriptions to: {value}")
-        if changed:
-            common.after_commit(_rebuild_served_feeds)
+    for key, setting in (('chaptersInNotes', 'chapters_in_notes'),
+                         ('reviewLinksInNotes', 'review_links_in_notes')):
+        if key in data:
+            value = 'true' if data[key] else 'false'
+            changed = (db.get_setting(setting) or 'false') != value
+            db.set_setting(setting, value, is_default=False)
+            logger.info(f"Updated {setting} to: {value}")
+            if changed:
+                # Re-render now (local feeds included); a scheduled refresh would 304-skip it.
+                common.after_commit(_rebuild_served_feeds)
 
     if 'omitTemperature' in data:
         value = 'true' if data['omitTemperature'] else 'false'

@@ -1073,14 +1073,11 @@ def _validated_feed_updates(db, podcast, payload, feed_type, *, confirmed_ceilin
             value, error = feed_api._normalize_chapters_mode(value)
             if error:
                 raise ConfigTransferError(error)
-        elif key == 'chapters_in_notes':
+        elif key in ('chapters_in_notes', 'review_links_in_notes'):
             value, error = feed_api._normalize_override(
-                value, feed_api.CHAPTERS_IN_NOTES_VALUES, 'chaptersInNotes')
-            if error:
-                raise ConfigTransferError(error)
-        elif key == 'review_links_in_notes':
-            value, error = feed_api._normalize_override(
-                value, feed_api.CHAPTERS_IN_NOTES_VALUES, 'reviewLinksInNotes')
+                value, feed_api.CHAPTERS_IN_NOTES_VALUES,
+                {'chapters_in_notes': 'chaptersInNotes',
+                 'review_links_in_notes': 'reviewLinksInNotes'}[key])
             if error:
                 raise ConfigTransferError(error)
         elif key == 'title_skip_patterns':

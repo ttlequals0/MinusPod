@@ -2221,19 +2221,13 @@ def update_feed(slug):
                 return error_response(chapters_error, 400)
         updates['chapters_mode'] = chapters_val
 
-    if 'chaptersInNotes' in data:
-        notes_val, notes_err = _normalize_override(
-            data['chaptersInNotes'], CHAPTERS_IN_NOTES_VALUES, 'chaptersInNotes')
-        if notes_err:
-            return error_response(notes_err, 400)
-        updates['chapters_in_notes'] = notes_val
-
-    if 'reviewLinksInNotes' in data:
-        links_val, links_err = _normalize_override(
-            data['reviewLinksInNotes'], CHAPTERS_IN_NOTES_VALUES, 'reviewLinksInNotes')
-        if links_err:
-            return error_response(links_err, 400)
-        updates['review_links_in_notes'] = links_val
+    for key, column in (('chaptersInNotes', 'chapters_in_notes'),
+                        ('reviewLinksInNotes', 'review_links_in_notes')):
+        if key in data:
+            val, err = _normalize_override(data[key], CHAPTERS_IN_NOTES_VALUES, key)
+            if err:
+                return error_response(err, 400)
+            updates[column] = val
 
     if 'queuePriority' in data:
         qp_val, qp_err = _normalize_queue_priority(data['queuePriority'])
@@ -2479,11 +2473,14 @@ def update_feed(slug):
             try:
                 from main_app.feeds import refresh_rss_feed
                 refresh_rss_feed(slug, podcast['source_url'], force=True)
-                if 'chapters_in_notes' in updates or 'review_links_in_notes' in updates:
-                    from recents_feed import rebuild_recents_feed
-                    rebuild_recents_feed()
             except Exception as e:
                 logger.warning(f"Feed refresh after settings change failed for {slug}: {e}")
+            if 'chapters_in_notes' in updates or 'review_links_in_notes' in updates:
+                try:
+                    from recents_feed import rebuild_recents_feed
+                    rebuild_recents_feed()
+                except Exception as e:
+                    logger.warning(f"Recents rebuild after settings change failed for {slug}: {e}")
 
         return json_response({
             **_podcast_base_json(podcast, _public_feed_url(slug, get_feed_auth_key(db)), db),

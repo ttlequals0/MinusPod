@@ -1172,11 +1172,16 @@ def resolve_chapters_mode(podcast_row, db=None):
 CHAPTERS_IN_NOTES_VALUES = EPISODE_LOGS_VALUES
 
 
+def resolve_toggle(override, default: bool) -> bool:
+    """An 'on'/'off' override wins; anything else follows the default."""
+    return override == 'on' if override in EPISODE_LOGS_VALUES else default
+
+
 def _resolve_feed_toggle(db, podcast_row, column, setting, default) -> bool:
     """Per-feed 'on'/'off' override in `column`, else the global `setting`."""
     override = (podcast_row or {}).get(column)
     if override in EPISODE_LOGS_VALUES:
-        return override == 'on'
+        return resolve_toggle(override, default)
     return db.get_setting_bool(setting, default)
 
 

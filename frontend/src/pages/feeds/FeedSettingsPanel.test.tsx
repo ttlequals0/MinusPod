@@ -1564,9 +1564,10 @@ describe('FeedSettingsPanel draft protection for non-notes fields', () => {
   });
 });
 
-describe('FeedSettingsPanel chapters in description control', () => {
-  const NAME = 'Chapters in descriptions';
-
+describe.each([
+  { label: 'chapters in description', name: 'Chapters in descriptions', field: 'chaptersInNotes' },
+  { label: 'review links', name: 'Review links in descriptions', field: 'reviewLinksInNotes' },
+])('FeedSettingsPanel $label control', ({ name, field }) => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockUpdateFeed.mockResolvedValue(makeFeed());
@@ -1574,52 +1575,28 @@ describe('FeedSettingsPanel chapters in description control', () => {
 
   it('renders the global default when unset', () => {
     renderPanel(makeFeed());
-    expect((screen.getByRole('combobox', { name: NAME }) as HTMLSelectElement).value).toBe('');
+    expect((screen.getByRole('combobox', { name }) as HTMLSelectElement).value).toBe('');
   });
 
+  it('selecting On fires updateFeed with the override on', async () => {
+    renderPanel(makeFeed());
+    await userEvent.selectOptions(screen.getByRole('combobox', { name }), 'on');
+    expect(mockUpdateFeed).toHaveBeenCalledWith('test-feed', { [field]: 'on' });
+  });
+
+  it('selecting the default clears the override', async () => {
+    renderPanel(makeFeed({ [field]: 'off' }));
+    await userEvent.selectOptions(screen.getByRole('combobox', { name }), '');
+    expect(mockUpdateFeed).toHaveBeenCalledWith('test-feed', { [field]: null });
+  });
+});
+
+describe('FeedSettingsPanel chapters controls', () => {
   it('has no per-feed ad chapters enable or category controls', () => {
     renderPanel(makeFeed());
     expect(screen.queryByRole('combobox', { name: 'Ad chapters' })).toBeNull();
     expect(screen.queryByRole('checkbox', { name: 'Use global categories' })).toBeNull();
     expect(screen.queryByRole('checkbox', { name: 'Sponsor' })).toBeNull();
-  });
-
-  it('selecting On fires updateFeed with chaptersInNotes on', async () => {
-    renderPanel(makeFeed());
-    await userEvent.selectOptions(screen.getByRole('combobox', { name: NAME }), 'on');
-    expect(mockUpdateFeed).toHaveBeenCalledWith('test-feed', { chaptersInNotes: 'on' });
-  });
-
-  it('selecting the default clears the override', async () => {
-    renderPanel(makeFeed({ chaptersInNotes: 'off' }));
-    await userEvent.selectOptions(screen.getByRole('combobox', { name: NAME }), '');
-    expect(mockUpdateFeed).toHaveBeenCalledWith('test-feed', { chaptersInNotes: null });
-  });
-});
-
-describe('FeedSettingsPanel review links control', () => {
-  const NAME = 'Review links in descriptions';
-
-  beforeEach(() => {
-    vi.clearAllMocks();
-    mockUpdateFeed.mockResolvedValue(makeFeed());
-  });
-
-  it('renders the global default when unset', () => {
-    renderPanel(makeFeed());
-    expect((screen.getByRole('combobox', { name: NAME }) as HTMLSelectElement).value).toBe('');
-  });
-
-  it('selecting On fires updateFeed with reviewLinksInNotes on', async () => {
-    renderPanel(makeFeed());
-    await userEvent.selectOptions(screen.getByRole('combobox', { name: NAME }), 'on');
-    expect(mockUpdateFeed).toHaveBeenCalledWith('test-feed', { reviewLinksInNotes: 'on' });
-  });
-
-  it('selecting the default clears the override', async () => {
-    renderPanel(makeFeed({ reviewLinksInNotes: 'off' }));
-    await userEvent.selectOptions(screen.getByRole('combobox', { name: NAME }), '');
-    expect(mockUpdateFeed).toHaveBeenCalledWith('test-feed', { reviewLinksInNotes: null });
   });
 });
 

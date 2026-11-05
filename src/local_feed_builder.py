@@ -192,8 +192,8 @@ def _append_local_episode_item(lines: list, slug: str, ep: dict, base: str,
     ep_id = ep['episode_id']
     item_json = _load_json_dict(ep.get('p20_item_json'))
     description = append_chapters(ep.get('description'), chapter_notes.get(ep_id))
-    description = append_review_links(description, slug, ep_id,
-                                      review_links and ep.get('status') == 'processed')
+    if review_links and ep.get('status') == 'processed':
+        description = append_review_links(description, slug, ep_id)
 
     lines.append('<item>')
     lines.append(f'  <title>{rss_parser._escape_xml(title_prefix + (ep.get("title") or ""))}</title>')

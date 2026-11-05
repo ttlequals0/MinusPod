@@ -12,8 +12,6 @@ def format_review_links(slug, episode_id) -> str:
             f'<a href="{rate}">Rate 5 stars</a></p>')
 
 
-def append_review_links(description, slug, episode_id, enabled: bool) -> str:
-    if not enabled:
-        return description
+def append_review_links(description: str | None, slug, episode_id) -> str:
     parts = [description or '', format_review_links(slug, episode_id)]
     return '\n\n'.join(p for p in parts if p)

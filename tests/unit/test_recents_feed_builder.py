@@ -105,17 +105,16 @@ def test_review_links_follow_the_global_setting_and_use_the_source_slug(recents)
     assert '/ui/feeds/beta/episodes/s01e01?rate=5' in xml
 
 
-def test_review_links_honour_the_source_feed_override(recents):
-    mf.db.set_setting('review_links_in_notes', 'true', is_default=False)
-    mf.db.update_podcast('alpha', review_links_in_notes='off')
+@pytest.mark.parametrize('global_value,override,alpha_linked', [
+    ('true', 'off', False),
+    ('false', 'on', True),
+])
+def test_review_links_honour_the_source_feed_override(recents, global_value, override, alpha_linked):
+    mf.db.set_setting('review_links_in_notes', global_value, is_default=False)
+    mf.db.update_podcast('alpha', review_links_in_notes=override)
     xml = build_recents_feed_xml(recents, _rows(recents), storage=mf.storage, db=mf.db)
-    assert '/ui/feeds/alpha/' not in xml
-    assert '/ui/feeds/beta/' in xml
-    mf.db.set_setting('review_links_in_notes', 'false', is_default=True)
-    mf.db.update_podcast('alpha', review_links_in_notes='on')
-    xml = build_recents_feed_xml(recents, _rows(recents), storage=mf.storage, db=mf.db)
-    assert '/ui/feeds/alpha/episodes/aaaaaaaaaaa2' in xml
-    assert '/ui/feeds/beta/' not in xml
+    assert ('/ui/feeds/alpha/episodes/aaaaaaaaaaa2' in xml) is alpha_linked
+    assert ('/ui/feeds/beta/' in xml) is (global_value == 'true')
 
 
 def test_rebuild_persists_the_cached_rss_and_refresh_routes_to_it(recents):

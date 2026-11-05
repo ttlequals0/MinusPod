@@ -28,12 +28,10 @@ function EpisodeRating({ slug, episodeId, rating, requestedRating, onRequestedRa
   const rootRef = useRef<HTMLDivElement>(null);
   const requestHandled = useRef(false);
   const scrollToMessage = useRef(false);
-  const [undoable, setUndoable] = useState(false);
   const queryClient = useQueryClient();
   const [value, setValue] = useState<number>(rating?.value ?? 0);
   const [notes, setNotes] = useState(rating?.notes ?? '');
-  const [message, setMessage] = useState<string | null>(() =>
-    validRequest(requestedRating) && requestedRating === rating?.value ? `Already rated ${stars(requestedRating)}` : null);
+  const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [syncedAt, setSyncedAt] = useState(rating?.ratedAt ?? null);
 
@@ -50,25 +48,22 @@ function EpisodeRating({ slug, episodeId, rating, requestedRating, onRequestedRa
   };
 
   const save = useMutation({
-    mutationFn: ({ count, viaLink }: { count: number; viaLink?: boolean }) =>
-      rateEpisode(slug, episodeId, count, count < 5 && !viaLink ? notes.trim() || null : null),
-    onMutate: () => { setError(null); setMessage(null); setUndoable(false); },
+    mutationFn: ({ count }: { count: number; viaLink?: boolean }) =>
+      rateEpisode(slug, episodeId, count, count < 5 ? notes.trim() || null : null),
+    onMutate: () => { setError(null); setMessage(null); },
     onSuccess: (result, { count, viaLink }) => {
-      if (viaLink) {
-        setValue(count);
-        setNotes('');
-        setMessage(`Rated ${stars(count)} from the feed link`);
-        setUndoable(true);
-        setRating(result.rating);
-        return;
-      }
+      setValue(count);
       if (count === 5) setNotes('');
-      const { confirmedMarkers: confirmed, dismissedMarkers: dismissed } = result;
-      const parts = [
-        ...(confirmed || !dismissed ? [`${segments(confirmed, 'cut')} confirmed`] : []),
-        ...(dismissed ? [`${segments(dismissed, 'held')} dismissed`] : []),
-      ];
-      setMessage(count === 5 ? `Saved. ${parts.join(', ')}.` : 'Rating saved.');
+      if (viaLink) {
+        setMessage(`Rated ${stars(count)} from the feed link`);
+      } else {
+        const { confirmedMarkers: confirmed, dismissedMarkers: dismissed } = result;
+        const parts = [
+          ...(confirmed || !dismissed ? [`${segments(confirmed, 'cut')} confirmed`] : []),
+          ...(dismissed ? [`${segments(dismissed, 'held')} dismissed`] : []),
+        ];
+        setMessage(count === 5 ? `Saved. ${parts.join(', ')}.` : 'Rating saved.');
+      }
       setRating(result.rating);
     },
     onError: (e) => setError(getErrorMessage(e, 'Could not save the rating.')),
@@ -76,7 +71,7 @@ function EpisodeRating({ slug, episodeId, rating, requestedRating, onRequestedRa
 
   const clear = useMutation({
     mutationFn: () => clearEpisodeRating(slug, episodeId),
-    onMutate: () => { setError(null); setMessage(null); setUndoable(false); },
+    onMutate: () => { setError(null); setMessage(null); },
     onSuccess: () => {
       setValue(0);
       setNotes('');
@@ -89,7 +84,10 @@ function EpisodeRating({ slug, episodeId, rating, requestedRating, onRequestedRa
   useEffect(() => {
     if (requestHandled.current || !validRequest(requestedRating)) return;
     requestHandled.current = true;
-    if (requestedRating !== rating?.value) save.mutate({ count: requestedRating, viaLink: true });
+    // One-shot link handling; the message depends on the rating at mount.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (requestedRating === rating?.value) setMessage(`Already rated ${stars(requestedRating)}`);
+    else save.mutate({ count: requestedRating, viaLink: true });
     scrollToMessage.current = true;
     onRequestedRatingHandled?.();
   }, [requestedRating, rating?.value, save, onRequestedRatingHandled]);
@@ -101,6 +99,7 @@ function EpisodeRating({ slug, episodeId, rating, requestedRating, onRequestedRa
     rootRef.current?.scrollIntoView?.({ block: 'nearest' });
   }, [message]);
 
+  const undoable = save.isSuccess && !!save.variables?.viaLink && !clear.isSuccess && !clear.isPending;
   const busy = save.isPending || clear.isPending;
   const dirty = value !== (rating?.value ?? 0) || (value < 5 && notes.trim() !== (rating?.notes ?? ''));
 
