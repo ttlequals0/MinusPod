@@ -64,7 +64,7 @@ from utils.markers import (
     COARSE_MEMBER_STAGES, EDGE_TOLERANCE, clip_merge_spans,
     dai_core_bounds, dai_core_spans, dai_probe_spans, edge_support,
     finite_number, hard_member_spans, hard_members, invalidate_tail_provenance,
-    member_spans, reviewer_independent_spans, set_reviewer_locks, span_bounds, spans_match,
+    member_spans, recorded_member_spans, reviewer_independent_spans, set_reviewer_locks, span_bounds, spans_match,
     silent_absorbed_spans, TimedWords, timed_span, union_cover,
 )
 from utils.prompt import (
@@ -130,10 +130,24 @@ _INCONCLUSIVE_STAGES = frozenset({
 })
 
 
+def _matches_show_promo_pattern(ad) -> bool:
+    """A text-pattern match of a learned show promo (interaction / self_promo /
+    cross_promo, learned from a human confirm). The reviewer's prompt treats a
+    host's own subscribe ask as show content and would reject it again. The
+    flag is set when the match is made; a merged marker qualifies only when
+    every member it absorbed is a show promo too."""
+    if (ad.get('detection_stage') != 'text_pattern' or ad.get('show_promo') is not True
+            or ad.get('merged_distinct_ads')):
+        return False
+    return all(member.get('show_promo') is True for member in recorded_member_spans(ad))
+
+
 def _skips_reviewer(ad) -> bool:
-    """Human-confirmed ads and cue_match markers (a measured cue, no spoken ad) skip the LLM."""
+    """Human-confirmed ads, cue_match markers (a measured cue, no spoken ad) and
+    matches of a learned show promo skip the LLM."""
     return (bool((ad.get("validation") or {}).get("user_confirmed"))
-            or ad.get("detection_stage") == CUE_MATCH_STAGE)
+            or ad.get("detection_stage") == CUE_MATCH_STAGE
+            or _matches_show_promo_pattern(ad))
 
 
 def _review_inconclusive_reason(error: Exception) -> str:

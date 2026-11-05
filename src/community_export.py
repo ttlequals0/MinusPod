@@ -29,6 +29,7 @@ import urllib.parse
 import uuid
 from datetime import datetime, timezone
 
+from utils.constants import is_show_promo_pattern
 from utils.text import word_boundary_re
 from utils.community_tags import (
     BUNDLE_FORMAT,
@@ -255,7 +256,11 @@ def _quality_gates(pattern: dict, sponsors: list[dict], override: dict | None = 
 
     sponsor_id = pattern.get('sponsor_id')
     if not sponsor_id:
-        reasons.append('sponsor_id is required')
+        if is_show_promo_pattern(pattern):
+            reasons.append(
+                'show-specific pattern (no sponsor) is not exported to the community')
+        else:
+            reasons.append('sponsor_id is required')
         return reasons
 
     sponsor_row = next((s for s in sponsors if s['id'] == sponsor_id), None)

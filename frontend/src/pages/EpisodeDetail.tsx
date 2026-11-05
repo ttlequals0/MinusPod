@@ -30,11 +30,12 @@ import { DETECTION_STAGE_META } from '../utils/detectionStage';
 import { CORROBORATION_CLASS, CORROBORATION_META } from '../utils/corroboration';
 import { formatConfidence } from '../utils/confidence';
 import { isActionBlocked } from '../utils/processingStage';
-import { confirmLabel, isKeepLike, rejectLabel } from '../utils/segmentCategory';
+import { useShowPromoRules } from '../hooks/useShowPromoRules';
+import { confirmLabel, isKeepLike, rejectLabel, teachesShowHint } from '../utils/segmentCategory';
 import { applyEpisodeJobState, jobStateFromError } from '../utils/jobStateCache';
 import AdEditor, { AdCorrection } from '../components/AdEditor';
 import AdReviewModal from '../components/AdReviewModal';
-import type { AdSegment, EpisodeCorrection, Feed, EpisodeDetail as EpisodeDetailApi, JobState, ThinkingNoticePass, UpstreamTranscript } from '../api/types';
+import type { AdSegment, EpisodeCorrection, Feed, EpisodeDetail as EpisodeDetailApi, JobState, ShowPromoRules, ThinkingNoticePass, UpstreamTranscript } from '../api/types';
 import PatternLink from '../components/PatternLink';
 import ExpandableText from '../components/ExpandableText';
 import RichText from '../components/RichText';
@@ -137,13 +138,28 @@ function proposalOverlaps(seg: AdSegment): seg is ProposedAdSegment {
 
 // Row-identity payload the corrections API keys on. One builder so the
 // reason coercion stays consistent across the modal and the row buttons.
+// The marker's pattern rides along so a confirm records a match on it (and a
+// reject a false positive) instead of learning the span as a new pattern.
 function toOriginalAd(segment: AdSegment) {
   return {
     start: segment.start,
     end: segment.end,
     confidence: segment.confidence,
     reason: segment.reason || '',
+    pattern_id: segment.pattern_id ?? undefined,
   };
+}
+
+// Under a Confirm button: says confirming will teach this show, but only when
+// the server's rules say it will (see teachesShowHint).
+function TeachShowHint({ segment, rules }: { segment: AdSegment; rules?: ShowPromoRules }) {
+  const hint = teachesShowHint(rules, {
+    category: segment.category, sponsor: segment.sponsor,
+    patternId: segment.pattern_id, start: segment.start, end: segment.end,
+  });
+  return hint ? (
+    <p className="text-xs text-muted-foreground mt-2" data-testid="teach-show-hint">{hint}</p>
+  ) : null;
 }
 
 // This row is one piece of a detection the render split.
@@ -424,6 +440,7 @@ function EpisodeDetail() {
     queryFn: getSettings,
     enabled: !!episode?.transcriptVttAvailable,
   });
+  const showPromoRules = useShowPromoRules();
   const unsupportedChapterRoute = isSystemOneChapterRoute(settings);
   const chapterRouteWarning = 'System One cannot generate chapters. Select a chat provider and model.';
   const chapterActionTooltip = chapterSettingsError ? 'Load chapter settings before regenerating chapters.'
@@ -1608,7 +1625,7 @@ function EpisodeDetail() {
               reason: seg.reason || '',
               confidence: seg.confidence,
               detectionStage: seg.detection_stage || 'first_pass',
-              patternId: null,
+              patternId: seg.pattern_id ?? null,
               correctedBounds:
                 proposalOverlaps(seg)
                   ? { start: seg.reviewer_proposed_start, end: seg.reviewer_proposed_end }
@@ -1811,6 +1828,9 @@ function EpisodeDetail() {
                     </p>
                   )}
                   {!correction && !segment.approved && (
+                    <TeachShowHint segment={segment} rules={showPromoRules} />
+                  )}
+                  {!correction && !segment.approved && (
                     <div className="flex flex-col sm:flex-row gap-2 mt-3">
                       <button
                         onClick={() => {
@@ -2009,6 +2029,9 @@ function EpisodeDetail() {
                         >
                           {segment.reason}
                         </ExpandableText>
+                      )}
+                      {!correction && (
+                        <TeachShowHint segment={segment} rules={showPromoRules} />
                       )}
                       {!correction && (
                         <div className="flex flex-col sm:flex-row gap-2 mt-3">

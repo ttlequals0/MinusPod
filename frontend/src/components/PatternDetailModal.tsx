@@ -14,6 +14,7 @@ import {
   SEGMENT_CATEGORIES,
   SEGMENT_CATEGORY_DESCRIPTIONS,
   SEGMENT_CATEGORY_LABELS,
+  patternSponsorLabel,
   type SegmentCategory,
 } from '../utils/segmentCategory';
 import { btnBase, btnPrimary, btnOutline, btnDestructive, btnDestructiveOutline } from './buttonStyles';
@@ -344,7 +345,7 @@ function PatternDetailModal({ pattern, onClose, onSave }: PatternDetailModalProp
                 Sponsor
               </div>
               <div className="text-foreground">
-                {pattern.sponsor || '(Unknown)'}
+                {patternSponsorLabel(pattern)}
               </div>
             </div>
 

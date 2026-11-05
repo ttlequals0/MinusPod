@@ -8,6 +8,27 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
+## [Unreleased]
+
+### Added
+
+- Confirming (or manually creating) an interaction, self-promo or cross-promo
+  marker now teaches the show: a podcast-scoped text pattern with that
+  category and no sponsor. Later episodes of the same show cut the read by
+  pattern match without an LLM call, and the match skips the ad reviewer. It
+  is learned only from a human confirm, never promoted beyond the podcast,
+  and needs at least 20 s and 150 characters (30 s and 225 for cross-promo)
+  so a short generic line is not learned. A feed's Keep or Mark action for
+  the category still applies. The Patterns page shows the category badge and
+  the show where it used to read (Unknown), and these patterns no longer
+  count toward Unknown sponsor or the community export. A match cuts the
+  learned read, from where its opening sentence aligns to where its closing
+  sentence does (to the word when the transcript has word timestamps,
+  otherwise to the transcript segment), capped near the read's learned
+  length, and two learned reads are never merged across the talk between
+  them; confirming a span that is mostly a learned read of the same category
+  credits that read instead of learning a longer one.
+
 ## [2.101.19] - 2026-11-04
 
 ### Changed

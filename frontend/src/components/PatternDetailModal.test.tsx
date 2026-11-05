@@ -189,3 +189,21 @@ describe('podcast link', () => {
     expect(screen.getByRole('link', { name: 'example-podcast' }).getAttribute('href')).toBe('/feeds/example-podcast');
   });
 });
+
+describe('PatternDetailModal show promo pattern', () => {
+  it('shows the show rather than (Unknown) for a sponsorless interaction pattern', () => {
+    renderModal(makePattern({ sponsor: null, category: 'interaction', podcast_name: 'The Diary', is_show_promo: true }));
+    expect(screen.getAllByText('The Diary').length).toBeGreaterThan(0);
+    expect(screen.queryByText('(Unknown)')).toBeNull();
+  });
+
+  it('keeps (Unknown) for a legacy sponsorless row and for a global one', () => {
+    renderModal(makePattern({ sponsor: null, category: 'interaction', is_show_promo: false }));
+    expect(screen.getAllByText('(Unknown)').length).toBeGreaterThan(0);
+  });
+
+  it('keeps (Unknown) for a sponsorless pattern with no promo category', () => {
+    renderModal(makePattern({ sponsor: null, category: 'sponsor' }));
+    expect(screen.getAllByText('(Unknown)').length).toBeGreaterThan(0);
+  });
+});

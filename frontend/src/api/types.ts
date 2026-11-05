@@ -717,6 +717,8 @@ export interface AdSegment {
   // What kind of content this span is (issue #565). Unset when no stage
   // classified it; the UI shows Uncategorized.
   category?: SegmentCategory;
+  // Pattern this marker matched or was learned into, when it has one.
+  pattern_id?: number | null;
   // What the resolved segment-action map did with this marker's category.
   // Null when the marker predates the feature or the action never resolved.
   actionApplied?: SegmentAction | null;
@@ -891,7 +893,16 @@ export const WHISPER_BACKENDS = {
   PARAKEET: 'parakeet' as const,
 };
 
+// What a span must satisfy to be learned as a show pattern, as the server
+// judges it (the configured minimum duration is already applied to seconds).
+export interface ShowPromoRules {
+  floors: Record<string, { seconds: number; chars: number }>;
+  maxSeconds: number;
+}
+
 export interface Settings {
+  // Read-only; present on GET /settings only.
+  showPromoRules?: ShowPromoRules;
   systemPrompt: SettingValue;
   verificationPrompt: SettingValue;
   reviewPrompt: SettingValue;

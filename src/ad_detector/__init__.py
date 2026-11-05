@@ -2837,6 +2837,9 @@ class AdDetector:
             # getattr: FingerprintMatch has no 'defined' field (audio stage
             # predates the trust-tier split); treat it as not tier-1.
             'pattern_defined': getattr(match, 'defined', False),
+            # Learned show promo (see utils.constants.is_show_promo_pattern):
+            # the reviewer skips it. Only a TextMatch carries it.
+            'show_promo': bool(getattr(match, 'show_promo', False)),
             'span_estimated': span_estimated,
             'text_start': getattr(match, 'text_start', None),
             'text_end': getattr(match, 'text_end', None),

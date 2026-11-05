@@ -6,6 +6,13 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import PatternsPage from './PatternsPage';
 
 const mockGetPatterns = vi.fn().mockResolvedValue([]);
+const mockGetPatternStats = vi.fn().mockResolvedValue({
+  total: 0, active: 0, inactive: 0,
+  by_scope: { global: 0, network: 0, podcast: 0 },
+  no_sponsor: 0, show_promo: 0, never_matched: 0, stale_count: 0,
+  high_false_positive_count: 0,
+  stale_patterns: [], no_sponsor_patterns: [], high_false_positive_patterns: [],
+});
 const mockGetDetections = vi.fn().mockResolvedValue({
   detections: [], total: 0, page: 1, totalPages: 1, limit: 20,
   counts: {
@@ -21,13 +28,7 @@ const mockGetDetections = vi.fn().mockResolvedValue({
 vi.mock('../api/patterns', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../api/patterns')>()),
   getPatterns: (...a: unknown[]) => mockGetPatterns(...a),
-  getPatternStats: vi.fn().mockResolvedValue({
-    total: 0, active: 0, inactive: 0,
-    by_scope: { global: 0, network: 0, podcast: 0 },
-    no_sponsor: 0, never_matched: 0, stale_count: 0,
-    high_false_positive_count: 0,
-    stale_patterns: [], no_sponsor_patterns: [], high_false_positive_patterns: [],
-  }),
+  getPatternStats: (...a: unknown[]) => mockGetPatternStats(...a),
   getMergeSuggestions: vi.fn().mockResolvedValue([]),
 }));
 vi.mock('../api/detections', () => ({
@@ -362,5 +363,50 @@ describe('PatternsPage search across tabs', () => {
     for (const [params] of mockGetDetections.mock.calls) {
       expect(JSON.stringify(params)).not.toContain('foo');
     }
+  });
+});
+
+describe('PatternsPage show promo patterns', () => {
+  const showPromo = {
+    id: 9, scope: 'podcast', network_id: null, podcast_id: 'the-diary',
+    podcast_name: 'The Diary', dai_platform: null, text_template: 'Hit that follow button '.repeat(5),
+    intro_variants: '[]', outro_variants: '[]', sponsor: null,
+    confirmation_count: 1, false_positive_count: 0, last_matched_at: null,
+    created_at: '2026-01-01T00:00:00Z', created_from_episode_id: null,
+    is_active: true, disabled_at: null, disabled_reason: null,
+    category: 'interaction', created_by: 'show_promo', is_show_promo: true,
+  };
+
+  it('shows the category badge and the show instead of (Unknown)', async () => {
+    mockGetPatterns.mockResolvedValueOnce([showPromo]);
+    renderPage();
+    expect((await screen.findAllByText('The Diary')).length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Interaction').length).toBeGreaterThan(0);
+    expect(screen.queryByText('(Unknown)')).toBeNull();
+  });
+
+  it('still shows (Unknown) for a legacy sponsorless row in the same category', async () => {
+    mockGetPatterns.mockResolvedValueOnce([{ ...showPromo, id: 11, created_by: 'auto', is_show_promo: false }]);
+    renderPage();
+    expect((await screen.findAllByText('(Unknown)')).length).toBeGreaterThan(0);
+  });
+
+  it('shows the show promo count next to Unknown sponsor', async () => {
+    mockGetPatternStats.mockResolvedValueOnce({
+      total: 3, active: 3, inactive: 0, by_scope: { global: 0, network: 0, podcast: 3 },
+      no_sponsor: 1, show_promo: 2, never_matched: 0, stale_count: 0,
+      high_false_positive_count: 0,
+      stale_patterns: [], no_sponsor_patterns: [], high_false_positive_patterns: [],
+    });
+    renderPage();
+    const tile = (await screen.findByText('Show promos')).parentElement!;
+    expect(tile.textContent).toContain('2');
+    expect(screen.getByText('Unknown sponsor').parentElement!.textContent).toContain('1');
+  });
+
+  it('still shows (Unknown) for a sponsorless sponsor-category pattern', async () => {
+    mockGetPatterns.mockResolvedValueOnce([{ ...showPromo, id: 10, category: 'sponsor', is_show_promo: false }]);
+    renderPage();
+    expect((await screen.findAllByText('(Unknown)')).length).toBeGreaterThan(0);
   });
 });

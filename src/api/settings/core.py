@@ -38,6 +38,7 @@ from database.settings import (
 from llm_client import (
     get_effective_provider, get_effective_base_url, get_api_key, get_effective_openrouter_api_key,
 )
+from text_pattern_matcher import show_promo_rules
 from utils.opml import modified_feed_url
 from api.settings import common, operations
 from youtube import settings as yt_settings
@@ -846,7 +847,11 @@ def _build_settings_payload():
 @log_request
 def get_settings():
     """Get all settings."""
-    return json_response(_build_settings_payload())
+    payload = _build_settings_payload()
+    # Read-only and not part of the config export: what a span must satisfy to
+    # become a show pattern, so the UI validates against the server's rules.
+    payload['showPromoRules'] = show_promo_rules(get_database())
+    return json_response(payload)
 
 
 def _search_provider_setting(settings):

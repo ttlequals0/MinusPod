@@ -24,7 +24,7 @@ import { PatternImportDialog } from '../components/PatternImportDialog';
 import { PatternExportDialog } from '../components/PatternExportDialog';
 import { formatDate } from '../utils/format';
 import {
-  SEGMENT_CATEGORY_FILTER_OPTIONS, UNSET_CATEGORY,
+  SEGMENT_CATEGORY_FILTER_OPTIONS, UNSET_CATEGORY, patternSponsorLabel,
 } from '../utils/segmentCategory';
 import AdReviewTab from './patterns/AdReviewTab';
 import DetectedAdsTab from './patterns/DetectedAdsTab';
@@ -298,13 +298,14 @@ function PatternsPage() {
 
       {/* Stats Summary */}
       {stats && (
-        <section aria-label="Pattern statistics" className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-4 mb-6">
+        <section aria-label="Pattern statistics" className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-4 mb-6">
           <StatTile label="Total" value={stats.total} />
           <StatTile label="Active" value={stats.active} tone="success" />
           <StatTile label="Global" value={stats.by_scope.global} />
           <StatTile label="Network" value={stats.by_scope.network} />
           <StatTile label="Podcast" value={stats.by_scope.podcast} />
           <StatTile label="Unknown sponsor" value={stats.no_sponsor} tone={stats.no_sponsor > 0 ? 'warning' : 'default'} />
+          <StatTile label="Show promos" value={stats.show_promo ?? 0} />
           <StatTile label="High false positives" value={stats.high_false_positive_count}
             tone={stats.high_false_positive_count > 0 ? 'destructive' : 'default'} />
         </section>
@@ -446,7 +447,7 @@ function PatternsPage() {
               </div>
             )}
             <div className="text-sm font-medium text-foreground mb-1">
-              {pattern.sponsor || '(Unknown)'}
+              {patternSponsorLabel(pattern)}
             </div>
             {pattern.text_template && (
               <div className="text-xs text-muted-foreground truncate mb-3">
@@ -542,7 +543,7 @@ function PatternsPage() {
                   </td>
                   <td className={`${td} overflow-hidden`}>
                     <div className="text-sm font-medium text-foreground truncate">
-                      {pattern.sponsor || '(Unknown)'}
+                      {patternSponsorLabel(pattern)}
                     </div>
                     {pattern.text_template && (
                       <div className="text-xs text-muted-foreground truncate">

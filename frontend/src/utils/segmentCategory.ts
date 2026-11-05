@@ -1,3 +1,5 @@
+import type { ShowPromoRules } from '../api/types';
+
 // Segment categories and actions (issue #565). Mirrors
 // config.SEGMENT_CATEGORIES / SEGMENT_ACTIONS as the single frontend source
 // of truth for labels, so the matrix, overrides, and episode chips agree.
@@ -56,6 +58,69 @@ export function rejectLabel(category?: string | null): string {
     return 'Not ad';
   }
   return 'Keep';
+}
+
+// Show patterns (an interaction, self-promo or cross-promo read learned for one
+// show). The server decides what qualifies and sends its rules with the
+// settings (ShowPromoRules); nothing here repeats a floor or a category list.
+
+// Whether a read in this category can be learned for a show.
+export function isShowPromoCategory(
+  rules: ShowPromoRules | undefined, category?: string | null,
+): boolean {
+  return !!rules && !!category && category in rules.floors;
+}
+
+// What the Patterns page shows where a sponsor name goes: a show pattern has no
+// sponsor by design, so it names the show instead of reading as a defect.
+export function patternSponsorLabel(pattern: {
+  sponsor?: string | null; is_show_promo?: boolean; podcast_name?: string | null;
+}): string {
+  if (pattern.sponsor) {
+    return pattern.sponsor;
+  }
+  return pattern.is_show_promo ? (pattern.podcast_name || 'This show') : '(Unknown)';
+}
+
+// Why a span cannot become a show pattern, in plain words, or null (also null
+// while the rules are unknown: the server still judges). Characters are
+// optional because an episode row does not carry the transcript text.
+export function showPromoSpanProblem(
+  rules: ShowPromoRules | undefined, category: string | null | undefined,
+  seconds: number, chars?: number,
+): string | null {
+  if (!rules || !category || !isShowPromoCategory(rules, category)) {
+    return null;
+  }
+  const label = (SEGMENT_CATEGORY_LABELS[category as SegmentCategory] ?? category).toLowerCase();
+  const read = `${/^[aeiou]/.test(label) ? 'An' : 'A'} ${label} read`;
+  const floor = rules.floors[category];
+  if (seconds < floor.seconds) {
+    return `${read} must run at least ${floor.seconds} seconds to be learned for this show.`;
+  }
+  if (seconds > rules.maxSeconds) {
+    return `${read} can run at most ${rules.maxSeconds} seconds to be learned for this show.`;
+  }
+  if (chars !== undefined && chars < floor.chars) {
+    return `${read} needs at least ${floor.chars} characters of text to be learned for this show.`;
+  }
+  return null;
+}
+
+// One line under a Confirm button, shown only when confirming will really
+// create a show pattern: a promo category, no sponsor named, no pattern
+// already linked and a span within the server's limits.
+export function teachesShowHint(rules: ShowPromoRules | undefined, marker: {
+  category?: string | null; sponsor?: string | null; patternId?: number | null;
+  start: number; end: number;
+}): string | null {
+  if (!isShowPromoCategory(rules, marker.category) || marker.sponsor || marker.patternId != null) {
+    return null;
+  }
+  if (showPromoSpanProblem(rules, marker.category, marker.end - marker.start) !== null) {
+    return null;
+  }
+  return 'Confirming teaches this show to cut this read automatically in later episodes.';
 }
 
 export type SegmentAction = 'remove' | 'beep' | 'keep' | 'mark';

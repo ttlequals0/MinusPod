@@ -16917,6 +16917,21 @@ components:
     Settings:
       type: object
       properties:
+        showPromoRules:
+          type: object
+          description: Read-only. What a span must satisfy to be learned as a show pattern (interaction, self-promo, cross-promo); the configured minimum duration is already applied to the seconds.
+          properties:
+            floors:
+              type: object
+              additionalProperties:
+                type: object
+                properties:
+                  seconds:
+                    type: integer
+                  chars:
+                    type: integer
+            maxSeconds:
+              type: integer
         systemPrompt:
           type: object
           properties:
@@ -19317,6 +19332,9 @@ components:
         can_split:
           type: boolean
           description: Whether the active pattern has at least two usable text pieces for splitting
+        is_show_promo:
+          type: boolean
+          description: True for a podcast-scoped, sponsorless interaction, self-promo or cross-promo pattern learned through the show-pattern path (created_by show_promo). Older sponsorless patterns are false.
         disabled_reason:
           type:
             - string

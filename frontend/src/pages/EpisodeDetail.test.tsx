@@ -635,6 +635,33 @@ describe('Held for review: confirm label names the category', () => {
     expect(screen.getByTestId('approve-recut-0').textContent).toBe('Confirm interaction');
     expect(screen.getByTestId('approve-recut-1').textContent).toBe('Confirm');
   });
+
+  it('says confirming teaches the show only when it will create a show pattern', async () => {
+    vi.mocked(getSettings).mockResolvedValue({
+      llmProvider: { value: 'anthropic' }, claudeModel: { value: 'claude-sonnet' },
+      showPromoRules: {
+        floors: { interaction: { seconds: 20, chars: 150 } }, maxSeconds: 120,
+      },
+    } as unknown as Settings);
+    const promo = { ...heldMarker, start: 100, end: 130, category: 'interaction' as const };
+    renderDetail(makeEpisode({
+      hasOriginalAudio: true,
+      pendingReviewMarkers: [
+        promo,                                                             // will teach
+        { ...promo, start: 200, end: 230, sponsor: 'Patreon' },            // names a sponsor
+        { ...promo, start: 300, end: 310 },                                // under the floor
+        { ...promo, start: 400, end: 430, pattern_id: 9 },                 // already linked
+        { ...promo, start: 500, end: 530, category: 'sponsor' as const },  // not a promo category
+      ],
+    }));
+    await waitFor(() => expect(getSettings).toHaveBeenCalled());
+    await waitFor(() => {
+      expect(screen.getByTestId('approve-recut-0')).toBeDefined();
+    });
+    const hints = screen.getAllByTestId('teach-show-hint');
+    expect(hints).toHaveLength(1);
+    expect(hints[0].textContent).toMatch(/teaches this show/i);
+  });
 });
 
 describe('Held for review: per-action error isolation', () => {
@@ -1501,6 +1528,47 @@ describe('Segment category chips (#565)', () => {
     expect(await screen.findByText('Detections not cut (1)')).not.toBeNull();
     expect(screen.getByText('Interaction')).not.toBeNull();
     expect(screen.getByText('Kept')).not.toBeNull();
+  });
+
+  it('says confirming teaches the show on a Detections not cut row that will teach', async () => {
+    vi.mocked(getSettings).mockResolvedValue({
+      llmProvider: { value: 'anthropic' }, claudeModel: { value: 'claude-sonnet' },
+      showPromoRules: {
+        floors: { interaction: { seconds: 20, chars: 150 } }, maxSeconds: 120,
+      },
+    } as unknown as Settings);
+    renderDetail(makeEpisode({
+      pendingReviewMarkers: [],
+      rejectedAdMarkers: [
+        { start: 100, end: 130, confidence: 0.4, category: 'interaction' },                   // will teach
+        { start: 200, end: 230, confidence: 0.4, category: 'interaction', sponsor: 'Patreon' }, // names a sponsor
+        { start: 300, end: 310, confidence: 0.4, category: 'interaction' },                   // under the floor
+        { start: 400, end: 430, confidence: 0.4, category: 'sponsor' },                       // not a promo category
+      ],
+    }));
+    expect(await screen.findByText('Detections not cut (4)')).not.toBeNull();
+    await waitFor(() => expect(screen.getAllByTestId('teach-show-hint')).toHaveLength(1));
+    expect(screen.getByTestId('teach-show-hint').textContent).toMatch(/teaches this show/i);
+  });
+
+  it('confirming a pattern-matched Detections not cut row names its pattern', async () => {
+    // Without the id the server learns the span again as a second pattern.
+    const user = userEvent.setup();
+    mockSubmitCorrection.mockReset();
+    mockSubmitCorrection.mockResolvedValue({});
+    renderDetail(makeEpisode({
+      pendingReviewMarkers: [],
+      rejectedAdMarkers: [{
+        start: 90, end: 138, confidence: 0.89, category: 'interaction', pattern_id: 198,
+      }],
+    }));
+    expect(await screen.findByText('Detections not cut (1)')).not.toBeNull();
+    await user.click(screen.getByRole('button', { name: 'Confirm interaction' }));
+    await waitFor(() => expect(mockSubmitCorrection).toHaveBeenCalledTimes(1));
+    const [, , payload] = mockSubmitCorrection.mock.calls[0] as
+      [string, string, { type: string; original_ad: { pattern_id?: number } }];
+    expect(payload.type).toBe('confirm');
+    expect(payload.original_ad.pattern_id).toBe(198);
   });
 
   it('names the detection a carved fragment came from', async () => {

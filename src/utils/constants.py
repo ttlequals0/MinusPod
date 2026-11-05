@@ -220,6 +220,67 @@ LEARNING_LONG_DURATION_THRESHOLD = 90.0
 LEARNING_MIN_PATTERN_DURATION = 15
 LEARNING_MAX_PATTERN_DURATION = 120
 
+# Categories that name no advertiser. A human confirm of a marker in one of
+# them teaches the show a sponsorless, podcast-scoped text pattern.
+NON_SPONSOR_PATTERN_CATEGORIES = ('interaction', 'self_promo', 'cross_promo')
+
+# Minimum (duration seconds, text characters) of a sponsorless pattern's span,
+# per category. Sponsor patterns floor at LEARNING_MIN_PATTERN_DURATION (15 s)
+# and MIN_TEXT_LENGTH (50 chars). Without a brand to anchor on, a short generic
+# line ("please subscribe") would match anywhere, so the floors are 1.33x the
+# sponsor duration floor for interaction and self_promo and 2x for cross_promo,
+# which is the category most likely to resemble real show content. The
+# character floor is half of what that duration yields at ~15 characters of
+# speech per second, so a long but mostly silent or musical span fails it.
+# The existing maximum duration (LEARNING_MAX_PATTERN_DURATION) still applies.
+LEARNING_SHOW_PROMO_FLOORS = {
+    'interaction': (20, 150),
+    'self_promo': (20, 150),
+    'cross_promo': (30, 225),
+}
+
+def show_promo_floor_problem(category, duration, chars, min_duration, max_duration):
+    """Why a span cannot become a show pattern, or None. The one rule the
+    confirm path and the manual create path both apply: the configured minimum
+    duration can only raise the category floor, the category's character floor
+    applies, and the existing maximum duration is the ceiling."""
+    floor_s, floor_chars = LEARNING_SHOW_PROMO_FLOORS[category]
+    floor_s = max(min_duration, floor_s)
+    if duration < floor_s:
+        return (f"duration {duration:.0f}s is below the {floor_s}s floor "
+                f"(a short line would match anywhere on the show)")
+    if duration > max_duration:
+        return f"duration {duration:.0f}s exceeds the {max_duration}s maximum"
+    if chars < floor_chars:
+        return f"text length {chars} is below the {floor_chars} character floor"
+    return None
+
+
+# created_by value of a pattern made through the gated show-promo path. Show
+# promo is a provenance, not something inferred from "no sponsor": legacy
+# sponsorless rows, rows whose sponsor was deleted and global rows are not.
+SHOW_PROMO_CREATED_BY = 'show_promo'
+
+
+def is_show_promo_category(category) -> bool:
+    return category in NON_SPONSOR_PATTERN_CATEGORIES
+
+
+def is_show_promo_candidate(sponsor, category) -> bool:
+    """No advertiser named and a category that names none: a read the show path
+    (not the sponsor path) can learn. The one predicate every site shares."""
+    return not (sponsor and str(sponsor).strip()) and is_show_promo_category(category)
+
+
+def is_show_promo_pattern(pattern: dict) -> bool:
+    """A subscribe ask, self-promo or own-network promo learned for one show
+    through the gated path (floors, podcast scope, human confirm)."""
+    return (pattern.get('created_by') == SHOW_PROMO_CREATED_BY
+            and pattern.get('scope') == 'podcast'
+            and pattern.get('sponsor_id') is None
+            and pattern.get('category') in NON_SPONSOR_PATTERN_CATEGORIES)
+
+
 # How far past the ceiling a piece cut at its own ad transitions may run. The
 # ceiling screens for contamination, which a cut piece has already passed, but
 # without a bound one undetected transition would store a pattern of any length.
