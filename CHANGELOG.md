@@ -8,6 +8,22 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
+## [2.101.20] - 2026-11-05
+
+### Added
+
+- Sub-path hosting: set `MINUSPOD_URL_PREFIX=/minuspod` to serve the UI, API
+  and feeds under a reverse-proxy path such as `https://host/minuspod/`. One
+  image serves any prefix with no rebuild, and the app works whether the
+  proxy forwards the prefix or strips it. `BASE_URL` must include the prefix;
+  startup warns when it does not. Left unset, nothing changes (#961).
+
+### Changed
+
+- The service worker is now registered by the app itself instead of the
+  build plugin's generated helper, so its URL and scope follow the prefix.
+  Update prompts and offline behavior are unchanged.
+
 ## [2.101.19] - 2026-11-04
 
 ### Changed

@@ -35,7 +35,7 @@ https://github.com/user-attachments/assets/26e4f083-a398-44b4-ad22-e6f753e03f52
 
 ## Overview
 
-The server includes a web-based management UI at `/ui/`. Opening the server root redirects there:
+The server includes a web-based management UI at `/ui/` (under the prefix when `MINUSPOD_URL_PREFIX` is set). Opening the server root redirects there:
 
 - Dashboard with feed artwork and episode counts
 - Add feeds by RSS URL with optional episode cap

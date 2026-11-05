@@ -49,6 +49,32 @@ The full reference is in [Environment Variables](environment-variables.md). The 
 
 Behind a reverse proxy or Cloudflare tunnel, also set `MINUSPOD_TRUSTED_PROXY_COUNT=1` (higher for multi-hop chains); see [Client IP for login lockout](security-and-storage.md#client-ip-for-login-lockout).
 
+## Sub-path hosting
+
+To serve MinusPod at `https://host/minuspod/` instead of the host root, set `MINUSPOD_URL_PREFIX=/minuspod` and make `BASE_URL` end with the same prefix, for example `BASE_URL=https://host/minuspod`. The UI is then at `/minuspod/ui/`, the API at `/minuspod/api/v1/`, and feeds at `/minuspod/<slug>`. One image serves any prefix; there is no rebuild.
+
+The app accepts the prefix whether or not the proxy strips it. Apache, forwarding the prefix unchanged:
+
+```apache
+ProxyPass /minuspod/ http://127.0.0.1:8000/minuspod/
+ProxyPassReverse /minuspod/ http://127.0.0.1:8000/minuspod/
+```
+
+nginx, forwarding the prefix unchanged (a `proxy_pass` with a URI part such as `http://127.0.0.1:8000/` strips it, which also works):
+
+```nginx
+location /minuspod/ {
+    proxy_pass http://127.0.0.1:8000;
+    proxy_set_header Host $host;
+    proxy_set_header X-Forwarded-Proto $scheme;
+}
+```
+
+- `BASE_URL` must include the prefix. Startup logs a warning when it does not, and feed URLs are wrong until it does.
+- Adding a prefix to an existing install changes feed GUIDs the same way any other `BASE_URL` change does, so subscribers may see the feed as new.
+- The container healthcheck keeps calling the unprefixed `/api/v1/health`, which the app still answers.
+- The first prefix segment cannot be `ui`, `api`, `episodes`, `health` or `opml`.
+
 ## Health monitoring
 
 ```bash

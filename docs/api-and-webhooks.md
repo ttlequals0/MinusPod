@@ -13,6 +13,8 @@
 
 ## API
 
+With `MINUSPOD_URL_PREFIX` set, root-relative URLs in API responses (`processedUrl`, artwork, transcript and chapter URLs) carry the prefix, so a client can fetch them as returned.
+
 REST API available at `/api/v1/`. Interactive docs at `/api/v1/docs`. Full specification: [`openapi.yaml`](../openapi.yaml). The integration suite validates live responses for the common read and update routes against this document, so a response that drifts from the schema fails CI.
 
 Authenticated write requests (`POST`, `PUT`, `PATCH`, `DELETE`) require an `X-CSRF-Token` header matching the `minuspod_csrf` cookie. The built-in UI sends it. An external client must echo the cookie on each write. `PUT /auth/password` is exempt: initial remote setup uses `X-MinusPod-Setup-Token`, while a later change requires `currentPassword`. Logout can clear stale unauthenticated state, but an authenticated logout still requires CSRF.

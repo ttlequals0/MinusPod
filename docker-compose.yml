@@ -97,6 +97,9 @@ services:
       # for login lockout" for the full impact.
       - MINUSPOD_TRUSTED_PROXY_COUNT=${MINUSPOD_TRUSTED_PROXY_COUNT:-0}
 
+      # Optional sub-path hosting, e.g. /minuspod. BASE_URL must include it.
+      # - MINUSPOD_URL_PREFIX=${MINUSPOD_URL_PREFIX:-}
+
       # =================================================================
       # Deprecated -- Retention is managed via Settings > Storage in
       # the UI. This env var still works for backward compat.
