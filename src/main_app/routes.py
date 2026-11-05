@@ -664,6 +664,19 @@ def register_routes(app):
         podcast = db.get_podcast_by_slug(slug)
         serves_own_audio = not has_upstream_audio(podcast)
 
+        # A crawler gets the origin audio in every non-published state, not a
+        # processing run it will never collect. Local feeds have no upstream.
+        if not serves_own_audio and request.method == 'GET':
+            blocked_agents = resolve_jit_blocked_user_agents(
+                db.get_setting('jit_blocked_user_agents'))
+            if user_agent_is_jit_blocked(request.headers.get('User-Agent'), blocked_agents):
+                ep_data, _ = _routes._lookup_episode(slug, episode_id, feed_map, episode_row=episode)
+                if not ep_data:
+                    abort(404)
+                feed_logger.info(
+                    f"[{slug}:{episode_id}] JIT suppressed for blocked agent, serving original")
+                return redirect(ep_data['url'], code=302)
+
         if status == EpisodeStatus.PERMANENTLY_FAILED:
             ep_key = f"{slug}:{episode_id}"
             if ep_key not in _permanently_failed_warned:
@@ -774,20 +787,6 @@ def register_routes(app):
             }
             if episode_matches_feed_filters(jit_episode, podcast):
                 feed_logger.info(f"[{slug}:{episode_id}] Matched feed filters, serving original: {episode_title}")
-                return redirect(original_url, code=302)
-
-        # A crawler gets the origin audio rather than a processing run it will
-        # never collect. Placed after the title blacklist so that rule wins.
-        # Local feeds have no upstream to redirect to -- original_url is the
-        # unreachable local:// sentinel -- so this guard never applies to
-        # them; a blocked agent hitting a local episode falls through to
-        # normal JIT processing/serving like any other request.
-        if not serves_own_audio:
-            blocked_agents = resolve_jit_blocked_user_agents(
-                db.get_setting('jit_blocked_user_agents'))
-            if user_agent_is_jit_blocked(request.headers.get('User-Agent'), blocked_agents):
-                feed_logger.info(
-                    f"[{slug}:{episode_id}] JIT suppressed for blocked agent, serving original")
                 return redirect(original_url, code=302)
 
         # An own-audio play is user intent; acquire treats a stamp as manual, never over an existing one.

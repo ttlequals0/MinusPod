@@ -80,3 +80,23 @@ def test_empty_list_never_blocks():
                          headers={'User-Agent': 'BadBot/1.0'})
     assert resp.status_code == 503
     start.assert_called_once()
+
+
+def test_blocked_agent_redirects_while_episode_is_processing():
+    """A crawler hitting an in-flight episode gets the origin audio, not 503."""
+    db.create_podcast('test-feed', 'https://example.com/feed.xml', 'Test Feed')
+    db.upsert_episode('test-feed', EPISODE_ID, status='processing')
+    _set_blocked('["BadBot"]')
+    try:
+        with patch('main_app.routes.get_feed_map', return_value=FEED_MAP), \
+             patch('main_app.routes._lookup_episode', return_value=(EP, 'Show')):
+            with app.test_client() as c:
+                blocked = c.get(f'/episodes/test-feed/{EPISODE_ID}.mp3',
+                                headers={'User-Agent': 'BadBot/1.0'})
+                allowed = c.get(f'/episodes/test-feed/{EPISODE_ID}.mp3',
+                                headers={'User-Agent': 'Pocket Casts'})
+        assert blocked.status_code == 302
+        assert blocked.headers['Location'] == EP['url']
+        assert allowed.status_code == 503
+    finally:
+        db.upsert_episode('test-feed', EPISODE_ID, status='discovered')
