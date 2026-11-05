@@ -1530,6 +1530,27 @@ describe('Segment category chips (#565)', () => {
     expect(screen.getByText('Kept')).not.toBeNull();
   });
 
+  it('says confirming teaches the show on a Detections not cut row that will teach', async () => {
+    vi.mocked(getSettings).mockResolvedValue({
+      llmProvider: { value: 'anthropic' }, claudeModel: { value: 'claude-sonnet' },
+      showPromoRules: {
+        floors: { interaction: { seconds: 20, chars: 150 } }, maxSeconds: 120,
+      },
+    } as unknown as Settings);
+    renderDetail(makeEpisode({
+      pendingReviewMarkers: [],
+      rejectedAdMarkers: [
+        { start: 100, end: 130, confidence: 0.4, category: 'interaction' },                   // will teach
+        { start: 200, end: 230, confidence: 0.4, category: 'interaction', sponsor: 'Patreon' }, // names a sponsor
+        { start: 300, end: 310, confidence: 0.4, category: 'interaction' },                   // under the floor
+        { start: 400, end: 430, confidence: 0.4, category: 'sponsor' },                       // not a promo category
+      ],
+    }));
+    expect(await screen.findByText('Detections not cut (4)')).not.toBeNull();
+    await waitFor(() => expect(screen.getAllByTestId('teach-show-hint')).toHaveLength(1));
+    expect(screen.getByTestId('teach-show-hint').textContent).toMatch(/teaches this show/i);
+  });
+
   it('names the detection a carved fragment came from', async () => {
     const carvedFrom = { start: 60, end: 120 };
     const hint = `Split from detection ${formatTimestamp(60)} - ${formatTimestamp(120)}`;

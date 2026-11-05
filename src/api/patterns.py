@@ -826,7 +826,7 @@ def _submit_correction_create(db, slug, episode_id, data):
         problem = show_promo_floor_problem(
             category, end - start, len(text_template), min_s, max_s)
         if problem:
-            return error_response(f'Not learned as a {category} pattern: {problem}', 400)
+            return error_response(f'Not learned as a show pattern ({category}): {problem}', 400)
         sponsor_id = None
         canonical_sponsor_name = None
     else:
@@ -1292,7 +1292,11 @@ def _handle_confirm_correction(
             if ad_text and len(ad_text) >= 50:
                 pattern_id, _ = _resolve_or_create_pattern_from_text(
                     db, pattern_service, slug, episode_id, ad_text,
-                    original_ad, label='confirmed',
+                    # Effective bounds: the duration floor and stored duration
+                    # must describe the text actually learned, not the
+                    # untrimmed detection.
+                    {**original_ad, 'start': eff_start, 'end': eff_end},
+                    label='confirmed',
                     sponsor_override=sponsor_override,
                     category=_reviewed_marker_category(
                         db, slug, episode_id, original_start, original_end),

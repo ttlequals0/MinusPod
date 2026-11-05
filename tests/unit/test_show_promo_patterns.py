@@ -14,7 +14,8 @@ bootstrap('show_promo_patterns_test_')
 
 from ad_detector import AdDetector
 from ad_reviewer import _skips_reviewer
-from api.patterns import (_create_patterns_from_segments, _handle_reject_correction,
+from api.patterns import (_create_patterns_from_segments, _handle_confirm_correction,
+                          _handle_reject_correction,
                           _resolve_or_create_pattern_from_text)
 from main_app.pipeline import keep_rules
 from pattern_service import PatternService
@@ -490,6 +491,7 @@ def test_manual_create_applies_the_floors(temp_db, client):
     assert resp.status_code == 400 and '225' in resp.get_data(as_text=True)
     resp = _post(client, _create_payload(start=110.0, end=115.0))
     assert resp.status_code == 400 and '20' in resp.get_data(as_text=True)
+    assert 'Not learned as a show pattern (interaction):' in resp.get_data(as_text=True)
 
 
 # --------------------------------------------------------- one floor function
@@ -677,3 +679,58 @@ def test_settings_payload_carries_the_rules_but_the_config_export_does_not(temp_
     assert body['showPromoRules']['maxSeconds'] == 120
     from api.settings.core import _build_settings_payload
     assert 'showPromoRules' not in _build_settings_payload()
+
+
+# ------------------------------------------- a trimmed confirm is judged trimmed
+
+def _timed(t):
+    h, rem = divmod(t, 3600)
+    m, s = divmod(rem, 60)
+    return f"{int(h):02d}:{int(m):02d}:{s:06.3f}"
+
+
+def _ask_transcript(start=100.0, end=140.0, step=2.0, words_per_line=9):
+    """ASK's words cycled over [start, end) in `step`-second VTT lines, dense
+    enough that any 10 s slice clears the 150 character floor."""
+    words = ASK.split()
+    lines = []
+    for i in range(int((end - start) / step)):
+        chunk = ' '.join(words[(i * words_per_line + j) % len(words)]
+                         for j in range(words_per_line))
+        a = start + i * step
+        lines.append(f"[{_timed(a)} --> {_timed(a + step)}] {chunk}")
+    return '\n'.join(lines)
+
+
+def _trimmed_confirm(temp_db, adj_start, adj_end):
+    from main_app import app
+    _seed(temp_db)
+    temp_db.save_episode_details(
+        SLUG, EPISODE_ID,
+        ad_markers=[{'start': 100.0, 'end': 140.0, 'confidence': 0.9, 'was_cut': False,
+                     'held_for_review': True, 'hold_reason': 'max_duration',
+                     'category': 'interaction'}],
+        pending_review_count=1)
+    with app.test_request_context():
+        _handle_confirm_correction(
+            temp_db, PatternService(temp_db), SLUG, EPISODE_ID,
+            {'start': 100.0, 'end': 140.0},
+            {'adjusted_start': adj_start, 'adjusted_end': adj_end},
+            transcript=_ask_transcript())
+
+
+def test_trimmed_confirm_below_the_floor_creates_no_pattern(temp_db):
+    # 100-140 s passes the 20 s floor; the 10 s the reviewer kept does not.
+    _trimmed_confirm(temp_db, 110.0, 120.0)
+    assert [p for p in temp_db.get_ad_patterns(active_only=False)
+            if p['sponsor_id'] is None] == []
+    podcast_id = temp_db.get_podcast_by_slug(SLUG)['id']
+    corrections = temp_db.get_episode_corrections(podcast_id, EPISODE_ID)
+    assert [c['correction_type'] for c in corrections] == ['confirm']
+
+
+def test_trimmed_confirm_above_the_floor_stores_the_trimmed_duration(temp_db):
+    _trimmed_confirm(temp_db, 105.0, 130.0)
+    rows = [p for p in temp_db.get_ad_patterns(active_only=False) if p['sponsor_id'] is None]
+    assert len(rows) == 1
+    assert rows[0]['avg_duration'] == pytest.approx(25.0)
