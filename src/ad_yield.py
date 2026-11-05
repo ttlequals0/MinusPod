@@ -18,13 +18,16 @@ def latest_completed_run(runs):
                  and (r.get('stats') or {}).get('mode') != 'chapters'), None)
 
 
-def _detection_suppressed(stats):
-    """Runs that remove nothing by design: pass-through (#521) and
-    skip-detection (#538). Stats reach here in API casing from the episode
-    endpoint and in the pipeline's snake_case from the processing hook."""
+def detection_suppressed(stats):
+    """Runs that remove nothing by design: pass-through (#521), skip-detection
+    (#538) and YouTube SponsorBlock pass-through. Stats reach here in API
+    casing from the episode endpoint and in the pipeline's snake_case from the
+    processing hook."""
+    stats = stats or {}
     return bool(stats.get('mode') == 'passthrough'
                 or stats.get('detectionSkipped')
-                or stats.get('detection_skipped'))
+                or stats.get('detection_skipped')
+                or (stats.get('sponsorblock') or {}).get('mode') == 'passthrough')
 
 
 def low_ad_yield(db, episode, runs):
@@ -39,7 +42,7 @@ def low_ad_yield(db, episode, runs):
     """
     latest = latest_completed_run(runs) if runs else None
     latest_stats = ((latest or {}).get('stats')) or {}
-    if _detection_suppressed(latest_stats):
+    if detection_suppressed(latest_stats):
         return None
     original = episode.get('original_duration')
     new = episode.get('new_duration')

@@ -46,6 +46,9 @@ from config import (
     CUE_ONLY_SAFETY_VALUES,
     LOW_AD_YIELD_ACTIONS,
     UNPROCESSED_PLAYBACK_VALUES,
+    DEFERRED_RSS_FEED_FIELDS,
+    RSS_AFFECTING_FEED_FIELDS,
+    normalize_override as _normalize_override,
     validate_processed_title_marker,
     EPISODE_LOGS_VALUES,
     cue_only_missing_roles_for_feed,
@@ -363,23 +366,6 @@ def _normalize_low_ad_yield_action(value):
     if value in LOW_AD_YIELD_ACTIONS:
         return value, None
     return None, f"lowAdYieldAction must be one of: {', '.join(LOW_AD_YIELD_ACTIONS)}"
-
-
-def _normalize_processed_title_marker(value):
-    """Per-feed processedTitleMarker override. None clears it (inherit global);
-    an empty string turns the marker off for this feed."""
-    if value is None:
-        return None, None
-    return validate_processed_title_marker(value)
-
-
-def _normalize_override(value, allowed, key):
-    """Enum-or-null per-feed override: None clears it (stored NULL)."""
-    if value is None:
-        return None, None
-    if value in allowed:
-        return value, None
-    return None, f"{key} must be one of: {', '.join(allowed)}"
 
 
 def _normalize_episode_logs(value):
@@ -2259,7 +2245,8 @@ def update_feed(slug):
         updates['unprocessed_playback'] = up_val
 
     if 'processedTitleMarker' in data:
-        ptm_val, ptm_err = _normalize_processed_title_marker(data['processedTitleMarker'])
+        ptm_val, ptm_err = validate_processed_title_marker(
+            data['processedTitleMarker'], allow_none=True)
         if ptm_err:
             return error_response(ptm_err, 400)
         updates['processed_title_marker'] = ptm_val
@@ -2481,31 +2468,22 @@ def update_feed(slug):
         # description rewrites the channel <description> for both feed types
         # and was previously missing from this list, so a local feed's served
         # RSS kept the stale description until the next unrelated refresh.
-        if ('max_episodes' in updates or 'only_expose_processed_episodes' in updates
-                or 'title_override' in updates or 'source_url' in updates
-                or 'own_episode_guids' in updates or 'title_skip_patterns' in updates
-                or 'description_skip_patterns' in updates
-                or 'title_skip_action' in updates
-                or 'min_duration_seconds' in updates or 'max_duration_seconds' in updates
-                or 'title' in updates or 'author' in updates
-                or 'explicit' in updates or 'categories' in updates
-                or 'p20_channel_json' in updates or 'description' in updates
-                or 'chapters_in_notes' in updates
-                or 'processed_title_marker' in updates
-                or 'unprocessed_playback' in updates):
+        changed_rss = RSS_AFFECTING_FEED_FIELDS & updates.keys()
+        if changed_rss and changed_rss <= DEFERRED_RSS_FEED_FIELDS:
+            # Marker / playback mode: the background refresher re-renders the
+            # feed; the request never waits on the upstream fetch.
+            from main_app.feeds import on_served_rss_settings_changed
+            on_served_rss_settings_changed(slug)
+        elif changed_rss:
             db.update_podcast_etag(slug, None, None)
             try:
                 from main_app.feeds import refresh_rss_feed
                 refresh_rss_feed(slug, podcast['source_url'], force=True)
             except Exception as e:
                 logger.warning(f"Feed refresh after settings change failed for {slug}: {e}")
-        if 'processed_title_marker' in updates or 'unprocessed_playback' in updates:
-            # Recents items carry the source feed's marker.
-            try:
-                from main_app.feeds import rebuild_served_rss
-                rebuild_served_rss(RECENTS_SLUG)
-            except Exception as e:
-                logger.warning(f"Recents rebuild after settings change failed for {slug}: {e}")
+            if changed_rss & DEFERRED_RSS_FEED_FIELDS:
+                from main_app.feeds import rebuild_recents_safely
+                rebuild_recents_safely()
 
         return json_response({
             **_podcast_base_json(podcast, _public_feed_url(slug, get_feed_auth_key(db)), db),

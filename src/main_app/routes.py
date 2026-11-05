@@ -416,6 +416,34 @@ def _local_original_response(slug, episode_id, requested_version=None):
     return response
 
 
+def _original_playback_response(slug, episode_id, episode, podcast, feed_map):
+    """Original-until-processed: play the upstream audio while the
+    processed cut is not published.
+
+    Returns None when the mode is off for this feed, the feed has no
+    upstream audio (local, YouTube, Recents), or the upstream URL cannot
+    be resolved; the caller then applies its usual status handling (410
+    for a permanently failed episode, 503 while processing or awaiting
+    approval), and a request that would only be served by a processing
+    run ends in 404 because the same lookup fails there too. Otherwise
+    HEAD proxies the upstream headers and GET answers 302 to the upstream
+    enclosure. Playback never starts a run; retry bookkeeping for FAILED
+    episodes stays with the auto-process queue.
+    """
+    if (not has_upstream_audio(podcast)
+            or resolve_unprocessed_playback(db, podcast)
+            != UNPROCESSED_PLAYBACK_ORIGINAL):
+        return None
+    ep_data, _ = _lookup_episode(
+        slug, episode_id, feed_map, episode_row=episode)
+    if not ep_data:
+        return None
+    feed_logger.info(f"[{slug}:{episode_id}] Not published yet, serving original")
+    if request.method == 'HEAD':
+        return _head_upstream(slug, episode_id, ep_data['url'])
+    return redirect(ep_data['url'], code=302)
+
+
 def register_routes(app):
     """Register all routes on the Flask app."""
     global STATIC_DIR
@@ -588,34 +616,6 @@ def register_routes(app):
         else:
             feed_logger.error(f"[{slug}] RSS feed not available")
             abort(503)
-
-    def _original_playback_response(slug, episode_id, episode, podcast, feed_map):
-        """Original-until-processed: play the upstream audio while the
-        processed cut is not published.
-
-        Returns None when the mode is off for this feed, the feed has no
-        upstream audio (local, YouTube, Recents), or the upstream URL cannot
-        be resolved; the caller then applies its usual status handling (410
-        for a permanently failed episode, 503 while processing or awaiting
-        approval), and a request that would only be served by a processing
-        run ends in 404 because the same lookup fails there too. Otherwise
-        HEAD proxies the upstream headers and GET answers 302 to the upstream
-        enclosure. Playback never starts a run; retry bookkeeping for FAILED
-        episodes stays with the auto-process queue.
-        """
-        import main_app.routes as _routes
-        if (not has_upstream_audio(podcast)
-                or resolve_unprocessed_playback(db, podcast)
-                != UNPROCESSED_PLAYBACK_ORIGINAL):
-            return None
-        ep_data, _ = _routes._lookup_episode(
-            slug, episode_id, feed_map, episode_row=episode)
-        if not ep_data:
-            return None
-        feed_logger.info(f"[{slug}:{episode_id}] Not published yet, serving original")
-        if request.method == 'HEAD':
-            return _routes._head_upstream(slug, episode_id, ep_data['url'])
-        return redirect(ep_data['url'], code=302)
 
     @app.route('/episodes/<slug>/<episode_id>.mp3')
     @app.route('/episodes/<slug>/<episode_id>-orig.mp3')

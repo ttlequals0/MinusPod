@@ -20,7 +20,7 @@ from config import (
 )
 
 from database.episodes import normalize_published_at
-from database.podcasts import is_local_feed, is_recents_feed, is_youtube_feed, podping_declaration_columns
+from database.podcasts import RECENTS_SLUG, is_local_feed, is_recents_feed, is_youtube_feed, podping_declaration_columns
 from database.queue import compute_queue_priority
 from chapter_notes import chapter_notes_for
 from local_feed_builder import rebuild_local_feed
@@ -849,12 +849,6 @@ def _build_and_save_served_rss(slug, feed_content, parsed_feed, podcast):
     """
     feed_cap = db.get_max_episodes_for_podcast(slug, podcast=podcast)
     extra_episodes = db.get_processed_episodes_for_feed(podcast['id'])
-    # The marker means the published cut came out of a run with ad detection
-    # on; decided per episode from the run record, not the feed's current mode.
-    unmodified = db.get_unmodified_episode_ids(
-        [podcast['id']], [ep['episode_id'] for ep in extra_episodes])
-    for ep in extra_episodes:
-        ep['ad_removal_skipped'] = (podcast['id'], ep['episode_id']) in unmodified
     # Backfill the enclosure length for rows finalized before the
     # processed_size_bytes column existed; a one-time stat per episode.
     for ep in extra_episodes:
@@ -990,17 +984,38 @@ def refresh_all_artwork():
     return count
 
 
-def schedule_served_feeds_rerender():
-    """A global setting changed the served RSS body (marker text, enclosure
-    URL form). Hand every feed to the background refresher, which re-renders
-    them staggered without blocking the request on upstream fetches, and
-    rebuild Recents now (it is pure DB, no fetch)."""
-    db.mark_all_feeds_due()
-    invalidate_feed_cache()
+def rebuild_recents_safely():
+    """Re-render Recents (pure DB, no upstream fetch); logs instead of raising."""
     try:
-        rebuild_served_rss('recents')
+        rebuild_served_rss(RECENTS_SLUG)
     except Exception as e:
         refresh_logger.warning(f"Recents rebuild after a settings change failed: {e}")
+
+
+def on_served_rss_settings_changed(slug=None):
+    """The ONE re-render trigger for a setting that changes the served RSS body
+    (marker text, enclosure URL form): global PUT, per-feed PATCH, config import.
+
+    Re-rendering needs the upstream feed (rebuild_served_rss fetches it), so
+    nothing here fetches inside the caller's request: the validators are
+    cleared and the existing background machinery does the fetch. ``slug``
+    None hands every feed to the staggered refresher; a slug refreshes just
+    that feed on the existing background-refresh thread. Recents is rebuilt
+    at once. Never raises.
+    """
+    try:
+        if slug is None:
+            db.clear_all_podcast_etags(mark_due=True)
+        else:
+            db.update_podcast_etag(slug, None, None)
+            podcast = db.get_podcast_by_slug(slug)
+            if podcast and podcast.get('source_url'):
+                from main_app.routes import _kick_background_refresh
+                _kick_background_refresh(slug, podcast['source_url'])
+        invalidate_feed_cache()
+    except Exception as e:
+        refresh_logger.warning(f"Scheduling served feed re-render failed: {e}")
+    rebuild_recents_safely()
 
 
 def rebuild_all_served_feeds():

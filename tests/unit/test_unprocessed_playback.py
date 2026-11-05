@@ -210,15 +210,12 @@ def test_local_feed_ignores_original_mode():
         db.delete_podcast(slug)
 
 
-def test_import_and_patch_treat_new_fields_as_rss_affecting():
-    from config_transfer import RSS_AFFECTING_FEED_FIELDS
-    assert {'processed_title_marker', 'unprocessed_playback'} <= RSS_AFFECTING_FEED_FIELDS
-    with patch('main_app.feeds.refresh_rss_feed') as refresh, \
-         app.test_client() as c:
-        for body in ({'unprocessedPlayback': 'original'}, {'processedTitleMarker': '[a] '}):
-            refresh.reset_mock()
-            assert c.patch(f'/api/v1/feeds/{SLUG}', json=body).status_code == 200
-            refresh.assert_called_once()
+def test_import_and_patch_share_one_rss_field_set():
+    import config
+    import config_transfer
+    assert {'processed_title_marker', 'unprocessed_playback'} <= config.RSS_AFFECTING_FEED_FIELDS
+    assert config.DEFERRED_RSS_FEED_FIELDS <= config.RSS_AFFECTING_FEED_FIELDS
+    assert config_transfer.RSS_AFFECTING_FEED_FIELDS is config.RSS_AFFECTING_FEED_FIELDS
 
 
 def _get_unresolved():
@@ -259,11 +256,15 @@ def test_unresolvable_episode_keeps_the_previous_status_handling():
     start.assert_not_called()
 
 
-def test_feed_and_global_validation_share_one_message():
+def test_feed_and_global_validation_share_one_validator_and_message():
     import api.feeds as feeds_api
-    from config import (UNPROCESSED_PLAYBACK_ERROR, UNPROCESSED_PLAYBACK_VALUES,
-                        normalize_unprocessed_playback)
-    assert normalize_unprocessed_playback('x')[1] == UNPROCESSED_PLAYBACK_ERROR
-    assert feeds_api._normalize_override(
-        'x', UNPROCESSED_PLAYBACK_VALUES, 'unprocessedPlayback')[1] == UNPROCESSED_PLAYBACK_ERROR
-    assert not hasattr(feeds_api, '_normalize_unprocessed_playback')
+    from config import UNPROCESSED_PLAYBACK_VALUES, normalize_override
+    expected = normalize_override('x', UNPROCESSED_PLAYBACK_VALUES, 'unprocessedPlayback')[1]
+    assert feeds_api._normalize_override is normalize_override
+    with app.test_client() as c:
+        glob = c.put('/api/v1/settings/ad-detection', json={'unprocessedPlayback': 'x'})
+        assert glob.status_code == 400 and expected in glob.get_data(as_text=True)
+        assert c.put('/api/v1/settings/ad-detection',
+                     json={'unprocessedPlayback': None}).status_code == 400
+        feed = c.patch(f'/api/v1/feeds/{SLUG}', json={'unprocessedPlayback': 'x'})
+        assert feed.status_code == 400 and expected in feed.get_data(as_text=True)

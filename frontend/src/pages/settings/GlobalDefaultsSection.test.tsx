@@ -34,6 +34,14 @@ function render(ui: React.ReactElement) {
   );
 }
 
+// Defaults for the original-until-processed props every render needs.
+const PLAYBACK_PROPS = {
+  unprocessedPlayback: 'process' as UnprocessedPlayback,
+  onUnprocessedPlaybackChange: () => {},
+  processedTitleMarker: '',
+  onProcessedTitleMarkerChange: () => {},
+};
+
 function Harness({ onCommit, overrides }: {
   onCommit: (minutes: number) => void;
   overrides?: Partial<ComponentProps<typeof GlobalDefaultsSection>>;
@@ -58,10 +66,7 @@ function Harness({ onCommit, overrides }: {
         onRequireManualApprovalDefaultChange={() => {}}
         lowAdYieldAction="nothing"
         onLowAdYieldActionChange={() => {}}
-        unprocessedPlayback="process"
-        onUnprocessedPlaybackChange={() => {}}
-        processedTitleMarker=""
-        onProcessedTitleMarkerChange={() => {}}
+        {...PLAYBACK_PROPS}
         episodeLogRetentionDays={30}
         onEpisodeLogRetentionDaysChange={() => {}}
         episodeLogLevel="debug"
@@ -104,10 +109,7 @@ function PodpingHarness({ onCommit }: { onCommit: (payload: PodpingState) => voi
         onRequireManualApprovalDefaultChange={() => {}}
         lowAdYieldAction="nothing"
         onLowAdYieldActionChange={() => {}}
-        unprocessedPlayback="process"
-        onUnprocessedPlaybackChange={() => {}}
-        processedTitleMarker=""
-        onProcessedTitleMarkerChange={() => {}}
+        {...PLAYBACK_PROPS}
         episodeLogRetentionDays={30}
         onEpisodeLogRetentionDaysChange={() => {}}
         episodeLogLevel="debug"
@@ -246,10 +248,7 @@ function LowAdYieldHarness({ onCommit }: { onCommit: (payload: LowAdYieldState) 
         onRequireManualApprovalDefaultChange={() => {}}
         lowAdYieldAction={lowAdYieldAction}
         onLowAdYieldActionChange={setLowAdYieldAction}
-        unprocessedPlayback="process"
-        onUnprocessedPlaybackChange={() => {}}
-        processedTitleMarker=""
-        onProcessedTitleMarkerChange={() => {}}
+        {...PLAYBACK_PROPS}
         episodeLogRetentionDays={30}
         onEpisodeLogRetentionDaysChange={() => {}}
         episodeLogLevel="debug"
@@ -319,10 +318,7 @@ function EpisodeLogHarness({ onCommit }: { onCommit: (payload: EpisodeLogState) 
         onRequireManualApprovalDefaultChange={() => {}}
         lowAdYieldAction="nothing"
         onLowAdYieldActionChange={() => {}}
-        unprocessedPlayback="process"
-        onUnprocessedPlaybackChange={() => {}}
-        processedTitleMarker=""
-        onProcessedTitleMarkerChange={() => {}}
+        {...PLAYBACK_PROPS}
         episodeLogRetentionDays={retentionDays}
         onEpisodeLogRetentionDaysChange={setRetentionDays}
         episodeLogLevel={level}
@@ -395,10 +391,7 @@ function TextRecurrenceHintsHarness({ onCommit }: { onCommit: (payload: TextRecu
         onRequireManualApprovalDefaultChange={() => {}}
         lowAdYieldAction="nothing"
         onLowAdYieldActionChange={() => {}}
-        unprocessedPlayback="process"
-        onUnprocessedPlaybackChange={() => {}}
-        processedTitleMarker=""
-        onProcessedTitleMarkerChange={() => {}}
+        {...PLAYBACK_PROPS}
         episodeLogRetentionDays={30}
         onEpisodeLogRetentionDaysChange={() => {}}
         episodeLogLevel="debug"

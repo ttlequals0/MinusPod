@@ -335,6 +335,26 @@ def extract_cached_feed_auth_key(cached_rss: str) -> str | None:
     return m.group(1) if m else None
 
 
+
+def processed_title_prefix(marker, episode_row):
+    """The marker an episode's rendered title carries ('' for none).
+
+    The ONE rule every renderer uses (feed RSS, DB-appended items, Recents):
+    only a processed episode whose published cut came out of a run with ad
+    detection on is marked. ``ad_detection_ran`` is stamped when a run
+    publishes; NULL (unknown) counts as ran. The marker is render-time only,
+    so a stored title that happens to start with it is still marked.
+    """
+    if not marker or (episode_row or {}).get('ad_detection_ran') == 0:
+        return ''
+    return marker
+
+
+def episode_title_for_feed(title, marker, episode_row):
+    """`title` with the processed-title marker prefix, if the episode earns it."""
+    return f"{processed_title_prefix(marker, episode_row)}{title or ''}"
+
+
 class RSSParser:
     def __init__(self, base_url: str = None):
         self._explicit_base_url = base_url
@@ -1254,8 +1274,8 @@ class RSSParser:
             lines.append('<item>')
             item_title = entry.get("title", "")
             processed_ep = processed_meta.get(episode_id)
-            if processed_ep is not None and not processed_ep.get('ad_removal_skipped'):
-                item_title = self.apply_title_marker(item_title, processed_title_marker)
+            if processed_ep is not None:
+                item_title = episode_title_for_feed(item_title, processed_title_marker, processed_ep)
             lines.append(f'  <title>{self._escape_xml(item_title)}</title>')
             lines.append(f'  <description><![CDATA[{self._escape_cdata(description)}]]></description>')
             lines.append(f'  <link>{self._escape_xml(entry.get("link", ""))}</link>')
@@ -1350,16 +1370,6 @@ class RSSParser:
         return modified_rss
 
     @staticmethod
-    def apply_title_marker(title: str, marker: str | None) -> str:
-        """Prefix `title` with `marker` unless off or already present."""
-        if not marker:
-            return title
-        # Unconditional: the marker is render-time only and stored titles never
-        # carry it, so a title that happens to start with the marker text still
-        # gets marked.
-        return f"{marker}{title or ''}"
-
-    @staticmethod
     def _matches_db_duplicate(entry, db_title_dates) -> bool:
         """True when `entry` shares a normalized title and a timezone-drift
         published date with a DB-appended episode."""
@@ -1432,9 +1442,7 @@ class RSSParser:
                                            key=feed_auth_key)
         description = append_chapters(ep.get('description'), (chapter_notes or {}).get(ep_id))
         lines.append('<item>')
-        db_title = ep.get("title") or "Unknown"
-        if not ep.get('ad_removal_skipped'):
-            db_title = self.apply_title_marker(db_title, processed_title_marker)
+        db_title = episode_title_for_feed(ep.get("title") or "Unknown", processed_title_marker, ep)
         lines.append(f'  <title>{self._escape_xml(db_title)}</title>')
         if description:
             lines.append(f'  <description><![CDATA[{self._escape_cdata(description)}]]></description>')

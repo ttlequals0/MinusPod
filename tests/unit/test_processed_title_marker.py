@@ -60,10 +60,8 @@ def test_marker_added_once_per_render_and_not_stored():
 
 
 def test_upstream_title_starting_with_marker_text_is_still_marked():
-    parser = RSSParser()
-    assert parser.apply_title_marker('[a] Alpha', '[a] ') == '[a] [a] Alpha'
-    assert parser.apply_title_marker('Alpha', '') == 'Alpha'
-    assert parser.apply_title_marker('Alpha', None) == 'Alpha'
+    from rss_parser import episode_title_for_feed
+    assert episode_title_for_feed('[a] Alpha', '[a] ', {}) == '[a] [a] Alpha'
 
 
 def test_channel_title_override_still_applies_and_is_not_prefixed():
@@ -228,23 +226,29 @@ def test_orig_url_form_is_served_like_the_plain_url(feed):
         db.set_setting('unprocessed_playback', 'process', is_default=False)
 
 
-def test_recents_feed_applies_per_feed_marker(feed):
+def _recents(eps):
     import recents_feed
-    db.set_setting('processed_title_marker', '[g] ', is_default=False)
-    ep = {'episode_id': 'r1', 'podcast_id': 0, 'title': 'T', 'source_slug': SLUG, 'source_title': 'Show', 'source_feed_type': 'subscribed',
-          'source_processed_title_marker': None, 'source_chapters_in_notes': None,
-          'chapters_json': None, 'has_transcript_vtt': 0}
-    captured = []
-    def fake_item(lines, slug, ep, base, storage, key, **kw):
-        captured.append(kw['title_prefix'])
     from unittest.mock import patch
-    podcast = {'title': 'Recents', 'description': ''}
+    captured = []
+    with patch.object(recents_feed, '_append_local_episode_item',
+                      lambda lines, slug, e, b, st, k, **kw: captured.append(kw['title_prefix'])):
+        recents_feed.build_recents_feed_xml(
+            {'title': 'Recents', 'description': ''}, eps,
+            storage=MagicMock(has_artwork=lambda s: False), db=db)
+    return captured
+
+
+def _rec_ep(slug, i=1, **extra):
+    return {'episode_id': f'r{i}', 'podcast_id': 0, 'title': 'T', 'source_slug': slug,
+            'source_title': 'Show', 'source_chapters_in_notes': None,
+            'chapters_json': None, 'has_transcript_vtt': 0, **extra}
+
+
+def test_recents_feed_applies_per_feed_marker(feed):
+    db.set_setting('processed_title_marker', '[g] ', is_default=False)
     for src_marker, expected in ((None, '[g] Show: '), ('[b] ', '[b] Show: '), ('', 'Show: ')):
-        captured.clear()
-        ep['source_processed_title_marker'] = src_marker
-        with patch.object(recents_feed, '_append_local_episode_item', fake_item):
-            recents_feed.build_recents_feed_xml(podcast, [ep], storage=MagicMock(has_artwork=lambda s: False), db=db)
-        assert captured == [expected]
+        db.update_podcast(SLUG, processed_title_marker=src_marker)
+        assert _recents([_rec_ep(SLUG)]) == [expected]
 
 
 def _processed_alpha(parser):
@@ -296,7 +300,7 @@ def test_effective_default_compare_means_unrelated_saves_do_not_rebuild(feed):
     from unittest.mock import patch
     with db.get_connection() as conn:
         conn.execute("DELETE FROM settings WHERE key IN ('unprocessed_playback','processed_title_marker')")
-    with patch('main_app.feeds.schedule_served_feeds_rerender') as schedule, \
+    with patch('main_app.feeds.on_served_rss_settings_changed') as schedule, \
          app.test_client() as c:
         # unset == 'process' / '' : saving the defaults is not a change
         c.put('/api/v1/settings/ad-detection', json={'unprocessedPlayback': 'process',
@@ -318,55 +322,52 @@ def test_config_import_of_global_fields_schedules_the_same_rerender(temp_db, mon
            'settings': {'processed_title_marker': '[a] ', 'unprocessed_playback': 'original'}}
     monkeypatch.setattr(config_transfer, '_after_feed_commit', lambda *_a: [])
     preview = config_transfer.build_preview(temp_db, doc, 'global')
-    with patch('main_app.feeds.schedule_served_feeds_rerender') as schedule:
+    with patch('main_app.feeds.on_served_rss_settings_changed') as schedule:
         config_transfer.apply_config(temp_db, doc, 'global', None, preview['previewToken'])
     schedule.assert_called_once()
     assert temp_db.get_setting('processed_title_marker') == '[a] '
 
 
-def test_feed_patch_of_marker_or_playback_rebuilds_recents(feed):
+def test_feed_patch_of_marker_or_playback_hands_off_without_blocking(feed):
     from unittest.mock import patch
-    with patch('main_app.feeds.refresh_rss_feed'), \
+    with patch('main_app.feeds.refresh_rss_feed') as sync_refresh, \
+         patch('main_app.routes._kick_background_refresh') as kick, \
          patch('main_app.feeds.rebuild_served_rss') as rebuild, \
          app.test_client() as c:
         for body in ({'processedTitleMarker': '[b] '}, {'unprocessedPlayback': 'original'}):
+            kick.reset_mock()
             rebuild.reset_mock()
             assert c.patch(f'/api/v1/feeds/{SLUG}', json=body).status_code == 200
+            sync_refresh.assert_not_called()          # no upstream fetch in the request
+            kick.assert_called_once_with(SLUG, 'https://example.com/feed.xml')
             rebuild.assert_called_once_with('recents')
+        assert db.get_podcast_by_slug(SLUG).get('etag') is None
 
 
-def test_unmodified_lookup_filters_by_the_rendered_episode_ids(feed):
-    pod = db.get_podcast_by_slug(SLUG)
-    parser = RSSParser()
-    eid = _processed_alpha(parser)
-    db.record_processing_history(pod['id'], SLUG, 'T', eid, 'Alpha', 'completed',
-                                 processing_stats={'mode': 'passthrough'})
-    assert db.get_unmodified_episode_ids([pod['id']], [eid]) == {(pod['id'], eid)}
-    assert db.get_unmodified_episode_ids([pod['id']], ['other']) == set()
-    assert db.get_unmodified_episode_ids([pod['id']], []) == set()
-
-
-def test_recents_resolves_the_global_marker_once_and_skips_local_youtube(feed):
-    import recents_feed
+def test_recents_resolves_global_once_and_matches_each_source_feeds_rule(feed):
     from unittest.mock import patch
     db.set_setting('processed_title_marker', '[g] ', is_default=False)
-    def ep(i, ftype):
-        return {'episode_id': f'r{i}', 'podcast_id': 0, 'title': 'T', 'source_slug': SLUG,
-                'source_title': 'Show', 'source_feed_type': ftype,
-                'source_processed_title_marker': None, 'source_chapters_in_notes': None,
-                'chapters_json': None, 'has_transcript_vtt': 0}
-    eps = [ep(1, 'subscribed'), ep(2, 'subscribed'), ep(3, 'local'), ep(4, 'youtube')]
-    captured = []
-    real_get = db.get_setting
-    calls = []
-    def spy(key, *a, **k):
-        calls.append(key)
-        return real_get(key, *a, **k)
-    with patch.object(recents_feed, '_append_local_episode_item',
-                      lambda lines, slug, e, b, st, k, **kw: captured.append(kw['title_prefix'])), \
-         patch.object(db, 'get_setting', spy):
-        recents_feed.build_recents_feed_xml(
-            {'title': 'Recents', 'description': ''}, eps,
-            storage=MagicMock(has_artwork=lambda s: False), db=db)
-    assert captured == ['[g] Show: ', '[g] Show: ', 'Show: ', 'Show: ']
-    assert calls.count('processed_title_marker') == 1
+    db.create_podcast('rec-local', 'local://rec-local', 'L', feed_type='local')
+    db.create_podcast('rec-yt', 'https://youtube.com/@x', 'Y', feed_type='youtube')
+    try:
+        eps = [_rec_ep(SLUG, 1), _rec_ep(SLUG, 2), _rec_ep('rec-local', 3), _rec_ep('rec-yt', 4)]
+        real_get = db.get_setting
+        calls = []
+        def spy(key, *a, **k):
+            calls.append(key)
+            return real_get(key, *a, **k)
+        with patch.object(db, 'get_setting', spy):
+            captured = _recents(eps)
+        assert captured == ['[g] Show: ', '[g] Show: ', 'Show: ', 'Show: ']
+        assert calls.count('processed_title_marker') == 1
+    finally:
+        db.delete_podcast('rec-local')
+        db.delete_podcast('rec-yt')
+
+
+def test_title_resolver_is_the_single_rule_for_feed_and_db_items():
+    from rss_parser import episode_title_for_feed
+    assert episode_title_for_feed('[a] Alpha', '[a] ', {}) == '[a] [a] Alpha'
+    assert episode_title_for_feed('Alpha', '', {}) == 'Alpha'
+    assert episode_title_for_feed('Alpha', None, {'ad_detection_ran': 1}) == 'Alpha'
+    assert episode_title_for_feed('Alpha', '[a] ', {'ad_detection_ran': 0}) == 'Alpha'

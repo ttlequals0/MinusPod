@@ -2,7 +2,7 @@
 
 import logging
 import time
-from ad_yield import low_ad_yield
+from ad_yield import detection_suppressed, low_ad_yield
 from utils.time import (
     epoch_to_iso, utc_now_iso,
 )
@@ -54,7 +54,8 @@ def _approval_stamp(slug, episode_id, hold_for_approval, podcast_row=None):
 def _persist_episode_state(slug, episode_id, pass1_cut_count, verification_count,
                             first_pass_count, original_duration, new_duration,
                             processed_version, detection_degraded=None,
-                            run_started_iso=None, approval=None):
+                            run_started_iso=None, approval=None,
+                            ad_detection_ran=True):
     """Upsert the processed episode row and update related DB state.
 
     ``detection_degraded``: the sanitized reason string when this run
@@ -100,6 +101,9 @@ def _persist_episode_state(slug, episode_id, pass1_cut_count, verification_count
         # degraded run re-stamps its own reason so this unconditional
         # write does not clobber the flag detection just set.
         detection_degraded=detection_degraded,
+        # Stamped with the publish: did the published cut come out of a run
+        # with ad detection on (the processed-title marker's rule)?
+        ad_detection_ran=int(ad_detection_ran),
         **approval)
 
     # A completed run cuts from the markers it loaded, so only decisions
@@ -451,7 +455,8 @@ def _finalize_episode(slug, episode_id, episode_title, podcast_name,
                                 processed_version,
                                 detection_degraded=(run_stats or {}).get('detection_degraded'),
                                 run_started_iso=epoch_to_iso(start_time),
-                                approval=approval)
+                                approval=approval,
+                                ad_detection_ran=not detection_suppressed(run_stats))
         # The row now points at the new audio, so a later failure must not roll markers back.
         if on_persisted is not None:
             on_persisted()

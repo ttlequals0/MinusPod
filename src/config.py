@@ -1024,15 +1024,13 @@ UNPROCESSED_PLAYBACK_ORIGINAL = 'original'
 UNPROCESSED_PLAYBACK_VALUES = (UNPROCESSED_PLAYBACK_PROCESS, UNPROCESSED_PLAYBACK_ORIGINAL)
 
 
-UNPROCESSED_PLAYBACK_ERROR = (
-    f"unprocessedPlayback must be one of: {', '.join(UNPROCESSED_PLAYBACK_VALUES)}")
-
-
-def normalize_unprocessed_playback(value):
-    """Return (value, error) for an unprocessedPlayback payload value."""
-    if value in UNPROCESSED_PLAYBACK_VALUES:
+def normalize_override(value, allowed, key):
+    """Enum-or-null per-feed override: None clears it (stored NULL)."""
+    if value is None:
+        return None, None
+    if value in allowed:
         return value, None
-    return None, UNPROCESSED_PLAYBACK_ERROR
+    return None, f"{key} must be one of: {', '.join(allowed)}"
 
 
 def resolve_unprocessed_playback(db, podcast_row) -> str:
@@ -1050,13 +1048,29 @@ def resolve_unprocessed_playback(db, podcast_row) -> str:
     return value if value in UNPROCESSED_PLAYBACK_VALUES else UNPROCESSED_PLAYBACK_PROCESS
 
 
+# Per-feed fields that change the served RSS body. A change re-renders the
+# feed: PATCH and configuration import both use this one set. The deferred
+# subset is rendered by the background refresher instead of inside the request.
+DEFERRED_RSS_FEED_FIELDS = frozenset({'processed_title_marker', 'unprocessed_playback'})
+RSS_AFFECTING_FEED_FIELDS = frozenset({
+    'max_episodes', 'only_expose_processed_episodes', 'title_override',
+    'require_manual_approval', 'source_url', 'own_episode_guids',
+    'title_skip_patterns', 'description_skip_patterns', 'title_skip_action',
+    'min_duration_seconds', 'max_duration_seconds', 'title', 'author',
+    'explicit', 'categories', 'p20_channel_json', 'description',
+    'chapters_in_notes',
+}) | DEFERRED_RSS_FEED_FIELDS
+
 # Processed-episode title marker: a short prefix (e.g. "[a] ") added at RSS
 # render time to the <item><title> of processed episodes. Empty = off.
 PROCESSED_TITLE_MARKER_MAX_LENGTH = 16
 
 
-def validate_processed_title_marker(value):
-    """Return (marker, error). Empty string is valid (off)."""
+def validate_processed_title_marker(value, allow_none=False):
+    """Return (marker, error). Empty string is valid (off); None only when
+    allow_none (a per-feed override that inherits the global marker)."""
+    if value is None and allow_none:
+        return None, None
     if not isinstance(value, str):
         return None, "processedTitleMarker must be a string"
     if len(value) > PROCESSED_TITLE_MARKER_MAX_LENGTH:
@@ -1069,12 +1083,15 @@ def validate_processed_title_marker(value):
     return value, None
 
 
-def resolve_processed_title_marker(db, podcast_row) -> str:
+def resolve_processed_title_marker(db, podcast_row, global_marker=None) -> str:
     """Per-feed marker if set (an empty string is an explicit "off" for the
-    feed), else the global setting, else ''."""
+    feed), else the global setting (``global_marker`` when the caller already
+    read it, e.g. once per render), else ''."""
     feed_value = (podcast_row or {}).get('processed_title_marker')
     if feed_value is not None:
         return feed_value
+    if global_marker is not None:
+        return global_marker
     try:
         value = db.get_setting('processed_title_marker')
     except Exception:

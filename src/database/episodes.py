@@ -409,7 +409,7 @@ class EpisodeMixin:
                                'season_number', 'p20_item_json',
                                'pending_recut_at', 'chapters_regen_error',
                                'processed_size_bytes', 'yt_metadata_at',
-                               'approval_pending_at', 'approved_at'):
+                               'approval_pending_at', 'approved_at', 'ad_detection_ran'):
                         fields.append(f"{key} = ?")
                         values.append(value)
                     elif key == 'tags':
@@ -1229,7 +1229,7 @@ class EpisodeMixin:
         cursor = conn.execute(
             f"""SELECT episode_id, title, description, published_at,
                       new_duration, episode_number, original_url, rss_duration,
-                      processed_version, processed_size_bytes
+                      processed_version, processed_size_bytes, ad_detection_ran
                FROM episodes
                WHERE podcast_id = ? AND status = 'processed'
                      AND processed_file IS NOT NULL
@@ -1238,51 +1238,6 @@ class EpisodeMixin:
             (podcast_id,)
         )
         return [dict(row) for row in cursor.fetchall()]
-
-    def get_unmodified_episode_ids(self, podcast_ids: list[int],
-                                   episode_ids: list[str]) -> set[tuple[int, str]]:
-        """(podcast_id, episode_id) of processed episodes whose published cut
-        came out of a run that removed nothing by design.
-
-        The evidence is the latest completed processing run that produced the
-        audio (chapter-only runs are not audio runs): pass-through, skipped
-        detection, or YouTube SponsorBlock pass-through. An episode with no
-        run record at all (rows older than run history) falls back to its
-        per-episode pass-through override flag; otherwise it counts as
-        ad-removed. Never reads the feed's current mode, which changes over time.
-        Restricted to the episode ids being rendered, in chunks that stay under
-        SQLite's variable limit.
-        """
-        if not podcast_ids or not episode_ids:
-            return set()
-        found: set[tuple[int, str]] = set()
-        ids = sorted(set(episode_ids))
-        for start in range(0, len(ids), 400):
-            found |= self._unmodified_chunk(podcast_ids, ids[start:start + 400])
-        return found
-
-    def _unmodified_chunk(self, podcast_ids, episode_ids) -> set[tuple[int, str]]:
-        marks = ",".join("?" for _ in podcast_ids)
-        id_marks = ",".join("?" for _ in episode_ids)
-        stat = ("CASE WHEN json_valid(h.processing_stats_json) "
-                "THEN json_extract(h.processing_stats_json, '$.%s') END")
-        cursor = self.get_connection().execute(
-            f"""SELECT e.podcast_id, e.episode_id
-                FROM episodes e
-                LEFT JOIN processing_history h ON h.id = (
-                    SELECT MAX(h2.id) FROM processing_history h2
-                    WHERE h2.podcast_id = e.podcast_id AND h2.episode_id = e.episode_id
-                      AND h2.status = 'completed'
-                      AND COALESCE(CASE WHEN json_valid(h2.processing_stats_json)
-                          THEN json_extract(h2.processing_stats_json, '$.mode') END, '') != 'chapters')
-                WHERE e.podcast_id IN ({marks}) AND e.episode_id IN ({id_marks})
-                  AND e.status = 'processed'
-                  AND (CASE WHEN h.id IS NULL THEN COALESCE(e.passthrough_enabled, 0) = 1
-                       ELSE ({stat % 'mode'}) = 'passthrough'
-                            OR COALESCE(({stat % 'detection_skipped'}), 0) IN (1, 'true')
-                            OR ({stat % 'sponsorblock.mode'}) = 'passthrough' END)""",  # noqa: S608
-            [*podcast_ids, *episode_ids])
-        return {(row[0], row[1]) for row in cursor.fetchall()}
 
     _APPROVAL_ROW_COLS = ("e.episode_id, e.title, e.ads_removed, e.pending_review_count, "
                           "e.approval_pending_at, e.processed_at, p.slug AS podcast_slug, "
@@ -1342,8 +1297,7 @@ class EpisodeMixin:
                             "p.title_skip_patterns AS source_title_skip_patterns, "
                             "p.description_skip_patterns AS source_description_skip_patterns, "
                             "p.min_duration_seconds AS source_min_duration_seconds, "
-                            "p.max_duration_seconds AS source_max_duration_seconds, "
-                                                        "p.processed_title_marker AS source_processed_title_marker")
+                            "p.max_duration_seconds AS source_max_duration_seconds")
 
     def count_recent_processed_episodes(self, since: str, search: str = '') -> int:
         where = self._RECENTS_WHERE

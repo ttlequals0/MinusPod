@@ -689,28 +689,20 @@ class PodcastMixin:
         return {row['slug']: self._podping_declaration_from_row(row)
                 for row in cursor.fetchall()}
 
-    def clear_all_podcast_etags(self) -> int:
+    def clear_all_podcast_etags(self, mark_due: bool = False) -> int:
         """Null every podcast's conditional-GET validators in one statement.
+
+        ``mark_due`` also resets the refresh-attempt stamp so the staggered
+        background refresher (refresh_due_feeds) picks every feed up first.
 
         Used when a global setting changes the served RSS body (feed auth key
         state) so the next scheduled refresh fully re-renders every feed
         instead of 304-skipping. Returns the number of rows touched.
         """
         conn = self.get_connection()
+        due = ", last_refresh_attempt_at = NULL" if mark_due else ""
         cursor = conn.execute(
-            "UPDATE podcasts SET etag = NULL, last_modified_header = NULL")
-        conn.commit()
-        return cursor.rowcount
-
-    def mark_all_feeds_due(self) -> int:
-        """Clear every feed's conditional-GET validators and refresh-attempt
-        stamp, so the staggered background refresher (refresh_due_feeds) picks
-        them up first and fully re-renders them. Used when a global setting
-        changes the served RSS body and the request must not fetch upstream."""
-        conn = self.get_connection()
-        cursor = conn.execute(
-            "UPDATE podcasts SET etag = NULL, last_modified_header = NULL, "
-            "last_refresh_attempt_at = NULL")
+            f"UPDATE podcasts SET etag = NULL, last_modified_header = NULL{due}")  # noqa: S608
         conn.commit()
         return cursor.rowcount
 

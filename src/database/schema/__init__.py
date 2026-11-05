@@ -361,6 +361,9 @@ class SchemaMixin:
             ('chapters_regen_error', 'TEXT'),
             # Per-episode pass-through override, issue #746.
             ('passthrough_enabled', 'INTEGER'),
+            # Published cut came out of a run with ad detection on (0 = served
+            # unmodified); drives the processed-title marker.
+            ('ad_detection_ran', 'INTEGER'),
             # Served enclosure length (RSS spec): byte size of processed_file.
             ('processed_size_bytes', 'INTEGER'),
             # Manual approval: set while a processed episode waits to be served.
@@ -1859,6 +1862,12 @@ class SchemaMixin:
             conn.rollback()
             logger.error(f"history ads_detected v2 backfill failed: {e}")
 
+        try:
+            self._backfill_ad_detection_ran(conn)
+        except Exception as e:
+            conn.rollback()
+            logger.error(f"episodes ad_detection_ran backfill failed: {e}")
+
         # One-shot correction of Opus 4.8 token cost (2.6.2). Calls booked at
         # 15/75 (Opus 4.0, via prefix-match fallback) instead of 5/25.
         try:
@@ -3277,6 +3286,44 @@ class SchemaMixin:
         )
         conn.commit()
         logger.info(f"history-backfill: complete, {updated} row(s) corrected")
+
+    def _backfill_ad_detection_ran(self, conn):
+        """One-shot: derive episodes.ad_detection_ran for already processed rows.
+
+        Rule: the latest completed processing run that produced the audio
+        (chapter-only runs are not audio runs) decides, via
+        ad_yield.detection_suppressed (pass-through, skipped detection, YouTube
+        SponsorBlock pass-through -> 0). A row with no run record falls back to
+        its per-episode pass-through override (1 -> 0), otherwise 1.
+        """
+        gate = 'backfill_episodes_ad_detection_ran_v1'
+        if conn.execute("SELECT 1 FROM schema_migrations WHERE name = ?", (gate,)).fetchone():
+            return
+        import json
+        from ad_yield import detection_suppressed
+        latest = {}
+        for row in conn.execute(
+                "SELECT podcast_id, episode_id, processing_stats_json FROM processing_history "
+                "WHERE status = 'completed' ORDER BY id"):
+            try:
+                stats = json.loads(row['processing_stats_json']) if row['processing_stats_json'] else {}
+            except (TypeError, ValueError):
+                stats = {}
+            if isinstance(stats, dict) and stats.get('mode') != 'chapters':
+                latest[(row['podcast_id'], row['episode_id'])] = stats   # later ids win
+        updated = 0
+        for row in conn.execute(
+                "SELECT id, podcast_id, episode_id, passthrough_enabled FROM episodes "
+                "WHERE status = 'processed' AND ad_detection_ran IS NULL").fetchall():
+            stats = latest.get((row['podcast_id'], row['episode_id']))
+            ran = (not detection_suppressed(stats) if stats is not None
+                   else not row['passthrough_enabled'])
+            conn.execute("UPDATE episodes SET ad_detection_ran = ? WHERE id = ?",
+                         (int(ran), row['id']))
+            updated += 1
+        conn.execute("INSERT OR IGNORE INTO schema_migrations (name) VALUES (?)", (gate,))
+        conn.commit()
+        logger.info(f"ad_detection_ran backfill: {updated} episode(s)")
 
     def _run_backfill_history_ads_detected_v2(self, conn):
         """v2 correction of ``processing_history.ads_detected``.

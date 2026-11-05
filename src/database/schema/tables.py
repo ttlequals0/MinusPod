@@ -233,6 +233,10 @@ TABLE_DDL['episodes'] = """CREATE TABLE IF NOT EXISTS episodes (
     deletion_requested_at TEXT,
     -- Per-episode pass-through override, issue #746.
     passthrough_enabled INTEGER,
+    -- Did the published cut come out of a run with ad detection on (0 = served
+    -- unmodified: pass-through, skipped detection)? Stamped at publish; NULL =
+    -- unknown. Drives the processed-title marker.
+    ad_detection_ran INTEGER,
     youtube_video_id TEXT,
     sb_state TEXT,
     sb_next_check_at TEXT,

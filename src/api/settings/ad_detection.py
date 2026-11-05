@@ -11,8 +11,7 @@ from api import (
     get_database,
 )
 from config import (
-    UNPROCESSED_PLAYBACK_PROCESS, normalize_unprocessed_playback,
-    validate_processed_title_marker,
+    UNPROCESSED_PLAYBACK_VALUES, normalize_override, validate_processed_title_marker,
     PRICING_OVERRIDE_OPTIONAL, PRICING_OVERRIDE_REQUIRED,
     ALLOWED_AUDIO_BITRATES, ALLOWED_AUDIO_ENCODER_COMPRESSION_LEVELS, AD_DETECTION_PARALLEL_WINDOWS_MIN,
     AD_DETECTION_PARALLEL_WINDOWS_MAX,
@@ -41,6 +40,7 @@ from config import (
 from artwork_watermark import BADGE_POSITIONS
 from audio_processor import NORMALIZE_PRESETS
 from database.settings import (
+    setting_differs_from_effective,
     AD_RESET_SETTING_KEYS, SETTINGS_REGISTRY,
     registry_get_default,
 )
@@ -60,12 +60,9 @@ from api.settings import common, systemone_phases, provider_phases
 logger = logging.getLogger('podcast.api')
 
 
-def _schedule_served_feeds_rerender():
-    from main_app.feeds import schedule_served_feeds_rerender
-    try:
-        schedule_served_feeds_rerender()
-    except Exception as e:
-        logger.warning(f"Scheduling served feed re-render failed: {e}")
+def on_served_rss_settings_changed():
+    from main_app.feeds import on_served_rss_settings_changed as rerender
+    rerender()
 
 
 def _rebuild_served_feeds():
@@ -296,12 +293,16 @@ def _validate_processing_defaults_payload(data):
         return f'artworkBadgePosition must be one of: {", ".join(BADGE_POSITIONS)}', 400
     if 'lowAdYieldAction' in data and data['lowAdYieldAction'] not in LOW_AD_YIELD_ACTIONS:
         return f'lowAdYieldAction must be one of: {", ".join(LOW_AD_YIELD_ACTIONS)}', 400
-    for key, check in (('unprocessedPlayback', normalize_unprocessed_playback),
-                       ('processedTitleMarker', validate_processed_title_marker)):
-        if key in data:
-            _, err = check(data[key])
-            if err:
-                return err, 400
+    if 'unprocessedPlayback' in data:
+        # '' stands in for None: the global setting cannot be cleared.
+        _, err = normalize_override(data['unprocessedPlayback'] or '',
+                                    UNPROCESSED_PLAYBACK_VALUES, 'unprocessedPlayback')
+        if err:
+            return err, 400
+    if 'processedTitleMarker' in data:
+        _, err = validate_processed_title_marker(data['processedTitleMarker'])
+        if err:
+            return err, 400
     if 'episodeLogRetentionDays' in data:
         days = data['episodeLogRetentionDays']
         if (not isinstance(days, int) or isinstance(days, bool)
@@ -730,19 +731,14 @@ def _apply_processing_flags(db, data):
     # hands every feed to the background refresher instead of fetching
     # upstream inside this request.
     rss_changed = False
-    if 'unprocessedPlayback' in data:
-        rss_changed |= ((db.get_setting('unprocessed_playback') or UNPROCESSED_PLAYBACK_PROCESS)
-                        != data['unprocessedPlayback'])
-        db.set_setting('unprocessed_playback', data['unprocessedPlayback'],
-                       is_default=False)
-        logger.info(f"Updated unprocessed playback to: {data['unprocessedPlayback']}")
-    if 'processedTitleMarker' in data:
-        rss_changed |= (db.get_setting('processed_title_marker') or '') != data['processedTitleMarker']
-        db.set_setting('processed_title_marker', data['processedTitleMarker'],
-                       is_default=False)
-        logger.info(f"Updated processed title marker to: {data['processedTitleMarker']!r}")
+    for key, setting in (('unprocessedPlayback', 'unprocessed_playback'),
+                         ('processedTitleMarker', 'processed_title_marker')):
+        if key in data:
+            rss_changed |= setting_differs_from_effective(db, setting, data[key])
+            db.set_setting(setting, data[key], is_default=False)
+            logger.info(f"Updated {setting} to: {data[key]!r}")
     if rss_changed:
-        common.after_commit(_schedule_served_feeds_rerender)
+        common.after_commit(on_served_rss_settings_changed)
 
     if 'episodeLogRetentionDays' in data:
         days = data['episodeLogRetentionDays']

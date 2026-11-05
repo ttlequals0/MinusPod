@@ -1660,3 +1660,11 @@ class SettingsMixin:
                  m.get('cache_read_cost_per_mtok'), row_source)
             )
         conn.commit()
+
+
+def setting_differs_from_effective(db, key: str, new_value) -> bool:
+    """True when `new_value` differs from the setting's effective value (the
+    stored row, else the registry default), so an unrelated save that rewrites
+    the default is not a change."""
+    return (db.get_setting(key) or registry_default(key) or '') != new_value
+

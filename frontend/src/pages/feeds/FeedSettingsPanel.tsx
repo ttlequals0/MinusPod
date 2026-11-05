@@ -440,35 +440,25 @@ function FeedSettingsPanel({ feed, slug }: Props) {
     }
   }
 
-  const markerMode = feed.processedTitleMarker == null
-    ? (markerCustomPending ? 'custom' : 'global')
-    : (feed.processedTitleMarker === '' && !markerCustomPending ? 'off' : 'custom');
+  const storedMarkerMode = feed.processedTitleMarker == null
+    ? 'global' : (feed.processedTitleMarker === '' ? 'off' : 'custom');
+  const markerMode = markerCustomPending ? 'custom' : storedMarkerMode;
   const changeMarkerMode = (mode: string) => {
-    if (mode === 'custom') {
-      setMarkerCustomPending(true);
-      return;
+    setMarkerCustomPending(mode === 'custom');
+    // Global / Off are saved at once; Custom waits for a committed marker.
+    if (mode !== 'custom') {
+      updateMutation.mutate({ processedTitleMarker: mode === 'off' ? '' : null });
     }
-    // Global / Off are saved immediately; the stored value then drives the select.
-    setMarkerCustomPending(false);
-    updateMutation.mutate({ processedTitleMarker: mode === 'off' ? '' : null });
   };
   const commitMarker = () => {
     const next = markerField.value;
-    if (next.trim() === '') {
-      // Nothing to save: drop the pending Custom state so the select shows
-      // the stored mode again (null = global, '' = off, text = custom).
-      markerField.markClean(feed.processedTitleMarker ?? '');
-      setMarkerCustomPending(false);
-      return;
+    if (next.trim() !== '' && next !== feed.processedTitleMarker) {
+      updateMutation.mutate({ processedTitleMarker: next });
     }
-    if (next !== feed.processedTitleMarker) {
-      updateMutation.mutate({ processedTitleMarker: next }, {
-        onSuccess: () => setMarkerCustomPending(false),
-      });
-    } else {
-      setMarkerCustomPending(false);
-    }
-    markerField.markClean(next);
+    // Blank or saved, the select goes back to the stored mode (null = global,
+    // '' = off, text = custom).
+    markerField.markClean(next.trim() === '' ? (feed.processedTitleMarker ?? '') : next);
+    setMarkerCustomPending(false);
   };
 
   const commitTrimPattern = () => {

@@ -16,7 +16,7 @@ import email_service
 import webhook_service
 from community_sync import DEFAULT_CRON as COMMUNITY_SYNC_DEFAULT_CRON
 from config import (
-    UNPROCESSED_PLAYBACK_VALUES,
+    RSS_AFFECTING_FEED_FIELDS, UNPROCESSED_PLAYBACK_VALUES, validate_processed_title_marker,
     PRICING_OVERRIDE_OPTIONAL, PRICING_OVERRIDE_REQUIRED,
     PODCAST_SEARCH_PROVIDERS, STAGE_TUNABLE_PAYLOAD_KEYS,
     SYSTEMONE_TUNABLE_DEFAULTS, SYSTEMONE_TUNABLE_PROFILE_KEYS,
@@ -32,7 +32,7 @@ from db_backup_service import (
     KEEP_COUNT_MAX, KEEP_COUNT_MIN, validate_backup_dest,
 )
 from database.podcasts import FEED_TYPES
-from database.settings import SETTINGS_REGISTRY, registry_default
+from database.settings import SETTINGS_REGISTRY, registry_default, setting_differs_from_effective
 from systemone.tuning import SystemOneSettingsError, merge_profile, profile_from_snapshot
 from fx_rates import FxRateError, get_usd_rate
 from llm_route import SAME_AS_DETECTION, VALID_SLOTS
@@ -191,19 +191,6 @@ class ConfigTransferError(ValueError):
     def __init__(self, message, status=400):
         super().__init__(message)
         self.status = status
-
-
-# Imported feed fields that change the served RSS body and so force a refresh.
-RSS_AFFECTING_FEED_FIELDS = {
-    'max_episodes', 'only_expose_processed_episodes', 'title_override',
-    'require_manual_approval',
-    'source_url', 'own_episode_guids', 'title_skip_patterns',
-    'description_skip_patterns',
-    'title_skip_action', 'min_duration_seconds', 'max_duration_seconds',
-    'title', 'author', 'explicit', 'categories',
-    'p20_channel_json', 'description', 'chapters_in_notes',
-    'processed_title_marker', 'unprocessed_playback',
-}
 
 
 def _setting_raw_value(db, key, raw_settings=None):
@@ -1132,7 +1119,7 @@ def _validated_feed_updates(db, podcast, payload, feed_type, *, confirmed_ceilin
             if error:
                 raise ConfigTransferError(error)
         elif key == 'processed_title_marker':
-            value, error = feed_api._normalize_processed_title_marker(value)
+            value, error = validate_processed_title_marker(value, allow_none=True)
             if error:
                 raise ConfigTransferError(error)
         elif key == 'episode_logs':
@@ -1348,9 +1335,9 @@ def apply_config(db, document, scope, selected_feeds, preview_token):
                     'systemone_api_key': 'systemone-compatible',
                 }
                 served_rss_changed = any(
-                    key in settings and _setting_to_storage(settings[key]) != (db.get_setting(key) or default)
-                    for key, default in (('unprocessed_playback', 'process'),
-                                         ('processed_title_marker', '')))
+                    key in settings and setting_differs_from_effective(
+                        db, key, _setting_to_storage(settings[key]))
+                    for key in ('unprocessed_playback', 'processed_title_marker'))
                 for key, value in settings.items():
                     if key in phase_applied_setting_keys:
                         continue
@@ -1376,8 +1363,8 @@ def apply_config(db, document, scope, selected_feeds, preview_token):
                     else:
                         db.set_setting(key, _setting_to_storage(value), is_default=False)
                 if served_rss_changed:
-                    from main_app.feeds import schedule_served_feeds_rerender
-                    common.after_commit(schedule_served_feeds_rerender)
+                    from main_app.feeds import on_served_rss_settings_changed
+                    common.after_commit(on_served_rss_settings_changed)
                 if fx_rate is not None:
                     for key, value in {
                         'provider_budget_display_currency': fx_rate.currency,
