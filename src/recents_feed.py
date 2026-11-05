@@ -4,6 +4,7 @@ import logging
 
 from config import resolve_toggle
 from database.podcasts import RECENTS_SLUG, is_recents_feed, recents_cutoff
+from database.settings import feed_itunes_block_enabled
 from local_feed_builder import _append_channel_image, _channel_open, _append_local_episode_item, _channel_artwork_url
 from main_app import db, rss_parser, storage
 from main_app.feed_auth import active_feed_key
@@ -23,7 +24,7 @@ def build_recents_feed_xml(podcast: dict, episodes: list[dict], *, storage, db) 
     channel_link = f"{base}/{RECENTS_SLUG}"
 
     lines = _channel_open(title, channel_link, podcast.get('description') or '',
-                          itunes_block=db.get_setting_bool('feed_itunes_block', True))
+                          itunes_block=feed_itunes_block_enabled(db))
     _append_channel_image(lines, _channel_artwork_url(RECENTS_SLUG, base, feed_auth_key, storage),
                           title, channel_link)
     guid = compute_feed_guid(f"{base.rstrip('/')}/{RECENTS_SLUG}")

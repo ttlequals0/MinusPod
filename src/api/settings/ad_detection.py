@@ -40,7 +40,7 @@ from artwork_watermark import BADGE_POSITIONS
 from audio_processor import NORMALIZE_PRESETS
 from database.settings import (
     AD_RESET_SETTING_KEYS, SETTINGS_REGISTRY,
-    registry_get_default,
+    registry_default, registry_get_default,
 )
 from user_agent import invalidate_cache as invalidate_user_agent_cache
 from rate_limit_hold import clear_holds_for_provider_change
@@ -805,12 +805,12 @@ def _apply_processing_flags(db, data):
             return error_response('differentialFetchMode must be auto, on, or off', 400)
         db.set_setting('differential_fetch_mode', value, is_default=False)
 
-    for key, setting, fallback in (('chaptersInNotes', 'chapters_in_notes', 'false'),
-                                   ('reviewLinksInNotes', 'review_links_in_notes', 'false'),
-                                   ('feedItunesBlock', 'feed_itunes_block', 'true')):
+    for key, setting in (('chaptersInNotes', 'chapters_in_notes'),
+                         ('reviewLinksInNotes', 'review_links_in_notes'),
+                         ('feedItunesBlock', 'feed_itunes_block')):
         if key in data:
             value = 'true' if data[key] else 'false'
-            changed = (db.get_setting(setting) or fallback) != value
+            changed = db.get_setting_bool(setting, registry_default(setting) == 'true') != bool(data[key])
             db.set_setting(setting, value, is_default=False)
             logger.info(f"Updated {setting} to: {value}")
             if changed:

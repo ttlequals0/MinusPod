@@ -234,6 +234,9 @@ _HTML_VOID_ELEMENTS = frozenset({
 })
 
 _ITUNES_NS = "http://www.itunes.com/dtds/podcast-1.0.dtd"
+# Keeps directories from indexing the feed and stops app-side matching to the public show.
+ITUNES_BLOCK_LINE = '<itunes:block>Yes</itunes:block>'
+
 _ITUNES_CHANNEL_PASSTHROUGH = frozenset({
     "author", "summary", "subtitle", "owner",
     "explicit", "category", "keywords",
@@ -1685,20 +1688,20 @@ class RSSParser:
 
         if channel is not None:
             itunes_prefix = "{" + _ITUNES_NS + "}"
+            passthrough = _ITUNES_CHANNEL_PASSTHROUGH - {"block"} if itunes_block else _ITUNES_CHANNEL_PASSTHROUGH
             for elem in channel:
                 tag = getattr(elem, "tag", "")
                 if not isinstance(tag, str):
                     continue
                 if tag.startswith(itunes_prefix):
                     local = tag[len(itunes_prefix):]
-                    if local in _ITUNES_CHANNEL_PASSTHROUGH and not (itunes_block and local == "block"):
+                    if local in passthrough:
                         lines.append(self._serialize_namespaced_element(elem, "itunes:", _ITUNES_NS))
                 elif not tag.startswith("{") and tag in _RSS_CHANNEL_PASSTHROUGH:
                     lines.append(self._serialize_namespaced_element(elem, "", ""))
 
         if itunes_block:
-            # Keeps directories from indexing the feed and stops app-side matching to the public show.
-            lines.append('<itunes:block>Yes</itunes:block>')
+            lines.append(ITUNES_BLOCK_LINE)
 
         # Always-emit channel timestamps and identifier so apps that rely on
         # these for refresh detection or attribution see fresh values from

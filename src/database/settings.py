@@ -1068,6 +1068,10 @@ _validate_registry()
 _warned_invalid_values: set[tuple[str, str, str]] = set()
 
 
+def feed_itunes_block_enabled(db) -> bool:
+    return db.get_setting_bool('feed_itunes_block', registry_default('feed_itunes_block') == 'true')
+
+
 def registry_default(key: str) -> str | None:
     """DB-string default for a key (seed-time semantics)."""
     spec = SETTINGS_REGISTRY[key]

@@ -19,6 +19,7 @@ from config import (
 )
 
 from database.episodes import normalize_published_at
+from database.settings import feed_itunes_block_enabled
 from database.podcasts import is_local_feed, is_recents_feed, is_youtube_feed, podping_declaration_columns
 from database.queue import compute_queue_priority
 from chapter_notes import chapter_notes_for
@@ -870,7 +871,7 @@ def _build_and_save_served_rss(slug, feed_content, parsed_feed, podcast):
     feed_auth_key = active_feed_key(db)
     chapter_notes = chapter_notes_for(db, podcast)
     review_links = resolve_review_links_in_notes(db, podcast)
-    itunes_block = db.get_setting_bool('feed_itunes_block', True)
+    itunes_block = feed_itunes_block_enabled(db)
     # Hide applies both title and duration exclusions to served RSS.
     hide_filters = podcast if podcast.get('title_skip_action') == 'hide' else {}
     modified_rss = rss_parser.modify_feed(feed_content, slug, storage=storage,

@@ -444,6 +444,6 @@ describe('GlobalDefaultsSection: Mark served feeds private toggle', () => {
     expect(toggle.getAttribute('aria-checked')).toBe('true');
     await userEvent.setup().click(toggle);
     expect(onChange).toHaveBeenCalledWith(false);
-    expect(screen.getByText(/removed and added again/)).toBeTruthy();
+    expect(screen.getByText(/need to be added again/)).toBeTruthy();
   });
 });

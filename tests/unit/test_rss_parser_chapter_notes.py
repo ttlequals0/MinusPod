@@ -1,6 +1,8 @@
 """Served-feed descriptions carry the chapter list when enabled (#720)."""
 import json
 
+import pytest
+
 from tests.app_bootstrap import bootstrap
 
 bootstrap('rss_chapter_notes_test_')
@@ -35,19 +37,17 @@ def _block_feed(itunes_block, upstream_block=None):
         xml, 'show', itunes_block=itunes_block)
 
 
-def test_itunes_block_emitted_once_and_replaces_upstream():
-    out = _block_feed(True, upstream_block='no')
-    assert out.count('<itunes:block>') == 1
-    assert '<itunes:block>Yes</itunes:block>' in out
-
-
-def test_itunes_block_added_without_upstream_tag():
-    assert _block_feed(True).count('<itunes:block>Yes</itunes:block>') == 1
-
-
-def test_itunes_block_off_keeps_upstream_and_adds_nothing():
-    assert '<itunes:block>no</itunes:block>' in _block_feed(False, upstream_block='no')
-    assert '<itunes:block>' not in _block_feed(False)
+@pytest.mark.parametrize('flag, upstream, count, text', [
+    (True, 'no', 1, 'Yes'),
+    (True, None, 1, 'Yes'),
+    (False, 'no', 1, 'no'),
+    (False, None, 0, None),
+])
+def test_itunes_block_flag(flag, upstream, count, text):
+    out = _block_feed(flag, upstream_block=upstream)
+    assert out.count('<itunes:block>') == count
+    if text:
+        assert f'<itunes:block>{text}</itunes:block>' in out
 
 
 def test_upstream_item_gets_the_block_when_enabled():

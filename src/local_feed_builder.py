@@ -23,10 +23,11 @@ from chapter_notes import append_chapters, chapter_notes_for
 from config import resolve_review_links_in_notes
 from review_links import append_review_links
 from database.episodes import NOT_AWAITING_APPROVAL
+from database.settings import feed_itunes_block_enabled
 from main_app import db, rss_parser, storage
 from main_app.feed_auth import active_feed_key
 from main_app.shared_state import invalidate_episode_lookup_cache
-from rss_parser import RSS_RENDER_VERSION
+from rss_parser import ITUNES_BLOCK_LINE, RSS_RENDER_VERSION
 from utils.episode_paths import episode_public_url, published_episode_version
 from utils.feed_guid import compute_feed_guid
 from utils.json_fields import load_json_list
@@ -171,8 +172,7 @@ def _channel_open(title: str, channel_link: str, description: str, language: str
             f'<lastBuildDate>{rss_parser._format_rfc2822(utc_now_iso())}</lastBuildDate>',
             '<generator>MinusPod</generator>']
     if itunes_block:
-        # Keeps directories from indexing the feed and stops app-side matching to the public show.
-        lines.append('<itunes:block>Yes</itunes:block>')
+        lines.append(ITUNES_BLOCK_LINE)
     return lines
 
 
@@ -276,7 +276,7 @@ def build_local_feed_xml(podcast: dict, episodes: list[dict], *, storage, db,
         language = 'en'
 
     lines = _channel_open(title, channel_link, description, language,
-                          itunes_block=db.get_setting_bool('feed_itunes_block', True))
+                          itunes_block=feed_itunes_block_enabled(db))
 
     author = podcast.get('author')
     if author:

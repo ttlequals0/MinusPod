@@ -318,7 +318,7 @@ function GlobalDefaultsSection({
             </span>
           </label>
           <p className="mt-2 text-sm text-muted-foreground">
-            Adds itunes:block to every feed so app directories skip it and Pocket Casts stops matching it to the public show. A feed Pocket Casts already matched must be removed and added again.
+            Adds itunes:block so app directories skip your feeds and Pocket Casts stops matching them to the public show. Feeds Pocket Casts already matched need to be added again.
           </p>
         </div>
 

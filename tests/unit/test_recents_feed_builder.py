@@ -8,6 +8,7 @@ from tests.app_bootstrap import bootstrap
 bootstrap('recents_builder_test_')
 
 import main_app.feeds as mf  # noqa: E402
+import recents_feed  # noqa: E402
 from main_app.pipeline import common
 from database.podcasts import RECENTS_SLUG, recents_cutoff  # noqa: E402
 from recents_feed import build_recents_feed_xml, rebuild_recents_feed  # noqa: E402
@@ -96,15 +97,12 @@ def test_chapter_block_honours_the_source_feed_override(recents):
     assert '<p>Chapters</p><p>00:00 Intro</p>' in build_recents_feed_xml(recents, _rows(recents), storage=mf.storage, db=mf.db)
 
 
-def test_itunes_block_follows_the_global_setting(recents):
+def test_itunes_block_follows_the_global_setting(recents, monkeypatch):
     xml = build_recents_feed_xml(recents, _rows(recents), storage=mf.storage, db=mf.db)
     assert xml.count('<itunes:block>Yes</itunes:block>') == 1
-    mf.db.set_setting('feed_itunes_block', 'false', is_default=False)
-    try:
-        xml = build_recents_feed_xml(recents, _rows(recents), storage=mf.storage, db=mf.db)
-        assert 'itunes:block' not in xml
-    finally:
-        mf.db.set_setting('feed_itunes_block', 'true', is_default=True)
+    monkeypatch.setattr(recents_feed, 'feed_itunes_block_enabled', lambda db: False)
+    xml = build_recents_feed_xml(recents, _rows(recents), storage=mf.storage, db=mf.db)
+    assert 'itunes:block' not in xml
 
 
 def test_review_links_follow_the_global_setting_and_use_the_source_slug(recents):
