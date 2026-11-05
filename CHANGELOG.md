@@ -21,7 +21,10 @@ release notes.
   so a short generic line is not learned. A feed's Keep or Mark action for
   the category still applies. The Patterns page shows the category badge and
   the show where it used to read (Unknown), and these patterns no longer
-  count toward Unknown sponsor or the community export.
+  count toward Unknown sponsor or the community export. A match cuts the
+  learned read, from where its opening sentence aligns to where its closing
+  sentence does, and not the talk around it; confirming a span that holds a
+  learned read credits that read instead of learning a longer one.
 
 ## [2.101.19] - 2026-11-04
 

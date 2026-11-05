@@ -744,3 +744,151 @@ def test_trimmed_confirm_above_the_floor_stores_the_trimmed_duration(temp_db):
     rows = [p for p in temp_db.get_ad_patterns(active_only=False) if p['sponsor_id'] is None]
     assert len(rows) == 1
     assert rows[0]['avg_duration'] == pytest.approx(25.0)
+
+
+# ------------------------------------------------- a match cuts the read only
+
+# Interview talk before and after the read, in short lines like a real
+# transcript (the read's template is longer than the 500-character window it
+# is bucketed into, so several partial windows cover it).
+_TALK_BEFORE = [
+    "But he was right that the administration failed us on the southern border.",
+    "So what would you do about that, though?",
+    "And how do you reverse this change?",
+    "And do you have an opinion?",
+    "And what is your opinion on who you think should be",
+    "president in the next cycle?",
+    "We should start with the current one.",
+]
+_READ = [
+    "Guys, I have got a favor to ask before this episode begins.",
+    "The algorithm, if you follow a show, will deliver you the",
+    "best episodes from that show very prominently in your feed.",
+    "So when we have our best episodes on this show, the most",
+    "shared episodes, the most rated episodes,",
+    "I would love you to know.",
+    "And the simple way for you to know that is to hit that",
+    "follow button.",
+    "But also, it is the simple, easy, free thing that you can do",
+    "to help us make this show better.",
+    "And I would be hugely grateful.",
+    "If you could take a minute on the app you are listening to",
+    "this on right now and hit that follow button.",
+    "Thank you so, so, so much.",
+]
+_TALK_AFTER = [
+    "Our guest today is a state representative.",
+    "If the elections go your way this November, you are on the",
+    "verge of potentially making history by becoming the first",
+    "senator of your party in that state in a generation,",
+    "which would be the first time, I think, since the eighties that",
+    "someone from your side has won there.",
+    "What would it mean to you, and to the people who voted for you?",
+    "It would mean everything, honestly, to the families back home.",
+]
+READ_TEXT = ' '.join(_READ)
+
+
+def _lines(texts, start, step=2.6):
+    return [{'start': round(start + i * step, 2), 'end': round(start + (i + 1) * step - 0.05, 2),
+             'text': text} for i, text in enumerate(texts)]
+
+
+def _episode_with_read(read=_READ):
+    before = _lines(_TALK_BEFORE, 70.0)
+    read_segs = _lines(read, before[-1]['end'] + 0.1)
+    after = _lines(_TALK_AFTER, read_segs[-1]['end'] + 4.0)
+    return before + read_segs + after, read_segs[0]['start'], read_segs[-1]['end']
+
+
+def _show_matches(db, segments, pid):
+    return [m for m in TextPatternMatcher(db=db).find_matches(segments, podcast_id=SLUG)
+            if m.pattern_id == pid]
+
+
+def test_the_learned_read_is_cut_and_not_the_talk_around_it(temp_db):
+    _seed(temp_db)
+    segments, read_start, read_end = _episode_with_read()
+    pid, _ = _confirm(temp_db, READ_TEXT, 'interaction', start=read_start, end=read_end)
+    assert pid
+    [hit] = _show_matches(temp_db, segments, pid)
+    assert hit.start == pytest.approx(read_start, abs=0.5)
+    assert hit.end == pytest.approx(read_end, abs=0.5)
+
+
+def test_a_read_heard_with_a_changed_ending_is_bounded_by_its_stored_duration(temp_db):
+    """Only the opening aligns: the end is the opening plus the read's stored
+    length (with slack), marked estimated, never the windows' reach."""
+    _seed(temp_db)
+    segments, read_start, read_end = _episode_with_read()
+    pid, _ = _confirm(temp_db, READ_TEXT, 'interaction', start=read_start, end=read_end)
+    changed = _READ[:-3] + ["Thanks, now on with the show and our guest."] * 3
+    segments, start, _ = _episode_with_read(changed)
+    [hit] = _show_matches(temp_db, segments, pid)
+    assert hit.start == pytest.approx(start, abs=0.5)
+    assert hit.end - hit.start <= (read_end - read_start) * 1.1 + 2.0
+    assert hit.span_estimated is True
+
+
+def test_a_confirm_of_a_span_holding_a_learned_read_does_not_learn_a_longer_pattern(temp_db):
+    """Confirming an over-long match (no pattern id) credits the read already
+    learned; a bigger sibling would match further into the talk next time."""
+    _seed(temp_db)
+    segments, read_start, read_end = _episode_with_read()
+    pid, _ = _confirm(temp_db, READ_TEXT, 'interaction', start=read_start, end=read_end)
+    wider = ' '.join(_TALK_BEFORE[-2:] + _READ + _TALK_AFTER[:3])
+    again, ids = _confirm(temp_db, wider, 'interaction', start=read_start - 5, end=read_end + 14)
+    assert again == pid and ids == [pid]
+    assert [p['id'] for p in temp_db.get_ad_patterns(active_only=False)
+            if p['sponsor_id'] is None] == [pid]
+    assert temp_db.get_ad_pattern_by_id(pid)['confirmation_count'] >= 1
+
+
+def test_a_confirm_with_the_pattern_id_records_a_match_and_learns_nothing(temp_db):
+    from main_app import app
+    _seed(temp_db)
+    segments, read_start, read_end = _episode_with_read()
+    pid, _ = _confirm(temp_db, READ_TEXT, 'interaction', start=read_start, end=read_end)
+    with app.test_request_context():
+        _handle_confirm_correction(
+            temp_db, PatternService(temp_db), SLUG, EPISODE_ID,
+            {'start': read_start - 3, 'end': read_end + 14, 'pattern_id': pid}, {})
+    assert [p['id'] for p in temp_db.get_ad_patterns(active_only=False)
+            if p['sponsor_id'] is None] == [pid]
+
+
+def test_two_adjacent_learned_reads_still_merge_into_one_cut(temp_db):
+    _seed(temp_db)
+    words = ASK.split()
+    ask_lines = [' '.join(words[i:i + 8]) for i in range(0, len(words), 8)]
+    before = _lines(_TALK_BEFORE, 70.0)
+    read_a = _lines(_READ, before[-1]['end'] + 0.1)
+    read_b = _lines(ask_lines, read_a[-1]['end'] + 0.1, step=3.0)
+    after = _lines(_TALK_AFTER, read_b[-1]['end'] + 4.0)
+    a, _ = _confirm(temp_db, READ_TEXT, 'interaction',
+                    start=read_a[0]['start'], end=read_a[-1]['end'])
+    b, _ = _confirm(temp_db, ' '.join(ask_lines), 'interaction',
+                    start=read_b[0]['start'], end=read_b[-1]['end'])
+    assert a and b and a != b
+    hits = [m for m in TextPatternMatcher(db=temp_db).find_matches(
+        before + read_a + read_b + after, podcast_id=SLUG) if m.show_promo]
+    assert len(hits) == 1
+    assert hits[0].start == pytest.approx(read_a[0]['start'], abs=0.5)
+    assert hits[0].end == pytest.approx(read_b[-1]['end'], abs=0.5)
+
+
+def test_an_over_long_span_with_neither_end_of_the_read_aligned_is_not_cut(temp_db):
+    _seed(temp_db)
+    _, read_start, read_end = _episode_with_read()
+    pid, _ = _confirm(temp_db, READ_TEXT, 'interaction', start=read_start, end=read_end)
+    matcher = TextPatternMatcher(db=temp_db)
+    matcher._ensure_initialized()
+    matcher._load_patterns()
+    [pattern] = [p for p in matcher._patterns if p.id == pid]
+    middle = _READ[3:11]
+    segments = _lines(_TALK_BEFORE, 70.0) + _lines(middle, 90.0) + _lines(_TALK_AFTER, 112.0)
+    full_text, segment_map = matcher._concat_segments(segments)
+    run = TextMatch(pattern_id=pid, start=72.0, end=128.0, confidence=0.8,
+                    show_promo=True, category='interaction')
+    assert matcher._align_show_read(
+        run, pattern, full_text.lower(), segments, segment_map) is None

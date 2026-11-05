@@ -311,6 +311,14 @@ def required_fuzzy_score(phrase_len: int) -> float:
 # single read); spans at or under it keep the matcher's existing behavior.
 MAX_MATCH_DURATION = LONG_AD_WARN
 
+# A show-promo match is the learned read: its edges come from where the
+# template's own opening and closing sentences align, searched this far (s)
+# outside the matched windows (the same reach as _refine_boundaries).
+SHOW_PROMO_EDGE_SEARCH_S = 10.0
+# Longest a show-promo match may run, as its pattern's stored duration times
+# (1 + fraction) plus seconds: speech-rate slack, not room for the talk around it.
+SHOW_PROMO_DURATION_SLACK = (0.1, 2.0)
+
 # Proportional TF-IDF window sizing
 WINDOW_SIZES = [500, 1000, 1500, 2500]
 WINDOW_SIZE_TOLERANCE = 0.6
@@ -841,6 +849,8 @@ class TextPatternMatcher:
         content_matches = self._find_content_matches(
             full_text, segments, segment_map, content_patterns
         )
+        content_matches = self._align_show_promo_matches(
+            content_matches, full_text, segments, segment_map, content_patterns)
         matches.extend(content_matches)
 
         # Strategy 2: Fuzzy intro/outro phrase matching
@@ -945,6 +955,87 @@ class TextPatternMatcher:
             applicable.append(pattern)
 
         return applicable
+
+    def _align_show_promo_matches(self, matches, full_text, segments, segment_map, patterns):
+        """One span per occurrence of a learned show read, bounded to the read.
+
+        Content windows are a fixed character size, so the union of the windows
+        that score a template reaches up to a window past each end of the read.
+        A sponsor pattern pulls its edges back with its stored intro/outro
+        phrases (_refine_boundaries); a show pattern stores none on purpose, so
+        without this its cut kept the talk around the read, and confirming that
+        cut learned a longer pattern that reached further next time.
+
+        The edges are where the template's own opening and closing sentences
+        align (the same sentence extraction that gives a sponsor pattern its
+        phrases, used only to bound a content match, never to match on its
+        own). A span still longer than the stored duration with slack keeps its
+        aligned edge and takes the other from the stored duration (estimated);
+        with no edge aligned it is dropped: a missed read is the safe error, a
+        cut into the show is not.
+        """
+        show = {p.id: p for p in patterns if p.is_show_promo}
+        if not show:
+            return matches
+        kept = [m for m in matches if m.pattern_id not in show]
+        text_lower = full_text.lower()
+        for pid, pattern in show.items():
+            hits = sorted((m for m in matches if m.pattern_id == pid), key=lambda m: m.start)
+            runs = []
+            for hit in hits:
+                if runs and hit.start <= runs[-1].end:
+                    run = runs[-1]
+                    best = run if run.confidence >= hit.confidence else hit
+                    runs[-1] = replace(best, start=run.start, end=max(run.end, hit.end))
+                else:
+                    runs.append(hit)
+            for run in runs:
+                aligned = self._align_show_read(run, pattern, text_lower, segments, segment_map)
+                if aligned is not None:
+                    kept.append(aligned)
+        return kept
+
+    def _align_show_read(self, match, pattern, text_lower, segments, segment_map):
+        """`match` bounded to the read of show pattern `pattern`, or None."""
+        template = pattern.text_template or ''
+        # The first opening and the last closing: a read heard twice in a row
+        # is one run, and the duration bound below caps it.
+        starts = self._phrase_hit_times(
+            text_lower, segment_map, segments, [_extract_intro_phrase(template)],
+            match.start - SHOW_PROMO_EDGE_SEARCH_S, match.end, self._phrase_start_time)
+        ends = self._phrase_hit_times(
+            text_lower, segment_map, segments, [_extract_outro_phrase(template)],
+            match.start, match.end + SHOW_PROMO_EDGE_SEARCH_S, self._phrase_end_time)
+        start = min(starts) if starts else None
+        end = max(ends) if ends else None
+        if start is not None and end is not None and end - start < MIN_AD_DURATION:
+            start = end = None
+        new_start = match.start if start is None else start
+        new_end = match.end if end is None else end
+        estimated = False
+        if pattern.avg_duration:
+            fraction, seconds = SHOW_PROMO_DURATION_SLACK
+            if new_end - new_start > pattern.avg_duration * (1 + fraction) + seconds:
+                if start is not None:
+                    new_end = min(new_end, self._estimate_end_from_duration(pattern, new_start))
+                elif end is not None:
+                    new_start = max(new_start, self._estimate_start_from_duration(pattern, new_end))
+                else:
+                    logger.info(
+                        f"Dropping show pattern {pattern.id} match "
+                        f"{match.start:.1f}-{match.end:.1f}s: neither end of the read aligns "
+                        f"and the span exceeds its {pattern.avg_duration:.0f}s read")
+                    return None
+                estimated = True
+        if (new_start, new_end) != (match.start, match.end):
+            logger.info(
+                f"Show pattern {pattern.id} match {match.start:.1f}-{match.end:.1f}s -> "
+                f"{new_start:.1f}-{new_end:.1f}s (aligned to the learned read"
+                f"{', one edge from its stored duration' if estimated else ''})")
+        return replace(
+            match, start=new_start, end=new_end, span_estimated=estimated,
+            text_start=max(new_start, match.start) if estimated else None,
+            text_end=min(new_end, match.end) if estimated else None)
 
     def _find_content_matches(
         self,
@@ -1527,12 +1618,12 @@ class TextPatternMatcher:
                  if segments[i]['end'] > start and segments[i]['start'] < end]
         return (spans[0][0], spans[-1][1]) if spans else None
 
-    def _refine_edge(self, text_lower, segment_map, segments, variants,
-                     lo_t, hi_t, extract_time, pattern, match, outro):
-        """Phrase-hit time for one edge in [lo_t, hi_t], preferring the largest trim that leaves no pattern match."""
+    def _phrase_hit_times(self, text_lower, segment_map, segments, variants,
+                          lo_t, hi_t, extract_time) -> set:
+        """Times (via extract_time) of every fuzzy hit of variants in [lo_t, hi_t]."""
         bounds = self._char_range(segment_map, segments, lo_t, hi_t)
         if bounds is None:
-            return None
+            return set()
         lo, hi = bounds
         region = text_lower[lo:hi]
         times = set()
@@ -1543,6 +1634,13 @@ class TextPatternMatcher:
                 # to 0.0, so only a time inside the requested window counts.
                 if lo_t <= t <= hi_t:
                     times.add(t)
+        return times
+
+    def _refine_edge(self, text_lower, segment_map, segments, variants,
+                     lo_t, hi_t, extract_time, pattern, match, outro):
+        """Phrase-hit time for one edge in [lo_t, hi_t], preferring the largest trim that leaves no pattern match."""
+        times = self._phrase_hit_times(
+            text_lower, segment_map, segments, variants, lo_t, hi_t, extract_time)
         if not times:
             return None
         pick = max if outro else min
@@ -2129,6 +2227,37 @@ class TextPatternMatcher:
                 return existing_pattern['id']
         return None
 
+    def _reuse_contained_show_read(self, ad_text: str, podcast_id: str) -> int | None:
+        """The id of this show's learned read that ad_text contains (its match
+        is credited), else None.
+
+        A confirmed span holding a learned read plus talk around it (an
+        over-long match confirmed without its pattern id) is that read again;
+        learning it as a longer sibling would cut further into the show every
+        time it matched, and each confirm of that cut would grow it again.
+        """
+        try:
+            rows = self.db.get_ad_patterns(podcast_id=podcast_id)
+        except Exception:
+            return None
+        text = canonicalize_for_dedupe(ad_text)
+        for row in rows:
+            template = canonicalize_for_dedupe(row.get('text_template') or '')
+            if (not template or len(template) >= len(text)
+                    or not is_show_promo_pattern(row)):
+                continue
+            score = fuzz.partial_ratio(template, text)
+            if score >= LEARNING_DEDUPE_SIMILARITY_THRESHOLD * 100:
+                logger.info(
+                    f"Confirmed span contains show pattern #{row['id']} "
+                    f"({score:.0f}%); crediting it instead of learning a longer read")
+                try:
+                    self.db.increment_pattern_match(row['id'])
+                except Exception as e:
+                    logger.warning(f"Failed to record contained-read match: {e}")
+                return row['id']
+        return None
+
     def create_show_promo_pattern_from_ad(
         self,
         segments: list[dict],
@@ -2177,7 +2306,8 @@ class TextPatternMatcher:
                 f"Skipping {category} pattern creation: found {transitions} ad "
                 f"transitions - likely more than one read")
             return None
-        reused = self._reuse_near_duplicate(ad_text, podcast_id)
+        reused = (self._reuse_near_duplicate(ad_text, podcast_id)
+                  or self._reuse_contained_show_read(ad_text, podcast_id))
         if reused is not None:
             return reused
         try:
