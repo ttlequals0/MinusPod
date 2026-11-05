@@ -164,6 +164,23 @@ removes it and regenerating chapters updates it. Each feed can override the
 global value from its Feed Settings page (`chaptersInNotes`: `on`, `off`,
 or unset to follow the global setting).
 
+### Review links in episode descriptions
+
+To jump from a podcast app to an episode in MinusPod, turn on **Add review
+links to episode descriptions** under Settings > Transcripts & Chapters
+(`reviewLinksInNotes`, off by default). The description of every processed
+episode in the served feed then ends with two links: **Review in MinusPod**
+opens the episode page, and **Rate 5 stars** opens it with `?rate=5`, which
+applies a 5-star rating as soon as the page loads, confirms it with an Undo
+button and removes the parameter from the address bar. Episodes that are not
+processed yet get no links. The rating link is a page address, not an API
+call, because podcast apps and link previews fetch URLs from show notes on
+their own. It needs a browser logged in to MinusPod and goes through the
+login page first when it is not. The links
+are built from `UI_BASE_URL`, or `BASE_URL` when that is unset. Each feed can
+override the global value from its Feed Settings page (`reviewLinksInNotes`:
+`on`, `off`, or unset to follow the global setting).
+
 ### Ad chapters
 
 A segment kept in the audio by its category action still sits in the file.

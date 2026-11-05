@@ -17,12 +17,24 @@ release notes.
   image serves any prefix with no rebuild, and the app works whether the
   proxy forwards the prefix or strips it. `BASE_URL` must include the prefix;
   startup warns when it does not. Left unset, nothing changes (#961).
+- Optional review links in episode descriptions. A global setting, with a
+  per-feed override, adds "Review in MinusPod" and "Rate 5 stars" links to the
+  served description of every processed episode. The second link opens the
+  episode page and applies a 5-star rating on load, with an Undo button. It
+  uses a normal page address rather than an API call, so apps and link
+  previews that fetch show-notes URLs cannot rate anything. Off by default.
 
 ### Changed
 
 - The service worker is now registered by the app itself instead of the
   build plugin's generated helper, so its URL and scope follow the prefix.
   Update prompts and offline behavior are unchanged.
+
+### Fixed
+
+- A crawler on the blocked user agent list now gets the original audio for any
+  episode that is not yet published, including one that is still processing.
+  Before, it received a 503 from the processing and failed branches.
 
 ## [2.101.19] - 2026-11-04
 
