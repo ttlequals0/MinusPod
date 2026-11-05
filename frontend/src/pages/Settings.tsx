@@ -76,6 +76,7 @@ import { reconcileStageSlotsForSecondaryToggle } from './settings/settingsUtils'
 import { btnLg, btnPrimary, touchTarget } from '../components/buttonStyles';
 import { focusRing } from '../components/fieldStyles';
 import { pageHeader, pageTitle, pageDescription } from '../components/pageStyles';
+import { apiUrl } from '../urlPrefix';
 
 // External doc links stay link-styled so they read as clickable; touchTarget keeps the phone hit box.
 const docsLink = `${touchTarget} gap-1 text-sm text-primary hover:underline whitespace-nowrap ${focusRing}`;
@@ -1278,7 +1279,7 @@ function Settings() {
             Docs
           </a>
           <a
-            href="/api/v1/docs"
+            href={apiUrl('/docs')}
             target="_blank"
             rel="noopener noreferrer"
             className={docsLink}

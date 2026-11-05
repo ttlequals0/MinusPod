@@ -9,8 +9,7 @@ export default defineConfig({
     tailwindcss({ optimize: false }),
     VitePWA({
       registerType: 'prompt',
-      base: '/ui/',
-      scope: '/ui/',
+      injectRegister: false,
       workbox: {
         // Wait for the user's reload action before replacing an active bundle.
         skipWaiting: false,

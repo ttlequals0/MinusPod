@@ -10,6 +10,7 @@ import {
 import { btnBase, btnSecondary } from '../../components/buttonStyles';
 import { badgeBase } from '../../components/badgeStyles';
 import { iconTarget, iconVisual } from '../../components/rowActionStyles';
+import { apiUrl } from '../../urlPrefix';
 
 // The splice bar reads as a beep sitting inside content, so its width has to
 // mean something. Scale duration against this, since typical markers are 1-3s.
@@ -47,7 +48,7 @@ function ReplacementAudioField() {
   const [error, setError] = useState<string | null>(null);
 
   // updatedAt busts the browser cache: the URL is stable across uploads.
-  const src = `/api/v1/settings/replacement-audio/file?v=${data?.updatedAt ?? 0}`;
+  const src = apiUrl(`/settings/replacement-audio/file?v=${data?.updatedAt ?? 0}`);
 
   useEffect(() => {
     // A swapped file must not keep playing the old one.

@@ -1,6 +1,7 @@
 import { apiFileRequest, apiRequest, buildQueryString } from './client';
 import { Feed, Episode, EpisodeDetail, BulkActionResult, AdDistribution, JobState, LowAdYieldAction, EpisodeLogsOverride, RunLogResponse, SbCandidatesResponse, SbSubmission, EpisodeRating } from './types';
 import type { SegmentCategory, SegmentAction } from '../utils/segmentCategory';
+import { apiUrl } from '../urlPrefix';
 
 export const CUE_SCORE_MIN = 0.30;
 export const CUE_SCORE_MAX = 0.99;
@@ -8,7 +9,7 @@ export const CUE_SCORE_MAX = 0.99;
 // Direct URL for an episode's retained original audio; an <audio src> hits it
 // with the session cookie (GET needs no CSRF).
 export function episodeOriginalUrl(slug: string, episodeId: string): string {
-  return `/api/v1/feeds/${slug}/episodes/${episodeId}/original.mp3`;
+  return apiUrl(`/feeds/${slug}/episodes/${episodeId}/original.mp3`);
 }
 
 // Saves the original or the current cut. A HEAD preflight surfaces a 401
@@ -20,7 +21,7 @@ export async function downloadEpisodeAudio(
   const file = kind === 'cut' ? 'processed' : 'original';
   const path = `/feeds/${slug}/episodes/${episodeId}/${file}.mp3?download=1`;
   await apiFileRequest(path, { method: 'HEAD' });
-  window.location.assign(`/api/v1${path}`);
+  window.location.assign(apiUrl(path));
 }
 
 // Direct URL for a run's raw JSONL log; the browser downloads it with the
@@ -28,7 +29,7 @@ export async function downloadEpisodeAudio(
 export function episodeRunLogDownloadUrl(
   slug: string, episodeId: string, runNumber: number,
 ): string {
-  return `/api/v1/feeds/${slug}/episodes/${episodeId}/runs/${runNumber}/log?format=raw`;
+  return apiUrl(`/feeds/${slug}/episodes/${episodeId}/runs/${runNumber}/log?format=raw`);
 }
 
 export async function getEpisodeRunLog(

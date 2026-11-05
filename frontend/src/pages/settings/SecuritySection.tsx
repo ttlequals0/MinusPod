@@ -9,6 +9,7 @@ import { RemovableChip } from '../../components/RemovableChip';
 import { btnBase, btnLg, btnPrimary, btnSecondary, btnOutline } from '../../components/buttonStyles';
 import { inputBase, labelBase } from '../../components/fieldStyles';
 import { subHeading } from '../../components/pageStyles';
+import { uiUrl } from '../../urlPrefix';
 
 const MIN_PASSWORD_LENGTH = 12;
 
@@ -81,7 +82,7 @@ function SecuritySection({
 
   const handleLogout = async () => {
     await logout();
-    window.location.href = '/ui/login';
+    window.location.href = uiUrl('/login');
   };
 
   const handlePasswordSubmit = async (e: React.FormEvent) => {

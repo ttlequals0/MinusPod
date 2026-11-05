@@ -24,7 +24,8 @@
     "react-router": "^8.5.1",
     "recharts": "^3.10.1",
     "swagger-ui-dist": "^5.33.3",
-    "wavesurfer.js": "^8.0.3"
+    "wavesurfer.js": "^8.0.3",
+    "workbox-window": "7.4.1"
   },
   "overrides": {
     "serialize-javascript": ">=7.1.4",

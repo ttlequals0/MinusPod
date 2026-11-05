@@ -61,6 +61,7 @@ import { fileInputBase, focusRing, inputBase, labelBase, textareaBase } from '..
 import { badgeBase, tint } from '../components/badgeStyles';
 import { cardTitle } from '../components/pageStyles';
 import { HOLD_REASON_LABELS, HOLD_REASON_TITLES } from '../utils/holdReason';
+import { URL_PREFIX } from '../urlPrefix';
 
 function btnLabel(status: string, idle: string): string {
   if (status === 'saving') return 'Saving...';
@@ -1339,7 +1340,7 @@ function EpisodeDetail() {
             {/* processedUrl is server-built and carries the feed auth key when
                 enabled; a hardcoded path would 401 under authenticated feeds. */}
             <EpisodePlayer
-              src={episode.processedUrl ?? `/episodes/${slug}/${episode.id}.mp3`}
+              src={episode.processedUrl ?? `${URL_PREFIX}/episodes/${slug}/${episode.id}.mp3`}
               chaptersUrl={episode.chaptersAvailable ? episode.chaptersUrl : undefined}
             />
             {(episode.transcriptVttAvailable || episode.chaptersAvailable) && (
@@ -1494,7 +1495,7 @@ function EpisodeDetail() {
               <AdEditor
                 detectedAds={detectedAds}
                 audioDuration={episode.originalDuration ?? 0}
-                audioUrl={episode.processedUrl ?? `/episodes/${slug}/${episode.id}.mp3`}
+                audioUrl={episode.processedUrl ?? `${URL_PREFIX}/episodes/${slug}/${episode.id}.mp3`}
                 audioMode={reviewMode}
                 hasOriginal={!!episode.hasOriginalAudio}
                 onAudioModeChange={setReviewMode}

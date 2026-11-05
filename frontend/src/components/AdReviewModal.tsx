@@ -40,6 +40,7 @@ import {
 import { btnBase, btnPrimary, btnOutline, btnDestructive } from './buttonStyles';
 import { focusRing, inputBase, selectBase, textareaBase, labelBase, filterLabel } from './fieldStyles';
 import { badgeBase, tint } from './badgeStyles';
+import { apiUrl } from '../urlPrefix';
 
 // Shape used by the per-episode AdEditor: enough to render the waveform
 // editor for a single detected ad and submit a correction back. Matches
@@ -384,7 +385,7 @@ function AdReviewModal({
   const effectiveAudioMode = mode === 'create' ? 'original' : audioMode;
   const audioUrl =
     effectiveAudioMode === 'original' || !processedAudioUrl
-      ? `/api/v1/feeds/${item.podcastSlug}/episodes/${item.episodeId}/original.mp3`
+      ? apiUrl(`/feeds/${item.podcastSlug}/episodes/${item.episodeId}/original.mp3`)
       : processedAudioUrl;
   const windowDuration = Math.max(0.001, windowEnd - windowStart);
 

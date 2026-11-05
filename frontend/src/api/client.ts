@@ -1,7 +1,7 @@
 import { storeLoginRedirect } from '../utils/loginRedirect';
 import type { JobState } from './types';
+import { API_BASE, uiUrl } from '../urlPrefix';
 
-const API_BASE = '/api/v1';
 
 const RETRY_DELAYS = [1000, 3000]; // 2 retries with 1s and 3s backoff
 
@@ -155,7 +155,7 @@ function handleUnauthorized(endpoint: string): void {
   const currentPath = window.location.pathname;
   if (!currentPath.includes('/login') && !endpoint.startsWith('/auth/')) {
     storeLoginRedirect(window.location.pathname, window.location.search);
-    window.location.href = '/ui/login';
+    window.location.href = uiUrl('/login');
     throw new Error('Authentication required');
   }
 }

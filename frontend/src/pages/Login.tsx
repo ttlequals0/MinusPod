@@ -6,6 +6,7 @@ import { takeLoginRedirect } from '../utils/loginRedirect';
 import LoadingSpinner from '../components/LoadingSpinner';
 import { btnLg, btnPrimary } from '../components/buttonStyles';
 import { inputBase } from '../components/fieldStyles';
+import { uiUrl } from '../urlPrefix';
 
 function Login() {
   const navigate = useNavigate();
@@ -73,7 +74,7 @@ function Login() {
         <div className="bg-card border border-border rounded-lg p-8">
           <div className="text-center mb-8">
             <img
-              src={theme === 'dark' ? '/ui/logo-dark.svg' : '/ui/logo.svg'}
+              src={uiUrl(theme === 'dark' ? '/logo-dark.svg' : '/logo.svg')}
               alt="MinusPod"
               className="h-10 mx-auto"
             />

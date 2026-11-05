@@ -6,8 +6,10 @@
  * bounce stores the deeper /ui/ui/... path and the loop grows unboundedly.
  */
 
+import { UI_BASE } from '../urlPrefix';
+
 const STORAGE_KEY = 'loginRedirect';
-const BASENAME = '/ui';
+const BASENAME = UI_BASE;
 
 /** Strip every leading '/ui' segment from a path. Handles corrupted paths. */
 function stripBasename(path: string): string {

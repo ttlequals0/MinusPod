@@ -12,6 +12,7 @@ import { getProcessingStatus } from '../api/status';
 import { btnBase, btnPrimary, btnGhost, touchTarget } from './buttonStyles';
 import { focusRing } from './fieldStyles';
 import { countPill, tint } from './badgeStyles';
+import { uiUrl } from '../urlPrefix';
 
 const NAV_ITEMS: { to: string; label: string }[] = [
   { to: '/', label: 'Feeds' },
@@ -81,7 +82,7 @@ function Layout() {
 
   const handleLogout = async () => {
     await logout();
-    window.location.href = '/ui/login';
+    window.location.href = uiUrl('/login');
   };
   // Reset the mobile menu when the route changes. React's docs explicitly
   // recommend the render-phase "adjust state on prop change" idiom over a
@@ -106,7 +107,7 @@ function Layout() {
             <div className="flex items-center gap-8">
               <Link to="/" className={`flex h-11 shrink-0 items-center ${focusRing} xl:h-auto`}>
                 <img
-                  src={theme === 'dark' ? '/ui/logo-dark.svg' : '/ui/logo.svg'}
+                  src={uiUrl(theme === 'dark' ? '/logo-dark.svg' : '/logo.svg')}
                   alt="MinusPod"
                   className="h-7 xl:h-8"
                 />
