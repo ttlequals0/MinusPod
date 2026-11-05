@@ -9,7 +9,7 @@ import secrets
 import threading
 import time
 from datetime import datetime, timezone
-from functools import wraps
+from functools import lru_cache, wraps
 from pathlib import Path
 from urllib.parse import urlencode
 
@@ -55,17 +55,18 @@ from utils.validation import (
 
 # The only build outputs with baked /ui/ URLs; always served no-cache.
 _REVALIDATED_UI_FILES = ('index.html', 'sw.js', 'manifest.webmanifest')
-# Prefix-rewritten bodies keyed by (file, prefix); built once per process.
-_prefixed_ui_cache: dict[tuple[str, str], bytes] = {}
+
+
+@lru_cache(maxsize=2)
+def _prefixed_ui_bodies(static_dir: str, prefix: str) -> dict[str, bytes]:
+    """The three baked SPA files with every /ui/ URL moved under `prefix`, read once per process."""
+    return {name: apply_url_prefix((Path(static_dir) / name).read_text(encoding='utf-8')).encode('utf-8')
+            for name in _REVALIDATED_UI_FILES}
 
 
 def _prefixed_ui_response(static_dir, name):
-    """Serve a baked SPA file with every /ui/ URL moved under the URL prefix."""
-    key = (name, config.URL_PREFIX)
-    body = _prefixed_ui_cache.get(key)
-    if body is None:
-        text = apply_url_prefix((Path(static_dir) / name).read_text(encoding='utf-8'))
-        body = _prefixed_ui_cache[key] = text.encode('utf-8')
+    """Serve one of the rewritten SPA files; `name` only selects from the constant set."""
+    body = _prefixed_ui_bodies(str(static_dir), config.URL_PREFIX)[name]
     response = Response(body, mimetype=mimetypes.guess_type(name)[0])
     response.headers['Cache-Control'] = 'no-cache, must-revalidate'
     response.set_etag(hashlib.sha1(body).hexdigest())

@@ -23,12 +23,12 @@ STATIC_UI = Path(__file__).resolve().parents[2] / 'static' / 'ui'
 def prefixed(monkeypatch):
     monkeypatch.setattr(config, 'URL_PREFIX', PREFIX)
     monkeypatch.setitem(app.config, 'SESSION_COOKIE_PATH', PREFIX)
-    routes._prefixed_ui_cache.clear()
+    routes._prefixed_ui_bodies.cache_clear()
     system._render_openapi_yaml.cache_clear()
     app.config['TESTING'] = True
     with app.test_client() as c:
         yield c
-    routes._prefixed_ui_cache.clear()
+    routes._prefixed_ui_bodies.cache_clear()
     system._render_openapi_yaml.cache_clear()
 
 
