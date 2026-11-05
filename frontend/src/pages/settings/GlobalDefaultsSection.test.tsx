@@ -8,7 +8,7 @@
  */
 import { useState, type ComponentProps } from 'react';
 import { beforeEach, describe, it, expect, vi } from 'vitest';
-import { render as rtlRender, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render as rtlRender, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import GlobalDefaultsSection from './GlobalDefaultsSection';
@@ -508,5 +508,26 @@ describe('GlobalDefaultsSection: original until processed and title marker', () 
     await user.type(screen.getByLabelText('Processed episode title marker'), '[[a] ');
     await user.click(screen.getByRole('button', { name: 'Commit' }));
     expect(committed).toEqual({ mode: 'original', marker: '[a] ' });
+  });
+});
+
+
+describe('GlobalDefaultsSection: marker problems in plain words', () => {
+  it('explains a blank-only marker without the API field name', async () => {
+    render(<PlaybackHarness onCommit={() => {}} />);
+    const user = userEvent.setup();
+    await user.type(screen.getByLabelText('Processed episode title marker'), '   ');
+    const alert = screen.getByRole('alert');
+    expect(alert.textContent).toBe("The marker can't be only spaces.");
+    expect(screen.getByLabelText('Processed episode title marker').getAttribute('aria-invalid')).toBe('true');
+  });
+
+  it('explains hidden characters and shows nothing for a fine marker', async () => {
+    render(<PlaybackHarness onCommit={() => {}} />);
+    const input = screen.getByLabelText('Processed episode title marker');
+    fireEvent.change(input, { target: { value: '[a]\u200b' } });
+    expect(screen.getByRole('alert').textContent).toBe("The marker can't contain hidden or control characters.");
+    fireEvent.change(input, { target: { value: '[a] ' } });
+    expect(screen.queryByRole('alert')).toBeNull();
   });
 });

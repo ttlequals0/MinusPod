@@ -2808,3 +2808,46 @@ describe('Awaiting approval', () => {
     expect(section.id).toBe('held-for-review-section');
   });
 });
+
+
+describe('Hint about what a podcast app gets for an unprocessed episode', () => {
+  const HINT_ORIGINAL = /plays this episode now gets the original, with its ads, until it has been processed/i;
+  const HINT_PROCESS = /plays this episode now has to wait while the episode is processed first/i;
+
+  function setup(epOverrides: object, feedOverrides: object, globalMode?: string) {
+    (getFeed as ReturnType<typeof vi.fn>).mockResolvedValue({
+      slug: 'test-feed', title: 'Feed', artworkUrl: null, feedType: 'subscribed', ...feedOverrides });
+    vi.mocked(getSettings).mockResolvedValue({
+      llmProvider: { value: 'anthropic' }, claudeModel: { value: 'claude-sonnet' },
+      ...(globalMode ? { unprocessedPlayback: { value: globalMode, isDefault: false } } : {}),
+    } as Settings);
+    const ep = makeEpisode({ status: 'discovered', processedAt: null, ...epOverrides });
+    const client = makeClient();
+    (getEpisode as ReturnType<typeof vi.fn>).mockResolvedValue(ep);
+    return render(<QueryClientProvider client={client}><EpisodeDetail /></QueryClientProvider>);
+  }
+
+  it('says the episode is processed first by default, linking to the global setting', async () => {
+    setup({}, {});
+    expect(await screen.findByText(HINT_PROCESS)).toBeTruthy();
+    expect(screen.getByRole('link', { name: /change this in settings/i }).getAttribute('href')).toBe('/settings');
+  });
+
+  it('says the original plays when the global mode is original', async () => {
+    setup({}, {}, 'original');
+    expect(await screen.findByText(HINT_ORIGINAL)).toBeTruthy();
+  });
+
+  it('follows the feed override and links to the feed settings', async () => {
+    setup({ status: 'pending' }, { unprocessedPlayback: 'original' }, 'process');
+    expect(await screen.findByText(HINT_ORIGINAL)).toBeTruthy();
+    expect(screen.getByRole('link', { name: /change this in feed settings/i }).getAttribute('href')).toBe('/feeds/test-feed');
+  });
+
+  it('is not shown for a processed, local or once-processed episode', async () => {
+    setup({ status: 'completed', processedAt: '2026-11-01T00:00:00Z' }, {});
+    await screen.findByText('Test Episode');
+    expect(screen.queryByText(HINT_PROCESS)).toBeNull();
+    expect(screen.queryByText(HINT_ORIGINAL)).toBeNull();
+  });
+});

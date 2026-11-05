@@ -1207,6 +1207,73 @@ describe('FeedSettingsPanel processed title marker override', () => {
     expect(mockUpdateFeed).toHaveBeenCalledWith('test-feed', { processedTitleMarker: '[a] ' });
   });
 
+  it('saves what was typed on blur, on Enter, and with a programmatic fill', async () => {
+    const MODE_NAME = 'Processed title marker';
+    // 1. keystrokes + Tab
+    const first = renderPanel(makeFeed());
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: MODE_NAME }), 'custom');
+    await userEvent.type(screen.getByLabelText('Processed title marker text'), '[[u] ');
+    await userEvent.tab();
+    expect(mockUpdateFeed).toHaveBeenLastCalledWith('test-feed', { processedTitleMarker: '[u] ' });
+    first.unmount();
+
+    // 2. keystrokes + Enter (no blur)
+    mockUpdateFeed.mockClear();
+    const second = renderPanel(makeFeed());
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: MODE_NAME }), 'custom');
+    await userEvent.type(screen.getByLabelText('Processed title marker text'), '[[e] {Enter}');
+    expect(mockUpdateFeed).toHaveBeenCalledWith('test-feed', { processedTitleMarker: '[e] ' });
+    second.unmount();
+
+    // 3. automation-style: set the value in one input event, then blur, with a
+    //    background refetch (new feed identity) landing in between
+    mockUpdateFeed.mockClear();
+    const third = renderPanel(makeFeed());
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: MODE_NAME }), 'custom');
+    const input = screen.getByLabelText('Processed title marker text') as HTMLInputElement;
+    input.focus();
+    fireEvent.change(input, { target: { value: '[f] ' } });
+    third.rerenderWithFeed(makeFeed());
+    expect((screen.getByLabelText('Processed title marker text') as HTMLInputElement).value).toBe('[f] ');
+    fireEvent.blur(input);
+    await waitFor(() => expect(mockUpdateFeed).toHaveBeenCalledWith('test-feed', { processedTitleMarker: '[f] ' }));
+  });
+
+  it('keeps the text field on screen while the save is in flight', async () => {
+    let resolveSave: (feed: Feed) => void = () => {};
+    mockUpdateFeed.mockReturnValue(new Promise<Feed>((resolve) => { resolveSave = resolve; }));
+    renderPanel(makeFeed());
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Processed title marker' }), 'custom');
+    const input = screen.getByLabelText('Processed title marker text') as HTMLInputElement;
+    await userEvent.type(input, '[[s] ');
+    await userEvent.tab();
+    await waitFor(() => expect(mockUpdateFeed).toHaveBeenCalled());
+    // Not saved yet: the field and the typed text stay, the select stays on Custom.
+    expect((screen.getByLabelText('Processed title marker text') as HTMLInputElement).value).toBe('[s] ');
+    expect((screen.getByRole('combobox', { name: 'Processed title marker' }) as HTMLSelectElement).value).toBe('custom');
+    await act(async () => { resolveSave(makeFeed()); });
+  });
+
+  it('shows the error and keeps the typed text when the save fails', async () => {
+    mockUpdateFeed.mockRejectedValue(new Error('Server said no'));
+    renderPanel(makeFeed());
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Processed title marker' }), 'custom');
+    await userEvent.type(screen.getByLabelText('Processed title marker text'), '[[s] ');
+    await userEvent.tab();
+    expect((await screen.findByText('Server said no'))).toBeTruthy();
+    expect((screen.getByLabelText('Processed title marker text') as HTMLInputElement).value).toBe('[s] ');
+  });
+
+  it('explains a bad marker in plain words and sends nothing', async () => {
+    renderPanel(makeFeed());
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Processed title marker' }), 'custom');
+    const input = screen.getByLabelText('Processed title marker text');
+    fireEvent.change(input, { target: { value: '[a]\u200b' } });
+    fireEvent.blur(input);
+    expect(await screen.findByText("The marker can't contain hidden or control characters.")).toBeTruthy();
+    expect(mockUpdateFeed).not.toHaveBeenCalled();
+  });
+
   it('a blank custom entry falls back to the stored mode', async () => {
     renderPanel(makeFeed());
     const select = screen.getByRole('combobox', { name: MODE }) as HTMLSelectElement;

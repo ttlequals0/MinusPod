@@ -31,6 +31,7 @@ import DraftNumberInput, { parseOptionalNumber } from '../../components/DraftNum
 import { inputBase, labelBase, selectBase } from '../../components/fieldStyles';
 import { LOW_AD_YIELD_ACTION_LABELS } from '../../utils/lowAdYield';
 import { UNPROCESSED_PLAYBACK_LABELS } from '../../utils/unprocessedPlayback';
+import { markerProblem } from '../../utils/processedTitleMarker';
 import { GlobalOverrideRow, rowLabel, rowLabelTop } from './OverrideRows';
 import { SkipPatternsField } from './SkipPatternsField';
 import { UserAgentOverrideField } from './UserAgentOverrideField';
@@ -443,22 +444,40 @@ function FeedSettingsPanel({ feed, slug }: Props) {
   const storedMarkerMode = feed.processedTitleMarker == null
     ? 'global' : (feed.processedTitleMarker === '' ? 'off' : 'custom');
   const markerMode = markerCustomPending ? 'custom' : storedMarkerMode;
+  const [markerError, setMarkerError] = useState<string | null>(null);
   const changeMarkerMode = (mode: string) => {
     setMarkerCustomPending(mode === 'custom');
+    setMarkerError(null);
     // Global / Off are saved at once; Custom waits for a committed marker.
     if (mode !== 'custom') {
       updateMutation.mutate({ processedTitleMarker: mode === 'off' ? '' : null });
     }
   };
-  const commitMarker = () => {
-    const next = markerField.value;
-    if (next.trim() !== '' && next !== feed.processedTitleMarker) {
-      updateMutation.mutate({ processedTitleMarker: next });
+  // `typed` is the input's current value, read from the event rather than the
+  // render closure so a blur or Enter always saves exactly what is on screen.
+  const commitMarker = (typed: string) => {
+    const problem = markerProblem(typed);
+    if (problem) {
+      setMarkerError(problem);
+      return;
     }
-    // Blank or saved, the select goes back to the stored mode (null = global,
-    // '' = off, text = custom).
-    markerField.markClean(next.trim() === '' ? (feed.processedTitleMarker ?? '') : next);
-    setMarkerCustomPending(false);
+    setMarkerError(null);
+    if (typed.trim() === '') {
+      // Nothing to save: back to the stored mode (null = global, '' = off, text = custom).
+      markerField.markClean(feed.processedTitleMarker ?? '');
+      setMarkerCustomPending(false);
+      return;
+    }
+    if (typed === feed.processedTitleMarker) {
+      setMarkerCustomPending(false);
+      return;
+    }
+    markerField.markClean(typed);
+    // The field stays up until the save lands; on failure it stays with its text.
+    updateMutation.mutate({ processedTitleMarker: typed }, {
+      onSuccess: () => setMarkerCustomPending(false),
+      onError: (err) => setMarkerError(getErrorMessage(err, 'Could not save the marker.')),
+    });
   };
 
   const commitTrimPattern = () => {
@@ -1050,14 +1069,18 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                       type="text"
                       value={markerField.value}
                       onChange={(e) => markerField.setValue(e.target.value)}
-                      onBlur={commitMarker}
-                      onKeyDown={(e) => { if (e.key === 'Enter') commitMarker(); }}
+                      onBlur={(e) => commitMarker(e.currentTarget.value)}
+                      onKeyDown={(e) => { if (e.key === 'Enter') commitMarker(e.currentTarget.value); }}
+                      aria-invalid={markerError ? true : undefined}
                       maxLength={PROCESSED_TITLE_MARKER_MAX_LENGTH}
                       placeholder="e.g. [a] "
                       disabled={updateMutation.isPending}
                       aria-label="Processed title marker text"
                       className={`${inputBase} w-full max-w-xs`}
                     />
+                  )}
+                  {markerError && (
+                    <p role="alert" className="text-xs text-destructive">{markerError}</p>
                   )}
                   <p className="text-xs text-muted-foreground">
                     Added in front of the title of processed episodes in this feed. Keep it short

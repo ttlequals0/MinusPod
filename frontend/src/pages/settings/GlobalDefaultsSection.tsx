@@ -1,6 +1,7 @@
 import CollapsibleSection from '../../components/CollapsibleSection';
 import { LOW_AD_YIELD_ACTION_LABELS } from '../../utils/lowAdYield';
 import { UNPROCESSED_PLAYBACK_LABELS } from '../../utils/unprocessedPlayback';
+import { markerProblem } from '../../utils/processedTitleMarker';
 import type { EpisodeLogLevel, LowAdYieldAction, UnprocessedPlayback } from '../../api/types';
 import { AUTO_PROCESS_WINDOW, PROCESSED_TITLE_MARKER_MAX_LENGTH } from '../../api/types';
 import NumberInput from '../../components/NumberInput';
@@ -282,7 +283,11 @@ function GlobalDefaultsSection({
             onChange={(e) => onProcessedTitleMarkerChange(e.target.value)}
             className={`w-full max-w-xs ${inputBase}`}
             aria-describedby="processedTitleMarker-help"
+            aria-invalid={markerProblem(processedTitleMarker) ? true : undefined}
           />
+          {markerProblem(processedTitleMarker) && (
+            <p role="alert" className="mt-2 text-sm text-destructive">{markerProblem(processedTitleMarker)}</p>
+          )}
           <p id="processedTitleMarker-help" className="mt-2 text-sm text-muted-foreground">
             Added in front of the title of processed episodes in the served feed. Leave blank to turn it off. Keep it short ({PROCESSED_TITLE_MARKER_MAX_LENGTH} characters at most) so it does not eat title space in podcast apps. Per-feed settings can override this.
           </p>

@@ -339,7 +339,7 @@ def test_feed_patch_of_marker_or_playback_hands_off_without_blocking(feed):
             rebuild.reset_mock()
             assert c.patch(f'/api/v1/feeds/{SLUG}', json=body).status_code == 200
             sync_refresh.assert_not_called()          # no upstream fetch in the request
-            kick.assert_called_once_with(SLUG, 'https://example.com/feed.xml')
+            kick.assert_called_once_with(SLUG, 'https://example.com/feed.xml', force=True)
             rebuild.assert_called_once_with('recents')
         assert db.get_podcast_by_slug(SLUG).get('etag') is None
 
@@ -371,3 +371,29 @@ def test_title_resolver_is_the_single_rule_for_feed_and_db_items():
     assert episode_title_for_feed('Alpha', '', {}) == 'Alpha'
     assert episode_title_for_feed('Alpha', None, {'ad_detection_ran': 1}) == 'Alpha'
     assert episode_title_for_feed('Alpha', '[a] ', {'ad_detection_ran': 0}) == 'Alpha'
+
+
+@pytest.mark.parametrize('char,name', [
+    ('\u0085', 'NEL (Cc)'), ('\u200b', 'zero-width space (Cf)'),
+    ('\u2028', 'line separator (Zl)'), ('\u2029', 'paragraph separator (Zp)'),
+    ('\u202e', 'right-to-left override (Cf)'), ('\ufeff', 'BOM (Cf)'),
+    ('\x07', 'bell (Cc)'), ('\x7f', 'DEL (Cc)'),
+])
+def test_validator_rejects_unicode_control_format_and_separator_chars(char, name):
+    assert validate_processed_title_marker(f'[a]{char}')[1], name
+    assert validate_processed_title_marker(f'{char}[a] ')[1], name
+
+
+def test_validator_keeps_ordinary_markers_and_rejects_unicode_blank():
+    for ok in ('[a] ', '\u2705 ', '(cleaned) ', '\u00e9 '):
+        assert validate_processed_title_marker(ok) == (ok, None), ok
+    for blank in (' ', '\u00a0', '\u3000', '\u2003 '):
+        assert validate_processed_title_marker(blank)[1], repr(blank)
+
+
+def test_settings_and_feed_apis_reject_a_hidden_character_marker(feed):
+    with app.test_client() as c:
+        assert c.put('/api/v1/settings/ad-detection',
+                     json={'processedTitleMarker': '[a]\u200b'}).status_code == 400
+        assert c.patch(f'/api/v1/feeds/{SLUG}',
+                       json={'processedTitleMarker': '[a]\u202e'}).status_code == 400

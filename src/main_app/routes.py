@@ -140,27 +140,49 @@ PUBLIC_FEED_ENDPOINTS = frozenset({
 # thread per slug. refresh_rss_feed's 30 s coalesce window in feeds.py
 # additionally dedupes the upstream fetch against the scheduler.
 _bg_refresh_inflight = set()
+_bg_refresh_rerun = set()   # forced kicks that arrived mid-flight
 _bg_refresh_lock = threading.Lock()
 
 
-def _kick_background_refresh(slug, feed_url):
+def _kick_background_refresh(slug, feed_url, force=False):
     """Run refresh_rss_feed on a daemon thread so serve_rss can return
-    cached bytes immediately instead of blocking on the upstream fetch."""
+    cached bytes immediately instead of blocking on the upstream fetch.
+
+    ``force`` is for a change that must render (a setting that alters the
+    served body): it bypasses the refresh coalesce window, and a request that
+    arrives while a refresh for the slug is already in flight is not dropped.
+    The running thread re-runs once, forced, when it finishes, so the last
+    change always wins. An unforced kick (stale-while-revalidate) that finds a
+    refresh in flight is still dropped."""
     with _bg_refresh_lock:
         if slug in _bg_refresh_inflight:
+            if force:
+                _bg_refresh_rerun.add(slug)
             return
         _bg_refresh_inflight.add(slug)
 
     def _run():
+        run_force = force
         try:
-            # Import at call time so tests patching main_app.feeds see it
-            from main_app.feeds import refresh_rss_feed
-            refresh_rss_feed(slug, feed_url)
-        except Exception:
-            refresh_logger.exception(f"[{slug}] Background RSS refresh failed")
-        finally:
+            while True:
+                try:
+                    # Import at call time so tests patching main_app.feeds see it
+                    from main_app.feeds import refresh_rss_feed
+                    refresh_rss_feed(slug, feed_url, force=run_force)
+                except Exception:
+                    refresh_logger.exception(f"[{slug}] Background RSS refresh failed")
+                with _bg_refresh_lock:
+                    if slug in _bg_refresh_rerun:
+                        _bg_refresh_rerun.discard(slug)
+                        run_force = True
+                        continue
+                    _bg_refresh_inflight.discard(slug)
+                    return
+        except BaseException:
             with _bg_refresh_lock:
                 _bg_refresh_inflight.discard(slug)
+                _bg_refresh_rerun.discard(slug)
+            raise
 
     threading.Thread(target=_run, name=f"rss-bg-refresh-{slug}",
                      daemon=True).start()

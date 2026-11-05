@@ -34,7 +34,7 @@ import { confirmLabel, isKeepLike, rejectLabel } from '../utils/segmentCategory'
 import { applyEpisodeJobState, jobStateFromError } from '../utils/jobStateCache';
 import AdEditor, { AdCorrection } from '../components/AdEditor';
 import AdReviewModal from '../components/AdReviewModal';
-import type { AdSegment, EpisodeCorrection, Feed, EpisodeDetail as EpisodeDetailApi, JobState, ThinkingNoticePass, UpstreamTranscript } from '../api/types';
+import type { AdSegment, EpisodeCorrection, Feed, EpisodeDetail as EpisodeDetailApi, JobState, ThinkingNoticePass, UnprocessedPlayback, UpstreamTranscript } from '../api/types';
 import PatternLink from '../components/PatternLink';
 import ExpandableText from '../components/ExpandableText';
 import RichText from '../components/RichText';
@@ -414,6 +414,11 @@ function EpisodeDetail() {
     queryFn: () => getFeed(slug!),
     enabled: !!slug,
   });
+  // An episode that has never been processed on a feed that fetches upstream
+  // audio: what a podcast app gets for it depends on the playback setting.
+  const awaitingFirstProcessing = !!episode && !!feed && !episode.processedAt
+    && (episode.status === 'discovered' || episode.status === 'pending')
+    && (feed.feedType ?? 'subscribed') === 'subscribed';
   const { data: ytSettings } = useQuery({
     queryKey: ['youtubeSettings'],
     queryFn: getYouTubeSettings,
@@ -422,7 +427,7 @@ function EpisodeDetail() {
   const { data: settings, isPending: chapterSettingsPending, error: chapterSettingsError, refetch: reloadChapterSettings } = useQuery({
     queryKey: ['settings'],
     queryFn: getSettings,
-    enabled: !!episode?.transcriptVttAvailable,
+    enabled: !!episode?.transcriptVttAvailable || awaitingFirstProcessing,
   });
   const unsupportedChapterRoute = isSystemOneChapterRoute(settings);
   const chapterRouteWarning = 'System One cannot generate chapters. Select a chat provider and model.';
@@ -1388,6 +1393,22 @@ function EpisodeDetail() {
             </p>
           </div>
         )}
+
+        {awaitingFirstProcessing && settings && (() => {
+          const feedOverrides = !!feed?.unprocessedPlayback;
+          const mode = feed?.unprocessedPlayback
+            ?? (settings.unprocessedPlayback?.value as UnprocessedPlayback | undefined) ?? 'process';
+          return (
+            <p className="mt-4 pt-4 border-t border-border text-sm text-muted-foreground">
+              {mode === 'original'
+                ? 'A podcast app that plays this episode now gets the original, with its ads, until it has been processed.'
+                : 'A podcast app that plays this episode now has to wait while the episode is processed first.'}{' '}
+              <Link to={feedOverrides ? `/feeds/${slug}` : '/settings'} className={`text-primary hover:underline ${focusRing}`}>
+                {feedOverrides ? 'Change this in feed settings' : 'Change this in Settings'}
+              </Link>
+            </p>
+          );
+        })()}
 
         {descriptionBlock}
       </div>

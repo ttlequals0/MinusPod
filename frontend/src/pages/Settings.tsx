@@ -11,6 +11,7 @@ import { useModelCatalog } from '../hooks/useModelCatalog';
 import { useModelsRefresh } from '../hooks/useModelsRefresh';
 import { getReviewerSettings, updateReviewerSettings } from '../api/community';
 import { getErrorMessage } from '../api/client';
+import { markerProblem } from '../utils/processedTitleMarker';
 import { useAuth } from '../context/AuthContext';
 import { SkeletonRows } from '../components/Skeleton';
 import type { AffectedRunsAction, BadgePosition, EpisodeLogLevel, LowAdYieldAction, UnprocessedPlayback, LlmProvider, ModelPricingOverride, ProviderSlot, SystemStatus, WhisperBackend, WhisperApiConfig, UpdateSettingsPayload, Settings as SettingsShape } from '../api/types';
@@ -1854,7 +1855,7 @@ function Settings() {
             />
             <button
               onClick={() => updateMutation.mutate()}
-              disabled={updateMutation.isPending}
+              disabled={updateMutation.isPending || markerProblem(processedTitleMarker) !== null}
               className={`${btnLg} ${btnPrimary}`}
             >
               {updateMutation.isPending ? 'Saving...' : 'Save changes'}

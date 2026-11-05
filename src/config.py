@@ -8,6 +8,7 @@ import json
 import logging
 import math
 import os
+import unicodedata
 import re
 import sqlite3
 import string
@@ -1064,6 +1065,9 @@ RSS_AFFECTING_FEED_FIELDS = frozenset({
 # Processed-episode title marker: a short prefix (e.g. "[a] ") added at RSS
 # render time to the <item><title> of processed episodes. Empty = off.
 PROCESSED_TITLE_MARKER_MAX_LENGTH = 16
+# Unicode control, format (zero-width, bidi overrides, BOM), line and paragraph
+# separator characters change how a title renders or reads; never allowed.
+_MARKER_FORBIDDEN_CATEGORIES = frozenset({'Cc', 'Cf', 'Zl', 'Zp'})
 
 
 def validate_processed_title_marker(value, allow_none=False):
@@ -1078,8 +1082,8 @@ def validate_processed_title_marker(value, allow_none=False):
                       "characters or fewer (keep it short so it does not eat title space)")
     if value and not value.strip():
         return None, "processedTitleMarker must not be only whitespace (use an empty string to turn it off)"
-    if any(ord(ch) < 32 or ord(ch) == 127 for ch in value):
-        return None, "processedTitleMarker must not contain control characters"
+    if any(unicodedata.category(ch) in _MARKER_FORBIDDEN_CATEGORIES for ch in value):
+        return None, "processedTitleMarker must not contain control, invisible or line-separator characters"
     return value, None
 
 

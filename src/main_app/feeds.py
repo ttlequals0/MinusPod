@@ -1011,7 +1011,7 @@ def on_served_rss_settings_changed(slug=None):
             podcast = db.get_podcast_by_slug(slug)
             if podcast and podcast.get('source_url'):
                 from main_app.routes import _kick_background_refresh
-                _kick_background_refresh(slug, podcast['source_url'])
+                _kick_background_refresh(slug, podcast['source_url'], force=True)
         invalidate_feed_cache()
     except Exception as e:
         refresh_logger.warning(f"Scheduling served feed re-render failed: {e}")
