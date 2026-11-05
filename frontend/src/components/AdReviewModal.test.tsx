@@ -492,3 +492,24 @@ describe('AdReviewModal multi-span create', () => {
     expect(onClose).not.toHaveBeenCalled();
   });
 });
+
+describe('AdReviewModal manual create without a sponsor', () => {
+  it('needs a sponsor unless the category is interaction, self-promo or cross-promo', async () => {
+    const onCreate = vi.fn().mockResolvedValue(undefined);
+    renderModal({ mode: 'create', onCreate, item: { ...ITEM, sponsor: '' } });
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: 'By text' }));
+    await user.click(screen.getByRole('button', { name: 'set two valid runs' }));
+    const mark = screen.getByRole('button', { name: 'Mark ad (2 spans)' }) as HTMLButtonElement;
+    expect(mark.disabled).toBe(true);
+
+    await user.selectOptions(screen.getByLabelText(/^Category/), 'sponsor');
+    expect(mark.disabled).toBe(true);
+
+    await user.selectOptions(screen.getByLabelText(/^Category/), 'interaction');
+    expect(mark.disabled).toBe(false);
+    await user.click(mark);
+    await waitFor(() => expect(onCreate).toHaveBeenCalledTimes(2));
+    expect(onCreate.mock.calls[0][0]).toMatchObject({ sponsor: '', category: 'interaction' });
+  });
+});

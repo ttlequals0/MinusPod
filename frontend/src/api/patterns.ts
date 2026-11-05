@@ -124,6 +124,8 @@ export interface PatternStats {
     podcast: number;
   };
   no_sponsor: number;
+  // Sponsorless interaction / self-promo / cross-promo patterns: by design, not counted in no_sponsor.
+  show_promo?: number;
   never_matched: number;
   stale_count: number;
   high_false_positive_count: number;

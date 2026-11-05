@@ -30,7 +30,7 @@ import { DETECTION_STAGE_META } from '../utils/detectionStage';
 import { CORROBORATION_CLASS, CORROBORATION_META } from '../utils/corroboration';
 import { formatConfidence } from '../utils/confidence';
 import { isActionBlocked } from '../utils/processingStage';
-import { confirmLabel, isKeepLike, rejectLabel } from '../utils/segmentCategory';
+import { confirmLabel, isKeepLike, rejectLabel, teachesShowHint } from '../utils/segmentCategory';
 import { applyEpisodeJobState, jobStateFromError } from '../utils/jobStateCache';
 import AdEditor, { AdCorrection } from '../components/AdEditor';
 import AdReviewModal from '../components/AdReviewModal';
@@ -1808,6 +1808,11 @@ function EpisodeDetail() {
                         Pass-2 review of {formatTimestamp(pass2Review.span[0])}-{formatTimestamp(pass2Review.span[1])}:
                       </span>{' '}
                       {pass2Review.verdict}. {pass2Review.reason}
+                    </p>
+                  )}
+                  {!correction && !segment.approved && teachesShowHint(segment.category) && (
+                    <p className="text-xs text-muted-foreground mt-2" data-testid="teach-show-hint">
+                      {teachesShowHint(segment.category)}
                     </p>
                   )}
                   {!correction && !segment.approved && (

@@ -35,6 +35,7 @@ import {
   SEGMENT_CATEGORY_LABELS,
   isKeepLike,
   rejectLabel,
+  teachesShowHint,
   type SegmentCategory,
 } from '../utils/segmentCategory';
 import { btnBase, btnPrimary, btnOutline, btnDestructive } from './buttonStyles';
@@ -1622,7 +1623,7 @@ function AdReviewModal({
                 <button
                   type="button"
                   disabled={
-                    !sponsorInput.trim() ||
+                    (!sponsorInput.trim() && !teachesShowHint(categoryInput)) ||
                     multiSubmitting ||
                     (isMultiSpan
                       ? shortRun !== undefined

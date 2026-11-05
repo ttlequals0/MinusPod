@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { confirmLabel, rejectLabel } from './segmentCategory';
+import {
+  confirmLabel, isShowPromoPattern, patternSponsorLabel, rejectLabel, teachesShowHint,
+} from './segmentCategory';
 
 describe('confirmLabel', () => {
   it('calls a sponsor or uncategorized marker an ad', () => {
@@ -37,5 +39,33 @@ describe('rejectLabel', () => {
 
   it('falls back to Not ad for a category the frontend does not know', () => {
     expect(rejectLabel('something_new')).toBe('Not ad');
+  });
+});
+
+describe('show promo patterns', () => {
+  it('recognises a sponsorless pattern in a non-sponsor ad category', () => {
+    expect(isShowPromoPattern({ sponsor: null, category: 'interaction' })).toBe(true);
+    expect(isShowPromoPattern({ sponsor: '', category: 'self_promo' })).toBe(true);
+    expect(isShowPromoPattern({ sponsor: null, category: 'cross_promo' })).toBe(true);
+    expect(isShowPromoPattern({ sponsor: 'Acme', category: 'cross_promo' })).toBe(false);
+    expect(isShowPromoPattern({ sponsor: null, category: 'sponsor' })).toBe(false);
+    expect(isShowPromoPattern({ sponsor: null, category: 'intro' })).toBe(false);
+    expect(isShowPromoPattern({ sponsor: null })).toBe(false);
+  });
+
+  it('names the sponsor, else the show, else Unknown', () => {
+    expect(patternSponsorLabel({ sponsor: 'Acme', category: 'sponsor' })).toBe('Acme');
+    expect(patternSponsorLabel({ sponsor: null, category: 'interaction', podcast_name: 'The Diary' }))
+      .toBe('The Diary');
+    expect(patternSponsorLabel({ sponsor: null, category: 'interaction' })).toBe('This show');
+    expect(patternSponsorLabel({ sponsor: null, category: 'sponsor' })).toBe('(Unknown)');
+  });
+
+  it('says confirming teaches the show only for those categories', () => {
+    expect(teachesShowHint('interaction')).toMatch(/this show/i);
+    expect(teachesShowHint('cross_promo')).toMatch(/this show/i);
+    expect(teachesShowHint('sponsor')).toBeNull();
+    expect(teachesShowHint('intro')).toBeNull();
+    expect(teachesShowHint(undefined)).toBeNull();
   });
 });

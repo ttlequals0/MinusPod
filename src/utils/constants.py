@@ -220,6 +220,32 @@ LEARNING_LONG_DURATION_THRESHOLD = 90.0
 LEARNING_MIN_PATTERN_DURATION = 15
 LEARNING_MAX_PATTERN_DURATION = 120
 
+# Categories that name no advertiser. A human confirm of a marker in one of
+# them teaches the show a sponsorless, podcast-scoped text pattern.
+NON_SPONSOR_PATTERN_CATEGORIES = ('interaction', 'self_promo', 'cross_promo')
+
+# Minimum (duration seconds, text characters) of a sponsorless pattern's span,
+# per category. Sponsor patterns floor at LEARNING_MIN_PATTERN_DURATION (15 s)
+# and MIN_TEXT_LENGTH (50 chars). Without a brand to anchor on, a short generic
+# line ("please subscribe") would match anywhere, so the floors are 1.33x the
+# sponsor duration floor for interaction and self_promo and 2x for cross_promo,
+# which is the category most likely to resemble real show content. The
+# character floor is half of what that duration yields at ~15 characters of
+# speech per second, so a long but mostly silent or musical span fails it.
+# The existing maximum duration (LEARNING_MAX_PATTERN_DURATION) still applies.
+LEARNING_SHOW_PROMO_FLOORS = {
+    'interaction': (20, 150),
+    'self_promo': (20, 150),
+    'cross_promo': (30, 225),
+}
+
+def is_show_promo_pattern(pattern: dict) -> bool:
+    """A sponsorless pattern in a non-sponsor category: a subscribe ask,
+    self-promo or own-network promo the show's operator confirmed."""
+    return (pattern.get('sponsor_id') is None and not pattern.get('sponsor')
+            and pattern.get('category') in NON_SPONSOR_PATTERN_CATEGORIES)
+
+
 # How far past the ceiling a piece cut at its own ad transitions may run. The
 # ceiling screens for contamination, which a cut piece has already passed, but
 # without a bound one undetected transition would store a pattern of any length.

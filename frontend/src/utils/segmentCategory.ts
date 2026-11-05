@@ -58,6 +58,41 @@ export function rejectLabel(category?: string | null): string {
   return 'Keep';
 }
 
+// Categories whose reads name no advertiser. Mirrors
+// NON_SPONSOR_PATTERN_CATEGORIES in src/utils/constants.py: confirming one
+// teaches the show a sponsorless, podcast-scoped pattern.
+const SHOW_PROMO_CATEGORIES: readonly string[] = ['interaction', 'self_promo', 'cross_promo'];
+
+// A sponsorless pattern in one of those categories. Mirrors is_show_promo_pattern.
+export function isShowPromoPattern(
+  pattern: { sponsor?: string | null; category?: string | null },
+): boolean {
+  return !pattern.sponsor && !!pattern.category && SHOW_PROMO_CATEGORIES.includes(pattern.category);
+}
+
+// What the Patterns page shows where a sponsor name goes: a show promo has no
+// sponsor by design, so it names the show instead of reading as a defect.
+export function patternSponsorLabel(
+  pattern: { sponsor?: string | null; category?: string | null; podcast_name?: string | null },
+): string {
+  if (pattern.sponsor) {
+    return pattern.sponsor;
+  }
+  if (isShowPromoPattern(pattern)) {
+    return pattern.podcast_name || 'This show';
+  }
+  return '(Unknown)';
+}
+
+// One line under a Confirm button: confirming such a marker adds it to the
+// show's learned patterns. Null for every other category.
+export function teachesShowHint(category?: string | null): string | null {
+  if (!category || !SHOW_PROMO_CATEGORIES.includes(category)) {
+    return null;
+  }
+  return 'Confirming teaches this show to cut this read automatically in later episodes.';
+}
+
 export type SegmentAction = 'remove' | 'beep' | 'keep' | 'mark';
 
 export const SEGMENT_ACTIONS: SegmentAction[] = ['remove', 'beep', 'keep', 'mark'];

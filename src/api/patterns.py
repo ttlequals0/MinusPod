@@ -5,12 +5,14 @@ from datetime import datetime, timedelta, timezone
 from itertools import combinations
 
 from config import (
-    MIN_AD_DURATION, SEGMENT_CATEGORIES,
+    MIN_AD_DURATION, SEGMENT_CATEGORIES, SEGMENT_CATEGORY_LABELS,
     count_pending_review, is_keep_like, is_pending_review, resolve_max_ad_duration_confirmed,
     resolve_max_boundary_shift,
     SNIPPET_EXCLUDED_HOLD_REASONS, SNIPPET_EXCLUDED_SQL, SNIPPET_EXCLUDED_SQL_PARAMS,
     SNIPPET_EXCLUDED_STAGE_REASONS,
 )
+from utils.constants import (LEARNING_SHOW_PROMO_FLOORS, NON_SPONSOR_PATTERN_CATEGORIES,
+                             is_show_promo_pattern, sanitize_sponsor_label)
 from utils.markers import clip_merge_spans, find_marker_in_list, parse_ad_markers
 from utils.time import utc_now_iso, utc_now, parse_iso_datetime
 from sponsor_normalize import get_or_create_known_sponsor
@@ -95,6 +97,7 @@ def get_pattern_stats():
         'inactive': 0,
         'by_scope': {'global': 0, 'network': 0, 'podcast': 0},
         'no_sponsor': 0,
+        'show_promo': 0,
         'never_matched': 0,
         'stale_count': 0,
         'high_false_positive_count': 0,
@@ -117,8 +120,11 @@ def get_pattern_stats():
         if scope in stats['by_scope']:
             stats['by_scope'][scope] += 1
 
+        # A subscribe ask or promo learned for this show has no sponsor by design
+        if is_show_promo_pattern(p):
+            stats['show_promo'] += 1
         # No sponsor (Unknown)
-        if not p.get('sponsor'):
+        elif not p.get('sponsor'):
             stats['no_sponsor'] += 1
             stats['no_sponsor_patterns'].append({
                 'id': p['id'],
@@ -626,7 +632,8 @@ def _validate_create_correction_input(data):
         return None, error_response('start and end must be numbers', 400)
     if not (start >= 0 and end > start):
         return None, error_response('require 0 <= start < end', 400)
-    if not sponsor_text:
+    show_promo = not sponsor_text and category in NON_SPONSOR_PATTERN_CATEGORIES
+    if not sponsor_text and not show_promo:
         return None, error_response('Sponsor is required', 400)
     if len(text_template) < 50:
         return None, error_response('text_template must be at least 50 characters', 400)
@@ -634,6 +641,19 @@ def _validate_create_correction_input(data):
         return None, error_response("scope must be 'podcast' or 'global'", 400)
     if category is not None and category not in SEGMENT_CATEGORIES:
         return None, error_response('Invalid category', 400)
+    if show_promo:
+        # Same floors the confirm path applies, so one rule decides what a
+        # show pattern is.
+        floor_s, floor_chars = LEARNING_SHOW_PROMO_FLOORS[category]
+        if scope != 'podcast':
+            return None, error_response(
+                'A pattern without a sponsor is limited to this podcast', 400)
+        if end - start < floor_s:
+            return None, error_response(
+                f'A {category} pattern needs a span of at least {floor_s} seconds', 400)
+        if len(text_template) < floor_chars:
+            return None, error_response(
+                f'A {category} pattern needs at least {floor_chars} characters of text', 400)
 
     return {
         'start': start,
@@ -660,7 +680,7 @@ def _insert_manual_marker(episode, start, end, sponsor_name, reason,
     synthesized_reason = (
         reason.strip()
         if reason and reason.strip()
-        else f"{sponsor_name}: manually added ad"
+        else f"{sponsor_name or SEGMENT_CATEGORY_LABELS.get(category, 'Segment')}: manually added ad"
     )
     new_marker = {
         'start': start,
@@ -794,11 +814,16 @@ def _submit_correction_create(db, slug, episode_id, data):
             f'end ({end}) exceeds episode duration ({duration})', 400
         )
 
-    sponsor_id = get_or_create_known_sponsor(db, sponsor_text)
-    if sponsor_id is None:
-        return error_response('Invalid sponsor name', 400)
-    sponsor_row = db.get_known_sponsor_by_id(sponsor_id)
-    canonical_sponsor_name = sponsor_row['name'] if sponsor_row else sponsor_text
+    if sponsor_text:
+        sponsor_id = get_or_create_known_sponsor(db, sponsor_text)
+        if sponsor_id is None:
+            return error_response('Invalid sponsor name', 400)
+        sponsor_row = db.get_known_sponsor_by_id(sponsor_id)
+        canonical_sponsor_name = sponsor_row['name'] if sponsor_row else sponsor_text
+    else:
+        # A subscribe ask or promo: a sponsorless, podcast-scoped show pattern.
+        sponsor_id = None
+        canonical_sponsor_name = None
 
     markers = _insert_manual_marker(
         episode, start, end, canonical_sponsor_name, reason,
@@ -809,7 +834,7 @@ def _submit_correction_create(db, slug, episode_id, data):
     podcast_id_str = episode.get('slug') if scope == 'podcast' else None
     network_id = episode.get('network_id') if scope == 'global' else None
 
-    segments = split_template_text(text_template)
+    segments = split_template_text(text_template) if sponsor_text else [None]
 
     if len(segments) == 1:
         # Single-segment path is byte-identical to pre-#563 behavior: manual
@@ -864,7 +889,7 @@ def _submit_correction_create(db, slug, episode_id, data):
 
     logger.info(
         f"CORRECTION: type=create, episode={slug}/{episode_id}, "
-        f"pattern_id={new_pattern_id}, sponsor='{canonical_sponsor_name}', "
+        f"pattern_id={new_pattern_id}, sponsor={canonical_sponsor_name!r}, "
         f"start={start}, end={end}, scope={scope}"
     )
     return json_response({
@@ -1048,11 +1073,47 @@ def _resolve_or_create_pattern_from_text(
         return pid, [pid]
 
     sponsor = sponsor_override or original_ad.get('sponsor')
-    if not sponsor and label == 'confirmed':
+    # A subscribe ask or promo has no advertiser; a brand scraped out of its
+    # prose ("the app you're listening on") is not one, so only a sponsor the
+    # reviewer or detector named counts for those categories.
+    scrape_sponsor = category not in NON_SPONSOR_PATTERN_CATEGORIES
+    if not sponsor and label == 'confirmed' and scrape_sponsor:
         reason = original_ad.get('reason', '')
         sponsor = extract_sponsor_from_text(reason)
-    if not sponsor:
+    if not sponsor and scrape_sponsor:
         sponsor = extract_sponsor_from_text(ad_text)
+
+    # A show-name or segment label in the sponsor slot is no advertiser: for a
+    # subscribe ask or promo it must not block the show pattern below.
+    if (sponsor and category in NON_SPONSOR_PATTERN_CATEGORIES
+            and sanitize_sponsor_label(sponsor, show_name=slug) is None):
+        sponsor = None
+
+    if not sponsor and category in NON_SPONSOR_PATTERN_CATEGORIES:
+        # One sponsorless pattern for the whole confirmed read, never split on
+        # ad transitions: there is no brand to split between.
+        new_pattern_id = TextPatternMatcher(db=db).create_pattern_from_ad(
+            segments=[],
+            start=float(original_ad.get('start') or 0),
+            end=float(original_ad.get('end') or 0),
+            sponsor=None,
+            scope='podcast',
+            podcast_id=podcast_id_str,
+            episode_id=episode_id,
+            category=category,
+            ad_text=ad_text,
+        )
+        if not new_pattern_id:
+            logger.info(
+                f"No {category} pattern created for {label} ad in {slug}/{episode_id}: "
+                f"the span did not pass the learning gates (see warning above)"
+            )
+            return None, []
+        logger.info(
+            f"Created new {category} pattern {new_pattern_id} (no sponsor) from "
+            f"{label} ad in {slug}/{episode_id}"
+        )
+        return new_pattern_id, [new_pattern_id]
 
     if not sponsor:
         logger.info(

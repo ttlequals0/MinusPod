@@ -635,6 +635,19 @@ describe('Held for review: confirm label names the category', () => {
     expect(screen.getByTestId('approve-recut-0').textContent).toBe('Confirm interaction');
     expect(screen.getByTestId('approve-recut-1').textContent).toBe('Confirm');
   });
+
+  it('says confirming an interaction, self-promo or cross-promo marker teaches the show', async () => {
+    renderDetail(makeEpisode({
+      hasOriginalAudio: true,
+      pendingReviewMarkers: [{ ...heldMarker, category: 'interaction' }, secondHeldMarker],
+    }));
+    await waitFor(() => {
+      expect(screen.getByTestId('approve-recut-0')).toBeDefined();
+    });
+    const hints = screen.getAllByTestId('teach-show-hint');
+    expect(hints).toHaveLength(1);
+    expect(hints[0].textContent).toMatch(/teaches this show/i);
+  });
 });
 
 describe('Held for review: per-action error isolation', () => {

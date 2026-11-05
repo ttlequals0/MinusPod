@@ -24,7 +24,7 @@ import { PatternImportDialog } from '../components/PatternImportDialog';
 import { PatternExportDialog } from '../components/PatternExportDialog';
 import { formatDate } from '../utils/format';
 import {
-  SEGMENT_CATEGORY_FILTER_OPTIONS, UNSET_CATEGORY,
+  SEGMENT_CATEGORY_FILTER_OPTIONS, UNSET_CATEGORY, patternSponsorLabel,
 } from '../utils/segmentCategory';
 import AdReviewTab from './patterns/AdReviewTab';
 import DetectedAdsTab from './patterns/DetectedAdsTab';
@@ -446,7 +446,7 @@ function PatternsPage() {
               </div>
             )}
             <div className="text-sm font-medium text-foreground mb-1">
-              {pattern.sponsor || '(Unknown)'}
+              {patternSponsorLabel(pattern)}
             </div>
             {pattern.text_template && (
               <div className="text-xs text-muted-foreground truncate mb-3">
@@ -542,7 +542,7 @@ function PatternsPage() {
                   </td>
                   <td className={`${td} overflow-hidden`}>
                     <div className="text-sm font-medium text-foreground truncate">
-                      {pattern.sponsor || '(Unknown)'}
+                      {patternSponsorLabel(pattern)}
                     </div>
                     {pattern.text_template && (
                       <div className="text-xs text-muted-foreground truncate">

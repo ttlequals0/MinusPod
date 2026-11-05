@@ -35,7 +35,10 @@ from utils.constants import (
     LEARNING_BRAND_ONSET_FRACTION,
     LEARNING_MAX_PATTERN_DURATION,
     LEARNING_MIN_PATTERN_DURATION,
+    LEARNING_SHOW_PROMO_FLOORS,
     LEARNING_SPLIT_DURATION_FACTOR,
+    NON_SPONSOR_PATTERN_CATEGORIES,
+    is_show_promo_pattern,
     is_non_brand_name,
     sanitize_sponsor_label,
 )
@@ -505,8 +508,17 @@ class AdPattern:
     created_by: str | None = None  # 'user', 'auto', 'community'; feeds is_defined_pattern
 
     @property
+    def is_show_promo(self) -> bool:
+        return is_show_promo_pattern({'sponsor_id': self.sponsor_id, 'sponsor': self.sponsor,
+                                      'category': self.category})
+
+    @property
     def is_defined(self) -> bool:
-        return is_defined_pattern({'created_by': self.created_by, 'source': self.source})
+        # A show promo is learned from the show's own confirmed read, so it
+        # never counts as tier-1 trust: a feed's keep/mark action for its
+        # category must still win over it.
+        return (not self.is_show_promo
+                and is_defined_pattern({'created_by': self.created_by, 'source': self.source}))
 
 
 class TextPatternMatcher:
@@ -773,7 +785,9 @@ class TextPatternMatcher:
         phrase_patterns = []
         sponsor_brands = {}
         for pattern in applicable_patterns:
-            if pattern.is_defined or not pattern.outro_variants:
+            # A show promo has no sponsor to find in its outro, so the outro
+            # evidence rule below would always drop it from content matching.
+            if pattern.is_defined or pattern.is_show_promo or not pattern.outro_variants:
                 content_patterns.append(pattern)
                 phrase_patterns.append(pattern)
                 continue
@@ -1890,40 +1904,64 @@ class TextPatternMatcher:
         if not self.db:
             return None
 
-        # Validate sponsor name before creating pattern
-        if not sponsor or len(sponsor.strip()) < 2:
-            logger.warning(f"Rejecting pattern: invalid sponsor name '{sponsor}'")
-            return None
+        # A subscribe ask, self-promo or own-network promo names no advertiser.
+        # With no sponsor, one of those categories and a podcast scope it
+        # becomes a sponsorless show pattern; everything else needs a sponsor.
+        show_promo = (not (sponsor and sponsor.strip())
+                      and category in NON_SPONSOR_PATTERN_CATEGORIES)
+        if show_promo:
+            if scope != 'podcast' or not podcast_id:
+                logger.warning(
+                    f"Rejecting {category} pattern: a sponsorless pattern is "
+                    f"podcast-scoped only")
+                return None
+            sponsor = None
+        else:
+            # Validate sponsor name before creating pattern
+            if not sponsor or len(sponsor.strip()) < 2:
+                logger.warning(f"Rejecting pattern: invalid sponsor name '{sponsor}'")
+                return None
 
-        sponsor_lower = sponsor.lower().strip()
-        if sponsor_lower in self.INVALID_SPONSORS:
-            logger.warning(f"Rejecting pattern: generic/invalid sponsor '{sponsor}'")
-            return None
-        # Segment, structure, and show-name labels arrive here as sponsors when
-        # the model has no advertiser to name. podcast_id is the feed slug, and
-        # names_the_show compares with separators stripped, so it matches.
-        clean_sponsor = sanitize_sponsor_label(sponsor, show_name=podcast_id)
-        if clean_sponsor is None:
-            logger.warning(
-                f"Rejecting pattern: '{sponsor}' is a segment or structure "
-                f"name, not an advertiser")
-            return None
-        # The normalized label is what is stored: a lead-in the model left on
-        # ("Sponsored by Acme") would otherwise become the pattern's brand.
-        sponsor = clean_sponsor
+            sponsor_lower = sponsor.lower().strip()
+            if sponsor_lower in self.INVALID_SPONSORS:
+                logger.warning(f"Rejecting pattern: generic/invalid sponsor '{sponsor}'")
+                return None
+            # Segment, structure, and show-name labels arrive here as sponsors when
+            # the model has no advertiser to name. podcast_id is the feed slug, and
+            # names_the_show compares with separators stripped, so it matches.
+            clean_sponsor = sanitize_sponsor_label(sponsor, show_name=podcast_id)
+            if clean_sponsor is None:
+                logger.warning(
+                    f"Rejecting pattern: '{sponsor}' is a segment or structure "
+                    f"name, not an advertiser")
+                return None
+            # The normalized label is what is stored: a lead-in the model left on
+            # ("Sponsored by Acme") would otherwise become the pattern's brand.
+            sponsor = clean_sponsor
 
         # Validate ad duration - reject contaminated multi-ad spans on the
         # upper end, and short spans on the lower end. Pattern #356 (Patreon,
         # 8 s) is the canonical floor false-positive: real sponsor reads almost
         # never fit in under 15 seconds.
         MIN_PATTERN_DURATION, MAX_PATTERN_DURATION = self._pattern_duration_bounds()
+        if show_promo:
+            # The configured minimum can only raise the category floor.
+            MIN_PATTERN_DURATION = max(
+                MIN_PATTERN_DURATION, LEARNING_SHOW_PROMO_FLOORS[category][0])
         duration = end - start
         if duration < MIN_PATTERN_DURATION:
-            logger.warning(
-                f"Skipping pattern creation: duration {duration:.0f}s below "
-                f"min {MIN_PATTERN_DURATION}s (likely a fragment or host mention, "
-                f"not a sponsor read)"
-            )
+            if show_promo:
+                logger.warning(
+                    f"Skipping {category} pattern creation: duration "
+                    f"{duration:.0f}s is below the {MIN_PATTERN_DURATION}s floor "
+                    f"(a short line would match anywhere on the show)"
+                )
+            else:
+                logger.warning(
+                    f"Skipping pattern creation: duration {duration:.0f}s below "
+                    f"min {MIN_PATTERN_DURATION}s (likely a fragment or host mention, "
+                    f"not a sponsor read)"
+                )
             return None
         # A piece cut at its own ad transitions has passed the contamination
         # screen, so it may run past the ceiling, but only so far: an undetected
@@ -1948,6 +1986,11 @@ class TextPatternMatcher:
 
         if len(ad_text) < MIN_TEXT_LENGTH:
             logger.debug("Ad text too short for pattern creation")
+            return None
+        if show_promo and len(ad_text) < LEARNING_SHOW_PROMO_FLOORS[category][1]:
+            logger.warning(
+                f"Skipping {category} pattern creation: text length {len(ad_text)} "
+                f"is below the {LEARNING_SHOW_PROMO_FLOORS[category][1]} character floor")
             return None
 
         # Sanity check on extracted text length to catch contaminated patterns
@@ -1976,7 +2019,8 @@ class TextPatternMatcher:
         # Duration alone missed the contaminated spans that fit under the
         # ceiling: a second advertiser read inside the span makes the template
         # match neither brand's ad.
-        foreign = self._contaminating_brands(ad_text, sponsor, brand_rows)
+        foreign = ([] if show_promo
+                   else self._contaminating_brands(ad_text, sponsor, brand_rows))
         if foreign:
             logger.warning(
                 f"Skipping pattern creation: span also reads "

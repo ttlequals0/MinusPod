@@ -364,3 +364,29 @@ describe('PatternsPage search across tabs', () => {
     }
   });
 });
+
+describe('PatternsPage show promo patterns', () => {
+  const showPromo = {
+    id: 9, scope: 'podcast', network_id: null, podcast_id: 'the-diary',
+    podcast_name: 'The Diary', dai_platform: null, text_template: 'Hit that follow button '.repeat(5),
+    intro_variants: '[]', outro_variants: '[]', sponsor: null,
+    confirmation_count: 1, false_positive_count: 0, last_matched_at: null,
+    created_at: '2026-01-01T00:00:00Z', created_from_episode_id: null,
+    is_active: true, disabled_at: null, disabled_reason: null,
+    category: 'interaction',
+  };
+
+  it('shows the category badge and the show instead of (Unknown)', async () => {
+    mockGetPatterns.mockResolvedValueOnce([showPromo]);
+    renderPage();
+    expect((await screen.findAllByText('The Diary')).length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Interaction').length).toBeGreaterThan(0);
+    expect(screen.queryByText('(Unknown)')).toBeNull();
+  });
+
+  it('still shows (Unknown) for a sponsorless sponsor-category pattern', async () => {
+    mockGetPatterns.mockResolvedValueOnce([{ ...showPromo, id: 10, category: 'sponsor' }]);
+    renderPage();
+    expect((await screen.findAllByText('(Unknown)')).length).toBeGreaterThan(0);
+  });
+});

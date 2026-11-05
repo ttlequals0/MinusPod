@@ -44,6 +44,7 @@ from ad_detector.cue_boundary_snap import (
     cue_snap_edge_limit,
 )
 from text_pattern_matcher import is_defined_pattern
+from utils.constants import is_show_promo_pattern
 from database import DEFAULT_REVIEW_PROMPT, DEFAULT_RESURRECT_PROMPT
 from llm_capabilities import PASS_REVIEWER_1, PASS_REVIEWER_2
 from llm_route import (
@@ -130,10 +131,28 @@ _INCONCLUSIVE_STAGES = frozenset({
 })
 
 
-def _skips_reviewer(ad) -> bool:
-    """Human-confirmed ads and cue_match markers (a measured cue, no spoken ad) skip the LLM."""
+def _matches_show_promo_pattern(ad, db) -> bool:
+    """A text-pattern match of an active sponsorless interaction / self_promo /
+    cross_promo pattern. A human confirmed that read for this show; the
+    reviewer's category-blind prompt would only reject it again."""
+    pattern_id = ad.get('pattern_id')
+    if (db is None or pattern_id is None or ad.get('detection_stage') != 'text_pattern'
+            or ad.get('merged_distinct_ads')):
+        return False
+    try:
+        pattern = db.get_ad_pattern_by_id(pattern_id)
+    except Exception:
+        return False
+    return (isinstance(pattern, dict) and bool(pattern.get('is_active'))
+            and is_show_promo_pattern(pattern))
+
+
+def _skips_reviewer(ad, db=None) -> bool:
+    """Human-confirmed ads, cue_match markers (a measured cue, no spoken ad) and
+    matches of a learned show-promo pattern skip the LLM."""
     return (bool((ad.get("validation") or {}).get("user_confirmed"))
-            or ad.get("detection_stage") == CUE_MATCH_STAGE)
+            or ad.get("detection_stage") == CUE_MATCH_STAGE
+            or _matches_show_promo_pattern(ad, db))
 
 
 def _review_inconclusive_reason(error: Exception) -> str:
@@ -1448,7 +1467,7 @@ class AdReviewer:
         """Apply the per-ad failure rule to every accepted ad after a batch failure."""
         result = ReviewResult()
         for ad in accepted_ads:
-            if _skips_reviewer(ad):
+            if _skips_reviewer(ad, self.db):
                 result.accepted_after_review.append(ad)
                 continue
             verdict = ReviewVerdict(
@@ -1742,7 +1761,7 @@ class AdReviewer:
             return []
 
         def _run_one(idx):
-            if pool == "accepted" and _skips_reviewer(ads[idx]):
+            if pool == "accepted" and _skips_reviewer(ads[idx], self.db):
                 return None, ads[idx]
             verdict, updated = self._review_single(
                 ad=ads[idx],
