@@ -17,6 +17,28 @@ from urllib.parse import urlparse
 
 _tunable_logger = logging.getLogger(__name__)
 
+_URL_PREFIX_RE = re.compile(r'^/[A-Za-z0-9._~-]+(/[A-Za-z0-9._~-]+)*$')
+_URL_PREFIX_RESERVED = frozenset({'ui', 'api', 'episodes', 'health', 'opml'})
+
+
+def normalize_url_prefix(raw: str) -> str:
+    """Return the reverse-proxy path prefix as '/seg[/seg]' or '' when unset."""
+    value = (raw or '').strip().rstrip('/')
+    if not value:
+        return ''
+    if not value.startswith('/'):
+        value = '/' + value
+    if not _URL_PREFIX_RE.match(value) or any(seg in ('.', '..') for seg in value.split('/')):
+        raise ValueError(
+            f"MINUSPOD_URL_PREFIX must be one or more path segments such as /minuspod, got {raw!r}")
+    if value.split('/')[1] in _URL_PREFIX_RESERVED:
+        raise ValueError(
+            f"MINUSPOD_URL_PREFIX first segment {value.split('/')[1]!r} collides with an app route")
+    return value
+
+
+URL_PREFIX = normalize_url_prefix(os.environ.get('MINUSPOD_URL_PREFIX', ''))
+
 # ============================================================
 # Confidence Thresholds (0.0 - 1.0 scale)
 # ============================================================

@@ -11,6 +11,7 @@ from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from functools import wraps
 
+import config
 from config import normalize_model_key, LOCAL_UPLOAD_MAX_MB_DEFAULT
 from api.auth_state import authentication_required, session_is_authenticated
 from api.csrf import validate as csrf_validate
@@ -226,6 +227,16 @@ def get_database():
     """Get database instance."""
     from database import Database
     return Database()
+
+
+def url_prefix_meta() -> str:
+    """Meta tag the SPA and Swagger init read to learn the runtime prefix."""
+    return f'<meta name="minuspod-url-prefix" content="{config.URL_PREFIX}">' if config.URL_PREFIX else ''
+
+
+def public_path(path: str) -> str:
+    """Prefix a root-relative path with the reverse-proxy URL prefix."""
+    return f"{config.URL_PREFIX}{path}"
 
 
 def get_feed_auth_key(db):

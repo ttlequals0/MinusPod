@@ -13,6 +13,8 @@ from __future__ import annotations
 
 import secrets
 
+import config
+
 from flask import Request, Response, session
 
 
@@ -56,6 +58,7 @@ def apply_csrf_cookie(response: Response, cookie_secure: bool) -> Response:
             secure=cookie_secure,
             httponly=False,
             samesite='Strict',
+            path=config.URL_PREFIX or '/',
         )
     return response
 

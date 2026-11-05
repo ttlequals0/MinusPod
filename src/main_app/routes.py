@@ -1,6 +1,7 @@
 """Flask routes: serve_ui, serve_rss, serve_episode, serve_transcript_vtt, serve_chapters_json, health_check."""
 import json
 import logging
+import mimetypes
 import os
 import re
 import secrets
@@ -17,7 +18,8 @@ from flask import Response, g, send_file, abort, redirect, send_from_directory, 
 from werkzeug.exceptions import NotFound
 from werkzeug.utils import safe_join
 
-from api import image_response
+import config
+from api import image_response, url_prefix_meta
 from config import (
     HTTP_MAX_REDIRECTS_FEED,
     HTTP_TIMEOUT_API,
@@ -49,6 +51,25 @@ from utils.validation import (
     validate_slug_param,
     validate_slug_and_episode_params,
 )
+
+# Prefix-rewritten SPA files keyed by (file, prefix); built once per process.
+_PREFIXED_UI_FILES = ('index.html', 'sw.js', 'manifest.webmanifest')
+_prefixed_ui_cache: dict[tuple[str, str], bytes] = {}
+
+
+def _prefixed_ui_response(static_dir, name):
+    """Serve a baked SPA file with every /ui/ URL moved under the URL prefix."""
+    prefix = config.URL_PREFIX
+    body = _prefixed_ui_cache.get((name, prefix))
+    if body is None:
+        text = (Path(static_dir) / name).read_text(encoding='utf-8').replace('/ui/', f'{prefix}/ui/')
+        if name == 'index.html':
+            text = text.replace('</head>', f'{url_prefix_meta()}</head>', 1)
+        body = _prefixed_ui_cache.setdefault((name, prefix), text.encode('utf-8'))
+    response = Response(body, mimetype=mimetypes.guess_type(name)[0])
+    response.headers['Cache-Control'] = 'no-cache, must-revalidate'
+    return response
+
 
 feed_logger = logging.getLogger('podcast.feed')
 refresh_logger = logging.getLogger('podcast.refresh')
@@ -425,7 +446,7 @@ def register_routes(app):
     @app.route('/')
     def root_redirect():
         """Send a bare host:port visit to the UI instead of a 404."""
-        return redirect('/ui/', code=302)
+        return redirect(f"{config.URL_PREFIX}/ui/", code=302)
 
     @app.route('/ui/')
     @app.route('/ui/<path:path>')
@@ -450,7 +471,11 @@ def register_routes(app):
             response.headers['Cache-Control'] = 'public, max-age=31536000, immutable'
             return response
 
-        if not path or not safe_path or not os.path.isfile(safe_path):
+        is_file = bool(path and safe_path and os.path.isfile(safe_path))
+        if config.URL_PREFIX and (not is_file or path in _PREFIXED_UI_FILES):
+            return _prefixed_ui_response(STATIC_DIR, path if is_file else 'index.html')
+
+        if not is_file:
             response = send_from_directory(STATIC_DIR, 'index.html')
             response.headers['Cache-Control'] = 'no-cache, must-revalidate'
             return response

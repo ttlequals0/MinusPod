@@ -16,7 +16,7 @@ from flask import request, Response
 
 from api import (
     api, limiter, log_request, json_response, error_response, image_response,
-    get_database, get_storage, get_feed_auth_key, get_status_service,
+    get_database, get_storage, get_feed_auth_key, get_status_service, public_path,
     _serialize_auto_process, _deserialize_auto_process,
     _serialize_nullable_bool, _deserialize_nullable_bool,
     _normalize_nullable_finite_float,
@@ -1069,7 +1069,7 @@ def _podping_coverage(podcast, enabled, host_is_active):
 
 def _feed_artwork_url(podcast) -> str:
     """Versioned proxy path when we hold the file, else an https publisher URL."""
-    proxied = f"/api/v1/feeds/{podcast['slug']}/artwork"
+    proxied = public_path(f"/api/v1/feeds/{podcast['slug']}/artwork")
     version = get_storage().artwork_mtime_ns(podcast['slug'])
     if version is not None:
         return f"{proxied}?v={version}"
