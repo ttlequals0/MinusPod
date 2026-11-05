@@ -826,7 +826,8 @@ def _submit_correction_create(db, slug, episode_id, data):
         problem = show_promo_floor_problem(
             category, end - start, len(text_template), min_s, max_s)
         if problem:
-            return error_response(f'Not learned as a show pattern ({category}): {problem}', 400)
+            return error_response(
+                f'{SEGMENT_CATEGORY_LABELS[category]} read not learned for this show: {problem}', 400)
         sponsor_id = None
         canonical_sponsor_name = None
     else:

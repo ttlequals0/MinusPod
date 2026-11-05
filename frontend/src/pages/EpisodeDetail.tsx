@@ -138,12 +138,15 @@ function proposalOverlaps(seg: AdSegment): seg is ProposedAdSegment {
 
 // Row-identity payload the corrections API keys on. One builder so the
 // reason coercion stays consistent across the modal and the row buttons.
+// The marker's pattern rides along so a confirm records a match on it (and a
+// reject a false positive) instead of learning the span as a new pattern.
 function toOriginalAd(segment: AdSegment) {
   return {
     start: segment.start,
     end: segment.end,
     confidence: segment.confidence,
     reason: segment.reason || '',
+    pattern_id: segment.pattern_id ?? undefined,
   };
 }
 
@@ -1622,7 +1625,7 @@ function EpisodeDetail() {
               reason: seg.reason || '',
               confidence: seg.confidence,
               detectionStage: seg.detection_stage || 'first_pass',
-              patternId: null,
+              patternId: seg.pattern_id ?? null,
               correctedBounds:
                 proposalOverlaps(seg)
                   ? { start: seg.reviewer_proposed_start, end: seg.reviewer_proposed_end }

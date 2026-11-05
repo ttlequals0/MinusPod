@@ -81,6 +81,11 @@ describe('show patterns', () => {
     expect(showPromoSpanProblem(RULES, 'interaction', 300, 200)).toMatch(/at most 120 seconds/);
     expect(showPromoSpanProblem(RULES, 'interaction', 25)).toBeNull();      // characters unknown
     expect(showPromoSpanProblem(RULES, 'sponsor', 1, 1)).toBeNull();
+    expect(showPromoSpanProblem(RULES, 'interaction', 19, 200))
+      .toBe('An interaction read must run at least 20 seconds to be learned for this show.');
+    expect(showPromoSpanProblem(RULES, 'self_promo', 19, 200)).toMatch(/^A self-promo read /);
+    expect(showPromoSpanProblem(RULES, 'cross_promo', 300, 300)).toMatch(/^A cross-promo read /);
+    expect(showPromoSpanProblem(RULES, 'interaction', 30, 149)).toMatch(/^An interaction read /);
     // a raised minimum from the server is honoured; no rules means no pre-check
     const raised = { ...RULES, floors: { interaction: { seconds: 40, chars: 150 } } };
     expect(showPromoSpanProblem(raised, 'interaction', 30, 200)).toMatch(/at least 40 seconds/);

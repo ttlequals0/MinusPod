@@ -491,7 +491,17 @@ def test_manual_create_applies_the_floors(temp_db, client):
     assert resp.status_code == 400 and '225' in resp.get_data(as_text=True)
     resp = _post(client, _create_payload(start=110.0, end=115.0))
     assert resp.status_code == 400 and '20' in resp.get_data(as_text=True)
-    assert 'Not learned as a show pattern (interaction):' in resp.get_data(as_text=True)
+    assert 'Interaction read not learned for this show:' in resp.get_data(as_text=True)
+
+
+@pytest.mark.parametrize('category, label', [('self_promo', 'Self-promo'),
+                                             ('cross_promo', 'Cross-promo')])
+def test_manual_create_refusal_names_the_category_in_words(temp_db, client, category, label):
+    _seed(temp_db)
+    body = _post(client, _create_payload(category=category, start=110.0, end=115.0)).get_data(
+        as_text=True)
+    assert f'{label} read not learned for this show:' in body
+    assert category not in body
 
 
 # --------------------------------------------------------- one floor function

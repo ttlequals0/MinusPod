@@ -92,16 +92,17 @@ export function showPromoSpanProblem(
   if (!rules || !category || !isShowPromoCategory(rules, category)) {
     return null;
   }
-  const label = SEGMENT_CATEGORY_LABELS[category as SegmentCategory]?.toLowerCase() ?? category;
+  const label = (SEGMENT_CATEGORY_LABELS[category as SegmentCategory] ?? category).toLowerCase();
+  const read = `${/^[aeiou]/.test(label) ? 'An' : 'A'} ${label} read`;
   const floor = rules.floors[category];
   if (seconds < floor.seconds) {
-    return `A ${label} read must run at least ${floor.seconds} seconds to be learned for this show.`;
+    return `${read} must run at least ${floor.seconds} seconds to be learned for this show.`;
   }
   if (seconds > rules.maxSeconds) {
-    return `A ${label} read can run at most ${rules.maxSeconds} seconds to be learned for this show.`;
+    return `${read} can run at most ${rules.maxSeconds} seconds to be learned for this show.`;
   }
   if (chars !== undefined && chars < floor.chars) {
-    return `A ${label} read needs at least ${floor.chars} characters of text to be learned for this show.`;
+    return `${read} needs at least ${floor.chars} characters of text to be learned for this show.`;
   }
   return null;
 }

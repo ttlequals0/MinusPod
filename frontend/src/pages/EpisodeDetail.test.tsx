@@ -1551,6 +1551,26 @@ describe('Segment category chips (#565)', () => {
     expect(screen.getByTestId('teach-show-hint').textContent).toMatch(/teaches this show/i);
   });
 
+  it('confirming a pattern-matched Detections not cut row names its pattern', async () => {
+    // Without the id the server learns the span again as a second pattern.
+    const user = userEvent.setup();
+    mockSubmitCorrection.mockReset();
+    mockSubmitCorrection.mockResolvedValue({});
+    renderDetail(makeEpisode({
+      pendingReviewMarkers: [],
+      rejectedAdMarkers: [{
+        start: 90, end: 138, confidence: 0.89, category: 'interaction', pattern_id: 198,
+      }],
+    }));
+    expect(await screen.findByText('Detections not cut (1)')).not.toBeNull();
+    await user.click(screen.getByRole('button', { name: 'Confirm interaction' }));
+    await waitFor(() => expect(mockSubmitCorrection).toHaveBeenCalledTimes(1));
+    const [, , payload] = mockSubmitCorrection.mock.calls[0] as
+      [string, string, { type: string; original_ad: { pattern_id?: number } }];
+    expect(payload.type).toBe('confirm');
+    expect(payload.original_ad.pattern_id).toBe(198);
+  });
+
   it('names the detection a carved fragment came from', async () => {
     const carvedFrom = { start: 60, end: 120 };
     const hint = `Split from detection ${formatTimestamp(60)} - ${formatTimestamp(120)}`;
