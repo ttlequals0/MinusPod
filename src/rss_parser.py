@@ -1054,7 +1054,7 @@ class RSSParser:
                     hide_min_duration_seconds: float | None = None,
                     hide_max_duration_seconds: float | None = None,
                     hide_description_patterns: str | None = None,
-                    review_links: bool = False,
+                    review_link_ids: set[str] | None = None,
                     itunes_block: bool = False) -> str:
         """Modify RSS feed to use our server URLs.
 
@@ -1081,7 +1081,7 @@ class RSSParser:
                 feed_content for backwards compatibility.
             chapter_notes: {episode_id: chapters_json} to append to
                 descriptions (#720); empty or None appends nothing.
-            review_links: Append review and rate links to processed items.
+            review_link_ids: Episode ids whose descriptions get review and rate links.
             itunes_block: Emit itunes:block Yes and drop the upstream value.
             feed_auth_key: Global feed auth key (authenticated feeds). When
                 set, enclosure/vtt/chapters URLs carry ``?key=`` and the
@@ -1191,6 +1191,7 @@ class RSSParser:
             'max_duration_seconds': hide_max_duration_seconds,
         }
         included_episode_ids = set()
+        review_link_ids = review_link_ids or set()
         processed_meta = {
             ep.get('episode_id'): ep
             for ep in (extra_episodes or [])
@@ -1245,7 +1246,7 @@ class RSSParser:
 
             description = append_chapters(self._get_episode_description(entry),
                                           (chapter_notes or {}).get(episode_id))
-            if review_links and episode_id in processed_meta:
+            if episode_id in review_link_ids:
                 description = append_review_links(description, slug, episode_id)
             lines.append('<item>')
             lines.append(f'  <title>{self._escape_xml(entry.get("title", ""))}</title>')
@@ -1324,7 +1325,7 @@ class RSSParser:
                 self._append_db_episode_item(lines, slug, ep, storage,
                                              feed_auth_key,
                                              chapter_notes=chapter_notes,
-                                             review_links=review_links)
+                                             review_links=ep_id in review_link_ids)
                 appended_count += 1
 
         lines.append('</channel>')

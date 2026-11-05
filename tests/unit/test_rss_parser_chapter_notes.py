@@ -81,10 +81,10 @@ def _processed_extra(episode_id, description='<p>Old notes</p>'):
              'published_at': '2026-01-01T00:00:00Z', 'new_duration': 100, 'episode_number': 1}]
 
 
-def _links_feed(extra, review_links=True, chapter_notes=None):
+def _links_feed(extra, review_link_ids=None, chapter_notes=None):
     parser = RSSParser(base_url='https://mp.example.com')
     return parser.modify_feed(UPSTREAM, 'show', extra_episodes=extra, chapter_notes=chapter_notes,
-                              review_links=review_links)
+                              review_link_ids=review_link_ids)
 
 
 def test_review_links_off_by_default():
@@ -94,21 +94,26 @@ def test_review_links_off_by_default():
 
 
 def test_upstream_processed_item_gets_the_links():
-    xml = _links_feed(_processed_extra(UPSTREAM_ID))
+    xml = _links_feed(_processed_extra(UPSTREAM_ID), {UPSTREAM_ID})
     assert f'<p>Notes</p>\n\n<p><a href="{LINK_BASE}{UPSTREAM_ID}">Review in MinusPod</a>' in xml
     assert f'{LINK_BASE}{UPSTREAM_ID}?rate=5">Rate 5 stars' in xml
 
 
-def test_unprocessed_upstream_item_gets_no_links():
-    assert 'Review in MinusPod' not in _links_feed([])
+def test_unknown_upstream_item_gets_no_links():
+    assert 'Review in MinusPod' not in _links_feed([], review_link_ids=set())
+
+
+def test_still_processing_upstream_item_gets_the_links():
+    xml = _links_feed([], {UPSTREAM_ID})
+    assert f'<p><a href="{LINK_BASE}{UPSTREAM_ID}">Review in MinusPod' in xml
 
 
 def test_db_appended_item_gets_the_links():
-    xml = _links_feed(_processed_extra('abcdef012345'))
+    xml = _links_feed(_processed_extra('abcdef012345'), {'abcdef012345'})
     assert f'<p>Old notes</p>\n\n<p><a href="{LINK_BASE}abcdef012345">Review in MinusPod' in xml
 
 
 def test_links_follow_the_chapter_block():
-    xml = _links_feed(_processed_extra('abcdef012345'), chapter_notes={'abcdef012345': CHAPTERS})
+    xml = _links_feed(_processed_extra('abcdef012345'), {'abcdef012345'}, chapter_notes={'abcdef012345': CHAPTERS})
     assert BLOCK + '\n\n<p><a href=' in xml
     assert xml.index('Chapters</p>') < xml.index('Review in MinusPod')

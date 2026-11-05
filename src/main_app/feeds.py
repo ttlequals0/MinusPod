@@ -857,20 +857,24 @@ def _build_and_save_served_rss(slug, feed_content, parsed_feed, podcast):
     # When the resolved value is True, hide upstream entries that have not
     # finished processing so auto-downloading clients don't hit 503.
     processed_only = db.is_only_expose_processed_for_podcast(slug, podcast=podcast)
+    review_links = resolve_review_links_in_notes(db, podcast)
     processed_ids = None
+    review_link_ids = None
     awaiting_ids = set(db.get_awaiting_approval_episode_ids(podcast['id']))
     parsed_feed = _without_episodes(parsed_feed, awaiting_ids)
-    if processed_only:
-        statuses, _ = db.get_episode_statuses_for_podcast(slug)
-        processed_ids = {eid for eid, status in statuses.items()
-                         if status == 'processed' and eid not in awaiting_ids}
+    if processed_only or review_links:
+        statuses, _ = db.get_episode_statuses_for_podcast(slug, podcast_id=podcast['id'])
+        if processed_only:
+            processed_ids = {eid for eid, status in statuses.items()
+                             if status == 'processed' and eid not in awaiting_ids}
+        if review_links:
+            review_link_ids = statuses.keys() - awaiting_ids
 
     watermark_artwork = db.get_setting_bool('artwork_watermark_enabled', False)
     # None while feed auth is disabled, so serving reverts to keyless URLs
     # even though the stored key is retained for re-enable.
     feed_auth_key = active_feed_key(db)
     chapter_notes = chapter_notes_for(db, podcast)
-    review_links = resolve_review_links_in_notes(db, podcast)
     itunes_block = feed_itunes_block_enabled(db)
     # Hide applies both title and duration exclusions to served RSS.
     hide_filters = podcast if podcast.get('title_skip_action') == 'hide' else {}
@@ -889,7 +893,7 @@ def _build_and_save_served_rss(slug, feed_content, parsed_feed, podcast):
                                           hide_min_duration_seconds=hide_filters.get('min_duration_seconds'),
                                           hide_max_duration_seconds=hide_filters.get('max_duration_seconds'),
                                           chapter_notes=chapter_notes,
-                                          review_links=review_links,
+                                          review_link_ids=review_link_ids,
                                           itunes_block=itunes_block)
     storage.save_rss(slug, modified_rss)
     db.update_podcast(slug, last_checked_at=utc_now_iso())

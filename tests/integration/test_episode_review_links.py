@@ -1,4 +1,4 @@
-"""The served feed carries review links on processed episodes only when enabled."""
+"""The served feed carries review links on every episode MinusPod knows about, when enabled."""
 import pytest
 
 from api import get_database
@@ -13,6 +13,10 @@ UPSTREAM = """<?xml version="1.0" encoding="UTF-8"?>
 <guid>g1</guid><enclosure url="https://u.example.com/1.mp3" type="audio/mpeg" length="1"/></item>
 <item><title>Ep 2</title><description><![CDATA[<p>Pending</p>]]></description>
 <guid>g2</guid><enclosure url="https://u.example.com/2.mp3" type="audio/mpeg" length="1"/></item>
+<item><title>Ep 3</title><description><![CDATA[<p>Unknown</p>]]></description>
+<guid>g3</guid><enclosure url="https://u.example.com/3.mp3" type="audio/mpeg" length="1"/></item>
+<item><title>Ep 4</title><description><![CDATA[<p>Failed</p>]]></description>
+<guid>g4</guid><enclosure url="https://u.example.com/4.mp3" type="audio/mpeg" length="1"/></item>
 </channel></rss>"""
 
 
@@ -25,6 +29,12 @@ def seeded(app_client):
                       original_url='https://u.example.com/1.mp3', title='Ep 1',
                       description='<p>Notes</p>', status='processed',
                       processed_file='episodes/ep1.mp3')
+    db.upsert_episode(slug=SLUG, episode_id=RSSParser.generate_episode_id('https://u.example.com/2.mp3', 'g2'),
+                      original_url='https://u.example.com/2.mp3', title='Ep 2',
+                      description='<p>Pending</p>', status='processing')
+    db.upsert_episode(slug=SLUG, episode_id=RSSParser.generate_episode_id('https://u.example.com/4.mp3', 'g4'),
+                      original_url='https://u.example.com/4.mp3', title='Ep 4',
+                      description='<p>Failed</p>', status='failed')
     yield db
     db.set_setting('review_links_in_notes', 'false', is_default=True)
     db.delete_podcast(SLUG)
@@ -42,12 +52,14 @@ def test_no_links_by_default(seeded):
     assert 'Review in MinusPod' not in _served(seeded)
 
 
-def test_global_toggle_adds_links_to_processed_items_only(seeded):
+def test_global_toggle_adds_links_to_every_known_episode(seeded):
     seeded.set_setting('review_links_in_notes', 'true', is_default=False)
     xml = _served(seeded)
-    assert xml.count('Review in MinusPod') == 1
+    assert xml.count('Review in MinusPod') == 3
     assert '<p>Notes</p>\n\n<p><a href=' in xml
-    assert '<p>Pending</p>]]>' in xml
+    assert '<p>Pending</p>\n\n<p><a href=' in xml
+    assert '<p>Failed</p>\n\n<p><a href=' in xml
+    assert '<p>Unknown</p>]]>' in xml
 
 
 def test_feed_override_off_wins_over_global_on(seeded):

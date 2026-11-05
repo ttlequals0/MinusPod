@@ -470,7 +470,7 @@ def test_itunes_block_follows_the_global_setting(monkeypatch):
     assert 'itunes:block' not in xml
 
 
-def test_review_links_follow_the_feed_override_and_skip_unprocessed():
+def test_review_links_follow_the_feed_override():
     slug = 'archive-review-links'
     podcast = _seed(slug)
     episodes = _fetch_local_feed_episodes(mf.db, podcast['id'], 500)
@@ -482,4 +482,4 @@ def test_review_links_follow_the_feed_override_and_skip_unprocessed():
     podcast = mf.db.get_podcast_by_slug(slug)
     xml = build_local_feed_xml(podcast, episodes, storage=mf.storage, db=mf.db)
     assert f'Second episode\n\n<p><a href="http://localhost:8000/ui/feeds/{slug}/episodes/s01e02">' in xml
-    assert 's01e01">Review' not in xml
+    assert 's01e01">Review' in xml

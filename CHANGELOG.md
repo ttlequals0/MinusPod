@@ -8,6 +8,15 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
+## [2.101.23] - 2026-11-05
+
+### Fixed
+
+- Review links are now added to an episode's description as soon as MinusPod
+  has the episode, including while it is still processing. Apps such as
+  Pocket Casts store show notes the first time they see an episode and never
+  refresh them, so links added only after processing never reached them.
+
 ## [2.101.22] - 2026-11-05
 
 ### Fixed
