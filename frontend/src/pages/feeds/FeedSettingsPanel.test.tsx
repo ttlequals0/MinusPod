@@ -1207,6 +1207,30 @@ describe('FeedSettingsPanel processed title marker override', () => {
     expect(mockUpdateFeed).toHaveBeenCalledWith('test-feed', { processedTitleMarker: '[a] ' });
   });
 
+  it('a blank custom entry falls back to the stored mode', async () => {
+    renderPanel(makeFeed());
+    const select = screen.getByRole('combobox', { name: MODE }) as HTMLSelectElement;
+    await userEvent.selectOptions(select, 'custom');
+    expect(select.value).toBe('custom');
+    await userEvent.click(screen.getByLabelText('Processed title marker text'));
+    await userEvent.tab();
+    expect(mockUpdateFeed).not.toHaveBeenCalled();
+    expect(select.value).toBe('global');
+    expect(screen.queryByLabelText('Processed title marker text')).toBeNull();
+  });
+
+  it('after a successful custom save the select reflects the stored value', async () => {
+    renderPanel(makeFeed());
+    const select = screen.getByRole('combobox', { name: MODE }) as HTMLSelectElement;
+    await userEvent.selectOptions(select, 'custom');
+    await userEvent.type(screen.getByLabelText('Processed title marker text'), '[[a] ');
+    await userEvent.tab();
+    expect(mockUpdateFeed).toHaveBeenCalledWith('test-feed', { processedTitleMarker: '[a] ' });
+    // The mock leaves the feed prop unchanged (stored null), so once the save
+    // succeeds the pending flag must clear and the select shows the stored mode.
+    await waitFor(() => expect(select.value).toBe('global'));
+  });
+
   it('Custom reveals the field and a blank entry sends nothing', async () => {
     renderPanel(makeFeed());
     await userEvent.selectOptions(screen.getByRole('combobox', { name: MODE }), 'custom');

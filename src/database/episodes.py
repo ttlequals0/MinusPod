@@ -1239,7 +1239,8 @@ class EpisodeMixin:
         )
         return [dict(row) for row in cursor.fetchall()]
 
-    def get_unmodified_episode_ids(self, podcast_ids: list[int]) -> set[tuple[int, str]]:
+    def get_unmodified_episode_ids(self, podcast_ids: list[int],
+                                   episode_ids: list[str]) -> set[tuple[int, str]]:
         """(podcast_id, episode_id) of processed episodes whose published cut
         came out of a run that removed nothing by design.
 
@@ -1249,10 +1250,20 @@ class EpisodeMixin:
         run record at all (rows older than run history) falls back to its
         per-episode pass-through override flag; otherwise it counts as
         ad-removed. Never reads the feed's current mode, which changes over time.
+        Restricted to the episode ids being rendered, in chunks that stay under
+        SQLite's variable limit.
         """
-        if not podcast_ids:
+        if not podcast_ids or not episode_ids:
             return set()
+        found: set[tuple[int, str]] = set()
+        ids = sorted(set(episode_ids))
+        for start in range(0, len(ids), 400):
+            found |= self._unmodified_chunk(podcast_ids, ids[start:start + 400])
+        return found
+
+    def _unmodified_chunk(self, podcast_ids, episode_ids) -> set[tuple[int, str]]:
         marks = ",".join("?" for _ in podcast_ids)
+        id_marks = ",".join("?" for _ in episode_ids)
         stat = ("CASE WHEN json_valid(h.processing_stats_json) "
                 "THEN json_extract(h.processing_stats_json, '$.%s') END")
         cursor = self.get_connection().execute(
@@ -1264,12 +1275,13 @@ class EpisodeMixin:
                       AND h2.status = 'completed'
                       AND COALESCE(CASE WHEN json_valid(h2.processing_stats_json)
                           THEN json_extract(h2.processing_stats_json, '$.mode') END, '') != 'chapters')
-                WHERE e.podcast_id IN ({marks}) AND e.status = 'processed'
+                WHERE e.podcast_id IN ({marks}) AND e.episode_id IN ({id_marks})
+                  AND e.status = 'processed'
                   AND (CASE WHEN h.id IS NULL THEN COALESCE(e.passthrough_enabled, 0) = 1
                        ELSE ({stat % 'mode'}) = 'passthrough'
                             OR COALESCE(({stat % 'detection_skipped'}), 0) IN (1, 'true')
                             OR ({stat % 'sponsorblock.mode'}) = 'passthrough' END)""",  # noqa: S608
-            list(podcast_ids))
+            [*podcast_ids, *episode_ids])
         return {(row[0], row[1]) for row in cursor.fetchall()}
 
     _APPROVAL_ROW_COLS = ("e.episode_id, e.title, e.ads_removed, e.pending_review_count, "

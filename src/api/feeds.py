@@ -45,7 +45,7 @@ from config import (
     PROCESSING_MODE_COLUMN_UPDATES,
     CUE_ONLY_SAFETY_VALUES,
     LOW_AD_YIELD_ACTIONS,
-    normalize_unprocessed_playback,
+    UNPROCESSED_PLAYBACK_VALUES,
     validate_processed_title_marker,
     EPISODE_LOGS_VALUES,
     cue_only_missing_roles_for_feed,
@@ -363,13 +363,6 @@ def _normalize_low_ad_yield_action(value):
     if value in LOW_AD_YIELD_ACTIONS:
         return value, None
     return None, f"lowAdYieldAction must be one of: {', '.join(LOW_AD_YIELD_ACTIONS)}"
-
-
-def _normalize_unprocessed_playback(value):
-    """Per-feed unprocessedPlayback override; None clears it (inherit global)."""
-    if value is None:
-        return None, None
-    return normalize_unprocessed_playback(value)
 
 
 def _normalize_processed_title_marker(value):
@@ -2259,7 +2252,8 @@ def update_feed(slug):
         updates['low_ad_yield_action'] = ly_val
 
     if 'unprocessedPlayback' in data:
-        up_val, up_err = _normalize_unprocessed_playback(data['unprocessedPlayback'])
+        up_val, up_err = _normalize_override(
+            data['unprocessedPlayback'], UNPROCESSED_PLAYBACK_VALUES, 'unprocessedPlayback')
         if up_err:
             return error_response(up_err, 400)
         updates['unprocessed_playback'] = up_val
@@ -2505,6 +2499,13 @@ def update_feed(slug):
                 refresh_rss_feed(slug, podcast['source_url'], force=True)
             except Exception as e:
                 logger.warning(f"Feed refresh after settings change failed for {slug}: {e}")
+        if 'processed_title_marker' in updates or 'unprocessed_playback' in updates:
+            # Recents items carry the source feed's marker.
+            try:
+                from main_app.feeds import rebuild_served_rss
+                rebuild_served_rss(RECENTS_SLUG)
+            except Exception as e:
+                logger.warning(f"Recents rebuild after settings change failed for {slug}: {e}")
 
         return json_response({
             **_podcast_base_json(podcast, _public_feed_url(slug, get_feed_auth_key(db)), db),

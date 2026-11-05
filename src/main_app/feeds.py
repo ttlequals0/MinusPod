@@ -851,7 +851,8 @@ def _build_and_save_served_rss(slug, feed_content, parsed_feed, podcast):
     extra_episodes = db.get_processed_episodes_for_feed(podcast['id'])
     # The marker means the published cut came out of a run with ad detection
     # on; decided per episode from the run record, not the feed's current mode.
-    unmodified = db.get_unmodified_episode_ids([podcast['id']])
+    unmodified = db.get_unmodified_episode_ids(
+        [podcast['id']], [ep['episode_id'] for ep in extra_episodes])
     for ep in extra_episodes:
         ep['ad_removal_skipped'] = (podcast['id'], ep['episode_id']) in unmodified
     # Backfill the enclosure length for rows finalized before the
@@ -987,6 +988,19 @@ def refresh_all_artwork():
             except Exception as e:
                 refresh_logger.error(f"[{futures[future]}] artwork refresh failed: {e}")
     return count
+
+
+def schedule_served_feeds_rerender():
+    """A global setting changed the served RSS body (marker text, enclosure
+    URL form). Hand every feed to the background refresher, which re-renders
+    them staggered without blocking the request on upstream fetches, and
+    rebuild Recents now (it is pure DB, no fetch)."""
+    db.mark_all_feeds_due()
+    invalidate_feed_cache()
+    try:
+        rebuild_served_rss('recents')
+    except Exception as e:
+        refresh_logger.warning(f"Recents rebuild after a settings change failed: {e}")
 
 
 def rebuild_all_served_feeds():

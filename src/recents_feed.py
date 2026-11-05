@@ -3,7 +3,7 @@ from a cross-feed membership query with every item under its source slug."""
 import logging
 
 from config import CHAPTERS_IN_NOTES_VALUES, resolve_processed_title_marker
-from database.podcasts import RECENTS_SLUG, is_recents_feed, recents_cutoff
+from database.podcasts import RECENTS_SLUG, has_upstream_audio, is_recents_feed, recents_cutoff
 from local_feed_builder import _append_channel_image, _channel_open, _append_local_episode_item, _channel_artwork_url
 from main_app import db, rss_parser, storage
 from main_app.feed_auth import active_feed_key
@@ -30,17 +30,22 @@ def build_recents_feed_xml(podcast: dict, episodes: list[dict], *, storage, db) 
     lines.append('<podcast:medium>podcast</podcast:medium>')
     lines.append('<podcast:txt purpose="ai-content">true</podcast:txt>')
 
-    unmodified = db.get_unmodified_episode_ids(sorted({ep['podcast_id'] for ep in episodes}))
+    unmodified = db.get_unmodified_episode_ids(
+        sorted({ep['podcast_id'] for ep in episodes}), [ep['episode_id'] for ep in episodes])
+    global_marker = resolve_processed_title_marker(db, None)
     for ep in episodes:
         # Same per-feed override the source feed's own RSS honours.
         override = ep.get('source_chapters_in_notes')
         list_chapters = override == 'on' if override in CHAPTERS_IN_NOTES_VALUES else chapters_default
         # Per-item map: episode ids are only unique within a feed.
         notes = {ep['episode_id']: ep['chapters_json']} if list_chapters else {}
-        # Every Recents item is processed, so the source feed's marker applies.
-        marker = resolve_processed_title_marker(
-            db, {'processed_title_marker': ep.get('source_processed_title_marker')}) or ''
-        if (ep['podcast_id'], ep['episode_id']) in unmodified:
+        # Same rule as the source feed's own RSS, so an item reads identically
+        # in both: only feeds rendered through modify_feed (upstream audio)
+        # ever carry the marker, and never for an unmodified episode.
+        own = ep.get('source_processed_title_marker')
+        marker = global_marker if own is None else own
+        if (not has_upstream_audio({'feed_type': ep.get('source_feed_type')})
+                or (ep['podcast_id'], ep['episode_id']) in unmodified):
             marker = ''
         _append_local_episode_item(lines, ep['source_slug'], ep, base, storage, feed_auth_key,
                                    chapter_notes=notes,

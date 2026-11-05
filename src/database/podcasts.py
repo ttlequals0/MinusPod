@@ -702,6 +702,18 @@ class PodcastMixin:
         conn.commit()
         return cursor.rowcount
 
+    def mark_all_feeds_due(self) -> int:
+        """Clear every feed's conditional-GET validators and refresh-attempt
+        stamp, so the staggered background refresher (refresh_due_feeds) picks
+        them up first and fully re-renders them. Used when a global setting
+        changes the served RSS body and the request must not fetch upstream."""
+        conn = self.get_connection()
+        cursor = conn.execute(
+            "UPDATE podcasts SET etag = NULL, last_modified_header = NULL, "
+            "last_refresh_attempt_at = NULL")
+        conn.commit()
+        return cursor.rowcount
+
     # ---- Per-feed -> global default resolvers ----
 
     DEFAULT_MAX_FEED_EPISODES = 300

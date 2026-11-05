@@ -593,12 +593,15 @@ def register_routes(app):
         """Original-until-processed: play the upstream audio while the
         processed cut is not published.
 
-        Returns None when the mode is off for this feed or the feed has no
-        upstream audio (local, YouTube, Recents). Otherwise never returns None
-        and never starts or waits on a processing run: HEAD proxies the
-        upstream headers, GET answers 302 to the upstream enclosure, and an
-        episode with no known upstream URL is 404. Retry bookkeeping for
-        FAILED episodes stays with the auto-process queue.
+        Returns None when the mode is off for this feed, the feed has no
+        upstream audio (local, YouTube, Recents), or the upstream URL cannot
+        be resolved; the caller then applies its usual status handling (410
+        for a permanently failed episode, 503 while processing or awaiting
+        approval), and a request that would only be served by a processing
+        run ends in 404 because the same lookup fails there too. Otherwise
+        HEAD proxies the upstream headers and GET answers 302 to the upstream
+        enclosure. Playback never starts a run; retry bookkeeping for FAILED
+        episodes stays with the auto-process queue.
         """
         import main_app.routes as _routes
         if (not has_upstream_audio(podcast)
@@ -608,14 +611,14 @@ def register_routes(app):
         ep_data, _ = _routes._lookup_episode(
             slug, episode_id, feed_map, episode_row=episode)
         if not ep_data:
-            feed_logger.error(f"[{slug}:{episode_id}] Episode not found in RSS or database")
-            abort(404)
+            return None
         feed_logger.info(f"[{slug}:{episode_id}] Not published yet, serving original")
         if request.method == 'HEAD':
             return _routes._head_upstream(slug, episode_id, ep_data['url'])
         return redirect(ep_data['url'], code=302)
 
     @app.route('/episodes/<slug>/<episode_id>.mp3')
+    @app.route('/episodes/<slug>/<episode_id>-orig.mp3')
     @app.route('/episodes/<slug>/<episode_id>-v<int:requested_version>.mp3')
     @validate_slug_and_episode_params
     @require_feed_key
@@ -629,6 +632,8 @@ def register_routes(app):
           clients with stale RSS URLs still receive the latest cut.
         - ``/episodes/<slug>/<episode_id>-v<N>.mp3`` serves that exact version
           if the file exists, or the current version as a fallback.
+        - ``/episodes/<slug>/<episode_id>-orig.mp3`` is the URL an unprocessed
+          item carries in original mode; it behaves exactly like the plain URL.
         """
         import main_app.routes as _routes
         from main_app.processing import start_background_processing

@@ -95,7 +95,7 @@ def test_no_run_record_falls_back_to_the_episode_override_flag():
 def test_unmodified_set_lookup():
     _run('Alpha', {'mode': 'passthrough'})
     pod = db.get_podcast_by_slug(SLUG)
-    assert db.get_unmodified_episode_ids([pod['id']]) == {(pod['id'], IDS['Alpha'])}
+    assert db.get_unmodified_episode_ids([pod['id']], list(IDS.values())) == {(pod['id'], IDS['Alpha'])}
 
 
 def test_recents_uses_the_same_per_episode_rule():
@@ -105,7 +105,7 @@ def test_recents_uses_the_same_per_episode_rule():
     pod = db.get_podcast_by_slug(SLUG)
     db.update_podcast(SLUG, skip_ad_detection=1)
     eps = [{'episode_id': IDS[t], 'podcast_id': pod['id'], 'title': t, 'source_slug': SLUG,
-            'source_title': 'Show', 'source_processed_title_marker': None,
+            'source_title': 'Show', 'source_feed_type': 'subscribed', 'source_processed_title_marker': None,
             'source_chapters_in_notes': None, 'chapters_json': None, 'has_transcript_vtt': 0}
            for t in ('Alpha', 'Beta')]
     captured = []

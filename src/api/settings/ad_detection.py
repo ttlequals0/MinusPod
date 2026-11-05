@@ -11,7 +11,8 @@ from api import (
     get_database,
 )
 from config import (
-    normalize_unprocessed_playback, validate_processed_title_marker,
+    UNPROCESSED_PLAYBACK_PROCESS, normalize_unprocessed_playback,
+    validate_processed_title_marker,
     PRICING_OVERRIDE_OPTIONAL, PRICING_OVERRIDE_REQUIRED,
     ALLOWED_AUDIO_BITRATES, ALLOWED_AUDIO_ENCODER_COMPRESSION_LEVELS, AD_DETECTION_PARALLEL_WINDOWS_MIN,
     AD_DETECTION_PARALLEL_WINDOWS_MAX,
@@ -57,6 +58,14 @@ from utils.secret_writes import SecretWriteRejected, set_or_clear_secret
 from api.settings import common, systemone_phases, provider_phases
 
 logger = logging.getLogger('podcast.api')
+
+
+def _schedule_served_feeds_rerender():
+    from main_app.feeds import schedule_served_feeds_rerender
+    try:
+        schedule_served_feeds_rerender()
+    except Exception as e:
+        logger.warning(f"Scheduling served feed re-render failed: {e}")
 
 
 def _rebuild_served_feeds():
@@ -716,11 +725,14 @@ def _apply_processing_flags(db, data):
         logger.info(f"Updated low-ad-yield action to: {data['lowAdYieldAction']}")
 
     # Both values were validated in _validate_processing_defaults_payload.
-    # They are rendered into the served RSS (marker text, enclosure URLs), so a
-    # change re-renders every served feed now and clears the 304 validators.
+    # They are rendered into the served RSS (marker text, enclosure URL form),
+    # so a real change (against the effective value, unset == the default)
+    # hands every feed to the background refresher instead of fetching
+    # upstream inside this request.
     rss_changed = False
     if 'unprocessedPlayback' in data:
-        rss_changed |= db.get_setting('unprocessed_playback') != data['unprocessedPlayback']
+        rss_changed |= ((db.get_setting('unprocessed_playback') or UNPROCESSED_PLAYBACK_PROCESS)
+                        != data['unprocessedPlayback'])
         db.set_setting('unprocessed_playback', data['unprocessedPlayback'],
                        is_default=False)
         logger.info(f"Updated unprocessed playback to: {data['unprocessedPlayback']}")
@@ -730,10 +742,7 @@ def _apply_processing_flags(db, data):
                        is_default=False)
         logger.info(f"Updated processed title marker to: {data['processedTitleMarker']!r}")
     if rss_changed:
-        common.after_commit(db.clear_all_podcast_etags)
-        # Inheriting feeds must show the change on the next fetch, as a
-        # per-feed PATCH does, not after the next upstream refresh.
-        common.after_commit(_rebuild_served_feeds)
+        common.after_commit(_schedule_served_feeds_rerender)
 
     if 'episodeLogRetentionDays' in data:
         days = data['episodeLogRetentionDays']

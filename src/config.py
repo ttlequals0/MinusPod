@@ -1024,11 +1024,15 @@ UNPROCESSED_PLAYBACK_ORIGINAL = 'original'
 UNPROCESSED_PLAYBACK_VALUES = (UNPROCESSED_PLAYBACK_PROCESS, UNPROCESSED_PLAYBACK_ORIGINAL)
 
 
+UNPROCESSED_PLAYBACK_ERROR = (
+    f"unprocessedPlayback must be one of: {', '.join(UNPROCESSED_PLAYBACK_VALUES)}")
+
+
 def normalize_unprocessed_playback(value):
     """Return (value, error) for an unprocessedPlayback payload value."""
     if value in UNPROCESSED_PLAYBACK_VALUES:
         return value, None
-    return None, f"unprocessedPlayback must be one of: {', '.join(UNPROCESSED_PLAYBACK_VALUES)}"
+    return None, UNPROCESSED_PLAYBACK_ERROR
 
 
 def resolve_unprocessed_playback(db, podcast_row) -> str:

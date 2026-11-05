@@ -11,9 +11,18 @@ def episode_version_suffix(version: int | None) -> str:
     return f"-v{int(version)}" if version and int(version) > 0 else ""
 
 
+ORIGINAL_URL_SUFFIX = "-orig"
+
+
 def episode_filename(episode_id: str, version: int | None = None,
-                      extension: str = ".mp3") -> str:
-    """Return the bare filename: ``{episode_id}[-v{N}]{extension}``."""
+                      extension: str = ".mp3", original: bool = False) -> str:
+    """Return the bare filename: ``{episode_id}[-v{N}]{extension}``.
+
+    ``original=True`` gives the distinct ``{episode_id}-orig{extension}`` form
+    an unprocessed item carries in original-until-processed mode.
+    """
+    if original:
+        return f"{episode_id}{ORIGINAL_URL_SUFFIX}{extension}"
     return f"{episode_id}{episode_version_suffix(version)}{extension}"
 
 
@@ -43,11 +52,12 @@ def published_episode_version(episode: dict | None) -> int | None:
 def episode_public_url(base_url: str, slug: str, episode_id: str,
                         version: int | None = None,
                         extension: str = ".mp3",
-                        key: str | None = None) -> str:
+                        key: str | None = None,
+                        original: bool = False) -> str:
     """Return the public-facing enclosure URL.
 
     ``key`` is the global feed auth key (authenticated feeds); when set it is
     appended as the ``?key=`` query param the public routes enforce.
     """
-    url = f"{base_url}/episodes/{slug}/{episode_filename(episode_id, version, extension)}"
+    url = f"{base_url}/episodes/{slug}/{episode_filename(episode_id, version, extension, original)}"
     return f"{url}?key={key}" if key else url

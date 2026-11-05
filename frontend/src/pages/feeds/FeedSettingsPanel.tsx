@@ -444,18 +444,29 @@ function FeedSettingsPanel({ feed, slug }: Props) {
     ? (markerCustomPending ? 'custom' : 'global')
     : (feed.processedTitleMarker === '' && !markerCustomPending ? 'off' : 'custom');
   const changeMarkerMode = (mode: string) => {
-    setMarkerCustomPending(mode === 'custom');
-    if (mode === 'global') updateMutation.mutate({ processedTitleMarker: null });
-    else if (mode === 'off') updateMutation.mutate({ processedTitleMarker: '' });
+    if (mode === 'custom') {
+      setMarkerCustomPending(true);
+      return;
+    }
+    // Global / Off are saved immediately; the stored value then drives the select.
+    setMarkerCustomPending(false);
+    updateMutation.mutate({ processedTitleMarker: mode === 'off' ? '' : null });
   };
   const commitMarker = () => {
     const next = markerField.value;
     if (next.trim() === '') {
+      // Nothing to save: drop the pending Custom state so the select shows
+      // the stored mode again (null = global, '' = off, text = custom).
       markerField.markClean(feed.processedTitleMarker ?? '');
+      setMarkerCustomPending(false);
       return;
     }
     if (next !== feed.processedTitleMarker) {
-      updateMutation.mutate({ processedTitleMarker: next });
+      updateMutation.mutate({ processedTitleMarker: next }, {
+        onSuccess: () => setMarkerCustomPending(false),
+      });
+    } else {
+      setMarkerCustomPending(false);
     }
     markerField.markClean(next);
   };

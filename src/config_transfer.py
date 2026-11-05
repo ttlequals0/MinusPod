@@ -16,6 +16,7 @@ import email_service
 import webhook_service
 from community_sync import DEFAULT_CRON as COMMUNITY_SYNC_DEFAULT_CRON
 from config import (
+    UNPROCESSED_PLAYBACK_VALUES,
     PRICING_OVERRIDE_OPTIONAL, PRICING_OVERRIDE_REQUIRED,
     PODCAST_SEARCH_PROVIDERS, STAGE_TUNABLE_PAYLOAD_KEYS,
     SYSTEMONE_TUNABLE_DEFAULTS, SYSTEMONE_TUNABLE_PROFILE_KEYS,
@@ -1126,7 +1127,8 @@ def _validated_feed_updates(db, podcast, payload, feed_type, *, confirmed_ceilin
             if error:
                 raise ConfigTransferError(error)
         elif key == 'unprocessed_playback':
-            value, error = feed_api._normalize_unprocessed_playback(value)
+            value, error = feed_api._normalize_override(
+                value, UNPROCESSED_PLAYBACK_VALUES, 'unprocessedPlayback')
             if error:
                 raise ConfigTransferError(error)
         elif key == 'processed_title_marker':
@@ -1345,6 +1347,10 @@ def apply_config(db, document, scope, selected_feeds, preview_token):
                     'typesafe_api_key': 'typesafe',
                     'systemone_api_key': 'systemone-compatible',
                 }
+                served_rss_changed = any(
+                    key in settings and _setting_to_storage(settings[key]) != (db.get_setting(key) or default)
+                    for key, default in (('unprocessed_playback', 'process'),
+                                         ('processed_title_marker', '')))
                 for key, value in settings.items():
                     if key in phase_applied_setting_keys:
                         continue
@@ -1369,6 +1375,9 @@ def apply_config(db, document, scope, selected_feeds, preview_token):
                         db.clear_setting(key)
                     else:
                         db.set_setting(key, _setting_to_storage(value), is_default=False)
+                if served_rss_changed:
+                    from main_app.feeds import schedule_served_feeds_rerender
+                    common.after_commit(schedule_served_feeds_rerender)
                 if fx_rate is not None:
                     for key, value in {
                         'provider_budget_display_currency': fx_rate.currency,

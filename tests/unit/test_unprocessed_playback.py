@@ -219,3 +219,51 @@ def test_import_and_patch_treat_new_fields_as_rss_affecting():
             refresh.reset_mock()
             assert c.patch(f'/api/v1/feeds/{SLUG}', json=body).status_code == 200
             refresh.assert_called_once()
+
+
+def _get_unresolved():
+    with patch('main_app.routes.get_feed_map', return_value=FEED_MAP), \
+         patch('main_app.routes._lookup_episode', return_value=(None, None)), \
+         patch('main_app.processing.start_background_processing') as start:
+        with app.test_client() as c:
+            resp = c.get(f'/episodes/{SLUG}/{EPISODE_ID}.mp3')
+    return resp, start
+
+
+def test_unresolvable_episode_keeps_the_previous_status_handling():
+    """Original mode only guarantees playback never starts a JIT run; when the
+    upstream URL cannot be resolved the usual status responses still apply."""
+    db.set_setting('unprocessed_playback', 'original', is_default=False)
+    db.upsert_episode(SLUG, EPISODE_ID, original_url=EP['url'], title='Ep 1',
+                      status='permanently_failed')
+    resp, start = _get_unresolved()
+    assert resp.status_code == 410
+    start.assert_not_called()
+
+    db.upsert_episode(SLUG, EPISODE_ID, status='processing')
+    resp, start = _get_unresolved()
+    assert resp.status_code == 503 and resp.headers.get('Retry-After') == '30'
+    start.assert_not_called()
+
+    db.upsert_episode(SLUG, EPISODE_ID, status='processed')
+    with patch('main_app.routes._published_processed_path', return_value=None):
+        resp, start = _get_unresolved()
+    assert resp.status_code == 404
+    start.assert_not_called()
+
+    with db.get_connection() as conn:
+        conn.execute("UPDATE episodes SET approval_pending_at='2026-11-05T10:00:00Z' "
+                     "WHERE episode_id=?", (EPISODE_ID,))
+    resp, start = _get_unresolved()
+    assert resp.status_code == 503
+    start.assert_not_called()
+
+
+def test_feed_and_global_validation_share_one_message():
+    import api.feeds as feeds_api
+    from config import (UNPROCESSED_PLAYBACK_ERROR, UNPROCESSED_PLAYBACK_VALUES,
+                        normalize_unprocessed_playback)
+    assert normalize_unprocessed_playback('x')[1] == UNPROCESSED_PLAYBACK_ERROR
+    assert feeds_api._normalize_override(
+        'x', UNPROCESSED_PLAYBACK_VALUES, 'unprocessedPlayback')[1] == UNPROCESSED_PLAYBACK_ERROR
+    assert not hasattr(feeds_api, '_normalize_unprocessed_playback')

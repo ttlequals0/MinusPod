@@ -163,56 +163,75 @@ def test_settings_api_validates_and_clears_etags(feed):
         assert cleared.get_json()['processedTitleMarker'] is None
 
 
-def test_original_mode_changes_enclosure_url_of_processed_items_only():
-    """Apps that auto-downloaded the original must see a new URL once the
-    item is processed, or they never re-fetch the ad-free file."""
-    def enclosures(rss):
-        return [i.find('enclosure').get('url') for i in ET.fromstring(rss).iter('item')]
+def _enclosures(rss):
+    return [i.find('enclosure').get('url') for i in ET.fromstring(rss).iter('item')]
 
+
+def test_original_mode_leaves_processed_urls_alone_and_marks_unprocessed():
+    """Flipping a feed to original must not touch the back catalogue's
+    enclosure URLs; only unprocessed items get the distinct -orig form."""
     parser = RSSParser()
     feed = parser.parse_feed(UP, source=SLUG)
-    eid = parser.generate_episode_id(feed.entries[0].enclosures[0]['href'], feed.entries[0].get('id'))
+    ids = [parser.generate_episode_id(e.enclosures[0]['href'], e.get('id')) for e in feed.entries]
 
-    def render(mode, version):
-        extra = [{'episode_id': eid, 'processed_size_bytes': 5, 'new_duration': 10,
+    def render(mode, version=0):
+        extra = [{'episode_id': ids[0], 'processed_size_bytes': 5, 'new_duration': 10,
                   'processed_version': version}]
-        return enclosures(parser.modify_feed(
+        return _enclosures(parser.modify_feed(
             UP, SLUG, storage=MagicMock(has_artwork=lambda s: False),
             extra_episodes=extra, unprocessed_playback=mode))
 
-    default = render('process', 0)
-    assert default[0].endswith(f'/{eid}.mp3')          # today's URL, untouched
-    unprocessed_form = default[0]
-    v0 = render('original', 0)
-    v1 = render('original', 1)
-    assert v0[0].endswith(f'/{eid}-v1.mp3') and v0[0] != unprocessed_form
-    assert v1[0].endswith(f'/{eid}-v2.mp3') and v1[0] != v0[0]   # reprocess changes it again
-    assert v0[1] == default[1]                                    # unprocessed item unchanged
+    process = render('process')
+    original = render('original')
+    assert process[0].endswith(f'/{ids[0]}.mp3') and process[1].endswith(f'/{ids[1]}.mp3')
+    assert original[0] == process[0]                       # processed: identical in every mode
+    assert render('original', 2)[0] == render('process', 2)[0]
+    assert original[1].endswith(f'/{ids[1]}-orig.mp3')     # unprocessed: distinct, stable form
+    assert render('original')[1] == original[1]
 
 
-def test_original_mode_versioned_url_is_served(feed):
+def test_db_appended_processed_item_url_is_mode_independent():
+    parser = RSSParser()
+    urls = []
+    for _ in range(2):
+        lines = []
+        parser._append_db_episode_item(lines, SLUG, {'episode_id': 'x1', 'title': 'Old',
+                                                     'processed_version': 1},
+                                       MagicMock())
+        urls.append([l for l in lines if '<enclosure' in l][0])
+    assert urls[0] == urls[1] and '/x1-v1.mp3' in urls[0]
+
+
+def test_orig_url_form_is_served_like_the_plain_url(feed):
     from unittest.mock import patch
     import tempfile, os
-    db.upsert_episode(SLUG, 'abc123def456', original_url='https://cdn.example.com/a.mp3',
-                      title='A', status='processed')
-    with tempfile.NamedTemporaryFile(suffix='.mp3', delete=False) as f:
-        f.write(b'ID3')
-        path = f.name
+    eid = 'abc123def456'
+    db.set_setting('unprocessed_playback', 'original', is_default=False)
+    fm = {SLUG: {'in': 'x', 'out': SLUG}}
+    ep = {'url': 'https://cdn.example.com/a.mp3', 'title': 'A', 'description': '',
+          'artwork_url': None, 'published': None}
     try:
-        with patch('main_app.routes.get_feed_map',
-                   return_value={SLUG: {'in': 'x', 'out': SLUG}}), \
-             patch('main_app.routes._published_processed_path', return_value=path) as pp, \
+        with patch('main_app.routes.get_feed_map', return_value=fm), \
+             patch('main_app.routes._lookup_episode', return_value=(ep, 'Show')), \
+             patch('main_app.processing.start_background_processing') as start, \
              app.test_client() as c:
-            assert c.get(f'/episodes/{SLUG}/abc123def456-v1.mp3').status_code == 200
-            assert pp.call_args[0][3] == 1
+            r = c.get(f'/episodes/{SLUG}/{eid}-orig.mp3')
+            assert r.status_code == 302 and r.headers['Location'] == ep['url']
+            start.assert_not_called()
+            db.upsert_episode(SLUG, eid, original_url=ep['url'], title='A', status='processed')
+            with tempfile.NamedTemporaryFile(suffix='.mp3', delete=False) as f:
+                f.write(b'ID3')
+            with patch('main_app.routes._published_processed_path', return_value=f.name):
+                assert c.get(f'/episodes/{SLUG}/{eid}-orig.mp3').status_code == 200
+            os.unlink(f.name)
     finally:
-        os.unlink(path)
+        db.set_setting('unprocessed_playback', 'process', is_default=False)
 
 
 def test_recents_feed_applies_per_feed_marker(feed):
     import recents_feed
     db.set_setting('processed_title_marker', '[g] ', is_default=False)
-    ep = {'episode_id': 'r1', 'podcast_id': 0, 'title': 'T', 'source_slug': SLUG, 'source_title': 'Show',
+    ep = {'episode_id': 'r1', 'podcast_id': 0, 'title': 'T', 'source_slug': SLUG, 'source_title': 'Show', 'source_feed_type': 'subscribed',
           'source_processed_title_marker': None, 'source_chapters_in_notes': None,
           'chapters_json': None, 'has_transcript_vtt': 0}
     captured = []
@@ -242,35 +261,112 @@ def _served_titles(c):
     return _titles(c.get(f'/{SLUG}').get_data(as_text=True))[0]
 
 
-def test_global_change_rerenders_served_feed_without_manual_refresh(feed):
+def test_global_change_hands_feeds_to_the_refresher_without_fetching(feed):
+    """The PUT must not block on upstream fetches: it marks every feed due
+    (etag cleared, attempt stamp reset), rebuilds Recents from the DB, and the
+    scheduler's normal refresh then renders the new titles."""
     from unittest.mock import patch
     parser = RSSParser()
     _processed_alpha(parser)
+    import main_app.feeds as feeds
     fm = {SLUG: {'in': 'https://example.com/feed.xml', 'out': SLUG}}
+    db.update_podcast_etag(SLUG, 'etag-1', 'lm-1')
+    with db.get_connection() as conn:
+        conn.execute("UPDATE podcasts SET last_refresh_attempt_at='2999-01-01T00:00:00Z' WHERE slug=?", (SLUG,))
     with patch('main_app.feeds.get_feed_map', return_value=fm), \
          patch('main_app.routes.get_feed_map', return_value=fm), \
-         patch('main_app.feeds.rss_parser.fetch_feed', return_value=UP), \
+         patch('main_app.feeds.rss_parser.fetch_feed', return_value=UP) as fetch, \
+         patch('main_app.feeds.rss_parser.fetch_feed_conditional',
+               return_value=(UP, None, None)) as fetch_cond, \
+         patch('main_app.feeds.rebuild_served_rss') as rebuild, \
          app.test_client() as c:
-        import main_app.feeds as feeds
-        feeds.rebuild_served_rss(SLUG)
-        assert _served_titles(c) == ['Alpha', 'Beta']
         assert c.put('/api/v1/settings/ad-detection',
                      json={'processedTitleMarker': '[a] '}).status_code == 200
+        fetch.assert_not_called()                    # no upstream fetch in the request
+        fetch_cond.assert_not_called()
+        rebuild.assert_called_once_with('recents')   # Recents is pure DB, rebuilt now
+        row = db.get_podcast_by_slug(SLUG)
+        assert row.get('etag') is None and row.get('last_refresh_attempt_at') is None
+        assert SLUG in db.get_due_feed_slugs(900, 50)
+        feeds.refresh_due_feeds(50, 900)
         assert _served_titles(c) == ['[a] Alpha', 'Beta']
-        # the playback mode changes the enclosure URL of processed items
-        assert c.put('/api/v1/settings/ad-detection',
-                     json={'unprocessedPlayback': 'original'}).status_code == 200
-        rss = c.get(f'/{SLUG}').get_data(as_text=True)
-        assert '-v1.mp3' in rss
-        db.set_setting('unprocessed_playback', 'process', is_default=False)
 
 
-def test_unchanged_global_value_does_not_rebuild(feed):
+def test_effective_default_compare_means_unrelated_saves_do_not_rebuild(feed):
     from unittest.mock import patch
-    db.set_setting('processed_title_marker', '[a] ', is_default=False)
-    with patch('main_app.feeds.rebuild_all_served_feeds') as rebuild, \
+    with db.get_connection() as conn:
+        conn.execute("DELETE FROM settings WHERE key IN ('unprocessed_playback','processed_title_marker')")
+    with patch('main_app.feeds.schedule_served_feeds_rerender') as schedule, \
          app.test_client() as c:
-        c.put('/api/v1/settings/ad-detection', json={'processedTitleMarker': '[a] '})
-        rebuild.assert_not_called()
+        # unset == 'process' / '' : saving the defaults is not a change
+        c.put('/api/v1/settings/ad-detection', json={'unprocessedPlayback': 'process',
+                                                     'processedTitleMarker': ''})
+        schedule.assert_not_called()
         c.put('/api/v1/settings/ad-detection', json={'processedTitleMarker': '[b] '})
-        rebuild.assert_called_once()
+        schedule.assert_called_once()
+        schedule.reset_mock()
+        c.put('/api/v1/settings/ad-detection', json={'processedTitleMarker': '[b] '})
+        schedule.assert_not_called()
+
+
+def test_config_import_of_global_fields_schedules_the_same_rerender(temp_db, monkeypatch):
+    from unittest.mock import patch
+    import config_transfer
+    doc = {'format': config_transfer.FORMAT, 'formatVersion': config_transfer.FORMAT_VERSION,
+           'appVersion': '2.98.2', 'exportedAt': '2026-10-08T00:00:00+00:00',
+           'containsSecrets': True, 'feeds': [],
+           'settings': {'processed_title_marker': '[a] ', 'unprocessed_playback': 'original'}}
+    monkeypatch.setattr(config_transfer, '_after_feed_commit', lambda *_a: [])
+    preview = config_transfer.build_preview(temp_db, doc, 'global')
+    with patch('main_app.feeds.schedule_served_feeds_rerender') as schedule:
+        config_transfer.apply_config(temp_db, doc, 'global', None, preview['previewToken'])
+    schedule.assert_called_once()
+    assert temp_db.get_setting('processed_title_marker') == '[a] '
+
+
+def test_feed_patch_of_marker_or_playback_rebuilds_recents(feed):
+    from unittest.mock import patch
+    with patch('main_app.feeds.refresh_rss_feed'), \
+         patch('main_app.feeds.rebuild_served_rss') as rebuild, \
+         app.test_client() as c:
+        for body in ({'processedTitleMarker': '[b] '}, {'unprocessedPlayback': 'original'}):
+            rebuild.reset_mock()
+            assert c.patch(f'/api/v1/feeds/{SLUG}', json=body).status_code == 200
+            rebuild.assert_called_once_with('recents')
+
+
+def test_unmodified_lookup_filters_by_the_rendered_episode_ids(feed):
+    pod = db.get_podcast_by_slug(SLUG)
+    parser = RSSParser()
+    eid = _processed_alpha(parser)
+    db.record_processing_history(pod['id'], SLUG, 'T', eid, 'Alpha', 'completed',
+                                 processing_stats={'mode': 'passthrough'})
+    assert db.get_unmodified_episode_ids([pod['id']], [eid]) == {(pod['id'], eid)}
+    assert db.get_unmodified_episode_ids([pod['id']], ['other']) == set()
+    assert db.get_unmodified_episode_ids([pod['id']], []) == set()
+
+
+def test_recents_resolves_the_global_marker_once_and_skips_local_youtube(feed):
+    import recents_feed
+    from unittest.mock import patch
+    db.set_setting('processed_title_marker', '[g] ', is_default=False)
+    def ep(i, ftype):
+        return {'episode_id': f'r{i}', 'podcast_id': 0, 'title': 'T', 'source_slug': SLUG,
+                'source_title': 'Show', 'source_feed_type': ftype,
+                'source_processed_title_marker': None, 'source_chapters_in_notes': None,
+                'chapters_json': None, 'has_transcript_vtt': 0}
+    eps = [ep(1, 'subscribed'), ep(2, 'subscribed'), ep(3, 'local'), ep(4, 'youtube')]
+    captured = []
+    real_get = db.get_setting
+    calls = []
+    def spy(key, *a, **k):
+        calls.append(key)
+        return real_get(key, *a, **k)
+    with patch.object(recents_feed, '_append_local_episode_item',
+                      lambda lines, slug, e, b, st, k, **kw: captured.append(kw['title_prefix'])), \
+         patch.object(db, 'get_setting', spy):
+        recents_feed.build_recents_feed_xml(
+            {'title': 'Recents', 'description': ''}, eps,
+            storage=MagicMock(has_artwork=lambda s: False), db=db)
+    assert captured == ['[g] Show: ', '[g] Show: ', 'Show: ', 'Show: ']
+    assert calls.count('processed_title_marker') == 1
