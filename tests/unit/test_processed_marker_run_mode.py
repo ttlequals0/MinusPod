@@ -1,7 +1,7 @@
 """The marker means "this episode's published cut came out of a run with ad
 detection on". It is a per-episode fact stamped when a run publishes
 (episodes.ad_detection_ran), never read from the feed's current mode."""
-import json
+import re
 import xml.etree.ElementTree as ET
 from unittest.mock import MagicMock, patch
 
@@ -14,7 +14,7 @@ import main_app.feeds as feeds  # noqa: E402
 from ad_yield import detection_suppressed  # noqa: E402
 from main_app import db  # noqa: E402
 from main_app.pipeline import finalize  # noqa: E402
-from rss_parser import RSSParser, episode_title_for_feed, processed_title_prefix  # noqa: E402
+from rss_parser import RSS_RENDER_VERSION, RSSParser, episode_title_for_feed, processed_title_prefix  # noqa: E402
 
 SLUG = 'marker-runmode'
 UP = '''<?xml version="1.0"?><rss version="2.0"><channel><title>Show</title>
@@ -152,3 +152,48 @@ def test_recents_uses_the_same_stamp_and_source_row():
             {'title': 'Recents', 'description': ''}, eps,
             storage=MagicMock(has_artwork=lambda s: False), db=db)
     assert captured == ['Show: ', '[a] Show: ']
+
+
+def test_cached_rss_from_an_older_renderer_is_re_rendered_on_the_next_fetch():
+    """A rule change must reach feeds whose cached RSS predates it: the cached
+    copy carries the render version, and a mismatch forces a fresh render on
+    the next GET (a 304 refresh alone would keep serving the old marks)."""
+    from main_app import app
+    _stamp('Alpha', 0)
+    _stamp('Beta', 1)
+    stale = _titles_rss_with_version(RSS_RENDER_VERSION - 1)
+    fm = {SLUG: {'in': 'https://example.com/feed.xml', 'out': SLUG}}
+    with patch('main_app.feeds.get_feed_map', return_value=fm), \
+         patch('main_app.routes.get_feed_map', return_value=fm), \
+         patch('main_app.feeds.rss_parser.fetch_feed_conditional',
+               return_value=(UP, None, None)), \
+         app.test_client() as c:
+        feeds.storage.save_rss(SLUG, stale)
+        body = c.get(f'/{SLUG}').get_data(as_text=True)
+    root = ET.fromstring(body)
+    assert [i.findtext('title') for i in root.iter('item')] == ['Alpha', '[a] Beta']
+
+
+def _titles_rss_with_version(version):
+    """A cached copy as an older renderer left it: every item marked."""
+    saved = {}
+    with patch.object(feeds.storage, 'save_rss', lambda s, r: saved.update(rss=r)):
+        feeds._build_and_save_served_rss(
+            SLUG, UP, parser.parse_feed(UP, source=SLUG), db.get_podcast_by_slug(SLUG))
+    rss = saved['rss'].replace('<title>Alpha</title>', '<title>[a] Alpha</title>', 1)
+    return re.sub(r'render-version:\d+', f'render-version:{version}', rss)
+
+
+def test_backfill_clears_validators_so_background_refreshes_re_render():
+    db.update_podcast_etag(SLUG, 'etag-1', 'lm-1')
+    with db.get_connection() as conn:
+        conn.execute("UPDATE episodes SET ad_detection_ran=NULL")
+        conn.execute("DELETE FROM schema_migrations WHERE name='backfill_episodes_ad_detection_ran_v1'")
+        db._backfill_ad_detection_ran(conn)
+    assert db.get_podcast_by_slug(SLUG).get('etag') is None
+
+
+def test_render_version_was_bumped_with_the_marker_rules():
+    """Feeds cached by an earlier build (version 2) carry marks from the old
+    rule; only a changed render version makes the next fetch re-render them."""
+    assert RSS_RENDER_VERSION >= 3

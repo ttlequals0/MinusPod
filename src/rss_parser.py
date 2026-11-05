@@ -295,7 +295,9 @@ def _best_upstream_transcript_tag(tags):
 
 
 _ENCLOSURE_PREFIX_RE = re.compile(r'<enclosure url="([^"]+)/episodes/')
-RSS_RENDER_VERSION = 2
+# 3: processed-title marker and original-mode enclosure URLs; a cached copy
+# rendered by an older build is re-rendered on the next fetch.
+RSS_RENDER_VERSION = 3
 _RENDER_VERSION_RE = re.compile(r'<!-- minuspod-rss-render-version:(\d+) -->')
 _ENCLOSURE_KEY_RE = re.compile(
     r'<enclosure url="[^"]+/episodes/[^"]*\?key=([0-9a-f]{64})"')

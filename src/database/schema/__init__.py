@@ -3321,6 +3321,9 @@ class SchemaMixin:
             conn.execute("UPDATE episodes SET ad_detection_ran = ? WHERE id = ?",
                          (int(ran), row['id']))
             updated += 1
+        # Background refreshes must fully re-render, not 304-skip, so the rule
+        # reaches feeds whose cached RSS predates it.
+        conn.execute("UPDATE podcasts SET etag = NULL, last_modified_header = NULL")
         conn.execute("INSERT OR IGNORE INTO schema_migrations (name) VALUES (?)", (gate,))
         conn.commit()
         logger.info(f"ad_detection_ran backfill: {updated} episode(s)")
