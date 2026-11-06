@@ -2,9 +2,9 @@
 import { test, expect } from 'vitest';
 import { episodesHandler } from './episodes';
 const dump = { status: 200, body: { episodes: [
-  { id: 'a', title: 'Alpha show', status: 'processed', publishedAt: '2026-11-01T00:00:00Z', createdAt: '2026-11-01T00:00:00Z', episodeNumber: 2 },
-  { id: 'b', title: 'Beta', status: 'failed', publishedAt: null, createdAt: '2026-11-03T00:00:00Z', episodeNumber: null },
-  { id: 'c', title: 'alpha two', status: 'processed', publishedAt: '2026-11-02T00:00:00Z', createdAt: '2026-11-02T00:00:00Z', episodeNumber: 1 },
+  { id: 'a', title: 'Alpha show', status: 'processed', published: '2026-11-01T00:00:00Z', createdAt: '2026-11-01T00:00:00Z', episodeNumber: 2 },
+  { id: 'b', title: 'Beta', status: 'failed', published: null, createdAt: '2026-11-03T00:00:00Z', episodeNumber: null },
+  { id: 'c', title: 'alpha two', status: 'processed', published: '2026-11-02T00:00:00Z', createdAt: '2026-11-02T00:00:00Z', episodeNumber: 1 },
 ], total: 3, limit: 500, offset: 0 } };
 const load = async () => dump;
 const url = (q: string) => new URL(`http://x/api/v1/feeds/s/episodes?${q}`);
@@ -18,6 +18,14 @@ test('published_at sort coalesces to createdAt and paginates', async () => {
   const r = await episodesHandler(url('sort_by=published_at&sort_dir=desc&limit=2&offset=0'), load);
   expect((r!.body as any).episodes.map((e: any) => e.id)).toEqual(['b', 'c']);
   expect((r!.body as any).limit).toBe(2);
+});
+test('published_at sort reads published, not createdAt', async () => {
+  const rows = [
+    { id: 'x', title: 'x', status: 'processed', published: '2026-12-01T00:00:00Z', createdAt: '2026-01-01T00:00:00Z' },
+    { id: 'y', title: 'y', status: 'processed', published: '2026-02-01T00:00:00Z', createdAt: '2026-06-01T00:00:00Z' },
+  ];
+  const r = await episodesHandler(url('sort_by=published_at&sort_dir=desc'), async () => ({ status: 200, body: { episodes: rows } }));
+  expect((r!.body as any).episodes.map((e: any) => e.id)).toEqual(['x', 'y']);
 });
 test('episode_number sorts nulls last', async () => {
   const r = await episodesHandler(url('sort_by=episode_number&sort_dir=asc'), load);

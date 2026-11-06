@@ -1,6 +1,6 @@
 import type { ProcessingHistoryEntry } from '../../api/types';
 import type { ListHandler } from './index';
-import { clampInt, pageSlice, sortBy } from './paging';
+import { clampInt, offsetSlice, sortBy } from './paging';
 import { loadAllPages } from './pagedDump';
 
 type Body = { history: ProcessingHistoryEntry[] };
@@ -18,7 +18,8 @@ export const historyHandler: ListHandler = async (url, load) => {
   if (!all) return null;
   const p = url.searchParams;
   const limit = clampInt(p.get('limit'), 50, 1, 100);
-  const offset = p.has('page') ? (clampInt(p.get('page'), 1, 1, Infinity) - 1) * limit : clampInt(p.get('offset'), 0, 0, Infinity);
+  const hasPage = /^\s*[+-]?\d+\s*$/.test(p.get('page') ?? '');
+  const offset = hasPage ? (clampInt(p.get('page'), 1, 1, Infinity) - 1) * limit : clampInt(p.get('offset'), 0, 0, Infinity);
   const page = Math.floor(offset / limit) + 1;
   const status = p.get('status');
   const slug = p.get('podcast_slug');
@@ -30,6 +31,6 @@ export const historyHandler: ListHandler = async (url, load) => {
   const total = rows.length;
   return {
     status: 200,
-    body: { ...all.body, history: pageSlice(rows, page, limit), total, totalPages: total > 0 ? Math.ceil(total / limit) : 1, page, limit, offset },
+    body: { ...all.body, history: offsetSlice(rows, offset, limit), total, totalPages: total > 0 ? Math.ceil(total / limit) : 1, page, limit, offset },
   };
 };
