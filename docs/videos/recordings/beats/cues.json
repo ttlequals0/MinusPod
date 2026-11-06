@@ -12,7 +12,7 @@
    "clip": "candidates",
    "dev": "laptop",
    "start": 0.4,
-   "dur": 10.0,
+   "dur": 9.8,
    "crop": [
     48,
     150,
@@ -26,10 +26,10 @@
    "clip": "templates",
    "dev": "laptop",
    "start": 0.3,
-   "dur": 5.5,
+   "dur": 6.5,
    "crop": [
     48,
-    180,
+    205,
     1904,
     1420
    ],
@@ -62,7 +62,7 @@
     1700
    ],
    "head": "Cuts snap to the cue.",
-   "sub": "A Cue snapped badge marks each edge the cue sharpened. Confirm or reject matches to tune the feed."
+   "sub": "Ads show a Cue snapped badge where a cue sharpened an edge. Confirm or reject each cue match to tune the feed."
   },
   {
    "clip": "cuesettings",

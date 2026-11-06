@@ -12,9 +12,23 @@
    "clip": "dashboard",
    "dev": "phone",
    "start": 0.5,
-   "dur": 7,
+   "dur": 6,
    "head": "Every feed in one place.",
    "sub": "Subscriptions, new episodes and processing status."
+  },
+  {
+   "clip": "whatsnew",
+   "dev": "laptop",
+   "start": 0.5,
+   "dur": 6.5,
+   "head": "See what changed after an upgrade.",
+   "sub": "The What's new dialog lists the releases since you last looked.",
+   "crop": [
+    48,
+    100,
+    1904,
+    1700
+   ]
   },
   {
    "clip": "queue",
@@ -41,8 +55,8 @@
   {
    "clip": "editor",
    "dev": "laptop",
-   "start": 0.5,
-   "dur": 8,
+   "start": 8.9,
+   "dur": 5.2,
    "crop": [
     104,
     72,
@@ -55,7 +69,7 @@
   {
    "clip": "review",
    "dev": "laptop",
-   "start": 0.5,
+   "start": 2.0,
    "dur": 8,
    "crop": [
     104,
@@ -84,7 +98,7 @@
    "clip": "search",
    "dev": "phone",
    "start": 0.5,
-   "dur": 7,
+   "dur": 6,
    "head": "Search everything.",
    "sub": "Titles, transcripts and patterns."
   },
@@ -120,8 +134,8 @@
    "clip": "themes",
    "dev": "laptop",
    "start": 1.0,
-   "dur": 9,
-   "head": "Twenty themes, light and dark.",
+   "dur": 8,
+   "head": "Thirty-two themes, light and dark.",
    "sub": "Pick one in Settings. It applies at once.",
    "crop": [
     48,
@@ -131,10 +145,18 @@
    ]
   },
   {
+   "clip": "addmode",
+   "dev": "phone",
+   "start": 0.5,
+   "dur": 8.3,
+   "head": "Choose how a feed is processed when you add it.",
+   "sub": "Standard, keep content, skip detection or pass through."
+  },
+  {
    "clip": "ytadd",
    "dev": "phone",
    "start": 0.5,
-   "dur": 9,
+   "dur": 8,
    "head": "Add a YouTube show by name.",
    "sub": "Podcast results are flagged. Look up before you add."
   },
@@ -142,7 +164,7 @@
    "clip": "ytfeed",
    "dev": "laptop",
    "start": 0.3,
-   "dur": 7,
+   "dur": 6,
    "crop": [
     48,
     100,
@@ -156,7 +178,7 @@
    "clip": "ytepisode",
    "dev": "laptop",
    "start": 0.3,
-   "dur": 9,
+   "dur": 8,
    "crop": [
     48,
     100,
@@ -170,7 +192,7 @@
    "clip": "ytsettings",
    "dev": "laptop",
    "start": 0.3,
-   "dur": 7,
+   "dur": 6,
    "crop": [
     48,
     180,

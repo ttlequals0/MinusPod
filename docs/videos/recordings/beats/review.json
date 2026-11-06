@@ -28,13 +28,13 @@
     1570
    ],
    "head": "Each hold says why.",
-   "sub": "A known sponsor pattern, estimated bounds, 84% confidence. Nothing is cut until you decide."
+   "sub": "A known sponsor pattern, estimated bounds, 95% confidence. Nothing is cut until you decide."
   },
   {
    "clip": "modal",
    "dev": "laptop",
-   "start": 1.6,
-   "dur": 10.5,
+   "start": 4.9,
+   "dur": 9.2,
    "crop": [
     104,
     72,
@@ -69,7 +69,7 @@
     1904,
     1600
    ],
-   "head": "Five ads now, and your call is on the record.",
+   "head": "Five segments now, and your call is on the record.",
    "sub": "Confirmed and rejected detections stay visible for auditing."
   },
   {

@@ -11,7 +11,7 @@
 
 One episode across every pipeline stage, then the learning loop and what happens when a stage fails. Portrait cut and the file itself in [Videos](videos/README.md).
 
-https://github.com/user-attachments/assets/d2f2ad13-71b9-4712-a872-de3c8e867a2a
+https://github.com/user-attachments/assets/cf3d38d7-3df6-4e8d-bac1-c5dd720dc4b6
 
 ## How It Works
 

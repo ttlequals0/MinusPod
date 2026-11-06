@@ -26,7 +26,14 @@ export async function openContext(browser, T, device, { scale = DEVICES[device].
   const DEV = DEVICES[device];
   const ctx = await browser.newContext({ viewport: { width: DEV.W / DEV.DSF, height: DEV.H / DEV.DSF }, deviceScaleFactor: scale, isMobile: device === 'phone', hasTouch: device === 'phone', colorScheme: 'dark' });
   await ctx.addCookies([{ name: 'session', value: sessionCookie(), domain: T.cookieDomain, path: '/', httpOnly: true, secure: true }]);
-  await ctx.addInitScript(() => { localStorage.setItem('theme', 'dark'); if (!localStorage.getItem('themeId')) localStorage.setItem('themeId', 'slate'); });
+  // The What's new dialog opens once per browser after an upgrade, so a fresh context marks the running version as seen.
+  const health = await fetch(T.baseUrl.replace(/\/ui\/?$/, '') + '/api/v1/health', { signal: AbortSignal.timeout(5000) });
+  if (!health.ok) throw new Error(`health check failed: HTTP ${health.status}`);
+  const { version } = await health.json();
+  await ctx.addInitScript((v) => {
+    localStorage.setItem('theme', 'dark'); if (!localStorage.getItem('themeId')) localStorage.setItem('themeId', 'slate');
+    if (!localStorage.getItem('whatsNewSeenVersion')) localStorage.setItem('whatsNewSeenVersion', JSON.stringify(v));
+  }, version);
   return ctx;
 }
 // Phone takes get the app's touch-target sizes; every take loses the text caret.
@@ -41,6 +48,8 @@ export const PAGE_CSS = {
 };
 
 export const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+// Targets name processed episodes as "slug/id".
+export const episodeUrl = (se) => { const [slug, id] = se.split('/'); return `/feeds/${slug}/episodes/${id}`; };
 export async function smoothScroll(page, px, ms) {
   await page.evaluate(([px, ms]) => new Promise((done) => {
     const start = window.scrollY, t0 = performance.now();
@@ -72,13 +81,14 @@ export async function openSection(p, re, offset = 130, { settings = false } = {}
   const h = await expandSection(p, re); await jumpTo(p, h, offset); return h;
 }
 
-// Every rendered text node (a dropdown's selected value included) and input value that matches the sensitive pattern, or any URL in an input.
+// Every rendered text node (a dropdown's selected value included), image alt text and input value that matches the sensitive pattern, or any URL in an input.
 // Returns the elements to hide, each lifted to the smallest ancestor that has other content (the row or block the hit sits in).
-const SENSITIVE_HITS = ({ pattern, hide }) => {
+const SENSITIVE_HITS = ({ pattern, hide, collapse }) => {
   const RE = new RegExp(pattern, 'i'), hits = [];
   const visible = (e) => { for (; e; e = e.parentElement) { if (e.tagName === 'OPTION') { if (!e.selected) return false; continue; } if (/^(SCRIPT|STYLE|NOSCRIPT)$/.test(e.tagName)) return false; const cs = getComputedStyle(e); if (cs.visibility === 'hidden' || cs.display === 'none') return false; } return true; };
   const w = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT); let n;
   while ((n = w.nextNode())) if (RE.test(n.textContent) && visible(n.parentElement)) hits.push([n.parentElement, n.textContent]);
+  document.querySelectorAll('img[alt]').forEach((i) => { if (RE.test(i.alt) && visible(i)) hits.push([i, i.alt]); });
   document.querySelectorAll('input, textarea').forEach((i) => { if (i.type !== 'hidden' && visible(i) && (i.type === 'password' || i.type === 'url' || /https?:\/\//.test(i.value) || RE.test(i.value))) hits.push([i, i.value]); });
   // A text hit hides its row; an input hit climbs to the labelled row around it (the "Feed URL:" line, a settings field).
   const hasText = (el) => { const tw = document.createTreeWalker(el, NodeFilter.SHOW_TEXT); let t; while ((t = tw.nextNode())) if (t.textContent.trim() && !t.parentElement.closest('svg')) return true; return false; };
@@ -88,11 +98,12 @@ const SENSITIVE_HITS = ({ pattern, hide }) => {
     let box = el.closest('tr, li, [role="row"], [role="listitem"], label') || (/^\s*https?:\/\//.test(t) && el.parentElement) || el;
     const up = el.matches('input, textarea') ? (b) => !hasText(b) : (b) => b.parentElement.children.length === 1;
     while (box.parentElement && box.parentElement !== document.body && up(box)) box = box.parentElement;
-    box.style.visibility = 'hidden';
+    // collapse removes the row before a take; mid-take hiding keeps the layout still.
+    if (collapse) box.style.display = 'none'; else box.style.visibility = 'hidden';
   });
   return hits.map(([, t]) => t.trim().slice(0, 60));
 };
-export async function hideSensitive(page, T) { await page.evaluate(SENSITIVE_HITS, { pattern: T.sensitive, hide: true }); }
+export async function hideSensitive(page, T, { collapse = false } = {}) { await page.evaluate(SENSITIVE_HITS, { pattern: T.sensitive, hide: true, collapse }); }
 // The same walk after hiding: anything still rendered that matches is a leak, and the take is refused.
 export async function leakCheck(page, T, name) {
   const hits = await page.evaluate(SENSITIVE_HITS, { pattern: T.sensitive, hide: false });

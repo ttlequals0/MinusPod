@@ -8,6 +8,20 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
+## [2.101.26] - 2026-11-06
+
+### Changed
+
+- The eight screen-recorded videos in docs/videos are re-recorded on the
+  current interface. The UI tour now also shows the What's new dialog, the
+  processing mode select in the Add Feed dialog and the theme picker.
+
+### Fixed
+
+- Audio cue template rows on the feed page no longer squeeze the cue name
+  into a narrow column at laptop widths. The actions sit under the name
+  until the row is wide enough to hold both.
+
 ## [2.101.25] - 2026-11-05
 
 ### Changed

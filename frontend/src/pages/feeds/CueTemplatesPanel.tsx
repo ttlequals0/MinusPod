@@ -401,7 +401,7 @@ function CueTemplatesPanel({ slug }: Props) {
           <ul className="divide-y divide-border border-t border-border">
             {templates.map((t) => (
               <li key={t.id} className="px-3 py-2 text-sm">
-                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
+                <div className="flex flex-col gap-2 xl:flex-row xl:items-center xl:gap-3">
                 <div className="flex items-center gap-3 min-w-0 flex-1">
                   <Checkbox
                     className="min-h-11 min-w-11 justify-center"
@@ -500,7 +500,7 @@ function CueTemplatesPanel({ slug }: Props) {
                   </div>
                 </div>
                 {editingId !== t.id && (
-                  <div className="flex flex-wrap items-center gap-2 pl-7 sm:pl-0 sm:shrink-0">
+                  <div className="flex flex-wrap items-center gap-2 pl-7 xl:pl-0 xl:shrink-0">
                     {t.hasAudio !== false && (
                       <button
                         type="button"

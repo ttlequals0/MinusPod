@@ -55,10 +55,11 @@ export const BEATS = {
       const st = { rating: null, submissions: [] };
       await mockEpisode(p, st);
       await p.route(api('/feeds/[^/]+/episodes/[^/]+/rating'), (route) => {
+        if (route.request().method() === 'DELETE') { st.rating = null; return route.fulfill({ status: 204 }); }
         if (route.request().method() !== 'PUT') return route.fallback();
         const { rating, notes } = route.request().postDataJSON();
         st.rating = { value: rating, notes: rating < 5 ? notes ?? null : null, ratedAt: NOW() };
-        return reply(route, { rating: st.rating, confirmedMarkers: 1 });
+        return reply(route, { rating: st.rating, confirmedMarkers: 1, dismissedMarkers: 0 });
       });
     },
     prep: (p) => jumpTo(p, p.getByRole('heading', { name: 'Rate this episode' }), 300),

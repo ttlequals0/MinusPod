@@ -31,7 +31,7 @@
 
 A tour of the web UI: dashboard, queue, detected ads, the waveform editor, review, patterns, search, stats and settings. Portrait cut and the file itself in [Videos](videos/README.md).
 
-https://github.com/user-attachments/assets/26e4f083-a398-44b4-ad22-e6f753e03f52
+https://github.com/user-attachments/assets/2078724e-ca79-4368-a901-3817f9a0d213
 
 ## Overview
 
@@ -319,7 +319,7 @@ If a show plays a recurring ding or stinger around its ad breaks, you can teach 
 
 A held detection from the queue to the waveform editor: play the span, confirm it, watch the recut, see it on the record.
 
-https://github.com/user-attachments/assets/ce18b17f-c99c-41fd-a973-62a686bb2d89
+https://github.com/user-attachments/assets/f6eb6291-5143-47cd-8d48-f7629e7043a2
 
 Ads that cannot auto-cut are held rather than cut; see [How It Works > Held for Review](how-it-works.md#held-for-review) for the causes. The episode publishes with the audio intact, and the Episode Pending Review notification event fires when an episode finishes with held ads (Settings > Notifications). Held ads appear on the episode page in an amber "Held for Review" section with two actions per row:
 
