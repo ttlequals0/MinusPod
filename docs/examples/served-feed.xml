@@ -20,7 +20,7 @@
 </itunes:summary>
 <itunes:keywords>example, sample, technology, podcast</itunes:keywords>
 <itunes:explicit>no</itunes:explicit>
-<itunes:block>no</itunes:block>
+<itunes:block>Yes</itunes:block>
 <itunes:owner><itunes:name>Jane Host</itunes:name><itunes:email>owner@example.com</itunes:email></itunes:owner>
 <itunes:category text="Technology" />
 <category>Technology</category>

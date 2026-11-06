@@ -21,6 +21,8 @@ export type EpisodeStatusKey = typeof EPISODE_STATUS_KEYS[number];
 
 export type EpisodeStatusCounts = Record<EpisodeStatusKey, number>;
 
+export type ProcessingMode = 'passthrough' | 'skip_detection' | 'keep_content' | 'standard' | 'cue_only';
+
 export interface Feed {
   slug: string;
   title: string;
@@ -101,6 +103,8 @@ export interface Feed {
   differentialFetchMode?: 'inherit' | 'auto' | 'on' | 'off' | null;
   // Chapter list in served descriptions (#720): null follows the global setting.
   chaptersInNotes?: 'on' | 'off' | null;
+  // Review and rate links in served descriptions: null follows the global setting.
+  reviewLinksInNotes?: 'on' | 'off' | null;
   // Per-feed auto-process queue priority (#625). Server always resolves to
   // one of the three values; null/absent reads as 'normal'.
   queuePriority?: 'high' | 'normal' | 'low' | null;
@@ -138,7 +142,7 @@ export interface Feed {
   // What the pipeline will actually do, resolved server-side from the
   // passthrough/skip/detection-mode columns (each mode shadows the later
   // ones). Absent on older backends; fall back to the raw columns.
-  processingMode?: 'passthrough' | 'skip_detection' | 'keep_content' | 'standard' | 'cue_only';
+  processingMode?: ProcessingMode;
   // Cue-only mode: how newly-created (unproven) cue templates are treated.
   // Null/absent behaves as 'hold_new'. Ignored outside cue_only mode.
   cueOnlySafety?: 'hold_new' | 'auto_cut' | null;
@@ -928,6 +932,7 @@ export interface Settings {
   queueBulkBoost: SettingValueNumber;
   segmentCategoryActions: { value: Record<SegmentCategory, SegmentAction>; isDefault: boolean };
   onlyExposeProcessedDefault: SettingValueBoolean;
+  feedItunesBlock: SettingValueBoolean;
   requireManualApprovalDefault?: SettingValueBoolean;
   whatsNewOnUpgrade?: SettingValueBoolean;
   detectShowSegments: SettingValueBoolean;
@@ -1018,6 +1023,7 @@ export interface Settings {
   chaptersEnabled: SettingValueBoolean;
   chaptersMode: SettingValue;
   chaptersInNotes: SettingValueBoolean;
+  reviewLinksInNotes: SettingValueBoolean;
   skipSecondPass: SettingValueBoolean;
   transcriptDifferentialEnabled: SettingValueBoolean;
   differentialFetchMode: SettingValue;
@@ -1272,6 +1278,7 @@ export interface UpdateSettingsPayload {
   // PATCH, which replaces the stored map outright).
   segmentCategoryActions?: Partial<Record<SegmentCategory, SegmentAction>>;
   onlyExposeProcessedDefault?: boolean;
+  feedItunesBlock?: boolean;
   requireManualApprovalDefault?: boolean;
   whatsNewOnUpgrade?: boolean;
   detectShowSegments?: boolean;
@@ -1358,6 +1365,7 @@ export interface UpdateSettingsPayload {
   chaptersEnabled?: boolean;
   chaptersMode?: 'auto' | 'generate' | 'off';
   chaptersInNotes?: boolean;
+  reviewLinksInNotes?: boolean;
   skipSecondPass?: boolean;
   transcriptDifferentialEnabled?: boolean;
   differentialFetchMode?: 'auto' | 'on' | 'off';

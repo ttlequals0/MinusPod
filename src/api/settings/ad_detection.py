@@ -40,7 +40,7 @@ from artwork_watermark import BADGE_POSITIONS
 from audio_processor import NORMALIZE_PRESETS
 from database.settings import (
     AD_RESET_SETTING_KEYS, SETTINGS_REGISTRY,
-    registry_get_default,
+    registry_default, registry_get_default,
 )
 from user_agent import invalidate_cache as invalidate_user_agent_cache
 from rate_limit_hold import clear_holds_for_provider_change
@@ -266,6 +266,9 @@ def _validate_processing_defaults_payload(data):
         return 'transcriptDifferentialEnabled must be a boolean', 400
     if 'spliceVetoEnabled' in data and not isinstance(data['spliceVetoEnabled'], bool):
         return 'spliceVetoEnabled must be a boolean', 400
+    for key in ('onlyExposeProcessedDefault', 'chaptersInNotes', 'reviewLinksInNotes', 'feedItunesBlock'):
+        if key in data and not isinstance(data[key], bool):
+            return f'{key} must be a boolean', 400
     if 'differentialFetchMode' in data:
         value = str(data['differentialFetchMode'] or '').strip().lower()
         if value not in ('auto', 'on', 'off'):
@@ -630,7 +633,7 @@ def _apply_processing_flags(db, data):
 
     if 'onlyExposeProcessedDefault' in data:
         value = 'true' if data['onlyExposeProcessedDefault'] else 'false'
-        changed = (db.get_setting('only_expose_processed_default') or 'false') != value
+        changed = db.get_setting_bool('only_expose_processed_default', False) != data['onlyExposeProcessedDefault']
         db.set_setting('only_expose_processed_default', value, is_default=False)
         if changed:
             # Inheriting feeds 304-skip the rebuild that would hide or show
@@ -805,15 +808,17 @@ def _apply_processing_flags(db, data):
             return error_response('differentialFetchMode must be auto, on, or off', 400)
         db.set_setting('differential_fetch_mode', value, is_default=False)
 
-    if 'chaptersInNotes' in data:
-        value = 'true' if data['chaptersInNotes'] else 'false'
-        changed = (db.get_setting('chapters_in_notes') or 'false') != value
-        db.set_setting('chapters_in_notes', value, is_default=False)
-        logger.info(f"Updated chapters in descriptions to: {value}")
-        if changed:
-            # Re-render now (local feeds included) rather than wait for a
-            # scheduled refresh that would 304-skip the change.
-            common.after_commit(_rebuild_served_feeds)
+    for key, setting in (('chaptersInNotes', 'chapters_in_notes'),
+                         ('reviewLinksInNotes', 'review_links_in_notes'),
+                         ('feedItunesBlock', 'feed_itunes_block')):
+        if key in data:
+            value = 'true' if data[key] else 'false'
+            changed = db.get_setting_bool(setting, registry_default(setting) == 'true') != bool(data[key])
+            db.set_setting(setting, value, is_default=False)
+            logger.info(f"Updated {setting} to: {value}")
+            if changed:
+                # Re-render now (local feeds included); a scheduled refresh would 304-skip it.
+                common.after_commit(_rebuild_served_feeds)
 
     if 'omitTemperature' in data:
         value = 'true' if data['omitTemperature'] else 'false'

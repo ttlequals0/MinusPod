@@ -8,6 +8,7 @@ import re
 import threading
 import time
 from chapter_notes import append_chapters
+from review_links import append_review_links
 from datetime import datetime, timezone
 from email.utils import format_datetime, parsedate_to_datetime
 import requests
@@ -233,6 +234,9 @@ _HTML_VOID_ELEMENTS = frozenset({
 })
 
 _ITUNES_NS = "http://www.itunes.com/dtds/podcast-1.0.dtd"
+# Keeps directories from indexing the feed and stops app-side matching to the public show.
+ITUNES_BLOCK_LINE = '<itunes:block>Yes</itunes:block>'
+
 _ITUNES_CHANNEL_PASSTHROUGH = frozenset({
     "author", "summary", "subtitle", "owner",
     "explicit", "category", "keywords",
@@ -295,7 +299,7 @@ def _best_upstream_transcript_tag(tags):
 
 
 _ENCLOSURE_PREFIX_RE = re.compile(r'<enclosure url="([^"]+)/episodes/')
-RSS_RENDER_VERSION = 2
+RSS_RENDER_VERSION = 3
 _RENDER_VERSION_RE = re.compile(r'<!-- minuspod-rss-render-version:(\d+) -->')
 _ENCLOSURE_KEY_RE = re.compile(
     r'<enclosure url="[^"]+/episodes/[^"]*\?key=([0-9a-f]{64})"')
@@ -1049,7 +1053,9 @@ class RSSParser:
                     chapter_notes: dict[str, str] | None = None,
                     hide_min_duration_seconds: float | None = None,
                     hide_max_duration_seconds: float | None = None,
-                    hide_description_patterns: str | None = None) -> str:
+                    hide_description_patterns: str | None = None,
+                    review_link_ids: set[str] | None = None,
+                    itunes_block: bool = False) -> str:
         """Modify RSS feed to use our server URLs.
 
         Args:
@@ -1075,6 +1081,8 @@ class RSSParser:
                 feed_content for backwards compatibility.
             chapter_notes: {episode_id: chapters_json} to append to
                 descriptions (#720); empty or None appends nothing.
+            review_link_ids: Episode ids whose descriptions get review and rate links.
+            itunes_block: Emit itunes:block Yes and drop the upstream value.
             feed_auth_key: Global feed auth key (authenticated feeds). When
                 set, enclosure/vtt/chapters URLs carry ``?key=`` and the
                 badged cover embeds it in the path token (image URLs must
@@ -1124,7 +1132,8 @@ class RSSParser:
         # (author, category, explicit, owner, etc.). Required by Apple
         # Podcasts and most apps; without these the feed is silently
         # dropped from the directory and artwork won't render.
-        self._emit_channel_metadata_passthrough(lines, feed_content, channel=channel_elem)
+        self._emit_channel_metadata_passthrough(lines, feed_content, channel=channel_elem,
+                                                itunes_block=itunes_block)
 
         # Channel artwork: take the correct channel-level URL from raw XML
         # (feedparser corrupts feed.image.href with per-episode itunes:image
@@ -1182,6 +1191,7 @@ class RSSParser:
             'max_duration_seconds': hide_max_duration_seconds,
         }
         included_episode_ids = set()
+        review_link_ids = review_link_ids or set()
         processed_meta = {
             ep.get('episode_id'): ep
             for ep in (extra_episodes or [])
@@ -1236,6 +1246,8 @@ class RSSParser:
 
             description = append_chapters(self._get_episode_description(entry),
                                           (chapter_notes or {}).get(episode_id))
+            if episode_id in review_link_ids:
+                description = append_review_links(description, slug, episode_id)
             lines.append('<item>')
             lines.append(f'  <title>{self._escape_xml(entry.get("title", ""))}</title>')
             lines.append(f'  <description><![CDATA[{self._escape_cdata(description)}]]></description>')
@@ -1312,7 +1324,8 @@ class RSSParser:
                     continue
                 self._append_db_episode_item(lines, slug, ep, storage,
                                              feed_auth_key,
-                                             chapter_notes=chapter_notes)
+                                             chapter_notes=chapter_notes,
+                                             review_links=ep_id in review_link_ids)
                 appended_count += 1
 
         lines.append('</channel>')
@@ -1393,13 +1406,16 @@ class RSSParser:
         return size
 
     def _append_db_episode_item(self, lines: list, slug: str, ep: dict, storage,
-                                feed_auth_key=None, chapter_notes=None) -> None:
+                                feed_auth_key=None, chapter_notes=None,
+                                review_links=False) -> None:
         """Append a single <item> for a processed episode from the database."""
         ep_id = ep['episode_id']
         modified_url = episode_public_url(self._resolved_base_url(), slug, ep_id,
                                            ep.get('processed_version'),
                                            key=feed_auth_key)
         description = append_chapters(ep.get('description'), (chapter_notes or {}).get(ep_id))
+        if review_links:
+            description = append_review_links(description, slug, ep_id)
         lines.append('<item>')
         lines.append(f'  <title>{self._escape_xml(ep.get("title") or "Unknown")}</title>')
         if description:
@@ -1657,7 +1673,8 @@ class RSSParser:
             return f'<{emit_prefix}{local}{attr_str} />'
         return f'<{emit_prefix}{local}{attr_str}>{text_xml}{"".join(child_xml)}</{emit_prefix}{local}>'
 
-    def _emit_channel_metadata_passthrough(self, lines: list, feed_content: str, channel=None) -> None:
+    def _emit_channel_metadata_passthrough(self, lines: list, feed_content: str, channel=None,
+                                           itunes_block: bool = False) -> None:
         # Pass through standard RSS and iTunes channel-level metadata from
         # upstream. Apple Podcasts and most podcast apps require several of
         # the iTunes tags (author/category/explicit/owner) to ingest a feed
@@ -1672,16 +1689,20 @@ class RSSParser:
 
         if channel is not None:
             itunes_prefix = "{" + _ITUNES_NS + "}"
+            passthrough = _ITUNES_CHANNEL_PASSTHROUGH - {"block"} if itunes_block else _ITUNES_CHANNEL_PASSTHROUGH
             for elem in channel:
                 tag = getattr(elem, "tag", "")
                 if not isinstance(tag, str):
                     continue
                 if tag.startswith(itunes_prefix):
                     local = tag[len(itunes_prefix):]
-                    if local in _ITUNES_CHANNEL_PASSTHROUGH:
+                    if local in passthrough:
                         lines.append(self._serialize_namespaced_element(elem, "itunes:", _ITUNES_NS))
                 elif not tag.startswith("{") and tag in _RSS_CHANNEL_PASSTHROUGH:
                     lines.append(self._serialize_namespaced_element(elem, "", ""))
+
+        if itunes_block:
+            lines.append(ITUNES_BLOCK_LINE)
 
         # Always-emit channel timestamps and identifier so apps that rely on
         # these for refresh detection or attribution see fresh values from

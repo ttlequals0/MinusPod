@@ -37,6 +37,9 @@ TABLE_DDL['podcasts'] = """CREATE TABLE IF NOT EXISTS podcasts (
     -- Chapter list in served descriptions (#720): NULL = global setting,
     -- 'on'/'off' = per-feed override
     chapters_in_notes TEXT,
+    -- Review links in served descriptions: NULL = global setting,
+    -- 'on'/'off' = per-feed override
+    review_links_in_notes TEXT,
     -- Ad chapters: NULL = global setting, 'on'/'off' = per-feed override;
     -- the categories override is a JSON category -> bool map layered over global
     ad_chapters_enabled_override TEXT,

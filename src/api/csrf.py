@@ -15,6 +15,8 @@ import secrets
 
 from flask import Request, Response, session
 
+import config
+
 
 CSRF_COOKIE_NAME = 'minuspod_csrf'
 CSRF_HEADER_NAME = 'X-CSRF-Token'
@@ -56,6 +58,7 @@ def apply_csrf_cookie(response: Response, cookie_secure: bool) -> Response:
             secure=cookie_secure,
             httponly=False,
             samesite='Strict',
+            path=config.cookie_path(),
         )
     return response
 

@@ -35,7 +35,7 @@ https://github.com/user-attachments/assets/26e4f083-a398-44b4-ad22-e6f753e03f52
 
 ## Overview
 
-The server includes a web-based management UI at `/ui/`. Opening the server root redirects there:
+The server includes a web-based management UI at `/ui/` (under the prefix when `MINUSPOD_URL_PREFIX` is set). Opening the server root redirects there:
 
 - Dashboard with feed artwork and episode counts
 - Add feeds by RSS URL with optional episode cap
@@ -162,7 +162,7 @@ A completed episode plays in a built-in player instead of the browser's native c
 
 ### Episode rating
 
-Rate how well MinusPod handled an episode from 1 to 5 stars on the episode page. Below 5 stars you can add notes of up to 2000 characters. Giving 5 stars clears any notes and records a confirm correction for every cut ad marker except community marks. This is the same as pressing Confirm on each, including pattern learning. The next reprocess force-accepts those spans. Five stars also dismisses any ads still held for review on that episode, like pressing Dismiss on each. Nothing is recorded for pattern learning, so a later reprocess may hold the same span again. The audio is not changed and no recut is queued. Clearing a rating removes the stars and notes; confirmations already recorded stay.
+Rate how well MinusPod handled an episode from 1 to 5 stars on the episode page. Below 5 stars you can add notes of up to 2000 characters. Giving 5 stars clears any notes and records a confirm correction for every cut ad marker except community marks. This is the same as pressing Confirm on each, including pattern learning. The next reprocess force-accepts those spans. Five stars also dismisses any ads still held for review on that episode, like pressing Dismiss on each. Nothing is recorded for pattern learning, so a later reprocess may hold the same span again. The audio is not changed and no recut is queued. Clearing a rating removes the stars and notes; confirmations already recorded stay. Opening the episode page with `?rate=5`, which is what the optional **Rate 5 stars** link in feed descriptions does, applies a 5-star rating on load, shows an Undo button and removes the parameter from the address.
 
 A feed's page shows the average rating and how many episodes are rated. Ratings and their notes are part of the diagnostics download, which includes up to 500 rated episodes in the chosen range, with how many segments were cut, kept and held.
 

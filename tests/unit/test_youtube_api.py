@@ -93,6 +93,20 @@ def test_preview_rejects_non_youtube_url(app_client):
     assert resp.status_code == 400
 
 
+def test_youtube_add_rejects_cue_only_mode(app_client):
+    _authed(app_client)
+    from api import get_database
+    db = get_database()
+    _enable(db)
+    resp = app_client.post('/api/v1/feeds', json={
+        'feedType': 'youtube', 'sourceKind': 'playlist', 'sourceId': 'PLbh0Jamvptwfp_qc439PLuyKJ-tWUt333',
+        'title': 'Cue Only Playlist', 'processingMode': 'cue_only',
+    }, headers=_csrf_headers(app_client))
+    assert resp.status_code == 400
+    assert 'cue_only' in resp.get_json()['error']
+    assert db.get_podcast_by_slug('cue-only-playlist') is None
+
+
 def test_add_youtube_feed_and_patch_overrides(app_client):
     _authed(app_client)
     from api import get_database
@@ -107,6 +121,7 @@ def test_add_youtube_feed_and_patch_overrides(app_client):
             'title': 'Example Playlist', 'description': 'd', 'artworkUrl': 'https://i.ytimg.com/a.jpg',
             'includeShorts': False,
             'autoProcessOverride': False, 'maxEpisodes': 50, 'onlyExposeProcessedEpisodes': True,
+            'processingMode': 'skip_detection',
         }, headers=headers)
     assert resp.status_code == 201, resp.get_json()
     slug = resp.get_json()['slug']
@@ -122,6 +137,8 @@ def test_add_youtube_feed_and_patch_overrides(app_client):
         assert row['auto_process_override'] == 'false'
         assert row['max_episodes'] == 50
         assert row['only_expose_processed_episodes'] == 1
+        assert row['skip_ad_detection'] == 1
+        assert not row['passthrough_enabled']
 
         dup = app_client.post('/api/v1/feeds', json={
             'feedType': 'youtube', 'sourceKind': 'playlist', 'sourceId': 'PLbh0Jamvptwfp_qc439PLuyKJ-tWUt222',

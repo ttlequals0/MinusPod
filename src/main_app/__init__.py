@@ -27,6 +27,8 @@ defusedxml.defuse_stdlib()
 from flask import Flask
 from flask_compress import Compress
 
+import config
+
 # Configure structured logging
 _logging_configured = False
 
@@ -579,9 +581,29 @@ else:
             "nginx unless you set MINUSPOD_TRUSTED_PROXY_COUNT."
         )
 
+
+class _UrlPrefixMiddleware:
+    """Serve the app under config.URL_PREFIX whether or not the proxy strips it."""
+
+    def __init__(self, wsgi_app):
+        self.wsgi_app = wsgi_app
+
+    def __call__(self, environ, start_response):
+        prefix = config.URL_PREFIX
+        if prefix:
+            environ['SCRIPT_NAME'] = prefix
+            path = environ.get('PATH_INFO', '')
+            if path == prefix or path.startswith(prefix + '/'):
+                environ['PATH_INFO'] = path[len(prefix):]
+        return self.wsgi_app(environ, start_response)
+
+
+app.wsgi_app = _UrlPrefixMiddleware(app.wsgi_app)
+
 # Session configuration for authentication
 app.secret_key = os.environ.get('SECRET_KEY') or get_or_create_secret_key()
 app.config['SESSION_COOKIE_SECURE'] = _default_session_cookie_secure()
+app.config['SESSION_COOKIE_PATH'] = config.cookie_path()
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = os.environ.get('SESSION_COOKIE_SAMESITE', 'Strict')
 app.config['PERMANENT_SESSION_LIFETIME'] = int(os.environ.get('SESSION_LIFETIME_HOURS', '24')) * 3600
@@ -809,6 +831,10 @@ def _startup():
         logger.info(f"MinusPod v{APP_VERSION} starting...")
 
         logger.info(f"BASE_URL: {base_url}")
+        if config.URL_PREFIX and not base_url.rstrip('/').endswith(config.URL_PREFIX):
+            logger.warning(
+                "MINUSPOD_URL_PREFIX is set but BASE_URL does not include it; "
+                "feed URLs will be wrong until BASE_URL ends with the prefix")
 
         # Verify LLM endpoint is reachable. Leader-only - all workers run
         # on the same host and reach the same network, so a single verify

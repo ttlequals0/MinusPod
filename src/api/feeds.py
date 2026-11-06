@@ -16,7 +16,7 @@ from flask import request, Response
 
 from api import (
     api, limiter, log_request, json_response, error_response, image_response,
-    get_database, get_storage, get_feed_auth_key, get_status_service,
+    get_database, get_storage, get_feed_auth_key, get_status_service, public_path,
     _serialize_auto_process, _deserialize_auto_process,
     _serialize_nullable_bool, _deserialize_nullable_bool,
     _normalize_nullable_finite_float,
@@ -304,6 +304,18 @@ def _normalize_processing_mode(value):
         return dict(PROCESSING_MODE_COLUMN_UPDATES[value]), None
     return None, (f"processingMode must be one of: "
                   f"{', '.join(sorted(PROCESSING_MODE_COLUMN_UPDATES))}")
+
+
+def _normalize_create_processing_mode(value):
+    """Validate processingMode for feed creation; cue_only needs templates a new feed lacks."""
+    if value == PROCESSING_MODE_CUE_ONLY:
+        return None, ("processingMode cue_only cannot be set when adding a feed; "
+                      "add the feed, then enable it from its cue templates")
+    mode_updates, err = _normalize_processing_mode(value)
+    if err:
+        return None, err
+    # A new row already has standard's column values.
+    return mode_updates if value not in (None, '', PROCESSING_MODE_STANDARD) else {}, None
 
 
 def _cue_only_templates_ok(db, podcast):
@@ -986,6 +998,7 @@ def _podcast_base_json(podcast, feed_url, db, global_actions=None) -> dict:
             if podcast.get('differential_fetch_mode') in ('auto', 'on', 'off')
             else 'inherit'),
         'chaptersInNotes': podcast.get('chapters_in_notes'),
+        'reviewLinksInNotes': podcast.get('review_links_in_notes'),
         # Compatibility fields (spec 1.4): derived from the feed's resolved
         # segment actions, not the retired ad_chapters_enabled_override /
         # ad_chapter_categories_override columns.
@@ -1069,7 +1082,7 @@ def _podping_coverage(podcast, enabled, host_is_active):
 
 def _feed_artwork_url(podcast) -> str:
     """Versioned proxy path when we hold the file, else an https publisher URL."""
-    proxied = f"/api/v1/feeds/{podcast['slug']}/artwork"
+    proxied = public_path(f"/api/v1/feeds/{podcast['slug']}/artwork")
     version = get_storage().artwork_mtime_ns(podcast['slug'])
     if version is not None:
         return f"{proxied}?v={version}"
@@ -1465,6 +1478,11 @@ def _add_youtube_feed(data, db):
         max_ep, err = _normalize_max_episodes(data['maxEpisodes'], False)
         if err:
             return error_response(err, 400)
+    mode_updates = {}
+    if 'processingMode' in data:
+        mode_updates, err = _normalize_create_processing_mode(data['processingMode'])
+        if err:
+            return error_response(err, 400)
     try:
         feed_url = _public_feed_url(slug, get_feed_auth_key(db))
         channel_json = {'medium': 'podcast', 'locked': 'yes', 'guid': compute_feed_guid(feed_url)}
@@ -1482,6 +1500,7 @@ def _add_youtube_feed(data, db):
         if 'onlyExposeProcessedEpisodes' in data:
             updates['only_expose_processed_episodes'] = _serialize_nullable_bool(
                 data['onlyExposeProcessedEpisodes'])
+        updates.update(mode_updates)
         with db.transaction() as conn:
             db.create_podcast(slug, canonical, title, feed_type='youtube', conn=conn)
             db.update_podcast(slug, conn=conn, **updates)
@@ -1510,6 +1529,9 @@ def add_feed():
     """
     data = request.get_json()
 
+    if data and data.get('feedType') in ('recents', 'local') and 'processingMode' in data:
+        return error_response(
+            'processingMode applies to subscribed and YouTube feeds only', 400)
     if data and data.get('feedType') == 'recents':
         return _add_recents_feed(data, get_database())
     if data and data.get('feedType') == 'local':
@@ -1630,6 +1652,12 @@ def add_feed():
                 return error_response(error, 400)
             audio_output_overrides[db_key] = value
 
+    mode_updates = {}
+    if 'processingMode' in data:
+        mode_updates, mode_err = _normalize_create_processing_mode(data['processingMode'])
+        if mode_err:
+            return error_response(mode_err, 400)
+
     # Create podcast
     try:
         db.create_podcast(slug, source_url)
@@ -1668,6 +1696,9 @@ def add_feed():
         if 'keepOriginalAudioOverride' in data:
             db.update_podcast(
                 slug, keep_original_audio_override=keep_original_override)
+
+        if mode_updates:
+            db.update_podcast(slug, **mode_updates)
 
         # Invalidate feed cache since we added a new feed
         from main_app.feeds import invalidate_feed_cache
@@ -2220,12 +2251,13 @@ def update_feed(slug):
                 return error_response(chapters_error, 400)
         updates['chapters_mode'] = chapters_val
 
-    if 'chaptersInNotes' in data:
-        notes_val, notes_err = _normalize_override(
-            data['chaptersInNotes'], CHAPTERS_IN_NOTES_VALUES, 'chaptersInNotes')
-        if notes_err:
-            return error_response(notes_err, 400)
-        updates['chapters_in_notes'] = notes_val
+    for key, column in (('chaptersInNotes', 'chapters_in_notes'),
+                        ('reviewLinksInNotes', 'review_links_in_notes')):
+        if key in data:
+            val, err = _normalize_override(data[key], CHAPTERS_IN_NOTES_VALUES, key)
+            if err:
+                return error_response(err, 400)
+            updates[column] = val
 
     if 'queuePriority' in data:
         qp_val, qp_err = _normalize_queue_priority(data['queuePriority'])
@@ -2465,13 +2497,20 @@ def update_feed(slug):
                 or 'title' in updates or 'author' in updates
                 or 'explicit' in updates or 'categories' in updates
                 or 'p20_channel_json' in updates or 'description' in updates
-                or 'chapters_in_notes' in updates):
+                or 'chapters_in_notes' in updates
+                or 'review_links_in_notes' in updates):
             db.update_podcast_etag(slug, None, None)
             try:
                 from main_app.feeds import refresh_rss_feed
                 refresh_rss_feed(slug, podcast['source_url'], force=True)
             except Exception as e:
                 logger.warning(f"Feed refresh after settings change failed for {slug}: {e}")
+            if 'chapters_in_notes' in updates or 'review_links_in_notes' in updates:
+                try:
+                    from recents_feed import rebuild_recents_feed
+                    rebuild_recents_feed()
+                except Exception as e:
+                    logger.warning(f"Recents rebuild after settings change failed for {slug}: {e}")
 
         return json_response({
             **_podcast_base_json(podcast, _public_feed_url(slug, get_feed_auth_key(db)), db),

@@ -20,11 +20,14 @@ import json
 import logging
 
 from chapter_notes import append_chapters, chapter_notes_for
+from config import resolve_review_links_in_notes
+from review_links import append_review_links
 from database.episodes import NOT_AWAITING_APPROVAL
+from database.settings import feed_itunes_block_enabled
 from main_app import db, rss_parser, storage
 from main_app.feed_auth import active_feed_key
 from main_app.shared_state import invalidate_episode_lookup_cache
-from rss_parser import RSS_RENDER_VERSION
+from rss_parser import ITUNES_BLOCK_LINE, RSS_RENDER_VERSION
 from utils.episode_paths import episode_public_url, published_episode_version
 from utils.feed_guid import compute_feed_guid
 from utils.json_fields import load_json_list
@@ -154,9 +157,10 @@ def _enclosure_audio_metadata(slug: str, ep: dict, storage_) -> tuple[str, float
     return f' length="{size}"', ep.get('original_duration')
 
 
-def _channel_open(title: str, channel_link: str, description: str, language: str = 'en') -> list[str]:
+def _channel_open(title: str, channel_link: str, description: str, language: str = 'en',
+                  itunes_block: bool = False) -> list[str]:
     """XML prologue through <generator>, shared by the local and recents renderers."""
-    return ['<?xml version="1.0" encoding="UTF-8"?>',
+    lines = ['<?xml version="1.0" encoding="UTF-8"?>',
             f'<!-- minuspod-rss-render-version:{RSS_RENDER_VERSION} -->',
             '<rss version="2.0" xmlns:itunes="http://www.itunes.com/dtds/podcast-1.0.dtd" '
             f'xmlns:podcast="{_PODCAST_NS}">',
@@ -167,6 +171,9 @@ def _channel_open(title: str, channel_link: str, description: str, language: str
             f'<language>{rss_parser._escape_xml(language)}</language>',
             f'<lastBuildDate>{rss_parser._format_rfc2822(utc_now_iso())}</lastBuildDate>',
             '<generator>MinusPod</generator>']
+    if itunes_block:
+        lines.append(ITUNES_BLOCK_LINE)
+    return lines
 
 
 def _append_channel_image(lines: list, artwork_url: str | None, title: str, channel_link: str) -> None:
@@ -185,10 +192,13 @@ def _append_local_episode_item(lines: list, slug: str, ep: dict, base: str,
                                chapter_notes: dict[str, str],
                                title_prefix: str = '',
                                has_transcript: bool | None = None,
-                               has_chapters: bool | None = None) -> None:
+                               has_chapters: bool | None = None,
+                               review_links: bool = False) -> None:
     ep_id = ep['episode_id']
     item_json = _load_json_dict(ep.get('p20_item_json'))
     description = append_chapters(ep.get('description'), chapter_notes.get(ep_id))
+    if review_links:
+        description = append_review_links(description, slug, ep_id)
 
     lines.append('<item>')
     lines.append(f'  <title>{rss_parser._escape_xml(title_prefix + (ep.get("title") or ""))}</title>')
@@ -252,6 +262,7 @@ def build_local_feed_xml(podcast: dict, episodes: list[dict], *, storage, db,
     slug = podcast['slug']
     base = rss_parser._resolved_base_url()
     chapter_notes = chapter_notes_for(db, podcast)
+    review_links = resolve_review_links_in_notes(db, podcast)
     feed_auth_key = active_feed_key(db)
     channel_json = _load_json_dict(podcast.get('p20_channel_json'))
 
@@ -264,7 +275,8 @@ def build_local_feed_xml(podcast: dict, episodes: list[dict], *, storage, db,
     if str(language).strip().lower() == 'auto':
         language = 'en'
 
-    lines = _channel_open(title, channel_link, description, language)
+    lines = _channel_open(title, channel_link, description, language,
+                          itunes_block=feed_itunes_block_enabled(db))
 
     author = podcast.get('author')
     if author:
@@ -311,7 +323,7 @@ def build_local_feed_xml(podcast: dict, episodes: list[dict], *, storage, db,
 
     for ep in episodes:
         _append_local_episode_item(lines, slug, ep, base, storage, feed_auth_key,
-                                   chapter_notes=chapter_notes)
+                                   chapter_notes=chapter_notes, review_links=review_links)
 
     lines.append('</channel>')
     lines.append('</rss>')

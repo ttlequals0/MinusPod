@@ -14,6 +14,7 @@ import { focusRing, selectBase } from '../../components/fieldStyles';
 import { ConfirmModal } from '../../components/Modal';
 import { countPill, tint } from '../../components/badgeStyles';
 import { cardTitle } from '../../components/pageStyles';
+import { uiUrl } from '../../urlPrefix';
 
 function formatBounds(bounds: { start: number; end: number } | null): string | null {
   if (!bounds) return null;
@@ -103,7 +104,7 @@ function CorrectionRow({ correction, selected, onSelected }: CorrectionRowProps)
               </label>
               {candidate.episode_available ? (
                 <a
-                  href={`/ui/feeds/${encodeURIComponent(candidate.slug)}/episodes/${encodeURIComponent(correction.episode_id)}`}
+                  href={uiUrl(`/feeds/${encodeURIComponent(candidate.slug)}/episodes/${encodeURIComponent(correction.episode_id)}`)}
                   className={`self-end text-xs text-primary hover:underline sm:shrink-0 sm:self-center ${focusRing}`}
                 >
                   Review episode

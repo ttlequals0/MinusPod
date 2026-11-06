@@ -8,6 +8,7 @@ from api import (
     api, log_request, json_response, error_response,
     get_database, get_feed_auth_key,
 )
+import config
 from config import ALL_HOLD_REASONS, SEGMENT_CATEGORIES
 from detection_review import (
     UNSET_CATEGORY, filter_detections, flatten_detections, paginate,
@@ -87,7 +88,7 @@ def list_detections():
     for item in page_items:
         version = item.pop('processedVersion', 0)
         item['processedUrl'] = episode_public_url(
-            "", item['feedSlug'], item['episodeId'], version,
+            config.URL_PREFIX, item['feedSlug'], item['episodeId'], version,
             key=feed_auth_key)
 
     return json_response({

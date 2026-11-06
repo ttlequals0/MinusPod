@@ -44,6 +44,7 @@ import CueDetectionsSection from '../components/CueDetectionsSection';
 import CueCandidatesSection from '../components/CueCandidatesSection';
 import { useLocalStorageState } from '../hooks/useLocalStorageState';
 import { useSyncFromQuery } from '../hooks/useSyncFromQuery';
+import { useUrlParams } from '../hooks/useUrlParams';
 import { formatStorage, formatDuration, formatTokenRange } from './settings/settingsUtils';
 import { groupAdBlocks } from '../utils/adBlocks';
 import { formatDate, formatPercent, formatTimestamp, toDatetimeLocalInput, fromDatetimeLocalInput } from '../utils/format';
@@ -61,6 +62,7 @@ import { fileInputBase, focusRing, inputBase, labelBase, textareaBase } from '..
 import { badgeBase, tint } from '../components/badgeStyles';
 import { cardTitle } from '../components/pageStyles';
 import { HOLD_REASON_LABELS, HOLD_REASON_TITLES } from '../utils/holdReason';
+import { URL_PREFIX } from '../urlPrefix';
 
 function btnLabel(status: string, idle: string): string {
   if (status === 'saving') return 'Saving...';
@@ -360,8 +362,13 @@ function blockedRunReason(jobState?: JobState): string {
 
 const downloadChip = btnBase;
 
+// ?rate=N from a feed description link; stripped once applied.
+const URL_PARAM_DEFAULTS = { rate: '' };
+
 function EpisodeDetail() {
   const { slug, episodeId } = useParams<{ slug: string; episodeId: string }>();
+  const urlParams = useUrlParams(URL_PARAM_DEFAULTS);
+  const clearRateParam = () => urlParams.write({ rate: '' });
   const [showEditor, setShowEditor] = useState(false);
   const [createModeRequested, setCreateModeRequested] = useState(false);
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle');
@@ -767,6 +774,9 @@ function EpisodeDetail() {
       </div>
     );
   }
+
+  // Server-built when available: it carries the feed auth key, which a hardcoded path lacks.
+  const audioUrl = episode.processedUrl ?? `${URL_PREFIX}/episodes/${slug}/${episode.id}.mp3`;
 
   const renderAdMarkerCard = (segment: AdSegment, index: number) => (
     <div
@@ -1336,10 +1346,8 @@ function EpisodeDetail() {
 
         {episode.status === 'completed' && (
           <div className="mt-4 pt-4 border-t border-border">
-            {/* processedUrl is server-built and carries the feed auth key when
-                enabled; a hardcoded path would 401 under authenticated feeds. */}
             <EpisodePlayer
-              src={episode.processedUrl ?? `/episodes/${slug}/${episode.id}.mp3`}
+              src={audioUrl}
               chaptersUrl={episode.chaptersAvailable ? episode.chaptersUrl : undefined}
             />
             {(episode.transcriptVttAvailable || episode.chaptersAvailable) && (
@@ -1494,7 +1502,7 @@ function EpisodeDetail() {
               <AdEditor
                 detectedAds={detectedAds}
                 audioDuration={episode.originalDuration ?? 0}
-                audioUrl={episode.processedUrl ?? `/episodes/${slug}/${episode.id}.mp3`}
+                audioUrl={audioUrl}
                 audioMode={reviewMode}
                 hasOriginal={!!episode.hasOriginalAudio}
                 onAudioModeChange={setReviewMode}
@@ -1567,7 +1575,13 @@ function EpisodeDetail() {
 
       {episode.status === 'completed' && slug && episodeId && (
         <div className="bg-card rounded-lg border border-border p-6 mb-6 space-y-4">
-          <EpisodeRating slug={slug} episodeId={episodeId} rating={episode.rating} />
+          <EpisodeRating
+            slug={slug}
+            episodeId={episodeId}
+            rating={episode.rating}
+            requestedRating={Number(urlParams.read('rate')) || undefined}
+            onRequestedRatingHandled={clearRateParam}
+          />
           {episode.sponsorBlock?.submitAllowed && (
             <div className="pt-4 border-t border-border">
               <SponsorBlockSubmit slug={slug} episodeId={episodeId} hasOriginalAudio={episode.hasOriginalAudio} />

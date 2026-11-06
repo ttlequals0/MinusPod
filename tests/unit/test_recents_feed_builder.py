@@ -8,6 +8,7 @@ from tests.app_bootstrap import bootstrap
 bootstrap('recents_builder_test_')
 
 import main_app.feeds as mf  # noqa: E402
+import recents_feed  # noqa: E402
 from main_app.pipeline import common
 from database.podcasts import RECENTS_SLUG, recents_cutoff  # noqa: E402
 from recents_feed import build_recents_feed_xml, rebuild_recents_feed  # noqa: E402
@@ -45,6 +46,7 @@ def recents():
     for slug in ('alpha', 'beta', 'delta', RECENTS_SLUG):
         mf.db.delete_podcast(slug)
     mf.db.set_setting('chapters_in_notes', 'false', is_default=True)
+    mf.db.set_setting('review_links_in_notes', 'false', is_default=True)
 
 
 def _rows(podcast):
@@ -93,6 +95,35 @@ def test_chapter_block_honours_the_source_feed_override(recents):
     mf.db.set_setting('chapters_in_notes', 'false', is_default=True)
     mf.db.update_podcast('alpha', chapters_in_notes='on')
     assert '<p>Chapters</p><p>00:00 Intro</p>' in build_recents_feed_xml(recents, _rows(recents), storage=mf.storage, db=mf.db)
+
+
+def test_itunes_block_follows_the_global_setting(recents, monkeypatch):
+    xml = build_recents_feed_xml(recents, _rows(recents), storage=mf.storage, db=mf.db)
+    assert xml.count('<itunes:block>Yes</itunes:block>') == 1
+    monkeypatch.setattr(recents_feed, 'feed_itunes_block_enabled', lambda db: False)
+    xml = build_recents_feed_xml(recents, _rows(recents), storage=mf.storage, db=mf.db)
+    assert 'itunes:block' not in xml
+
+
+def test_review_links_follow_the_global_setting_and_use_the_source_slug(recents):
+    xml = build_recents_feed_xml(recents, _rows(recents), storage=mf.storage, db=mf.db)
+    assert 'Review in MinusPod' not in xml
+    mf.db.set_setting('review_links_in_notes', 'true', is_default=False)
+    xml = build_recents_feed_xml(recents, _rows(recents), storage=mf.storage, db=mf.db)
+    assert '/ui/feeds/alpha/episodes/aaaaaaaaaaa2">Review in MinusPod' in xml
+    assert '/ui/feeds/beta/episodes/s01e01?rate=5' in xml
+
+
+@pytest.mark.parametrize('global_value,override,alpha_linked', [
+    ('true', 'off', False),
+    ('false', 'on', True),
+])
+def test_review_links_honour_the_source_feed_override(recents, global_value, override, alpha_linked):
+    mf.db.set_setting('review_links_in_notes', global_value, is_default=False)
+    mf.db.update_podcast('alpha', review_links_in_notes=override)
+    xml = build_recents_feed_xml(recents, _rows(recents), storage=mf.storage, db=mf.db)
+    assert ('/ui/feeds/alpha/episodes/aaaaaaaaaaa2' in xml) is alpha_linked
+    assert ('/ui/feeds/beta/' in xml) is (global_value == 'true')
 
 
 def test_rebuild_persists_the_cached_rss_and_refresh_routes_to_it(recents):

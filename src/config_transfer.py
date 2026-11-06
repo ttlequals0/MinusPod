@@ -142,7 +142,8 @@ FEED_COLUMNS = (
     'auto_process_max_age_hours_override',
     'language_override', 'download_user_agent_override', 'feed_user_agent_override',
     'title_override', 'detection_notes', 'detection_mode', 'chapter_notes',
-    'chapters_mode', 'chapters_in_notes', 'own_episode_guids',
+    'chapters_mode', 'chapters_in_notes', 'review_links_in_notes',
+    'own_episode_guids',
     'cue_template_score_override', 'cue_create_from_pairs_override',
     'cue_cut_matches_override',
     'cue_pair_min_break_override', 'cue_pair_max_break_override',
@@ -1072,9 +1073,11 @@ def _validated_feed_updates(db, podcast, payload, feed_type, *, confirmed_ceilin
             value, error = feed_api._normalize_chapters_mode(value)
             if error:
                 raise ConfigTransferError(error)
-        elif key == 'chapters_in_notes':
+        elif key in ('chapters_in_notes', 'review_links_in_notes'):
             value, error = feed_api._normalize_override(
-                value, feed_api.CHAPTERS_IN_NOTES_VALUES, 'chaptersInNotes')
+                value, feed_api.CHAPTERS_IN_NOTES_VALUES,
+                {'chapters_in_notes': 'chaptersInNotes',
+                 'review_links_in_notes': 'reviewLinksInNotes'}[key])
             if error:
                 raise ConfigTransferError(error)
         elif key == 'title_skip_patterns':
@@ -1304,6 +1307,7 @@ def apply_config(db, document, scope, selected_feeds, preview_token):
         'title_skip_action', 'min_duration_seconds', 'max_duration_seconds',
         'title', 'author', 'explicit', 'categories',
         'p20_channel_json', 'description', 'chapters_in_notes',
+        'review_links_in_notes',
     }
     with common.post_commit_scope() as _deferred:
         try:

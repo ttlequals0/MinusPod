@@ -40,6 +40,23 @@ def test_only_expose_processed_default_change_clears_etags(app_client):
     assert db.get_setting('only_expose_processed_default') == 'true'
 
 
+def test_feed_itunes_block_defaults_on_and_change_rebuilds_feeds(app_client):
+    db = get_database()
+    _authed(app_client)
+    headers = _csrf_headers(app_client)
+    body = app_client.get('/api/v1/settings').get_json()
+    assert body['feedItunesBlock']['value'] is True
+    with patch('api.settings.ad_detection._rebuild_served_feeds') as rebuild:
+        resp = app_client.put('/api/v1/settings/ad-detection', json={'feedItunesBlock': False}, headers=headers)
+        assert resp.status_code == 200
+        assert db.get_setting('feed_itunes_block') == 'false'
+        assert rebuild.call_count == 1
+        app_client.put('/api/v1/settings/ad-detection', json={'feedItunesBlock': False}, headers=headers)
+        assert rebuild.call_count == 1
+    assert app_client.get('/api/v1/settings').get_json()['feedItunesBlock']['value'] is False
+    app_client.put('/api/v1/settings/ad-detection', json={'feedItunesBlock': True}, headers=headers)
+
+
 def test_processing_defaults_round_trip_through_settings_api(app_client):
     """The three global defaults use their stored values after a PUT."""
     db = get_database()

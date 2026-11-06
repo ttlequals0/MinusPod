@@ -20,6 +20,8 @@ interface GlobalDefaultsSectionProps {
   onMaxFeedEpisodesChange: (n: number) => void;
   onlyExposeProcessedDefault: boolean;
   onOnlyExposeProcessedDefaultChange: (enabled: boolean) => void;
+  feedItunesBlock: boolean;
+  onFeedItunesBlockChange: (enabled: boolean) => void;
   requireManualApprovalDefault: boolean;
   onRequireManualApprovalDefaultChange: (enabled: boolean) => void;
   lowAdYieldAction: LowAdYieldAction;
@@ -48,6 +50,8 @@ function GlobalDefaultsSection({
   maxFeedEpisodes,
   onMaxFeedEpisodesChange,
   onlyExposeProcessedDefault,
+  feedItunesBlock,
+  onFeedItunesBlockChange,
   onOnlyExposeProcessedDefaultChange,
   requireManualApprovalDefault,
   onRequireManualApprovalDefaultChange,
@@ -298,6 +302,23 @@ function GlobalDefaultsSection({
           </label>
           <p className="mt-2 text-sm text-muted-foreground">
             Hides upstream episodes that haven't finished processing from served RSS feeds, so podcast apps don't auto-download an episode that would 503. Per-feed override is available on each feed's settings.
+          </p>
+        </div>
+
+        {/* Mark served feeds private */}
+        <div className="pt-4 border-t border-border">
+          <label className="flex items-center gap-3 cursor-pointer">
+            <ToggleSwitch
+              checked={feedItunesBlock}
+              onChange={onFeedItunesBlockChange}
+              ariaLabel="Mark served feeds private"
+            />
+            <span className="text-sm font-medium text-foreground">
+              Mark served feeds private
+            </span>
+          </label>
+          <p className="mt-2 text-sm text-muted-foreground">
+            Adds itunes:block so app directories skip your feeds and Pocket Casts stops matching them to the public show. Feeds Pocket Casts already matched need to be added again.
           </p>
         </div>
 

@@ -463,6 +463,10 @@ paths:
                     - boolean
                     - 'null'
                   description: Per-feed override. true hides non-processed episodes; false shows everything; null falls back to the global onlyExposeProcessedDefault setting.
+                processingMode:
+                  type: string
+                  enum: [standard, keep_content, skip_detection, passthrough]
+                  description: Processing mode applied before the first refresh. Subscribed and YouTube feeds only; local and recents feeds reject it with a 400. Omitted means standard. cue_only is rejected on create because it needs cue templates; set it from PATCH /feeds/{slug} afterwards.
                 requireManualApproval:
                   type:
                     - boolean
@@ -934,6 +938,15 @@ paths:
                     - 'off'
                     - null
                   description: Per-feed override for listing generated chapters in served episode descriptions. null follows the global chaptersInNotes setting.
+                reviewLinksInNotes:
+                  type:
+                    - string
+                    - 'null'
+                  enum:
+                    - 'on'
+                    - 'off'
+                    - null
+                  description: Per-feed override for review and rate links in served episode descriptions. null follows the global reviewLinksInNotes setting.
                 adChaptersEnabled:
                   type:
                     - boolean
@@ -7363,6 +7376,9 @@ paths:
                 onlyExposeProcessedDefault:
                   type: boolean
                   description: Global default for hiding upstream episodes whose status is not 'processed' from served RSS feeds. Overridden by per-feed onlyExposeProcessedEpisodes when set.
+                feedItunesBlock:
+                  type: boolean
+                  description: Add itunes:block Yes to every served feed so app directories skip it and Pocket Casts stops matching it to the public show. Default true.
                 requireManualApprovalDefault:
                   type: boolean
                   description: Global default for holding newly processed episodes out of served feeds until approved. Overridden by per-feed requireManualApproval when set.
@@ -7531,6 +7547,10 @@ paths:
                 chaptersInNotes:
                   type: boolean
                   description: Append the generated chapter list to served episode descriptions and the episode API description. Feeds can override per feed.
+                  example: false
+                reviewLinksInNotes:
+                  type: boolean
+                  description: Append review and rate links (episode page and a 5-star rating link) to the served description of processed episodes. Feeds can override per feed.
                   example: false
                 adChaptersEnabled:
                   type: [boolean, string]
@@ -14822,6 +14842,15 @@ components:
             - 'off'
             - null
           description: Per-feed override for listing generated chapters in served episode descriptions. null follows the global chaptersInNotes setting.
+        reviewLinksInNotes:
+          type:
+            - string
+            - 'null'
+          enum:
+            - 'on'
+            - 'off'
+            - null
+          description: Per-feed override for review and rate links in served episode descriptions. null follows the global reviewLinksInNotes setting.
         adChaptersEnabled:
           type: boolean
           deprecated: true
@@ -17722,6 +17751,14 @@ components:
               description: Global default for hiding non-processed episodes from served feeds (per-feed onlyExposeProcessedEpisodes overrides when set)
             isDefault:
               type: boolean
+        feedItunesBlock:
+          type: object
+          properties:
+            value:
+              type: boolean
+              description: Whether every served feed carries itunes:block Yes (default true)
+            isDefault:
+              type: boolean
         whatsNewOnUpgrade:
           type: object
           properties:
@@ -18062,6 +18099,14 @@ components:
         chaptersInNotes:
           type: object
           description: Append the generated chapter list to served episode descriptions and the episode API description.
+          properties:
+            value:
+              type: boolean
+            isDefault:
+              type: boolean
+        reviewLinksInNotes:
+          type: object
+          description: Append review and rate links to the served description of processed episodes. Feeds can override per feed.
           properties:
             value:
               type: boolean
@@ -18771,6 +18816,8 @@ components:
             maxFeedEpisodes:
               type: integer
             onlyExposeProcessedDefault:
+              type: boolean
+            feedItunesBlock:
               type: boolean
             requireManualApprovalDefault:
               type: boolean

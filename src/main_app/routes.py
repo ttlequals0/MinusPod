@@ -1,13 +1,15 @@
 """Flask routes: serve_ui, serve_rss, serve_episode, serve_transcript_vtt, serve_chapters_json, health_check."""
+import hashlib
 import json
 import logging
+import mimetypes
 import os
 import re
 import secrets
 import threading
 import time
 from datetime import datetime, timezone
-from functools import wraps
+from functools import lru_cache, wraps
 from pathlib import Path
 from urllib.parse import urlencode
 
@@ -17,7 +19,8 @@ from flask import Response, g, send_file, abort, redirect, send_from_directory, 
 from werkzeug.exceptions import NotFound
 from werkzeug.utils import safe_join
 
-from api import image_response
+import config
+from api import apply_url_prefix, image_response, public_path
 from config import (
     HTTP_MAX_REDIRECTS_FEED,
     HTTP_TIMEOUT_API,
@@ -49,6 +52,26 @@ from utils.validation import (
     validate_slug_param,
     validate_slug_and_episode_params,
 )
+
+# The only build outputs with baked /ui/ URLs; always served no-cache.
+_REVALIDATED_UI_FILES = ('index.html', 'sw.js', 'manifest.webmanifest')
+
+
+@lru_cache(maxsize=2)
+def _prefixed_ui_bodies(static_dir: str, prefix: str) -> dict[str, bytes]:
+    """The three baked SPA files with every /ui/ URL moved under `prefix`, read once per process."""
+    return {name: apply_url_prefix((Path(static_dir) / name).read_text(encoding='utf-8')).encode('utf-8')
+            for name in _REVALIDATED_UI_FILES}
+
+
+def _prefixed_ui_response(static_dir, name):
+    """Serve one of the rewritten SPA files; `name` only selects from the constant set."""
+    body = _prefixed_ui_bodies(str(static_dir), config.URL_PREFIX)[name]
+    response = Response(body, mimetype=mimetypes.guess_type(name)[0])
+    response.headers['Cache-Control'] = 'no-cache, must-revalidate'
+    response.set_etag(hashlib.sha1(body).hexdigest())
+    return response.make_conditional(request)
+
 
 feed_logger = logging.getLogger('podcast.feed')
 refresh_logger = logging.getLogger('podcast.refresh')
@@ -425,7 +448,7 @@ def register_routes(app):
     @app.route('/')
     def root_redirect():
         """Send a bare host:port visit to the UI instead of a 404."""
-        return redirect('/ui/', code=302)
+        return redirect(public_path('/ui/'), code=302)
 
     @app.route('/ui/')
     @app.route('/ui/<path:path>')
@@ -450,16 +473,19 @@ def register_routes(app):
             response.headers['Cache-Control'] = 'public, max-age=31536000, immutable'
             return response
 
-        if not path or not safe_path or not os.path.isfile(safe_path):
-            response = send_from_directory(STATIC_DIR, 'index.html')
+        is_file = bool(path and safe_path and os.path.isfile(safe_path))
+        # Unknown paths are SPA routes and get index.html; a cached copy of
+        # these files would delay update detection, so they always revalidate.
+        if not is_file or path in _REVALIDATED_UI_FILES:
+            name = path if is_file else 'index.html'
+            if config.URL_PREFIX:
+                return _prefixed_ui_response(STATIC_DIR, name)
+            response = send_from_directory(STATIC_DIR, name)
             response.headers['Cache-Control'] = 'no-cache, must-revalidate'
             return response
 
         response = send_from_directory(STATIC_DIR, path)
-        # sw.js, index.html, and manifest.webmanifest must always revalidate,
-        # or a cached copy delays update detection.
-        no_cache = path in ('sw.js', 'index.html', 'manifest.webmanifest')
-        response.headers['Cache-Control'] = 'no-cache, must-revalidate' if no_cache else 'public, max-age=3600'
+        response.headers['Cache-Control'] = 'public, max-age=3600'
         return response
 
     # /api/v1/docs and /api/v1/openapi.yaml are defined in
@@ -639,6 +665,19 @@ def register_routes(app):
         podcast = db.get_podcast_by_slug(slug)
         serves_own_audio = not has_upstream_audio(podcast)
 
+        # A crawler gets the origin audio in every non-published state, not a
+        # processing run it will never collect. Local feeds have no upstream.
+        if not serves_own_audio and request.method == 'GET':
+            blocked_agents = resolve_jit_blocked_user_agents(
+                db.get_setting('jit_blocked_user_agents'))
+            if user_agent_is_jit_blocked(request.headers.get('User-Agent'), blocked_agents):
+                ep_data, _ = _routes._lookup_episode(slug, episode_id, feed_map, episode_row=episode)
+                if not ep_data:
+                    abort(404)
+                feed_logger.info(
+                    f"[{slug}:{episode_id}] JIT suppressed for blocked agent, serving original")
+                return redirect(ep_data['url'], code=302)
+
         if status == EpisodeStatus.PERMANENTLY_FAILED:
             ep_key = f"{slug}:{episode_id}"
             if ep_key not in _permanently_failed_warned:
@@ -749,20 +788,6 @@ def register_routes(app):
             }
             if episode_matches_feed_filters(jit_episode, podcast):
                 feed_logger.info(f"[{slug}:{episode_id}] Matched feed filters, serving original: {episode_title}")
-                return redirect(original_url, code=302)
-
-        # A crawler gets the origin audio rather than a processing run it will
-        # never collect. Placed after the title blacklist so that rule wins.
-        # Local feeds have no upstream to redirect to -- original_url is the
-        # unreachable local:// sentinel -- so this guard never applies to
-        # them; a blocked agent hitting a local episode falls through to
-        # normal JIT processing/serving like any other request.
-        if not serves_own_audio:
-            blocked_agents = resolve_jit_blocked_user_agents(
-                db.get_setting('jit_blocked_user_agents'))
-            if user_agent_is_jit_blocked(request.headers.get('User-Agent'), blocked_agents):
-                feed_logger.info(
-                    f"[{slug}:{episode_id}] JIT suppressed for blocked agent, serving original")
                 return redirect(original_url, code=302)
 
         # An own-audio play is user intent; acquire treats a stamp as manual, never over an existing one.

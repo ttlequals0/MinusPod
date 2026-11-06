@@ -113,6 +113,9 @@ services:
       # See README "Client IP for login lockout".
       - MINUSPOD_TRUSTED_PROXY_COUNT=${MINUSPOD_TRUSTED_PROXY_COUNT:-0}
 
+      # Optional sub-path hosting, e.g. /minuspod. BASE_URL must include it.
+      # - MINUSPOD_URL_PREFIX=${MINUSPOD_URL_PREFIX:-}
+
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:$${MINUSPOD_PORT:-8000}/api/v1/health || exit 1"]
       interval: 30s

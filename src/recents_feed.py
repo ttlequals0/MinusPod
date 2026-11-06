@@ -2,8 +2,9 @@
 from a cross-feed membership query with every item under its source slug."""
 import logging
 
-from config import CHAPTERS_IN_NOTES_VALUES
+from config import resolve_toggle
 from database.podcasts import RECENTS_SLUG, is_recents_feed, recents_cutoff
+from database.settings import feed_itunes_block_enabled
 from local_feed_builder import _append_channel_image, _channel_open, _append_local_episode_item, _channel_artwork_url
 from main_app import db, rss_parser, storage
 from main_app.feed_auth import active_feed_key
@@ -18,10 +19,12 @@ def build_recents_feed_xml(podcast: dict, episodes: list[dict], *, storage, db) 
     base = rss_parser._resolved_base_url()
     feed_auth_key = active_feed_key(db)
     chapters_default = db.get_setting_bool('chapters_in_notes', False)
+    review_default = db.get_setting_bool('review_links_in_notes', False)
     title = podcast.get('title') or 'Recents'
     channel_link = f"{base}/{RECENTS_SLUG}"
 
-    lines = _channel_open(title, channel_link, podcast.get('description') or '')
+    lines = _channel_open(title, channel_link, podcast.get('description') or '',
+                          itunes_block=feed_itunes_block_enabled(db))
     _append_channel_image(lines, _channel_artwork_url(RECENTS_SLUG, base, feed_auth_key, storage),
                           title, channel_link)
     guid = compute_feed_guid(f"{base.rstrip('/')}/{RECENTS_SLUG}")
@@ -32,14 +35,15 @@ def build_recents_feed_xml(podcast: dict, episodes: list[dict], *, storage, db) 
 
     for ep in episodes:
         # Same per-feed override the source feed's own RSS honours.
-        override = ep.get('source_chapters_in_notes')
-        list_chapters = override == 'on' if override in CHAPTERS_IN_NOTES_VALUES else chapters_default
+        list_chapters = resolve_toggle(ep.get('source_chapters_in_notes'), chapters_default)
         # Per-item map: episode ids are only unique within a feed.
         notes = {ep['episode_id']: ep['chapters_json']} if list_chapters else {}
         _append_local_episode_item(lines, ep['source_slug'], ep, base, storage, feed_auth_key,
                                    chapter_notes=notes, title_prefix=f"{ep['source_title']}: ",
                                    has_transcript=bool(ep['has_transcript_vtt']),
-                                   has_chapters=bool(ep['chapters_json']))
+                                   has_chapters=bool(ep['chapters_json']),
+                                   review_links=resolve_toggle(
+                                       ep.get('source_review_links_in_notes'), review_default))
     lines += ['</channel>', '</rss>']
     return '\n'.join(lines)
 

@@ -1,6 +1,7 @@
 import { apiFileRequest, apiRequest, buildQueryString } from './client';
-import { Feed, Episode, EpisodeDetail, BulkActionResult, AdDistribution, JobState, LowAdYieldAction, EpisodeLogsOverride, RunLogResponse, SbCandidatesResponse, SbSubmission, EpisodeRating } from './types';
+import { Feed, Episode, EpisodeDetail, BulkActionResult, AdDistribution, JobState, LowAdYieldAction, EpisodeLogsOverride, RunLogResponse, SbCandidatesResponse, SbSubmission, EpisodeRating, ProcessingMode } from './types';
 import type { SegmentCategory, SegmentAction } from '../utils/segmentCategory';
+import { apiUrl } from '../urlPrefix';
 
 export const CUE_SCORE_MIN = 0.30;
 export const CUE_SCORE_MAX = 0.99;
@@ -8,7 +9,7 @@ export const CUE_SCORE_MAX = 0.99;
 // Direct URL for an episode's retained original audio; an <audio src> hits it
 // with the session cookie (GET needs no CSRF).
 export function episodeOriginalUrl(slug: string, episodeId: string): string {
-  return `/api/v1/feeds/${slug}/episodes/${episodeId}/original.mp3`;
+  return apiUrl(`/feeds/${slug}/episodes/${episodeId}/original.mp3`);
 }
 
 // Saves the original or the current cut. A HEAD preflight surfaces a 401
@@ -20,7 +21,7 @@ export async function downloadEpisodeAudio(
   const file = kind === 'cut' ? 'processed' : 'original';
   const path = `/feeds/${slug}/episodes/${episodeId}/${file}.mp3?download=1`;
   await apiFileRequest(path, { method: 'HEAD' });
-  window.location.assign(`/api/v1${path}`);
+  window.location.assign(apiUrl(path));
 }
 
 // Direct URL for a run's raw JSONL log; the browser downloads it with the
@@ -28,7 +29,7 @@ export async function downloadEpisodeAudio(
 export function episodeRunLogDownloadUrl(
   slug: string, episodeId: string, runNumber: number,
 ): string {
-  return `/api/v1/feeds/${slug}/episodes/${episodeId}/runs/${runNumber}/log?format=raw`;
+  return apiUrl(`/feeds/${slug}/episodes/${episodeId}/runs/${runNumber}/log?format=raw`);
 }
 
 export async function getEpisodeRunLog(
@@ -256,7 +257,16 @@ export async function getAdDistribution(slug: string): Promise<AdDistribution> {
   return apiRequest<AdDistribution>(`/feeds/${slug}/ad-distribution`);
 }
 
-export async function addFeed(sourceUrl: string, slug?: string, autoProcessOverride?: boolean | null, maxEpisodes?: number, onlyExposeProcessedEpisodes?: boolean | null): Promise<Feed> {
+export interface FeedCreateOptions {
+  slug?: string;
+  autoProcessOverride?: boolean | null;
+  maxEpisodes?: number;
+  onlyExposeProcessedEpisodes?: boolean | null;
+  processingMode?: ProcessingMode;
+}
+
+export async function addFeed(sourceUrl: string, options: FeedCreateOptions = {}): Promise<Feed> {
+  const { slug, autoProcessOverride, maxEpisodes, onlyExposeProcessedEpisodes, processingMode } = options;
   return apiRequest<Feed>('/feeds', {
     method: 'POST',
     body: {
@@ -265,6 +275,7 @@ export async function addFeed(sourceUrl: string, slug?: string, autoProcessOverr
       ...(autoProcessOverride !== undefined && { autoProcessOverride }),
       ...(maxEpisodes != null && { maxEpisodes }),
       ...(onlyExposeProcessedEpisodes !== undefined && { onlyExposeProcessedEpisodes }),
+      ...(processingMode && { processingMode }),
     },
   });
 }
@@ -312,7 +323,7 @@ export async function addRecentsFeed(payload: AddRecentsFeedPayload): Promise<Ad
   });
 }
 
-export interface AddYoutubeFeedPayload {
+export interface AddYoutubeFeedPayload extends FeedCreateOptions {
   sourceKind: 'playlist' | 'channel' | 'video';
   sourceId: string;
   title: string;
@@ -320,10 +331,6 @@ export interface AddYoutubeFeedPayload {
   author?: string;
   artworkUrl?: string | null;
   includeShorts?: boolean;
-  slug?: string;
-  autoProcessOverride?: boolean | null;
-  maxEpisodes?: number;
-  onlyExposeProcessedEpisodes?: boolean | null;
 }
 
 export async function addYoutubeFeed(
@@ -480,6 +487,7 @@ export interface UpdateFeedPayload {
   chaptersMode?: 'auto' | 'generate' | 'off' | null;
   differentialFetchMode?: 'inherit' | 'auto' | 'on' | 'off' | null;
   chaptersInNotes?: 'on' | 'off' | null;
+  reviewLinksInNotes?: 'on' | 'off' | null;
   queuePriority?: 'high' | 'normal' | 'low' | null;
   lowAdYieldAction?: LowAdYieldAction | null;
   episodeLogs?: EpisodeLogsOverride | null;
@@ -513,7 +521,7 @@ export interface UpdateFeedPayload {
   skipAdDetection?: boolean | null;
   // Single-preset replacement for detectionMode/skipAdDetection/passthroughEnabled.
   // Rejected by the backend if combined with any of those legacy fields.
-  processingMode?: 'passthrough' | 'skip_detection' | 'keep_content' | 'standard' | 'cue_only';
+  processingMode?: ProcessingMode;
   // Cue-only mode fields; the backend rejects them outside cue_only.
   cueOnlySafety?: 'hold_new' | 'auto_cut' | null;
   skipTranscription?: boolean | null;

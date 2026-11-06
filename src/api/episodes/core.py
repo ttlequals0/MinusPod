@@ -5,8 +5,9 @@ import logging
 from flask import redirect, request, send_file, url_for
 from api import (
     api, log_request, json_response, error_response, image_response,
-    get_database, get_storage, get_feed_auth_key,
+    get_database, get_storage, get_feed_auth_key, public_path,
 )
+import config
 from config import (
     is_keep_like, is_pending_review, resolve_chapters_in_notes,
     title_matches_skip_patterns, description_matches_skip_patterns,
@@ -43,7 +44,7 @@ def _processed_url(slug: str, episode_id: str, version: int,
     a version suffix when set and the feed auth ``key`` so the public route
     does not 401 while authenticated feeds is enabled.
     """
-    return episode_public_url("", slug, episode_id, version, key=key)
+    return episode_public_url(config.URL_PREFIX, slug, episode_id, version, key=key)
 
 
 def _episode_token_fields(runs) -> dict:
@@ -218,7 +219,7 @@ def _local_artwork_fallback_url(ep, *, is_local, storage, slug):
         return None
     if not storage.has_episode_artwork(slug, ep['episode_id']):
         return None
-    return f"/api/v1/feeds/{slug}/episodes/{ep['episode_id']}/artwork"
+    return public_path(f"/api/v1/feeds/{slug}/episodes/{ep['episode_id']}/artwork")
 
 
 def _sponsorblock_json(ep):
@@ -422,7 +423,7 @@ def get_episode(slug, episode_id):
         'processedUrl': _processed_url(slug, episode_id,
                                        episode.get('processed_version') or 0,
                                        key=feed_auth_key),
-        'originalAudioUrl': f"/api/v1/feeds/{slug}/episodes/{episode_id}/original.mp3",
+        'originalAudioUrl': public_path(f"/api/v1/feeds/{slug}/episodes/{episode_id}/original.mp3"),
         'adsRemovedFirstPass': episode.get('ads_removed_firstpass', 0),
         'adsRemovedVerification': episode.get('ads_removed_secondpass', 0),
         'fileSize': file_size,
@@ -446,10 +447,10 @@ def get_episode(slug, episode_id):
                              or ('whisper' if episode.get('transcript_text') else None)),
         'chaptersRegenerating': bool(episode.get('chapters_regen_active')),
         'chaptersRegenError': episode.get('chapters_regen_error'),
-        'transcriptVttUrl': (f"/episodes/{slug}/{episode_id}.vtt{key_suffix}"
+        'transcriptVttUrl': (public_path(f"/episodes/{slug}/{episode_id}.vtt{key_suffix}")
                              if transcript_vtt_available else None),
         'chaptersAvailable': chapters_available,
-        'chaptersUrl': (f"/episodes/{slug}/{episode_id}/chapters.json{key_suffix}"
+        'chaptersUrl': (public_path(f"/episodes/{slug}/{episode_id}/chapters.json{key_suffix}")
                         if chapters_available else None),
         'firstPassPrompt': episode.get('first_pass_prompt'),
         'firstPassResponse': episode.get('first_pass_response'),

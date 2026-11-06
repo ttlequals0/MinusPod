@@ -11,6 +11,7 @@ import { Modal, dialogFooterBtn } from './Modal';
 import Checkbox from './Checkbox';
 import { focusRing } from './fieldStyles';
 import { btnBase, btnOutline, btnPrimary } from './buttonStyles';
+import { apiUrl } from '../urlPrefix';
 
 // Deterministic 8-char hex from the integer pattern id (Knuth multiplicative
 // hash). Feeds the live filename preview in the edit row so the contributor
@@ -117,7 +118,7 @@ function PatternExportDialogImpl({ patterns, onClose }: Omit<Props, 'open'>) {
     params.set('ids', Array.from(effectiveSelection).join(','));
     if (includeDisabled) params.set('include_disabled', 'true');
     if (includeCorrections) params.set('include_corrections', 'true');
-    const url = `/api/v1/patterns/export?${params.toString()}`;
+    const url = apiUrl(`/patterns/export?${params.toString()}`);
     const a = document.createElement('a');
     a.href = url;
     a.download = 'minuspod-patterns.json';

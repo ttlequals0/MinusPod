@@ -13,6 +13,8 @@
 
 ## API
 
+With `MINUSPOD_URL_PREFIX` set, root-relative URLs in API responses (`processedUrl`, artwork, transcript and chapter URLs) carry the prefix, so a client can fetch them as returned.
+
 REST API available at `/api/v1/`. Interactive docs at `/api/v1/docs`. Full specification: [`openapi.yaml`](../openapi.yaml). The integration suite validates live responses for the common read and update routes against this document, so a response that drifts from the schema fails CI.
 
 Authenticated write requests (`POST`, `PUT`, `PATCH`, `DELETE`) require an `X-CSRF-Token` header matching the `minuspod_csrf` cookie. The built-in UI sends it. An external client must echo the cookie on each write. `PUT /auth/password` is exempt: initial remote setup uses `X-MinusPod-Setup-Token`, while a later change requires `currentPassword`. Logout can clear stale unauthenticated state, but an authenticated logout still requires CSRF.
@@ -21,8 +23,8 @@ Key endpoints:
 - `GET /api/v1/health` - Readiness check (database, storage); returns 503 if either is down
 - `GET /api/v1/health/live` - Liveness probe (process up); always 200, safe for frequent polling
 - `GET /api/v1/feeds` - List feeds. With no `page`/`limit`, returns every feed. Passing `page`/`limit` paginates the list; `includeLatestEpisodes=true` (with optional `episodesPerFeed`, default 3, max 20) adds each feed's newest episodes without a separate request per feed
-- `POST /api/v1/feeds` - Add a new feed (supports `maxEpisodes` for RSS cap, `onlyExposeProcessedEpisodes` to hide unprocessed episodes from the served feed, `retentionDaysOverride` for a per-feed retention window or archive, `keepOriginalAudioOverride` for the pre-cut original audio)
-- `PATCH /api/v1/feeds/{slug}` - Update feed settings, including title and description rules and duration limits. The OpenAPI spec lists all supported fields.
+- `POST /api/v1/feeds` - Add a new feed (supports `maxEpisodes` for RSS cap, `onlyExposeProcessedEpisodes` to hide unprocessed episodes from the served feed, `retentionDaysOverride` for a per-feed retention window or archive, `keepOriginalAudioOverride` for the pre-cut original audio, `processingMode` to pick standard, keep_content, skip_detection or passthrough before the first refresh (cue_only must be set after creation))
+- `PATCH /api/v1/feeds/{slug}` - Update feed settings, including title and description rules and duration limits. The OpenAPI spec lists all supported fields. `reviewLinksInNotes` (`on`, `off` or `null`) overrides the global review links setting for one feed.
 - `POST /api/v1/feeds/import-opml` - Import feeds from OPML file
 - `GET /api/v1/feeds/export-opml?mode=original|modified` - Export feeds as OPML (original or ad-free URLs). Optional `slugs=a,b` filters the export
 - `POST /api/v1/feeds/export-opml?mode=original|modified` - Export selected feeds; send `{"slugs":["a","b"]}` in the JSON body
@@ -120,7 +122,7 @@ Key endpoints:
 - `GET/POST /api/v1/feeds/{slug}/subscriber-keys` - List scoped subscriber credentials or create one; the secret and feed URL appear only in the create response
 - `DELETE /api/v1/feeds/{slug}/subscriber-keys/{id}` - Revoke one scoped subscriber credential without changing global or sibling credentials
 - `DELETE /api/v1/feeds/{slug}/subscriber-keys/{id}/record` - Delete the audit record for a revoked key. Active keys return 409; deleting the record never revalidates the token.
-- `GET /api/v1/settings` - Get current settings (includes LLM provider, API key status)
+- `GET /api/v1/settings` - Get current settings (includes LLM provider, API key status). `reviewLinksInNotes` reports whether served episode descriptions carry the review and rate links; set it with `PUT /api/v1/settings/ad-detection`. `feedItunesBlock` reports whether every served feed carries `itunes:block` (default on) and is set the same way.
 - `GET/PUT /api/v1/settings/retention` - Get or update retention configuration. `retentionDays` controls how long the processed audio survives; `originalRetentionDays` controls the pre-cut original separately. Server clamps `originalRetentionDays` to `retentionDays` on save.
 - `GET/PUT /api/v1/settings/audio` - Toggle whether originals are kept for ad editor review (`keepOriginalAudio`)
 - `GET/PUT /api/v1/settings/processing-timeouts` - Soft and hard processing timeouts in seconds

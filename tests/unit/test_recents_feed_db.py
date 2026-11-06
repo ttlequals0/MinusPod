@@ -122,6 +122,7 @@ def test_detail_flags_only_with_details_and_sort_is_whitelisted():
     _seed_episode('alpha', 'a2', '2026-09-07T10:00:00Z')
     plain = _db().get_recent_processed_episodes('2026-09-06')
     assert 'has_transcript_vtt' not in plain[0] and 'source_chapters_in_notes' in plain[0]
+    assert 'source_review_links_in_notes' in plain[0]
     detailed = _db().get_recent_processed_episodes('2026-09-06', details=True)
     assert detailed[0]['has_transcript_vtt'] == 0 and 'chapters_json' in detailed[0]
     oldest_first = _db().get_recent_processed_episodes('2026-09-06', sort_dir='asc')

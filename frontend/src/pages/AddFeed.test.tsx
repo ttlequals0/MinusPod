@@ -384,7 +384,8 @@ describe('YouTube lookup', () => {
     await waitFor(() => expect(mockAddYoutubeFeed).toHaveBeenCalledWith({
       sourceKind: 'channel', sourceId: 'UCabcdefghijklmnopqrstuv', title: 'The Daily Tech Show',
       description: 'desc', artworkUrl: null, includeShorts: false, slug: undefined,
-      autoProcessOverride: null, maxEpisodes: undefined, onlyExposeProcessedEpisodes: null }));
+      autoProcessOverride: null, maxEpisodes: undefined, onlyExposeProcessedEpisodes: null,
+      processingMode: 'standard' }));
     await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith('/feeds/the-daily-tech-show'));
   });
 
@@ -435,10 +436,12 @@ describe('YouTube lookup', () => {
     await userEvent.selectOptions(screen.getByLabelText('Auto-process'), 'disable');
     await userEvent.type(screen.getByLabelText('Max episodes in feed'), '50');
     await userEvent.selectOptions(screen.getByLabelText('Only expose processed episodes in feed'), 'enable');
+    await userEvent.selectOptions(screen.getByLabelText('Processing mode'), 'passthrough');
     await userEvent.click(screen.getByRole('button', { name: /look up/i }));
     await userEvent.click(await screen.findByRole('button', { name: /add youtube feed/i }));
     await waitFor(() => expect(mockAddYoutubeFeed).toHaveBeenCalledWith(expect.objectContaining({
       autoProcessOverride: false, maxEpisodes: 50, onlyExposeProcessedEpisodes: true,
+      processingMode: 'passthrough',
     })));
   });
 
@@ -484,6 +487,18 @@ describe('YouTube lookup', () => {
     await userEvent.type(await screen.findByLabelText(INPUT), 'https://example.com/feed.xml');
     expect(screen.getByRole('button', { name: 'Add feed' })).toBeDefined();
     expect(screen.queryByRole('button', { name: /look up/i })).toBeNull();
+  });
+
+  it('passes the chosen processing mode when adding an RSS feed', async () => {
+    mockAddFeed.mockResolvedValue({ slug: 'example' });
+    renderAddFeed(enabled);
+    await userEvent.type(await screen.findByLabelText(INPUT), 'https://example.com/feed.xml');
+    await userEvent.click(screen.getByText('Advanced options'));
+    await userEvent.selectOptions(screen.getByLabelText('Processing mode'), 'skip_detection');
+    await userEvent.click(screen.getByRole('button', { name: 'Add feed' }));
+    await waitFor(() => expect(mockAddFeed).toHaveBeenCalledWith(
+      'https://example.com/feed.xml',
+      expect.objectContaining({ processingMode: 'skip_detection' })));
   });
 
   it.each([

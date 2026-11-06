@@ -8,6 +8,80 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
+## [2.101.25] - 2026-11-05
+
+### Changed
+
+- The processing mode select in the Add Feed dialog no longer shows a
+  description under it.
+
+## [2.101.24] - 2026-11-05
+
+### Added
+
+- The Add Feed dialog's Advanced options now include a processing mode select
+  (standard, keep content only, skip ad detection, or pass-through). A feed
+  that should be served untouched or only transcribed is set up that way
+  before its first episodes are picked up. The API accepts the same
+  `processingMode` on `POST /feeds` for subscribed and YouTube feeds.
+  Cue-only is still set from the feed's settings after creation because it
+  needs cue templates.
+
+## [2.101.23] - 2026-11-05
+
+### Fixed
+
+- Review links are now added to an episode's description as soon as MinusPod
+  has the episode, including while it is still processing. Apps such as
+  Pocket Casts store show notes the first time they see an episode and never
+  refresh them, so links added only after processing never reached them.
+
+## [2.101.22] - 2026-11-05
+
+### Fixed
+
+- Served feeds cached before this release are re-rendered on their next
+  fetch, so the private-feed tag from 2.101.21 reaches every feed without a
+  manual refresh.
+
+## [2.101.21] - 2026-11-05
+
+### Breaking
+
+- Served feeds now carry `itunes:block` Yes by default, so app directories
+  skip them and Pocket Casts stops matching an added feed to the public show
+  with the same title, author, website and artwork. A feed Pocket Casts
+  already matched keeps that match until you remove it and add it again.
+  The global **Mark served feeds private** setting turns the tag off.
+
+## [2.101.20] - 2026-11-05
+
+### Added
+
+- Sub-path hosting: set `MINUSPOD_URL_PREFIX=/minuspod` to serve the UI, API
+  and feeds under a reverse-proxy path such as `https://host/minuspod/`. One
+  image serves any prefix with no rebuild, and the app works whether the
+  proxy forwards the prefix or strips it. `BASE_URL` must include the prefix;
+  startup warns when it does not. Left unset, nothing changes (#961).
+- Optional review links in episode descriptions. A global setting, with a
+  per-feed override, adds "Review in MinusPod" and "Rate 5 stars" links to the
+  served description of every processed episode. The second link opens the
+  episode page and applies a 5-star rating on load, with an Undo button. It
+  uses a normal page address rather than an API call, so apps and link
+  previews that fetch show-notes URLs cannot rate anything. Off by default.
+
+### Changed
+
+- The service worker is now registered by the app itself instead of the
+  build plugin's generated helper, so its URL and scope follow the prefix.
+  Update prompts and offline behavior are unchanged.
+
+### Fixed
+
+- A crawler on the blocked user agent list now gets the original audio for any
+  episode that is not yet published, including one that is still processing.
+  Before, it received a 503 from the processing and failed branches.
+
 ## [2.101.19] - 2026-11-04
 
 ### Changed

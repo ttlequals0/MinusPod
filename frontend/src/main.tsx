@@ -1,19 +1,23 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { registerSW } from 'virtual:pwa-register';
+import { Workbox } from 'workbox-window';
 import App from './App';
 import './index.css';
 import { offerAppUpdate } from './utils/appUpdate';
+import { UI_BASE } from './urlPrefix';
 
 // Let the user apply updates after saving drafts.
-const applyUpdate = registerSW({
-  immediate: true,
-  onNeedRefresh() {
-    offerAppUpdate(() => { void applyUpdate(true); });
-  },
-  onRegisterError(error) { console.error('Service worker registration failed', error); },
-});
+if ('serviceWorker' in navigator) {
+  const wb = new Workbox(`${UI_BASE}/sw.js`, { scope: `${UI_BASE}/` });
+  wb.addEventListener('waiting', () => {
+    offerAppUpdate(() => {
+      wb.addEventListener('controlling', () => window.location.reload());
+      wb.messageSkipWaiting();
+    });
+  });
+  wb.register().catch(error => { console.error('Service worker registration failed', error); });
+}
 
 const queryClient = new QueryClient({
   defaultOptions: {

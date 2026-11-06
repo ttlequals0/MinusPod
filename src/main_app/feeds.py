@@ -15,9 +15,11 @@ from config import (
     FEED_REFRESH_OUTAGE_RETRY_BASE_SECONDS,
     FEED_REFRESH_OUTAGE_RETRY_JITTER_SECONDS,
     episode_matches_feed_filters,
+    resolve_review_links_in_notes,
 )
 
 from database.episodes import normalize_published_at
+from database.settings import feed_itunes_block_enabled
 from database.podcasts import is_local_feed, is_recents_feed, is_youtube_feed, podping_declaration_columns
 from database.queue import compute_queue_priority
 from chapter_notes import chapter_notes_for
@@ -855,19 +857,25 @@ def _build_and_save_served_rss(slug, feed_content, parsed_feed, podcast):
     # When the resolved value is True, hide upstream entries that have not
     # finished processing so auto-downloading clients don't hit 503.
     processed_only = db.is_only_expose_processed_for_podcast(slug, podcast=podcast)
+    review_links = resolve_review_links_in_notes(db, podcast)
     processed_ids = None
+    review_link_ids = None
     awaiting_ids = set(db.get_awaiting_approval_episode_ids(podcast['id']))
     parsed_feed = _without_episodes(parsed_feed, awaiting_ids)
-    if processed_only:
-        statuses, _ = db.get_episode_statuses_for_podcast(slug)
-        processed_ids = {eid for eid, status in statuses.items()
-                         if status == 'processed' and eid not in awaiting_ids}
+    if processed_only or review_links:
+        statuses, _ = db.get_episode_statuses_for_podcast(slug, podcast_id=podcast['id'])
+        if processed_only:
+            processed_ids = {eid for eid, status in statuses.items()
+                             if status == 'processed' and eid not in awaiting_ids}
+        if review_links:
+            review_link_ids = statuses.keys() - awaiting_ids
 
     watermark_artwork = db.get_setting_bool('artwork_watermark_enabled', False)
     # None while feed auth is disabled, so serving reverts to keyless URLs
     # even though the stored key is retained for re-enable.
     feed_auth_key = active_feed_key(db)
     chapter_notes = chapter_notes_for(db, podcast)
+    itunes_block = feed_itunes_block_enabled(db)
     # Hide applies both title and duration exclusions to served RSS.
     hide_filters = podcast if podcast.get('title_skip_action') == 'hide' else {}
     modified_rss = rss_parser.modify_feed(feed_content, slug, storage=storage,
@@ -884,7 +892,9 @@ def _build_and_save_served_rss(slug, feed_content, parsed_feed, podcast):
                                           hide_description_patterns=hide_filters.get('description_skip_patterns'),
                                           hide_min_duration_seconds=hide_filters.get('min_duration_seconds'),
                                           hide_max_duration_seconds=hide_filters.get('max_duration_seconds'),
-                                          chapter_notes=chapter_notes)
+                                          chapter_notes=chapter_notes,
+                                          review_link_ids=review_link_ids,
+                                          itunes_block=itunes_block)
     storage.save_rss(slug, modified_rss)
     db.update_podcast(slug, last_checked_at=utc_now_iso())
     # A re-render means the upstream feed moved, so any episode lookups

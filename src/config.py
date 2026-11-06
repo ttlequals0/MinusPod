@@ -17,6 +17,32 @@ from urllib.parse import urlparse
 
 _tunable_logger = logging.getLogger(__name__)
 
+_URL_PREFIX_RE = re.compile(r'^/[A-Za-z0-9_~-]+(/[A-Za-z0-9_~-]+)*$')
+_URL_PREFIX_RESERVED = frozenset({'ui', 'api', 'episodes', 'health', 'opml', 'login'})
+
+
+def normalize_url_prefix(raw: str) -> str:
+    """Return the reverse-proxy path prefix as '/seg[/seg]' or '' when unset."""
+    value = (raw or '').strip().rstrip('/')
+    if not value:
+        return ''
+    if not value.startswith('/'):
+        value = '/' + value
+    if not _URL_PREFIX_RE.match(value):
+        raise ValueError(
+            f"MINUSPOD_URL_PREFIX must be one or more path segments such as /minuspod, got {raw!r}")
+    first = value.split('/')[1]
+    if first in _URL_PREFIX_RESERVED:
+        raise ValueError(f"MINUSPOD_URL_PREFIX first segment {first!r} collides with an app route")
+    return value
+
+
+URL_PREFIX = normalize_url_prefix(os.environ.get('MINUSPOD_URL_PREFIX', ''))
+
+
+def cookie_path() -> str:
+    return URL_PREFIX or '/'
+
 # ============================================================
 # Confidence Thresholds (0.0 - 1.0 scale)
 # ============================================================
@@ -1146,17 +1172,28 @@ def resolve_chapters_mode(podcast_row, db=None):
 CHAPTERS_IN_NOTES_VALUES = EPISODE_LOGS_VALUES
 
 
+def resolve_toggle(override, default: bool) -> bool:
+    """An 'on'/'off' override wins; anything else follows the default."""
+    return override == 'on' if override in EPISODE_LOGS_VALUES else default
+
+
 def _resolve_feed_toggle(db, podcast_row, column, setting, default) -> bool:
     """Per-feed 'on'/'off' override in `column`, else the global `setting`."""
     override = (podcast_row or {}).get(column)
     if override in EPISODE_LOGS_VALUES:
-        return override == 'on'
+        return resolve_toggle(override, default)
+    # The global read is deferred so an override never costs a settings query.
     return db.get_setting_bool(setting, default)
 
 
 def resolve_chapters_in_notes(db, podcast_row) -> bool:
     return _resolve_feed_toggle(db, podcast_row, 'chapters_in_notes',
                                 'chapters_in_notes', False)
+
+
+def resolve_review_links_in_notes(db, podcast_row) -> bool:
+    return _resolve_feed_toggle(db, podcast_row, 'review_links_in_notes',
+                                'review_links_in_notes', False)
 
 
 def resolve_cue_template_score_with_source(db, podcast_id):

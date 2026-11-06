@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, afterEach, vi } from 'vitest';
 import { episodeArtworkSrc, feedArtworkSrc } from './artworkUrl';
 
 describe('feedArtworkSrc', () => {
@@ -40,5 +40,24 @@ describe('episodeArtworkSrc', () => {
   it('falls back to the proxy endpoint when nothing else is available', () => {
     expect(episodeArtworkSrc('show', undefined, undefined, undefined))
       .toBe('/api/v1/feeds/show/artwork');
+  });
+});
+
+describe('with a URL prefix', () => {
+  afterEach(() => {
+    document.head.querySelectorAll('meta[name="minuspod-url-prefix"]').forEach(m => m.remove());
+    vi.resetModules();
+  });
+
+  it('prefixes the proxy endpoints', async () => {
+    const meta = document.createElement('meta');
+    meta.name = 'minuspod-url-prefix';
+    meta.content = '/minuspod';
+    document.head.appendChild(meta);
+    vi.resetModules();
+    const { episodeArtworkSrc: ep, feedArtworkSrc: feed } = await import('./artworkUrl');
+    expect(feed('show', null)).toBe('/minuspod/api/v1/feeds/show/artwork');
+    expect(ep('show', 'abc', 'https://cdn.example/x.jpg', null))
+      .toBe('/minuspod/api/v1/feeds/show/episodes/abc/artwork');
   });
 });

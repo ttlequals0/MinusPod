@@ -1,26 +1,27 @@
 /**
  * Helpers for storing and retrieving the post-login redirect destination.
  *
- * React Router prepends the basename ('/ui') when navigate() is called, so we
+ * React Router prepends the basename (UI_BASE) when navigate() is called, so we
  * must strip it before storing and reject it on read. Without this, every
- * bounce stores the deeper /ui/ui/... path and the loop grows unboundedly.
+ * bounce stores a deeper basename/basename/... path and the loop grows unboundedly.
  */
 
-const STORAGE_KEY = 'loginRedirect';
-const BASENAME = '/ui';
+import { UI_BASE } from '../urlPrefix';
 
-/** Strip every leading '/ui' segment from a path. Handles corrupted paths. */
+const STORAGE_KEY = 'loginRedirect';
+
+/** Strip every leading basename segment from a path. Handles corrupted paths. */
 function stripBasename(path: string): string {
   let result = path;
-  while (result.startsWith(BASENAME + '/') || result === BASENAME) {
-    result = result.slice(BASENAME.length) || '/';
+  while (result.startsWith(UI_BASE + '/') || result === UI_BASE) {
+    result = result.slice(UI_BASE.length) || '/';
   }
   return result || '/';
 }
 
 /**
  * Store the current location (pathname + search) as the post-login redirect
- * destination. Strips the '/ui' basename so navigate() does not re-prepend it.
+ * destination. Strips the basename so navigate() does not re-prepend it.
  *
  * Pass window.location.pathname (+ search) from the call site; callers in
  * GlobalStatusBar and client.ts already have the full browser path.

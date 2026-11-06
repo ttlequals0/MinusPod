@@ -9,8 +9,7 @@ export default defineConfig({
     tailwindcss({ optimize: false }),
     VitePWA({
       registerType: 'prompt',
-      base: '/ui/',
-      scope: '/ui/',
+      injectRegister: false,
       workbox: {
         // Wait for the user's reload action before replacing an active bundle.
         skipWaiting: false,
@@ -68,6 +67,13 @@ export default defineConfig({
     },
   },
   base: '/ui/',
+  experimental: {
+    // Lazy chunk URLs resolve against the runtime prefix meta tag; HTML and CSS are rewritten server-side.
+    renderBuiltUrl(filename, { hostType }) {
+      if (hostType !== 'js') return undefined;
+      return { runtime: `(document.querySelector('meta[name="minuspod-url-prefix"]')?.getAttribute('content') ?? '') + '/ui/' + ${JSON.stringify(filename)}` };
+    },
+  },
   build: {
     outDir: '../static/ui',
     emptyOutDir: true,

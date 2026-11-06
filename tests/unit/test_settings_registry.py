@@ -60,6 +60,7 @@ SEED_SNAPSHOT = {
     'chapters_enabled': 'true',
     'chapters_mode': 'auto',
     'chapters_in_notes': 'false',
+    'review_links_in_notes': 'false',
     'ad_chapters_include_held': 'false',
     'ad_chapter_title_format': 'Ad: {label}',
     'ad_chapter_held_title_format': 'Possible ad: {label}',
@@ -108,6 +109,7 @@ SEED_SNAPSHOT = {
     'offline_queue_ttl_hours': '48',
     'omit_temperature': 'false',
     'only_expose_processed_default': 'false',
+    'feed_itunes_block': 'true',
     'require_manual_approval_default': 'false',
     'whats_new_on_upgrade': 'true',
     'openai_base_url': 'http://localhost:8000/v1',
@@ -191,7 +193,8 @@ SEED_SNAPSHOT = {
 EXPECTED_AD_RESET_KEYS = {
     'system_prompt', 'verification_prompt', 'claude_model',
     'verification_model', 'whisper_model', 'vtt_transcripts_enabled',
-    'chapters_enabled', 'chapters_mode', 'chapters_in_notes', 'chapters_model',
+    'chapters_enabled', 'chapters_mode', 'chapters_in_notes',
+    'review_links_in_notes', 'chapters_model',
     'skip_second_pass', 'differential_fetch_mode',
     'transcript_differential_enabled',
     'ad_chapters_include_held', 'ad_chapter_title_format',
@@ -262,7 +265,7 @@ NON_RESETTABLE_KEYS = (
     'detect_show_segments', 'process_new_episodes_first',
     'enable_ad_review', 'feed_auth_key', 'keep_original_audio',
     'max_feed_episodes', 'offline_queue_enabled', 'offline_queue_ttl_hours',
-    'only_expose_processed_default', 'omit_temperature',
+    'only_expose_processed_default', 'feed_itunes_block', 'omit_temperature',
     'require_manual_approval_default', 'whats_new_on_upgrade',
     'podping_enabled', 'positional_prior_enabled',
     'processing_hard_timeout_seconds', 'processing_soft_timeout_seconds',
@@ -562,11 +565,13 @@ class TestGetDefaults:
         # youtubeEnabled added after that (173 -> 174).
         # requireManualApprovalDefault added after that (174 -> 175).
         # whatsNewOnUpgrade added after that (175 -> 176).
+        # reviewLinksInNotes added after that (176 -> 177).
+        # feedItunesBlock added after that (177 -> 178).
         payload_keys = {
             spec.payload_key for spec in SETTINGS_REGISTRY.values()
             if spec.payload_key
         }
-        assert len(payload_keys) == 176
+        assert len(payload_keys) == 178
         assert 'systemoneBaseUrl' in payload_keys
         assert 'failoverWhisperMaxAttempts' in payload_keys
         assert 'audioCuePairOrientWindowSeconds' not in payload_keys

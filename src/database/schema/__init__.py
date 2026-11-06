@@ -612,6 +612,8 @@ class SchemaMixin:
             ('chapters_mode', 'TEXT'),
             # Chapter list in served descriptions (#720)
             ('chapters_in_notes', 'TEXT'),
+            # Review links in served descriptions
+            ('review_links_in_notes', 'TEXT'),
             # Ad chapters per-feed overrides
             ('ad_chapters_enabled_override', 'TEXT'),
             ('ad_chapter_categories_override', 'TEXT'),

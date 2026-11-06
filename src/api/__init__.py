@@ -11,6 +11,7 @@ from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from functools import wraps
 
+import config
 from config import normalize_model_key, LOCAL_UPLOAD_MAX_MB_DEFAULT
 from api.auth_state import authentication_required, session_is_authenticated
 from api.csrf import validate as csrf_validate
@@ -226,6 +227,24 @@ def get_database():
     """Get database instance."""
     from database import Database
     return Database()
+
+
+_UI_PATH_START = re.compile(r'(["\'])/ui/')
+
+
+def apply_url_prefix(text: str) -> str:
+    """Move baked /ui/ URLs under the prefix and tell the SPA and Swagger init the prefix via a meta tag."""
+    prefix = config.URL_PREFIX
+    if not prefix:
+        return text
+    # Quoted path starts only, so a third-party URL or text containing /ui/ is left alone.
+    text = _UI_PATH_START.sub(lambda m: f'{m.group(1)}{prefix}/ui/', text)
+    return text.replace('</head>', f'<meta name="minuspod-url-prefix" content="{prefix}"></head>', 1)
+
+
+def public_path(path: str) -> str:
+    """Prefix a root-relative path with the reverse-proxy URL prefix."""
+    return f"{config.URL_PREFIX}{path}"
 
 
 def get_feed_auth_key(db):

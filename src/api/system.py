@@ -15,11 +15,12 @@ from flask import Response, abort, jsonify, request, send_file
 
 from api import (
     api, limiter, log_request, json_response, error_response,
-    get_database, get_storage, _get_version, _start_time,
+    get_database, get_storage, _get_version, _start_time, apply_url_prefix,
 )
 from api.failover import probes_view, targets_view
 import transcriber
 from changelog import load_sections, version_key
+import config
 from config import (
     PARAKEET_MODEL_NAME, WHISPER_BACKEND_API, WHISPER_BACKEND_PARAKEET, is_keep_like, is_pending_review,
     resolve_whisper_device,
@@ -683,17 +684,19 @@ _SWAGGER_HTML = '''<!DOCTYPE html>
 @api.route('/docs/', methods=['GET'])
 def swagger_ui():
     """Serve Swagger UI for API documentation (assets bundled locally)."""
-    return _SWAGGER_HTML
+    return apply_url_prefix(_SWAGGER_HTML)
 
 
 @lru_cache(maxsize=1)
-def _render_openapi_yaml(openapi_path_str: str, version: str) -> str:
+def _render_openapi_yaml(openapi_path_str: str, version: str, prefix: str = '') -> str:
     """Cache the version-substituted OpenAPI document for the lifetime of
     the worker. Both key components are stable within a process, so the
     cache invalidates naturally on container restart (when a version
     bump or file change takes effect).
     """
     content = Path(openapi_path_str).read_text()
+    if prefix:
+        content = re.sub(r'^([ \t]*- url: )(/api/v1|/)[ \t]*$', rf'\g<1>{prefix}\g<2>', content, flags=re.MULTILINE)
     return re.sub(
         r'^(\s*version:\s*).*$',
         rf'\g<1>{version}',
@@ -711,7 +714,7 @@ def serve_openapi():
         abort(404)
     try:
         from utils.app_version import APP_VERSION
-        content = _render_openapi_yaml(str(openapi_path), APP_VERSION)
+        content = _render_openapi_yaml(str(openapi_path), APP_VERSION, config.URL_PREFIX)
         return Response(content, mimetype='application/x-yaml')
     except Exception:
         return send_file(openapi_path, mimetype='application/x-yaml')

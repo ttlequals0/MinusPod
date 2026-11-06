@@ -47,6 +47,21 @@ This is a comma-separated list of domains excluded from Audiobookshelf's SSRF fi
 
 MinusPod validates feed source URLs and blocks private/loopback/LAN addresses by default (SSRF protection). If a feed source is on a private address (a LAN Audiobookshelf server or a self-hosted feed), set `MINUSPOD_ALLOW_PRIVATE_FEED_HOSTS=true`.
 
+## Served feeds are marked private
+
+Pocket Casts matches an added feed to a public listing when the Title,
+Author, Website URL and Thumbnail URL match, then shows the public show's
+metadata instead of yours. The documented fix is `<itunes:block>Yes</itunes:block>`
+in the feed. MinusPod adds that tag to every feed it serves and replaces any
+upstream `itunes:block` value, so directories skip the feed and Pocket Casts
+stops matching it. Apple Podcasts and Overcast treat the feed as private but
+still accept it when added by URL.
+
+Turn it off with **Mark served feeds private** in Settings
+(`feedItunesBlock`, on by default). The upstream value then passes through
+unchanged. Pocket Casts keeps a match it already made, so remove a matched
+feed and add it again.
+
 ## LLM Cost and Model-Usage Stats API
 
 Two read-only endpoints expose the LLM call ledger for cost tracking: `GET /api/v1/stats/model-usage` breaks down spend by provider and model, and `GET /api/v1/stats/episode-costs` breaks it down by episode instead. Both are paginated (`page`, `limit`), sortable (`sortBy`, `sortDir`), and filterable by date range (`from`, `to`), `podcastSlug`, `provider`, and `model`.

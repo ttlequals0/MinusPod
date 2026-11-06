@@ -76,6 +76,7 @@ import { reconcileStageSlotsForSecondaryToggle } from './settings/settingsUtils'
 import { btnLg, btnPrimary, touchTarget } from '../components/buttonStyles';
 import { focusRing } from '../components/fieldStyles';
 import { pageHeader, pageTitle, pageDescription } from '../components/pageStyles';
+import { apiUrl } from '../urlPrefix';
 
 // External doc links stay link-styled so they read as clickable; touchTarget keeps the phone hit box.
 const docsLink = `${touchTarget} gap-1 text-sm text-primary hover:underline whitespace-nowrap ${focusRing}`;
@@ -227,6 +228,7 @@ function Settings() {
   const [podpingEnabled, setPodpingEnabled] = useState(false);
   const [rssRefreshIntervalMinutes, setRssRefreshIntervalMinutes] = useState(15);
   const [onlyExposeProcessedDefault, setOnlyExposeProcessedDefault] = useState(false);
+  const [feedItunesBlock, setFeedItunesBlock] = useState(true);
   const [requireManualApprovalDefault, setRequireManualApprovalDefault] = useState(false);
   const [whatsNewOnUpgrade, setWhatsNewOnUpgrade] = useState(true);
   const [artworkWatermarkEnabled, setArtworkWatermarkEnabled] = useState(false);
@@ -248,6 +250,7 @@ function Settings() {
   const [vttTranscriptsEnabled, setVttTranscriptsEnabled] = useState(false);
   const [chaptersEnabled, setChaptersEnabled] = useState(false);
   const [chaptersInNotes, setChaptersInNotes] = useState(false);
+  const [reviewLinksInNotes, setReviewLinksInNotes] = useState(false);
   const [adChaptersIncludeHeld, setAdChaptersIncludeHeld] = useState(false);
   const [adChapterTitleFormat, setAdChapterTitleFormat] = useState('Ad: {label}');
   const [adChapterHeldTitleFormat, setAdChapterHeldTitleFormat] = useState('Possible ad: {label}');
@@ -899,6 +902,7 @@ function Settings() {
     { key: 'autoProcessEnabled', kind: 'val', useDefault: true, value: autoProcessEnabled, set: setAutoProcessEnabled },
     { key: 'autoProcessMaxAgeHours', kind: 'val', useDefault: true, literal: AUTO_PROCESS_WINDOW.default, value: autoProcessMaxAgeHours, set: setAutoProcessMaxAgeHours },
     { key: 'onlyExposeProcessedDefault', kind: 'val', useDefault: true, value: onlyExposeProcessedDefault, set: setOnlyExposeProcessedDefault },
+    { key: 'feedItunesBlock', kind: 'val', useDefault: true, value: feedItunesBlock, set: setFeedItunesBlock },
     { key: 'requireManualApprovalDefault', kind: 'val', literal: false, value: requireManualApprovalDefault, set: setRequireManualApprovalDefault },
     { key: 'whatsNewOnUpgrade', kind: 'val', literal: true, value: whatsNewOnUpgrade, set: setWhatsNewOnUpgrade },
     { key: 'artworkWatermarkEnabled', kind: 'val', useDefault: true, value: artworkWatermarkEnabled, set: setArtworkWatermarkEnabled },
@@ -909,6 +913,7 @@ function Settings() {
     { key: 'vttTranscriptsEnabled', kind: 'val', useDefault: true, value: vttTranscriptsEnabled, set: setVttTranscriptsEnabled },
     { key: 'chaptersEnabled', kind: 'val', useDefault: true, value: chaptersEnabled, set: setChaptersEnabled },
     { key: 'chaptersInNotes', kind: 'val', useDefault: true, value: chaptersInNotes, set: setChaptersInNotes },
+    { key: 'reviewLinksInNotes', kind: 'val', useDefault: true, value: reviewLinksInNotes, set: setReviewLinksInNotes },
     { key: 'adChaptersIncludeHeld', kind: 'val', useDefault: true, value: adChaptersIncludeHeld, set: setAdChaptersIncludeHeld },
     { key: 'adChapterTitleFormat', kind: 'str', useDefault: true, value: adChapterTitleFormat, set: setAdChapterTitleFormat },
     { key: 'adChapterHeldTitleFormat', kind: 'str', useDefault: true, value: adChapterHeldTitleFormat, set: setAdChapterHeldTitleFormat },
@@ -1278,7 +1283,7 @@ function Settings() {
             Docs
           </a>
           <a
-            href="/api/v1/docs"
+            href={apiUrl('/docs')}
             target="_blank"
             rel="noopener noreferrer"
             className={docsLink}
@@ -1349,6 +1354,8 @@ function Settings() {
         onMaxFeedEpisodesChange={setMaxFeedEpisodes}
         onlyExposeProcessedDefault={onlyExposeProcessedDefault}
         onOnlyExposeProcessedDefaultChange={setOnlyExposeProcessedDefault}
+        feedItunesBlock={feedItunesBlock}
+        onFeedItunesBlockChange={setFeedItunesBlock}
         requireManualApprovalDefault={requireManualApprovalDefault}
         onRequireManualApprovalDefaultChange={setRequireManualApprovalDefault}
         lowAdYieldAction={lowAdYieldAction}
@@ -1724,9 +1731,11 @@ function Settings() {
         vttTranscriptsEnabled={vttTranscriptsEnabled}
         chaptersEnabled={chaptersEnabled}
         chaptersInNotes={chaptersInNotes}
+        reviewLinksInNotes={reviewLinksInNotes}
         onVttTranscriptsEnabledChange={setVttTranscriptsEnabled}
         onChaptersEnabledChange={setChaptersEnabled}
         onChaptersInNotesChange={setChaptersInNotes}
+        onReviewLinksInNotesChange={setReviewLinksInNotes}
         chaptersMode={(settings?.chaptersMode?.value ?? settings?.defaults?.chaptersMode ?? 'auto') as 'auto' | 'generate' | 'off'}
         unsupportedChaptersRoute={unsupportedChaptersRoute}
         onChaptersModeChange={(v) => tunableMutation.mutate({ chaptersMode: v })}

@@ -117,11 +117,15 @@ def _build_settings_payload():
         settings, 'differential_fetch_mode', registry_default('differential_fetch_mode'))
     chapters_in_notes = coerce_bool_setting(common._setting_value(
         settings, 'chapters_in_notes', registry_default('chapters_in_notes')))
+    review_links_in_notes = coerce_bool_setting(common._setting_value(
+        settings, 'review_links_in_notes', registry_default('review_links_in_notes')))
     only_expose_processed_value = common._setting_value(
         settings, 'only_expose_processed_default',
         registry_default('only_expose_processed_default'))
     only_expose_processed_default = (
         only_expose_processed_value.lower() in ('true', '1', 'yes'))
+    feed_itunes_block = coerce_bool_setting(common._setting_value(
+        settings, 'feed_itunes_block', registry_default('feed_itunes_block')))
     require_manual_approval_default = coerce_bool_setting(common._setting_value(
         settings, 'require_manual_approval_default',
         registry_default('require_manual_approval_default')))
@@ -597,6 +601,7 @@ def _build_settings_payload():
         'jitBlockedUserAgents': _sv('jit_blocked_user_agents', jit_blocked_user_agents),
         'onlyExposeProcessedDefault': _sv(
             'only_expose_processed_default', only_expose_processed_default),
+        'feedItunesBlock': _sv('feed_itunes_block', feed_itunes_block),
         'requireManualApprovalDefault': _sv(
             'require_manual_approval_default', require_manual_approval_default),
         'whatsNewOnUpgrade': _sv('whats_new_on_upgrade', whats_new_on_upgrade),
@@ -641,6 +646,7 @@ def _build_settings_payload():
         'chaptersEnabled': _sv('chapters_enabled', chapters_enabled),
         'chaptersMode': _sv('chapters_mode', chapters_mode),
         'chaptersInNotes': _sv('chapters_in_notes', chapters_in_notes),
+        'reviewLinksInNotes': _sv('review_links_in_notes', review_links_in_notes),
         'skipSecondPass': _sv('skip_second_pass', skip_second_pass),
         'transcriptDifferentialEnabled': _sv(
             'transcript_differential_enabled', transcript_differential_enabled),

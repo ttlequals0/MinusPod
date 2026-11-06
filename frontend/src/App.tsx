@@ -12,6 +12,7 @@ import ChunkLoadRecovery, { ClearChunkLoadRecoveryMarkers } from './components/C
 import GlobalStatusBar from './components/GlobalStatusBar';
 import { SkeletonPageHeader, SkeletonRows } from './components/Skeleton';
 import { btnBase, btnSecondary } from './components/buttonStyles';
+import { UI_BASE } from './urlPrefix';
 
 const Dashboard = lazy(() => import('./pages/Dashboard'));
 const FeedDetail = lazy(() => import('./pages/FeedDetail'));
@@ -96,7 +97,7 @@ const router = createBrowserRouter(
       ],
     },
   ],
-  { basename: '/ui' }
+  { basename: UI_BASE }
 );
 
 // Pull-to-refresh gesture: pull 80px, hold 300ms, release -> window.location.reload().

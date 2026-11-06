@@ -531,6 +531,9 @@ SETTINGS_REGISTRY: dict[str, SettingSpec] = {
     'only_expose_processed_default': SettingSpec(
         default='false', seeded=True, resettable=False,
         payload_key='onlyExposeProcessedDefault', payload_kind='bool'),
+    'feed_itunes_block': SettingSpec(
+        default='true', seeded=True, resettable=False,
+        payload_key='feedItunesBlock', payload_kind='bool'),
     'require_manual_approval_default': SettingSpec(
         default='false', seeded=True, resettable=False,
         payload_key='requireManualApprovalDefault', payload_kind='bool'),
@@ -593,6 +596,9 @@ SETTINGS_REGISTRY: dict[str, SettingSpec] = {
     'chapters_in_notes': SettingSpec(
         default='false', seeded=True, in_ad_reset=True,
         payload_key='chaptersInNotes', payload_kind='bool'),
+    'review_links_in_notes': SettingSpec(
+        default='false', seeded=True, in_ad_reset=True,
+        payload_key='reviewLinksInNotes', payload_kind='bool'),
     'skip_second_pass': SettingSpec(
         default='false', seeded=True, in_ad_reset=True,
         payload_key='skipSecondPass', payload_kind='bool'),
@@ -1060,6 +1066,10 @@ _validate_registry()
 # once per distinct value instead of once per call (every notification, every
 # GET); source ('env' vs 'stored') keeps the two paths from colliding.
 _warned_invalid_values: set[tuple[str, str, str]] = set()
+
+
+def feed_itunes_block_enabled(db) -> bool:
+    return db.get_setting_bool('feed_itunes_block', registry_default('feed_itunes_block') == 'true')
 
 
 def registry_default(key: str) -> str | None:

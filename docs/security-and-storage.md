@@ -62,7 +62,7 @@ Operator checklist:
   also set.
 - Set a password in Settings > Security. **Without one the instance is fully open**: anyone with network access can read everything, change settings, delete feeds, and download a full database backup over the API. The password is the only gate on the API. With `MINUSPOD_MASTER_PASSPHRASE` unset, that backup also carries the session-signing key and provider keys in plaintext.
 - `MINUSPOD_ENABLE_HSTS=true` once the deployment is HTTPS-only.
-- WAF block on `/ui` and `/api`. Public feed paths must stay reachable: `/<slug>`, `/episodes/<slug>/<episode>.mp3`, `.vtt`, `/chapters.json`, and `/api/v1/feeds/<slug>/artwork`.
+- WAF block on `/ui` and `/api`. Public feed paths must stay reachable: `/<slug>`, `/episodes/<slug>/<episode>.mp3`, `.vtt`, `/chapters.json`, and `/api/v1/feeds/<slug>/artwork`. With `MINUSPOD_URL_PREFIX` set, every path here and the `/ui` and `/api` expression below gain the prefix.
 
 MinusPod ships the rest by default: CSRF, login lockout, SSRF guards, artwork magic-number validation, XXE defense, baseline security headers, non-root container, rate limits on destructive endpoints. See [`CHANGELOG.md`](../CHANGELOG.md) for the full list.
 

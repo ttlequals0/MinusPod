@@ -4,7 +4,7 @@
  * Verifies that the basename '/ui' is stripped from stored paths and that
  * invalid/dangerous values are rejected, preventing the /ui/ui/ui growth loop.
  */
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { storeLoginRedirect, takeLoginRedirect } from './loginRedirect';
 
 // happy-dom provides sessionStorage; reset between tests.
@@ -88,5 +88,25 @@ describe('round-trip: navigate() with basename no longer doubles /ui', () => {
     // NOT '/ui/ui/feeds'
     expect(target).toBe('/feeds');
     expect(target.startsWith('/ui')).toBe(false);
+  });
+});
+
+describe('with a URL prefix', () => {
+  afterEach(() => {
+    document.head.querySelectorAll('meta[name="minuspod-url-prefix"]').forEach(m => m.remove());
+    vi.resetModules();
+  });
+
+  it('strips the prefixed basename before storing and on read', async () => {
+    const meta = document.createElement('meta');
+    meta.name = 'minuspod-url-prefix';
+    meta.content = '/minuspod';
+    document.head.appendChild(meta);
+    vi.resetModules();
+    const { storeLoginRedirect: store, takeLoginRedirect: take } = await import('./loginRedirect');
+    store('/minuspod/ui/feeds', '?tab=1');
+    expect(sessionStorage.getItem('loginRedirect')).toBe('/feeds?tab=1');
+    sessionStorage.setItem('loginRedirect', '/minuspod/ui/minuspod/ui/feeds');
+    expect(take()).toBe('/feeds');
   });
 });

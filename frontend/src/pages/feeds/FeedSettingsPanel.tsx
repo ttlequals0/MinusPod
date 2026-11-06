@@ -40,6 +40,7 @@ const MAX_RETENTION_DAYS = 3650;
 type RetentionMode = 'global' | 'archive' | 'custom';
 import { badgeBase, tint } from '../../components/badgeStyles';
 import { isSystemOneChapterRoute } from '../settings/systemoneWarnings';
+import { PROCESSING_MODE_HINTS, PROCESSING_MODE_LABELS, PROCESSING_MODE_ORDER } from './processingMode';
 
 const rowLabelTopSm = `${rowLabel} sm:pt-0.5`;
 
@@ -47,41 +48,6 @@ interface Props {
   feed: Feed;
   slug: string;
 }
-
-// Hint shown below the processing-mode select, keyed by the resolved mode
-// (feed.processingMode ?? 'standard').
-const PROCESSING_MODE_HINTS: Record<NonNullable<Feed['processingMode']>, { text: string; className: string }> = {
-  standard: {
-    text: 'Detects ads with the model and cuts them out. The default for most feeds.',
-    className: 'text-xs text-muted-foreground',
-  },
-  keep_content: {
-    text: 'Removes everything the model does not mark as show content. For feeds with '
-      + 'unrecognizable inserted ads. Safety checks revert to normal removal when the '
-      + 'labeling looks off, but they can miss a single mislabeled stretch and cut real '
-      + 'audio. Check each episode.',
-    className: 'text-xs text-warning',
-  },
-  skip_detection: {
-    text: 'Episodes are still transcribed and get chapters and a transcript, but nothing '
-      + 'is scanned for ads and nothing is cut. For ad-free shows; skips the ad '
-      + 'detection cost.',
-    className: 'text-xs text-muted-foreground',
-  },
-  passthrough: {
-    text: 'Episodes are downloaded and served exactly as published: no transcription, ad '
-      + 'detection, or cutting. The feed URL stays the same, so switching to another '
-      + 'mode resumes processing for new episodes. Episodes already served untouched '
-      + 'keep their original audio until you reprocess them.',
-    className: 'text-xs text-warning',
-  },
-  cue_only: {
-    text: 'Cuts come only from this feed\'s ad-break start and end cue templates: no '
-      + 'model call, no verification pass, and no LLM redetection. Needs one enabled '
-      + 'ad-break start template and one enabled ad-break end template.',
-    className: 'text-xs text-warning',
-  },
-};
 
 // Props for the per-field cue override row. Defined at module scope so its
 // identity is stable across parent renders (avoids remount on every keystroke).
@@ -859,13 +825,11 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                     className={`self-start min-w-0 max-w-full disabled:opacity-50 ${selectBase} pl-2`}
                     aria-describedby="processing-mode-help"
                   >
-                    <option value="standard">Standard (detect and cut ads)</option>
-                    <option value="keep_content">Keep content only (experimental)</option>
-                    <option value="skip_detection">Skip ad detection (transcripts and chapters only)</option>
-                    <option value="passthrough">Pass-through (serve upstream audio untouched)</option>
-                    <option value="cue_only" disabled={!cueOnlyEligible}>
-                      Cue-only (cut from audio cue templates, no LLM) (experimental)
-                    </option>
+                    {PROCESSING_MODE_ORDER.map((m) => (
+                      <option key={m} value={m} disabled={m === 'cue_only' && !cueOnlyEligible}>
+                        {PROCESSING_MODE_LABELS[m]}
+                      </option>
+                    ))}
                   </select>
                   {!cueOnlyEligible && (
                     <p className="text-xs text-muted-foreground">
@@ -873,7 +837,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                       ad-break end template. Mark one of each below to turn it on.
                     </p>
                   )}
-                  <p id="processing-mode-help" className={PROCESSING_MODE_HINTS[processingMode].className}>
+                  <p id="processing-mode-help" className={`text-xs ${PROCESSING_MODE_HINTS[processingMode].warning ? 'text-warning' : 'text-muted-foreground'}`}>
                     {PROCESSING_MODE_HINTS[processingMode].text}
                   </p>
                   {processingMode === 'cue_only' && (
@@ -1098,7 +1062,6 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                 </button>
               </div>
 
-
               <div className="flex flex-col sm:flex-row sm:items-start gap-2 sm:gap-3 text-sm">
                 <span className={rowLabelTop}>
                   Skipped episodes:
@@ -1227,6 +1190,18 @@ function FeedSettingsPanel({ feed, slug }: Props) {
               >
                 Append the chapter list to each episode&apos;s description in this
                 feed, so apps show it without starting playback.
+              </GlobalOverrideRow>
+
+              <GlobalOverrideRow
+                label="Review links"
+                ariaLabel="Review links in descriptions"
+                value={feed.reviewLinksInNotes}
+                globalOn={!!settings?.reviewLinksInNotes?.value}
+                disabled={updateMutation.isPending}
+                onChange={(reviewLinksInNotes) => updateMutation.mutate({ reviewLinksInNotes })}
+              >
+                Add a link to the episode page and a 5-star rating link to the
+                description of each processed episode in this feed.
               </GlobalOverrideRow>
 
             </div>
@@ -1814,7 +1789,6 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                     'adDetectionExcludeStartOverride', 0, 600);
                 }}
                 description="Markers beginning in this opening window are ignored. Set 0 to disable the global exclusion for this feed." />
-
 
               {/* Max ad duration override (Phase C held-for-review) */}
               <CueOverrideRow label="Max ad duration" min={1} max={3600} step={1}
