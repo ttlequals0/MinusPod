@@ -12,6 +12,7 @@ import {
 import { btnBase, btnLg, btnPrimary, btnSecondary, btnGhost } from '../../components/buttonStyles';
 import { inputBase } from '../../components/fieldStyles';
 import { iconTarget, iconVisual } from '../../components/rowActionStyles';
+import { DemoDisabled } from '../../components/DemoDisabled';
 
 const MAX_NODES = 20;
 
@@ -151,14 +152,16 @@ function PodpingServersSection({ enabled }: { enabled: boolean }) {
           <Plus className="w-4 h-4" aria-hidden="true" />
           Add node
         </button>
-        <button
-          type="button"
-          className={`${btnLg} ${btnPrimary}`}
-          disabled={!canSave}
-          onClick={() => { setError(null); save.mutate(nodes); }}
-        >
-          {save.isPending ? 'Saving...' : 'Save nodes'}
-        </button>
+        <DemoDisabled>
+          <button
+            type="button"
+            className={`${btnLg} ${btnPrimary}`}
+            disabled={!canSave}
+            onClick={() => { setError(null); save.mutate(nodes); }}
+          >
+            {save.isPending ? 'Saving...' : 'Save nodes'}
+          </button>
+        </DemoDisabled>
         <span className="text-sm text-muted-foreground">1 to {MAX_NODES} unique HTTP(S) URLs</span>
       </div>
       {error && <p role="alert" className="mt-2 text-sm text-destructive">{error}</p>}

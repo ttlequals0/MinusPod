@@ -9,6 +9,8 @@ import { usePagedList } from '../hooks/usePagedList';
 import { btnBase, btnPrimary, btnOutline } from './buttonStyles';
 import { inputBase } from './fieldStyles';
 import { cardTitle } from './pageStyles';
+import { IS_DEMO } from '../demo/flag';
+import { DemoExplainer } from './DemoExplainer';
 
 interface RunLogViewerProps {
   slug: string;
@@ -57,6 +59,7 @@ function RunLogViewer({ slug, episodeId, runNumber, onClose }: RunLogViewerProps
   const { data, isLoading, error } = useQuery({
     queryKey: ['runLog', slug, episodeId, runNumber],
     queryFn: () => getEpisodeRunLog(slug, episodeId, runNumber),
+    enabled: !IS_DEMO,
   });
 
   const lines: RunLogLine[] = useMemo(() => data?.lines ?? [], [data]);
@@ -80,6 +83,24 @@ function RunLogViewer({ slug, episodeId, runNumber, onClose }: RunLogViewerProps
     apply();
     reset();
   };
+
+  if (IS_DEMO) {
+    return (
+      <Modal
+        ariaLabel="Processing run log" onClose={onClose} panelClassName="w-full max-w-lg flex flex-col text-foreground"
+        header={(
+          <div className="flex flex-1 items-start justify-between gap-3">
+            <h2 className={cardTitle}>Run {runNumber} log</h2>
+            <CloseButton onClick={onClose} />
+          </div>
+        )}
+      >
+        <div className="p-4">
+          <DemoExplainer title="Run logs">Run logs are not part of the demo snapshot.</DemoExplainer>
+        </div>
+      </Modal>
+    );
+  }
 
   return (
     <Modal

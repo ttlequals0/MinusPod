@@ -38,6 +38,7 @@ import { getErrorMessage } from '../api/client';
 import Checkbox from './Checkbox';
 import { btnBase, btnOutline, btnPrimary } from './buttonStyles';
 import { focusRing, inputBase, labelBase, selectBase } from './fieldStyles';
+import { DemoDisabled } from './DemoDisabled';
 
 // Cue template marking modal. Mirrors the AdReviewModal layout: a wavesurfer
 // waveform with green START / red END pins the user drags to bracket the cue
@@ -963,22 +964,26 @@ function CueMarkModal({
           >
             Cancel
           </button>
-          <button
-            type="button"
-            className={`${btnBase} ${btnOutline}`}
-            onClick={handlePreview}
-            disabled={!canSave || previewing}
-          >
-            {previewing ? 'Previewing...' : 'Save and preview'}
-          </button>
-          <button
-            type="button"
-            className={`${btnBase} ${btnPrimary}`}
-            onClick={handleSave}
-            disabled={!canSave}
-          >
-            {saving ? 'Saving...' : 'Save cue'}
-          </button>
+          <DemoDisabled>
+            <button
+              type="button"
+              className={`${btnBase} ${btnOutline}`}
+              onClick={handlePreview}
+              disabled={!canSave || previewing}
+            >
+              {previewing ? 'Previewing...' : 'Save and preview'}
+            </button>
+          </DemoDisabled>
+          <DemoDisabled>
+            <button
+              type="button"
+              className={`${btnBase} ${btnPrimary}`}
+              onClick={handleSave}
+              disabled={!canSave}
+            >
+              {saving ? 'Saving...' : 'Save cue'}
+            </button>
+          </DemoDisabled>
         </div>
       </div>
       {confirmation}

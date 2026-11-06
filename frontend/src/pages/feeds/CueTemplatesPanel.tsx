@@ -44,6 +44,7 @@ import TriStateSelect from '../../components/TriStateSelect';
 import DraftNumberInput, { parseOptionalNumber } from '../../components/DraftNumberInput';
 import { focusRing, labelBase, selectBase } from '../../components/fieldStyles';
 import { badgeBase, tint } from '../../components/badgeStyles';
+import { DemoDisabled } from '../../components/DemoDisabled';
 
 const PICKER_PAGE_SIZE = 50;
 
@@ -614,13 +615,15 @@ function CueTemplatesPanel({ slug }: Props) {
                         </button>
                         {confirmDeleteId === t.id ? (
                           <>
-                            <button
-                              type="button"
-                              className={`${btnBase} ${btnDestructive}`}
-                              onClick={() => { deleteMutation.mutate(t.id); setConfirmDeleteId(null); }}
-                            >
-                              Delete cue
-                            </button>
+                            <DemoDisabled>
+                              <button
+                                type="button"
+                                className={`${btnBase} ${btnDestructive}`}
+                                onClick={() => { deleteMutation.mutate(t.id); setConfirmDeleteId(null); }}
+                              >
+                                Delete cue
+                              </button>
+                            </DemoDisabled>
                             <button
                               type="button"
                               className={`${btnBase} ${btnGhost}`}
@@ -742,9 +745,11 @@ function CueTemplatesPanel({ slug }: Props) {
               <button type="button" className={`${dialogFooterBtn} ${btnOutline}`} onClick={() => setPromoteState(null)}>
                 Cancel
               </button>
-              <button type="button" className={`${dialogFooterBtn} ${btnPrimary}`} onClick={confirmPromote}>
-                Promote
-              </button>
+              <DemoDisabled>
+                <button type="button" className={`${dialogFooterBtn} ${btnPrimary}`} onClick={confirmPromote}>
+                  Promote
+                </button>
+              </DemoDisabled>
             </>
           )}
         >
@@ -999,22 +1004,24 @@ function CueScanModal({ slug, onClose }: CueScanModalProps) {
               className="w-28 font-mono"
             />
           </div>
-          <button
-            type="button"
-            className={ghostBtn}
-            onClick={() => {
-              if (!selectedEpisode) return;
-              const n = scoreOverride.trim() === '' ? undefined : Number(scoreOverride);
-              if (n !== undefined && (Number.isNaN(n) || n < 0 || n > CUE_SCORE_MAX)) {
-                setError(`threshold must be between 0 and ${CUE_SCORE_MAX}`);
-                return;
-              }
-              runScan(selectedEpisode, n);
-            }}
-            disabled={running}
-          >
-            {running ? 'Scanning...' : 'Rescan'}
-          </button>
+          <DemoDisabled>
+            <button
+              type="button"
+              className={ghostBtn}
+              onClick={() => {
+                if (!selectedEpisode) return;
+                const n = scoreOverride.trim() === '' ? undefined : Number(scoreOverride);
+                if (n !== undefined && (Number.isNaN(n) || n < 0 || n > CUE_SCORE_MAX)) {
+                  setError(`threshold must be between 0 and ${CUE_SCORE_MAX}`);
+                  return;
+                }
+                runScan(selectedEpisode, n);
+              }}
+              disabled={running}
+            >
+              {running ? 'Scanning...' : 'Rescan'}
+            </button>
+          </DemoDisabled>
           <button
             type="button"
             className={ghostBtn}

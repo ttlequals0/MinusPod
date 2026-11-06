@@ -3,6 +3,7 @@ import ToggleSwitch from '../../components/ToggleSwitch';
 import SavedBadge from './SavedBadge';
 import DraftNumberInput from '../../components/DraftNumberInput';
 import { btnLg, btnPrimary } from '../../components/buttonStyles';
+import { DemoDisabled } from '../../components/DemoDisabled';
 
 interface StorageRetentionSectionProps {
   keepOriginalAudio: boolean;
@@ -131,13 +132,15 @@ function StorageRetentionSection({
         </div>
 
         <div className="pt-2">
-          <button
-            onClick={onSave}
-            disabled={saveIsPending || originalExceedsProcessed}
-            className={`${btnLg} ${btnPrimary}`}
-          >
-            {saveIsPending ? 'Saving...' : 'Save retention settings'}
-          </button>
+          <DemoDisabled>
+            <button
+              onClick={onSave}
+              disabled={saveIsPending || originalExceedsProcessed}
+              className={`${btnLg} ${btnPrimary}`}
+            >
+              {saveIsPending ? 'Saving...' : 'Save retention settings'}
+            </button>
+          </DemoDisabled>
           {saveIsSuccess && <SavedBadge className="ml-3" />}
         </div>
       </div>

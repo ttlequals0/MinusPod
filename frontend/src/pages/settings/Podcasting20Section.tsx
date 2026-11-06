@@ -14,6 +14,7 @@ import AdChaptersBlock, { type AdChaptersBlockProps } from './AdChaptersBlock';
 import { btnLg, btnPrimary } from '../../components/buttonStyles';
 import { selectBase, labelBase } from '../../components/fieldStyles';
 import { subHeading } from '../../components/pageStyles';
+import { DemoDisabled } from '../../components/DemoDisabled';
 
 const CHAPTER_GEOMETRY_FIELDS = [
   {
@@ -115,14 +116,16 @@ function ChapterGeometryBlock({
       )}
 
       <div className="pt-1 flex items-center">
-        <button
-          type="button"
-          onClick={() => onSave(buildPayload())}
-          disabled={!dirty || saveIsPending || !!crossFieldError}
-          className={`${btnLg} ${btnPrimary}`}
-        >
-          {saveIsPending ? 'Saving...' : 'Save chapter density'}
-        </button>
+        <DemoDisabled>
+          <button
+            type="button"
+            onClick={() => onSave(buildPayload())}
+            disabled={!dirty || saveIsPending || !!crossFieldError}
+            className={`${btnLg} ${btnPrimary}`}
+          >
+            {saveIsPending ? 'Saving...' : 'Save chapter density'}
+          </button>
+        </DemoDisabled>
         {saveIsSuccess && !dirty && !saveError && <SavedBadge className="ml-3" />}
         {saveError && (
           <span className="ml-3 text-sm text-destructive">{saveError}</span>

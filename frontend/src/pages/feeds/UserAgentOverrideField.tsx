@@ -4,6 +4,7 @@ import type { Feed } from '../../api/types';
 import { useDraftField } from '../../hooks/useDraftField';
 import { btnBase, btnPrimary, btnOutline } from '../../components/buttonStyles';
 import { inputBase, labelBase } from '../../components/fieldStyles';
+import { DemoDisabled } from '../../components/DemoDisabled';
 
 interface UserAgentOverrideFieldProps {
   id: string;
@@ -54,12 +55,14 @@ export function UserAgentOverrideField({
         {hint}
       </p>
       <div className="flex flex-wrap gap-2">
-        <button
-          onClick={() => save(draft.value)}
-          disabled={!draft.dirty || disabled}
-          aria-label={saveAriaLabel}
-          className={`${btnBase} ${btnPrimary}`}
-        >Save</button>
+        <DemoDisabled>
+          <button
+            onClick={() => save(draft.value)}
+            disabled={!draft.dirty || disabled}
+            aria-label={saveAriaLabel}
+            className={`${btnBase} ${btnPrimary}`}
+          >Save</button>
+        </DemoDisabled>
         <button
           onClick={() => save('')}
           disabled={(feed[field] == null && draft.value === '') || disabled}

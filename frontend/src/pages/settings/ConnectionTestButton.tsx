@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { getErrorMessage } from '../../api/client';
 import type { ConnectionTestResult } from '../../api/providers';
 import { btnBase, btnOutline } from '../../components/buttonStyles';
+import { DemoDisabled } from '../../components/DemoDisabled';
 
 // A result only describes the values it was tested with. Parents pass a
 // `key` built from those values, so React remounts this component (clearing
@@ -39,15 +40,17 @@ function ConnectionTestButton({
   return (
     <>
       <div className="flex items-center gap-2 mt-2">
-        <button
-          type="button"
-          disabled={busy || disabled}
-          onClick={handleTest}
-          title={disabled ? disabledReason : undefined}
-          className={`${btnBase} ${btnOutline}`}
-        >
-          {busy ? 'Testing...' : 'Test connection'}
-        </button>
+        <DemoDisabled>
+          <button
+            type="button"
+            disabled={busy || disabled}
+            onClick={handleTest}
+            title={disabled ? disabledReason : undefined}
+            className={`${btnBase} ${btnOutline}`}
+          >
+            {busy ? 'Testing...' : 'Test connection'}
+          </button>
+        </DemoDisabled>
         {busy && busyHint && (
           <span className="text-sm text-muted-foreground">{busyHint}</span>
         )}

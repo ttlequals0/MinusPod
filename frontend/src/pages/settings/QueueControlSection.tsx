@@ -27,6 +27,7 @@ import { getErrorMessage } from '../../api/client';
 import { btnBase, btnLg, btnPrimary, btnSecondary } from '../../components/buttonStyles';
 import { inputBase, selectBase, labelBase } from '../../components/fieldStyles';
 import { subHeading } from '../../components/pageStyles';
+import { DemoDisabled } from '../../components/DemoDisabled';
 
 const STORAGE_KEY = 'settings-section-queue-control';
 
@@ -183,7 +184,9 @@ function ProviderAdmissionForm({ value }: { value: ProviderBudget }) {
     {rate.isError && <p className="text-sm text-destructive">Could not load a current rate. Choose USD or try again.</p>}
     {currentRate ? <p className="text-xs text-muted-foreground">Today: {formatLocal(value.status.spentMicrousd)} spent, {formatLocal(value.status.reservedMicrousd)} reserved, {value.status.activeReservations} active.</p> : <p className="text-xs text-muted-foreground">Loading the current rate.</p>}
     {message && <p className={`text-sm ${mutation.isError ? 'text-destructive' : 'text-success'}`}>{message}</p>}
-    <button type="button" onClick={() => mutation.mutate()} disabled={mutation.isPending || needsCurrentRate} className={`${btnLg} ${btnPrimary}`}>{mutation.isPending ? 'Saving...' : 'Save admission settings'}</button>
+    <DemoDisabled>
+      <button type="button" onClick={() => mutation.mutate()} disabled={mutation.isPending || needsCurrentRate} className={`${btnLg} ${btnPrimary}`}>{mutation.isPending ? 'Saving...' : 'Save admission settings'}</button>
+    </DemoDisabled>
   </div>;
 }
 
@@ -379,14 +382,16 @@ function QueueHoldBlock<
           <div className="space-y-2">
             <div className="text-sm text-muted-foreground">{statusNode}</div>
             {config.resetAction && (
-              <button
-                type="button"
-                onClick={() => reset.mutate()}
-                disabled={reset.isPending}
-                className={`${btnBase} ${btnSecondary}`}
-              >
-                {reset.isPending ? 'Resetting...' : 'Reset holds now'}
-              </button>
+              <DemoDisabled>
+                <button
+                  type="button"
+                  onClick={() => reset.mutate()}
+                  disabled={reset.isPending}
+                  className={`${btnBase} ${btnSecondary}`}
+                >
+                  {reset.isPending ? 'Resetting...' : 'Reset holds now'}
+                </button>
+              </DemoDisabled>
             )}
             {resetError && <p className="text-sm text-destructive">{resetError}</p>}
           </div>
@@ -398,14 +403,16 @@ function QueueHoldBlock<
       )}
 
       <div className="flex items-center gap-2">
-        <button
-          type="button"
-          onClick={() => save.mutate()}
-          disabled={save.isPending}
-          className={`${btnLg} ${btnPrimary}`}
-        >
-          {save.isPending ? 'Saving...' : 'Save'}
-        </button>
+        <DemoDisabled>
+          <button
+            type="button"
+            onClick={() => save.mutate()}
+            disabled={save.isPending}
+            className={`${btnLg} ${btnPrimary}`}
+          >
+            {save.isPending ? 'Saving...' : 'Save'}
+          </button>
+        </DemoDisabled>
         {save.isSuccess && <SavedBadge className="ml-1" />}
       </div>
     </div>

@@ -17,6 +17,7 @@ import { btnBase, btnLg, btnPrimary, btnSecondary, btnGhost, btnDestructive } fr
 import { inputBase, textareaBase, labelBase } from '../../components/fieldStyles';
 import { badgeBase, tint } from '../../components/badgeStyles';
 import { subHeading } from '../../components/pageStyles';
+import { DemoDisabled } from '../../components/DemoDisabled';
 
 const DEFAULT_TEMPLATE_PLACEHOLDER = [
   'Leave blank to use default payload. Example custom template:',
@@ -419,13 +420,15 @@ function WebhooksBlock() {
 
           {/* Actions */}
           <div className="flex items-center gap-2">
-            <button
-              type="submit"
-              disabled={isSaving || form.events.length === 0}
-              className={`${btnLg} ${btnPrimary}`}
-            >
-              {isSaving ? 'Saving...' : editingId ? 'Update webhook' : 'Create webhook'}
-            </button>
+            <DemoDisabled>
+              <button
+                type="submit"
+                disabled={isSaving || form.events.length === 0}
+                className={`${btnLg} ${btnPrimary}`}
+              >
+                {isSaving ? 'Saving...' : editingId ? 'Update webhook' : 'Create webhook'}
+              </button>
+            </DemoDisabled>
             <button
               type="button"
               onClick={requestClose}
