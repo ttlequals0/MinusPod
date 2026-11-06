@@ -102,6 +102,24 @@ function ReplacementAudioField() {
   const isCustom = data?.source === 'uploaded';
   const fraction = blockFraction(duration);
 
+  const playButton = (
+    <button
+      type="button"
+      onClick={togglePlay}
+      disabled={!src || !data?.exists || busy}
+      aria-label={playing ? 'Stop the replacement audio' : 'Play the replacement audio'}
+      className={iconTarget}
+    >
+      <span className={`${iconVisual} ${btnSecondary}`}>
+        {playing ? (
+          <Pause className="w-4 h-4" fill="currentColor" aria-hidden="true" />
+        ) : (
+          <Play className="w-4 h-4" fill="currentColor" aria-hidden="true" />
+        )}
+      </span>
+    </button>
+  );
+
   return (
     <div className="pt-4 border-t border-border">
       <div className="flex items-center justify-between gap-3 mb-2">
@@ -135,23 +153,7 @@ function ReplacementAudioField() {
       )}
 
       <div className="flex items-center gap-3">
-        <span title={src ? undefined : DEMO_AUDIO_TOOLTIP}>
-        <button
-          type="button"
-          onClick={togglePlay}
-          disabled={!src || !data?.exists || busy}
-          aria-label={playing ? 'Stop the replacement audio' : 'Play the replacement audio'}
-          className={iconTarget}
-        >
-          <span className={`${iconVisual} ${btnSecondary}`}>
-            {playing ? (
-              <Pause className="w-4 h-4" fill="currentColor" aria-hidden="true" />
-            ) : (
-              <Play className="w-4 h-4" fill="currentColor" aria-hidden="true" />
-            )}
-          </span>
-        </button>
-        </span>
+        {src ? playButton : <span className="inline-flex" title={DEMO_AUDIO_TOOLTIP}>{playButton}</span>}
 
         {/* Content, replacement, content. Width of the middle block tracks
             duration, so a long file visibly takes over more of the episode. */}
