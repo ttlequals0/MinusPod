@@ -10,6 +10,11 @@ describe('DemoDisabled', () => {
     expect(b.parentElement?.getAttribute('title')).toBeNull();
   });
 
+  test('keeps the child title when not in demo', () => {
+    render(<DemoDisabled><button title="Keep me">Save</button></DemoDisabled>);
+    expect(screen.getByRole('button', { name: 'Save' }).getAttribute('title')).toBe('Keep me');
+  });
+
   test('demoDisabledProps is empty when not in demo', () => {
     expect(demoDisabledProps()).toEqual({});
   });
