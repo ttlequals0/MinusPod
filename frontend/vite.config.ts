@@ -1,13 +1,20 @@
-import { defineConfig } from 'vite';
+import { defineConfig, type Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
 import { VitePWA } from 'vite-plugin-pwa';
 
-export default defineConfig({
-  plugins: [
-    react(),
-    tailwindcss({ optimize: false }),
-    VitePWA({
+const isDemo = process.env.VITE_DEMO === '1';
+
+const cfBeacon = (token: string): Plugin => ({
+  name: 'demo-cf-beacon',
+  transformIndexHtml: (html) =>
+    html.replace(
+      '</body>',
+      `<script defer src="https://static.cloudflareinsights.com/beacon.min.js" data-cf-beacon='${JSON.stringify({ token })}'></script></body>`,
+    ),
+});
+
+const pwa = () => VitePWA({
       registerType: 'prompt',
       injectRegister: false,
       workbox: {
@@ -59,15 +66,27 @@ export default defineConfig({
           },
         ],
       },
-    }),
+    });
+
+export default defineConfig({
+  plugins: [
+    react(),
+    tailwindcss({ optimize: false }),
+    ...(isDemo
+      ? process.env.VITE_CF_BEACON_TOKEN ? [cfBeacon(process.env.VITE_CF_BEACON_TOKEN)] : []
+      : [pwa()]),
   ],
+  define: {
+    __DEMO__: JSON.stringify(isDemo),
+  },
   resolve: {
     alias: {
       '@': new URL('./src', import.meta.url).pathname,
     },
   },
-  base: '/ui/',
-  experimental: {
+  base: isDemo ? '/' : '/ui/',
+  publicDir: isDemo ? 'demo/public' : 'public',
+  experimental: isDemo ? undefined : {
     // Lazy chunk URLs resolve against the runtime prefix meta tag; HTML and CSS are rewritten server-side.
     renderBuiltUrl(filename, { hostType }) {
       if (hostType !== 'js') return undefined;
@@ -75,7 +94,7 @@ export default defineConfig({
     },
   },
   build: {
-    outDir: '../static/ui',
+    outDir: isDemo ? 'dist-demo' : '../static/ui',
     emptyOutDir: true,
     sourcemap: false,
     // React Query v5 + modern deps emit private class fields; es2020 default can't lower them.
