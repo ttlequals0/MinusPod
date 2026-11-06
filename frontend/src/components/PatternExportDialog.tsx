@@ -12,6 +12,7 @@ import Checkbox from './Checkbox';
 import { focusRing } from './fieldStyles';
 import { btnBase, btnOutline, btnPrimary } from './buttonStyles';
 import { apiUrl } from '../urlPrefix';
+import { DemoDisabled } from './DemoDisabled';
 
 // Deterministic 8-char hex from the integer pattern id (Knuth multiplicative
 // hash). Feeds the live filename preview in the edit row so the contributor
@@ -352,23 +353,27 @@ function PatternExportDialogImpl({ patterns, onClose }: Omit<Props, 'open'>) {
                 Cancel
               </button>
               {destination === 'download' ? (
-                <button
-                  type="button"
-                  onClick={downloadSelected}
-                  disabled={effectiveSelection.size === 0}
-                  className={`${dialogFooterBtn} ${btnPrimary}`}
-                >
-                  Export {effectiveSelection.size} pattern{effectiveSelection.size === 1 ? '' : 's'}
-                </button>
+                <DemoDisabled>
+                  <button
+                    type="button"
+                    onClick={downloadSelected}
+                    disabled={effectiveSelection.size === 0}
+                    className={`${dialogFooterBtn} ${btnPrimary}`}
+                  >
+                    Export {effectiveSelection.size} pattern{effectiveSelection.size === 1 ? '' : 's'}
+                  </button>
+                </DemoDisabled>
               ) : (
-                <button
-                  type="button"
-                  onClick={runPreview}
-                  disabled={effectiveSelection.size === 0 || busy}
-                  className={`${dialogFooterBtn} ${btnPrimary}`}
-                >
-                  {busy ? 'Checking...' : 'Continue'}
-                </button>
+                <DemoDisabled>
+                  <button
+                    type="button"
+                    onClick={runPreview}
+                    disabled={effectiveSelection.size === 0 || busy}
+                    className={`${dialogFooterBtn} ${btnPrimary}`}
+                  >
+                    {busy ? 'Checking...' : 'Continue'}
+                  </button>
+                </DemoDisabled>
               )}
             </div>
           </div>
@@ -430,14 +435,16 @@ function CommunityPreview({
         >
           Back
         </button>
-        <button
-          type="button"
-          onClick={onDownload}
-          disabled={ready_count === 0 || busy}
-          className={`${dialogFooterBtn} ${btnPrimary}`}
-        >
-          {busy ? 'Building bundle...' : `Download bundle (${ready_count})`}
-        </button>
+        <DemoDisabled>
+          <button
+            type="button"
+            onClick={onDownload}
+            disabled={ready_count === 0 || busy}
+            className={`${dialogFooterBtn} ${btnPrimary}`}
+          >
+            {busy ? 'Building bundle...' : `Download bundle (${ready_count})`}
+          </button>
+        </DemoDisabled>
       </div>
     </>
   );

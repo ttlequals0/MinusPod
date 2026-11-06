@@ -6,6 +6,7 @@ import { getNotificationTimezone, updateNotificationTimezone } from '../../api/s
 import { getErrorMessage } from '../../api/client';
 import { btnLg, btnPrimary } from '../../components/buttonStyles';
 import { selectBase, labelBase } from '../../components/fieldStyles';
+import { DemoDisabled } from '../../components/DemoDisabled';
 
 const FALLBACK_ZONES = [
   'UTC', 'America/New_York', 'America/Chicago', 'America/Denver', 'America/Los_Angeles',
@@ -85,13 +86,15 @@ function TimezoneSettingsForm() {
             ))}
           </select>
         </div>
-        <button
-          type="submit"
-          disabled={saveMutation.isPending || !dirty}
-          className={`${btnLg} ${btnPrimary}`}
-        >
-          {saveMutation.isPending ? 'Saving...' : 'Save timezone'}
-        </button>
+        <DemoDisabled>
+          <button
+            type="submit"
+            disabled={saveMutation.isPending || !dirty}
+            className={`${btnLg} ${btnPrimary}`}
+          >
+            {saveMutation.isPending ? 'Saving...' : 'Save timezone'}
+          </button>
+        </DemoDisabled>
       </div>
       {saveMutation.isError && (
         <div id="notification-timezone-error" role="alert" className="p-3 rounded-lg bg-destructive/10 text-destructive text-sm">

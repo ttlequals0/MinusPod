@@ -17,6 +17,8 @@ import CronScheduleField from './CronScheduleField';
 import NumberInput from '../../components/NumberInput';
 import { btnBase, btnLg, btnPrimary, btnSecondary } from '../../components/buttonStyles';
 import { inputBase } from '../../components/fieldStyles';
+import { IS_DEMO } from '../../demo/flag';
+import { DemoExplainer } from '../../components/DemoExplainer';
 
 interface Draft {
   enabled?: boolean;
@@ -79,7 +81,9 @@ function DatabaseBackupSection() {
       title="Scheduled backups"
       storageKey="settings-section-scheduled-backups"
     >
-      {isLoading ? (
+      {IS_DEMO ? (
+        <DemoExplainer title="Database backup">Backups need a running instance.</DemoExplainer>
+      ) : isLoading ? (
         <SkeletonRows count={2} />
       ) : isError || !data ? (
         // A failed GET must not render the editable form from fallback defaults;

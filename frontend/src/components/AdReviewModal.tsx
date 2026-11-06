@@ -43,6 +43,7 @@ import { btnBase, btnPrimary, btnOutline, btnDestructive } from './buttonStyles'
 import { focusRing, inputBase, selectBase, textareaBase, labelBase, filterLabel } from './fieldStyles';
 import { badgeBase, tint } from './badgeStyles';
 import { apiUrl } from '../urlPrefix';
+import { DemoDisabled } from './DemoDisabled';
 
 // Shape used by the per-episode AdEditor: enough to render the waveform
 // editor for a single detected ad and submit a correction back. Matches
@@ -1625,43 +1626,45 @@ function AdReviewModal({
                   className={`${btnBase} ${btnOutline}`}>
                   Cancel
                 </button>
-                <button
-                  type="button"
-                  disabled={
-                    !sponsorInput.trim() ||
-                    multiSubmitting ||
-                    (isMultiSpan
-                      ? shortRun !== undefined
-                      : singleRunStatus !== 'saved' &&
-                        (textTemplateInput.trim().length < 50 || boundaryError !== null))
-                  }
-                  onClick={() => {
-                    if (!onCreate) return;
-                    if (!isMultiSpan) {
-                      if (singleRunStatus === 'saved') {
-                        onCreateDone?.();
+                <DemoDisabled>
+                  <button
+                    type="button"
+                    disabled={
+                      !sponsorInput.trim() ||
+                      multiSubmitting ||
+                      (isMultiSpan
+                        ? shortRun !== undefined
+                        : singleRunStatus !== 'saved' &&
+                          (textTemplateInput.trim().length < 50 || boundaryError !== null))
+                    }
+                    onClick={() => {
+                      if (!onCreate) return;
+                      if (!isMultiSpan) {
+                        if (singleRunStatus === 'saved') {
+                          onCreateDone?.();
+                          return;
+                        }
+                        const result = onCreate({
+                          kind: 'create',
+                          start: adStart,
+                          end: adEnd,
+                          sponsor: sponsorInput.trim(),
+                          textTemplate: textTemplateInput.trim(),
+                          scope: scopeInput,
+                          reason: reasonInput,
+                          category: categoryInput === '' ? null : categoryInput,
+                        });
+                        if (result && typeof (result as Promise<void>).catch === 'function') {
+                          (result as Promise<void>).catch(() => {});
+                        }
                         return;
                       }
-                      const result = onCreate({
-                        kind: 'create',
-                        start: adStart,
-                        end: adEnd,
-                        sponsor: sponsorInput.trim(),
-                        textTemplate: textTemplateInput.trim(),
-                        scope: scopeInput,
-                        reason: reasonInput,
-                        category: categoryInput === '' ? null : categoryInput,
-                      });
-                      if (result && typeof (result as Promise<void>).catch === 'function') {
-                        (result as Promise<void>).catch(() => {});
-                      }
-                      return;
-                    }
-                    void submitRuns();
-                  }}
-                  className={`${btnBase} ${btnPrimary}`}>
-                  {isMultiSpan ? `Mark ad (${orderedRuns.length} spans)` : singleRunStatus === 'saved' ? 'Close' : 'Save'}
-                </button>
+                      void submitRuns();
+                    }}
+                    className={`${btnBase} ${btnPrimary}`}>
+                    {isMultiSpan ? `Mark ad (${orderedRuns.length} spans)` : singleRunStatus === 'saved' ? 'Close' : 'Save'}
+                  </button>
+                </DemoDisabled>
               </div>
             </>
           ) : (
@@ -1696,24 +1699,28 @@ function AdReviewModal({
                   <span className="hidden sm:inline">{hasNext ? 'Skip & next' : 'Skip'}</span>
                 </button>
                 {!keptByCategory && (
-                  <button type="button" onClick={handleReject}
-                    className={`${btnBase} ${btnDestructive} flex-1 sm:flex-none sm:min-w-[7rem] basis-0`}
-                    title={`${rejectLabel(categoryInput)} (R)`}>
-                    <span className="sm:hidden">{rejectLabel(categoryInput)}</span>
-                    <span className="hidden sm:inline">{hasNext ? `${rejectLabel(categoryInput)} & next` : rejectLabel(categoryInput)}</span>
-                  </button>
+                  <DemoDisabled>
+                    <button type="button" onClick={handleReject}
+                      className={`${btnBase} ${btnDestructive} flex-1 sm:flex-none sm:min-w-[7rem] basis-0`}
+                      title={`${rejectLabel(categoryInput)} (R)`}>
+                      <span className="sm:hidden">{rejectLabel(categoryInput)}</span>
+                      <span className="hidden sm:inline">{hasNext ? `${rejectLabel(categoryInput)} & next` : rejectLabel(categoryInput)}</span>
+                    </button>
+                  </DemoDisabled>
                 )}
                 {!keptByCategory && (
-                  <button type="button" onClick={handleConfirm}
-                    disabled={boundaryError !== null || confirmInert}
-                    className={`${btnBase} ${btnPrimary} flex-1 sm:flex-none sm:min-w-[7rem] basis-0`}
-                    title={boundaryError
-                      ?? (confirmInert
-                        ? 'Already cut. Move a boundary to save an adjustment.'
-                        : 'Confirm (C)')}>
-                    <span className="sm:hidden">Confirm</span>
-                    <span className="hidden sm:inline">{hasNext ? 'Confirm & next' : 'Confirm'}</span>
-                  </button>
+                  <DemoDisabled>
+                    <button type="button" onClick={handleConfirm}
+                      disabled={boundaryError !== null || confirmInert}
+                      className={`${btnBase} ${btnPrimary} flex-1 sm:flex-none sm:min-w-[7rem] basis-0`}
+                      title={boundaryError
+                        ?? (confirmInert
+                          ? 'Already cut. Move a boundary to save an adjustment.'
+                          : 'Confirm (C)')}>
+                      <span className="sm:hidden">Confirm</span>
+                      <span className="hidden sm:inline">{hasNext ? 'Confirm & next' : 'Confirm'}</span>
+                    </button>
+                  </DemoDisabled>
                 )}
               </div>
             </>

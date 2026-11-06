@@ -26,6 +26,7 @@ import StageProviderSelect, { inheritedSlotOptions } from './StageProviderSelect
 import { isSystemOneRoute } from './systemoneWarnings';
 import { btnBase, btnLg, btnPrimary, btnSecondary } from '../../components/buttonStyles';
 import { focusRing, labelBase } from '../../components/fieldStyles';
+import { DemoDisabled } from '../../components/DemoDisabled';
 
 interface PatternCleanupSectionProps {
   // Provider types behind each slot; secondaryProvider is '' when that slot is unusable.
@@ -274,14 +275,16 @@ function PatternCleanupSection({
           )}
 
           <div className="flex flex-wrap items-center gap-2">
-            <button
-              type="button"
-              onClick={() => save.mutate()}
-              disabled={save.isPending || modelSelection === '' || (settings.enabled && cleanupUsesSystemOne)}
-              className={`${btnLg} ${btnPrimary}`}
-            >
-              {save.isPending ? 'Saving...' : 'Save'}
-            </button>
+            <DemoDisabled>
+              <button
+                type="button"
+                onClick={() => save.mutate()}
+                disabled={save.isPending || modelSelection === '' || (settings.enabled && cleanupUsesSystemOne)}
+                className={`${btnLg} ${btnPrimary}`}
+              >
+                {save.isPending ? 'Saving...' : 'Save'}
+              </button>
+            </DemoDisabled>
             <button
               type="button"
               onClick={() => run.mutate(false)}

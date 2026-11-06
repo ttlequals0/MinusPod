@@ -42,6 +42,7 @@ import { badgeBase, tint } from '../components/badgeStyles';
 import { pageTitle, cardTitle, sectionPad } from '../components/pageStyles';
 import { iconTarget, iconVisual } from '../components/rowActionStyles';
 import { reprocessMenuCopy, reprocessModeKey } from '../utils/reprocessMenu';
+import { DemoDisabled } from '../components/DemoDisabled';
 
 function reprocessModeLabel(mode: string, feedType?: string): string {
   if (mode === 'full') return 'Full reprocess';
@@ -573,13 +574,15 @@ function FeedDetail() {
                     className={`${inputBase} flex-1 min-w-0`}
                     aria-label="Feed title"
                   />
-                  <button
-                    onClick={saveEdit}
-                    disabled={updateMutation.isPending}
-                    className={`${btnBase} ${btnPrimary}`}
-                  >
-                    {updateMutation.isPending ? 'Saving...' : 'Save'}
-                  </button>
+                  <DemoDisabled>
+                    <button
+                      onClick={saveEdit}
+                      disabled={updateMutation.isPending}
+                      className={`${btnBase} ${btnPrimary}`}
+                    >
+                      {updateMutation.isPending ? 'Saving...' : 'Save'}
+                    </button>
+                  </DemoDisabled>
                   <button
                     onClick={() => setEditing(null)}
                     className={`${btnBase} ${btnSecondary}`}
@@ -792,16 +795,18 @@ function FeedDetail() {
               />
             )}
             {/* Same button and confirm flow as the dashboard's feed cards. */}
-            <button
-              onClick={handleDeleteFeed}
-              disabled={deleteMutation.isPending}
-              className={`${btnBase} ${btnDestructiveOutline} shrink-0 max-[359px]:w-full`}
-              title="Delete feed"
-              aria-label="Delete feed"
-            >
-              <Trash2 className="w-4 h-4 sm:hidden" aria-hidden="true" />
-              <span className="hidden sm:inline">Delete</span>
-            </button>
+            <DemoDisabled>
+              <button
+                onClick={handleDeleteFeed}
+                disabled={deleteMutation.isPending}
+                className={`${btnBase} ${btnDestructiveOutline} shrink-0 max-[359px]:w-full`}
+                title="Delete feed"
+                aria-label="Delete feed"
+              >
+                <Trash2 className="w-4 h-4 sm:hidden" aria-hidden="true" />
+                <span className="hidden sm:inline">Delete</span>
+              </button>
+            </DemoDisabled>
           </div>
         </div>
       </div>
@@ -1112,15 +1117,17 @@ function FeedDetail() {
               >
                 Cancel
               </button>
-              <button
-                onClick={() => bulkMutation.mutate({ action: 'delete' })}
-                disabled={bulkMutation.isPending || passthroughMutation.isPending || selectionOverLimit}
-                className={`${dialogFooterBtn} ${btnDestructive}`}
-              >
-                {bulkMutation.isPending
-                  ? 'Deleting...'
-                  : `Delete ${effectiveSelectedIds.size} episode${effectiveSelectedIds.size > 1 ? 's' : ''}`}
-              </button>
+              <DemoDisabled>
+                <button
+                  onClick={() => bulkMutation.mutate({ action: 'delete' })}
+                  disabled={bulkMutation.isPending || passthroughMutation.isPending || selectionOverLimit}
+                  className={`${dialogFooterBtn} ${btnDestructive}`}
+                >
+                  {bulkMutation.isPending
+                    ? 'Deleting...'
+                    : `Delete ${effectiveSelectedIds.size} episode${effectiveSelectedIds.size > 1 ? 's' : ''}`}
+                </button>
+              </DemoDisabled>
             </>
           )}
         >

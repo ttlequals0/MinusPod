@@ -10,6 +10,7 @@ import { btnBase, btnLg, btnPrimary, btnSecondary, btnOutline } from '../../comp
 import { inputBase, labelBase } from '../../components/fieldStyles';
 import { subHeading } from '../../components/pageStyles';
 import { uiUrl } from '../../urlPrefix';
+import { DemoDisabled } from '../../components/DemoDisabled';
 
 const MIN_PASSWORD_LENGTH = 12;
 
@@ -217,19 +218,21 @@ function SecuritySection({
           </div>
         )}
 
-        <button
-          type="submit"
-          disabled={isChangingPassword || (!isPasswordSet && !newPassword)}
-          className={`${btnLg} ${btnPrimary}`}
-        >
-          {isChangingPassword
-            ? 'Saving...'
-            : isPasswordSet
-            ? newPassword
-              ? 'Change password'
-              : 'Remove password'
-            : 'Set password'}
-        </button>
+        <DemoDisabled>
+          <button
+            type="submit"
+            disabled={isChangingPassword || (!isPasswordSet && !newPassword)}
+            className={`${btnLg} ${btnPrimary}`}
+          >
+            {isChangingPassword
+              ? 'Saving...'
+              : isPasswordSet
+              ? newPassword
+                ? 'Change password'
+                : 'Remove password'
+              : 'Set password'}
+          </button>
+        </DemoDisabled>
       </form>
 
       <div className="mt-6 pt-6 border-t border-border">

@@ -45,6 +45,7 @@ import AIModelsSection from './settings/AIModelsSection';
 import FailoverSection from './settings/FailoverSection';
 import { cancelFailover, failoverQueryKey, getFailover, probeFailover, triggerFailover, type FailoverTargetName } from '../api/failover';
 import { sectionVisible, useCollapsibleOpen } from '../components/CollapsibleSection';
+import { DemoDisabled } from '../components/DemoDisabled';
 
 const FAILOVER_STORAGE_KEY = 'settings-section-failover';
 import StageTunablesSection from './settings/StageTunablesSection';
@@ -76,7 +77,8 @@ import { reconcileStageSlotsForSecondaryToggle } from './settings/settingsUtils'
 import { btnLg, btnPrimary, touchTarget } from '../components/buttonStyles';
 import { focusRing } from '../components/fieldStyles';
 import { pageHeader, pageTitle, pageDescription } from '../components/pageStyles';
-import { apiUrl } from '../urlPrefix';
+import { apiUrl, uiUrl } from '../urlPrefix';
+import { IS_DEMO } from '../demo/flag';
 
 // External doc links stay link-styled so they read as clickable; touchTarget keeps the phone hit box.
 const docsLink = `${touchTarget} gap-1 text-sm text-primary hover:underline whitespace-nowrap ${focusRing}`;
@@ -1283,9 +1285,9 @@ function Settings() {
             Docs
           </a>
           <a
-            href={apiUrl('/docs')}
-            target="_blank"
-            rel="noopener noreferrer"
+            href={IS_DEMO ? uiUrl('/api-docs') : apiUrl('/docs')}
+            target={IS_DEMO ? undefined : '_blank'}
+            rel={IS_DEMO ? undefined : 'noopener noreferrer'}
             className={docsLink}
           >
             <FileText className="w-4 h-4" aria-hidden="true" />
@@ -1853,13 +1855,15 @@ function Settings() {
               isPending={resetMutation.isPending}
               onConfirm={() => resetMutation.mutate()}
             />
-            <button
-              onClick={() => updateMutation.mutate()}
-              disabled={updateMutation.isPending}
-              className={`${btnLg} ${btnPrimary}`}
-            >
-              {updateMutation.isPending ? 'Saving...' : 'Save changes'}
-            </button>
+            <DemoDisabled>
+              <button
+                onClick={() => updateMutation.mutate()}
+                disabled={updateMutation.isPending}
+                className={`${btnLg} ${btnPrimary}`}
+              >
+                {updateMutation.isPending ? 'Saving...' : 'Save changes'}
+              </button>
+            </DemoDisabled>
           </div>
         </div>
       )}

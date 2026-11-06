@@ -19,8 +19,11 @@ import DraftNumberInput, { parseOptionalNumber } from '../components/DraftNumber
 import { btnBase, btnLg, btnPrimary, btnSecondary, btnGhost, touchTarget } from '../components/buttonStyles';
 import { focusRing, inputBase, selectBase, textareaBase, labelBase, fileInputBase } from '../components/fieldStyles';
 import { CREATE_PROCESSING_MODES, PROCESSING_MODE_LABELS } from './feeds/processingMode';
+import { IS_DEMO } from '../demo/flag';
+import { DemoExplainer } from '../components/DemoExplainer';
 import { useDebouncedValue } from '../hooks/useDebouncedValue';
 import { pageHeader, pageTitle, cardTitle, subHeading } from '../components/pageStyles';
+import { DemoDisabled } from '../components/DemoDisabled';
 
 const YOUTUBE_SEARCH_DEBOUNCE_MS = 900;
 const YOUTUBE_SEARCH_MIN_CHARS = 3;
@@ -82,10 +85,12 @@ function RecentsFeedForm({ onCancel }: { onCancel: () => void }) {
         <p className="text-sm text-destructive">{getErrorMessage(mutation.error)}</p>
       )}
       <div className="flex gap-2">
-        <button type="submit" disabled={mutation.isPending}
-          className={`${btnLg} ${btnPrimary}`}>
-          {mutation.isPending ? 'Creating feed...' : 'Create feed'}
-        </button>
+        <DemoDisabled>
+          <button type="submit" disabled={mutation.isPending}
+            className={`${btnLg} ${btnPrimary}`}>
+            {mutation.isPending ? 'Creating feed...' : 'Create feed'}
+          </button>
+        </DemoDisabled>
         <button type="button" onClick={onCancel}
           className={`${btnLg} ${btnSecondary}`}>
           Cancel
@@ -282,13 +287,15 @@ function LocalFeedForm({ onCancel }: LocalFeedFormProps) {
       )}
 
       <div className="flex gap-4">
-        <button
-          type="submit"
-          disabled={mutation.isPending || !title.trim()}
-          className={`${btnLg} ${btnPrimary} flex-1`}
-        >
-          {mutation.isPending ? 'Creating feed...' : 'Create feed'}
-        </button>
+        <DemoDisabled>
+          <button
+            type="submit"
+            disabled={mutation.isPending || !title.trim()}
+            className={`${btnLg} ${btnPrimary} flex-1`}
+          >
+            {mutation.isPending ? 'Creating feed...' : 'Create feed'}
+          </button>
+        </DemoDisabled>
         <button
           type="button"
           onClick={onCancel}
@@ -438,18 +445,20 @@ function SearchResultItem({ result, isSubscribed, isAdding, onAdd }: {
               <Check className="w-5 h-5" aria-hidden="true" />
             </span>
           ) : (
-            <button
-              onClick={handleAdd}
-              disabled={isAdding}
-              className={`${touchTarget} ${btnGhost} shrink-0 rounded text-primary disabled:opacity-50 ${focusRing}`}
-              title="Add this podcast"
-            >
-              {isAdding ? (
-                <LoadingSpinner size="sm" inline />
-              ) : (
-                <Plus className="w-5 h-5" aria-hidden="true" />
-              )}
-            </button>
+            <DemoDisabled>
+              <button
+                onClick={handleAdd}
+                disabled={isAdding}
+                className={`${touchTarget} ${btnGhost} shrink-0 rounded text-primary disabled:opacity-50 ${focusRing}`}
+                title="Add this podcast"
+              >
+                {isAdding ? (
+                  <LoadingSpinner size="sm" inline />
+                ) : (
+                  <Plus className="w-5 h-5" aria-hidden="true" />
+                )}
+              </button>
+            </DemoDisabled>
           )}
         </div>
         {result.description && (
@@ -534,6 +543,7 @@ function AddFeed() {
 
   // URL validation (only when it looks like a URL)
   const isYouTube = isYouTubeInput(inputValue);
+  const youtubeInDemo = IS_DEMO && isYouTube;
   const urlValidation = useMemo(() => {
     if (!isUrl) return { isValid: false, error: null, warning: null };
     const result = validateUrl(inputValue.trim());
@@ -733,6 +743,7 @@ function AddFeed() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setTouched(true);
+    if (youtubeInDemo) return;
     if (isYouTube) {
       if (youtubeEnabled && !previewMutation.isPending) previewMutation.mutate(inputValue.trim());
     } else if (isUrl && inputValue.trim() && urlValidation.isValid) {
@@ -910,7 +921,10 @@ function AddFeed() {
         </details>
 
         {/* URL mode: show Add Feed button */}
-        {(isUrl || isYouTube) && (
+        {youtubeInDemo && (
+          <DemoExplainer title="YouTube import">YouTube import needs yt-dlp on a running instance.</DemoExplainer>
+        )}
+        {(isUrl || isYouTube) && !youtubeInDemo && (
           <>
             {(isYouTube ? youtubeError : mutation.error) && (
               <div id="add-feed-error" role="alert" className="p-4 rounded-lg bg-destructive/10 text-destructive">
@@ -918,18 +932,20 @@ function AddFeed() {
               </div>
             )}
             <div className="flex gap-4">
-              <button
-                type="submit"
-                disabled={isYouTube
-                  ? youtubeBusy || youtubeBlocked
-                  : mutation.isPending || !inputValue.trim() || (touched && !urlValidation.isValid)}
-                className={`${btnLg} ${btnPrimary} flex-1`}
-              >
-                {isYouTube ? <SearchIcon className="w-4 h-4" aria-hidden="true" /> : <Plus className="w-4 h-4" aria-hidden="true" />}
-                {isYouTube
-                  ? (previewMutation.isPending ? 'Looking up...' : 'Look up')
-                  : (mutation.isPending ? 'Adding feed...' : 'Add feed')}
-              </button>
+              <DemoDisabled when={!isYouTube}>
+                <button
+                  type="submit"
+                  disabled={isYouTube
+                    ? youtubeBusy || youtubeBlocked
+                    : mutation.isPending || !inputValue.trim() || (touched && !urlValidation.isValid)}
+                  className={`${btnLg} ${btnPrimary} flex-1`}
+                >
+                  {isYouTube ? <SearchIcon className="w-4 h-4" aria-hidden="true" /> : <Plus className="w-4 h-4" aria-hidden="true" />}
+                  {isYouTube
+                    ? (previewMutation.isPending ? 'Looking up...' : 'Look up')
+                    : (mutation.isPending ? 'Adding feed...' : 'Add feed')}
+                </button>
+              </DemoDisabled>
               <button
                 type="button"
                 onClick={() => navigate('/')}
@@ -942,7 +958,7 @@ function AddFeed() {
         )}
       </form>
 
-      {isYouTube && youtubeSource && (
+      {isYouTube && youtubeSource && !youtubeInDemo && (
         <div className="mt-4 space-y-4">
           <div className="border border-border rounded-lg p-4 space-y-3">
             <div className="flex items-start gap-3">

@@ -3,6 +3,7 @@ import { apiRequest, getErrorMessage } from '../api/client';
 import { Modal, ConfirmModal, dialogFooterBtn } from './Modal';
 import { btnOutline, btnPrimary } from './buttonStyles';
 import { selectBase } from './fieldStyles';
+import { DemoDisabled } from './DemoDisabled';
 
 interface Props {
   open: boolean;
@@ -114,14 +115,16 @@ export function PatternImportDialog({ open, onClose, onComplete }: Props) {
         >
           Close
         </button>
-        <button
-          type="button"
-          onClick={() => void handleImport()}
-          disabled={busy}
-          className={`${dialogFooterBtn} ${btnPrimary}`}
-        >
-          {busy ? 'Importing...' : 'Import'}
-        </button>
+        <DemoDisabled>
+          <button
+            type="button"
+            onClick={() => void handleImport()}
+            disabled={busy}
+            className={`${dialogFooterBtn} ${btnPrimary}`}
+          >
+            {busy ? 'Importing...' : 'Import'}
+          </button>
+        </DemoDisabled>
       </div>
       {confirmReplace && <ConfirmModal title="Replace all patterns?" confirmLabel="Replace patterns" busyLabel="Importing..." pending={busy}
         onCancel={() => setConfirmReplace(false)} onConfirm={() => void handleImport(true)}>

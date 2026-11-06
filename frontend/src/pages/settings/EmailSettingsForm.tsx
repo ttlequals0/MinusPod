@@ -12,6 +12,7 @@ import Checkbox from '../../components/Checkbox';
 import DraftNumberInput, { parseOptionalNumber } from '../../components/DraftNumberInput';
 import { btnBase, btnLg, btnPrimary, btnSecondary, btnGhost } from '../../components/buttonStyles';
 import { inputBase, selectBase, labelBase } from '../../components/fieldStyles';
+import { DemoDisabled } from '../../components/DemoDisabled';
 
 interface EmailDraft {
   enabled: boolean;
@@ -282,13 +283,15 @@ function EmailSettingsForm() {
       )}
 
       <div className="flex items-center gap-2 flex-wrap">
-        <button
-          type="submit"
-          disabled={saveMutation.isPending || !dirty}
-          className={`${btnLg} ${btnPrimary}`}
-        >
-          {saveMutation.isPending ? 'Saving...' : 'Save'}
-        </button>
+        <DemoDisabled>
+          <button
+            type="submit"
+            disabled={saveMutation.isPending || !dirty}
+            className={`${btnLg} ${btnPrimary}`}
+          >
+            {saveMutation.isPending ? 'Saving...' : 'Save'}
+          </button>
+        </DemoDisabled>
         <button
           type="button"
           onClick={() => testMutation.mutate()}

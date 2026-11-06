@@ -8,6 +8,7 @@ import { btnLg, btnPrimary, btnSecondary } from '../../components/buttonStyles';
 import { inputBase, labelBase, textareaBase } from '../../components/fieldStyles';
 import { useSyncFromQuery } from '../../hooks/useSyncFromQuery';
 import { useUnsavedChanges } from '../../hooks/useUnsavedChanges';
+import { DemoDisabled } from '../../components/DemoDisabled';
 
 export type MetadataField = 'author' | 'explicit' | 'categories' | 'title' | 'description';
 
@@ -163,9 +164,11 @@ function FeedMetadataForm({ feed, slug, fields }: { feed: Feed; slug: string; fi
           <p role="alert" className="text-sm text-destructive">{getErrorMessage(mutation.error, 'Could not save this feed.')}</p>
         )}
         <div className="flex flex-wrap items-center gap-2">
-          <button type="submit" disabled={!dirty} className={`${btnLg} ${btnPrimary}`}>
-            {mutation.isPending ? 'Saving...' : 'Save metadata'}
-          </button>
+          <DemoDisabled>
+            <button type="submit" disabled={!dirty} className={`${btnLg} ${btnPrimary}`}>
+              {mutation.isPending ? 'Saving...' : 'Save metadata'}
+            </button>
+          </DemoDisabled>
           {dirty && <button type="button" className={`${btnLg} ${btnSecondary}`} onClick={() => {
             const next = metadataValuesFromFeed(feed);
             setValues(next); setBaseline(next); setSaved(false); mutation.reset();

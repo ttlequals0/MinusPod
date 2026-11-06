@@ -8,6 +8,7 @@ import Checkbox from './Checkbox';
 import { btnBase, btnOutline, btnPrimary, btnSecondary, touchTarget } from './buttonStyles';
 import { feedDisplayTitle } from '../utils/feedTitle';
 import { Skeleton } from './Skeleton';
+import { DemoDisabled } from './DemoDisabled';
 
 interface Props {
   open: boolean;
@@ -157,14 +158,16 @@ function FeedOpmlExportDialogImpl({ onClose }: Omit<Props, 'open'>) {
           >
             Cancel
           </button>
-          <button
-            type="button"
-            onClick={download}
-            disabled={effective.size === 0 || busy}
-            className={`${dialogFooterBtn} ${btnPrimary}`}
-          >
-            {busy ? 'Exporting...' : `Download ${effective.size} feed${effective.size === 1 ? '' : 's'}`}
-          </button>
+          <DemoDisabled>
+            <button
+              type="button"
+              onClick={download}
+              disabled={effective.size === 0 || busy}
+              className={`${dialogFooterBtn} ${btnPrimary}`}
+            >
+              {busy ? 'Exporting...' : `Download ${effective.size} feed${effective.size === 1 ? '' : 's'}`}
+            </button>
+          </DemoDisabled>
         </div>
       </div>
     </Modal>

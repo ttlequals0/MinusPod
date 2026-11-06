@@ -15,6 +15,7 @@ import { isSystemOneRoute } from './systemoneWarnings';
 import { btnBase, btnLg, btnPrimary, btnGhost } from '../../components/buttonStyles';
 import { selectBase, labelBase } from '../../components/fieldStyles';
 import { subHeading } from '../../components/pageStyles';
+import { DemoDisabled } from '../../components/DemoDisabled';
 
 // Which per-phase provider override (see llm_route.py) governs a stage block.
 // Both chapter blocks route through chaptersProvider.
@@ -688,14 +689,16 @@ function StageTunablesSection({
         />
 
         <div className="pt-2 flex items-center">
-          <button
-            type="button"
-            onClick={() => onSave(buildPayload())}
-            disabled={!dirty || saveIsPending || !!crossFieldError}
-            className={`${btnLg} ${btnPrimary}`}
-          >
-            {saveIsPending ? 'Saving...' : 'Save LLM tunables'}
-          </button>
+          <DemoDisabled>
+            <button
+              type="button"
+              onClick={() => onSave(buildPayload())}
+              disabled={!dirty || saveIsPending || !!crossFieldError}
+              className={`${btnLg} ${btnPrimary}`}
+            >
+              {saveIsPending ? 'Saving...' : 'Save LLM tunables'}
+            </button>
+          </DemoDisabled>
           {saveIsSuccess && !dirty && !saveError && <SavedBadge className="ml-3" />}
           {saveError && (
             <span className="ml-3 text-sm text-destructive">{saveError}</span>

@@ -18,6 +18,7 @@ import SavedBadge from './SavedBadge';
 import CronScheduleField from './CronScheduleField';
 import { btnBase, btnLg, btnPrimary, btnSecondary, btnDestructive, btnDestructiveOutline } from '../../components/buttonStyles';
 import { subHeading } from '../../components/pageStyles';
+import { DemoDisabled } from '../../components/DemoDisabled';
 
 interface Draft {
   enabled?: boolean;
@@ -158,14 +159,16 @@ function CommunityPatternsSection() {
           </div>
 
           <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => save.mutate()}
-              disabled={save.isPending}
-              className={`${btnLg} ${btnPrimary}`}
-            >
-              {save.isPending ? 'Saving...' : 'Save'}
-            </button>
+            <DemoDisabled>
+              <button
+                type="button"
+                onClick={() => save.mutate()}
+                disabled={save.isPending}
+                className={`${btnLg} ${btnPrimary}`}
+              >
+                {save.isPending ? 'Saving...' : 'Save'}
+              </button>
+            </DemoDisabled>
             <button
               type="button"
               onClick={() => syncNow.mutate()}
