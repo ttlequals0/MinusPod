@@ -20,3 +20,9 @@ test('resolveFixture prefers exact, then path-only with fewest params, then defa
   expect((await resolveFixture(new URL('http://x/api/v1/stats/llm?from=2026-03-01&to=2026-03-31'))).body).toEqual({ file: 'c.json' });
   expect((await resolveFixture(new URL('http://x/api/v1/sponsors'))).body).toEqual({ sponsors: [] });
 });
+
+test('resolveFixture falls through when the loader rejects', async () => {
+  __setIndexForTests({ '/sponsors': 'x.json' });
+  __setLoaderForTests(async () => { throw new Error('boom'); });
+  expect((await resolveFixture(new URL('http://x/api/v1/sponsors'))).body).toEqual({ sponsors: [] });
+});

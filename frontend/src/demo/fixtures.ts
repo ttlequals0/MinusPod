@@ -11,6 +11,7 @@ const cache = new Map<string, Fixture>();
 
 let loader: (file: string) => Promise<Fixture> = async (file) => {
   const res = await fetch(FIXTURE_BASE + file);
+  if (!res.ok) throw new Error(`[demo] fixture load failed: ${FIXTURE_BASE}${file} (${res.status})`);
   return (await res.json()) as Fixture;
 };
 
@@ -47,6 +48,7 @@ export function __setLoaderForTests(fn: (file: string) => Promise<Fixture>): voi
 
 export async function loadFixtureIndex(): Promise<void> {
   const res = await fetch(FIXTURE_BASE + 'index.json');
+  if (!res.ok) throw new Error('[demo] fixture index missing: /demo/fixtures/index.json (' + res.status + ')');
   installIndex((await res.json()) as Record<string, string>);
 }
 
@@ -77,6 +79,19 @@ export async function loadFixture(key: string): Promise<Fixture | null> {
     cache.set(file, fixture);
   }
   return fixture;
+}
+
+function warnDev(...args: unknown[]): void {
+  if (__DEMO__ && import.meta.env.DEV) console.warn(...args);
+}
+
+async function tryLoad(key: string): Promise<Fixture | null> {
+  try {
+    return await loadFixture(key);
+  } catch (err) {
+    warnDev('[demo] fixture load failed', key, err);
+    return null;
+  }
 }
 
 const page = (limit: number) => ({ total: 0, page: 1, limit, totalPages: 0 });
@@ -111,23 +126,27 @@ export function emptyDefault(pathname: string): Fixture {
 
 export async function resolveFixture(url: URL): Promise<Fixture> {
   const key = fixtureKey(url);
-  const exact = await loadFixture(key);
+  const exact = await tryLoad(key);
   if (exact) return exact;
 
   const pathname = normalizedPath(url);
   const handler = matchList(pathname);
   if (handler) {
-    const listed = await handler(url, loadFixture);
-    if (listed) return listed;
+    try {
+      const listed = await handler(url, loadFixture);
+      if (listed) return listed;
+    } catch (err) {
+      warnDev('[demo] fixture load failed', key, err);
+    }
   }
 
   const candidates = byPath.get(pathname);
   if (candidates && candidates.length > 0) {
     const best = [...candidates].sort((a, b) => paramCount(a) - paramCount(b) || (a < b ? -1 : a > b ? 1 : 0))[0];
-    const matched = await loadFixture(best);
+    const matched = await tryLoad(best);
     if (matched) return matched;
   }
 
-  if (__DEMO__ && import.meta.env.DEV) console.warn('[demo] no fixture for', key);
+  warnDev('[demo] no fixture for', key);
   return emptyDefault(pathname);
 }
