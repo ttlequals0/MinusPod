@@ -24,7 +24,7 @@ There is no upstream for a local feed. MinusPod is the publisher, not a proxy. T
 
 Creating a feed from your own files, uploading an episode, running it through the pipeline and finding it next to your subscriptions. Portrait cut and the file itself in [Videos](videos/README.md).
 
-https://github.com/user-attachments/assets/fdedf891-099c-4746-98c5-561b41ff9130
+https://github.com/user-attachments/assets/6b80eaea-275e-4d9b-bd96-295364e08c39
 
 ## Creating a local feed
 

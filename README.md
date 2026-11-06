@@ -12,7 +12,7 @@ MinusPod is a self-hosted server that strips ads from podcasts and YouTube shows
 
 A tour of the web UI. More videos, portrait cuts and the files themselves in [docs/videos](docs/videos/README.md).
 
-https://github.com/user-attachments/assets/26e4f083-a398-44b4-ad22-e6f753e03f52
+https://github.com/user-attachments/assets/2078724e-ca79-4368-a901-3817f9a0d213
 
 ## Features
 
@@ -53,7 +53,7 @@ https://github.com/user-attachments/assets/26e4f083-a398-44b4-ad22-e6f753e03f52
 
 The transcriber turns the episode into text, an LLM marks the ad segments, FFmpeg cuts them, and Flask serves the modified feed and audio. One episode, end to end:
 
-https://github.com/user-attachments/assets/d2f2ad13-71b9-4712-a872-de3c8e867a2a
+https://github.com/user-attachments/assets/cf3d38d7-3df6-4e8d-bac1-c5dd720dc4b6
 
 The full pipeline, including the verification pass, sliding windows, pattern learning, and audio analysis, is in [docs/how-it-works.md](docs/how-it-works.md).
 

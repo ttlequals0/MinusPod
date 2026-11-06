@@ -164,7 +164,7 @@ episode falls back to standard detection on its own.
 
 One episode under each of the five modes, then segment categories and the remove, beep, keep and mark actions. Portrait cut and the file itself in [Videos](videos/README.md).
 
-https://github.com/user-attachments/assets/436ca512-fb37-4f38-a0eb-6d9b8954457d
+https://github.com/user-attachments/assets/15f21248-7cb2-4944-bdf9-5053940fb791
 
 ---
 

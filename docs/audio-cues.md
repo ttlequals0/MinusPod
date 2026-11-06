@@ -36,7 +36,7 @@ the two stages combine.
 
 Finding a cue on one episode, templates and their health on the feed, the cross-episode scan, cuts that snapped to a cue, and the settings. Portrait cut and the file itself in [Videos](videos/README.md).
 
-https://github.com/user-attachments/assets/4903dbab-597c-45d4-82a7-5f91298d3a6c
+https://github.com/user-attachments/assets/7d1ed38b-ae71-446b-8605-f9040fc4914c
 
 ## How it finds the cue
 

@@ -21,7 +21,7 @@ Experimental. Off by default. Nothing it suggests changes a pattern until you ap
 
 Learned patterns: the list, one created from a confirmed detection, its detail and edit forms, merge suggestions, then Pattern Cleanup from Run now to approve and undo. Portrait cut and the file itself in [Videos](videos/README.md).
 
-https://github.com/user-attachments/assets/e3dd4a49-3fac-4ab2-96ab-25e60b858317
+https://github.com/user-attachments/assets/d6091622-53ba-4856-985d-7b46c9a8e3f5
 
 ## What it does
 

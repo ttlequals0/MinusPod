@@ -18,7 +18,7 @@
 
 Two provider slots, a model per stage, failover, and the spend ledger from provider down to a single episode. Portrait cut and the file itself in [Videos](videos/README.md).
 
-https://github.com/user-attachments/assets/1c3800e7-5fb0-402b-b42f-89ae6140f45f
+https://github.com/user-attachments/assets/87741bcb-35b4-4712-9f91-36207a697cd5
 
 ## Using Anthropic directly
 

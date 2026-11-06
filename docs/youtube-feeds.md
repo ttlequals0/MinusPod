@@ -26,7 +26,7 @@
 
 Adding a show by name, SponsorBlock marks on an episode, the rating, submitting reviewed segments, the status bar during a SponsorBlock outage and the settings. Portrait cut and the file itself in [Videos](videos/README.md).
 
-https://github.com/user-attachments/assets/5ba14213-c2f7-4bec-a70d-b7d722a7209d
+https://github.com/user-attachments/assets/bf8b49e9-f884-4e58-8b18-816354eb839b
 
 ## What a YouTube feed is
 

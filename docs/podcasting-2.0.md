@@ -38,7 +38,7 @@ for what a local feed emits instead.
 
 Chapters and transcript for the cut audio, the served feed's namespace tags, and the chapter settings. Portrait cut and the file itself in [Videos](videos/README.md).
 
-https://github.com/user-attachments/assets/df257494-c2c8-43a4-91ef-743235ee6194
+https://github.com/user-attachments/assets/c282fe7f-7211-4777-86fd-16164e365701
 
 ## The rule
 
