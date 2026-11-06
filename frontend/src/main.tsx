@@ -6,6 +6,7 @@ import App from './App';
 import './index.css';
 import { offerAppUpdate } from './utils/appUpdate';
 import { UI_BASE } from './urlPrefix';
+import { DEMO_BOOT_ERROR } from './demo/copy';
 
 async function boot() {
   if (__DEMO__) {
@@ -43,4 +44,8 @@ async function boot() {
   );
 }
 
-void boot();
+boot().catch((err: unknown) => {
+  console.error(err);
+  const root = document.getElementById('root');
+  if (root) root.textContent = DEMO_BOOT_ERROR;
+});
