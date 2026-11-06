@@ -1,4 +1,6 @@
 import { pageTitle } from '../components/pageStyles';
+import { DEMO_AUDIO_TOOLTIP } from '../demo/copy';
+import { mediaUrl } from '../utils/mediaUrl';
 import { reprocessMenuCopy } from '../utils/reprocessMenu';
 import { useState, useRef, useMemo, useEffect } from 'react';
 import { ChevronDown, Pencil, Plus } from 'lucide-react';
@@ -742,6 +744,8 @@ function EpisodeDetail() {
   const markerAudition = useAuditionPlayer(
     episode?.hasOriginalAudio ? markerAudioUrl : undefined);
 
+  const markerPlayProps = markerAudioUrl ? {} : { disabled: true, title: DEMO_AUDIO_TOOLTIP };
+
   const description = episode?.description;
   const chapterNotes = episode?.chapterNotes;
   const descriptionBlock = useMemo(() => {
@@ -776,7 +780,7 @@ function EpisodeDetail() {
   }
 
   // Server-built when available: it carries the feed auth key, which a hardcoded path lacks.
-  const audioUrl = episode.processedUrl ?? `${URL_PREFIX}/episodes/${slug}/${episode.id}.mp3`;
+  const audioUrl = mediaUrl({ kind: 'audio', url: episode.processedUrl ?? `${URL_PREFIX}/episodes/${slug}/${episode.id}.mp3` });
 
   const renderAdMarkerCard = (segment: AdSegment, index: number) => (
     <div
@@ -786,7 +790,7 @@ function EpisodeDetail() {
       {/* Row 1: Time, badges, jump button, confidence */}
       <div className="flex flex-wrap items-center gap-2">
         {episode.hasOriginalAudio && (
-          <AuditionPlayButton
+          <AuditionPlayButton {...markerPlayProps}
             playing={markerAudition.playingKey === `detected-${segment.start}-${segment.end}`}
             onClick={() => {
               // Play the displayed span: the pre-trim range for reviewer-adjusted markers.
@@ -1535,7 +1539,7 @@ function EpisodeDetail() {
                   <div className="p-3 bg-secondary/50 rounded-lg">
                     <div className="flex flex-wrap items-center gap-2">
                       {episode.hasOriginalAudio && (
-                        <AuditionPlayButton
+                        <AuditionPlayButton {...markerPlayProps}
                           playing={markerAudition.playingKey === key}
                           onClick={() => markerAudition.toggle(key, markerAudioUrl, block.start, block.end)}
                         />
@@ -1734,7 +1738,7 @@ function EpisodeDetail() {
                   <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                     <div className="flex flex-wrap items-center gap-2">
                       {episode.hasOriginalAudio && (
-                        <AuditionPlayButton
+                        <AuditionPlayButton {...markerPlayProps}
                           playing={heldPlaying}
                           onClick={() => markerAudition.toggle(heldKey, markerAudioUrl, segment.start, segment.end)}
                         />
@@ -1912,7 +1916,7 @@ function EpisodeDetail() {
                 >
                   <div className="flex flex-wrap items-center gap-2">
                     {episode.hasOriginalAudio && (
-                      <AuditionPlayButton
+                      <AuditionPlayButton {...markerPlayProps}
                         label="this segment"
                         playing={markerAudition.playingKey === `kept-${segment.start}-${segment.end}`}
                         onClick={() => markerAudition.toggle(
@@ -1967,7 +1971,7 @@ function EpisodeDetail() {
                       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                         <div className="flex flex-wrap items-center gap-2">
                           {episode.hasOriginalAudio && (
-                            <AuditionPlayButton
+                            <AuditionPlayButton {...markerPlayProps}
                               playing={rejectedPlaying}
                               onClick={() => markerAudition.toggle(rejectedKey, markerAudioUrl, segment.start, segment.end)}
                             />

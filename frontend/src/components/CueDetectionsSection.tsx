@@ -1,4 +1,5 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { DEMO_AUDIO_TOOLTIP } from '../demo/copy';
 import CollapsibleSection from './CollapsibleSection';
 import { cueTypeLabel, type CueTemplateType } from '../api/cueTemplates';
 import { setCueDetectionVerdict, type CueVerdict } from '../api/cueDetections';
@@ -65,7 +66,7 @@ function CueDetectionsSection({ slug, episodeId, detections }: CueDetectionsSect
 
   // Audition a match: shared windowed player, one row sounds at a time.
   const audioUrl = episodeOriginalUrl(slug, episodeId);
-  const { playingKey, toggle: toggleMatch, audioElement } = useAuditionPlayer(audioUrl);
+  const { playingKey, toggle: toggleMatch, audioElement } = useAuditionPlayer(audioUrl ?? undefined);
 
   return (
     <CollapsibleSection
@@ -97,6 +98,8 @@ function CueDetectionsSection({ slug, episodeId, detections }: CueDetectionsSect
                     playing={playingKey === String(d.id)}
                     onClick={() => toggleMatch(String(d.id), audioUrl, d.start_s, d.end_s)}
                     label="this match"
+                    disabled={!audioUrl}
+                    title={audioUrl ? undefined : DEMO_AUDIO_TOOLTIP}
                   />
                   <span className="font-mono text-sm text-foreground">
                     {formatTimestamp(d.start_s)} - {formatTimestamp(d.end_s)}

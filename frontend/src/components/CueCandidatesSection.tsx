@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
+import { DEMO_AUDIO_TOOLTIP } from '../demo/copy';
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
 import CollapsibleSection from './CollapsibleSection';
 import LoadingSpinner from './LoadingSpinner';
@@ -39,6 +40,7 @@ function CueCandidatesSection({
   // Inline preview: one shared <audio> plays just the candidate's [start, end]
   // span so a candidate can be heard without opening the capture modal.
   const audioRef = useRef<HTMLAudioElement>(null);
+  const originalUrl = episodeOriginalUrl(slug, episodeId);
   const previewStopRef = useRef<(() => void) | null>(null);
   // Bumped on every preview start/stop so a slow cold-load callback for a
   // superseded candidate bails instead of arming a stray stop listener.
@@ -217,8 +219,8 @@ function CueCandidatesSection({
                       playing={isPlaying}
                       onClick={() => togglePreview(c)}
                       label="this sound"
-                      disabled={!hasOriginalAudio}
-                      title={hasOriginalAudio ? undefined : 'Original audio not retained for this episode'}
+                      disabled={!hasOriginalAudio || !originalUrl}
+                      title={!originalUrl ? DEMO_AUDIO_TOOLTIP : hasOriginalAudio ? undefined : 'Original audio not retained for this episode'}
                     />
                     <div className="min-w-0 flex flex-wrap items-center gap-2">
                       <span className="font-mono text-sm text-foreground whitespace-nowrap">
@@ -301,12 +303,14 @@ function CueCandidatesSection({
               )}
             </div>
           )}
-          <audio
-            ref={audioRef}
-            src={episodeOriginalUrl(slug, episodeId)}
-            preload="metadata"
-            className="hidden"
-          />
+          {originalUrl && (
+            <audio
+              ref={audioRef}
+              src={originalUrl}
+              preload="metadata"
+              className="hidden"
+            />
+          )}
         </div>
       )}
 

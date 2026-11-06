@@ -6,7 +6,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 // cold-load, and superseded-click behaviors are load-bearing (see 2.18.2).
 // Pass preloadSrc when the consumer plays a single known file (preloads its
 // metadata like the old inline version); omit it for multi-source consumers.
-export function useAuditionPlayer(preloadSrc?: string) {
+export function useAuditionPlayer(preloadSrc?: string | null) {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   // Holds a function that detaches whichever listener is active (the timeupdate
   // stop, or a pending loadedmetadata seek), so a row switch tears down cleanly.
@@ -96,7 +96,8 @@ export function useAuditionPlayer(preloadSrc?: string) {
     }
   };
 
-  const toggle = (key: string, src: string, startS: number, endS: number) => {
+  const toggle = (key: string, src: string | null, startS: number, endS: number) => {
+    if (!src) return;
     if (playingKey === key) stop();
     else play(key, src, startS, endS);
   };
@@ -111,7 +112,7 @@ export function useAuditionPlayer(preloadSrc?: string) {
   const audioElement = (
     <audio
       ref={attachAudio}
-      src={preloadSrc}
+      src={preloadSrc ?? undefined}
       preload={preloadSrc ? 'metadata' : 'none'}
       onPause={() => {
         // Suppress the pause fired by an in-flight source swap; explicit stop
