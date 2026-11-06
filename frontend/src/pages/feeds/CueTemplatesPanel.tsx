@@ -1,6 +1,6 @@
 import { Modal, dialogFooterBtn } from '../../components/Modal';
 import { DEMO_AUDIO_TOOLTIP } from '../../demo/copy';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Play, Plus, Square } from 'lucide-react';
 import CloseButton from '../../components/CloseButton';
@@ -53,6 +53,10 @@ interface Props {
 
 // Per-feed cue template management. Templates take precedence over the global
 // spectral cue detector when at least one is enabled for the feed.
+
+function AudioTip({ missing, children }: { missing: boolean; children: ReactNode }) {
+  return missing ? <span className="inline-flex" title={DEMO_AUDIO_TOOLTIP}>{children}</span> : children;
+}
 
 function CueTemplatesPanel({ slug }: Props) {
   const queryClient = useQueryClient();
@@ -505,19 +509,19 @@ function CueTemplatesPanel({ slug }: Props) {
                 {editingId !== t.id && (
                   <div className="flex flex-wrap items-center gap-2 pl-7 xl:pl-0 xl:shrink-0">
                     {t.hasAudio !== false && (
-                      <span title={cueTemplateAudioUrl(t.id) ? undefined : DEMO_AUDIO_TOOLTIP}>
+                      <AudioTip missing={!cueTemplateAudioUrl(t.id)}>
                         <button
                           type="button"
                           className={`${btnBase} ${btnGhost}`}
                           onClick={() => togglePlay(t)}
                           disabled={!cueTemplateAudioUrl(t.id)}
-                          title={cueTemplateAudioUrl(t.id) ? (playingId === t.id ? 'Stop' : 'Play this cue') : undefined}
+                          title={playingId === t.id ? 'Stop' : 'Play this cue'}
                           aria-label={playingId === t.id ? `Stop cue ${t.label}` : `Play cue ${t.label}`}
                         >
                           {playingId === t.id ? <Square className="w-4 h-4" aria-hidden="true" /> : <Play className="w-4 h-4" aria-hidden="true" />}
                           {playingId === t.id ? 'Stop' : 'Play'}
                         </button>
-                      </span>
+                      </AudioTip>
                     )}
                     <a
                       className={`${btnBase} ${btnGhost}`}

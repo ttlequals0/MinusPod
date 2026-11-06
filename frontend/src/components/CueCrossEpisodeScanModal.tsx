@@ -348,16 +348,18 @@ export default function CueCrossEpisodeScanModal({
                 return (
                   <li key={rowKey} className="px-3 py-2 text-sm">
                     <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+                      <span className="inline-flex" title={audioAvailable ? undefined : DEMO_AUDIO_TOOLTIP}>
                       <button
                         type="button"
                         className={`shrink-0 ${ghostBtn}`}
                         onClick={() => targetEpId && playWindow(targetEpId, c.start, c.end)}
                         disabled={!targetEpId || !audioAvailable}
-                        title={!audioAvailable ? DEMO_AUDIO_TOOLTIP : playingKey === rowPlayKey ? 'Stop' : 'Play candidate'}
+                        title={audioAvailable ? (playingKey === rowPlayKey ? 'Stop' : 'Play candidate') : undefined}
                         aria-label={playingKey === rowPlayKey ? 'Stop candidate' : 'Play candidate'}
                       >
                         {playingKey === rowPlayKey ? <Square size={14} /> : <Play size={14} />}
                       </button>
+                      </span>
                       <div className="flex-1 min-w-0">
                         <span className="font-mono text-sm">
                           {formatTimestamp(c.start)} - {formatTimestamp(c.end)}

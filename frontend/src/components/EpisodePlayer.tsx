@@ -52,6 +52,18 @@ export default function EpisodePlayer({ src, chaptersUrl }: EpisodePlayerProps) 
     e.preventDefault();
   };
 
+  const playButton = (
+    <button
+      type="button"
+      aria-label={p.playing ? 'Pause' : 'Play'}
+      disabled={noAudio}
+      onClick={p.toggle}
+      className={`${btnBase} ${btnPrimary} touch-manipulation h-14 w-14 min-h-14 min-w-14 rounded-full`}
+    >
+      {p.playing ? <Pause className="h-6 w-6" aria-hidden="true" /> : <Play className="h-6 w-6" aria-hidden="true" />}
+    </button>
+  );
+
   return (
     <div
       role="group"
@@ -117,17 +129,7 @@ export default function EpisodePlayer({ src, chaptersUrl }: EpisodePlayerProps) 
               <span className={skipNum}>{SKIP_BACK_SECONDS}</span>
             </span>
           </button>
-          <span title={noAudio ? DEMO_AUDIO_TOOLTIP : undefined}>
-            <button
-              type="button"
-              aria-label={p.playing ? 'Pause' : 'Play'}
-              disabled={noAudio}
-              onClick={p.toggle}
-              className={`${btnBase} ${btnPrimary} touch-manipulation h-14 w-14 min-h-14 min-w-14 rounded-full`}
-            >
-              {p.playing ? <Pause className="h-6 w-6" aria-hidden="true" /> : <Play className="h-6 w-6" aria-hidden="true" />}
-            </button>
-          </span>
+          {noAudio ? <span className="inline-flex" title={DEMO_AUDIO_TOOLTIP}>{playButton}</span> : playButton}
           <button type="button" aria-label={`Forward ${SKIP_FORWARD_SECONDS} seconds`} disabled={!canSeek} onClick={() => p.skip(SKIP_FORWARD_SECONDS)} className={skipBtn}>
             <span className="relative inline-flex">
               <RotateCw className={skipIcon} aria-hidden="true" />
