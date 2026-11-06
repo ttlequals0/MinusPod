@@ -14,6 +14,7 @@ import { btnBase, btnPrimary, btnGhost, touchTarget } from './buttonStyles';
 import { focusRing } from './fieldStyles';
 import { countPill, tint } from './badgeStyles';
 import { uiUrl } from '../urlPrefix';
+import { IS_DEMO } from '../demo/flag';
 
 const NAV_ITEMS: { to: string; label: string }[] = [
   { to: '/', label: 'Feeds' },
@@ -23,6 +24,7 @@ const NAV_ITEMS: { to: string; label: string }[] = [
   { to: '/stats', label: 'Stats' },
   { to: '/queue', label: 'Queue' },
   { to: '/settings', label: 'Settings' },
+  ...(IS_DEMO ? [{ to: '/api-docs', label: 'API' }] : []),
 ];
 const COMPACT_HEADER_CONTROL_SIZE = 'h-11 w-11 xl:h-auto xl:w-auto';
 

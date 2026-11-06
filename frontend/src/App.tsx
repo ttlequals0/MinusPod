@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect } from 'react';
-import { createBrowserRouter, Outlet, Navigate, redirect, useBlocker } from 'react-router';
+import { createBrowserRouter, Outlet, Navigate, redirect, useBlocker, type RouteObject } from 'react-router';
 import { captureDialogTrigger, ConfirmModal } from './components/Modal';
 import { hasUnsavedChanges, useAnyUnsavedChanges } from './hooks/useUnsavedChanges';
 import { useAppUpdate } from './utils/appUpdate';
@@ -27,6 +27,11 @@ const StatsPage = lazy(() => import('./pages/StatsPage'));
 const QueuePage = lazy(() => import('./pages/QueuePage'));
 const Login = lazy(() => import('./pages/Login'));
 const Search = lazy(() => import('./pages/Search'));
+const ApiExplorer = __DEMO__ ? lazy(() => import('./pages/ApiExplorer')) : null;
+
+export function demoRoutes(): RouteObject[] {
+  return ApiExplorer ? [{ path: 'api-docs', element: <ApiExplorer /> }] : [];
+}
 
 // The standalone Sponsors page moved to a Patterns tab; keep old links and ?q= working.
 export function sponsorsRedirectLoader({ request }: { request: Request }) {
@@ -91,6 +96,7 @@ const router = createBrowserRouter(
             { path: 'stats', element: <StatsPage /> },
             { path: 'queue', element: <QueuePage /> },
             { path: 'settings', element: <Settings /> },
+            ...demoRoutes(),
             { path: '*', element: <Navigate to="/" replace /> },
           ],
         },
