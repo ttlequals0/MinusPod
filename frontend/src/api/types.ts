@@ -21,6 +21,8 @@ export type EpisodeStatusKey = typeof EPISODE_STATUS_KEYS[number];
 
 export type EpisodeStatusCounts = Record<EpisodeStatusKey, number>;
 
+export type ProcessingMode = 'passthrough' | 'skip_detection' | 'keep_content' | 'standard' | 'cue_only';
+
 export interface Feed {
   slug: string;
   title: string;
@@ -140,7 +142,7 @@ export interface Feed {
   // What the pipeline will actually do, resolved server-side from the
   // passthrough/skip/detection-mode columns (each mode shadows the later
   // ones). Absent on older backends; fall back to the raw columns.
-  processingMode?: 'passthrough' | 'skip_detection' | 'keep_content' | 'standard' | 'cue_only';
+  processingMode?: ProcessingMode;
   // Cue-only mode: how newly-created (unproven) cue templates are treated.
   // Null/absent behaves as 'hold_new'. Ignored outside cue_only mode.
   cueOnlySafety?: 'hold_new' | 'auto_cut' | null;

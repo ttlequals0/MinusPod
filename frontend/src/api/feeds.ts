@@ -1,5 +1,5 @@
 import { apiFileRequest, apiRequest, buildQueryString } from './client';
-import { Feed, Episode, EpisodeDetail, BulkActionResult, AdDistribution, JobState, LowAdYieldAction, EpisodeLogsOverride, RunLogResponse, SbCandidatesResponse, SbSubmission, EpisodeRating } from './types';
+import { Feed, Episode, EpisodeDetail, BulkActionResult, AdDistribution, JobState, LowAdYieldAction, EpisodeLogsOverride, RunLogResponse, SbCandidatesResponse, SbSubmission, EpisodeRating, ProcessingMode } from './types';
 import type { SegmentCategory, SegmentAction } from '../utils/segmentCategory';
 import { apiUrl } from '../urlPrefix';
 
@@ -257,7 +257,16 @@ export async function getAdDistribution(slug: string): Promise<AdDistribution> {
   return apiRequest<AdDistribution>(`/feeds/${slug}/ad-distribution`);
 }
 
-export async function addFeed(sourceUrl: string, slug?: string, autoProcessOverride?: boolean | null, maxEpisodes?: number, onlyExposeProcessedEpisodes?: boolean | null): Promise<Feed> {
+export interface FeedCreateOptions {
+  slug?: string;
+  autoProcessOverride?: boolean | null;
+  maxEpisodes?: number;
+  onlyExposeProcessedEpisodes?: boolean | null;
+  processingMode?: ProcessingMode;
+}
+
+export async function addFeed(sourceUrl: string, options: FeedCreateOptions = {}): Promise<Feed> {
+  const { slug, autoProcessOverride, maxEpisodes, onlyExposeProcessedEpisodes, processingMode } = options;
   return apiRequest<Feed>('/feeds', {
     method: 'POST',
     body: {
@@ -266,6 +275,7 @@ export async function addFeed(sourceUrl: string, slug?: string, autoProcessOverr
       ...(autoProcessOverride !== undefined && { autoProcessOverride }),
       ...(maxEpisodes != null && { maxEpisodes }),
       ...(onlyExposeProcessedEpisodes !== undefined && { onlyExposeProcessedEpisodes }),
+      ...(processingMode && { processingMode }),
     },
   });
 }
@@ -313,7 +323,7 @@ export async function addRecentsFeed(payload: AddRecentsFeedPayload): Promise<Ad
   });
 }
 
-export interface AddYoutubeFeedPayload {
+export interface AddYoutubeFeedPayload extends FeedCreateOptions {
   sourceKind: 'playlist' | 'channel' | 'video';
   sourceId: string;
   title: string;
@@ -321,10 +331,6 @@ export interface AddYoutubeFeedPayload {
   author?: string;
   artworkUrl?: string | null;
   includeShorts?: boolean;
-  slug?: string;
-  autoProcessOverride?: boolean | null;
-  maxEpisodes?: number;
-  onlyExposeProcessedEpisodes?: boolean | null;
 }
 
 export async function addYoutubeFeed(
@@ -515,7 +521,7 @@ export interface UpdateFeedPayload {
   skipAdDetection?: boolean | null;
   // Single-preset replacement for detectionMode/skipAdDetection/passthroughEnabled.
   // Rejected by the backend if combined with any of those legacy fields.
-  processingMode?: 'passthrough' | 'skip_detection' | 'keep_content' | 'standard' | 'cue_only';
+  processingMode?: ProcessingMode;
   // Cue-only mode fields; the backend rejects them outside cue_only.
   cueOnlySafety?: 'hold_new' | 'auto_cut' | null;
   skipTranscription?: boolean | null;

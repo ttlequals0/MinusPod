@@ -4,6 +4,7 @@ import { Check, Mic, Plus, Search as SearchIcon, UploadCloud } from 'lucide-reac
 import { useMutation, useQueryClient, useQuery, keepPreviousData } from '@tanstack/react-query';
 import { getErrorMessage } from '../api/client';
 import { addFeed, addYoutubeFeed, addLocalFeed, addRecentsFeed, uploadFeedArtwork, importOpml, OpmlImportResult, feedsQueryOptions } from '../api/feeds';
+import type { ProcessingMode } from '../api/types';
 import { searchPodcasts, PodcastSearchResult } from '../api/podcastSearch';
 import { previewYouTube, searchYouTube, YOUTUBE_KIND_LABELS, YouTubePreview, YouTubeSearchResult } from '../api/youtube';
 import { getSettings } from '../api/settings';
@@ -16,7 +17,8 @@ import QueryError from '../components/QueryError';
 import { badgeBase, tint } from '../components/badgeStyles';
 import DraftNumberInput, { parseOptionalNumber } from '../components/DraftNumberInput';
 import { btnBase, btnLg, btnPrimary, btnSecondary, btnGhost, touchTarget } from '../components/buttonStyles';
-import { focusRing, inputBase, textareaBase, labelBase, fileInputBase } from '../components/fieldStyles';
+import { focusRing, inputBase, selectBase, textareaBase, labelBase, fileInputBase } from '../components/fieldStyles';
+import { CREATE_PROCESSING_MODES, PROCESSING_MODE_HINTS, PROCESSING_MODE_LABELS } from './feeds/processingMode';
 import { useDebouncedValue } from '../hooks/useDebouncedValue';
 import { pageHeader, pageTitle, cardTitle, subHeading } from '../components/pageStyles';
 
@@ -514,6 +516,7 @@ function AddFeed() {
   const [autoProcessOverride, setAutoProcessOverride] = useState<boolean | null>(null);
   const [maxEpisodes, setMaxEpisodes] = useState<string>('');
   const [onlyExposeProcessedEpisodes, setOnlyExposeProcessedEpisodes] = useState<boolean | null>(null);
+  const [processingMode, setProcessingMode] = useState<ProcessingMode>('standard');
 
   // Search state
   const [searchResults, setSearchResults] = useState<PodcastSearchResult[]>([]);
@@ -605,7 +608,13 @@ function AddFeed() {
 
   // Add feed mutation (for URL submit)
   const mutation = useMutation({
-    mutationFn: () => addFeed(inputValue, customSlug || undefined, autoProcessOverride, maxEpisodes ? parseInt(maxEpisodes, 10) : undefined, onlyExposeProcessedEpisodes ?? undefined),
+    mutationFn: () => addFeed(inputValue, {
+      slug: customSlug || undefined,
+      autoProcessOverride,
+      maxEpisodes: maxEpisodes ? parseInt(maxEpisodes, 10) : undefined,
+      onlyExposeProcessedEpisodes: onlyExposeProcessedEpisodes ?? undefined,
+      processingMode,
+    }),
     onSuccess: (feed) => {
       queryClient.invalidateQueries({ queryKey: ['feeds'] });
       navigate(`/feeds/${feed.slug}`);
@@ -639,6 +648,7 @@ function AddFeed() {
       autoProcessOverride,
       maxEpisodes: maxEpisodes ? Number(maxEpisodes) : undefined,
       onlyExposeProcessedEpisodes,
+      processingMode,
     }),
     onSuccess: (feed) => {
       queryClient.invalidateQueries({ queryKey: ['feeds'] });
@@ -668,13 +678,19 @@ function AddFeed() {
   const addFromSearch = useCallback(async (feedUrl: string) => {
     setAddingFeedUrl(feedUrl);
     try {
-      const feed = await addFeed(feedUrl, customSlug || undefined, autoProcessOverride, maxEpisodes ? parseInt(maxEpisodes, 10) : undefined, onlyExposeProcessedEpisodes ?? undefined);
+      const feed = await addFeed(feedUrl, {
+        slug: customSlug || undefined,
+        autoProcessOverride,
+        maxEpisodes: maxEpisodes ? parseInt(maxEpisodes, 10) : undefined,
+        onlyExposeProcessedEpisodes: onlyExposeProcessedEpisodes ?? undefined,
+        processingMode,
+      });
       queryClient.invalidateQueries({ queryKey: ['feeds'] });
       navigate(`/feeds/${feed.slug}`);
     } finally {
       setAddingFeedUrl(null);
     }
-  }, [customSlug, autoProcessOverride, maxEpisodes, onlyExposeProcessedEpisodes, queryClient, navigate]);
+  }, [customSlug, autoProcessOverride, maxEpisodes, onlyExposeProcessedEpisodes, processingMode, queryClient, navigate]);
 
   // OPML handlers
   const opmlMutation = useMutation({
@@ -802,7 +818,7 @@ function AddFeed() {
         <details className="group">
           <summary className="text-sm text-primary hover:underline cursor-pointer list-none">
             Advanced options
-            <span className="text-muted-foreground font-normal"> (URL and search feeds)</span>
+            <span className="text-muted-foreground font-normal"> (URL, search and YouTube feeds)</span>
           </summary>
           <div className="mt-4 space-y-4">
             <div>
@@ -872,6 +888,26 @@ function AddFeed() {
               />
               <p id="onlyExposeProcessedEpisodes-help" className="mt-1 text-sm text-muted-foreground">
                 Hide upstream episodes until processing finishes. Global default uses the site-wide setting.
+              </p>
+            </div>
+
+            <div>
+              <label htmlFor="processingMode" className={labelBase}>
+                Processing mode
+              </label>
+              <select
+                id="processingMode"
+                aria-describedby="processingMode-help"
+                value={processingMode}
+                onChange={(e) => setProcessingMode(e.target.value as ProcessingMode)}
+                className={`${selectBase} w-full`}
+              >
+                {CREATE_PROCESSING_MODES.map((m) => (
+                  <option key={m} value={m}>{PROCESSING_MODE_LABELS[m]}</option>
+                ))}
+              </select>
+              <p id="processingMode-help" className={`mt-1 text-sm ${PROCESSING_MODE_HINTS[processingMode].warning ? 'text-warning' : 'text-muted-foreground'}`}>
+                {PROCESSING_MODE_HINTS[processingMode].text}
               </p>
             </div>
           </div>

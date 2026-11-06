@@ -463,6 +463,10 @@ paths:
                     - boolean
                     - 'null'
                   description: Per-feed override. true hides non-processed episodes; false shows everything; null falls back to the global onlyExposeProcessedDefault setting.
+                processingMode:
+                  type: string
+                  enum: [standard, keep_content, skip_detection, passthrough]
+                  description: Processing mode applied before the first refresh. Subscribed and YouTube feeds only; local and recents feeds reject it with a 400. Omitted means standard. cue_only is rejected on create because it needs cue templates; set it from PATCH /feeds/{slug} afterwards.
                 requireManualApproval:
                   type:
                     - boolean

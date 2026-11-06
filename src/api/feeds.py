@@ -306,6 +306,18 @@ def _normalize_processing_mode(value):
                   f"{', '.join(sorted(PROCESSING_MODE_COLUMN_UPDATES))}")
 
 
+def _normalize_create_processing_mode(value):
+    """Validate processingMode for feed creation; cue_only needs templates a new feed lacks."""
+    if value == PROCESSING_MODE_CUE_ONLY:
+        return None, ("processingMode cue_only cannot be set when adding a feed; "
+                      "add the feed, then enable it from its cue templates")
+    mode_updates, err = _normalize_processing_mode(value)
+    if err:
+        return None, err
+    # A new row already has standard's column values.
+    return mode_updates if value not in (None, '', PROCESSING_MODE_STANDARD) else {}, None
+
+
 def _cue_only_templates_ok(db, podcast):
     """Cue-only needs one enabled start-role and one end-role template."""
     rows = db.list_cue_templates_for_feed_ui(podcast['id'])
@@ -1466,6 +1478,11 @@ def _add_youtube_feed(data, db):
         max_ep, err = _normalize_max_episodes(data['maxEpisodes'], False)
         if err:
             return error_response(err, 400)
+    mode_updates = {}
+    if 'processingMode' in data:
+        mode_updates, err = _normalize_create_processing_mode(data['processingMode'])
+        if err:
+            return error_response(err, 400)
     try:
         feed_url = _public_feed_url(slug, get_feed_auth_key(db))
         channel_json = {'medium': 'podcast', 'locked': 'yes', 'guid': compute_feed_guid(feed_url)}
@@ -1483,6 +1500,7 @@ def _add_youtube_feed(data, db):
         if 'onlyExposeProcessedEpisodes' in data:
             updates['only_expose_processed_episodes'] = _serialize_nullable_bool(
                 data['onlyExposeProcessedEpisodes'])
+        updates.update(mode_updates)
         with db.transaction() as conn:
             db.create_podcast(slug, canonical, title, feed_type='youtube', conn=conn)
             db.update_podcast(slug, conn=conn, **updates)
@@ -1511,6 +1529,9 @@ def add_feed():
     """
     data = request.get_json()
 
+    if data and data.get('feedType') in ('recents', 'local') and 'processingMode' in data:
+        return error_response(
+            'processingMode applies to subscribed and YouTube feeds only', 400)
     if data and data.get('feedType') == 'recents':
         return _add_recents_feed(data, get_database())
     if data and data.get('feedType') == 'local':
@@ -1631,6 +1652,12 @@ def add_feed():
                 return error_response(error, 400)
             audio_output_overrides[db_key] = value
 
+    mode_updates = {}
+    if 'processingMode' in data:
+        mode_updates, mode_err = _normalize_create_processing_mode(data['processingMode'])
+        if mode_err:
+            return error_response(mode_err, 400)
+
     # Create podcast
     try:
         db.create_podcast(slug, source_url)
@@ -1669,6 +1696,9 @@ def add_feed():
         if 'keepOriginalAudioOverride' in data:
             db.update_podcast(
                 slug, keep_original_audio_override=keep_original_override)
+
+        if mode_updates:
+            db.update_podcast(slug, **mode_updates)
 
         # Invalidate feed cache since we added a new feed
         from main_app.feeds import invalidate_feed_cache

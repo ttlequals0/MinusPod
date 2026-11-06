@@ -8,6 +8,18 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
+## [2.101.24] - 2026-11-05
+
+### Added
+
+- The Add Feed dialog's Advanced options now include a processing mode select
+  (standard, keep content only, skip ad detection, or pass-through). A feed
+  that should be served untouched or only transcribed is set up that way
+  before its first episodes are picked up. The API accepts the same
+  `processingMode` on `POST /feeds` for subscribed and YouTube feeds.
+  Cue-only is still set from the feed's settings after creation because it
+  needs cue templates.
+
 ## [2.101.23] - 2026-11-05
 
 ### Fixed
