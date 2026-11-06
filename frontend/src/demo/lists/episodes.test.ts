@@ -1,0 +1,35 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
+import { test, expect } from 'vitest';
+import { episodesHandler } from './episodes';
+const dump = { status: 200, body: { episodes: [
+  { id: 'a', title: 'Alpha show', status: 'processed', publishedAt: '2026-11-01T00:00:00Z', createdAt: '2026-11-01T00:00:00Z', episodeNumber: 2 },
+  { id: 'b', title: 'Beta', status: 'failed', publishedAt: null, createdAt: '2026-11-03T00:00:00Z', episodeNumber: null },
+  { id: 'c', title: 'alpha two', status: 'processed', publishedAt: '2026-11-02T00:00:00Z', createdAt: '2026-11-02T00:00:00Z', episodeNumber: 1 },
+], total: 3, limit: 500, offset: 0 } };
+const load = async () => dump;
+const url = (q: string) => new URL(`http://x/api/v1/feeds/s/episodes?${q}`);
+
+test('status completed aliases processed and search is case-insensitive', async () => {
+  const r = await episodesHandler(url('status=completed&search=ALPHA'), load);
+  expect((r!.body as any).episodes.map((e: any) => e.id)).toEqual(['c', 'a']);
+  expect((r!.body as any).total).toBe(2);
+});
+test('published_at sort coalesces to createdAt and paginates', async () => {
+  const r = await episodesHandler(url('sort_by=published_at&sort_dir=desc&limit=2&offset=0'), load);
+  expect((r!.body as any).episodes.map((e: any) => e.id)).toEqual(['b', 'c']);
+  expect((r!.body as any).limit).toBe(2);
+});
+test('episode_number sorts nulls last', async () => {
+  const r = await episodesHandler(url('sort_by=episode_number&sort_dir=asc'), load);
+  expect((r!.body as any).episodes.map((e: any) => e.id)).toEqual(['c', 'a', 'b']);
+});
+test('selection returns an empty episodes list and the trimmed selection', async () => {
+  const r = await episodesHandler(url('selection=true&status=failed&offset=5'), load);
+  const b = r!.body as any;
+  expect(b.episodes).toEqual([]);
+  expect(b.selection.map((e: any) => e.id)).toEqual(['b']);
+  expect(b.offset).toBe(0);
+});
+test('missing dump returns null', async () => {
+  expect(await episodesHandler(url(''), async () => null)).toBeNull();
+});
