@@ -18,7 +18,7 @@ import { badgeBase, tint } from '../components/badgeStyles';
 import DraftNumberInput, { parseOptionalNumber } from '../components/DraftNumberInput';
 import { btnBase, btnLg, btnPrimary, btnSecondary, btnGhost, touchTarget } from '../components/buttonStyles';
 import { focusRing, inputBase, selectBase, textareaBase, labelBase, fileInputBase } from '../components/fieldStyles';
-import { CREATE_PROCESSING_MODES, PROCESSING_MODE_HINTS, PROCESSING_MODE_LABELS } from './feeds/processingMode';
+import { CREATE_PROCESSING_MODES, PROCESSING_MODE_LABELS } from './feeds/processingMode';
 import { useDebouncedValue } from '../hooks/useDebouncedValue';
 import { pageHeader, pageTitle, cardTitle, subHeading } from '../components/pageStyles';
 
@@ -897,7 +897,6 @@ function AddFeed() {
               </label>
               <select
                 id="processingMode"
-                aria-describedby="processingMode-help"
                 value={processingMode}
                 onChange={(e) => setProcessingMode(e.target.value as ProcessingMode)}
                 className={`${selectBase} w-full`}
@@ -906,9 +905,6 @@ function AddFeed() {
                   <option key={m} value={m}>{PROCESSING_MODE_LABELS[m]}</option>
                 ))}
               </select>
-              <p id="processingMode-help" className={`mt-1 text-sm ${PROCESSING_MODE_HINTS[processingMode].warning ? 'text-warning' : 'text-muted-foreground'}`}>
-                {PROCESSING_MODE_HINTS[processingMode].text}
-              </p>
             </div>
           </div>
         </details>

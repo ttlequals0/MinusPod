@@ -8,6 +8,13 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
+## [2.101.25] - 2026-11-05
+
+### Changed
+
+- The processing mode select in the Add Feed dialog no longer shows a
+  description under it.
+
 ## [2.101.24] - 2026-11-05
 
 ### Added
