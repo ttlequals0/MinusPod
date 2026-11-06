@@ -28,7 +28,8 @@
     "description": "Recordings I keep locally, served as a feed.",
     "audio": "/path/to/episode.mp3",
     "episodeTitle": "Episode one",
-    "episodeId": "s01e01"
+    "episodeId": "s01e01",
+    "artwork": "/path/to/cover.png"
   },
   "providers": {
     "episode": "example-podcast/a1b2c3d4e5f6"
@@ -42,7 +43,8 @@
     "heldEpisode": "a1b2c3d4e5f6",
     "sponsor": "Acme",
     "patternId": 1234,
-    "editSearch": "Globex"
+    "editSearch": "Globex",
+    "editId": 1235
   },
   "demo": {
     "adsEpisode": "example-podcast/a1b2c3d4e5f6",

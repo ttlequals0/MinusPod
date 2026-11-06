@@ -3,10 +3,9 @@
 // Targets: demo.adsEpisode and demo.heldEpisode ("slug/id" of a processed episode with detected ads, and one with a held marker),
 // demo.searchTerm (a word in a transcript), youtube.feed (slug of a YouTube feed), youtube.episode (episode id in it, with SponsorBlock marks),
 // youtube.searchTerm (the show name typed into Add feed).
-import { sleep, smoothScroll, jumpTo, typeSlow, waitForWaveform, expandSection, openSection } from '../helpers.mjs';
-const epUrl = (se) => { const [slug, id] = se.split('/'); return `/feeds/${slug}/episodes/${id}`; };
-const adsEp = (T) => epUrl(T.demo.adsEpisode);
-const heldEp = (T) => epUrl(T.demo.heldEpisode);
+import { sleep, smoothScroll, jumpTo, typeSlow, waitForWaveform, expandSection, openSection, episodeUrl } from '../helpers.mjs';
+const adsEp = (T) => episodeUrl(T.demo.adsEpisode);
+const heldEp = (T) => episodeUrl(T.demo.heldEpisode);
 const ytFeed = (T) => `/feeds/${T.youtube.feed}`;
 const ytEp = (T) => `/feeds/${T.youtube.feed}/episodes/${T.youtube.episode}`;
 const sbLine = (p) => p.getByText(/SponsorBlock/).first();
@@ -32,6 +31,15 @@ export const BEATS = {
       await sleep(2000); await p.getByTestId('open-editor-held-0').click(); await p.getByRole('dialog').waitFor(); await waitForWaveform(p); await sleep(2500);
       await p.keyboard.press('Space'); await sleep(2500); await p.keyboard.press('Space'); await sleep(500); await p.keyboard.press('Escape'); await sleep(800);
     } },
+  // A page-level init script runs after the context's own, so it can set an older seen version than helpers does, which lists several releases; only on the ?whatsnew URL.
+  whatsnew: { dev: 'laptop', url: '/?whatsnew=1',
+    mock: async (p) => { await p.addInitScript(() => { if (location.search.includes('whatsnew=1')) localStorage.setItem('whatsNewSeenVersion', JSON.stringify('2.101.16')); }); },
+    prep: async (p) => { await p.getByRole('dialog').waitFor({ timeout: 20000 }); await sleep(800); },
+    run: async (p) => {
+      await sleep(2500);
+      await p.getByRole('dialog').evaluate((d) => { const el = [d, ...d.querySelectorAll('*')].find((e) => e.scrollHeight > e.clientHeight + 40 && /auto|scroll/.test(getComputedStyle(e).overflowY)); if (el) el.scrollBy({ top: 360, behavior: 'smooth' }); });
+      await sleep(3000); await p.keyboard.press('Escape'); await sleep(1200);
+    } },
   patterns: { dev: 'laptop', url: '/patterns',
     prep: (p) => jumpTo(p, p.locator('label[for="patterns-scope"]'), 130),
     run: async (p) => { await sleep(2000); await smoothScroll(p, 520, 3200); await sleep(800); } },
@@ -52,6 +60,14 @@ export const BEATS = {
       const t = p.getByRole('button', { name: 'Toggle theme' });
       await t.click(); await sleep(1300); await t.click(); await sleep(1300);
       await p.getByRole('button', { name: /^Default(\s*\(dark only\))?$/ }).click(); await sleep(1200);
+    } },
+  // Opens the Advanced group and the Processing mode select; the select is closed again and nothing is added.
+  addmode: { dev: 'phone', url: '/add',
+    prep: async (p) => { await p.getByPlaceholder(/Podcast name, RSS URL or YouTube URL/).waitFor(); },
+    run: async (p) => {
+      await sleep(1200); const adv = p.getByText('Advanced options'); await adv.click(); await sleep(1000);
+      const sel = p.locator('#processingMode'); await smoothScroll(p, await sel.evaluate((el) => el.getBoundingClientRect().top - 260), 1500); await sleep(1500);
+      await sel.click(); await sleep(2500); await p.keyboard.press('Escape'); await sleep(1200);
     } },
   // Typing only searches; Look up previews the source and adds nothing, and the preview is not added.
   ytadd: { dev: 'phone', url: '/add',

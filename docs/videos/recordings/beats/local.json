@@ -12,9 +12,9 @@
    "clip": "create",
    "dev": "phone",
    "start": 0.6,
-   "dur": 10.0,
+   "dur": 13.5,
    "head": "Create a local feed.",
-   "sub": "A title and a slug. MinusPod serves it like any subscribed show."
+   "sub": "A title, a slug and cover art. MinusPod serves it like any subscribed show."
   },
   {
    "clip": "feedpage",
@@ -28,13 +28,13 @@
     1500
    ],
    "head": "Your own show page.",
-   "sub": "Cover art, description and a feed URL for any podcast app, with the Local badge to tell it apart."
+   "sub": "Cover art, description and a feed URL to copy into any podcast app, with the Local badge to tell it apart."
   },
   {
    "clip": "upload",
    "dev": "laptop",
    "start": 0.8,
-   "dur": 9.5,
+   "dur": 11.5,
    "crop": [
     48,
     60,
@@ -48,7 +48,7 @@
    "clip": "process",
    "dev": "laptop",
    "start": 0.5,
-   "dur": 7.5,
+   "dur": 5.8,
    "crop": [
     48,
     60,

@@ -29,9 +29,9 @@
    "dur": 9.5,
    "crop": [
     48,
-    60,
+    50,
     1904,
-    1700
+    1640
    ],
    "head": "A transcript to search.",
    "sub": "Original and processed text, with the ads highlighted."
@@ -48,7 +48,7 @@
     1720
    ],
    "head": "The served feed carries it all.",
-   "sub": "Transcript and chapter tags point at MinusPod. An ai-content tag discloses the edit. Funding and value-for-value tags from the original feed pass through untouched."
+   "sub": "Transcript and chapter tags point at MinusPod. An ai-content tag discloses the edit. Other Podcasting 2.0 tags from the original feed pass through untouched."
   },
   {
    "clip": "p20settings",

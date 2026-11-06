@@ -2,7 +2,7 @@
 // Targets: review.feed (slug with a held marker in its queue), review.heldEpisode (episode id with one held marker).
 import { sleep, smoothScroll, jumpTo, waitForWaveform } from '../helpers.mjs';
 const ep = (T) => `/feeds/${T.review.feed}/episodes/${T.review.heldEpisode}`;
-const prepHeld = (p) => jumpTo(p, p.getByText(/^Held for Review \(/).first(), 150);
+const prepHeld = (p) => jumpTo(p, p.getByText(/^Held for review \(/i).first(), 150);
 const openModal = async (p) => { await p.getByTestId('open-editor-held-0').click(); await p.getByRole('dialog').waitFor(); await waitForWaveform(p); await sleep(400); };
 export const BEATS = {
   queue: { dev: 'phone', url: '/patterns?tab=ad-review',
@@ -14,11 +14,11 @@ export const BEATS = {
   modal: { dev: 'laptop', url: ep,
     prep: prepHeld,
     run: async (p) => { await sleep(900); await openModal(p); await sleep(1800); await p.keyboard.press('Space'); await sleep(7500); await p.keyboard.press('Space'); await sleep(600); } },
-  // Save confirms the held marker as detected; when it is the last held marker the recut starts at once.
+  // Confirm records the held marker as detected; when it is the last held marker the recut starts at once.
   confirm: { dev: 'laptop', url: ep,
     prep: async (p) => { await prepHeld(p); await openModal(p); await sleep(800); },
-    run: async (p) => { await sleep(1200); await p.getByRole('button', { name: /^Save/ }).click(); await sleep(12000); } },
+    run: async (p) => { await sleep(1200); await p.getByRole('dialog').getByRole('button', { name: /^Confirm$/ }).click(); await sleep(12000); } },
   after: { dev: 'laptop', url: ep,
-    prep: (p) => jumpTo(p, p.getByText(/^Detected Ads \(/).first(), 150),
-    run: async (p) => { await sleep(6500); } },
+    prep: (p) => jumpTo(p, p.getByText(/^Detected ads \(/i).first(), 150),
+    run: async (p) => { await sleep(2500); await p.getByRole('button', { name: /\d+ segments/ }).first().click(); await sleep(4500); } },
 };

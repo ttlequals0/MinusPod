@@ -10,12 +10,12 @@ or music can be added in the posting app. The landscape cuts also play inline in
 
 | Video | Portrait | Landscape | Length | What it shows |
 |---|---|---|---|---|
-| UI tour | [minuspod-demo.mp4](minuspod-demo.mp4) | [minuspod-demo-landscape.mp4](minuspod-demo-landscape.mp4) | 104 s | Dashboard, processing queue, detected ads, the waveform editor, review, patterns, search, stats, settings and themes, then YouTube feeds: adding a show by name, SponsorBlock marks, the episode rating and the YouTube settings. Recorded from a running instance. |
+| UI tour | [minuspod-demo.mp4](minuspod-demo.mp4) | [minuspod-demo-landscape.mp4](minuspod-demo-landscape.mp4) | 108 s | Dashboard, the What's new dialog after an upgrade, processing queue, detected ads, the waveform editor, review, patterns, search, stats, settings and the 32 themes, the Add feed processing mode select, then YouTube feeds: adding a show by name, SponsorBlock marks, the episode rating and the YouTube settings. Recorded from a running instance. |
 | How it works | [minuspod-how-it-works.mp4](minuspod-how-it-works.mp4) | [minuspod-how-it-works-landscape.mp4](minuspod-how-it-works-landscape.mp4) | 107 s | One episode across all eleven pipeline stages: download, transcribe, second download and audio analysis, detect (free matches, then the model), validate, boundary review, cut, verify pass, transcript and chapters, publish. Then the learning loop and what happens when something fails. Follows [How It Works](../how-it-works.md) and [Episode Processing Workflows](../workflows.md). |
-| Review queue | [minuspod-review-queue.mp4](minuspod-review-queue.mp4) | [minuspod-review-queue-landscape.mp4](minuspod-review-queue-landscape.mp4) | 42 s | A held detection from the queue to the waveform editor: play the span, confirm it, watch the recut, see it on the record. Recorded from a running instance. |
+| Review queue | [minuspod-review-queue.mp4](minuspod-review-queue.mp4) | [minuspod-review-queue-landscape.mp4](minuspod-review-queue-landscape.mp4) | 40 s | A held detection from the queue to the waveform editor: play the span, confirm it, watch the recut, see it on the record. Recorded from a running instance. |
 | Audio cues | [minuspod-audio-cues.mp4](minuspod-audio-cues.mp4) | [minuspod-audio-cues-landscape.mp4](minuspod-audio-cues-landscape.mp4) | 43 s | Find a show's ad-break chime on one episode, templates and their health on the feed, the cross-episode scan, cuts that snapped to a cue, and the settings behind it. Recorded. |
 | Processing modes | [minuspod-processing-modes.mp4](minuspod-processing-modes.mp4) | [minuspod-processing-modes-landscape.mp4](minuspod-processing-modes-landscape.mp4) | 73 s | One episode under each of the five modes, then segment categories and the remove, beep, keep and mark actions. Animated, source in [processing-modes/](processing-modes/). |
-| Local feeds | [minuspod-local-feeds.mp4](minuspod-local-feeds.mp4) | [minuspod-local-feeds-landscape.mp4](minuspod-local-feeds-landscape.mp4) | 59 s | Create a feed from your own files, upload an episode, run it through the pipeline, and find it next to your subscriptions. Recorded. |
+| Local feeds | [minuspod-local-feeds.mp4](minuspod-local-feeds.mp4) | [minuspod-local-feeds-landscape.mp4](minuspod-local-feeds-landscape.mp4) | 63 s | Create a feed from your own files with cover art, upload an episode, run it through the pipeline, and find it next to your subscriptions. Recorded. |
 | Providers and cost | [minuspod-providers.mp4](minuspod-providers.mp4) | [minuspod-providers-landscape.mp4](minuspod-providers-landscape.mp4) | 48 s | Two provider slots, a model per stage, failover, and the spend ledger from provider down to a single episode. Recorded. |
 | Podcasting 2.0 | [minuspod-podcasting-2.mp4](minuspod-podcasting-2.mp4) | [minuspod-podcasting-2-landscape.mp4](minuspod-podcasting-2-landscape.mp4) | 37 s | Chapters and transcript for the cut audio, the served feed's namespace tags, and the chapter settings. Recorded, plus one rendered feed excerpt. |
 | Patterns | [minuspod-patterns.mp4](minuspod-patterns.mp4) | [minuspod-patterns-landscape.mp4](minuspod-patterns-landscape.mp4) | 70 s | Learned patterns: the list, one created from a confirmed detection, its detail and edit forms, merge suggestions, then Pattern Cleanup from Run now to approve and undo. Recorded. |
@@ -134,8 +134,8 @@ configuration export and a database backup first, and point `targets.json` at
 an episode you are happy to see change.
 
 Three safeguards keep instance details out of the video. Before a take, and
-every 400 ms while it runs, `hideSensitive` walks the rendered text and input
-values, a dropdown's selected value included. It blanks the row or field
+every 400 ms while it runs, `hideSensitive` walks the rendered text, image alt
+text and input values, a dropdown's selected value included. It blanks the row or field
 around anything that matches a pattern from `targets.json`, and around any URL
 in an input. `leakCheck` runs the same walk and refuses the take if a match is
 still visible, so a dialog or toast opened mid-beat is covered too. After

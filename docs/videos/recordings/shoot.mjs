@@ -26,7 +26,15 @@ const { windowId } = await cdp.send('Browser.getWindowForTarget');
 await cdp.send('Browser.setWindowBounds', { windowId, bounds: { windowState: 'fullscreen' } });
 await page.goto(T.baseUrl + '/', { waitUntil: 'networkidle' });
 await sleep(6500); // Chromium's fullscreen hint bubble fades out
-const inner = await page.evaluate(() => [window.innerWidth, window.innerHeight]);
+const viewport = () => page.evaluate(() => [window.innerWidth, window.innerHeight]);
+let inner = await viewport();
+if (inner[1] !== DEV.H / DEV.DSF) {
+  // Without a window manager the fullscreen request is ignored, so push the toolbar off the top of the screen instead.
+  const dy = (await page.evaluate(() => outerHeight - innerHeight)) || 85;  // mobile emulation reports outer equal to inner
+  await cdp.send('Browser.setWindowBounds', { windowId, bounds: { windowState: 'normal' } });
+  await cdp.send('Browser.setWindowBounds', { windowId, bounds: { left: 0, top: -dy } });
+  await sleep(500); inner = await viewport();
+}
 if (inner[0] !== DEV.W / DEV.DSF || inner[1] !== DEV.H / DEV.DSF) throw new Error(`viewport ${inner}; is the Xvfb screen ${DEV.W}x${DEV.H}?`);
 
 for (const name of beatNames) {
