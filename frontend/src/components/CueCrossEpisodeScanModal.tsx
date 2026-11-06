@@ -1,4 +1,6 @@
 import { Modal } from './Modal';
+import { mediaUrl } from '../utils/mediaUrl';
+import { DEMO_AUDIO_TOOLTIP } from '../demo/copy';
 import { useState } from 'react';
 import { useQueries, useQuery } from '@tanstack/react-query';
 import { ChevronDown, ChevronRight, Play, Square } from 'lucide-react';
@@ -123,6 +125,7 @@ export default function CueCrossEpisodeScanModal({
 
   // Play [start, end] of one episode's retained original; clicking the owning
   // button again stops it.
+  const audioAvailable = mediaUrl({ kind: 'audio', url: '/' }) !== null;
   const playWindow = (episodeId: string, start: number, end: number) =>
     togglePlayback(
       playKey(episodeId, start, end),
@@ -349,8 +352,8 @@ export default function CueCrossEpisodeScanModal({
                         type="button"
                         className={`shrink-0 ${ghostBtn}`}
                         onClick={() => targetEpId && playWindow(targetEpId, c.start, c.end)}
-                        disabled={!targetEpId}
-                        title={playingKey === rowPlayKey ? 'Stop' : 'Play candidate'}
+                        disabled={!targetEpId || !audioAvailable}
+                        title={!audioAvailable ? DEMO_AUDIO_TOOLTIP : playingKey === rowPlayKey ? 'Stop' : 'Play candidate'}
                         aria-label={playingKey === rowPlayKey ? 'Stop candidate' : 'Play candidate'}
                       >
                         {playingKey === rowPlayKey ? <Square size={14} /> : <Play size={14} />}
@@ -410,6 +413,8 @@ export default function CueCrossEpisodeScanModal({
                                       type="button"
                                       className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded border border-border font-mono hover:bg-muted/50 ${focusRing}`}
                                       onClick={() => playWindow(epm.episodeId, m.start, m.end)}
+                                      disabled={!audioAvailable}
+                                      title={audioAvailable ? undefined : DEMO_AUDIO_TOOLTIP}
                                       aria-label={playingKey === mKey
                                         ? `Stop match at ${formatTimestamp(m.start)}`
                                         : `Play match at ${formatTimestamp(m.start)}`}

@@ -1,4 +1,5 @@
 import { Modal, dialogFooterBtn } from '../../components/Modal';
+import { DEMO_AUDIO_TOOLTIP } from '../../demo/copy';
 import { useEffect, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Play, Plus, Square } from 'lucide-react';
@@ -88,7 +89,9 @@ function CueTemplatesPanel({ slug }: Props) {
       setPlayingId(null);
       return;
     }
-    audio.src = cueTemplateAudioUrl(t.id);
+    const url = cueTemplateAudioUrl(t.id);
+    if (!url) return;
+    audio.src = url;
     audio.play().then(() => setPlayingId(t.id)).catch(() => setPlayingId(null));
   };
 
@@ -502,16 +505,19 @@ function CueTemplatesPanel({ slug }: Props) {
                 {editingId !== t.id && (
                   <div className="flex flex-wrap items-center gap-2 pl-7 xl:pl-0 xl:shrink-0">
                     {t.hasAudio !== false && (
-                      <button
-                        type="button"
-                        className={`${btnBase} ${btnGhost}`}
-                        onClick={() => togglePlay(t)}
-                        title={playingId === t.id ? 'Stop' : 'Play this cue'}
-                        aria-label={playingId === t.id ? `Stop cue ${t.label}` : `Play cue ${t.label}`}
-                      >
-                        {playingId === t.id ? <Square className="w-4 h-4" aria-hidden="true" /> : <Play className="w-4 h-4" aria-hidden="true" />}
-                        {playingId === t.id ? 'Stop' : 'Play'}
-                      </button>
+                      <span title={cueTemplateAudioUrl(t.id) ? undefined : DEMO_AUDIO_TOOLTIP}>
+                        <button
+                          type="button"
+                          className={`${btnBase} ${btnGhost}`}
+                          onClick={() => togglePlay(t)}
+                          disabled={!cueTemplateAudioUrl(t.id)}
+                          title={cueTemplateAudioUrl(t.id) ? (playingId === t.id ? 'Stop' : 'Play this cue') : undefined}
+                          aria-label={playingId === t.id ? `Stop cue ${t.label}` : `Play cue ${t.label}`}
+                        >
+                          {playingId === t.id ? <Square className="w-4 h-4" aria-hidden="true" /> : <Play className="w-4 h-4" aria-hidden="true" />}
+                          {playingId === t.id ? 'Stop' : 'Play'}
+                        </button>
+                      </span>
                     )}
                     <a
                       className={`${btnBase} ${btnGhost}`}

@@ -1,6 +1,7 @@
 import { apiRequest } from './client';
 import { formatPercent } from '../utils/format';
 import { apiUrl } from '../urlPrefix';
+import { mediaUrl } from '../utils/mediaUrl';
 
 export type CueTemplateScope = 'podcast' | 'network';
 
@@ -157,8 +158,8 @@ export function cueTemplateExportUrl(templateId: number): string {
 
 // Direct URL for inline cue audio; an <audio src> hits it with the session
 // cookie (GET needs no CSRF).
-export function cueTemplateAudioUrl(templateId: number): string {
-  return apiUrl(`/cue-templates/${templateId}/audio`);
+export function cueTemplateAudioUrl(templateId: number): string | null {
+  return mediaUrl({ kind: 'audio', url: apiUrl(`/cue-templates/${templateId}/audio`) });
 }
 
 export async function importCueTemplate(slug: string, file: File): Promise<CueTemplate> {

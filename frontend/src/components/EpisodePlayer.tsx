@@ -4,9 +4,10 @@ import { SKIP_BACK_SECONDS, SKIP_FORWARD_SECONDS, formatRate, useEpisodePlayer }
 import { formatTimestamp } from '../utils/format';
 import { btnBase, btnGhost, btnPrimary, btnSecondary, touchTarget } from './buttonStyles';
 import { focusRing } from './fieldStyles';
+import { DEMO_AUDIO_TOOLTIP } from '../demo/copy';
 
 interface EpisodePlayerProps {
-  src: string;
+  src: string | null;
   chaptersUrl?: string;
 }
 
@@ -28,7 +29,8 @@ export default function EpisodePlayer({ src, chaptersUrl }: EpisodePlayerProps) 
   const audioRef = useRef<HTMLAudioElement>(null);
   const p = useEpisodePlayer(audioRef, chaptersUrl);
   const hasChapters = p.chapters.length > 0;
-  const canSeek = p.duration > 0 && !p.error;
+  const noAudio = src === null;
+  const canSeek = !noAudio && p.duration > 0 && !p.error;
   const ticks = useMemo(
     () => (p.duration > 0 ? p.chapters.map((c, i) => ({ c, i })).filter(({ c }) => c.startTime > 0).map(({ c, i }) => ({ key: `${c.startTime}-${i}`, left: Math.min(c.startTime / p.duration, 1) * 100 })) : []),
     [p.chapters, p.duration],
@@ -58,7 +60,7 @@ export default function EpisodePlayer({ src, chaptersUrl }: EpisodePlayerProps) 
       onKeyDown={onKeyDown}
       className={`@container rounded-lg border border-border bg-card p-3 sm:p-4 ${focusRing}`}
     >
-      <audio ref={audioRef} src={src} preload="metadata" {...p.audioProps} />
+      {!noAudio && <audio ref={audioRef} src={src} preload="metadata" {...p.audioProps} />}
 
       {hasChapters && (
         <div className="flex items-center gap-1">
@@ -115,14 +117,17 @@ export default function EpisodePlayer({ src, chaptersUrl }: EpisodePlayerProps) 
               <span className={skipNum}>{SKIP_BACK_SECONDS}</span>
             </span>
           </button>
-          <button
-            type="button"
-            aria-label={p.playing ? 'Pause' : 'Play'}
-            onClick={p.toggle}
-            className={`${btnBase} ${btnPrimary} touch-manipulation h-14 w-14 min-h-14 min-w-14 rounded-full`}
-          >
-            {p.playing ? <Pause className="h-6 w-6" aria-hidden="true" /> : <Play className="h-6 w-6" aria-hidden="true" />}
-          </button>
+          <span title={noAudio ? DEMO_AUDIO_TOOLTIP : undefined}>
+            <button
+              type="button"
+              aria-label={p.playing ? 'Pause' : 'Play'}
+              disabled={noAudio}
+              onClick={p.toggle}
+              className={`${btnBase} ${btnPrimary} touch-manipulation h-14 w-14 min-h-14 min-w-14 rounded-full`}
+            >
+              {p.playing ? <Pause className="h-6 w-6" aria-hidden="true" /> : <Play className="h-6 w-6" aria-hidden="true" />}
+            </button>
+          </span>
           <button type="button" aria-label={`Forward ${SKIP_FORWARD_SECONDS} seconds`} disabled={!canSeek} onClick={() => p.skip(SKIP_FORWARD_SECONDS)} className={skipBtn}>
             <span className="relative inline-flex">
               <RotateCw className={skipIcon} aria-hidden="true" />
@@ -131,7 +136,7 @@ export default function EpisodePlayer({ src, chaptersUrl }: EpisodePlayerProps) 
           </button>
         </div>
         <div className="col-start-2 row-start-2 justify-self-center @min-[21rem]:col-start-3 @min-[21rem]:row-start-1 @min-[21rem]:justify-self-end">
-          <button type="button" aria-label={`Playback speed ${formatRate(p.rate)}`} onClick={p.cycleRate} className={`${ghostBtn} px-2 tabular-nums`}>
+          <button type="button" aria-label={`Playback speed ${formatRate(p.rate)}`} disabled={noAudio} onClick={p.cycleRate} className={`${ghostBtn} px-2 tabular-nums`}>
             <Gauge className="h-4 w-4 shrink-0" aria-hidden="true" />
             {formatRate(p.rate)}
           </button>

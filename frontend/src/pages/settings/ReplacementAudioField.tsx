@@ -11,6 +11,8 @@ import { btnBase, btnSecondary } from '../../components/buttonStyles';
 import { badgeBase } from '../../components/badgeStyles';
 import { iconTarget, iconVisual } from '../../components/rowActionStyles';
 import { apiUrl } from '../../urlPrefix';
+import { mediaUrl } from '../../utils/mediaUrl';
+import { DEMO_AUDIO_TOOLTIP } from '../../demo/copy';
 
 // The splice bar reads as a beep sitting inside content, so its width has to
 // mean something. Scale duration against this, since typical markers are 1-3s.
@@ -48,7 +50,7 @@ function ReplacementAudioField() {
   const [error, setError] = useState<string | null>(null);
 
   // updatedAt busts the browser cache: the URL is stable across uploads.
-  const src = apiUrl(`/settings/replacement-audio/file?v=${data?.updatedAt ?? 0}`);
+  const src = mediaUrl({ kind: 'audio', url: apiUrl(`/settings/replacement-audio/file?v=${data?.updatedAt ?? 0}`) });
 
   useEffect(() => {
     // A swapped file must not keep playing the old one.
@@ -116,25 +118,28 @@ function ReplacementAudioField() {
         className="hidden"
         onChange={onPick}
       />
-      <audio
-        ref={audioRef}
-        src={src}
-        preload="none"
-        className="hidden"
-        onPlay={() => setPlaying(true)}
-        onPause={() => setPlaying(false)}
-        onEnded={() => { setPlaying(false); setProgress(0); }}
-        onTimeUpdate={(e) => {
-          const el = e.currentTarget;
-          if (el.duration) setProgress(el.currentTime / el.duration);
-        }}
-      />
+      {src && (
+        <audio
+          ref={audioRef}
+          src={src}
+          preload="none"
+          className="hidden"
+          onPlay={() => setPlaying(true)}
+          onPause={() => setPlaying(false)}
+          onEnded={() => { setPlaying(false); setProgress(0); }}
+          onTimeUpdate={(e) => {
+            const el = e.currentTarget;
+            if (el.duration) setProgress(el.currentTime / el.duration);
+          }}
+        />
+      )}
 
       <div className="flex items-center gap-3">
+        <span title={src ? undefined : DEMO_AUDIO_TOOLTIP}>
         <button
           type="button"
           onClick={togglePlay}
-          disabled={!data?.exists || busy}
+          disabled={!src || !data?.exists || busy}
           aria-label={playing ? 'Stop the replacement audio' : 'Play the replacement audio'}
           className={iconTarget}
         >
@@ -146,6 +151,7 @@ function ReplacementAudioField() {
             )}
           </span>
         </button>
+        </span>
 
         {/* Content, replacement, content. Width of the middle block tracks
             duration, so a long file visibly takes over more of the episode. */}

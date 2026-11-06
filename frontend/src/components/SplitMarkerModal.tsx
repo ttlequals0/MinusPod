@@ -1,4 +1,5 @@
 import { useMemo, useRef, useState } from 'react';
+import { DEMO_AUDIO_TOOLTIP } from '../demo/copy';
 import { useQuery } from '@tanstack/react-query';
 import {
   getSplitCandidates, submitSplit, type SplitPiece,
@@ -122,6 +123,7 @@ export default function SplitMarkerModal({ target, onClose, onSplit }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const playheadRef = useRef((start + end) / 2);
   const audition = useAuditionPlayer();
+  const originalUrl = episodeOriginalUrl(podcastSlug, episodeId);
 
   const [dividers, setDividers] = useState<number[] | null>(null);
   // Sparse array parallel to pieces: sponsors[i] overrides piece i's sponsor.
@@ -427,8 +429,10 @@ export default function SplitMarkerModal({ target, onClose, onSplit }: Props) {
                   <AuditionPlayButton
                     playing={audition.playingKey === `piece-${i}`}
                     onClick={() => audition.toggle(
-                      `piece-${i}`, episodeOriginalUrl(podcastSlug, episodeId),
+                      `piece-${i}`, originalUrl,
                       p.start, p.end)}
+                    disabled={!originalUrl}
+                    title={originalUrl ? undefined : DEMO_AUDIO_TOOLTIP}
                   />
                   <span className="flex items-center gap-1 shrink-0">
                     {i === 0 ? (

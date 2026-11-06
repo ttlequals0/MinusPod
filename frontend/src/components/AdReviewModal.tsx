@@ -1,4 +1,6 @@
 import { formatPercent } from '../utils/format';
+import { mediaUrl } from '../utils/mediaUrl';
+import { DEMO_AUDIO_TOOLTIP } from '../demo/copy';
 import { useDraftClose } from '../hooks/useDraftClose';
 import { isTopDialog, useEscape, useFocusTrap } from './Modal';
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
@@ -105,7 +107,7 @@ interface Props {
   audioMode?: 'processed' | 'original';
   onAudioModeChange?: (m: 'processed' | 'original') => void;
   hasOriginal?: boolean;
-  processedAudioUrl?: string;
+  processedAudioUrl?: string | null;
   // Optional: total episode duration so create mode can default
   // end-of-selection to the end of the file.
   episodeDuration?: number;
@@ -385,7 +387,7 @@ function AdReviewModal({
   const effectiveAudioMode = mode === 'create' ? 'original' : audioMode;
   const audioUrl =
     effectiveAudioMode === 'original' || !processedAudioUrl
-      ? apiUrl(`/feeds/${item.podcastSlug}/episodes/${item.episodeId}/original.mp3`)
+      ? mediaUrl({ kind: 'audio', url: apiUrl(`/feeds/${item.podcastSlug}/episodes/${item.episodeId}/original.mp3`) })
       : processedAudioUrl;
   const windowDuration = Math.max(0.001, windowEnd - windowStart);
 
@@ -1398,14 +1400,16 @@ function AdReviewModal({
             </div>
           )}
 
-          <audio
-            ref={audioRef}
-            src={audioUrl}
-            preload="metadata"
-            onPlay={() => setIsPlaying(true)}
-            onPause={() => setIsPlaying(false)}
-            onEnded={() => setIsPlaying(false)}
-          />
+          {audioUrl && (
+            <audio
+              ref={audioRef}
+              src={audioUrl}
+              preload="metadata"
+              onPlay={() => setIsPlaying(true)}
+              onPause={() => setIsPlaying(false)}
+              onEnded={() => setIsPlaying(false)}
+            />
+          )}
 
           {/* Playback transport -- shared with the "Mark cue" editor. */}
           <TransportBar
@@ -1422,6 +1426,7 @@ function AdReviewModal({
             inSelection={currentTime >= adStart && currentTime <= adEnd}
             selectionLabel="inside ad"
             onPlaySelection={playSelection}
+            disabledTitle={audioUrl ? undefined : DEMO_AUDIO_TOOLTIP}
           />
 
           <div className="flex flex-wrap items-center gap-2 mt-2">
