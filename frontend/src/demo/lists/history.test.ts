@@ -27,6 +27,13 @@ test('page and limit recompute the envelope', async () => {
   expect(ids(b)).toEqual([1]);
   expect(b).toMatchObject({ total: 3, totalPages: 2, page: 2, limit: 2, offset: 2 });
 });
+test('offset without page slices by offset and non-integer page is absent', async () => {
+  const many = Array.from({ length: 20 }, (_, i) => ({ id: i, status: 'completed', processedAt: String(100 - i).padStart(3, '0') }));
+  const l = async () => ({ status: 200, body: { history: many } });
+  const b = (await historyHandler(url('offset=5&limit=10&page=abc'), l))!.body as any;
+  expect(ids(b)).toEqual([5, 6, 7, 8, 9, 10, 11, 12, 13, 14]);
+  expect(b).toMatchObject({ offset: 5, page: 1, total: 20 });
+});
 test('full pages are followed until a short page', async () => {
   const full = Array.from({ length: 100 }, (_, i) => ({ id: i, status: 'completed', processedAt: String(i) }));
   const keys: string[] = [];

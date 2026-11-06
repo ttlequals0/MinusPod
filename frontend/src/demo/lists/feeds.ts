@@ -12,7 +12,7 @@ export const feedsHandler: ListHandler = async (url, load) => {
   const sort = p.get('sortBy');
   const dir = p.get('sortDir') ?? (sort === 'title' ? 'asc' : 'desc');
   let feeds = (dump.body as Body).feeds;
-  if (sort === 'title') feeds = sortBy(feeds, (f) => [(f.title || f.slug).toLowerCase(), f.slug], dir as 'asc' | 'desc');
+  if (sort === 'title') feeds = sortBy(feeds, (f) => [(f.titleOverride || f.title || f.slug).toLowerCase(), f.slug], dir as 'asc' | 'desc');
   else if (sort === 'recent') feeds = sortBy(feeds, (f) => [f.lastEpisodeDate || '', f.slug], dir as 'asc' | 'desc');
 
   const total = feeds.length;
