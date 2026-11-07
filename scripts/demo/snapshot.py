@@ -23,7 +23,9 @@ from scripts.demo.export_allowlist import (
 from scripts.demo.leak_check import Hit, check_sqlite, report_hits
 from scripts.demo.scrub import (
     map_ip,
+    replace_emails,
     replace_hosts,
+    replace_paths,
     scrub_source_url,
     shift_iso,
     shift_iso_in_text,
@@ -244,24 +246,35 @@ def scrub(conn: sqlite3.Connection, hosts: list[str], salt: bytes) -> None:
     conn.execute("UPDATE feed_subscriber_keys SET secret_hash = ?, label = 'Subscriber'", ('0' * 64,))
     if hosts:
         replace_in_text_columns(conn, hosts)
+    rewrite_text_columns(conn, 'replace_emails', replace_emails, lambda c: f"{c} LIKE '%@%'")
+    rewrite_text_columns(conn, 'replace_paths', replace_paths, lambda c: PATH_FILTER.format(c=c))
     conn.commit()
 
 
-def replace_in_text_columns(conn: sqlite3.Connection, hosts: list[str]) -> None:
-    conn.create_function(
-        'replace_hosts', 1, lambda v: replace_hosts(v, hosts) if isinstance(v, str) else v, deterministic=True,
-    )
-    cond_params = [f'%{h.lower()}%' for h in hosts]
+PATH_FILTER = ' OR '.join(
+    "{c} LIKE '%" + p + "%'" for p in ('/app/data', '/home/', '/Users/', '/mnt', '/srv', '/var/lib')
+)
+
+
+def rewrite_text_columns(conn: sqlite3.Connection, name: str, fn, cond, params: list[str] = ()) -> None:
+    conn.create_function(name, 1, lambda v: fn(v) if isinstance(v, str) else v, deterministic=True)
     for table in EXPORT_TABLES:
         if table not in user_tables(conn):
             continue
         for col in text_columns(conn, table, EXPORT_TABLES[table]):
-            cond = ' OR '.join(f'LOWER({q(col)}) LIKE ?' for _ in hosts)
+            c = q(col)
             conn.execute(
-                f'UPDATE {q(table)} SET {q(col)} = replace_hosts({q(col)}) '
-                f"WHERE typeof({q(col)}) = 'text' AND ({cond}) AND replace_hosts({q(col)}) IS NOT {q(col)}",
-                cond_params,
+                f"UPDATE {q(table)} SET {c} = {name}({c}) "
+                f"WHERE typeof({c}) = 'text' AND ({cond(c)}) AND {name}({c}) IS NOT {c}",
+                params,
             )
+
+
+def replace_in_text_columns(conn: sqlite3.Connection, hosts: list[str]) -> None:
+    rewrite_text_columns(
+        conn, 'replace_hosts', lambda v: replace_hosts(v, hosts),
+        lambda c: ' OR '.join(f'LOWER({c}) LIKE ?' for _ in hosts), [f'%{h.lower()}%' for h in hosts],
+    )
 
 
 def compute_delta(conn: sqlite3.Connection, export_day: date) -> int:
@@ -378,6 +391,8 @@ def main(argv: list[str] | None = None) -> int:
     if report.leaks:
         print(f'LEAK CHECK FAILED: {len(report.leaks)} hits in {args.out}', file=sys.stderr)
         report_hits(report.leaks)
+        args.out.unlink(missing_ok=True)
+        print(f'removed {args.out}', file=sys.stderr)
         return 2
     print(f'feeds kept      | {report.feeds_kept}')
     print(f'feeds excluded  | {report.feeds_excluded}')

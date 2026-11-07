@@ -17,22 +17,27 @@ SKIP_SUFFIXES = {
     '.woff', '.woff2',
 }
 
-# four octets, not part of a longer dotted run; octet range is checked afterwards
-IPV4 = r'(?<![\d.])\d{1,3}(?:\.\d{1,3}){3}(?![\d]|\.\d)'
-# colon-hex literal with at least two groups; ipaddress rejects the non-IPs
-IPV6 = r'(?<![0-9A-Fa-f:])(?:[0-9A-Fa-f]{0,4}:){2,7}[0-9A-Fa-f]{0,4}(?![0-9A-Fa-f:])'
+# four octets, not part of a longer dotted run or a product token like Chrome/155.0.0.0;
+# octet range is checked afterwards
+IPV4 = r'(?<![\d.])(?<![A-Za-z]/)\d{1,3}(?:\.\d{1,3}){3}(?!\d|\.\d)'
+# colon-hex literal with at least two colons (ipaddress rejects the non-IPs), or ::ffff:a.b.c.d
+IPV6 = (
+    r'(?<![\w:])::[fF]{4}:\d{1,3}(?:\.\d{1,3}){3}(?![\w:.])'
+    r'|(?<![\w:])(?:[0-9A-Fa-f]{0,4}:){2,7}[0-9A-Fa-f]{0,4}(?![\w:])'
+)
+PATH_END = r"""[^\s"'\\\])}>]*"""
 
 PATTERNS: list[tuple[str, re.Pattern]] = [
     (name, re.compile(rx)) for name, rx in [
         ('anthropic_key', r'sk-ant-[A-Za-z0-9_-]{20,}'),
-        ('openai_key', r'sk-(?!ant-|or-)(proj-)?[A-Za-z0-9_-]{20,}'),
+        ('openai_key', r'(?<![A-Za-z0-9])sk-(?!ant-|or-)(proj-)?[A-Za-z0-9_-]{20,}'),
         ('openrouter_key', r'sk-or-[A-Za-z0-9_-]{20,}'),
-        ('encrypted_setting', r'enc:v1:'),
+        ('encrypted_setting', r"""enc:v1:[^\s"']+"""),
         ('bearer', r'(?i)bearer\s+[A-Za-z0-9._-]{20,}'),
-        ('jwt', r'eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.'),
-        ('abs_path', r'''(^|["'\s=])(/app/data|/home/[a-z]|/Users/[A-Za-z]|/mnt/|/srv/|/var/lib/)'''),
-        ('email', r'[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[a-z]{2,}'),
-        ('private_feed_host', r'(patreon\.com/rss|supercast\.com|supportingcast\.fm|memberful\.com)'),
+        ('jwt', r'eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]+'),
+        ('abs_path', r'(?m)(^|[^A-Za-z0-9_./-])(/app/data|/home/[A-Za-z]|/Users/[A-Za-z]|/mnt/|/srv/|/var/lib/)' + PATH_END),
+        ('email', r'(?i)[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[a-z]{2,}'),
+        ('private_feed_host', r"""(?i)patreon\.com/rss|(?:supercast\.com|supportingcast\.fm|memberful\.com)/[^\s"'<>]*(?:rss|feed|[A-Za-z0-9_-]{20,})"""),
         ('feed_key', r'[?&]key=[A-Za-z0-9_-]{16,}'),
         ('public_ip', f'{IPV4}|{IPV6}'),
     ]
@@ -52,6 +57,10 @@ def host_pattern(host: str) -> tuple[str, re.Pattern]:
     return f'host:{host}', re.compile(rx)
 
 
+def compile_patterns(hosts: list[str]) -> list[tuple[str, re.Pattern]]:
+    return PATTERNS + [host_pattern(h) for h in hosts]
+
+
 def accepted(name: str, text: str) -> bool:
     if name == 'email':
         return text.rsplit('@', 1)[1].lower() not in EMAIL_OK
@@ -65,17 +74,20 @@ def accepted(name: str, text: str) -> bool:
         ip = ipaddress.ip_address(text)
     except ValueError:
         return False
+    if ip.version == 6 and ip.ipv4_mapped:
+        ip = ip.ipv4_mapped
     return ip.is_global and not any(ip.version == n.version and ip in n for n in DOC_NETS)
 
 
 def excerpt(text: str, m: re.Match) -> str:
-    masked = m.group(0)[:4] + '...'
-    return text[max(0, m.start() - 20):m.start()] + masked + text[m.end():m.end() + 20]
+    return text[max(0, m.start() - 20):m.start()] + m.group(0)[:4] + '...' + text[m.end():m.end() + 20]
 
 
-def check_text(text: str, source: str, hosts: list[str]) -> list[Hit]:
+def check_text(
+    text: str, source: str, hosts: list[str], patterns: list[tuple[str, re.Pattern]] | None = None,
+) -> list[Hit]:
     found = []
-    for name, rx in PATTERNS + [host_pattern(h) for h in hosts]:
+    for name, rx in patterns or compile_patterns(hosts):
         for m in rx.finditer(text):
             if accepted(name, m.group(0)):
                 found.append(Hit(source, name, excerpt(text, m)))
@@ -84,17 +96,19 @@ def check_text(text: str, source: str, hosts: list[str]) -> list[Hit]:
 
 def check_files(paths: Iterable[Path], hosts: list[str]) -> list[Hit]:
     found = []
+    patterns = compile_patterns(hosts)
     for root in paths:
         files = [root] if root.is_file() else sorted(p for p in root.rglob('*') if p.is_file())
         for f in files:
             if f.suffix.lower() in SKIP_SUFFIXES:
                 continue
-            found += check_text(f.read_text(errors='ignore'), str(f), hosts)
+            found += check_text(f.read_text(encoding='utf-8', errors='ignore'), str(f), hosts, patterns)
     return found
 
 
 def check_sqlite(db: Path, hosts: list[str]) -> list[Hit]:
     found = []
+    patterns = compile_patterns(hosts)
     conn = sqlite3.connect(f'file:{db}?mode=ro', uri=True)
     try:
         tables = [r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type = 'table'")]
@@ -110,8 +124,11 @@ def check_sqlite(db: Path, hosts: list[str]) -> list[Hit]:
                 for col, val in zip(cols, row[1:], strict=True):
                     if isinstance(val, bytes):
                         val = val.decode('utf-8', errors='ignore')
+                        # skip binary blobs such as MFCC arrays
+                        if not val or sum(c.isprintable() or c.isspace() for c in val) < 0.9 * len(val):
+                            continue
                     if isinstance(val, str):
-                        found += check_text(val, f'{table}.{col}#{row[0]}', hosts)
+                        found += check_text(val, f'{table}.{col}#{row[0]}', hosts, patterns)
     finally:
         conn.close()
     return found
@@ -134,6 +151,11 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument('--hosts', default='')
     args = parser.parse_args(argv)
     hosts = [h.strip() for h in args.hosts.split(',') if h.strip()]
+    targets = [*args.paths, *([args.sqlite] if args.sqlite else [])]
+    missing = [p for p in targets if not p.exists()]
+    if missing or not targets:
+        print('nothing to scan: ' + (', '.join(map(str, missing)) or 'no paths given'), file=sys.stderr)
+        return 2
     hits = check_files(args.paths, hosts)
     if args.sqlite:
         hits += check_sqlite(args.sqlite, hosts)

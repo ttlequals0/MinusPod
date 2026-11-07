@@ -73,3 +73,16 @@ def replace_hosts(text: str, hosts: list[str], replacement: str = 'demo.minuspod
         pattern = re.compile(r'(?<![\w-])' + re.escape(host) + r'(?!(?:\.[\w-])|[\w-])', re.IGNORECASE)
         text = pattern.sub(replacement, text)
     return text
+
+
+_EMAIL = re.compile(r'(?i)[A-Za-z0-9._%+-]+@([A-Za-z0-9.-]+\.[a-z]{2,})')
+_EMAIL_OK = {'example.com', 'example.org', 'example.net'}
+_PATH = re.compile(r"""(?:/app/data|/home/[^/\s"'\\]+|/Users/[^/\s"'\\]+|/mnt|/srv|/var/lib)""")
+
+
+def replace_emails(text: str) -> str:
+    return _EMAIL.sub(lambda m: m.group(0) if m.group(1).lower() in _EMAIL_OK else 'contact@example.com', text)
+
+
+def replace_paths(text: str) -> str:
+    return _PATH.sub('/demo', text)

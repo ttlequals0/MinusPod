@@ -1,3 +1,4 @@
+import random
 import sqlite3
 
 from scripts.demo.leak_check import check_files, check_sqlite, check_text, main
@@ -64,3 +65,31 @@ def test_cli_exit_codes(tmp_path):
     assert main([str(tmp_path)]) == 0
     (tmp_path / 'bad.txt').write_text('enc:v1:zz')
     assert main([str(tmp_path)]) == 2
+
+
+def test_review_regressions():
+    assert hits('mail ME@CORP.EXAMPLE') == ['email']
+    assert hits('Chrome/155.0.0.0 Safari/537.36.0.0') == []
+    assert hits('::ffff:10.0.0.1') == []
+    assert hits('::ffff:8.8.8.8') == ['public_ip']
+    assert hits('https://twit.memberful.com/checkout?plan=13428') == []
+    assert hits('https://show.supercast.com/private_feed/abc') == ['private_feed_host']
+    assert hits('https://www.patreon.com/rss/show?auth=x') == ['private_feed_host']
+    assert hits('x\nerr in /app/data/.cache/x: bad') == ['abs_path']
+    assert hits('see /opt/app/data/x') == []
+    assert hits('xsk-' + 'proj-abcdefghijklmnopqrstuvwxyz') == []
+    [h] = check_text('k eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3.SflKxwRJSMeKKF2QT4 z', 'x', [])
+    assert 'SflK' not in h.excerpt
+
+
+def test_blob_scanning_and_cli_errors(tmp_path):
+    db = tmp_path / 'a.db'
+    conn = sqlite3.connect(db)
+    conn.execute('CREATE TABLE t (b BLOB)')
+    conn.execute('INSERT INTO t VALUES (?)', (random.Random(1).randbytes(4096),))
+    conn.execute('INSERT INTO t VALUES (?)', (b'note enc:v1:zz',))
+    conn.commit()
+    conn.close()
+    assert [(h.source, h.pattern) for h in check_sqlite(db, [])] == [('t.b#2', 'encrypted_setting')]
+    assert main([str(tmp_path / 'missing')]) == 2
+    assert main([]) == 2

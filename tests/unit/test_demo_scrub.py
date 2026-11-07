@@ -1,4 +1,4 @@
-from scripts.demo.scrub import map_ip, replace_hosts, scrub_source_url, shift_iso, shift_iso_in_text
+from scripts.demo.scrub import map_ip, replace_emails, replace_hosts, replace_paths, scrub_source_url, shift_iso, shift_iso_in_text
 
 
 def test_public_feed_urls_are_kept_and_tokenised_ones_replaced():
@@ -42,3 +42,9 @@ def test_invalid_dates_and_userinfo_and_punctuation_hosts():
     assert scrub_source_url('https://user:pass@host.example/feed', 'x') == 'https://example.com/feeds/x.xml'
     assert replace_hosts('at pods.example.com, then (pods.example.com).', ['pods.example.com']) == 'at demo.minuspod.app, then (demo.minuspod.app).'
     assert replace_hosts('pods.example.com.evil.net', ['pods.example.com']) == 'pods.example.com.evil.net'
+
+
+def test_replace_emails_and_paths():
+    assert replace_emails('mail me@corp.example now') == 'mail contact@example.com now'
+    assert replace_emails('ok@example.org') == 'ok@example.org'
+    assert replace_paths('at /app/data/.cache/hub/x and /home/alice/y') == 'at /demo/.cache/hub/x and /demo/y'

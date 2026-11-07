@@ -139,9 +139,25 @@ def test_leak_check_flags_key_shaped_text_and_main_exits_2(tmp_path):
     conn.close()
     report = snapshot(src, out, days=30, excluded_slugs=set(), hosts=[], export_day=date(2026, 11, 6), salt=b's')
     assert [h.pattern for h in report.leaks] == ['anthropic_key']
-    assert main(['--source', str(src), '--out', str(tmp_path / 'o.db'), '--exclusions', str(tmp_path / 'ex.json'), '--export-day', '2026-11-06']) == 1
     (tmp_path / 'ex.json').write_text('{"slugs": []}')
-    assert main(['--source', str(src), '--out', str(tmp_path / 'o.db'), '--exclusions', str(tmp_path / 'ex.json'), '--export-day', '2026-11-06']) == 2
+    out2 = tmp_path / 'o.db'
+    assert main(['--source', str(src), '--out', str(out2), '--exclusions', str(tmp_path / 'ex.json'), '--export-day', '2026-11-06']) == 2
+    assert not out2.exists()
+
+
+def test_emails_and_paths_are_rewritten_and_leave_no_leaks(tmp_path):
+    src, out = tmp_path / 'live.db', tmp_path / 'snap.db'
+    make_db(src)
+    conn = sqlite3.connect(src)
+    conn.execute("UPDATE podcasts SET description = 'write to host@corp.example today' WHERE slug = 'keep'")
+    conn.execute("UPDATE processing_history SET processing_stats_json = ? WHERE episode_id = 'new'", ('{"err": "load /app/data/x failed"}',))
+    conn.commit()
+    conn.close()
+    report = snapshot(src, out, days=30, excluded_slugs=set(), hosts=[], export_day=date(2026, 11, 6), salt=b's')
+    conn = sqlite3.connect(out)
+    assert conn.execute("SELECT description FROM podcasts WHERE slug = 'keep'").fetchone()[0] == 'write to contact@example.com today'
+    assert conn.execute("SELECT processing_stats_json FROM processing_history").fetchone()[0] == '{"err": "load /demo/x failed"}'
+    assert report.leaks == []
 
 
 def test_excluded_slugs_without_podcast_row_still_clean_patterns(tmp_path):
