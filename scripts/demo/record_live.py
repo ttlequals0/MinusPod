@@ -113,16 +113,18 @@ def parse_day(value) -> date | None:
         return None
 
 
-def episode_artwork_targets(episodes: list[dict], since_days: int, today: date) -> list[dict]:
+def episodes_in_window(episodes: list[dict], since_days: int, today: date) -> list[dict]:
     cutoff = today - timedelta(days=since_days)
     keep = []
     for ep in episodes:
-        if not ep.get('artworkUrl'):
-            continue
         day = parse_day(ep.get('published')) or parse_day(ep.get('createdAt'))
         if day and day >= cutoff:
             keep.append(ep)
     return keep
+
+
+def episode_artwork_targets(episodes: list[dict], since_days: int, today: date) -> list[dict]:
+    return [ep for ep in episodes_in_window(episodes, since_days, today) if ep.get('artworkUrl')]
 
 
 def round_numbers(value, digits: int = 3):
@@ -252,8 +254,9 @@ def run(args, get=None) -> int:
         except Exception as e:
             raise Abort(f'feed artwork for {slug} is unreadable ({type(e).__name__})', 2) from None
         episodes = get_json(get, f'/feeds/{slug}/episodes?limit=500&offset=0&status=all')['episodes']
-        for ep in episode_artwork_targets(episodes, args.since_days, date.today()):
-            fetch_episode_artwork(get, out, slug, ep['id'])
+        for ep in episodes_in_window(episodes, args.since_days, date.today()):
+            if ep.get('artworkUrl'):
+                fetch_episode_artwork(get, out, slug, ep['id'])
             if args.peaks and ep.get('status') in ('processed', 'completed'):
                 fetch_peaks(get, record, slug, ep['id'])
     return 0

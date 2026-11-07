@@ -114,6 +114,7 @@ def fake_get(extra_body=None, queue=None, feed_art=None):
     today = date.today().isoformat() + 'T00:00:00Z'
     eps = [{'id': 'ep/1', 'artworkUrl': 'u', 'published': today, 'status': 'completed'},
            {'id': 'ep3', 'artworkUrl': 'u', 'published': today, 'status': 'processed'},
+           {'id': 'ep4', 'artworkUrl': None, 'published': today, 'status': 'completed'},
            {'id': 'ep2', 'artworkUrl': None, 'published': today}]
 
     def resp(body=None, status=200, content=b''):
@@ -136,6 +137,8 @@ def fake_get(extra_body=None, queue=None, feed_art=None):
             return resp({'episodes': eps})
         if path == '/feeds/keep/episodes/ep%2F1/artwork':
             return resp(content=png('blue'))
+        if path == '/feeds/keep/episodes/ep4/peaks?resolution_ms=250':
+            return resp({'peaks': [0.5]})
         if path == '/feeds/keep/episodes/ep%2F1/peaks?resolution_ms=250':
             return resp({'peaks': [0.123456, [0.5, 1]], 'start': 0.0})
         if path.endswith('/peaks?resolution_ms=250'):
@@ -199,6 +202,7 @@ def test_run_records_rounded_peaks_and_skips_404(tmp_path):
     body = json.loads((overrides / index[key]).read_text())['body']
     assert body['peaks'] == [0.123, [0.5, 1]]
     assert not any('ep3' in k for k in index)
+    assert '/feeds/keep/episodes/ep4/peaks?resolution_ms=250' in index
 
 
 def test_run_no_peaks(tmp_path):
