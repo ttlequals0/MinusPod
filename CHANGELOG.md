@@ -8,6 +8,12 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
+## [2.101.27] - Unreleased
+
+### Fixed
+
+- The shared animation helper `docs/videos/lib/canvas.js` is now tracked. The top-level `lib/` ignore rule for Python builds had swallowed it. The videos README linked to a file that was not in the repository, and the two animated videos could not be rebuilt from a clone.
+
 ## [2.101.26] - 2026-11-06
 
 ### Changed
