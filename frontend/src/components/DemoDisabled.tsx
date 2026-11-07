@@ -5,8 +5,9 @@ import { DEMO_WRITE_TOOLTIP } from '../demo/copy';
 
 type Disableable = ReactElement<{ disabled?: boolean; 'aria-disabled'?: boolean; title?: string; className?: string; children?: ReactNode }>;
 
-const SIZING_TOKEN = /^(?:[a-z-]+:)?(?:flex-1|grow|shrink|basis-\S+|w-\S+)$/;
-const WIDTH_OR_FLEX_TOKEN = /^(?:[a-z-]+:)?(?:flex-1|grow|basis-\S+|w-\S+)$/;
+// Variant prefixes include arbitrary ones such as max-[359px]:.
+const SIZING_TOKEN = /^(?:[^\s:]+:)*(?:flex-1|grow(?:-\d+)?|shrink(?:-\d+)?|basis-\S+|w-\S+)$/;
+const WIDTH_OR_FLEX_TOKEN = /^(?:[^\s:]+:)*(?:flex-1|grow(?:-\d+)?|basis-\S+|w-\S+)$/;
 
 // Wrapper carries the tooltip because disabled buttons have pointer-events-none.
 export function DemoDisabled({ children, when = true, title = DEMO_WRITE_TOOLTIP }: { children: Disableable; when?: boolean; title?: string }) {
