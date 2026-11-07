@@ -6,7 +6,7 @@ import { __setIndexForTests, __setLoaderForTests } from './fixtures';
 const call = (path: string, init?: RequestInit) => getResponse(handlers, new Request('http://x/api/v1' + path, init));
 
 beforeEach(() => {
-  __setIndexForTests({ '/settings': 'settings.json', '/feeds/a/episodes/e1/notes': 'gone.json' });
+  __setIndexForTests({ '/auth/status': 'auth.json', '/status': 'status.json', '/settings': 'settings.json', '/feeds/a/episodes/e1/notes': 'gone.json' });
   __setLoaderForTests(async (file) => (file === 'gone.json' ? { status: 410, body: { error: 'gone' } } : { status: 200, body: { file } }));
 });
 
@@ -59,4 +59,11 @@ test('an unknown entity is a 404', async () => {
   const r = await call('/feeds/nope/episodes/missing');
   expect(r?.status).toBe(404);
   expect(await r?.json()).toEqual({ error: 'Not found in demo' });
+});
+
+test('auth status and processing status are fixed and beat fixtures', async () => {
+  expect(await (await call('/auth/status'))?.json()).toEqual({ passwordSet: false, authenticated: true });
+  const status = await (await call('/status'))?.json();
+  expect(status).toMatchObject({ currentJob: null, jobs: [], queueLength: 0, processingPaused: false });
+  expect(status).not.toHaveProperty('file');
 });

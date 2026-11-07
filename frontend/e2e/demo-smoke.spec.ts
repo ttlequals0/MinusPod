@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { DEMO_WRITE_ERROR, DEMO_WRITE_TOOLTIP } from '../src/demo/copy';
+import { WRITE_ERROR_TEXT, WRITE_TOOLTIP_TEXT } from '../src/demo/strings';
 
 test.skip(process.env.MINUSPOD_DEMO_E2E !== '1', 'demo smoke runs against the demo build on demand');
 
@@ -18,7 +18,7 @@ test('demo build serves fixtures, blocks writes, and explains itself', async ({ 
   await page.getByRole('button', { name: 'Podcast search' }).click();
   await page.locator('#podcastSearchProvider').selectOption('podcastindex');
   const wrapper = page.locator('span.cursor-not-allowed').filter({ has: page.getByRole('button', { name: 'Save changes' }) });
-  await expect(wrapper).toHaveAttribute('title', DEMO_WRITE_TOOLTIP);
+  await expect(wrapper).toHaveAttribute('title', WRITE_TOOLTIP_TEXT);
   await expect(wrapper.getByRole('button', { name: 'Save changes' })).toBeDisabled();
 
   await page.goto('/api-docs');
@@ -29,5 +29,5 @@ test('demo build serves fixtures, blocks writes, and explains itself', async ({ 
   await page.getByLabel(/RSS or YouTube URL|Search podcasts/).fill('https://example.com/feed.xml');
   // The submit button is disabled in demo, so submit the form directly to exercise the 403 path.
   await page.locator('form').filter({ has: page.locator('#podcastInput') }).evaluate((form: HTMLFormElement) => form.requestSubmit());
-  await expect(page.getByRole('alert').filter({ hasText: DEMO_WRITE_ERROR })).toContainText(DEMO_WRITE_ERROR);
+  await expect(page.getByRole('alert').filter({ hasText: WRITE_ERROR_TEXT })).toContainText(WRITE_ERROR_TEXT);
 });

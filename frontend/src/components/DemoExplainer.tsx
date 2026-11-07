@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
-import { IS_DEMO } from '../demo/flag';
 import { cardPad, cardTitle } from './pageStyles';
+import { IS_DEMO } from '../demo/flag';
 
 export function DemoExplainer({ title, children }: { title: string; children: ReactNode }) {
   if (!IS_DEMO) return null;

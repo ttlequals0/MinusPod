@@ -1,5 +1,8 @@
-export const DEMO_AUDIO_TOOLTIP = "Audio isn't included in the demo. Run MinusPod to hear processed episodes.";
-export const DEMO_DOWNLOAD_TOOLTIP = "Downloads aren't included in the demo.";
-export const DEMO_WRITE_TOOLTIP = 'Changes are disabled in the demo.';
-export const DEMO_WRITE_ERROR = 'Disabled in demo';
-export const DEMO_BOOT_ERROR = 'The demo failed to start. Reload the page to try again.';
+import { IS_DEMO } from './flag';
+import { AUDIO_TOOLTIP_TEXT, BOOT_ERROR_TEXT, DOWNLOAD_TOOLTIP_TEXT, WRITE_ERROR_TEXT, WRITE_TOOLTIP_TEXT } from './strings';
+
+export const DEMO_AUDIO_TOOLTIP = IS_DEMO ? AUDIO_TOOLTIP_TEXT : '';
+export const DEMO_DOWNLOAD_TOOLTIP = IS_DEMO ? DOWNLOAD_TOOLTIP_TEXT : '';
+export const DEMO_WRITE_TOOLTIP = IS_DEMO ? WRITE_TOOLTIP_TEXT : '';
+export const DEMO_WRITE_ERROR = WRITE_ERROR_TEXT;
+export const DEMO_BOOT_ERROR = BOOT_ERROR_TEXT;

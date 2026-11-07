@@ -9,7 +9,7 @@ import type {
   SearchPatternResult,
   SearchSponsorResult,
 } from '../api/search';
-import { loadFixture } from './fixtures';
+import { loadFixture, warnDev } from './fixtures';
 import { clampInt } from './lists/paging';
 
 const TRANSCRIPT_SNIPPET_FETCHES = 10;
@@ -49,6 +49,9 @@ const STOPWORDS = new Set('a an and are as at be by for from in is it of on or t
 
 type Loaded = { ms: MiniSearch; docs: Record<string, SearchDoc> };
 let loaded: Promise<Loaded> | null = null;
+let failedAt = 0;
+const INDEX_RETRY_MS = 30_000;
+const EMPTY_STATS = { stats: { total: 0 } };
 
 function install(file: SearchIndexFile): Loaded {
   return { ms: MiniSearch.loadJS(file.index as AsPlainObject, file.options), docs: file.docs };
@@ -56,6 +59,16 @@ function install(file: SearchIndexFile): Loaded {
 
 export function __setIndexForTests(file: SearchIndexFile): void {
   loaded = Promise.resolve(install(file));
+}
+
+export function __resetIndexForTests(): void {
+  loaded = null;
+  failedAt = 0;
+}
+
+export function __failIndexForTests(): void {
+  loaded = Promise.reject(new Error('[demo] search index load failed'));
+  loaded.catch(() => {});
 }
 
 async function loadIndex(): Promise<Loaded> {
@@ -66,8 +79,13 @@ async function loadIndex(): Promise<Loaded> {
 
 function getIndex(): Promise<Loaded> {
   if (!loaded) {
-    loaded = loadIndex();
-    loaded.catch(() => { loaded = null; });
+    if (Date.now() - failedAt < INDEX_RETRY_MS) return Promise.reject(new Error('[demo] search index load failed'));
+    const attempt = loadIndex();
+    loaded = attempt;
+    attempt.catch(() => {
+      if (loaded === attempt) loaded = null;
+      failedAt = Date.now();
+    });
   }
   return loaded;
 }
@@ -209,11 +227,22 @@ export async function searchHandler({ request }: { request: Request }) {
     const bad = groups.find(g => !(g in GROUPS));
     if (bad) return HttpResponse.json({ error: `Unknown group: ${bad}` }, { status: 400 });
   }
-  return HttpResponse.json(await runSearch(q, limit, groups));
+  try {
+    return HttpResponse.json(await runSearch(q, limit, groups));
+  } catch (err) {
+    warnDev('[demo] search unavailable', err);
+    return HttpResponse.json(emptyResponse(q));
+  }
 }
 
 export async function searchStatsHandler() {
-  const { docs } = await getIndex();
+  let docs: Record<string, SearchDoc>;
+  try {
+    ({ docs } = await getIndex());
+  } catch (err) {
+    warnDev('[demo] search stats unavailable', err);
+    return HttpResponse.json(EMPTY_STATS);
+  }
   const counts = { show: 0, pattern: 0, sponsor: 0 };
   const episodes = new Set<string>();
   for (const [id, doc] of Object.entries(docs)) {

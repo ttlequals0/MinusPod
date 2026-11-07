@@ -43,3 +43,15 @@ test('selection returns an empty episodes list and the trimmed selection', async
 test('missing dump returns null', async () => {
   expect(await episodesHandler(url(''), async () => null)).toBeNull();
 });
+
+test('status filtered reads its own dump', async () => {
+  const filtered = { status: 200, body: { episodes: [dump.body.episodes[1]], total: 1, limit: 500, offset: 0 } };
+  const keys: string[] = [];
+  const r = await episodesHandler(url('status=filtered'), async (k) => { keys.push(k); return k.endsWith('status=filtered') ? filtered : dump; });
+  expect(keys).toEqual(['/feeds/s/episodes?limit=500&offset=0&sort_by=created_at&sort_dir=desc&status=filtered']);
+  expect((r!.body as Body).episodes.map((e) => e.id)).toEqual(['b']);
+  expect((r!.body as Body).total).toBe(1);
+});
+test('status filtered with no dump returns null', async () => {
+  expect(await episodesHandler(url('status=filtered'), async (k) => (k.endsWith('status=filtered') ? null : dump))).toBeNull();
+});
