@@ -1,0 +1,12 @@
+{
+  "static": [
+    "/", "/add", "/search?q=the",
+    "/patterns", "/patterns?tab=sponsors", "/patterns?tab=ad-review", "/patterns?tab=detected-ads", "/patterns?tab=cleanup",
+    "/history", "/history?tab=downloads",
+    "/stats", "/queue", "/queue?tab=review", "/settings", "/api-docs"
+  ],
+  "perFeed": ["/feeds/{slug}"],
+  "perEpisode": ["/feeds/{slug}/episodes/{id}"],
+  "episodesPerFeed": 3,
+  "settingsSections": "expand-all"
+}
