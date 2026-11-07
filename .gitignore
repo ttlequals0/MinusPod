@@ -19,6 +19,8 @@ lib64/
 # Python lib/ rules above accidentally swallow smoke/lib/; allow it back.
 !smoke/lib/
 !smoke/lib/*
+!docs/videos/lib/
+!docs/videos/lib/*
 parts/
 sdist/
 var/
