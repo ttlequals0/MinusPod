@@ -47,6 +47,14 @@ test('download and audio GETs are rejected', async () => {
   expect((await call('/feeds/a/episodes/e1/processed.mp3'))?.status).toBe(403);
 });
 
+test('null-body fixture statuses return no body', async () => {
+  __setLoaderForTests(async () => ({ status: 204, body: {} }));
+  const r = await call('/settings');
+  expect(r?.status).toBe(204);
+  expect(r?.body).toBeNull();
+  expect(r?.headers.get('content-type')).toBeNull();
+});
+
 test('an unknown entity is a 404', async () => {
   const r = await call('/feeds/nope/episodes/missing');
   expect(r?.status).toBe(404);

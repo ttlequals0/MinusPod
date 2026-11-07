@@ -47,5 +47,5 @@ async function boot() {
 boot().catch((err: unknown) => {
   console.error(err);
   const root = document.getElementById('root');
-  if (root) root.textContent = DEMO_BOOT_ERROR;
+  if (__DEMO__ && root) root.textContent = DEMO_BOOT_ERROR;
 });

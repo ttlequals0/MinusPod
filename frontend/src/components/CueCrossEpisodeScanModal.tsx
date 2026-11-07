@@ -1,5 +1,5 @@
 import { Modal } from './Modal';
-import { mediaUrl } from '../utils/mediaUrl';
+import { IS_DEMO } from '../demo/flag';
 import { DEMO_AUDIO_TOOLTIP } from '../demo/copy';
 import { useState } from 'react';
 import { useQueries, useQuery } from '@tanstack/react-query';
@@ -125,7 +125,7 @@ export default function CueCrossEpisodeScanModal({
 
   // Play [start, end] of one episode's retained original; clicking the owning
   // button again stops it.
-  const audioAvailable = mediaUrl({ kind: 'audio', url: '/' }) !== null;
+  const audioAvailable = !IS_DEMO;
   const playWindow = (episodeId: string, start: number, end: number) =>
     togglePlayback(
       playKey(episodeId, start, end),

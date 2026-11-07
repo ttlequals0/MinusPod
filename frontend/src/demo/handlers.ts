@@ -23,7 +23,8 @@ export function forbidden(): Response {
   return HttpResponse.json({ error: DEMO_WRITE_ERROR }, { status: 403 });
 }
 
-export function fixtureResponse(f: Fixture): Response {
+function fixtureResponse(f: Fixture): Response {
+  if (f.status === 204 || f.status === 304) return new HttpResponse(null, { status: f.status });
   return HttpResponse.json(f.body as JsonBodyType, { status: f.status });
 }
 
