@@ -1,25 +1,26 @@
 import io
 import json
-from datetime import date
+import types
+from datetime import date, datetime
 from pathlib import Path
 
 from PIL import Image
 
 from scripts.demo.leak_check import check_text
 from scripts.demo.record_live import (
-    KEY_PARAM, episode_artwork_targets, file_for, fixture_key, override_targets,
-    scrub_body, scrub_providers, synthesize_queue, to_jpeg,
+    KEY_PARAM, QUEUE_KEY, Abort, VALID_LLM_PROVIDERS, encode_uri_component, episode_artwork_targets,
+    file_for, fixture_key, override_targets, run, scrub_body, scrub_providers, synthesize_queue, to_jpeg,
 )
 
 VECTORS = Path(__file__).parents[2] / 'scripts/demo/crawl/lib/key-vectors.json'
 
 
-def test_override_targets_enumerate_models_per_provider_and_slot():
-    targets = override_targets({'anthropic': {'configured': True}, 'ollama': {'configured': False}, 'cryptoReady': True})
+def test_override_targets_enumerate_provider_types_and_slots():
+    targets = override_targets()
     assert '/settings/providers' in targets
     assert '/settings/models?provider=anthropic&slot=primary' in targets
-    assert '/settings/models?provider=ollama&slot=failover' in targets
-    assert not any('cryptoReady' in t for t in targets)
+    assert '/settings/models?provider=openai-compatible&slot=failover' in targets
+    assert sum(t.startswith('/settings/models') for t in targets) == len(VALID_LLM_PROVIDERS) * 3
     assert '/settings/whisper-models' in targets
 
 
@@ -69,9 +70,115 @@ def test_to_jpeg_downsizes_to_600():
 
 
 def test_synthesize_queue_stages():
-    from datetime import datetime
     hist = [{'podcastSlug': s, 'podcastTitle': 'T', 'episodeId': f'e{i}', 'episodeTitle': 'E'}
             for i, s in enumerate(['a', 'b', 'c'])]
     rows = synthesize_queue(hist, {'b'}, datetime(2026, 11, 7))
     assert [r['slug'] for r in rows] == ['a', 'c']
     assert [r['stage'] for r in rows] == ['queued', 'transcribing']
+
+
+def test_scrub_body_handles_nested_json_strings():
+    inner = json.dumps({'u': 'https://h/rss?key=abcdefghijklmnop', 'n': 1})
+    out = scrub_body({'raw': inner, 'list': ['x?key=zzzz']})
+    assert json.loads(out['raw'])['u'] == 'https://h/rss?key=demo'
+    assert out['list'] == ['x?key=demo']
+
+
+def test_to_jpeg_flattens_alpha_and_palette():
+    buf = io.BytesIO()
+    Image.new('RGBA', (4, 4), (255, 0, 0, 0)).save(buf, 'PNG')
+    assert Image.open(io.BytesIO(to_jpeg(buf.getvalue()))).getpixel((1, 1)) == (255, 255, 255)
+    buf = io.BytesIO()
+    Image.new('P', (4, 4)).save(buf, 'PNG')
+    assert Image.open(io.BytesIO(to_jpeg(buf.getvalue()))).mode == 'RGB'
+
+
+def test_encode_uri_component():
+    assert encode_uri_component("a b/c~!'()*é") == "a%20b%2Fc~!'()*%C3%A9"
+
+
+def test_synthesize_queue_takes_three_after_exclusions():
+    hist = [{'podcastSlug': 'x' if i < 5 else 'ok', 'podcastTitle': 'T', 'episodeId': f'e{i}', 'episodeTitle': 'E'}
+            for i in range(10)]
+    rows = synthesize_queue(hist, {'x'}, datetime(2026, 11, 7))
+    assert len(rows) == 3 and {r['slug'] for r in rows} == {'ok'}
+
+
+def png(color='red'):
+    buf = io.BytesIO()
+    Image.new('RGB', (800, 800), color).save(buf, 'PNG')
+    return buf.getvalue()
+
+
+def fake_get(extra_body=None, queue=None, feed_art=None):
+    today = date.today().isoformat() + 'T00:00:00Z'
+    eps = [{'id': 'ep/1', 'artworkUrl': 'u', 'published': today},
+           {'id': 'ep2', 'artworkUrl': None, 'published': today}]
+
+    def resp(body=None, status=200, content=b''):
+        return types.SimpleNamespace(
+            status_code=status, ok=status < 400, content=content, json=lambda: body)
+
+    def get(path):
+        if path == '/settings/providers':
+            return resp({'cryptoReady': True, 'openai': {'baseUrl': 'https://x.internal'}, **(extra_body or {})})
+        if path.startswith('/settings/'):
+            return resp({'models': []})
+        if path == QUEUE_KEY:
+            return resp(queue if queue is not None else [
+                {'slug': 'skip', 'episodeId': 'q', 'title': 't', 'podcast': 'p', 'startedAt': None}])
+        if path.startswith('/feeds?'):
+            return resp({'feeds': [{'slug': 'keep'}, {'slug': 'skip'}]})
+        if path == '/feeds/keep/artwork':
+            return resp(content=feed_art or png())
+        if path.startswith('/feeds/keep/episodes?'):
+            return resp({'episodes': eps})
+        if path == '/feeds/keep/episodes/ep%2F1/artwork':
+            return resp(content=png('blue'))
+        raise AssertionError(path)
+    return get
+
+
+def args_for(tmp_path, **kw):
+    excl = tmp_path / 'ex.json'
+    excl.write_text(json.dumps({'slugs': ['skip']}))
+    base = dict(out=tmp_path / 'out', hosts='leak.example.org', exclusions=excl, since_days=30,
+                synthesize_queue=False, base_url='', cookies=None)
+    return types.SimpleNamespace(**{**base, **kw})
+
+
+def test_run_writes_layout(tmp_path):
+    assert run(args_for(tmp_path), get=fake_get()) == 0
+    out = tmp_path / 'out'
+    index = json.loads((out / 'overrides' / 'index.json').read_text())
+    assert QUEUE_KEY in index and '/settings/providers' in index
+    assert all((out / 'overrides' / f).exists() for f in index.values())
+    providers = json.loads((out / 'overrides' / index['/settings/providers']).read_text())
+    assert providers['body']['openai']['baseUrl'] == 'https://llm.example.com'
+    queue = json.loads((out / 'overrides' / index[QUEUE_KEY]).read_text())
+    assert queue['body'] == []
+    assert (out / 'artwork/feeds/keep.jpg').exists()
+    assert (out / 'artwork/episodes/keep/ep%2F1.jpg').exists()
+    assert not (out / 'artwork/feeds/skip.jpg').exists()
+    assert sorted(p.name for p in (out / 'artwork/episodes/keep').iterdir()) == ['ep%2F1.jpg']
+
+
+def test_run_leak_hit_exits_2_without_more_files(tmp_path):
+    leaky = {'note': 'see leak.example.org'}
+    try:
+        run(args_for(tmp_path), get=fake_get(extra_body=leaky))
+    except Abort as e:
+        assert e.code == 2
+    else:
+        raise AssertionError('no abort')
+    out = tmp_path / 'out'
+    assert not (out / 'overrides').exists() and not (out / 'artwork').exists()
+
+
+def test_run_unreadable_feed_art_aborts(tmp_path):
+    try:
+        run(args_for(tmp_path), get=fake_get(feed_art=b'not an image'))
+    except Abort as e:
+        assert e.code == 2
+    else:
+        raise AssertionError('no abort')

@@ -1,4 +1,7 @@
-"""Record provider overrides and artwork from a live instance (GET only) into demo fixtures."""
+"""Record provider overrides and artwork from a live instance (GET only) into demo fixtures.
+
+An exit code 2 leaves a partial <out> that must not be published.
+"""
 import argparse
 import hashlib
 import io
@@ -11,20 +14,32 @@ from pathlib import Path
 from urllib.parse import parse_qsl, quote, urlsplit
 
 import requests
-from PIL import Image
+from PIL import Image, ImageOps
 
+from config import (
+    PROVIDER_ANTHROPIC, PROVIDER_OLLAMA, PROVIDER_OPENAI_COMPATIBLE, PROVIDER_OPENROUTER,
+    SYSTEMONE_PROVIDERS,
+)
 from scripts.demo.leak_check import check_text, compile_patterns, report_hits
 
 API_PREFIX = '/api/v1'
+# mirrors VALID_LLM_PROVIDERS in src/api/settings/common.py (importing it pulls in the Flask app)
+VALID_LLM_PROVIDERS = (
+    PROVIDER_ANTHROPIC, PROVIDER_OPENROUTER, PROVIDER_OPENAI_COMPATIBLE, PROVIDER_OLLAMA,
+    *SYSTEMONE_PROVIDERS,
+)
+SLUG_OK = re.compile(r'^[A-Za-z0-9._-]+$')
 SLOTS = ('primary', 'secondary', 'failover')
 QUEUE_KEY = '/episodes/processing?limit=1000&offset=0'
 LLM_PLACEHOLDER = 'https://llm.example.com'
 TIMEOUT = 60
 MAX_SIDE = 600
 JPEG_QUALITY = 82
-KEY_PARAM = re.compile(r'([?&]key=)[^&"\'\s]+')
+KEY_PARAM = re.compile(r'([?&]key=)[^&"\'\s\\]+')
 # bytes JavaScript URLSearchParams leaves unencoded
 UNRESERVED = frozenset(b'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789*._-')
+# bytes encodeURIComponent leaves unencoded
+URI_COMPONENT_OK = frozenset(UNRESERVED | set(b"!~'()"))
 
 
 class Abort(Exception):
@@ -58,11 +73,13 @@ def file_for(key: str) -> str:
     return hashlib.sha1(key.encode('utf-8')).hexdigest() + '.json'
 
 
-def override_targets(providers: dict) -> list[str]:
+def encode_uri_component(text: str) -> str:
+    return ''.join(chr(b) if b in URI_COMPONENT_OK else f'%{b:02X}' for b in text.encode('utf-8'))
+
+
+def override_targets() -> list[str]:
     targets = ['/settings/providers']
-    for provider, value in providers.items():
-        if isinstance(value, dict):
-            targets += [f'/settings/models?provider={provider}&slot={slot}' for slot in SLOTS]
+    targets += [f'/settings/models?provider={p}&slot={slot}' for p in VALID_LLM_PROVIDERS for slot in SLOTS]
     return targets + ['/settings/whisper-models', '/settings/whisper/capacity', QUEUE_KEY]
 
 
@@ -78,7 +95,13 @@ def scrub_providers(body):
 
 
 def scrub_body(body):
-    return json.loads(KEY_PARAM.sub(r'\1demo', json.dumps(body)))
+    if isinstance(body, dict):
+        return {k: scrub_body(v) for k, v in body.items()}
+    if isinstance(body, list):
+        return [scrub_body(v) for v in body]
+    if isinstance(body, str):
+        return KEY_PARAM.sub(r'\1demo', body)
+    return body
 
 
 def parse_day(value) -> date | None:
@@ -103,7 +126,12 @@ def episode_artwork_targets(episodes: list[dict], since_days: int, today: date) 
 
 
 def to_jpeg(data: bytes) -> bytes:
-    img = Image.open(io.BytesIO(data)).convert('RGB')
+    img = ImageOps.exif_transpose(Image.open(io.BytesIO(data)))
+    if img.mode in ('RGBA', 'LA', 'P'):
+        rgba = img.convert('RGBA')
+        img = Image.new('RGB', rgba.size, 'white')
+        img.paste(rgba, mask=rgba.getchannel('A'))
+    img = img.convert('RGB')
     img.thumbnail((MAX_SIDE, MAX_SIDE))
     out = io.BytesIO()
     img.save(out, 'JPEG', quality=JPEG_QUALITY)
@@ -149,61 +177,70 @@ def get_json(get, path: str):
     resp = get(path)
     if not resp.ok:
         raise Abort(f'GET {path} returned {resp.status_code}', 2)
-    return resp.json()
+    return parse_json(resp, path)
 
 
-def run(args) -> int:
-    get = client(args.base_url, args.cookies)
+def parse_json(resp, path: str):
+    try:
+        return resp.json()
+    except ValueError:
+        raise Abort(f'GET {path} did not return JSON: refresh the cookie in cookies.txt', 2) from None
+
+
+def run(args, get=None) -> int:
+    get = get or client(args.base_url, args.cookies)
     hosts = [h.strip() for h in args.hosts.split(',') if h.strip()]
     patterns = compile_patterns(hosts)
     excluded = set(json.loads(args.exclusions.read_text())['slugs']) if args.exclusions else set()
     out: Path = args.out
-
-    def guard(text: str, source: str) -> None:
-        hits = check_text(text, source, hosts, patterns)
-        if hits:
-            report_hits(hits)
-            raise Abort(f'leak check hit in {source}', 2)
-
     index = {}
 
     def record(key: str, status: int, body) -> None:
         body = scrub_body(scrub_providers(body) if key == '/settings/providers' else body)
         text = json.dumps({'status': status, 'body': body})
-        guard(text, key.split('?')[0])
+        source = key.split('?')[0]
+        hits = check_text(text, source, hosts, patterns)
+        if hits:
+            report_hits(hits)
+            raise Abort(f'leak check hit in {source}', 2)
         name = file_for(key)
         (out / 'overrides').mkdir(parents=True, exist_ok=True)
         (out / 'overrides' / name).write_text(text)
         index[key] = name
-        print(f'recorded {key.split("?")[0]} ({status})')
+        (out / 'overrides' / 'index.json').write_text(json.dumps(index, indent=2, sort_keys=True))
+        print(f'recorded {source} ({status})')
 
     providers = get_json(get, '/settings/providers')
     record('/settings/providers', 200, providers)
-    for key in override_targets(providers)[1:]:
+    for key in override_targets()[1:]:
         if key == QUEUE_KEY:
             continue
         resp = get(key)
         if resp.status_code >= 500:
             print(f'skipped {key.split("?")[0]} ({resp.status_code})')
             continue
-        record(key, resp.status_code, resp.json())
+        record(key, resp.status_code, parse_json(resp, key.split('?')[0]))
 
-    queue = get(QUEUE_KEY)
-    queue_body = queue.json() if queue.ok else []
+    queue_body = [r for r in get_json(get, QUEUE_KEY) if r.get('slug') not in excluded]
     if not queue_body and args.synthesize_queue:
-        history = get_json(get, '/history?limit=3').get('history', [])
+        history = get_json(get, '/history?limit=30').get('history', [])
         queue_body = synthesize_queue(history, excluded, datetime.now())
     record(QUEUE_KEY, 200, queue_body)
-    (out / 'overrides' / 'index.json').write_text(json.dumps(index, indent=2, sort_keys=True))
 
     feeds = [f for f in get_json(get, '/feeds?includeLatestEpisodes=false')['feeds']
              if f['slug'] not in excluded]
     for feed in feeds:
         slug = feed['slug']
+        if not SLUG_OK.match(slug):
+            print('skipped a feed with an unsafe slug')
+            continue
         resp = get(f'/feeds/{slug}/artwork')
         if not resp.ok:
             raise Abort(f'feed artwork for {slug} returned {resp.status_code}', 2)
-        save_image(out / 'artwork' / 'feeds' / f'{slug}.jpg', resp.content)
+        try:
+            save_image(out / 'artwork' / 'feeds' / f'{slug}.jpg', resp.content)
+        except Exception as e:
+            raise Abort(f'feed artwork for {slug} is unreadable ({type(e).__name__})', 2) from None
         episodes = get_json(get, f'/feeds/{slug}/episodes?limit=500&offset=0&status=all')['episodes']
         for ep in episode_artwork_targets(episodes, args.since_days, date.today()):
             fetch_episode_artwork(get, out, slug, ep['id'])
@@ -211,14 +248,15 @@ def run(args) -> int:
 
 
 def fetch_episode_artwork(get, out: Path, slug: str, episode_id: str) -> None:
+    name = encode_uri_component(episode_id)
     resp = get(f'/feeds/{slug}/episodes/{quote(episode_id, safe="")}/artwork')
     if not resp.ok:
-        print(f'skipped episode artwork in {slug} ({resp.status_code})')
+        print(f'skipped episode artwork {slug}/{name} ({resp.status_code})')
         return
     try:
-        save_image(out / 'artwork' / 'episodes' / slug / f'{quote(episode_id, safe="")}.jpg', resp.content)
-    except OSError:
-        print(f'skipped episode artwork in {slug} (unreadable image)')
+        save_image(out / 'artwork' / 'episodes' / slug / f'{name}.jpg', resp.content)
+    except Exception:
+        print(f'skipped episode artwork {slug}/{name} (unreadable image)')
 
 
 def save_image(path: Path, data: bytes) -> None:
@@ -232,7 +270,7 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument('--base-url', required=True)
     p.add_argument('--cookies', type=Path, required=True)
     p.add_argument('--out', type=Path, required=True)
-    p.add_argument('--hosts', default='')
+    p.add_argument('--hosts', required=True)
     p.add_argument('--exclusions', type=Path)
     p.add_argument('--since-days', type=int, default=30)
     p.add_argument('--synthesize-queue', action='store_true')
