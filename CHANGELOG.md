@@ -8,7 +8,7 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
-## [2.101.27] - Unreleased
+## [2.101.27] - 2026-11-07
 
 ### Added
 
