@@ -116,7 +116,9 @@ jobs:
         run: npm run build
 
       - name: Normal bundle has no demo code
-        run: "! grep -l -e mockServiceWorker -e 'Disabled in demo' ../static/ui/assets/*.js"
+        run: |
+          ls ../static/ui/assets/*.js > /dev/null
+          ! grep -l -e mockServiceWorker -e 'Disabled in demo' ../static/ui/assets/*.js
 
   pip-audit:
     name: pip-audit
