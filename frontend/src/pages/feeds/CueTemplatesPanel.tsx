@@ -45,6 +45,7 @@ import DraftNumberInput, { parseOptionalNumber } from '../../components/DraftNum
 import { focusRing, labelBase, selectBase } from '../../components/fieldStyles';
 import { badgeBase, tint } from '../../components/badgeStyles';
 import { DemoDisabled } from '../../components/DemoDisabled';
+import { IS_DEMO } from '../../demo/flag';
 
 const PICKER_PAGE_SIZE = 50;
 
@@ -506,12 +507,12 @@ function CueTemplatesPanel({ slug }: Props) {
                 {editingId !== t.id && (
                   <div className="flex flex-wrap items-center gap-2 pl-7 xl:pl-0 xl:shrink-0">
                     {t.hasAudio !== false && (
-                      <DemoDisabled when={!cueTemplateAudioUrl(t.id)} title={DEMO_AUDIO_TOOLTIP}>
+                      <DemoDisabled title={DEMO_AUDIO_TOOLTIP}>
                         <button
                           type="button"
                           className={`${btnBase} ${btnGhost}`}
                           onClick={() => togglePlay(t)}
-                          disabled={!cueTemplateAudioUrl(t.id)}
+                          disabled={IS_DEMO}
                           title={playingId === t.id ? 'Stop' : 'Play this cue'}
                           aria-label={playingId === t.id ? `Stop cue ${t.label}` : `Play cue ${t.label}`}
                         >

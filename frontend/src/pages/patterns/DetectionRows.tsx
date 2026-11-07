@@ -1,5 +1,6 @@
 import { Link } from 'react-router';
 import { DEMO_AUDIO_TOOLTIP } from '../../demo/copy';
+import { IS_DEMO } from '../../demo/flag';
 import type { ReviewDetection } from '../../api/detections';
 import { episodeOriginalUrl } from '../../api/feeds';
 import type { useAuditionPlayer } from '../../hooks/useAuditionPlayer';
@@ -178,7 +179,7 @@ function DetectionActions({ d, variant, playing, onTogglePlay, actions }: {
   const isCard = variant === 'card';
   const btn = isCard ? `${cardActionBtn} ${cardRowBtn}` : tableActionBtn;
   const undecided = d.resolution === 'unresolved';
-  const noAudio = episodeOriginalUrl(d.feedSlug, d.episodeId) === null;
+  const noAudio = IS_DEMO;
   const play = d.hasOriginalAudio && (
     <AuditionPlayButton playing={playing} onClick={onTogglePlay}
       disabled={noAudio} title={noAudio ? DEMO_AUDIO_TOOLTIP : undefined} />

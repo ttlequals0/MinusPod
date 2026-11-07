@@ -44,6 +44,7 @@ import { focusRing, inputBase, selectBase, textareaBase, labelBase, filterLabel 
 import { badgeBase, tint } from './badgeStyles';
 import { apiUrl } from '../urlPrefix';
 import { DemoDisabled } from './DemoDisabled';
+import { IS_DEMO } from '../demo/flag';
 
 // Shape used by the per-episode AdEditor: enough to render the waveform
 // editor for a single detected ad and submit a correction back. Matches
@@ -928,8 +929,8 @@ function AdReviewModal({
       if (e.key === ' ')      { e.preventDefault(); togglePlay(); return; }
       if (e.key === ',')      { e.preventDefault(); panBack(); return; }
       if (e.key === '.')      { e.preventDefault(); panForward(); return; }
-      if (e.key === 'c' || e.key === 'C') { e.preventDefault(); if (!boundaryError) handleConfirm(); return; }
-      if (e.key === 'r' || e.key === 'R') { e.preventDefault(); handleReject(); return; }
+      if (e.key === 'c' || e.key === 'C') { e.preventDefault(); if (!IS_DEMO && !boundaryError) handleConfirm(); return; }
+      if (e.key === 'r' || e.key === 'R') { e.preventDefault(); if (!IS_DEMO) handleReject(); return; }
       if (e.key === 's' || e.key === 'S') { e.preventDefault(); onSkip(); return; }
       if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
         const audio = audioRef.current;

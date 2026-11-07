@@ -34,4 +34,18 @@ describe('DemoDisabled in demo', () => {
     render(<DemoDisabled when={false}><button>Save</button></DemoDisabled>);
     expect((screen.getByRole('button', { name: 'Save' }) as HTMLButtonElement).disabled).toBe(false);
   });
+
+  test('moves sizing tokens to the wrapper and fills it', () => {
+    render(<DemoDisabled><button className="btn flex-1 w-full sm:w-auto">Save</button></DemoDisabled>);
+    const b = screen.getByRole('button', { name: 'Save' });
+    expect(b.className).toBe('btn w-full');
+    expect(b.parentElement?.className).toBe('inline-flex cursor-not-allowed flex-1 w-full sm:w-auto');
+  });
+
+  test('a child without sizing tokens keeps its classes', () => {
+    render(<DemoDisabled><button className="btn">Save</button></DemoDisabled>);
+    const b = screen.getByRole('button', { name: 'Save' });
+    expect(b.className).toBe('btn');
+    expect(b.parentElement?.className).toBe('inline-flex cursor-not-allowed');
+  });
 });

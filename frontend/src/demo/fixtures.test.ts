@@ -11,6 +11,7 @@ test('emptyDefault matches by path pattern', () => {
   expect(emptyDefault('/feeds/x/episodes').body).toEqual({ episodes: [], total: 0, limit: 25, offset: 0 });
   expect(emptyDefault('/feeds/x/episodes/e1')).toEqual({ status: 404, body: { error: 'Not found in demo' } });
   expect(emptyDefault('/episodes/processing').body).toEqual([]);
+  expect(emptyDefault('/unknown/thing')).toEqual({ status: 404, body: { error: 'Not found' } });
 });
 
 test('resolveFixture prefers exact, then path-only with fewest params, then default', async () => {

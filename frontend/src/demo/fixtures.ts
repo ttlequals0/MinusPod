@@ -117,7 +117,7 @@ export function emptyDefault(pathname: string): Fixture {
     if (pattern.test(pathname)) return { status: 200, body };
   }
   if (entityPath.test(pathname)) return { status: 404, body: { error: 'Not found in demo' } };
-  return { status: 200, body: {} };
+  return { status: 404, body: { error: 'Not found' } };
 }
 
 export async function resolveFixture(url: URL): Promise<Fixture> {

@@ -118,7 +118,7 @@ jobs:
       - name: Normal bundle has no demo code
         run: |
           ls ../static/ui/assets/*.js > /dev/null
-          ! grep -l -e mockServiceWorker -e 'Disabled in demo' ../static/ui/assets/*.js
+          ! grep -l -e mockServiceWorker -e 'Disabled in demo' -e 'read-only snapshot' -e 'Not available in the demo' ../static/ui/assets/*.js
 
   pip-audit:
     name: pip-audit

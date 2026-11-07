@@ -5,15 +5,24 @@ import { DEMO_WRITE_TOOLTIP } from '../demo/copy';
 
 type Disableable = ReactElement<{ disabled?: boolean; 'aria-disabled'?: boolean; title?: string; className?: string; children?: ReactNode }>;
 
+const SIZING_TOKEN = /^(?:[a-z-]+:)?(?:flex-1|grow|shrink|basis-\S+|w-\S+)$/;
+const WIDTH_OR_FLEX_TOKEN = /^(?:[a-z-]+:)?(?:flex-1|grow|basis-\S+|w-\S+)$/;
+
 // Wrapper carries the tooltip because disabled buttons have pointer-events-none.
 export function DemoDisabled({ children, when = true, title = DEMO_WRITE_TOOLTIP }: { children: Disableable; when?: boolean; title?: string }) {
   if (!(IS_DEMO && when)) return children;
   // An anchor would still navigate, so swap it for a disabled button with the same look.
+  const tokens = (children.props.className ?? '').split(/\s+/).filter(Boolean);
+  const moved = tokens.filter(t => SIZING_TOKEN.test(t));
+  const fill = moved.some(t => WIDTH_OR_FLEX_TOKEN.test(t));
+  const kept = tokens.filter(t => !SIZING_TOKEN.test(t));
+  if (fill) kept.push('w-full');
+  const childClass = moved.length ? kept.join(' ') : children.props.className;
   const control = children.type === 'a'
-    ? <button type="button" className={children.props.className} disabled aria-disabled>{children.props.children}</button>
-    : cloneElement(children, { disabled: true, 'aria-disabled': true, title: undefined });
+    ? <button type="button" className={childClass} disabled aria-disabled>{children.props.children}</button>
+    : cloneElement(children, { disabled: true, 'aria-disabled': true, title: undefined, className: childClass });
   return (
-    <span className="inline-flex cursor-not-allowed" title={title}>
+    <span className={['inline-flex cursor-not-allowed', ...moved].join(' ')} title={title}>
       {control}
     </span>
   );

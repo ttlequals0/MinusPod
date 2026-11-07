@@ -8,11 +8,14 @@ export type MediaRef =
 
 export function mediaUrl(ref: MediaRef): string | null {
   switch (ref.kind) {
-    case 'feedArtwork':
-      return IS_DEMO ? `/demo/artwork/feeds/${ref.slug}.jpg` : ref.apiArtworkUrl || apiUrl(`/feeds/${ref.slug}/artwork`);
+    case 'feedArtwork': {
+      const slug = encodeURIComponent(ref.slug);
+      return IS_DEMO ? `/demo/artwork/feeds/${slug}.jpg` : ref.apiArtworkUrl || apiUrl(`/feeds/${slug}/artwork`);
+    }
     case 'episodeArtwork': {
+      const slug = encodeURIComponent(ref.slug);
       const id = encodeURIComponent(ref.episodeId);
-      return IS_DEMO ? `/demo/artwork/episodes/${ref.slug}/${id}.jpg` : apiUrl(`/feeds/${ref.slug}/episodes/${id}/artwork`);
+      return IS_DEMO ? `/demo/artwork/episodes/${slug}/${id}.jpg` : apiUrl(`/feeds/${slug}/episodes/${id}/artwork`);
     }
     case 'audio':
       return IS_DEMO ? null : ref.url;
