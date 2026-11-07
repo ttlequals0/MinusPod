@@ -66,10 +66,6 @@ export function fixtureKey(input: URL | string): string {
   return normalizedPath(url) + (qs ? `?${qs}` : '');
 }
 
-export function hasFixture(key: string): boolean {
-  return index.has(key);
-}
-
 export async function loadFixture(key: string): Promise<Fixture | null> {
   const file = index.get(key);
   if (file === undefined) return null;
