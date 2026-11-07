@@ -160,6 +160,9 @@ function providerAccountIdentity(
 }
 
 function Settings() {
+  const apiDocsLink = IS_DEMO
+    ? { href: uiUrl('/api-docs') }
+    : { href: apiUrl('/docs'), target: '_blank', rel: 'noopener noreferrer' };
   const queryClient = useQueryClient();
   const location = useLocation();
   const { isPasswordSet, logout, refreshStatus } = useAuth();
@@ -1285,9 +1288,7 @@ function Settings() {
             Docs
           </a>
           <a
-            href={IS_DEMO ? uiUrl('/api-docs') : apiUrl('/docs')}
-            target={IS_DEMO ? undefined : '_blank'}
-            rel={IS_DEMO ? undefined : 'noopener noreferrer'}
+            {...apiDocsLink}
             className={docsLink}
           >
             <FileText className="w-4 h-4" aria-hidden="true" />

@@ -1,6 +1,6 @@
 import { Modal, dialogFooterBtn } from '../../components/Modal';
 import { DEMO_AUDIO_TOOLTIP, DEMO_DOWNLOAD_TOOLTIP } from '../../demo/copy';
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Play, Plus, Square } from 'lucide-react';
 import CloseButton from '../../components/CloseButton';
@@ -54,10 +54,6 @@ interface Props {
 
 // Per-feed cue template management. Templates take precedence over the global
 // spectral cue detector when at least one is enabled for the feed.
-
-function AudioTip({ missing, children }: { missing: boolean; children: ReactNode }) {
-  return missing ? <span className="inline-flex" title={DEMO_AUDIO_TOOLTIP}>{children}</span> : children;
-}
 
 function CueTemplatesPanel({ slug }: Props) {
   const queryClient = useQueryClient();
@@ -510,7 +506,7 @@ function CueTemplatesPanel({ slug }: Props) {
                 {editingId !== t.id && (
                   <div className="flex flex-wrap items-center gap-2 pl-7 xl:pl-0 xl:shrink-0">
                     {t.hasAudio !== false && (
-                      <AudioTip missing={!cueTemplateAudioUrl(t.id)}>
+                      <DemoDisabled when={!cueTemplateAudioUrl(t.id)} title={DEMO_AUDIO_TOOLTIP}>
                         <button
                           type="button"
                           className={`${btnBase} ${btnGhost}`}
@@ -522,7 +518,7 @@ function CueTemplatesPanel({ slug }: Props) {
                           {playingId === t.id ? <Square className="w-4 h-4" aria-hidden="true" /> : <Play className="w-4 h-4" aria-hidden="true" />}
                           {playingId === t.id ? 'Stop' : 'Play'}
                         </button>
-                      </AudioTip>
+                      </DemoDisabled>
                     )}
                     <DemoDisabled title={DEMO_DOWNLOAD_TOOLTIP}>
                       <a

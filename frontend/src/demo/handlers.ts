@@ -1,11 +1,9 @@
 import type { JsonBodyType, RequestHandler } from 'msw';
 import { http, HttpResponse } from 'msw/http';
-import { resolveFixture, type Fixture } from './fixtures';
+import { normalizedPath, resolveFixture, type Fixture } from './fixtures';
 import { DEMO_WRITE_ERROR } from './copy';
 import { searchHandler, searchStatsHandler } from './search';
 import { podcastSearchHandler } from './podcastSearch';
-
-const API_PREFIX = '/api/v1';
 
 const DOWNLOAD_PATHS = new Set([
   '/system/backup',
@@ -40,8 +38,7 @@ export const handlers: RequestHandler[] = [
   http.get('*/api/v1/search/stats', searchStatsHandler),
   http.get('*/api/v1/*', async ({ request }) => {
     const url = new URL(request.url);
-    const path = url.pathname.startsWith(API_PREFIX) ? url.pathname.slice(API_PREFIX.length) : url.pathname;
-    if (isDownload(path, url.searchParams)) return forbidden();
+    if (isDownload(normalizedPath(url), url.searchParams)) return forbidden();
     const f = await resolveFixture(url);
     return fixtureResponse(f);
   }),

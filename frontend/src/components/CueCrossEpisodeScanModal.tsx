@@ -1,6 +1,7 @@
 import { Modal } from './Modal';
 import { IS_DEMO } from '../demo/flag';
 import { DEMO_AUDIO_TOOLTIP } from '../demo/copy';
+import { DemoDisabled } from './DemoDisabled';
 import { useState } from 'react';
 import { useQueries, useQuery } from '@tanstack/react-query';
 import { ChevronDown, ChevronRight, Play, Square } from 'lucide-react';
@@ -348,7 +349,7 @@ export default function CueCrossEpisodeScanModal({
                 return (
                   <li key={rowKey} className="px-3 py-2 text-sm">
                     <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-                      <span className="inline-flex" title={audioAvailable ? undefined : DEMO_AUDIO_TOOLTIP}>
+                      <DemoDisabled when={!audioAvailable} title={DEMO_AUDIO_TOOLTIP}>
                       <button
                         type="button"
                         className={`shrink-0 ${ghostBtn}`}
@@ -359,7 +360,7 @@ export default function CueCrossEpisodeScanModal({
                       >
                         {playingKey === rowPlayKey ? <Square size={14} /> : <Play size={14} />}
                       </button>
-                      </span>
+                      </DemoDisabled>
                       <div className="flex-1 min-w-0">
                         <span className="font-mono text-sm">
                           {formatTimestamp(c.start)} - {formatTimestamp(c.end)}

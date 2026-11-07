@@ -13,6 +13,7 @@ import { iconTarget, iconVisual } from '../../components/rowActionStyles';
 import { apiUrl } from '../../urlPrefix';
 import { mediaUrl } from '../../utils/mediaUrl';
 import { DEMO_AUDIO_TOOLTIP } from '../../demo/copy';
+import { DemoDisabled } from '../../components/DemoDisabled';
 
 // The splice bar reads as a beep sitting inside content, so its width has to
 // mean something. Scale duration against this, since typical markers are 1-3s.
@@ -153,7 +154,7 @@ function ReplacementAudioField() {
       )}
 
       <div className="flex items-center gap-3">
-        {src ? playButton : <span className="inline-flex" title={DEMO_AUDIO_TOOLTIP}>{playButton}</span>}
+        <DemoDisabled when={!src} title={DEMO_AUDIO_TOOLTIP}>{playButton}</DemoDisabled>
 
         {/* Content, replacement, content. Width of the middle block tracks
             duration, so a long file visibly takes over more of the episode. */}

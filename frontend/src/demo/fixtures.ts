@@ -7,7 +7,7 @@ const FIXTURE_BASE = '/demo/fixtures/';
 
 let index = new Map<string, string>();
 let byPath = new Map<string, string[]>();
-const cache = new Map<string, Fixture>();
+const cache = new Map<string, Promise<Fixture>>();
 
 let loader: (file: string) => Promise<Fixture> = async (file) => {
   const res = await fetch(FIXTURE_BASE + file);
@@ -52,7 +52,7 @@ export async function loadFixtureIndex(): Promise<void> {
   installIndex((await res.json()) as Record<string, string>);
 }
 
-function normalizedPath(url: URL): string {
+export function normalizedPath(url: URL): string {
   const p = url.pathname;
   return p.startsWith(API_PREFIX) ? p.slice(API_PREFIX.length) : p;
 }
@@ -69,21 +69,22 @@ export function fixtureKey(input: URL | string): string {
 export async function loadFixture(key: string): Promise<Fixture | null> {
   const file = index.get(key);
   if (file === undefined) return null;
-  let fixture = cache.get(file);
-  if (!fixture) {
-    fixture = await loader(file);
-    cache.set(file, fixture);
+  let pending = cache.get(file);
+  if (!pending) {
+    pending = loader(file);
+    cache.set(file, pending);
+    pending.catch(() => cache.delete(file));
   }
-  return fixture;
+  return pending;
 }
 
 function warnDev(...args: unknown[]): void {
   if (__DEMO__ && import.meta.env.DEV) console.warn(...args);
 }
 
-async function tryLoad(key: string): Promise<Fixture | null> {
+async function guarded(key: string, run: () => Promise<Fixture | null>): Promise<Fixture | null> {
   try {
-    return await loadFixture(key);
+    return await run();
   } catch (err) {
     warnDev('[demo] fixture load failed', key, err);
     return null;
@@ -102,7 +103,6 @@ const emptyTable: Array<[RegExp, unknown]> = [
   [/^\/detections$/, { detections: [], ...page(20), counts: {}, cutSummary: {} }],
   [/^\/patterns$/, { patterns: [] }],
   [/^\/sponsors$/, { sponsors: [] }],
-  [/^\/search$/, { query: '', shows: [], episodes: [], transcripts: [], patterns: [], sponsors: [] }],
   [/^\/episodes\/processing$/, []],
   [/^\/episodes\/(awaiting-approval|held|pending-recuts)$/, queue],
   [/^\/stats\/by-day$/, { days: [] }],
@@ -122,24 +122,20 @@ export function emptyDefault(pathname: string): Fixture {
 
 export async function resolveFixture(url: URL): Promise<Fixture> {
   const key = fixtureKey(url);
-  const exact = await tryLoad(key);
+  const exact = await guarded(key, () => loadFixture(key));
   if (exact) return exact;
 
   const pathname = normalizedPath(url);
   const handler = matchList(pathname);
   if (handler) {
-    try {
-      const listed = await handler(url, loadFixture);
-      if (listed) return listed;
-    } catch (err) {
-      warnDev('[demo] fixture load failed', key, err);
-    }
+    const listed = await guarded(key, () => handler(url, loadFixture));
+    if (listed) return listed;
   }
 
   const candidates = byPath.get(pathname);
   if (candidates && candidates.length > 0) {
     const best = [...candidates].sort((a, b) => paramCount(a) - paramCount(b) || (a < b ? -1 : a > b ? 1 : 0))[0];
-    const matched = await tryLoad(best);
+    const matched = await guarded(best, () => loadFixture(best));
     if (matched) return matched;
   }
 

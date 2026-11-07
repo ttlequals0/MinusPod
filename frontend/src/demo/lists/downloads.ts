@@ -1,16 +1,16 @@
 import type { DownloadHistoryEntry } from '../../api/types';
 import type { ListHandler } from './index';
-import { clampInt, pageSlice, sortBy } from './paging';
+import { clampInt, pageSlice, parseDir, sortBy } from './paging';
 import { loadAllPages } from './pagedDump';
 
 type Body = { downloads: DownloadHistoryEntry[] };
 type Row = DownloadHistoryEntry;
 
 const lower = (s: string | null | undefined) => (s ?? '').toLowerCase();
-const SORT: Record<string, (r: Row) => unknown> = {
-  last_seen_at: (r) => r.lastSeenAt,
+const SORT: Record<string, keyof Row | ((r: Row) => unknown)> = {
+  last_seen_at: 'lastSeenAt',
   podcast: (r) => lower(r.podcastTitle || r.podcastSlug),
-  client_ip: (r) => r.clientIp,
+  client_ip: 'clientIp',
   location: (r) => lower(`${r.country ?? ''}, ${r.city ?? ''}`),
   subscriber: (r) => lower(r.subscriberLabel),
 };
@@ -36,6 +36,6 @@ export const downloadsHandler: ListHandler = async (url, load) => {
   if (search) rows = rows.filter((r) => lower(r.clientIp).includes(search) || lower(r.userAgent).includes(search));
   const sortKey = SORT[p.get('sortBy') ?? ''] ?? SORT.last_seen_at;
   // id desc first so the stable sort keeps it as the tie-break in either direction.
-  rows = sortBy(sortBy(rows, 'id', 'desc'), sortKey, (p.get('sortDir') ?? 'desc').toLowerCase() === 'asc' ? 'asc' : 'desc');
+  rows = sortBy(sortBy(rows, 'id', 'desc'), sortKey, parseDir(p.get('sortDir'), 'desc'));
   return { status: 200, body: { ...all.body, downloads: pageSlice(rows, page, limit), total: rows.length, page, limit } };
 };
