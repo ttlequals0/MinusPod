@@ -638,13 +638,15 @@ function FeedDetail() {
                   aria-label="Feed description override"
                 />
                 <div className="flex flex-wrap items-center gap-2">
-                  <button
-                    onClick={saveEdit}
-                    disabled={updateMutation.isPending}
-                    className={`${btnBase} ${btnPrimary}`}
-                  >
-                    {updateMutation.isPending ? 'Saving...' : 'Save'}
-                  </button>
+                  <DemoDisabled>
+                    <button
+                      onClick={saveEdit}
+                      disabled={updateMutation.isPending}
+                      className={`${btnBase} ${btnPrimary}`}
+                    >
+                      {updateMutation.isPending ? 'Saving...' : 'Save'}
+                    </button>
+                  </DemoDisabled>
                   <button
                     onClick={() => setEditing(null)}
                     className={`${btnBase} ${btnSecondary}`}
@@ -652,13 +654,15 @@ function FeedDetail() {
                     Cancel
                   </button>
                   {feed.descriptionOverride && (
-                    <button
-                      onClick={() => updateMutation.mutate({ descriptionOverride: null })}
-                      disabled={updateMutation.isPending}
-                      className={`${btnBase} ${btnSecondary}`}
-                    >
-                      Reset to source
-                    </button>
+                    <DemoDisabled>
+                      <button
+                        onClick={() => updateMutation.mutate({ descriptionOverride: null })}
+                        disabled={updateMutation.isPending}
+                        className={`${btnBase} ${btnSecondary}`}
+                      >
+                        Reset to source
+                      </button>
+                    </DemoDisabled>
                   )}
                 </div>
                 <p className="text-xs text-muted-foreground">
