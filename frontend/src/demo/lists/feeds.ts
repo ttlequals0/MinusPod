@@ -6,7 +6,7 @@ type Body = { feeds: Feed[] } & Record<string, unknown>;
 
 // Ports list_feeds and _sort_podcasts (api/feeds.py).
 export const feedsHandler: ListHandler = async (url, load) => {
-  const dump = await load('/feeds?includeLatestEpisodes=true&episodesPerFeed=20');
+  const dump = await load('/feeds?episodesPerFeed=20&includeLatestEpisodes=true');
   if (!dump) return null;
   const p = url.searchParams;
   const sort = p.get('sortBy');
