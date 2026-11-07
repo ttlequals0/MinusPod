@@ -905,6 +905,8 @@ def _submit_correction_split(db, pattern_service, slug, episode_id,
 
     Correction rows reuse boundary_adjustment and create because
     correction_type carries a CHECK constraint SQLite cannot alter in place.
+    The first row is recorded against its own piece so trim protection does
+    not read the remainder as kept audio (#967).
     """
     original_start = original_ad.get('start')
     original_end = original_ad.get('end')
@@ -971,13 +973,13 @@ def _submit_correction_split(db, pattern_service, slug, episode_id,
         clip_merge_spans(split_marker, piece['start'], piece['end'])
         new_markers.append(split_marker)
 
+        bounds = {'start': piece['start'], 'end': piece['end']}
         db.create_pattern_correction(
             correction_type='boundary_adjustment' if i == 0 else 'create',
             pattern_id=piece_id,
             episode_id=episode_id,
-            original_bounds=({'start': original_start, 'end': original_end}
-                             if i == 0 else None),
-            corrected_bounds={'start': piece['start'], 'end': piece['end']},
+            original_bounds=bounds if i == 0 else None,
+            corrected_bounds=bounds,
             text_snippet=piece['text'][:500],
             podcast_id=db.get_podcast_by_slug(slug)['id'],
             addressing_mode=marker.get('addressing_mode'),

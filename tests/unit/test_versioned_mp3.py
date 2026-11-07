@@ -143,3 +143,17 @@ class TestRssEnclosureUrl:
         parser._append_db_episode_item(lines, "pod", ep, storage=None)
         joined = "\n".join(lines)
         assert 'url="https://example.com/episodes/pod/abc123def456-v2.mp3"' in joined
+
+
+class TestRssDescriptionRemap:
+
+    def test_db_item_description_timestamps_shift(self):
+        from rss_parser import RSSParser
+        parser = RSSParser.__new__(RSSParser)
+        parser.base_url = "https://example.com"
+        lines: list = []
+        ep = {"episode_id": "abc123def456", "title": "T", "processed_version": 0,
+              "description": "<p>05:00 Topic</p>"}
+        cuts = {"abc123def456": '[{"start": 60.0, "end": 120.0, "replacement_duration": 0.0}]'}
+        parser._append_db_episode_item(lines, "pod", ep, storage=None, applied_cuts=cuts)
+        assert "<p>04:00 Topic</p>" in "\n".join(lines)

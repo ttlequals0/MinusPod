@@ -62,8 +62,7 @@ def _apply_boundary_adjustments(slug, episode_id, all_ads):
                 f"{o_start:.1f}s-{o_end:.1f}s has no matching ad; skipping"
             )
             continue
-        # The ad the user moved is the one nearest the corrected span, so a split's
-        # whole-span row cannot land on a sibling piece (#794).
+        # Nearest the corrected span, so a legacy whole-span split row cannot land on a sibling piece (#794).
         match = max(candidates, key=lambda ad: (
             overlap_seconds(n_start, n_end, ad['start'], ad['end']),
             overlap_seconds(o_start, o_end, ad['start'], ad['end'])))

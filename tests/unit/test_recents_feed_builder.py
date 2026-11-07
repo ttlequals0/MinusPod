@@ -142,3 +142,12 @@ def test_source_episode_completion_rebuilds_the_recents_feed(recents):
     mf.invalidate_feed_cache()
     common._refresh_rss_for_slug('alpha', 'aaaaaaaaaaa2')
     assert 'stale' not in (mf.storage.get_rss(RECENTS_SLUG) or 'stale')
+
+
+def test_description_timestamps_shift_by_the_episodes_own_cuts(recents):
+    mf.db.upsert_episode('alpha', 'aaaaaaaaaaa2', description='<p>05:00 Topic</p>')
+    mf.db.save_applied_cuts('alpha', 'aaaaaaaaaaa2',
+                            [{'start': 60.0, 'end': 120.0, 'replacement_duration': 0.0}])
+    xml = build_recents_feed_xml(recents, _rows(recents), storage=mf.storage, db=mf.db)
+    assert '04:00 Topic' in xml
+    assert '05:00 Topic' not in xml

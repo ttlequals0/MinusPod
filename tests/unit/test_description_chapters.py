@@ -84,3 +84,94 @@ def test_chapter_span_last_chapter_runs_to_end_and_no_match_is_none():
     assert chapter_trim_span(CHAPTERS, '*Nothing*', 'to_end', 3000.0) is None
     assert chapter_trim_span([], '*x*', 'to_end', 3000.0) is None
     assert chapter_trim_span(CHAPTERS, None, 'to_end', 3000.0) is None
+
+
+from description_chapters import remap_description_timestamps  # noqa: E402
+
+CUT = [{'start': 60.0, 'end': 120.0, 'replacement_duration': 0.0}]
+
+
+def test_remap_shifts_token_after_cut():
+    assert remap_description_timestamps('05:00 Topic', CUT, replacement_duration=0.0) == '04:00 Topic'
+
+
+def test_remap_token_inside_cut_collapses_to_cut_start():
+    assert remap_description_timestamps('01:30 Ad', CUT, replacement_duration=0.0) == '01:00 Ad'
+
+
+def test_remap_replacement_audio_offsets_shift():
+    cuts = [{'start': 60.0, 'end': 120.0, 'replacement_duration': 2.0}]
+    assert remap_description_timestamps('05:00', cuts, replacement_duration=0.0) == '04:02'
+
+
+@pytest.mark.parametrize('text', ['Live at 10:00 AM', 'at 10:00 pm today', '9:30 a.m. start'])
+def test_remap_leaves_clock_times(text):
+    assert remap_description_timestamps(text, CUT, replacement_duration=0.0) == text
+
+
+@pytest.mark.parametrize('text,expected', [
+    ('5:00 x', '4:00 x'),
+    ('00:65', '00:65'),
+    ('1:05:00 x', '1:04:00 x'),
+    ('01:05:00 x', '01:04:00 x'),
+    ('00:05 start', '00:05 start'),
+])
+def test_remap_preserves_shape(text, expected):
+    assert remap_description_timestamps(text, CUT, replacement_duration=0.0) == expected
+
+
+def test_remap_hours_dropped_to_minutes_keeps_hours_shape():
+    cuts = [{'start': 0.0, 'end': 3600.0, 'replacement_duration': 0.0}]
+    assert remap_description_timestamps('1:05:00', cuts, replacement_duration=0.0) == '0:05:00'
+
+
+def test_remap_no_cuts_returns_identical():
+    text = '<p>05:00 Topic</p>'
+    assert remap_description_timestamps(text, [], replacement_duration=0.0) is text
+    assert remap_description_timestamps(text, None, replacement_duration=0.0) is text
+
+
+def test_remap_preserves_html():
+    out = remap_description_timestamps('<p><b>05:00</b> - A &amp; B<br>(06:00) C</p>', CUT,
+                                       replacement_duration=0.0)
+    assert out == '<p><b>04:00</b> - A &amp; B<br>(05:00) C</p>'
+
+
+@pytest.mark.parametrize('original', [30.0, 90.0, 300.0])
+def test_shift_for_merged_cuts_matches_adjust_timestamp(original):
+    from utils.time import adjust_timestamp, merge_cut_spans, shift_for_merged_cuts
+    cuts = [{'start': 60.0, 'end': 120.0, 'replacement_duration': 2.0},
+            {'start': 100.0, 'end': 150.0}]
+    merged = merge_cut_spans(cuts, default_replacement=1.0)
+    assert shift_for_merged_cuts(original, merged) == adjust_timestamp(original, cuts, 1.0)
+
+
+@pytest.mark.parametrize('text', [
+    'See John 3:16 for more',
+    'Meet at 14:30 UTC today',
+    '<a href="https://example.com/v?t=1:30">link</a>',
+])
+def test_remap_leaves_tokens_outside_chapter_line_position(text):
+    assert remap_description_timestamps(text, CUT, replacement_duration=0.0) == text
+
+
+@pytest.mark.parametrize('text,expected', [
+    ('<p>Intro</p><br>12:34 Topic', '<p>Intro</p><br>11:34 Topic'),
+    ('<p>12:34 Topic</p>', '<p>11:34 Topic</p>'),
+    ('[12:34] Topic', '[11:34] Topic'),
+    ('Intro\n(12:34) Topic', 'Intro\n(11:34) Topic'),
+])
+def test_remap_shifts_line_start_tokens(text, expected):
+    assert remap_description_timestamps(text, CUT, replacement_duration=0.0) == expected
+
+
+def test_remap_keeps_mmss_shape_past_an_hour():
+    cuts = [{'start': 0.0, 'end': 60.0, 'replacement_duration': 0.0}]
+    assert remap_description_timestamps('70:00 Late', cuts, replacement_duration=0.0) == '69:00 Late'
+
+
+def test_has_chapter_timestamp():
+    from description_chapters import has_chapter_timestamp
+    assert has_chapter_timestamp('<p>05:00 Topic</p>')
+    assert not has_chapter_timestamp('John 3:16')
+    assert not has_chapter_timestamp(None)

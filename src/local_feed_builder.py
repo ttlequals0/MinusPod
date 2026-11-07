@@ -19,7 +19,8 @@ but rendered as a nested container of remoteItem children instead (see
 import json
 import logging
 
-from chapter_notes import append_chapters, chapter_notes_for
+from audio_processor import get_replacement_duration
+from chapter_notes import chapter_notes_for, compose_item_description
 from config import resolve_review_links_in_notes
 from review_links import append_review_links
 from database.episodes import NOT_AWAITING_APPROVAL
@@ -27,7 +28,7 @@ from database.settings import feed_itunes_block_enabled
 from main_app import db, rss_parser, storage
 from main_app.feed_auth import active_feed_key
 from main_app.shared_state import invalidate_episode_lookup_cache
-from rss_parser import ITUNES_BLOCK_LINE, RSS_RENDER_VERSION
+from rss_parser import ITUNES_BLOCK_LINE, RSS_RENDER_VERSION, effective_channel_text
 from utils.episode_paths import episode_public_url, published_episode_version
 from utils.feed_guid import compute_feed_guid
 from utils.json_fields import load_json_list
@@ -193,10 +194,14 @@ def _append_local_episode_item(lines: list, slug: str, ep: dict, base: str,
                                title_prefix: str = '',
                                has_transcript: bool | None = None,
                                has_chapters: bool | None = None,
-                               review_links: bool = False) -> None:
+                               review_links: bool = False,
+                               applied_cuts: dict[str, str] | None = None,
+                               replacement_duration: float = 0.0) -> None:
     ep_id = ep['episode_id']
     item_json = _load_json_dict(ep.get('p20_item_json'))
-    description = append_chapters(ep.get('description'), chapter_notes.get(ep_id))
+    description = compose_item_description(
+        ep.get('description'), (applied_cuts or {}).get(ep_id),
+        chapter_notes.get(ep_id), replacement_duration=replacement_duration)
     if review_links:
         description = append_review_links(description, slug, ep_id)
 
@@ -262,13 +267,16 @@ def build_local_feed_xml(podcast: dict, episodes: list[dict], *, storage, db,
     slug = podcast['slug']
     base = rss_parser._resolved_base_url()
     chapter_notes = chapter_notes_for(db, podcast)
+    applied_cuts = db.get_applied_cuts_for_podcast(podcast['id'])
     review_links = resolve_review_links_in_notes(db, podcast)
     feed_auth_key = active_feed_key(db)
     channel_json = _load_json_dict(podcast.get('p20_channel_json'))
 
-    title = podcast.get('title') or slug
+    title = effective_channel_text(podcast.get('title_override'), podcast.get('title')) or slug
     channel_link = channel_link or f"{base}/{slug}"
-    description = podcast.get('description') or ''
+    description = effective_channel_text(
+        podcast.get('description_override'), podcast.get('description'), sanitize=True) or ''
+    replacement_duration = get_replacement_duration()
     # 'auto' is a Whisper transcription-language pin, not an RSS language
     # code -- it must never leak into <language>.
     language = podcast.get('language_override') or 'en'
@@ -323,7 +331,9 @@ def build_local_feed_xml(podcast: dict, episodes: list[dict], *, storage, db,
 
     for ep in episodes:
         _append_local_episode_item(lines, slug, ep, base, storage, feed_auth_key,
-                                   chapter_notes=chapter_notes, review_links=review_links)
+                                   chapter_notes=chapter_notes, review_links=review_links,
+                                   applied_cuts=applied_cuts,
+                                   replacement_duration=replacement_duration)
 
     lines.append('</channel>')
     lines.append('</rss>')

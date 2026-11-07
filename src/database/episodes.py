@@ -17,6 +17,15 @@ from utils.youtube_fields import MIDNIGHT_ONLY, PLACEHOLDER_TITLES
 
 logger = logging.getLogger(__name__)
 
+
+def parse_applied_cuts(raw) -> list[dict] | None:
+    """Decode applied_cuts_json; None for NULL, invalid JSON or a non-list."""
+    try:
+        parsed = json.loads(raw) if raw else None
+    except (TypeError, ValueError):
+        return None
+    return parsed if isinstance(parsed, list) else None
+
 # True when any transcript form is stored; {a} is the episode_details alias.
 HAS_TRANSCRIPT_SQL = (
     "({a}.transcript_text IS NOT NULL OR {a}.original_transcript_text IS NOT NULL "
@@ -938,10 +947,7 @@ class EpisodeMixin:
         row = cursor.fetchone()
         if not row or row['applied_cuts_json'] is None:
             return None
-        try:
-            return json.loads(row['applied_cuts_json'])
-        except (TypeError, ValueError):
-            return None
+        return parse_applied_cuts(row['applied_cuts_json'])
 
     def get_original_segments(self, slug: str, episode_id: str) -> list[dict] | None:
         """Get original (pre-cut) Whisper segments as a list, or None."""
@@ -1314,7 +1320,7 @@ class EpisodeMixin:
                                       sort_dir: str = 'desc', details: bool = False,
                                       search: str = '') -> list[dict]:
         """Each row carries its source feed's slug, display title, feed type and
-        chapters override. details=True adds chapters_json and has_transcript_vtt
+        chapters override. details=True adds chapters_json, applied_cuts_json and has_transcript_vtt
         for the feed renderer; typeof() reads the record header instead of
         copying the VTT text."""
         sort_col = sort_by if sort_by in self.VALID_SORT_COLUMNS else 'published_at'
@@ -1322,7 +1328,8 @@ class EpisodeMixin:
         cols = f"e.*, {self._RECENTS_SOURCE_COLS}"
         join = ''
         if details:
-            cols += ", d.chapters_json, typeof(d.transcript_vtt) = 'text' AS has_transcript_vtt"
+            cols += (", d.chapters_json, d.applied_cuts_json, "
+                     "typeof(d.transcript_vtt) = 'text' AS has_transcript_vtt")
             join = "LEFT JOIN episode_details d ON d.episode_id = e.id "
         where = self._RECENTS_WHERE.replace('WHERE ', f'{join}WHERE ', 1)
         params: list = [since]
@@ -1356,6 +1363,16 @@ class EpisodeMixin:
                      AND d.chapters_json IS NOT NULL""",
             (podcast_id,))
         return {row['episode_id']: row['chapters_json'] for row in cursor.fetchall()}
+
+    def get_applied_cuts_for_podcast(self, podcast_id: int) -> dict[str, str]:
+        """{episode_id: raw applied_cuts_json} for a feed's processed episodes; NULL rows skipped."""
+        cursor = self.get_connection().execute(
+            """SELECT e.episode_id, d.applied_cuts_json
+               FROM episodes e JOIN episode_details d ON d.episode_id = e.id
+               WHERE e.podcast_id = ? AND e.status = 'processed'
+                     AND d.applied_cuts_json IS NOT NULL""",
+            (podcast_id,))
+        return {row['episode_id']: row['applied_cuts_json'] for row in cursor.fetchall()}
 
     _EPISODE_JSON_COLS = frozenset({'ad_markers_json', 'audio_analysis_json',
                                     'original_segments_json'})

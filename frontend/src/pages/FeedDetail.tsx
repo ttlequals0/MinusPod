@@ -37,7 +37,7 @@ import { formatDateTime } from '../utils/format';
 import RichText from '../components/RichText';
 import { Modal, ConfirmModal, dialogFooterBtn } from '../components/Modal';
 import { btnBase, btnPrimary, btnSecondary, btnGhost, btnDestructive, btnPrimaryOutline, btnDestructiveOutline } from '../components/buttonStyles';
-import { focusRing, inputBase, selectBase } from '../components/fieldStyles';
+import { focusRing, inputBase, selectBase, textareaBase } from '../components/fieldStyles';
 import { badgeBase, tint } from '../components/badgeStyles';
 import { pageTitle, cardTitle, sectionPad } from '../components/pageStyles';
 import { iconTarget, iconVisual } from '../components/rowActionStyles';
@@ -118,8 +118,8 @@ function FeedDetail() {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const location = useLocation();
-  const [isEditingTitle, setIsEditingTitle] = useState(false);
-  const [editTitle, setEditTitle] = useState('');
+  const [editing, setEditing] = useState<'title' | 'description' | null>(null);
+  const [draft, setDraft] = useState('');
   const [showReprocessConfirm, setShowReprocessConfirm] = useState(false);
   const [selectedReprocessMode, setSelectedReprocessMode] = useState<'reprocess' | 'full' | 'llm'>('reprocess');
   const [reprocessResult, setReprocessResult] = useState<ReprocessAllResult | null>(null);
@@ -304,7 +304,7 @@ function FeedDetail() {
     mutationFn: (data: UpdateFeedPayload) => updateFeed(slug!, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['feed', slug] });
-      setIsEditingTitle(false);
+      setEditing(null);
     },
     onError: (err) => setActionError(getErrorMessage(err, 'Could not save this feed.')),
   });
@@ -386,13 +386,14 @@ function FeedDetail() {
     reprocessAllMutation.reset();
   };
 
-  const startEditingTitle = () => {
-    setEditTitle(feed?.titleOverride || '');
-    setIsEditingTitle(true);
+  const startEditing = (field: 'title' | 'description') => {
+    setDraft((field === 'title' ? feed?.titleOverride : feed?.descriptionOverride) || '');
+    setEditing(field);
   };
 
-  const saveTitleEdit = () => {
-    updateMutation.mutate({ titleOverride: editTitle.trim() || null });
+  const saveEdit = () => {
+    const value = draft.trim() || null;
+    updateMutation.mutate(editing === 'title' ? { titleOverride: value } : { descriptionOverride: value });
   };
 
   const handleToggleSelect = (id: string, shiftKey: boolean) => {
@@ -555,16 +556,16 @@ function FeedDetail() {
             ) : feedArtwork}
           </div>
           <div className="flex-1 min-w-0">
-            {isEditingTitle ? (
+            {editing === 'title' ? (
               <div className="space-y-1.5">
                 <div className="flex flex-wrap items-center gap-2">
                   <input
                     type="text"
-                    value={editTitle}
-                    onChange={(e) => setEditTitle(e.target.value)}
+                    value={draft}
+                    onChange={(e) => setDraft(e.target.value)}
                     onKeyDown={(e) => {
-                      if (e.key === 'Enter') saveTitleEdit();
-                      if (e.key === 'Escape') setIsEditingTitle(false);
+                      if (e.key === 'Enter') saveEdit();
+                      if (e.key === 'Escape') setEditing(null);
                     }}
                     placeholder={feed.title}
                     maxLength={500}
@@ -573,14 +574,14 @@ function FeedDetail() {
                     aria-label="Feed title"
                   />
                   <button
-                    onClick={saveTitleEdit}
+                    onClick={saveEdit}
                     disabled={updateMutation.isPending}
                     className={`${btnBase} ${btnPrimary}`}
                   >
                     {updateMutation.isPending ? 'Saving...' : 'Save'}
                   </button>
                   <button
-                    onClick={() => setIsEditingTitle(false)}
+                    onClick={() => setEditing(null)}
                     className={`${btnBase} ${btnSecondary}`}
                   >
                     Cancel
@@ -603,7 +604,7 @@ function FeedDetail() {
                   </span>
                 )}
                 <button
-                  onClick={startEditingTitle}
+                  onClick={() => startEditing('title')}
                   aria-label="Edit feed title"
                   title="Edit feed title"
                   className={`${iconTarget} mt-1.5`}
@@ -614,8 +615,79 @@ function FeedDetail() {
                 </button>
               </div>
             )}
-            {feed.description && (
-              <RichText html={feed.description} className="text-muted-foreground mt-2 block wrap-break-word" />
+            {feed.feedType === 'recents' ? (
+              feed.description && (
+                <RichText html={feed.description} className="text-muted-foreground mt-2 block wrap-break-word" />
+              )
+            ) : editing === 'description' ? (
+              <div className="mt-2 space-y-1.5">
+                <textarea
+                  value={draft}
+                  onChange={(e) => setDraft(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Escape') setEditing(null);
+                  }}
+                  placeholder={feed.description || ''}
+                  maxLength={10000}
+                  rows={5}
+                  autoFocus
+                  className={`${textareaBase} w-full`}
+                  aria-label="Feed description override"
+                />
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    onClick={saveEdit}
+                    disabled={updateMutation.isPending}
+                    className={`${btnBase} ${btnPrimary}`}
+                  >
+                    {updateMutation.isPending ? 'Saving...' : 'Save'}
+                  </button>
+                  <button
+                    onClick={() => setEditing(null)}
+                    className={`${btnBase} ${btnSecondary}`}
+                  >
+                    Cancel
+                  </button>
+                  {feed.descriptionOverride && (
+                    <button
+                      onClick={() => updateMutation.mutate({ descriptionOverride: null })}
+                      disabled={updateMutation.isPending}
+                      className={`${btnBase} ${btnSecondary}`}
+                    >
+                      Reset to source
+                    </button>
+                  )}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Shown to subscribers in podcast apps. Leave blank to use the source description.
+                </p>
+              </div>
+            ) : (
+              <div className="mt-2 flex items-start gap-2">
+                <div className="flex-1 min-w-0">
+                  {(feed.descriptionOverride || feed.description) && (
+                    <RichText
+                      html={feed.descriptionOverride || feed.description || ''}
+                      className={`text-muted-foreground block wrap-break-word${feed.descriptionOverride ? ' whitespace-pre-line' : ''}`}
+                    />
+                  )}
+                </div>
+                {feed.descriptionOverride && (
+                  <span className={`${badgeBase} mt-1.5 shrink-0 ${tint.blue}`}>
+                    Custom
+                  </span>
+                )}
+                <button
+                  onClick={() => startEditing('description')}
+                  aria-label="Edit feed description"
+                  title="Edit feed description"
+                  className={iconTarget}
+                >
+                  <span className={`${iconVisual} ${btnGhost}`}>
+                    <Pencil aria-hidden="true" className="w-4 h-4" />
+                  </span>
+                </button>
+              </div>
             )}
             <div className="mt-4 flex flex-wrap gap-4 text-sm text-muted-foreground">
               <span>{feed.episodeCount} episodes</span>

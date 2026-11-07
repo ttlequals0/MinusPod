@@ -10,7 +10,7 @@ from contextlib import contextmanager
 from pathlib import Path
 
 from utils.text import is_timezone_drift, normalize_title_for_match
-from utils.time import parse_iso_utc
+from utils.time import parse_iso_utc, utc_now_iso
 
 logger = logging.getLogger(__name__)
 
@@ -38,6 +38,7 @@ _AUTO_FILED_REASON_RE = re.compile(r'\s*corroborated (\S+) hold')
 from database.schema.tables import (
     DOWNLOAD_INDEX_SQL, PATTERN_CLEANUP_INDEXES, SCHEMA_SQL, TABLE_DDL,
 )
+from database.patterns import _parse_bounds
 from database.search import (
     SEARCH_CHANGE_JOURNAL_DDL,
     SEARCH_CHANGE_TRIGGERS_SQL,
@@ -50,7 +51,7 @@ from config import (
     PASS2_AUTOAPPROVE_SNIPPET_PREFIX, count_pending_review,
     SEGMENT_CATEGORIES, SEGMENT_ACTIONS, resolve_segment_category_actions_map,
 )
-from utils.markers import collapse_duplicate_markers
+from utils.markers import EDGE_TOLERANCE, collapse_duplicate_markers
 from utils.text import extract_text_in_range
 
 # 2.63.2-2.67.0 snippets named the differential hold by its short form.
@@ -77,6 +78,9 @@ def _migration_file_lock(data_dir):
             fcntl.flock(fd, fcntl.LOCK_UN)
         finally:
             os.close(fd)
+
+
+_SPLIT_CHAIN_WINDOW_S = 60
 
 
 class SchemaMixin:
@@ -558,6 +562,7 @@ class SchemaMixin:
             ('download_user_agent_override', 'TEXT'),
             ('feed_user_agent_override', 'TEXT'),
             ('title_override', 'TEXT'),
+            ('description_override', 'TEXT'),
             ('detection_mode', 'TEXT'),
             ('cue_template_score_override', 'REAL'),
             ('cue_create_from_pairs_override', 'INTEGER'),
@@ -1963,6 +1968,12 @@ class SchemaMixin:
             conn.rollback()
             logger.error(f"youtube private placeholder cleanup failed: {e}")
 
+        try:
+            self._run_split_piece_bounds_repair(conn)
+        except Exception as e:
+            conn.rollback()
+            logger.error(f"split piece bounds repair failed: {e}")
+
         # Per-boot, not schema_migrations-gated: seeds an absent model row
         # from OPENAI_MODEL, run after the clear above so a stale default is
         # removed and reseeded in the same boot.
@@ -2905,6 +2916,65 @@ class SchemaMixin:
             logger.info(f"youtube-private-placeholders: removed {len(rows)} placeholder episode(s)")
         conn.execute("INSERT OR IGNORE INTO schema_migrations (name) VALUES (?)", (name,))
         conn.commit()
+
+    def _run_split_piece_bounds_repair(self, conn, name='split_piece_original_bounds_967'):
+        """One-shot: rewrite split first-piece rows that recorded the whole pre-split span (#967)."""
+        if conn.execute("SELECT 1 FROM schema_migrations WHERE name = ?", (name,)).fetchone():
+            return
+        stale = conn.execute(
+            "SELECT id, podcast_id, episode_id, original_bounds, corrected_bounds, created_at "
+            "FROM pattern_corrections WHERE correction_type = 'boundary_adjustment' "
+            "AND podcast_id IS NOT NULL "
+            "AND original_bounds IS NOT NULL AND corrected_bounds IS NOT NULL "
+            "AND original_bounds != corrected_bounds").fetchall()
+        fixed, skipped, episodes = 0, 0, set()
+        for r in stale:
+            orig, new = _parse_bounds(r['original_bounds']), _parse_bounds(r['corrected_bounds'])
+            if not orig or not new:
+                continue
+            if (abs(new['start'] - orig['start']) > EDGE_TOLERANCE
+                    or new['end'] >= orig['end'] - EDGE_TOLERANCE):
+                continue
+            running = new['end']
+            later = conn.execute(
+                "SELECT correction_type, corrected_bounds, created_at FROM pattern_corrections "
+                "WHERE podcast_id = ? AND episode_id = ? AND id > ? ORDER BY id",
+                (r['podcast_id'], r['episode_id'], r['id'])).fetchall()
+            t0 = parse_iso_utc(r['created_at'])
+            for piece in later:
+                if piece['correction_type'] != 'create':
+                    break
+                t1 = parse_iso_utc(piece['created_at'])
+                # A split writes its rows in one request; a later create is a separate action.
+                if not t0 or not t1 or (t1 - t0).total_seconds() > _SPLIT_CHAIN_WINDOW_S:
+                    break
+                b = _parse_bounds(piece['corrected_bounds'])
+                if not b or abs(b['start'] - running) > EDGE_TOLERANCE:
+                    break
+                running = b['end']
+                if abs(running - orig['end']) <= EDGE_TOLERANCE:
+                    break
+            if abs(running - orig['end']) > EDGE_TOLERANCE:
+                skipped += 1
+                continue
+            conn.execute("UPDATE pattern_corrections SET original_bounds = corrected_bounds WHERE id = ?",
+                         (r['id'],))
+            logger.info(f"split-piece-bounds-967: correction {r['id']} original "
+                        f"{orig['start']:.1f}s-{orig['end']:.1f}s rewritten to "
+                        f"{new['start']:.1f}s-{new['end']:.1f}s")
+            fixed += 1
+            episodes.add((r['podcast_id'], r['episode_id']))
+        now = utc_now_iso()
+        # Same stamp rule as mark_episode_pending_recut; keyed by podcast_id here.
+        for podcast_id, episode_id in episodes:
+            conn.execute(
+                "UPDATE episodes SET pending_recut_at = CASE WHEN status = 'processing' THEN ? "
+                "ELSE COALESCE(pending_recut_at, ?) END WHERE episode_id = ? AND podcast_id = ?",
+                (now, now, episode_id, podcast_id))
+        conn.execute("INSERT OR IGNORE INTO schema_migrations (name) VALUES (?)", (name,))
+        conn.commit()
+        logger.info(f"split-piece-bounds-967: repaired {fixed} correction row(s), left {skipped} "
+                    f"narrowed row(s) unchanged (plain trims or no piece chain)")
 
     def _run_reindex_search_plain_text(self, conn, already_rebuilt: bool = False,
                                        name: str = 'search_index_plain_text_2_100_12') -> bool:

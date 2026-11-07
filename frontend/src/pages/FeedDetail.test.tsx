@@ -10,7 +10,7 @@ import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router';
 import FeedDetail from './FeedDetail';
-import { refreshFeed } from '../api/feeds';
+import { refreshFeed, updateFeed } from '../api/feeds';
 import type { Episode, Feed } from '../api/types';
 
 const mockNavigate = vi.fn();
@@ -704,4 +704,44 @@ it('allows explicit bulk reprocessing of duration-filtered matching episodes', a
   await user.click(screen.getByRole('button', { name: 'Full reprocess (1)' }));
   await waitFor(() => expect(mockBulkEpisodeAction).toHaveBeenCalledWith(
     'test-feed', ['filtered-completed'], 'reprocess_full'));
+});
+
+describe('FeedDetail: description override', () => {
+  it('saves an edited description as descriptionOverride', async () => {
+    vi.mocked(updateFeed).mockResolvedValue({} as never);
+    renderFeedDetail(makeFeed({ description: 'Source text' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'Edit feed description' }));
+    const box = screen.getByLabelText('Feed description override');
+    await userEvent.type(box, 'Hand written');
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(updateFeed).toHaveBeenCalledWith('test-feed', { descriptionOverride: 'Hand written' }));
+  });
+
+  it('sends null when the text is cleared', async () => {
+    vi.mocked(updateFeed).mockResolvedValue({} as never);
+    renderFeedDetail(makeFeed({ description: 'Source text', descriptionOverride: 'Mine' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'Edit feed description' }));
+    await userEvent.clear(screen.getByLabelText('Feed description override'));
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(updateFeed).toHaveBeenCalledWith('test-feed', { descriptionOverride: null }));
+  });
+
+  it('Reset to source saves null', async () => {
+    vi.mocked(updateFeed).mockResolvedValue({} as never);
+    renderFeedDetail(makeFeed({ description: 'Source text', descriptionOverride: 'Mine' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'Edit feed description' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Reset to source' }));
+    await waitFor(() => expect(updateFeed).toHaveBeenCalledWith('test-feed', { descriptionOverride: null }));
+  });
+
+  it('shows the override with a Custom badge, and the source text without one', async () => {
+    const { unmount } = renderFeedDetail(makeFeed({ description: 'Source text', descriptionOverride: 'Mine' }));
+    expect(await screen.findByText('Mine')).toBeTruthy();
+    expect(screen.queryByText('Source text')).toBeNull();
+    expect(screen.getByText('Custom')).toBeTruthy();
+    unmount();
+    renderFeedDetail(makeFeed({ description: 'Source text' }));
+    expect(await screen.findByText('Source text')).toBeTruthy();
+    expect(screen.queryByText('Custom')).toBeNull();
+  });
 });

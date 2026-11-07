@@ -2,39 +2,9 @@
 import os
 import sys
 
-import pytest
-
-from tests.app_bootstrap import authenticate_test_client
+from tests.integration.override_helpers import _csrf
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
-
-
-@pytest.fixture
-def _auth(monkeypatch):
-    monkeypatch.delenv('ADMIN_PASSWORD', raising=False)
-    yield
-
-
-@pytest.fixture
-def seeded_feed(app_client):
-    from api import get_database
-    from werkzeug.security import generate_password_hash
-    db = get_database()
-    # Feed-mutating endpoints require an app password to be configured.
-    db.set_setting('app_password', generate_password_hash('TitleTest123!', method='scrypt'))
-    slug = 'title-feed'
-    db.create_podcast(slug, 'https://example.com/feed.xml', title='Source Show')
-    yield {'slug': slug, 'db': db}
-    try:
-        db.delete_podcast(slug)
-    finally:
-        # Restore the no-password state so this doesn't leak into other
-        # integration tests that share the app_client database.
-        db.set_setting('app_password', '')
-
-
-def _csrf(app_client):
-    return authenticate_test_client(app_client)
 
 
 def test_set_get_and_clear_title_override(app_client, seeded_feed, _auth):

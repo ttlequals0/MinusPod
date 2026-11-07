@@ -483,3 +483,26 @@ def test_review_links_follow_the_feed_override():
     xml = build_local_feed_xml(podcast, episodes, storage=mf.storage, db=mf.db)
     assert f'Second episode\n\n<p><a href="http://localhost:8000/ui/feeds/{slug}/episodes/s01e02">' in xml
     assert 's01e01">Review' in xml
+
+
+def test_overrides_win_over_stored_title_and_description():
+    podcast = _seed('override-feed')
+    mf.db.update_podcast('override-feed', title_override='Renamed Show',
+                         description_override='Hand written\nSecond line')
+    podcast = mf.db.get_podcast_by_slug('override-feed')
+    episodes = _fetch_local_feed_episodes(mf.db, podcast['id'], 500)
+    xml = build_local_feed_xml(podcast, episodes, storage=mf.storage, db=mf.db)
+
+    parsed = feedparser.parse(xml)
+    assert parsed.feed.title == 'Renamed Show'
+    assert parsed.feed.description == 'Hand written\nSecond line'
+
+
+def test_description_override_is_sanitized():
+    _seed('sanitize-feed')
+    mf.db.update_podcast('sanitize-feed', description_override='Safe <script>alert(1)</script>text')
+    podcast = mf.db.get_podcast_by_slug('sanitize-feed')
+    episodes = _fetch_local_feed_episodes(mf.db, podcast['id'], 500)
+    xml = build_local_feed_xml(podcast, episodes, storage=mf.storage, db=mf.db)
+    assert '<script' not in xml
+    assert 'Safe' in xml

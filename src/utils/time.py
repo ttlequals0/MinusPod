@@ -241,6 +241,11 @@ def adjust_timestamp(original_time: float, ads_removed: list[dict],
     # twice. Each source span still carries its own replacement beep.
     merged = merge_cut_spans(ads_removed, default_replacement=replacement_duration)
 
+    return shift_for_merged_cuts(original_time, merged)
+
+
+def shift_for_merged_cuts(original_time: float, merged: list[list[float]]) -> float:
+    """Post-cut position of `original_time` given merge_cut_spans output."""
     adjustment = 0.0
     for ad_start, ad_end, _n_spans, total_replacement in merged:
         if ad_end <= original_time:
