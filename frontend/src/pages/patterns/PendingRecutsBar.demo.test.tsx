@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, test, vi } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { PendingRecutsBar } from './PendingRecutsBar';
@@ -20,7 +20,7 @@ vi.mock('../../api/settings', () => ({
 afterEach(cleanup);
 
 describe('PendingRecutsBar in demo', () => {
-  it('disables Apply recuts with the write tooltip', async () => {
+  test('disables Apply recuts with the write tooltip', async () => {
     render(
       <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
         <PendingRecutsBar />
