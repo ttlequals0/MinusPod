@@ -15,7 +15,7 @@ def make_db(path):
     built.close()
     conn.executemany("INSERT INTO podcasts (id, slug, source_url, title, created_at, updated_at) VALUES (?,?,?,?,?,?)", [
         (1, 'keep', 'https://feeds.example.net/keep', 'Keep', '2026-10-01T00:00:00Z', '2026-10-01T00:00:00Z'),
-        (2, 'paid', 'https://www.patreon.com/rss/paid?auth=tok', 'Paid', '2026-10-01T00:00:00Z', '2026-10-01T00:00:00Z'),
+        (2, 'zzexcluded', 'https://www.patreon.com/rss/paid?auth=tok', 'Zed', '2026-10-01T00:00:00Z', '2026-10-01T00:00:00Z'),
     ])
     conn.executemany("INSERT INTO episodes (podcast_id, episode_id, original_url, title, status, published_at, created_at, updated_at, processed_file) VALUES (?,?,?,?,?,?,?,?,?)", [
         (1, 'new', 'https://cdn/new.mp3', 'New', 'processed', '2026-10-20T00:00:00Z', '2026-10-20T00:00:00Z', '2026-10-20T00:00:00Z', 'episodes/new.mp3'),
@@ -35,11 +35,14 @@ def make_db(path):
         ('8.8.8.8', 'US', 'CA', 'Mountain View', '2026-10-21T00:00:00Z', 'ok'),
     ])
     conn.execute("INSERT INTO processing_history (podcast_id, podcast_slug, episode_id, processed_at, status, log_file) VALUES (1,'keep','new','2026-10-20T01:00:00Z','completed','/app/data/logs/x.log')")
-    conn.execute("INSERT INTO ad_patterns (id, scope, podcast_id, text_template) VALUES (1, 'podcast', 2, 'paid ad')")
+    conn.execute("INSERT INTO ad_patterns (id, scope, podcast_id, text_template) VALUES (1, 'podcast', 'zzexcluded', 'ad one')")
+    conn.execute("INSERT INTO ad_patterns (id, scope, podcast_id, text_template) VALUES (2, 'global', 'zzexcluded', 'ad two')")
+    conn.execute("INSERT INTO pattern_corrections (pattern_id, correction_type, origin) VALUES (1, 'false_positive', 'user')")
+    conn.execute("INSERT INTO ad_reviewer_log (episode_id, podcast_id, pass, pool, original_start, original_end, verdict, model_used, success, created_at) VALUES ('p1','zzexcluded',1,'x',0,1,'v','m',1,'2026-10-20 00:00:00')")
     conn.execute("INSERT INTO audio_fingerprints (pattern_id) VALUES (1)")
     conn.execute("INSERT INTO addressing_log (created_at, podcast_slug, episode_id, pass_name, configured_mode, effective_mode, windows_judged, windows_compliant) VALUES ('2026-08-01T00:00:00Z','keep','old','p1','a','a',1,1)")
     conn.execute("INSERT INTO addressing_log (created_at, podcast_slug, episode_id, pass_name, configured_mode, effective_mode, windows_judged, windows_compliant) VALUES ('2026-10-20T00:00:00Z','keep','new','p1','a','a',1,1)")
-    conn.execute("INSERT INTO ad_reviewer_log (episode_id, podcast_id, pass, pool, original_start, original_end, verdict, model_used, success, created_at) VALUES ('old','1',1,'x',0,1,'v','m',1,'2026-10-20 00:00:00')")
+    conn.execute("INSERT INTO ad_reviewer_log (episode_id, podcast_id, pass, pool, original_start, original_end, verdict, model_used, success, created_at) VALUES ('old','keep',1,'x',0,1,'v','m',1,'2026-10-20 00:00:00')")
     conn.commit()
     conn.close()
 
@@ -47,7 +50,7 @@ def make_db(path):
 def test_snapshot_excludes_windows_scrubs_and_shifts(tmp_path):
     src, out = tmp_path / 'live.db', tmp_path / 'snap.db'
     make_db(src)
-    report = snapshot(src, out, days=30, excluded_slugs={'paid'}, hosts=['pods.example.com'], export_day=date(2026, 11, 6), salt=b'salt')
+    report = snapshot(src, out, days=30, excluded_slugs={'zzexcluded'}, hosts=['pods.example.com'], export_day=date(2026, 11, 6), salt=b'salt')
     conn = sqlite3.connect(out)
     assert [r[0] for r in conn.execute("SELECT slug FROM podcasts")] == ['keep']
     assert [r[0] for r in conn.execute("SELECT episode_id FROM episodes")] == ['new']
@@ -67,7 +70,9 @@ def test_snapshot_excludes_windows_scrubs_and_shifts(tmp_path):
     assert not (tmp_path / 'snap.db-wal').exists()
     assert report.delta_days == 16
     assert conn.execute("SELECT COUNT(*) FROM audio_fingerprints").fetchone()[0] == 0
-    assert conn.execute("SELECT COUNT(*) FROM ad_patterns").fetchone()[0] == 0
+    assert conn.execute("SELECT id, podcast_id FROM ad_patterns").fetchall() == [(2, None)]
+    assert conn.execute("SELECT COUNT(*) FROM pattern_corrections").fetchone()[0] == 0
+    assert b'zzexcluded' not in out.read_bytes()
     assert [r[0] for r in conn.execute("SELECT episode_id FROM addressing_log")] == ['new']
     assert conn.execute("SELECT COUNT(*) FROM ad_reviewer_log").fetchone()[0] == 0
 
@@ -90,7 +95,7 @@ def test_geo_collisions_keep_one_row(tmp_path):
 def test_deleted_rows_do_not_survive_in_file(tmp_path):
     src, out = tmp_path / 'live.db', tmp_path / 'snap.db'
     make_db(src)
-    snapshot(src, out, days=30, excluded_slugs={'paid'}, hosts=[], export_day=date(2026, 11, 6), salt=b's')
+    snapshot(src, out, days=30, excluded_slugs={'zzexcluded'}, hosts=[], export_day=date(2026, 11, 6), salt=b's')
     assert b'auth=tok' not in out.read_bytes()
     assert b'enc:v1:aaa' not in out.read_bytes()
 

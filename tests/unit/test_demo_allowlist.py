@@ -5,6 +5,7 @@ from database.settings import SETTINGS_REGISTRY
 from scripts.demo.export_allowlist import (
     DEMO_SETTINGS_ALLOW,
     DEMO_SETTINGS_EXCLUDE,
+    EPISODE_REF,
     EXPORT_TABLES,
     DROPPED_TABLE_PREFIXES,
     PODCAST_REF,
@@ -138,3 +139,13 @@ def test_podcast_ref_covers_tables_with_podcast_columns(tmp_path):
 
 def test_migrated_columns_are_kept():
     assert {'published_at', 'reprocess_mode', 'detection_degraded'} <= set(EXPORT_TABLES['episodes'])
+
+
+def test_ref_key_kinds_match_column_types(tmp_path):
+    conn = _full_conn(tmp_path)
+    want = {'id': 'INTEGER', 'slug': 'TEXT'}
+    refs = [(t, c, k) for t, (c, k) in PODCAST_REF.items()]
+    refs += [(t, c, k) for t, (c, _e, k) in EPISODE_REF.items() if c]
+    for table, col, kind in refs:
+        decl = {r[1]: r[2].upper() for r in conn.execute(f'PRAGMA table_info({table})')}[col]
+        assert decl == want[kind], (table, col, kind, decl)

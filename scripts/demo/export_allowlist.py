@@ -106,47 +106,51 @@ def _build_export_tables() -> dict[str, list[str]]:
 
 EXPORT_TABLES: dict[str, list[str]] = _build_export_tables()
 
-# Table -> column holding the podcast reference, for cascade deletes.
-PODCAST_REF: dict[str, str] = {
-    'episodes': 'podcast_id',
-    'ad_patterns': 'podcast_id',
-    'pattern_corrections': 'podcast_id',
-    'processing_runs': 'podcast_id',
-    'upload_reservations': 'podcast_id',
-    'feed_subscriber_keys': 'podcast_id',
-    'episode_downloads': 'podcast_id',
-    'processing_history': 'podcast_id',
-    'auto_process_queue': 'podcast_id',
-    'ad_reviewer_log': 'podcast_id',
-    'audio_cue_templates': 'podcast_id',
-    'cue_detections': 'podcast_id',
-    'cue_candidate_scans': 'podcast_id',
-    'cue_threshold_scans': 'podcast_id',
-    'cue_candidate_dismissals': 'podcast_id',
-    'cue_cross_episode_scans': 'podcast_id',
-    'llm_call_usage': 'podcast_id',
-    'systemone_call_diagnostics': 'podcast_id',
-    'pattern_cleanup_suggestions': 'podcast_slug',
-    'pattern_cleanup_checks': 'podcast_slug',
-    'pattern_cleanup_deleted_actions': 'podcast_slug',
-    'addressing_log': 'podcast_slug',
+# Table -> (column holding the podcast reference, what it holds: 'id' is
+# podcasts.id, 'slug' is podcasts.slug) for cascade deletes. ad_patterns and
+# ad_reviewer_log hold the slug in a TEXT podcast_id column.
+PODCAST_REF: dict[str, tuple[str, str]] = {
+    'episodes': ('podcast_id', 'id'),
+    'ad_patterns': ('podcast_id', 'slug'),
+    'pattern_corrections': ('podcast_id', 'id'),
+    'processing_runs': ('podcast_id', 'id'),
+    'upload_reservations': ('podcast_id', 'id'),
+    'feed_subscriber_keys': ('podcast_id', 'id'),
+    'episode_downloads': ('podcast_id', 'id'),
+    'processing_history': ('podcast_id', 'id'),
+    'auto_process_queue': ('podcast_id', 'id'),
+    'ad_reviewer_log': ('podcast_id', 'slug'),
+    'audio_cue_templates': ('podcast_id', 'id'),
+    'cue_detections': ('podcast_id', 'id'),
+    'cue_candidate_scans': ('podcast_id', 'id'),
+    'cue_threshold_scans': ('podcast_id', 'id'),
+    'cue_candidate_dismissals': ('podcast_id', 'id'),
+    'cue_cross_episode_scans': ('podcast_id', 'id'),
+    'llm_call_usage': ('podcast_id', 'id'),
+    'systemone_call_diagnostics': ('podcast_id', 'id'),
+    'pattern_cleanup_suggestions': ('podcast_slug', 'slug'),
+    'pattern_cleanup_checks': ('podcast_slug', 'slug'),
+    'pattern_cleanup_deleted_actions': ('podcast_slug', 'slug'),
+    'addressing_log': ('podcast_slug', 'slug'),
 }
 
-# Table -> (podcast column, episode column) for rows keyed by episode; a
-# podcast column of '' means the table has an episode FK only.
-EPISODE_REF: dict[str, tuple[str, str]] = {
-    'episode_details': ('', 'episode_id'),
-    'pattern_corrections': ('podcast_id', 'episode_id'),
-    'processing_runs': ('podcast_id', 'episode_id'),
-    'episode_downloads': ('podcast_id', 'episode_id'),
-    'processing_history': ('podcast_id', 'episode_id'),
-    'auto_process_queue': ('podcast_id', 'episode_id'),
-    'ad_reviewer_log': ('podcast_id', 'episode_id'),
-    'cue_detections': ('podcast_id', 'episode_id'),
-    'cue_candidate_scans': ('podcast_id', 'episode_id'),
-    'cue_threshold_scans': ('podcast_id', 'episode_id'),
-    'llm_call_usage': ('podcast_id', 'episode_id'),
-    'systemone_call_diagnostics': ('podcast_id', 'episode_id'),
+# Table -> (podcast column, episode column, podcast key kind) for rows keyed by
+# episode; a podcast column of '' means the table has an episode FK only (its
+# episode column is episodes.id).
+EPISODE_REF: dict[str, tuple[str, str, str]] = {
+    'episode_details': ('', 'episode_id', ''),
+    'pattern_corrections': ('podcast_id', 'episode_id', 'id'),
+    'processing_runs': ('podcast_id', 'episode_id', 'id'),
+    'episode_downloads': ('podcast_id', 'episode_id', 'id'),
+    'processing_history': ('podcast_id', 'episode_id', 'id'),
+    'auto_process_queue': ('podcast_id', 'episode_id', 'id'),
+    'ad_reviewer_log': ('podcast_id', 'episode_id', 'slug'),
+    'cue_detections': ('podcast_id', 'episode_id', 'id'),
+    'cue_candidate_scans': ('podcast_id', 'episode_id', 'id'),
+    'cue_threshold_scans': ('podcast_id', 'episode_id', 'id'),
+    'llm_call_usage': ('podcast_id', 'episode_id', 'id'),
+    'systemone_call_diagnostics': ('podcast_id', 'episode_id', 'id'),
+    'addressing_log': ('podcast_slug', 'episode_id', 'slug'),
 }
 
 # -- Settings classification: manual pass over SETTINGS_REGISTRY, grouped by

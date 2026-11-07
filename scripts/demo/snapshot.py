@@ -115,15 +115,16 @@ def drop_episodes(conn: sqlite3.Connection, where: str, params: tuple = ()) -> N
     conn.execute('CREATE INDEX temp._drop_ep_pid ON _drop_ep (pid, eid)')
     conn.execute('CREATE INDEX temp._drop_ep_slug ON _drop_ep (slug, eid)')
     have = user_tables(conn)
-    for table, (pcol, ecol) in EPISODE_REF.items():
+    pairs = {'id': 'pid', 'slug': 'slug'}
+    for table, (pcol, ecol, kind) in EPISODE_REF.items():
         if table not in have:
             continue
         if pcol:
-            conn.execute(f'DELETE FROM {q(table)} WHERE ({q(pcol)}, {q(ecol)}) IN (SELECT pid, eid FROM temp._drop_ep)')
+            conn.execute(
+                f'DELETE FROM {q(table)} WHERE ({q(pcol)}, {q(ecol)}) IN (SELECT {pairs[kind]}, eid FROM temp._drop_ep)'
+            )
         else:
             conn.execute(f'DELETE FROM {q(table)} WHERE {q(ecol)} IN (SELECT id FROM temp._drop_ep)')
-    if 'addressing_log' in have:
-        conn.execute('DELETE FROM addressing_log WHERE (podcast_slug, episode_id) IN (SELECT slug, eid FROM temp._drop_ep)')
     conn.execute('DELETE FROM episodes WHERE id IN (SELECT id FROM temp._drop_ep)')
     conn.execute('DROP TABLE temp._drop_ep')
 
@@ -137,16 +138,23 @@ def exclude_feeds(conn: sqlite3.Connection, excluded_slugs: set[str]) -> int:
     if not rows:
         return 0
     ids = [r[0] for r in rows]
+    slugs = [r[1] for r in rows]
     id_marks = ','.join('?' * len(ids))
+    slug_marks = ','.join('?' * len(slugs))
     drop_episodes(conn, f'podcast_id IN ({id_marks})', tuple(ids))
     have = user_tables(conn)
-    for table, col in PODCAST_REF.items():
-        if table not in have:
+    # mirrors delete_podcast: podcast-scoped patterns go with their dependants,
+    # wider-scope patterns stay but stop naming the feed
+    doomed = f"SELECT id FROM ad_patterns WHERE scope = 'podcast' AND podcast_id IN ({slug_marks})"
+    for table in ('audio_fingerprints', 'pattern_corrections'):
+        conn.execute(f'DELETE FROM {table} WHERE pattern_id IN ({doomed})', slugs)
+    conn.execute(f"DELETE FROM ad_patterns WHERE scope = 'podcast' AND podcast_id IN ({slug_marks})", slugs)
+    conn.execute(f'UPDATE ad_patterns SET podcast_id = NULL WHERE podcast_id IN ({slug_marks})', slugs)
+    for table, (col, kind) in PODCAST_REF.items():
+        if table not in have or table == 'ad_patterns':
             continue
-        if col == 'podcast_slug':
-            conn.execute(f'DELETE FROM {q(table)} WHERE {q(col)} IN ({marks})', slugs)
-        else:
-            conn.execute(f'DELETE FROM {q(table)} WHERE CAST({q(col)} AS TEXT) IN ({id_marks})', [str(i) for i in ids])
+        keys, mk = (slugs, slug_marks) if kind == 'slug' else (ids, id_marks)
+        conn.execute(f'DELETE FROM {q(table)} WHERE {q(col)} IN ({mk})', keys)
     conn.execute(f'DELETE FROM podcasts WHERE id IN ({id_marks})', ids)
     # cascades do not fire with foreign keys off
     for table in ('audio_fingerprints', 'pattern_cleanup_suggestions'):
