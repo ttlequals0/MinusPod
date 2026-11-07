@@ -1,10 +1,10 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import { test, expect } from 'vitest';
 import { suggestionsHandler } from './suggestions';
 
 const rows = [1, 2, 3, 4, 5].map((id) => ({ id, status: id % 2 ? 'pending' : 'applied', kind: id > 3 ? 'trim' : 'split' }));
 const load = async () => ({ status: 200, body: { suggestions: rows } });
-const ids = async (q: string) => ((await suggestionsHandler(new URL(`http://x/api/v1/patterns/cleanup/suggestions?${q}`), load))!.body as any).suggestions.map((r: any) => r.id);
+type Body = { suggestions: typeof rows };
+const ids = async (q: string) => ((await suggestionsHandler(new URL(`http://x/api/v1/patterns/cleanup/suggestions?${q}`), load))!.body as Body).suggestions.map((r) => r.id);
 
 test('newest first by id', async () => {
   expect(await ids('')).toEqual([5, 4, 3, 2, 1]);

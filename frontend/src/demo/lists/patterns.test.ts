@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import { test, expect } from 'vitest';
 import { patternsHandler } from './patterns';
 
@@ -8,7 +7,8 @@ const rows = [
   { id: 3, scope: 'network', podcast_id: null, network_id: 'n1', is_active: true, source: 'community' },
 ];
 const load = async () => ({ status: 200, body: { patterns: rows } });
-const ids = async (q: string) => ((await patternsHandler(new URL(`http://x/api/v1/patterns?${q}`), load))!.body as any).patterns.map((r: any) => r.id);
+type Body = { patterns: typeof rows };
+const ids = async (q: string) => ((await patternsHandler(new URL(`http://x/api/v1/patterns?${q}`), load))!.body as Body).patterns.map((r) => r.id);
 
 test('scope all and no params return everything', async () => {
   expect(await ids('')).toEqual([1, 2, 3]);
