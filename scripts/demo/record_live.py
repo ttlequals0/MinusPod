@@ -263,14 +263,16 @@ def run(args, get=None) -> int:
 
 
 def fetch_peaks(get, record, slug: str, episode_id: str) -> None:
-    key = f'/feeds/{slug}/episodes/{quote(episode_id, safe="")}/peaks?resolution_ms=250'
+    key = f'/feeds/{slug}/episodes/{encode_uri_component(episode_id)}/peaks?resolution_ms=250'
     resp = get(key)
     if resp.status_code == 404:
         return
     if resp.status_code != 200:
         print(f'skipped peaks {slug} ({resp.status_code})')
         return
-    record(key, 200, round_numbers(parse_json(resp, f'/feeds/{slug}/episodes/<id>/peaks')))
+    body = parse_json(resp, f'/feeds/{slug}/episodes/<id>/peaks')
+    body['peaks'] = round_numbers(body['peaks'])
+    record(key, 200, body)
 
 
 def fetch_episode_artwork(get, out: Path, slug: str, episode_id: str) -> None:

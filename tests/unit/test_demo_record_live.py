@@ -140,7 +140,7 @@ def fake_get(extra_body=None, queue=None, feed_art=None):
         if path == '/feeds/keep/episodes/ep4/peaks?resolution_ms=250':
             return resp({'peaks': [0.5]})
         if path == '/feeds/keep/episodes/ep%2F1/peaks?resolution_ms=250':
-            return resp({'peaks': [0.123456, [0.5, 1]], 'start': 0.0})
+            return resp({'peaks': [0.123456, [0.5, 1]], 'start': 12.3456789})
         if path.endswith('/peaks?resolution_ms=250'):
             return resp(status=404)
         if path.endswith('/artwork'):
@@ -201,6 +201,7 @@ def test_run_records_rounded_peaks_and_skips_404(tmp_path):
     key = '/feeds/keep/episodes/ep%2F1/peaks?resolution_ms=250'
     body = json.loads((overrides / index[key]).read_text())['body']
     assert body['peaks'] == [0.123, [0.5, 1]]
+    assert body['start'] == 12.3456789
     assert not any('ep3' in k for k in index)
     assert '/feeds/keep/episodes/ep4/peaks?resolution_ms=250' in index
 
