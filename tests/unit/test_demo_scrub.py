@@ -26,3 +26,4 @@ def test_shift_iso_variants():
 def test_replace_hosts_is_case_insensitive_and_bounded():
     out = replace_hosts('see https://Pods.Example.com/x and pods.example.com:8000 but notpods.example.com', ['pods.example.com'])
     assert out == 'see https://demo.minuspod.app/x and demo.minuspod.app:8000 but notpods.example.com'
+    assert replace_hosts('https://audio.pods.example.com/f', ['pods.example.com']) == 'https://audio.demo.minuspod.app/f'

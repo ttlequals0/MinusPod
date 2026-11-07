@@ -64,6 +64,6 @@ def shift_iso_in_text(text: str, delta_days: int) -> str:
 
 def replace_hosts(text: str, hosts: list[str], replacement: str = 'demo.minuspod.app') -> str:
     for host in hosts:
-        pattern = re.compile(r'(?<![\w.-])' + re.escape(host) + r'''(?=[/:?"'\s]|$)''', re.IGNORECASE)
+        pattern = re.compile(r'(?<![\w-])' + re.escape(host) + r'''(?=[/:?"'\s]|$)''', re.IGNORECASE)
         text = pattern.sub(replacement, text)
     return text
