@@ -8,6 +8,7 @@ import { btnBase, btnPrimary, btnSecondary, touchTarget } from './buttonStyles';
 import { focusRing, textareaBase } from './fieldStyles';
 import { cardTitle } from './pageStyles';
 import { DemoDisabled } from './DemoDisabled';
+import { IS_DEMO } from '../demo/flag';
 
 const STARS = [1, 2, 3, 4, 5] as const;
 const segments = (n: number, kind: string) => `${n} ${kind} ${n === 1 ? 'segment' : 'segments'}`;
@@ -90,7 +91,7 @@ function EpisodeRating({ slug, episodeId, rating, requestedRating, onRequestedRa
   });
 
   useEffect(() => {
-    if (requestHandled.current || !validRequest(requestedRating)) return;
+    if (IS_DEMO || requestHandled.current || !validRequest(requestedRating)) return;
     requestHandled.current = true;
     if (requestedRating !== rating?.value) {
       priorRating.current = rating ?? null;

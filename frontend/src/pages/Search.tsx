@@ -12,7 +12,7 @@ import QueryError from '../components/QueryError';
 import { btnBase, btnSecondary, btnGhost } from '../components/buttonStyles';
 import { focusRing, inputBase, labelBase } from '../components/fieldStyles';
 import { pageHeader, pageTitle, cardTitle, pageDescription } from '../components/pageStyles';
-import { IS_DEMO } from '../demo/flag';
+import { DemoDisabled } from '../components/DemoDisabled';
 
 type FilterType = 'all' | 'episode' | 'podcast' | 'transcript' | 'pattern' | 'sponsor';
 type ResultType = Exclude<FilterType, 'all'>;
@@ -242,10 +242,12 @@ function Search() {
       )}
       <details className="mt-8 border-t border-border pt-4 text-sm">
         <summary className={`cursor-pointer text-muted-foreground py-3 ${focusRing}`}>Search maintenance</summary>
-        <button type="button" onClick={() => rebuildMutation.mutate()} disabled={rebuildMutation.isPending || IS_DEMO}
-          className={`${btnBase} ${btnSecondary}`}>
-          {rebuildMutation.isPending ? 'Rebuilding...' : 'Rebuild index'}
-        </button>
+        <DemoDisabled>
+          <button type="button" onClick={() => rebuildMutation.mutate()} disabled={rebuildMutation.isPending}
+            className={`${btnBase} ${btnSecondary}`}>
+            {rebuildMutation.isPending ? 'Rebuilding...' : 'Rebuild index'}
+          </button>
+        </DemoDisabled>
         {rebuildMutation.isSuccess && <p role="status" className="mt-2">Search index rebuilt.</p>}
         {rebuildMutation.isError && <p role="alert" className="mt-2 text-destructive">Could not rebuild the index. Try again.</p>}
       </details>
