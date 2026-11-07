@@ -11,6 +11,7 @@
 - [Checking resource use](#checking-resource-use)
 - [Quick Start](#quick-start)
 - [CPU-only image (no GPU)](#cpu-only-image-no-gpu)
+- [YouTube only, without transcription or AI](#youtube-only-without-transcription-or-ai)
 - [Intel hybrid CPU tuning (optional)](#intel-hybrid-cpu-tuning-optional)
 
 ## Requirements
@@ -123,6 +124,31 @@ docker compose -f docker-compose.cpu.yml up -d
 That pulls `ttlequals0/minuspod:cpu` (the floating CPU tag). To pin a release, set `MINUSPOD_VERSION=X.Y.Z-cpu` in `.env`. The `:latest` tag is always the GPU image; CPU users track `:cpu` or a versioned `-cpu` tag. For vetted builds, set `MINUSPOD_VERSION=stable-cpu` (or `stable` for GPU): these tags move only after a production soak (see [Releasing & Channels](releasing.md)).
 
 The CPU image transcribes locally with `faster-whisper` or Parakeet. For Parakeet, set `WHISPER_BACKEND=parakeet`; keep `WHISPER_DEVICE=cpu`. A remote backend (`WHISPER_BACKEND=openai-api`) also works: Groq, OpenAI, or a self-hosted whisper.cpp server (see `docker-compose.whisper.yml`). See [Remote Whisper APIs](transcription.md#remote-whisper-apis) for the `.env` settings.
+
+### YouTube only, without transcription or AI
+
+If you only follow YouTube sources, MinusPod can cut sponsor segments from community SponsorBlock marks with no LLM provider and no GPU. There is no setting that removes the transcription backend from the image, so this recipe keeps Whisper idle rather than absent.
+
+1. Use the CPU image (`docker-compose.cpu.yml`) with a minimal `.env`. No provider key is needed:
+
+   ```bash
+   cat > .env << EOF
+   BASE_URL=http://localhost:8000
+   MINUSPOD_MASTER_PASSPHRASE=long-random-string-you-will-not-lose
+   EOF
+   mkdir -p data
+   docker compose -f docker-compose.cpu.yml up -d
+   ```
+
+2. Open Settings > YouTube and turn on **Enable YouTube feeds**. Leave **Use YouTube captions as the transcript** on and **Transcribe when captions are missing** off (both are the defaults).
+3. Turn off **LLM fallback** in Settings > YouTube, or per feed under the feed's YouTube section. With it on, an episode with no marks goes to the LLM pipeline. With it off, the episode keeps waiting for marks and is served unmodified once the watch ceiling passes.
+4. Leave **Pass 1 detection** off for each feed (the default), so the LLM does not run on top of the marks.
+
+With these settings, cuts come from SponsorBlock marks plus learned audio and text patterns. Whisper does not run: captions become the transcript, and a video with no captions is cut from its marks alone with no transcript at all. The configured transcription backend runs only if you turn on **Transcribe when captions are missing**.
+
+Creator chapters from the video are reused. For a video without them, chapters are generated with an LLM call when **Generate Chapters** is on, so turn it off in Settings > Transcripts & Chapters (or set the feed's chapter mode to Off) if you have no provider. In this mode the LLM detection, boundary review and verification stages do not run.
+
+For the full list of settings, see [YouTube Feeds](youtube-feeds.md).
 
 ### Intel hybrid CPU tuning (optional)
 

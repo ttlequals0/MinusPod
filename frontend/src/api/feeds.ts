@@ -481,6 +481,7 @@ export interface UpdateFeedPayload {
   downloadUserAgentOverride?: string | null;
   feedUserAgentOverride?: string | null;
   titleOverride?: string | null;
+  descriptionOverride?: string | null;
   detectionNotes?: string | null;
   chapterNotes?: string | null;
   detectionMode?: string | null;

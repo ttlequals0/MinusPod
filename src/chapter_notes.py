@@ -3,6 +3,8 @@ import html
 import json
 
 from config import resolve_chapters_in_notes
+from database.episodes import parse_applied_cuts
+from description_chapters import has_chapter_timestamp, remap_description_timestamps
 
 
 def chapter_notes_for(db, podcast) -> dict[str, str]:
@@ -48,3 +50,14 @@ def append_chapters(description, chapters_json) -> str:
     # One blank line between the original description and the chapter list.
     parts = [description or '', format_chapter_block(chapters_json)]
     return '\n\n'.join(p for p in parts if p)
+
+
+def compose_item_description(description, cuts_json, chapters_json, *, replacement_duration) -> str:
+    """Remap description timestamps onto the post-cut timeline, then append the chapter list.
+
+    cuts_json is the raw applied_cuts_json string, parsed only when a token could shift.
+    """
+    if cuts_json and has_chapter_timestamp(description):
+        description = remap_description_timestamps(
+            description, parse_applied_cuts(cuts_json), replacement_duration=replacement_duration)
+    return append_chapters(description, chapters_json)

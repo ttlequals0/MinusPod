@@ -58,7 +58,7 @@ To turn the behavior down, use any of these:
 
 ## Enabling the feature
 
-Open Settings > YouTube.
+Open Settings > YouTube. To run YouTube feeds with no LLM provider or GPU, see [YouTube only, without transcription or AI](installation.md#youtube-only-without-transcription-or-ai).
 
 1. Turn on **Enable YouTube feeds**. Until this is on, the Add feed page offers no YouTube lookup, and the watcher, feed refreshes, artwork lookups and playback processing do nothing for YouTube feeds.
 2. Optionally set a **YouTube Data API key**. Without one, MinusPod resolves sources and lists videos with yt-dlp. With one it uses the Data API, which is faster and returns exact publish dates. If the key's daily quota runs out, MinusPod falls back to yt-dlp until the quota resets.
@@ -133,6 +133,7 @@ Three suffixes can follow: `, marked whole video as sponsored` when SponsorBlock
 - **Captions first.** When **Use YouTube captions as the transcript** is on (global default, per-feed override), yt-dlp downloads captions with the audio. MinusPod prefers the creator's track, then the auto-generated track, in the feed's language (the transcription language override, `en` if unset). With the feed language set to auto, the original-language auto captions are used. The captions become the transcript and Whisper is skipped. Speaker-change markers (`>>`) and bracketed sound cues such as `[Music]` are removed from the caption text.
 - **Whisper when none.** With the captions toggle off, the normal transcription backend runs. With it on and a video that has no captions, the backend (Whisper or Parakeet, whichever you configured) runs only if **Transcribe when captions are missing** is on. That setting is global, default off, with a per-feed override. When it is off and the video has SponsorBlock marks, the cuts come from the marks alone and the LLM is skipped, even with **pass 1 detection**, because there is no transcript. With no marks, the episode keeps waiting for them and does not fall back to the LLM. Once the watch ceiling passes, or when you reprocess it, the episode is served unmodified, since there is no transcript to detect ads in.
 - **Creator chapters.** yt-dlp embeds the video's chapters in the audio (`--embed-chapters`). MinusPod reuses them, so the LLM chapter generation call is skipped for those episodes.
+- **Description timestamps.** Timestamps written in the episode description, such as a chapter list in the video description, are shifted by the same cuts as the chapters, so tapping one in a podcast app lands on the right moment. Clock times such as 10:00 AM are left alone.
 - **Artwork.** A channel feed uses the channel avatar. A playlist feed uses the cover set for the playlist on YouTube, or the newest video's thumbnail when no cover is set. You can upload your own or refresh it from the feed's YouTube panel. Episode thumbnails are cached when an episode is processed and served as per-episode artwork.
 
 ## Shorts and duration filters
@@ -234,6 +235,8 @@ The feed page has a YouTube section. Each field inherits the global setting unti
 | Shorts | `youtubeIncludeShorts` | Include videos of 180 seconds or less |
 
 The watch interval and watch ceiling are global only.
+
+The feed page title and description overrides (`titleOverride`, `descriptionOverride`) work on YouTube feeds too, and a hand-written description survives refreshes.
 
 ## OPML export
 

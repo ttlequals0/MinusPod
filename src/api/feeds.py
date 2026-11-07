@@ -182,32 +182,39 @@ def _normalize_feed_user_agent_override(value):
 
 
 _TITLE_OVERRIDE_MAX = 500
+_DESCRIPTION_OVERRIDE_MAX = 10000
 # C0 control characters that XML 1.0 forbids even when escaped (everything
 # below 0x20 except tab/LF/CR), plus DEL. Left in a title they make the served
 # feed not-well-formed and every subscriber's app rejects it.
 _XML_FORBIDDEN_CONTROLS = re.compile(r'[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]')
 
 
-def _normalize_title_override(value):
-    """Validate the per-feed display title override (#375).
-
-    Returns (db_value, error). None / empty / whitespace clears the override
-    (the served feed falls back to the source title). Strips surrounding
-    whitespace, removes XML-forbidden control characters, and collapses any
-    interior whitespace (newlines/tabs) so the served single-line <title>
-    stays well-formed. Rejects non-strings and titles over 500 chars.
-    """
+def _normalize_text_override(value, field, max_len, *, multiline):
+    """Shared override validation; None or blank clears. Single-line collapses all whitespace."""
     if value is None:
         return None, None
     if not isinstance(value, str):
-        return None, "titleOverride must be a string or null"
+        return None, f"{field} must be a string or null"
     val = _XML_FORBIDDEN_CONTROLS.sub('', value)
-    val = re.sub(r'\s+', ' ', val).strip()
+    if multiline:
+        val = re.sub(r'[ \t]+', ' ', val.replace('\r\n', '\n').replace('\r', '\n')).strip()
+    else:
+        val = re.sub(r'\s+', ' ', val).strip()
     if not val:
         return None, None
-    if len(val) > _TITLE_OVERRIDE_MAX:
-        return None, f"titleOverride must be {_TITLE_OVERRIDE_MAX} characters or fewer"
+    if len(val) > max_len:
+        return None, f"{field} must be {max_len} characters or fewer"
     return val, None
+
+
+def _normalize_title_override(value):
+    """Per-feed display title override (#375): single line, capped."""
+    return _normalize_text_override(value, 'titleOverride', _TITLE_OVERRIDE_MAX, multiline=False)
+
+
+def _normalize_description_override(value):
+    """Per-feed description override: newlines kept, capped."""
+    return _normalize_text_override(value, 'descriptionOverride', _DESCRIPTION_OVERRIDE_MAX, multiline=True)
 
 
 def _normalize_notes(value, field):
@@ -976,6 +983,7 @@ def _podcast_base_json(podcast, feed_url, db, global_actions=None) -> dict:
         'feedType': podcast.get('feed_type', 'subscribed'),
         'title': podcast['title'] or podcast['slug'],
         'titleOverride': podcast.get('title_override'),
+        'descriptionOverride': podcast.get('description_override'),
         'downloadUserAgentOverride': podcast.get('download_user_agent_override'),
         'feedUserAgentOverride': podcast.get('feed_user_agent_override'),
         'detectionNotes': podcast.get('detection_notes'),
@@ -2197,6 +2205,12 @@ def update_feed(slug):
             return error_response(title_err, 400)
         updates['title_override'] = title_val
 
+    if 'descriptionOverride' in data:
+        desc_val, desc_err = _normalize_description_override(data['descriptionOverride'])
+        if desc_err:
+            return error_response(desc_err, 400)
+        updates['description_override'] = desc_val
+
     if 'chapterNotes' in data:
         chapter_notes_val, chapter_notes_err = _normalize_chapter_notes(data['chapterNotes'])
         if chapter_notes_err:
@@ -2489,7 +2503,8 @@ def update_feed(slug):
         # and was previously missing from this list, so a local feed's served
         # RSS kept the stale description until the next unrelated refresh.
         if ('max_episodes' in updates or 'only_expose_processed_episodes' in updates
-                or 'title_override' in updates or 'source_url' in updates
+                or 'title_override' in updates or 'description_override' in updates
+                or 'source_url' in updates
                 or 'own_episode_guids' in updates or 'title_skip_patterns' in updates
                 or 'description_skip_patterns' in updates
                 or 'title_skip_action' in updates

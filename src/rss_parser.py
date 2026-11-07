@@ -7,7 +7,8 @@ import os
 import re
 import threading
 import time
-from chapter_notes import append_chapters
+from audio_processor import get_replacement_duration
+from chapter_notes import compose_item_description
 from review_links import append_review_links
 from datetime import datetime, timezone
 from email.utils import format_datetime, parsedate_to_datetime
@@ -337,6 +338,14 @@ def extract_cached_feed_auth_key(cached_rss: str) -> str | None:
     """
     m = _ENCLOSURE_KEY_RE.search(cached_rss) or _COVER_KEY_RE.search(cached_rss)
     return m.group(1) if m else None
+
+
+def effective_channel_text(override, source, *, sanitize=False):
+    """Stripped override when non-blank (sanitized on request), else the source."""
+    text = (override or '').strip()
+    if not text:
+        return source
+    return _sanitize_feed_html(text) if sanitize else text
 
 
 class RSSParser:
@@ -1046,11 +1055,13 @@ class RSSParser:
                     processed_episode_ids: set | None = None,
                     parsed_feed=None,
                     title_override: str | None = None,
+                    description_override: str | None = None,
                     watermark_artwork: bool = False,
                     feed_auth_key: str | None = None,
                     own_episode_guids: bool = False,
                     hide_title_patterns: str | None = None,
                     chapter_notes: dict[str, str] | None = None,
+                    applied_cuts: dict[str, str] | None = None,
                     hide_min_duration_seconds: float | None = None,
                     hide_max_duration_seconds: float | None = None,
                     hide_description_patterns: str | None = None,
@@ -1064,6 +1075,7 @@ class RSSParser:
             title_override: When non-empty, replaces the channel title shown to
                 subscribers (issue #375) so a processed feed can be told apart
                 from the source. Episode titles are unaffected.
+            description_override: When non-empty, replaces the channel description.
             storage: Optional Storage instance for checking Podcasting 2.0 assets
             max_episodes: Max episodes to include in feed (1-500, default 300)
             extra_episodes: Processed episodes from DB to append beyond the cap.
@@ -1081,6 +1093,7 @@ class RSSParser:
                 feed_content for backwards compatibility.
             chapter_notes: {episode_id: chapters_json} to append to
                 descriptions (#720); empty or None appends nothing.
+            applied_cuts: {episode_id: raw applied_cuts_json} used to shift description timestamps.
             review_link_ids: Episode ids whose descriptions get review and rate links.
             itunes_block: Emit itunes:block Yes and drop the upstream value.
             feed_auth_key: Global feed auth key (authenticated feeds). When
@@ -1115,17 +1128,19 @@ class RSSParser:
         # Located once and threaded through the metadata / artwork / PC2
         # helpers; None makes each of them re-parse and log for itself.
         channel_elem = self.find_channel_element(feed_content)
+        replacement_duration = get_replacement_duration()
 
         fields = self.resolve_channel_fields(feed_content, parsed_feed=feed,
                                              channel=channel_elem)
         # Per-feed title override (#375): the rename must actually change the
         # channel title subscribers see, not just the DB/UI.
-        effective_title = (title_override if (title_override or '').strip()
-                           else fields['title'])
+        effective_title = effective_channel_text(title_override, fields['title'])
         channel_link = fields['link']
         lines.append(f'<title>{self._escape_xml(effective_title)}</title>')
         lines.append(f'<link>{self._escape_xml(channel_link)}</link>')
-        lines.append(f'<description><![CDATA[{self._escape_cdata(fields["description"])}]]></description>')
+        effective_description = effective_channel_text(
+            description_override, fields['description'], sanitize=True)
+        lines.append(f'<description><![CDATA[{self._escape_cdata(effective_description)}]]></description>')
         lines.append(f'<language>{self._escape_xml(fields["language"] or "en")}</language>')
 
         # Pass through standard RSS + iTunes channel metadata from upstream
@@ -1244,8 +1259,9 @@ class RSSParser:
             modified_url = episode_public_url(self._resolved_base_url(), slug,
                                               episode_id, key=feed_auth_key)
 
-            description = append_chapters(self._get_episode_description(entry),
-                                          (chapter_notes or {}).get(episode_id))
+            description = compose_item_description(
+                self._get_episode_description(entry), (applied_cuts or {}).get(episode_id),
+                (chapter_notes or {}).get(episode_id), replacement_duration=replacement_duration)
             if episode_id in review_link_ids:
                 description = append_review_links(description, slug, episode_id)
             lines.append('<item>')
@@ -1325,6 +1341,8 @@ class RSSParser:
                 self._append_db_episode_item(lines, slug, ep, storage,
                                              feed_auth_key,
                                              chapter_notes=chapter_notes,
+                                             applied_cuts=applied_cuts,
+                                             replacement_duration=replacement_duration,
                                              review_links=ep_id in review_link_ids)
                 appended_count += 1
 
@@ -1407,13 +1425,16 @@ class RSSParser:
 
     def _append_db_episode_item(self, lines: list, slug: str, ep: dict, storage,
                                 feed_auth_key=None, chapter_notes=None,
-                                review_links=False) -> None:
+                                review_links=False, applied_cuts=None,
+                                replacement_duration=0.0) -> None:
         """Append a single <item> for a processed episode from the database."""
         ep_id = ep['episode_id']
         modified_url = episode_public_url(self._resolved_base_url(), slug, ep_id,
                                            ep.get('processed_version'),
                                            key=feed_auth_key)
-        description = append_chapters(ep.get('description'), (chapter_notes or {}).get(ep_id))
+        description = compose_item_description(
+            ep.get('description'), (applied_cuts or {}).get(ep_id),
+            (chapter_notes or {}).get(ep_id), replacement_duration=replacement_duration)
         if review_links:
             description = append_review_links(description, slug, ep_id)
         lines.append('<item>')

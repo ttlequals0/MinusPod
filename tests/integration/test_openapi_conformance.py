@@ -212,7 +212,7 @@ def test_served_spec_carries_running_version(seeded):
 
 
 MUTATIONS = [
-    ('patch', '/feeds/{slug}', {'titleOverride': 'Renamed'}),
+    ('patch', '/feeds/{slug}', {'titleOverride': 'Renamed', 'descriptionOverride': 'About'}),
     ('put', '/feeds/{slug}/tags', {'user_tags': []}),
     ('put', '/settings/ad-detection', {'whisperBackend': 'local'}),
     ('put', '/settings/provider-budget',

@@ -2,6 +2,7 @@
 from a cross-feed membership query with every item under its source slug."""
 import logging
 
+from audio_processor import get_replacement_duration
 from config import resolve_toggle
 from database.podcasts import RECENTS_SLUG, is_recents_feed, recents_cutoff
 from database.settings import feed_itunes_block_enabled
@@ -22,6 +23,7 @@ def build_recents_feed_xml(podcast: dict, episodes: list[dict], *, storage, db) 
     review_default = db.get_setting_bool('review_links_in_notes', False)
     title = podcast.get('title') or 'Recents'
     channel_link = f"{base}/{RECENTS_SLUG}"
+    replacement_duration = get_replacement_duration()
 
     lines = _channel_open(title, channel_link, podcast.get('description') or '',
                           itunes_block=feed_itunes_block_enabled(db))
@@ -38,8 +40,11 @@ def build_recents_feed_xml(podcast: dict, episodes: list[dict], *, storage, db) 
         list_chapters = resolve_toggle(ep.get('source_chapters_in_notes'), chapters_default)
         # Per-item map: episode ids are only unique within a feed.
         notes = {ep['episode_id']: ep['chapters_json']} if list_chapters else {}
+        cuts_json = ep.get('applied_cuts_json')
         _append_local_episode_item(lines, ep['source_slug'], ep, base, storage, feed_auth_key,
                                    chapter_notes=notes, title_prefix=f"{ep['source_title']}: ",
+                                   applied_cuts={ep['episode_id']: cuts_json} if cuts_json else None,
+                                   replacement_duration=replacement_duration,
                                    has_transcript=bool(ep['has_transcript_vtt']),
                                    has_chapters=bool(ep['chapters_json']),
                                    review_links=resolve_toggle(

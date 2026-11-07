@@ -363,7 +363,7 @@ class PodcastMixin:
                 'network_id_override', 'audio_analysis_override', 'auto_process_override',
                 'auto_process_max_age_hours_override',
                 'language_override', 'download_user_agent_override', 'feed_user_agent_override',
-                'title_override', 'detection_notes', 'detection_mode', 'chapter_notes',
+                'title_override', 'description_override', 'detection_notes', 'detection_mode', 'chapter_notes',
                 'chapters_mode', 'chapters_in_notes', 'review_links_in_notes',
                 'own_episode_guids',
                 'cue_template_score_override',

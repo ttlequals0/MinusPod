@@ -875,6 +875,7 @@ def _build_and_save_served_rss(slug, feed_content, parsed_feed, podcast):
     # even though the stored key is retained for re-enable.
     feed_auth_key = active_feed_key(db)
     chapter_notes = chapter_notes_for(db, podcast)
+    applied_cuts = db.get_applied_cuts_for_podcast(podcast['id'])
     itunes_block = feed_itunes_block_enabled(db)
     # Hide applies both title and duration exclusions to served RSS.
     hide_filters = podcast if podcast.get('title_skip_action') == 'hide' else {}
@@ -885,6 +886,7 @@ def _build_and_save_served_rss(slug, feed_content, parsed_feed, podcast):
                                           processed_episode_ids=processed_ids,
                                           parsed_feed=parsed_feed,
                                           title_override=(podcast or {}).get('title_override'),
+                                          description_override=(podcast or {}).get('description_override'),
                                           watermark_artwork=watermark_artwork,
                                           feed_auth_key=feed_auth_key,
                                           own_episode_guids=(podcast or {}).get('own_episode_guids'),
@@ -893,6 +895,7 @@ def _build_and_save_served_rss(slug, feed_content, parsed_feed, podcast):
                                           hide_min_duration_seconds=hide_filters.get('min_duration_seconds'),
                                           hide_max_duration_seconds=hide_filters.get('max_duration_seconds'),
                                           chapter_notes=chapter_notes,
+                                          applied_cuts=applied_cuts,
                                           review_link_ids=review_link_ids,
                                           itunes_block=itunes_block)
     storage.save_rss(slug, modified_rss)
