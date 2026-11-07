@@ -27,6 +27,8 @@ def scrub_source_url(url: str, slug: str) -> str:
     private = any(_host_matches(host, h) for h in PRIVATE_FEED_HOSTS)
     private = private or (bool(parsed.query) and any(_host_matches(host, h) for h in QUERY_ONLY_HOSTS))
     tokenised = bool(parsed.query) or any(_TOKEN_SEGMENT.fullmatch(s) for s in parsed.path.split('/'))
+    if parsed.username is not None or parsed.password is not None or parsed.fragment:
+        return f'https://example.com/feeds/{slug}.xml'
     if private or tokenised:
         return f'https://example.com/feeds/{slug}.xml'
     return url
@@ -37,7 +39,8 @@ def map_ip(ip: str, salt: bytes) -> str:
         addr = ipaddress.ip_address(ip)
     except ValueError:
         return '203.0.113.0'
-    if addr.is_private or addr.is_loopback or addr.is_link_local:
+    # is_private already covers loopback and link-local
+    if addr.is_private:
         return ip
     digest = hmac.new(salt, ip.encode('utf-8'), hashlib.sha256).digest()
     if addr.version == 4:
@@ -49,12 +52,15 @@ def map_ip(ip: str, salt: bytes) -> str:
 
 def shift_iso(value: str, delta_days: int) -> str:
     delta = timedelta(days=delta_days)
-    if _ISO_DATE.fullmatch(value):
-        return (datetime.strptime(value, '%Y-%m-%d') + delta).strftime('%Y-%m-%d')
-    if _ISO_TS.fullmatch(value):
-        z = value.endswith('Z')
-        shifted = datetime.strptime(value.rstrip('Z'), '%Y-%m-%dT%H:%M:%S') + delta
-        return shifted.strftime('%Y-%m-%dT%H:%M:%S') + ('Z' if z else '')
+    try:
+        if _ISO_DATE.fullmatch(value):
+            return (datetime.strptime(value, '%Y-%m-%d') + delta).strftime('%Y-%m-%d')
+        if _ISO_TS.fullmatch(value):
+            z = value.endswith('Z')
+            shifted = datetime.strptime(value.rstrip('Z'), '%Y-%m-%dT%H:%M:%S') + delta
+            return shifted.strftime('%Y-%m-%dT%H:%M:%S') + ('Z' if z else '')
+    except ValueError:
+        pass
     return value
 
 
@@ -64,6 +70,6 @@ def shift_iso_in_text(text: str, delta_days: int) -> str:
 
 def replace_hosts(text: str, hosts: list[str], replacement: str = 'demo.minuspod.app') -> str:
     for host in hosts:
-        pattern = re.compile(r'(?<![\w-])' + re.escape(host) + r'''(?=[/:?"'\s]|$)''', re.IGNORECASE)
+        pattern = re.compile(r'(?<![\w-])' + re.escape(host) + r'(?!(?:\.[\w-])|[\w-])', re.IGNORECASE)
         text = pattern.sub(replacement, text)
     return text
