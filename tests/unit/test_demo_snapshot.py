@@ -128,3 +128,31 @@ def test_fractional_and_offset_timestamps_shift_in_sql_pass(tmp_path):
     snapshot(src, out, days=30, excluded_slugs=set(), hosts=[], export_day=date(2026, 11, 6), salt=b's')
     conn = sqlite3.connect(out)
     assert conn.execute("SELECT description FROM episodes").fetchone()[0] == '2026-10-17T00:00:00+00:00'
+
+
+def test_leak_check_flags_key_shaped_text_and_main_exits_2(tmp_path):
+    src, out = tmp_path / 'live.db', tmp_path / 'snap.db'
+    make_db(src)
+    conn = sqlite3.connect(src)
+    conn.execute("UPDATE podcasts SET description = ? WHERE slug = 'keep'", ('sk-ant-' + 'a1B2c3D4e5' * 3,))
+    conn.commit()
+    conn.close()
+    report = snapshot(src, out, days=30, excluded_slugs=set(), hosts=[], export_day=date(2026, 11, 6), salt=b's')
+    assert [h.pattern for h in report.leaks] == ['anthropic_key']
+    assert main(['--source', str(src), '--out', str(tmp_path / 'o.db'), '--exclusions', str(tmp_path / 'ex.json'), '--export-day', '2026-11-06']) == 1
+    (tmp_path / 'ex.json').write_text('{"slugs": []}')
+    assert main(['--source', str(src), '--out', str(tmp_path / 'o.db'), '--exclusions', str(tmp_path / 'ex.json'), '--export-day', '2026-11-06']) == 2
+
+
+def test_excluded_slugs_without_podcast_row_still_clean_patterns(tmp_path):
+    src, out = tmp_path / 'live.db', tmp_path / 'snap.db'
+    make_db(src)
+    conn = sqlite3.connect(src)
+    conn.execute('DELETE FROM episodes WHERE podcast_id = 2')
+    conn.execute('DELETE FROM episode_downloads WHERE podcast_id = 2')
+    conn.execute("DELETE FROM podcasts WHERE slug = 'zzexcluded'")
+    conn.commit()
+    conn.close()
+    snapshot(src, out, days=30, excluded_slugs={'zzexcluded'}, hosts=[], export_day=date(2026, 11, 6), salt=b's')
+    conn = sqlite3.connect(out)
+    assert conn.execute("SELECT id, podcast_id FROM ad_patterns").fetchall() == [(2, None)]

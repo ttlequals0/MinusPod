@@ -20,6 +20,7 @@ from scripts.demo.export_allowlist import (
     SETTINGS_FORCE,
     SETTINGS_FORCE_UNREGISTERED,
 )
+from scripts.demo.leak_check import Hit, check_sqlite, report_hits
 from scripts.demo.scrub import (
     map_ip,
     replace_hosts,
@@ -57,6 +58,7 @@ class SnapshotReport:
     unclassified_tables: list[str] = field(default_factory=list)
     delta_days: int = 0
     output_bytes: int = 0
+    leaks: list[Hit] = field(default_factory=list)
 
 
 def q(name: str) -> str:
@@ -134,14 +136,11 @@ def exclude_feeds(conn: sqlite3.Connection, excluded_slugs: set[str]) -> int:
         return 0
     marks = ','.join('?' * len(excluded_slugs))
     slugs = sorted(excluded_slugs)
-    rows = conn.execute(f'SELECT id, slug FROM podcasts WHERE slug IN ({marks})', slugs).fetchall()
-    if not rows:
-        return 0
-    ids = [r[0] for r in rows]
-    slugs = [r[1] for r in rows]
+    ids = [r[0] for r in conn.execute(f'SELECT id FROM podcasts WHERE slug IN ({marks})', slugs)]
     id_marks = ','.join('?' * len(ids))
-    slug_marks = ','.join('?' * len(slugs))
-    drop_episodes(conn, f'podcast_id IN ({id_marks})', tuple(ids))
+    slug_marks = marks
+    if ids:
+        drop_episodes(conn, f'podcast_id IN ({id_marks})', tuple(ids))
     have = user_tables(conn)
     # mirrors delete_podcast: podcast-scoped patterns go with their dependants,
     # wider-scope patterns stay but stop naming the feed
@@ -154,8 +153,11 @@ def exclude_feeds(conn: sqlite3.Connection, excluded_slugs: set[str]) -> int:
         if table not in have or table == 'ad_patterns':
             continue
         keys, mk = (slugs, slug_marks) if kind == 'slug' else (ids, id_marks)
+        if not keys:
+            continue
         conn.execute(f'DELETE FROM {q(table)} WHERE {q(col)} IN ({mk})', keys)
-    conn.execute(f'DELETE FROM podcasts WHERE id IN ({id_marks})', ids)
+    if ids:
+        conn.execute(f'DELETE FROM podcasts WHERE id IN ({id_marks})', ids)
     # cascades do not fire with foreign keys off
     for table in ('audio_fingerprints', 'pattern_cleanup_suggestions'):
         if table in have:
@@ -331,7 +333,7 @@ def snapshot(
             conn.close()
     finally:
         shutil.rmtree(work_dir, ignore_errors=True)
-    # Task 4 wires the leak check here; exit code 2 is reserved for its failures.
+    report.leaks = check_sqlite(out, hosts)
     report.output_bytes = out.stat().st_size
     return report
 
@@ -373,6 +375,10 @@ def main(argv: list[str] | None = None) -> int:
         args.source, args.out, days=args.days, excluded_slugs=slugs, hosts=hosts,
         export_day=args.export_day or date.today(), salt=os.urandom(32),
     )
+    if report.leaks:
+        print(f'LEAK CHECK FAILED: {len(report.leaks)} hits in {args.out}', file=sys.stderr)
+        report_hits(report.leaks)
+        return 2
     print(f'feeds kept      | {report.feeds_kept}')
     print(f'feeds excluded  | {report.feeds_excluded}')
     print(f'episodes kept   | {report.episodes_kept}')
