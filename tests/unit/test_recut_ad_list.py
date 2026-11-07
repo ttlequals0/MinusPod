@@ -15,7 +15,7 @@ _test_data_dir = bootstrap('recut_test_')
 
 from config import PASS2_REVIEWED_RELEASE_HOLD_REASONS
 from main_app import processing
-from main_app.pipeline import detect, cuts, publish, recut
+from main_app.pipeline import detect, cuts, keep_rules, publish, recut
 from main_app.pipeline import common, review, verify, finalize
 from utils.markers import explicit_override
 from tests.unit.pass2_test_utils import _user_corrections
@@ -212,29 +212,55 @@ def test_apply_boundary_adjustments_skips_ambiguous_disjoint_move(monkeypatch, c
     assert 'spans several markers and matches none' in caplog.text
 
 
-def test_build_recut_ad_list_cuts_both_split_pieces(monkeypatch):
-    ads = [{'start': 1000.0, 'end': 1150.0, 'confidence': 1.0, 'sponsor': 'Acme',
-            'reason': 'Split from 1000.0s-1400.0s block'},
-           {'start': 1150.0, 'end': 1400.0, 'confidence': 1.0, 'sponsor': 'Acme',
-            'reason': 'Split from 1000.0s-1400.0s block'}]
-    _stub_recut_db(monkeypatch, ads, confirmed=[{
-        'start': 1000.0, 'end': 1400.0, 'correction_type': 'boundary_adjustment',
-        'confirmed_span': {'start': 1000.0, 'end': 1150.0}}])
+_SPLIT_ADS = [
+    {'start': 1000.0, 'end': 1150.0, 'confidence': 1.0, 'sponsor': 'Acme',
+     'reason': 'Split from 1000.0s-1400.0s block'},
+    {'start': 1150.0, 'end': 1400.0, 'confidence': 1.0, 'sponsor': 'Acme',
+     'reason': 'Split from 1000.0s-1400.0s block'}]
+_SPLIT_ROW = {'start': 1000.0, 'end': 1150.0, 'correction_type': 'boundary_adjustment',
+              'confirmed_span': {'start': 1000.0, 'end': 1150.0}}
+_LEGACY_SPLIT_ROW = {**_SPLIT_ROW, 'end': 1400.0}
+
+
+def _recut_split_cuts(monkeypatch, confirmed_row, adjustment):
+    ads = [dict(a) for a in _SPLIT_ADS]
+    _stub_recut_db(monkeypatch, ads, confirmed=[confirmed_row])
     monkeypatch.setattr(
-        processing.db, 'get_episode_corrections',
-        lambda podcast_id, eid: [_boundary_adjustment(1000.0, 1400.0, 1000.0, 1150.0)])
+        processing.db, 'get_episode_corrections', lambda podcast_id, eid: [adjustment])
+    corrections = _user_corrections('slug', 'ep')
     ads_to_remove, all_ads, *_ = recut._build_recut_ad_list(
-        'slug', 'ep', [], 3600.0, '', 0.80,
-        corrections=_user_corrections('slug', 'ep'))
+        'slug', 'ep', [], 3600.0, '', 0.80, corrections=corrections)
+    return ads_to_remove, all_ads, corrections
+
+
+def test_build_recut_ad_list_cuts_both_split_pieces(monkeypatch):
+    ads_to_remove, all_ads, _ = _recut_split_cuts(
+        monkeypatch, _SPLIT_ROW, _boundary_adjustment(1000.0, 1150.0, 1000.0, 1150.0))
     assert sorted((a['start'], a['end']) for a in ads_to_remove) == [
         (1000.0, 1150.0), (1150.0, 1400.0)]
     assert len(all_ads) == 2
 
 
+def test_split_pieces_survive_confirmed_span_restore(monkeypatch):
+    ads_to_remove, all_ads, corrections = _recut_split_cuts(
+        monkeypatch, _SPLIT_ROW, _boundary_adjustment(1000.0, 1150.0, 1000.0, 1150.0))
+    kept_cuts, _ = keep_rules._restore_confirmed_spans(
+        ads_to_remove, all_ads, corrections, 3600.0, 0.0)
+    assert sorted((a['start'], a['end']) for a in kept_cuts) == [
+        (1000.0, 1150.0), (1150.0, 1400.0)]
+
+
+def test_legacy_whole_span_split_row_carves_later_pieces(monkeypatch):
+    # The pre-#967 row shape reads as a trim, so the restore drops the later piece.
+    ads_to_remove, all_ads, corrections = _recut_split_cuts(
+        monkeypatch, _LEGACY_SPLIT_ROW, _boundary_adjustment(1000.0, 1400.0, 1000.0, 1150.0))
+    kept_cuts, _ = keep_rules._restore_confirmed_spans(
+        ads_to_remove, all_ads, corrections, 3600.0, 0.0)
+    assert [(a['start'], a['end']) for a in kept_cuts] == [(1000.0, 1150.0)]
+
+
 def test_explicit_override_recognises_split_piece_zero():
-    confirmed = [{'start': 1000.0, 'end': 1400.0, 'correction_type': 'boundary_adjustment',
-                  'confirmed_span': {'start': 1000.0, 'end': 1150.0}}]
-    assert explicit_override({'start': 1000.0, 'end': 1150.0}, confirmed)
+    assert explicit_override({'start': 1000.0, 'end': 1150.0}, [_SPLIT_ROW])
 
 
 def test_final_confirmed_bounds_sync_cut_and_master(monkeypatch):

@@ -3,6 +3,7 @@ import json
 
 import pytest
 
+from ad_validator import user_trimmed_keep_ranges
 from api import get_database
 
 
@@ -178,6 +179,19 @@ class TestSplitting:
             'SELECT correction_type FROM pattern_corrections WHERE episode_id = ?'
             ' ORDER BY id', (merged['episodeId'],)).fetchall()]
         assert types == ['boundary_adjustment', 'create', 'create']
+
+    def test_first_piece_row_is_recorded_against_its_own_piece(self, app_client, merged):
+        """A whole-span original would make trim protection keep the later pieces (#967)."""
+        _split(app_client, merged, [130.0, 160.0])
+        db = merged['db']
+        podcast_id = db.get_podcast_by_slug(merged['slug'])['id']
+        first = db.get_connection().execute(
+            'SELECT original_bounds, corrected_bounds FROM pattern_corrections '
+            'WHERE episode_id = ? ORDER BY id LIMIT 1', (merged['episodeId'],)).fetchone()
+        assert json.loads(first['original_bounds']) == json.loads(first['corrected_bounds'])
+        assert json.loads(first['corrected_bounds']) == {'start': 100.0, 'end': 130.0}
+        confirmed = db.get_confirmed_corrections(podcast_id, merged['episodeId'])
+        assert user_trimmed_keep_ranges(confirmed) == []
 
     def test_splitting_a_held_marker_keeps_pending_count_in_sync(self, app_client, merged):
         held = dict(MERGED_MARKER, held_for_review=True, was_cut=False,

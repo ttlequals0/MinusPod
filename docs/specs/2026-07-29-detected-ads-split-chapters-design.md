@@ -145,8 +145,11 @@ it closes the issue.
    place, so adding `split` would mean rebuilding a table that holds the
    entire correction history. Given the project rule against risking data in
    migrations, the split instead writes existing types: `boundary_adjustment`
-   for the first piece against the original bounds, `create` for each
-   remaining piece. Every downstream consumer, including `marker_resolution`
+   for the first piece, `create` for each remaining piece. The first piece's
+   row is recorded against that piece's own bounds (original and corrected
+   equal) so trim protection does not treat the remainder as kept audio
+   (#967). A one-shot startup migration repairs rows saved before that
+   change. Every downstream consumer, including `marker_resolution`
    in `src/detection_review.py` and pattern health, keeps working unchanged.
 
    Accepted cost: no correction row is labelled a split. The bounds and the
