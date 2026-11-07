@@ -15,6 +15,7 @@ downloads/
 eggs/
 .eggs/
 lib/
+!scripts/demo/crawl/lib/
 lib64/
 # Python lib/ rules above accidentally swallow smoke/lib/; allow it back.
 !smoke/lib/

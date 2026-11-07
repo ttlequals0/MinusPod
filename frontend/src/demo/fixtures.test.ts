@@ -1,3 +1,6 @@
+import { readFileSync } from 'node:fs';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { test, expect, vi } from 'vitest';
 import { fixtureKey, emptyDefault, loadFixture, resolveFixture, __setIndexForTests, __setLoaderForTests } from './fixtures';
 
@@ -43,4 +46,10 @@ test('concurrent loadFixture calls for one key share a single load', async () =>
   const [a, b] = await Promise.all([loadFixture('/settings'), loadFixture('/settings')]);
   expect(a).toBe(b);
   expect(loader).toHaveBeenCalledTimes(1);
+});
+
+test('fixtureKey matches the shared key vectors', () => {
+  const file = resolve(dirname(fileURLToPath(import.meta.url)), '../../../scripts/demo/crawl/lib/key-vectors.json');
+  const vectors = JSON.parse(readFileSync(file, 'utf8')) as Record<string, string>;
+  for (const [url, key] of Object.entries(vectors)) expect(fixtureKey(url)).toBe(key);
 });
