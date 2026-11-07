@@ -1,6 +1,7 @@
 import LoadingSpinner from '../../components/LoadingSpinner';
 import { RefreshCw } from 'lucide-react';
 import { btnBase, btnSecondary, btnGhost } from '../../components/buttonStyles';
+import { DemoDisabled } from '../../components/DemoDisabled';
 
 interface RefreshModelsButtonProps {
   onClick: () => void;
@@ -12,36 +13,40 @@ interface RefreshModelsButtonProps {
 function RefreshModelsButton({ onClick, isPending, variant = 'chip' }: RefreshModelsButtonProps) {
   if (variant === 'link') {
     return (
+      <DemoDisabled>
+        <button
+          type="button"
+          onClick={onClick}
+          disabled={isPending}
+          className={`${btnBase} ${btnGhost} text-primary`}
+        >
+          {isPending ? 'Refreshing...' : 'Refresh models'}
+        </button>
+      </DemoDisabled>
+    );
+  }
+  return (
+    <DemoDisabled>
       <button
         type="button"
         onClick={onClick}
         disabled={isPending}
-        className={`${btnBase} ${btnGhost} text-primary`}
+        className={`${btnBase} ${btnSecondary}`}
+        title="Refresh model list from provider"
       >
-        {isPending ? 'Refreshing...' : 'Refresh models'}
+        {isPending ? (
+          <>
+            <LoadingSpinner inline className="w-4 h-4" />
+            Refreshing...
+          </>
+        ) : (
+          <>
+            <RefreshCw className="w-4 h-4" aria-hidden="true" />
+            Refresh
+          </>
+        )}
       </button>
-    );
-  }
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      disabled={isPending}
-      className={`${btnBase} ${btnSecondary}`}
-      title="Refresh model list from provider"
-    >
-      {isPending ? (
-        <>
-          <LoadingSpinner inline className="w-4 h-4" />
-          Refreshing...
-        </>
-      ) : (
-        <>
-          <RefreshCw className="w-4 h-4" aria-hidden="true" />
-          Refresh
-        </>
-      )}
-    </button>
+    </DemoDisabled>
   );
 }
 

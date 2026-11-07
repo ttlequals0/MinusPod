@@ -16,6 +16,7 @@ import { useScanQuery } from '../hooks/useScanQuery';
 import { AuditionPlayButton } from './AuditionPlayButton';
 import { btnBase, btnPrimary, btnSecondary, btnGhost } from './buttonStyles';
 import { badgeBase, tint } from './badgeStyles';
+import { DemoDisabled } from './DemoDisabled';
 
 interface CueCandidatesSectionProps {
   slug: string;
@@ -250,14 +251,16 @@ function CueCandidatesSection({
                     >
                       Make template
                     </button>
-                    <button
-                      onClick={() => { stopPreview(); dismissMutation.mutate(c); }}
-                      disabled={dismissMutation.isPending}
-                      title="Not a cue: hide this sound in every episode of this feed"
-                      className={`${secondaryBtn} flex-1 sm:flex-none`}
-                    >
-                      Hide
-                    </button>
+                    <DemoDisabled>
+                      <button
+                        onClick={() => { stopPreview(); dismissMutation.mutate(c); }}
+                        disabled={dismissMutation.isPending}
+                        title="Not a cue: hide this sound in every episode of this feed"
+                        className={`${secondaryBtn} flex-1 sm:flex-none`}
+                      >
+                        Hide
+                      </button>
+                    </DemoDisabled>
                   </div>
                 </div>
               </div>
@@ -290,13 +293,15 @@ function CueCandidatesSection({
                         {d.label || 'Hidden sound'}
                         {d.sourceEpisodeId !== episodeId && ' (from another episode)'}
                       </span>
-                      <button
-                        onClick={() => undoMutation.mutate(d.id)}
-                        disabled={undoMutation.isPending}
-                        className={`${secondaryBtn} shrink-0`}
-                      >
-                        Undo
-                      </button>
+                      <DemoDisabled>
+                        <button
+                          onClick={() => undoMutation.mutate(d.id)}
+                          disabled={undoMutation.isPending}
+                          className={`${secondaryBtn} shrink-0`}
+                        >
+                          Undo
+                        </button>
+                      </DemoDisabled>
                     </div>
                   ))}
                 </div>

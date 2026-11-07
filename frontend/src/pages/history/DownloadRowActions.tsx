@@ -10,6 +10,8 @@ import { useSubscriberKeyActions } from '../../hooks/useSubscriberKeyActions';
 import { blockPatternFor } from '../../utils/userAgent';
 import { btnBase, btnOutline } from '../../components/buttonStyles';
 import { cardTitle } from '../../components/pageStyles';
+import { IS_DEMO } from '../../demo/flag';
+import { DEMO_WRITE_TOOLTIP } from '../../demo/copy';
 
 interface Props {
   row: DownloadHistoryEntry;
@@ -100,16 +102,16 @@ function DownloadRowActions({ row, blocked, triggerClassName = '' }: Props) {
     {
       title: 'Block user agent',
       onClick: () => open('block'),
-      disabled: alreadyBlocked || noAgent || blocked === undefined,
-      tooltip: alreadyBlocked ? 'Already blocked' : noAgent ? 'No user agent' : undefined,
+      disabled: IS_DEMO || alreadyBlocked || noAgent || blocked === undefined,
+      tooltip: IS_DEMO ? DEMO_WRITE_TOOLTIP : alreadyBlocked ? 'Already blocked' : noAgent ? 'No user agent' : undefined,
     },
   ];
   if (row.subscriberKeyId) {
     items.push({
       title: 'Revoke subscriber',
       onClick: () => open('revoke'),
-      disabled: row.subscriberRevoked,
-      tooltip: row.subscriberRevoked ? 'Already revoked' : undefined,
+      disabled: IS_DEMO || row.subscriberRevoked,
+      tooltip: IS_DEMO ? DEMO_WRITE_TOOLTIP : row.subscriberRevoked ? 'Already revoked' : undefined,
     });
   }
 

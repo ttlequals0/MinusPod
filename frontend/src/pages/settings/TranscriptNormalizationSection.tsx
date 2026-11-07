@@ -12,6 +12,7 @@ import { SkeletonRows } from '../../components/Skeleton';
 import { btnBase, btnPrimary, btnOutline, btnDestructiveOutline } from '../../components/buttonStyles';
 import { tableBody, tableCard, tableHead, tableRow, td, tdEmpty, th, thBase } from '../../components/tableStyles';
 import { badgeBase, tint } from '../../components/badgeStyles';
+import { DemoDisabled } from '../../components/DemoDisabled';
 
 const STORAGE_KEY = 'settings-section-transcript-normalization';
 
@@ -81,7 +82,9 @@ function TranscriptNormalizationSection() {
                 </div>
                 <div className="flex gap-2">
                   <button onClick={() => setEditing(n)} className={`${btnBase} ${btnOutline}`}>Edit</button>
-                  <button onClick={() => setDeleteId(n.id)} className={`${btnBase} ${btnDestructiveOutline}`}>Delete</button>
+                  <DemoDisabled>
+                    <button onClick={() => setDeleteId(n.id)} className={`${btnBase} ${btnDestructiveOutline}`}>Delete</button>
+                  </DemoDisabled>
                 </div>
               </div>
             ))}
@@ -119,7 +122,9 @@ function TranscriptNormalizationSection() {
                       <td className="px-2 py-3 whitespace-nowrap text-xs">
                         <div className="flex gap-1">
                           <button onClick={() => setEditing(n)} className={`${btnBase} ${btnOutline}`}>Edit</button>
-                          <button onClick={() => setDeleteId(n.id)} className={`${btnBase} ${btnDestructiveOutline}`}>Delete</button>
+                          <DemoDisabled>
+                            <button onClick={() => setDeleteId(n.id)} className={`${btnBase} ${btnDestructiveOutline}`}>Delete</button>
+                          </DemoDisabled>
                         </div>
                       </td>
                     </tr>

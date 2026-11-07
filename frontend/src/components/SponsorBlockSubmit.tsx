@@ -14,6 +14,7 @@ import LoadingSpinner from './LoadingSpinner';
 import { Modal, dialogFooterBtn } from './Modal';
 import { SegmentCategoryBadge } from './SegmentCategoryBadge';
 import { cardTitle } from './pageStyles';
+import { DemoDisabled } from './DemoDisabled';
 
 const REASON_TEXT: Record<SbCandidatesReason, string> = {
   not_youtube: 'Only episodes from YouTube feeds can be submitted.',
@@ -92,14 +93,16 @@ function SubmitDialog({ slug, episodeId, hasOriginalAudio, onClose }: {
             Cancel
           </button>
           {data?.allowed && (
-            <button
-              type="button"
-              className={`${dialogFooterBtn} ${btnPrimary}`}
-              disabled={picked.size === 0 || submit.isPending}
-              onClick={() => submit.mutate()}
-            >
-              {submit.isPending ? 'Submitting...' : `Submit ${picked.size} ${picked.size === 1 ? 'segment' : 'segments'}`}
-            </button>
+            <DemoDisabled>
+              <button
+                type="button"
+                className={`${dialogFooterBtn} ${btnPrimary}`}
+                disabled={picked.size === 0 || submit.isPending}
+                onClick={() => submit.mutate()}
+              >
+                {submit.isPending ? 'Submitting...' : `Submit ${picked.size} ${picked.size === 1 ? 'segment' : 'segments'}`}
+              </button>
+            </DemoDisabled>
           )}
         </>
       )}

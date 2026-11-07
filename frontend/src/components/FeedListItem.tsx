@@ -14,6 +14,7 @@ import FeedTypeBadge from './FeedTypeBadge';
 import PodpingBadge from './PodpingBadge';
 import { btnBase, btnPrimaryOutline, btnDestructiveOutline } from './buttonStyles';
 import { focusRing } from './fieldStyles';
+import { DemoDisabled } from './DemoDisabled';
 
 interface FeedListItemProps {
   feed: Feed;
@@ -77,42 +78,46 @@ function FeedListItem({ feed, onRefresh, onDelete, isRefreshing }: FeedListItemP
         {hasUpstream && (
           <>
             <div>
-              <DropdownMenu
-                triggerLabel={
-                  <>
-                    <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} aria-hidden="true" />
-                    <span className="hidden sm:inline">{isRefreshing ? 'Refreshing' : 'Refresh'}</span>
-                  </>
-                }
-                triggerClassName={`${btnBase} ${btnPrimaryOutline}`}
-                disabled={isRefreshing}
-                title={isRefreshing ? 'Refreshing' : 'Refresh feed'}
-                chevronClassName="w-3 h-3"
-                items={[
-                  {
-                    title: 'Refresh',
-                    subtitle: 'Check for new episodes',
-                    onClick: () => onRefresh(feed.slug),
-                  },
-                  {
-                    title: 'Force refresh',
-                    subtitle: 'Bypass cache',
-                    onClick: () => onRefresh(feed.slug, { force: true }),
-                  },
-                ]}
-              />
+              <DemoDisabled>
+                <DropdownMenu
+                  triggerLabel={
+                    <>
+                      <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} aria-hidden="true" />
+                      <span className="hidden sm:inline">{isRefreshing ? 'Refreshing' : 'Refresh'}</span>
+                    </>
+                  }
+                  triggerClassName={`${btnBase} ${btnPrimaryOutline}`}
+                  disabled={isRefreshing}
+                  title={isRefreshing ? 'Refreshing' : 'Refresh feed'}
+                  chevronClassName="w-3 h-3"
+                  items={[
+                    {
+                      title: 'Refresh',
+                      subtitle: 'Check for new episodes',
+                      onClick: () => onRefresh(feed.slug),
+                    },
+                    {
+                      title: 'Force refresh',
+                      subtitle: 'Bypass cache',
+                      onClick: () => onRefresh(feed.slug, { force: true }),
+                    },
+                  ]}
+                />
+              </DemoDisabled>
             </div>
           </>
         )}
-        <button
-          onClick={() => onDelete(feed.slug)}
-          className={`${btnBase} ${btnDestructiveOutline}`}
-          title="Delete feed"
-          aria-label="Delete feed"
-        >
-          <Trash2 className="w-4 h-4" aria-hidden="true" />
-          <span className="hidden sm:inline">Delete</span>
-        </button>
+        <DemoDisabled>
+          <button
+            onClick={() => onDelete(feed.slug)}
+            className={`${btnBase} ${btnDestructiveOutline}`}
+            title="Delete feed"
+            aria-label="Delete feed"
+          >
+            <Trash2 className="w-4 h-4" aria-hidden="true" />
+            <span className="hidden sm:inline">Delete</span>
+          </button>
+        </DemoDisabled>
       </div>
     </div>
   );

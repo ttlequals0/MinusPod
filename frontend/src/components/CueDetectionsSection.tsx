@@ -11,6 +11,7 @@ import { AuditionPlayButton } from './AuditionPlayButton';
 import { btnPrimary, btnGhost, btnDestructive } from './buttonStyles';
 import { badgeBase, tint } from './badgeStyles';
 import { rowActionBtn } from './rowActionStyles';
+import { DemoDisabled } from './DemoDisabled';
 
 interface CueDetectionsSectionProps {
   slug: string;
@@ -136,20 +137,24 @@ function CueDetectionsSection({ slug, episodeId, detections }: CueDetectionsSect
                     </span>
                   ) : d.verdict === 'pending' ? (
                     <>
-                      <button
-                        onClick={() => mutation.mutate({ id: d.id, verdict: 'confirmed' })}
-                        disabled={pending}
-                        className={`${rowActionBtn} ${btnPrimary}`}
-                      >
-                        Confirm
-                      </button>
-                      <button
-                        onClick={() => mutation.mutate({ id: d.id, verdict: 'rejected' })}
-                        disabled={pending}
-                        className={`${rowActionBtn} ${btnDestructive}`}
-                      >
-                        Not ad
-                      </button>
+                      <DemoDisabled>
+                        <button
+                          onClick={() => mutation.mutate({ id: d.id, verdict: 'confirmed' })}
+                          disabled={pending}
+                          className={`${rowActionBtn} ${btnPrimary}`}
+                        >
+                          Confirm
+                        </button>
+                      </DemoDisabled>
+                      <DemoDisabled>
+                        <button
+                          onClick={() => mutation.mutate({ id: d.id, verdict: 'rejected' })}
+                          disabled={pending}
+                          className={`${rowActionBtn} ${btnDestructive}`}
+                        >
+                          Not ad
+                        </button>
+                      </DemoDisabled>
                     </>
                   ) : (
                     <>
@@ -162,13 +167,15 @@ function CueDetectionsSection({ slug, episodeId, detections }: CueDetectionsSect
                       >
                         {d.verdict === 'confirmed' ? 'Confirmed' : 'Not ad'}
                       </span>
-                      <button
-                        onClick={() => mutation.mutate({ id: d.id, verdict: 'pending' })}
-                        disabled={pending}
-                        className={`${rowActionBtn} ${btnGhost}`}
-                      >
-                        Reset
-                      </button>
+                      <DemoDisabled>
+                        <button
+                          onClick={() => mutation.mutate({ id: d.id, verdict: 'pending' })}
+                          disabled={pending}
+                          className={`${rowActionBtn} ${btnGhost}`}
+                        >
+                          Reset
+                        </button>
+                      </DemoDisabled>
                     </>
                   )}
                 </div>

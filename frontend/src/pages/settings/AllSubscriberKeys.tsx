@@ -38,9 +38,11 @@ function AllSubscriberKeys({ hasFeeds }: { hasFeeds: boolean }) {
 
   function actionButton(key: SubscriberKeyWithFeed) {
     return key.revokedAt ? (
-      <button type="button" onClick={() => setKeyToDelete(key)} disabled={deleteMutation.isPending} className={deleteClass}>
-        Delete record
-      </button>
+      <DemoDisabled>
+        <button type="button" onClick={() => setKeyToDelete(key)} disabled={deleteMutation.isPending} className={deleteClass}>
+          Delete record
+        </button>
+      </DemoDisabled>
     ) : (
       <DemoDisabled>
         <button type="button" onClick={() => revokeMutation.mutate(toRef(key))} disabled={revokeMutation.isPending} className={revokeClass}>

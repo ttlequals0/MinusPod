@@ -3,6 +3,7 @@ import { applyPendingRecuts, getPendingRecuts } from '../../api/settings';
 import { getErrorMessage } from '../../api/client';
 import { btnBase, btnPrimary } from '../../components/buttonStyles';
 import { useState } from 'react';
+import { DemoDisabled } from '../../components/DemoDisabled';
 
 // Review is bulk work: decisions are recorded as they are made and cut in one
 // pass per episode when the operator applies them, so an episode edited five
@@ -98,16 +99,18 @@ export function PendingRecutsBar({ slug }: PendingRecutsBarProps) {
         )}
         {error && <span className="block text-destructive text-xs mt-1">{error}</span>}
       </div>
-      <button
-        type="button"
-        onClick={() => apply.mutate()}
-        disabled={apply.isPending || ready === 0}
-        className={`${btnBase} ${btnPrimary}`}
-      >
-        {apply.isPending ? 'Starting...'
-          : recuttingOnly ? `Recutting ${inFlight}...`
-            : `Apply recuts (${ready})`}
-      </button>
+      <DemoDisabled>
+        <button
+          type="button"
+          onClick={() => apply.mutate()}
+          disabled={apply.isPending || ready === 0}
+          className={`${btnBase} ${btnPrimary}`}
+        >
+          {apply.isPending ? 'Starting...'
+            : recuttingOnly ? `Recutting ${inFlight}...`
+              : `Apply recuts (${ready})`}
+        </button>
+      </DemoDisabled>
     </div>
   );
 }

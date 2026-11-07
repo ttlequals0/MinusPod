@@ -6,6 +6,9 @@ import { getErrorMessage } from '../../api/client';
 import type { UpdateSettingsPayload } from '../../api/types';
 import { inputBase, labelBase } from '../../components/fieldStyles';
 import { subHeading } from '../../components/pageStyles';
+import { DemoDisabled } from '../../components/DemoDisabled';
+import { IS_DEMO } from '../../demo/flag';
+import { DEMO_WRITE_TOOLTIP } from '../../demo/copy';
 
 const RETENTION_MIN = 1;
 const RETENTION_MAX = 3650;
@@ -50,23 +53,27 @@ function DownloadHistorySettings() {
       </div>
 
       <label className="flex items-center gap-3 cursor-pointer">
-        <ToggleSwitch
-          checked={enabled}
-          onChange={(checked) => mutation.mutate({ downloadHistoryEnabled: checked })}
-          disabled={mutation.isPending}
-          ariaLabel="Record download history"
-        />
+        <DemoDisabled>
+          <ToggleSwitch
+            checked={enabled}
+            onChange={(checked) => mutation.mutate({ downloadHistoryEnabled: checked })}
+            disabled={mutation.isPending}
+            ariaLabel="Record download history"
+          />
+        </DemoDisabled>
         <span className="text-sm font-medium text-foreground">Record download history</span>
       </label>
 
       <div>
         <label className="flex items-center gap-3 cursor-pointer">
-          <ToggleSwitch
-            checked={geoEnabled}
-            onChange={(checked) => mutation.mutate({ downloadGeoLookupEnabled: checked })}
-            disabled={mutation.isPending}
-            ariaLabel="Look up client locations"
-          />
+          <DemoDisabled>
+            <ToggleSwitch
+              checked={geoEnabled}
+              onChange={(checked) => mutation.mutate({ downloadGeoLookupEnabled: checked })}
+              disabled={mutation.isPending}
+              ariaLabel="Look up client locations"
+            />
+          </DemoDisabled>
           <span className="text-sm font-medium text-foreground">Look up client locations</span>
         </label>
         <p className="mt-2 text-sm text-muted-foreground">
@@ -74,7 +81,7 @@ function DownloadHistorySettings() {
         </p>
       </div>
 
-      <div>
+      <div title={IS_DEMO ? DEMO_WRITE_TOOLTIP : undefined}>
         <label htmlFor="download-history-retention" className={labelBase}>
           Keep history for (days)
         </label>
@@ -86,6 +93,7 @@ function DownloadHistorySettings() {
           value={retention.value}
           onChange={(e) => retention.setValue(e.target.value)}
           onBlur={saveRetention}
+          disabled={IS_DEMO}
           aria-invalid={!retentionValid}
           aria-describedby={[!retentionValid ? "download-retention-error" : "", mutation.isError ? "download-setting-error" : ""].filter(Boolean).join(" ") || undefined}
           className={`w-32 ${inputBase}`}
