@@ -4,9 +4,15 @@ A column list is the set of columns kept; an empty list means the table is
 emptied (DELETE FROM) and kept. Columns that need value rewriting
 (source_url, client_ip, last_request_*, secret_hash, label) are kept here and
 rewritten by the snapshot script.
+
+The settings table is row-filtered by DEMO_SETTINGS_ALLOW in snapshot.py
+(Task 3); system_settings keeps every row (production holds only
+processing_admission_paused and startup_backfills_version).
 """
 
-# Tables whose rows are deleted but whose schema is kept.
+# Tables whose rows are deleted but whose schema is kept. search_index and
+# search_index_changes are placeholders so the TABLE_DDL coverage test passes;
+# snapshot.py drops them through DROPPED_TABLE_PREFIXES.
 _EMPTIED = (
     'processing_runs', 'upload_reservations', 'auto_process_queue',
     'provider_spend_reservations', 'cue_candidate_scans', 'cue_threshold_scans',
@@ -38,6 +44,8 @@ _ONLY = {
         'last_used_at', 'revoked_at',
     ),
     'ip_geo_cache': ('ip', 'country', 'looked_up_at', 'status'),
+    # Created by _run_schema_migrations, not SCHEMA_SQL, so PRAGMA cannot see it.
+    'schema_migrations': ('name', 'applied_at'),
 }
 
 # Tables kept with every column.
@@ -48,7 +56,6 @@ _KEPT_ALL = (
     'cue_detections', 'cue_candidate_dismissals', 'podping_hosts',
     'addressing_log', 'pattern_cleanup_suggestions', 'pattern_cleanup_checks',
     'pattern_cleanup_deleted_actions', 'audio_fingerprints', 'failover_events',
-    'schema_migrations',
 )
 
 
@@ -124,13 +131,11 @@ EPISODE_REF: dict[str, tuple[str, str]] = {
 
 _ALLOW_PROMPTS = (
     'system_prompt', 'verification_prompt', 'review_prompt', 'resurrect_prompt',
-    'chapter_prompt', 'pattern_cleanup_prompt', 'system_prompt_override',
-    'verification_prompt_override', 'review_prompt_override',
-    'resurrect_prompt_override', 'chapter_prompt_override',
+    'chapter_prompt',
 )
 
-_ALLOW_MODELS = (
-    'pattern_cleanup_enabled', 'pattern_cleanup_cron',
+_ALLOW_PATTERN_CLEANUP = (
+    'pattern_cleanup_prompt', 'pattern_cleanup_enabled', 'pattern_cleanup_cron',
     'pattern_cleanup_batch_size', 'pattern_cleanup_unused_days',
     'pattern_cleanup_schedule_anchor',
 )
@@ -218,19 +223,17 @@ _ALLOW_DETECTION_TUNING = (
     'differential_hold_min_seconds',
 )
 
-_ALLOW_NOTIFICATIONS = ('notification_timezone',)
-
-_ALLOW_LATE = (
+_ALLOW_STAGE_TUNABLES = (
     'chapter_target_seconds', 'chapter_window_seconds', 'chapter_max_boundaries',
     'chapter_min_duration_seconds', 'window_size_seconds',
     'window_overlap_seconds',
 )
 
 DEMO_SETTINGS_ALLOW: frozenset[str] = frozenset(
-    _ALLOW_PROMPTS + _ALLOW_MODELS + _ALLOW_AD_REVIEWER + _ALLOW_GENERAL
+    _ALLOW_PROMPTS + _ALLOW_PATTERN_CLEANUP + _ALLOW_AD_REVIEWER + _ALLOW_GENERAL
     + _ALLOW_AUDIO_OUTPUT + _ALLOW_TRANSCRIPTION + _ALLOW_WHISPER + _ALLOW_VAD
     + _ALLOW_LLM_PROVIDER + _ALLOW_AUDIO_CUE + _ALLOW_SILENCE_SNAP
-    + _ALLOW_DETECTION_TUNING + _ALLOW_NOTIFICATIONS + _ALLOW_LATE
+    + _ALLOW_DETECTION_TUNING + _ALLOW_STAGE_TUNABLES
 )
 
 # Registry keys neither allowed nor matched by the credential/URL deny regex.
@@ -253,6 +256,12 @@ DEMO_SETTINGS_EXCLUDE: frozenset[str] = frozenset({
     'failover_recovery_probes', 'llm_timeout_seconds', 'llm_max_retries',
     'secondary_llm_timeout_seconds', 'secondary_llm_max_retries',
     'whisper_max_attempts',
+    # Prompt overrides: the demo uses the registry defaults
+    'system_prompt_override', 'verification_prompt_override',
+    'review_prompt_override', 'resurrect_prompt_override',
+    'chapter_prompt_override',
+    # Notifications
+    'notification_timezone',
     # Ad reviewer provider
     'review_model', 'review_provider',
     # General processing: queue, spend, operator state

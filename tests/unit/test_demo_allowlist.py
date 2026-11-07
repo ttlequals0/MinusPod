@@ -1,22 +1,65 @@
 import re
+import sqlite3
+
+from database.schema.tables import SCHEMA_SQL, TABLE_DDL
 from database.settings import SETTINGS_REGISTRY
-from database.schema.tables import TABLE_DDL
-from secrets_crypto import SECRET_SETTING_KEYS
 from scripts.demo.export_allowlist import (
-    DEMO_SETTINGS_ALLOW, DEMO_SETTINGS_EXCLUDE, EXPORT_TABLES, SETTINGS_FORCE, PODCAST_REF,
+    DEMO_SETTINGS_ALLOW,
+    DEMO_SETTINGS_EXCLUDE,
+    EXPORT_TABLES,
+    PODCAST_REF,
+    SETTINGS_FORCE,
+    SETTINGS_FORCE_UNREGISTERED,
 )
+from secrets_crypto import SECRET_SETTING_KEYS
 
 DENY = re.compile(r'(_api_key|_secret|password|_url|webhook|email_|_dest|salt|flask_|auth_|youtube_proxy|ytdlp_extra_args)')
+
+EMPTIED = {
+    'processing_runs', 'upload_reservations', 'auto_process_queue',
+    'provider_spend_reservations', 'cue_candidate_scans', 'cue_threshold_scans',
+    'cue_cross_episode_scans', 'cue_window_optimize_scans', 'auth_failures',
+    'search_index_changes', 'search_index',
+}
+
+COLUMN_DROPS = {
+    'podcasts': {
+        'download_user_agent_override', 'feed_user_agent_override',
+        'detection_notes', 'chapter_notes', 'last_refresh_error',
+    },
+    'episodes': {'error_message', 'sb_last_error', 'quality_notes'},
+    'processing_history': {'error_message', 'log_file'},
+    'audio_cue_templates': {'pcm_blob'},
+    'llm_call_usage': {'rate_snapshot'},
+    'systemone_call_diagnostics': {'diagnostics_json'},
+    'pattern_cleanup_runs': {'error'},
+}
+
+PROMPT_OVERRIDES = {
+    'system_prompt_override', 'verification_prompt_override',
+    'review_prompt_override', 'resurrect_prompt_override',
+    'chapter_prompt_override',
+}
+
+
+def _schema_columns(table, tmp_path):
+    conn = sqlite3.connect(tmp_path / 'x.db')
+    conn.executescript(SCHEMA_SQL)
+    return [r[1] for r in conn.execute(f'PRAGMA table_info({table})')]
+
 
 def test_no_secret_setting_is_allowed():
     assert not (set(SECRET_SETTING_KEYS) & DEMO_SETTINGS_ALLOW)
 
+
 def test_no_deny_pattern_in_allowed_settings():
     assert [k for k in DEMO_SETTINGS_ALLOW if DENY.search(k)] == []
+
 
 def test_allowed_and_forced_keys_exist_in_registry():
     assert DEMO_SETTINGS_ALLOW <= set(SETTINGS_REGISTRY)
     assert set(SETTINGS_FORCE) <= set(SETTINGS_REGISTRY)
+
 
 def test_every_registry_setting_is_classified():
     unclassified = {
@@ -26,21 +69,59 @@ def test_every_registry_setting_is_classified():
     assert unclassified == set()
     assert not (DEMO_SETTINGS_ALLOW & DEMO_SETTINGS_EXCLUDE)
 
+
+def test_prompt_overrides_and_timezone_are_not_allowed():
+    assert not ((PROMPT_OVERRIDES | {'notification_timezone'}) & DEMO_SETTINGS_ALLOW)
+
+
+def test_unregistered_forced_keys_are_safe():
+    for key in SETTINGS_FORCE_UNREGISTERED:
+        assert key not in SETTINGS_REGISTRY, key
+        assert key not in DEMO_SETTINGS_ALLOW, key
+        assert key not in SECRET_SETTING_KEYS, key
+        if key != 'email_enabled':  # forced on purpose; matches the email_ deny prefix
+            assert not DENY.search(key), key
+    assert not (set(SETTINGS_FORCE) & set(SETTINGS_FORCE_UNREGISTERED))
+
+
 def test_every_schema_table_is_classified():
     assert set(TABLE_DDL) <= set(EXPORT_TABLES)
 
+
+def test_emptied_tables_are_exactly_those_with_no_columns():
+    assert {t for t, cols in EXPORT_TABLES.items() if cols == []} == EMPTIED
+
+
 def test_kept_columns_exist(tmp_path):
-    import sqlite3
-    from database.schema.tables import SCHEMA_SQL
     conn = sqlite3.connect(tmp_path / 'x.db')
     conn.executescript(SCHEMA_SQL)
+    # schema_migrations is created by _run_schema_migrations, not SCHEMA_SQL
+    conn.execute('CREATE TABLE IF NOT EXISTS schema_migrations (name TEXT, applied_at TEXT)')
     for table, cols in EXPORT_TABLES.items():
         have = {r[1] for r in conn.execute(f'PRAGMA table_info({table})')}
         assert set(cols) <= have, table
 
+
+def test_dropped_columns_are_absent_and_others_kept(tmp_path):
+    for table, dropped in COLUMN_DROPS.items():
+        all_cols = _schema_columns(table, tmp_path)
+        assert dropped <= set(all_cols), table
+        assert not (dropped & set(EXPORT_TABLES[table])), table
+        assert set(EXPORT_TABLES[table]) == set(all_cols) - dropped, table
+    assert 'mfcc_blob' in EXPORT_TABLES['audio_cue_templates']
+
+
+def test_subset_tables_keep_exact_columns():
+    assert set(EXPORT_TABLES['feed_subscriber_keys']) == {
+        'id', 'podcast_id', 'created_at', 'last_used_at', 'revoked_at',
+        'secret_hash', 'label',
+    }
+    assert set(EXPORT_TABLES['ip_geo_cache']) == {
+        'ip', 'country', 'looked_up_at', 'status',
+    }
+
+
 def test_podcast_ref_covers_tables_with_podcast_columns(tmp_path):
-    import sqlite3
-    from database.schema.tables import SCHEMA_SQL
     conn = sqlite3.connect(tmp_path / 'x.db')
     conn.executescript(SCHEMA_SQL)
     for table in EXPORT_TABLES:
