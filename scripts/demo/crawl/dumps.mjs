@@ -1,12 +1,12 @@
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { fixtureKey } from './lib/keys.mjs';
-import { scrubFeedKeys, writeFixture, mergeIndex, argValue } from './lib/store.mjs';
+import { scrubFeedKeys, writeFixture, mergeIndex } from './lib/store.mjs';
+import { argValue } from './lib/args.mjs';
 
 const PAGE = 100;
 const EPISODE_PAGE = 500;
 const POOL = 8;
-const RETRY_MS = Number(process.env.DUMP_RETRY_MS ?? 1000);
 
 const STATIC_PATHS = [
   '/feeds?episodesPerFeed=20&includeLatestEpisodes=true',
@@ -22,31 +22,25 @@ const STATIC_PATHS = [
 const PAGED = [
   { path: (p) => `/history?limit=${PAGE}&page=${p}&sort_by=processed_at&sort_dir=desc`, field: 'history' },
   { path: (p) => `/history/downloads?limit=${PAGE}&page=${p}&sortBy=last_seen_at&sortDir=desc`, field: 'downloads' },
-  { path: (p) => `/detections?limit=${PAGE}&order=desc&page=${p}&sort=date&status=all`, field: null },
-  { path: (p) => `/stats/model-usage?limit=${PAGE}&page=${p}&sortBy=knownCostUsd&sortDir=desc`, field: null },
-  { path: (p) => `/stats/episode-costs?limit=${PAGE}&page=${p}&sortBy=lastActivityAt&sortDir=desc`, field: null },
+  { path: (p) => `/detections?limit=${PAGE}&order=desc&page=${p}&sort=date&status=all`, field: 'detections' },
+  { path: (p) => `/stats/model-usage?limit=${PAGE}&page=${p}&sortBy=knownCostUsd&sortDir=desc`, field: 'items' },
+  { path: (p) => `/stats/episode-costs?limit=${PAGE}&page=${p}&sortBy=lastActivityAt&sortDir=desc`, field: 'items' },
 ];
 
-const FEED_PATHS = (slug) => [
-  `/feeds/${slug}`,
-  `/feeds/${slug}/tags`,
-  `/feeds/${slug}/cue-templates`,
-  `/feeds/${slug}/cue-detections/advisory`,
-  `/feeds/${slug}/ad-distribution`,
-  `/feeds/${slug}/subscriber-keys`,
-  `/feeds/${slug}/cue-candidate-dismissals`,
-];
+const FEED_PATHS = (slug) => {
+  const f = `/feeds/${encodeURIComponent(slug)}`;
+  return [f, `${f}/tags`, `${f}/cue-templates`, `${f}/cue-detections/advisory`, `${f}/ad-distribution`,
+    `${f}/subscriber-keys`, `${f}/cue-candidate-dismissals`];
+};
 
-const EPISODE_PATHS = (slug, id) => [
-  `/feeds/${slug}/episodes/${id}`,
-  `/feeds/${slug}/episodes/${id}/peaks?resolution_ms=100`,
-  `/feeds/${slug}/episodes/${id}/original-segments`,
-  `/feeds/${slug}/episodes/${id}/final-segments`,
-  `/feeds/${slug}/episodes/${id}/original-transcript`,
-  `/feeds/${slug}/episodes/${id}/sponsorblock/candidates`,
-  `/stats/episode-costs/runs?episodeId=${id}&slug=${slug}`,
-  `/stats/reviewer?episode_id=${id}&podcast_slug=${slug}`,
-];
+const EPISODE_PATHS = (slug, id) => {
+  const s = encodeURIComponent(slug);
+  const e = encodeURIComponent(id);
+  const f = `/feeds/${s}/episodes/${e}`;
+  return [f, `${f}/peaks?resolution_ms=100`, `${f}/original-segments`, `${f}/final-segments`,
+    `${f}/original-transcript`, `${f}/sponsorblock/candidates`,
+    `/stats/episode-costs/runs?episodeId=${e}&slug=${s}`, `/stats/reviewer?episode_id=${e}&podcast_slug=${s}`];
+};
 
 async function pool(items, worker) {
   let next = 0;
@@ -56,9 +50,8 @@ async function pool(items, worker) {
 }
 
 function rowsOf(body, field) {
-  if (field) return body?.[field];
-  const arrays = Object.values(body ?? {}).filter(Array.isArray);
-  return arrays.sort((a, b) => b.length - a.length)[0];
+  if (!Array.isArray(body?.[field])) throw new Error(`dump response has no ${field} array`);
+  return body[field];
 }
 
 export function createDumper({ base, out, fetchImpl = fetch }) {
@@ -76,10 +69,14 @@ export function createDumper({ base, out, fetchImpl = fetch }) {
         if (res.status !== 429 || attempt >= 8) break;
         const wait = Number(res.headers.get('retry-after')) || 2 ** attempt;
         await res.arrayBuffer();
-        await new Promise((r) => setTimeout(r, Math.min(wait, 30) * RETRY_MS));
+        await new Promise((r) => setTimeout(r, Math.min(wait, 30) * Number(process.env.DUMP_RETRY_MS ?? 1000)));
       }
     } catch (err) {
       stats.errors.push({ path, error: String(err) });
+      return null;
+    }
+    if (res.status === 429) {
+      stats.errors.push({ key, status: 429 });
       return null;
     }
     const type = res.headers.get('content-type') ?? '';
@@ -90,7 +87,9 @@ export function createDumper({ base, out, fetchImpl = fetch }) {
         try { fixture.body = scrubFeedKeys(JSON.parse(text)); } catch (err) { stats.errors.push({ path, error: `bad json: ${err.message}` }); }
       } else if (/^text\/plain/i.test(type)) {
         fixture.body = text.replace(/([?&]key=)[^&"'\s]+/g, '$1demo');
-      }
+      } else if (res.ok) {
+        stats.errors.push({ path, error: `unexpected content-type: ${type}` });
+      } // non-2xx non-JSON (the backend's HTML 404) keeps status only
     }
     return { key, fixture };
   }
@@ -116,7 +115,7 @@ export function createDumper({ base, out, fetchImpl = fetch }) {
   }
 
   async function dumpEpisodes(slug, status) {
-    const q = (offset) => `/feeds/${slug}/episodes?limit=${EPISODE_PAGE}&offset=${offset}&sort_by=created_at&sort_dir=desc&status=${status}`;
+    const q = (offset) => `/feeds/${encodeURIComponent(slug)}/episodes?limit=${EPISODE_PAGE}&offset=${offset}&sort_by=created_at&sort_dir=desc&status=${status}`;
     const first = await get(q(0));
     if (!first) return [];
     let all = first.fixture.body?.episodes ?? [];
@@ -124,7 +123,11 @@ export function createDumper({ base, out, fetchImpl = fetch }) {
     // Concatenate further pages under the canonical offset=0 key.
     for (let offset = EPISODE_PAGE; first.fixture.status === 200 && last.length === EPISODE_PAGE; offset += EPISODE_PAGE) {
       const next = await get(q(offset));
-      last = next?.fixture.status === 200 ? (next.fixture.body?.episodes ?? []) : [];
+      if (next?.fixture.status !== 200) {
+        if (next) stats.errors.push({ key: next.key, status: next.fixture.status });
+        break;
+      }
+      last = next.fixture.body?.episodes ?? [];
       all = all.concat(last);
     }
     if (first.fixture.body?.episodes) first.fixture.body.episodes = all;
@@ -133,19 +136,22 @@ export function createDumper({ base, out, fetchImpl = fetch }) {
   }
 
   async function run() {
-    let slugs = [];
+    let feeds = [];
     for (const p of STATIC_PATHS) {
       const fx = await dump(p);
-      if (p === STATIC_PATHS[0]) slugs = (fx?.body?.feeds ?? []).map((f) => f.slug);
+      if (p === STATIC_PATHS[0]) {
+        if (fx?.status !== 200 || !Array.isArray(fx.body?.feeds)) throw new Error('/feeds dump failed: no feeds array');
+        feeds = fx.body.feeds.map((f) => ({ slug: f.slug, feedType: f.feedType }));
+      }
     }
     for (const spec of PAGED) await dumpPaged(spec);
     const episodes = [];
-    await pool(slugs, async (slug) => {
+    await pool(feeds, async ({ slug, feedType }) => {
       for (const p of FEED_PATHS(slug)) await dump(p);
       const seen = new Set();
       for (const status of ['all', 'filtered']) {
         for (const e of await dumpEpisodes(slug, status)) {
-          if (!seen.has(e.id)) { seen.add(e.id); episodes.push([slug, e.id]); }
+          if (!seen.has(e.id)) { seen.add(e.id); if (feedType !== 'recents') episodes.push([slug, e.id]); }
         }
       }
     });
@@ -164,8 +170,9 @@ async function main(argv) {
   const out = argValue(argv, '--out');
   if (!base || !out) throw new Error('usage: --base http://host:8000 --out <fixtures dir>');
   const { run, stats } = createDumper({ base: base.replace(/\/$/, ''), out });
-  await run();
+  try { await run(); } catch (err) { console.error(String(err)); process.exit(1); }
   console.log(JSON.stringify(stats, null, 2));
+  if (stats.errors.length) process.exit(1);
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) await main(process.argv.slice(2));

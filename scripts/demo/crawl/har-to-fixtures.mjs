@@ -1,8 +1,9 @@
-import { readFileSync, readdirSync, copyFileSync, mkdirSync } from 'node:fs';
+import { readFileSync, readdirSync, mkdirSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { fixtureKey, fileFor } from './lib/keys.mjs';
-import { scrubFeedKeys, writeFixture, mergeIndex, readIndex, argValue } from './lib/store.mjs';
+import { scrubFeedKeys, writeFixture, writeAtomic, mergeIndex, readIndex } from './lib/store.mjs';
+import { argValue } from './lib/args.mjs';
 
 const API_PATH = '/api/v1/';
 
@@ -30,27 +31,43 @@ export function entriesToFixtures(har) {
   return out;
 }
 
-// Keep segments that overlap any marker widened by n seconds on each side.
-export function windowTranscript(segments, markers, n) {
-  const kept = segments.filter((s) => markers.some((m) => s.end >= m.start - n && s.start <= m.end + n));
-  return { segments: kept, text: kept.map((s) => s.text.trim()).join(' ') };
+const LINE_START = /^\[(\d+):(\d+):(\d+(?:\.\d+)?) --> /;
+
+function inWindow(t, markers, n) {
+  return markers.some((m) => t >= m.start - n && t <= m.end + n);
+}
+
+// Keep timestamped lines whose start is within n seconds of a marker; untimestamped
+// lines follow the line above. Text with no timestamped line is returned unchanged.
+export function windowTranscript(text, markers, n) {
+  const lines = text.split('\n');
+  let keep = false;
+  let timed = false;
+  const kept = lines.filter((line) => {
+    const m = LINE_START.exec(line);
+    if (m) {
+      timed = true;
+      keep = inWindow(Number(m[1]) * 3600 + Number(m[2]) * 60 + Number(m[3]), markers, n);
+    }
+    return keep;
+  });
+  return timed ? kept.join('\n') : text;
 }
 
 const DETAIL = /^\/feeds\/([^/?]+)\/episodes\/([^/?]+)$/;
 
-// Rewrites fixtures in place: detail.transcript, original-segments.segments, original-transcript.originalTranscript.
+// Rewrites in place: detail.transcript, original-transcript.originalTranscript, original-segments.segments.
 export function applyTranscriptWindow(fixtures, n) {
   for (const [key, detail] of fixtures) {
     const m = DETAIL.exec(key);
     if (!m || !detail.body) continue;
     const base = `/feeds/${m[1]}/episodes/${m[2]}`;
-    const segFx = fixtures.get(`${base}/original-segments`);
-    if (!Array.isArray(segFx?.body?.segments)) continue;
-    const { segments, text } = windowTranscript(segFx.body.segments, detail.body.adMarkers ?? [], n);
-    segFx.body.segments = segments;
-    if (typeof detail.body.transcript === 'string') detail.body.transcript = text;
-    const txFx = fixtures.get(`${base}/original-transcript`);
-    if (txFx?.body) txFx.body.originalTranscript = text;
+    const markers = detail.body.adMarkers ?? [];
+    if (typeof detail.body.transcript === 'string') detail.body.transcript = windowTranscript(detail.body.transcript, markers, n);
+    const tx = fixtures.get(`${base}/original-transcript`)?.body;
+    if (typeof tx?.originalTranscript === 'string') tx.originalTranscript = windowTranscript(tx.originalTranscript, markers, n);
+    const seg = fixtures.get(`${base}/original-segments`)?.body;
+    if (Array.isArray(seg?.segments)) seg.segments = seg.segments.filter((s) => inWindow(s.start, markers, n));
   }
 }
 
@@ -60,6 +77,10 @@ function main(argv) {
   const overrides = argValue(argv, '--overrides');
   const windowSec = argValue(argv, '--transcript-window');
   if (!harPath || !out) throw new Error('usage: --har <file> --out <dir> [--overrides <dir>] [--transcript-window <seconds>]');
+  if (windowSec !== undefined && !/^\d+$/.test(windowSec)) {
+    console.error('--transcript-window must be a non-negative integer number of seconds');
+    process.exit(2);
+  }
   const fixtures = entriesToFixtures(JSON.parse(readFileSync(harPath, 'utf8')));
   if (windowSec !== undefined) applyTranscriptWindow(fixtures, Number(windowSec));
   const index = {};
@@ -67,8 +88,8 @@ function main(argv) {
   mergeIndex(out, index);
   if (overrides) {
     mkdirSync(out, { recursive: true });
-    for (const f of readdirSync(overrides)) {
-      if (f !== 'index.json') copyFileSync(join(overrides, f), join(out, f));
+    for (const e of readdirSync(overrides, { withFileTypes: true })) {
+      if (e.isFile() && e.name !== 'index.json') writeAtomic(join(out, e.name), readFileSync(join(overrides, e.name)));
     }
     mergeIndex(out, readIndex(overrides));
   }

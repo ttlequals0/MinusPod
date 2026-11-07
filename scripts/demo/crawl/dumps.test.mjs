@@ -1,49 +1,131 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, readFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, readdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createDumper } from './dumps.mjs';
 import { fileFor } from './lib/keys.mjs';
 
+process.env.DUMP_RETRY_MS = '0';
 const json = (status, body) => new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
+const EP = (status, off) => `/feeds/a/episodes?limit=500&offset=${off}&sort_by=created_at&sort_dir=desc&status=${status}`;
 
-function fakeFetch(hits) {
+function fakeFetch(hits, feeds = [{ slug: 'a', feedUrl: 'http://h/f?key=secret' }]) {
   return async (url) => {
     const u = new URL(url);
-    hits.push(u.pathname + u.search);
-    const p = u.pathname.replace('/api/v1', '');
+    const path = u.pathname.replace('/api/v1', '');
+    hits.push(path + u.search);
     const q = u.searchParams;
-    if (p === '/feeds') return json(200, { feeds: [{ slug: 'a', feedUrl: 'http://h/f?key=secret' }] });
-    if (p === '/history') return json(200, { history: Array.from({ length: q.get('page') === '1' ? 100 : 3 }, (_, i) => ({ i })) });
-    if (p === '/feeds/a/episodes') {
+    if (path === '/feeds') return json(200, { feeds });
+    if (path === '/history') return json(200, { history: Array.from({ length: q.get('page') === '1' ? 100 : 3 }, (_, i) => ({ i })) });
+    if (path === '/feeds/a/episodes') {
       const off = Number(q.get('offset'));
+      if (q.get('status') === 'filtered') return json(200, { episodes: Array.from({ length: off === 0 ? 500 : 1 }, (_, i) => ({ id: `f${off + i}` })) });
       return json(200, { episodes: Array.from({ length: off === 0 ? 500 : 2 }, (_, i) => ({ id: `e${off + i}` })), total: 502 });
     }
-    if (p === '/feeds/a/tags') return new Response(null, { status: 204 });
-    if (p === '/feeds/a/episodes/e0') return json(404, { error: 'gone' });
+    if (path.endsWith('/episodes')) return json(200, { episodes: [{ id: 'r1' }] });
+    if (path === '/feeds/a/tags') return new Response(null, { status: 204 });
+    if (path === '/feeds/a/episodes/e0') return json(404, { error: 'gone' });
+    if (path === '/changelog') return json(200, { sections: [] });
+    if (path === '/detections' || path === '/history/downloads') return json(200, { [path === '/detections' ? 'detections' : 'downloads']: [] });
+    if (path.startsWith('/stats/') && path.split('/').length === 3) return json(200, { items: [] });
     return json(200, {});
   };
 }
 
-test('dumper pages, concatenates episodes, scrubs keys and records every status', async () => {
+const run = async (fetchImpl) => {
   const out = mkdtempSync(join(tmpdir(), 'dump-'));
-  const hits = [];
-  const d = createDumper({ base: 'http://h', out, fetchImpl: fakeFetch(hits) });
+  const d = createDumper({ base: 'http://h', out, fetchImpl });
   await d.run();
   const index = JSON.parse(readFileSync(join(out, 'index.json'), 'utf8'));
   const read = (key) => JSON.parse(readFileSync(join(out, index[key]), 'utf8'));
+  return { d, index, read, out };
+};
+
+test('dumper pages, concatenates episodes, scrubs keys and records every status', async () => {
+  const hits = [];
+  const { d, index, read } = await run(fakeFetch(hits));
   const feedsKey = '/feeds?episodesPerFeed=20&includeLatestEpisodes=true';
+  assert.deepEqual(hits.slice(0, 8), [
+    '/feeds?episodesPerFeed=20&includeLatestEpisodes=true',
+    '/patterns',
+    '/sponsors?include_inactive=true',
+    '/episodes/awaiting-approval?limit=500&offset=0',
+    '/episodes/held?limit=500&offset=0',
+    '/episodes/processing?limit=1000&offset=0',
+    '/patterns/cleanup/suggestions?limit=200&offset=0',
+    '/changelog?limit=50',
+  ]);
   assert.equal(index[feedsKey], fileFor(feedsKey));
   assert.equal(read(feedsKey).body.feeds[0].feedUrl, 'http://h/f?key=demo');
-  assert.ok(index['/history?limit=100&page=1&sort_by=processed_at&sort_dir=desc']);
   assert.ok(index['/history?limit=100&page=2&sort_by=processed_at&sort_dir=desc']);
   assert.equal(index['/history?limit=100&page=3&sort_by=processed_at&sort_dir=desc'], undefined);
-  const epKey = '/feeds/a/episodes?limit=500&offset=0&sort_by=created_at&sort_dir=desc&status=all';
-  assert.equal(read(epKey).body.episodes.length, 502);
-  assert.equal(index['/feeds/a/episodes?limit=500&offset=500&sort_by=created_at&sort_dir=desc&status=all'], undefined);
+  assert.equal(read(EP('all', 0)).body.episodes.length, 502);
+  assert.equal(read(EP('filtered', 0)).body.episodes.length, 501);
+  assert.equal(index[EP('all', 500)], undefined);
   assert.deepEqual(read('/feeds/a/tags'), { status: 204 });
   assert.deepEqual(read('/feeds/a/episodes/e0'), { status: 404, body: { error: 'gone' } });
   assert.ok(index['/stats/reviewer?episode_id=e501&podcast_slug=a']);
+  assert.ok(index['/stats/reviewer?episode_id=f500&podcast_slug=a']);
   assert.equal(d.stats.byStatus[404], 1);
+  assert.deepEqual(d.stats.errors, []);
+});
+
+test('slugs and ids are percent-encoded in paths and queries', async () => {
+  const hits = [];
+  const f = async (url) => {
+    const u = new URL(url);
+    const path = u.pathname.replace('/api/v1', '');
+    hits.push(path + u.search);
+    if (path === '/feeds') return json(200, { feeds: [{ slug: 'a b', feedType: 'subscribed' }] });
+    if (path.endsWith('/episodes')) return json(200, { episodes: [{ id: 'x 1%' }] });
+    if (path === '/history') return json(200, { history: [] });
+    if (path === '/detections') return json(200, { detections: [] });
+    if (path === '/history/downloads') return json(200, { downloads: [] });
+    if (path.startsWith('/stats/') && path.split('/').length === 3) return json(200, { items: [] });
+    return json(200, {});
+  };
+  const { index } = await run(f);
+  assert.ok(hits.includes('/feeds/a%20b/episodes/x%201%25/original-segments'));
+  assert.ok(hits.includes('/stats/reviewer?episode_id=x%201%25&podcast_slug=a%20b'));
+  assert.ok(index['/feeds/a%20b/episodes/x%201%25/peaks?resolution_ms=100']);
+  assert.ok(index['/stats/episode-costs/runs?episodeId=x+1%25&slug=a+b']);
+});
+
+test('a 429 that exhausts retries is an error, not a fixture', async () => {
+  const f = async (url) => (new URL(url).pathname.endsWith('/feeds')
+    ? json(200, { feeds: [] })
+    : new Response('slow down', { status: 429 }));
+  const { d, index } = await run(f);
+  assert.equal(index['/patterns'], undefined);
+  assert.ok(d.stats.errors.some((e) => e.key === '/patterns' && e.status === 429));
+});
+
+test('recents feeds dump their episode lists but no per-episode endpoints', async () => {
+  const hits = [];
+  const feeds = [{ slug: 'a', feedType: 'subscribed' }, { slug: 'rec', feedType: 'recents' }];
+  const base = fakeFetch(hits, feeds);
+  const { index } = await run(base);
+  assert.ok(index['/feeds/rec/episodes?limit=500&offset=0&sort_by=created_at&sort_dir=desc&status=all']);
+  assert.ok(index['/feeds/rec/episodes?limit=500&offset=0&sort_by=created_at&sort_dir=desc&status=filtered']);
+  assert.equal(hits.some((h) => h.startsWith('/feeds/rec/episodes/')), false);
+  assert.ok(hits.some((h) => h.startsWith('/feeds/a/episodes/e0')));
+});
+
+test('non-200 later episode page, bad feeds dump and unexpected content-type are surfaced', async () => {
+  const hits = [];
+  const inner = fakeFetch(hits);
+  const { d } = await run(async (url) => {
+    const u = new URL(url);
+    if (u.pathname.endsWith('/episodes') && u.searchParams.get('offset') === '500') return json(500, { error: 'x' });
+    if (u.pathname.endsWith('/patterns')) return new Response('<html>', { status: 200, headers: { 'content-type': 'text/html' } });
+    if (u.pathname.endsWith('/sponsors')) return new Response('<html>', { status: 404, headers: { 'content-type': 'text/html' } });
+    return inner(url);
+  });
+  assert.ok(d.stats.errors.some((e) => e.status === 500));
+  assert.ok(d.stats.errors.some((e) => /content-type/.test(e.error ?? '')));
+  assert.equal(d.stats.errors.filter((e) => /content-type/.test(e.error ?? '')).length, 1);
+  const out = mkdtempSync(join(tmpdir(), 'dump-'));
+  await assert.rejects(createDumper({ base: 'http://h', out, fetchImpl: async () => json(500, {}) }).run(), /feeds/);
+  assert.equal(readdirSync(out).includes('index.json'), false);
 });

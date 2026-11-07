@@ -35,12 +35,8 @@ export function readIndex(dir) {
 // New entries win over the existing index.
 export function mergeIndex(dir, entries) {
   mkdirSync(dir, { recursive: true });
-  const merged = { ...readIndex(dir), ...entries };
+  const all = { ...readIndex(dir), ...entries };
+  const merged = Object.fromEntries(Object.keys(all).sort().map((k) => [k, all[k]]));
   writeAtomic(join(dir, 'index.json'), JSON.stringify(merged, null, 2));
   return merged;
-}
-
-export function argValue(argv, name) {
-  const i = argv.indexOf(name);
-  return i >= 0 ? argv[i + 1] : undefined;
 }
