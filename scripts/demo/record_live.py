@@ -125,6 +125,16 @@ def episode_artwork_targets(episodes: list[dict], since_days: int, today: date) 
     return keep
 
 
+def round_numbers(value, digits: int = 3):
+    if isinstance(value, float):
+        return round(value, digits)
+    if isinstance(value, list):
+        return [round_numbers(v, digits) for v in value]
+    if isinstance(value, dict):
+        return {k: round_numbers(v, digits) for k, v in value.items()}
+    return value
+
+
 def to_jpeg(data: bytes) -> bytes:
     img = ImageOps.exif_transpose(Image.open(io.BytesIO(data)))
     if img.mode in ('RGBA', 'LA', 'P'):
@@ -244,7 +254,20 @@ def run(args, get=None) -> int:
         episodes = get_json(get, f'/feeds/{slug}/episodes?limit=500&offset=0&status=all')['episodes']
         for ep in episode_artwork_targets(episodes, args.since_days, date.today()):
             fetch_episode_artwork(get, out, slug, ep['id'])
+            if args.peaks and ep.get('status') in ('processed', 'completed'):
+                fetch_peaks(get, record, slug, ep['id'])
     return 0
+
+
+def fetch_peaks(get, record, slug: str, episode_id: str) -> None:
+    key = f'/feeds/{slug}/episodes/{quote(episode_id, safe="")}/peaks?resolution_ms=250'
+    resp = get(key)
+    if resp.status_code == 404:
+        return
+    if resp.status_code != 200:
+        print(f'skipped peaks {slug} ({resp.status_code})')
+        return
+    record(key, 200, round_numbers(parse_json(resp, f'/feeds/{slug}/episodes/<id>/peaks')))
 
 
 def fetch_episode_artwork(get, out: Path, slug: str, episode_id: str) -> None:
@@ -273,6 +296,7 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument('--hosts', required=True)
     p.add_argument('--exclusions', type=Path)
     p.add_argument('--since-days', type=int, default=30)
+    p.add_argument('--peaks', action=argparse.BooleanOptionalAction, default=True)
     p.add_argument('--synthesize-queue', action='store_true')
     try:
         return run(p.parse_args(argv))

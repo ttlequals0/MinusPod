@@ -112,7 +112,8 @@ def png(color='red'):
 
 def fake_get(extra_body=None, queue=None, feed_art=None):
     today = date.today().isoformat() + 'T00:00:00Z'
-    eps = [{'id': 'ep/1', 'artworkUrl': 'u', 'published': today},
+    eps = [{'id': 'ep/1', 'artworkUrl': 'u', 'published': today, 'status': 'completed'},
+           {'id': 'ep3', 'artworkUrl': 'u', 'published': today, 'status': 'processed'},
            {'id': 'ep2', 'artworkUrl': None, 'published': today}]
 
     def resp(body=None, status=200, content=b''):
@@ -135,6 +136,12 @@ def fake_get(extra_body=None, queue=None, feed_art=None):
             return resp({'episodes': eps})
         if path == '/feeds/keep/episodes/ep%2F1/artwork':
             return resp(content=png('blue'))
+        if path == '/feeds/keep/episodes/ep%2F1/peaks?resolution_ms=250':
+            return resp({'peaks': [0.123456, [0.5, 1]], 'start': 0.0})
+        if path.endswith('/peaks?resolution_ms=250'):
+            return resp(status=404)
+        if path.endswith('/artwork'):
+            return resp(status=404)
         raise AssertionError(path)
     return get
 
@@ -143,7 +150,7 @@ def args_for(tmp_path, **kw):
     excl = tmp_path / 'ex.json'
     excl.write_text(json.dumps({'slugs': ['skip']}))
     base = dict(out=tmp_path / 'out', hosts='leak.example.org', exclusions=excl, since_days=30,
-                synthesize_queue=False, base_url='', cookies=None)
+                synthesize_queue=False, peaks=True, base_url='', cookies=None)
     return types.SimpleNamespace(**{**base, **kw})
 
 
@@ -182,3 +189,19 @@ def test_run_unreadable_feed_art_aborts(tmp_path):
         assert e.code == 2
     else:
         raise AssertionError('no abort')
+
+
+def test_run_records_rounded_peaks_and_skips_404(tmp_path):
+    assert run(args_for(tmp_path), get=fake_get()) == 0
+    overrides = tmp_path / 'out' / 'overrides'
+    index = json.loads((overrides / 'index.json').read_text())
+    key = '/feeds/keep/episodes/ep%2F1/peaks?resolution_ms=250'
+    body = json.loads((overrides / index[key]).read_text())['body']
+    assert body['peaks'] == [0.123, [0.5, 1]]
+    assert not any('ep3' in k for k in index)
+
+
+def test_run_no_peaks(tmp_path):
+    run(args_for(tmp_path, peaks=False), get=fake_get())
+    index = json.loads((tmp_path / 'out' / 'overrides' / 'index.json').read_text())
+    assert not any('/peaks' in k for k in index)
