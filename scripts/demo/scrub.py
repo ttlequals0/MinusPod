@@ -13,8 +13,7 @@ QUERY_ONLY_HOSTS = ('feeds.acast.com', 'substack.com')
 
 _TOKEN_SEGMENT = re.compile(r'[A-Za-z0-9_-]{20,}')
 _ISO_TS = re.compile(r'\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z?')
-_SPACE_TS = re.compile(r'\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}')
-_ISO_DATE = re.compile(r'\d{4}-\d{2}-\d{2}')
+_ISO_ANY = re.compile(r'(\d{4}-\d{2}-\d{2})(?:([T ])(\d{2}:\d{2}:\d{2})(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})?)?')
 _DOC_V4 = ('192.0.2.', '198.51.100.', '203.0.113.')
 
 
@@ -52,19 +51,17 @@ def map_ip(ip: str, salt: bytes) -> str:
 
 
 def shift_iso(value: str, delta_days: int) -> str:
-    delta = timedelta(days=delta_days)
+    m = _ISO_ANY.fullmatch(value)
+    if not m:
+        return value
     try:
-        if _ISO_DATE.fullmatch(value):
-            return (datetime.strptime(value, '%Y-%m-%d') + delta).strftime('%Y-%m-%d')
-        if _SPACE_TS.fullmatch(value):
-            return (datetime.strptime(value, '%Y-%m-%d %H:%M:%S') + delta).strftime('%Y-%m-%d %H:%M:%S')
-        if _ISO_TS.fullmatch(value):
-            z = value.endswith('Z')
-            shifted = datetime.strptime(value.rstrip('Z'), '%Y-%m-%dT%H:%M:%S') + delta
-            return shifted.strftime('%Y-%m-%dT%H:%M:%S') + ('Z' if z else '')
-    except ValueError:
-        pass
-    return value
+        if m.group(2):
+            datetime.strptime(f'{m.group(1)}T{m.group(3)}', '%Y-%m-%dT%H:%M:%S')
+        day = datetime.strptime(m.group(1), '%Y-%m-%d') + timedelta(days=delta_days)
+    except (ValueError, OverflowError):
+        return value
+    # time, fraction and offset pass through verbatim; whole days leave them unchanged
+    return day.strftime('%Y-%m-%d') + value[10:]
 
 
 def shift_iso_in_text(text: str, delta_days: int) -> str:

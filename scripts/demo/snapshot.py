@@ -4,7 +4,9 @@ import argparse
 import json
 import os
 import sqlite3
+import shutil
 import sys
+import tempfile
 from dataclasses import dataclass, field
 from datetime import date, timedelta
 from pathlib import Path
@@ -43,7 +45,6 @@ JSON_TIME_COLUMNS = (
 ISO_GLOB = '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]*'
 ISO_TS_GLOB = '*[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]T[0-9][0-9]:[0-9][0-9]:[0-9][0-9]*'
 EXCLUSIONS_PATH = Path(__file__).with_name('exclusions.json')
-BATCH = 5000
 
 
 @dataclass
@@ -79,8 +80,6 @@ def text_columns(conn: sqlite3.Connection, table: str, only: list[str]) -> list[
 
 
 def copy_source(source: Path, work: Path) -> sqlite3.Connection:
-    for p in (work, Path(f'{work}-wal'), Path(f'{work}-shm'), Path(f'{work}-journal')):
-        p.unlink(missing_ok=True)
     src = sqlite3.connect(f'file:{source}?mode=ro', uri=True)
     conn = sqlite3.connect(work)
     src.backup(conn)
@@ -92,19 +91,17 @@ def copy_source(source: Path, work: Path) -> sqlite3.Connection:
 
 
 def drop_search_index(conn: sqlite3.Connection) -> None:
-    like = ' OR '.join(f"name LIKE '{p}%'" for p in DROPPED_TABLE_PREFIXES)
+    by_name = ' OR '.join(f"name GLOB '{p}*'" for p in DROPPED_TABLE_PREFIXES)
+    by_sql = ' OR '.join(f"sql GLOB '*{p}*'" for p in DROPPED_TABLE_PREFIXES)
     # triggers on other tables that feed the index would break later writes
-    for (name,) in conn.execute(
-        'SELECT name FROM sqlite_master WHERE type = \'trigger\' AND ('
-        + ' OR '.join(f"sql LIKE '%{p}%'" for p in DROPPED_TABLE_PREFIXES) + ')'
-    ).fetchall():
+    for (name,) in conn.execute(f"SELECT name FROM sqlite_master WHERE type = 'trigger' AND ({by_sql})").fetchall():
         conn.execute(f'DROP TRIGGER IF EXISTS {q(name)}')
     # dropping a virtual table removes its shadow tables
     for (name,) in conn.execute(
-        f"SELECT name FROM sqlite_master WHERE type = 'table' AND ({like}) AND sql LIKE 'CREATE VIRTUAL%'"
+        f"SELECT name FROM sqlite_master WHERE type = 'table' AND ({by_name}) AND sql GLOB 'CREATE VIRTUAL*'"
     ).fetchall():
         conn.execute(f'DROP TABLE IF EXISTS {q(name)}')
-    for (name,) in conn.execute(f"SELECT name FROM sqlite_master WHERE type = 'table' AND ({like})").fetchall():
+    for (name,) in conn.execute(f"SELECT name FROM sqlite_master WHERE type = 'table' AND ({by_name})").fetchall():
         conn.execute(f'DROP TABLE IF EXISTS {q(name)}')
     conn.commit()
 
@@ -112,20 +109,21 @@ def drop_search_index(conn: sqlite3.Connection) -> None:
 def drop_episodes(conn: sqlite3.Connection, where: str, params: tuple = ()) -> None:
     conn.execute('DROP TABLE IF EXISTS temp._drop_ep')
     conn.execute(
-        'CREATE TEMP TABLE _drop_ep AS SELECT id, CAST(podcast_id AS TEXT) AS pid, episode_id AS eid '
-        f'FROM episodes WHERE {where}', params,
+        'CREATE TEMP TABLE _drop_ep AS SELECT e.id AS id, e.podcast_id AS pid, e.episode_id AS eid, '
+        f'(SELECT slug FROM podcasts p WHERE p.id = e.podcast_id) AS slug FROM episodes e WHERE {where}', params,
     )
+    conn.execute('CREATE INDEX temp._drop_ep_pid ON _drop_ep (pid, eid)')
+    conn.execute('CREATE INDEX temp._drop_ep_slug ON _drop_ep (slug, eid)')
     have = user_tables(conn)
     for table, (pcol, ecol) in EPISODE_REF.items():
         if table not in have:
             continue
         if pcol:
-            conn.execute(
-                f'DELETE FROM {q(table)} WHERE EXISTS (SELECT 1 FROM temp._drop_ep d '
-                f'WHERE CAST({q(table)}.{q(pcol)} AS TEXT) = d.pid AND {q(table)}.{q(ecol)} = d.eid)'
-            )
+            conn.execute(f'DELETE FROM {q(table)} WHERE ({q(pcol)}, {q(ecol)}) IN (SELECT pid, eid FROM temp._drop_ep)')
         else:
             conn.execute(f'DELETE FROM {q(table)} WHERE {q(ecol)} IN (SELECT id FROM temp._drop_ep)')
+    if 'addressing_log' in have:
+        conn.execute('DELETE FROM addressing_log WHERE (podcast_slug, episode_id) IN (SELECT slug, eid FROM temp._drop_ep)')
     conn.execute('DELETE FROM episodes WHERE id IN (SELECT id FROM temp._drop_ep)')
     conn.execute('DROP TABLE temp._drop_ep')
 
@@ -150,6 +148,10 @@ def exclude_feeds(conn: sqlite3.Connection, excluded_slugs: set[str]) -> int:
         else:
             conn.execute(f'DELETE FROM {q(table)} WHERE CAST({q(col)} AS TEXT) IN ({id_marks})', [str(i) for i in ids])
     conn.execute(f'DELETE FROM podcasts WHERE id IN ({id_marks})', ids)
+    # cascades do not fire with foreign keys off
+    for table in ('audio_fingerprints', 'pattern_cleanup_suggestions'):
+        if table in have:
+            conn.execute(f'DELETE FROM {q(table)} WHERE pattern_id NOT IN (SELECT id FROM ad_patterns)')
     conn.commit()
     return len(ids)
 
@@ -236,18 +238,19 @@ def scrub(conn: sqlite3.Connection, hosts: list[str], salt: bytes) -> None:
 
 
 def replace_in_text_columns(conn: sqlite3.Connection, hosts: list[str]) -> None:
+    conn.create_function(
+        'replace_hosts', 1, lambda v: replace_hosts(v, hosts) if isinstance(v, str) else v, deterministic=True,
+    )
+    cond_params = [f'%{h.lower()}%' for h in hosts]
     for table in EXPORT_TABLES:
         if table not in user_tables(conn):
             continue
         for col in text_columns(conn, table, EXPORT_TABLES[table]):
             cond = ' OR '.join(f'LOWER({q(col)}) LIKE ?' for _ in hosts)
-            rows = conn.execute(
-                f'SELECT rowid, {q(col)} FROM {q(table)} WHERE typeof({q(col)}) = \'text\' AND ({cond})',
-                [f'%{h.lower()}%' for h in hosts],
-            ).fetchall()
-            conn.executemany(
-                f'UPDATE {q(table)} SET {q(col)} = ? WHERE rowid = ?',
-                [(new, rid) for rid, val in rows if (new := replace_hosts(val, hosts)) != val],
+            conn.execute(
+                f'UPDATE {q(table)} SET {q(col)} = replace_hosts({q(col)}) '
+                f"WHERE typeof({q(col)}) = 'text' AND ({cond}) AND replace_hosts({q(col)}) IS NOT {q(col)}",
+                cond_params,
             )
 
 
@@ -264,29 +267,28 @@ def compute_delta(conn: sqlite3.Connection, export_day: date) -> int:
 def shift_timestamps(conn: sqlite3.Connection, delta_days: int) -> None:
     if delta_days == 0:
         return
+    for name, fn in (('shift_iso', shift_iso), ('shift_text', shift_iso_in_text)):
+        conn.create_function(
+            name, 2, lambda v, d, fn=fn: fn(v, d) if isinstance(v, str) else v, deterministic=True,
+        )
     for table in EXPORT_TABLES:
         if table not in user_tables(conn):
             continue
         for col in text_columns(conn, table, EXPORT_TABLES[table]):
-            if col in JSON_TIME_COLUMNS:
-                rows = conn.execute(
-                    f'SELECT rowid, {q(col)} FROM {q(table)} WHERE typeof({q(col)}) = \'text\' AND {q(col)} GLOB ?',
-                    (ISO_TS_GLOB,),
-                ).fetchall()
-                fn = shift_iso_in_text
-            else:
-                rows = conn.execute(
-                    f'SELECT rowid, {q(col)} FROM {q(table)} WHERE typeof({q(col)}) = \'text\' '
-                    f'AND LENGTH({q(col)}) <= 20 AND {q(col)} GLOB ?',
-                    (ISO_GLOB,),
-                ).fetchall()
-                fn = shift_iso
-            for i in range(0, len(rows), BATCH):
-                conn.executemany(
-                    f'UPDATE {q(table)} SET {q(col)} = ? WHERE rowid = ?',
-                    [(new, rid) for rid, val in rows[i:i + BATCH] if (new := fn(val, delta_days)) != val],
-                )
+            fn, glob = ('shift_text', ISO_TS_GLOB) if col in JSON_TIME_COLUMNS else ('shift_iso', ISO_GLOB)
+            conn.execute(
+                f'UPDATE {q(table)} SET {q(col)} = {fn}({q(col)}, ?) '
+                f"WHERE typeof({q(col)}) = 'text' AND {q(col)} GLOB ? AND {fn}({q(col)}, ?) IS NOT {q(col)}",
+                (delta_days, glob, delta_days),
+            )
     conn.commit()
+
+
+def check_foreign_keys(conn: sqlite3.Connection) -> None:
+    bad = conn.execute('PRAGMA foreign_key_check').fetchall()
+    if bad:
+        rows = ', '.join(f'({r[0]}, rowid {r[1]}, parent {r[2]})' for r in bad[:5])
+        raise RuntimeError(f'{len(bad)} foreign key violations after export: {rows}')
 
 
 def snapshot(
@@ -294,28 +296,33 @@ def snapshot(
     export_day: date, salt: bytes,
 ) -> SnapshotReport:
     report = SnapshotReport()
-    work = out.with_suffix('.work.db')
-    out.unlink(missing_ok=True)
-    conn = copy_source(source, work)
+    if out.resolve() == source.resolve():
+        raise ValueError('--out must differ from --source')
+    out.parent.mkdir(parents=True, exist_ok=True)
+    work_dir = Path(tempfile.mkdtemp(dir=out.parent, prefix='.snapshot-'))
     try:
-        drop_search_index(conn)
-        episodes_before = conn.execute('SELECT COUNT(*) FROM episodes').fetchone()[0]
-        report.feeds_excluded = exclude_feeds(conn, excluded_slugs)
-        apply_window(conn, (export_day - timedelta(days=days)).isoformat())
-        report.unclassified_tables = apply_allowlist(conn)
-        scrub(conn, hosts, salt)
-        report.delta_days = compute_delta(conn, export_day)
-        shift_timestamps(conn, report.delta_days)
-        report.feeds_kept = conn.execute('SELECT COUNT(*) FROM podcasts').fetchone()[0]
-        report.episodes_kept = conn.execute('SELECT COUNT(*) FROM episodes').fetchone()[0]
-        report.episodes_dropped = episodes_before - report.episodes_kept
-        for table in sorted(user_tables(conn)):
-            report.rows_per_table[table] = conn.execute(f'SELECT COUNT(*) FROM {q(table)}').fetchone()[0]
-        conn.execute('VACUUM INTO ?', (str(out),))
+        conn = copy_source(source, work_dir / 'work.db')
+        try:
+            drop_search_index(conn)
+            episodes_before = conn.execute('SELECT COUNT(*) FROM episodes').fetchone()[0]
+            report.feeds_excluded = exclude_feeds(conn, excluded_slugs)
+            apply_window(conn, (export_day - timedelta(days=days)).isoformat())
+            report.unclassified_tables = apply_allowlist(conn)
+            scrub(conn, hosts, salt)
+            report.delta_days = compute_delta(conn, export_day)
+            shift_timestamps(conn, report.delta_days)
+            report.feeds_kept = conn.execute('SELECT COUNT(*) FROM podcasts').fetchone()[0]
+            report.episodes_kept = conn.execute('SELECT COUNT(*) FROM episodes').fetchone()[0]
+            report.episodes_dropped = episodes_before - report.episodes_kept
+            for table in sorted(user_tables(conn)):
+                report.rows_per_table[table] = conn.execute(f'SELECT COUNT(*) FROM {q(table)}').fetchone()[0]
+            check_foreign_keys(conn)
+            out.unlink(missing_ok=True)
+            conn.execute('VACUUM INTO ?', (str(out),))
+        finally:
+            conn.close()
     finally:
-        conn.close()
-        for p in (work, Path(f'{work}-wal'), Path(f'{work}-shm'), Path(f'{work}-journal')):
-            p.unlink(missing_ok=True)
+        shutil.rmtree(work_dir, ignore_errors=True)
     # Task 4 wires the leak check here; exit code 2 is reserved for its failures.
     report.output_bytes = out.stat().st_size
     return report
@@ -340,11 +347,19 @@ def main(argv: list[str] | None = None) -> int:
     if args.days < 1:
         print('--days must be at least 1', file=sys.stderr)
         return 1
+    if args.out.resolve() == args.source.resolve():
+        print('--out must differ from --source', file=sys.stderr)
+        return 1
     try:
-        slugs = set(json.loads(args.exclusions.read_text()).get('slugs', []))
+        data = json.loads(args.exclusions.read_text())
     except (OSError, ValueError) as e:
         print(f'cannot read exclusions: {e}', file=sys.stderr)
         return 1
+    slugs = data.get('slugs') if isinstance(data, dict) else None
+    if not isinstance(slugs, list) or not all(isinstance(x, str) for x in slugs):
+        print('exclusions must be an object with "slugs" as a list of strings', file=sys.stderr)
+        return 1
+    slugs = set(slugs)
     hosts = [h.strip() for h in args.hosts.split(',') if h.strip()]
     report = snapshot(
         args.source, args.out, days=args.days, excluded_slugs=slugs, hosts=hosts,
