@@ -51,7 +51,6 @@ type Loaded = { ms: MiniSearch; docs: Record<string, SearchDoc> };
 let loaded: Promise<Loaded> | null = null;
 let failedAt = 0;
 const INDEX_RETRY_MS = 30_000;
-const EMPTY_STATS = { stats: { total: 0 } };
 
 function install(file: SearchIndexFile): Loaded {
   return { ms: MiniSearch.loadJS(file.index as AsPlainObject, file.options), docs: file.docs };
@@ -231,7 +230,7 @@ export async function searchHandler({ request }: { request: Request }) {
     return HttpResponse.json(await runSearch(q, limit, groups));
   } catch (err) {
     warnDev('[demo] search unavailable', err);
-    return HttpResponse.json(emptyResponse(q));
+    return HttpResponse.json({ error: 'Could not load demo search. Try again.' }, { status: 503 });
   }
 }
 
@@ -241,7 +240,7 @@ export async function searchStatsHandler() {
     ({ docs } = await getIndex());
   } catch (err) {
     warnDev('[demo] search stats unavailable', err);
-    return HttpResponse.json(EMPTY_STATS);
+    return HttpResponse.json({ error: 'Could not load demo search. Try again.' }, { status: 503 });
   }
   const counts = { show: 0, pattern: 0, sponsor: 0 };
   const episodes = new Set<string>();

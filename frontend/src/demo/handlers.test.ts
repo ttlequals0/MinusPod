@@ -47,6 +47,15 @@ test('download and audio GETs are rejected', async () => {
   expect((await call('/feeds/a/episodes/e1/processed.mp3'))?.status).toBe(403);
 });
 
+test('unversioned APIs and public audio routes cannot reach a backend', async () => {
+  for (const path of ['/api/v2/settings', '/api/health', '/episodes/a/e1.mp3?download=1']) {
+    for (const method of ['GET', 'HEAD', 'POST']) {
+      const response = await getResponse(handlers, new Request(`http://x${path}`, { method }));
+      expect(response?.status).toBe(403);
+    }
+  }
+});
+
 test('null-body fixture statuses return no body', async () => {
   __setLoaderForTests(async () => ({ status: 204, body: {} }));
   const r = await call('/settings');

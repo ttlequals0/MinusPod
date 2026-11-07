@@ -6,7 +6,7 @@ const API_PREFIX = '/api/v1';
 const FIXTURE_BASE = '/demo/fixtures/';
 
 let index = new Map<string, string>();
-let byPath = new Map<string, string[]>();
+let paths = new Set<string>();
 const cache = new Map<string, Promise<Fixture>>();
 
 let loader: (file: string) => Promise<Fixture> = async (file) => {
@@ -20,20 +20,9 @@ function pathOf(key: string): string {
   return q === -1 ? key : key.slice(0, q);
 }
 
-function paramCount(key: string): number {
-  const q = key.indexOf('?');
-  return q === -1 ? 0 : key.slice(q + 1).split('&').length;
-}
-
 function installIndex(entries: Record<string, string>): void {
   index = new Map(Object.entries(entries));
-  byPath = new Map();
-  for (const key of index.keys()) {
-    const p = pathOf(key);
-    const keys = byPath.get(p);
-    if (keys) keys.push(key);
-    else byPath.set(p, [key]);
-  }
+  paths = new Set([...index.keys()].map(pathOf));
   cache.clear();
 }
 
@@ -82,15 +71,6 @@ export function warnDev(...args: unknown[]): void {
   if (__DEMO__ && import.meta.env.DEV) console.warn(...args);
 }
 
-async function guarded(key: string, run: () => Promise<Fixture | null>): Promise<Fixture | null> {
-  try {
-    return await run();
-  } catch (err) {
-    warnDev('[demo] fixture load failed', key, err);
-    return null;
-  }
-}
-
 const page = (limit: number) => ({ total: 0, page: 1, limit, totalPages: 0 });
 const costs = { items: [], total: 0, totalPages: 0, page: 1, limit: 50 };
 const queue = { count: 0, episodes: [] };
@@ -122,23 +102,24 @@ export function emptyDefault(pathname: string): Fixture {
 
 export async function resolveFixture(url: URL): Promise<Fixture> {
   const key = fixtureKey(url);
-  const exact = await guarded(key, () => loadFixture(key));
-  if (exact) return exact;
-
   const pathname = normalizedPath(url);
-  const handler = matchList(pathname);
-  if (handler) {
-    const listed = await guarded(key, () => handler(url, loadFixture));
-    if (listed) return listed;
-  }
+  try {
+    const exact = await loadFixture(key);
+    if (exact) return exact;
 
-  const candidates = byPath.get(pathname);
-  if (candidates && candidates.length > 0) {
-    const best = [...candidates].sort((a, b) => paramCount(a) - paramCount(b) || (a < b ? -1 : a > b ? 1 : 0))[0];
-    const matched = await guarded(best, () => loadFixture(best));
-    if (matched) return matched;
+    const handler = matchList(pathname);
+    if (handler) {
+      const listed = await handler(url, loadFixture);
+      if (listed) return listed;
+    }
+  } catch (err) {
+    warnDev('[demo] fixture load failed', key, err);
+    return { status: 503, body: { error: 'Could not load demo data. Try again.' } };
   }
 
   warnDev('[demo] no fixture for', key);
+  if (paths.has(pathname)) {
+    return { status: 422, body: { error: 'These filters are not available in this demo snapshot.' } };
+  }
   return emptyDefault(pathname);
 }

@@ -20,10 +20,16 @@ test('model-usage cacheHitRate sort treats zero input as null', async () => {
   const b = await mu('sortBy=cacheHitRate&sortDir=desc');
   expect(b.items.map((r) => r.calls)).toEqual([1, 3, 2]);
 });
-test('model-usage ignores from and to and recomputes paging', async () => {
-  const b = await mu('from=2020-01-01&limit=2&page=2');
+test('model-usage recomputes paging', async () => {
+  const b = await mu('limit=2&page=2');
   expect(b).toMatchObject({ total: 3, totalPages: 2, page: 2, limit: 2 });
   expect(b.items).toHaveLength(1);
+});
+
+test('model-usage rejects scopes unavailable in aggregated rows', async () => {
+  for (const query of ['from=2020-01-01', 'to=2020-01-31', 'podcastSlug=a']) {
+    expect((await modelUsageHandler(new URL(`http://x/api/v1/stats/model-usage?${query}`), usageLoad))?.status).toBe(422);
+  }
 });
 
 const costs = [
@@ -40,4 +46,10 @@ test('episode-costs default sort is lastActivityAt desc and cost sort is numeric
 });
 test('episode-costs podcastSlug filter is exact', async () => {
   expect((await ec('podcastSlug=a')).total).toBe(1);
+});
+
+test('episode-costs rejects scopes that require recomputing ledger totals', async () => {
+  for (const query of ['from=2020-01-01', 'to=2020-01-31', 'provider=a', 'model=m1']) {
+    expect((await episodeCostsHandler(new URL(`http://x/api/v1/stats/episode-costs?${query}`), costLoad))?.status).toBe(422);
+  }
 });

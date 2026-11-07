@@ -56,4 +56,6 @@ export const handlers: RequestHandler[] = [
     return fixtureResponse(f);
   }),
   http.all('*/api/v1/*', () => forbidden()),
+  http.all('*/api/*', () => forbidden()),
+  http.all(/\/episodes\/[^/]+\/[^/]+\.mp3(?:\?|$)/, () => forbidden()),
 ];

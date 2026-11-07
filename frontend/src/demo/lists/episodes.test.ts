@@ -55,3 +55,22 @@ test('status filtered reads its own dump', async () => {
 test('status filtered with no dump returns null', async () => {
   expect(await episodesHandler(url('status=filtered'), async (k) => (k.endsWith('status=filtered') ? null : dump))).toBeNull();
 });
+
+test('later recorded offsets are included before filtering and sorting', async () => {
+  const keys: string[] = [];
+  const r = await episodesHandler(url('status=failed'), async (key) => {
+    keys.push(key);
+    return { ...dump, body: { ...dump.body, episodes: key.includes('offset=0&') ? dump.body.episodes.slice(0, 1) : dump.body.episodes.slice(1) } };
+  });
+  expect(keys).toEqual([
+    '/feeds/s/episodes?limit=500&offset=0&sort_by=created_at&sort_dir=desc&status=all',
+    '/feeds/s/episodes?limit=500&offset=500&sort_by=created_at&sort_dir=desc&status=all',
+  ]);
+  expect((r!.body as Body).episodes.map((e) => e.id)).toEqual(['b']);
+});
+
+test('missing later offsets reject instead of shrinking the reported total', async () => {
+  await expect(episodesHandler(url(''), async (key) => key.includes('offset=0&')
+    ? { ...dump, body: { ...dump.body, episodes: dump.body.episodes.slice(0, 1) } }
+    : null)).rejects.toThrow('incomplete fixture dump');
+});

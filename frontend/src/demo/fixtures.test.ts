@@ -14,18 +14,26 @@ test('emptyDefault matches by path pattern', () => {
   expect(emptyDefault('/unknown/thing')).toEqual({ status: 404, body: { error: 'Not found' } });
 });
 
-test('resolveFixture prefers exact, then path-only with fewest params, then default', async () => {
+test('resolveFixture never substitutes a recording with different filters', async () => {
   __setIndexForTests({ '/settings': 'a.json', '/stats/llm?from=2026-01-01&to=2026-01-31': 'b.json', '/stats/llm?from=2026-01-01': 'c.json' });
   __setLoaderForTests(async (file) => ({ status: 200, body: { file } }));
   expect((await resolveFixture(new URL('http://x/api/v1/settings'))).body).toEqual({ file: 'a.json' });
-  expect((await resolveFixture(new URL('http://x/api/v1/stats/llm?from=2026-03-01&to=2026-03-31'))).body).toEqual({ file: 'c.json' });
+  expect((await resolveFixture(new URL('http://x/api/v1/stats/llm?from=2026-03-01&to=2026-03-31'))).status).toBe(422);
   expect((await resolveFixture(new URL('http://x/api/v1/sponsors'))).body).toEqual({ sponsors: [] });
 });
 
-test('resolveFixture falls through when the loader rejects', async () => {
+test('resolveFixture reports a failed load instead of claiming an empty list', async () => {
   __setIndexForTests({ '/sponsors': 'x.json' });
   __setLoaderForTests(async () => { throw new Error('boom'); });
-  expect((await resolveFixture(new URL('http://x/api/v1/sponsors'))).body).toEqual({ sponsors: [] });
+  expect((await resolveFixture(new URL('http://x/api/v1/sponsors'))).status).toBe(503);
+});
+
+test('a missing filtered episode dump never returns the unfiltered recording', async () => {
+  __setIndexForTests({ '/feeds/a/episodes?limit=500&offset=0&sort_by=created_at&sort_dir=desc&status=all': 'a.json' });
+  const loader = vi.fn();
+  __setLoaderForTests(loader);
+  expect((await resolveFixture(new URL('http://x/api/v1/feeds/a/episodes?status=filtered'))).status).toBe(422);
+  expect(loader).not.toHaveBeenCalled();
 });
 
 test('concurrent loadFixture calls for one key share a single load', async () => {
