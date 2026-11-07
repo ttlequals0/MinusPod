@@ -42,6 +42,13 @@ describe('DemoDisabled in demo', () => {
     expect(b.parentElement?.className).toBe('inline-flex cursor-not-allowed flex-1 w-full sm:w-auto');
   });
 
+  test('moves numbered flex tokens and arbitrary variants', () => {
+    render(<DemoDisabled><button className="btn grow basis-0 sm:grow-0 shrink-0 max-[359px]:w-full">Save</button></DemoDisabled>);
+    const b = screen.getByRole('button', { name: 'Save' });
+    expect(b.className).toBe('btn w-full');
+    expect(b.parentElement?.className).toBe('inline-flex cursor-not-allowed grow basis-0 sm:grow-0 shrink-0 max-[359px]:w-full');
+  });
+
   test('a child without sizing tokens keeps its classes', () => {
     render(<DemoDisabled><button className="btn">Save</button></DemoDisabled>);
     const b = screen.getByRole('button', { name: 'Save' });
