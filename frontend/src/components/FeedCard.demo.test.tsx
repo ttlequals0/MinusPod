@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, test, vi } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import FeedCard from './FeedCard';
@@ -22,7 +22,7 @@ describe.each([
   ['FeedCard', FeedCard],
   ['FeedListItem', FeedListItem],
 ])('%s in demo', (_name, Component) => {
-  it('disables delete and refresh with the write tooltip', () => {
+  test('disables delete and refresh with the write tooltip', () => {
     render(
       <MemoryRouter>
         <Component feed={feed} onRefresh={vi.fn()} onDelete={vi.fn()} />

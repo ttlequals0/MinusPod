@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, test, vi } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { FeedTagsEditor } from './FeedTagsEditor';
@@ -17,7 +17,7 @@ vi.mock('../api/community', () => ({
 afterEach(cleanup);
 
 describe('FeedTagsEditor in demo', () => {
-  it('disables Add tag and tag removal with the write tooltip', async () => {
+  test('disables Add tag and tag removal with the write tooltip', async () => {
     render(
       <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
         <FeedTagsEditor slug="example-podcast" />

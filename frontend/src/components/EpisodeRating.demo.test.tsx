@@ -1,5 +1,5 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen } from '@testing-library/react';
+import { afterEach, describe, expect, test, vi } from 'vitest';
+import { act, cleanup, render, screen, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import EpisodeRating from './EpisodeRating';
 import { DEMO_WRITE_TOOLTIP } from '../demo/copy';
@@ -16,7 +16,7 @@ const rateMock = vi.mocked(rateEpisode);
 afterEach(cleanup);
 
 describe('EpisodeRating in demo', () => {
-  it('disables Save and Clear with the write tooltip', () => {
+  test('disables Save and Clear with the write tooltip', () => {
     render(
       <QueryClientProvider client={new QueryClient()}>
         <EpisodeRating slug="show" episodeId="ep-1" rating={{ value: 3, notes: null, ratedAt: '2026-09-01T00:00:00Z' }} />
@@ -29,12 +29,15 @@ describe('EpisodeRating in demo', () => {
     }
   });
 
-  it('does not rate on mount when a feed link requests a rating', () => {
+  test('clears a feed link rating request without rating', async () => {
+    const handled = vi.fn();
     render(
       <QueryClientProvider client={new QueryClient()}>
-        <EpisodeRating slug="show" episodeId="ep-1" requestedRating={4} />
+        <EpisodeRating slug="show" episodeId="ep-1" requestedRating={4} onRequestedRatingHandled={handled} />
       </QueryClientProvider>,
     );
+    await waitFor(() => expect(handled).toHaveBeenCalled());
+    await act(() => new Promise((r) => setTimeout(r, 0)));
     expect(rateMock).not.toHaveBeenCalled();
   });
 });

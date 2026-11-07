@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, test, vi } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import EpisodeRowActions from './EpisodeRowActions';
@@ -13,7 +13,7 @@ vi.mock('../api/feeds', () => ({
 afterEach(cleanup);
 
 describe('EpisodeRowActions in demo', () => {
-  it('disables the actions menu trigger with the write tooltip', () => {
+  test('disables the actions menu trigger with the write tooltip', () => {
     render(
       <QueryClientProvider client={new QueryClient()}>
         <EpisodeRowActions feedSlug="show" episodeId="ep-1" status="completed" />
