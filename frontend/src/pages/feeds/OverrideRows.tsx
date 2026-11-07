@@ -8,19 +8,20 @@ export const toTri = (v: boolean | null | undefined): 'on' | 'off' | null => (v 
 export const fromTri = (v: 'on' | 'off' | null): boolean | null => (v == null ? null : v === 'on');
 
 export function GlobalOverrideRow({
-  label, ariaLabel, value, globalOn, disabled, onChange, children,
+  label, ariaLabel, value, globalOn, disabled, title, onChange, children,
 }: {
   label: string;
   ariaLabel: string;
   value: 'on' | 'off' | null | undefined;
   globalOn: boolean;
   disabled: boolean;
+  title?: string;
   onChange: (value: 'on' | 'off' | null) => void;
   children: ReactNode;
 }) {
   const id = useId();
   return (
-    <div className="flex flex-col sm:flex-row sm:items-start gap-2 sm:gap-3 text-sm">
+    <div className="flex flex-col sm:flex-row sm:items-start gap-2 sm:gap-3 text-sm" title={title}>
       <label htmlFor={id} className={rowLabelTop}>{label}</label>
       <div className="flex flex-col gap-1 flex-1 min-w-0">
         <select

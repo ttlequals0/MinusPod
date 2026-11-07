@@ -32,6 +32,7 @@ import QueryError from '../components/QueryError';
 import { btnBase, btnLg, btnPrimary, btnSecondary } from '../components/buttonStyles';
 import { focusRing, inputBase } from '../components/fieldStyles';
 import { pageTitle } from '../components/pageStyles';
+import { DemoDisabled } from '../components/DemoDisabled';
 
 type DashboardView = 'podcasts' | 'episodes';
 const DASHBOARD_VIEW_KEY = 'dashboardView';
@@ -305,31 +306,33 @@ function Dashboard() {
             perPodcastMin={MIN_EPISODES_PER_PODCAST}
             perPodcastMax={MAX_EPISODES_PER_PODCAST}
           />
-          <DropdownMenu
-            triggerLabel={
-              <>
-                <RefreshCw className="w-5 h-5 md:hidden" aria-hidden="true" />
-                <span className="hidden md:inline">{refreshAllMutation.isPending ? 'Refreshing...' : 'Refresh all'}</span>
-              </>
-            }
-            triggerClassName={`${btnBase} ${btnSecondary} shrink-0`}
-            chevronClassName="w-4 h-4 hidden md:block"
-            disabled={refreshAllMutation.isPending}
-            title="Refresh all feeds"
-            ariaLabel="Refresh all feeds"
-            items={[
-              {
-                title: 'Refresh all',
-                subtitle: 'Check every feed for new episodes',
-                onClick: () => refreshAllMutation.mutate(undefined),
-              },
-              {
-                title: 'Force refresh all',
-                subtitle: 'Bypass cache on every feed',
-                onClick: () => refreshAllMutation.mutate({ force: true }),
-              },
-            ]}
-          />
+          <DemoDisabled>
+            <DropdownMenu
+              triggerLabel={
+                <>
+                  <RefreshCw className="w-5 h-5 md:hidden" aria-hidden="true" />
+                  <span className="hidden md:inline">{refreshAllMutation.isPending ? 'Refreshing...' : 'Refresh all'}</span>
+                </>
+              }
+              triggerClassName={`${btnBase} ${btnSecondary} shrink-0`}
+              chevronClassName="w-4 h-4 hidden md:block"
+              disabled={refreshAllMutation.isPending}
+              title="Refresh all feeds"
+              ariaLabel="Refresh all feeds"
+              items={[
+                {
+                  title: 'Refresh all',
+                  subtitle: 'Check every feed for new episodes',
+                  onClick: () => refreshAllMutation.mutate(undefined),
+                },
+                {
+                  title: 'Force refresh all',
+                  subtitle: 'Bypass cache on every feed',
+                  onClick: () => refreshAllMutation.mutate({ force: true }),
+                },
+              ]}
+            />
+          </DemoDisabled>
           <button
             type="button"
             onClick={() => setOpmlExportOpen(true)}

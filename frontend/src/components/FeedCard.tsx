@@ -13,6 +13,7 @@ import FeedTypeBadge from './FeedTypeBadge';
 import PodpingBadge from './PodpingBadge';
 import { btnBase, btnPrimaryOutline, btnDestructiveOutline } from './buttonStyles';
 import { focusRing } from './fieldStyles';
+import { DemoDisabled } from './DemoDisabled';
 import { cardTitle, cardPad } from './pageStyles';
 
 interface FeedCardProps {
@@ -95,34 +96,38 @@ function FeedCard({ feed, onRefresh, onDelete, isRefreshing }: FeedCardProps) {
         <CopyButton text={feed.feedUrl} className="h-8 px-2" />
         <div className="flex gap-2">
           {hasUpstream && (
-            <DropdownMenu
-              triggerLabel={isRefreshing ? 'Refreshing...' : 'Refresh'}
-              triggerClassName={`${btnBase} ${btnPrimaryOutline}`}
-              disabled={isRefreshing}
-              title="Refresh feed"
-              items={[
-                {
-                  title: 'Refresh',
-                  subtitle: 'Check for new episodes',
-                  onClick: () => onRefresh(feed.slug),
-                },
-                {
-                  title: 'Force refresh',
-                  subtitle: 'Bypass cache',
-                  onClick: () => onRefresh(feed.slug, { force: true }),
-                },
-              ]}
-            />
+            <DemoDisabled>
+              <DropdownMenu
+                triggerLabel={isRefreshing ? 'Refreshing...' : 'Refresh'}
+                triggerClassName={`${btnBase} ${btnPrimaryOutline}`}
+                disabled={isRefreshing}
+                title="Refresh feed"
+                items={[
+                  {
+                    title: 'Refresh',
+                    subtitle: 'Check for new episodes',
+                    onClick: () => onRefresh(feed.slug),
+                  },
+                  {
+                    title: 'Force refresh',
+                    subtitle: 'Bypass cache',
+                    onClick: () => onRefresh(feed.slug, { force: true }),
+                  },
+                ]}
+              />
+            </DemoDisabled>
           )}
-          <button
-            onClick={() => onDelete(feed.slug)}
-            className={`${btnBase} ${btnDestructiveOutline}`}
-            title="Delete feed"
-            aria-label="Delete feed"
-          >
-            <Trash2 className="w-4 h-4 sm:hidden" aria-hidden="true" />
-            <span className="hidden sm:inline">Delete</span>
-          </button>
+          <DemoDisabled>
+            <button
+              onClick={() => onDelete(feed.slug)}
+              className={`${btnBase} ${btnDestructiveOutline}`}
+              title="Delete feed"
+              aria-label="Delete feed"
+            >
+              <Trash2 className="w-4 h-4 sm:hidden" aria-hidden="true" />
+              <span className="hidden sm:inline">Delete</span>
+            </button>
+          </DemoDisabled>
         </div>
       </div>
     </div>

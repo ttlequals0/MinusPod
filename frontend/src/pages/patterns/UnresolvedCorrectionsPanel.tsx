@@ -15,6 +15,7 @@ import { ConfirmModal } from '../../components/Modal';
 import { countPill, tint } from '../../components/badgeStyles';
 import { cardTitle } from '../../components/pageStyles';
 import { uiUrl } from '../../urlPrefix';
+import { DemoDisabled } from '../../components/DemoDisabled';
 
 function formatBounds(bounds: { start: number; end: number } | null): string | null {
   if (!bounds) return null;
@@ -143,20 +144,24 @@ function CorrectionRow({ correction, selected, onSelected }: CorrectionRowProps)
       )}
 
       <div className="mt-4 flex items-center gap-3">
-        <button
-          type="button"
-          disabled={!slug || !confirmed || mutation.isPending}
-          onClick={() => mutation.mutate()}
-          className={`${btnBase} ${btnPrimary}`}
-        >
-          {mutation.isPending ? 'Assigning...' : 'Assign correction'}
-        </button>
+        <DemoDisabled>
+          <button
+            type="button"
+            disabled={!slug || !confirmed || mutation.isPending}
+            onClick={() => mutation.mutate()}
+            className={`${btnBase} ${btnPrimary}`}
+          >
+            {mutation.isPending ? 'Assigning...' : 'Assign correction'}
+          </button>
+        </DemoDisabled>
         {mutation.error && (
           <p className="text-sm text-destructive">{(mutation.error as Error).message}</p>
         )}
-        <button type="button" onClick={() => setConfirmDelete(true)} className={`${btnBase} ${btnOutline}`}>
-          Delete
-        </button>
+        <DemoDisabled>
+          <button type="button" onClick={() => setConfirmDelete(true)} className={`${btnBase} ${btnOutline}`}>
+            Delete
+          </button>
+        </DemoDisabled>
       </div>
       {deleteMutation.error && <p className="mt-2 text-sm text-destructive">{(deleteMutation.error as Error).message}</p>}
       {confirmDelete && (
@@ -254,8 +259,12 @@ export default function UnresolvedCorrectionsPanel() {
                     <option value="">Choose one proven feed</option>
                     {commonCandidates.map((candidate) => <option key={candidate.slug} value={candidate.slug}>{candidate.podcast_title || candidate.slug}</option>)}
                   </select>
-                  <button type="button" disabled={!validBulkSlug} onClick={() => openBulkAction('assign')} className={`${btnBase} ${btnPrimary}`}>Assign selected</button>
-                  <button type="button" onClick={() => openBulkAction('delete')} className={`${btnBase} ${btnDestructive}`}>Delete selected</button>
+                  <DemoDisabled>
+                    <button type="button" disabled={!validBulkSlug} onClick={() => openBulkAction('assign')} className={`${btnBase} ${btnPrimary}`}>Assign selected</button>
+                  </DemoDisabled>
+                  <DemoDisabled>
+                    <button type="button" onClick={() => openBulkAction('delete')} className={`${btnBase} ${btnDestructive}`}>Delete selected</button>
+                  </DemoDisabled>
                 </div>}
               </li>
               {data?.corrections.map((correction) => (
