@@ -102,7 +102,8 @@ export default defineConfig({
   },
   server: {
     port: 5173,
-    proxy: {
+    // The demo has no backend, and a prefix-matched /api proxy would swallow /api-docs.
+    proxy: isDemo ? undefined : {
       '/api': {
         target: process.env.VITE_PROXY_TARGET || 'http://localhost:8000',
         changeOrigin: true,

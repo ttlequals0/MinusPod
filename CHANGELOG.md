@@ -12,6 +12,7 @@ release notes.
 
 ### Added
 
+- Demo mode build. `VITE_DEMO=1` (or `npm run build:demo`) builds the frontend as a read-only hosted demo. The UI runs against recorded API fixtures served by a service worker. Writes return 403 with a visible notice and audio playback is disabled with an explanation. Artwork is bundled, podcast search calls iTunes directly, and an in-app API explorer replaces the backend docs page. Normal builds are unchanged.
 - Feeds gain a description override next to the title override, so a YouTube channel or playlist feed can carry a hand-written description that survives refreshes. Set it from the feed page or the `descriptionOverride` field on `PATCH /api/v1/feeds/{slug}`.
 
 ### Fixed
