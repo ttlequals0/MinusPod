@@ -562,6 +562,7 @@ class SchemaMixin:
             ('download_user_agent_override', 'TEXT'),
             ('feed_user_agent_override', 'TEXT'),
             ('title_override', 'TEXT'),
+            ('description_override', 'TEXT'),
             ('detection_mode', 'TEXT'),
             ('cue_template_score_override', 'REAL'),
             ('cue_create_from_pairs_override', 'INTEGER'),
@@ -2924,7 +2925,8 @@ class SchemaMixin:
             "SELECT id, podcast_id, episode_id, original_bounds, corrected_bounds, created_at "
             "FROM pattern_corrections WHERE correction_type = 'boundary_adjustment' "
             "AND podcast_id IS NOT NULL "
-            "AND original_bounds IS NOT NULL AND corrected_bounds IS NOT NULL").fetchall()
+            "AND original_bounds IS NOT NULL AND corrected_bounds IS NOT NULL "
+            "AND original_bounds != corrected_bounds").fetchall()
         fixed, skipped, episodes = 0, 0, set()
         for r in stale:
             orig, new = _parse_bounds(r['original_bounds']), _parse_bounds(r['corrected_bounds'])
