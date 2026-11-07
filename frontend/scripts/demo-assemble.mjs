@@ -38,6 +38,9 @@ cpSync(worker, resolve(out, 'mockServiceWorker.js'));
 const spec = readFileSync(openapi, 'utf8').replace(/^(\s*version:\s*).*$/m, `$1${versionMatch[1]}`);
 writeFileSync(resolve(out, 'demo/openapi.yaml'), spec);
 
+if (!existsSync(resolve(frontend, 'demo/fixtures/index.json')) && process.env.DEMO_ALLOW_MISSING_FIXTURES !== '1') {
+  fail('missing demo/fixtures/index.json, set DEMO_ALLOW_MISSING_FIXTURES=1 to build without it');
+}
 copyOptional(resolve(frontend, 'demo/fixtures'), resolve(out, 'demo/fixtures'));
 copyOptional(resolve(frontend, 'demo/artwork'), resolve(out, 'demo/artwork'));
 copyOptional(resolve(frontend, 'demo/search-index.json'), resolve(out, 'demo/search-index.json'));

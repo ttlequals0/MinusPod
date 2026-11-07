@@ -12,6 +12,8 @@ import type {
 import { loadFixture } from './fixtures';
 import { clampInt } from './lists/paging';
 
+const TRANSCRIPT_SNIPPET_FETCHES = 10;
+
 type DocType = 'show' | 'episode' | 'transcript' | 'pattern' | 'sponsor';
 
 export type SearchDoc = {
@@ -138,9 +140,9 @@ export async function runSearch(q: string, limit: number, groups: string[] | nul
   for (const group of wanted) {
     const hits = searchGroup(ms, q, group, limit);
     const texts = group === 'transcripts'
-      ? await Promise.all(hits.map((h) => {
+      ? await Promise.all(hits.map((h, i) => {
           const d = docs[String(h.id)];
-          return d ? transcriptText(d.feedSlug ?? '', d.episodeId ?? '') : null;
+          return d && i < TRANSCRIPT_SNIPPET_FETCHES ? transcriptText(d.feedSlug ?? '', d.episodeId ?? '') : null;
         }))
       : [];
     for (const [i, hit] of hits.entries()) {

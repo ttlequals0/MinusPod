@@ -66,6 +66,7 @@ import { cardTitle } from '../components/pageStyles';
 import { HOLD_REASON_LABELS, HOLD_REASON_TITLES } from '../utils/holdReason';
 import { URL_PREFIX } from '../urlPrefix';
 import { DemoDisabled } from '../components/DemoDisabled';
+import { IS_DEMO } from '../demo/flag';
 
 function btnLabel(status: string, idle: string): string {
   if (status === 'saving') return 'Saving...';
@@ -1363,7 +1364,7 @@ function EpisodeDetail() {
           <div className="mt-4 pt-4 border-t border-border">
             <EpisodePlayer
               src={audioUrl}
-              chaptersUrl={episode.chaptersAvailable ? episode.chaptersUrl : undefined}
+              chaptersUrl={episode.chaptersAvailable && !IS_DEMO ? episode.chaptersUrl : undefined}
             />
             {(episode.transcriptVttAvailable || episode.chaptersAvailable) && (
               <div className="flex flex-wrap gap-2 mt-3">
@@ -1376,7 +1377,7 @@ function EpisodeDetail() {
                     Download VTT
                   </a>
                 )}
-                {episode.chaptersAvailable && episode.chaptersUrl && (
+                {episode.chaptersAvailable && episode.chaptersUrl && !IS_DEMO && (
                   <a
                     href={episode.chaptersUrl}
                     download

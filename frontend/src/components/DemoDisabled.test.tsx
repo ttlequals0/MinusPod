@@ -19,4 +19,11 @@ describe('DemoDisabled', () => {
     render(<DemoDisabled><a href="/x">Export</a></DemoDisabled>);
     expect(screen.getByRole('link', { name: 'Export' }).getAttribute('href')).toBe('/x');
   });
+
+  test('renders the child as is when not in demo', () => {
+    render(<DemoDisabled><button className="flex-1 w-full">Save</button></DemoDisabled>);
+    const b = screen.getByRole('button', { name: 'Save' });
+    expect(b.className).toBe('flex-1 w-full');
+    expect(b.parentElement?.getAttribute('title')).toBeNull();
+  });
 });

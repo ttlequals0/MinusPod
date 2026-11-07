@@ -61,3 +61,19 @@ test('unknown group is a 400', async () => {
   expect(res.status).toBe(400);
   expect(await res.json()).toEqual({ error: 'Unknown group: bogus' });
 });
+
+test('only the first transcript hits load a transcript fixture', async () => {
+  const docs: Record<string, unknown> = {};
+  const ms2 = new MiniSearch(options);
+  for (let n = 0; n < 15; n++) {
+    ms2.add({ id: `transcript:b/${n}`, type: 'transcript', title: `Episode ${n}`, body: 'zebra crossing' });
+    docs[`transcript:b/${n}`] = { type: 'transcript', feedSlug: 'b', episodeId: String(n), title: `Episode ${n}` };
+  }
+  __setIndexForTests({ version: 1, options, index: ms2.toJSON(), docs } as never);
+  setFixtureIndex(Object.fromEntries(Array.from({ length: 15 }, (_, n) => [`/feeds/b/episodes/${n}/original-transcript`, `t${n}.json`])));
+  let loads = 0;
+  __setLoaderForTests(async () => { loads++; return { status: 200, body: { originalTranscript: 'a zebra crossing' } }; });
+  const r = await runSearch('zebra', 50, ['transcripts']);
+  expect(r.transcripts).toHaveLength(15);
+  expect(loads).toBe(10);
+});
