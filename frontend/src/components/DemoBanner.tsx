@@ -1,6 +1,7 @@
 import { IS_DEMO } from '../demo/flag';
-import { DEMO_BANNER } from '../demo/copy';
 import { focusRing } from './fieldStyles';
+
+export const DEMO_BANNER = 'Demo: a read-only snapshot of real data from a running MinusPod instance. Some details anonymized.';
 
 const link = `inline-flex h-11 items-center px-3 font-medium underline underline-offset-2 ${focusRing}`;
 

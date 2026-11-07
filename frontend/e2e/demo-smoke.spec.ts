@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { DEMO_BANNER, DEMO_WRITE_ERROR, DEMO_WRITE_TOOLTIP } from '../src/demo/copy';
+import { DEMO_WRITE_ERROR, DEMO_WRITE_TOOLTIP } from '../src/demo/copy';
 
 test.skip(process.env.MINUSPOD_DEMO_E2E !== '1', 'demo smoke runs against the demo build on demand');
 
@@ -8,7 +8,7 @@ test('demo build serves fixtures, blocks writes, and explains itself', async ({ 
   page.context().on('request', (req) => requested.push(req.url()));
 
   await page.goto('/', { waitUntil: 'load' });
-  await expect(page.getByText(DEMO_BANNER)).toBeVisible();
+  await expect(page.getByText(/^Demo: a read-only snapshot of real data/)).toBeVisible();
   const scripts = await page.evaluate(() => navigator.serviceWorker.getRegistrations().then((rs) => rs.map((r) => (r.active ?? r.installing ?? r.waiting)?.scriptURL ?? '')));
   expect(scripts.some((url) => url.endsWith('/mockServiceWorker.js'))).toBe(true);
   expect(scripts.filter((url) => url.endsWith('/sw.js'))).toEqual([]);

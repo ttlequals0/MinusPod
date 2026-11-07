@@ -1,7 +1,6 @@
 import { expect, test, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
-import { DemoBanner } from './DemoBanner';
-import { DEMO_BANNER } from '../demo/copy';
+import { DemoBanner, DEMO_BANNER } from './DemoBanner';
 
 vi.mock('../demo/flag', () => ({ IS_DEMO: true }));
 
