@@ -27,7 +27,7 @@ test('model-usage recomputes paging', async () => {
 });
 
 test('model-usage rejects scopes unavailable in aggregated rows', async () => {
-  for (const query of ['from=2020-01-01', 'to=2020-01-31', 'podcastSlug=a']) {
+  for (const query of ['from=2020-01-01', 'from=', 'to=2020-01-31', 'podcastSlug=a']) {
     expect((await modelUsageHandler(new URL(`http://x/api/v1/stats/model-usage?${query}`), usageLoad))?.status).toBe(422);
   }
 });
@@ -49,7 +49,7 @@ test('episode-costs podcastSlug filter is exact', async () => {
 });
 
 test('episode-costs rejects scopes that require recomputing ledger totals', async () => {
-  for (const query of ['from=2020-01-01', 'to=2020-01-31', 'provider=a', 'model=m1']) {
+  for (const query of ['from=2020-01-01', 'from=', 'to=2020-01-31', 'provider=a', 'model=m1']) {
     expect((await episodeCostsHandler(new URL(`http://x/api/v1/stats/episode-costs?${query}`), costLoad))?.status).toBe(422);
   }
 });

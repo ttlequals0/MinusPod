@@ -30,7 +30,7 @@ test('page and limit recompute the envelope', async () => {
 });
 test('offset without page slices by offset and non-integer page is absent', async () => {
   const many = Array.from({ length: 20 }, (_, i) => ({ id: i, status: 'completed', processedAt: String(100 - i).padStart(3, '0') }));
-  const l = async () => ({ status: 200, body: { history: many } });
+  const l = async () => ({ status: 200, body: { history: many, total: 20 } });
   const b = (await historyHandler(url('offset=5&limit=10&page=abc'), l))!.body as Body;
   expect(ids(b)).toEqual([5, 6, 7, 8, 9, 10, 11, 12, 13, 14]);
   expect(b).toMatchObject({ offset: 5, page: 1, total: 20 });
@@ -40,7 +40,7 @@ test('full pages are followed until a short page', async () => {
   const keys: string[] = [];
   const paged = async (key: string) => {
     keys.push(key);
-    return key.includes('page=1&') ? { status: 200, body: { history: full } } : key.includes('page=2&') ? { status: 200, body: { history: [{ id: 999, status: 'completed' }] } } : null;
+    return key.includes('page=1&') ? { status: 200, body: { history: full, total: 101 } } : key.includes('page=2&') ? { status: 200, body: { history: [{ id: 999, status: 'completed' }], total: 101 } } : null;
   };
   const r = await historyHandler(url('limit=100'), paged);
   expect((r!.body as Body).total).toBe(101);

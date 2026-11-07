@@ -12,12 +12,11 @@ release notes.
 
 ### Added
 
-- Demo mode build. `VITE_DEMO=1` (or `npm run build:demo`) builds the frontend as a read-only hosted demo. The UI runs against recorded API fixtures served by a service worker. Writes return 403 with a visible notice and audio playback is disabled with an explanation. Artwork is bundled, podcast search calls iTunes directly, and an in-app API explorer replaces the backend docs page. Normal builds are unchanged.
+- Demo mode build. `VITE_DEMO=1` (or `npm run build:demo`) builds the frontend as a read-only hosted demo. The UI runs against recorded API fixtures served by a service worker. Writes return 403 with a visible notice, requests for data the snapshot does not hold say so instead of answering with something else, and audio playback is disabled with an explanation. Artwork is bundled, podcast search calls iTunes directly, and an in-app API explorer replaces the backend docs page. Normal builds are unchanged.
 - Feeds gain a description override next to the title override, so a YouTube channel or playlist feed can carry a hand-written description that survives refreshes. Set it from the feed page or the `descriptionOverride` field on `PATCH /api/v1/feeds/{slug}`.
 
 ### Fixed
 
-- Demo requests report unavailable data when recordings or search data fail to load. Unrecorded filters no longer return unrelated recordings, and paginated episode and approval lists load all recorded pages. The API explorer keeps requests on the demo host.
 - The shared animation helper `docs/videos/lib/canvas.js` is now tracked. The top-level `lib/` ignore rule for Python builds had swallowed it. The videos README linked to a file that was not in the repository, and the two animated videos could not be rebuilt from a clone.
 - Splitting an ad and recutting now keeps every piece cut (#967). The first piece's correction row recorded the whole pre-split span. Trim protection read that as audio the user kept and carved the later pieces out of the cut list on every recut and reprocess. The row now covers the first piece only. A one-shot startup migration repairs rows saved by earlier versions and lists those episodes under Apply recuts.
 - Timestamps written in an episode's description, such as the chapter list in a YouTube video description, now shift with the ad cuts like the chapters do. Tapping one in a podcast app lands on the right moment.

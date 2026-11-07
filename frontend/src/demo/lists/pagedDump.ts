@@ -14,20 +14,15 @@ export async function loadAllPages<B, R>(
   const rows = [...rowsOf(body)];
   const counts = body as { total?: number; count?: number };
   const total = counts.total ?? counts.count;
-  let last = rows.length;
-  for (let page = 2; total === undefined ? last === pageSize : rows.length < total; page++) {
+  if (total === undefined) throw new Error(`[demo] dump has no total: ${key}`);
+  for (let page = 2; rows.length < total; page++) {
     const nextKey = pagination === 'offset'
       ? key.replace(/offset=\d+/, `offset=${(page - 1) * pageSize}`)
       : key.replace(/page=\d+/, `page=${page}`);
     const next = await load(nextKey);
-    if (!next) {
-      if (total !== undefined && rows.length < total) throw new Error(`[demo] incomplete fixture dump: ${nextKey}`);
-      break;
-    }
-    const chunk = rowsOf(next.body as B);
-    if (!chunk.length && total !== undefined && rows.length < total) throw new Error(`[demo] incomplete fixture dump: ${nextKey}`);
+    const chunk = next ? rowsOf(next.body as B) : [];
+    if (!chunk.length) throw new Error(`[demo] incomplete fixture dump: ${nextKey}`);
     rows.push(...chunk);
-    last = chunk.length;
   }
   return { body, rows };
 }

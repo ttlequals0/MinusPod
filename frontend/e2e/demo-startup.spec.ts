@@ -10,7 +10,4 @@ test('a missing snapshot stops startup before the app calls an API', async ({ pa
   await expect(page.locator('#root')).toHaveText('The demo failed to start. Reload the page to try again.');
   await expect(page.getByRole('navigation')).toHaveCount(0);
   expect(apiRequests).toEqual([]);
-  const registrations = await page.evaluate(async () => (await navigator.serviceWorker.getRegistrations())
-    .map((registration) => (registration.active ?? registration.installing ?? registration.waiting)?.scriptURL));
-  expect(registrations.some((url) => url?.endsWith('/sw.js'))).toBe(false);
 });

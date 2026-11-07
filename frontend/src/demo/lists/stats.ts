@@ -28,7 +28,7 @@ function build<R>(
 ): ListHandler {
   return async (url, load) => {
     const p = url.searchParams;
-    if (unsupported.some((key) => p.get(key))) {
+    if (unsupported.some((key) => p.has(key))) {
       return { status: 422, body: { error: 'These filters are not available in this demo snapshot.' } };
     }
     const all = await loadAllPages<Dump<R>, R>(dumpKey, load, (b) => b.items);

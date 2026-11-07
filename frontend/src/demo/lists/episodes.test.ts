@@ -26,7 +26,7 @@ test('published_at sort reads published, not createdAt', async () => {
     { id: 'x', title: 'x', status: 'processed', published: '2026-12-01T00:00:00Z', createdAt: '2026-01-01T00:00:00Z' },
     { id: 'y', title: 'y', status: 'processed', published: '2026-02-01T00:00:00Z', createdAt: '2026-06-01T00:00:00Z' },
   ];
-  const r = await episodesHandler(url('sort_by=published_at&sort_dir=desc'), async () => ({ status: 200, body: { episodes: rows } }));
+  const r = await episodesHandler(url('sort_by=published_at&sort_dir=desc'), async () => ({ status: 200, body: { episodes: rows, total: 2 } }));
   expect((r!.body as Body).episodes.map((e) => e.id)).toEqual(['x', 'y']);
 });
 test('episode_number sorts nulls last', async () => {

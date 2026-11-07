@@ -43,3 +43,9 @@ test('page is clamped to the last page', async () => {
   expect(b).toMatchObject({ page: 3, totalPages: 3, total: 5, limit: 2 });
   expect(ids(b)).toHaveLength(1);
 });
+
+test('a missing later page of the dump rejects', async () => {
+  const partial = async () => ({ status: 200, body: { detections: items, total: 6, page: 1, totalPages: 2, limit: 100 } });
+  await expect(detectionsHandler(new URL('http://x/api/v1/detections'), async (key) => (key.includes('page=1') ? partial() : null)))
+    .rejects.toThrow('incomplete fixture dump');
+});
