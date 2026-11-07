@@ -1,6 +1,7 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import { test, expect } from 'vitest';
 import { detectionsHandler } from './detections';
+
+type Body = { detections: { id: number }[]; total: number; counts: { pendingByHoldReason: unknown }; cutSummary: { byCategory: unknown } };
 
 const d = (o: Record<string, unknown>) => ({
   feedSlug: 'a', feedTitle: 'Feed A', episodeId: 'e', publishDate: '2026-01-01', start: 0, end: 10,
@@ -15,8 +16,8 @@ const items = [
   d({ id: 5, status: 'accepted', resolution: 'confirmed', feedSlug: 'b', sponsor: 'Beta', category: 'intro', confidence: 0.9 }),
 ];
 const load = async () => ({ status: 200, body: { detections: items, total: 5, page: 1, totalPages: 1, limit: 100 } });
-const body = async (q: string) => (await detectionsHandler(new URL(`http://x/api/v1/detections?${q}`), load))!.body as any;
-const ids = (b: any) => b.detections.map((r: any) => r.id);
+const body = async (q: string) => (await detectionsHandler(new URL(`http://x/api/v1/detections?${q}`), load))!.body as Body;
+const ids = (b: Body) => b.detections.map((r) => r.id);
 
 test('default status needs_review excludes keep-like and resolved items', async () => {
   expect(ids(await body(''))).toEqual([2, 3]);

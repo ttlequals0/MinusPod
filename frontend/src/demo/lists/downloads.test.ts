@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import { test, expect } from 'vitest';
 import { downloadsHandler } from './downloads';
 
@@ -7,9 +6,10 @@ const rows = [
   { id: 2, podcastSlug: 'b', podcastTitle: 'alpha', clientIp: '2.2.2.2', userAgent: 'Spotify', subscriberKeyId: null, lastSeenAt: '2026-05-02T23:59:00Z', country: 'DE', city: 'Berlin', subscriberLabel: 'Bob' },
   { id: 3, podcastSlug: 'a', podcastTitle: 'Zed', clientIp: '3.3.3.3', userAgent: 'overcast pro', subscriberKeyId: 'k1', lastSeenAt: '2026-05-02T01:00:00Z', country: null, city: null, subscriberLabel: null },
 ];
+type Body = { downloads: typeof rows };
 const load = async () => ({ status: 200, body: { downloads: rows, total: 3, page: 1, limit: 100 } });
-const body = async (q: string) => (await downloadsHandler(new URL(`http://x/api/v1/history/downloads?${q}`), load))!.body as any;
-const ids = (b: any) => b.downloads.map((r: any) => r.id);
+const body = async (q: string) => (await downloadsHandler(new URL(`http://x/api/v1/history/downloads?${q}`), load))!.body as Body;
+const ids = (b: Body) => b.downloads.map((r) => r.id);
 
 test('since and until compare the day inclusively', async () => {
   expect(ids(await body('since=2026-05-02T09:00:00Z'))).toEqual([2, 3]);

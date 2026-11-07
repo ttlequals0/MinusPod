@@ -1,10 +1,10 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import { test, expect } from 'vitest';
 import { sponsorsHandler } from './sponsors';
 
 const rows = [{ id: 1, is_active: true }, { id: 2, is_active: false }, { id: 3 }];
 const load = async () => ({ status: 200, body: { sponsors: rows } });
-const ids = async (q: string) => ((await sponsorsHandler(new URL(`http://x/api/v1/sponsors?${q}`), load))!.body as any).sponsors.map((r: any) => r.id);
+type Body = { sponsors: typeof rows };
+const ids = async (q: string) => ((await sponsorsHandler(new URL(`http://x/api/v1/sponsors?${q}`), load))!.body as Body).sponsors.map((r) => r.id);
 
 test('inactive sponsors are dropped by default', async () => {
   expect(await ids('')).toEqual([1, 3]);
