@@ -1,8 +1,9 @@
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { chromium } from '@playwright/test';
 import { argValue } from './lib/args.mjs';
+import { writeAtomic } from './lib/store.mjs';
 
 const SETTLE_MS = 2500;
 const OPEN_EDITOR = '[data-testid^="open-editor-"]';
@@ -22,8 +23,9 @@ export function expandRoutes(routes, feeds) {
 }
 
 async function getJson(base, path) {
-  const res = await fetch(`${base}/api/v1${path}`);
-  if (!res.ok) throw new Error(`${path}: HTTP ${res.status}`);
+  const url = `${base}/api/v1${path}`;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`${url}: HTTP ${res.status}`);
   return res.json();
 }
 
@@ -41,76 +43,76 @@ async function listFeeds(base, perFeed) {
   return out;
 }
 
-// Opens every collapsed section and tab until nothing new appears.
+const MAX_DISCLOSURE_PASSES = 4;
+
+// Each tab is clicked once from a snapshot; disclosures loop until none are left closed.
 async function expandAll(page) {
-  for (let pass = 0; pass < 4; pass++) {
-    const toggles = page.locator('main button[aria-expanded="false"], main summary, [role=tab][aria-selected="false"]');
-    const n = await toggles.count();
-    if (!n) return;
-    for (let i = 0; i < n; i++) {
-      await toggles.nth(i).click({ timeout: 2000 }).catch(() => {});
-    }
+  const tabs = await page.locator('main [role=tab][aria-selected="false"]').elementHandles();
+  for (const tab of tabs) await tab.click({ timeout: 2000 }).catch(() => {});
+  await page.waitForLoadState('networkidle').catch(() => {});
+  for (let pass = 0; pass < MAX_DISCLOSURE_PASSES; pass++) {
+    const toggles = await page.locator('main button[aria-expanded="false"], main summary').elementHandles();
+    if (!toggles.length) return;
+    for (const t of toggles) await t.click({ timeout: 2000 }).catch(() => {});
     await page.waitForLoadState('networkidle').catch(() => {});
   }
 }
 
-async function visit(page, url, { expand, openEditor }) {
-  await page.goto(url, { waitUntil: 'networkidle' });
-  await page.waitForTimeout(SETTLE_MS);
-  if (expand) {
-    await expandAll(page);
-    await page.waitForTimeout(500);
+// Returns true when the editor dialog actually appeared.
+async function openEditor(page) {
+  const btn = page.locator(OPEN_EDITOR).first();
+  if (!(await btn.count())) return false;
+  await btn.click();
+  const opened = await page.locator('[role=dialog]').first()
+    .waitFor({ state: 'visible', timeout: 5000 }).then(() => true, () => false);
+  if (opened) {
+    await page.waitForLoadState('networkidle').catch(() => {});
+    await page.waitForTimeout(1000);
   }
-  if (openEditor) {
-    const btn = page.locator(OPEN_EDITOR).first();
-    if (await btn.count()) {
-      await btn.click();
-      await page.waitForLoadState('networkidle').catch(() => {});
-      await page.waitForTimeout(1000);
-      await page.keyboard.press('Escape');
-    }
-  }
+  await page.keyboard.press('Escape');
+  return opened;
 }
 
 export async function crawl({ base, out, uiBase = '', routes }) {
   mkdirSync(out, { recursive: true });
   const feeds = await listFeeds(base, routes.episodesPerFeed);
-  const list = expandRoutes(routes, feeds);
+  const expected = expandRoutes(routes, feeds);
   const browser = await chromium.launch({ headless: true });
   const context = await browser.newContext({
     viewport: { width: 1440, height: 900 },
     recordHar: { path: join(out, 'crawl.har'), content: 'embed', urlFilter: /\/api\/v1\// },
   });
   const page = await context.newPage();
-  const stats = { pages: 0, responses: 0, fiveXX: 0, exceptions: [] };
+  const exceptions = [];
+  const serverErrors = [];
   const failures = [];
-  page.on('pageerror', (err) => stats.exceptions.push(`${page.url()}: ${err.message}`));
+  let responses = 0;
+  page.on('pageerror', (err) => exceptions.push(`${page.url()}: ${err.message}`));
   page.on('response', (res) => {
     if (!res.url().includes('/api/v1/')) return;
-    stats.responses++;
-    if (res.status() >= 500) { stats.fiveXX++; failures.push(`${res.status()} ${res.url()}`); }
+    responses++;
+    if (res.status() >= 500) serverErrors.push(`${res.status()} ${res.url()}`);
   });
   const visited = [];
   let editorOpened = false;
-  for (const route of list) {
-    const isEpisode = /\/episodes\/[^/?]+$/.test(route);
-    const opts = {
-      expand: route === '/settings' || /^\/feeds\/[^/]+$/.test(route),
-      openEditor: isEpisode && !editorOpened,
-    };
+  for (const route of expected) {
     try {
-      await visit(page, `${base}${uiBase}${route}`, opts);
-      if (opts.openEditor && (await page.locator(OPEN_EDITOR).count())) editorOpened = true;
+      await page.goto(`${base}${uiBase}${route}`, { waitUntil: 'networkidle' });
+      await page.waitForTimeout(SETTLE_MS);
+      await expandAll(page);
+      await page.waitForTimeout(500);
+      if (!editorOpened && /\/episodes\/[^/?]+$/.test(route)) editorOpened = await openEditor(page);
       visited.push(route);
-      stats.pages++;
     } catch (err) {
       failures.push(`${route}: ${err.message}`);
     }
   }
   await context.close();
   await browser.close();
-  writeFileSync(join(out, 'routes-visited.json'), JSON.stringify({ visited, failures, exceptions: stats.exceptions }, null, 2));
-  return { stats, failures, visited, expected: list };
+  const missing = expected.filter((r) => !visited.includes(r));
+  writeAtomic(join(out, 'routes-visited.json'),
+    JSON.stringify({ expected, visited, failures, serverErrors, exceptions, editorOpened }, null, 2));
+  return { responses, expected, visited, missing, failures, serverErrors, exceptions, editorOpened };
 }
 
 async function main(argv) {
@@ -119,10 +121,11 @@ async function main(argv) {
   const uiBase = argValue(argv, '--ui-base') ?? '';
   if (!base || !out) throw new Error('usage: --base http://host:8000 --out <dir> [--ui-base /ui]');
   const routes = JSON.parse(readFileSync(new URL('./routes.json', import.meta.url), 'utf8'));
-  const { stats, failures } = await crawl({ base: base.replace(/\/$/, ''), out: resolve(out), uiBase, routes });
-  for (const f of [...failures, ...stats.exceptions]) console.error(f);
-  console.log(`pages visited: ${stats.pages}, API responses captured: ${stats.responses}, 5xx: ${stats.fiveXX}, exceptions: ${stats.exceptions.length}`);
-  if (stats.fiveXX || stats.exceptions.length) process.exit(1);
+  const r = await crawl({ base: base.replace(/\/$/, ''), out: resolve(out), uiBase, routes });
+  for (const line of [...r.failures, ...r.serverErrors, ...r.exceptions]) console.error(line);
+  if (!r.editorOpened) console.warn('warning: ad-review modal never opened; its traffic is missing from the HAR');
+  console.log(`pages visited: ${r.visited.length}/${r.expected.length}, API responses captured: ${r.responses}, 5xx: ${r.serverErrors.length}, exceptions: ${r.exceptions.length}, load failures: ${r.failures.length}`);
+  if (r.serverErrors.length || r.exceptions.length || r.failures.length || r.missing.length) process.exit(1);
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {

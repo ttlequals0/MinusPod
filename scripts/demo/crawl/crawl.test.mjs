@@ -18,3 +18,13 @@ test('encodes slugs and ids', () => {
   const r = expandRoutes(routes, [{ slug: 'a b', feedType: 'rss', episodes: ['x/y'] }]);
   assert.deepEqual(r, ['/', '/feeds/a%20b', '/feeds/a%20b/episodes/x%2Fy']);
 });
+
+test('expands the search type routes from routes.json', async () => {
+  const { readFileSync } = await import('node:fs');
+  const real = JSON.parse(readFileSync(new URL('./routes.json', import.meta.url), 'utf8'));
+  const r = expandRoutes(real, []);
+  for (const t of ['episode', 'podcast', 'transcript', 'pattern', 'sponsor']) {
+    assert.ok(r.includes(`/search?q=the&type=${t}`), t);
+  }
+  assert.equal('settingsSections' in real, false);
+});
