@@ -7,6 +7,8 @@ import type { EpisodeDetail, EpisodeRating as Rating } from '../api/types';
 import { btnBase, btnPrimary, btnSecondary, touchTarget } from './buttonStyles';
 import { focusRing, textareaBase } from './fieldStyles';
 import { cardTitle } from './pageStyles';
+import { DemoDisabled } from './DemoDisabled';
+import { IS_DEMO } from '../demo/flag';
 
 const STARS = [1, 2, 3, 4, 5] as const;
 const segments = (n: number, kind: string) => `${n} ${kind} ${n === 1 ? 'segment' : 'segments'}`;
@@ -91,7 +93,7 @@ function EpisodeRating({ slug, episodeId, rating, requestedRating, onRequestedRa
   useEffect(() => {
     if (requestHandled.current || !validRequest(requestedRating)) return;
     requestHandled.current = true;
-    if (requestedRating !== rating?.value) {
+    if (!IS_DEMO && requestedRating !== rating?.value) {
       priorRating.current = rating ?? null;
       save.mutate({ count: requestedRating, viaLink: true });
     }
@@ -169,26 +171,32 @@ function EpisodeRating({ slug, episodeId, rating, requestedRating, onRequestedRa
         </div>
       )}
       <div className="flex flex-wrap items-center gap-2">
-        <button
-          type="button"
-          className={`${btnBase} ${btnPrimary}`}
-          disabled={value === 0 || !dirty || busy}
-          onClick={() => save.mutate({ count: value })}
-        >
-          {save.isPending ? 'Saving...' : 'Save'}
-        </button>
-        {rating && (
-          <button type="button" className={`${btnBase} ${btnSecondary}`} disabled={busy} onClick={() => clear.mutate()}>
-            {clear.isPending ? 'Clearing...' : 'Clear'}
+        <DemoDisabled>
+          <button
+            type="button"
+            className={`${btnBase} ${btnPrimary}`}
+            disabled={value === 0 || !dirty || busy}
+            onClick={() => save.mutate({ count: value })}
+          >
+            {save.isPending ? 'Saving...' : 'Save'}
           </button>
+        </DemoDisabled>
+        {rating && (
+          <DemoDisabled>
+            <button type="button" className={`${btnBase} ${btnSecondary}`} disabled={busy} onClick={() => clear.mutate()}>
+              {clear.isPending ? 'Clearing...' : 'Clear'}
+            </button>
+          </DemoDisabled>
         )}
       </div>
       <div aria-live="polite" className="flex flex-wrap items-center gap-x-3 gap-y-1">
         {message && <p className="text-sm text-success">{message}</p>}
         {undoable && (
-          <button type="button" className={`${btnBase} ${btnSecondary}`} disabled={busy} onClick={undo}>
-            Undo
-          </button>
+          <DemoDisabled>
+            <button type="button" className={`${btnBase} ${btnSecondary}`} disabled={busy} onClick={undo}>
+              Undo
+            </button>
+          </DemoDisabled>
         )}
       </div>
       {error && <p role="alert" className="text-sm text-destructive">{error}</p>}

@@ -1,4 +1,5 @@
 import { Modal, dialogFooterBtn } from '../../components/Modal';
+import { DEMO_AUDIO_TOOLTIP, DEMO_DOWNLOAD_TOOLTIP } from '../../demo/copy';
 import { useEffect, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Play, Plus, Square } from 'lucide-react';
@@ -43,6 +44,8 @@ import TriStateSelect from '../../components/TriStateSelect';
 import DraftNumberInput, { parseOptionalNumber } from '../../components/DraftNumberInput';
 import { focusRing, labelBase, selectBase } from '../../components/fieldStyles';
 import { badgeBase, tint } from '../../components/badgeStyles';
+import { DemoDisabled } from '../../components/DemoDisabled';
+import { IS_DEMO } from '../../demo/flag';
 
 const PICKER_PAGE_SIZE = 50;
 
@@ -88,7 +91,9 @@ function CueTemplatesPanel({ slug }: Props) {
       setPlayingId(null);
       return;
     }
-    audio.src = cueTemplateAudioUrl(t.id);
+    const url = cueTemplateAudioUrl(t.id);
+    if (!url) return;
+    audio.src = url;
     audio.play().then(() => setPlayingId(t.id)).catch(() => setPlayingId(null));
   };
 
@@ -502,24 +507,29 @@ function CueTemplatesPanel({ slug }: Props) {
                 {editingId !== t.id && (
                   <div className="flex flex-wrap items-center gap-2 pl-7 xl:pl-0 xl:shrink-0">
                     {t.hasAudio !== false && (
-                      <button
-                        type="button"
-                        className={`${btnBase} ${btnGhost}`}
-                        onClick={() => togglePlay(t)}
-                        title={playingId === t.id ? 'Stop' : 'Play this cue'}
-                        aria-label={playingId === t.id ? `Stop cue ${t.label}` : `Play cue ${t.label}`}
-                      >
-                        {playingId === t.id ? <Square className="w-4 h-4" aria-hidden="true" /> : <Play className="w-4 h-4" aria-hidden="true" />}
-                        {playingId === t.id ? 'Stop' : 'Play'}
-                      </button>
+                      <DemoDisabled title={DEMO_AUDIO_TOOLTIP}>
+                        <button
+                          type="button"
+                          className={`${btnBase} ${btnGhost}`}
+                          onClick={() => togglePlay(t)}
+                          disabled={IS_DEMO}
+                          title={playingId === t.id ? 'Stop' : 'Play this cue'}
+                          aria-label={playingId === t.id ? `Stop cue ${t.label}` : `Play cue ${t.label}`}
+                        >
+                          {playingId === t.id ? <Square className="w-4 h-4" aria-hidden="true" /> : <Play className="w-4 h-4" aria-hidden="true" />}
+                          {playingId === t.id ? 'Stop' : 'Play'}
+                        </button>
+                      </DemoDisabled>
                     )}
-                    <a
-                      className={`${btnBase} ${btnGhost}`}
-                      href={cueTemplateExportUrl(t.id)}
-                      title="Download this cue as a portable zip"
-                    >
-                      Export
-                    </a>
+                    <DemoDisabled title={DEMO_DOWNLOAD_TOOLTIP}>
+                      <a
+                        className={`${btnBase} ${btnGhost}`}
+                        href={cueTemplateExportUrl(t.id)}
+                        title="Download this cue as a portable zip"
+                      >
+                        Export
+                      </a>
+                    </DemoDisabled>
                     {t.owned === false ? (
                       <span className="text-xs text-muted-foreground italic">
                         Shared from this network
@@ -604,13 +614,15 @@ function CueTemplatesPanel({ slug }: Props) {
                         </button>
                         {confirmDeleteId === t.id ? (
                           <>
-                            <button
-                              type="button"
-                              className={`${btnBase} ${btnDestructive}`}
-                              onClick={() => { deleteMutation.mutate(t.id); setConfirmDeleteId(null); }}
-                            >
-                              Delete cue
-                            </button>
+                            <DemoDisabled>
+                              <button
+                                type="button"
+                                className={`${btnBase} ${btnDestructive}`}
+                                onClick={() => { deleteMutation.mutate(t.id); setConfirmDeleteId(null); }}
+                              >
+                                Delete cue
+                              </button>
+                            </DemoDisabled>
                             <button
                               type="button"
                               className={`${btnBase} ${btnGhost}`}
@@ -732,9 +744,11 @@ function CueTemplatesPanel({ slug }: Props) {
               <button type="button" className={`${dialogFooterBtn} ${btnOutline}`} onClick={() => setPromoteState(null)}>
                 Cancel
               </button>
-              <button type="button" className={`${dialogFooterBtn} ${btnPrimary}`} onClick={confirmPromote}>
-                Promote
-              </button>
+              <DemoDisabled>
+                <button type="button" className={`${dialogFooterBtn} ${btnPrimary}`} onClick={confirmPromote}>
+                  Promote
+                </button>
+              </DemoDisabled>
             </>
           )}
         >
@@ -989,22 +1003,24 @@ function CueScanModal({ slug, onClose }: CueScanModalProps) {
               className="w-28 font-mono"
             />
           </div>
-          <button
-            type="button"
-            className={ghostBtn}
-            onClick={() => {
-              if (!selectedEpisode) return;
-              const n = scoreOverride.trim() === '' ? undefined : Number(scoreOverride);
-              if (n !== undefined && (Number.isNaN(n) || n < 0 || n > CUE_SCORE_MAX)) {
-                setError(`threshold must be between 0 and ${CUE_SCORE_MAX}`);
-                return;
-              }
-              runScan(selectedEpisode, n);
-            }}
-            disabled={running}
-          >
-            {running ? 'Scanning...' : 'Rescan'}
-          </button>
+          <DemoDisabled>
+            <button
+              type="button"
+              className={ghostBtn}
+              onClick={() => {
+                if (!selectedEpisode) return;
+                const n = scoreOverride.trim() === '' ? undefined : Number(scoreOverride);
+                if (n !== undefined && (Number.isNaN(n) || n < 0 || n > CUE_SCORE_MAX)) {
+                  setError(`threshold must be between 0 and ${CUE_SCORE_MAX}`);
+                  return;
+                }
+                runScan(selectedEpisode, n);
+              }}
+              disabled={running}
+            >
+              {running ? 'Scanning...' : 'Rescan'}
+            </button>
+          </DemoDisabled>
           <button
             type="button"
             className={ghostBtn}

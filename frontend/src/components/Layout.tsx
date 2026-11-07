@@ -5,6 +5,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useTheme } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
 import UpdateBanner from './UpdateBanner';
+import { DemoBanner } from './DemoBanner';
 import WhatsNewDialog from './WhatsNewDialog';
 import { useWhatsNew } from '../hooks/useWhatsNew';
 import QuickSearch, { useQuickSearchHotkey } from './QuickSearch';
@@ -13,6 +14,7 @@ import { btnBase, btnPrimary, btnGhost, touchTarget } from './buttonStyles';
 import { focusRing } from './fieldStyles';
 import { countPill, tint } from './badgeStyles';
 import { uiUrl } from '../urlPrefix';
+import { IS_DEMO } from '../demo/flag';
 
 const NAV_ITEMS: { to: string; label: string }[] = [
   { to: '/', label: 'Feeds' },
@@ -22,6 +24,7 @@ const NAV_ITEMS: { to: string; label: string }[] = [
   { to: '/stats', label: 'Stats' },
   { to: '/queue', label: 'Queue' },
   { to: '/settings', label: 'Settings' },
+  ...(IS_DEMO ? [{ to: '/api-docs', label: 'API' }] : []),
 ];
 const COMPACT_HEADER_CONTROL_SIZE = 'h-11 w-11 xl:h-auto xl:w-auto';
 
@@ -101,6 +104,7 @@ function Layout() {
       >
         Skip to content
       </a>
+      <DemoBanner />
       <header className="sticky z-30 border-b border-border bg-card" style={{ top: 'var(--status-bar-height, 0px)' }}>
         <div className="safe-x safe-x-wide max-w-7xl mx-auto">
           <div className="flex justify-between items-center h-16">

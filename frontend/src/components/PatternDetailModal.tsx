@@ -20,6 +20,7 @@ import { btnBase, btnPrimary, btnOutline, btnDestructive, btnDestructiveOutline 
 import { focusRing, inputBase, labelBase, selectBase, textareaBase } from './fieldStyles';
 import CloseButton from './CloseButton';
 import StatTile from './StatTile';
+import { DemoDisabled } from './DemoDisabled';
 
 // 44px icon buttons below sm, text buttons from sm
 
@@ -142,15 +143,17 @@ function PatternDetailModal({ pattern, onClose, onSave }: PatternDetailModalProp
           <div className="flex flex-nowrap items-center gap-1 sm:gap-2 max-sm:contents">
             {pattern.is_active && (
               <div className={`${showDeleteConfirm ? 'hidden sm:flex' : 'flex max-sm:contents'} flex-col gap-1`}>
-                <button
-                  onClick={() => splitMutation.mutate()}
-                  disabled={!pattern.can_split || splitMutation.isPending}
-                  aria-describedby={!pattern.can_split ? `split-reason-${pattern.id}` : undefined}
-                  title={pattern.can_split ? undefined : 'No reliable ad boundary found.'}
-                  className={`${dialogFooterBtn} max-sm:w-full ${btnOutline}`}
-                >
-                  {splitLabel}
-                </button>
+                <DemoDisabled>
+                  <button
+                    onClick={() => splitMutation.mutate()}
+                    disabled={!pattern.can_split || splitMutation.isPending}
+                    aria-describedby={!pattern.can_split ? `split-reason-${pattern.id}` : undefined}
+                    title={pattern.can_split ? undefined : 'No reliable ad boundary found.'}
+                    className={`${dialogFooterBtn} max-sm:w-full ${btnOutline}`}
+                  >
+                    {splitLabel}
+                  </button>
+                </DemoDisabled>
                 {!pattern.can_split && (
                   <span id={`split-reason-${pattern.id}`} className="hidden sm:block text-xs text-muted-foreground">
                     No reliable ad boundary found.
@@ -164,13 +167,15 @@ function PatternDetailModal({ pattern, onClose, onSave }: PatternDetailModalProp
                   <span className="sm:hidden">Delete?</span>
                   <span className="hidden sm:inline">Delete this pattern?</span>
                 </span>
-                <button
-                  onClick={() => deleteMutation.mutate()}
-                  disabled={deleteMutation.isPending}
-                  className={`${dialogFooterBtn} max-sm:w-full ${btnDestructive}`}
-                >
-                  {deleteMutation.isPending ? 'Deleting...' : 'Delete pattern'}
-                </button>
+                <DemoDisabled>
+                  <button
+                    onClick={() => deleteMutation.mutate()}
+                    disabled={deleteMutation.isPending}
+                    className={`${dialogFooterBtn} max-sm:w-full ${btnDestructive}`}
+                  >
+                    {deleteMutation.isPending ? 'Deleting...' : 'Delete pattern'}
+                  </button>
+                </DemoDisabled>
                 <button
                   onClick={() => setShowDeleteConfirm(false)}
                   className={`${dialogFooterBtn} max-sm:w-full ${btnOutline}`}
@@ -196,13 +201,15 @@ function PatternDetailModal({ pattern, onClose, onSave }: PatternDetailModalProp
                 >
                   Cancel
                 </button>
-                <button
-                  onClick={() => updateMutation.mutate()}
-                  disabled={updateMutation.isPending}
-                  className={`${dialogFooterBtn} max-sm:w-full ${btnPrimary}`}
-                >
-                  {saveLabel}
-                </button>
+                <DemoDisabled>
+                  <button
+                    onClick={() => updateMutation.mutate()}
+                    disabled={updateMutation.isPending}
+                    className={`${dialogFooterBtn} max-sm:w-full ${btnPrimary}`}
+                  >
+                    {saveLabel}
+                  </button>
+                </DemoDisabled>
               </>
             ) : (
               <>

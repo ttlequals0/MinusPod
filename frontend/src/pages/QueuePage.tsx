@@ -26,6 +26,7 @@ import { focusRing } from '../components/fieldStyles';
 import { tableLink } from '../components/tableStyles';
 import { countPill, tint } from '../components/badgeStyles';
 import { pageHeader, pageTitle, cardTitle, pageDescription } from '../components/pageStyles';
+import { DemoDisabled } from '../components/DemoDisabled';
 
 function ActiveQueue({
   status,
@@ -71,14 +72,16 @@ function ActiveQueue({
               linkTo={`/feeds/${job.slug}/episodes/${job.episodeId}`}
               className="rounded-lg bg-secondary/50 p-4"
               actions={(
-                <button
-                  type="button"
-                  onClick={() => onCancel({ slug: job.slug, episodeId: job.episodeId })}
-                  disabled={cancelIsPending}
-                  className={`${btnBase} ${btnDestructiveOutline}`}
-                >
-                  {cancelIsPending && cancelingKey === `${job.slug}:${job.episodeId}` ? 'Canceling...' : 'Cancel'}
-                </button>
+                <DemoDisabled>
+                  <button
+                    type="button"
+                    onClick={() => onCancel({ slug: job.slug, episodeId: job.episodeId })}
+                    disabled={cancelIsPending}
+                    className={`${btnBase} ${btnDestructiveOutline}`}
+                  >
+                    {cancelIsPending && cancelingKey === `${job.slug}:${job.episodeId}` ? 'Canceling...' : 'Cancel'}
+                  </button>
+                </DemoDisabled>
               )}
             />
           ))}
@@ -96,14 +99,16 @@ function ActiveQueue({
                 </Link>
                 <p className="text-sm text-muted-foreground truncate">{episode.podcast}{episode.stage ? `, ${getStageLabel(episode.stage)}` : ''}</p>
               </div>
-              <button
-                type="button"
-                onClick={() => onCancel({ slug: episode.slug, episodeId: episode.episodeId })}
-                disabled={cancelIsPending}
-                className={`${btnBase} ${btnDestructiveOutline}`}
-              >
-                {cancelIsPending && cancelingKey === `${episode.slug}:${episode.episodeId}` ? 'Canceling...' : 'Cancel'}
-              </button>
+              <DemoDisabled>
+                <button
+                  type="button"
+                  onClick={() => onCancel({ slug: episode.slug, episodeId: episode.episodeId })}
+                  disabled={cancelIsPending}
+                  className={`${btnBase} ${btnDestructiveOutline}`}
+                >
+                  {cancelIsPending && cancelingKey === `${episode.slug}:${episode.episodeId}` ? 'Canceling...' : 'Cancel'}
+                </button>
+              </DemoDisabled>
             </div>
           ))}
         </div>

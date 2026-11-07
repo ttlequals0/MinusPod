@@ -12,6 +12,7 @@ import {
 } from '../api/cueTemplates';
 import { formatPercent } from '../utils/format';
 import { badgeBase, tint } from './badgeStyles';
+import { DemoDisabled } from './DemoDisabled';
 
 interface CueWindowOptimizePanelProps {
   slug: string;
@@ -152,17 +153,19 @@ export default function CueWindowOptimizePanel({ slug, template, onClose }: CueW
               Discard
             </button>
             {!alreadyOptimal && (
-              <button
-                type="button"
-                className={`${primaryBtn}`}
-                onClick={() => {
-                  setApplyError(null);
-                  applyMutation.mutate({ startS: proposedStartS, endS: proposedEndS });
-                }}
-                disabled={applyMutation.isPending}
-              >
-                {applyMutation.isPending ? 'Applying...' : 'Apply'}
-              </button>
+              <DemoDisabled>
+                <button
+                  type="button"
+                  className={`${primaryBtn}`}
+                  onClick={() => {
+                    setApplyError(null);
+                    applyMutation.mutate({ startS: proposedStartS, endS: proposedEndS });
+                  }}
+                  disabled={applyMutation.isPending}
+                >
+                  {applyMutation.isPending ? 'Applying...' : 'Apply'}
+                </button>
+              </DemoDisabled>
             )}
           </div>
           {applyError && <p className="text-destructive">{applyError}</p>}

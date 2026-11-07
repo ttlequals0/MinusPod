@@ -1,4 +1,5 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { DEMO_AUDIO_TOOLTIP } from '../demo/copy';
 import CollapsibleSection from './CollapsibleSection';
 import { cueTypeLabel, type CueTemplateType } from '../api/cueTemplates';
 import { setCueDetectionVerdict, type CueVerdict } from '../api/cueDetections';
@@ -10,6 +11,7 @@ import { AuditionPlayButton } from './AuditionPlayButton';
 import { btnPrimary, btnGhost, btnDestructive } from './buttonStyles';
 import { badgeBase, tint } from './badgeStyles';
 import { rowActionBtn } from './rowActionStyles';
+import { DemoDisabled } from './DemoDisabled';
 
 interface CueDetectionsSectionProps {
   slug: string;
@@ -65,7 +67,7 @@ function CueDetectionsSection({ slug, episodeId, detections }: CueDetectionsSect
 
   // Audition a match: shared windowed player, one row sounds at a time.
   const audioUrl = episodeOriginalUrl(slug, episodeId);
-  const { playingKey, toggle: toggleMatch, audioElement } = useAuditionPlayer(audioUrl);
+  const { playingKey, toggle: toggleMatch, audioElement } = useAuditionPlayer(audioUrl ?? undefined);
 
   return (
     <CollapsibleSection
@@ -97,6 +99,8 @@ function CueDetectionsSection({ slug, episodeId, detections }: CueDetectionsSect
                     playing={playingKey === String(d.id)}
                     onClick={() => toggleMatch(String(d.id), audioUrl, d.start_s, d.end_s)}
                     label="this match"
+                    disabled={!audioUrl}
+                    title={audioUrl ? undefined : DEMO_AUDIO_TOOLTIP}
                   />
                   <span className="font-mono text-sm text-foreground">
                     {formatTimestamp(d.start_s)} - {formatTimestamp(d.end_s)}
@@ -133,20 +137,24 @@ function CueDetectionsSection({ slug, episodeId, detections }: CueDetectionsSect
                     </span>
                   ) : d.verdict === 'pending' ? (
                     <>
-                      <button
-                        onClick={() => mutation.mutate({ id: d.id, verdict: 'confirmed' })}
-                        disabled={pending}
-                        className={`${rowActionBtn} ${btnPrimary}`}
-                      >
-                        Confirm
-                      </button>
-                      <button
-                        onClick={() => mutation.mutate({ id: d.id, verdict: 'rejected' })}
-                        disabled={pending}
-                        className={`${rowActionBtn} ${btnDestructive}`}
-                      >
-                        Not ad
-                      </button>
+                      <DemoDisabled>
+                        <button
+                          onClick={() => mutation.mutate({ id: d.id, verdict: 'confirmed' })}
+                          disabled={pending}
+                          className={`${rowActionBtn} ${btnPrimary}`}
+                        >
+                          Confirm
+                        </button>
+                      </DemoDisabled>
+                      <DemoDisabled>
+                        <button
+                          onClick={() => mutation.mutate({ id: d.id, verdict: 'rejected' })}
+                          disabled={pending}
+                          className={`${rowActionBtn} ${btnDestructive}`}
+                        >
+                          Not ad
+                        </button>
+                      </DemoDisabled>
                     </>
                   ) : (
                     <>
@@ -159,13 +167,15 @@ function CueDetectionsSection({ slug, episodeId, detections }: CueDetectionsSect
                       >
                         {d.verdict === 'confirmed' ? 'Confirmed' : 'Not ad'}
                       </span>
-                      <button
-                        onClick={() => mutation.mutate({ id: d.id, verdict: 'pending' })}
-                        disabled={pending}
-                        className={`${rowActionBtn} ${btnGhost}`}
-                      >
-                        Reset
-                      </button>
+                      <DemoDisabled>
+                        <button
+                          onClick={() => mutation.mutate({ id: d.id, verdict: 'pending' })}
+                          disabled={pending}
+                          className={`${rowActionBtn} ${btnGhost}`}
+                        >
+                          Reset
+                        </button>
+                      </DemoDisabled>
                     </>
                   )}
                 </div>

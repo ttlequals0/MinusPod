@@ -24,6 +24,7 @@ import FeedArtworkUpload from './FeedArtworkUpload';
 import { FeedMetadataFields, parseCategories } from './FeedMetadataForm';
 import { useSyncFromQuery } from '../../hooks/useSyncFromQuery';
 import { fromDatetimeLocalInput } from '../../utils/format';
+import { DemoDisabled } from '../../components/DemoDisabled';
 
 // Podcasting 2.0 channel-level scalar tags (design spec section 6, mirrored
 // from src/api/feeds.py's _P20_MEDIUM_VALUES / _P20_LOCKED_VALUES).
@@ -685,13 +686,15 @@ function LocalFeedPanel({ feed, slug }: Props) {
           {metaMutation.isError && (
             <p className="text-sm text-destructive">{getErrorMessage(metaMutation.error, 'Could not save this feed.')}</p>
           )}
-          <button
-            type="submit"
-            disabled={metaMutation.isPending || !title.trim()}
-            className={`${btnLg} ${btnPrimary}`}
-          >
-            {metaMutation.isPending ? 'Saving...' : metaSaved ? 'Saved' : 'Save metadata'}
-          </button>
+          <DemoDisabled>
+            <button
+              type="submit"
+              disabled={metaMutation.isPending || !title.trim()}
+              className={`${btnLg} ${btnPrimary}`}
+            >
+              {metaMutation.isPending ? 'Saving...' : metaSaved ? 'Saved' : 'Save metadata'}
+            </button>
+          </DemoDisabled>
           </fieldset>
         </form>
 

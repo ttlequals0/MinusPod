@@ -6,32 +6,46 @@ import App from './App';
 import './index.css';
 import { offerAppUpdate } from './utils/appUpdate';
 import { UI_BASE } from './urlPrefix';
+import { DEMO_BOOT_ERROR } from './demo/copy';
 
-// Let the user apply updates after saving drafts.
-if ('serviceWorker' in navigator) {
-  const wb = new Workbox(`${UI_BASE}/sw.js`, { scope: `${UI_BASE}/` });
-  wb.addEventListener('waiting', () => {
-    offerAppUpdate(() => {
-      wb.addEventListener('controlling', () => window.location.reload());
-      wb.messageSkipWaiting();
+async function boot() {
+  if (__DEMO__) {
+    const { startDemo } = await import('./demo/start');
+    await startDemo();
+  }
+
+  // Let the user apply updates after saving drafts.
+  if (!__DEMO__ && 'serviceWorker' in navigator) {
+    const wb = new Workbox(`${UI_BASE}/sw.js`, { scope: `${UI_BASE}/` });
+    wb.addEventListener('waiting', () => {
+      offerAppUpdate(() => {
+        wb.addEventListener('controlling', () => window.location.reload());
+        wb.messageSkipWaiting();
+      });
     });
+    wb.register().catch(error => { console.error('Service worker registration failed', error); });
+  }
+
+  const queryClient = new QueryClient({
+    defaultOptions: {
+      queries: {
+        staleTime: 30000,
+        retry: 1,
+      },
+    },
   });
-  wb.register().catch(error => { console.error('Service worker registration failed', error); });
+
+  ReactDOM.createRoot(document.getElementById('root')!).render(
+    <React.StrictMode>
+      <QueryClientProvider client={queryClient}>
+        <App />
+      </QueryClientProvider>
+    </React.StrictMode>
+  );
 }
 
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      staleTime: 30000,
-      retry: 1,
-    },
-  },
+boot().catch((err: unknown) => {
+  console.error(err);
+  const root = document.getElementById('root');
+  if (__DEMO__ && root) root.textContent = DEMO_BOOT_ERROR;
 });
-
-ReactDOM.createRoot(document.getElementById('root')!).render(
-  <React.StrictMode>
-    <QueryClientProvider client={queryClient}>
-      <App />
-    </QueryClientProvider>
-  </React.StrictMode>
-);

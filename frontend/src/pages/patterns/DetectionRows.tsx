@@ -1,4 +1,6 @@
 import { Link } from 'react-router';
+import { DEMO_AUDIO_TOOLTIP, DEMO_WRITE_TOOLTIP } from '../../demo/copy';
+import { IS_DEMO } from '../../demo/flag';
 import type { ReviewDetection } from '../../api/detections';
 import { episodeOriginalUrl } from '../../api/feeds';
 import type { useAuditionPlayer } from '../../hooks/useAuditionPlayer';
@@ -12,6 +14,7 @@ import { formatTimestamp, formatDate, formatPercent } from '../../utils/format';
 import { btnPrimary, btnOutline, btnDestructive } from '../../components/buttonStyles';
 import { focusRing, selectBase } from '../../components/fieldStyles';
 import { badgeBase, tint } from '../../components/badgeStyles';
+import { DemoDisabled } from '../../components/DemoDisabled';
 import { cardActionBtn, tableActionBtn } from '../../components/rowActionStyles';
 
 // "Not cut" = flagged but left in the audio; the bucket covers both
@@ -177,13 +180,18 @@ function DetectionActions({ d, variant, playing, onTogglePlay, actions }: {
   const isCard = variant === 'card';
   const btn = isCard ? `${cardActionBtn} ${cardRowBtn}` : tableActionBtn;
   const undecided = d.resolution === 'unresolved';
+  const noAudio = IS_DEMO;
   const play = d.hasOriginalAudio && (
-    <AuditionPlayButton playing={playing} onClick={onTogglePlay} />
+    <AuditionPlayButton playing={playing} onClick={onTogglePlay}
+      disabled={noAudio} title={noAudio ? DEMO_AUDIO_TOOLTIP : undefined} />
   );
-  const category = actions.onCategory && (
-    <CategorySelect d={d} onCategory={actions.onCategory} busy={actions.busy}
+  const categorySelect = actions.onCategory && (
+    <CategorySelect d={d} onCategory={actions.onCategory} busy={actions.busy || IS_DEMO}
       className={isCard ? cardCategoryClass : 'max-w-40'} />
   );
+  const category = IS_DEMO && categorySelect ? (
+    <span className={`inline-flex cursor-not-allowed${isCard ? ' w-full' : ''}`} title={DEMO_WRITE_TOOLTIP}>{categorySelect}</span>
+  ) : categorySelect;
   const edit = (
     <button
       type="button"
@@ -212,37 +220,43 @@ function DetectionActions({ d, variant, playing, onTogglePlay, actions }: {
     );
   }
   const approve = actions.onApprove && undecided && (
-    <button
-      type="button"
-      onClick={() => actions.onApprove?.(d)}
-      disabled={actions.busy}
-      aria-label={confirmLabel(d.category)}
-      className={`${btn} ${btnPrimary} disabled:opacity-50 ${focusRing}`}
-    >
-      {isCard ? <ShortLabel full={confirmLabel(d.category)} short="Confirm" /> : confirmLabel(d.category)}
-    </button>
+    <DemoDisabled>
+      <button
+        type="button"
+        onClick={() => actions.onApprove?.(d)}
+        disabled={actions.busy}
+        aria-label={confirmLabel(d.category)}
+        className={`${btn} ${btnPrimary} disabled:opacity-50 ${focusRing}`}
+      >
+        {isCard ? <ShortLabel full={confirmLabel(d.category)} short="Confirm" /> : confirmLabel(d.category)}
+      </button>
+    </DemoDisabled>
   );
   const reject = rejectLabel(d.category);
   const dismiss = actions.onDismiss && undecided && (
-    <button
-      type="button"
-      onClick={() => actions.onDismiss?.(d)}
-      disabled={actions.busy}
-      aria-label={reject}
-      className={`${btn} ${btnDestructive} disabled:opacity-50 ${focusRing}`}
-    >
-      {isCard ? <ShortLabel full={reject} short={reject === 'Keep' ? 'Keep' : 'Not ad'} /> : reject}
-    </button>
+    <DemoDisabled>
+      <button
+        type="button"
+        onClick={() => actions.onDismiss?.(d)}
+        disabled={actions.busy}
+        aria-label={reject}
+        className={`${btn} ${btnDestructive} disabled:opacity-50 ${focusRing}`}
+      >
+        {isCard ? <ShortLabel full={reject} short={reject === 'Keep' ? 'Keep' : 'Not ad'} /> : reject}
+      </button>
+    </DemoDisabled>
   );
   const split = actions.onSplit && (
-    <button
-      type="button"
-      onClick={() => actions.onSplit?.(d)}
-      disabled={actions.busy}
-      className={`${btn} ${btnOutline} disabled:opacity-50 ${focusRing}`}
-    >
-      Split
-    </button>
+    <DemoDisabled>
+      <button
+        type="button"
+        onClick={() => actions.onSplit?.(d)}
+        disabled={actions.busy}
+        className={`${btn} ${btnOutline} disabled:opacity-50 ${focusRing}`}
+      >
+        Split
+      </button>
+    </DemoDisabled>
   );
 
   if (!isCard) {

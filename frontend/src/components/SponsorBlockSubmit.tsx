@@ -1,4 +1,5 @@
 import { useId, useState } from 'react';
+import { DEMO_AUDIO_TOOLTIP } from '../demo/copy';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { episodeOriginalUrl, getSponsorBlockCandidates, submitSponsorBlock } from '../api/feeds';
 import { getErrorMessage } from '../api/client';
@@ -13,6 +14,7 @@ import LoadingSpinner from './LoadingSpinner';
 import { Modal, dialogFooterBtn } from './Modal';
 import { SegmentCategoryBadge } from './SegmentCategoryBadge';
 import { cardTitle } from './pageStyles';
+import { DemoDisabled } from './DemoDisabled';
 
 const REASON_TEXT: Record<SbCandidatesReason, string> = {
   not_youtube: 'Only episodes from YouTube feeds can be submitted.',
@@ -91,14 +93,16 @@ function SubmitDialog({ slug, episodeId, hasOriginalAudio, onClose }: {
             Cancel
           </button>
           {data?.allowed && (
-            <button
-              type="button"
-              className={`${dialogFooterBtn} ${btnPrimary}`}
-              disabled={picked.size === 0 || submit.isPending}
-              onClick={() => submit.mutate()}
-            >
-              {submit.isPending ? 'Submitting...' : `Submit ${picked.size} ${picked.size === 1 ? 'segment' : 'segments'}`}
-            </button>
+            <DemoDisabled>
+              <button
+                type="button"
+                className={`${dialogFooterBtn} ${btnPrimary}`}
+                disabled={picked.size === 0 || submit.isPending}
+                onClick={() => submit.mutate()}
+              >
+                {submit.isPending ? 'Submitting...' : `Submit ${picked.size} ${picked.size === 1 ? 'segment' : 'segments'}`}
+              </button>
+            </DemoDisabled>
           )}
         </>
       )}
@@ -127,8 +131,8 @@ function SubmitDialog({ slug, episodeId, hasOriginalAudio, onClose }: {
                     playing={audition.playingKey === key}
                     onClick={() => audition.toggle(key, originalUrl, c.start, c.end)}
                     label={`segment ${from} to ${to}`}
-                    disabled={!hasOriginalAudio}
-                    title={hasOriginalAudio ? undefined : 'The original audio is no longer kept'}
+                    disabled={!hasOriginalAudio || !originalUrl}
+                    title={!originalUrl ? DEMO_AUDIO_TOOLTIP : hasOriginalAudio ? undefined : 'The original audio is no longer kept'}
                   />
                   <label htmlFor={id} className={`flex flex-1 min-w-0 items-start gap-3 min-h-11 ${done ? '' : 'cursor-pointer'}`}>
                     <Checkbox

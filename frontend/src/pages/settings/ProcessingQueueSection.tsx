@@ -15,6 +15,7 @@ import { inputBase } from '../../components/fieldStyles';
 import { tableBody, tableCard, tableHead, tableLink, tableRow, td, tdMuted, tdNum, th, thRight } from '../../components/tableStyles';
 import { subHeading } from '../../components/pageStyles';
 import { iconTarget, iconVisual } from '../../components/rowActionStyles';
+import { DemoDisabled } from '../../components/DemoDisabled';
 
 const STORAGE_KEY = 'settings-section-processing-queue';
 
@@ -120,13 +121,15 @@ function ProcessingQueueSection({
   const cancelButton = (episode: ProcessingEpisode) => {
     const isCanceling = cancelIsPending && cancelingKey === episodeKey(episode);
     return (
-      <button
-        onClick={() => onCancel({ slug: episode.slug, episodeId: episode.episodeId })}
-        disabled={cancelIsPending}
-        className={`${btnBase} ${btnDestructive} shrink-0`}
-      >
-        {isCanceling ? 'Canceling...' : 'Cancel'}
-      </button>
+      <DemoDisabled>
+        <button
+          onClick={() => onCancel({ slug: episode.slug, episodeId: episode.episodeId })}
+          disabled={cancelIsPending}
+          className={`${btnBase} ${btnDestructive} shrink-0`}
+        >
+          {isCanceling ? 'Canceling...' : 'Cancel'}
+        </button>
+      </DemoDisabled>
     );
   };
 
@@ -190,14 +193,16 @@ function ProcessingQueueSection({
                 : `${admission.data.activeRuns} active ${admission.data.activeRuns === 1 ? 'run' : 'runs'} and ${admission.data.queuedEpisodes} queued ${admission.data.queuedEpisodes === 1 ? 'episode' : 'episodes'}.`}
             </p>
           </div>
-          <button
-            type="button"
-            onClick={() => updateAdmission.mutate(!admission.data.paused)}
-            disabled={updateAdmission.isPending}
-            className={`${btnBase} ${btnSecondary}`}
-          >
-            {admission.data.paused ? 'Resume new work' : 'Pause new work'}
-          </button>
+          <DemoDisabled>
+            <button
+              type="button"
+              onClick={() => updateAdmission.mutate(!admission.data.paused)}
+              disabled={updateAdmission.isPending}
+              className={`${btnBase} ${btnSecondary}`}
+            >
+              {admission.data.paused ? 'Resume new work' : 'Pause new work'}
+            </button>
+          </DemoDisabled>
         </div>
       ) : null}
       {hasProcessing ? (

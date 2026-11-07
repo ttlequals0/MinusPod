@@ -8,6 +8,7 @@ import { getErrorMessage } from '../api/client';
 import { formatDate, keyLabel } from '../utils/format';
 import { btnBase, btnPrimary, btnOutline, btnDestructive } from './buttonStyles';
 import { inputBase } from './fieldStyles';
+import { DemoDisabled } from './DemoDisabled';
 
 interface SubscriberKeysPanelProps {
   slug: string;
@@ -49,14 +50,16 @@ function SubscriberKeysPanel({ slug }: SubscriberKeysPanelProps) {
           placeholder="Living room"
           className={`min-w-0 flex-1 ${inputBase}`}
         />
-        <button
-          type="button"
-          onClick={() => createMutation.mutate()}
-          disabled={createMutation.isPending}
-          className={`${btnBase} ${btnPrimary}`}
-        >
-          Create
-        </button>
+        <DemoDisabled>
+          <button
+            type="button"
+            onClick={() => createMutation.mutate()}
+            disabled={createMutation.isPending}
+            className={`${btnBase} ${btnPrimary}`}
+          >
+            Create
+          </button>
+        </DemoDisabled>
       </div>
       {createdFeedUrl && (
         <div className="rounded-md border border-success/40 bg-success/10 p-3 text-sm">
@@ -85,7 +88,9 @@ function SubscriberKeysPanel({ slug }: SubscriberKeysPanelProps) {
             {key.revoked_at ? (
               <button type="button" onClick={() => setKeyToDelete(key.id)} disabled={deleteMutation.isPending} className={`${btnBase} ${btnOutline}`}>Delete</button>
             ) : (
-              <button type="button" onClick={() => revokeMutation.mutate({ slug, id: key.id })} disabled={revokeMutation.isPending} className={`${btnBase} ${btnDestructive}`}>Revoke</button>
+              <DemoDisabled>
+                <button type="button" onClick={() => revokeMutation.mutate({ slug, id: key.id })} disabled={revokeMutation.isPending} className={`${btnBase} ${btnDestructive}`}>Revoke</button>
+              </DemoDisabled>
             )}
           </div>
         ))}

@@ -16,6 +16,7 @@ import { ConfirmModal } from '../../components/Modal';
 import { btnBase, btnSecondary } from '../../components/buttonStyles';
 import { selectBase, labelBase } from '../../components/fieldStyles';
 import { subHeading } from '../../components/pageStyles';
+import { DemoDisabled } from '../../components/DemoDisabled';
 
 function AuthenticatedFeedsSection() {
   const queryClient = useQueryClient();
@@ -68,12 +69,14 @@ function AuthenticatedFeedsSection() {
       <div className="space-y-4">
         <div>
           <label className="flex items-center gap-3 cursor-pointer">
-            <ToggleSwitch
-              checked={enabled}
-              onChange={(checked) => toggleMutation.mutate(checked)}
-              disabled={toggleMutation.isPending}
-              ariaLabel="Require key in feed URLs"
-            />
+            <DemoDisabled>
+              <ToggleSwitch
+                checked={enabled}
+                onChange={(checked) => toggleMutation.mutate(checked)}
+                disabled={toggleMutation.isPending}
+                ariaLabel="Require key in feed URLs"
+              />
+            </DemoDisabled>
             <span className="text-sm font-medium text-foreground">
               Require key in feed URLs
             </span>
@@ -100,14 +103,16 @@ function AuthenticatedFeedsSection() {
         {enabled && (
           <div className="pt-4 border-t border-border space-y-4">
             <div>
-              <button
-                type="button"
-                onClick={handleRegenerateKey}
-                disabled={regenerateKeyMutation.isPending}
-                className={`${btnBase} ${btnSecondary}`}
-              >
-                {regenerateKeyMutation.isPending ? 'Regenerating key...' : 'Regenerate key'}
-              </button>
+              <DemoDisabled>
+                <button
+                  type="button"
+                  onClick={handleRegenerateKey}
+                  disabled={regenerateKeyMutation.isPending}
+                  className={`${btnBase} ${btnSecondary}`}
+                >
+                  {regenerateKeyMutation.isPending ? 'Regenerating key...' : 'Regenerate key'}
+                </button>
+              </DemoDisabled>
               {regenerateKeyMutation.isSuccess && (
                 <p className="mt-2 text-sm text-success">Key regenerated</p>
               )}
@@ -119,15 +124,17 @@ function AuthenticatedFeedsSection() {
             </div>
 
             <div>
-              <button
-                type="button"
-                onClick={() => regenerateFeedsMutation.mutate()}
-                disabled={regenerateFeedsMutation.isPending}
-                className={`${btnBase} ${btnSecondary}`}
-              >
-                <RefreshCw className={`w-4 h-4 ${regenerateFeedsMutation.isPending ? 'animate-spin' : ''}`} />
-                {regenerateFeedsMutation.isPending ? 'Regenerating feeds...' : 'Regenerate feeds'}
-              </button>
+              <DemoDisabled>
+                <button
+                  type="button"
+                  onClick={() => regenerateFeedsMutation.mutate()}
+                  disabled={regenerateFeedsMutation.isPending}
+                  className={`${btnBase} ${btnSecondary}`}
+                >
+                  <RefreshCw className={`w-4 h-4 ${regenerateFeedsMutation.isPending ? 'animate-spin' : ''}`} />
+                  {regenerateFeedsMutation.isPending ? 'Regenerating feeds...' : 'Regenerate feeds'}
+                </button>
+              </DemoDisabled>
               {regenerateFeedsMutation.isSuccess && regenerateFeedsMutation.data && (
                 <p className="mt-2 text-sm text-success">
                   Regenerated {regenerateFeedsMutation.data.feedCount} feed{regenerateFeedsMutation.data.feedCount === 1 ? '' : 's'}

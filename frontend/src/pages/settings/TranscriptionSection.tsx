@@ -14,6 +14,7 @@ import type { ProviderName, ProviderStatus, ProviderTestResult, ProvidersRespons
 import { btnLg, btnPrimary } from '../../components/buttonStyles';
 import { focusRing, inputBase, selectBase, labelBase } from '../../components/fieldStyles';
 import { subHeading } from '../../components/pageStyles';
+import { DemoDisabled } from '../../components/DemoDisabled';
 
 interface TranscriptionSectionProps {
   whisperModel: string;
@@ -462,13 +463,15 @@ function TranscriptionSection({
             <span className="text-sm text-muted-foreground">minutes (default 120)</span>
           </div>
           <div className="flex items-center gap-3">
-            <button
-              onClick={onTimeoutsSave}
-              disabled={timeoutsSaveIsPending}
-              className={`${btnLg} ${btnPrimary}`}
-            >
-              {timeoutsSaveIsPending ? 'Saving...' : 'Save timeouts'}
-            </button>
+            <DemoDisabled>
+              <button
+                onClick={onTimeoutsSave}
+                disabled={timeoutsSaveIsPending}
+                className={`${btnLg} ${btnPrimary}`}
+              >
+                {timeoutsSaveIsPending ? 'Saving...' : 'Save timeouts'}
+              </button>
+            </DemoDisabled>
             {timeoutsSaveIsSuccess && !timeoutsError && <SavedBadge />}
             {timeoutsError && (
               <span className="text-sm text-destructive">{timeoutsError}</span>

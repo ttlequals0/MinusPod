@@ -1,4 +1,5 @@
 import { useDraftClose } from '../hooks/useDraftClose';
+import { DEMO_AUDIO_TOOLTIP } from '../demo/copy';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import WaveSurfer from 'wavesurfer.js';
 import { usePeaks } from './ad-editor/usePeaks';
@@ -37,6 +38,7 @@ import { getErrorMessage } from '../api/client';
 import Checkbox from './Checkbox';
 import { btnBase, btnOutline, btnPrimary } from './buttonStyles';
 import { focusRing, inputBase, labelBase, selectBase } from './fieldStyles';
+import { DemoDisabled } from './DemoDisabled';
 
 // Cue template marking modal. Mirrors the AdReviewModal layout: a wavesurfer
 // waveform with green START / red END pins the user drags to bracket the cue
@@ -791,6 +793,7 @@ function CueMarkModal({
         {/* Playback transport -- shared with the "Add new ad" editor. */}
         <TransportBar
           isPlaying={isPlaying}
+          disabledTitle={audioUrl ? undefined : DEMO_AUDIO_TOOLTIP}
           onTogglePlay={togglePlay}
           onSeekToStart={() => seekTo(cueStart)}
           onSeekToEnd={() => seekTo(cueEnd)}
@@ -936,14 +939,16 @@ function CueMarkModal({
           </p>
         )}
 
-        <audio
-          ref={audioRef}
-          src={audioUrl}
-          preload="metadata"
-          onPlay={() => setIsPlaying(true)}
-          onPause={() => setIsPlaying(false)}
-          onEnded={() => setIsPlaying(false)}
-        />
+        {audioUrl && (
+          <audio
+            ref={audioRef}
+            src={audioUrl}
+            preload="metadata"
+            onPlay={() => setIsPlaying(true)}
+            onPause={() => setIsPlaying(false)}
+            onEnded={() => setIsPlaying(false)}
+          />
+        )}
 
         <p className="text-xs text-muted-foreground mt-3 border-t border-border pt-3">
           Matched by sound alone - if it also plays outside ad breaks, cuts can land wrong.
@@ -959,22 +964,26 @@ function CueMarkModal({
           >
             Cancel
           </button>
-          <button
-            type="button"
-            className={`${btnBase} ${btnOutline}`}
-            onClick={handlePreview}
-            disabled={!canSave || previewing}
-          >
-            {previewing ? 'Previewing...' : 'Save and preview'}
-          </button>
-          <button
-            type="button"
-            className={`${btnBase} ${btnPrimary}`}
-            onClick={handleSave}
-            disabled={!canSave}
-          >
-            {saving ? 'Saving...' : 'Save cue'}
-          </button>
+          <DemoDisabled>
+            <button
+              type="button"
+              className={`${btnBase} ${btnOutline}`}
+              onClick={handlePreview}
+              disabled={!canSave || previewing}
+            >
+              {previewing ? 'Previewing...' : 'Save and preview'}
+            </button>
+          </DemoDisabled>
+          <DemoDisabled>
+            <button
+              type="button"
+              className={`${btnBase} ${btnPrimary}`}
+              onClick={handleSave}
+              disabled={!canSave}
+            >
+              {saving ? 'Saving...' : 'Save cue'}
+            </button>
+          </DemoDisabled>
         </div>
       </div>
       {confirmation}

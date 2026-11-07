@@ -1,8 +1,8 @@
-import { apiUrl } from '../urlPrefix';
+import { mediaUrl } from './mediaUrl';
 
 /** Feed cover: the API's URL, else the proxy endpoint. */
 export function feedArtworkSrc(slug: string, feedArtworkUrl?: string | null): string {
-  return feedArtworkUrl || apiUrl(`/feeds/${slug}/artwork`);
+  return mediaUrl({ kind: 'feedArtwork', slug, apiArtworkUrl: feedArtworkUrl })!;
 }
 
 /**
@@ -18,7 +18,7 @@ export function episodeArtworkSrc(
   feedArtworkUrl?: string | null,
 ): string {
   if (episodeArtworkUrl && episodeId) {
-    return apiUrl(`/feeds/${slug}/episodes/${encodeURIComponent(episodeId)}/artwork`);
+    return mediaUrl({ kind: 'episodeArtwork', slug, episodeId })!;
   }
   return feedArtworkSrc(slug, feedArtworkUrl);
 }

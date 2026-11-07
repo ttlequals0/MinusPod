@@ -9,6 +9,7 @@ import FieldResetHeader from './FieldResetHeader';
 import SavedBadge from './SavedBadge';
 import { btnLg, btnPrimary } from '../../components/buttonStyles';
 import { inputBase } from '../../components/fieldStyles';
+import { DemoDisabled } from '../../components/DemoDisabled';
 
 const STORAGE_KEY = 'settings-section-outbound-requests';
 
@@ -111,14 +112,16 @@ function OutboundRequestsSection() {
         {error && <p className="text-sm text-destructive">{error}</p>}
 
         <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={() => save.mutate(draft)}
-            disabled={save.isPending || !dirty}
-            className={`${btnLg} ${btnPrimary}`}
-          >
-            {save.isPending ? 'Saving...' : 'Save'}
-          </button>
+          <DemoDisabled>
+            <button
+              type="button"
+              onClick={() => save.mutate(draft)}
+              disabled={save.isPending || !dirty}
+              className={`${btnLg} ${btnPrimary}`}
+            >
+              {save.isPending ? 'Saving...' : 'Save'}
+            </button>
+          </DemoDisabled>
           {save.isSuccess && <SavedBadge className="ml-1" />}
         </div>
       </div>

@@ -1,4 +1,6 @@
 import { pageTitle } from '../components/pageStyles';
+import { DEMO_AUDIO_TOOLTIP } from '../demo/copy';
+import { mediaUrl } from '../utils/mediaUrl';
 import { reprocessMenuCopy } from '../utils/reprocessMenu';
 import { useState, useRef, useMemo, useEffect } from 'react';
 import { ChevronDown, Pencil, Plus } from 'lucide-react';
@@ -63,6 +65,8 @@ import { badgeBase, tint } from '../components/badgeStyles';
 import { cardTitle } from '../components/pageStyles';
 import { HOLD_REASON_LABELS, HOLD_REASON_TITLES } from '../utils/holdReason';
 import { URL_PREFIX } from '../urlPrefix';
+import { DemoDisabled } from '../components/DemoDisabled';
+import { IS_DEMO } from '../demo/flag';
 
 function btnLabel(status: string, idle: string): string {
   if (status === 'saving') return 'Saving...';
@@ -299,13 +303,15 @@ function EpisodeMetadataEditSection({ slug, episode }: { slug: string; episode: 
           {mutation.isError && (
             <p className="text-sm text-destructive">{getErrorMessage(mutation.error, 'Could not save this episode.')}</p>
           )}
-          <button
-            type="submit"
-            disabled={mutation.isPending || !title.trim()}
-            className={`${btnLg} ${btnPrimary}`}
-          >
-            {mutation.isPending ? 'Saving...' : saved ? 'Saved' : 'Save metadata'}
-          </button>
+          <DemoDisabled>
+            <button
+              type="submit"
+              disabled={mutation.isPending || !title.trim()}
+              className={`${btnLg} ${btnPrimary}`}
+            >
+              {mutation.isPending ? 'Saving...' : saved ? 'Saved' : 'Save metadata'}
+            </button>
+          </DemoDisabled>
         </form>
       </CollapsibleSection>
     </div>
@@ -742,6 +748,8 @@ function EpisodeDetail() {
   const markerAudition = useAuditionPlayer(
     episode?.hasOriginalAudio ? markerAudioUrl : undefined);
 
+  const markerPlayProps = markerAudioUrl ? {} : { disabled: true, title: DEMO_AUDIO_TOOLTIP };
+
   const description = episode?.description;
   const chapterNotes = episode?.chapterNotes;
   const descriptionBlock = useMemo(() => {
@@ -776,7 +784,7 @@ function EpisodeDetail() {
   }
 
   // Server-built when available: it carries the feed auth key, which a hardcoded path lacks.
-  const audioUrl = episode.processedUrl ?? `${URL_PREFIX}/episodes/${slug}/${episode.id}.mp3`;
+  const audioUrl = mediaUrl({ kind: 'audio', url: episode.processedUrl ?? `${URL_PREFIX}/episodes/${slug}/${episode.id}.mp3` });
 
   const renderAdMarkerCard = (segment: AdSegment, index: number) => (
     <div
@@ -786,7 +794,7 @@ function EpisodeDetail() {
       {/* Row 1: Time, badges, jump button, confidence */}
       <div className="flex flex-wrap items-center gap-2">
         {episode.hasOriginalAudio && (
-          <AuditionPlayButton
+          <AuditionPlayButton {...markerPlayProps}
             playing={markerAudition.playingKey === `detected-${segment.start}-${segment.end}`}
             onClick={() => {
               // Play the displayed span: the pre-trim range for reviewer-adjusted markers.
@@ -1188,63 +1196,69 @@ function EpisodeDetail() {
             </div>
             <div className="flex flex-wrap items-center gap-2">
               {episode.awaitingApproval && (
-                <button
-                  type="button"
-                  onClick={() => approveMutation.mutate()}
-                  disabled={approveMutation.isPending}
-                  className={`${btnBase} ${btnPrimary} ${touchTarget}`}
-                  aria-label="Approve and publish"
-                >
-                  {approveMutation.isPending ? 'Approving...' : (
-                    <>
-                      <span className="sm:hidden">Approve</span>
-                      <span className="hidden sm:inline">Approve and publish</span>
-                    </>
-                  )}
-                </button>
+                <DemoDisabled>
+                  <button
+                    type="button"
+                    onClick={() => approveMutation.mutate()}
+                    disabled={approveMutation.isPending}
+                    className={`${btnBase} ${btnPrimary} ${touchTarget}`}
+                    aria-label="Approve and publish"
+                  >
+                    {approveMutation.isPending ? 'Approving...' : (
+                      <>
+                        <span className="sm:hidden">Approve</span>
+                        <span className="hidden sm:inline">Approve and publish</span>
+                      </>
+                    )}
+                  </button>
+                </DemoDisabled>
               )}
               {downloadItems.length > 0 && (
-                <DropdownMenu
-                  triggerLabel="Download"
-                  triggerClassName={`${btnBase} ${btnSecondary} shrink-0`}
-                  chevronClassName="w-3 h-3"
-                  title="Download audio"
-                  items={downloadItems}
-                />
+                <DemoDisabled title={DEMO_AUDIO_TOOLTIP}>
+                  <DropdownMenu
+                    triggerLabel="Download"
+                    triggerClassName={`${btnBase} ${btnSecondary} shrink-0`}
+                    chevronClassName="w-3 h-3"
+                    title="Download audio"
+                    items={downloadItems}
+                  />
+                </DemoDisabled>
               )}
-              <DropdownMenu
-                triggerLabel={reprocessTriggerLabel}
-                triggerClassName={`${btnBase} ${btnPrimary} shrink-0`}
-                chevronClassName="w-3 h-3"
-                disabled={reprocessBlocked}
-                title={reprocessTriggerTooltip}
-                items={[
-                  { title: reprocessLabel, subtitle: menuCopy.reprocess.subtitle,
-                    tooltip: menuCopy.reprocess.tooltip,
-                    onClick: () => handleReprocess('reprocess') },
-                  { title: 'Full reprocess', subtitle: menuCopy.full.subtitle,
-                    tooltip: menuCopy.full.tooltip,
-                    onClick: () => handleReprocess('full') },
-                  ...(episode.hasOriginalAudio ? [{
-                    title: 'Recut audio', subtitle: 'Apply edits, no AI',
-                    tooltip: 'Re-cut the original audio from your current ad edits (no transcription or AI)',
-                    onClick: () => handleReprocess('recut') }] : []),
-                  ...(episode.transcriptAvailable ? [{
-                    title: 'Re-detect ads', subtitle: menuCopy.redetect.subtitle,
-                    disabled: redetectDisabled,
-                    tooltip: redetectTooltip,
-                    onClick: () => handleReprocess('llm') }] : []),
-                  ...(episode.transcriptVttAvailable ? [{
-                    title: 'Regenerate chapters', subtitle: 'Use existing transcript',
-                    disabled: chaptersRegenerating || chapterSettingsPending || !settings || unsupportedChapterRoute,
-                    tooltip: chapterActionTooltip,
-                    onClick: () => regenerateChaptersMutation.mutate() }] : []),
-                  { title: passthroughToggleLabel, subtitle: 'Served unmodified, no ad processing',
-                    disabled: passthroughToggleDisabled,
-                    tooltip: passthroughToggleTooltip,
-                    onClick: () => passthroughMutation.mutate(!episode.passthroughEnabled) },
-                ]}
-              />
+              <DemoDisabled>
+                <DropdownMenu
+                  triggerLabel={reprocessTriggerLabel}
+                  triggerClassName={`${btnBase} ${btnPrimary} shrink-0`}
+                  chevronClassName="w-3 h-3"
+                  disabled={reprocessBlocked}
+                  title={reprocessTriggerTooltip}
+                  items={[
+                    { title: reprocessLabel, subtitle: menuCopy.reprocess.subtitle,
+                      tooltip: menuCopy.reprocess.tooltip,
+                      onClick: () => handleReprocess('reprocess') },
+                    { title: 'Full reprocess', subtitle: menuCopy.full.subtitle,
+                      tooltip: menuCopy.full.tooltip,
+                      onClick: () => handleReprocess('full') },
+                    ...(episode.hasOriginalAudio ? [{
+                      title: 'Recut audio', subtitle: 'Apply edits, no AI',
+                      tooltip: 'Re-cut the original audio from your current ad edits (no transcription or AI)',
+                      onClick: () => handleReprocess('recut') }] : []),
+                    ...(episode.transcriptAvailable ? [{
+                      title: 'Re-detect ads', subtitle: menuCopy.redetect.subtitle,
+                      disabled: redetectDisabled,
+                      tooltip: redetectTooltip,
+                      onClick: () => handleReprocess('llm') }] : []),
+                    ...(episode.transcriptVttAvailable ? [{
+                      title: 'Regenerate chapters', subtitle: 'Use existing transcript',
+                      disabled: chaptersRegenerating || chapterSettingsPending || !settings || unsupportedChapterRoute,
+                      tooltip: chapterActionTooltip,
+                      onClick: () => regenerateChaptersMutation.mutate() }] : []),
+                    { title: passthroughToggleLabel, subtitle: 'Served unmodified, no ad processing',
+                      disabled: passthroughToggleDisabled,
+                      tooltip: passthroughToggleTooltip,
+                      onClick: () => passthroughMutation.mutate(!episode.passthroughEnabled) },
+                  ]}
+                />
+              </DemoDisabled>
             </div>
             {approveMutation.isError && (
               <p role="alert" className="text-sm text-destructive">
@@ -1312,14 +1326,16 @@ function EpisodeDetail() {
               <span>
                 The AI detection pass failed during processing. Ads were removed using pattern and cross-fetch evidence only, so some ads may remain.
               </span>
-              <button
-                type="button"
-                onClick={() => handleReprocess('llm')}
-                disabled={reprocessBlocked}
-                className={`${btnBase} ${btnSecondary} shrink-0`}
-              >
-                Re-detect ads
-              </button>
+              <DemoDisabled>
+                <button
+                  type="button"
+                  onClick={() => handleReprocess('llm')}
+                  disabled={reprocessBlocked}
+                  className={`${btnBase} ${btnSecondary} shrink-0`}
+                >
+                  Re-detect ads
+                </button>
+              </DemoDisabled>
             </div>
           </div>
         )}
@@ -1348,7 +1364,7 @@ function EpisodeDetail() {
           <div className="mt-4 pt-4 border-t border-border">
             <EpisodePlayer
               src={audioUrl}
-              chaptersUrl={episode.chaptersAvailable ? episode.chaptersUrl : undefined}
+              chaptersUrl={episode.chaptersAvailable && !IS_DEMO ? episode.chaptersUrl : undefined}
             />
             {(episode.transcriptVttAvailable || episode.chaptersAvailable) && (
               <div className="flex flex-wrap gap-2 mt-3">
@@ -1361,7 +1377,7 @@ function EpisodeDetail() {
                     Download VTT
                   </a>
                 )}
-                {episode.chaptersAvailable && episode.chaptersUrl && (
+                {episode.chaptersAvailable && episode.chaptersUrl && !IS_DEMO && (
                   <a
                     href={episode.chaptersUrl}
                     download
@@ -1535,7 +1551,7 @@ function EpisodeDetail() {
                   <div className="p-3 bg-secondary/50 rounded-lg">
                     <div className="flex flex-wrap items-center gap-2">
                       {episode.hasOriginalAudio && (
-                        <AuditionPlayButton
+                        <AuditionPlayButton {...markerPlayProps}
                           playing={markerAudition.playingKey === key}
                           onClick={() => markerAudition.toggle(key, markerAudioUrl, block.start, block.end)}
                         />
@@ -1682,25 +1698,29 @@ function EpisodeDetail() {
             match the segments you kept.
           </p>
           <div className="flex flex-col sm:flex-row gap-2">
-            <button
-              onClick={() => { setHeldReviewCleared(false); handleReprocess('llm'); }}
-              disabled={reprocessBlocked || redetectDisabled}
-              title={redetectTooltip}
-              data-testid="redetect-after-review"
-              className={`w-full sm:w-auto ${btnBase} ${btnPrimary}`}
-            >
-              Re-detect ads
-            </button>
-            {episode.transcriptVttAvailable && (
+            <DemoDisabled>
               <button
-                onClick={() => { setHeldReviewCleared(false); regenerateChaptersMutation.mutate(); }}
-                disabled={chaptersRegenerating || chapterSettingsPending || !settings || unsupportedChapterRoute}
-                title={chapterActionTooltip}
-                data-testid="regenerate-chapters-after-review"
-                className={`w-full sm:w-auto ${btnBase} ${btnSecondary}`}
+                onClick={() => { setHeldReviewCleared(false); handleReprocess('llm'); }}
+                disabled={reprocessBlocked || redetectDisabled}
+                title={redetectTooltip}
+                data-testid="redetect-after-review"
+                className={`w-full sm:w-auto ${btnBase} ${btnPrimary}`}
               >
-                Regenerate chapters
+                Re-detect ads
               </button>
+            </DemoDisabled>
+            {episode.transcriptVttAvailable && (
+              <DemoDisabled>
+                <button
+                  onClick={() => { setHeldReviewCleared(false); regenerateChaptersMutation.mutate(); }}
+                  disabled={chaptersRegenerating || chapterSettingsPending || !settings || unsupportedChapterRoute}
+                  title={chapterActionTooltip}
+                  data-testid="regenerate-chapters-after-review"
+                  className={`w-full sm:w-auto ${btnBase} ${btnSecondary}`}
+                >
+                  Regenerate chapters
+                </button>
+              </DemoDisabled>
             )}
           </div>
         </div>
@@ -1734,7 +1754,7 @@ function EpisodeDetail() {
                   <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                     <div className="flex flex-wrap items-center gap-2">
                       {episode.hasOriginalAudio && (
-                        <AuditionPlayButton
+                        <AuditionPlayButton {...markerPlayProps}
                           playing={heldPlaying}
                           onClick={() => markerAudition.toggle(heldKey, markerAudioUrl, segment.start, segment.end)}
                         />
@@ -1826,40 +1846,44 @@ function EpisodeDetail() {
                   )}
                   {!correction && !segment.approved && (
                     <div className="flex flex-col sm:flex-row gap-2 mt-3">
-                      <button
-                        onClick={() => {
-                          if (oneTapRecut) {
-                            pendingRecutRef.current = true;
-                          }
-                          handleCorrection({ type: 'confirm', originalAd });
-                        }}
-                        disabled={correctionMutation.isPending || reprocessBlocked}
-                        data-testid={`approve-recut-${index}`}
-                        className={`flex-1 sm:flex-none ${rowActionBtn} ${btnClass(confirmStatus, btnPrimary)} ${focusRing}`}
-                      >
-                        {btnLabel(confirmStatus, oneTapRecut ? 'Confirm and recut' : confirmLabel(segment.category))}
-                      </button>
-                      {proposalOverlaps(segment) && (
+                      <DemoDisabled>
                         <button
                           onClick={() => {
                             if (oneTapRecut) {
                               pendingRecutRef.current = true;
                             }
-                            handleCorrection({
-                              type: 'confirm',
-                              originalAd,
-                              adjustedStart: segment.reviewer_proposed_start,
-                              adjustedEnd: segment.reviewer_proposed_end,
-                            });
+                            handleCorrection({ type: 'confirm', originalAd });
                           }}
                           disabled={correctionMutation.isPending || reprocessBlocked}
-                          data-testid={`approve-trimmed-${index}`}
-                          title="Approve only the span the reviewer identified as ad content; the rest of this marker stays in the episode"
-                          className={`flex-1 sm:flex-none ${rowActionBtn} ${btnClass(trimmedStatus, btnSecondary)} ${focusRing}`}
+                          data-testid={`approve-recut-${index}`}
+                          className={`flex-1 sm:flex-none ${rowActionBtn} ${btnClass(confirmStatus, btnPrimary)} ${focusRing}`}
                         >
-                          {btnLabel(trimmedStatus,
-                            `Confirm trimmed (${formatTimestamp(segment.reviewer_proposed_start)} - ${formatTimestamp(segment.reviewer_proposed_end)})`)}
+                          {btnLabel(confirmStatus, oneTapRecut ? 'Confirm and recut' : confirmLabel(segment.category))}
                         </button>
+                      </DemoDisabled>
+                      {proposalOverlaps(segment) && (
+                        <DemoDisabled>
+                          <button
+                            onClick={() => {
+                              if (oneTapRecut) {
+                                pendingRecutRef.current = true;
+                              }
+                              handleCorrection({
+                                type: 'confirm',
+                                originalAd,
+                                adjustedStart: segment.reviewer_proposed_start,
+                                adjustedEnd: segment.reviewer_proposed_end,
+                              });
+                            }}
+                            disabled={correctionMutation.isPending || reprocessBlocked}
+                            data-testid={`approve-trimmed-${index}`}
+                            title="Approve only the span the reviewer identified as ad content; the rest of this marker stays in the episode"
+                            className={`flex-1 sm:flex-none ${rowActionBtn} ${btnClass(trimmedStatus, btnSecondary)} ${focusRing}`}
+                          >
+                            {btnLabel(trimmedStatus,
+                              `Confirm trimmed (${formatTimestamp(segment.reviewer_proposed_start)} - ${formatTimestamp(segment.reviewer_proposed_end)})`)}
+                          </button>
+                        </DemoDisabled>
                       )}
                       {!episode.hasOriginalAudio
                         && (confirmStatus === 'success' || trimmedStatus === 'success' || rejectStatus === 'success') && (
@@ -1867,14 +1891,16 @@ function EpisodeDetail() {
                           Saved - applies on next reprocess
                         </span>
                       )}
-                      <button
-                        onClick={() => handleCorrection({ type: 'reject', originalAd })}
-                        disabled={correctionMutation.isPending || reprocessBlocked}
-                        data-testid={`dismiss-${index}`}
-                        className={`flex-1 sm:flex-none ${rowActionBtn} ${btnClass(rejectStatus, `${btnDestructive} active:bg-destructive/80`)} ${focusRing}`}
-                      >
-                        {btnLabel(rejectStatus, rejectLabel(segment.category))}
-                      </button>
+                      <DemoDisabled>
+                        <button
+                          onClick={() => handleCorrection({ type: 'reject', originalAd })}
+                          disabled={correctionMutation.isPending || reprocessBlocked}
+                          data-testid={`dismiss-${index}`}
+                          className={`flex-1 sm:flex-none ${rowActionBtn} ${btnClass(rejectStatus, `${btnDestructive} active:bg-destructive/80`)} ${focusRing}`}
+                        >
+                          {btnLabel(rejectStatus, rejectLabel(segment.category))}
+                        </button>
+                      </DemoDisabled>
                     </div>
                   )}
                 </div>
@@ -1883,14 +1909,16 @@ function EpisodeDetail() {
           </div>
           {episode.hasOriginalAudio && approvedHeldCount > 0 && (
             <div className="mt-4 pt-4 border-t border-warning/20 flex justify-end">
-              <button
-                onClick={() => handleReprocess('recut')}
-                disabled={correctionMutation.isPending || reprocessBlocked}
-                data-testid="apply-approved-recut"
-                className={`w-full sm:w-auto ${rowActionBtn} ${btnPrimary} ${focusRing}`}
-              >
-                {`Apply ${approvedHeldCount} confirmed and recut`}
-              </button>
+              <DemoDisabled>
+                <button
+                  onClick={() => handleReprocess('recut')}
+                  disabled={correctionMutation.isPending || reprocessBlocked}
+                  data-testid="apply-approved-recut"
+                  className={`w-full sm:w-auto ${rowActionBtn} ${btnPrimary} ${focusRing}`}
+                >
+                  {`Apply ${approvedHeldCount} confirmed and recut`}
+                </button>
+              </DemoDisabled>
             </div>
           )}
         </div>
@@ -1912,7 +1940,7 @@ function EpisodeDetail() {
                 >
                   <div className="flex flex-wrap items-center gap-2">
                     {episode.hasOriginalAudio && (
-                      <AuditionPlayButton
+                      <AuditionPlayButton {...markerPlayProps}
                         label="this segment"
                         playing={markerAudition.playingKey === `kept-${segment.start}-${segment.end}`}
                         onClick={() => markerAudition.toggle(
@@ -1967,7 +1995,7 @@ function EpisodeDetail() {
                       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                         <div className="flex flex-wrap items-center gap-2">
                           {episode.hasOriginalAudio && (
-                            <AuditionPlayButton
+                            <AuditionPlayButton {...markerPlayProps}
                               playing={rejectedPlaying}
                               onClick={() => markerAudition.toggle(rejectedKey, markerAudioUrl, segment.start, segment.end)}
                             />
@@ -2026,20 +2054,24 @@ function EpisodeDetail() {
                       )}
                       {!correction && (
                         <div className="flex flex-col sm:flex-row gap-2 mt-3">
-                          <button
-                            onClick={() => handleCorrection({ type: 'confirm', originalAd })}
-                            disabled={correctionMutation.isPending}
-                            className={`flex-1 sm:flex-none ${rowActionBtn} ${btnClass(confirmStatus, btnPrimary)} ${focusRing}`}
-                          >
-                            {btnLabel(confirmStatus, confirmLabel(segment.category))}
-                          </button>
-                          <button
-                            onClick={() => handleCorrection({ type: 'reject', originalAd })}
-                            disabled={correctionMutation.isPending}
-                            className={`flex-1 sm:flex-none ${rowActionBtn} ${btnClass(rejectStatus, `${btnDestructive} active:bg-destructive/80`)} ${focusRing}`}
-                          >
-                            {btnLabel(rejectStatus, rejectLabel(segment.category))}
-                          </button>
+                          <DemoDisabled>
+                            <button
+                              onClick={() => handleCorrection({ type: 'confirm', originalAd })}
+                              disabled={correctionMutation.isPending}
+                              className={`flex-1 sm:flex-none ${rowActionBtn} ${btnClass(confirmStatus, btnPrimary)} ${focusRing}`}
+                            >
+                              {btnLabel(confirmStatus, confirmLabel(segment.category))}
+                            </button>
+                          </DemoDisabled>
+                          <DemoDisabled>
+                            <button
+                              onClick={() => handleCorrection({ type: 'reject', originalAd })}
+                              disabled={correctionMutation.isPending}
+                              className={`flex-1 sm:flex-none ${rowActionBtn} ${btnClass(rejectStatus, `${btnDestructive} active:bg-destructive/80`)} ${focusRing}`}
+                            >
+                              {btnLabel(rejectStatus, rejectLabel(segment.category))}
+                            </button>
+                          </DemoDisabled>
                         </div>
                       )}
                     </>

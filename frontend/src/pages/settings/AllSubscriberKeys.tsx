@@ -9,6 +9,7 @@ import { btnBase, btnOutline, btnDestructive } from '../../components/buttonStyl
 import { badgeBase, tint } from '../../components/badgeStyles';
 import { tableBody, tableCard, tableHead, tableRow, thBase } from '../../components/tableStyles';
 import { subHeading } from '../../components/pageStyles';
+import { DemoDisabled } from '../../components/DemoDisabled';
 
 // The settings card is 768 px wide, so this six-column table uses px-3 cells.
 const head = `${thBase} px-3 py-3 text-left`;
@@ -37,13 +38,17 @@ function AllSubscriberKeys({ hasFeeds }: { hasFeeds: boolean }) {
 
   function actionButton(key: SubscriberKeyWithFeed) {
     return key.revokedAt ? (
-      <button type="button" onClick={() => setKeyToDelete(key)} disabled={deleteMutation.isPending} className={deleteClass}>
-        Delete record
-      </button>
+      <DemoDisabled>
+        <button type="button" onClick={() => setKeyToDelete(key)} disabled={deleteMutation.isPending} className={deleteClass}>
+          Delete record
+        </button>
+      </DemoDisabled>
     ) : (
-      <button type="button" onClick={() => revokeMutation.mutate(toRef(key))} disabled={revokeMutation.isPending} className={revokeClass}>
-        Revoke
-      </button>
+      <DemoDisabled>
+        <button type="button" onClick={() => revokeMutation.mutate(toRef(key))} disabled={revokeMutation.isPending} className={revokeClass}>
+          Revoke
+        </button>
+      </DemoDisabled>
     );
   }
 

@@ -10,6 +10,7 @@ import { getErrorMessage } from '../api/client';
 import Checkbox from './Checkbox';
 import { focusRing } from './fieldStyles';
 import { cardActionBtnMobileOnly } from './rowActionStyles';
+import { DemoDisabled } from './DemoDisabled';
 
 // Same-sponsor near-duplicate clusters the backend precomputes (#399). The
 // frontend only renders them and triggers the fold; it never computes
@@ -92,17 +93,19 @@ function SuggestionCard({
         ))}
       </ul>
       <div className="mt-3 flex sm:justify-end">
-        <button
-          onClick={doMerge}
-          disabled={busy || mergeIds.length === 0}
-          className={`${cardActionBtnMobileOnly} py-1.5 max-sm:w-full ${btnPrimary} disabled:opacity-50 ${focusRing}`}
-        >
-          {busy
-            ? 'Merging...'
-            : mergeIds.length === 0
-              ? 'Select rows to merge'
-              : `Merge ${mergeIds.length + 1} into 1`}
-        </button>
+        <DemoDisabled>
+          <button
+            onClick={doMerge}
+            disabled={busy || mergeIds.length === 0}
+            className={`${cardActionBtnMobileOnly} py-1.5 max-sm:w-full ${btnPrimary} disabled:opacity-50 ${focusRing}`}
+          >
+            {busy
+              ? 'Merging...'
+              : mergeIds.length === 0
+                ? 'Select rows to merge'
+                : `Merge ${mergeIds.length + 1} into 1`}
+          </button>
+        </DemoDisabled>
       </div>
       {warning && (
         <p className="mt-2 text-xs text-warning">{warning}</p>

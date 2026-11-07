@@ -2,14 +2,17 @@ import { apiFileRequest, apiRequest, buildQueryString } from './client';
 import { Feed, Episode, EpisodeDetail, BulkActionResult, AdDistribution, JobState, LowAdYieldAction, EpisodeLogsOverride, RunLogResponse, SbCandidatesResponse, SbSubmission, EpisodeRating, ProcessingMode } from './types';
 import type { SegmentCategory, SegmentAction } from '../utils/segmentCategory';
 import { apiUrl } from '../urlPrefix';
+import { mediaUrl } from '../utils/mediaUrl';
+import { IS_DEMO } from '../demo/flag';
+import { DEMO_AUDIO_TOOLTIP } from '../demo/copy';
 
 export const CUE_SCORE_MIN = 0.30;
 export const CUE_SCORE_MAX = 0.99;
 
 // Direct URL for an episode's retained original audio; an <audio src> hits it
 // with the session cookie (GET needs no CSRF).
-export function episodeOriginalUrl(slug: string, episodeId: string): string {
-  return apiUrl(`/feeds/${slug}/episodes/${episodeId}/original.mp3`);
+export function episodeOriginalUrl(slug: string, episodeId: string): string | null {
+  return mediaUrl({ kind: 'audio', url: apiUrl(`/feeds/${slug}/episodes/${episodeId}/original.mp3`) });
 }
 
 // Saves the original or the current cut. A HEAD preflight surfaces a 401
@@ -18,6 +21,7 @@ export function episodeOriginalUrl(slug: string, episodeId: string): string {
 export async function downloadEpisodeAudio(
   slug: string, episodeId: string, kind: 'original' | 'cut',
 ): Promise<void> {
+  if (IS_DEMO) throw new Error(DEMO_AUDIO_TOOLTIP);
   const file = kind === 'cut' ? 'processed' : 'original';
   const path = `/feeds/${slug}/episodes/${episodeId}/${file}.mp3?download=1`;
   await apiFileRequest(path, { method: 'HEAD' });

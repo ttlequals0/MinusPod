@@ -13,12 +13,14 @@ import { fromTri, GlobalOverrideRow, rowLabelTop, toTri } from './OverrideRows';
 import QueryError from '../../components/QueryError';
 import { SkeletonRows } from '../../components/Skeleton';
 import { useUnsavedChanges } from '../../hooks/useUnsavedChanges';
+import { IS_DEMO } from '../../demo/flag';
+import { DEMO_WRITE_TOOLTIP } from '../../demo/copy';
 
 type NumberField = 'ytProcessDelayMinutesOverride' | 'ytProbeAttemptsOverride' | 'ytProbeIntervalMinutesOverride';
 type BoolField = 'ytLlmFallbackOverride' | 'ytLlmOnTopOverride' | 'ytCaptionsOverride' | 'ytHidePrivateOverride' | 'ytTranscribeOverride' | 'youtubeIncludeShorts';
 
 function NumberOverrideRow({
-  label, ariaLabel, value, globalValue, bounds, unit, disabled, onCommit, children,
+  label, ariaLabel, value, globalValue, bounds, unit, disabled, title, onCommit, children,
 }: {
   label: string;
   ariaLabel: string;
@@ -27,6 +29,7 @@ function NumberOverrideRow({
   bounds: [number, number] | undefined;
   unit: string;
   disabled: boolean;
+  title?: string;
   onCommit: (value: number | null) => Promise<unknown>;
   children: string;
 }) {
@@ -50,7 +53,7 @@ function NumberOverrideRow({
   }
 
   return (
-    <div className="flex flex-col sm:flex-row sm:items-start gap-2 sm:gap-3 text-sm">
+    <div className="flex flex-col sm:flex-row sm:items-start gap-2 sm:gap-3 text-sm" title={title}>
       <label htmlFor={`${fieldId}-mode`} className={rowLabelTop}>{label}</label>
       <div className="flex flex-col gap-1 flex-1 min-w-0">
         <div className="flex items-center gap-2 flex-wrap">
@@ -120,6 +123,7 @@ function YouTubeFeedPanel({ feed, slug }: { feed: Feed; slug: string }) {
   const setNumber = (field: NumberField) => (v: number | null) => mutation.mutateAsync({ [field]: v });
   const bound = (key: keyof YouTubeSettings['bounds']) => globals?.bounds[key];
   const pending = mutation.isPending;
+  const demoTitle = IS_DEMO ? DEMO_WRITE_TOOLTIP : undefined;
 
   return (
     <div className="mb-6">
@@ -158,7 +162,8 @@ function YouTubeFeedPanel({ feed, slug }: { feed: Feed; slug: string }) {
             ariaLabel="LLM fallback"
             value={toTri(feed.ytLlmFallbackOverride)}
             globalOn={!!globals?.llmFallback}
-            disabled={pending}
+            disabled={pending || IS_DEMO}
+            title={demoTitle}
             onChange={setBool('ytLlmFallbackOverride')}
           >
             Run the ad detector when SponsorBlock has no marks for an episode.
@@ -168,7 +173,8 @@ function YouTubeFeedPanel({ feed, slug }: { feed: Feed; slug: string }) {
             ariaLabel="Pass 1 detection"
             value={toTri(feed.ytLlmOnTopOverride)}
             globalOn={false}
-            disabled={pending}
+            disabled={pending || IS_DEMO}
+            title={demoTitle}
             onChange={setBool('ytLlmOnTopOverride')}
           >
             Run pass 1 LLM detection even when SponsorBlock has marks, and cut both.
@@ -178,7 +184,8 @@ function YouTubeFeedPanel({ feed, slug }: { feed: Feed; slug: string }) {
             ariaLabel="Use captions as transcript"
             value={toTri(feed.ytCaptionsOverride)}
             globalOn={!!globals?.captionsAsTranscript}
-            disabled={pending}
+            disabled={pending || IS_DEMO}
+            title={demoTitle}
             onChange={setBool('ytCaptionsOverride')}
           >
             Use YouTube captions instead of transcribing the audio when they exist.
@@ -188,7 +195,8 @@ function YouTubeFeedPanel({ feed, slug }: { feed: Feed; slug: string }) {
             ariaLabel="Hide private and deleted episodes"
             value={toTri(feed.ytHidePrivateOverride)}
             globalOn={!!globals?.hidePrivate}
-            disabled={pending}
+            disabled={pending || IS_DEMO}
+            title={demoTitle}
             onChange={setBool('ytHidePrivateOverride')}
           >
             Hide private and deleted episodes. Off lists them, but they only download when the cookies account can watch them.
@@ -198,7 +206,8 @@ function YouTubeFeedPanel({ feed, slug }: { feed: Feed; slug: string }) {
             ariaLabel="Transcribe when captions are missing"
             value={toTri(feed.ytTranscribeOverride)}
             globalOn={!!globals?.transcribeFallback}
-            disabled={pending}
+            disabled={pending || IS_DEMO}
+            title={demoTitle}
             onChange={setBool('ytTranscribeOverride')}
           >
             Run the configured transcriber for videos with no captions. Off keeps such videos on SponsorBlock marks only.
@@ -208,7 +217,8 @@ function YouTubeFeedPanel({ feed, slug }: { feed: Feed; slug: string }) {
             ariaLabel="Include Shorts"
             value={toTri(feed.youtubeIncludeShorts)}
             globalOn={false}
-            disabled={pending}
+            disabled={pending || IS_DEMO}
+            title={demoTitle}
             onChange={setBool('youtubeIncludeShorts')}
           >
             Include Shorts. Playlist feeds otherwise skip videos of 3 minutes or less; channel feeds otherwise list long-form uploads only.
@@ -221,7 +231,8 @@ function YouTubeFeedPanel({ feed, slug }: { feed: Feed; slug: string }) {
             globalValue={globals?.processDelayMinutes}
             bounds={bound('processDelayMinutes')}
             unit="minutes"
-            disabled={pending}
+            disabled={pending || IS_DEMO}
+            title={demoTitle}
             onCommit={setNumber('ytProcessDelayMinutesOverride')}
           >
             How long to wait after a video appears before processing it.
@@ -233,7 +244,8 @@ function YouTubeFeedPanel({ feed, slug }: { feed: Feed; slug: string }) {
             globalValue={globals?.sbProbeAttempts}
             bounds={bound('sbProbeAttempts')}
             unit="attempts"
-            disabled={pending}
+            disabled={pending || IS_DEMO}
+            title={demoTitle}
             onCommit={setNumber('ytProbeAttemptsOverride')}
           >
             How many times to check SponsorBlock before giving up.
@@ -245,7 +257,8 @@ function YouTubeFeedPanel({ feed, slug }: { feed: Feed; slug: string }) {
             globalValue={globals?.sbProbeIntervalMinutes}
             bounds={bound('sbProbeIntervalMinutes')}
             unit="minutes"
-            disabled={pending}
+            disabled={pending || IS_DEMO}
+            title={demoTitle}
             onCommit={setNumber('ytProbeIntervalMinutesOverride')}
           >
             Time between SponsorBlock checks.

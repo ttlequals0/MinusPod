@@ -12,6 +12,9 @@ import { Plus } from 'lucide-react';
 import { RemovableChip } from './RemovableChip';
 import { btnBase, btnOutline } from './buttonStyles';
 import { selectBase } from './fieldStyles';
+import { DemoDisabled } from './DemoDisabled';
+import { IS_DEMO } from '../demo/flag';
+import { DEMO_WRITE_TOOLTIP } from '../demo/copy';
 
 interface Props {
   slug: string;
@@ -99,9 +102,9 @@ export function FeedTagsEditor({ slug }: Props) {
                 {tags.user.length > 0 && (
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="text-xs text-muted-foreground w-16 shrink-0">Yours</span>
-                    <div className="flex flex-wrap gap-1">
+                    <div className="flex flex-wrap gap-1" title={IS_DEMO ? DEMO_WRITE_TOOLTIP : undefined}>
                       {tags.user.map((t) => (
-                        <RemovableChip key={t} label={t} onRemove={() => removeTag(t)} disabled={save.isPending} />
+                        <RemovableChip key={t} label={t} onRemove={() => removeTag(t)} disabled={save.isPending || IS_DEMO} />
                       ))}
                     </div>
                   </div>
@@ -111,15 +114,17 @@ export function FeedTagsEditor({ slug }: Props) {
 
             <div className="flex items-center gap-2">
               {!adding ? (
-                <button
-                  type="button"
-                  onClick={() => setAdding(true)}
-                  disabled={save.isPending || remainingVocab.length === 0}
-                  className={`${btnBase} ${btnOutline}`}
-                >
-                  <Plus className="w-4 h-4" aria-hidden="true" />
-                  Add tag
-                </button>
+                <DemoDisabled>
+                  <button
+                    type="button"
+                    onClick={() => setAdding(true)}
+                    disabled={save.isPending || remainingVocab.length === 0}
+                    className={`${btnBase} ${btnOutline}`}
+                  >
+                    <Plus className="w-4 h-4" aria-hidden="true" />
+                    Add tag
+                  </button>
+                </DemoDisabled>
               ) : (
                 <>
                   <select

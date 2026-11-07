@@ -11,6 +11,7 @@ import { btnBase, btnPrimaryOutline, btnSecondary, btnDestructive } from './butt
 import { badgeBase, tint } from './badgeStyles';
 import { cardTitle } from './pageStyles';
 import { reprocessMenuCopy } from '../utils/reprocessMenu';
+import { DemoDisabled } from './DemoDisabled';
 
 interface EpisodeRowActionsProps {
   feedSlug: string;
@@ -88,29 +89,31 @@ function EpisodeRowActions({
           Failed
         </span>
       )}
-      <DropdownMenu
-        // The 6rem floor aligns row actions; flex-1 centers the label beside the chevron.
-        triggerLabel={<span className="flex-1 text-center">Actions</span>}
-        triggerClassName={`${btnBase} ${btnPrimaryOutline} gap-1 min-w-24`}
-        chevronClassName="w-3 h-3"
-        disabled={blocked}
-        title="Episode actions"
-        items={[
-          { title: baseLabel, subtitle: menuCopy.reprocess.subtitle, onClick: () => mutation.mutate('reprocess') },
-          { title: 'Full reprocess', subtitle: menuCopy.full.subtitle, onClick: () => mutation.mutate('full') },
-          ...(deletable ? [{
-            title: 'Delete',
-            subtitle: 'Free downloaded space',
-            onClick: () => {
-              mutation.reset();
-              deleteMutation.reset();
-              setDeleteError(null);
-              setDeleteStatus(null);
-              setConfirmDelete(true);
-            },
-          }] : []),
-        ]}
-      />
+      <DemoDisabled>
+        <DropdownMenu
+          // The 6rem floor aligns row actions; flex-1 centers the label beside the chevron.
+          triggerLabel={<span className="flex-1 text-center">Actions</span>}
+          triggerClassName={`${btnBase} ${btnPrimaryOutline} gap-1 min-w-24`}
+          chevronClassName="w-3 h-3"
+          disabled={blocked}
+          title="Episode actions"
+          items={[
+            { title: baseLabel, subtitle: menuCopy.reprocess.subtitle, onClick: () => mutation.mutate('reprocess') },
+            { title: 'Full reprocess', subtitle: menuCopy.full.subtitle, onClick: () => mutation.mutate('full') },
+            ...(deletable ? [{
+              title: 'Delete',
+              subtitle: 'Free downloaded space',
+              onClick: () => {
+                mutation.reset();
+                deleteMutation.reset();
+                setDeleteError(null);
+                setDeleteStatus(null);
+                setConfirmDelete(true);
+              },
+            }] : []),
+          ]}
+        />
+      </DemoDisabled>
       {deleteStatus && <span role="status" className="sr-only">{deleteStatus}</span>}
       {confirmDelete && (
         <Modal
