@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!-- minuspod-rss-render-version:2 -->
-<rss version="2.0" xmlns:itunes="http://www.itunes.com/dtds/podcast-1.0.dtd" xmlns:podcast="https://podcastindex.org/namespace/1.0">
+<!-- minuspod-rss-render-version:4 -->
+<rss version="2.0" xmlns:itunes="http://www.itunes.com/dtds/podcast-1.0.dtd" xmlns:content="http://purl.org/rss/1.0/modules/content/" xmlns:podcast="https://podcastindex.org/namespace/1.0">
 <channel>
 <title>The Daily Tech Show</title>
 <link>http://your-server:8000/example-podcast</link>
@@ -42,6 +42,9 @@
   <description><![CDATA[<p>A sample episode description used to illustrate a MinusPod-served feed item.</p>
 
 <p>Chapters</p><p>00:01 Introduction<br>12:30 Topic Overview<br>31:05 Discussion<br>58:40 Wrap-Up</p>]]></description>
+  <content:encoded><![CDATA[<p>The full show notes for sample episode 1, with links and credits.</p>
+
+<p>Chapters</p><p>00:01 Introduction<br>12:30 Topic Overview<br>31:05 Discussion<br>58:40 Wrap-Up</p>]]></content:encoded>
   <enclosure url="http://your-server:8000/episodes/example-podcast/a1b2c3d4e5f6.mp3" type="audio/mpeg" length="57680000" />
   <guid isPermaLink="false">a1b2c3d4e5f6</guid>
   <pubDate>Wed, 30 Sep 2026 01:55:39 +0000</pubDate>

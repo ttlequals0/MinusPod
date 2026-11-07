@@ -19,6 +19,7 @@ release notes.
 - The shared animation helper `docs/videos/lib/canvas.js` is now tracked. The top-level `lib/` ignore rule for Python builds had swallowed it. The videos README linked to a file that was not in the repository, and the two animated videos could not be rebuilt from a clone.
 - Splitting an ad and recutting now keeps every piece cut (#967). The first piece's correction row recorded the whole pre-split span. Trim protection read that as audio the user kept and carved the later pieces out of the cut list on every recut and reprocess. The row now covers the first piece only. A one-shot startup migration repairs rows saved by earlier versions and lists those episodes under Apply recuts.
 - Timestamps written in an episode's description, such as the chapter list in a YouTube video description, now shift with the ad cuts like the chapters do. Tapping one in a podcast app lands on the right moment.
+- Feeds that put a short summary in `itunes:summary` and the full show notes in `content:encoded` no longer lose the notes. The served item carries the summary in `description` and the notes in `content:encoded`, with the same chapter list and shifted timestamps (#969).
 
 ### Changed
 

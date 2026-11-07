@@ -164,6 +164,10 @@ removes it and regenerating chapters updates it. Each feed can override the
 global value from its Feed Settings page (`chaptersInNotes`: `on`, `off`,
 or unset to follow the global setting).
 
+When a feed keeps its full show notes in `content:encoded`, MinusPod serves
+them as `content:encoded` with the same chapter block and timestamp shift,
+while `description` keeps the feed's short summary.
+
 ### Review links in episode descriptions
 
 To jump from a podcast app to an episode in MinusPod, turn on **Add review

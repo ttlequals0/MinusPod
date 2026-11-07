@@ -172,6 +172,8 @@ TABLE_DDL['episodes'] = """CREATE TABLE IF NOT EXISTS episodes (
     original_url TEXT NOT NULL,
     title TEXT,
     description TEXT,
+    -- Full show notes from <content:encoded>, served as content:encoded (#969).
+    content_encoded TEXT,
     status TEXT DEFAULT 'pending' CHECK(status IN ('discovered','pending','processing','processed','failed','permanently_failed','deferred')),
     retry_count INTEGER DEFAULT 0,
     processed_file TEXT,

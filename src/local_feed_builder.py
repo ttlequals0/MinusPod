@@ -20,15 +20,14 @@ import json
 import logging
 
 from audio_processor import get_replacement_duration
-from chapter_notes import chapter_notes_for, compose_item_description
+from chapter_notes import chapter_notes_for
 from config import resolve_review_links_in_notes
-from review_links import append_review_links
 from database.episodes import NOT_AWAITING_APPROVAL
 from database.settings import feed_itunes_block_enabled
 from main_app import db, rss_parser, storage
 from main_app.feed_auth import active_feed_key
 from main_app.shared_state import invalidate_episode_lookup_cache
-from rss_parser import ITUNES_BLOCK_LINE, RSS_RENDER_VERSION, effective_channel_text
+from rss_parser import ITUNES_BLOCK_LINE, RSS_RENDER_VERSION, content_encoded_line, effective_channel_text, item_body_html
 from utils.episode_paths import episode_public_url, published_episode_version
 from utils.feed_guid import compute_feed_guid
 from utils.json_fields import load_json_list
@@ -164,6 +163,7 @@ def _channel_open(title: str, channel_link: str, description: str, language: str
     lines = ['<?xml version="1.0" encoding="UTF-8"?>',
             f'<!-- minuspod-rss-render-version:{RSS_RENDER_VERSION} -->',
             '<rss version="2.0" xmlns:itunes="http://www.itunes.com/dtds/podcast-1.0.dtd" '
+            'xmlns:content="http://purl.org/rss/1.0/modules/content/" '
             f'xmlns:podcast="{_PODCAST_NS}">',
             '<channel>',
             f'<title>{rss_parser._escape_xml(title)}</title>',
@@ -199,15 +199,20 @@ def _append_local_episode_item(lines: list, slug: str, ep: dict, base: str,
                                replacement_duration: float = 0.0) -> None:
     ep_id = ep['episode_id']
     item_json = _load_json_dict(ep.get('p20_item_json'))
-    description = compose_item_description(
-        ep.get('description'), (applied_cuts or {}).get(ep_id),
-        chapter_notes.get(ep_id), replacement_duration=replacement_duration)
-    if review_links:
-        description = append_review_links(description, slug, ep_id)
+    cuts = (applied_cuts or {}).get(ep_id)
+    notes = chapter_notes.get(ep_id)
+    description = item_body_html(
+        ep.get('description'), slug=slug, episode_id=ep_id, cuts=cuts, notes=notes,
+        replacement_duration=replacement_duration, review_links=review_links)
 
     lines.append('<item>')
     lines.append(f'  <title>{rss_parser._escape_xml(title_prefix + (ep.get("title") or ""))}</title>')
     lines.append(f'  <description><![CDATA[{rss_parser._escape_cdata(description)}]]></description>')
+    content_line = content_encoded_line(
+        ep.get('content_encoded'), slug=slug, episode_id=ep_id, cuts=cuts, notes=notes,
+        replacement_duration=replacement_duration, review_links=review_links)
+    if content_line:
+        lines.append(content_line)
     lines.append(f'  <guid isPermaLink="false">{ep_id}</guid>')
 
     published_at = ep.get('published_at') or ep.get('created_at')

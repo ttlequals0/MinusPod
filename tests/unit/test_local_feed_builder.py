@@ -506,3 +506,17 @@ def test_description_override_is_sanitized():
     xml = build_local_feed_xml(podcast, episodes, storage=mf.storage, db=mf.db)
     assert '<script' not in xml
     assert 'Safe' in xml
+
+
+def test_local_item_serves_content_encoded():
+    slug = 'archive-content-encoded'
+    podcast = _seed(slug)
+    conn = mf.db.get_connection()
+    conn.execute("UPDATE episodes SET content_encoded = '<p>Full notes</p>' WHERE episode_id = 's01e02'")
+    conn.commit()
+    episodes = _fetch_local_feed_episodes(mf.db, podcast['id'], 500)
+    xml = build_local_feed_xml(podcast, episodes, storage=mf.storage, db=mf.db)
+    entries = {e.id: e for e in feedparser.parse(xml).entries}
+    assert entries['s01e02'].content[0].value == '<p>Full notes</p>'
+    assert entries['s01e02'].description == 'Second episode'
+    assert 'content' not in entries['s01e01']
