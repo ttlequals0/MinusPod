@@ -115,6 +115,9 @@ jobs:
       - name: Build (runs tsc then vite build)
         run: npm run build
 
+      - name: Normal bundle has no demo code
+        run: "! grep -l -e mockServiceWorker -e 'Disabled in demo' ../static/ui/assets/*.js"
+
   pip-audit:
     name: pip-audit
     runs-on: ubuntu-latest
