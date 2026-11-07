@@ -70,7 +70,7 @@ function sort(items: Item[], by: string, dir: 'asc' | 'desc'): Item[] {
 
 // Ports list_detections (api/detections.py).
 export const detectionsHandler: ListHandler = async (url, load) => {
-  const all = await loadAllPages<Body, Item>('/detections?limit=100&page=1&status=all&sort=date&order=desc', load, (b) => b.detections);
+  const all = await loadAllPages<Body, Item>('/detections?limit=100&order=desc&page=1&sort=date&status=all', load, (b) => b.detections);
   if (!all) return null;
   const p = url.searchParams;
   const limit = clampInt(p.get('limit'), 20, 1, 100);
