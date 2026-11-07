@@ -1213,7 +1213,7 @@ function EpisodeDetail() {
                 </DemoDisabled>
               )}
               {downloadItems.length > 0 && (
-                <DemoDisabled>
+                <DemoDisabled title={DEMO_AUDIO_TOOLTIP}>
                   <DropdownMenu
                     triggerLabel="Download"
                     triggerClassName={`${btnBase} ${btnSecondary} shrink-0`}

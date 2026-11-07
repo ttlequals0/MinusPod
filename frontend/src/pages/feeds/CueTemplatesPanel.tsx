@@ -1,5 +1,5 @@
 import { Modal, dialogFooterBtn } from '../../components/Modal';
-import { DEMO_AUDIO_TOOLTIP } from '../../demo/copy';
+import { DEMO_AUDIO_TOOLTIP, DEMO_DOWNLOAD_TOOLTIP } from '../../demo/copy';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Play, Plus, Square } from 'lucide-react';
@@ -524,13 +524,15 @@ function CueTemplatesPanel({ slug }: Props) {
                         </button>
                       </AudioTip>
                     )}
-                    <a
-                      className={`${btnBase} ${btnGhost}`}
-                      href={cueTemplateExportUrl(t.id)}
-                      title="Download this cue as a portable zip"
-                    >
-                      Export
-                    </a>
+                    <DemoDisabled title={DEMO_DOWNLOAD_TOOLTIP}>
+                      <a
+                        className={`${btnBase} ${btnGhost}`}
+                        href={cueTemplateExportUrl(t.id)}
+                        title="Download this cue as a portable zip"
+                      >
+                        Export
+                      </a>
+                    </DemoDisabled>
                     {t.owned === false ? (
                       <span className="text-xs text-muted-foreground italic">
                         Shared from this network
