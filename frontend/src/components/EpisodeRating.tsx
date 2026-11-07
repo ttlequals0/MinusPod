@@ -91,9 +91,9 @@ function EpisodeRating({ slug, episodeId, rating, requestedRating, onRequestedRa
   });
 
   useEffect(() => {
-    if (IS_DEMO || requestHandled.current || !validRequest(requestedRating)) return;
+    if (requestHandled.current || !validRequest(requestedRating)) return;
     requestHandled.current = true;
-    if (requestedRating !== rating?.value) {
+    if (!IS_DEMO && requestedRating !== rating?.value) {
       priorRating.current = rating ?? null;
       save.mutate({ count: requestedRating, viaLink: true });
     }

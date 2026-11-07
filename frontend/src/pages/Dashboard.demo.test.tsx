@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, test, vi } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router';
@@ -44,7 +44,7 @@ function renderDashboard() {
 }
 
 describe('Dashboard in demo', () => {
-  it('disables refresh all and the feed delete and refresh controls', async () => {
+  test('disables refresh all and the feed delete and refresh controls', async () => {
     renderDashboard();
     const del = await screen.findByRole('button', { name: 'Delete feed' }) as HTMLButtonElement;
     expect(del.disabled).toBe(true);
