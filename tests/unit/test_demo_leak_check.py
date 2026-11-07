@@ -93,3 +93,21 @@ def test_blob_scanning_and_cli_errors(tmp_path):
     assert [(h.source, h.pattern) for h in check_sqlite(db, [])] == [('t.b#2', 'encrypted_setting')]
     assert main([str(tmp_path / 'missing')]) == 2
     assert main([]) == 2
+
+
+def test_ip_in_url_path_but_not_browser_tokens():
+    assert hits('https://ipinfo.io/8.8.8.8/json') == ['public_ip']
+    assert hits('ip/8.8.8.8') == ['public_ip']
+    assert hits('Chrome/155.0.0.0') == []
+    assert hits('Mobile Safari/537.36.0.0') == []
+
+
+def test_strict_patterns_run_on_binary_blobs(tmp_path):
+    db = tmp_path / 'a.db'
+    conn = sqlite3.connect(db)
+    conn.execute('CREATE TABLE t (b BLOB)')
+    conn.execute('INSERT INTO t VALUES (?)', (b'enc:v1:zz' + bytes(240),))
+    conn.execute('INSERT INTO t VALUES (?)', (random.Random(2).randbytes(4096) + b' 8.8.8.8',))
+    conn.commit()
+    conn.close()
+    assert [(h.source, h.pattern) for h in check_sqlite(db, [])] == [('t.b#1', 'encrypted_setting')]

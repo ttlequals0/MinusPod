@@ -12,14 +12,16 @@ DOC_NETS = [ipaddress.ip_network(n) for n in (
     '192.0.2.0/24', '198.51.100.0/24', '203.0.113.0/24', '2001:db8::/32',
 )]
 EMAIL_OK = {'example.com', 'example.org', 'example.net'}
+# patterns that cannot fire on binary noise; run on every blob
+STRICT = {'anthropic_key', 'openai_key', 'openrouter_key', 'jwt', 'encrypted_setting', 'bearer', 'feed_key'}
 SKIP_SUFFIXES = {
     '.jpg', '.jpeg', '.png', '.webp', '.mp4', '.mp3', '.db', '.zip', '.gz',
     '.woff', '.woff2',
 }
 
-# four octets, not part of a longer dotted run or a product token like Chrome/155.0.0.0;
+# four octets, not part of a longer dotted run or a browser product token like Chrome/155.0.0.0;
 # octet range is checked afterwards
-IPV4 = r'(?<![\d.])(?<![A-Za-z]/)\d{1,3}(?:\.\d{1,3}){3}(?!\d|\.\d)'
+IPV4 = r'(?<![\d.])(?<!Chrome/)(?<!CriOS/)(?<!Safari/)(?<!Firefox/)(?<!FxiOS/)(?<!Edg/)(?<!EdgA/)(?<!OPR/)(?<!Version/)(?<!Electron/)\d{1,3}(?:\.\d{1,3}){3}(?!\d|\.\d)'
 # colon-hex literal with at least two colons (ipaddress rejects the non-IPs), or ::ffff:a.b.c.d
 IPV6 = (
     r'(?<![\w:])::[fF]{4}:\d{1,3}(?:\.\d{1,3}){3}(?![\w:.])'
@@ -109,6 +111,7 @@ def check_files(paths: Iterable[Path], hosts: list[str]) -> list[Hit]:
 def check_sqlite(db: Path, hosts: list[str]) -> list[Hit]:
     found = []
     patterns = compile_patterns(hosts)
+    strict = [p for p in patterns if p[0] in STRICT or p[0].startswith('host:')]
     conn = sqlite3.connect(f'file:{db}?mode=ro', uri=True)
     try:
         tables = [r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type = 'table'")]
@@ -122,13 +125,14 @@ def check_sqlite(db: Path, hosts: list[str]) -> list[Hit]:
                 cur = conn.execute(f'SELECT NULL, {sel} FROM {qt}')  # noqa: S608
             for row in cur:
                 for col, val in zip(cols, row[1:], strict=True):
+                    cell_patterns = patterns
                     if isinstance(val, bytes):
                         val = val.decode('utf-8', errors='ignore')
-                        # skip binary blobs such as MFCC arrays
-                        if not val or sum(c.isprintable() or c.isspace() for c in val) < 0.9 * len(val):
-                            continue
+                        # binary blobs such as MFCC arrays only get the strict patterns
+                        if sum(c.isprintable() or c.isspace() for c in val) < 0.9 * len(val):
+                            cell_patterns = strict
                     if isinstance(val, str):
-                        found += check_text(val, f'{table}.{col}#{row[0]}', hosts, patterns)
+                        found += check_text(val, f'{table}.{col}#{row[0]}', hosts, cell_patterns)
     finally:
         conn.close()
     return found

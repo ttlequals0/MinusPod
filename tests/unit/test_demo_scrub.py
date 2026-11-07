@@ -48,3 +48,9 @@ def test_replace_emails_and_paths():
     assert replace_emails('mail me@corp.example now') == 'mail contact@example.com now'
     assert replace_emails('ok@example.org') == 'ok@example.org'
     assert replace_paths('at /app/data/.cache/hub/x and /home/alice/y') == 'at /demo/.cache/hub/x and /demo/y'
+
+
+def test_replace_paths_respects_context():
+    assert replace_paths('https://s.com/home/page') == 'https://s.com/home/page'
+    assert replace_paths('/srv-foo and /srv/x') == '/srv-foo and /demo/x'
+    assert replace_paths('see /home/alice, ok') == 'see /demo, ok'
