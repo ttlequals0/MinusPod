@@ -1,6 +1,6 @@
 import type { ProcessingHistoryEntry } from '../../api/types';
 import type { ListHandler } from './index';
-import { clampInt, offsetSlice, sortBy } from './paging';
+import { clampInt, isIntParam, offsetSlice, parseDir, sortBy, totalPages } from './paging';
 import { loadAllPages } from './pagedDump';
 
 type Body = { history: ProcessingHistoryEntry[] };
@@ -18,7 +18,7 @@ export const historyHandler: ListHandler = async (url, load) => {
   if (!all) return null;
   const p = url.searchParams;
   const limit = clampInt(p.get('limit'), 50, 1, 100);
-  const hasPage = /^\s*[+-]?\d+\s*$/.test(p.get('page') ?? '');
+  const hasPage = isIntParam(p.get('page'));
   const offset = hasPage ? (clampInt(p.get('page'), 1, 1, Infinity) - 1) * limit : clampInt(p.get('offset'), 0, 0, Infinity);
   const page = Math.floor(offset / limit) + 1;
   const status = p.get('status');
@@ -27,10 +27,10 @@ export const historyHandler: ListHandler = async (url, load) => {
   if (status === 'completed' || status === 'failed') rows = rows.filter((r) => r.status === status);
   if (slug) rows = rows.filter((r) => r.podcastSlug === slug);
   const col = SORT[p.get('sort_by') ?? ''] ?? 'processedAt';
-  rows = sortBy(rows, col, (p.get('sort_dir') ?? 'desc').toLowerCase() === 'desc' ? 'desc' : 'asc');
+  rows = sortBy(rows, col, parseDir(p.get('sort_dir') ?? 'desc', 'asc'));
   const total = rows.length;
   return {
     status: 200,
-    body: { ...all.body, history: offsetSlice(rows, offset, limit), total, totalPages: total > 0 ? Math.ceil(total / limit) : 1, page, limit, offset },
+    body: { ...all.body, history: offsetSlice(rows, offset, limit), total, totalPages: totalPages(total, limit), page, limit, offset },
   };
 };

@@ -1,5 +1,5 @@
-import { test, expect } from 'vitest';
-import { fixtureKey, emptyDefault, resolveFixture, __setIndexForTests, __setLoaderForTests } from './fixtures';
+import { test, expect, vi } from 'vitest';
+import { fixtureKey, emptyDefault, loadFixture, resolveFixture, __setIndexForTests, __setLoaderForTests } from './fixtures';
 
 test('fixtureKey strips the api prefix and sorts params', () => {
   expect(fixtureKey('http://x/api/v1/feeds/a/episodes?status=all&limit=25')).toBe('/feeds/a/episodes?limit=25&status=all');
@@ -25,4 +25,13 @@ test('resolveFixture falls through when the loader rejects', async () => {
   __setIndexForTests({ '/sponsors': 'x.json' });
   __setLoaderForTests(async () => { throw new Error('boom'); });
   expect((await resolveFixture(new URL('http://x/api/v1/sponsors'))).body).toEqual({ sponsors: [] });
+});
+
+test('concurrent loadFixture calls for one key share a single load', async () => {
+  __setIndexForTests({ '/settings': 'a.json' });
+  const loader = vi.fn(async (file: string) => ({ status: 200, body: { file } }));
+  __setLoaderForTests(loader);
+  const [a, b] = await Promise.all([loadFixture('/settings'), loadFixture('/settings')]);
+  expect(a).toBe(b);
+  expect(loader).toHaveBeenCalledTimes(1);
 });

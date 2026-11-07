@@ -5,6 +5,7 @@ import { formatTimestamp } from '../utils/format';
 import { btnBase, btnGhost, btnPrimary, btnSecondary, touchTarget } from './buttonStyles';
 import { focusRing } from './fieldStyles';
 import { DEMO_AUDIO_TOOLTIP } from '../demo/copy';
+import { DemoDisabled } from './DemoDisabled';
 
 interface EpisodePlayerProps {
   src: string | null;
@@ -129,7 +130,7 @@ export default function EpisodePlayer({ src, chaptersUrl }: EpisodePlayerProps) 
               <span className={skipNum}>{SKIP_BACK_SECONDS}</span>
             </span>
           </button>
-          {noAudio ? <span className="inline-flex" title={DEMO_AUDIO_TOOLTIP}>{playButton}</span> : playButton}
+          <DemoDisabled when={noAudio} title={DEMO_AUDIO_TOOLTIP}>{playButton}</DemoDisabled>
           <button type="button" aria-label={`Forward ${SKIP_FORWARD_SECONDS} seconds`} disabled={!canSeek} onClick={() => p.skip(SKIP_FORWARD_SECONDS)} className={skipBtn}>
             <span className="relative inline-flex">
               <RotateCw className={skipIcon} aria-hidden="true" />

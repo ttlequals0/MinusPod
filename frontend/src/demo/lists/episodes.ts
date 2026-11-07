@@ -1,6 +1,6 @@
 import type { Episode } from '../../api/types';
 import type { ListHandler } from './index';
-import { clampInt, offsetSlice, sortBy } from './paging';
+import { clampInt, offsetSlice, parseDir, sortBy } from './paging';
 
 type Row = Episode & { createdAt?: string; episodeNumber?: number | null };
 type Body = { episodes: Row[]; total: number; limit: number; offset: number };
@@ -20,7 +20,7 @@ export const episodesHandler: ListHandler = async (url, load) => {
   const offset = selection ? 0 : clampInt(p.get('offset'), 0, 0, Infinity);
   const search = (p.get('search') ?? '').trim().toLowerCase();
   const sortCol = p.get('sort_by') ?? 'published_at';
-  const dir = p.get('sort_dir') === 'asc' ? 'asc' : 'desc';
+  const dir = parseDir(p.get('sort_dir'), 'desc');
 
   let rows = (dump.body as Body).episodes;
   if (status && status !== 'all' && status !== 'filtered') rows = rows.filter((e) => canon(e.status) === status);

@@ -38,8 +38,19 @@ export function offsetSlice<T>(rows: T[], offset: number, limit: number): T[] {
   return rows.slice(offset, offset + limit);
 }
 
+const INT_RE = /^\s*[+-]?\d+\s*$/;
+
+export const isIntParam = (v: string | null): boolean => INT_RE.test(v ?? '');
+
 // Mirrors Flask's request.args.get(type=int): unparseable falls back to def.
-export function clampInt(v: string | number | null | undefined, def: number, min: number, max: number): number {
-  const n = typeof v === 'number' ? Math.trunc(v) : /^\s*[+-]?\d+\s*$/.test(v ?? '') ? parseInt(v as string, 10) : def;
+export function clampInt(v: string | null, def: number, min: number, max: number): number {
+  const n = isIntParam(v) ? parseInt(v as string, 10) : def;
   return Math.min(Math.max(n, min), max);
 }
+
+export function parseDir(v: string | null, def: Dir): Dir {
+  const d = v?.toLowerCase();
+  return d === 'asc' || d === 'desc' ? d : def;
+}
+
+export const totalPages = (total: number, limit: number): number => (total > 0 && limit > 0 ? Math.ceil(total / limit) : 1);

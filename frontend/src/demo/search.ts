@@ -1,4 +1,4 @@
-import MiniSearch, { type Options, type SearchOptions } from 'minisearch';
+import MiniSearch, { type AsPlainObject, type Options, type SearchOptions } from 'minisearch';
 import { HttpResponse } from 'msw/http';
 import type {
   SearchResponse,
@@ -10,6 +10,7 @@ import type {
   SearchSponsorResult,
 } from '../api/search';
 import { loadFixture } from './fixtures';
+import { clampInt } from './lists/paging';
 
 type DocType = 'show' | 'episode' | 'transcript' | 'pattern' | 'sponsor';
 
@@ -45,32 +46,42 @@ const WINDOW_WORDS = 64;
 const STOPWORDS = new Set('a an and are as at be by for from in is it of on or the to with'.split(' '));
 
 type Loaded = { ms: MiniSearch; docs: Record<string, SearchDoc> };
-let loaded: Loaded | null = null;
+let loaded: Promise<Loaded> | null = null;
 
 function install(file: SearchIndexFile): Loaded {
-  return { ms: MiniSearch.loadJSON(JSON.stringify(file.index), file.options), docs: file.docs };
+  return { ms: MiniSearch.loadJS(file.index as AsPlainObject, file.options), docs: file.docs };
 }
 
 export function __setIndexForTests(file: SearchIndexFile): void {
-  loaded = install(file);
+  loaded = Promise.resolve(install(file));
 }
 
-async function getIndex(): Promise<Loaded> {
-  if (loaded) return loaded;
+async function loadIndex(): Promise<Loaded> {
   const res = await fetch('/demo/search-index.json');
   if (!res.ok) throw new Error(`[demo] search index load failed: /demo/search-index.json (${res.status})`);
-  loaded = install((await res.json()) as SearchIndexFile);
+  return install((await res.json()) as SearchIndexFile);
+}
+
+function getIndex(): Promise<Loaded> {
+  if (!loaded) {
+    loaded = loadIndex();
+    loaded.catch(() => { loaded = null; });
+  }
   return loaded;
 }
 
 const escapeHtml = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 const reEscape = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
-// Wrap matched terms in <mark>; null when nothing matches.
-function mark(text: string, terms: string[]): string | null {
+function termRegex(terms: string[]): RegExp | null {
   const sorted = [...new Set(terms)].filter(Boolean).sort((a, b) => b.length - a.length);
-  if (!text || sorted.length === 0) return null;
-  const re = new RegExp(`(?<![\\p{L}\\p{N}])(?:${sorted.map(reEscape).join('|')})`, 'giu');
+  if (sorted.length === 0) return null;
+  return new RegExp(`(?<![\\p{L}\\p{N}])(?:${sorted.map(reEscape).join('|')})`, 'giu');
+}
+
+// Wrap matched terms in <mark>; null when nothing matches.
+function mark(text: string, re: RegExp | null): string | null {
+  if (!text || !re) return null;
   let out = '';
   let last = 0;
   let hit = false;
@@ -82,14 +93,14 @@ function mark(text: string, terms: string[]): string | null {
   return hit ? out + escapeHtml(text.slice(last)) : null;
 }
 
-function windowSnippet(text: string, terms: string[]): string | null {
+function windowSnippet(text: string, terms: string[], re: RegExp | null): string | null {
   const words = text.split(/\s+/).filter(Boolean);
   const set = new Set(terms.map(t => t.toLowerCase()));
   const hit = words.findIndex(w => set.has(w.toLowerCase().replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, '')));
   if (hit === -1) return null;
   const start = Math.max(0, hit - WINDOW_WORDS / 2);
   const slice = words.slice(start, start + WINDOW_WORDS).join(' ');
-  return mark(slice, terms) ?? escapeHtml(slice);
+  return mark(slice, re) ?? escapeHtml(slice);
 }
 
 async function transcriptText(feedSlug: string, episodeId: string): Promise<string | null> {
@@ -125,11 +136,19 @@ export async function runSearch(q: string, limit: number, groups: string[] | nul
   const wanted = groups ?? Object.keys(GROUPS);
 
   for (const group of wanted) {
-    for (const hit of searchGroup(ms, q, group, limit)) {
+    const hits = searchGroup(ms, q, group, limit);
+    const texts = group === 'transcripts'
+      ? await Promise.all(hits.map((h) => {
+          const d = docs[String(h.id)];
+          return d ? transcriptText(d.feedSlug ?? '', d.episodeId ?? '') : null;
+        }))
+      : [];
+    for (const [i, hit] of hits.entries()) {
       const doc = docs[String(hit.id)];
       if (!doc) continue;
       const terms = hit.terms;
-      const titleSnippet = mark(doc.title, terms);
+      const re = termRegex(terms);
+      const titleSnippet = mark(doc.title, re);
       if (group === 'shows') {
         out.shows.push({ slug: doc.slug ?? '', title: doc.title, titleSnippet, snippet: titleSnippet } satisfies SearchShowResult);
       } else if (group === 'episodes') {
@@ -144,8 +163,8 @@ export async function runSearch(q: string, limit: number, groups: string[] | nul
           snippet: titleSnippet,
         } satisfies SearchEpisodeResult);
       } else if (group === 'transcripts') {
-        const text = await transcriptText(doc.feedSlug ?? '', doc.episodeId ?? '');
-        const snippet = (text && windowSnippet(text, terms)) || titleSnippet || escapeHtml(doc.title);
+        const text = texts[i];
+        const snippet = (text && windowSnippet(text, terms, re)) || titleSnippet || escapeHtml(doc.title);
         out.transcripts.push({
           feedSlug: doc.feedSlug ?? '',
           episodeId: doc.episodeId ?? '',
@@ -159,14 +178,14 @@ export async function runSearch(q: string, limit: number, groups: string[] | nul
           id: String(hit.id).slice('pattern:'.length),
           scope: doc.scope ?? '',
           sponsor,
-          snippet: mark(sponsor, terms),
+          snippet: mark(sponsor, re),
         } satisfies SearchPatternResult);
       } else {
         const name = doc.name ?? doc.title;
         out.sponsors.push({
           id: String(hit.id).slice('sponsor:'.length),
           name,
-          snippet: mark(name, terms),
+          snippet: mark(name, re),
         } satisfies SearchSponsorResult);
       }
     }
@@ -179,8 +198,7 @@ export async function searchHandler({ request }: { request: Request }) {
   const q = url.searchParams.get('q') ?? '';
   if (!q.trim()) return HttpResponse.json({ error: 'q is required' }, { status: 400 });
 
-  const rawLimit = parseInt(url.searchParams.get('limit') ?? '', 10);
-  const limit = Number.isFinite(rawLimit) ? Math.min(100, Math.max(1, rawLimit)) : 50;
+  const limit = clampInt(url.searchParams.get('limit'), 50, 1, 100);
 
   const raw = url.searchParams.get('groups');
   let groups: string[] | null = null;

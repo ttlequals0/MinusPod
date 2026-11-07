@@ -254,11 +254,10 @@ describe('EpisodePlayer', () => {
     expect(screen.queryByRole('alert')).toBeNull();
   });
 
-  it('renders a disabled player with the demo tooltip when src is null', () => {
+  it('renders a disabled player when src is null', () => {
     render(<EpisodePlayer src={null} />);
     const play = screen.getByRole('button', { name: /^play$/i });
     expect((play as HTMLButtonElement).disabled).toBe(true);
-    expect(play.closest('span')?.getAttribute('title')).toBe("Audio isn't included in the demo. Run MinusPod to hear processed episodes.");
     expect(document.querySelector('audio')).toBeNull();
   });
 

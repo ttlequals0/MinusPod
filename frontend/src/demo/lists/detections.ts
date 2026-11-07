@@ -1,6 +1,6 @@
 import type { ReviewDetection, DetectionCounts, CutSummary } from '../../api/detections';
 import type { ListHandler } from './index';
-import { clampInt, pageSlice, sortBy } from './paging';
+import { clampInt, pageSlice, parseDir, sortBy, totalPages } from './paging';
 import { loadAllPages } from './pagedDump';
 
 type Body = { detections: ReviewDetection[] };
@@ -81,12 +81,12 @@ export const detectionsHandler: ListHandler = async (url, load) => {
   let items = filter(byFeed, { status: 'all', q: p.get('q'), reviewer: p.get('reviewer'), holdReason: p.get('holdReason') });
   const cutSummary = summarizeCut(items.filter((i) => i.status === 'accepted'));
   items = filter(items, { status: 'all', category: p.get('category') });
-  items = sort(items, p.get('sort') ?? 'date', p.get('order') === 'asc' ? 'asc' : 'desc');
+  items = sort(items, p.get('sort') ?? 'date', parseDir(p.get('order'), 'desc'));
   const total = items.length;
-  const totalPages = total ? Math.ceil(total / limit) : 1;
-  const page = Math.min(clampInt(p.get('page'), 1, 1, Infinity), totalPages);
+  const pages = totalPages(total, limit);
+  const page = Math.min(clampInt(p.get('page'), 1, 1, Infinity), pages);
   return {
     status: 200,
-    body: { ...all.body, detections: pageSlice(items, page, limit), total, page, totalPages, limit, counts: { ...summarize(all.rows), pendingByHoldReason }, cutSummary },
+    body: { ...all.body, detections: pageSlice(items, page, limit), total, page, totalPages: pages, limit, counts: { ...summarize(all.rows), pendingByHoldReason }, cutSummary },
   };
 };

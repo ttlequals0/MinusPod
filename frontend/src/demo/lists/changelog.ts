@@ -20,7 +20,7 @@ export const changelogHandler: ListHandler = async (url, load) => {
   const p = url.searchParams;
   const since = (p.get('since') ?? '').trim();
   if (since && !/^\d+\.\d+\.\d+$/.test(since)) return { status: 400, body: { error: 'bad_since' } };
-  const limit = p.has('limit') ? clampInt(p.get('limit'), 10, -Infinity, Infinity) : 10;
+  const limit = clampInt(p.get('limit'), 10, -Infinity, Infinity);
   if (limit < 1) return { status: 400, body: { error: 'bad_limit' } };
   const body = dump.body as ChangelogResponse;
   const sections = since ? body.sections.filter((s) => newer(s.version, since)) : body.sections;

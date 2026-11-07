@@ -9,7 +9,7 @@ export const suggestionsHandler: ListHandler = async (url, load) => {
   const p = url.searchParams;
   const status = p.get('status');
   const kind = p.get('kind');
-  const limit = clampInt(p.get('limit') || 50, 50, 1, 200);
+  const limit = clampInt(p.get('limit'), 50, 1, 200);
   const offset = clampInt(p.get('offset'), 0, 0, Infinity);
   const beforeId = p.has('before_id') ? clampInt(p.get('before_id'), NaN, -Infinity, Infinity) : NaN;
   let rows = sortBy((dump.body as { suggestions: PatternCleanupSuggestion[] }).suggestions, 'id', 'desc');
