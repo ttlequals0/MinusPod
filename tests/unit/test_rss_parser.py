@@ -10,6 +10,29 @@ defusedxml.defuse_stdlib()
 from rss_parser import RSSParser
 
 
+class TestGetEpisodeContent:
+    """_get_episode_content returns content:encoded only when it adds to the description."""
+
+    def test_returns_content_value(self):
+        entry = {"description": "Summary", "content": [{"value": "<p>Full notes</p>"}]}
+        assert RSSParser._get_episode_content(entry) == "<p>Full notes</p>"
+
+    def test_prefers_html_entry_over_plain_description(self):
+        entry = {"description": "ISum", "content": [
+            {"type": "text/plain", "value": "Desc"}, {"type": "text/html", "value": "<p>Full</p>"}]}
+        assert RSSParser._get_episode_content(entry) == "<p>Full</p>"
+
+    def test_empty_when_absent_or_blank(self):
+        assert RSSParser._get_episode_content({"description": "Summary"}) == ""
+        assert RSSParser._get_episode_content({"content": []}) == ""
+        assert RSSParser._get_episode_content({"content": [{"value": "  "}]}) == ""
+
+    def test_empty_when_it_is_the_description(self):
+        entry = {"description": "", "subtitle": "", "content": [{"value": "<p>Notes</p>"}]}
+        assert RSSParser._get_episode_description(entry) == "<p>Notes</p>"
+        assert RSSParser._get_episode_content(entry) == ""
+
+
 class TestGetEpisodeDescription:
     """Verify the description -> subtitle -> content fallback chain."""
 

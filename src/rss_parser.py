@@ -300,7 +300,27 @@ def _best_upstream_transcript_tag(tags):
 
 
 _ENCLOSURE_PREFIX_RE = re.compile(r'<enclosure url="([^"]+)/episodes/')
-RSS_RENDER_VERSION = 3
+RSS_RENDER_VERSION = 4
+
+
+def item_body_html(raw, *, slug, episode_id, cuts, notes, replacement_duration,
+                   review_links) -> str:
+    """Compose an item body with chapter notes, cut shifts and optional review links."""
+    html = compose_item_description(raw, cuts, notes, replacement_duration=replacement_duration)
+    if review_links:
+        html = append_review_links(html, slug, episode_id)
+    return html
+
+
+def content_encoded_line(raw, *, slug, episode_id, cuts, notes, replacement_duration,
+                         review_links) -> str:
+    """Build the item <content:encoded> line, or '' when there is no content."""
+    if not raw:
+        return ''
+    html = item_body_html(
+        _sanitize_feed_html(raw), slug=slug, episode_id=episode_id, cuts=cuts, notes=notes,
+        replacement_duration=replacement_duration, review_links=review_links)
+    return f'  <content:encoded><![CDATA[{RSSParser._escape_cdata(html)}]]></content:encoded>'
 _RENDER_VERSION_RE = re.compile(r'<!-- minuspod-rss-render-version:(\d+) -->')
 _ENCLOSURE_KEY_RE = re.compile(
     r'<enclosure url="[^"]+/episodes/[^"]*\?key=([0-9a-f]{64})"')
@@ -1122,6 +1142,7 @@ class RSSParser:
         lines.append(f'<!-- minuspod-rss-render-version:{RSS_RENDER_VERSION} -->')
         lines.append('<rss version="2.0" '
                      'xmlns:itunes="http://www.itunes.com/dtds/podcast-1.0.dtd" '
+                     'xmlns:content="http://purl.org/rss/1.0/modules/content/" '
                      f'xmlns:podcast="{_PODCAST_NS_CANONICAL}">')
         lines.append('<channel>')
 
@@ -1259,14 +1280,23 @@ class RSSParser:
             modified_url = episode_public_url(self._resolved_base_url(), slug,
                                               episode_id, key=feed_auth_key)
 
-            description = compose_item_description(
-                self._get_episode_description(entry), (applied_cuts or {}).get(episode_id),
-                (chapter_notes or {}).get(episode_id), replacement_duration=replacement_duration)
-            if episode_id in review_link_ids:
-                description = append_review_links(description, slug, episode_id)
+            cuts = (applied_cuts or {}).get(episode_id)
+            notes = (chapter_notes or {}).get(episode_id)
+            has_links = episode_id in review_link_ids
+            raw_description = self._get_episode_description(entry)
+            # feedparser sanitized both at parse time; stored notes are sanitized again because rows are served without re-parsing.
+            description = item_body_html(
+                raw_description, slug=slug, episode_id=episode_id, cuts=cuts, notes=notes,
+                replacement_duration=replacement_duration, review_links=has_links)
             lines.append('<item>')
             lines.append(f'  <title>{self._escape_xml(entry.get("title", ""))}</title>')
             lines.append(f'  <description><![CDATA[{self._escape_cdata(description)}]]></description>')
+            content_line = content_encoded_line(
+                self._get_episode_content(entry, raw_description), slug=slug,
+                episode_id=episode_id, cuts=cuts, notes=notes,
+                replacement_duration=replacement_duration, review_links=has_links)
+            if content_line:
+                lines.append(content_line)
             lines.append(f'  <link>{self._escape_xml(entry.get("link", ""))}</link>')
             # Per-feed GUID scheme (#598): our stable episode id matches the
             # DB-appended items; otherwise upstream's id passes through.
@@ -1432,15 +1462,20 @@ class RSSParser:
         modified_url = episode_public_url(self._resolved_base_url(), slug, ep_id,
                                            ep.get('processed_version'),
                                            key=feed_auth_key)
-        description = compose_item_description(
-            ep.get('description'), (applied_cuts or {}).get(ep_id),
-            (chapter_notes or {}).get(ep_id), replacement_duration=replacement_duration)
-        if review_links:
-            description = append_review_links(description, slug, ep_id)
+        cuts = (applied_cuts or {}).get(ep_id)
+        notes = (chapter_notes or {}).get(ep_id)
+        description = item_body_html(
+            ep.get('description'), slug=slug, episode_id=ep_id, cuts=cuts, notes=notes,
+            replacement_duration=replacement_duration, review_links=review_links)
         lines.append('<item>')
         lines.append(f'  <title>{self._escape_xml(ep.get("title") or "Unknown")}</title>')
         if description:
             lines.append(f'  <description><![CDATA[{self._escape_cdata(description)}]]></description>')
+        content_line = content_encoded_line(
+            ep.get('content_encoded'), slug=slug, episode_id=ep_id, cuts=cuts, notes=notes,
+            replacement_duration=replacement_duration, review_links=review_links)
+        if content_line:
+            lines.append(content_line)
         size = ep.get('processed_size_bytes')
         length_attr = f' length="{int(size)}"' if size else ''
         lines.append(f'  <enclosure url="{modified_url}" type="audio/mpeg"{length_attr} />')
@@ -1495,6 +1530,27 @@ class RSSParser:
         return ''
 
     @staticmethod
+    def _raw_content_value(entry) -> str:
+        """Return the HTML <content:encoded> value (else the last non-blank entry), or ''."""
+        content = entry.get('content', [])
+        if not content or not isinstance(content, list):
+            return ''
+        values = [(str(c.get('type') or '').lower(), c.get('value', '') or '') for c in content]
+        values = [(t, v) for t, v in values if v.strip()]
+        for t, v in values:
+            if t.endswith('/html') or t.endswith('xhtml'):
+                return v
+        return values[-1][1] if values else ''
+
+    @staticmethod
+    def _get_episode_content(entry, description=None) -> str:
+        """Return <content:encoded> HTML, or '' when absent or already used as the description."""
+        value = RSSParser._raw_content_value(entry)
+        if description is None:
+            description = RSSParser._get_episode_description(entry)
+        return '' if value == description else value
+
+    @staticmethod
     def _get_episode_description(entry) -> str:
         """Extract episode description with fallback to iTunes fields.
 
@@ -1518,13 +1574,7 @@ class RSSParser:
             return subtitle
 
         # <content:encoded> -> 'content' list (may contain HTML)
-        content = entry.get('content', [])
-        if content and isinstance(content, list):
-            value = content[0].get('value', '') or ''
-            if value.strip():
-                return value
-
-        return ''
+        return RSSParser._raw_content_value(entry)
 
     @staticmethod
     def _escape_xml(text: str) -> str:
@@ -1949,12 +1999,14 @@ class RSSParser:
                 except Exception as e:
                     logger.warning(f"Episode iTunes category mapping failed: {e}")
 
+                description = self._get_episode_description(entry)
                 episodes.append({
                     'id': self.generate_episode_id(episode_url, entry.get('id', '')),
                     'url': episode_url,
                     'title': entry.get('title', 'Unknown'),
                     'published': entry.get('published', ''),
-                    'description': self._get_episode_description(entry),
+                    'description': description,
+                    'content_encoded': self._get_episode_content(entry, description),
                     'artwork_url': artwork_url,
                     'episode_number': episode_number,
                     'rss_duration': rss_duration,

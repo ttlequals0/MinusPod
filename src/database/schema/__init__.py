@@ -323,6 +323,7 @@ class SchemaMixin:
             ('ads_removed_firstpass', 'INTEGER DEFAULT 0'),
             ('ads_removed_secondpass', 'INTEGER DEFAULT 0'),
             ('description', 'TEXT'),
+            ('content_encoded', 'TEXT'),
             ('reprocess_mode', 'TEXT'),
             ('reprocess_requested_at', 'TEXT'),
             ('published_at', 'TEXT'),
