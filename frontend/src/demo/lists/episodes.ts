@@ -1,6 +1,7 @@
 import type { Episode } from '../../api/types';
 import type { ListHandler } from './index';
 import { clampInt, offsetSlice, parseDir, sortBy } from './paging';
+import { loadAllPages } from './pagedDump';
 
 type Row = Episode & { createdAt?: string; episodeNumber?: number | null };
 type Body = { episodes: Row[]; total: number; limit: number; offset: number };
@@ -15,7 +16,9 @@ export const episodesHandler: ListHandler = async (url, load) => {
   const status = canon(p.get('status') ?? 'all');
   // Filter rules are not ported: the crawl must record both the status=all and status=filtered keys.
   const dumpStatus = status === 'filtered' ? 'filtered' : 'all';
-  const dump = await load(`/feeds/${slug}/episodes?limit=500&offset=0&sort_by=created_at&sort_dir=desc&status=${dumpStatus}`);
+  const dump = await loadAllPages<Body, Row>(
+    `/feeds/${slug}/episodes?limit=500&offset=0&sort_by=created_at&sort_dir=desc&status=${dumpStatus}`,
+    load, (body) => body.episodes, 500, 'offset');
   if (!dump) return null;
   const limit = clampInt(p.get('limit'), 25, 1, 500);
   const selection = (p.get('selection') ?? '').toLowerCase() === 'true';
@@ -24,7 +27,7 @@ export const episodesHandler: ListHandler = async (url, load) => {
   const sortCol = p.get('sort_by') ?? 'published_at';
   const dir = parseDir(p.get('sort_dir'), 'desc');
 
-  let rows = (dump.body as Body).episodes;
+  let rows = dump.rows;
   if (status && status !== 'all' && status !== 'filtered') rows = rows.filter((e) => canon(e.status) === status);
   if (search) rows = rows.filter((e) => (e.title ?? '').toLowerCase().includes(search));
   if (sortCol === 'episode_number') rows = sortBy(rows, 'episodeNumber', dir, { nullsLast: true });

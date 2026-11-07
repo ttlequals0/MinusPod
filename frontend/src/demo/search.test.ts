@@ -78,14 +78,14 @@ test('only the first transcript hits load a transcript fixture', async () => {
   expect(loads).toBe(10);
 });
 
-test('a failed index load yields empty 200 responses', async () => {
+test('a failed index load reports unavailable data instead of no results', async () => {
   __failIndexForTests();
   const res = await searchHandler({ request: new Request('http://x/api/v1/search?q=acme') });
-  expect(res.status).toBe(200);
-  expect(await res.json()).toEqual({ query: 'acme', shows: [], episodes: [], transcripts: [], patterns: [], sponsors: [] });
+  expect(res.status).toBe(503);
+  expect(await res.json()).toEqual({ error: 'Could not load demo search. Try again.' });
   const stats = await searchStatsHandler();
-  expect(stats.status).toBe(200);
-  expect(await stats.json()).toEqual({ stats: { total: 0 } });
+  expect(stats.status).toBe(503);
+  expect(await stats.json()).toEqual({ error: 'Could not load demo search. Try again.' });
 });
 
 test('a failed index load is retried only after the cooldown', async () => {

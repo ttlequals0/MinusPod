@@ -17,6 +17,14 @@ export default function ApiExplorer() {
         presets: [SwaggerUIBundle.presets.apis],
         layout: 'BaseLayout',
         tryItOutEnabled: true,
+        validatorUrl: null,
+        requestInterceptor: (request: { url: string }) => {
+          const url = new URL(request.url, window.location.origin);
+          url.protocol = window.location.protocol;
+          url.host = window.location.host;
+          request.url = url.href;
+          return request;
+        },
       });
     })();
     return () => {
