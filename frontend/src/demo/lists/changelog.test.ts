@@ -16,6 +16,8 @@ test('limit defaults to 10 and caps at 50', async () => {
 });
 test('bad since and bad limit are 400s', async () => {
   expect((await get('since=abc'))!.status).toBe(400);
+  expect((await get('since=2.101'))!.status).toBe(400);
+  expect((await get('since=2.9.0.1'))!.status).toBe(400);
   expect((await get('limit=0'))!.status).toBe(400);
 });
 test('current is preserved', async () => {

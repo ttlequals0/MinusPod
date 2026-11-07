@@ -78,7 +78,7 @@ export async function loadFixture(key: string): Promise<Fixture | null> {
   return pending;
 }
 
-function warnDev(...args: unknown[]): void {
+export function warnDev(...args: unknown[]): void {
   if (__DEMO__ && import.meta.env.DEV) console.warn(...args);
 }
 

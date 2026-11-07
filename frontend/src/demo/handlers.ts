@@ -32,7 +32,20 @@ export function isDownload(pathname: string, params: URLSearchParams): boolean {
   return RUN_LOG.test(pathname) && params.get('format') === 'raw';
 }
 
+const IDLE_STATUS = {
+  currentJob: null,
+  jobs: [],
+  queueLength: 0,
+  queuedEpisodes: [],
+  feedRefreshes: [],
+  hold: { queuePaused: false, holdUntil: null, holdSince: null, offlineHeld: 0, offlineServices: [] },
+  processingPaused: false,
+  failover: { active: [], targets: {} },
+};
+
 export const handlers: RequestHandler[] = [
+  http.get('*/api/v1/auth/status', () => HttpResponse.json({ passwordSet: false, authenticated: true })),
+  http.get('*/api/v1/status', () => HttpResponse.json(IDLE_STATUS)),
   http.get('*/api/v1/podcast-search', podcastSearchHandler),
   http.get('*/api/v1/search', searchHandler),
   http.get('*/api/v1/search/stats', searchStatsHandler),

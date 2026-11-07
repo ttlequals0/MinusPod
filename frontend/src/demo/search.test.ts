@@ -1,6 +1,6 @@
 import MiniSearch from 'minisearch';
-import { test, expect } from 'vitest';
-import { __setIndexForTests, runSearch, searchHandler, searchStatsHandler } from './search';
+import { test, expect, vi } from 'vitest';
+import { __failIndexForTests, __resetIndexForTests, __setIndexForTests, runSearch, searchHandler, searchStatsHandler } from './search';
 import { __setIndexForTests as setFixtureIndex, __setLoaderForTests } from './fixtures';
 
 const options = { fields: ['title', 'body', 'metadata'], storeFields: ['type'] };
@@ -76,4 +76,33 @@ test('only the first transcript hits load a transcript fixture', async () => {
   const r = await runSearch('zebra', 50, ['transcripts']);
   expect(r.transcripts).toHaveLength(15);
   expect(loads).toBe(10);
+});
+
+test('a failed index load yields empty 200 responses', async () => {
+  __failIndexForTests();
+  const res = await searchHandler({ request: new Request('http://x/api/v1/search?q=acme') });
+  expect(res.status).toBe(200);
+  expect(await res.json()).toEqual({ query: 'acme', shows: [], episodes: [], transcripts: [], patterns: [], sponsors: [] });
+  const stats = await searchStatsHandler();
+  expect(stats.status).toBe(200);
+  expect(await stats.json()).toEqual({ stats: { total: 0 } });
+});
+
+test('a failed index load is retried only after the cooldown', async () => {
+  __resetIndexForTests();
+  vi.useFakeTimers();
+  const fetchMock = vi.fn().mockResolvedValue({ ok: false, status: 404 });
+  vi.stubGlobal('fetch', fetchMock);
+  try {
+    await searchHandler({ request: new Request('http://x/api/v1/search?q=acme') });
+    await searchHandler({ request: new Request('http://x/api/v1/search?q=acme') });
+    await searchStatsHandler();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    vi.advanceTimersByTime(30_000);
+    await searchHandler({ request: new Request('http://x/api/v1/search?q=acme') });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  } finally {
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+  }
 });

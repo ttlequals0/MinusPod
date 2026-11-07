@@ -11,10 +11,12 @@ const canon = (s: string | undefined) => (s === 'completed' ? 'processed' : s);
 // Ports list_episodes (api/episodes/core.py) and get_episodes (database/episodes.py).
 export const episodesHandler: ListHandler = async (url, load) => {
   const slug = /\/feeds\/([^/]+)\/episodes$/.exec(url.pathname)?.[1];
-  const dump = await load(`/feeds/${slug}/episodes?limit=500&offset=0&sort_by=created_at&sort_dir=desc&status=all`);
-  if (!dump) return null;
   const p = url.searchParams;
   const status = canon(p.get('status') ?? 'all');
+  // Filter rules are not ported: the crawl must record both the status=all and status=filtered keys.
+  const dumpStatus = status === 'filtered' ? 'filtered' : 'all';
+  const dump = await load(`/feeds/${slug}/episodes?limit=500&offset=0&sort_by=created_at&sort_dir=desc&status=${dumpStatus}`);
+  if (!dump) return null;
   const limit = clampInt(p.get('limit'), 25, 1, 500);
   const selection = (p.get('selection') ?? '').toLowerCase() === 'true';
   const offset = selection ? 0 : clampInt(p.get('offset'), 0, 0, Infinity);
