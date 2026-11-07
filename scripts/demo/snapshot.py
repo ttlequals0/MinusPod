@@ -40,9 +40,6 @@ JSON_TIME_COLUMNS = (
     'ad_markers_json', 'payload', 'before', 'applied',
 )
 
-# Added by runtime migrations, so absent from the SCHEMA_SQL-derived allowlist.
-MIGRATED_KEPT = {'episodes': ['published_at']}
-
 ISO_GLOB = '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]*'
 ISO_TS_GLOB = '*[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]T[0-9][0-9]:[0-9][0-9]:[0-9][0-9]*'
 EXCLUSIONS_PATH = Path(__file__).with_name('exclusions.json')
@@ -63,10 +60,6 @@ class SnapshotReport:
 
 def q(name: str) -> str:
     return '"' + name.replace('"', '""') + '"'
-
-
-def kept_columns(table: str) -> list[str]:
-    return EXPORT_TABLES[table] + MIGRATED_KEPT.get(table, [])
 
 
 def user_tables(conn: sqlite3.Connection) -> set[str]:
@@ -162,9 +155,7 @@ def exclude_feeds(conn: sqlite3.Connection, excluded_slugs: set[str]) -> int:
 
 
 def apply_window(conn: sqlite3.Connection, cutoff: str) -> None:
-    has_pub = any(c[1] == 'published_at' for c in table_info(conn, 'episodes'))
-    when = 'COALESCE(published_at, created_at)' if has_pub else 'created_at'
-    drop_episodes(conn, f'{when} < ?', (cutoff,))
+    drop_episodes(conn, 'COALESCE(published_at, created_at) < ?', (cutoff,))
     have = user_tables(conn)
     conn.execute('DELETE FROM processing_history WHERE processed_at < ?', (cutoff,))
     conn.execute('DELETE FROM episode_downloads WHERE last_seen_at < ?', (cutoff,))
@@ -191,7 +182,7 @@ def blank_value(col: sqlite3.Row) -> str:
 def apply_allowlist(conn: sqlite3.Connection) -> list[str]:
     have = user_tables(conn)
     for table in EXPORT_TABLES:
-        kept = kept_columns(table)
+        kept = EXPORT_TABLES[table]
         if table not in have:
             continue
         if not kept:
@@ -248,7 +239,7 @@ def replace_in_text_columns(conn: sqlite3.Connection, hosts: list[str]) -> None:
     for table in EXPORT_TABLES:
         if table not in user_tables(conn):
             continue
-        for col in text_columns(conn, table, kept_columns(table)):
+        for col in text_columns(conn, table, EXPORT_TABLES[table]):
             cond = ' OR '.join(f'LOWER({q(col)}) LIKE ?' for _ in hosts)
             rows = conn.execute(
                 f'SELECT rowid, {q(col)} FROM {q(table)} WHERE typeof({q(col)}) = \'text\' AND ({cond})',
@@ -276,7 +267,7 @@ def shift_timestamps(conn: sqlite3.Connection, delta_days: int) -> None:
     for table in EXPORT_TABLES:
         if table not in user_tables(conn):
             continue
-        for col in text_columns(conn, table, kept_columns(table)):
+        for col in text_columns(conn, table, EXPORT_TABLES[table]):
             if col in JSON_TIME_COLUMNS:
                 rows = conn.execute(
                     f'SELECT rowid, {q(col)} FROM {q(table)} WHERE typeof({q(col)}) = \'text\' AND {q(col)} GLOB ?',

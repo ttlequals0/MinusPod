@@ -2,15 +2,15 @@ import sqlite3
 from datetime import date
 from unittest.mock import patch
 
-from database.schema.tables import SCHEMA_SQL
-from scripts.demo.export_allowlist import SETTINGS_FORCE, SETTINGS_FORCE_UNREGISTERED
+from scripts.demo.export_allowlist import create_full_schema, SETTINGS_FORCE, SETTINGS_FORCE_UNREGISTERED
 from scripts.demo.snapshot import snapshot
 
 
 def make_db(path):
+    built = sqlite3.connect(create_full_schema(path.parent / 'built'))
     conn = sqlite3.connect(path)
-    conn.executescript(SCHEMA_SQL)
-    conn.execute('ALTER TABLE episodes ADD COLUMN published_at TEXT')
+    built.backup(conn)
+    built.close()
     conn.executemany("INSERT INTO podcasts (id, slug, source_url, title, created_at, updated_at) VALUES (?,?,?,?,?,?)", [
         (1, 'keep', 'https://feeds.example.net/keep', 'Keep', '2026-10-01T00:00:00Z', '2026-10-01T00:00:00Z'),
         (2, 'paid', 'https://www.patreon.com/rss/paid?auth=tok', 'Paid', '2026-10-01T00:00:00Z', '2026-10-01T00:00:00Z'),
@@ -20,6 +20,7 @@ def make_db(path):
         (1, 'old', 'https://cdn/old.mp3', 'Old', 'processed', '2026-08-01T00:00:00Z', '2026-08-01T00:00:00Z', '2026-08-01T00:00:00Z', 'episodes/old.mp3'),
         (2, 'p1', 'https://cdn/p1.mp3', 'P1', 'processed', '2026-10-21T00:00:00Z', '2026-10-21T00:00:00Z', '2026-10-21T00:00:00Z', None),
     ])
+    conn.execute("DELETE FROM settings")
     conn.executemany("INSERT INTO settings (key, value) VALUES (?,?)", [
         ('anthropic_api_key', 'enc:v1:aaa:bbb'), ('flask_secret_key', 'zzz'), ('system_prompt', 'Find ads'), ('feed_auth_enabled', 'true'),
     ])

@@ -23,6 +23,7 @@ def test_map_ip_keeps_private_and_maps_public_deterministically():
 def test_shift_iso_variants():
     assert shift_iso('2026-10-01T12:34:56Z', 5) == '2026-10-06T12:34:56Z'
     assert shift_iso('2026-10-01', 5) == '2026-10-06'
+    assert shift_iso('2026-10-01 12:34:56', 5) == '2026-10-06 12:34:56'
     assert shift_iso('hello', 5) == 'hello'
     assert shift_iso_in_text('{"a":"2026-10-01T00:00:00Z","b":1}', 1) == '{"a":"2026-10-02T00:00:00Z","b":1}'
 

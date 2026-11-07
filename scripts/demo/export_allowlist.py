@@ -5,10 +5,20 @@ emptied (DELETE FROM) and kept. Columns that need value rewriting
 (source_url, client_ip, last_request_*, secret_hash, label) are kept here and
 rewritten by the snapshot script.
 
+Where snapshot.py deviates from the plain "rewrite" described above:
+secret_hash becomes 64 zeros (CHECK length = 64); episode_downloads
+last_request_line and last_request_headers are set NULL (the request line
+carries feed keys; the frontend renders null); settings upserts set
+is_default = 0; tables in the source that are not listed here are emptied and
+listed by --report-unclassified.
+
 The settings table is row-filtered by DEMO_SETTINGS_ALLOW in snapshot.py
 (Task 3); system_settings keeps every row (production holds only
 processing_admission_paused and startup_backfills_version).
 """
+import sqlite3
+import tempfile
+from pathlib import Path
 
 # Tables whose rows are deleted but whose schema is kept. search_index and
 # search_index_changes are placeholders so the TABLE_DDL coverage test passes;
@@ -17,7 +27,8 @@ _EMPTIED = (
     'processing_runs', 'upload_reservations', 'auto_process_queue',
     'provider_spend_reservations', 'cue_candidate_scans', 'cue_threshold_scans',
     'cue_cross_episode_scans', 'cue_window_optimize_scans', 'auth_failures',
-    'search_index_changes', 'search_index',
+    'search_index_changes', 'search_index', 'text_patterns',
+    '_orphaned_audio_fingerprints',
 )
 
 # Dropped before export; startup recreates them.
@@ -29,7 +40,7 @@ _DROP = {
         'download_user_agent_override', 'feed_user_agent_override',
         'detection_notes', 'chapter_notes', 'last_refresh_error',
     ),
-    'episodes': ('error_message', 'sb_last_error', 'quality_notes'),
+    'episodes': ('error_message', 'sb_last_error', 'quality_notes', 'chapters_regen_error'),
     'processing_history': ('error_message', 'log_file'),
     'audio_cue_templates': ('pcm_blob',),
     'llm_call_usage': ('rate_snapshot',),
@@ -44,7 +55,6 @@ _ONLY = {
         'last_used_at', 'revoked_at',
     ),
     'ip_geo_cache': ('ip', 'country', 'looked_up_at', 'status'),
-    # Created by _run_schema_migrations, not SCHEMA_SQL, so PRAGMA cannot see it.
     'schema_migrations': ('name', 'applied_at'),
 }
 
@@ -59,24 +69,38 @@ _KEPT_ALL = (
 )
 
 
+def create_full_schema(data_dir: Path) -> Path:
+    """Build the complete migrated schema (base DDL plus runtime migrations)."""
+    from database import Database
+
+    saved = Database._instance
+    Database._instance = None
+    try:
+        db = Database(str(data_dir))
+        conn = getattr(db._local, 'connection', None)
+        if conn is not None:
+            conn.close()
+            db._local.connection = None
+    finally:
+        Database._instance = saved
+    return Path(data_dir) / 'podcast.db'
+
+
 def _build_export_tables() -> dict[str, list[str]]:
-    import sqlite3
+    with tempfile.TemporaryDirectory() as tmp:
+        conn = sqlite3.connect(create_full_schema(Path(tmp)))
 
-    from database.schema.tables import SCHEMA_SQL
+        def cols(table: str) -> list[str]:
+            return [r[1] for r in conn.execute(f'PRAGMA table_info({table})')]
 
-    conn = sqlite3.connect(':memory:')
-    conn.executescript(SCHEMA_SQL)
-
-    def cols(table: str) -> list[str]:
-        return [r[1] for r in conn.execute(f'PRAGMA table_info({table})')]
-
-    out: dict[str, list[str]] = {t: [] for t in _EMPTIED}
-    for table in _KEPT_ALL:
-        out[table] = cols(table)
-    for table, dropped in _DROP.items():
-        out[table] = [c for c in cols(table) if c not in dropped]
-    for table, kept in _ONLY.items():
-        out[table] = list(kept)
+        out: dict[str, list[str]] = {t: [] for t in _EMPTIED}
+        for table in _KEPT_ALL:
+            out[table] = cols(table)
+        for table, dropped in _DROP.items():
+            out[table] = [c for c in cols(table) if c not in dropped]
+        for table, kept in _ONLY.items():
+            out[table] = list(kept)
+        conn.close()
     return out
 
 

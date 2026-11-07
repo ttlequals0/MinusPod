@@ -1,15 +1,16 @@
 import re
 import sqlite3
 
-from database.schema.tables import SCHEMA_SQL, TABLE_DDL
 from database.settings import SETTINGS_REGISTRY
 from scripts.demo.export_allowlist import (
     DEMO_SETTINGS_ALLOW,
     DEMO_SETTINGS_EXCLUDE,
     EXPORT_TABLES,
+    DROPPED_TABLE_PREFIXES,
     PODCAST_REF,
     SETTINGS_FORCE,
     SETTINGS_FORCE_UNREGISTERED,
+    create_full_schema,
 )
 from secrets_crypto import SECRET_SETTING_KEYS
 
@@ -19,7 +20,8 @@ EMPTIED = {
     'processing_runs', 'upload_reservations', 'auto_process_queue',
     'provider_spend_reservations', 'cue_candidate_scans', 'cue_threshold_scans',
     'cue_cross_episode_scans', 'cue_window_optimize_scans', 'auth_failures',
-    'search_index_changes', 'search_index',
+    'search_index_changes', 'search_index', 'text_patterns',
+    '_orphaned_audio_fingerprints',
 }
 
 COLUMN_DROPS = {
@@ -27,7 +29,7 @@ COLUMN_DROPS = {
         'download_user_agent_override', 'feed_user_agent_override',
         'detection_notes', 'chapter_notes', 'last_refresh_error',
     },
-    'episodes': {'error_message', 'sb_last_error', 'quality_notes'},
+    'episodes': {'error_message', 'sb_last_error', 'quality_notes', 'chapters_regen_error'},
     'processing_history': {'error_message', 'log_file'},
     'audio_cue_templates': {'pcm_blob'},
     'llm_call_usage': {'rate_snapshot'},
@@ -42,9 +44,12 @@ PROMPT_OVERRIDES = {
 }
 
 
+def _full_conn(tmp_path):
+    return sqlite3.connect(create_full_schema(tmp_path / 'full'))
+
+
 def _schema_columns(table, tmp_path):
-    conn = sqlite3.connect(tmp_path / 'x.db')
-    conn.executescript(SCHEMA_SQL)
+    conn = _full_conn(tmp_path)
     return [r[1] for r in conn.execute(f'PRAGMA table_info({table})')]
 
 
@@ -84,8 +89,11 @@ def test_unregistered_forced_keys_are_safe():
     assert not (set(SETTINGS_FORCE) & set(SETTINGS_FORCE_UNREGISTERED))
 
 
-def test_every_schema_table_is_classified():
-    assert set(TABLE_DDL) <= set(EXPORT_TABLES)
+def test_every_schema_table_is_classified(tmp_path):
+    conn = _full_conn(tmp_path)
+    tables = {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'")}
+    unclassified = {t for t in tables if t not in EXPORT_TABLES and not t.startswith(DROPPED_TABLE_PREFIXES)}
+    assert unclassified == set()
 
 
 def test_emptied_tables_are_exactly_those_with_no_columns():
@@ -93,10 +101,7 @@ def test_emptied_tables_are_exactly_those_with_no_columns():
 
 
 def test_kept_columns_exist(tmp_path):
-    conn = sqlite3.connect(tmp_path / 'x.db')
-    conn.executescript(SCHEMA_SQL)
-    # schema_migrations is created by _run_schema_migrations, not SCHEMA_SQL
-    conn.execute('CREATE TABLE IF NOT EXISTS schema_migrations (name TEXT, applied_at TEXT)')
+    conn = _full_conn(tmp_path)
     for table, cols in EXPORT_TABLES.items():
         have = {r[1] for r in conn.execute(f'PRAGMA table_info({table})')}
         assert set(cols) <= have, table
@@ -122,9 +127,14 @@ def test_subset_tables_keep_exact_columns():
 
 
 def test_podcast_ref_covers_tables_with_podcast_columns(tmp_path):
-    conn = sqlite3.connect(tmp_path / 'x.db')
-    conn.executescript(SCHEMA_SQL)
+    conn = _full_conn(tmp_path)
     for table in EXPORT_TABLES:
+        if table.startswith(DROPPED_TABLE_PREFIXES):
+            continue
         cols = {r[1] for r in conn.execute(f'PRAGMA table_info({table})')}
         if cols & {'podcast_id', 'podcast_slug'}:
             assert table in PODCAST_REF, table
+
+
+def test_migrated_columns_are_kept():
+    assert {'published_at', 'reprocess_mode', 'detection_degraded'} <= set(EXPORT_TABLES['episodes'])
