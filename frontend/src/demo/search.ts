@@ -42,6 +42,7 @@ const GROUPS: Record<string, { type: DocType; fields: string[] }> = {
   sponsors: { type: 'sponsor', fields: ['title', 'body'] },
 };
 const WINDOW_WORDS = 64;
+const STOPWORDS = new Set('a an and are as at be by for from in is it of on or the to with'.split(' '));
 
 type Loaded = { ms: MiniSearch; docs: Record<string, SearchDoc> };
 let loaded: Loaded | null = null;
@@ -101,12 +102,20 @@ const emptyResponse = (query: string): SearchResponse => (
   { query, shows: [], episodes: [], transcripts: [], patterns: [], sponsors: [] }
 );
 
+// Mirrors _safe_fts_query: AND of non-stopword terms, prefix only on the query's last token.
 function searchGroup(ms: MiniSearch, q: string, group: string, limit: number) {
   const { type, fields } = GROUPS[group];
-  const base: SearchOptions = { fields, filter: r => r.type === type, prefix: true };
-  let hits = ms.search(q, { ...base, combineWith: 'AND' });
-  if (hits.length === 0) hits = ms.search(q, { ...base, combineWith: 'OR' });
-  return hits.slice(0, limit);
+  const tokens = q.trim().split(/\s+/);
+  const kept = tokens.filter(t => !STOPWORDS.has(t.toLowerCase()));
+  const terms = kept.length ? kept : tokens;
+  const prefixLast = terms[terms.length - 1] === tokens[tokens.length - 1];
+  const options: SearchOptions = {
+    fields,
+    filter: r => r.type === type,
+    combineWith: 'AND',
+    prefix: (_t, i, all) => prefixLast && i === all.length - 1,
+  };
+  return ms.search(terms.join(' '), options).slice(0, limit);
 }
 
 export async function runSearch(q: string, limit: number, groups: string[] | null): Promise<SearchResponse> {
