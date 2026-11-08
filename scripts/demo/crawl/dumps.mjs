@@ -1,8 +1,9 @@
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { fixtureKey } from './lib/keys.mjs';
-import { scrubFeedKeys, writeFixture, mergeIndex, applyOverrides } from './lib/store.mjs';
-import { argValue } from './lib/args.mjs';
+import { scrubFeedKeys, writeFixture, mergeIndex, applyOverrides, readOverrides } from './lib/store.mjs';
+import { windowFixtureDir } from './lib/transcripts.mjs';
+import { argValue, checkFlags } from './lib/args.mjs';
 
 const PAGE = 100;
 const EPISODE_PAGE = 500;
@@ -167,13 +168,24 @@ export function createDumper({ base, out, fetchImpl = fetch }) {
 }
 
 async function main(argv) {
+  checkFlags(argv, ['--base', '--out', '--overrides', '--transcript-window']);
   const base = argValue(argv, '--base');
   const out = argValue(argv, '--out');
   const overrides = argValue(argv, '--overrides');
-  if (!base || !out) throw new Error('usage: --base http://host:8000 --out <fixtures dir> [--overrides <dir>]');
+  const windowSec = argValue(argv, '--transcript-window');
+  if (!base || !out) throw new Error('usage: --base http://host:8000 --out <fixtures dir> [--overrides <dir>] [--transcript-window <seconds>]');
+  if (windowSec !== undefined && !/^\d+$/.test(windowSec)) {
+    console.error('--transcript-window must be a non-negative integer number of seconds');
+    process.exit(2);
+  }
+  const overrideIndex = overrides ? readOverrides(overrides) : null;
   const { run, stats } = createDumper({ base: base.replace(/\/$/, ''), out });
   try { await run(); } catch (err) { console.error(String(err)); process.exit(1); }
-  if (overrides) applyOverrides(out, overrides);
+  if (overrideIndex) {
+    applyOverrides(out, overrides, overrideIndex);
+    stats.overrides = Object.keys(overrideIndex).length;
+  }
+  if (windowSec !== undefined) stats.windowed = windowFixtureDir(out, Number(windowSec));
   console.log(JSON.stringify(stats, null, 2));
   if (stats.errors.length) process.exit(1);
 }

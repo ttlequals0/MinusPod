@@ -4,6 +4,9 @@ import { mkdtempSync, readFileSync, readdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createDumper } from './dumps.mjs';
+import { applyOverrides, mergeIndex, writeFixture } from './lib/store.mjs';
+import { spawnSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 import { fileFor } from './lib/keys.mjs';
 
 process.env.DUMP_RETRY_MS = '0';
@@ -129,4 +132,18 @@ test('non-200 later episode page, bad feeds dump and unexpected content-type are
   const out = mkdtempSync(join(tmpdir(), 'dump-'));
   await assert.rejects(createDumper({ base: 'http://h', out, fetchImpl: async () => json(500, {}) }).run(), /feeds/);
   assert.equal(readdirSync(out).includes('index.json'), false);
+});
+
+test('overrides applied after a dump win over the dumped fixture', async () => {
+  const { index, read, out } = await run(fakeFetch([]));
+  assert.deepEqual(read('/patterns'), { status: 200, body: {} });
+  const over = mkdtempSync(join(tmpdir(), 'ov-'));
+  mergeIndex(over, { '/patterns': writeFixture(over, '/patterns', { status: 200, body: { live: true } }) });
+  applyOverrides(out, over);
+  assert.deepEqual(JSON.parse(readFileSync(join(out, index['/patterns']), 'utf8')), { status: 200, body: { live: true } });
+});
+
+test('a bad --transcript-window exits 2 before any request', () => {
+  const r = spawnSync(process.execPath, [fileURLToPath(new URL('./dumps.mjs', import.meta.url)), '--base', 'http://127.0.0.1:9', '--out', 'y', '--transcript-window', '-3']);
+  assert.equal(r.status, 2);
 });

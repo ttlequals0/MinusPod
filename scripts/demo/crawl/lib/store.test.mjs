@@ -1,9 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, readFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { applyOverrides, scrubFeedKeys, writeFixture, mergeIndex } from './store.mjs';
+import { applyOverrides, readOverrides, scrubFeedKeys, writeFixture, mergeIndex } from './store.mjs';
 
 test('scrubFeedKeys rewrites key= in nested strings only', () => {
   const out = scrubFeedKeys({ a: 'http://h/feed?key=abc123&x=1', b: ['u?key=zzz', 3, null], c: { d: 'say "hi" ?key=q"' }, 'key=k': 1 });
@@ -29,4 +29,15 @@ test('applyOverrides copies override files over the fixtures and merges their in
   assert.deepEqual(Object.keys(index), ['/a', '/b']);
   assert.equal(JSON.parse(readFileSync(join(out, index['/a']), 'utf8')).body, 'live');
   assert.equal(JSON.parse(readFileSync(join(out, index['/b']), 'utf8')).body, 'kept');
+});
+
+test('applyOverrides copies only indexed files, and fails on a missing index or file', () => {
+  const out = mkdtempSync(join(tmpdir(), 'fx-'));
+  const over = mkdtempSync(join(tmpdir(), 'ov-'));
+  assert.throws(() => readOverrides(over), /no index\.json/);
+  mergeIndex(over, { '/a': writeFixture(over, '/a', { status: 200, body: 1 }) });
+  writeFileSync(join(over, '.DS_Store'), 'junk');
+  applyOverrides(out, over);
+  assert.equal(existsSync(join(out, '.DS_Store')), false);
+  assert.throws(() => applyOverrides(out, over, { '/gone': 'missing.json' }), /ENOENT/);
 });

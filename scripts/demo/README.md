@@ -64,23 +64,23 @@ node crawl.mjs --base http://127.0.0.1:8000 --out crawl-out
 ## 5. HAR to fixtures
 
 ```
-node har-to-fixtures.mjs --har crawl-out/crawl.har --out ../../../frontend/demo/fixtures \
-  --transcript-window 600
+node har-to-fixtures.mjs --har crawl-out/crawl.har --out ../../../frontend/demo/fixtures
 ```
 
-- `--transcript-window <seconds>` trims timestamped transcript lines to the first N seconds. It lives at this step, not in the snapshot, so a re-export is one Node command and the release asset keeps whole transcripts. Omit it to keep full transcripts.
 - Keys follow the same encoding as `frontend/src/demo/fixtures.ts`. `crawl/lib/key-vectors.json` holds shared test vectors for both sides.
 
 ## 6. Dumps
 
-Fills in what a click-through does not reach: static lists, paged lists, and per-feed and per-episode endpoints. It reads the feed and episode lists from the backend and overwrites any fixture with the same key, so run it after the HAR step. `--overrides` copies the live extras on top afterwards, so they win over crawled and dumped responses.
+Fills in what a click-through does not reach: static lists, paged lists, and per-feed and per-episode endpoints. It reads the feed and episode lists from the backend and overwrites any fixture with the same key, so run it after the HAR step. Two final passes run after the dumps: `--overrides` copies the live extras on top, so they win over crawled and dumped responses, and `--transcript-window <seconds>` keeps only the transcript lines within N seconds of an ad marker in every episode fixture.
 
 ```
 node dumps.mjs --base http://127.0.0.1:8000 --out ../../../frontend/demo/fixtures \
-  --overrides ../../../live-extras/overrides
+  --overrides ../../../live-extras/overrides --transcript-window 600
 ```
 
-A 429 is retried with backoff. 404 responses are recorded as 404 fixtures. Exit 1 if a request still fails after retries.
+- The window lives here, not in the snapshot, so the release asset keeps whole transcripts. Omit it to keep them in the fixtures too.
+- A rerun must pass both flags again, because the dumps refill the fixtures they overwrite.
+- A 429 is retried with backoff. 404 responses are recorded as 404 fixtures. Exit 1 if a request still fails after retries.
 
 ## 7. Search index, artwork and coverage
 

@@ -1,4 +1,4 @@
-import { mkdirSync, readFileSync, readdirSync, renameSync, writeFileSync, existsSync } from 'node:fs';
+import { mkdirSync, readFileSync, renameSync, writeFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileFor } from './keys.mjs';
 
@@ -41,11 +41,15 @@ export function mergeIndex(dir, entries) {
   return merged;
 }
 
-// Copies every fixture file in dir over out and merges its index on top, so the overrides win.
-export function applyOverrides(out, dir) {
+export function readOverrides(dir) {
+  const p = join(dir, 'index.json');
+  if (!existsSync(p)) throw new Error(`${dir} has no index.json; pass the overrides directory record_live wrote`);
+  return JSON.parse(readFileSync(p, 'utf8'));
+}
+
+// Copies the indexed override files over out and merges their index on top, so the overrides win.
+export function applyOverrides(out, dir, index = readOverrides(dir)) {
   mkdirSync(out, { recursive: true });
-  for (const e of readdirSync(dir, { withFileTypes: true })) {
-    if (e.isFile() && e.name !== 'index.json') writeAtomic(join(out, e.name), readFileSync(join(dir, e.name)));
-  }
-  mergeIndex(out, readIndex(dir));
+  for (const file of new Set(Object.values(index))) writeAtomic(join(out, file), readFileSync(join(dir, file)));
+  mergeIndex(out, index);
 }
