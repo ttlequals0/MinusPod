@@ -119,14 +119,34 @@ PYTHONPATH=src:. python scripts/demo/leak_check.py \
 
 It scans files and SQLite cells for the hostnames you list, globally routable IPs outside the documentation ranges, feed auth keys (`key=` query values), `token=`, `token-hash=` and `token-time=` query values, API keys and tokens, and filesystem paths. With `--exclusions`, each excluded slug is also searched for in file contents and SQLite cells, and in every file and directory name under the scanned paths, including `.jpg` files that are otherwise skipped. A hit exits 2. With `--redact`, which is on automatically when `GITHUB_ACTIONS` is `true`, hosts and slugs print as `host:#<n>` and `slug:#<n>` and excerpts are replaced by an offset, so a public CI log never shows them. `--hosts` is required and follows the same rules as in step 1.
 
-## 9. Publish
+## 9. Rendered feeds
 
-Upload the snapshot database and the live extras as a release asset on the demo site repository:
+The demo app runs without egress and cannot build a subscribed feed's RSS, so the snapshot ships the
+rendered feeds as the app's RSS cache. Record them from the live instance after the database is final:
+
+```
+PYTHONPATH=src:. python scripts/demo/record_feeds.py --base-url https://your-instance \
+  --cookies cookies.txt --sqlite demo-snapshot-YYYY-MM-DD.db \
+  --hosts "$(paste -sd, hosts.txt)" --exclusions /path/to/demo-exclusions.json \
+  --out live-feeds --tar rss.tar
+```
+
+It fetches `/<slug>` for every podcast in the snapshot (with the feed key when feed auth is on),
+rewrites the instance hosts to `demo.minuspod.app`, removes the key from every URL and cover token,
+drops items whose episode the snapshot lacks, replaces emails, runs the leak check and writes
+`podcasts/<slug>/modified-rss.xml`. The render-version marker stays, so the app serves the files
+without a refresh.
+
+## 10. Publish
+
+Upload the snapshot database, the live extras and the rendered feeds as release assets on the demo
+site repository:
 
 ```
 COPYFILE_DISABLE=1 tar -C live-extras -cf overrides.tar overrides
 COPYFILE_DISABLE=1 tar -C live-extras -cf artwork.tar artwork
-gh release create snapshot-YYYY-MM-DD demo-snapshot-YYYY-MM-DD.db artwork.tar overrides.tar \
+sha256sum demo-snapshot-YYYY-MM-DD.db artwork.tar overrides.tar rss.tar > SHA256SUMS.txt
+gh release create snapshot-YYYY-MM-DD demo-snapshot-YYYY-MM-DD.db artwork.tar overrides.tar rss.tar SHA256SUMS.txt \
   --repo ttlequals0/minuspod.app --notes "Demo snapshot YYYY-MM-DD"
 ```
 

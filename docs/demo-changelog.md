@@ -26,6 +26,7 @@ This file tracks the hosted demo and its tooling, which are not part of the self
 - The demo leak check no longer fires on key prefixes inside words (such as `sk-` in a URL slug containing "disk-"). The Anthropic, OpenRouter and JWT patterns now need a non-alphanumeric character before the prefix, as the OpenAI pattern did.
 - The demo build accepts a pasted Cloudflare Web Analytics snippet as well as a bare token for `VITE_CF_BEACON_TOKEN`.
 - The demo artwork staging skips a file it cannot decode and names it in the log, instead of failing the whole build on one bad download.
+- The snapshot ships each feed's rendered RSS (`rss.tar`, recorded by `scripts/demo/record_feeds.py`) as the demo app's RSS cache. Without it the app, which has no network in the demo pipeline, answered 503 for every feed.
 
 ## [2.101.27] - 2026-11-07
 
