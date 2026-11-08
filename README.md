@@ -4,6 +4,8 @@
 
 MinusPod is a self-hosted server that strips ads from podcasts and YouTube shows before you hit play. Point it at an RSS feed, playlist or channel and subscribe to the feed it serves. Podcasts are transcribed locally (faster-whisper, Parakeet or a remote API) and an LLM cuts the ads. Your corrections become patterns that catch repeat sponsors without another LLM call. YouTube audio comes through yt-dlp and SponsorBlock marks decide the cuts. Bring your own LLM: Claude, Ollama, OpenRouter, OpenAI-compatible providers or System One.
 
+Website: [minuspod.app](https://minuspod.app). Documentation: [docs.minuspod.app](https://docs.minuspod.app).
+
 <p align="center">
   <img src="docs/screenshots/dashboard-desktop-nord.png" alt="MinusPod dashboard on desktop" width="600" />
   &nbsp;
