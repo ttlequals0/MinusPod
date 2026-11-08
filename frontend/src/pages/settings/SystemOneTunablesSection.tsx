@@ -12,6 +12,7 @@ import SavedBadge from './SavedBadge';
 import { btnBase, btnLg, btnPrimary, btnGhost } from '../../components/buttonStyles';
 import { selectBase, labelBase } from '../../components/fieldStyles';
 import { subHeading } from '../../components/pageStyles';
+import { DemoDisabled } from '../../components/DemoDisabled';
 
 type ProfilePatch = Partial<SystemOneProfile>;
 type DraftProfiles = Record<SystemOneCredentialSlot, Record<SystemOneProvider, SystemOneProfile>>;
@@ -204,9 +205,11 @@ function SystemOneTunablesSection({ connections, profiles, defaults, isDefault, 
           })()}
         {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
         <div className="flex items-center gap-3">
-          <button type="button" className={`${btnLg} ${btnPrimary}`} disabled={!dirty || pending} onClick={() => void save()}>
-            {pending ? 'Saving...' : 'Save System One tuning'}
-          </button>
+          <DemoDisabled>
+            <button type="button" className={`${btnLg} ${btnPrimary}`} disabled={!dirty || pending} onClick={() => void save()}>
+              {pending ? 'Saving...' : 'Save System One tuning'}
+            </button>
+          </DemoDisabled>
           {!dirty && !pending && <SavedBadge />}
         </div>
         </>}

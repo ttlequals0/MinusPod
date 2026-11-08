@@ -37,7 +37,7 @@ export interface AdCorrection {
 interface AdEditorProps {
   detectedAds: DetectedAd[];
   audioDuration: number;
-  audioUrl?: string;
+  audioUrl?: string | null;
   onCorrection: (correction: AdCorrection) => void;
   // Awaitable submission path, used only for a multi-span create so the
   // panel can confirm or fail each run's save before moving to the next.

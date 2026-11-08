@@ -6,6 +6,8 @@ import type { UpdateCheckSettings } from '../../api/types';
 import ToggleSwitch from '../../components/ToggleSwitch';
 import { btnBase, btnSecondary } from '../../components/buttonStyles';
 import { focusRing, selectBase } from '../../components/fieldStyles';
+import { IS_DEMO } from '../../demo/flag';
+import { DemoExplainer } from '../../components/DemoExplainer';
 
 export default function UpdateStatusPanel() {
   const queryClient = useQueryClient();
@@ -15,10 +17,12 @@ export default function UpdateStatusPanel() {
     queryKey: ['update-status'],
     queryFn: () => getUpdateStatus(),
     staleTime: 5 * 60 * 1000,
+    enabled: !IS_DEMO,
   });
   const { data: settings } = useQuery({
     queryKey: ['update-check-settings'],
     queryFn: getUpdateCheckSettings,
+    enabled: !IS_DEMO,
   });
   const settingsMutation = useMutation({
     mutationFn: (payload: Partial<UpdateCheckSettings>) => updateUpdateCheckSettings(payload),
@@ -42,6 +46,14 @@ export default function UpdateStatusPanel() {
       setChecking(false);
     }
   };
+
+  if (IS_DEMO) {
+    return (
+      <div className="mt-4 border-t border-border pt-4">
+        <DemoExplainer title="Update checks">Update checks need network access.</DemoExplainer>
+      </div>
+    );
+  }
 
   if (!status || !settings) return null;
 

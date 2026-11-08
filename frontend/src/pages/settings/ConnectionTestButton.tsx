@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { getErrorMessage } from '../../api/client';
 import type { ConnectionTestResult } from '../../api/providers';
 import { btnBase, btnOutline } from '../../components/buttonStyles';
+import { DemoExplainer } from '../../components/DemoExplainer';
+import { IS_DEMO } from '../../demo/flag';
 
 // A result only describes the values it was tested with. Parents pass a
 // `key` built from those values, so React remounts this component (clearing
@@ -34,6 +36,16 @@ function ConnectionTestButton({
     } finally {
       setBusy(false);
     }
+  }
+
+  if (IS_DEMO) {
+    return (
+      <div className="mt-2">
+        <DemoExplainer title="Provider tests">
+          The demo has no live providers to test. Run MinusPod to check your own API keys and endpoints.
+        </DemoExplainer>
+      </div>
+    );
   }
 
   return (

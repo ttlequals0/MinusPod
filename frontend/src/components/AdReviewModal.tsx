@@ -1,4 +1,6 @@
 import { formatPercent } from '../utils/format';
+import { mediaUrl } from '../utils/mediaUrl';
+import { DEMO_AUDIO_TOOLTIP } from '../demo/copy';
 import { useDraftClose } from '../hooks/useDraftClose';
 import { isTopDialog, useEscape, useFocusTrap } from './Modal';
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
@@ -41,6 +43,8 @@ import { btnBase, btnPrimary, btnOutline, btnDestructive } from './buttonStyles'
 import { focusRing, inputBase, selectBase, textareaBase, labelBase, filterLabel } from './fieldStyles';
 import { badgeBase, tint } from './badgeStyles';
 import { apiUrl } from '../urlPrefix';
+import { DemoDisabled } from './DemoDisabled';
+import { IS_DEMO } from '../demo/flag';
 
 // Shape used by the per-episode AdEditor: enough to render the waveform
 // editor for a single detected ad and submit a correction back. Matches
@@ -105,7 +109,7 @@ interface Props {
   audioMode?: 'processed' | 'original';
   onAudioModeChange?: (m: 'processed' | 'original') => void;
   hasOriginal?: boolean;
-  processedAudioUrl?: string;
+  processedAudioUrl?: string | null;
   // Optional: total episode duration so create mode can default
   // end-of-selection to the end of the file.
   episodeDuration?: number;
@@ -385,7 +389,7 @@ function AdReviewModal({
   const effectiveAudioMode = mode === 'create' ? 'original' : audioMode;
   const audioUrl =
     effectiveAudioMode === 'original' || !processedAudioUrl
-      ? apiUrl(`/feeds/${item.podcastSlug}/episodes/${item.episodeId}/original.mp3`)
+      ? mediaUrl({ kind: 'audio', url: apiUrl(`/feeds/${item.podcastSlug}/episodes/${item.episodeId}/original.mp3`) })
       : processedAudioUrl;
   const windowDuration = Math.max(0.001, windowEnd - windowStart);
 
@@ -925,8 +929,8 @@ function AdReviewModal({
       if (e.key === ' ')      { e.preventDefault(); togglePlay(); return; }
       if (e.key === ',')      { e.preventDefault(); panBack(); return; }
       if (e.key === '.')      { e.preventDefault(); panForward(); return; }
-      if (e.key === 'c' || e.key === 'C') { e.preventDefault(); if (!boundaryError) handleConfirm(); return; }
-      if (e.key === 'r' || e.key === 'R') { e.preventDefault(); handleReject(); return; }
+      if (e.key === 'c' || e.key === 'C') { e.preventDefault(); if (!IS_DEMO && !boundaryError) handleConfirm(); return; }
+      if (e.key === 'r' || e.key === 'R') { e.preventDefault(); if (!IS_DEMO) handleReject(); return; }
       if (e.key === 's' || e.key === 'S') { e.preventDefault(); onSkip(); return; }
       if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
         const audio = audioRef.current;
@@ -1398,14 +1402,16 @@ function AdReviewModal({
             </div>
           )}
 
-          <audio
-            ref={audioRef}
-            src={audioUrl}
-            preload="metadata"
-            onPlay={() => setIsPlaying(true)}
-            onPause={() => setIsPlaying(false)}
-            onEnded={() => setIsPlaying(false)}
-          />
+          {audioUrl && (
+            <audio
+              ref={audioRef}
+              src={audioUrl}
+              preload="metadata"
+              onPlay={() => setIsPlaying(true)}
+              onPause={() => setIsPlaying(false)}
+              onEnded={() => setIsPlaying(false)}
+            />
+          )}
 
           {/* Playback transport -- shared with the "Mark cue" editor. */}
           <TransportBar
@@ -1422,6 +1428,7 @@ function AdReviewModal({
             inSelection={currentTime >= adStart && currentTime <= adEnd}
             selectionLabel="inside ad"
             onPlaySelection={playSelection}
+            disabledTitle={audioUrl ? undefined : DEMO_AUDIO_TOOLTIP}
           />
 
           <div className="flex flex-wrap items-center gap-2 mt-2">
@@ -1620,43 +1627,45 @@ function AdReviewModal({
                   className={`${btnBase} ${btnOutline}`}>
                   Cancel
                 </button>
-                <button
-                  type="button"
-                  disabled={
-                    !sponsorInput.trim() ||
-                    multiSubmitting ||
-                    (isMultiSpan
-                      ? shortRun !== undefined
-                      : singleRunStatus !== 'saved' &&
-                        (textTemplateInput.trim().length < 50 || boundaryError !== null))
-                  }
-                  onClick={() => {
-                    if (!onCreate) return;
-                    if (!isMultiSpan) {
-                      if (singleRunStatus === 'saved') {
-                        onCreateDone?.();
+                <DemoDisabled>
+                  <button
+                    type="button"
+                    disabled={
+                      !sponsorInput.trim() ||
+                      multiSubmitting ||
+                      (isMultiSpan
+                        ? shortRun !== undefined
+                        : singleRunStatus !== 'saved' &&
+                          (textTemplateInput.trim().length < 50 || boundaryError !== null))
+                    }
+                    onClick={() => {
+                      if (!onCreate) return;
+                      if (!isMultiSpan) {
+                        if (singleRunStatus === 'saved') {
+                          onCreateDone?.();
+                          return;
+                        }
+                        const result = onCreate({
+                          kind: 'create',
+                          start: adStart,
+                          end: adEnd,
+                          sponsor: sponsorInput.trim(),
+                          textTemplate: textTemplateInput.trim(),
+                          scope: scopeInput,
+                          reason: reasonInput,
+                          category: categoryInput === '' ? null : categoryInput,
+                        });
+                        if (result && typeof (result as Promise<void>).catch === 'function') {
+                          (result as Promise<void>).catch(() => {});
+                        }
                         return;
                       }
-                      const result = onCreate({
-                        kind: 'create',
-                        start: adStart,
-                        end: adEnd,
-                        sponsor: sponsorInput.trim(),
-                        textTemplate: textTemplateInput.trim(),
-                        scope: scopeInput,
-                        reason: reasonInput,
-                        category: categoryInput === '' ? null : categoryInput,
-                      });
-                      if (result && typeof (result as Promise<void>).catch === 'function') {
-                        (result as Promise<void>).catch(() => {});
-                      }
-                      return;
-                    }
-                    void submitRuns();
-                  }}
-                  className={`${btnBase} ${btnPrimary}`}>
-                  {isMultiSpan ? `Mark ad (${orderedRuns.length} spans)` : singleRunStatus === 'saved' ? 'Close' : 'Save'}
-                </button>
+                      void submitRuns();
+                    }}
+                    className={`${btnBase} ${btnPrimary}`}>
+                    {isMultiSpan ? `Mark ad (${orderedRuns.length} spans)` : singleRunStatus === 'saved' ? 'Close' : 'Save'}
+                  </button>
+                </DemoDisabled>
               </div>
             </>
           ) : (
@@ -1691,24 +1700,28 @@ function AdReviewModal({
                   <span className="hidden sm:inline">{hasNext ? 'Skip & next' : 'Skip'}</span>
                 </button>
                 {!keptByCategory && (
-                  <button type="button" onClick={handleReject}
-                    className={`${btnBase} ${btnDestructive} flex-1 sm:flex-none sm:min-w-[7rem] basis-0`}
-                    title={`${rejectLabel(categoryInput)} (R)`}>
-                    <span className="sm:hidden">{rejectLabel(categoryInput)}</span>
-                    <span className="hidden sm:inline">{hasNext ? `${rejectLabel(categoryInput)} & next` : rejectLabel(categoryInput)}</span>
-                  </button>
+                  <DemoDisabled>
+                    <button type="button" onClick={handleReject}
+                      className={`${btnBase} ${btnDestructive} flex-1 sm:flex-none sm:min-w-[7rem] basis-0`}
+                      title={`${rejectLabel(categoryInput)} (R)`}>
+                      <span className="sm:hidden">{rejectLabel(categoryInput)}</span>
+                      <span className="hidden sm:inline">{hasNext ? `${rejectLabel(categoryInput)} & next` : rejectLabel(categoryInput)}</span>
+                    </button>
+                  </DemoDisabled>
                 )}
                 {!keptByCategory && (
-                  <button type="button" onClick={handleConfirm}
-                    disabled={boundaryError !== null || confirmInert}
-                    className={`${btnBase} ${btnPrimary} flex-1 sm:flex-none sm:min-w-[7rem] basis-0`}
-                    title={boundaryError
-                      ?? (confirmInert
-                        ? 'Already cut. Move a boundary to save an adjustment.'
-                        : 'Confirm (C)')}>
-                    <span className="sm:hidden">Confirm</span>
-                    <span className="hidden sm:inline">{hasNext ? 'Confirm & next' : 'Confirm'}</span>
-                  </button>
+                  <DemoDisabled>
+                    <button type="button" onClick={handleConfirm}
+                      disabled={boundaryError !== null || confirmInert}
+                      className={`${btnBase} ${btnPrimary} flex-1 sm:flex-none sm:min-w-[7rem] basis-0`}
+                      title={boundaryError
+                        ?? (confirmInert
+                          ? 'Already cut. Move a boundary to save an adjustment.'
+                          : 'Confirm (C)')}>
+                      <span className="sm:hidden">Confirm</span>
+                      <span className="hidden sm:inline">{hasNext ? 'Confirm & next' : 'Confirm'}</span>
+                    </button>
+                  </DemoDisabled>
                 )}
               </div>
             </>

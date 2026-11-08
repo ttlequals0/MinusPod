@@ -253,4 +253,16 @@ describe('EpisodePlayer', () => {
     expect(audio.currentTime).toBe(125);
     expect(screen.queryByRole('alert')).toBeNull();
   });
+
+  it('renders a disabled player when src is null', () => {
+    render(<EpisodePlayer src={null} />);
+    const play = screen.getByRole('button', { name: /^play$/i });
+    expect((play as HTMLButtonElement).disabled).toBe(true);
+    expect(document.querySelector('audio')).toBeNull();
+  });
+
+  it('adds no tooltip wrapper when src is set', () => {
+    render(<EpisodePlayer src="/a.mp3" />);
+    expect(screen.getByRole('button', { name: /^play$/i }).parentElement?.getAttribute('title')).toBeNull();
+  });
 });

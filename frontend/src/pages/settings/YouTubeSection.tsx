@@ -27,6 +27,8 @@ import SavedBadge from './SavedBadge';
 import ConfirmResetButton from './ConfirmResetButton';
 import QueryError from '../../components/QueryError';
 import { useUnsavedChanges } from '../../hooks/useUnsavedChanges';
+import { IS_DEMO } from '../../demo/flag';
+import { DemoExplainer } from '../../components/DemoExplainer';
 
 type NumberField = keyof YouTubeSettings['bounds'];
 
@@ -163,7 +165,9 @@ function YouTubeSection() {
 
   return (
     <CollapsibleSection title="YouTube">
-      {isError ? (
+      {IS_DEMO ? (
+        <DemoExplainer title="YouTube import">YouTube import needs yt-dlp on a running instance.</DemoExplainer>
+      ) : isError ? (
         <QueryError title="Could not load YouTube settings." onRetry={() => void refetch()} retrying={isFetching} />
       ) : isPending || !data ? (
         <SkeletonRows count={4} />

@@ -44,6 +44,7 @@ import { focusRing, inputBase, selectBase, filterGrid, filterLabel, filterContro
 import { badgeBase, countPill, tint } from '../components/badgeStyles';
 import { pageHeader, pageTitle } from '../components/pageStyles';
 import { tableActionBtn } from '../components/rowActionStyles';
+import { DemoDisabled } from '../components/DemoDisabled';
 
 type ScopeFilter = 'all' | 'global' | 'network' | 'podcast';
 type OriginFilter = 'all' | 'auto' | 'user';
@@ -228,19 +229,21 @@ function PatternsPage() {
               {sortedPatterns?.length || 0} patterns
             </span>
             {syncStatus?.lastRun && (
-              <button
-                type="button"
-                onClick={handleSyncNow}
-                className={`${btnBase} ${btnOutline}`}
-                title={syncStatus.lastError
-                  ? `Last error: ${syncStatus.lastError}`
-                  : `Last synced ${new Date(syncStatus.lastRun).toLocaleString()}. Sync now.`}
-              >
-                <RefreshCw className="w-4 h-4" aria-hidden="true" /> Synced
-                <span className="hidden sm:inline">
-                  {' '}{new Date(syncStatus.lastRun).toLocaleDateString()}
-                </span>
-              </button>
+              <DemoDisabled>
+                <button
+                  type="button"
+                  onClick={handleSyncNow}
+                  className={`${btnBase} ${btnOutline}`}
+                  title={syncStatus.lastError
+                    ? `Last error: ${syncStatus.lastError}`
+                    : `Last synced ${new Date(syncStatus.lastRun).toLocaleString()}. Sync now.`}
+                >
+                  <RefreshCw className="w-4 h-4" aria-hidden="true" /> Synced
+                  <span className="hidden sm:inline">
+                    {' '}{new Date(syncStatus.lastRun).toLocaleDateString()}
+                  </span>
+                </button>
+              </DemoDisabled>
             )}
             <button
               type="button"
@@ -436,13 +439,15 @@ function PatternsPage() {
             </div>
             {pattern.source === PATTERN_SOURCE_COMMUNITY && (
               <div className="flex items-center gap-2 mb-2">
-                <button
-                  type="button"
-                  onClick={(e) => { e.stopPropagation(); handleToggleProtect(pattern); }}
-                  className={`${btnBase} ${btnOutline}`}
-                >
-                  {pattern.protected_from_sync ? 'Unprotect' : 'Protect from sync'}
-                </button>
+                <DemoDisabled>
+                  <button
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); handleToggleProtect(pattern); }}
+                    className={`${btnBase} ${btnOutline}`}
+                  >
+                    {pattern.protected_from_sync ? 'Unprotect' : 'Protect from sync'}
+                  </button>
+                </DemoDisabled>
               </div>
             )}
             <div className="text-sm font-medium text-foreground mb-1">
@@ -595,13 +600,15 @@ function PatternsPage() {
                   </td>
                   <td className="px-2 py-3 whitespace-nowrap text-xs">
                     {pattern.source === PATTERN_SOURCE_COMMUNITY && (
-                      <button
-                        type="button"
-                        onClick={(e) => { e.stopPropagation(); handleToggleProtect(pattern); }}
-                        className={`${tableActionBtn} ${btnOutline} ${focusRing}`}
-                      >
-                        {pattern.protected_from_sync ? 'Unprotect' : 'Protect'}
-                      </button>
+                      <DemoDisabled>
+                        <button
+                          type="button"
+                          onClick={(e) => { e.stopPropagation(); handleToggleProtect(pattern); }}
+                          className={`${tableActionBtn} ${btnOutline} ${focusRing}`}
+                        >
+                          {pattern.protected_from_sync ? 'Unprotect' : 'Protect'}
+                        </button>
+                      </DemoDisabled>
                     )}
                   </td>
                 </tr>

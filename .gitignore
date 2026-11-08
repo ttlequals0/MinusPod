@@ -154,6 +154,7 @@ yarn-debug.log*
 yarn-error.log*
 yarn.lock
 static/
+!frontend/demo/static/
 
 
 # Sensitive files
@@ -192,6 +193,11 @@ ad_detection_baseline.md.playwright-mcp/
 .playwright-mcp/
 *.png
 !frontend/public/recents-artwork.png
+frontend/dist-demo/
+frontend/demo/public/
+frontend/demo/fixtures/
+frontend/demo/artwork/
+frontend/demo/search-index.json
 !docs/screenshots/*.png
 
 # Smoke test per-run artifacts (scripts and .gitkeep are tracked)

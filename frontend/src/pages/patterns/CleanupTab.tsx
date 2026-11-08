@@ -21,6 +21,7 @@ import { TrimDiff } from './TrimDiff';
 import { btnBase, btnPrimary, btnOutline } from '../../components/buttonStyles';
 import { focusRing, selectBase, filterLabel, filterControl } from '../../components/fieldStyles';
 import { badgeBase, tint } from '../../components/badgeStyles';
+import { DemoDisabled } from '../../components/DemoDisabled';
 
 type KindFilter = CleanupKind | 'all';
 
@@ -296,21 +297,27 @@ function SuggestionCard({ s, selected, onSelect, onAction, busy }: {
         <div className="flex gap-2 sm:ml-auto">
           {s.status === 'pending' && (
             <>
-              <button type="button" disabled={busy} onClick={() => onAction('approve')}
-                className={`${actionBtn} ${btnPrimary}`}>
-                Approve
-              </button>
-              <button type="button" disabled={busy} onClick={() => onAction('reject')}
-                className={`${actionBtn} ${btnOutline}`}>
-                Reject
-              </button>
+              <DemoDisabled>
+                <button type="button" disabled={busy} onClick={() => onAction('approve')}
+                  className={`${actionBtn} ${btnPrimary}`}>
+                  Approve
+                </button>
+              </DemoDisabled>
+              <DemoDisabled>
+                <button type="button" disabled={busy} onClick={() => onAction('reject')}
+                  className={`${actionBtn} ${btnOutline}`}>
+                  Reject
+                </button>
+              </DemoDisabled>
             </>
           )}
           {s.status === 'approved' && (
-            <button type="button" disabled={busy} onClick={() => onAction('undo')}
-              className={`${actionBtn} ${btnOutline}`}>
-              Undo
-            </button>
+            <DemoDisabled>
+              <button type="button" disabled={busy} onClick={() => onAction('undo')}
+                className={`${actionBtn} ${btnOutline}`}>
+                Undo
+              </button>
+            </DemoDisabled>
           )}
         </div>
       </div>
@@ -433,22 +440,26 @@ export default function CleanupTab() {
             className="max-sm:min-h-11"
           />
           <div className="flex gap-2 w-full sm:w-auto sm:ml-auto">
-            <button
-              type="button"
-              disabled={busy || chosen.length === 0}
-              onClick={() => bulk.mutate({ ids: chosen, action: 'approve' })}
-              className={`${actionBtn} ${btnPrimary}`}
-            >
-              Approve selected ({chosen.length})
-            </button>
-            <button
-              type="button"
-              disabled={busy || chosen.length === 0}
-              onClick={() => bulk.mutate({ ids: chosen, action: 'reject' })}
-              className={`${actionBtn} ${btnOutline}`}
-            >
-              Reject selected ({chosen.length})
-            </button>
+            <DemoDisabled>
+              <button
+                type="button"
+                disabled={busy || chosen.length === 0}
+                onClick={() => bulk.mutate({ ids: chosen, action: 'approve' })}
+                className={`${actionBtn} ${btnPrimary}`}
+              >
+                Approve selected ({chosen.length})
+              </button>
+            </DemoDisabled>
+            <DemoDisabled>
+              <button
+                type="button"
+                disabled={busy || chosen.length === 0}
+                onClick={() => bulk.mutate({ ids: chosen, action: 'reject' })}
+                className={`${actionBtn} ${btnOutline}`}
+              >
+                Reject selected ({chosen.length})
+              </button>
+            </DemoDisabled>
           </div>
         </div>
       )}

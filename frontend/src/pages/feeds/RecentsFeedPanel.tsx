@@ -6,6 +6,7 @@ import CollapsibleSection from '../../components/CollapsibleSection';
 import { useDraftField } from '../../hooks/useDraftField';
 import { btnBase, btnPrimary } from '../../components/buttonStyles';
 import { inputBase, textareaBase, labelBase, fileInputBase } from '../../components/fieldStyles';
+import { DemoDisabled } from '../../components/DemoDisabled';
 
 // Title, description and artwork are the only editable parts of the recents feed.
 function RecentsFeedPanel({ feed, slug }: { feed: Feed; slug: string }) {
@@ -58,10 +59,12 @@ function RecentsFeedPanel({ feed, slug }: { feed: Feed; slug: string }) {
               className={`w-full ${textareaBase}`} />
           </label>
           <div className="flex flex-wrap gap-2 items-center">
-            <button type="button" onClick={() => save.mutate()} disabled={save.isPending || !titleField.value.trim()}
-              className={`${btnBase} ${btnPrimary}`}>
-              {save.isPending ? 'Saving...' : 'Save'}
-            </button>
+            <DemoDisabled>
+              <button type="button" onClick={() => save.mutate()} disabled={save.isPending || !titleField.value.trim()}
+                className={`${btnBase} ${btnPrimary}`}>
+                {save.isPending ? 'Saving...' : 'Save'}
+              </button>
+            </DemoDisabled>
             {save.isSuccess && <span className="text-sm text-muted-foreground">Saved.</span>}
           </div>
           <div>

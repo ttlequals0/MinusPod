@@ -33,6 +33,7 @@ import { LOW_AD_YIELD_ACTION_LABELS } from '../../utils/lowAdYield';
 import { GlobalOverrideRow, rowLabel, rowLabelTop } from './OverrideRows';
 import { SkipPatternsField } from './SkipPatternsField';
 import { UserAgentOverrideField } from './UserAgentOverrideField';
+import { DemoDisabled } from '../../components/DemoDisabled';
 
 // Matches MAX_RETENTION_DAYS_OVERRIDE in src/api/feeds.py.
 const MAX_RETENTION_DAYS = 3650;
@@ -601,13 +602,15 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                     </p>
                   )}
                   <div className="flex gap-2">
-                    <button
-                      onClick={saveNetworkEdit}
-                      disabled={updateMutation.isPending}
-                      className={`${btnBase} ${btnPrimary}`}
-                    >
-                      {updateMutation.isPending ? 'Saving...' : 'Save'}
-                    </button>
+                    <DemoDisabled>
+                      <button
+                        onClick={saveNetworkEdit}
+                        disabled={updateMutation.isPending}
+                        className={`${btnBase} ${btnPrimary}`}
+                      >
+                        {updateMutation.isPending ? 'Saving...' : 'Save'}
+                      </button>
+                    </DemoDisabled>
                     <button
                       onClick={() => setIsEditingNetwork(false)}
                       className={`${btnBase} ${btnSecondary}`}
@@ -669,13 +672,15 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                       <p className="text-xs text-destructive">{sourceUrlError}</p>
                     )}
                     <div className="flex gap-2">
-                      <button
-                        onClick={saveSourceUrl}
-                        disabled={sourceUrlMutation.isPending}
-                        className={`${btnBase} ${btnPrimary}`}
-                      >
-                        {sourceUrlMutation.isPending ? 'Validating...' : 'Save'}
-                      </button>
+                      <DemoDisabled>
+                        <button
+                          onClick={saveSourceUrl}
+                          disabled={sourceUrlMutation.isPending}
+                          className={`${btnBase} ${btnPrimary}`}
+                        >
+                          {sourceUrlMutation.isPending ? 'Validating...' : 'Save'}
+                        </button>
+                      </DemoDisabled>
                       <button
                         onClick={() => setIsEditingSourceUrl(false)}
                         disabled={sourceUrlMutation.isPending}
@@ -753,14 +758,16 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                   <span className="tabular-nums shrink-0">{notesField.value.length} / 1000</span>
                 </p>
                 <div className="flex items-center gap-2">
-                  <button
-                    onClick={saveDetectionNotes}
-                    disabled={!notesField.dirty || updateMutation.isPending}
-                    aria-label="Save detection notes"
-                    className={`${btnBase} ${btnPrimary}`}
-                  >
-                    {updateMutation.isPending ? 'Saving...' : 'Save'}
-                  </button>
+                  <DemoDisabled>
+                    <button
+                      onClick={saveDetectionNotes}
+                      disabled={!notesField.dirty || updateMutation.isPending}
+                      aria-label="Save detection notes"
+                      className={`${btnBase} ${btnPrimary}`}
+                    >
+                      {updateMutation.isPending ? 'Saving...' : 'Save'}
+                    </button>
+                  </DemoDisabled>
                   <button
                     onClick={clearDetectionNotes}
                     disabled={notesField.value === ''}
@@ -1025,41 +1032,43 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                   Unknown durations are kept. Manual reprocessing overrides filters.
                 </p>
                 {durationFilterError && <p role="alert" className="text-xs text-destructive">{durationFilterError}</p>}
-                <button
-                  type="button"
-                  disabled={updateMutation.isPending || (!minDurationField.dirty && !maxDurationField.dirty)}
-                  className={`${btnBase} ${btnSecondary}`}
-                  onClick={() => {
-                    const minimum = parseOptionalNumber(minDurationField.value);
-                    const maximum = parseOptionalNumber(maxDurationField.value);
-                    if ((minimum != null && minimum < 0) || (maximum != null && maximum < 0)) {
-                      setDurationFilterError('Duration limits must be 0 minutes or greater.');
-                      return;
-                    }
-                    if ((minimum != null && !Number.isFinite(minimum * 60))
-                      || (maximum != null && !Number.isFinite(maximum * 60))) {
-                      setDurationFilterError('Duration limits must be finite numbers.');
-                      return;
-                    }
-                    if (minimum != null && maximum != null && minimum > maximum) {
-                      setDurationFilterError('Minimum duration must not exceed maximum duration.');
-                      return;
-                    }
-                    setDurationFilterError(null);
-                    updateMutation.mutate({
-                      minDurationSeconds: minimum == null ? null : minimum * 60,
-                      maxDurationSeconds: maximum == null ? null : maximum * 60,
-                    }, {
-                      onSuccess: () => {
-                        minDurationField.markClean(minDurationField.value);
-                        maxDurationField.markClean(maxDurationField.value);
-                      },
-                      onError: (error) => setDurationFilterError(getErrorMessage(error, 'Could not save duration limits.')),
-                    });
-                  }}
-                >
-                  Save duration limits
-                </button>
+                <DemoDisabled>
+                  <button
+                    type="button"
+                    disabled={updateMutation.isPending || (!minDurationField.dirty && !maxDurationField.dirty)}
+                    className={`${btnBase} ${btnSecondary}`}
+                    onClick={() => {
+                      const minimum = parseOptionalNumber(minDurationField.value);
+                      const maximum = parseOptionalNumber(maxDurationField.value);
+                      if ((minimum != null && minimum < 0) || (maximum != null && maximum < 0)) {
+                        setDurationFilterError('Duration limits must be 0 minutes or greater.');
+                        return;
+                      }
+                      if ((minimum != null && !Number.isFinite(minimum * 60))
+                        || (maximum != null && !Number.isFinite(maximum * 60))) {
+                        setDurationFilterError('Duration limits must be finite numbers.');
+                        return;
+                      }
+                      if (minimum != null && maximum != null && minimum > maximum) {
+                        setDurationFilterError('Minimum duration must not exceed maximum duration.');
+                        return;
+                      }
+                      setDurationFilterError(null);
+                      updateMutation.mutate({
+                        minDurationSeconds: minimum == null ? null : minimum * 60,
+                        maxDurationSeconds: maximum == null ? null : maximum * 60,
+                      }, {
+                        onSuccess: () => {
+                          minDurationField.markClean(minDurationField.value);
+                          maxDurationField.markClean(maxDurationField.value);
+                        },
+                        onError: (error) => setDurationFilterError(getErrorMessage(error, 'Could not save duration limits.')),
+                      });
+                    }}
+                  >
+                    Save duration limits
+                  </button>
+                </DemoDisabled>
               </div>
 
               <div className="flex flex-col sm:flex-row sm:items-start gap-2 sm:gap-3 text-sm">
@@ -1156,14 +1165,16 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                   <span className="tabular-nums shrink-0">{chapterNotesField.value.length} / 1000</span>
                 </p>
                 <div className="flex items-center gap-2">
-                  <button
-                    onClick={saveChapterNotes}
-                    disabled={!chapterNotesField.dirty || updateMutation.isPending}
-                    aria-label="Save chapter notes"
-                    className={`${btnBase} ${btnPrimary}`}
-                  >
-                    {updateMutation.isPending ? 'Saving...' : 'Save'}
-                  </button>
+                  <DemoDisabled>
+                    <button
+                      onClick={saveChapterNotes}
+                      disabled={!chapterNotesField.dirty || updateMutation.isPending}
+                      aria-label="Save chapter notes"
+                      className={`${btnBase} ${btnPrimary}`}
+                    >
+                      {updateMutation.isPending ? 'Saving...' : 'Save'}
+                    </button>
+                  </DemoDisabled>
                   <button
                     onClick={clearChapterNotes}
                     disabled={chapterNotesField.value === ''}

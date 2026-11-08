@@ -16,6 +16,7 @@ import { tableBody, tableCard, tableHead, tableLink, tableRow, td, tdMuted, tdNu
 import { badgeBase, tint } from '../../components/badgeStyles';
 import { cardTitle } from '../../components/pageStyles';
 import { formatTimeAgo } from '../../utils/format';
+import { DemoDisabled } from '../../components/DemoDisabled';
 
 export const REVIEW_PAGE_SIZE = 25;
 
@@ -223,14 +224,16 @@ function AwaitingApproval() {
               className="pointer-coarse:min-h-11"
             />
             <div className="flex gap-2 w-full sm:w-auto sm:ml-auto">
-              <button
-                type="button"
-                disabled={approve.isPending || chosen.length === 0}
-                onClick={() => approve.mutate(chosen)}
-                className={`${btnBase} ${btnPrimary} ${touchTarget} grow basis-0 sm:grow-0 sm:basis-auto`}
-              >
-                {approve.isPending ? 'Approving...' : `Approve selected (${chosen.length})`}
-              </button>
+              <DemoDisabled>
+                <button
+                  type="button"
+                  disabled={approve.isPending || chosen.length === 0}
+                  onClick={() => approve.mutate(chosen)}
+                  className={`${btnBase} ${btnPrimary} ${touchTarget} grow basis-0 sm:grow-0 sm:basis-auto`}
+                >
+                  {approve.isPending ? 'Approving...' : `Approve selected (${chosen.length})`}
+                </button>
+              </DemoDisabled>
             </div>
           </div>
           {message && <p role="alert" className="text-sm text-destructive mb-3">{message}</p>}

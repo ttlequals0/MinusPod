@@ -7,6 +7,7 @@ import { Modal, dialogFooterBtn } from './Modal';
 import CloseButton from './CloseButton';
 import { btnPrimary, btnOutline } from './buttonStyles';
 import { inputBase, labelBase, selectBase } from './fieldStyles';
+import { DemoDisabled } from './DemoDisabled';
 
 const CATEGORIES: NormalizationCategory[] = ['sponsor', 'url', 'number', 'phrase'];
 
@@ -65,13 +66,15 @@ function NormalizationEditModal({ normalization, onClose, onSaved }: Props) {
           >
             Cancel
           </button>
-          <button
-            onClick={() => save.mutate()}
-            disabled={save.isPending}
-            className={`${dialogFooterBtn} ${btnPrimary}`}
-          >
-            {save.isPending ? 'Saving...' : isNew ? 'Add' : 'Save'}
-          </button>
+          <DemoDisabled>
+            <button
+              onClick={() => save.mutate()}
+              disabled={save.isPending}
+              className={`${dialogFooterBtn} ${btnPrimary}`}
+            >
+              {save.isPending ? 'Saving...' : isNew ? 'Add' : 'Save'}
+            </button>
+          </DemoDisabled>
         </>
       )}
     >

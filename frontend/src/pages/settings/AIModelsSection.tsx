@@ -14,6 +14,7 @@ import { pricingOverrideKey } from './modelPricing';
 import { btnBase, btnSecondary } from '../../components/buttonStyles';
 import { inputBase, labelBase } from '../../components/fieldStyles';
 import { subHeading } from '../../components/pageStyles';
+import { DemoDisabled } from '../../components/DemoDisabled';
 
 interface AIModelsSectionProps {
   // Each stage carries its own catalog and its own fetch state. No fallback
@@ -334,14 +335,16 @@ function ModelPricingFields({
         ))}
       </div>
       <div className="flex flex-wrap items-center gap-3">
-        <button
-          type="button"
-          onClick={commit}
-          disabled={!isDirty || saving}
-          className={`${btnBase} ${btnSecondary}`}
-        >
-          {saving ? 'Saving...' : 'Save pricing'}
-        </button>
+        <DemoDisabled>
+          <button
+            type="button"
+            onClick={commit}
+            disabled={!isDirty || saving}
+            className={`${btnBase} ${btnSecondary}`}
+          >
+            {saving ? 'Saving...' : 'Save pricing'}
+          </button>
+        </DemoDisabled>
         {catalogAvailable && (
           <span className="text-xs text-muted-foreground">
             Catalog: {formatUsdRate(catalogModel.inputCostPerMtok!)} input, {formatUsdRate(catalogModel.outputCostPerMtok!)} output{typeof catalogModel.cacheReadCostPerMtok === 'number' && `, ${formatUsdRate(catalogModel.cacheReadCostPerMtok)} cached input`}

@@ -7,6 +7,7 @@ import { useTransientState } from '../../hooks/useTransientState';
 import { StatusDotBadge, type StatusDotTone } from '../../components/StatusDotBadge';
 import { btnBase, btnPrimary, btnOutline } from '../../components/buttonStyles';
 import { inputBase } from '../../components/fieldStyles';
+import { DemoDisabled } from '../../components/DemoDisabled';
 
 interface ProviderKeyFieldProps {
   provider: ProviderName;
@@ -118,14 +119,16 @@ function ProviderKeyField({
       {helper && <p id={`key-${provider}-help`} className="mt-1 text-sm text-muted-foreground">{helper}</p>}
       {showActions && (
         <div className="flex items-center gap-2 mt-2">
-          <button
-            type="button"
-            disabled={!draft || busy !== null}
-            onClick={handleSave}
-            className={`${btnBase} ${btnPrimary}`}
-          >
-            {busy === 'save' ? 'Saving...' : 'Save'}
-          </button>
+          <DemoDisabled>
+            <button
+              type="button"
+              disabled={!draft || busy !== null}
+              onClick={handleSave}
+              className={`${btnBase} ${btnPrimary}`}
+            >
+              {busy === 'save' ? 'Saving...' : 'Save'}
+            </button>
+          </DemoDisabled>
           <button
             type="button"
             disabled={busy !== null || testBlocked}

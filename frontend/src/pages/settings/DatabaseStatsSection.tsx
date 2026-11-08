@@ -4,6 +4,7 @@ import { checkpointDatabase } from '../../api/settings';
 import CollapsibleSection from '../../components/CollapsibleSection';
 import { formatStorage } from './settingsUtils';
 import { btnBase, btnSecondary } from '../../components/buttonStyles';
+import { DemoDisabled } from '../../components/DemoDisabled';
 
 interface DatabaseStatsSectionProps {
   database: SystemStatus['database'];
@@ -23,14 +24,16 @@ function DatabaseStatsSection({ database }: DatabaseStatsSectionProps) {
               Counters cover worker process {database.instrumentation.processId} and reset when it restarts.
             </p>
           </div>
-          <button
-            type="button"
-            onClick={() => checkpoint.mutate()}
-            disabled={checkpoint.isPending}
-            className={`${btnBase} ${btnSecondary}`}
-          >
-            {checkpoint.isPending ? 'Checkpointing...' : 'Run passive checkpoint'}
-          </button>
+          <DemoDisabled>
+            <button
+              type="button"
+              onClick={() => checkpoint.mutate()}
+              disabled={checkpoint.isPending}
+              className={`${btnBase} ${btnSecondary}`}
+            >
+              {checkpoint.isPending ? 'Checkpointing...' : 'Run passive checkpoint'}
+            </button>
+          </DemoDisabled>
         </div>
         <dl className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
           <div><dt className="text-muted-foreground">Journal</dt><dd className="font-medium text-foreground uppercase">{database.journalMode}</dd></div>

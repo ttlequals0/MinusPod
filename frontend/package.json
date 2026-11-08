@@ -5,6 +5,8 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
+    "build:demo": "node scripts/demo-assemble.mjs && VITE_DEMO=1 tsc && VITE_DEMO=1 vite build",
+    "dev:demo": "node scripts/demo-assemble.mjs && VITE_DEMO=1 vite",
     "preview": "vite preview",
     "lint": "eslint src --ext ts,tsx",
     "test": "vitest run",
@@ -55,6 +57,8 @@
     "eslint-plugin-react-hooks": "^7.1.1",
     "globals": "^17.13.0",
     "happy-dom": "^21.0.4",
+    "minisearch": "^7.2.0",
+    "msw": "^3.0.4",
     "tailwindcss": "^4.3.3",
     "typescript": "^6.0.3",
     "typescript-eslint": "^8.72.1",

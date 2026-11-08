@@ -1,4 +1,7 @@
 import { Modal } from './Modal';
+import { IS_DEMO } from '../demo/flag';
+import { DEMO_AUDIO_TOOLTIP } from '../demo/copy';
+import { DemoDisabled } from './DemoDisabled';
 import { useState } from 'react';
 import { useQueries, useQuery } from '@tanstack/react-query';
 import { ChevronDown, ChevronRight, Play, Square } from 'lucide-react';
@@ -123,6 +126,7 @@ export default function CueCrossEpisodeScanModal({
 
   // Play [start, end] of one episode's retained original; clicking the owning
   // button again stops it.
+  const audioAvailable = !IS_DEMO;
   const playWindow = (episodeId: string, start: number, end: number) =>
     togglePlayback(
       playKey(episodeId, start, end),
@@ -345,16 +349,18 @@ export default function CueCrossEpisodeScanModal({
                 return (
                   <li key={rowKey} className="px-3 py-2 text-sm">
                     <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+                      <DemoDisabled when={!audioAvailable} title={DEMO_AUDIO_TOOLTIP}>
                       <button
                         type="button"
                         className={`shrink-0 ${ghostBtn}`}
                         onClick={() => targetEpId && playWindow(targetEpId, c.start, c.end)}
-                        disabled={!targetEpId}
-                        title={playingKey === rowPlayKey ? 'Stop' : 'Play candidate'}
+                        disabled={!targetEpId || !audioAvailable}
+                        title={audioAvailable ? (playingKey === rowPlayKey ? 'Stop' : 'Play candidate') : undefined}
                         aria-label={playingKey === rowPlayKey ? 'Stop candidate' : 'Play candidate'}
                       >
                         {playingKey === rowPlayKey ? <Square size={14} /> : <Play size={14} />}
                       </button>
+                      </DemoDisabled>
                       <div className="flex-1 min-w-0">
                         <span className="font-mono text-sm">
                           {formatTimestamp(c.start)} - {formatTimestamp(c.end)}
@@ -410,6 +416,8 @@ export default function CueCrossEpisodeScanModal({
                                       type="button"
                                       className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded border border-border font-mono hover:bg-muted/50 ${focusRing}`}
                                       onClick={() => playWindow(epm.episodeId, m.start, m.end)}
+                                      disabled={!audioAvailable}
+                                      title={audioAvailable ? undefined : DEMO_AUDIO_TOOLTIP}
                                       aria-label={playingKey === mKey
                                         ? `Stop match at ${formatTimestamp(m.start)}`
                                         : `Play match at ${formatTimestamp(m.start)}`}

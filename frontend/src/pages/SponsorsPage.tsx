@@ -18,6 +18,7 @@ import Checkbox from '../components/Checkbox';
 import { Plus } from 'lucide-react';
 import { ActiveBadge } from '../components/ActiveBadge';
 import { btnBase, btnPrimary, btnOutline, btnDestructiveOutline } from '../components/buttonStyles';
+import { DemoDisabled } from '../components/DemoDisabled';
 import { focusRing, inputBase, selectBase, filterLabel, filterControl } from '../components/fieldStyles';
 import { tableActionBtn } from '../components/rowActionStyles';
 
@@ -171,7 +172,9 @@ export function SponsorsSection() {
             </div>
             <div className="flex gap-2">
               <button onClick={() => setEditing(s)} className={`${btnBase} ${btnOutline}`}>Edit</button>
-              <button onClick={() => setDeleteTarget(s)} className={`${btnBase} ${btnDestructiveOutline}`}>Delete</button>
+              <DemoDisabled>
+                <button onClick={() => setDeleteTarget(s)} className={`${btnBase} ${btnDestructiveOutline}`}>Delete</button>
+              </DemoDisabled>
             </div>
           </div>
         ))}
@@ -231,7 +234,9 @@ export function SponsorsSection() {
                   <td className="px-2 py-3 whitespace-nowrap text-xs">
                     <div className="flex gap-1">
                       <button onClick={() => setEditing(s)} className={`${tableActionBtn} ${btnOutline} ${focusRing}`}>Edit</button>
-                      <button onClick={() => setDeleteTarget(s)} className={`${tableActionBtn} ${btnDestructiveOutline} ${focusRing}`}>Delete</button>
+                      <DemoDisabled>
+                        <button onClick={() => setDeleteTarget(s)} className={`${tableActionBtn} ${btnDestructiveOutline} ${focusRing}`}>Delete</button>
+                      </DemoDisabled>
                     </div>
                   </td>
                 </tr>
