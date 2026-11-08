@@ -4,6 +4,10 @@ This file tracks the hosted demo and its tooling, which are not part of the self
 
 ## [2.101.31] - 2026-11-08
 
+### Changed
+
+- The demo fixture check skips when its inputs (app source, demo tooling, snapshot and site pipeline) match a previous green run. It now also runs for backend changes outside the API package.
+
 ### Fixed
 
 - Crawled fixtures rewrite container paths such as `/app/data` to `/demo`, so the leak check passes on the backup settings response.
