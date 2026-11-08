@@ -186,7 +186,7 @@ def report_hits(
     slugs_set = set(slugs)
     if redact:
         names = {f'host:{h}': f'host:#{i}' for i, h in enumerate(hosts, 1)}
-        names |= {f'slug:{s}': f'slug:#{i}' for i, s in enumerate(sorted(slugs), 1)}
+        names |= {f'slug:{s}': f'slug:#{i}' for i, s in enumerate(sorted(slugs_set), 1)}
     by_pattern: dict[str, list[Hit]] = {}
     for h in hits:
         by_pattern.setdefault(h.pattern, []).append(h)
