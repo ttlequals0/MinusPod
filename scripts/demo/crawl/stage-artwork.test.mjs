@@ -44,3 +44,13 @@ test('dotfiles such as macOS ._* and .DS_Store are skipped', async () => {
   assert.deepEqual(readdirSync(join(to, 'feeds')), ['a.jpg']);
   assert.deepEqual(readdirSync(to), ['feeds']);
 });
+
+test('a file sharp cannot read is skipped and named, the rest is staged', async () => {
+  const { from, to } = await artTree();
+  writeFileSync(join(from, 'feeds', 'b.jpg'), '<html>not found</html>');
+  const r = stage(from, to);
+  assert.equal(r.status, 0, String(r.stderr));
+  assert.match(String(r.stderr), /artwork: skipped feeds\/b\.jpg: /);
+  assert.match(String(r.stdout), /1 files staged, 0 re-encoded, 1 skipped/);
+  assert.deepEqual(readdirSync(join(to, 'feeds')), ['a.jpg']);
+});

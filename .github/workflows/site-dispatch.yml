@@ -40,7 +40,7 @@ jobs:
             docs=true
             demo=true
           else
-            grep -Eq '^(docs/|README\.md$|frontend/src/index\.css$|frontend/public/(logo|logo-dark|favicon)\.svg$)' <<< "$files" && docs=true
+            grep -Eq '^(docs/|benchmarks/|README\.md$|frontend/src/index\.css$|frontend/public/(logo|logo-dark|favicon)\.svg$)' <<< "$files" && docs=true
             grep -Eq '^(frontend/|src/|openapi\.yaml$|scripts/demo/)' <<< "$files" && demo=true
           fi
           echo "docs=$docs" >> "$GITHUB_OUTPUT"

@@ -13,7 +13,7 @@ This file tracks the hosted demo and its tooling, which are not part of the self
 
 ### Added
 
-- Pushes to `main` notify the site repo. A new workflow sends `docs-updated` when docs, the README, theme tokens or logos change, and `demo-updated` when the frontend, backend, `openapi.yaml` or the demo tooling change. The docs site and the hosted demo rebuild from those events.
+- Pushes to `main` notify the site repo. A new workflow sends `docs-updated` when docs, benchmarks, the README, theme tokens or logos change, and `demo-updated` when the frontend, backend, `openapi.yaml` or the demo tooling change. The docs site and the hosted demo rebuild from those events.
 - Pull requests that touch the API client, the database layer, the API or the demo tooling build the CPU image and run the demo fixture pipeline against it. The check fails on a broken migration, a page error, a 5xx or 429 response, a leak or missing coverage.
 
 ### Fixed
@@ -25,6 +25,7 @@ This file tracks the hosted demo and its tooling, which are not part of the self
 - The demo crawl dismisses the What's new dialog, so clicks reach the page and the ad editor opens, and it no longer stalls for 30 seconds on the ad editor button. It also skips menu triggers when expanding sections.
 - The demo leak check no longer fires on key prefixes inside words (such as `sk-` in a URL slug containing "disk-"). The Anthropic, OpenRouter and JWT patterns now need a non-alphanumeric character before the prefix, as the OpenAI pattern did.
 - The demo build accepts a pasted Cloudflare Web Analytics snippet as well as a bare token for `VITE_CF_BEACON_TOKEN`.
+- The demo artwork staging skips a file it cannot decode and names it in the log, instead of failing the whole build on one bad download.
 
 ## [2.101.27] - 2026-11-07
 
