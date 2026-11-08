@@ -1,7 +1,7 @@
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { fixtureKey } from './lib/keys.mjs';
-import { scrubFeedKeys, writeFixture, mergeIndex } from './lib/store.mjs';
+import { scrubFeedKeys, writeFixture, mergeIndex, applyOverrides } from './lib/store.mjs';
 import { argValue } from './lib/args.mjs';
 
 const PAGE = 100;
@@ -169,9 +169,11 @@ export function createDumper({ base, out, fetchImpl = fetch }) {
 async function main(argv) {
   const base = argValue(argv, '--base');
   const out = argValue(argv, '--out');
-  if (!base || !out) throw new Error('usage: --base http://host:8000 --out <fixtures dir>');
+  const overrides = argValue(argv, '--overrides');
+  if (!base || !out) throw new Error('usage: --base http://host:8000 --out <fixtures dir> [--overrides <dir>]');
   const { run, stats } = createDumper({ base: base.replace(/\/$/, ''), out });
   try { await run(); } catch (err) { console.error(String(err)); process.exit(1); }
+  if (overrides) applyOverrides(out, overrides);
   console.log(JSON.stringify(stats, null, 2));
   if (stats.errors.length) process.exit(1);
 }

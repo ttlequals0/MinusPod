@@ -2,7 +2,7 @@
 
 The hosted demo is the frontend built with `VITE_DEMO=1`, running against recorded API fixtures instead of a backend. This folder holds the tooling that turns a real instance into those fixtures. A scrubbed copy of the database is served by a local backend, a browser walks every UI route against it, and the recorded traffic becomes fixture files. A few extras (provider settings, peaks, artwork) come from the live instance with GET requests only. No audio is exported.
 
-Generated output is never committed. `frontend/demo/fixtures`, `frontend/demo/artwork`, `frontend/demo/search-index.json` and `frontend/dist-demo` are gitignored. Snapshots, fixtures and artwork are published as release assets on the demo site repository.
+Generated output is never committed. `frontend/demo/fixtures`, `frontend/demo/artwork`, `frontend/demo/search-index.json` and `frontend/dist-demo` are gitignored. The snapshot database and the live extras are published as release assets on the demo site repository. Crawled fixtures are rebuilt from them.
 
 ## Setup
 
@@ -30,44 +30,11 @@ PYTHONPATH=src:. python scripts/demo/snapshot.py \
 
 ## 2. Run a backend on the snapshot
 
-Start the backend container with the snapshot as its database and a throwaway data directory. Point it at `http://127.0.0.1:8000` or any address you pass to the next steps.
+Start the backend container with the snapshot as its database and a throwaway data directory. Point it at `http://127.0.0.1:8000` or any address you pass to the next steps. Set `MINUSPOD_BACKGROUND_THREADS=0` so it serves the snapshot without starting downloads or processing.
 
-## 3. Crawl
+## 3. Record live extras
 
-Playwright walks every route in `crawl/routes.json` (static pages, every feed, up to three episodes per feed, search types, settings sections and tabs) and records the API traffic.
-
-```
-cd scripts/demo/crawl
-node crawl.mjs --base http://127.0.0.1:8000 --out crawl-out
-```
-
-- Writes `crawl-out/crawl.har` and `crawl-out/routes-visited.json`. Exit 1 on a page error, a 5xx response or an expected route that was not visited.
-- A full run takes about 20 to 25 minutes for 30 feeds.
-- Add `--ui-base /ui` if the backend serves the UI under a prefix.
-
-## 4. HAR to fixtures
-
-```
-node har-to-fixtures.mjs --har crawl-out/crawl.har --out ../../../frontend/demo/fixtures \
-  --transcript-window 600
-```
-
-- `--transcript-window <seconds>` trims timestamped transcript lines to the first N seconds. The original spec put this in the snapshot step. It lives here so a re-export is one Node command and the release asset keeps whole transcripts. Omit it to keep full transcripts.
-- Keys follow the same encoding as `frontend/src/demo/fixtures.ts`. `crawl/lib/key-vectors.json` holds shared test vectors for both sides.
-
-## 5. Dumps
-
-Fills in what a click-through does not reach: static lists, paged lists, and per-feed and per-episode endpoints. It reads the feed and episode lists from the backend and overwrites any fixture with the same key, so run it after step 4.
-
-```
-node dumps.mjs --base http://127.0.0.1:8000 --out ../../../frontend/demo/fixtures
-```
-
-A 429 is retried with backoff. 404 responses are recorded as 404 fixtures. Exit 1 if a request still fails after retries.
-
-## 6. Record live extras
-
-The only step that touches the live instance. It sends GET requests only, using a Netscape cookie file for a signed-in session. It records provider and model overrides, waveform peaks and artwork. Run it with the same `--hosts` and `--exclusions` as the snapshot.
+The only step that touches the live instance. It sends GET requests only, using a Netscape cookie file for a signed-in session. It records provider and model overrides, waveform peaks and artwork. Run it with the same `--hosts` and `--exclusions` as the snapshot. It does not need the local backend, so it can run while the crawl does.
 
 ```
 PYTHONPATH=src:. python scripts/demo/record_live.py \
@@ -82,18 +49,42 @@ PYTHONPATH=src:. python scripts/demo/record_live.py \
 - `--since-days` (default 30) limits episode artwork and peaks. `--no-peaks` skips peaks. `--synthesize-queue` builds a sample queue from history when the live queue is empty.
 - Exit code 2 means a leak was found. The partial output directory must not be published.
 
-## 7. Merge overrides, then build the rest
+## 4. Crawl
 
-Overrides are merged last so they win over crawled and dumped responses. From the repo root, copy the files, then merge the two flat `index.json` files with the overrides on top:
+Playwright walks every route in `crawl/routes.json` (static pages, every feed, up to three episodes per feed, search types, settings sections and tabs) and records the API traffic.
 
 ```
-FX=frontend/demo/fixtures
-rsync -a --exclude index.json live-extras/overrides/ $FX/
-jq -s '.[0] * .[1]' $FX/index.json live-extras/overrides/index.json > index.merged.json
-mv index.merged.json $FX/index.json
+cd scripts/demo/crawl
+node crawl.mjs --base http://127.0.0.1:8000 --out crawl-out
 ```
 
-Then, from `scripts/demo/crawl`, build the search index, stage artwork and check coverage:
+- Writes `crawl-out/crawl.har` and `crawl-out/routes-visited.json`. Exit 1 on a page error, a 5xx response or an expected route that was not visited.
+- Add `--ui-base /ui` if the backend serves the UI under a prefix.
+
+## 5. HAR to fixtures
+
+```
+node har-to-fixtures.mjs --har crawl-out/crawl.har --out ../../../frontend/demo/fixtures \
+  --transcript-window 600
+```
+
+- `--transcript-window <seconds>` trims timestamped transcript lines to the first N seconds. It lives at this step, not in the snapshot, so a re-export is one Node command and the release asset keeps whole transcripts. Omit it to keep full transcripts.
+- Keys follow the same encoding as `frontend/src/demo/fixtures.ts`. `crawl/lib/key-vectors.json` holds shared test vectors for both sides.
+
+## 6. Dumps
+
+Fills in what a click-through does not reach: static lists, paged lists, and per-feed and per-episode endpoints. It reads the feed and episode lists from the backend and overwrites any fixture with the same key, so run it after the HAR step. `--overrides` copies the live extras on top afterwards, so they win over crawled and dumped responses.
+
+```
+node dumps.mjs --base http://127.0.0.1:8000 --out ../../../frontend/demo/fixtures \
+  --overrides ../../../live-extras/overrides
+```
+
+A 429 is retried with backoff. 404 responses are recorded as 404 fixtures. Exit 1 if a request still fails after retries.
+
+## 7. Search index, artwork and coverage
+
+From `scripts/demo/crawl`:
 
 ```
 node build-search-index.mjs --fixtures ../../../frontend/demo/fixtures \
@@ -117,7 +108,7 @@ PYTHONPATH=src:. python scripts/demo/leak_check.py \
   frontend/demo/fixtures frontend/demo/search-index.json
 ```
 
-It scans files and SQLite cells for the hostnames you list, public and private IPs, feed auth keys (`key=` query values), API keys and tokens, and filesystem paths. A hit exits 2. Excluded feeds are dropped by `snapshot.py` and `record_live.py` and are not a separate scan.
+It scans files and SQLite cells for the hostnames you list, public and private IPs, feed auth keys (`key=` query values), API keys and tokens, and filesystem paths. A hit exits 2. Excluded feeds are already dropped by `snapshot.py` and `record_live.py`.
 
 ## 9. Publish
 
@@ -130,7 +121,7 @@ gh release create snapshot-YYYY-MM-DD demo-snapshot-YYYY-MM-DD.db artwork.tar ov
   --repo ttlequals0/minuspod.app --notes "Demo snapshot YYYY-MM-DD"
 ```
 
-Crawled fixtures are regenerated from the snapshot by steps 2 to 7, so they are not uploaded.
+Crawled fixtures are regenerated from these assets by steps 2 and 4 to 7, so they are not uploaded.
 
 ## Preview the demo build
 

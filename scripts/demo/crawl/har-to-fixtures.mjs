@@ -1,8 +1,8 @@
-import { readFileSync, readdirSync, mkdirSync } from 'node:fs';
-import { join, resolve } from 'node:path';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { fixtureKey, fileFor } from './lib/keys.mjs';
-import { scrubFeedKeys, writeFixture, writeAtomic, mergeIndex, readIndex } from './lib/store.mjs';
+import { scrubFeedKeys, writeFixture, mergeIndex } from './lib/store.mjs';
 import { argValue } from './lib/args.mjs';
 
 const API_PATH = '/api/v1/';
@@ -74,9 +74,8 @@ export function applyTranscriptWindow(fixtures, n) {
 function main(argv) {
   const harPath = argValue(argv, '--har');
   const out = argValue(argv, '--out');
-  const overrides = argValue(argv, '--overrides');
   const windowSec = argValue(argv, '--transcript-window');
-  if (!harPath || !out) throw new Error('usage: --har <file> --out <dir> [--overrides <dir>] [--transcript-window <seconds>]');
+  if (!harPath || !out) throw new Error('usage: --har <file> --out <dir> [--transcript-window <seconds>]');
   if (windowSec !== undefined && !/^\d+$/.test(windowSec)) {
     console.error('--transcript-window must be a non-negative integer number of seconds');
     process.exit(2);
@@ -86,13 +85,6 @@ function main(argv) {
   const index = {};
   for (const [key, fixture] of fixtures) index[key] = writeFixture(out, key, fixture);
   mergeIndex(out, index);
-  if (overrides) {
-    mkdirSync(out, { recursive: true });
-    for (const e of readdirSync(overrides, { withFileTypes: true })) {
-      if (e.isFile() && e.name !== 'index.json') writeAtomic(join(out, e.name), readFileSync(join(overrides, e.name)));
-    }
-    mergeIndex(out, readIndex(overrides));
-  }
   console.log(`wrote ${fixtures.size} fixtures to ${out}`);
 }
 

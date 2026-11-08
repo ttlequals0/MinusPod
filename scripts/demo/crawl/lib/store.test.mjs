@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { scrubFeedKeys, writeFixture, mergeIndex } from './store.mjs';
+import { applyOverrides, scrubFeedKeys, writeFixture, mergeIndex } from './store.mjs';
 
 test('scrubFeedKeys rewrites key= in nested strings only', () => {
   const out = scrubFeedKeys({ a: 'http://h/feed?key=abc123&x=1', b: ['u?key=zzz', 3, null], c: { d: 'say "hi" ?key=q"' }, 'key=k': 1 });
@@ -17,4 +17,16 @@ test('writeFixture and mergeIndex merge with new entries winning', () => {
   mergeIndex(dir, { '/a': f, '/b': 'old.json' });
   const merged = mergeIndex(dir, { '/b': 'new.json' });
   assert.deepEqual(merged, { '/a': f, '/b': 'new.json' });
+});
+
+test('applyOverrides copies override files over the fixtures and merges their index on top', () => {
+  const out = mkdtempSync(join(tmpdir(), 'fx-'));
+  const over = mkdtempSync(join(tmpdir(), 'ov-'));
+  mergeIndex(out, { '/a': writeFixture(out, '/a', { status: 200, body: 'crawled' }), '/b': writeFixture(out, '/b', { status: 200, body: 'kept' }) });
+  mergeIndex(over, { '/a': writeFixture(over, '/a', { status: 200, body: 'live' }) });
+  applyOverrides(out, over);
+  const index = JSON.parse(readFileSync(join(out, 'index.json'), 'utf8'));
+  assert.deepEqual(Object.keys(index), ['/a', '/b']);
+  assert.equal(JSON.parse(readFileSync(join(out, index['/a']), 'utf8')).body, 'live');
+  assert.equal(JSON.parse(readFileSync(join(out, index['/b']), 'utf8')).body, 'kept');
 });

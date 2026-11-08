@@ -1,4 +1,4 @@
-import { mkdirSync, readFileSync, renameSync, writeFileSync, existsSync } from 'node:fs';
+import { mkdirSync, readFileSync, readdirSync, renameSync, writeFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileFor } from './keys.mjs';
 
@@ -39,4 +39,13 @@ export function mergeIndex(dir, entries) {
   const merged = Object.fromEntries(Object.keys(all).sort().map((k) => [k, all[k]]));
   writeAtomic(join(dir, 'index.json'), JSON.stringify(merged, null, 2));
   return merged;
+}
+
+// Copies every fixture file in dir over out and merges its index on top, so the overrides win.
+export function applyOverrides(out, dir) {
+  mkdirSync(out, { recursive: true });
+  for (const e of readdirSync(dir, { withFileTypes: true })) {
+    if (e.isFile() && e.name !== 'index.json') writeAtomic(join(out, e.name), readFileSync(join(dir, e.name)));
+  }
+  mergeIndex(out, readIndex(dir));
 }
