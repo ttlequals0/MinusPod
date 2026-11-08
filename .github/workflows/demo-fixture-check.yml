@@ -1,0 +1,96 @@
+name: Demo fixture check
+
+# Builds the PR's CPU image and runs the site repo's demo pipeline against it (through the
+# leak check), so a change to the API, database layer or demo tooling that breaks the hosted
+# demo fails here. Requires the SITE_DISPATCH_TOKEN and DEMO_LEAK_HOSTS secrets.
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "frontend/src/api/**"
+      - "src/database/**"
+      - "src/api/**"
+      - "scripts/demo/**"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: demo-fixture-check-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  fixture-check:
+    name: Fixture check
+    # Fork PRs get no secrets.
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          repository: ttlequals0/minuspod.app
+          ref: main
+          path: .site
+          token: ${{ secrets.SITE_DISPATCH_TOKEN }}
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1  # v7.1.0
+        with:
+          node-version-file: .site/.nvmrc
+
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069  # v4.4.1
+
+      - name: Build the CPU image
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc  # v7.4.0
+        with:
+          context: .
+          file: Dockerfile.cpu
+          load: true
+          push: false
+          tags: minuspod:pr
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Download the latest snapshot release
+        env:
+          GH_TOKEN: ${{ secrets.SITE_DISPATCH_TOKEN }}
+        run: |
+          tag="$(gh release list --repo ttlequals0/minuspod.app --limit 100 --json tagName \
+            --jq '[.[] | select(.tagName | startswith("snapshot-"))][0].tagName')"
+          [ -n "$tag" ] && [ "$tag" != null ] || { echo "no snapshot-* release found" >&2; exit 1; }
+          echo "snapshot release: $tag"
+          gh release download "$tag" --repo ttlequals0/minuspod.app --dir snapshot
+          cd snapshot
+          ls
+          for f in demo-snapshot-*.db artwork.tar overrides.tar; do
+            grep -q -- " $f\$" SHA256SUMS.txt || { echo "SHA256SUMS.txt has no entry for $f" >&2; exit 1; }
+          done
+          sha256sum -c --ignore-missing SHA256SUMS.txt
+
+      - name: Run the demo pipeline through the leak check
+        env:
+          DEMO_LEAK_HOSTS: ${{ secrets.DEMO_LEAK_HOSTS }}
+          IMAGE: minuspod:pr
+          SKIP_BUILD: "1"
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          db=(snapshot/demo-snapshot-*.db)
+          [ "${#db[@]}" -eq 1 ] || { echo "expected one demo-snapshot-*.db asset, found ${#db[@]}" >&2; exit 1; }
+          export SNAPSHOT_DB="$PWD/${db[0]}"
+          export ARTWORK_TAR="$PWD/snapshot/artwork.tar"
+          export OVERRIDES_TAR="$PWD/snapshot/overrides.tar"
+          bash .site/scripts/demo-pipeline.sh . work
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
+        if: always()
+        with:
+          name: demo-fixture-check-report
+          path: |
+            work/fixtures/index.json
+            work/crawl/routes-visited.json
+          if-no-files-found: ignore
