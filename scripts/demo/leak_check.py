@@ -2,6 +2,7 @@
 import argparse
 import ipaddress
 import json
+import os
 import re
 import sqlite3
 import sys
@@ -53,6 +54,7 @@ class Hit:
     source: str
     pattern: str
     excerpt: str
+    offset: int = -1
 
 
 def parse_hosts(value: str | None) -> list[str]:
@@ -120,7 +122,7 @@ def check_text(
     for name, rx in patterns or compile_patterns(hosts):
         for m in rx.finditer(text):
             if accepted(name, m.group(0)):
-                found.append(Hit(source, name, excerpt(text, m)))
+                found.append(Hit(source, name, excerpt(text, m), m.start()))
     return found
 
 
@@ -136,7 +138,7 @@ def check_files(paths: Iterable[Path], hosts: list[str], slugs: Iterable[str] = 
             name = f.name if f == root else str(f.relative_to(root))
             for pname, rx in slug_patterns:
                 for m in rx.finditer(name):
-                    found.append(Hit(str(f), pname, 'path ' + excerpt(name, m)))
+                    found.append(Hit(str(f), pname, 'path ' + excerpt(name, m), m.start()))
             if not f.is_file() or f.suffix.lower() in SKIP_SUFFIXES:
                 continue
             found += check_text(f.read_text(encoding='utf-8', errors='ignore'), str(f), hosts, patterns)
@@ -173,14 +175,29 @@ def check_sqlite(db: Path, hosts: list[str], slugs: Iterable[str] = ()) -> list[
     return found
 
 
-def report_hits(hits: list[Hit], limit: int = 20) -> None:
+def report_hits(
+    hits: list[Hit], limit: int = 20, redact: bool = False,
+    hosts: list[str] = (), slugs: Iterable[str] = (),
+) -> None:
+    """Print hits grouped by pattern. Redacted output names hosts and slugs by index and
+    withholds excerpts, so a CI log never carries the protected values."""
+    names = {}
+    if redact:
+        names = {f'host:{h}': f'host:#{i}' for i, h in enumerate(hosts, 1)}
+        names |= {f'slug:{s}': f'slug:#{i}' for i, s in enumerate(sorted(slugs), 1)}
     by_pattern: dict[str, list[Hit]] = {}
     for h in hits:
         by_pattern.setdefault(h.pattern, []).append(h)
     for name, group in sorted(by_pattern.items()):
-        print(f'{name} | {len(group)}')
+        print(f'{names.get(name, name)} | {len(group)}')
         for h in group[:limit]:
-            print(f'  {h.source} | {h.excerpt!r}')
+            if not redact:
+                print(f'  {h.source} | {h.excerpt!r}')
+            elif name.startswith('slug:'):
+                # file names carry the slug itself
+                print(f'  (location withheld) | offset {h.offset}')
+            else:
+                print(f'  {h.source} | offset {h.offset}')
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -189,6 +206,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument('--sqlite', type=Path)
     parser.add_argument('--hosts')
     parser.add_argument('--exclusions', type=Path)
+    parser.add_argument('--redact', action='store_true',
+                        help='print host and slug names by index and no excerpts; implied when GITHUB_ACTIONS=true')
     args = parser.parse_args(argv)
     try:
         hosts = parse_hosts(args.hosts)
@@ -204,7 +223,8 @@ def main(argv: list[str] | None = None) -> int:
     hits = check_files(args.paths, hosts, slugs)
     if args.sqlite:
         hits += check_sqlite(args.sqlite, hosts, slugs)
-    report_hits(hits)
+    report_hits(hits, redact=args.redact or os.environ.get('GITHUB_ACTIONS') == 'true',
+                hosts=hosts, slugs=slugs)
     return 2 if hits else 0
 
 

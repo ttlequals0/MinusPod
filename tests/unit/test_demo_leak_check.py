@@ -173,3 +173,39 @@ def test_key_prefixes_need_a_word_boundary():
         assert hits('https://x.test/' + slug) == [], slug
     assert hits('key sk-' + 'abcdefghijklmnopqrstuvwxyz0123') == ['openai_key']
     assert hits('(sk-' + 'ant-api03-abcdefghijklmnopqrstuvwxyz)') == ['anthropic_key']
+
+
+def _host_hit_dir(tmp_path):
+    (tmp_path / 'a.txt').write_text('see https://two.internal.example/x tail')
+    return str(tmp_path)
+
+
+def test_redact_hides_hosts_and_excerpts(tmp_path, capsys):
+    assert main([_host_hit_dir(tmp_path), '--hosts', 'one.internal.example,two.internal.example', '--redact']) == 2
+    out = capsys.readouterr().out
+    assert 'host:#2 | 1' in out
+    assert 'internal.example' not in out
+    assert 'see https' not in out
+    assert 'offset' in out
+
+
+def test_github_actions_redacts_without_the_flag(tmp_path, capsys, monkeypatch):
+    monkeypatch.setenv('GITHUB_ACTIONS', 'true')
+    main([_host_hit_dir(tmp_path), '--hosts', 'one.internal.example,two.internal.example'])
+    out = capsys.readouterr().out
+    assert 'host:#2' in out
+    assert 'internal.example' not in out
+
+
+def test_plain_run_still_prints_the_excerpt(tmp_path, capsys, monkeypatch):
+    monkeypatch.delenv('GITHUB_ACTIONS', raising=False)
+    main([_host_hit_dir(tmp_path), '--hosts', 'one.internal.example,two.internal.example'])
+    out = capsys.readouterr().out
+    assert 'host:two.internal.example' in out
+    assert 'see https' in out
+
+
+def test_jwt_needs_a_boundary():
+    tok = 'ey' + 'Jabcdefghijk.abcdefghijkl.abcdef'
+    assert hits('x' + tok) == []
+    assert hits('t ' + tok) == ['jwt']

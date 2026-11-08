@@ -78,6 +78,7 @@ jobs:
           SKIP_BUILD: "1"
         run: |
           set -euo pipefail
+          IFS=, read -ra hosts <<< "$DEMO_LEAK_HOSTS"; for h in "${hosts[@]}"; do h="${h//[[:space:]]/}"; [ -n "$h" ] && echo "::add-mask::$h"; done
           shopt -s nullglob
           db=(snapshot/demo-snapshot-*.db)
           [ "${#db[@]}" -eq 1 ] || { echo "expected one demo-snapshot-*.db asset, found ${#db[@]}" >&2; exit 1; }

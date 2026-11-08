@@ -117,7 +117,7 @@ PYTHONPATH=src:. python scripts/demo/leak_check.py \
   frontend/demo/fixtures frontend/demo/artwork frontend/demo/search-index.json
 ```
 
-It scans files and SQLite cells for the hostnames you list, globally routable IPs outside the documentation ranges, feed auth keys (`key=` query values), `token=`, `token-hash=` and `token-time=` query values, API keys and tokens, and filesystem paths. With `--exclusions`, each excluded slug is also searched for in file contents and SQLite cells, and in every file and directory name under the scanned paths, including `.jpg` files that are otherwise skipped. A hit exits 2. `--hosts` is required and follows the same rules as in step 1.
+It scans files and SQLite cells for the hostnames you list, globally routable IPs outside the documentation ranges, feed auth keys (`key=` query values), `token=`, `token-hash=` and `token-time=` query values, API keys and tokens, and filesystem paths. With `--exclusions`, each excluded slug is also searched for in file contents and SQLite cells, and in every file and directory name under the scanned paths, including `.jpg` files that are otherwise skipped. A hit exits 2. With `--redact`, which is on automatically when `GITHUB_ACTIONS` is `true`, hosts and slugs print as `host:#<n>` and `slug:#<n>` and excerpts are replaced by an offset, so a public CI log never shows them. `--hosts` is required and follows the same rules as in step 1.
 
 ## 9. Publish
 
