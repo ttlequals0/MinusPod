@@ -8,6 +8,12 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
+## [2.101.31] - 2026-11-08
+
+### Fixed
+
+- If the YouTube listing fails, for example because YouTube can't be reached, and no cached copy exists, a YouTube feed now serves RSS built from the episodes already in the database instead of answering 503.
+
 ## [2.101.30] - 2026-11-08
 
 ### Fixed

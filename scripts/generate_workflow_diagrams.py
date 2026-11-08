@@ -791,7 +791,7 @@ def d_youtube(t):
     c.card(200, gy + 45, 220, 60, fill=tint(pri, t["tintBase"]), stroke=pri)
     c.text(216, gy + 71, "Probe N times", 14, fill=pri, weight=600)
     c.text(216, gy + 90, "at the probe interval", 12, fill=pri, opacity="0.85")
-    nh = note(c, 200, gy + 135, 220, ["SponsorBlock unreachable:", "waits are held, no attempt",
+    note(c, 200, gy + 135, 220, ["SponsorBlock unreachable:", "waits are held, no attempt",
                                        "counted, other feeds", "keep running"])
     c.arrow(310, gy + 135, 310, gy + 107, color=war, dash="4 4")
 

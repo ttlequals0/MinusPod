@@ -136,6 +136,41 @@ def test_youtube_listing_failure_counts_as_refresh_failure():
         db.delete_podcast(slug)
 
 
+def test_listing_failure_without_cached_rss_serves_db_episodes_from_route():
+    from main_app import app
+    db = feeds_mod.db
+    slug = 'yt-offline'
+    _make_feed(slug, source_id='PL3')
+    try:
+        assert _refresh(slug, [{**_episode('vid000000020'), 'id': 'a1b2c3d4e520'}], source_id='PL3').success
+        (feeds_mod.storage.get_podcast_dir(slug) / 'modified-rss.xml').unlink()
+        feeds_mod.invalidate_feed_cache()
+        assert not feeds_mod.storage.get_rss(slug)
+        with patch.object(discovery, 'list_videos', side_effect=discovery.DiscoveryError('offline')), \
+                app.test_client() as client:
+            resp = client.get(f'/{slug}')
+        assert resp.status_code == 200
+        assert b'a1b2c3d4e520' in resp.data
+        assert db.get_podcast_by_slug(slug)['refresh_failure_count'] == 1
+    finally:
+        db.delete_podcast(slug)
+
+
+def test_listing_failure_keeps_existing_cached_rss():
+    db = feeds_mod.db
+    slug = 'yt-offline-cached'
+    _make_feed(slug, source_id='PL4')
+    try:
+        feeds_mod.storage.save_rss(slug, '<rss>cached</rss>')
+        with patch.object(discovery, 'list_videos', side_effect=discovery.DiscoveryError('offline')), \
+                patch.object(feeds_mod, 'rebuild_youtube_feed') as rebuild:
+            outcome = feeds_mod.refresh_rss_feed(slug, 'youtube://playlist/PL4', force=True)
+        assert outcome.status == 'fetch_failed'
+        rebuild.assert_not_called()
+    finally:
+        db.delete_podcast(slug)
+
+
 def test_unexpected_error_returns_internal_error_and_clears_coalesce():
     db = feeds_mod.db
     slug = 'yt-boom'
