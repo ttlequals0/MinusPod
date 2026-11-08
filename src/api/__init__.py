@@ -79,6 +79,11 @@ def init_limiter(app):
     schedule when it doesn't -- so nothing downstream depends on this
     being enabled.
     """
+    if os.environ.get('MINUSPOD_RATE_LIMIT_DISABLED', '').strip().lower() in ('true', '1', 'yes'):
+        app.config['RATELIMIT_ENABLED'] = False
+        logger.info("Rate limiter disabled by MINUSPOD_RATE_LIMIT_DISABLED")
+        limiter.init_app(app)
+        return
     limiter.init_app(app)
     storage_uri = os.environ.get('RATE_LIMIT_STORAGE_URI', RATELIMIT_STORAGE_URI)
     ensure_storage_available(storage_uri, limiter.storage)
