@@ -8,20 +8,44 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
-## [2.101.28] - 2026-11-07
+## [2.101.31] - 2026-11-08
 
 ### Fixed
 
-- Demo build: the waveform editor loads again. The live recorder stores one whole-episode peaks fixture per episode, and the demo slices it to the zoom window the editor asks for. Before, every window got a 404.
-- Demo build: model dropdowns list every provider's models in every slot. The live instance only lists models for slots that hold a key, so the recorder now takes the union across slots per provider.
-- Demo build: the API explorer is readable on dark themes. Its panel stays white with dark text.
+- If the YouTube listing fails, for example because YouTube can't be reached, and no cached copy exists, a YouTube feed now serves RSS built from the episodes already in the database instead of answering 503.
+
+## [2.101.30] - 2026-11-08
+
+### Fixed
+
+- Settings says "Update checks are off." whenever update checks are disabled. Before, it said "Up to date on the selected channel." if release info from an earlier check was still cached.
+- The currency list cache hands each caller its own copy, so one caller changing the list can't alter what later callers get.
+
+## [2.101.29] - 2026-11-08
+
+### Fixed
+
+- A crawler on the blocked user agent list no longer starts processing on YouTube, local or recents feeds. Those feeds have no upstream audio to redirect it to, so the check was skipped and every episode request it made queued a full processing run. On YouTube feeds it now gets a redirect to the playlist or channel page. On local and recents feeds it gets the original file when one is kept, otherwise a 503, or a 410 for an episode that permanently failed.
+- The provider budget currency list loads on an instance without internet access. When the currency service can't be reached it returns the last list it fetched, or USD alone, instead of a 503.
+
+## [2.101.28] - 2026-11-07
+
+### Added
+
+- `MINUSPOD_RATE_LIMIT_DISABLED` (`true`, `1` or `yes`) turns the API rate limiter off for throwaway instances such as the demo crawl backend.
+
+### Fixed
+
+- Settings no longer calls GitHub for release info while update checks are off. It shows "Update checks are off." instead of "Up to date on the selected channel."
+
+### Changed
+
+- The docs overview lists Contributing last.
 
 ## [2.101.27] - 2026-11-07
 
 ### Added
 
-- Demo mode build. `VITE_DEMO=1` (or `npm run build:demo`) builds the frontend as a read-only hosted demo. The UI runs against recorded API fixtures served by a service worker. Writes return 403 with a visible notice, requests for data the snapshot does not hold say so instead of answering with something else, and audio playback is disabled with an explanation. Artwork is bundled, podcast search calls iTunes directly, and an in-app API explorer replaces the backend docs page. Normal builds are unchanged.
-- Demo snapshot and crawl tooling under `scripts/demo/`. A scrubbed copy of a live database is served by a local backend, a Playwright crawl records every UI route into the fixtures the demo build replays, and a GET-only recorder adds provider settings, peaks and artwork from the live instance. A leak check scans the output for hostnames, IPs and feed keys before it is published.
 - Feeds gain a description override next to the title override, so a YouTube channel or playlist feed can carry a hand-written description that survives refreshes. Set it from the feed page or the `descriptionOverride` field on `PATCH /api/v1/feeds/{slug}`.
 
 ### Fixed

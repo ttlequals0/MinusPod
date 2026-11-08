@@ -65,7 +65,7 @@ def _render_md(
         scores = info.get("scores", [])
         suggestion = info.get("suggestion", {})
 
-        lines.append(f"### Template {tid_str} -- {label} ({cue_type})")
+        lines.append(f"### Template {tid_str}: {label} ({cue_type})")
         lines.append("")
         lines.append(f"- Duration: {dur:.3f} s")
         lines.append(f"- Peak score (across all episodes): {peak:.3f}")

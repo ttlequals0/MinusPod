@@ -14,6 +14,20 @@ export function scrubFeedKeys(value) {
   return value;
 }
 
+// Keep in sync with _PATH in scripts/demo/scrub.py.
+const PATH_PREFIX = /(?<![A-Za-z0-9_./-])(?:\/app\/data|\/home\/[^/\s"'\\,]+|\/Users\/[^/\s"'\\,]+|(?:\/mnt|\/srv|\/var\/lib)(?=\/|$|[\s"'\\]))/g;
+
+export function scrubPaths(value) {
+  if (typeof value === 'string') return value.replace(PATH_PREFIX, '/demo');
+  if (Array.isArray(value)) return value.map(scrubPaths);
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, scrubPaths(v)]));
+  }
+  return value;
+}
+
+export const scrubBody = (value) => scrubPaths(scrubFeedKeys(value));
+
 export function writeAtomic(path, text) {
   const tmp = `${path}.${process.pid}.tmp`;
   writeFileSync(tmp, text);

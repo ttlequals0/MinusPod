@@ -264,6 +264,9 @@ def _refresh_youtube_feed(slug, podcast, force, record_failure) -> RefreshOutcom
             if record_failure:
                 _record_refresh_failure(slug, str(exc), podcast=podcast)
             refresh_logger.warning(f"[{slug}] YouTube listing failed: {exc}")
+            if not storage.get_rss(slug):
+                # Listing failed with nothing cached: serve the episodes already in the DB.
+                rebuild_youtube_feed(slug, podcast)
             status_service.complete_feed_refresh(slug, 0)
             _refresh_coalesce.invalidate(slug)
             return RefreshOutcome(False, 'fetch_failed', error=str(exc))

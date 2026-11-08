@@ -1,0 +1,156 @@
+name: Demo fixture check
+
+# Builds the PR's CPU image and runs the site repo's demo pipeline against it (through the
+# leak check), so a change to the API, database layer or demo tooling that breaks the hosted
+# demo fails here. Requires the SITE_DISPATCH_TOKEN and DEMO_LEAK_HOSTS secrets.
+# A gate job skips the check when its inputs (test files excluded) match a previous green run.
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "src/**"
+      - "frontend/src/**"
+      - "scripts/demo/**"
+      - "openapi.yaml"
+      - "Dockerfile.cpu"
+      - "requirements.txt"
+      - ".github/workflows/demo-fixture-check.yml"
+      - "!**/*.test.*"
+      - "!**/*.spec.*"
+      - "!**/__tests__/**"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: demo-fixture-check-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  gate:
+    name: Fixture check gate
+    # Fork PRs get no secrets.
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      hit: ${{ steps.seen.outputs.cache-hit }}
+      key: ${{ steps.inputs.outputs.key }}
+      tag: ${{ steps.inputs.outputs.tag }}
+      site: ${{ steps.inputs.outputs.site }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+
+      - name: Compute the input key
+        id: inputs
+        env:
+          GH_TOKEN: ${{ secrets.SITE_DISPATCH_TOKEN }}
+          SRC_HASH: ${{ hashFiles('src/**', 'frontend/src/**', 'scripts/demo/**', 'openapi.yaml', 'Dockerfile.cpu', 'requirements.txt', '.github/workflows/demo-fixture-check.yml', '!**/*.test.*', '!**/*.spec.*', '!**/__tests__/**') }}
+        run: |
+          tag="$(gh release list --repo ttlequals0/minuspod.app --limit 100 --json tagName \
+            --jq '[.[] | select(.tagName | startswith("snapshot-"))][0].tagName')"
+          [ -n "$tag" ] && [ "$tag" != null ] || { echo "no snapshot-* release found" >&2; exit 1; }
+          site="$(gh api repos/ttlequals0/minuspod.app/commits/main --jq .sha)"
+          # The asset checksums change if a snapshot is re-uploaded under the same tag.
+          gh release download "$tag" --repo ttlequals0/minuspod.app --pattern SHA256SUMS.txt --dir "$RUNNER_TEMP"
+          sums="$(sha256sum < "$RUNNER_TEMP/SHA256SUMS.txt" | cut -c1-12)"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "site=$site" >> "$GITHUB_OUTPUT"
+          echo "key=demo-fixture-ok-${SRC_HASH}-${tag}-${sums}-${site:0:12}" >> "$GITHUB_OUTPUT"
+
+      - name: Look for a previous green run
+        id: seen
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+        with:
+          path: .demo-fixture-ok
+          key: ${{ steps.inputs.outputs.key }}
+          lookup-only: true
+
+      - name: Skip notice
+        if: steps.seen.outputs.cache-hit == 'true'
+        run: echo "inputs unchanged since a green run (${{ steps.inputs.outputs.key }}); skipping"
+
+  fixture-check:
+    name: Fixture check
+    needs: gate
+    if: ${{ needs.gate.result == 'success' && github.event.pull_request.head.repo.full_name == github.repository && needs.gate.outputs.hit != 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          repository: ttlequals0/minuspod.app
+          ref: ${{ needs.gate.outputs.site }}
+          path: .site
+          token: ${{ secrets.SITE_DISPATCH_TOKEN }}
+          persist-credentials: false
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1  # v7.1.0
+        with:
+          node-version-file: .site/.nvmrc
+
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069  # v4.4.1
+
+      - name: Build the CPU image
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc  # v7.4.0
+        with:
+          context: .
+          file: Dockerfile.cpu
+          load: true
+          push: false
+          tags: minuspod:pr
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Download the latest snapshot release
+        env:
+          GH_TOKEN: ${{ secrets.SITE_DISPATCH_TOKEN }}
+          TAG: ${{ needs.gate.outputs.tag }}
+        run: |
+          [ -n "$TAG" ] || { echo "gate job produced no snapshot tag" >&2; exit 1; }
+          echo "snapshot release: $TAG"
+          gh release download "$TAG" --repo ttlequals0/minuspod.app --dir snapshot
+          cd snapshot
+          ls
+          for f in demo-snapshot-*.db artwork.tar overrides.tar rss.tar; do
+            grep -q -- " $f\$" SHA256SUMS.txt || { echo "SHA256SUMS.txt has no entry for $f" >&2; exit 1; }
+          done
+          sha256sum -c --ignore-missing SHA256SUMS.txt
+
+      - name: Run the demo pipeline through the leak check
+        env:
+          DEMO_LEAK_HOSTS: ${{ secrets.DEMO_LEAK_HOSTS }}
+          IMAGE: minuspod:pr
+          SKIP_BUILD: "1"
+        run: |
+          set -euo pipefail
+          IFS=, read -ra hosts <<< "$DEMO_LEAK_HOSTS"; for h in "${hosts[@]}"; do h="${h//[[:space:]]/}"; [ -n "$h" ] && echo "::add-mask::$h"; done
+          shopt -s nullglob
+          db=(snapshot/demo-snapshot-*.db)
+          [ "${#db[@]}" -eq 1 ] || { echo "expected one demo-snapshot-*.db asset, found ${#db[@]}" >&2; exit 1; }
+          export SNAPSHOT_DB="$PWD/${db[0]}"
+          export ARTWORK_TAR="$PWD/snapshot/artwork.tar"
+          export OVERRIDES_TAR="$PWD/snapshot/overrides.tar"
+          export RSS_TAR="$PWD/snapshot/rss.tar"
+          bash .site/scripts/demo-pipeline.sh . work
+          touch .demo-fixture-ok
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
+        if: always()
+        with:
+          name: demo-fixture-check-report
+          path: |
+            work/fixtures/index.json
+            work/crawl/routes-visited.json
+          if-no-files-found: ignore
+
+      - name: Save the green-run marker
+        if: success() && needs.gate.outputs.key != ''
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+        with:
+          path: .demo-fixture-ok
+          key: ${{ needs.gate.outputs.key }}

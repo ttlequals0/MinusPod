@@ -1,0 +1,63 @@
+name: Notify site repo
+
+# Tells ttlequals0/minuspod.app to rebuild when this repo changes what it builds from.
+# Requires the SITE_DISPATCH_TOKEN secret (a token allowed to create repository dispatches there).
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: site-dispatch
+  cancel-in-progress: false
+
+jobs:
+  dispatch:
+    name: Dispatch
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Work out which site builds are affected
+        id: changes
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BEFORE: ${{ github.event.before }}
+          AFTER: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          # A new branch has an all-zero "before"; a failed compare means we cannot tell. Dispatch both.
+          # The compare API lists at most 300 files, so a list that long may be cut off: dispatch both.
+          files="$(gh api --paginate "repos/${GITHUB_REPOSITORY}/compare/${BEFORE}...${AFTER}" \
+            --jq '.files[].filename' 2>/dev/null)" || files="__unknown__"
+          if [ "$files" != "__unknown__" ] && [ "$(wc -l <<< "$files")" -ge 300 ]; then files="__unknown__"; fi
+          docs=false
+          demo=false
+          if [ "$files" = "__unknown__" ]; then
+            docs=true
+            demo=true
+          else
+            grep -Eq '^(docs/|benchmarks/|README\.md$|frontend/src/index\.css$|frontend/public/(logo|logo-dark|favicon)\.svg$)' <<< "$files" && docs=true
+            grep -Eq '^(frontend/|src/|openapi\.yaml$|scripts/demo/)' <<< "$files" && demo=true
+          fi
+          echo "docs=$docs" >> "$GITHUB_OUTPUT"
+          echo "demo=$demo" >> "$GITHUB_OUTPUT"
+
+      - name: Notify the site repo of docs changes
+        if: steps.changes.outputs.docs == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.SITE_DISPATCH_TOKEN }}
+        run: |
+          gh api repos/ttlequals0/minuspod.app/dispatches \
+            -f event_type=docs-updated -f "client_payload[ref]=$GITHUB_SHA"
+
+      - name: Notify the site repo of demo changes
+        if: steps.changes.outputs.demo == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.SITE_DISPATCH_TOKEN }}
+        run: |
+          gh api repos/ttlequals0/minuspod.app/dispatches \
+            -f event_type=demo-updated -f "client_payload[ref]=$GITHUB_SHA"

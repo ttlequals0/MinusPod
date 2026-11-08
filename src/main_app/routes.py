@@ -43,6 +43,7 @@ from rss_parser import (
 )
 from user_agent import download_user_agent
 from youtube import settings as yt_settings
+from youtube.feed import source_link as youtube_source_link
 from utils.constants import EpisodeStatus, REPROCESS_SOURCE_JIT
 from utils.episode_paths import published_episode_version
 from utils.safe_http import URLTrust, safe_head
@@ -437,6 +438,35 @@ def _local_original_response(slug, episode_id, requested_version=None):
     return response
 
 
+def _permanently_failed_response():
+    return Response("Episode processing has permanently failed after multiple attempts", status=410)
+
+
+def _blocked_agent_response(slug, episode_id, podcast, episode, feed_map, requested_version):
+    """Where a blocked crawler is sent instead of a processing run."""
+    if is_youtube_feed(podcast):
+        if not (podcast.get('youtube_source_kind') and podcast.get('youtube_source_id')):
+            abort(503)
+        feed_logger.info(
+            f"[{slug}:{episode_id}] JIT suppressed for blocked agent, redirecting to YouTube source")
+        return redirect(youtube_source_link(podcast), code=302)
+    if has_upstream_audio(podcast):
+        ep_data, _ = _lookup_episode(slug, episode_id, feed_map, episode_row=episode)
+        if not ep_data:
+            abort(404)
+        feed_logger.info(
+            f"[{slug}:{episode_id}] JIT suppressed for blocked agent, serving original")
+        return redirect(ep_data['url'], code=302)
+    feed_logger.info(
+        f"[{slug}:{episode_id}] JIT suppressed for blocked agent, serving local original")
+    original_response = _local_original_response(slug, episode_id, requested_version)
+    if original_response is not None:
+        return original_response
+    if episode and episode['status'] == EpisodeStatus.PERMANENTLY_FAILED:
+        return _permanently_failed_response()
+    abort(503)
+
+
 def register_routes(app):
     """Register all routes on the Flask app."""
     global STATIC_DIR
@@ -665,18 +695,13 @@ def register_routes(app):
         podcast = db.get_podcast_by_slug(slug)
         serves_own_audio = not has_upstream_audio(podcast)
 
-        # A crawler gets the origin audio in every non-published state, not a
-        # processing run it will never collect. Local feeds have no upstream.
-        if not serves_own_audio and request.method == 'GET':
+        # A blocked crawler never starts processing; it gets the origin audio or source page.
+        if request.method == 'GET':
             blocked_agents = resolve_jit_blocked_user_agents(
                 db.get_setting('jit_blocked_user_agents'))
             if user_agent_is_jit_blocked(request.headers.get('User-Agent'), blocked_agents):
-                ep_data, _ = _routes._lookup_episode(slug, episode_id, feed_map, episode_row=episode)
-                if not ep_data:
-                    abort(404)
-                feed_logger.info(
-                    f"[{slug}:{episode_id}] JIT suppressed for blocked agent, serving original")
-                return redirect(ep_data['url'], code=302)
+                return _blocked_agent_response(
+                    slug, episode_id, podcast, episode, feed_map, requested_version)
 
         if status == EpisodeStatus.PERMANENTLY_FAILED:
             ep_key = f"{slug}:{episode_id}"
@@ -692,10 +717,7 @@ def register_routes(app):
                 original_response = _routes._local_original_response(slug, episode_id, requested_version)
                 if original_response is not None:
                     return original_response
-            return Response(
-                "Episode processing has permanently failed after multiple attempts",
-                status=410  # Gone - resource no longer available
-            )
+            return _permanently_failed_response()
 
         elif status == EpisodeStatus.FAILED:
             retry_count = episode.get('retry_count', 0) or 0
@@ -707,10 +729,7 @@ def register_routes(app):
                     original_response = _routes._local_original_response(slug, episode_id, requested_version)
                     if original_response is not None:
                         return original_response
-                return Response(
-                    "Episode processing has permanently failed after multiple attempts",
-                    status=410
-                )
+                return _permanently_failed_response()
             # Cooldown check - don't retry if failed recently (gives CDN time to propagate)
             updated_at = episode.get('updated_at')
             if updated_at and retry_count > 0:

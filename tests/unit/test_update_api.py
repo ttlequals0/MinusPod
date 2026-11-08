@@ -61,3 +61,44 @@ class TestUpdateCheckSettings:
     def test_bad_channel_rejected(self, client):
         r = self._put(client, {'channel': 'nightly'})
         assert r.status_code == 400
+
+
+class TestUpdatesWhileChecksOff:
+    def _off(self, client):
+        client.put('/api/v1/settings/update-check',
+                   data=json.dumps({'enabled': False}),
+                   content_type='application/json')
+
+    def _reset(self, client):
+        client.put('/api/v1/settings/update-check',
+                   data=json.dumps({'enabled': True, 'channel': 'stable'}),
+                   content_type='application/json')
+
+    def test_off_with_empty_cache_makes_no_network_call(self, client):
+        import update_checker
+        self._off(client)
+        try:
+            with patch.dict(update_checker._cache, {'at': 0.0, 'releases': None}), \
+                    patch('update_checker.fetch_releases',
+                          side_effect=AssertionError('network call')):
+                r = client.get('/api/v1/system/updates')
+            assert r.status_code == 200, r.data
+            body = r.get_json()
+            assert body['updateAvailable'] is False
+            assert body['stable'] is None
+            assert body['edge'] is None
+            assert body['current']['version']
+        finally:
+            self._reset(client)
+
+    def test_off_with_refresh_still_fetches(self, client):
+        import update_checker
+        self._off(client)
+        try:
+            with patch.dict(update_checker._cache, {'at': 0.0, 'releases': None}), \
+                    patch('update_checker.fetch_releases', return_value=[]) as f:
+                r = client.get('/api/v1/system/updates?refresh=true')
+            assert r.status_code == 200, r.data
+            assert f.called
+        finally:
+            self._reset(client)

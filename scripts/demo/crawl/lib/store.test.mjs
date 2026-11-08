@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { existsSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { applyOverrides, readOverrides, scrubFeedKeys, writeFixture, mergeIndex } from './store.mjs';
+import { applyOverrides, readOverrides, scrubFeedKeys, scrubPaths, scrubBody, writeFixture, mergeIndex } from './store.mjs';
 
 test('scrubFeedKeys rewrites key= in nested strings only', () => {
   const out = scrubFeedKeys({ a: 'http://h/feed?key=abc123&x=1', b: ['u?key=zzz', 3, null], c: { d: 'say "hi" ?key=q"' }, 'key=k': 1 });
@@ -40,4 +40,28 @@ test('applyOverrides copies only indexed files, and fails on a missing index or 
   applyOverrides(out, over);
   assert.equal(existsSync(join(out, '.DS_Store')), false);
   assert.throws(() => applyOverrides(out, over, { '/gone': 'missing.json' }), /ENOENT/);
+});
+
+test('scrubPaths rewrites container and home paths in nested strings', () => {
+  const out = scrubPaths({
+    effectiveDest: '/app/data/backups',
+    a: ['/home/user/x', '/Users/x/y', { b: '/mnt/x', c: '/srv', d: '/var/lib/z' }],
+    e: 'saved to /app/data/db and "/srv/x"',
+    n: 3,
+  });
+  assert.deepEqual(out, {
+    effectiveDest: '/demo/backups',
+    a: ['/demo/x', '/demo/y', { b: '/demo/x', c: '/demo', d: '/demo/z' }],
+    e: 'saved to /demo/db and "/demo/x"',
+    n: 3,
+  });
+});
+
+test('scrubPaths leaves URLs and look-alike strings alone', () => {
+  const v = { u: 'https://example.com/app/data', v: '/var/library', w: 'x/srv/y', z: '/mntx', h: '/homes/a' };
+  assert.deepEqual(scrubPaths(v), v);
+});
+
+test('scrubBody applies feed key and path scrubbing together', () => {
+  assert.deepEqual(scrubBody({ a: '/app/data?key=abc' }), { a: '/demo?key=demo' });
 });

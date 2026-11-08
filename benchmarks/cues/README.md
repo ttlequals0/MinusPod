@@ -1,14 +1,14 @@
-# cuebench -- MinusPod cue-template eval harness
+# cuebench: MinusPod cue-template eval harness
 
 Offline benchmark for MinusPod's MFCC template matcher and Chromaprint
-discovery scanner. Run it before and after tuning changes to get hard numbers.
+discovery scanner. Run it before and after tuning changes to compare results.
 
 ## Prerequisites
 
 - Python 3.11+
 - uv (https://github.com/astral-sh/uv)
 - ffmpeg on PATH (for audio decode)
-- fpcalc on PATH (for `scan` command only; skipped cleanly if absent)
+- fpcalc on PATH (for `scan` only)
 
 ## Setup
 
@@ -96,7 +96,7 @@ uv run cuebench scan \
   --audio /path/to/episode.mp3
 ```
 
-Skips cleanly with a message when fpcalc is not available.
+Skips with a message when fpcalc is not available.
 
 ### report
 
@@ -112,13 +112,13 @@ uv run cuebench report --output-dir /path/to/results/
 
 A template export is a zip file (or directory) containing:
 
-- `cue.flac` -- 16 kHz mono s16 FLAC of the captured cue
-- `template.json` -- manifest with schemaVersion, label, cueType, durationS, ...
+- `cue.flac`: 16 kHz mono s16 FLAC of the captured cue
+- `template.json`: manifest with schemaVersion, label, cueType, durationS, ...
 
 Export from a running MinusPod instance via the cue template export button in
 the UI, or via the API endpoint `GET /api/v1/cue-templates/<id>/export`.
 
-Known-good local test inputs from Phase 1:
+Local test inputs:
 
 - `tests/fixtures/cues/wsj_content_transition.flac`
 - `tests/fixtures/cues/pivot_content_transition.flac`
@@ -137,9 +137,7 @@ rejection, histogram math, and threshold table math.
 ## Cache
 
 Episode audio is cached at `~/.cache/minuspod-cuebench/<feed-hash>/<ep-hash>.<ext>`.
-Files are reused on subsequent runs. The 500 MB per-file cap prevents runaway
-downloads. The cache directory is not cleaned automatically; remove it manually
-when space is needed.
+Files are reused on later runs, with a 500 MB per-file cap. Nothing cleans it automatically; delete it when space is needed.
 
 ## Results
 

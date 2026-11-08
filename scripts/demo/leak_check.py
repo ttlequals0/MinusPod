@@ -2,6 +2,7 @@
 import argparse
 import ipaddress
 import json
+import os
 import re
 import sqlite3
 import sys
@@ -32,12 +33,12 @@ PATH_END = r"""[^\s"'\\\])}>]*"""
 
 PATTERNS: list[tuple[str, re.Pattern]] = [
     (name, re.compile(rx)) for name, rx in [
-        ('anthropic_key', r'sk-ant-[A-Za-z0-9_-]{20,}'),
+        ('anthropic_key', r'(?<![A-Za-z0-9])sk-ant-[A-Za-z0-9_-]{20,}'),
         ('openai_key', r'(?<![A-Za-z0-9])sk-(?!ant-|or-)(proj-)?[A-Za-z0-9_-]{20,}'),
-        ('openrouter_key', r'sk-or-[A-Za-z0-9_-]{20,}'),
+        ('openrouter_key', r'(?<![A-Za-z0-9])sk-or-[A-Za-z0-9_-]{20,}'),
         ('encrypted_setting', r"""enc:v1:[^\s"']+"""),
         ('bearer', r'(?i)bearer\s+[A-Za-z0-9._-]{20,}'),
-        ('jwt', r'eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]+'),
+        ('jwt', r'(?<![A-Za-z0-9])eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]+'),
         ('abs_path', r'(?m)(^|[^A-Za-z0-9_./-])(/app/data|/home/[A-Za-z]|/Users/[A-Za-z]|/mnt/|/srv/|/var/lib/)' + PATH_END),
         ('email', r'(?i)[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[a-z]{2,}'),
         ('private_feed_host', r"""(?i)patreon\.com/rss|(?:supercast\.com|supportingcast\.fm|memberful\.com)/[^\s"'<>]*(?:rss|feed|[A-Za-z0-9_-]{20,})"""),
@@ -53,16 +54,18 @@ class Hit:
     source: str
     pattern: str
     excerpt: str
+    offset: int = -1
 
 
-def parse_hosts(value: str | None) -> list[str]:
+def parse_hosts(value: str | None, redact: bool = False) -> list[str]:
     """Split a comma-separated --hosts value; an empty list or a non-hostname entry is an error."""
     hosts = [h.strip() for h in (value or '').split(',') if h.strip()]
     if not hosts:
         raise ValueError('--hosts is required: list every hostname the instance has used, comma-separated')
-    for h in hosts:
+    for i, h in enumerate(hosts, 1):
         if '/' in h or any(c.isspace() for c in h) or '.' not in h:
-            raise ValueError(f'--hosts entry {h!r} is not a hostname (a file path passed by mistake?)')
+            what = f'invalid host entry #{i}' if redact else f'--hosts entry {h!r} is not a hostname (a file path passed by mistake?)'
+            raise ValueError(what)
     return hosts
 
 
@@ -120,7 +123,7 @@ def check_text(
     for name, rx in patterns or compile_patterns(hosts):
         for m in rx.finditer(text):
             if accepted(name, m.group(0)):
-                found.append(Hit(source, name, excerpt(text, m)))
+                found.append(Hit(source, name, excerpt(text, m), m.start()))
     return found
 
 
@@ -136,7 +139,7 @@ def check_files(paths: Iterable[Path], hosts: list[str], slugs: Iterable[str] = 
             name = f.name if f == root else str(f.relative_to(root))
             for pname, rx in slug_patterns:
                 for m in rx.finditer(name):
-                    found.append(Hit(str(f), pname, 'path ' + excerpt(name, m)))
+                    found.append(Hit(str(f), pname, 'path ' + excerpt(name, m), m.start()))
             if not f.is_file() or f.suffix.lower() in SKIP_SUFFIXES:
                 continue
             found += check_text(f.read_text(encoding='utf-8', errors='ignore'), str(f), hosts, patterns)
@@ -173,14 +176,32 @@ def check_sqlite(db: Path, hosts: list[str], slugs: Iterable[str] = ()) -> list[
     return found
 
 
-def report_hits(hits: list[Hit], limit: int = 20) -> None:
+def report_hits(
+    hits: list[Hit], limit: int = 20, redact: bool | None = None,
+    hosts: list[str] = (), slugs: Iterable[str] = (),
+) -> None:
+    """Print hits grouped by pattern. Redacted output names hosts and slugs by index and
+    withholds excerpts, so a CI log never carries the protected values."""
+    if redact is None:
+        redact = os.environ.get('GITHUB_ACTIONS') == 'true'
+    names = {}
+    slugs_set = set(slugs)
+    if redact:
+        names = {f'host:{h}': f'host:#{i}' for i, h in enumerate(hosts, 1)}
+        names |= {f'slug:{s}': f'slug:#{i}' for i, s in enumerate(sorted(slugs_set), 1)}
     by_pattern: dict[str, list[Hit]] = {}
     for h in hits:
         by_pattern.setdefault(h.pattern, []).append(h)
     for name, group in sorted(by_pattern.items()):
-        print(f'{name} | {len(group)}')
+        print(f'{names.get(name, name)} | {len(group)}')
         for h in group[:limit]:
-            print(f'  {h.source} | {h.excerpt!r}')
+            if not redact:
+                print(f'  {h.source} | {h.excerpt!r}')
+            elif slugs_set:
+                # file names may carry an excluded slug
+                print(f'  (location withheld) | offset {h.offset}')
+            else:
+                print(f'  {h.source} | offset {h.offset}')
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -189,9 +210,12 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument('--sqlite', type=Path)
     parser.add_argument('--hosts')
     parser.add_argument('--exclusions', type=Path)
+    parser.add_argument('--redact', action='store_true',
+                        help='print host and slug names by index and no excerpts; implied when GITHUB_ACTIONS=true')
     args = parser.parse_args(argv)
+    redact = args.redact or os.environ.get('GITHUB_ACTIONS') == 'true'
     try:
-        hosts = parse_hosts(args.hosts)
+        hosts = parse_hosts(args.hosts, redact)
         slugs = load_exclusions(args.exclusions) if args.exclusions else set()
     except ValueError as e:
         print(str(e), file=sys.stderr)
@@ -204,7 +228,7 @@ def main(argv: list[str] | None = None) -> int:
     hits = check_files(args.paths, hosts, slugs)
     if args.sqlite:
         hits += check_sqlite(args.sqlite, hosts, slugs)
-    report_hits(hits)
+    report_hits(hits, redact=redact, hosts=hosts, slugs=slugs)
     return 2 if hits else 0
 
 

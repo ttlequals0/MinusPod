@@ -34,7 +34,7 @@ PYTHONPATH=src:. python scripts/demo/snapshot.py \
 
 ## 2. Run a backend on the snapshot
 
-Start the backend container with the snapshot as its database and a throwaway data directory. Point it at `http://127.0.0.1:8000` or any address you pass to the next steps. Set `MINUSPOD_BACKGROUND_THREADS=0` so it serves the snapshot without starting downloads or processing. When the backend runs from source on macOS, start gunicorn with `OBJC_DISABLE_INITIALIZE_FORK_SAFETY=YES`. Without it the workers abort in the system proxy lookup on their first outbound request and the crawl sees empty responses.
+Start the backend container with the snapshot as its database and a throwaway data directory. Point it at `http://127.0.0.1:8000` or any address you pass to the next steps. Set `MINUSPOD_BACKGROUND_THREADS=0` so it serves the snapshot without starting downloads or processing. When the backend runs from source on macOS, start gunicorn with `OBJC_DISABLE_INITIALIZE_FORK_SAFETY=YES`. Without it the workers abort in the system proxy lookup on their first outbound request and the crawl sees empty responses. Also set `MINUSPOD_RATE_LIMIT_DISABLED=true`: a crawl easily passes the default limits, which are per gunicorn worker (200 per minute and 1000 per hour each), and a throttled crawl exits 1.
 
 ## 3. Record live extras
 
@@ -65,7 +65,8 @@ cd scripts/demo/crawl
 node crawl.mjs --base http://127.0.0.1:8000 --ui-base /ui --out crawl-out
 ```
 
-- Writes `crawl-out/crawl.har` and `crawl-out/routes-visited.json`. Exit 1 on a page error, a 5xx response or an expected route that was not visited.
+- Writes `crawl-out/crawl.har` and `crawl-out/routes-visited.json`. Exit 1 on a page error, a 5xx or 429 response or an expected route that was not visited.
+- Modal dialogs such as "What's new" are dismissed before sections are expanded; the dismissed headings are listed in `routes-visited.json` as `dialogsDismissed`.
 - The backend serves the UI under `/ui`; without `--ui-base` every page is a 404 and the HAR holds almost no API traffic.
 
 ## 5. HAR to fixtures
@@ -116,18 +117,40 @@ PYTHONPATH=src:. python scripts/demo/leak_check.py \
   frontend/demo/fixtures frontend/demo/artwork frontend/demo/search-index.json
 ```
 
-It scans files and SQLite cells for the hostnames you list, globally routable IPs outside the documentation ranges, feed auth keys (`key=` query values), `token=`, `token-hash=` and `token-time=` query values, API keys and tokens, and filesystem paths. With `--exclusions`, each excluded slug is also searched for in file contents and SQLite cells, and in every file and directory name under the scanned paths, including `.jpg` files that are otherwise skipped. A hit exits 2. `--hosts` is required and follows the same rules as in step 1.
+It scans files and SQLite cells for the hostnames you list, globally routable IPs outside the documentation ranges, feed auth keys (`key=` query values), `token=`, `token-hash=` and `token-time=` query values, API keys and tokens, and filesystem paths. With `--exclusions`, each excluded slug is also searched for in file contents and SQLite cells, and in every file and directory name under the scanned paths, including `.jpg` files that are otherwise skipped. A hit exits 2. With `--redact`, which is on automatically when `GITHUB_ACTIONS` is `true`, hosts and slugs print as `host:#<n>` and `slug:#<n>` and excerpts are replaced by an offset, so a public CI log never shows them. `--hosts` is required and follows the same rules as in step 1.
 
-## 9. Publish
+## 9. Rendered feeds
 
-Upload the snapshot database and the live extras as a release asset on the demo site repository:
+The demo app runs without egress and cannot build a subscribed feed's RSS, so the snapshot ships the
+rendered feeds as the app's RSS cache. Record them from the live instance after the database is final:
 
 ```
-tar -C live-extras -cf overrides.tar overrides
-tar -C live-extras -cf artwork.tar artwork
-gh release create snapshot-YYYY-MM-DD demo-snapshot-YYYY-MM-DD.db artwork.tar overrides.tar \
+PYTHONPATH=src:. python scripts/demo/record_feeds.py --base-url https://your-instance \
+  --cookies cookies.txt --sqlite demo-snapshot-YYYY-MM-DD.db \
+  --hosts "$(paste -sd, hosts.txt)" --exclusions /path/to/demo-exclusions.json \
+  --out live-feeds --tar rss.tar
+```
+
+It fetches `/<slug>` for every podcast in the snapshot (with the feed key when feed auth is on),
+rewrites the instance hosts to `demo.minuspod.app`, removes the key from every URL and cover token,
+drops items whose episode the snapshot lacks, replaces emails, runs the leak check and writes
+`podcasts/<slug>/modified-rss.xml`. The render-version marker stays, so the app serves the files
+without a refresh.
+
+## 10. Publish
+
+Upload the snapshot database, the live extras and the rendered feeds as release assets on the demo
+site repository:
+
+```
+COPYFILE_DISABLE=1 tar -C live-extras -cf overrides.tar overrides
+COPYFILE_DISABLE=1 tar -C live-extras -cf artwork.tar artwork
+sha256sum demo-snapshot-YYYY-MM-DD.db artwork.tar overrides.tar rss.tar > SHA256SUMS.txt
+gh release create snapshot-YYYY-MM-DD demo-snapshot-YYYY-MM-DD.db artwork.tar overrides.tar rss.tar SHA256SUMS.txt \
   --repo ttlequals0/minuspod.app --notes "Demo snapshot YYYY-MM-DD"
 ```
+
+`COPYFILE_DISABLE=1` keeps macOS metadata files (`._*`) out of the archives.
 
 Crawled fixtures are regenerated from these assets by steps 2 and 4 to 7, so they are not uploaded.
 

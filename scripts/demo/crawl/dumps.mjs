@@ -1,7 +1,7 @@
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { fixtureKey } from './lib/keys.mjs';
-import { scrubFeedKeys, writeFixture, mergeIndex, applyOverrides, readOverrides } from './lib/store.mjs';
+import { scrubBody, writeFixture, mergeIndex, applyOverrides, readOverrides } from './lib/store.mjs';
 import { windowFixtureDir } from './lib/transcripts.mjs';
 import { argValue, checkFlags } from './lib/args.mjs';
 
@@ -96,7 +96,7 @@ export function createDumper({ base, out, fetchImpl = fetch }) {
     const fixture = { status: res.status };
     if (res.status !== 204 && res.status !== 304 && text) {
       if (/json/i.test(type)) {
-        try { fixture.body = scrubFeedKeys(JSON.parse(text)); } catch (err) { stats.errors.push({ path, error: `bad json: ${err.message}` }); }
+        try { fixture.body = scrubBody(JSON.parse(text)); } catch (err) { stats.errors.push({ path, error: `bad json: ${err.message}` }); }
       } else if (/^text\/plain/i.test(type)) {
         fixture.body = text.replace(/([?&]key=)[^&"'\s]+/g, '$1demo');
       } else if (res.ok) {

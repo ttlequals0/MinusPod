@@ -133,6 +133,11 @@ def get_update_status(db, force=False):
     channel = db.get_setting('update_channel') or 'stable'
     if channel not in ('stable', 'edge'):
         channel = 'stable'
+    if not force and not db.get_setting_bool('update_check_enabled', default=True):
+        # Checks are off: answer from the cache, never the network.
+        with _cache_lock:
+            releases = _cache['releases'] or []
+        return build_status(releases, channel)
     return build_status(get_releases(force=force), channel)
 
 

@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from cuebench.cross_episode_eval import _summarize
+from cuebench.cross_episode_eval import TOO_FEW_EPISODES, _summarize
 from cuebench.report import _render_md
 
 
@@ -127,7 +127,7 @@ class TestSkipPaths:
         # Simulate what run() returns when len(audio_paths) < 2
         result = {
             "available": True,
-            "skip_reason": "fewer than 2 episodes -- cross-episode comparison requires >= 2 siblings",
+            "skip_reason": TOO_FEW_EPISODES,
             "episodes": [],
             "summary": {},
         }
@@ -181,7 +181,7 @@ class TestReportXepSection:
     def test_skip_reason_rendered(self):
         xep = {
             "available": True,
-            "skip_reason": "fewer than 2 episodes -- cross-episode comparison requires >= 2 siblings",
+            "skip_reason": TOO_FEW_EPISODES,
             "episodes": [],
             "summary": {},
         }

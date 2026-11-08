@@ -89,6 +89,7 @@ Env-backed rows seed the default of the stored setting named in the row. The sto
 | `MAX_AUDIO_DOWNLOAD_MB` | `500` | Per-episode download size cap in MB. Raise it for feeds with very long or high-bitrate episodes (a 260-minute episode at 256kbps is about 500MB). Guards against a broken or malicious enclosure filling the disk, so keep it finite. Env-backed. |
 | `MINUSPOD_MAX_ARTWORK_BYTES` | `26214400` (25 MB) | Cap on podcast artwork download size. Clamped to `[65536, 52428800]`. Env-backed. |
 | `MINUSPOD_MAX_RSS_BYTES` | `209715200` (200 MB) | Cap on RSS response body size. Floor is 1 MB. Env-backed. |
+| `MINUSPOD_RATE_LIMIT_DISABLED` | `false` | Set to `true`, `1`, or `yes` to turn the API rate limiter off. For a throwaway instance such as the demo crawl backend; leave it off in a deployment. |
 | `RATE_LIMIT_STORAGE_URI` | `memory-threadsafe://` | Flask-limiter storage backend. Default is per-worker; set to `redis://host:6379` + run a Redis sidecar for exact declared limits across workers. |
 | `APP_UID` | `1000` | UID gunicorn runs as inside the container. Override to match host volume ownership. |
 | `APP_GID` | `1000` | GID counterpart to `APP_UID`. |

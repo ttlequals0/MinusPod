@@ -21,7 +21,7 @@ benchmarks/llm/
     archive/                 # explicit snapshots: results/archive/<date>/
 ```
 
-Raw response bodies live in one JSONL shard per model (`results/raw/responses/<model>.jsonl`, lines of `{call_id, body}`), so the file count stays flat as the corpus grows. Prompts are not stored at all: they reconstruct deterministically from the corpus, and `benchmark show-prompt <call_id>` verifies the result against the `prompt_hash` recorded at call time. `benchmark show-response <call_id>` prints a single raw response body.
+Raw response bodies live in one JSONL shard per model (`results/raw/responses/<model>.jsonl`, lines of `{call_id, body}`). Prompts are not stored at all: they reconstruct deterministically from the corpus, and `benchmark show-prompt <call_id>` verifies the result against the `prompt_hash` recorded at call time. `benchmark show-response <call_id>` prints a single raw response body.
 
 ## Setup
 
@@ -37,7 +37,7 @@ Then run any command via `uv run benchmark <cmd>`.
 
 The CLI auto-loads `benchmarks/llm/.env` on startup (resolved relative to the package, not the CWD, so it works from any directory). Shell-exported variables take precedence over `.env` values.
 
-Requires MinusPod >= 2.0.28 on the server you point at: the benchmark imports `create_windows` from `ad_detector` and `fetch_litellm_pricing` from `pricing_fetcher`. Before 2.0.28 those modules eagerly imported `webhook_service` (which pulls jinja2) and `bs4`, so a clean `uv sync` could not start the CLI. 2.0.28 deferred both. The benchmark also calls `GET /api/v1/feeds/{slug}/episodes/{id}/original-segments`, an endpoint added in 2.0.26. Older episodes return 404 until reprocessed.
+Requires MinusPod >= 2.0.28 on the server you point at. The benchmark imports `create_windows` from `ad_detector` and `fetch_litellm_pricing` from `pricing_fetcher`, and earlier releases eagerly imported `webhook_service` and `bs4`, so a clean `uv sync` could not start the CLI. It also calls `GET /api/v1/feeds/{slug}/episodes/{id}/original-segments`, added in 2.0.26. Older episodes return 404 until reprocessed.
 
 ## Transcript source
 
@@ -67,16 +67,16 @@ model.transcribe(
 )
 ```
 
-This is the call as it stood when the corpus was transcribed. The `initial_prompt` seeded 26 sponsor terms (`AD_VOCABULARY_TERMS`, plus the podcast name) so Whisper produced consistent spellings (`Athletic Greens` rather than `AG1`, `ExpressVPN` rather than `express vpn`). That biased what showed up in the transcript, and therefore what every benchmarked LLM is scored against. 2.96.0 removed the prompt: on the batched pipeline it cost 7-17% of each episode's speech, so transcripts from current releases have no prompt, fuller coverage, and no spelling bias. The corpus has not been re-transcribed since. Sponsor names are still matched against [`src/utils/constants.py`](../../src/utils/constants.py) `SEED_SPONSORS` (~250 sponsors, each with canonical name, intentional alias spellings, and category).
+This is the call as it stood when the corpus was transcribed. The `initial_prompt` seeded 26 sponsor terms (`AD_VOCABULARY_TERMS`, plus the podcast name) so Whisper produced consistent spellings (`Athletic Greens` rather than `AG1`, `ExpressVPN` rather than `express vpn`). That biased the transcript every benchmarked LLM is scored against. 2.96.0 removed the prompt: on the batched pipeline it cost 7-17% of each episode's speech, so transcripts from current releases have no prompt, fuller coverage, and no spelling bias. The corpus has not been re-transcribed since. Sponsor names are matched against [`src/utils/constants.py`](../../src/utils/constants.py) `SEED_SPONSORS` (~250 sponsors, each with canonical name, intentional alias spellings, and category).
 
 A second mapping, `SPONSOR_ALIASES`, is applied **after** transcription to normalize Whisper mishearings toward the canonical name (`a firm` -> `Affirm`, `xerox` -> `Xero`, `pure tea` -> `Purity`). About 174 such corrections in production. This affects sponsor-name matching but not the transcript fed to the LLM.
 
-Both lists are rendered in full in the generated `results/report.md` under "Transcript source". A small canonical-name sample: Athletic Greens, BetterHelp, Squarespace, Shopify, HelloFresh, NordVPN, ExpressVPN, ZipRecruiter, SimpliSafe, Mint Mobile.
+Both lists are rendered in full in the generated `results/report.md` under "Transcript source".
 
-Two practical consequences for anyone reading the F1 numbers:
+Two consequences for anyone reading the F1 numbers:
 
-- F1 numbers are upper-bounded by transcript quality. A smaller Whisper model would produce a different (almost certainly worse) ceiling.
-- If a model scores well here, it's scoring against `large-v3` transcripts made with the pre-2.96.0 prompt. Deployments running smaller Whisper models should expect lower F1; 2.96.0 and later transcribe without the prompt, which recovers dropped speech (sponsor reads included) but loses the spelling bias, and that combination has not been benchmarked.
+- F1 is upper-bounded by transcript quality. A smaller Whisper model would likely produce a lower ceiling.
+- Scores here are against `large-v3` transcripts made with the pre-2.96.0 prompt. Deployments on smaller Whisper models should expect lower F1. Releases from 2.96.0 transcribe without the prompt, which recovers dropped speech (sponsor reads included) but loses the spelling bias. That combination has not been benchmarked.
 
 ## Common workflows
 
@@ -105,7 +105,7 @@ benchmark run --retry-errors               # also retry calls recorded with erro
 benchmark report
 ```
 
-Useful after editing the report template. No LLM calls happen.
+No LLM calls happen.
 
 ### Snapshot the report
 
@@ -140,7 +140,7 @@ One-time conversion of the old per-call `.txt` layout to per-model JSONL shards.
 - `[run] max_concurrent_calls` (default 8): global cap.
 - `[run] max_concurrent_per_provider` (default 4): per-provider cap.
 
-Two simultaneous `benchmark run` invocations against the same `calls.jsonl` are unsupported and will produce duplicate entries. The runner is single-process by design.
+Two simultaneous `benchmark run` invocations against the same `calls.jsonl` are unsupported and will produce duplicate entries. The runner is single-process.
 
 ## Auth
 
@@ -152,28 +152,14 @@ Every `(model, episode, trial, window_index)` combination computes a `prompt_has
 
 ## Addressing-mode A/B
 
-MinusPod 2.91.0 added an experimental segment-ID addressing mode alongside the
-default timestamps mode: instead of `[12.3s - 18.0s] text` transcript lines
-and timestamp fields in the model's JSON, the transcript is a numbered list
-(`[7] text`) and the model reports integer `start_id`/`end_id`. The benchmark
-can run either mode, or both, so the two can be compared.
+MinusPod 2.91.0 added an experimental segment-ID addressing mode alongside the default timestamps mode. The transcript is a numbered list (`[7] text`) instead of `[12.3s - 18.0s] text` lines, and the model reports integer `start_id`/`end_id` instead of timestamps. The benchmark can run either mode so the two can be compared.
 
 ```sh
 benchmark run                                    # timestamps mode (default)
 benchmark run --addressing-mode segment_ids       # segment-ID mode
 ```
 
-Both commands append to the same `calls.jsonl`; each call record carries the
-`addressing_mode` it ran under (records written before this field existed are
-treated as `timestamps`). `benchmark report` and `benchmark run` both accept
-`--addressing-mode` and only render calls recorded under that mode, so a
-report never blends the two: run `benchmark report --addressing-mode
-segment_ids` to see the segment-ID side, and plain `benchmark report` for the
-timestamps side. If a model ignores the segment-ID contract on a given
-window, the harness falls back to timestamp parsing for that window and
-counts it under "ID-contract misses" in that model's per-model detail
-section, so a fallback-heavy model is visible rather than silently scored on
-approximate boundaries.
+Both commands append to the same `calls.jsonl`, and each record carries the `addressing_mode` it ran under (older records count as `timestamps`). `benchmark report` and `benchmark run` accept `--addressing-mode` and render only calls from that mode, so a report never blends the two. Run `benchmark report --addressing-mode segment_ids` for the segment-ID side and plain `benchmark report` for timestamps. If a model ignores the segment-ID contract on a window, the harness falls back to timestamp parsing and counts it under "ID-contract misses" in that model's detail section.
 
 `benchmark show-prompt` reconstructs a call's prompt using the mode stored on
 that call's record, so it works unmodified for either mode.
@@ -187,7 +173,7 @@ that call's record, so it works unmodified for either mode.
 
 Costs are recomputed from token counts at report time using the latest pricing snapshot in `data/pricing_snapshots/`. The `*_at_runtime` fields in `calls.jsonl` preserve actual spend.
 
-A full sweep across the recommended 32-model list and 7-episode corpus is roughly $80-$300 depending on model mix. Use `--dry-run` before kicking off to see the call count.
+A full sweep across the recommended 32-model list and 7-episode corpus is roughly $80-$300 depending on model mix. Use `--dry-run` first to see the call count.
 
 ## Schema versions
 

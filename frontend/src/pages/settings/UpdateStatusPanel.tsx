@@ -57,6 +57,7 @@ export default function UpdateStatusPanel() {
 
   if (!status || !settings) return null;
 
+  const checksOff = !settings.enabled;
   const target = status.channel === 'stable' ? status.stable : status.edge;
 
   return (
@@ -70,7 +71,9 @@ export default function UpdateStatusPanel() {
       <p className="text-sm text-foreground">
         {status.updateAvailable && target
           ? `${target.version} is available on the ${status.channel} channel.`
-          : 'Up to date on the selected channel.'}
+          : checksOff
+            ? 'Update checks are off.'
+            : 'Up to date on the selected channel.'}
       </p>
       <details className="group">
         <summary className="text-sm text-primary hover:underline cursor-pointer list-none">

@@ -165,3 +165,100 @@ def test_check_files_reports_slug_path_hit(tmp_path):
     (tmp_path / 'ep' / 'zz-paid.jpg').write_bytes(b'x')
     [h] = check_files([tmp_path], [], ['zz-paid'])
     assert h.pattern == 'slug:zz-paid' and h.source.endswith('zz-paid.jpg')
+
+
+def test_key_prefixes_need_a_word_boundary():
+    for slug in ('full-disk-abcdefghijklmnopqrstuvwxyz', 'ta' + 'sk-' + 'ant-abcdefghijklmnopqrstuvwxyz',
+                 'de' + 'sk-' + 'or-abcdefghijklmnopqrstuvwxyz'):
+        assert hits('https://x.test/' + slug) == [], slug
+    assert hits('key sk-' + 'abcdefghijklmnopqrstuvwxyz0123') == ['openai_key']
+    assert hits('(sk-' + 'ant-api03-abcdefghijklmnopqrstuvwxyz)') == ['anthropic_key']
+
+
+def _host_hit_dir(tmp_path):
+    (tmp_path / 'a.txt').write_text('see https://two.internal.example/x tail')
+    return str(tmp_path)
+
+
+def test_redact_hides_hosts_and_excerpts(tmp_path, capsys):
+    assert main([_host_hit_dir(tmp_path), '--hosts', 'one.internal.example,two.internal.example', '--redact']) == 2
+    out = capsys.readouterr().out
+    assert 'host:#2 | 1' in out
+    assert 'internal.example' not in out
+    assert 'see https' not in out
+    assert 'offset' in out
+
+
+def test_github_actions_redacts_without_the_flag(tmp_path, capsys, monkeypatch):
+    monkeypatch.setenv('GITHUB_ACTIONS', 'true')
+    main([_host_hit_dir(tmp_path), '--hosts', 'one.internal.example,two.internal.example'])
+    out = capsys.readouterr().out
+    assert 'host:#2' in out
+    assert 'internal.example' not in out
+
+
+def test_plain_run_still_prints_the_excerpt(tmp_path, capsys, monkeypatch):
+    monkeypatch.delenv('GITHUB_ACTIONS', raising=False)
+    main([_host_hit_dir(tmp_path), '--hosts', 'one.internal.example,two.internal.example'])
+    out = capsys.readouterr().out
+    assert 'host:two.internal.example' in out
+    assert 'see https' in out
+
+
+def test_jwt_needs_a_boundary():
+    tok = 'ey' + 'Jabcdefghijk.abcdefghijkl.abcdef'
+    assert hits('x' + tok) == []
+    assert hits('t ' + tok) == ['jwt']
+
+
+def _slug_scan(tmp_path):
+    ex = tmp_path / 'ex.json'
+    ex.write_text(json.dumps({'slugs': ['zz-paid']}))
+    scan = tmp_path / 'scan'
+    scan.mkdir()
+    (scan / 'zz-paid.txt').write_text('see https://two.internal.example/x')
+    return scan, ex
+
+
+def test_redact_with_slugs_withholds_every_location(tmp_path, capsys):
+    scan, ex = _slug_scan(tmp_path)
+    assert main([str(scan), '--hosts', 'two.internal.example', '--exclusions', str(ex), '--redact']) == 2
+    out = capsys.readouterr().out
+    assert 'zz-paid' not in out
+    assert 'internal.example' not in out
+    assert '(location withheld) | offset' in out
+
+
+def test_redacted_slug_hit_is_named_by_index(tmp_path, capsys):
+    scan, ex = _slug_scan(tmp_path)
+    (scan / 'zz-paid.txt').write_text('clean')
+    assert main([str(scan), '--hosts', H, '--exclusions', str(ex), '--redact']) == 2
+    out = capsys.readouterr().out
+    assert 'slug:#1 | 1' in out
+    assert 'zz-paid' not in out
+    assert '(location withheld)' in out
+
+
+def test_redact_without_slugs_keeps_the_path(tmp_path, capsys):
+    (tmp_path / 'fixture.json').write_text('see https://two.internal.example/x')
+    main([str(tmp_path), '--hosts', 'two.internal.example', '--redact'])
+    assert 'fixture.json | offset' in capsys.readouterr().out
+
+
+def test_invalid_host_entry_is_not_echoed_under_redaction(tmp_path, capsys):
+    (tmp_path / 'ok.txt').write_text('x')
+    assert main([str(tmp_path), '--hosts', 'a.example.com,secretname', '--redact']) == 2
+    err = capsys.readouterr().err
+    assert 'invalid host entry #2' in err
+    assert 'secretname' not in err
+    with pytest.raises(ValueError, match='invalid host entry #1'):
+        parse_hosts('x', redact=True)
+
+
+def test_report_hits_redacts_by_default_under_github_actions(capsys, monkeypatch):
+    from scripts.demo.leak_check import Hit, report_hits
+    monkeypatch.setenv('GITHUB_ACTIONS', 'true')
+    report_hits([Hit('f/secret-slug.xml', 'host:one.internal.example', 'x one.internal.example y', 3)],
+                hosts=['one.internal.example'], slugs=['secret-slug'])
+    out = capsys.readouterr().out
+    assert 'one.internal.example' not in out and 'secret-slug' not in out and 'x one' not in out
