@@ -28,7 +28,6 @@ from scripts.demo.scrub import (
     scrub_source_url,
     shift_iso,
     shift_iso_in_text,
-    url_carries_credentials,
 )
 
 # table -> timestamp column, for log tables trimmed to the window
@@ -325,11 +324,13 @@ def check_exclusions(conn: sqlite3.Connection, excluded_slugs: set[str]) -> None
 
 
 def check_credentialed_feeds(conn: sqlite3.Connection) -> None:
-    # episode URLs of such a feed carry the same tokens and are kept, so the feed must be excluded
-    bad = sorted(slug for slug, url in conn.execute('SELECT slug, source_url FROM podcasts') if url_carries_credentials(url))
+    # a feed the scrubber would rewrite is private or tokenised; its episode URLs carry the same tokens, so exclude it
+    bad = sorted(
+        slug for slug, url in conn.execute('SELECT slug, source_url FROM podcasts') if scrub_source_url(url or '', slug) != (url or '')
+    )
     if bad:
         raise SnapshotError(
-            'feeds with credentials in source_url are not excluded; add them to the exclusions file: ' + ', '.join(bad),
+            'private or credentialed feeds are not excluded; add them to the exclusions file: ' + ', '.join(bad),
         )
 
 

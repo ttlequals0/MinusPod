@@ -27,7 +27,7 @@ PYTHONPATH=src:. python scripts/demo/snapshot.py \
 
 - `--days` (default 30) sets the episode window. `--export-day` fixes the day the timestamp shift is anchored to.
 - `--exclusions` and `--hosts` are required. `scripts/demo/exclusions.json` is only a shape example (an empty list); keep the real list outside the repo.
-- Exit code 1 if a slug in the exclusions matches no feed, or if a feed whose `source_url` carries credentials (userinfo, a query string or a token path) is not excluded. Episode URLs of such a feed carry the same tokens, so add the feed to the exclusions.
+- Exit code 1 if a slug in the exclusions matches no feed, or if a feed whose `source_url` carries credentials (userinfo or a query string) or sits on a members-only feed host is not excluded. Episode URLs of such a feed carry the same tokens, so add the feed to the exclusions.
 - `--hosts` entries must be hostnames. A path, an entry with whitespace or one with no dot is rejected.
 - `--report-unclassified` lists tables that are in the source but not in the allowlist. Those tables are emptied.
 - Exit code 2 means the post-scrub leak check found something. Do not use the output.

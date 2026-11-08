@@ -11,7 +11,6 @@ PRIVATE_FEED_HOSTS = (
 )
 QUERY_ONLY_HOSTS = ('feeds.acast.com', 'substack.com')
 
-_TOKEN_SEGMENT = re.compile(r'[A-Za-z0-9_-]{20,}')
 _ISO_TS = re.compile(r'\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z?')
 _ISO_ANY = re.compile(r'(\d{4}-\d{2}-\d{2})(?:([T ])(\d{2}:\d{2}:\d{2})(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})?)?')
 _DOC_V4 = ('192.0.2.', '198.51.100.', '203.0.113.')
@@ -23,10 +22,8 @@ def _host_matches(host: str, listed: str) -> bool:
 
 def url_carries_credentials(url: str) -> bool:
     parsed = urlparse(url)
-    return bool(
-        parsed.username is not None or parsed.password is not None or parsed.fragment or parsed.query
-        or any(_TOKEN_SEGMENT.fullmatch(s) for s in parsed.path.split('/'))
-    )
+    # public hosts use long opaque ids in the path, so only userinfo, a query or a fragment count
+    return bool(parsed.username is not None or parsed.password is not None or parsed.fragment or parsed.query)
 
 
 def scrub_source_url(url: str, slug: str) -> str:

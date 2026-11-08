@@ -4,7 +4,8 @@ from scripts.demo.scrub import map_ip, replace_emails, replace_hosts, replace_pa
 def test_public_feed_urls_are_kept_and_tokenised_ones_replaced():
     assert scrub_source_url('https://feeds.megaphone.fm/darknetdiaries', 'dd') == 'https://feeds.megaphone.fm/darknetdiaries'
     assert scrub_source_url('https://www.patreon.com/rss/show?auth=abc', 'show') == 'https://example.com/feeds/show.xml'
-    assert scrub_source_url('https://host.example/feed/AbCdEfGhIjKlMnOpQrStUv123', 'x') == 'https://example.com/feeds/x.xml'
+    assert scrub_source_url('https://feeds.redcircle.com/0f7a4c2e-1b3d-4e5f-8a9b-0c1d2e3f4a5b', 'x') == 'https://feeds.redcircle.com/0f7a4c2e-1b3d-4e5f-8a9b-0c1d2e3f4a5b'
+    assert scrub_source_url('https://www.supercast.com/rss/x/abc', 'x') == 'https://example.com/feeds/x.xml'
     assert scrub_source_url('https://host.example/feed.xml?key=1', 'x') == 'https://example.com/feeds/x.xml'
 
 
@@ -66,6 +67,7 @@ def test_replace_hosts_is_independent_of_list_order():
 def test_url_carries_credentials():
     assert url_carries_credentials('https://u:p@h.example/f')
     assert url_carries_credentials('https://h.example/f?token=1')
-    assert url_carries_credentials('https://h.example/AbCdEfGhIjKlMnOpQrStUv123')
+    assert url_carries_credentials('https://h.example/f#t')
+    assert not url_carries_credentials('https://feeds.acast.com/public/shows/0123456789abcdef01234567')
     assert not url_carries_credentials('https://feeds.megaphone.fm/show')
     assert not url_carries_credentials('https://www.patreon.com/home')
