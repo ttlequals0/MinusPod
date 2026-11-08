@@ -1,0 +1,10 @@
+{
+  "http://h/api/v1/feeds/a/episodes?status=all&limit=25": "/feeds/a/episodes?limit=25&status=all",
+  "http://h/api/v1/search?q=a%20b": "/search?q=a+b",
+  "http://h/api/v1/settings?": "/settings",
+  "http://h/api/v1/search?q=caf%C3%A9": "/search?q=caf%C3%A9",
+  "http://h/api/v1/search?q=a~b*c": "/search?q=a%7Eb*c",
+  "http://h/api/v1/x?b=2&a=2&a=1": "/x?a=1&a=2&b=2",
+  "http://h/api/v1/x?empty=": "/x?empty=",
+  "http://h/api/v1/x?q=a%2Fb%3Fc%3Dd": "/x?q=a%2Fb%3Fc%3Dd"
+}

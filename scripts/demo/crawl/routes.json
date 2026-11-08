@@ -1,0 +1,31 @@
+{
+  "static": [
+    "/",
+    "/add",
+    "/search?q=the",
+    "/search?q=the&type=episode",
+    "/search?q=the&type=podcast",
+    "/search?q=the&type=transcript",
+    "/search?q=the&type=pattern",
+    "/search?q=the&type=sponsor",
+    "/patterns",
+    "/patterns?tab=sponsors",
+    "/patterns?tab=ad-review",
+    "/patterns?tab=detected-ads",
+    "/patterns?tab=cleanup",
+    "/history",
+    "/history?tab=downloads",
+    "/stats",
+    "/queue",
+    "/queue?tab=review",
+    "/settings",
+    "/api-docs"
+  ],
+  "perFeed": [
+    "/feeds/{slug}"
+  ],
+  "perEpisode": [
+    "/feeds/{slug}/episodes/{id}"
+  ],
+  "episodesPerFeed": 3
+}

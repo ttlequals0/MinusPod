@@ -1,0 +1,22 @@
+{
+  "name": "minuspod-demo-crawl",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test",
+    "crawl": "node crawl.mjs",
+    "dumps": "node dumps.mjs",
+    "fixtures": "node har-to-fixtures.mjs",
+    "index": "node build-search-index.mjs",
+    "artwork": "node stage-artwork.mjs",
+    "coverage": "node check-coverage.mjs"
+  },
+  "dependencies": {
+    "@playwright/test": "^1.65.0",
+    "minisearch": "^7.2.0",
+    "sharp": "^0.34"
+  },
+  "engines": {
+    "node": ">=24"
+  }
+}
