@@ -9056,7 +9056,7 @@ paths:
       summary: List provider budget display currencies
       responses:
         '200':
-          description: Supported ISO currency codes
+          description: Supported ISO currency codes. Returns the last cached list, or USD only, when the currency service is unreachable.
           content:
             application/json:
               schema:
@@ -9068,7 +9068,7 @@ paths:
                     items:
                       $ref: '#/components/schemas/CurrencyOption'
         '503':
-          description: Currency service unavailable
+          description: Currency service returned an invalid currency list
 
   /settings/provider-budget/rate/{currency}:
     get:

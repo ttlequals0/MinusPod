@@ -8,24 +8,22 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
+## [2.101.29] - 2026-11-08
+
+### Fixed
+
+- A crawler on the blocked user agent list no longer starts processing on YouTube, local or recents feeds. Those feeds have no upstream audio to redirect it to, so the check was skipped and every episode request it made queued a full processing run. On YouTube feeds it now gets a redirect to the playlist or channel page. On local and recents feeds it gets the original file when one is kept, otherwise a 503, or a 410 for an episode that permanently failed.
+- The provider budget currency list loads on an instance without internet access. When the currency service can't be reached it returns the last list it fetched, or USD alone, instead of a 503.
+
 ## [2.101.28] - 2026-11-07
 
 ### Added
 
-- Pushes to `main` notify the site repo. A new workflow sends `docs-updated` when docs, the README, theme tokens or logos change, and `demo-updated` when the frontend, backend, `openapi.yaml` or the demo tooling change. The docs site and the hosted demo rebuild from those events.
-- Pull requests that touch the API client, the database layer, the API or the demo tooling build the CPU image and run the demo fixture pipeline against it. The check fails on a broken migration, a page error, a 5xx or 429 response, a leak or missing coverage.
 - `MINUSPOD_RATE_LIMIT_DISABLED` (`true`, `1` or `yes`) turns the API rate limiter off for throwaway instances such as the demo crawl backend.
 
 ### Fixed
 
-- Demo build: the waveform editor loads again. The live recorder stores one whole-episode peaks fixture per episode, and the demo slices it to the zoom window the editor asks for. Before, every window got a 404.
-- Demo build: model dropdowns list every provider's models in every slot. The live instance only lists models for slots that hold a key, so the recorder now takes the union across slots per provider.
-- Demo build: the API explorer is readable on dark themes. Its panel stays white with dark text.
-- The demo crawl and HAR converter no longer keep 429 responses. The crawl exits 1 on a throttled response and the converter skips and counts them, so a throttled run never produces fixtures.
-- The demo crawl dismisses the What's new dialog, so clicks reach the page and the ad editor opens, and it no longer stalls for 30 seconds on the ad editor button. It also skips menu triggers when expanding sections.
 - Settings no longer calls GitHub for release info while update checks are off. It shows "Update checks are off." instead of "Up to date on the selected channel."
-- The demo leak check no longer fires on key prefixes inside words (such as `sk-` in a URL slug containing "disk-"). The Anthropic, OpenRouter and JWT patterns now need a non-alphanumeric character before the prefix, as the OpenAI pattern did.
-- The demo build accepts a pasted Cloudflare Web Analytics snippet as well as a bare token for `VITE_CF_BEACON_TOKEN`.
 
 ### Changed
 
@@ -35,8 +33,6 @@ release notes.
 
 ### Added
 
-- Demo mode build. `VITE_DEMO=1` (or `npm run build:demo`) builds the frontend as a read-only hosted demo. The UI runs against recorded API fixtures served by a service worker. Writes return 403 with a visible notice, requests for data the snapshot does not hold say so instead of answering with something else, and audio playback is disabled with an explanation. Artwork is bundled, podcast search calls iTunes directly, and an in-app API explorer replaces the backend docs page. Normal builds are unchanged.
-- Demo snapshot and crawl tooling under `scripts/demo/`. A scrubbed copy of a live database is served by a local backend, a Playwright crawl records every UI route into the fixtures the demo build replays, and a GET-only recorder adds provider settings, peaks and artwork from the live instance. A leak check scans the output for hostnames, IPs and feed keys before it is published.
 - Feeds gain a description override next to the title override, so a YouTube channel or playlist feed can carry a hand-written description that survives refreshes. Set it from the feed page or the `descriptionOverride` field on `PATCH /api/v1/feeds/{slug}`.
 
 ### Fixed

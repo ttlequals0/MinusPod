@@ -32,6 +32,7 @@ Full documentation for MinusPod. Start with the [project README](../README.md) f
 - [Container Security Updates](container-security.md) - pinned security patches for media libraries and base packages in the GPU and CPU images
 - [Glossary](glossary.md) - every term the app uses, defined and linked to the docs that cover it
 - [Design Specs](specs/README.md) - design documents behind larger features, cited by tests that pin a design decision
+- [Demo changelog](demo-changelog.md) - changes to the hosted demo and its tooling
 - [Contributing](CONTRIBUTING.md) - development prerequisites, setup, builds, tests, and pull requests
 
 [< Project README](../README.md)

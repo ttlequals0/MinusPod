@@ -37,6 +37,13 @@ def get_currencies() -> list[dict]:
         return _currencies_cache[1]
     try:
         payload = _get_json('/currencies')
+    except FxRateError:
+        logger.warning("Currency list unavailable, serving %s", 'stale cache' if _currencies_cache else 'USD only')
+        fallback = _currencies_cache[1] if _currencies_cache else [{'code': 'USD', 'name': 'US Dollar'}]
+        # Retry upstream at most once a minute while offline.
+        _currencies_cache = (now - _CACHE_SECONDS + 60, fallback)
+        return list(fallback)
+    try:
         currencies = [
             {'code': item['iso_code'], 'name': item['name']}
             for item in payload

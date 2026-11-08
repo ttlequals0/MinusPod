@@ -84,8 +84,8 @@ def test_provider_budget_currency_failure_does_not_expose_upstream_error(
 
     response = app_client.get('/api/v1/settings/provider-budget/currencies')
 
-    assert response.status_code == 503
-    assert response.get_json() == {'error': 'Could not load currency data', 'status': 503}
+    assert response.status_code == 200
+    assert response.get_json() == {'currencies': [{'code': 'USD', 'name': 'US Dollar'}]}
     assert 'RuntimeError' in caplog.text
     assert secret not in caplog.text
     assert secret not in response.get_data(as_text=True)
