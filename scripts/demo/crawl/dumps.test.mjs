@@ -4,6 +4,7 @@ import { mkdtempSync, readFileSync, readdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createDumper } from './dumps.mjs';
+import { windowFixtureDir } from './lib/transcripts.mjs';
 import { applyOverrides, mergeIndex, writeFixture } from './lib/store.mjs';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
@@ -146,4 +147,29 @@ test('overrides applied after a dump win over the dumped fixture', async () => {
 test('a bad --transcript-window exits 2 before any request', () => {
   const r = spawnSync(process.execPath, [fileURLToPath(new URL('./dumps.mjs', import.meta.url)), '--base', 'http://127.0.0.1:9', '--out', 'y', '--transcript-window', '-3']);
   assert.equal(r.status, 2);
+});
+
+test('a 5xx from the backend is an error and writes no fixture', async () => {
+  const inner = fakeFetch([]);
+  const { d, index } = await run(async (url) => (new URL(url).pathname.endsWith('/patterns') ? json(503, { error: 'down' }) : inner(url)));
+  assert.equal(index['/patterns'], undefined);
+  assert.ok(d.stats.errors.some((e) => e.key === '/patterns' && e.status === 503));
+});
+
+test('documented order: dump, then overrides, then transcript window', async () => {
+  const transcript = ['[00:00:00.0 --> 00:00:05.0] far before', '[00:01:40.0 --> 00:01:45.0] near the ad', '[00:08:20.0 --> 00:08:25.0] far after'].join('\n');
+  const inner = fakeFetch([], [{ slug: 'a', feedType: 'subscribed' }]);
+  const { index, read, out } = await run(async (url) => {
+    const path = new URL(url).pathname.replace('/api/v1', '');
+    if (path === '/feeds/a/episodes') return json(200, { episodes: [{ id: 'e1' }] });
+    if (path === '/feeds/a/episodes/e1') return json(200, { id: 'e1', transcript, adMarkers: [{ start: 100, end: 110 }] });
+    return inner(url);
+  });
+  const over = mkdtempSync(join(tmpdir(), 'ov-'));
+  mergeIndex(over, { '/patterns': writeFixture(over, '/patterns', { status: 200, body: { live: true } }) });
+  applyOverrides(out, over);
+  assert.ok(windowFixtureDir(out, 10) >= 1);
+  assert.deepEqual(read('/patterns'), { status: 200, body: { live: true } });
+  assert.equal(read('/feeds/a/episodes/e1').body.transcript, '[00:01:40.0 --> 00:01:45.0] near the ad');
+  assert.ok(index['/feeds/a/episodes/e1']);
 });

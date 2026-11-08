@@ -13,6 +13,8 @@ Generated output is never committed. `frontend/demo/fixtures`, `frontend/demo/ar
 
 ## 1. Local snapshot
 
+Start every run from empty `live-extras`, `frontend/demo/fixtures` and `frontend/demo/artwork` directories. The writers in steps 3, 5 and 7 refuse a non-empty output directory and take `--clean` to empty it first. A leftover from an earlier run could still hold a feed you have excluded since. Step 6 only adds to the fixtures directory, so it runs after step 5 by design.
+
 Copies the live database with the SQLite backup API, applies the allowlist, scrubs it and writes a new file. Excluded feeds are removed with everything that references them.
 
 ```
@@ -24,7 +26,9 @@ PYTHONPATH=src:. python scripts/demo/snapshot.py \
 ```
 
 - `--days` (default 30) sets the episode window. `--export-day` fixes the day the timestamp shift is anchored to.
-- `--exclusions` defaults to `scripts/demo/exclusions.json`. Keep the real list outside the repo.
+- `--exclusions` and `--hosts` are required. `scripts/demo/exclusions.json` is only a shape example (an empty list); keep the real list outside the repo.
+- Exit code 1 if a slug in the exclusions matches no feed, or if a feed whose `source_url` carries credentials (userinfo, a query string or a token path) is not excluded. Episode URLs of such a feed carry the same tokens, so add the feed to the exclusions.
+- `--hosts` entries must be hostnames. A path, an entry with whitespace or one with no dot is rejected.
 - `--report-unclassified` lists tables that are in the source but not in the allowlist. Those tables are emptied.
 - Exit code 2 means the post-scrub leak check found something. Do not use the output.
 
@@ -42,12 +46,13 @@ PYTHONPATH=src:. python scripts/demo/record_live.py \
   --cookies /path/to/cookies.txt \
   --hosts "$(paste -sd, hosts.txt)" \
   --exclusions /path/to/demo-exclusions.json \
-  --out live-extras
+  --out live-extras --clean
 ```
 
 - Output: `live-extras/overrides/` (fixtures plus `index.json`), `live-extras/artwork/feeds/<slug>.jpg` and `live-extras/artwork/episodes/<slug>/<id>.jpg`.
 - `--since-days` (default 30) limits episode artwork and peaks. `--no-peaks` skips peaks. `--synthesize-queue` builds a sample queue from history when the live queue is empty.
-- Exit code 2 means a leak was found. The partial output directory must not be published.
+- Exit code 2 means a leak was found, a feed artwork fetch failed or returned an unreadable image, or a GET returned a non-OK status. The partial output directory must not be published.
+- Exit code 1 for a bad `--hosts`, an exclusion slug that is not in `/feeds`, or a non-empty `--out` without `--clean`.
 
 ## 4. Crawl
 
@@ -64,7 +69,7 @@ node crawl.mjs --base http://127.0.0.1:8000 --out crawl-out
 ## 5. HAR to fixtures
 
 ```
-node har-to-fixtures.mjs --har crawl-out/crawl.har --out ../../../frontend/demo/fixtures
+node har-to-fixtures.mjs --har crawl-out/crawl.har --out ../../../frontend/demo/fixtures --clean
 ```
 
 - Keys follow the same encoding as `frontend/src/demo/fixtures.ts`. `crawl/lib/key-vectors.json` holds shared test vectors for both sides.
@@ -80,7 +85,7 @@ node dumps.mjs --base http://127.0.0.1:8000 --out ../../../frontend/demo/fixture
 
 - The window lives here, not in the snapshot, so the release asset keeps whole transcripts. Omit it to keep them in the fixtures too.
 - A rerun must pass both flags again, because the dumps refill the fixtures they overwrite.
-- A 429 is retried with backoff. 404 responses are recorded as 404 fixtures. Exit 1 if a request still fails after retries.
+- A 429 is retried with backoff. 404 responses are recorded as 404 fixtures. A 5xx response is counted as an error and no fixture is written for it. Exit 1 if a request still fails after retries.
 
 ## 7. Search index, artwork and coverage
 
@@ -89,7 +94,7 @@ From `scripts/demo/crawl`:
 ```
 node build-search-index.mjs --fixtures ../../../frontend/demo/fixtures \
   --out ../../../frontend/demo/search-index.json
-node stage-artwork.mjs --from ../../../live-extras/artwork --to ../../../frontend/demo/artwork
+node stage-artwork.mjs --from ../../../live-extras/artwork --to ../../../frontend/demo/artwork --clean
 node check-coverage.mjs --api-dir ../../../frontend/src/api \
   --fixtures ../../../frontend/demo/fixtures
 ```
@@ -105,10 +110,11 @@ Run it on everything that ships, after all steps:
 PYTHONPATH=src:. python scripts/demo/leak_check.py \
   --hosts "$(paste -sd, hosts.txt)" \
   --sqlite demo-snapshot-YYYY-MM-DD.db \
-  frontend/demo/fixtures frontend/demo/search-index.json
+  --exclusions /path/to/demo-exclusions.json \
+  frontend/demo/fixtures frontend/demo/artwork frontend/demo/search-index.json
 ```
 
-It scans files and SQLite cells for the hostnames you list, public and private IPs, feed auth keys (`key=` query values), API keys and tokens, and filesystem paths. A hit exits 2. Excluded feeds are already dropped by `snapshot.py` and `record_live.py`.
+It scans files and SQLite cells for the hostnames you list, globally routable IPs outside the documentation ranges, feed auth keys (`key=` query values), `token=`, `token-hash=` and `token-time=` query values, API keys and tokens, and filesystem paths. With `--exclusions`, each excluded slug is also searched for in file contents and SQLite cells, and in every file and directory name under the scanned paths, including `.jpg` files that are otherwise skipped. A hit exits 2. `--hosts` is required and follows the same rules as in step 1.
 
 ## 9. Publish
 

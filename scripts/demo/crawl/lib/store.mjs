@@ -1,4 +1,4 @@
-import { mkdirSync, readFileSync, renameSync, writeFileSync, existsSync } from 'node:fs';
+import { mkdirSync, readFileSync, readdirSync, renameSync, rmSync, writeFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileFor } from './keys.mjs';
 
@@ -52,4 +52,13 @@ export function applyOverrides(out, dir, index = readOverrides(dir)) {
   mkdirSync(out, { recursive: true });
   for (const file of new Set(Object.values(index))) writeAtomic(join(out, file), readFileSync(join(dir, file)));
   mergeIndex(out, index);
+}
+
+// Writers that do not merge refuse leftovers from an earlier run: they could hold a feed excluded since.
+export function prepareOutDir(dir, clean) {
+  if (existsSync(dir) && readdirSync(dir).length) {
+    if (!clean) throw new Error(`${dir} is not empty: start from an empty directory or pass --clean`);
+    for (const name of readdirSync(dir)) rmSync(join(dir, name), { recursive: true, force: true });
+  }
+  mkdirSync(dir, { recursive: true });
 }

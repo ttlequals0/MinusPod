@@ -7,6 +7,7 @@ import hashlib
 import io
 import json
 import re
+import shutil
 import sys
 from datetime import date, datetime, timedelta
 from http.cookiejar import MozillaCookieJar
@@ -20,7 +21,7 @@ from config import (
     PROVIDER_ANTHROPIC, PROVIDER_OLLAMA, PROVIDER_OPENAI_COMPATIBLE, PROVIDER_OPENROUTER,
     SYSTEMONE_PROVIDERS,
 )
-from scripts.demo.leak_check import check_text, compile_patterns, report_hits
+from scripts.demo.leak_check import check_text, compile_patterns, load_exclusions, parse_hosts, report_hits
 
 API_PREFIX = '/api/v1'
 # mirrors VALID_LLM_PROVIDERS in src/api/settings/common.py (importing it pulls in the Flask app)
@@ -201,15 +202,39 @@ def parse_json(resp, path: str):
         raise Abort(f'GET {path} did not return JSON: refresh the cookie in cookies.txt', 2) from None
 
 
+def prepare_out(out: Path, clean: bool) -> None:
+    # stale files from an earlier run could still hold a feed excluded since
+    if out.is_file():
+        raise Abort(f'{out} is a file', 1)
+    if out.is_dir() and any(out.iterdir()):
+        if not clean:
+            raise Abort(f'{out} is not empty: start from an empty directory or pass --clean', 1)
+        for child in out.iterdir():
+            if child.is_dir() and not child.is_symlink():
+                shutil.rmtree(child)
+            else:
+                child.unlink()
+
+
 def run(args, get=None) -> int:
-    get = get or client(args.base_url, args.cookies)
-    hosts = [h.strip() for h in args.hosts.split(',') if h.strip()]
-    patterns = compile_patterns(hosts)
-    excluded = set(json.loads(args.exclusions.read_text())['slugs']) if args.exclusions else set()
+    try:
+        hosts = parse_hosts(args.hosts)
+        excluded = load_exclusions(args.exclusions)
+    except ValueError as e:
+        raise Abort(str(e), 1) from None
     out: Path = args.out
+    prepare_out(out, args.clean)
+    get = get or client(args.base_url, args.cookies)
+    patterns = compile_patterns(hosts)
+    all_feeds = get_json(get, '/feeds?includeLatestEpisodes=false')['feeds']
+    unmatched = sorted(excluded - {f['slug'] for f in all_feeds})
+    if unmatched:
+        raise Abort('excluded slugs match no feed (misspelled?): ' + ', '.join(unmatched), 1)
     index = {}
 
     def record(key: str, status: int, body) -> None:
+        if fixture_key(key) != key:
+            raise Abort(f'override key is not in canonical form: {key}', 1)
         body = scrub_body(scrub_providers(body) if key == '/settings/providers' else body)
         text = json.dumps({'status': status, 'body': body})
         source = key.split('?')[0]
@@ -241,8 +266,7 @@ def run(args, get=None) -> int:
         queue_body = synthesize_queue(history, excluded, datetime.now())
     record(QUEUE_KEY, 200, queue_body)
 
-    feeds = [f for f in get_json(get, '/feeds?includeLatestEpisodes=false')['feeds']
-             if f['slug'] not in excluded]
+    feeds = [f for f in all_feeds if f['slug'] not in excluded]
     for feed in feeds:
         slug = feed['slug']
         if not SLUG_OK.match(slug):
@@ -301,7 +325,8 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument('--cookies', type=Path, required=True)
     p.add_argument('--out', type=Path, required=True)
     p.add_argument('--hosts', required=True)
-    p.add_argument('--exclusions', type=Path)
+    p.add_argument('--exclusions', type=Path, required=True)
+    p.add_argument('--clean', action='store_true', help='empty --out first instead of refusing a non-empty directory')
     p.add_argument('--since-days', type=int, default=30)
     p.add_argument('--peaks', action=argparse.BooleanOptionalAction, default=True)
     p.add_argument('--synthesize-queue', action='store_true')

@@ -2,8 +2,8 @@ import { copyFileSync, mkdirSync, readdirSync, statSync } from 'node:fs';
 import { join, resolve, relative, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import sharp from 'sharp';
-import { writeAtomic } from './lib/store.mjs';
-import { argValue } from './lib/args.mjs';
+import { writeAtomic, prepareOutDir } from './lib/store.mjs';
+import { argValue, checkFlags } from './lib/args.mjs';
 
 function* walk(dir) {
   for (const name of readdirSync(dir)) {
@@ -31,12 +31,16 @@ export async function stageArtwork(from, to) {
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
-  const from = argValue(process.argv, '--from');
-  const to = argValue(process.argv, '--to');
-  if (!from || !to) {
-    console.error('usage: stage-artwork.mjs --from <artwork dir> --to <frontend/demo/artwork>');
+  try {
+    checkFlags(process.argv.slice(2), ['--from', '--to', '--clean']);
+    const from = argValue(process.argv, '--from');
+    const to = argValue(process.argv, '--to');
+    if (!from || !to) throw new Error('usage: stage-artwork.mjs --from <artwork dir> --to <frontend/demo/artwork> [--clean]');
+    prepareOutDir(resolve(to), process.argv.includes('--clean'));
+    const s = await stageArtwork(resolve(from), resolve(to));
+    console.log(`artwork: ${s.copied} files staged, ${s.reencoded} re-encoded`);
+  } catch (err) {
+    console.error(String(err.message ?? err));
     process.exit(2);
   }
-  const s = await stageArtwork(resolve(from), resolve(to));
-  console.log(`artwork: ${s.copied} files staged, ${s.reencoded} re-encoded`);
 }

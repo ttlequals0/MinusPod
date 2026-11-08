@@ -4,6 +4,7 @@ import types
 from datetime import date, datetime
 from pathlib import Path
 
+import pytest
 from PIL import Image
 
 from scripts.demo.leak_check import check_text
@@ -158,7 +159,7 @@ def args_for(tmp_path, **kw):
     excl = tmp_path / 'ex.json'
     excl.write_text(json.dumps({'slugs': ['skip']}))
     base = dict(out=tmp_path / 'out', hosts='leak.example.org', exclusions=excl, since_days=30,
-                synthesize_queue=False, peaks=True, base_url='', cookies=None)
+                synthesize_queue=False, peaks=True, base_url='', cookies=None, clean=False)
     return types.SimpleNamespace(**{**base, **kw})
 
 
@@ -216,3 +217,40 @@ def test_run_no_peaks(tmp_path):
     run(args_for(tmp_path, peaks=False), get=fake_get())
     index = json.loads((tmp_path / 'out' / 'overrides' / 'index.json').read_text())
     assert not any('/peaks' in k for k in index)
+
+
+def abort_code(args, get):
+    with pytest.raises(Abort) as e:
+        run(args, get=get)
+    return e.value.code, str(e.value)
+
+
+def test_non_empty_out_is_refused_unless_clean(tmp_path):
+    out = tmp_path / 'out'
+    (out / 'artwork' / 'feeds').mkdir(parents=True)
+    stale = out / 'artwork' / 'feeds' / 'old.jpg'
+    stale.write_bytes(b'x')
+    code, msg = abort_code(args_for(tmp_path), fake_get())
+    assert code == 1 and '--clean' in msg
+    assert stale.exists() and not (out / 'overrides').exists()
+    assert run(args_for(tmp_path, clean=True), get=fake_get()) == 0
+    assert not stale.exists() and (out / 'overrides' / 'index.json').exists()
+
+
+def test_unmatched_exclusion_slug_aborts_before_writing(tmp_path):
+    (tmp_path / 'ex2.json').write_text(json.dumps({'slugs': ['skip', 'typo']}))
+    code, msg = abort_code(args_for(tmp_path, exclusions=tmp_path / 'ex2.json'), fake_get())
+    assert code == 1 and 'typo' in msg and 'skip' not in msg
+    assert not (tmp_path / 'out').exists()
+
+
+@pytest.mark.parametrize('hosts', ['', '/tmp/hosts.txt', 'localhost'])
+def test_bad_hosts_abort(tmp_path, hosts):
+    assert abort_code(args_for(tmp_path, hosts=hosts), fake_get())[0] == 1
+
+
+def test_non_canonical_override_key_aborts(tmp_path, monkeypatch):
+    monkeypatch.setattr('scripts.demo.record_live.override_targets',
+                        lambda: ['/settings/providers', '/settings/models?slot=primary&provider=x'])
+    code, msg = abort_code(args_for(tmp_path), fake_get())
+    assert code == 1 and 'canonical' in msg

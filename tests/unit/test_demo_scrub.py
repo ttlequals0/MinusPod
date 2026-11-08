@@ -1,4 +1,4 @@
-from scripts.demo.scrub import map_ip, replace_emails, replace_hosts, replace_paths, scrub_source_url, shift_iso, shift_iso_in_text
+from scripts.demo.scrub import map_ip, replace_emails, replace_hosts, replace_paths, scrub_source_url, shift_iso, shift_iso_in_text, url_carries_credentials
 
 
 def test_public_feed_urls_are_kept_and_tokenised_ones_replaced():
@@ -54,3 +54,18 @@ def test_replace_paths_respects_context():
     assert replace_paths('https://s.com/home/page') == 'https://s.com/home/page'
     assert replace_paths('/srv-foo and /srv/x') == '/srv-foo and /demo/x'
     assert replace_paths('see /home/alice, ok') == 'see /demo, ok'
+
+
+def test_replace_hosts_is_independent_of_list_order():
+    text = 'see pods.example.com and example.com'
+    expected = 'see demo.minuspod.app and demo.minuspod.app'
+    assert replace_hosts(text, ['example.com', 'pods.example.com']) == expected
+    assert replace_hosts(text, ['pods.example.com', 'example.com']) == expected
+
+
+def test_url_carries_credentials():
+    assert url_carries_credentials('https://u:p@h.example/f')
+    assert url_carries_credentials('https://h.example/f?token=1')
+    assert url_carries_credentials('https://h.example/AbCdEfGhIjKlMnOpQrStUv123')
+    assert not url_carries_credentials('https://feeds.megaphone.fm/show')
+    assert not url_carries_credentials('https://www.patreon.com/home')

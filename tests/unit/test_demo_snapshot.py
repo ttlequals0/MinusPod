@@ -5,7 +5,9 @@ from unittest.mock import patch
 import pytest
 
 from scripts.demo.export_allowlist import create_full_schema, SETTINGS_FORCE, SETTINGS_FORCE_UNREGISTERED
-from scripts.demo.snapshot import main, snapshot
+from scripts.demo.snapshot import SnapshotError, exclude_feeds, main, snapshot
+
+HOSTS = 'pods.example.com'
 
 
 def make_db(path):
@@ -86,7 +88,7 @@ def test_geo_collisions_keep_one_row(tmp_path):
     conn.commit()
     conn.close()
     with patch('scripts.demo.snapshot.map_ip', side_effect=lambda ip, salt: ip if ip.startswith('10.') else '192.0.2.1'):
-        snapshot(src, out, days=30, excluded_slugs=set(), hosts=[], export_day=date(2026, 11, 6), salt=b's')
+        snapshot(src, out, days=30, excluded_slugs={'zzexcluded'}, hosts=[], export_day=date(2026, 11, 6), salt=b's')
     conn = sqlite3.connect(out)
     assert conn.execute("SELECT COUNT(*) FROM ip_geo_cache").fetchone()[0] == 1
     assert conn.execute("PRAGMA integrity_check").fetchone()[0] == 'ok'
@@ -104,8 +106,8 @@ def test_out_equal_to_source_is_rejected(tmp_path):
     src = tmp_path / 'live.db'
     make_db(src)
     with pytest.raises(ValueError):
-        snapshot(src, src, days=30, excluded_slugs=set(), hosts=[], export_day=date(2026, 11, 6), salt=b's')
-    assert main(['--source', str(src), '--out', str(src)]) == 1
+        snapshot(src, src, days=30, excluded_slugs={'zzexcluded'}, hosts=[], export_day=date(2026, 11, 6), salt=b's')
+    assert main(['--source', str(src), '--out', str(src), '--exclusions', str(tmp_path / 'ex.json'), '--hosts', HOSTS]) == 1
     assert src.exists()
     assert list(tmp_path.glob('.snapshot-*')) == []
 
@@ -115,7 +117,7 @@ def test_bad_exclusions_json_returns_1(tmp_path):
     make_db(src)
     for body in ('[]', '{"slugs": "paid"}', '{"slugs": [1]}'):
         bad.write_text(body)
-        assert main(['--source', str(src), '--out', str(tmp_path / 'o.db'), '--exclusions', str(bad)]) == 1
+        assert main(['--source', str(src), '--out', str(tmp_path / 'o.db'), '--exclusions', str(bad), '--hosts', HOSTS]) == 1
 
 
 def test_fractional_and_offset_timestamps_shift_in_sql_pass(tmp_path):
@@ -125,7 +127,7 @@ def test_fractional_and_offset_timestamps_shift_in_sql_pass(tmp_path):
     conn.execute("UPDATE episodes SET description = '2026-10-01T00:00:00+00:00' WHERE episode_id = 'new'")
     conn.commit()
     conn.close()
-    snapshot(src, out, days=30, excluded_slugs=set(), hosts=[], export_day=date(2026, 11, 6), salt=b's')
+    snapshot(src, out, days=30, excluded_slugs={'zzexcluded'}, hosts=[], export_day=date(2026, 11, 6), salt=b's')
     conn = sqlite3.connect(out)
     assert conn.execute("SELECT description FROM episodes").fetchone()[0] == '2026-10-17T00:00:00+00:00'
 
@@ -137,11 +139,11 @@ def test_leak_check_flags_key_shaped_text_and_main_exits_2(tmp_path):
     conn.execute("UPDATE podcasts SET description = ? WHERE slug = 'keep'", ('sk-ant-' + 'a1B2c3D4e5' * 3,))
     conn.commit()
     conn.close()
-    report = snapshot(src, out, days=30, excluded_slugs=set(), hosts=[], export_day=date(2026, 11, 6), salt=b's')
+    report = snapshot(src, out, days=30, excluded_slugs={'zzexcluded'}, hosts=[], export_day=date(2026, 11, 6), salt=b's')
     assert [h.pattern for h in report.leaks] == ['anthropic_key']
-    (tmp_path / 'ex.json').write_text('{"slugs": []}')
+    (tmp_path / 'ex.json').write_text('{"slugs": ["zzexcluded"]}')
     out2 = tmp_path / 'o.db'
-    assert main(['--source', str(src), '--out', str(out2), '--exclusions', str(tmp_path / 'ex.json'), '--export-day', '2026-11-06']) == 2
+    assert main(['--source', str(src), '--out', str(out2), '--exclusions', str(tmp_path / 'ex.json'), '--hosts', HOSTS, '--export-day', '2026-11-06']) == 2
     assert not out2.exists()
 
 
@@ -153,7 +155,7 @@ def test_emails_and_paths_are_rewritten_and_leave_no_leaks(tmp_path):
     conn.execute("UPDATE processing_history SET processing_stats_json = ? WHERE episode_id = 'new'", ('{"err": "load /app/data/x failed"}',))
     conn.commit()
     conn.close()
-    report = snapshot(src, out, days=30, excluded_slugs=set(), hosts=[], export_day=date(2026, 11, 6), salt=b's')
+    report = snapshot(src, out, days=30, excluded_slugs={'zzexcluded'}, hosts=[], export_day=date(2026, 11, 6), salt=b's')
     conn = sqlite3.connect(out)
     assert conn.execute("SELECT description FROM podcasts WHERE slug = 'keep'").fetchone()[0] == 'write to contact@example.com today'
     assert conn.execute("SELECT processing_stats_json FROM processing_history").fetchone()[0] == '{"err": "load /demo/x failed"}'
@@ -161,14 +163,79 @@ def test_emails_and_paths_are_rewritten_and_leave_no_leaks(tmp_path):
 
 
 def test_excluded_slugs_without_podcast_row_still_clean_patterns(tmp_path):
-    src, out = tmp_path / 'live.db', tmp_path / 'snap.db'
+    src = tmp_path / 'live.db'
     make_db(src)
     conn = sqlite3.connect(src)
     conn.execute('DELETE FROM episodes WHERE podcast_id = 2')
     conn.execute('DELETE FROM episode_downloads WHERE podcast_id = 2')
     conn.execute("DELETE FROM podcasts WHERE slug = 'zzexcluded'")
-    conn.commit()
-    conn.close()
-    snapshot(src, out, days=30, excluded_slugs={'zzexcluded'}, hosts=[], export_day=date(2026, 11, 6), salt=b's')
-    conn = sqlite3.connect(out)
+    assert exclude_feeds(conn, {'zzexcluded'}) == 0
     assert conn.execute("SELECT id, podcast_id FROM ad_patterns").fetchall() == [(2, None)]
+
+
+def seed(conn, table, **vals):
+    # fills required columns that have no default so only the keys under test matter
+    for _, name, decl, notnull, default, pk in conn.execute(f'PRAGMA table_info({table})').fetchall():
+        if name in vals or default is not None or not notnull or name == 'id':
+            continue
+        vals[name] = 0 if any(t in decl.upper() for t in ('INT', 'REAL')) else ('' if 'BLOB' not in decl.upper() else b'')
+    cols = ', '.join(vals)
+    conn.execute(f'INSERT INTO {table} ({cols}) VALUES ({", ".join("?" * len(vals))})', list(vals.values()))  # noqa: S608
+
+
+ID_KEYED = (
+    ('processing_history', {'podcast_slug': 'x', 'status': 'completed', 'processed_at': '2026-10-20T00:00:00Z'}),
+    ('cue_detections', {}),
+    ('cue_candidate_scans', {}),
+    ('cue_threshold_scans', {}),
+    ('cue_candidate_dismissals', {'source_episode_id': 'x'}),
+    ('cue_cross_episode_scans', {}),
+    ('llm_call_usage', {}),
+)
+
+
+def test_exclusion_removes_id_keyed_rows_of_the_feed_only(tmp_path):
+    src = tmp_path / 'live.db'
+    make_db(src)
+    conn = sqlite3.connect(src)
+    conn.execute('DELETE FROM processing_history')
+    for table, extra in ID_KEYED:
+        for pid in (1, 2):
+            vals = {'podcast_id': pid, **extra}
+            if table not in ('cue_candidate_dismissals', 'cue_cross_episode_scans'):
+                vals['episode_id'] = 'new' if pid == 1 else 'p1'
+            seed(conn, table, **vals)
+    exclude_feeds(conn, {'zzexcluded'})
+    for table, _ in ID_KEYED:
+        assert conn.execute(f'SELECT podcast_id FROM {table}').fetchall() == [(1,)], table  # noqa: S608
+
+
+def test_unmatched_exclusion_slug_is_an_error(tmp_path, capsys):
+    src, out = tmp_path / 'live.db', tmp_path / 'snap.db'
+    make_db(src)
+    with pytest.raises(SnapshotError, match='zzmisspelled'):
+        snapshot(src, out, days=30, excluded_slugs={'zzexcluded', 'zzmisspelled'}, hosts=[], export_day=date(2026, 11, 6), salt=b's')
+    (tmp_path / 'ex.json').write_text('{"slugs": ["zzexcluded", "zzmisspelled"]}')
+    assert main(['--source', str(src), '--out', str(out), '--exclusions', str(tmp_path / 'ex.json'), '--hosts', HOSTS]) == 1
+    assert 'zzmisspelled' in capsys.readouterr().err
+    assert not out.exists()
+
+
+def test_credentialed_feed_that_is_not_excluded_fails_the_snapshot(tmp_path, capsys):
+    src, out = tmp_path / 'live.db', tmp_path / 'snap.db'
+    make_db(src)
+    (tmp_path / 'ex.json').write_text('{"slugs": []}')
+    assert main(['--source', str(src), '--out', str(out), '--exclusions', str(tmp_path / 'ex.json'), '--hosts', HOSTS]) == 1
+    err = capsys.readouterr().err
+    assert 'zzexcluded' in err and 'keep' not in err.split(':', 1)[1]
+    assert not out.exists()
+
+
+def test_exclusions_and_hosts_are_required(tmp_path):
+    src = tmp_path / 'live.db'
+    make_db(src)
+    (tmp_path / 'ex.json').write_text('{"slugs": ["zzexcluded"]}')
+    base = ['--source', str(src), '--out', str(tmp_path / 'o.db')]
+    assert main(base + ['--hosts', HOSTS]) == 1
+    assert main(base + ['--exclusions', str(tmp_path / 'ex.json')]) == 1
+    assert main(base + ['--exclusions', str(tmp_path / 'ex.json'), '--hosts', str(tmp_path / 'hosts.txt')]) == 1

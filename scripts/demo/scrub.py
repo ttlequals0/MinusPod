@@ -21,15 +21,20 @@ def _host_matches(host: str, listed: str) -> bool:
     return host == listed or host.endswith('.' + listed)
 
 
+def url_carries_credentials(url: str) -> bool:
+    parsed = urlparse(url)
+    return bool(
+        parsed.username is not None or parsed.password is not None or parsed.fragment or parsed.query
+        or any(_TOKEN_SEGMENT.fullmatch(s) for s in parsed.path.split('/'))
+    )
+
+
 def scrub_source_url(url: str, slug: str) -> str:
     parsed = urlparse(url)
     host = (parsed.hostname or '').lower()
     private = any(_host_matches(host, h) for h in PRIVATE_FEED_HOSTS)
     private = private or (bool(parsed.query) and any(_host_matches(host, h) for h in QUERY_ONLY_HOSTS))
-    tokenised = bool(parsed.query) or any(_TOKEN_SEGMENT.fullmatch(s) for s in parsed.path.split('/'))
-    if parsed.username is not None or parsed.password is not None or parsed.fragment:
-        return f'https://example.com/feeds/{slug}.xml'
-    if private or tokenised:
+    if private or url_carries_credentials(url):
         return f'https://example.com/feeds/{slug}.xml'
     return url
 
@@ -69,7 +74,8 @@ def shift_iso_in_text(text: str, delta_days: int) -> str:
 
 
 def replace_hosts(text: str, hosts: list[str], replacement: str = 'demo.minuspod.app') -> str:
-    for host in hosts:
+    # a parent domain must not rewrite the inside of a longer host first
+    for host in sorted(hosts, key=len, reverse=True):
         pattern = re.compile(r'(?<![\w-])' + re.escape(host) + r'(?!(?:\.[\w-])|[\w-])', re.IGNORECASE)
         text = pattern.sub(replacement, text)
     return text

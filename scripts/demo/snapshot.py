@@ -1,7 +1,6 @@
 """Turn a live podcast.db into a scrubbed demo snapshot."""
 # ruff: noqa: S608 (SQL identifiers come from PRAGMA and the allowlist, quoted by q())
 import argparse
-import json
 import os
 import sqlite3
 import shutil
@@ -20,7 +19,7 @@ from scripts.demo.export_allowlist import (
     SETTINGS_FORCE,
     SETTINGS_FORCE_UNREGISTERED,
 )
-from scripts.demo.leak_check import Hit, check_sqlite, report_hits
+from scripts.demo.leak_check import Hit, check_sqlite, load_exclusions, parse_hosts, report_hits
 from scripts.demo.scrub import (
     map_ip,
     replace_emails,
@@ -29,6 +28,7 @@ from scripts.demo.scrub import (
     scrub_source_url,
     shift_iso,
     shift_iso_in_text,
+    url_carries_credentials,
 )
 
 # table -> timestamp column, for log tables trimmed to the window
@@ -47,7 +47,10 @@ JSON_TIME_COLUMNS = (
 
 ISO_GLOB = '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]*'
 ISO_TS_GLOB = '*[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]T[0-9][0-9]:[0-9][0-9]:[0-9][0-9]*'
-EXCLUSIONS_PATH = Path(__file__).with_name('exclusions.json')
+
+
+class SnapshotError(Exception):
+    pass
 
 
 @dataclass
@@ -314,6 +317,22 @@ def check_foreign_keys(conn: sqlite3.Connection) -> None:
         raise RuntimeError(f'{len(bad)} foreign key violations after export: {rows}')
 
 
+def check_exclusions(conn: sqlite3.Connection, excluded_slugs: set[str]) -> None:
+    known = {r[0] for r in conn.execute('SELECT slug FROM podcasts')}
+    unmatched = sorted(excluded_slugs - known)
+    if unmatched:
+        raise SnapshotError('excluded slugs match no feed (misspelled?): ' + ', '.join(unmatched))
+
+
+def check_credentialed_feeds(conn: sqlite3.Connection) -> None:
+    # episode URLs of such a feed carry the same tokens and are kept, so the feed must be excluded
+    bad = sorted(slug for slug, url in conn.execute('SELECT slug, source_url FROM podcasts') if url_carries_credentials(url))
+    if bad:
+        raise SnapshotError(
+            'feeds with credentials in source_url are not excluded; add them to the exclusions file: ' + ', '.join(bad),
+        )
+
+
 def snapshot(
     source: Path, out: Path, *, days: int, excluded_slugs: set[str], hosts: list[str],
     export_day: date, salt: bytes,
@@ -327,8 +346,10 @@ def snapshot(
         conn = copy_source(source, work_dir / 'work.db')
         try:
             drop_search_index(conn)
+            check_exclusions(conn, excluded_slugs)
             episodes_before = conn.execute('SELECT COUNT(*) FROM episodes').fetchone()[0]
             report.feeds_excluded = exclude_feeds(conn, excluded_slugs)
+            check_credentialed_feeds(conn)
             apply_window(conn, (export_day - timedelta(days=days)).isoformat())
             report.unclassified_tables = apply_allowlist(conn)
             scrub(conn, hosts, salt)
@@ -356,8 +377,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument('--source', type=Path, required=True)
     parser.add_argument('--out', type=Path, required=True)
     parser.add_argument('--days', type=int, default=30)
-    parser.add_argument('--exclusions', type=Path, default=EXCLUSIONS_PATH)
-    parser.add_argument('--hosts', default='')
+    parser.add_argument('--exclusions', type=Path, required=True)
+    parser.add_argument('--hosts', required=True)
     parser.add_argument('--export-day', type=date.fromisoformat, default=None)
     parser.add_argument('--report-unclassified', action='store_true')
     try:
@@ -374,20 +395,19 @@ def main(argv: list[str] | None = None) -> int:
         print('--out must differ from --source', file=sys.stderr)
         return 1
     try:
-        data = json.loads(args.exclusions.read_text())
-    except (OSError, ValueError) as e:
-        print(f'cannot read exclusions: {e}', file=sys.stderr)
+        slugs = load_exclusions(args.exclusions)
+        hosts = parse_hosts(args.hosts)
+    except ValueError as e:
+        print(str(e), file=sys.stderr)
         return 1
-    slugs = data.get('slugs') if isinstance(data, dict) else None
-    if not isinstance(slugs, list) or not all(isinstance(x, str) for x in slugs):
-        print('exclusions must be an object with "slugs" as a list of strings', file=sys.stderr)
+    try:
+        report = snapshot(
+            args.source, args.out, days=args.days, excluded_slugs=slugs, hosts=hosts,
+            export_day=args.export_day or date.today(), salt=os.urandom(32),
+        )
+    except SnapshotError as e:
+        print(str(e), file=sys.stderr)
         return 1
-    slugs = set(slugs)
-    hosts = [h.strip() for h in args.hosts.split(',') if h.strip()]
-    report = snapshot(
-        args.source, args.out, days=args.days, excluded_slugs=slugs, hosts=hosts,
-        export_day=args.export_day or date.today(), salt=os.urandom(32),
-    )
     if report.leaks:
         print(f'LEAK CHECK FAILED: {len(report.leaks)} hits in {args.out}', file=sys.stderr)
         report_hits(report.leaks)

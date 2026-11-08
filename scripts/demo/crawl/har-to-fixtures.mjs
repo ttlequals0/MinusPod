@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { fixtureKey, fileFor } from './lib/keys.mjs';
-import { scrubFeedKeys, writeFixture, mergeIndex } from './lib/store.mjs';
+import { scrubFeedKeys, writeFixture, mergeIndex, prepareOutDir } from './lib/store.mjs';
 import { argValue, checkFlags } from './lib/args.mjs';
 
 const API_PATH = '/api/v1/';
@@ -32,11 +32,12 @@ export function entriesToFixtures(har) {
 }
 
 function main(argv) {
-  checkFlags(argv, ['--har', '--out']);
+  checkFlags(argv, ['--har', '--out', '--clean']);
   const harPath = argValue(argv, '--har');
   const out = argValue(argv, '--out');
-  if (!harPath || !out) throw new Error('usage: --har <file> --out <dir>');
+  if (!harPath || !out) throw new Error('usage: --har <file> --out <dir> [--clean]');
   const fixtures = entriesToFixtures(JSON.parse(readFileSync(harPath, 'utf8')));
+  prepareOutDir(out, argv.includes('--clean'));
   const index = {};
   for (const [key, fixture] of fixtures) index[key] = writeFixture(out, key, fixture);
   mergeIndex(out, index);

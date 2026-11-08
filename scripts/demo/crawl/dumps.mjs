@@ -29,6 +29,7 @@ const PAGED = [
   { path: (p) => `/stats/episode-costs?limit=${PAGE}&page=${p}&sortBy=lastActivityAt&sortDir=desc`, field: 'items' },
 ];
 
+// The frontend builds these paths raw and ids are hex today, so these keys agree with its requests.
 const FEED_PATHS = (slug) => {
   const f = `/feeds/${encodeURIComponent(slug)}`;
   return [f, `${f}/tags`, `${f}/cue-templates`, `${f}/cue-detections/advisory`, `${f}/ad-distribution`,
@@ -77,8 +78,8 @@ export function createDumper({ base, out, fetchImpl = fetch }) {
       stats.errors.push({ path, error: String(err) });
       return null;
     }
-    if (res.status === 429) {
-      stats.errors.push({ key, status: 429 });
+    if (res.status === 429 || res.status >= 500) {
+      stats.errors.push({ key, status: res.status });
       return null;
     }
     const type = res.headers.get('content-type') ?? '';

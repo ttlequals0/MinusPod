@@ -1,7 +1,12 @@
 import random
+import json
 import sqlite3
 
-from scripts.demo.leak_check import check_files, check_sqlite, check_text, main
+import pytest
+
+from scripts.demo.leak_check import check_files, check_sqlite, check_text, main, parse_hosts
+
+H = 'pods.example.com'
 
 
 def hits(text, hosts=()):
@@ -62,9 +67,9 @@ def test_check_sqlite_scans_text_and_blobs(tmp_path):
 
 def test_cli_exit_codes(tmp_path):
     (tmp_path / 'ok.txt').write_text('nothing here')
-    assert main([str(tmp_path)]) == 0
+    assert main([str(tmp_path), '--hosts', H]) == 0
     (tmp_path / 'bad.txt').write_text('enc:v1:zz')
-    assert main([str(tmp_path)]) == 2
+    assert main([str(tmp_path), '--hosts', H]) == 2
 
 
 def test_review_regressions():
@@ -91,8 +96,8 @@ def test_blob_scanning_and_cli_errors(tmp_path):
     conn.commit()
     conn.close()
     assert [(h.source, h.pattern) for h in check_sqlite(db, [])] == [('t.b#2', 'encrypted_setting')]
-    assert main([str(tmp_path / 'missing')]) == 2
-    assert main([]) == 2
+    assert main([str(tmp_path / 'missing'), '--hosts', H]) == 2
+    assert main(['--hosts', H]) == 2
 
 
 def test_ip_in_url_path_but_not_browser_tokens():
@@ -111,3 +116,52 @@ def test_strict_patterns_run_on_binary_blobs(tmp_path):
     conn.commit()
     conn.close()
     assert [(h.source, h.pattern) for h in check_sqlite(db, [])] == [('t.b#1', 'encrypted_setting')]
+
+
+def test_token_query_params():
+    assert hits('https://x.test/a.mp3?token=abc123') == ['token_param']
+    assert hits('https://x.test/a.mp3?id=1&token-hash=abc&token-time=99') == ['token_param', 'token_param']
+    assert hits('the token was refreshed') == []
+
+
+def test_parse_hosts_rejects_empty_and_non_hostnames():
+    assert parse_hosts(' a.example.com, b.example.org ,') == ['a.example.com', 'b.example.org']
+    for bad in ('', None, ' , ', '/home/me/hosts.txt', 'localhost', 'a b.example.com', 'a.example.com,hosts/x.txt'):
+        with pytest.raises(ValueError):
+            parse_hosts(bad)
+    with pytest.raises(ValueError, match=r"'x'"):
+        parse_hosts('hosts.txt,x')
+
+
+def test_cli_requires_hosts_and_rejects_bad_ones(tmp_path):
+    (tmp_path / 'ok.txt').write_text('nothing here')
+    assert main([str(tmp_path)]) == 2
+    assert main([str(tmp_path), '--hosts', '/tmp/hosts.txt']) == 2
+
+
+def test_excluded_slugs_hit_contents_and_paths(tmp_path):
+    ex = tmp_path / 'ex.json'
+    ex.write_text(json.dumps({'slugs': ['zz-paid']}))
+    scan = tmp_path / 'scan'
+    (scan / 'artwork' / 'feeds').mkdir(parents=True)
+    (scan / 'artwork' / 'feeds' / 'zz-paid.jpg').write_bytes(b'\xff\xd8')
+    (scan / 'artwork' / 'feeds' / 'other.jpg').write_bytes(b'\xff\xd8')
+    args = [str(scan), '--hosts', H, '--exclusions', str(ex)]
+    assert main([str(scan), '--hosts', H]) == 0
+    assert main(args) == 2
+    (scan / 'artwork' / 'feeds' / 'zz-paid.jpg').unlink()
+    assert main(args) == 0
+    (scan / 'zz-paid').mkdir()
+    assert main(args) == 2
+    (scan / 'zz-paid').rmdir()
+    (scan / 'index.json').write_text('{"/feeds/ZZ-PAID": 1}')
+    assert main(args) == 2
+    (scan / 'index.json').write_text('{"/feeds/zz-paid-two": 1}')
+    assert main(args) == 0
+
+
+def test_check_files_reports_slug_path_hit(tmp_path):
+    (tmp_path / 'ep').mkdir()
+    (tmp_path / 'ep' / 'zz-paid.jpg').write_bytes(b'x')
+    [h] = check_files([tmp_path], [], ['zz-paid'])
+    assert h.pattern == 'slug:zz-paid' and h.source.endswith('zz-paid.jpg')
