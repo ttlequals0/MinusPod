@@ -80,7 +80,9 @@ def encode_uri_component(text: str) -> str:
 def override_targets() -> list[str]:
     targets = ['/settings/providers']
     targets += [f'/settings/models?provider={p}&slot={slot}' for p in VALID_LLM_PROVIDERS for slot in SLOTS]
-    return targets + ['/settings/whisper-models', '/settings/whisper/capacity', QUEUE_KEY]
+    # provider-budget currencies and the update check need network the local backend lacks.
+    return targets + ['/settings/whisper-models', '/settings/whisper/capacity',
+                      '/settings/provider-budget/currencies', '/system/updates', QUEUE_KEY]
 
 
 def scrub_providers(body):

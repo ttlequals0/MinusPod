@@ -6,6 +6,7 @@ import { argValue } from './lib/args.mjs';
 import { writeAtomic } from './lib/store.mjs';
 
 const SETTLE_MS = 2500;
+const SECTION_SETTLE_MS = 300;
 const OPEN_EDITOR = '[data-testid^="open-editor-"]';
 
 // feeds: [{ slug, feedType, episodes: [id] }]. Recents feeds get no per-episode routes.
@@ -44,17 +45,40 @@ async function listFeeds(base, perFeed) {
 }
 
 const MAX_DISCLOSURE_PASSES = 4;
+const MAX_CLICKS_PER_PASS = 80;
+const CLOSED = 'main button[aria-expanded="false"], main summary';
 
-// Each tab is clicked once from a snapshot; disclosures loop until none are left closed.
+// Each tab is visited once with its disclosures expanded. Disclosures are re-queried after
+// every click because polling pages re-render and stale handles stop being clickable.
 async function expandAll(page) {
-  const tabs = await page.locator('main [role=tab][aria-selected="false"]').elementHandles();
-  for (const tab of tabs) await tab.click({ timeout: 2000 }).catch(() => {});
-  await page.waitForLoadState('networkidle').catch(() => {});
-  for (let pass = 0; pass < MAX_DISCLOSURE_PASSES; pass++) {
-    const toggles = await page.locator('main button[aria-expanded="false"], main summary').elementHandles();
-    if (!toggles.length) return;
-    for (const t of toggles) await t.click({ timeout: 2000 }).catch(() => {});
+  const tabs = page.locator('main [role=tab]');
+  const count = await tabs.count();
+  if (!count) return expandDisclosures(page);
+  for (let i = 0; i < count; i++) {
+    await tabs.nth(i).click({ timeout: 2000 }).catch(() => {});
     await page.waitForLoadState('networkidle').catch(() => {});
+    await expandDisclosures(page);
+  }
+}
+
+async function expandDisclosures(page) {
+  for (let pass = 0; pass < MAX_DISCLOSURE_PASSES; pass++) {
+    let opened = 0;
+    let skip = 0;
+    for (let clicks = 0; clicks < MAX_CLICKS_PER_PASS; clicks++) {
+      const closed = page.locator(CLOSED);
+      const before = await closed.count();
+      if (skip >= before) break;
+      const t = closed.nth(skip);
+      await t.click({ timeout: 2000 }).catch(() => {});
+      // Sections query only while open and on screen (useSectionVisible).
+      await t.scrollIntoViewIfNeeded({ timeout: 1000 }).catch(() => {});
+      await page.waitForTimeout(SECTION_SETTLE_MS);
+      if ((await page.locator(CLOSED).count()) < before) opened++;
+      else skip++;
+    }
+    await page.waitForLoadState('networkidle').catch(() => {});
+    if (!opened) return;
   }
 }
 

@@ -17,6 +17,7 @@ const STATIC_PATHS = [
   '/episodes/processing?limit=1000&offset=0',
   '/patterns/cleanup/suggestions?limit=200&offset=0',
   '/changelog?limit=50',
+  '/podping/nodes', // the Settings query is gated on a setting that is off
 ];
 
 const PAGED = [
@@ -39,7 +40,7 @@ const EPISODE_PATHS = (slug, id) => {
   const f = `/feeds/${s}/episodes/${e}`;
   return [f, `${f}/peaks?resolution_ms=100`, `${f}/original-segments`, `${f}/final-segments`,
     `${f}/original-transcript`, `${f}/sponsorblock/candidates`,
-    `/stats/episode-costs/runs?episodeId=${e}&slug=${s}`, `/stats/reviewer?episode_id=${e}&podcast_slug=${s}`];
+    `/stats/episode-costs/runs?episodeId=${e}&slug=${s}`, `/stats/spend/attempts?episodeId=${e}&slug=${s}`, `/stats/reviewer?episode_id=${e}&podcast_slug=${s}`];
 };
 
 async function pool(items, worker) {

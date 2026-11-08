@@ -22,6 +22,7 @@ def test_override_targets_enumerate_provider_types_and_slots():
     assert '/settings/models?provider=openai-compatible&slot=failover' in targets
     assert sum(t.startswith('/settings/models') for t in targets) == len(VALID_LLM_PROVIDERS) * 3
     assert '/settings/whisper-models' in targets
+    assert '/settings/provider-budget/currencies' in targets and '/system/updates' in targets
 
 
 def test_scrub_providers_replaces_base_urls():
@@ -124,6 +125,10 @@ def fake_get(extra_body=None, queue=None, feed_art=None):
     def get(path):
         if path == '/settings/providers':
             return resp({'cryptoReady': True, 'openai': {'baseUrl': 'https://x.internal'}, **(extra_body or {})})
+        if path == '/settings/provider-budget/currencies':
+            return resp({'currencies': [{'code': 'USD'}]})
+        if path == '/system/updates':
+            return resp({'currentVersion': '1.0'})
         if path.startswith('/settings/'):
             return resp({'models': []})
         if path == QUEUE_KEY:
@@ -162,6 +167,7 @@ def test_run_writes_layout(tmp_path):
     out = tmp_path / 'out'
     index = json.loads((out / 'overrides' / 'index.json').read_text())
     assert QUEUE_KEY in index and '/settings/providers' in index
+    assert '/settings/provider-budget/currencies' in index and '/system/updates' in index
     assert all((out / 'overrides' / f).exists() for f in index.values())
     providers = json.loads((out / 'overrides' / index['/settings/providers']).read_text())
     assert providers['body']['openai']['baseUrl'] == 'https://llm.example.com'

@@ -65,6 +65,7 @@ test('dumper pages, concatenates episodes, scrubs keys and records every status'
   assert.equal(index[EP('all', 500)], undefined);
   assert.deepEqual(read('/feeds/a/tags'), { status: 204 });
   assert.deepEqual(read('/feeds/a/episodes/e0'), { status: 404, body: { error: 'gone' } });
+  assert.ok(index['/stats/spend/attempts?episodeId=e501&slug=a']);
   assert.ok(index['/stats/reviewer?episode_id=e501&podcast_slug=a']);
   assert.ok(index['/stats/reviewer?episode_id=f500&podcast_slug=a']);
   assert.equal(d.stats.byStatus[404], 1);
