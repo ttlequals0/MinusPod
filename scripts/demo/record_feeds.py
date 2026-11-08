@@ -118,6 +118,7 @@ def main(argv: list[str] | None = None) -> int:
         patterns = compile_patterns(hosts, sorted(excluded))
         kept = dropped = 0
         hits = []
+        texts = {}
         for slug in slugs:
             resp = session.get(f'{base}/{slug}', params={'key': key} if key else None, timeout=TIMEOUT)
             if resp.status_code != 200 or '<rss' not in resp.text[:2000]:
@@ -126,12 +127,14 @@ def main(argv: list[str] | None = None) -> int:
             dropped += gone
             kept += len(ITEM.findall(text))
             hits += check_text(text, f'{slug}/modified-rss.xml', hosts, patterns)
+            texts[slug] = text
+        if hits:
+            report_hits(hits, hosts=hosts, slugs=sorted(excluded))
+            raise Abort(f'{len(hits)} leak check hit(s); nothing written or uploaded', 2)
+        for slug, text in texts.items():
             dest = args.out / 'podcasts' / slug / 'modified-rss.xml'
             dest.parent.mkdir(parents=True, exist_ok=True)
             dest.write_text(text, encoding='utf-8')
-        if hits:
-            report_hits(hits, hosts=hosts, slugs=sorted(excluded))
-            raise Abort(f'{len(hits)} leak check hit(s); nothing uploaded', 2)
         if args.tar:
             with tarfile.open(args.tar, 'w') as tar:
                 tar.add(args.out / 'podcasts', arcname='podcasts')

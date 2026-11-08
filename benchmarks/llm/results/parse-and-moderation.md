@@ -4,7 +4,7 @@ Companion to `report.md`, built from `results/raw/calls.jsonl` and the stored re
 
 `report.md` scores models on accuracy, cost, and latency, but only on calls that produced something the parser could read. This covers the two failures retrying will never fix: the model refuses the transcript, or it cannot reliably emit the JSON it was asked for.
 
-Both hurt more than the error counts suggest. A refusal puts whole episodes out of reach. A parse failure that lands on an empty result is scored as "found no ads", so it drags recall down instead of showing up as an error.
+Both hurt more than the error counts suggest. A refusal puts whole episodes out of reach, and a parse failure that lands on an empty result is scored as "found no ads", so it drags recall down instead of showing up as an error.
 
 ## Content moderation
 
@@ -52,7 +52,7 @@ One term does separate them. A racial slur appears in 24 windows across the two 
 
 Three blocked windows have no slur in them. One is the most sexually explicit passage in the episode at 27 hits; the other two are unremarkable on every signal measured here, so something outside these categories is triggering them. The single slur-bearing window that got through has one instance in 2,069 words.
 
-The filter is matching terms, not judging passages. The transcript is a verbatim conversation and the term is in-group usage in a hip-hop interview, but the filter does not make that distinction. The slur is not reproduced here.
+The filter is matching terms, not judging passages. The transcript is a verbatim conversation and the term is in-group usage in a hip-hop interview, but the filter does not make that distinction.
 
 ### Examples of blocked calls
 
@@ -78,9 +78,9 @@ the car. I'm gonna give it a try. Wish me luck. Me again. I put in the license
 plate. It gave me an offer ...
 ```
 
-A scripted read for a used-car service, textbook material, and the model never saw it. One slur instance in 2,091 words was enough to refuse the window.
+A scripted read for a used-car service, and the model never saw it. One slur instance in 2,091 words was enough to refuse the window.
 
-**The ones with no slur at all.** `dc` window 9 and window 27 are the counter-examples to everything above: zero slur hits, refused anyway. Window 9 carries 27 sexual-language hits, the highest in the episode, so a second trigger exists. Window 27 does not have that excuse. It is the shortest window in the table at 1,314 words, and its 9 sexual hits and 5 profanity hits are unremarkable for this episode. It came back 451 on every attempt anyway. Whatever tripped it is not in any category measured here.
+**The ones with no slur at all.** `dc` window 9 and window 27 are the counter-examples to everything above: zero slur hits, refused anyway. Window 9 carries 27 sexual-language hits, the highest in the episode, so a second trigger exists. Window 27 has no such excuse: at 1,314 words it is the shortest window in the table, and its 9 sexual hits and 5 profanity hits are unremarkable for this episode. It came back 451 on every attempt, so whatever tripped it is outside the categories measured here.
 
 **The one that barely registers.** `dc` window 4 has a single slur instance, one sexual hit, and 19 profanity hits in 1,719 words. By every signal except that one word it looks like the windows that passed. It was refused all five times.
 
@@ -131,9 +131,9 @@ Three failure shapes, separable in the raw data:
 
 ### Example calls
 
-Eight real calls: what went in, what came back, and what the raw fields say about the cause. Response bodies are truncated for length. Every one of these was scored.
+Eight real calls: what went in, what came back, and the likely cause. Response bodies are truncated, and every call was scored.
 
-First, one thing the data rules out. The intuitive guess is that models flail on windows with nothing to report, where the answer is an empty array. The opposite holds. Windows with at least one ad produce unusable output in 12.70% of calls (3,233 of 25,464); windows with no ads do it in 5.74% (2,212 of 38,522). Emitting ad objects is where output goes wrong, not withholding them.
+The intuitive guess is that models flail on windows with nothing to report, where the answer is an empty array. The data shows the opposite. Windows with at least one ad produce unusable output in 12.70% of calls (3,233 of 25,464); windows with no ads do it in 5.74% (2,212 of 38,522). Emitting ad objects is where output goes wrong, not withholding them.
 
 **1. Prose instead of JSON**
 
@@ -185,7 +185,7 @@ Cause: same cap, one step further along. The model started writing and ran out i
 [... 2,800 characters of newlines until the cap ...]
 ```
 
-Cause: the model quoted the empty array as a string, then fell into a newline loop and emitted whitespace until the cap. It had the right answer in hand and could not stop typing.
+Cause: the model quoted the empty array as a string, then fell into a newline loop and emitted whitespace until the cap.
 
 **5. A two-token fragment**
 
@@ -221,7 +221,7 @@ Cause: the model reproduced a paraphrase of its own system prompt as a JSON obje
 {}
 ```
 
-Cause: the model will not return a bare array. Not once. All 855 of its calls came back wrapped in an object of some kind, `{}` for nothing found and a keyed object otherwise. The parser handles every variant, so this costs nothing but a recovery path. Still, 855 out of 855 is a thorough way to ignore the shape you were asked for.
+Cause: the model will not return a bare array. Not once. All 855 of its calls came back wrapped in an object of some kind, `{}` for nothing found and a keyed object otherwise. The parser handles every variant, so this costs only a recovery path.
 
 **8. A wrapper the parser recognizes and then throws away**
 
@@ -285,7 +285,7 @@ Bad-JSON examples:
 | 7 | `openai_gpt-5.6-sol_ep-ai-cloud-essentials-e8dc897fbd6b_t0_w0_f99eb3a15121_20260804T043641Z` |
 | 8 | `deepseek_deepseek-v4-pro_ep-crime-junkie-8ce498f299d7_t0_w0_30072d394d6d_20260804T100718Z` |
 
-Example 2 has no stored body, which is the point of it. Example 5's relative, the stray-backtick call, is `deepseek_deepseek-v4-pro_ep-glt1412515089-373d5ba5007b_t1_w20_8881b9fdd85d_20260804T104934Z`.
+Example 2 has no stored body. Example 5's relative, the stray-backtick call, is `deepseek_deepseek-v4-pro_ep-glt1412515089-373d5ba5007b_t1_w20_8881b9fdd85d_20260804T104934Z`.
 
 The input side is reconstructable too. Each call names its `episode_id` and `window_index`, and the transcript it was given is `data/corpus/<episode_id>/windows.json` at that index.
 

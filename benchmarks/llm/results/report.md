@@ -23,8 +23,6 @@
 
 ## Metric Key
 
-Quick reference for the columns in every table below.
-
 | Metric | Range | Direction | What it means |
 |--------|-------|-----------|---------------|
 | **F1 (accuracy)** | 0 to 1 | higher is better | Combined score of precision and recall against the human-verified ground-truth ad spans. F1 = 0 means the model found nothing right; F1 = 1 means it found every ad with the correct boundaries. Uses IoU >= 0.5 (predicted span must overlap truth span by at least half) to count a match, after both sides are canonicalized to per-break spans. |
@@ -39,19 +37,19 @@ Quick reference for the columns in every table below.
 
 ### Glossary
 
-- **IoU (intersection over union)**: how much two time ranges overlap, expressed as `(overlap) / (union)`. 0 means no overlap, 1 means identical ranges. We use IoU >= 0.5 as the threshold for a predicted ad to count as matching a truth ad.
-- **Per-break canonicalization**: before matching, predicted and truth spans separated by gaps under 15 seconds are merged, so one span means one contiguous ad break. This mirrors the detection prompt's own merge rule; a model that reports one break as several adjacent spots is not penalized for the split.
-- **Trial**: each (model, episode) pair runs 5 trials at temperature 0.0 to surface non-determinism. F1 numbers in tables are averaged across trials.
-- **Window**: each episode is split into ~85-second sliding windows; the model judges each window independently. Per-window predictions are stitched together for episode-level scoring.
-- **Schema violations**: number of times the response had at least one missing-required-field, wrong-type, or extra-key issue. Doesn't tank F1, but signals brittleness.
-- **Extraction method**: the route the parser took to recover the ad list. `json_array_direct` is the cleanest; method names with `regex_*` mean the JSON itself was malformed and we fell back to text matching.
+- **IoU (intersection over union)**: how much two time ranges overlap, `(overlap) / (union)`. 0 is no overlap, 1 is identical ranges. IoU >= 0.5 is the threshold for a predicted ad to match a truth ad.
+- **Per-break canonicalization**: before matching, predicted and truth spans less than 15 seconds apart are merged, so one span is one contiguous ad break. This mirrors the detection prompt's merge rule, so a model that reports one break as several adjacent spots isn't penalized.
+- **Trial**: each (model, episode) pair runs 5 trials at temperature 0.0 to surface non-determinism. Tables show F1 averaged across trials.
+- **Window**: each episode is split into ~85-second sliding windows, and the model judges each window independently. Window predictions are stitched together for episode-level scoring.
+- **Schema violations**: number of responses with a missing required field, wrong type, or extra key. This doesn't tank F1 but signals brittleness.
+- **Extraction method**: the route the parser took to recover the ad list. `json_array_direct` is the cleanest; `regex_*` methods mean the JSON itself was malformed and the parser fell back to text matching.
 
 
 ## TL;DR
 
 ### Best Accuracy (F0.5 @ IoU >= 0.5)
 
-Models ranked by F0.5 (precision weighted 2x recall) against human-verified ground truth. MinusPod cuts the segments it flags, so cutting real content (a false positive) is worse than leaving an ad in (a false negative), and F0.5 penalizes it more. A model shares the tier above it unless it scores consistently lower across the same episodes (paired one-sided t-test, 95%); models that trade wins episode to episode share a tier, so order within a tier is not meaningful on this 12-episode corpus. Flags caveat a model without changing its rank. Cost includes free-tier models (shown at $0.00).
+Models ranked by F0.5 (precision weighted 2x recall) against human-verified ground truth. MinusPod cuts what it flags, so a false positive (cutting real content) costs more than a false negative (leaving an ad in), and F0.5 penalizes it more. A model shares the tier above it unless it scores consistently lower across the same episodes (paired one-sided t-test, 95%). Models that trade wins episode to episode share a tier, so order within a tier is not meaningful on this 12-episode corpus. Flags caveat a model without changing its rank. Cost includes free-tier models (shown at $0.00).
 
 | Tier | Model | F0.5 | 95% CI | Precision | Recall | F1 | Cost / episode | p50 latency | JSON compliance | Flags |
 |------|-------|------|--------|-----------|--------|----|----------------|-------------|-----------------|-------|
@@ -142,7 +140,7 @@ Models ranked by F0.5 (precision weighted 2x recall) against human-verified grou
 
 ### Best Value (F0.5 per dollar)
 
-Paid-tier only, ranked by F0.5 per dollar. Free-tier models are excluded here because F0.5 / 0 is undefined; they are ranked separately under Best Free-Tier below. No confidence tiers on this table, since a point ratio does not group cleanly, but the reliability flags still apply.
+Paid-tier only, ranked by F0.5 per dollar. Free-tier models are excluded because F0.5 / 0 is undefined; they are ranked under Best Free-Tier below. This table has no confidence tiers, but the reliability flags still apply.
 
 | Rank | Model | F0.5/$ | F0.5 | F1 | Cost / episode | Flags |
 |------|-------|--------|------|----|----------------|-------|
@@ -232,7 +230,7 @@ Paid-tier only, ranked by F0.5 per dollar. Free-tier models are excluded here be
 
 ### Best Free-Tier (F0.5)
 
-Models that came back at $0.00 cost, ranked by F0.5 with the same CI and flags as Best Accuracy. Tiers are computed within the free-tier set against its own leader, so a tier letter here is not comparable to the same letter in Best Accuracy. Free-tier eligibility on OpenRouter depends on the attribution headers wired into the benchmark (`HTTP-Referer`, `X-Title`); a model showing as free here may bill on your own deployment if those headers are missing.
+Models that cost $0.00, ranked by F0.5 with the same CI and flags as Best Accuracy. Tiers are computed within the free-tier set, so a tier letter here is not comparable to one in Best Accuracy. Free-tier eligibility on OpenRouter depends on the attribution headers the benchmark sends (`HTTP-Referer`, `X-Title`); without them a model shown as free may bill on your deployment.
 
 | Tier | Model | F0.5 | 95% CI | Precision | Recall | F1 | p50 latency | JSON compliance | Flags |
 |------|-------|------|--------|-----------|--------|----|-------------|-----------------|-------|
@@ -242,7 +240,7 @@ Models that came back at $0.00 cost, ranked by F0.5 with the same CI and flags a
 
 ### Cost vs F1 (Pareto)
 
-Each model is one colored point. Lower-left is unhelpful (expensive, inaccurate). Upper-left is the sweet spot (accurate, cheap). The legend below the chart shows each model's color next to its F1 and cost-per-episode.
+Each model is one colored point. Upper-left is the sweet spot (accurate, cheap) and lower-left is unhelpful (expensive, inaccurate). The legend lists each model's color with its F1 and cost per episode.
 
 ![Cost vs F1 by model](report_assets/pareto.svg)
 
@@ -250,7 +248,7 @@ Source data: [Best Accuracy](#best-accuracy-f05--iou--05), [Best Value](#best-va
 
 ### Accuracy vs latency
 
-F0.5 (y) against p50 latency (x, log scale). The cost Pareto above answers what accuracy costs in dollars; this one answers what it costs in wall-clock time. Upper-left is accurate and fast. MinusPod's pipeline is offline, so a slow accurate model is usable, but the chart shows which models make you choose and which don't. The OpenRouter latency caveat from the Metric Key applies.
+F0.5 (y) against p50 latency (x, log scale). Where the Pareto chart shows dollars, this one shows wall-clock time. Upper-left is accurate and fast. MinusPod's pipeline is offline, so a slow accurate model is usable, but the chart shows which models force a tradeoff. The OpenRouter latency caveat from the Metric Key applies.
 
 ![Accuracy vs latency by model](report_assets/accuracy_latency.svg)
 
@@ -258,7 +256,7 @@ Source data: [Best Accuracy](#best-accuracy-f05--iou--05) (F0.5), [Latency tail]
 
 ### JSON schema compliance
 
-Fraction of each model's responses that parsed as a clean JSON array. 1.0 means every response came back exactly as requested; lower numbers mean the parser had to recover from markdown fences, object wrappers, or extra fields.
+Fraction of each model's responses that parsed as a clean JSON array. Below 1.0, the parser had to recover from markdown fences, object wrappers, or extra fields.
 
 ![JSON compliance per model](report_assets/compliance.svg)
 
@@ -266,7 +264,7 @@ Source data: [Per-Model Detail](#per-model-detail) (`JSON compliance` field)
 
 ### F1 by episode (heatmap)
 
-F1 score for each (model, episode) pair. Greener is more accurate, redder is less. The no-ad episodes are excluded. They have no F1 because they're PASS/FAIL negative controls.
+F1 score for each (model, episode) pair. Greener is more accurate. The no-ad episodes are excluded because they are PASS/FAIL negative controls with no F1.
 
 ![F1 score per model and episode](report_assets/episodes.svg)
 
@@ -274,7 +272,7 @@ Source data: [Quick Comparison](#quick-comparison), [Per-Episode Detail](#per-ep
 
 ### Confidence calibration (heatmap)
 
-One row per model, one column per self-reported confidence bin. Cell text is the actual hit rate at that bin plus the sample size; cell color is the calibration error (actual minus bin midpoint). Red cells mean the model claimed high confidence but was usually wrong; green is well-calibrated; blue is underconfident. Empty cells mean the model never produced a prediction in that bin. Models are sorted from most overconfident at the top to most underconfident at the bottom.
+One row per model, one column per self-reported confidence bin. Cell text is the actual hit rate at that bin plus the sample size; cell color is the calibration error (actual minus bin midpoint). Red cells mean the model claimed high confidence but was usually wrong; green is well-calibrated; blue is underconfident. Empty cells mean no predictions in that bin. Models are sorted from most overconfident (top) to most underconfident (bottom).
 
 ![Confidence calibration per model](report_assets/calibration.svg)
 
@@ -282,7 +280,7 @@ Source data: [Confidence calibration](#confidence-calibration) table
 
 ### Latency percentiles
 
-p50, p90, p99, and max per model on a log scale. The gap between p99 and max indicates how heavy the tail is. For OpenRouter-routed models, the tail also includes upstream provider load.
+p50, p90, p99, and max per model on a log scale. The gap between p99 and max shows how heavy the tail is. For OpenRouter-routed models, the tail also includes upstream provider load.
 
 ![Latency percentiles per model](report_assets/latency_tail.svg)
 
@@ -290,7 +288,7 @@ Source data: [Latency tail](#latency-tail) table
 
 ### Cross-model agreement (window distribution)
 
-Histogram of how many models flagged at least one ad per (episode, window). The left side is windows nobody flagged (clear non-ad content), the right side is windows everyone flagged (clear sponsor reads). Bars in the middle are contested (some models said yes, some said no) and are candidates for ensemble voting or manual review. This view is anonymous (bars don't show which models contributed); the per-model breakdown is in the next chart.
+Histogram of how many models flagged at least one ad per (episode, window). The left side is windows nobody flagged (clear non-ad content), the right side is windows everyone flagged (clear sponsor reads). Bars in the middle are contested (some models said yes, some said no) and are candidates for ensemble voting or manual review. The bars don't show which models contributed; the next chart breaks it down per model.
 
 ![Cross-model agreement histogram](report_assets/agreement.svg)
 
@@ -298,7 +296,7 @@ Source data: [Cross-model agreement](#cross-model-agreement) table
 
 ### Per-model alignment with majority
 
-Stacked horizontal bar per model. Green + blue segments are windows where the model voted with the majority (true positives + true negatives); orange is windows where it voted yes but most others voted no (likely false positive / hallucination); red is windows where it voted no but most others voted yes (likely missed real ad). Right-edge label is alignment rate. High alignment means the model tracks consensus; low alignment is either insight or noise depending on whether those broken-from-consensus calls were right.
+Stacked horizontal bar per model. Green and blue segments are windows where the model voted with the majority (true positives and true negatives). Orange is windows where it voted yes and most others voted no (likely false positive or hallucination). Red is windows where it voted no and most others voted yes (likely missed real ad). The right-edge label is the alignment rate. Low alignment is insight or noise, depending on whether the calls that broke from consensus were right.
 
 ![Per-model alignment with majority](report_assets/alignment.svg)
 
@@ -306,7 +304,7 @@ Source data: [Per-model alignment with consensus](#per-model-alignment-with-cons
 
 ### Precision vs Recall (with F1 isocurves)
 
-Scatter of precision (y) vs recall (x) for each model. Dashed gray lines are F1 isocurves; points on the same dashed line have the same F1. Top-right is ideal (high precision AND high recall). Top-left is cautious (high precision, low recall). Bottom-right is greedy (high recall, low precision). Useful for picking a model whose error profile matches your tolerance: precision-leaning for environments where false positives are expensive, recall-leaning for completeness-first.
+Scatter of precision (y) vs recall (x) for each model. Dashed gray lines are F1 isocurves; points on the same dashed line have the same F1. Top-right is ideal (high precision and high recall), top-left is cautious (high precision, low recall), and bottom-right is greedy (high recall, low precision). Pick a precision-leaning model where false positives are expensive and a recall-leaning one where completeness comes first.
 
 ![Precision vs recall scatter](report_assets/precision_recall.svg)
 
@@ -314,7 +312,7 @@ Source data: [Precision, recall, and FP/FN breakdown](#precision-recall-and-fpfn
 
 ### Boundary accuracy (start + end MAE)
 
-Stacked horizontal bars per model: blue is mean absolute error on the predicted ad START in seconds, orange is the same for END. Total error labeled at the right. Sorted by total ascending so the cleanest boundaries are at the top. Skewed bars (start much larger than end, or vice versa) mean the model systematically overshoots on one side. Relevant if you cut audio downstream.
+Stacked horizontal bars per model: blue is mean absolute error on the predicted ad start in seconds, orange is the same for end. Total error is labeled at the right, sorted ascending so the cleanest boundaries are on top. Skewed bars (start much larger than end, or the reverse) mean the model systematically overshoots on one side. This matters if you cut audio downstream.
 
 ![Boundary MAE per model](report_assets/boundary.svg)
 
@@ -322,7 +320,7 @@ Source data: [Boundary accuracy](#boundary-accuracy) table
 
 ### Token efficiency vs F1
 
-Scatter of output tokens per detected ad (x, log scale) vs F1 (y). Upper-left is the efficient zone: high accuracy with few output tokens. Right-side points are reasoning-heavy models that emit chain-of-thought alongside their JSON. The chart answers whether the extra tokens buy more F1 or just burn output budget. A model that lands far right at modest F1 is paying for reasoning that didn't help.
+Scatter of output tokens per detected ad (x, log scale) vs F1 (y). Upper-left is the efficient zone: high accuracy with few output tokens. Right-side points are reasoning-heavy models that emit chain-of-thought alongside their JSON. A model far right at modest F1 pays for reasoning that didn't help.
 
 ![Token efficiency vs F1](report_assets/token_efficiency.svg)
 
@@ -330,7 +328,7 @@ Source data: [Output token efficiency](#output-token-efficiency) table
 
 ### Cost split (input vs output)
 
-Stacked horizontal bars per model: blue is the input share of per-episode cost, orange is the output share, total labeled at the right, sorted by total ascending. Every model reads the same transcripts, so a long blue bar is an expensive input price and a long orange bar is a talkative model. Reasoning models show up as mostly orange.
+Stacked horizontal bars per model: blue is the input share of per-episode cost and orange is the output share. Totals are labeled at the right, sorted ascending. Every model reads the same transcripts, so a long blue bar is an expensive input price and a long orange bar is a talkative model. Reasoning models are mostly orange.
 
 ![Cost split per model](report_assets/cost_split.svg)
 
@@ -338,7 +336,7 @@ Source data: [Cost breakdown (input vs output)](#cost-breakdown-input-vs-output)
 
 ### Trial variance (determinism check)
 
-Horizontal bars of mean F1 stdev across episodes per model. All trials run at temperature 0.0 so well-behaved models cluster near zero. Bars are color-graded: green below 0.02 (effectively deterministic), yellow 0.02-0.05 (slight noise), red above 0.05 (single-trial F1 numbers from this model should be treated with suspicion). Dotted reference lines mark the 0.02 and 0.05 thresholds.
+Horizontal bars of mean F1 stdev across episodes per model. All trials run at temperature 0.0 so well-behaved models cluster near zero. Bars are green below 0.02 (effectively deterministic), yellow from 0.02 to 0.05 (slight noise), and red above 0.05 (single-trial F1 numbers for the model are suspect). Dotted lines mark the 0.02 and 0.05 thresholds.
 
 ![Trial F1 variance per model](report_assets/trial_variance.svg)
 
@@ -346,7 +344,7 @@ Source data: [Trial variance (determinism check)](#trial-variance-determinism-ch
 
 ### Detection rate by ad length
 
-Heatmap of model (row) vs ad-length bucket (column), cell = detection rate with sample size. Greener = caught more ads in that bucket; redder = missed more. Models are sorted by overall detection rate so the strongest are at the top. Empty (gray) cells mean that bucket had no truth ads for the corresponding model's trials.
+Heatmap of model (row) vs ad-length bucket (column); each cell is the detection rate with sample size. Greener caught more ads in that bucket, redder missed more. Models are sorted by overall detection rate, strongest on top. Empty (gray) cells mean the bucket had no truth ads for that model's trials.
 
 ![Detection rate by ad length](report_assets/detection_by_length.svg)
 
@@ -354,7 +352,7 @@ Source data: [Detection rate by ad characteristic > By ad length](#by-ad-length)
 
 ### Detection rate by ad position
 
-Same shape as the ad-length heatmap, but columns are episode position (pre-roll / mid-roll / post-roll). A common pattern: pre-roll is easy because of clear show-intro transitions; post-roll is harder because models near the end of long episodes often produce shorter responses or run out of context to anchor on.
+Same layout as the ad-length heatmap, with columns for episode position (pre-roll, mid-roll, post-roll). Pre-roll is easy because of clear show-intro transitions. Post-roll is harder because models near the end of long episodes often produce shorter responses or run out of context to anchor on.
 
 ![Detection rate by ad position](report_assets/detection_by_position.svg)
 
@@ -362,7 +360,7 @@ Source data: [Detection rate by ad characteristic > By ad position](#by-ad-posit
 
 ### Parser stress (extraction-method usage)
 
-Heatmap of model (row) vs extraction-method (column), cell = number of responses parsed via that method. Columns are ordered by total usage. `json_array_direct` is the clean path; everything else is a recovery path the parser had to take because the model added markdown fences, wrapped the array in an object, or returned malformed JSON. Models near the top of the chart use the clean path most often. They are operationally easier to consume.
+Heatmap of model (row) vs extraction method (column); each cell is the number of responses parsed that way. Columns are ordered by total usage. `json_array_direct` is the clean path; everything else is a recovery path taken because the model added markdown fences, wrapped the array in an object, or returned malformed JSON. Models near the top use the clean path most often and are easier to consume operationally.
 
 ![Parser stress heatmap](report_assets/parser_stress.svg)
 
@@ -371,11 +369,11 @@ Source data: [Parser stress test](#parser-stress-test) table
 
 ## Failures and provider issues
 
-**130 call(s) failed out of 71820 total (0.18%).** Failures are excluded from F1 / cost calculations, but they often surface real production-relevant gotchas worth knowing.
+**130 call(s) failed out of 71820 total (0.18%).** Failures are excluded from F1 / cost calculations, but they often surface production gotchas.
 
 ### By category
 
-Errors classified into coarse buckets so failure patterns are visible at a glance. A model showing up here doesn't mean it's broken. Some categories are provider-side (content moderation, rate limits) and tell you more about routing reliability than model quality.
+Errors grouped into coarse buckets. A model listed here is not necessarily broken: some categories are provider-side (content moderation, rate limits) and say more about routing reliability than model quality.
 
 | Category | Calls | Affected models |
 |----------|------:|-----------------|
@@ -383,7 +381,7 @@ Errors classified into coarse buckets so failure patterns are visible at a glanc
 
 ### Per-model error count
 
-Same errors grouped by model, with the failure rate as a fraction of that model's total calls. Rates under 1% are usually one-off provider hiccups; rates above 5% suggest the model isn't operationally viable for production with the current prompts and concurrency caps.
+Errors grouped by model, with the failure rate as a share of that model's total calls. Rates under 1% are usually one-off provider hiccups. Rates above 5% suggest the model isn't viable in production with the current prompts and concurrency caps.
 
 | Model | Errors | of total |
 |---|---:|---:|
@@ -391,7 +389,7 @@ Same errors grouped by model, with the failure rate as a fraction of that model'
 
 ### Sample messages (first 3 per category)
 
-First three raw error messages per category, so you can see what the provider actually returned without grepping calls.jsonl. Messages are truncated to ~240 characters; full text lives in `results/raw/calls.jsonl`.
+First three raw error messages per category, truncated to ~240 characters. Full text is in `results/raw/calls.jsonl`.
 
 **Provider content moderation rejection** (130)
 - `stepfun/step-3.7-flash` on `ep-drink-champs-30c9a2d49f13` (trial 0, window 4): Error code: 451 - {'error': {'message': 'Provider returned error', 'code': 451, 'metadata': {'raw': '{"error":{"message":"The content you provided or machine outputted is blocked.","type":"censorship_blocked"}}', 'provider_name': 'StepFun',...
@@ -401,16 +399,16 @@ First three raw error messages per category, so you can see what the provider ac
 
 ### Why this section exists
 
-If you're picking a model for production, an aggregate compliance score doesn't tell you when the provider will simply refuse to answer. A few cases that have shown up here:
+An aggregate compliance score doesn't show when a provider simply refuses to answer. Cases that have shown up here:
 
-- **Content moderation rejections** (Alibaba on Qwen, Google on Gemma, sometimes others): the provider's classifier blocks the prompt before the model runs. For ad detection on real podcast transcripts, this can happen on episodes with adult content, profanity, or politically sensitive topics. Rate is small but non-zero; plan for it.
-- **Deprecated parameters**: the Claude 4.x family rejects `temperature`. The benchmark memoizes this per-process and retries without, but it tells you which models you cannot pass legacy sampling controls to.
-- **Rate limits**: tail-latency or 429s under load. Not a model-quality issue, but determines whether a given provider is operationally viable for your throughput.
+- **Content moderation rejections** (Alibaba on Qwen, Google on Gemma, sometimes others): the provider's classifier blocks the prompt before the model runs. On real podcast transcripts this can happen on episodes with adult content, profanity, or politically sensitive topics. The rate is small but non-zero.
+- **Deprecated parameters**: the Claude 4.x family rejects `temperature`. The benchmark memoizes this per process and retries without it. The error shows which models take no legacy sampling controls.
+- **Rate limits**: tail latency or 429s under load. Not a model-quality issue, but it decides whether a provider can handle your throughput.
 
 
 ## Precision, recall, and FP/FN breakdown
 
-F1 collapses two failure modes into one number. A precision-leaning model misses ads but rarely flags non-ads; a recall-leaning model catches everything at the cost of false positives. Production tradeoffs hinge on which one you can tolerate.
+F1 collapses two failure modes into one number. A precision-leaning model misses ads but rarely flags non-ads. A recall-leaning model catches everything at the cost of false positives.
 
 ### Column key
 
@@ -422,7 +420,7 @@ F1 collapses two failure modes into one number. A precision-leaning model misses
 | **Precision** | `TP / (TP + FP)`. Of the ads the model claimed, how many were real? Higher means fewer false positives. | 0.000 to 1.000 |
 | **Recall** | `TP / (TP + FN)`. Of the real ads, how many did the model find? Higher means fewer misses. | 0.000 to 1.000 |
 
-Reading the table: high precision + low recall means the model is cautious. It rarely flags something that isn't an ad, but misses real ads. High recall + low precision means the opposite: catches everything but invents false positives. F1 is the harmonic mean of the two and rewards models that do both well.
+High precision with low recall means the model is cautious: it rarely flags a non-ad but misses real ads. High recall with low precision is the opposite: it catches everything but invents false positives. F1 is the harmonic mean of the two.
 
 | Model | Precision | Recall | TP | FP | FN |
 |---|---:|---:|---:|---:|---:|
@@ -513,9 +511,9 @@ Reading the table: high precision + low recall means the model is cautious. It r
 
 ## Boundary accuracy
 
-For ads that match the truth at IoU >= 0.5, how far off were the predicted start and end timestamps? Lower is better. A model can hit F1 cleanly while still being 20s off on every boundary. Bad for any pipeline that cuts the audio.
+For ads that match the truth at IoU >= 0.5, how far off were the predicted start and end timestamps? Lower is better. A model can hit F1 cleanly while still being 20s off on every boundary, which hurts any pipeline that cuts the audio.
 
-MAE is size of the miss; bias is its direction (mean of predicted minus truth). A negative start bias or positive end bias means the cut extends past the ad and eats surrounding content; the opposite signs mean ad audio is left in. MinusPod cuts what the model flags, so a model whose bias points outward over-cuts even when its MAE looks acceptable. Bias near zero with a large MAE means the misses are random rather than systematic.
+MAE is the size of the miss; bias is its direction (mean of predicted minus truth). A negative start bias or positive end bias means the cut extends past the ad and eats surrounding content. The opposite signs leave ad audio in. MinusPod cuts what the model flags, so outward bias over-cuts even when MAE looks acceptable. Near-zero bias with a large MAE means random misses.
 
 | Model | Start MAE (s) | End MAE (s) | Start bias (s) | End bias (s) |
 |---|---:|---:|---:|---:|
@@ -605,7 +603,7 @@ MAE is size of the miss; bias is its direction (mean of predicted minus truth). 
 
 ## Confidence calibration
 
-Models include a self-reported `confidence` on each detected ad. A well-calibrated model should be right ~95% of the time when it claims 0.95 confidence. The table below bins each model's predictions and shows the actual hit rate (fraction that were true positives at IoU >= 0.5). A bin near 1.0 is well-calibrated; a low number with a high count means the model is overconfident.
+Models report a `confidence` on each detected ad. A well-calibrated model is right ~95% of the time when it claims 0.95. The table bins each model's predictions and shows the actual hit rate (true positives at IoU >= 0.5). A bin near 1.0 is well-calibrated; a low rate on a high count means the model is overconfident.
 
 | Model | 0.00-0.70 | 0.70-0.90 | 0.90-0.95 | 0.95-0.99 | 0.99+ | total |
 |---|---:|---:|---:|---:|---:|---:|
@@ -694,11 +692,11 @@ Models include a self-reported `confidence` on each detected ad. A well-calibrat
 | `xiaomi/mimo-v2.5-pro` | 0.00 (n=1) | 0.00 (n=15) | 0.00 (n=10) | 0.70 (n=115) | 0.86 (n=37) | 178 |
 | `z-ai/glm-5.2` | 0.03 (n=113) | 0.00 (n=28) | 0.00 (n=8) | 0.80 (n=218) | 0.83 (n=23) | 390 |
 
-See `report_assets/calibration.svg` for the visual reliability diagram.
+See `report_assets/calibration.svg` for the reliability diagram.
 
 ## Latency tail
 
-Median latency hides outliers. p99 and max are what determines queue depth and worst-case user wait. For OpenRouter-routed models the tail also reflects upstream provider load, not just model compute.
+Median latency hides outliers. p99 and max determine queue depth and worst-case wait. For OpenRouter-routed models the tail also reflects upstream provider load, not just model compute.
 
 | Model | p50 | p90 | p95 | p99 | max |
 |---|---:|---:|---:|---:|---:|
@@ -789,7 +787,7 @@ Median latency hides outliers. p99 and max are what determines queue depth and w
 
 ## Output token efficiency
 
-How many output tokens the model spent per detected ad. Lower is more concise (the model finds an ad and returns the JSON). Higher means the model is producing a lot of text the parser will discard, which costs you whether or not the answer is right.
+Output tokens spent per detected ad. Lower is more concise: the model finds an ad and returns the JSON. Higher means text the parser discards, which costs money whether or not the answer is right.
 
 | Model | Total output tokens | Ads detected | Tokens / ad | Cost / TP |
 |---|---:|---:|---:|---:|
@@ -880,7 +878,7 @@ How many output tokens the model spent per detected ad. Lower is more concise (t
 
 ## Cost breakdown (input vs output)
 
-Where each model's per-episode dollars go, at the same pricing snapshot as every other table. Every model reads the same transcripts, so the input side varies only with the provider's input price. The output side varies with how much the model writes: a high output share on a modest total usually means reasoning tokens, and a model with a low per-token price can still land mid-table by writing thousands of them. Failed calls are excluded, same as the cost column everywhere else.
+Where each model's per-episode dollars go, at the same pricing snapshot as every other table. Every model reads the same transcripts, so input cost varies only with the provider's input price. Output cost varies with how much the model writes. A high output share on a modest total usually means reasoning tokens, and a cheap per-token model can still land mid-table by writing thousands of them. Failed calls are excluded, as in the cost column elsewhere.
 
 | Model | Cost / episode | Input | Output | Output share |
 |---|---:|---:|---:|---:|
@@ -970,7 +968,7 @@ Where each model's per-episode dollars go, at the same pricing snapshot as every
 
 ## Trial variance (determinism check)
 
-All trials run at temperature 0.0. If a model produces stable output you'd expect the F1 stdev across trials to be near zero. Higher numbers mean the model is non-deterministic even at temp=0. That's fine to know, but means you cannot trust a single trial's number for that model.
+All trials run at temperature 0.0, so a stable model should show F1 stdev near zero across trials. Higher numbers mean the model is non-deterministic even at temp=0, and a single trial's number can't be trusted.
 
 | Model | Mean F1 stdev across episodes | Highest single-episode stdev |
 |---|---:|---:|
@@ -1061,7 +1059,7 @@ All trials run at temperature 0.0. If a model produces stable output you'd expec
 
 ## Cross-model agreement
 
-For each of the 171 (episode, window, trial-equivalent) entries, how many of the 84 active models predicted at least one ad? High-agreement windows are unambiguous ads (or unambiguously not ads). Low-agreement windows are where individual models disagree, and are candidates for ensemble voting if you want a cheap accuracy boost.
+For each of the 171 (episode, window, trial-equivalent) entries, how many of the 84 active models predicted at least one ad? High-agreement windows are clear ads or clear non-ads. Low-agreement windows are where models disagree and are candidates for ensemble voting.
 
 | Models predicting an ad | Window count | Share |
 |---:|---:|---:|
@@ -1112,18 +1110,18 @@ For each of the 171 (episode, window, trial-equivalent) entries, how many of the
 | 79 of 84 | 3 | 1.8% |
 | 80 of 84 | 1 | 0.6% |
 
-Read this as: rows near the top are windows where the field disagrees (most models said no, a few said yes, usually false positives); rows near the bottom are windows where the field broadly agrees (typical of clear sponsor reads).
+Rows near the top are windows where the field disagrees (most models said no, a few said yes, usually false positives). Rows near the bottom are windows where the field broadly agrees (typical of clear sponsor reads).
 
 ### Per-model alignment with consensus
 
-Same data, viewed per model. For each window, the **majority** is whether more than half of the 84 active models flagged an ad. Then for each model: did it vote with the majority or against it? Four buckets:
+Same data per model. The **majority** for a window is whether more than half of the 84 active models flagged an ad. Each model either voted with the majority or against it, giving four buckets:
 
 - **with-yes**: this model voted yes, majority also voted yes (likely true positive)
 - **with-no**: this model voted no, majority also voted no (likely true negative)
 - **broke-yes**: this model voted yes, majority voted no (likely false positive / hallucination)
 - **broke-no**: this model voted no, majority voted yes (likely missed real ad)
 
-Alignment rate is `(with-yes + with-no) / total`. High alignment means the model tracks the consensus; low alignment means it disagrees often, which could be brilliance or noise depending on whether its disagreements are also where its F1 wins or loses.
+Alignment rate is `(with-yes + with-no) / total`. Low alignment means the model often disagrees with the consensus, which is brilliance or noise depending on whether those disagreements are where its F1 wins or loses.
 
 | Model | with-yes | with-no | broke-yes | broke-no | Alignment |
 |---|---:|---:|---:|---:|---:|
@@ -1214,7 +1212,7 @@ Alignment rate is `(with-yes + with-no) / total`. High alignment means the model
 
 ### Windows flagged with no truth ad
 
-The other side of the histogram: windows the ground truth marks ad-free, ranked by how many of the 84 models flagged them anyway (in at least one trial). A window near the top is either content that genuinely resembles an ad, which is what precision-focused validator rules should train against, or a spot the truth file missed. Either way these are the first windows worth a manual re-listen; on a corpus this size a single mislabeled window moves scores. No-ad control episodes are included and tagged.
+The other side of the histogram: windows the ground truth marks ad-free, ranked by how many of the 84 models flagged them anyway (in at least one trial). A window near the top either resembles an ad, which precision-focused validator rules should train against, or is a spot the truth file missed. These are the first windows worth a manual re-listen, since on a corpus this size a single mislabeled window moves scores. No-ad control episodes are included and tagged.
 
 | Episode | Window | Span | Models flagging |
 |---|---:|---|---:|
@@ -1238,11 +1236,11 @@ The other side of the histogram: windows the ground truth marks ad-free, ranked 
 
 ## Detection rate by ad characteristic
 
-Aggregate detection rates often hide systematic blind spots. Below: for each model, what fraction of truth ads in each bucket were detected (matched at IoU >= 0.5).
+Aggregate detection rates can hide blind spots. For each model, this is the fraction of truth ads in each bucket that were detected (matched at IoU >= 0.5).
 
 ### By ad length
 
-Truth ads bucketed by duration: short (<30s), medium (30-90s), long (>=90s). Cell values are detection rate (fraction of truth ads in that bucket the model caught), with the sample size `n` so a misleading 1.00 on a 2-ad bucket doesn't get over-weighted. Models that systematically miss short ads usually fail on network-inserted brand-tagline spots; missing long ads is rarer and usually means the model gave up before processing the full window.
+Truth ads bucketed by duration: short (<30s), medium (30-90s), long (>=90s). Cells show the detection rate (fraction of truth ads in that bucket the model caught) with the sample size `n`, so a 1.00 on a 2-ad bucket isn't over-weighted.
 
 | Model | long (>=90s) | medium (30-90s) | short (<30s) |
 |---|---:|---:|---:|
@@ -1333,7 +1331,7 @@ Truth ads bucketed by duration: short (<30s), medium (30-90s), long (>=90s). Cel
 
 ### By ad position
 
-Truth ads bucketed by where they fall in the episode: pre-roll (first 10%), mid-roll (10-90%), post-roll (last 10%). Cell values are the same detection-rate-with-`n` format as ad length. A common failure pattern in our data: most models detect pre-roll and mid-roll reliably and miss post-roll, because the prompt windows near the end often catch the model mid-reasoning or with fewer transition phrases to anchor on.
+Truth ads bucketed by where they fall in the episode: pre-roll (first 10%), mid-roll (10-90%), post-roll (last 10%). Cells use the same detection-rate-with-`n` format as ad length.
 
 | Model | pre-roll (<10%) | mid-roll (10-90%) | post-roll (>90%) |
 |---|---:|---:|---:|
@@ -1424,7 +1422,7 @@ Truth ads bucketed by where they fall in the episode: pre-roll (first 10%), mid-
 
 ## Quick Comparison
 
-One row per model, one column per episode. The headline columns (`F1`, `Cost/ep`, `p50`) summarize across all episodes; the per-episode columns let you see whether a model's average hides wide swings (a model that scores well overall might still bomb on a specific genre). The right-most `F1 stdev` column averages the per-trial standard deviations across episodes; high values mean the model isn't deterministic at temperature 0.0, so its single-trial F1 number is noisy. `Moderation blocked` is the share of attempted calls the provider refused on content grounds; those windows never reach scoring, so any non-zero value means that row's F1 was computed on a subset of the corpus and is not comparable to a row at `-`.
+One row per model, one column per episode. The headline columns (`F1`, `Cost/ep`, `p50`) summarize all episodes. The per-episode columns show whether a model's average hides wide swings, such as a good overall score with a bad result on one genre. `F1 stdev` averages the per-trial standard deviations across episodes. High values mean the model isn't deterministic at temperature 0.0, so its single-trial F1 is noisy. `Moderation blocked` is the share of attempted calls the provider refused on content grounds. Those windows never reach scoring, so a non-zero value means that row's F1 covers a subset of the corpus and is not comparable to a row at `-`.
 
 | Model | F1 | Cost/ep | p50 | ep-crime-junkie-8ce498f299d7 | ep-daily-gist-chicago-70a82fe93a5c | ep-daily-tech-news-show-b576979e1fe8 | ep-daily-tech-news-show-c1904b8605f7 | ep-drink-champs-30c9a2d49f13 | ep-glt1412515089-373d5ba5007b | ep-it-s-a-thing-e339179dfad6 | ep-on-air-with-dan-and-alex2-574e4f303730 | ep-security-now-audio-2850b24903b2 | ep-the-brilliant-idiots-0bb9bf634c8e | ep-the-tim-dillon-show-f62bd5fa1cfe | ep-tosh-show-5f6894439bb6 | ep-ai-cloud-essentials-e8dc897fbd6b (no-ad) | ep-oxide-and-friends-ce789ff5b62e (no-ad) | F1 stdev | Moderation blocked |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
@@ -1519,7 +1517,7 @@ One row per model, one column per episode. The headline columns (`F1`, `Cost/ep`
 
 ### Per-Model Detail
 
-Full per-model profile: F1 averaged across episodes, total cost per episode at current pricing, p50 / p95 latency, JSON compliance, parse-failure rate, the distribution of extraction methods the parser had to use, and verbosity / truncation telemetry. The `Extraction methods` list shows how often each route was hit. `json_array_direct` is the cleanest; the rest are recovery paths. The verbosity row flags models that emit long `reason` fields or run out of token budget mid-response. Ordered by F1 descending so the best performers appear first.
+Full per-model profile: F1 averaged across episodes, total cost per episode at current pricing, p50 / p95 latency, JSON compliance, parse-failure rate, extraction-method distribution, and verbosity / truncation telemetry. `json_array_direct` is the cleanest extraction method; the rest are recovery paths. The verbosity row flags models that emit long `reason` fields or run out of token budget mid-response. Ordered by F1 descending.
 
 #### `claude-haiku-4-5-20251001`
 
@@ -2532,7 +2530,7 @@ Full per-model profile: F1 averaged across episodes, total cost per episode at c
 
 ### Per-Episode Detail
 
-One subsection per episode in the corpus, showing how every model performed on that specific episode. For ad-bearing episodes you see F1 and the stdev across trials (low stdev means stable, high stdev means the model's number on this episode is noisy). For the no-ad episode you see PASS / FAIL on the negative control: PASS = zero false positives across all windows, FAIL = the model flagged something that wasn't an ad, with the count.
+One subsection per episode, showing how every model performed on it. Ad-bearing episodes show F1 and the stdev across trials (high stdev means the number is noisy). The no-ad episode shows PASS / FAIL on the negative control: PASS is zero false positives across all windows, FAIL is a flagged non-ad, with the count.
 
 #### `ep-ai-cloud-essentials-e8dc897fbd6b`: How Physical AI is Streamlining Engineering
 
@@ -3837,7 +3835,7 @@ One subsection per episode in the corpus, showing how every model performed on t
 
 ### Parser stress test
 
-How each model's responses were actually parsed. Columns are extraction methods, ordered alphabetically; rows are models, sorted by parse-failure rate (cleanest at top). `json_array_direct` is the happy path: a bare JSON array we could `json.loads` and process immediately. `markdown_code_block` means we had to strip triple-backtick fences first; `json_object_*` means the model wrapped the array in an outer object and we had to find the array key; `regex_*` are last-resort recovery paths. A model that needs anything but `json_array_direct` for most calls is fragile. It works today, but a small prompt change can break the parser.
+How each model's responses were parsed. Columns are extraction methods in alphabetical order; rows are models sorted by parse-failure rate, cleanest on top. `json_array_direct` is the happy path: a bare JSON array that `json.loads` handles directly. `markdown_code_block` means the triple-backtick fences were stripped first. `json_object_*` means the model wrapped the array in an outer object and the parser had to find the array key. `regex_*` are last-resort recovery paths. A model that needs anything but `json_array_direct` for most calls is fragile: it works today, but a small prompt change can break the parser.
 
 | Model | bracket_fallback | json_array_direct | json_object_ad_key | json_object_ads_detected_key | json_object_ads_key | json_object_advertisement_segments_key | json_object_no_ads | json_object_segments_key | json_object_single_ad | json_object_single_ad_truncated | markdown_code_block | parse_failure | regex_json_array |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|
@@ -3928,7 +3926,7 @@ How each model's responses were actually parsed. Columns are extraction methods,
 
 ## Methodology
 
-Reproducibility settings used for this run. The benchmark sends the same prompts MinusPod sends in production (same system prompt, same sponsor list, same windowing) so the F1 numbers here are directly relevant to production accuracy decisions. Cost is recomputed at report time from token counts against the active pricing snapshot, so all rows compare at the same prices regardless of when the actual call ran.
+Settings for reproducing this run. The benchmark sends the same prompts MinusPod sends in production (same system prompt, sponsor list, and windowing), so the F1 numbers apply to production accuracy decisions. Cost is recomputed at report time from token counts against the active pricing snapshot, so all rows compare at the same prices.
 
 - Trials per (model, episode): **5**, temperature 0.0
 - max_tokens: 4096 (matches MinusPod production)
@@ -3939,7 +3937,7 @@ Reproducibility settings used for this run. The benchmark sends the same prompts
 
 ## Transcript source
 
-`segments.json` for every corpus episode is pulled byte-exact from the source MinusPod instance's `original-segments` endpoint. The transcript itself was generated by faster-whisper inside that instance, not by the benchmark. Model choice and decoding params affect what gets transcribed, which sets an upper bound on what every benchmarked LLM can find.
+`segments.json` for every corpus episode is pulled byte-exact from the source MinusPod instance's `original-segments` endpoint. faster-whisper generated the transcript inside that instance, not the benchmark. Whisper model choice and decoding params affect the transcript, which caps what every benchmarked LLM can find.
 
 **Whisper config:**
 
@@ -3967,9 +3965,9 @@ model.transcribe(
 )
 ```
 
-The `initial_prompt` carries a sponsor vocabulary so Whisper produces consistent spellings (`Athletic Greens` rather than `AG1`, `ExpressVPN` rather than `express vpn`). This biases what shows up in the transcript and therefore what every benchmarked LLM is scored against.
+The `initial_prompt` carries a sponsor vocabulary so Whisper spells sponsors consistently (`Athletic Greens` rather than `AG1`, `ExpressVPN` rather than `express vpn`). This biases the transcript and therefore what every benchmarked LLM is scored against.
 
-**Sponsor vocabulary** (254 canonical sponsors, 44 of them with explicit alias spellings totaling 48 aliases; from `src/utils/constants.py` `SEED_SPONSORS`). Laid out in two side-by-side groups, read top-to-bottom in each group.
+**Sponsor vocabulary** (254 canonical sponsors, 44 of them with explicit alias spellings totaling 48 aliases; from `src/utils/constants.py` `SEED_SPONSORS`).
 
 | Sponsor | Aliases | Category | Sponsor | Aliases | Category |
 |---|---|---|---|---|---|
@@ -4101,7 +4099,7 @@ The `initial_prompt` carries a sponsor vocabulary so Whisper produces consistent
 | Lululemon | - | ecommerce_retail_dtc | Zscaler | - | tech |
 | Lyft | - | automotive_transport | Zyn | `ZYN`, `Zinn` | tobacco_nicotine |
 
-**Mishearing corrections** (174 entries, from `src/utils/constants.py` `SPONSOR_ALIASES`). Applied post-transcription to normalize Whisper output toward the canonical sponsor name. Distinct from the `aliases` column above, which lists intentional alternative spellings (e.g. `AG1` vs `Athletic Greens`); the entries below are mostly Whisper mishearings (e.g. `a firm` -> `Affirm`, `xerox` -> `Xero`). Laid out in three side-by-side groups, read top-to-bottom in each group.
+**Mishearing corrections** (174 entries, from `src/utils/constants.py` `SPONSOR_ALIASES`). Applied after transcription to normalize Whisper output toward the canonical sponsor name. Unlike the `aliases` column above, which lists intentional alternative spellings (e.g. `AG1` vs `Athletic Greens`), these entries are mostly Whisper mishearings (e.g. `a firm` -> `Affirm`, `xerox` -> `Xero`).
 
 | Heard as | Normalized to | Heard as | Normalized to | Heard as | Normalized to |
 |---|---|---|---|---|---|
@@ -4173,7 +4171,7 @@ The `initial_prompt` carries a sponsor vocabulary so Whisper produces consistent
 - Failed: 130
 - Lifetime list-price cost (sum of at-runtime costs, includes superseded rows): $698.4264
 - Lifetime tokens (same basis): 460,766,578 in + 65,503,116 out = 526,269,694
-- Note: every input token is priced at list rate. Providers that serve a repeated prompt from cache bill less than this, and the harness does not record cache hits, so a real invoice for this run will come in under the figure above.
+- Note: every input token is priced at list rate. Providers that cache repeated prompts bill less, and the harness does not record cache hits, so a real invoice will come in under the figure above.
 - Active pricing snapshot: 2026-08-23T20:34:27.481692Z
 - Addressing mode: timestamps
 - System prompt: snapshot:2026-08.txt (sha256:1030b29e)

@@ -16,6 +16,8 @@ from config import (
     AUDIO_CUE_FP_WINDOW_SECONDS,
 )
 
+TOO_FEW_EPISODES = "fewer than 2 episodes: cross-episode comparison requires >= 2 siblings"
+
 try:
     from audio_fingerprinter import AudioFingerprinter
 except ImportError:
@@ -57,7 +59,7 @@ def run(
     if len(audio_paths) < 2:
         return {
             "available": True,
-            "skip_reason": "fewer than 2 episodes -- cross-episode comparison requires >= 2 siblings",
+            "skip_reason": TOO_FEW_EPISODES,
             "episodes": [],
             "summary": {},
         }

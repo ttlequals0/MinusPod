@@ -2,6 +2,15 @@
 
 This file tracks the hosted demo and its tooling, which are not part of the self-hosted app.
 
+## [2.101.31] - 2026-11-08
+
+### Fixed
+
+- Crawled fixtures rewrite container paths such as `/app/data` to `/demo`, so the leak check passes on the backup settings response.
+- The demo peaks handler answers 404 when a recorded waveform has no usable resolution.
+- The beacon token is read from the snippet's `token` value, so another 32-character hex string earlier in the snippet is no longer picked up.
+- `record_feeds.py` checks every scrubbed feed for leaks before writing any file, and leak reports from the demo scripts are redacted when they run under GitHub Actions.
+
 ## [2.101.30] - 2026-11-08
 
 ### Fixed

@@ -177,11 +177,13 @@ def check_sqlite(db: Path, hosts: list[str], slugs: Iterable[str] = ()) -> list[
 
 
 def report_hits(
-    hits: list[Hit], limit: int = 20, redact: bool = False,
+    hits: list[Hit], limit: int = 20, redact: bool | None = None,
     hosts: list[str] = (), slugs: Iterable[str] = (),
 ) -> None:
     """Print hits grouped by pattern. Redacted output names hosts and slugs by index and
     withholds excerpts, so a CI log never carries the protected values."""
+    if redact is None:
+        redact = os.environ.get('GITHUB_ACTIONS') == 'true'
     names = {}
     slugs_set = set(slugs)
     if redact:

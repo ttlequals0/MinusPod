@@ -438,6 +438,10 @@ def _local_original_response(slug, episode_id, requested_version=None):
     return response
 
 
+def _permanently_failed_response():
+    return Response("Episode processing has permanently failed after multiple attempts", status=410)
+
+
 def _blocked_agent_response(slug, episode_id, podcast, episode, feed_map, requested_version):
     """Where a blocked crawler is sent instead of a processing run."""
     if is_youtube_feed(podcast):
@@ -459,7 +463,7 @@ def _blocked_agent_response(slug, episode_id, podcast, episode, feed_map, reques
     if original_response is not None:
         return original_response
     if episode and episode['status'] == EpisodeStatus.PERMANENTLY_FAILED:
-        return Response("Episode processing has permanently failed after multiple attempts", status=410)
+        return _permanently_failed_response()
     abort(503)
 
 
@@ -713,10 +717,7 @@ def register_routes(app):
                 original_response = _routes._local_original_response(slug, episode_id, requested_version)
                 if original_response is not None:
                     return original_response
-            return Response(
-                "Episode processing has permanently failed after multiple attempts",
-                status=410  # Gone - resource no longer available
-            )
+            return _permanently_failed_response()
 
         elif status == EpisodeStatus.FAILED:
             retry_count = episode.get('retry_count', 0) or 0
@@ -728,10 +729,7 @@ def register_routes(app):
                     original_response = _routes._local_original_response(slug, episode_id, requested_version)
                     if original_response is not None:
                         return original_response
-                return Response(
-                    "Episode processing has permanently failed after multiple attempts",
-                    status=410
-                )
+                return _permanently_failed_response()
             # Cooldown check - don't retry if failed recently (gives CDN time to propagate)
             updated_at = episode.get('updated_at')
             if updated_at and retry_count > 0:

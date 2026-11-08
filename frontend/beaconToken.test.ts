@@ -13,6 +13,13 @@ describe('beaconToken', () => {
     expect(beaconToken(snippet)).toBe(TOKEN);
   });
 
+  it('prefers the token key over an earlier 32-hex decoy', () => {
+    const decoy = 'ffffffffffffffffffffffffffffffff';
+    const snippet = `<script data-id="${decoy}" data-cf-beacon='{&quot;token&quot;: &quot;${TOKEN}&quot;}'></script>`;
+    expect(beaconToken(snippet)).toBe(TOKEN);
+    expect(beaconToken(`<script data-id="${decoy}"></script>`)).toBeNull();
+  });
+
   it('returns null when nothing matches', () => {
     expect(beaconToken(undefined)).toBeNull();
     expect(beaconToken('')).toBeNull();

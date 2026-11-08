@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { fixtureKey, fileFor } from './lib/keys.mjs';
-import { scrubFeedKeys, writeFixture, mergeIndex, prepareOutDir } from './lib/store.mjs';
+import { scrubBody, writeFixture, mergeIndex, prepareOutDir } from './lib/store.mjs';
 import { argValue, checkFlags } from './lib/args.mjs';
 
 const API_PATH = '/api/v1/';
@@ -26,7 +26,7 @@ export function entriesToFixtures(har) {
     let fixture = { status };
     if (status !== 204 && status !== 304) {
       try {
-        fixture = { status, body: scrubFeedKeys(JSON.parse(decodeBody(response.content))) };
+        fixture = { status, body: scrubBody(JSON.parse(decodeBody(response.content))) };
       } catch { /* unparseable body: keep status only */ }
     }
     out.set(fixtureKey(url), fixture);

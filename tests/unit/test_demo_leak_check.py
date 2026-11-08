@@ -253,3 +253,12 @@ def test_invalid_host_entry_is_not_echoed_under_redaction(tmp_path, capsys):
     assert 'secretname' not in err
     with pytest.raises(ValueError, match='invalid host entry #1'):
         parse_hosts('x', redact=True)
+
+
+def test_report_hits_redacts_by_default_under_github_actions(capsys, monkeypatch):
+    from scripts.demo.leak_check import Hit, report_hits
+    monkeypatch.setenv('GITHUB_ACTIONS', 'true')
+    report_hits([Hit('f/secret-slug.xml', 'host:one.internal.example', 'x one.internal.example y', 3)],
+                hosts=['one.internal.example'], slugs=['secret-slug'])
+    out = capsys.readouterr().out
+    assert 'one.internal.example' not in out and 'secret-slug' not in out and 'x one' not in out
