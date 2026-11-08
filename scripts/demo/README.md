@@ -13,7 +13,7 @@ Generated output is never committed. `frontend/demo/fixtures`, `frontend/demo/ar
 
 ## 1. Local snapshot
 
-Start every run from empty `live-extras`, `frontend/demo/fixtures` and `frontend/demo/artwork` directories. The writers in steps 3, 5 and 7 refuse a non-empty output directory and take `--clean` to empty it first. A leftover from an earlier run could still hold a feed you have excluded since. Step 6 only adds to the fixtures directory, so it runs after step 5 by design.
+Start every run from empty `live-extras`, `frontend/demo/fixtures` and `frontend/demo/artwork` directories. The writers in steps 3, 5 and 7 refuse a non-empty output directory and take `--clean` to empty it first. A leftover from an earlier run could still hold a feed you have excluded since. Step 6 only adds to the fixtures directory, so it runs after step 5.
 
 Copies the live database with the SQLite backup API, applies the allowlist, scrubs it and writes a new file. Excluded feeds are removed with everything that references them.
 
@@ -38,7 +38,7 @@ Start the backend container with the snapshot as its database and a throwaway da
 
 ## 3. Record live extras
 
-The only step that touches the live instance. It sends GET requests only, using a Netscape cookie file for a signed-in session. It records provider and model overrides, waveform peaks and artwork. Run it with the same `--hosts` and `--exclusions` as the snapshot. It does not need the local backend, so it can run while the crawl does.
+The only step that touches the live instance. It sends GET requests only, using a Netscape cookie file for a signed-in session, and records provider and model overrides, waveform peaks and artwork. Run it with the same `--hosts` and `--exclusions` as the snapshot. It does not need the local backend, so it can run while the crawl does.
 
 ```
 PYTHONPATH=src:. python scripts/demo/record_live.py \
@@ -76,7 +76,7 @@ node har-to-fixtures.mjs --har crawl-out/crawl.har --out ../../../frontend/demo/
 
 ## 6. Dumps
 
-Fills in what a click-through does not reach: static lists, paged lists, and per-feed and per-episode endpoints. It reads the feed and episode lists from the backend and overwrites any fixture with the same key, so run it after the HAR step. Two final passes run after the dumps: `--overrides` copies the live extras on top, so they win over crawled and dumped responses, and `--transcript-window <seconds>` keeps only the transcript lines within N seconds of an ad marker in every episode fixture.
+Fills in what a click-through does not reach: static lists, paged lists, and per-feed and per-episode endpoints. It reads the feed and episode lists from the backend and overwrites any fixture with the same key, so run it after the HAR step. Two passes run after the dumps. `--overrides` copies the live extras on top, so they win over crawled and dumped responses. `--transcript-window <seconds>` keeps only the transcript lines within that many seconds of an ad marker in every episode fixture.
 
 ```
 node dumps.mjs --base http://127.0.0.1:8000 --out ../../../frontend/demo/fixtures \
