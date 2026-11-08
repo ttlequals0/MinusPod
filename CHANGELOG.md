@@ -8,7 +8,7 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
-## [2.101.29] - 2026-11-08
+## [2.101.28] - 2026-11-07
 
 ### Added
 
@@ -18,6 +18,9 @@ release notes.
 
 ### Fixed
 
+- Demo build: the waveform editor loads again. The live recorder stores one whole-episode peaks fixture per episode, and the demo slices it to the zoom window the editor asks for. Before, every window got a 404.
+- Demo build: model dropdowns list every provider's models in every slot. The live instance only lists models for slots that hold a key, so the recorder now takes the union across slots per provider.
+- Demo build: the API explorer is readable on dark themes. Its panel stays white with dark text.
 - The demo crawl and HAR converter no longer keep 429 responses. The crawl exits 1 on a throttled response and the converter skips and counts them, so a throttled run never produces fixtures.
 - The demo crawl dismisses the What's new dialog, so clicks reach the page and the ad editor opens, and it no longer stalls for 30 seconds on the ad editor button. It also skips menu triggers when expanding sections.
 - Settings no longer calls GitHub for release info while update checks are off. It shows "Update checks are off." instead of "Up to date on the selected channel."
@@ -27,14 +30,6 @@ release notes.
 ### Changed
 
 - The docs overview lists Contributing last.
-
-## [2.101.28] - 2026-11-07
-
-### Fixed
-
-- Demo build: the waveform editor loads again. The live recorder stores one whole-episode peaks fixture per episode, and the demo slices it to the zoom window the editor asks for. Before, every window got a 404.
-- Demo build: model dropdowns list every provider's models in every slot. The live instance only lists models for slots that hold a key, so the recorder now takes the union across slots per provider.
-- Demo build: the API explorer is readable on dark themes. Its panel stays white with dark text.
 
 ## [2.101.27] - 2026-11-07
 
