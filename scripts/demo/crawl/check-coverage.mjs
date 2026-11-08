@@ -9,10 +9,10 @@ export const DEFAULT_ALLOW = [
   '/history/export', '/feeds/export-opml', '/patterns/export', '/cue-templates/*/export',
   '/cue-templates/*/audio', '/feeds/*/episodes/*/runs/*/log', '/youtube/search',
   '/settings/youtube/sb-user-id', '/settings/provider-budget/rate/*', '/feeds/*/import/status',
-  // the demo serves it from its own handler
-  '/podcast-search',
+  // the demo serves these from its own handlers
+  '/podcast-search', '/feeds/*/episodes/*/peaks',
   '/feeds/*/episodes/*/cue-candidates', '/feeds/*/episodes/*/transcript-span',
-  '/feeds/*/episodes/*/split-candidates', '/settings/providers/*/affected-runs',
+  '/feeds/*/episodes/*/split-candidates',
 ];
 
 const CALL = /\bapi(?:File)?Request\b\s*(?:<[^()`]*>)?\s*\(\s*/g;

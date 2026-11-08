@@ -19,6 +19,15 @@ const STATIC_PATHS = [
   '/patterns/cleanup/suggestions?limit=200&offset=0',
   '/changelog?limit=50',
   '/podping/nodes', // the Settings query is gated on a setting that is off
+  // settings sections and pattern tabs the crawl only reaches after their parent request succeeds
+  '/failover',
+  '/networks',
+  '/settings/offline-queue',
+  '/settings/provider-budget',
+  '/settings/rate-limit-hold',
+  '/settings/providers/primary/affected-runs',
+  '/settings/providers/secondary/affected-runs',
+  '/sponsors/normalizations',
 ];
 
 const PAGED = [
@@ -40,7 +49,7 @@ const EPISODE_PATHS = (slug, id) => {
   const s = encodeURIComponent(slug);
   const e = encodeURIComponent(id);
   const f = `/feeds/${s}/episodes/${e}`;
-  return [f, `${f}/peaks?resolution_ms=100`, `${f}/original-segments`, `${f}/final-segments`,
+  return [f, `${f}/original-segments`, `${f}/final-segments`,
     `${f}/original-transcript`, `${f}/sponsorblock/candidates`,
     `/stats/episode-costs/runs?episodeId=${e}&slug=${s}`, `/stats/spend/attempts?episodeId=${e}&slug=${s}`, `/stats/reviewer?episode_id=${e}&podcast_slug=${s}`];
 };
