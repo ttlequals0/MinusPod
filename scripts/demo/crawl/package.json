@@ -14,7 +14,7 @@
   "dependencies": {
     "@playwright/test": "^1.65.0",
     "minisearch": "^7.2.0",
-    "sharp": "^0.34"
+    "sharp": "^0.35"
   },
   "engines": {
     "node": ">=24"
