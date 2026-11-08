@@ -34,7 +34,7 @@ PYTHONPATH=src:. python scripts/demo/snapshot.py \
 
 ## 2. Run a backend on the snapshot
 
-Start the backend container with the snapshot as its database and a throwaway data directory. Point it at `http://127.0.0.1:8000` or any address you pass to the next steps. Set `MINUSPOD_BACKGROUND_THREADS=0` so it serves the snapshot without starting downloads or processing. When the backend runs from source on macOS, start gunicorn with `OBJC_DISABLE_INITIALIZE_FORK_SAFETY=YES`. Without it the workers abort in the system proxy lookup on their first outbound request and the crawl sees empty responses.
+Start the backend container with the snapshot as its database and a throwaway data directory. Point it at `http://127.0.0.1:8000` or any address you pass to the next steps. Set `MINUSPOD_BACKGROUND_THREADS=0` so it serves the snapshot without starting downloads or processing. When the backend runs from source on macOS, start gunicorn with `OBJC_DISABLE_INITIALIZE_FORK_SAFETY=YES`. Without it the workers abort in the system proxy lookup on their first outbound request and the crawl sees empty responses. Also set `MINUSPOD_RATE_LIMIT_DISABLED=true`: a crawl easily passes the default limits, which are per gunicorn worker (200 per minute and 1000 per hour each), and a throttled crawl exits 1.
 
 ## 3. Record live extras
 
@@ -65,7 +65,8 @@ cd scripts/demo/crawl
 node crawl.mjs --base http://127.0.0.1:8000 --ui-base /ui --out crawl-out
 ```
 
-- Writes `crawl-out/crawl.har` and `crawl-out/routes-visited.json`. Exit 1 on a page error, a 5xx response or an expected route that was not visited.
+- Writes `crawl-out/crawl.har` and `crawl-out/routes-visited.json`. Exit 1 on a page error, a 5xx or 429 response or an expected route that was not visited.
+- Modal dialogs such as "What's new" are dismissed before sections are expanded; the dismissed headings are listed in `routes-visited.json` as `dialogsDismissed`.
 - The backend serves the UI under `/ui`; without `--ui-base` every page is a 404 and the HAR holds almost no API traffic.
 
 ## 5. HAR to fixtures

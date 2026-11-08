@@ -16,10 +16,22 @@ test('keeps status codes and json bodies, ignores non-api and non-json', () => {
     entry('POST', 'http://h/api/v1/settings', 200, 'application/json', '{}'),
     entry('GET', 'http://h/assets/x.js', 200, 'text/javascript', ''),
   ] } };
-  const out = entriesToFixtures(har);
+  const { fixtures: out } = entriesToFixtures(har);
   assert.deepEqual(out.get('/feeds/a/episodes/e/runs/1/log'), { status: 404, body: { error: 'gone' } });
   assert.deepEqual(out.get('/settings'), { status: 200, body: { a: 1 } });
   assert.equal(out.size, 2);
+});
+
+test('429 responses are skipped and counted, not stored', () => {
+  const har = { log: { entries: [
+    entry('GET', 'http://h/api/v1/a', 200, 'application/json', '{"v":1}'),
+    entry('GET', 'http://h/api/v1/a', 429, 'application/json', '{"error":"rate limit"}'),
+    entry('GET', 'http://h/api/v1/b', 429, 'application/json', '{"error":"rate limit"}'),
+  ] } };
+  const { fixtures, throttled } = entriesToFixtures(har);
+  assert.equal(throttled, 2);
+  assert.deepEqual(fixtures.get('/a'), { status: 200, body: { v: 1 } });
+  assert.equal(fixtures.has('/b'), false);
 });
 
 test('later duplicates win, 204/304 carry no body, feed keys are scrubbed', () => {
@@ -28,7 +40,7 @@ test('later duplicates win, 204/304 carry no body, feed keys are scrubbed', () =
     entry('GET', 'http://h/api/v1/a', 200, 'application/json', '{"v":2,"u":"http://h/f?key=secret"}'),
     entry('GET', 'http://h/api/v1/b', 304, 'application/json', ''),
   ] } };
-  const out = entriesToFixtures(har);
+  const { fixtures: out } = entriesToFixtures(har);
   assert.deepEqual(out.get('/a'), { status: 200, body: { v: 2, u: 'http://h/f?key=demo' } });
   assert.deepEqual(out.get('/b'), { status: 304 });
 });

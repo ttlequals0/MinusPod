@@ -46,7 +46,35 @@ async function listFeeds(base, perFeed) {
 
 const MAX_DISCLOSURE_PASSES = 4;
 const MAX_CLICKS_PER_PASS = 80;
-const CLOSED = 'main button[aria-expanded="false"], main summary';
+// Menu triggers (Download, Reprocess) carry aria-haspopup and are not disclosures.
+export const CLOSED = 'main button[aria-expanded="false"]:not([aria-haspopup]), main summary';
+const DIALOG = '[role=dialog][aria-modal="true"]';
+const CLOSE_BUTTON = 'button[aria-label="Close"], button:text-is("Close")';
+const MAX_DIALOG_ROUNDS = 3;
+
+// A throttled or failing response means the crawl cannot produce trustworthy fixtures.
+export const isCrawlError = (status) => status >= 500 || status === 429;
+
+async function dialogHeading(dialog) {
+  const heading = await dialog.locator('h1, h2, h3').first().textContent({ timeout: 1000 }).catch(() => null);
+  if (heading?.trim()) return heading.trim();
+  return (await dialog.getAttribute('aria-labelledby', { timeout: 1000 }).catch(() => null)) ?? '';
+}
+
+// Modals (What's new) set inert on everything else, so no click lands until they close.
+export async function dismissDialogs(page) {
+  const headings = [];
+  for (let round = 0; round < MAX_DIALOG_ROUNDS; round++) {
+    const dialog = page.locator(DIALOG).first();
+    if (!(await dialog.isVisible())) break;
+    headings.push(await dialogHeading(dialog));
+    const close = dialog.locator(CLOSE_BUTTON).first();
+    if (await close.count()) await close.click({ timeout: 2000 }).catch(() => {});
+    else await page.keyboard.press('Escape');
+    await dialog.waitFor({ state: 'hidden', timeout: 3000 }).catch(() => {});
+  }
+  return headings;
+}
 
 // Each tab is visited once with its disclosures expanded. Disclosures are re-queried after
 // every click because polling pages re-render and stale handles stop being clickable.
@@ -86,7 +114,7 @@ async function expandDisclosures(page) {
 async function openEditor(page) {
   const btn = page.locator(OPEN_EDITOR).first();
   if (!(await btn.count())) return false;
-  await btn.click();
+  await btn.click({ timeout: 5000 });
   const opened = await page.locator('[role=dialog]').first()
     .waitFor({ state: 'visible', timeout: 5000 }).then(() => true, () => false);
   if (opened) {
@@ -115,15 +143,18 @@ export async function crawl({ base, out, uiBase = '', routes }) {
   page.on('response', (res) => {
     if (!res.url().includes('/api/v1/')) return;
     responses++;
-    if (res.status() >= 500) serverErrors.push(`${res.status()} ${res.url()}`);
+    if (isCrawlError(res.status())) serverErrors.push(`${res.status()} ${res.url()}`);
   });
   const visited = [];
+  const dialogsDismissed = [];
   let editorOpened = false;
   for (const route of expected) {
     try {
       await page.goto(`${base}${uiBase}${route}`, { waitUntil: 'networkidle' });
       await page.waitForTimeout(SETTLE_MS);
+      dialogsDismissed.push(...await dismissDialogs(page));
       await expandAll(page);
+      dialogsDismissed.push(...await dismissDialogs(page));
       await page.waitForTimeout(500);
       if (!editorOpened && /\/episodes\/[^/?]+$/.test(route)) editorOpened = await openEditor(page);
       visited.push(route);
@@ -135,8 +166,8 @@ export async function crawl({ base, out, uiBase = '', routes }) {
   await browser.close();
   const missing = expected.filter((r) => !visited.includes(r));
   writeAtomic(join(out, 'routes-visited.json'),
-    JSON.stringify({ expected, visited, failures, serverErrors, exceptions, editorOpened }, null, 2));
-  return { responses, expected, visited, missing, failures, serverErrors, exceptions, editorOpened };
+    JSON.stringify({ expected, visited, failures, serverErrors, exceptions, editorOpened, dialogsDismissed }, null, 2));
+  return { responses, expected, visited, missing, failures, serverErrors, exceptions, editorOpened, dialogsDismissed };
 }
 
 async function main(argv) {
@@ -148,7 +179,7 @@ async function main(argv) {
   const r = await crawl({ base: base.replace(/\/$/, ''), out: resolve(out), uiBase, routes });
   for (const line of [...r.failures, ...r.serverErrors, ...r.exceptions]) console.error(line);
   if (!r.editorOpened) console.warn('warning: ad-review modal never opened; its traffic is missing from the HAR');
-  console.log(`pages visited: ${r.visited.length}/${r.expected.length}, API responses captured: ${r.responses}, 5xx: ${r.serverErrors.length}, exceptions: ${r.exceptions.length}, load failures: ${r.failures.length}`);
+  console.log(`pages visited: ${r.visited.length}/${r.expected.length}, API responses captured: ${r.responses}, 5xx/429: ${r.serverErrors.length}, exceptions: ${r.exceptions.length}, load failures: ${r.failures.length}, dialogs dismissed: ${r.dialogsDismissed.length}`);
   if (r.serverErrors.length || r.exceptions.length || r.failures.length || r.missing.length) process.exit(1);
 }
 
