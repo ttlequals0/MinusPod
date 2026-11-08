@@ -10,20 +10,10 @@ from PIL import Image
 from scripts.demo.leak_check import check_text
 from scripts.demo.record_live import (
     KEY_PARAM, QUEUE_KEY, Abort, VALID_LLM_PROVIDERS, encode_uri_component, episode_artwork_targets,
-    file_for, fixture_key, override_targets, run, scrub_body, scrub_providers, synthesize_queue, to_jpeg,
+    file_for, fixture_key, run, scrub_body, scrub_providers, synthesize_queue, to_jpeg,
 )
 
 VECTORS = Path(__file__).parents[2] / 'scripts/demo/crawl/lib/key-vectors.json'
-
-
-def test_override_targets_enumerate_provider_types_and_slots():
-    targets = override_targets()
-    assert '/settings/providers' in targets
-    assert '/settings/models?provider=anthropic&slot=primary' in targets
-    assert '/settings/models?provider=openai-compatible&slot=failover' in targets
-    assert sum(t.startswith('/settings/models') for t in targets) == len(VALID_LLM_PROVIDERS) * 3
-    assert '/settings/whisper-models' in targets
-    assert '/settings/provider-budget/currencies' in targets and '/system/updates' in targets
 
 
 def test_scrub_providers_replaces_base_urls():
@@ -130,6 +120,20 @@ def fake_get(extra_body=None, queue=None, feed_art=None):
             return resp({'currencies': [{'code': 'USD'}]})
         if path == '/system/updates':
             return resp({'currentVersion': '1.0'})
+        if path == '/settings/models?provider=anthropic&slot=primary':
+            return resp({'models': [{'id': 'a'}, {'id': 'b'}]})
+        if path == '/settings/models?provider=anthropic&slot=secondary':
+            return resp({'models': [{'id': 'b'}, {'id': 'c'}]})
+        if path == '/settings/models?provider=anthropic&slot=failover':
+            return resp({'error': 'no key'}, status=400)
+        if path == '/settings/models?provider=openrouter&slot=primary':
+            return resp({'models': [{'id': 'o'}]})
+        if path == '/settings/models?provider=openrouter&slot=secondary':
+            return resp(status=500)
+        if path == '/settings/models?provider=typesafe&slot=primary':
+            return resp({'models': [{'id': 't'}]})
+        if path == '/settings/models?provider=typesafe&slot=failover':
+            return resp({'error': 'Failover LLM is chat-only'}, status=400)
         if path.startswith('/settings/'):
             return resp({'models': []})
         if path == QUEUE_KEY:
@@ -180,6 +184,23 @@ def test_run_writes_layout(tmp_path):
     assert sorted(p.name for p in (out / 'artwork/episodes/keep').iterdir()) == ['ep%2F1.jpg']
 
 
+def test_run_unions_model_lists_across_slots(tmp_path):
+    assert run(args_for(tmp_path), get=fake_get()) == 0
+    out = tmp_path / 'out'
+    index = json.loads((out / 'overrides' / 'index.json').read_text())
+    for slot in ('primary', 'secondary', 'failover'):
+        rec = json.loads((out / 'overrides' / index[f'/settings/models?provider=anthropic&slot={slot}']).read_text())
+        assert rec['status'] == 200
+        assert [m['id'] for m in rec['body']['models']] == ['a', 'b', 'c']
+    empty = json.loads((out / 'overrides' / index['/settings/models?provider=ollama&slot=primary']).read_text())
+    assert empty == {'status': 200, 'body': {'models': []}}
+    rec = lambda key: json.loads((out / 'overrides' / index[key]).read_text())  # noqa: E731
+    assert rec('/settings/models?provider=openrouter&slot=secondary') == {'status': 200, 'body': {'models': [{'id': 'o'}]}}
+    assert rec('/settings/models?provider=typesafe&slot=secondary')['body'] == {'models': [{'id': 't'}]}
+    assert rec('/settings/models?provider=typesafe&slot=failover') == {'status': 400, 'body': {'error': 'Failover LLM is chat-only'}}
+    assert sum(k.startswith('/settings/models?') for k in index) == len(VALID_LLM_PROVIDERS) * 3
+
+
 def test_run_leak_hit_exits_2_without_more_files(tmp_path):
     leaky = {'note': 'see leak.example.org'}
     try:
@@ -205,12 +226,12 @@ def test_run_records_rounded_peaks_and_skips_404(tmp_path):
     assert run(args_for(tmp_path), get=fake_get()) == 0
     overrides = tmp_path / 'out' / 'overrides'
     index = json.loads((overrides / 'index.json').read_text())
-    key = '/feeds/keep/episodes/ep%2F1/peaks?resolution_ms=250'
+    key = '/feeds/keep/episodes/ep%2F1/peaks'
     body = json.loads((overrides / index[key]).read_text())['body']
     assert body['peaks'] == [0.123, [0.5, 1]]
     assert body['start'] == 12.3456789
     assert not any('ep3' in k for k in index)
-    assert '/feeds/keep/episodes/ep4/peaks?resolution_ms=250' in index
+    assert '/feeds/keep/episodes/ep4/peaks' in index
 
 
 def test_run_no_peaks(tmp_path):
@@ -255,7 +276,6 @@ def test_bad_hosts_abort(tmp_path, hosts):
 
 
 def test_non_canonical_override_key_aborts(tmp_path, monkeypatch):
-    monkeypatch.setattr('scripts.demo.record_live.override_targets',
-                        lambda: ['/settings/providers', '/settings/models?slot=primary&provider=x'])
+    monkeypatch.setattr('scripts.demo.record_live.PLAIN_TARGETS', ['/settings/models?slot=primary&provider=x'])
     code, msg = abort_code(args_for(tmp_path), fake_get())
     assert code == 1 and 'canonical' in msg

@@ -54,6 +54,8 @@ PYTHONPATH=src:. python scripts/demo/record_live.py \
 - Exit code 2 means a leak was found, a feed artwork fetch failed or returned an unreadable image, or a GET returned a non-OK status. The partial output directory must not be published.
 - Exit code 1 for a bad `--hosts`, an exclusion slug that is not in `/feeds`, or a non-empty `--out` without `--clean`.
 
+Model lists come back per provider and slot, and the live instance only fills the slots that hold a key. The recorder stores the union across slots for every slot, so the demo's model dropdowns are full for every provider. The recorder also stores one whole-episode waveform per processed episode, which the demo slices to the editor's zoom window.
+
 ## 4. Crawl
 
 Playwright walks every route in `crawl/routes.json` (static pages, every feed, up to three episodes per feed, search types, settings sections and tabs) and records the API traffic.

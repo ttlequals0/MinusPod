@@ -7,6 +7,7 @@ import { episodesHandler } from './episodes';
 import { feedsHandler } from './feeds';
 import { historyHandler } from './history';
 import { patternsHandler } from './patterns';
+import { peaksHandler } from './peaks';
 import { processingHandler } from './processing';
 import { episodeCostsHandler, modelUsageHandler } from './stats';
 import { sponsorsHandler } from './sponsors';
@@ -17,6 +18,7 @@ export type ListHandler = (url: URL, load: (key: string) => Promise<Fixture | nu
 export const registry: Array<{ pattern: RegExp; handler: ListHandler }> = [
   { pattern: /^\/feeds$/, handler: feedsHandler },
   { pattern: /^\/feeds\/[^/]+\/episodes$/, handler: episodesHandler },
+  { pattern: /^\/feeds\/[^/]+\/episodes\/[^/]+\/peaks$/, handler: peaksHandler },
   { pattern: /^\/history$/, handler: historyHandler },
   { pattern: /^\/history\/downloads$/, handler: downloadsHandler },
   { pattern: /^\/detections$/, handler: detectionsHandler },

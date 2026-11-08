@@ -6,8 +6,16 @@ import { __setIndexForTests, __setLoaderForTests } from './fixtures';
 const call = (path: string, init?: RequestInit) => getResponse(handlers, new Request('http://x/api/v1' + path, init));
 
 beforeEach(() => {
-  __setIndexForTests({ '/auth/status': 'auth.json', '/status': 'status.json', '/settings': 'settings.json', '/feeds/a/episodes/e1/notes': 'gone.json' });
-  __setLoaderForTests(async (file) => (file === 'gone.json' ? { status: 410, body: { error: 'gone' } } : { status: 200, body: { file } }));
+  __setIndexForTests({
+    '/auth/status': 'auth.json',
+    '/status': 'status.json',
+    '/settings': 'settings.json',
+    '/feeds/a/episodes/e1/notes': 'gone.json',
+  });
+  __setLoaderForTests(async (file) => {
+    if (file === 'gone.json') return { status: 410, body: { error: 'gone' } };
+    return { status: 200, body: { file } };
+  });
 });
 
 test('download endpoints are recognised', () => {
