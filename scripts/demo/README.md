@@ -34,7 +34,7 @@ PYTHONPATH=src:. python scripts/demo/snapshot.py \
 
 ## 2. Run a backend on the snapshot
 
-Start the backend container with the snapshot as its database and a throwaway data directory. Point it at `http://127.0.0.1:8000` or any address you pass to the next steps. Set `MINUSPOD_BACKGROUND_THREADS=0` so it serves the snapshot without starting downloads or processing.
+Start the backend container with the snapshot as its database and a throwaway data directory. Point it at `http://127.0.0.1:8000` or any address you pass to the next steps. Set `MINUSPOD_BACKGROUND_THREADS=0` so it serves the snapshot without starting downloads or processing. When the backend runs from source on macOS, start gunicorn with `OBJC_DISABLE_INITIALIZE_FORK_SAFETY=YES`. Without it the workers abort in the system proxy lookup on their first outbound request and the crawl sees empty responses.
 
 ## 3. Record live extras
 
@@ -54,17 +54,19 @@ PYTHONPATH=src:. python scripts/demo/record_live.py \
 - Exit code 2 means a leak was found, a feed artwork fetch failed or returned an unreadable image, or a GET returned a non-OK status. The partial output directory must not be published.
 - Exit code 1 for a bad `--hosts`, an exclusion slug that is not in `/feeds`, or a non-empty `--out` without `--clean`.
 
+Model lists come back per provider and slot, and the live instance only fills the slots that hold a key. The recorder stores the union across slots for every slot, so the demo's model dropdowns are full for every provider. It also stores one whole-episode waveform per processed episode, and the demo slices that to the editor's zoom window.
+
 ## 4. Crawl
 
 Playwright walks every route in `crawl/routes.json` (static pages, every feed, up to three episodes per feed, search types, settings sections and tabs) and records the API traffic.
 
 ```
 cd scripts/demo/crawl
-node crawl.mjs --base http://127.0.0.1:8000 --out crawl-out
+node crawl.mjs --base http://127.0.0.1:8000 --ui-base /ui --out crawl-out
 ```
 
 - Writes `crawl-out/crawl.har` and `crawl-out/routes-visited.json`. Exit 1 on a page error, a 5xx response or an expected route that was not visited.
-- Add `--ui-base /ui` if the backend serves the UI under a prefix.
+- The backend serves the UI under `/ui`; without `--ui-base` every page is a 404 and the HAR holds almost no API traffic.
 
 ## 5. HAR to fixtures
 

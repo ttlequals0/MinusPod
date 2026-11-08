@@ -93,7 +93,7 @@ test('slugs and ids are percent-encoded in paths and queries', async () => {
   const { index } = await run(f);
   assert.ok(hits.includes('/feeds/a%20b/episodes/x%201%25/original-segments'));
   assert.ok(hits.includes('/stats/reviewer?episode_id=x%201%25&podcast_slug=a%20b'));
-  assert.ok(index['/feeds/a%20b/episodes/x%201%25/peaks?resolution_ms=100']);
+  assert.ok(index['/feeds/a%20b/episodes/x%201%25/original-segments']);
   assert.ok(index['/stats/episode-costs/runs?episodeId=x+1%25&slug=a+b']);
 });
 

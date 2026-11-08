@@ -8,6 +8,14 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
+## [2.101.28] - 2026-11-07
+
+### Fixed
+
+- Demo build: the waveform editor loads again. The live recorder stores one whole-episode peaks fixture per episode, and the demo slices it to the zoom window the editor asks for. Before, every window got a 404.
+- Demo build: model dropdowns list every provider's models in every slot. The live instance only lists models for slots that hold a key, so the recorder now takes the union across slots per provider.
+- Demo build: the API explorer is readable on dark themes. Its panel stays white with dark text.
+
 ## [2.101.27] - 2026-11-07
 
 ### Added

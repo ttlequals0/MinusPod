@@ -52,8 +52,7 @@ export const handlers: RequestHandler[] = [
   http.get('*/api/v1/*', async ({ request }) => {
     const url = new URL(request.url);
     if (isDownload(normalizedPath(url), url.searchParams)) return forbidden();
-    const f = await resolveFixture(url);
-    return fixtureResponse(f);
+    return fixtureResponse(await resolveFixture(url));
   }),
   http.all('*/api/v1/*', () => forbidden()),
   http.all('*/api/*', () => forbidden()),

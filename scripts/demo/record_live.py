@@ -78,12 +78,23 @@ def encode_uri_component(text: str) -> str:
     return ''.join(chr(b) if b in URI_COMPONENT_OK else f'%{b:02X}' for b in text.encode('utf-8'))
 
 
-def override_targets() -> list[str]:
-    targets = ['/settings/providers']
-    targets += [f'/settings/models?provider={p}&slot={slot}' for p in VALID_LLM_PROVIDERS for slot in SLOTS]
-    # provider-budget currencies and the update check need network the local backend lacks.
-    return targets + ['/settings/whisper-models', '/settings/whisper/capacity',
-                      '/settings/provider-budget/currencies', '/system/updates', QUEUE_KEY]
+def models_key(provider: str, slot: str) -> str:
+    return f'/settings/models?provider={provider}&slot={slot}'
+
+
+# provider-budget currencies and the update check need network the local backend lacks.
+PLAIN_TARGETS = ['/settings/whisper-models', '/settings/whisper/capacity',
+                 '/settings/provider-budget/currencies', '/system/updates']
+
+
+def merge_models(bodies: list[dict]) -> list:
+    """The live instance lists models only for slots that hold a key; the demo shows every provider's
+    full list in every slot, so take the union across slots, unique by id, in slot order."""
+    seen: dict[str, object] = {}
+    for body in bodies:
+        for model in body.get('models', []):
+            seen.setdefault(model['id'], model)
+    return list(seen.values())
 
 
 def scrub_providers(body):
@@ -252,14 +263,28 @@ def run(args, get=None) -> int:
 
     providers = get_json(get, '/settings/providers')
     record('/settings/providers', 200, providers)
-    for key in override_targets()[1:]:
-        if key == QUEUE_KEY:
-            continue
+    for key in PLAIN_TARGETS:
         resp = get(key)
         if resp.status_code >= 500:
-            print(f'skipped {key.split("?")[0]} ({resp.status_code})')
+            print(f'skipped {key} ({resp.status_code})')
             continue
-        record(key, resp.status_code, parse_json(resp, key.split('?')[0]))
+        record(key, resp.status_code, parse_json(resp, key))
+    for provider in VALID_LLM_PROVIDERS:
+        live: dict[str, tuple[int, object]] = {}
+        for slot in SLOTS:
+            resp = get(models_key(provider, slot))
+            if resp.status_code >= 500:
+                print(f'skipped /settings/models {provider} {slot} ({resp.status_code})')
+                continue
+            live[slot] = (resp.status_code, parse_json(resp, '/settings/models'))
+        merged = merge_models([body for status, body in live.values() if status == 200])
+        for slot in SLOTS:
+            # the failover slot is chat-only and answers System One providers with a 400 the demo keeps
+            chat_only = slot == 'failover' and provider in SYSTEMONE_PROVIDERS
+            if merged and not chat_only:
+                record(models_key(provider, slot), 200, {'models': merged})
+            elif slot in live:
+                record(models_key(provider, slot), *live[slot])
 
     queue_body = [r for r in get_json(get, QUEUE_KEY) if r.get('slug') not in excluded]
     if not queue_body and args.synthesize_queue:
@@ -290,8 +315,8 @@ def run(args, get=None) -> int:
 
 
 def fetch_peaks(get, record, slug: str, episode_id: str) -> None:
-    key = f'/feeds/{slug}/episodes/{encode_uri_component(episode_id)}/peaks?resolution_ms=250'
-    resp = get(key)
+    key = f'/feeds/{slug}/episodes/{encode_uri_component(episode_id)}/peaks'
+    resp = get(key + '?resolution_ms=250')
     if resp.status_code == 404:
         return
     if resp.status_code != 200:

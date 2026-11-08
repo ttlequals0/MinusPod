@@ -41,7 +41,8 @@ export default function ApiExplorer() {
           <p className={pageDescription}>GET requests return the demo's recorded data. Anything else is disabled.</p>
         </div>
       </div>
-      <div id="swagger-ui" />
+      {/* Swagger UI ships light-only styles, so it sits on a light panel in every theme */}
+      <div id="swagger-ui" className="rounded-lg bg-white p-2 text-gray-900" style={{ colorScheme: 'light' }} />
     </div>
   );
 }
