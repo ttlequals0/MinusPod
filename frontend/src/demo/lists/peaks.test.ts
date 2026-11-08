@@ -24,3 +24,7 @@ test('an episode without a recording is a 404 with demo copy', async () => {
   expect(res!.status).toBe(404);
   expect((res!.body as { error: string }).error).toMatch(/demo/);
 });
+test('a non-numeric start or end is a 400', async () => {
+  expect((await get('start=0&end=abc'))!.status).toBe(400);
+  expect((await get('start=abc'))!.status).toBe(400);
+});

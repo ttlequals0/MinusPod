@@ -124,11 +124,13 @@ It scans files and SQLite cells for the hostnames you list, globally routable IP
 Upload the snapshot database and the live extras as a release asset on the demo site repository:
 
 ```
-tar -C live-extras -cf overrides.tar overrides
-tar -C live-extras -cf artwork.tar artwork
+COPYFILE_DISABLE=1 tar -C live-extras -cf overrides.tar overrides
+COPYFILE_DISABLE=1 tar -C live-extras -cf artwork.tar artwork
 gh release create snapshot-YYYY-MM-DD demo-snapshot-YYYY-MM-DD.db artwork.tar overrides.tar \
   --repo ttlequals0/minuspod.app --notes "Demo snapshot YYYY-MM-DD"
 ```
+
+`COPYFILE_DISABLE=1` keeps macOS metadata files (`._*`) out of the archives.
 
 Crawled fixtures are regenerated from these assets by steps 2 and 4 to 7, so they are not uploaded.
 

@@ -2,6 +2,13 @@
 
 This file tracks the hosted demo and its tooling, which are not part of the self-hosted app.
 
+## [2.101.30] - 2026-11-08
+
+### Fixed
+
+- The demo peaks handler answers 400 when `start` or `end` is not a number.
+- Artwork staging skips macOS `._*` metadata files, which broke the demo fixture check. The snapshot recipe now sets `COPYFILE_DISABLE=1` so `tar` leaves them out of the archives.
+
 ## [2.101.28] - 2026-11-07
 
 ### Added

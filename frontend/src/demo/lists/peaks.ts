@@ -12,6 +12,9 @@ export const peaksHandler: ListHandler = async (url, load) => {
   const body = whole.body as PeaksBody;
   const perSecond = 1000 / body.resolutionMs;
   const p = url.searchParams;
+  if ([p.get('start'), p.get('end')].some((v) => v !== null && !Number.isFinite(Number(v)))) {
+    return { status: 400, body: { error: 'start and end must be numbers' } };
+  }
   const first = Math.min(body.peaks.length, Math.floor(Math.max(0, Number(p.get('start')) || 0) * perSecond));
   const last = p.has('end')
     ? Math.min(body.peaks.length, Math.max(first, Math.ceil(Number(p.get('end')) * perSecond)))

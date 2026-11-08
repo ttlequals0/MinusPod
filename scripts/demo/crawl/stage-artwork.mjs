@@ -1,4 +1,4 @@
-import { copyFileSync, mkdirSync, readdirSync, statSync } from 'node:fs';
+import { copyFileSync, mkdirSync, readdirSync } from 'node:fs';
 import { join, resolve, relative, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import sharp from 'sharp';
@@ -6,9 +6,10 @@ import { writeAtomic, prepareOutDir } from './lib/store.mjs';
 import { argValue, checkFlags } from './lib/args.mjs';
 
 function* walk(dir) {
-  for (const name of readdirSync(dir)) {
-    const p = join(dir, name);
-    if (statSync(p).isDirectory()) yield* walk(p);
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    if (entry.name.startsWith('.')) continue; // macOS ._* and .DS_Store
+    const p = join(dir, entry.name);
+    if (entry.isDirectory()) yield* walk(p);
     else yield p;
   }
 }

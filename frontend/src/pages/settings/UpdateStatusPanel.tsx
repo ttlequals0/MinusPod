@@ -57,7 +57,7 @@ export default function UpdateStatusPanel() {
 
   if (!status || !settings) return null;
 
-  const checksOff = !settings.enabled && !status.stable && !status.edge;
+  const checksOff = !settings.enabled;
   const target = status.channel === 'stable' ? status.stable : status.edge;
 
   return (

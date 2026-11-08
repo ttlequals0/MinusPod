@@ -53,6 +53,18 @@ describe('UpdateStatusPanel', () => {
     expect(screen.queryByText(/up to date/i)).toBeNull();
   });
 
+  it('says checks are off when disabled even with cached releases and no update', async () => {
+    mockGetSettings.mockResolvedValue({ enabled: false, channel: 'stable' });
+    renderPanel();
+    expect(await screen.findByText('Update checks are off.')).toBeTruthy();
+    expect(screen.queryByText(/up to date/i)).toBeNull();
+  });
+
+  it('says up to date on the selected channel when checks are on', async () => {
+    renderPanel();
+    expect(await screen.findByText('Up to date on the selected channel.')).toBeTruthy();
+  });
+
   it('shows the running version with its channel', async () => {
     renderPanel();
     expect(await screen.findByText(/Running 2\.74\.0 \(stable\)/)).toBeTruthy();

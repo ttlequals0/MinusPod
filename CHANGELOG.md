@@ -8,6 +8,13 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
+## [2.101.30] - 2026-11-08
+
+### Fixed
+
+- Settings says "Update checks are off." whenever update checks are disabled. Before, it said "Up to date on the selected channel." if release info from an earlier check was still cached.
+- The currency list cache hands each caller its own copy, so one caller changing the list can't alter what later callers get.
+
 ## [2.101.29] - 2026-11-08
 
 ### Fixed

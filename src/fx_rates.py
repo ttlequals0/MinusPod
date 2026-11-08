@@ -34,7 +34,7 @@ def get_currencies() -> list[dict]:
     global _currencies_cache
     now = time.monotonic()
     if _currencies_cache and now - _currencies_cache[0] < _CACHE_SECONDS:
-        return _currencies_cache[1]
+        return list(_currencies_cache[1])
     try:
         payload = _get_json('/currencies')
     except FxRateError:
