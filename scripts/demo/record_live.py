@@ -223,13 +223,14 @@ def run(args, get=None) -> int:
     except ValueError as e:
         raise Abort(str(e), 1) from None
     out: Path = args.out
-    prepare_out(out, args.clean)
     get = get or client(args.base_url, args.cookies)
     patterns = compile_patterns(hosts)
     all_feeds = get_json(get, '/feeds?includeLatestEpisodes=false')['feeds']
     unmatched = sorted(excluded - {f['slug'] for f in all_feeds})
     if unmatched:
         raise Abort('excluded slugs match no feed (misspelled?): ' + ', '.join(unmatched), 1)
+    # validate before --clean so a bad slug or cookie does not wipe the previous output
+    prepare_out(out, args.clean)
     index = {}
 
     def record(key: str, status: int, body) -> None:

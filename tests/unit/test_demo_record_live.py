@@ -242,6 +242,11 @@ def test_unmatched_exclusion_slug_aborts_before_writing(tmp_path):
     code, msg = abort_code(args_for(tmp_path, exclusions=tmp_path / 'ex2.json'), fake_get())
     assert code == 1 and 'typo' in msg and 'skip' not in msg
     assert not (tmp_path / 'out').exists()
+    stale = tmp_path / 'out' / 'stale.json'
+    stale.parent.mkdir()
+    stale.write_text('{}')
+    code, _ = abort_code(args_for(tmp_path, exclusions=tmp_path / 'ex2.json', clean=True), fake_get())
+    assert code == 1 and stale.exists()
 
 
 @pytest.mark.parametrize('hosts', ['', '/tmp/hosts.txt', 'localhost'])
