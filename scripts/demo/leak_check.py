@@ -57,14 +57,15 @@ class Hit:
     offset: int = -1
 
 
-def parse_hosts(value: str | None) -> list[str]:
+def parse_hosts(value: str | None, redact: bool = False) -> list[str]:
     """Split a comma-separated --hosts value; an empty list or a non-hostname entry is an error."""
     hosts = [h.strip() for h in (value or '').split(',') if h.strip()]
     if not hosts:
         raise ValueError('--hosts is required: list every hostname the instance has used, comma-separated')
-    for h in hosts:
+    for i, h in enumerate(hosts, 1):
         if '/' in h or any(c.isspace() for c in h) or '.' not in h:
-            raise ValueError(f'--hosts entry {h!r} is not a hostname (a file path passed by mistake?)')
+            what = f'invalid host entry #{i}' if redact else f'--hosts entry {h!r} is not a hostname (a file path passed by mistake?)'
+            raise ValueError(what)
     return hosts
 
 
@@ -182,6 +183,7 @@ def report_hits(
     """Print hits grouped by pattern. Redacted output names hosts and slugs by index and
     withholds excerpts, so a CI log never carries the protected values."""
     names = {}
+    slugs_set = set(slugs)
     if redact:
         names = {f'host:{h}': f'host:#{i}' for i, h in enumerate(hosts, 1)}
         names |= {f'slug:{s}': f'slug:#{i}' for i, s in enumerate(sorted(slugs), 1)}
@@ -193,8 +195,8 @@ def report_hits(
         for h in group[:limit]:
             if not redact:
                 print(f'  {h.source} | {h.excerpt!r}')
-            elif name.startswith('slug:'):
-                # file names carry the slug itself
+            elif slugs_set:
+                # file names may carry an excluded slug
                 print(f'  (location withheld) | offset {h.offset}')
             else:
                 print(f'  {h.source} | offset {h.offset}')
@@ -209,8 +211,9 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument('--redact', action='store_true',
                         help='print host and slug names by index and no excerpts; implied when GITHUB_ACTIONS=true')
     args = parser.parse_args(argv)
+    redact = args.redact or os.environ.get('GITHUB_ACTIONS') == 'true'
     try:
-        hosts = parse_hosts(args.hosts)
+        hosts = parse_hosts(args.hosts, redact)
         slugs = load_exclusions(args.exclusions) if args.exclusions else set()
     except ValueError as e:
         print(str(e), file=sys.stderr)
@@ -223,8 +226,7 @@ def main(argv: list[str] | None = None) -> int:
     hits = check_files(args.paths, hosts, slugs)
     if args.sqlite:
         hits += check_sqlite(args.sqlite, hosts, slugs)
-    report_hits(hits, redact=args.redact or os.environ.get('GITHUB_ACTIONS') == 'true',
-                hosts=hosts, slugs=slugs)
+    report_hits(hits, redact=redact, hosts=hosts, slugs=slugs)
     return 2 if hits else 0
 
 

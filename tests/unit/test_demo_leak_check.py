@@ -209,3 +209,47 @@ def test_jwt_needs_a_boundary():
     tok = 'ey' + 'Jabcdefghijk.abcdefghijkl.abcdef'
     assert hits('x' + tok) == []
     assert hits('t ' + tok) == ['jwt']
+
+
+def _slug_scan(tmp_path):
+    ex = tmp_path / 'ex.json'
+    ex.write_text(json.dumps({'slugs': ['zz-paid']}))
+    scan = tmp_path / 'scan'
+    scan.mkdir()
+    (scan / 'zz-paid.txt').write_text('see https://two.internal.example/x')
+    return scan, ex
+
+
+def test_redact_with_slugs_withholds_every_location(tmp_path, capsys):
+    scan, ex = _slug_scan(tmp_path)
+    assert main([str(scan), '--hosts', 'two.internal.example', '--exclusions', str(ex), '--redact']) == 2
+    out = capsys.readouterr().out
+    assert 'zz-paid' not in out
+    assert 'internal.example' not in out
+    assert '(location withheld) | offset' in out
+
+
+def test_redacted_slug_hit_is_named_by_index(tmp_path, capsys):
+    scan, ex = _slug_scan(tmp_path)
+    (scan / 'zz-paid.txt').write_text('clean')
+    assert main([str(scan), '--hosts', H, '--exclusions', str(ex), '--redact']) == 2
+    out = capsys.readouterr().out
+    assert 'slug:#1 | 1' in out
+    assert 'zz-paid' not in out
+    assert '(location withheld)' in out
+
+
+def test_redact_without_slugs_keeps_the_path(tmp_path, capsys):
+    (tmp_path / 'fixture.json').write_text('see https://two.internal.example/x')
+    main([str(tmp_path), '--hosts', 'two.internal.example', '--redact'])
+    assert 'fixture.json | offset' in capsys.readouterr().out
+
+
+def test_invalid_host_entry_is_not_echoed_under_redaction(tmp_path, capsys):
+    (tmp_path / 'ok.txt').write_text('x')
+    assert main([str(tmp_path), '--hosts', 'a.example.com,secretname', '--redact']) == 2
+    err = capsys.readouterr().err
+    assert 'invalid host entry #2' in err
+    assert 'secretname' not in err
+    with pytest.raises(ValueError, match='invalid host entry #1'):
+        parse_hosts('x', redact=True)
