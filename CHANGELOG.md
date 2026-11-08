@@ -12,8 +12,8 @@ release notes.
 
 ### Added
 
-- Pushes to `main` notify the site repo. A new workflow sends `docs-updated` when docs, the README, theme tokens or logos change and `demo-updated` when the frontend, backend, `openapi.yaml` or the demo tooling change, so the docs site and the hosted demo rebuild.
-- Pull requests that touch the API client, the database layer, the API or the demo tooling build the CPU image and run the demo fixture pipeline against it, failing on a broken migration, a page error, a 5xx or 429 response, a leak or missing coverage.
+- Pushes to `main` notify the site repo. A new workflow sends `docs-updated` when docs, the README, theme tokens or logos change, and `demo-updated` when the frontend, backend, `openapi.yaml` or the demo tooling change. The docs site and the hosted demo rebuild from those events.
+- Pull requests that touch the API client, the database layer, the API or the demo tooling build the CPU image and run the demo fixture pipeline against it. The check fails on a broken migration, a page error, a 5xx or 429 response, a leak or missing coverage.
 - `MINUSPOD_RATE_LIMIT_DISABLED` (`true`, `1` or `yes`) turns the API rate limiter off for throwaway instances such as the demo crawl backend.
 
 ### Fixed
