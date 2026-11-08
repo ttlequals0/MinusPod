@@ -21,6 +21,7 @@ release notes.
 - The demo crawl and HAR converter no longer keep 429 responses. The crawl exits 1 on a throttled response and the converter skips and counts them, so a throttled run never produces fixtures.
 - The demo crawl dismisses the What's new dialog, so expanded sections are recorded and it no longer stalls for 30 seconds on the ad editor button. It also skips menu triggers when expanding sections.
 - Settings no longer calls GitHub for release info while update checks are off. It shows "Update checks are off." instead of "Up to date on the selected channel."
+- The demo leak check no longer fires on key prefixes inside words (such as `sk-` in a URL slug containing "disk-"). The Anthropic, OpenRouter and JWT patterns now need a non-alphanumeric character before the prefix, as the OpenAI pattern did.
 - The demo build accepts a pasted Cloudflare Web Analytics snippet as well as a bare token for `VITE_CF_BEACON_TOKEN`.
 
 ### Changed

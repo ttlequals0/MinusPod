@@ -32,12 +32,12 @@ PATH_END = r"""[^\s"'\\\])}>]*"""
 
 PATTERNS: list[tuple[str, re.Pattern]] = [
     (name, re.compile(rx)) for name, rx in [
-        ('anthropic_key', r'sk-ant-[A-Za-z0-9_-]{20,}'),
+        ('anthropic_key', r'(?<![A-Za-z0-9])sk-ant-[A-Za-z0-9_-]{20,}'),
         ('openai_key', r'(?<![A-Za-z0-9])sk-(?!ant-|or-)(proj-)?[A-Za-z0-9_-]{20,}'),
-        ('openrouter_key', r'sk-or-[A-Za-z0-9_-]{20,}'),
+        ('openrouter_key', r'(?<![A-Za-z0-9])sk-or-[A-Za-z0-9_-]{20,}'),
         ('encrypted_setting', r"""enc:v1:[^\s"']+"""),
         ('bearer', r'(?i)bearer\s+[A-Za-z0-9._-]{20,}'),
-        ('jwt', r'eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]+'),
+        ('jwt', r'(?<![A-Za-z0-9])eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]+'),
         ('abs_path', r'(?m)(^|[^A-Za-z0-9_./-])(/app/data|/home/[A-Za-z]|/Users/[A-Za-z]|/mnt/|/srv/|/var/lib/)' + PATH_END),
         ('email', r'(?i)[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[a-z]{2,}'),
         ('private_feed_host', r"""(?i)patreon\.com/rss|(?:supercast\.com|supportingcast\.fm|memberful\.com)/[^\s"'<>]*(?:rss|feed|[A-Za-z0-9_-]{20,})"""),

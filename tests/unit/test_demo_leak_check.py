@@ -165,3 +165,11 @@ def test_check_files_reports_slug_path_hit(tmp_path):
     (tmp_path / 'ep' / 'zz-paid.jpg').write_bytes(b'x')
     [h] = check_files([tmp_path], [], ['zz-paid'])
     assert h.pattern == 'slug:zz-paid' and h.source.endswith('zz-paid.jpg')
+
+
+def test_key_prefixes_need_a_word_boundary():
+    for slug in ('full-disk-abcdefghijklmnopqrstuvwxyz', 'ta' + 'sk-' + 'ant-abcdefghijklmnopqrstuvwxyz',
+                 'de' + 'sk-' + 'or-abcdefghijklmnopqrstuvwxyz'):
+        assert hits('https://x.test/' + slug) == [], slug
+    assert hits('key sk-' + 'abcdefghijklmnopqrstuvwxyz0123') == ['openai_key']
+    assert hits('(sk-' + 'ant-api03-abcdefghijklmnopqrstuvwxyz)') == ['anthropic_key']
