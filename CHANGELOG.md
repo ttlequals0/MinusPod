@@ -8,6 +8,25 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
+## [2.101.29] - 2026-11-08
+
+### Added
+
+- Pushes to `main` notify the site repo. A new workflow sends `docs-updated` when docs, the README, theme tokens or logos change and `demo-updated` when the frontend, backend, `openapi.yaml` or the demo tooling change, so the docs site and the hosted demo rebuild.
+- Pull requests that touch the API client, the database layer, the API or the demo tooling build the CPU image and run the demo fixture pipeline against it, failing on a broken migration, a page error, a 5xx or 429 response, a leak or missing coverage.
+- `MINUSPOD_RATE_LIMIT_DISABLED` (`true`, `1` or `yes`) turns the API rate limiter off for throwaway instances such as the demo crawl backend.
+
+### Fixed
+
+- The demo crawl and HAR converter no longer keep 429 responses. The crawl exits 1 on a throttled response and the converter skips and counts them, so a throttled run never produces fixtures.
+- The demo crawl dismisses the What's new dialog, so expanded sections are recorded and it no longer stalls for 30 seconds on the ad editor button. It also skips menu triggers when expanding sections.
+- Settings no longer calls GitHub for release info while update checks are off. It shows "Update checks are off." instead of "Up to date on the selected channel."
+- The demo build accepts a pasted Cloudflare Web Analytics snippet as well as a bare token for `VITE_CF_BEACON_TOKEN`.
+
+### Changed
+
+- The docs overview lists Contributing last.
+
 ## [2.101.28] - 2026-11-07
 
 ### Fixed
