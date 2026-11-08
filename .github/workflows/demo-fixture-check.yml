@@ -75,7 +75,7 @@ jobs:
   fixture-check:
     name: Fixture check
     needs: gate
-    if: ${{ needs.gate.result == 'success' && needs.gate.outputs.hit != 'true' }}
+    if: ${{ needs.gate.result == 'success' && github.event.pull_request.head.repo.full_name == github.repository && needs.gate.outputs.hit != 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
@@ -87,6 +87,7 @@ jobs:
           ref: ${{ needs.gate.outputs.site }}
           path: .site
           token: ${{ secrets.SITE_DISPATCH_TOKEN }}
+          persist-credentials: false
 
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1  # v7.1.0
         with:
