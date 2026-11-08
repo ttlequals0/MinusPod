@@ -8,7 +8,7 @@ export default defineConfig({
   },
   test: {
     environment: 'happy-dom',
-    include: ['src/**/*.test.{ts,tsx}'],
+    include: ['src/**/*.test.{ts,tsx}', 'beaconToken.test.ts'],
     globals: true,
     setupFiles: ['./vitest.setup.ts'],
   },

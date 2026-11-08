@@ -2,7 +2,7 @@ import { defineConfig, type Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
 import { VitePWA } from 'vite-plugin-pwa';
-import { beaconToken } from './src/demo/beaconToken';
+import { beaconToken } from './beaconToken';
 
 const isDemo = process.env.VITE_DEMO === '1';
 const beacon = beaconToken(process.env.VITE_CF_BEACON_TOKEN);

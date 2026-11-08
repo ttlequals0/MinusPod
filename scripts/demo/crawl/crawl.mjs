@@ -67,11 +67,14 @@ export async function dismissDialogs(page) {
   for (let round = 0; round < MAX_DIALOG_ROUNDS; round++) {
     const dialog = page.locator(DIALOG).first();
     if (!(await dialog.isVisible())) break;
-    headings.push(await dialogHeading(dialog));
+    const heading = await dialogHeading(dialog);
     const close = dialog.locator(CLOSE_BUTTON).first();
-    if (await close.count()) await close.click({ timeout: 2000 }).catch(() => {});
-    else await page.keyboard.press('Escape');
-    await dialog.waitFor({ state: 'hidden', timeout: 3000 }).catch(() => {});
+    let clicked = false;
+    if (await close.count()) clicked = await close.click({ timeout: 2000 }).then(() => true, () => false);
+    if (!clicked) await page.keyboard.press('Escape');
+    // Count a dialog only once it is gone, so one that never closes is not recorded each round.
+    const closed = await dialog.waitFor({ state: 'hidden', timeout: 3000 }).then(() => true, () => false);
+    if (closed) headings.push(heading);
   }
   return headings;
 }

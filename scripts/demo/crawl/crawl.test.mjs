@@ -39,7 +39,7 @@ test('the disclosure selector skips menu triggers', () => {
 });
 
 // Stub page: one modal that is visible until closed by the Close button or Escape.
-function stubPage({ visible = true, hasClose = true, heading = "What's new in 2.0" } = {}) {
+function stubPage({ visible = true, hasClose = true, clickThrows = false, stuck = false, heading = "What's new in 2.0" } = {}) {
   const calls = [];
   let open = visible;
   const loc = (kind) => ({
@@ -48,14 +48,14 @@ function stubPage({ visible = true, hasClose = true, heading = "What's new in 2.
     count: async () => (kind === 'close' && hasClose ? 1 : 0),
     textContent: async () => heading,
     getAttribute: async () => null,
-    click: async () => { calls.push('click'); open = false; },
-    waitFor: async () => { calls.push('hidden'); },
+    click: async () => { calls.push('click'); if (clickThrows) throw new Error('blocked'); if (!stuck) open = false; },
+    waitFor: async () => { calls.push('hidden'); if (stuck) throw new Error('timeout'); },
     locator(sel) { return loc(sel.includes('Close') ? 'close' : 'heading'); },
   });
   return {
     calls,
     locator: () => loc('dialog'),
-    keyboard: { press: async (k) => { calls.push(k); open = false; } },
+    keyboard: { press: async (k) => { calls.push(k); if (!stuck) open = false; } },
   };
 }
 
@@ -75,4 +75,16 @@ test('dismissDialogs does nothing when no dialog is visible', async () => {
   const page = stubPage({ visible: false });
   assert.deepEqual(await dismissDialogs(page), []);
   assert.deepEqual(page.calls, []);
+});
+
+test('dismissDialogs presses Escape in the same round when the Close click throws', async () => {
+  const page = stubPage({ clickThrows: true });
+  assert.deepEqual(await dismissDialogs(page), ["What's new in 2.0"]);
+  assert.deepEqual(page.calls, ['click', 'Escape', 'hidden']);
+});
+
+test('dismissDialogs does not record a dialog that never closes', async () => {
+  const page = stubPage({ stuck: true });
+  assert.deepEqual(await dismissDialogs(page), []);
+  assert.equal(page.calls.filter((c) => c === 'click').length, 3);
 });
