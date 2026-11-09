@@ -145,7 +145,7 @@ WORKDIR /app
 # Copy requirements and install remaining Python dependencies
 COPY requirements.txt .
 RUN --mount=type=cache,id=pipcache,target=/root/.cache/pip \
-    pip install -r requirements.txt
+    pip install -r requirements.txt && pip check
 COPY --from=security-out / /opt/security/
 ARG SECURITY_SRC
 # Stub builds keep stock packages; every other build must install all five families.

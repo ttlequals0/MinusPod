@@ -131,14 +131,13 @@ WORKDIR /app
 # Copy requirements and install remaining Python dependencies
 COPY requirements.txt .
 RUN --mount=type=cache,id=pipcache,target=/root/.cache/pip \
-    pip install -r requirements.txt
+    pip install -r requirements.txt && pip check
 # Parakeet CUDA provider. Same version as the CPU pin; links cudart 12, cudnn 9,
 # cublas 12, cufft 11, curand 10 from the nvidia-* wheels pinned above.
-# pip check and the cuDNN assert run last so a later wheel cannot lift cuDNN
-# past 9.10 unnoticed (#988).
+# pip check runs before this swap (faster-whisper declares onnxruntime, not -gpu).
+# The assert keeps a later wheel from lifting cuDNN past 9.10 unnoticed (#988).
 RUN --mount=type=cache,id=pipcache,target=/root/.cache/pip \
     pip uninstall -y onnxruntime && pip install onnxruntime-gpu==1.24.4 \
-    && pip check \
     && python -c "from importlib.metadata import version as v; c = v('nvidia-cudnn-cu12'); assert c.startswith('9.10.'), c"
 COPY --from=security-out / /opt/security/
 ARG SECURITY_SRC
