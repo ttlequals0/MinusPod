@@ -31,8 +31,8 @@ concurrency:
 jobs:
   gate:
     name: Fixture check gate
-    # Fork PRs get no secrets.
-    if: github.event.pull_request.head.repo.full_name == github.repository
+    # Fork PRs and Dependabot runs get no repository secrets.
+    if: github.event.pull_request.head.repo.full_name == github.repository && github.actor != 'dependabot[bot]'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     outputs:
