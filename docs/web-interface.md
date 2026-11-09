@@ -395,62 +395,62 @@ A row of section links sits under the Stats heading and jumps straight to Overvi
 #### Dashboard
 | Desktop | Mobile |
 |---------|--------|
-| <img src="screenshots/dashboard-desktop.png" width="500"> | <img src="screenshots/dashboard-mobile.png" width="200"> |
+| <img src="screenshots/dashboard-desktop.png" alt="Dashboard on desktop" width="500"> | <img src="screenshots/dashboard-mobile.png" alt="Dashboard on a phone" width="200"> |
 
 #### Themes
 Every theme and mode on the dashboard. Pick one under Settings, Appearance.
 
-<img src="screenshots/dashboard-themes.png" width="700">
+<img src="screenshots/dashboard-themes.png" alt="The dashboard in every theme, light and dark" width="700">
 
 #### Feed Detail
 | Desktop | Mobile |
 |---------|--------|
-| <img src="screenshots/feed-detail-desktop.png" width="500"> | <img src="screenshots/feed-detail-mobile.png" width="200"> |
+| <img src="screenshots/feed-detail-desktop.png" alt="Feed detail on desktop" width="500"> | <img src="screenshots/feed-detail-mobile.png" alt="Feed detail on a phone" width="200"> |
 
 #### Episode Detail
 | Desktop | Mobile |
 |---------|--------|
-| <img src="screenshots/episode-detail-desktop.png" width="500"> | <img src="screenshots/episode-detail-mobile.png" width="200"> |
+| <img src="screenshots/episode-detail-desktop.png" alt="Episode detail on desktop" width="500"> | <img src="screenshots/episode-detail-mobile.png" alt="Episode detail on a phone" width="200"> |
 
 #### Detected Ads
 | Desktop | Mobile |
 |---------|--------|
-| <img src="screenshots/ads-detected-desktop.png" width="500"> | <img src="screenshots/ads-detected-mobile.png" width="200"> |
+| <img src="screenshots/ads-detected-desktop.png" alt="Detected ads on desktop" width="500"> | <img src="screenshots/ads-detected-mobile.png" alt="Detected ads on a phone" width="200"> |
 
 #### Ad Editor
 | Desktop | Mobile |
 |---------|--------|
-| <img src="screenshots/ad-editor-desktop.png" width="500"> | <img src="screenshots/ad-editor-mobile.png" width="200"> |
+| <img src="screenshots/ad-editor-desktop.png" alt="Ad editor on desktop" width="500"> | <img src="screenshots/ad-editor-mobile.png" alt="Ad editor on a phone" width="200"> |
 
 #### Ad Patterns
 | Desktop | Mobile |
 |---------|--------|
-| <img src="screenshots/patterns-desktop.png" width="500"> | <img src="screenshots/patterns-mobile.png" width="200"> |
+| <img src="screenshots/patterns-desktop.png" alt="Ad patterns on desktop" width="500"> | <img src="screenshots/patterns-mobile.png" alt="Ad patterns on a phone" width="200"> |
 
 #### Sponsors
 | Desktop | Mobile |
 |---------|--------|
-| <img src="screenshots/sponsors-desktop.png" width="500"> | <img src="screenshots/sponsors-mobile.png" width="200"> |
+| <img src="screenshots/sponsors-desktop.png" alt="Sponsors on desktop" width="500"> | <img src="screenshots/sponsors-mobile.png" alt="Sponsors on a phone" width="200"> |
 
 #### History
 | Desktop | Mobile |
 |---------|--------|
-| <img src="screenshots/history-desktop.png" width="500"> | <img src="screenshots/history-mobile.png" width="200"> |
+| <img src="screenshots/history-desktop.png" alt="History on desktop" width="500"> | <img src="screenshots/history-mobile.png" alt="History on a phone" width="200"> |
 
 #### Stats
 | Desktop | Mobile |
 |---------|--------|
-| <img src="screenshots/stats-desktop.png" width="500"> | <img src="screenshots/stats-mobile.png" width="200"> |
+| <img src="screenshots/stats-desktop.png" alt="Stats on desktop" width="500"> | <img src="screenshots/stats-mobile.png" alt="Stats on a phone" width="200"> |
 
 #### Queue
 | Desktop | Mobile |
 |---------|--------|
-| <img src="screenshots/queue-desktop.png" width="500"> | <img src="screenshots/queue-mobile.png" width="200"> |
+| <img src="screenshots/queue-desktop.png" alt="Queue on desktop" width="500"> | <img src="screenshots/queue-mobile.png" alt="Queue on a phone" width="200"> |
 
 #### Settings
 | Desktop | Mobile |
 |---------|--------|
-| <img src="screenshots/settings-desktop.png" width="500"> | <img src="screenshots/settings-mobile.png" width="200"> |
+| <img src="screenshots/settings-desktop.png" alt="Settings on desktop" width="500"> | <img src="screenshots/settings-mobile.png" alt="Settings on a phone" width="200"> |
 
 ---
 
