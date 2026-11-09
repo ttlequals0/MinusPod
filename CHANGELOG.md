@@ -8,6 +8,12 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
+## [2.101.33] - 2026-11-09
+
+### Fixed
+
+- The GPU image carries NVRTC, the CUDA runtime compiler, again. It used to come in with PyTorch, so 2.101.32 shipped without it and logged `Failed to load libnvrtc.so.12` each time Parakeet loaded. Transcription still worked in testing, but cuDNN uses NVRTC to compile some kernels at runtime. The image build now fails if a CUDA library that onnxruntime preloads is missing.
+
 ## [2.101.32] - 2026-11-09
 
 ### Fixed

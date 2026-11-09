@@ -118,8 +118,10 @@ RUN --mount=type=cache,id=pipcache,target=/root/.cache/pip \
 # cuDNN stays on 9.10.2, the last release supporting Maxwell/Pascal/Volta; its
 # cu12 build covers compute capability 5.0 through 12.0 (#988).
 # CUDA 12.x keeps the driver floor at 525.
+# cuDNN dlopens NVRTC for runtime-compiled kernels; torch used to pull it in.
 RUN --mount=type=cache,id=pipcache,target=/root/.cache/pip \
     pip install nvidia-cuda-runtime-cu12==12.9.79 \
+    nvidia-cuda-nvrtc-cu12==12.9.86 \
     nvidia-cublas-cu12==12.9.1.4 \
     nvidia-cudnn-cu12==9.10.2.21 \
     nvidia-cufft-cu12==11.4.1.4 \
@@ -133,7 +135,7 @@ COPY requirements.txt .
 RUN --mount=type=cache,id=pipcache,target=/root/.cache/pip \
     pip install -r requirements.txt && pip check
 # Parakeet CUDA provider. Same version as the CPU pin; links cudart 12, cudnn 9,
-# cublas 12, cufft 11, curand 10 from the nvidia-* wheels pinned above.
+# cublas 12, cufft 11, curand 10, nvrtc 12 from the nvidia-* wheels pinned above.
 # pip check runs before this swap (faster-whisper declares onnxruntime, not -gpu).
 # The assert keeps a later wheel from lifting cuDNN past 9.10 unnoticed (#988).
 RUN --mount=type=cache,id=pipcache,target=/root/.cache/pip \
@@ -178,7 +180,7 @@ RUN apt-get update \
 # ORT_LOG_LEVEL=3 suppresses onnxruntime warnings (GPU discovery fails for AMD, irrelevant for NVIDIA)
 # LD_LIBRARY_PATH: venv nvidia pip dirs. ctranslate2 dlopens cuBLAS only (no
 # cuDNN references, cudart linked statically); onnxruntime-gpu (Parakeet) loads
-# cudart, cuDNN, cuBLAS, cuFFT and cuRAND from the same dirs.
+# cudart, cuDNN, cuBLAS, cuFFT, cuRAND and NVRTC from the same dirs.
 # cuda_runtime is for onnxruntime-gpu; ctranslate2 links cudart statically.
 # NVIDIA_*: make the NVIDIA container runtime inject the driver under
 # --gpus/legacy runtime (compose device reservations inject regardless).
@@ -197,7 +199,12 @@ ENV HOME=/app/data \
     NVIDIA_VISIBLE_DEVICES=all \
     NVIDIA_DRIVER_CAPABILITIES=compute,utility \
     NVIDIA_REQUIRE_CUDA="cuda>=12.0" \
-    LD_LIBRARY_PATH=/opt/venv/lib/python3.12/site-packages/nvidia/cudnn/lib:/opt/venv/lib/python3.12/site-packages/nvidia/cublas/lib:/opt/venv/lib/python3.12/site-packages/nvidia/cuda_runtime/lib:/opt/venv/lib/python3.12/site-packages/nvidia/cufft/lib:/opt/venv/lib/python3.12/site-packages/nvidia/curand/lib
+    LD_LIBRARY_PATH=/opt/venv/lib/python3.12/site-packages/nvidia/cudnn/lib:/opt/venv/lib/python3.12/site-packages/nvidia/cublas/lib:/opt/venv/lib/python3.12/site-packages/nvidia/cuda_runtime/lib:/opt/venv/lib/python3.12/site-packages/nvidia/cufft/lib:/opt/venv/lib/python3.12/site-packages/nvidia/curand/lib:/opt/venv/lib/python3.12/site-packages/nvidia/cuda_nvrtc/lib
+
+# Fail the build if a CUDA library onnxruntime preloads is missing, or NVRTC
+# does not resolve by soname, which is how cuDNN opens it.
+RUN out=$(python -B -c "import ctypes, onnxruntime; ctypes.CDLL('libnvrtc.so.12'); onnxruntime.preload_dlls()" 2>&1); rc=$?; \
+    echo "$out"; [ $rc -eq 0 ] && ! echo "$out" | grep -q 'Failed to load'
 
 # Copy application code
 COPY src/ ./src/
