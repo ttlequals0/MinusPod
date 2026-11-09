@@ -36,13 +36,11 @@ From the repository root:
 ```bash
 uv venv --python 3.12
 source .venv/bin/activate
-uv pip install "torch==2.13.0" --index-url https://download.pytorch.org/whl/cpu
 uv pip install -r requirements.txt
 uv pip install ruff==0.15.20
 ```
 
-CI installs CPU-only PyTorch separately from `requirements.txt`; the command
-above mirrors that setup. If you do not use `uv`, create and activate a Python
+If you do not use `uv`, create and activate a Python
 3.12 virtual environment with your preferred tool, then run the equivalent
 `python -m pip install` commands inside it.
 

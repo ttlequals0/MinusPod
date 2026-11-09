@@ -1,22 +1,23 @@
-"""GPU and memory utility functions.
-
-Provides shared GPU memory management and system memory querying functions.
-"""
+"""GPU (via NVML) and system memory helpers."""
 
 import gc
 import logging
+import os
+
+try:
+    import pynvml
+except ImportError:
+    pynvml = None
 
 logger = logging.getLogger(__name__)
 
+_GIB = 1024 ** 3
+_nvml_ready = None  # None unknown, True initialised, False unavailable
+_index_warned = False
+
 
 def get_available_system_memory_gb() -> float | None:
-    """Get available system RAM in gigabytes.
-
-    Uses /proc/meminfo on Linux, falls back to psutil if available.
-
-    Returns:
-        Available RAM in GB, or None if unable to determine
-    """
+    """Available system RAM in GB from /proc/meminfo or psutil, else None."""
     # Try reading from /proc/meminfo (Linux)
     try:
         with open('/proc/meminfo', 'r') as f:
@@ -33,7 +34,7 @@ def get_available_system_memory_gb() -> float | None:
     try:
         import psutil
         mem = psutil.virtual_memory()
-        return mem.available / (1024 ** 3)
+        return mem.available / _GIB
     except ImportError:
         pass
     except Exception as e:
@@ -42,53 +43,61 @@ def get_available_system_memory_gb() -> float | None:
     return None
 
 
-def get_available_gpu_memory_gb() -> float | None:
-    """Get available GPU VRAM in gigabytes.
-
-    Returns:
-        Available VRAM in GB, or None if CUDA not available
-    """
+def _nvml_query(fn):
+    """Run fn(handle) against the first visible GPU; None without a usable GPU."""
+    global _nvml_ready, _index_warned
+    if pynvml is None or _nvml_ready is False:
+        return None
+    if _nvml_ready is None:
+        try:
+            pynvml.nvmlInit()
+        except pynvml.NVMLError as e:
+            _nvml_ready = False
+            logger.warning(f"NVML unavailable, GPU memory and name will not be reported: {e}")
+            return None
+        _nvml_ready = True
     try:
-        import torch
-        if torch.cuda.is_available():
-            # Device-wide free memory, so ctranslate2 and ONNX Runtime
-            # allocations count; torch's own counters cannot see them.
-            free, _total = torch.cuda.mem_get_info(torch.cuda.current_device())
-            return free / (1024 ** 3)
-    except ImportError:
-        pass
-    except Exception as e:
-        logger.warning(f"Failed to get GPU memory: {e}")
+        # NVML ignores CUDA_VISIBLE_DEVICES, so apply it here. Numeric indexes are PCI
+        # order in NVML but fastest-first in CUDA unless CUDA_DEVICE_ORDER=PCI_BUS_ID.
+        visible = os.environ.get('CUDA_VISIBLE_DEVICES')
+        if visible is None:
+            handle = pynvml.nvmlDeviceGetHandleByIndex(0)
+        else:
+            first = visible.split(',')[0].strip()
+            if first.startswith(('GPU-', 'MIG-')):
+                handle = pynvml.nvmlDeviceGetHandleByUUID(first)
+            else:
+                handle = pynvml.nvmlDeviceGetHandleByIndex(int(first))
+                if (not _index_warned and pynvml.nvmlDeviceGetCount() > 1
+                        and os.environ.get('CUDA_DEVICE_ORDER') != 'PCI_BUS_ID'):
+                    _index_warned = True
+                    logger.warning(
+                        "CUDA_VISIBLE_DEVICES=%s is a numeric index; NVML may read a different GPU "
+                        "on this multi-GPU host, use the GPU-<uuid> form", visible)
+        return fn(handle)
+    except (pynvml.NVMLError, ValueError) as e:
+        logger.debug(f"NVML query failed: {e}")
+        return None
 
-    return None
+
+def get_available_gpu_memory_gb() -> float | None:
+    """Free GPU VRAM in GB, or None without a usable GPU."""
+    # Device-wide free memory, so ctranslate2 and ONNX Runtime allocations count.
+    return _nvml_query(lambda h: pynvml.nvmlDeviceGetMemoryInfo(h).free / _GIB)
 
 
 def get_available_memory_gb(device: str = "cuda") -> tuple[float | None, str]:
-    """Get available memory for transcription in gigabytes.
-
-    For CUDA devices, returns GPU VRAM as the primary limit since the model
-    runs on the GPU. System RAM is logged for visibility but not used as
-    the constraint (faster-whisper loads audio in small chunks, not all at once).
-
-    Args:
-        device: "cuda" or "cpu"
-
-    Returns:
-        Tuple of (available_memory_gb, memory_type)
-        memory_type is "gpu" or "system"
-    """
+    """Memory available for transcription as (GB, "gpu" | "system" | "unknown")."""
     if device == "cuda":
         gpu_mem = get_available_gpu_memory_gb()
         if gpu_mem is not None:
-            # Log both for visibility
             sys_mem = get_available_system_memory_gb()
             if sys_mem is not None:
                 logger.info(f"Memory available - GPU: {gpu_mem:.1f}GB, System: {sys_mem:.1f}GB")
-            # Use GPU VRAM as the limit since model runs on GPU
-            # System RAM is not the bottleneck for faster-whisper
+            # VRAM is the limit; system RAM is not the bottleneck for faster-whisper
             return gpu_mem, "gpu"
+        logger.warning("GPU memory unreadable, sizing chunks from system RAM")
 
-    # CPU mode or CUDA not available - use system RAM
     sys_mem = get_available_system_memory_gb()
     if sys_mem is not None:
         return sys_mem, "system"
@@ -97,55 +106,21 @@ def get_available_memory_gb(device: str = "cuda") -> tuple[float | None, str]:
 
 
 def clear_gpu_memory() -> None:
-    """Clear GPU memory cache.
-
-    Runs garbage collection and clears CUDA cache if available.
-    Safe to call even if CUDA is not available.
-    """
+    """Collect garbage; ctranslate2 and ONNX Runtime free VRAM on unload."""
     gc.collect()
-
-    try:
-        import torch
-        if torch.cuda.is_available():
-            torch.cuda.synchronize()
-            torch.cuda.empty_cache()
-            logger.debug("Cleared GPU memory cache")
-    except ImportError:
-        # torch not installed, nothing to clear
-        pass
-    except Exception as e:
-        logger.warning(f"Failed to clear GPU memory: {e}")
 
 
 def get_gpu_memory_info() -> dict:
-    """Get current GPU memory usage information.
-
-    Returns:
-        Dict with 'available', 'allocated', 'cached' in bytes,
-        or empty dict if CUDA not available
-    """
-    try:
-        import torch
-        if torch.cuda.is_available():
-            return {
-                'allocated': torch.cuda.memory_allocated(),
-                'cached': torch.cuda.memory_reserved(),
-                'max_allocated': torch.cuda.max_memory_allocated(),
-            }
-    except ImportError:
-        pass
-    except Exception:
-        pass
-
-    return {}
+    """Device-wide GPU memory in bytes as used/total, or {} without a GPU."""
+    info = _nvml_query(lambda h: pynvml.nvmlDeviceGetMemoryInfo(h))
+    if info is None:
+        return {}
+    return {'used': info.used, 'total': info.total}
 
 
 def get_gpu_device_name() -> str:
-    """The active CUDA device's name, or 'cpu' when CUDA is unavailable."""
-    try:
-        import torch
-        if torch.cuda.is_available():
-            return torch.cuda.get_device_name(0)
-    except Exception:
-        pass
-    return 'cpu'
+    """The active GPU's name, or 'cpu' when none is available."""
+    name = _nvml_query(lambda h: pynvml.nvmlDeviceGetName(h))
+    if name is None:
+        return 'cpu'
+    return name.decode() if isinstance(name, bytes) else name

@@ -42,8 +42,8 @@ FROM security-${SECURITY_SRC} AS security-out
 
 # Python application
 # Plain Ubuntu base - no nvidia/cuda image. ctranslate2 statically links the
-# CUDA runtime, and cuDNN/cuBLAS come from the pip nvidia-* wheels (torch
-# deps) via LD_LIBRARY_PATH below. GPU access is injected by the NVIDIA
+# CUDA runtime, and cuDNN/cuBLAS come from the pip nvidia-* wheels pinned
+# below via LD_LIBRARY_PATH. GPU access is injected by the NVIDIA
 # container runtime, driven by the NVIDIA_* env vars in the ENV block.
 FROM ${BASE_APP_IMAGE}
 ARG MINUSPOD_VERSION=dev
@@ -114,15 +114,16 @@ RUN --mount=type=cache,id=pipcache,target=/root/.cache/pip \
     && rm -rf /opt/venv/lib/python3.12/site-packages/setuptools/_vendor/jaraco* \
               /opt/venv/lib/python3.12/site-packages/setuptools/_vendor/wheel*
 
-# Pre-install PyTorch 2.13.0 with CUDA 12.9 (bundled cuDNN 9 / cuBLAS via
-# pip nvidia-* deps). Stay on CUDA 12.x wheels: they run on driver >= 525,
-# while cu13x wheels raise the host driver floor to >= 580.
-# cu129 over cu126 for Blackwell (sm_120, RTX 50-series). It trades away the
-# sm_50/60/70 kernels cu126 carried, which only costs Maxwell/Pascal/Volta
-# their VRAM readings here: torch reports memory, ctranslate2 transcribes.
+# CUDA 12 libraries loaded by onnxruntime-gpu (Parakeet) and ctranslate2 (cuBLAS).
+# cuDNN stays on 9.10.2, the last release supporting Maxwell/Pascal/Volta; its
+# cu12 build covers compute capability 5.0 through 12.0 (#988).
+# CUDA 12.x keeps the driver floor at 525.
 RUN --mount=type=cache,id=pipcache,target=/root/.cache/pip \
-    pip install torch==2.13.0+cu129 \
-    --extra-index-url https://download.pytorch.org/whl/cu129
+    pip install nvidia-cuda-runtime-cu12==12.9.79 \
+    nvidia-cublas-cu12==12.9.1.4 \
+    nvidia-cudnn-cu12==9.10.2.21 \
+    nvidia-cufft-cu12==11.4.1.4 \
+    nvidia-curand-cu12==10.3.10.19
 
 # Set working directory
 WORKDIR /app
@@ -132,9 +133,13 @@ COPY requirements.txt .
 RUN --mount=type=cache,id=pipcache,target=/root/.cache/pip \
     pip install -r requirements.txt
 # Parakeet CUDA provider. Same version as the CPU pin; links cudart 12, cudnn 9,
-# cublas 12, cufft 11, curand 10 from the torch nvidia wheels.
+# cublas 12, cufft 11, curand 10 from the nvidia-* wheels pinned above.
+# pip check and the cuDNN assert run last so a later wheel cannot lift cuDNN
+# past 9.10 unnoticed (#988).
 RUN --mount=type=cache,id=pipcache,target=/root/.cache/pip \
-    pip uninstall -y onnxruntime && pip install onnxruntime-gpu==1.24.4
+    pip uninstall -y onnxruntime && pip install onnxruntime-gpu==1.24.4 \
+    && pip check \
+    && python -c "from importlib.metadata import version as v; c = v('nvidia-cudnn-cu12'); assert c.startswith('9.10.'), c"
 COPY --from=security-out / /opt/security/
 ARG SECURITY_SRC
 # Stub builds keep stock packages; every other build must install all five families.
@@ -172,18 +177,16 @@ RUN apt-get update \
 # Set cache directories to /app/data/.cache (works with volume mounts and non-root users)
 # HOME must point to writable location (/app/data is the volume mount)
 # ORT_LOG_LEVEL=3 suppresses onnxruntime warnings (GPU discovery fails for AMD, irrelevant for NVIDIA)
-# LD_LIBRARY_PATH: venv nvidia pip dirs for ctranslate2, which dlopens cuDNN 9
-# and cuBLAS and statically links the rest. torch pins these via its
-# cuda-toolkit metapackage dep; re-check the paths on the next torch bump.
-# onnxruntime-gpu (Parakeet) also needs cufft and curand from the same dirs.
-# cuda_runtime is unused today (ct2 links cudart statically) but kept on the
-# path so a future ctranslate2 that links it dynamically still resolves.
+# LD_LIBRARY_PATH: venv nvidia pip dirs. ctranslate2 dlopens cuBLAS only (no
+# cuDNN references, cudart linked statically); onnxruntime-gpu (Parakeet) loads
+# cudart, cuDNN, cuBLAS, cuFFT and cuRAND from the same dirs.
+# cuda_runtime is for onnxruntime-gpu; ctranslate2 links cudart statically.
 # NVIDIA_*: make the NVIDIA container runtime inject the driver under
 # --gpus/legacy runtime (compose device reservations inject regardless).
 # NVIDIA_REQUIRE_CUDA restores the fail-fast start gate the nvidia/cuda base
-# provided, at the true cu126-wheel floor: CUDA 12.x minor-version compat
+# provided, at the true CUDA 12 wheel floor: CUDA 12.x minor-version compat
 # means any driver >= 525 (CUDA 12.0) works. Do NOT raise it to cuda>=12.6 --
-# that would refuse drivers that merely predate 12.6 but run cu126 fine.
+# that would refuse drivers that merely predate 12.6 but run the CUDA 12 wheels fine.
 ENV HOME=/app/data \
     DENO_DIR=/app/data/.cache/deno \
     WHISPER_MODEL=small \

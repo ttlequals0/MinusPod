@@ -8,6 +8,17 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
+## [2.101.32] - 2026-11-09
+
+### Fixed
+
+- Parakeet loads on GTX 10-series and other Maxwell, Pascal and Volta cards in the GPU image. The image now pins cuDNN 9.10.2, the last release that supports those cards. It covers compute capability 5.0 through 12.0, so Turing through Blackwell cards see no change. The PyTorch build the image carried pulled in cuDNN 9.20, which dropped them (#988).
+
+### Changed
+
+- PyTorch is gone from both images. It was only used to read free VRAM and the GPU name, which now come from NVML, so the readings work on every card including ones PyTorch had no kernels for. The GPU image drops from 15.5 GB to 8.1 GB.
+- Dependency updates: ctranslate2 4.8.5 (fixes FP16 overflow and precision in CUDA attention, which Whisper uses on float16), anthropic 2.6.0, openai 3.46.0, anyio 4.16.0, soupsieve 4.0.1, wavesurfer.js 8.0.5, @tanstack/react-query 5.106.1, vite 8.3.6, @vitejs/plugin-react 6.2.1, @tailwindcss/vite 4.3.4 and docker/login-action 4.8.0 (#977 to #987).
+
 ## [2.101.31] - 2026-11-08
 
 ### Fixed

@@ -19,9 +19,6 @@
 #   - pip/setuptools install + vendored-jaraco/wheel cleanup (verbatim).
 #   - requirements.txt install step (verbatim).
 #   - Entrypoint, user/group creation, HEALTHCHECK, EXPOSE (verbatim).
-#   - Torch version: mirror with matching CPU wheel from
-#     https://download.pytorch.org/whl/cpu (no +cuXXX local version, no
-#     --extra-index-url). Only the version has to match, not the CUDA build.
 #
 # DO NOT MIRROR:
 #   - The GPU file's NVIDIA base-image comment, LD_LIBRARY_PATH cuDNN/cuBLAS
@@ -142,11 +139,6 @@ RUN --mount=type=cache,id=pipcache,target=/root/.cache/pip \
     && rm -rf /opt/venv/lib/python3.12/site-packages/setuptools/_vendor/jaraco* \
               /opt/venv/lib/python3.12/site-packages/setuptools/_vendor/wheel*
 
-# Pre-install PyTorch 2.13.0 CPU-only wheels (no CUDA, no bundled cuDNN/cuBLAS)
-RUN --mount=type=cache,id=pipcache,target=/root/.cache/pip \
-    pip install torch==2.13.0 \
-    --index-url https://download.pytorch.org/whl/cpu
-
 # Set working directory
 WORKDIR /app
 
@@ -239,7 +231,7 @@ RUN find ./src -type f -name '*.py' -exec chmod 644 {} \; && \
     chown -R minuspod:minuspod /app
 
 # Keep release-varying metadata after dependency and application layers so a
-# version-only change does not invalidate the multi-gigabyte PyTorch layer.
+# version-only change does not invalidate the dependency layers.
 ARG MINUSPOD_VERSION=dev
 LABEL org.opencontainers.image.version="${MINUSPOD_VERSION}"
 
