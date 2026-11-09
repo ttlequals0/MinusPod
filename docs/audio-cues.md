@@ -453,17 +453,17 @@ so start with one whose cue is clear.
 #### Cue templates panel
 | Desktop | Mobile |
 |---------|--------|
-| <img src="screenshots/cue-templates-desktop.png" width="500"> | <img src="screenshots/cue-templates-mobile.png" width="200"> |
+| <img src="screenshots/cue-templates-desktop.png" alt="Cue templates panel on desktop" width="500"> | <img src="screenshots/cue-templates-mobile.png" alt="Cue templates panel on a phone" width="200"> |
 
 #### Marking a cue
 | Desktop |
 |---------|
-| <img src="screenshots/cue-editor-desktop.png" width="500"> |
+| <img src="screenshots/cue-editor-desktop.png" alt="Marking a cue in the ad editor on desktop" width="500"> |
 
 #### Cue matches on an episode
 | Desktop | Mobile |
 |---------|--------|
-| <img src="screenshots/cue-matches-desktop.png" width="500"> | <img src="screenshots/cue-matches-mobile.png" width="200"> |
+| <img src="screenshots/cue-matches-desktop.png" alt="Cue matches for an episode on desktop" width="500"> | <img src="screenshots/cue-matches-mobile.png" alt="Cue matches on an episode on a phone" width="200"> |
 
 ---
 
