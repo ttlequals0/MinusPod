@@ -8,6 +8,17 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
+## [2.101.34] - 2026-11-09
+
+### Fixed
+
+- On a host with more than one GPU, free VRAM and the GPU name now come from the card transcription runs on. NVML and CUDA number cards differently, so chunk sizes and the stored batch-size ceiling could come from the other card. MinusPod now asks the CUDA driver which card is device 0. A shortened GPU UUID in `CUDA_VISIBLE_DEVICES` works too; it used to report `cpu` while the GPU was in use. Hosts with one GPU see no change (#993).
+- Hosts without a GPU no longer log `NVML unavailable, GPU memory and name will not be reported`.
+
+### Changed
+
+- Dependency updates: @tanstack/react-query 5.107.1 and @tailwindcss/vite 4.3.5 (#978, #981).
+
 ## [2.101.33] - 2026-11-09
 
 ### Added
