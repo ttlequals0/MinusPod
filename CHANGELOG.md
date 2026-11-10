@@ -12,7 +12,7 @@ release notes.
 
 ### Added
 
-- Docs: a getting-started video under docs/videos. It follows one podcast on a phone, from the Add feed search through the processing queue to a podcast app. There the served feed loads with the MinusPod badge on its cover, and the episode plays without its ads. The video is animated like the pipeline and processing-modes videos, uses placeholder data, and comes in portrait and landscape cuts.
+- Docs: a getting-started video under docs/videos. It follows one podcast on a phone, from the Add feed search through the processing queue to a podcast app. There the served feed loads with the MinusPod badge on its cover, and the episode plays without its ads. The video is animated like the pipeline and processing-modes videos, uses placeholder data, and comes in portrait and landscape cuts. It is embedded in the README quick start and in Finding Feeds & Usage.
 
 ### Fixed
 

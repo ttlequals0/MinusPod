@@ -171,6 +171,7 @@ and the doc that covers the feature carries that URL on a line of its own:
 | Video | Embedded in |
 |---|---|
 | UI tour | [Project README](../../README.md), [Web Interface](../web-interface.md) |
+| Getting started | [Project README, Quick start](../../README.md#quick-start), [Finding Feeds & Usage](../feeds-and-usage.md) |
 | How it works | [How It Works](../how-it-works.md) |
 | Review queue | [Web Interface, Held for Review](../web-interface.md#held-for-review) |
 | Audio cues | [Audio Cue Detection](../audio-cues.md) |
