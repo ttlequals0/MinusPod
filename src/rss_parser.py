@@ -1086,7 +1086,8 @@ class RSSParser:
                     hide_max_duration_seconds: float | None = None,
                     hide_description_patterns: str | None = None,
                     review_link_ids: set[str] | None = None,
-                    itunes_block: bool = False) -> str:
+                    itunes_block: bool = False,
+                    podcasting2_flags: dict[str, tuple[bool, bool]] | None = None) -> str:
         """Modify RSS feed to use our server URLs.
 
         Args:
@@ -1116,6 +1117,7 @@ class RSSParser:
             applied_cuts: {episode_id: raw applied_cuts_json} used to shift description timestamps.
             review_link_ids: Episode ids whose descriptions get review and rate links.
             itunes_block: Emit itunes:block Yes and drop the upstream value.
+            podcasting2_flags: {episode_id: (has_transcript_vtt, has_chapters)}; when given, replaces the per-item storage lookups.
             feed_auth_key: Global feed auth key (authenticated feeds). When
                 set, enclosure/vtt/chapters URLs carry ``?key=`` and the
                 badged cover embeds it in the path token (image URLs must
@@ -1355,7 +1357,8 @@ class RSSParser:
             # MinusPod-served URL only when our regenerated file is
             # cached; never falls back to upstream.
             self._append_podcasting2_tags(lines, slug, episode_id, storage,
-                                          feed_auth_key)
+                                          feed_auth_key,
+                                          **self._flags_for(podcasting2_flags, episode_id))
 
             lines.append('</item>')
 
@@ -1370,6 +1373,7 @@ class RSSParser:
                     continue
                 self._append_db_episode_item(lines, slug, ep, storage,
                                              feed_auth_key,
+                                             podcasting2_flags=podcasting2_flags,
                                              chapter_notes=chapter_notes,
                                              applied_cuts=applied_cuts,
                                              replacement_duration=replacement_duration,
@@ -1404,6 +1408,14 @@ class RSSParser:
         if entry_dt.tzinfo is None:
             entry_dt = entry_dt.replace(tzinfo=timezone.utc)
         return any(is_timezone_drift(entry_dt, db_dt) for db_dt in candidates)
+
+    @staticmethod
+    def _flags_for(flags, episode_id) -> dict:
+        """Tag-flag kwargs from the prefetched map; empty when absent so storage is queried."""
+        if flags is None:
+            return {}
+        has_transcript, has_chapters = flags.get(episode_id, (False, False))
+        return {'has_transcript': has_transcript, 'has_chapters': has_chapters}
 
     def _append_podcasting2_tags(self, lines: list, slug: str, episode_id: str,
                                  storage, feed_auth_key=None,
@@ -1456,7 +1468,7 @@ class RSSParser:
     def _append_db_episode_item(self, lines: list, slug: str, ep: dict, storage,
                                 feed_auth_key=None, chapter_notes=None,
                                 review_links=False, applied_cuts=None,
-                                replacement_duration=0.0) -> None:
+                                replacement_duration=0.0, podcasting2_flags=None) -> None:
         """Append a single <item> for a processed episode from the database."""
         ep_id = ep['episode_id']
         modified_url = episode_public_url(self._resolved_base_url(), slug, ep_id,
@@ -1486,7 +1498,8 @@ class RSSParser:
             lines.append(f'  <itunes:duration>{int(ep["new_duration"])}</itunes:duration>')
         if ep.get('episode_number'):
             lines.append(f'  <itunes:episode>{ep["episode_number"]}</itunes:episode>')
-        self._append_podcasting2_tags(lines, slug, ep_id, storage)
+        self._append_podcasting2_tags(lines, slug, ep_id, storage, feed_auth_key,
+                                      **self._flags_for(podcasting2_flags, ep_id))
         lines.append('</item>')
 
     def _format_rfc2822(self, iso_date: str) -> str:

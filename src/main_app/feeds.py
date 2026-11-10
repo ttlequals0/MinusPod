@@ -877,8 +877,8 @@ def _build_and_save_served_rss(slug, feed_content, parsed_feed, podcast):
     # None while feed auth is disabled, so serving reverts to keyless URLs
     # even though the stored key is retained for re-enable.
     feed_auth_key = active_feed_key(db)
-    chapter_notes = chapter_notes_for(db, podcast)
-    applied_cuts = db.get_applied_cuts_for_podcast(podcast['id'])
+    chapters, applied_cuts, podcasting2_flags = db.get_feed_render_details(podcast['id'])
+    chapter_notes = chapter_notes_for(db, podcast, chapters)
     itunes_block = feed_itunes_block_enabled(db)
     # Hide applies both title and duration exclusions to served RSS.
     hide_filters = podcast if podcast.get('title_skip_action') == 'hide' else {}
@@ -900,7 +900,8 @@ def _build_and_save_served_rss(slug, feed_content, parsed_feed, podcast):
                                           chapter_notes=chapter_notes,
                                           applied_cuts=applied_cuts,
                                           review_link_ids=review_link_ids,
-                                          itunes_block=itunes_block)
+                                          itunes_block=itunes_block,
+                                          podcasting2_flags=podcasting2_flags)
     storage.save_rss(slug, modified_rss)
     db.update_podcast(slug, last_checked_at=utc_now_iso())
     # A re-render means the upstream feed moved, so any episode lookups

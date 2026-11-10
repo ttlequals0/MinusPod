@@ -278,6 +278,32 @@ TABLE_DDL['episode_details'] = """CREATE TABLE IF NOT EXISTS episode_details (
     FOREIGN KEY (episode_id) REFERENCES episodes(id) ON DELETE CASCADE
 )"""
 
+# Cache of the three episode_details fields the feed renderers read, so those
+# reads skip the large TEXT columns. Filled lazily; triggers below invalidate it.
+TABLE_DDL['episode_feed_details'] = """CREATE TABLE IF NOT EXISTS episode_feed_details (
+    episode_id INTEGER PRIMARY KEY,
+    chapters_json TEXT,
+    applied_cuts_json TEXT,
+    has_transcript_vtt INTEGER NOT NULL DEFAULT 0,
+    FOREIGN KEY (episode_id) REFERENCES episodes(id) ON DELETE CASCADE
+)"""
+
+# UPDATE OF (no WHEN clause) so SQLite never loads the old column values.
+EPISODE_FEED_DETAILS_TRIGGERS = {
+    'episode_feed_details_insert': """CREATE TRIGGER episode_feed_details_insert
+AFTER INSERT ON episode_details BEGIN
+    DELETE FROM episode_feed_details WHERE episode_id = NEW.episode_id;
+END""",
+    'episode_feed_details_update': """CREATE TRIGGER episode_feed_details_update
+AFTER UPDATE OF episode_id, chapters_json, applied_cuts_json, transcript_vtt ON episode_details BEGIN
+    DELETE FROM episode_feed_details WHERE episode_id IN (OLD.episode_id, NEW.episode_id);
+END""",
+    'episode_feed_details_delete': """CREATE TRIGGER episode_feed_details_delete
+AFTER DELETE ON episode_details BEGIN
+    DELETE FROM episode_feed_details WHERE episode_id = OLD.episode_id;
+END""",
+}
+
 TABLE_DDL['settings'] = """CREATE TABLE IF NOT EXISTS settings (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     key TEXT UNIQUE NOT NULL,
@@ -860,6 +886,8 @@ PRAGMA journal_mode = WAL;
 
 -- episode_details table (transcript and ad data)
 """ + TABLE_DDL['episode_details'] + """;
+
+""" + TABLE_DDL['episode_feed_details'] + """;
 
 -- settings table (ad detection config, retention)
 """ + TABLE_DDL['settings'] + """;

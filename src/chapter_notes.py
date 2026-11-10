@@ -7,11 +7,9 @@ from database.episodes import parse_applied_cuts
 from description_chapters import has_chapter_timestamp, remap_description_timestamps
 
 
-def chapter_notes_for(db, podcast) -> dict[str, str]:
-    """{episode_id: chapters_json} for a feed when the list is enabled, else {}."""
-    if not resolve_chapters_in_notes(db, podcast):
-        return {}
-    return db.get_chapters_json_for_podcast(podcast['id'])
+def chapter_notes_for(db, podcast, chapters: dict[str, str]) -> dict[str, str]:
+    """The feed's {episode_id: chapters_json} when the list is enabled, else {}."""
+    return chapters if resolve_chapters_in_notes(db, podcast) else {}
 
 
 def _timestamp(seconds) -> str:

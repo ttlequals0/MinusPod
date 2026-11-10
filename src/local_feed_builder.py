@@ -253,9 +253,7 @@ def _append_local_episode_item(lines: list, slug: str, ep: dict, base: str,
         artwork_url = f"{base}/episodes/{slug}/{ep_id}/artwork{key_suffix}"
         lines.append(f'  <itunes:image href="{rss_parser._escape_xml(artwork_url)}" />')
 
-    # Same emitter modify_feed uses (rss_parser.py:1096-1109), keyed
-    # identically -- including key_suffix on both tags.
-    # None falls back to the storage lookup; the recents renderer passes flags.
+    # Same emitter as modify_feed; None flags fall back to per-item storage lookups.
     rss_parser._append_podcasting2_tags(
         lines, slug, ep_id, storage_, feed_auth_key,
         has_transcript=has_transcript, has_chapters=has_chapters)
@@ -271,8 +269,8 @@ def build_local_feed_xml(podcast: dict, episodes: list[dict], *, storage, db,
     """Render a local feed's RSS from DB rows only. No upstream fetch."""
     slug = podcast['slug']
     base = rss_parser._resolved_base_url()
-    chapter_notes = chapter_notes_for(db, podcast)
-    applied_cuts = db.get_applied_cuts_for_podcast(podcast['id'])
+    chapters, applied_cuts, podcasting2_flags = db.get_feed_render_details(podcast['id'])
+    chapter_notes = chapter_notes_for(db, podcast, chapters)
     review_links = resolve_review_links_in_notes(db, podcast)
     feed_auth_key = active_feed_key(db)
     channel_json = _load_json_dict(podcast.get('p20_channel_json'))
@@ -335,8 +333,10 @@ def build_local_feed_xml(podcast: dict, episodes: list[dict], *, storage, db,
     lines.append('<podcast:txt purpose="ai-content">true</podcast:txt>')
 
     for ep in episodes:
+        has_transcript, has_chapters = podcasting2_flags.get(ep['episode_id'], (False, False))
         _append_local_episode_item(lines, slug, ep, base, storage, feed_auth_key,
                                    chapter_notes=chapter_notes, review_links=review_links,
+                                   has_transcript=has_transcript, has_chapters=has_chapters,
                                    applied_cuts=applied_cuts,
                                    replacement_duration=replacement_duration)
 

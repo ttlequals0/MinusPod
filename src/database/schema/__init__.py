@@ -36,7 +36,8 @@ _AUTO_FILED_REASON_RE = re.compile(r'\s*corroborated (\S+) hold')
 
 # SQL DDL constants live in tables.py - re-exported for backward compat
 from database.schema.tables import (
-    DOWNLOAD_INDEX_SQL, PATTERN_CLEANUP_INDEXES, SCHEMA_SQL, TABLE_DDL,
+    DOWNLOAD_INDEX_SQL, EPISODE_FEED_DETAILS_TRIGGERS, PATTERN_CLEANUP_INDEXES, SCHEMA_SQL,
+    TABLE_DDL,
 )
 from database.patterns import _parse_bounds
 from database.search import (
@@ -164,13 +165,22 @@ class SchemaMixin:
             logger.info(f"Database schema initialized at {self.db_path}")
             # Still run migrations to ensure all columns exist
             self._run_schema_migrations()
+        # After migrations (they may drop triggers); legacy databases can lack episode_details.
+        installed = {row['name'] for row in conn.execute(
+            "SELECT name FROM sqlite_master WHERE type = 'trigger' AND tbl_name = 'episode_details'")}
+        missing = [ddl for name, ddl in EPISODE_FEED_DETAILS_TRIGGERS.items()
+                   if name not in installed and self._table_exists(conn, 'episode_details')]
+        for statement in missing:
+            conn.execute(statement)
+        if missing:
+            conn.commit()
 
     # Tables created on existing databases that pre-date them. Each name
     # executes the shared current-shape DDL from tables.py (TABLE_DDL); the
     # ALTER-based migrations in _run_schema_migrations bring tables created
     # by older builds up to the same shape, so the later column ALTERs are
-    # no-ops for tables created here. Order preserved from the historical
-    # inline copies; addressing_log stays last (it is the sentinel below).
+    # no-ops for tables created here. addressing_log is the sentinel for the
+    # boot log below; newer tables are appended after it.
     _MIGRATION_CREATED_TABLES = (
         'ad_patterns',
         'audio_cue_templates',
@@ -197,13 +207,13 @@ class SchemaMixin:
         'pattern_cleanup_suggestions',
         'pattern_cleanup_checks',
         'pattern_cleanup_deleted_actions',
+        'episode_feed_details',
     )
 
     def _create_new_tables_only(self, conn):
         """Create new tables for existing databases without running indexes."""
-        # Sentinel: addressing_log is the last table created in this block.
-        # If it already exists, every other CREATE IF NOT EXISTS below is a
-        # no-op too, so we can skip the boot "Created new tables..." log.
+        # Sentinel: addressing_log marks the original batch of tables; if it
+        # exists, skip the boot "Created new tables..." log about that batch.
         sentinel_existed = self._table_exists(conn, 'addressing_log')
         for table in self._MIGRATION_CREATED_TABLES:
             conn.execute(TABLE_DDL[table])

@@ -459,6 +459,23 @@ def test_chapter_list_in_description_follows_the_feed_override():
     assert 'First episode<p>' not in xml
 
 
+def test_podcasting2_tags_come_from_db_flags_not_per_item_storage(monkeypatch):
+    podcast = _seed('archive-pc2-flags')
+    episodes = _fetch_local_feed_episodes(mf.db, podcast['id'], 500)
+
+    def boom(*_a, **_k):
+        raise AssertionError('per-item storage lookup')
+
+    monkeypatch.setattr(mf.storage, 'has_transcript_vtt', boom)
+    monkeypatch.setattr(mf.storage, 'has_chapters_json', boom)
+    xml = build_local_feed_xml(podcast, episodes, storage=mf.storage, db=mf.db)
+    items = xml.split('<item>')[1:]
+    two = next(i for i in items if '<guid isPermaLink="false">s01e02</guid>' in i)
+    one = next(i for i in items if '<guid isPermaLink="false">s01e01</guid>' in i)
+    assert 'podcast:transcript' in two and 'podcast:chapters' in two
+    assert 'podcast:transcript' not in one and 'podcast:chapters' not in one
+
+
 def test_itunes_block_follows_the_global_setting(monkeypatch):
     slug = 'archive-itunes-block'
     podcast = _seed(slug)
