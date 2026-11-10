@@ -8,6 +8,10 @@ This file tracks the hosted demo and its tooling, which are not part of the self
 
 - The demo crawl records `/settings/processing-schedule`, and the demo status handler reports the schedule as off.
 
+### Changed
+
+- The snapshot export empties `episode_feed_details`, a cache table the app refills on first read.
+
 ## [2.101.31] - 2026-11-08
 
 ### Changed

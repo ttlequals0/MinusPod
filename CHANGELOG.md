@@ -20,6 +20,8 @@ release notes.
 - Hosts without a GPU no longer log `NVML unavailable, GPU memory and name will not be reported`.
 - Opening a deep link from another app, such as a link to an episode's review page, could log you out of every open tab. The session cookie is `SameSite=Strict`, so such a link can arrive without it, and the server answered with a new anonymous session cookie that replaced the logged-in one. Only a logged-in session now receives the CSRF cookie, and anonymous responses set no cookies (#993).
 - Deleting a feed or episode while it was queued or processing no longer logs a misleading "orphaned" warning for that episode or sends it through the retry path. The log now says the episode was deleted (#993).
+- Rebuilding the Recents feed or a feed's served RSS no longer reads every episode's transcript and detection data to find its chapters, cut list and whether it has a transcript. Those three fields now live in a small cache table that fills on first read and is cleared for an episode whenever its details change. In a benchmark on a 2.2 GB synthetic database, the Recents read went from 473.1 MB of database pages and 1.15 s to 1.8 MB and 0.16 s. The upgrade adds the table and rewrites no existing data (#993).
+- With feed authentication on, the transcript and chapters links of episodes that fell outside the feed's episode cap now carry the feed key. They were written without it, so podcast apps got a 401 for them (#993).
 
 ### Changed
 
