@@ -33,21 +33,16 @@ def get_or_create_token() -> str:
 
 
 def apply_csrf_cookie(response: Response, cookie_secure: bool) -> Response:
-    """Ensure ``response`` carries the minuspod_csrf cookie.
+    """Set the minuspod_csrf cookie on an authenticated response.
 
-    Called from the global ``after_request`` hook; the cookie tracks the
-    same-name session field so that a reused session keeps its token
-    across responses. Set ``HttpOnly=False`` so the frontend JS can read
-    it to populate the header; ``SameSite=Strict`` so the cookie never
-    travels cross-site in the first place.
-
-    The skip flag is checked before the token is minted: reading it through
-    ``get_or_create_token`` writes the session, which makes Flask emit a
-    session cookie and a ``Vary: Cookie`` that no CDN can cache past. Public
-    podcast-app endpoints have no use for either.
+    Minting a token writes the session, so anonymous responses and endpoints that
+    set the skip flag are left alone: a new session cookie would replace one the
+    browser withheld on a cross-site navigation, and no CDN caches past it.
     """
     if response.headers.get('X-Skip-CSRF-Cookie'):
         response.headers.pop('X-Skip-CSRF-Cookie', None)
+        return response
+    if not session.get('authenticated'):
         return response
     token = get_or_create_token()
     existing = response.headers.get('Set-Cookie', '')
