@@ -87,6 +87,10 @@ docker compose -f docker-compose.cpu.yml up -d    # CPU image, no GPU needed
 
 Open `http://localhost:8000/ui/`, set an application password, and add a feed. The GPU image is amd64 with the NVIDIA container runtime; the CPU image runs natively on amd64 and arm64. Both read the same `.env` and `data/` directory.
 
+Adding the first podcast on a phone, from the search to playing it in a podcast app:
+
+https://github.com/user-attachments/assets/8a997cba-20a1-40aa-b437-058d57306f45
+
 `MINUSPOD_MASTER_PASSPHRASE` encrypts provider keys at rest, so set it before you store any. Remote first-time setup, public processing, and the slower `stable` release channel are covered in [Installation](docs/installation.md#quick-start).
 
 ## Documentation

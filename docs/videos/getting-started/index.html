@@ -1,0 +1,413 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>MinusPod: getting started</title>
+<!-- Animation source for docs/videos/minuspod-getting-started.mp4. render.mjs drives window.render(t) frame by frame. -->
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap">
+<style>
+  html, body { margin: 0; background: #15181D; }
+  canvas { display: block; }
+</style>
+</head>
+<body>
+<canvas id="c" width="1080" height="1920"></canvas>
+<script src="../lib/canvas.js"></script>
+<script>
+// Shared helpers, palette and the render driver come from ../lib/canvas.js; this file holds the phone, its screens and the scenes.
+// Screens draw in a 360 px wide logical space scaled into the phone; the app uses the default Slate dark theme tokens.
+const T = { bg: '#272B30', card: '#3B4045', border: '#34383D', input: '#51575C', fg: '#FAFAFA', mut: '#D4D4D4', secFg: '#CCCCCC', primary: C.primary, ink: '#272B30',
+  warn: C.warn, ok: C.ok, bad: '#F49190', blue: '#60A5FA', purple: C.purple };
+// Badge tints are 20 percent of the hue behind its on-tint text, as in the app.
+const TINT = { blue: [T.blue, '#D2E6FE'], purple: [T.purple, '#EDDCFE'], warning: [T.warn, '#FFF5DB'], success: [T.ok, '#CBFEE4'], destructive: [T.bad, '#FCE2E2'] };
+// Invented podcast app with its own light palette.
+const K = { bg: '#F4F6FA', card: '#FFFFFF', ink: '#1A2233', mut: '#5B6577', line: '#DDE2EC', acc: '#C2255C' };
+
+const SHOW = 'The Daily Tech Show', AUTHOR = 'Example Media', DESC = 'Tech news and analysis in under 45 minutes, every weekday.';
+const FEED_URL = 'https://your-server:8000/the-daily-tech-show';
+// Episode 214: runtime in seconds and its three ads as [start s, end s, confidence percent].
+const RUN = 2536, ADS = [[0, 65, 97], [1122, 1231, 94], [2458, 2536, 96]];
+const SAVED = ADS.reduce((a, [s, e]) => a + e - s, 0), CUT = RUN - SAVED;
+const mmss = (s) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
+const DUR = [mmss(RUN), '43:57', '49:40'], PDUR = [mmss(CUT), ...DUR.slice(1)];
+const EPS = ['Episode 214: The week in chips', 'Episode 213: Batteries, explained', 'Episode 212: Open source at scale'];
+const COVERS = [['#0F766E', '#2563EB', 'DTS'], ['#F59E0B', '#E11D48', 'TMB'], ['#7C3AED', '#4338CA', 'WGR']];
+const RESULTS = [[SHOW, AUTHOR, 'Technology'], ['Tech Morning Brief', 'Example Radio', 'News'], ['Weekly Gadget Roundup', 'Acme Audio', 'Technology']];
+// The stage labels the status bar and Queue page show, in pipeline order, with the percent each starts at.
+const STAGES = [[0, 'Pass 1: Transcribing'], [14, 'Pass 1: Analyzing audio'], [28, 'Pass 1: Detecting ads'], [44, 'Pass 1: Reviewing detections'], [60, 'Pass 1: Processing audio'], [75, 'Pass 2: Transcribing'], [88, 'Pass 2: Detecting ads']];
+const RAIL = ['Add', 'Process', 'Copy URL', 'Subscribe', 'Listen'];
+
+const icon = new Image(); icon.src = '../../../frontend/public/icon-512.png';
+window.ready = Promise.all([window.ready, new Promise((r, j) => { icon.onload = r; icon.onerror = () => j(new Error('icon failed to load: ' + icon.src)); if (icon.complete) r(); })]);
+
+// ---------- phone ----------
+const PW = 620, PH = BOX.bottom - BOX.top - 30, BZ = 14, PX = (W - PW) / 2, PY = BOX.top + (BOX.bottom - BOX.top - PH) / 2;
+const SX = PX + BZ, SY = PY + BZ, SCW = PW - 2 * BZ, SCH = PH - 2 * BZ, LW = 360, KS = SCW / LW, LH = SCH / KS;
+
+// Bezel, clip and logical scale; ink colors the status bar text.
+function phone(draw, ink = '#fff') {
+  ctx.save(); ctx.shadowColor = 'rgba(0,0,0,0.55)'; ctx.shadowBlur = 50; ctx.shadowOffsetY = 18; fillRR(PX, PY, PW, PH, 78, '#0B0D10'); ctx.restore();
+  strokeRR(PX, PY, PW, PH, 78, C.border, 3);
+  ctx.save(); rr(SX, SY, SCW, SCH, 64); ctx.clip(); ctx.translate(SX, SY); ctx.scale(KS, KS);
+  draw(); statusBar(ink); ctx.restore();
+}
+function statusBar(ink) {
+  text('9:41', 22, 17, font(700, 13), ink);
+  fillRR(150, 5, 60, 14, 7, '#000');
+  for (let i = 0; i < 4; i++) fillRR(282 + i * 5, 16 - i * 2.5 - 2, 3, 4 + i * 2.5, 1, ink);
+  strokeRR(307, 7, 24, 11, 3.5, ink, 1.2); fillRR(309.5, 9.5, 16, 6, 1.5, ink); fillRR(332, 10.5, 2, 4, 1, ink);
+}
+// Page a slides left and dims as page b slides in over it; p runs 0..1.
+function slide(p, a, b) {
+  if (p <= 0) return a(); if (p >= 1) return b();
+  const e = eio(p);
+  ctx.save(); ctx.translate(-e * 110, 0); a(); ctx.fillStyle = `rgba(0,0,0,${0.45 * e})`; ctx.fillRect(0, 0, LW, LH); ctx.restore();
+  ctx.save(); ctx.translate((1 - e) * LW, 0); ctx.shadowColor = 'rgba(0,0,0,0.5)'; ctx.shadowBlur = 16; ctx.fillStyle = '#000'; ctx.fillRect(0, 0, LW, LH); ctx.shadowColor = 'transparent'; b(); ctx.restore();
+}
+// Touch indicator: a soft ring that expands and fades from t0.
+function tap(x, y, t0, lt, col = '#fff') {
+  const p = seg(lt, t0, 0.6); if (p <= 0 || p >= 1) return;
+  ctx.save(); ctx.fillStyle = col; ctx.globalAlpha = 0.22 * (1 - p); ctx.beginPath(); ctx.arc(x, y, 10 + 24 * eo(p), 0, Math.PI * 2); ctx.fill();
+  ctx.globalAlpha = 0.9 * (1 - p); ctx.strokeStyle = col; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.arc(x, y, 10 + 24 * eo(p), 0, Math.PI * 2); ctx.stroke();
+  ctx.globalAlpha = 0.8 * (1 - p); ctx.fillStyle = col; ctx.beginPath(); ctx.arc(x, y, 6, 0, Math.PI * 2); ctx.fill(); ctx.restore();
+}
+function fit(s, f, w) { ctx.font = f; if (ctx.measureText(s).width <= w) return s; while (s.length > 1 && ctx.measureText(s + '...').width > w) s = s.slice(0, -1); return s + '...'; }
+
+// ---------- glyphs ----------
+function stroke(col, lw = 1.8) { ctx.strokeStyle = col; ctx.lineWidth = lw; ctx.lineCap = 'round'; ctx.lineJoin = 'round'; }
+function icoSearch(x, y, c) { ctx.save(); stroke(c); ctx.beginPath(); ctx.arc(x - 1, y - 1, 6, 0, Math.PI * 2); ctx.moveTo(x + 3.5, y + 3.5); ctx.lineTo(x + 8, y + 8); ctx.stroke(); ctx.restore(); }
+function icoSun(x, y, c) { ctx.save(); stroke(c, 1.6); ctx.beginPath(); ctx.arc(x, y, 4, 0, Math.PI * 2); for (let i = 0; i < 8; i++) { const a = i * Math.PI / 4; ctx.moveTo(x + Math.cos(a) * 6.5, y + Math.sin(a) * 6.5); ctx.lineTo(x + Math.cos(a) * 9, y + Math.sin(a) * 9); } ctx.stroke(); ctx.restore(); }
+function icoMenu(x, y, c) { ctx.save(); stroke(c); ctx.beginPath(); for (const d of [-6, 0, 6]) { ctx.moveTo(x - 8, y + d); ctx.lineTo(x + 8, y + d); } ctx.stroke(); ctx.restore(); }
+function icoPlus(x, y, c, r = 6, lw = 2) { ctx.save(); stroke(c, lw); ctx.beginPath(); ctx.moveTo(x - r, y); ctx.lineTo(x + r, y); ctx.moveTo(x, y - r); ctx.lineTo(x, y + r); ctx.stroke(); ctx.restore(); }
+function icoCheck(x, y, c, s = 1, lw = 2.2) { ctx.save(); stroke(c, lw); ctx.beginPath(); ctx.moveTo(x - 6 * s, y); ctx.lineTo(x - 2 * s, y + 4 * s); ctx.lineTo(x + 6 * s, y - 5 * s); ctx.stroke(); ctx.restore(); }
+function icoCopy(x, y, c) { ctx.save(); stroke(c, 1.6); ctx.beginPath(); ctx.roundRect(x - 3, y - 3, 10, 10, 2); ctx.roundRect(x - 7, y - 7, 10, 10, 2); ctx.stroke(); ctx.restore(); }
+function icoChevron(x, y, c, dir = 1) { ctx.save(); stroke(c, 2); ctx.beginPath(); ctx.moveTo(x - 3 * dir, y - 6); ctx.lineTo(x + 3 * dir, y); ctx.lineTo(x - 3 * dir, y + 6); ctx.stroke(); ctx.restore(); }
+function icoCaret(x, y, c) { ctx.save(); stroke(c, 2); ctx.beginPath(); ctx.moveTo(x - 6, y - 3); ctx.lineTo(x, y + 3); ctx.lineTo(x + 6, y - 3); ctx.stroke(); ctx.restore(); }
+function icoPlay(x, y, c, s = 1) { ctx.save(); ctx.fillStyle = c; ctx.beginPath(); ctx.moveTo(x - 5 * s, y - 7 * s); ctx.lineTo(x + 7 * s, y); ctx.lineTo(x - 5 * s, y + 7 * s); ctx.closePath(); ctx.fill(); ctx.restore(); }
+function icoPause(x, y, c, s = 1) { fillRR(x - 7 * s, y - 8 * s, 5 * s, 16 * s, 1.5, c); fillRR(x + 2 * s, y - 8 * s, 5 * s, 16 * s, 1.5, c); }
+function icoDown(x, y, c) { ctx.save(); stroke(c, 2); ctx.beginPath(); ctx.moveTo(x, y - 7); ctx.lineTo(x, y + 4); ctx.moveTo(x - 5, y - 1); ctx.lineTo(x, y + 5); ctx.lineTo(x + 5, y - 1); ctx.moveTo(x - 7, y + 9); ctx.lineTo(x + 7, y + 9); ctx.stroke(); ctx.restore(); }
+function icoSkip(x, y, c, label, flip) {
+  ctx.save(); stroke(c, 2); ctx.beginPath(); ctx.arc(x, y, 16, flip ? Math.PI * 1.25 : Math.PI * 1.75, flip ? Math.PI * 0.8 : Math.PI * 0.25, !flip);
+  ctx.stroke(); ctx.restore(); text(label, x, y + 5, font(700, 13), c, 'center');
+}
+
+// ---------- shared pieces ----------
+function btn(x, y, w, h, label, kind = 'primary') {
+  const [bg, fg] = kind === 'primary' ? [T.primary, T.ink] : [T.input, T.secFg];
+  fillRR(x, y, w, h, 6, bg); text(label, x + w / 2, y + h / 2 + 4.5, font(500, 13), fg, 'center');
+}
+function tag(x, y, label, kind) {
+  const [hue, on] = TINT[kind]; ctx.font = font(500, 13); const w = ctx.measureText(label).width + 16;
+  ctx.save(); ctx.globalAlpha *= 0.2; fillRR(x, y, w, 20, 4, hue); ctx.restore(); text(label, x + 8, y + 14.5, font(500, 13), on);
+}
+function appHeader(y = 24) {
+  ctx.drawImage(logo, 10, y + 4, 97, 30); icoSearch(262, y + 20, T.mut); icoSun(294, y + 20, T.mut); icoMenu(326, y + 20, T.mut);
+  ctx.fillStyle = T.border; ctx.fillRect(0, y + 40, LW, 1);
+}
+function appBg() { ctx.fillStyle = T.bg; ctx.fillRect(0, 0, LW, LH); }
+function cover(x, y, s, n) {
+  const [c1, c2, mark] = COVERS[n], g = ctx.createLinearGradient(x, y, x + s, y + s); g.addColorStop(0, c1); g.addColorStop(1, c2);
+  ctx.save(); rr(x, y, s, s, s * 0.08); ctx.clip(); ctx.fillStyle = g; ctx.fillRect(x, y, s, s);
+  ctx.strokeStyle = 'rgba(255,255,255,0.5)'; ctx.lineWidth = s * 0.035; ctx.beginPath(); ctx.arc(x + s * 0.68, y + s * 0.36, s * 0.2, 0, Math.PI * 2); ctx.stroke();
+  ctx.fillStyle = 'rgba(255,255,255,0.22)'; ctx.beginPath(); ctx.moveTo(x + s * 0.68, y + s * 0.18); ctx.lineTo(x + s * 0.86, y + s * 0.36); ctx.lineTo(x + s * 0.68, y + s * 0.54); ctx.lineTo(x + s * 0.5, y + s * 0.36); ctx.fill();
+  text(mark, x + s * 0.09, y + s * 0.9, font(700, s * 0.3), '#fff'); ctx.restore();
+}
+// Cover badge colors, from src/artwork_watermark.py.
+const BADGE = { ring: '#1CE783', chip: '#0F1016' };
+// The watermark chip: near-black rounded square, green ring and halo, waveform mark, bottom-right of the cover.
+function badge(x, y, s) {
+  const c = s * 0.18, bx = x + s - s * 0.05 - c, by = y + s - s * 0.05 - c;
+  ctx.save(); ctx.shadowColor = BADGE.ring; ctx.shadowBlur = c * 0.45; fillRR(bx, by, c, c, c * 0.26, BADGE.chip); ctx.restore();
+  strokeRR(bx, by, c, c, c * 0.26, BADGE.ring, Math.max(1.2, c * 0.05)); const m = c * 0.72; ctx.drawImage(icon, bx + (c - m) / 2, by + (c - m) / 2, m, m);
+  return [bx + c / 2, by + c / 2, c];
+}
+
+// ---------- home screen ----------
+const GLYPHS = ['#4F8EF7', '#F28B50', '#4CC38A', '#B07CF5', '#EF6F7E', '#E7C35A', '#5CC6D6', '#8A93A6'];
+const GENERIC = [['Tools', 0], ['Games', 1], ['Social', 2], ['Shop', 3], ['Travel', 4], null, null, ['Health', 5], ['Notes', 6], ['Files', 7], ['Radio', 0], ['Reader', 3]];
+const slot = (i) => [20 + (i % 4) * 86, 64 + Math.floor(i / 4) * 92];
+// Podcast app mark centered at (cx, cy), drawn with the current stroke and fill.
+function podGlyph(cx, cy) { ctx.beginPath(); ctx.arc(cx, cy - 4, 6, 0, Math.PI * 2); ctx.fill(); ctx.beginPath(); ctx.arc(cx, cy - 4, 14, -2.4, -0.74); ctx.stroke(); ctx.beginPath(); ctx.arc(cx, cy - 4, 14, 3.88, 5.54); ctx.stroke(); ctx.beginPath(); ctx.moveTo(cx, cy + 5); ctx.lineTo(cx, cy + 19); ctx.stroke(); }
+function homeIcon(x, y, kind, ci) {
+  fillRR(x, y, 62, 62, 15, kind === 'mp' ? C.bg : kind === 'pod' ? K.acc : GLYPHS[ci]);
+  ctx.save(); ctx.strokeStyle = 'rgba(255,255,255,0.85)'; ctx.fillStyle = 'rgba(255,255,255,0.85)'; ctx.lineWidth = 3.5; ctx.lineCap = 'round';
+  if (kind === 'mp') { strokeRR(x, y, 62, 62, 15, C.border, 1.5); ctx.drawImage(icon, x + 7, y + 7, 48, 48); }
+  else if (kind === 'pod') podGlyph(x + 31, y + 31);
+  else if (ci % 3 === 0) { ctx.beginPath(); ctx.arc(x + 31, y + 31, 13, 0, Math.PI * 2); ctx.stroke(); }
+  else if (ci % 3 === 1) { ctx.strokeRect(x + 19, y + 19, 24, 24); }
+  else { ctx.beginPath(); ctx.moveTo(x + 31, y + 17); ctx.lineTo(x + 45, y + 44); ctx.lineTo(x + 17, y + 44); ctx.closePath(); ctx.stroke(); }
+  ctx.restore();
+}
+function homeScreen() {
+  const g = ctx.createLinearGradient(0, 0, 0, LH); g.addColorStop(0, '#1C2B4D'); g.addColorStop(1, '#3A2A57'); ctx.fillStyle = g; ctx.fillRect(0, 0, LW, LH);
+  GENERIC.forEach((it, i) => { if (!it) return; const [x, y] = slot(i); homeIcon(x, y, 'g', it[1]); text(it[0], x + 31, y + 79, font(400, 13), '#fff', 'center'); });
+  let [x, y] = slot(5); homeIcon(x, y, 'pod', 0); text('Podcasts', x + 31, y + 79, font(400, 13), '#fff', 'center');
+  [x, y] = slot(6); homeIcon(x, y, 'mp', 0); text('MinusPod', x + 31, y + 79, font(400, 13), '#fff', 'center');
+  fillRR(12, LH - 96, 336, 82, 26, 'rgba(255,255,255,0.18)');
+  [0, 1, 2, 3].forEach((i) => homeIcon(20 + i * 86, LH - 86, 'g', (i * 2 + 1) % 8));
+}
+const ICON_MP = [slot(6)[0] + 31, slot(6)[1] + 31], ICON_POD = [slot(5)[0] + 31, slot(5)[1] + 31];
+// An app window growing out of its icon: from the icon color to bg, with inner(e, mx, my) drawing the icon at the window center.
+function launch(p, cx, cy, from, bg, inner) {
+  const e = eio(p), x = lerp(cx - 31, 0, e), y = lerp(cy - 31, 0, e), w = lerp(62, LW, e), h = lerp(62, LH, e);
+  ctx.save(); rr(x, y, w, h, lerp(15, 0, e)); ctx.clip(); ctx.fillStyle = from; ctx.fillRect(x, y, w, h);
+  ctx.globalAlpha = e; ctx.fillStyle = bg; ctx.fillRect(x, y, w, h); ctx.globalAlpha = 1; inner(e, x + w / 2, y + h / 2); ctx.restore();
+}
+const launchMP = (e, mx, my) => { const z = lerp(48, 120, e); ctx.drawImage(icon, mx - z / 2, my - 40 * e - z / 2, z, z); text('MinusPod', mx, my + 60 * e, font(700, 20), T.fg, 'center', clamp01((e - 0.5) * 2)); };
+const launchPod = (e, mx, my) => {
+  ctx.save(); ctx.translate(mx, my); ctx.scale(lerp(1, 2.6, e), lerp(1, 2.6, e)); ctx.lineWidth = 3.5; ctx.lineCap = 'round';
+  ctx.strokeStyle = ctx.fillStyle = `rgba(255,255,255,${0.85 * (1 - e)})`; podGlyph(0, 0); ctx.strokeStyle = ctx.fillStyle = K.acc; ctx.globalAlpha = e; podGlyph(0, 0); ctx.restore();
+};
+
+// ---------- MinusPod screens ----------
+function dashScreen() {
+  appBg(); appHeader();
+  text('Feeds', 14, 100, font(700, 24), T.fg);
+  btn(14, 114, 56, 32, 'Feeds'); btn(72, 114, 76, 32, 'Episodes', 'secondary');
+  fillRR(248, 114, 98, 32, 6, T.primary); icoPlus(264, 130, T.ink, 5, 2); text('Add feed', 278, 135, font(500, 13), T.ink);
+  fillRR(14, 170, 332, 150, 10, T.card); strokeRR(14, 170, 332, 150, 10, T.border, 1);
+  text('No feeds yet.', 180, 225, font(400, 14), T.mut, 'center');
+  fillRR(70, 245, 220, 40, 6, T.primary); icoPlus(100, 265, T.ink, 5, 2); text('Add your first feed', 116, 270, font(500, 14), T.ink);
+}
+const DASH_TAP = [297, 130];
+function addScreen(lt, typed, rows, added) {
+  appBg(); appHeader();
+  text('Add feed', 14, 100, font(700, 24), T.fg);
+  ctx.save(); rr(14, 114, 270, 36, 6); ctx.clip(); ctx.fillStyle = T.primary; ctx.fillRect(14, 114, 130, 36); ctx.fillStyle = T.input; ctx.fillRect(144, 114, 140, 36); ctx.restore();
+  text('Subscribe to feed', 79, 137, font(500, 13), T.ink, 'center'); text('Create local feed', 214, 137, font(500, 13), T.secFg, 'center');
+  text('Search podcasts or enter an RSS or YouTube URL', 14, 178, font(500, 13), T.fg);
+  const shown = rows.some((r) => r > 0);
+  fillRR(14, 188, 332, 40, 6, T.bg); strokeRR(14, 188, 332, 40, 6, typed || shown ? T.primary : T.input, typed ? 2 : 1);
+  if (typed) { text(typed, 26, 213, font(400, 14), T.fg); ctx.font = font(400, 14); if (Math.floor(lt * 2) % 2 === 0 && !shown) { ctx.fillStyle = T.primary; ctx.fillRect(28 + ctx.measureText(typed).width, 201, 1.5, 17); } }
+  else text('Podcast name, RSS URL or YouTube URL', 26, 213, font(400, 14), T.mut);
+  RESULTS.forEach(([n, a, c], i) => reveal(rows[i] || 0, () => {
+    const y = 244 + i * 78; fillRR(14, y, 332, 70, 10, T.card); strokeRR(14, y, 332, 70, 10, T.border, 1);
+    cover(24, y + 10, 50, i); text(n, 86, y + 26, font(700, 14), T.fg); text(a, 86, y + 44, font(400, 13), T.mut); text(c, 86, y + 61, font(400, 13), T.mut);
+    if (i === 0 && added > 0) { fillRR(306, y + 21, 28, 28, 14, T.ok); icoCheck(320, y + 35, T.ink, 0.9, 2.4); }
+    else icoPlus(320, y + 35, T.primary, 7, 2.2);
+  }, 10));
+}
+const ADD_TAP = [320, 279];
+// Feed page. st is the top episode's badge pair (a fades to b by mix); copied runs 0..1 after the copy tap.
+function feedScreen(st, copied = 0) {
+  appBg(); appHeader();
+  text('Back to feeds', 14, 82, font(500, 13), T.primary);
+  cover(14, 96, 76, 0); text(SHOW, 102, 116, font(700, 18), T.fg);
+  wrap(DESC, font(400, 13), 244).forEach((l, i) => text(l, 102, 138 + i * 17, font(400, 13), T.mut)); text('3 episodes', 102, 188, font(400, 13), T.mut);
+  ctx.fillStyle = T.border; ctx.fillRect(14, 206, 332, 1);
+  text('Feed URL', 14, 230, font(400, 13), T.mut);
+  fillRR(14, 240, 292, 34, 6, T.input); text(fit(FEED_URL, font(400, 13), 276), 22, 262, font(400, 13), T.fg);
+  fillRR(312, 240, 34, 34, 6, copied > 0 ? 'rgba(5,223,115,0.18)' : T.input);
+  if (copied > 0) icoCheck(329, 257, T.ok, 1, 2.4); else icoCopy(329, 257, T.secFg);
+  text('Episodes', 14, 312, font(700, 16), T.fg);
+  EPS.forEach((e, i) => {
+    const y = 326 + i * 82; fillRR(14, y, 332, 74, 10, T.card); strokeRR(14, y, 332, 74, 10, T.border, 1);
+    text(e, 26, y + 22, font(700, 14), T.fg);
+    const done = i === 0 && st.a[0] === 'Completed';
+    text(DUR[i], 26, y + 42, font(400, 13), T.mut); if (done) text('3 ads detected', 80, y + 42, font(400, 13), T.mut);
+    if (i === 0) { const [l, k] = st.mix < 0.5 ? st.a : st.b; ctx.save(); ctx.globalAlpha *= Math.abs(1 - 2 * st.mix); tag(26, y + 48, l, k); ctx.restore(); }
+    else tag(26, y + 48, 'Discovered', 'blue');
+  });
+}
+const COPY_TAP = [329, 257], FEEDROW_TAP = [180, 358];
+function queueScreen(pct) {
+  appBg();
+  const idle = pct == null, y0 = idle ? 0 : 28, stage = idle ? '' : STAGES.filter(([s]) => pct >= s).pop()[1];
+  ctx.save(); ctx.translate(0, y0); appHeader();
+  text('Queue', 14, 100, font(700, 24), T.fg);
+  wrap('Monitor active processing and manage queued episodes.', font(400, 13), 332).forEach((l, i) => text(l, 14, 120 + i * 17, font(400, 13), T.mut));
+  text('Queue', 14, 172, font(500, 14), T.fg); text('Episode review', 74, 172, font(500, 14), T.mut);
+  ctx.fillStyle = T.border; ctx.fillRect(0, 182, LW, 1); ctx.fillStyle = T.primary; ctx.fillRect(10, 181, 46, 2);
+  fillRR(14, 198, 332, idle ? 90 : 200, 10, T.card); strokeRR(14, 198, 332, idle ? 90 : 200, 10, T.border, 1);
+  text('In progress', 26, 224, font(700, 16), T.fg);
+  wrap('Episodes currently moving through the pipeline.', font(400, 13), 308).forEach((l, i) => text(l, 26, 244 + i * 17, font(400, 13), T.mut));
+  if (idle) text('No episodes are processing right now.', 26, 278, font(400, 13), T.mut);
+  else {
+    ctx.save(); ctx.translate(0, -18); fillRR(26, 288, 308, 112, 8, T.bg);
+    text(EPS[0], 38, 312, font(700, 14), T.warn); text(`${Math.round(pct)}%`, 322, 312, font(400, 13), T.mut, 'right');
+    text(SHOW, 38, 330, font(400, 13), T.mut); text(stage, 38, 349, font(500, 13), T.warn);
+    fillRR(38, 358, 284, 6, 3, T.card); fillRR(38, 358, Math.max(6, 284 * pct / 100), 6, 3, T.warn);
+    strokeRR(262, 370, 60, 24, 5, T.bad, 1.2); text('Cancel', 292, 387, font(500, 13), T.bad, 'center'); ctx.restore();
+  }
+  for (const [i, n] of ['Queue control', 'Processing queue'].entries()) { const y = (idle ? 304 : 416) + i * 56; fillRR(14, y, 332, 46, 10, T.card); strokeRR(14, y, 332, 46, 10, T.border, 1); text(n, 26, y + 28, font(700, 15), T.fg); icoCaret(328, y + 23, T.mut); }
+  ctx.restore();
+  if (!idle) {
+    ctx.fillStyle = '#1E2227'; ctx.fillRect(0, 0, LW, 52); ctx.fillStyle = T.border; ctx.fillRect(0, 51, LW, 1);
+    ctx.fillStyle = T.ok; ctx.beginPath(); ctx.arc(16, 38, 4, 0, Math.PI * 2); ctx.fill();
+    text(stage, 28, 43, font(500, 13), T.warn); fillRR(232, 36, 54, 4, 2, T.card); fillRR(232, 36, 54 * pct / 100, 4, 2, T.warn);
+    text(`${Math.round(pct)}%`, 316, 43, font(400, 13), T.mut, 'right'); icoCaret(340, 38, T.mut);
+  }
+}
+const NOTE_TAP = [180, 80];
+function detailScreen(rows) {
+  appBg(); appHeader();
+  text('Back to feed', 14, 82, font(500, 13), T.primary);
+  text(EPS[0], 14, 112, font(700, 18), T.fg); text(mmss(RUN), 14, 136, font(400, 13), T.mut); tag(60, 122, 'Completed', 'success');
+  fillRR(14, 156, 332, 232, 10, T.card); strokeRR(14, 156, 332, 232, 10, T.border, 1);
+  text('Detected ads (3)', 26, 184, font(700, 16), T.fg); text(`${mmss(SAVED)} time saved`, 26, 204, font(400, 13), T.mut);
+  ADS.forEach(([s, e, c], i) => reveal(rows[i] || 0, () => {
+    const y = 218 + i * 52; fillRR(26, y, 308, 44, 8, T.bg);
+    text(`${mmss(s)} - ${mmss(e)}`, 38, y + 27, font(500, 14), T.fg); tag(158, y + 12, 'Sponsor', 'destructive'); text(`${c}%`, 322, y + 27, font(500, 14), T.mut, 'right');
+  }, 8));
+}
+function notification(p) {
+  if (p <= 0) return; const y = lerp(-110, 28, eo(p)), x = 8;
+  ctx.save(); ctx.shadowColor = 'rgba(0,0,0,0.5)'; ctx.shadowBlur = 18; ctx.shadowOffsetY = 6; fillRR(x, y, 344, 98, 18, '#3B4048'); ctx.restore();
+  ctx.save(); ctx.translate(x + 12, y + 12); ctx.scale(0.45, 0.45); homeIcon(0, 0, 'mp', 0); ctx.restore();
+  text('MinusPod', x + 48, y + 26, font(500, 13), T.mut); text('now', x + 330, y + 26, font(400, 13), T.mut, 'right');
+  text('Episode Processed', x + 14, y + 54, font(700, 14), T.fg); text(SHOW, x + 14, y + 72, font(400, 13), T.mut); text(EPS[0], x + 14, y + 88, font(400, 13), T.mut);
+}
+
+// ---------- the podcast app (invented, unnamed) ----------
+function kBg() { ctx.fillStyle = K.bg; ctx.fillRect(0, 0, LW, LH); }
+function kBar(title, back) { ctx.fillStyle = K.card; ctx.fillRect(0, 0, LW, 72); ctx.fillStyle = K.line; ctx.fillRect(0, 72, LW, 1); if (back) icoChevron(24, 50, K.ink, -1); text(title, back ? 40 : 16, 56, font(700, 18), K.ink); }
+function discoverScreen(pasted, pasteP, row, added) {
+  kBg(); kBar('Discover');
+  fillRR(14, 90, 332, 42, 21, K.card); strokeRR(14, 90, 332, 42, 21, pasted ? K.acc : K.line, pasted ? 2 : 1); icoSearch(36, 111, K.mut);
+  if (pasted) text(fit(FEED_URL, font(400, 14), 288), 52, 116, font(400, 14), K.ink); else text('Search or add RSS URL', 52, 116, font(400, 14), K.mut);
+  if (pasteP > 0 && !pasted) reveal(pasteP, () => { ctx.save(); ctx.shadowColor = 'rgba(0,0,0,0.2)'; ctx.shadowBlur = 8; fillRR(48, 140, 70, 34, 10, K.ink); ctx.restore(); text('Paste', 83, 162, font(500, 14), '#fff', 'center'); }, 6);
+  reveal(row, () => {
+    fillRR(14, 150, 332, 72, 14, K.card); strokeRR(14, 150, 332, 72, 14, K.line, 1);
+    cover(24, 160, 52, 0); badge(24, 160, 52); text(SHOW, 88, 180, font(700, 14), K.ink); text(AUTHOR, 88, 198, font(400, 13), K.mut); text('Technology', 88, 214, font(400, 13), K.mut);
+    if (added > 0) { fillRR(308, 172, 30, 30, 15, K.acc); icoCheck(323, 187, '#fff', 0.9, 2.4); } else { strokeRR(308, 172, 30, 30, 15, K.acc, 1.6); icoPlus(323, 187, K.acc, 6, 2); }
+  }, 12);
+}
+const SEARCH_TAP = [60, 111], PASTE_TAP = [83, 157], KROW_TAP = [323, 187];
+function showScreen(follow, ring) {
+  kBg(); kBar('', true);
+  cover(85, 88, 190, 0); const [bx, by, bc] = badge(85, 88, 190);
+  if (ring > 0) { for (let k = 0; k < 2; k++) { const p = (ring * 1.5 + k * 0.5) % 1; ctx.save(); ctx.globalAlpha = 0.9 * (1 - p); strokeRR(bx - bc / 2 - 4 - p * 16, by - bc / 2 - 4 - p * 16, bc + 8 + p * 32, bc + 8 + p * 32, bc * 0.26 + 4 + p * 16, BADGE.ring, 3); ctx.restore(); }
+    reveal(eo(seg(ring, 0.1, 0.25)), () => { ctx.font = font(500, 13); const w = ctx.measureText('MinusPod badge').width + 20; ctx.fillStyle = K.ink; ctx.beginPath(); ctx.moveTo(bx, by + bc / 2 + 6); ctx.lineTo(bx - 6, by + bc / 2 + 14); ctx.lineTo(bx + 6, by + bc / 2 + 14); ctx.fill(); fillRR(bx - w / 2 - 22, by + bc / 2 + 14, w, 26, 13, K.ink); text('MinusPod badge', bx - 22, by + bc / 2 + 32, font(500, 13), '#fff', 'center'); }, 6); }
+  text(SHOW, 14, 338, font(700, 22), K.ink); text(AUTHOR, 14, 360, font(400, 14), K.mut); text('Technology', 14, 380, font(400, 13), K.mut);
+  wrap(DESC, font(400, 14), 332).forEach((l, i) => text(l, 14, 410 + i * 20, font(400, 14), K.ink));
+  if (follow) { fillRR(14, 460, 332, 44, 22, K.card); strokeRR(14, 460, 332, 44, 22, K.acc, 1.6); icoCheck(125, 482, K.acc, 0.8, 2.2); text('Following', 190, 487, font(700, 15), K.acc, 'center'); }
+  else { fillRR(14, 460, 332, 44, 22, K.acc); text('Follow', 180, 487, font(700, 15), '#fff', 'center'); }
+}
+const FOLLOW_TAP = [180, 482];
+function episodesScreen(dl) {
+  kBg(); kBar(SHOW, true);
+  cover(14, 88, 56, 0); badge(14, 88, 56); text(SHOW, 82, 110, font(700, 15), K.ink); text(AUTHOR, 82, 128, font(400, 13), K.mut);
+  fillRR(240, 94, 106, 30, 15, K.card); strokeRR(240, 94, 106, 30, 15, K.acc, 1.4); icoCheck(260, 109, K.acc, 0.7, 2); text('Following', 306, 114, font(500, 13), K.acc, 'center');
+  text('Episodes', 14, 172, font(700, 16), K.ink);
+  PDUR.forEach((d, i) => {
+    const y = 186 + i * 82; fillRR(14, y, 332, 74, 14, K.card); strokeRR(14, y, 332, 74, 14, K.line, 1);
+    text(EPS[i], 26, y + 30, font(700, 14), K.ink); text(d, 26, y + 52, font(400, 13), K.mut);
+    const cx = 312, cy = y + 37;
+    if (i === 0 && dl.state === 'play') { const s = 1 + 0.18 * Math.sin(Math.PI * dl.p); ctx.save(); ctx.translate(cx, cy); ctx.scale(s, s); ctx.beginPath(); ctx.arc(0, 0, 18, 0, Math.PI * 2); ctx.fillStyle = K.acc; ctx.fill(); icoPlay(1.5, 0, '#fff', 0.9); ctx.restore(); }
+    else { ctx.save(); ctx.strokeStyle = K.line; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(cx, cy, 17, 0, Math.PI * 2); ctx.stroke(); ctx.restore();
+      if (i === 0 && dl.state === 'load') { ctx.save(); ctx.strokeStyle = K.acc; ctx.lineWidth = 3; ctx.lineCap = 'round'; ctx.beginPath(); ctx.arc(cx, cy, 17, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * dl.p); ctx.stroke(); ctx.restore(); fillRR(cx - 5, cy - 5, 10, 10, 2, K.acc); }
+      else icoDown(cx, cy - 1, K.mut); }
+  });
+}
+const DL_TAP = [312, 223];
+function playerScreen(lt) {
+  kBg(); kBar('Now playing', true);
+  cover(55, 92, 250, 0); badge(55, 92, 250);
+  wrap(EPS[0], font(700, 20), 320).forEach((l, i) => text(l, 180, 388 + i * 25, font(700, 20), K.ink, 'center')); text(SHOW, 180, 418, font(400, 14), K.mut, 'center');
+  const cur = 842 + lt, total = CUT;
+  fillRR(24, 462, 312, 6, 3, K.line); fillRR(24, 462, 312 * cur / total, 6, 3, K.acc); ctx.fillStyle = K.acc; ctx.beginPath(); ctx.arc(24 + 312 * cur / total, 465, 8, 0, Math.PI * 2); ctx.fill();
+  text(mmss(cur), 24, 492, font(500, 13), K.mut); text(mmss(CUT), 336, 492, font(700, 13), K.ink, 'right'); text(`was ${mmss(RUN)}`, 336, 510, font(400, 13), K.mut, 'right');
+  icoSkip(88, 570, K.ink, '15', true); icoSkip(272, 570, K.ink, '30', false);
+  ctx.fillStyle = K.acc; ctx.beginPath(); ctx.arc(180, 570, 34, 0, Math.PI * 2); ctx.fill(); icoPause(180, 570, '#fff', 1.3);
+}
+
+// ---------- rail: the five journey steps as chips, the active one filled ----------
+function rail(active, alpha) {
+  reveal(alpha, () => {
+    const size = LANDSCAPE ? 22 : 24, gap = LANDSCAPE ? 10 : 14, widths = RAIL.map((m) => pillWidth(m, size));
+    let x = LANDSCAPE ? LS.capX : (W - widths.reduce((a, b) => a + b, 0) - gap * (RAIL.length - 1)) / 2; const y = LANDSCAPE ? 880 : 1740;
+    RAIL.forEach((m, i) => { pill(m, x, y, m === active ? C.primary : C.dim, { size, filled: m === active }); x += widths[i] + gap; });
+  });
+}
+
+// ---------- scenes ----------
+add(3, '', '', (lt, d) => splash(lt, d, () => {
+  text('Add a podcast. Listen without the ads.', 0, 90, font(700, 46), C.fg, 'center');
+  text('Start to finish, on a phone', 0, 160, font(400, 42), C.muted, 'center', eo(seg(lt, 0.6, 0.7)));
+}));
+
+// 1. Open the app from the home screen.
+add(3, 'Open MinusPod', 'It installs to your home screen as an app.', (lt) => {
+  phone(() => { homeScreen(); tap(...ICON_MP, 0.9, lt); const p = seg(lt, 1.2, 0.8); if (p > 0) launch(p, ...ICON_MP, C.bg, T.bg, launchMP); });
+}, 'Add');
+
+// 2. Feeds dashboard, tap Add feed.
+add(3, 'Start with Add feed', '', (lt) => {
+  phone(() => slide(seg(lt, 1.4, 0.6), () => { dashScreen(); tap(...DASH_TAP, 0.9, lt); }, () => addScreen(lt, '', [], 0)));
+}, 'Add');
+
+// 3. Search, type, results, add.
+add(6, 'Search for a podcast', 'Or paste an RSS or YouTube URL.', (lt) => {
+  const q = 'daily tech', n = lt < 0.6 ? 0 : Math.min(q.length, Math.floor((lt - 0.6) / 0.11) + 1), rows = [0, 1, 2].map((i) => eo(seg(lt, 1.9 + i * 0.2, 0.4)));
+  const added = seg(lt, 3.7, 0.3);
+  phone(() => slide(seg(lt, 4.4, 0.6), () => { addScreen(lt, q.slice(0, n), rows, added); tap(...ADD_TAP, 3.4, lt); }, () => feedScreen({ a: ['Queued', 'purple'], mix: 0 })));
+}, 'Add');
+
+// 4. Feed page, the episode goes from Queued to Processing.
+add(4.5, 'The feed is added', 'Recent episodes go into the queue.', (lt) => {
+  phone(() => feedScreen({ a: ['Queued', 'purple'], b: ['Processing', 'warning'], mix: eio(seg(lt, 1.8, 0.5)) }));
+}, 'Add');
+
+// 5. Queue page, stages advance as the bar fills.
+add(9, 'Watch it process', 'The queue shows each stage as it runs.', (lt) => {
+  phone(() => queueScreen(99 * seg(lt, 0.4, 8.0)));
+}, 'Process');
+
+// 6. Notification, then the completed episode and its detected ads.
+add(6, 'The ads are cut', 'MinusPod can notify you when the episode is ready.', (lt) => {
+  const note = lt < 2.4 ? eo(seg(lt, 0.3, 0.5)) : 1 - eio(seg(lt, 2.4, 0.4));
+  const rows = [0, 1, 2].map((i) => eo(seg(lt, 4.4 + i * 0.25, 0.4)));
+  const feed = () => feedScreen({ a: ['Completed', 'success'], mix: 0 });
+  phone(() => {
+    slide(seg(lt, 3.2, 0.6), () => slide(seg(lt, 2.2, 0.5), () => queueScreen(null), feed), () => detailScreen(rows));
+    notification(note); tap(...NOTE_TAP, 1.9, lt); tap(...FEEDROW_TAP, 2.9, lt);
+  });
+}, 'Process');
+
+// 7. Copy the feed URL.
+add(4.5, 'Copy your feed URL', 'Each feed gets its own address on your server.', (lt) => {
+  const copied = seg(lt, 1.7, 0.3);
+  phone(() => { feedScreen({ a: ['Completed', 'success'], mix: 0 }, copied); tap(...COPY_TAP, 1.4, lt);
+    reveal(eo(seg(lt, 1.7, 0.3)) * (1 - seg(lt, 3.6, 0.4)), () => { fillRR(236, 212, 110, 24, 12, '#173D2A'); strokeRR(236, 212, 110, 24, 12, T.ok, 1.2); icoCheck(254, 224, T.ok, 0.7, 2); text('Copied', 270, 229, font(500, 13), T.ok); }, 8); });
+}, 'Copy URL');
+
+// 8. Paste it into the podcast app.
+add(5.5, 'Paste it into your podcast app', 'Any app that accepts an RSS URL works.', (lt) => {
+  const pasted = lt > 2.85, rowP = eo(seg(lt, 3.1, 0.5)), added = seg(lt, 4.2, 0.3);
+  phone(() => {
+    homeScreen(); if (lt < 1.0) tap(...ICON_POD, 0.5, lt);
+    else if (lt < 2.0) launch(seg(lt, 1.0, 0.7), ...ICON_POD, K.acc, K.bg, launchPod);
+    if (lt >= 1.0) {
+      const kApp = () => { discoverScreen(pasted, eo(seg(lt, 2.2, 0.3)) * (1 - seg(lt, 2.85, 0.1)), rowP, added); tap(...SEARCH_TAP, 1.9, lt, K.ink); tap(...PASTE_TAP, 2.6, lt, K.ink); tap(...KROW_TAP, 3.9, lt, K.ink); };
+      reveal(seg(lt, 1.7, 0.25), () => slide(seg(lt, 4.6, 0.6), kApp, () => showScreen(false, 0)));
+    }
+  }, lt < 1.58 ? '#fff' : K.ink);
+}, 'Subscribe');
+
+// 9. The show loads with the badge on its cover, then Follow.
+add(6, 'It loads like any other podcast', 'Same title and description. The MinusPod badge on the cover marks your copy.', (lt) => {
+  phone(() => { showScreen(lt > 4.6, lt > 0.8 && lt < 3.8 ? seg(lt, 0.8, 3.0) : 0); if (lt < 4.6) tap(...FOLLOW_TAP, 4.2, lt, K.ink); }, K.ink);
+}, 'Subscribe');
+
+// 10. Download the top episode.
+add(4.5, 'Follow and download', '', (lt) => {
+  const state = lt < 0.9 ? 'idle' : lt < 2.7 ? 'load' : 'play';
+  phone(() => { episodesScreen({ state, p: state === 'play' ? seg(lt, 2.7, 0.5) : seg(lt, 0.9, 1.8) }); tap(...DL_TAP, 0.6, lt, K.ink); }, K.ink);
+}, 'Listen');
+
+// 11. Play without the ads.
+add(5, 'Play it without the ads', 'The episode is shorter because the ads are gone.', (lt) => {
+  phone(() => playerScreen(lt), K.ink);
+}, 'Listen');
+
+add(3, '', '', (lt, d) => splash(lt, d, () => {
+  text('Your podcasts, minus the ads.', 0, 90, font(700, 60), C.fg, 'center');
+  text('Self-hosted. Open source.', 0, 160, font(400, 42), C.muted, 'center', eo(seg(lt, 0.5, 0.6)));
+  text('github.com/ttlequals0/MinusPod', 0, 250, font(500, 36), C.teal, 'center', eo(seg(lt, 0.9, 0.6)));
+}));
+
+finish((sc, fade) => rail(sc.rail, fade));
+</script>
+</body>
+</html>

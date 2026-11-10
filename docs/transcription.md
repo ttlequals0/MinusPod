@@ -73,6 +73,8 @@ Sources:
 
 NVIDIA Parakeet TDT 0.6B v3 is the recommended local transcription backend. It runs through ONNX Runtime inside the MinusPod container: on CUDA in the GPU image and on CPU in the CPU image. No separate server is needed.
 
+Parakeet does not use compute types. It runs float32 on CUDA through ONNX Runtime and needs cuDNN, which the GPU image pins to the last release that still supports GTX 10-series and older cards (#988).
+
 Select it in Settings > Transcription > Backend with "Local (Parakeet TDT 0.6B v3)", or set:
 
 ```bash

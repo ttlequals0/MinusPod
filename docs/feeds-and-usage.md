@@ -4,6 +4,10 @@
 
 ---
 
+Adding a podcast on a phone and playing it in a podcast app without its ads, start to finish. Portrait cut and the file itself in [Videos](videos/README.md).
+
+https://github.com/user-attachments/assets/8a997cba-20a1-40aa-b437-058d57306f45
+
 ## Finding Podcast RSS Feeds
 
 MinusPod includes a built-in podcast search on the Add Feed page. It works out of the box using Apple's iTunes directory, which needs no account or API key. If you prefer [PodcastIndex.org](https://podcastindex.org), pick it under Settings > Podcast Search, get free API credentials at [api.podcastindex.org/signup](https://api.podcastindex.org/signup), and add them there; the **Test connection** button sends a signed one-result search so you know the credentials work before you need them. Installs that already had PodcastIndex credentials before the provider option existed keep using PodcastIndex until they choose otherwise.

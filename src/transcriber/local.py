@@ -339,9 +339,8 @@ class WhisperModelSingleton:
             cls._needs_reload = False
             cls._load_config = None
 
-            # Force garbage collection and clear CUDA cache
             clear_gpu_memory()
-            logger.info("CUDA cache cleared")
+            logger.info("Local models unloaded")
 
     @classmethod
     def is_loaded(cls) -> bool:
@@ -434,9 +433,9 @@ class WhisperModelSingleton:
             # Log actual GPU memory usage after model load
             mem_info = get_gpu_memory_info()
             if mem_info:
-                allocated_gb = mem_info.get('allocated', 0) / (1024 ** 3)
-                reserved_gb = mem_info.get('cached', 0) / (1024 ** 3)
-                logger.info(f"GPU memory after model load: {allocated_gb:.2f}GB allocated, {reserved_gb:.2f}GB reserved")
+                used_gb = mem_info['used'] / (1024 ** 3)
+                total_gb = mem_info['total'] / (1024 ** 3)
+                logger.info(f"GPU memory after model load: {used_gb:.2f}GB used of {total_gb:.2f}GB")
 
         return cls._base_model, cls._instance
 

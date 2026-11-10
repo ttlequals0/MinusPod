@@ -26,7 +26,7 @@ This page covers running MinusPod in production: health monitoring, backups, upd
 
 - Docker (NVIDIA runtime for GPU image; not required for the CPU image)
 - 8 GB RAM minimum; 16 GB+ recommended for `medium` / `large-v3` faster-whisper models or long episodes
-- CUDA-capable GPU with NVIDIA driver 525 or newer (GPU image only; CPU image runs without one). An older driver surfaces as a CUDA init error on the first transcription. PyTorch ships a CUDA 12.9 build covering Turing (sm_75) through Blackwell (sm_120). Older cards (Maxwell, Pascal, Volta) still transcribe, but PyTorch warns about the architecture and VRAM-based chunk sizing may fall back to defaults.
+- CUDA-capable GPU with NVIDIA driver 525 or newer (GPU image only; CPU image runs without one). An older driver surfaces as a CUDA init error on the first transcription. Whisper (CTranslate2) runs on Maxwell (GTX 9xx) through Blackwell (RTX 50xx). Parakeet (ONNX Runtime) runs on Maxwell through Ada and Hopper; the GPU image pins cuDNN 9.10.2, the last release that supports cards older than Turing, so pre-Turing cards keep GPU Parakeet only while the image stays on that cuDNN line. Parakeet on Blackwell is unconfirmed, see #990.
 - An LLM API key (Anthropic, OpenRouter, OpenAI-compatible, or an Ollama instance)
 
 The GPU image is `ttlequals0/minuspod:<version>` and `:latest`. The CPU image is `ttlequals0/minuspod:<version>-cpu` and `:cpu`. See [Installation](installation.md) for variant selection.
