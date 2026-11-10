@@ -2,6 +2,7 @@
 import json
 import math
 import os
+import re
 import logging
 from contextlib import contextmanager
 from decimal import Decimal, InvalidOperation
@@ -50,6 +51,7 @@ from config import (
     resolve_community_sync_categories, DEFAULT_COMMUNITY_SYNC_CATEGORIES_JSON,
     resolve_jit_blocked_user_agents,
     WHISPER_POOL_MAX_REQUESTS_RANGE, WHISPER_POOL_MAX_EPISODES_RANGE,
+    PROCESSING_SCHEDULE_DAY_KEYS,
 )
 from secrets_crypto import (
     CryptoUnavailableError, decrypt, encrypt, is_ciphertext,
@@ -75,6 +77,21 @@ def _rate_or_none(value) -> float | None:
 def _valid_notification_timezone(tz: str) -> bool:
     """UTC is always acceptable, even on a host with no tzdata installed."""
     return tz == 'UTC' or is_valid_timezone(tz)
+
+
+_HHMM_RE = re.compile(r'^([01]\d|2[0-3]):[0-5]\d$')
+
+
+def _valid_hhmm(value: str) -> bool:
+    return isinstance(value, str) and _HHMM_RE.match(value) is not None
+
+
+def _valid_schedule_days(value: str) -> bool:
+    """Non-empty comma list of unique weekday keys."""
+    if not isinstance(value, str):
+        return False
+    days = value.split(',')
+    return len(set(days)) == len(days) and all(d in PROCESSING_SCHEDULE_DAY_KEYS for d in days)
 
 
 def _int_in_range(bounds: tuple[int, int]) -> Callable[[str], bool]:
@@ -443,6 +460,17 @@ SETTINGS_REGISTRY: dict[str, SettingSpec] = {
         default='false', seeded=True, resettable=False),
     'offline_queue_ttl_hours': SettingSpec(
         default='48', seeded=True, resettable=False),
+    # Weekly processing window (#992); read through processing_schedule.
+    'processing_schedule_enabled': SettingSpec(
+        default='false', seeded=True, resettable=False,
+        validator=_one_of('true', 'false')),
+    'processing_schedule_start': SettingSpec(
+        default='00:00', seeded=True, resettable=False, validator=_valid_hhmm),
+    'processing_schedule_end': SettingSpec(
+        default='06:00', seeded=True, resettable=False, validator=_valid_hhmm),
+    'processing_schedule_days': SettingSpec(
+        default=','.join(PROCESSING_SCHEDULE_DAY_KEYS), seeded=True,
+        resettable=False, validator=_valid_schedule_days),
     # Rate-limit queue hold (#696). hold_until is ephemeral runtime state
     # written by the failure handler and cleared on release; not seeded and
     # not exposed through the general settings payload.

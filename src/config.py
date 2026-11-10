@@ -1778,6 +1778,9 @@ FAILOVER_API_TARGET_NAMES = {'llm-a': 'llm:primary', 'llm-b': 'llm:secondary', '
 WHISPER_POOL_MAX_REQUESTS_RANGE = (1, 64)
 WHISPER_POOL_MAX_EPISODES_RANGE = (1, 16)
 
+# Weekday keys of the processing schedule, indexed by datetime.weekday().
+PROCESSING_SCHEDULE_DAY_KEYS = ('mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun')
+
 # Whisper compute-type values accepted by faster-whisper/CTranslate2.
 # 'auto' resolves to float16 on CUDA and int8 on CPU at init time.
 WHISPER_COMPUTE_TYPES = ('auto', 'float16', 'int8_float16', 'int8', 'float32')

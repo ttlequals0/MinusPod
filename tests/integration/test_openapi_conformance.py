@@ -122,6 +122,7 @@ GET_ROUTES = [
     ('/settings/provider-budget', ''),
     ('/settings/retention', ''),
     ('/settings/offline-queue', ''),
+    ('/settings/processing-schedule', ''),
     ('/settings/rate-limit-hold', ''),
     ('/settings/update-check', ''),
     ('/settings/youtube', ''),
@@ -212,6 +213,8 @@ def test_served_spec_carries_running_version(seeded):
 
 
 MUTATIONS = [
+    ('put', '/settings/processing-schedule',
+     {'enabled': True, 'start': '22:00', 'end': '06:00', 'days': ['mon', 'fri']}),
     ('patch', '/feeds/{slug}', {'titleOverride': 'Renamed', 'descriptionOverride': 'About'}),
     ('put', '/feeds/{slug}/tags', {'user_tags': []}),
     ('put', '/settings/ad-detection', {'whisperBackend': 'local'}),

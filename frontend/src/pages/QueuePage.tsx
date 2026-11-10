@@ -17,6 +17,7 @@ import ProcessingQueueSection, { QUEUE_PAGE_SIZE } from './settings/ProcessingQu
 import QueueControlSection from './settings/QueueControlSection';
 import ReviewTab from './queue/ReviewTab';
 import PageTabs from '../components/PageTabs';
+import { formatDateTime } from '../utils/format';
 import { getStageLabel } from '../utils/processingStage';
 import LoadingSpinner from '../components/LoadingSpinner';
 import ProcessingJobProgress from '../components/ProcessingJobProgress';
@@ -49,6 +50,8 @@ function ActiveQueue({
 }) {
   const jobs = status?.jobs ?? (status?.currentJob ? [status.currentJob] : []);
   const hold = status?.hold;
+  const schedule = status?.processingSchedule;
+  const outsideSchedule = schedule?.open === false && (status?.queueLength ?? 0) > 0;
   return (
     <section className="bg-card rounded-lg border border-border p-4 sm:p-6" aria-labelledby="active-processing-title">
       <div className="flex items-start justify-between gap-3 mb-4">
@@ -115,11 +118,17 @@ function ActiveQueue({
       ) : (
         <p className="text-sm text-muted-foreground">No episodes are processing right now.</p>
       )}
-      {hold && (hold.queuePaused || hold.offlineHeld > 0 || hold.offlineServices.some((s) => s.held > 0 || s.reachable === false)) && (
+      {(outsideSchedule || (hold && (hold.queuePaused || hold.offlineHeld > 0 || hold.offlineServices.some((s) => s.held > 0 || s.reachable === false)))) && (
         <div className="mt-4 rounded-lg border border-warning/40 bg-warning/10 p-3 text-sm text-foreground">
           <p className="font-medium text-warning">Queue hold</p>
-          {hold.queuePaused && <p className="mt-1">New work is waiting for the provider limit to reset.</p>}
-          {hold.offlineServices.map((service) => (
+          {outsideSchedule && (
+            <p className="mt-1">
+              Processing is outside its schedule. Running episodes finish and the rest wait
+              {schedule.nextChangeAt ? ` until ${formatDateTime(schedule.nextChangeAt)}` : ' for the next window'}.
+            </p>
+          )}
+          {hold?.queuePaused && <p className="mt-1">New work is waiting for the provider limit to reset.</p>}
+          {hold?.offlineServices.map((service) => (
             <p key={service.service} className="mt-1">
               {service.service}: {service.reachable === false ? 'unreachable' : service.reachable === true ? 'reachable' : 'not checked yet'}, {service.held} waiting
             </p>

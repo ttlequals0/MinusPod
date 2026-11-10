@@ -13,6 +13,7 @@ from config import (
     SEGMENT_CATEGORIES, resolve_community_sync_categories,
 )
 from api.pattern_cleanup import cleanup_settings_view
+from database.settings import SETTINGS_REGISTRY
 from offline_queue import (
     get_offline_queue_ttl_hours, is_offline_queue_enabled,
     TTL_HOURS_MIN, TTL_HOURS_MAX,
@@ -22,6 +23,9 @@ from rate_limit_hold import (
     any_hold_active, clear_all_holds,
     get_llm_usage_url, get_rate_limit_probe_minutes,
     RATE_LIMIT_PROBE_MINUTES_MIN, RATE_LIMIT_PROBE_MINUTES_MAX,
+)
+from processing_schedule import (
+    DAY_KEYS, get_processing_schedule, save_processing_schedule, schedule_state,
 )
 from llm_route import VALID_SLOTS, SAME_AS_DETECTION
 from pattern_cleanup import BATCH_SIZE_RANGE, UNUSED_DAYS_RANGE
@@ -273,6 +277,54 @@ def update_rate_limit_hold_settings():
         fire_queue_resumed_event(held_since=clear_all_holds(db))
     view = _rate_limit_hold_view(db)
     logger.info(f"Updated rate_limit_hold_enabled: {view['enabled']}")
+    return json_response(view)
+
+
+def _processing_schedule_view(db) -> dict:
+    """Processing schedule payload shared by GET and PUT (#992)."""
+    state = schedule_state(db)
+    return {**get_processing_schedule(db), 'open': state['open'],
+            'nextChangeAt': state['nextChangeAt']}
+
+
+@api.route('/settings/processing-schedule', methods=['GET'])
+@log_request
+def get_processing_schedule_settings():
+    """Get the weekly processing window."""
+    return json_response(_processing_schedule_view(get_database()))
+
+
+@api.route('/settings/processing-schedule', methods=['PUT'])
+@log_request
+def update_processing_schedule_settings():
+    """Update the weekly processing window."""
+    data = request.get_json()
+    if not isinstance(data, dict) or not data:
+        return error_response('No data provided', 400)
+    if 'enabled' in data and not isinstance(data['enabled'], bool):
+        return error_response('enabled must be a boolean', 400)
+    valid_time = SETTINGS_REGISTRY['processing_schedule_start'].validator
+    for field in ('start', 'end'):
+        if field in data and not valid_time(data[field]):
+            return error_response(f'{field} must be a time in HH:MM 24-hour format', 400)
+    days = data.get('days')
+    if 'days' in data and not (
+            isinstance(days, list) and days and all(isinstance(d, str) for d in days)
+            and SETTINGS_REGISTRY['processing_schedule_days'].validator(','.join(days))):
+        return error_response(
+            f'days must be a non-empty list of {", ".join(DAY_KEYS)}', 400)
+    db = get_database()
+    try:
+        save_processing_schedule(
+            db, enabled=data.get('enabled'), start=data.get('start'),
+            end=data.get('end'), days=days)
+    except sqlite3.Error:
+        logger.exception("Processing schedule save failed; no field was persisted")
+        return error_response('Settings could not be saved', 500)
+    view = _processing_schedule_view(db)
+    logger.info(
+        "Updated processing schedule: enabled=%s start=%s end=%s days=%s",
+        view['enabled'], view['start'], view['end'], ','.join(view['days']))
     return json_response(view)
 
 

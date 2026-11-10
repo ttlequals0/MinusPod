@@ -44,6 +44,8 @@ EXPECTED_RULES = [
     ('/api/v1/settings/provider-budget', ('PUT',)),
     ('/api/v1/settings/provider-budget/currencies', ('GET',)),
     ('/api/v1/settings/provider-budget/rate/<currency>', ('GET',)),
+    ('/api/v1/settings/processing-schedule', ('GET',)),
+    ('/api/v1/settings/processing-schedule', ('PUT',)),
     ('/api/v1/settings/rate-limit-hold', ('GET',)),
     ('/api/v1/settings/rate-limit-hold', ('PUT',)),
     ('/api/v1/settings/rate-limit-hold/reset', ('POST',)),

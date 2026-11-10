@@ -40,6 +40,7 @@ const IDLE_STATUS = {
   feedRefreshes: [],
   hold: { queuePaused: false, holdUntil: null, holdSince: null, offlineHeld: 0, offlineServices: [] },
   processingPaused: false,
+  processingSchedule: { enabled: false, open: true, nextChangeAt: null },
   failover: { active: [], targets: {} },
 };
 

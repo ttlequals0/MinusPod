@@ -294,6 +294,8 @@ DEMO_SETTINGS_EXCLUDE: frozenset[str] = frozenset({
     'review_model', 'review_provider',
     # General processing: queue, spend, operator state
     'offline_queue_enabled', 'offline_queue_ttl_hours', 'rate_limit_hold_enabled',
+    'processing_schedule_enabled', 'processing_schedule_start',
+    'processing_schedule_end', 'processing_schedule_days',
     'rate_limit_probe_minutes', 'provider_budget_enabled',
     'provider_budget_daily_limit_microusd', 'provider_budget_max_reservations',
     'provider_budget_unknown_cost', 'provider_budget_unknown_reserve_microusd',

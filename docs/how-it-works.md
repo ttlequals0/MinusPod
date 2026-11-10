@@ -86,6 +86,7 @@ Processing admission protects memory and provider capacity:
 - Each run has an immutable ID, owner process identity, and heartbeat in SQLite
 - Only the owner of that run can publish results, update its status, or release its slot
 - A dead owner is recovered at startup or before new work is admitted; its episode and queue row return to pending without a retry penalty
+- An optional [processing schedule](configuration.md#processing-schedule) limits new starts to a weekly window. Outside it the dispatcher claims nothing and queued episodes wait; runs already started finish
 - View the active episode and the full waiting queue in Settings > Processing
   Queue, listed in the order the worker will claim them, and cancel any of them
   there
@@ -182,7 +183,7 @@ Access the Patterns page from the navigation bar to:
 
 ### Real-Time Processing Status
 
-A global status bar polls `GET /api/v1/status` every 2 seconds and backs off to 30 seconds after failures. The response comes from shared status and SQLite state, so any gunicorn worker can answer it. The finite 30-second SSE route remains for compatible clients. The bar shows active jobs, stage, progress, queue depth, provider holds, and offline waits.
+A global status bar polls `GET /api/v1/status` every 2 seconds and backs off to 30 seconds after failures. The response comes from shared status and SQLite state, so any gunicorn worker can answer it. The finite 30-second SSE route remains for compatible clients. The bar shows active jobs, stage, progress, queue depth, provider holds, offline waits, and the processing schedule when it is holding queued episodes.
 
 ### Chapter Generation
 

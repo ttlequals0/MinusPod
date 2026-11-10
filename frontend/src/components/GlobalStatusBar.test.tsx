@@ -271,6 +271,54 @@ describe('GlobalStatusBar queue holds', () => {
     const { container } = await renderBar(makeStatus());
     expect(container.firstChild).toBeNull();
   });
+
+  it('shows a schedule hold when the window is closed with work queued', async () => {
+    const nextChangeAt = new Date(Date.now() + 90 * 60 * 1000).toISOString();
+    await renderBar(makeStatus({
+      queueLength: 1,
+      hold: emptyHold(),
+      processingSchedule: { enabled: true, open: false, nextChangeAt },
+    }));
+    expect(screen.getByText(/^Outside schedule until \d{1,2}:\d{2}/)).toBeDefined();
+    act(() => {
+      screen.getByRole('button', { name: 'Expand status bar' }).click();
+    });
+    expect(holdRow('Outside the processing schedule').textContent).toMatch(/Resumes .*\(in 1h/);
+  });
+
+  it('stays hidden when the window is closed and nothing is queued', async () => {
+    const nextChangeAt = new Date(Date.now() + 90 * 60 * 1000).toISOString();
+    const { container } = await renderBar(makeStatus({
+      hold: emptyHold(),
+      processingSchedule: { enabled: true, open: false, nextChangeAt },
+    }));
+    expect(container.firstChild).toBeNull();
+  });
+
+  it('stays hidden while the schedule is open or off', async () => {
+    const open = await renderBar(makeStatus({
+      hold: emptyHold(),
+      processingSchedule: { enabled: true, open: true, nextChangeAt: null },
+    }));
+    expect(open.container.firstChild).toBeNull();
+    open.unmount();
+    FakeEventSource.instances = [];
+    const off = await renderBar(makeStatus({
+      processingSchedule: { enabled: false, open: true, nextChangeAt: null },
+    }));
+    expect(off.container.firstChild).toBeNull();
+  });
+
+  it('shows both the schedule hold and a rate-limit pause', async () => {
+    const nextChangeAt = new Date(Date.now() + 90 * 60 * 1000).toISOString();
+    const holdUntil = new Date(Date.now() + 30 * 60 * 1000).toISOString();
+    await renderBar(makeStatus({
+      queueLength: 1,
+      hold: emptyHold({ queuePaused: true, holdUntil }),
+      processingSchedule: { enabled: true, open: false, nextChangeAt },
+    }));
+    expect(screen.getByText(/^Outside schedule until .+; Paused until/)).toBeDefined();
+  });
 });
 
 function job(slug: string, id: string, title: string, stage = 'transcribing', progress = 20) {

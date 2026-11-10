@@ -34,6 +34,8 @@ vi.mock('../api/settings', () => ({
   getRateLimitHoldSettings: vi.fn(),
   updateRateLimitHoldSettings: vi.fn(),
   resetRateLimitHold: vi.fn(),
+  getProcessingSchedule: vi.fn(),
+  updateProcessingSchedule: vi.fn(),
 }));
 
 function settings() {
@@ -186,5 +188,42 @@ describe('QueuePage page in the URL', () => {
   it('requests the queue offset named by ?page=2', async () => {
     renderPage('/queue?page=2');
     await waitFor(() => expect(mockGetEpisodes).toHaveBeenCalledWith({ queueOffset: 25, queueLimit: 25 }));
+  });
+
+  it('explains a closed processing schedule in the queue hold box', async () => {
+    mockGetEpisodes.mockResolvedValue([episode(1)]);
+    const client = renderPage();
+    client.setQueryData(['processing-status'], {
+      currentJob: null,
+      queueLength: 1,
+      processingSchedule: { enabled: true, open: false, nextChangeAt: '2026-11-10T22:00:00Z' },
+    });
+    await screen.findAllByText('Episode 1');
+    expect(screen.getByText('Queue hold')).toBeDefined();
+    expect(screen.getByText(/Processing is outside its schedule/).textContent).toMatch(/until .+\d/);
+  });
+
+  it('shows no schedule hold when the window is closed and nothing is queued', async () => {
+    mockGetEpisodes.mockResolvedValue([episode(1)]);
+    const client = renderPage();
+    client.setQueryData(['processing-status'], {
+      currentJob: null,
+      queueLength: 0,
+      processingSchedule: { enabled: true, open: false, nextChangeAt: '2026-11-10T22:00:00Z' },
+    });
+    await screen.findAllByText('Episode 1');
+    expect(screen.queryByText('Queue hold')).toBeNull();
+  });
+
+  it('shows no schedule hold while the window is open or the schedule is off', async () => {
+    mockGetEpisodes.mockResolvedValue([episode(1)]);
+    const client = renderPage();
+    client.setQueryData(['processing-status'], {
+      currentJob: null,
+      queueLength: 1,
+      processingSchedule: { enabled: true, open: true, nextChangeAt: '2026-11-10T22:00:00Z' },
+    });
+    await screen.findAllByText('Episode 1');
+    expect(screen.queryByText('Queue hold')).toBeNull();
   });
 });

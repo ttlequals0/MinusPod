@@ -22,6 +22,7 @@ from database.queue import (
 )
 from llm_client import start_episode_token_tracking, get_episode_token_totals
 import run_context
+from processing_schedule import schedule_state
 from reprocess_modes import (
     REPROCESS_MODE_NEEDS_TRANSCRIPT, batch_clear_episodes_for_mode, clear_episode_for_mode, reset_episode_for_reprocess,
 )
@@ -698,6 +699,7 @@ def _annotate_queue_admission(db, queued: list[dict], pending_rows: list[dict]) 
         snapshot = _resolve_route_snapshot()
         gates = _admission_gates(db)
         paused = is_processing_paused(db)
+        schedule = schedule_state(db)
     except Exception as exc:
         logger.warning("Could not resolve queue admission state: %s", exc)
         for entry in queued:
@@ -710,7 +712,7 @@ def _annotate_queue_admission(db, queued: list[dict], pending_rows: list[dict]) 
             entry['admission'] = admission_explanation(
                 db, entry['slug'], entry['episodeId'], snapshot=snapshot,
                 gates=gates, queue_row=rows.get((entry['slug'], entry['episodeId'])),
-                paused=paused, hold_cache=hold_cache)
+                paused=paused, hold_cache=hold_cache, schedule=schedule)
         except Exception as exc:
             logger.warning("Could not explain admission for %s:%s: %s",
                            entry['slug'], entry['episodeId'], exc)

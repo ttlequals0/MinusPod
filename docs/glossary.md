@@ -139,7 +139,7 @@ Every term the app uses, in plain words, with a link to the part of the docs tha
 
 **Hide private episodes** - A YouTube setting that drops playlist entries yt-dlp cannot see, such as private or deleted ones, instead of listing them as episodes that cannot be downloaded. On by default, with a per-feed override. Turn it off when the cookies file belongs to an account that can watch them. [YouTube Feeds > Private and deleted episodes](youtube-feeds.md#private-and-deleted-episodes)
 
-**Hold (queue)** - Any reason the queue is waiting rather than working: a rate-limit pause that stops new claims outright, or an offline-queue wait that parks specific episodes while the rest keep processing. The status bar names which one is in effect, and `GET /api/v1/status` reports it in a `hold` block. [Configuration > Rate-Limit Hold](configuration.md#rate-limit-hold)
+**Hold (queue)** - Any reason the queue is waiting rather than working: a rate-limit pause that stops new claims outright, or an offline-queue wait that parks specific episodes while the rest keep processing. The status bar names which one is in effect, and `GET /api/v1/status` reports it in a `hold` block. A closed [processing schedule](configuration.md#processing-schedule) window also holds the queue, reported in `processingSchedule`. [Configuration > Rate-Limit Hold](configuration.md#rate-limit-hold)
 
 ## I
 
@@ -214,6 +214,8 @@ Every term the app uses, in plain words, with a link to the part of the docs tha
 **Processing mode** - The per-feed preset, one select in Feed Settings, that decides what the pipeline does with each episode: standard, keep content only, skip ad detection, pass-through, or cue-only. [Episode Processing Workflows > Processing modes](workflows.md#processing-modes)
 
 **Processing queue** - The Queue page shows active jobs and the full waiting list, with controls for queue behavior and priority. [How It Works > Processing Queue](how-it-works.md#processing-queue)
+
+**Processing schedule** - An opt-in weekly window, set in Queue > Queue Control, that limits when new runs start. Outside it episodes wait in the queue and the idle local transcription model is unloaded; runs already started finish. [Configuration > Processing Schedule](configuration.md#processing-schedule)
 
 **Processing stats** - The per-run table at the bottom of the episode page: what each run downloaded, detected, cut, held, and verified, plus elapsed stage and FFmpeg timing when available. [Web Interface > Processing stats](web-interface.md#processing-stats)
 

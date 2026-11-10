@@ -8,7 +8,7 @@ import ChevronCaret from './ChevronCaret';
 import { apiRequest } from '../api/client';
 import ProcessingJobProgress from './ProcessingJobProgress';
 import { failoverSourceLabel, failoverTargetLabel } from '../api/failover';
-import type { ProcessingStatus } from '../api/status';
+import type { ProcessingScheduleStatus, ProcessingStatus } from '../api/status';
 import { formatElapsed } from '../utils/format';
 import { focusRing } from './fieldStyles';
 import { badgeBase, tint } from './badgeStyles';
@@ -63,6 +63,7 @@ interface StatusData {
   queuedEpisodes: QueuedEpisode[];
   feedRefreshes: FeedRefresh[];
   hold?: QueueHold;
+  processingSchedule?: ProcessingScheduleStatus;
   failover?: ProcessingStatus['failover'];
   lastUpdated: number;
   revision?: number;
@@ -115,6 +116,26 @@ function affectedServices(hold: QueueHold): OfflineService[] {
   return hold.offlineServices.filter((s) => s.held > 0 || s.reachable === false);
 }
 
+/** The schedule when its window is shut with work waiting; a shut window on an empty queue is normal. */
+function heldBySchedule(status: StatusData | null): ProcessingScheduleStatus | undefined {
+  const schedule = status?.processingSchedule;
+  return schedule?.open === false && (status?.queueLength ?? 0) > 0 ? schedule : undefined;
+}
+
+/** The schedule line: the window is shut and, when known, when it opens. */
+function scheduleText(schedule: ProcessingScheduleStatus): string {
+  if (!schedule.nextChangeAt) return 'Outside the processing schedule.';
+  const relative = formatRelative(schedule.nextChangeAt);
+  return `Outside the processing schedule. Resumes ${formatClock(schedule.nextChangeAt)}${relative ? ` (${relative})` : ''}.`;
+}
+
+/** Collapsed-bar wording for a shut schedule window; compact is the phone wording. */
+function scheduleHoldText(schedule: ProcessingScheduleStatus, compact = false): string {
+  if (!schedule.nextChangeAt) return 'Outside schedule';
+  const clock = formatClock(schedule.nextChangeAt);
+  return compact ? `Resumes ${clock}` : `Outside schedule until ${clock}`;
+}
+
 /** Queue-hold wording for the collapsed bar, or null when nothing is held; compact is the phone wording. */
 function queueHoldText(hold: QueueHold | undefined, compact = false): string | null {
   if (!hold) return null;
@@ -141,9 +162,15 @@ function failoverText(failover: StatusData['failover'], compact: boolean): strin
   return compact ? `Failover: ${names}` : `Failover active: ${names}`;
 }
 
-/** Short summary for the collapsed bar: failover first, then any queue hold. */
-function holdSummary(status: StatusData | null, compact = false): string | null {
-  const parts = [failoverText(status?.failover, compact), queueHoldText(status?.hold, compact)]
+/** Short summary for the collapsed bar: failover first, then the schedule hold, then any queue hold. */
+function holdSummary(
+  status: StatusData | null, schedule: ProcessingScheduleStatus | undefined, compact = false,
+): string | null {
+  const parts = [
+    failoverText(status?.failover, compact),
+    schedule ? scheduleHoldText(schedule, compact) : null,
+    queueHoldText(status?.hold, compact),
+  ]
     .filter((part): part is string => part !== null);
   return parts.length > 0 ? parts.join('; ') : null;
 }
@@ -265,9 +292,11 @@ function GlobalStatusBar() {
   // A hold counts as activity: an idle queue that is paused or waiting on a
   // service looks identical to an empty one, which is the case worth surfacing.
   const hold = status?.hold;
-  const holdText = queueHoldText(hold);
-  const summary = holdSummary(status);
-  const compactSummary = holdSummary(status, true);
+  const schedule = heldBySchedule(status);
+  const holdText = [schedule ? scheduleHoldText(schedule) : null, queueHoldText(hold)]
+    .filter((part): part is string => part !== null).join('; ') || null;
+  const summary = holdSummary(status, schedule);
+  const compactSummary = holdSummary(status, schedule, true);
   const failoverActive = status?.failover?.active ?? [];
   const hasActivity = status?.currentJob || (status?.queueLength ?? 0) > 0
     || (status?.feedRefreshes?.length ?? 0) > 0 || summary !== null;
@@ -409,16 +438,21 @@ function GlobalStatusBar() {
           )}
 
           {/* Queue holds: why work is not moving, and when it resumes */}
-          {holdText && hold && (
+          {holdText && (
             <div className="py-2 border-b border-border/30">
               <p className="text-xs font-medium text-warning mb-1">{holdText}</p>
               <ul className="space-y-1">
-                {hold.queuePaused && (
+                {schedule && (
+                  <li className="text-xs text-foreground">
+                    {scheduleText(schedule)} Queued episodes wait in place.
+                  </li>
+                )}
+                {hold?.queuePaused && (
                   <li className="text-xs text-foreground">
                     {rateLimitText(hold)} Queued episodes wait in place.
                   </li>
                 )}
-                {hold.offlineServices.map((svc) => (
+                {hold?.offlineServices.map((svc) => (
                   <li key={svc.service} className="text-xs text-foreground">
                     {serviceLabel(svc.service)}{' '}
                     {svc.reachable === false ? 'unreachable'

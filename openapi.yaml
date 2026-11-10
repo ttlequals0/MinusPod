@@ -9562,6 +9562,52 @@ paths:
                   deferredCount:
                     type: integer
 
+  /settings/processing-schedule:
+    get:
+      tags:
+        - Settings
+      summary: Get the processing schedule
+      description: >-
+        Weekly window (#992) in which new processing runs may start, read in
+        the instance time zone. Outside it the queue holds, including manual
+        Reprocess and play-triggered starts; runs already in progress finish.
+      operationId: getProcessingSchedule
+      responses:
+        '200':
+          description: Processing schedule
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProcessingSchedule'
+    put:
+      tags:
+        - Settings
+      summary: Update the processing schedule
+      description: >-
+        Send any subset of enabled, start, end and days. The whole body is
+        validated before anything is saved. timezone, open and nextChangeAt
+        are read-only and ignored.
+      operationId: updateProcessingSchedule
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProcessingSchedule'
+      responses:
+        '200':
+          description: Processing schedule updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProcessingSchedule'
+        '400':
+          description: Invalid field or empty body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
   /settings/rate-limit-hold:
     get:
       tags:
@@ -16078,6 +16124,63 @@ components:
           enum: [user, auto_pass2]
           description: user for a decision made in the UI or API; auto_pass2 for a confirm the verification pass filed when it re-detected a held ad.
 
+    ProcessingScheduleState:
+      type: object
+      description: Whether the processing schedule currently lets new runs start.
+      properties:
+        enabled:
+          type: boolean
+        open:
+          type: boolean
+          description: True when new runs may start (always true while the schedule is disabled).
+        nextChangeAt:
+          type:
+            - string
+            - 'null'
+          format: date-time
+          description: When the window next opens or closes; null when the schedule is disabled or never closes.
+
+    ProcessingSchedule:
+      type: object
+      properties:
+        enabled:
+          type: boolean
+        start:
+          type: string
+          pattern: '^([01]\d|2[0-3]):[0-5]\d$'
+          example: '22:00'
+          description: Window start, HH:MM 24-hour, in the instance time zone.
+        end:
+          type: string
+          pattern: '^([01]\d|2[0-3]):[0-5]\d$'
+          example: '06:00'
+          description: >-
+            Window end, HH:MM 24-hour. An end at or before start runs past
+            midnight into the next day; equal times mean a full 24 hours.
+        days:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items:
+            type: string
+            enum: [mon, tue, wed, thu, fri, sat, sun]
+          description: Days on which a window starts.
+        timezone:
+          type: string
+          readOnly: true
+          description: Instance time zone (the notification timezone setting) the times are read in.
+        open:
+          type: boolean
+          readOnly: true
+          description: True when new runs may start now.
+        nextChangeAt:
+          type:
+            - string
+            - 'null'
+          format: date-time
+          readOnly: true
+          description: When the window next opens or closes; null when the schedule is disabled or never closes.
+
     ProcessingAdmission:
       type: object
       properties:
@@ -19325,13 +19428,15 @@ components:
             - provider_rate_limit
             - provider_account_changed
             - processing_paused
+            - outside_schedule
             - null
           description: >-
             manual_rate_limit is a MinusPod-configured RPM/RPD/TPM cap;
             provider_rate_limit is a provider 429 hold;
             provider_account_changed means the run's frozen routes name an
             account the operator has since replaced; processing_paused is the
-            global admission pause
+            global admission pause; outside_schedule means the processing
+            schedule window is closed (resumesAt is when it opens)
         resumesAt:
           type:
             - string
@@ -19582,6 +19687,8 @@ components:
         queueLength:
           type: integer
           description: Number of episodes waiting to be processed
+        processingSchedule:
+          $ref: '#/components/schemas/ProcessingScheduleState'
         queuedEpisodes:
           type: array
           items:

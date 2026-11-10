@@ -2,6 +2,12 @@
 
 This file tracks the hosted demo and its tooling, which are not part of the self-hosted app.
 
+## [2.101.34] - 2026-11-09
+
+### Added
+
+- The demo crawl records `/settings/processing-schedule`, and the demo status handler reports the schedule as off.
+
 ## [2.101.31] - 2026-11-08
 
 ### Changed

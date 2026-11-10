@@ -16,6 +16,7 @@ from api.failover import targets_view as failover_targets_view
 from config import DEFER_SERVICE_LLM, DEFER_SERVICE_SPONSORBLOCK, DEFER_SERVICE_WHISPER
 from offline_queue import get_probe_state
 from rate_limit_hold import get_any_active_hold
+from processing_schedule import schedule_state
 from processing_queue import (
     ProcessingQueue, is_processing_paused, set_processing_paused,
 )
@@ -144,6 +145,7 @@ def status_payload(status=None) -> dict:
     )
     payload['hold'] = hold_block()
     payload['processingPaused'] = is_processing_paused(db)
+    payload['processingSchedule'] = schedule_state(db)
     # This worker may not be the leader, so nothing else refreshes its pool.
     pool = get_pool()
     pool.refresh()
