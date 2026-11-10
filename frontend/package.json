@@ -16,7 +16,7 @@
     "test:browser": "playwright test"
   },
   "dependencies": {
-    "@tanstack/react-query": "^5.106.1",
+    "@tanstack/react-query": "^5.107.1",
     "@types/pulltorefreshjs": "^0.1.7",
     "lucide-react": "^1.66.0",
     "pulltorefreshjs": "^0.1.22",
