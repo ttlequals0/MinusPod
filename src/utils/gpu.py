@@ -1,6 +1,7 @@
 """GPU (via NVML) and system memory helpers."""
 
 import ctypes
+import functools
 import gc
 import logging
 import os
@@ -14,7 +15,6 @@ logger = logging.getLogger(__name__)
 
 _GIB = 1024 ** 3
 _nvml_ready = None  # None unknown, True initialised, False unavailable
-_index_warned = False
 
 
 def get_available_system_memory_gb() -> float | None:
@@ -58,10 +58,21 @@ def _cuda_device0_bus_id():
     return buf.value.decode()
 
 
+@functools.cache
+def _bus_id():
+    """CUDA device 0's PCI bus ID, resolved once per process (None is cached too)."""
+    return _cuda_device0_bus_id()
+
+
 def _nvml_query(fn):
-    """Run fn(handle) against the first visible GPU; None without a usable GPU."""
-    global _nvml_ready, _index_warned
+    """Run fn(handle) against CUDA device 0; None without a usable GPU."""
+    global _nvml_ready
     if pynvml is None or _nvml_ready is False:
+        return None
+    # The CUDA driver applies CUDA_VISIBLE_DEVICES and CUDA_DEVICE_ORDER itself.
+    first = os.environ.get('CUDA_VISIBLE_DEVICES', '').split(',')[0].strip()
+    mig = first.startswith('MIG-')  # a MIG slice shares its card's bus ID
+    if not mig and _bus_id() is None:
         return None
     if _nvml_ready is None:
         try:
@@ -72,25 +83,12 @@ def _nvml_query(fn):
             return None
         _nvml_ready = True
     try:
-        # NVML ignores CUDA_VISIBLE_DEVICES, so apply it here. Numeric indexes are PCI
-        # order in NVML but fastest-first in CUDA unless CUDA_DEVICE_ORDER=PCI_BUS_ID.
-        visible = os.environ.get('CUDA_VISIBLE_DEVICES')
-        if visible is None:
-            handle = pynvml.nvmlDeviceGetHandleByIndex(0)
+        if mig:
+            handle = pynvml.nvmlDeviceGetHandleByUUID(first)
         else:
-            first = visible.split(',')[0].strip()
-            if first.startswith(('GPU-', 'MIG-')):
-                handle = pynvml.nvmlDeviceGetHandleByUUID(first)
-            else:
-                handle = pynvml.nvmlDeviceGetHandleByIndex(int(first))
-                if (not _index_warned and pynvml.nvmlDeviceGetCount() > 1
-                        and os.environ.get('CUDA_DEVICE_ORDER') != 'PCI_BUS_ID'):
-                    _index_warned = True
-                    logger.warning(
-                        "CUDA_VISIBLE_DEVICES=%s is a numeric index; NVML may read a different GPU "
-                        "on this multi-GPU host, use the GPU-<uuid> form", visible)
+            handle = pynvml.nvmlDeviceGetHandleByPciBusId(_bus_id())
         return fn(handle)
-    except (pynvml.NVMLError, ValueError) as e:
+    except pynvml.NVMLError as e:
         logger.debug(f"NVML query failed: {e}")
         return None
 

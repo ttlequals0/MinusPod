@@ -6,6 +6,8 @@ import pytest
 
 from utils import gpu
 
+_real_bus_id = gpu._cuda_device0_bus_id
+
 GIB = 1024 ** 3
 
 
@@ -16,10 +18,9 @@ class FakeNVMLError(Exception):
 class FakeNVML:
     NVMLError = FakeNVMLError
 
-    def __init__(self, free=3 * GIB, total=15 * GIB, name='Fake GPU', init_error=None, count=1):
+    def __init__(self, free=3 * GIB, total=15 * GIB, name='Fake GPU', init_error=None):
         self.free, self.total, self.name = free, total, name
         self.init_error = init_error
-        self.count = count
         self.calls = []
         self.init_calls = 0
 
@@ -28,14 +29,9 @@ class FakeNVML:
         if self.init_error:
             raise self.init_error
 
-    def nvmlDeviceGetCount(self):
-        return self.count
-
-    def nvmlDeviceGetHandleByIndex(self, i):
-        if i < 0:
-            raise FakeNVMLError('invalid index')
-        self.calls.append(('index', i))
-        return ('h', i)
+    def nvmlDeviceGetHandleByPciBusId(self, bus_id):
+        self.calls.append(('bus', bus_id))
+        return ('h', bus_id)
 
     def nvmlDeviceGetHandleByUUID(self, u):
         self.calls.append(('uuid', u))
@@ -51,9 +47,11 @@ class FakeNVML:
 @pytest.fixture(autouse=True)
 def _reset(monkeypatch):
     monkeypatch.setattr(gpu, '_nvml_ready', None)
-    monkeypatch.setattr(gpu, '_index_warned', False)
-    monkeypatch.delenv('CUDA_DEVICE_ORDER', raising=False)
+    gpu._bus_id.cache_clear()
+    monkeypatch.setattr(gpu, '_cuda_device0_bus_id', lambda: '0000:01:00.0')
     monkeypatch.delenv('CUDA_VISIBLE_DEVICES', raising=False)
+    yield
+    gpu._bus_id.cache_clear()
 
 
 @pytest.fixture
@@ -67,24 +65,36 @@ def test_available_gpu_memory_uses_device_wide_free_bytes(fake):
     assert gpu.get_available_gpu_memory_gb() == 3.0
 
 
-@pytest.mark.parametrize('value,expected', [
-    (None, ('index', 0)),
-    ('1', ('index', 1)),
-    ('GPU-abc', ('uuid', 'GPU-abc')),
-    ('MIG-abc', ('uuid', 'MIG-abc')),
-])
-def test_device_selection(monkeypatch, fake, value, expected):
-    if value is not None:
-        monkeypatch.setenv('CUDA_VISIBLE_DEVICES', value)
+def test_default_device_uses_cuda_bus_id(fake):
     gpu.get_available_gpu_memory_gb()
-    assert fake.calls == [expected]
+    assert fake.calls == [('bus', '0000:01:00.0')]
+
+
+def test_mig_uuid_skips_bus_id(monkeypatch, fake):
+    def boom():
+        raise AssertionError('bus id must not be read for MIG')
+    monkeypatch.setattr(gpu, '_cuda_device0_bus_id', boom)
+    monkeypatch.setenv('CUDA_VISIBLE_DEVICES', 'MIG-abc')
+    gpu.get_available_gpu_memory_gb()
+    assert fake.calls == [('uuid', 'MIG-abc')]
+
+
+@pytest.mark.parametrize('bus', ['0000:01:00.0', None])
+def test_bus_id_resolved_once(monkeypatch, fake, bus):
+    n = []
+    monkeypatch.setattr(gpu, '_cuda_device0_bus_id', lambda: n.append(1) or bus)
+    gpu.get_available_gpu_memory_gb()
+    gpu.get_available_gpu_memory_gb()
+    assert len(n) == 1
 
 
 @pytest.mark.parametrize('value', ['', '-1'])
 def test_cuda_disabled(monkeypatch, fake, value):
     monkeypatch.setenv('CUDA_VISIBLE_DEVICES', value)
+    monkeypatch.setattr(gpu, '_cuda_device0_bus_id', lambda: None)
     assert gpu.get_available_gpu_memory_gb() is None
     assert gpu.get_gpu_device_name() == 'cpu'
+    assert fake.init_calls == 0
 
 
 def test_nvml_init_error_reports_no_gpu(monkeypatch):
@@ -119,29 +129,49 @@ def test_nvml_init_failure_is_remembered(monkeypatch):
     assert fake.init_calls == 1
 
 
-def test_numeric_index_warns_on_multi_gpu(monkeypatch, caplog):
-    fake = FakeNVML(count=2)
-    monkeypatch.setattr(gpu, 'pynvml', fake)
-    monkeypatch.setenv('CUDA_VISIBLE_DEVICES', '1')
-    with caplog.at_level(logging.WARNING, logger=gpu.logger.name):
-        gpu.get_available_gpu_memory_gb()
-        gpu.get_available_gpu_memory_gb()
-    assert fake.calls == [('index', 1), ('index', 1)]
-    assert len([r for r in caplog.records if 'numeric index' in r.getMessage()]) == 1
-
-
-def test_numeric_index_no_warning_with_pci_order(monkeypatch, caplog):
-    monkeypatch.setattr(gpu, 'pynvml', FakeNVML(count=2))
-    monkeypatch.setenv('CUDA_VISIBLE_DEVICES', '1')
-    monkeypatch.setenv('CUDA_DEVICE_ORDER', 'PCI_BUS_ID')
-    with caplog.at_level(logging.WARNING, logger=gpu.logger.name):
-        gpu.get_available_gpu_memory_gb()
-    assert not [r for r in caplog.records if 'numeric index' in r.getMessage()]
-
-
 def test_unreadable_gpu_memory_warns_and_uses_system(monkeypatch, caplog):
     monkeypatch.setattr(gpu, 'pynvml', None)
     monkeypatch.setattr(gpu, 'get_available_system_memory_gb', lambda: 8.0)
     with caplog.at_level(logging.WARNING, logger=gpu.logger.name):
         assert gpu.get_available_memory_gb('cuda') == (8.0, 'system')
     assert 'sizing chunks from system RAM' in caplog.text
+
+
+class FakeCuda:
+    def __init__(self, init_rc=0, get_rc=0, bus_rc=0):
+        self.init_rc, self.get_rc, self.bus_rc = init_rc, get_rc, bus_rc
+        self.init_args, self.get_args = None, None
+
+    def cuInit(self, flags):
+        self.init_args = flags
+        return self.init_rc
+
+    def cuDeviceGet(self, ref, ordinal):
+        self.get_args = ordinal
+        return self.get_rc
+
+    def cuDeviceGetPCIBusId(self, buf, length, dev):
+        buf.value = b'0000:65:00.0'
+        return self.bus_rc
+
+
+def test_bus_id_none_without_libcuda(monkeypatch):
+    def no_lib(name):
+        raise OSError(name)
+    monkeypatch.setattr(gpu.ctypes, 'CDLL', no_lib)
+    assert _real_bus_id() is None
+
+
+@pytest.mark.parametrize('rc', ['init_rc', 'get_rc', 'bus_rc'])
+def test_bus_id_none_when_driver_call_fails(monkeypatch, rc):
+    lib = FakeCuda(**{rc: 100})
+    monkeypatch.setattr(gpu.ctypes, 'CDLL', lambda name: lib)
+    assert _real_bus_id() is None
+
+
+def test_bus_id_read_from_driver(monkeypatch):
+    lib = FakeCuda()
+    monkeypatch.setattr(gpu.ctypes, 'CDLL', lambda name: lib)
+    assert _real_bus_id() == '0000:65:00.0'
+    assert lib.init_args == 0
+    assert lib.get_args == 0
