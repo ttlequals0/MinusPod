@@ -10,6 +10,10 @@ release notes.
 
 ## [2.101.33] - 2026-11-09
 
+### Added
+
+- Docs: a getting-started video under docs/videos. It follows one podcast on a phone, from the Add feed search through the processing queue to a podcast app. There the served feed loads with the MinusPod badge on its cover, and the episode plays without its ads. The video is animated like the pipeline and processing-modes videos, uses placeholder data, and comes in portrait and landscape cuts.
+
 ### Fixed
 
 - The GPU image carries NVRTC, the CUDA runtime compiler, again. It used to come in with PyTorch, so 2.101.32 shipped without it and logged `Failed to load libnvrtc.so.12` each time Parakeet loaded. Transcription still worked in testing, but cuDNN uses NVRTC to compile some kernels at runtime. The image build now fails if a CUDA library that onnxruntime preloads is missing.

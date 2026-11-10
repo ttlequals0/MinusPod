@@ -11,6 +11,7 @@ or music can be added in the posting app. The landscape cuts also play inline in
 | Video | Portrait | Landscape | Length | What it shows |
 |---|---|---|---|---|
 | UI tour | [minuspod-demo.mp4](minuspod-demo.mp4) | [minuspod-demo-landscape.mp4](minuspod-demo-landscape.mp4) | 108 s | Dashboard, the What's new dialog after an upgrade, processing queue, detected ads, the waveform editor, review, patterns, search, stats, settings and the 32 themes, the Add feed processing mode select, then YouTube feeds: adding a show by name, SponsorBlock marks, the episode rating and the YouTube settings. Recorded from a running instance. |
+| Getting started | [minuspod-getting-started.mp4](minuspod-getting-started.mp4) | [minuspod-getting-started-landscape.mp4](minuspod-getting-started-landscape.mp4) | 63 s | The whole path on a phone: open the installed app, search for a podcast and add it, watch the episode move through the queue, and copy the feed URL. Then paste it into a podcast app, follow the show, download the episode and play it without its ads. Animated with placeholder data, source in [getting-started/](getting-started/). |
 | How it works | [minuspod-how-it-works.mp4](minuspod-how-it-works.mp4) | [minuspod-how-it-works-landscape.mp4](minuspod-how-it-works-landscape.mp4) | 107 s | One episode across all eleven pipeline stages: download, transcribe, second download and audio analysis, detect (free matches, then the model), validate, boundary review, cut, verify pass, transcript and chapters, publish. Then the learning loop and what happens when something fails. Follows [How It Works](../how-it-works.md) and [Episode Processing Workflows](../workflows.md). |
 | Review queue | [minuspod-review-queue.mp4](minuspod-review-queue.mp4) | [minuspod-review-queue-landscape.mp4](minuspod-review-queue-landscape.mp4) | 40 s | A held detection from the queue to the waveform editor: play the span, confirm it, watch the recut, see it on the record. Recorded from a running instance. |
 | Audio cues | [minuspod-audio-cues.mp4](minuspod-audio-cues.mp4) | [minuspod-audio-cues-landscape.mp4](minuspod-audio-cues-landscape.mp4) | 44 s | Find a show's ad-break chime on one episode, templates and their health on the feed, the cross-episode scan, cuts that snapped to a cue, and the settings behind it. Recorded. |
@@ -23,17 +24,20 @@ or music can be added in the posting app. The landscape cuts also play inline in
 
 ## Rebuilding the animated videos
 
-Each animation is a single HTML canvas page, [how-it-works/index.html](how-it-works/index.html)
-or [processing-modes/index.html](processing-modes/index.html), holding its
+Each animation is a single HTML canvas page, [how-it-works/index.html](how-it-works/index.html),
+[processing-modes/index.html](processing-modes/index.html) or
+[getting-started/index.html](getting-started/index.html), holding its
 constants and scenes. The drawing helpers, palette, caption layout and the
 frame driver they share live in [lib/canvas.js](lib/canvas.js). Every frame is a
 pure function of time, so [render.mjs](render.mjs) steps `window.render(t)` at
 30 fps, screenshots each frame with Playwright, and ffmpeg encodes the sequence.
 The logo comes from `frontend/public/logo-dark.svg` and the colors mirror the
 app's dark theme tokens, so the video tracks the app's own look.
+The getting-started page also loads `frontend/public/icon-512.png` for the app
+icon and the cover badge, and the podcast app it shows is invented.
 
 ```bash
-cd docs/videos/how-it-works        # or docs/videos/processing-modes
+cd docs/videos/how-it-works        # or docs/videos/processing-modes, docs/videos/getting-started
 npm install                      # playwright, once
 npx playwright install chromium  # once, if Chromium is not installed yet
 npm run frames && npm run encode                      # portrait
@@ -53,9 +57,10 @@ access for the Roboto web font. `frames/` and `preview/` are gitignored.
 
 Scenes, captions and timings are the `add(...)` calls at the bottom of each
 `index.html`: a duration, a headline, a subline, a draw function of local
-time, and what to light up in the footer rail (pipeline stages in one video,
-the processing mode in the other). The episode runtime and ad positions are
-constants at the top, and every duration label is derived from them. A new
+time, and what to light up in the footer rail. The rail shows pipeline stages
+in one video, the processing mode in another and the journey's steps in the
+third. The episode runtime and ad positions are constants at the top, and
+every duration label is derived from them. A new
 animation is a folder with an `index.html` that loads `../lib/canvas.js`,
 defines its scenes and ends with `finish(...)`, plus a copy of
 `processing-modes/package.json` with its output names.
