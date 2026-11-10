@@ -1,5 +1,6 @@
 """GPU (via NVML) and system memory helpers."""
 
+import ctypes
 import gc
 import logging
 import os
@@ -41,6 +42,20 @@ def get_available_system_memory_gb() -> float | None:
         logger.warning(f"Failed to get system memory via psutil: {e}")
 
     return None
+
+
+def _cuda_device0_bus_id():
+    """PCI bus ID of CUDA device 0, the device CTranslate2 and ONNX Runtime use."""
+    try:
+        cuda = ctypes.CDLL('libcuda.so.1')
+    except OSError:
+        return None
+    dev = ctypes.c_int()
+    buf = ctypes.create_string_buffer(32)
+    if (cuda.cuInit(0) or cuda.cuDeviceGet(ctypes.byref(dev), 0)
+            or cuda.cuDeviceGetPCIBusId(buf, len(buf), dev)):
+        return None
+    return buf.value.decode()
 
 
 def _nvml_query(fn):
