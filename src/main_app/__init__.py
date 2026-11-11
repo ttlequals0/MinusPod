@@ -15,6 +15,9 @@ from utils.session_defaults import _default_session_cookie_secure
 from utils.paths import resolve_data_dir
 # Re-exported: main_app.shutdown_event stays the same object every waiter uses.
 from utils.shutdown import shutdown_event
+# SingleLineFormatter and JSONFormatter stay importable from main_app.
+from utils.log_format import (  # noqa: F401
+    JSONFormatter, QueryStringRedactingFilter, SingleLineFormatter, make_formatter)
 from pathlib import Path
 
 import defusedxml
@@ -33,9 +36,6 @@ import config
 _logging_configured = False
 
 
-_HOSTNAME = os.environ.get('HOSTNAME') or socket.gethostname()
-
-
 class _RequestIDFilter(logging.Filter):
     """Enrich log records with the current Flask request_id, if any."""
 
@@ -49,63 +49,6 @@ class _RequestIDFilter(logging.Filter):
         except Exception:
             pass
         return True
-
-
-class SingleLineFormatter(logging.Formatter):
-    """Text formatter that keeps one record on one line.
-
-    Docker splits a multi-line record into separate lines, and the
-    continuation lines carry no level prefix, so a scraper re-sniffs their
-    level from the text: a logged prompt body whose line reads "CRITICAL:"
-    arrives as a critical entry. The record is copied rather than mutated,
-    since the per-episode run log handler formats the same record and wants
-    the real line breaks. An exc_info traceback is appended by the base
-    formatter and keeps its own.
-    """
-
-    def format(self, record: logging.LogRecord) -> str:
-        # Args are interpolated only when present, so the common no-args
-        # record is not built twice per line at DEBUG volume.
-        message = record.getMessage() if record.args else str(record.msg)
-        if '\n' not in message and '\r' not in message:
-            return super().format(record)
-        flat = copy.copy(record)
-        flat.msg = (message.replace('\r\n', '\\n')
-                    .replace('\n', '\\n').replace('\r', '\\n'))
-        flat.args = ()
-        return super().format(flat)
-
-
-class JSONFormatter(logging.Formatter):
-    """JSON log formatter for structured logging.
-
-    Outputs logs as JSON objects for easier parsing by log aggregators
-    like Loki, Elasticsearch, or CloudWatch. Each line carries hostname
-    and PID to make it easier to correlate across multi-worker
-    deployments; request_id is populated from Flask ``g`` when the
-    log call happens inside an active request context (see
-    :func:`_attach_request_id`).
-    """
-
-    def format(self, record: logging.LogRecord) -> str:
-        log_data = {
-            'timestamp': self.formatTime(record, self.datefmt),
-            'level': record.levelname,
-            'logger': record.name,
-            'message': record.getMessage(),
-            'hostname': _HOSTNAME,
-            'pid': os.getpid(),
-        }
-
-        for attr in ('episode_id', 'slug', 'request_id'):
-            value = getattr(record, attr, None)
-            if value is not None:
-                log_data[attr] = value
-
-        if record.exc_info:
-            log_data['exception'] = self.formatException(record.exc_info)
-
-        return json.dumps(log_data)
 
 
 def setup_logging():
@@ -123,14 +66,7 @@ def setup_logging():
     log_level = os.environ.get('LOG_LEVEL', 'INFO').upper()
     log_format = os.environ.get('LOG_FORMAT', 'text').lower()
 
-    # Create appropriate formatter based on LOG_FORMAT
-    if log_format == 'json':
-        formatter = JSONFormatter(datefmt='%Y-%m-%dT%H:%M:%S')
-    else:
-        formatter = SingleLineFormatter(
-            '[%(asctime)s] [%(levelname)s] [%(name)s] %(message)s',
-            datefmt='%Y-%m-%d %H:%M:%S'
-        )
+    formatter = make_formatter(log_format)
 
     # Console handler only - Docker captures stdout for logging
     console_handler = logging.StreamHandler(sys.stdout)
@@ -139,6 +75,7 @@ def setup_logging():
     # so the JSON formatter's request_id field is always accurate inside
     # request handlers.
     console_handler.addFilter(_RequestIDFilter())
+    console_handler.addFilter(QueryStringRedactingFilter())
 
     # Configure root logger - clear existing handlers first to prevent duplicates
     root = logging.getLogger()

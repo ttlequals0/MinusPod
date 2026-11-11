@@ -14,6 +14,7 @@ import sys
 from gunicorn.glogging import Logger
 
 from utils.http import redact_feed_credentials
+from utils.log_format import make_formatter
 
 _app_port = os.environ.get("MINUSPOD_PORT", "8000")
 _env_bind = os.environ.get("GUNICORN_BIND", "")
@@ -32,6 +33,15 @@ access_log_format = '%(h)s %(l)s %(u)s %(t)s "%(m)s %(U)s %(H)s" %(s)s %(b)s "%(
 
 
 class RedactingLogger(Logger):
+    def setup(self, cfg):
+        super().setup(cfg)
+        # Text mode keeps gunicorn's own formatters; only json needs a level field.
+        if os.environ.get("LOG_FORMAT", "text").lower() == "json":
+            fmt = make_formatter("json")
+            for log in (self.error_log, self.access_log):
+                for handler in log.handlers:
+                    handler.setFormatter(fmt)
+
     def atoms(self, resp, req, environ, request_time):
         values = super().atoms(resp, req, environ, request_time)
         values['U'] = redact_feed_credentials(values.get('U', ''))

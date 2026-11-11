@@ -30,3 +30,35 @@ def test_when_ready_warning(monkeypatch, workers, storage, expect_warn):
     server = MagicMock()
     mod.when_ready(server)
     assert server.log.warning.called is expect_warn
+
+
+def _error_formatters(monkeypatch, log_format):
+    import gunicorn.config
+    from gunicorn.glogging import Logger
+    if log_format is None:
+        monkeypatch.delenv("LOG_FORMAT", raising=False)
+    else:
+        monkeypatch.setenv("LOG_FORMAT", log_format)
+    mod = _load_conf(monkeypatch, 1, None)
+    cfg = gunicorn.config.Config()
+    cfg.set("errorlog", "-")
+    cfg.set("accesslog", "-")
+    rl = mod.RedactingLogger(cfg)
+    assert isinstance(rl, Logger)
+    return ([h.formatter for h in rl.error_log.handlers],
+            [h.formatter for h in rl.access_log.handlers])
+
+
+def test_gunicorn_logs_use_json_formatter_under_json_format(monkeypatch):
+    from utils.log_format import JSONFormatter
+    err, acc = _error_formatters(monkeypatch, "json")
+    assert any(isinstance(f, JSONFormatter) for f in err)
+    assert any(isinstance(f, JSONFormatter) for f in acc)
+
+
+@pytest.mark.parametrize("log_format", ["text", None])
+def test_gunicorn_logs_keep_own_formatter_under_text(monkeypatch, log_format):
+    from utils.log_format import JSONFormatter, SingleLineFormatter
+    err, acc = _error_formatters(monkeypatch, log_format)
+    for f in err + acc:
+        assert not isinstance(f, (JSONFormatter, SingleLineFormatter))
