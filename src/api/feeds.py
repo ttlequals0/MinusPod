@@ -74,7 +74,7 @@ from youtube.feed import source_link as youtube_source_link
 from youtube.settings import enabled as youtube_enabled, validate_yt_int
 from podping_listener import feed_url_domain
 from utils.time import utc_now_iso
-from utils.url import validate_url, SSRFError
+from utils.url import reject_url_whitespace, validate_url, SSRFError
 from utils.validation import is_valid_slug
 
 from slugify import slugify as make_slug
@@ -269,9 +269,10 @@ def _validate_source_url(value, podcast=None):
     if not url:
         return None, 'sourceUrl must be a non-empty string'
     try:
+        reject_url_whitespace(url)
         validate_url(url)
     except SSRFError as e:
-        logger.warning(f"SSRF blocked in update_feed: {e} (url={url})")
+        logger.warning(f"SSRF blocked in update_feed: {e} (url={safe_url_for_log(url)})")
         return None, f'Invalid feed URL: {e}'
     # 15s per attempt so a slow host cannot hang the PATCH toward the worker
     # timeout; the shared retry keeps 403-on-first-fetch hosts working here
@@ -1562,9 +1563,10 @@ def add_feed():
 
     # SSRF protection: validate URL before any outbound request
     try:
+        reject_url_whitespace(source_url)
         validate_url(source_url)
     except SSRFError as e:
-        logger.warning(f"SSRF blocked in add_feed: {e} (url={source_url})")
+        logger.warning(f"SSRF blocked in add_feed: {e} (url={safe_url_for_log(source_url)})")
         return error_response(f'Invalid feed URL: {e}', 400)
 
     # Generate slug from podcast name or use provided slug
@@ -1669,7 +1671,7 @@ def add_feed():
     # Create podcast
     try:
         db.create_podcast(slug, source_url)
-        logger.info(f"Created new feed: {slug} -> {source_url}")
+        logger.info(f"Created new feed: {slug} -> {safe_url_for_log(source_url)}")
         if 'downloadUserAgentOverride' in data:
             db.update_podcast(slug, download_user_agent_override=download_ua_override)
         if 'feedUserAgentOverride' in data:
@@ -1792,9 +1794,10 @@ def import_opml():
 
         # SSRF protection: validate each feed URL
         try:
+            reject_url_whitespace(source_url)
             validate_url(source_url)
         except SSRFError as e:
-            logger.warning(f"SSRF blocked in OPML import: {e} (url={source_url})")
+            logger.warning(f"SSRF blocked in OPML import: {e} (url={safe_url_for_log(source_url)})")
             failed.append({'url': source_url, 'error': f'Invalid URL: {e}'})
             continue
 
@@ -1840,7 +1843,7 @@ def import_opml():
             logger.info(f"OPML import: Created feed {slug}")
         except Exception as e:
             failed.append({'url': source_url, 'error': 'import failed'})
-            logger.error(f"OPML import failed for {source_url}: {e}")
+            logger.error(f"OPML import failed for {safe_url_for_log(source_url)}: {e}")
 
     # Invalidate feed cache
     if imported:

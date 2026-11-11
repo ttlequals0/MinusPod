@@ -418,7 +418,7 @@ class RSSParser:
                 if not _content_type_looks_like_feed(response.headers.get('Content-Type')):
                     logger.warning(
                         "RSS fetch rejected on content-type: url=%s content_type=%r",
-                        url, response.headers.get('Content-Type'),
+                        safe_url_for_log(url), response.headers.get('Content-Type'),
                     )
                     breaker.record_failure(token=probe_token)
                     return None
@@ -555,7 +555,7 @@ class RSSParser:
             if not _content_type_looks_like_feed(response.headers.get('Content-Type')):
                 logger.warning(
                     "RSS conditional fetch rejected on content-type: url=%s content_type=%r",
-                    url, response.headers.get('Content-Type'),
+                    safe_url_for_log(url), response.headers.get('Content-Type'),
                 )
                 response.close()
                 breaker.record_failure(token=probe_token)

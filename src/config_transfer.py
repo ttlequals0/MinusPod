@@ -44,7 +44,7 @@ from secrets_crypto import SECRET_SETTING_KEYS, decrypt, is_available, is_cipher
 from utils.cron import is_valid_expression
 from utils.safe_http import _validate_for_tier
 from utils.secret_writes import SecretWriteRejected, set_or_clear_secret
-from utils.url import SSRFError
+from utils.url import SSRFError, reject_url_whitespace
 from utils.time import utc_now_iso
 from utils.validation import is_dangerous_slug, is_valid_slug
 from utils.feed_guid import compute_feed_guid
@@ -870,6 +870,7 @@ def _validate_import_feed_urls(feeds):
             continue
         source_url = feed['settings'].get('source_url', '')
         try:
+            reject_url_whitespace(source_url)
             _validate_for_tier(source_url, trust)
         except SSRFError as exc:
             raise ConfigTransferError(

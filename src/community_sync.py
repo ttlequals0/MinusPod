@@ -15,7 +15,7 @@ Settings keys (in the `settings` table):
     default every category; see config.resolve_community_sync_categories)
 """
 from __future__ import annotations
-from utils.http import redact_log_text
+from utils.http import redact_log_text, safe_url_for_log
 
 import json
 import logging
@@ -323,7 +323,7 @@ def sync_now(db, manifest_url: str = COMMUNITY_MANIFEST_URL) -> dict[str, Any]:
         db.set_setting('community_sync_last_error', msg)
         if status == 404:
             logger.info(
-                f'community_sync: no manifest at {manifest_url} (404). '
+                f'community_sync: no manifest at {safe_url_for_log(manifest_url, keep_path=True)} (404). '
                 f'Either upstream has not published one yet or sync is '
                 f'pointed at the wrong URL.'
             )

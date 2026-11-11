@@ -383,7 +383,8 @@ paths:
                   format: uri
                   description: >-
                     URL of the source RSS feed. Required unless feedType is
-                    "local".
+                    "local". A URL holding whitespace or a control character
+                    is rejected with 400.
                   example: https://feeds.example.com/podcast.xml
                 slug:
                   type: string
@@ -523,6 +524,7 @@ paths:
       description: |
         Import podcast feeds from an OPML file upload. Accepts .opml or .xml files.
         Automatically generates slugs from feed titles and refreshes the first 5 imported feeds.
+        A feed URL holding whitespace or a control character is listed under failed.
       operationId: importOpml
       requestBody:
         required: true
@@ -850,7 +852,8 @@ paths:
                     and nothing is saved. On success the stored
                     ETag/Last-Modified validators are cleared and an immediate
                     forced refresh runs. Existing episodes are kept (matched
-                    by GUID). Cannot be null or empty.
+                    by GUID). Cannot be null or empty. A URL holding
+                    whitespace or a control character is rejected with 400.
                 networkIdOverride:
                   type:
                     - string

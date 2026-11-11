@@ -6,6 +6,7 @@ Blocks private/reserved IPs, restricted schemes, and cloud metadata endpoints.
 import ipaddress
 import logging
 import socket
+import unicodedata
 from urllib.parse import urlparse, urlsplit
 
 from utils.constants import ALLOWED_URL_SCHEMES, ALLOWED_URL_PORTS
@@ -85,6 +86,12 @@ def resolve_and_check(host: str, port: int, *, allow_private: bool) -> list[tupl
     for _family, _type, _proto, _canonname, sockaddr in infos:
         check_resolved_ip(sockaddr[0], allow_private=allow_private)
     return infos
+
+
+def reject_url_whitespace(url: str) -> None:
+    """Refuse a URL holding whitespace or a control character; requests would repair and use it."""
+    if any(ch.isspace() or unicodedata.category(ch) == 'Cc' for ch in url):
+        raise SSRFError("URL contains whitespace or control characters")
 
 
 def validate_url(url: str) -> str:
