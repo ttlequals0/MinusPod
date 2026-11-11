@@ -178,7 +178,7 @@ def _random_text(rng, pieces):
 
 _PIECES = ['a', 'A', 'f', '0', 'g', '/', '//', '?', ':', '.', '-', '@', ' ', '\n', '"', "'", ')', ']', '>',
            '[', '<', '}', ',', '=', '#', 'https://', 'WSS://', 'u:p@', '?k=v', 'redacted', '<redacted>',
-           '[redacted-feed-key]', 'a' * 64, 'B' * 64, '0123456789abcdef.', 'é', '\ud800']
+           '[redacted-feed-key]', 'a' * 64, 'B' * 64, '0123456789abcdef.', 'é', '\ud800', '%2F', '%3D', 'c']
 
 
 def test_redaction_properties_on_random_text():
@@ -246,7 +246,7 @@ def test_each_pass_handles_only_its_own_shape():
     ("key " + "aB" * 32, "key [redacted-feed-key]"),
     ("sub " + "ABCDEF0123456789." + "c" * 64, "sub [redacted-feed-key]"),
     ("/feed/" + "F" * 64 + ".xml", "/feed/[redacted-feed-key].xml"),
-    ("too long " + "A" * 65, "too long " + "A" * 65),
+    ("too long " + "A" * 65, "too long [redacted-feed-key]"),
 ])
 def test_feed_keys_are_redacted_in_any_case(text, expected):
     assert redact_log_text(text) == expected
@@ -348,6 +348,8 @@ _DOUBLING_SHAPES = {
     'question-eq': lambda n: '?=' * n,
     'slashless-question': lambda n: 'a?' * n,
     'alternating-name-eq': lambda n: '?a=?b=' * n,
+    'percent-escape-hex': lambda n: '%2F' * n,
+    'hex-dot-repeat': lambda n: ('a' * 16 + '.') * n,
 }
 
 
@@ -400,13 +402,15 @@ def test_userinfo_of_a_url_later_in_the_token_is_redacted(text, expected):
 
 
 _PLANTED_KEY = '5eC0' * 16
+_PLANTED_KEY2 = 'd00d' * 16
 _PLANTED = ['SECRETQ1', 'SECRETU2', 'SECRETQ3', 'SECRETQ4', 'SECRETU5', 'SECRETQ6', 'SECRETU7', 'SECRETQ8',
-            'SECRETU9', 'SECRETQ10', 'SECRETQ11', 'SECRETQ12', 'SECRETQ13', _PLANTED_KEY]
+            'SECRETU9', 'SECRETQ10', 'SECRETQ11', 'SECRETQ12', 'SECRETQ13', _PLANTED_KEY, _PLANTED_KEY2]
 _SECRET_PIECES = [
     'https://h/x?k=SECRETQ1', 'https://u:SECRETU2@h/p', '/f?k=SECRETQ3', 'https://h/a"b?k=SECRETQ4',
     '{"a":"https://h/x","b":"https://u:SECRETU5@h2/"}', '"https://h/x?y=SECRETQ6","next":"value"',
     'HTTPS://user:p@SECRETU7@h/p', "/f?k=v'SECRETQ8", 'wss://SECRETU9@h', 'key=' + _PLANTED_KEY + ';',
     'b?c=SECRETQ10', 'word?x=SECRETQ11.', 'x?a=1&b=SECRETQ12', 'GET /f?k=a b?c=SECRETQ13',
+    'p%2F' + _PLANTED_KEY2 + 'e', _PLANTED_KEY + _PLANTED_KEY2,
 ]
 _CORPUS_PIECES = _SECRET_PIECES + [
     'Is this ok? yes', 'path /a/b?', 'path /a/b? done', '/var/log/app.log done', 'File "/app/src/x.py", line 3, in f',
@@ -459,3 +463,30 @@ def test_a_slashless_name_equals_query_is_redacted(text, expected):
     out = redact_log_text(text)
     assert out == expected
     assert 'SECRET' not in out
+
+
+@pytest.mark.parametrize("text,expected", [
+    ('/p%2F' + 'ab' * 32, '/p%[redacted-feed-key]'),
+    ('key%3D' + 'ab' * 32, 'key%[redacted-feed-key]'),
+    ('k ' + 'ab' * 32 + 'c', 'k [redacted-feed-key]'),
+    ('k ' + 'ab' * 64, 'k [redacted-feed-key]'),
+    ('k ' + '0123456789abcdef.' + 'ab' * 40, 'k [redacted-feed-key]'),
+    ('k ' + 'ab' * 31 + 'a', 'k ' + 'ab' * 31 + 'a'),
+])
+def test_any_run_of_64_or_more_hex_is_redacted(text, expected):
+    assert redact_feed_credentials(text) == expected
+    assert redact_log_text(text) == expected
+    assert redact_log_text(expected) == expected
+
+
+def test_redaction_failure_report_names_only_the_exception_type(monkeypatch, capsys):
+    import utils.http as http
+
+    def boom(_):
+        raise RuntimeError("https://h/x?k=SECRET")
+
+    monkeypatch.setattr(http, "_redaction_failure_reported", False)
+    monkeypatch.setattr(http, "scrub_query_strings", boom)
+    assert http.redact_log_text("anything") == "[log text withheld: redaction failed]"
+    err = capsys.readouterr().err
+    assert "RuntimeError" in err and "SECRET" not in err

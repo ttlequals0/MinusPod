@@ -11,9 +11,8 @@ from urllib.parse import urlsplit
 
 from flask import request
 
-_FEED_CREDENTIAL_RE = re.compile(
-    r'(?<![0-9a-fA-F])(?:[0-9a-fA-F]{16}\.)?[0-9a-fA-F]{64}(?![0-9a-fA-F])'
-)
+# Any run of 64 or more hex chars goes, so a key glued to a percent escape or more hex is still caught.
+_FEED_CREDENTIAL_RE = re.compile(r'(?<![0-9a-fA-F])(?:[0-9a-fA-F]{16}\.)?[0-9a-fA-F]{64,}')
 # Each credential shape is its own pass over the whole text, so no pass can hide input from another.
 # Userinfo runs from any "//" to the last "@" before the next "/", "?", "#" or whitespace.
 _USERINFO_RE = re.compile(r'//[^\s/?#]*@')
@@ -72,7 +71,8 @@ def report_redaction_failure(exc: Exception) -> None:
     if not _redaction_failure_reported:
         _redaction_failure_reported = True
         try:
-            print(f"log redaction failed: {type(exc).__name__}: {exc}", file=sys.stderr)
+            # The exception text may hold the very secret being redacted.
+            print(f"log redaction failed: {type(exc).__name__}", file=sys.stderr)
         except Exception:
             pass
 
