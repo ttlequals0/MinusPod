@@ -1,6 +1,7 @@
 """Audio analysis, cue matching, cross-fetch differential and transcript differential."""
 
 import json
+from utils.http import redact_log_text
 import logging
 import shutil
 import tempfile
@@ -237,7 +238,7 @@ def _run_differential_fetch(slug, episode_id, episode_url, audio_path, podcast_i
             # fetch_and_diff traps expected failures itself; this guards the rest.
             audio_logger.warning(f"[{slug}:{episode_id}] Differential fetch failed: {e}")
             result = {'status': 'error', 'regions': [], 'refetch_meta': {},
-                      'error': str(e)}
+                      'error': redact_log_text(str(e))}
         finally:
             shutil.rmtree(work_dir, ignore_errors=True)
         try:
@@ -285,7 +286,7 @@ def _run_transcript_diff(slug, episode_id, episode_row, segments, run_stats, *, 
     host = 'unknown'
 
     def fail(error):
-        payload.update(status='error', error=error, spans=[])
+        payload.update(status='error', error=redact_log_text(error), spans=[])
 
     if url:
         common._publish_status('update_job_stage', slug, episode_id, "pass1:transcript_diff", 21)

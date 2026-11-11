@@ -1,5 +1,6 @@
 """Scheduled review of learned patterns with approval and undo."""
 from __future__ import annotations
+from utils.http import redact_log_text
 
 import fcntl
 import json
@@ -1035,7 +1036,7 @@ def _finish(db, run_id: int, summary: dict, live: LiveRoute | None) -> None:
     except Exception as e:
         logger.warning("pattern_cleanup: run %s status write failed: %s", run_id, e)
         db.clear_leaked_transaction(logger, 'pattern cleanup')
-        summary.update(status='failed', error=f'status write failed: {e}')
+        summary.update(status='failed', error=redact_log_text(f'status write failed: {e}'))
         try:
             db.finish_cleanup_run(run_id, status='failed', reviewed=summary['reviewed'],
                                   suggested=summary['suggested'], skipped=summary['skipped'],
@@ -1093,7 +1094,7 @@ def _execute_run(db, run_id: int, started_at: str, *, force: bool, trigger: str,
             suggestion_keys.update((pattern['id'], kind) for kind in stored)
             counts['skipped'] += int(skipped)
     except Exception as e:
-        status, error = 'failed', str(e) or type(e).__name__
+        status, error = 'failed', redact_log_text(str(e)) or type(e).__name__
         logger.warning("pattern_cleanup: run %s failed: %s", run_id, error)
         db.clear_leaked_transaction(logger, 'pattern cleanup')
 

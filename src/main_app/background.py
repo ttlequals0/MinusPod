@@ -1,5 +1,6 @@
 """Background tasks: background_rss_refresh, background_queue_processor, run_cleanup, reset_stuck."""
 import logging
+from utils.http import redact_log_text
 import math
 import os
 import shutil
@@ -494,7 +495,7 @@ def _run_claimed_episode(queued: dict, running: set) -> ClaimResult:
         # Clear any leaked transaction before the status write so
         # the bookkeeping cannot commit partial work (issue #566).
         db.clear_leaked_transaction(refresh_logger, 'auto-process error path')
-        db.close_claimed_queue_row(queue_id, 'failed', str(e))
+        db.close_claimed_queue_row(queue_id, 'failed', redact_log_text(str(e)))
         refresh_logger.error(f"[{slug}:{episode_id}] Auto-process error: {e}")
         return 'skipped'
 
@@ -618,7 +619,7 @@ def _wait_for_claimed_episode(queue_id: int, slug: str, episode_id: str) -> None
         # Clear any leaked transaction before the status write so
         # the bookkeeping cannot commit partial work (issue #566).
         db.clear_leaked_transaction(refresh_logger, 'auto-process error path')
-        db.close_claimed_queue_row(queue_id, 'failed', str(e))
+        db.close_claimed_queue_row(queue_id, 'failed', redact_log_text(str(e)))
         refresh_logger.error(f"[{slug}:{episode_id}] Auto-process error: {e}")
 
 

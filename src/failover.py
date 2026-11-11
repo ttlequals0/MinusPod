@@ -1,5 +1,6 @@
 """Provider failover state (#806): which targets currently run on their failover config."""
 import json
+from utils.http import redact_log_text
 import hashlib
 import logging
 import os
@@ -636,7 +637,7 @@ def probe_target(target: str, request_config: dict | None = None) -> dict:
         return {'reachable': reachable, 'status': status, 'detail': result.get('detail', '')}
     except Exception as exc:
         logger.debug(f"probe {target} failed: {exc}")
-        return {'reachable': False, 'status': None, 'detail': str(exc)[:200]}
+        return {'reachable': False, 'status': None, 'detail': redact_log_text(str(exc))[:200]}
 
 
 def _probe_state_value(raw: str | None) -> dict:

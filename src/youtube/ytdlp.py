@@ -1,5 +1,6 @@
 """yt-dlp binary lifecycle: baked floor, self-updating data-dir copy, subprocess wrapper."""
 import logging
+from utils.http import redact_log_text
 import os
 import shlex
 import shutil
@@ -314,7 +315,7 @@ def update_tick(db):
     except Exception as exc:
         logger.warning(f"yt-dlp update failed: {exc}")
         try:
-            db.set_setting('youtube_ytdlp_last_error', str(exc)[:500], is_default=False)
+            db.set_setting('youtube_ytdlp_last_error', redact_log_text(str(exc))[:500], is_default=False)
         except Exception:
             logger.warning("could not record yt-dlp error", exc_info=True)
 

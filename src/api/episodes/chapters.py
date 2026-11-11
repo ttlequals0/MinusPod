@@ -1,6 +1,7 @@
 """Chapter regeneration routes and helpers."""
 
 import logging
+from utils.http import redact_log_text
 import re
 import threading
 import time
@@ -107,7 +108,7 @@ def _regenerate_chapters_job(slug, episode_id, stamp):
         _regenerate_chapters(db, get_storage(), slug, episode_id, episode,
                              podcast, podcast_name, stamp)
     except ProviderRateLimitedError as exc:
-        error = truncate(str(exc), 500) or 'Chapter regeneration failed'
+        error = truncate(redact_log_text(str(exc)), 500) or 'Chapter regeneration failed'
         try:
             hold_until = hold_queue_for_provider_limit(
                 db, exc, slug=slug, episode_id=episode_id,
@@ -117,7 +118,7 @@ def _regenerate_chapters_job(slug, episode_id, stamp):
             logger.exception(f"Failed to record the rate-limit hold for {slug}:{episode_id}")
     except Exception as exc:
         logger.exception(f"Failed to regenerate chapters for {slug}:{episode_id}")
-        error = truncate(str(exc), 500) or 'Chapter regeneration failed'
+        error = truncate(redact_log_text(str(exc)), 500) or 'Chapter regeneration failed'
     finally:
         token_totals = get_episode_token_totals()
         try:

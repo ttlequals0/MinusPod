@@ -15,7 +15,7 @@ from config import FAILOVER_API_TARGET_NAMES, HTTP_MAX_REDIRECTS_API, HTTP_TIMEO
 import database
 import database.settings as db_settings
 from utils.episode_paths import episode_ui_url
-from utils.http import safe_url_for_log
+from utils.http import redact_log_text, safe_url_for_log
 from utils.safe_http import URLTrust, safe_post
 from utils.time import format_duration, utc_now_iso, local_now_iso, local_iso
 from utils.url import SSRFError
@@ -467,7 +467,7 @@ def fire_event(event, episode_id, slug, episode_title, processing_time,
         ads_removed=ads_removed,
         ads_held=ads_held,
         ads_not_cut=ads_not_cut,
-        error_message=error_message,
+        error_message=None if error_message is None else redact_log_text(error_message),
         original_duration=original_duration,
         new_duration=new_duration,
         podcast_name=podcast_name,
@@ -485,6 +485,7 @@ _alert_lock = threading.Lock()
 _last_alert_time = {}
 _ALERT_DEDUP_SECS = 300  # 5 minutes
 _ALERT_BURST_SECS = 60   # Cross-key cap when dedup_key is used
+_REDACTED_ALERT_FIELDS = ('error_message', 'reason', 'feed_url')
 
 
 def _fire_alert_event(event, context, log_detail, dedup_key=None, dedup=True):
@@ -517,6 +518,10 @@ def _fire_alert_event(event, context, log_detail, dedup_key=None, dedup=True):
                 if w.get('enabled', False) and event in w.get('events', [])]
 
     context = {'event': event, **context}
+    # Error text and feed URLs leave the process here, so no query or credential may ride along.
+    for field in _REDACTED_ALERT_FIELDS:
+        if isinstance(context.get(field), str):
+            context[field] = redact_log_text(context[field])
 
     def _dispatch():
         # Timezone is a DB read; resolve it here, on the background thread,

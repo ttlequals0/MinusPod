@@ -1023,7 +1023,7 @@ class Transcriber:
         except Exception as e:
             logger.error(f"Transcription failed: {e}")
             self._record_local_stats('failed', batch_size, retry_count, device,
-                                     current_model, error=str(e),
+                                     current_model, error=redact_log_text(str(e)),
                                      backend=whisper_settings['backend'])
             # Clean up GPU memory on ANY failure to prevent memory leaks
             # This is critical for OOM recovery - free memory before retry

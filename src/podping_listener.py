@@ -7,6 +7,7 @@ lazily, inside podping_listener_loop() itself, the same way main_app.background
 resolves its own singletons -- see that module's docstring.
 """
 import json
+from utils.http import redact_log_text
 import logging
 import random
 import re
@@ -518,7 +519,7 @@ class PodpingListener:
                     try:
                         result = future.result()
                     except Exception as exc:
-                        result = (None, 'unreachable', str(exc))
+                        result = (None, 'unreachable', redact_log_text(str(exc)))
                     if node not in self.nodes:
                         continue
                     if result[1] == 'healthy':
@@ -951,7 +952,7 @@ class PodpingListener:
                 outcome = 'invalid_response'
             else:
                 outcome = 'http_error'
-            self._node_failure(f"{method} failed: {exc}", outcome)
+            self._node_failure(redact_log_text(f"{method} failed: {exc}"), outcome)
             return None
         if not isinstance(result, expected_type):
             self._node_failure(

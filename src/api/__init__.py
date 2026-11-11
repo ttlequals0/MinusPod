@@ -16,7 +16,7 @@ from config import normalize_model_key, LOCAL_UPLOAD_MAX_MB_DEFAULT
 from api.auth_state import authentication_required, session_is_authenticated
 from api.csrf import validate as csrf_validate
 from utils.validation import is_dangerous_slug, nullable_bool
-from utils.http import client_ip, redact_feed_credentials
+from utils.http import client_ip, redact_feed_credentials, redact_log_text
 # Import registers the memory-threadsafe scheme before the Limiter resolves it.
 from utils.ratelimit_storage import (
     STORAGE_URI as RATELIMIT_STORAGE_URI,
@@ -372,9 +372,19 @@ def image_response(path, content_type):
     return response
 
 
+def _redacted(value):
+    if isinstance(value, str):
+        return redact_log_text(value)
+    if isinstance(value, dict):
+        return {key: _redacted(item) for key, item in value.items()}
+    return value
+
+
 def error_response(message, status=400, details=None):
     """Create error response. `details` is logged server-side and dropped from
     the client payload for 5xx, so internal state never leaks externally."""
+    # Messages often carry exception text, which can hold a URL query or credential.
+    message, details = _redacted(message), _redacted(details)
     data = {'error': message, 'status': status}
     if details:
         if status >= 500:

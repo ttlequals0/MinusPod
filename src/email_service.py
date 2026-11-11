@@ -12,6 +12,7 @@ embedded via CID (no external image fetch, so it renders with images
 blocked-by-default clients too once allowed).
 """
 import functools
+from utils.http import redact_log_text
 import html
 import json
 import logging
@@ -515,4 +516,4 @@ def send_test_email(db=None):
         return True, f"Test email sent to {len(cfg.recipients)} recipient(s)"
     except Exception as e:
         logger.exception("Test email failed")
-        return False, f"Sending failed: {e}"
+        return False, redact_log_text(f"Sending failed: {e}")

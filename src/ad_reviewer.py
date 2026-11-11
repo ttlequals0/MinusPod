@@ -1,5 +1,6 @@
 """Opt-in LLM ad reviewer."""
 import json
+from utils.http import redact_log_text
 import logging
 import math
 import re
@@ -112,7 +113,7 @@ logger = logging.getLogger(__name__)
 def _review_failure_reason(error: Exception) -> str:
     """Show sanitized quota guidance without exposing raw provider payloads."""
     if isinstance(error, StructuralRateLimitError):
-        return f"Review unavailable: {error}"
+        return redact_log_text(f"Review unavailable: {error}")
     if is_rate_limit_error(error):
         return "Review unavailable: LLM rate limit reached"
     return "Review unavailable: LLM call failed"

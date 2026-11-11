@@ -14,6 +14,7 @@ Settings keys (in the `settings` table):
   - db_backup_last_run, db_backup_last_error, db_backup_last_summary
 """
 from __future__ import annotations
+from utils.http import redact_log_text
 
 import fcntl
 import json
@@ -357,7 +358,7 @@ def backup_now(db) -> dict[str, Any]:
             size_bytes = os.stat(final_name, dir_fd=dest_fd, follow_symlinks=False).st_size
             pruned = _prune_rotated(dest_path, keep, keep_path=dest_path / final_name)
         except Exception as e:
-            db.set_setting('db_backup_last_error', str(e))
+            db.set_setting('db_backup_last_error', redact_log_text(str(e)))
             logger.warning('db_backup: backup failed: %s', e)
             raise
         finally:

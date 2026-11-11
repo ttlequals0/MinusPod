@@ -17,6 +17,7 @@ their public interfaces (no direct SQL beyond the one queue-row delete that
 mirrors ``database.episodes.delete_episode_rows``'s pattern).
 """
 from __future__ import annotations
+from utils.http import redact_log_text
 
 import fcntl
 import hashlib
@@ -896,7 +897,7 @@ def _run_commit(slug: str, plan: dict, db, storage, had_episodes: bool, lock_fh,
             job = _read_job_state(storage, slug) or {}
             if error is not None:
                 job['state'] = 'error'
-                job['report'] = {**report, 'error': str(error)}
+                job['report'] = {**report, 'error': redact_log_text(str(error))}
             else:
                 job['state'] = 'done'
                 job['report'] = report
@@ -1257,7 +1258,7 @@ def _commit_entries(slug: str, plan: dict, db, storage, had_episodes: bool,
                 # same as the ordinary error paths _commit_entry returns, so
                 # every remaining entry still gets a chance to commit.
                 logger.exception(f"[{slug}:{episode_id}] import commit entry crashed")
-                status, result = 'error', str(exc)
+                status, result = 'error', redact_log_text(str(exc))
 
             if status == 'ok':
                 committed_internal.append(result)

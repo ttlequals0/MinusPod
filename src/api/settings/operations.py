@@ -1,6 +1,7 @@
 """Operational settings routes: backup, retention, queue, rate limit hold, audio and more."""
 
 import json
+from utils.http import redact_log_text
 import logging
 import sqlite3
 from flask import request, send_file
@@ -261,7 +262,7 @@ def update_rate_limit_hold_settings():
             try:
                 validate_base_url(usage_url)
             except SSRFError as e:
-                return json_response({'error': f'Invalid LLM usage URL: {e}'}, 400)
+                return json_response({'error': redact_log_text(f'Invalid LLM usage URL: {e}')}, 400)
         db.set_setting('llm_usage_url', usage_url, is_default=False)
     if 'rateLimitProbeMinutes' in data:
         minutes = data['rateLimitProbeMinutes']

@@ -15,6 +15,7 @@ Settings keys (in the `settings` table):
     default every category; see config.resolve_community_sync_categories)
 """
 from __future__ import annotations
+from utils.http import redact_log_text
 
 import json
 import logging
@@ -318,7 +319,7 @@ def sync_now(db, manifest_url: str = COMMUNITY_MANIFEST_URL) -> dict[str, Any]:
         # branch hasn't been merged to main). Treat as a non-issue; log at
         # info-level so the every-15-min tick doesn't spam WARN.
         status = e.response.status_code if e.response is not None else None
-        msg = f'{status} fetching manifest' if status else str(e)
+        msg = f'{status} fetching manifest' if status else redact_log_text(str(e))
         db.set_setting('community_sync_last_error', msg)
         if status == 404:
             logger.info(
@@ -330,7 +331,7 @@ def sync_now(db, manifest_url: str = COMMUNITY_MANIFEST_URL) -> dict[str, Any]:
             logger.warning(f'community_sync: manifest fetch failed: {msg}')
         raise
     except Exception as e:
-        msg = str(e)
+        msg = redact_log_text(str(e))
         db.set_setting('community_sync_last_error', msg)
         logger.warning(f'community_sync: manifest fetch/validate failed: {msg}')
         raise

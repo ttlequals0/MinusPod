@@ -261,7 +261,7 @@ def _refresh_youtube_feed(slug, podcast, force, record_failure) -> RefreshOutcom
                 rebuild_youtube_feed(slug, podcast)
             status_service.complete_feed_refresh(slug, 0)
             _refresh_coalesce.invalidate(slug)
-            return RefreshOutcome(False, 'fetch_failed', error=str(exc))
+            return RefreshOutcome(False, 'fetch_failed', error=redact_log_text(str(exc)))
         inserted, ep_statuses, _ = db.bulk_upsert_discovered_episodes(slug, episodes, return_state=True)
         if inserted > 0:
             refresh_logger.info(f"[{slug}] Discovered {inserted} new video(s)")

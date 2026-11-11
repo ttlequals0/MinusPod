@@ -7,6 +7,7 @@ Package layout:
   external callers (production and tests) imported from the pre-split module
 """
 import logging
+from utils.http import redact_log_text
 import random
 import re
 import threading
@@ -2203,7 +2204,8 @@ class AdDetector:
 
         except Exception as e:
             logger.error(f"[{slug}:{episode_id}] Ad detection failed: {e}")
-            return {"ads": [], "status": "failed", "error": str(e), "retryable": is_retryable_error(e),
+            return {"ads": [], "status": "failed", "error": redact_log_text(str(e)),
+                    "retryable": is_retryable_error(e),
                     "model_not_configured": isinstance(e, ModelNotConfiguredError)}
 
     def _process_keep_content_window(self, *, window_idx, window, total_windows,
@@ -3765,5 +3767,6 @@ class AdDetector:
 
         except Exception as e:
             logger.error(f"[{slug}:{episode_id}] Verification detection failed: {e}")
-            return {"ads": [], "status": "failed", "error": str(e), "retryable": is_retryable_error(e),
+            return {"ads": [], "status": "failed", "error": redact_log_text(str(e)),
+                    "retryable": is_retryable_error(e),
                     "model_not_configured": isinstance(e, ModelNotConfiguredError)}
