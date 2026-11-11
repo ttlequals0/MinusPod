@@ -76,6 +76,12 @@ class FakeDb:
         self.settings[key] = value
         self.setting_writes.append((key, value))
 
+    def replace_setting_if_equal(self, key, expected, value):
+        if self.settings.get(key) == expected:
+            self.set_setting(key, value)
+            return value
+        return self.settings.get(key, '')
+
 
 def _podping_op(auths, payload):
     return {
