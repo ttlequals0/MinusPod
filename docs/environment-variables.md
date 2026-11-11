@@ -50,7 +50,7 @@ Grouped by how often you'll touch them. **Standard** is what a typical deploymen
 | `PODCAST_INDEX_API_KEY` | _(none)_ | PodcastIndex.org API key for podcast search |
 | `PODCAST_INDEX_API_SECRET` | _(none)_ | PodcastIndex.org API secret |
 | `LOG_LEVEL` | `INFO` | `DEBUG`, `INFO`, `WARNING`, or `ERROR` |
-| `LOG_FORMAT` | `text` | `text` or `json`. JSON output works with log aggregators (Loki, CloudWatch). |
+| `LOG_FORMAT` | `text` | `text` or `json`. JSON prints one object per line with a `level` field and also applies to gunicorn's own access and error logs. A log shipper should read that field instead of guessing the level from words in a text line, because any line that contains "error" would be mislabeled. |
 | `DATA_DIR` | `/app/data` | Data storage directory. Aliases `DATA_PATH` and `MINUSPOD_DATA_DIR` are also honored. |
 | `TZ` | `UTC` | Container timezone (e.g. `America/New_York`). When set to a valid IANA zone, seeds the `notification_timezone` setting that computes `timestamp_local` in webhook and email notifications. Override the setting at Settings > Notifications, or `GET/PUT /api/v1/settings/notifications/timezone`, without touching `TZ`. |
 
