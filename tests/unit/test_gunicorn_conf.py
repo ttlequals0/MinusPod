@@ -111,10 +111,52 @@ def test_error_log_redacts_request_path_query(monkeypatch, log_format):
 
 def test_request_path_filter_covers_invalid_request_line():
     import logging
-    from utils.log_format import RequestPathRedactingFilter
+    from utils.log_format import QueryStringRedactingFilter
     rec = logging.LogRecord("gunicorn.error", logging.WARNING, __file__, 1,
                             "Invalid request from ip=1.2.3.4: Invalid HTTP request line: 'GET /f?key=secret123 HTTP/1.1'",
                             (), None)
-    assert RequestPathRedactingFilter().filter(rec) is True
+    assert QueryStringRedactingFilter().filter(rec) is True
     assert "secret123" not in rec.getMessage()
     assert "GET /f?<redacted> HTTP/1.1" in rec.getMessage()
+
+
+def _captured_logger(monkeypatch, log_format, which):
+    import gunicorn.config
+    import io
+    monkeypatch.setenv("LOG_FORMAT", log_format)
+    mod = _load_conf(monkeypatch, 1, None)
+    cfg = gunicorn.config.Config()
+    cfg.set("errorlog", "-")
+    cfg.set("accesslog", "-")
+    rl = mod.RedactingLogger(cfg)
+    stream = io.StringIO()
+    log = getattr(rl, which)
+    for h in log.handlers:
+        if getattr(h, "_gunicorn", False):
+            h.setStream(stream)
+    return log, stream
+
+
+@pytest.mark.parametrize("log_format", ["text", "json"])
+def test_error_log_redacts_message_and_traceback(monkeypatch, log_format):
+    import json
+    import requests
+    log, stream = _captured_logger(monkeypatch, log_format, "error_log")
+    try:
+        raise requests.HTTPError(
+            "403 Client Error: Forbidden for url: https://up.example.com/x?token=secret123")
+    except requests.HTTPError:
+        log.exception("Error handling request %s", "/example-podcast?key=secret456")
+    out = stream.getvalue()
+    assert "secret123" not in out and "secret456" not in out
+    assert "/example-podcast" in out
+    assert "Traceback" in out
+    if log_format == "json":
+        assert json.loads(out.strip().splitlines()[-1])["level"] == "ERROR"
+
+
+def test_text_access_log_redacts_referer_query(monkeypatch):
+    log, stream = _captured_logger(monkeypatch, "text", "access_log")
+    log.info('1.2.3.4 - - [t] "GET /x HTTP/1.1" 200 5 "https://ref.example.com/p?session=secret789" "ua"')
+    assert "secret789" not in stream.getvalue()
+    assert "ref.example.com/p" in stream.getvalue()

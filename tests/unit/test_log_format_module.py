@@ -1,6 +1,9 @@
 import json
 import logging
 
+import pytest
+
+from utils.http import redact_log_text
 from utils.log_format import (
     JSONFormatter, SingleLineFormatter, QueryStringRedactingFilter, make_formatter)
 
@@ -67,3 +70,37 @@ def test_scrubbing_formatter_keeps_newlines_and_scrubs_traceback():
     out = ScrubbingFormatter('%(message)s').format(_exception_record())
     assert 'secret123' not in out
     assert '\n' in out
+
+
+FEED_KEY = "a" * 64
+
+
+@pytest.mark.parametrize("fmt", ["text", "json"])
+def test_app_formatters_redact_bare_path_and_feed_key(fmt):
+    rec = _record(f"GET /example-podcast?key=secret456 feed {FEED_KEY}")
+    out = make_formatter(fmt).format(rec)
+    assert "secret456" not in out
+    assert FEED_KEY not in out
+    assert "[redacted-feed-key]" in out
+    assert "/example-podcast?<redacted>" in out
+
+
+def test_filter_sets_redacted_exc_text_and_traceback_renders_once():
+    rec = _exception_record()
+    assert QueryStringRedactingFilter().filter(rec) is True
+    assert "secret123" not in rec.exc_text
+    out = logging.Formatter("%(message)s").format(rec)
+    assert out.count("Traceback (most recent call last)") == 1
+    assert "secret123" not in out
+
+
+def test_filter_redacts_stack_info():
+    rec = _record("x")
+    rec.stack_info = "frame https://h/x?token=secret123"
+    QueryStringRedactingFilter().filter(rec)
+    assert "secret123" not in rec.stack_info
+
+
+def test_redact_log_text_non_string_and_clean_text():
+    assert redact_log_text(12345) == "12345"
+    assert redact_log_text("nothing to redact here") == "nothing to redact here"

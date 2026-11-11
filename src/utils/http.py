@@ -6,6 +6,7 @@ through ``utils.safe_http`` so the per-redirect SSRF revalidation and
 downgrade guards apply. Only log-oriented helpers remain here.
 """
 import re
+import sys
 from urllib.parse import urlsplit
 
 from flask import request
@@ -14,7 +15,10 @@ _FEED_CREDENTIAL_RE = re.compile(
     r'(?<![0-9a-f])(?:[0-9a-f]{16}\.)?[0-9a-f]{64}(?![0-9a-f])'
 )
 _QUERY_STRING_RE = re.compile(r'(https?://[^\s?]*)\?\S+')
-_PATH_QUERY_RE = re.compile(r'(?<![\w:/.-])(/[^\s?\'"]*)\?[^\s\'"]+')
+# Lazy query stops before closing punctuation that ends the token ("[/f?k=v]", "/f?k=v, then").
+_PATH_QUERY_RE = re.compile(
+    r'(?<![\w:/.-])(/[^\s?\'"]*)\?[^\s\'"]+?(?=[\]),.;]*(?:[\s\'"]|$))')
+_redaction_failure_reported = False
 
 
 def redact_feed_credentials(value: str) -> str:
@@ -29,6 +33,23 @@ def scrub_query_strings(text: str) -> str:
 def scrub_request_paths(text: str) -> str:
     """Replace the query string of a bare request path (/feed?key=x) with ?<redacted>."""
     return _PATH_QUERY_RE.sub(r'\1?<redacted>', str(text))
+
+
+def report_redaction_failure(exc: Exception) -> None:
+    """Write one stderr line per process; logging is off limits inside a log sink."""
+    global _redaction_failure_reported
+    if not _redaction_failure_reported:
+        _redaction_failure_reported = True
+        print(f"log redaction failed: {type(exc).__name__}: {exc}", file=sys.stderr)
+
+
+def redact_log_text(text: str) -> str:
+    """Apply every log redaction in a fixed order; never raises."""
+    try:
+        return redact_feed_credentials(scrub_request_paths(scrub_query_strings(text)))
+    except Exception as exc:
+        report_redaction_failure(exc)
+        return '[log text withheld: redaction failed]'
 
 
 def client_ip():
