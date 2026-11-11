@@ -45,8 +45,9 @@ def _error_formatters(monkeypatch, log_format):
     cfg.set("accesslog", "-")
     rl = mod.RedactingLogger(cfg)
     assert isinstance(rl, Logger)
-    return ([h.formatter for h in rl.error_log.handlers],
-            [h.formatter for h in rl.access_log.handlers])
+    # Only gunicorn's own handlers; pytest attaches capture handlers to the same loggers.
+    return ([h.formatter for h in rl.error_log.handlers if getattr(h, "_gunicorn", False)],
+            [h.formatter for h in rl.access_log.handlers if getattr(h, "_gunicorn", False)])
 
 
 def test_gunicorn_logs_use_json_formatter_under_json_format(monkeypatch):
@@ -56,9 +57,28 @@ def test_gunicorn_logs_use_json_formatter_under_json_format(monkeypatch):
     assert any(isinstance(f, JSONFormatter) for f in acc)
 
 
+def test_gunicorn_access_log_line_is_json_under_json_format(monkeypatch):
+    import gunicorn.config
+    import io
+    import json
+    monkeypatch.setenv("LOG_FORMAT", "json")
+    mod = _load_conf(monkeypatch, 1, None)
+    cfg = gunicorn.config.Config()
+    cfg.set("accesslog", "-")
+    rl = mod.RedactingLogger(cfg)
+    stream = io.StringIO()
+    for h in rl.access_log.handlers:
+        if getattr(h, "_gunicorn", False):
+            h.setStream(stream)
+    rl.access_log.info("GET /health 200")
+    line = json.loads(stream.getvalue().strip().splitlines()[-1])
+    assert "level" in line
+
+
 @pytest.mark.parametrize("log_format", ["text", None])
 def test_gunicorn_logs_keep_own_formatter_under_text(monkeypatch, log_format):
     from utils.log_format import JSONFormatter, SingleLineFormatter
     err, acc = _error_formatters(monkeypatch, log_format)
+    assert err and acc
     for f in err + acc:
         assert not isinstance(f, (JSONFormatter, SingleLineFormatter))
