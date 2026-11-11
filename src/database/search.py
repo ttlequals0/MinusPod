@@ -449,10 +449,12 @@ class SearchMixin:
             if _SHADOW_NAME_RE.fullmatch(r['name'])]
         dropped = 0
         for name in names:
-            conn.execute(f'DROP TABLE IF EXISTS "{name}"')
-            dropped += 1
+            try:
+                self._purge_retired_shadow(name)
+                dropped += 1
+            except Exception as exc:
+                logger.warning("Search index stale-shadow purge failed for %s: %s", name, exc)
         if dropped:
-            conn.commit()
             logger.warning(f"Dropped {dropped} stale search index shadow table(s)")
 
         retired_names = [r['name'] for r in conn.execute(

@@ -64,6 +64,23 @@ INDEX_FULL_REBUILD_INTERVAL_SECONDS = 7 * 24 * 3600
 DOWNLOAD_PRUNE_INTERVAL_SECONDS = 24 * 3600
 # Epoch-second cadence stamps for the cleanup pass.
 _INDEX_STATE = {'last_refresh': 0, 'last_full': 0}
+_FULL_REBUILD_SETTING = 'search_index_last_full_rebuild'
+
+
+def _load_last_full_rebuild(db) -> float:
+    """Epoch seconds of the last full index rebuild, 0.0 when unknown."""
+    try:
+        return float(db.get_system_setting(_FULL_REBUILD_SETTING) or 0.0)
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def _record_full_rebuild(db, when: float) -> None:
+    """Persist the stamp; a failed write only costs one extra rebuild after a restart."""
+    try:
+        db.set_system_setting(_FULL_REBUILD_SETTING, str(when))
+    except Exception as e:
+        refresh_logger.warning(f"Could not store the search index rebuild time: {e}")
 _DOWNLOAD_STATE = {'last_prune': 0}
 _GEO_STATE = {'thread': None}
 _GEO_LOCK = threading.Lock()
@@ -239,6 +256,8 @@ def run_cleanup():
         from processing_queue import ProcessingQueue
         now = time.time()
         overdue_by = now - _INDEX_STATE['last_refresh']
+        if not _INDEX_STATE['last_full']:
+            _INDEX_STATE['last_full'] = _load_last_full_rebuild(db)
         full_due = now - _INDEX_STATE['last_full'] > INDEX_FULL_REBUILD_INTERVAL_SECONDS
         if overdue_by > INDEX_REBUILD_INTERVAL_SECONDS:
             # A whole-corpus rewrite alongside a live run is what produces the
@@ -252,6 +271,7 @@ def run_cleanup():
                     if full_due:
                         db.rebuild_search_index()
                         _INDEX_STATE['last_full'] = now
+                        _record_full_rebuild(db, now)
                     else:
                         db.refresh_search_index()
                     _INDEX_STATE['last_refresh'] = now
