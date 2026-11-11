@@ -1327,6 +1327,7 @@ def test_the_recut_run_stat_is_capped_with_the_history_row():
     """The history row caps the pass-2 share against the recut's own total;
     run_stats reports the same number, from the same source line."""
     src = inspect.getsource(recut._recut_episode)
+    assert '_split_recut_counts(' in src, 'recut.py changed on disk since import'
     split = src.split('_split_recut_counts(')[1]
 
     assert "run_stats['verification_ads_cut'] = verification_count" in split
