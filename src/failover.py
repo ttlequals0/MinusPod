@@ -1,6 +1,5 @@
 """Provider failover state (#806): which targets currently run on their failover config."""
 import json
-from utils.http import redact_log_text
 import hashlib
 import logging
 import os
@@ -23,6 +22,7 @@ from config import (
     WHISPER_DEVICE_DEFAULT, DEFAULT_OPENAI_BASE_URL, coerce_bool_setting, normalize_whisper_device,
     PROVIDER_TYPESAFE, PROVIDER_SYSTEMONE_COMPATIBLE, TYPESAFE_SYSTEMONE_URL,
 )
+from utils.http import redact_log_text
 from utils.time import parse_iso_utc, utc_now_iso
 
 logger = logging.getLogger('podcast.failover')
@@ -166,6 +166,8 @@ def _reset_healthy_streak_in_transaction(conn, target: str) -> None:
 def _apply_transition_in_transaction(conn, target: str, action: str,
                                      source: str, reason: str | None) -> bool:
     setting_key = f'failover_state:{target}'
+    # An automatic reason is exception text, which can carry a signed URL or credentials.
+    reason = redact_log_text(reason or '')[:500]
     if action == 'trigger' and not _configured_in_transaction(conn, target):
         return False
     current = _state_in_transaction(conn, target)
@@ -174,7 +176,7 @@ def _apply_transition_in_transaction(conn, target: str, action: str,
             return False
         value = json.dumps({
             'active': True, 'source': source, 'since': utc_now_iso(),
-            'reason': (reason or '')[:500],
+            'reason': reason,
         })
         database.Database._upsert_setting(conn, setting_key, value, is_default=False)
         _reset_healthy_streak_in_transaction(conn, target)
@@ -189,7 +191,7 @@ def _apply_transition_in_transaction(conn, target: str, action: str,
     )
     conn.execute(
         "INSERT INTO failover_events (target, action, source, reason) VALUES (?, ?, ?, ?)",
-        (target, action, source, (reason or '')[:500]),
+        (target, action, source, reason),
     )
     return True
 
