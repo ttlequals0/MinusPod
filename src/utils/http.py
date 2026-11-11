@@ -12,15 +12,26 @@ from urllib.parse import urlsplit
 from flask import request
 
 _FEED_CREDENTIAL_RE = re.compile(
-    r'(?<![0-9a-f])(?:[0-9a-f]{16}\.)?[0-9a-f]{64}(?![0-9a-f])'
+    r'(?<![0-9a-fA-F])(?:[0-9a-fA-F]{16}\.)?[0-9a-fA-F]{64}(?![0-9a-fA-F])'
 )
-# Both patterns also match without a query so a long token is consumed once, not rescanned per start.
-_QUERY_STRING_RE = re.compile(r'(https?://[^\s?]*)(\?\S+)?')
-_PATH_QUERY_RE = re.compile(r"(?<![\w:/.-])(/[^\s?'\"]*)(\?[^\s'\"]+)?")
-# Closing punctuation that ends a token ("[/f?k=v]", "/f?k=v, then") is kept out of the redacted query.
-_TRAILING_PUNCT = ']),.;'
+# One tokenizer for absolute URLs and bare paths, so a URL is never handled by both passes.
+# A path start after a redacted key is blocked as it was after the raw hex, which keeps redaction idempotent.
+_URL_RE = re.compile(
+    r'(?:(?<![A-Za-z0-9+.-])(?P<scheme>[A-Za-z0-9+.-]+:)|(?<![\w.-])(?<!\[redacted-feed-key\]))'
+    r'(?P<lead>//(?P<userinfo>[^\s/?#"]*@)?|/)'
+    r'(?P<path>[^\s?"]*)(?P<query>\?[^\s"]+)?'
+)
+# Closing punctuation that ends a token ("[/f?k=v]", "'https://h/x?y=1'") is kept out of the redacted query.
+_TRAILING_PUNCT = "'`])}>,.;:!"
+_REDACTED = '<redacted>'
+_LAST_SPACE_RE = re.compile(r'.*\s', re.DOTALL)
+_SPACE_RE = re.compile(r'\s')
 # Real records are tracebacks of a few KB; beyond this only head and tail are kept.
 MAX_REDACT_CHARS = 32768
+# Longer input is cut to its head and tail before redaction so a huge record costs bounded time.
+_MAX_INPUT_CHARS = 1 << 20
+# Room for the elision marker, so output never exceeds MAX_REDACT_CHARS.
+_ELIDE_BUDGET = MAX_REDACT_CHARS - 64
 _redaction_failure_reported = False
 
 
@@ -28,27 +39,38 @@ def redact_feed_credentials(value: str) -> str:
     return _FEED_CREDENTIAL_RE.sub('[redacted-feed-key]', value)
 
 
-def _redact_query(match: re.Match) -> str:
-    return match.group(1) + '?<redacted>' if match.group(2) else match.group(0)
-
-
-def _redact_path_query(match: re.Match) -> str:
-    query = match.group(2)
-    if not query:
-        return match.group(0)
+def _redact_query(query: str) -> str:
     body = query[1:]
+    # An already redacted query is left alone so a second pass is a no-op.
+    if body.startswith(_REDACTED) and not body[len(_REDACTED):].rstrip(_TRAILING_PUNCT):
+        return query
     core = body.rstrip(_TRAILING_PUNCT) or body[:1]
-    return f"{match.group(1)}?<redacted>{body[len(core):]}"
+    return f"?{_REDACTED}{body[len(core):]}"
+
+
+def _scrub_urls(text, absolute: bool) -> str:
+    def replace(match: re.Match) -> str:
+        lead = match.group('lead')
+        if (bool(match.group('scheme')) and lead != '/') != absolute:
+            return match.group(0)
+        userinfo, query = match.group('userinfo'), match.group('query')
+        if not userinfo and not query:
+            return match.group(0)
+        # Userinfo is dropped whole, user name included, as safe_url_for_log does.
+        lead = f"//{_REDACTED}@" if userinfo else lead
+        return (f"{match.group('scheme') or ''}{lead}{match.group('path')}"
+                f"{_redact_query(query) if query else ''}")
+    return _URL_RE.sub(replace, str(text))
 
 
 def scrub_query_strings(text: str) -> str:
-    """Replace the query string of any URL embedded in text with ?<redacted>."""
-    return _QUERY_STRING_RE.sub(_redact_query, str(text))
+    """Redact the query string and userinfo of any absolute URL (any scheme) in text."""
+    return _scrub_urls(text, absolute=True)
 
 
 def scrub_request_paths(text: str) -> str:
-    """Replace the query string of a bare request path (/feed?key=x) with ?<redacted>."""
-    return _PATH_QUERY_RE.sub(_redact_path_query, str(text))
+    """Redact the query string of a bare request path (/feed?key=x) in text."""
+    return _scrub_urls(text, absolute=False)
 
 
 def report_redaction_failure(exc: Exception) -> None:
@@ -62,18 +84,43 @@ def report_redaction_failure(exc: Exception) -> None:
             pass
 
 
+def _redact(text: str) -> str:
+    return redact_feed_credentials(scrub_request_paths(scrub_query_strings(text)))
+
+
+def _head(text: str, limit: int) -> str:
+    """Longest prefix of at most limit chars that ends at the text end or where whitespace follows."""
+    if len(text) <= limit:
+        return text
+    match = _LAST_SPACE_RE.match(text, 0, limit + 1)
+    return text[:match.end() - 1] if match else ''
+
+
+def _tail(text: str, limit: int) -> str:
+    """Longest suffix of at most limit chars that is the whole text or starts with whitespace."""
+    if len(text) <= limit:
+        return text
+    match = _SPACE_RE.search(text, len(text) - limit)
+    return text[match.start():] if match else ''
+
+
 def redact_log_text(text: str) -> str:
-    """Apply every log redaction in a fixed order; never raises."""
+    """Apply every log redaction, then cap the length at whitespace; never raises."""
     try:
         text = str(text)
-        if len(text) > MAX_REDACT_CHARS:
-            half = MAX_REDACT_CHARS // 2
-            # The tail restarts at a token boundary: a query whose path start was elided would not match.
-            tail = text[-half:]
-            first_space = re.search(r'\s', tail)
-            tail = tail[first_space.start():] if first_space else ''
-            text = f"{text[:half]} [{len(text) - half - len(tail)} chars elided] {tail}"
-        return redact_feed_credentials(scrub_request_paths(scrub_query_strings(text)))
+        # Cuts fall on whitespace and no redaction spans whitespace, so each part redacts as in the whole.
+        if len(text) > _MAX_INPUT_CHARS:
+            head_src, tail_src = _head(text, _MAX_INPUT_CHARS // 2), _tail(text, _MAX_INPUT_CHARS // 2)
+            head_text, tail_text = _redact(head_src), _redact(tail_src)
+            total = len(head_text) + len(text) - len(head_src) - len(tail_src) + len(tail_text)
+        else:
+            head_text = tail_text = _redact(text)
+            if len(head_text) <= MAX_REDACT_CHARS:
+                return head_text
+            total = len(head_text)
+        head = _head(head_text, _ELIDE_BUDGET // 2)
+        tail = _tail(tail_text, _ELIDE_BUDGET - _ELIDE_BUDGET // 2)
+        return f"{head} [{total - len(head) - len(tail)} chars elided]{tail}"
     except Exception as exc:
         report_redaction_failure(exc)
         return '[log text withheld: redaction failed]'

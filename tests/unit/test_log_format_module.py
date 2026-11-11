@@ -134,3 +134,28 @@ def test_redact_log_text_survives_a_broken_stderr(monkeypatch):
     monkeypatch.setattr(http, "scrub_query_strings", boom)
     monkeypatch.setattr(sys, "stderr", BrokenStderr())
     assert http.redact_log_text("anything") == "[log text withheld: redaction failed]"
+
+
+def test_filter_redacts_exc_text_without_exc_info():
+    rec = _record("download failed")
+    rec.exc_text = "Traceback (most recent call last):\nRuntimeError: https://u:pw@h/x?token=secret123"
+    QueryStringRedactingFilter().filter(rec)
+    assert rec.exc_text == "Traceback (most recent call last):\nRuntimeError: https://<redacted>@h/x?<redacted>"
+    out = logging.Formatter("%(message)s").format(rec)
+    assert "secret123" not in out and "pw" not in out
+
+
+@pytest.mark.parametrize("fmt", ["text", "json"])
+def test_formatters_never_emit_exc_text_or_stack_info_raw(fmt):
+    rec = _record("x")
+    rec.exc_text = "RuntimeError: https://h/x?token=secret123"
+    rec.stack_info = "Stack (most recent call last):\n  /f?key=secret456"
+    out = make_formatter(fmt).format(rec)
+    assert "secret123" not in out and "secret456" not in out
+
+
+def test_text_formatter_keeps_its_layout():
+    rec = _record("GET HTTPS://u:p@h/x?k=v done")
+    out = make_formatter('text').format(rec)
+    assert out.endswith("] [INFO] [podcast.audio] GET HTTPS://<redacted>@h/x?<redacted> done")
+    assert out.startswith("[")
