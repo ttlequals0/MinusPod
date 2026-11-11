@@ -1,9 +1,11 @@
 """Shared pytest fixtures for podcast server tests."""
+import logging
 import os
 import pkgutil
 import sys
 import tempfile
 import shutil
+import threading
 import pytest
 
 # Add src to path for imports
@@ -11,6 +13,46 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
 
 from database import Database
 from storage import Storage
+
+
+_GUNICORN_LOGGERS = ('gunicorn.error', 'gunicorn.access')
+_pytest_excepthooks = None
+
+
+@pytest.hookimpl(trylast=True)
+def pytest_configure(config):
+    # After pytest's own threading.excepthook is in place, before collection imports the app.
+    global _pytest_excepthooks
+    _pytest_excepthooks = (threading.excepthook, sys.excepthook)
+
+
+def _restore_excepthooks():
+    if _pytest_excepthooks is not None:
+        threading.excepthook, sys.excepthook = _pytest_excepthooks
+
+
+def pytest_collection_finish(session):
+    # Importing main_app routes uncaught exceptions to logging, which hides a thread failure from pytest.
+    _restore_excepthooks()
+
+
+@pytest.fixture(autouse=True)
+def _keep_pytest_excepthooks():
+    yield
+    _restore_excepthooks()
+
+
+@pytest.fixture(autouse=True)
+def _reset_gunicorn_loggers():
+    """pytest attaches its capture handlers to every non-propagating logger, so gunicorn's must not outlive a test."""
+    yield
+    for name in _GUNICORN_LOGGERS:
+        log = logging.Logger.manager.loggerDict.get(name)
+        if isinstance(log, logging.Logger):
+            for handler in [h for h in log.handlers if getattr(h, '_gunicorn', False)]:
+                log.removeHandler(handler)
+            log.propagate = True
+            log.setLevel(logging.NOTSET)
 
 
 def _restore_loaded_app_singletons():
@@ -198,8 +240,10 @@ def mock_episode(temp_db, mock_podcast):
 @pytest.fixture
 def app_client():
     """Flask test client for API integration tests."""
+    hooks = (threading.excepthook, sys.excepthook)
     # Import here to avoid circular imports and allow test isolation
     from main_app import app
+    threading.excepthook, sys.excepthook = hooks
 
     app.config['TESTING'] = True
     app.config['DEBUG'] = False

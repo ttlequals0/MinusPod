@@ -11,7 +11,9 @@ an installed transport is missing from the list.
 import importlib
 import logging
 import os
+import sys
 import tempfile
+import threading
 
 import pytest
 
@@ -38,6 +40,8 @@ def configured_logging(monkeypatch):
     saved_root = logging.getLogger().level
     monkeypatch.setenv('LOG_LEVEL', 'DEBUG')
     monkeypatch.setattr(main_app, '_logging_configured', False)
+    monkeypatch.setattr(threading, 'excepthook', threading.excepthook)
+    monkeypatch.setattr(sys, 'excepthook', sys.excepthook)
     main_app.setup_logging()
     try:
         yield
