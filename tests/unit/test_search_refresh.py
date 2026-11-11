@@ -140,3 +140,14 @@ def test_drop_stale_shadows_removes_the_table_and_survives_a_purge_failure(monke
     conn.commit()
     assert good not in left
     assert bad in left
+
+
+def test_routine_stale_shadow_drop_logs_info_not_warning(caplog):
+    conn = db.get_connection()
+    name = 'search_index_new_3_1'
+    conn.execute(f'CREATE VIRTUAL TABLE "{name}" USING fts5(a)')
+    conn.commit()
+    with caplog.at_level('INFO', logger='database.search'):
+        db._drop_stale_shadows(conn)
+    records = [r for r in caplog.records if 'stale search index shadow' in r.getMessage()]
+    assert [r.levelname for r in records] == ['INFO']

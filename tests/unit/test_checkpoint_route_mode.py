@@ -31,3 +31,10 @@ def test_default_mode_is_passive(client):
 @pytest.mark.parametrize('body', [{'mode': 'bogus'}, {'mode': ['truncate']}, {'mode': 1}])
 def test_bad_mode_is_rejected(client, body):
     assert _post(client, body).status_code == 400
+
+
+@pytest.mark.parametrize('body', [['truncate'], 'truncate'])
+def test_non_object_body_falls_back_to_passive(client, body):
+    resp = _post(client, body)
+    assert resp.status_code in (200, 409)
+    assert resp.get_json()['mode'] == 'passive'

@@ -13,6 +13,8 @@ from utils.text import escape_like
 
 logger = logging.getLogger(__name__)
 
+FULL_REBUILD_SETTING = 'search_index_last_full_rebuild'
+
 # The corpus is already built in the shadow table when the final swap runs, so
 # a swap that loses the write lock retries a few times rather than discarding
 # the whole rebuild. The busy_timeout waits within each attempt.
@@ -295,7 +297,15 @@ class SearchMixin:
 
         count = conn.execute("SELECT COUNT(*) FROM search_index").fetchone()[0]
         logger.info(f"Search index rebuilt with {count} items")
+        self._record_full_rebuild_time()
         return count
+
+    def _record_full_rebuild_time(self) -> None:
+        """Persist when a full rebuild finished; a failed write costs one extra rebuild later."""
+        try:
+            self.set_system_setting(FULL_REBUILD_SETTING, str(time.time()))
+        except Exception as exc:
+            logger.warning("Could not store the search index rebuild time: %s", exc)
 
     def refresh_search_index(self) -> int:
         """Apply the change journal to the live index in short transactions; returns keys applied."""
@@ -455,7 +465,7 @@ class SearchMixin:
             except Exception as exc:
                 logger.warning("Search index stale-shadow purge failed for %s: %s", name, exc)
         if dropped:
-            logger.warning(f"Dropped {dropped} stale search index shadow table(s)")
+            logger.info(f"Dropped {dropped} stale search index shadow table(s)")
 
         retired_names = [r['name'] for r in conn.execute(
             "SELECT name FROM sqlite_master WHERE type = 'table' AND name GLOB ? "

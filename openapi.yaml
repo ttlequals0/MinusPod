@@ -8582,10 +8582,18 @@ paths:
       responses:
         '200':
           description: Checkpoint completed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DatabaseCheckpointResult'
         '400':
           description: The mode is not passive or truncate
         '409':
           description: Active readers prevented the checkpoint from completing
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DatabaseCheckpointResult'
 
   /system/updates:
     get:
@@ -13102,6 +13110,20 @@ components:
         example: 550e8400-e29b-41d4-a716-446655440000
 
   schemas:
+    DatabaseCheckpointResult:
+      type: object
+      properties:
+        mode:
+          type: string
+          enum: [passive, truncate]
+        busy:
+          type: boolean
+        logPages:
+          type: integer
+        checkpointedPages:
+          type: integer
+        durationMs:
+          type: number
     YoutubeCookiesStatus:
       type: object
       properties:

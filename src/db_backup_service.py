@@ -279,11 +279,11 @@ def _log_snapshot_secret_state(db, final, summary) -> None:
 
 
 def backup_in_progress(db) -> bool:
-    """True when another process holds the backup lock; never raises."""
+    """True when a backup holds the exclusive lock; a shared probe never blocks a starting backup."""
     try:
         with open(Path(db.data_dir) / LOCK_FILENAME, 'a') as lock_fd:
             try:
-                fcntl.flock(lock_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                fcntl.flock(lock_fd, fcntl.LOCK_SH | fcntl.LOCK_NB)
             except BlockingIOError:
                 return True
             fcntl.flock(lock_fd, fcntl.LOCK_UN)

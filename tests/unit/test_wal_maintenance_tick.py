@@ -31,6 +31,14 @@ def test_tick_runs_truncate_checkpoint_when_idle(monkeypatch):
     assert calls == ['truncate']
 
 
+def test_successful_truncate_logs_the_page_counts(monkeypatch, caplog):
+    _record(monkeypatch)
+    monkeypatch.setattr(bg, 'backup_in_progress', lambda _db: False)
+    with caplog.at_level('DEBUG', logger='podcast.refresh'):
+        bg._maybe_checkpoint_wal(_registry(0))
+    assert any('log_pages=0' in r.getMessage() for r in caplog.records)
+
+
 def test_tick_skips_checkpoint_when_a_run_is_active(monkeypatch):
     calls = _record(monkeypatch)
     monkeypatch.setattr(bg, 'backup_in_progress', lambda _db: False)
@@ -68,6 +76,13 @@ def test_backup_in_progress_reflects_the_lock(tmp_path):
         fcntl.flock(held, fcntl.LOCK_EX | fcntl.LOCK_NB)
         assert backup_in_progress(fake_db) is True
     assert backup_in_progress(fake_db) is False
+
+
+def test_backup_in_progress_ignores_another_shared_probe(tmp_path):
+    fake_db = types.SimpleNamespace(data_dir=str(tmp_path))
+    with open(tmp_path / LOCK_FILENAME, 'w') as probe:
+        fcntl.flock(probe, fcntl.LOCK_SH | fcntl.LOCK_NB)
+        assert backup_in_progress(fake_db) is False
 
 
 def test_backup_in_progress_is_false_when_the_lock_cannot_be_opened(tmp_path):

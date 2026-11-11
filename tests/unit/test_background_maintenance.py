@@ -258,6 +258,20 @@ class TestGeoLookupThread:
         background._run_maintenance_tick(MagicMock())
         assert started == [1]
 
+    def test_tick_ends_with_the_wal_checkpoint(self, monkeypatch):
+        fake_db = MagicMock()
+        fake_db.reset_orphaned_queue_items.return_value = (0, 0)
+        fake_db.reset_failed_queue_items.return_value = 0
+        monkeypatch.setattr(background, 'db', fake_db)
+        monkeypatch.setattr(background, 'reset_stuck_processing_episodes', lambda: None)
+        monkeypatch.setattr(background, '_run_tick', lambda fn, name: None)
+        monkeypatch.setattr(background, '_start_geo_lookup', lambda: None)
+        seen = []
+        monkeypatch.setattr(background, '_maybe_checkpoint_wal', seen.append)
+        registry = MagicMock()
+        background._run_maintenance_tick(registry)
+        assert seen == [registry]
+
     def test_failure_is_logged_not_raised(self, monkeypatch):
         monkeypatch.setattr(background.geo_lookup, 'run_geo_lookup',
                             lambda db: (_ for _ in ()).throw(RuntimeError('boom')))

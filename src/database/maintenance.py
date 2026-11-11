@@ -14,6 +14,7 @@ logger = logging.getLogger(__name__)
 
 # SQLite caps bound variables per statement, so IN clauses are chunked.
 _SQL_VAR_CHUNK = 500
+_TRUNCATE_BUSY_TIMEOUT_MS = 250
 
 
 def _chunked(items, size: int = _SQL_VAR_CHUNK):
@@ -56,9 +57,18 @@ class MaintenanceMixin:
     def checkpoint_wal(self, mode: str = 'passive') -> dict:
         """Run a WAL checkpoint (passive, or truncate) and return SQLite's result."""
         mode = 'truncate' if mode == 'truncate' else 'passive'
+        conn = self.get_connection()
         started = time.monotonic()
-        busy, log_pages, checkpointed_pages = self.get_connection().execute(
-            f'PRAGMA wal_checkpoint({mode.upper()})').fetchone()
+        if mode == 'truncate':
+            # A blocked truncate must give up fast, not hold writers for the full busy timeout.
+            previous_timeout = conn.execute('PRAGMA busy_timeout').fetchone()[0]
+            conn.execute(f'PRAGMA busy_timeout = {_TRUNCATE_BUSY_TIMEOUT_MS}')
+        try:
+            busy, log_pages, checkpointed_pages = conn.execute(
+                f'PRAGMA wal_checkpoint({mode.upper()})').fetchone()
+        finally:
+            if mode == 'truncate':
+                conn.execute(f'PRAGMA busy_timeout = {previous_timeout}')
         return {
             'mode': mode,
             'busy': bool(busy),

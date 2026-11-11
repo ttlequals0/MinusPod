@@ -22,6 +22,7 @@ from config import (
     resolve_skip_transcription, episode_matches_feed_filters,
 )
 from database.queue import PENDING_QUEUE_LIMIT
+from database.search import FULL_REBUILD_SETTING
 from db_backup_service import backup_in_progress
 from processing_schedule import is_schedule_closed
 from utils.constants import CANCELED_ERROR_MESSAGE, EpisodeStatus
@@ -65,29 +66,20 @@ INDEX_FULL_REBUILD_INTERVAL_SECONDS = 7 * 24 * 3600
 DOWNLOAD_PRUNE_INTERVAL_SECONDS = 24 * 3600
 # Epoch-second cadence stamps for the cleanup pass.
 _INDEX_STATE = {'last_refresh': 0, 'last_full': 0}
-_FULL_REBUILD_SETTING = 'search_index_last_full_rebuild'
-
-
-def _load_last_full_rebuild(db) -> float:
-    """Epoch seconds of the last full index rebuild, 0.0 when unknown."""
-    try:
-        return float(db.get_system_setting(_FULL_REBUILD_SETTING) or 0.0)
-    except (TypeError, ValueError):
-        return 0.0
-
-
-def _record_full_rebuild(db, when: float) -> None:
-    """Persist the stamp; a failed write only costs one extra rebuild after a restart."""
-    try:
-        db.set_system_setting(_FULL_REBUILD_SETTING, str(when))
-    except Exception as e:
-        refresh_logger.warning(f"Could not store the search index rebuild time: {e}")
 _DOWNLOAD_STATE = {'last_prune': 0}
 _GEO_STATE = {'thread': None}
 _GEO_LOCK = threading.Lock()
 # Ceiling on deferring to active runs: an instance that is never idle would
 # otherwise never rebuild at all.
 INDEX_REBUILD_MAX_DEFERRAL_SECONDS = 2 * INDEX_REBUILD_INTERVAL_SECONDS
+
+
+def _load_last_full_rebuild(db) -> float:
+    """Epoch seconds of the last full index rebuild, 0.0 when unknown."""
+    try:
+        return float(db.get_system_setting(FULL_REBUILD_SETTING) or 0.0)
+    except (TypeError, ValueError):
+        return 0.0
 
 
 def _blocked_queue_entries(db, held_pairs: set, legacy_hold: bool = False) -> set:
@@ -272,7 +264,6 @@ def run_cleanup():
                     if full_due:
                         db.rebuild_search_index()
                         _INDEX_STATE['last_full'] = now
-                        _record_full_rebuild(db, now)
                     else:
                         db.refresh_search_index()
                     _INDEX_STATE['last_refresh'] = now
@@ -667,6 +658,10 @@ def _maybe_checkpoint_wal(registry) -> None:
         return
     if result.get('busy'):
         refresh_logger.debug("WAL truncating checkpoint skipped: a reader blocked it")
+    else:
+        refresh_logger.debug(
+            "WAL truncated: log_pages=%s checkpointed_pages=%s duration_ms=%s",
+            result['logPages'], result['checkpointedPages'], result['durationMs'])
 
 
 def _unload_model_if_idle(registry) -> None:
