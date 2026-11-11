@@ -5,6 +5,7 @@ import logging
 import os
 import socket
 import sys
+import threading
 
 from utils.http import redact_log_text, report_redaction_failure
 
@@ -127,6 +128,29 @@ def _redacted_handle_error(self, record: logging.LogRecord) -> None:
 def guard_handler_errors() -> None:
     """Make every handler report its own failures as one redacted line."""
     logging.Handler.handleError = _redacted_handle_error
+
+
+def _log_uncaught_thread(args) -> None:
+    if args.exc_type is SystemExit:
+        return
+    name = args.thread.name if args.thread is not None else 'unknown'
+    logging.getLogger('podcast.uncaught').error(
+        f"Uncaught exception in thread {name}",
+        exc_info=(args.exc_type, args.exc_value, args.exc_traceback))
+
+
+def _log_uncaught(exc_type, exc_value, exc_traceback) -> None:
+    if issubclass(exc_type, KeyboardInterrupt):
+        sys.__excepthook__(exc_type, exc_value, exc_traceback)
+        return
+    logging.getLogger('podcast.uncaught').critical(
+        "Uncaught exception", exc_info=(exc_type, exc_value, exc_traceback))
+
+
+def install_exception_hooks() -> None:
+    """Route uncaught exceptions through logging so the redaction filter sees their text."""
+    threading.excepthook = _log_uncaught_thread
+    sys.excepthook = _log_uncaught
 
 
 def make_formatter(log_format: str | None = None) -> logging.Formatter:

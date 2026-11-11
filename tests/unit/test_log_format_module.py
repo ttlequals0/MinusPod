@@ -2,6 +2,7 @@ import io
 import json
 import logging
 import sys
+import threading
 
 import pytest
 
@@ -274,3 +275,44 @@ def test_a_format_error_in_a_gunicorn_handler_never_prints_the_raw_args(monkeypa
     rl.error_log.warning('fetch %s %s', 'https://h/x?k=SECRET')
     err = capsys.readouterr().err
     assert 'SECRET' not in err and 'Arguments' not in err and 'TypeError' in err
+
+
+def _capture_uncaught(monkeypatch):
+    from utils.log_format import install_exception_hooks
+    monkeypatch.setattr(threading, 'excepthook', threading.excepthook)
+    monkeypatch.setattr(sys, 'excepthook', sys.excepthook)
+    install_exception_hooks()
+    stream = io.StringIO()
+    handler = logging.StreamHandler(stream)
+    handler.setFormatter(make_formatter('text'))
+    handler.addFilter(QueryStringRedactingFilter())
+    log = logging.getLogger('podcast.uncaught')
+    log.addHandler(handler)
+    monkeypatch.setattr(log, 'propagate', False)
+    return stream, lambda: log.removeHandler(handler)
+
+
+def test_an_uncaught_thread_exception_is_logged_redacted(monkeypatch, capsys):
+    stream, done = _capture_uncaught(monkeypatch)
+
+    def boom():
+        raise RuntimeError("403 for url: https://cdn.example.com/x.mp3?token=SECRET")
+
+    worker = threading.Thread(target=boom, name='fetcher')
+    worker.start()
+    worker.join()
+    done()
+    out = stream.getvalue()
+    assert 'SECRET' not in out and 'SECRET' not in capsys.readouterr().err
+    assert 'fetcher' in out and 'RuntimeError' in out and '?<redacted>' in out
+
+
+def test_an_uncaught_main_thread_exception_is_logged_redacted(monkeypatch, capsys):
+    stream, done = _capture_uncaught(monkeypatch)
+    try:
+        raise RuntimeError("https://h/x?token=SECRET")
+    except RuntimeError:
+        sys.excepthook(*sys.exc_info())
+    done()
+    assert 'SECRET' not in stream.getvalue() and 'SECRET' not in capsys.readouterr().err
+    assert '?<redacted>' in stream.getvalue()

@@ -171,3 +171,15 @@ def test_error_log_skips_only_the_query_pass_for_a_marked_record(monkeypatch, lo
     out = stream.getvalue()
     assert "token=SIGNED" in out
     assert "PASS" not in out and key not in out and "PLAIN" not in out
+
+
+def test_post_fork_routes_uncaught_exceptions_through_logging(monkeypatch):
+    import sys
+    import threading
+    from utils import log_format
+    monkeypatch.setattr(threading, "excepthook", threading.__excepthook__)
+    monkeypatch.setattr(sys, "excepthook", sys.__excepthook__)
+    mod = _load_conf(monkeypatch, 1, None)
+    mod.post_fork(MagicMock(), MagicMock())
+    assert threading.excepthook is log_format._log_uncaught_thread
+    assert sys.excepthook is log_format._log_uncaught

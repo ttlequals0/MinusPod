@@ -14,7 +14,8 @@ import sys
 from gunicorn.glogging import Logger
 
 from utils.http import redact_feed_credentials
-from utils.log_format import QueryStringRedactingFilter, guard_handler_errors, make_formatter
+from utils.log_format import (
+    QueryStringRedactingFilter, guard_handler_errors, install_exception_hooks, make_formatter)
 
 _app_port = os.environ.get("MINUSPOD_PORT", "8000")
 _env_bind = os.environ.get("GUNICORN_BIND", "")
@@ -127,6 +128,7 @@ def post_fork(server, worker):
     src_dir = "/app/src"
     if src_dir not in sys.path:
         sys.path.insert(0, src_dir)
+    install_exception_hooks()
     from database import Database
     Database._instance = None
 
