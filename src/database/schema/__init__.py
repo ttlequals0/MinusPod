@@ -9,6 +9,7 @@ import time
 from contextlib import contextmanager
 from pathlib import Path
 
+from utils.http import redact_feed_credentials, redact_url_userinfo, scrub_query_strings
 from utils.text import is_timezone_drift, normalize_title_for_match
 from utils.time import parse_iso_utc, utc_now_iso
 
@@ -17,6 +18,48 @@ logger = logging.getLogger(__name__)
 # Rows read per page by the duplicate-marker collapse, so a large library does
 # not land in memory at once inside the startup schema lock.
 _COLLAPSE_BATCH_ROWS = 500
+
+# Columns that hold stored exception or error text, served back by the API.
+_STORED_ERROR_COLUMNS = (
+    ('episodes', 'error_message'),
+    ('episodes', 'chapters_regen_error'),
+    ('episodes', 'sb_last_error'),
+    ('processing_history', 'error_message'),
+    ('auto_process_queue', 'error_message'),
+    ('podcasts', 'last_refresh_error'),
+    ('pattern_cleanup_runs', 'error'),
+    ('cue_candidate_scans', 'error'),
+    ('cue_threshold_scans', 'error'),
+    ('cue_cross_episode_scans', 'error'),
+    ('cue_window_optimize_scans', 'error'),
+    ('failover_events', 'reason'),
+)
+
+
+def _redact_stored_text(value):
+    """redact_log_text without its length cap, so a long stored value loses only its secrets."""
+    return scrub_query_strings(redact_feed_credentials(redact_url_userinfo(value)))
+
+
+def _redact_json_fields(value, fields, per_entry=False):
+    """Redact the named top-level string fields of a JSON object, or of each entry's object."""
+    try:
+        data = json.loads(value)
+    except (TypeError, ValueError):
+        return value
+    if not isinstance(data, dict):
+        return value
+    targets = [entry for entry in data.values() if isinstance(entry, dict)] if per_entry else [data]
+    changed = False
+    for target in targets:
+        for field in fields:
+            text = target.get(field)
+            if isinstance(text, str):
+                redacted = _redact_stored_text(text)
+                if redacted != text:
+                    target[field] = redacted
+                    changed = True
+    return json.dumps(data) if changed else value
 
 _SEARCH_CHANGE_TRIGGER_NAMES = (
     'search_change_podcasts_insert', 'search_change_podcasts_delete',
@@ -2553,6 +2596,61 @@ class SchemaMixin:
         except Exception as e:
             conn.rollback()
             logger.error(f"sponsorblock terminal next-check clear failed: {e}")
+
+        try:
+            self._run_redact_stored_error_text(conn)
+        except Exception as e:
+            conn.rollback()
+            logger.error(f"stored error text redaction failed: {e}")
+
+    def _redact_column_in_batches(self, conn, table, column, rewrite, where='1', params=()):
+        """Rewrite one column page by page, committing each page; returns the number of rows changed."""
+        if not self._table_exists(conn, table) or column not in self._get_table_columns(conn, table):
+            return 0
+        changed, last = 0, 0
+        while True:
+            rows = conn.execute(
+                f"SELECT rowid AS rid, {column} AS value FROM {table} "  # noqa: S608
+                f"WHERE rowid > ? AND {column} IS NOT NULL AND ({where}) ORDER BY rowid LIMIT ?",
+                (last, *params, _COLLAPSE_BATCH_ROWS)).fetchall()
+            if not rows:
+                return changed
+            last = rows[-1]['rid']
+            updates = []
+            for row in rows:
+                value = row['value']
+                if isinstance(value, str):
+                    redacted = rewrite(value)
+                    if redacted != value:
+                        updates.append((redacted, row['rid']))
+            if updates:
+                conn.executemany(
+                    f"UPDATE {table} SET {column} = ? WHERE rowid = ?", updates)  # noqa: S608
+                conn.commit()
+                changed += len(updates)
+
+    def _run_redact_stored_error_text(self, conn, gate='redact_stored_error_text'):
+        """One-shot: redact URL queries, userinfo and feed keys from error text stored by older builds."""
+        if conn.execute("SELECT 1 FROM schema_migrations WHERE name = ?", (gate,)).fetchone():
+            return
+        # Each page commits on its own; a rerun after a crash finds the done rows already clean.
+        changed = sum(self._redact_column_in_batches(conn, table, column, _redact_stored_text)
+                      for table, column in _STORED_ERROR_COLUMNS)
+        for table in ('settings', 'system_settings'):
+            changed += self._redact_column_in_batches(
+                conn, table, 'value', _redact_stored_text, "key LIKE ? ESCAPE '\\'", ('%\\_last\\_error',))
+        changed += self._redact_column_in_batches(
+            conn, 'settings', 'value', lambda v: _redact_json_fields(v, ('reason',)),
+            "key LIKE ? ESCAPE '\\'", ('failover\\_state:%',))
+        changed += self._redact_column_in_batches(
+            conn, 'settings', 'value', lambda v: _redact_json_fields(v, ('last_failure_reason',), per_entry=True),
+            'key = ?', ('podping_node_health',))
+        for column in ('dai_differential_json', 'upstream_transcript_json'):
+            changed += self._redact_column_in_batches(
+                conn, 'episode_details', column, lambda v: _redact_json_fields(v, ('error',)))
+        conn.execute("INSERT OR IGNORE INTO schema_migrations (name) VALUES (?)", (gate,))
+        conn.commit()
+        logger.info(f"stored-error-redaction: {changed} value(s) redacted")
 
     def _run_sponsorblock_terminal_clear_next_check(self, conn):
         """One-shot: terminal SponsorBlock rows left armed by older builds stop being polled."""
