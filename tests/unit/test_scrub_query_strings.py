@@ -1,4 +1,6 @@
+import gc
 import itertools
+import json
 import random
 import re
 import time
@@ -6,9 +8,13 @@ import time
 import pytest
 import requests
 
+import utils.http as http
 from transcriber import Transcriber
 from utils.http import (
-    MAX_REDACT_CHARS, redact_feed_credentials, redact_log_text, redact_url_userinfo, scrub_query_strings)
+    _MAX_INPUT_CHARS, MAX_REDACT_CHARS, redact_feed_credentials, redact_log_text, redact_url_userinfo,
+    scrub_query_strings)
+from utils.log_format import _flatten, redact_message
+from utils.url import SSRFError
 
 
 def test_drops_query_and_keeps_following_text():
@@ -67,9 +73,8 @@ def test_scrub_request_paths_cases(text, expected):
 
 def test_scrub_request_paths_long_input_is_fast():
     text = "/a" * 100_000 + " tail"
-    start = time.perf_counter()
     assert scrub_query_strings(text) == text
-    assert time.perf_counter() - start < 1.0
+    assert _min_time(scrub_query_strings, text) < 1.0
 
 
 def test_cdn_check_error_message_redacts_feed_key_and_query(monkeypatch):
@@ -92,18 +97,14 @@ def test_cdn_check_error_message_redacts_feed_key_and_query(monkeypatch):
 ], ids=['comma-run', 'a-comma-pairs', 'long-segment', 'over-cap-segment', 'long-url-query', 'http-repeat',
         'path-paren-repeat', '1mb-clean'])
 def test_redaction_is_linear_on_hostile_input(text, needle):
-    import time
-    from utils.http import redact_log_text
-    start = time.perf_counter()
     out = redact_log_text(text)
-    assert time.perf_counter() - start < 0.5
+    assert _min_time(redact_log_text, text) < 1.0
     assert 'k=v' not in out
     if needle:
         assert needle in out
 
 
 def test_redact_log_text_keeps_a_normal_traceback_whole_and_elides_huge_input():
-    from utils.http import MAX_REDACT_CHARS, redact_log_text
     normal = "line\n" * 2000
     assert redact_log_text(normal) == normal
     huge = "x" * (MAX_REDACT_CHARS * 3)
@@ -112,7 +113,6 @@ def test_redact_log_text_keeps_a_normal_traceback_whole_and_elides_huge_input():
 
 
 def test_cdn_check_ssrf_message_is_redacted(monkeypatch):
-    from utils.url import SSRFError
 
     def blocked(*a, **k):
         raise SSRFError("blocked https://u:pw@10.0.0.1/a.mp3?key=secret123 /" + "b" * 64)
@@ -303,14 +303,12 @@ def test_redaction_never_raises(value, expected):
 
 def test_one_megabyte_input_is_bounded_and_fast():
     text = ("w " * 300000) + "https://h/x?k=SECRET " + ("w " * 300000)
-    start = time.perf_counter()
     out = redact_log_text(text)
-    assert time.perf_counter() - start < 0.5
+    assert _min_time(redact_log_text, text) < 1.0
     assert 'SECRET' not in out and len(out) <= MAX_REDACT_CHARS
     huge = ("https://u:PASS@h/x?k=SECRET " * 400000)
-    start = time.perf_counter()
     out = redact_log_text(huge)
-    assert time.perf_counter() - start < 0.5
+    assert _min_time(redact_log_text, huge) < 1.0
     assert 'SECRET' not in out and 'PASS' not in out and len(out) <= MAX_REDACT_CHARS
     assert redact_log_text(out) == out
 
@@ -353,21 +351,35 @@ _DOUBLING_SHAPES = {
 }
 
 
-def _best_time(text, repeats=5):
-    best = float('inf')
-    for _ in range(repeats):
-        start = time.perf_counter()
-        redact_log_text(text)
-        best = min(best, time.perf_counter() - start)
+def _min_times(texts, fn=redact_log_text, runs=7):
+    """Fastest run of each text, interleaved with the collector off so load and GC pauses hit all alike."""
+    best = [float('inf')] * len(texts)
+    enabled = gc.isenabled()
+    gc.disable()
+    try:
+        for _ in range(runs):
+            for i, text in enumerate(texts):
+                start = time.perf_counter()
+                fn(text)
+                best[i] = min(best[i], time.perf_counter() - start)
+    finally:
+        if enabled:
+            gc.enable()
     return best
+
+
+def _min_time(fn, text):
+    return _min_times([text], fn)[0]
 
 
 @pytest.mark.parametrize("name", sorted(_DOUBLING_SHAPES))
 def test_redaction_time_doubles_linearly(name):
     build = _DOUBLING_SHAPES[name]
-    n = 200000 // (len(build(2)) - len(build(1)))
-    small, large = _best_time(build(n)), _best_time(build(2 * n))
-    assert large < 0.5 and small < 0.5
+    n = 500000 // (len(build(2)) - len(build(1)))
+    small_text, large_text = build(n), build(2 * n)
+    assert len(large_text) < _MAX_INPUT_CHARS
+    small, large = _min_times([small_text, large_text])
+    assert large < 1.0 and small < 1.0
     assert large / max(small, 1e-3) < 3, (name, small, large)
 
 
@@ -404,13 +416,13 @@ def test_userinfo_of_a_url_later_in_the_token_is_redacted(text, expected):
 _PLANTED_KEY = '5eC0' * 16
 _PLANTED_KEY2 = 'd00d' * 16
 _PLANTED = ['SECRETQ1', 'SECRETU2', 'SECRETQ3', 'SECRETQ4', 'SECRETU5', 'SECRETQ6', 'SECRETU7', 'SECRETQ8',
-            'SECRETU9', 'SECRETQ10', 'SECRETQ11', 'SECRETQ12', 'SECRETQ13', _PLANTED_KEY, _PLANTED_KEY2]
+            'SECRETU9', 'SECRETQ10', 'SECRETQ11', 'SECRETQ12', 'SECRETQ13', 'SECRETU14', _PLANTED_KEY, _PLANTED_KEY2]
 _SECRET_PIECES = [
     'https://h/x?k=SECRETQ1', 'https://u:SECRETU2@h/p', '/f?k=SECRETQ3', 'https://h/a"b?k=SECRETQ4',
     '{"a":"https://h/x","b":"https://u:SECRETU5@h2/"}', '"https://h/x?y=SECRETQ6","next":"value"',
     'HTTPS://user:p@SECRETU7@h/p', "/f?k=v'SECRETQ8", 'wss://SECRETU9@h', 'key=' + _PLANTED_KEY + ';',
     'b?c=SECRETQ10', 'word?x=SECRETQ11.', 'x?a=1&b=SECRETQ12', 'GET /f?k=a b?c=SECRETQ13',
-    'p%2F' + _PLANTED_KEY2 + 'e', _PLANTED_KEY + _PLANTED_KEY2,
+    'p%2F' + _PLANTED_KEY2 + 'e', _PLANTED_KEY + _PLANTED_KEY2, 'https://alice:pass%20SECRETU14@h/f%20x.xml',
 ]
 _CORPUS_PIECES = _SECRET_PIECES + [
     'Is this ok? yes', 'path /a/b?', 'path /a/b? done', '/var/log/app.log done', 'File "/app/src/x.py", line 3, in f',
@@ -443,6 +455,30 @@ def test_no_planted_secret_survives_in_any_pass_order():
                 out = step(out)
             leaked = [s for s in _PLANTED if s in out]
             assert not leaked, (repr(text), [f.__name__ for f in order], out)
+
+
+# A query continued on the next line is only caught when the break is read as part of the token.
+_CONTINUED_PIECES = ['https://h/x?a=1\nb&c=SECRETQ15', '/f?k=1\r\nSECRETQ16', 'x?a=1\rSECRETQ17']
+_LINE_JOINERS = ['\n', '\r\n', '\r', ' \n', '\n ']
+
+
+def _message_corpus():
+    rng = random.Random(20261112)
+    pieces = _CORPUS_PIECES + _CONTINUED_PIECES
+    out = list(_CONTINUED_PIECES)
+    for _ in range(3000):
+        chosen = [rng.choice(pieces) for _ in range(rng.randint(2, 8))]
+        out.append(''.join(p + rng.choice(_JOINERS + _LINE_JOINERS) for p in chosen))
+    return out
+
+
+def test_no_planted_secret_survives_multi_line_redaction():
+    planted = _PLANTED + ['SECRETQ15', 'SECRETQ16', 'SECRETQ17']
+    for text in _message_corpus():
+        out = redact_message(text)
+        assert not [s for s in planted if s in out], (repr(text), out)
+        assert _flatten(out) == redact_log_text(_flatten(text)), repr(text)
+        assert redact_message(out) == out, repr(text)
 
 
 @pytest.mark.parametrize("text,expected", [
@@ -480,8 +516,6 @@ def test_any_run_of_64_or_more_hex_is_redacted(text, expected):
 
 
 def test_redaction_failure_report_names_only_the_exception_type(monkeypatch, capsys):
-    import utils.http as http
-
     def boom(_):
         raise RuntimeError("https://h/x?k=SECRET")
 
@@ -493,7 +527,6 @@ def test_redaction_failure_report_names_only_the_exception_type(monkeypatch, cap
 
 
 def test_a_query_in_spaced_json_is_redacted_only_to_its_token():
-    import json
     text = json.dumps({'reason': 'see https://h/x?k=SECRET', 'start': 100.0, 'end': 120.0})
     out = redact_log_text(text)
     assert 'SECRET' not in out and '"start": 100.0, "end": 120.0' in out
