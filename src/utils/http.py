@@ -18,11 +18,11 @@ _FEED_CREDENTIAL_RE = re.compile(
 # A path start after a redacted key is blocked as it was after the raw hex, which keeps redaction idempotent.
 _URL_RE = re.compile(
     r'(?:(?<![A-Za-z0-9+.-])(?P<scheme>[A-Za-z0-9+.-]+:)|(?<![\w.-])(?<!\[redacted-feed-key\]))'
-    r'(?P<lead>//(?P<userinfo>[^\s/?#"]*@)?|/)'
-    r'(?P<path>[^\s?"]*)(?P<query>\?[^\s"]+)?'
+    r'(?P<lead>//(?P<userinfo>[^\s/?#]*@)?|/)'
+    r'(?P<path>[^\s?]*)(?P<query>\?\S+)?'
 )
-# Closing punctuation that ends a token ("[/f?k=v]", "'https://h/x?y=1'") is kept out of the redacted query.
-_TRAILING_PUNCT = "'`])}>,.;:!"
+# Only whitespace ends a URL, so a quote cannot hide the rest; a closing run at the token end is kept.
+_TRAILING_PUNCT = "\"'`])}>,.;:!"
 _REDACTED = '<redacted>'
 _LAST_SPACE_RE = re.compile(r'.*\s', re.DOTALL)
 _SPACE_RE = re.compile(r'\s')

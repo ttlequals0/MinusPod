@@ -335,6 +335,9 @@ _DOUBLING_SHAPES = {
     'slash-run': lambda n: '/' * n,
     'double-slash-at': lambda n: '//@' * n,
     'query-marks': lambda n: '/?' * n,
+    'quote-run': lambda n: '"' * n,
+    'path-query-quote-repeat': lambda n: '/f?k="' * n,
+    'url-query-quote-repeat': lambda n: 'https://h/x?"' * n,
 }
 
 
@@ -354,3 +357,21 @@ def test_redaction_time_doubles_linearly(name):
     small, large = _best_time(build(n)), _best_time(build(2 * n))
     assert large < 0.5 and small < 0.5
     assert large / max(small, 1e-3) < 3, (name, small, large)
+
+
+@pytest.mark.parametrize("text,expected", [
+    ('https://h/a"b?k=SECRET', 'https://h/a"b?<redacted>'),
+    ('https://h/x?k=v"SECRET', 'https://h/x?<redacted>'),
+    ('/f?k=v"SECRET', '/f?<redacted>'),
+    ("/f?k=v'SECRET", '/f?<redacted>'),
+    ('/a"b?k=SECRET', '/a"b?<redacted>'),
+    ('{"u": "https://h/x?y=1"}', '{"u": "https://h/x?<redacted>"}'),
+    ("'https://h/x?y=1'", "'https://h/x?<redacted>'"),
+    ('"https://h/x?y=SECRET","next":"value"', '"https://h/x?<redacted>"'),
+    ('https://h/x?k=v")]}SECRET', 'https://h/x?<redacted>'),
+    ('https://u"x:SECRET@h/p', 'https://<redacted>@h/p'),
+])
+def test_an_embedded_quote_does_not_end_the_url(text, expected):
+    out = redact_log_text(text)
+    assert out == expected
+    assert 'SECRET' not in out
