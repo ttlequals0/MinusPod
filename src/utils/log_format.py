@@ -51,6 +51,13 @@ class JSONFormatter(logging.Formatter):
         return json.dumps(log_data)
 
 
+class ScrubbingFormatter(logging.Formatter):
+    """Plain formatter that redacts URL query strings from message and traceback."""
+
+    def format(self, record: logging.LogRecord) -> str:
+        return scrub_query_strings(super().format(record))
+
+
 class QueryStringRedactingFilter(logging.Filter):
     """Redact URL query strings (signed CDN tokens) from the rendered message."""
 

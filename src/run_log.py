@@ -16,6 +16,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 import run_context
+from utils.log_format import ScrubbingFormatter
 
 logger = logging.getLogger('podcast.run_log')
 
@@ -26,7 +27,7 @@ EPISODE_LOG_PREFIX = 'logs/episodes/'
 # A .jsonl.tmp younger than this may belong to a run still writing it.
 TEMP_MIN_AGE_SECONDS = 6 * 3600
 
-_MESSAGE_FORMATTER = logging.Formatter('%(message)s')
+_MESSAGE_FORMATTER = ScrubbingFormatter('%(message)s')
 _TEMP_NAME_UNSAFE = re.compile(r'[^A-Za-z0-9._-]')
 
 

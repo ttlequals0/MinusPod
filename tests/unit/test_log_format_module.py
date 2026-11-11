@@ -60,3 +60,10 @@ def test_json_formatter_scrubs_traceback_and_stays_valid():
     assert 'secret123' not in out
     assert '?<redacted>' in out
     assert json.loads(out)['level'] == 'ERROR'
+
+
+def test_scrubbing_formatter_keeps_newlines_and_scrubs_traceback():
+    from utils.log_format import ScrubbingFormatter
+    out = ScrubbingFormatter('%(message)s').format(_exception_record())
+    assert 'secret123' not in out
+    assert '\n' in out
