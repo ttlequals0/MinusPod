@@ -17,7 +17,6 @@ their public interfaces (no direct SQL beyond the one queue-row delete that
 mirrors ``database.episodes.delete_episode_rows``'s pattern).
 """
 from __future__ import annotations
-from utils.http import redact_log_text
 
 import fcntl
 import hashlib
@@ -37,6 +36,7 @@ from id3_chapters import ChapterTagError
 from storage import _detect_image_mime, _safe_join_under
 from utils.atomic_json import write_json_atomic
 from utils.audio import extract_embedded_artwork, get_audio_duration
+from utils.http import redact_log_text
 from utils.time import utc_now_iso
 from utils.validation import is_dangerous_slug, is_valid_episode_id
 

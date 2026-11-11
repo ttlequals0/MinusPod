@@ -6,12 +6,17 @@ now logged; the query string stays opt-in because a podcast enclosure
 regularly carries a signed CDN token or a per-listener tracking id there, and
 logs outlive both.
 """
+import logging
+
 import pytest
 
 from tests.app_bootstrap import bootstrap
 
 _test_data_dir = bootstrap('download_log_test_')
+import transcriber
+from run_log import _MESSAGE_FORMATTER
 from utils.http import redirect_chain_for_log, safe_url_for_log
+from utils.log_format import QueryStringRedactingFilter, make_formatter
 
 SIGNED = 'https://cdn.example.net/f/234.mp3?token=SECRET123&exp=1788400000'
 
@@ -120,9 +125,6 @@ class _Head:
 @pytest.fixture
 def captured(monkeypatch):
     """Records from the transcriber through each app sink: text, JSON and run log formatters."""
-    import logging
-    from run_log import _MESSAGE_FORMATTER
-    from utils.log_format import QueryStringRedactingFilter, make_formatter
 
     records = []
 
@@ -142,7 +144,6 @@ def captured(monkeypatch):
 
 @pytest.mark.parametrize("opt_in", [True, False])
 def test_availability_check_lines_follow_the_query_opt_in(monkeypatch, captured, opt_in):
-    import transcriber
     monkeypatch.setattr(transcriber, 'log_download_query_enabled', lambda: opt_in)
     monkeypatch.setattr('utils.safe_http.safe_head', lambda *a, **k: _Head())
     assert transcriber.Transcriber().check_audio_availability(_MARKED_URL) == (True, None)
@@ -153,7 +154,6 @@ def test_availability_check_lines_follow_the_query_opt_in(monkeypatch, captured,
 
 @pytest.mark.parametrize("opt_in", [True, False])
 def test_download_lines_follow_the_query_opt_in(monkeypatch, captured, opt_in):
-    import transcriber
     monkeypatch.setattr(transcriber, 'log_download_query_enabled', lambda: opt_in)
 
     def refuse(*a, **k):
@@ -166,8 +166,6 @@ def test_download_lines_follow_the_query_opt_in(monkeypatch, captured, opt_in):
 
 
 def test_an_unmarked_line_with_a_query_stays_redacted_under_the_opt_in(monkeypatch, captured):
-    import logging
-    import transcriber
     monkeypatch.setattr(transcriber, 'log_download_query_enabled', lambda: True)
     logging.getLogger('transcriber').info(f'other {SIGNED}')
     assert not any('SECRET123' in line for line in captured())

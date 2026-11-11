@@ -1,9 +1,20 @@
 """when_ready warns when multi-worker + in-memory rate-limit storage."""
 import importlib.util
+import io
+import json
+import logging
+import sys
+import threading
 from pathlib import Path
 from unittest.mock import MagicMock
 
+import gunicorn.config
 import pytest
+import requests
+from gunicorn.glogging import Logger
+
+from utils import log_format
+from utils.log_format import JSONFormatter, QueryStringRedactingFilter, SingleLineFormatter
 
 
 def _load_conf(monkeypatch, workers, storage):
@@ -33,8 +44,6 @@ def test_when_ready_warning(monkeypatch, workers, storage, expect_warn):
 
 
 def _error_formatters(monkeypatch, log_format):
-    import gunicorn.config
-    from gunicorn.glogging import Logger
     if log_format is None:
         monkeypatch.delenv("LOG_FORMAT", raising=False)
     else:
@@ -51,16 +60,12 @@ def _error_formatters(monkeypatch, log_format):
 
 
 def test_gunicorn_logs_use_json_formatter_under_json_format(monkeypatch):
-    from utils.log_format import JSONFormatter
     err, acc = _error_formatters(monkeypatch, "json")
     assert any(isinstance(f, JSONFormatter) for f in err)
     assert any(isinstance(f, JSONFormatter) for f in acc)
 
 
 def test_gunicorn_access_log_line_is_json_under_json_format(monkeypatch):
-    import gunicorn.config
-    import io
-    import json
     monkeypatch.setenv("LOG_FORMAT", "json")
     mod = _load_conf(monkeypatch, 1, None)
     cfg = gunicorn.config.Config()
@@ -77,7 +82,6 @@ def test_gunicorn_access_log_line_is_json_under_json_format(monkeypatch):
 
 @pytest.mark.parametrize("log_format", ["text", None])
 def test_gunicorn_logs_keep_own_formatter_under_text(monkeypatch, log_format):
-    from utils.log_format import JSONFormatter, SingleLineFormatter
     err, acc = _error_formatters(monkeypatch, log_format)
     assert err and acc
     for f in err + acc:
@@ -86,9 +90,6 @@ def test_gunicorn_logs_keep_own_formatter_under_text(monkeypatch, log_format):
 
 @pytest.mark.parametrize("log_format", ["text", "json"])
 def test_error_log_redacts_request_path_query(monkeypatch, log_format):
-    import gunicorn.config
-    import io
-    import json
     monkeypatch.setenv("LOG_FORMAT", log_format)
     mod = _load_conf(monkeypatch, 1, None)
     cfg = gunicorn.config.Config()
@@ -110,8 +111,6 @@ def test_error_log_redacts_request_path_query(monkeypatch, log_format):
 
 
 def test_request_path_filter_covers_invalid_request_line():
-    import logging
-    from utils.log_format import QueryStringRedactingFilter
     rec = logging.LogRecord("gunicorn.error", logging.WARNING, __file__, 1,
                             "Invalid request from ip=1.2.3.4: Invalid HTTP request line: 'GET /f?key=secret123 HTTP/1.1'",
                             (), None)
@@ -121,8 +120,6 @@ def test_request_path_filter_covers_invalid_request_line():
 
 
 def _captured_logger(monkeypatch, log_format, which):
-    import gunicorn.config
-    import io
     monkeypatch.setenv("LOG_FORMAT", log_format)
     mod = _load_conf(monkeypatch, 1, None)
     cfg = gunicorn.config.Config()
@@ -139,8 +136,6 @@ def _captured_logger(monkeypatch, log_format, which):
 
 @pytest.mark.parametrize("log_format", ["text", "json"])
 def test_error_log_redacts_message_and_traceback(monkeypatch, log_format):
-    import json
-    import requests
     log, stream = _captured_logger(monkeypatch, log_format, "error_log")
     try:
         raise requests.HTTPError(
@@ -174,9 +169,6 @@ def test_error_log_skips_only_the_query_pass_for_a_marked_record(monkeypatch, lo
 
 
 def test_post_fork_routes_uncaught_exceptions_through_logging(monkeypatch):
-    import sys
-    import threading
-    from utils import log_format
     monkeypatch.setattr(threading, "excepthook", threading.__excepthook__)
     monkeypatch.setattr(sys, "excepthook", sys.__excepthook__)
     mod = _load_conf(monkeypatch, 1, None)

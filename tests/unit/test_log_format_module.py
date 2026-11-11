@@ -4,11 +4,16 @@ import logging
 import sys
 import threading
 
+import gunicorn.config
 import pytest
 
+import utils.http as http
+from run_log import _MESSAGE_FORMATTER
+from tests.unit.test_gunicorn_conf import _load_conf
 from utils.http import redact_log_text
 from utils.log_format import (
-    JSONFormatter, SingleLineFormatter, QueryStringRedactingFilter, make_formatter)
+    JSONFormatter, ScrubbingFormatter, SingleLineFormatter, QueryStringRedactingFilter, guard_handler_errors,
+    install_exception_hooks, make_formatter, redact_message)
 
 
 def _record(msg):
@@ -50,7 +55,6 @@ def _exception_record():
         raise RuntimeError(
             "403 Client Error: Forbidden for url: https://cdn.example.com/a.mp3?key=secret123")
     except RuntimeError:
-        import sys
         return logging.LogRecord('x', logging.ERROR, __file__, 1, 'download failed', (),
                                  sys.exc_info())
 
@@ -69,7 +73,6 @@ def test_json_formatter_scrubs_traceback_and_stays_valid():
 
 
 def test_scrubbing_formatter_keeps_newlines_and_scrubs_traceback():
-    from utils.log_format import ScrubbingFormatter
     out = ScrubbingFormatter('%(message)s').format(_exception_record())
     assert 'secret123' not in out
     assert '\n' in out
@@ -120,9 +123,6 @@ def test_filter_redacts_a_raw_cached_exc_text():
 
 
 def test_redact_log_text_survives_a_broken_stderr(monkeypatch):
-    import sys
-    import utils.http as http
-
     class BrokenStderr:
         def write(self, *_):
             raise OSError("closed")
@@ -180,7 +180,6 @@ def test_json_keeps_line_breaks_when_redaction_does_not_cross_them():
 
 
 def test_filter_and_run_log_formatter_redact_a_continued_query():
-    from utils.log_format import ScrubbingFormatter
     rec = _record(_CONTINUED)
     QueryStringRedactingFilter().filter(rec)
     assert 'SECRETNL' not in logging.Formatter('%(message)s').format(rec)
@@ -223,7 +222,6 @@ def test_filter_honors_the_mark_for_query_only():
 
 
 def test_run_log_formatter_honors_the_mark():
-    from run_log import _MESSAGE_FORMATTER
     assert 'token=SIGNED' in _MESSAGE_FORMATTER.format(_marked(_KEPT, True))
     assert 'SIGNED' not in _MESSAGE_FORMATTER.format(_marked(_KEPT, None))
 
@@ -238,7 +236,6 @@ def _raw_handle_error(self, record):
 
 
 def _bad_format_stderr(monkeypatch, capsys, handler):
-    from utils.log_format import guard_handler_errors
     monkeypatch.setattr(logging.Handler, 'handleError', _raw_handle_error)
     monkeypatch.setattr(logging, 'raiseExceptions', True)
     guard_handler_errors()
@@ -262,8 +259,6 @@ def test_a_format_error_never_prints_the_raw_args(monkeypatch, capsys):
 
 
 def test_a_format_error_in_a_gunicorn_handler_never_prints_the_raw_args(monkeypatch, capsys):
-    import gunicorn.config
-    from tests.unit.test_gunicorn_conf import _load_conf
     mod = _load_conf(monkeypatch, 1, None)
     cfg = gunicorn.config.Config()
     cfg.set('errorlog', '-')
@@ -278,7 +273,6 @@ def test_a_format_error_in_a_gunicorn_handler_never_prints_the_raw_args(monkeypa
 
 
 def _capture_uncaught(monkeypatch):
-    from utils.log_format import install_exception_hooks
     monkeypatch.setattr(threading, 'excepthook', threading.excepthook)
     monkeypatch.setattr(sys, 'excepthook', sys.excepthook)
     install_exception_hooks()
@@ -332,7 +326,6 @@ def _logged_record(msg, exc, mark):
 
 
 def _three_formats(rec, with_filter):
-    from run_log import _MESSAGE_FORMATTER
     outs = []
     for fmt in (make_formatter('text'), make_formatter('json'), _MESSAGE_FORMATTER):
         copy_rec = logging.makeLogRecord(rec.__dict__)
@@ -376,19 +369,16 @@ def test_json_traceback_keeps_its_line_breaks():
 
 
 def test_a_redacted_break_is_flattened_and_the_rest_stay_real():
-    from utils.log_format import redact_message
     assert redact_message('one\ntwo https://h/x?a=1\nb&c=S end\nthree') == (
         'one\ntwo https://h/x?<redacted> end\nthree')
 
 
 def test_a_message_holding_the_break_marker_falls_back_to_flattening():
-    from utils.log_format import redact_message
     text = ' https://h/x?a=1\nb&c=S'
     assert redact_message(text) == ' https://h/x?<redacted>'
 
 
 def test_a_bad_format_string_leaves_the_redaction_notice_unused(monkeypatch, capsys):
-    import utils.http as http
     monkeypatch.setattr(http, '_redaction_failure_reported', False)
     rec = logging.LogRecord('x', logging.INFO, __file__, 1, 'fetch %s %s', ('https://h/x?k=SECRET',), None)
     assert QueryStringRedactingFilter().filter(rec) is True

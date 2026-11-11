@@ -7,10 +7,13 @@ import requests
 from tests.app_bootstrap import bootstrap
 
 _test_data_dir = bootstrap('failure_error_redaction_test_')
+import differential_fetcher
+from api import error_response
 from config import MAX_EPISODE_RETRIES
-from main_app import db
+from main_app import app, db
 from main_app.pipeline import failure
 from main_app.pipeline.failure import _handle_processing_failure
+from rate_limit_hold import hold_message
 from utils.errors import ServiceUnavailableError
 
 SLUG = 'failure-redaction-feed'
@@ -67,8 +70,6 @@ def test_deferred_failure_stores_and_sends_redacted_text(episode):
 
 
 def test_api_error_bodies_carry_no_query_or_credential():
-    from api import error_response
-    from main_app import app
     with app.app_context():
         body = error_response('fetch failed: https://u:SECRET@h/x?k=SECRET', 400,
                               details={'reason': '/f?token=SECRET'}).get_json()
@@ -80,13 +81,10 @@ def test_api_error_bodies_carry_no_query_or_credential():
 
 @pytest.mark.parametrize('hold_until', [None, '2026-01-01T00:00:00Z'])
 def test_hold_message_redacts_the_error(hold_until):
-    from rate_limit_hold import hold_message
     _assert_clean(hold_message(hold_until, RuntimeError('429 at https://h/v1?key=SECRET')))
 
 
 def test_differential_refetch_error_is_redacted(monkeypatch, tmp_path):
-    import differential_fetcher
-
     def boom(*a, **k):
         raise requests.ConnectionError('Max retries exceeded with url: /x.mp3?token=SECRET')
     monkeypatch.setattr(differential_fetcher, 'safe_get', boom)

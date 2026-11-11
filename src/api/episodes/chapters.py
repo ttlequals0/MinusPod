@@ -1,7 +1,6 @@
 """Chapter regeneration routes and helpers."""
 
 import logging
-from utils.http import redact_log_text
 import re
 import threading
 import time
@@ -27,6 +26,7 @@ from rate_limit_hold import (
     resolve_hold_scope,
 )
 from utils.constants import EpisodeStatus
+from utils.http import redact_log_text
 from utils.text import truncate
 from api.episodes import common
 

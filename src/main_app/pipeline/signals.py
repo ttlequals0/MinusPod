@@ -1,7 +1,6 @@
 """Audio analysis, cue matching, cross-fetch differential and transcript differential."""
 
 import json
-from utils.http import redact_log_text
 import logging
 import shutil
 import tempfile
@@ -15,6 +14,7 @@ from differential_fetcher import (
     is_likely_dai_feed,
 )
 
+from utils.http import redact_log_text
 from utils.time import (
     parse_iso_utc, utc_now_iso,
 )

@@ -14,7 +14,6 @@ Settings keys (in the `settings` table):
   - db_backup_last_run, db_backup_last_error, db_backup_last_summary
 """
 from __future__ import annotations
-from utils.http import redact_log_text
 
 import fcntl
 import json
@@ -32,6 +31,7 @@ from typing import Any
 from secrets_crypto import count_plaintext_secrets, count_stored_secrets
 from utils.cron import is_due
 from utils.db_backup import snapshot_database
+from utils.http import redact_log_text
 from utils.time import (
     parse_iso_utc as _parse_iso,
     utc_now as _utc_now,

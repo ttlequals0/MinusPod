@@ -15,7 +15,6 @@ Settings keys (in the `settings` table):
     default every category; see config.resolve_community_sync_categories)
 """
 from __future__ import annotations
-from utils.http import redact_log_text, safe_url_for_log
 
 import json
 import logging
@@ -30,6 +29,7 @@ from utils.community_tags import (
     VOCABULARY_VERSION,
 )
 from utils.cron import is_due
+from utils.http import redact_log_text, safe_url_for_log
 from utils.safe_http import (
     ResponseTooLargeError,
     URLTrust,

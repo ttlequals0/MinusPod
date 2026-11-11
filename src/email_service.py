@@ -12,7 +12,6 @@ embedded via CID (no external image fetch, so it renders with images
 blocked-by-default clients too once allowed).
 """
 import functools
-from utils.http import redact_log_text
 import html
 import json
 import logging
@@ -22,6 +21,7 @@ from dataclasses import dataclass
 from email.message import EmailMessage
 from email.utils import make_msgid
 
+from utils.http import redact_log_text
 from utils.paths import LOGO_PATH
 from utils.url import validate_outbound_host
 

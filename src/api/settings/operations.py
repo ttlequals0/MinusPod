@@ -1,7 +1,6 @@
 """Operational settings routes: backup, retention, queue, rate limit hold, audio and more."""
 
 import json
-from utils.http import redact_log_text
 import logging
 import sqlite3
 from flask import request, send_file
@@ -30,6 +29,7 @@ from processing_schedule import (
 )
 from llm_route import VALID_SLOTS, SAME_AS_DETECTION
 from pattern_cleanup import BATCH_SIZE_RANGE, UNUSED_DAYS_RANGE
+from utils.http import redact_log_text
 from utils.url import SSRFError, validate_base_url
 from webhook_service import fire_queue_resumed_event
 from db_backup_service import (

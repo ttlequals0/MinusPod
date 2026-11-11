@@ -7,7 +7,6 @@ lazily, inside podping_listener_loop() itself, the same way main_app.background
 resolves its own singletons -- see that module's docstring.
 """
 import json
-from utils.http import redact_log_text
 import logging
 import random
 import re
@@ -21,6 +20,7 @@ from urllib.parse import urlparse, urlunparse
 import requests
 
 from database.podcasts import has_upstream_audio
+from utils.http import redact_log_text
 from utils.time import ISO_FORMAT, parse_iso_utc, utc_now, utc_now_iso
 
 logger = logging.getLogger('podcast.podping')

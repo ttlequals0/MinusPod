@@ -1,6 +1,5 @@
 """Background tasks: background_rss_refresh, background_queue_processor, run_cleanup, reset_stuck."""
 import logging
-from utils.http import redact_log_text
 import math
 import os
 import shutil
@@ -26,6 +25,7 @@ from database.search import FULL_REBUILD_SETTING
 from db_backup_service import backup_in_progress
 from processing_schedule import is_schedule_closed
 from utils.constants import CANCELED_ERROR_MESSAGE, EpisodeStatus
+from utils.http import redact_log_text
 from utils.time import parse_iso_utc
 from transcriber.settings import active_whisper_settings
 from transcriber.local import unload_whisper_if_idle

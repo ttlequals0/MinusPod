@@ -7,7 +7,6 @@ Package layout:
   external callers (production and tests) imported from the pre-split module
 """
 import logging
-from utils.http import redact_log_text
 import random
 import re
 import threading
@@ -30,6 +29,7 @@ from run_context import route_for_phase, run_in_worker_thread
 from sponsor_context import description_sponsor_re
 from sponsor_normalize import segment_category_for
 from transcript_differential import spans_overlapping
+from utils.http import redact_log_text
 from utils.language import get_pattern_language
 from utils.llm_call import (
     LOSS_CONNECTIVITY, LOSS_SERVER_ERROR, _wait_past_breaker_cooldown,

@@ -1,6 +1,5 @@
 """Opt-in LLM ad reviewer."""
 import json
-from utils.http import redact_log_text
 import logging
 import math
 import re
@@ -59,6 +58,7 @@ from llm_client import (
     is_review_inconclusive_error, ProviderRateLimitedError,
     StructuralRateLimitError,
 )
+from utils.http import redact_log_text
 from utils.llm_call import call_llm, call_llm_for_window, schema_format_for
 from utils.llm_response import extract_json_ads_array, extract_json_object
 from utils.markers import (

@@ -12,6 +12,7 @@ from main_app.pipeline import transcribe
 from main_app.pipeline.transcribe import CDN_BLOCKED_MESSAGE, _download_episode_audio
 from main_app.pipeline.common import is_transient_error
 from main_app.pipeline import signals
+from utils.log_format import QueryStringRedactingFilter, make_formatter
 
 URL = 'https://cdn.example/media.mp3'
 
@@ -78,7 +79,6 @@ def test_feed_override_and_accepted_fallback_are_recorded(monkeypatch, agents):
 
 @pytest.mark.parametrize("opt_in", [True, False])
 def test_pipeline_download_lines_follow_the_query_opt_in(monkeypatch, agents, caplog, opt_in):
-    from utils.log_format import QueryStringRedactingFilter, make_formatter
     monkeypatch.setattr(transcribe, 'log_download_query_enabled', lambda: opt_in)
     fake = FakeTranscriber({'Browser/1': (False, 'CDN refused the request (403)'),
                             'Podcaster/1': (False, 'CDN not ready (404)')})

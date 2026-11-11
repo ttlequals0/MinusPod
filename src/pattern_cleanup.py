@@ -1,6 +1,5 @@
 """Scheduled review of learned patterns with approval and undo."""
 from __future__ import annotations
-from utils.http import redact_log_text
 
 import fcntl
 import json
@@ -34,6 +33,7 @@ from sponsor_service import SponsorService
 from text_pattern_matcher import MIN_TEXT_LENGTH
 from utils.constants import names_the_show, sanitize_sponsor_label
 from utils.cron import is_due, is_valid_expression
+from utils.http import redact_log_text
 from utils.llm_call import call_llm, schema_format_for
 from utils.llm_response import extract_json_object
 from utils.pattern_catalog import invalidate_pattern_catalog_scope
