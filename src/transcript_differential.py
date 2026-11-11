@@ -75,24 +75,32 @@ class UpstreamTranscript:
     mime: str
 
 
-def fetch_upstream_transcript(url: str, mime: str | None,
-                              user_agent: str | None = None) -> UpstreamTranscript | None:
+def fetch_upstream_transcript(url: str, mime: str | None, user_agent: str | None = None, *,
+                              fallback_user_agent: str | None = None) -> UpstreamTranscript | None:
     """Fetch and parse an upstream transcript; None on any failure."""
     if not url:
         return None
     deadline = time.monotonic() + FETCH_DEADLINE_S
     try:
-        response = safe_get(
-            url,
-            trust=URLTrust.FEED_CONTENT,
-            max_redirects=HTTP_MAX_REDIRECTS_FEED,
-            timeout=HTTP_TIMEOUT_API,
-            stream=True,
-            headers={
-                'User-Agent': user_agent or download_user_agent(),
-                'Accept': f'{mime}, */*;q=0.5' if mime else '*/*',
-            },
-        )
+        agents = list(dict.fromkeys(
+            ua for ua in (user_agent or download_user_agent(), fallback_user_agent) if ua))
+        for i, agent in enumerate(agents):
+            response = safe_get(
+                url,
+                trust=URLTrust.FEED_CONTENT,
+                max_redirects=HTTP_MAX_REDIRECTS_FEED,
+                timeout=HTTP_TIMEOUT_API,
+                stream=True,
+                headers={
+                    'User-Agent': agent,
+                    'Accept': f'{mime}, */*;q=0.5' if mime else '*/*',
+                },
+            )
+            # Some hosts refuse the download UA but accept the feed UA.
+            if response.status_code == 403 and i < len(agents) - 1:
+                response.close()
+                continue
+            break
         try:
             response.raise_for_status()
             body = read_response_capped(response, MAX_UPSTREAM_TRANSCRIPT_BYTES,

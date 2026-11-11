@@ -245,6 +245,21 @@ class TestFetch:
         assert seen['trust'] == td.URLTrust.FEED_CONTENT
         assert 'User-Agent' in seen['headers']
 
+    def test_403_retries_with_feed_ua(self, monkeypatch):
+        seen = []
+
+        def _get(url, **kwargs):
+            ua = kwargs['headers']['User-Agent']
+            seen.append(ua)
+            return _response(_fixture('sample.vtt'), status=403 if ua == 'Settled/1' else 200)
+        monkeypatch.setattr('transcript_differential.safe_get', _get)
+
+        t = fetch_upstream_transcript(URL, 'text/vtt', user_agent='Settled/1',
+                                      fallback_user_agent='Feed/2')
+
+        assert t is not None and len(t.cues) == 3
+        assert seen == ['Settled/1', 'Feed/2']
+
     def test_falls_back_to_response_content_type(self, monkeypatch):
         monkeypatch.setattr('transcript_differential.safe_get', lambda *a, **k: _response(
             _fixture('sample.json'), content_type='application/json; charset=utf-8'))

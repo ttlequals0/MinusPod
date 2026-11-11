@@ -603,6 +603,7 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
         if not detection_off:
             transcript_diff = signals._run_transcript_diff(
                 slug, episode_id, episode_data, segments, run_stats, podcast=podcast_settings,
+                download_outcome=transcribe_outcome,
                 segments_reused=transcribe_outcome.get('segments_reused', False))
             if transcript_diff['status'] == 'ok':
                 transcript_spans = transcript_diff['spans']
@@ -1169,7 +1170,8 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                                   podcast_row=podcast_settings,
                                   original_duration=original_duration,
                                   run_stats=run_stats,
-                                  markers=all_ads_with_validation)
+                                  markers=all_ads_with_validation,
+                                  download_outcome=transcribe_outcome)
             # Retain the source only after chapter assets validate.
             keep_original = db.resolve_keep_original_audio(
                 slug, podcast_settings)

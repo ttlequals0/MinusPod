@@ -227,3 +227,11 @@ def test_invalid_feed_override_warns_once_until_the_value_changes(caplog):
         assert user_agent.feed_user_agent(podcast) == APP_USER_AGENT
         warnings = [r for r in caplog.records if 'show-a' in r.message]
         assert len(warnings) == 1
+
+
+def test_settled_prefers_fallback_then_download_then_default(monkeypatch):
+    monkeypatch.setattr(user_agent, 'download_user_agent', lambda podcast=None: 'Default/1.0')
+    assert user_agent.settled_download_user_agent(
+        {'download_user_agent': 'D/1', 'fallback_user_agent': 'F/1'}) == 'F/1'
+    assert user_agent.settled_download_user_agent({'download_user_agent': 'D/1'}) == 'D/1'
+    assert user_agent.settled_download_user_agent(None) == 'Default/1.0'

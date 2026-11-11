@@ -172,3 +172,30 @@ def test_explicit_feed_user_agent_is_sent(monkeypatch):
     monkeypatch.setattr('upstream_chapters.safe_get', fetch)
     assert fetch_upstream_chapters('https://example.com/chapters.json', user_agent='Feed/2.0') == []
     assert seen == ['Feed/2.0']
+
+
+def _response_status(body: bytes, status: int):
+    r = _response(body)
+    r.status_code = status
+    return r
+
+
+def test_403_on_settled_ua_retries_with_feed_ua(monkeypatch):
+    seen = []
+
+    def fetch(*a, **k):
+        ua = k['headers']['User-Agent']
+        seen.append(ua)
+        return _response_status(b'{"chapters": []}', 403 if ua == 'Settled/1' else 200)
+    monkeypatch.setattr('upstream_chapters.safe_get', fetch)
+    out = fetch_upstream_chapters('https://feed.example.com/ch.json',
+                                  user_agent='Settled/1', fallback_user_agent='Feed/2')
+    assert out == []
+    assert seen == ['Settled/1', 'Feed/2']
+
+
+def test_403_on_both_user_agents_returns_none(monkeypatch):
+    monkeypatch.setattr('upstream_chapters.safe_get',
+                        lambda *a, **k: _response_status(b'{}', 403))
+    assert fetch_upstream_chapters('https://feed.example.com/ch.json',
+                                   user_agent='Settled/1', fallback_user_agent='Feed/2') is None

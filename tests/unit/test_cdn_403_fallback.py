@@ -33,7 +33,6 @@ class FakeTranscriber:
 def agents(monkeypatch):
     monkeypatch.setattr(transcribe, 'download_user_agent', lambda podcast=None: (podcast or {}).get('download_user_agent_override') or 'Browser/1')
     monkeypatch.setattr(signals, 'download_user_agent', lambda podcast=None: (podcast or {}).get('download_user_agent_override') or 'Browser/1')
-    monkeypatch.setattr(publish, 'download_user_agent', lambda podcast=None: (podcast or {}).get('download_user_agent_override') or 'Browser/1')
     monkeypatch.setattr(transcribe, 'feed_user_agent', lambda podcast=None: 'Podcaster/1')
 
 

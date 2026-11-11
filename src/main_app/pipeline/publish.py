@@ -45,7 +45,7 @@ from rate_limit_hold import (
     hold_queue_for_provider_limit,
 )
 
-from user_agent import download_user_agent
+from user_agent import feed_user_agent, settled_download_user_agent
 from utils.constants import EpisodeStatus
 
 from main_app.pipeline import common
@@ -439,7 +439,8 @@ def _generate_assets(slug, episode_id, segments, all_cuts, episode_description,
                       podcast_name, episode_title, regenerate_chapters=True,
                       audio_path=None, audio_duration=None,
                       previous_cuts=None, original_duration=None,
-                      podcast_row=None, run_stats=None, markers=None):
+                      podcast_row=None, run_stats=None, markers=None,
+                      download_outcome=None):
     """Pipeline stage: Generate VTT transcript and chapters.
 
     regenerate_chapters=False skips the chapter step, whose topic-boundary
@@ -577,7 +578,10 @@ def _generate_assets(slug, episode_id, segments, all_cuts, episode_description,
                         episode_row = db.get_episode(slug, episode_id)
                         upstream_url = (episode_row or {}).get('upstream_chapters_url')
                         if upstream_url:
-                            fetched = fetch_upstream_chapters(upstream_url, user_agent=download_user_agent(podcast_row))
+                            fetched = fetch_upstream_chapters(
+                                upstream_url,
+                                user_agent=settled_download_user_agent(download_outcome, podcast_row),
+                                fallback_user_agent=feed_user_agent(podcast_row))
                             if fetched is not None:
                                 remapped = _remap_chapters_for_recut(
                                     fetched, [], all_cuts or [], replacement_duration,

@@ -28,7 +28,7 @@ from config import (
 from database.podcasts import has_upstream_audio, is_youtube_feed
 from transcript_differential import align, fetch_upstream_transcript
 from splice_calibration import compute_splice_calibration
-from user_agent import download_user_agent
+from user_agent import download_user_agent, feed_user_agent, settled_download_user_agent
 
 from main_app.pipeline import common
 from main_app.pipeline.shared import (db, audio_analyzer)
@@ -273,7 +273,7 @@ def _reusable_transcript_diff(stored, url):
 
 
 def _run_transcript_diff(slug, episode_id, episode_row, segments, run_stats, *, podcast=None,
-                         segments_reused=False):
+                         download_outcome=None, segments_reused=False):
     """Diff the publisher transcript; reuse results only when transcript segments were reused."""
     url = (episode_row or {}).get('upstream_transcript_url')
     payload = {'status': 'none', 'source_url': url, 'mime': None, 'timed': None,
@@ -305,7 +305,8 @@ def _run_transcript_diff(slug, episode_id, episode_row, segments, run_stats, *, 
                     try:
                         transcript = fetch_upstream_transcript(
                             url, episode_row.get('upstream_transcript_type'),
-                            user_agent=download_user_agent(podcast))
+                            user_agent=settled_download_user_agent(download_outcome, podcast),
+                            fallback_user_agent=feed_user_agent(podcast))
                         if transcript is None:
                             fail('fetch or parse failed')
                         else:

@@ -87,6 +87,13 @@ def download_user_agent(podcast=None) -> str:
     return _resolve_override(podcast, "download_user_agent_override", DOWNLOAD_UA_SETTING)
 
 
+def settled_download_user_agent(outcome: dict | None, podcast=None) -> str:
+    """UA the audio download settled on, else the configured download UA."""
+    outcome = outcome or {}
+    return (outcome.get('fallback_user_agent') or outcome.get('download_user_agent')
+            or download_user_agent(podcast))
+
+
 def feed_user_agent(podcast=None) -> str:
     """UA for RSS and feed-validation requests. Resolves a feed override, otherwise the global feed UA."""
     return _resolve_override(podcast, "feed_user_agent_override", FEED_UA_SETTING)

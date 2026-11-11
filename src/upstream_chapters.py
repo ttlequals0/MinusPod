@@ -32,7 +32,8 @@ def chapters_document(chapters: list) -> dict:
                          for i, ch in enumerate(chapters)]}
 
 
-def fetch_upstream_chapters(url: str, user_agent: str | None = None) -> list[dict] | None:
+def fetch_upstream_chapters(url: str, user_agent: str | None = None, *,
+                            fallback_user_agent: str | None = None) -> list[dict] | None:
     """Fetch and parse a podcast:chapters JSON file.
 
     Returns None for ANY failure: network error, size-cap trip, JSON parse
@@ -54,17 +55,25 @@ def fetch_upstream_chapters(url: str, user_agent: str | None = None) -> list[dic
     if not url:
         return None
     try:
-        response = safe_get(
-            url,
-            trust=URLTrust.FEED_CONTENT,
-            max_redirects=HTTP_MAX_REDIRECTS_FEED,
-            timeout=HTTP_TIMEOUT_API,
-            stream=True,
-            headers={
-                'User-Agent': user_agent or download_user_agent(),
-                'Accept': 'application/json',
-            },
-        )
+        agents = list(dict.fromkeys(
+            ua for ua in (user_agent or download_user_agent(), fallback_user_agent) if ua))
+        for i, agent in enumerate(agents):
+            response = safe_get(
+                url,
+                trust=URLTrust.FEED_CONTENT,
+                max_redirects=HTTP_MAX_REDIRECTS_FEED,
+                timeout=HTTP_TIMEOUT_API,
+                stream=True,
+                headers={
+                    'User-Agent': agent,
+                    'Accept': 'application/json',
+                },
+            )
+            # Some hosts refuse the download UA but accept the feed UA.
+            if response.status_code == 403 and i < len(agents) - 1:
+                response.close()
+                continue
+            break
         try:
             response.raise_for_status()
             body = read_response_capped(response, MAX_UPSTREAM_CHAPTERS_BYTES)
