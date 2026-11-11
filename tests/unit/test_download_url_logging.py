@@ -105,3 +105,69 @@ class TestRedirectChainForLog:
 def test_query_logging_is_off_by_default():
     from config import resolve_env_backed_default
     assert resolve_env_backed_default('log_download_query') == 'false'
+
+
+_KEY = 'ab' * 32
+_MARKED_URL = f'https://u:PASS@cdn.example.net/{_KEY}/234.mp3?token=SECRET123'
+
+
+class _Head:
+    status_code = 200
+    history = [_Hop(302, SIGNED)]
+    url = SIGNED
+
+
+@pytest.fixture
+def captured(monkeypatch):
+    """Records from the transcriber through each app sink: text, JSON and run log formatters."""
+    import logging
+    from run_log import _MESSAGE_FORMATTER
+    from utils.log_format import QueryStringRedactingFilter, make_formatter
+
+    records = []
+
+    class _Keep(logging.Handler):
+        def emit(self, record):
+            records.append(record)
+
+    handler = _Keep()
+    handler.addFilter(QueryStringRedactingFilter())
+    log = logging.getLogger('transcriber')
+    monkeypatch.setattr(log, 'level', logging.INFO)
+    log.addHandler(handler)
+    yield lambda: [f.format(r) for r in records
+                   for f in (make_formatter('text'), make_formatter('json'), _MESSAGE_FORMATTER)]
+    log.removeHandler(handler)
+
+
+@pytest.mark.parametrize("opt_in", [True, False])
+def test_availability_check_lines_follow_the_query_opt_in(monkeypatch, captured, opt_in):
+    import transcriber
+    monkeypatch.setattr(transcriber, 'log_download_query_enabled', lambda: opt_in)
+    monkeypatch.setattr('utils.safe_http.safe_head', lambda *a, **k: _Head())
+    assert transcriber.Transcriber().check_audio_availability(_MARKED_URL) == (True, None)
+    out = '\n'.join(captured())
+    assert ('token=SECRET123' in out) is opt_in
+    assert 'PASS' not in out and _KEY not in out
+
+
+@pytest.mark.parametrize("opt_in", [True, False])
+def test_download_lines_follow_the_query_opt_in(monkeypatch, captured, opt_in):
+    import transcriber
+    monkeypatch.setattr(transcriber, 'log_download_query_enabled', lambda: opt_in)
+
+    def refuse(*a, **k):
+        raise transcriber.SSRFError('blocked')
+    monkeypatch.setattr(transcriber, 'safe_get', refuse)
+    assert transcriber.Transcriber().download_audio(_MARKED_URL) is None
+    out = '\n'.join(captured())
+    assert ('token=SECRET123' in out) is opt_in
+    assert 'PASS' not in out and _KEY not in out
+
+
+def test_an_unmarked_line_with_a_query_stays_redacted_under_the_opt_in(monkeypatch, captured):
+    import logging
+    import transcriber
+    monkeypatch.setattr(transcriber, 'log_download_query_enabled', lambda: True)
+    logging.getLogger('transcriber').info(f'other {SIGNED}')
+    assert not any('SECRET123' in line for line in captured())

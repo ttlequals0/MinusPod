@@ -15,6 +15,7 @@ from utils.episode_paths import published_episode_version
 from utils.errors import AudioNotReadyError
 
 from utils.http import safe_url_for_log
+from utils.log_format import KEEP_URL_QUERY
 from utils.language import get_feed_language_override
 from utils.text import parse_transcript_segments
 
@@ -101,8 +102,9 @@ def _download_episode_audio(episode_url, podcast=None, outcome=None):
     """Check CDN availability and download the enclosure. Returns the temp
     audio path; raises on either failure."""
     with common._measure_run_stage('download'):
-        url_for_log = safe_url_for_log(
-            episode_url, keep_path=True, keep_query=log_download_query_enabled())
+        keep_query = log_download_query_enabled()
+        url_for_log = safe_url_for_log(episode_url, keep_path=True, keep_query=keep_query)
+        mark = {KEEP_URL_QUERY: keep_query}
         user_agent = download_user_agent(podcast)
         if outcome is not None:
             outcome['download_user_agent'] = user_agent
@@ -120,7 +122,7 @@ def _download_episode_audio(episode_url, podcast=None, outcome=None):
                     f"Host at {url_for_log} refuses the download User-Agent "
                     f"'{user_agent}' but accepts the feed User-Agent "
                     f"'{alternate}'. Downloading with the feed string. Update the "
-                    f"download User-Agent in {setting_location}.")
+                    f"download User-Agent in {setting_location}.", extra=mark)
                 available, cdn_error, user_agent = True, None, alternate
                 if outcome is not None:
                     outcome['fallback_user_agent'] = alternate
@@ -129,7 +131,7 @@ def _download_episode_audio(episode_url, podcast=None, outcome=None):
         if not available:
             # Without the host the failure is unattributable: the download log
             # line below never runs on this path.
-            audio_logger.warning(f"Audio unavailable at {url_for_log}: {cdn_error}")
+            audio_logger.warning(f"Audio unavailable at {url_for_log}: {cdn_error}", extra=mark)
             raise AudioNotReadyError(cdn_error)
         audio_path = transcriber.download_audio(episode_url, user_agent=user_agent)
         if not audio_path:

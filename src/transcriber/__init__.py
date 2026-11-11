@@ -25,6 +25,7 @@ from utils.time import format_vtt_timestamp
 from utils.gpu import clear_gpu_memory, get_gpu_device_name
 from utils.url import SSRFError
 from utils.http import redact_log_text, redirect_chain_for_log, safe_url_for_log
+from utils.log_format import KEEP_URL_QUERY
 from utils.safe_http import (
     URLTrust, safe_get, stream_to_file_capped,
     ResponseTooLargeError,
@@ -634,10 +635,11 @@ class Transcriber:
             return False, redact_log_text(f"CDN check failed: {e}")
 
         keep_query = log_download_query_enabled()
+        mark = {KEEP_URL_QUERY: keep_query}
         logger.info("Checking audio availability: "
-                    f"{safe_url_for_log(url, keep_path=True, keep_query=keep_query)}")
+                    f"{safe_url_for_log(url, keep_path=True, keep_query=keep_query)}", extra=mark)
         for line in redirect_chain_for_log(response, keep_query=keep_query):
-            logger.info(line)
+            logger.info(line, extra=mark)
 
         if response.status_code == 200:
             return True, None
@@ -666,9 +668,10 @@ class Transcriber:
                 contract.
         """
         keep_query = log_download_query_enabled()
+        mark = {KEEP_URL_QUERY: keep_query}
         try:
             logger.info("Downloading audio from: "
-                        f"{safe_url_for_log(url, keep_path=True, keep_query=keep_query)}")
+                        f"{safe_url_for_log(url, keep_path=True, keep_query=keep_query)}", extra=mark)
             headers = {
                 'User-Agent': user_agent or download_user_agent(),
                 'Accept': '*/*',
@@ -683,7 +686,7 @@ class Transcriber:
                 headers=headers,
             )
             for line in redirect_chain_for_log(response, keep_query=keep_query):
-                logger.info(line)
+                logger.info(line, extra=mark)
             response.raise_for_status()
         except SSRFError as e:
             logger.warning(f"SSRF blocked in download_audio: {e}")
