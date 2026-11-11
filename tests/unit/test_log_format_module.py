@@ -374,8 +374,8 @@ def test_a_redacted_break_is_flattened_and_the_rest_stay_real():
 
 
 def test_a_message_holding_the_break_marker_falls_back_to_flattening():
-    text = ' https://h/x?a=1\nb&c=S'
-    assert redact_message(text) == ' https://h/x?<redacted>'
+    text = '\ue000 https://h/x?a=1\nb&c=S'
+    assert redact_message(text) == '\ue000 https://h/x?<redacted>'
 
 
 def test_a_bad_format_string_leaves_the_redaction_notice_unused(monkeypatch, capsys):
