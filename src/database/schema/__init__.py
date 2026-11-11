@@ -1415,6 +1415,8 @@ class SchemaMixin:
             'CREATE INDEX IF NOT EXISTS idx_episodes_podcast_status ON episodes(podcast_id, status)',
             # Published date for sorting recent episodes
             'CREATE INDEX IF NOT EXISTS idx_episodes_published ON episodes(published_at DESC)',
+            # Recents feed: status filter plus publish-date order
+            'CREATE INDEX IF NOT EXISTS idx_episodes_status_published ON episodes(status, published_at DESC)',
             # Pattern corrections queries
             'CREATE INDEX IF NOT EXISTS idx_corrections_episode ON pattern_corrections(episode_id)',
             'CREATE INDEX IF NOT EXISTS idx_corrections_type ON pattern_corrections(correction_type)',
