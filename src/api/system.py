@@ -281,11 +281,16 @@ def check_podping_nodes():
 @limiter.limit("6 per hour")
 @log_request
 def checkpoint_database():
-    """Run a passive WAL checkpoint."""
-    result = get_database().checkpoint_wal()
+    """Run a passive or truncating WAL checkpoint."""
+    body = request.get_json(silent=True)
+    mode = body.get('mode', 'passive') if isinstance(body, dict) else 'passive'
+    if mode not in ('passive', 'truncate'):
+        return error_response('mode must be passive or truncate', 400)
+    result = get_database().checkpoint_wal(mode=mode)
     logger.info(
-        "SQLite checkpoint: busy=%s log_pages=%s checkpointed_pages=%s duration_ms=%s",
-        result['busy'], result['logPages'], result['checkpointedPages'], result['durationMs'])
+        "SQLite %s checkpoint: busy=%s log_pages=%s checkpointed_pages=%s duration_ms=%s",
+        result['mode'], result['busy'], result['logPages'],
+        result['checkpointedPages'], result['durationMs'])
     return json_response(result, 409 if result['busy'] else 200)
 
 

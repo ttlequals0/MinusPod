@@ -277,6 +277,20 @@ def _log_snapshot_secret_state(db, final, summary) -> None:
         )
 
 
+def backup_in_progress(db) -> bool:
+    """True when another process holds the backup lock; never raises."""
+    try:
+        with open(Path(db.data_dir) / LOCK_FILENAME, 'a') as lock_fd:
+            try:
+                fcntl.flock(lock_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except BlockingIOError:
+                return True
+            fcntl.flock(lock_fd, fcntl.LOCK_UN)
+    except OSError:
+        return False
+    return False
+
+
 def backup_now(db) -> dict[str, Any]:
     """Run a backup now regardless of schedule. Returns a summary dict.
 

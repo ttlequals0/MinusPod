@@ -53,12 +53,14 @@ class MaintenanceMixin:
             'instrumentation': sqlite_metrics_snapshot(),
         }
 
-    def checkpoint_wal(self) -> dict:
-        """Run a passive WAL checkpoint and return SQLite's result."""
+    def checkpoint_wal(self, mode: str = 'passive') -> dict:
+        """Run a WAL checkpoint (passive, or truncate) and return SQLite's result."""
+        mode = 'truncate' if mode == 'truncate' else 'passive'
         started = time.monotonic()
         busy, log_pages, checkpointed_pages = self.get_connection().execute(
-            'PRAGMA wal_checkpoint(PASSIVE)').fetchone()
+            f'PRAGMA wal_checkpoint({mode.upper()})').fetchone()
         return {
+            'mode': mode,
             'busy': bool(busy),
             'logPages': log_pages,
             'checkpointedPages': checkpointed_pages,

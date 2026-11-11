@@ -39,6 +39,7 @@ SLOW_SQLITE_SECONDS = 5.0
 # How long a writer waits for the lock. 30s left almost no margin: ordinary
 # feed-refresh writes were observed holding it 28.4s under contention.
 BUSY_TIMEOUT_MS = 60000
+WAL_SIZE_LIMIT_BYTES = 64 * 1024 * 1024
 _sqlite_metrics_lock = threading.Lock()
 _sqlite_metrics = {
     'slowStatements': 0,
@@ -575,6 +576,8 @@ class Database(SchemaMixin, PodcastMixin, EpisodeMixin, SettingsMixin,
             try:
                 self._local.connection.execute("PRAGMA synchronous = NORMAL")
                 self._local.connection.execute("PRAGMA wal_autocheckpoint = 1000")
+                # Lets a truncating checkpoint shrink a WAL that once grew large.
+                self._local.connection.execute(f"PRAGMA journal_size_limit = {WAL_SIZE_LIMIT_BYTES}")
             except sqlite3.OperationalError:
                 pass
         return self._local.connection

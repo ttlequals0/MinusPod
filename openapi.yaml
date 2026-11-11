@@ -8560,11 +8560,27 @@ paths:
     post:
       tags:
         - System
-      summary: Run a passive SQLite WAL checkpoint
+      summary: Run a SQLite WAL checkpoint (passive or truncate)
+      description: >-
+        Runs a passive checkpoint by default. Mode truncate also resets the
+        write-ahead log file to zero length when no reader blocks it.
       operationId: checkpointDatabase
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                mode:
+                  type: string
+                  enum: [passive, truncate]
+                  default: passive
       responses:
         '200':
           description: Checkpoint completed
+        '400':
+          description: The mode is not passive or truncate
         '409':
           description: Active readers prevented the checkpoint from completing
 

@@ -21,6 +21,7 @@ from config import (
     resolve_skip_transcription, episode_matches_feed_filters,
 )
 from database.queue import PENDING_QUEUE_LIMIT
+from db_backup_service import backup_in_progress
 from processing_schedule import is_schedule_closed
 from utils.constants import CANCELED_ERROR_MESSAGE, EpisodeStatus
 from utils.time import parse_iso_utc
@@ -630,6 +631,21 @@ def _run_maintenance_tick(registry):
     db.clear_completed_queue_items(older_than_hours=24)
 
     _start_geo_lookup()
+
+    _maybe_checkpoint_wal(registry)
+
+
+def _maybe_checkpoint_wal(registry) -> None:
+    """Truncate the WAL while idle; a reader in the way means try again next tick."""
+    if registry.slot_count() != 0 or backup_in_progress(db):
+        return
+    try:
+        result = db.checkpoint_wal(mode='truncate')
+    except Exception as e:
+        refresh_logger.warning(f"WAL truncating checkpoint failed: {e}")
+        return
+    if result.get('busy'):
+        refresh_logger.debug("WAL truncating checkpoint skipped: a reader blocked it")
 
 
 def _unload_model_if_idle(registry) -> None:
