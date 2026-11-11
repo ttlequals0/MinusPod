@@ -782,3 +782,45 @@ def test_secret_count_failure_does_not_break_the_backup(db, caplog, monkeypatch)
         summary = backup_now(db)
     assert summary['mode'] == 'overwrite'
     assert not [r for r in caplog.records if r.levelname == 'WARNING']
+
+
+# ---------------------------------------------------------------------------
+# lock probe versus a starting backup
+# ---------------------------------------------------------------------------
+
+def test_backup_starts_when_a_shared_probe_is_released_during_the_retry(db, tmp_path, monkeypatch):
+    import db_backup_service
+    db.set_setting('db_backup_dest', str(tmp_path / 'backups'))
+    probe = open(db.data_dir / LOCK_FILENAME, 'a')
+    fcntl.flock(probe, fcntl.LOCK_SH | fcntl.LOCK_NB)
+
+    def release(_seconds):
+        fcntl.flock(probe, fcntl.LOCK_UN)
+
+    monkeypatch.setattr(db_backup_service, '_lock_retry_sleep', release)
+    try:
+        backup_now(db)
+    finally:
+        probe.close()
+    assert db.get_setting('db_backup_last_run') is not None
+
+
+def test_exclusive_holder_still_refuses_after_the_retries(db, tmp_path, monkeypatch):
+    import db_backup_service
+    db.set_setting('db_backup_dest', str(tmp_path / 'backups'))
+    slept = []
+    monkeypatch.setattr(db_backup_service, '_lock_retry_sleep', slept.append)
+    with open(db.data_dir / LOCK_FILENAME, 'w') as held:
+        fcntl.flock(held, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        with pytest.raises(BackupInProgressError):
+            backup_now(db)
+    assert slept and sum(slept) <= 0.3
+
+
+def test_probe_sees_only_an_exclusive_holder(db):
+    from db_backup_service import backup_in_progress
+    assert backup_in_progress(db) is False
+    with open(db.data_dir / LOCK_FILENAME, 'w') as held:
+        fcntl.flock(held, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        assert backup_in_progress(db) is True
+    assert backup_in_progress(db) is False

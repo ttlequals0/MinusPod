@@ -1,6 +1,8 @@
 import sqlite3
 import time
 
+import pytest
+
 from database import BUSY_TIMEOUT_MS, Database
 
 
@@ -95,3 +97,45 @@ def test_truncate_checkpoint_gives_up_quickly_when_a_reader_blocks_it(tmp_path):
     assert result['busy'] is True
     assert elapsed < 5
     assert conn.execute('PRAGMA busy_timeout').fetchone()[0] == BUSY_TIMEOUT_MS
+
+
+class _FlakyConn:
+    """Wraps a connection; the nth busy_timeout statement fails."""
+
+    def __init__(self, real, fail_on, checkpoint_error=None):
+        self.real, self.fail_on, self.checkpoint_error = real, fail_on, checkpoint_error
+        self.timeout_calls = 0
+
+    def execute(self, sql, *args):
+        if sql.startswith('PRAGMA busy_timeout'):
+            self.timeout_calls += 1
+            if self.timeout_calls == self.fail_on:
+                raise sqlite3.OperationalError('pragma failed')
+        if 'wal_checkpoint' in sql and self.checkpoint_error:
+            raise self.checkpoint_error
+        return self.real.execute(sql, *args)
+
+
+def test_failed_timeout_restore_does_not_mask_the_checkpoint_result(tmp_path, monkeypatch):
+    db = Database(tmp_path)
+    flaky = _FlakyConn(db.get_connection(), fail_on=3)
+    monkeypatch.setattr(db, 'get_connection', lambda: flaky)
+    assert db.checkpoint_wal(mode='truncate')['mode'] == 'truncate'
+
+
+def test_failed_restore_does_not_mask_the_checkpoint_error(tmp_path, monkeypatch):
+    db = Database(tmp_path)
+    boom = sqlite3.OperationalError('checkpoint failed')
+    flaky = _FlakyConn(db.get_connection(), fail_on=3, checkpoint_error=boom)
+    monkeypatch.setattr(db, 'get_connection', lambda: flaky)
+    with pytest.raises(sqlite3.OperationalError, match='checkpoint failed'):
+        db.checkpoint_wal(mode='truncate')
+
+
+def test_failed_timeout_read_raises_without_lowering_the_timeout(tmp_path, monkeypatch):
+    db = Database(tmp_path)
+    flaky = _FlakyConn(db.get_connection(), fail_on=1)
+    monkeypatch.setattr(db, 'get_connection', lambda: flaky)
+    with pytest.raises(sqlite3.OperationalError, match='pragma failed'):
+        db.checkpoint_wal(mode='truncate')
+    assert flaky.timeout_calls == 1

@@ -108,6 +108,7 @@ class TestSearchIndexRebuildBackoff:
         db.get_all_podcasts.return_value = []
         db.rebuild_search_index.side_effect = rebuild
         db.refresh_search_index.side_effect = refresh
+        db.get_system_setting.return_value = str(full_last) if full_last else None
         monkeypatch.setattr(background, 'db', db)
         monkeypatch.setattr(background, 'rebuild_recents_feed', lambda: None)
         background._INDEX_STATE['last_refresh'] = last

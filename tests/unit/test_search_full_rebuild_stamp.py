@@ -19,7 +19,12 @@ def _restore_state():
     stored = database.Database().get_system_setting(KEY)
     yield
     bg._INDEX_STATE.update(previous)
-    database.Database().set_system_setting(KEY, stored or '')
+    conn = database.Database().get_connection()
+    if stored is None:
+        conn.execute("DELETE FROM system_settings WHERE key = ?", (KEY,))
+        conn.commit()
+    else:
+        database.Database().set_system_setting(KEY, stored)
 
 
 def test_full_rebuild_stamp_round_trips():
@@ -83,3 +88,37 @@ def test_restart_with_no_stamp_runs_the_full_rebuild(monkeypatch):
     db = _cleanup(monkeypatch, None)
     db.rebuild_search_index.assert_called_once()
 
+
+
+def test_a_stamp_written_after_the_cache_was_set_defers_the_full_rebuild(monkeypatch):
+    stale = time.time() - bg.INDEX_FULL_REBUILD_INTERVAL_SECONDS - 60
+    db = MagicMock()
+    db.cleanup_old_episodes.return_value = (0, 0.0)
+    db.get_all_podcasts.return_value = []
+    db.get_system_setting.return_value = str(time.time() - 60)
+    monkeypatch.setattr(bg, 'db', db)
+    monkeypatch.setattr(bg, 'rebuild_recents_feed', lambda: None)
+    bg._INDEX_STATE['last_refresh'] = 0
+    bg._INDEX_STATE['last_full'] = stale
+    queue = MagicMock()
+    queue.slot_count.return_value = 0
+    with patch('processing_queue.ProcessingQueue', return_value=queue):
+        bg.run_cleanup()
+    db.rebuild_search_index.assert_not_called()
+    db.refresh_search_index.assert_called_once()
+
+
+def test_a_failed_stamp_read_falls_back_to_the_cached_value(monkeypatch):
+    db = MagicMock()
+    db.cleanup_old_episodes.return_value = (0, 0.0)
+    db.get_all_podcasts.return_value = []
+    db.get_system_setting.side_effect = RuntimeError('database is locked')
+    monkeypatch.setattr(bg, 'db', db)
+    monkeypatch.setattr(bg, 'rebuild_recents_feed', lambda: None)
+    bg._INDEX_STATE['last_refresh'] = 0
+    bg._INDEX_STATE['last_full'] = time.time() - 60
+    queue = MagicMock()
+    queue.slot_count.return_value = 0
+    with patch('processing_queue.ProcessingQueue', return_value=queue):
+        bg.run_cleanup()
+    db.rebuild_search_index.assert_not_called()

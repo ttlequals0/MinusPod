@@ -5,6 +5,7 @@ from tests.app_bootstrap import bootstrap
 bootstrap('checkpoint_route_')
 
 from main_app import app  # noqa: E402
+from tests.integration.openapi_conformance import assert_response_conforms  # noqa: E402
 
 
 @pytest.fixture
@@ -38,3 +39,19 @@ def test_non_object_body_falls_back_to_passive(client, body):
     resp = _post(client, body)
     assert resp.status_code in (200, 409)
     assert resp.get_json()['mode'] == 'passive'
+
+
+PATH = '/system/database/checkpoint'
+
+
+@pytest.mark.parametrize('body', [None, {'mode': 'truncate'}])
+def test_success_response_matches_the_schema(client, body):
+    resp = _post(client, body)
+    assert_response_conforms('post', PATH, resp, status=200)
+
+
+def test_busy_response_matches_the_schema(client, monkeypatch):
+    import api.system as system
+    busy = {'mode': 'passive', 'busy': True, 'logPages': 3, 'checkpointedPages': 1, 'durationMs': 0.5}
+    monkeypatch.setattr(system.get_database(), 'checkpoint_wal', lambda mode='passive': busy)
+    assert_response_conforms('post', PATH, _post(client), status=409)

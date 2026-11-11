@@ -78,7 +78,7 @@ def _load_last_full_rebuild(db) -> float:
     """Epoch seconds of the last full index rebuild, 0.0 when unknown."""
     try:
         return float(db.get_system_setting(FULL_REBUILD_SETTING) or 0.0)
-    except (TypeError, ValueError):
+    except Exception:
         return 0.0
 
 
@@ -249,8 +249,8 @@ def run_cleanup():
         from processing_queue import ProcessingQueue
         now = time.time()
         overdue_by = now - _INDEX_STATE['last_refresh']
-        if not _INDEX_STATE['last_full']:
-            _INDEX_STATE['last_full'] = _load_last_full_rebuild(db)
+        # Another worker or the API route may have rebuilt since this process cached its stamp.
+        _INDEX_STATE['last_full'] = max(_INDEX_STATE['last_full'], _load_last_full_rebuild(db))
         full_due = now - _INDEX_STATE['last_full'] > INDEX_FULL_REBUILD_INTERVAL_SECONDS
         if overdue_by > INDEX_REBUILD_INTERVAL_SECONDS:
             # A whole-corpus rewrite alongside a live run is what produces the

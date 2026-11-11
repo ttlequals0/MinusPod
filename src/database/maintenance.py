@@ -2,6 +2,7 @@
 import json
 import logging
 import re
+import sqlite3
 import time
 from datetime import timedelta
 from pathlib import Path
@@ -59,16 +60,20 @@ class MaintenanceMixin:
         mode = 'truncate' if mode == 'truncate' else 'passive'
         conn = self.get_connection()
         started = time.monotonic()
-        if mode == 'truncate':
-            # A blocked truncate must give up fast, not hold writers for the full busy timeout.
-            previous_timeout = conn.execute('PRAGMA busy_timeout').fetchone()[0]
-            conn.execute(f'PRAGMA busy_timeout = {_TRUNCATE_BUSY_TIMEOUT_MS}')
+        previous_timeout = None
         try:
+            if mode == 'truncate':
+                # A blocked truncate must give up fast, not hold writers for the full busy timeout.
+                previous_timeout = conn.execute('PRAGMA busy_timeout').fetchone()[0]
+                conn.execute(f'PRAGMA busy_timeout = {_TRUNCATE_BUSY_TIMEOUT_MS}')
             busy, log_pages, checkpointed_pages = conn.execute(
                 f'PRAGMA wal_checkpoint({mode.upper()})').fetchone()
         finally:
-            if mode == 'truncate':
-                conn.execute(f'PRAGMA busy_timeout = {previous_timeout}')
+            if previous_timeout is not None:
+                try:
+                    conn.execute(f'PRAGMA busy_timeout = {previous_timeout}')
+                except sqlite3.Error as exc:
+                    logger.warning("Could not restore busy_timeout after checkpoint: %s", exc)
         return {
             'mode': mode,
             'busy': bool(busy),

@@ -46,6 +46,9 @@ TEMP_BACKUP_NAME = '.minuspod-backup.db.tmp'
 ROTATED_NAME_RE = re.compile(r'^minuspod-backup-auto-\d{8}-\d{6}\.db$')
 KEEP_COUNT_MIN, KEEP_COUNT_MAX = 1, 365
 LOCK_FILENAME = '.db_backup.lock'
+_LOCK_RETRY_ATTEMPTS = 5
+_LOCK_RETRY_DELAY_SECONDS = 0.05
+_lock_retry_sleep = time.sleep
 
 
 class BackupInProgressError(Exception):
@@ -278,8 +281,20 @@ def _log_snapshot_secret_state(db, final, summary) -> None:
         )
 
 
+def _acquire_exclusive_lock(lock_fd) -> bool:
+    """Take the lock without blocking, retrying briefly so a momentary shared probe does not refuse a backup."""
+    for attempt in range(_LOCK_RETRY_ATTEMPTS + 1):
+        try:
+            fcntl.flock(lock_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            return True
+        except BlockingIOError:
+            if attempt < _LOCK_RETRY_ATTEMPTS:
+                _lock_retry_sleep(_LOCK_RETRY_DELAY_SECONDS)
+    return False
+
+
 def backup_in_progress(db) -> bool:
-    """True when a backup holds the exclusive lock; a shared probe never blocks a starting backup."""
+    """True when a backup holds the exclusive lock; probes share it so they never see each other."""
     try:
         with open(Path(db.data_dir) / LOCK_FILENAME, 'a') as lock_fd:
             try:
@@ -303,12 +318,10 @@ def backup_now(db) -> dict[str, Any]:
     lock_path = Path(db.data_dir) / LOCK_FILENAME
     lock_fd = open(lock_path, 'w')
     try:
-        try:
-            fcntl.flock(lock_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        except BlockingIOError:
+        if not _acquire_exclusive_lock(lock_fd):
             # Expected control-flow signal for callers; the low-level lock
             # errno adds nothing they act on.
-            raise BackupInProgressError('a backup is already in progress') from None
+            raise BackupInProgressError('a backup is already in progress')
 
         # Stamp last_run only once we hold the lock and a backup genuinely runs;
         # a contending caller must not consume the retry slot.
