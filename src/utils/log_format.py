@@ -5,12 +5,19 @@ import logging
 import os
 import socket
 
-from utils.http import scrub_query_strings
+from utils.http import redact_feed_credentials, scrub_query_strings, scrub_request_paths
 
 _HOSTNAME = os.environ.get('HOSTNAME') or socket.gethostname()
 
 
-class SingleLineFormatter(logging.Formatter):
+class ScrubbingFormatter(logging.Formatter):
+    """Plain formatter that redacts URL query strings from message and traceback."""
+
+    def format(self, record: logging.LogRecord) -> str:
+        return scrub_query_strings(super().format(record))
+
+
+class SingleLineFormatter(ScrubbingFormatter):
     """Text formatter that keeps one record on one line so Docker does not split it."""
 
     def format(self, record: logging.LogRecord) -> str:
@@ -18,12 +25,12 @@ class SingleLineFormatter(logging.Formatter):
         # record is not built twice per line at DEBUG volume.
         message = record.getMessage() if record.args else str(record.msg)
         if '\n' not in message and '\r' not in message:
-            return scrub_query_strings(super().format(record))
+            return super().format(record)
         flat = copy.copy(record)
         flat.msg = (message.replace('\r\n', '\\n')
                     .replace('\n', '\\n').replace('\r', '\\n'))
         flat.args = ()
-        return scrub_query_strings(super().format(flat))
+        return super().format(flat)
 
 
 class JSONFormatter(logging.Formatter):
@@ -51,13 +58,6 @@ class JSONFormatter(logging.Formatter):
         return json.dumps(log_data)
 
 
-class ScrubbingFormatter(logging.Formatter):
-    """Plain formatter that redacts URL query strings from message and traceback."""
-
-    def format(self, record: logging.LogRecord) -> str:
-        return scrub_query_strings(super().format(record))
-
-
 class QueryStringRedactingFilter(logging.Filter):
     """Redact URL query strings (signed CDN tokens) from the rendered message."""
 
@@ -68,6 +68,19 @@ class QueryStringRedactingFilter(logging.Filter):
                 record.msg = scrub_query_strings(message)
                 # Flattened in place: handlers later on the record see the scrubbed text.
                 record.args = ()
+        except Exception:
+            pass
+        return True
+
+
+class RequestPathRedactingFilter(logging.Filter):
+    """Redact request-path query strings and feed keys from gunicorn error-log messages."""
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        try:
+            record.msg = redact_feed_credentials(
+                scrub_request_paths(scrub_query_strings(record.getMessage())))
+            record.args = ()
         except Exception:
             pass
         return True

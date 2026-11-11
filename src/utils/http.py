@@ -14,6 +14,7 @@ _FEED_CREDENTIAL_RE = re.compile(
     r'(?<![0-9a-f])(?:[0-9a-f]{16}\.)?[0-9a-f]{64}(?![0-9a-f])'
 )
 _QUERY_STRING_RE = re.compile(r'(https?://[^\s?]*)\?\S+')
+_PATH_QUERY_RE = re.compile(r'(?<![\w:/.-])(/[^\s?\'"]*)\?[^\s\'"]+')
 
 
 def redact_feed_credentials(value: str) -> str:
@@ -23,6 +24,11 @@ def redact_feed_credentials(value: str) -> str:
 def scrub_query_strings(text: str) -> str:
     """Replace the query string of any URL embedded in text with ?<redacted>."""
     return _QUERY_STRING_RE.sub(r'\1?<redacted>', str(text))
+
+
+def scrub_request_paths(text: str) -> str:
+    """Replace the query string of a bare request path (/feed?key=x) with ?<redacted>."""
+    return _PATH_QUERY_RE.sub(r'\1?<redacted>', str(text))
 
 
 def client_ip():

@@ -31,3 +31,10 @@ def test_cdn_check_error_message_has_no_query_string(monkeypatch):
     assert available is False
     assert 'secret123' not in message
     assert '?<redacted>' in message
+
+
+def test_scrub_request_paths_redacts_bare_path_only():
+    from utils.http import scrub_request_paths
+    assert scrub_request_paths("GET /feed/x?key=s3 HTTP/1.1") == "GET /feed/x?<redacted> HTTP/1.1"
+    assert scrub_request_paths("https://h/x?y=1") == "https://h/x?y=1"
+    assert scrub_request_paths("no path here") == "no path here"

@@ -82,3 +82,39 @@ def test_gunicorn_logs_keep_own_formatter_under_text(monkeypatch, log_format):
     assert err and acc
     for f in err + acc:
         assert not isinstance(f, (JSONFormatter, SingleLineFormatter))
+
+
+@pytest.mark.parametrize("log_format", ["text", "json"])
+def test_error_log_redacts_request_path_query(monkeypatch, log_format):
+    import gunicorn.config
+    import io
+    import json
+    monkeypatch.setenv("LOG_FORMAT", log_format)
+    mod = _load_conf(monkeypatch, 1, None)
+    cfg = gunicorn.config.Config()
+    cfg.set("errorlog", "-")
+    rl = mod.RedactingLogger(cfg)
+    stream = io.StringIO()
+    for h in rl.error_log.handlers:
+        if getattr(h, "_gunicorn", False):
+            h.setStream(stream)
+    try:
+        raise RuntimeError("boom")
+    except RuntimeError:
+        rl.error_log.exception("Error handling request %s %s", "GET", "/example-podcast?key=secret123")
+    out = stream.getvalue()
+    assert "secret123" not in out
+    assert "/example-podcast" in out
+    if log_format == "json":
+        assert json.loads(out.strip().splitlines()[-1])["level"] == "ERROR"
+
+
+def test_request_path_filter_covers_invalid_request_line():
+    import logging
+    from utils.log_format import RequestPathRedactingFilter
+    rec = logging.LogRecord("gunicorn.error", logging.WARNING, __file__, 1,
+                            "Invalid request from ip=1.2.3.4: Invalid HTTP request line: 'GET /f?key=secret123 HTTP/1.1'",
+                            (), None)
+    assert RequestPathRedactingFilter().filter(rec) is True
+    assert "secret123" not in rec.getMessage()
+    assert "GET /f?<redacted> HTTP/1.1" in rec.getMessage()
