@@ -13,10 +13,16 @@ from flask import request
 _FEED_CREDENTIAL_RE = re.compile(
     r'(?<![0-9a-f])(?:[0-9a-f]{16}\.)?[0-9a-f]{64}(?![0-9a-f])'
 )
+_QUERY_STRING_RE = re.compile(r'(https?://[^\s?]*)\?\S+')
 
 
 def redact_feed_credentials(value: str) -> str:
     return _FEED_CREDENTIAL_RE.sub('[redacted-feed-key]', value)
+
+
+def scrub_query_strings(text: str) -> str:
+    """Replace the query string of any URL embedded in text with ?<redacted>."""
+    return _QUERY_STRING_RE.sub(r'\1?<redacted>', str(text))
 
 
 def client_ip():
