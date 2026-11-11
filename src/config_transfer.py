@@ -12,6 +12,8 @@ from email.utils import parseaddr
 from functools import partial
 from urllib.parse import urlsplit
 
+from requests.utils import requote_uri
+
 import email_service
 import webhook_service
 from community_sync import DEFAULT_CRON as COMMUNITY_SYNC_DEFAULT_CRON
@@ -445,6 +447,11 @@ def _validate_request_envelope(document, scope, selected_feeds=None):
         raise ConfigTransferError('Configuration transfer exceeds the 10 MiB request limit', 413)
 
 
+def _import_source_url(url: str) -> str:
+    """A stored source URL as requests sends it; older versions stored raw whitespace."""
+    return requote_uri(url.strip())
+
+
 def _validate_document(document):
     if len(_canonical_json(document).encode('utf-8')) > MAX_CONFIG_REQUEST_BYTES:
         raise ConfigTransferError('Configuration file exceeds the 10 MiB request limit', 413)
@@ -466,6 +473,7 @@ def _validate_document(document):
             'provider_config_revision'} for key in settings):
         raise ConfigTransferError('File contains non-transferable runtime or account settings')
     seen = set()
+    checked_feeds = []
     for feed in feeds:
         if not isinstance(feed, dict) or not isinstance(feed.get('settings', {}), dict):
             raise ConfigTransferError('Each feed must be an object with a settings object')
@@ -485,6 +493,8 @@ def _validate_document(document):
         if feed_type == 'subscribed':
             if not isinstance(source_url, str):
                 raise ConfigTransferError(f'Feed {slug} needs an HTTP(S) source_url')
+            source_url = _import_source_url(source_url)
+            feed = {**feed, 'settings': {**fields, 'source_url': source_url}}
             try:
                 parsed_url = urlsplit(source_url)
                 port = parsed_url.port
@@ -518,11 +528,12 @@ def _validate_document(document):
                 {'author', 'explicit', 'categories'}
                 | (set() if feed_type == 'youtube' else {'p20_channel_json'})):
             raise ConfigTransferError(f'Feed {slug} contains local-only metadata')
+        checked_feeds.append(feed)
     for key, value in settings.items():
         if key in PORTABLE_SETTINGS:
             _validate_setting_value(key, value)
     _validate_pattern_cleanup_settings(settings)
-    return {'settings': settings, 'feeds': feeds, 'unknown': unknown}
+    return {'settings': settings, 'feeds': checked_feeds, 'unknown': unknown}
 
 
 def _validate_pattern_cleanup_settings(settings):
@@ -863,6 +874,11 @@ def _normalize_import_settings(settings, db=None):
     return normalized
 
 
+def _stored_source(row):
+    """The destination row's source URL in the form an imported one takes."""
+    return _import_source_url(row['source_url']) if row['feed_type'] == 'subscribed' else row['source_url']
+
+
 def _validate_import_feed_urls(feeds):
     trust = _feed_trust()
     for feed in feeds:
@@ -938,7 +954,7 @@ def build_preview(db, document, scope, selected_feeds=None):
             if current['feed_type'] != feed['feedType']:
                 raise ConfigTransferError(f'Feed identity conflict for {slug}')
             source = feed.get('settings', {}).get('source_url', '')
-            if current['source_url'] != source:
+            if _stored_source(current) != source:
                 raise ConfigTransferError(f'Feed source conflict for {slug}')
             updated.append(slug)
         source = feed.get('settings', {}).get('source_url', '')
@@ -1164,7 +1180,7 @@ def _validated_feed_updates(db, podcast, payload, feed_type, *, confirmed_ceilin
         effective = {**(podcast or {}), **updates}
         if resolve_feed_processing_mode(effective) != PROCESSING_MODE_CUE_ONLY:
             raise ConfigTransferError('skip_transcription requires cue_only processing mode')
-    if podcast and 'source_url' in updates and updates['source_url'] != podcast['source_url']:
+    if podcast and 'source_url' in updates and updates['source_url'] != _stored_source(podcast):
         raise ConfigTransferError('Import cannot repoint an existing feed')
     return updates
 
@@ -1401,7 +1417,7 @@ def apply_config(db, document, scope, selected_feeds, preview_token):
                         (slug,),
                     ).fetchone()
                     if current_row and (current_row['feed_type'] != feed['feedType']
-                                        or current_row['source_url'] != feed.get('settings', {}).get('source_url', '')):
+                                        or _stored_source(current_row) != feed.get('settings', {}).get('source_url', '')):
                         raise ConfigTransferError(f'Feed identity conflict for {slug}')
                     source_url = feed.get('settings', {}).get('source_url', '')
                     duplicate_source = conn.execute(

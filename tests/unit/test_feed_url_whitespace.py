@@ -1,13 +1,18 @@
 """A source URL with raw whitespace or a control character is refused where it enters, never at refresh."""
 import io
 import logging
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
 from tests.app_bootstrap import bootstrap
 
 _test_data_dir = bootstrap('feed_url_whitespace_test_')
+import config_transfer
+import rss_parser
+from api import feeds as api_feeds
+from api import get_database
+from config_transfer import ConfigTransferError
 from utils.http import safe_url_for_log
 from utils.url import SSRFError, reject_url_whitespace, validate_url
 
@@ -61,13 +66,11 @@ def test_add_feed_refuses_whitespace_and_logs_no_credential(app_client, caplog):
     assert resp.status_code == 400
     assert 'whitespace or control' in resp.get_json()['error']
     assert 'pass' not in caplog.text
-    from api import get_database
     assert get_database().get_podcast_by_slug('ws-add') is None
 
 
 def test_add_feed_logs_the_source_url_without_userinfo_or_query(app_client, caplog):
     _authed(app_client)
-    from api import get_database
     with patch('api.feeds.validate_url'), patch('main_app.feeds.refresh_rss_feed'), caplog.at_level(logging.INFO):
         resp = app_client.post('/api/v1/feeds', json={
             'sourceUrl': 'https://alice:SECRET@feeds.example.com/f.xml?key=SECRET', 'slug': 'ws-log'},
@@ -80,9 +83,44 @@ def test_add_feed_logs_the_source_url_without_userinfo_or_query(app_client, capl
         get_database().delete_podcast('ws-log')
 
 
+def test_add_feed_strips_leading_and_trailing_whitespace(app_client):
+    _authed(app_client)
+    with patch('api.feeds.validate_url'), patch('main_app.feeds.refresh_rss_feed'):
+        resp = app_client.post('/api/v1/feeds', json={
+            'sourceUrl': ' \thttps://feeds.example.com/strip.xml\n', 'slug': 'ws-strip'}, headers=_csrf(app_client))
+    try:
+        assert resp.status_code == 201, resp.get_json()
+        assert get_database().get_podcast_by_slug('ws-strip')['source_url'] == 'https://feeds.example.com/strip.xml'
+    finally:
+        get_database().delete_podcast('ws-strip')
+
+
+def test_update_feed_strips_leading_and_trailing_whitespace():
+    parsed = MagicMock(feed={'title': 'Example'}, entries=[])
+    parser = MagicMock(parse_feed=MagicMock(return_value=parsed))
+    with patch('api.feeds.validate_url'), patch('api.feeds._fetch_feed_content', return_value=(parser, b'<rss/>')):
+        assert api_feeds._validate_source_url('\n https://feeds.example.com/new.xml\t ') == (
+            'https://feeds.example.com/new.xml', None)
+
+
+def test_opml_import_strips_leading_and_trailing_whitespace(app_client):
+    _authed(app_client)
+    opml = ('<opml version="2.0"><body><outline type="rss" text="WS Strip OPML" '
+            'xmlUrl="  https://feeds.example.com/o.xml&#10;"/></body></opml>')
+    with patch('api.feeds.validate_url'), patch('main_app.feeds.refresh_rss_feed'):
+        resp = app_client.post('/api/v1/feeds/import-opml', data={'opml': (io.BytesIO(opml.encode()), 'f.opml')},
+                               content_type='multipart/form-data', headers=_csrf(app_client))
+    body = resp.get_json()
+    assert body['failed'] == 0, body
+    slug = body['feeds']['imported'][0]['slug']
+    try:
+        assert get_database().get_podcast_by_slug(slug)['source_url'] == 'https://feeds.example.com/o.xml'
+    finally:
+        get_database().delete_podcast(slug)
+
+
 def test_update_feed_refuses_whitespace(app_client):
     _authed(app_client)
-    from api import get_database
     db = get_database()
     db.create_podcast('ws-update', 'https://feeds.example.com/old.xml')
     try:
@@ -106,15 +144,59 @@ def test_opml_import_refuses_whitespace(app_client):
     body = resp.get_json()
     assert body['failed'] == 1
     assert 'whitespace or control' in body['feeds']['failed'][0]['error']
-    from api import get_database
     assert get_database().get_podcast_by_slug('ws-import') is None
 
 
-def test_config_import_refuses_whitespace():
-    from config_transfer import ConfigTransferError, _validate_import_feed_urls
-    feeds = [{'slug': 'ws-config', 'feedType': 'subscribed', 'settings': {'source_url': BAD_URL}}]
-    with patch('config_transfer._validate_for_tier'), pytest.raises(ConfigTransferError, match='whitespace or control'):
-        _validate_import_feed_urls(feeds)
+def _config_document(source, slug='ws-config'):
+    return {
+        'format': config_transfer.FORMAT, 'formatVersion': config_transfer.FORMAT_VERSION,
+        'appVersion': '2.98.2', 'exportedAt': '2026-10-08T00:00:00+00:00', 'containsSecrets': False,
+        'settings': {}, 'feeds': [{'slug': slug, 'feedType': 'subscribed', 'settings': {'source_url': source}}],
+    }
+
+
+def _import(db, document, monkeypatch):
+    monkeypatch.setattr(config_transfer, '_validate_for_tier', lambda *_args: None)
+    monkeypatch.setattr(config_transfer, '_after_feed_commit', lambda *_args: [])
+    preview = config_transfer.build_preview(db, document, 'feeds')
+    config_transfer.apply_config(db, document, 'feeds', None, preview['previewToken'])
+
+
+@pytest.mark.parametrize('raw,stored', [
+    (' https://feeds.example.com/f x.xml\n', 'https://feeds.example.com/f%20x.xml'),
+    ('https://feeds.example.com/f\tx.xml', 'https://feeds.example.com/f%09x.xml'),
+    ('https://feeds.example.com/f\u00a0x.xml', 'https://feeds.example.com/f%C2%A0x.xml'),
+    ('https://alice:pass word@h.example/f x.xml', 'https://alice:pass%20word@h.example/f%20x.xml'),
+    ('https://feeds.example.com/feed.xml?a=1', 'https://feeds.example.com/feed.xml?a=1'),
+], ids=['space', 'tab', 'nbsp', 'userinfo', 'clean'])
+def test_config_import_stores_the_url_requests_would_send(temp_db, monkeypatch, raw, stored):
+    _import(temp_db, _config_document(raw), monkeypatch)
+    assert temp_db.get_podcast_by_slug('ws-config')['source_url'] == stored
+
+
+def test_config_import_restores_a_backup_over_its_own_stored_whitespace_url(temp_db, monkeypatch):
+    raw = 'https://feeds.example.com/f x.xml'
+    temp_db.create_podcast('ws-config', raw, 'Example')
+    document = config_transfer.export_config(temp_db, '2.98.2')
+    _import(temp_db, document, monkeypatch)
+    assert temp_db.get_podcast_by_slug('ws-config')['source_url'] == raw
+
+
+def test_config_import_still_refuses_a_url_that_fails_validation(temp_db, monkeypatch):
+    def reject(*_args):
+        raise SSRFError('Blocked private IP')
+
+    document = _config_document('https://alice:pass word@10.0.0.1/f x.xml')
+    preview = config_transfer.build_preview(temp_db, document, 'feeds')
+    monkeypatch.setattr(config_transfer, '_validate_for_tier', reject)
+    with pytest.raises(ConfigTransferError, match='security validation: Blocked private IP'):
+        config_transfer.apply_config(temp_db, document, 'feeds', None, preview['previewToken'])
+    assert temp_db.get_podcast_by_slug('ws-config') is None
+
+
+def test_config_import_refuses_a_non_http_url_after_stripping(temp_db):
+    with pytest.raises(ConfigTransferError, match='needs an HTTP'):
+        config_transfer.build_preview(temp_db, _config_document(' ftp://feeds.example.com/f x.xml '), 'feeds')
 
 
 class _HtmlResponse:
@@ -130,7 +212,6 @@ class _HtmlResponse:
 
 @pytest.mark.parametrize('conditional', [False, True])
 def test_feed_content_type_rejection_logs_no_credential(monkeypatch, caplog, conditional):
-    import rss_parser
     monkeypatch.setattr(rss_parser, 'safe_get', lambda *a, **k: _HtmlResponse())
     parser = rss_parser.RSSParser()
     url = 'https://alice:SECRET@feeds.example.com/f.xml?key=SECRET'
