@@ -55,3 +55,14 @@ def test_busy_response_matches_the_schema(client, monkeypatch):
     busy = {'mode': 'passive', 'busy': True, 'logPages': 3, 'checkpointedPages': 1, 'durationMs': 0.5}
     monkeypatch.setattr(system.get_database(), 'checkpoint_wal', lambda mode='passive': busy)
     assert_response_conforms('post', PATH, _post(client), status=409)
+
+
+def test_a_sqlite_failure_returns_503_matching_the_schema(client, monkeypatch):
+    import sqlite3
+    import api.system as system
+
+    def boom(mode='passive'):
+        raise sqlite3.OperationalError('database is locked')
+
+    monkeypatch.setattr(system.get_database(), 'checkpoint_wal', boom)
+    assert_response_conforms('post', PATH, _post(client), status=503)

@@ -286,7 +286,11 @@ def checkpoint_database():
     mode = body.get('mode', 'passive') if isinstance(body, dict) else 'passive'
     if mode not in ('passive', 'truncate'):
         return error_response('mode must be passive or truncate', 400)
-    result = get_database().checkpoint_wal(mode=mode)
+    try:
+        result = get_database().checkpoint_wal(mode=mode)
+    except sqlite3.Error as exc:
+        logger.warning("SQLite %s checkpoint failed: %s", mode, exc)
+        return error_response('Checkpoint failed; the database may be busy', 503)
     logger.info(
         "SQLite %s checkpoint: busy=%s log_pages=%s checkpointed_pages=%s duration_ms=%s",
         result['mode'], result['busy'], result['logPages'],

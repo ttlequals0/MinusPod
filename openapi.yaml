@@ -8597,6 +8597,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/DatabaseCheckpointResult'
+        '503':
+          description: SQLite failed to run the checkpoint
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
 
   /system/updates:
     get:

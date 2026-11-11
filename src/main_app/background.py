@@ -250,7 +250,10 @@ def run_cleanup():
         now = time.time()
         overdue_by = now - _INDEX_STATE['last_refresh']
         # Another worker or the API route may have rebuilt since this process cached its stamp.
-        _INDEX_STATE['last_full'] = max(_INDEX_STATE['last_full'], _load_last_full_rebuild(db))
+        # A stamp in the future (clock stepped back) would suppress the weekly rebuild, so ignore it.
+        _INDEX_STATE['last_full'] = max(
+            (t for t in (_INDEX_STATE['last_full'], _load_last_full_rebuild(db)) if t <= now),
+            default=0.0)
         full_due = now - _INDEX_STATE['last_full'] > INDEX_FULL_REBUILD_INTERVAL_SECONDS
         if overdue_by > INDEX_REBUILD_INTERVAL_SECONDS:
             # A whole-corpus rewrite alongside a live run is what produces the
