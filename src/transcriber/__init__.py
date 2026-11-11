@@ -24,7 +24,7 @@ from utils.text import transcript_gaps
 from utils.time import format_vtt_timestamp
 from utils.gpu import clear_gpu_memory, get_gpu_device_name
 from utils.url import SSRFError
-from utils.http import redirect_chain_for_log, safe_url_for_log, scrub_query_strings
+from utils.http import redact_log_text, redirect_chain_for_log, safe_url_for_log
 from utils.safe_http import (
     URLTrust, safe_get, stream_to_file_capped,
     ResponseTooLargeError,
@@ -625,13 +625,13 @@ class Transcriber:
             )
         except SSRFError as e:
             logger.warning(f"SSRF blocked in check_audio_availability: {e}")
-            return False, scrub_query_strings(f"URL blocked: {e}")
+            return False, redact_log_text(f"URL blocked: {e}")
         except requests.exceptions.Timeout:
             # A slow HEAD says nothing about the file; the download has its own timeout and retry.
             logger.warning("CDN check timed out, trying the download")
             return True, None
         except requests.RequestException as e:
-            return False, scrub_query_strings(f"CDN check failed: {e}")
+            return False, redact_log_text(f"CDN check failed: {e}")
 
         keep_query = log_download_query_enabled()
         logger.info("Checking audio availability: "

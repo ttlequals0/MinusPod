@@ -140,6 +140,17 @@ class TestRecordHelpers:
         assert 'SECRET' not in err
         assert 'https://example.com/feed.xml?<redacted>' in err
 
+    def test_error_message_feed_key_and_query_redacted(self, seeded_feed, alert_recorder):
+        from main_app import feeds as feeds_mod
+        slug, db = seeded_feed['slug'], seeded_feed['db']
+
+        feeds_mod._record_refresh_failure(
+            slug, 'fetch of https://feed.example.com/' + 'a' * 64 + '?t=1 failed')
+
+        err = db.get_podcast_by_slug(slug)['last_refresh_error']
+        assert 'a' * 64 not in err
+        assert 'https://feed.example.com/[redacted-feed-key]?<redacted> failed' in err
+
     def test_success_clears_failure_state(self, seeded_feed, alert_recorder):
         from main_app import feeds as feeds_mod
         slug, db = seeded_feed['slug'], seeded_feed['db']

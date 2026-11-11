@@ -69,10 +69,10 @@ class QueryStringRedactingFilter(logging.Filter):
                 # Flattened in place: handlers later on the record see the redacted text.
                 record.msg = redacted
                 record.args = ()
-            if record.exc_info and not record.exc_text:
+            if record.exc_info:
                 # Formatter.format reuses a preset exc_text, so the traceback renders once.
                 record.exc_text = redact_log_text(
-                    logging.Formatter().formatException(record.exc_info))
+                    record.exc_text or logging.Formatter().formatException(record.exc_info))
             if record.stack_info:
                 record.stack_info = redact_log_text(record.stack_info)
         except Exception as exc:

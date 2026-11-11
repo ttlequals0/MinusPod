@@ -104,3 +104,33 @@ def test_filter_redacts_stack_info():
 def test_redact_log_text_non_string_and_clean_text():
     assert redact_log_text(12345) == "12345"
     assert redact_log_text("nothing to redact here") == "nothing to redact here"
+
+
+def test_filter_redacts_a_raw_cached_exc_text():
+    rec = _exception_record()
+    rec.exc_text = "Traceback (most recent call last):\nRuntimeError: https://h/x?token=secret123"
+    QueryStringRedactingFilter().filter(rec)
+    assert "secret123" not in rec.exc_text
+    out = logging.Formatter("%(message)s").format(rec)
+    assert "secret123" not in out
+    assert out.count("Traceback (most recent call last)") == 1
+
+
+def test_redact_log_text_survives_a_broken_stderr(monkeypatch):
+    import sys
+    import utils.http as http
+
+    class BrokenStderr:
+        def write(self, *_):
+            raise OSError("closed")
+
+        def flush(self):
+            raise OSError("closed")
+
+    def boom(_):
+        raise RuntimeError("forced")
+
+    monkeypatch.setattr(http, "_redaction_failure_reported", False)
+    monkeypatch.setattr(http, "scrub_query_strings", boom)
+    monkeypatch.setattr(sys, "stderr", BrokenStderr())
+    assert http.redact_log_text("anything") == "[log text withheld: redaction failed]"

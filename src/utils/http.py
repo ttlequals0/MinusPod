@@ -14,10 +14,13 @@ from flask import request
 _FEED_CREDENTIAL_RE = re.compile(
     r'(?<![0-9a-f])(?:[0-9a-f]{16}\.)?[0-9a-f]{64}(?![0-9a-f])'
 )
-_QUERY_STRING_RE = re.compile(r'(https?://[^\s?]*)\?\S+')
-# Lazy query stops before closing punctuation that ends the token ("[/f?k=v]", "/f?k=v, then").
-_PATH_QUERY_RE = re.compile(
-    r'(?<![\w:/.-])(/[^\s?\'"]*)\?[^\s\'"]+?(?=[\]),.;]*(?:[\s\'"]|$))')
+# Both patterns also match without a query so a long token is consumed once, not rescanned per start.
+_QUERY_STRING_RE = re.compile(r'(https?://[^\s?]*)(\?\S+)?')
+_PATH_QUERY_RE = re.compile(r"(?<![\w:/.-])(/[^\s?'\"]*)(\?[^\s'\"]+)?")
+# Closing punctuation that ends a token ("[/f?k=v]", "/f?k=v, then") is kept out of the redacted query.
+_TRAILING_PUNCT = ']),.;'
+# Real records are tracebacks of a few KB; beyond this only head and tail are kept.
+MAX_REDACT_CHARS = 32768
 _redaction_failure_reported = False
 
 
@@ -25,14 +28,27 @@ def redact_feed_credentials(value: str) -> str:
     return _FEED_CREDENTIAL_RE.sub('[redacted-feed-key]', value)
 
 
+def _redact_query(match: re.Match) -> str:
+    return match.group(1) + '?<redacted>' if match.group(2) else match.group(0)
+
+
+def _redact_path_query(match: re.Match) -> str:
+    query = match.group(2)
+    if not query:
+        return match.group(0)
+    body = query[1:]
+    core = body.rstrip(_TRAILING_PUNCT) or body[:1]
+    return f"{match.group(1)}?<redacted>{body[len(core):]}"
+
+
 def scrub_query_strings(text: str) -> str:
     """Replace the query string of any URL embedded in text with ?<redacted>."""
-    return _QUERY_STRING_RE.sub(r'\1?<redacted>', str(text))
+    return _QUERY_STRING_RE.sub(_redact_query, str(text))
 
 
 def scrub_request_paths(text: str) -> str:
     """Replace the query string of a bare request path (/feed?key=x) with ?<redacted>."""
-    return _PATH_QUERY_RE.sub(r'\1?<redacted>', str(text))
+    return _PATH_QUERY_RE.sub(_redact_path_query, str(text))
 
 
 def report_redaction_failure(exc: Exception) -> None:
@@ -40,12 +56,23 @@ def report_redaction_failure(exc: Exception) -> None:
     global _redaction_failure_reported
     if not _redaction_failure_reported:
         _redaction_failure_reported = True
-        print(f"log redaction failed: {type(exc).__name__}: {exc}", file=sys.stderr)
+        try:
+            print(f"log redaction failed: {type(exc).__name__}: {exc}", file=sys.stderr)
+        except Exception:
+            pass
 
 
 def redact_log_text(text: str) -> str:
     """Apply every log redaction in a fixed order; never raises."""
     try:
+        text = str(text)
+        if len(text) > MAX_REDACT_CHARS:
+            half = MAX_REDACT_CHARS // 2
+            # The tail restarts at a token boundary: a query whose path start was elided would not match.
+            tail = text[-half:]
+            first_space = re.search(r'\s', tail)
+            tail = tail[first_space.start():] if first_space else ''
+            text = f"{text[:half]} [{len(text) - half - len(tail)} chars elided] {tail}"
         return redact_feed_credentials(scrub_request_paths(scrub_query_strings(text)))
     except Exception as exc:
         report_redaction_failure(exc)
