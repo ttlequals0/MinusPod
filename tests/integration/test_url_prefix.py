@@ -91,14 +91,13 @@ def test_service_worker_is_rewritten(prefixed):
 
 
 def test_session_and_csrf_cookies_use_prefix_path(prefixed, with_password):
-    prefixed.get('/minuspod/api/v1/auth/status')
-    csrf = [h for h in prefixed.get('/minuspod/api/v1/auth/status').headers.getlist('Set-Cookie')
-            if h.startswith('minuspod_csrf=')]
-    assert csrf and 'Path=/minuspod' in csrf[0]
     login = prefixed.post('/minuspod/api/v1/auth/login', json={'password': 'pw'})
     assert login.status_code == 200
-    session = [h for h in login.headers.getlist('Set-Cookie') if h.startswith('session=')]
+    cookies = login.headers.getlist('Set-Cookie')
+    session = [h for h in cookies if h.startswith('session=')]
     assert session and 'Path=/minuspod' in session[0]
+    csrf = [h for h in cookies if h.startswith('minuspod_csrf=')]
+    assert csrf and 'Path=/minuspod' in csrf[0]
 
 
 def test_processed_url_carries_prefix(prefixed):

@@ -161,6 +161,11 @@ class TestRecutReResolvesAgainstCurrentMap:
 from main_app import app as flask_app  # noqa: E402  (after bootstrap, by design)
 
 
+_SEEDED_SLUGS = ('segrerender-counts-feed', 'segrerender-mode-feed',
+                 'segrerender-empty', 'segrerender-csrf-feed',
+                 'segrerender-csrf-feed-2')
+
+
 @pytest.fixture
 def client():
     from api import get_database, get_storage
@@ -172,6 +177,9 @@ def client():
     # The CSRF tests below set a real app_password; clear it so a later
     # test module reading this same singleton does not inherit a locked db.
     db.set_setting('app_password', '')
+    # Feeds seeded below would otherwise leak into global endpoints (/detections).
+    for slug in _SEEDED_SLUGS:
+        db.delete_podcast(slug)
 
 
 def _seed_episode(db, storage, slug, episode_id, *, status='processed',

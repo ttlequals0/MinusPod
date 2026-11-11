@@ -22,6 +22,7 @@ import {
 } from '../../api/settings';
 import { SkeletonRows } from '../../components/Skeleton';
 import SavedBadge from './SavedBadge';
+import ProcessingScheduleBlock from './ProcessingScheduleBlock';
 import Checkbox from '../../components/Checkbox';
 import { getErrorMessage } from '../../api/client';
 import { btnBase, btnLg, btnPrimary, btnSecondary } from '../../components/buttonStyles';
@@ -531,6 +532,11 @@ function QueueControlSection({
               </p>
             </div>
           </div>
+        </div>
+
+        <div className="pt-4 border-t border-border">
+          <h3 className={`${subHeading} mb-3`}>Processing schedule</h3>
+          <ProcessingScheduleBlock active={visible} />
         </div>
 
         <div className="pt-4 border-t border-border">

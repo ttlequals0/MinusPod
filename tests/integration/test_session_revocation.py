@@ -140,3 +140,44 @@ def test_setup_token_rejects_non_ascii_without_server_error(monkeypatch):
     )
 
     assert response.status_code == 403
+
+
+def _cookie_names(response):
+    return {h.split('=', 1)[0] for h in response.headers.getlist('Set-Cookie')}
+
+
+def test_cookieless_navigation_does_not_replace_the_session():
+    # A cross-site navigation drops the SameSite=Strict cookie; the reply must not mint a new one.
+    operator = app.test_client()
+    _login(operator)
+    stranger = app.test_client()
+
+    nav = stranger.get('/ui/feeds/example-podcast/episodes/a1b2c3d4e5f6')
+
+    assert 'session' not in _cookie_names(nav)
+    assert operator.get('/api/v1/auth/status').get_json()['authenticated'] is True
+
+
+def test_login_sets_csrf_cookie_and_mutation_passes():
+    client = app.test_client()
+    response = client.post('/api/v1/auth/login', json={'password': PASSWORD})
+    assert {'session', 'minuspod_csrf'} <= _cookie_names(response)
+
+    token = client.get_cookie('minuspod_csrf').value
+    ok = client.post('/api/v1/feeds', json={'sourceUrl': 'not-a-url'}, headers={'X-CSRF-Token': token})
+    assert ok.status_code != 403
+    bad = client.post('/api/v1/feeds', json={'sourceUrl': 'not-a-url'})
+    assert bad.status_code == 403
+
+
+def test_logout_does_not_mint_an_anonymous_session():
+    client = app.test_client()
+    _login(client)
+    token = client.get_cookie('minuspod_csrf').value
+
+    response = client.post('/api/v1/auth/logout', headers={'X-CSRF-Token': token})
+
+    assert response.status_code == 200
+    cookies = response.headers.getlist('Set-Cookie')
+    assert not any(c.startswith('session=') and not c.startswith('session=;') for c in cookies)
+    assert client.get('/api/v1/auth/status').get_json()['authenticated'] is False

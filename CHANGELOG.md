@@ -8,6 +8,25 @@ Alongside the standard sections, a "Breaking" section marks changes
 that require operator action; these are surfaced at the top of stable
 release notes.
 
+## [2.101.34] - 2026-11-09
+
+### Added
+
+- Processing schedule: Queue > Queue Control > Processing schedule limits when new runs start to a weekly window, set by From and Until times and the days the window starts on. Times use the instance time zone. Outside the window nothing new starts, including Reprocess, bulk actions and play-triggered starts, which wait in the queue until it opens. Runs already in progress finish, and the idle local transcription model is unloaded to free GPU memory. The Queue page and status bar show when processing resumes. It is off by default and available through `GET/PUT /api/v1/settings/processing-schedule` (#993).
+
+### Fixed
+
+- On a host with more than one GPU, free VRAM and the GPU name now come from the card transcription runs on. NVML and CUDA number cards differently, so chunk sizes and the stored batch-size ceiling could come from the other card. MinusPod now asks the CUDA driver which card is device 0. A shortened GPU UUID in `CUDA_VISIBLE_DEVICES` works too; it used to report `cpu` while the GPU was in use. Hosts with one GPU see no change (#993).
+- Hosts without a GPU no longer log `NVML unavailable, GPU memory and name will not be reported`.
+- Opening a deep link from another app, such as a link to an episode's review page, could log you out of every open tab. The session cookie is `SameSite=Strict`, so such a link can arrive without it, and the server answered with a new anonymous session cookie that replaced the logged-in one. Only a logged-in session now receives the CSRF cookie, and anonymous responses set no cookies (#993).
+- Deleting a feed or episode while it was queued or processing no longer logs a misleading "orphaned" warning for that episode or sends it through the retry path. The log now says the episode was deleted (#993).
+- Rebuilding the Recents feed or a feed's served RSS no longer reads every episode's transcript and detection data to find its chapters, cut list and whether it has a transcript. Those three fields now live in a small cache table that fills on first read and is cleared for an episode whenever its details change. In a benchmark on a 2.2 GB synthetic database, the Recents read went from 473.1 MB of database pages and 1.15 s to 1.8 MB and 0.16 s. The upgrade adds the table and rewrites no existing data (#993).
+- With feed authentication on, the transcript and chapters links of episodes that fell outside the feed's episode cap now carry the feed key. They were written without it, so podcast apps got a 401 for them (#993).
+
+### Changed
+
+- Dependency updates: @tanstack/react-query 5.107.1 and @tailwindcss/vite 4.3.5 (#978, #981).
+
 ## [2.101.33] - 2026-11-09
 
 ### Added

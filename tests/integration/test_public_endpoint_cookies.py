@@ -1,9 +1,8 @@
-"""Public podcast-app endpoints do not hand out cookies they cannot use.
+"""Only authenticated responses get a session or CSRF cookie.
 
-Minting a CSRF token writes the Flask session, which makes Flask attach a
-session cookie and a ``Vary: Cookie``. On the routes podcast apps fetch, that
-buys nothing and costs the CDN cacheability of some large responses, so those
-endpoints opt out. The web UI still gets its cookie.
+A cross-site navigation arrives without the SameSite=Strict session cookie, so
+a fresh anonymous cookie would replace the real one. Public podcast-app
+endpoints also opt out to stay cacheable.
 """
 
 import pytest
@@ -46,15 +45,27 @@ def test_a_missing_feed_still_sets_no_cookies(client):
     assert _cookie_names(response) == set()
 
 
-def test_the_api_still_gets_its_csrf_cookie(client):
-    # The frontend reads this cookie to populate X-CSRF-Token; losing it
-    # would break every mutating request in the UI.
-    response = client.get('/api/v1/auth/status')
-    assert CSRF_COOKIE_NAME in _cookie_names(response)
+@pytest.mark.parametrize('path', [
+    '/ui/',
+    '/ui/feeds/example-podcast/episodes/a1b2c3d4e5f6',
+    '/api/v1/auth/status',
+])
+def test_anonymous_responses_set_no_cookies(client, path):
+    response = client.get(path)
+    assert _cookie_names(response) & {'session', CSRF_COOKIE_NAME} == set()
 
 
-def test_the_spa_still_gets_its_csrf_cookie(client):
-    response = client.get('/ui/')
+@pytest.mark.parametrize('path', [
+    '/api/v1/auth/status',
+    '/ui/',
+    '/ui/feeds/example-podcast/episodes/a1b2c3d4e5f6',
+])
+def test_authenticated_responses_get_the_csrf_cookie(path):
+    # The frontend reads this cookie to populate X-CSRF-Token.
+    authed = app.test_client()
+    with authed.session_transaction() as sess:
+        sess['authenticated'] = True
+    response = authed.get(path)
     assert 'serve_ui' not in PUBLIC_FEED_ENDPOINTS
     assert CSRF_COOKIE_NAME in _cookie_names(response)
 

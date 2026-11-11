@@ -215,6 +215,20 @@ describe('queue admission explanation', () => {
     expect(note.textContent).toMatch(/Resumes/);
   });
 
+  it('labels the outside-schedule reason', async () => {
+    renderSection([queued(1, {
+      admission: {
+        blocked: true, phase: null, slot: null,
+        reason: 'outside_schedule', resumesAt: '2026-09-15T12:30:00Z',
+      },
+    })]);
+
+    const note = (await table().findAllByText(/^Held/))[0];
+    expect(note.textContent).toContain('outside the processing schedule');
+    expect(note.textContent).not.toContain('outside_schedule');
+    expect(note.textContent).toMatch(/Resumes/);
+  });
+
   it('says nothing when a row reports no block', async () => {
     renderSection([queued(1, {
       admission: { blocked: false, phase: null, slot: null, reason: null, resumesAt: null },

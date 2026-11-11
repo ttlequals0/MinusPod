@@ -17,6 +17,9 @@ from utils.youtube_fields import MIDNIGHT_ONLY, PLACEHOLDER_TITLES
 
 logger = logging.getLogger(__name__)
 
+# Busy wait for the best-effort cache fill, so a feed read never stalls behind a writer.
+_FEED_FILL_BUSY_MS = 1000
+
 
 def parse_applied_cuts(raw) -> list[dict] | None:
     """Decode applied_cuts_json; None for NULL, invalid JSON or a non-list."""
@@ -1297,6 +1300,31 @@ class EpisodeMixin:
                       "AND p.feed_type IN (" + ", ".join(f"'{t}'" for t in RECENTS_MEMBER_FEED_TYPES) + ") "
                       "AND e.published_at IS NOT NULL AND e.published_at >= ? "
                       "AND " + NOT_AWAITING_APPROVAL)
+    # Feed-rendering fields from the narrow cache, else from episode_details (exact either way).
+    # _FEED_PENDING_FILL marks rows served from episode_details with no cache row yet.
+    _FEED_DETAIL_JOINS = ("LEFT JOIN episode_feed_details f ON f.episode_id = e.id "
+                          "LEFT JOIN episode_details d ON d.episode_id = e.id AND f.episode_id IS NULL ")
+    _FEED_DETAIL_COLS = ("COALESCE(f.chapters_json, d.chapters_json) AS chapters_json, "
+                         "COALESCE(f.applied_cuts_json, d.applied_cuts_json) AS applied_cuts_json, "
+                         "COALESCE(f.has_transcript_vtt, d.transcript_vtt != '', 0) AS has_transcript_vtt")
+    _FEED_PENDING_FILL = "(f.episode_id IS NULL AND d.episode_id IS NOT NULL) AS _feed_pending_fill"
+
+    def _fill_feed_details(self, episode_pks) -> None:
+        """Best-effort cache fill for the given episodes.id values; skipped on lock contention."""
+        if self.get_connection().in_transaction:
+            return  # an immediate transaction would roll back the caller's open one
+        try:
+            for chunk in _chunked(list(episode_pks)):
+                with self.transaction(immediate=True, busy_timeout_ms=_FEED_FILL_BUSY_MS) as conn:
+                    conn.execute(
+                        "INSERT OR IGNORE INTO episode_feed_details "  # noqa: S608
+                        "(episode_id, chapters_json, applied_cuts_json, has_transcript_vtt) "
+                        "SELECT d.episode_id, d.chapters_json, d.applied_cuts_json, "
+                        "COALESCE(d.transcript_vtt != '', 0) FROM episode_details d "
+                        f"WHERE d.episode_id IN ({','.join('?' for _ in chunk)})", chunk)
+        except sqlite3.OperationalError as e:
+            logger.info(f"Skipped episode_feed_details fill: {e}")
+
     _RECENTS_SOURCE_COLS = ("p.slug AS source_slug, "
                             "COALESCE(NULLIF(p.title_override, ''), NULLIF(p.title, ''), p.slug) AS source_title, "
                             "p.feed_type AS source_feed_type, p.chapters_in_notes AS source_chapters_in_notes, "
@@ -1321,16 +1349,14 @@ class EpisodeMixin:
                                       search: str = '') -> list[dict]:
         """Each row carries its source feed's slug, display title, feed type and
         chapters override. details=True adds chapters_json, applied_cuts_json and has_transcript_vtt
-        for the feed renderer; typeof() reads the record header instead of
-        copying the VTT text."""
+        for the feed renderer, read from the episode_feed_details cache (filled on first read)."""
         sort_col = sort_by if sort_by in self.VALID_SORT_COLUMNS else 'published_at'
         direction = 'ASC' if str(sort_dir).lower() == 'asc' else 'DESC'
         cols = f"e.*, {self._RECENTS_SOURCE_COLS}"
         join = ''
         if details:
-            cols += (", d.chapters_json, d.applied_cuts_json, "
-                     "typeof(d.transcript_vtt) = 'text' AS has_transcript_vtt")
-            join = "LEFT JOIN episode_details d ON d.episode_id = e.id "
+            cols += f", {self._FEED_DETAIL_COLS}, {self._FEED_PENDING_FILL}"
+            join = self._FEED_DETAIL_JOINS
         where = self._RECENTS_WHERE.replace('WHERE ', f'{join}WHERE ', 1)
         params: list = [since]
         if search:
@@ -1340,7 +1366,12 @@ class EpisodeMixin:
         if limit:
             query += " LIMIT ? OFFSET ?"
             params += [limit, offset]
-        return [dict(r) for r in self.get_connection().execute(query, params).fetchall()]
+        rows = [dict(r) for r in self.get_connection().execute(query, params).fetchall()]
+        if details:
+            to_fill = [r['id'] for r in rows if r.pop('_feed_pending_fill')]
+            if to_fill:
+                self._fill_feed_details(to_fill)
+        return rows
 
     def is_recent_processed_episode(self, source_slug: str, episode_id: str,
                                     since: str) -> bool:
@@ -1351,28 +1382,34 @@ class EpisodeMixin:
             (since, source_slug, episode_id),
         ).fetchone())
 
-    def get_chapters_json_for_podcast(self, podcast_id: int) -> dict[str, str]:
-        """{episode_id: chapters_json} for a feed's processed episodes; one
-        query instead of a full-row join per served item. Processed only:
-        the timestamps are on the cut timeline, so they must not be listed
-        against original audio."""
-        cursor = self.get_connection().execute(
-            """SELECT e.episode_id, d.chapters_json
-               FROM episodes e JOIN episode_details d ON d.episode_id = e.id
-               WHERE e.podcast_id = ? AND e.status = 'processed'
-                     AND d.chapters_json IS NOT NULL""",
-            (podcast_id,))
-        return {row['episode_id']: row['chapters_json'] for row in cursor.fetchall()}
+    def get_feed_render_details(self, podcast_id: int) -> tuple[
+            dict[str, str], dict[str, str], dict[str, tuple[bool, bool]]]:
+        """(chapters, applied_cuts, podcasting2_flags) by episode_id from one scan.
 
-    def get_applied_cuts_for_podcast(self, podcast_id: int) -> dict[str, str]:
-        """{episode_id: raw applied_cuts_json} for a feed's processed episodes; NULL rows skipped."""
-        cursor = self.get_connection().execute(
-            """SELECT e.episode_id, d.applied_cuts_json
-               FROM episodes e JOIN episode_details d ON d.episode_id = e.id
-               WHERE e.podcast_id = ? AND e.status = 'processed'
-                     AND d.applied_cuts_json IS NOT NULL""",
-            (podcast_id,))
-        return {row['episode_id']: row['applied_cuts_json'] for row in cursor.fetchall()}
+        Chapters and cuts cover processed episodes only: their timestamps are on the cut
+        timeline, so they must not be listed against original audio. Flags cover every episode.
+        """
+        rows = self._feed_detail_rows(podcast_id)
+        processed = [r for r in rows if r['status'] == 'processed']
+        chapters = {r['episode_id']: r['chapters_json'] for r in processed
+                    if r['chapters_json'] is not None}
+        cuts = {r['episode_id']: r['applied_cuts_json'] for r in processed
+                if r['applied_cuts_json'] is not None}
+        flags = {r['episode_id']: (bool(r['has_transcript_vtt']), bool(r['chapters_json']))
+                 for r in rows}
+        return chapters, cuts, flags
+
+    def _feed_detail_rows(self, podcast_id: int) -> list[dict]:
+        """A feed's episodes with the cache-backed feed-rendering fields; fills missing cache rows."""
+        rows = [dict(r) for r in self.get_connection().execute(
+            f"""SELECT e.id, e.episode_id, e.status, {self._FEED_DETAIL_COLS}, {self._FEED_PENDING_FILL}
+               FROM episodes e {self._FEED_DETAIL_JOINS}
+               WHERE e.podcast_id = ?""",  # noqa: S608
+            (podcast_id,)).fetchall()]
+        to_fill = [r['id'] for r in rows if r['_feed_pending_fill']]
+        if to_fill:
+            self._fill_feed_details(to_fill)
+        return rows
 
     _EPISODE_JSON_COLS = frozenset({'ad_markers_json', 'audio_analysis_json',
                                     'original_segments_json'})
@@ -1387,15 +1424,19 @@ class EpisodeMixin:
         conn = self.get_connection()
         cursor = conn.execute(
             f"""SELECT e.episode_id, e.original_duration, ed.{col}
-               FROM episodes e
-               JOIN podcasts p ON e.podcast_id = p.id
+               FROM (SELECT e.id, COALESCE(e.published_at, e.created_at) AS sort_key
+                     FROM episodes e
+                     JOIN podcasts p ON e.podcast_id = p.id
+                     JOIN episode_details ed ON ed.episode_id = e.id
+                     WHERE p.slug = ? AND e.status = 'processed'
+                           AND e.episode_id != COALESCE(?, '')
+                           AND e.original_duration > ?
+                           AND ed.{col} IS NOT NULL
+                     ORDER BY sort_key DESC
+                     LIMIT ?) pick
+               JOIN episodes e ON e.id = pick.id
                JOIN episode_details ed ON ed.episode_id = e.id
-               WHERE p.slug = ? AND e.status = 'processed'
-                     AND e.episode_id != COALESCE(?, '')
-                     AND e.original_duration > ?
-                     AND ed.{col} IS NOT NULL
-               ORDER BY COALESCE(e.published_at, e.created_at) DESC
-               LIMIT ?""",  # noqa: S608
+               ORDER BY pick.sort_key DESC""",  # noqa: S608
             (slug, exclude_episode_id, min_duration, limit)
         )
         return [dict(row) for row in cursor.fetchall()]

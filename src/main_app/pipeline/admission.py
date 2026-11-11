@@ -3,6 +3,7 @@
 import json
 import logging
 from processing_queue import is_processing_paused
+from processing_schedule import schedule_state
 from config import (
     PROCESSING_MODE_PASSTHROUGH,
     PROCESSING_MODE_SKIP_DETECTION,
@@ -18,7 +19,8 @@ from llm_client import ProviderAccountChangedError
 
 from llm_route import apply_failover_dict, resolve_route, route_account_mismatch
 from rate_limit_hold import (
-    HOLD_REASON_ACCOUNT_CHANGED, HOLD_REASON_PAUSED, active_hold_reason,
+    HOLD_REASON_ACCOUNT_CHANGED, HOLD_REASON_PAUSED, HOLD_REASON_SCHEDULE,
+    active_hold_reason,
 )
 
 import run_context
@@ -184,20 +186,25 @@ _ADMISSION_PHASE_ORDER = ('detection', 'review', 'verification', 'chapters')
 def admission_explanation(settings_db, slug: str, episode_id: str | None = None,
                           snapshot: dict | None = None, gates: dict | None = None,
                           queue_row: dict | None = None, paused: bool | None = None,
-                          hold_cache: dict | None = None) -> dict:
+                          hold_cache: dict | None = None,
+                          schedule: dict | None = None) -> dict:
     """Why a queued job is or is not admissible right now.
 
     {'blocked', 'phase', 'slot', 'reason', 'resumesAt'}: computed from the
     same resolved phase set admission gates on, so a phase this run will not
     run (a skipped verification, chapters turned off) never appears as the
-    blocker. `paused` and `hold_cache` let a caller scoring a whole page of
-    rows read each hold marker once instead of once per row.
+    blocker. `paused`, `schedule` (a schedule_state dict) and `hold_cache` let
+    a caller scoring a whole page of rows read each once instead of once per row.
     """
     idle = {'blocked': False, 'phase': None, 'slot': None,
             'reason': None, 'resumesAt': None}
     if paused if paused is not None else is_processing_paused(settings_db):
         return {'blocked': True, 'phase': None, 'slot': None,
                 'reason': HOLD_REASON_PAUSED, 'resumesAt': None}
+    schedule = schedule if schedule is not None else schedule_state(settings_db)
+    if not schedule['open']:
+        return {'blocked': True, 'phase': None, 'slot': None,
+                'reason': HOLD_REASON_SCHEDULE, 'resumesAt': schedule['nextChangeAt']}
 
     def hold_for(provider_key, slot):
         if hold_cache is None:

@@ -137,6 +137,8 @@ Key endpoints:
 - `POST /api/v1/failover/probe` - Run a health probe for every enabled target immediately and return the results.
 - `POST /api/v1/settings/providers/failover/test-connection` - Test the shared LLM failover provider's connection, the same contract as the secondary provider test.
 - `POST /api/v1/settings/providers/failover-whisper/test-connection` - Test the transcriber failover connection, including the sample-audio upload.
+- `GET/PUT /api/v1/settings/processing-schedule` - Weekly window for starting new runs: `enabled`, `start` and `end` (`HH:MM`, 24-hour), `days` (`mon` to `sun`, the days a window starts). Times are read in the instance time zone (`notification_timezone`). An `end` at or before `start` runs past midnight. The response adds read-only `timezone`, `open` and `nextChangeAt`. Runs in progress finish; everything else, including manual Reprocess and play-triggered starts, waits in the queue until the window opens.
+- `GET/PUT /api/v1/status/processing-admission` - Pause or resume new processing runs (survives restarts)
 - `POST /api/v1/settings/rate-limit-hold/reset` - Clear every active rate-limit hold without disabling the hold feature
 - `GET/POST/PUT/DELETE /api/v1/settings/webhooks` - Webhook CRUD
 - `POST /api/v1/settings/webhooks/{id}/test` - Fire test webhook
@@ -186,6 +188,8 @@ Key endpoints:
 ```
 
 `queuePaused` is true only while a rate-limit hold is stopping new claims; `holdUntil` is the provider's own reset time and `holdSince` is when the pause began, both null once the reset has passed. An offline wait parks specific episodes and leaves the rest of the queue running, so it never sets `queuePaused`. `offlineHeld` counts every episode deferred outside the rate-limit hold, including any service `offlineServices` does not break out. `offlineServices` also carries a `sponsorblock` entry while YouTube feeds are on and the SponsorBlock API is unreachable or YouTube episodes are waiting on it; its `held` counts those episodes and it is not part of `offlineHeld`. A service's `reachable` is `null` until the tick has probed it once, which means "not checked yet" rather than "up".
+
+Both frames also carry `processingSchedule`: `{"enabled": true, "open": false, "nextChangeAt": "2026-01-01T22:00:00Z"}`. While `open` is false the queue holds new starts (a queued entry's `admission.reason` is `outside_schedule` and `resumesAt` is `nextChangeAt`). `nextChangeAt` is null when the schedule is disabled or never closes.
 
 `jobs` lists every running job, oldest first, with the same fields as `currentJob`, which stays as the oldest one. `whisper` is the pool snapshot: whether it is on and active, the request cap, and how many requests and episodes are in flight. Pool counters are per gunicorn worker, so `inFlight` and `transcribingEpisodes` are only meaningful when `leader` is true; a non-leader worker always reports those as 0.
 

@@ -16,6 +16,7 @@
 - [Splice check](#splice-check)
 - [Offline Queue](#offline-queue)
 - [Rate-Limit Hold](#rate-limit-hold)
+- [Processing Schedule](#processing-schedule)
 - [Whisper Pool](#whisper-pool)
 - [Outbound Requests](#outbound-requests)
 - [Scheduled Database Backups](#scheduled-database-backups)
@@ -659,6 +660,33 @@ All are off by default (0 means unlimited). Configure them under **Settings > AI
 For an account limited to 5 requests per minute and 20 per day, set `providerRequestsPerMin` to 5 and `providerRequestsPerDay` to 20. Check your account limits before choosing values. A larger [detection window](#detection-window-geometry) uses fewer requests per episode. Set `providerTokensPerMin` if the account also has a token cap.
 
 A held or limited provider never reroutes to another provider: the episode waits in the queue for that account's reset.
+
+## Processing Schedule
+
+Some hosts share a GPU with other work, or should stay quiet during the day to save power. The processing schedule limits when MinusPod starts new runs to a weekly window. Outside the window episodes wait in the queue, and the local transcription model is unloaded so the GPU is free for other work.
+
+The feature is off by default. Configure it in **Queue > Queue Control > Processing schedule**.
+
+| Setting | Default | Notes |
+|---|---|---|
+| Process on a schedule | off | Hold new runs outside the window. |
+| From | 00:00 | When the window opens, 24-hour `HH:MM`. |
+| Until | 06:00 | When the window closes, 24-hour `HH:MM`. |
+| Days the window starts on | every day | At least one day is required. |
+
+Times are read in the instance time zone, which is the zone set under Settings > Notifications (`notification_timezone`). The block shows the zone in use. An Until time at or before From runs past midnight into the next day. The day buttons pick the days a window starts, so Fri with 22:00 to 06:00 ends on Saturday morning. The same time in both fields is a full 24 hours on the selected days.
+
+Outside the window no new run starts. That covers automatic processing, Reprocess, bulk actions, and a podcast app that requests an unprocessed episode. These wait in the queue and start when the window opens. The podcast app gets HTTP 503 with `Retry-After: 60`, the same answer it gets when the queue is busy. Episodes already processing when the window closes run to completion.
+
+Approving or rejecting a held ad still works outside the window, because it recuts the retained original without starting a processing run. The operator pause on new processing comes first: while it is on, nothing starts even inside the window.
+
+While the window is closed and nothing is running, the local transcription model is unloaded once it has been idle for 300 seconds, the same idle timeout described in [Transcription](transcription.md).
+
+When episodes are waiting, the Queue page shows a Queue hold box that says processing is outside its schedule and when it resumes. A waiting row reads "Held: outside the processing schedule. Resumes" followed by the time. The status bar shows "Outside schedule until" and the same time.
+
+The schedule settings are part of the configuration export and import. A stored value that is not valid, such as a hand-edited database entry, is treated as its default and logged as a warning.
+
+The schedule is also available through `GET/PUT /api/v1/settings/processing-schedule`. See [API & Webhooks](api-and-webhooks.md#api) for the fields and for the `processingSchedule` block in the status response.
 
 ## Whisper Pool
 

@@ -16,6 +16,7 @@ from cancel import (
 )
 
 from processing_queue import ProcessingQueue, is_processing_paused
+from processing_schedule import is_schedule_closed
 from utils.markers import (reject_barriers)
 from utils.pattern_catalog import pattern_catalog_scope
 from whisper_pool import get_pool, is_background_follower
@@ -239,6 +240,8 @@ def start_background_processing(slug, episode_id, original_url, title, podcast_n
         - (False, "queue_only") if this process is a background follower, not the leader
         - (False, "queue_busy:slug:episode_id") if another episode is processing
         - (False, "rate_limit_paused") while a rate-limit hold is active
+        - (False, "processing_paused") while the operator has paused new processing
+        - (False, "outside_schedule") while the processing schedule window is closed
     """
     queue = ProcessingQueue()
 
@@ -246,6 +249,8 @@ def start_background_processing(slug, episode_id, original_url, title, podcast_n
         return False, "shutdown_draining"
     if is_processing_paused(db):
         return False, "processing_paused"
+    if is_schedule_closed(db):
+        return False, "outside_schedule"
 
     # Only the leader's dispatcher refreshes on a loop, so a non-leader worker
     # would otherwise hold whatever settings it saw at boot. TTL-throttled.

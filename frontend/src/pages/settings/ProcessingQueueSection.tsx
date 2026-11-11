@@ -52,6 +52,11 @@ function episodeKey(episode: ProcessingEpisode): string {
   return `${episode.slug}:${episode.episodeId}`;
 }
 
+// Known machine reasons get a readable label; anything else prints as sent.
+const ADMISSION_REASONS: Record<string, string> = {
+  outside_schedule: 'outside the processing schedule',
+};
+
 // Multi-stage routing makes a generic hold hard to diagnose, so a blocked row
 // names the phase, the account slot, the reason and when the block lifts.
 function AdmissionNote({ admission }: { admission?: QueueAdmission | null }) {
@@ -63,7 +68,7 @@ function AdmissionNote({ admission }: { admission?: QueueAdmission | null }) {
   return (
     <p className="mt-1 text-xs text-warning">
       Held{scope ? ` on the ${scope}` : ''}
-      {admission.reason ? `: ${admission.reason}` : ''}
+      {admission.reason ? `: ${ADMISSION_REASONS[admission.reason] ?? admission.reason}` : ''}
       {admission.resumesAt ? `. Resumes ${formatDateTime(admission.resumesAt)}` : ''}
     </p>
   );

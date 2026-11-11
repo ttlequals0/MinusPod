@@ -141,6 +141,7 @@ class TestRefreshRSSFeedCoalesceBypass(unittest.TestCase):
         db.is_auto_process_enabled_for_podcast.return_value = False
         db.is_only_expose_processed_for_podcast.return_value = False
         db.get_episode_statuses_for_podcast.return_value = ({}, {})
+        db.get_feed_render_details.return_value = ({}, {}, {})
         storage.load_data_json.return_value = {'feed_url': 'https://example.com/a.rss'}
 
         refresh_rss_feed('pod-a', 'https://example.com/a.rss', force=True)
@@ -177,6 +178,7 @@ class TestRefreshRSSFeedCoalesceBypass(unittest.TestCase):
         ]
         db.is_only_expose_processed_for_podcast.return_value = False
         db.get_episode_statuses_for_podcast.return_value = ({}, {})
+        db.get_feed_render_details.return_value = ({}, {}, {})
         rss_parser.fetch_feed_conditional.side_effect = [
             (b'<rss/>', '"new"', None), (b'<rss/>', '"new"', None),
         ]

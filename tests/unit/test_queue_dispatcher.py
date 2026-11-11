@@ -376,3 +376,41 @@ def test_claim_excludes_pairs_across_feeds(feed):
         db.get_connection().execute("DELETE FROM auto_process_queue")
         db.get_connection().commit()
         db.delete_podcast('other-feed')
+
+
+def _claim_one():
+    _queue(1)
+    return db.claim_next_queued_episode()
+
+
+def test_waiter_stops_quietly_when_the_episode_was_deleted(feed, monkeypatch, caplog):
+    queued = _claim_one()
+    db.get_connection().execute(
+        "DELETE FROM episodes WHERE episode_id = ?", (queued['episode_id'],))
+    db.get_connection().commit()
+    stop = MagicMock()
+    stop.is_set.return_value = False
+    stop.wait.return_value = False
+    monkeypatch.setattr(background, 'shutdown_event', stop)
+    with caplog.at_level('INFO'):
+        background._wait_for_claimed_episode(queued['id'], SLUG, queued['episode_id'])
+    assert db.get_queue_row_status(queued['id']) not in ('pending', 'failed')
+    assert 'deleted while queued or processing' in caplog.text
+    assert 'orphaned' not in caplog.text
+    assert 'will auto-retry' not in caplog.text
+
+
+def test_waiter_tolerates_a_queue_row_removed_with_the_episode(feed, monkeypatch, caplog):
+    queued = _claim_one()
+    conn = db.get_connection()
+    conn.execute("DELETE FROM episodes WHERE episode_id = ?", (queued['episode_id'],))
+    conn.execute("DELETE FROM auto_process_queue WHERE id = ?", (queued['id'],))
+    conn.commit()
+    stop = MagicMock()
+    stop.is_set.return_value = False
+    stop.wait.return_value = False
+    monkeypatch.setattr(background, 'shutdown_event', stop)
+    with caplog.at_level('INFO'):
+        background._wait_for_claimed_episode(queued['id'], SLUG, queued['episode_id'])
+    assert 'deleted while queued or processing' in caplog.text
+    assert 'Auto-process error' not in caplog.text

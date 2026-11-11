@@ -581,9 +581,10 @@ class Database(SchemaMixin, PodcastMixin, EpisodeMixin, SettingsMixin,
 
     class _TransactionContext:
         """Context manager for database transactions with automatic commit/rollback."""
-        def __init__(self, conn, immediate=False):
+        def __init__(self, conn, immediate=False, busy_timeout_ms=None):
             self.conn = conn
             self.immediate = immediate
+            self.busy_timeout_ms = busy_timeout_ms
         def __enter__(self):
             if self.immediate:
                 if self.conn.in_transaction:
@@ -591,7 +592,14 @@ class Database(SchemaMixin, PodcastMixin, EpisodeMixin, SettingsMixin,
                     logger.warning("Rolled back a leaked transaction before BEGIN IMMEDIATE on thread %s",
                                    threading.current_thread().name)
                     self.conn.rollback()
-                self.conn.execute("BEGIN IMMEDIATE")
+                if self.busy_timeout_ms is None:
+                    self.conn.execute("BEGIN IMMEDIATE")
+                else:
+                    self.conn.execute(f"PRAGMA busy_timeout = {self.busy_timeout_ms}")
+                    try:
+                        self.conn.execute("BEGIN IMMEDIATE")
+                    finally:
+                        self.conn.execute(f"PRAGMA busy_timeout = {BUSY_TIMEOUT_MS}")
             return self.conn
         def __exit__(self, exc_type, exc_val, exc_tb):
             if exc_type is None:
@@ -600,7 +608,7 @@ class Database(SchemaMixin, PodcastMixin, EpisodeMixin, SettingsMixin,
                 self.conn.rollback()
             return False
 
-    def transaction(self, immediate: bool = False):
+    def transaction(self, immediate: bool = False, busy_timeout_ms: int | None = None):
         """Context manager for database transactions.
 
         Usage:
@@ -615,13 +623,17 @@ class Database(SchemaMixin, PodcastMixin, EpisodeMixin, SettingsMixin,
         upgrade fails instantly with "database is locked" when the
         snapshot is stale (SQLITE_BUSY_SNAPSHOT is not retried by
         busy_timeout). Use it for multi-statement writes that can run
-        alongside other writers (issue #566).
+        alongside other writers (issue #566). busy_timeout_ms (immediate only)
+        caps the lock wait for best-effort writes.
 
         Do not hold one across per-row Python work: a transaction spanning a
         whole feed's episodes held the write lock past every other writer's
         busy_timeout. Chunk the rows and take a transaction per chunk.
         """
-        return self._TransactionContext(self.get_connection(), immediate=immediate)
+        if busy_timeout_ms is not None and not immediate:
+            raise ValueError("busy_timeout_ms requires immediate=True")
+        return self._TransactionContext(self.get_connection(), immediate=immediate,
+                                        busy_timeout_ms=busy_timeout_ms)
 
     def rollback_open_transaction(self) -> bool:
         """Roll back a transaction left open on this thread's connection.

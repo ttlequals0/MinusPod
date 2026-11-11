@@ -530,6 +530,36 @@ export async function resetRateLimitHold(): Promise<RateLimitHoldSettings> {
   });
 }
 
+export type ScheduleDay = 'mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat' | 'sun';
+
+export interface ProcessingScheduleSettings {
+  enabled: boolean;
+  /** Window start, HH:MM in the instance time zone. */
+  start: string;
+  /** Window end, HH:MM; at or before start it runs past midnight. */
+  end: string;
+  /** Days a window starts on, in week order. */
+  days: ScheduleDay[];
+  timezone: string;
+  /** True when the schedule is off or the window is open now. */
+  open: boolean;
+  /** ISO timestamp of the next open or close, or null when it never changes. */
+  nextChangeAt: string | null;
+}
+
+export async function getProcessingSchedule(): Promise<ProcessingScheduleSettings> {
+  return apiRequest<ProcessingScheduleSettings>('/settings/processing-schedule');
+}
+
+export async function updateProcessingSchedule(
+  args: Partial<Pick<ProcessingScheduleSettings, 'enabled' | 'start' | 'end' | 'days'>>,
+): Promise<ProcessingScheduleSettings> {
+  return apiRequest<ProcessingScheduleSettings>('/settings/processing-schedule', {
+    method: 'PUT',
+    body: args,
+  });
+}
+
 export async function runDatabaseBackupNow(): Promise<DatabaseBackupRunSummary> {
   return apiRequest<DatabaseBackupRunSummary>('/system/db-backup/run', {
     method: 'POST',

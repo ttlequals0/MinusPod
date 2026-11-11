@@ -28,7 +28,7 @@ https://github.com/user-attachments/assets/2078724e-ca79-4368-a901-3817f9a0d213
 **Transcription and LLMs**
 - Transcribe locally with faster-whisper or NVIDIA Parakeet on GPU or CPU, or remotely through whisper.cpp, Groq, OpenAI, or OpenVINO. [Transcription](docs/transcription.md)
 - Anthropic, OpenRouter, Ollama, System One, or any OpenAI-compatible endpoint, switchable at runtime with per-stage models and editable prompts. [LLM providers](docs/llm-providers.md)
-- A/B routing between two providers, [failover](docs/failover.md) to a standby, rate-limit holds, and an offline queue for self-hosted endpoints
+- A/B routing between two providers, [failover](docs/failover.md) to a standby, rate-limit holds, a weekly processing schedule, and an offline queue for self-hosted endpoints
 
 **Patterns and sponsors**
 - Learned patterns scoped per podcast, network, or globally, with a sponsor list and aliases

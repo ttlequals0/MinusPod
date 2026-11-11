@@ -63,6 +63,7 @@ HOLD_REASON_MANUAL = 'manual_rate_limit'
 HOLD_REASON_PROVIDER = 'provider_rate_limit'
 HOLD_REASON_ACCOUNT_CHANGED = 'provider_account_changed'
 HOLD_REASON_PAUSED = 'processing_paused'
+HOLD_REASON_SCHEDULE = 'outside_schedule'
 
 # A provider reset farther out than this is treated as unusable reset info;
 # 24h covers the common per-minute and per-day windows.

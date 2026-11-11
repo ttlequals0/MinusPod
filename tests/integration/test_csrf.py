@@ -21,33 +21,36 @@ def csrf_client():
         yield c
 
 
-def test_get_receives_csrf_cookie(csrf_client):
+def test_anonymous_get_receives_no_csrf_cookie(csrf_client):
     response = csrf_client.get('/api/v1/auth/status')
     assert response.status_code == 200
-    cookie = csrf_client.get_cookie('minuspod_csrf')
-    assert cookie is not None
+    assert csrf_client.get_cookie('minuspod_csrf') is None
+
+
+def test_setting_the_first_password_receives_csrf_cookie(csrf_client):
+    _set_password(csrf_client)
+    assert csrf_client.get_cookie('minuspod_csrf') is not None
 
 
 def _get_csrf_token(csrf_client):
-    csrf_client.get('/api/v1/auth/status')
+    # First-run setup logs the client in and mints the cookie on that response.
+    _set_password(csrf_client)
     cookie = csrf_client.get_cookie('minuspod_csrf')
     assert cookie is not None
     return cookie.value
 
 
-def _set_password(csrf_client, token, password='CsrfTestPw123!'):
+def _set_password(csrf_client, password='CsrfTestPw123!'):
     r = csrf_client.put(
         '/api/v1/auth/password',
         data=json.dumps({'newPassword': password}),
         content_type='application/json',
-        headers={'X-CSRF-Token': token},
     )
     assert r.status_code == 200, r.get_data(as_text=True)
 
 
 def test_post_without_csrf_token_rejected_after_auth(csrf_client):
-    token = _get_csrf_token(csrf_client)
-    _set_password(csrf_client, token)
+    _get_csrf_token(csrf_client)
 
     response = csrf_client.post(
         '/api/v1/feeds',
@@ -59,8 +62,7 @@ def test_post_without_csrf_token_rejected_after_auth(csrf_client):
 
 
 def test_opml_post_without_csrf_token_rejected_after_auth(csrf_client):
-    token = _get_csrf_token(csrf_client)
-    _set_password(csrf_client, token)
+    _get_csrf_token(csrf_client)
 
     response = csrf_client.post(
         '/api/v1/feeds/export-opml',
@@ -71,8 +73,7 @@ def test_opml_post_without_csrf_token_rejected_after_auth(csrf_client):
 
 
 def test_post_with_mismatched_csrf_rejected(csrf_client):
-    token = _get_csrf_token(csrf_client)
-    _set_password(csrf_client, token)
+    _get_csrf_token(csrf_client)
 
     response = csrf_client.post(
         '/api/v1/feeds',
@@ -85,7 +86,6 @@ def test_post_with_mismatched_csrf_rejected(csrf_client):
 
 def test_post_with_matching_csrf_token_passes_csrf_layer(csrf_client):
     token = _get_csrf_token(csrf_client)
-    _set_password(csrf_client, token)
 
     cookie = csrf_client.get_cookie('minuspod_csrf')
     token = cookie.value

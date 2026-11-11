@@ -25,6 +25,7 @@ const STATIC_PATHS = [
   '/settings/offline-queue',
   '/settings/provider-budget',
   '/settings/rate-limit-hold',
+  '/settings/processing-schedule',
   '/settings/providers/primary/affected-runs',
   '/settings/providers/secondary/affected-runs',
   '/sponsors/normalizations',

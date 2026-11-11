@@ -17,6 +17,8 @@ vi.mock('../../api/settings', () => ({
   getRateLimitHoldSettings: vi.fn(),
   updateRateLimitHoldSettings: vi.fn(),
   resetRateLimitHold: vi.fn(),
+  getProcessingSchedule: vi.fn(),
+  updateProcessingSchedule: vi.fn(),
   getProviderBudget: vi.fn(),
   updateProviderBudget: vi.fn(),
   getProviderBudgetCurrencies: vi.fn(),
@@ -59,6 +61,10 @@ function renderSection(
 describe('QueueControlSection', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mocked.getProcessingSchedule.mockResolvedValue({
+      enabled: false, start: '22:00', end: '06:00', days: ['mon', 'tue', 'wed', 'thu', 'fri'],
+      timezone: 'UTC', open: true, nextChangeAt: null,
+    });
     mocked.getProviderBudget.mockResolvedValue({
       enabled: false, dailyLimitMicrousd: 0, maxReservations: 1,
       unknownCost: 'deny', unknownReserveMicrousd: 0,

@@ -21,6 +21,7 @@ from config import (
     resolve_skip_transcription, episode_matches_feed_filters,
 )
 from database.queue import PENDING_QUEUE_LIMIT
+from processing_schedule import is_schedule_closed
 from utils.constants import CANCELED_ERROR_MESSAGE, EpisodeStatus
 from utils.time import parse_iso_utc
 from transcriber.settings import active_whisper_settings
@@ -493,23 +494,26 @@ def _wait_for_claimed_episode(queue_id: int, slug: str, episode_id: str) -> None
         # worker holds the lock. One poll of grace lets a job
         # that just finished write its status first.
         orphan_polls = 0
+        deleted = False
         while waited < max_wait and not shutdown_event.is_set():
             shutdown_event.wait(timeout=10)
             waited += 10
             episode = db.get_episode_state(slug, episode_id)
-            if episode and episode['status'] in ('processed', 'failed', 'permanently_failed', 'deferred', 'discovered'):
+            if episode is None:
+                deleted = True
+                break
+            if episode['status'] in ('processed', 'failed', 'permanently_failed', 'deferred', 'discovered'):
                 break
             # A rate-limit hold put the row back to pending.
-            if episode and episode['status'] == 'pending' and any_hold_active(db):
+            if episode['status'] == 'pending' and any_hold_active(db):
                 break
             if queue.is_processing(slug, episode_id):
                 orphan_polls = 0
                 continue
             orphan_polls += 1
             if orphan_polls >= 2:
-                row_status = episode.get('status') if episode else 'missing'
                 refresh_logger.warning(
-                    f"[{slug}:{episode_id}] Row says {row_status} but no worker holds "
+                    f"[{slug}:{episode_id}] Row says {episode['status']} but no worker holds "
                     f"the lock after {waited}s; treating as orphaned"
                 )
                 break
@@ -521,6 +525,12 @@ def _wait_for_claimed_episode(queue_id: int, slug: str, episode_id: str) -> None
             if shutdown_event.is_set() or not queue.is_processing(slug, episode_id):
                 break
             shutdown_event.wait(timeout=0.5)
+
+        if deleted:
+            refresh_logger.info(
+                f"[{slug}:{episode_id}] Episode was deleted while queued or processing; "
+                "nothing to retry")
+            return
 
         # Check final status
         episode = db.get_episode(slug, episode_id)
@@ -621,6 +631,15 @@ def _run_maintenance_tick(registry):
 
     _start_geo_lookup()
 
+
+def _unload_model_if_idle(registry) -> None:
+    """Free the GPU when no run is active and the local model sat unused."""
+    if registry.slot_count() == 0 and unload_whisper_if_idle():
+        refresh_logger.info(
+            f"Processing queue idle for {LOCAL_MODEL_IDLE_UNLOAD_SECONDS}s; "
+            "unloaded the local transcription model")
+
+
 def background_queue_processor():
     """Dispatcher: keep up to the pool's max_episodes claimed rows running."""
     from processing_queue import ProcessingQueue, is_processing_paused
@@ -637,7 +656,7 @@ def background_queue_processor():
         last_probe = time.monotonic() - 3600
         backoff = 30  # Initial backoff for a bounced claim
         rate_limit_pause_logged = False
-        processing_pause_logged = False
+        held_message = None
         while not shutdown_event.is_set():
             # Guard point for issue #566 (see Database.rollback_open_transaction).
             db.clear_leaked_transaction(refresh_logger, 'queue processor')
@@ -693,17 +712,22 @@ def background_queue_processor():
                     blocked_episodes = _blocked_queue_entries(
                         db, held_pairs, legacy_hold=bool(legacy_until))
 
-                # Idle-wait while paused instead of claiming and bouncing, which
-                # would ramp the backoff to its 5-minute ceiling and stall resume;
-                # this bounds resume latency to one IDLE_WAIT_SECONDS pass.
+                # Idle-wait while held instead of claiming and bouncing, which
+                # would ramp the backoff to its 5-minute ceiling and stall resume (#992).
                 if is_processing_paused(db):
-                    if not processing_pause_logged:
-                        refresh_logger.info(
-                            "New processing paused by operator; queue holds until resumed")
-                        processing_pause_logged = True
+                    message = "New processing paused by operator; queue holds until resumed"
+                elif is_schedule_closed(db):
+                    message = "Outside the processing schedule; queue holds until the window opens"
+                else:
+                    message = None
+                if message:
+                    if message != held_message:
+                        refresh_logger.info(message)
+                    held_message = message
+                    _unload_model_if_idle(registry)
                     shutdown_event.wait(timeout=IDLE_WAIT_SECONDS)
                     continue
-                processing_pause_logged = False
+                held_message = None
 
                 # Refreshed every pass (cheap: the settings reader has its own
                 # TTL) so an operator raising max_episodes takes effect without
@@ -737,11 +761,8 @@ def background_queue_processor():
                     backoff = min(backoff * 2, 300)  # Max 5 minutes
                 elif not claimed_any:
                     # An empty queue with no active run must not keep Whisper on the GPU.
-                    if (nothing_to_claim and registry.slot_count() == 0
-                            and unload_whisper_if_idle()):
-                        refresh_logger.info(
-                            f"Processing queue idle for {LOCAL_MODEL_IDLE_UNLOAD_SECONDS}s; "
-                            "unloaded the local transcription model")
+                    if nothing_to_claim:
+                        _unload_model_if_idle(registry)
                     # No queued episodes, wait before checking again. Under a hold
                     # an empty claim means the scan just scored every pending row,
                     # so wait longer than the idle tick before repeating it.
