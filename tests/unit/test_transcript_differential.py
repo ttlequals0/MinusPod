@@ -260,6 +260,30 @@ class TestFetch:
         assert t is not None and len(t.cues) == 3
         assert seen == ['Settled/1', 'Feed/2']
 
+    def test_403_on_both_user_agents_returns_none_after_two_requests(self, monkeypatch):
+        seen = []
+
+        def _get(url, **kwargs):
+            seen.append(kwargs['headers']['User-Agent'])
+            return _response(b'', status=403)
+        monkeypatch.setattr('transcript_differential.safe_get', _get)
+
+        assert fetch_upstream_transcript(URL, 'text/vtt', user_agent='Settled/1',
+                                         fallback_user_agent='Feed/2') is None
+        assert seen == ['Settled/1', 'Feed/2']
+
+    def test_same_settled_and_feed_ua_makes_one_request(self, monkeypatch):
+        seen = []
+
+        def _get(url, **kwargs):
+            seen.append(kwargs['headers']['User-Agent'])
+            return _response(b'', status=403)
+        monkeypatch.setattr('transcript_differential.safe_get', _get)
+
+        assert fetch_upstream_transcript(URL, 'text/vtt', user_agent='Same/1',
+                                         fallback_user_agent='Same/1') is None
+        assert seen == ['Same/1']
+
     def test_falls_back_to_response_content_type(self, monkeypatch):
         monkeypatch.setattr('transcript_differential.safe_get', lambda *a, **k: _response(
             _fixture('sample.json'), content_type='application/json; charset=utf-8'))

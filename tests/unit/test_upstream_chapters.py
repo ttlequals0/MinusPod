@@ -199,3 +199,15 @@ def test_403_on_both_user_agents_returns_none(monkeypatch):
                         lambda *a, **k: _response_status(b'{}', 403))
     assert fetch_upstream_chapters('https://feed.example.com/ch.json',
                                    user_agent='Settled/1', fallback_user_agent='Feed/2') is None
+
+
+def test_same_settled_and_feed_ua_makes_one_request(monkeypatch):
+    seen = []
+
+    def fetch(*a, **k):
+        seen.append(k['headers']['User-Agent'])
+        return _response_status(b'{}', 403)
+    monkeypatch.setattr('upstream_chapters.safe_get', fetch)
+    assert fetch_upstream_chapters('https://feed.example.com/ch.json',
+                                   user_agent='Same/1', fallback_user_agent='Same/1') is None
+    assert seen == ['Same/1']

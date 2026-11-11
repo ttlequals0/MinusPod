@@ -18,10 +18,12 @@ import main_app.feeds as feeds_mod
 import main_app.processing as processing
 from main_app.pipeline import common, transcribe, failure, recut
 from main_app.pipeline import finalize as finalize_stage
+from main_app.pipeline.transcribe import CDN_REFUSED_PREFIX
 
 
 def _run_passthrough(download_result='/tmp/pt.mp3', duration=3305.7,
-                     codec='mp3', codec_seq=None, retained=False, podcast=None):
+                     codec='mp3', codec_seq=None, retained=False, podcast=None,
+                     episode_data=None, availability=(True, None), real_import=False):
     # codec_seq lets a test return a different codec on each probe call (the
     # pass-through path retries once when the first probe yields None); a plain
     # codec value is returned on every call.
@@ -33,22 +35,25 @@ def _run_passthrough(download_result='/tmp/pt.mp3', duration=3305.7,
          patch.object(processing, 'status_service'), \
          patch.object(recut, 'get_audio_codec', side_effect=codec_effect), \
          patch.object(recut.passthrough_assets, 'import_upstream_assets',
-                      return_value={'upstream_chapters': 3,
-                                    'upstream_transcript': 'timed'}) as importer, \
+                      **({'wraps': recut.passthrough_assets.import_upstream_assets}
+                         if real_import else
+                         {'return_value': {'upstream_chapters': 3,
+                                           'upstream_transcript': 'timed'}})) as importer, \
          patch.object(finalize_stage, '_finalize_episode') as finalize, \
          patch.object(common, '_copy_retained_original_to_temp',
                       return_value='/tmp/retained.mp3') as copy_retained, \
          patch.object(processing.shutil, 'move') as move, \
          patch.object(processing.os, 'unlink'), \
          patch.object(processing.os.path, 'exists', return_value=retained):
-        transcriber.check_audio_availability.return_value = (True, None)
+        transcriber.check_audio_availability.side_effect = (
+            availability if callable(availability) else (lambda *a, **k: availability))
         transcriber.download_audio.return_value = download_result
         audio_processor.get_audio_duration.return_value = duration
         storage.get_episode_path.return_value = '/data/pt/episodes/ep1.mp3'
         result = recut._passthrough_episode(
             'pt-feed', 'ep1', 'https://example.com/ep1.mp3', 'Episode One',
             'PT Feed', None, None, None, start_time=0.0,
-            episode_data={'processed_version': 0}, podcast=podcast)
+            episode_data=episode_data or {'processed_version': 0}, podcast=podcast)
     _run_passthrough.importer = importer
     return result, transcriber, finalize, move, db, copy_retained
 
@@ -79,6 +84,35 @@ class TestPassthroughEpisode:
                                        'upstream_transcript': 'timed'}
         _run_passthrough.importer.assert_called_once()
         assert _run_passthrough.importer.call_args.args[:2] == ('pt-feed', 'ep1')
+
+    def test_settled_user_agent_reaches_upstream_fetches(self):
+        episode = {'processed_version': 0,
+                   'upstream_chapters_url': 'https://example.com/ch.json',
+                   'upstream_transcript_url': 'https://example.com/t.vtt',
+                   'upstream_transcript_type': 'text/vtt'}
+
+        def availability(url, user_agent=None):
+            return (True, None) if user_agent == 'Feed/9' else (False, CDN_REFUSED_PREFIX)
+        with patch('main_app.pipeline.transcribe.feed_user_agent', return_value='Feed/9'), \
+             patch('main_app.pipeline.passthrough_assets.feed_user_agent', return_value='Feed/9'), \
+             patch.object(recut.passthrough_assets, 'fetch_upstream_chapters',
+                          return_value=[]) as chapters, \
+             patch.object(recut.passthrough_assets, 'fetch_upstream_transcript',
+                          return_value=None) as transcript:
+            result, transcriber, *_ = _run_passthrough(
+                podcast={'download_user_agent_override': 'Refused/1'},
+                episode_data=episode, availability=availability, real_import=True)
+
+        assert result is True
+        transcriber.download_audio.assert_called_once_with(
+            'https://example.com/ep1.mp3', user_agent='Feed/9')
+        assert _run_passthrough.importer.call_args.kwargs['outcome'] == {
+            'download_user_agent': 'Refused/1', 'fallback_user_agent': 'Feed/9'}
+        chapters.assert_called_once_with(
+            'https://example.com/ch.json', user_agent='Feed/9', fallback_user_agent='Feed/9')
+        transcript.assert_called_once_with(
+            'https://example.com/t.vtt', 'text/vtt', user_agent='Feed/9',
+            fallback_user_agent='Feed/9')
 
     def test_retained_original_reused_instead_of_download(self):
         result, transcriber, finalize, move, _, copy_retained = \

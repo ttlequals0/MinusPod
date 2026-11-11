@@ -259,6 +259,7 @@ def _passthrough_episode(slug, episode_id, episode_url, episode_title,
     in the podcast app."""
     audio_path = preacquired_audio
     run_stats = {'mode': 'passthrough'}
+    download_outcome = {}
     try:
         audio_logger.info(f"[{slug}:{episode_id}] Pass-through: \"{episode_title}\"")
         common._publish_status('start_job', slug, episode_id, episode_title, podcast_name)
@@ -284,7 +285,8 @@ def _passthrough_episode(slug, episode_id, episode_url, episode_title,
             audio_logger.info(
                 f"[{slug}:{episode_id}] Pass-through: reusing retained original")
         else:
-            audio_path = transcribe._download_episode_audio(episode_url, podcast=podcast)
+            audio_path = transcribe._download_episode_audio(
+                episode_url, podcast=podcast, outcome=download_outcome)
         _check_cancel(cancel_event, slug, episode_id)
 
         duration = audio_processor.get_audio_duration(audio_path)
@@ -331,7 +333,7 @@ def _passthrough_episode(slug, episode_id, episode_url, episode_title,
 
         # Network work runs after the publication-owner fence.
         run_stats.update(passthrough_assets.import_upstream_assets(
-            slug, episode_id, episode_data, podcast))
+            slug, episode_id, episode_data, podcast, outcome=download_outcome))
         run_stats['downloaded_duration'] = round(duration, 2)
         finalize._finalize_episode(slug, episode_id, episode_title, podcast_name,
                            pass1_cut_count=0, verification_count=0,

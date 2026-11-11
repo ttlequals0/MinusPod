@@ -76,6 +76,14 @@ def test_ok_run_persists_spans_and_stats(stage, caplog):
                                           'pass1:transcript_diff', 21)
 
 
+def test_download_outcome_user_agent_is_used_for_fetch(stage):
+    run_stats = {}
+    signals._run_transcript_diff(
+        'feed', 'ep1', EPISODE, SEGMENTS, run_stats, podcast=FEED,
+        download_outcome={'fallback_user_agent': 'X/1'}, segments_reused=False)
+    assert stage.fetch.call_args.kwargs['user_agent'] == 'X/1'
+
+
 def test_fetch_exception_becomes_error_status(stage):
     stage.fetch.side_effect = RuntimeError('boom')
     payload, run_stats = stage.run()

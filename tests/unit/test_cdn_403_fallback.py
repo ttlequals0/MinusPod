@@ -11,7 +11,7 @@ import main_app.processing as processing  # noqa: E402
 from main_app.pipeline import transcribe
 from main_app.pipeline.transcribe import CDN_BLOCKED_MESSAGE, _download_episode_audio
 from main_app.pipeline.common import is_transient_error
-from main_app.pipeline import signals, publish
+from main_app.pipeline import signals
 
 URL = 'https://cdn.example/media.mp3'
 
