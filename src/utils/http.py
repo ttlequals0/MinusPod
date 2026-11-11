@@ -14,15 +14,13 @@ from flask import request
 _FEED_CREDENTIAL_RE = re.compile(
     r'(?<![0-9a-fA-F])(?:[0-9a-fA-F]{16}\.)?[0-9a-fA-F]{64}(?![0-9a-fA-F])'
 )
-# One tokenizer for absolute URLs and bare paths, so a URL is never handled by both passes.
-# A path start after a redacted key is blocked as it was after the raw hex, which keeps redaction idempotent.
-_URL_RE = re.compile(
-    r'(?:(?<![A-Za-z0-9+.-])(?P<scheme>[A-Za-z0-9+.-]+:)|(?<![\w.-])(?<!\[redacted-feed-key\]))'
-    r'(?P<lead>//(?P<userinfo>[^\s/?#]*@)?|/)'
-    r'(?P<path>[^\s?]*)(?P<query>\?\S+)?'
-)
-# Only whitespace ends a URL, so a quote cannot hide the rest; a closing run at the token end is kept.
-_TRAILING_PUNCT = "\"'`])}>,.;:!"
+# Each credential shape is its own pass over the whole text, so no pass can hide input from another.
+# Userinfo runs from any "//" to the last "@" before the next "/", "?", "#" or whitespace.
+_USERINFO_RE = re.compile(r'//[^\s/?#]*@')
+# A token that holds a "?" is matched from its start, so a token without one is scanned once.
+_QUERY_TOKEN_RE = re.compile(r'(?<!\S)[^\s?]*\?\S*')
+# Only a run of these at the very end of a token survives a query redaction.
+_CLOSING = "\"'`])}>,.;:!"
 _REDACTED = '<redacted>'
 _LAST_SPACE_RE = re.compile(r'.*\s', re.DOTALL)
 _SPACE_RE = re.compile(r'\s')
@@ -39,38 +37,27 @@ def redact_feed_credentials(value: str) -> str:
     return _FEED_CREDENTIAL_RE.sub('[redacted-feed-key]', value)
 
 
-def _redact_query(query: str) -> str:
-    body = query[1:]
-    # An already redacted query is left alone so a second pass is a no-op.
-    if body.startswith(_REDACTED) and not body[len(_REDACTED):].rstrip(_TRAILING_PUNCT):
-        return query
-    core = body.rstrip(_TRAILING_PUNCT) or body[:1]
-    return f"?{_REDACTED}{body[len(core):]}"
+def _redact_query_token(match: re.Match) -> str:
+    token = match.group(0)
+    # No URL or request path has a "?" before its query, so the first "?" of a token with a "/" starts it.
+    if '/' not in token:
+        return token
+    mark = token.index('?')
+    rest = token[mark + 1:]
+    core = rest.rstrip(_CLOSING)
+    if not core or (rest.startswith(_REDACTED) and len(core) <= len(_REDACTED)):
+        return token
+    return f"{token[:mark]}?{_REDACTED}{rest[len(core):]}"
 
 
-def _scrub_urls(text, absolute: bool) -> str:
-    def replace(match: re.Match) -> str:
-        lead = match.group('lead')
-        if (bool(match.group('scheme')) and lead != '/') != absolute:
-            return match.group(0)
-        userinfo, query = match.group('userinfo'), match.group('query')
-        if not userinfo and not query:
-            return match.group(0)
-        # Userinfo is dropped whole, user name included, as safe_url_for_log does.
-        lead = f"//{_REDACTED}@" if userinfo else lead
-        return (f"{match.group('scheme') or ''}{lead}{match.group('path')}"
-                f"{_redact_query(query) if query else ''}")
-    return _URL_RE.sub(replace, str(text))
+def redact_url_userinfo(text: str) -> str:
+    """Redact the userinfo of any URL in text; the user name goes too, as in safe_url_for_log."""
+    return _USERINFO_RE.sub(f'//{_REDACTED}@', str(text))
 
 
 def scrub_query_strings(text: str) -> str:
-    """Redact the query string and userinfo of any absolute URL (any scheme) in text."""
-    return _scrub_urls(text, absolute=True)
-
-
-def scrub_request_paths(text: str) -> str:
-    """Redact the query string of a bare request path (/feed?key=x) in text."""
-    return _scrub_urls(text, absolute=False)
+    """Redact the query of any URL or request path in text, up to the end of its token."""
+    return _QUERY_TOKEN_RE.sub(_redact_query_token, str(text))
 
 
 def report_redaction_failure(exc: Exception) -> None:
@@ -85,7 +72,7 @@ def report_redaction_failure(exc: Exception) -> None:
 
 
 def _redact(text: str) -> str:
-    return redact_feed_credentials(scrub_request_paths(scrub_query_strings(text)))
+    return scrub_query_strings(redact_feed_credentials(redact_url_userinfo(text)))
 
 
 def _head(text: str, limit: int) -> str:

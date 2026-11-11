@@ -1,3 +1,4 @@
+import itertools
 import random
 import re
 import time
@@ -7,7 +8,7 @@ import requests
 
 from transcriber import Transcriber
 from utils.http import (
-    MAX_REDACT_CHARS, redact_feed_credentials, redact_log_text, scrub_query_strings, scrub_request_paths)
+    MAX_REDACT_CHARS, redact_feed_credentials, redact_log_text, redact_url_userinfo, scrub_query_strings)
 
 
 def test_drops_query_and_keeps_following_text():
@@ -39,11 +40,10 @@ def test_cdn_check_error_message_has_no_query_string(monkeypatch):
     assert '?<redacted>' in message
 
 
-def test_scrub_request_paths_redacts_bare_path_only():
-    from utils.http import scrub_request_paths
-    assert scrub_request_paths("GET /feed/x?key=s3 HTTP/1.1") == "GET /feed/x?<redacted> HTTP/1.1"
-    assert scrub_request_paths("https://h/x?y=1") == "https://h/x?y=1"
-    assert scrub_request_paths("no path here") == "no path here"
+def test_scrub_query_strings_redacts_bare_paths_too():
+    assert scrub_query_strings("GET /feed/x?key=s3 HTTP/1.1") == "GET /feed/x?<redacted> HTTP/1.1"
+    assert scrub_query_strings("https://h/x?y=1") == "https://h/x?<redacted>"
+    assert scrub_query_strings("no path here") == "no path here"
 
 
 @pytest.mark.parametrize("text,expected", [
@@ -54,24 +54,21 @@ def test_scrub_request_paths_redacts_bare_path_only():
     ("/feed?key=abc&x=1", "/feed?<redacted>"),
     ("GET /feed?key=abc&x=1 HTTP/1.1", "GET /feed?<redacted> HTTP/1.1"),
     ("'GET /feed?key=abc HTTP/1.1'", "'GET /feed?<redacted> HTTP/1.1'"),
-    ("https://h/x?y=1", "https://h/x?y=1"),
+    ("https://h/x?y=1", "https://h/x?<redacted>"),
     ("Is this ok? yes", "Is this ok? yes"),
     ("/var/log/app.log done", "/var/log/app.log done"),
     ("path /a/b? done", "path /a/b? done"),
-    ("foo/bar?k=v", "foo/bar?k=v"),
+    ("foo/bar?k=v", "foo/bar?<redacted>"),
     ("[/f?k=v]. next", "[/f?<redacted>]. next"),
 ])
 def test_scrub_request_paths_cases(text, expected):
-    from utils.http import scrub_request_paths
-    assert scrub_request_paths(text) == expected
+    assert scrub_query_strings(text) == expected
 
 
 def test_scrub_request_paths_long_input_is_fast():
-    import time
-    from utils.http import scrub_request_paths
     text = "/a" * 100_000 + " tail"
     start = time.perf_counter()
-    assert scrub_request_paths(text) == text
+    assert scrub_query_strings(text) == text
     assert time.perf_counter() - start < 1.0
 
 
@@ -204,7 +201,7 @@ def test_redaction_properties_on_random_elided_text():
         assert redact_log_text(once) == once
         # The kept head and tail are exact slices of the full redaction, cut at whitespace.
         head, _, tail = re.split(r' (\[\d+ chars elided\])', once)
-        full = redact_feed_credentials(scrub_request_paths(scrub_query_strings(text)))
+        full = scrub_query_strings(redact_feed_credentials(redact_url_userinfo(text)))
         assert full.startswith(head) and full[len(head)].isspace()
         assert full.endswith(tail) and tail[:1].isspace()
 
@@ -223,21 +220,25 @@ def test_redaction_properties_on_random_elided_text():
     ("/var/log/app.log done", "/var/log/app.log done"),
     ("path /a/b?", "path /a/b?"),
     ("path /a/b? done", "path /a/b? done"),
-    ("foo/bar?k=v", "foo/bar?k=v"),
+    ("foo/bar?k=v", "foo/bar?<redacted>"),
     ('File "/app/src/x.py", line 3, in f', 'File "/app/src/x.py", line 3, in f'),
     ("key=secret", "key=secret"),
     ('{"key": "abc"}', '{"key": "abc"}'),
     ("ratio 10:30/45? done", "ratio 10:30/45? done"),
-    ("a:b/c?d=1", "a:b/c?d=1"),
+    ("a:b/c?d=1", "a:b/c?<redacted>"),
+    ("ok?/x", "ok?<redacted>"),
+    ("and/or?", "and/or?"),
+    ('"/a/b?"', '"/a/b?"'),
 ])
 def test_schemes_and_path_prefixes(text, expected):
     assert redact_log_text(text) == expected
 
 
-def test_absolute_url_is_handled_once():
-    assert scrub_request_paths("HTTPS://h/x?y=1") == "HTTPS://h/x?y=1"
-    assert scrub_query_strings("wss://h/x?y=1") == "wss://h/x?<redacted>"
-    assert scrub_query_strings("/feed?key=abc") == "/feed?key=abc"
+def test_each_pass_handles_only_its_own_shape():
+    assert scrub_query_strings("https://u:p@h/x?y=1") == "https://u:p@h/x?<redacted>"
+    assert redact_url_userinfo("https://u:p@h/x?y=1") == "https://<redacted>@h/x?y=1"
+    assert redact_url_userinfo("https://h/@handle https://h/p?email=a@b.c") == (
+        "https://h/@handle https://h/p?email=a@b.c")
 
 
 @pytest.mark.parametrize("text,expected", [
@@ -338,6 +339,11 @@ _DOUBLING_SHAPES = {
     'quote-run': lambda n: '"' * n,
     'path-query-quote-repeat': lambda n: '/f?k="' * n,
     'url-query-quote-repeat': lambda n: 'https://h/x?"' * n,
+    'scheme-userinfo-repeat': lambda n: 'https://u:p@' * n,
+    'quoted-userinfo-url-repeat': lambda n: '"https://u:p@h/"' * n,
+    'path-quote-repeat': lambda n: '/a"' * n,
+    'question-run': lambda n: '?' * n,
+    'spaced-query-tokens': lambda n: '/? ' * n,
 }
 
 
@@ -375,3 +381,55 @@ def test_an_embedded_quote_does_not_end_the_url(text, expected):
     out = redact_log_text(text)
     assert out == expected
     assert 'SECRET' not in out
+
+
+@pytest.mark.parametrize("text,expected", [
+    ('/a"https://u:SECRET@h/p', '/a"https://<redacted>@h/p'),
+    ('{"a":"https://h/x","b":"https://u:SECRET@h2/"}', '{"a":"https://h/x","b":"https://<redacted>@h2/"}'),
+    ('["https://a/x","https://u:SECRET@h/"]', '["https://a/x","https://<redacted>@h/"]'),
+    ('"/f","https://u:SECRET@h/"', '"/f","https://<redacted>@h/"'),
+])
+def test_userinfo_of_a_url_later_in_the_token_is_redacted(text, expected):
+    out = redact_log_text(text)
+    assert out == expected
+    assert 'SECRET' not in out
+
+
+_PLANTED_KEY = '5eC0' * 16
+_PLANTED = ['SECRETQ1', 'SECRETU2', 'SECRETQ3', 'SECRETQ4', 'SECRETU5', 'SECRETQ6', 'SECRETU7', 'SECRETQ8',
+            'SECRETU9', _PLANTED_KEY]
+_SECRET_PIECES = [
+    'https://h/x?k=SECRETQ1', 'https://u:SECRETU2@h/p', '/f?k=SECRETQ3', 'https://h/a"b?k=SECRETQ4',
+    '{"a":"https://h/x","b":"https://u:SECRETU5@h2/"}', '"https://h/x?y=SECRETQ6","next":"value"',
+    'HTTPS://user:p@SECRETU7@h/p', "/f?k=v'SECRETQ8", 'wss://SECRETU9@h', 'key=' + _PLANTED_KEY + ';',
+]
+_CORPUS_PIECES = _SECRET_PIECES + [
+    'Is this ok? yes', 'path /a/b?', 'path /a/b? done', '/var/log/app.log done', 'File "/app/src/x.py", line 3, in f',
+    'key=secret', '{"key": "abc"}', 'foo/bar?k=v', 'x//feed?key=abc', 'url:/feed?key=abc', 'https://h/x?y=1',
+    '<https://h/p?x=1>', "'https://h/x?y=1'", '/a"https://h/p', '?<redacted>', '[redacted-feed-key]', '//', '@', '?',
+    'https://h/@handle', 'user@example.com', 'https://h/p?email=a@b.c', ')]}', '\n', ' ',
+]
+_JOINERS = ['"', ',', "'", '[', '{', '/', '', ' ']
+
+
+def _corpus():
+    rng = random.Random(20261111)
+    out = list(_CORPUS_PIECES)
+    for _ in range(3000):
+        pieces = [rng.choice(_CORPUS_PIECES) for _ in range(rng.randint(2, 8))]
+        out.append(''.join(p + rng.choice(_JOINERS) for p in pieces))
+    return out
+
+
+def test_no_planted_secret_survives_in_any_pass_order():
+    passes = (redact_url_userinfo, redact_feed_credentials, scrub_query_strings)
+    orders = list(itertools.permutations(passes))
+    for text in _corpus():
+        once = redact_log_text(text)
+        assert redact_log_text(once) == once, repr(text)
+        for order in orders:
+            out = text
+            for step in order:
+                out = step(out)
+            leaked = [s for s in _PLANTED if s in out]
+            assert not leaked, (repr(text), [f.__name__ for f in order], out)
