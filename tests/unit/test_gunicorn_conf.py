@@ -160,3 +160,14 @@ def test_text_access_log_redacts_referer_query(monkeypatch):
     log.info('1.2.3.4 - - [t] "GET /x HTTP/1.1" 200 5 "https://ref.example.com/p?session=secret789" "ua"')
     assert "secret789" not in stream.getvalue()
     assert "ref.example.com/p" in stream.getvalue()
+
+
+@pytest.mark.parametrize("log_format", ["text", "json"])
+def test_error_log_skips_only_the_query_pass_for_a_marked_record(monkeypatch, log_format):
+    key = "ab" * 32
+    log, stream = _captured_logger(monkeypatch, log_format, "error_log")
+    log.error("fetch https://u:PASS@h/%s/a.mp3?token=SIGNED", key, extra={"keep_url_query": True})
+    log.error("fetch https://h/a.mp3?token=PLAIN")
+    out = stream.getvalue()
+    assert "token=SIGNED" in out
+    assert "PASS" not in out and key not in out and "PLAIN" not in out

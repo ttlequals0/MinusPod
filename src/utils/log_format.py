@@ -8,27 +8,55 @@ import socket
 from utils.http import redact_log_text, report_redaction_failure
 
 _HOSTNAME = os.environ.get('HOSTNAME') or socket.gethostname()
+# Record attribute set through logging's extra; only the value True keeps the URL query.
+KEEP_URL_QUERY = 'keep_url_query'
+
+
+def keeps_url_query(record: logging.LogRecord) -> bool:
+    return getattr(record, KEEP_URL_QUERY, False) is True
+
+
+def _flatten(text: str) -> str:
+    return text.replace('\r\n', '\\n').replace('\n', '\\n').replace('\r', '\\n')
+
+
+def redact_message(message: str, keep_query: bool = False) -> str:
+    """Redact as the one-line text format does, keeping line breaks only where that gives the same result."""
+    redacted = redact_log_text(message, keep_query)
+    flat = _flatten(message)
+    if flat == message:
+        return redacted
+    flat_redacted = redact_log_text(flat, keep_query)
+    return redacted if _flatten(redacted) == flat_redacted else flat_redacted
+
+
+def _raw_message(record: logging.LogRecord) -> str:
+    # Args are interpolated only when present, so the common no-args record is not built twice.
+    return record.getMessage() if record.args else str(record.msg)
 
 
 class ScrubbingFormatter(logging.Formatter):
     """Plain formatter that redacts URL query strings from message and traceback."""
 
     def format(self, record: logging.LogRecord) -> str:
-        return redact_log_text(super().format(record))
+        keep_query = keeps_url_query(record)
+        message = _raw_message(record)
+        if '\n' in message or '\r' in message:
+            record = copy.copy(record)
+            record.msg = redact_message(message, keep_query)
+            record.args = ()
+        return redact_log_text(super().format(record), keep_query)
 
 
 class SingleLineFormatter(ScrubbingFormatter):
     """Text formatter that keeps one record on one line so Docker does not split it."""
 
     def format(self, record: logging.LogRecord) -> str:
-        # Args are interpolated only when present, so the common no-args
-        # record is not built twice per line at DEBUG volume.
-        message = record.getMessage() if record.args else str(record.msg)
+        message = _raw_message(record)
         if '\n' not in message and '\r' not in message:
             return super().format(record)
         flat = copy.copy(record)
-        flat.msg = (message.replace('\r\n', '\\n')
-                    .replace('\n', '\\n').replace('\r', '\\n'))
+        flat.msg = _flatten(message)
         flat.args = ()
         return super().format(flat)
 
@@ -37,11 +65,12 @@ class JSONFormatter(logging.Formatter):
     """JSON log formatter with hostname, pid and request_id for log aggregators."""
 
     def format(self, record: logging.LogRecord) -> str:
+        keep_query = keeps_url_query(record)
         log_data = {
             'timestamp': self.formatTime(record, self.datefmt),
             'level': record.levelname,
             'logger': record.name,
-            'message': redact_log_text(record.getMessage()),
+            'message': redact_message(record.getMessage(), keep_query),
             'hostname': _HOSTNAME,
             'pid': os.getpid(),
         }
@@ -53,7 +82,7 @@ class JSONFormatter(logging.Formatter):
 
         if record.exc_info:
             log_data['exception'] = redact_log_text(
-                self.formatException(record.exc_info))
+                self.formatException(record.exc_info), keep_query)
 
         return json.dumps(log_data)
 
@@ -63,8 +92,9 @@ class QueryStringRedactingFilter(logging.Filter):
 
     def filter(self, record: logging.LogRecord) -> bool:
         try:
+            keep_query = keeps_url_query(record)
             message = record.getMessage()
-            redacted = redact_log_text(message)
+            redacted = redact_message(message, keep_query)
             if redacted != message:
                 # Flattened in place: handlers later on the record see the redacted text.
                 record.msg = redacted
@@ -73,9 +103,9 @@ class QueryStringRedactingFilter(logging.Filter):
                 # Formatter.format reuses a preset exc_text, so the traceback renders once.
                 record.exc_text = logging.Formatter().formatException(record.exc_info)
             if record.exc_text:
-                record.exc_text = redact_log_text(record.exc_text)
+                record.exc_text = redact_log_text(record.exc_text, keep_query)
             if record.stack_info:
-                record.stack_info = redact_log_text(record.stack_info)
+                record.stack_info = redact_log_text(record.stack_info, keep_query)
         except Exception as exc:
             report_redaction_failure(exc)
         return True

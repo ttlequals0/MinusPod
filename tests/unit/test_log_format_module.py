@@ -159,3 +159,72 @@ def test_text_formatter_keeps_its_layout():
     out = make_formatter('text').format(rec)
     assert out.endswith("] [INFO] [podcast.audio] GET HTTPS://<redacted>@h/x?<redacted> done")
     assert out.startswith("[")
+
+
+_CONTINUED = 'url /f?k=a\nb&c=SECRETNL end'
+
+
+def test_text_and_json_redact_a_continued_query_the_same_way():
+    text = make_formatter('text').format(_record(_CONTINUED))
+    message = json.loads(make_formatter('json').format(_record(_CONTINUED)))['message']
+    assert 'SECRETNL' not in text and 'SECRETNL' not in message
+    assert text.endswith('] ' + message)
+
+
+def test_json_keeps_line_breaks_when_redaction_does_not_cross_them():
+    out = json.loads(make_formatter('json').format(_record('a https://h/x?k=v \nnext line')))
+    assert out['message'] == 'a https://h/x?<redacted> \nnext line'
+
+
+def test_filter_and_run_log_formatter_redact_a_continued_query():
+    from utils.log_format import ScrubbingFormatter
+    rec = _record(_CONTINUED)
+    QueryStringRedactingFilter().filter(rec)
+    assert 'SECRETNL' not in logging.Formatter('%(message)s').format(rec)
+    assert 'SECRETNL' not in ScrubbingFormatter('%(message)s').format(_record(_CONTINUED))
+
+
+_KEY = 'ab' * 32
+_KEPT = f'Downloading audio from: https://u:PASS@cdn.example.com/{_KEY}/a.mp3?token=SIGNED'
+
+
+def _marked(msg, mark):
+    rec = _record(msg)
+    if mark is not None:
+        rec.keep_url_query = mark
+    return rec
+
+
+@pytest.mark.parametrize("fmt", ["text", "json"])
+def test_a_marked_record_keeps_its_query_but_not_userinfo_or_key(fmt):
+    out = make_formatter(fmt).format(_marked(_KEPT, True))
+    assert 'token=SIGNED' in out
+    assert 'PASS' not in out and _KEY not in out
+
+
+@pytest.mark.parametrize("mark", [None, False, 'true', 1])
+@pytest.mark.parametrize("fmt", ["text", "json"])
+def test_only_a_true_mark_keeps_the_query(fmt, mark):
+    out = make_formatter(fmt).format(_marked(_KEPT, mark))
+    assert 'SIGNED' not in out and 'PASS' not in out and _KEY not in out
+
+
+def test_filter_honors_the_mark_for_query_only():
+    rec = _marked(_KEPT, True)
+    QueryStringRedactingFilter().filter(rec)
+    out = logging.Formatter('%(message)s').format(rec)
+    assert 'token=SIGNED' in out and 'PASS' not in out and _KEY not in out
+    plain = _marked(_KEPT, None)
+    QueryStringRedactingFilter().filter(plain)
+    assert 'SIGNED' not in plain.getMessage()
+
+
+def test_run_log_formatter_honors_the_mark():
+    from run_log import _MESSAGE_FORMATTER
+    assert 'token=SIGNED' in _MESSAGE_FORMATTER.format(_marked(_KEPT, True))
+    assert 'SIGNED' not in _MESSAGE_FORMATTER.format(_marked(_KEPT, None))
+
+
+def test_message_text_cannot_set_the_mark():
+    out = make_formatter('json').format(_record(_KEPT + ' keep_url_query=True extra={"keep_url_query": True}'))
+    assert 'SIGNED' not in out

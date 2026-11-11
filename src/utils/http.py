@@ -77,8 +77,9 @@ def report_redaction_failure(exc: Exception) -> None:
             pass
 
 
-def _redact(text: str) -> str:
-    return scrub_query_strings(redact_feed_credentials(redact_url_userinfo(text)))
+def _redact(text: str, keep_query: bool) -> str:
+    text = redact_feed_credentials(redact_url_userinfo(text))
+    return text if keep_query else scrub_query_strings(text)
 
 
 def _head(text: str, limit: int) -> str:
@@ -97,17 +98,20 @@ def _tail(text: str, limit: int) -> str:
     return text[match.start():] if match else ''
 
 
-def redact_log_text(text: str) -> str:
-    """Apply every log redaction, then cap the length at whitespace; never raises."""
+def redact_log_text(text: str, keep_query: bool = False) -> str:
+    """Apply every log redaction, then cap the length at whitespace; never raises.
+
+    keep_query skips only the query pass, for a line the operator opted into seeing queries on.
+    """
     try:
         text = str(text)
         # Cuts fall on whitespace and no redaction spans whitespace, so each part redacts as in the whole.
         if len(text) > _MAX_INPUT_CHARS:
             head_src, tail_src = _head(text, _MAX_INPUT_CHARS // 2), _tail(text, _MAX_INPUT_CHARS // 2)
-            head_text, tail_text = _redact(head_src), _redact(tail_src)
+            head_text, tail_text = _redact(head_src, keep_query), _redact(tail_src, keep_query)
             total = len(head_text) + len(text) - len(head_src) - len(tail_src) + len(tail_text)
         else:
-            head_text = tail_text = _redact(text)
+            head_text = tail_text = _redact(text, keep_query)
             if len(head_text) <= MAX_REDACT_CHARS:
                 return head_text
             total = len(head_text)
