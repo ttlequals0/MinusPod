@@ -22,14 +22,19 @@ def _flatten(text: str) -> str:
     return text.replace('\r\n', '\\n').replace('\n', '\\n').replace('\r', '\\n')
 
 
+# Stands in for a line break while redacting: no redaction pass treats it differently from "\\n".
+_BREAK = '\ue000\ue001'
+
+
 def redact_message(message: str, keep_query: bool = False) -> str:
-    """Redact as the one-line text format does, keeping line breaks only where that gives the same result."""
-    redacted = redact_log_text(message, keep_query)
+    """Redact as the one-line text format does, keeping each line break that redaction leaves intact."""
     flat = _flatten(message)
     if flat == message:
-        return redacted
-    flat_redacted = redact_log_text(flat, keep_query)
-    return redacted if _flatten(redacted) == flat_redacted else flat_redacted
+        return redact_log_text(message, keep_query)
+    if _BREAK[0] in message or _BREAK[1] in message:
+        return redact_log_text(flat, keep_query)
+    marked = message.replace('\r\n', _BREAK).replace('\n', _BREAK).replace('\r', _BREAK)
+    return redact_log_text(marked, keep_query).replace(_BREAK, '\n')
 
 
 def _raw_message(record: logging.LogRecord) -> str:
@@ -42,12 +47,17 @@ class ScrubbingFormatter(logging.Formatter):
 
     def format(self, record: logging.LogRecord) -> str:
         keep_query = keeps_url_query(record)
-        message = _raw_message(record)
-        if '\n' in message or '\r' in message:
-            record = copy.copy(record)
-            record.msg = redact_message(message, keep_query)
-            record.args = ()
-        return redact_log_text(super().format(record), keep_query)
+        head = copy.copy(record)
+        head.msg = redact_message(_raw_message(record), keep_query)
+        head.args = ()
+        head.exc_info = head.exc_text = head.stack_info = None
+        text = redact_log_text(super().format(head), keep_query)
+        # Tracebacks and stacks never keep a query: the record's mark covers only its message.
+        if record.exc_text or record.exc_info:
+            text += '\n' + redact_message(record.exc_text or self.formatException(record.exc_info))
+        if record.stack_info:
+            text += '\n' + redact_message(self.formatStack(record.stack_info))
+        return text
 
 
 class SingleLineFormatter(ScrubbingFormatter):
@@ -83,8 +93,7 @@ class JSONFormatter(logging.Formatter):
                 log_data[attr] = value
 
         if record.exc_info:
-            log_data['exception'] = redact_log_text(
-                self.formatException(record.exc_info), keep_query)
+            log_data['exception'] = redact_message(self.formatException(record.exc_info))
 
         return json.dumps(log_data)
 
@@ -94,8 +103,12 @@ class QueryStringRedactingFilter(logging.Filter):
 
     def filter(self, record: logging.LogRecord) -> bool:
         try:
-            keep_query = keeps_url_query(record)
             message = record.getMessage()
+        except Exception:
+            # The handler reports a bad format string itself through handleError.
+            return True
+        try:
+            keep_query = keeps_url_query(record)
             redacted = redact_message(message, keep_query)
             if redacted != message:
                 # Flattened in place: handlers later on the record see the redacted text.
@@ -105,9 +118,9 @@ class QueryStringRedactingFilter(logging.Filter):
                 # Formatter.format reuses a preset exc_text, so the traceback renders once.
                 record.exc_text = logging.Formatter().formatException(record.exc_info)
             if record.exc_text:
-                record.exc_text = redact_log_text(record.exc_text, keep_query)
+                record.exc_text = redact_message(record.exc_text)
             if record.stack_info:
-                record.stack_info = redact_log_text(record.stack_info, keep_query)
+                record.stack_info = redact_message(record.stack_info)
         except Exception as exc:
             report_redaction_failure(exc)
         return True

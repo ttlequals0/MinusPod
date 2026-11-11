@@ -316,3 +316,87 @@ def test_an_uncaught_main_thread_exception_is_logged_redacted(monkeypatch, capsy
     done()
     assert 'SECRET' not in stream.getvalue() and 'SECRET' not in capsys.readouterr().err
     assert '?<redacted>' in stream.getvalue()
+
+
+def _raised(exc):
+    try:
+        raise exc
+    except Exception:
+        return sys.exc_info()
+
+
+def _logged_record(msg, exc, mark):
+    rec = logging.LogRecord('podcast.audio', logging.INFO, __file__, 1, msg, (), _raised(exc))
+    rec.keep_url_query = mark
+    return rec
+
+
+def _three_formats(rec, with_filter):
+    from run_log import _MESSAGE_FORMATTER
+    outs = []
+    for fmt in (make_formatter('text'), make_formatter('json'), _MESSAGE_FORMATTER):
+        copy_rec = logging.makeLogRecord(rec.__dict__)
+        if with_filter:
+            QueryStringRedactingFilter().filter(copy_rec)
+        outs.append(fmt.format(copy_rec))
+    return outs
+
+
+@pytest.mark.parametrize('with_filter', [False, True])
+def test_a_marked_record_never_keeps_the_query_in_its_traceback(with_filter):
+    rec = _logged_record('Downloading https://h/x?tok=VISIBLE',
+                         RuntimeError('fail https://h/y?sig=SECRET2'), True)
+    for out in _three_formats(rec, with_filter):
+        assert 'SECRET2' not in out
+        assert 'tok=VISIBLE' in out
+
+
+@pytest.mark.parametrize('with_filter', [False, True])
+def test_a_marked_record_never_keeps_the_query_in_its_stack(with_filter):
+    rec = _record('Downloading https://h/x?tok=VISIBLE')
+    rec.keep_url_query = True
+    rec.stack_info = 'Stack (most recent call last):\n  frame https://h/y?sig=SECRET3'
+    for out in _three_formats(rec, with_filter):
+        assert 'SECRET3' not in out
+        assert 'tok=VISIBLE' in out
+
+
+@pytest.mark.parametrize('with_filter', [False, True])
+def test_a_continued_query_in_exception_text_is_redacted(with_filter):
+    rec = _logged_record('download failed', ValueError('https://h/x?a=1\nb&c=SECRET1'), None)
+    for out in _three_formats(rec, with_filter):
+        assert 'SECRET1' not in out
+
+
+def test_json_traceback_keeps_its_line_breaks():
+    rec = _logged_record('download failed', ValueError('https://h/x?a=1 end'), None)
+    exception = json.loads(make_formatter('json').format(rec))['exception']
+    assert exception.startswith('Traceback (most recent call last):\n')
+    assert exception.endswith('ValueError: https://h/x?<redacted> end')
+
+
+def test_a_redacted_break_is_flattened_and_the_rest_stay_real():
+    from utils.log_format import redact_message
+    assert redact_message('one\ntwo https://h/x?a=1\nb&c=S end\nthree') == (
+        'one\ntwo https://h/x?<redacted> end\nthree')
+
+
+def test_a_message_holding_the_break_marker_falls_back_to_flattening():
+    from utils.log_format import redact_message
+    text = ' https://h/x?a=1\nb&c=S'
+    assert redact_message(text) == ' https://h/x?<redacted>'
+
+
+def test_a_bad_format_string_leaves_the_redaction_notice_unused(monkeypatch, capsys):
+    import utils.http as http
+    monkeypatch.setattr(http, '_redaction_failure_reported', False)
+    rec = logging.LogRecord('x', logging.INFO, __file__, 1, 'fetch %s %s', ('https://h/x?k=SECRET',), None)
+    assert QueryStringRedactingFilter().filter(rec) is True
+    assert 'log redaction failed' not in capsys.readouterr().err
+
+    def boom(*_args, **_kwargs):
+        raise RuntimeError('forced')
+
+    monkeypatch.setattr('utils.log_format.redact_message', boom)
+    assert QueryStringRedactingFilter().filter(_record('later')) is True
+    assert 'log redaction failed: RuntimeError' in capsys.readouterr().err
