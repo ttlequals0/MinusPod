@@ -344,6 +344,10 @@ _DOUBLING_SHAPES = {
     'path-quote-repeat': lambda n: '/a"' * n,
     'question-run': lambda n: '?' * n,
     'spaced-query-tokens': lambda n: '/? ' * n,
+    'slashless-name-eq': lambda n: 'a?b=' * n,
+    'question-eq': lambda n: '?=' * n,
+    'slashless-question': lambda n: 'a?' * n,
+    'alternating-name-eq': lambda n: '?a=?b=' * n,
 }
 
 
@@ -397,17 +401,19 @@ def test_userinfo_of_a_url_later_in_the_token_is_redacted(text, expected):
 
 _PLANTED_KEY = '5eC0' * 16
 _PLANTED = ['SECRETQ1', 'SECRETU2', 'SECRETQ3', 'SECRETQ4', 'SECRETU5', 'SECRETQ6', 'SECRETU7', 'SECRETQ8',
-            'SECRETU9', _PLANTED_KEY]
+            'SECRETU9', 'SECRETQ10', 'SECRETQ11', 'SECRETQ12', 'SECRETQ13', _PLANTED_KEY]
 _SECRET_PIECES = [
     'https://h/x?k=SECRETQ1', 'https://u:SECRETU2@h/p', '/f?k=SECRETQ3', 'https://h/a"b?k=SECRETQ4',
     '{"a":"https://h/x","b":"https://u:SECRETU5@h2/"}', '"https://h/x?y=SECRETQ6","next":"value"',
     'HTTPS://user:p@SECRETU7@h/p', "/f?k=v'SECRETQ8", 'wss://SECRETU9@h', 'key=' + _PLANTED_KEY + ';',
+    'b?c=SECRETQ10', 'word?x=SECRETQ11.', 'x?a=1&b=SECRETQ12', 'GET /f?k=a b?c=SECRETQ13',
 ]
 _CORPUS_PIECES = _SECRET_PIECES + [
     'Is this ok? yes', 'path /a/b?', 'path /a/b? done', '/var/log/app.log done', 'File "/app/src/x.py", line 3, in f',
     'key=secret', '{"key": "abc"}', 'foo/bar?k=v', 'x//feed?key=abc', 'url:/feed?key=abc', 'https://h/x?y=1',
     '<https://h/p?x=1>', "'https://h/x?y=1'", '/a"https://h/p', '?<redacted>', '[redacted-feed-key]', '//', '@', '?',
-    'https://h/@handle', 'user@example.com', 'https://h/p?email=a@b.c', ')]}', '\n', ' ',
+    'https://h/@handle', 'user@example.com', 'https://h/p?email=a@b.c', ')]}', '\n', ' ', 'why?because', 'a?b',
+    'ok?', 'status=403 retry=2',
 ]
 _JOINERS = ['"', ',', "'", '[', '{', '/', '', ' ']
 
@@ -433,3 +439,23 @@ def test_no_planted_secret_survives_in_any_pass_order():
                 out = step(out)
             leaked = [s for s in _PLANTED if s in out]
             assert not leaked, (repr(text), [f.__name__ for f in order], out)
+
+
+@pytest.mark.parametrize("text,expected", [
+    ('GET /f?k=a b?c=SECRET', 'GET /f?<redacted> b?<redacted>'),
+    ('b?c=SECRET', 'b?<redacted>'),
+    ('word?x=1.', 'word?<redacted>.'),
+    ('x?a=1&b=SECRET', 'x?<redacted>'),
+    ('why?not a?b c?d=SECRET")', 'why?not a?b c?<redacted>")'),
+    ('Is this ok? yes', 'Is this ok? yes'),
+    ('ok?', 'ok?'),
+    ('why?because', 'why?because'),
+    ('a?b', 'a?b'),
+    ('a?=b', 'a?=b'),
+    ('{"key": "abc"}', '{"key": "abc"}'),
+    ('status=403 retry=2', 'status=403 retry=2'),
+])
+def test_a_slashless_name_equals_query_is_redacted(text, expected):
+    out = redact_log_text(text)
+    assert out == expected
+    assert 'SECRET' not in out

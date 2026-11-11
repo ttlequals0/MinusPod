@@ -19,6 +19,8 @@ _FEED_CREDENTIAL_RE = re.compile(
 _USERINFO_RE = re.compile(r'//[^\s/?#]*@')
 # A token that holds a "?" is matched from its start, so a token without one is scanned once.
 _QUERY_TOKEN_RE = re.compile(r'(?<!\S)[^\s?]*\?\S*')
+# A slashless "?" still starts a query when a parameter name and "=" follow it.
+_NAMED_QUERY_RE = re.compile(r'\?[^\s?=&/]+=')
 # Only a run of these at the very end of a token survives a query redaction.
 _CLOSING = "\"'`])}>,.;:!"
 _REDACTED = '<redacted>'
@@ -40,9 +42,13 @@ def redact_feed_credentials(value: str) -> str:
 def _redact_query_token(match: re.Match) -> str:
     token = match.group(0)
     # No URL or request path has a "?" before its query, so the first "?" of a token with a "/" starts it.
-    if '/' not in token:
-        return token
-    mark = token.index('?')
+    if '/' in token:
+        mark = token.index('?')
+    else:
+        named = _NAMED_QUERY_RE.search(token)
+        if not named:
+            return token
+        mark = named.start()
     rest = token[mark + 1:]
     core = rest.rstrip(_CLOSING)
     if not core or (rest.startswith(_REDACTED) and len(core) <= len(_REDACTED)):
