@@ -490,3 +490,10 @@ def test_redaction_failure_report_names_only_the_exception_type(monkeypatch, cap
     assert http.redact_log_text("anything") == "[log text withheld: redaction failed]"
     err = capsys.readouterr().err
     assert "RuntimeError" in err and "SECRET" not in err
+
+
+def test_a_query_in_spaced_json_is_redacted_only_to_its_token():
+    import json
+    text = json.dumps({'reason': 'see https://h/x?k=SECRET', 'start': 100.0, 'end': 120.0})
+    out = redact_log_text(text)
+    assert 'SECRET' not in out and '"start": 100.0, "end": 120.0' in out

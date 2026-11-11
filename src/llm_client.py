@@ -955,7 +955,7 @@ class SystemOneClient(LLMClient):
                 payload = response_payload(data)
                 usage = data.get('usage') or {}
                 result = LLMResponse(
-                    content=json.dumps(payload, separators=(',', ':')),
+                    content=json.dumps(payload),
                     model=data.get('model') or settings.model,
                     usage={
                         'input_tokens': usage.get('prompt_tokens'),
