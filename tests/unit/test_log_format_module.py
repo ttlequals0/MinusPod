@@ -1,5 +1,7 @@
+import io
 import json
 import logging
+import sys
 
 import pytest
 
@@ -228,3 +230,47 @@ def test_run_log_formatter_honors_the_mark():
 def test_message_text_cannot_set_the_mark():
     out = make_formatter('json').format(_record(_KEPT + ' keep_url_query=True extra={"keep_url_query": True}'))
     assert 'SIGNED' not in out
+
+
+def _raw_handle_error(self, record):
+    print(f"Arguments: {record.args}", file=sys.stderr)
+
+
+def _bad_format_stderr(monkeypatch, capsys, handler):
+    from utils.log_format import guard_handler_errors
+    monkeypatch.setattr(logging.Handler, 'handleError', _raw_handle_error)
+    monkeypatch.setattr(logging, 'raiseExceptions', True)
+    guard_handler_errors()
+    log = logging.getLogger('podcast.handler_error_test')
+    monkeypatch.setattr(log, 'propagate', False)
+    log.addHandler(handler)
+    try:
+        log.warning('fetch %s %s', 'https://h/x?k=SECRET')  # noqa: PLE1206 the format error is the point
+    finally:
+        log.removeHandler(handler)
+    return capsys.readouterr().err
+
+
+def test_a_format_error_never_prints_the_raw_args(monkeypatch, capsys):
+    handler = logging.StreamHandler(io.StringIO())
+    handler.setFormatter(make_formatter('text'))
+    handler.addFilter(QueryStringRedactingFilter())
+    err = _bad_format_stderr(monkeypatch, capsys, handler)
+    assert 'SECRET' not in err and 'Arguments' not in err
+    assert 'TypeError' in err and 'podcast.handler_error_test' in err
+
+
+def test_a_format_error_in_a_gunicorn_handler_never_prints_the_raw_args(monkeypatch, capsys):
+    import gunicorn.config
+    from tests.unit.test_gunicorn_conf import _load_conf
+    mod = _load_conf(monkeypatch, 1, None)
+    cfg = gunicorn.config.Config()
+    cfg.set('errorlog', '-')
+    rl = mod.RedactingLogger(cfg)
+    handler = next(h for h in rl.error_log.handlers if getattr(h, '_gunicorn', False))
+    handler.setStream(io.StringIO())
+    monkeypatch.setattr(logging.Handler, 'handleError', _raw_handle_error)
+    mod.RedactingLogger(cfg)
+    rl.error_log.warning('fetch %s %s', 'https://h/x?k=SECRET')
+    err = capsys.readouterr().err
+    assert 'SECRET' not in err and 'Arguments' not in err and 'TypeError' in err

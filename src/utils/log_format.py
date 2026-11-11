@@ -4,6 +4,7 @@ import json
 import logging
 import os
 import socket
+import sys
 
 from utils.http import redact_log_text, report_redaction_failure
 
@@ -109,6 +110,23 @@ class QueryStringRedactingFilter(logging.Filter):
         except Exception as exc:
             report_redaction_failure(exc)
         return True
+
+
+def _redacted_handle_error(self, record: logging.LogRecord) -> None:
+    """Handler.handleError without the raw record args, which can carry a secret."""
+    if not logging.raiseExceptions:
+        return
+    try:
+        sys.stderr.write(
+            f"Logging error in {record.name} at {record.pathname}:{record.lineno}: "
+            f"{type(sys.exc_info()[1]).__name__}; message: {redact_log_text(record.msg)}\n")
+    except Exception:
+        pass
+
+
+def guard_handler_errors() -> None:
+    """Make every handler report its own failures as one redacted line."""
+    logging.Handler.handleError = _redacted_handle_error
 
 
 def make_formatter(log_format: str | None = None) -> logging.Formatter:

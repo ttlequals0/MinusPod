@@ -17,7 +17,7 @@ from utils.paths import resolve_data_dir
 from utils.shutdown import shutdown_event
 # SingleLineFormatter and JSONFormatter stay importable from main_app.
 from utils.log_format import (  # noqa: F401
-    JSONFormatter, QueryStringRedactingFilter, SingleLineFormatter, make_formatter)
+    JSONFormatter, QueryStringRedactingFilter, SingleLineFormatter, guard_handler_errors, make_formatter)
 from pathlib import Path
 
 import defusedxml
@@ -67,6 +67,7 @@ def setup_logging():
     log_format = os.environ.get('LOG_FORMAT', 'text').lower()
 
     formatter = make_formatter(log_format)
+    guard_handler_errors()
 
     # Console handler only - Docker captures stdout for logging
     console_handler = logging.StreamHandler(sys.stdout)
