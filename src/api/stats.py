@@ -181,6 +181,17 @@ def get_llm_stats():
     return json_response(db.get_llm_stats(**params))
 
 
+@api.route('/stats/audio-matching', methods=['GET'])
+@log_request
+def get_audio_matching_stats():
+    """Audio fingerprint matches in a period and how many patterns carry audio."""
+    params = _date_scope_params()
+    invalid = _invalid_date_param(params)
+    if invalid:
+        return error_response(_DATE_PARAM_ERROR.format(name=invalid), 400)
+    return json_response(get_database().get_audio_matching_stats(**params))
+
+
 @api.route('/stats/cleanup', methods=['GET'])
 @log_request
 def get_cleanup_stats():

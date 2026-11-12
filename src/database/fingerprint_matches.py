@@ -3,6 +3,7 @@ import json
 import logging
 
 from config import is_keep_like, is_pending_review
+from database.stats import _date_range_clauses
 from utils.markers import MERGED_MEMBER_SPANS, finite_number, marker_stages
 from utils.pattern_scope import pattern_passes_scope
 
@@ -328,3 +329,46 @@ class FingerprintMatchMixin:
             (pattern_id,)
         ).fetchone()
         return dict(row)
+
+    def get_audio_matching_stats(self, *, from_date=None, to_date=None, podcast_slug=None) -> dict:
+        """Match history counts for the period and the active patterns with audio, per feed when given."""
+        conn = self.get_connection()
+        if podcast_slug and conn.execute(
+                "SELECT 1 FROM podcasts WHERE slug = ?", (podcast_slug,)).fetchone() is None:
+            return {'patternsWithAudio': 0, 'patternsTotal': 0, 'audioMatches': 0,
+                    'foundByAudioOnly': 0, 'notThisAd': 0}
+        feed_sql, feed_params = ('', [])
+        if podcast_slug:
+            feed_sql, feed_params = ' AND podcast_slug = ?', [podcast_slug]
+        created, created_params = _date_range_clauses('created_at', from_date, to_date)
+        created_sql = ''.join(f' AND {clause}' for clause in created)
+        rejected, rejected_params = _date_range_clauses('rejected_at', from_date, to_date)
+        rejected_sql = ''.join(f' AND {clause}' for clause in rejected)
+        matches = conn.execute(
+            f"""SELECT COUNT(*) AS matches, COALESCE(SUM(audio_only = 1), 0) AS audio_only
+                FROM audio_fingerprint_matches
+                WHERE rejected = 0{feed_sql}{created_sql}""",  # noqa: S608
+            feed_params + created_params).fetchone()
+        not_this_ad = conn.execute(
+            f"""SELECT COUNT(*) FROM audio_fingerprint_matches
+                WHERE rejected = 1{feed_sql}{rejected_sql}""",  # noqa: S608
+            feed_params + rejected_params).fetchone()[0]
+        total, with_audio = self._count_patterns_with_audio(podcast_slug)
+        return {'patternsWithAudio': with_audio, 'patternsTotal': total,
+                'audioMatches': matches['matches'], 'foundByAudioOnly': matches['audio_only'],
+                'notThisAd': not_this_ad}
+
+    def _count_patterns_with_audio(self, podcast_slug: str | None) -> tuple[int, int]:
+        """(active patterns, those with an enabled fingerprint), limited to a feed's scope when given."""
+        rows = self.get_connection().execute(
+            """SELECT ap.id, ap.scope, ap.network_id, ap.podcast_id, ap.source, ap.sponsor_id,
+                      EXISTS(SELECT 1 FROM audio_fingerprints af
+                             WHERE af.pattern_id = ap.id AND af.enabled = 1) AS has_audio
+               FROM ad_patterns ap WHERE ap.is_active = 1""").fetchall()
+        if podcast_slug:
+            scope = self._episode_scope(podcast_slug)
+            tags_map = self.get_sponsor_tags_map()
+            rows = [r for r in rows if pattern_passes_scope(
+                r['scope'], r['network_id'], r['podcast_id'], r['source'],
+                set(tags_map.get(r['sponsor_id'], [])), **scope)]
+        return len(rows), sum(r['has_audio'] for r in rows)

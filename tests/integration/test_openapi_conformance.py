@@ -97,6 +97,7 @@ GET_ROUTES = [
     ('/stats/systemone', ''),
     ('/stats/llm', ''),
     ('/stats/cleanup', ''),
+    ('/stats/audio-matching', 'from=2026-11-01&to=2026-11-30'),
     ('/stats/episode-costs', ''),
     ('/stats/spend/attempts', 'slug={slug}&episodeId={episode_id}'),
     ('/stats/episode-costs/runs', 'slug={slug}&episodeId={episode_id}'),

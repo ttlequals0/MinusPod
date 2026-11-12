@@ -3915,6 +3915,76 @@ paths:
         '400':
           $ref: '#/components/responses/LedgerDateBadRequest'
 
+  /stats/audio-matching:
+    get:
+      tags:
+        - Stats
+      summary: Audio fingerprint matching statistics
+      description: |
+        Counts from the audio match history for a period, plus how many patterns
+        carry audio. `audioMatches` and `foundByAudioOnly` count history rows
+        that are not marked "not this ad" and were created in the period.
+        `foundByAudioOnly` is the subset whose ad only the audio fingerprint
+        found. `notThisAd` counts history rows marked "not this ad" whose
+        rejection time falls in the period. These rows are the same ones the
+        per-pattern audio history lists, so the totals and the pattern counts
+        agree. `patternsTotal` counts active patterns and `patternsWithAudio`
+        counts those with an enabled fingerprint.
+
+        With `podcastSlug`, the row counts cover that feed's rows and the two
+        pattern counts cover the patterns whose scope applies to that feed,
+        by the same scope rule both matchers use (global, the feed's own
+        podcast scope, its effective network, and community tag eligibility).
+        An unknown `podcastSlug` answers 200 with every count 0.
+
+        Dates work as on the other ledger Stats routes. `from` is the start of
+        the UTC day it names and `to` is inclusive of the whole UTC day it
+        names, so a `to` timestamp counts as that day. Either accepts a date
+        or an ISO 8601 timestamp, and a value that does not parse is a 400.
+      operationId: getAudioMatchingStats
+      parameters:
+        - name: from
+          in: query
+          schema:
+            type: string
+          description: Start of the selected UTC date range; accepts a date or ISO 8601 timestamp.
+        - name: to
+          in: query
+          schema:
+            type: string
+          description: Inclusive final UTC day; accepts a date or ISO 8601 timestamp.
+        - name: podcastSlug
+          in: query
+          schema:
+            type: string
+          description: Limit rows and pattern counts to one feed.
+      responses:
+        '200':
+          description: Audio matching counts
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [patternsWithAudio, patternsTotal, audioMatches, foundByAudioOnly, notThisAd]
+                properties:
+                  patternsWithAudio:
+                    type: integer
+                    description: Active patterns in scope with an enabled fingerprint.
+                  patternsTotal:
+                    type: integer
+                    description: Active patterns in scope.
+                  audioMatches:
+                    type: integer
+                    description: History rows created in the period and not marked "not this ad".
+                  foundByAudioOnly:
+                    type: integer
+                    description: Those rows whose ad only the audio fingerprint found.
+                  notThisAd:
+                    type: integer
+                    description: History rows marked "not this ad" in the period.
+        '400':
+          $ref: '#/components/responses/LedgerDateBadRequest'
+
   /stats/episode-costs:
     get:
       tags:
