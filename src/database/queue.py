@@ -7,7 +7,7 @@ from config import (
     AUTO_PROCESS_MAX_AGE_HOURS_BOUNDS, AUTO_PROCESS_MAX_AGE_HOURS_DEFAULT,
     DEFER_SERVICE_LLM,
 )
-from database.episodes import HAS_TRANSCRIPT_SQL
+from database.episodes import HAS_TRANSCRIPT_SQL, normalize_published_at
 from utils.time import ISO_FORMAT, utc_now, utc_now_iso
 
 logger = logging.getLogger(__name__)
@@ -49,6 +49,51 @@ def resolve_queue_boosts() -> dict[str, int]:
     module-level Database import would be circular.
     """
     return {key: _resolve_boost(key, fallback) for key, fallback in _BOOST_SETTINGS}
+
+QUEUE_ORDERS = ('queued', 'oldest_first', 'newest_first')
+DEFAULT_QUEUE_ORDER = 'queued'
+
+
+def resolve_queue_order(feed_value: str | None, global_value: str | None) -> str:
+    """The feed's order when valid, else the global one, else the default."""
+    for value in (feed_value, global_value):
+        if value in QUEUE_ORDERS:
+            return value
+    return DEFAULT_QUEUE_ORDER
+
+
+# Pending rows of one feed and priority keep their places; the feed's order decides which
+# row takes each place. julianday() reads ISO 8601 (Z, offsets, fractions) and gives NULL for
+# anything else, so undated rows sort last in both date orders.
+_ORDERED_PENDING_CTE = """
+WITH claimable AS (
+    SELECT q.id, q.podcast_id, q.priority, q.created_at,
+           julianday(q.published_at) AS published_jd,
+           CASE WHEN p.queue_order IN ({orders}) THEN p.queue_order ELSE ? END AS feed_order
+    FROM auto_process_queue q
+    JOIN podcasts p ON q.podcast_id = p.id
+    WHERE q.status = 'pending'{exclude_sql}
+),
+ranked AS MATERIALIZED (
+    SELECT id, podcast_id, priority, created_at,
+           ROW_NUMBER() OVER (PARTITION BY podcast_id, priority
+                              ORDER BY created_at, id) AS place,
+           ROW_NUMBER() OVER (PARTITION BY podcast_id, priority
+                              ORDER BY CASE WHEN feed_order = 'queued' THEN 0
+                                            ELSE published_jd IS NULL END,
+                                       CASE WHEN feed_order = 'oldest_first' THEN published_jd END ASC,
+                                       CASE WHEN feed_order = 'newest_first' THEN published_jd END DESC,
+                                       created_at, id) AS turn
+    FROM claimable
+),
+ordered AS (
+    SELECT r.id, r.priority, s.created_at AS sort_created_at, s.id AS sort_id
+    FROM ranked r
+    JOIN ranked s ON s.podcast_id = r.podcast_id AND s.priority = r.priority AND s.place = r.turn
+)
+""".format(orders=",".join("'%s'" % o for o in QUEUE_ORDERS), exclude_sql="{exclude_sql}")  # noqa: S608
+
+_ORDERED_BY = "o.priority DESC, o.sort_created_at ASC, o.sort_id ASC"
 
 # Bound on the row-level detail returned by get_queue_status.
 _QUEUE_STATUS_ITEMS_LIMIT = 100
@@ -146,7 +191,8 @@ class QueueMixin:
                    (podcast_id, episode_id, original_url, title, published_at, description, priority)
                    VALUES (?, ?, ?, ?, ?, ?, ?)
                    ON CONFLICT(podcast_id, episode_id) DO NOTHING""",
-                (podcast['id'], episode_id, original_url, title, published_at, description, priority)
+                (podcast['id'], episode_id, original_url, title,
+                 normalize_published_at(published_at), description, priority)
             )
             conn.commit()
             return cursor.lastrowid if cursor.rowcount > 0 else None
@@ -178,7 +224,7 @@ class QueueMixin:
                            ON CONFLICT(podcast_id, episode_id) DO NOTHING""",
                         (
                             podcast['id'], episode['episode_id'], episode['original_url'],
-                            episode.get('title'), episode.get('published_at'),
+                            episode.get('title'), normalize_published_at(episode.get('published_at')),
                             episode.get('description'), episode.get('priority', 0),
                         ),
                     )
@@ -234,7 +280,8 @@ class QueueMixin:
                      published_at = COALESCE(excluded.published_at, auto_process_queue.published_at),
                      description = COALESCE(excluded.description, auto_process_queue.description),
                      updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')""",
-                (podcast_id, episode_id, original_url, title, published_at, description, priority)
+                (podcast_id, episode_id, original_url, title, normalize_published_at(published_at),
+                 description, priority)
             )
             conn.commit()
             return cursor.lastrowid if cursor.lastrowid else None
@@ -322,50 +369,61 @@ class QueueMixin:
         return result
 
 
+    def _ordered_pending(self, exclude_pairs=()) -> tuple[str, list]:
+        """CTE text and params giving each claimable pending row its place in `ordered`."""
+        global_order = resolve_queue_order(None, self.get_setting('queue_order'))
+        params: list = [global_order]
+        exclude_sql = ""
+        if exclude_pairs:
+            rows_sql = ",".join("(?,?)" for _ in exclude_pairs)
+            exclude_sql = f" AND (p.slug, q.episode_id) NOT IN (VALUES {rows_sql})"
+            for slug, episode_id in exclude_pairs:
+                params.extend((slug, episode_id))
+        return _ORDERED_PENDING_CTE.format(exclude_sql=exclude_sql), params  # noqa: S608
+
     def get_next_queued_episode(self) -> dict | None:
-        """Get the next pending episode from the queue (FIFO order, read-only)."""
-        conn = self.get_connection()
-        cursor = conn.execute(
-            """SELECT q.*, p.slug as podcast_slug, p.title as podcast_title
-               FROM auto_process_queue q
+        """The next pending episode in dequeue order (read-only)."""
+        cte, params = self._ordered_pending()
+        row = self.get_connection().execute(
+            f"""{cte}
+               SELECT q.*, p.slug as podcast_slug, p.title as podcast_title
+               FROM ordered o
+               JOIN auto_process_queue q ON q.id = o.id
                JOIN podcasts p ON q.podcast_id = p.id
-               WHERE q.status = 'pending'
-               ORDER BY q.priority DESC, q.created_at ASC
-               LIMIT 1"""
-        )
-        row = cursor.fetchone()
+               ORDER BY {_ORDERED_BY}
+               LIMIT 1""",  # noqa: S608
+            params,
+        ).fetchone()
         return dict(row) if row else None
 
     def get_pending_queued_episodes(self, limit: int = PENDING_QUEUE_LIMIT,
                                     offset: int = 0) -> list[dict]:
-        """Pending queue rows in dequeue order (same ORDER BY as the claim).
+        """Pending queue rows in dequeue order (the same order as the claim).
 
-        Feeds the Processing Queue panel, which showed only the active job plus
-        the display queue and so hid the auto-process backlog entirely. Capped
-        at `limit` rows with an optional `offset` for pagination; each row
-        carries total_pending (the uncapped count, via a window function
-        evaluated before the LIMIT) so a caller can say how much of the
-        backlog it is showing.
+        Feeds the Processing Queue panel. Capped at `limit` rows with an
+        optional `offset`; each row carries total_pending (the uncapped count,
+        via a window function evaluated before the LIMIT).
 
         The feed and episode processing-mode columns ride along so the hold
         gating scan can score a row without a per-row lookup.
         """
-        conn = self.get_connection()
-        cursor = conn.execute(
-            """SELECT q.episode_id, q.title, q.priority, q.created_at,
+        cte, params = self._ordered_pending()
+        cursor = self.get_connection().execute(
+            f"""{cte}
+               SELECT q.episode_id, q.title, q.priority, q.created_at,
                       p.slug as podcast_slug, p.title as podcast_title,
                       p.passthrough_enabled as feed_passthrough_enabled,
                       p.skip_ad_detection, p.skip_second_pass, p.detection_mode, p.chapters_mode,
                       e.passthrough_enabled as episode_passthrough_enabled,
                       COUNT(*) OVER () as total_pending
-               FROM auto_process_queue q
+               FROM ordered o
+               JOIN auto_process_queue q ON q.id = o.id
                JOIN podcasts p ON q.podcast_id = p.id
                LEFT JOIN episodes e
                       ON e.podcast_id = q.podcast_id AND e.episode_id = q.episode_id
-               WHERE q.status = 'pending'
-               ORDER BY q.priority DESC, q.created_at ASC
-               LIMIT ? OFFSET ?""",
-            (limit, offset)
+               ORDER BY {_ORDERED_BY}
+               LIMIT ? OFFSET ?""",  # noqa: S608
+            [*params, limit, offset],
         )
         return [dict(row) for row in cursor.fetchall()]
 
@@ -435,22 +493,15 @@ class QueueMixin:
         ones.
         """
         conn = self.get_connection()
-        params: list = []
-        exclude_sql = ""
-        pairs = list(exclude_episodes or [])
-        if pairs:
-            rows_sql = ",".join("(?,?)" for _ in pairs)
-            exclude_sql = (
-                f" AND (p.slug, q.episode_id) NOT IN (VALUES {rows_sql})")  # noqa: S608
-            for slug, episode_id in pairs:
-                params.extend((slug, episode_id))
+        cte, params = self._ordered_pending(list(exclude_episodes or []))
         for _ in range(5):
             row = conn.execute(
-                f"""SELECT q.*, p.slug as podcast_slug, p.title as podcast_title
-                   FROM auto_process_queue q
+                f"""{cte}
+                   SELECT q.*, p.slug as podcast_slug, p.title as podcast_title
+                   FROM ordered o
+                   JOIN auto_process_queue q ON q.id = o.id
                    JOIN podcasts p ON q.podcast_id = p.id
-                   WHERE q.status = 'pending'{exclude_sql}
-                   ORDER BY q.priority DESC, q.created_at ASC
+                   ORDER BY {_ORDERED_BY}
                    LIMIT 1""",  # noqa: S608
                 params,
             ).fetchone()
@@ -591,15 +642,19 @@ class QueueMixin:
         row = cursor.fetchone()
         result = dict(row) if row else {'pending': 0, 'processing': 0, 'completed': 0, 'failed': 0, 'total': 0}
 
+        cte, params = self._ordered_pending()
         items = conn.execute(
-            """SELECT q.id, q.episode_id, q.status, q.priority, q.created_at,
+            f"""{cte}
+               SELECT q.id, q.episode_id, q.status, q.priority, q.created_at,
                       p.slug as podcast_slug
                FROM auto_process_queue q
                JOIN podcasts p ON q.podcast_id = p.id
+               LEFT JOIN ordered o ON o.id = q.id
                WHERE q.status IN ('pending', 'processing')
-               ORDER BY q.priority DESC, q.created_at ASC
-               LIMIT ?""",
-            (_QUEUE_STATUS_ITEMS_LIMIT,)
+               ORDER BY q.priority DESC, COALESCE(o.sort_created_at, q.created_at) ASC,
+                        COALESCE(o.sort_id, q.id) ASC
+               LIMIT ?""",  # noqa: S608
+            [*params, _QUEUE_STATUS_ITEMS_LIMIT],
         ).fetchall()
         result['items'] = [dict(r) for r in items]
         return result

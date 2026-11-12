@@ -709,6 +709,8 @@ class SchemaMixin:
             ('cue_only_safety', 'TEXT'),
             # Queue priority (#625): NULL/0 = normal, 10 = high, -10 = low
             ('queue_priority', 'INTEGER'),
+            # Processing order of the feed's queued episodes; NULL = global queue_order
+            ('queue_order', 'TEXT'),
             # Episode title blacklist: JSON array of glob patterns matched
             # case-insensitively; title_skip_action controls served-RSS
             # visibility (NULL/'serve_original' keep, 'hide' drops it).
@@ -1403,6 +1405,26 @@ class SchemaMixin:
             conn.commit()
         except Exception as e:
             logger.debug(f"auto_process_queue priority migration: {e}")
+
+        # Queued rows can carry the raw feed date; the processing order needs ISO 8601.
+        try:
+            from database.episodes import normalize_published_at
+            queue_fixed = 0
+            for row in conn.execute(
+                "SELECT id, published_at FROM auto_process_queue "
+                "WHERE published_at IS NOT NULL AND published_at != '' "
+                "AND SUBSTR(published_at, 1, 1) NOT BETWEEN '0' AND '9'"
+            ).fetchall():
+                normalized = normalize_published_at(row['published_at'])
+                if normalized != row['published_at']:
+                    conn.execute("UPDATE auto_process_queue SET published_at = ? WHERE id = ?",
+                                 (normalized, row['id']))
+                    queue_fixed += 1
+            if queue_fixed:
+                conn.commit()
+                logger.info(f"Migration: Normalized {queue_fixed} queued published_at dates to ISO 8601")
+        except Exception as e:
+            logger.warning(f"queue published_at normalization migration: {e}")
 
         # Create new indexes for podcasts table (will fail silently if already exist)
         try:

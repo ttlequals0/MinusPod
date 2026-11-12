@@ -109,6 +109,8 @@ TABLE_DDL['podcasts'] = """CREATE TABLE IF NOT EXISTS podcasts (
     cue_only_safety TEXT,
     -- Queue priority (#625): NULL/0 = normal, 10 = high, -10 = low
     queue_priority INTEGER,
+    -- Processing order of this feed's queued episodes; NULL = use the global queue_order setting
+    queue_order TEXT,
     -- Episode title blacklist: JSON array of case-insensitive glob patterns.
     -- A matching episode is never queued or JIT-processed.
     title_skip_patterns TEXT,
