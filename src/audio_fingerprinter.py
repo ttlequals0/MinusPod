@@ -615,7 +615,7 @@ def _solid_points(mask, window):
     return np.flatnonzero(mask & (2 * (c[w_hi] - c[w_lo]) >= w_hi - w_lo)), c
 
 
-def _edge_run(hits, c, mask, window, island_gap):
+def _edge_run(hits, c, mask, window, island_gap, far_islands=False):
     """Span of solid hits without short edge islands, trimmed to sustained agreement, or None."""
     if len(hits) == 0:
         return None
@@ -623,8 +623,11 @@ def _edge_run(hits, c, mask, window, island_gap):
 
     def stray(island, gap):
         # Under a window of agreement, cut off by a gap longer than itself or than a window
-        small = c[island[-1] + 1] - c[island[0]] < window
-        return small and (gap > window or gap >= island[-1] - island[0] + 1)
+        n = c[island[-1] + 1] - c[island[0]]
+        if n < window and (gap > window or gap >= island[-1] - island[0] + 1):
+            return True
+        # Chance agreement past an ad's end also comes as islands under two windows, two windows out
+        return far_islands and n < 2 * window and gap >= 2 * window
 
     while len(islands) > 1 and stray(islands[0], islands[1][0] - islands[0][-1] - 1):
         islands.pop(0)
@@ -651,9 +654,9 @@ def _tight_span(al, runs, window):
     """(lo, hi) of runs with both outer edges built on the edge threshold."""
     hits, c = _solid_points(al.tight, window)
     first, last = runs[0], runs[-1]
-    head = _edge_run(hits[(hits >= first[0]) & (hits < first[1])], c, al.tight, window, window // 2)
+    head = _edge_run(hits[(hits >= first[0]) & (hits < first[1])], c, al.tight, window, window // 2, True)
     tail = head if last is first else _edge_run(
-        hits[(hits >= last[0]) & (hits < last[1])], c, al.tight, window, window // 2)
+        hits[(hits >= last[0]) & (hits < last[1])], c, al.tight, window, window // 2, True)
     return (head or first)[0], (tail or last)[1]
 
 
