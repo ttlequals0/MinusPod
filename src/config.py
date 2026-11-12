@@ -1896,6 +1896,7 @@ PROVIDER_OPENAI_COMPATIBLE = 'openai-compatible'
 PROVIDER_OLLAMA = 'ollama'
 PROVIDER_TYPESAFE = 'typesafe'
 PROVIDER_SYSTEMONE_COMPATIBLE = 'systemone-compatible'
+PROVIDER_NONE = 'none'
 TYPESAFE_BASE_URL = 'https://api.typesafe.ai/v1'
 TYPESAFE_SYSTEMONE_URL = 'https://api.typesafe.ai/v1/systemone'
 SYSTEMONE_COMPATIBLE_BASE_URL = ''
@@ -2632,7 +2633,8 @@ def _validate_llm_provider(value: str) -> bool:
     instead of being adopted verbatim into the stored setting."""
     return value in (PROVIDER_ANTHROPIC, PROVIDER_OPENROUTER,
                       PROVIDER_OPENAI_COMPATIBLE, PROVIDER_OLLAMA,
-                      PROVIDER_TYPESAFE, PROVIDER_SYSTEMONE_COMPATIBLE)
+                      PROVIDER_TYPESAFE, PROVIDER_SYSTEMONE_COMPATIBLE,
+                      PROVIDER_NONE)
 
 
 def _validate_positive_int(value: str) -> bool:

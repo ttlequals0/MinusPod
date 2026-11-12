@@ -65,6 +65,7 @@ from config import (
     PROVIDER_OPENAI_COMPATIBLE,
     PROVIDER_TYPESAFE,
     PROVIDER_SYSTEMONE_COMPATIBLE,
+    PROVIDER_NONE,
     SYSTEMONE_PROVIDERS,
     TYPESAFE_BASE_URL,
     TYPESAFE_SYSTEMONE_URL,
@@ -374,6 +375,11 @@ def get_effective_provider_from_snapshot(snapshot):
 def get_effective_provider() -> str:
     """Return the active LLM provider, checking DB first then env var."""
     return get_effective_provider_from_snapshot({'llm_provider': _get_cached_setting('llm_provider')})
+
+
+def llm_disabled() -> bool:
+    """True when the operator selected no LLM provider."""
+    return get_effective_provider() == PROVIDER_NONE
 
 
 def model_matches_provider(model_id: str, provider: str) -> bool:
