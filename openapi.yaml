@@ -277,6 +277,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
+        '429':
+          $ref: '#/components/responses/RateLimited'
 
   /feeds:
     get:
@@ -541,6 +543,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
+        '429':
+          $ref: '#/components/responses/RateLimited'
 
   /feeds/import-opml:
     post:
@@ -623,6 +627,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
+        '429':
+          $ref: '#/components/responses/RateLimited'
 
   /feeds/export-opml:
     get:
@@ -1473,6 +1479,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
+        '429':
+          $ref: '#/components/responses/RateLimited'
 
   /feeds/refresh:
     post:
@@ -1517,6 +1525,8 @@ paths:
                 $ref: '#/components/schemas/RefreshAllResult'
         '500':
           $ref: '#/components/responses/ServerError'
+        '429':
+          $ref: '#/components/responses/RateLimited'
 
   /feeds/refresh-artwork:
     post:
@@ -1542,6 +1552,8 @@ paths:
                     type: string
                   feedCount:
                     type: integer
+        '429':
+          $ref: '#/components/responses/RateLimited'
 
   /feeds/regenerate:
     post:
@@ -1568,6 +1580,8 @@ paths:
                     type: string
                   feedCount:
                     type: integer
+        '429':
+          $ref: '#/components/responses/RateLimited'
 
   /feeds/{slug}/artwork:
     get:
@@ -1657,6 +1671,8 @@ paths:
                 $ref: '#/components/schemas/Error'
         '404':
           $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
 
   /feeds/{slug}/ad-distribution:
     get:
@@ -1904,6 +1920,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
+        '429':
+          $ref: '#/components/responses/RateLimited'
 
   /feeds/{slug}/episodes/{episode_id}:
     get:
@@ -2074,6 +2092,8 @@ paths:
                 $ref: '#/components/schemas/Error'
         '404':
           $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
 
   /feeds/{slug}/episodes/{episode_id}/transcript:
     get:
@@ -2576,6 +2596,8 @@ paths:
                 $ref: '#/components/schemas/Error'
         '500':
           $ref: '#/components/responses/ServerError'
+        '429':
+          $ref: '#/components/responses/RateLimited'
 
   /feeds/{slug}/episodes/{episode_id}/sponsorblock/candidates:
     get:
@@ -2827,6 +2849,8 @@ paths:
           $ref: '#/components/responses/BadRequest'
         '404':
           $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
 
   /feeds/{slug}/episodes/{episode_id}/retry-ad-detection:
     post:
@@ -2865,6 +2889,8 @@ paths:
           $ref: '#/components/responses/NotFound'
         '500':
           $ref: '#/components/responses/ServerError'
+        '429':
+          $ref: '#/components/responses/RateLimited'
 
   /feeds/{slug}/episodes/{episode_id}/reprocess:
     post:
@@ -2923,6 +2949,8 @@ paths:
                 $ref: '#/components/schemas/Error'
         '500':
           $ref: '#/components/responses/ServerError'
+        '429':
+          $ref: '#/components/responses/RateLimited'
 
   /feeds/{slug}/episodes/{episode_id}/original.mp3:
     get:
@@ -3403,6 +3431,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
+        '429':
+          $ref: '#/components/responses/RateLimited'
 
   /episodes/{slug}/{episode_id}/corrections:
     post:
@@ -4863,6 +4893,8 @@ paths:
                     type: integer
                   skipped:
                     type: integer
+        '429':
+          $ref: '#/components/responses/RateLimited'
 
   /patterns/stats:
     get:
@@ -5838,6 +5870,8 @@ paths:
           description: Source not found or private
         '502':
           description: The lookup failed upstream
+        '429':
+          $ref: '#/components/responses/RateLimited'
   /youtube/search:
     get:
       tags:
@@ -5894,6 +5928,8 @@ paths:
           description: Missing search query
         '502':
           description: The search failed upstream
+        '429':
+          $ref: '#/components/responses/RateLimited'
   /youtube/test-key:
     post:
       tags:
@@ -5923,6 +5959,8 @@ paths:
                     type: [string, 'null']
         '400':
           description: No key available or YouTube rejected it
+        '429':
+          $ref: '#/components/responses/RateLimited'
   /youtube/cookies:
     post:
       tags:
@@ -5984,6 +6022,8 @@ paths:
                     type: [string, 'null']
         '503':
           description: yt-dlp is not installed
+        '429':
+          $ref: '#/components/responses/RateLimited'
 
   /podcast-search:
     get:
@@ -6042,6 +6082,8 @@ paths:
           description: Search provider unreachable
         '503':
           description: PodcastIndex selected but credentials not configured
+        '429':
+          $ref: '#/components/responses/RateLimited'
 
   /search:
     get:
@@ -6150,6 +6192,8 @@ paths:
                   indexedCount:
                     type: integer
                     description: Total items indexed
+        '429':
+          $ref: '#/components/responses/RateLimited'
 
   /search/stats:
     get:
@@ -6980,6 +7024,8 @@ paths:
                     type: array
                     items:
                       $ref: '#/components/schemas/ProcessingHistoryEntry'
+        '429':
+          $ref: '#/components/responses/RateLimited'
 
   /failover:
     get:
@@ -7259,6 +7305,8 @@ paths:
       operationId: rotateMasterPassphrase
       responses:
         '409': { description: 'Rotation requires the offline command' }
+        '429':
+          $ref: '#/components/responses/RateLimited'
   /settings/providers/{provider}/test:
     post:
       tags:
@@ -7465,6 +7513,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ConnectionTestResult'
+        '429':
+          $ref: '#/components/responses/RateLimited'
   /settings/feed-auth/regenerate-key:
     post:
       tags:
@@ -7485,6 +7535,8 @@ paths:
                 properties:
                   feedAuthKey: { type: string, description: 'New global feed auth key (64 hex chars)' }
         '409': { description: 'feed_auth_disabled (enable feed auth before rotating the key)' }
+        '429':
+          $ref: '#/components/responses/RateLimited'
   /settings:
     get:
       tags:
@@ -9134,6 +9186,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
+        '429':
+          $ref: '#/components/responses/RateLimited'
 
   /system/updates:
     get:
@@ -9335,6 +9389,8 @@ paths:
                 properties:
                   error:
                     type: string
+        '429':
+          $ref: '#/components/responses/RateLimited'
 
   /system/cleanup:
     post:
@@ -9357,6 +9413,8 @@ paths:
                     type: integer
                   spaceFreedMb:
                     type: number
+        '429':
+          $ref: '#/components/responses/RateLimited'
 
   /system/vacuum:
     post:
@@ -9379,6 +9437,8 @@ paths:
                     type: string
                   durationMs:
                     type: integer
+        '429':
+          $ref: '#/components/responses/RateLimited'
 
   /docs:
     get:
@@ -9518,6 +9578,8 @@ paths:
           $ref: '#/components/responses/BadRequest'
         '404':
           $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
 
   /feeds/{slug}/subscriber-keys/{key_id}:
     parameters:
@@ -9543,6 +9605,8 @@ paths:
                   revoked: { type: boolean, const: true }
         '404':
           $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
 
   /feeds/{slug}/subscriber-keys/{key_id}/record:
     parameters:
@@ -9573,6 +9637,8 @@ paths:
           description: Subscriber key not found
         '409':
           description: Subscriber key is still active
+        '429':
+          $ref: '#/components/responses/RateLimited'
 
   /settings/provider-budget:
     get:
@@ -9773,6 +9839,8 @@ paths:
           description: Invalid configuration, scope, selection, or conflicting feed identity
         '413':
           description: Request exceeds 10 MiB
+        '429':
+          $ref: '#/components/responses/RateLimited'
 
   /system/config-import:
     post:
@@ -9821,6 +9889,8 @@ paths:
           description: Preview is stale; preview the selected configuration again
         '413':
           description: Request exceeds 10 MiB
+        '429':
+          $ref: '#/components/responses/RateLimited'
 
   /system/config-export:
     get:
@@ -10359,6 +10429,8 @@ paths:
                     type: string
         '404':
           description: No ID is stored (error "not_configured")
+        '429':
+          $ref: '#/components/responses/RateLimited'
   /settings/youtube/sb-user-id/generate:
     post:
       tags:
@@ -10386,6 +10458,8 @@ paths:
                     maxLength: 48
         '409':
           description: Error "configured" when an ID is already stored, or "provider_crypto_unavailable" when secret encryption is unavailable
+        '429':
+          $ref: '#/components/responses/RateLimited'
   /settings/youtube/reset:
     post:
       tags:
@@ -11061,6 +11135,8 @@ paths:
                     description: Present for process/reprocess/reprocess_full/reprocess_llm actions. Bulk enqueues never start processing synchronously, so this is queued whenever anything was queued, else idle. Not present for delete.
         '404':
           $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
 
   /feeds/{slug}/episodes/passthrough:
     post:
@@ -11165,6 +11241,8 @@ paths:
                 $ref: '#/components/schemas/Error'
         '404':
           $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
 
   /feeds/{slug}/import/upload:
     post:
@@ -11464,6 +11542,8 @@ paths:
                   deleted:
                     type: integer
                     description: Number of pending items removed
+        '429':
+          $ref: '#/components/responses/RateLimited'
 
   /patterns/bulk-delete:
     post:
@@ -11936,6 +12016,8 @@ paths:
                   skipped: { type: integer }
         '404':
           description: Feed not found
+        '429':
+          $ref: '#/components/responses/RateLimited'
 
   /sponsors/{sponsor_id}/tags:
     put:
@@ -12104,6 +12186,8 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
+        '429':
+          $ref: '#/components/responses/RateLimited'
     delete:
       summary: Restore the default replacement audio
       description: Removes an uploaded file so the shipped default applies again.
@@ -17315,7 +17399,7 @@ components:
           description: The ad pattern this marker matched or created, when any.
         patternAudioState:
           type: string
-          enum: [active, off, none]
+          enum: [active, 'off', none]
           description: >-
             Audio fingerprint state of the marker's pattern. Present only when the
             marker's pattern_id refers to an existing pattern; absent for a deleted
@@ -17506,7 +17590,7 @@ components:
         patternId: {type: [integer, 'null']}
         patternAudioState:
           type: string
-          enum: [active, off, none]
+          enum: [active, 'off', none]
           description: Audio fingerprint state of the detection's pattern. Present only when patternId refers to an existing pattern; absent for a deleted pattern or no pattern.
         detectionStage: {type: [string, 'null']}
         category:
@@ -20304,7 +20388,7 @@ components:
       properties:
         state:
           type: string
-          enum: [active, off, none]
+          enum: [active, 'off', none]
         available:
           type: boolean
         matchCount:
@@ -20382,7 +20466,7 @@ components:
       properties:
         state:
           type: string
-          enum: [active, off, none]
+          enum: [active, 'off', none]
           description: "`none` means the pattern has no fingerprint."
         available:
           type: boolean

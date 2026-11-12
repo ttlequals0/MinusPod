@@ -183,6 +183,32 @@ def test_string_enums_are_quoted_in_the_spec():
             )
 
 
+def test_no_enum_mixes_booleans_or_null_with_strings():
+    """Bare off/on/yes/no/null inside a string enum parse as bool or None."""
+    doc = yaml.safe_load(SPEC_PATH.read_text())
+    bad = []
+
+    def walk(node, where):
+        if isinstance(node, dict):
+            values = node.get('enum')
+            if isinstance(values, list) and any(isinstance(v, str) for v in values):
+                # true and false together are an intended bool alongside 'on'/'off'
+                lone_bool = (True in values) != (False in values)
+                has_bool = True in values or False in values
+                stray_null = None in values and not has_bool and node.get('type') != ['string', 'null']
+                if lone_bool or stray_null:
+                    bad.append((where, values))
+            for key, child in node.items():
+                walk(child, f'{where}/{key}')
+        elif isinstance(node, list):
+            for i, child in enumerate(node):
+                walk(child, f'{where}[{i}]')
+
+    walk(doc['components'], 'components')
+    walk(doc['paths'], 'paths')
+    assert not bad, bad
+
+
 def test_every_hold_reason_list_matches_config_constants():
     with SPEC_PATH.open() as f:
         doc = yaml.safe_load(f)
