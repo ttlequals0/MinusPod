@@ -63,6 +63,23 @@ def test_partly_present_real_format_pattern_does_not_run_past_its_end():
         assert r[0].end - (s + present) / fps <= 0.5 and s / fps - r[0].start <= 0.5
 
 
+@pytest.mark.parametrize('frac', [0.5, 0.6])
+def test_a_short_agreeing_stretch_past_the_present_part_does_not_extend_the_match(frac):
+    clean, degraded, other = _fixture()
+    fps = len(degraded) / 180.0
+    ln, short = int(30 * fps), int(2 * fps)
+    h = int(ln * frac)
+    for s, u in ((250, 350), (400, 600), (850, 850)):
+        pat = np.concatenate([clean[s:s + h], other[u:u + ln - h]])
+        ep = degraded.copy()
+        # Two seconds of the absent part, six seconds past the present part, at the same alignment
+        k = h + int(6 * fps)
+        ep[s + k:s + k + short] = pat[k:k + short]
+        r = match_fingerprints(ep, 180.0, [(1, pat, 30.0, None, None)], **KW)
+        assert all(m.end - (s + h) / fps <= 0.5 for m in r)
+        assert frac == 0.5 or len(r) == 1
+
+
 @pytest.mark.parametrize('s,u', [(1256, 290), (664, 292)])
 def test_prefilter_keeps_the_true_alignment_of_a_half_present_pattern(s, u):
     clean, degraded, other = _fixture()

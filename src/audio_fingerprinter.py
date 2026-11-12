@@ -702,9 +702,9 @@ def _measure_alignment(ep_arr, pat_arr, informative, novelty, d, strictness, gap
         FINGERPRINT_EDGE_BITS, np.median(interior) + FINGERPRINT_EDGE_MARGIN_BITS)))
     al.tight = (diff <= al.edge_bits) & inf
     # Other runs at this alignment are the same ad past a degraded stretch when they agree as the
-    # primary does: mostly within the edge threshold, a second of it at least, and strict enough
+    # primary does: mostly within the edge threshold, longer than chance clusters, and strict enough
     al.runs = [run for run in runs if run is primary or (
-        int(al.tight[run[0]:run[1]].sum()) >= max(window, 0.5 * int(inf[run[0]:run[1]].sum()))
+        int(al.tight[run[0]:run[1]].sum()) >= max(3 * window, 0.5 * int(inf[run[0]:run[1]].sum()))
         and _similarity(al, [run]) >= strictness)]
     al.span = _tight_span(al, al.runs, window)
     return al
