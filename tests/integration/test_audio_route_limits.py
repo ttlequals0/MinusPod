@@ -99,6 +99,24 @@ def test_rebuild_from_a_malformed_episode_id_is_not_retained(
     assert stub_fingerprinting == [] and fp_feed.get_audio_fingerprint(fp_pattern) is None
 
 
+@pytest.mark.parametrize('start,end', [
+    (10 ** 400, 5), (0, 10 ** 400), (-(10 ** 400), 5), (True, 8), ('2', 8), (2, False), (None, 8),
+], ids=['huge-start', 'huge-end', 'huge-negative', 'bool-start', 'string-start', 'bool-end', 'null-start'])
+def test_rebuild_rejects_unusable_span_numbers_with_a_400(
+        app_client, fp_feed, fp_pattern, stub_fingerprinting, start, end):
+    r = app_client.post(f'{_audio(fp_pattern)}/rebuild', headers=csrf(app_client),
+                        json={'podcastSlug': SLUG, 'episodeId': EPISODE, 'start': start, 'end': end})
+    assert r.status_code == 400 and r.get_json()['error'] == 'start and end must be finite numbers'
+    assert stub_fingerprinting == []
+
+
+def test_rebuild_rejects_a_non_finite_span_number_with_a_400(app_client, fp_pattern):
+    body = '{"podcastSlug": "%s", "episodeId": "%s", "start": 1e999, "end": 8}' % (SLUG, EPISODE)
+    r = app_client.post(f'{_audio(fp_pattern)}/rebuild', headers=csrf(app_client),
+                        content_type='application/json', data=body)
+    assert r.status_code == 400 and r.get_json()['error'] == 'start and end must be finite numbers'
+
+
 def test_storing_audio_for_a_malformed_episode_id_is_not_retained(
         fp_feed, fp_pattern, bad_id_episode, stub_fingerprinting):
     result = _store_pattern_audio(fp_feed, SLUG, bad_id_episode, fp_pattern, 10.0, 40.0)

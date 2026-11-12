@@ -165,10 +165,14 @@ def _missing_pattern(db, pattern_id):
 
 
 def _number(value):
-    """A finite non-bool number as a float, else None."""
-    if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value):
+    """A finite non-bool number as a float, else None (an int too large for a float included)."""
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
         return None
-    return float(value)
+    try:
+        number = float(value)
+    except OverflowError:
+        return None
+    return number if math.isfinite(number) else None
 
 
 def _match_id_arg():
