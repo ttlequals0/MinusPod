@@ -13,10 +13,10 @@ from __future__ import annotations
 
 import secrets
 
-from flask import Request, Response, session
+from flask import Request, Response, request, session
 
 import config
-from api.auth_state import current_auth
+from api.auth_state import AUTH_HOOK_EXEMPT_ENDPOINTS, current_auth
 
 
 CSRF_COOKIE_NAME = 'minuspod_csrf'
@@ -42,6 +42,8 @@ def apply_csrf_cookie(response: Response, cookie_secure: bool) -> Response:
     """
     if response.headers.get('X-Skip-CSRF-Cookie'):
         response.headers.pop('X-Skip-CSRF-Cookie', None)
+        return response
+    if request.endpoint in AUTH_HOOK_EXEMPT_ENDPOINTS:
         return response
     if not current_auth().signed_in:
         return response

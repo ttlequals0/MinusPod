@@ -6,13 +6,9 @@ import os
 import time
 from dataclasses import dataclass
 
-from flask import g, has_request_context, session
+from flask import g, has_request_context, jsonify, request, session
 
-from config import (
-    SESSION_LIFETIME_HOURS_MIN, SESSION_LIFETIME_HOURS_MAX,
-    SESSION_REMEMBER_DAYS_MIN, SESSION_REMEMBER_DAYS_MAX,
-    get_env_backed_int,
-)
+from config import get_env_backed_int
 from database import Database
 
 
@@ -24,6 +20,9 @@ SESSION_REMEMBERED_KEY = 'auth_remembered'
 SESSION_LAST_USED_KEY = 'auth_last_used'
 LAST_USED_REFRESH_SECONDS = 60
 CLOCK_SKEW_SECONDS = 60
+# Probes answer without the session check so a database failure cannot turn them into a 500.
+AUTH_HOOK_EXEMPT_ENDPOINTS = frozenset({'api.health_live', 'api.health_check'})
+_FAILURE_LOGGED = 'auth_failure_logged'
 
 
 @dataclass(frozen=True)
@@ -53,12 +52,8 @@ def valid_last_used(value) -> bool:
 def session_limit_seconds(remembered: bool) -> int:
     """Idle limit for a session: the Remember me days or the normal hours."""
     if remembered:
-        return get_env_backed_int(
-            'session_remember_days', floor=SESSION_REMEMBER_DAYS_MIN,
-            ceiling=SESSION_REMEMBER_DAYS_MAX) * 86400
-    return get_env_backed_int(
-        'session_lifetime_hours', floor=SESSION_LIFETIME_HOURS_MIN,
-        ceiling=SESSION_LIFETIME_HOURS_MAX) * 3600
+        return get_env_backed_int('session_remember_days') * 86400
+    return get_env_backed_int('session_lifetime_hours') * 3600
 
 
 def current_generation(db) -> int:
@@ -116,11 +111,41 @@ def refresh_auth(db=None, state: AuthState | None = None) -> AuthState | None:
     return state
 
 
+def load_request_auth():
+    """Before-request hook: run the session check once; a failure answers 500 before the view."""
+    if request.endpoint in AUTH_HOOK_EXEMPT_ENDPOINTS:
+        return None
+    try:
+        refresh_auth()
+    except Exception as e:
+        g.pop('auth', None)
+        setattr(g, _FAILURE_LOGGED, True)
+        logger.error("Session check failed: %s: %s", type(e).__name__, e)
+        if request.path.startswith('/api/'):
+            return jsonify({'error': 'Internal server error', 'status': 500}), 500
+        return 'Internal Server Error', 500
+    return None
+
+
+def stored_auth() -> AuthState | None:
+    """The auth state the request hook stored, or None."""
+    return g.get('auth') if has_request_context() else None
+
+
+def note_missing_auth() -> None:
+    """Log, once per request, that auth state was read before the hook stored it."""
+    if has_request_context() and g.get(_FAILURE_LOGGED):
+        return
+    logger.error("Auth state read before the request hook stored it; treating as signed out")
+    if has_request_context():
+        setattr(g, _FAILURE_LOGGED, True)
+
+
 def current_auth() -> AuthState:
     """This request's auth state as the request hook stored it."""
-    state = g.get('auth') if has_request_context() else None
+    state = stored_auth()
     if state is None:
-        logger.error("Auth state read before the request hook stored it; treating as signed out")
+        note_missing_auth()
         return _HOOK_MISSING
     return state
 

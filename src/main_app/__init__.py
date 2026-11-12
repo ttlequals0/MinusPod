@@ -579,24 +579,11 @@ compress.init_app(app)
 
 # Import and register API blueprint
 from api import api as api_blueprint, init_limiter, limiter, register_api_routing_errors
-from api.auth_state import refresh_auth
+from api.auth_state import load_request_auth
 from main_app.session_interface import IdleExpiryCookieSessionInterface
 app.session_interface = IdleExpiryCookieSessionInterface()
 app.register_blueprint(api_blueprint)
 register_api_routing_errors(app)
-
-
-@app.before_request
-def _check_session():
-    """Run the session's idle and revocation checks once, before the limiter, auth, CSRF and views."""
-    from flask import request
-    from main_app.routes import PUBLIC_FEED_ENDPOINTS
-    # Public feed endpoints never read the session, so their responses stay cacheable.
-    if request.endpoint not in PUBLIC_FEED_ENDPOINTS:
-        refresh_auth()
-
-
-init_limiter(app)
 
 
 @app.before_request
@@ -608,6 +595,20 @@ def _attach_request_id():
     from flask import g, request
     inbound = request.headers.get('X-Request-ID', '').strip()
     g.request_id = inbound[:128] if inbound else uuid.uuid4().hex[:16]
+
+
+@app.before_request
+def _check_session():
+    """Run the session check once before the limiter, auth, CSRF and views; it reads settings even for anonymous requests."""
+    from flask import request
+    from main_app.routes import PUBLIC_FEED_ENDPOINTS
+    # Public feed endpoints never read the session, so their responses stay cacheable.
+    if request.endpoint not in PUBLIC_FEED_ENDPOINTS:
+        return load_request_auth()
+    return None
+
+
+init_limiter(app)
 
 
 @app.teardown_request

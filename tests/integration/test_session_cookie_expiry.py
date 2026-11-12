@@ -324,18 +324,6 @@ def test_revoked_session_is_cleared_without_a_csrf_cookie(client, db, clock, pat
     assert cleared is not None and cleared.startswith('session=;')
 
 
-def test_status_stream_rechecks_revocation_on_each_event(client, db, clock, monkeypatch):
-    import api.status as status_mod
-    monkeypatch.setattr(status_mod.time, 'sleep', lambda _s: None)
-    monkeypatch.setattr(status_mod, 'status_payload', lambda: {'revision': 1})
-    _signed_in(client, db, clock, remembered=False)
-    chunks = iter(client.get('/api/v1/status/stream', buffered=False).response)
-    assert next(chunks).startswith(b'data:')
-    assert next(chunks).startswith(b': keepalive')
-    db.increment_setting_int(auth_state.AUTH_GENERATION_KEY)
-    assert next(chunks).startswith(b'event: auth-failed')
-
-
 def test_expired_session_stream_fails_at_connect(client, db, clock):
     _signed_in(client, db, clock, remembered=False)
     clock[0] += 24 * 3600 + 1

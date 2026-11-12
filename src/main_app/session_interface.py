@@ -13,6 +13,12 @@ from api.auth_state import (
 class IdleExpiryCookieSessionInterface(SecureCookieSessionInterface):
     """Per-session cookie expiry, and a signing-time last-used for pre-upgrade cookies."""
 
+    def should_set_cookie(self, app, session):
+        # Without a session check this request (probes, feeds, a failed check) only a change is saved.
+        if g.get('auth') is None:
+            return session.modified
+        return super().should_set_cookie(app, session)
+
     def get_expiration_time(self, app, session):
         if not session.permanent:
             return None

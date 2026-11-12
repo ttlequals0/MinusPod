@@ -14,7 +14,9 @@ from functools import wraps
 
 import config
 from config import normalize_model_key, LOCAL_UPLOAD_MAX_MB_DEFAULT
-from api.auth_state import current_auth
+from api.auth_state import (
+    AUTH_HOOK_EXEMPT_ENDPOINTS, note_missing_auth, password_is_set, stored_auth,
+)
 from api.csrf import validate as csrf_validate
 from utils.validation import is_dangerous_slug, nullable_bool
 from utils.http import client_ip, redact_feed_credentials, redact_log_text
@@ -164,11 +166,19 @@ def check_auth():
     doesn't reach this function.
     """
     path = request.path
-    state = current_auth()
 
     if path == '/api/v1/auth/password':
-        if not state.password_set and not _remote_setup_allowed():
+        if not password_is_set(get_database()) and not _remote_setup_allowed():
             return error_response('Remote setup requires a setup token', 403)
+
+    if request.endpoint in AUTH_HOOK_EXEMPT_ENDPOINTS:
+        return None
+
+    state = stored_auth()
+    if state is None:
+        # Fail closed: a missing session check must never read as a real signed-out state.
+        note_missing_auth()
+        return error_response('Internal server error', 500)
 
     if path in AUTH_EXEMPT_PATHS:
         return None
