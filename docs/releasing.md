@@ -7,6 +7,7 @@ MinusPod ships on two channels from the same version line.
 - [Per-release flow (maintainer)](#per-release-flow-maintainer)
 - [Promotion to stable (maintainer)](#promotion-to-stable-maintainer)
 - [Container smoke check (before pushing a built image)](#container-smoke-check-before-pushing-a-built-image)
+- [Comparing the old and new audio matcher](#comparing-the-old-and-new-audio-matcher)
 - [Changelog conventions](#changelog-conventions)
 
 | Channel | Docker tags | What it is |
@@ -86,6 +87,42 @@ docker run --rm --entrypoint python <image> -c "import sys; sys.path.insert(0,'/
 If this fails, do not push the image. Investigate the import error (it
 is almost always a module-level import that only resolves when the
 repo root is on `sys.path`) and fix it before rebuilding.
+
+## Comparing the old and new audio matcher
+
+Before a release that changes the audio fingerprint matcher, run
+`scripts/compare_fingerprint_matchers.py` against a copy of a real
+instance's data. It loads the old matcher from git at run time
+(`v2.101.34` by default, change it with `--old-ref`), runs it and the
+current matcher on every episode that still has a retained original, and
+writes `report.md` and `report.json`.
+
+```
+PYTHONPATH=src .venv/bin/python scripts/compare_fingerprint_matchers.py \
+  --db /path/to/copy/podcast.db --audio-root /path/to/copy/podcasts \
+  --out /path/outside/the/repo/report [--limit 50] [--podcast example-podcast] [--redact]
+```
+
+The database is opened read-only and the script never uses the network.
+It refuses a database inside the live data directory and an output
+directory inside the repo. Episode fingerprints are cached under the
+output directory, so a rerun is fast. The report names podcast slugs and
+episode ids, so keep it out of public issues and PRs, or pass `--redact`
+to replace slugs, episode ids and sponsors with stable hashes.
+
+The exit code is the release gate: 0 passes, 2 fails, 1 means an error. The gate fails when the new matcher loses a match the old matcher
+made in scope with an old score of 0.70 or more, and `explain_match`
+does not name a rejecting gate for it. A loss that does name a gate
+(coverage, evidence, similarity, not distinctive) does not fail the run
+but appears in the report, and the maintainer decides whether that
+reason is acceptable. Old matches scoring 0.65 to 0.70 that were lost are
+listed with a blank verdict column and never block.
+
+The remaining sections never change the exit code. They list gained
+matches and whether an existing ad marker confirms them, edges that moved
+more than one second outside or inside the old span, matches that now
+come back in several pieces, and matches with low similarity or coverage
+to check by ear.
 
 ## Changelog conventions
 
