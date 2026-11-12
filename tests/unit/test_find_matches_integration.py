@@ -167,6 +167,19 @@ def test_whole_file_failure_falls_back_to_per_window_scan(world, monkeypatch):
     assert all(m.similarity == m.confidence == 0.9 and m.coverage == 1.0 for m in out)
 
 
+def test_fallback_never_accepts_a_window_below_its_floor(world, monkeypatch):
+    fp = world.fp
+    monkeypatch.setattr(fp, '_generate_full_fingerprint', lambda *a, **k: None)
+    monkeypatch.setattr(fp, '_get_audio_duration', lambda p: 40.0)
+    monkeypatch.setattr(fp, '_matching_settings', lambda: (0.5, 0.5, 3.5))
+    monkeypatch.setattr(fp, 'generate_fingerprint',
+                        lambda path, start, duration: AudioFingerprint('win', duration))
+    monkeypatch.setattr(fp, 'compare_fingerprints', lambda chunk, known: 0.6)
+    assert fp.find_matches('x.mp3', podcast_id='showA') == []
+    monkeypatch.setattr(fp, 'compare_fingerprints', lambda chunk, known: af.FALLBACK_MIN_SIMILARITY)
+    assert fp.find_matches('x.mp3', podcast_id='showA')
+
+
 def test_fallback_match_reports_only_the_compared_window_as_measured(world, monkeypatch):
     fp = world.fp
     monkeypatch.setattr(fp, '_generate_full_fingerprint', lambda *a, **k: None)
@@ -237,7 +250,8 @@ def test_scope_ignores_tags_that_are_not_a_list(world):
 
 
 @pytest.mark.parametrize('key,raw,expected', [
-    ('fingerprint_match_strictness', '0.1', 0.40),
+    ('fingerprint_match_strictness', '0.1', 0.65),
+    ('fingerprint_match_strictness', '0.5', 0.65),
     ('fingerprint_match_strictness', '1.5', 0.95),
     ('fingerprint_match_strictness', 'nan', FINGERPRINT_MATCH_STRICTNESS),
     ('fingerprint_match_strictness', 'abc', FINGERPRINT_MATCH_STRICTNESS),

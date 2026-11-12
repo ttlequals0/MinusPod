@@ -16,7 +16,7 @@ KEYS = [
     ('fingerprint_min_ad_length_s', 'fingerprintMinAdLengthS', 'float', '5.0'),
 ]
 RANGES = {
-    'fingerprint_match_strictness': (0.40, 0.95),
+    'fingerprint_match_strictness': (0.65, 0.95),
     'fingerprint_min_coverage': (0.10, 1.00),
     'fingerprint_gap_tolerance_s': (0.0, 15.0),
     'fingerprint_min_ad_length_s': (3.0, 30.0),

@@ -110,6 +110,8 @@ SLIDING_STEP_SIZE = 2.0
 
 # Per-window fallback cap: enough to get past a single bad frame, far below the full scan budget
 FALLBACK_SLOW_TIMEOUT = 90
+# Unrelated real audio averages about 0.52 whole-window similarity, so the fallback never goes below this
+FALLBACK_MIN_SIMILARITY = 0.65
 
 # 256-entry table for vectorized population count over uint32 numpy arrays.
 _POPCOUNT8 = np.array([bin(i).count('1') for i in range(256)], dtype=np.uint16)
@@ -1679,7 +1681,7 @@ class AudioFingerprinter:
 
         # Per-window fallback under its own short cap: the same fpcalc rarely decodes these windows either.
         slow_timeout = min(timeout, FALLBACK_SLOW_TIMEOUT)
-        strictness = self._matching_settings()[0]
+        threshold = max(self._matching_settings()[0], FALLBACK_MIN_SIMILARITY)
         windows = 0
         scan_start_time = time.time()
         last_log_time = scan_start_time
@@ -1727,7 +1729,7 @@ class AudioFingerprinter:
                                 logger.error(f"Failed to delete corrupt fingerprint {pattern_id}: {del_err}")
                         continue
 
-                    if similarity >= strictness:
+                    if similarity >= threshold:
                         # Only the window was compared; the rest of the stored length is projected
                         measured = min(FINGERPRINT_CHUNK_SIZE, known_duration)
                         match = FingerprintMatch(

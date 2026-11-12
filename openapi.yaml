@@ -7749,8 +7749,8 @@ paths:
                 fingerprintMatchStrictness:
                   type: number
                   default: 0.65
-                  description: Lowest similarity that counts as a match (default 0.65). A number from 0.4 to 0.95; anything else is a 400.
-                  minimum: 0.4
+                  description: Lowest similarity that counts as a match (default 0.65). A number from 0.65 to 0.95; anything else is a 400.
+                  minimum: 0.65
                   maximum: 0.95
                 fingerprintMinCoverage:
                   type: number
@@ -18203,12 +18203,12 @@ components:
               type: boolean
         fingerprintMatchStrictness:
           type: object
-          description: Lowest similarity that counts as a match (default 0.65, range 0.4 to 0.95).
+          description: Lowest similarity that counts as a match (default 0.65, range 0.65 to 0.95).
           properties:
             value:
               type: number
               default: 0.65
-              minimum: 0.4
+              minimum: 0.65
               maximum: 0.95
             isDefault:
               type: boolean

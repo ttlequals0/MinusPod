@@ -647,7 +647,7 @@ FINGERPRINT_MIN_AD_LENGTH_S = 5.0    # Shortest segment a fingerprint is stored 
 FINGERPRINT_TIMEOUT_FACTOR = 0.05    # Whole-file fingerprint seconds per audio second
 # Setting key: (default, lowest, highest); the API validation and the matcher clamp both read this
 FINGERPRINT_SETTING_RANGES = {
-    'fingerprint_match_strictness': (FINGERPRINT_MATCH_STRICTNESS, 0.40, 0.95),
+    'fingerprint_match_strictness': (FINGERPRINT_MATCH_STRICTNESS, 0.65, 0.95),
     'fingerprint_min_coverage': (FINGERPRINT_MIN_COVERAGE, 0.10, 1.00),
     'fingerprint_gap_tolerance_s': (FINGERPRINT_GAP_TOLERANCE_S, 0.0, 15.0),
     'fingerprint_min_ad_length_s': (FINGERPRINT_MIN_AD_LENGTH_S, 3.0, 30.0),
