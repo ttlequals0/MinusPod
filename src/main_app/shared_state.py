@@ -1,38 +1,16 @@
 """Shared mutable state for main_app sub-modules.
 
 Provides module-level containers that multiple main_app modules need to share
-(e.g. log-dedup sets that were a single object in the original monolith).
+(e.g. log-dedup sets that were a single object in the original monolith). The
+episode lookup cache lives in lookup_cache so feed builders can reach it
+without importing main_app.
 """
 from __future__ import annotations
 
-from main_app.cache import TTLCache
+from lookup_cache import (  # noqa: F401
+    EPISODE_LOOKUP_TTL_SECONDS, episode_lookup_cache, episode_lookup_key, invalidate_episode_lookup_cache,
+)
 from utils.bounded_set import BoundedSet
-
-# Upstream-RSS lookups behind serve_episode. A podcast client HEADs every
-# unprocessed episode on each refresh, and each miss used to refetch and
-# reparse the whole upstream feed. The TTL matches the background RSS
-# refresh interval. feeds.py drops a feed's entries when it re-renders that
-# feed, but the cache is per-process: under multiple gunicorn workers only
-# the re-rendering worker sees the invalidation, so the other workers can
-# serve entries up to one TTL stale. That bound is the guarantee, not the
-# invalidation.
-EPISODE_LOOKUP_TTL_SECONDS = 15 * 60
-
-# One entry per episode per feed; a fetch caches the whole parsed feed, so
-# the cap must hold a full library (feeds x feed length), not one page.
-episode_lookup_cache = TTLCache(EPISODE_LOOKUP_TTL_SECONDS, max_size=8192)
-
-
-def episode_lookup_key(slug: str, episode_id: str) -> str:
-    """Cache key for one episode. Namespaced by slug so a feed can drop all
-    of its own entries without touching anyone else's."""
-    return f"{slug}\n{episode_id}"
-
-
-def invalidate_episode_lookup_cache(slug: str) -> None:
-    """Drop every cached lookup for one feed."""
-    episode_lookup_cache.invalidate_prefix(f"{slug}\n")
-
 
 # Track episodes already warned about permanent failure (avoid log spam on
 # repeated requests). Shared across routes.py and processing.py so the dedup

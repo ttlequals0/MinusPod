@@ -7,9 +7,8 @@ from config import resolve_toggle
 from database.podcasts import RECENTS_SLUG, is_recents_feed, recents_cutoff
 from database.settings import feed_itunes_block_enabled
 import local_feed_builder
-from main_app import db, rss_parser, storage
-from main_app.feed_auth import active_feed_key
-from main_app.shared_state import invalidate_episode_lookup_cache
+from feed_build_support import active_feed_key, db, rss_parser, storage
+from lookup_cache import invalidate_episode_lookup_cache
 from utils.feed_guid import compute_feed_guid
 from utils.time import utc_now_iso
 

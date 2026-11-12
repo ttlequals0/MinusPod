@@ -24,9 +24,8 @@ from chapter_notes import chapter_notes_for
 from config import resolve_review_links_in_notes
 from database.episodes import NOT_AWAITING_APPROVAL
 from database.settings import feed_itunes_block_enabled
-from main_app import db, rss_parser, storage
-from main_app.feed_auth import active_feed_key
-from main_app.shared_state import invalidate_episode_lookup_cache
+from feed_build_support import active_feed_key, db, rss_parser, storage
+from lookup_cache import invalidate_episode_lookup_cache
 from rss_parser import ITUNES_BLOCK_LINE, RSS_RENDER_VERSION, content_encoded_line, effective_channel_text, item_body_html
 from utils.episode_paths import episode_public_url, published_episode_version
 from utils.feed_guid import compute_feed_guid

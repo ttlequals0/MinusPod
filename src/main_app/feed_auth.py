@@ -20,6 +20,7 @@ from functools import wraps
 
 from database.feed_subscribers import parse_subscriber_token
 from database.podcasts import is_recents_feed, recents_cutoff
+from feed_build_support import active_feed_key, feed_auth_enabled  # noqa: F401
 from flask import abort, g, request
 
 from utils.http import client_ip
@@ -54,21 +55,6 @@ def ensure_feed_auth_key(db) -> None:
     logger.info(
         "Feed auth enabled without a key (env seed); generated one -- "
         "retrieve it in Settings > Security")
-
-
-def feed_auth_enabled(db) -> bool:
-    return db.get_setting_bool('feed_auth_enabled', False)
-
-
-def active_feed_key(db):
-    """The enforced key, or None when auth is disabled or no key is stored.
-
-    Callers emitting URLs use this so keyless serving resumes the moment the
-    feature is disabled, even though the stored key is retained for re-enable.
-    """
-    if not feed_auth_enabled(db):
-        return None
-    return db.get_setting('feed_auth_key') or None
 
 
 def subscriber_key_id_for_asset(db, slug: str, episode_id: str | None,
