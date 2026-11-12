@@ -27,7 +27,7 @@ SUPPRESSED = (
     'openai', 'anthropic',
     'httpx', 'httpcore',
     'httpx2', 'httpcore2',
-    'urllib3', 'asyncio', 'charset_normalizer', 'requests',
+    'urllib3', 'asyncio', 'charset_normalizer', 'requests', 'filelock',
 )
 
 

@@ -101,7 +101,7 @@ def setup_logging():
     # moved to httpx2/httpcore2, whose records went unsuppressed until
     # 2.89.4. Check this list when an SDK crosses a major version.
     for noisy in ('openai', 'httpx', 'httpcore', 'httpx2', 'httpcore2',
-                  'anthropic', 'asyncio', 'charset_normalizer', 'requests'):
+                  'anthropic', 'asyncio', 'charset_normalizer', 'requests', 'filelock'):
         logging.getLogger(noisy).setLevel(logging.WARNING)
 
     # Create application loggers

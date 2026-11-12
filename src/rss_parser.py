@@ -122,6 +122,29 @@ def _get_rss_circuit_breaker(url: str) -> CircuitBreaker:
     return _rss_circuit_breakers[host]
 
 
+# Last logged suppressed-item count per feed; per process, cleared when it outgrows the cap.
+_SUPPRESSED_LAST_COUNT_MAX = 1024
+_suppressed_last_count: dict[str, int] = {}
+_suppressed_lock = threading.Lock()
+
+
+def _log_suppressed_upstream(slug: str, count: int) -> None:
+    """Log the suppressed-duplicates count at INFO only when it changed for this feed."""
+    with _suppressed_lock:
+        if count == _suppressed_last_count.get(slug, 0):
+            return
+        if count:
+            if len(_suppressed_last_count) >= _SUPPRESSED_LAST_COUNT_MAX and slug not in _suppressed_last_count:
+                _suppressed_last_count.clear()
+            _suppressed_last_count[slug] = count
+        else:
+            _suppressed_last_count.pop(slug, None)
+    if count:
+        logger.info(
+            "[%s] Suppressed %d upstream item(s) duplicating an already-included "
+            "processed episode by title and date", slug, count)
+
+
 # Hosts whose gzip stream failed to decode. The plain retry recovers the body,
 # so ask this URL for identity encoding up front until the TTL expires rather
 # than transferring a multi-MB feed twice every cycle.
@@ -1386,12 +1409,7 @@ class RSSParser:
         total_episodes = len(included_episode_ids) + appended_count
         modified_rss = '\n'.join(lines)
         logger.info(f"[{slug}] Modified RSS feed with {total_episodes} episodes ({appended_count} appended from DB)")
-        if suppressed_upstream_duplicates:
-            logger.warning(
-                f"[{slug}] Suppressed {suppressed_upstream_duplicates} upstream "
-                "item(s) duplicating an already-included processed episode by "
-                "title and date"
-            )
+        _log_suppressed_upstream(slug, suppressed_upstream_duplicates)
         return modified_rss
 
     @staticmethod

@@ -208,6 +208,8 @@ class Storage:
         # column is the durable record consulted when a cache is cold (restart).
         self._artwork_failure_cache = TTLCache(ARTWORK_FAILURE_TTL_SECONDS)
         self._artwork_404_cache = TTLCache(ARTWORK_FAILURE_TTL_NOT_FOUND_SECONDS)
+        # Keys whose skip was already logged this backoff window; bounded by TTLCache max_size.
+        self._artwork_skip_logged = TTLCache(max(_ARTWORK_FAILURE_WINDOWS.values()))
 
         self._initialized = True
         logger.info(f"Storage initialized with data_dir: {self.data_dir}")
@@ -1178,6 +1180,7 @@ class Storage:
         """
         ua = user_agent or download_user_agent(podcast)
         key = self._artwork_negative_cache_key(slug, url, ua)
+        self._artwork_skip_logged.delete(key)
         if status == 'not_found':
             self._artwork_404_cache.set(key, True)
             self._artwork_failure_cache.delete(key)
@@ -1201,6 +1204,7 @@ class Storage:
         key = self._artwork_negative_cache_key(slug, url, ua)
         self._artwork_failure_cache.delete(key)
         self._artwork_404_cache.delete(key)
+        self._artwork_skip_logged.delete(key)
         state = self._artwork_failure_state(podcast)
         # The write path prunes, so clearing only has to drop this entry.
         if state.pop(url, None) is not None:
@@ -1241,8 +1245,11 @@ class Storage:
 
         for url in candidates:
             if not bypass_backoff and self._artwork_in_backoff(slug, url, podcast, user_agent=ua):
-                logger.debug(
-                    f"[{slug}] Skipping artwork retry, this URL failed recently")
+                skip_key = self._artwork_negative_cache_key(slug, url, ua)
+                if self._artwork_skip_logged.get(skip_key) is None:
+                    self._artwork_skip_logged.set(skip_key, True)
+                    logger.debug(f"[{slug}] Skipping artwork retry for {safe_url_for_log(url)}, "
+                                 "it failed recently")
                 continue
             ok, status = self._download_artwork_uncached(slug, url, force, user_agent=ua)
             if ok:
