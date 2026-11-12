@@ -2624,12 +2624,6 @@ class SchemaMixin:
             conn.rollback()
             logger.error(f"review prompt fingerprint wording update failed: {e}")
 
-        try:
-            self._run_review_prompt_override_fingerprint_wording(conn)
-        except Exception as e:
-            conn.rollback()
-            logger.error(f"review prompt override fingerprint wording update failed: {e}")
-
     def _redact_column_in_batches(self, conn, table, column, rewrite, where='1', params=()):
         """Rewrite one column page by page, committing each page; returns the number of rows changed."""
         if not self._table_exists(conn, table) or column not in self._get_table_columns(conn, table):
@@ -2700,20 +2694,6 @@ class SchemaMixin:
         if row and _OLD_FINGERPRINT_SENTENCE in (row['value'] or ''):
             conn.execute(
                 "UPDATE settings SET value = ? WHERE key = 'review_prompt'",
-                (row['value'].replace(_OLD_FINGERPRINT_SENTENCE, _NEW_FINGERPRINT_SENTENCE),))
-        conn.execute("INSERT INTO schema_migrations (name) VALUES (?)", (gate,))
-        conn.commit()
-
-    def _run_review_prompt_override_fingerprint_wording(self, conn):
-        """One-shot: apply the same sentence swap to the stored review_prompt_override."""
-        gate = 'review_prompt_override_fingerprint_measured'
-        if conn.execute("SELECT 1 FROM schema_migrations WHERE name = ?", (gate,)).fetchone():
-            return
-        row = conn.execute(
-            "SELECT value FROM settings WHERE key = 'review_prompt_override'").fetchone()
-        if row and _OLD_FINGERPRINT_SENTENCE in (row['value'] or ''):
-            conn.execute(
-                "UPDATE settings SET value = ? WHERE key = 'review_prompt_override'",
                 (row['value'].replace(_OLD_FINGERPRINT_SENTENCE, _NEW_FINGERPRINT_SENTENCE),))
         conn.execute("INSERT INTO schema_migrations (name) VALUES (?)", (gate,))
         conn.commit()
