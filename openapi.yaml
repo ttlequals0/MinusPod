@@ -19907,6 +19907,31 @@ components:
             or creation timestamp is also older than 365 days. unproven: no
             recent local match, but not stale; includes all local
             (non-community) patterns, which are never 'stale'.
+        audio:
+          $ref: '#/components/schemas/PatternAudioSummary'
+
+    PatternAudioSummary:
+      type: object
+      description: >-
+        Audio fingerprint summary on a pattern, computed in the database with no
+        file checks. `available` is true when the episode the fingerprint was
+        built from, or the episode of a non-rejected match, still has its
+        original retained. `GET /patterns/{pattern_id}/audio` does the real file
+        check.
+      required: [state, available, matchCount, meanSimilarity]
+      properties:
+        state:
+          type: string
+          enum: [active, off, none]
+        available:
+          type: boolean
+        matchCount:
+          type: integer
+          description: Matches not marked "not this ad".
+        meanSimilarity:
+          type:
+            - number
+            - 'null'
 
     PatternAudioSpan:
       type: object

@@ -8,6 +8,12 @@ from utils.pattern_scope import pattern_passes_scope
 
 logger = logging.getLogger(__name__)
 
+SUMMARY_ID_CHUNK = 900
+
+_ORIGINAL_RETAINED_SQL = """
+    SELECT 1 FROM podcasts sp JOIN episodes se ON se.podcast_id = sp.id
+    WHERE sp.slug = {slug} AND se.episode_id = {episode} AND se.original_file IS NOT NULL"""
+
 
 def _is_detected_ad(marker: dict) -> bool:
     """Held, kept or cut markers count; validator rejects and uncut ones do not (as the episode API buckets them)."""
@@ -234,6 +240,55 @@ class FingerprintMatchMixin:
                 (row['id'],)
             )
         return True
+
+    def get_audio_summaries(self, pattern_ids: list[int] | None = None) -> dict[int, dict]:
+        """Audio summary of each pattern (all when ids is None) from one aggregate query per chunk.
+
+        Each value is {state, available, matchCount, meanSimilarity}. available reads
+        episodes.original_file, the column retention clears, with no file checks.
+        """
+        if pattern_ids is None:
+            return self._audio_summaries_chunk(None)
+        summaries = {}
+        ids = list(pattern_ids)
+        for i in range(0, len(ids), SUMMARY_ID_CHUNK):
+            summaries.update(self._audio_summaries_chunk(ids[i:i + SUMMARY_ID_CHUNK]))
+        return summaries
+
+    def _audio_summaries_chunk(self, ids: list[int] | None) -> dict[int, dict]:
+        source_retained = _ORIGINAL_RETAINED_SQL.format(
+            slug='af.source_podcast_slug', episode='af.source_episode_id')
+        match_retained = _ORIGINAL_RETAINED_SQL.format(slug='m.podcast_slug', episode='m.episode_id')
+        where, params = '', []
+        if ids is not None:
+            if not ids:
+                return {}
+            where = f"WHERE ap.id IN ({','.join('?' * len(ids))})"
+            params = list(ids)
+        rows = self.get_connection().execute(
+            f"""SELECT ap.id AS pattern_id, af.id AS fingerprint_id, af.enabled,
+                       COALESCE(ms.match_count, 0) AS match_count, ms.mean_similarity,
+                       CASE WHEN af.id IS NULL THEN 0 ELSE
+                         EXISTS({source_retained})
+                         OR EXISTS(SELECT 1 FROM audio_fingerprint_matches m
+                                   WHERE m.pattern_id = ap.id AND m.rejected = 0
+                                     AND EXISTS({match_retained}))
+                       END AS available
+                FROM ad_patterns ap
+                LEFT JOIN audio_fingerprints af ON af.pattern_id = ap.id
+                LEFT JOIN (SELECT pattern_id, SUM(1 - rejected) AS match_count,
+                                  AVG(CASE WHEN rejected = 0 THEN similarity END) AS mean_similarity
+                           FROM audio_fingerprint_matches GROUP BY pattern_id) ms
+                       ON ms.pattern_id = ap.id
+                {where}""",  # noqa: S608
+            params
+        ).fetchall()
+        return {r['pattern_id']: {
+            'state': 'none' if r['fingerprint_id'] is None else ('active' if r['enabled'] else 'off'),
+            'available': bool(r['available']),
+            'matchCount': r['match_count'],
+            'meanSimilarity': r['mean_similarity'],
+        } for r in rows}
 
     def get_audio_match_summary(self, pattern_id: int) -> dict:
         """Match, out-of-scope and mean figures skip rejected rows, which are counted apart."""

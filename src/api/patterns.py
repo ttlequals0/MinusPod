@@ -38,6 +38,8 @@ from api import (
 
 logger = logging.getLogger('podcast.api')
 
+NO_AUDIO_SUMMARY = {'state': 'none', 'available': False, 'matchCount': 0, 'meanSimilarity': None}
+
 
 # ========== Pattern & Correction Endpoints ==========
 
@@ -71,7 +73,9 @@ def list_patterns():
         source=source,
     )
     now = utc_now()
+    audio = db.get_audio_summaries([p['id'] for p in patterns])
     for pattern in patterns:
+        pattern['audio'] = audio.get(pattern['id'], NO_AUDIO_SUMMARY)
         # Matcher-only join columns; the list response does not carry them.
         pattern.pop('sponsor_tags', None)
         pattern.pop('sponsor_active', None)
@@ -357,6 +361,7 @@ def get_pattern(pattern_id):
         return error_response('Pattern not found', 404)
 
     pattern['is_active'] = bool(pattern.get('is_active'))
+    pattern['audio'] = db.get_audio_summaries([pattern_id]).get(pattern_id, NO_AUDIO_SUMMARY)
     return json_response(pattern)
 
 

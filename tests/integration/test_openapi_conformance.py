@@ -157,6 +157,7 @@ GET_ROUTES = [
     ('/podping/nodes', ''),
     ('/community-patterns/sync-status', ''),
     ('/cue-detections/aggregate', ''),
+    ('/patterns', ''),
     ('/patterns/{pattern_id}', ''),
     ('/patterns/{pattern_id}/audio', ''),
     ('/patterns/{pattern_id}/audio/matches', 'perPage=5'),
