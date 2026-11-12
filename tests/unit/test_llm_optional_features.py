@@ -151,6 +151,45 @@ def test_calibration_is_still_triggered_with_a_provider(temp_db, provider_anthro
     assert calibration_worker == [1]
 
 
+@pytest.fixture
+def worker_state(monkeypatch):
+    """Calibration worker state with one run due; run_calibration calls are recorded."""
+    runs = []
+    state = calibration._CALIBRATION_STATE
+    monkeypatch.setitem(state, 'running', True)
+    monkeypatch.setitem(state, 'revision', 'rev-1')
+    monkeypatch.setitem(state, 'route', _calibration_route())
+    return runs
+
+
+def _superseding_run(runs, after_first):
+    def run(route=None):
+        runs.append(route)
+        if len(runs) == 1:
+            calibration._CALIBRATION_STATE['revision'] = 'rev-2'
+            after_first()
+        return {'agreement': 1.0, 'model': 'm'}
+    return run
+
+
+def test_calibration_worker_stops_when_the_provider_becomes_none_mid_run(temp_db, worker_state, monkeypatch):
+    monkeypatch.setattr(llm_client, 'get_effective_provider', lambda: 'anthropic')
+    monkeypatch.setattr(calibration, 'run_calibration', _superseding_run(
+        worker_state, lambda: monkeypatch.setattr(llm_client, 'get_effective_provider', lambda: 'none')))
+    calibration._calibration_worker(temp_db)
+    assert len(worker_state) == 1
+    assert calibration._CALIBRATION_STATE['running'] is False
+
+
+def test_calibration_worker_still_reruns_a_superseded_revision_with_a_provider(temp_db, worker_state, monkeypatch):
+    monkeypatch.setattr(llm_client, 'get_effective_provider', lambda: 'anthropic')
+    monkeypatch.setattr(calibration, 'run_calibration', _superseding_run(worker_state, lambda: None))
+    monkeypatch.setattr(temp_db, 'set_setting', lambda *args, **kwargs: None)
+    calibration._calibration_worker(temp_db)
+    assert len(worker_state) == 2
+    assert calibration._CALIBRATION_STATE['running'] is False
+
+
 def test_calibration_command_reports_none_instead_of_raising(provider_none, capsys, no_clients):
     assert calibration.main() == 1
     assert 'none' in capsys.readouterr().out.lower()

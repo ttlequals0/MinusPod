@@ -447,6 +447,10 @@ def trigger_reviewer_calibration(db, previous_revision: str | None):
 def _calibration_worker(db):
     """Run the newest revision, discarding a result the config has moved past."""
     while True:
+        if provider_clients.llm_disabled():
+            with _CALIBRATION_LOCK:
+                _CALIBRATION_STATE['running'] = False
+            return
         with _CALIBRATION_LOCK:
             revision = _CALIBRATION_STATE['revision']
             route = _CALIBRATION_STATE['route']
