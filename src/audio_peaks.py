@@ -27,7 +27,7 @@ from typing import NamedTuple
 
 import numpy as np
 
-from utils.episode_paths import peaks_file_path, peaks_lock_path, remove_peaks_temp_files
+from utils.episode_paths import peaks_file_path, peaks_lock_path
 from utils.ffmpeg_run import SAFE_MEDIA_INPUT_ARGS, ffmpeg_timeout
 from utils.bounded_set import BoundedSet
 from utils.subprocess_registry import tracked_popen, tracked_run
@@ -54,7 +54,6 @@ _HEADER_SIZE = _HEADER_STRUCT.size
 _MAX_BUCKET_COUNT = 0xFFFFFFFF
 _PEAKS_CHUNK_BUCKETS = 60_000  # 600 s of audio, about 9.6 MB per read
 _HASH_CHUNK_BYTES = 1 << 20
-_STALE_TEMP_SECONDS = 3600
 PEAKS_BUILD_WAIT_SECONDS = 30.0  # how long a request waits for another build of the same file
 BUILD_OK = 'ok'
 BUILD_BUSY = 'busy'
@@ -247,7 +246,6 @@ def write_peaks_file(path: Path, buckets: np.ndarray, source_path: Path,
         raise PeaksSourceChanged(Path(source_path).name)
     header = _pack_header(len(arr), st.st_size, st.st_mtime_ns, sha)
     _write_atomic(path, header, np.ascontiguousarray(arr, dtype='<u2'), stat.S_IMODE(st.st_mode))
-    remove_peaks_temp_files(path, _STALE_TEMP_SECONDS)
 
 
 def _open_regular(path: Path):

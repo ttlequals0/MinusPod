@@ -2,6 +2,7 @@ import os
 import shutil
 import subprocess
 import tempfile
+import time
 from unittest.mock import patch
 
 import pytest
@@ -266,36 +267,46 @@ def _temp_files(storage, episode_id=EP):
     return mine
 
 
-def test_delete_peaks_file_removes_only_its_own_temp_files_and_lock(storage):
+def _age(path, seconds=7200):
+    old = time.time() - seconds
+    os.utime(path, (old, old))
+
+
+def test_delete_peaks_file_removes_its_lock_and_never_scans_the_directory(storage, monkeypatch):
     _seed(storage)
     _seed(storage, episode_id='b1b2c3d4e5f6')
-    mine = _temp_files(storage)
     theirs = _temp_files(storage, 'b1b2c3d4e5f6')
     lock = storage.get_peaks_path(SLUG, EP).with_name('a1b2c3d4e5f6-original.peaks.lock')
     lock.write_bytes(b'')
-    storage.delete_peaks_file(SLUG, EP)
-    assert not mine.exists() and not lock.exists()
+
+    def no_scan(*_a, **_k):
+        raise AssertionError('per-episode delete scanned a directory')
+
+    monkeypatch.setattr(os, 'scandir', no_scan)
+    assert storage.delete_peaks_file(SLUG, EP) is True
+    assert not lock.exists() and not storage.get_peaks_path(SLUG, EP).exists()
     assert theirs.exists()
 
 
-def test_delete_peaks_file_removes_temp_files_without_a_peaks_file(storage):
-    mine = _temp_files(storage)
+def test_delete_peaks_file_without_a_peaks_file_returns_false(storage):
     assert storage.delete_peaks_file(SLUG, EP) is False
-    assert not mine.exists()
 
 
-def test_delete_processed_file_removes_temp_files(storage):
+def test_sweep_removes_stale_temp_files_and_keeps_young_ones(storage):
     _seed(storage)
-    mine = _temp_files(storage)
-    storage.delete_processed_file(SLUG, EP, keep_original=False)
-    assert not mine.exists()
+    _seed(storage, episode_id='b1b2c3d4e5f6')
+    stale = _temp_files(storage)
+    young = _temp_files(storage, 'b1b2c3d4e5f6')
+    _age(stale)
+    assert storage.sweep_peaks_temp_files() == 1
+    assert not stale.exists() and young.exists()
+    assert storage.get_peaks_path(SLUG, EP).exists()
 
 
-def test_delete_processed_file_fence_keeps_temp_files(storage):
+def test_delete_processed_file_fence_keeps_the_peaks_file(storage):
     _seed(storage)
-    mine = _temp_files(storage)
     storage.delete_processed_file(SLUG, EP, keep_original=False, can_delete=lambda: False)
-    assert mine.exists()
+    assert storage.get_peaks_path(SLUG, EP).exists()
 
 
 def test_storage_stats_do_not_count_peaks_temp_files(storage):
@@ -332,7 +343,7 @@ def test_upload_recovery_drops_peaks_when_original_is_moved_back(db_storage, tmp
     row = _recovery_row('import', SLUG, EP, temp_rel)
     assert db._recover_upload_files(row) is True
     assert not original.exists() and (tmp_path / temp_rel).exists()
-    assert not peaks.exists() and not stale.exists()
+    assert not peaks.exists() and stale.exists()
 
 
 def test_upload_recovery_drops_peaks_when_backup_is_restored(db_storage, tmp_path):

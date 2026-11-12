@@ -8,6 +8,7 @@ import pytest
 
 import audio_peaks as ap
 from utils.bounded_set import BoundedSet
+from utils.episode_paths import sweep_stale_peaks_temp_files
 
 
 def _gen_wav(path, seconds=2.0):
@@ -410,20 +411,33 @@ def test_hash_cache_is_bounded(monkeypatch):
     assert len(ap._hashed_ok) == 3
 
 
-def test_stale_temp_files_removed_on_write_only_for_this_original(tmp_path):
+def test_write_does_not_scan_the_directory(tmp_path, monkeypatch):
     src = _src(tmp_path)
     p = ap.peaks_file_path(src)
-    mine = tmp_path / (p.name + '.abcd1234.tmp')
-    other = tmp_path / 'ffffff-original.peaks.abcd1234.tmp'
+
+    def no_scan(*_a, **_k):
+        raise AssertionError('per-episode write scanned a directory')
+
+    monkeypatch.setattr(os, 'scandir', no_scan)
+    ap.write_peaks_file(p, np.array([1], dtype='<u2'), src)
+    assert p.exists()
+
+
+def test_sweep_removes_only_stale_peaks_temp_files(tmp_path):
+    src = _src(tmp_path)
+    p = ap.peaks_file_path(src)
+    stale = tmp_path / (p.name + '.abcd1234.tmp')
+    stale_other = tmp_path / 'ffffff-original.peaks.abcd1234.tmp'
     young = tmp_path / (p.name + '.young123.tmp')
-    for f in (mine, other, young):
+    unrelated = tmp_path / 'notes.tmp'
+    for f in (stale, stale_other, young, unrelated):
         f.write_bytes(b'x')
     old = time.time() - 7200
-    os.utime(mine, (old, old))
-    os.utime(other, (old, old))
-    ap.write_peaks_file(p, np.array([1], dtype='<u2'), src)
-    assert not mine.exists()
-    assert other.exists() and young.exists()
+    for f in (stale, stale_other, unrelated):
+        os.utime(f, (old, old))
+    assert sweep_stale_peaks_temp_files(tmp_path) == 2
+    assert not stale.exists() and not stale_other.exists()
+    assert young.exists() and unrelated.exists()
 
 
 _WINDOW_STARTS = [2.0, 2.01, 2.5, 3.0, 4.99, 5.0, 5.01, 12.34]

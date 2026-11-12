@@ -21,8 +21,8 @@ from artwork_watermark import (
 )
 from user_agent import download_user_agent
 from utils.episode_paths import (
-    episode_filename, is_peaks_housekeeping_name, peaks_file_path, peaks_lock_path,
-    remove_peaks_temp_files,
+    episode_filename, is_peaks_housekeeping_name, peaks_file_path, remove_peaks_artifacts,
+    sweep_stale_peaks_temp_files,
 )
 from utils.http import safe_url_for_log
 from utils.url import SSRFError
@@ -402,24 +402,26 @@ class Storage:
         return peaks_file_path(self.get_original_path(slug, episode_id))
 
     def delete_peaks_file(self, slug: str, episode_id: str) -> bool:
-        """Remove the episode's peaks file, its lock and stale temp files; never raises.
+        """Remove the episode's peaks file and its lock; never raises.
 
         True when the peaks file itself was removed.
         """
         try:
-            path = self.get_peaks_path(slug, episode_id)
-            remove_peaks_temp_files(path)
-            peaks_lock_path(path).unlink(missing_ok=True)
-            path.unlink()
-            return True
-        except FileNotFoundError:
-            return False
+            return remove_peaks_artifacts(self.get_peaks_path(slug, episode_id))
         except PathContainmentError as exc:
             logger.debug(f"[{slug}:{episode_id}] No peaks path: {exc}")
             return False
         except OSError as exc:
             logger.warning(f"[{slug}:{episode_id}] Failed to delete peaks file: {exc}")
             return False
+
+    def sweep_peaks_temp_files(self) -> int:
+        """Remove stale peaks temp files in every feed's episodes directory."""
+        removed = 0
+        for podcast_dir in self.podcasts_dir.iterdir():
+            if podcast_dir.is_dir():
+                removed += sweep_stale_peaks_temp_files(podcast_dir / "episodes")
+        return removed
 
     def save_rss(self, slug: str, content: str) -> None:
         """Save modified RSS feed to filesystem."""
@@ -1398,8 +1400,7 @@ class Storage:
                 path.unlink()
                 audio_deleted = audio_deleted or path != peaks
         if not keep_original and not fenced:
-            remove_peaks_temp_files(peaks)
-            peaks_lock_path(peaks).unlink(missing_ok=True)
+            remove_peaks_artifacts(peaks)
         if audio_deleted:
             logger.debug(f"[{slug}:{episode_id}] Deleted processed/original audio files")
         return audio_deleted

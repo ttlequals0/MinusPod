@@ -5,7 +5,7 @@ import threading
 import uuid
 from pathlib import Path
 
-from utils.episode_paths import peaks_file_path, peaks_lock_path, remove_peaks_temp_files
+from utils.episode_paths import peaks_file_path, remove_peaks_artifacts
 from utils.time import utc_now_iso
 
 logger = logging.getLogger(__name__)
@@ -93,10 +93,7 @@ class UploadReservationMixin:
         """Remove the peaks file beside an original that recovery moved or restored."""
         if scope == 'staging':
             return
-        peaks = peaks_file_path(original)
-        remove_peaks_temp_files(peaks)
-        peaks_lock_path(peaks).unlink(missing_ok=True)
-        peaks.unlink(missing_ok=True)
+        remove_peaks_artifacts(peaks_file_path(original))
 
     def _finish_upload_recovery(self, row: dict) -> bool:
         if not self._recover_upload_files(row):

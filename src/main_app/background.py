@@ -236,6 +236,17 @@ def run_cleanup():
     except Exception as e:
         refresh_logger.error(f"Run log cleanup failed: {e}")
 
+    # Stale peaks temp files from interrupted writes: one directory scan per feed, hourly.
+    try:
+        last_sweep = getattr(run_cleanup, '_last_peaks_temp_sweep', 0)
+        if time.time() - last_sweep > 3600:
+            run_cleanup._last_peaks_temp_sweep = time.time()
+            removed = storage.sweep_peaks_temp_files()
+            if removed:
+                refresh_logger.info(f"Cleanup: removed {removed} stale peaks temp file(s)")
+    except Exception as e:
+        refresh_logger.error(f"Peaks temp cleanup failed: {e}")
+
     # Download history: drop rows past retention (geo lookup runs on the 5-minute tick).
     if time.time() - _DOWNLOAD_STATE['last_prune'] > DOWNLOAD_PRUNE_INTERVAL_SECONDS:
         try:

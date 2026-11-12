@@ -68,6 +68,8 @@ def peaks_file_path(audio_path: Path | str) -> Path:
     return Path(audio_path).with_suffix('.peaks')
 
 
+# A write interrupted this long ago is not still running
+PEAKS_TEMP_STALE_SECONDS = 3600
 # mkstemp names: <peaks name>.<8 random chars>.tmp
 _PEAKS_TEMP_RE = re.compile(r'-original\.peaks\.[A-Za-z0-9_]{8}\.tmp$')
 
@@ -88,23 +90,30 @@ def peaks_lock_path(peaks_path: Path | str) -> Path:
     return p.with_name(p.name + '.lock')
 
 
-def remove_peaks_temp_files(peaks_path: Path | str, min_age_seconds: float = 0.0) -> int:
-    """Remove temp files left by interrupted writes of this peaks file; returns the count."""
-    p = Path(peaks_path)
-    prefix = p.name + '.'
+def remove_peaks_artifacts(peaks_path: Path | str) -> bool:
+    """Remove a peaks file and its build lock; True when the file itself was removed."""
+    peaks = Path(peaks_path)
+    peaks_lock_path(peaks).unlink(missing_ok=True)
+    try:
+        peaks.unlink()
+    except FileNotFoundError:
+        return False
+    return True
+
+
+def sweep_stale_peaks_temp_files(directory: Path | str, min_age_seconds: float = PEAKS_TEMP_STALE_SECONDS) -> int:
+    """Remove peaks temp files left by interrupted writes in one directory; returns the count."""
     removed = 0
     try:
-        entries = list(os.scandir(p.parent))
+        entries = list(os.scandir(directory))
     except OSError:
         return 0
     now = time.time()
     for entry in entries:
-        name = entry.name
-        if not (name.startswith(prefix) and is_peaks_temp_name(name)
-                and len(name) == len(prefix) + 12):
+        if not is_peaks_temp_name(entry.name):
             continue
         try:
-            if min_age_seconds and now - entry.stat().st_mtime < min_age_seconds:
+            if now - entry.stat().st_mtime < min_age_seconds:
                 continue
             os.unlink(entry.path)
             removed += 1
