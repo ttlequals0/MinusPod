@@ -8,7 +8,7 @@ import { DEMO_AUDIO_TOOLTIP } from '../demo/copy';
 import { IS_DEMO } from '../demo/flag';
 import { usePatternAudioPreview } from '../hooks/usePatternAudioPreview';
 import { usePatternAudioRebuild } from '../hooks/usePatternAudioRebuild';
-import { formatDate, formatDateTimeParts, formatPercent } from '../utils/format';
+import { formatDateTimeParts, formatPercent } from '../utils/format';
 import AdReviewModal from './AdReviewModal';
 import AudioMatchesList from './AudioMatchesList';
 import { AuditionPlayButton } from './AuditionPlayButton';
@@ -193,21 +193,18 @@ export default function PatternAudioSection({ pattern }: { pattern: AdPattern })
         )}
         {preview.isLoading() && <p role="status" className="text-sm text-muted-foreground">Loading audio...</p>}
         {playError && <p role="alert" className="text-sm text-destructive">{playError}</p>}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-4">
+        <div className="grid grid-cols-2 sm:grid-cols-4 auto-rows-fr gap-2 sm:gap-4">
           <StatTile label="Matches" value={detail.counts.matches} />
           <StatTile label="Mean match" value={detail.meanSimilarity != null ? formatPercent(detail.meanSimilarity) : '-'} />
           <StatTile label="Not this ad" value={detail.counts.rejected} tone={detail.counts.rejected > 0 ? 'destructive' : 'default'} />
           <StatTile label="Last audio match" value={(
             <span className="block text-sm font-semibold leading-tight">
-              <span className="sm:hidden">{formatDate(detail.lastMatchedAt ?? null)}</span>
-              <span className="max-sm:hidden">
-                {detail.lastMatchedAt ? (
-                  <>
-                    <span className="block">{formatDateTimeParts(detail.lastMatchedAt).date}</span>
-                    <span className="block">{formatDateTimeParts(detail.lastMatchedAt).time}</span>
-                  </>
-                ) : '-'}
-              </span>
+              {detail.lastMatchedAt ? (
+                <>
+                  <span className="block">{formatDateTimeParts(detail.lastMatchedAt).date}</span>
+                  <span className="block">{formatDateTimeParts(detail.lastMatchedAt).time}</span>
+                </>
+              ) : '-'}
             </span>
           )} />
         </div>

@@ -7,7 +7,7 @@ import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
 import PatternDetailModal from './PatternDetailModal';
 import { ApiError } from '../api/client';
 import type { AdPattern } from '../api/patterns';
-import { formatDate, formatDateTimeParts } from '../utils/format';
+import { formatDateTimeParts } from '../utils/format';
 
 const mockSplitPattern = vi.fn();
 const mockUpdatePattern = vi.fn();
@@ -410,14 +410,18 @@ describe('Audio section', () => {
     expect(await screen.findByText('No audio fingerprint.')).toBeDefined();
   });
 
-  it('lays the four tiles out two by two below sm and in one row from sm, with the short date on phones', async () => {
+  it('lays the four tiles out two by two below sm and in one row from sm, with date over time at every width', async () => {
     mockGetPatternAudio.mockResolvedValue(ACTIVE_AUDIO);
     renderModal(makePattern());
     const tile = (await screen.findByText('Mean match')).closest('[class*="grid"]') as HTMLElement;
     expect(tile.className).toContain('grid-cols-2');
     expect(tile.className).toContain('sm:grid-cols-4');
-    expect(screen.getByText(formatDate(ACTIVE_AUDIO.lastMatchedAt)).className).toContain('sm:hidden');
-    expect(screen.getByText(formatDateTimeParts(ACTIVE_AUDIO.lastMatchedAt).time).closest('.max-sm\\:hidden')).not.toBeNull();
+    expect(tile.className).toContain('auto-rows-fr');
+    const parts = formatDateTimeParts(ACTIVE_AUDIO.lastMatchedAt);
+    const dateLine = screen.getByText(parts.date);
+    const timeLine = screen.getByText(parts.time);
+    expect(dateLine.parentElement).toBe(timeLine.parentElement);
+    expect(tile.querySelector('.sm\\:hidden, .max-sm\\:hidden')).toBeNull();
   });
 });
 
@@ -477,7 +481,14 @@ describe('Dialog layout classes', () => {
     const close = await screen.findByRole('button', { name: 'Close' });
     expect(close.parentElement?.className).toContain('items-center');
     expect(close.parentElement?.parentElement?.className).toContain('items-start');
-    expect(screen.getByRole('button', { name: 'Split' }).closest('[class*="items-start"]')).not.toBeNull();
+  });
+
+  it('keeps the Split button at its own width beside the reason line', async () => {
+    mockGetPatternAudio.mockResolvedValue(ACTIVE_AUDIO);
+    renderModal(makePattern({ can_split: false }));
+    const split = await screen.findByRole('button', { name: 'Split' });
+    expect(split.parentElement?.className).toContain('items-start');
+    expect(split.parentElement?.className).toContain('flex-col');
   });
 
   it('keeps the stat tiles at least 7rem wide so a label does not touch the tile edge', async () => {

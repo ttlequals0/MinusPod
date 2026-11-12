@@ -143,7 +143,7 @@ function PatternDetailModal({ pattern, onClose, onSave }: PatternDetailModalProp
         <div className={`flex flex-nowrap items-start justify-between gap-2 w-full ${showDeleteConfirm ? 'max-sm:grid max-sm:grid-cols-2 max-sm:gap-2' : dialogFooterGrid}`}>
           <div className="flex flex-nowrap items-start gap-1 sm:gap-2 max-sm:contents">
             {pattern.is_active && (
-              <div className={`${showDeleteConfirm ? 'hidden sm:flex' : 'flex max-sm:contents'} flex-col gap-1`}>
+              <div className={`${showDeleteConfirm ? 'hidden sm:flex' : 'flex max-sm:contents'} flex-col items-start gap-1`}>
                 <DemoDisabled>
                   <button
                     onClick={() => splitMutation.mutate()}
