@@ -305,13 +305,13 @@ def test_models_preview_for_a_named_provider_still_answers_under_none(app_client
 
 # Health
 
-def test_health_reports_a_model_as_configured_under_none(app_client, provider_none):
+def test_health_reports_a_model_as_configured_under_none(app_client, hdr, provider_none):
     db = get_database()
     db.set_setting('claude_model', '', is_default=False)
     assert app_client.get('/api/v1/health').get_json()['checks']['llm_model_configured'] is True
 
 
-def test_health_still_reports_a_missing_model_with_a_provider(app_client, provider_anthropic):
+def test_health_still_reports_a_missing_model_with_a_provider(app_client, hdr, provider_anthropic):
     db = get_database()
     db.set_setting('claude_model', '', is_default=False)
     assert app_client.get('/api/v1/health').get_json()['checks']['llm_model_configured'] is False
@@ -337,14 +337,14 @@ def test_saving_none_starts_no_probe_or_pricing_thread(app_client, hdr, no_clien
     assert started_threads == []
 
 
-def test_secondary_probe_helper_is_skipped_under_none(provider_none, no_clients, started_threads):
+def test_secondary_probe_helper_is_skipped_under_none(hdr, provider_none, no_clients, started_threads):
     get_database().set_setting('secondary_provider_enabled', 'true', is_default=False)
     llm_client._clear_provider_cache()
     llm_client.probe_secondary_provider_formats()
     assert started_threads == []
 
 
-def test_secondary_probe_helper_still_probes_with_a_provider(provider_anthropic, started_threads):
+def test_secondary_probe_helper_still_probes_with_a_provider(hdr, provider_anthropic, started_threads):
     get_database().set_setting('secondary_provider_enabled', 'true', is_default=False)
     llm_client._clear_provider_cache()
     llm_client.probe_secondary_provider_formats()
