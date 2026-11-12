@@ -307,6 +307,36 @@ describe('apiRequest: 503 with Retry-After', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
+  it('resets the generic attempts after each busy answer, so spread-out network blips do not end the wait', async () => {
+    const down = new TypeError('Failed to fetch');
+    const fetchMock = vi.fn().mockRejectedValueOnce(down).mockResolvedValueOnce(busy()).mockRejectedValueOnce(down)
+      .mockResolvedValueOnce(busy()).mockRejectedValueOnce(down).mockResolvedValue(fakeResponse({ ok: 1 }, 200));
+    vi.stubGlobal('fetch', fetchMock);
+    const promise = apiRequest('/x', { busyBudgetMs: 600_000 });
+    await vi.advanceTimersByTimeAsync(30_000);
+    expect(await promise).toEqual({ ok: 1 });
+    expect(fetchMock).toHaveBeenCalledTimes(6);
+  });
+
+  it('still fails after three network errors in a row with no busy answer between them', async () => {
+    const fetchMock = vi.fn().mockRejectedValue(new TypeError('Failed to fetch'));
+    vi.stubGlobal('fetch', fetchMock);
+    const promise = apiRequest('/x', { busyBudgetMs: 600_000 }).catch((e: unknown) => e);
+    await vi.advanceTimersByTimeAsync(10_000);
+    expect(await promise).toBeInstanceOf(TypeError);
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+  });
+
+  it('does not wait on a mutating request even with retry: true and a budget', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(busy());
+    vi.stubGlobal('fetch', fetchMock);
+    const promise = apiRequest('/x', { method: 'POST', retry: true, busyBudgetMs: 600_000 }).catch((e: unknown) => e);
+    await vi.advanceTimersByTimeAsync(60_000);
+    const error = await promise;
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect((error as ApiError).status).toBe(503);
+  });
+
   it('retries a network error', async () => {
     const fetchMock = vi.fn().mockRejectedValueOnce(new TypeError('Failed to fetch')).mockResolvedValue(fakeResponse({ ok: 1 }, 200));
     vi.stubGlobal('fetch', fetchMock);

@@ -8,6 +8,7 @@ const RETRY_DELAYS = [1000, 3000]; // 2 retries with 1s and 3s backoff
 const BUSY_DEFAULT_MS = 5000;
 const BUSY_MIN_MS = 1000;
 const BUSY_MAX_MS = 30000;
+const BUSY_WAIT_METHODS = new Set(['GET', 'HEAD']);
 
 const JOB_STATES = new Set(['idle', 'submitting', 'queued', 'processing']);
 
@@ -215,11 +216,11 @@ export async function apiRequest<T>(endpoint: string, options: RequestOptions = 
         const busy = response.status === 503 && response.headers.get('Retry-After') !== null;
         if (retryEnabled && isRetryable(response.status)) {
           if (busy && busyDeadline !== undefined) {
-            // Inside the budget a busy wait does not use up an attempt.
+            // Only GET and HEAD wait. A busy answer means earlier transient failures are over, so reset the attempts.
             const wait = busyWaitMs(response);
-            if (Date.now() + wait <= busyDeadline) {
+            if (BUSY_WAIT_METHODS.has(method.toUpperCase()) && Date.now() + wait <= busyDeadline) {
               await sleep(wait, signal);
-              attempt--;
+              attempt = -1;
               continue;
             }
           } else if (attempt < maxAttempts - 1) {
