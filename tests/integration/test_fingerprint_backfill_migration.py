@@ -187,6 +187,7 @@ def test_a_second_start_changes_nothing(seeded, caplog):
     assert first
     db.get_connection().execute("DELETE FROM audio_fingerprint_matches WHERE id = ?", (first[0]['id'],))
     db.get_connection().commit()
+    caplog.clear()
     with caplog.at_level(logging.INFO):
         again = _open(seeded['path'])
     assert _rows(again) == first[1:]
