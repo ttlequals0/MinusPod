@@ -58,7 +58,7 @@ A pass-2 detection that overlaps an already-accepted ad is folded into the recut
 
 - Above the autocut floor (Settings > Ad Detection, off by default): cuts automatically, the same as any other gated cut.
 - Otherwise, once it clears the hold floor (default 0.60): holds for review with hold reason `verification_miss`, shown as a "Verification catch" chip in [Held for Review](#held-for-review).
-- Below the hold floor: dropped, with a log line naming what was dropped and why. Never silent.
+- Below the hold floor: dropped, with a log line naming what was dropped and why.
 
 A third case is a pass-2 finding that lands on a span pass 1 deliberately kept. The keep reflects your segment-action map, so pass 2 never cuts through it, but the finding is not discarded: it holds for review with hold reason `verification_kept_conflict`.
 
@@ -160,7 +160,9 @@ When processing new episodes, the system first checks for known patterns before 
 **Fingerprint matching limits:**
 A fingerprint match is measured at one alignment. Where the audio stops agreeing for longer than the gap tolerance setting, the match is split, and each piece must pass the coverage and evidence checks on its own. A short dropout inside an ad is bridged. An ad with a damaged stretch longer than the gap tolerance is found as shorter pieces, or not found at all. When two stored ads overlap in an episode, the stronger match takes the overlap and the other keeps what is left if that is at least the minimum ad length. These limits were measured in testing:
 - On heavily compressed audio, a match edge can stop up to about 5 seconds before the ad's real edge. MinusPod does not stretch it to a nearby LLM edge, because that would bring back cuts that run into show audio. Leaving a little ad in is the safer mistake.
-- A match edge rarely runs into show audio, and then by at most about 3 seconds. It went more than 1 second past the ad in 16 of about 20,000 matches.
+- When only part of a stored ad is in the episode, a match edge rarely runs into show audio, and then by at most about 3 seconds. It went more than 1 second past the ad in 16 of 19,883 such matches.
+- When an ad and the show share a music bed or other steady audio, the ad's pattern can also match show audio elsewhere in the episode. A match must agree clearly better than the same stretch shifted a few seconds either way. With that check, 9 of 4,000 test ad breaks still had such a false cut.
+- A pattern taken from near-uniform audio can be stored and then missed. In testing, 14 of 4,068 stored patterns were not found in a copy with 5 percent of bits flipped, and 13 of those came from one near-uniform recording.
 - A false match on unrelated audio was seen about once per 20,000 patterns.
 - The match strictness setting starts at 0.65. Raising it to about 0.70 changes little.
 
@@ -284,7 +286,7 @@ Changing an action map does not retroactively touch already-processed episodes. 
 
 ### Cross-Fetch Differential
 
-Dynamically inserted ads (DAI) are spliced into the audio by the publisher's ad server at download time, so two downloads of the same episode can carry different ads, or different amounts of them. The cross-fetch differential exploits that: MinusPod downloads the episode a second time with a different client signature and compares the two copies. Audio that differs between the fetches cannot be part of the show, so each differing region becomes an ad candidate with hard evidence behind it, no transcript reading required.
+Dynamically inserted ads (DAI) are spliced into the audio by the publisher's ad server at download time, so two downloads of the same episode can carry different ads, or different amounts of them. The cross-fetch differential exploits that: MinusPod downloads the episode a second time with a different client signature and compares the two copies. Audio that differs between the fetches cannot be part of the show, so each differing region becomes an ad candidate with hard evidence behind it, without reading the transcript.
 
 Every silence-delimited block in the run file is probed against the refetch and carries its own measured correlation. A region only becomes an ad candidate when that correlation is at or below the **Correlation ceiling** setting (default 0.60): a high correlation means the two fetches matched too closely to be a real ad swap, not proof the region is untouched. Qualifying blocks that touch are merged into one candidate span, and a candidate too stale to score cleanly (e.g. after a different-length ad swap shifted the rest of the file) gets one retry with a widened search window before it is judged.
 
