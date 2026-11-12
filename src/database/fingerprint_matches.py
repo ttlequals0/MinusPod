@@ -10,13 +10,18 @@ logger = logging.getLogger(__name__)
 
 SUMMARY_ID_CHUNK = 900
 
+# A rejection covers a match only when they overlap by more than half the shorter span.
+_OVERLAP_SQL = "(MIN(match_end, :end) - MAX(match_start, :start))"
+_MOSTLY_OVERLAPS_SQL = (
+    f"{_OVERLAP_SQL} * 2 > MIN(match_end - match_start, :end - :start)")
+
 _ORIGINAL_RETAINED_SQL = """
     SELECT 1 FROM podcasts sp JOIN episodes se ON se.podcast_id = sp.id
     WHERE sp.slug = {slug} AND se.episode_id = {episode} AND se.original_file IS NOT NULL"""
 
 
 def _is_detected_ad(marker: dict) -> bool:
-    """Held, kept or cut markers count; validator rejects and uncut ones do not (as the episode API buckets them)."""
+    """Whether the marker was held, kept or cut, as the episode API buckets it."""
     if is_pending_review(marker) or is_keep_like(marker.get('action_applied')):
         return True
     return (marker.get('validation') or {}).get('decision') != 'REJECT' and marker.get('was_cut', True)
@@ -39,6 +44,11 @@ def _member_bounds(member: dict) -> tuple[float, float] | None:
     return None
 
 
+def _mostly_overlaps(lo_a: float, hi_a: float, lo_b: float, hi_b: float) -> bool:
+    """Whether two spans overlap by more than half of the shorter one."""
+    return (min(hi_a, hi_b) - max(lo_a, lo_b)) * 2 > min(hi_a - lo_a, hi_b - lo_b)
+
+
 def _marker_stages(marker: dict) -> set:
     """Detection stages that contributed to a marker."""
     stages = {marker.get('detection_stage')}
@@ -51,12 +61,10 @@ def _marker_stages(marker: dict) -> set:
 class FingerprintMatchMixin:
     """Per-pattern record of where a fingerprint matched, and which matches were rejected."""
 
-    def record_fingerprint_match(self, pattern_id: int, episode_id: str, podcast_slug: str,
-                                 match_start: float, match_end: float,
-                                 similarity: float | None, coverage: float | None,
-                                 in_scope: bool, audio_only: bool | None) -> int:
-        """Insert one match row. Returns its ID."""
-        conn = self.get_connection()
+    @staticmethod
+    def _insert_fingerprint_match(conn, pattern_id, episode_id, podcast_slug, match_start, match_end,
+                                  similarity, coverage, in_scope, audio_only) -> int:
+        """Insert one match row on conn without committing."""
         cursor = conn.execute(
             """INSERT INTO audio_fingerprint_matches
                  (pattern_id, episode_id, podcast_slug, match_start, match_end,
@@ -66,12 +74,23 @@ class FingerprintMatchMixin:
              similarity, coverage, int(in_scope),
              None if audio_only is None else int(audio_only))
         )
-        conn.commit()
         return cursor.lastrowid
+
+    def record_fingerprint_match(self, pattern_id: int, episode_id: str, podcast_slug: str,
+                                 match_start: float, match_end: float,
+                                 similarity: float | None, coverage: float | None,
+                                 in_scope: bool, audio_only: bool | None) -> int:
+        """Insert one match row. Returns its ID."""
+        conn = self.get_connection()
+        row_id = self._insert_fingerprint_match(
+            conn, pattern_id, episode_id, podcast_slug, match_start, match_end,
+            similarity, coverage, in_scope, audio_only)
+        conn.commit()
+        return row_id
 
     def record_fingerprint_matches_from_markers(self, podcast_slug: str, episode_id: str,
                                                 markers: list[dict]) -> int:
-        """Replace an episode's match rows from its final markers; rejected rows are kept. Returns rows written."""
+        """Replace an episode's match rows from its final markers, keeping rejected rows."""
         planned = []
         for marker in markers:
             if not _is_detected_ad(marker):
@@ -85,30 +104,33 @@ class FingerprintMatchMixin:
                 planned.append((pattern_id, bounds, member, audio_only))
         scope = self._episode_scope(podcast_slug) if planned else None
         patterns = self._patterns_for_scope({p[0] for p in planned})
-        conn = self.get_connection()
-        rejected = conn.execute(
-            """SELECT pattern_id, match_start, match_end FROM audio_fingerprint_matches
-               WHERE podcast_slug = ? AND episode_id = ? AND rejected = 1""",
-            (podcast_slug, episode_id)
-        ).fetchall()
-        self.delete_fingerprint_matches_for_episode(podcast_slug, episode_id, keep_rejected=True)
-        written, seen = 0, set()
-        for pattern_id, (lo, hi), member, audio_only in planned:
-            pattern = patterns.get(pattern_id)
-            if pattern is None or (pattern_id, lo, hi) in seen:
-                continue
-            if any(r['pattern_id'] == pattern_id and min(r['match_end'], hi) - max(r['match_start'], lo) > 0
-                   for r in rejected):
-                continue
-            seen.add((pattern_id, lo, hi))
-            in_scope = pattern_passes_scope(
-                pattern['scope'], pattern['network_id'], pattern['podcast_id'], pattern['source'],
-                pattern['sponsor_tags'], **scope)
-            self.record_fingerprint_match(
-                pattern_id, episode_id, podcast_slug, lo, hi,
-                finite_number(member.get('fingerprint_similarity')),
-                finite_number(member.get('fingerprint_coverage')), in_scope, audio_only)
-            written += 1
+        with self.transaction(immediate=True) as conn:
+            rejected = conn.execute(
+                """SELECT pattern_id, match_start, match_end FROM audio_fingerprint_matches
+                   WHERE podcast_slug = ? AND episode_id = ? AND rejected = 1""",
+                (podcast_slug, episode_id)
+            ).fetchall()
+            conn.execute(
+                "DELETE FROM audio_fingerprint_matches "
+                "WHERE podcast_slug = ? AND episode_id = ? AND rejected = 0",
+                (podcast_slug, episode_id))
+            written, seen = 0, set()
+            for pattern_id, (lo, hi), member, audio_only in planned:
+                pattern = patterns.get(pattern_id)
+                if pattern is None or (pattern_id, lo, hi) in seen:
+                    continue
+                if any(r['pattern_id'] == pattern_id and _mostly_overlaps(r['match_start'], r['match_end'], lo, hi)
+                       for r in rejected):
+                    continue
+                seen.add((pattern_id, lo, hi))
+                in_scope = pattern_passes_scope(
+                    pattern['scope'], pattern['network_id'], pattern['podcast_id'], pattern['source'],
+                    pattern['sponsor_tags'], **scope)
+                self._insert_fingerprint_match(
+                    conn, pattern_id, episode_id, podcast_slug, lo, hi,
+                    finite_number(member.get('fingerprint_similarity')),
+                    finite_number(member.get('fingerprint_coverage')), in_scope, audio_only)
+                written += 1
         return written
 
     def _episode_scope(self, podcast_slug: str) -> dict:
@@ -219,34 +241,46 @@ class FingerprintMatchMixin:
         ).fetchone()
         return dict(row) if row else None
 
-    def mark_fingerprint_match_rejected(self, pattern_id: int, podcast_slug: str,
-                                        episode_id: str, start: float, end: float) -> bool:
-        """Reject the match overlapping [start, end] most. True if one overlaps, even if already rejected."""
+    def _set_match_rejected(self, rejected: bool, pattern_id: int, podcast_slug: str,
+                            episode_id: str, start: float, end: float) -> bool:
+        """Set the rejected flag on the best overlapping match; unrejecting considers rejected rows only."""
         with self.transaction(immediate=True) as conn:
             row = conn.execute(
-                """SELECT id FROM audio_fingerprint_matches
-                   WHERE pattern_id = ? AND podcast_slug = ? AND episode_id = ?
-                     AND MIN(match_end, ?) - MAX(match_start, ?) > 0
-                   ORDER BY MIN(match_end, ?) - MAX(match_start, ?) DESC, id DESC
-                   LIMIT 1""",
-                (pattern_id, podcast_slug, episode_id, end, start, end, start)
+                f"""SELECT id FROM audio_fingerprint_matches
+                    WHERE pattern_id = :pid AND podcast_slug = :slug AND episode_id = :ep
+                      AND {_MOSTLY_OVERLAPS_SQL}
+                      {'' if rejected else 'AND rejected = 1'}
+                    ORDER BY {_OVERLAP_SQL} DESC, id DESC
+                    LIMIT 1""",  # noqa: S608
+                {'pid': pattern_id, 'slug': podcast_slug, 'ep': episode_id,
+                 'start': start, 'end': end}
             ).fetchone()
             if row is None:
                 return False
-            conn.execute(
-                """UPDATE audio_fingerprint_matches SET rejected = 1,
-                     rejected_at = COALESCE(rejected_at, strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
-                   WHERE id = ?""",
-                (row['id'],)
-            )
+            if rejected:
+                conn.execute(
+                    """UPDATE audio_fingerprint_matches SET rejected = 1,
+                         rejected_at = COALESCE(rejected_at, strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
+                       WHERE id = ?""",
+                    (row['id'],))
+            else:
+                conn.execute(
+                    "UPDATE audio_fingerprint_matches SET rejected = 0, rejected_at = NULL WHERE id = ?",
+                    (row['id'],))
         return True
 
-    def get_audio_summaries(self, pattern_ids: list[int] | None = None) -> dict[int, dict]:
-        """Audio summary of each pattern (all when ids is None) from one aggregate query per chunk.
+    def mark_fingerprint_match_rejected(self, pattern_id: int, podcast_slug: str,
+                                        episode_id: str, start: float, end: float) -> bool:
+        """Reject the match overlapping [start, end] most. True if one overlaps, even if already rejected."""
+        return self._set_match_rejected(True, pattern_id, podcast_slug, episode_id, start, end)
 
-        Each value is {state, available, matchCount, meanSimilarity}. available reads
-        episodes.original_file, the column retention clears, with no file checks.
-        """
+    def unmark_fingerprint_match_rejected(self, pattern_id: int, podcast_slug: str,
+                                          episode_id: str, start: float, end: float) -> bool:
+        """Clear the rejection of the rejected match overlapping [start, end] most. True if one was cleared."""
+        return self._set_match_rejected(False, pattern_id, podcast_slug, episode_id, start, end)
+
+    def get_audio_summaries(self, pattern_ids: list[int] | None = None) -> dict[int, dict]:
+        """Per-pattern {state, available, matchCount, meanSimilarity}, all patterns when ids is None."""
         if pattern_ids is None:
             return self._audio_summaries_chunk(None)
         summaries = {}

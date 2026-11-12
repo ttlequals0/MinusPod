@@ -206,3 +206,60 @@ def test_deleting_a_feed_removes_its_match_history(temp_db):
     assert temp_db.delete_podcast('show')
     rows = temp_db.get_fingerprint_matches(shared, 10, 0)
     assert [r['podcast_slug'] for r in rows] == ['other']
+
+
+def test_mark_rejected_needs_more_than_half_of_the_shorter_span(temp_db, pattern):
+    distinct = _record(temp_db, pattern, 'epY', start=49.9, end=90.0)
+    assert temp_db.mark_fingerprint_match_rejected(pattern, 'show', 'epY', 10.0, 50.0) is False
+    assert temp_db.get_fingerprint_match(distinct)['rejected'] == 0
+
+
+def test_mark_rejected_accepts_a_contained_span(temp_db, pattern):
+    inner = _record(temp_db, pattern, 'epY', start=100, end=140)
+    assert temp_db.mark_fingerprint_match_rejected(pattern, 'show', 'epY', 90, 200) is True
+    assert temp_db.get_fingerprint_match(inner)['rejected'] == 1
+
+
+def test_mark_rejected_failure_changes_nothing(temp_db, pattern):
+    mid = _record(temp_db, pattern, 'epY', start=100, end=140)
+    conn = temp_db.get_connection()
+    conn.execute("CREATE TRIGGER block_reject BEFORE UPDATE ON audio_fingerprint_matches "
+                 "BEGIN SELECT RAISE(ABORT, 'blocked'); END")
+    conn.commit()
+    with pytest.raises(Exception, match='blocked'):
+        temp_db.mark_fingerprint_match_rejected(pattern, 'show', 'epY', 100, 140)
+    assert not conn.in_transaction
+    row = temp_db.get_fingerprint_match(mid)
+    assert (row['rejected'], row['rejected_at']) == (0, None)
+
+
+def test_unmark_rejected_restores_the_overlapping_row(temp_db, pattern):
+    mid = _record(temp_db, pattern, 'epY', start=100, end=140)
+    temp_db.mark_fingerprint_match_rejected(pattern, 'show', 'epY', 100, 140)
+    assert temp_db.unmark_fingerprint_match_rejected(pattern, 'show', 'epY', 105, 138) is True
+    row = temp_db.get_fingerprint_match(mid)
+    assert (row['rejected'], row['rejected_at']) == (0, None)
+    assert temp_db.get_audio_match_summary(pattern)['rejected_count'] == 0
+
+
+def test_unmark_rejected_without_a_rejected_overlap_is_false(temp_db, pattern):
+    open_row = _record(temp_db, pattern, 'epY', start=100, end=140)
+    far = _record(temp_db, pattern, 'epY', start=300, end=340)
+    temp_db.mark_fingerprint_match_rejected(pattern, 'show', 'epY', 300, 340)
+    assert temp_db.unmark_fingerprint_match_rejected(pattern, 'show', 'epY', 100, 140) is False
+    assert temp_db.get_fingerprint_match(far)['rejected'] == 1
+    assert temp_db.get_fingerprint_match(open_row)['rejected'] == 0
+
+
+def test_unmark_rejected_uses_the_same_overlap_threshold(temp_db, pattern):
+    distinct = _record(temp_db, pattern, 'epY', start=49.9, end=90.0)
+    temp_db.mark_fingerprint_match_rejected(pattern, 'show', 'epY', 49.9, 90.0)
+    assert temp_db.unmark_fingerprint_match_rejected(pattern, 'show', 'epY', 10.0, 50.0) is False
+    assert temp_db.get_fingerprint_match(distinct)['rejected'] == 1
+
+
+def test_unmark_rejected_never_touches_another_podcast(temp_db, pattern):
+    other = _record(temp_db, pattern, 'epY', slug='other', start=100, end=140)
+    temp_db.mark_fingerprint_match_rejected(pattern, 'other', 'epY', 100, 140)
+    assert temp_db.unmark_fingerprint_match_rejected(pattern, 'show', 'epY', 100, 140) is False
+    assert temp_db.get_fingerprint_match(other)['rejected'] == 1

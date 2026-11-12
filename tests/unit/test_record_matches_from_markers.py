@@ -213,3 +213,36 @@ def test_member_fields_survive_a_merge_record(world):
     note_merged_members(target, _fp(pid))
     member = next(m for m in target['merged_member_spans'] if m['stage'] == 'fingerprint')
     assert member['fingerprint_similarity'] == 0.9 and member['fingerprint_coverage'] == 0.8
+
+
+def test_a_rejected_row_blocks_only_a_mostly_overlapping_member(world):
+    db, pid = world
+    db.record_fingerprint_matches_from_markers(SLUG, EP, [_fp(pid, 10.0, 50.0)])
+    db.mark_fingerprint_match_rejected(pid, SLUG, EP, 10.0, 50.0)
+    assert db.record_fingerprint_matches_from_markers(
+        SLUG, EP, [_fp(pid, 10.0, 50.0), _fp(pid, 49.9, 90.0)]) == 1
+    starts = sorted(r['match_start'] for r in _rows(db, pid))
+    assert starts == [10.0, 49.9]
+    assert [r['rejected'] for r in sorted(_rows(db, pid), key=lambda r: r['match_start'])] == [1, 0]
+
+
+def test_a_failed_insert_leaves_the_previous_rows(world):
+    db, pid = world
+    db.record_fingerprint_matches_from_markers(SLUG, EP, [_fp(pid, 10.0, 50.0), _fp(pid, 60.0, 100.0)])
+    conn = db.get_connection()
+    conn.execute("CREATE TRIGGER fail_third BEFORE INSERT ON audio_fingerprint_matches "
+                 "WHEN NEW.match_start = 300.0 BEGIN SELECT RAISE(ABORT, 'disk full'); END")
+    conn.commit()
+    markers = [_fp(pid, 200.0, 240.0), _fp(pid, 250.0, 290.0), _fp(pid, 300.0, 340.0)]
+    with pytest.raises(Exception, match='disk full'):
+        db.record_fingerprint_matches_from_markers(SLUG, EP, markers)
+    assert not conn.in_transaction
+    assert sorted(r['match_start'] for r in _rows(db, pid)) == [10.0, 60.0]
+
+
+def test_the_save_skips_the_recorder_when_the_episode_is_missing(storage, monkeypatch):
+    stor, db, pid = storage
+    calls = []
+    monkeypatch.setattr(db, 'record_fingerprint_matches_from_markers', lambda *a: calls.append(a))
+    stor.save_combined_ads(SLUG, 'ffffffffffff', [_fp(pid)])
+    assert calls == []

@@ -585,6 +585,7 @@ class Storage:
                                          pending_review_count=pending_count)
         except ValueError:
             logger.warning(f"[{slug}:{episode_id}] Episode not in DB, combined ads not saved")
+            return
 
         logger.debug(f"[{slug}:{episode_id}] Saved {len(all_ads)} combined ad markers")
         try:
