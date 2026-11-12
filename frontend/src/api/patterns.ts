@@ -474,7 +474,8 @@ export type FingerprintSkippedReason =
   | 'span_covers_multiple_patterns'
   | 'original_not_retained'
   | 'segment_too_short'
-  | 'fingerprint_failed';
+  | 'fingerprint_failed'
+  | 'not_distinctive';
 
 export type AudioRebuildResult = {
   fingerprintStored: boolean;
@@ -488,6 +489,7 @@ const FINGERPRINT_SKIP_TEXT: Record<FingerprintSkippedReason, string> = {
   original_not_retained: "This episode's original audio is no longer kept.",
   segment_too_short: 'That selection is too short for an audio fingerprint.',
   fingerprint_failed: 'Could not make an audio fingerprint from that selection.',
+  not_distinctive: 'That audio is not distinctive enough to match reliably.',
 };
 
 export function describeFingerprintSkip(reason: FingerprintSkippedReason): string {

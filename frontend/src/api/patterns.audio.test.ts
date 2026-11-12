@@ -90,6 +90,7 @@ describe('describeFingerprintSkip', () => {
     ['original_not_retained', "This episode's original audio is no longer kept."],
     ['segment_too_short', 'That selection is too short for an audio fingerprint.'],
     ['fingerprint_failed', 'Could not make an audio fingerprint from that selection.'],
+    ['not_distinctive', 'That audio is not distinctive enough to match reliably.'],
   ];
   it.each(cases)('explains %s', (reason, text) => {
     expect(describeFingerprintSkip(reason)).toBe(text);

@@ -118,7 +118,10 @@ interface Props {
   // net-new-ad mode against the original audio: empty boundaries,
   // editable sponsor + text_template fields, and a different submit
   // signature via onCreate.
-  mode?: 'review' | 'create';
+  mode?: 'review' | 'create' | 'span';
+  // 'span' edits one region on the original audio and saves it through
+  // onSaveSpan; a rejection's message is shown beside the action.
+  onSaveSpan?: (s: { start: number; end: number }) => Promise<void>;
   // `meta.silent` marks a multi-span run: the host defers its closing side
   // effects until onCreateDone fires once every run has saved.
   onCreate?: (s: AdCreateSubmit, meta?: { silent?: boolean }) => Promise<void> | void;
@@ -153,6 +156,7 @@ const WINDOW_STEP_SECONDS = 60;
 // wheel-zoom, the +1m buttons, or by typing far-away timestamps.
 const CONTEXT_SECONDS = 30;
 const MIN_AD_DURATION = 1.0;
+const MAX_SPAN_SECONDS = 600;
 
 // ----------------------------------------------------------------------
 // Playhead cursor -- ref-driven DOM updates from the RAF loop, NOT React
@@ -167,7 +171,7 @@ function AdReviewModal({
   item, onClose, onSubmit, onSkip, hasNext = false,
   audioMode = 'original', onAudioModeChange, hasOriginal = true,
   processedAudioUrl, episodeDuration,
-  mode = 'review', onCreate, onCreateDone, onAddNew, boundsWindow,
+  mode = 'review', onCreate, onCreateDone, onAddNew, boundsWindow, onSaveSpan,
   hideConfirm = false, onSplitSaved,
 }: Props) {
   const dialogRef = useRef<HTMLDivElement>(null);
@@ -246,6 +250,8 @@ function AdReviewModal({
     totalDuration, initialCenter, playheadRef, ZOOM_MIN, ZOOM_MAX, initialZoom,
   );
 
+  const [spanSaving, setSpanSaving] = useState(false);
+  const [spanError, setSpanError] = useState<string | null>(null);
   const [adStart, setAdStart] = useState(defaults.adStart);
   const [adEnd, setAdEnd] = useState(defaults.adEnd);
   // String mirror of the timestamp inputs. Lets the user type partial
@@ -389,7 +395,7 @@ function AdReviewModal({
 
   // Create mode is always against original audio (you can't mark a new ad
   // on already-cut audio). Review mode honors the parent's audioMode.
-  const effectiveAudioMode = mode === 'create' ? 'original' : audioMode;
+  const effectiveAudioMode = mode === 'review' ? audioMode : 'original';
   const audioUrl =
     effectiveAudioMode === 'original' || !processedAudioUrl
       ? mediaUrl({ kind: 'audio', url: apiUrl(`/feeds/${item.podcastSlug}/episodes/${item.episodeId}/original.mp3`) })
@@ -617,7 +623,7 @@ function AdReviewModal({
       // far before the visible window), snap to the ad start before playing
       // so the user doesn't hear the episode intro on the first Play. A
       // deliberate scrub inside or near the window is preserved.
-      if (mode === 'review' && adStart > 1 && audio.currentTime < adStart - 5) {
+      if (mode !== 'create' && adStart > 1 && audio.currentTime < adStart - 5) {
         audio.currentTime = Math.max(0, adStart - 2);
       }
       audio.play().then(() => setIsPlaying(true)).catch(() => setIsPlaying(false));
@@ -864,6 +870,8 @@ function AdReviewModal({
         ? 'Start must be before End'
         : adEnd - adStart < MIN_AD_DURATION
           ? `Selection must be at least ${MIN_AD_DURATION}s long`
+          : mode === 'span' && adEnd - adStart > MAX_SPAN_SECONDS
+            ? `Selection must be at most ${MAX_SPAN_SECONDS}s long`
           : boundsWindow && (adStart < boundsWindow.min || adEnd > boundsWindow.max)
             ? `Selection must stay within the detected span (${formatTime(boundsWindow.min)} - ${formatTime(boundsWindow.max)})`
             : null;
@@ -897,6 +905,19 @@ function AdReviewModal({
     onSubmit({ kind: 'reject' });
   };
 
+  const saveSpan = async () => {
+    if (!onSaveSpan || boundaryError) return;
+    setSpanSaving(true);
+    setSpanError(null);
+    try {
+      await onSaveSpan({ start: adStart, end: adEnd });
+    } catch (e) {
+      setSpanError(e instanceof Error && e.message ? e.message : 'Could not save audio.');
+    } finally {
+      setSpanSaving(false);
+    }
+  };
+
   const handleSplitSaved = async (result: { markerCount: number; patternIds: number[] }) => {
     setShowSplit(false);
     if (onSplitSaved) {
@@ -922,7 +943,7 @@ function AdReviewModal({
   const { requestClose, confirmation } = useDraftClose(dirty, onClose, multiSubmitting);
   const boundaryErrorId = useId();
   const selectionLabelId = useId();
-  useEscape(requestClose, !showSplit && !multiSubmitting, dialogRef);
+  useEscape(requestClose, !showSplit && !multiSubmitting && !spanSaving, dialogRef);
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (showSplit || multiSubmitting || e.defaultPrevented || e.isComposing || e.repeat || e.ctrlKey || e.metaKey || e.altKey) return;
@@ -932,6 +953,7 @@ function AdReviewModal({
       if (e.key === ' ')      { e.preventDefault(); togglePlay(); return; }
       if (e.key === ',')      { e.preventDefault(); panBack(); return; }
       if (e.key === '.')      { e.preventDefault(); panForward(); return; }
+      if (mode === 'span') return;
       if (e.key === 'c' || e.key === 'C') { e.preventDefault(); if (!IS_DEMO && !boundaryError) handleConfirm(); return; }
       if (e.key === 'r' || e.key === 'R') { e.preventDefault(); if (!IS_DEMO) handleReject(); return; }
       if (e.key === 's' || e.key === 'S') { e.preventDefault(); onSkip(); return; }
@@ -965,7 +987,7 @@ function AdReviewModal({
         // backdrop click -- the user is in the middle of data entry and
         // an accidental tap would lose everything.
         if (e.target !== e.currentTarget) return;
-        if (mode === 'create') return;
+        if (mode !== 'review') return;
         requestClose();
       }}
     >
@@ -974,7 +996,7 @@ function AdReviewModal({
         tabIndex={-1}
         role="dialog"
         aria-modal="true"
-        aria-label={mode === 'create' ? 'Add new ad' : 'Review ad'}
+        aria-label={mode === 'create' ? 'Add new ad' : mode === 'span' ? 'Edit edges' : 'Review ad'}
         className="bg-card rounded-lg border border-border w-full max-w-4xl shadow-2xl"
         data-split
         onClick={(e) => e.stopPropagation()}
@@ -985,7 +1007,7 @@ function AdReviewModal({
         <div className="shrink-0 px-4 sm:px-6 py-3 sm:py-4 border-b border-border space-y-2">
           <div className="flex items-center justify-between gap-2">
             <h2 className="hidden sm:block text-lg font-semibold text-foreground truncate min-w-0">
-              {mode === 'create' ? 'Add new ad' : 'Detected ad'}
+              {mode === 'create' ? 'Add new ad' : mode === 'span' ? 'Edit edges' : 'Detected ad'}
             </h2>
             <div className="flex items-center gap-1.5 sm:gap-2 ml-auto">
               {/* Processed / Original toggle. Hidden in create mode (always original). */}
@@ -1035,7 +1057,7 @@ function AdReviewModal({
               )}
               <CloseButton
                 onClick={requestClose}
-                disabled={mode === 'create' && multiSubmitting}
+                disabled={(mode === 'create' && multiSubmitting) || spanSaving}
                 label="Close dialog"
               />
             </div>
@@ -1457,7 +1479,7 @@ function AdReviewModal({
             <span className="text-success font-semibold">Set START</span> /{' '}
             <span className="text-destructive font-semibold">Set END</span> put a boundary at the
             playhead; the pins above the waveform drag to the same place.{' '}
-            <kbd>Space</kbd> play, <kbd>,</kbd>/<kbd>.</kbd> expand window, mouse-wheel to zoom, <kbd>C</kbd> confirm, <kbd>R</kbd> not ad, <kbd>S</kbd> skip
+            <kbd>Space</kbd> play, <kbd>,</kbd>/<kbd>.</kbd> expand window, mouse-wheel to zoom{mode !== 'span' && <>, <kbd>C</kbd> confirm, <kbd>R</kbd> not ad, <kbd>S</kbd> skip</>}
           </div>
         </div>
 
@@ -1559,7 +1581,7 @@ function AdReviewModal({
               </ul>
             )}
           </div>
-        ) : showSponsorPrompt ? (
+        ) : mode === 'span' ? null : showSponsorPrompt ? (
           <div className="px-4 sm:px-6 py-3 sm:py-4 border-t border-border bg-secondary/30">
             <label htmlFor="sponsor" className={labelBase}>
               Sponsor name
@@ -1589,7 +1611,7 @@ function AdReviewModal({
             outro/self-promo reads whose category needs changing. It decides
             which segment action applies, so it is the lever for a span the
             feed is currently keeping. */}
-        {mode !== 'create' && (
+        {mode === 'review' && (
           <div className="px-6 py-2 border-t border-border text-xs text-muted-foreground">
             <label className="flex flex-wrap items-center gap-2">
               Category
@@ -1667,6 +1689,29 @@ function AdReviewModal({
                     }}
                     className={`${btnBase} ${btnPrimary}`}>
                     {isMultiSpan ? `Mark ad (${orderedRuns.length} spans)` : singleRunStatus === 'saved' ? 'Close' : 'Save'}
+                  </button>
+                </DemoDisabled>
+              </div>
+            </>
+          ) : mode === 'span' ? (
+            <>
+              <div className="min-w-0 text-xs text-muted-foreground">
+                {spanError
+                  ? <span role="alert" className="text-destructive">{spanError}</span>
+                  : 'Save audio rebuilds the fingerprint from this span.'}
+              </div>
+              <div className="flex items-center gap-2">
+                <button type="button" onClick={requestClose} disabled={spanSaving}
+                  className={`${btnBase} ${btnOutline}`}>
+                  Cancel
+                </button>
+                <DemoDisabled>
+                  <button
+                    type="button"
+                    disabled={spanSaving || boundaryError !== null || !onSaveSpan}
+                    onClick={saveSpan}
+                    className={`${btnBase} ${btnPrimary}`}>
+                    {spanSaving ? 'Saving audio...' : 'Save audio'}
                   </button>
                 </DemoDisabled>
               </div>

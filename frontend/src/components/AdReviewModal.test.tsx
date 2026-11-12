@@ -543,3 +543,64 @@ describe('AdReviewModal waveform states', () => {
     expect(read()).toEqual(moved);
   });
 });
+
+describe('AdReviewModal single-span mode', () => {
+  const spanItem: AdReviewItem = { ...ITEM, start: 100, end: 160, sponsor: null, reason: null, confidence: null, detectionStage: null };
+
+  function renderSpan(onSaveSpan = vi.fn().mockResolvedValue(undefined)) {
+    const view = renderModal({ item: spanItem, mode: 'span', onSaveSpan });
+    return { onSaveSpan, ...view };
+  }
+
+  it('offers one region, no ad metadata controls and a Save audio action', () => {
+    renderSpan();
+    expect(screen.getByRole('dialog', { name: 'Edit edges' })).toBeDefined();
+    expect(screen.getByRole('heading', { name: 'Edit edges' })).toBeDefined();
+    expect(screen.getByRole('button', { name: 'Save audio' })).toBeDefined();
+    for (const name of [/Split/, /Skip/, /Confirm/, /Not an ad/, /Add new ad/, 'Processed', 'Original']) {
+      expect(screen.queryByRole('button', { name })).toBeNull();
+    }
+    expect(screen.queryByLabelText('Segment category')).toBeNull();
+    expect(screen.queryByText(/Sponsor/)).toBeNull();
+  });
+
+  it('saves the adjusted span and nothing else', async () => {
+    const { onSaveSpan, onSubmit } = renderSpan();
+    const user = userEvent.setup();
+    const start = screen.getByLabelText('Selection start time');
+    await user.clear(start);
+    await user.type(start, '1:45');
+    await user.tab();
+    await user.click(screen.getByRole('button', { name: 'Save audio' }));
+    expect(onSaveSpan).toHaveBeenCalledWith({ start: 105, end: 160 });
+    expect(onSubmit).not.toHaveBeenCalled();
+  });
+
+  it('shows the failure beside the action and stays open', async () => {
+    const { onClose } = renderSpan(vi.fn().mockRejectedValue(new Error('That audio is not distinctive enough to match reliably.')));
+    await userEvent.click(screen.getByRole('button', { name: 'Save audio' }));
+    expect((await screen.findByRole('alert')).textContent).toContain('not distinctive enough');
+    expect(screen.getByRole('button', { name: 'Save audio' })).toBeDefined();
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it('blocks a span over ten minutes', async () => {
+    const { onSaveSpan } = renderSpan();
+    const user = userEvent.setup();
+    const end = screen.getByLabelText('Selection end time');
+    await user.clear(end);
+    await user.type(end, '15:00');
+    await user.tab();
+    expect(screen.getByText('Selection must be at most 600s long')).toBeDefined();
+    expect((screen.getByRole('button', { name: 'Save audio' }) as HTMLButtonElement).disabled).toBe(true);
+    expect(onSaveSpan).not.toHaveBeenCalled();
+  });
+
+  it('ignores the review hotkeys', async () => {
+    const { onSubmit, onSkip } = renderSpan();
+    screen.getByRole('dialog').focus();
+    await userEvent.keyboard('crs');
+    expect(onSubmit).not.toHaveBeenCalled();
+    expect(onSkip).not.toHaveBeenCalled();
+  });
+});

@@ -53,6 +53,15 @@ interface AdEditorProps {
   audioMode?: 'processed' | 'original';
   onAudioModeChange?: (m: 'processed' | 'original') => void;
   hasOriginal?: boolean;
+  // Edits one span of an episode's original audio instead of reviewing
+  // detections; save hands the span to onSave and sends no correction.
+  singleSpan?: {
+    podcastSlug: string;
+    episodeId: string;
+    start: number;
+    end: number;
+    onSave: (span: { start: number; end: number }) => Promise<void>;
+  };
 }
 
 // Re-export for consumers
@@ -71,6 +80,7 @@ function AdEditor({
   audioMode = 'original',
   onAudioModeChange,
   hasOriginal = true,
+  singleSpan,
 }: AdEditorProps) {
   const { slug = '', episodeId = '' } = useParams<{ slug: string; episodeId: string }>();
 
@@ -137,6 +147,32 @@ function AdEditor({
         category: (ad.category ?? null) as AdReviewItem['category'],
         actionApplied: ad.action_applied ?? null,
       };
+
+  if (singleSpan) {
+    return (
+      <AdReviewModal
+        item={{
+          podcastSlug: singleSpan.podcastSlug,
+          episodeId: singleSpan.episodeId,
+          start: singleSpan.start,
+          end: singleSpan.end,
+          sponsor: null,
+          reason: null,
+          confidence: null,
+          detectionStage: null,
+          patternId: null,
+          correctedBounds: null,
+        }}
+        mode="span"
+        onClose={() => onClose?.()}
+        onSubmit={() => {}}
+        onSkip={() => {}}
+        onSaveSpan={singleSpan.onSave}
+        hasOriginal
+        episodeDuration={audioDuration}
+      />
+    );
+  }
 
   if (!internalCreateMode && detectedAds.length === 0) {
     return (

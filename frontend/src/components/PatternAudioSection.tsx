@@ -3,11 +3,14 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   AdPattern, AudioDetail, deletePatternAudio, getPatternAudio, patternAudioKey, setPatternAudioEnabled,
 } from '../api/patterns';
+import { getEpisode } from '../api/feeds';
 import { usePatternAudioPreview } from '../hooks/usePatternAudioPreview';
+import { usePatternAudioRebuild } from '../hooks/usePatternAudioRebuild';
 import { formatDateTime, formatPercent } from '../utils/format';
+import AdEditor from './AdEditor';
 import AudioMatchesList from './AudioMatchesList';
 import { AuditionPlayButton } from './AuditionPlayButton';
-import { btnBase, btnDestructiveOutline } from './buttonStyles';
+import { btnBase, btnDestructiveOutline, btnOutline } from './buttonStyles';
 import { ConfirmModal } from './Modal';
 import { DemoDisabled } from './DemoDisabled';
 import QueryError from './QueryError';
@@ -29,10 +32,24 @@ export default function PatternAudioSection({ pattern }: { pattern: AdPattern })
   const [showDelete, setShowDelete] = useState(false);
   const [notice, setNotice] = useState('');
   const [deleteFailed, setDeleteFailed] = useState(false);
+  const [editingEdges, setEditingEdges] = useState(false);
 
   const { data: detail, isPending, isError, refetch, isFetching } = useQuery({
     queryKey: patternAudioKey(pattern.id),
     queryFn: () => getPatternAudio(pattern.id),
+  });
+
+  const built = detail?.state !== 'none' ? detail?.builtFrom : null;
+  const sourceAvailable = !!built?.available;
+  const episodeQuery = useQuery({
+    queryKey: ['episode', built?.podcastSlug, built?.episodeId],
+    queryFn: () => getEpisode(built!.podcastSlug, built!.episodeId),
+    enabled: sourceAvailable,
+  });
+
+  const rebuild = usePatternAudioRebuild(pattern.id, () => {
+    setEditingEdges(false);
+    setNotice('Audio edges saved.');
   });
 
   const refresh = () => {
@@ -115,7 +132,26 @@ export default function PatternAudioSection({ pattern }: { pattern: AdPattern })
         {detail.counts.outOfScope > 0 && (
           <p className="text-sm text-muted-foreground">{outOfScopeNote(detail.counts.outOfScope)}</p>
         )}
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          {built && (
+            <>
+              <DemoDisabled>
+                <button
+                  type="button"
+                  onClick={() => { rebuild.reset(); setEditingEdges(true); }}
+                  disabled={!sourceAvailable || !episodeQuery.data}
+                  aria-busy={sourceAvailable && episodeQuery.isPending}
+                  className={`${btnBase} ${btnOutline}`}
+                >
+                  Edit edges
+                </button>
+              </DemoDisabled>
+              {!sourceAvailable && <span className="text-sm text-muted-foreground">Source audio expired</span>}
+              {sourceAvailable && episodeQuery.isError && (
+                <span role="alert" className="text-sm text-destructive">Could not load the source episode.</span>
+              )}
+            </>
+          )}
           <DemoDisabled>
             <button type="button" onClick={() => setShowDelete(true)} className={`${btnBase} ${btnDestructiveOutline}`}>
               Delete audio
@@ -134,6 +170,21 @@ export default function PatternAudioSection({ pattern }: { pattern: AdPattern })
       <p role="status" aria-label="Audio change" className="sr-only">{notice}</p>
       {body}
       {preview.audioElement}
+      {editingEdges && built && episodeQuery.data && (
+        <AdEditor
+          detectedAds={[]}
+          audioDuration={episodeQuery.data.originalDuration ?? 0}
+          onCorrection={() => {}}
+          onClose={() => setEditingEdges(false)}
+          singleSpan={{
+            podcastSlug: built.podcastSlug,
+            episodeId: built.episodeId,
+            start: built.start,
+            end: built.end,
+            onSave: async (span) => { await rebuild.mutateAsync({ podcastSlug: built.podcastSlug, episodeId: built.episodeId, ...span }); },
+          }}
+        />
+      )}
       {showDelete && (
         <ConfirmModal
           title="Delete audio?"

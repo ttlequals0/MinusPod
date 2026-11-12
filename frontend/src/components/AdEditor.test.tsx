@@ -9,12 +9,18 @@ import type { AdCreateSubmit } from './AdReviewModal';
 // this double just exercises AdEditor's create-submit routing, same
 // boundary AdReviewModal.test.tsx draws around its own children.
 vi.mock('./AdReviewModal', () => ({
-  default: ({ item, onCreate, onCreateDone }: {
-    item: { category?: string | null; actionApplied?: string | null };
+  default: ({ item, mode, onCreate, onCreateDone, onSaveSpan, hasOriginal }: {
+    item: { category?: string | null; actionApplied?: string | null; podcastSlug: string; episodeId: string; start: number; end: number };
+    mode?: string;
     onCreate: (s: AdCreateSubmit, meta?: { silent?: boolean }) => Promise<void> | void;
     onCreateDone?: () => void;
+    onSaveSpan?: (s: { start: number; end: number }) => Promise<void>;
+    hasOriginal?: boolean;
   }) => (
-    <div data-testid="review-item" data-category={item.category ?? ''} data-action-applied={item.actionApplied ?? ''}>
+    <div data-testid="review-item" data-mode={mode ?? ''} data-slug={item.podcastSlug} data-episode={item.episodeId}
+      data-span={`${item.start}-${item.end}`} data-has-original={String(hasOriginal)}
+      data-category={item.category ?? ''} data-action-applied={item.actionApplied ?? ''}>
+      <button type="button" onClick={() => { void onSaveSpan?.({ start: 12, end: 41 }); }}>save span</button>
       <button
         type="button"
         onClick={() => {
@@ -109,6 +115,41 @@ describe('AdEditor create submit path', () => {
     expect(onCorrectionAsync.mock.calls[1][0]).toEqual(
       expect.objectContaining({ start: 30, end: 40 }),
     );
+    expect(onCorrection).not.toHaveBeenCalled();
+  });
+});
+
+describe('AdEditor single-span mode', () => {
+  function renderSpan() {
+    const onCorrection = vi.fn();
+    const onSave = vi.fn().mockResolvedValue(undefined);
+    render(
+      <MemoryRouter>
+        <AdEditor
+          detectedAds={[]}
+          audioDuration={3600}
+          onCorrection={onCorrection}
+          singleSpan={{ podcastSlug: 'example-podcast', episodeId: 'a1b2c3d4e5f6', start: 10, end: 40, onSave }}
+        />
+      </MemoryRouter>,
+    );
+    return { onCorrection, onSave };
+  }
+
+  it('opens one region on the named episode in span mode', () => {
+    renderSpan();
+    const modal = screen.getByTestId('review-item');
+    expect(modal.dataset.mode).toBe('span');
+    expect(modal.dataset.slug).toBe('example-podcast');
+    expect(modal.dataset.episode).toBe('a1b2c3d4e5f6');
+    expect(modal.dataset.span).toBe('10-40');
+    expect(modal.dataset.hasOriginal).toBe('true');
+  });
+
+  it('hands the adjusted span to the save handler and emits no correction', async () => {
+    const { onCorrection, onSave } = renderSpan();
+    await userEvent.click(screen.getByRole('button', { name: 'save span' }));
+    expect(onSave).toHaveBeenCalledWith({ start: 12, end: 41 });
     expect(onCorrection).not.toHaveBeenCalled();
   });
 });

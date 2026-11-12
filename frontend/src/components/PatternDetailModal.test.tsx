@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -12,6 +13,8 @@ const mockDeletePattern = vi.fn();
 const mockGetPatternAudio = vi.fn();
 const mockSetPatternAudioEnabled = vi.fn();
 const mockDeletePatternAudio = vi.fn();
+const mockRebuildPatternAudio = vi.fn();
+const mockGetEpisode = vi.fn();
 
 vi.mock('../api/patterns', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../api/patterns')>()),
@@ -21,7 +24,34 @@ vi.mock('../api/patterns', async (importOriginal) => ({
   getPatternAudio: (...a: unknown[]) => mockGetPatternAudio(...a),
   setPatternAudioEnabled: (...a: unknown[]) => mockSetPatternAudioEnabled(...a),
   deletePatternAudio: (...a: unknown[]) => mockDeletePatternAudio(...a),
+  rebuildPatternAudio: (...a: unknown[]) => mockRebuildPatternAudio(...a),
   getPatternAudioMatches: vi.fn().mockResolvedValue({ matches: [], page: 1, perPage: 10, total: 0 }),
+}));
+
+vi.mock('../api/feeds', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../api/feeds')>()),
+  getEpisode: (...a: unknown[]) => mockGetEpisode(...a),
+}));
+
+// The editor itself is covered by AdReviewModal.test.tsx; this double only drives the save path.
+vi.mock('./AdReviewModal', () => ({
+  default: function AdReviewModalDouble({ item, mode, episodeDuration, onSaveSpan, onClose }: {
+    item: { podcastSlug: string; episodeId: string; start: number; end: number };
+    mode: string;
+    episodeDuration: number;
+    onSaveSpan: (s: { start: number; end: number }) => Promise<void>;
+    onClose: () => void;
+  }) {
+    const [error, setError] = useState('');
+    return (
+      <div role="dialog" aria-label="Edit edges" data-mode={mode} data-duration={episodeDuration}
+        data-span={`${item.podcastSlug}/${item.episodeId}/${item.start}-${item.end}`}>
+        <button type="button" onClick={() => { onSaveSpan({ start: 12, end: 48 }).catch((e: Error) => setError(e.message)); }}>Save audio</button>
+        <button type="button" onClick={onClose}>Cancel</button>
+        {error && <p role="alert">{error}</p>}
+      </div>
+    );
+  },
 }));
 
 vi.mock('../api/sponsors', () => ({
@@ -71,6 +101,7 @@ const NO_AUDIO = { state: 'none', available: false, counts: { matches: 0, reject
 beforeEach(() => {
   vi.clearAllMocks();
   mockGetPatternAudio.mockResolvedValue(NO_AUDIO);
+  mockGetEpisode.mockResolvedValue({ id: 'a1b2c3d4e5f6', originalDuration: 1800, hasOriginalAudio: true, adMarkers: [] });
 });
 
 describe('Split button', () => {
@@ -330,5 +361,73 @@ describe('Audio section', () => {
     expect((await screen.findByRole('alert')).textContent).toBe('Audio is being prepared. Try again.');
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
+  });
+});
+
+describe('Edit edges', () => {
+  const EXPIRED = { ...ACTIVE_AUDIO, available: false, source: null, builtFrom: { ...ACTIVE_AUDIO.builtFrom, available: false } };
+
+  it('opens the editor on the source episode with the built span and saves through the rebuild route', async () => {
+    mockGetPatternAudio.mockResolvedValue(ACTIVE_AUDIO);
+    mockRebuildPatternAudio.mockResolvedValue({ ...ACTIVE_AUDIO, fingerprintStored: true });
+    const { invalidateSpy } = renderModal(makePattern());
+    const opener = await screen.findByRole('button', { name: 'Edit edges' });
+    await waitFor(() => expect((opener as HTMLButtonElement).disabled).toBe(false));
+    await userEvent.click(opener);
+    const editor = screen.getByRole('dialog', { name: 'Edit edges' });
+    expect(editor.dataset.mode).toBe('span');
+    expect(editor.dataset.span).toBe('example-podcast/a1b2c3d4e5f6/10-55');
+    expect(editor.dataset.duration).toBe('1800');
+    expect(mockGetEpisode).toHaveBeenCalledWith('example-podcast', 'a1b2c3d4e5f6');
+    mockGetPatternAudio.mockClear();
+    await userEvent.click(within(editor).getByRole('button', { name: 'Save audio' }));
+    await waitFor(() => expect(mockRebuildPatternAudio).toHaveBeenCalledWith(
+      42, { podcastSlug: 'example-podcast', episodeId: 'a1b2c3d4e5f6', start: 12, end: 48 },
+    ));
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Edit edges' })).toBeNull());
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['patterns'] });
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['pattern-audio', 42] });
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['pattern-audio-matches', 42] });
+    await waitFor(() => expect(mockGetPatternAudio).toHaveBeenCalled());
+  });
+
+  it('shows the reason and keeps the editor open when no fingerprint was stored', async () => {
+    mockGetPatternAudio.mockResolvedValue(ACTIVE_AUDIO);
+    mockRebuildPatternAudio.mockResolvedValue({ ...ACTIVE_AUDIO, fingerprintStored: false, fingerprintSkippedReason: 'not_distinctive' });
+    const { invalidateSpy } = renderModal(makePattern());
+    const opener = await screen.findByRole('button', { name: 'Edit edges' });
+    await waitFor(() => expect((opener as HTMLButtonElement).disabled).toBe(false));
+    await userEvent.click(opener);
+    invalidateSpy.mockClear();
+    await userEvent.click(within(screen.getByRole('dialog', { name: 'Edit edges' })).getByRole('button', { name: 'Save audio' }));
+    expect((await screen.findByRole('alert')).textContent).toBe('That audio is not distinctive enough to match reliably.');
+    expect(screen.getByRole('dialog', { name: 'Edit edges' })).toBeDefined();
+    expect(invalidateSpy).not.toHaveBeenCalled();
+  });
+
+  it('shows the server message for a span it refuses', async () => {
+    mockGetPatternAudio.mockResolvedValue(ACTIVE_AUDIO);
+    mockRebuildPatternAudio.mockRejectedValue(new Error('span must be at most 600 seconds'));
+    renderModal(makePattern());
+    const opener = await screen.findByRole('button', { name: 'Edit edges' });
+    await waitFor(() => expect((opener as HTMLButtonElement).disabled).toBe(false));
+    await userEvent.click(opener);
+    await userEvent.click(within(screen.getByRole('dialog', { name: 'Edit edges' })).getByRole('button', { name: 'Save audio' }));
+    expect((await screen.findByRole('alert')).textContent).toBe('span must be at most 600 seconds');
+  });
+
+  it('disables the action and says the source audio expired', async () => {
+    mockGetPatternAudio.mockResolvedValue(EXPIRED);
+    renderModal(makePattern());
+    const opener = await screen.findByRole('button', { name: 'Edit edges' });
+    expect((opener as HTMLButtonElement).disabled).toBe(true);
+    expect(screen.getByText('Source audio expired')).toBeDefined();
+    expect(mockGetEpisode).not.toHaveBeenCalled();
+  });
+
+  it('is not offered without an audio fingerprint', async () => {
+    renderModal(makePattern());
+    await screen.findByText('No audio fingerprint.');
+    expect(screen.queryByRole('button', { name: 'Edit edges' })).toBeNull();
   });
 });
