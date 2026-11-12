@@ -1006,7 +1006,7 @@ function AdReviewModal({
             the detection metadata wraps onto its own line below. */}
         <div className="shrink-0 px-4 sm:px-6 py-3 sm:py-4 border-b border-border space-y-2">
           <div className="flex items-center justify-between gap-2">
-            <h2 className="hidden sm:block text-lg font-semibold text-foreground truncate min-w-0">
+            <h2 className={`${mode === 'span' ? '' : 'hidden sm:block '}text-lg font-semibold text-foreground truncate min-w-0`}>
               {mode === 'create' ? 'Add new ad' : mode === 'span' ? 'Edit edges' : 'Detected ad'}
             </h2>
             <div className="flex items-center gap-1.5 sm:gap-2 ml-auto">

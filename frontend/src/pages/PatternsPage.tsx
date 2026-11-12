@@ -485,19 +485,19 @@ function PatternsPage() {
       {/* Desktop Table Layout */}
       <div className={`hidden sm:block ${tableCard}`}>
         <div className="overflow-x-auto" role="region" aria-label="Patterns table" tabIndex={0}>
-          <table className="w-full min-w-[1100px] table-fixed">
+          <table className="w-full min-w-[1140px] table-fixed">
             <colgroup>
               <col className="w-[52px]" />
               <col className="w-[148px]" />
               <col />
               <col className="w-[128px]" />
               <col className="w-[124px]" />
+              <col className="w-[96px]" />
               <col className="w-[84px]" />
-              <col className="w-[76px]" />
+              <col className="w-[96px]" />
+              <col className="w-[96px]" />
+              <col className="w-[72px]" />
               <col className="w-[84px]" />
-              <col className="w-[88px]" />
-              <col className="w-[68px]" />
-              <col className="w-[80px]" />
             </colgroup>
             <thead className={tableHead}>
               <tr>

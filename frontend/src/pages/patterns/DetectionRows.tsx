@@ -254,8 +254,8 @@ function DetectionActions({ d, variant, playing, onTogglePlay, actions, showAddA
       patternId={d.patternId}
       hasOriginal={d.hasOriginalAudio}
       span={{ podcastSlug: d.feedSlug, episodeId: d.episodeId, start: d.start, end: d.end }}
-      buttonClassName={`${btn} ${btnOutline} disabled:opacity-50 ${focusRing}`}
-      className={isCard ? 'grow' : ''}
+      buttonClassName={`${btn} ${btnOutline} disabled:opacity-50 ${focusRing}${isCard ? ' w-full' : ''}`}
+      className={isCard ? 'basis-full' : ''}
     />
   );
   const split = actions.onSplit && (
