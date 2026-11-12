@@ -112,7 +112,7 @@ text line mislabels any line that contains "error".
 | "Suppressed N upstream item(s)" | WARNING on every feed rebuild | INFO, and only when the count for that feed changes |
 | "Skipping artwork retry" | DEBUG on every refresh during a 24 hour backoff | Once per backoff window per URL |
 | `filelock` | About 20 DEBUG lines per model load | Logger set to WARNING |
-| onnxruntime device discovery and Memcpy warnings | On every model load, from the native logger | Default logger severity set before the session is created |
+| onnxruntime session-creation warnings (Memcpy and similar) | On every model load, from the native logger | Default logger severity set before the session is created. The device discovery warning printed when onnxruntime is first imported cannot be silenced and stays |
 
 ## Decision: rate limits
 
@@ -124,11 +124,20 @@ and is exact across workers. The startup line stays, at INFO, and still names
 
 ## Decision: model load
 
-Each Parakeet load checks the model files over the network before loading,
-which adds a lock round trip and holds the load lock longer. The check is
-skipped when the files are already present. One load stalled other threads
-for 5.4 s while the session was created. That time is inside onnxruntime, so
-skipping the check shortens the stall and does not remove it.
+Each Parakeet load used to check the model files over the network before
+loading, which added a lock round trip and held the load lock longer. Once the
+files are present, a load now reads the local copy and makes no network call.
+
+At most once every 7 days a load starts a background check for a newer model
+revision. The job that started it never waits for it, and a failed lookup does
+not fail the job. A changed revision downloads into a staging directory and
+replaces the local copy only when every file is present, so a failed or partial
+download leaves the local copy untouched. The new revision is used from the
+next load. `docs/transcription.md` describes the cases where updates are off.
+
+One load stalled other threads for 5.4 s while the session was created. That
+time is inside onnxruntime, so skipping the network check shortens the stall
+and does not remove it.
 
 ## Tests
 

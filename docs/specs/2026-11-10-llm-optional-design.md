@@ -112,7 +112,12 @@ The provider selector in Settings gains "None". While it is selected:
 
 - Sections that only configure the model stay visible and disabled, each with
   one line saying the LLM provider is set to None. This covers models, failover,
-  stage tunables, the reviewer, prompts, pattern cleanup and "Generate chapters".
+  stage tunables, the reviewer, prompts and pattern cleanup.
+- Chapters: the "Generate chapters" toggle stays enabled, because publisher and
+  ad chapters still work. Only "Always generate" and chapter density are
+  disabled, with a note that Always generate behaves like Auto.
+- The YouTube feed selects stay enabled, with a note on the panel that
+  detection then uses text patterns, audio fingerprints and audio cues.
 - The "Regenerate chapters" action on an episode is disabled with the same
   reason.
 - The Stats LLM tab keeps showing history.
@@ -130,9 +135,13 @@ start and end. This applies with any provider.
 Storing is best effort. The pattern is saved either way, and the response gains:
 
 - `fingerprintStored`: boolean
-- `fingerprintSkippedReason`: `original_not_retained`, `segment_too_short`
-  (under 5.0 s, `MIN_SEGMENT_DURATION`) or `fingerprint_failed`, present only
-  when `fingerprintStored` is false
+- `fingerprintSkippedReason`: the reason in the audio fingerprint spec's
+  creation section (`audio_removed`, `fingerprint_exists`,
+  `span_covers_multiple_patterns`, `original_not_retained`, `segment_too_short`,
+  `not_distinctive` or `fingerprint_failed`), present only when
+  `fingerprintStored` is false. `segment_too_short` follows the minimum ad
+  length setting (5 s by default). Each pattern of a split read is fingerprinted
+  over its own span only
 
 The marked times are in original-audio time, the same timeline the fingerprint
 match scans.
