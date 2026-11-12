@@ -6,6 +6,8 @@ from dataclasses import dataclass, field
 from typing import Any
 from enum import Enum
 
+import numpy as np
+
 
 class SignalType(Enum):
     """Types of audio signals that can be detected."""
@@ -103,6 +105,8 @@ class AudioAnalysisResult:
     # Splice-evidence payload (spec 2.1): {'version', 'events', 'calibration'}.
     # None when the detector did not run. Evidence only -- never cuts alone.
     splice_evidence: dict[str, Any] | None = None
+    # 10 ms abs-max (uint16) from the splice decode; in memory only, never serialized.
+    peaks_10ms: np.ndarray | None = None
 
     def get_signals_by_type(self, signal_type: str) -> list[AudioSegmentSignal]:
         """Get all signals of a specific type."""

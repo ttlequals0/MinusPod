@@ -357,6 +357,7 @@ class AudioAnalyzer:
         cue_scan_complete = False
         silence_spans: list[dict[str, Any]] = []
         splice_evidence = None
+        splice_peaks = None
 
         pool = ThreadPoolExecutor(max_workers=n_components)
         try:
@@ -407,7 +408,7 @@ class AudioAnalyzer:
             splice_future = None
             if splice_enabled:
                 splice_future = pool.submit(
-                    run_in_worker_thread(self.splice_detector.detect),
+                    run_in_worker_thread(self.splice_detector.detect_with_peaks),
                     audio_path, duration, frames)
 
             # Transition detection (runs on volume frames, no extra I/O)
@@ -464,7 +465,7 @@ class AudioAnalyzer:
                 if splice_error:
                     errors.append(splice_error)
                 else:
-                    splice_evidence = splice_result
+                    splice_evidence, splice_peaks = splice_result
         finally:
             # wait=False: a hung decode must not block the return of the
             # already-degraded result; the worker ends when the component's
@@ -481,6 +482,7 @@ class AudioAnalyzer:
         # for snap_ad_boundaries_to_silence without a second DB read.
         result.silence_tunables = getattr(self, '_silence_tunables', None)
         result.splice_evidence = splice_evidence
+        result.peaks_10ms = splice_peaks
         result.errors = errors
         result.loudness_baseline = baseline
         result.loudness_frames = frames

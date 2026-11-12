@@ -124,7 +124,8 @@ def test_analyze_force_with_unusable_matcher_surfaces_error_on_result(temp_db):
     with patch('os.path.exists', return_value=True), \
          patch('audio_analysis.audio_analyzer.get_audio_duration', return_value=600.0), \
          patch.object(analyzer.volume_analyzer, 'analyze', return_value=([], None, [])), \
-         patch.object(analyzer.splice_detector, 'detect', return_value=None), \
+         patch.object(analyzer.splice_detector, 'detect_with_peaks',
+                      return_value=(None, None)), \
          patch.object(AudioCueTemplateMatcher, 'is_usable',
                       new_callable=PropertyMock, return_value=False):
         result = analyzer.analyze('/fake/ep.mp3', feed_id=pid, force_cue_detection=True)

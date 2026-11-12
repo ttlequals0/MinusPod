@@ -80,6 +80,27 @@ class SpliceDetector:
             return _empty_payload()
 
         pcm = self._decode_8k_mono(audio_path, duration or 0.0)
+        return self._events_from_pcm(pcm, loudness_frames, audio_path)
+
+    def detect_with_peaks(self, audio_path: str, duration: float | None,
+                          loudness_frames) -> tuple[dict, np.ndarray | None]:
+        """Return (splice payload, 10 ms abs-max uint16) from one decode."""
+        if not os.path.exists(audio_path):
+            logger.warning('Splice detector: file not found: %s', audio_path)
+            return _empty_payload(), None
+
+        pcm = self._decode_8k_mono(audio_path, duration or 0.0)
+        peaks = None
+        if pcm is not None:
+            n = len(pcm) // RMS_FRAME_SAMPLES
+            # widen before abs: abs(-32768) wraps negative in int16
+            frames = pcm[:n * RMS_FRAME_SAMPLES].reshape(n, RMS_FRAME_SAMPLES)
+            peaks = np.maximum(frames.max(axis=1).astype(np.int32),
+                               -frames.min(axis=1).astype(np.int32)).astype('<u2')
+        return self._events_from_pcm(pcm, loudness_frames, audio_path), peaks
+
+    def _events_from_pcm(self, pcm: np.ndarray | None, loudness_frames,
+                         audio_path: str) -> dict:
         if pcm is None or len(pcm) < SPECTRAL_FRAME_SAMPLES:
             return _empty_payload()
 
