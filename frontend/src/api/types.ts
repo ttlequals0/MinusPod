@@ -109,6 +109,8 @@ export interface Feed {
   // Per-feed auto-process queue priority (#625). Server always resolves to
   // one of the three values; null/absent reads as 'normal'.
   queuePriority?: 'high' | 'normal' | 'low' | null;
+  // Per-feed processing order; null follows the global setting.
+  queueOrder?: QueueOrder | null;
   lowAdYieldAction?: LowAdYieldAction | null;
   episodeLogs?: EpisodeLogsOverride | null;
   cueTemplateScoreOverride?: number | null;
@@ -731,6 +733,8 @@ export interface AdSegment {
   actionApplied?: SegmentAction | null;
 }
 
+export type QueueOrder = 'queued' | 'oldest_first' | 'newest_first';
+
 export interface SettingValue {
   value: string;
   isDefault: boolean;
@@ -937,6 +941,7 @@ export interface Settings {
   queueManualBoost: SettingValueNumber;
   queueFreshBoost: SettingValueNumber;
   queueBulkBoost: SettingValueNumber;
+  queueOrder?: { value: QueueOrder; isDefault: boolean };
   segmentCategoryActions: { value: Record<SegmentCategory, SegmentAction>; isDefault: boolean };
   onlyExposeProcessedDefault: SettingValueBoolean;
   feedItunesBlock: SettingValueBoolean;
@@ -1294,6 +1299,7 @@ export interface UpdateSettingsPayload {
   queueManualBoost?: number;
   queueFreshBoost?: number;
   queueBulkBoost?: number;
+  queueOrder?: QueueOrder;
   // Partial map: only the categories being changed need to be present. The
   // backend merges this over the stored global map (unlike the per-feed
   // PATCH, which replaces the stored map outright).

@@ -324,6 +324,44 @@ describe('FeedSettingsPanel queue priority control (#625)', () => {
   });
 });
 
+describe('FeedSettingsPanel processing order control (#997)', () => {
+  const NAME = 'Processing order';
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockGetSettings.mockResolvedValue({});
+    mockUpdateFeed.mockResolvedValue(makeFeed());
+  });
+
+  it('shows Use default for a null or absent override', () => {
+    renderPanel(makeFeed({ queueOrder: null }));
+    const select = screen.getByRole('combobox', { name: NAME }) as HTMLSelectElement;
+    expect(select.value).toBe('');
+    expect(select.selectedOptions[0].textContent).toBe('Use default');
+    expect(select.getAttribute('aria-describedby')).toBe('feed-queue-order-help');
+  });
+
+  it('names the global order in the Use default option once settings load', async () => {
+    mockGetSettings.mockResolvedValue({ queueOrder: { value: 'oldest_first', isDefault: false } });
+    renderPanel(makeFeed());
+    expect(await screen.findByRole('option', { name: 'Use default (Oldest first)' })).toBeDefined();
+  });
+
+  it('shows the stored override', () => {
+    renderPanel(makeFeed({ queueOrder: 'oldest_first' }));
+    expect((screen.getByRole('combobox', { name: NAME }) as HTMLSelectElement).value).toBe('oldest_first');
+  });
+
+  it('sends the chosen order and null for Use default', async () => {
+    renderPanel(makeFeed({ queueOrder: 'oldest_first' }));
+    const select = screen.getByRole('combobox', { name: NAME });
+    await userEvent.selectOptions(select, 'newest_first');
+    expect(mockUpdateFeed).toHaveBeenCalledWith('test-feed', { queueOrder: 'newest_first' });
+    await userEvent.selectOptions(select, '');
+    expect(mockUpdateFeed).toHaveBeenCalledWith('test-feed', { queueOrder: null });
+  });
+});
+
 describe('FeedSettingsPanel auto-process window override', () => {
   beforeEach(() => {
     vi.clearAllMocks();

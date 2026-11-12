@@ -1,5 +1,5 @@
 import { apiFileRequest, apiRequest, buildQueryString } from './client';
-import { Feed, Episode, EpisodeDetail, BulkActionResult, AdDistribution, JobState, LowAdYieldAction, EpisodeLogsOverride, RunLogResponse, SbCandidatesResponse, SbSubmission, EpisodeRating, ProcessingMode } from './types';
+import { Feed, Episode, EpisodeDetail, BulkActionResult, AdDistribution, JobState, LowAdYieldAction, EpisodeLogsOverride, RunLogResponse, SbCandidatesResponse, SbSubmission, EpisodeRating, ProcessingMode, QueueOrder } from './types';
 import type { SegmentCategory, SegmentAction } from '../utils/segmentCategory';
 import { apiUrl } from '../urlPrefix';
 import { mediaUrl } from '../utils/mediaUrl';
@@ -497,6 +497,7 @@ export interface UpdateFeedPayload {
   chaptersInNotes?: 'on' | 'off' | null;
   reviewLinksInNotes?: 'on' | 'off' | null;
   queuePriority?: 'high' | 'normal' | 'low' | null;
+  queueOrder?: QueueOrder | null;
   lowAdYieldAction?: LowAdYieldAction | null;
   episodeLogs?: EpisodeLogsOverride | null;
   cueTemplateScoreOverride?: number | null;

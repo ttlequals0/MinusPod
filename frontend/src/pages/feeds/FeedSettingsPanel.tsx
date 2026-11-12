@@ -4,7 +4,8 @@ import { getNetworks, updateFeed, UpdateFeedPayload, CUE_SCORE_MIN, CUE_SCORE_MA
 import { listCueTemplates } from '../../api/cueTemplates';
 import { getSettings, getAudioSettings } from '../../api/settings';
 import { getErrorMessage } from '../../api/client';
-import type { Feed, LowAdYieldAction, EpisodeLogsOverride } from '../../api/types';
+import { QUEUE_ORDER_OPTIONS, queueOrderLabel } from '../../utils/queueOrder';
+import type { Feed, LowAdYieldAction, EpisodeLogsOverride, QueueOrder } from '../../api/types';
 import { AUTO_PROCESS_WINDOW } from '../../api/types';
 import CollapsibleSection, { useCollapsibleOpen } from '../../components/CollapsibleSection';
 import CopyButton from '../../components/CopyButton';
@@ -919,6 +920,33 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                   <p className="text-xs text-muted-foreground">
                     High processes before other queued episodes. Low runs only when nothing else is waiting.
                     New episodes and manual reprocesses get an automatic boost.
+                  </p>
+                </div>
+              </div>
+
+              {/* Per-feed processing order override (#997); null follows the global setting */}
+              <div className="flex flex-col sm:flex-row sm:items-start gap-2 sm:gap-3 text-sm">
+                <span className={rowLabelTop}>Processing order</span>
+                <div className="flex flex-col gap-1 flex-1 min-w-0">
+                  <select
+                    value={feed.queueOrder ?? ''}
+                    onChange={(e) => updateMutation.mutate({
+                      queueOrder: e.target.value === '' ? null : (e.target.value as QueueOrder),
+                    })}
+                    disabled={updateMutation.isPending}
+                    className={`self-start min-w-0 max-w-full disabled:opacity-50 ${selectBase}`}
+                    aria-label="Processing order"
+                    aria-describedby="feed-queue-order-help"
+                  >
+                    <option value="">
+                      {settings?.queueOrder
+                        ? `Use default (${queueOrderLabel(settings.queueOrder.value)})`
+                        : 'Use default'}
+                    </option>
+                    {QUEUE_ORDER_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+                  </select>
+                  <p id="feed-queue-order-help" className="text-xs text-muted-foreground">
+                    Order for this feed's queued episodes. Priorities still come first.
                   </p>
                 </div>
               </div>

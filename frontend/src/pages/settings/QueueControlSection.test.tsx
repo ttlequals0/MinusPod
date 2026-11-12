@@ -46,6 +46,8 @@ function renderSection(
     onQueueFreshBoostChange: vi.fn(),
     queueBulkBoost: 0,
     onQueueBulkBoostChange: vi.fn(),
+    queueOrder: 'queued' as const,
+    onQueueOrderChange: vi.fn(),
     ...overrides,
   };
   const utils = render(

@@ -28,6 +28,8 @@ import { getErrorMessage } from '../../api/client';
 import { btnBase, btnLg, btnPrimary, btnSecondary } from '../../components/buttonStyles';
 import { inputBase, selectBase, labelBase } from '../../components/fieldStyles';
 import { subHeading } from '../../components/pageStyles';
+import type { QueueOrder } from '../../api/types';
+import { QUEUE_ORDER_OPTIONS } from '../../utils/queueOrder';
 import { DemoDisabled } from '../../components/DemoDisabled';
 
 const STORAGE_KEY = 'settings-section-queue-control';
@@ -42,6 +44,8 @@ interface QueueControlSectionProps {
   onQueueFreshBoostChange: (value: number) => void;
   queueBulkBoost: number;
   onQueueBulkBoostChange: (value: number) => void;
+  queueOrder: QueueOrder;
+  onQueueOrderChange: (value: QueueOrder) => void;
 }
 
 function ProviderAdmissionForm({ value }: { value: ProviderBudget }) {
@@ -430,6 +434,8 @@ function QueueControlSection({
   onQueueFreshBoostChange,
   queueBulkBoost,
   onQueueBulkBoostChange,
+  queueOrder,
+  onQueueOrderChange,
 }: QueueControlSectionProps) {
   // Both hold blocks read their own endpoint, each of which counts deferred
   // episodes; skip that until the section is on screen.
@@ -532,6 +538,25 @@ function QueueControlSection({
               </p>
             </div>
           </div>
+        </div>
+
+        {/* Processing order: within-feed order for equal-priority episodes, saves immediately */}
+        <div className="pt-4 border-t border-border">
+          <label htmlFor="queueOrder" className={labelBase}>Processing order</label>
+          <DemoDisabled>
+            <select
+              id="queueOrder"
+              value={queueOrder}
+              onChange={(e) => onQueueOrderChange(e.target.value as QueueOrder)}
+              className={`${selectBase} w-full sm:w-auto`}
+              aria-describedby="queueOrder-help"
+            >
+              {QUEUE_ORDER_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+            </select>
+          </DemoDisabled>
+          <p id="queueOrder-help" className="mt-2 text-sm text-muted-foreground">
+            Applies within each feed. Priorities still come first.
+          </p>
         </div>
 
         <div className="pt-4 border-t border-border">
