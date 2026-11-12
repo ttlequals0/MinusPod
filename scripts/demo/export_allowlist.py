@@ -47,6 +47,9 @@ _DROP = {
     'llm_call_usage': ('rate_snapshot',),
     'systemone_call_diagnostics': ('diagnostics_json',),
     'pattern_cleanup_runs': ('error',),
+    'audio_fingerprints': (
+        'source_podcast_slug', 'source_episode_id', 'source_start', 'source_end',
+    ),
 }
 
 # Kept columns for tables that keep only a subset.
@@ -153,7 +156,6 @@ EPISODE_REF: dict[str, tuple[str, str, str]] = {
     'llm_call_usage': ('podcast_id', 'episode_id', 'id'),
     'systemone_call_diagnostics': ('podcast_id', 'episode_id', 'id'),
     'addressing_log': ('podcast_slug', 'episode_id', 'slug'),
-    'audio_fingerprint_matches': ('podcast_slug', 'episode_id', 'slug'),
 }
 
 # -- Settings classification: manual pass over SETTINGS_REGISTRY, grouped by

@@ -37,6 +37,9 @@ COLUMN_DROPS = {
     'llm_call_usage': {'rate_snapshot'},
     'systemone_call_diagnostics': {'diagnostics_json'},
     'pattern_cleanup_runs': {'error'},
+    'audio_fingerprints': {
+        'source_podcast_slug', 'source_episode_id', 'source_start', 'source_end',
+    },
 }
 
 PROMPT_OVERRIDES = {
