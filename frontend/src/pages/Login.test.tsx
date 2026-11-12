@@ -77,7 +77,7 @@ describe('Login guard: isLoading', () => {
 describe('Login handleSubmit: cookie rejected', () => {
   it('shows cookie-rejected error and does not navigate when refreshStatus returns authenticated:false', async () => {
     const user = userEvent.setup();
-    mockLogin.mockResolvedValue(true);
+    mockLogin.mockResolvedValue({ ok: true });
     mockRefreshStatus.mockResolvedValue({ authenticated: false, passwordSet: true });
 
     render(<Login />);
@@ -97,7 +97,7 @@ describe('Login handleSubmit: success with redirect', () => {
     const user = userEvent.setup();
     // Seed redirect destination; takeLoginRedirect() will return '/feeds'.
     sessionStorage.setItem('loginRedirect', '/feeds');
-    mockLogin.mockResolvedValue(true);
+    mockLogin.mockResolvedValue({ ok: true });
     mockRefreshStatus.mockResolvedValue({ authenticated: true, passwordSet: true });
 
     render(<Login />);
@@ -116,7 +116,7 @@ describe('Login handleSubmit: success with redirect', () => {
 describe('Login handleSubmit: wrong password', () => {
   it('shows "Invalid password" and does not navigate on login failure', async () => {
     const user = userEvent.setup();
-    mockLogin.mockResolvedValue(false);
+    mockLogin.mockResolvedValue({ ok: false, kind: 'invalid' });
 
     render(<Login />);
 
@@ -138,7 +138,7 @@ describe('Login handleSubmit: deep-link guard suppression', () => {
     // cannot render <Navigate> and cannot call takeLoginRedirect() again.
     const user = userEvent.setup();
     sessionStorage.setItem('loginRedirect', '/settings');
-    mockLogin.mockResolvedValue(true);
+    mockLogin.mockResolvedValue({ ok: true });
     mockRefreshStatus.mockResolvedValue({ authenticated: true, passwordSet: true });
 
     render(<Login />);
