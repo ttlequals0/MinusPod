@@ -98,7 +98,7 @@ def audio(feeds, monkeypatch):
     fp.db = feeds
     fp._fpcalc_path = '/usr/bin/fpcalc'
     monkeypatch.setattr(fp, 'is_available', lambda: True)
-    monkeypatch.setattr(fp, '_generate_full_fingerprint', lambda path, timeout=0: (ep, EP_SECONDS))
+    monkeypatch.setattr(fp, '_generate_full_fingerprint', lambda path, timeout=0, quiet=False: (ep, EP_SECONDS))
     monkeypatch.setattr(fp, '_get_audio_duration', lambda p: EP_SECONDS)
     detector = AdDetector(api_key='test-key')
     detector.db = feeds
