@@ -33,7 +33,7 @@ def get_audio_codec(audio_path: str) -> str | None:
     ]
     try:
         result = subprocess_registry.tracked_run(cmd, capture_output=True, text=True,
-                             timeout=FFPROBE_TIMEOUT)
+                                                 timeout=FFPROBE_TIMEOUT)
         if result.returncode == 0 and result.stdout.strip():
             return result.stdout.strip().lower()
         logger.warning(f"ffprobe codec query failed for {audio_path}: "
@@ -173,7 +173,7 @@ def mean_volume_db(audio_path: str, start: float | None = None,
     ]
     try:
         result = subprocess_registry.tracked_run(cmd, capture_output=True, text=True,
-                             timeout=FFMPEG_SHORT_TIMEOUT)
+                                                 timeout=FFMPEG_SHORT_TIMEOUT)
     except Exception as e:
         logger.warning(f"Volume probe failed for {audio_path}: {e}")
         return None
