@@ -44,6 +44,9 @@ export async function getEpisodeRunLog(
   );
 }
 
+// How long the editor waits for a waveform that is still being prepared.
+const PEAKS_BUSY_BUDGET_MS = 10 * 60 * 1000;
+
 export interface PeaksResponse {
   episodeId: string;
   start: number;
@@ -61,10 +64,9 @@ export async function getEpisodePeaks(
   signal?: AbortSignal,
 ): Promise<PeaksResponse> {
   const qs = buildQueryString({ start, end, resolution_ms: resolutionMs });
-  // surfaceBusy: usePeaks waits out the being-prepared 503 itself
   return apiRequest<PeaksResponse>(
     `/feeds/${slug}/episodes/${episodeId}/peaks${qs}`,
-    { surfaceBusy: true, signal },
+    { busyBudgetMs: PEAKS_BUSY_BUDGET_MS, signal },
   );
 }
 

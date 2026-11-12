@@ -29,12 +29,12 @@ async function loginWith(err: unknown): Promise<LoginResult> {
 
 describe('AuthContext login result', () => {
   it('prefers the body retryAfterSeconds over the header', async () => {
-    const r = await loginWith(new ApiError('x', 429, { retryAfterSeconds: 300 }, 30000, true));
+    const r = await loginWith(new ApiError('x', 429, { retryAfterSeconds: 300 }, 30000));
     expect(r).toEqual({ ok: false, kind: 'rateLimited', retryAfterSeconds: 300 });
   });
 
   it('falls back to the Retry-After header', async () => {
-    const r = await loginWith(new ApiError('x', 429, { error: 'x' }, 90000, true));
+    const r = await loginWith(new ApiError('x', 429, { error: 'x' }, 90000));
     expect(r).toEqual({ ok: false, kind: 'rateLimited', retryAfterSeconds: 90 });
   });
 

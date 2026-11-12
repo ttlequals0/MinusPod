@@ -4,6 +4,11 @@ import { API_BASE, uiUrl } from '../urlPrefix';
 
 const RETRY_DELAYS = [1000, 3000]; // 2 retries with 1s and 3s backoff
 
+// A 503 with Retry-After means the server is preparing the answer: wait the header's time, clamped.
+const BUSY_DEFAULT_MS = 5000;
+const BUSY_MIN_MS = 1000;
+const BUSY_MAX_MS = 30000;
+
 const JOB_STATES = new Set(['idle', 'submitting', 'queued', 'processing']);
 
 const CSRF_COOKIE_NAME = 'minuspod_csrf';
@@ -47,8 +52,8 @@ interface RequestOptions {
   signal?: AbortSignal;
   skipRetry?: boolean;
   retry?: boolean;
-  // Hand a 503 that carries Retry-After to the caller at once instead of retrying it.
-  surfaceBusy?: boolean;
+  // Total time a 503 with Retry-After may keep being retried, without using up the generic retries.
+  busyBudgetMs?: number;
   onResponse?: (status: number) => void;
 }
 
@@ -58,7 +63,7 @@ function isRetryable(status: number): boolean {
 
 // A 429's Retry-After (e.g. from a flask-limiter rate limit) is
 // authoritative when the server sends one: honor it over the fixed backoff
-// schedule instead of guessing. Only the numeric-seconds form is parsed
+// schedule instead of guessing. A 503 that carries Retry-After is retried the same way. Only the numeric-seconds form is parsed
 // (what this backend sends); a missing header, an HTTP-date value, or
 // anything else non-numeric falls back to the fixed delay for that attempt.
 function retryAfterMs(response: Response): number | null {
@@ -67,6 +72,10 @@ function retryAfterMs(response: Response): number | null {
   const seconds = Number(header);
   if (!Number.isFinite(seconds) || seconds < 0) return null;
   return seconds * 1000;
+}
+
+function busyWaitMs(response: Response): number {
+  return Math.min(BUSY_MAX_MS, Math.max(BUSY_MIN_MS, retryAfterMs(response) ?? BUSY_DEFAULT_MS));
 }
 
 export function sleep(ms: number, signal?: AbortSignal): Promise<void> {
@@ -134,14 +143,12 @@ export class ApiError extends Error {
   status: number;
   body: unknown;
   retryAfterMs: number | null;
-  hasRetryAfter: boolean;
-  constructor(message: string, status: number, body?: unknown, retryAfterMs: number | null = null, hasRetryAfter = false) {
+  constructor(message: string, status: number, body?: unknown, retryAfterMs: number | null = null) {
     super(message);
     this.name = 'ApiError';
     this.status = status;
     this.body = body;
     this.retryAfterMs = retryAfterMs;
-    this.hasRetryAfter = hasRetryAfter;
   }
 
   get jobState(): JobState | undefined {
@@ -172,11 +179,12 @@ function handleUnauthorized(endpoint: string): void {
 export async function apiRequest<T>(endpoint: string, options: RequestOptions = {}): Promise<T> {
   const {
     method = 'GET', body, skipAuthRedirect = false, signal,
-    skipRetry = false, retry, surfaceBusy = false, onResponse,
+    skipRetry = false, retry, busyBudgetMs, onResponse,
   } = options;
   const safeMethod = CSRF_SAFE_METHODS.has(method.toUpperCase());
   const retryEnabled = retry ?? (safeMethod && !skipRetry);
   const maxAttempts = retryEnabled ? RETRY_DELAYS.length + 1 : 1;
+  const busyDeadline = busyBudgetMs === undefined ? undefined : Date.now() + busyBudgetMs;
 
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
     try {
@@ -204,16 +212,26 @@ export async function apiRequest<T>(endpoint: string, options: RequestOptions = 
 
       // Retry on 5xx / 429 (not on 4xx client errors)
       if (!response.ok) {
-        const busy = surfaceBusy && response.status === 503 && response.headers.get('Retry-After') !== null;
-        if (isRetryable(response.status) && !busy && attempt < maxAttempts - 1) {
-          const delay = response.status === 429
-            ? retryAfterMs(response) ?? RETRY_DELAYS[attempt]
-            : RETRY_DELAYS[attempt];
-          await sleep(delay, signal);
-          continue;
+        const busy = response.status === 503 && response.headers.get('Retry-After') !== null;
+        if (retryEnabled && isRetryable(response.status)) {
+          if (busy && busyDeadline !== undefined) {
+            // Inside the budget a busy wait does not use up an attempt.
+            const wait = busyWaitMs(response);
+            if (Date.now() + wait <= busyDeadline) {
+              await sleep(wait, signal);
+              attempt--;
+              continue;
+            }
+          } else if (attempt < maxAttempts - 1) {
+            const delay = busy ? busyWaitMs(response)
+              : response.status === 429 ? retryAfterMs(response) ?? RETRY_DELAYS[attempt]
+                : RETRY_DELAYS[attempt];
+            await sleep(delay, signal);
+            continue;
+          }
         }
         const error = await response.json().catch(() => null);
-        throw new ApiError(errorMessageFor(error, response.status), response.status, error ?? { error: 'Request failed' }, retryAfterMs(response), response.headers.get('Retry-After') !== null);
+        throw new ApiError(errorMessageFor(error, response.status), response.status, error ?? { error: 'Request failed' }, retryAfterMs(response));
       }
 
       const contentType = response.headers.get('content-type');
