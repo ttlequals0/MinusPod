@@ -7,7 +7,9 @@ import pytest
 
 import audio_fingerprinter as af
 from audio_fingerprinter import AudioFingerprint, AudioFingerprinter, FingerprintMatch
-from config import FINGERPRINT_TIMEOUT_FACTOR, FPCALC_TIMEOUT_FULL
+from config import (
+    FINGERPRINT_MATCH_STRICTNESS, FINGERPRINT_MIN_COVERAGE, FINGERPRINT_TIMEOUT_FACTOR, FPCALC_TIMEOUT_FULL,
+)
 from ad_detector import AdDetector
 
 IPS = 8.0
@@ -237,11 +239,11 @@ def test_scope_ignores_tags_that_are_not_a_list(world):
 @pytest.mark.parametrize('key,raw,expected', [
     ('fingerprint_match_strictness', '0.1', 0.40),
     ('fingerprint_match_strictness', '1.5', 0.95),
-    ('fingerprint_match_strictness', 'nan', af.FINGERPRINT_MATCH_STRICTNESS),
-    ('fingerprint_match_strictness', 'abc', af.FINGERPRINT_MATCH_STRICTNESS),
+    ('fingerprint_match_strictness', 'nan', FINGERPRINT_MATCH_STRICTNESS),
+    ('fingerprint_match_strictness', 'abc', FINGERPRINT_MATCH_STRICTNESS),
     ('fingerprint_min_coverage', '0', 0.10),
     ('fingerprint_min_coverage', '2', 1.00),
-    ('fingerprint_min_coverage', 'inf', af.FINGERPRINT_MIN_COVERAGE),
+    ('fingerprint_min_coverage', 'inf', FINGERPRINT_MIN_COVERAGE),
     ('fingerprint_gap_tolerance_s', '-3', 0.0),
     ('fingerprint_gap_tolerance_s', '99', 15.0),
     ('fingerprint_gap_tolerance_s', '7.5', 7.5),

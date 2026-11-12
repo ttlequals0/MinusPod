@@ -259,6 +259,10 @@ EXPECTED_AD_RESET_KEYS = {
     'ad_detection_exclude_start_seconds',
     # Provider failover (#806).
     'whisper_max_attempts',
+    # Audio fingerprinting.
+    'fingerprint_enabled', 'fingerprint_match_strictness',
+    'fingerprint_min_coverage', 'fingerprint_gap_tolerance_s',
+    'fingerprint_min_ad_length_s',
 }
 
 # Keys reset_setting() must refuse (return False). Membership captured from
@@ -571,11 +575,12 @@ class TestGetDefaults:
         # whatsNewOnUpgrade added after that (175 -> 176).
         # reviewLinksInNotes added after that (176 -> 177).
         # feedItunesBlock added after that (177 -> 178).
+        # Five fingerprint* settings added after that (178 -> 183).
         payload_keys = {
             spec.payload_key for spec in SETTINGS_REGISTRY.values()
             if spec.payload_key
         }
-        assert len(payload_keys) == 178
+        assert len(payload_keys) == 183
         assert 'systemoneBaseUrl' in payload_keys
         assert 'failoverWhisperMaxAttempts' in payload_keys
         assert 'audioCuePairOrientWindowSeconds' not in payload_keys

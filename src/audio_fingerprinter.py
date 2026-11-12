@@ -43,11 +43,8 @@ from config import (
     AUDIO_CUE_XEP_MIN_MATCHES,
     AUDIO_CUE_XEP_BODY_MIN_DURATION,
     FINGERPRINT_CHUNK_SIZE,
-    FINGERPRINT_MIN_AD_LENGTH_S,
-    FINGERPRINT_MATCH_STRICTNESS,
-    FINGERPRINT_MIN_COVERAGE,
-    FINGERPRINT_GAP_TOLERANCE_S,
     FINGERPRINT_TIMEOUT_FACTOR,
+    FINGERPRINT_SETTING_RANGES,
 )
 from utils.pattern_scope import pattern_passes_scope
 
@@ -69,14 +66,6 @@ FINGERPRINT_SHORT_PATTERN_EVIDENCE = 0.9
 FINGERPRINT_EVIDENCE_FLOOR_S = 3.5
 # A point that differs from its predecessor by fewer bits counts as that share of a point of evidence
 FINGERPRINT_NOVELTY_BITS = 3
-# Setting key: (default, lowest, highest)
-FINGERPRINT_SETTING_RANGES = {
-    'fingerprint_match_strictness': (FINGERPRINT_MATCH_STRICTNESS, 0.40, 0.95),
-    'fingerprint_min_coverage': (FINGERPRINT_MIN_COVERAGE, 0.10, 1.00),
-    'fingerprint_gap_tolerance_s': (FINGERPRINT_GAP_TOLERANCE_S, 0.0, 15.0),
-    'fingerprint_min_ad_length_s': (FINGERPRINT_MIN_AD_LENGTH_S, 3.0, 30.0),
-}
-
 # Minimum duration for fingerprinting (seconds)
 MIN_SEGMENT_DURATION = 5.0
 

@@ -46,6 +46,7 @@ from config import (
     AUDIO_CUE_PAIR_ORIENT_WINDOW_SECONDS,
     SILENCE_SNAP_NOISE_DB, SILENCE_SNAP_MIN_DURATION_SECONDS,
     SILENCE_SNAP_MAX_DISTANCE_SECONDS,
+    FINGERPRINT_SETTING_RANGES,
     resolve_segment_category_actions_map,
     valid_ad_chapter_title_format,
     resolve_community_sync_categories, DEFAULT_COMMUNITY_SYNC_CATEGORIES_JSON,
@@ -985,6 +986,23 @@ SETTINGS_REGISTRY: dict[str, SettingSpec] = {
     # No payload_key: absent from the GET defaults block today.
     'audio_cue_pair_orient_window_seconds': SettingSpec(
         default=str(AUDIO_CUE_PAIR_ORIENT_WINDOW_SECONDS), in_ad_reset=True),
+
+    # -- Audio fingerprinting --
+    'fingerprint_enabled': SettingSpec(
+        default='true', in_ad_reset=True,
+        payload_key='fingerprintEnabled', payload_kind='bool'),
+    'fingerprint_match_strictness': SettingSpec(
+        default=str(FINGERPRINT_SETTING_RANGES['fingerprint_match_strictness'][0]), in_ad_reset=True,
+        payload_key='fingerprintMatchStrictness', payload_kind='float'),
+    'fingerprint_min_coverage': SettingSpec(
+        default=str(FINGERPRINT_SETTING_RANGES['fingerprint_min_coverage'][0]), in_ad_reset=True,
+        payload_key='fingerprintMinCoverage', payload_kind='float'),
+    'fingerprint_gap_tolerance_s': SettingSpec(
+        default=str(FINGERPRINT_SETTING_RANGES['fingerprint_gap_tolerance_s'][0]), in_ad_reset=True,
+        payload_key='fingerprintGapToleranceS', payload_kind='float'),
+    'fingerprint_min_ad_length_s': SettingSpec(
+        default=str(FINGERPRINT_SETTING_RANGES['fingerprint_min_ad_length_s'][0]), in_ad_reset=True,
+        payload_key='fingerprintMinAdLengthS', payload_kind='float'),
 
     # -- Silence snap (Phase B boundary snap; not in the bulk reset) --
     'silence_snap_noise_db': SettingSpec(
