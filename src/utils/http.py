@@ -13,24 +13,28 @@ from flask import request
 
 # Any run of 64 or more hex chars goes, so a key glued to a percent escape or more hex is still caught.
 _FEED_CREDENTIAL_RE = re.compile(r'(?<![0-9a-fA-F])(?:[0-9a-fA-F]{16}\.)?[0-9a-fA-F]{64,}')
+# Every str.splitlines break; a break does not end a token, so a query continued on the next line is caught.
+_LINE_BREAKS = '\n\x0b\x0c\r\x1c\x1d\x1e\x85\u2028\u2029'
+# Whitespace that is not a line break: only this ends a token or takes a length cut.
+_HSPACE = '\t\x1f \xa0\u1680\u2000-\u200a\u202f\u205f\u3000'
 # Each credential shape is its own pass over the whole text, so no pass can hide input from another.
-# Userinfo runs from any "//" to the last "@" before the next "/", "?", "#" or whitespace.
-_USERINFO_RE = re.compile(r'//[^\s/?#]*@')
+# Userinfo runs from any "//" to the last "@" before the next "/", "?", "#" or horizontal whitespace.
+_USERINFO_RE = re.compile(rf'//[^{_HSPACE}/?#]*@')
 # A token that holds a "?" is matched from its start, so a token without one is scanned once.
-_QUERY_TOKEN_RE = re.compile(r'(?<!\S)[^\s?]*\?\S*')
+_QUERY_TOKEN_RE = re.compile(rf'(?<![^{_HSPACE}])[^{_HSPACE}?]*\?[^{_HSPACE}]*')
 # A slashless "?" still starts a query when a parameter name and "=" follow it.
-_NAMED_QUERY_RE = re.compile(r'\?[^\s?=&/]+=')
+_NAMED_QUERY_RE = re.compile(rf'\?[^{_HSPACE}?=&/]+=')
 # Only a run of these at the very end of a token survives a query redaction.
 _CLOSING = "\"'`])}>,.;:!"
 _REDACTED = '<redacted>'
-_LAST_SPACE_RE = re.compile(r'.*\s', re.DOTALL)
-_SPACE_RE = re.compile(r'\s')
+_LAST_SPACE_RE = re.compile(rf'.*[{_HSPACE}]', re.DOTALL)
+_SPACE_RE = re.compile(rf'[{_HSPACE}]')
 # Real records are tracebacks of a few KB; beyond this only head and tail are kept.
 MAX_REDACT_CHARS = 32768
 # Longer input is cut to its head and tail before redaction so a huge record costs bounded time.
 _MAX_INPUT_CHARS = 1 << 20
-# Room for the elision marker, so output never exceeds MAX_REDACT_CHARS.
-_ELIDE_BUDGET = MAX_REDACT_CHARS - 64
+# Room for the elision marker, so output never exceeds the cap.
+_ELIDE_MARKER_ROOM = 64
 _redaction_failure_reported = False
 
 
@@ -49,7 +53,8 @@ def _redact_query_token(match: re.Match) -> str:
             return token
         mark = named.start()
     rest = token[mark + 1:]
-    core = rest.rstrip(_CLOSING)
+    # Breaks that end the token are kept, so a redacted line keeps its line structure.
+    core = rest.rstrip(_CLOSING + _LINE_BREAKS)
     if not core or (rest.startswith(_REDACTED) and len(core) <= len(_REDACTED)):
         return token
     return f"{token[:mark]}?{_REDACTED}{rest[len(core):]}"
@@ -82,8 +87,13 @@ def _redact(text: str, keep_query: bool) -> str:
     return text if keep_query else scrub_query_strings(text)
 
 
+def redact_stored_text(text: str) -> str:
+    """Every redaction redact_log_text applies, without its length cap, so a long value loses only its secrets."""
+    return _redact(str(text), False)
+
+
 def _head(text: str, limit: int) -> str:
-    """Longest prefix of at most limit chars that ends at the text end or where whitespace follows."""
+    """Longest prefix of at most limit chars that ends at the text end or where horizontal whitespace follows."""
     if len(text) <= limit:
         return text
     match = _LAST_SPACE_RE.match(text, 0, limit + 1)
@@ -91,7 +101,7 @@ def _head(text: str, limit: int) -> str:
 
 
 def _tail(text: str, limit: int) -> str:
-    """Longest suffix of at most limit chars that is the whole text or starts with whitespace."""
+    """Longest suffix of at most limit chars that is the whole text or starts with horizontal whitespace."""
     if len(text) <= limit:
         return text
     match = _SPACE_RE.search(text, len(text) - limit)
@@ -115,12 +125,22 @@ def redact_log_text(text: str, keep_query: bool = False) -> str:
             if len(head_text) <= MAX_REDACT_CHARS:
                 return head_text
             total = len(head_text)
-        head = _head(head_text, _ELIDE_BUDGET // 2)
-        tail = _tail(tail_text, _ELIDE_BUDGET - _ELIDE_BUDGET // 2)
-        return f"{head} [{total - len(head) - len(tail)} chars elided]{tail}"
+        return _elide(head_text, tail_text, total, MAX_REDACT_CHARS)
     except Exception as exc:
         report_redaction_failure(exc)
         return '[log text withheld: redaction failed]'
+
+
+def _elide(head_text: str, tail_text: str, total: int, limit: int) -> str:
+    budget = limit - _ELIDE_MARKER_ROOM
+    head = _head(head_text, budget // 2)
+    tail = _tail(tail_text, budget - budget // 2)
+    return f"{head} [{total - len(head) - len(tail)} chars elided]{tail}"
+
+
+def cap_log_text(text: str, limit: int = MAX_REDACT_CHARS) -> str:
+    """Cut already redacted text to at most limit chars, keeping head and tail; limit must exceed 64."""
+    return text if len(text) <= limit else _elide(text, text, len(text), limit)
 
 
 def client_ip():

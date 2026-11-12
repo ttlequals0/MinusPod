@@ -10,10 +10,10 @@ import pytest
 import utils.http as http
 from run_log import _MESSAGE_FORMATTER
 from tests.unit.test_gunicorn_conf import _load_conf
-from utils.http import redact_log_text
+from utils.http import MAX_REDACT_CHARS, redact_log_text
 from utils.log_format import (
     JSONFormatter, ScrubbingFormatter, SingleLineFormatter, QueryStringRedactingFilter, guard_handler_errors,
-    install_exception_hooks, make_formatter, redact_message)
+    install_exception_hooks, make_formatter)
 
 
 def _record(msg):
@@ -369,13 +369,47 @@ def test_json_traceback_keeps_its_line_breaks():
 
 
 def test_a_redacted_break_is_flattened_and_the_rest_stay_real():
-    assert redact_message('one\ntwo https://h/x?a=1\nb&c=S end\nthree') == (
+    assert redact_log_text('one\ntwo https://h/x?a=1\nb&c=S end\nthree') == (
         'one\ntwo https://h/x?<redacted> end\nthree')
 
 
-def test_a_message_holding_the_break_marker_falls_back_to_flattening():
-    text = '\ue000 https://h/x?a=1\nb&c=S'
-    assert redact_message(text) == '\ue000 https://h/x?<redacted>'
+def test_a_break_that_ends_a_redacted_query_is_kept():
+    assert redact_log_text('get https://h/x?a=1\n  File "x"\r\nnext /f?k=v)\r\n') == (
+        'get https://h/x?<redacted>\n  File "x"\r\nnext /f?<redacted>)\r\n')
+
+
+_BIG = 60000
+
+
+def _oversized_record():
+    rec = _logged_record('w ' * (_BIG // 2), ValueError('e ' * (_BIG // 2)), None)
+    rec.stack_info = 'Stack (most recent call last):\n' + 's ' * (_BIG // 2)
+    return rec
+
+
+@pytest.mark.parametrize('with_filter', [False, True])
+def test_message_traceback_and_stack_share_one_cap(with_filter):
+    text, json_out, run_log = _three_formats(_oversized_record(), with_filter)
+    assert len(text) <= MAX_REDACT_CHARS and len(run_log) <= MAX_REDACT_CHARS
+    assert text.rstrip().endswith('s s') and run_log.rstrip().endswith('s s') and 'chars elided' in text
+    data = json.loads(json_out)
+    assert len(data['message']) + len(data['exception']) <= MAX_REDACT_CHARS
+    assert data['exception'].rstrip().endswith('e e')
+
+
+def test_json_keeps_a_short_exception_whole_beside_a_huge_message():
+    rec = _logged_record('w ' * _BIG, ValueError('short'), None)
+    data = json.loads(make_formatter('json').format(rec))
+    assert data['exception'] == redact_log_text(logging.Formatter().formatException(rec.exc_info))
+    assert len(data['message']) + len(data['exception']) <= MAX_REDACT_CHARS
+
+
+@pytest.mark.parametrize('message', ['done\n', 'done'])
+def test_run_log_layout_matches_the_stdlib_formatter(message):
+    rec = _logged_record(message, ValueError('plain'), None)
+    rec.stack_info = 'Stack (most recent call last):\n  frame'
+    expected = logging.Formatter('%(message)s').format(logging.makeLogRecord(rec.__dict__))
+    assert ScrubbingFormatter('%(message)s').format(rec) == expected
 
 
 def test_a_bad_format_string_leaves_the_redaction_notice_unused(monkeypatch, capsys):
@@ -387,6 +421,6 @@ def test_a_bad_format_string_leaves_the_redaction_notice_unused(monkeypatch, cap
     def boom(*_args, **_kwargs):
         raise RuntimeError('forced')
 
-    monkeypatch.setattr('utils.log_format.redact_message', boom)
+    monkeypatch.setattr('utils.log_format.redact_log_text', boom)
     assert QueryStringRedactingFilter().filter(_record('later')) is True
     assert 'log redaction failed: RuntimeError' in capsys.readouterr().err

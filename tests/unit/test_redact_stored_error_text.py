@@ -4,7 +4,8 @@ import json
 import pytest
 
 import database.schema as schema
-from utils.http import redact_log_text
+from tests.unit.test_scrub_query_strings import _CONTINUED_SECRETS, _PLANTED, _message_corpus, _min_times
+from utils.http import redact_log_text, redact_stored_text
 
 GATE = 'redact_stored_error_text'
 RAW = 'GET https://alice:PASS@cdn.example.com/a.mp3?X-Amz-Signature=SIG failed'
@@ -173,10 +174,54 @@ def test_a_fresh_database_records_the_gate_and_changes_nothing(temp_db):
 
 @pytest.mark.parametrize('text', [RAW, RAW_KEY, 'plain error', 'x?a=1&b=2', 'line\nhttps://u:p@h/x?k=v'])
 def test_stored_text_redaction_matches_the_log_redaction(text):
-    assert schema._redact_stored_text(text) == redact_log_text(text)
+    assert redact_stored_text(text) == redact_log_text(text)
 
 
 def test_a_long_stored_value_is_not_cut():
     text = 'w ' * 40000 + RAW
-    out = schema._redact_stored_text(text)
+    out = redact_stored_text(text)
     assert out == 'w ' * 40000 + CLEAN
+
+
+def test_the_migration_redacts_the_multi_line_corpus_like_every_other_path(temp_db):
+    corpus = _message_corpus()
+    conn = temp_db.get_connection()
+    conn.executemany("INSERT INTO pattern_cleanup_runs (status, error) VALUES ('failed', ?)", [(t,) for t in corpus])
+    conn.execute("DELETE FROM schema_migrations WHERE name = ?", (GATE,))
+    conn.commit()
+    temp_db._run_redact_stored_error_text(conn)
+    stored = [row[0] for row in conn.execute("SELECT error FROM pattern_cleanup_runs ORDER BY rowid")]
+    assert stored == [redact_log_text(t) for t in corpus]
+    for out in stored:
+        assert not [s for s in _PLANTED if s in out] and not _CONTINUED_SECRETS.findall(out), out
+    conn.execute("DELETE FROM schema_migrations WHERE name = ?", (GATE,))
+    conn.commit()
+    temp_db._run_redact_stored_error_text(conn)
+    assert [row[0] for row in conn.execute("SELECT error FROM pattern_cleanup_runs ORDER BY rowid")] == stored
+
+
+@pytest.mark.parametrize('text', ['w ' * 40000 + RAW, ('x?a=1\r\n&k=S\u2028' + RAW + '\n') * 20000])
+def test_uncapped_stored_redaction_is_idempotent_on_its_own_output(text):
+    once = redact_stored_text(text)
+    assert 'PASS' not in once and 'SIG' not in once and '&k=S' not in once
+    assert redact_stored_text(once) == once
+
+
+_STORED_SHAPES = {
+    'words': lambda n: 'w ' * n,
+    'continued-queries': lambda n: 'https://u:p@h/x?a=1\r\n&b=2\u2028c ' * n,
+    'line-run': lambda n: 'a\n' * n,
+    'query-across-lines': lambda n: '/x?' + 'a\n' * n,
+    'userinfo-across-lines': lambda n: '//' + 'a\n' * n,
+    'hex-run': lambda n: 'a' * n,
+}
+
+
+@pytest.mark.parametrize('name', sorted(_STORED_SHAPES))
+def test_uncapped_stored_redaction_is_linear_on_multi_megabyte_input(name):
+    build = _STORED_SHAPES[name]
+    n = -(-2_000_000 // (len(build(2)) - len(build(1))))
+    small, large = _min_times([build(n), build(2 * n)], redact_stored_text, runs=3)
+    assert len(build(2 * n)) >= 4_000_000
+    assert large < 4.0, (name, small, large)
+    assert large / max(small, 1e-3) < 3, (name, small, large)

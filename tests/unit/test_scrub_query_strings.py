@@ -1,19 +1,22 @@
 import gc
 import itertools
 import json
+import logging
 import random
 import re
+import sys
 import time
 
 import pytest
 import requests
 
 import utils.http as http
+from run_log import _MESSAGE_FORMATTER
 from transcriber import Transcriber
 from utils.http import (
-    _MAX_INPUT_CHARS, MAX_REDACT_CHARS, redact_feed_credentials, redact_log_text, redact_url_userinfo,
-    scrub_query_strings)
-from utils.log_format import _flatten, redact_message
+    _HSPACE, _LINE_BREAKS, _MAX_INPUT_CHARS, MAX_REDACT_CHARS, redact_feed_credentials, redact_log_text,
+    redact_stored_text, redact_url_userinfo, scrub_query_strings)
+from utils.log_format import QueryStringRedactingFilter, _flatten, make_formatter
 from utils.url import SSRFError
 
 
@@ -352,16 +355,17 @@ _DOUBLING_SHAPES = {
 
 
 def _min_times(texts, fn=redact_log_text, runs=7):
-    """Fastest run of each text, interleaved with the collector off so load and GC pauses hit all alike."""
+    """Fastest CPU time of each text, interleaved with the collector off so load and GC pauses hit all alike."""
     best = [float('inf')] * len(texts)
     enabled = gc.isenabled()
     gc.disable()
     try:
         for _ in range(runs):
             for i, text in enumerate(texts):
-                start = time.perf_counter()
+                # CPU time of this thread, so other processes saturating the machine do not count.
+                start = time.thread_time()
                 fn(text)
-                best[i] = min(best[i], time.perf_counter() - start)
+                best[i] = min(best[i], time.thread_time() - start)
     finally:
         if enabled:
             gc.enable()
@@ -457,9 +461,24 @@ def test_no_planted_secret_survives_in_any_pass_order():
             assert not leaked, (repr(text), [f.__name__ for f in order], out)
 
 
+_BREAK_CHARS = ['\r\n'] + list(_LINE_BREAKS)
 # A query continued on the next line is only caught when the break is read as part of the token.
-_CONTINUED_PIECES = ['https://h/x?a=1\nb&c=SECRETQ15', '/f?k=1\r\nSECRETQ16', 'x?a=1\rSECRETQ17']
-_LINE_JOINERS = ['\n', '\r\n', '\r', ' \n', '\n ']
+_CONTINUED_PIECES = [f'https://h/x?a=1{b}&tok=SECRETC{i}' for i, b in enumerate(_BREAK_CHARS)] + [
+    f'x?a=1{b}SECRETS{i}' for i, b in enumerate(_BREAK_CHARS)] + ['/f?k=1\n\nb&c=SECRETQ15']
+_CONTINUED_SECRETS = re.compile(r'SECRET[CS]\d+|SECRETQ15')
+_LINE_JOINERS = _BREAK_CHARS + [' ' + b for b in _BREAK_CHARS] + [b + ' ' for b in _BREAK_CHARS]
+
+
+def test_horizontal_space_is_every_space_that_is_not_a_line_break():
+    spaces = {chr(c) for c in range(sys.maxunicode + 1) if chr(c).isspace()}
+    breaks = {c for c in spaces if len(f'a{c}b'.splitlines()) == 2}
+    assert breaks == set(_LINE_BREAKS)
+    assert {c for c in spaces if re.fullmatch(f'[{_HSPACE}]', c)} == spaces - breaks
+
+
+def test_a_query_continued_after_a_crlf_is_redacted():
+    assert redact_log_text('GET https://h.example/x?a=1\r\n&tok=SECRETG') == 'GET https://h.example/x?<redacted>'
+    assert redact_stored_text('GET https://h.example/x?a=1\r\n&tok=SECRETG') == 'GET https://h.example/x?<redacted>'
 
 
 def _message_corpus():
@@ -472,13 +491,52 @@ def _message_corpus():
     return out
 
 
-def test_no_planted_secret_survives_multi_line_redaction():
-    planted = _PLANTED + ['SECRETQ15', 'SECRETQ16', 'SECRETQ17']
+def _record(text, exc_info=None):
+    return logging.LogRecord('podcast.audio', logging.ERROR, __file__, 1, text, (), exc_info)
+
+
+def _exc_info(text):
+    try:
+        raise ValueError(text)
+    except ValueError:
+        return sys.exc_info()
+
+
+def _every_path(text):
+    """The redacted message (or exception text) as each output path emits it."""
+    filtered = _record(text)
+    QueryStringRedactingFilter().filter(filtered)
+    exc_rec = _record('failed', _exc_info(text))
+    return {
+        'log': redact_log_text(text),
+        'stored': redact_stored_text(text),
+        'json': json.loads(make_formatter('json').format(_record(text)))['message'],
+        'run_log': _MESSAGE_FORMATTER.format(_record(text)),
+        'filter': filtered.getMessage(),
+        'text': make_formatter('text').format(_record(text)).split('] ', 3)[3],
+        'json_exception': json.loads(make_formatter('json').format(exc_rec))['exception'],
+        'text_exception': make_formatter('text').format(exc_rec),
+    }
+
+
+def test_no_planted_secret_survives_multi_line_redaction_in_any_path():
+    planted = _PLANTED + ['SECRETQ15']
     for text in _message_corpus():
-        out = redact_message(text)
-        assert not [s for s in planted if s in out], (repr(text), out)
-        assert _flatten(out) == redact_log_text(_flatten(text)), repr(text)
-        assert redact_message(out) == out, repr(text)
+        once = redact_log_text(text)
+        outs = _every_path(text)
+        for path, out in outs.items():
+            leaked = [s for s in planted if s in out] + _CONTINUED_SECRETS.findall(out)
+            assert not leaked, (path, repr(text), out)
+        assert outs['stored'] == outs['json'] == outs['run_log'] == outs['filter'] == once, repr(text)
+        assert outs['text'] == redact_log_text(_flatten(text)) == redact_log_text(outs['text']), repr(text)
+        assert redact_log_text(once) == once and redact_stored_text(once) == once, repr(text)
+
+
+def test_a_line_kept_whole_by_redaction_keeps_its_break_in_every_path():
+    text = 'get https://h/x?a=1\u2028  next\x85line'
+    for path, out in _every_path(text).items():
+        if path not in ('text', 'json_exception', 'text_exception'):
+            assert out == 'get https://h/x?<redacted>\u2028  next\x85line', path
 
 
 @pytest.mark.parametrize("text,expected", [

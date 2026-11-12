@@ -9,7 +9,7 @@ import time
 from contextlib import contextmanager
 from pathlib import Path
 
-from utils.http import redact_feed_credentials, redact_url_userinfo, scrub_query_strings
+from utils.http import redact_stored_text
 from utils.text import is_timezone_drift, normalize_title_for_match
 from utils.time import parse_iso_utc, utc_now_iso
 
@@ -36,11 +36,6 @@ _STORED_ERROR_COLUMNS = (
 )
 
 
-def _redact_stored_text(value):
-    """redact_log_text without its length cap, so a long stored value loses only its secrets."""
-    return scrub_query_strings(redact_feed_credentials(redact_url_userinfo(value)))
-
-
 def _redact_json_fields(value, fields, per_entry=False):
     """Redact the named top-level string fields of a JSON object, or of each entry's object."""
     try:
@@ -55,7 +50,7 @@ def _redact_json_fields(value, fields, per_entry=False):
         for field in fields:
             text = target.get(field)
             if isinstance(text, str):
-                redacted = _redact_stored_text(text)
+                redacted = redact_stored_text(text)
                 if redacted != text:
                     target[field] = redacted
                     changed = True
@@ -2636,11 +2631,11 @@ class SchemaMixin:
         if conn.execute("SELECT 1 FROM schema_migrations WHERE name = ?", (gate,)).fetchone():
             return
         # Each page commits on its own; a rerun after a crash finds the done rows already clean.
-        changed = sum(self._redact_column_in_batches(conn, table, column, _redact_stored_text)
+        changed = sum(self._redact_column_in_batches(conn, table, column, redact_stored_text)
                       for table, column in _STORED_ERROR_COLUMNS)
         for table in ('settings', 'system_settings'):
             changed += self._redact_column_in_batches(
-                conn, table, 'value', _redact_stored_text, "key LIKE ? ESCAPE '\\'", ('%\\_last\\_error',))
+                conn, table, 'value', redact_stored_text, "key LIKE ? ESCAPE '\\'", ('%\\_last\\_error',))
         changed += self._redact_column_in_batches(
             conn, 'settings', 'value', lambda v: _redact_json_fields(v, ('reason',)),
             "key LIKE ? ESCAPE '\\'", ('failover\\_state:%',))
