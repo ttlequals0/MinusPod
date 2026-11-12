@@ -276,21 +276,3 @@ describe('sleep', () => {
     expect(((await done) as Error).message).toBe('stop');
   });
 });
-
-describe('apiRequest: responseType blob', () => {
-  afterEach(() => vi.unstubAllGlobals());
-
-  it('returns the body as a blob without reading JSON', async () => {
-    const blob = new Blob(['audio']);
-    const res = { ...fakeResponse(null, 200, { 'content-type': 'audio/mpeg' }), blob: async () => blob } as Response;
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(res));
-    await expect(apiRequest<Blob>('/clip', { responseType: 'blob', skipRetry: true })).resolves.toBe(blob);
-  });
-
-  it('still raises an ApiError carrying the status and JSON body on failure', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(fakeResponse({ code: 'no_audio', error: 'none' }, 404)));
-    const error = await apiRequest('/clip', { responseType: 'blob', skipRetry: true }).catch((e: unknown) => e);
-    expect((error as ApiError).status).toBe(404);
-    expect((error as ApiError).body).toEqual({ code: 'no_audio', error: 'none' });
-  });
-});

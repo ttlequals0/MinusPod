@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
-import type { PatternAudioState } from '../api/patterns';
-import { usePatternAudioRebuild, type AudioSourceSpan } from '../hooks/usePatternAudioRebuild';
+import type { AudioSpan, PatternAudioState } from '../api/patterns';
+import { usePatternAudioRebuild } from '../hooks/usePatternAudioRebuild';
 import { btnOutline } from './buttonStyles';
 import { DemoDisabled } from './DemoDisabled';
 import { focusRing } from './fieldStyles';
@@ -12,7 +12,7 @@ export default function AddAudioToPatternButton({
 }: {
   patternId: number;
   audioState?: PatternAudioState;
-  span: AudioSourceSpan;
+  span: AudioSpan;
   hasOriginal: boolean;
   buttonClassName?: string;
   className?: string;

@@ -124,7 +124,7 @@ vi.mock('../api/patterns', () => ({
   getPatterns: (...args: unknown[]) => mockGetPatterns(...args),
   rebuildPatternAudio: (...args: unknown[]) => mockRebuildPatternAudio(...args),
   describeFingerprintSkip: (reason: string) => `skipped: ${reason}`,
-  patternAudioKey: (id: number) => ['pattern-audio', id],
+  invalidatePatternAudio: () => {},
 }));
 
 // Minimal QueryClient wrapper; avoids pulling in the full provider.

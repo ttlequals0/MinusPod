@@ -48,13 +48,6 @@ export function formatDateTimeParts(dateStr: string, now = new Date()): { date: 
   };
 }
 
-// One-line form of formatDateTimeParts; `-` for a missing value.
-export function formatDateTimeShort(dateStr: string | null, now = new Date()): string {
-  if (!dateStr) return '-';
-  const { date, time } = formatDateTimeParts(dateStr, now);
-  return `${date}, ${time}`;
-}
-
 // Past time relative to now ("just now", "5m ago", "3h ago", "2d ago").
 export function formatTimeAgo(dateStr: string, now = Date.now()): string {
   const minutes = Math.floor((now - new Date(dateStr).getTime()) / 60000);

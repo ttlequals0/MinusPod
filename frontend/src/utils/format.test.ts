@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { formatDurationHoursMinutes, keyLabel, formatPercent, formatElapsed, sentenceCase, cacheHit, formatTimestamp, formatDateTimeShort } from './format';
+import { formatDurationHoursMinutes, keyLabel, formatPercent, formatElapsed, sentenceCase, cacheHit, formatTimestamp } from './format';
 
 describe('formatDurationHoursMinutes', () => {
   it.each([
@@ -89,20 +89,5 @@ describe('formatTimestamp', () => {
     [Infinity, '0:00'],
   ])('formats %s as %s', (s, expected) => {
     expect(formatTimestamp(s)).toBe(expected);
-  });
-});
-
-describe('formatDateTimeShort', () => {
-  const now = new Date(2026, 5, 1);
-  it('drops the year within the current year and keeps it otherwise', () => {
-    const thisYear = formatDateTimeShort(new Date(2026, 2, 4, 15, 26).toISOString(), now);
-    const lastYear = formatDateTimeShort(new Date(2025, 2, 4, 15, 26).toISOString(), now);
-    expect(thisYear).not.toContain('2026');
-    expect(thisYear).toMatch(/3:26/);
-    expect(lastYear).toContain('2025');
-  });
-
-  it('prints a dash for a missing value', () => {
-    expect(formatDateTimeShort(null)).toBe('-');
   });
 });

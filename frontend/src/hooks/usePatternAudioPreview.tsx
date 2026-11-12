@@ -24,6 +24,14 @@ export function usePatternAudioPreview(patternId: number) {
     setActiveState(next);
   };
 
+  const releaseAudio = () => {
+    const audio = audioRef.current;
+    if (!audio) return;
+    audio.pause();
+    audio.removeAttribute('src');
+    audio.load();
+  };
+
   const stop = () => {
     explainRef.current?.abort();
     tokenRef.current += 1;
@@ -33,23 +41,14 @@ export function usePatternAudioPreview(patternId: number) {
 
   useEffect(() => () => {
     explainRef.current?.abort();
-    const audio = audioRef.current;
-    if (!audio) return;
-    audio.pause();
-    audio.removeAttribute('src');
-    audio.load();
+    releaseAudio();
   }, []);
 
   const fail = async (token: number, key: string, url: string, error?: unknown) => {
     if (failedTokenRef.current === token) return;
     failedTokenRef.current = token;
-    const audio = audioRef.current;
     loadedKeyRef.current = null;
-    if (audio) {
-      audio.pause();
-      audio.removeAttribute('src');
-      audio.load();
-    }
+    releaseAudio();
     setActive(null);
     if (error instanceof DOMException && error.name === 'NotAllowedError') {
       setFailure({ key, text: NOT_ALLOWED });

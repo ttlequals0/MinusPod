@@ -1,7 +1,7 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
-  AdPattern, AudioDetail, deletePatternAudio, getPatternAudio, patternAudioKey, setPatternAudioEnabled,
+  AdPattern, AudioDetail, deletePatternAudio, getPatternAudio, invalidatePatternAudio, patternAudioKey, setPatternAudioEnabled,
 } from '../api/patterns';
 import { getEpisode } from '../api/feeds';
 import { DEMO_AUDIO_TOOLTIP } from '../demo/copy';
@@ -89,9 +89,7 @@ export default function PatternAudioSection({ pattern }: { pattern: AdPattern })
   });
 
   const refresh = () => {
-    queryClient.invalidateQueries({ queryKey: ['patterns'] });
-    queryClient.invalidateQueries({ queryKey: patternAudioKey(pattern.id) });
-    queryClient.invalidateQueries({ queryKey: ['pattern-audio-matches', pattern.id] });
+    invalidatePatternAudio(queryClient, pattern.id);
   };
 
   const toggle = useMutation({

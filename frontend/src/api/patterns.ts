@@ -1,3 +1,4 @@
+import type { QueryClient } from '@tanstack/react-query';
 import { apiRequest, apiFileRequest, buildQueryString } from './client';
 import { downloadBlob } from './history';
 import type { SegmentCategory } from '../utils/segmentCategory';
@@ -502,6 +503,12 @@ export function describeFingerprintSkip(reason: FingerprintSkippedReason): strin
 
 export const patternAudioKey = (patternId: number) => ['pattern-audio', patternId] as const;
 
+export function invalidatePatternAudio(queryClient: QueryClient, patternId: number) {
+  queryClient.invalidateQueries({ queryKey: ['patterns'] });
+  queryClient.invalidateQueries({ queryKey: patternAudioKey(patternId) });
+  queryClient.invalidateQueries({ queryKey: ['pattern-audio-matches', patternId] });
+}
+
 export async function getPatternAudio(id: number): Promise<AudioDetail> {
   return apiRequest<AudioDetail>(`/patterns/${id}/audio`);
 }
@@ -516,7 +523,7 @@ export async function deletePatternAudio(id: number): Promise<void> {
 
 export async function rebuildPatternAudio(
   id: number,
-  span: { podcastSlug: string; episodeId: string; start: number; end: number },
+  span: AudioSpan,
 ): Promise<AudioRebuildResult> {
   return apiRequest<AudioRebuildResult>(`/patterns/${id}/audio/rebuild`, { method: 'POST', body: span });
 }
