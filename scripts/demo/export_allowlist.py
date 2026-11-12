@@ -29,6 +29,7 @@ _EMPTIED = (
     'cue_cross_episode_scans', 'cue_window_optimize_scans', 'auth_failures',
     'search_index_changes', 'search_index', 'text_patterns',
     '_orphaned_audio_fingerprints', 'episode_feed_details',
+    'audio_fingerprint_matches',
 )
 
 # Dropped before export; startup recreates them.
@@ -132,6 +133,7 @@ PODCAST_REF: dict[str, tuple[str, str]] = {
     'pattern_cleanup_checks': ('podcast_slug', 'slug'),
     'pattern_cleanup_deleted_actions': ('podcast_slug', 'slug'),
     'addressing_log': ('podcast_slug', 'slug'),
+    'audio_fingerprint_matches': ('podcast_slug', 'slug'),
 }
 
 # Table -> (podcast column, episode column, podcast key kind) for rows keyed by
@@ -151,6 +153,7 @@ EPISODE_REF: dict[str, tuple[str, str, str]] = {
     'llm_call_usage': ('podcast_id', 'episode_id', 'id'),
     'systemone_call_diagnostics': ('podcast_id', 'episode_id', 'id'),
     'addressing_log': ('podcast_slug', 'episode_id', 'slug'),
+    'audio_fingerprint_matches': ('podcast_slug', 'episode_id', 'slug'),
 }
 
 # -- Settings classification: manual pass over SETTINGS_REGISTRY, grouped by
