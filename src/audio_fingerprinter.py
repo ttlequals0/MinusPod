@@ -101,6 +101,10 @@ FINGERPRINT_CLOSE_EVIDENCE_S = 2.25
 # Chance agreement in unrelated audio comes in clusters shorter than this many windows, so a gap
 # inside a run is measured on points with half of the centred span in agreement
 FINGERPRINT_SUPPORT_WINDOWS = 3
+# Steady audio agrees at many nearby shifts, so a match must beat the median of the same run
+# shifted this many windows either way by the margin
+FINGERPRINT_CONTRAST_SHIFTS = (2, 3, 4, 5)
+FINGERPRINT_CONTRAST_MARGIN = 0.12
 # Chromaprint points per second at its default settings, for checks made without an episode
 FINGERPRINT_NOMINAL_FPS = 11025 / 1365.33
 # A point that differs from its predecessor by fewer bits counts as that share of a point of evidence
@@ -470,6 +474,8 @@ class FingerprintMatch:
     coverage: float = 0.0
     # Set when end is projected from the stored length past what was compared
     measured_end: float | None = None
+    # Lead of the match's similarity over nearby shifted alignments; None from the per-window scan
+    contrast_margin: float | None = None
 
 
 @dataclass(frozen=True)
@@ -646,6 +652,7 @@ class _Alignment:
     edge_bits: float
     run: tuple
     span: tuple = (0, 0)
+    pat_base: int = 0
 
 
 def _tight_span(al, run, window):
@@ -720,7 +727,7 @@ def _measure_alignment(ep_arr, pat_arr, informative, novelty, d, gap_points, win
         edge_bits = float(min(FINGERPRINT_GOOD_BITS, max(
             FINGERPRINT_EDGE_BITS, np.median(interior) + FINGERPRINT_EDGE_MARGIN_BITS)))
         al = _Alignment(ep_base, diff, inf, novelty[pat_base:pat_base + overlap], good,
-                        (diff <= edge_bits) & inf, edge_bits, (lo, hi))
+                        (diff <= edge_bits) & inf, edge_bits, (lo, hi), pat_base=pat_base)
         al.span = _tight_span(al, al.run, window)
         out.append(al)
     return out
@@ -755,6 +762,31 @@ def _rejecting_gate(tally, pat_len, needed, fps, strictness, min_coverage):
     if similarity < strictness:
         return 'similarity'
     return None
+
+
+def _contrast_margin(ep_arr, pat_arr, al, window):
+    """Similarity of al's run minus the median similarity of the same run at nearby shifted alignments."""
+    lo, hi = al.run
+    i = np.arange(lo, hi)
+    inf = al.informative[lo:hi]
+    sims = []
+    for k in FINGERPRINT_CONTRAST_SHIFTS:
+        for shift in (-k * window, k * window):
+            e = al.ep_base + i + shift
+            ok = inf & (e >= 0) & (e < len(ep_arr))
+            if ok.sum() >= window:
+                diffs = _popcount32(ep_arr[e[ok]] ^ pat_arr[al.pat_base + i[ok]])
+                sims.append(1.0 - float(diffs.mean()) / 32.0)
+    return _similarity(al, al.run) - (float(np.median(sims)) if sims else 0.0)
+
+
+def _alignment_gate(ep_arr, pat_arr, al, tally, needed, fps, window, strictness, min_coverage):
+    """(first gate al fails or None, contrast margin or None when an earlier gate failed)."""
+    gate = _rejecting_gate(tally, len(pat_arr), needed, fps, strictness, min_coverage)
+    if gate:
+        return gate, None
+    margin = _contrast_margin(ep_arr, pat_arr, al, window)
+    return ('contrast' if margin < FINGERPRINT_CONTRAST_MARGIN else None), margin
 
 
 @dataclass
@@ -796,7 +828,8 @@ def _resolve_overlaps(candidates, fps, window, min_points):
             lo, hi = al.ep_base + span[0], al.ep_base + span[1]
             m = FingerprintMatch(pattern_id=m.pattern_id, start=lo / fps, end=hi / fps,
                                  confidence=similarity, sponsor=m.sponsor, category=m.category,
-                                 similarity=similarity, coverage=n_good / cand.pat_len)
+                                 similarity=similarity, coverage=n_good / cand.pat_len,
+                                 contrast_margin=m.contrast_margin)
         spans.append((lo, hi))
         accepted.append(m)
     accepted.sort(key=lambda m: m.start)
@@ -843,7 +876,9 @@ def _scan_fingerprints(ep_ints, ep_duration, patterns, *, strictness, min_covera
                 ep_arr, pat_arr, informative, novelty, d, gap_points, window)]
         for al in _closest_alignments(alignments, window):
             tally = _tally(al, al.run)
-            if _rejecting_gate(tally, len(pat_arr), needed, fps, strictness, min_coverage):
+            gate, margin = _alignment_gate(ep_arr, pat_arr, al, tally, needed, fps, window,
+                                           strictness, min_coverage)
+            if gate:
                 continue
             n_good, similarity = tally[:2]
             coverage = n_good / len(pat_arr)
@@ -853,7 +888,7 @@ def _scan_fingerprints(ep_ints, ep_duration, patterns, *, strictness, min_covera
             candidates.append(_Candidate(n_good + window * coverage, FingerprintMatch(
                 pattern_id=pattern_id, start=lo / fps, end=hi / fps,
                 confidence=similarity, sponsor=sponsor, category=category,
-                similarity=similarity, coverage=coverage), al, len(pat_arr)))
+                similarity=similarity, coverage=coverage, contrast_margin=margin), al, len(pat_arr)))
     return _resolve_overlaps(candidates, fps, window, min_ad_length_s * fps), measured
 
 
@@ -964,15 +999,18 @@ def explain_match(ep_ints, ep_duration, pattern, *, strictness, min_coverage, ga
     for al in _closest_alignments(measured, window):
         tally = _tally(al, al.run)
         n_good, similarity, evidence, close = tally
-        gate = _rejecting_gate(tally, len(pat_arr), needed, fps, strictness, min_coverage)
+        gate, margin = _alignment_gate(ep_arr, pat_arr, al, tally, needed, fps, window, strictness,
+                                       min_coverage)
         rank = (gate is None, n_good, similarity)
         if best is None or rank > best[0]:
-            best = (rank, al, n_good, similarity, evidence, close, gate)
+            best = (rank, al, n_good, similarity, evidence, close, gate, margin)
     if best is None:
         # Candidates exist but none holds a sustained run, so no alignment can reach the coverage
         out['rejected_by'] = 'coverage' if found else 'candidates'
         return out
-    _rank, al, n_good, similarity, evidence, close, gate = best
+    _rank, al, n_good, similarity, evidence, close, gate, margin = best
+    if margin is None:
+        margin = _contrast_margin(ep_arr, pat_arr, al, window)
     lo, hi = al.span
     inf = al.informative[lo:hi]
     diffs = al.diff[lo:hi][inf]
@@ -989,6 +1027,7 @@ def explain_match(ep_ints, ep_duration, pattern, *, strictness, min_coverage, ga
         'evidence_s': evidence / fps, 'evidence_needed_s': needed / fps,
         'close_evidence_s': close / fps,
         'close_evidence_needed_s': FINGERPRINT_CLOSE_EVIDENCE_S,
+        'contrast_margin': margin, 'contrast_margin_needed': FINGERPRINT_CONTRAST_MARGIN,
         'rejected_by': gate, 'matched': gate is None,
     })
     return out

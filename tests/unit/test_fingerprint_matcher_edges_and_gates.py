@@ -410,3 +410,34 @@ def test_explain_names_the_rejecting_gate():
     _plant(rng, ep, noisy, 2000, 0.10)
     e = _explain(ep, noisy, strictness=0.95)
     assert e['rejected_by'] == 'similarity' and e['similarity'] < 0.95
+
+
+def _steady(rng, base, n, ber):
+    return _noisy(rng, np.full(n, base, dtype=np.int64), ber)
+
+
+def test_steady_audio_in_a_pattern_does_not_match_the_same_steady_audio_elsewhere():
+    rng = np.random.default_rng(31)
+    for _ in range(10):
+        ep = _ints(rng, 4800)
+        base = int(rng.integers(0, 1 << 32))
+        ep[2000:2480] = _steady(rng, base, 480, 0.12)
+        pat = _steady(rng, base, 240, 0.12)
+        assert _run(ep, [(1, pat, 30.0, None, None)]) == []
+        e = _explain(ep, pat)
+        assert e['rejected_by'] == 'contrast' and not e['matched']
+        assert e['contrast_margin'] < af.FINGERPRINT_CONTRAST_MARGIN
+
+
+def test_a_genuine_match_clears_the_contrast_margin():
+    rng = np.random.default_rng(32)
+    for _ in range(10):
+        ep = _ints(rng, 4800)
+        pat = _ints(rng, 240)
+        _plant(rng, ep, pat, 1000, 0.15)
+        r = _run(ep, [(1, pat, 30.0, None, None)])
+        assert [m.pattern_id for m in r] == [1]
+        e = _explain(ep, pat)
+        assert e['matched'] and e['contrast_margin'] >= af.FINGERPRINT_CONTRAST_MARGIN
+        assert r[0].contrast_margin == pytest.approx(e['contrast_margin'])
+        assert e['contrast_margin_needed'] == af.FINGERPRINT_CONTRAST_MARGIN
