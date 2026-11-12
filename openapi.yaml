@@ -2504,7 +2504,11 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
         '409':
-          description: A regeneration is already running, the episode is being processed, or an LLM provider rate-limit hold is active
+          description: A regeneration is already running, the episode is being processed, an LLM provider rate-limit hold is active, or the LLM provider is set to none (`code` is `llm_disabled`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
         '500':
           $ref: '#/components/responses/ServerError'
 
@@ -5055,7 +5059,7 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
         '409':
-          description: 'A cleanup run is already in progress (error: cleanup_in_progress)'
+          description: 'A cleanup run is already in progress (error: cleanup_in_progress), or the LLM provider is set to none (`code` is `llm_disabled`)'
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
@@ -20443,6 +20447,10 @@ components:
           type: integer
         details:
           type: [object, 'null']
+        code:
+          type: string
+          description: Machine-readable reason, present on some 409 responses. `llm_disabled` means the action needs an LLM and the LLM provider is set to none.
+          example: llm_disabled
 
   responses:
     BadRequest:

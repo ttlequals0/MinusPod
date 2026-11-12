@@ -53,7 +53,7 @@ Key endpoints:
 - `GET /api/v1/episodes/awaiting-approval?slug=&limit=&offset=` - Episodes waiting for manual approval across feeds, oldest first: `{"count": n, "episodes": [{"slug", "episodeId", "title", "podcast", "pendingSince", "adCount", "pendingReviewCount"}]}`
 - `POST /api/v1/episodes/awaiting-approval/approve` - Approve `{"episodes": [{"slug": "...", "episodeId": "..."}]}` or every waiting episode of `{"slug": "..."}`. Returns `{"approved": n, "skipped": n, "remaining": n}` (a `slug` request approves at most 500 oldest first; `remaining` is the rest), rebuilds each feed once (10 per minute)
 - `GET /api/v1/episodes/held?limit=&offset=` - Episodes with detections held for review across feeds, same row shape as awaiting-approval without `pendingSince`
-- `POST /api/v1/feeds/{slug}/episodes/{id}/regenerate-chapters` - Regenerate chapter markers and rewrite the ID3 chapters embedded in the MP3. Returns 202 and runs in the background; the episode's `chaptersRegenerating` and `chaptersRegenError` fields report the run
+- `POST /api/v1/feeds/{slug}/episodes/{id}/regenerate-chapters` - Regenerate chapter markers and rewrite the ID3 chapters embedded in the MP3. Returns 202 and runs in the background; the episode's `chaptersRegenerating` and `chaptersRegenError` fields report the run. Returns 409 with `code: llm_disabled` while the LLM provider is `none`
 - `PUT /api/v1/feeds/{slug}/episodes/{id}/rating` - Rate an episode 1 to 5 with optional notes below 5. A 5 records a confirm correction for every cut ad marker and dismisses held ads without pattern learning; the response reports confirmedMarkers and dismissedMarkers. `DELETE` clears the rating
 - `GET /api/v1/feeds/{slug}/episodes/{id}/sponsorblock/candidates` - Segments a person may submit to SponsorBlock for a YouTube episode, with the evidence behind each, or the reason none are allowed
 - `POST /api/v1/feeds/{slug}/episodes/{id}/sponsorblock/submit` - Send the reviewed segments to SponsorBlock under the stored private user ID and record the outcome
@@ -83,7 +83,7 @@ Key endpoints:
 - `GET /api/v1/patterns/stats` - Pattern database statistics
 - `GET /api/v1/patterns/cleanup` - Pattern cleanup settings plus live state and pending suggestion counts by kind (Experiments). See [Pattern Cleanup](pattern-cleanup.md#api)
 - `PUT /api/v1/settings/pattern-cleanup` - Update pattern cleanup settings (`enabled`, `cron`, `batchSize`, `unusedDays`, `provider`, `model`)
-- `POST /api/v1/patterns/cleanup/run` - Start a cleanup batch; `{"force": true}` forces a recheck of all active learned patterns. Returns 202 with `{"runId"}`, 400 for invalid input, or 409 if already running; rate limited to 6/hour
+- `POST /api/v1/patterns/cleanup/run` - Start a cleanup batch; `{"force": true}` forces a recheck of all active learned patterns. Returns 202 with `{"runId"}`, 400 for invalid input, or 409 if already running or, with `code: llm_disabled`, while the LLM provider is `none`; rate limited to 6/hour
 - `GET /api/v1/patterns/cleanup/runs` - Recent pattern cleanup runs, newest first
 - `GET /api/v1/patterns/cleanup/suggestions` - List suggestions by `status` and `kind`, paginated with `limit` and `before_id`
 - `POST /api/v1/patterns/cleanup/suggestions/{id}/approve` - Approve one suggestion, applying it to the pattern in place

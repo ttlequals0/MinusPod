@@ -1160,11 +1160,13 @@ MIN_PRESERVED_CHAPTERS = 2
 
 def resolve_chapters_mode(podcast_row, db=None):
     """Resolve the feed chapter mode, falling back to the global mode."""
+    from llm_client import llm_disabled  # late: llm_client imports config
     mode = (podcast_row or {}).get('chapters_mode')
-    if mode in VALID_CHAPTERS_MODES:
-        return mode
-    global_mode = db.get_setting('chapters_mode') if db else None
-    return global_mode if global_mode in VALID_CHAPTERS_MODES else CHAPTERS_MODE_AUTO
+    if mode not in VALID_CHAPTERS_MODES:
+        global_mode = db.get_setting('chapters_mode') if db else None
+        mode = global_mode if global_mode in VALID_CHAPTERS_MODES else CHAPTERS_MODE_AUTO
+    # Generation needs a model, so generate falls back to auto while the LLM is off.
+    return CHAPTERS_MODE_AUTO if mode == CHAPTERS_MODE_GENERATE and llm_disabled() else mode
 
 
 # Chapter list in served descriptions (#720): per-feed 'on'/'off', NULL

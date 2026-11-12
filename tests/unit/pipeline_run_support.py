@@ -32,11 +32,12 @@ def _run_pipeline(podcast_row, cue_template_counts=None, cue_templates=None,
                   failover_state=None, standby_dispatch=False,
                   probe_phases=_PROBE_PHASES_UNSET, episode_row=None,
                   real_detect=False, refine_cuts_all=False, real_stages=(),
-                  manual_approval=None):
+                  manual_approval=None, settings=None):
     """Run stubbed pipeline stages with optional frozen routes and failover state.
 
     real_detect runs the real first-pass stage; refine_cuts_all marks every ad cut;
     real_stages names more stages to leave real: refine, reviewer, verify, assets, finalize.
+    settings overrides individual setting reads.
     """
     with ExitStack() as stack:
         p = lambda *a, **k: stack.enter_context(patch.object(*a, **k))
@@ -164,6 +165,12 @@ def _run_pipeline(podcast_row, cue_template_counts=None, cue_templates=None,
                 lambda key, *a, **k: 'true' if key == 'enable_ad_review' else 'false')
         else:
             db.get_setting.return_value = 'false'
+        if settings:
+            base_get_setting = db.get_setting.side_effect or (
+                lambda key, *a, **k: db.get_setting.return_value)
+            db.get_setting.side_effect = (
+                lambda key, *a, **k: settings[key] if key in settings
+                else base_get_setting(key, *a, **k))
         db.get_setting_bool.return_value = False
         db.get_all_settings.return_value = {}
         db.cue_template_paired_episode_counts.return_value = cue_template_counts or {}

@@ -18,6 +18,7 @@ from main_app.pipeline import review as review_stage  # noqa: E402
 from llm_client import ProviderAccountChangedError  # noqa: E402
 import main_app.processing as processing  # noqa: E402
 from main_app.pipeline import admission  # noqa: E402
+from ad_chapters import AdChapterConfig  # noqa: E402
 from ad_detector import AdDetector  # noqa: E402
 from text_pattern_matcher import TextMatch  # noqa: E402
 from tests.unit.pipeline_run_support import _row, _run_pipeline  # noqa: E402
@@ -273,6 +274,36 @@ def test_recorder_sees_the_reviewer_with_a_real_provider(provider_anthropic, mon
             'mode-feed', 'ep1', 'mode-feed', [ad], [ad], [{'start': 0.0, 'end': 10.0, 'text': 'hi'}],
             'Podcast', 'Episode', '', '', 0.8, 1, 'test-model')
     assert calls, 'recorder saw no model call from the reviewer'
+
+
+AD_CHAPTERS = AdChapterConfig(
+    actions={'sponsor': 'cut'}, include_held=True, title_format='[mp:{category}]',
+    held_title_format='[mp:{category}?]', resume_title='Show', min_confidence=0.5)
+
+
+def test_none_run_with_the_real_chapters_stage_makes_no_model_call(provider_none, model_calls):
+    import chapters_generator
+    from main_app.pipeline import publish as publish_stage
+    match = TextMatch(pattern_id=7, start=1.0, end=9.0, confidence=0.95, sponsor='Acme')
+    patches, _ = _detector_with_matcher([match])
+    generator = MagicMock()
+    with patches[0], patches[1], patches[2], patches[3], \
+         patch.object(chapters_generator, 'ChaptersGenerator', generator), \
+         patch.object(publish_stage, 'resolve_ad_chapter_config', return_value=AD_CHAPTERS), \
+         patch.object(publish_stage, 'merge_ad_chapters',
+                      wraps=publish_stage.merge_ad_chapters) as merge, \
+         patch.object(publish_stage, 'probe_chapters', return_value=[]), \
+         patch.object(publish_stage, 'embed_chapters', return_value=True), \
+         patch.object(finalize_stage, '_persist_episode_state'):
+        m = _run_pipeline(_row(), real_detect=True, enable_ad_review=True, refine_cuts_all=True,
+                          settings={'chapters_enabled': 'true'},
+                          real_stages=('reviewer', 'verify', 'assets', 'finalize'))
+    assert m['result'] is True
+    generator.assert_not_called()
+    merge.assert_called_once()
+    run_stats = m['finalize'].call_args.kwargs['run_stats']
+    assert 'chapters_degraded' not in run_stats
+    assert model_calls == []
 
 
 @pytest.fixture

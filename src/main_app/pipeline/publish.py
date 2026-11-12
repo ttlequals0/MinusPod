@@ -37,7 +37,7 @@ from llm_capabilities import (
 )
 
 from llm_client import (
-    ProviderAccountChangedError, ProviderRateLimitedError,
+    ProviderAccountChangedError, ProviderRateLimitedError, llm_disabled,
 )
 
 from rate_limit_hold import (
@@ -606,6 +606,21 @@ def _generate_assets(slug, episode_id, segments, all_cuts, episode_description,
                                         f"Preserved {len(remapped)} upstream JSON "
                                         f"chapter(s) (no AI call)", pending_assets=pending_assets)
                                     return
+                    if llm_disabled():
+                        # Nothing is attempted, so nothing is degraded.
+                        merged = merge_ad_chapters([], markers, all_cuts or [],
+                                                   audio_duration, replacement_duration,
+                                                   ad_config)
+                        if merged:
+                            _publish_chapters(
+                                slug, episode_id, {'version': '1.2.0'}, merged, all_cuts,
+                                audio_path, audio_duration, True,
+                                "LLM disabled; kept ad chapters (no AI call)",
+                                pending_assets=pending_assets)
+                        else:
+                            audio_logger.info(
+                                f"[{slug}:{episode_id}] LLM disabled; no chapters generated")
+                        return
                     chapters_gen = None
                     chapter_setup_failed = False
                     try:
