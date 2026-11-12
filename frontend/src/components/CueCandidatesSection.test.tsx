@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { iconSizes } from './rowActionStyles';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import CueCandidatesSection from './CueCandidatesSection';
 
@@ -66,6 +67,15 @@ describe('CueCandidatesSection dismissals', () => {
     await userEvent.click(screen.getByRole('button', { name: /^hide$/i }));
     await waitFor(() => expect(dismissCueCandidate).toHaveBeenCalledWith(
       'feed', 'ep1', expect.objectContaining({ start_s: 10, end_s: 12 })));
+  });
+
+  it('sizes the play button like the 32 px actions beside it', async () => {
+    renderSection();
+    await userEvent.click(screen.getByRole('button', { name: /find audio cues/i }));
+    await waitFor(() => expect(screen.getByText(/Repeats 4x/)).toBeDefined());
+    const play = screen.getByRole('button', { name: /play this sound/i });
+    for (const token of iconSizes.base.target.split(' ')) expect(play.className).toContain(token);
+    expect(screen.getByRole('button', { name: /^hide$/i }).className).toContain('py-1.5');
   });
 
   it('dismiss stops an in-flight preview', async () => {

@@ -2986,6 +2986,15 @@ describe('Add audio to pattern on text-pattern detections', () => {
     expect(screen.queryByRole('button', { name: 'Add audio to pattern' })).toBeNull();
   });
 
+  it('shows no action when pattern_id is present but patternAudioState is absent', async () => {
+    renderDetail(makeEpisode({
+      pendingReviewMarkers: [],
+      adMarkers: [{ ...textMarker, patternAudioState: undefined }],
+    }));
+    await screen.findByText('Detected ads (1)');
+    expect(screen.queryByRole('button', { name: 'Add audio to pattern' })).toBeNull();
+  });
+
   it('is disabled and says why when the episode has no original', async () => {
     renderDetail(makeEpisode({ pendingReviewMarkers: [], hasOriginalAudio: false, adMarkers: [textMarker] }));
     const button = await screen.findByRole('button', { name: 'Add audio to pattern' }) as HTMLButtonElement;

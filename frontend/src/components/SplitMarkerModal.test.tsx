@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import SplitMarkerModal from './SplitMarkerModal';
+import { iconSizes } from './rowActionStyles';
 
 const mockGetCandidates = vi.fn();
 const mockSubmitSplit = vi.fn();
@@ -160,6 +161,15 @@ describe('SplitMarkerModal', () => {
     renderModal();
     const rows = await screen.findByTestId('piece-rows');
     expect(within(rows).getAllByRole('button', { name: /play/i })).toHaveLength(2);
+  });
+
+  it('sizes each play control like the 40 px time fields beside it', async () => {
+    renderModal();
+    const rows = await screen.findByTestId('piece-rows');
+    for (const play of within(rows).getAllByRole('button', { name: /play/i })) {
+      for (const token of iconSizes.field.target.split(' ')) expect(play.className).toContain(token);
+    }
+    expect(within(rows).getAllByRole('textbox')[0].className).toContain('min-h-10');
   });
 
   it('removing a divider drops back to one piece', async () => {

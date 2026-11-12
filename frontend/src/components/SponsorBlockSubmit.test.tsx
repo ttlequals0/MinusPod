@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi, type MockInstance } fr
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import SponsorBlockSubmit from './SponsorBlockSubmit';
+import { iconSizes } from './rowActionStyles';
 
 const mockGetCandidates = vi.fn();
 
@@ -49,6 +50,13 @@ describe('SponsorBlockSubmit', () => {
     await openDialog();
     expect(await screen.findByRole('button', { name: 'Play segment 0:10 to 0:40' })).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Play segment 2:05 to 2:30' })).toBeTruthy();
+  });
+
+  it('sizes each play button like the 44 px label row beside it', async () => {
+    await openDialog();
+    const play = await screen.findByRole('button', { name: 'Play segment 0:10 to 0:40' });
+    for (const token of iconSizes.full.target.split(' ')) expect(play.className).toContain(token);
+    expect(play.nextElementSibling?.className).toContain('min-h-11');
   });
 
   it('does not toggle the checkbox when play is clicked', async () => {

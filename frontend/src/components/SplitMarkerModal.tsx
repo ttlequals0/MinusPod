@@ -440,6 +440,7 @@ export default function SplitMarkerModal({ target, onClose, onSplit }: Props) {
                       p.start, p.end)}
                     disabled={!originalUrl}
                     title={originalUrl ? undefined : DEMO_AUDIO_TOOLTIP}
+                    size="field"
                   />
                   <span className="flex items-center gap-1 shrink-0">
                     {i === 0 ? (
@@ -475,7 +476,7 @@ export default function SplitMarkerModal({ target, onClose, onSplit }: Props) {
                     <button
                       type="button"
                       onClick={() => removeDivider(i - 1)}
-                      className={`${btnBase} ${btnOutline}`}
+                      className={`${btnBase} sm:min-h-10 ${btnOutline}`}
                     >
                       Remove divider
                     </button>

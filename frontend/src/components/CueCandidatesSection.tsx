@@ -219,6 +219,7 @@ function CueCandidatesSection({
                     <AuditionPlayButton
                       playing={isPlaying}
                       onClick={() => togglePreview(c)}
+                      size="base"
                       label="this sound"
                       disabled={!hasOriginalAudio || !originalUrl}
                       title={!originalUrl ? DEMO_AUDIO_TOOLTIP : hasOriginalAudio ? undefined : 'Original audio not retained for this episode'}

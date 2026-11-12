@@ -38,13 +38,17 @@ const coarseFill = 'sm:[@media(pointer:coarse)]:h-11 sm:[@media(pointer:coarse)]
 
 /**
  * iconTarget and iconVisual sized to the text button beside them: `row` matches rowActionBtn (28 px),
- * `base` matches btnBase (32 px), `full` matches cardActionBtn (44 px at every width).
+ * `base` matches btnBase (32 px), `field` matches inputBase (40 px), `full` matches cardActionBtn (44 px at every width).
  */
 export const iconSizes = {
   row: { target: iconTarget, visual: iconVisual },
   base: {
     target: `${iconBase} w-11 min-h-11 sm:h-8 sm:w-8 sm:min-h-0 group shrink-0 touch-manipulation focus-visible:outline-hidden`,
     visual: `${iconVisualBase} h-11 w-11 sm:h-8 sm:w-8 ${coarseFill}`,
+  },
+  field: {
+    target: `${iconBase} w-11 min-h-11 sm:h-10 sm:w-10 sm:min-h-0 group shrink-0 touch-manipulation focus-visible:outline-hidden`,
+    visual: `${iconVisualBase} h-11 w-11 sm:h-10 sm:w-10 ${coarseFill}`,
   },
   full: {
     target: `${iconBase} h-11 w-11 group shrink-0 touch-manipulation focus-visible:outline-hidden`,

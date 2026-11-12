@@ -198,14 +198,13 @@ export default function PatternAudioSection({ pattern }: { pattern: AdPattern })
           <StatTile label="Mean match" value={detail.meanSimilarity != null ? formatPercent(detail.meanSimilarity) : '-'} />
           <StatTile label="Not this ad" value={detail.counts.rejected} tone={detail.counts.rejected > 0 ? 'destructive' : 'default'} />
           <StatTile label="Last audio match" value={(
-            <span className="text-sm font-semibold">
+            <span className="block text-sm font-semibold leading-tight">
               <span className="sm:hidden">{formatDate(detail.lastMatchedAt ?? null)}</span>
               <span className="max-sm:hidden">
                 {detail.lastMatchedAt ? (
                   <>
-                    <span className="inline-block">{formatDateTimeParts(detail.lastMatchedAt).date}</span>
-                    {' '}
-                    <span className="inline-block">{formatDateTimeParts(detail.lastMatchedAt).time}</span>
+                    <span className="block">{formatDateTimeParts(detail.lastMatchedAt).date}</span>
+                    <span className="block">{formatDateTimeParts(detail.lastMatchedAt).time}</span>
                   </>
                 ) : '-'}
               </span>
