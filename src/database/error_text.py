@@ -24,6 +24,7 @@ STORED_ERROR_COLUMNS = (
     ('cue_cross_episode_scans', 'error'),
     ('cue_window_optimize_scans', 'error'),
     ('failover_events', 'reason'),
+    ('systemone_call_diagnostics', 'reason'),
     ('episodes', 'detection_degraded'),
 )
 

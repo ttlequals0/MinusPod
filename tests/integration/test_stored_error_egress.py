@@ -26,7 +26,8 @@ def _remove_seeded_rows(app_client):
     """The shared database outlives a test, so drop the rows these seeds insert outside the feed."""
     yield
     for table, column in (('pattern_cleanup_runs', 'error'), ('failover_events', 'reason'),
-                          ('processing_history', 'error_message')):
+                          ('processing_history', 'error_message'),
+                          ('systemone_call_diagnostics', 'reason')):
         _sql(get_database(), f"DELETE FROM {table} WHERE {column} = ?", (RAW,))  # noqa: S608
 
 
@@ -63,6 +64,11 @@ def _failover_reason(db):
          (RAW,))
 
 
+def _systemone_reason(db):
+    _sql(db, "INSERT INTO systemone_call_diagnostics (logical_call_id, provider_key, configured_model, "
+             "phase_key, outcome, reason) VALUES ('egress-call', 'p', 'm', 'review', 'failed', ?)", (RAW,))
+
+
 def _scan_error(table, key_col, key):
     def seed(db):
         pid = db.get_podcast_by_slug(SLUG)['id']
@@ -96,6 +102,7 @@ SERVED = {
     ('pattern_cleanup_runs', 'error'): (_cleanup_error, _get('/api/v1/patterns/cleanup/runs')),
     ('failover_events', 'reason'): (_failover_reason, _get('/api/v1/failover')),
     ('episodes', 'detection_degraded'): (_episode_column('detection_degraded'), _episode),
+    ('systemone_call_diagnostics', 'reason'): (_systemone_reason, _get('/api/v1/stats/systemone')),
 }
 NOT_SERVED = {('auto_process_queue', 'error_message')}
 CUE_SCANS = {

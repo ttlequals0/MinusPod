@@ -17,6 +17,7 @@ KEY = 'a' * 64
 RAW = (f'GET https://alice:PASS@cdn.example.com/a.mp3?X-Amz-Signature=SIG failed '
        f'feed https://example.com/feed/{KEY}.xml')
 LEAKS = ('PASS', 'SIG', KEY, 'alice')
+SHORT_RAW = 'https://alice:PASS@cdn.example.com/a?X-Amz-Signature=SIG'
 SLUG, EPISODE = 'origin-test', 'a1b2c3d4e5f6'
 
 
@@ -99,6 +100,13 @@ def _write_failover_reason(db):
     conn.commit()
 
 
+def _write_systemone_reason(db):
+    db.record_systemone_call_diagnostics(
+        logical_call_id='call-1', run_id='r', podcast_id=None, episode_id=EPISODE, provider_key='p',
+        credential_slot=None, configured_model='m', phase_key='review', window_label=None,
+        logical_latency_ms=1, outcome='failed', reason=SHORT_RAW)
+
+
 # One public write path per stored error column; a new column without an entry fails the coverage test.
 WRITERS = {
     ('episodes', 'error_message'): _write_episode_error,
@@ -113,6 +121,7 @@ WRITERS = {
     ('cue_cross_episode_scans', 'error'): _write_cross_scan_error,
     ('cue_window_optimize_scans', 'error'): _write_window_scan_error,
     ('failover_events', 'reason'): _write_failover_reason,
+    ('systemone_call_diagnostics', 'reason'): _write_systemone_reason,
     ('episodes', 'detection_degraded'): _write_detection_degraded,
 }
 

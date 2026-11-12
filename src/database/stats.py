@@ -589,7 +589,8 @@ class StatsMixin:
         allowed_outcomes = {'completed', 'failed', 'inconclusive'}
         if outcome not in allowed_outcomes:
             outcome = 'failed'
-        reason = reason if isinstance(reason, str) and len(reason) <= 64 else None
+        reason = redact_error(reason) if isinstance(reason, str) else None
+        reason = reason if reason and len(reason) <= 64 else None
         stage = stage if isinstance(stage, str) and len(stage) <= 64 else None
         conn = self.get_connection()
         conn.execute(
@@ -1357,7 +1358,8 @@ class StatsMixin:
         for item in calls:
             outcomes[item['outcome']] = outcomes.get(item['outcome'], 0) + 1
             if item['reason']:
-                reasons[item['reason']] = reasons.get(item['reason'], 0) + 1
+                reason = redact_error(item['reason'])
+                reasons[reason] = reasons.get(reason, 0) + 1
             try:
                 diagnostics = json.loads(item['diagnostics_json'] or '{}')
             except (TypeError, ValueError):

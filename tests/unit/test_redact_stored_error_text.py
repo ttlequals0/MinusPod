@@ -51,6 +51,8 @@ def _seed(db):
     conn.execute("INSERT INTO cue_window_optimize_scans (template_id, status, error) VALUES (999, 'error', ?)", (RAW,))
     conn.execute("INSERT INTO failover_events (target, action, source, reason) "
                  "VALUES ('llm:primary', 'trigger', 'auto', ?)", (RAW,))
+    conn.execute("INSERT INTO systemone_call_diagnostics (logical_call_id, provider_key, configured_model, "
+                 "phase_key, outcome, reason) VALUES ('call-1', 'p', 'm', 'review', 'failed', ?)", (RAW,))
     conn.execute("INSERT INTO episode_details (episode_id, dai_differential_json, upstream_transcript_json) "
                  "VALUES (?, ?, ?)", (eid, json.dumps({'status': 'error', 'regions': [], 'error': RAW}),
                                       json.dumps({'status': 'error', 'source_url': UNTOUCHED_URL, 'error': RAW})))
@@ -102,6 +104,7 @@ EXPECTED_TEXT = {
     ('pattern_cleanup_runs', 'error'): CLEAN, ('cue_candidate_scans', 'error'): CLEAN,
     ('cue_threshold_scans', 'error'): CLEAN, ('cue_cross_episode_scans', 'error'): CLEAN,
     ('cue_window_optimize_scans', 'error'): CLEAN, ('failover_events', 'reason'): CLEAN,
+    ('systemone_call_diagnostics', 'reason'): CLEAN,
 }
 
 
