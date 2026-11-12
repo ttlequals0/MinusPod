@@ -28,6 +28,8 @@ from config import (
     WHISPER_COMPUTE_TYPE_DEFAULT,
     AD_DETECTION_PARALLEL_WINDOWS_DEFAULT,
     AD_REVIEWER_PARALLEL_ADS_DEFAULT,
+    SESSION_LIFETIME_HOURS_MIN, SESSION_LIFETIME_HOURS_MAX,
+    SESSION_REMEMBER_DAYS_MIN, SESSION_REMEMBER_DAYS_MAX,
     MAX_ARTWORK_BYTES_MIN, MAX_ARTWORK_BYTES_MAX, MAX_RSS_BYTES_MIN,
     MAX_AUDIO_DOWNLOAD_MB_MIN,
     LOCAL_UPLOAD_MAX_MB_MIN, LOCAL_UPLOAD_MAX_MB_MAX, LOCAL_UPLOAD_MAX_MB_DEFAULT,
@@ -201,6 +203,16 @@ def _seed_env_openai_model() -> str | None:
 def _payload_max_artwork_bytes() -> int:
     return get_env_backed_int('max_artwork_bytes', floor=MAX_ARTWORK_BYTES_MIN,
                               ceiling=MAX_ARTWORK_BYTES_MAX, settings={})
+
+
+def _payload_session_lifetime_hours() -> int:
+    return get_env_backed_int('session_lifetime_hours', floor=SESSION_LIFETIME_HOURS_MIN,
+                              ceiling=SESSION_LIFETIME_HOURS_MAX, settings={})
+
+
+def _payload_session_remember_days() -> int:
+    return get_env_backed_int('session_remember_days', floor=SESSION_REMEMBER_DAYS_MIN,
+                              ceiling=SESSION_REMEMBER_DAYS_MAX, settings={})
 
 
 def _payload_max_rss_bytes() -> int:
@@ -873,6 +885,12 @@ SETTINGS_REGISTRY: dict[str, SettingSpec] = {
         env_backed=True, payload_key='feedUserAgent'),
     'log_download_query': SettingSpec(
         env_backed=True, payload_key='logDownloadQuery', payload_kind='bool'),
+    'session_lifetime_hours': SettingSpec(
+        env_backed=True, payload_key='sessionLifetimeHours',
+        payload_factory=_payload_session_lifetime_hours),
+    'session_remember_days': SettingSpec(
+        env_backed=True, payload_key='sessionRememberDays',
+        payload_factory=_payload_session_remember_days),
     'max_artwork_bytes': SettingSpec(
         env_backed=True, in_ad_reset=True, payload_key='maxArtworkBytes',
         payload_factory=_payload_max_artwork_bytes),

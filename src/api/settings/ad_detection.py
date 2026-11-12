@@ -21,6 +21,8 @@ from config import (
     coerce_bool_setting,
     FINGERPRINT_SETTING_RANGES,
     apply_ad_chapter_compat, MAX_AD_DURATION, MAX_AD_DURATION_CONFIRMED,
+    SESSION_LIFETIME_HOURS_MIN, SESSION_LIFETIME_HOURS_MAX,
+    SESSION_REMEMBER_DAYS_MIN, SESSION_REMEMBER_DAYS_MAX,
     MAX_ARTWORK_BYTES_MIN, MAX_ARTWORK_BYTES_MAX, MAX_RSS_BYTES_MIN,
     MAX_AUDIO_DOWNLOAD_MB_MIN,
     LOCAL_UPLOAD_MAX_MB_MIN, LOCAL_UPLOAD_MAX_MB_MAX,
@@ -151,6 +153,7 @@ def apply_settings_payload_in_transaction(db, data, *, allow_inactive_tunables=F
         _apply_min_cut_confidence,
         _apply_audio_fields,
         _apply_size_caps,
+        _apply_session_settings,
         # Secondary first so this save's stage routing resolves against the
         # slot state it is setting.
         provider_phases._apply_secondary_provider_fields,
@@ -588,6 +591,45 @@ def _size_cap_writes(data):
             return None, (f'{payload_key} must be {bound}', 400)
         writes.append((db_key, n))
     return writes, None
+
+
+def _session_settings_writes(data):
+    fields = (
+        ('sessionLifetimeHours', 'session_lifetime_hours',
+         SESSION_LIFETIME_HOURS_MIN, SESSION_LIFETIME_HOURS_MAX),
+        ('sessionRememberDays', 'session_remember_days',
+         SESSION_REMEMBER_DAYS_MIN, SESSION_REMEMBER_DAYS_MAX),
+    )
+    writes = []
+    for payload_key, db_key, floor, ceiling in fields:
+        if payload_key not in data:
+            continue
+        raw = data[payload_key]
+        try:
+            if isinstance(raw, bool):
+                raise TypeError
+            n = int(raw)
+        except (TypeError, ValueError):
+            return None, (f'{payload_key} must be an integer', 400)
+        if n < floor or n > ceiling:
+            return None, (f'{payload_key} must be between {floor} and {ceiling}', 400)
+        writes.append((db_key, n))
+    return writes, None
+
+
+def _apply_session_settings(db, data):
+    """Persist the session lengths; validates both before writing either."""
+    writes, issue = _session_settings_writes(data)
+    if issue is not None:
+        return error_response(*issue)
+    for db_key, value in writes:
+        db.set_setting(db_key, str(value), is_default=False)
+        logger.info(f"Updated {db_key} to: {value}")
+
+
+def _validate_session_settings_payload(data):
+    _writes, issue = _session_settings_writes(data)
+    return issue
 
 
 def _validate_size_caps_payload(data):
@@ -1305,6 +1347,7 @@ def validate_settings_payload(
         provider_phases._validate_provider_routing_payload,
         _validate_model_pricing_payload,
         _validate_size_caps_payload,
+        _validate_session_settings_payload,
         provider_phases._validate_provider_rate_limit_payload,
         _validate_queue_boost_payload,
         _validate_rss_refresh_payload,

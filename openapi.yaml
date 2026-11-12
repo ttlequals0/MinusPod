@@ -8138,6 +8138,18 @@ paths:
                     disabled or unconfigured.
                   enum: [primary, secondary, same_as_pass]
                   example: same_as_pass
+                sessionLifetimeHours:
+                  type: integer
+                  minimum: 1
+                  maximum: 8760
+                  description: Idle session length in hours for a normal sign-in.
+                  example: 24
+                sessionRememberDays:
+                  type: integer
+                  minimum: 1
+                  maximum: 365
+                  description: Idle session length in days for a sign-in that ticked "Remember me".
+                  example: 30
                 maxArtworkBytes:
                   type: integer
                   minimum: 65536
@@ -18404,6 +18416,24 @@ components:
               maximum: 32
             isDefault:
               type: boolean
+        sessionLifetimeHours:
+          type: object
+          properties:
+            value:
+              type: integer
+              minimum: 1
+              maximum: 8760
+            isDefault:
+              type: boolean
+        sessionRememberDays:
+          type: object
+          properties:
+            value:
+              type: integer
+              minimum: 1
+              maximum: 365
+            isDefault:
+              type: boolean
         maxArtworkBytes:
           type: object
           properties:
@@ -19474,6 +19504,10 @@ components:
               type: integer
               minimum: 1
               maximum: 32
+            sessionLifetimeHours:
+              type: integer
+            sessionRememberDays:
+              type: integer
             maxArtworkBytes:
               type: integer
             maxRssBytes:

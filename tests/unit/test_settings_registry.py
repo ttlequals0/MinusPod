@@ -576,11 +576,12 @@ class TestGetDefaults:
         # reviewLinksInNotes added after that (176 -> 177).
         # feedItunesBlock added after that (177 -> 178).
         # Five fingerprint* settings added after that (178 -> 183).
+        # Two session length settings added after that (183 -> 185).
         payload_keys = {
             spec.payload_key for spec in SETTINGS_REGISTRY.values()
             if spec.payload_key
         }
-        assert len(payload_keys) == 183
+        assert len(payload_keys) == 185
         assert 'systemoneBaseUrl' in payload_keys
         assert 'failoverWhisperMaxAttempts' in payload_keys
         assert 'audioCuePairOrientWindowSeconds' not in payload_keys

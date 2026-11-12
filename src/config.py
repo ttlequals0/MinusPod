@@ -2666,6 +2666,24 @@ def _validate_positive_int(value: str) -> bool:
         return False
 
 
+SESSION_LIFETIME_HOURS_MIN, SESSION_LIFETIME_HOURS_MAX = 1, 8760
+SESSION_REMEMBER_DAYS_MIN, SESSION_REMEMBER_DAYS_MAX = 1, 365
+
+
+def _validate_session_lifetime_hours(value: str) -> bool:
+    try:
+        return SESSION_LIFETIME_HOURS_MIN <= int(value) <= SESSION_LIFETIME_HOURS_MAX
+    except (ValueError, TypeError):
+        return False
+
+
+def _validate_session_remember_days(value: str) -> bool:
+    try:
+        return SESSION_REMEMBER_DAYS_MIN <= int(value) <= SESSION_REMEMBER_DAYS_MAX
+    except (ValueError, TypeError):
+        return False
+
+
 def _validate_non_negative_int(value: str) -> bool:
     """Manual rate-limit gate: 0 means off, positive is a cap."""
     try:
@@ -2790,6 +2808,8 @@ ENV_BACKED_SETTINGS = (
     # Size caps (issue #491 follow-up): previously env-only knobs. Units
     # match the historical env vars (bytes for artwork/RSS, MB for audio
     # download) so existing deployments keep working unchanged.
+    ('session_lifetime_hours', 'SESSION_LIFETIME_HOURS', '24', _validate_session_lifetime_hours),
+    ('session_remember_days', 'SESSION_REMEMBER_DAYS', '30', _validate_session_remember_days),
     ('max_artwork_bytes', 'MINUSPOD_MAX_ARTWORK_BYTES', str(25 * 1024 * 1024), _validate_positive_int),
     ('max_rss_bytes', 'MINUSPOD_MAX_RSS_BYTES', str(200 * 1024 * 1024), _validate_positive_int),
     ('max_audio_download_mb', 'MAX_AUDIO_DOWNLOAD_MB', '500', _validate_positive_int),
