@@ -78,7 +78,12 @@ def test_boundaries_accepted(client):
     {'sessionRememberDays': 0},
     {'sessionRememberDays': 366},
     {'sessionLifetimeHours': 'soon'},
-    {'sessionLifetimeHours': None},
+    {'sessionLifetimeHours': 24.9},
+    {'sessionLifetimeHours': 8760.9},
+    {'sessionRememberDays': 1.5},
+    {'sessionLifetimeHours': '24.9'},
+    {'sessionLifetimeHours': float('inf')},
+    {'sessionLifetimeHours': [24]},
     {'sessionLifetimeHours': True},
 ])
 def test_put_rejects_bad_values(client, payload):
@@ -101,3 +106,32 @@ def test_bulk_ad_reset_leaves_session_settings(client):
     _put(client, {'sessionRememberDays': 90})
     client.post(f'{BASE}/ad-detection/reset')
     assert client.get(BASE).get_json()['sessionRememberDays']['value'] == 90
+
+
+def test_whole_number_float_is_accepted(client):
+    assert _put(client, {'sessionLifetimeHours': 24.0}).status_code == 200
+    assert client.get(BASE).get_json()['sessionLifetimeHours']['value'] == 24
+
+
+@pytest.mark.parametrize('field,key,saved,default', [
+    ('sessionLifetimeHours', 'session_lifetime_hours', 100, 24),
+    ('sessionRememberDays', 'session_remember_days', 90, 30),
+])
+def test_null_resets_to_the_default(client, field, key, saved, default):
+    assert _put(client, {field: saved}).status_code == 200
+    assert client.get(BASE).get_json()[field] == {'value': saved, 'isDefault': False}
+    assert _put(client, {field: None}).status_code == 200
+    assert client.get(BASE).get_json()[field] == {'value': default, 'isDefault': True}
+
+
+def test_null_reset_shows_the_env_value_again(client, monkeypatch):
+    monkeypatch.setenv('SESSION_LIFETIME_HOURS', '72')
+    _put(client, {'sessionLifetimeHours': 100})
+    assert _put(client, {'sessionLifetimeHours': None}).status_code == 200
+    assert client.get(BASE).get_json()['sessionLifetimeHours'] == {'value': 72, 'isDefault': True}
+
+
+def test_null_beside_a_bad_value_changes_nothing(client):
+    _put(client, {'sessionLifetimeHours': 100})
+    assert _put(client, {'sessionLifetimeHours': None, 'sessionRememberDays': 0}).status_code == 400
+    assert client.get(BASE).get_json()['sessionLifetimeHours']['value'] == 100

@@ -608,11 +608,14 @@ def _session_settings_writes(data):
         if payload_key not in data:
             continue
         raw = data[payload_key]
+        if raw is None:
+            writes.append((db_key, None))
+            continue
         try:
-            if isinstance(raw, bool):
+            if isinstance(raw, bool) or (isinstance(raw, float) and not raw.is_integer()):
                 raise TypeError
             n = int(raw)
-        except (TypeError, ValueError):
+        except (TypeError, ValueError, OverflowError):
             return None, (f'{payload_key} must be an integer', 400)
         if n < floor or n > ceiling:
             return None, (f'{payload_key} must be between {floor} and {ceiling}', 400)
@@ -626,8 +629,11 @@ def _apply_session_settings(db, data):
     if issue is not None:
         return error_response(*issue)
     for db_key, value in writes:
-        db.set_setting(db_key, str(value), is_default=False)
-        logger.info(f"Updated {db_key} to: {value}")
+        if value is None:
+            db.reset_setting(db_key)
+        else:
+            db.set_setting(db_key, str(value), is_default=False)
+        logger.info(f"Updated {db_key} to: {value if value is not None else 'default'}")
 
 
 def _validate_session_settings_payload(data):

@@ -8180,16 +8180,16 @@ paths:
                   enum: [primary, secondary, same_as_pass]
                   example: same_as_pass
                 sessionLifetimeHours:
-                  type: integer
+                  type: [integer, 'null']
                   minimum: 1
                   maximum: 8760
-                  description: Idle session length in hours for a normal sign-in.
+                  description: Idle session length in hours for a normal sign-in. Whole numbers only. Null resets to the default.
                   example: 24
                 sessionRememberDays:
-                  type: integer
+                  type: [integer, 'null']
                   minimum: 1
                   maximum: 365
-                  description: Idle session length in days for a sign-in that ticked "Remember me".
+                  description: Idle session length in days for a sign-in that ticked "Remember me". Whole numbers only. Null resets to the default.
                   example: 30
                 maxArtworkBytes:
                   type: integer
