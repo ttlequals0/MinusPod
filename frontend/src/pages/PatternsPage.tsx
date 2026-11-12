@@ -503,7 +503,7 @@ function PatternsPage() {
               <tr>
                 <SortHeader field="id" label="ID" className="px-2" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} />
                 <SortHeader field="scope" label="Scope" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} />
-                <SortHeader field="sponsor" label="Sponsor" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} />
+                <SortHeader field="sponsor" label="Sponsor" className="px-2" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} />
                 <th className={`${thBase} px-2 text-left`}>
                   Category
                 </th>
