@@ -130,7 +130,7 @@ def test_export_resolves_global_segment_actions_once_for_many_feeds(app_client, 
     try:
         response = app_client.get('/api/v1/system/config-export')
     finally:
-        db.get_setting = original_get_setting
+        del db.get_setting  # Database() is a singleton; an instance attribute would outlive the test
         for slug in extra_slugs:
             db.delete_podcast(slug)
 
