@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { render, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import { touchTarget, touchTargetRow } from '../buttonStyles';
@@ -19,6 +20,12 @@ describe('coarse-pointer width floor', () => {
   it('touchTarget and touchTargetRow leave min-width to the base rule from sm up', () => {
     expect(resetsWidthFromSm(touchTarget)).toBe(false);
     expect(resetsWidthFromSm(touchTargetRow)).toBe(false);
+  });
+
+  it('index.css gives every touchTarget element a coarse-pointer width default in the base layer', () => {
+    const css = readFileSync('src/index.css', 'utf8');
+    expect(css).toMatch(/@layer base \{\s*@media \(pointer: coarse\)\s*\{[^}]*\.touch-target[^}]*min-width: 44px/);
+    expect(touchTarget.split(/\s+/)).toContain('touch-target');
   });
 
   it('the zoom buttons use the shared recipe', () => {

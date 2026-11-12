@@ -16,8 +16,8 @@ export const btnOutline = btnSecondary;
 export const btnGhost = 'text-muted-foreground hover:text-foreground hover:bg-accent';
 export const btnDestructive = 'bg-destructive text-destructive-foreground hover:bg-destructive/90';
 
-// index.css enforces the coarse-pointer height floor at every width; width is a base-layer default,
-// so a min-w-0 here would switch it off from sm. Below sm the floor is explicit.
+// 44 x 44 px on coarse pointers at every width (index.css: height floor, base-layer width for .touch-target)
+// and below sm on any pointer; from sm on a fine pointer it has no floor. Never add a min-w-0 from sm.
 export const touchTarget =
   'touch-target inline-flex items-center justify-center min-h-11 max-sm:min-w-11 sm:min-h-0';
 // Icon-only header actions beside a heading: a 36 px square on a phone, text button from sm.

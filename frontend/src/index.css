@@ -164,10 +164,10 @@ mark,
   summary:not(.flex) { padding-block: 12px; }
 }
 
-/* Height is a hard floor (above); width is a default in the base layer, so a button's own min-w-* utility wins. */
+/* Height is a hard floor (above); width is a default in the base layer, so a control's own min-w-* utility wins. */
 @layer base {
   @media (pointer: coarse) {
-    button, summary, [role="switch"] { min-width: 44px; }
+    button, summary, [role="switch"], .touch-target { min-width: 44px; }
   }
 }
 

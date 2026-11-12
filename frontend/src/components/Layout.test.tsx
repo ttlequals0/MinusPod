@@ -55,9 +55,11 @@ describe('Layout header hit targets', () => {
     }
   });
 
-  it('keeps the Search link 44px wide on coarse pointers at xl, like the buttons beside it', () => {
+  it('gets the coarse-pointer width for the Search link from the shared recipe, not a local patch', () => {
     renderLayout();
-    expect(screen.getByRole('link', { name: 'Search' }).className.split(/\s+/)).toContain('xl:pointer-coarse:min-w-11');
+    const classes = screen.getByRole('link', { name: 'Search' }).className.split(/\s+/);
+    expect(classes).toContain('touch-target');
+    expect(classes.filter((c) => c.includes('pointer-coarse'))).toEqual([]);
   });
 
   it('announces when the compact navigation is expanded', async () => {

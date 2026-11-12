@@ -149,7 +149,7 @@ function EpisodeRating({ slug, episodeId, rating, requestedRating, onRequestedRa
             disabled={busy}
             onClick={() => setValue(n)}
             onKeyDown={onKeyDown}
-            className={`${touchTarget} sm:min-h-9 sm:min-w-9 sm:pointer-coarse:min-w-11 rounded text-warning ${focusRing}`}
+            className={`${touchTarget} sm:min-h-9 sm:pointer-fine:min-w-9 rounded text-warning ${focusRing}`}
           >
             <Star className="w-7 h-7" fill={n <= value ? 'currentColor' : 'none'} aria-hidden="true" />
           </button>

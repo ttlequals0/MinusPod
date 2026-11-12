@@ -131,7 +131,7 @@ function Layout() {
             <div className="flex shrink-0 items-center gap-1 xl:gap-2">
               <Link
                 to="/search"
-                className={`${touchTarget} ${COMPACT_HEADER_CONTROL_SIZE} xl:pointer-coarse:min-w-11 p-2 rounded-md ${btnGhost} ${focusRing} transition-colors`}
+                className={`${touchTarget} ${COMPACT_HEADER_CONTROL_SIZE} p-2 rounded-md ${btnGhost} ${focusRing} transition-colors`}
                 aria-label="Search"
                 title="Search"
               >
