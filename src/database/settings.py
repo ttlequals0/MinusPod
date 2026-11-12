@@ -663,6 +663,8 @@ SETTINGS_REGISTRY: dict[str, SettingSpec] = {
     # feed_auth_key is deliberately not resettable: reset must never wipe a
     # live key (rotation is an explicit action).
     'feed_auth_key': SettingSpec(resettable=False),
+    # Account identities in force before the provider was set to none.
+    'llm_pre_none_identity': SettingSpec(resettable=False),
     # positional_prior_enabled has a GET default but no reset path today.
     'positional_prior_enabled': SettingSpec(
         default='false', resettable=False,

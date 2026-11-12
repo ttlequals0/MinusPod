@@ -57,6 +57,8 @@ EXCLUDED_SETTINGS = frozenset({
     'pattern_cleanup_schedule_anchor', 'provider_budget_fx_fetched_at',
     'provider_budget_fx_source_date', 'provider_budget_fx_rate',
     'provider_crypto_salt', 'provider_config_revision', 'config_transfer_revision',
+    # model fields to restore after none are tied to this instance's accounts
+    'llm_pre_none_identity',
     # yt-dlp runtime status is instance state, not configuration
     'youtube_ytdlp_version', 'youtube_ytdlp_last_update_at',
     'youtube_ytdlp_last_check_at', 'youtube_ytdlp_last_error',

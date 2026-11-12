@@ -219,6 +219,10 @@ _STAGE_MODEL_KEYS = {
 }
 
 
+_PRE_NONE_KEY = 'llm_pre_none_identity'
+_MODEL_STAGES = (*_STAGE_MODEL_KEYS, 'pattern_cleanup')
+
+
 def _model_identity_snapshot(db):
     identities = {
         stage: provider_phases._provider_account_identity(db, resolved_stage_slot(db, stage))
@@ -227,27 +231,53 @@ def _model_identity_snapshot(db):
     identities['pattern_cleanup'] = provider_phases._provider_account_identity(
         db, resolved_stage_slot(db, 'pattern_cleanup'))
     identities['failover_llm'] = provider_phases._failover_llm_identity(db)
+    identities['primary_none'] = llm_disabled(
+        db.get_setting('llm_provider') or get_effective_provider())
     return identities
+
+
+def _stored_pre_none_identities(db):
+    try:
+        raw = json.loads(db.get_setting(_PRE_NONE_KEY) or '{}')
+    except ValueError:
+        return {}
+    return {stage: tuple(ident) for stage, ident in raw.items()
+            if stage in _MODEL_STAGES and isinstance(ident, list)}
+
+
+def _clear_stage_models(db, stages, data, changed_stages):
+    for stage in stages:
+        if stage in _STAGE_MODEL_KEYS:
+            setting_key, payload_key = _STAGE_MODEL_KEYS[stage]
+            if payload_key in data:
+                continue
+            if stage == 'review' and db.get_setting(setting_key) == SAME_AS_PASS:
+                continue
+            db.set_setting(setting_key, '', is_default=False)
+            changed_stages.append(stage)
+        elif ('patternCleanupModel' not in data
+              and db.get_setting('pattern_cleanup_model') is not None):
+            db.set_setting('pattern_cleanup_model', '', is_default=False)
 
 
 def _clear_models_for_identity_changes(db, previous, data):
     current = _model_identity_snapshot(db)
     changed_stages = []
-    for stage, (setting_key, payload_key) in _STAGE_MODEL_KEYS.items():
-        if previous[stage] == current[stage] or payload_key in data:
-            continue
-        if llm_disabled(previous[stage][1]) or llm_disabled(current[stage][1]):
-            continue
-        if stage == 'review' and db.get_setting(setting_key) == SAME_AS_PASS:
-            continue
-        db.set_setting(setting_key, '', is_default=False)
-        changed_stages.append(stage)
-    if (previous['pattern_cleanup'] != current['pattern_cleanup']
-            and not llm_disabled(previous['pattern_cleanup'][1])
-            and not llm_disabled(current['pattern_cleanup'][1])
-            and 'patternCleanupModel' not in data
-            and db.get_setting('pattern_cleanup_model') is not None):
-        db.set_setting('pattern_cleanup_model', '', is_default=False)
+    if current['primary_none'] and not previous['primary_none']:
+        # Keep the models; remember the accounts they belong to.
+        db.set_setting(_PRE_NONE_KEY, json.dumps(
+            {stage: list(previous[stage]) for stage in _MODEL_STAGES}), is_default=False)
+        stages = ()
+    elif previous['primary_none'] and not current['primary_none']:
+        stored = _stored_pre_none_identities(db)
+        db.set_setting(_PRE_NONE_KEY, '', is_default=False)
+        stages = [stage for stage in _MODEL_STAGES
+                  if stage in stored and stored[stage] != current[stage]]
+    elif previous['primary_none']:
+        stages = ()
+    else:
+        stages = [stage for stage in _MODEL_STAGES if previous[stage] != current[stage]]
+    _clear_stage_models(db, stages, data, changed_stages)
     if previous['failover_llm'] != current['failover_llm']:
         for stage in ('detection', 'review', 'verification', 'chapters'):
             setting_key = f'failover_llm_{stage}_model'
