@@ -14,6 +14,7 @@ from database.patterns import PatternMixin
 from database.sponsors import SponsorMixin
 from database.stats import StatsMixin
 from database.maintenance import MaintenanceMixin
+from database.fingerprint_matches import FingerprintMatchMixin
 from database.fingerprints import FingerprintMixin
 from database.cue_templates import CueTemplateMixin
 from database.cue_detections import CueDetectionMixin
@@ -479,7 +480,7 @@ Return one JSON object:
 
 class Database(SchemaMixin, PodcastMixin, EpisodeMixin, SettingsMixin,
                PatternMixin, SponsorMixin, StatsMixin, MaintenanceMixin,
-               FingerprintMixin, CueTemplateMixin, CueDetectionMixin,
+               FingerprintMixin, FingerprintMatchMixin, CueTemplateMixin, CueDetectionMixin,
                QueueMixin, SearchMixin, AuthLockoutMixin, PodpingHostMixin,
                FeedSubscriberMixin, ProviderAdmissionMixin,
                UploadReservationMixin, FailoverEventsMixin, PatternCleanupMixin,
