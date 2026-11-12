@@ -56,6 +56,7 @@ OUTAGE_RETRY_MAX_DOUBLINGS = 4
 # every row of the page is blocked, so a pass that claims several rows does
 # not meet an unscored one.
 BLOCKED_SCAN_PAGE = PENDING_QUEUE_LIMIT
+WAL_TRUNCATE_MIN_BYTES = 1024 * 1024
 BLOCKED_SCAN_MAX_ROWS = 1000
 # Cooldown before a failed search index rebuild is attempted again. The
 # rebuild is a whole-corpus write, so retrying it every pass feeds the
@@ -657,9 +658,16 @@ def _run_maintenance_tick(registry):
     _maybe_checkpoint_wal(registry)
 
 
+def _wal_bytes() -> int:
+    try:
+        return os.stat(f'{db.db_path}-wal').st_size
+    except OSError:
+        return 0
+
+
 def _maybe_checkpoint_wal(registry) -> None:
-    """Truncate the WAL while idle; a reader in the way means try again next tick."""
-    if registry.slot_count() != 0 or backup_in_progress(db):
+    """Truncate a sizeable WAL while idle; a reader in the way means try again next tick."""
+    if registry.slot_count() != 0 or backup_in_progress(db) or _wal_bytes() < WAL_TRUNCATE_MIN_BYTES:
         return
     try:
         result = db.checkpoint_wal(mode='truncate')

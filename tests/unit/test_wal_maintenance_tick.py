@@ -21,7 +21,23 @@ def _record(monkeypatch, busy=0):
         return {'busy': busy, 'logPages': 0, 'checkpointedPages': 0, 'durationMs': 0, 'mode': mode}
 
     monkeypatch.setattr(bg.db, 'checkpoint_wal', fake)
+    monkeypatch.setattr(bg, '_wal_bytes', lambda: bg.WAL_TRUNCATE_MIN_BYTES)
     return calls
+
+
+def test_tick_skips_a_small_wal(monkeypatch):
+    calls = _record(monkeypatch)
+    monkeypatch.setattr(bg, '_wal_bytes', lambda: bg.WAL_TRUNCATE_MIN_BYTES - 1)
+    monkeypatch.setattr(bg, 'backup_in_progress', lambda _db: False)
+    bg._maybe_checkpoint_wal(_registry(0))
+    assert calls == []
+
+
+def test_wal_bytes_reads_the_wal_file(monkeypatch, tmp_path):
+    monkeypatch.setattr(bg.db, 'db_path', tmp_path / 'x.db')
+    assert bg._wal_bytes() == 0
+    (tmp_path / 'x.db-wal').write_bytes(b'x' * 10)
+    assert bg._wal_bytes() == 10
 
 
 def test_tick_runs_truncate_checkpoint_when_idle(monkeypatch):

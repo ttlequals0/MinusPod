@@ -70,9 +70,10 @@ def test_truncate_checkpoint_empties_the_wal_file(tmp_path):
         conn.commit()
 
 
-def test_unknown_checkpoint_mode_runs_passive(tmp_path):
+def test_unknown_checkpoint_mode_raises(tmp_path):
     db = Database(tmp_path)
-    assert db.checkpoint_wal(mode='bogus')['mode'] == 'passive'
+    with pytest.raises(ValueError):
+        db.checkpoint_wal(mode='bogus')
 
 
 def test_truncate_checkpoint_gives_up_quickly_when_a_reader_blocks_it(tmp_path):

@@ -57,8 +57,9 @@ class MaintenanceMixin:
         }
 
     def checkpoint_wal(self, mode: str = 'passive') -> dict:
-        """Run a WAL checkpoint (passive, or truncate) and return SQLite's result."""
-        mode = 'truncate' if mode == 'truncate' else 'passive'
+        """Run a WAL checkpoint (passive, or truncate) and return SQLite's result; other modes raise ValueError."""
+        if mode not in ('passive', 'truncate'):
+            raise ValueError(f'unknown checkpoint mode: {mode!r}')
         conn = self.get_connection()
         started = time.monotonic()
         previous_timeout = None
