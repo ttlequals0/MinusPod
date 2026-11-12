@@ -44,6 +44,8 @@ from api import (
 logger = logging.getLogger('podcast.api')
 
 NO_AUDIO_SUMMARY = {'state': 'none', 'available': False, 'matchCount': 0, 'meanSimilarity': None}
+# 64-bit bound keeps an oversized id a 404 instead of an SQLite overflow.
+PATTERN_ROUTE = '/patterns/<int(max=9223372036854775807):pattern_id>'
 
 
 # ========== Pattern & Correction Endpoints ==========
@@ -326,7 +328,7 @@ def get_contaminated_patterns():
     })
 
 
-@api.route('/patterns/<int(max=9223372036854775807):pattern_id>/split', methods=['POST'])
+@api.route(PATTERN_ROUTE + '/split', methods=['POST'])
 @log_request
 def split_pattern(pattern_id):
     """Split a contaminated multi-sponsor pattern into separate patterns.
@@ -354,7 +356,7 @@ def split_pattern(pattern_id):
     })
 
 
-@api.route('/patterns/<int(max=9223372036854775807):pattern_id>', methods=['GET'])
+@api.route(PATTERN_ROUTE, methods=['GET'])
 @log_request
 def get_pattern(pattern_id):
     """Get a single pattern by ID."""
@@ -373,23 +375,7 @@ def get_pattern(pattern_id):
 MAX_NETWORK_ID_CHARS = 100
 
 
-def _network_for_scope_change(db, pattern, given):
-    """(network id, None) for a pattern becoming network scope, or (None, 400 response)."""
-    if given is not None:
-        network_id = given.strip() if isinstance(given, str) else ''
-        if not network_id:
-            return None, error_response('networkId must be a non-empty string', 400)
-        if len(network_id) > MAX_NETWORK_ID_CHARS:
-            return None, error_response(f'networkId must be at most {MAX_NETWORK_ID_CHARS} characters', 400)
-        return network_id, None
-    network_id = network_for_network_scope(db, pattern)
-    if network_id is None:
-        return None, error_response(
-            'Network scope needs a network: the pattern has no feed with a network, so send networkId', 400)
-    return network_id, None
-
-
-@api.route('/patterns/<int(max=9223372036854775807):pattern_id>', methods=['PUT'])
+@api.route(PATTERN_ROUTE, methods=['PUT'])
 @log_request
 def update_pattern(pattern_id):
     """Update a pattern."""
@@ -411,9 +397,18 @@ def update_pattern(pattern_id):
     updates = {k: v for k, v in data.items() if k in allowed}
 
     if updates.get('scope') == 'network':
-        network_id, network_error = _network_for_scope_change(db, pattern, data.get('networkId'))
-        if network_error:
-            return network_error
+        given = data.get('networkId')
+        if given is None:
+            network_id = network_for_network_scope(db, pattern)
+            if network_id is None:
+                return error_response(
+                    'Network scope needs a network: the pattern has no feed with a network, so send networkId', 400)
+        else:
+            network_id = given.strip() if isinstance(given, str) else ''
+            if not network_id:
+                return error_response('networkId must be a non-empty string', 400)
+            if len(network_id) > MAX_NETWORK_ID_CHARS:
+                return error_response(f'networkId must be at most {MAX_NETWORK_ID_CHARS} characters', 400)
         updates['network_id'] = network_id
 
     # Category decides the pattern's segment action at detection time
@@ -446,7 +441,7 @@ def update_pattern(pattern_id):
     return error_response('No valid fields provided', 400)
 
 
-@api.route('/patterns/<int(max=9223372036854775807):pattern_id>', methods=['DELETE'])
+@api.route(PATTERN_ROUTE, methods=['DELETE'])
 @log_request
 def delete_pattern(pattern_id):
     """Delete a pattern."""
@@ -642,16 +637,21 @@ FINGERPRINT_SKIP_PRECEDENCE = (
 )
 
 
+def resolve_retained_original(db, storage, slug, episode_id):
+    """_resolve_original_audio, with an episode id that cannot name a file counted as not retained."""
+    try:
+        return _resolve_original_audio(db, storage, slug, episode_id)
+    except PathContainmentError:
+        return None, True
+
+
 def _store_pattern_audio(db, slug, episode_id, pattern_id, start, end, *, force=False):
     """Fingerprint [start, end] of the retained original; force replaces a fingerprint and deleted audio."""
     try:
         if not force and db.get_audio_fingerprint(pattern_id) is not None:
             result = FingerprintStoreResult(False, 'fingerprint_exists')
         else:
-            try:
-                audio_path, err = _resolve_original_audio(db, get_storage(), slug, episode_id)
-            except PathContainmentError:
-                audio_path, err = None, True
+            audio_path, err = resolve_retained_original(db, get_storage(), slug, episode_id)
             if err:
                 result = FingerprintStoreResult(False, 'original_not_retained')
             else:
@@ -753,15 +753,13 @@ def _reviewed_pattern_ids(marker, marker_pattern_id):
     return list(dict.fromkeys([*([marker_pattern_id] if marker_pattern_id else []), *ids]))
 
 
-def _set_fingerprint_matches_rejected(db, rejected, pattern_ids, slug, episode_id, start, end):
-    """Reject or restore the audio match each pattern recorded for the span; never raises."""
-    setter = db.mark_fingerprint_match_rejected if rejected else db.unmark_fingerprint_match_rejected
+def _reject_fingerprint_matches(db, pattern_ids, slug, episode_id, start, end):
+    """Reject the audio match each pattern recorded for the span; never raises."""
     for pattern_id in pattern_ids:
         try:
-            setter(pattern_id, slug, episode_id, start, end)
+            db.mark_fingerprint_match_rejected(pattern_id, slug, episode_id, start, end)
         except Exception as e:
-            logger.warning(f"Could not {'reject' if rejected else 'restore'} the fingerprint match "
-                           f"of pattern {pattern_id}: {e}")
+            logger.warning(f"Could not reject the fingerprint match of pattern {pattern_id}: {e}")
 
 
 def _restore_rejected_matches(db, slug, episode_id, start, end):
@@ -1493,8 +1491,8 @@ def _handle_reject_correction(db, slug, episode_id, original_ad, addressing_mode
     _clear_held_marker_on_reject(db, slug, episode_id, original_start, original_end,
                                  markers=markers)
 
-    _set_fingerprint_matches_rejected(
-        db, True, reviewed_pattern_ids, slug, episode_id, original_start, original_end)
+    _reject_fingerprint_matches(
+        db, reviewed_pattern_ids, slug, episode_id, original_start, original_end)
 
     return json_response({'message': 'False positive recorded'})
 
@@ -2424,7 +2422,7 @@ def submit_bundle_to_community():
     )
 
 
-@api.route('/patterns/<int(max=9223372036854775807):pattern_id>/submit-to-community', methods=['POST'])
+@api.route(PATTERN_ROUTE + '/submit-to-community', methods=['POST'])
 @log_request
 def submit_pattern_to_community(pattern_id: int):
     """Run the community export pipeline for a single local pattern.
@@ -2442,7 +2440,7 @@ def submit_pattern_to_community(pattern_id: int):
     return json_response(result)
 
 
-@api.route('/patterns/<int(max=9223372036854775807):pattern_id>/protect', methods=['POST'])
+@api.route(PATTERN_ROUTE + '/protect', methods=['POST'])
 @log_request
 def protect_pattern(pattern_id: int):
     """Set protected_from_sync=1 on a community pattern."""
@@ -2457,7 +2455,7 @@ def protect_pattern(pattern_id: int):
     return json_response({'pattern_id': pattern_id, 'protected_from_sync': 1})
 
 
-@api.route('/patterns/<int(max=9223372036854775807):pattern_id>/protect', methods=['DELETE'])
+@api.route(PATTERN_ROUTE + '/protect', methods=['DELETE'])
 @log_request
 def unprotect_pattern(pattern_id: int):
     """Set protected_from_sync=0 on a community pattern."""

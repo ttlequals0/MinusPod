@@ -3,12 +3,11 @@
 
 def add_pattern_audio_state(db, rows, id_key):
     """Set patternAudioState (active, off or none) on every row whose id_key names an existing pattern; one query."""
-    pattern_ids = {r[id_key] for r in rows
-                   if isinstance(r.get(id_key), int) and not isinstance(r.get(id_key), bool)}
-    if not pattern_ids:
+    targets = [(row, row[id_key]) for row in rows
+               if isinstance(row.get(id_key), int) and not isinstance(row.get(id_key), bool)]
+    if not targets:
         return
-    summaries = db.get_audio_summaries(sorted(pattern_ids))
-    for row in rows:
-        summary = summaries.get(row.get(id_key)) if row.get(id_key) in pattern_ids else None
-        if summary is not None:
-            row['patternAudioState'] = summary['state']
+    states = db.get_audio_states(sorted({pattern_id for _, pattern_id in targets}))
+    for row, pattern_id in targets:
+        if pattern_id in states:
+            row['patternAudioState'] = states[pattern_id]

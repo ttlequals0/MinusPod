@@ -32,9 +32,9 @@ def seeded(fp_feed):
 
 def _count_summary_queries(db, monkeypatch, call):
     calls, statements = [], []
-    real = type(db).get_audio_summaries
-    monkeypatch.setattr(type(db), 'get_audio_summaries',
-                        lambda self, ids=None: calls.append(ids) or real(self, ids))
+    real = type(db).get_audio_states
+    monkeypatch.setattr(type(db), 'get_audio_states',
+                        lambda self, ids: calls.append(ids) or real(self, ids))
     conn = db.get_connection()
     conn.set_trace_callback(lambda sql: statements.append(sql) if 'audio_fingerprints' in sql else None)
     try:

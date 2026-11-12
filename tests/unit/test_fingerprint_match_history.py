@@ -242,38 +242,6 @@ def test_mark_rejected_failure_changes_nothing(temp_db, pattern):
     assert (row['rejected'], row['rejected_at']) == (0, None)
 
 
-def test_unmark_rejected_restores_the_overlapping_row(temp_db, pattern):
-    mid = _record(temp_db, pattern, 'epY', start=100, end=140)
-    temp_db.mark_fingerprint_match_rejected(pattern, 'show', 'epY', 100, 140)
-    assert temp_db.unmark_fingerprint_match_rejected(pattern, 'show', 'epY', 105, 138) is True
-    row = temp_db.get_fingerprint_match(mid)
-    assert (row['rejected'], row['rejected_at']) == (0, None)
-    assert temp_db.get_audio_match_summary(pattern)['rejected_count'] == 0
-
-
-def test_unmark_rejected_without_a_rejected_overlap_is_false(temp_db, pattern):
-    open_row = _record(temp_db, pattern, 'epY', start=100, end=140)
-    far = _record(temp_db, pattern, 'epY', start=300, end=340)
-    temp_db.mark_fingerprint_match_rejected(pattern, 'show', 'epY', 300, 340)
-    assert temp_db.unmark_fingerprint_match_rejected(pattern, 'show', 'epY', 100, 140) is False
-    assert temp_db.get_fingerprint_match(far)['rejected'] == 1
-    assert temp_db.get_fingerprint_match(open_row)['rejected'] == 0
-
-
-def test_unmark_rejected_uses_the_same_overlap_threshold(temp_db, pattern):
-    distinct = _record(temp_db, pattern, 'epY', start=49.9, end=90.0)
-    temp_db.mark_fingerprint_match_rejected(pattern, 'show', 'epY', 49.9, 90.0)
-    assert temp_db.unmark_fingerprint_match_rejected(pattern, 'show', 'epY', 10.0, 50.0) is False
-    assert temp_db.get_fingerprint_match(distinct)['rejected'] == 1
-
-
-def test_unmark_rejected_never_touches_another_podcast(temp_db, pattern):
-    other = _record(temp_db, pattern, 'epY', slug='other', start=100, end=140)
-    temp_db.mark_fingerprint_match_rejected(pattern, 'other', 'epY', 100, 140)
-    assert temp_db.unmark_fingerprint_match_rejected(pattern, 'show', 'epY', 100, 140) is False
-    assert temp_db.get_fingerprint_match(other)['rejected'] == 1
-
-
 def test_deleting_a_feed_clears_the_source_of_surviving_fingerprints(temp_db):
     temp_db.create_podcast('show', 'https://example.com/feed.xml', 'Show')
     shared = temp_db.create_ad_pattern(scope='global', text_template='acme read ' * 12)

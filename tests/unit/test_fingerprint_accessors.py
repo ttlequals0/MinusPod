@@ -109,3 +109,24 @@ def test_scope_query_sponsor_tags_is_always_a_list(temp_db, pattern, raw):
     conn.execute("UPDATE known_sponsors SET tags = ?", (raw,))
     conn.commit()
     assert temp_db.get_active_fingerprints_with_scope()[0]['sponsor_tags'] == []
+
+
+def test_audio_states_match_the_summaries_and_skip_missing_patterns(temp_db, pattern):
+    bare = temp_db.create_ad_pattern(scope='global', text_template='bare read ' * 12)
+    off = temp_db.create_ad_pattern(scope='global', text_template='off read ' * 12)
+    temp_db.create_audio_fingerprint(pattern, b'AQAA', 12.0)
+    temp_db.create_audio_fingerprint(off, b'AQAA', 12.0)
+    temp_db.set_fingerprint_enabled(off, False)
+    ids = [pattern, bare, off, 987654]
+    states = temp_db.get_audio_states(ids)
+    assert states == {pattern: 'active', bare: 'none', off: 'off'}
+    assert states == {pid: s['state'] for pid, s in temp_db.get_audio_summaries(ids).items()}
+    assert temp_db.get_audio_states([]) == {}
+
+
+def test_fingerprint_without_blob_keeps_every_other_column(temp_db, pattern):
+    temp_db.create_audio_fingerprint(pattern, b'AQAA', 12.0)
+    full = temp_db.get_audio_fingerprint(pattern)
+    meta = temp_db.get_audio_fingerprint(pattern, with_blob=False)
+    assert 'fingerprint' not in meta
+    assert meta == {k: v for k, v in full.items() if k != 'fingerprint'}

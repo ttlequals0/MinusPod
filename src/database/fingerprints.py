@@ -5,17 +5,22 @@ from database.fingerprint_cleanup import delete_matches_for_patterns
 from database.patterns import _row_with_category
 from utils.json_fields import load_json_list
 
+_FINGERPRINT_META_COLUMNS = (
+    "id, pattern_id, duration, created_at, enabled, "
+    "source_podcast_slug, source_episode_id, source_start, source_end")
+
 logger = logging.getLogger(__name__)
 
 
 class FingerprintMixin:
     """Audio fingerprint management methods."""
 
-    def get_audio_fingerprint(self, pattern_id: int) -> dict | None:
-        """Get audio fingerprint for a pattern."""
+    def get_audio_fingerprint(self, pattern_id: int, *, with_blob: bool = True) -> dict | None:
+        """Get audio fingerprint for a pattern; with_blob=False skips the fingerprint column."""
         conn = self.get_connection()
+        columns = '*' if with_blob else _FINGERPRINT_META_COLUMNS
         cursor = conn.execute(
-            "SELECT * FROM audio_fingerprints WHERE pattern_id = ?", (pattern_id,)
+            f"SELECT {columns} FROM audio_fingerprints WHERE pattern_id = ?", (pattern_id,)  # noqa: S608
         )
         row = cursor.fetchone()
         return dict(row) if row else None

@@ -30,6 +30,11 @@ _ORIGINAL_RETAINED_SQL = """
     WHERE sp.slug = {slug} AND se.episode_id = {episode} AND se.original_file IS NOT NULL"""
 
 
+def _audio_state(fingerprint_id, enabled) -> str:
+    """none without a fingerprint, else active or off."""
+    return 'none' if fingerprint_id is None else ('active' if enabled else 'off')
+
+
 def _is_detected_ad(marker: dict) -> bool:
     """Whether the marker was held, kept or cut, as the episode API buckets it."""
     if is_pending_review(marker) or is_keep_like(marker.get('action_applied')):
@@ -243,15 +248,14 @@ class FingerprintMatchMixin:
         ).fetchone()
         return dict(row) if row else None
 
-    def _set_match_rejected(self, rejected: bool, pattern_id: int, podcast_slug: str,
-                            episode_id: str, start: float, end: float) -> bool:
-        """Set the rejected flag on the best overlapping match; unrejecting considers rejected rows only."""
+    def mark_fingerprint_match_rejected(self, pattern_id: int, podcast_slug: str,
+                                        episode_id: str, start: float, end: float) -> bool:
+        """Reject the match overlapping [start, end] most. True if one overlaps, even if already rejected."""
         with self.transaction(immediate=True) as conn:
             row = conn.execute(
                 f"""SELECT id FROM audio_fingerprint_matches
                     WHERE pattern_id = :pid AND podcast_slug = :slug AND episode_id = :ep
                       AND {_MOSTLY_OVERLAPS_SQL}
-                      {'' if rejected else 'AND rejected = 1'}
                     ORDER BY {_OVERLAP_SQL} DESC, id DESC
                     LIMIT 1""",  # noqa: S608
                 {'pid': pattern_id, 'slug': podcast_slug, 'ep': episode_id,
@@ -259,27 +263,12 @@ class FingerprintMatchMixin:
             ).fetchone()
             if row is None:
                 return False
-            if rejected:
-                conn.execute(
-                    """UPDATE audio_fingerprint_matches SET rejected = 1,
-                         rejected_at = COALESCE(rejected_at, strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
-                       WHERE id = ?""",
-                    (row['id'],))
-            else:
-                conn.execute(
-                    "UPDATE audio_fingerprint_matches SET rejected = 0, rejected_at = NULL WHERE id = ?",
-                    (row['id'],))
+            conn.execute(
+                """UPDATE audio_fingerprint_matches SET rejected = 1,
+                     rejected_at = COALESCE(rejected_at, strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
+                   WHERE id = ?""",
+                (row['id'],))
         return True
-
-    def mark_fingerprint_match_rejected(self, pattern_id: int, podcast_slug: str,
-                                        episode_id: str, start: float, end: float) -> bool:
-        """Reject the match overlapping [start, end] most. True if one overlaps, even if already rejected."""
-        return self._set_match_rejected(True, pattern_id, podcast_slug, episode_id, start, end)
-
-    def unmark_fingerprint_match_rejected(self, pattern_id: int, podcast_slug: str,
-                                          episode_id: str, start: float, end: float) -> bool:
-        """Clear the rejection of the rejected match overlapping [start, end] most. True if one was cleared."""
-        return self._set_match_rejected(False, pattern_id, podcast_slug, episode_id, start, end)
 
     def unreject_fingerprint_matches_in_span(self, podcast_slug: str, episode_id: str,
                                              start: float, end: float) -> int:
@@ -323,11 +312,23 @@ class FingerprintMatchMixin:
             [*ids, *ids]
         ).fetchall()
         return {r['pattern_id']: {
-            'state': 'none' if r['fingerprint_id'] is None else ('active' if r['enabled'] else 'off'),
+            'state': _audio_state(r['fingerprint_id'], r['enabled']),
             'available': bool(r['available']),
             'matchCount': r['match_count'],
             'meanSimilarity': r['mean_similarity'],
         } for r in rows}
+
+    def get_audio_states(self, pattern_ids: list[int]) -> dict[int, str]:
+        """{pattern_id: none, active or off} for the given ids that exist, without the fingerprint blob."""
+        states = {}
+        for chunk in _chunked(list(pattern_ids), SUMMARY_ID_CHUNK):
+            rows = self.get_connection().execute(
+                f"""SELECT ap.id AS pattern_id, af.id AS fingerprint_id, af.enabled
+                    FROM ad_patterns ap LEFT JOIN audio_fingerprints af ON af.pattern_id = ap.id
+                    WHERE ap.id IN ({','.join('?' * len(chunk))})""",  # noqa: S608
+                chunk).fetchall()
+            states.update({r['pattern_id']: _audio_state(r['fingerprint_id'], r['enabled']) for r in rows})
+        return states
 
     def get_audio_match_summary(self, pattern_id: int) -> dict:
         """Match, out-of-scope and mean figures skip rejected rows, which are counted apart."""
