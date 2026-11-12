@@ -198,8 +198,8 @@ def status_stream():
             last_version = None
             while time.monotonic() < deadline:
                 db = get_database()
-                if (authentication_required(db)
-                        and generation_at_connect != current_generation(db)):
+                if (authentication_required(db, fresh=True)
+                        and generation_at_connect != current_generation(db, fresh=True)):
                     yield "event: auth-failed\ndata: {}\n\n"
                     return
                 payload = status_payload()

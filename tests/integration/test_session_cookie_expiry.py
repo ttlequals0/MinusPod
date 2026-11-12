@@ -206,3 +206,29 @@ def test_forged_future_last_used_cookie_is_signed_out(db):
         'auth_last_used': time.time() + 10 * 86400})
     resp = _client_with_cookie(value).get('/api/v1/feeds')
     assert resp.status_code == 401
+
+
+def _count_reads(monkeypatch):
+    import config
+    reads = []
+    real = config._db_setting
+    monkeypatch.setattr(config, '_db_setting', lambda key: (reads.append(key), real(key))[1])
+    return reads
+
+
+def test_one_authenticated_request_reads_each_session_setting_once(client, db, clock, monkeypatch):
+    _signed_in(client, db, clock, remembered=False)
+    reads = _count_reads(monkeypatch)
+    assert client.get('/api/v1/settings').status_code == 200
+    assert reads.count('session_lifetime_hours') == 1
+
+
+def test_a_setting_changed_between_requests_applies_on_the_second(client, db, clock, monkeypatch):
+    _signed_in(client, db, clock, remembered=False)
+    reads = _count_reads(monkeypatch)
+    first = client.get('/api/v1/auth/status')
+    db.set_setting('session_lifetime_hours', '2', is_default=False)
+    second = client.get('/api/v1/auth/status')
+    assert reads.count('session_lifetime_hours') == 2
+    assert _cookie_lifetime_seconds(_set_cookie(first, 'session')) > 20 * 3600
+    assert _cookie_lifetime_seconds(_set_cookie(second, 'session')) < 3 * 3600

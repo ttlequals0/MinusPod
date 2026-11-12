@@ -4,7 +4,7 @@ import math
 import os
 import time
 
-from flask import session
+from flask import g, has_app_context, session
 
 from config import (
     SESSION_LIFETIME_HOURS_MIN, SESSION_LIFETIME_HOURS_MAX,
@@ -30,30 +30,50 @@ def valid_last_used(value) -> bool:
             and math.isfinite(value))
 
 
+_MEMO_ATTR = '_auth_state_memo'
+
+
+def _memo(key, compute, fresh=False):
+    """Value of compute() read once per request; fresh=True rereads (long-lived streams)."""
+    if fresh or not has_app_context():
+        return compute()
+    store = g.__dict__.setdefault(_MEMO_ATTR, {})
+    if key not in store:
+        store[key] = compute()
+    return store[key]
+
+
+def _forget_memo() -> None:
+    if has_app_context():
+        g.__dict__.pop(_MEMO_ATTR, None)
+
+
 def session_limit_seconds(remembered: bool) -> int:
     """Idle limit for a session: the Remember me days or the normal hours."""
-    if remembered:
+    def compute():
+        if remembered:
+            return get_env_backed_int(
+                'session_remember_days', floor=SESSION_REMEMBER_DAYS_MIN,
+                ceiling=SESSION_REMEMBER_DAYS_MAX) * 86400
         return get_env_backed_int(
-            'session_remember_days', floor=SESSION_REMEMBER_DAYS_MIN,
-            ceiling=SESSION_REMEMBER_DAYS_MAX) * 86400
-    return get_env_backed_int(
-        'session_lifetime_hours', floor=SESSION_LIFETIME_HOURS_MIN,
-        ceiling=SESSION_LIFETIME_HOURS_MAX) * 3600
+            'session_lifetime_hours', floor=SESSION_LIFETIME_HOURS_MIN,
+            ceiling=SESSION_LIFETIME_HOURS_MAX) * 3600
+    return _memo(('limit', remembered), compute)
 
 
-def current_generation(db) -> int:
-    return db.get_setting_int(AUTH_GENERATION_KEY, default=0)
+def current_generation(db, fresh=False) -> int:
+    return _memo('generation', lambda: db.get_setting_int(AUTH_GENERATION_KEY, default=0), fresh)
 
 
 def password_is_set(db) -> bool:
     return bool(db.get_setting('app_password'))
 
 
-def authentication_required(db) -> bool:
-    return (
+def authentication_required(db, fresh=False) -> bool:
+    return _memo('required', lambda: (
         password_is_set(db)
         or os.environ.get('MINUSPOD_REQUIRE_AUTH', 'false').lower() == 'true'
-    )
+    ), fresh)
 
 
 def enforce_idle_limit(db) -> None:
@@ -93,6 +113,7 @@ def session_is_authenticated(db) -> bool:
 
 def authenticate_session(
         db, generation: int | None = None, remembered: bool = False) -> None:
+    _forget_memo()
     session.clear()
     session.permanent = True
     session['authenticated'] = True
@@ -104,4 +125,5 @@ def authenticate_session(
 
 
 def revoke_sessions(db) -> int:
+    _forget_memo()
     return db.increment_setting_int(AUTH_GENERATION_KEY)
