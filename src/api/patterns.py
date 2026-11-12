@@ -639,10 +639,7 @@ FINGERPRINT_SKIP_PRECEDENCE = (
 
 
 def _store_pattern_audio(db, slug, episode_id, pattern_id, start, end, *, force=False):
-    """Fingerprint [start, end] of the episode's retained original for a pattern; never raises.
-
-    Without force an existing fingerprint is kept and deleted audio stays deleted.
-    """
+    """Fingerprint [start, end] of the retained original; force replaces a fingerprint and deleted audio."""
     try:
         if not force and db.get_audio_fingerprint(pattern_id) is not None:
             result = FingerprintStoreResult(False, 'fingerprint_exists')
@@ -688,11 +685,8 @@ def _own_pattern_spans(db, slug, episode_id, pattern_ids, start, end, text):
 
 
 def _store_patterns_audio(db, slug, episode_id, pattern_ids, start, end, *, force=False, text=None):
-    """Fingerprint each pattern over its own span; returns [(pattern_id, FingerprintStoreResult)].
-
-    text is the template text the patterns were cut from. When it splits into several
-    patterns, a pattern whose own range cannot be derived stores nothing.
-    """
+    """Fingerprint each pattern over its own span; returns [(pattern_id, FingerprintStoreResult)]."""
+    # text is what the patterns were cut from; a pattern of a split text with no derivable range stores nothing.
     try:
         own = _own_pattern_spans(db, slug, episode_id, pattern_ids, start, end, text)
     except Exception as e:
@@ -1353,8 +1347,7 @@ def _handle_confirm_correction(
                 )
 
     outcomes = _store_patterns_audio(
-        db, slug, episode_id, pattern_ids or ([pattern_id] if pattern_id else []),
-        eff_start, eff_end, text=resolved_text)
+        db, slug, episode_id, pattern_ids, eff_start, eff_end, text=resolved_text)
 
     podcast_id = (podcast or db.get_podcast_by_slug(slug))['id']
     deleted = db.delete_conflicting_corrections(podcast_id, episode_id, 'confirm', original_start, original_end)
@@ -1714,8 +1707,7 @@ def _handle_adjust_correction(db, pattern_service, slug, episode_id, original_ad
         )
 
     outcomes = _store_patterns_audio(
-        db, slug, episode_id, pattern_ids or ([pattern_id] if pattern_id else []),
-        adjusted_start, adjusted_end, force=True, text=resolved_text)
+        db, slug, episode_id, pattern_ids, adjusted_start, adjusted_end, force=True, text=resolved_text)
     for stored_id, result in outcomes:
         if result.stored:
             db.set_pattern_audio_removed(stored_id, False)
