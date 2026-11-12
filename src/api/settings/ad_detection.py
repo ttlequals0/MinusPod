@@ -241,6 +241,8 @@ def _stored_pre_none_identities(db):
         raw = json.loads(db.get_setting(_PRE_NONE_KEY) or '{}')
     except ValueError:
         return {}
+    if not isinstance(raw, dict):
+        return {}
     return {stage: tuple(ident) for stage, ident in raw.items()
             if stage in _MODEL_STAGES and isinstance(ident, list)}
 
@@ -271,8 +273,9 @@ def _clear_models_for_identity_changes(db, previous, data):
     elif previous['primary_none'] and not current['primary_none']:
         stored = _stored_pre_none_identities(db)
         db.set_setting(_PRE_NONE_KEY, '', is_default=False)
+        # No stored identity for a stage means its model's account is unknown.
         stages = [stage for stage in _MODEL_STAGES
-                  if stage in stored and stored[stage] != current[stage]]
+                  if stored.get(stage) != current[stage]]
     elif previous['primary_none']:
         stages = ()
     else:
@@ -1850,6 +1853,7 @@ def reset_ad_detection_settings():
 
     for key in AD_RESET_SETTING_KEYS:
         db.reset_setting(key)
+    db.clear_setting(_PRE_NONE_KEY)
 
     provider_phases._forget_endpoint_state(db)
 

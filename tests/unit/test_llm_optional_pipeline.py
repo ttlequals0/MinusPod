@@ -14,6 +14,7 @@ import llm_client  # noqa: E402
 import llm_route  # noqa: E402
 from api.episodes import runs  # noqa: E402
 from main_app.pipeline import finalize as finalize_stage  # noqa: E402
+from main_app.pipeline import review as review_stage  # noqa: E402
 from llm_client import ProviderAccountChangedError  # noqa: E402
 import main_app.processing as processing  # noqa: E402
 from main_app.pipeline import admission  # noqa: E402
@@ -31,12 +32,11 @@ def _all_client_classes(cls):
 _FACTORIES = ('get_llm_client', 'get_client_for_provider', 'create_client_for_provider',
               '_build_client', 'client_for_route')
 _REQUESTS = ('messages_create', 'list_models', 'verify_connection', 'probe_once',
-             'probe_json_format_support')
+             'probe_json_format_support', 'probe_json_schema_support')
 
 
-@pytest.fixture
-def model_calls(monkeypatch):
-    """Records every client factory and request call; the test asserts the list is empty."""
+def _install_recorder(monkeypatch):
+    """Record client factory and request calls made through the client classes; other HTTP is not recorded."""
     calls = []
 
     def recorder(name):
@@ -56,6 +56,13 @@ def model_calls(monkeypatch):
             if name in vars(cls):
                 monkeypatch.setattr(cls, name, recorder(f'{cls.__name__}.{name}'))
     monkeypatch.setattr(llm_client, '_client_cache', {})
+    return calls
+
+
+@pytest.fixture
+def model_calls(monkeypatch):
+    """Fails the test if any client factory or request call was made."""
+    calls = _install_recorder(monkeypatch)
     yield calls
     assert calls == []
 
@@ -244,6 +251,30 @@ def test_none_run_with_real_stages_makes_no_model_call(provider_none, model_call
     assert model_calls == []
 
 
+def test_recorder_sees_detection_with_a_real_provider(provider_anthropic, monkeypatch):
+    calls = _install_recorder(monkeypatch)
+    patches, _ = _detector_with_matcher([])
+    with patches[0], patches[1], patches[2], patches[3], \
+         patch.object(processing.ad_detector, '_api_key_override', 'test-key'), \
+         patch.object(finalize_stage, '_persist_episode_state'):
+        _run_pipeline(_row(), real_detect=True, enable_ad_review=True,
+                      real_stages=('refine', 'reviewer', 'verify', 'assets', 'finalize'))
+    assert 'get_llm_client' in calls
+    assert calls, 'recorder saw no model call on a real-provider run'
+
+
+def test_recorder_sees_the_reviewer_with_a_real_provider(provider_anthropic, monkeypatch):
+    calls = _install_recorder(monkeypatch)
+    ad = {'start': 1.0, 'end': 9.0, 'confidence': 0.95, 'reason': 'sponsor read', 'was_cut': True}
+    review_db = MagicMock()
+    review_db.get_setting.return_value = 'true'
+    with patch.object(review_stage, 'db', review_db):
+        review_stage._run_ad_reviewer(
+            'mode-feed', 'ep1', 'mode-feed', [ad], [ad], [{'start': 0.0, 'end': 10.0, 'text': 'hi'}],
+            'Podcast', 'Episode', '', '', 0.8, 1, 'test-model')
+    assert calls, 'recorder saw no model call from the reviewer'
+
+
 @pytest.fixture
 def retry_feed(app_client):
     from api import get_database
@@ -271,3 +302,20 @@ def test_retry_ad_detection_under_none_applies_patterns(retry_feed, provider_non
     assert response.status_code == 200, response.get_json()
     assert response.get_json()['adsFound'] == 1
     assert db.get_episode('retry-none-feed', 'aa11bb22cc33')['ad_detection_status'] == 'success'
+
+
+def test_retry_ad_detection_with_a_provider_still_reports_a_failed_detection(retry_feed, provider_anthropic):
+    client, db, token = retry_feed
+    storage = MagicMock()
+    storage.get_transcript.return_value = 'transcript'
+    failed = {'ads': [], 'status': 'failed', 'error': 'boom', 'retryable': True}
+    with patch.object(runs, 'get_storage', return_value=storage), \
+         patch.object(runs, 'parse_transcript_segments',
+                      return_value=[{'start': 0.0, 'end': 10.0, 'text': 'hello'}]), \
+         patch('ad_detector.AdDetector.process_transcript', return_value=failed) as process:
+        response = client.post('/api/v1/feeds/retry-none-feed/episodes/aa11bb22cc33/retry-ad-detection',
+                               headers=token)
+    assert process.call_args.kwargs['skip_llm'] is False
+    assert response.status_code == 500
+    assert response.get_json()['status'] == 'failed'
+    assert db.get_episode('retry-none-feed', 'aa11bb22cc33')['ad_detection_status'] == 'failed'

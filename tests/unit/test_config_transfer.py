@@ -4,13 +4,18 @@ from decimal import Decimal
 
 import pytest
 
-import config_transfer
-import secrets_crypto
-from utils.feed_guid import compute_feed_guid
-from config_transfer import ConfigTransferError
-from fx_rates import FxRate, FxRateError
-from rate_limit_hold import active_held_pairs, record_hold_until
-from utils.secret_writes import set_or_clear_secret
+from tests.app_bootstrap import bootstrap
+
+bootstrap('config_transfer_test_')
+
+import config_transfer  # noqa: E402
+import secrets_crypto  # noqa: E402
+from main_app import feeds as main_feeds  # noqa: E402
+from utils.feed_guid import compute_feed_guid  # noqa: E402
+from config_transfer import ConfigTransferError  # noqa: E402
+from fx_rates import FxRate, FxRateError  # noqa: E402
+from rate_limit_hold import active_held_pairs, record_hold_until  # noqa: E402
+from utils.secret_writes import set_or_clear_secret  # noqa: E402
 
 
 def _document(settings=None, feeds=None):
@@ -702,9 +707,6 @@ def test_preview_rejects_nonfinite_feed_numbers(temp_db):
 
 
 def test_post_commit_reports_failed_refresh_outcome(temp_db, monkeypatch):
-    monkeypatch.setenv('DATA_DIR', str(temp_db.data_dir))
-    from main_app import feeds as main_feeds
-
     temp_db.create_podcast('example-feed', 'https://example.com/feed.xml', 'Example')
     monkeypatch.setattr(main_feeds, 'invalidate_feed_cache', lambda: None)
     monkeypatch.setattr(

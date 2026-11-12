@@ -131,22 +131,80 @@ def _seed_provider(db, provider, base_url=None, model='model-a'):
     invalidate_provider_cache()
 
 
+_STAGE_MODEL_FIELDS = ('claude_model', 'verification_model', 'chapters_model',
+                       'review_model', 'pattern_cleanup_model')
+
+
+def _seed_all_stage_models(db, provider, base_url=None):
+    """Five stage models; chapters runs on the secondary slot."""
+    _seed_provider(db, provider, base_url, 'm-detect')
+    db.set_setting('secondary_provider', 'ollama', is_default=False)
+    db.set_setting('secondary_provider_base_url', 'http://example.net:11434', is_default=False)
+    db.set_setting('secondary_provider_enabled', 'true', is_default=False)
+    db.set_setting('chapters_provider', 'secondary', is_default=False)
+    for key in _STAGE_MODEL_FIELDS[1:]:
+        db.set_setting(key, f'm-{key}', is_default=False)
+    db.set_setting('review_provider', 'primary', is_default=False)
+
+
+def _stage_models(db):
+    return {key: db.get_setting(key) for key in _STAGE_MODEL_FIELDS}
+
+
 def test_leaving_none_for_a_different_account_clears_models(app_client, hdr):
     db = get_database()
-    _seed_provider(db, 'anthropic', model='claude-sonnet-4-5-20250929')
+    _seed_all_stage_models(db, 'anthropic')
     assert _put(app_client, hdr, {'llmProvider': 'none'}).status_code == 200
     assert _put(app_client, hdr, {'llmProvider': 'openai-compatible'}).status_code == 200
-    assert db.get_setting('claude_model') == ''
+    models = _stage_models(db)
+    assert models.pop('chapters_model') == 'm-chapters_model'
+    assert set(models.values()) == {''}, models
 
 
 def test_leaving_none_for_the_same_endpoint_keeps_models(app_client, hdr):
     db = get_database()
-    _seed_provider(db, 'openai-compatible', 'http://example.com:8000/v1', 'qwen3:8b')
+    _seed_all_stage_models(db, 'openai-compatible', 'http://example.com:8000/v1')
+    before = _stage_models(db)
     assert _put(app_client, hdr, {'llmProvider': 'none'}).status_code == 200
-    assert db.get_setting('claude_model') == 'qwen3:8b'
+    assert _stage_models(db) == before
     assert _put(app_client, hdr, {'llmProvider': 'openai-compatible'}).status_code == 200
-    assert db.get_setting('claude_model') == 'qwen3:8b'
+    assert _stage_models(db) == before
     assert not db.get_setting('llm_pre_none_identity')
+
+
+def test_none_from_env_then_a_provider_clears_stale_models(app_client, hdr):
+    db = get_database()
+    _seed_all_stage_models(db, 'anthropic')
+    db.clear_setting('llm_provider')
+    db.clear_setting('llm_pre_none_identity')
+    os.environ['LLM_PROVIDER'] = 'none'
+    try:
+        invalidate_provider_cache()
+        assert _put(app_client, hdr, {'llmProvider': 'openai-compatible'}).status_code == 200
+    finally:
+        del os.environ['LLM_PROVIDER']
+        invalidate_provider_cache()
+    assert set(_stage_models(db).values()) == {''}, _stage_models(db)
+
+
+def test_leaving_none_keeps_models_set_in_the_same_payload(app_client, hdr):
+    db = get_database()
+    _seed_all_stage_models(db, 'anthropic')
+    db.clear_setting('llm_pre_none_identity')
+    _seed_provider(db, 'none', model='old')
+    r = _put(app_client, hdr, {'llmProvider': 'openai-compatible', 'claudeModel': 'fresh'})
+    assert r.status_code == 200
+    assert db.get_setting('claude_model') == 'fresh'
+    assert db.get_setting('verification_model') == ''
+
+
+def test_fresh_install_none_then_provider_has_no_stale_model(app_client, hdr):
+    db = get_database()
+    for key in (*_STAGE_MODEL_FIELDS, 'llm_pre_none_identity'):
+        db.clear_setting(key)
+    assert _put(app_client, hdr, {'llmProvider': 'none'}).status_code == 200
+    assert _put(app_client, hdr, {'llmProvider': 'anthropic'}).status_code == 200
+    assert not db.get_setting('claude_model')
 
 
 def test_leaving_none_for_another_base_url_clears_models(app_client, hdr):
@@ -201,3 +259,47 @@ def test_env_seeded_none_disables_the_llm(app_client, hdr, monkeypatch):
     body = app_client.get('/api/v1/settings').get_json()
     assert body['llmEnabled'] is False
     assert body['llmProvider']['value'] == 'none'
+
+
+@pytest.mark.parametrize('stored', ['not json', '[1, 2]', '"text"', '7', 'null', '{"claude_model": "x"}'])
+def test_malformed_pre_none_identity_means_nothing_stored(stored):
+    from api.settings import ad_detection
+    db = get_database()
+    db.set_setting('llm_pre_none_identity', stored, is_default=False)
+    try:
+        assert ad_detection._stored_pre_none_identities(db) == {}
+    finally:
+        db.clear_setting('llm_pre_none_identity')
+
+
+def test_settings_reset_clears_the_pre_none_identity(app_client, hdr):
+    db = get_database()
+    _seed_provider(db, 'anthropic')
+    assert _put(app_client, hdr, {'llmProvider': 'none'}).status_code == 200
+    assert db.get_setting('llm_pre_none_identity')
+    assert app_client.post('/api/v1/settings/ad-detection/reset', headers=hdr).status_code == 200
+    assert not db.get_setting('llm_pre_none_identity')
+
+
+def _openapi_enum(path, method, name=None):
+    import pathlib
+    import yaml
+    spec = yaml.safe_load(
+        (pathlib.Path(__file__).resolve().parents[2] / 'openapi.yaml').read_text())
+    operation = spec['paths'][path][method]
+    if name is None:
+        schema = operation['requestBody']['content']['application/json']['schema']
+        return tuple(schema['properties']['provider']['enum'])
+    return tuple(next(p for p in operation['parameters'] if p['name'] == name)['schema']['enum'])
+
+
+def test_openapi_secondary_test_connection_enum_matches_the_handler():
+    from api.providers import _SECONDARY_PROVIDER_TYPES
+    enum = _openapi_enum('/settings/providers/secondary/test-connection', 'post')
+    assert set(enum) == set(_SECONDARY_PROVIDER_TYPES)
+
+
+def test_openapi_models_provider_enum_matches_the_handler():
+    from api.settings import common
+    enum = _openapi_enum('/settings/models', 'get', 'provider')
+    assert set(enum) == set(common.VALID_LLM_PROVIDERS)

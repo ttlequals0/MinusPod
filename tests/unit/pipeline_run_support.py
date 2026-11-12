@@ -25,13 +25,13 @@ _INACTIVE_FAILOVER_STATE = {'active': False, 'source': None, 'since': None, 'rea
 
 
 def _run_pipeline(podcast_row, cue_template_counts=None, cue_templates=None,
-                   enable_ad_review=False, admission=None,
-                   download_error=None, detect_error=None,
-                   token_cost=0.012, real_token_tracking=False,
-                   approval_recut=False, route_snapshot=None,
-                   failover_state=None, standby_dispatch=False,
-                   probe_phases=_PROBE_PHASES_UNSET, episode_row=None,
-                   real_detect=False, refine_cuts_all=False, real_stages=(),
+                  enable_ad_review=False, admission=None,
+                  download_error=None, detect_error=None,
+                  token_cost=0.012, real_token_tracking=False,
+                  approval_recut=False, route_snapshot=None,
+                  failover_state=None, standby_dispatch=False,
+                  probe_phases=_PROBE_PHASES_UNSET, episode_row=None,
+                  real_detect=False, refine_cuts_all=False, real_stages=(),
                   manual_approval=None):
     """Run stubbed pipeline stages with optional frozen routes and failover state.
 
