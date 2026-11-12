@@ -187,7 +187,7 @@ describe('AdReviewTab', () => {
       expect(b.className).not.toContain('basis-0');
     }
     // Play keeps the 44px floor; the text buttons carry the shared tap-target classes.
-    expect(buttons[0].className).toContain('min-h-11');
+    expect(buttons[0].className).toContain('h-11 w-11');
     for (const b of buttons.slice(1)) {
       expect(b.className).toContain('max-sm:h-11');
       expect(b.className).toContain('whitespace-nowrap');

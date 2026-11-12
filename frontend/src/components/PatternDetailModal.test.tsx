@@ -470,6 +470,24 @@ describe('Add audio to pattern from the source episode', () => {
   });
 });
 
+describe('Dialog layout classes', () => {
+  it('top-aligns the footer groups so Close and Edit keep their own height beside the Split reason', async () => {
+    mockGetPatternAudio.mockResolvedValue(ACTIVE_AUDIO);
+    renderModal(makePattern({ can_split: false }));
+    const close = await screen.findByRole('button', { name: 'Close' });
+    expect(close.parentElement?.className).toContain('items-center');
+    expect(close.parentElement?.parentElement?.className).toContain('items-start');
+    expect(screen.getByRole('button', { name: 'Split' }).closest('[class*="items-start"]')).not.toBeNull();
+  });
+
+  it('keeps the stat tiles at least 7rem wide so a label does not touch the tile edge', async () => {
+    mockGetPatternAudio.mockResolvedValue(ACTIVE_AUDIO);
+    renderModal(makePattern());
+    const tile = (await screen.findByText('Confirmations')).closest('[class*="grid"]') as HTMLElement;
+    expect(tile.className).toContain('minmax(7rem,1fr)');
+  });
+});
+
 describe('Edit edges', () => {
   const EXPIRED = { ...ACTIVE_AUDIO, available: false, source: null, builtFrom: { ...ACTIVE_AUDIO.builtFrom, available: false } };
 

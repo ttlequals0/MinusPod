@@ -25,7 +25,7 @@ export function ScopeBadge({
     return null;
   }
   return (
-    <span className={`${badgeBase} ${toneClass}${truncate ? ' max-w-full' : ''}`} title={text}>
+    <span className={`${badgeBase} ${toneClass} max-w-full${truncate ? '' : ' whitespace-normal! break-words'}`} title={text}>
       {truncate ? <span className="truncate">{text}</span> : text}
     </span>
   );
