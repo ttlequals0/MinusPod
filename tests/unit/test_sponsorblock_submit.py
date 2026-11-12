@@ -77,14 +77,30 @@ def test_submit_returns_status_tuple():
     payload = sbs.build_payload('vid', 'u' * 32, [marker()])
     created = [{'UUID': 'abc', 'category': 'sponsor', 'segment': [10, 40]}]
     with patch.object(sbs, 'safe_post', return_value=_resp(200, created)) as post:
-        assert sbs.submit(payload) == ('submitted', '', created)
+        assert sbs.submit(payload) == ('submitted', '', created, None)
         assert post.call_args.kwargs['json'] == payload
     for code, label in ((409, 'duplicate'), (403, 'rejected'), (429, 'rate_limited'), (500, 'error')):
         with patch.object(sbs, 'safe_post', return_value=_resp(code, text='nope')):
-            status, detail, segments = sbs.submit(payload)
+            status, detail, segments, _ = sbs.submit(payload)
         assert (status, segments) == (label, []) and 'nope' in detail
     with patch.object(sbs, 'safe_post', side_effect=requests.ConnectionError('down')):
         assert sbs.submit(payload)[0] == 'error'
+
+
+def _rate_limited(retry_after):
+    resp = _resp(429, text='slow')
+    resp.headers = {} if retry_after is None else {'Retry-After': retry_after}
+    return resp
+
+
+def test_submit_429_carries_the_upstream_retry_after():
+    payload = sbs.build_payload('vid', 'u' * 32, [marker()])
+    cases = (('120', 120), (' 7 ', 7), ('99999', sbs.RETRY_AFTER_MAX_S), (None, sbs.RETRY_AFTER_DEFAULT_S),
+             ('soon', sbs.RETRY_AFTER_DEFAULT_S), ('0', sbs.RETRY_AFTER_DEFAULT_S),
+             ('-5', sbs.RETRY_AFTER_DEFAULT_S), ('1.5', sbs.RETRY_AFTER_DEFAULT_S))
+    for header, expected in cases:
+        with patch.object(sbs, 'safe_post', return_value=_rate_limited(header)):
+            assert sbs.submit(payload)[3] == expected, header
 
 
 def test_build_records_maps_outcomes():

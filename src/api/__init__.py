@@ -360,11 +360,11 @@ def limiter_retry_after_seconds(request_limits, now):
     return retry_after_ceil(max(resets) - now if resets else None)
 
 
-def retry_after_response(message, seconds, status, *, in_body=False):
-    """Error response with a Retry-After header; in_body also adds retryAfterSeconds."""
+def retry_after_response(message, seconds, status, *, in_body=False, extra=None):
+    """Error response with a Retry-After header; in_body also adds retryAfterSeconds and any extra fields."""
     if in_body:
         response = json_response(
-            {'error': message, 'status': status, 'retryAfterSeconds': seconds}, status)
+            {'error': message, 'status': status, 'retryAfterSeconds': seconds, **(extra or {})}, status)
     else:
         response = error_response(message, status)
     response.headers['Retry-After'] = str(seconds)
