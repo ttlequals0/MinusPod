@@ -11,6 +11,7 @@
 - [Checking resource use](#checking-resource-use)
 - [Quick Start](#quick-start)
 - [CPU-only image (no GPU)](#cpu-only-image-no-gpu)
+- [Without an LLM](#without-an-llm)
 - [YouTube only, without transcription or AI](#youtube-only-without-transcription-or-ai)
 - [Intel hybrid CPU tuning (optional)](#intel-hybrid-cpu-tuning-optional)
 
@@ -19,7 +20,7 @@
 ### Minimum
 
 - Any Docker host (amd64 or arm64), 2 CPU cores, 8 GB RAM
-- Anthropic API key, [OpenRouter](https://openrouter.ai) API key, [Ollama](https://ollama.com) for local inference, **or** any OpenAI-compatible endpoint
+- Anthropic API key, [OpenRouter](https://openrouter.ai) API key, [Ollama](https://ollama.com) for local inference, **or** any OpenAI-compatible endpoint. An LLM is optional; see [Without an LLM](#without-an-llm)
 
 A GPU is recommended but not required. The CPU image and [remote backends](transcription.md) work without one.
 
@@ -124,6 +125,12 @@ docker compose -f docker-compose.cpu.yml up -d
 That pulls `ttlequals0/minuspod:cpu` (the floating CPU tag). To pin a release, set `MINUSPOD_VERSION=X.Y.Z-cpu` in `.env`. The `:latest` tag is always the GPU image; CPU users track `:cpu` or a versioned `-cpu` tag. For vetted builds, set `MINUSPOD_VERSION=stable-cpu` (or `stable` for GPU): these tags move only after a production soak (see [Releasing & Channels](releasing.md)).
 
 The CPU image transcribes locally with `faster-whisper` or Parakeet. For Parakeet, set `WHISPER_BACKEND=parakeet`; keep `WHISPER_DEVICE=cpu`. A remote backend (`WHISPER_BACKEND=openai-api`) also works: Groq, OpenAI, or a self-hosted whisper.cpp server (see `docker-compose.whisper.yml`). See [Remote Whisper APIs](transcription.md#remote-whisper-apis) for the `.env` settings.
+
+### Without an LLM
+
+To run with no model, set `LLM_PROVIDER=none` in `.env` (or choose None under Settings > AI & Processing > LLM Provider) and leave the provider keys out. Transcription still runs. Ads are found by text patterns, audio fingerprints, audio cues, the cross-fetch differential and, on YouTube feeds, SponsorBlock marks.
+
+SponsorBlock marks cover YouTube feeds only. On a regular podcast feed a new ad is cut only after you mark it once, because MinusPod does not discover repeated ads on its own. See [Running without an LLM](llm-providers.md#running-without-an-llm) for what is switched off.
 
 ### YouTube only, without transcription or AI
 

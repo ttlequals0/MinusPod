@@ -11,6 +11,7 @@
 - [Using Ollama (Local or Cloud)](#using-ollama-local-or-cloud)
 - [Using OpenRouter](#using-openrouter)
 - [Using System One](#using-system-one)
+- [Running without an LLM](#running-without-an-llm)
 - [Per-Stage Providers](#per-stage-providers)
 - [LLM Pricing](#llm-pricing)
 - [Custom model pricing](#custom-model-pricing)
@@ -274,6 +275,37 @@ The per-slot retry setting controls retries after the initial request; TypeSafe 
 The maximum concurrent operations setting defaults to 4 operations per process. Operations sharing a normalized endpoint and credential share capacity across slots and provider types. Conflicting profile limits use the stricter active or queued limit. This is not a cluster-wide limit. A local queue timeout sends no HTTP request and does not trigger the provider circuit breaker or chat failover.
 
 System One preserves caller prompts, policy, and context in its structured questions. It ignores saved temperature, thinking budgets, token caps, JSON-schema settings, and Ollama context settings. Those values are retained for later chat routes. Use the dedicated System One controls for supported adapter tuning.
+
+## Running without an LLM
+
+An LLM is optional. Set the provider to **None** under Settings > AI & Processing > LLM Provider, or start with `LLM_PROVIDER=none`. No API key, base URL or model is needed, and an episode is not marked failed or degraded because no model is set.
+
+Ads are then found by the detectors that need no model:
+
+- Text patterns, audio fingerprints and audio cues
+- The cross-fetch differential. A region is cut when another detector agrees and held for review otherwise.
+- SponsorBlock marks, on YouTube feeds only. There is no LLM fallback when a video has no marks.
+
+Transcription still runs, because text patterns need the transcript. Hold rules, cuts and publishing work as usual. An episode with no detections publishes uncut. If manual approval is on for the feed or globally, it is held for review as usual.
+
+These parts do not run:
+
+| Feature | Without an LLM |
+|---------|----------------|
+| LLM ad detection, the verification pass, the ad reviewer and the pre-roll and post-roll heuristics | Off |
+| Chapter generation | Off. Publisher chapters and ad chapters are kept. A chapters mode of `generate` behaves like `auto`. |
+| Pattern Cleanup and reviewer calibration | Do not run |
+| Model lists in Settings | Empty |
+| Failover status | LLM probes show as unknown with "LLM disabled" |
+| Requests to a model provider or the price catalog | None are sent |
+
+Three routes answer 409 with the code `llm_disabled`: `POST /api/v1/feeds/<slug>/episodes/<id>/regenerate-chapters`, `POST /api/v1/patterns/cleanup/run` and `POST /api/v1/system/model-pricing/refresh`. The provider test routes still test the provider named in the request, so you can check credentials before switching back.
+
+Retry ad detection and Reprocess still work. They rerun the detectors that need no model, which is how a newly added pattern is applied to an episode already processed.
+
+Two limits follow from this. SponsorBlock covers YouTube feeds only. For a regular podcast feed, MinusPod does not discover repeated ads on its own: a new ad is cut only after you mark it once and it becomes a pattern.
+
+Saved API keys and model choices are kept when you switch to None. When you switch to another provider, a stage keeps its model if the provider account is the same as before None, and its model field is cleared if the account differs (see [Per-Stage Providers](#per-stage-providers)). None cannot be the secondary provider or the failover provider.
 
 ## Per-Stage Providers
 

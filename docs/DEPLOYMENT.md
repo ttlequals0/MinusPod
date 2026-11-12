@@ -27,7 +27,7 @@ This page covers running MinusPod in production: health monitoring, backups, upd
 - Docker (NVIDIA runtime for GPU image; not required for the CPU image)
 - 8 GB RAM minimum; 16 GB+ recommended for `medium` / `large-v3` faster-whisper models or long episodes
 - CUDA-capable GPU with NVIDIA driver 525 or newer (GPU image only; CPU image runs without one). An older driver surfaces as a CUDA init error on the first transcription. Whisper (CTranslate2) runs on Maxwell (GTX 9xx) through Blackwell (RTX 50xx). Parakeet (ONNX Runtime) runs on Maxwell through Ada and Hopper; the GPU image pins cuDNN 9.10.2, the last release that supports cards older than Turing, so pre-Turing cards keep GPU Parakeet only while the image stays on that cuDNN line. Parakeet on Blackwell is unconfirmed, see #990.
-- An LLM API key (Anthropic, OpenRouter, OpenAI-compatible, or an Ollama instance)
+- An LLM API key (Anthropic, OpenRouter, OpenAI-compatible, or an Ollama instance), or `LLM_PROVIDER=none` to run without an LLM ([details](llm-providers.md#running-without-an-llm))
 
 The GPU image is `ttlequals0/minuspod:<version>` and `:latest`. The CPU image is `ttlequals0/minuspod:<version>-cpu` and `:cpu`. See [Installation](installation.md) for variant selection.
 
@@ -43,7 +43,7 @@ The full reference is in [Environment Variables](environment-variables.md). The 
 
 | Variable | Why |
 |----------|-----|
-| `ANTHROPIC_API_KEY` (or other provider key) | Required for ad detection |
+| `ANTHROPIC_API_KEY` (or other provider key) | Required for LLM ad detection. Not needed with `LLM_PROVIDER=none`, which uses only the detectors that need no model |
 | `BASE_URL` | Public URL embedded in generated RSS feeds |
 | `MINUSPOD_MASTER_PASSPHRASE` | Encrypts provider keys and downloadable backups at rest. Store it separately from the backup. |
 

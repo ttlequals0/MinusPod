@@ -13,6 +13,7 @@ behind each stage, see [How It Works](how-it-works.md).
 - [How work arrives](#how-work-arrives)
 - [The Whisper pool](#the-whisper-pool)
 - [The standard pipeline](#the-standard-pipeline)
+- [Running without an LLM](#running-without-an-llm)
 - [The YouTube pipeline](#the-youtube-pipeline)
 - [Five kinds of evidence, five outcomes](#five-kinds-of-evidence-five-outcomes)
 - [Processing modes](#processing-modes)
@@ -87,6 +88,14 @@ Long episodes transcribe in chunks sized to fit GPU memory. Cutting and
 normalizing a chunk is its own ffmpeg pass, and that pass runs ahead of the
 GPU: while one chunk transcribes, the next ones are already being prepared.
 The verify pass re-transcribes the cut file the same way.
+
+---
+
+## Running without an LLM
+
+With the LLM provider set to None, the standard pipeline runs the same stages and skips the ones that call a model. Transcription, audio cues, fingerprint and text pattern matching, the cross-fetch differential, hold rules, cuts and publishing all run. LLM detection, the verification pass, the ad reviewer and chapter generation do not. Publisher and ad chapters are kept.
+
+The run completes as a normal run: it is not degraded and does not count toward the retry limit. An episode with no detections publishes uncut, or waits for review when manual approval is on. Retry ad detection and Reprocess still work and apply patterns. Setup and the full list of what turns off are in [Running without an LLM](llm-providers.md#running-without-an-llm).
 
 ---
 
