@@ -150,17 +150,43 @@ def test_matchable_needs_a_coverage_ceiling_at_the_minimum_coverage():
         assert e['matched'] is matchable
 
 
-def test_ad_split_by_a_long_degraded_stretch_is_one_match():
+def test_a_gap_longer_than_the_tolerance_splits_the_match():
     rng = np.random.default_rng(8)
     for _ in range(10):
         ep = _ints(rng, 4800)
         pat = _ints(rng, 240)
         _plant(rng, ep, pat[:100], 1000, 0.05)
         _plant(rng, ep, pat[140:], 1140, 0.05)
+        assert _run(ep, [(1, pat, 30.0, None, None)]) == []
+        r = _run(ep, [(1, pat, 30.0, None, None)], min_coverage=0.4)
+        assert [(round(m.start * 4) / 4, round(m.end * 4) / 4) for m in r] == [(125.0, 137.5), (142.5, 155.0)]
+
+
+def test_a_dropout_within_the_tolerance_is_bridged():
+    rng = np.random.default_rng(19)
+    for _ in range(10):
+        ep = _ints(rng, 4800)
+        pat = _ints(rng, 240)
+        _plant(rng, ep, pat[:100], 1000, 0.05)
+        _plant(rng, ep, pat[124:], 1124, 0.05)
         r = _run(ep, [(1, pat, 30.0, None, None)])
         assert len(r) == 1
         assert abs(r[0].start - 125.0) <= 0.25 and abs(r[0].end - 155.0) <= 0.25
-        assert 0.75 <= r[0].coverage <= 0.85
+
+
+@pytest.mark.parametrize('share', [0.25, 0.3, 0.4])
+def test_head_and_tail_around_unrelated_audio_are_not_one_match(share):
+    clean, degraded, other = _fixture()
+    fps = len(degraded) / 180.0
+    ln = int(30 * fps)
+    h = int(ln * share)
+    rng = np.random.default_rng(20)
+    for _ in range(10):
+        s, u = int(rng.integers(20, len(clean) - ln - 20)), int(rng.integers(20, len(other) - ln))
+        pat = np.concatenate([clean[s:s + h], other[u:u + ln - 2 * h], clean[s + ln - h:s + ln]])
+        for cov in (0.3, 0.5):
+            for m in _run(degraded, [(1, pat, 30.0, None, None)], dur=180.0, min_coverage=cov):
+                assert m.end <= (s + h) / fps + 0.5 or m.start >= (s + ln - h) / fps - 0.5
 
 
 def test_short_fragments_at_one_alignment_do_not_add_up():

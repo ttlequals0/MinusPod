@@ -73,11 +73,11 @@ def test_gap_within_tolerance_is_one_run():
     assert abs(r[0].start - 50.0) < 0.5 and abs(r[0].end - 70.0) < 0.5
 
 
-def test_gap_beyond_tolerance_at_the_same_alignment_is_one_match():
+def test_gap_beyond_tolerance_splits_the_match():
     ep, dur, pat = _gapped(6.0, 4)
     r = _run(ep, dur, [(1, pat, 20.0, None, None)], min_coverage=0.3)
-    assert len(r) == 1 and r[0].coverage < 0.8
-    assert abs(r[0].start - 50.0) < 0.5 and abs(r[0].end - 70.0) < 0.5
+    assert len(r) == 1 and 0.45 <= r[0].coverage <= 0.55
+    assert abs(r[0].start - 50.0) < 0.5 and abs(r[0].end - 60.0) < 0.5
 
 
 def test_two_patterns_back_to_back():

@@ -13,7 +13,7 @@ import subprocess
 import tempfile
 import threading
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 import json
 
 import numpy as np
@@ -98,6 +98,9 @@ FINGERPRINT_SHORT_PATTERN_EVIDENCE = 0.9
 FINGERPRINT_EVIDENCE_FLOOR_S = 2.25
 # Every match needs this much evidence within the edge floor: chance agreement rarely comes that close
 FINGERPRINT_CLOSE_EVIDENCE_S = 2.25
+# Chance agreement in unrelated audio comes in clusters shorter than this many windows, so a gap
+# inside a run is measured on points with half of the centred span in agreement
+FINGERPRINT_SUPPORT_WINDOWS = 3
 # Chromaprint points per second at its default settings, for checks made without an episode
 FINGERPRINT_NOMINAL_FPS = 11025 / 1365.33
 # A point that differs from its predecessor by fewer bits counts as that share of a point of evidence
@@ -674,23 +677,40 @@ def _tally(al, runs, evidence_bits):
             _weighted(al, runs, FINGERPRINT_EDGE_BITS))
 
 
+def _supported_points(good, inf, span):
+    """Good points whose centred span is at least half good over its informative points."""
+    c = np.concatenate(([0], np.cumsum(good)))
+    ci = np.concatenate(([0], np.cumsum(inf)))
+    pos = np.arange(len(good))
+    lo = np.maximum(0, pos - span // 2)
+    hi = np.minimum(len(good), pos + span - span // 2)
+    return np.flatnonzero(good & (2 * (c[hi] - c[lo]) >= ci[hi] - ci[lo]))
+
+
+def _split_at_gaps(hits, inf_c, gap_points):
+    """Groups of hits split where more than gap_points informative points lie between two hits."""
+    return np.split(hits, np.flatnonzero(inf_c[hits[1:]] - inf_c[hits[:-1] + 1] > gap_points) + 1)
+
+
 def _measure_alignment(ep_arr, pat_arr, informative, novelty, d, strictness, gap_points, window):
-    """Sustained runs of the pattern at alignment d as an _Alignment, or None."""
+    """Sustained runs of the pattern at alignment d, one _Alignment per run; empty when none."""
     ep_base, pat_base = (d, 0) if d >= 0 else (0, -d)
     overlap = min(len(pat_arr) - pat_base, len(ep_arr) - ep_base)
     if overlap <= 0:
-        return None
+        return []
     diff = _popcount32(ep_arr[ep_base:ep_base + overlap] ^ pat_arr[pat_base:pat_base + overlap])
     inf = informative[pat_base:pat_base + overlap]
     good = (diff <= FINGERPRINT_GOOD_BITS) & inf
-    # Runs are built from sustained matches only, so scattered chance hits in noise cannot bridge
+    # Runs are built from sustained matches only, so scattered chance hits in noise cannot bridge;
+    # constant stretches carry no evidence either way, so only informative points count as a gap
     hits, c = _solid_points(good, window)
     if len(hits) == 0:
-        return None
-    runs = [r for r in (_edge_run(h, c, good, window, window) for h in
-                        np.split(hits, np.flatnonzero(np.diff(hits) > gap_points + 1) + 1)) if r]
+        return []
+    inf_c = np.concatenate(([0], np.cumsum(inf)))
+    runs = [r for r in (_edge_run(h, c, good, window, window)
+                        for h in _split_at_gaps(hits, inf_c, gap_points)) if r]
     if not runs:
-        return None
+        return []
     al = _Alignment(ep_base, diff, inf, novelty[pat_base:pat_base + overlap], good, good, 0.0, [])
 
     def rank(run):
@@ -702,13 +722,16 @@ def _measure_alignment(ep_arr, pat_arr, informative, novelty, d, strictness, gap
     al.edge_bits = float(min(FINGERPRINT_GOOD_BITS, max(
         FINGERPRINT_EDGE_BITS, np.median(interior) + FINGERPRINT_EDGE_MARGIN_BITS)))
     al.tight = (diff <= al.edge_bits) & inf
-    # Other runs at this alignment are the same ad past a degraded stretch when they agree as the
-    # primary does: mostly within the edge threshold, longer than chance clusters, and strict enough
-    al.runs = [run for run in runs if run is primary or (
-        int(al.tight[run[0]:run[1]].sum()) >= max(3 * window, 0.5 * int(inf[run[0]:run[1]].sum()))
-        and _similarity(al, [run]) >= strictness)]
-    al.span = _tight_span(al, al.runs, window)
-    return al
+    # Chance clusters can bridge unrelated audio inside a run, so it is split again where supported
+    # agreement stops for longer than the gap tolerance; each piece is gated alone
+    supported = _supported_points(good, inf, FINGERPRINT_SUPPORT_WINDOWS * window)
+    pieces = []
+    for lo, hi in runs:
+        groups = _split_at_gaps(supported[(supported >= lo) & (supported < hi)], inf_c, gap_points)
+        starts = [lo] + [int(g[0]) for g in groups[1:]]
+        ends = [int(g[-1]) + 1 for g in groups[:-1]] + [hi]
+        pieces += [p for p in (_trim_run(good, a, b, window) for a, b in zip(starts, ends)) if p]
+    return [replace(al, runs=[p], span=_tight_span(al, [p], window)) for p in pieces]
 
 
 def _agreement(al):
@@ -718,13 +741,14 @@ def _agreement(al):
 
 
 def _closest_alignments(alignments, window):
-    """Of (d, alignment) pairs, the closest-agreeing one within each second of alignments."""
+    """Of (d, alignment) pairs, the closest-agreeing one per stretch within each second of alignments."""
     # Neighbouring points of real audio are alike, so a slightly shifted alignment agrees too
     kept = []
     for d, al in sorted(alignments, key=lambda a: -_agreement(a[1])):
-        if all(abs(d - k) > window for k, _ in kept):
-            kept.append((d, al))
-    return [al for _, al in kept]
+        lo, hi = al.ep_base + al.span[0], al.ep_base + al.span[1]
+        if all(abs(d - k) > window or hi <= k_lo or lo >= k_hi for k, k_lo, k_hi, _ in kept):
+            kept.append((d, lo, hi, al))
+    return [al for *_, al in kept]
 
 
 def _rejecting_gate(tally, pat_len, needed, fps, strictness, min_coverage):
@@ -833,10 +857,8 @@ def _scan_fingerprints(ep_ints, ep_duration, patterns, *, strictness, min_covera
         alignments = []
         for d in near.tolist():
             measured += 1
-            al = _measure_alignment(ep_arr, pat_arr, informative, novelty, d, strictness,
-                                    gap_points, window)
-            if al is not None:
-                alignments.append((d, al))
+            alignments += [(d, al) for al in _measure_alignment(
+                ep_arr, pat_arr, informative, novelty, d, strictness, gap_points, window)]
         for al in _closest_alignments(alignments, window):
             tally = _tally(al, al.runs, evidence_bits)
             if _rejecting_gate(tally, len(pat_arr), needed, fps, strictness, min_coverage):
@@ -945,8 +967,8 @@ def explain_match(ep_ints, ep_duration, pattern, *, strictness, min_coverage, ga
     offsets, found = _candidate_offsets(pat_arr, informative, _build_offset_index(ep_arr), len(ep_arr))
     out['candidates'] = found
     gap_points = int(round(gap_tolerance_s * fps))
-    measured = [(d, al) for d in offsets.tolist() if (al := _measure_alignment(
-        ep_arr, pat_arr, informative, novelty, d, strictness, gap_points, window)) is not None]
+    measured = [(d, al) for d in offsets.tolist() for al in _measure_alignment(
+        ep_arr, pat_arr, informative, novelty, d, strictness, gap_points, window)]
     best = None
     for al in _closest_alignments(measured, window):
         tally = _tally(al, al.runs, evidence_bits)
