@@ -430,6 +430,7 @@ MERGED_MEMBER_SPANS = 'merged_member_spans'
 # Per-member evidence recorded at merge time, before merges move the edges.
 _MEMBER_FIELDS = ('confidence', 'precise_start', 'precise_end',
                   'fingerprint_match_start', 'fingerprint_match_end',
+                  'fingerprint_similarity', 'fingerprint_coverage',
                   'span_estimated', 'pattern_id', 'sponsor', 'category')
 
 # Stages measured from audio or matched transcript text, not proposed by a model.
@@ -585,6 +586,10 @@ def member_spans(marker: dict) -> list[dict]:
         if match_lo is not None and match_hi is not None:
             member['fingerprint_match_start'] = match_lo
             member['fingerprint_match_end'] = match_hi
+        for key in ('fingerprint_similarity', 'fingerprint_coverage'):
+            value = finite_number(marker.get(key))
+            if value is not None:
+                member[key] = value
         if marker.get('pattern_id') is not None:
             member['pattern_id'] = marker['pattern_id']
     return [member]

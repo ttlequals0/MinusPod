@@ -587,6 +587,10 @@ class Storage:
             logger.warning(f"[{slug}:{episode_id}] Episode not in DB, combined ads not saved")
 
         logger.debug(f"[{slug}:{episode_id}] Saved {len(all_ads)} combined ad markers")
+        try:
+            self.db.record_fingerprint_matches_from_markers(slug, episode_id, all_ads)
+        except Exception as e:
+            logger.warning(f"[{slug}:{episode_id}] Could not record fingerprint match history: {e}")
 
 
     # ========== Artwork Methods ==========
