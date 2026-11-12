@@ -339,7 +339,7 @@ def _recovery_db(tmp_path):
     return Database(data_dir=str(tmp_path))
 
 
-def test_upload_recovery_moving_the_original_away_leaves_no_valid_peaks(db_storage, tmp_path):
+def test_upload_recovery_moving_the_original_away_takes_its_peaks_file(db_storage, tmp_path):
     db, storage = db_storage
     original = storage.get_original_path(SLUG, EP)
     original.write_bytes(b'new bytes')
@@ -350,7 +350,19 @@ def test_upload_recovery_moving_the_original_away_leaves_no_valid_peaks(db_stora
     row = _recovery_row('import', SLUG, EP, temp_rel)
     assert db._recover_upload_files(row) is True
     assert not original.exists() and (tmp_path / temp_rel).exists()
-    assert not ap.validate_or_restamp_peaks_file(peaks, original)
+    assert not peaks.exists()
+
+
+def test_upload_recovery_moving_a_non_import_original_away_takes_its_peaks_file(db_storage, tmp_path):
+    db, storage = db_storage
+    original = storage.get_original_path(SLUG, EP)
+    original.write_bytes(b'new bytes')
+    peaks = storage.get_peaks_path(SLUG, EP)
+    _stamp_for(peaks, original)
+    (tmp_path / 'import' / 'local').mkdir(parents=True)
+    row = _recovery_row('replace', SLUG, EP, 'import/local/temp.mp3')
+    assert db._recover_upload_files(row) is True
+    assert not original.exists() and not peaks.exists()
 
 
 def test_upload_recovery_restoring_a_backup_leaves_no_valid_peaks(db_storage, tmp_path):

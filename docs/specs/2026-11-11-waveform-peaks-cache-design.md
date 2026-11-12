@@ -50,7 +50,7 @@ delete. The SHA-256 is stored only by writers that decode the original anyway
 (the first-open build), never by the write at retention time. When the size
 matches but the modification time differs, a stored hash is compared and the
 header restamped on a match; a file without a stored hash is rebuilt. A file
-with an older format version is treated as missing.
+with an older format version is treated as missing. A replacement with identical size and modification time is not detected.
 
 The exact header layout is left to the builder.
 

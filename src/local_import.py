@@ -34,9 +34,11 @@ from database.fingerprint_cleanup import delete_matches_for_episode
 from database.queue import compute_queue_priority
 from embedded_chapters import probe_chapters
 from id3_chapters import ChapterTagError
+import local_feed_builder
 from storage import _detect_image_mime, _safe_join_under
 from utils.atomic_json import write_json_atomic
 from utils.audio import extract_embedded_artwork, get_audio_duration
+from utils.episode_paths import peaks_file_path, remove_peaks_artifacts
 from utils.http import redact_exc
 from utils.time import utc_now_iso
 from utils.validation import is_dangerous_slug, is_valid_episode_id
@@ -1096,6 +1098,7 @@ def _commit_entry(slug: str, entry: dict, db, storage,
         except BaseException:
             if moved and final_path.exists():
                 os.replace(final_path, audio_path)
+                remove_peaks_artifacts(peaks_file_path(final_path))
             if backup_path.exists():
                 os.replace(backup_path, replaced_path)
             raise
@@ -1313,13 +1316,7 @@ def _commit_entries(slug: str, plan: dict, db, storage, had_episodes: bool,
                 if queue_id is not None:
                     report['queued'].append(item['episodeId'])
 
-        # Local import inside main_app; imported lazily like
-        # api/local_episodes.py's _rebuild -- local_feed_builder pulls in
-        # main_app at module level, which imports the api package (and this
-        # module) before it finishes initializing, so a module-level import
-        # here would be circular.
-        from local_feed_builder import rebuild_local_feed
-        rebuild_local_feed(slug)
+        local_feed_builder.rebuild_local_feed(slug)
     finally:
         # Staging is MinusPod-managed: once a commit finishes -- clean or
         # with per-entry failures, and even if the queueing/rebuild step
