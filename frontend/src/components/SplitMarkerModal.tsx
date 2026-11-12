@@ -20,10 +20,9 @@ import { SponsorInput, type SponsorOption } from './ad-editor/SponsorInput';
 import {
   commitTimeInput, formatTime, timeInputKeyDown,
 } from '../utils/adReviewHelpers';
-import { edgeBtn } from './ad-editor/controlStyles';
 import { Plus } from 'lucide-react';
 import { btnBase, btnPrimary, btnOutline, btnGhost } from './buttonStyles';
-import { focusRing, inputBase } from './fieldStyles';
+import { inputBase } from './fieldStyles';
 
 // Matches MIN_AD_DURATION in src/config.py. A piece shorter than this is not an
 // ad the validator would accept, so the server rejects it too.
@@ -296,7 +295,7 @@ export default function SplitMarkerModal({ target, onClose, onSplit }: Props) {
         </>
       )}
       footer={!isLoading && !isError ? (
-        <div className="flex items-center gap-2 flex-wrap p-5 pt-3 border-t border-border">
+        <div className="flex items-center gap-2 flex-wrap p-5 pt-3 max-sm:px-0 border-t border-border max-sm:grid max-sm:grid-cols-2">
           <button
             type="button"
             onClick={addDivider}
@@ -308,7 +307,7 @@ export default function SplitMarkerModal({ target, onClose, onSplit }: Props) {
           <button
             type="button"
             onClick={addDividerAtPlayhead}
-            className={`${edgeBtn} ${focusRing}`}
+            className={`${dialogFooterBtn} ${btnOutline}`}
           >
             <span className="sm:hidden">At playhead</span>
             <span className="hidden sm:inline">Add divider at playhead</span>
@@ -317,7 +316,7 @@ export default function SplitMarkerModal({ target, onClose, onSplit }: Props) {
             type="button"
             onClick={submit}
             disabled={saving || shortIdx !== null || effectiveDividers.length === 0}
-            className={`ml-auto ${dialogFooterBtn} ${btnPrimary}`}
+            className={`ml-auto max-sm:ml-0 ${dialogFooterBtn} ${btnPrimary}`}
           >
             Split into {pieces.length} {pieces.length === 1 ? 'ad' : 'ads'}
           </button>
@@ -370,6 +369,9 @@ export default function SplitMarkerModal({ target, onClose, onSplit }: Props) {
             {/* Waveform plus the dividers laid over it. */}
             <div ref={containerRef} className="relative">
               <PeakStrip peaks={windowPeaks} />
+              {!peaks && !peaksError && (
+                <WaveformLoading className="absolute left-2 top-2 z-20 rounded bg-secondary/90 px-1 pointer-events-none" />
+              )}
               {effectiveDividers.map((t, i) => (
                 <Pin
                   key={i}
@@ -388,14 +390,8 @@ export default function SplitMarkerModal({ target, onClose, onSplit }: Props) {
               ))}
             </div>
 
-            {/* Outside the pin overlay so no divider crosses it; min-h keeps the rows below still when the waveform lands. */}
-            <div className="min-h-5">
-              {peaksError ? (
-                <WaveformError onRetry={() => setPeaksRetryTick((n) => n + 1)} />
-              ) : !peaks && (
-                <WaveformLoading />
-              )}
-            </div>
+            {/* Outside the pin overlay so no divider crosses it. */}
+            {peaksError && <WaveformError onRetry={() => setPeaksRetryTick((n) => n + 1)} />}
 
             {/* The piece strip: one segment per resulting ad, gapped so the
                 boundaries read as boundaries rather than a colour change. */}

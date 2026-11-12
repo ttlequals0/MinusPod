@@ -90,7 +90,7 @@ describe('SplitMarkerModal', () => {
     const user = userEvent.setup();
     await screen.findByRole('button', { name: 'Split into 2 ads' });
     const button = screen.getByRole('button', { name: /Add divider at playhead/ });
-    expect(button.className).toContain('min-h-[44px]');
+    expect(button.className).toContain('px-3');
     await user.click(button);
     expect(await screen.findByRole('button', { name: 'Split into 3 ads' })).toBeTruthy();
   });
@@ -262,7 +262,17 @@ describe('SplitMarkerModal loading placeholder', () => {
 });
 
 describe('SplitMarkerModal waveform states', () => {
-  it('shows the loading text outside the divider overlay while peaks are pending', async () => {
+  it('puts the four footer actions in two columns below sm with the recipe padding', async () => {
+    renderModal();
+    const split = await screen.findByRole('button', { name: 'Split into 2 ads' });
+    const footer = split.parentElement as HTMLElement;
+    expect(footer.className).toContain('max-sm:grid-cols-2');
+    for (const name of [/Add divider$/, /Add divider at playhead/, 'Split into 2 ads', 'Cancel']) {
+      expect(screen.getByRole('button', { name }).className).toContain('px-3');
+    }
+  });
+
+  it('shows the loading text inside the strip box, out of flow, while peaks are pending', async () => {
     peaksState.value = { peaks: null, peakResolutionMs: 100, peaksError: null };
     renderModal();
     await screen.findByRole('button', { name: 'Split into 2 ads' });
@@ -270,8 +280,19 @@ describe('SplitMarkerModal waveform states', () => {
     const pin = screen.getByRole('slider', { name: /SPLIT/ });
     expect(screen.queryByText(/Could not load waveform/)).toBeNull();
     const overlay = pin.closest('.relative');
-    expect(overlay).not.toBeNull();
-    expect(overlay?.contains(loading)).toBe(false);
+    expect(overlay?.querySelector('.h-20')).toBeTruthy();
+    expect(overlay?.contains(loading)).toBe(true);
+    expect(loading.className).toContain('absolute');
+  });
+
+  it('leaves no status row once the waveform has loaded', async () => {
+    peaksState.value = { peaks: [0.2, 0.5], peakResolutionMs: 100, peaksError: null };
+    renderModal();
+    await screen.findByRole('button', { name: 'Split into 2 ads' });
+    expect(screen.queryByRole('status')).toBeNull();
+    const pin = screen.getByRole('slider', { name: /SPLIT/ });
+    const strip = screen.getByTestId('piece-strip');
+    expect(pin.closest('.relative')?.nextElementSibling).toBe(strip);
   });
 
   it('keeps the strip height while loading', async () => {

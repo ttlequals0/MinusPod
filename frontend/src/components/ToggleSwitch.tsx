@@ -19,7 +19,7 @@ function ToggleSwitch({ checked, onChange, disabled: ownDisabled, ariaLabel }: T
       aria-disabled={disabled}
       aria-label={ariaLabel}
       tabIndex={disabled ? -1 : 0}
-      className={`relative shrink-0 rounded-full ${touchTarget} sm:pointer-coarse:min-w-11 ${focusRing} ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+      className={`relative shrink-0 rounded-full ${touchTarget} ${focusRing} ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
       onClick={() => {
         if (!disabled) onChange(!checked);
       }}

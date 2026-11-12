@@ -49,7 +49,7 @@ function TransportBar({
 }: TransportBarProps) {
   const off = disabledTitle !== undefined;
   return (
-    <div className="mt-3 mx-auto w-full sm:w-fit max-w-full px-0.5 sm:px-3 py-2 rounded-lg bg-secondary/50 border border-border">
+    <div className="mt-3 mx-auto w-full max-sm:w-auto max-sm:max-w-none max-sm:-mx-3.5 sm:w-fit max-w-full px-0.5 sm:px-3 py-2 rounded-lg bg-secondary/50 border border-border">
       {/* Controls and the selection readout share one row on desktop (there is
           plenty of width) and stack on mobile, so the editor is not three lines
           tall on a wide screen. The transport cluster keeps the speed control
@@ -62,7 +62,7 @@ function TransportBar({
           <button type="button" disabled={off} onClick={() => onSeekRelative(-10)} className={`flex-1 sm:flex-none px-0 py-1.5 sm:px-1.5 rounded ${ghostBtn} ${touchTargetRow} ${focusRing}`} title="Back 10s">
             <Rewind className="w-4 h-4 shrink-0" />
           </button>
-          <button type="button" disabled={off} onClick={onTogglePlay} className={`flex-1 sm:flex-none px-0 py-1.5 sm:px-1.5 rounded border border-transparent ${primaryBtn} ${touchTargetRow} ${focusRing}`} title={disabledTitle ?? 'Play / pause (Space)'}>
+          <button type="button" disabled={off} onClick={onTogglePlay} className={`flex-1 sm:flex-none px-0 py-1.5 sm:px-1.5 rounded max-sm:border max-sm:border-transparent ${primaryBtn} ${touchTargetRow} ${focusRing}`} title={disabledTitle ?? 'Play / pause (Space)'}>
             {isPlaying ? <Pause className="w-4 h-4 sm:w-5 sm:h-5 shrink-0" /> : <Play className="w-4 h-4 sm:w-5 sm:h-5 shrink-0" />}
           </button>
           {onPlaySelection && (
