@@ -1,5 +1,6 @@
 from datetime import datetime, timedelta, timezone
 
+from flask import g
 from flask.sessions import SecureCookieSessionInterface
 from itsdangerous import BadSignature
 
@@ -15,7 +16,11 @@ class IdleExpiryCookieSessionInterface(SecureCookieSessionInterface):
     def get_expiration_time(self, app, session):
         if not session.permanent:
             return None
-        seconds = session_limit_seconds(bool(session.get(SESSION_REMEMBERED_KEY, False)))
+        auth = g.get('auth')
+        if auth is not None and auth.limit_seconds is not None:
+            seconds = auth.limit_seconds
+        else:
+            seconds = session_limit_seconds(bool(session.get(SESSION_REMEMBERED_KEY, False)))
         return datetime.now(timezone.utc) + timedelta(seconds=seconds)
 
     def open_session(self, app, request):

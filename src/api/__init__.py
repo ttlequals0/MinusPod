@@ -14,7 +14,7 @@ from functools import wraps
 
 import config
 from config import normalize_model_key, LOCAL_UPLOAD_MAX_MB_DEFAULT
-from api.auth_state import authentication_required, session_is_authenticated
+from api.auth_state import current_auth
 from api.csrf import validate as csrf_validate
 from utils.validation import is_dangerous_slug, nullable_bool
 from utils.http import client_ip, redact_feed_credentials, redact_log_text
@@ -164,10 +164,10 @@ def check_auth():
     doesn't reach this function.
     """
     path = request.path
+    state = current_auth()
 
     if path == '/api/v1/auth/password':
-        db = get_database()
-        if not db.get_setting('app_password') and not _remote_setup_allowed():
+        if not state.password_set and not _remote_setup_allowed():
             return error_response('Remote setup requires a setup token', 403)
 
     if path in AUTH_EXEMPT_PATHS:
@@ -176,21 +176,17 @@ def check_auth():
     if _is_public_artwork_request(path, request.method):
         return None
 
-    # Check if password is set
-    db = get_database()
-    password_hash = db.get_setting('app_password')
-    if not password_hash or password_hash == '':
+    if not state.password_set:
         # No password set: the instance is intentionally unprotected and fully
         # functional, matching the optional-password design. Every endpoint is
         # served (no auth, no CSRF) until a password is set under Settings >
         # Security, at which point the session + CSRF checks below take over. A
         # no-password instance exposed to the network is fully open by design.
-        if authentication_required(db):
+        if state.required:
             return error_response('Set the application password before using the API', 503)
         return None
 
-    # Check session
-    if not session_is_authenticated(db):
+    if not state.authenticated:
         return error_response('Authentication required', 401)
 
     # Double-submit CSRF check for mutating methods. SameSite=Strict on

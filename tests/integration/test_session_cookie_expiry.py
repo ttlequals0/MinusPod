@@ -3,6 +3,7 @@ _test_data_dir = bootstrap('session_expiry_test_', secret_key='expiry-test-secre
 import pytest
 from email.utils import parsedate_to_datetime
 from datetime import datetime, timezone
+from flask import session
 from werkzeug.security import generate_password_hash
 from database import Database
 from main_app import app
@@ -174,15 +175,12 @@ def test_pre_upgrade_cookie_last_used_is_its_signing_time(db, monkeypatch):
     value, signed_at = _pre_upgrade_cookie(hours_ago=1)
     c = _client_with_cookie(value)
     seen = {}
-    real = auth_state.enforce_idle_limit
+    real = auth_state.check_session
 
     def spy(d):
-        from flask import session
         seen.setdefault('last_used', session.get('auth_last_used'))
         return real(d)
-    monkeypatch.setattr(auth_state, 'enforce_idle_limit', spy)
-    import api.csrf as csrf_mod
-    monkeypatch.setattr(csrf_mod, 'enforce_idle_limit', spy)
+    monkeypatch.setattr(auth_state, 'check_session', spy)
     c.get('/api/v1/auth/status')
     assert seen['last_used'] == signed_at
 
@@ -244,3 +242,102 @@ def test_saving_the_session_length_sets_the_cookie_expiry_in_the_same_response(c
     assert resp.status_code == 200
     lifetime = _cookie_lifetime_seconds(_set_cookie(resp, 'session'))
     assert abs(lifetime - 9 * 3600) < 60
+
+
+def _count_checks(monkeypatch):
+    calls = []
+    real = auth_state.check_session
+    monkeypatch.setattr(auth_state, 'check_session', lambda d: (calls.append(1), real(d))[1])
+    return calls
+
+
+def _csrf_token(client):
+    client.get('/api/v1/auth/status')
+    return client.get_cookie(CSRF_COOKIE_NAME).value
+
+
+@pytest.mark.parametrize('method,path', [
+    ('get', '/api/v1/feeds'), ('get', '/api/v1/auth/status'), ('get', '/ui/'),
+    ('post', '/api/v1/feeds')])
+def test_the_session_check_runs_once_per_request(client, db, clock, monkeypatch, method, path):
+    _signed_in(client, db, clock, remembered=False)
+    token = _csrf_token(client)
+    calls = _count_checks(monkeypatch)
+    resp = getattr(client, method)(path, json={} if method == 'post' else None,
+                                   headers={'X-CSRF-Token': token})
+    assert resp.status_code not in (401, 403)
+    assert len(calls) == 1
+
+
+def test_one_authenticated_request_reads_each_auth_setting_once(client, db, clock, monkeypatch):
+    _signed_in(client, db, clock, remembered=False)
+    reads = []
+    real = Database.get_setting
+    monkeypatch.setattr(Database, 'get_setting',
+                        lambda self, key: (reads.append(key), real(self, key))[1])
+    assert client.get('/api/v1/feeds').status_code == 200
+    assert reads.count('app_password') == 1
+    assert reads.count(auth_state.AUTH_GENERATION_KEY) == 1
+
+
+def test_login_response_cookie_matches_the_remembered_limit(client, db):
+    resp = client.post('/api/v1/auth/login', json={'password': PW, 'rememberMe': True})
+    assert resp.status_code == 200
+    assert abs(_cookie_lifetime_seconds(_set_cookie(resp, 'session')) - 30 * 86400) < 60
+    assert _set_cookie(resp, CSRF_COOKIE_NAME) is not None
+
+
+def test_relogin_without_remember_shortens_the_cookie_in_the_same_response(client, db):
+    client.post('/api/v1/auth/login', json={'password': PW, 'rememberMe': True})
+    resp = client.post('/api/v1/auth/login', json={'password': PW})
+    assert abs(_cookie_lifetime_seconds(_set_cookie(resp, 'session')) - 24 * 3600) < 60
+
+
+def test_first_password_response_signs_in_with_the_normal_limit(client, db):
+    db.set_setting('app_password', '')
+    resp = client.put('/api/v1/auth/password', json={'newPassword': PW})
+    assert resp.status_code == 200
+    assert abs(_cookie_lifetime_seconds(_set_cookie(resp, 'session')) - 24 * 3600) < 60
+    assert _set_cookie(resp, CSRF_COOKIE_NAME) is not None
+    assert client.get('/api/v1/auth/status').get_json() == {
+        'passwordSet': True, 'authenticated': True}
+
+
+def test_removing_the_password_response_sets_no_csrf_cookie(client, db):
+    client.post('/api/v1/auth/login', json={'password': PW})
+    token = client.get_cookie(CSRF_COOKIE_NAME).value
+    resp = client.put('/api/v1/auth/password', json={'currentPassword': PW, 'newPassword': ''},
+                      headers={'X-CSRF-Token': token})
+    assert resp.status_code == 200
+    assert _set_cookie(resp, CSRF_COOKIE_NAME) is None
+    cleared = _set_cookie(resp, 'session')
+    assert cleared is not None and cleared.startswith('session=;')
+
+
+@pytest.mark.parametrize('path', ['/api/v1/auth/status', '/api/v1/feeds', '/ui/'])
+def test_revoked_session_is_cleared_without_a_csrf_cookie(client, db, clock, path):
+    _signed_in(client, db, clock, remembered=True)
+    db.increment_setting_int(auth_state.AUTH_GENERATION_KEY)
+    resp = client.get(path)
+    assert _set_cookie(resp, CSRF_COOKIE_NAME) is None
+    cleared = _set_cookie(resp, 'session')
+    assert cleared is not None and cleared.startswith('session=;')
+
+
+def test_status_stream_rechecks_revocation_on_each_event(client, db, clock, monkeypatch):
+    import api.status as status_mod
+    monkeypatch.setattr(status_mod.time, 'sleep', lambda _s: None)
+    monkeypatch.setattr(status_mod, 'status_payload', lambda: {'revision': 1})
+    _signed_in(client, db, clock, remembered=False)
+    chunks = iter(client.get('/api/v1/status/stream', buffered=False).response)
+    assert next(chunks).startswith(b'data:')
+    assert next(chunks).startswith(b': keepalive')
+    db.increment_setting_int(auth_state.AUTH_GENERATION_KEY)
+    assert next(chunks).startswith(b'event: auth-failed')
+
+
+def test_expired_session_stream_fails_at_connect(client, db, clock):
+    _signed_in(client, db, clock, remembered=False)
+    clock[0] += 24 * 3600 + 1
+    response = client.get('/api/v1/status/stream', buffered=False)
+    assert b'event: auth-failed' in next(iter(response.response))

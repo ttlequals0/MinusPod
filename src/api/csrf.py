@@ -16,8 +16,7 @@ import secrets
 from flask import Request, Response, session
 
 import config
-from api.auth_state import enforce_idle_limit
-from database import Database
+from api.auth_state import current_auth
 
 
 CSRF_COOKIE_NAME = 'minuspod_csrf'
@@ -44,8 +43,7 @@ def apply_csrf_cookie(response: Response, cookie_secure: bool) -> Response:
     if response.headers.get('X-Skip-CSRF-Cookie'):
         response.headers.pop('X-Skip-CSRF-Cookie', None)
         return response
-    enforce_idle_limit(Database())
-    if not session.get('authenticated'):
+    if not current_auth().signed_in:
         return response
     token = get_or_create_token()
     existing = response.headers.get('Set-Cookie', '')
@@ -73,8 +71,7 @@ def validate(request: Request) -> str | None:
     """
     if request.method in SAFE_METHODS:
         return None
-    enforce_idle_limit(Database())
-    if not session.get('authenticated', False):
+    if not current_auth().signed_in:
         return None
     expected = session.get(CSRF_SESSION_KEY)
     if not expected:

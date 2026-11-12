@@ -520,6 +520,7 @@ def test_apply_rejects_feed_url_ssrf_before_writes(temp_db, monkeypatch):
 def test_runtime_config_download_route_sets_attachment_and_cache_headers(temp_db, monkeypatch):
     from flask import Flask
     from api import api, init_limiter
+    from api.auth_state import refresh_auth
 
     document = _document({'retention_days': 45})
     monkeypatch.setattr('api.config_transfer.get_database', lambda: temp_db)
@@ -527,6 +528,7 @@ def test_runtime_config_download_route_sets_attachment_and_cache_headers(temp_db
     monkeypatch.setattr('api.config_transfer.export_config', lambda *_args: document)
     app = Flask(__name__)
     app.secret_key = 'test-session-key'
+    app.before_request(lambda: refresh_auth(temp_db) and None)
     app.register_blueprint(api)
     init_limiter(app)
 

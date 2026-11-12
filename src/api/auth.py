@@ -2,16 +2,13 @@
 import logging
 import os
 
-from flask import current_app, request, session
+from flask import current_app, request
 from werkzeug.security import generate_password_hash, check_password_hash
 
 from utils.session_defaults import base_url_is_https
 from utils.time import parse_iso_utc, utc_now
 from utils.validation import is_public_ip_for_lockout
-from api.auth_state import (
-    SESSION_REMEMBERED_KEY, authenticate_session, authentication_required,
-    password_is_set, session_is_authenticated,
-)
+from api.auth_state import authenticate_session, current_auth, sign_out
 from api.csrf import validate as csrf_validate
 
 from api import (
@@ -65,15 +62,10 @@ def auth_status():
     Returns whether password is set and if current session is authenticated.
     This endpoint is always accessible (no auth required).
     """
-    db = get_database()
-    password_set = password_is_set(db)
-
-    # If no password is set, everyone is authenticated
-    authenticated = session_is_authenticated(db)
-
+    auth = current_auth()
     return json_response({
-        'passwordSet': password_set,
-        'authenticated': authenticated
+        'passwordSet': auth.password_set,
+        'authenticated': auth.authenticated
     })
 
 
@@ -95,7 +87,7 @@ def auth_login():
     password_set = stored_hash is not None and stored_hash != ''
 
     if not password_set:
-        if authentication_required(db):
+        if current_auth().required:
             return error_response('Set the application password before logging in', 503)
         return json_response({
             'authenticated': True,
@@ -166,7 +158,7 @@ def auth_logout():
         logger.warning("CSRF check failed on /auth/logout ip=%s", request.remote_addr)
         return error_response(csrf_err, 403)
 
-    session.clear()
+    sign_out(get_database())
     logger.info(f"Logout from {request.remote_addr}")
 
     return json_response({
@@ -213,7 +205,7 @@ def auth_set_password():
     if not new_password:
         if db.replace_password_and_revoke(current_hash, '') is None:
             return error_response('Password changed; try again', 409)
-        session.clear()
+        sign_out(db)
         logger.info(f"Password protection removed by {request.remote_addr}")
         return json_response({
             'message': 'Password protection removed',
@@ -229,7 +221,7 @@ def auth_set_password():
     # Pin the hash method so security decisions are visible in code rather
     # than depending on whichever default werkzeug ships today.
     password_hash = generate_password_hash(new_password, method='scrypt')
-    remembered = bool(session.get(SESSION_REMEMBERED_KEY, False))
+    remembered = current_auth().remembered
     generation = db.replace_password_and_revoke(current_hash, password_hash)
     if generation is None:
         return error_response('Password changed; try again', 409)

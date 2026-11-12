@@ -53,7 +53,7 @@ from llm_route import (
 )
 from tools.reviewer_calibration import calibration_revision, trigger_reviewer_calibration
 from utils.secret_writes import SecretWriteRejected, set_or_clear_secret
-from api.auth_state import forget_memo
+from api.auth_state import refresh_auth
 from api.settings import common, systemone_phases, provider_phases
 
 logger = logging.getLogger('podcast.api')
@@ -631,8 +631,8 @@ def _apply_constrained_settings(db, data):
             db.set_setting(db_key, value, is_default=False)
         logger.info(f"Updated {db_key} to: {value if value is not None else 'default'}")
     if writes:
-        # The response's cookie expiry rereads the session length; drop the value memoized at request start.
-        forget_memo()
+        # The response's cookie expiry must use the new length, not the one read at request start.
+        refresh_auth(db)
 
 
 def _validate_constrained_payload(data):
