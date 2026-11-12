@@ -6,6 +6,8 @@ from config import (
     CORRECTION_ORIGIN_AUTO_PASS2, CORRECTION_ORIGIN_USER, SEGMENT_CATEGORIES,
     SNIPPET_EXCLUDED_SQL, SNIPPET_EXCLUDED_SQL_PARAMS,
 )
+from database.fingerprint_cleanup import delete_pattern_dependents, delete_pattern_dependents_in
+from utils.json_fields import load_json_list
 from utils.markers import parse_ad_markers
 from utils.pattern_catalog import invalidate_pattern_catalog_scope
 
@@ -288,18 +290,9 @@ class PatternMixin:
         """Hard-delete patterns by id on the caller's connection (no commit)."""
         if not ids:
             return 0
-        placeholders = ','.join('?' * len(ids))
-        # Explicit as well as the FK cascade: enforcement is per connection.
-        conn.execute(
-            f"DELETE FROM audio_fingerprints WHERE pattern_id IN ({placeholders})",  # noqa: S608
-            ids,
-        )
-        conn.execute(
-            f"DELETE FROM audio_fingerprint_matches WHERE pattern_id IN ({placeholders})",  # noqa: S608
-            ids,
-        )
+        delete_pattern_dependents(conn, ids)
         cursor = conn.execute(
-            f"DELETE FROM ad_patterns WHERE id IN ({placeholders})",  # noqa: S608
+            f"DELETE FROM ad_patterns WHERE id IN ({','.join('?' * len(ids))})",  # noqa: S608
             ids,
         )
         return cursor.rowcount
@@ -335,11 +328,7 @@ class PatternMixin:
         )
         result: dict[int, list[str]] = {}
         for row in cursor.fetchall():
-            try:
-                tags = json.loads(row['tags'] or '[]')
-            except (ValueError, TypeError):
-                tags = []
-            result[row['id']] = tags if isinstance(tags, list) else []
+            result[row['id']] = load_json_list(row['tags'])
         return result
 
     def increment_pattern_match(self, pattern_id: int):
@@ -373,13 +362,7 @@ class PatternMixin:
 
     def _delete_ad_pattern_conn(self, conn, pattern_id: int) -> bool:
         """Delete an ad pattern on the caller's connection without committing."""
-        # Explicit as well as the FK cascade: enforcement is per connection.
-        conn.execute(
-            "DELETE FROM audio_fingerprints WHERE pattern_id = ?", (pattern_id,)
-        )
-        conn.execute(
-            "DELETE FROM audio_fingerprint_matches WHERE pattern_id = ?", (pattern_id,)
-        )
+        delete_pattern_dependents(conn, [pattern_id])
         cursor = conn.execute(
             "DELETE FROM ad_patterns WHERE id = ?", (pattern_id,)
         )
@@ -402,16 +385,7 @@ class PatternMixin:
         """
         invalidate_pattern_catalog_scope()
         conn = self.get_connection()
-        conn.execute(
-            "DELETE FROM audio_fingerprints WHERE pattern_id IN ("
-            "SELECT id FROM ad_patterns WHERE source = 'community'"
-            ")"
-        )
-        conn.execute(
-            "DELETE FROM audio_fingerprint_matches WHERE pattern_id IN ("
-            "SELECT id FROM ad_patterns WHERE source = 'community'"
-            ")"
-        )
+        delete_pattern_dependents_in(conn, "(SELECT id FROM ad_patterns WHERE source = 'community')")
         cursor = conn.execute(
             "DELETE FROM ad_patterns WHERE source = 'community'"
         )

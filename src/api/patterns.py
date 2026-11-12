@@ -12,6 +12,7 @@ from config import (
     SNIPPET_EXCLUDED_STAGE_REASONS,
 )
 from api import preview_cache
+from database.fingerprint_cleanup import delete_pattern_dependents
 from database.fingerprint_matches import fingerprint_member_pattern_ids
 from utils.markers import clip_merge_spans, find_marker_in_list, parse_ad_markers
 from utils.time import utc_now_iso, utc_now, parse_iso_datetime
@@ -606,14 +607,7 @@ def merge_patterns():
             # A folded row's fingerprint is the audio hash of ITS read, not the
             # kept row's, so drop it rather than attach audio the kept row does
             # not describe. Explicit: the FK cascade is per-connection.
-            conn.execute(
-                f'DELETE FROM audio_fingerprints WHERE pattern_id IN ({placeholders})',  # noqa: S608  # identifiers allowlisted, values bound
-                merge_id_list
-            )
-            conn.execute(
-                f'DELETE FROM audio_fingerprint_matches WHERE pattern_id IN ({placeholders})',  # noqa: S608  # identifiers allowlisted, values bound
-                merge_id_list
-            )
+            delete_pattern_dependents(conn, merge_id_list)
             # Delete merged patterns
             conn.execute(
                 f'''DELETE FROM ad_patterns WHERE id IN ({placeholders})''',  # noqa: S608  # identifiers allowlisted, values bound

@@ -1,6 +1,9 @@
 """Audio fingerprint match history accessors."""
 import pytest
 
+from database.fingerprint_cleanup import (
+    delete_matches_for_episode, delete_matches_for_patterns, move_matches)
+
 
 @pytest.fixture
 def pattern(temp_db):
@@ -12,6 +15,13 @@ def _record(db, pid, ep='ep1', slug='show', start=10.0, end=55.0, **kw):
     args = dict(similarity=0.9, coverage=0.8, in_scope=True, audio_only=False)
     args.update(kw)
     return db.record_fingerprint_match(pid, ep, slug, start, end, **args)
+
+
+def _commit(db, helper, *args, **kwargs):
+    conn = db.get_connection()
+    changed = helper(conn, *args, **kwargs)
+    conn.commit()
+    return changed
 
 
 def test_record_paginate_and_summary(temp_db, pattern):
@@ -93,7 +103,7 @@ def test_record_without_audio_only_stores_null(temp_db, pattern):
 def test_delete_for_episode_is_scoped_to_podcast(temp_db, pattern):
     _record(temp_db, pattern, 'epX', slug='show')
     _record(temp_db, pattern, 'epX', slug='other')
-    assert temp_db.delete_fingerprint_matches_for_episode('show', 'epX') == 1
+    assert _commit(temp_db, delete_matches_for_episode, 'show', 'epX') == 1
     rows = temp_db.get_fingerprint_matches(pattern, 10, 0)
     assert [r['podcast_slug'] for r in rows] == ['other']
 
@@ -102,11 +112,10 @@ def test_delete_for_episode_keep_rejected(temp_db, pattern):
     _record(temp_db, pattern, 'epX', start=1, end=20)
     _record(temp_db, pattern, 'epX', start=100, end=140)
     assert temp_db.mark_fingerprint_match_rejected(pattern, 'show', 'epX', 100, 140)
-    assert temp_db.delete_fingerprint_matches_for_episode(
-        'show', 'epX', keep_rejected=True) == 1
+    assert _commit(temp_db, delete_matches_for_episode, 'show', 'epX', keep_rejected=True) == 1
     left = temp_db.get_fingerprint_matches(pattern, 10, 0)
     assert len(left) == 1 and left[0]['rejected'] == 1
-    assert temp_db.delete_fingerprint_matches_for_episode('show', 'epX') == 1
+    assert _commit(temp_db, delete_matches_for_episode, 'show', 'epX') == 1
     assert temp_db.count_fingerprint_matches(pattern) == 0
 
 
@@ -115,7 +124,7 @@ def test_delete_for_pattern(temp_db, pattern):
                                       podcast_id='show')
     _record(temp_db, pattern)
     _record(temp_db, other)
-    assert temp_db.delete_fingerprint_matches_for_pattern(pattern) == 1
+    assert _commit(temp_db, delete_matches_for_patterns, [pattern]) == 1
     assert temp_db.count_fingerprint_matches(pattern) == 0
     assert temp_db.count_fingerprint_matches(other) == 1
 
@@ -125,7 +134,7 @@ def test_move_matches_between_patterns(temp_db, pattern):
                                        podcast_id='show')
     _record(temp_db, pattern, 'a')
     _record(temp_db, pattern, 'b')
-    assert temp_db.move_fingerprint_matches(pattern, target) == 2
+    assert _commit(temp_db, move_matches, pattern, target) == 2
     assert temp_db.count_fingerprint_matches(pattern) == 0
     assert temp_db.count_fingerprint_matches(target) == 2
 
@@ -289,3 +298,18 @@ def test_unreject_in_span_restores_every_pattern_and_only_that_span(temp_db, pat
     assert temp_db.unreject_fingerprint_matches_in_span('show', 'epY', 105, 138) == 2
     assert [temp_db.get_fingerprint_match(r)['rejected'] for r in rows] == [0, 0, 1]
     assert temp_db.unreject_fingerprint_matches_in_span('show', 'epZ', 105, 138) == 0
+
+
+def test_summary_aggregate_searches_the_requested_patterns_only(temp_db, pattern):
+    _record(temp_db, pattern)
+    conn = temp_db.get_connection()
+    statements = []
+    conn.set_trace_callback(statements.append)
+    try:
+        temp_db.get_audio_summaries([pattern])
+    finally:
+        conn.set_trace_callback(None)
+    query, = [s for s in statements if 'AVG(CASE' in s]
+    plan = ' '.join(r[3] for r in conn.execute('EXPLAIN QUERY PLAN ' + query))
+    assert 'SCAN audio_fingerprint_matches' not in plan and 'SCAN m ' not in plan
+    assert 'idx_fp_matches_pattern' in plan

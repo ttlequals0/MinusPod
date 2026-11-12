@@ -1,8 +1,9 @@
 """Audio fingerprint mixin for MinusPod database."""
-import json
 import logging
 
+from database.fingerprint_cleanup import delete_matches_for_patterns
 from database.patterns import _row_with_category
+from utils.json_fields import load_json_list
 
 logger = logging.getLogger(__name__)
 
@@ -76,13 +77,13 @@ class FingerprintMixin:
         return cursor.rowcount > 0
 
     def get_active_fingerprints_with_scope(self) -> list[dict]:
-        """Enabled fingerprints of active patterns with scope, sponsor and sponsor tags."""
+        """Enabled fingerprints of active patterns with scope, sponsor and tags of the sponsor when it is active."""
         conn = self.get_connection()
         cursor = conn.execute(
             """SELECT af.pattern_id, af.fingerprint, af.duration, ks.name AS sponsor,
                       COALESCE(ks.segment_category, ap.category) AS category,
                       ap.scope, ap.network_id, ap.podcast_id, ap.source,
-                      ap.sponsor_id, ks.tags AS sponsor_tags
+                      ap.sponsor_id, CASE WHEN ks.is_active = 1 THEN ks.tags END AS sponsor_tags
                FROM audio_fingerprints af
                JOIN ad_patterns ap ON af.pattern_id = ap.id
                LEFT JOIN known_sponsors ks ON ap.sponsor_id = ks.id
@@ -91,11 +92,7 @@ class FingerprintMixin:
         rows = []
         for row in cursor.fetchall():
             item = dict(row)
-            try:
-                tags = json.loads(item['sponsor_tags'] or '[]')
-            except (TypeError, ValueError):
-                tags = []
-            item['sponsor_tags'] = tags if isinstance(tags, list) else []
+            item['sponsor_tags'] = load_json_list(item['sponsor_tags'])
             rows.append(_row_with_category(item))
         return rows
 
@@ -128,6 +125,6 @@ class FingerprintMixin:
             ).rowcount > 0
             if not deleted:
                 return False
-            conn.execute("DELETE FROM audio_fingerprint_matches WHERE pattern_id = ?", (pattern_id,))
+            delete_matches_for_patterns(conn, [pattern_id])
             conn.execute("UPDATE ad_patterns SET audio_removed = 1 WHERE id = ?", (pattern_id,))
         return True

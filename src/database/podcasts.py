@@ -7,6 +7,7 @@ from config import (
     DEFAULT_AUDIO_REPLACEMENT_SOUND_ENABLED, DEFAULT_AUDIO_MP3_STREAM_COPY_ENABLED,
     coerce_bool_setting, resolve_segment_category_actions_map,
 )
+from database.fingerprint_cleanup import delete_matches_for_podcast, delete_pattern_dependents_in
 from utils.constants import EpisodeStatus
 from utils.time import ISO_FORMAT, utc_now_iso
 from utils.validation import nullable_bool
@@ -604,10 +605,7 @@ class PodcastMixin:
         # patterns than SQLite allows bound variables. Dependants go first,
         # while the patterns they point at still exist to select from.
         doomed = "SELECT id FROM ad_patterns WHERE scope = 'podcast' AND podcast_id = ?"
-        conn.execute(
-            f"DELETE FROM audio_fingerprints WHERE pattern_id IN ({doomed})", (slug,))  # noqa: S608
-        conn.execute(
-            f"DELETE FROM audio_fingerprint_matches WHERE pattern_id IN ({doomed})", (slug,))  # noqa: S608
+        delete_pattern_dependents_in(conn, f"({doomed})", (slug,))
         conn.execute(
             f"DELETE FROM pattern_corrections WHERE pattern_id IN ({doomed})", (slug,))  # noqa: S608
         conn.execute(
@@ -621,8 +619,7 @@ class PodcastMixin:
             "DELETE FROM ad_reviewer_log WHERE podcast_id = ?", (slug,))
         conn.execute(
             "DELETE FROM addressing_log WHERE podcast_slug = ?", (slug,))
-        conn.execute(
-            "DELETE FROM audio_fingerprint_matches WHERE podcast_slug = ?", (slug,))
+        delete_matches_for_podcast(conn, slug)
         conn.execute(
             "UPDATE audio_fingerprints SET source_podcast_slug = NULL, source_episode_id = NULL, "
             "source_start = NULL, source_end = NULL WHERE source_podcast_slug = ?", (slug,))

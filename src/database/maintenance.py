@@ -8,6 +8,7 @@ from datetime import timedelta
 from pathlib import Path
 
 from config import CORRECTION_ORIGIN_USER
+from database.fingerprint_cleanup import delete_pattern_dependents, move_matches
 from utils.text import extract_text_in_range
 from utils.time import ISO_FORMAT, utc_now
 
@@ -427,21 +428,11 @@ class MaintenanceMixin:
                     'UPDATE audio_fingerprints SET pattern_id = ? WHERE pattern_id = ?',
                     [keep_id, donor]
                 )
-                conn.execute(
-                    'UPDATE audio_fingerprint_matches SET pattern_id = ? WHERE pattern_id = ?',
-                    [keep_id, donor]
-                )
+                move_matches(conn, donor, keep_id)
 
             # Drop the rest before their patterns go; the FK cascade would too,
             # but enforcement is per connection so do not lean on it.
-            conn.execute(
-                f'DELETE FROM audio_fingerprints WHERE pattern_id IN ({placeholders})',  # noqa: S608
-                remove_ids
-            )
-            conn.execute(
-                f'DELETE FROM audio_fingerprint_matches WHERE pattern_id IN ({placeholders})',  # noqa: S608
-                remove_ids
-            )
+            delete_pattern_dependents(conn, remove_ids)
 
             # Delete duplicate patterns
             conn.execute(

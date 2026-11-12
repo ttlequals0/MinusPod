@@ -91,6 +91,30 @@ def test_reprocess_replaces_rows_of_that_episode_only(world):
     assert spans == [(EP, 20.0), ('other-ep', 10.0)]
 
 
+def _write_transactions(db, markers):
+    conn = db.get_connection()
+    statements = []
+    conn.set_trace_callback(statements.append)
+    try:
+        db.record_fingerprint_matches_from_markers(SLUG, EP, markers)
+    finally:
+        conn.set_trace_callback(None)
+    return [s for s in statements if s.startswith('BEGIN')]
+
+
+def test_nothing_to_write_and_no_rows_opens_no_write_transaction(world):
+    db, pid = world
+    assert _write_transactions(db, []) == []
+    assert _write_transactions(db, [_fp(987654)]) == []
+
+
+def test_existing_rows_still_open_the_write_transaction(world):
+    db, pid = world
+    db.record_fingerprint_matches_from_markers(SLUG, EP, [_fp(pid)])
+    assert _write_transactions(db, []) != []
+    assert _rows(db, pid) == []
+
+
 def test_a_reprocess_without_matches_clears_the_episode(world):
     db, pid = world
     db.record_fingerprint_matches_from_markers(SLUG, EP, [_fp(pid)])

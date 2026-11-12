@@ -71,14 +71,14 @@ def test_list_runs_one_summary_query_not_one_per_pattern(app_client, fp_feed, mi
     calls = []
     real = type(fp_feed).get_audio_summaries
     monkeypatch.setattr(type(fp_feed), 'get_audio_summaries',
-                        lambda self, ids=None: calls.append(ids) or real(self, ids))
+                        lambda self, ids: calls.append(ids) or real(self, ids))
     monkeypatch.setattr(type(fp_feed), 'get_audio_fingerprint',
                         lambda self, pid: pytest.fail('per-row fingerprint lookup'))
     _list(app_client)
     assert len(calls) == 1 and set(mixed.values()) <= set(calls[0])
 
 
-def test_summaries_for_all_and_for_chunks(temp_db, monkeypatch):
+def test_summaries_for_chunks(temp_db, monkeypatch):
     import database.fingerprint_matches as module
     ids = [temp_db.create_ad_pattern(scope='podcast', podcast_id='show', text_template=f'read number {i} ' * 8)
            for i in range(5)]
@@ -86,6 +86,5 @@ def test_summaries_for_all_and_for_chunks(temp_db, monkeypatch):
     monkeypatch.setattr(module, 'SUMMARY_ID_CHUNK', 2)
     chunked = temp_db.get_audio_summaries(ids)
     assert set(chunked) == set(ids) and chunked[ids[3]]['state'] == 'active'
-    assert temp_db.get_audio_summaries() == chunked
     assert temp_db.get_audio_summaries([]) == {}
     assert temp_db.get_audio_summaries([987654]) == {}
