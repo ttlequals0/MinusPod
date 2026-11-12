@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import AudioFingerprintingSection, {
-  FINGERPRINT_LIMITS, type FingerprintState,
+  FINGERPRINT_FALLBACK_LIMITS, fingerprintLimits, type FingerprintState,
 } from './AudioFingerprintingSection';
 
 const mockUnsaved = vi.fn();
@@ -23,8 +23,19 @@ beforeEach(() => {
   localStorage.setItem('settings-section-audio-fingerprinting', 'true');
 });
 
-function renderSection(over: Partial<FingerprintState> = {}, onChange = vi.fn()) {
-  render(<AudioFingerprintingSection fingerprint={{ ...state, ...over }} onChange={onChange} />);
+const onFieldIssue = vi.fn();
+
+function renderSection(
+  over: Partial<FingerprintState> = {}, onChange = vi.fn(), limits = fingerprintLimits(undefined),
+) {
+  render(
+    <AudioFingerprintingSection
+      fingerprint={{ ...state, ...over }}
+      limits={limits}
+      onChange={onChange}
+      onFieldIssue={onFieldIssue}
+    />,
+  );
   return onChange;
 }
 
@@ -46,12 +57,12 @@ describe('AudioFingerprintingSection', () => {
     expect(screen.getByText(/Raising it skips shorter spans/)).toBeDefined();
   });
 
-  it('takes every range and default from the one constants object', () => {
+  it('falls back to the typed limits when the response has none', () => {
     renderSection();
-    expect(FINGERPRINT_LIMITS.matchStrictness).toEqual({ min: 0.65, max: 0.95, default: 0.65 });
-    expect(FINGERPRINT_LIMITS.minCoverage).toEqual({ min: 0.1, max: 1, default: 0.5 });
-    expect(FINGERPRINT_LIMITS.gapToleranceS).toEqual({ min: 0, max: 15, default: 3.5 });
-    expect(FINGERPRINT_LIMITS.minAdLengthS).toEqual({ min: 3, max: 30, default: 5 });
+    expect(FINGERPRINT_FALLBACK_LIMITS.matchStrictness).toMatchObject({ min: 0.65, max: 0.95, default: 0.65 });
+    expect(FINGERPRINT_FALLBACK_LIMITS.minCoverage).toMatchObject({ min: 0.1, max: 1, default: 0.5 });
+    expect(FINGERPRINT_FALLBACK_LIMITS.gapToleranceS).toMatchObject({ min: 0, max: 15, default: 3.5 });
+    expect(FINGERPRINT_FALLBACK_LIMITS.minAdLengthS).toMatchObject({ min: 3, max: 30, default: 5 });
     const input = screen.getByLabelText('Match strictness') as HTMLInputElement;
     expect(input.min).toBe('0.65');
     expect(input.max).toBe('0.95');
@@ -91,6 +102,42 @@ describe('AudioFingerprintingSection', () => {
     expect(input.getAttribute('aria-invalid')).toBe('true');
     expect(screen.getByText('Enter a number from 3 to 30.')).toBeDefined();
     expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it('takes min, max, step and default from the settings response', async () => {
+    const served = {
+      fingerprintMatchStrictness: { value: 0.7, isDefault: false, min: 0.7, max: 0.9, step: 0.01 },
+      defaults: { fingerprintMatchStrictness: 0.8 },
+    } as never;
+    const limits = fingerprintLimits(served);
+    expect(limits.matchStrictness).toEqual({ min: 0.7, max: 0.9, step: 0.01, default: 0.8 });
+    expect(limits.minCoverage).toEqual(FINGERPRINT_FALLBACK_LIMITS.minCoverage);
+    renderSection({ matchStrictness: 0.7 }, vi.fn(), limits);
+    const input = screen.getByLabelText('Match strictness') as HTMLInputElement;
+    expect([input.min, input.max, input.step]).toEqual(['0.7', '0.9', '0.01']);
+    await userEvent.clear(input);
+    await userEvent.type(input, '0.68');
+    expect(screen.getByText('Enter a number from 0.7 to 0.9.')).toBeDefined();
+  });
+
+  it('reports an invalid entry with a focus callback and clears it when fixed', async () => {
+    renderSection();
+    const input = screen.getByLabelText('Match strictness') as HTMLInputElement;
+    await userEvent.clear(input);
+    await userEvent.type(input, '0.2');
+    const [key, focus] = onFieldIssue.mock.calls[onFieldIssue.mock.calls.length - 1];
+    expect(key).toBe('fingerprintMatchStrictness');
+    (focus as () => void)();
+    expect(document.activeElement).toBe(input);
+    await userEvent.clear(input);
+    await userEvent.type(input, '0.8');
+    expect(onFieldIssue).toHaveBeenLastCalledWith('fingerprintMatchStrictness', null);
+  });
+
+  it('reports nothing for a stored value outside the range that was not typed', () => {
+    renderSection({ matchStrictness: 0.3 });
+    expect(onFieldIssue).not.toHaveBeenCalled();
+    expect(mockUnsaved).not.toHaveBeenCalledWith(true);
   });
 
   it('registers no unsaved state while every entry is valid', () => {

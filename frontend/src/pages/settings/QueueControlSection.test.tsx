@@ -387,6 +387,22 @@ describe('QueueControlSection', () => {
   });
 });
 
+describe('QueueControlSection processing order options', () => {
+  it('lists the orders the server reports, labelled', async () => {
+    renderSection({ queueOrderOptions: ['queued', 'newest_first'] });
+    const select = await screen.findByLabelText('Processing order') as HTMLSelectElement;
+    expect(Array.from(select.options).map((o) => [o.value, o.textContent])).toEqual([
+      ['queued', 'As queued'], ['newest_first', 'Newest first'],
+    ]);
+  });
+
+  it('lists all three when the server reports none', async () => {
+    renderSection();
+    const select = await screen.findByLabelText('Processing order') as HTMLSelectElement;
+    expect(Array.from(select.options).map((o) => o.value)).toEqual(['queued', 'oldest_first', 'newest_first']);
+  });
+});
+
 describe('QueueControlSection loading placeholder', () => {
   beforeEach(() => vi.clearAllMocks());
 

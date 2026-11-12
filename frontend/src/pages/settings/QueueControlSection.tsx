@@ -29,7 +29,7 @@ import { btnBase, btnLg, btnPrimary, btnSecondary } from '../../components/butto
 import { inputBase, selectBase, labelBase } from '../../components/fieldStyles';
 import { subHeading } from '../../components/pageStyles';
 import type { QueueOrder } from '../../api/types';
-import { QUEUE_ORDER_OPTIONS } from '../../utils/queueOrder';
+import { queueOrderChoices } from '../../utils/queueOrder';
 import { DemoDisabled } from '../../components/DemoDisabled';
 
 const STORAGE_KEY = 'settings-section-queue-control';
@@ -45,6 +45,7 @@ interface QueueControlSectionProps {
   queueBulkBoost: number;
   onQueueBulkBoostChange: (value: number) => void;
   queueOrder: QueueOrder;
+  queueOrderOptions?: readonly QueueOrder[];
   onQueueOrderChange: (value: QueueOrder) => void;
 }
 
@@ -435,6 +436,7 @@ function QueueControlSection({
   queueBulkBoost,
   onQueueBulkBoostChange,
   queueOrder,
+  queueOrderOptions,
   onQueueOrderChange,
 }: QueueControlSectionProps) {
   // Both hold blocks read their own endpoint, each of which counts deferred
@@ -555,7 +557,7 @@ function QueueControlSection({
               aria-labelledby="queueOrder-heading"
               aria-describedby="queueOrder-help"
             >
-              {QUEUE_ORDER_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+              {queueOrderChoices(queueOrderOptions).map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
             </select>
           </DemoDisabled>
         </div>

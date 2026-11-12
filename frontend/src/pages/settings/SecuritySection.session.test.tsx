@@ -78,6 +78,22 @@ describe('Security session-length fields', () => {
     expect(mockUpdateSettings).not.toHaveBeenCalled();
   });
 
+  it('takes the accepted range from the settings response', async () => {
+    mockGetSettings.mockResolvedValue({
+      jitBlockedUserAgents: { value: [], isDefault: true },
+      sessionLifetimeHours: { value: 24, isDefault: true, min: 2, max: 100 },
+      sessionRememberDays: { value: 30, isDefault: true, min: 1, max: 60 },
+    });
+    renderSection();
+    const hours = await screen.findByLabelText('Session length (hours)') as HTMLInputElement;
+    await waitFor(() => expect(hours.max).toBe('100'));
+    expect(hours.min).toBe('2');
+    fireEvent.change(hours, { target: { value: '101' } });
+    expect(screen.getByRole('alert').textContent).toBe('Enter a whole number of hours from 2 to 100.');
+    const days = screen.getByLabelText('Remember me length (days)') as HTMLInputElement;
+    expect(days.max).toBe('60');
+  });
+
   it('flags an out-of-range days entry', async () => {
     renderSection();
     const days = await screen.findByLabelText('Remember me length (days)');

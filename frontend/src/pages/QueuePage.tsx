@@ -232,6 +232,7 @@ function QueuePage() {
           queueBulkBoost={configured?.queueBulkBoost?.value ?? 0}
           onQueueBulkBoostChange={(value) => tunable.mutate({ queueBulkBoost: value })}
           queueOrder={configured?.queueOrder?.value ?? 'queued'}
+          queueOrderOptions={configured?.queueOrder?.options}
           onQueueOrderChange={(value) => tunable.mutate({ queueOrder: value })}
         />}
         {tunable.isError && <p className="text-sm text-destructive">Could not save queue controls. Try again.</p>}

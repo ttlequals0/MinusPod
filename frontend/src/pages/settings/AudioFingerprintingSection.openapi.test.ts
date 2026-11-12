@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { FINGERPRINT_LIMITS } from './AudioFingerprintingSection';
+import { FINGERPRINT_FALLBACK_LIMITS } from './AudioFingerprintingSection';
 
 const spec = readFileSync(resolve(__dirname, '../../../../openapi.yaml'), 'utf8').split('\n');
 
@@ -39,7 +39,7 @@ describe('audio fingerprint limits against openapi.yaml', () => {
     const found = blocks(key);
     expect(found.length).toBeGreaterThanOrEqual(2);
     for (const body of found) {
-      const limits = FINGERPRINT_LIMITS[name as keyof typeof settings];
+      const limits = FINGERPRINT_FALLBACK_LIMITS[name as keyof typeof settings];
       expect(numberOf(body, 'minimum')).toBe(limits.min);
       expect(numberOf(body, 'maximum')).toBe(limits.max);
       expect(numberOf(body, 'default')).toBe(limits.default);

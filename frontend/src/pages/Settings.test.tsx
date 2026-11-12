@@ -592,6 +592,41 @@ describe('Settings: audio fingerprinting entries', () => {
     ));
   });
 
+  it('does not block Save for a stored out-of-range value the person did not type', async () => {
+    mockGetSettings.mockResolvedValue(makeSettings({
+      fingerprintMatchStrictness: { value: 0.3, isDefault: false },
+      fingerprintMinCoverage: { value: 0.5, isDefault: true },
+      fingerprintGapToleranceS: { value: 3.5, isDefault: true },
+      fingerprintMinAdLengthS: { value: 5, isDefault: true },
+    }));
+    localStorage.setItem('settings-section-audio-fingerprinting', 'true');
+    const user = userEvent.setup();
+    renderSettings();
+    await screen.findByLabelText('First pass system prompt');
+    const gap = screen.getByLabelText('Gap tolerance (s)');
+    await user.clear(gap);
+    await user.type(gap, '6');
+    await user.click(screen.getByRole('button', { name: 'Save changes' }));
+    await waitFor(() => expect(updateSettings).toHaveBeenCalledWith(
+      expect.objectContaining({ fingerprintGapToleranceS: 6 }),
+    ));
+    expect(vi.mocked(updateSettings).mock.calls[0][0]).not.toHaveProperty('fingerprintMatchStrictness');
+  });
+
+  it('uses the limits the settings response reports', async () => {
+    mockGetSettings.mockResolvedValue(makeSettings({
+      fingerprintMatchStrictness: { value: 0.7, isDefault: false, min: 0.7, max: 0.9, step: 0.01 },
+      fingerprintMinCoverage: { value: 0.5, isDefault: true },
+      fingerprintGapToleranceS: { value: 3.5, isDefault: true },
+      fingerprintMinAdLengthS: { value: 5, isDefault: true },
+    }));
+    localStorage.setItem('settings-section-audio-fingerprinting', 'true');
+    renderSettings();
+    await screen.findByLabelText('First pass system prompt');
+    const input = screen.getByLabelText('Match strictness') as HTMLInputElement;
+    expect([input.min, input.max, input.step]).toEqual(['0.7', '0.9', '0.01']);
+  });
+
   it('offers Save for an invalid entry alone so the block is visible', async () => {
     localStorage.setItem('settings-section-audio-fingerprinting', 'true');
     const user = userEvent.setup();

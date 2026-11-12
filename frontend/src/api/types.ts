@@ -750,6 +750,13 @@ export interface SettingValueNumber {
   isDefault: boolean;
 }
 
+// A number setting that also reports its accepted range; older servers omit the limits.
+export interface SettingValueRange extends SettingValueNumber {
+  min?: number;
+  max?: number;
+  step?: number;
+}
+
 // Int-or-blank settings (failover/per-provider timeout and retry overrides):
 // null means "use the provider type's default", not an unset field.
 export interface SettingValueNumberOrNull {
@@ -941,7 +948,7 @@ export interface Settings {
   queueManualBoost: SettingValueNumber;
   queueFreshBoost: SettingValueNumber;
   queueBulkBoost: SettingValueNumber;
-  queueOrder?: { value: QueueOrder; isDefault: boolean };
+  queueOrder?: { value: QueueOrder; isDefault: boolean; options?: QueueOrder[] };
   segmentCategoryActions: { value: Record<SegmentCategory, SegmentAction>; isDefault: boolean };
   onlyExposeProcessedDefault: SettingValueBoolean;
   feedItunesBlock: SettingValueBoolean;
@@ -970,8 +977,8 @@ export interface Settings {
   feedAuthKey: string | null;
   // User agents served original audio instead of triggering JIT processing.
   jitBlockedUserAgents: { value: string[]; isDefault: boolean };
-  sessionLifetimeHours: SettingValueNumber;
-  sessionRememberDays: SettingValueNumber;
+  sessionLifetimeHours: SettingValueRange;
+  sessionRememberDays: SettingValueRange;
   opmlModifiedUrl: string | null;
   opmlOriginalUrl: string | null;
   audioBitrate: SettingValue;
@@ -995,10 +1002,10 @@ export interface Settings {
   whisperPoolMaxRequests: SettingValueNumber;
   whisperPoolMaxEpisodes: SettingValueNumber;
   fingerprintEnabled: SettingValueBoolean;
-  fingerprintMatchStrictness: SettingValueNumber;
-  fingerprintMinCoverage: SettingValueNumber;
-  fingerprintGapToleranceS: SettingValueNumber;
-  fingerprintMinAdLengthS: SettingValueNumber;
+  fingerprintMatchStrictness: SettingValueRange;
+  fingerprintMinCoverage: SettingValueRange;
+  fingerprintGapToleranceS: SettingValueRange;
+  fingerprintMinAdLengthS: SettingValueRange;
   audioCueDetectionEnabled: SettingValueBoolean;
   audioCueFreqMinHz: SettingValueNumber;
   audioCueFreqMaxHz: SettingValueNumber;

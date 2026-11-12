@@ -12,11 +12,12 @@ import { inputBase, labelBase } from '../../components/fieldStyles';
 import { subHeading } from '../../components/pageStyles';
 import { uiUrl } from '../../urlPrefix';
 import { DemoDisabled } from '../../components/DemoDisabled';
+import { limitsOf } from '../../utils/settingLimits';
 
 const MIN_PASSWORD_LENGTH = 12;
-const HOURS_RANGE = { min: 1, max: 8760 };
-const DAYS_RANGE = { min: 1, max: 365 };
-// Defaults used until the server reports the keys (older servers omit them).
+// Ranges and defaults used until the server reports them (older servers and fixtures omit them).
+const HOURS_FALLBACK = { min: 1, max: 8760 };
+const DAYS_FALLBACK = { min: 1, max: 365 };
 const DEFAULT_HOURS = 24;
 const DEFAULT_DAYS = 30;
 
@@ -127,10 +128,12 @@ function SecuritySection({
   const [daysDraft, setDaysDraft] = useState<number | null | undefined>(undefined);
   const [sessionSaved, setSessionSaved] = useState(false);
   const [sessionError, setSessionError] = useState<string | null>(null);
+  const hoursRange = limitsOf(settings?.sessionLifetimeHours, HOURS_FALLBACK);
+  const daysRange = limitsOf(settings?.sessionRememberDays, DAYS_FALLBACK);
   const hours = hoursDraft === undefined ? savedHours : hoursDraft;
   const days = daysDraft === undefined ? savedDays : daysDraft;
-  const hoursValid = isInRange(hours, HOURS_RANGE);
-  const daysValid = isInRange(days, DAYS_RANGE);
+  const hoursValid = isInRange(hours, hoursRange);
+  const daysValid = isInRange(days, daysRange);
   const sessionDirty = hours !== savedHours || days !== savedDays;
 
   const sessionMutation = useMutation({
@@ -146,7 +149,7 @@ function SecuritySection({
 
   const saveSessionLengths = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!isInRange(hours, HOURS_RANGE) || !isInRange(days, DAYS_RANGE) || sessionMutation.isPending) return;
+    if (!isInRange(hours, hoursRange) || !isInRange(days, daysRange) || sessionMutation.isPending) return;
     setSessionError(null);
     setSessionSaved(false);
     sessionMutation.mutate({ sessionLifetimeHours: hours, sessionRememberDays: days });
@@ -326,7 +329,7 @@ function SecuritySection({
             unit="hours"
             help="How long a normal sign-in stays valid, counted from its last use."
             value={hours}
-            range={HOURS_RANGE}
+            range={hoursRange}
             valid={hoursValid}
             disabled={sessionMutation.isPending}
             onChange={(v) => { setHoursDraft(v); setSessionSaved(false); }}
@@ -337,7 +340,7 @@ function SecuritySection({
             unit="days"
             help="Applies only to sign-ins that tick the Remember me box; counted from last use."
             value={days}
-            range={DAYS_RANGE}
+            range={daysRange}
             valid={daysValid}
             disabled={sessionMutation.isPending}
             onChange={(v) => { setDaysDraft(v); setSessionSaved(false); }}

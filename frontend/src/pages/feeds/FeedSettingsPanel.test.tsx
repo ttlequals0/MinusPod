@@ -352,6 +352,16 @@ describe('FeedSettingsPanel processing order control (#997)', () => {
     expect(select.getAttribute('aria-describedby')).toBe('feed-queue-order-help');
   });
 
+  it('lists the orders the settings response reports', async () => {
+    mockGetSettings.mockResolvedValue({
+      queueOrder: { value: 'queued', isDefault: true, options: ['queued', 'newest_first'] },
+    });
+    renderPanel(makeFeed());
+    await screen.findByRole('option', { name: 'Use default (As queued)' });
+    const select = screen.getByRole('combobox', { name: NAME });
+    expect(Array.from((select as HTMLSelectElement).options).map((o) => o.value)).toEqual(['', 'queued', 'newest_first']);
+  });
+
   it('names the global order in the Use default option once settings load', async () => {
     mockGetSettings.mockResolvedValue({ queueOrder: { value: 'oldest_first', isDefault: false } });
     renderPanel(makeFeed());

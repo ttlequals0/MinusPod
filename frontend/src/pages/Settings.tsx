@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { BookOpen, FileText } from 'lucide-react';
 import QueryError from '../components/QueryError';
 import { useUnsavedChanges } from '../hooks/useUnsavedChanges';
@@ -66,7 +66,7 @@ import PromptsSection from './settings/PromptsSection';
 import ExperimentsSection from './settings/ExperimentsSection';
 import AdReviewerSection from './settings/AdReviewerSection';
 import AudioCueDetectionSection from './settings/AudioCueDetectionSection';
-import AudioFingerprintingSection, { FINGERPRINT_LIMITS } from './settings/AudioFingerprintingSection';
+import AudioFingerprintingSection, { FINGERPRINT_FALLBACK_LIMITS, fingerprintLimits } from './settings/AudioFingerprintingSection';
 import PositionalPriorSection from './settings/PositionalPriorSection';
 import PatternCleanupSection from './settings/PatternCleanupSection';
 import CommunityPatternsSection from './settings/CommunityPatternsSection';
@@ -134,6 +134,9 @@ interface FieldSpec {
   obj?: 'reviewer' | 'audioCue' | 'fingerprint' | 'whisperApi' | 'failoverLlm' | 'failoverWhisper';
   prop?: string;
   preserveExplicitBlank?: boolean;
+  // Set while the entry cannot be saved; Save focuses the first such field instead of saving.
+  invalid?: boolean;
+  focus?: () => void;
 }
 
 function fieldBaseline(settings: SettingsShape, f: FieldSpec): SettingScalar | undefined {
@@ -223,12 +226,25 @@ function Settings() {
   });
   const [fingerprint, setFingerprint] = useState({
     enabled: true,
-    matchStrictness: FINGERPRINT_LIMITS.matchStrictness.default,
-    minCoverage: FINGERPRINT_LIMITS.minCoverage.default,
-    gapToleranceS: FINGERPRINT_LIMITS.gapToleranceS.default,
-    minAdLengthS: FINGERPRINT_LIMITS.minAdLengthS.default,
+    matchStrictness: FINGERPRINT_FALLBACK_LIMITS.matchStrictness.default,
+    minCoverage: FINGERPRINT_FALLBACK_LIMITS.minCoverage.default,
+    gapToleranceS: FINGERPRINT_FALLBACK_LIMITS.gapToleranceS.default,
+    minAdLengthS: FINGERPRINT_FALLBACK_LIMITS.minAdLengthS.default,
   });
-  const [fingerprintInvalid, setFingerprintInvalid] = useState(false);
+  // Settings keys whose entry cannot be saved, each with a callback that focuses its input.
+  const [fieldIssues, setFieldIssues] = useState<Record<string, () => void>>({});
+  const reportFieldIssue = useCallback((settingKey: string, focus: (() => void) | null) => {
+    setFieldIssues((prev) => {
+      if (focus === null) {
+        if (!(settingKey in prev)) return prev;
+        const rest = { ...prev };
+        delete rest[settingKey];
+        return rest;
+      }
+      return { ...prev, [settingKey]: focus };
+    });
+  }, []);
+  const issueOf = (key: string): Pick<FieldSpec, 'invalid' | 'focus'> => ({ invalid: key in fieldIssues, focus: fieldIssues[key] });
   const [positionalPriorEnabled, setPositionalPriorEnabled] = useState(false);
   const [selectedModel, setSelectedModel] = useState('');
   const [verificationModel, setVerificationModel] = useState('');
@@ -962,10 +978,10 @@ function Settings() {
     { key: 'transcriptDifferentialEnabled', kind: 'val', useDefault: true, literal: true, value: transcriptDifferentialEnabled, set: setTranscriptDifferentialEnabled },
     // Audio fingerprinting (nested `fingerprint` state)
     { key: 'fingerprintEnabled', kind: 'val', useDefault: true, literal: true, value: fingerprint.enabled, obj: 'fingerprint', prop: 'enabled' },
-    { key: 'fingerprintMatchStrictness', kind: 'val', useDefault: true, literal: FINGERPRINT_LIMITS.matchStrictness.default, value: fingerprint.matchStrictness, obj: 'fingerprint', prop: 'matchStrictness' },
-    { key: 'fingerprintMinCoverage', kind: 'val', useDefault: true, literal: FINGERPRINT_LIMITS.minCoverage.default, value: fingerprint.minCoverage, obj: 'fingerprint', prop: 'minCoverage' },
-    { key: 'fingerprintGapToleranceS', kind: 'val', useDefault: true, literal: FINGERPRINT_LIMITS.gapToleranceS.default, value: fingerprint.gapToleranceS, obj: 'fingerprint', prop: 'gapToleranceS' },
-    { key: 'fingerprintMinAdLengthS', kind: 'val', useDefault: true, literal: FINGERPRINT_LIMITS.minAdLengthS.default, value: fingerprint.minAdLengthS, obj: 'fingerprint', prop: 'minAdLengthS' },
+    { key: 'fingerprintMatchStrictness', kind: 'val', useDefault: true, literal: FINGERPRINT_FALLBACK_LIMITS.matchStrictness.default, value: fingerprint.matchStrictness, obj: 'fingerprint', prop: 'matchStrictness', ...issueOf('fingerprintMatchStrictness') },
+    { key: 'fingerprintMinCoverage', kind: 'val', useDefault: true, literal: FINGERPRINT_FALLBACK_LIMITS.minCoverage.default, value: fingerprint.minCoverage, obj: 'fingerprint', prop: 'minCoverage', ...issueOf('fingerprintMinCoverage') },
+    { key: 'fingerprintGapToleranceS', kind: 'val', useDefault: true, literal: FINGERPRINT_FALLBACK_LIMITS.gapToleranceS.default, value: fingerprint.gapToleranceS, obj: 'fingerprint', prop: 'gapToleranceS', ...issueOf('fingerprintGapToleranceS') },
+    { key: 'fingerprintMinAdLengthS', kind: 'val', useDefault: true, literal: FINGERPRINT_FALLBACK_LIMITS.minAdLengthS.default, value: fingerprint.minAdLengthS, obj: 'fingerprint', prop: 'minAdLengthS', ...issueOf('fingerprintMinAdLengthS') },
     // Audio cue detection (nested `audioCue` state)
     { key: 'audioCueDetectionEnabled', kind: 'val', useDefault: true, value: audioCue.enabled, obj: 'audioCue', prop: 'enabled' },
     { key: 'audioCueFreqMinHz', kind: 'val', useDefault: true, value: audioCue.freqMinHz, obj: 'audioCue', prop: 'freqMinHz' },
@@ -1076,6 +1092,8 @@ function Settings() {
     return reviewer.updatePatterns !== reviewerSettings.updatePatternsFromReviewerAdjustments
       || reviewer.minTrimThreshold !== reviewerSettings.minTrimThreshold;
   };
+
+  const hasInvalidField = FIELDS.some((f) => f.invalid);
 
   // Recomputed every render: ~65 scalar compares over the registry, cheap
   // enough to skip memoization. This removes the old useMemo whose
@@ -1668,7 +1686,12 @@ function Settings() {
         onResetResurrectPrompt={() => resetPromptMutation.mutate('resurrect')}
       />
 
-      <AudioFingerprintingSection fingerprint={fingerprint} onChange={setFingerprint} onInvalidChange={setFingerprintInvalid} />
+      <AudioFingerprintingSection
+        fingerprint={fingerprint}
+        limits={fingerprintLimits(settings)}
+        onChange={setFingerprint}
+        onFieldIssue={reportFieldIssue}
+      />
 
       <SeedSponsorsSection
         detection={settings?.seedSponsorsDetection?.value ?? settings?.defaults?.seedSponsorsDetection ?? true}
@@ -1866,7 +1889,7 @@ function Settings() {
       )}
 
       {/* Sticky save bar */}
-      {(hasChanges || fingerprintInvalid) && (
+      {(hasChanges || hasInvalidField) && (
         <div
           data-viewport-inset="bottom"
           className="safe-bottom pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)] fixed bottom-0 left-0 right-0 z-40 border-t border-border bg-background/80 backdrop-blur-md"
@@ -1883,8 +1906,8 @@ function Settings() {
               <button
                 onClick={() => {
                   // An entry that cannot be saved holds the whole save until it is fixed.
-                  const blocker = document.querySelector<HTMLElement>('[data-save-blocker]');
-                  if (blocker) blocker.focus();
+                  const blocked = FIELDS.find((f) => f.invalid);
+                  if (blocked) blocked.focus?.();
                   else updateMutation.mutate();
                 }}
                 disabled={updateMutation.isPending}

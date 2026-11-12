@@ -4,7 +4,7 @@ import { getNetworks, updateFeed, UpdateFeedPayload, CUE_SCORE_MIN, CUE_SCORE_MA
 import { listCueTemplates } from '../../api/cueTemplates';
 import { getSettings, getAudioSettings } from '../../api/settings';
 import { getErrorMessage } from '../../api/client';
-import { QUEUE_ORDER_OPTIONS, queueOrderLabel } from '../../utils/queueOrder';
+import { queueOrderChoices, queueOrderLabel } from '../../utils/queueOrder';
 import type { Feed, LowAdYieldAction, EpisodeLogsOverride, QueueOrder } from '../../api/types';
 import { AUTO_PROCESS_WINDOW } from '../../api/types';
 import CollapsibleSection, { useCollapsibleOpen } from '../../components/CollapsibleSection';
@@ -954,7 +954,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                         ? `Use default (${queueOrderLabel(settings.queueOrder.value)})`
                         : 'Use default'}
                     </option>
-                    {QUEUE_ORDER_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+                    {queueOrderChoices(settings?.queueOrder?.options).map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
                   </select>
                   <p id="feed-queue-order-help" className="text-xs text-muted-foreground">
                     Order for this feed's queued episodes. Priorities still come first.
