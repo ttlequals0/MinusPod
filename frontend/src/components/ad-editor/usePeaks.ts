@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { getEpisodePeaks } from '../../api/feeds';
-import { getErrorMessage } from '../../api/client';
+import { ApiError, getErrorMessage } from '../../api/client';
 
 // 100ms buckets -- 4x fewer peaks than the prior 50ms default. Still
 // plenty of detail to see speech vs. silence at any reasonable zoom
@@ -9,6 +9,50 @@ import { getErrorMessage } from '../../api/client';
 // mount roughly 4x. Kept identical to the value AdReviewModal used
 // before extraction so behavior is preserved.
 const PEAK_RESOLUTION_MS = 100;
+
+const BUSY_STATUS = 503;
+const BUSY_DEFAULT_MS = 5000;
+const BUSY_MIN_MS = 1000;
+const BUSY_MAX_MS = 30000;
+const BUSY_TOTAL_MS = 10 * 60 * 1000;
+
+// Sleeps ms; rejects and clears the timer when the query is cancelled.
+function abortableSleep(ms: number, signal: AbortSignal): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (signal.aborted) {
+      reject(signal.reason);
+      return;
+    }
+    const timer = setTimeout(() => {
+      signal.removeEventListener('abort', onAbort);
+      resolve();
+    }, ms);
+    function onAbort() {
+      clearTimeout(timer);
+      reject(signal.reason);
+    }
+    signal.addEventListener('abort', onAbort, { once: true });
+  });
+}
+
+// Waits out a 503 (waveform still being prepared) until success, any other
+// error, cancellation, or BUSY_TOTAL_MS, then rethrows the last 503.
+async function fetchPeaksWhenReady(
+  args: [string, string, number, number, number],
+  signal: AbortSignal,
+) {
+  const deadline = Date.now() + BUSY_TOTAL_MS;
+  for (;;) {
+    try {
+      return await getEpisodePeaks(...args, signal);
+    } catch (err) {
+      if (!(err instanceof ApiError) || err.status !== BUSY_STATUS) throw err;
+      const wait = Math.min(BUSY_MAX_MS, Math.max(BUSY_MIN_MS, err.retryAfterMs ?? BUSY_DEFAULT_MS));
+      if (Date.now() + wait > deadline) throw err;
+      await abortableSleep(wait, signal);
+    }
+  }
+}
 
 export interface UsePeaksResult {
   peaks: number[] | null;
@@ -23,9 +67,9 @@ export interface UsePeaksResult {
 // the cache instead of re-downloading the full-episode peaks. Bumping the
 // `resetTick` knob resets every cached ['peaks', slug, episodeId, ...] entry
 // (dropping the possibly-bad data instead of stranding it under an old key)
-// and refetches fresh (belt-and-suspenders for the Reset action); retry is off
-// because apiRequest already retries transient failures, matching the old
-// single-fetch behavior.
+// and refetches fresh (belt-and-suspenders for the Reset action). A 503 means
+// the server is still building the waveform file: the query stays pending and
+// polls (fetchPeaksWhenReady); react-query retry stays off.
 export function usePeaks(
   podcastSlug: string,
   episodeId: string,
@@ -48,8 +92,11 @@ export function usePeaks(
 
   const query = useQuery({
     queryKey: ['peaks', podcastSlug, episodeId, windowStart, windowEnd],
-    queryFn: () =>
-      getEpisodePeaks(podcastSlug, episodeId, windowStart, windowEnd, PEAK_RESOLUTION_MS),
+    queryFn: ({ signal }) =>
+      fetchPeaksWhenReady(
+        [podcastSlug, episodeId, windowStart, windowEnd, PEAK_RESOLUTION_MS],
+        signal,
+      ),
     staleTime: Infinity,
     retry: false,
   });

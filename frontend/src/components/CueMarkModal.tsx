@@ -616,6 +616,9 @@ function CueMarkModal({
         {/* Waveform + pins. Same overlay pattern as AdReviewModal. */}
         <div ref={scrollRef} className="overflow-hidden border border-border rounded-lg bg-secondary/40 min-h-[140px]">
           <div ref={overlayRef} className="relative">
+            {!peaks && !peaksError && (
+              <p className="p-3 text-sm text-muted-foreground">Loading waveform...</p>
+            )}
             <div ref={waveformRef} />
             {/* Selected-cue region highlight -- same amber fill the ad editor
                 uses for its selection window. Below the markers/pins/playhead. */}

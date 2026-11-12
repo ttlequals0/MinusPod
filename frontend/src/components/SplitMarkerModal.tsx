@@ -89,9 +89,13 @@ function tooShort(pieces: PieceView[]): number | null {
 // Amplitude strip for the span. Renders the peak slice directly rather than
 // mounting a third WaveSurfer instance: splitting needs to see where speech
 // stops, not scrub a decorative region, and the peaks are already fetched.
-function PeakStrip({ peaks }: { peaks: number[] | null }) {
+function PeakStrip({ peaks, loading }: { peaks: number[] | null; loading: boolean }) {
   if (!peaks || peaks.length === 0) {
-    return <div className="h-20 bg-secondary rounded" />;
+    return (
+      <div className="h-20 bg-secondary rounded flex items-center px-3">
+        {loading && <p className="text-sm text-muted-foreground">Loading waveform...</p>}
+      </div>
+    );
   }
   // ~200 gapless bars: per-bar gaps at this density would out-measure the
   // bars themselves on a phone-width strip and render as empty space.
@@ -158,7 +162,7 @@ export default function SplitMarkerModal({ target, onClose, onSplit }: Props) {
   );
   // Fetch peaks from episode start: usePeakSlice indexes by absolute time,
   // so a window-scoped fetch would slice past the array and render nothing.
-  const { peaks, peakResolutionMs } = usePeaks(
+  const { peaks, peakResolutionMs, peaksError } = usePeaks(
     podcastSlug, episodeId, 0, end, 0);
   const windowPeaks = usePeakSlice(
     peaks, peakResolutionMs, window_.windowStart, window_.windowEnd);
@@ -367,7 +371,12 @@ export default function SplitMarkerModal({ target, onClose, onSplit }: Props) {
 
             {/* Waveform plus the dividers laid over it. */}
             <div ref={containerRef} className="relative">
-              <PeakStrip peaks={windowPeaks} />
+              <PeakStrip peaks={windowPeaks} loading={!peaks && !peaksError} />
+              {peaksError && (
+                <p className="text-sm text-destructive mt-2">
+                  Could not load waveform: {peaksError}
+                </p>
+              )}
               {effectiveDividers.map((t, i) => (
                 <Pin
                   key={i}

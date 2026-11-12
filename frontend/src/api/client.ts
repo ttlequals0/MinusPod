@@ -127,11 +127,13 @@ function errorMessageFor(body: unknown, status: number): string {
 export class ApiError extends Error {
   status: number;
   body: unknown;
-  constructor(message: string, status: number, body?: unknown) {
+  retryAfterMs: number | null;
+  constructor(message: string, status: number, body?: unknown, retryAfterMs: number | null = null) {
     super(message);
     this.name = 'ApiError';
     this.status = status;
     this.body = body;
+    this.retryAfterMs = retryAfterMs;
   }
 
   get jobState(): JobState | undefined {
@@ -202,7 +204,7 @@ export async function apiRequest<T>(endpoint: string, options: RequestOptions = 
           continue;
         }
         const error = await response.json().catch(() => null);
-        throw new ApiError(errorMessageFor(error, response.status), response.status, error ?? { error: 'Request failed' });
+        throw new ApiError(errorMessageFor(error, response.status), response.status, error ?? { error: 'Request failed' }, retryAfterMs(response));
       }
 
       const contentType = response.headers.get('content-type');

@@ -58,10 +58,13 @@ export async function getEpisodePeaks(
   start: number,
   end: number,
   resolutionMs = 50,
+  signal?: AbortSignal,
 ): Promise<PeaksResponse> {
   const qs = buildQueryString({ start, end, resolution_ms: resolutionMs });
+  // retry off: usePeaks owns the 503 wait loop
   return apiRequest<PeaksResponse>(
     `/feeds/${slug}/episodes/${episodeId}/peaks${qs}`,
+    { retry: false, signal },
   );
 }
 

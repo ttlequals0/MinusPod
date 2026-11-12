@@ -178,3 +178,18 @@ describe('413 mapping', () => {
     expect((error as Error).message).toBe('The file is too large for the server or a proxy in front of it.');
   });
 });
+
+describe('apiRequest: 503 with retry off', () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it('throws once and exposes Retry-After on the error', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(fakeResponse({ error: 'busy' }, 503, { 'Retry-After': '7' }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const error = await apiRequest('/x', { retry: false }).catch((e: unknown) => e);
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect((error as ApiError).status).toBe(503);
+    expect((error as ApiError).retryAfterMs).toBe(7000);
+  });
+});

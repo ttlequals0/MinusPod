@@ -15,9 +15,10 @@ vi.mock('../api/patterns', async (importOriginal) => ({
 vi.mock('../api/sponsors', () => ({
   getSponsors: vi.fn().mockResolvedValue([]),
 }));
-vi.mock('./ad-editor/usePeaks', () => ({
-  usePeaks: () => ({ peaks: [0.2, 0.5, 0.3], peakResolutionMs: 100, peaksError: null }),
+const peaksState = vi.hoisted(() => ({
+  value: { peaks: [0.2, 0.5, 0.3] as number[] | null, peakResolutionMs: 100, peaksError: null as string | null },
 }));
+vi.mock('./ad-editor/usePeaks', () => ({ usePeaks: () => peaksState.value }));
 
 const TARGET = {
   podcastSlug: 'example-podcast',
@@ -38,6 +39,7 @@ function renderModal(onSplit = vi.fn(), onClose = vi.fn()) {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  peaksState.value = { peaks: [0.2, 0.5, 0.3], peakResolutionMs: 100, peaksError: null };
   mockSubmitSplit.mockResolvedValue({
     message: 'Split into 2 ads', markerCount: 2, patternIds: [1, 2],
   });
@@ -249,5 +251,22 @@ describe('SplitMarkerModal loading placeholder', () => {
     renderModal();
     await screen.findByRole('button', { name: 'Split into 2 ads' });
     expect(screen.queryByTestId('skeleton-rows')).toBeNull();
+  });
+});
+
+describe('SplitMarkerModal waveform states', () => {
+  it('shows the loading text while peaks are pending', async () => {
+    peaksState.value = { peaks: null, peakResolutionMs: 100, peaksError: null };
+    renderModal();
+    await screen.findByRole('button', { name: 'Split into 2 ads' });
+    expect(screen.getByText('Loading waveform...')).toBeTruthy();
+    expect(screen.queryByText(/Could not load waveform/)).toBeNull();
+  });
+
+  it('shows the waveform error text when peaks fail', async () => {
+    peaksState.value = { peaks: null, peakResolutionMs: 100, peaksError: 'boom' };
+    renderModal();
+    expect(await screen.findByText('Could not load waveform: boom')).toBeTruthy();
+    expect(screen.queryByText('Loading waveform...')).toBeNull();
   });
 });
