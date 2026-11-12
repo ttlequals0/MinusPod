@@ -417,6 +417,8 @@ def trigger_reviewer_calibration(db, previous_revision: str | None):
     already in flight adopts the new revision instead of queueing a second
     job, so one committed configuration gets at most one calibration.
     """
+    if provider_clients.llm_disabled():
+        return None
     revision, route = calibration_route_revision()
     if revision == previous_revision or route is None:
         return None
@@ -504,6 +506,9 @@ def _print_table(cases: list[dict]) -> None:
 
 
 def main() -> int:
+    if provider_clients.llm_disabled():
+        print("The LLM provider is set to none; there is no model to calibrate.")
+        return 1
     result = run_calibration()
     _print_table(result['cases'])
     print()

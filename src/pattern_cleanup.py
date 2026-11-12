@@ -19,7 +19,7 @@ from rapidfuzz import fuzz
 
 from database import Database
 from database.settings import registry_default, registry_get_default
-from llm_client import ProviderRateLimitedError, get_effective_provider_from_snapshot
+from llm_client import ProviderRateLimitedError, get_effective_provider_from_snapshot, llm_disabled
 from llm_capabilities import systemone_supported_phases
 from llm_route import (
     LiveRoute, apply_failover, client_for_route, live_route_from, resolve_route,
@@ -1166,7 +1166,7 @@ def _schedule_reference(db):
 
 def pattern_cleanup_tick(db) -> int | None:
     """Start a background run when enabled, due by cron, and no episode is processing."""
-    if not db.get_setting_bool('pattern_cleanup_enabled', default=False):
+    if llm_disabled() or not db.get_setting_bool('pattern_cleanup_enabled', default=False):
         return None
     cron = db.get_setting('pattern_cleanup_cron') or registry_default('pattern_cleanup_cron')
     if not is_valid_expression(cron):

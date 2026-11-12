@@ -310,6 +310,8 @@ def _ensure_openrouter_aliases_present(models: list) -> None:
 
 def _current_provider_models():
     """Current provider's model list, with OpenRouter aliases and pricing."""
+    if llm_disabled():
+        return []
     models = AdDetector().get_available_models()
     if get_effective_provider() == PROVIDER_OPENROUTER:
         _ensure_openrouter_aliases_present(models)
@@ -436,6 +438,8 @@ def refresh_models():
             provider, base_url=_failover_slot_base_url(provider),
             credential_slot=SLOT_FAILOVER, force_new=True)
         models = _models_from_client(client, provider)
+    elif llm_disabled():
+        models = []
     else:
         get_llm_client(force_new=True)
         models = _current_provider_models()

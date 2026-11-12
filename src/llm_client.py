@@ -2583,7 +2583,7 @@ def _probe_secondary_provider_formats() -> None:
 
 def probe_secondary_provider_formats() -> None:
     """Probe an enabled secondary slot on a daemon thread so boot and saves never wait on it."""
-    if not coerce_bool_setting(_get_cached_setting('secondary_provider_enabled')):
+    if llm_disabled() or not coerce_bool_setting(_get_cached_setting('secondary_provider_enabled')):
         return
     threading.Thread(target=_probe_secondary_provider_formats, daemon=True).start()
 
@@ -2607,6 +2607,9 @@ def _verify_primary_connection() -> bool:
     """
     provider = get_effective_provider()
 
+    if llm_disabled(provider):
+        logger.info("LLM provider is none; the LLM is disabled and no connection was checked")
+        return True
     if provider == PROVIDER_OPENROUTER:
         api_key = get_effective_openrouter_api_key()
         if not api_key:

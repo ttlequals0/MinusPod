@@ -335,12 +335,19 @@ def recovery_probes() -> int:
         return 3
 
 
+def _llm_target_off(target: str) -> bool:
+    """An llm: target is ignored while the primary provider is none."""
+    return target.startswith('llm:') and llm_client.llm_disabled()
+
+
 def enabled_probe_targets() -> list[str]:
-    targets = ['llm:primary']
-    if coerce_bool_setting(_setting('secondary_provider_enabled')):
-        targets.append('llm:secondary')
-    if coerce_bool_setting(_setting('failover_llm_enabled')) and _setting('failover_llm_provider'):
-        targets.append('llm:failover')
+    targets = []
+    if not llm_client.llm_disabled():
+        targets.append('llm:primary')
+        if coerce_bool_setting(_setting('secondary_provider_enabled')):
+            targets.append('llm:secondary')
+        if coerce_bool_setting(_setting('failover_llm_enabled')) and _setting('failover_llm_provider'):
+            targets.append('llm:failover')
     targets.append('whisper:active')
     if coerce_bool_setting(_setting('failover_whisper_enabled')):
         targets.append('whisper:failover')
@@ -350,6 +357,8 @@ def enabled_probe_targets() -> list[str]:
 def run_probe_targets(active_phases: dict | None = None,
                       *, whisper_required: bool = True) -> list[str]:
     targets = []
+    if llm_client.llm_disabled():
+        active_phases = {}
     if active_phases is None:
         for target in (TARGET_LLM_PRIMARY, TARGET_LLM_SECONDARY):
             if target == TARGET_LLM_SECONDARY and not coerce_bool_setting(
@@ -581,6 +590,8 @@ def all_probe_states() -> dict[str, dict]:
 
 
 def probe_target(target: str, request_config: dict | None = None) -> dict:
+    if _llm_target_off(target):
+        return {'reachable': None, 'status': None, 'detail': 'LLM disabled'}
     try:
         if request_config is None:
             request_config = _capture_probe_context(database.Database(), target)['request_config']
@@ -893,7 +904,8 @@ def _probe_requested_target(db, target: str, checked_at: str | None,
 
 def probe_tick(db, targets: list[str] | None = None,
                *, wait_for_inflight: bool = False) -> dict[str, dict]:
-    targets = list(dict.fromkeys(enabled_probe_targets() if targets is None else targets))
+    targets = [target for target in dict.fromkeys(
+        enabled_probe_targets() if targets is None else targets) if not _llm_target_off(target)]
     if not targets:
         return {}
     baselines = {target: probe_state(target)['checked_at'] for target in targets}
@@ -952,7 +964,7 @@ def ensure_fresh_probes(targets: list[str]) -> None:
     cutoff = time.time() - probe_interval_seconds()
     db = database.Database()
     baselines = []
-    for target in dict.fromkeys(targets):
+    for target in dict.fromkeys(t for t in targets if not _llm_target_off(t)):
         cached = _probe_state_value(db.get_setting(f'failover_probe:{target}'))
         context = _capture_probe_context(db, target)
         checked = cached.get('checked_at')

@@ -8260,7 +8260,7 @@ paths:
       tags:
         - Settings
       summary: Get available AI models
-      description: Returns list of available AI models for ad detection. Optionally accepts a provider query param to preview models for a different provider before saving settings.
+      description: Returns list of available AI models for ad detection. The list is empty while the LLM provider is none. Optionally accepts a provider query param to preview models for a different provider before saving settings.
       operationId: getAvailableModels
       parameters:
         - name: provider
@@ -8311,7 +8311,7 @@ paths:
       tags:
         - Settings
       summary: Refresh available AI models
-      description: Force refresh the model list for one credential slot. Recreates that slot's LLM client and fetches a fresh model list. The optional body selects the slot; with no body the primary slot is refreshed.
+      description: Force refresh the model list for one credential slot. Recreates that slot's LLM client and fetches a fresh model list. With the LLM provider set to none the primary slot returns an empty list and builds no client. The optional body selects the slot; with no body the primary slot is refreshed.
       operationId: refreshModels
       requestBody:
         required: false
@@ -8411,7 +8411,8 @@ paths:
                           Whether a detection model is configured. Informational
                           only; false does not flip overall status to unhealthy,
                           since an instance with no model still serves
-                          already-processed feeds.
+                          already-processed feeds. Always true while the LLM
+                          provider is none, which needs no model.
                   version:
                     type: string
         '503':

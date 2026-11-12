@@ -4,7 +4,8 @@ import logging
 from flask import request
 
 import pattern_cleanup
-from api import api, limiter, log_request, json_response, error_response, get_database
+from api import api, limiter, log_request, json_response, error_response, get_database, llm_disabled_response
+from llm_client import llm_disabled
 from database.settings import registry_default, registry_get_default
 
 logger = logging.getLogger('podcast.api')
@@ -127,6 +128,8 @@ def run_pattern_cleanup():
     force = data.get('force', False)
     if not isinstance(force, bool):
         return error_response('force must be a boolean', 400)
+    if llm_disabled():
+        return llm_disabled_response('Pattern cleanup is unavailable while the LLM provider is set to None')
     db = get_database()
     try:
         run_id = pattern_cleanup.start_cleanup_run(db, force=force, trigger='manual')

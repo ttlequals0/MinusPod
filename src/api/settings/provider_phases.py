@@ -503,6 +503,8 @@ def _apply_provider_fields(db, data):
 
 def _refresh_after_provider_change():
     """Refresh pricing for the new provider or pricing mode."""
+    if llm_disabled():
+        return
     threading.Thread(target=force_refresh_pricing, daemon=True).start()
 
 

@@ -30,6 +30,7 @@ from podping_listener import (
     get_node_health_summary, DEGRADED_SETTING, DEGRADED_SINCE_SETTING,
     get_node_check_status, MONITOR_HEARTBEAT_SETTING, NODE_CHECK_SETTING,
 )
+from llm_client import llm_disabled
 from pricing_fetcher import force_refresh_pricing
 from secrets_crypto import (
     count_plaintext_secrets,
@@ -133,7 +134,7 @@ def health_check():
     # Visible but never gates readiness: an instance with no model
     # configured still serves already-processed feeds.
     try:
-        checks['llm_model_configured'] = bool(db.get_setting('claude_model'))
+        checks['llm_model_configured'] = llm_disabled() or bool(db.get_setting('claude_model'))
     except Exception:
         checks['llm_model_configured'] = False
 

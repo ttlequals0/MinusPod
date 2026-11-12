@@ -5,7 +5,7 @@ import tempfile
 
 import pytest
 
-from tests.app_bootstrap import authenticate_test_client
+from tests.unit.llm_optional_support import restoring_auth
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 os.environ.setdefault('MINUSPOD_DATA_DIR', tempfile.mkdtemp(prefix='llm-optional-settings-test-'))
@@ -15,25 +15,10 @@ from api import get_database  # noqa: E402
 from llm_client import get_effective_provider, invalidate_provider_cache  # noqa: E402
 
 
-
 @pytest.fixture
 def hdr(app_client):
     """Auth headers; every settings row the test touches is restored afterwards."""
-    db = get_database()
-    conn = db.get_connection()
-    saved = {r['key']: (r['value'], r['is_default'])
-             for r in conn.execute('SELECT key, value, is_default FROM settings')}
-    db.set_setting('reviewer_calibration_on_change', 'false', is_default=False)
-    token = authenticate_test_client(app_client)
-    yield token
-    for row in conn.execute('SELECT key, value, is_default FROM settings').fetchall():
-        if row['key'] not in saved:
-            conn.execute('DELETE FROM settings WHERE key = ?', (row['key'],))
-        elif saved[row['key']] != (row['value'], row['is_default']):
-            conn.execute('UPDATE settings SET value = ?, is_default = ? WHERE key = ?',
-                         (*saved[row['key']], row['key']))
-    conn.commit()
-    invalidate_provider_cache()
+    yield from restoring_auth(app_client)
 
 
 def _put(client, hdr, payload):
