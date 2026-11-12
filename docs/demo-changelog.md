@@ -12,6 +12,7 @@ This file tracks the hosted demo and its tooling, which are not part of the self
 
 - The snapshot export empties the new `audio_fingerprint_matches` match-history table and clears the source feed and episode columns of `audio_fingerprints`.
 - The snapshot export keeps the five audio fingerprinting settings (`fingerprint_enabled`, `fingerprint_match_strictness`, `fingerprint_min_coverage`, `fingerprint_gap_tolerance_s` and `fingerprint_min_ad_length_s`) and the new `queue_order`, `session_lifetime_hours` and `session_remember_days` settings in the demo database.
+- The snapshot export empties the `deferred_upgrade_steps` table, which the app refills on the next start.
 - The snapshot export drops `llm_pre_none_identity`, the setting that remembers a model identity from before the LLM provider was set to None.
 
 ## [2.101.34] - 2026-11-09

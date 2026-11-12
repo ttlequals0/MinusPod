@@ -294,9 +294,9 @@ These parts do not run:
 
 | Feature | Without an LLM |
 |---------|----------------|
-| LLM ad detection, the verification pass, the ad reviewer and the pre-roll and post-roll heuristics | Off |
+| LLM ad detection, the verification pass, the ad reviewer and the pre-roll and post-roll heuristics | Off, including phases assigned to the secondary provider |
 | Chapter generation | Off. Publisher chapters and ad chapters are kept. A chapters mode of `generate` behaves like `auto`. |
-| Pattern Cleanup and reviewer calibration | Do not run |
+| Pattern Cleanup and reviewer calibration | Do not run. A run in progress when you switch to None stops without recording an error. |
 | Model lists in Settings | Empty |
 | Failover status | LLM probes show as unknown with "LLM disabled" |
 | Requests to a model provider or the price catalog | None are sent |
