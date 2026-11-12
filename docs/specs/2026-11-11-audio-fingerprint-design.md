@@ -128,8 +128,9 @@ ad's edges on an episode whose original is retained.
 
 Creation is best effort everywhere. The pattern or correction is saved either
 way, and the route reports `fingerprintStored` and `fingerprintSkippedReason`
-(`original_not_retained`, `segment_too_short`, `fingerprint_failed`,
-`audio_removed`) as the 2026-11-10 spec defines for "Add ad". Confirm and
+(`audio_removed`, `fingerprint_exists`, `span_covers_multiple_patterns`,
+`original_not_retained`, `segment_too_short`, `fingerprint_failed`, reported
+in that order of precedence) as the 2026-11-10 spec defines for "Add ad". Confirm and
 adjust go through the existing corrections route and its `correctionType`.
 `AudioFingerprinter.store_fingerprint` returns only a boolean today, so
 it changes to report which reason applied.

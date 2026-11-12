@@ -631,22 +631,100 @@ def merge_patterns():
         return error_response('Merge failed', 500)
 
 
+# First reason present across a request's patterns wins.
+FINGERPRINT_SKIP_PRECEDENCE = (
+    'audio_removed', 'fingerprint_exists', 'span_covers_multiple_patterns',
+    'original_not_retained', 'segment_too_short', 'fingerprint_failed',
+)
+
+
 def _store_pattern_audio(db, slug, episode_id, pattern_id, start, end, *, force=False):
-    """Fingerprint [start, end] of the episode's retained original for a pattern; never raises."""
+    """Fingerprint [start, end] of the episode's retained original for a pattern; never raises.
+
+    Without force an existing fingerprint is kept and deleted audio stays deleted.
+    """
     try:
-        audio_path, err = _resolve_original_audio(db, get_storage(), slug, episode_id)
-        if err:
-            result = FingerprintStoreResult(False, 'original_not_retained')
+        if not force and db.get_audio_fingerprint(pattern_id) is not None:
+            result = FingerprintStoreResult(False, 'fingerprint_exists')
         else:
-            result = AudioFingerprinter(db=db).store_fingerprint(
-                pattern_id, str(audio_path), start, end,
-                source_podcast_slug=slug, source_episode_id=episode_id, force=force)
+            audio_path, err = _resolve_original_audio(db, get_storage(), slug, episode_id)
+            if err:
+                result = FingerprintStoreResult(False, 'original_not_retained')
+            else:
+                result = AudioFingerprinter(db=db).store_fingerprint(
+                    pattern_id, str(audio_path), start, end,
+                    source_podcast_slug=slug, source_episode_id=episode_id, force=force)
     except Exception as e:
         logger.warning(f"Could not store audio for pattern {pattern_id}: {e}")
         result = FingerprintStoreResult(False, 'fingerprint_failed')
     if not result.stored:
         logger.debug(f"No fingerprint stored for pattern {pattern_id}: {result.skipped_reason}")
     return result
+
+
+def _own_pattern_spans(db, slug, episode_id, pattern_ids, start, end, text):
+    """Each pattern's own (start, end) inside the marked span, None where it cannot be derived."""
+    if not text or len(split_template_text(text)) < 2:
+        return {pid: (start, end) for pid in pattern_ids}
+    spans = extract_timed_spans_in_range(
+        db.get_transcript_for_timestamps(slug, episode_id) or '', start, end)
+    words = [' '.join(span['text'].split()) for span in spans]
+    joined = ' '.join(words)
+    offsets = [sum(len(w) + 1 for w in words[:i]) for i in range(len(words))]
+    own = {}
+    for pid in pattern_ids:
+        pattern = db.get_ad_pattern_by_id(pid) or {}
+        template = ' '.join((pattern.get('text_template') or '').split())
+        lo = joined.find(template) if template else -1
+        covered = [] if lo < 0 else [
+            i for i, w in enumerate(words) if offsets[i] + len(w) > lo and offsets[i] < lo + len(template)]
+        if not covered:
+            own[pid] = None
+        elif len(covered) == len(spans):
+            own[pid] = (start, end)
+        else:
+            own[pid] = (max(start, spans[covered[0]]['start']), min(end, spans[covered[-1]]['end']))
+    return own
+
+
+def _store_patterns_audio(db, slug, episode_id, pattern_ids, start, end, *, force=False, text=None):
+    """Fingerprint each pattern over its own span; returns [(pattern_id, FingerprintStoreResult)].
+
+    text is the template text the patterns were cut from. When it splits into several
+    patterns, a pattern whose own range cannot be derived stores nothing.
+    """
+    try:
+        own = _own_pattern_spans(db, slug, episode_id, pattern_ids, start, end, text)
+    except Exception as e:
+        logger.warning(f"Could not derive the pattern spans of {slug}/{episode_id}: {e}")
+        own = dict.fromkeys(pattern_ids)
+    outcomes = []
+    for pid in pattern_ids:
+        if own[pid] is None:
+            outcomes.append((pid, FingerprintStoreResult(False, 'span_covers_multiple_patterns')))
+        else:
+            outcomes.append((pid, _store_pattern_audio(db, slug, episode_id, pid, *own[pid], force=force)))
+    return outcomes
+
+
+def fingerprint_response_fields(outcomes):
+    """fingerprintStored and, when false, the first skipped reason by precedence, from per-pattern outcomes."""
+    if any(result.stored for _, result in outcomes):
+        return {'fingerprintStored': True}
+    reasons = {result.skipped_reason for _, result in outcomes}
+    return {'fingerprintStored': False,
+            'fingerprintSkippedReason': next(
+                (r for r in FINGERPRINT_SKIP_PRECEDENCE if r in reasons), 'fingerprint_failed')}
+
+
+def _restore_rejected_match(db, pattern_id, slug, episode_id, start, end):
+    """Un-reject the audio match a deleted rejection had marked; never raises."""
+    if not pattern_id:
+        return
+    try:
+        db.unmark_fingerprint_match_rejected(pattern_id, slug, episode_id, start, end)
+    except Exception as e:
+        logger.warning(f"Could not restore the fingerprint match of pattern {pattern_id}: {e}")
 
 
 def _validate_create_correction_input(data):
@@ -916,19 +994,15 @@ def _submit_correction_create(db, slug, episode_id, data):
         f"pattern_id={new_pattern_id}, sponsor='{canonical_sponsor_name}', "
         f"start={start}, end={end}, scope={scope}"
     )
-    results = [_store_pattern_audio(db, slug, episode_id, pid, start, end) for pid in pattern_ids]
-    stored = any(r.stored for r in results)
-    response = {
+    outcomes = _store_patterns_audio(
+        db, slug, episode_id, pattern_ids, start, end, text=text_template)
+    return json_response({
         'message': 'New ad marker created',
         'pattern_id': new_pattern_id,
         'sponsor': canonical_sponsor_name,
         'patternIds': pattern_ids,
-        'fingerprintStored': stored,
-    }
-    if not stored:
-        response['fingerprintSkippedReason'] = (
-            results[0].skipped_reason if results else 'fingerprint_failed')
-    return json_response(response)
+        **fingerprint_response_fields(outcomes),
+    })
 
 
 def _validate_split_points(raw, start, end):
@@ -1251,6 +1325,9 @@ def _handle_confirm_correction(
         + (f", trimmed to {eff_start}-{eff_end}" if has_trim else "")
     )
 
+    marker_pattern_id = pattern_id
+    pattern_ids = [pattern_id] if pattern_id else []
+    resolved_text = None
     if pattern_id:
         pattern_service.record_pattern_match(pattern_id, episode_id)
         if has_trim:
@@ -1266,7 +1343,8 @@ def _handle_confirm_correction(
         if transcript:
             ad_text = extract_transcript_segment(transcript, eff_start, eff_end)
             if ad_text and len(ad_text) >= 50:
-                pattern_id, _ = _resolve_or_create_pattern_from_text(
+                resolved_text = ad_text
+                pattern_id, pattern_ids = _resolve_or_create_pattern_from_text(
                     db, pattern_service, slug, episode_id, ad_text,
                     original_ad, label='confirmed',
                     sponsor_override=sponsor_override,
@@ -1274,13 +1352,15 @@ def _handle_confirm_correction(
                         db, slug, episode_id, original_start, original_end),
                 )
 
-    if pattern_id and not db.get_audio_fingerprint(pattern_id):
-        _store_pattern_audio(db, slug, episode_id, pattern_id, eff_start, eff_end)
+    outcomes = _store_patterns_audio(
+        db, slug, episode_id, pattern_ids or ([pattern_id] if pattern_id else []),
+        eff_start, eff_end, text=resolved_text)
 
     podcast_id = (podcast or db.get_podcast_by_slug(slug))['id']
     deleted = db.delete_conflicting_corrections(podcast_id, episode_id, 'confirm', original_start, original_end)
     if deleted:
         logger.info(f"Deleted {deleted} conflicting false_positive correction(s) for {slug}/{episode_id}")
+        _restore_rejected_match(db, marker_pattern_id, slug, episode_id, original_start, original_end)
 
     db.create_pattern_correction(
         correction_type='confirm',
@@ -1300,7 +1380,8 @@ def _handle_confirm_correction(
         new_start=adjusted_start, new_end=adjusted_end,
     )
 
-    return json_response({'message': 'Correction recorded', 'pattern_id': pattern_id})
+    return json_response({'message': 'Correction recorded', 'pattern_id': pattern_id,
+                          **fingerprint_response_fields(outcomes)})
 
 
 def _handle_reject_correction(db, slug, episode_id, original_ad, addressing_mode=None):
@@ -1611,6 +1692,9 @@ def _handle_adjust_correction(db, pattern_service, slug, episode_id, original_ad
     if transcript:
         adjusted_text = extract_transcript_segment(transcript, adjusted_start, adjusted_end)
 
+    marker_pattern_id = pattern_id
+    pattern_ids = [pattern_id] if pattern_id else []
+    resolved_text = None
     if pattern_id:
         pattern_service.record_pattern_match(pattern_id, episode_id)
         logger.info(f"Recorded adjustment as confirmation for pattern {pattern_id}")
@@ -1620,7 +1704,8 @@ def _handle_adjust_correction(db, pattern_service, slug, episode_id, original_ad
             original_start, original_end, adjusted_start, adjusted_end,
         )
     elif adjusted_text and len(adjusted_text) >= 50:
-        pattern_id, _ = _resolve_or_create_pattern_from_text(
+        resolved_text = adjusted_text
+        pattern_id, pattern_ids = _resolve_or_create_pattern_from_text(
             db, pattern_service, slug, episode_id, adjusted_text,
             original_ad, label='adjusted',
             sponsor_override=sponsor_override,
@@ -1628,11 +1713,12 @@ def _handle_adjust_correction(db, pattern_service, slug, episode_id, original_ad
                 db, slug, episode_id, original_start, original_end),
         )
 
-    if pattern_id:
-        result = _store_pattern_audio(
-            db, slug, episode_id, pattern_id, adjusted_start, adjusted_end, force=True)
+    outcomes = _store_patterns_audio(
+        db, slug, episode_id, pattern_ids or ([pattern_id] if pattern_id else []),
+        adjusted_start, adjusted_end, force=True, text=resolved_text)
+    for stored_id, result in outcomes:
         if result.stored:
-            db.set_pattern_audio_removed(pattern_id, False)
+            db.set_pattern_audio_removed(stored_id, False)
 
     # Judge conflicts against the adjusted bounds: they are the span the
     # user is asserting is ad. The pre-adjustment bounds can cover an
@@ -1643,6 +1729,8 @@ def _handle_adjust_correction(db, pattern_service, slug, episode_id, original_ad
         logger.info(
             f"Deleted {deleted} conflicting false_positive correction(s) "
             f"for {slug}/{episode_id}")
+        _restore_rejected_match(
+            db, marker_pattern_id, slug, episode_id, adjusted_start, adjusted_end)
 
     db.create_pattern_correction(
         correction_type='boundary_adjustment',
@@ -1655,7 +1743,8 @@ def _handle_adjust_correction(db, pattern_service, slug, episode_id, original_ad
         addressing_mode=addressing_mode,
     )
 
-    return json_response({'message': 'Adjustment recorded', 'pattern_id': pattern_id})
+    return json_response({'message': 'Adjustment recorded', 'pattern_id': pattern_id,
+                          **fingerprint_response_fields(outcomes)})
 
 
 @api.route('/episodes/<slug>/<episode_id>/corrections', methods=['POST'])

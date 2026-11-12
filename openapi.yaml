@@ -3368,6 +3368,9 @@ paths:
         - confirm: Mark detection as correct (creates/updates pattern). When the pattern
           has no audio fingerprint and its audio was not deleted, one is stored from the
           confirmed span of the retained original. This is best effort and never fails the request.
+          The response carries fingerprintStored and, when it is false, fingerprintSkippedReason.
+          If the confirm removes a rejection of the same span, the audio match that rejection
+          marked is restored.
         - reject: Mark as false positive. Stores transcript text for cross-episode matching -
           similar text in future episodes of the same podcast will be automatically excluded
           using TF-IDF similarity matching (threshold: 0.75). If the pattern's audio
@@ -3377,6 +3380,9 @@ paths:
           The pattern's audio fingerprint is rebuilt from the adjusted span of the retained
           original, even if its audio was deleted earlier, and the deleted marker is cleared
           when the rebuild succeeds. This is best effort and never fails the request.
+          The response carries fingerprintStored and, when it is false, fingerprintSkippedReason.
+          If the adjustment removes a rejection of the adjusted span, the audio match that
+          rejection marked is restored.
         - create: Mark a brand-new ad on an episode the detector missed. Top-level
           start/end/sponsor/text_template required (no original_ad). Creates a new
           pattern with created_by='user' and a pattern_corrections row of type 'create'.
@@ -3387,7 +3393,10 @@ paths:
           pattern_id/sponsor still identify the sponsor-matched primary.
           Each created pattern also gets an audio fingerprint of the marked span of the
           retained original. This is best effort, so the pattern is saved either way, and
-          fingerprintStored reports the outcome.
+          fingerprintStored reports the outcome. Each pattern is fingerprinted over its own
+          span only. When the text was split into several patterns, a pattern whose own range
+          cannot be found in the transcript gets none. A pattern that already has a
+          fingerprint keeps it.
         - split: Replace one marker covering back-to-back ads with N
           single-sponsor markers (issue #563). Send `original_ad` plus
           `split_points` (a list of times strictly inside the span) and an
@@ -3435,15 +3444,9 @@ paths:
                     description: Patterns created or reused; returned by create and split
                   fingerprintStored:
                     type: boolean
-                    description: Whether an audio fingerprint was stored for at least one created pattern. Returned by create.
+                    description: Whether an audio fingerprint was stored for at least one pattern. Returned by create, confirm and adjust.
                   fingerprintSkippedReason:
-                    type: string
-                    enum:
-                      - original_not_retained
-                      - segment_too_short
-                      - fingerprint_failed
-                      - audio_removed
-                    description: Why no fingerprint was stored. Present only when fingerprintStored is false. Returned by create.
+                    $ref: '#/components/schemas/FingerprintSkippedReason'
                   markerCount:
                     type: integer
                     description: Number of markers that replaced the original; returned by split
@@ -5122,8 +5125,9 @@ paths:
         A span that cannot be stored is still a 200 with
         `fingerprintStored: false` and a `fingerprintSkippedReason`:
         `original_not_retained`, `segment_too_short` (shorter than the minimum
-        ad length setting), `fingerprint_failed`. This matches the Add ad
-        correction. 404 when the pattern or the episode is unknown.
+        ad length setting), `fingerprint_failed`. The same two fields and
+        reasons come back from the corrections route. 404 when the pattern or
+        the episode is unknown.
       operationId: rebuildPatternAudio
       parameters:
         - $ref: '#/components/parameters/pattern_id'
@@ -5156,9 +5160,7 @@ paths:
                   fingerprintStored:
                     type: boolean
                   fingerprintSkippedReason:
-                    type: string
-                    enum: [original_not_retained, segment_too_short, fingerprint_failed, audio_removed]
-                    description: Present only when `fingerprintStored` is false.
+                    $ref: '#/components/schemas/FingerprintSkippedReason'
                   audio:
                     $ref: '#/components/schemas/PatternAudioDetail'
         '400':
@@ -17076,6 +17078,24 @@ components:
           type: [number, 'null']
           description: confirmed / (confirmed + rejected), or null if none reviewed
 
+    FingerprintSkippedReason:
+      type: string
+      enum:
+        - audio_removed
+        - fingerprint_exists
+        - span_covers_multiple_patterns
+        - original_not_retained
+        - segment_too_short
+        - fingerprint_failed
+      description: >-
+        Why no fingerprint was stored. Present only when fingerprintStored is false.
+        When patterns differ, the first reason in this order is reported.
+        audio_removed means the pattern's audio was deleted. fingerprint_exists means
+        the pattern already has a fingerprint that Add ad and confirm do not replace.
+        span_covers_multiple_patterns means the text was split into several patterns and
+        this one's own range could not be found. original_not_retained means the episode
+        keeps no original. segment_too_short means the span is under the minimum ad length.
+        fingerprint_failed means the audio could not be fingerprinted, or no pattern was created.
     AdMarker:
       type: object
       properties:

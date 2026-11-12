@@ -430,6 +430,8 @@ class FingerprintMatch:
 class FingerprintStoreResult:
     """Outcome of store_fingerprint: stored, or the reason it was skipped."""
     stored: bool
+    # store_fingerprint sets audio_removed, original_not_retained, segment_too_short and fingerprint_failed.
+    # The corrections routes add fingerprint_exists and span_covers_multiple_patterns.
     skipped_reason: str | None = None
 
 

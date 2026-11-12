@@ -1,8 +1,13 @@
 """Confirm and adjust rebuild a pattern's fingerprint, reject marks the match."""
 import json
 
+import pytest
+
 from api import get_storage
-from tests.integration.fingerprint_helpers import EPISODE, SLUG, post_correction  # noqa: E402
+from tests.integration.fingerprint_helpers import (  # noqa: E402
+    EPISODE, SLUG, post_correction, seed_two_sponsor_transcript,
+)
+from tests.integration.openapi_conformance import assert_response_conforms
 
 
 def _confirm(app_client, pid, start=10.0, end=40.0, **extra):
@@ -143,3 +148,128 @@ def test_rejected_flag_survives_the_resave_that_follows(app_client, fp_feed, fp_
     rows = sorted(fp_feed.get_fingerprint_matches(fp_pattern, 10, 0), key=lambda r: r['match_start'])
     assert [(r['match_start'], r['rejected']) for r in rows] == [(10.0, 1), (100.0, 0)]
     assert rows[0]['rejected_at'] == rejected_at
+
+
+CORRECTIONS = '/episodes/{slug}/{episode_id}/corrections'
+
+
+def _split_confirm(app_client, start=10.0, end=70.0):
+    return post_correction(app_client, {
+        'type': 'confirm', 'original_ad': {'start': start, 'end': end, 'sponsor': 'Acme'}})
+
+
+def _split_adjust(app_client):
+    return post_correction(app_client, {
+        'type': 'adjust', 'original_ad': {'start': 10.0, 'end': 70.0, 'sponsor': 'Acme'},
+        'adjusted_start': 10.0, 'adjusted_end': 70.0})
+
+
+def _own_spans(db, response):
+    """(response body, {pattern id: source span}) of the patterns this episode created."""
+    ids = [row['id'] for row in db.get_connection().execute(
+        "SELECT id FROM ad_patterns WHERE created_from_episode_id = ?", (EPISODE,)).fetchall()]
+    rows = {pid: db.get_audio_fingerprint(pid) for pid in ids}
+    return response.get_json(), {pid: (r['source_start'], r['source_end']) for pid, r in rows.items() if r}
+
+
+def test_confirm_of_a_split_span_fingerprints_each_pattern_over_its_own_span(
+        app_client, fp_feed, fp_original, stub_fingerprinting):
+    seed_two_sponsor_transcript(fp_feed)
+    response = _split_confirm(app_client)
+    body, spans = _own_spans(fp_feed, response)
+    assert response.status_code == 200 and body['fingerprintStored'] is True
+    assert sorted(spans.values()) == [(10.0, 40.0), (40.0, 70.0)]
+
+
+def test_confirm_that_creates_no_pattern_reports_a_failed_fingerprint(
+        app_client, fp_feed, fp_original, stub_fingerprinting):
+    fp_feed.save_original_transcript(SLUG, EPISODE, '[00:00:10.000 --> 00:01:10.000] Something else.')
+    body = _split_confirm(app_client).get_json()
+    assert (body['fingerprintStored'], body['fingerprintSkippedReason']) == (False, 'fingerprint_failed')
+    assert stub_fingerprinting == []
+
+
+def test_adjust_of_a_split_span_fingerprints_each_pattern_over_its_own_span(
+        app_client, fp_feed, fp_original, stub_fingerprinting):
+    seed_two_sponsor_transcript(fp_feed)
+    response = _split_adjust(app_client)
+    body, spans = _own_spans(fp_feed, response)
+    assert body['fingerprintStored'] is True
+    assert sorted(spans.values()) == [(10.0, 40.0), (40.0, 70.0)]
+
+
+def test_confirm_reports_the_outcome(app_client, fp_feed, fp_original, fp_pattern, stub_fingerprinting):
+    body = _confirm(app_client, fp_pattern).get_json()
+    assert body['fingerprintStored'] is True and 'fingerprintSkippedReason' not in body
+
+
+def test_confirm_reports_an_existing_fingerprint(
+        app_client, fp_feed, fp_original, fp_pattern, stub_fingerprinting):
+    fp_feed.create_audio_fingerprint(fp_pattern, b'mine', 25.0, enabled=False)
+    body = _confirm(app_client, fp_pattern).get_json()
+    assert (body['fingerprintStored'], body['fingerprintSkippedReason']) == (False, 'fingerprint_exists')
+    assert fp_feed.get_audio_fingerprint(fp_pattern)['enabled'] == 0
+
+
+def test_confirm_reports_deleted_audio(app_client, fp_feed, fp_original, fp_pattern, stub_fingerprinting):
+    fp_feed.set_pattern_audio_removed(fp_pattern, True)
+    body = _confirm(app_client, fp_pattern).get_json()
+    assert body['fingerprintSkippedReason'] == 'audio_removed'
+
+
+def test_confirm_reports_a_missing_original(app_client, fp_feed, fp_pattern, stub_fingerprinting):
+    assert _confirm(app_client, fp_pattern).get_json()['fingerprintSkippedReason'] == 'original_not_retained'
+
+
+def test_adjust_reports_the_outcome(app_client, fp_feed, fp_original, fp_pattern, stub_fingerprinting):
+    body = _adjust(app_client, fp_pattern).get_json()
+    assert body['fingerprintStored'] is True and 'fingerprintSkippedReason' not in body
+
+
+def test_adjust_reports_a_short_span(app_client, fp_feed, fp_original, fp_pattern, stub_fingerprinting):
+    body = _adjust(app_client, fp_pattern, 20.0, 22.0).get_json()
+    assert (body['fingerprintStored'], body['fingerprintSkippedReason']) == (False, 'segment_too_short')
+
+
+@pytest.mark.parametrize('kind', ['create', 'confirm', 'adjust', 'reject'])
+def test_corrections_responses_match_the_spec(app_client, fp_feed, fp_original, fp_pattern,
+                                              stub_fingerprinting, kind):
+    if kind == 'create':
+        response = post_correction(app_client, {
+            'type': 'create', 'start': 10.0, 'end': 40.0, 'sponsor': 'Acme',
+            'text_template': 'This episode is brought to you by Acme, the easy way to file your taxes online.'})
+    else:
+        response = {'confirm': _confirm, 'adjust': _adjust, 'reject': _reject}[kind](app_client, fp_pattern)
+    assert_response_conforms('post', CORRECTIONS, response)
+
+
+def test_confirming_a_rejected_ad_restores_its_match(app_client, fp_feed, fp_original, fp_pattern,
+                                                     stub_fingerprinting):
+    fp_feed.record_fingerprint_matches_from_markers(SLUG, EPISODE, [_fingerprint_marker(fp_pattern)])
+    _reject(app_client, fp_pattern)
+    assert _confirm(app_client, fp_pattern).status_code == 200
+    row, = fp_feed.get_fingerprint_matches(fp_pattern, 10, 0)
+    assert (row['rejected'], row['rejected_at']) == (0, None)
+    marker = _fingerprint_marker(fp_pattern)
+    assert fp_feed.record_fingerprint_matches_from_markers(SLUG, EPISODE, [marker]) == 1
+    assert [r['rejected'] for r in fp_feed.get_fingerprint_matches(fp_pattern, 10, 0)] == [0]
+
+
+def test_adjusting_a_rejected_ad_restores_the_match_the_adjusted_bounds_cover(
+        app_client, fp_feed, fp_original, fp_pattern, stub_fingerprinting):
+    fp_feed.record_fingerprint_matches_from_markers(
+        SLUG, EPISODE, [_fingerprint_marker(fp_pattern, 10.0, 40.0),
+                        _fingerprint_marker(fp_pattern, 100.0, 140.0)])
+    _reject(app_client, fp_pattern, 10.0, 40.0)
+    _reject(app_client, fp_pattern, 100.0, 140.0)
+    assert _adjust(app_client, fp_pattern, 12.0, 38.0).status_code == 200
+    flags = {r['match_start']: r['rejected'] for r in fp_feed.get_fingerprint_matches(fp_pattern, 10, 0)}
+    assert flags == {10.0: 0, 100.0: 1}
+
+
+def test_confirming_without_a_conflicting_rejection_leaves_rejected_matches(
+        app_client, fp_feed, fp_original, fp_pattern, stub_fingerprinting):
+    fp_feed.record_fingerprint_matches_from_markers(SLUG, EPISODE, [_fingerprint_marker(fp_pattern, 100.0, 140.0)])
+    fp_feed.mark_fingerprint_match_rejected(fp_pattern, SLUG, EPISODE, 100.0, 140.0)
+    assert _confirm(app_client, fp_pattern).status_code == 200
+    assert [r['rejected'] for r in fp_feed.get_fingerprint_matches(fp_pattern, 10, 0)] == [1]

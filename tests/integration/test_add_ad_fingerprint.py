@@ -1,5 +1,7 @@
 """Add ad stores a fingerprint of the marked span and reports the outcome."""
-from tests.integration.fingerprint_helpers import EPISODE, SLUG, TEMPLATE, post_correction  # noqa: E402
+from tests.integration.fingerprint_helpers import (  # noqa: E402
+    EPISODE, SLUG, TEMPLATE, TWO_SPONSORS, post_correction, seed_two_sponsor_transcript,
+)
 
 
 def _create(app_client, start=10.0, end=40.0):
@@ -75,14 +77,59 @@ def test_add_ad_stores_a_fingerprint_with_no_llm_provider(
     assert fp_feed.get_audio_fingerprint(body['pattern_id']) is not None
 
 
-def test_a_multi_sponsor_template_fingerprints_each_pattern(
-        app_client, fp_feed, fp_original, stub_fingerprinting):
-    two = (TEMPLATE + ' Visit acme.com today. '
-           'This segment is also sponsored by Beta Corp, the better way to bank your money. '
-           'Go to betacorp.com now for a free trial and a bonus offer today.')
-    body = post_correction(app_client, {
+def _create_two_sponsors(app_client):
+    return post_correction(app_client, {
         'type': 'create', 'start': 10.0, 'end': 70.0, 'sponsor': 'Acme',
-        'text_template': two}).get_json()
-    ids = body['patternIds']
-    assert body['fingerprintStored'] is True
-    assert all(fp_feed.get_audio_fingerprint(i) is not None for i in ids)
+        'text_template': TWO_SPONSORS}).get_json()
+
+
+def test_a_multi_sponsor_template_fingerprints_each_pattern_over_its_own_span(
+        app_client, fp_feed, fp_original, stub_fingerprinting):
+    seed_two_sponsor_transcript(fp_feed)
+    body = _create_two_sponsors(app_client)
+    first, second = body['patternIds']
+    assert body['fingerprintStored'] is True and 'fingerprintSkippedReason' not in body
+    spans = {pid: (r['source_start'], r['source_end'], r['duration'])
+             for pid in (first, second) for r in [fp_feed.get_audio_fingerprint(pid)]}
+    assert spans == {first: (10.0, 40.0, 30.0), second: (40.0, 70.0, 30.0)}
+    assert stub_fingerprinting == [(str(fp_original), 10.0, 30.0), (str(fp_original), 40.0, 30.0)]
+
+
+def test_a_split_span_without_a_derivable_range_stores_nothing(
+        app_client, fp_feed, fp_original, stub_fingerprinting):
+    body = _create_two_sponsors(app_client)
+    assert len(body['patternIds']) == 2
+    assert (body['fingerprintStored'], body['fingerprintSkippedReason']) == (
+        False, 'span_covers_multiple_patterns')
+    assert all(fp_feed.get_audio_fingerprint(pid) is None for pid in body['patternIds'])
+    assert stub_fingerprinting == []
+
+
+def test_a_pattern_whose_text_is_not_in_the_transcript_stores_nothing(
+        app_client, fp_feed, fp_original, stub_fingerprinting):
+    fp_feed.save_original_transcript(SLUG, EPISODE, '[00:00:10.000 --> 00:01:10.000] Something else entirely.')
+    body = _create_two_sponsors(app_client)
+    assert body['fingerprintSkippedReason'] == 'span_covers_multiple_patterns'
+
+
+def test_add_ad_never_replaces_the_audio_of_a_reused_pattern(
+        app_client, fp_feed, fp_original, stub_fingerprinting):
+    seed_two_sponsor_transcript(fp_feed)
+    first_run = _create_two_sponsors(app_client)
+    before = {pid: fp_feed.get_audio_fingerprint(pid)['fingerprint'] for pid in first_run['patternIds']}
+    stub_fingerprinting.clear()
+    second_run = _create_two_sponsors(app_client)
+    assert second_run['patternIds'] == first_run['patternIds']
+    assert (second_run['fingerprintStored'], second_run['fingerprintSkippedReason']) == (
+        False, 'fingerprint_exists')
+    assert {pid: fp_feed.get_audio_fingerprint(pid)['fingerprint'] for pid in before} == before
+    assert stub_fingerprinting == []
+
+
+def test_add_ad_leaves_a_disabled_fingerprint_alone(app_client, fp_feed, fp_original, stub_fingerprinting):
+    seed_two_sponsor_transcript(fp_feed)
+    first_run = _create_two_sponsors(app_client)
+    first = first_run['patternIds'][0]
+    fp_feed.set_fingerprint_enabled(first, False)
+    _create_two_sponsors(app_client)
+    assert fp_feed.get_audio_fingerprint(first)['enabled'] == 0

@@ -11,7 +11,7 @@ from api import (
     api, log_request, json_response, error_response, coded_error_response,
     get_database, get_storage, _resolve_original_audio,
 )
-from api.patterns import _store_pattern_audio
+from api.patterns import _store_pattern_audio, fingerprint_response_fields
 from config import FFMPEG_SHORT_TIMEOUT
 from storage import PathContainmentError
 from utils.ffmpeg_run import SAFE_MEDIA_INPUT_ARGS
@@ -255,11 +255,8 @@ def rebuild_pattern_audio(pattern_id):
     result = _store_pattern_audio(db, slug, episode_id, pattern_id, start, end, force=True)
     if result.stored:
         db.set_pattern_audio_removed(pattern_id, False)
-    body = {'fingerprintStored': result.stored}
-    if not result.stored:
-        body['fingerprintSkippedReason'] = result.skipped_reason
-    body['audio'] = build_audio_detail(db, get_storage(), pattern_id)
-    return json_response(body)
+    return json_response({**fingerprint_response_fields([(pattern_id, result)]),
+                          'audio': build_audio_detail(db, get_storage(), pattern_id)})
 
 
 def _original_on_disk(storage, row):
