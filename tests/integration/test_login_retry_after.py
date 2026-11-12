@@ -7,6 +7,7 @@ import database
 from main_app import app
 from api import limiter
 from database.auth_lockout import LOCKOUT_THRESHOLD
+from tests.integration.openapi_conformance import assert_response_conforms
 
 PW = 'correct-password-123456'
 PRIVATE_IP = '192.168.1.9'
@@ -51,7 +52,7 @@ def test_lockout_retry_after_is_whole_seconds(client):
     for _ in range(LOCKOUT_THRESHOLD):
         _login(client, 'wrong')
     r = _login(client, PW)
-    assert r.status_code == 429
+    assert_response_conforms('post', '/auth/login', r, status=429)
     ra = r.headers['Retry-After']
     assert ra.isdigit() and int(ra) >= 1
     body = r.get_json()
@@ -63,7 +64,7 @@ def test_rate_limit_429_has_retry_after_header_and_body(limited_client):
     last = None
     for _ in range(4):
         last = _login(limited_client, 'x', ip=PRIVATE_IP)
-    assert last.status_code == 429
+    assert_response_conforms('post', '/auth/login', last, status=429)
     ra = last.headers['Retry-After']
     assert ra.isdigit() and 1 <= int(ra) <= 61
     body = last.get_json()

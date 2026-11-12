@@ -113,7 +113,7 @@ paths:
       tags:
         - Auth
       summary: Login with password
-      description: Authenticate with the configured password. Rate limited to 3 attempts per minute and 10 attempts per hour.
+      description: Authenticate with the configured password. Rate limited to 3 attempts per minute and 10 attempts per hour. A public IP address is also locked out after repeated failures.
       operationId: login
       security: []
       requestBody:
@@ -128,6 +128,10 @@ paths:
                 password:
                   type: string
                   description: The application password
+                rememberMe:
+                  type: boolean
+                  default: false
+                  description: Give this device the longer "Remember me" session length. Any non-boolean value is a 400.
       responses:
         '200':
           description: Login successful
@@ -140,12 +144,35 @@ paths:
                     type: boolean
                   message:
                     type: string
+        '400':
+          description: Missing password, or rememberMe is not a boolean
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
         '401':
           description: Invalid password
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
+        '429':
+          description: Too many sign-in attempts, from the rate limit or the failed-login lockout. The Retry-After header and retryAfterSeconds both give the wait in whole seconds.
+          headers:
+            Retry-After:
+              description: Seconds to wait before trying again.
+              schema:
+                type: integer
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Error'
+                  - type: object
+                    properties:
+                      retryAfterSeconds:
+                        type: integer
+                        minimum: 1
         '503':
           description: Authentication is required but the first password has not been set
           content:

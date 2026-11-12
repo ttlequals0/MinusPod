@@ -8,6 +8,7 @@ from main_app import app
 from api import limiter
 from api.auth_state import SESSION_REMEMBERED_KEY, SESSION_LAST_USED_KEY
 from api.csrf import CSRF_COOKIE_NAME
+from tests.integration.openapi_conformance import assert_response_conforms
 
 PW = 'correct-password-123456'
 
@@ -54,7 +55,7 @@ def test_remember_omitted_defaults_false(client):
 @pytest.mark.parametrize('value', ['true', 1, 0, None, [], {}])
 def test_remember_non_boolean_rejected(client, value):
     r = _login(client, {'password': PW, 'rememberMe': value})
-    assert r.status_code == 400
+    assert_response_conforms('post', '/auth/login', r, status=400)
     with client.session_transaction() as sess:
         assert 'authenticated' not in sess
 

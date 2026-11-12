@@ -66,7 +66,7 @@ Operator checklist:
 
 MinusPod ships the rest by default: CSRF, login lockout, SSRF guards, artwork magic-number validation, XXE defense, baseline security headers, non-root container, rate limits on destructive endpoints. See [`CHANGELOG.md`](../CHANGELOG.md) for the full list.
 
-Compose requires a password before normal API use. Initial loopback setup needs no token; remote setup needs `MINUSPOD_SETUP_TOKEN` in the `X-MinusPod-Setup-Token` header. Later changes use the current password instead of CSRF. Setting or changing a password revokes older sessions and signs the caller into a new one. Removing it revokes every session, including the caller's.
+Compose requires a password before normal API use. Initial loopback setup needs no token; remote setup needs `MINUSPOD_SETUP_TOKEN` in the `X-MinusPod-Setup-Token` header. Later changes use the current password instead of CSRF. A normal session lasts 24 hours from its last use by default. A sign-in that ticks "Remember me" lasts 30 days from its last use. Both lengths are set in Settings > Security, and each use of the session restarts the period. A long "Remember me" session on a shared device stays signed in for that whole window, so leave the box unticked there. Setting or changing a password revokes older sessions and signs the caller into a new one. Removing it revokes every session, including the caller's.
 
 **Cloudflare WAF example.** Allow only Pocket Casts on the feed host, block admin paths:
 

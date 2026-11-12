@@ -103,7 +103,10 @@ Env-backed rows seed the default of the stored setting named in the row. The sto
 | `MINUSPOD_STOP_GRACE_PERIOD` | `360s` | Compose container shutdown grace. Keep it longer than `GUNICORN_GRACEFUL_TIMEOUT`. |
 | `MINUSPOD_BIND_ADDRESS` | `0.0.0.0` | Host address used by the Compose port mapping. Set `127.0.0.1` when a local reverse proxy, VPN, or wrapper is the only intended entry point. |
 | `SECRET_KEY` | _(auto-generated)_ | Flask session signing key. If unset, a random value is generated and stored in the SQLite `settings` table. Set it explicitly only when required by a custom deployment. Rotating it invalidates every existing session. |
-| `SESSION_LIFETIME_HOURS` | `24` | How long authenticated sessions stay valid, in hours. |
+| `SESSION_LIFETIME_HOURS` | `24` | Idle length of a normal session, in hours (1 to 8760). Each use restarts the period. |
+| `SESSION_REMEMBER_DAYS` | `30` | Idle length in days (1 to 365) of a session that ticks "Remember me" at sign-in. |
+
+`SESSION_LIFETIME_HOURS` and `SESSION_REMEMBER_DAYS` give the starting values. A value saved in Settings > Security takes over from either variable and applies without a restart.
 | `OMP_NUM_THREADS` | _(library default)_ | Caps OpenMP threads for local `faster-whisper` CPU transcription. On hybrid Intel CPUs the default can push work onto the slow E-cores and thrash the cache; set it to your performance-core count (more threads is not faster). No effect with a remote Whisper API or on GPU. See [Installation](installation.md#intel-hybrid-cpu-tuning-optional). |
 
 ### LLM stage tunables
