@@ -316,7 +316,7 @@ export default function SplitMarkerModal({ target, onClose, onSplit }: Props) {
             type="button"
             onClick={submit}
             disabled={saving || shortIdx !== null || effectiveDividers.length === 0}
-            className={`sm:ml-auto ${dialogFooterBtn} ${btnPrimary}`}
+            className={`${dialogFooterBtn} ${btnPrimary}`}
           >
             Split into {pieces.length} {pieces.length === 1 ? 'ad' : 'ads'}
           </button>

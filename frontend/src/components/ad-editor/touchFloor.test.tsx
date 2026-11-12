@@ -52,7 +52,9 @@ describe('coarse-pointer width floor', () => {
   it('the speed trigger keeps one width below sm whatever the rate, so the row does not reflow', () => {
     for (const rate of [0.5, 1, 1.75]) {
       const { unmount } = render(<SpeedMenu playbackRate={rate} onChange={() => {}} />);
-      expect(screen.getByRole('button', { name: 'Playback speed' }).className).toContain('max-sm:w-14');
+      const trigger = screen.getByRole('button', { name: 'Playback speed' });
+      expect(trigger.className).toContain('max-sm:min-w-14');
+      expect(trigger.querySelector('span')?.className).toContain('min-w-[5ch]');
       unmount();
     }
   });

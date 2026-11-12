@@ -200,7 +200,7 @@ export default function PatternAudioSection({ pattern }: { pattern: AdPattern })
           <StatTile label="Last audio match" value={(
             <span className="text-sm font-semibold">
               <span className="sm:hidden">{formatDate(detail.lastMatchedAt ?? null)}</span>
-              <span className="max-sm:hidden whitespace-nowrap">{formatDateTimeShort(detail.lastMatchedAt ?? null)}</span>
+              <span className="max-sm:hidden whitespace-nowrap text-xs">{formatDateTimeShort(detail.lastMatchedAt ?? null)}</span>
             </span>
           )} />
         </div>
