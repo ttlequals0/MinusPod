@@ -211,6 +211,31 @@ def test_probe_target_sends_nothing_for_an_llm_target_under_none(provider_none):
     assert result['reachable'] is None
 
 
+def test_probe_state_view_reports_llm_targets_disabled_under_none(app_client, hdr, provider_none):
+    stale = {'reachable': True, 'status': 200, 'detail': 'ok', 'checked_at': '2026-01-01T00:00:00Z',
+             'healthy_streak': 3, 'failed_streak': 0}
+    with patch.object(failover, 'probe_state', return_value=stale):
+        response = app_client.post('/api/v1/failover/probe', headers=hdr)
+    assert response.status_code == 200
+    probes = response.get_json()['probes']
+    for name in ('llm-a', 'llm-b', 'llm-failover'):
+        assert probes[name]['reachable'] is None
+        assert probes[name]['detail'] == 'LLM disabled'
+        assert probes[name]['checkedAt'] is None
+        assert probes[name]['healthyStreak'] == 0
+    assert probes['transcriber']['reachable'] is True
+    assert_response_conforms('post', '/failover/probe', response)
+
+
+def test_probe_state_view_keeps_stored_llm_results_with_a_provider(app_client, hdr, provider_anthropic):
+    stale = {'reachable': True, 'status': 200, 'detail': 'ok', 'checked_at': '2026-01-01T00:00:00Z',
+             'healthy_streak': 3, 'failed_streak': 0}
+    with patch.object(failover, 'probe_state', return_value=stale), \
+         patch.object(failover, 'probe_tick'):
+        response = app_client.post('/api/v1/failover/probe', headers=hdr)
+    assert response.get_json()['probes']['llm-a']['detail'] == 'ok'
+
+
 # Rate-limit probe
 
 def test_rate_limit_probe_is_a_noop_under_none(temp_db, provider_none, no_clients):

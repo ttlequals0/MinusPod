@@ -6607,7 +6607,10 @@ paths:
         rules as the background probe tick. A local transcription diagnostic decode
         requested from a web request is never run inline: it is handed to the
         background worker to run on its next tick, and this response carries
-        that target's last stored verdict instead of a fresh one.
+        that target's last stored verdict instead of a fresh one. While the LLM
+        provider is `none`, the LLM targets are not probed and are reported
+        as unknown (`reachable` null, `detail` "LLM disabled")
+        instead of their results from before the provider was set to none.
       operationId: probeFailover
       responses:
         '200':

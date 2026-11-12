@@ -586,7 +586,9 @@ def _probe_context_is_current(conn, target: str, context: dict) -> bool:
 
 
 def all_probe_states() -> dict[str, dict]:
-    return {t: probe_state(t) for t in PROBE_TARGETS}
+    """Stored probe states; llm: targets read as disabled while the provider is none, not their pre-none results."""
+    off = {**_PROBE_DEFAULT, 'detail': 'LLM disabled'}
+    return {t: dict(off) if _llm_target_off(t) else probe_state(t) for t in PROBE_TARGETS}
 
 
 def probe_target(target: str, request_config: dict | None = None) -> dict:
