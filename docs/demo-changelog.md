@@ -7,6 +7,7 @@ This file tracks the hosted demo and its tooling, which are not part of the self
 ### Changed
 
 - The snapshot export empties the new `audio_fingerprint_matches` match-history table and clears the source feed and episode columns of `audio_fingerprints`.
+- The snapshot export keeps the five audio fingerprinting settings (`fingerprint_enabled`, `fingerprint_match_strictness`, `fingerprint_min_coverage`, `fingerprint_gap_tolerance_s` and `fingerprint_min_ad_length_s`) in the demo database.
 
 ## [2.101.34] - 2026-11-09
 
