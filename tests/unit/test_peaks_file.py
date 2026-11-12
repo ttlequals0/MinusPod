@@ -30,7 +30,7 @@ def test_write_then_read_round_trip(tmp_path):
     src = _src(tmp_path)
     buckets = np.array([0, 100, 32768, 5], dtype='<u2')
     ap.write_peaks_file(ap.peaks_file_path(src), buckets, src)
-    data = ap.read_peaks_file(ap.peaks_file_path(src))
+    data = ap.read_peaks_window(ap.peaks_file_path(src))
     assert data.version == 1 and data.bucket_width_ms == 10
     assert data.bucket_count == 4
     assert data.source_size == src.stat().st_size
@@ -55,19 +55,19 @@ def test_write_accepts_byte_order_and_empty(tmp_path):
     src = _src(tmp_path)
     p = ap.peaks_file_path(src)
     ap.write_peaks_file(p, np.array([1, 2], dtype='>u2'), src)
-    assert np.array_equal(ap.read_peaks_file(p).buckets, [1, 2])
+    assert np.array_equal(ap.read_peaks_window(p).buckets, [1, 2])
     ap.write_peaks_file(p, np.array([], dtype='<u2'), src)
-    assert ap.read_peaks_file(p).bucket_count == 0
+    assert ap.read_peaks_window(p).bucket_count == 0
 
 
 def test_read_missing_file(tmp_path):
-    assert ap.read_peaks_file(tmp_path / 'nope.peaks') is None
+    assert ap.read_peaks_window(tmp_path / 'nope.peaks') is None
 
 
 def test_read_rejects_bad_magic(tmp_path):
     p = tmp_path / 'x.peaks'
     p.write_bytes(b'XXXX' + b'\x00' * 60)
-    assert ap.read_peaks_file(p) is None
+    assert ap.read_peaks_window(p) is None
 
 
 def test_read_rejects_future_version(tmp_path):
@@ -77,7 +77,7 @@ def test_read_rejects_future_version(tmp_path):
     raw = bytearray(p.read_bytes())
     struct.pack_into('<H', raw, 4, 2)
     p.write_bytes(raw)
-    assert ap.read_peaks_file(p) is None
+    assert ap.read_peaks_window(p) is None
 
 
 def test_read_rejects_other_bucket_width(tmp_path):
@@ -87,7 +87,7 @@ def test_read_rejects_other_bucket_width(tmp_path):
     raw = bytearray(p.read_bytes())
     struct.pack_into('<H', raw, 6, 20)
     p.write_bytes(raw)
-    assert ap.read_peaks_file(p) is None
+    assert ap.read_peaks_window(p) is None
 
 
 def test_read_rejects_truncated_data(tmp_path):
@@ -95,15 +95,15 @@ def test_read_rejects_truncated_data(tmp_path):
     p = ap.peaks_file_path(src)
     ap.write_peaks_file(p, np.arange(100, dtype='<u2'), src)
     p.write_bytes(p.read_bytes()[:64 + 10])
-    assert ap.read_peaks_file(p) is None
+    assert ap.read_peaks_window(p) is None
 
 
 def test_read_rejects_truncated_header(tmp_path):
     p = tmp_path / 'x.peaks'
     p.write_bytes(ap.PEAKS_MAGIC + b'\x01')
-    assert ap.read_peaks_file(p) is None
+    assert ap.read_peaks_window(p) is None
     p.write_bytes(b'')
-    assert ap.read_peaks_file(p) is None
+    assert ap.read_peaks_window(p) is None
 
 
 def test_read_rejects_oversized_file(tmp_path):
@@ -111,7 +111,7 @@ def test_read_rejects_oversized_file(tmp_path):
     p = ap.peaks_file_path(src)
     ap.write_peaks_file(p, np.arange(10, dtype='<u2'), src)
     p.write_bytes(p.read_bytes() + b'\x00\x00')
-    assert ap.read_peaks_file(p) is None
+    assert ap.read_peaks_window(p) is None
 
 
 def test_read_huge_declared_count_does_not_allocate(tmp_path, monkeypatch):
@@ -126,13 +126,13 @@ def test_read_huge_declared_count_does_not_allocate(tmp_path, monkeypatch):
         raise AssertionError('allocated before validating size')
     monkeypatch.setattr(ap.np, 'frombuffer', boom)
     monkeypatch.setattr(ap.np, 'fromfile', boom)
-    assert ap.read_peaks_file(p) is None
+    assert ap.read_peaks_window(p) is None
 
 
 def test_read_directory_returns_none(tmp_path):
     d = tmp_path / 'd.peaks'
     d.mkdir()
-    assert ap.read_peaks_file(d) is None
+    assert ap.read_peaks_window(d) is None
 
 
 def test_restamp_on_changed_mtime_same_hash(tmp_path):
@@ -142,7 +142,7 @@ def test_restamp_on_changed_mtime_same_hash(tmp_path):
     future = time.time_ns() + 10_000_000_000
     os.utime(src, ns=(future, future))
     assert ap.validate_or_restamp_peaks_file(p, src) is True
-    data = ap.read_peaks_file(p)
+    data = ap.read_peaks_window(p)
     assert data.source_mtime_ns == src.stat().st_mtime_ns
     assert np.array_equal(data.buckets, [7, 8])
 
@@ -215,7 +215,7 @@ def test_failed_write_keeps_existing_file(tmp_path, monkeypatch):
     except OSError:
         pass
     monkeypatch.undo()
-    assert np.array_equal(ap.read_peaks_file(p).buckets, [1, 2])
+    assert np.array_equal(ap.read_peaks_window(p).buckets, [1, 2])
     assert list(tmp_path.glob('*.tmp*')) == []
 
 
@@ -302,7 +302,7 @@ def test_write_rejects_non_uint16(tmp_path):
 def test_read_fifo_returns_none_without_blocking(tmp_path):
     fifo = tmp_path / 'f.peaks'
     os.mkfifo(fifo)
-    assert ap.read_peaks_file(fifo) is None
+    assert ap.read_peaks_window(fifo) is None
     assert ap.read_peaks_window(fifo, 0, 0) is None
 
 
@@ -332,7 +332,7 @@ def test_stamp_is_taken_from_the_hashed_handle(tmp_path, monkeypatch):
         return real(path)
     monkeypatch.setattr(ap, '_hash_open_source', swapped)
     ap.write_peaks_file(p, np.array([1], dtype='<u2'), src)
-    data = ap.read_peaks_file(p)
+    data = ap.read_peaks_window(p)
     digest, st = real(src)
     assert (data.source_size, data.source_mtime_ns, data.source_sha256) == (
         st.st_size, st.st_mtime_ns, digest)

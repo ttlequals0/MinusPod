@@ -28,7 +28,7 @@ def test_writes_file_without_decoding(tmp_path):
         assert ap.maybe_write_peaks_file(src, np.array([3, 4], dtype='<u2')) is True
         popen.assert_not_called()
         run.assert_not_called()
-    assert ap.read_peaks_file(ap.peaks_file_path(src)).bucket_count == 2
+    assert ap.read_peaks_window(ap.peaks_file_path(src)).bucket_count == 2
 
 
 def test_none_writes_nothing(tmp_path):
@@ -47,7 +47,7 @@ def test_restamps_existing_valid_file(tmp_path):
     with patch('audio_peaks.write_peaks_file') as w:
         assert ap.maybe_write_peaks_file(src, np.array([9], dtype='<u2')) is True
         w.assert_not_called()
-    assert ap.read_peaks_file(ap.peaks_file_path(src)).source_mtime_ns == src.stat().st_mtime_ns
+    assert ap.read_peaks_window(ap.peaks_file_path(src)).source_mtime_ns == src.stat().st_mtime_ns
 
 
 def test_changed_content_is_rewritten(tmp_path):
@@ -56,7 +56,7 @@ def test_changed_content_is_rewritten(tmp_path):
     ap.maybe_write_peaks_file(src, np.array([9], dtype='<u2'))
     _gen_wav(src, seconds=2.0, freq=880)
     assert ap.maybe_write_peaks_file(src, np.array([5, 6, 7], dtype='<u2')) is True
-    assert list(ap.read_peaks_file(ap.peaks_file_path(src)).buckets) == [5, 6, 7]
+    assert list(ap.read_peaks_window(ap.peaks_file_path(src)).buckets) == [5, 6, 7]
 
 
 def test_same_size_different_bytes_is_rewritten(tmp_path):
@@ -67,7 +67,7 @@ def test_same_size_different_bytes_is_rewritten(tmp_path):
     _gen_wav(src, freq=880)
     assert src.stat().st_size == size
     assert ap.maybe_write_peaks_file(src, np.array([5, 6], dtype='<u2')) is True
-    assert list(ap.read_peaks_file(ap.peaks_file_path(src)).buckets) == [5, 6]
+    assert list(ap.read_peaks_window(ap.peaks_file_path(src)).buckets) == [5, 6]
 
 
 def test_discard_stale_removes_mismatched_file(tmp_path):
@@ -93,7 +93,7 @@ def test_store_peaks_file_writes_from_analysis_result(tmp_path):
     _gen_wav(src)
     result = type('R', (), {'peaks_10ms': np.array([1, 2, 3], dtype='<u2')})()
     processing._store_peaks_file('s', 'e', src, result)
-    assert ap.read_peaks_file(ap.peaks_file_path(src)).bucket_count == 3
+    assert ap.read_peaks_window(ap.peaks_file_path(src)).bucket_count == 3
 
 
 def test_store_peaks_file_without_analysis_writes_nothing(tmp_path):
@@ -145,7 +145,7 @@ def test_retain_moves_original_and_writes_peaks_for_final_file(tmp_path):
     src = _work_copy(tmp_path, 'work.wav')
     assert _retain(processing, tmp_path, src, np.array([1, 2, 3], dtype='<u2')) is True
     assert not src.exists()
-    data = ap.read_peaks_file(ap.peaks_file_path(final))
+    data = ap.read_peaks_window(ap.peaks_file_path(final))
     assert list(data.buckets) == [1, 2, 3]
     assert data.source_size == final.stat().st_size
     assert data.source_mtime_ns == final.stat().st_mtime_ns
@@ -172,7 +172,7 @@ def test_reprocess_same_bytes_restamps_without_rewrite(tmp_path):
     with patch('audio_peaks.write_peaks_file') as w:
         _retain(processing, tmp_path, second, np.array([7, 7], dtype='<u2'))
         w.assert_not_called()
-    data = ap.read_peaks_file(peaks_path)
+    data = ap.read_peaks_window(peaks_path)
     assert list(data.buckets) == [1, 2]
     assert data.source_mtime_ns == final.stat().st_mtime_ns == later
     assert peaks_path.stat().st_ino != inode  # restamp rewrites atomically, content kept
@@ -186,7 +186,7 @@ def test_reprocess_same_size_different_bytes_rewrites(tmp_path):
     second = _work_copy(tmp_path, 'work2.wav', freq=880)
     assert second.stat().st_size == size
     _retain(processing, tmp_path, second, np.array([8, 9], dtype='<u2'))
-    assert list(ap.read_peaks_file(ap.peaks_file_path(final)).buckets) == [8, 9]
+    assert list(ap.read_peaks_window(ap.peaks_file_path(final)).buckets) == [8, 9]
 
 
 def test_reprocess_without_peaks_and_new_bytes_removes_stale_file(tmp_path):

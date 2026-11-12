@@ -29,6 +29,7 @@ from config import (
     SPLICE_CENTROID_STEP_MIN_HZ, SPLICE_FLATNESS_STEP_MIN,
     SPLICE_STEP_SIDE_WINDOW_SECONDS,
 )
+from audio_peaks import abs_max_i16
 from utils.ffmpeg_run import SAFE_MEDIA_INPUT_ARGS, ffmpeg_timeout
 from utils.subprocess_registry import tracked_run
 
@@ -75,12 +76,7 @@ class SpliceDetector:
     def detect(self, audio_path: str, duration: float | None,
                loudness_frames) -> dict:
         """Return the splice_evidence payload; empty payload on any failure."""
-        if not os.path.exists(audio_path):
-            logger.warning('Splice detector: file not found: %s', audio_path)
-            return _empty_payload()
-
-        pcm = self._decode_8k_mono(audio_path, duration or 0.0)
-        return self._events_from_pcm(pcm, loudness_frames, audio_path)
+        return self.detect_with_peaks(audio_path, duration, loudness_frames)[0]
 
     def detect_with_peaks(self, audio_path: str, duration: float | None,
                           loudness_frames) -> tuple[dict, np.ndarray | None]:
@@ -93,10 +89,8 @@ class SpliceDetector:
         peaks = None
         if pcm is not None:
             n = len(pcm) // RMS_FRAME_SAMPLES
-            # widen before abs: abs(-32768) wraps negative in int16
             frames = pcm[:n * RMS_FRAME_SAMPLES].reshape(n, RMS_FRAME_SAMPLES)
-            peaks = np.maximum(frames.max(axis=1).astype(np.int32),
-                               -frames.min(axis=1).astype(np.int32)).astype('<u2')
+            peaks = abs_max_i16(frames).astype('<u2')
         return self._events_from_pcm(pcm, loudness_frames, audio_path), peaks
 
     def _events_from_pcm(self, pcm: np.ndarray | None, loudness_frames,

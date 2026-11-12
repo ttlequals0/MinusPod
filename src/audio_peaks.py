@@ -69,6 +69,24 @@ class PeaksError(RuntimeError):
     """Raised when ffmpeg fails or the window is invalid."""
 
 
+def abs_max_i16(frames: np.ndarray) -> np.ndarray:
+    """Per-row max absolute value of int16 frames, as int32.
+
+    Uses max and min widened first, because abs(-32768) wraps negative in int16.
+    """
+    return np.maximum(frames.max(axis=1).astype(np.int32), -frames.min(axis=1).astype(np.int32))
+
+
+def _check_window(start_seconds: float, end_seconds: float | None, resolution_ms: int) -> float:
+    """Validate a window request and return its clamped start."""
+    if resolution_ms < 1 or resolution_ms > 1000:
+        raise PeaksError(f"resolution_ms must be 1-1000, got {resolution_ms}")
+    start = max(0.0, float(start_seconds))
+    if end_seconds is not None and float(end_seconds) <= start:
+        raise PeaksError(f"end ({float(end_seconds)}) must be > start ({start})")
+    return start
+
+
 def compute_peaks(audio_path: Path | str,
                   start_seconds: float = 0.0,
                   end_seconds: float | None = None,
@@ -95,16 +113,10 @@ def compute_peaks(audio_path: Path | str,
     if not audio_path.exists():
         raise PeaksError(f"audio file not found: {audio_path}")
 
-    if resolution_ms < 1 or resolution_ms > 1000:
-        raise PeaksError(f"resolution_ms must be 1-1000, got {resolution_ms}")
-
-    start = max(0.0, float(start_seconds))
+    start = _check_window(start_seconds, end_seconds, resolution_ms)
     duration = None
     if end_seconds is not None:
-        end = float(end_seconds)
-        if end <= start:
-            raise PeaksError(f"end ({end}) must be > start ({start})")
-        duration = end - start
+        duration = float(end_seconds) - start
         if duration > MAX_PEAKS_DURATION_SECONDS:
             raise PeaksError(
                 f"window {duration:.0f}s exceeds {MAX_PEAKS_DURATION_SECONDS}s cap")
@@ -155,10 +167,7 @@ def compute_peaks(audio_path: Path | str,
 
     trimmed = samples[: n_buckets * samples_per_bucket].reshape(-1, samples_per_bucket)
     # Peak amplitude per bucket, normalized to [0, 1]. int16 max abs is 32768.
-    # max/min instead of abs: abs(-32768) wraps negative in int16
-    abs_max = np.maximum(trimmed.max(axis=1).astype(np.int32),
-                         -trimmed.min(axis=1).astype(np.int32))
-    peaks = abs_max.astype(np.float32) / 32768.0
+    peaks = abs_max_i16(trimmed).astype(np.float32) / 32768.0
     return peaks.tolist(), resolution_ms
 
 
@@ -294,11 +303,6 @@ def read_peaks_window(path: Path, start: int = 0, stop: int | None = None) -> Pe
                      np.frombuffer(raw, dtype='<u2'))
 
 
-def read_peaks_file(path: Path) -> PeaksData | None:
-    """Parse a peaks file; None when missing, malformed, or an unsupported format."""
-    return read_peaks_window(path)
-
-
 def validate_or_restamp_peaks_file(path: Path, source_path: Path) -> bool:
     """True when the file matches the source; restamps the header on a hash match.
 
@@ -325,7 +329,7 @@ def validate_or_restamp_peaks_file(path: Path, source_path: Path) -> bool:
     if sha != data.source_sha256 or st.st_size != data.source_size:
         return False
     first = _remember_hashed((str(path), st.st_size, st.st_mtime_ns, data.source_sha256))
-    full = read_peaks_file(path)
+    full = read_peaks_window(path)
     if full is None:
         return False
     try:
@@ -373,10 +377,8 @@ def build_peaks_from_decode(audio_path: Path, duration: float) -> np.ndarray | N
                     remainder = block[usable:]
                     if usable:
                         samples = np.frombuffer(block, dtype='<i2', count=usable // 2)
-                        # abs of int16 -32768 wraps; widen first
-                        peaks = np.abs(samples.astype(np.int32)).reshape(
-                            -1, PEAKS_SAMPLES_PER_BUCKET).max(axis=1)
-                        parts.append(np.minimum(peaks, 65535).astype('<u2'))
+                        peaks = abs_max_i16(samples.reshape(-1, PEAKS_SAMPLES_PER_BUCKET))
+                        parts.append(peaks.astype('<u2'))
                 returncode = proc.wait()
             finally:
                 timer.cancel()
@@ -412,11 +414,7 @@ def compute_peaks_from_file(peaks_path: Path, source_path: Path, start_seconds: 
     corrupt. Raises PeaksError for an invalid window or resolution, like compute_peaks.
     Only the bytes of the window are read.
     """
-    if resolution_ms < 1 or resolution_ms > 1000:
-        raise PeaksError(f"resolution_ms must be 1-1000, got {resolution_ms}")
-    start = max(0.0, float(start_seconds))
-    if end_seconds is not None and float(end_seconds) <= start:
-        raise PeaksError(f"end ({float(end_seconds)}) must be > start ({start})")
+    start = _check_window(start_seconds, end_seconds, resolution_ms)
     if not is_grid_aligned(start, resolution_ms):
         return None
     if not validate_or_restamp_peaks_file(peaks_path, source_path):
@@ -453,11 +451,7 @@ def compute_peaks_from_buckets(buckets: np.ndarray, start_seconds: float,
                                end_seconds: float | None,
                                resolution_ms: int) -> tuple[list[float], int] | None:
     """Same answer as compute_peaks_from_file, from whole-episode in-memory buckets."""
-    if resolution_ms < 1 or resolution_ms > 1000:
-        raise PeaksError(f"resolution_ms must be 1-1000, got {resolution_ms}")
-    start = max(0.0, float(start_seconds))
-    if end_seconds is not None and float(end_seconds) <= start:
-        raise PeaksError(f"end ({float(end_seconds)}) must be > start ({start})")
+    start = _check_window(start_seconds, end_seconds, resolution_ms)
     if not is_grid_aligned(start, resolution_ms):
         return None
     first, last = _grid_window(start, end_seconds)

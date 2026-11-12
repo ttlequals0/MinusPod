@@ -495,7 +495,7 @@ def test_route_rebuilds_a_corrupt_file(route):
     p = ap.peaks_file_path(route.src)
     p.write_bytes(b'garbage')
     assert route().status_code == 200
-    assert ap.read_peaks_file(p) is not None
+    assert ap.read_peaks_window(p) is not None
 
 
 def test_route_survives_an_unwritable_peaks_file(route, monkeypatch):
