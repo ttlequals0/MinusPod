@@ -8,6 +8,7 @@ bootstrap('merged_stages_test_')
 
 from ad_detector import AdDetector  # noqa: E402
 from utils.markers import carve_fragment, clip_merge_spans, marker_stages, note_merged_members  # noqa: E402
+from tests.fingerprint_match_helpers import get_fingerprint_matches
 
 SLUG = 'example-podcast'
 EP = 'a1b2c3d4e5f6'
@@ -34,7 +35,7 @@ def world(temp_db):
 
 def _audio_only(db, marker):
     db.record_fingerprint_matches_from_markers(SLUG, EP, [marker])
-    rows = db.get_fingerprint_matches(marker['pattern_id'], 10, 0)
+    rows = get_fingerprint_matches(db, marker['pattern_id'], 10, 0)
     assert rows
     return all(row['audio_only'] for row in rows)
 

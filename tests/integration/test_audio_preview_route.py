@@ -6,6 +6,7 @@ import tempfile
 import pytest
 
 from tests.integration.fingerprint_helpers import EPISODE, SLUG, csrf  # noqa: E402
+from tests.fingerprint_match_helpers import record_fingerprint_match
 
 
 def _url(pid, query=''):
@@ -41,7 +42,7 @@ def test_preview_honors_range_requests(app_client, fp_audio_pattern, fp_audio_or
 
 
 def test_preview_of_a_given_match(app_client, fp_feed, fp_audio_pattern, fp_audio_original):
-    match = fp_feed.record_fingerprint_match(fp_audio_pattern, EPISODE, SLUG, 1.0, 4.0, 0.9, 0.9, True, False)
+    match = record_fingerprint_match(fp_feed, fp_audio_pattern, EPISODE, SLUG, 1.0, 4.0, 0.9, 0.9, True, False)
     r = app_client.get(_url(fp_audio_pattern, f'?matchId={match}'), headers=csrf(app_client))
     assert r.status_code == 200
     probe = subprocess.run(
@@ -53,7 +54,7 @@ def test_preview_of_a_given_match(app_client, fp_feed, fp_audio_pattern, fp_audi
 def test_match_of_another_pattern_is_404(app_client, fp_feed, fp_audio_pattern, fp_audio_original):
     from tests.integration.fingerprint_helpers import TEMPLATE
     other = fp_feed.create_ad_pattern(scope='podcast', podcast_id=SLUG, text_template=TEMPLATE + ' other')
-    foreign = fp_feed.record_fingerprint_match(other, EPISODE, SLUG, 1.0, 4.0, 0.9, 0.9, True, False)
+    foreign = record_fingerprint_match(fp_feed, other, EPISODE, SLUG, 1.0, 4.0, 0.9, 0.9, True, False)
     r = app_client.get(_url(fp_audio_pattern, f'?matchId={foreign}'), headers=csrf(app_client))
     assert r.status_code == 404
     assert app_client.get(_url(fp_audio_pattern, '?matchId=99999'), headers=csrf(app_client)).status_code == 404

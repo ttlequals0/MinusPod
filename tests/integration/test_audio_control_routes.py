@@ -3,6 +3,7 @@ import pytest
 
 from tests.app_bootstrap import authenticate_test_client
 from tests.integration.fingerprint_helpers import EPISODE, SLUG, csrf  # noqa: E402
+from tests.fingerprint_match_helpers import record_fingerprint_match
 
 
 def _audio(pid):
@@ -27,7 +28,7 @@ def _rebuild(client, pid, **body):
 def _record(db, pid, start=10.0, end=40.0, **kw):
     args = dict(similarity=0.9, coverage=0.8, in_scope=True, audio_only=False)
     args.update(kw)
-    return db.record_fingerprint_match(pid, EPISODE, SLUG, start, end, **args)
+    return record_fingerprint_match(db, pid, EPISODE, SLUG, start, end, **args)
 
 
 def test_detail_without_audio(app_client, fp_pattern):
@@ -247,15 +248,15 @@ def test_rebuild_clamps_the_span_to_the_decoded_audio(
 
 
 def test_rebuild_keeps_the_match_history(app_client, fp_feed, fp_original, fp_audio_pattern, stub_fingerprinting):
-    fp_feed.record_fingerprint_match(fp_audio_pattern, EPISODE, SLUG, 1.0, 4.0, 0.9, 0.9, True, False)
+    record_fingerprint_match(fp_feed, fp_audio_pattern, EPISODE, SLUG, 1.0, 4.0, 0.9, 0.9, True, False)
     body = _rebuild(app_client, fp_audio_pattern).get_json()
     assert body['counts']['matches'] == 1
 
 
 def test_last_matched_at_ignores_rejected_rows(app_client, fp_feed, fp_audio_pattern):
     conn = fp_feed.get_connection()
-    kept = fp_feed.record_fingerprint_match(fp_audio_pattern, EPISODE, SLUG, 1.0, 4.0, 0.9, 0.9, True, False)
-    late = fp_feed.record_fingerprint_match(fp_audio_pattern, EPISODE, SLUG, 20.0, 24.0, 0.9, 0.9, True, False)
+    kept = record_fingerprint_match(fp_feed, fp_audio_pattern, EPISODE, SLUG, 1.0, 4.0, 0.9, 0.9, True, False)
+    late = record_fingerprint_match(fp_feed, fp_audio_pattern, EPISODE, SLUG, 20.0, 24.0, 0.9, 0.9, True, False)
     conn.execute("UPDATE audio_fingerprint_matches SET created_at = '2026-01-01T00:00:00Z' WHERE id = ?", (kept,))
     conn.execute("UPDATE audio_fingerprint_matches SET created_at = '2026-02-01T00:00:00Z', rejected = 1 "
                  "WHERE id = ?", (late,))

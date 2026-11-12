@@ -2,6 +2,7 @@
 import pytest
 
 from tests.integration.fingerprint_helpers import EPISODE, SLUG, TEMPLATE, csrf  # noqa: E402
+from tests.fingerprint_match_helpers import record_fingerprint_match
 
 
 @pytest.fixture
@@ -30,8 +31,8 @@ def test_list_includes_audio_summary(app_client, mixed):
 
 
 def test_detail_includes_audio_summary(app_client, fp_feed, mixed):
-    fp_feed.record_fingerprint_match(mixed['active'], EPISODE, SLUG, 10.0, 40.0, 0.8, 0.9, True, False)
-    fp_feed.record_fingerprint_match(mixed['active'], 'b1c2d3e4f5a6', SLUG, 10.0, 40.0, 0.6, 0.9, True, False)
+    record_fingerprint_match(fp_feed, mixed['active'], EPISODE, SLUG, 10.0, 40.0, 0.8, 0.9, True, False)
+    record_fingerprint_match(fp_feed, mixed['active'], 'b1c2d3e4f5a6', SLUG, 10.0, 40.0, 0.6, 0.9, True, False)
     body = app_client.get(f"/api/v1/patterns/{mixed['active']}", headers=csrf(app_client)).get_json()
     assert body['audio']['state'] == 'active' and body['audio']['matchCount'] == 2
     assert body['audio']['meanSimilarity'] == pytest.approx(0.7)
@@ -41,8 +42,8 @@ def test_detail_includes_audio_summary(app_client, fp_feed, mixed):
 
 def test_rejected_matches_leave_count_and_mean(app_client, fp_feed, mixed):
     pid = mixed['active']
-    fp_feed.record_fingerprint_match(pid, EPISODE, SLUG, 10.0, 40.0, 0.8, 0.9, True, False)
-    fp_feed.record_fingerprint_match(pid, 'b1c2d3e4f5a6', SLUG, 10.0, 40.0, 0.2, 0.9, True, False)
+    record_fingerprint_match(fp_feed, pid, EPISODE, SLUG, 10.0, 40.0, 0.8, 0.9, True, False)
+    record_fingerprint_match(fp_feed, pid, 'b1c2d3e4f5a6', SLUG, 10.0, 40.0, 0.2, 0.9, True, False)
     assert fp_feed.mark_fingerprint_match_rejected(pid, SLUG, 'b1c2d3e4f5a6', 10.0, 40.0)
     audio = _list(app_client)[pid]['audio']
     assert audio['matchCount'] == 1 and audio['meanSimilarity'] == pytest.approx(0.8)
@@ -61,7 +62,7 @@ def test_available_follows_a_retained_match_episode(app_client, fp_feed, mixed):
     fp_feed.upsert_episode(SLUG, 'b1c2d3e4f5a6', original_url='https://example.com/b.mp3',
                            title='Other', status='processed', original_file='y.mp3')
     assert _list(app_client)[pid]['audio']['available'] is False
-    fp_feed.record_fingerprint_match(pid, 'b1c2d3e4f5a6', SLUG, 10.0, 40.0, 0.8, 0.9, True, False)
+    record_fingerprint_match(fp_feed, pid, 'b1c2d3e4f5a6', SLUG, 10.0, 40.0, 0.8, 0.9, True, False)
     assert _list(app_client)[pid]['audio']['available'] is True
     assert fp_feed.mark_fingerprint_match_rejected(pid, SLUG, 'b1c2d3e4f5a6', 10.0, 40.0)
     assert _list(app_client)[pid]['audio']['available'] is False

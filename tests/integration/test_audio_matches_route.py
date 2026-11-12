@@ -2,6 +2,7 @@
 import pytest
 
 from tests.integration.fingerprint_helpers import EPISODE, SLUG, csrf  # noqa: E402
+from tests.fingerprint_match_helpers import record_fingerprint_match
 
 
 def _matches(client, pid, query=''):
@@ -11,7 +12,7 @@ def _matches(client, pid, query=''):
 @pytest.fixture
 def twelve(fp_feed, fp_audio_pattern):
     for i in range(12):
-        fp_feed.record_fingerprint_match(fp_audio_pattern, EPISODE, SLUG, 10.0 + i, 40.0 + i,
+        record_fingerprint_match(fp_feed, fp_audio_pattern, EPISODE, SLUG, 10.0 + i, 40.0 + i,
                                          0.9, 0.8, True, False)
     return fp_audio_pattern
 
@@ -48,7 +49,7 @@ def test_junk_paging_falls_back_to_defaults(app_client, twelve):
 
 
 def test_row_shape(app_client, fp_feed, fp_audio_pattern, fp_original):
-    fp_feed.record_fingerprint_match(fp_audio_pattern, EPISODE, SLUG, 12.5, 41.0, 0.81, 0.62, False, None)
+    record_fingerprint_match(fp_feed, fp_audio_pattern, EPISODE, SLUG, 12.5, 41.0, 0.81, 0.62, False, None)
     row = _matches(app_client, fp_audio_pattern).get_json()['matches'][0]
     assert set(row) == {'id', 'episodeId', 'podcastSlug', 'episodeTitle', 'start', 'end', 'similarity',
                         'coverage', 'storedLength', 'inScope', 'audioOnly', 'rejected', 'available',
@@ -61,25 +62,25 @@ def test_row_shape(app_client, fp_feed, fp_audio_pattern, fp_original):
 
 
 def test_audio_only_and_rejected_flags(app_client, fp_feed, fp_audio_pattern):
-    fp_feed.record_fingerprint_match(fp_audio_pattern, EPISODE, SLUG, 10.0, 40.0, 0.9, 0.8, True, True)
+    record_fingerprint_match(fp_feed, fp_audio_pattern, EPISODE, SLUG, 10.0, 40.0, 0.9, 0.8, True, True)
     assert fp_feed.mark_fingerprint_match_rejected(fp_audio_pattern, SLUG, EPISODE, 10.0, 40.0)
     row = _matches(app_client, fp_audio_pattern).get_json()['matches'][0]
     assert row['audioOnly'] is True and row['rejected'] is True
 
 
 def test_expired_rows_marked_unavailable(app_client, fp_feed, fp_audio_pattern):
-    fp_feed.record_fingerprint_match(fp_audio_pattern, EPISODE, SLUG, 10.0, 40.0, 0.9, 0.8, True, False)
+    record_fingerprint_match(fp_feed, fp_audio_pattern, EPISODE, SLUG, 10.0, 40.0, 0.9, 0.8, True, False)
     assert _matches(app_client, fp_audio_pattern).get_json()['matches'][0]['available'] is False
 
 
 def test_flag_set_but_file_gone_is_unavailable(app_client, fp_feed, fp_audio_pattern):
     fp_feed.upsert_episode(SLUG, EPISODE, original_file='gone.mp3')
-    fp_feed.record_fingerprint_match(fp_audio_pattern, EPISODE, SLUG, 10.0, 40.0, 0.9, 0.8, True, False)
+    record_fingerprint_match(fp_feed, fp_audio_pattern, EPISODE, SLUG, 10.0, 40.0, 0.9, 0.8, True, False)
     assert _matches(app_client, fp_audio_pattern).get_json()['matches'][0]['available'] is False
 
 
 def test_row_of_a_deleted_episode_stays_with_no_title(app_client, fp_feed, fp_audio_pattern):
-    fp_feed.record_fingerprint_match(fp_audio_pattern, 'ffffffffffff', SLUG, 10.0, 40.0, 0.9, 0.8, True, False)
+    record_fingerprint_match(fp_feed, fp_audio_pattern, 'ffffffffffff', SLUG, 10.0, 40.0, 0.9, 0.8, True, False)
     row = _matches(app_client, fp_audio_pattern).get_json()['matches'][0]
     assert row['episodeTitle'] is None and row['available'] is False
 
@@ -89,7 +90,7 @@ def test_rows_with_the_same_episode_id_in_two_feeds_stay_apart(app_client, fp_fe
     fp_feed.upsert_episode('other-feed', EPISODE, original_url='https://example.com/o.mp3',
                            title='Other feed episode', status='processed')
     try:
-        fp_feed.record_fingerprint_match(fp_audio_pattern, EPISODE, 'other-feed', 10.0, 40.0, 0.9, 0.8, True, False)
+        record_fingerprint_match(fp_feed, fp_audio_pattern, EPISODE, 'other-feed', 10.0, 40.0, 0.9, 0.8, True, False)
         row = _matches(app_client, fp_audio_pattern).get_json()['matches'][0]
         assert row['episodeTitle'] == 'Other feed episode' and row['available'] is False
     finally:

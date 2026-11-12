@@ -136,18 +136,6 @@ class FingerprintMatchMixin:
         )
         return cursor.lastrowid
 
-    def record_fingerprint_match(self, pattern_id: int, episode_id: str, podcast_slug: str,
-                                 match_start: float, match_end: float,
-                                 similarity: float | None, coverage: float | None,
-                                 in_scope: bool, audio_only: bool | None) -> int:
-        """Insert one match row. Returns its ID."""
-        conn = self.get_connection()
-        row_id = self._insert_fingerprint_match(
-            conn, pattern_id, episode_id, podcast_slug, match_start, match_end,
-            similarity, coverage, in_scope, audio_only)
-        conn.commit()
-        return row_id
-
     def record_fingerprint_matches_from_markers(self, podcast_slug: str, episode_id: str,
                                                 markers: list[dict]) -> int:
         """Replace an episode's match rows from its final markers, keeping rejected rows."""
@@ -196,16 +184,6 @@ class FingerprintMatchMixin:
                                   'podcast_id': r['podcast_id'], 'source': r['source'],
                                   'sponsor_tags': set(tags_map.get(r['sponsor_id'], []))}
         return found
-
-    def get_fingerprint_matches(self, pattern_id: int, limit: int, offset: int) -> list[dict]:
-        """A page of a pattern's matches, newest first."""
-        conn = self.get_connection()
-        cursor = conn.execute(
-            """SELECT * FROM audio_fingerprint_matches WHERE pattern_id = ?
-               ORDER BY created_at DESC, id DESC LIMIT ? OFFSET ?""",
-            (pattern_id, limit, offset)
-        )
-        return [dict(row) for row in cursor.fetchall()]
 
     def get_fingerprint_matches_with_episodes(self, pattern_id: int, limit: int, offset: int) -> list[dict]:
         """A page of matches, newest first, with episode_title and episode_original_file when the episode exists."""

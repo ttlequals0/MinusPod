@@ -2,6 +2,7 @@
 import pytest
 
 from tests.integration.fingerprint_helpers import EPISODE, SLUG, csrf  # noqa: E402
+from tests.fingerprint_match_helpers import record_fingerprint_match
 
 URL = '/api/v1/stats/audio-matching'
 OTHER = 'other-example-feed'
@@ -12,7 +13,7 @@ def _get(client, query=''):
 
 
 def _row(db, pid, created, slug=SLUG, rejected=0, rejected_at=None, audio_only=0, start=10.0):
-    mid = db.record_fingerprint_match(pid, EPISODE, slug, start, start + 30.0, 0.9, 0.9, True, bool(audio_only))
+    mid = record_fingerprint_match(db, pid, EPISODE, slug, start, start + 30.0, 0.9, 0.9, True, bool(audio_only))
     conn = db.get_connection()
     conn.execute("UPDATE audio_fingerprint_matches SET created_at = ?, rejected = ?, rejected_at = ? WHERE id = ?",
                  (created, rejected, rejected_at, mid))

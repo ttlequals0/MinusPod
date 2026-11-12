@@ -8,6 +8,7 @@ import api.patterns_audio as module
 from api import preview_cache
 from api.patterns import _store_pattern_audio
 from tests.integration.fingerprint_helpers import EPISODE, SLUG, csrf  # noqa: E402
+from tests.fingerprint_match_helpers import record_fingerprint_match
 
 HUGE = '9' * 30
 OVER_INT64 = '9223372036854775808'
@@ -32,7 +33,7 @@ def test_oversized_match_id_is_400(app_client, fp_audio_pattern, fp_audio_origin
 
 def test_page_past_int_range_clamps_to_one_past_the_last_page(app_client, fp_feed, fp_audio_pattern):
     for i in range(12):
-        fp_feed.record_fingerprint_match(fp_audio_pattern, EPISODE, SLUG, 10.0 + i, 40.0 + i,
+        record_fingerprint_match(fp_feed, fp_audio_pattern, EPISODE, SLUG, 10.0 + i, 40.0 + i,
                                          0.9, 0.8, True, False)
     for page in ('99999999999999999999', '9' * 400):
         r = app_client.get(f'{_audio(fp_audio_pattern)}/matches?page={page}', headers=csrf(app_client))
@@ -190,7 +191,7 @@ def test_changed_file_is_encoded_again(app_client, fp_audio_pattern, fp_audio_or
 
 
 def test_cache_holds_four_entries(app_client, fp_feed, fp_audio_pattern, fp_audio_original, spy, clock):
-    ids = [fp_feed.record_fingerprint_match(fp_audio_pattern, EPISODE, SLUG, 1.0 + i, 4.0 + i,
+    ids = [record_fingerprint_match(fp_feed, fp_audio_pattern, EPISODE, SLUG, 1.0 + i, 4.0 + i,
                                             0.9, 0.9, True, False) for i in range(5)]
     for mid in ids:
         app_client.get(f'{_audio(fp_audio_pattern)}/preview?matchId={mid}', headers=csrf(app_client))
@@ -276,8 +277,8 @@ def test_rebuilding_a_patterns_audio_drops_its_cached_slices_only(
 
 def test_expired_entries_are_purged_when_a_slice_is_stored(
         app_client, fp_feed, fp_audio_pattern, fp_audio_original, spy, clock):
-    first = fp_feed.record_fingerprint_match(fp_audio_pattern, EPISODE, SLUG, 1.0, 4.0, 0.9, 0.9, True, False)
-    second = fp_feed.record_fingerprint_match(fp_audio_pattern, EPISODE, SLUG, 5.0, 8.0, 0.9, 0.9, True, False)
+    first = record_fingerprint_match(fp_feed, fp_audio_pattern, EPISODE, SLUG, 1.0, 4.0, 0.9, 0.9, True, False)
+    second = record_fingerprint_match(fp_feed, fp_audio_pattern, EPISODE, SLUG, 5.0, 8.0, 0.9, 0.9, True, False)
     app_client.get(f'{_audio(fp_audio_pattern)}/preview?matchId={first}', headers=csrf(app_client))
     clock[0] += preview_cache.SLICE_CACHE_TTL_S + 1
     app_client.get(f'{_audio(fp_audio_pattern)}/preview?matchId={second}', headers=csrf(app_client))

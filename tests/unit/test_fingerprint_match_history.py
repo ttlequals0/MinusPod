@@ -3,6 +3,7 @@ import pytest
 
 from database.fingerprint_cleanup import (
     delete_matches_for_episode, delete_matches_for_patterns, move_matches)
+from tests.fingerprint_match_helpers import get_fingerprint_matches, record_fingerprint_match
 
 
 @pytest.fixture
@@ -14,7 +15,7 @@ def pattern(temp_db):
 def _record(db, pid, ep='ep1', slug='show', start=10.0, end=55.0, **kw):
     args = dict(similarity=0.9, coverage=0.8, in_scope=True, audio_only=False)
     args.update(kw)
-    return db.record_fingerprint_match(pid, ep, slug, start, end, **args)
+    return record_fingerprint_match(db, pid, ep, slug, start, end, **args)
 
 
 def _commit(db, helper, *args, **kwargs):
@@ -29,8 +30,8 @@ def test_record_paginate_and_summary(temp_db, pattern):
         _record(temp_db, pattern, f'ep{i}', start=10.0 + i, end=55.0 + i,
                 in_scope=(i % 2 == 0), audio_only=(i == 0))
     assert temp_db.count_fingerprint_matches(pattern) == 12
-    assert len(temp_db.get_fingerprint_matches(pattern, limit=10, offset=0)) == 10
-    assert len(temp_db.get_fingerprint_matches(pattern, limit=10, offset=10)) == 2
+    assert len(get_fingerprint_matches(temp_db, pattern, limit=10, offset=0)) == 10
+    assert len(get_fingerprint_matches(temp_db, pattern, limit=10, offset=10)) == 2
     summary = temp_db.get_audio_match_summary(pattern)
     assert summary['match_count'] == 12 and summary['out_of_scope_count'] == 6
     assert summary['rejected_count'] == 0
@@ -42,7 +43,7 @@ def test_pages_are_disjoint_and_complete(temp_db, pattern):
     made = {_record(temp_db, pattern, f'ep{i}') for i in range(25)}
     seen = []
     for offset in (0, 10, 20):
-        seen += [m['id'] for m in temp_db.get_fingerprint_matches(pattern, 10, offset)]
+        seen += [m['id'] for m in get_fingerprint_matches(temp_db, pattern, 10, offset)]
     assert len(seen) == len(set(seen)) == 25 and set(seen) == made
 
 
@@ -83,7 +84,7 @@ def test_newest_first(temp_db, pattern):
     # created_at has one-second resolution, so same-second rows order by id
     first = _record(temp_db, pattern, 'a')
     second = _record(temp_db, pattern, 'b')
-    ids = [m['id'] for m in temp_db.get_fingerprint_matches(pattern, 10, 0)]
+    ids = [m['id'] for m in get_fingerprint_matches(temp_db, pattern, 10, 0)]
     assert ids == [second, first]
 
 
@@ -104,7 +105,7 @@ def test_delete_for_episode_is_scoped_to_podcast(temp_db, pattern):
     _record(temp_db, pattern, 'epX', slug='show')
     _record(temp_db, pattern, 'epX', slug='other')
     assert _commit(temp_db, delete_matches_for_episode, 'show', 'epX') == 1
-    rows = temp_db.get_fingerprint_matches(pattern, 10, 0)
+    rows = get_fingerprint_matches(temp_db, pattern, 10, 0)
     assert [r['podcast_slug'] for r in rows] == ['other']
 
 
@@ -113,7 +114,7 @@ def test_delete_for_episode_keep_rejected(temp_db, pattern):
     _record(temp_db, pattern, 'epX', start=100, end=140)
     assert temp_db.mark_fingerprint_match_rejected(pattern, 'show', 'epX', 100, 140)
     assert _commit(temp_db, delete_matches_for_episode, 'show', 'epX', keep_rejected=True) == 1
-    left = temp_db.get_fingerprint_matches(pattern, 10, 0)
+    left = get_fingerprint_matches(temp_db, pattern, 10, 0)
     assert len(left) == 1 and left[0]['rejected'] == 1
     assert _commit(temp_db, delete_matches_for_episode, 'show', 'epX') == 1
     assert temp_db.count_fingerprint_matches(pattern) == 0
@@ -213,7 +214,7 @@ def test_deleting_a_feed_removes_its_match_history(temp_db):
     _record(temp_db, shared, 'epA', slug='show')
     _record(temp_db, shared, 'epB', slug='other')
     assert temp_db.delete_podcast('show')
-    rows = temp_db.get_fingerprint_matches(shared, 10, 0)
+    rows = get_fingerprint_matches(temp_db, shared, 10, 0)
     assert [r['podcast_slug'] for r in rows] == ['other']
 
 

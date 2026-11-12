@@ -8,6 +8,7 @@ from tests.integration.fingerprint_helpers import (  # noqa: E402
     EPISODE, SLUG, post_correction, seed_two_sponsor_transcript,
 )
 from tests.integration.openapi_conformance import assert_response_conforms
+from tests.fingerprint_match_helpers import get_fingerprint_matches
 
 
 def _confirm(app_client, pid, start=10.0, end=40.0, **extra):
@@ -112,7 +113,7 @@ def test_adjust_keeps_a_switched_off_fingerprint_off(
 def test_reject_marks_the_match_rejected(app_client, fp_feed, fp_pattern):
     fp_feed.record_fingerprint_matches_from_markers(SLUG, EPISODE, [_fingerprint_marker(fp_pattern)])
     assert _reject(app_client, fp_pattern).status_code == 200
-    row, = fp_feed.get_fingerprint_matches(fp_pattern, 10, 0)
+    row, = get_fingerprint_matches(fp_feed, fp_pattern, 10, 0)
     assert row['rejected'] == 1 and row['rejected_at']
     assert fp_feed.get_ad_pattern_by_id(fp_pattern)['false_positive_count'] == 1
 
@@ -127,7 +128,7 @@ def test_reject_touches_only_the_overlapping_match(app_client, fp_feed, fp_patte
         SLUG, EPISODE, [_fingerprint_marker(fp_pattern, 10.0, 40.0),
                         _fingerprint_marker(fp_pattern, 100.0, 130.0)])
     _reject(app_client, fp_pattern, 100.0, 130.0)
-    flags = {r['match_start']: r['rejected'] for r in fp_feed.get_fingerprint_matches(fp_pattern, 10, 0)}
+    flags = {r['match_start']: r['rejected'] for r in get_fingerprint_matches(fp_feed, fp_pattern, 10, 0)}
     assert flags == {10.0: 0, 100.0: 1}
 
 
@@ -137,7 +138,7 @@ def test_rejected_flag_survives_the_resave_that_follows(app_client, fp_feed, fp_
     fp_feed.save_episode_details(SLUG, EPISODE, ad_markers=[marker, other])
     fp_feed.record_fingerprint_matches_from_markers(SLUG, EPISODE, [marker, other])
     assert _reject(app_client, fp_pattern).status_code == 200
-    rejected_at = next(r for r in fp_feed.get_fingerprint_matches(fp_pattern, 10, 0)
+    rejected_at = next(r for r in get_fingerprint_matches(fp_feed, fp_pattern, 10, 0)
                        if r['rejected'])['rejected_at']
 
     stored = json.loads(fp_feed.get_episode(SLUG, EPISODE)['ad_markers_json'])
@@ -145,7 +146,7 @@ def test_rejected_flag_survives_the_resave_that_follows(app_client, fp_feed, fp_
     storage.save_combined_ads(SLUG, EPISODE, stored)
     storage.save_combined_ads(SLUG, EPISODE, [marker, other])
 
-    rows = sorted(fp_feed.get_fingerprint_matches(fp_pattern, 10, 0), key=lambda r: r['match_start'])
+    rows = sorted(get_fingerprint_matches(fp_feed, fp_pattern, 10, 0), key=lambda r: r['match_start'])
     assert [(r['match_start'], r['rejected']) for r in rows] == [(10.0, 1), (100.0, 0)]
     assert rows[0]['rejected_at'] == rejected_at
 
@@ -287,11 +288,11 @@ def test_confirming_a_rejected_ad_restores_its_match(app_client, fp_feed, fp_ori
     fp_feed.record_fingerprint_matches_from_markers(SLUG, EPISODE, [_fingerprint_marker(fp_pattern)])
     _reject(app_client, fp_pattern)
     assert _confirm(app_client, fp_pattern).status_code == 200
-    row, = fp_feed.get_fingerprint_matches(fp_pattern, 10, 0)
+    row, = get_fingerprint_matches(fp_feed, fp_pattern, 10, 0)
     assert (row['rejected'], row['rejected_at']) == (0, None)
     marker = _fingerprint_marker(fp_pattern)
     assert fp_feed.record_fingerprint_matches_from_markers(SLUG, EPISODE, [marker]) == 1
-    assert [r['rejected'] for r in fp_feed.get_fingerprint_matches(fp_pattern, 10, 0)] == [0]
+    assert [r['rejected'] for r in get_fingerprint_matches(fp_feed, fp_pattern, 10, 0)] == [0]
 
 
 def test_adjusting_a_rejected_ad_restores_the_match_the_adjusted_bounds_cover(
@@ -302,7 +303,7 @@ def test_adjusting_a_rejected_ad_restores_the_match_the_adjusted_bounds_cover(
     _reject(app_client, fp_pattern, 10.0, 40.0)
     _reject(app_client, fp_pattern, 100.0, 140.0)
     assert _adjust(app_client, fp_pattern, 12.0, 38.0).status_code == 200
-    flags = {r['match_start']: r['rejected'] for r in fp_feed.get_fingerprint_matches(fp_pattern, 10, 0)}
+    flags = {r['match_start']: r['rejected'] for r in get_fingerprint_matches(fp_feed, fp_pattern, 10, 0)}
     assert flags == {10.0: 0, 100.0: 1}
 
 
@@ -311,7 +312,7 @@ def test_confirming_without_a_conflicting_rejection_leaves_rejected_matches(
     fp_feed.record_fingerprint_matches_from_markers(SLUG, EPISODE, [_fingerprint_marker(fp_pattern, 100.0, 140.0)])
     fp_feed.mark_fingerprint_match_rejected(fp_pattern, SLUG, EPISODE, 100.0, 140.0)
     assert _confirm(app_client, fp_pattern).status_code == 200
-    assert [r['rejected'] for r in fp_feed.get_fingerprint_matches(fp_pattern, 10, 0)] == [1]
+    assert [r['rejected'] for r in get_fingerprint_matches(fp_feed, fp_pattern, 10, 0)] == [1]
 
 
 def _merged_marker(first, second):
@@ -328,7 +329,7 @@ def _second_pattern(db):
 
 
 def _rejected_flags(db, *pattern_ids):
-    return [[r['rejected'] for r in db.get_fingerprint_matches(pid, 10, 0)] for pid in pattern_ids]
+    return [[r['rejected'] for r in get_fingerprint_matches(db, pid, 10, 0)] for pid in pattern_ids]
 
 
 def test_reject_marks_the_match_of_every_fingerprint_member(app_client, fp_feed, fp_pattern):

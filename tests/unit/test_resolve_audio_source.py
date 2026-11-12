@@ -7,6 +7,7 @@ import pytest  # noqa: E402
 from flask import Flask  # noqa: E402
 
 from api.patterns_audio import resolve_audio_source  # noqa: E402
+from tests.fingerprint_match_helpers import record_fingerprint_match
 
 SLUG = 'example-podcast'
 
@@ -56,8 +57,8 @@ def test_newest_retained_match_wins(world, app_context):
     episode('built1', True)
     episode('old', True)
     episode('new', True)
-    db.record_fingerprint_match(pid, 'old', SLUG, 10.0, 40.0, 0.9, 0.9, True, False)
-    db.record_fingerprint_match(pid, 'new', SLUG, 20.0, 50.0, 0.9, 0.9, True, False)
+    record_fingerprint_match(db, pid, 'old', SLUG, 10.0, 40.0, 0.9, 0.9, True, False)
+    record_fingerprint_match(db, pid, 'new', SLUG, 20.0, 50.0, 0.9, 0.9, True, False)
     source, err = resolve_audio_source(db, storage, pid)
     assert err is None
     assert {k: v for k, v in source.items() if k != 'path'} == {
@@ -70,7 +71,7 @@ def test_skips_matches_whose_original_is_gone_then_uses_the_build_source(world, 
     _fingerprint(db, pid)
     episode('built1', True)
     episode('gone', False)
-    db.record_fingerprint_match(pid, 'gone', SLUG, 10.0, 40.0, 0.9, 0.9, True, False)
+    record_fingerprint_match(db, pid, 'gone', SLUG, 10.0, 40.0, 0.9, 0.9, True, False)
     source, err = resolve_audio_source(db, storage, pid)
     assert err is None and (source['episodeId'], source['start'], source['end']) == ('built1', 2.0, 8.0)
 
@@ -97,7 +98,7 @@ def test_rejected_matches_are_not_a_source(world, app_context):
     _fingerprint(db, pid)
     episode('built1', False)
     episode('bad', True)
-    db.record_fingerprint_match(pid, 'bad', SLUG, 10.0, 40.0, 0.9, 0.9, True, False)
+    record_fingerprint_match(db, pid, 'bad', SLUG, 10.0, 40.0, 0.9, 0.9, True, False)
     assert db.mark_fingerprint_match_rejected(pid, SLUG, 'bad', 10.0, 40.0)
     source, err = resolve_audio_source(db, storage, pid)
     assert source is None and _code(err) == ('original_not_retained', 404)
@@ -110,9 +111,9 @@ def test_given_match_is_used_and_must_belong_to_the_pattern(world, app_context):
     episode('built1', True)
     episode('old', True)
     episode('new', True)
-    old = db.record_fingerprint_match(pid, 'old', SLUG, 10.0, 40.0, 0.9, 0.9, True, False)
-    db.record_fingerprint_match(pid, 'new', SLUG, 20.0, 50.0, 0.9, 0.9, True, False)
-    foreign = db.record_fingerprint_match(other, 'new', SLUG, 20.0, 50.0, 0.9, 0.9, True, False)
+    old = record_fingerprint_match(db, pid, 'old', SLUG, 10.0, 40.0, 0.9, 0.9, True, False)
+    record_fingerprint_match(db, pid, 'new', SLUG, 20.0, 50.0, 0.9, 0.9, True, False)
+    foreign = record_fingerprint_match(db, other, 'new', SLUG, 20.0, 50.0, 0.9, 0.9, True, False)
     source, err = resolve_audio_source(db, storage, pid, old)
     assert err is None and source['episodeId'] == 'old'
     for bad in (foreign, 9999):
@@ -125,7 +126,7 @@ def test_given_match_without_original_does_not_fall_back(world, app_context):
     _fingerprint(db, pid)
     episode('built1', True)
     episode('gone', False)
-    gone = db.record_fingerprint_match(pid, 'gone', SLUG, 10.0, 40.0, 0.9, 0.9, True, False)
+    gone = record_fingerprint_match(db, pid, 'gone', SLUG, 10.0, 40.0, 0.9, 0.9, True, False)
     source, err = resolve_audio_source(db, storage, pid, gone)
     assert source is None and _code(err) == ('original_not_retained', 404)
 

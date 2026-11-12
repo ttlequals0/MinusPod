@@ -6,6 +6,7 @@ from tests.unit.test_peaks_deletion import (  # noqa: F401
     NOW_ISO, NOW_ISO_2, _commit_synchronously, db_storage, local_feed, real_mp3_bytes,
 )
 from local_import import build_import_plan
+from tests.fingerprint_match_helpers import record_fingerprint_match
 
 OTHER = 'a1b2c3d4e5f6'
 KEPT = 'b1b2c3d4e5f6'
@@ -16,7 +17,7 @@ def _pattern(db):
 
 
 def _match(db, pid, slug, episode_id):
-    db.record_fingerprint_match(pid, episode_id, slug, 5.0, 35.0, 0.9, 0.8, True, False)
+    record_fingerprint_match(db, pid, episode_id, slug, 5.0, 35.0, 0.9, 0.8, True, False)
 
 
 def _count(db, slug, episode_id):

@@ -1,5 +1,6 @@
 """Merging patterns keeps the keeper's audio and drops the folded patterns' audio and history."""
 from tests.integration.fingerprint_helpers import SLUG, TEMPLATE, csrf  # noqa: E402
+from tests.fingerprint_match_helpers import record_fingerprint_match
 
 
 def _make(db, suffix):
@@ -9,7 +10,7 @@ def _make(db, suffix):
 def _audio(db, pid, matches):
     db.create_audio_fingerprint(pid, b'AQAA', 6.0)
     for i in range(matches):
-        db.record_fingerprint_match(pid, f'a1b2c3d4e5f{i}', SLUG, 10.0, 40.0, 0.9, 0.8, True, False)
+        record_fingerprint_match(db, pid, f'a1b2c3d4e5f{i}', SLUG, 10.0, 40.0, 0.9, 0.8, True, False)
 
 
 def _merge(client, keep, folded):

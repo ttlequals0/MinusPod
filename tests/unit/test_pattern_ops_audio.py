@@ -1,5 +1,6 @@
 """Merge, dedupe and delete carry a pattern's audio history, with foreign keys off to prove it is explicit."""
 import pytest
+from tests.fingerprint_match_helpers import record_fingerprint_match
 
 SLUG = 'example-podcast'
 
@@ -26,7 +27,7 @@ def _audio(db, pid, matches=2, source='ep1'):
     db.create_audio_fingerprint(pid, b'AQAA', 6.0, source_podcast_slug=SLUG, source_episode_id=source,
                                 source_start=2.0, source_end=8.0)
     for i in range(matches):
-        db.record_fingerprint_match(pid, f'ep{i}', SLUG, 10.0, 40.0, 0.9, 0.8, True, False)
+        record_fingerprint_match(db, pid, f'ep{i}', SLUG, 10.0, 40.0, 0.9, 0.8, True, False)
 
 
 def _count(db, pid):
@@ -107,7 +108,7 @@ def test_delete_podcast_removes_history_of_its_patterns_from_other_feeds(db):
     pid = _pattern(db)
     glob = _pattern(db, text='global read', scope='global')
     _audio(db, pid)
-    db.record_fingerprint_match(pid, 'x1', 'other-feed', 1.0, 9.0, 0.9, 0.8, True, False)
+    record_fingerprint_match(db, pid, 'x1', 'other-feed', 1.0, 9.0, 0.9, 0.8, True, False)
     _audio(db, glob, matches=1)
     db.delete_podcast(SLUG)
     assert _count(db, pid) == 0 and _count(db, glob) == 0

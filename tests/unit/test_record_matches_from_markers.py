@@ -5,6 +5,7 @@ import logging
 import pytest
 
 from storage import Storage
+from tests.fingerprint_match_helpers import get_fingerprint_matches
 
 SLUG = 'example-podcast'
 EP = 'a1b2c3d4e5f6'
@@ -28,7 +29,7 @@ def _fp(pid, start=10.0, end=55.0, **extra):
 
 
 def _rows(db, pid):
-    return db.get_fingerprint_matches(pid, 50, 0)
+    return get_fingerprint_matches(db, pid, 50, 0)
 
 
 def test_records_a_top_level_fingerprint_marker(world):

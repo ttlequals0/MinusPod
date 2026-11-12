@@ -1,12 +1,13 @@
 """Deleting a pattern's audio is one transaction."""
 import pytest
+from tests.fingerprint_match_helpers import record_fingerprint_match
 
 
 @pytest.fixture
 def audio_pattern(temp_db):
     pid = temp_db.create_ad_pattern(scope='podcast', podcast_id='show', text_template='acme read ' * 12)
     temp_db.create_audio_fingerprint(pid, b'AQAA', 6.0)
-    temp_db.record_fingerprint_match(pid, 'ep1', 'show', 10.0, 40.0, 0.9, 0.9, True, False)
+    record_fingerprint_match(temp_db, pid, 'ep1', 'show', 10.0, 40.0, 0.9, 0.9, True, False)
     return pid
 
 

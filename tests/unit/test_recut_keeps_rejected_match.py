@@ -11,6 +11,7 @@ from main_app import processing  # noqa: E402
 from main_app.pipeline import recut  # noqa: E402
 from storage import Storage  # noqa: E402
 from tests.unit.pass2_test_utils import _user_corrections  # noqa: E402
+from tests.fingerprint_match_helpers import get_fingerprint_matches
 
 SLUG = 'example-podcast'
 EP = 'a1b2c3d4e5f6'
@@ -40,7 +41,7 @@ def test_a_rejected_match_stays_rejected_through_a_recut(temp_db, monkeypatch):
     stored = [_fingerprint_marker(pid, 30.0, 90.0), _fingerprint_marker(pid, 300.0, 360.0)]
     temp_db.record_fingerprint_matches_from_markers(SLUG, EP, stored)
     assert temp_db.mark_fingerprint_match_rejected(pid, SLUG, EP, 300.0, 360.0)
-    rejected_at = next(r for r in temp_db.get_fingerprint_matches(pid, 10, 0) if r['rejected'])['rejected_at']
+    rejected_at = next(r for r in get_fingerprint_matches(temp_db, pid, 10, 0) if r['rejected'])['rejected_at']
 
     monkeypatch.setattr(processing.db, 'get_episode',
                         lambda s, e: {'ad_markers_json': json.dumps(stored)})
@@ -57,7 +58,7 @@ def test_a_rejected_match_stays_rejected_through_a_recut(temp_db, monkeypatch):
     stor.db = temp_db
     stor.save_combined_ads(SLUG, EP, all_ads)
 
-    rows = sorted(temp_db.get_fingerprint_matches(pid, 10, 0), key=lambda r: r['match_start'])
+    rows = sorted(get_fingerprint_matches(temp_db, pid, 10, 0), key=lambda r: r['match_start'])
     assert [(r['match_start'], r['rejected']) for r in rows] == [(30.0, 0), (300.0, 1)]
     assert rows[1]['rejected_at'] == rejected_at
     marker = next(a for a in all_ads if a['start'] == 300.0)

@@ -10,6 +10,7 @@ import pytest
 import database.fingerprint_matches as fm
 from database import Database
 from utils.markers import parse_ad_markers
+from tests.fingerprint_match_helpers import record_fingerprint_match
 
 GATE = 'backfill_fingerprint_matches_v1'
 SLUG = 'example-podcast'
@@ -227,7 +228,7 @@ def test_two_workers_starting_together_write_one_set(seeded):
 
 def test_episodes_that_already_have_history_are_left_alone(seeded):
     db = seeded['db']
-    db.record_fingerprint_match(seeded['mine'], EP1, SLUG, 7.0, 9.0, 0.5, 0.5, True, False)
+    record_fingerprint_match(db, seeded['mine'], EP1, SLUG, 7.0, 9.0, 0.5, 0.5, True, False)
     rows = _rows(_restart(seeded['path'], db), f"episode_id = '{EP1}'")
     assert [(r['match_start'], r['match_end']) for r in rows] == [(7.0, 9.0)]
 

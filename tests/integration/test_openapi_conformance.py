@@ -13,6 +13,7 @@ from tests.app_bootstrap import authenticate_test_client  # noqa: E402
 from tests.integration.openapi_conformance import (  # noqa: E402
     _spec, assert_response_conforms, response_schema,
 )
+from tests.fingerprint_match_helpers import record_fingerprint_match
 
 SLUG = 'conformance-feed'
 EPISODE_ID = 'a1b2c3d4e5f6'
@@ -44,7 +45,7 @@ def seeded_rows():
             scope='podcast', podcast_id=SLUG, text_template='Acme read for the conformance test ' * 3)
         db.create_audio_fingerprint(_SEEDED['pattern_id'], b'AQAA', 6.0, source_podcast_slug=SLUG,
                                     source_episode_id=EPISODE_ID, source_start=2.0, source_end=8.0)
-        db.record_fingerprint_match(_SEEDED['pattern_id'], EPISODE_ID, SLUG, 10.0, 40.0,
+        record_fingerprint_match(db, _SEEDED['pattern_id'], EPISODE_ID, SLUG, 10.0, 40.0,
                                     0.9, 0.8, True, False)
         db.create_pattern_correction(
             'false_positive', episode_id=EPISODE_ID, podcast_title='Conformance Test Show',
