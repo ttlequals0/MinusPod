@@ -26,10 +26,14 @@ FIRST_READ = TEMPLATE + ' Visit acme.com today.'
 TWO_SPONSORS = FIRST_READ + ' ' + SECOND_TEMPLATE
 
 
-def seed_two_sponsor_transcript(db, first=(10.0, 40.0), second=(40.0, 70.0)):
-    """Store a transcript whose two timed lines are the two sponsor reads."""
+def seed_timed_transcript(db, timed_lines):
+    """Store a transcript from (start, end, text) lines."""
     def stamp(sec):
         return f'{int(sec // 3600):02d}:{int(sec % 3600 // 60):02d}:{sec % 60:06.3f}'
-    lines = [f'[{stamp(first[0])} --> {stamp(first[1])}] {FIRST_READ}',
-             f'[{stamp(second[0])} --> {stamp(second[1])}] {SECOND_TEMPLATE}']
-    db.save_original_transcript(SLUG, EPISODE, '\n'.join(lines))
+    db.save_original_transcript(SLUG, EPISODE, '\n'.join(
+        f'[{stamp(a)} --> {stamp(b)}] {text}' for a, b, text in timed_lines))
+
+
+def seed_two_sponsor_transcript(db, first=(10.0, 40.0), second=(40.0, 70.0)):
+    """Store a transcript whose two timed lines are the two sponsor reads."""
+    seed_timed_transcript(db, [(*first, FIRST_READ), (*second, SECOND_TEMPLATE)])

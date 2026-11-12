@@ -1,6 +1,9 @@
 """Add ad stores a fingerprint of the marked span and reports the outcome."""
+import pytest
+
 from tests.integration.fingerprint_helpers import (  # noqa: E402
-    EPISODE, SLUG, TEMPLATE, TWO_SPONSORS, post_correction, seed_two_sponsor_transcript,
+    EPISODE, FIRST_READ, SECOND_TEMPLATE, SLUG, TEMPLATE, TWO_SPONSORS, post_correction, seed_timed_transcript,
+    seed_two_sponsor_transcript,
 )
 
 
@@ -95,6 +98,25 @@ def test_a_multi_sponsor_template_fingerprints_each_pattern_over_its_own_span(
     assert stub_fingerprinting == [(str(fp_original), 10.0, 30.0), (str(fp_original), 40.0, 30.0)]
 
 
+def test_a_typed_template_that_is_not_in_the_transcript_stores_the_marked_span(
+        app_client, fp_feed, fp_original, stub_fingerprinting):
+    fp_feed.save_original_transcript(SLUG, EPISODE, '[00:00:10.000 --> 00:01:10.000] Something else entirely.')
+    body = _create(app_client).get_json()
+    row = fp_feed.get_audio_fingerprint(body['pattern_id'])
+    assert body['fingerprintStored'] is True
+    assert (row['source_start'], row['source_end']) == (10.0, 40.0)
+
+
+def test_a_split_text_that_yields_one_pattern_stores_the_marked_span(
+        app_client, fp_feed, fp_original, stub_fingerprinting, monkeypatch):
+    monkeypatch.setattr('api.patterns.MAX_PATTERN_CHARS', len(FIRST_READ) + 5)
+    body = _create_two_sponsors(app_client)
+    assert len(body['patternIds']) == 1
+    row = fp_feed.get_audio_fingerprint(body['pattern_id'])
+    assert body['fingerprintStored'] is True
+    assert (row['source_start'], row['source_end']) == (10.0, 70.0)
+
+
 def test_a_split_span_without_a_derivable_range_stores_nothing(
         app_client, fp_feed, fp_original, stub_fingerprinting):
     body = _create_two_sponsors(app_client)
@@ -133,3 +155,34 @@ def test_add_ad_leaves_a_disabled_fingerprint_alone(app_client, fp_feed, fp_orig
     fp_feed.set_fingerprint_enabled(first, False)
     _create_two_sponsors(app_client)
     assert fp_feed.get_audio_fingerprint(first)['enabled'] == 0
+
+
+def _spans(db, body):
+    return [(r['source_start'], r['source_end'])
+            for pid in body['patternIds'] for r in [db.get_audio_fingerprint(pid)]]
+
+
+def test_a_boundary_segment_is_split_between_two_patterns_by_text_offset(
+        app_client, fp_feed, fp_original, stub_fingerprinting):
+    half = len(SECOND_TEMPLATE) // 2
+    cut = SECOND_TEMPLATE.rfind(' ', 0, half)
+    long_segment = FIRST_READ + ' ' + SECOND_TEMPLATE[:cut]
+    seed_timed_transcript(fp_feed, [(10.0, 40.0, long_segment), (40.0, 70.0, SECOND_TEMPLATE[cut + 1:])])
+    (a_start, a_end), (b_start, b_end) = _spans(fp_feed, _create_two_sponsors(app_client))
+    assert a_start == 10.0 and b_end == 70.0
+    assert a_end == pytest.approx(10.0 + 30.0 * len(FIRST_READ) / len(long_segment))
+    assert b_start == pytest.approx(10.0 + 30.0 * (len(FIRST_READ) + 1) / len(long_segment))
+    assert a_end < b_start < 40.0
+
+
+def test_a_boundary_segment_without_timing_goes_whole_to_the_first_pattern(
+        app_client, fp_feed, fp_original, stub_fingerprinting):
+    cut = FIRST_READ.rfind(' ', 0, len(FIRST_READ) - 10)
+    cut2 = SECOND_TEMPLATE.rfind(' ', 0, 40)
+    seed_timed_transcript(fp_feed, [
+        (10.0, 25.0, FIRST_READ[:cut]),
+        (25.0, 25.0, FIRST_READ[cut + 1:] + ' ' + SECOND_TEMPLATE[:cut2]),
+        (40.0, 70.0, SECOND_TEMPLATE[cut2 + 1:])])
+    (a_start, a_end), (b_start, b_end) = _spans(fp_feed, _create_two_sponsors(app_client))
+    assert (a_start, a_end) == (10.0, 25.0)
+    assert (b_start, b_end) == (40.0, 70.0)

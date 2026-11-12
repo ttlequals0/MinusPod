@@ -3432,8 +3432,8 @@ paths:
                     type: string
                     description: Human-readable result, returned by every type
                   pattern_id:
-                    type: integer
-                    description: Pattern created or updated; returned by confirm, adjust, and create
+                    type: [integer, 'null']
+                    description: Pattern created or updated; returned by confirm, adjust, and create. Null when no pattern was created or linked.
                   sponsor:
                     type: string
                     description: Canonical sponsor name; returned by create
@@ -3444,7 +3444,7 @@ paths:
                     description: Patterns created or reused; returned by create and split
                   fingerprintStored:
                     type: boolean
-                    description: Whether an audio fingerprint was stored for at least one pattern. Returned by create, confirm and adjust.
+                    description: Whether an audio fingerprint was stored for at least one pattern. Returned by create, confirm and adjust. Absent when the request created or linked no pattern.
                   fingerprintSkippedReason:
                     $ref: '#/components/schemas/FingerprintSkippedReason'
                   markerCount:
@@ -17214,13 +17214,14 @@ components:
         - fingerprint_failed
       description: >-
         Why no fingerprint was stored. Present only when fingerprintStored is false.
+        Both fields are absent when the request created or linked no pattern.
         When patterns differ, the first reason in this order is reported.
         audio_removed means the pattern's audio was deleted. fingerprint_exists means
         the pattern already has a fingerprint that Add ad and confirm do not replace.
         span_covers_multiple_patterns means the text was split into several patterns and
         this one's own range could not be found. original_not_retained means the episode
         keeps no original. segment_too_short means the span is under the minimum ad length.
-        fingerprint_failed means the audio could not be fingerprinted, or no pattern was created.
+        fingerprint_failed means the audio could not be fingerprinted.
     AdMarker:
       type: object
       properties:

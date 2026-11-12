@@ -16,9 +16,8 @@ def test_any_stored_pattern_means_stored_and_no_reason():
     assert fingerprint_response_fields(outcomes) == {'fingerprintStored': True}
 
 
-def test_no_outcomes_reports_a_failure():
-    assert fingerprint_response_fields([]) == {
-        'fingerprintStored': False, 'fingerprintSkippedReason': 'fingerprint_failed'}
+def test_no_outcomes_omits_both_fields():
+    assert fingerprint_response_fields([]) == {}
 
 
 @pytest.mark.parametrize('present,winner', [

@@ -158,10 +158,10 @@ def _split_confirm(app_client, start=10.0, end=70.0):
         'type': 'confirm', 'original_ad': {'start': start, 'end': end, 'sponsor': 'Acme'}})
 
 
-def _split_adjust(app_client):
+def _split_adjust(app_client, end=70.0):
     return post_correction(app_client, {
         'type': 'adjust', 'original_ad': {'start': 10.0, 'end': 70.0, 'sponsor': 'Acme'},
-        'adjusted_start': 10.0, 'adjusted_end': 70.0})
+        'adjusted_start': 10.0, 'adjusted_end': end})
 
 
 def _own_spans(db, response):
@@ -181,12 +181,15 @@ def test_confirm_of_a_split_span_fingerprints_each_pattern_over_its_own_span(
     assert sorted(spans.values()) == [(10.0, 40.0), (40.0, 70.0)]
 
 
-def test_confirm_that_creates_no_pattern_reports_a_failed_fingerprint(
+def test_confirm_that_creates_no_pattern_omits_the_fingerprint_fields(
         app_client, fp_feed, fp_original, stub_fingerprinting):
     fp_feed.save_original_transcript(SLUG, EPISODE, '[00:00:10.000 --> 00:01:10.000] Something else.')
-    body = _split_confirm(app_client).get_json()
-    assert (body['fingerprintStored'], body['fingerprintSkippedReason']) == (False, 'fingerprint_failed')
+    response = _split_confirm(app_client)
+    body = response.get_json()
+    assert response.status_code == 200
+    assert 'fingerprintStored' not in body and 'fingerprintSkippedReason' not in body
     assert stub_fingerprinting == []
+    assert_response_conforms('post', CORRECTIONS, response)
 
 
 def test_adjust_of_a_split_span_fingerprints_each_pattern_over_its_own_span(
@@ -196,6 +199,42 @@ def test_adjust_of_a_split_span_fingerprints_each_pattern_over_its_own_span(
     body, spans = _own_spans(fp_feed, response)
     assert body['fingerprintStored'] is True
     assert sorted(spans.values()) == [(10.0, 40.0), (40.0, 70.0)]
+
+
+def _split_pair(db, first_response):
+    """(Acme pattern id, Beta Corp pattern id) of the split created by the first response."""
+    body = first_response.get_json()
+    primary = body['pattern_id']
+    other, = [pid for pid in db.get_connection().execute(
+        "SELECT id FROM ad_patterns WHERE created_from_episode_id = ?", (EPISODE,)).fetchall()
+        for pid in [pid['id']] if pid != primary]
+    return primary, other
+
+
+def test_adjust_forces_only_the_marker_pattern_of_a_split(
+        app_client, fp_feed, fp_original, stub_fingerprinting):
+    seed_two_sponsor_transcript(fp_feed)
+    acme, beta = _split_pair(fp_feed, _split_adjust(app_client))
+    before = fp_feed.get_audio_fingerprint(beta)
+    stub_fingerprinting.clear()
+    assert _split_adjust(app_client, end=65.0).status_code == 200
+    assert fp_feed.get_audio_fingerprint(beta) == before
+    assert [call[1] for call in stub_fingerprinting] == [10.0]
+    assert fp_feed.get_audio_fingerprint(acme)['source_end'] == 40.0
+
+
+def test_adjust_leaves_the_deleted_audio_of_another_split_pattern_alone(
+        app_client, fp_feed, fp_original, stub_fingerprinting):
+    seed_two_sponsor_transcript(fp_feed)
+    acme, beta = _split_pair(fp_feed, _split_adjust(app_client))
+    fp_feed.delete_audio_fingerprint(beta)
+    fp_feed.set_pattern_audio_removed(beta, True)
+    fp_feed.set_pattern_audio_removed(acme, True)
+    body = _split_adjust(app_client, end=65.0).get_json()
+    assert body['fingerprintStored'] is True
+    assert fp_feed.get_audio_fingerprint(beta) is None
+    assert fp_feed.get_ad_pattern_by_id(beta)['audio_removed'] == 1
+    assert fp_feed.get_ad_pattern_by_id(acme)['audio_removed'] == 0
 
 
 def test_confirm_reports_the_outcome(app_client, fp_feed, fp_original, fp_pattern, stub_fingerprinting):

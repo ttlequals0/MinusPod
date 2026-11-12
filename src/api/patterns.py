@@ -663,33 +663,55 @@ def _store_pattern_audio(db, slug, episode_id, pattern_id, start, end, *, force=
     return result
 
 
+def _edge_time(spans, words, offsets, i, char_pos, fallback):
+    """Time of char_pos inside segment i by linear interpolation, or fallback when it has no usable timing."""
+    seg = spans[i]
+    if seg['end'] <= seg['start'] or not words[i]:
+        return fallback
+    frac = min(max((char_pos - offsets[i]) / len(words[i]), 0.0), 1.0)
+    return seg['start'] + frac * (seg['end'] - seg['start'])
+
+
 def _own_pattern_spans(db, slug, episode_id, pattern_ids, start, end, text):
     """Each pattern's own (start, end) inside the marked span, None where it cannot be derived."""
-    if not text or len(split_template_text(text)) < 2:
+    if len(pattern_ids) < 2 or not text or len(split_template_text(text)) < 2:
         return {pid: (start, end) for pid in pattern_ids}
     spans = extract_timed_spans_in_range(
         db.get_transcript_for_timestamps(slug, episode_id) or '', start, end)
     words = [' '.join(span['text'].split()) for span in spans]
     joined = ' '.join(words)
     offsets = [sum(len(w) + 1 for w in words[:i]) for i in range(len(words))]
-    own = {}
+    found = {}
     for pid in pattern_ids:
         pattern = db.get_ad_pattern_by_id(pid) or {}
         template = ' '.join((pattern.get('text_template') or '').split())
         lo = joined.find(template) if template else -1
         covered = [] if lo < 0 else [
             i for i, w in enumerate(words) if offsets[i] + len(w) > lo and offsets[i] < lo + len(template)]
-        if not covered:
-            own[pid] = None
-        elif len(covered) == len(spans):
+        if covered:
+            found[pid] = (lo, lo + len(template), covered[0], covered[-1])
+    own = dict.fromkeys(pattern_ids)
+    previous_last = None
+    for pid, (lo, hi, first, last) in sorted(found.items(), key=lambda item: item[1][0]):
+        if lo <= 0 and hi >= len(joined):
             own[pid] = (start, end)
         else:
-            own[pid] = (max(start, spans[covered[0]]['start']), min(end, spans[covered[-1]]['end']))
+            shared = previous_last == first
+            # no usable timing on a shared segment: the first pattern keeps it whole, the next starts after it
+            after = spans[first + 1]['start'] if first + 1 < len(spans) else spans[first]['end']
+            begin_fallback = after if shared else spans[first]['start']
+            begin = spans[first]['start'] if lo <= offsets[first] else _edge_time(
+                spans, words, offsets, first, lo, begin_fallback)
+            finish = spans[last]['end'] if hi >= offsets[last] + len(words[last]) else _edge_time(
+                spans, words, offsets, last, hi, spans[last]['end'])
+            begin, finish = max(start, begin), min(end, finish)
+            own[pid] = (begin, finish) if finish > begin else None
+        previous_last = last
     return own
 
 
-def _store_patterns_audio(db, slug, episode_id, pattern_ids, start, end, *, force=False, text=None):
-    """Fingerprint each pattern over its own span; returns [(pattern_id, FingerprintStoreResult)]."""
+def _store_patterns_audio(db, slug, episode_id, pattern_ids, start, end, *, force_id=None, text=None):
+    """Fingerprint each pattern over its own span, forcing only force_id; returns [(pattern_id, result)]."""
     # text is what the patterns were cut from; a pattern of a split text with no derivable range stores nothing.
     try:
         own = _own_pattern_spans(db, slug, episode_id, pattern_ids, start, end, text)
@@ -701,12 +723,14 @@ def _store_patterns_audio(db, slug, episode_id, pattern_ids, start, end, *, forc
         if own[pid] is None:
             outcomes.append((pid, FingerprintStoreResult(False, 'span_covers_multiple_patterns')))
         else:
-            outcomes.append((pid, _store_pattern_audio(db, slug, episode_id, pid, *own[pid], force=force)))
+            outcomes.append((pid, _store_pattern_audio(db, slug, episode_id, pid, *own[pid], force=pid == force_id)))
     return outcomes
 
 
 def fingerprint_response_fields(outcomes):
-    """fingerprintStored and, when false, the first skipped reason by precedence, from per-pattern outcomes."""
+    """fingerprintStored and, when false, the first skipped reason by precedence; empty when no pattern was involved."""
+    if not outcomes:
+        return {}
     if any(result.stored for _, result in outcomes):
         return {'fingerprintStored': True}
     reasons = {result.skipped_reason for _, result in outcomes}
@@ -1711,9 +1735,10 @@ def _handle_adjust_correction(db, pattern_service, slug, episode_id, original_ad
         )
 
     outcomes = _store_patterns_audio(
-        db, slug, episode_id, pattern_ids, adjusted_start, adjusted_end, force=True, text=resolved_text)
+        db, slug, episode_id, pattern_ids, adjusted_start, adjusted_end,
+        force_id=pattern_id, text=resolved_text)
     for stored_id, result in outcomes:
-        if result.stored:
+        if result.stored and stored_id == pattern_id:
             db.set_pattern_audio_removed(stored_id, False)
 
     # Judge conflicts against the adjusted bounds: they are the span the
