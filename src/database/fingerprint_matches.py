@@ -81,35 +81,34 @@ class FingerprintMatchMixin:
 
     def mark_fingerprint_match_rejected(self, pattern_id: int, podcast_slug: str,
                                         episode_id: str, start: float, end: float) -> bool:
-        """Reject the match with the largest overlap with [start, end]. False if none overlaps."""
-        conn = self.get_connection()
-        row = conn.execute(
-            """SELECT id FROM audio_fingerprint_matches
-               WHERE pattern_id = ? AND podcast_slug = ? AND episode_id = ?
-                 AND MIN(match_end, ?) - MAX(match_start, ?) > 0
-               ORDER BY MIN(match_end, ?) - MAX(match_start, ?) DESC, id DESC
-               LIMIT 1""",
-            (pattern_id, podcast_slug, episode_id, end, start, end, start)
-        ).fetchone()
-        if row is None:
-            return False
-        conn.execute(
-            """UPDATE audio_fingerprint_matches SET rejected = 1,
-                 rejected_at = COALESCE(rejected_at, strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
-               WHERE id = ?""",
-            (row['id'],)
-        )
-        conn.commit()
+        """Reject the match overlapping [start, end] most. True if one overlaps, even if already rejected."""
+        with self.transaction(immediate=True) as conn:
+            row = conn.execute(
+                """SELECT id FROM audio_fingerprint_matches
+                   WHERE pattern_id = ? AND podcast_slug = ? AND episode_id = ?
+                     AND MIN(match_end, ?) - MAX(match_start, ?) > 0
+                   ORDER BY MIN(match_end, ?) - MAX(match_start, ?) DESC, id DESC
+                   LIMIT 1""",
+                (pattern_id, podcast_slug, episode_id, end, start, end, start)
+            ).fetchone()
+            if row is None:
+                return False
+            conn.execute(
+                """UPDATE audio_fingerprint_matches SET rejected = 1,
+                     rejected_at = COALESCE(rejected_at, strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
+                   WHERE id = ?""",
+                (row['id'],)
+            )
         return True
 
     def get_audio_match_summary(self, pattern_id: int) -> dict:
-        """Counts, mean similarity and latest match time over a pattern's match rows."""
+        """Match count and mean similarity skip rejected rows, which are counted apart."""
         conn = self.get_connection()
         row = conn.execute(
-            """SELECT COUNT(*) AS match_count,
+            """SELECT COALESCE(SUM(1 - rejected), 0) AS match_count,
                       COALESCE(SUM(rejected), 0) AS rejected_count,
                       COALESCE(SUM(1 - in_scope), 0) AS out_of_scope_count,
-                      AVG(similarity) AS mean_similarity,
+                      AVG(CASE WHEN rejected = 0 THEN similarity END) AS mean_similarity,
                       MAX(created_at) AS last_matched_at
                FROM audio_fingerprint_matches WHERE pattern_id = ?""",
             (pattern_id,)

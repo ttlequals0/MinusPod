@@ -4423,11 +4423,16 @@ class SchemaMixin:
                conn.execute("PRAGMA foreign_key_list(audio_fingerprints)").fetchall()):
             return
 
+        have = {r['name'] for r in conn.execute("PRAGMA table_info(audio_fingerprints)")}
+        extra = [c for c in ('enabled', 'source_podcast_slug', 'source_episode_id',
+                             'source_start', 'source_end') if c in have]
+        select_cols = ', '.join(f"af.{c}" for c in
+                                ['id', 'pattern_id', 'fingerprint', 'duration', 'created_at', *extra])
         orphans = conn.execute(
-            """SELECT af.id, af.pattern_id, af.fingerprint, af.duration, af.created_at
+            f"""SELECT {select_cols}
                FROM audio_fingerprints af
                LEFT JOIN ad_patterns ap ON af.pattern_id = ap.id
-               WHERE af.pattern_id IS NOT NULL AND ap.id IS NULL"""
+               WHERE af.pattern_id IS NOT NULL AND ap.id IS NULL"""  # noqa: S608
         ).fetchall()
         if orphans:
             conn.execute(
@@ -4436,11 +4441,18 @@ class SchemaMixin:
                        created_at TEXT,
                        archived_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')))"""
             )
+            archived = {r['name'] for r in
+                        conn.execute("PRAGMA table_info(_orphaned_audio_fingerprints)")}
+            types = {'enabled': 'INTEGER', 'source_podcast_slug': 'TEXT',
+                     'source_episode_id': 'TEXT', 'source_start': 'REAL', 'source_end': 'REAL'}
+            for col in extra:
+                self._add_column_if_missing(conn, '_orphaned_audio_fingerprints', col,
+                                            types[col], archived)
+            cols = ['id', 'pattern_id', 'fingerprint', 'duration', 'created_at', *extra]
             conn.executemany(
-                "INSERT INTO _orphaned_audio_fingerprints "
-                "(id, pattern_id, fingerprint, duration, created_at) VALUES (?, ?, ?, ?, ?)",
-                [(r['id'], r['pattern_id'], r['fingerprint'], r['duration'],
-                  r['created_at']) for r in orphans]
+                f"INSERT INTO _orphaned_audio_fingerprints ({', '.join(cols)}) "  # noqa: S608
+                f"VALUES ({', '.join('?' * len(cols))})",
+                [tuple(r[c] for c in cols) for r in orphans]
             )
             conn.execute(
                 "DELETE FROM audio_fingerprints WHERE id IN "  # noqa: S608

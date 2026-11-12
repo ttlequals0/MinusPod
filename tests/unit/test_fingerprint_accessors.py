@@ -100,3 +100,12 @@ def test_audio_removed_flag(temp_db, pattern):
     assert temp_db.get_ad_pattern_by_id(pattern)['audio_removed'] == 1
     temp_db.set_pattern_audio_removed(pattern, False)
     assert temp_db.get_ad_pattern_by_id(pattern)['audio_removed'] == 0
+
+
+@pytest.mark.parametrize('raw', ['null', '"tag"', '{"a": 1}', '5', 'not json'])
+def test_scope_query_sponsor_tags_is_always_a_list(temp_db, pattern, raw):
+    temp_db.create_audio_fingerprint(pattern, b'AQAA', 12.0)
+    conn = temp_db.get_connection()
+    conn.execute("UPDATE known_sponsors SET tags = ?", (raw,))
+    conn.commit()
+    assert temp_db.get_active_fingerprints_with_scope()[0]['sponsor_tags'] == []

@@ -612,6 +612,8 @@ class PodcastMixin:
         conn.execute(
             "DELETE FROM addressing_log WHERE podcast_slug = ?", (slug,))
         conn.execute(
+            "DELETE FROM audio_fingerprint_matches WHERE podcast_slug = ?", (slug,))
+        conn.execute(
             "UPDATE pattern_cleanup_checks SET podcast_slug = NULL WHERE podcast_slug = ?",
             (slug,))
         conn.execute(

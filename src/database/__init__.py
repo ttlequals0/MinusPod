@@ -480,8 +480,8 @@ Return one JSON object:
 
 class Database(SchemaMixin, PodcastMixin, EpisodeMixin, SettingsMixin,
                PatternMixin, SponsorMixin, StatsMixin, MaintenanceMixin,
-               FingerprintMixin, FingerprintMatchMixin, CueTemplateMixin, CueDetectionMixin,
-               QueueMixin, SearchMixin, AuthLockoutMixin, PodpingHostMixin,
+               FingerprintMixin, FingerprintMatchMixin, CueTemplateMixin,
+               CueDetectionMixin, QueueMixin, SearchMixin, AuthLockoutMixin, PodpingHostMixin,
                FeedSubscriberMixin, ProviderAdmissionMixin,
                UploadReservationMixin, FailoverEventsMixin, PatternCleanupMixin,
                DownloadHistoryMixin, YouTubeMixin):

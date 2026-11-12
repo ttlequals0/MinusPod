@@ -28,6 +28,33 @@ def test_record_paginate_and_summary(temp_db, pattern):
     assert summary['last_matched_at']
 
 
+def test_pages_are_disjoint_and_complete(temp_db, pattern):
+    made = {_record(temp_db, pattern, f'ep{i}') for i in range(25)}
+    seen = []
+    for offset in (0, 10, 20):
+        seen += [m['id'] for m in temp_db.get_fingerprint_matches(pattern, 10, offset)]
+    assert len(seen) == len(set(seen)) == 25 and set(seen) == made
+
+
+def test_summary_excludes_rejected_rows_from_count_and_mean(temp_db, pattern):
+    _record(temp_db, pattern, 'a', start=10, end=50, similarity=0.9)
+    _record(temp_db, pattern, 'b', start=10, end=50, similarity=0.5)
+    _record(temp_db, pattern, 'c', start=10, end=50, similarity=0.7, in_scope=False)
+    assert temp_db.mark_fingerprint_match_rejected(pattern, 'show', 'b', 10, 50)
+    summary = temp_db.get_audio_match_summary(pattern)
+    assert summary['match_count'] == 2 and summary['rejected_count'] == 1
+    assert summary['out_of_scope_count'] == 1
+    assert abs(summary['mean_similarity'] - 0.8) < 1e-9
+
+
+def test_summary_with_only_rejected_rows(temp_db, pattern):
+    _record(temp_db, pattern, 'a', start=10, end=50)
+    temp_db.mark_fingerprint_match_rejected(pattern, 'show', 'a', 10, 50)
+    summary = temp_db.get_audio_match_summary(pattern)
+    assert summary['match_count'] == 0 and summary['rejected_count'] == 1
+    assert summary['mean_similarity'] is None
+
+
 def test_summary_of_a_pattern_with_no_matches(temp_db, pattern):
     assert temp_db.get_audio_match_summary(pattern) == {
         'match_count': 0, 'rejected_count': 0, 'out_of_scope_count': 0,
@@ -35,6 +62,7 @@ def test_summary_of_a_pattern_with_no_matches(temp_db, pattern):
 
 
 def test_newest_first(temp_db, pattern):
+    # created_at has one-second resolution, so same-second rows order by id
     first = _record(temp_db, pattern, 'a')
     second = _record(temp_db, pattern, 'b')
     ids = [m['id'] for m in temp_db.get_fingerprint_matches(pattern, 10, 0)]
@@ -111,6 +139,33 @@ def test_mark_rejected_largest_overlap_wins(temp_db, pattern):
     assert temp_db.get_fingerprint_match(small)['rejected'] == 0
 
 
+def test_mark_rejected_tie_goes_to_the_newest_row(temp_db, pattern):
+    older = _record(temp_db, pattern, 'epY', start=100, end=140)
+    newer = _record(temp_db, pattern, 'epY', start=100, end=140)
+    assert temp_db.mark_fingerprint_match_rejected(pattern, 'show', 'epY', 100, 140)
+    assert temp_db.get_fingerprint_match(newer)['rejected'] == 1
+    assert temp_db.get_fingerprint_match(older)['rejected'] == 0
+
+
+def test_mark_rejected_again_is_true_and_keeps_rejected_at(temp_db, pattern):
+    mid = _record(temp_db, pattern, 'epY', start=100, end=140)
+    assert temp_db.mark_fingerprint_match_rejected(pattern, 'show', 'epY', 100, 140)
+    conn = temp_db.get_connection()
+    conn.execute("UPDATE audio_fingerprint_matches SET rejected_at = '2020-01-01T00:00:00Z' "
+                 "WHERE id = ?", (mid,))
+    conn.commit()
+    assert temp_db.mark_fingerprint_match_rejected(pattern, 'show', 'epY', 100, 140) is True
+    row = temp_db.get_fingerprint_match(mid)
+    assert row['rejected'] == 1 and row['rejected_at'] == '2020-01-01T00:00:00Z'
+
+
+def test_mark_rejected_touching_edges_is_not_an_overlap(temp_db, pattern):
+    mid = _record(temp_db, pattern, 'epY', start=100, end=140)
+    assert temp_db.mark_fingerprint_match_rejected(pattern, 'show', 'epY', 140, 180) is False
+    assert temp_db.mark_fingerprint_match_rejected(pattern, 'show', 'epY', 60, 100) is False
+    assert temp_db.get_fingerprint_match(mid)['rejected'] == 0
+
+
 def test_mark_rejected_without_overlap_changes_nothing(temp_db, pattern):
     mid = _record(temp_db, pattern, 'epY', start=100, end=140)
     assert temp_db.mark_fingerprint_match_rejected(pattern, 'show', 'epY', 200, 240) is False
@@ -131,7 +186,15 @@ def test_mark_rejected_counts_in_summary(temp_db, pattern):
 
 def test_deleting_a_pattern_removes_its_matches(temp_db, pattern):
     _record(temp_db, pattern)
-    conn = temp_db.get_connection()
-    conn.execute("DELETE FROM ad_patterns WHERE id = ?", (pattern,))
-    conn.commit()
+    temp_db.delete_ad_pattern(pattern)
     assert temp_db.count_fingerprint_matches(pattern) == 0
+
+
+def test_deleting_a_feed_removes_its_match_history(temp_db):
+    temp_db.create_podcast('show', 'https://example.com/feed.xml', 'Show')
+    shared = temp_db.create_ad_pattern(scope='global', text_template='acme read ' * 12)
+    _record(temp_db, shared, 'epA', slug='show')
+    _record(temp_db, shared, 'epB', slug='other')
+    assert temp_db.delete_podcast('show')
+    rows = temp_db.get_fingerprint_matches(shared, 10, 0)
+    assert [r['podcast_slug'] for r in rows] == ['other']

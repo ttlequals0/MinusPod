@@ -92,9 +92,10 @@ class FingerprintMixin:
         for row in cursor.fetchall():
             item = dict(row)
             try:
-                item['sponsor_tags'] = json.loads(item['sponsor_tags'] or '[]')
+                tags = json.loads(item['sponsor_tags'] or '[]')
             except (TypeError, ValueError):
-                item['sponsor_tags'] = []
+                tags = []
+            item['sponsor_tags'] = tags if isinstance(tags, list) else []
             rows.append(_row_with_category(item))
         return rows
 

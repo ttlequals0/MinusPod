@@ -38,10 +38,18 @@ def _shape(conn):
     for table in ('audio_fingerprints', 'audio_fingerprint_matches', 'ad_patterns'):
         tables[table] = [tuple(r) for r in conn.execute(f"PRAGMA table_info({table})")]
     indexes = sorted(
-        (r['name'], r['tbl_name']) for r in conn.execute(
+        (r['name'], r['tbl_name'],
+         tuple(c['name'] for c in conn.execute(f"PRAGMA index_info({r['name']})")))
+        for r in conn.execute(
             "SELECT name, tbl_name FROM sqlite_master WHERE type = 'index' "
             "AND name NOT LIKE 'sqlite_%'"))
-    return tables, indexes
+    fks = {t: sorted(tuple(r)[2:] for r in conn.execute(f"PRAGMA foreign_key_list({t})"))
+           for t in tables}
+    uniques = {t: sorted(
+        (r['name'], tuple(c['name'] for c in conn.execute(f"PRAGMA index_info({r['name']})")))
+        for r in conn.execute(f"PRAGMA index_list({t})") if r['unique'])
+        for t in tables}
+    return tables, indexes, fks, uniques
 
 
 def _downgrade(conn):
@@ -150,7 +158,8 @@ def test_cascade_rebuild_carries_audio_columns(db_path):
 
 
 def test_foreign_keys_on_and_pattern_delete_cascades_matches(db_path):
-    conn = _open(db_path).get_connection()
+    db = _open(db_path)
+    conn = db.get_connection()
     assert conn.execute("PRAGMA foreign_keys").fetchone()[0] == 1
     pid = _add_pattern(conn)
     conn.execute(
@@ -158,7 +167,52 @@ def test_foreign_keys_on_and_pattern_delete_cascades_matches(db_path):
         "(pattern_id, episode_id, podcast_slug, match_start, match_end) "
         "VALUES (?, 'ep1', 'show', 1.0, 2.0)", (pid,))
     conn.commit()
-    conn.execute("DELETE FROM ad_patterns WHERE id = ?", (pid,))
-    conn.commit()
+    db.delete_ad_pattern(pid)
     assert conn.execute(
         "SELECT COUNT(*) FROM audio_fingerprint_matches").fetchone()[0] == 0
+
+
+def test_cascade_rebuild_archives_orphans_with_audio_columns(db_path):
+    db = _open(db_path)
+    conn = db.get_connection()
+    pid = _add_pattern(conn)
+    conn.execute("PRAGMA foreign_keys = OFF")
+    conn.execute("DROP TABLE audio_fingerprints")
+    conn.execute("""CREATE TABLE audio_fingerprints (
+        id INTEGER PRIMARY KEY AUTOINCREMENT, pattern_id INTEGER UNIQUE,
+        fingerprint BLOB, duration REAL,
+        created_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
+        enabled INTEGER NOT NULL DEFAULT 1, source_podcast_slug TEXT,
+        source_episode_id TEXT, source_start REAL, source_end REAL)""")
+    conn.execute(
+        "INSERT INTO audio_fingerprints (pattern_id, fingerprint, duration, enabled, "
+        "source_podcast_slug, source_episode_id, source_start, source_end) "
+        "VALUES (?, ?, 9.0, 0, 'show', 'ep1', 3.5, 12.5)", (pid + 500, b'orphan'))
+    conn.commit()
+    conn.execute("PRAGMA foreign_keys = ON")
+
+    db._migrate_fingerprint_cascade(conn)
+
+    row = conn.execute("SELECT * FROM _orphaned_audio_fingerprints").fetchone()
+    assert (row['pattern_id'], row['fingerprint'], row['enabled'], row['source_podcast_slug'],
+            row['source_episode_id'], row['source_start'], row['source_end']) == \
+        (pid + 500, b'orphan', 0, 'show', 'ep1', 3.5, 12.5)
+    assert conn.execute("SELECT COUNT(*) FROM audio_fingerprints").fetchone()[0] == 0
+
+
+def test_cascade_rebuild_archives_orphans_of_the_old_shape(db_path):
+    db = _open(db_path)
+    conn = db.get_connection()
+    conn.execute("PRAGMA foreign_keys = OFF")
+    conn.execute("DROP TABLE audio_fingerprints")
+    conn.execute(OLD_AUDIO_FINGERPRINTS_DDL.replace("REFERENCES ad_patterns(id) ON DELETE CASCADE", ""))
+    conn.execute("INSERT INTO audio_fingerprints (pattern_id, fingerprint, duration) "
+                 "VALUES (999, ?, 9.0)", (b'orphan',))
+    conn.commit()
+    conn.execute("PRAGMA foreign_keys = ON")
+
+    db._migrate_fingerprint_cascade(conn)
+
+    row = conn.execute("SELECT * FROM _orphaned_audio_fingerprints").fetchone()
+    assert row['pattern_id'] == 999 and row['fingerprint'] == b'orphan'
+    assert 'enabled' not in row.keys()
