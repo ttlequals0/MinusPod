@@ -8,7 +8,8 @@ import pytest
 import audio_fingerprinter as af
 from audio_fingerprinter import AudioFingerprint, AudioFingerprinter, FingerprintMatch
 from config import (
-    FINGERPRINT_MATCH_STRICTNESS, FINGERPRINT_MIN_COVERAGE, FINGERPRINT_TIMEOUT_FACTOR, FPCALC_TIMEOUT_FULL,
+    FINGERPRINT_MATCH_STRICTNESS, FINGERPRINT_MIN_COVERAGE, FINGERPRINT_SETTING_RANGES, FINGERPRINT_TIMEOUT_FACTOR,
+    FPCALC_TIMEOUT_FULL,
 )
 from ad_detector import AdDetector
 
@@ -167,16 +168,17 @@ def test_whole_file_failure_falls_back_to_per_window_scan(world, monkeypatch):
     assert all(m.similarity == m.confidence == 0.9 and m.coverage == 1.0 for m in out)
 
 
-def test_fallback_never_accepts_a_window_below_its_floor(world, monkeypatch):
+def test_fallback_never_accepts_a_window_below_the_strictness_floor(world, monkeypatch):
     fp = world.fp
+    world.db.set_setting('fingerprint_match_strictness', '0.5')
     monkeypatch.setattr(fp, '_generate_full_fingerprint', lambda *a, **k: None)
     monkeypatch.setattr(fp, '_get_audio_duration', lambda p: 40.0)
-    monkeypatch.setattr(fp, '_matching_settings', lambda: (0.5, 0.5, 3.5))
     monkeypatch.setattr(fp, 'generate_fingerprint',
                         lambda path, start, duration: AudioFingerprint('win', duration))
     monkeypatch.setattr(fp, 'compare_fingerprints', lambda chunk, known: 0.6)
     assert fp.find_matches('x.mp3', podcast_id='showA') == []
-    monkeypatch.setattr(fp, 'compare_fingerprints', lambda chunk, known: af.FALLBACK_MIN_SIMILARITY)
+    floor = FINGERPRINT_SETTING_RANGES['fingerprint_match_strictness'][1]
+    monkeypatch.setattr(fp, 'compare_fingerprints', lambda chunk, known: floor)
     assert fp.find_matches('x.mp3', podcast_id='showA')
 
 

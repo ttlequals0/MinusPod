@@ -13,7 +13,7 @@ import subprocess
 import tempfile
 import threading
 import time
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 import json
 
 import numpy as np
@@ -115,8 +115,6 @@ SLIDING_STEP_SIZE = 2.0
 
 # Per-window fallback cap: enough to get past a single bad frame, far below the full scan budget
 FALLBACK_SLOW_TIMEOUT = 90
-# Unrelated real audio averages about 0.52 whole-window similarity, so the fallback never goes below this
-FALLBACK_MIN_SIMILARITY = 0.65
 
 # 256-entry table for vectorized population count over uint32 numpy arrays.
 _POPCOUNT8 = np.array([bin(i).count('1') for i in range(256)], dtype=np.uint16)
@@ -638,7 +636,7 @@ def _edge_run(hits, c, mask, window, island_gap, far_islands=False):
 
 @dataclass
 class _Alignment:
-    """Per-point comparison of a pattern at one alignment and the runs counted there."""
+    """Per-point comparison of a pattern at one alignment and the run counted there."""
     ep_base: int
     diff: np.ndarray
     informative: np.ndarray
@@ -646,37 +644,33 @@ class _Alignment:
     good: np.ndarray
     tight: np.ndarray
     edge_bits: float
-    runs: list
+    run: tuple
     span: tuple = (0, 0)
 
 
-def _tight_span(al, runs, window):
-    """(lo, hi) of runs with both outer edges built on the edge threshold."""
+def _tight_span(al, run, window):
+    """(lo, hi) of run with both edges built on the edge threshold."""
     hits, c = _solid_points(al.tight, window)
-    first, last = runs[0], runs[-1]
-    head = _edge_run(hits[(hits >= first[0]) & (hits < first[1])], c, al.tight, window, window // 2, True)
-    tail = head if last is first else _edge_run(
-        hits[(hits >= last[0]) & (hits < last[1])], c, al.tight, window, window // 2, True)
-    return (head or first)[0], (tail or last)[1]
+    edges = _edge_run(hits[(hits >= run[0]) & (hits < run[1])], c, al.tight, window, window // 2, True)
+    return edges or run
 
 
-def _similarity(al, runs):
-    """Mean bit similarity over the informative points of runs."""
-    diffs = np.concatenate([al.diff[lo:hi][al.informative[lo:hi]] for lo, hi in runs])
+def _similarity(al, run):
+    """Mean bit similarity over the informative points of run."""
+    diffs = al.diff[run[0]:run[1]][al.informative[run[0]:run[1]]]
     return 1.0 - float(diffs.mean()) / 32.0 if len(diffs) else 0.0
 
 
-def _weighted(al, runs, bits):
-    """Novelty-weighted points of runs within bits."""
-    return sum(float(al.novelty[lo:hi][(al.diff[lo:hi] <= bits) & al.informative[lo:hi]].sum())
-               for lo, hi in runs)
+def _weighted(al, run, bits):
+    """Novelty-weighted points of run within bits."""
+    lo, hi = run
+    return float(al.novelty[lo:hi][(al.diff[lo:hi] <= bits) & al.informative[lo:hi]].sum())
 
 
-def _tally(al, runs):
-    """(good points in the span, similarity, evidence, evidence within the edge floor) over runs."""
-    n_good = int(al.good[runs[0][0]:runs[-1][1]].sum())
-    return (n_good, _similarity(al, runs), _weighted(al, runs, FINGERPRINT_GOOD_BITS),
-            _weighted(al, runs, FINGERPRINT_EDGE_BITS))
+def _tally(al, run):
+    """(good points, similarity, evidence, evidence within the edge floor) over run."""
+    return (int(al.good[run[0]:run[1]].sum()), _similarity(al, run),
+            _weighted(al, run, FINGERPRINT_GOOD_BITS), _weighted(al, run, FINGERPRINT_EDGE_BITS))
 
 
 def _supported_points(good, inf, span):
@@ -694,8 +688,8 @@ def _split_at_gaps(hits, inf_c, gap_points):
     return np.split(hits, np.flatnonzero(inf_c[hits[1:]] - inf_c[hits[:-1] + 1] > gap_points) + 1)
 
 
-def _measure_alignment(ep_arr, pat_arr, informative, novelty, d, strictness, gap_points, window):
-    """Sustained runs of the pattern at alignment d, one _Alignment per run; empty when none."""
+def _measure_alignment(ep_arr, pat_arr, informative, novelty, d, gap_points, window):
+    """Sustained runs of the pattern at alignment d, one _Alignment per piece; empty when none."""
     ep_base, pat_base = (d, 0) if d >= 0 else (0, -d)
     overlap = min(len(pat_arr) - pat_base, len(ep_arr) - ep_base)
     if overlap <= 0:
@@ -711,19 +705,6 @@ def _measure_alignment(ep_arr, pat_arr, informative, novelty, d, strictness, gap
     inf_c = np.concatenate(([0], np.cumsum(inf)))
     runs = [r for r in (_edge_run(h, c, good, window, window)
                         for h in _split_at_gaps(hits, inf_c, gap_points)) if r]
-    if not runs:
-        return []
-    al = _Alignment(ep_base, diff, inf, novelty[pat_base:pat_base + overlap], good, good, 0.0, [])
-
-    def rank(run):
-        sim = _similarity(al, [run])
-        return sim >= strictness, int(good[run[0]:run[1]].sum()), sim
-
-    primary = max(runs, key=rank)
-    interior = diff[primary[0]:primary[1]][good[primary[0]:primary[1]]]
-    al.edge_bits = float(min(FINGERPRINT_GOOD_BITS, max(
-        FINGERPRINT_EDGE_BITS, np.median(interior) + FINGERPRINT_EDGE_MARGIN_BITS)))
-    al.tight = (diff <= al.edge_bits) & inf
     # Chance clusters can bridge unrelated audio inside a run, so it is split again where supported
     # agreement stops for longer than the gap tolerance; each piece is gated alone
     supported = _supported_points(good, inf, FINGERPRINT_SUPPORT_WINDOWS * window)
@@ -733,13 +714,22 @@ def _measure_alignment(ep_arr, pat_arr, informative, novelty, d, strictness, gap
         starts = [lo] + [int(g[0]) for g in groups[1:]]
         ends = [int(g[-1]) + 1 for g in groups[:-1]] + [hi]
         pieces += [p for p in (_trim_run(good, a, b, window) for a, b in zip(starts, ends, strict=True)) if p]
-    return [replace(al, runs=[p], span=_tight_span(al, [p], window)) for p in pieces]
+    out = []
+    for lo, hi in pieces:
+        interior = diff[lo:hi][good[lo:hi]]
+        edge_bits = float(min(FINGERPRINT_GOOD_BITS, max(
+            FINGERPRINT_EDGE_BITS, np.median(interior) + FINGERPRINT_EDGE_MARGIN_BITS)))
+        al = _Alignment(ep_base, diff, inf, novelty[pat_base:pat_base + overlap], good,
+                        (diff <= edge_bits) & inf, edge_bits, (lo, hi))
+        al.span = _tight_span(al, al.run, window)
+        out.append(al)
+    return out
 
 
 def _agreement(al):
-    """Closeness of the counted runs: bits to spare under the good threshold, summed."""
-    return sum(float((FINGERPRINT_GOOD_BITS + 1 - al.diff[lo:hi])[al.good[lo:hi]].sum())
-               for lo, hi in al.runs)
+    """Closeness of the counted run: bits to spare under the good threshold, summed."""
+    lo, hi = al.run
+    return float((FINGERPRINT_GOOD_BITS + 1 - al.diff[lo:hi])[al.good[lo:hi]].sum())
 
 
 def _closest_alignments(alignments, window):
@@ -776,23 +766,14 @@ class _Candidate:
     pat_len: int
 
 
-def _clipped_runs(al, accepted):
-    """The runs of al inside its span and outside accepted episode spans, on one side of them, trimmed again."""
-    pieces = []
-    for lo, hi in al.runs:
-        parts = [p for p in [(max(lo, al.span[0]), min(hi, al.span[1]))] if p[1] > p[0]]
-        for a_lo, a_hi in accepted:
-            a_lo, a_hi = a_lo - al.ep_base, a_hi - al.ep_base
-            parts = [p for x, y in parts for p in ((x, min(y, a_lo)), (max(x, a_hi), y)) if p[1] > p[0]]
-        pieces += [t for t in (_trim_run(al.good, x, y, 1) for x, y in parts) if t]
-    if not pieces:
-        return []
-    # Keep the side of the accepted spans that holds the most good points
-    sides = {}
-    for lo, hi in pieces:
-        key = sum(a_hi - al.ep_base <= lo for _a_lo, a_hi in accepted)
-        sides.setdefault(key, []).append((lo, hi))
-    return max(sides.values(), key=lambda runs: sum(int(al.good[x:y].sum()) for x, y in runs))
+def _clipped_run(al, accepted):
+    """The part of al's span outside accepted episode spans with the most good points, trimmed again."""
+    parts = [p for p in [al.span] if p[1] > p[0]]
+    for a_lo, a_hi in accepted:
+        a_lo, a_hi = a_lo - al.ep_base, a_hi - al.ep_base
+        parts = [p for x, y in parts for p in ((x, min(y, a_lo)), (max(x, a_hi), y)) if p[1] > p[0]]
+    parts = [t for t in (_trim_run(al.good, x, y, 1) for x, y in parts) if t]
+    return max(parts, key=lambda p: int(al.good[p[0]:p[1]].sum()), default=None)
 
 
 def _resolve_overlaps(candidates, fps, window, min_points):
@@ -804,14 +785,14 @@ def _resolve_overlaps(candidates, fps, window, min_points):
         al, m = cand.alignment, cand.match
         lo, hi = al.ep_base + al.span[0], al.ep_base + al.span[1]
         if any(lo < a_hi and hi > a_lo for a_lo, a_hi in spans):
-            runs = _clipped_runs(al, spans)
-            if not runs:
+            run = _clipped_run(al, spans)
+            if run is None:
                 continue
             # The whole match already passed every gate, so its remainder needs only the length of an ad
-            span = _tight_span(al, runs, window)
+            span = _tight_span(al, run, window)
             if span[1] - span[0] < min_points - 1e-9:
                 continue
-            n_good, similarity = int(al.good[runs[0][0]:runs[-1][1]].sum()), _similarity(al, runs)
+            n_good, similarity = int(al.good[run[0]:run[1]].sum()), _similarity(al, run)
             lo, hi = al.ep_base + span[0], al.ep_base + span[1]
             m = FingerprintMatch(pattern_id=m.pattern_id, start=lo / fps, end=hi / fps,
                                  confidence=similarity, sponsor=m.sponsor, category=m.category,
@@ -859,9 +840,9 @@ def _scan_fingerprints(ep_ints, ep_duration, patterns, *, strictness, min_covera
         for d in near.tolist():
             measured += 1
             alignments += [(d, al) for al in _measure_alignment(
-                ep_arr, pat_arr, informative, novelty, d, strictness, gap_points, window)]
+                ep_arr, pat_arr, informative, novelty, d, gap_points, window)]
         for al in _closest_alignments(alignments, window):
-            tally = _tally(al, al.runs)
+            tally = _tally(al, al.run)
             if _rejecting_gate(tally, len(pat_arr), needed, fps, strictness, min_coverage):
                 continue
             n_good, similarity = tally[:2]
@@ -978,10 +959,10 @@ def explain_match(ep_ints, ep_duration, pattern, *, strictness, min_coverage, ga
     out['candidates'] = found
     gap_points = int(round(gap_tolerance_s * fps))
     measured = [(d, al) for d in offsets.tolist() for al in _measure_alignment(
-        ep_arr, pat_arr, informative, novelty, d, strictness, gap_points, window)]
+        ep_arr, pat_arr, informative, novelty, d, gap_points, window)]
     best = None
     for al in _closest_alignments(measured, window):
-        tally = _tally(al, al.runs)
+        tally = _tally(al, al.run)
         n_good, similarity, evidence, close = tally
         gate = _rejecting_gate(tally, len(pat_arr), needed, fps, strictness, min_coverage)
         rank = (gate is None, n_good, similarity)
@@ -1008,7 +989,6 @@ def explain_match(ep_ints, ep_duration, pattern, *, strictness, min_coverage, ga
         'evidence_s': evidence / fps, 'evidence_needed_s': needed / fps,
         'close_evidence_s': close / fps,
         'close_evidence_needed_s': FINGERPRINT_CLOSE_EVIDENCE_S,
-        'runs_counted': len(al.runs),
         'rejected_by': gate, 'matched': gate is None,
     })
     return out
@@ -1719,7 +1699,8 @@ class AudioFingerprinter:
 
         # Per-window fallback under its own short cap: the same fpcalc rarely decodes these windows either.
         slow_timeout = min(timeout, FALLBACK_SLOW_TIMEOUT)
-        threshold = max(self._matching_settings()[0], FALLBACK_MIN_SIMILARITY)
+        # Strictness is clamped to its range, whose floor sits above unrelated audio's 0.52 average
+        threshold = self._matching_settings()[0]
         windows = 0
         scan_start_time = time.time()
         last_log_time = scan_start_time

@@ -156,9 +156,8 @@ def test_a_kept_remainder_stays_inside_the_clipped_match():
     n = 300
     good = np.ones(n, dtype=bool)
     al = af._Alignment(1000, np.zeros(n, dtype=np.int64), good, np.ones(n), good, good, 8.0,
-                       [(0, n)], span=(50, 200))
-    runs = af._clipped_runs(al, [(1000, 1120)])
-    assert runs and all(50 <= lo < hi <= 200 for lo, hi in runs)
+                       (0, n), span=(50, 200))
+    assert af._clipped_run(al, [(1000, 1120)]) == (120, 200)
 
 
 @pytest.mark.parametrize('seconds', [3, 4, 5])
@@ -249,6 +248,17 @@ def test_a_gap_longer_than_the_tolerance_splits_the_match():
         assert _run(ep, [(1, pat, 30.0, None, None)]) == []
         r = _run(ep, [(1, pat, 30.0, None, None)], min_coverage=0.4)
         assert [(round(m.start * 4) / 4, round(m.end * 4) / 4) for m in r] == [(125.0, 137.5), (142.5, 155.0)]
+
+
+def test_each_piece_of_a_split_match_sets_its_own_edge_threshold():
+    rng = np.random.default_rng(22)
+    for _ in range(10):
+        ep = _ints(rng, 4800)
+        pat = _ints(rng, 480)
+        _plant(rng, ep, pat[:240], 1000, 0.02)
+        _plant(rng, ep, pat[288:], 1288, 0.25)
+        r = _run(ep, [(1, pat, 60.0, None, None)], min_coverage=0.3)
+        assert any(abs(m.start - 161.0) <= 0.5 and abs(m.end - 185.0) <= 0.5 for m in r)
 
 
 def test_a_dropout_within_the_tolerance_is_bridged():
@@ -351,7 +361,7 @@ def test_explain_reports_a_match():
     assert abs(e['start'] - 125.0) <= 0.25 and abs(e['end'] - 155.0) <= 0.25
     assert e['coverage'] >= 0.95 and e['evidence_s'] >= e['evidence_needed_s']
     assert e['diff_p50'] <= e['diff_p90'] and e['good_share'] >= e['edge_good_share']
-    assert e['runs_counted'] == 1 and e['degraded_stretches'] == 0
+    assert 'runs_counted' not in e and e['degraded_stretches'] == 0
 
 
 def test_explain_counts_degraded_stretches_inside_the_match_only():
