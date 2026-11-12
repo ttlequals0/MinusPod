@@ -28,6 +28,14 @@ def test_padded_ids_are_trimmed_and_blank_ones_cleared(temp_db):
         'net1', None, 'net2', 'net3', None]
 
 
+def test_unicode_whitespace_is_stripped_like_python(temp_db):
+    nbsp, wide, plain = (
+        _pattern(temp_db, '\u00a0net1\u00a0'), _pattern(temp_db, '\u3000\u2003'), _pattern(temp_db, 'a\u00a0b'))
+    _reset_gate(temp_db)
+    temp_db._run_trim_pattern_network_ids(temp_db.get_connection())
+    assert [_network(temp_db, p) for p in (nbsp, wide, plain)] == ['net1', None, 'a\u00a0b']
+
+
 def test_other_columns_are_untouched(temp_db):
     pid = _pattern(temp_db, ' net1 ')
     before = dict(temp_db.get_ad_pattern_by_id(pid))

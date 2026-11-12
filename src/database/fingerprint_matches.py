@@ -312,6 +312,16 @@ class FingerprintMatchMixin:
         """Clear the rejection of the rejected match overlapping [start, end] most. True if one was cleared."""
         return self._set_match_rejected(False, pattern_id, podcast_slug, episode_id, start, end)
 
+    def unreject_fingerprint_matches_in_span(self, podcast_slug: str, episode_id: str,
+                                             start: float, end: float) -> int:
+        """Clear the rejection of every rejected match of any pattern that mostly overlaps [start, end]."""
+        with self.transaction(immediate=True) as conn:
+            return conn.execute(
+                f"""UPDATE audio_fingerprint_matches SET rejected = 0, rejected_at = NULL
+                    WHERE podcast_slug = :slug AND episode_id = :ep AND rejected = 1
+                      AND {_MOSTLY_OVERLAPS_SQL}""",  # noqa: S608
+                {'slug': podcast_slug, 'ep': episode_id, 'start': start, 'end': end}).rowcount
+
     def get_audio_summaries(self, pattern_ids: list[int] | None = None) -> dict[int, dict]:
         """Per-pattern {state, available, matchCount, meanSimilarity}, all patterns when ids is None."""
         if pattern_ids is None:

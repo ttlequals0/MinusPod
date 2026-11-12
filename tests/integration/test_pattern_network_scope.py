@@ -99,6 +99,12 @@ def test_put_network_scope_rejects_a_network_over_100_characters(app_client, fp_
     assert _put(app_client, fp_pattern, {'scope': 'network', 'networkId': ' ' + 'n' * 100 + ' '}).status_code == 200
 
 
+def test_put_network_limit_applies_after_trimming_unicode_whitespace(app_client, fp_feed, fp_pattern):
+    assert _put(app_client, fp_pattern, {'scope': 'network', 'networkId': '\u00a0' + 'n' * 101}).status_code == 400
+    assert _put(app_client, fp_pattern, {'scope': 'network', 'networkId': '\u00a0' + 'n' * 100 + '\u00a0'}).status_code == 200
+    assert fp_feed.get_ad_pattern_by_id(fp_pattern)['network_id'] == 'n' * 100
+
+
 @pytest.mark.parametrize('scope', ['global', 'podcast'])
 def test_put_other_scopes_are_unchanged(app_client, fp_feed, fp_pattern, scope):
     _network(fp_feed, 'net1')

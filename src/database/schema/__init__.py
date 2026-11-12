@@ -2634,10 +2634,11 @@ class SchemaMixin:
         try:
             if conn.execute("SELECT 1 FROM schema_migrations WHERE name = ?", (gate,)).fetchone():
                 return
-            trimmed = "NULLIF(TRIM(network_id, ' ' || char(9, 10, 11, 12, 13)), '')"
-            conn.execute(
-                f"UPDATE ad_patterns SET network_id = {trimmed} "  # noqa: S608
-                f"WHERE network_id IS NOT NULL AND network_id IS NOT {trimmed}")
+            # str.strip, not SQL TRIM, so it matches the API's trim (no-break and other Unicode spaces)
+            changes = [(stripped or None, row['id']) for row in conn.execute(
+                "SELECT id, network_id FROM ad_patterns WHERE network_id IS NOT NULL").fetchall()
+                if (stripped := row['network_id'].strip()) != row['network_id']]
+            conn.executemany("UPDATE ad_patterns SET network_id = ? WHERE id = ?", changes)
             conn.execute("INSERT OR IGNORE INTO schema_migrations (name) VALUES (?)", (gate,))
             conn.commit()
         except Exception as e:

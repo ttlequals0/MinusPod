@@ -4625,12 +4625,11 @@ paths:
                     scopes leave the network as it is.
                 networkId:
                   type: string
-                  maxLength: 100
                   description: >-
                     Network for a pattern becoming network scope. Used only
-                    when scope is network. Surrounding whitespace is trimmed,
-                    and a blank value or one over 100 characters is rejected
-                    with 400. Without it, a pattern already at network scope
+                    when scope is network. The value is trimmed, then must be
+                    at most 100 characters and not blank, or the request is
+                    rejected with 400. Without it, a pattern already at network scope
                     keeps its own network and any other pattern takes its
                     feed's network.
                 disabled_reason:

@@ -358,3 +358,16 @@ def test_adjusting_a_rejected_merged_ad_restores_every_member_match(app_client, 
     _reject(app_client, fp_pattern)
     assert _adjust(app_client, fp_pattern, 12.0, 38.0).status_code == 200
     assert _rejected_flags(fp_feed, fp_pattern, other) == [[0], [0]]
+
+
+@pytest.mark.parametrize('kind', ['confirm', 'adjust'])
+def test_restoring_does_not_need_the_stored_marker(app_client, fp_feed, fp_pattern, kind):
+    other = _second_pattern(fp_feed)
+    marker = _merged_marker(fp_pattern, other)
+    fp_feed.save_episode_details(SLUG, EPISODE, ad_markers=[marker])
+    fp_feed.record_fingerprint_matches_from_markers(SLUG, EPISODE, [marker])
+    _reject(app_client, fp_pattern)
+    fp_feed.save_episode_details(SLUG, EPISODE, ad_markers=[])
+    response = _confirm(app_client, fp_pattern) if kind == 'confirm' else _adjust(app_client, fp_pattern, 12.0, 38.0)
+    assert response.status_code == 200
+    assert _rejected_flags(fp_feed, fp_pattern, other) == [[0], [0]]

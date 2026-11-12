@@ -278,3 +278,14 @@ def test_deleting_a_feed_clears_the_source_of_surviving_fingerprints(temp_db):
             gone['source_start'], gone['source_end']) == (None, None, None, None)
     kept = temp_db.get_audio_fingerprint(elsewhere)
     assert (kept['source_podcast_slug'], kept['source_episode_id']) == ('other', 'epB')
+
+
+def test_unreject_in_span_restores_every_pattern_and_only_that_span(temp_db, pattern):
+    other = temp_db.create_ad_pattern(scope='global', text_template='Another sponsor read, long enough.')
+    rows = [_record(temp_db, pid, 'epY', start=s, end=e) for pid, s, e in
+            ((pattern, 100, 140), (other, 101, 139), (pattern, 300, 340))]
+    for pid, s, e in ((pattern, 100, 140), (other, 101, 139), (pattern, 300, 340)):
+        temp_db.mark_fingerprint_match_rejected(pid, 'show', 'epY', s, e)
+    assert temp_db.unreject_fingerprint_matches_in_span('show', 'epY', 105, 138) == 2
+    assert [temp_db.get_fingerprint_match(r)['rejected'] for r in rows] == [0, 0, 1]
+    assert temp_db.unreject_fingerprint_matches_in_span('show', 'epZ', 105, 138) == 0

@@ -762,12 +762,12 @@ def _set_fingerprint_matches_rejected(db, rejected, pattern_ids, slug, episode_i
                            f"of pattern {pattern_id}: {e}")
 
 
-def _restore_rejected_matches(db, marker_pattern_id, slug, episode_id, start, end, bounds):
-    """Un-reject the audio matches a deleted rejection had marked; bounds locate the stored marker."""
-    markers = _load_markers(db, slug, episode_id)
-    marker = find_marker_in_list(markers, *bounds) if markers else None
-    _set_fingerprint_matches_rejected(
-        db, False, _reviewed_pattern_ids(marker, marker_pattern_id), slug, episode_id, start, end)
+def _restore_rejected_matches(db, slug, episode_id, start, end):
+    """Un-reject every audio match of the episode that the span covers, whatever its pattern; never raises."""
+    try:
+        db.unreject_fingerprint_matches_in_span(slug, episode_id, start, end)
+    except Exception as e:
+        logger.warning(f"Could not restore the rejected fingerprint matches of {slug}/{episode_id}: {e}")
 
 
 def _validate_create_correction_input(data):
@@ -1368,7 +1368,6 @@ def _handle_confirm_correction(
         + (f", trimmed to {eff_start}-{eff_end}" if has_trim else "")
     )
 
-    marker_pattern_id = pattern_id
     pattern_ids = [pattern_id] if pattern_id else []
     resolved_text = None
     if pattern_id:
@@ -1402,8 +1401,7 @@ def _handle_confirm_correction(
     deleted = db.delete_conflicting_corrections(podcast_id, episode_id, 'confirm', original_start, original_end)
     if deleted:
         logger.info(f"Deleted {deleted} conflicting false_positive correction(s) for {slug}/{episode_id}")
-        _restore_rejected_matches(db, marker_pattern_id, slug, episode_id, original_start, original_end,
-                                  (original_start, original_end))
+        _restore_rejected_matches(db, slug, episode_id, original_start, original_end)
 
     db.create_pattern_correction(
         correction_type='confirm',
@@ -1733,7 +1731,6 @@ def _handle_adjust_correction(db, pattern_service, slug, episode_id, original_ad
     if transcript:
         adjusted_text = extract_transcript_segment(transcript, adjusted_start, adjusted_end)
 
-    marker_pattern_id = pattern_id
     pattern_ids = [pattern_id] if pattern_id else []
     resolved_text = None
     if pattern_id:
@@ -1770,8 +1767,7 @@ def _handle_adjust_correction(db, pattern_service, slug, episode_id, original_ad
         logger.info(
             f"Deleted {deleted} conflicting false_positive correction(s) "
             f"for {slug}/{episode_id}")
-        _restore_rejected_matches(db, marker_pattern_id, slug, episode_id, adjusted_start, adjusted_end,
-                                  (original_start, original_end))
+        _restore_rejected_matches(db, slug, episode_id, adjusted_start, adjusted_end)
 
     db.create_pattern_correction(
         correction_type='boundary_adjustment',
