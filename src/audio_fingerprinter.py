@@ -69,6 +69,12 @@ FINGERPRINT_SHORT_PATTERN_EVIDENCE = 0.9
 FINGERPRINT_EVIDENCE_FLOOR_S = 3.5
 # A point that differs from its predecessor by fewer bits counts as that share of a point of evidence
 FINGERPRINT_NOVELTY_BITS = 3
+# Setting key: (default, lowest, highest)
+FINGERPRINT_SETTING_RANGES = {
+    'fingerprint_match_strictness': (FINGERPRINT_MATCH_STRICTNESS, 0.40, 0.95),
+    'fingerprint_min_coverage': (FINGERPRINT_MIN_COVERAGE, 0.10, 1.00),
+    'fingerprint_gap_tolerance_s': (FINGERPRINT_GAP_TOLERANCE_S, 0.0, 15.0),
+}
 
 # Minimum duration for fingerprinting (seconds)
 MIN_SEGMENT_DURATION = 5.0
@@ -76,11 +82,7 @@ MIN_SEGMENT_DURATION = 5.0
 # Step size for sliding window (seconds)
 SLIDING_STEP_SIZE = 2.0
 
-# Cap for the per-window slow scan when the full-file fast path fails.
-# When fpcalc can't decode the audio end-to-end, the per-window scan uses
-# the same fpcalc binary on each window and almost always produces zero
-# new matches -- the only realistic save is a single bad frame midway. 90s
-# is enough to catch that case without burning the 10-minute upper bound.
+# Per-window fallback cap: enough to get past a single bad frame, far below the full scan budget
 FALLBACK_SLOW_TIMEOUT = 90
 
 # 256-entry table for vectorized population count over uint32 numpy arrays.
@@ -435,6 +437,8 @@ class FingerprintMatch:
     category: str | None = None
     similarity: float = 0.0
     coverage: float = 0.0
+    # Set when end is projected from the stored length past what was compared
+    measured_end: float | None = None
 
 
 @dataclass(frozen=True)
@@ -1247,15 +1251,18 @@ class AudioFingerprinter:
         """fpcalc budget for a whole episode: scales with length, never below the floor."""
         return max(FPCALC_TIMEOUT_FULL, int(duration * FINGERPRINT_TIMEOUT_FACTOR))
 
+    def _clamped_setting(self, key: str) -> float:
+        """A fingerprint setting clamped to its range; the default when unset, NaN or not a number."""
+        default, lo, hi = FINGERPRINT_SETTING_RANGES[key]
+        value = self.db.get_setting_float(key, default) if self.db else default
+        return min(max(value, lo), hi) if np.isfinite(value) else default
+
     def _matching_settings(self) -> tuple[float, float, float]:
         """(strictness, min_coverage, gap_tolerance_s) from settings, config defaults otherwise."""
-        db = self.db
-        if not db:
-            return FINGERPRINT_MATCH_STRICTNESS, FINGERPRINT_MIN_COVERAGE, FINGERPRINT_GAP_TOLERANCE_S
         return (
-            db.get_setting_float('fingerprint_match_strictness', FINGERPRINT_MATCH_STRICTNESS),
-            db.get_setting_float('fingerprint_min_coverage', FINGERPRINT_MIN_COVERAGE),
-            db.get_setting_float('fingerprint_gap_tolerance_s', FINGERPRINT_GAP_TOLERANCE_S),
+            self._clamped_setting('fingerprint_match_strictness'),
+            self._clamped_setting('fingerprint_min_coverage'),
+            self._clamped_setting('fingerprint_gap_tolerance_s'),
         )
 
     def _in_scope_fingerprints(
@@ -1263,12 +1270,19 @@ class AudioFingerprinter:
     ) -> list[tuple[int, str, float, str, str | None]]:
         """Stored fingerprints whose pattern scope applies to this podcast."""
         podcast_tag_set = set(podcast_tags) if podcast_tags else set()
+        # Same tag source as the text matcher: active sponsors only, list values only
+        try:
+            sponsor_tags = {sid: set(tags) for sid, tags in self.db.get_sponsor_tags_map().items()
+                            if isinstance(tags, list)}
+        except Exception as e:
+            logger.warning(f"Failed to load sponsor tags for fingerprint scope: {e}")
+            sponsor_tags = {}
         return [
             (row['pattern_id'], row['fingerprint'], row['duration'], row['sponsor'], row.get('category'))
             for row in self._load_fingerprints_from_db()
             if pattern_passes_scope(
                 row['scope'], row['network_id'], row['podcast_id'], row['source'],
-                set(row['sponsor_tags']),
+                sponsor_tags.get(row.get('sponsor_id'), set()),
                 podcast_id=podcast_id, network_id=network_id, podcast_tag_set=podcast_tag_set)
         ]
 
@@ -1285,18 +1299,22 @@ class AudioFingerprinter:
                 stop_reason.append('timed out')
             return not stop_reason
 
-        matches = match_fingerprints(
+        matches, measured = _scan_fingerprints(
             raw_ints, fp_duration, decoded_known, strictness=strictness,
             min_coverage=min_coverage, gap_tolerance_s=gap_tolerance_s,
             should_continue=should_continue)
         for m in matches:
-            logger.info(
+            logger.debug(
                 f"Fingerprint match: pattern={m.pattern_id} {m.start:.1f}s-{m.end:.1f}s "
                 f"(similarity={m.similarity:.2f}, coverage={m.coverage:.2f})"
             )
+        elapsed = time.monotonic() - started
         if stop_reason:
-            logger.warning(f"Fingerprint scan {stop_reason[0]} after {time.monotonic() - started:.0f}s "
+            logger.warning(f"Fingerprint scan {stop_reason[0]} after {elapsed:.0f}s "
                            f"with {len(matches)} matches")
+        else:
+            logger.info(f"Fingerprint scan: {len(decoded_known)} patterns in scope, "
+                        f"{measured} candidates measured, {len(matches)} matches, {elapsed:.1f}s")
         return matches
 
     def find_matches(
@@ -1344,7 +1362,7 @@ class AudioFingerprinter:
         if total_duration <= 0:
             return []
 
-        logger.info(f"Searching {total_duration:.1f}s audio for {len(known_fingerprints)} known fingerprints")
+        logger.debug(f"Searching {total_duration:.1f}s audio for {len(known_fingerprints)} known fingerprints")
 
         full_fp = self._generate_full_fingerprint(
             audio_path, timeout=self._full_fingerprint_timeout(total_duration))
@@ -1352,7 +1370,7 @@ class AudioFingerprinter:
             raw_ints, fp_duration = full_fp
             decoded_known = self._decode_known_fingerprints(known_fingerprints)
             if decoded_known:
-                logger.info(
+                logger.debug(
                     f"Matching fingerprints "
                     f"({len(raw_ints)} ints, {len(decoded_known)} patterns)"
                 )
@@ -1363,15 +1381,10 @@ class AudioFingerprinter:
         else:
             logger.warning("Full-file fingerprint failed, falling back to per-window scan")
 
-        # Slow fallback: per-window subprocess scanning.
-        # Cap separately at FALLBACK_SLOW_TIMEOUT (much shorter than the
-        # full-file timeout). When the fast path fails because fpcalc can't
-        # decode the audio source, the per-window scan uses the same fpcalc
-        # and almost always produces zero new matches -- burning the full
-        # 10-minute budget is wasted work. 90s is enough to catch the rare
-        # case where the failure was a single bad frame.
+        # Per-window fallback under its own short cap: the same fpcalc rarely decodes these windows either.
         slow_timeout = min(timeout, FALLBACK_SLOW_TIMEOUT)
         strictness = self._matching_settings()[0]
+        windows = 0
         scan_start_time = time.time()
         last_log_time = scan_start_time
         position = 0.0
@@ -1385,7 +1398,7 @@ class AudioFingerprinter:
 
             # Bail out if all known fingerprints are broken/corrupt
             if len(broken_patterns) >= len(known_fingerprints):
-                logger.info("All known fingerprints are broken/skipped, ending scan early")
+                logger.debug("All known fingerprints are broken/skipped, ending scan early")
                 break
 
             # Generate fingerprint for current window
@@ -1394,6 +1407,7 @@ class AudioFingerprinter:
                 start=position,
                 duration=FINGERPRINT_CHUNK_SIZE
             )
+            windows += 1
 
             if chunk_fp and chunk_fp.fingerprint:
                 # Compare against known fingerprints
@@ -1418,7 +1432,8 @@ class AudioFingerprinter:
                         continue
 
                     if similarity >= strictness:
-                        # Found a match
+                        # Only the window was compared; the rest of the stored length is projected
+                        measured = min(FINGERPRINT_CHUNK_SIZE, known_duration)
                         match = FingerprintMatch(
                             pattern_id=pattern_id,
                             start=position,
@@ -1427,10 +1442,11 @@ class AudioFingerprinter:
                             sponsor=sponsor,
                             category=category,
                             similarity=similarity,
-                            coverage=1.0,
+                            coverage=measured / known_duration if known_duration > 0 else 0.0,
+                            measured_end=position + measured,
                         )
                         matches.append(match)
-                        logger.info(
+                        logger.debug(
                             f"Fingerprint match: pattern={pattern_id} "
                             f"at {position:.1f}s (confidence={similarity:.2f})"
                         )
@@ -1442,9 +1458,10 @@ class AudioFingerprinter:
             else:
                 position += SLIDING_STEP_SIZE
 
-        # Merge overlapping matches
         matches = self._merge_overlapping_matches(matches)
-
+        logger.info(f"Fingerprint per-window scan: {len(known_fingerprints)} patterns in scope, "
+                    f"{windows} windows compared, {len(matches)} matches, "
+                    f"{time.time() - scan_start_time:.1f}s")
         return matches
 
     def _load_fingerprints_from_db(self) -> list[dict]:
@@ -1488,7 +1505,10 @@ class AudioFingerprinter:
         for match in matches[1:]:
             # Check for overlap
             if match.start <= current.end + 1.0:  # 1s tolerance
-                # Extend current match
+                measured_end = current.measured_end if current.measured_end is not None else current.end
+                if match.start <= measured_end:
+                    measured_end = max(measured_end, match.measured_end
+                                       if match.measured_end is not None else match.end)
                 current = FingerprintMatch(
                     pattern_id=current.pattern_id,
                     start=current.start,
@@ -1497,7 +1517,9 @@ class AudioFingerprinter:
                     sponsor=current.sponsor or match.sponsor,
                     category=current.category or match.category,
                     similarity=max(current.similarity, match.similarity),
-                    coverage=max(current.coverage, match.coverage),
+                    # Coverage stays the kept pattern's measured share, never a neighbour's
+                    coverage=current.coverage,
+                    measured_end=measured_end,
                 )
             else:
                 merged.append(current)

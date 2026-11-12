@@ -2854,7 +2854,8 @@ class AdDetector:
             entry['has_estimated_pattern_member'] = True
         if detection_stage == 'fingerprint':
             entry['fingerprint_match_start'] = match.start
-            entry['fingerprint_match_end'] = match.end
+            entry['fingerprint_match_end'] = (match.measured_end if match.measured_end is not None
+                                              else match.end)
             entry['fingerprint_similarity'] = match.similarity
             entry['fingerprint_coverage'] = match.coverage
         all_ads.append(entry)

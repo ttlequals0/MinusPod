@@ -165,6 +165,93 @@ def test_whole_file_failure_falls_back_to_per_window_scan(world, monkeypatch):
     assert all(m.similarity == m.confidence == 0.9 and m.coverage == 1.0 for m in out)
 
 
+def test_fallback_match_reports_only_the_compared_window_as_measured(world, monkeypatch):
+    fp = world.fp
+    monkeypatch.setattr(fp, '_generate_full_fingerprint', lambda *a, **k: None)
+    monkeypatch.setattr(fp, '_get_audio_duration', lambda p: 44.0)
+    monkeypatch.setattr(fp, 'generate_fingerprint',
+                        lambda path, start, duration: AudioFingerprint('win', duration))
+    monkeypatch.setattr(fp, 'compare_fingerprints',
+                        lambda chunk, known: 0.9 if known == 'LONG' else 0.1)
+    out = fp.find_matches('x.mp3', known_fingerprints=[(7, 'LONG', 40.0, None, None)])
+    assert [(m.start, m.end, m.measured_end) for m in out] == [(0.0, 40.0, 10.0)]
+    assert out[0].coverage == 0.25
+    detector = AdDetector(api_key='test-key')
+    all_ads, regions = [], []
+    detector._add_pattern_match(out[0], 'fingerprint', 'fingerprint', all_ads, regions, 'ep1')
+    assert (all_ads[0]['start'], all_ads[0]['end']) == (0.0, 40.0)
+    assert all_ads[0]['fingerprint_match_end'] == 10.0
+    assert all_ads[0]['fingerprint_coverage'] == 0.25
+
+
+def test_fallback_merge_keeps_only_contiguous_measured_spans(world):
+    fp = world.fp
+    a = FingerprintMatch(1, 0.0, 30.0, 0.9, similarity=0.9, coverage=1 / 3, measured_end=10.0)
+    b = FingerprintMatch(2, 30.0, 60.0, 0.8, similarity=0.8, coverage=1 / 3, measured_end=40.0)
+    c = FingerprintMatch(3, 5.0, 15.0, 0.8, similarity=0.8, coverage=1.0, measured_end=15.0)
+    merged = fp._merge_overlapping_matches([a, b])
+    assert [(m.start, m.end, m.measured_end, m.coverage) for m in merged] == [(0.0, 60.0, 10.0, 1 / 3)]
+    merged = fp._merge_overlapping_matches([a, c])
+    assert [(m.start, m.end, m.measured_end) for m in merged] == [(0.0, 30.0, 15.0)]
+
+
+def test_successful_scan_logs_one_info_line(world, caplog):
+    with caplog.at_level('INFO', logger='podcast.fingerprint'):
+        out = world.fp.find_matches('x.mp3', podcast_id='showA')
+    infos = [r.getMessage() for r in caplog.records
+             if r.name == 'podcast.fingerprint' and r.levelname == 'INFO']
+    assert len(out) == 2
+    assert len(infos) == 1
+    assert '2 patterns in scope' in infos[0] and '2 matches' in infos[0]
+    assert 'candidates measured' in infos[0]
+
+
+def _community_pattern_with_tags(world, tags, active):
+    sid = world.db.create_known_sponsor(f'Acme {active}', tags=tags)
+    if not active:
+        world.db.update_known_sponsor(sid, is_active=0)
+    pid = world.db.create_ad_pattern(scope='global', text_template='read ' * 12,
+                                     sponsor_id=sid, source='community')
+    world.db.create_audio_fingerprint(pid, b'FPA', 10.0)
+    return pid, sid
+
+
+def test_scope_uses_tags_of_active_sponsors_only(world):
+    active_pid, _ = _community_pattern_with_tags(world, ['sports'], active=True)
+    rows = world.fp._in_scope_fingerprints('showC', None, {'tech'})
+    assert active_pid not in [r[0] for r in rows]
+    inactive_pid, _ = _community_pattern_with_tags(world, ['sports'], active=False)
+    rows = world.fp._in_scope_fingerprints('showC', None, {'tech'})
+    assert inactive_pid in [r[0] for r in rows]
+
+
+def test_scope_ignores_tags_that_are_not_a_list(world):
+    pid, sid = _community_pattern_with_tags(world, ['sports'], active=True)
+    conn = world.db.get_connection()
+    conn.execute("UPDATE known_sponsors SET tags = ? WHERE id = ?", ('"sports"', sid))
+    conn.commit()
+    rows = world.fp._in_scope_fingerprints('showC', None, {'tech'})
+    assert pid in [r[0] for r in rows]
+
+
+@pytest.mark.parametrize('key,raw,expected', [
+    ('fingerprint_match_strictness', '0.1', 0.40),
+    ('fingerprint_match_strictness', '1.5', 0.95),
+    ('fingerprint_match_strictness', 'nan', af.FINGERPRINT_MATCH_STRICTNESS),
+    ('fingerprint_match_strictness', 'abc', af.FINGERPRINT_MATCH_STRICTNESS),
+    ('fingerprint_min_coverage', '0', 0.10),
+    ('fingerprint_min_coverage', '2', 1.00),
+    ('fingerprint_min_coverage', 'inf', af.FINGERPRINT_MIN_COVERAGE),
+    ('fingerprint_gap_tolerance_s', '-3', 0.0),
+    ('fingerprint_gap_tolerance_s', '99', 15.0),
+    ('fingerprint_gap_tolerance_s', '7.5', 7.5),
+])
+def test_matching_settings_are_clamped(world, key, raw, expected):
+    world.db.set_setting(key, raw)
+    names = ('fingerprint_match_strictness', 'fingerprint_min_coverage', 'fingerprint_gap_tolerance_s')
+    assert world.fp._matching_settings()[names.index(key)] == expected
+
+
 def test_corrupt_stored_fingerprint_is_skipped(world, caplog):
     pid = world.db.create_ad_pattern(scope='global', text_template='read ' * 12)
     world.db.create_audio_fingerprint(pid, b'EMPTY', 5.0)
