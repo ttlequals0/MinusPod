@@ -4539,6 +4539,22 @@ paths:
                 sponsor:
                   type: string
                   description: Sponsor name for this pattern
+                scope:
+                  type: string
+                  enum: [global, network, podcast]
+                  description: >-
+                    Scope of the pattern. Network scope also sets the pattern's
+                    network to the effective network of its feed (the network
+                    override when set, else the detected network), or to
+                    networkId when sent. A pattern with no feed network and no
+                    networkId is rejected with 400. The global and podcast
+                    scopes leave the network as it is.
+                networkId:
+                  type: string
+                  description: >-
+                    Network for a pattern becoming network scope. Used only
+                    when scope is network. Surrounding whitespace is trimmed,
+                    and a blank value is rejected with 400.
                 disabled_reason:
                   type: string
                   description: Reason for disabling the pattern

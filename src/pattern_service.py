@@ -362,8 +362,19 @@ class PatternService:
             if not pattern:
                 return False
 
+            # A network pattern matches only feeds on its network_id.
+            network_id = None
+            if new_scope == 'network':
+                network_id = (self.db.get_effective_network_id(pattern['podcast_id'])
+                              if pattern.get('podcast_id') else None)
+                network_id = network_id or (pattern.get('network_id') or '').strip() or None
+                if network_id is None:
+                    logger.warning(f"Pattern {pattern_id} has no network to promote into")
+                    return False
+
             # Update pattern scope
-            self.db.update_ad_pattern(pattern_id, scope=new_scope)
+            self.db.update_ad_pattern(
+                pattern_id, scope=new_scope, **({'network_id': network_id} if network_id else {}))
 
             # Log the promotion
             self.db.create_pattern_correction(
@@ -375,14 +386,14 @@ class PatternService:
             logger.info(f"Promoted pattern {pattern_id} to {new_scope} scope")
 
             # Consolidate similar patterns at the new scope level
-            scope_patterns = self.db.get_ad_patterns(scope=new_scope)
+            scope_patterns = self.db.get_ad_patterns(scope=new_scope, network_id=network_id)
             template = pattern.get('text_template', '')
             similar_ids = [pattern_id]
             for p in scope_patterns:
                 if p['id'] != pattern_id and self._patterns_similar(template, p.get('text_template', '')):
                     similar_ids.append(p['id'])
             if len(similar_ids) > 1:
-                merged_id = self.merge_similar_patterns(similar_ids, new_scope)
+                merged_id = self.merge_similar_patterns(similar_ids, new_scope, network_id)
                 if merged_id:
                     logger.info(
                         f"Merged promoted pattern {pattern_id} with "
@@ -398,7 +409,8 @@ class PatternService:
     def merge_similar_patterns(
         self,
         pattern_ids: list[int],
-        target_scope: str = 'network'
+        target_scope: str = 'network',
+        network_id: str | None = None
     ) -> int | None:
         """
         Merge multiple similar patterns into a single pattern.
@@ -409,6 +421,7 @@ class PatternService:
         Args:
             pattern_ids: List of pattern IDs to merge
             target_scope: Scope for the merged pattern
+            network_id: Network the merged pattern belongs to, for network scope
 
         Returns:
             ID of the merged pattern, or None if merge failed
@@ -496,6 +509,7 @@ class PatternService:
                 scope=target_scope,
                 text_template=best_template,
                 sponsor_id=merged_sponsor_id,
+                network_id=network_id,
                 intro_variants=merged_intros,
                 outro_variants=merged_outros,
                 source_language=merged_language,

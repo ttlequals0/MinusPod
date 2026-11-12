@@ -365,6 +365,21 @@ def get_pattern(pattern_id):
     return json_response(pattern)
 
 
+def _network_for_scope_change(db, pattern, given):
+    """(network id, None) for a pattern becoming network scope, or (None, 400 response)."""
+    if given is not None:
+        network_id = given.strip() if isinstance(given, str) else ''
+        if not network_id:
+            return None, error_response('networkId must be a non-empty string', 400)
+        return network_id, None
+    network_id = db.get_effective_network_id(pattern['podcast_id']) if pattern.get('podcast_id') else None
+    network_id = network_id or (pattern.get('network_id') or '').strip() or None
+    if network_id is None:
+        return None, error_response(
+            'Network scope needs a network: the pattern has no feed with a network, so send networkId', 400)
+    return network_id, None
+
+
 @api.route('/patterns/<int:pattern_id>', methods=['PUT'])
 @log_request
 def update_pattern(pattern_id):
@@ -385,6 +400,12 @@ def update_pattern(pattern_id):
                'is_active', 'disabled_reason', 'scope', 'category'}
 
     updates = {k: v for k, v in data.items() if k in allowed}
+
+    if updates.get('scope') == 'network':
+        network_id, network_error = _network_for_scope_change(db, pattern, data.get('networkId'))
+        if network_error:
+            return network_error
+        updates['network_id'] = network_id
 
     # Category decides the pattern's segment action at detection time
     # (e.g. cross_promo resolving to keep); null clears it back to the
@@ -1881,7 +1902,7 @@ def _upsert_import_pattern(db, conn, pattern_data, existing, mode):
         text_template=pattern_data.get('text_template'),
         sponsor_id=pattern_data.get('_sponsor_id'),
         podcast_id=pattern_data.get('podcast_id'),
-        network_id=pattern_data.get('network_id'),
+        network_id=(pattern_data.get('network_id') or '').strip() or None,
         dai_platform=pattern_data.get('dai_platform'),
         intro_variants=pattern_data.get('intro_variants'),
         outro_variants=pattern_data.get('outro_variants'),

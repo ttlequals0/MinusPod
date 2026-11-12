@@ -119,7 +119,7 @@ class CueTemplateMixin:
                    (scope = 'podcast' AND podcast_id = ?)
                    OR (scope = 'network' AND network_id IS NOT NULL
                        AND network_id = (
-                           SELECT COALESCE(NULLIF(network_id_override, ''), network_id)
+                           SELECT COALESCE(NULLIF(TRIM(network_id_override), ''), network_id)
                            FROM podcasts WHERE id = ?
                        ))
                )
@@ -163,7 +163,7 @@ class CueTemplateMixin:
                   OR (scope = 'network' AND network_id IS NOT NULL AND network_id != ''
                       AND podcast_id != :pid
                       AND network_id = (
-                          SELECT COALESCE(NULLIF(network_id_override, ''), network_id)
+                          SELECT COALESCE(NULLIF(TRIM(network_id_override), ''), network_id)
                           FROM podcasts WHERE id = :pid))
                ORDER BY (podcast_id = :pid) DESC, created_at DESC""",
             {'pid': podcast_id},
@@ -177,7 +177,7 @@ class CueTemplateMixin:
         cursor = conn.execute(
             """SELECT id, slug FROM podcasts
                WHERE id != :exclude_id
-                 AND COALESCE(NULLIF(network_id_override, ''), network_id) = :network_id""",
+                 AND COALESCE(NULLIF(TRIM(network_id_override), ''), network_id) = :network_id""",
             {'exclude_id': exclude_podcast_id, 'network_id': network_id},
         )
         return [dict(row) for row in cursor.fetchall()]
