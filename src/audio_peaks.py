@@ -11,8 +11,10 @@ and build it.
 from __future__ import annotations
 
 import hashlib
+import collections
 import logging
 import os
+import stat
 import struct
 import subprocess
 import tempfile
@@ -23,7 +25,7 @@ from pathlib import Path
 import numpy as np
 
 from utils.subprocess_registry import tracked_popen, tracked_run
-from utils.episode_paths import peaks_file_path
+from utils.episode_paths import peaks_file_path, remove_peaks_temp_files
 from utils.ffmpeg_run import SAFE_MEDIA_INPUT_ARGS, ffmpeg_timeout
 
 logger = logging.getLogger('podcast.peaks')
@@ -44,6 +46,8 @@ _HEADER_SIZE = _HEADER_STRUCT.size
 _MAX_BUCKET_COUNT = 0xFFFFFFFF
 _PEAKS_CHUNK_BUCKETS = 60_000  # 600 s of audio, about 9.6 MB per read
 _HASH_CHUNK_BYTES = 1 << 20
+_STALE_TEMP_SECONDS = 3600
+_HASHED_CACHE_MAX = 256
 
 
 class PeaksError(RuntimeError):
@@ -149,17 +153,41 @@ class PeaksData:
     buckets: np.ndarray
 
 
-def _sha256_of(path: Path) -> bytes:
+class PeaksSourceChanged(RuntimeError):
+    """The source file changed while its peaks were being built or stamped."""
+
+
+# (peaks path, source size, source mtime_ns, stamped sha) states already hash-validated
+_hashed_ok: collections.OrderedDict = collections.OrderedDict()
+_hashed_ok_lock = threading.Lock()
+
+
+def _remember_hashed(key: tuple) -> bool:
+    """Record a hash-validated state; False when it was already recorded."""
+    with _hashed_ok_lock:
+        if key in _hashed_ok:
+            _hashed_ok.move_to_end(key)
+            return False
+        _hashed_ok[key] = True
+        while len(_hashed_ok) > _HASHED_CACHE_MAX:
+            _hashed_ok.popitem(last=False)
+        return True
+
+
+def _hash_open_source(source_path: Path) -> tuple[bytes, os.stat_result]:
+    """SHA-256 of the source, with the stat of the very handle that was hashed."""
     h = hashlib.sha256()
-    with open(path, 'rb') as f:
+    with open(source_path, 'rb') as f:
+        st = os.fstat(f.fileno())
         while chunk := f.read(_HASH_CHUNK_BYTES):
             h.update(chunk)
-    return h.digest()
+    return h.digest(), st
 
 
-def _write_atomic(path: Path, header: bytes, buckets: np.ndarray) -> None:
+def _write_atomic(path: Path, header: bytes, buckets: np.ndarray, mode: int) -> None:
     fd, tmp_name = tempfile.mkstemp(dir=path.parent, prefix=path.name + '.', suffix='.tmp')
     try:
+        os.fchmod(fd, mode)
         with os.fdopen(fd, 'wb') as f:
             f.write(header)
             f.write(buckets.tobytes())
@@ -179,21 +207,53 @@ def _pack_header(count: int, size: int, mtime_ns: int, sha: bytes) -> bytes:
                                count, size, mtime_ns, sha)
 
 
-def write_peaks_file(path: Path, buckets: np.ndarray, source_path: Path) -> None:
-    """Atomically write a peaks file stamped with the source's size, mtime and SHA-256."""
+def write_peaks_file(path: Path, buckets: np.ndarray, source_path: Path,
+                     expect_stat: tuple[int, int] | None = None) -> None:
+    """Atomically write a peaks file stamped with the source's size, mtime and SHA-256.
+
+    ``buckets`` must be uint16. When ``expect_stat`` (size, mtime_ns) is given and the
+    hashed source differs, raises PeaksSourceChanged and writes nothing.
+    """
     path = Path(path)
-    arr = np.ascontiguousarray(buckets, dtype='<u2')
+    arr = np.asarray(buckets)
+    if arr.dtype.kind != 'u' or arr.dtype.itemsize != 2:
+        raise ValueError('buckets must be a uint16 array')
     if arr.ndim != 1 or len(arr) > _MAX_BUCKET_COUNT:
         raise ValueError('buckets must be a 1-D array of at most 2**32-1 values')
-    st = Path(source_path).stat()
-    header = _pack_header(len(arr), st.st_size, st.st_mtime_ns, _sha256_of(Path(source_path)))
-    _write_atomic(path, header, arr)
+    sha, st = _hash_open_source(Path(source_path))
+    if expect_stat is not None and expect_stat != (st.st_size, st.st_mtime_ns):
+        raise PeaksSourceChanged(Path(source_path).name)
+    header = _pack_header(len(arr), st.st_size, st.st_mtime_ns, sha)
+    _write_atomic(path, header, np.ascontiguousarray(arr, dtype='<u2'), stat.S_IMODE(st.st_mode))
+    remove_peaks_temp_files(path, _STALE_TEMP_SECONDS)
 
 
-def read_peaks_file(path: Path) -> PeaksData | None:
-    """Parse a peaks file; None when missing, malformed, or an unsupported format."""
+def _open_regular(path: Path):
+    """Open a regular file for reading without blocking on a FIFO; None otherwise."""
     try:
-        with open(path, 'rb') as f:
+        fd = os.open(path, os.O_RDONLY | os.O_NONBLOCK)
+    except OSError:
+        return None
+    try:
+        if not stat.S_ISREG(os.fstat(fd).st_mode):
+            os.close(fd)
+            return None
+        return os.fdopen(fd, 'rb')
+    except OSError:
+        return None
+
+
+def read_peaks_window(path: Path, start: int = 0, stop: int | None = None) -> PeaksData | None:
+    """Parse a peaks file and load only buckets [start, stop); None when unusable.
+
+    ``bucket_count`` is the file's total. Bounds are clamped to it. The data bytes
+    are read by seek, so a window of a long episode never loads the whole file.
+    """
+    f = _open_regular(Path(path))
+    if f is None:
+        return None
+    try:
+        with f:
             head = f.read(_HEADER_SIZE)
             if len(head) != _HEADER_SIZE:
                 return None
@@ -202,38 +262,65 @@ def read_peaks_file(path: Path) -> PeaksData | None:
                 return None
             if os.fstat(f.fileno()).st_size != _HEADER_SIZE + count * 2:
                 return None
-            raw = f.read(count * 2)
+            lo = min(max(0, start), count)
+            hi = count if stop is None else min(max(lo, stop), count)
+            f.seek(_HEADER_SIZE + lo * 2)
+            raw = f.read((hi - lo) * 2)
     except OSError:
         return None
-    if len(raw) != count * 2:
+    if len(raw) != (hi - lo) * 2:
         return None
     return PeaksData(version, width, count, size, mtime_ns, sha,
                      np.frombuffer(raw, dtype='<u2'))
 
 
+def read_peaks_file(path: Path) -> PeaksData | None:
+    """Parse a peaks file; None when missing, malformed, or an unsupported format."""
+    return read_peaks_window(path)
+
+
 def validate_or_restamp_peaks_file(path: Path, source_path: Path) -> bool:
-    """True when the file matches the source; restamps the header on a hash match."""
-    data = read_peaks_file(path)
+    """True when the file matches the source; restamps the header on a hash match.
+
+    Equal size and mtime are trusted without hashing. Otherwise the source is hashed,
+    once per process for each file state, even when the restamp cannot be written.
+    """
+    path, source_path = Path(path), Path(source_path)
+    data = read_peaks_window(path, 0, 0)
     if data is None:
         return False
     try:
-        st = Path(source_path).stat()
+        st = source_path.stat()
         if st.st_size == data.source_size and st.st_mtime_ns == data.source_mtime_ns:
             return True
-        if st.st_size != data.source_size or _sha256_of(Path(source_path)) != data.source_sha256:
+        if st.st_size != data.source_size:
             return False
+        key = (str(path), st.st_size, st.st_mtime_ns, data.source_sha256)
+        with _hashed_ok_lock:
+            if key in _hashed_ok:
+                return True
+        sha, st = _hash_open_source(source_path)
     except OSError:
         return False
+    if sha != data.source_sha256 or st.st_size != data.source_size:
+        return False
+    first = _remember_hashed((str(path), st.st_size, st.st_mtime_ns, data.source_sha256))
+    full = read_peaks_file(path)
+    if full is None:
+        return False
     try:
-        header = _pack_header(data.bucket_count, st.st_size, st.st_mtime_ns, data.source_sha256)
-        _write_atomic(Path(path), header, data.buckets)
+        header = _pack_header(full.bucket_count, st.st_size, st.st_mtime_ns, sha)
+        _write_atomic(path, header, full.buckets, stat.S_IMODE(st.st_mode))
     except OSError as e:
-        logger.warning('Could not restamp peaks file %s: %s', Path(path).name, e)
+        if first:
+            logger.warning('Could not restamp peaks file %s: %s', path.name, e)
     return True
 
 
 def downsample_max(buckets: np.ndarray, factor: int) -> np.ndarray:
     """Max of each run of ``factor`` buckets; a trailing partial run is dropped."""
+    if factor < 1:
+        raise ValueError('factor must be at least 1')
     n = len(buckets) // factor
     if n == 0:
         return np.empty(0, dtype='<u2')
@@ -241,7 +328,10 @@ def downsample_max(buckets: np.ndarray, factor: int) -> np.ndarray:
 
 
 def build_peaks_from_decode(audio_path: Path, duration: float) -> np.ndarray | None:
-    """Stream an 8 kHz mono decode and return per-10 ms abs-max as uint16; None on failure."""
+    """Stream an 8 kHz mono decode and return per-10 ms abs-max as uint16.
+
+    None on failure and for audio shorter than one bucket (no buckets).
+    """
     cmd = ['ffmpeg', *SAFE_MEDIA_INPUT_ARGS, '-v', 'error', '-i', str(audio_path),
            '-ac', '1', '-ar', str(PEAKS_SAMPLE_RATE_HZ), '-f', 's16le', 'pipe:1']
     chunk_bytes = PEAKS_SAMPLES_PER_BUCKET * 2 * _PEAKS_CHUNK_BUCKETS
@@ -276,8 +366,11 @@ def build_peaks_from_decode(audio_path: Path, duration: float) -> np.ndarray | N
     except OSError as e:
         logger.error('Peaks decode failed: %s', e)
         return None
-    if returncode != 0 or not parts:
+    if returncode != 0:
         logger.error('Peaks decode ffmpeg exited %d for %s', returncode, Path(audio_path).name)
+        return None
+    if not parts:
+        logger.debug('Peaks decode of %s produced no full bucket', Path(audio_path).name)
         return None
     return np.concatenate(parts)
 

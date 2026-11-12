@@ -24,7 +24,7 @@ def test_detect_with_peaks_payload_matches_detect(tmp_path):
     payload, peaks = det.detect_with_peaks(str(src), 3.0, [])
     assert payload == payload_only
     assert peaks is not None and peaks.dtype == np.dtype('<u2')
-    assert abs(len(peaks) - 300) <= 1
+    assert len(peaks) == 300
 
 
 def test_detect_with_peaks_maxima_match_direct_decode(tmp_path):
@@ -43,7 +43,7 @@ def test_detect_with_peaks_returns_peaks_for_short_audio(tmp_path):
     det = SpliceDetector()
     payload, peaks = det.detect_with_peaks(str(src), 0.5, [])
     assert payload == det.detect(str(src), 0.5, [])
-    assert peaks is not None and abs(len(peaks) - 50) <= 1
+    assert peaks is not None and len(peaks) == 50
 
 
 def test_detect_with_peaks_none_on_missing_file():
@@ -99,5 +99,25 @@ def test_analyzer_carries_peaks_and_keeps_them_out_of_dict():
 
 def test_analyzer_peaks_none_when_detector_raises():
     result = _analyze_with({'side_effect': RuntimeError('boom')})
+    assert result.peaks_10ms is None and result.splice_evidence is None
+    assert any('splice' in e for e in result.errors)
+
+
+def test_peaks_maxima_include_full_scale_negative(tmp_path):
+    import wave
+    pcm = np.zeros(8000, dtype='<i2')
+    pcm[100] = -32768
+    src = tmp_path / 'neg.wav'
+    with wave.open(str(src), 'wb') as w:
+        w.setnchannels(1)
+        w.setsampwidth(2)
+        w.setframerate(8000)
+        w.writeframes(pcm.tobytes())
+    _, peaks = SpliceDetector().detect_with_peaks(str(src), 1.0, [])
+    assert peaks[1] == 32768
+
+
+def test_analyzer_handles_malformed_detector_result():
+    result = _analyze_with({'return_value': ('only-one-value',)})
     assert result.peaks_10ms is None and result.splice_evidence is None
     assert any('splice' in e for e in result.errors)

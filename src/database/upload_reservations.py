@@ -5,6 +5,7 @@ import threading
 import uuid
 from pathlib import Path
 
+from utils.episode_paths import peaks_file_path, peaks_lock_path, remove_peaks_temp_files
 from utils.time import utc_now_iso
 
 logger = logging.getLogger(__name__)
@@ -72,17 +73,30 @@ class UploadReservationMixin:
                 temp.parent.mkdir(parents=True, exist_ok=True)
                 if not temp.exists():
                     os.replace(final, temp)
+                    self._drop_peaks_file(final, row['scope'])
             elif (row['operation'] != 'import' and temp is not None
                   and final.exists() and not temp.exists()):
                 temp.parent.mkdir(parents=True, exist_ok=True)
                 os.replace(final, temp)
+                self._drop_peaks_file(final, row['scope'])
             if backup is not None and backup.exists():
                 backup_target.parent.mkdir(parents=True, exist_ok=True)
                 os.replace(backup, backup_target)
+                self._drop_peaks_file(backup_target, row['scope'])
             return True
         except (OSError, ValueError) as exc:
             logger.warning("Could not recover upload reservation %s: %s", row['id'], exc)
             return False
+
+    @staticmethod
+    def _drop_peaks_file(original: Path, scope: str) -> None:
+        """Remove the peaks file beside an original that recovery moved or restored."""
+        if scope == 'staging':
+            return
+        peaks = peaks_file_path(original)
+        remove_peaks_temp_files(peaks)
+        peaks_lock_path(peaks).unlink(missing_ok=True)
+        peaks.unlink(missing_ok=True)
 
     def _finish_upload_recovery(self, row: dict) -> bool:
         if not self._recover_upload_files(row):

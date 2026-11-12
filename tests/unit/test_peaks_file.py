@@ -4,6 +4,7 @@ import subprocess
 import time
 
 import numpy as np
+import pytest
 
 import audio_peaks as ap
 
@@ -50,10 +51,10 @@ def test_header_layout_is_little_endian_64_bytes(tmp_path):
     assert raw[64:] == struct.pack('<3H', 1, 2, 3)
 
 
-def test_write_accepts_other_dtypes_and_empty(tmp_path):
+def test_write_accepts_byte_order_and_empty(tmp_path):
     src = _src(tmp_path)
     p = ap.peaks_file_path(src)
-    ap.write_peaks_file(p, np.array([1, 2], dtype=np.int32), src)
+    ap.write_peaks_file(p, np.array([1, 2], dtype='>u2'), src)
     assert np.array_equal(ap.read_peaks_file(p).buckets, [1, 2])
     ap.write_peaks_file(p, np.array([], dtype='<u2'), src)
     assert ap.read_peaks_file(p).bucket_count == 0
@@ -225,6 +226,12 @@ def test_downsample_max_floors_trailing_partial():
     assert np.array_equal(out, np.array([9, 8, 7], dtype='<u2'))
 
 
+def test_downsample_max_rejects_factor_below_one():
+    for bad in (0, -1):
+        with pytest.raises(ValueError):
+            ap.downsample_max(np.array([1, 2], dtype='<u2'), bad)
+
+
 def test_downsample_max_factor_one_and_too_short():
     b = np.array([1, 2, 3], dtype='<u2')
     assert np.array_equal(ap.downsample_max(b, 1), b)
@@ -235,7 +242,7 @@ def test_build_peaks_from_decode_bucket_count(tmp_path):
     src = _src(tmp_path)
     buckets = ap.build_peaks_from_decode(src, 2.0)
     assert buckets.dtype == np.dtype('<u2')
-    assert abs(len(buckets) - 200) <= 1
+    assert len(buckets) == 200
     assert buckets.max() > 0
 
 
@@ -280,3 +287,140 @@ def test_full_scale_negative_sample_reads_as_peak(tmp_path):
     decoded, _ = ap.compute_peaks(src, resolution_ms=10)
     assert decoded[1] == 1.0
     assert ap.build_peaks_from_decode(src, 1.0)[1] == 32768
+
+
+def test_write_rejects_non_uint16(tmp_path):
+    src = _src(tmp_path)
+    p = ap.peaks_file_path(src)
+    for bad in (np.array([70000], dtype=np.int32), np.array([-1], dtype=np.int16),
+                np.array([1.0], dtype=np.float32)):
+        with pytest.raises(ValueError):
+            ap.write_peaks_file(p, bad, src)
+    assert not p.exists()
+
+
+def test_read_fifo_returns_none_without_blocking(tmp_path):
+    fifo = tmp_path / 'f.peaks'
+    os.mkfifo(fifo)
+    assert ap.read_peaks_file(fifo) is None
+    assert ap.read_peaks_window(fifo, 0, 0) is None
+
+
+def test_decode_shorter_than_one_bucket_is_none_and_not_an_error(tmp_path, caplog):
+    src = tmp_path / 'tiny.wav'
+    _gen_wav(src, seconds=0.005)
+    with caplog.at_level('DEBUG', logger='podcast.peaks'):
+        assert ap.build_peaks_from_decode(src, 0.005) is None
+    assert not [r for r in caplog.records if r.levelname in ('ERROR', 'WARNING')]
+
+
+def test_bucket_convention_matches_splice_detector():
+    from audio_analysis import splice_detector as sd
+    assert ap.PEAKS_SAMPLES_PER_BUCKET == sd.RMS_FRAME_SAMPLES
+    assert ap.PEAKS_SAMPLE_RATE_HZ == sd.SAMPLE_RATE_HZ
+
+
+def test_stamp_is_taken_from_the_hashed_handle(tmp_path, monkeypatch):
+    src = _src(tmp_path)
+    p = ap.peaks_file_path(src)
+    other = tmp_path / 'other.wav'
+    _gen_wav(other, seconds=3.0)
+    real = ap._hash_open_source
+
+    def swapped(path):
+        os.replace(other, src)
+        return real(path)
+    monkeypatch.setattr(ap, '_hash_open_source', swapped)
+    ap.write_peaks_file(p, np.array([1], dtype='<u2'), src)
+    data = ap.read_peaks_file(p)
+    digest, st = real(src)
+    assert (data.source_size, data.source_mtime_ns, data.source_sha256) == (
+        st.st_size, st.st_mtime_ns, digest)
+
+
+def test_expect_stat_mismatch_writes_nothing(tmp_path):
+    src = _src(tmp_path)
+    p = ap.peaks_file_path(src)
+    st = src.stat()
+    with pytest.raises(ap.PeaksSourceChanged):
+        ap.write_peaks_file(p, np.array([1], dtype='<u2'), src,
+                            expect_stat=(st.st_size + 1, st.st_mtime_ns))
+    assert not p.exists() and list(tmp_path.glob('*.tmp')) == []
+    ap.write_peaks_file(p, np.array([1], dtype='<u2'), src,
+                        expect_stat=(st.st_size, st.st_mtime_ns))
+    assert p.exists()
+
+
+def test_peaks_file_takes_the_originals_mode(tmp_path):
+    src = _src(tmp_path)
+    os.chmod(src, 0o644)
+    p = ap.peaks_file_path(src)
+    ap.write_peaks_file(p, np.array([1], dtype='<u2'), src)
+    assert p.stat().st_mode & 0o777 == 0o644
+    os.chmod(src, 0o640)
+    os.utime(src, ns=(time.time_ns() + 10**10,) * 2)
+    assert ap.validate_or_restamp_peaks_file(p, src)
+    assert p.stat().st_mode & 0o777 == 0o640
+
+
+def _readonly_restamp_setup(tmp_path, monkeypatch):
+    src = _src(tmp_path)
+    p = ap.peaks_file_path(src)
+    ap.write_peaks_file(p, np.array([7, 8], dtype='<u2'), src)
+    os.utime(src, ns=(time.time_ns() + 10**10,) * 2)
+    monkeypatch.setattr(ap, '_write_atomic',
+                        lambda *a, **k: (_ for _ in ()).throw(OSError('read-only')))
+    calls = []
+    real = ap._hash_open_source
+    monkeypatch.setattr(ap, '_hash_open_source', lambda path: calls.append(1) or real(path))
+    return src, p, calls
+
+
+def test_failed_restamp_hashes_once_per_file_state(tmp_path, monkeypatch):
+    ap._hashed_ok.clear()
+    src, p, calls = _readonly_restamp_setup(tmp_path, monkeypatch)
+    for _ in range(4):
+        assert ap.validate_or_restamp_peaks_file(p, src) is True
+    assert len(calls) == 1
+
+
+def test_failed_restamp_logged_once(tmp_path, monkeypatch, caplog):
+    ap._hashed_ok.clear()
+    src, p, _ = _readonly_restamp_setup(tmp_path, monkeypatch)
+    with caplog.at_level('WARNING', logger='podcast.peaks'):
+        for _ in range(3):
+            ap.validate_or_restamp_peaks_file(p, src)
+    assert len([r for r in caplog.records if 'restamp' in r.getMessage()]) == 1
+
+
+def test_hash_cache_is_keyed_by_source_state(tmp_path, monkeypatch):
+    ap._hashed_ok.clear()
+    src, p, calls = _readonly_restamp_setup(tmp_path, monkeypatch)
+    assert ap.validate_or_restamp_peaks_file(p, src)
+    os.utime(src, ns=(time.time_ns() + 2 * 10**10,) * 2)
+    assert ap.validate_or_restamp_peaks_file(p, src)
+    assert len(calls) == 2
+
+
+def test_hash_cache_is_bounded(monkeypatch):
+    ap._hashed_ok.clear()
+    monkeypatch.setattr(ap, '_HASHED_CACHE_MAX', 3)
+    for i in range(10):
+        ap._remember_hashed(('p', i, i, b''))
+    assert len(ap._hashed_ok) == 3
+
+
+def test_stale_temp_files_removed_on_write_only_for_this_original(tmp_path):
+    src = _src(tmp_path)
+    p = ap.peaks_file_path(src)
+    mine = tmp_path / (p.name + '.abcd1234.tmp')
+    other = tmp_path / 'ffffff-original.peaks.abcd1234.tmp'
+    young = tmp_path / (p.name + '.young123.tmp')
+    for f in (mine, other, young):
+        f.write_bytes(b'x')
+    old = time.time() - 7200
+    os.utime(mine, (old, old))
+    os.utime(other, (old, old))
+    ap.write_peaks_file(p, np.array([1], dtype='<u2'), src)
+    assert not mine.exists()
+    assert other.exists() and young.exists()

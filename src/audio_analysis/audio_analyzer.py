@@ -58,6 +58,12 @@ def calculate_component_timeouts(duration_seconds: float) -> dict[str, int]:
     }
 
 
+def _splice_pair(result) -> tuple[Any, Any]:
+    """Unpack the detector's (evidence, peaks) result; ValueError on a malformed one."""
+    evidence, peaks = result
+    return evidence, peaks
+
+
 class AudioAnalyzer:
     """
     Unified audio analysis for podcast ad detection.
@@ -255,15 +261,18 @@ class AudioAnalyzer:
             return False
 
     @staticmethod
-    def _collect_component(name: str, future, timeout: int) -> tuple[Any, str | None]:
+    def _collect_component(name: str, future, timeout: int,
+                           shape=None) -> tuple[Any, str | None]:
         """Collect a pooled component future with timeout protection.
 
         Returns (result, error); result is None if timeout/error occurred.
         The degradation strings match what the old per-component wrapper
-        (_run_component_with_timeout) produced.
+        (_run_component_with_timeout) produced. ``shape`` reshapes the result
+        inside the handler, so a malformed result degrades like any failure.
         """
         try:
-            return future.result(timeout=timeout), None
+            result = future.result(timeout=timeout)
+            return (shape(result) if shape else result), None
         except FuturesTimeoutError:
             error_msg = f"{name} analysis exceeded {timeout}s timeout"
             logger.warning(error_msg)
@@ -461,7 +470,8 @@ class AudioAnalyzer:
                     status_callback("analyzing: splice evidence", 50)
                 splice_result, splice_error = self._collect_component(
                     'splice', splice_future,
-                    timeouts.get('splice', timeouts['volume']) * timeout_factor)
+                    timeouts.get('splice', timeouts['volume']) * timeout_factor,
+                    shape=_splice_pair)
                 if splice_error:
                     errors.append(splice_error)
                 else:

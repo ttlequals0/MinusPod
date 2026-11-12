@@ -209,3 +209,101 @@ def test_local_import_wide_id_replacement_removes_old_peaks(db_storage, local_fe
     _commit_synchronously(slug, plan, db, storage)
 
     assert not old_peaks.exists()
+
+
+def _temp_files(storage, episode_id=EP):
+    peaks = storage.get_peaks_path(SLUG, episode_id)
+    mine = peaks.with_name(peaks.name + '.abcd1234.tmp')
+    mine.write_bytes(b'x')
+    return mine
+
+
+def test_delete_peaks_file_removes_only_its_own_temp_files_and_lock(storage):
+    _seed(storage)
+    _seed(storage, episode_id='b1b2c3d4e5f6')
+    mine = _temp_files(storage)
+    theirs = _temp_files(storage, 'b1b2c3d4e5f6')
+    lock = storage.get_peaks_path(SLUG, EP).with_name('a1b2c3d4e5f6-original.peaks.lock')
+    lock.write_bytes(b'')
+    storage.delete_peaks_file(SLUG, EP)
+    assert not mine.exists() and not lock.exists()
+    assert theirs.exists()
+
+
+def test_delete_peaks_file_removes_temp_files_without_a_peaks_file(storage):
+    mine = _temp_files(storage)
+    assert storage.delete_peaks_file(SLUG, EP) is False
+    assert not mine.exists()
+
+
+def test_delete_processed_file_removes_temp_files(storage):
+    _seed(storage)
+    mine = _temp_files(storage)
+    storage.delete_processed_file(SLUG, EP, keep_original=False)
+    assert not mine.exists()
+
+
+def test_delete_processed_file_fence_keeps_temp_files(storage):
+    _seed(storage)
+    mine = _temp_files(storage)
+    storage.delete_processed_file(SLUG, EP, keep_original=False, can_delete=lambda: False)
+    assert mine.exists()
+
+
+def test_storage_stats_do_not_count_peaks_temp_files(storage):
+    storage.get_original_path(SLUG, EP).write_bytes(b'\x00' * 100)
+    before = storage.get_storage_stats()
+    _temp_files(storage).write_bytes(b'x' * 5000)
+    storage._storage_stats_cache = type(storage._storage_stats_cache)(0)
+    after = storage.get_storage_stats()
+    assert after['total_size_bytes'] == before['total_size_bytes']
+    assert after['file_count'] == before['file_count']
+
+
+def _recovery_row(operation, slug, target_key, temp_name, backup_name=None):
+    return {'id': 'r1', 'state': 'publishing', 'operation': operation, 'scope': 'episode',
+            'slug': slug, 'target_key': target_key, 'temp_name': temp_name,
+            'backup_name': backup_name, 'backup_target_name': None}
+
+
+def _recovery_db(tmp_path):
+    from database import Database
+    return Database(data_dir=str(tmp_path))
+
+
+def test_upload_recovery_drops_peaks_when_original_is_moved_back(db_storage, tmp_path):
+    db, storage = db_storage
+    original = storage.get_original_path(SLUG, EP)
+    original.write_bytes(b'new bytes')
+    peaks = storage.get_peaks_path(SLUG, EP)
+    peaks.write_bytes(b'MPPK' + b'\x00' * 60)
+    stale = peaks.with_name(peaks.name + '.abcd1234.tmp')
+    stale.write_bytes(b'x')
+    temp_rel = 'import/local/temp.mp3'
+    (tmp_path / 'import' / 'local').mkdir(parents=True)
+    row = _recovery_row('import', SLUG, EP, temp_rel)
+    assert db._recover_upload_files(row) is True
+    assert not original.exists() and (tmp_path / temp_rel).exists()
+    assert not peaks.exists() and not stale.exists()
+
+
+def test_upload_recovery_drops_peaks_when_backup_is_restored(db_storage, tmp_path):
+    db, storage = db_storage
+    original = storage.get_original_path(SLUG, EP)
+    peaks = storage.get_peaks_path(SLUG, EP)
+    peaks.write_bytes(b'MPPK' + b'\x00' * 60)
+    backup = original.with_name('.upload-recovery.backup')
+    backup.write_bytes(b'old bytes')
+    row = _recovery_row('import', SLUG, EP, None, str(backup.relative_to(tmp_path)))
+    assert db._recover_upload_files(row) is True
+    assert original.read_bytes() == b'old bytes'
+    assert not peaks.exists()
+
+
+def test_upload_recovery_without_a_move_leaves_peaks(db_storage, tmp_path):
+    db, storage = db_storage
+    peaks = storage.get_peaks_path(SLUG, EP)
+    peaks.write_bytes(b'MPPK' + b'\x00' * 60)
+    row = _recovery_row('import', SLUG, EP, 'import/local/none.mp3')
+    assert db._recover_upload_files(row) is True
+    assert peaks.exists()

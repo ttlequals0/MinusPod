@@ -20,7 +20,10 @@ from artwork_watermark import (
     composite_watermark, cover_badge_salt, badge_path, normalize_badge_position,
 )
 from user_agent import download_user_agent
-from utils.episode_paths import episode_filename, peaks_file_path
+from utils.episode_paths import (
+    episode_filename, is_peaks_temp_name, peaks_file_path, peaks_lock_path,
+    remove_peaks_temp_files,
+)
 from utils.http import safe_url_for_log
 from utils.url import SSRFError
 from utils.validation import is_dangerous_slug, is_valid_episode_id
@@ -399,9 +402,14 @@ class Storage:
         return peaks_file_path(self.get_original_path(slug, episode_id))
 
     def delete_peaks_file(self, slug: str, episode_id: str) -> bool:
-        """Remove the episode's peaks file; True when one was removed, never raises."""
+        """Remove the episode's peaks file, its lock and stale temp files; never raises.
+
+        True when the peaks file itself was removed.
+        """
         try:
             path = self.get_peaks_path(slug, episode_id)
+            remove_peaks_temp_files(path)
+            peaks_lock_path(path).unlink(missing_ok=True)
             path.unlink()
             return True
         except FileNotFoundError:
@@ -1373,12 +1381,16 @@ class Storage:
             peaks = self.get_peaks_path(slug, episode_id)
             if peaks.exists():
                 candidates.append(peaks)
+        fenced = False
         for path in candidates:
             if can_delete is not None and not can_delete():
+                fenced = True
                 break
             if path.exists():
                 path.unlink()
                 deleted = deleted or path.suffix != '.peaks'
+        if not keep_original and not fenced:
+            remove_peaks_temp_files(self.get_peaks_path(slug, episode_id))
         if deleted:
             logger.debug(f"[{slug}:{episode_id}] Deleted processed/original audio files")
         return deleted
@@ -1476,7 +1488,7 @@ class Storage:
             for podcast_dir in self.podcasts_dir.iterdir():
                 if podcast_dir.is_dir():
                     for f in podcast_dir.rglob('*'):
-                        if f.is_file():
+                        if f.is_file() and not is_peaks_temp_name(f.name):
                             total_size += f.stat().st_size
                             file_count += 1
 

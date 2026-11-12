@@ -1,5 +1,7 @@
 """Shared builders for versioned episode filenames and URLs."""
 import os
+import re
+import time
 from pathlib import Path
 
 
@@ -64,3 +66,43 @@ def episode_public_url(base_url: str, slug: str, episode_id: str,
 def peaks_file_path(audio_path: Path | str) -> Path:
     """Return the sibling ``.peaks`` path for an audio file."""
     return Path(audio_path).with_suffix('.peaks')
+
+
+# mkstemp names: <peaks name>.<8 random chars>.tmp
+_PEAKS_TEMP_RE = re.compile(r'-original\.peaks\.[A-Za-z0-9_]{8}\.tmp$')
+
+
+def is_peaks_temp_name(name: str) -> bool:
+    """True for a leftover temp file of an interrupted peaks write."""
+    return _PEAKS_TEMP_RE.search(name) is not None
+
+
+def peaks_lock_path(peaks_path: Path | str) -> Path:
+    """Return the cross-process build lock path for a peaks file."""
+    p = Path(peaks_path)
+    return p.with_name(p.name + '.lock')
+
+
+def remove_peaks_temp_files(peaks_path: Path | str, min_age_seconds: float = 0.0) -> int:
+    """Remove temp files left by interrupted writes of this peaks file; returns the count."""
+    p = Path(peaks_path)
+    prefix = p.name + '.'
+    removed = 0
+    try:
+        entries = list(os.scandir(p.parent))
+    except OSError:
+        return 0
+    now = time.time()
+    for entry in entries:
+        name = entry.name
+        if not (name.startswith(prefix) and is_peaks_temp_name(name)
+                and len(name) == len(prefix) + 12):
+            continue
+        try:
+            if min_age_seconds and now - entry.stat().st_mtime < min_age_seconds:
+                continue
+            os.unlink(entry.path)
+            removed += 1
+        except OSError:
+            continue
+    return removed
