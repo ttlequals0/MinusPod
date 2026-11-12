@@ -211,7 +211,7 @@ describe('Audio section', () => {
   it('shows an active fingerprint with its stats and controls', async () => {
     mockGetPatternAudio.mockResolvedValue(ACTIVE_AUDIO);
     renderModal(makePattern());
-    expect(await screen.findByText('91% match')).toBeDefined();
+    expect(await screen.findByText('91%')).toBeDefined();
     expect(mockGetPatternAudio).toHaveBeenCalledWith(42);
     expect(screen.getByRole('heading', { name: 'Audio' })).toBeDefined();
     expect(screen.getByRole('switch', { name: 'Audio matching' }).getAttribute('aria-checked')).toBe('true');
@@ -268,7 +268,7 @@ describe('Audio section', () => {
     expect(await screen.findByText('Could not load audio.')).toBeDefined();
     mockGetPatternAudio.mockResolvedValue(ACTIVE_AUDIO);
     await userEvent.click(screen.getByRole('button', { name: 'Retry' }));
-    expect(await screen.findByText('91% match')).toBeDefined();
+    expect(await screen.findByText('91%')).toBeDefined();
   });
 
   it('notes matches found outside the pattern scope', async () => {
@@ -318,7 +318,7 @@ describe('Audio section', () => {
     await userEvent.click(await screen.findByRole('button', { name: 'Delete audio' }));
     await userEvent.click(within(screen.getByRole('dialog', { name: 'Delete audio?' })).getByRole('button', { name: 'Delete audio' }));
     expect(await screen.findByText('Could not delete audio.')).toBeDefined();
-    expect(screen.getByText('91% match')).toBeDefined();
+    expect(screen.getByText('91%')).toBeDefined();
   });
 
   it('says why the source clip cannot play when the server is busy', async () => {

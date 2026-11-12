@@ -67,6 +67,17 @@ describe('AudioMatchesList', () => {
     expect(within(row).getByText('Matched')).toBeDefined();
   });
 
+  it('gives the play and Not this ad actions of a row the same recipe height', async () => {
+    renderList();
+    const row = (await screen.findAllByRole('listitem'))[0];
+    const play = within(row).getByRole('button', { name: /^Play match/ });
+    const reject = within(row).getByRole('button', { name: 'Not this ad' });
+    expect(reject.className).toContain('max-sm:h-11');
+    expect(reject.className).toContain('sm:min-h-0');
+    expect(reject.className).not.toContain('min-h-[44px]');
+    expect(play.className).toContain('min-h-11');
+  });
+
   it('labels audio-only finds and out-of-scope matches', async () => {
     mockGetMatches.mockResolvedValue(pageOf([makeMatch(1, { audioOnly: true }), makeMatch(2, { inScope: false })], 1));
     renderList();

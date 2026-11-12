@@ -14,7 +14,7 @@ import PatternDetailModal from '../components/PatternDetailModal';
 import PatternMergeSuggestions from '../components/PatternMergeSuggestions';
 import { SkeletonRows } from '../components/Skeleton';
 import { Pagination } from '../components/Pagination';
-import { tableBody, tableCard, tableHead, tableRow, td, tdEmpty, tdMuted, thBase, rowCard } from '../components/tableStyles';
+import { tableBody, tableCard, tableHead, tableRow, td, tdEmpty, thBase, rowCard } from '../components/tableStyles';
 import { SortHeader } from '../components/SortHeader';
 import { ScopeBadge } from '../components/ScopeBadge';
 import { CommunityBadge } from '../components/CommunityBadge';
@@ -485,19 +485,19 @@ function PatternsPage() {
       {/* Desktop Table Layout */}
       <div className={`hidden sm:block ${tableCard}`}>
         <div className="overflow-x-auto" role="region" aria-label="Patterns table" tabIndex={0}>
-          <table className="w-full min-w-[960px] table-fixed">
+          <table className="w-full min-w-[1100px] table-fixed">
             <colgroup>
-              <col className="w-[6%]" />
-              <col className="w-[10%]" />
-              <col className="w-[9%]" />
-              <col className="w-[10%]" />
-              <col className="w-[9%]" />
-              <col className="w-[10%]" />
-              <col className="w-[10%]" />
-              <col className="w-[10%]" />
-              <col className="w-[10%]" />
-              <col className="w-[8%]" />
-              <col className="w-[8%]" />
+              <col className="w-[52px]" />
+              <col className="w-[160px]" />
+              <col />
+              <col className="w-[136px]" />
+              <col className="w-[108px]" />
+              <col className="w-[84px]" />
+              <col className="w-[84px]" />
+              <col className="w-[88px]" />
+              <col className="w-[96px]" />
+              <col className="w-[68px]" />
+              <col className="w-[80px]" />
             </colgroup>
             <thead className={tableHead}>
               <tr>
@@ -553,7 +553,7 @@ function PatternsPage() {
                       )}
                     </div>
                   </td>
-                  <td className={`${td} overflow-hidden`}>
+                  <td className="px-2 py-3 text-sm overflow-hidden">
                     <div className="text-sm font-medium text-foreground truncate">
                       {pattern.sponsor || '(Unknown)'}
                     </div>
@@ -600,10 +600,10 @@ function PatternsPage() {
                       {pattern.false_positive_count}
                     </span>
                   </td>
-                  <td className={`${tdMuted} whitespace-nowrap`}>
+                  <td className="px-2 py-3 text-sm text-muted-foreground whitespace-nowrap">
                     {formatDate(pattern.created_at)}
                   </td>
-                  <td className={`${tdMuted} whitespace-nowrap`}>
+                  <td className="px-2 py-3 text-sm text-muted-foreground whitespace-nowrap">
                     {formatDate(pattern.last_matched_at)}
                   </td>
                   <td className="px-2 py-3 whitespace-nowrap">

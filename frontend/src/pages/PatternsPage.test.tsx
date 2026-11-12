@@ -320,6 +320,17 @@ describe('PatternsPage audio column', () => {
     expect(within(table).getByRole('columnheader', { name: 'Audio' })).toBeDefined();
   });
 
+  it('leaves the Sponsor column unsized so it takes the spare width', async () => {
+    mockGetPatterns.mockResolvedValue([audioPattern(1)]);
+    renderPage();
+    const table = await screen.findByRole('table');
+    await within(table).findAllByText('Sponsor 1');
+    const cols = [...table.querySelectorAll('col')];
+    expect(cols).toHaveLength(11);
+    expect(cols[2].className).toBe('');
+    expect(cols.filter((c) => c.className === '')).toHaveLength(1);
+  });
+
   it('shows a dash for active audio with no matches and for a pattern without the field', async () => {
     mockGetPatterns.mockResolvedValue([
       audioPattern(1, { state: 'active', available: true, matchCount: 0, meanSimilarity: null }),

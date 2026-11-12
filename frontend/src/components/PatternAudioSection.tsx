@@ -108,7 +108,7 @@ export default function PatternAudioSection({ pattern }: { pattern: AdPattern })
         {playError && <p role="alert" className="text-sm text-destructive">{playError}</p>}
         <div className="grid grid-cols-[repeat(auto-fit,minmax(6rem,1fr))] gap-2 sm:gap-4">
           <StatTile label="Matches" value={detail.counts.matches} />
-          <StatTile label="Mean match" value={detail.meanSimilarity != null ? `${formatPercent(detail.meanSimilarity)} match` : '-'} />
+          <StatTile label="Mean match" value={detail.meanSimilarity != null ? formatPercent(detail.meanSimilarity) : '-'} />
           <StatTile label="Not this ad" value={detail.counts.rejected} tone={detail.counts.rejected > 0 ? 'destructive' : 'default'} />
           <StatTile label="Last audio match" value={<span className="text-sm font-semibold break-words">{formatDateTime(detail.lastMatchedAt ?? null)}</span>} />
         </div>

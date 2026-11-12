@@ -11,7 +11,7 @@ import { Pagination } from './Pagination';
 import QueryError from './QueryError';
 import { Skeleton } from './Skeleton';
 import { rowCard } from './tableStyles';
-import { cardActionBtn } from './rowActionStyles';
+import { rowActionBtn } from './rowActionStyles';
 import { subHeading } from './pageStyles';
 
 const PER_PAGE = 10;
@@ -118,7 +118,7 @@ export default function AudioMatchesList({ patternId, preview }: { patternId: nu
                           onClick={() => reject.mutate(m)}
                           disabled={reject.isPending}
                           aria-busy={busy}
-                          className={`${cardActionBtn} ${btnOutline} disabled:opacity-50`}
+                          className={`${rowActionBtn} ${btnOutline}`}
                         >
                           Not this ad
                         </button>
