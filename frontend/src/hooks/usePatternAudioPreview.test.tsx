@@ -1,15 +1,8 @@
-import { act, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { ApiError } from '../api/client';
+import { patternAudioPreviewUrl } from '../api/patterns';
 import { usePatternAudioPreview } from './usePatternAudioPreview';
-
-const mockFetchClip = vi.fn();
-
-vi.mock('../api/patterns', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('../api/patterns')>()),
-  fetchPatternAudioClip: (...a: unknown[]) => mockFetchClip(...a),
-}));
 
 function Harness() {
   const preview = usePatternAudioPreview(7);
@@ -28,19 +21,20 @@ function Harness() {
   );
 }
 
-const busy = () => new ApiError('busy', 503, { error: 'busy' }, 2000, true);
+const matchUrl = patternAudioPreviewUrl(7, 5) as string;
+const audioEl = () => document.querySelector('audio') as HTMLAudioElement;
+const state = () => screen.getByTestId('state').textContent;
+const errorText = () => screen.getByTestId('error-match').textContent;
 
-let urlCount = 0;
-let revoked: string[] = [];
+function reply(status: number, body?: object, headers: Record<string, string> = {}) {
+  return new Response(body ? JSON.stringify(body) : null, { status, headers });
+}
+
+let fetchSpy: ReturnType<typeof vi.fn>;
 
 beforeEach(() => {
-  vi.clearAllMocks();
-  urlCount = 0;
-  revoked = [];
-  vi.stubGlobal('URL', Object.assign(URL, {
-    createObjectURL: vi.fn(() => `blob:clip-${++urlCount}`),
-    revokeObjectURL: vi.fn((u: string) => { revoked.push(u); }),
-  }));
+  fetchSpy = vi.fn();
+  vi.stubGlobal('fetch', fetchSpy);
   vi.spyOn(HTMLMediaElement.prototype, 'play').mockResolvedValue(undefined);
   vi.spyOn(HTMLMediaElement.prototype, 'pause').mockImplementation(() => {});
 });
@@ -50,89 +44,118 @@ afterEach(() => {
 });
 
 describe('usePatternAudioPreview', () => {
-  it('fetches the clip once and plays it from a blob url', async () => {
-    mockFetchClip.mockResolvedValue(new Blob(['a']));
+  it('assigns the source and calls play inside the click, before any request resolves', () => {
+    fetchSpy.mockReturnValue(new Promise(() => {}));
+    const order: string[] = [];
+    vi.mocked(HTMLMediaElement.prototype.play).mockImplementation(function play(this: HTMLMediaElement) {
+      order.push(`play:${this.getAttribute('src')}`);
+      return Promise.resolve();
+    });
+    render(<Harness />);
+    act(() => { screen.getByRole('button', { name: 'match' }).click(); });
+    expect(order).toEqual([`play:${matchUrl}`]);
+    expect(state()).toBe('match-loading');
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it('follows the element events from loading to playing to ended', () => {
+    render(<Harness />);
+    act(() => { screen.getByRole('button', { name: 'match' }).click(); });
+    fireEvent.waiting(audioEl());
+    expect(state()).toBe('match-loading');
+    fireEvent.playing(audioEl());
+    expect(state()).toBe('match-playing');
+    fireEvent.waiting(audioEl());
+    expect(state()).toBe('match-loading');
+    fireEvent.playing(audioEl());
+    fireEvent.ended(audioEl());
+    expect(state()).toBe('');
+  });
+
+  it('a second click on a playing clip stops it', async () => {
     render(<Harness />);
     await userEvent.click(screen.getByRole('button', { name: 'match' }));
-    await waitFor(() => expect(screen.getByTestId('state').textContent).toBe('match-playing'));
-    expect(mockFetchClip).toHaveBeenCalledTimes(1);
-    expect(mockFetchClip).toHaveBeenCalledWith(7, 5, expect.any(AbortSignal));
-    expect(document.querySelector('audio')?.getAttribute('src')).toBe('blob:clip-1');
+    fireEvent.playing(audioEl());
+    await userEvent.click(screen.getByRole('button', { name: 'match' }));
+    expect(state()).toBe('');
+    expect(HTMLMediaElement.prototype.pause).toHaveBeenCalled();
     expect(HTMLMediaElement.prototype.play).toHaveBeenCalledTimes(1);
   });
 
-  it('shows a loading state while the clip is prepared', async () => {
-    let finish: (b: Blob) => void = () => {};
-    mockFetchClip.mockReturnValue(new Promise<Blob>((resolve) => { finish = resolve; }));
+  it('after an error the next click reassigns src and plays again', async () => {
+    fetchSpy.mockResolvedValue(reply(503, { error: 'busy' }, { 'Retry-After': '2' }));
     render(<Harness />);
     await userEvent.click(screen.getByRole('button', { name: 'match' }));
-    expect(screen.getByTestId('state').textContent).toBe('match-loading');
-    await act(async () => { finish(new Blob(['a'])); });
-    expect(screen.getByTestId('state').textContent).toBe('match-playing');
+    fireEvent.error(audioEl());
+    await waitFor(() => expect(errorText()).toBe('Audio is being prepared. Try again.'));
+    expect(state()).toBe('');
+    expect(audioEl().hasAttribute('src')).toBe(false);
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    expect(fetchSpy.mock.calls[0][0]).toBe(matchUrl);
+    await userEvent.click(screen.getByRole('button', { name: 'match' }));
+    expect(audioEl().getAttribute('src')).toBe(matchUrl);
+    expect(HTMLMediaElement.prototype.play).toHaveBeenCalledTimes(2);
+    expect(errorText()).toBe('');
+    fireEvent.playing(audioEl());
+    expect(state()).toBe('match-playing');
   });
 
-  it('reports a busy server, then a second click makes a new request and plays', async () => {
-    mockFetchClip.mockRejectedValueOnce(busy()).mockResolvedValueOnce(new Blob(['a']));
+  it('explains each failure from the status and code of one follow-up request', async () => {
+    fetchSpy
+      .mockResolvedValueOnce(reply(404, { code: 'original_not_retained' }))
+      .mockResolvedValueOnce(reply(404, { code: 'no_audio' }))
+      .mockResolvedValueOnce(reply(503, { error: 'busy' }))
+      .mockResolvedValueOnce(reply(500, {}));
+    render(<Harness />);
+    const expected = [
+      "This episode's original audio is no longer kept.",
+      'This pattern has no audio fingerprint.',
+      'Could not play this audio. Try again.',
+      'Could not play this audio. Try again.',
+    ];
+    for (const text of expected) {
+      await userEvent.click(screen.getByRole('button', { name: 'match' }));
+      fireEvent.error(audioEl());
+      await waitFor(() => expect(errorText()).toBe(text));
+    }
+    expect(fetchSpy).toHaveBeenCalledTimes(4);
+  });
+
+  it('tells the user to tap again when the browser blocks play', async () => {
+    vi.mocked(HTMLMediaElement.prototype.play).mockRejectedValue(new DOMException('blocked', 'NotAllowedError'));
     render(<Harness />);
     await userEvent.click(screen.getByRole('button', { name: 'match' }));
-    await waitFor(() => expect(screen.getByTestId('error-match').textContent).toBe('Audio is being prepared. Try again.'));
-    expect(screen.getByTestId('state').textContent).toBe('');
-    await userEvent.click(screen.getByRole('button', { name: 'match' }));
-    await waitFor(() => expect(screen.getByTestId('state').textContent).toBe('match-playing'));
-    expect(mockFetchClip).toHaveBeenCalledTimes(2);
-    expect(screen.getByTestId('error-match').textContent).toBe('');
+    await waitFor(() => expect(errorText()).toBe('Tap play again to start the audio.'));
+    expect(fetchSpy).not.toHaveBeenCalled();
+    expect(state()).toBe('');
   });
 
-  it('explains an original that is no longer kept and a pattern without audio', async () => {
-    mockFetchClip.mockRejectedValueOnce(new ApiError('gone', 404, { code: 'original_not_retained' }))
-      .mockRejectedValueOnce(new ApiError('none', 404, { code: 'no_audio' }))
-      .mockRejectedValueOnce(new ApiError('boom', 500, {}));
-    render(<Harness />);
-    await userEvent.click(screen.getByRole('button', { name: 'match' }));
-    await waitFor(() => expect(screen.getByTestId('error-match').textContent).toBe("This episode's original audio is no longer kept."));
-    await userEvent.click(screen.getByRole('button', { name: 'match' }));
-    await waitFor(() => expect(screen.getByTestId('error-match').textContent).toBe('This pattern has no audio fingerprint.'));
-    await userEvent.click(screen.getByRole('button', { name: 'match' }));
-    await waitFor(() => expect(screen.getByTestId('error-match').textContent).toBe('Could not play this audio. Try again.'));
-  });
-
-  it('reports a clip the element cannot decode', async () => {
-    mockFetchClip.mockResolvedValue(new Blob(['a']));
-    vi.mocked(HTMLMediaElement.prototype.play).mockRejectedValue(new Error('decode'));
+  it('explains another rejected play() with the follow-up request', async () => {
+    vi.mocked(HTMLMediaElement.prototype.play).mockRejectedValue(new DOMException('bad', 'NotSupportedError'));
+    fetchSpy.mockResolvedValue(reply(404, { code: 'no_audio' }));
     render(<Harness />);
     await userEvent.click(screen.getByRole('button', { name: 'source' }));
-    await waitFor(() => expect(screen.getByTestId('error-source').textContent).toBe('Could not play this audio. Try again.'));
-    expect(screen.getByTestId('state').textContent).toBe('');
+    await waitFor(() => expect(screen.getByTestId('error-source').textContent).toBe('This pattern has no audio fingerprint.'));
   });
 
-  it('a second click on a playing clip stops it without another request', async () => {
-    mockFetchClip.mockResolvedValue(new Blob(['a']));
+  it('makes one follow-up request when both play() and the element report the failure', async () => {
+    vi.mocked(HTMLMediaElement.prototype.play).mockRejectedValue(new DOMException('bad', 'NotSupportedError'));
+    fetchSpy.mockResolvedValue(reply(500, {}));
     render(<Harness />);
     await userEvent.click(screen.getByRole('button', { name: 'match' }));
-    await waitFor(() => expect(screen.getByTestId('state').textContent).toBe('match-playing'));
-    await userEvent.click(screen.getByRole('button', { name: 'match' }));
-    expect(screen.getByTestId('state').textContent).toBe('');
-    expect(mockFetchClip).toHaveBeenCalledTimes(1);
-    expect(HTMLMediaElement.prototype.pause).toHaveBeenCalled();
+    fireEvent.error(audioEl());
+    await waitFor(() => expect(errorText()).toBe('Could not play this audio. Try again.'));
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
   });
 
-  it('revokes the previous object url when another clip loads and on unmount', async () => {
-    mockFetchClip.mockResolvedValue(new Blob(['a']));
-    const { unmount } = render(<Harness />);
-    await userEvent.click(screen.getByRole('button', { name: 'match' }));
-    await waitFor(() => expect(screen.getByTestId('state').textContent).toBe('match-playing'));
-    await userEvent.click(screen.getByRole('button', { name: 'source' }));
-    await waitFor(() => expect(screen.getByTestId('state').textContent).toBe('source-playing'));
-    expect(revoked).toEqual(['blob:clip-1']);
-    unmount();
-    expect(revoked).toEqual(['blob:clip-1', 'blob:clip-2']);
-  });
-
-  it('aborts a request still in flight on unmount', async () => {
+  it('aborts the follow-up request on unmount', async () => {
     let signal: AbortSignal | undefined;
-    mockFetchClip.mockImplementation((_id: number, _m: number, s: AbortSignal) => { signal = s; return new Promise(() => {}); });
+    fetchSpy.mockImplementation((_url: string, init: RequestInit) => { signal = init.signal as AbortSignal; return new Promise(() => {}); });
     const { unmount } = render(<Harness />);
     await userEvent.click(screen.getByRole('button', { name: 'match' }));
+    fireEvent.error(audioEl());
+    await waitFor(() => expect(fetchSpy).toHaveBeenCalled());
+    expect(signal?.aborted).toBe(false);
     unmount();
     expect(signal?.aborted).toBe(true);
   });

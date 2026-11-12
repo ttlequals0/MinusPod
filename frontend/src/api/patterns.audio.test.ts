@@ -9,7 +9,7 @@ vi.mock('./client', async (importOriginal) => ({
 
 import {
   getPatternAudio, setPatternAudioEnabled, deletePatternAudio, rebuildPatternAudio,
-  getPatternAudioMatches, patternAudioPreviewUrl, describeFingerprintSkip, fetchPatternAudioClip, describePreviewFailure,
+  getPatternAudioMatches, patternAudioPreviewUrl, describeFingerprintSkip, describePreviewStatus,
   type FingerprintSkippedReason,
 } from './patterns';
 import { getAudioMatchingStats } from './stats';
@@ -98,41 +98,22 @@ describe('describeFingerprintSkip', () => {
   });
 });
 
-describe('fetchPatternAudioClip', () => {
-  it('fetches the clip once as a blob without retrying a busy server', async () => {
-    const blob = new Blob(['x']);
-    mockApiRequest.mockResolvedValue(blob);
-    const controller = new AbortController();
-    await expect(fetchPatternAudioClip(7, 102, controller.signal)).resolves.toBe(blob);
-    expect(mockApiRequest).toHaveBeenCalledTimes(1);
-    expect(mockApiRequest).toHaveBeenCalledWith('/patterns/7/audio/preview?matchId=102', {
-      responseType: 'blob', skipRetry: true, signal: controller.signal,
-    });
-  });
-
-  it('asks for the source clip without a match id', async () => {
-    mockApiRequest.mockResolvedValue(new Blob());
-    await fetchPatternAudioClip(7);
-    expect(mockApiRequest.mock.calls[0][0]).toBe('/patterns/7/audio/preview');
-  });
-});
-
-describe('describePreviewFailure', () => {
+describe('describePreviewStatus', () => {
   it('says a busy server is preparing the audio', () => {
-    expect(describePreviewFailure(new ApiError('busy', 503, { error: 'busy' }, 2000, true))).toBe('Audio is being prepared. Try again.');
+    expect(describePreviewStatus(503, undefined, true)).toBe('Audio is being prepared. Try again.');
   });
 
   it('says when the original is gone', () => {
-    expect(describePreviewFailure(new ApiError('gone', 404, { code: 'original_not_retained' }))).toBe("This episode's original audio is no longer kept.");
+    expect(describePreviewStatus(404, 'original_not_retained', false)).toBe("This episode's original audio is no longer kept.");
   });
 
   it('says when the pattern has no audio', () => {
-    expect(describePreviewFailure(new ApiError('none', 404, { code: 'no_audio' }))).toBe('This pattern has no audio fingerprint.');
+    expect(describePreviewStatus(404, 'no_audio', false)).toBe('This pattern has no audio fingerprint.');
   });
 
   it('falls back to a plain retryable message for anything else', () => {
-    expect(describePreviewFailure(new ApiError('boom', 500, {}))).toBe('Could not play this audio. Try again.');
-    expect(describePreviewFailure(new ApiError('busy', 503, {}))).toBe('Could not play this audio. Try again.');
-    expect(describePreviewFailure(new TypeError('offline'))).toBe('Could not play this audio. Try again.');
+    expect(describePreviewStatus(500, undefined, false)).toBe('Could not play this audio. Try again.');
+    expect(describePreviewStatus(503, undefined, false)).toBe('Could not play this audio. Try again.');
+    expect(describePreviewStatus(0, undefined, false)).toBe('Could not play this audio. Try again.');
   });
 });

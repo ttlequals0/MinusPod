@@ -1,89 +1,116 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { describePreviewFailure, fetchPatternAudioClip, patternAudioPreviewUrl } from '../api/patterns';
+import { explainPreviewFailure, patternAudioPreviewUrl } from '../api/patterns';
 
 const SOURCE_KEY = 'source';
 const keyOf = (matchId?: number) => (matchId === undefined ? SOURCE_KEY : String(matchId));
-const DECODE_FAILURE = 'Could not play this audio. Try again.';
+const NOT_ALLOWED = 'Tap play again to start the audio.';
 
-// One player for a pattern's source clip and its matches. A clip is fetched once as a
-// blob, so a failure carries its status and a retry is a new request.
+type Active = { key: string; phase: 'loading' | 'playing' };
+
+// One player for a pattern's source clip and its matches. play() runs inside the tap so
+// WebKit allows it; the element streams the clip and a failure is explained by one extra request.
 export function usePatternAudioPreview(patternId: number) {
   const audioRef = useRef<HTMLAudioElement | null>(null);
-  const objectUrlRef = useRef<string | null>(null);
-  const abortRef = useRef<AbortController | null>(null);
-  const [playingKey, setPlayingKey] = useState<string | null>(null);
-  const [loadingKey, setLoadingKey] = useState<string | null>(null);
+  const loadedKeyRef = useRef<string | null>(null);
+  const activeRef = useRef<Active | null>(null);
+  const tokenRef = useRef(0);
+  const failedTokenRef = useRef(0);
+  const explainRef = useRef<AbortController | null>(null);
+  const [active, setActiveState] = useState<Active | null>(null);
   const [failure, setFailure] = useState<{ key: string; text: string } | null>(null);
 
-  const revoke = () => {
-    if (objectUrlRef.current) URL.revokeObjectURL(objectUrlRef.current);
-    objectUrlRef.current = null;
+  const setActive = (next: Active | null) => {
+    activeRef.current = next;
+    setActiveState(next);
   };
 
   const stop = () => {
-    abortRef.current?.abort();
+    explainRef.current?.abort();
+    tokenRef.current += 1;
     audioRef.current?.pause();
-    setPlayingKey(null);
-    setLoadingKey(null);
+    setActive(null);
   };
 
   useEffect(() => () => {
-    abortRef.current?.abort();
+    explainRef.current?.abort();
     audioRef.current?.pause();
-    if (objectUrlRef.current) URL.revokeObjectURL(objectUrlRef.current);
   }, []);
 
-  const start = async (matchId?: number) => {
-    const key = keyOf(matchId);
-    abortRef.current?.abort();
-    audioRef.current?.pause();
-    const controller = new AbortController();
-    abortRef.current = controller;
-    setFailure(null);
-    setPlayingKey(null);
-    setLoadingKey(key);
-    try {
-      const blob = await fetchPatternAudioClip(patternId, matchId, controller.signal);
-      const audio = audioRef.current;
-      if (controller.signal.aborted || !audio) return;
-      revoke();
-      objectUrlRef.current = URL.createObjectURL(blob);
-      audio.src = objectUrlRef.current;
-      setLoadingKey(null);
-      setPlayingKey(key);
-      await audio.play();
-    } catch (error) {
-      if (controller.signal.aborted) return;
-      setLoadingKey(null);
-      setPlayingKey(null);
-      setFailure({ key, text: describePreviewFailure(error) });
+  const fail = async (token: number, key: string, url: string, error?: unknown) => {
+    if (failedTokenRef.current === token) return;
+    failedTokenRef.current = token;
+    const audio = audioRef.current;
+    loadedKeyRef.current = null;
+    if (audio) {
+      audio.pause();
+      audio.removeAttribute('src');
+      audio.load();
     }
+    setActive(null);
+    if (error instanceof DOMException && error.name === 'NotAllowedError') {
+      setFailure({ key, text: NOT_ALLOWED });
+      return;
+    }
+    const controller = new AbortController();
+    explainRef.current = controller;
+    const text = await explainPreviewFailure(url, controller.signal);
+    if (!controller.signal.aborted) setFailure({ key, text });
+  };
+
+  const start = (matchId?: number) => {
+    const audio = audioRef.current;
+    const url = patternAudioPreviewUrl(patternId, matchId);
+    // The demo build has no audio.
+    if (!audio || !url) return;
+    const key = keyOf(matchId);
+    explainRef.current?.abort();
+    audio.pause();
+    const token = ++tokenRef.current;
+    setFailure(null);
+    setActive({ key, phase: 'loading' });
+    if (loadedKeyRef.current === key) {
+      audio.currentTime = 0;
+    } else {
+      audio.src = url;
+      loadedKeyRef.current = key;
+    }
+    audio.play()?.catch((error: unknown) => {
+      if (token !== tokenRef.current || (error instanceof DOMException && error.name === 'AbortError')) return;
+      void fail(token, key, url, error);
+    });
   };
 
   const toggle = (matchId?: number) => {
-    const key = keyOf(matchId);
-    if (playingKey === key || loadingKey === key) {
+    if (active?.key === keyOf(matchId)) {
       stop();
       return;
     }
-    // The demo build has no audio.
-    if (!patternAudioPreviewUrl(patternId, matchId)) return;
-    void start(matchId);
+    start(matchId);
   };
 
   const attachAudio = useCallback((el: HTMLAudioElement | null) => {
     if (el) audioRef.current = el;
   }, []);
 
+  const setPhase = (phase: Active['phase']) => {
+    const current = activeRef.current;
+    if (current) setActive({ key: current.key, phase });
+  };
+
   const audioElement = (
     <audio
       ref={attachAudio}
       preload="none"
-      onEnded={() => setPlayingKey(null)}
+      onLoadStart={() => setPhase('loading')}
+      onWaiting={() => setPhase('loading')}
+      onPlaying={() => setPhase('playing')}
+      onEnded={() => setActive(null)}
       onError={() => {
-        if (!playingKey) return;
-        setFailure({ key: playingKey, text: DECODE_FAILURE });
-        setPlayingKey(null);
+        const current = activeRef.current;
+        if (!current) return;
+        const matchId = current.key === SOURCE_KEY ? undefined : Number(current.key);
+        const url = patternAudioPreviewUrl(patternId, matchId);
+        if (url) void fail(tokenRef.current, current.key, url);
       }}
     />
   );
@@ -92,8 +119,8 @@ export function usePatternAudioPreview(patternId: number) {
     audioElement,
     stop,
     toggle,
-    isPlaying: (matchId?: number) => playingKey === keyOf(matchId),
-    isLoading: (matchId?: number) => loadingKey === keyOf(matchId),
+    isPlaying: (matchId?: number) => active?.key === keyOf(matchId) && active.phase === 'playing',
+    isLoading: (matchId?: number) => active?.key === keyOf(matchId) && active.phase === 'loading',
     errorFor: (matchId?: number) => (failure?.key === keyOf(matchId) ? failure.text : null),
   };
 }

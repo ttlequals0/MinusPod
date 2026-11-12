@@ -1,21 +1,18 @@
-import { act, render, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import AudioMatchesList from './AudioMatchesList';
 import { usePatternAudioPreview } from '../hooks/usePatternAudioPreview';
-import { ApiError } from '../api/client';
 import type { AudioMatch } from '../api/patterns';
 
 const mockGetMatches = vi.fn();
 const mockSubmitCorrection = vi.fn();
-const mockFetchClip = vi.fn();
 
 vi.mock('../api/patterns', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../api/patterns')>()),
   getPatternAudioMatches: (...a: unknown[]) => mockGetMatches(...a),
   submitCorrection: (...a: unknown[]) => mockSubmitCorrection(...a),
-  fetchPatternAudioClip: (...a: unknown[]) => mockFetchClip(...a),
 }));
 
 function makeMatch(i: number, overrides: Partial<AudioMatch> = {}): AudioMatch {
@@ -46,8 +43,6 @@ const twelve = Array.from({ length: 12 }, (_, i) => makeMatch(i + 1));
 
 beforeEach(() => {
   vi.clearAllMocks();
-  vi.stubGlobal('URL', Object.assign(URL, { createObjectURL: vi.fn(() => 'blob:clip'), revokeObjectURL: vi.fn() }));
-  mockFetchClip.mockResolvedValue(new Blob(['a']));
   mockGetMatches.mockImplementation((_id: number, p: { page?: number } = {}) => Promise.resolve(pageOf(twelve, p.page ?? 1)));
 });
 afterEach(() => {
@@ -220,29 +215,28 @@ describe('AudioMatchesList', () => {
     await waitFor(() => expect(list.getAttribute('aria-busy')).toBe('false'));
   });
 
-  it('plays a match from a blob of the clip and shows Loading audio while it is fetched', async () => {
+  it('plays a match from its preview url and shows Loading audio until it starts', async () => {
     vi.spyOn(HTMLMediaElement.prototype, 'play').mockResolvedValue(undefined);
-    let finish: (b: Blob) => void = () => {};
-    mockFetchClip.mockReturnValue(new Promise<Blob>((resolve) => { finish = resolve; }));
     renderList();
     const row = (await screen.findAllByRole('listitem'))[1];
     await userEvent.click(within(row).getByRole('button', { name: /^Play/ }));
     expect(within(row).getByRole('status').textContent).toBe('Loading audio...');
-    await act(async () => { finish(new Blob(['a'])); });
-    expect(mockFetchClip).toHaveBeenCalledWith(7, 102, expect.any(AbortSignal));
-    expect(document.querySelector('audio')?.getAttribute('src')).toBe('blob:clip');
+    expect(document.querySelector('audio')?.getAttribute('src')).toBe('/api/v1/patterns/7/audio/preview?matchId=102');
+    fireEvent.playing(document.querySelector('audio') as HTMLAudioElement);
     expect(within(row).queryByRole('status')).toBeNull();
   });
 
   it('says why a match cannot play, and a retry makes a new request', async () => {
     vi.spyOn(HTMLMediaElement.prototype, 'play').mockResolvedValue(undefined);
-    mockFetchClip.mockRejectedValueOnce(new ApiError('gone', 404, { code: 'original_not_retained' }));
+    const fetchSpy = vi.fn().mockResolvedValueOnce(new Response(JSON.stringify({ code: 'original_not_retained' }), { status: 404 }));
+    vi.stubGlobal('fetch', fetchSpy);
     renderList();
     const row = (await screen.findAllByRole('listitem'))[0];
     await userEvent.click(within(row).getByRole('button', { name: /^Play/ }));
+    fireEvent.error(document.querySelector('audio') as HTMLAudioElement);
     expect(await within(row).findByText("This episode's original audio is no longer kept.")).toBeDefined();
     await userEvent.click(within(row).getByRole('button', { name: /^Play/ }));
-    await waitFor(() => expect(mockFetchClip).toHaveBeenCalledTimes(2));
+    expect(HTMLMediaElement.prototype.play).toHaveBeenCalledTimes(2);
     await waitFor(() => expect(within(row).queryByText("This episode's original audio is no longer kept.")).toBeNull());
   });
 

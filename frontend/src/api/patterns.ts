@@ -531,18 +531,27 @@ export function patternAudioPreviewUrl(id: number, matchId?: number): string | n
   return mediaUrl({ kind: 'audio', url: apiUrl(`/patterns/${id}/audio/preview${qs}`) });
 }
 
-// Fetched once as a blob so the failure status is readable; an <audio> src load hides it.
-export async function fetchPatternAudioClip(id: number, matchId?: number, signal?: AbortSignal): Promise<Blob> {
-  const qs = buildQueryString({ matchId });
-  return apiRequest<Blob>(`/patterns/${id}/audio/preview${qs}`, { responseType: 'blob', skipRetry: true, signal });
+export function describePreviewStatus(status: number, code: string | undefined, hasRetryAfter: boolean): string {
+  if (status === 503 && hasRetryAfter) return 'Audio is being prepared. Try again.';
+  if (status === 404 && code === 'original_not_retained') return describeFingerprintSkip('original_not_retained');
+  if (status === 404 && code === 'no_audio') return 'This pattern has no audio fingerprint.';
+  return 'Could not play this audio. Try again.';
 }
 
-export function describePreviewFailure(error: unknown): string {
-  if (error instanceof ApiError) {
-    const code = (error.body as { code?: string } | null)?.code;
-    if (error.status === 503 && error.hasRetryAfter) return 'Audio is being prepared. Try again.';
-    if (error.status === 404 && code === 'original_not_retained') return describeFingerprintSkip('original_not_retained');
-    if (error.status === 404 && code === 'no_audio') return 'This pattern has no audio fingerprint.';
+// One request after a playback error: an <audio> element hides the status, so read it, then abort.
+export async function explainPreviewFailure(url: string, signal: AbortSignal): Promise<string> {
+  const inner = new AbortController();
+  signal.addEventListener('abort', () => inner.abort(), { once: true });
+  try {
+    const res = await fetch(url, { signal: inner.signal });
+    let code: string | undefined;
+    if (!res.ok) {
+      try { code = ((await res.json()) as { code?: string } | null)?.code; } catch { /* no JSON body */ }
+    }
+    return describePreviewStatus(res.status, code, res.headers.get('Retry-After') !== null);
+  } catch {
+    return describePreviewStatus(0, undefined, false);
+  } finally {
+    inner.abort();
   }
-  return 'Could not play this audio. Try again.';
 }
