@@ -904,6 +904,13 @@ def fingerprint_unmatchable_reason(ints, *, min_coverage=None):
     ceiling = fingerprint_coverage_ceiling(pat_arr)
     if ceiling < min_coverage - 1e-9:
         return f"at most {ceiling:.0%} coverage reachable, {min_coverage:.0%} needed"
+    # A pause can leave pieces too short to count, so the pattern must also find itself
+    if not match_fingerprints(pat_arr, len(pat_arr) / FINGERPRINT_NOMINAL_FPS,
+                              [(0, pat_arr, 0.0, None, None)],
+                              strictness=FINGERPRINT_SETTING_RANGES['fingerprint_match_strictness'][0],
+                              min_coverage=min_coverage,
+                              gap_tolerance_s=FINGERPRINT_SETTING_RANGES['fingerprint_gap_tolerance_s'][0]):
+        return f"does not match its own audio at {min_coverage:.0%} coverage"
     return None
 
 
@@ -956,7 +963,7 @@ def explain_match(ep_ints, ep_duration, pattern, *, strictness, min_coverage, ga
     novelty = _novelty(pat_arr, informative)
     distinctive = _unmatchable_reason(novelty) is None
     out = {'candidates': 0, 'coverage_ceiling': ceiling,
-           'matchable': distinctive and ceiling >= min_coverage - 1e-9,
+           'matchable': fingerprint_is_matchable(pat_arr, min_coverage=min_coverage),
            'rejected_by': 'candidates', 'matched': False}
     if not distinctive:
         out['rejected_by'] = 'not_distinctive'

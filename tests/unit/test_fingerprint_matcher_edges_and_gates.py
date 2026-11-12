@@ -190,6 +190,31 @@ def test_matchable_needs_a_coverage_ceiling_at_the_minimum_coverage():
         assert e['matched'] is matchable
 
 
+@pytest.mark.parametrize('seconds', [5, 6, 8])
+def test_a_matchable_pattern_with_a_pause_is_found_in_its_own_audio(seconds):
+    clean, _degraded, _other = _fixture()
+    fps = len(clean) / 180.0
+    rng = np.random.default_rng(40 + seconds)
+    ln = int(seconds * fps)
+    accepted = 0
+    for _ in range(40):
+        s = int(rng.integers(0, len(clean) - ln))
+        pat = clean[s:s + ln].copy()
+        k = int(rng.uniform(1.5, 0.6 * seconds) * fps)
+        p0 = int(rng.integers(0, ln - k))
+        pat[p0:p0 + k] = pat[p0]
+        matchable = fingerprint_is_matchable(pat, min_coverage=0.5)
+        assert _explain(clean, pat)['matchable'] is matchable
+        if not matchable:
+            continue
+        accepted += 1
+        ep = clean.copy()
+        ep[s:s + ln] = pat
+        assert any(m.start < (s + ln) / fps and m.end > s / fps
+                   for m in match_fingerprints(ep, 180.0, [(1, pat, float(seconds), None, None)], **KW))
+    assert accepted >= 5
+
+
 def test_a_gap_longer_than_the_tolerance_splits_the_match():
     rng = np.random.default_rng(8)
     for _ in range(10):
