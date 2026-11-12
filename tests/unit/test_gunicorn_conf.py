@@ -36,11 +36,12 @@ def _load_conf(monkeypatch, workers, storage):
     (1, None, False),
     (2, "redis://localhost:6379", False),
 ])
-def test_when_ready_warning(monkeypatch, workers, storage, expect_warn):
+def test_when_ready_logs_rate_limit_note(monkeypatch, workers, storage, expect_warn):
     mod = _load_conf(monkeypatch, workers, storage)
     server = MagicMock()
     mod.when_ready(server)
-    assert server.log.warning.called is expect_warn
+    assert server.log.info.called is expect_warn
+    assert not server.log.warning.called
 
 
 def _error_formatters(monkeypatch, log_format):

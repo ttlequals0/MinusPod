@@ -185,7 +185,7 @@ def test_bus_id_read_from_driver(monkeypatch):
 
 
 def _gpu_lines(caplog):
-    return [r for r in caplog.records if r.getMessage().startswith('GPU ')]
+    return [r for r in caplog.records if r.getMessage().startswith('GPU:')]
 
 
 def test_selected_gpu_is_logged_once_with_runtime_values(fake, caplog):
@@ -193,7 +193,7 @@ def test_selected_gpu_is_logged_once_with_runtime_values(fake, caplog):
         gpu.log_selected_gpu()
         gpu.log_selected_gpu()
     lines = _gpu_lines(caplog)
-    assert [r.getMessage() for r in lines] == ['GPU 0: Fake GPU (bus 00000000:01:00.0, 15.0 GiB)']
+    assert [r.getMessage() for r in lines] == ['GPU: Fake GPU (NVML index 0, bus 00000000:01:00.0, 15.0 GiB)']
     assert lines[0].levelno == logging.INFO
 
 
@@ -212,11 +212,33 @@ def test_selected_gpu_silent_and_final_without_nvml(monkeypatch, caplog):
     assert gpu._gpu_logged is True
 
 
-def test_selected_gpu_silent_when_nvml_init_fails(monkeypatch, caplog):
-    monkeypatch.setattr(gpu, 'pynvml', FakeNVML(init_error=FakeNVMLError('no driver')))
+def test_selected_gpu_silent_and_final_when_nvml_init_fails(monkeypatch, caplog):
+    nvml = FakeNVML(init_error=FakeNVMLError('no driver'))
+    monkeypatch.setattr(gpu, 'pynvml', nvml)
     with caplog.at_level(logging.INFO, logger=gpu.logger.name):
         gpu.log_selected_gpu()
+        gpu.log_selected_gpu()
     assert _gpu_lines(caplog) == []
+    assert nvml.init_calls == 1
+    assert gpu._gpu_logged is True
+
+
+def test_selected_gpu_retries_after_a_transient_nvml_failure(monkeypatch, caplog):
+    class FlakyNVML(FakeNVML):
+        failures = 1
+
+        def nvmlDeviceGetName(self, handle):
+            if self.failures:
+                self.failures -= 1
+                raise FakeNVMLError('transient')
+            return self.name
+    monkeypatch.setattr(gpu, 'pynvml', FlakyNVML())
+    with caplog.at_level(logging.INFO, logger=gpu.logger.name):
+        gpu.log_selected_gpu()
+        assert _gpu_lines(caplog) == [] and gpu._gpu_logged is False
+        gpu.log_selected_gpu()
+        gpu.log_selected_gpu()
+    assert len(_gpu_lines(caplog)) == 1
 
 
 def test_selected_gpu_survives_mig_index_failure(monkeypatch, caplog):
@@ -226,7 +248,7 @@ def test_selected_gpu_survives_mig_index_failure(monkeypatch, caplog):
     monkeypatch.setattr(gpu, 'pynvml', MigNVML())
     with caplog.at_level(logging.INFO, logger=gpu.logger.name):
         gpu.log_selected_gpu()
-    assert _gpu_lines(caplog)[0].getMessage().startswith('GPU 0:')
+    assert _gpu_lines(caplog)[0].getMessage().startswith('GPU: Fake GPU (NVML index 0,')
 
 
 def test_available_memory_logs_the_gpu_once(fake, monkeypatch, caplog):

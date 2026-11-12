@@ -1,4 +1,5 @@
 """In-process NVIDIA Parakeet TDT transcription through onnx-asr (#834)."""
+import contextlib
 import glob
 import importlib.util
 import json
@@ -60,17 +61,19 @@ def _model_files_complete(model_dir, quantization):
     """True only if a finished fetch recorded these files and each is still present at its recorded size."""
     try:
         with open(_record_path(model_dir, quantization), encoding='utf-8') as f:
-            sizes = json.load(f)
+            record = json.load(f)
+        if record['repo'] != PARAKEET_MODEL_REPO:
+            return False
         required, _ = _model_patterns(quantization)
-        recorded = {os.path.join(model_dir, name): size for name, size in sizes.items()}
+        recorded = {os.path.join(model_dir, name): size for name, size in record['files'].items()}
         return (all(any(p in recorded for p in _matches(model_dir, pat)) for pat in required)
                 and all(os.path.isfile(p) and os.path.getsize(p) == size for p, size in recorded.items()))
-    except (OSError, ValueError, AttributeError, TypeError):
+    except (OSError, ValueError, AttributeError, TypeError, KeyError):
         return False
 
 
 def _record_model_files(model_dir, quantization):
-    """After a completed download, record each file's size so a later load can skip the network check."""
+    """Record the source repo and each file's size so a later load can skip the network check."""
     required, optional = _model_patterns(quantization)
     if not all(_matches(model_dir, pat) for pat in required):
         return
@@ -80,10 +83,12 @@ def _record_model_files(model_dir, quantization):
     tmp = f'{record}.{os.getpid()}.tmp'
     try:
         with open(tmp, 'w', encoding='utf-8') as f:
-            json.dump(sizes, f)
+            json.dump({'repo': PARAKEET_MODEL_REPO, 'files': sizes}, f)
         os.replace(tmp, record)
     except OSError as e:
         logger.debug("Could not record Parakeet model files: %s", e)
+        with contextlib.suppress(OSError):
+            os.unlink(tmp)
 
 
 def _fetch_model_files(model_dir, quantization):
@@ -102,8 +107,21 @@ def _fetch_model_files(model_dir, quantization):
         if not os.path.isfile(encoder):
             raise
         logger.warning("Parakeet model download failed, using the local copy: %s", e)
-        return
     _record_model_files(model_dir, quantization)
+
+
+def _warn_on_cpu_fallback(model, device):
+    """Warn when a cuda load runs on the CPU provider; severity 3 hides ORT's own fallback warning."""
+    if device != 'cuda':
+        return
+    try:
+        providers = model.asr._encoder.get_providers()
+    except Exception as e:
+        logger.debug("Could not read the Parakeet execution providers: %s", e)
+        return
+    if 'CUDAExecutionProvider' not in providers:
+        logger.warning("Parakeet is running on %s, not CUDAExecutionProvider; transcription will be slow",
+                       ", ".join(providers))
 
 
 class ParakeetModelSingleton:
@@ -135,12 +153,13 @@ class ParakeetModelSingleton:
                 model_dir = os.path.join(
                     os.environ.get('HF_HOME', '/app/data/.cache'), 'parakeet', PARAKEET_MODEL_NAME)
                 _fetch_model_files(model_dir, quantization)
-                # ERROR keeps real failures and drops device-discovery and Memcpy placement warnings.
+                # ERROR keeps real failures and drops session-creation warnings; the import-time device-discovery line cannot be silenced.
                 if hasattr(onnxruntime, 'set_default_logger_severity'):
                     onnxruntime.set_default_logger_severity(3)
                 model = onnx_asr.load_model(
                     PARAKEET_MODEL_NAME, path=model_dir, quantization=quantization,
                     providers=providers).with_timestamps()
+                _warn_on_cpu_fallback(model, device)
             except Exception as e:
                 raise ModelLoadError(str(e)) from e
             logger.info("Loaded Parakeet %s on %s (providers=%s)",

@@ -3,10 +3,10 @@
 Used by callers that previously rolled their own time-based cache. Single
 sentinel (`_MISSING`) distinguishes "no entry" from "entry stored as None".
 
-Time source: `time.monotonic()`. No threading lock -- callers are
-single-threaded per request worker, or wrap usage in their own lock when
-shared across threads.
+Time source: `time.monotonic()`. Every operation holds an internal lock, so
+one instance is safe to share across threads.
 """
+import threading
 import time
 from typing import Any
 
@@ -21,25 +21,27 @@ class TTLCache:
         self._ttl = float(ttl_seconds)
         self._store: dict = {}
         self._max_size = max_size
+        self._lock = threading.RLock()
 
     def get(self, key, default=None):
         """Return cached value if fresh, else `default`. Lazy eviction."""
-        entry = self._store.get(key, _MISSING)
-        if entry is _MISSING:
-            return default
-        value, ts = entry
-        if (time.monotonic() - ts) >= self._ttl:
-            # Expired -- evict and return default
-            self._store.pop(key, None)
-            return default
-        return value
+        with self._lock:
+            entry = self._store.get(key, _MISSING)
+            if entry is _MISSING:
+                return default
+            value, ts = entry
+            if (time.monotonic() - ts) >= self._ttl:
+                self._store.pop(key, None)
+                return default
+            return value
 
     def set(self, key, value: Any) -> None:
         """Store value with current monotonic timestamp, evicting to fit max_size."""
-        now = time.monotonic()
-        if key not in self._store and len(self._store) >= self._max_size:
-            self._evict_to_fit(now)
-        self._store[key] = (value, now)
+        with self._lock:
+            now = time.monotonic()
+            if key not in self._store and len(self._store) >= self._max_size:
+                self._evict_to_fit(now)
+            self._store[key] = (value, now)
 
     def _evict_to_fit(self, now) -> None:
         """Drop expired entries, then oldest ones, until under max_size."""
@@ -54,8 +56,10 @@ class TTLCache:
 
     def delete(self, key) -> None:
         """Drop one entry if present."""
-        self._store.pop(key, None)
+        with self._lock:
+            self._store.pop(key, None)
 
     def clear(self) -> None:
         """Drop all cached entries."""
-        self._store.clear()
+        with self._lock:
+            self._store.clear()

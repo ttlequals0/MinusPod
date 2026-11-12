@@ -1,4 +1,6 @@
 """Parakeet transcriber: pure helpers and decode with a stubbed model (#834)."""
+import json
+import logging
 import os
 import sys
 import types
@@ -416,12 +418,26 @@ def test_fetch_records_nothing_when_the_download_left_files_missing(tmp_path, mo
     assert len(calls) == 2
 
 
-def test_fetch_records_nothing_when_the_local_copy_fallback_ran(tmp_path, monkeypatch):
-    _write_model_files(tmp_path, 'int8')
+def _offline_hub(monkeypatch):
     hub = types.ModuleType('huggingface_hub')
     hub.snapshot_download = _offline_snapshot
     monkeypatch.setitem(sys.modules, 'huggingface_hub', hub)
+
+
+def test_fetch_records_a_complete_local_copy_used_offline(tmp_path, monkeypatch):
+    _write_model_files(tmp_path, 'int8')
+    _offline_hub(monkeypatch)
     pt._fetch_model_files(str(tmp_path), 'int8')
+    calls = _track_snapshot(monkeypatch)
+    pt._fetch_model_files(str(tmp_path), 'int8')
+    assert calls == []
+
+
+def test_fetch_records_nothing_for_an_incomplete_local_copy_used_offline(tmp_path, monkeypatch):
+    (tmp_path / 'encoder-model.int8.onnx').write_bytes(b'x')
+    _offline_hub(monkeypatch)
+    pt._fetch_model_files(str(tmp_path), 'int8')
+    assert not list(tmp_path.glob('.minuspod-complete*'))
     calls = _track_snapshot(monkeypatch)
     pt._fetch_model_files(str(tmp_path), 'int8')
     assert len(calls) == 1
@@ -441,6 +457,92 @@ def test_unreadable_completion_record_means_download(tmp_path, monkeypatch):
         rec.write_text('{not json')
     pt._fetch_model_files(str(tmp_path), None)
     assert len(calls) == 2
+
+
+def _rewrite_record(tmp_path, edit):
+    (record,) = tmp_path.glob('.minuspod-complete*')
+    record.write_text(json.dumps(edit(json.loads(record.read_text()))))
+
+
+def test_completion_record_names_its_source_repo(tmp_path, monkeypatch):
+    _track_snapshot(monkeypatch, write=lambda: _write_model_files(tmp_path))
+    pt._fetch_model_files(str(tmp_path), None)
+    (record,) = tmp_path.glob('.minuspod-complete*')
+    assert json.loads(record.read_text())['repo'] == pt.PARAKEET_MODEL_REPO
+
+
+def test_record_from_another_repo_means_download(tmp_path, monkeypatch):
+    calls = _track_snapshot(monkeypatch, write=lambda: _write_model_files(tmp_path))
+    pt._fetch_model_files(str(tmp_path), None)
+    _rewrite_record(tmp_path, lambda rec: {**rec, 'repo': 'someone/else'})
+    pt._fetch_model_files(str(tmp_path), None)
+    assert len(calls) == 2
+
+
+def test_old_format_record_means_download(tmp_path, monkeypatch):
+    calls = _track_snapshot(monkeypatch, write=lambda: _write_model_files(tmp_path))
+    pt._fetch_model_files(str(tmp_path), None)
+    _rewrite_record(tmp_path, lambda rec: rec['files'])
+    pt._fetch_model_files(str(tmp_path), None)
+    assert len(calls) == 2
+
+
+@pytest.mark.parametrize('failing', ['replace', 'dump'])
+def test_failed_record_write_leaves_no_temp_file_and_the_fetch_succeeds(tmp_path, monkeypatch, failing):
+    def boom(*a, **k):
+        raise OSError('read-only file system')
+
+    target = (pt.os, 'replace') if failing == 'replace' else (pt.json, 'dump')
+    calls = _track_snapshot(monkeypatch, write=lambda: _write_model_files(tmp_path))
+    monkeypatch.setattr(*target, boom)
+    pt._fetch_model_files(str(tmp_path), None)
+    assert len(calls) == 1
+    assert not list(tmp_path.glob('.minuspod-complete*'))
+
+
+def _loaded_with_providers(providers):
+    session = types.SimpleNamespace(get_providers=lambda: providers)
+    return types.SimpleNamespace(with_timestamps=lambda: types.SimpleNamespace(asr=types.SimpleNamespace(_encoder=session)))
+
+
+def _load_on(monkeypatch, loaded, device):
+    _fake_modules(monkeypatch, lambda *a, **k: loaded)
+    monkeypatch.setattr(pt, 'resolve_whisper_device', lambda: device)
+    return pt.ParakeetModelSingleton.get_instance()
+
+
+def _provider_records(caplog):
+    return [r for r in caplog.records if 'CUDA' in r.getMessage() and r.levelno >= logging.WARNING]
+
+
+def test_cuda_in_use_logs_no_fallback_warning(monkeypatch, clean_singleton, caplog):
+    with caplog.at_level(logging.DEBUG, logger=pt.logger.name):
+        _load_on(monkeypatch, _loaded_with_providers(['CUDAExecutionProvider', 'CPUExecutionProvider']), 'cuda')
+    assert _provider_records(caplog) == []
+
+
+def test_cpu_fallback_on_cuda_logs_one_warning(monkeypatch, clean_singleton, caplog):
+    with caplog.at_level(logging.DEBUG, logger=pt.logger.name):
+        _load_on(monkeypatch, _loaded_with_providers(['CPUExecutionProvider']), 'cuda')
+    records = _provider_records(caplog)
+    assert [r.levelno for r in records] == [logging.WARNING]
+    assert 'CPUExecutionProvider' in records[0].getMessage()
+
+
+def test_cpu_device_never_checks_providers(monkeypatch, clean_singleton, caplog):
+    with caplog.at_level(logging.DEBUG, logger=pt.logger.name):
+        _load_on(monkeypatch, _loaded_with_providers(['CPUExecutionProvider']), 'cpu')
+    assert _provider_records(caplog) == []
+
+
+def test_missing_session_attribute_logs_one_debug_and_loads(monkeypatch, clean_singleton, caplog):
+    loaded = types.SimpleNamespace(with_timestamps=lambda: types.SimpleNamespace())
+    with caplog.at_level(logging.DEBUG, logger=pt.logger.name):
+        model = _load_on(monkeypatch, loaded, 'cuda')
+    assert model is not None and pt.ParakeetModelSingleton.is_loaded()
+    unreadable = [r for r in caplog.records if 'providers' in r.getMessage().lower()
+                  and 'could not' in r.getMessage().lower()]
+    assert [r.levelno for r in unreadable] == [logging.DEBUG]
 
 
 def test_get_instance_sets_ort_severity_before_loading_and_keeps_errors(monkeypatch, clean_singleton):

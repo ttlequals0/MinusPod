@@ -112,19 +112,20 @@ def _gpu_summary(handle) -> str:
     total = pynvml.nvmlDeviceGetMemoryInfo(handle).total
     name = name.decode() if isinstance(name, bytes) else name
     bus = bus.decode() if isinstance(bus, bytes) else bus
-    return f"GPU {index}: {name} (bus {bus}, {total / _GIB:.1f} GiB)"
+    return f"GPU: {name} (NVML index {index}, bus {bus}, {total / _GIB:.1f} GiB)"
 
 
 def log_selected_gpu() -> None:
-    """Log the selected GPU once per process; silent without a usable GPU."""
+    """Log the selected GPU once per process; a transient NVML failure is retried on the next call."""
     global _gpu_logged
     with _gpu_log_lock:
         if _gpu_logged:
             return
-        _gpu_logged = True
-    summary = _nvml_query(_gpu_summary)
-    if summary is not None:
-        logger.info(summary)
+        summary = _nvml_query(_gpu_summary)
+        if summary is not None:
+            logger.info(summary)
+        # Only a missing pynvml or a failed init is final.
+        _gpu_logged = summary is not None or pynvml is None or _nvml_ready is False
 
 
 def get_available_memory_gb(device: str = "cuda") -> tuple[float | None, str]:

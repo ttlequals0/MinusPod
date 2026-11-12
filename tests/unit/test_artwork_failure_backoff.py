@@ -208,7 +208,9 @@ def test_skip_is_logged_again_after_a_new_failure_opens_a_window(storage, caplog
         storage.download_artwork('example-feed', URL)
         with caplog.at_level(logging.DEBUG, logger='storage'):
             storage.download_artwork('example-feed', URL)
+            storage.download_artwork('example-feed', URL)
             storage.download_artwork('example-feed', URL, force=True)
+            storage.download_artwork('example-feed', URL)
             storage.download_artwork('example-feed', URL)
     assert len(_skip_lines(caplog)) == 2
 
