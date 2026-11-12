@@ -149,9 +149,8 @@ def auth_logout():
     Listed in AUTH_EXEMPT_PATHS so an expired session can still call it,
     which means the blueprint-level CSRF check in check_auth() is skipped.
     Enforce it manually here so a cross-site POST cannot terminate an
-    authenticated session. Unauthenticated callers bypass (csrf.validate
-    returns None when session.authenticated is False), preserving the
-    "always callable to clear stale state" property.
+    authenticated session. A caller without a live sign-in skips the token
+    check, so it can always clear stale state.
     """
     csrf_err = csrf_validate(request)
     if csrf_err:
