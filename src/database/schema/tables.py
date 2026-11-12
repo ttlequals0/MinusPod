@@ -586,6 +586,10 @@ FINGERPRINT_MATCH_INDEXES = (
     "ON audio_fingerprint_matches(pattern_id, created_at)",
     "CREATE INDEX IF NOT EXISTS idx_fp_matches_episode "
     "ON audio_fingerprint_matches(podcast_slug, episode_id)",
+    "CREATE INDEX IF NOT EXISTS idx_fp_matches_created "
+    "ON audio_fingerprint_matches(created_at)",
+    "CREATE INDEX IF NOT EXISTS idx_fp_matches_rejected_at "
+    "ON audio_fingerprint_matches(rejected_at) WHERE rejected = 1",
 )
 
 TABLE_DDL['known_sponsors'] = """CREATE TABLE IF NOT EXISTS known_sponsors (

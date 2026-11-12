@@ -281,3 +281,21 @@ def test_summary_aggregate_searches_the_requested_patterns_only(temp_db, pattern
     plan = ' '.join(r[3] for r in conn.execute('EXPLAIN QUERY PLAN ' + query))
     assert 'SCAN audio_fingerprint_matches' not in plan and 'SCAN m ' not in plan
     assert 'idx_fp_matches_pattern' in plan
+
+
+def test_audio_matching_stats_use_the_date_indexes(temp_db, pattern):
+    _record(temp_db, pattern, 'ep1')
+    conn = temp_db.get_connection()
+    statements = []
+    conn.set_trace_callback(statements.append)
+    try:
+        temp_db.get_audio_matching_stats(from_date='2020-01-01', to_date='2099-01-01')
+    finally:
+        conn.set_trace_callback(None)
+    plans = {}
+    for sql in statements:
+        if 'FROM audio_fingerprint_matches' in sql and 'COUNT(*)' in sql:
+            detail = ' '.join(r['detail'] for r in conn.execute('EXPLAIN QUERY PLAN ' + sql))
+            plans['rejected = 1' in sql] = detail
+    assert 'idx_fp_matches_created' in plans[False]
+    assert 'idx_fp_matches_rejected_at' in plans[True]
