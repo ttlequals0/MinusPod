@@ -327,6 +327,17 @@ describe('FeedSettingsPanel queue priority control (#625)', () => {
 describe('FeedSettingsPanel processing order control (#997)', () => {
   const NAME = 'Processing order';
 
+  it('points aria-describedby at the error alert when a save fails', async () => {
+    mockGetSettings.mockResolvedValue({});
+    mockUpdateFeed.mockRejectedValue(new Error('invalid queueOrder'));
+    renderPanel(makeFeed({ queueOrder: null }));
+    const select = screen.getByRole('combobox', { name: NAME });
+    await userEvent.selectOptions(select, 'newest_first');
+    const alert = await screen.findByRole('alert');
+    expect(select.getAttribute('aria-describedby')).toBe('feed-queue-order-help feed-queue-order-error');
+    expect(document.getElementById('feed-queue-order-error')).toBe(alert);
+  });
+
   beforeEach(() => {
     vi.clearAllMocks();
     mockGetSettings.mockResolvedValue({});
@@ -386,6 +397,15 @@ describe('FeedSettingsPanel failed saves for queue controls', () => {
     const alert = await screen.findByRole('alert');
     expect(alert.textContent).toContain('invalid queuePriority');
     expect(select.value).toBe('low');
+    expect(select.getAttribute('aria-describedby')).toBe('feed-queue-priority-help feed-queue-priority-error');
+    expect(document.getElementById('feed-queue-priority-error')).toBe(alert);
+    expect(document.getElementById('feed-queue-priority-help')?.textContent).toContain('High processes before');
+  });
+
+  it('describes the select by the help text alone when there is no error', () => {
+    renderPanel(makeFeed());
+    const select = screen.getByRole('combobox', { name: 'Queue priority' });
+    expect(select.getAttribute('aria-describedby')).toBe('feed-queue-priority-help');
   });
 });
 
