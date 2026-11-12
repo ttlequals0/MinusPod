@@ -158,9 +158,10 @@ When processing new episodes, the system first checks for known patterns before 
 - **LLM Analysis** - Falls back to AI analysis for uncovered segments
 
 **Fingerprint matching limits:**
-A fingerprint match is measured at one alignment. Where the audio stops agreeing for longer than the gap tolerance setting, the match splits, and each side must pass the coverage and evidence checks on its own. A short dropout inside an ad is bridged; a long damaged stretch can leave an ad unmatched. When two stored ads overlap in an episode, the stronger match takes the overlap and the other keeps what is left if that is at least the minimum ad length. Three limits are known and kept on purpose:
-- On heavily compressed audio a match can stop up to about 3 seconds before the ad's real edge. MinusPod does not stretch it to a nearby LLM edge, because that would bring back cuts that run into show audio. Leaving a little ad in is the safer mistake.
-- Near-identical music beds can still produce a rare false match at the default settings. In synthetic tests this was a few matches per several thousand unrelated patterns.
+A fingerprint match is measured at one alignment. Where the audio stops agreeing for longer than the gap tolerance setting, the match is split, and each piece must pass the coverage and evidence checks on its own. A short dropout inside an ad is bridged. An ad with a damaged stretch longer than the gap tolerance is found as shorter pieces, or not found at all. When two stored ads overlap in an episode, the stronger match takes the overlap and the other keeps what is left if that is at least the minimum ad length. These limits were measured in testing:
+- On heavily compressed audio, a match edge can stop up to about 5 seconds before the ad's real edge. MinusPod does not stretch it to a nearby LLM edge, because that would bring back cuts that run into show audio. Leaving a little ad in is the safer mistake.
+- A match edge rarely runs into show audio, and then by at most about 3 seconds. It went more than 1 second past the ad in 16 of about 20,000 matches.
+- A false match on unrelated audio was seen about once per 20,000 patterns.
 - The match strictness setting starts at 0.65. Raising it to about 0.70 changes little.
 
 **Defined vs. Auto-Learned Patterns:**
