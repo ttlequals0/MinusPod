@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { getEpisodePeaks } from '../../api/feeds';
 import { ApiError, getErrorMessage, sleep } from '../../api/client';
@@ -39,6 +39,8 @@ export interface UsePeaksResult {
   peaks: number[] | null;
   peakResolutionMs: number;
   peaksError: string | null;
+  loading: boolean;
+  retry: () => void;
 }
 
 // Fetches episode peaks for the given window and exposes the result plus the
@@ -60,17 +62,20 @@ export function usePeaks(
   resetTick: number,
 ): UsePeaksResult {
   const queryClient = useQueryClient();
+  const [retryTick, setRetryTick] = useState(0);
+  const retry = useCallback(() => setRetryTick((n) => n + 1), []);
+  const tick = resetTick + retryTick;
 
   // Skip the initial mount: only an actual Reset click should blow the cache.
   // resetQueries (not removeQueries) because removal does not notify the
   // mounted observer; reset clears the data of every matching entry and
   // refetches the active one.
-  const prevResetTickRef = useRef(resetTick);
+  const prevResetTickRef = useRef(tick);
   useEffect(() => {
-    if (prevResetTickRef.current === resetTick) return;
-    prevResetTickRef.current = resetTick;
+    if (prevResetTickRef.current === tick) return;
+    prevResetTickRef.current = tick;
     queryClient.resetQueries({ queryKey: ['peaks', podcastSlug, episodeId] });
-  }, [resetTick, queryClient, podcastSlug, episodeId]);
+  }, [tick, queryClient, podcastSlug, episodeId]);
 
   const query = useQuery({
     queryKey: ['peaks', podcastSlug, episodeId, windowStart, windowEnd],
@@ -83,11 +88,13 @@ export function usePeaks(
     retry: false,
   });
 
+  const peaksError = query.error ? getErrorMessage(query.error, String(query.error)) : null;
+  const peaks = query.data?.peaks ?? null;
   return {
-    peaks: query.data?.peaks ?? null,
+    peaks,
     peakResolutionMs: query.data?.resolutionMs || PEAK_RESOLUTION_MS,
-    peaksError: query.error
-      ? getErrorMessage(query.error, String(query.error))
-      : null,
+    peaksError,
+    loading: !peaks && !peaksError,
+    retry,
   };
 }

@@ -186,4 +186,17 @@ describe('usePeaks retry after an error', () => {
     expect(result.current.peaksError).toBeNull();
     expect(result.current.peaks).toEqual([0.1, 0.2]);
   });
+
+  it('retry() refetches and loading tracks the missing peaks', async () => {
+    mockGetPeaks.mockRejectedValueOnce(new ApiError('broke', 500, {})).mockResolvedValue(ok);
+    const { result } = setup();
+    expect(result.current.loading).toBe(true);
+    await act(() => vi.advanceTimersByTimeAsync(0));
+    expect(result.current.loading).toBe(false);
+    act(() => result.current.retry());
+    await act(() => vi.advanceTimersByTimeAsync(0));
+    expect(mockGetPeaks).toHaveBeenCalledTimes(2);
+    expect(result.current.peaks).toEqual([0.1, 0.2]);
+    expect(result.current.loading).toBe(false);
+  });
 });

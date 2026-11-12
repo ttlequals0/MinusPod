@@ -158,9 +158,8 @@ export default function SplitMarkerModal({ target, onClose, onSplit }: Props) {
   );
   // Fetch peaks from episode start: usePeakSlice indexes by absolute time,
   // so a window-scoped fetch would slice past the array and render nothing.
-  const [peaksRetryTick, setPeaksRetryTick] = useState(0);
-  const { peaks, peakResolutionMs, peaksError } = usePeaks(
-    podcastSlug, episodeId, 0, end, peaksRetryTick);
+  const { peaks, peakResolutionMs, peaksError, loading: peaksLoading, retry: retryPeaks } = usePeaks(
+    podcastSlug, episodeId, 0, end, 0);
   const windowPeaks = usePeakSlice(
     peaks, peakResolutionMs, window_.windowStart, window_.windowEnd);
 
@@ -369,7 +368,7 @@ export default function SplitMarkerModal({ target, onClose, onSplit }: Props) {
             {/* Waveform plus the dividers laid over it. */}
             <div ref={containerRef} className="relative">
               <PeakStrip peaks={windowPeaks} />
-              {!peaks && !peaksError && (
+              {peaksLoading && (
                 <WaveformLoading className="absolute left-2 top-2 z-20 rounded bg-secondary/90 px-1 pointer-events-none" />
               )}
               {effectiveDividers.map((t, i) => (
@@ -391,7 +390,7 @@ export default function SplitMarkerModal({ target, onClose, onSplit }: Props) {
             </div>
 
             {/* Outside the pin overlay so no divider crosses it. */}
-            {peaksError && <WaveformError onRetry={() => setPeaksRetryTick((n) => n + 1)} />}
+            {peaksError && <WaveformError onRetry={retryPeaks} />}
 
             {/* The piece strip: one segment per resulting ad, gapped so the
                 boundaries read as boundaries rather than a colour change. */}

@@ -18,12 +18,11 @@ vi.mock('../api/sponsors', () => ({
 }));
 const peaksState = vi.hoisted(() => ({
   value: { peaks: [0.2, 0.5, 0.3] as number[] | null, peakResolutionMs: 100, peaksError: null as string | null },
+  retry: vi.fn(),
 }));
-const peaksTicks = vi.hoisted(() => [] as number[]);
 vi.mock('./ad-editor/usePeaks', () => ({
-  usePeaks: (...args: unknown[]) => {
-    peaksTicks.push(args[4] as number);
-    return peaksState.value;
+  usePeaks: () => {
+    return { ...peaksState.value, loading: !peaksState.value.peaks && !peaksState.value.peaksError, retry: peaksState.retry };
   },
 }));
 
@@ -46,8 +45,8 @@ function renderModal(onSplit = vi.fn(), onClose = vi.fn()) {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  peaksTicks.length = 0;
   peaksState.value = { peaks: [0.2, 0.5, 0.3], peakResolutionMs: 100, peaksError: null };
+  peaksState.retry.mockClear();
   mockSubmitSplit.mockResolvedValue({
     message: 'Split into 2 ads', markerCount: 2, patternIds: [1, 2],
   });
@@ -333,8 +332,7 @@ describe('SplitMarkerModal waveform states', () => {
     peaksState.value = { peaks: null, peakResolutionMs: 100, peaksError: 'boom' };
     renderModal();
     const user = userEvent.setup();
-    expect(new Set(peaksTicks)).toEqual(new Set([0]));
     await user.click(await screen.findByRole('button', { name: 'Retry' }));
-    expect(peaksTicks[peaksTicks.length - 1]).toBe(1);
+    expect(peaksState.retry).toHaveBeenCalledTimes(1);
   });
 });

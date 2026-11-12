@@ -10,15 +10,14 @@ const { createMock, previewMock } = vi.hoisted(() => ({
 
 const peaksState = vi.hoisted(() => ({
   value: { peaks: null as number[] | null, peakResolutionMs: 100, peaksError: null as string | null },
-  ticks: [] as number[],
+  retry: vi.fn(),
 }));
 vi.mock('wavesurfer.js', () => ({
   default: { create: vi.fn(() => ({ on: vi.fn(), destroy: vi.fn(), getWidth: vi.fn(() => 300) })) },
 }));
 vi.mock('./ad-editor/usePeaks', () => ({
-  usePeaks: (...args: unknown[]) => {
-    peaksState.ticks.push(args[4] as number);
-    return peaksState.value;
+  usePeaks: () => {
+    return { ...peaksState.value, loading: !peaksState.value.peaks && !peaksState.value.peaksError, retry: peaksState.retry };
   },
 }));
 vi.mock('../api/cueTemplates', async (importOriginal) => ({
@@ -31,7 +30,7 @@ vi.mock('../api/cueTemplates', async (importOriginal) => ({
 beforeEach(() => {
   vi.clearAllMocks();
   peaksState.value = { peaks: null, peakResolutionMs: 100, peaksError: null };
-  peaksState.ticks.length = 0;
+  peaksState.retry.mockClear();
   previewMock.mockResolvedValue({ matches: [] });
 });
 
@@ -129,8 +128,7 @@ describe('CueMarkModal waveform states', () => {
     peaksState.value = { peaks: null, peakResolutionMs: 100, peaksError: 'boom' };
     renderCue();
     const user = userEvent.setup();
-    expect(new Set(peaksState.ticks)).toEqual(new Set([0]));
     await user.click(screen.getByRole('button', { name: 'Retry' }));
-    expect(peaksState.ticks[peaksState.ticks.length - 1]).toBe(1);
+    expect(peaksState.retry).toHaveBeenCalledTimes(1);
   });
 });

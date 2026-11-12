@@ -18,12 +18,11 @@ vi.mock('wavesurfer.js/dist/plugins/regions.esm.js', () => ({
 }));
 const peaksState = vi.hoisted(() => ({
   value: { peaks: [0.2, 0.5, 0.3] as number[] | null, peakResolutionMs: 100, peaksError: null as string | null },
-  ticks: [] as number[],
+  retry: vi.fn(),
 }));
 vi.mock('./ad-editor/usePeaks', () => ({
-  usePeaks: (...args: unknown[]) => {
-    peaksState.ticks.push(args[4] as number);
-    return peaksState.value;
+  usePeaks: () => {
+    return { ...peaksState.value, loading: !peaksState.value.peaks && !peaksState.value.peaksError, retry: peaksState.retry };
   },
 }));
 vi.mock('../api/sponsors', () => ({
@@ -146,7 +145,7 @@ function renderModal(over: Partial<React.ComponentProps<typeof AdReviewModal>> =
 beforeEach(() => {
   vi.clearAllMocks();
   peaksState.value = { peaks: [0.2, 0.5, 0.3], peakResolutionMs: 100, peaksError: null };
-  peaksState.ticks.length = 0;
+  peaksState.retry.mockClear();
   mockReprocess.mockResolvedValue({});
 });
 
@@ -522,9 +521,8 @@ describe('AdReviewModal waveform states', () => {
     peaksState.value = { peaks: null, peakResolutionMs: 100, peaksError: 'boom' };
     renderModal();
     const user = userEvent.setup();
-    const before = peaksState.ticks[peaksState.ticks.length - 1];
     await user.click(screen.getByRole('button', { name: 'Retry' }));
-    expect(peaksState.ticks[peaksState.ticks.length - 1]).toBe(before + 1);
+    expect(peaksState.retry).toHaveBeenCalledTimes(1);
   });
 
   it('Retry leaves the window and the pins where the user put them', async () => {

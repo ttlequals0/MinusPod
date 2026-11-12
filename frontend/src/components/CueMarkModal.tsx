@@ -187,9 +187,8 @@ function CueMarkModal({
   // window out client-side. Re-fetching per window would null `peaks` on every
   // zoom/pan tick, flashing the pins and waveform; slicing keeps the loaded
   // peaks stable so only the rendered slice changes. Only Retry refetches.
-  const [peaksRetryTick, setPeaksRetryTick] = useState(0);
-  const { peaks, peakResolutionMs, peaksError } = usePeaks(
-    podcastSlug, episodeId, 0, totalDuration, peaksRetryTick,
+  const { peaks, peakResolutionMs, peaksError, loading: peaksLoading, retry: retryPeaks } = usePeaks(
+    podcastSlug, episodeId, 0, totalDuration, 0,
   );
 
   const audioUrl = episodeOriginalUrl(podcastSlug, episodeId);
@@ -617,7 +616,7 @@ function CueMarkModal({
         {/* Waveform + pins. Same overlay pattern as AdReviewModal. */}
         <div ref={scrollRef} className="overflow-hidden border border-border rounded-lg bg-secondary/40 min-h-[140px]">
           <div ref={overlayRef} className="relative">
-            {!peaks && !peaksError && <WaveformLoading className="absolute left-3 top-3" />}
+            {peaksLoading && <WaveformLoading className="absolute left-3 top-3" />}
             <div ref={waveformRef} />
             {/* Selected-cue region highlight -- same amber fill the ad editor
                 uses for its selection window. Below the markers/pins/playhead. */}
@@ -752,7 +751,7 @@ function CueMarkModal({
         )}
 
         {peaksError && (
-          <WaveformError className="mt-2" onRetry={() => setPeaksRetryTick((n) => n + 1)} />
+          <WaveformError className="mt-2" onRetry={retryPeaks} />
         )}
 
         {/* Find audio cues (on-demand -- the scan decodes the episode). */}
