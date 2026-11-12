@@ -11,6 +11,7 @@ from config import (
     SNIPPET_EXCLUDED_HOLD_REASONS, SNIPPET_EXCLUDED_SQL, SNIPPET_EXCLUDED_SQL_PARAMS,
     SNIPPET_EXCLUDED_STAGE_REASONS,
 )
+from api import preview_cache
 from database.fingerprint_matches import fingerprint_member_pattern_ids
 from utils.markers import clip_merge_spans, find_marker_in_list, parse_ad_markers
 from utils.time import utc_now_iso, utc_now, parse_iso_datetime
@@ -455,6 +456,7 @@ def delete_pattern(pattern_id):
         return error_response('Pattern not found', 404)
 
     db.delete_ad_pattern(pattern_id)
+    preview_cache.drop_cached_slices(pattern_id)
     return json_response({'message': 'Pattern deleted'})
 
 
@@ -617,6 +619,7 @@ def merge_patterns():
                 f'''DELETE FROM ad_patterns WHERE id IN ({placeholders})''',  # noqa: S608  # identifiers allowlisted, values bound
                 merge_id_list
             )
+        preview_cache.drop_cached_slices(merge_id_list)
 
         resp = {
             'message': f'Merged {len(merge_id_list)} patterns into pattern {keep_id}',
@@ -1760,7 +1763,7 @@ def _handle_adjust_correction(db, pattern_service, slug, episode_id, original_ad
         db, slug, episode_id, pattern_ids, adjusted_start, adjusted_end,
         force_id=pattern_id, text=resolved_text)
     for stored_id, result in outcomes:
-        if result.stored and stored_id == pattern_id:
+        if result.stored:
             db.set_pattern_audio_removed(stored_id, False)
 
     # Judge conflicts against the adjusted bounds: they are the span the
@@ -2285,6 +2288,7 @@ def bulk_delete_patterns():
     if err is not None:
         return err
     deleted = db.bulk_delete_patterns(ids)
+    preview_cache.drop_cached_slices(ids)
     return json_response({'deleted': deleted, 'ids': ids})
 
 

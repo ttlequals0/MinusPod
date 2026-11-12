@@ -5,8 +5,6 @@ import math
 import os
 import tempfile
 import threading
-import time
-from collections import OrderedDict
 
 from flask import abort, request, send_file
 
@@ -14,6 +12,7 @@ from api import (
     api, log_request, json_response, error_response, coded_error_response,
     get_database, get_storage, _resolve_original_audio,
 )
+from api import preview_cache
 from api.patterns import _store_pattern_audio, fingerprint_response_fields
 from config import FFMPEG_SHORT_TIMEOUT
 from storage import PathContainmentError
@@ -30,14 +29,8 @@ MAX_REBUILD_SECONDS = 600
 MATCH_ID_MAX_DIGITS = 18
 PREVIEW_ENCODERS = 2
 PREVIEW_RETRY_AFTER_S = 2
-SLICE_CACHE_ENTRIES = 4
-SLICE_CACHE_TTL_S = 120
 
-_clock = time.monotonic
 _preview_slots = threading.BoundedSemaphore(PREVIEW_ENCODERS)
-# key -> (expires_at, mp3 bytes, pattern id); oldest first
-_slice_cache = OrderedDict()
-_slice_cache_lock = threading.Lock()
 
 
 def no_audio_response():
@@ -181,41 +174,10 @@ def _slice_key(path, start, end):
     return (str(path), stat.st_size, stat.st_mtime_ns, start, end)
 
 
-def _cached_slice(key):
-    """The unexpired encoded slice for a key, or None."""
-    with _slice_cache_lock:
-        entry = _slice_cache.get(key)
-        if entry is None:
-            return None
-        if entry[0] <= _clock():
-            del _slice_cache[key]
-            return None
-        _slice_cache.move_to_end(key)
-        return entry[1]
-
-
-def _remember_slice(key, data, pattern_id):
-    with _slice_cache_lock:
-        now = _clock()
-        for stale in [k for k, entry in _slice_cache.items() if entry[0] <= now]:
-            del _slice_cache[stale]
-        _slice_cache[key] = (now + SLICE_CACHE_TTL_S, data, pattern_id)
-        _slice_cache.move_to_end(key)
-        while len(_slice_cache) > SLICE_CACHE_ENTRIES:
-            _slice_cache.popitem(last=False)
-
-
-def drop_cached_slices(pattern_id):
-    """Forget every cached preview slice of a pattern."""
-    with _slice_cache_lock:
-        for key in [k for k, entry in _slice_cache.items() if entry[2] == pattern_id]:
-            del _slice_cache[key]
-
-
 def _encode_slice(path, start, end, pattern_id):
     """The encoded slice from the cache or a new encode; None when every encoder slot is busy."""
     key = _slice_key(path, start, end)
-    data = _cached_slice(key)
+    data = preview_cache.cached_slice(key)
     if data is not None:
         return data
     if not _preview_slots.acquire(blocking=False):
@@ -224,7 +186,7 @@ def _encode_slice(path, start, end, pattern_id):
         data = _slice_to_mp3(path, start, end)
     finally:
         _preview_slots.release()
-    _remember_slice(key, data, pattern_id)
+    preview_cache.remember_slice(key, data, pattern_id)
     return data
 
 
@@ -291,7 +253,7 @@ def delete_pattern_audio(pattern_id):
     if err:
         return err
     deleted = db.delete_pattern_audio(pattern_id)
-    drop_cached_slices(pattern_id)
+    preview_cache.drop_cached_slices(pattern_id)
     if not deleted:
         return no_audio_response()
     return json_response({'deleted': True})
@@ -332,7 +294,7 @@ def rebuild_pattern_audio(pattern_id):
     if duration and end > duration:
         return error_response('The span runs past the end of the episode', 400)
     result = _store_pattern_audio(db, slug, episode_id, pattern_id, start, end, force=True)
-    drop_cached_slices(pattern_id)
+    preview_cache.drop_cached_slices(pattern_id)
     if result.stored:
         db.set_pattern_audio_removed(pattern_id, False)
     return json_response({**fingerprint_response_fields([(pattern_id, result)]),

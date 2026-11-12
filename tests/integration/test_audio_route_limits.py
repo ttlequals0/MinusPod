@@ -5,6 +5,7 @@ import subprocess
 import pytest
 
 import api.patterns_audio as module
+from api import preview_cache
 from api.patterns import _store_pattern_audio
 from tests.integration.fingerprint_helpers import EPISODE, SLUG, csrf  # noqa: E402
 
@@ -18,9 +19,9 @@ def _audio(pid):
 
 @pytest.fixture(autouse=True)
 def clean_preview_state():
-    module._slice_cache.clear()
+    preview_cache._slice_cache.clear()
     yield
-    module._slice_cache.clear()
+    preview_cache._slice_cache.clear()
 
 
 @pytest.mark.parametrize('digits', [HUGE, '9' * 5000, '9' * 19])
@@ -136,7 +137,7 @@ def spy(monkeypatch):
 @pytest.fixture
 def clock(monkeypatch):
     now = [1000.0]
-    monkeypatch.setattr(module, '_clock', lambda: now[0])
+    monkeypatch.setattr(preview_cache, '_clock', lambda: now[0])
     return now
 
 
@@ -175,7 +176,7 @@ def test_cache_holds_four_entries(app_client, fp_feed, fp_audio_pattern, fp_audi
                                             0.9, 0.9, True, False) for i in range(5)]
     for mid in ids:
         app_client.get(f'{_audio(fp_audio_pattern)}/preview?matchId={mid}', headers=csrf(app_client))
-    assert len(spy) == 5 and len(module._slice_cache) == 4
+    assert len(spy) == 5 and len(preview_cache._slice_cache) == 4
     app_client.get(f'{_audio(fp_audio_pattern)}/preview?matchId={ids[-1]}', headers=csrf(app_client))
     assert len(spy) == 5
     app_client.get(f'{_audio(fp_audio_pattern)}/preview?matchId={ids[0]}', headers=csrf(app_client))
@@ -213,7 +214,7 @@ def test_failed_encode_frees_its_slot_and_caches_nothing(app_client, fp_audio_pa
     monkeypatch.setattr(module, 'tracked_run', boom)
     for _ in range(3):
         assert _preview(app_client, fp_audio_pattern).status_code == 500
-    assert len(module._slice_cache) == 0
+    assert len(preview_cache._slice_cache) == 0
 
 
 def test_unsatisfiable_range_is_416(app_client, fp_audio_pattern, fp_audio_original):
@@ -232,9 +233,9 @@ def test_a_preview_is_not_served_once_the_original_is_gone(
 def test_deleting_a_patterns_audio_drops_its_cached_slices(
         app_client, fp_feed, fp_audio_pattern, fp_audio_original, spy, clock):
     _preview(app_client, fp_audio_pattern)
-    assert len(module._slice_cache) == 1
+    assert len(preview_cache._slice_cache) == 1
     assert app_client.delete(_audio(fp_audio_pattern), headers=csrf(app_client)).status_code == 200
-    assert len(module._slice_cache) == 0
+    assert len(preview_cache._slice_cache) == 0
     fp_feed.create_audio_fingerprint(fp_audio_pattern, b'AQAA', 6.0, source_podcast_slug=SLUG,
                                      source_episode_id=EPISODE, source_start=2.0, source_end=8.0)
     assert _preview(app_client, fp_audio_pattern).status_code == 200
@@ -248,11 +249,11 @@ def test_rebuilding_a_patterns_audio_drops_its_cached_slices_only(
                                      source_episode_id=EPISODE, source_start=3.0, source_end=9.0)
     _preview(app_client, fp_audio_pattern)
     _preview(app_client, other)
-    assert len(module._slice_cache) == 2
+    assert len(preview_cache._slice_cache) == 2
     r = app_client.post(f'{_audio(fp_audio_pattern)}/rebuild', headers=csrf(app_client),
                         json={'podcastSlug': SLUG, 'episodeId': EPISODE, 'start': 2.0, 'end': 8.0})
     assert r.status_code == 200 and r.get_json()['fingerprintStored'] is True
-    assert [entry[2] for entry in module._slice_cache.values()] == [other]
+    assert [entry[2] for entry in preview_cache._slice_cache.values()] == [other]
 
 
 def test_expired_entries_are_purged_when_a_slice_is_stored(
@@ -260,6 +261,6 @@ def test_expired_entries_are_purged_when_a_slice_is_stored(
     first = fp_feed.record_fingerprint_match(fp_audio_pattern, EPISODE, SLUG, 1.0, 4.0, 0.9, 0.9, True, False)
     second = fp_feed.record_fingerprint_match(fp_audio_pattern, EPISODE, SLUG, 5.0, 8.0, 0.9, 0.9, True, False)
     app_client.get(f'{_audio(fp_audio_pattern)}/preview?matchId={first}', headers=csrf(app_client))
-    clock[0] += module.SLICE_CACHE_TTL_S + 1
+    clock[0] += preview_cache.SLICE_CACHE_TTL_S + 1
     app_client.get(f'{_audio(fp_audio_pattern)}/preview?matchId={second}', headers=csrf(app_client))
-    assert len(module._slice_cache) == 1
+    assert len(preview_cache._slice_cache) == 1

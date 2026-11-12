@@ -6,6 +6,7 @@ from api import (
     api, log_request, json_response, error_response,
     get_database, limiter,
 )
+from api import preview_cache
 from config import (
     OPENROUTER_BASE_URL, FINGERPRINT_SETTING_RANGES, DEFAULT_AUDIO_BITRATE,
     DEFAULT_AUDIO_ENCODER_COMPRESSION_LEVEL,
@@ -958,5 +959,7 @@ def delete_all_community_patterns():
             'message': 'confirm: true required to purge all community patterns'
         }, 400)
     db = get_database()
+    community_ids = [p['id'] for p in db.get_ad_patterns(active_only=False, source='community')]
     deleted = db.delete_all_community_patterns()
+    preview_cache.drop_cached_slices(community_ids)
     return json_response({'deleted': deleted})
