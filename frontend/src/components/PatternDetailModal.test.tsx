@@ -507,9 +507,8 @@ describe('Edit edges', () => {
     mockRebuildPatternAudio.mockResolvedValue({ ...ACTIVE_AUDIO, fingerprintStored: true });
     const { invalidateSpy } = renderModal(makePattern());
     const opener = await screen.findByRole('button', { name: 'Edit edges' });
-    await waitFor(() => expect((opener as HTMLButtonElement).disabled).toBe(false));
     await userEvent.click(opener);
-    const editor = screen.getByRole('dialog', { name: 'Edit edges' });
+    const editor = await screen.findByRole('dialog', { name: 'Edit edges' });
     expect(editor.dataset.mode).toBe('span');
     expect(editor.dataset.span).toBe('example-podcast/a1b2c3d4e5f6/10-55');
     expect(editor.dataset.duration).toBe('1800');
@@ -526,6 +525,16 @@ describe('Edit edges', () => {
     await waitFor(() => expect(mockGetPatternAudio).toHaveBeenCalled());
   });
 
+  it('loads the source episode only when Edit edges is clicked', async () => {
+    mockGetPatternAudio.mockResolvedValue(ACTIVE_AUDIO);
+    renderModal(makePattern());
+    const opener = await screen.findByRole('button', { name: 'Edit edges' });
+    expect(mockGetEpisode).not.toHaveBeenCalled();
+    await userEvent.click(opener);
+    await screen.findByRole('dialog', { name: 'Edit edges' });
+    expect(mockGetEpisode).toHaveBeenCalledTimes(1);
+  });
+
   it('stops a playing preview before the editor opens', async () => {
     mockGetPatternAudio.mockResolvedValue(ACTIVE_AUDIO);
     vi.spyOn(HTMLMediaElement.prototype, 'pause').mockImplementation(() => {});
@@ -535,7 +544,6 @@ describe('Edit edges', () => {
     fireEvent.playing(document.querySelector('audio') as HTMLAudioElement);
     expect(screen.getByRole('button', { name: 'Pause source audio' })).toBeDefined();
     const opener = screen.getByRole('button', { name: 'Edit edges' });
-    await waitFor(() => expect((opener as HTMLButtonElement).disabled).toBe(false));
     await userEvent.click(opener);
     expect(HTMLMediaElement.prototype.pause).toHaveBeenCalled();
     expect(screen.getByRole('button', { name: 'Play source audio' })).toBeDefined();
@@ -546,18 +554,16 @@ describe('Edit edges', () => {
     mockGetEpisode.mockResolvedValue({ id: 'a1b2c3d4e5f6', hasOriginalAudio: true, adMarkers: [] });
     renderModal(makePattern());
     const opener = await screen.findByRole('button', { name: 'Edit edges' });
-    await waitFor(() => expect((opener as HTMLButtonElement).disabled).toBe(false));
     await userEvent.click(opener);
-    expect(screen.getByRole('dialog', { name: 'Edit edges' }).dataset.duration).toBe('85');
+    expect((await screen.findByRole('dialog', { name: 'Edit edges' })).dataset.duration).toBe('85');
   });
 
   it('returns focus to Edit edges when the editor closes', async () => {
     mockGetPatternAudio.mockResolvedValue(ACTIVE_AUDIO);
     renderModal(makePattern());
     const opener = await screen.findByRole('button', { name: 'Edit edges' });
-    await waitFor(() => expect((opener as HTMLButtonElement).disabled).toBe(false));
     await userEvent.click(opener);
-    await userEvent.click(within(screen.getByRole('dialog', { name: 'Edit edges' })).getByRole('button', { name: 'Cancel' }));
+    await userEvent.click(within(await screen.findByRole('dialog', { name: 'Edit edges' })).getByRole('button', { name: 'Cancel' }));
     expect(screen.queryByRole('dialog', { name: 'Edit edges' })).toBeNull();
     expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Edit edges' }));
   });
@@ -567,10 +573,9 @@ describe('Edit edges', () => {
     mockRebuildPatternAudio.mockResolvedValue({ ...ACTIVE_AUDIO, fingerprintStored: false, fingerprintSkippedReason: 'not_distinctive' });
     const { invalidateSpy } = renderModal(makePattern());
     const opener = await screen.findByRole('button', { name: 'Edit edges' });
-    await waitFor(() => expect((opener as HTMLButtonElement).disabled).toBe(false));
     await userEvent.click(opener);
     invalidateSpy.mockClear();
-    await userEvent.click(within(screen.getByRole('dialog', { name: 'Edit edges' })).getByRole('button', { name: 'Save audio' }));
+    await userEvent.click(within(await screen.findByRole('dialog', { name: 'Edit edges' })).getByRole('button', { name: 'Save audio' }));
     expect((await screen.findByRole('alert')).textContent).toBe('That audio is not distinctive enough to match reliably.');
     expect(screen.getByRole('dialog', { name: 'Edit edges' })).toBeDefined();
     expect(invalidateSpy).not.toHaveBeenCalled();
@@ -581,9 +586,8 @@ describe('Edit edges', () => {
     mockRebuildPatternAudio.mockRejectedValue(new Error('span must be at most 600 seconds'));
     renderModal(makePattern());
     const opener = await screen.findByRole('button', { name: 'Edit edges' });
-    await waitFor(() => expect((opener as HTMLButtonElement).disabled).toBe(false));
     await userEvent.click(opener);
-    await userEvent.click(within(screen.getByRole('dialog', { name: 'Edit edges' })).getByRole('button', { name: 'Save audio' }));
+    await userEvent.click(within(await screen.findByRole('dialog', { name: 'Edit edges' })).getByRole('button', { name: 'Save audio' }));
     expect((await screen.findByRole('alert')).textContent).toBe('span must be at most 600 seconds');
   });
 

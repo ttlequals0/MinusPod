@@ -80,7 +80,8 @@ export default function PatternAudioSection({ pattern }: { pattern: AdPattern })
   const episodeQuery = useQuery({
     queryKey: ['episode', built?.podcastSlug, built?.episodeId],
     queryFn: () => getEpisode(built!.podcastSlug, built!.episodeId),
-    enabled: sourceAvailable,
+    // Only Edit edges needs the duration, so the episode loads on that click.
+    enabled: sourceAvailable && editingEdges,
   });
 
   const rebuild = usePatternAudioRebuild(pattern.id, () => {
@@ -216,9 +217,14 @@ export default function PatternAudioSection({ pattern }: { pattern: AdPattern })
                 <button
                   ref={editEdgesRef}
                   type="button"
-                  onClick={() => { preview.stop(); rebuild.reset(); setEditingEdges(true); }}
-                  disabled={!sourceAvailable || !episodeQuery.data}
-                  aria-busy={sourceAvailable && episodeQuery.isPending}
+                  onClick={() => {
+                    preview.stop();
+                    rebuild.reset();
+                    setEditingEdges(true);
+                    if (episodeQuery.isError) void episodeQuery.refetch();
+                  }}
+                  disabled={!sourceAvailable || episodeQuery.isLoading}
+                  aria-busy={episodeQuery.isLoading}
                   className={`${btnBase} ${btnOutline}`}
                 >
                   Edit edges
