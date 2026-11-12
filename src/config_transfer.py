@@ -45,7 +45,7 @@ from secrets_crypto import SECRET_SETTING_KEYS, decrypt, is_available, is_cipher
 from utils.cron import is_valid_expression
 from utils.safe_http import _validate_for_tier
 from utils.secret_writes import SecretWriteRejected, set_or_clear_secret
-from utils.url import SSRFError, reject_url_whitespace
+from utils.url import SSRFError, URL_SPACE_OR_CONTROL_RE, reject_url_whitespace
 from utils.time import utc_now_iso
 from utils.validation import is_dangerous_slug, is_valid_slug
 from utils.feed_guid import compute_feed_guid
@@ -53,7 +53,6 @@ from utils.feed_guid import compute_feed_guid
 FORMAT = 'minuspod-runtime-config'
 FORMAT_VERSION = 1
 MAX_CONFIG_REQUEST_BYTES = 10 * 1024 * 1024
-_URL_SPACE_OR_CONTROL_RE = re.compile(r'[\s\x00-\x1f\x7f-\x9f]')
 EXCLUDED_SETTINGS = frozenset({
     'pattern_cleanup_schedule_anchor', 'provider_budget_fx_fetched_at',
     'provider_budget_fx_source_date', 'provider_budget_fx_rate',
@@ -455,7 +454,7 @@ def _percent_encode(match: re.Match) -> str:
 
 def _import_source_url(url: str) -> str:
     """The URL trimmed, with only its whitespace and control chars percent-encoded; older versions stored them raw."""
-    return _URL_SPACE_OR_CONTROL_RE.sub(_percent_encode, url.strip())
+    return URL_SPACE_OR_CONTROL_RE.sub(_percent_encode, url.strip())
 
 
 def _validate_document(document):

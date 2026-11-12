@@ -5,8 +5,8 @@ Blocks private/reserved IPs, restricted schemes, and cloud metadata endpoints.
 """
 import ipaddress
 import logging
+import re
 import socket
-import unicodedata
 from urllib.parse import urlparse, urlsplit
 
 from utils.constants import ALLOWED_URL_SCHEMES, ALLOWED_URL_PORTS
@@ -88,9 +88,13 @@ def resolve_and_check(host: str, port: int, *, allow_private: bool) -> list[tupl
     return infos
 
 
+# Same set as str.isspace() or category Cc, checked over every code point
+URL_SPACE_OR_CONTROL_RE = re.compile(r'[\s\x00-\x1f\x7f-\x9f]')
+
+
 def reject_url_whitespace(url: str) -> None:
     """Refuse a URL holding whitespace or a control character; requests would repair and use it."""
-    if any(ch.isspace() or unicodedata.category(ch) == 'Cc' for ch in url):
+    if URL_SPACE_OR_CONTROL_RE.search(url):
         raise SSRFError("URL contains whitespace or control characters")
 
 

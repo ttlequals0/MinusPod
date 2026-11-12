@@ -285,3 +285,13 @@ def test_feed_content_type_rejection_logs_no_credential(monkeypatch, caplog, con
         parser.fetch_feed_conditional(url) if conditional else parser.fetch_feed(url)
     assert 'rejected on content-type' in caplog.text
     assert 'SECRET' not in caplog.text and 'url=https://feeds.example.com ' in caplog.text
+
+
+def test_url_space_or_control_set_is_whitespace_or_cc():
+    import sys
+    import unicodedata
+    from utils.url import URL_SPACE_OR_CONTROL_RE
+    for code in range(sys.maxunicode + 1):
+        ch = chr(code)
+        assert bool(URL_SPACE_OR_CONTROL_RE.match(ch)) == (
+            ch.isspace() or unicodedata.category(ch) == 'Cc'), hex(code)
