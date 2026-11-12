@@ -1630,19 +1630,12 @@ class AudioFingerprinter:
     ) -> list[tuple[int, str, float, str, str | None]]:
         """Stored fingerprints whose pattern scope applies to this podcast."""
         podcast_tag_set = set(podcast_tags) if podcast_tags else set()
-        # Same tag source as the text matcher: active sponsors only, list values only
-        try:
-            sponsor_tags = {sid: set(tags) for sid, tags in self.db.get_sponsor_tags_map().items()
-                            if isinstance(tags, list)}
-        except Exception as e:
-            logger.warning(f"Failed to load sponsor tags for fingerprint scope: {e}")
-            sponsor_tags = {}
         return [
             (row['pattern_id'], row['fingerprint'], row['duration'], row['sponsor'], row.get('category'))
             for row in self._load_fingerprints_from_db()
             if pattern_passes_scope(
                 row['scope'], row['network_id'], row['podcast_id'], row['source'],
-                sponsor_tags.get(row.get('sponsor_id'), set()),
+                set(row.get('sponsor_tags') or ()),
                 podcast_id=podcast_id, network_id=network_id, podcast_tag_set=podcast_tag_set)
         ]
 

@@ -1,4 +1,5 @@
 """AudioFingerprinter.find_matches: scope, settings, timeout scaling, cancel, deadline, fallback."""
+import json
 import random
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -12,6 +13,7 @@ from config import (
     FPCALC_TIMEOUT_FULL,
 )
 from ad_detector import AdDetector
+from utils.pattern_scope import pattern_passes_scope
 
 IPS = 8.0
 EP_SECONDS = 300.0
@@ -240,6 +242,39 @@ def test_scope_uses_tags_of_active_sponsors_only(world):
     inactive_pid, _ = _community_pattern_with_tags(world, ['sports'], active=False)
     rows = world.fp._in_scope_fingerprints('showC', None, {'tech'})
     assert inactive_pid in [r[0] for r in rows]
+
+
+def _scope_reference(world, podcast_id, network_id, podcast_tags):
+    """Scope filtering as a separate sponsor-tag lookup computes it."""
+    tags_map = {sid: set(tags) for sid, tags in world.db.get_sponsor_tags_map().items()}
+    return [
+        (r['pattern_id'], r['fingerprint'], r['duration'], r['sponsor'], r.get('category'))
+        for r in world.fp._load_fingerprints_from_db()
+        if pattern_passes_scope(
+            r['scope'], r['network_id'], r['podcast_id'], r['source'],
+            tags_map.get(r['sponsor_id'], set()),
+            podcast_id=podcast_id, network_id=network_id, podcast_tag_set=set(podcast_tags or ()))
+    ]
+
+
+def test_scope_matches_a_separate_sponsor_tag_lookup(world):
+    conn = world.db.get_connection()
+    cases = [(['sports'], True), (['sports'], False), (['tech', 'news'], True),
+             ('"sports"', True), ('', True), (['tech'], False)]
+    for i, (tags, active) in enumerate(cases):
+        sid = world.db.create_known_sponsor(f'Acme {i}')
+        world.db.update_known_sponsor(sid, is_active=int(active))
+        raw = tags if isinstance(tags, str) else json.dumps(tags)
+        conn.execute("UPDATE known_sponsors SET tags = ? WHERE id = ?", (raw, sid))
+        pid = world.db.create_ad_pattern(scope='global', text_template='read ' * 12,
+                                         sponsor_id=sid, source='community')
+        world.db.create_audio_fingerprint(pid, b'FPA', 10.0)
+    conn.commit()
+    for podcast_id in ('showA', 'showB', 'showC'):
+        for network_id in (None, 'net1'):
+            for podcast_tags in (None, {'tech'}, {'sports'}, {'tech', 'news', 'sports'}):
+                assert (world.fp._in_scope_fingerprints(podcast_id, network_id, podcast_tags)
+                        == _scope_reference(world, podcast_id, network_id, podcast_tags))
 
 
 def test_scope_ignores_tags_that_are_not_a_list(world):
