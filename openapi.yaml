@@ -12,6 +12,12 @@ info:
     - Monitor system status and trigger cleanup operations
     - Manage cross-episode ad patterns with network and podcast scope
     - Submit corrections to improve ad detection accuracy
+
+
+    A path under /api/ that no route matches answers 404 (the UnknownApiPath
+    response), and a path that does not accept the method answers 405 with an
+    Allow header (the MethodNotAllowed response). Both bodies are JSON and
+    apply to every operation below.
   # Placeholder. The served /api/v1/openapi.yaml substitutes the running
   # version from version.py, so this value is never bumped by hand.
   version: 0.0.0-source
@@ -3433,7 +3439,9 @@ paths:
                     description: Human-readable result, returned by every type
                   pattern_id:
                     type: [integer, 'null']
-                    description: Pattern created or updated; returned by confirm, adjust, and create. Null when no pattern was created or linked.
+                    description: >-
+                      Pattern created or updated, returned by confirm, adjust and create.
+                      Null when no pattern was created or linked.
                   sponsor:
                     type: string
                     description: Canonical sponsor name; returned by create
@@ -18110,6 +18118,7 @@ components:
           properties:
             value:
               type: boolean
+              default: true
             isDefault:
               type: boolean
         fingerprintMatchStrictness:
@@ -18118,6 +18127,9 @@ components:
           properties:
             value:
               type: number
+              default: 0.65
+              minimum: 0.4
+              maximum: 0.95
             isDefault:
               type: boolean
         fingerprintMinCoverage:
@@ -18126,6 +18138,9 @@ components:
           properties:
             value:
               type: number
+              default: 0.5
+              minimum: 0.1
+              maximum: 1
             isDefault:
               type: boolean
         fingerprintGapToleranceS:
@@ -18134,6 +18149,9 @@ components:
           properties:
             value:
               type: number
+              default: 3.5
+              minimum: 0
+              maximum: 15
             isDefault:
               type: boolean
         fingerprintMinAdLengthS:
@@ -18142,6 +18160,9 @@ components:
           properties:
             value:
               type: number
+              default: 5
+              minimum: 3
+              maximum: 30
             isDefault:
               type: boolean
         silenceSnapNoiseDb:

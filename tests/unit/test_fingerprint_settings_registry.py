@@ -60,3 +60,17 @@ def test_openapi_bounds_and_default_match_the_registry(key, payload_key, kind, d
         return
     _, lo, hi = config.FINGERPRINT_SETTING_RANGES[key]
     assert (prop['minimum'], prop['maximum'], prop['default']) == (lo, hi, float(default))
+
+
+@pytest.mark.parametrize('key,payload_key,kind,default', KEYS)
+def test_openapi_get_settings_value_bounds_and_default_match_the_registry(key, payload_key, kind, default):
+    spec = yaml.safe_load((Path(__file__).resolve().parents[2] / 'openapi.yaml').read_text())
+    settings = spec['components']['schemas']['Settings']['properties']
+    assert spec['paths']['/settings']['get']['responses']['200']['content']['application/json']['schema'] == {
+        '$ref': '#/components/schemas/Settings'}
+    value = settings[payload_key]['properties']['value']
+    if kind == 'bool':
+        assert value['type'] == 'boolean' and value['default'] is (default == 'true')
+        return
+    _, lo, hi = config.FINGERPRINT_SETTING_RANGES[key]
+    assert (value['minimum'], value['maximum'], value['default']) == (lo, hi, float(default))
