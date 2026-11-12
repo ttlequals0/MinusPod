@@ -3120,17 +3120,18 @@ class AdDetector:
                 if (audio_path and self.audio_fingerprinter
                         and self.audio_fingerprinter.is_available()):
                     for created in pattern_ids:
-                        try:
-                            self.audio_fingerprinter.store_fingerprint(
-                                pattern_id=created['id'],
-                                audio_path=audio_path,
-                                start=created['start'],
-                                end=created['end'],
-                            )
-                        except Exception as fp_e:
+                        result = self.audio_fingerprinter.store_fingerprint(
+                            pattern_id=created['id'],
+                            audio_path=audio_path,
+                            start=created['start'],
+                            end=created['end'],
+                            source_podcast_slug=podcast_id,
+                            source_episode_id=episode_id,
+                        )
+                        if not result.stored:
                             logger.debug(
-                                f"Could not store fingerprint for pattern "
-                                f"{created['id']}: {fp_e}")
+                                f"No fingerprint for pattern {created['id']}: "
+                                f"{result.skipped_reason}")
                 return True
         except Exception as e:
             logger.warning(f"Failed to create pattern from detection: {e}")

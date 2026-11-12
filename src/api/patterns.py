@@ -23,6 +23,7 @@ from utils.text import (
     BOUNDARY_SNAP_TOLERANCE_S, extract_timed_spans_in_range,
     parse_transcript_segments,
 )
+from audio_fingerprinter import AudioFingerprinter, FingerprintStoreResult
 from text_pattern_matcher import (
     split_template_text, can_split_pattern, MAX_PATTERN_CHARS, TextPatternMatcher,
 )
@@ -31,8 +32,8 @@ from flask import Response, request
 
 from api import (
     api, limiter, log_request, json_response, error_response,
-    get_database, extract_transcript_segment, extract_sponsor_from_text,
-    _find_similar_pattern,
+    get_database, get_storage, extract_transcript_segment, extract_sponsor_from_text,
+    _find_similar_pattern, _resolve_original_audio,
 )
 
 logger = logging.getLogger('podcast.api')
@@ -600,6 +601,20 @@ def merge_patterns():
         return error_response('Merge failed', 500)
 
 
+def _store_pattern_audio(db, slug, episode_id, pattern_id, start, end, *, force=False):
+    """Fingerprint [start, end] of the episode's retained original for a pattern; never raises."""
+    try:
+        audio_path, err = _resolve_original_audio(db, get_storage(), slug, episode_id)
+        if err:
+            return FingerprintStoreResult(False, 'original_not_retained')
+        return AudioFingerprinter(db=db).store_fingerprint(
+            pattern_id, str(audio_path), start, end,
+            source_podcast_slug=slug, source_episode_id=episode_id, force=force)
+    except Exception as e:
+        logger.warning(f"Could not store audio for pattern {pattern_id}: {e}")
+        return FingerprintStoreResult(False, 'fingerprint_failed')
+
+
 def _validate_create_correction_input(data):
     """Parse + validate the `create` correction payload.
 
@@ -867,12 +882,19 @@ def _submit_correction_create(db, slug, episode_id, data):
         f"pattern_id={new_pattern_id}, sponsor='{canonical_sponsor_name}', "
         f"start={start}, end={end}, scope={scope}"
     )
-    return json_response({
+    results = [_store_pattern_audio(db, slug, episode_id, pid, start, end) for pid in pattern_ids]
+    stored = any(r.stored for r in results)
+    response = {
         'message': 'New ad marker created',
         'pattern_id': new_pattern_id,
         'sponsor': canonical_sponsor_name,
         'patternIds': pattern_ids,
-    })
+        'fingerprintStored': stored,
+    }
+    if not stored:
+        response['fingerprintSkippedReason'] = (
+            results[0].skipped_reason if results else 'fingerprint_failed')
+    return json_response(response)
 
 
 def _validate_split_points(raw, start, end):

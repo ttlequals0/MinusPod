@@ -43,6 +43,7 @@ from config import (
     AUDIO_CUE_XEP_MIN_MATCHES,
     AUDIO_CUE_XEP_BODY_MIN_DURATION,
     FINGERPRINT_CHUNK_SIZE,
+    FINGERPRINT_MIN_AD_LENGTH_S,
     FINGERPRINT_MATCH_STRICTNESS,
     FINGERPRINT_MIN_COVERAGE,
     FINGERPRINT_GAP_TOLERANCE_S,
@@ -423,6 +424,13 @@ class FingerprintMatch:
     category: str | None = None
     similarity: float = 0.0
     coverage: float = 0.0
+
+
+@dataclass(frozen=True)
+class FingerprintStoreResult:
+    """Outcome of store_fingerprint: stored, or the reason it was skipped."""
+    stored: bool
+    skipped_reason: str | None = None
 
 
 @dataclass
@@ -1375,44 +1383,55 @@ class AudioFingerprinter:
     def store_fingerprint(
         self,
         pattern_id: int,
-        audio_path: str,
+        audio_path: str | None,
         start: float,
-        end: float
-    ) -> bool:
-        """
-        Generate and store a fingerprint for a detected ad segment.
+        end: float,
+        *,
+        source_podcast_slug: str | None = None,
+        source_episode_id: str | None = None,
+        force: bool = False,
+    ) -> FingerprintStoreResult:
+        """Fingerprint [start, end] of the original and store it; never raises.
 
-        Args:
-            pattern_id: ID of the ad pattern
-            audio_path: Path to the episode audio
-            start: Start time of the ad
-            end: End time of the ad
-
-        Returns:
-            True if fingerprint was stored successfully
+        force=True ignores the pattern's audio_removed marker (explicit rebuilds).
         """
+        try:
+            return self._store_fingerprint(pattern_id, audio_path, start, end,
+                                           source_podcast_slug, source_episode_id, force)
+        except Exception as e:
+            logger.error(f"Failed to store fingerprint for pattern {pattern_id}: {e}")
+            return FingerprintStoreResult(False, 'fingerprint_failed')
+
+    def _store_fingerprint(self, pattern_id, audio_path, start, end,
+                           source_podcast_slug, source_episode_id, force):
+        if not audio_path or not os.path.isfile(audio_path):
+            return FingerprintStoreResult(False, 'original_not_retained')
         if not self.db or not self.is_available():
-            return False
+            return FingerprintStoreResult(False, 'fingerprint_failed')
+        if not force:
+            pattern = self.db.get_ad_pattern_by_id(pattern_id)
+            if pattern and pattern.get('audio_removed'):
+                return FingerprintStoreResult(False, 'audio_removed')
 
         duration = end - start
-        if duration < MIN_SEGMENT_DURATION:
+        min_length = self.db.get_setting_float(
+            'fingerprint_min_ad_length_s', FINGERPRINT_MIN_AD_LENGTH_S)
+        if duration < min_length:
             logger.debug(f"Segment too short for fingerprinting: {duration:.1f}s")
-            return False
+            return FingerprintStoreResult(False, 'segment_too_short')
 
         fingerprint = self.generate_fingerprint(audio_path, start, duration)
         if not fingerprint or not fingerprint.fingerprint:
-            return False
+            return FingerprintStoreResult(False, 'fingerprint_failed')
 
-        try:
-            # Store fingerprint as bytes
-            fp_bytes = fingerprint.fingerprint.encode('utf-8')
-            self.db.create_audio_fingerprint(
-                pattern_id=pattern_id,
-                fingerprint=fp_bytes,
-                duration=duration
-            )
-            logger.info(f"Stored fingerprint for pattern {pattern_id}")
-            return True
-        except Exception as e:
-            logger.error(f"Failed to store fingerprint: {e}")
-            return False
+        self.db.create_audio_fingerprint(
+            pattern_id=pattern_id,
+            fingerprint=fingerprint.fingerprint.encode('utf-8'),
+            duration=duration,
+            source_podcast_slug=source_podcast_slug,
+            source_episode_id=source_episode_id,
+            source_start=start,
+            source_end=end,
+        )
+        logger.info(f"Stored fingerprint for pattern {pattern_id}")
+        return FingerprintStoreResult(True, None)

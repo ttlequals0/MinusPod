@@ -3379,6 +3379,9 @@ paths:
           pattern per sponsor segment instead of a single oversized pattern; the
           response's patternIds lists every pattern created or reused this way, and
           pattern_id/sponsor still identify the sponsor-matched primary.
+          Each created pattern also gets an audio fingerprint of the marked span of the
+          retained original. This is best effort, so the pattern is saved either way, and
+          fingerprintStored reports the outcome.
         - split: Replace one marker covering back-to-back ads with N
           single-sponsor markers (issue #563). Send `original_ad` plus
           `split_points` (a list of times strictly inside the span) and an
@@ -3424,6 +3427,17 @@ paths:
                     items:
                       type: integer
                     description: Patterns created or reused; returned by create and split
+                  fingerprintStored:
+                    type: boolean
+                    description: Whether an audio fingerprint was stored for at least one created pattern. Returned by create.
+                  fingerprintSkippedReason:
+                    type: string
+                    enum:
+                      - original_not_retained
+                      - segment_too_short
+                      - fingerprint_failed
+                      - audio_removed
+                    description: Why no fingerprint was stored. Present only when fingerprintStored is false. Returned by create.
                   markerCount:
                     type: integer
                     description: Number of markers that replaced the original; returned by split
