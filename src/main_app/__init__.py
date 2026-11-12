@@ -547,7 +547,8 @@ app.config['SESSION_COOKIE_SECURE'] = _default_session_cookie_secure()
 app.config['SESSION_COOKIE_PATH'] = config.cookie_path()
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = os.environ.get('SESSION_COOKIE_SAMESITE', 'Strict')
-app.config['PERMANENT_SESSION_LIFETIME'] = int(os.environ.get('SESSION_LIFETIME_HOURS', '24')) * 3600
+# Ceiling only; each session's real idle limit is enforced in api.auth_state.
+app.config['PERMANENT_SESSION_LIFETIME'] = config.SESSION_LIFETIME_HOURS_MAX * 3600
 
 # Hard cap on request body size. Chosen to cover the largest legitimate
 # request (OPML import and patterns export round-trip both target ~10 MB);
@@ -578,6 +579,8 @@ compress.init_app(app)
 
 # Import and register API blueprint
 from api import api as api_blueprint, init_limiter, limiter, register_api_routing_errors
+from main_app.session_interface import IdleExpiryCookieSessionInterface
+app.session_interface = IdleExpiryCookieSessionInterface()
 app.register_blueprint(api_blueprint)
 register_api_routing_errors(app)
 init_limiter(app)
