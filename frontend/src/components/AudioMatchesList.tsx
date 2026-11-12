@@ -64,10 +64,11 @@ export default function AudioMatchesList({ patternId, preview }: { patternId: nu
       queryClient.setQueryData<AudioMatchesPage>([...matchesKey, page], (old) => old && {
         ...old, matches: old.matches.map((x) => (x.id === m.id ? { ...x, rejected: true } : x)),
       });
-      // Only the audio detail and matches are on screen; the lists below reload when next shown.
+      // The detail, matches and Patterns table are on screen; detections and the episode reload when next shown.
       queryClient.invalidateQueries({ queryKey: patternAudioKey(patternId) });
       queryClient.invalidateQueries({ queryKey: matchesKey });
-      for (const queryKey of [['patterns'], ['detections'], ['episode', m.podcastSlug, m.episodeId]]) {
+      queryClient.invalidateQueries({ queryKey: ['patterns'] });
+      for (const queryKey of [['detections'], ['episode', m.podcastSlug, m.episodeId]]) {
         queryClient.invalidateQueries({ queryKey, refetchType: 'none' });
       }
       // Rejecting a cut ad puts the audio back, which the server flags for a recut.
