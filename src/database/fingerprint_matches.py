@@ -366,15 +366,10 @@ class FingerprintMatchMixin:
         return len(rows), sum(r['has_audio'] for r in rows)
 
     def _read_stored_match_history(self, after_row_id: int = 0, limit: int | None = None,
-                                   rejections: dict | None = None) -> tuple[list[tuple], int | None]:
-        """Rows to insert from stored marker lists after an episode row id, and the last row id read.
-
-        The id is None when nothing was left to read. The caller must not hold an open transaction.
-        """
+                                   rejections: dict | None = None) -> tuple[list[tuple], int | None, dict]:
+        """Insert rows from stored markers after an episode row id, the last row id read (None if none), the rejections used."""
         conn = self.get_connection()
         now = utc_now_iso()
-        if rejections is None:
-            rejections = self._stored_rejections(now)
         planned_episodes = []
         # Only a marker list that names the fingerprint stage can hold a fingerprint member.
         rows = conn.execute(
@@ -384,6 +379,11 @@ class FingerprintMatchMixin:
                JOIN podcasts p ON p.id = e.podcast_id
                WHERE e.id > ? AND d.ad_markers_json LIKE '%"fingerprint"%'
                ORDER BY e.id LIMIT ?""", (after_row_id, -1 if limit is None else limit)).fetchall()
+        if rejections is None:
+            # A page needs only its own episodes' corrections; a whole-table read has no page.
+            rejections = self._stored_rejections(
+                now, None if limit is None else {row['episode_id'] for row in rows})
+        used = {key: list(spans) for key, spans in rejections.items()}
         for row in rows:
             markers = parse_ad_markers(row['ad_markers_json'])
             if markers is None:
@@ -407,7 +407,7 @@ class FingerprintMatchMixin:
                                     if _mostly_overlaps(rlo, rhi, lo, hi)), None)
                 inserts.append((pattern_id, episode_id, slug, lo, hi, similarity, coverage, int(in_scope),
                                 int(audio_only), int(rejected_at is not None), rejected_at, created_at))
-        return inserts, (rows[-1]['row_id'] if rows else None)
+        return inserts, (rows[-1]['row_id'] if rows else None), used
 
     @staticmethod
     def _planned_with_rejections(marker: dict, slug: str, episode_id: str, rejections: dict) -> list[tuple]:
@@ -430,18 +430,24 @@ class FingerprintMatchMixin:
             return [p for p in planned if any(_mostly_overlaps(lo, hi, *p[1]) for lo, hi, _ in spans)]
         return planned
 
-    def _stored_rejections(self, fallback_at: str) -> dict:
+    def _stored_rejections(self, fallback_at: str, episode_ids: set | None = None) -> dict:
         """{(pattern_id, slug, episode_id): [(start, end, rejected_at)]} from false-positive corrections, oldest first.
 
-        A correction with an unreadable timestamp is stamped fallback_at.
+        A correction with an unreadable timestamp is stamped fallback_at. episode_ids limits the read.
         """
         found = {}
-        rows = self.get_connection().execute(
-            """SELECT c.pattern_id, p.slug, c.episode_id, c.original_bounds, c.created_at
-               FROM pattern_corrections c JOIN podcasts p ON p.id = c.podcast_id
-               WHERE c.correction_type = 'false_positive' AND c.pattern_id IS NOT NULL
-                 AND c.original_bounds IS NOT NULL
-               ORDER BY c.created_at, c.id""")
+        conn = self.get_connection()
+        base = """SELECT c.pattern_id, p.slug, c.episode_id, c.original_bounds, c.created_at, c.id
+                  FROM pattern_corrections c JOIN podcasts p ON p.id = c.podcast_id
+                  WHERE c.correction_type = 'false_positive' AND c.pattern_id IS NOT NULL
+                    AND c.original_bounds IS NOT NULL"""
+        if episode_ids is None:
+            rows = conn.execute(base + " ORDER BY c.created_at, c.id")
+        else:
+            rows = sorted((row for chunk in _chunked(sorted(episode_ids), SUMMARY_ID_CHUNK)
+                           for row in conn.execute(
+                               f"{base} AND c.episode_id IN ({','.join('?' * len(chunk))})", chunk)),  # noqa: S608
+                          key=lambda row: (row['created_at'] or '', row['id']))
         for row in rows:
             try:
                 bounds = json.loads(row['original_bounds'])

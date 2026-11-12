@@ -1,9 +1,4 @@
-"""One-shot upgrade steps that scan data in proportion to the instance, run off the startup lock.
-
-Startup only records a step as pending. A background thread claims it in
-deferred_upgrade_steps, works one short transaction per page and saves a cursor
-with each page, so a crash at any page boundary is finished by the next claim.
-"""
+"""One-shot upgrade steps that run in a background thread in paged transactions, off the startup lock."""
 import json
 import logging
 import os
@@ -87,10 +82,7 @@ class DeferredUpgradeMixin:
                          "WHERE name = ? AND owner = ? AND state = 'running'", (name, owner))
 
     def run_deferred_upgrade_steps(self, clock=time.time, pause=lambda: None, should_stop=lambda: False) -> bool:
-        """Run every unfinished step this process can claim; False when a step failed.
-
-        A step another worker holds is skipped. should_stop is polled between pages.
-        """
+        """Run every unfinished step this process can claim, skipping held ones; False when a step failed."""
         owner = f'{os.getpid()}:{uuid.uuid4().hex[:8]}'
         ok = True
         for name in STEP_NAMES:
@@ -103,8 +95,7 @@ class DeferredUpgradeMixin:
                 logger.warning("Upgrade step %s was taken over by another worker", name)
             except Exception as e:
                 ok = False
-                logger.error("Upgrade step %s failed, it resumes on the next start: %s: %s",
-                             name, type(e).__name__, e)
+                logger.warning("Upgrade step %s failed with %s; it is retried later", name, type(e).__name__)
                 self.clear_leaked_transaction(logger, f'upgrade step {name}')
                 self._release_upgrade_step(name, owner)
         return ok
@@ -134,9 +125,12 @@ class DeferredUpgradeMixin:
                 break
             pause()
         with self.transaction(immediate=True) as conn:
+            owned = conn.execute(
+                "UPDATE deferred_upgrade_steps SET state = 'done', owner = NULL, cursor = NULL "
+                "WHERE name = ? AND owner = ? AND state = 'running'", (name, owner)).rowcount
+            if not owned:
+                raise StepClaimLost(name)
             conn.execute("INSERT OR IGNORE INTO schema_migrations (name) VALUES (?)", (name,))
-            conn.execute("UPDATE deferred_upgrade_steps SET state = 'done', owner = NULL, cursor = NULL "
-                         "WHERE name = ? AND owner = ?", (name, owner))
         logger.info("Upgrade step %s finished: %s row(s) in %.2fs%s", name, ctx['rows'], clock() - started,
                     self._scope_note(ctx) if name == BACKFILL_GATE else "")
 
@@ -170,31 +164,47 @@ class DeferredUpgradeMixin:
                        if isinstance(row['value'], str) and (redacted := rewrite(row['value'])) != row['value']]
             new_cursor = {'unit': unit, 'last': rows[-1]['rid']}
             with self.transaction(immediate=True) as write:
-                # The old value guards against overwriting a concurrent update with a redaction of stale text.
-                write.executemany(
-                    f"UPDATE {table} SET {column} = ? WHERE rowid = ? AND {column} = ?", updates)  # noqa: S608
-                save(write, new_cursor, len(updates))
+                changed = 0
+                for redacted, rid, old in updates:
+                    # The old value guards against overwriting a concurrent update with a redaction of stale text.
+                    moved = write.execute(
+                        f"UPDATE {table} SET {column} = ? WHERE rowid = ? AND {column} = ?",  # noqa: S608
+                        (redacted, rid, old)).rowcount
+                    changed += moved or self._redact_current(write, table, column, rewrite, rid)
+                save(write, new_cursor, changed)
             return new_cursor
         return None
+
+    def _redact_current(self, conn, table, column, rewrite, rid) -> int:
+        """Redact the value a row holds now, after a writer changed it since the page was read."""
+        row = conn.execute(f"SELECT {column} FROM {table} WHERE rowid = ?", (rid,)).fetchone()  # noqa: S608
+        if row is None or not isinstance(row[0], str) or (redacted := rewrite(row[0])) == row[0]:
+            return 0
+        conn.execute(f"UPDATE {table} SET {column} = ? WHERE rowid = ?", (redacted, rid))  # noqa: S608
+        return 1
 
     def _advance_backfill(self, cursor, save, ctx):
         """Write match history for one page of episodes, then the fingerprint origins; None when done."""
         conn = self.get_connection()
         if cursor.get('phase') != 'origins':
-            if 'rejections' not in ctx:
-                if not conn.execute("SELECT EXISTS(SELECT 1 FROM audio_fingerprints)").fetchone()[0]:
-                    return None
-                ctx['rejections'] = self._stored_rejections(utc_now_iso())
-            inserts, last = self._read_stored_match_history(
-                cursor.get('after', 0), BACKFILL_PAGE_EPISODES, ctx['rejections'])
+            if 'has_fingerprints' not in ctx:
+                ctx['has_fingerprints'] = bool(
+                    conn.execute("SELECT EXISTS(SELECT 1 FROM audio_fingerprints)").fetchone()[0])
+            if not ctx['has_fingerprints']:
+                return None
+            after = cursor.get('after', 0)
+            inserts, last, used = self._read_stored_match_history(after, BACKFILL_PAGE_EPISODES)
             if last is None:
                 return {'phase': 'origins'}
-            new_cursor = {'after': last}
             with self.transaction(immediate=True) as write:
+                inserts, last = self._current_page(after, inserts, last, used)
                 written = self._insert_new_episode_matches(write, inserts)
+                new_cursor = {'after': last}
                 save(write, new_cursor, len(written))
             ctx['out_of_scope'].update(row[0] for row in written if not row[7])
             return new_cursor
+        with self.transaction(immediate=True) as write:
+            save(write, cursor, 0)
         sources = self._origin_sources(self._stored_match_rows_of_unsourced_patterns())
         with self.transaction(immediate=True) as write:
             write.executemany(
@@ -205,10 +215,22 @@ class DeferredUpgradeMixin:
             save(write, cursor, 0)
         return None
 
+    def _current_page(self, after, inserts, last, used):
+        """The page's rows, recomputed when a correction changed since they were read; call inside the write transaction."""
+        conn = self.get_connection()
+        ids = {row[0] for row in conn.execute(
+            "SELECT e.episode_id FROM episodes e JOIN episode_details d ON d.episode_id = e.id "
+            "WHERE e.id > ? AND e.id <= ? AND d.ad_markers_json LIKE '%\"fingerprint\"%'", (after, last))}
+        fresh = self._stored_rejections(utc_now_iso(), ids)
+        if fresh == used:
+            return inserts, last
+        fresh_inserts, fresh_last, _ = self._read_stored_match_history(after, BACKFILL_PAGE_EPISODES, fresh)
+        return fresh_inserts, (last if fresh_last is None else fresh_last)
+
     @staticmethod
     def _insert_new_episode_matches(conn, inserts: list[tuple]) -> list[tuple]:
-        """Insert rows of episodes that have no history yet; returns the rows written."""
-        have = {}
+        """Insert rows of existing episodes with no history yet, for patterns that still have audio; returns them."""
+        have, exists, audio = {}, {}, {}
         written = []
         for row in inserts:
             key = (row[2], row[1])
@@ -216,7 +238,13 @@ class DeferredUpgradeMixin:
                 have[key] = conn.execute(
                     "SELECT 1 FROM audio_fingerprint_matches WHERE podcast_slug = ? AND episode_id = ? LIMIT 1",
                     key).fetchone() is not None
-            if not have[key]:
+                exists[key] = conn.execute(
+                    "SELECT 1 FROM episodes e JOIN podcasts p ON p.id = e.podcast_id "
+                    "WHERE p.slug = ? AND e.episode_id = ?", key).fetchone() is not None
+            if row[0] not in audio:
+                audio[row[0]] = conn.execute(
+                    "SELECT 1 FROM audio_fingerprints WHERE pattern_id = ?", (row[0],)).fetchone() is not None
+            if not have[key] and exists[key] and audio[row[0]]:
                 written.append(row)
         conn.executemany(
             """INSERT INTO audio_fingerprint_matches

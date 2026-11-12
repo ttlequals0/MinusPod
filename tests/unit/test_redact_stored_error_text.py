@@ -2,6 +2,7 @@
 import json
 import logging
 import re
+import threading
 
 import pytest
 
@@ -226,9 +227,10 @@ def test_a_step_that_fails_is_released_and_logged_once(temp_db, monkeypatch, cap
         raise RuntimeError('disk full')
 
     monkeypatch.setattr(type(temp_db), '_advance_redaction', boom)
-    with caplog.at_level(logging.ERROR):
+    with caplog.at_level(logging.WARNING):
         assert temp_db.run_deferred_upgrade_steps() is False
-    assert len([r for r in caplog.records if 'disk full' in r.getMessage()]) == 1
+    failures = [r.getMessage() for r in caplog.records if 'failed with' in r.getMessage()]
+    assert len(failures) == 1 and 'RuntimeError' in failures[0] and 'disk full' not in failures[0]
     conn = temp_db.get_connection()
     assert conn.execute("SELECT state FROM deferred_upgrade_steps WHERE name = ?", (GATE,)).fetchone()[0] == 'pending'
     assert not conn.execute("SELECT 1 FROM schema_migrations WHERE name = ?", (GATE,)).fetchone()
@@ -325,3 +327,60 @@ def test_redact_exc_matches_redact_log_text_and_cuts():
     assert redact_exc(exc) == redact_log_text(str(exc))
     assert redact_exc(exc, 50) == redact_log_text(str(exc))[:50]
     assert 'SECRET123' not in redact_exc(exc) and 'pw@' not in redact_exc(exc)
+
+
+def _compose_on_another_connection(db):
+    """A writer that builds a new value from the old raw text, as the deferred-episode expiry does."""
+    def write():
+        conn = db.get_connection()
+        conn.execute("UPDATE episodes SET error_message = error_message || ' | again https://u:PW2@h/x?k=SECRET2' "
+                     "WHERE episode_id = 'a1b2c3d4e5f6'")
+        conn.commit()
+    worker = threading.Thread(target=write)
+    worker.start()
+    worker.join()
+
+
+def test_a_row_changed_between_the_page_read_and_write_is_still_redacted(temp_db, monkeypatch):
+    _seed(temp_db)
+    temp_db._init_schema()
+    real = type(temp_db)._redaction_units
+    fired = []
+
+    def units():
+        out = []
+        for table, column, rewrite, where, params in real():
+            if (table, column) == ('episodes', 'error_message'):
+                def hooked(value, inner=rewrite):
+                    if not fired:
+                        fired.append(1)
+                        _compose_on_another_connection(temp_db)
+                    return inner(value)
+                rewrite = hooked
+            out.append((table, column, rewrite, where, params))
+        return out
+
+    monkeypatch.setattr(type(temp_db), '_redaction_units', staticmethod(units))
+    assert temp_db.run_deferred_upgrade_steps()
+    stored = temp_db.get_connection().execute(
+        "SELECT error_message FROM episodes WHERE episode_id = 'a1b2c3d4e5f6'").fetchone()[0]
+    assert fired and 'again' in stored
+    assert 'SECRET2' not in stored and 'PW2' not in stored and 'SIG' not in stored and 'PASS' not in stored
+
+
+def test_a_step_whose_owner_lost_the_claim_cannot_mark_itself_done(temp_db, monkeypatch):
+    _seed(temp_db)
+    temp_db._init_schema()
+
+    def finish_after_losing_the_claim(self, cursor, save, ctx):
+        conn = self.get_connection()
+        conn.execute("UPDATE deferred_upgrade_steps SET owner = 'someone-else' WHERE name = ?", (GATE,))
+        conn.commit()
+        return None
+
+    monkeypatch.setattr(type(temp_db), '_advance_redaction', finish_after_losing_the_claim)
+    assert temp_db.run_deferred_upgrade_steps()
+    conn = temp_db.get_connection()
+    assert not conn.execute("SELECT 1 FROM schema_migrations WHERE name = ?", (GATE,)).fetchone()
+    assert conn.execute("SELECT owner, state FROM deferred_upgrade_steps WHERE name = ?",
+                        (GATE,)).fetchone()[:] == ('someone-else', 'running')

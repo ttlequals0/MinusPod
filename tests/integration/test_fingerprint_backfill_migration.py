@@ -268,10 +268,10 @@ def test_a_failed_write_rolls_back_everything_and_retries_on_the_next_start(seed
         WHEN (SELECT COUNT(*) FROM audio_fingerprint_matches) >= 2
         BEGIN SELECT RAISE(ABORT, 'forced failure'); END""")
     conn.commit()
-    with caplog.at_level(logging.ERROR):
+    with caplog.at_level(logging.WARNING):
         db = _open(seeded['path'])
         assert db.run_deferred_upgrade_steps() is False
-    errors = [r for r in caplog.records if r.levelno == logging.ERROR and 'fingerprint' in r.getMessage().lower()]
+    errors = [r for r in caplog.records if r.levelno == logging.WARNING and 'failed with' in r.getMessage()]
     assert len(errors) == 1
     assert _rows(db) == []
     assert db.get_connection().execute("SELECT 1 FROM schema_migrations WHERE name = ?", (GATE,)).fetchone() is None
@@ -287,10 +287,10 @@ def test_a_read_failure_is_logged_and_startup_continues(seeded, monkeypatch, cap
     def boom(markers):
         raise RuntimeError('selection failed')
     monkeypatch.setattr(fm, 'plan_fingerprint_matches', boom)
-    with caplog.at_level(logging.ERROR):
+    with caplog.at_level(logging.WARNING):
         db = _restart(seeded['path'], seeded['db'])
-    assert len([r for r in caplog.records if r.levelno == logging.ERROR
-                and 'fingerprint' in r.getMessage().lower()]) == 1
+    assert len([r for r in caplog.records if r.levelno == logging.WARNING
+                and 'failed with RuntimeError' in r.getMessage()]) == 1
     assert _rows(db) == []
     assert db.get_connection().execute("SELECT 1 FROM schema_migrations WHERE name = ?", (GATE,)).fetchone() is None
 
@@ -478,6 +478,8 @@ def test_the_log_line_caps_the_listed_pattern_ids(seeded, caplog):
     db = seeded['db']
     ids = [db.create_ad_pattern(scope='podcast', podcast_id=OTHER, text_template=f'other read {i} ' * 8)
            for i in range(52)]
+    for pid in ids:
+        db.create_audio_fingerprint(pid, b'AQAA', 60.0)
     _put_markers(db, SLUG, EP_PLAIN, [_fp(pid, 10.0 + i * 100, 70.0 + i * 100) for i, pid in enumerate(ids)])
     with caplog.at_level(logging.INFO):
         _restart(seeded['path'], db)
@@ -594,3 +596,142 @@ def test_the_pending_flag_follows_the_step(seeded):
     assert db.history_backfill_pending()
     db.run_deferred_upgrade_steps()
     assert not db.history_backfill_pending()
+
+
+def _after_read(monkeypatch, db, action, once=True):
+    """Run action on another connection right after a page was read, before it is written."""
+    real = type(db)._read_stored_match_history
+    fired = []
+
+    def hooked(self, *args, **kwargs):
+        out = real(self, *args, **kwargs)
+        if out[1] is not None and not (once and fired):
+            fired.append(1)
+            worker = threading.Thread(target=action)
+            worker.start()
+            worker.join()
+        return out
+    monkeypatch.setattr(type(db), '_read_stored_match_history', hooked)
+    return fired
+
+
+def _reject(db, pattern_id, episode_id, slug, bounds):
+    pid = db.get_podcast_by_slug(slug)['id']
+    db.create_pattern_correction(correction_type='false_positive', pattern_id=pattern_id, episode_id=episode_id,
+                                 original_bounds=bounds, podcast_id=pid)
+
+
+def _prepared(seeded, name, monkeypatch):
+    monkeypatch.setattr(deferred, 'BACKFILL_PAGE_EPISODES', 1)
+    _without_rejections(seeded)
+    return _drop_mark(_copy_of(seeded, name))
+
+
+def test_a_rejection_made_during_the_run_marks_the_row_when_its_page_is_reached(seeded, monkeypatch):
+    db = _prepared(seeded, 'copy_rej_live', monkeypatch)
+    pages = []
+
+    def pause():
+        pages.append(1)
+        if len(pages) == 1:
+            _reject(db, seeded['theirs'], EP2, OTHER, {'start': 20.0, 'end': 70.0})
+    assert db.run_deferred_upgrade_steps(pause=pause)
+    rows = _rows(db, f"pattern_id = {seeded['theirs']} AND episode_id = '{EP2}'")
+    assert [r['rejected'] for r in rows] == [1] and rows[0]['rejected_at']
+
+
+def test_a_rejection_made_between_the_page_read_and_write_is_not_lost(seeded, monkeypatch):
+    db = _prepared(seeded, 'copy_rej_window', monkeypatch)
+    fired = _after_read(monkeypatch, db, lambda: _reject(db, seeded['mine'], EP1, SLUG,
+                                                         {'start': 105.0, 'end': 155.0}))
+    assert db.run_deferred_upgrade_steps() and fired
+    assert [r['rejected'] for r in _rows(db, f"pattern_id = {seeded['mine']}")] == [1]
+
+
+def test_an_undone_rejection_does_not_stay_rejected(seeded, monkeypatch):
+    monkeypatch.setattr(deferred, 'BACKFILL_PAGE_EPISODES', 1)
+    _without_rejections(seeded)
+    _reject(seeded['db'], seeded['theirs'], EP2, OTHER, {'start': 20.0, 'end': 70.0})
+    db = _drop_mark(_copy_of(seeded, 'copy_rej_undone'))
+    pages = []
+
+    def pause():
+        pages.append(1)
+        if len(pages) == 1:
+            db.get_connection().execute("DELETE FROM pattern_corrections")
+            db.get_connection().commit()
+    assert db.run_deferred_upgrade_steps(pause=pause)
+    assert [r['rejected'] for r in _rows(db, f"pattern_id = {seeded['theirs']} AND episode_id = '{EP2}'")] == [0]
+
+
+def test_a_rejection_undone_between_the_page_read_and_write_is_not_kept(seeded, monkeypatch):
+    monkeypatch.setattr(deferred, 'BACKFILL_PAGE_EPISODES', 1)
+    _without_rejections(seeded)
+    _reject(seeded['db'], seeded['mine'], EP1, SLUG, {'start': 105.0, 'end': 155.0})
+    db = _drop_mark(_copy_of(seeded, 'copy_rej_undone_window'))
+
+    def undo():
+        db.get_connection().execute("DELETE FROM pattern_corrections")
+        db.get_connection().commit()
+    fired = _after_read(monkeypatch, db, undo)
+    assert db.run_deferred_upgrade_steps() and fired
+    assert [r['rejected'] for r in _rows(db, f"pattern_id = {seeded['mine']}")] == [0]
+
+
+def test_an_episode_deleted_during_the_page_gets_no_history_rows(seeded, monkeypatch):
+    db = _prepared(seeded, 'copy_ep_deleted', monkeypatch)
+
+    def delete_episode():
+        conn = db.get_connection()
+        conn.execute("DELETE FROM episodes WHERE episode_id = ?", (EP1,))
+        conn.commit()
+    fired = _after_read(monkeypatch, db, delete_episode)
+    assert db.run_deferred_upgrade_steps() and fired
+    assert not _rows(db, f"episode_id = '{EP1}'")
+    assert _rows(db, f"episode_id = '{EP2}'")
+
+
+def test_a_pattern_whose_audio_was_deleted_during_the_run_gets_no_history_rows(seeded, monkeypatch):
+    db = _prepared(seeded, 'copy_audio_deleted', monkeypatch)
+
+    def delete_audio():
+        conn = db.get_connection()
+        conn.execute("DELETE FROM audio_fingerprints WHERE pattern_id = ?", (seeded['theirs'],))
+        conn.commit()
+    fired = _after_read(monkeypatch, db, delete_audio, once=False)
+    assert db.run_deferred_upgrade_steps() and fired
+    assert not _rows(db, f"pattern_id = {seeded['theirs']}")
+    assert _rows(db, f"pattern_id = {seeded['mine']}")
+
+
+def test_a_step_whose_owner_lost_the_claim_cannot_mark_itself_done(seeded, monkeypatch):
+    db = _drop_mark(_copy_of(seeded, 'copy_lost_claim'))
+
+    def lose_then_finish(self, cursor, save, ctx):
+        conn = self.get_connection()
+        conn.execute("UPDATE deferred_upgrade_steps SET owner = 'someone-else' WHERE name = ?", (GATE,))
+        conn.commit()
+        return None
+    monkeypatch.setattr(type(db), '_advance_backfill', lose_then_finish)
+    assert db.run_deferred_upgrade_steps()
+    assert db.history_backfill_pending()
+
+
+def test_the_origin_scan_heartbeats_before_it_reads(seeded, monkeypatch):
+    db = _drop_mark(_copy_of(seeded, 'copy_heartbeat'))
+    ticks = iter(range(100, 10_000))
+    last = []
+
+    def clock():
+        last.append(next(ticks))
+        return float(last[-1])
+    seen = []
+    real = type(db)._stored_match_rows_of_unsourced_patterns
+
+    def spy(self):
+        seen.append((self.get_connection().execute(
+            "SELECT heartbeat_at FROM deferred_upgrade_steps WHERE name = ?", (GATE,)).fetchone()[0], last[-1]))
+        return real(self)
+    monkeypatch.setattr(type(db), '_stored_match_rows_of_unsourced_patterns', spy)
+    assert db.run_deferred_upgrade_steps(clock=clock)
+    assert seen and seen[0][0] == float(seen[0][1])
