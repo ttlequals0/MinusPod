@@ -1,5 +1,5 @@
 import type { PatternTrust } from '../api/patterns';
-import { badgeBase, tint } from './badgeStyles';
+import { Badge } from './Badge';
 
 // Staleness-based trust tier for community patterns. 'active' renders
 // nothing; absence of a badge is the default, unflagged state.
@@ -7,20 +7,14 @@ export function PatternTrustBadge({ trust }: { trust?: PatternTrust }) {
   if (!trust || trust === 'active') return null;
   if (trust === 'stale') {
     return (
-      <span
-        className={`${badgeBase} max-w-full ${tint.warning}`}
-        title="Not matched locally in over 90 days and not re-confirmed by the community in over a year"
-      >
-        <span className="truncate">Stale</span>
-      </span>
+      <Badge tone="warning" title="Not matched locally in over 90 days and not re-confirmed by the community in over a year">
+        Stale
+      </Badge>
     );
   }
   return (
-    <span
-      className={`${badgeBase} max-w-full ${tint.neutral}`}
-      title="Not yet matched locally; trust builds up as it confirms ads on your feeds"
-    >
-      <span className="truncate">Unproven</span>
-    </span>
+    <Badge tone="neutral" title="Not yet matched locally; trust builds up as it confirms ads on your feeds">
+      Unproven
+    </Badge>
   );
 }

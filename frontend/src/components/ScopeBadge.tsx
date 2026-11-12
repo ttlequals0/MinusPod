@@ -1,5 +1,6 @@
 import { AdPattern } from '../api/patterns';
-import { badgeBase, tint } from './badgeStyles';
+import { tint } from './badgeStyles';
+import { Badge } from './Badge';
 
 // Pattern scope badge shared by PatternsPage and PatternDetailModal. `truncate` lets list
 // rows cut a long name with an ellipsis; the title always carries the full text.
@@ -11,22 +12,18 @@ export function ScopeBadge({
   truncate?: boolean;
 }) {
   let text: string;
-  let toneClass: string;
+  let tone: keyof typeof tint;
   if (pattern.scope === 'global') {
     text = 'Global';
-    toneClass = tint.blue;
+    tone = 'blue';
   } else if (pattern.scope === 'network') {
     text = `Network: ${pattern.network_id}`;
-    toneClass = tint.purple;
+    tone = 'purple';
   } else if (pattern.scope === 'podcast') {
     text = pattern.podcast_name || 'Podcast';
-    toneClass = tint.success;
+    tone = 'success';
   } else {
     return null;
   }
-  return (
-    <span className={`${badgeBase} ${toneClass} max-w-full${truncate ? '' : ' whitespace-normal! break-words'}`} title={text}>
-      {truncate ? <span className="truncate">{text}</span> : text}
-    </span>
-  );
+  return <Badge tone={tone} title={text} wrap={!truncate}>{text}</Badge>;
 }
