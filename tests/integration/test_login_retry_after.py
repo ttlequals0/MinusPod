@@ -108,6 +108,41 @@ def test_default_limit_429_says_when_to_retry(limited_client, db):
     assert int(last.headers['Retry-After']) == last.get_json()['retryAfterSeconds'] >= 1
 
 
+def _until_limited(client, path):
+    resp = None
+    for _ in range(205):
+        resp = client.get(path)
+        if resp.status_code == 429:
+            break
+    return resp
+
+
+def test_unmatched_api_path_is_never_rate_limited(limited_client, db):
+    # flask-limiter exempts requests with no endpoint, so this stays a JSON 404.
+    resp = _until_limited(limited_client, '/api/v1/nope')
+    assert resp.status_code == 404 and resp.get_json()['status'] == 404
+
+
+def test_app_level_429_under_api_is_json_with_retry_after():
+    from types import SimpleNamespace
+    from flask_limiter import RateLimitExceeded
+    from api import _handle_app_rate_limited
+    exc = RateLimitExceeded(SimpleNamespace(error_message=None, limit='200 per 1 minute'))
+    with app.test_request_context('/api/v1/nope'):
+        resp = _handle_app_rate_limited(exc)
+    assert resp.status_code == 429 and resp.mimetype == 'application/json'
+    body = resp.get_json()
+    assert body == {'error': '200 per 1 minute', 'status': 429,
+                    'retryAfterSeconds': int(resp.headers['Retry-After'])}
+
+
+def test_app_route_429_keeps_its_body_and_adds_retry_after(limited_client, db):
+    resp = _until_limited(limited_client, '/example-podcast')
+    assert resp.status_code == 429 and resp.mimetype == 'text/html'
+    assert int(resp.headers['Retry-After']) >= 1
+    assert b'Too Many Requests' in resp.data
+
+
 def test_login_without_a_limit_hit_has_no_retry_after(client):
     r = _login(client, 'wrong', ip=PRIVATE_IP)
     assert r.status_code == 401

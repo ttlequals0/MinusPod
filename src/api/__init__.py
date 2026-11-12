@@ -380,6 +380,17 @@ def _handle_rate_limited(exc):
 API_PATH_PREFIX = '/api/'
 
 
+@api.app_errorhandler(RateLimitExceeded)
+def _handle_app_rate_limited(exc):
+    """A limiter 429 outside the blueprint: JSON under /api/, the stock page elsewhere, both with Retry-After."""
+    if request.path.startswith(API_PATH_PREFIX):
+        return _handle_rate_limited(exc)
+    response = exc.get_response()
+    response.headers['Retry-After'] = str(
+        limiter_retry_after_seconds(limiter.current_limits, time.time()))
+    return response
+
+
 def register_api_routing_errors(app):
     """Answer unmatched paths and wrong methods under /api/ in JSON; other paths keep their pages."""
     def route_exists(methods):
