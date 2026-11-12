@@ -478,7 +478,7 @@ function QueueControlSection({
         {/* Queue priority: how far each kind of request jumps the queue.
             Higher number processes sooner; equal priorities follow the processing order. */}
         <div className="pt-4 border-t border-border">
-          <p className="text-sm font-medium text-foreground mb-1">Queue priority</p>
+          <h3 className={`${subHeading} mb-1`}>Queue priority</h3>
           <p className="text-sm text-muted-foreground mb-3">
             How far each request type jumps the queue. Episodes with the same priority follow the Processing order setting.
           </p>

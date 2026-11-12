@@ -140,6 +140,15 @@ describe('QueuePage', () => {
     await waitFor(() => expect(mockUpdateSettings).toHaveBeenCalledWith({ queueManualBoost: 30 }));
   });
 
+  it('renders Queue priority as an h3 sub-heading like its sibling groups', async () => {
+    mockGetEpisodes.mockResolvedValue([]);
+    mockGetSettings.mockResolvedValue(settings());
+    renderPage();
+    await userEvent.click(await screen.findByRole('button', { name: 'Queue control' }));
+    const heading = screen.getByRole('heading', { level: 3, name: 'Queue priority' });
+    expect(heading.className).toBe(screen.getByRole('heading', { level: 3, name: 'Processing order' }).className);
+  });
+
   it('shows the saved processing order and saves a change', async () => {
     mockGetEpisodes.mockResolvedValue([]);
     mockGetSettings.mockResolvedValue({ ...settings(), queueOrder: { value: 'oldest_first', isDefault: false } });
