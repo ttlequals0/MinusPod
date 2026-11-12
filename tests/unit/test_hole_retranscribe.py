@@ -306,13 +306,13 @@ def test_first_run_writes_originals_once_and_records_empty_holes():
 
 def test_mean_volume_db_parses_volumedetect():
     out = MagicMock(stderr='[Parsed_volumedetect_0 @ 0x1] mean_volume: -61.3 dB\n')
-    with patch.object(audio_utils, 'tracked_run', return_value=out) as run:
+    with patch.object(audio_utils.subprocess_registry, 'tracked_run', return_value=out) as run:
         assert audio_utils.mean_volume_db('/x.wav', 10.0, 5.0) == -61.3
     cmd = run.call_args.args[0]
     assert cmd[cmd.index('-ss') + 1] == '10.0' and cmd[cmd.index('-t') + 1] == '5.0'
     assert cmd.index('-ss') < cmd.index('-i') < cmd.index('-t')
-    with patch.object(audio_utils, 'tracked_run',
+    with patch.object(audio_utils.subprocess_registry, 'tracked_run',
                       return_value=MagicMock(stderr='garbage')):
         assert audio_utils.mean_volume_db('/x.wav') is None
-    with patch.object(audio_utils, 'tracked_run', side_effect=OSError('no ffmpeg')):
+    with patch.object(audio_utils.subprocess_registry, 'tracked_run', side_effect=OSError('no ffmpeg')):
         assert audio_utils.mean_volume_db('/x.wav') is None
