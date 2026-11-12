@@ -526,4 +526,20 @@ describe('AdReviewModal waveform states', () => {
     await user.click(screen.getByRole('button', { name: 'Retry' }));
     expect(peaksState.ticks[peaksState.ticks.length - 1]).toBe(before + 1);
   });
+
+  it('Retry leaves the window and the pins where the user put them', async () => {
+    peaksState.value = { peaks: null, peakResolutionMs: 100, peaksError: 'boom' };
+    renderModal();
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: /Set END/ }));
+    const read = () => [
+      (screen.getByLabelText('Selection start time') as HTMLInputElement).value,
+      (screen.getByLabelText('Selection end time') as HTMLInputElement).value,
+      (screen.getByLabelText('Waveform window position') as HTMLInputElement).value,
+    ];
+    const moved = read();
+    expect(moved[1]).toBe('0:01.0');
+    await user.click(screen.getByRole('button', { name: 'Retry' }));
+    expect(read()).toEqual(moved);
+  });
 });

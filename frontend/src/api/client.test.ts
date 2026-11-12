@@ -10,7 +10,7 @@
  * wrapper funnels through.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { ApiError, apiFileRequest, apiRequest } from './client';
+import { ApiError, apiFileRequest, apiRequest, sleep } from './client';
 
 // Minimal fetch Response stand-in: only the surface apiRequest actually
 // reads (status/ok/headers.get/json), so this doesn't depend on whatever
@@ -249,5 +249,30 @@ describe('apiRequest: surfaceBusy', () => {
     await vi.advanceTimersByTimeAsync(2000);
     expect(await promise).toEqual({ ok: 1 });
     expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe('sleep', () => {
+  beforeEach(() => vi.useFakeTimers());
+  afterEach(() => vi.useRealTimers());
+
+  it('removes its abort listener when the timer fires', async () => {
+    const controller = new AbortController();
+    const add = vi.spyOn(controller.signal, 'addEventListener');
+    const remove = vi.spyOn(controller.signal, 'removeEventListener');
+    for (let i = 0; i < 5; i++) {
+      const done = sleep(10, controller.signal);
+      await vi.advanceTimersByTimeAsync(10);
+      await done;
+    }
+    expect(add).toHaveBeenCalledTimes(5);
+    expect(remove).toHaveBeenCalledTimes(5);
+  });
+
+  it('still rejects with the reason when aborted during the wait', async () => {
+    const controller = new AbortController();
+    const done = sleep(1000, controller.signal).catch((e: unknown) => e);
+    controller.abort(new Error('stop'));
+    expect(((await done) as Error).message).toBe('stop');
   });
 });

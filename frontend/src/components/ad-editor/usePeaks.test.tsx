@@ -173,3 +173,17 @@ describe('usePeaks 503 wait', () => {
     expect(vi.getTimerCount()).toBe(0);
   });
 });
+
+describe('usePeaks retry after an error', () => {
+  it('clears the error and refetches when the tick changes', async () => {
+    mockGetPeaks.mockRejectedValueOnce(new ApiError('broke', 500, {})).mockResolvedValue(ok);
+    const { result, rerender } = setup();
+    await act(() => vi.advanceTimersByTimeAsync(0));
+    expect(result.current.peaksError).toBe('broke');
+    rerender({ slug: 's', episode: 'e1', tick: 1 });
+    await act(() => vi.advanceTimersByTimeAsync(0));
+    expect(mockGetPeaks).toHaveBeenCalledTimes(2);
+    expect(result.current.peaksError).toBeNull();
+    expect(result.current.peaks).toEqual([0.1, 0.2]);
+  });
+});
