@@ -362,12 +362,16 @@ class TestTranscriberBackendDispatch:
         'api_base_url': '', 'api_key': '', 'api_model': 'whisper-1',
     })
     def test_does_not_dispatch_to_api_when_local(self, mock_settings):
+        from transcriber.local import WhisperModelSingleton
         transcriber = Transcriber()
-        with patch.object(Transcriber, '_transcribe_via_api') as mock_api:
+        with patch.object(Transcriber, '_transcribe_via_api') as mock_api, \
+                patch.object(WhisperModelSingleton, 'get_batched_pipeline',
+                             side_effect=RuntimeError('stub: no model')) as mock_model:
             try:
                 transcriber.transcribe('/tmp/test.wav')
             except Exception:
                 pass
+            mock_model.assert_called_once()
             mock_api.assert_not_called()
 
 
