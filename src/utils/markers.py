@@ -6,7 +6,7 @@ import uuid
 from bisect import bisect_left, bisect_right
 from itertools import accumulate, pairwise
 
-from config import (CORRECTION_MATCH_MIN_COVERAGE, CUE_MATCH_STAGE, FINGERPRINT_CHUNK_SIZE,
+from config import (CORRECTION_MATCH_MIN_COVERAGE, CUE_MATCH_STAGE,
                     PASS2_REVIEWED_RELEASE_HOLD_REASONS, REVIEWER_HOLD_REASONS,
                     is_keep_like, is_pending_review, repair_segment_category)
 from utils.time import overlap_ratio
@@ -681,7 +681,7 @@ def measured_member_spans(marker: dict, min_conf: float, *,
     # Anchors are independent member evidence: no DAI core, no estimate's own text.
     spans = ([(s['start'], s['end'], False) for s in _valid_dai_core_spans(marker)]
              if include_dai_core else [])
-    # Same hard extents the reviewer uses: a fingerprint start is measured, its projected end soft.
+    # Same hard extents the reviewer uses: a fingerprint's whole matched run is measured.
     spans.extend((m['start'], m['end'], not m.get('span_estimated'))
                  for m in hard_members(marker, min_conf) if _is_evidence(m, min_conf))
     return sorted(spans)
@@ -718,12 +718,12 @@ def _hard_extent(member: dict, precise: list[dict]) -> tuple[float, float] | Non
     stage = member.get('stage')
     match = _match_bounds(member)
     if stage == 'fingerprint' and match is not None:
-        # Only the first correlation window is measured; the rest is a projected
-        # pattern length, soft past the latest precise transcript end.
+        # The whole matched run is measured; a precise transcript end inside the member can extend it.
+        member_hi = hi
         lo, hi = max(lo, match[0]), min(hi, match[1])
         ends = [m['end'] for m in precise if m.get('precise_end')]
         if ends:
-            hi = max(min(hi, max(ends)), min(hi, lo + FINGERPRINT_CHUNK_SIZE))
+            hi = max(hi, min(member_hi, max(ends)))
     elif stage == 'text_pattern':
         # Segment-bounded edges are soft only past a precise edge that falls inside them.
         starts = [m['start'] for m in precise if m.get('precise_start') and lo < m['start'] < hi]

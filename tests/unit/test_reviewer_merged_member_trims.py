@@ -539,9 +539,10 @@ def _envelope_ad():
     return _merged(1711.02, 1872.74, [
         {'start': 1711.02, 'end': 1836.66, 'stage': 'claude', 'confidence': 0.98,
          'precise_start': True, 'precise_end': True},
-        {'start': 1770.0, 'end': 1872.74, 'stage': 'fingerprint',
-         'fingerprint_match_start': 1770.0, 'fingerprint_match_end': 1872.74}],
-        fingerprint_match_start=1770.0, fingerprint_match_end=1872.74)
+        {'start': 1770.0, 'end': 1830.0, 'stage': 'fingerprint',
+         'fingerprint_match_start': 1770.0, 'fingerprint_match_end': 1830.0},
+        {'start': 1800.0, 'end': 1872.74, 'stage': 'text_pattern'}],
+        fingerprint_match_start=1770.0, fingerprint_match_end=1830.0)
 
 
 def test_trim_to_the_precise_transcript_end_is_applied():
@@ -553,7 +554,7 @@ def test_trim_to_the_precise_transcript_end_is_applied():
     accepted = result.accepted_after_review[0]
     assert (accepted['start'], accepted['end']) == (1711.02, 1836.66)
     assert all(m['end'] <= 1836.66 for m in recorded_member_spans(accepted))
-    assert accepted['fingerprint_match_end'] == 1836.66
+    assert accepted['fingerprint_match_end'] == 1830.0
 
 
 def test_trim_into_the_measured_extent_is_still_held():

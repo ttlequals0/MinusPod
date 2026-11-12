@@ -510,12 +510,12 @@ def _envelope():
     return merged
 
 
-def test_edge_support_prefers_precise_transcript_end_over_fingerprint_envelope():
+def test_edge_support_takes_the_fingerprints_whole_measured_end():
     merged = _envelope()
 
     assert merged['end'] == 1872.74
     assert edge_support(merged, 'end', MIN_CONF) == {
-        'envelope': 1872.74, 'measured': 1836.66, 'source': 'transcript', 'precise': True}
+        'envelope': 1872.74, 'measured': 1872.74, 'source': 'fingerprint', 'precise': False}
     assert edge_support(merged, 'start', MIN_CONF) == {
         'envelope': 1711.02, 'measured': 1711.02, 'source': 'transcript', 'precise': True}
 
@@ -525,16 +525,14 @@ def test_segment_end_text_pattern_is_soft_past_a_precise_word_end():
               'merged_protected_end': 1109.8, 'merged_member_spans': [
         {'start': 944.07, 'end': 1074.76, 'stage': 'claude', 'confidence': 0.98,
          'precise_start': True, 'precise_end': True},
-        {'start': 1051.8, 'end': 1081.37, 'stage': 'text_pattern'},
-        {'start': 1046.0, 'end': 1109.8, 'stage': 'fingerprint',
-         'fingerprint_match_start': 1046.0, 'fingerprint_match_end': 1109.8}]}
+        {'start': 1051.8, 'end': 1081.37, 'stage': 'text_pattern'}]}
 
     assert edge_support(merged, 'end', MIN_CONF)['measured'] == 1074.76
     assert [(m['start'], m['end']) for m in hard_member_spans(merged, 944.07, 1109.8, MIN_CONF)] == [
-        (944.07, 1074.76), (1051.8, 1074.76), (1046.0, 1074.76)]
+        (944.07, 1074.76), (1051.8, 1074.76)]
 
 
-def test_fingerprint_wholly_past_a_precise_end_keeps_its_correlation_window():
+def test_fingerprint_wholly_past_a_precise_end_keeps_its_whole_match():
     merged = {'start': 72.66, 'end': 173.6, 'merged_distinct_ads': True,
               'merged_protected_start': 91.6, 'merged_protected_end': 173.6,
               'merged_member_spans': [
@@ -545,9 +543,9 @@ def test_fingerprint_wholly_past_a_precise_end_keeps_its_correlation_window():
 
     support = edge_support(merged, 'end', MIN_CONF)
     assert (support['envelope'], support['measured'], support['source']) == (
-        173.6, 140.0, 'fingerprint')
+        173.6, 173.6, 'fingerprint')
     assert [(m['start'], m['end']) for m in hard_member_spans(merged, 72.66, 173.6, MIN_CONF)] == [
-        (91.6, 116.2), (130.0, 140.0)]
+        (91.6, 116.2), (130.0, 173.6)]
 
 
 def test_fingerprint_start_before_a_precise_start_stays_measured():

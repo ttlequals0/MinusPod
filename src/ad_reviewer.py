@@ -1296,9 +1296,9 @@ def _member_item(member: dict) -> str:
         label = f"fingerprint pattern #{pattern}" if pattern is not None else 'fingerprint'
         match_lo = finite_number(member.get('fingerprint_match_start'))
         match_hi = finite_number(member.get('fingerprint_match_end'))
-        matched = (f", matched {_span_text(match_lo, match_hi)}"
-                   if match_lo is not None and match_hi is not None else '')
-        return f"{label} {text} (projected length{matched})"
+        if match_lo is None or match_hi is None:
+            return f"{label} {text}"
+        return f"{label} {text} (matched {_span_text(match_lo, match_hi)})"
     item = f"{stage} {text}"
     confidence = finite_number(member.get('confidence'))
     if confidence is not None:

@@ -182,7 +182,7 @@ def test_coalesced_coarse_member_keeps_the_weakest_confidence():
     assert measured_member_spans(marker, 0.8) == [(0.0, 175.0, True)]
 
 
-def test_fingerprint_member_is_measured_only_to_its_hard_extent():
+def test_fingerprint_member_is_measured_to_its_whole_match():
     marker = {
         'start': 3492.9, 'end': 3680.7, 'confidence': 0.95, 'detection_stage': 'claude',
         'merged_protected_start': 3492.9, 'merged_protected_end': 3680.7,
@@ -194,6 +194,37 @@ def test_fingerprint_member_is_measured_only_to_its_hard_extent():
         ],
     }
     assert measured_member_spans(marker, 0.8) == [
-        (3492.9, 3573.2, True), (3544.2, 3573.2, True)]
+        (3492.9, 3573.2, True), (3544.2, 3600.0, True)]
     assert [(lo, hi) for lo, hi, _ in measured_member_spans(marker, 0.8)] == [
         (m['start'], m['end']) for m in hard_member_spans(marker, 3492.9, 3680.7, 0.8)]
+
+
+def _fingerprint_beside_precise_claude(match_end, precise_end):
+    return {
+        'start': 90.0, 'end': 145.0, 'confidence': 0.95, 'detection_stage': 'claude',
+        'merged_protected_start': 90.0, 'merged_protected_end': 145.0,
+        'merged_member_spans': [
+            {'start': 90.0, 'end': precise_end, 'stage': 'claude', 'confidence': 0.95,
+             'precise_start': True, 'precise_end': True},
+            {'start': 100.0, 'end': 145.0, 'stage': 'fingerprint',
+             'fingerprint_match_start': 100.0, 'fingerprint_match_end': match_end},
+        ],
+    }
+
+
+def test_fingerprint_member_measured_to_full_match_span():
+    marker = _fingerprint_beside_precise_claude(145.0, 120.0)
+    spans = {(lo, hi) for lo, hi, _ in measured_member_spans(marker, 0.8)}
+    assert (100.0, 145.0) in spans
+
+
+def test_fingerprint_member_never_shrinks_below_match_for_an_earlier_precise_end():
+    marker = _fingerprint_beside_precise_claude(130.0, 105.0)
+    spans = {(lo, hi) for lo, hi, _ in measured_member_spans(marker, 0.8)}
+    assert (100.0, 130.0) in spans
+
+
+def test_fingerprint_member_extends_to_a_later_precise_end_inside_the_member():
+    marker = _fingerprint_beside_precise_claude(120.0, 135.0)
+    spans = {(lo, hi) for lo, hi, _ in measured_member_spans(marker, 0.8)}
+    assert (100.0, 135.0) in spans
