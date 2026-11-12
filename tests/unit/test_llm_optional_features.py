@@ -1,4 +1,5 @@
 """Background LLM features, probes and model routes with the LLM provider set to none."""
+import logging
 import os
 import sys
 import tempfile
@@ -525,3 +526,49 @@ def test_switching_from_none_to_a_provider_refreshes_pricing_once(app_client, hd
     assert started_threads == []
     assert _put(app_client, hdr, {'llmProvider': 'anthropic'}).status_code == 200
     assert started_threads.count(provider_phases.force_refresh_pricing) == 1
+
+
+# One handler and one quiet loop boundary
+
+_PRICING_409 = {'error': 'Pricing refresh is unavailable while the LLM provider is none',
+                'status': 409, 'code': 'llm_disabled'}
+_CLEANUP_409 = {'error': 'Pattern cleanup is unavailable while the LLM provider is set to None',
+                'status': 409, 'code': 'llm_disabled'}
+
+
+def test_409_bodies_are_unchanged(app_client, hdr, provider_none):
+    pricing = app_client.post('/api/v1/system/model-pricing/refresh', headers=hdr)
+    cleanup = app_client.post('/api/v1/patterns/cleanup/run', json={}, headers=hdr)
+    assert (pricing.status_code, pricing.get_json()) == (409, _PRICING_409)
+    assert (cleanup.status_code, cleanup.get_json()) == (409, _CLEANUP_409)
+
+
+def test_any_route_that_reaches_the_client_factory_answers_409(app_client, provider_none):
+    """An unguarded route calling get_llm_client gets the same 409 by construction."""
+    app = app_client.application
+    with app.test_request_context('/api/v1/patterns/cleanup'):
+        with pytest.raises(llm_client.LLMDisabledError) as caught:
+            llm_client.get_llm_client()
+        response = app.handle_user_exception(caught.value)
+    assert response.status_code == 409
+    assert response.get_json()['code'] == 'llm_disabled'
+
+
+def test_a_background_loop_tick_that_reaches_the_factory_is_a_quiet_noop(provider_none, caplog):
+    def tick():
+        with llm_client.llm_off_is_quiet(llm_client.logger, 'Throwaway tick'):
+            llm_client.get_llm_client()
+            raise AssertionError('the tick went on after the client was refused')
+
+    with caplog.at_level(logging.DEBUG):
+        tick()
+    assert [r for r in caplog.records if r.levelno >= logging.WARNING] == []
+
+
+def test_rate_limit_probe_that_loses_the_provider_mid_tick_is_quiet(temp_db, caplog, monkeypatch):
+    def refuse(*args, **kwargs):
+        raise llm_client.LLMDisabledError('none')
+    monkeypatch.setattr(rate_limit_hold, '_probe_rate_limit', refuse)
+    with caplog.at_level(logging.DEBUG):
+        assert rate_limit_hold.probe_rate_limit(temp_db) is False
+    assert [r for r in caplog.records if r.levelno >= logging.WARNING] == []

@@ -38,7 +38,7 @@ from config import coerce_bool_setting
 from database.settings import registry_current_value, registry_default
 from llm_client import (
     extract_retry_after, get_client_for_provider, get_effective_provider,
-    is_rate_limit_error, llm_disabled,
+    is_rate_limit_error, llm_disabled, LLMDisabledError,
 )
 from llm_route import ALL_CREDENTIAL_SLOTS, resolve_route
 from provider_budget import manual_rate_limit_caps, request_token_estimate
@@ -871,6 +871,9 @@ def probe_rate_limit(db) -> bool:
         return False
     try:
         return _probe_rate_limit(db)
+    except LLMDisabledError:
+        logger.debug("Rate-limit probe skipped: the LLM provider is none")
+        return False
     except Exception:
         logger.exception("Rate-limit probe crashed; leaving hold untouched")
         return False

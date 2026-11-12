@@ -42,6 +42,8 @@ def _install_recorder(monkeypatch):
 
     def recorder(name):
         def record(*args, **kwargs):
+            if name in _FACTORIES and llm_client.llm_disabled():
+                raise llm_client.LLMDisabledError('The LLM provider is set to none; no client is available')
             calls.append(name)
             raise AssertionError(f'model call attempted: {name}')
         return record
