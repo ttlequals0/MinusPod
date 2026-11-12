@@ -1,13 +1,14 @@
 """REST API for MinusPod web UI."""
 import logging
 import ipaddress
+import math
 import os
 import re
 import secrets
 import time
 from typing import Optional
 from flask import Blueprint, abort, g, jsonify, request, send_file, session
-from flask_limiter import Limiter
+from flask_limiter import Limiter, RateLimitExceeded
 from flask_limiter.util import get_remote_address
 from functools import wraps
 
@@ -339,6 +340,28 @@ def _handle_request_too_large(exc):
 def _handle_http_exception(exc):
     """Pass werkzeug HTTPException (abort(400), 404, etc.) through unchanged."""
     return jsonify({'error': exc.description, 'status': exc.code}), exc.code
+
+
+LOGIN_PATH = '/api/v1/auth/login'
+
+
+def limiter_retry_after_seconds(request_limits, now):
+    """Whole seconds until every breached limit has reset, at least 1."""
+    resets = [lim.reset_at for lim in request_limits if lim.breached]
+    return max(1, math.ceil(max(resets) - now)) if resets else 1
+
+
+@api.errorhandler(RateLimitExceeded)
+def _handle_rate_limited(exc):
+    """Same 429 body as any HTTPException; the login route also says when to retry."""
+    if request.path != LOGIN_PATH:
+        return _handle_http_exception(exc)
+    seconds = limiter_retry_after_seconds(limiter.current_limits, time.time())
+    response = jsonify({
+        'error': exc.description, 'status': 429, 'retryAfterSeconds': seconds})
+    response.status_code = 429
+    response.headers['Retry-After'] = str(seconds)
+    return response
 
 
 API_PATH_PREFIX = '/api/'

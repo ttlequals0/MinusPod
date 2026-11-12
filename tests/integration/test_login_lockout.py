@@ -51,7 +51,7 @@ def test_lockout_triggers_after_threshold(client):
         _login(client, 'wrong')
     r = _login(client, 'correct-password-123456')
     assert r.status_code == 429
-    assert r.headers.get('Retry-After')
+    assert r.headers['Retry-After'].isdigit()
 
 
 def test_private_ip_is_not_locked_out(client):

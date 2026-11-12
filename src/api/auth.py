@@ -1,15 +1,17 @@
 """Authentication routes: /auth/* endpoints."""
 import logging
+import math
 import os
 
 from flask import current_app, request, session
 from werkzeug.security import generate_password_hash, check_password_hash
 
 from utils.session_defaults import base_url_is_https
+from utils.time import parse_iso_utc, utc_now
 from utils.validation import is_public_ip_for_lockout
 from api.auth_state import (
-    authenticate_session, authentication_required, password_is_set,
-    session_is_authenticated,
+    SESSION_REMEMBERED_KEY, authenticate_session, authentication_required,
+    password_is_set, session_is_authenticated,
 )
 from api.csrf import validate as csrf_validate
 
@@ -49,6 +51,13 @@ def _warn_if_session_cookie_unstorable():
         )
 
 
+def _retry_after_seconds(locked_until_iso: str) -> int:
+    unlock = parse_iso_utc(locked_until_iso)
+    if unlock is None:
+        return 1
+    return max(1, math.ceil((unlock - utc_now()).total_seconds()))
+
+
 # ========== Authentication Endpoints ==========
 
 @api.route('/auth/status', methods=['GET'])
@@ -80,7 +89,8 @@ def auth_login():
 
     Request body:
     {
-        "password": "your-password"
+        "password": "your-password",
+        "rememberMe": false   // optional boolean: longer session on this device
     }
     """
     db = get_database()
@@ -99,6 +109,10 @@ def auth_login():
     if not data or 'password' not in data:
         return error_response('Password is required', 400)
 
+    remember = data.get('rememberMe', False)
+    if not isinstance(remember, bool):
+        return error_response('rememberMe must be a boolean', 400)
+
     password = data['password']
     ip = request.remote_addr or ''
 
@@ -110,8 +124,13 @@ def auth_login():
         locked_until = db.check_lockout(ip)
         if locked_until:
             logger.warning("Login attempt on locked IP %s (until %s)", ip, locked_until)
-            response = error_response('Too many failed attempts; try again later', 429)
-            response.headers['Retry-After'] = locked_until
+            seconds = _retry_after_seconds(locked_until)
+            response = json_response({
+                'error': 'Too many failed attempts; try again later',
+                'status': 429,
+                'retryAfterSeconds': seconds,
+            }, 429)
+            response.headers['Retry-After'] = str(seconds)
             return response
 
     if not stored_hash or not check_password_hash(stored_hash, password):
@@ -127,7 +146,7 @@ def auth_login():
     generation = db.auth_generation_if_password_equal(stored_hash)
     if generation is None:
         return error_response('Password changed during login; try again', 409)
-    authenticate_session(db, generation)
+    authenticate_session(db, generation, remembered=remember)
     logger.info(f"Successful login from {ip}")
     _warn_if_session_cookie_unstorable()
 
@@ -217,13 +236,14 @@ def auth_set_password():
     # Pin the hash method so security decisions are visible in code rather
     # than depending on whichever default werkzeug ships today.
     password_hash = generate_password_hash(new_password, method='scrypt')
+    remembered = bool(session.get(SESSION_REMEMBERED_KEY, False))
     generation = db.replace_password_and_revoke(current_hash, password_hash)
     if generation is None:
         return error_response('Password changed; try again', 409)
     logger.info(f"Password {'changed' if password_set else 'set'} by {request.remote_addr}")
 
     # Rotate the session on password change for the same reason as /auth/login.
-    authenticate_session(db, generation)
+    authenticate_session(db, generation, remembered=remembered)
     _warn_if_session_cookie_unstorable()
 
     return json_response({
