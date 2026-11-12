@@ -15,13 +15,13 @@ describe('PatternTrustBadge', () => {
 
   it('renders a warning-toned Stale badge', () => {
     render(<PatternTrustBadge trust="stale" />);
-    const badge = screen.getByText('Stale');
+    const badge = screen.getByText('Stale').parentElement as HTMLElement;
     expect(badge.className).toContain('text-warning');
   });
 
   it('renders a neutral Unproven badge', () => {
     render(<PatternTrustBadge trust="unproven" />);
-    const badge = screen.getByText('Unproven');
+    const badge = screen.getByText('Unproven').parentElement as HTMLElement;
     expect(badge.className).toContain('bg-muted text-secondary-foreground');
   });
 });

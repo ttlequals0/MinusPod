@@ -9,14 +9,3 @@ export function audioSummaryLabel(audio?: PatternAudioSummary): string {
   if (audio.matchCount > 0 && audio.meanSimilarity != null) return `${formatPercent(audio.meanSimilarity)} match`;
   return '-';
 }
-
-const REASON_PATTERN = /pattern #(\d+)/i;
-
-// Fallback for servers that predate patternAudioState: text-pattern markers name their
-// pattern in the reason. Remove once those servers are out of support.
-export function markerPatternId(m: { pattern_id?: number | null; patternAudioState?: string; reason?: string }): number | null {
-  if (m.pattern_id != null) return m.pattern_id;
-  if (m.patternAudioState !== undefined) return null;
-  const found = m.reason ? REASON_PATTERN.exec(m.reason) : null;
-  return found ? Number(found[1]) : null;
-}

@@ -41,7 +41,6 @@ import AdReviewModal from '../components/AdReviewModal';
 import type { AdSegment, EpisodeCorrection, Feed, EpisodeDetail as EpisodeDetailApi, JobState, ThinkingNoticePass, UpstreamTranscript } from '../api/types';
 import AddAudioToPatternButton from '../components/AddAudioToPatternButton';
 import PatternLink from '../components/PatternLink';
-import { markerPatternId } from '../utils/patternAudio';
 import ExpandableText from '../components/ExpandableText';
 import RichText from '../components/RichText';
 import CollapsibleSection from '../components/CollapsibleSection';
@@ -899,9 +898,9 @@ function EpisodeDetail() {
             Jump
           </button>
         )}
-        {segment.detection_stage === 'text_pattern' && markerPatternId(segment) != null && (
+        {segment.detection_stage === 'text_pattern' && segment.pattern_id != null && (
           <AddAudioToPatternButton
-            patternId={markerPatternId(segment)!}
+            patternId={segment.pattern_id}
             audioState={segment.patternAudioState}
             hasOriginal={!!episode.hasOriginalAudio}
             span={{ podcastSlug: slug!, episodeId: episode.id, ...displayedSpan(segment) }}

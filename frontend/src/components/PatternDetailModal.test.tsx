@@ -7,7 +7,7 @@ import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
 import PatternDetailModal from './PatternDetailModal';
 import { ApiError } from '../api/client';
 import type { AdPattern } from '../api/patterns';
-import { formatDate, formatDateTimeShort } from '../utils/format';
+import { formatDate, formatDateTimeParts } from '../utils/format';
 
 const mockSplitPattern = vi.fn();
 const mockUpdatePattern = vi.fn();
@@ -417,7 +417,7 @@ describe('Audio section', () => {
     expect(tile.className).toContain('grid-cols-2');
     expect(tile.className).toContain('sm:grid-cols-4');
     expect(screen.getByText(formatDate(ACTIVE_AUDIO.lastMatchedAt)).className).toContain('sm:hidden');
-    expect(screen.getByText(formatDateTimeShort(ACTIVE_AUDIO.lastMatchedAt)).className).toContain('max-sm:hidden');
+    expect(screen.getByText(formatDateTimeParts(ACTIVE_AUDIO.lastMatchedAt).time).closest('.max-sm\\:hidden')).not.toBeNull();
   });
 });
 

@@ -236,7 +236,7 @@ function SuggestionCard({ s, selected, onSelect, onAction, busy }: {
                   network_id: pattern.networkId,
                   podcast_name: pattern.podcastTitle,
                 }}
-                podcastClassName="truncate max-w-full"
+                truncate
               />
             )}
             {pattern && !pattern.isActive && <ActiveBadge active={false} />}

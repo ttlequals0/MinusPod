@@ -36,15 +36,23 @@ export function formatDateTime(dateStr: string | null): string {
   });
 }
 
-// Month, day and time without the year for the current year ("Mar 4, 3:26 PM"); `-` for a missing value.
+// Short date and time as separate parts so a narrow tile can break between them; the date
+// drops the year within the current year ("Mar 4," and "3:26 PM").
+export function formatDateTimeParts(dateStr: string, now = new Date()): { date: string; time: string } {
+  const date = new Date(dateStr);
+  return {
+    date: date.toLocaleDateString([], {
+      month: 'short', day: 'numeric', ...(date.getFullYear() === now.getFullYear() ? {} : { year: 'numeric' }),
+    }),
+    time: date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }),
+  };
+}
+
+// One-line form of formatDateTimeParts; `-` for a missing value.
 export function formatDateTimeShort(dateStr: string | null, now = new Date()): string {
   if (!dateStr) return '-';
-  const date = new Date(dateStr);
-  return date.toLocaleString([], {
-    month: 'short', day: 'numeric',
-    ...(date.getFullYear() === now.getFullYear() ? {} : { year: 'numeric' }),
-    hour: 'numeric', minute: '2-digit',
-  });
+  const { date, time } = formatDateTimeParts(dateStr, now);
+  return `${date}, ${time}`;
 }
 
 // Past time relative to now ("just now", "5m ago", "3h ago", "2d ago").

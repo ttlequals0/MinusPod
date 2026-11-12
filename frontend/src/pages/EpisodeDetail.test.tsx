@@ -2952,13 +2952,11 @@ describe('Regenerate chapters: LLM provider None', () => {
 describe('Add audio to pattern on text-pattern detections', () => {
   const textMarker = {
     start: 100, end: 160, confidence: 0.95, detection_stage: 'text_pattern' as const,
-    reason: 'Acme (pattern #7, intro)', pattern_id: 7,
+    reason: 'Acme (pattern #7, intro)', pattern_id: 7, patternAudioState: 'none' as const,
   };
-  const summary = (state: string) => ({ state, available: state !== 'none', matchCount: 0, meanSimilarity: null });
 
   beforeEach(() => {
     vi.clearAllMocks();
-    mockGetPatterns.mockResolvedValue([{ id: 7, audio: summary('none') }]);
   });
 
   it('adds audio from the span the row shows, then confirms with a status', async () => {
@@ -2971,23 +2969,13 @@ describe('Add audio to pattern on text-pattern detections', () => {
     expect(screen.queryByRole('button', { name: 'Add audio to pattern' })).toBeNull();
   });
 
-  it('reads the pattern from the reason when the marker carries no id, and uses the span the row shows', async () => {
-    mockRebuildPatternAudio.mockResolvedValue({ fingerprintStored: true });
-    renderDetail(makeEpisode({
-      pendingReviewMarkers: [],
-      adMarkers: [{ ...textMarker, pattern_id: undefined, reviewer_verdict: 'adjust', reviewer_original_start: 90, reviewer_original_end: 170 }],
-    }));
-    await userEvent.click(await screen.findByRole('button', { name: 'Add audio to pattern' }));
-    expect(mockRebuildPatternAudio).toHaveBeenCalledWith(7, expect.objectContaining({ start: 90, end: 170 }));
-  });
-
   it('is absent for a fingerprint detection and for a pattern that already has audio', async () => {
     renderDetail(makeEpisode({
       pendingReviewMarkers: [],
-      adMarkers: [{ ...textMarker, detection_stage: 'fingerprint' }, { ...textMarker, start: 300, end: 360, pattern_id: 8, reason: 'Beta (pattern #8)' }],
+      adMarkers: [{ ...textMarker, detection_stage: 'fingerprint' }, { ...textMarker, start: 300, end: 360, pattern_id: 8, patternAudioState: 'active' as const, reason: 'Beta (pattern #8)' },
+        { ...textMarker, start: 400, end: 460, pattern_id: 9, patternAudioState: undefined, reason: 'Gone (pattern #9)' }],
     }));
-    await screen.findByText('Detected ads (2)');
-    await waitFor(() => expect(mockGetPatterns).toHaveBeenCalled());
+    await screen.findByText('Detected ads (3)');
     expect(screen.queryByRole('button', { name: 'Add audio to pattern' })).toBeNull();
   });
 
@@ -2996,11 +2984,5 @@ describe('Add audio to pattern on text-pattern detections', () => {
     const button = await screen.findByRole('button', { name: 'Add audio to pattern' }) as HTMLButtonElement;
     expect(button.disabled).toBe(true);
     expect(screen.getByText('Source audio expired')).toBeDefined();
-  });
-
-  it('does not ask for pattern summaries when no detection came from a text pattern', async () => {
-    renderDetail(makeEpisode({ pendingReviewMarkers: [], adMarkers: [{ start: 10, end: 40, confidence: 0.9, detection_stage: 'claude' }] }));
-    await screen.findByText('Detected ads (1)');
-    expect(mockGetPatterns).not.toHaveBeenCalled();
   });
 });

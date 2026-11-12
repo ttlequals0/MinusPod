@@ -1332,7 +1332,7 @@ function AdReviewModal({
             };
             return (
               <div className="mt-2 flex items-center gap-2 text-xs tabular-nums text-muted-foreground">
-                <span className="w-12 text-right shrink-0">{formatTime(currentTime)}</span>
+                <span className="min-w-12 text-right shrink-0">{formatTime(currentTime)}</span>
                 <div
                   ref={scrubberRef}
                   role="slider"
@@ -1368,7 +1368,7 @@ function AdReviewModal({
                     </>
                   ) : null}
                 </div>
-                <span className="w-12 text-left shrink-0">{formatTime(epDur)}</span>
+                <span className="min-w-12 text-left shrink-0">{formatTime(epDur)}</span>
               </div>
             );
           })()}

@@ -21,7 +21,7 @@ Run these commands from `frontend`. The guide's theme catalog and default tokens
 
 ## Responsive layout and targets
 
-- Use at least 44 x 44 CSS px for standalone controls on coarse pointers, including tablets. An icon may be smaller. Padding outside the clickable element does not enlarge its target. On coarse pointers the global CSS makes the 44px height a hard floor. The 44px width is a base-layer default that any `min-w-*` utility overrides, so a flex row can give a button its own wider floor.
+- Use at least 44 x 44 CSS px for standalone controls on coarse pointers, including tablets. An icon may be smaller on a fine pointer, and an icon-button visual fills its 44 px target on coarse pointers. Padding outside the clickable element does not enlarge its target. On coarse pointers the global CSS makes the 44px height a hard floor. The 44px width is a base-layer default that any `min-w-*` utility overrides, so a flex row can give a button its own wider floor.
 - Inline text links and range-slider tracks are exceptions to the square target rule. Checkbox and radio measurements use their associated clickable label, not an intentionally hidden native input.
 - Preserve action and sorting access when tables become cards. Processing History, Stats episode costs, the Queue list and both Episode review lists use cards below 1280 CSS px. Downloads uses cards below 768 CSS px and progressively reveals columns. Every data table builds from the recipe in `tableStyles.ts` (rows below).
 - Choose table breakpoints from populated content. Check long titles, large counts, IPv4 and IPv6 values, and error messages. Routine lists must fit their containers. Detailed comparison tables may scroll within a named, keyboard-focusable region.
@@ -64,10 +64,10 @@ There is no `<Button>` component. Recipes are class strings composed at the call
 | `tdEmpty` | The single full-width empty-state cell | Centered muted text, `py-8` |
 | `rowCard` | Card fallback for a table row below the table breakpoint | Card surface, border, `p-4` |
 | `thBase` (compact tables) | Preview and breakdown tables that keep tighter density (ImportPreviewTable, the Processing runs table) | `py-2` cells, headers built from `thBase` |
-| `iconTarget` + `iconVisual` | Icon button with a smaller filled square (AuditionPlayButton, OpenEditorButton) | 44 px hit box on coarse pointers; visual fills the 44 px target below sm, 28 px from sm |
+| `iconTarget` + `iconVisual` | Icon button with a smaller filled square (AuditionPlayButton, OpenEditorButton) | 44 px hit box on coarse pointers. Visual fills the 44 px target on phones and on coarse pointers at every width; on a fine pointer it is 28 px from sm up. |
 
 - Every button recipe carries `focusRing` and the disabled state through `btnBase` (or `btnLg`). `rowActionBtn`, `cardActionBtn`, and `tableActionBtn` carry `focusRing` too.
-- Pair `iconTarget` with `iconVisual`. The focus ring sits on the visual through `group-focus-visible`. `AuditionPlayButton` is the reference and is one size everywhere; `OpenEditorButton` is the second.
+- Pair `iconTarget` with `iconVisual`. The focus ring sits on the visual through `group-focus-visible`. `AuditionPlayButton` is the reference and `OpenEditorButton` is the second. A preview play button beside a text button has the same height as that button.
 - An icon-only control centers its icon with inline-flex items-center justify-center or the iconTarget and iconVisual pair. Padding alone places the icon top-left once the coarse-pointer floor stretches the box.
 - Dialog footers with 3 or more actions keep their text labels at every width. Below 360 CSS px they become two equal columns in two rows, and from 360 to 639 px one row of equal-width columns (dialogFooterGrid), so nothing is icon-only. PatternDetailModal is the reference. A footer with four actions (SplitMarkerModal) keeps two columns below sm, since four labels do not fit one row. That grid spans the full dialog content width, and Modal draws the only rule above the footer.
 - Inline link-style actions (`text-primary hover:underline`, "Show full match") and selected-state toggles (`PageTabs`, `SegmentedToggle`, pagination numbers) are intentionally not button colour recipes.

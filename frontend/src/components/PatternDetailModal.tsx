@@ -140,7 +140,7 @@ function PatternDetailModal({ pattern, onClose, onSave }: PatternDetailModalProp
         </>
       )}
       footer={(
-        <div className={`flex flex-nowrap justify-between gap-2 w-full ${showDeleteConfirm ? 'max-sm:grid max-sm:grid-cols-2 max-sm:gap-2' : dialogFooterGrid}`}>
+        <div className={`flex flex-nowrap items-start justify-between gap-2 w-full ${showDeleteConfirm ? 'max-sm:grid max-sm:grid-cols-2 max-sm:gap-2' : dialogFooterGrid}`}>
           <div className="flex flex-nowrap items-center gap-1 sm:gap-2 max-sm:contents">
             {pattern.is_active && (
               <div className={`${showDeleteConfirm ? 'hidden sm:flex' : 'flex max-sm:contents'} flex-col gap-1`}>
@@ -193,7 +193,7 @@ function PatternDetailModal({ pattern, onClose, onSave }: PatternDetailModalProp
               </button>
             )}
           </div>
-          <div className={`flex flex-nowrap gap-1 sm:gap-2 ${showDeleteConfirm ? 'max-sm:hidden' : 'max-sm:contents'}`}>
+          <div className={`flex flex-nowrap items-center gap-1 sm:gap-2 ${showDeleteConfirm ? 'max-sm:hidden' : 'max-sm:contents'}`}>
             {isEditing ? (
               <>
                 <button
@@ -235,7 +235,7 @@ function PatternDetailModal({ pattern, onClose, onSave }: PatternDetailModalProp
       {/* Content */}
       <div className="p-4 space-y-4">
         {/* Stats Row */}
-        <div className="grid grid-cols-[repeat(auto-fit,minmax(6rem,1fr))] gap-2 sm:gap-4">
+        <div className="grid grid-cols-[repeat(auto-fit,minmax(7rem,1fr))] gap-2 sm:gap-4">
           <StatTile label="Confirmations" value={pattern.confirmation_count} tone="success" />
           <StatTile label="False positives" value={pattern.false_positive_count} tone="destructive" />
           <StatTile label="Status" value={pattern.is_active ? 'Active' : 'Inactive'} />

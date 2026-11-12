@@ -8,19 +8,19 @@ export function PatternTrustBadge({ trust }: { trust?: PatternTrust }) {
   if (trust === 'stale') {
     return (
       <span
-        className={`${badgeBase} ${tint.warning}`}
+        className={`${badgeBase} max-w-full ${tint.warning}`}
         title="Not matched locally in over 90 days and not re-confirmed by the community in over a year"
       >
-        Stale
+        <span className="truncate">Stale</span>
       </span>
     );
   }
   return (
     <span
-      className={`${badgeBase} ${tint.neutral}`}
+      className={`${badgeBase} max-w-full ${tint.neutral}`}
       title="Not yet matched locally; trust builds up as it confirms ads on your feeds"
     >
-      Unproven
+      <span className="truncate">Unproven</span>
     </span>
   );
 }

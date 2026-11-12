@@ -426,11 +426,11 @@ function PatternsPage() {
             <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
               <span className="text-xs font-mono text-muted-foreground">#{pattern.id}</span>
               <div className="flex items-center gap-2 flex-wrap">
-                <ScopeBadge pattern={pattern} podcastClassName="truncate block" />
+                <ScopeBadge pattern={pattern} truncate />
                 <SegmentCategoryBadge category={pattern.category} />
                 {pattern.created_by === 'user' && (
-                  <span className={`${badgeBase} ${tint.warning}`}>
-                    Manual
+                  <span className={`${badgeBase} max-w-full ${tint.warning}`} title="Manual">
+                    <span className="truncate">Manual</span>
                   </span>
                 )}
                 {pattern.source === PATTERN_SOURCE_COMMUNITY && pattern.community_id && (
@@ -536,11 +536,11 @@ function PatternsPage() {
                   </td>
                   <td className="px-2 py-3 text-sm overflow-hidden">
                     <div className="flex items-center gap-1 flex-wrap">
-                      <ScopeBadge pattern={pattern} podcastClassName="truncate max-w-full block" />
+                      <ScopeBadge pattern={pattern} truncate />
                       <SegmentCategoryBadge category={pattern.category} />
                       {pattern.created_by === 'user' && (
-                        <span className={`${badgeBase} ${tint.warning}`}>
-                          Manual
+                        <span className={`${badgeBase} max-w-full ${tint.warning}`} title="Manual">
+                          <span className="truncate">Manual</span>
                         </span>
                       )}
                       {pattern.source === PATTERN_SOURCE_COMMUNITY && pattern.community_id && (

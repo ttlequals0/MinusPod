@@ -1,15 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { getPatterns, type PatternAudioState } from '../api/patterns';
+import type { PatternAudioState } from '../api/patterns';
 import { usePatternAudioRebuild, type AudioSourceSpan } from '../hooks/usePatternAudioRebuild';
 import { btnOutline } from './buttonStyles';
 import { DemoDisabled } from './DemoDisabled';
 import { focusRing } from './fieldStyles';
 import { rowActionBtn } from './rowActionStyles';
-
-// Fallback for servers that predate patternAudioState on rows: one request for every row on
-// the page, each reading its own pattern. Remove once those servers are out of support.
-export const patternAudioStatesKey = ['patterns', 'audio-states'] as const;
 
 /** Offers audio for a text-pattern detection whose pattern has none, built from the detection's span. */
 export default function AddAudioToPatternButton({
@@ -24,21 +19,14 @@ export default function AddAudioToPatternButton({
 }) {
   const [added, setAdded] = useState(false);
   const statusRef = useRef<HTMLParagraphElement>(null);
-  const { data: fallbackState } = useQuery({
-    queryKey: patternAudioStatesKey,
-    queryFn: () => getPatterns(),
-    select: (list) => new Map(list.map((p) => [p.id, p.audio?.state])),
-    enabled: audioState === undefined,
-  });
   const rebuild = usePatternAudioRebuild(patternId, () => setAdded(true));
-  const state = audioState ?? fallbackState?.get(patternId);
 
   // The button unmounts on success; the status line is the stable element that takes focus.
   useEffect(() => {
     if (added) statusRef.current?.focus();
   }, [added]);
 
-  if (state !== 'none' && !added) return null;
+  if (audioState !== 'none' && !added) return null;
 
   return (
     <div className={`flex flex-col items-start gap-1 ${className}`}>

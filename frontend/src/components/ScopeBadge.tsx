@@ -1,31 +1,32 @@
 import { AdPattern } from '../api/patterns';
 import { badgeBase, tint } from './badgeStyles';
 
-// Pattern scope badge shared by PatternsPage and PatternDetailModal. The podcast and
-// network variants take an optional className so list rows can truncate long names.
+// Pattern scope badge shared by PatternsPage and PatternDetailModal. `truncate` lets list
+// rows cut a long name with an ellipsis; the title always carries the full text.
 export function ScopeBadge({
   pattern,
-  podcastClassName,
+  truncate = false,
 }: {
   pattern: Pick<AdPattern, 'scope' | 'network_id' | 'podcast_name'>;
-  podcastClassName?: string;
+  truncate?: boolean;
 }) {
+  let text: string;
+  let toneClass: string;
   if (pattern.scope === 'global') {
-    return <span className={`${badgeBase} ${tint.blue}`}>Global</span>;
+    text = 'Global';
+    toneClass = tint.blue;
+  } else if (pattern.scope === 'network') {
+    text = `Network: ${pattern.network_id}`;
+    toneClass = tint.purple;
+  } else if (pattern.scope === 'podcast') {
+    text = pattern.podcast_name || 'Podcast';
+    toneClass = tint.success;
+  } else {
+    return null;
   }
-  if (pattern.scope === 'network') {
-    return (
-      <span className={`${badgeBase} ${tint.purple}${podcastClassName ? ` ${podcastClassName}` : ''}`}>
-        Network: {pattern.network_id}
-      </span>
-    );
-  }
-  if (pattern.scope === 'podcast') {
-    return (
-      <span className={`${badgeBase} ${tint.success}${podcastClassName ? ` ${podcastClassName}` : ''}`}>
-        {pattern.podcast_name || 'Podcast'}
-      </span>
-    );
-  }
-  return null;
+  return (
+    <span className={`${badgeBase} ${toneClass}${truncate ? ' max-w-full' : ''}`} title={text}>
+      {truncate ? <span className="truncate">{text}</span> : text}
+    </span>
+  );
 }

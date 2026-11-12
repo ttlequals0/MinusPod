@@ -96,7 +96,6 @@ beforeEach(() => {
   vi.clearAllMocks();
   reviewModalProps.current = null;
   mockGetFeedsResponse.mockResolvedValue({ feeds: [] });
-  mockGetPatterns.mockResolvedValue([{ id: 7, audio: { state: 'none', available: false, matchCount: 0, meanSimilarity: null } }]);
   mockGetDetections.mockResolvedValue({
     detections: [detection()],
     total: 1, page: 1, totalPages: 1, limit: 20,
@@ -340,7 +339,7 @@ describe('DetectedAdsTab list state in the URL', () => {
   });
 
   describe('Add audio to pattern', () => {
-    const textRow = (over: Partial<ReviewDetection> = {}) => detection({ patternId: 7, detectionStage: 'text_pattern', ...over });
+    const textRow = (over: Partial<ReviewDetection> = {}) => detection({ patternId: 7, patternAudioState: 'none', detectionStage: 'text_pattern', ...over });
     const load = (rows: ReviewDetection[]) => mockGetDetections.mockResolvedValue({
       detections: rows, total: rows.length, page: 1, totalPages: 1, limit: 20,
       counts: { total: rows.length, needsReview: 0, pending: 0, rejected: 0, accepted: rows.length, confirmed: 0, dismissed: 0 },
@@ -360,26 +359,18 @@ describe('DetectedAdsTab list state in the URL', () => {
       expect((await screen.findAllByText('Audio added to pattern.')).length).toBeGreaterThan(0);
     });
 
-    it('asks for the pattern summaries once for the whole page', async () => {
-      load([textRow(), textRow({ start: 300, end: 330 }), textRow({ start: 500, end: 530 })]);
-      renderTab();
-      await screen.findAllByRole('button', { name: 'Add audio to pattern' });
-      expect(mockGetPatterns).toHaveBeenCalledTimes(1);
-    });
-
     it('is absent for a fingerprint detection and for rows with no pattern', async () => {
       load([textRow({ detectionStage: 'fingerprint' }), detection()]);
       renderTab();
       await screen.findAllByRole('link', { name: 'Episode One' });
-      await waitFor(() => expect(mockGetPatterns).not.toHaveBeenCalled());
       expect(screen.queryByRole('button', { name: 'Add audio to pattern' })).toBeNull();
     });
 
-    it('reads the pattern audio state from the row and skips the pattern list', async () => {
-      load([textRow({ patternAudioState: 'none' }), textRow({ start: 300, end: 330, patternAudioState: 'active' })]);
+    it('offers the action only for rows whose pattern has no audio', async () => {
+      load([textRow(), textRow({ start: 300, end: 330, patternAudioState: 'active' }), textRow({ start: 500, end: 530, patternAudioState: undefined })]);
       renderTab();
+      // One row renders a table and a card variant.
       expect(await screen.findAllByRole('button', { name: 'Add audio to pattern' })).toHaveLength(2);
-      expect(mockGetPatterns).not.toHaveBeenCalled();
     });
 
     it('is disabled with a visible reason when the original is gone', async () => {
