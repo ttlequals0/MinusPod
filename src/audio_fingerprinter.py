@@ -826,8 +826,11 @@ def _scan_fingerprints(ep_ints, ep_duration, patterns, *, strictness, min_covera
         if found > len(offsets):
             logger.debug("Fingerprint pattern %s: %d candidate alignments, measuring the first %d",
                          pattern_id, found, len(offsets))
+        passing = _passing_alignments(ep_arr, pat_arr, informative, offsets, min_good)
+        # A shifted neighbour can pass the prefilter while the true alignment misses it
+        near = offsets[(np.abs(offsets[:, None] - passing[None, :]) <= window).any(axis=1)]
         alignments = []
-        for d in _passing_alignments(ep_arr, pat_arr, informative, offsets, min_good).tolist():
+        for d in near.tolist():
             measured += 1
             al = _measure_alignment(ep_arr, pat_arr, informative, novelty, d, strictness,
                                     gap_points, window)

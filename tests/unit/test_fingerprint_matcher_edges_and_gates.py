@@ -35,9 +35,20 @@ def _walk(rng, n, bits_per_step):
     return np.bitwise_xor.accumulate(steps)
 
 
-def test_partly_present_real_format_pattern_does_not_run_past_its_end():
+def _fixture():
     z = np.load(FIXTURE)
-    clean, degraded, other = (z[k].astype(np.int64) for k in ('clean_a', 'degraded_a', 'clean_b'))
+    return tuple(z[k].astype(np.int64) for k in ('clean_a', 'degraded_a', 'clean_b'))
+
+
+def _head_and_present_tail(clean, other, fps, seconds, s, u):
+    """A pattern whose second half is clean_a from point s and whose first half is clean_b."""
+    ln = int(seconds * fps)
+    h = int(ln * 0.5)
+    return np.concatenate([other[u:u + ln - h], clean[s:s + h]]), s / fps, (s + h) / fps
+
+
+def test_partly_present_real_format_pattern_does_not_run_past_its_end():
+    clean, degraded, other = _fixture()
     fps = len(degraded) / 180.0
     rng = np.random.default_rng(3)
     for _ in range(16):
@@ -50,6 +61,20 @@ def test_partly_present_real_format_pattern_does_not_run_past_its_end():
              if m.start < (s + present) / fps and m.end > s / fps]
         assert len(r) == 1
         assert r[0].end - (s + present) / fps <= 0.5 and s / fps - r[0].start <= 0.5
+
+
+@pytest.mark.parametrize('s,u', [(1256, 290), (664, 292)])
+def test_prefilter_keeps_the_true_alignment_of_a_half_present_pattern(s, u):
+    clean, degraded, other = _fixture()
+    fps = len(degraded) / 180.0
+    pat, a, b = _head_and_present_tail(clean, other, fps, 10, s, u)
+    pattern = (1, pat, 10.0, None, None)
+    found = match_fingerprints(degraded, 180.0, [pattern], **KW)
+    e = explain_match(degraded, 180.0, pattern, **KW)
+    assert bool(found) == e['matched']
+    for m in found:
+        assert a - m.start <= 0.5 and m.end - b <= 0.5
+        assert m.start == pytest.approx(e['start']) and m.end == pytest.approx(e['end'])
 
 
 @pytest.mark.parametrize('seconds,shared_s', [(10, 0.5), (10, 1.0), (30, 1.0)])
