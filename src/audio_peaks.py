@@ -10,7 +10,6 @@ and build it.
 """
 from __future__ import annotations
 
-import collections
 import fcntl
 import hashlib
 import logging
@@ -30,7 +29,9 @@ import numpy as np
 
 from utils.episode_paths import peaks_file_path, peaks_lock_path, remove_peaks_temp_files
 from utils.ffmpeg_run import SAFE_MEDIA_INPUT_ARGS, ffmpeg_timeout
+from utils.bounded_set import BoundedSet
 from utils.subprocess_registry import tracked_popen, tracked_run
+from utils.ttl_cache import TTLCache
 
 logger = logging.getLogger('podcast.peaks')
 
@@ -187,20 +188,12 @@ class PeaksSourceChanged(RuntimeError):
 
 
 # (peaks path, source size, source mtime_ns, stamped sha) states already hash-validated
-_hashed_ok: collections.OrderedDict = collections.OrderedDict()
-_hashed_ok_lock = threading.Lock()
+_hashed_ok = BoundedSet(_HASHED_CACHE_MAX)
 
 
 def _remember_hashed(key: tuple) -> bool:
     """Record a hash-validated state; False when it was already recorded."""
-    with _hashed_ok_lock:
-        if key in _hashed_ok:
-            _hashed_ok.move_to_end(key)
-            return False
-        _hashed_ok[key] = True
-        while len(_hashed_ok) > _HASHED_CACHE_MAX:
-            _hashed_ok.popitem(last=False)
-        return True
+    return _hashed_ok.add(key)
 
 
 def _hash_open_source(source_path: Path) -> tuple[bytes, os.stat_result]:
@@ -320,9 +313,8 @@ def validate_or_restamp_peaks_file(path: Path, source_path: Path) -> bool:
         if st.st_size != data.source_size:
             return False
         key = (str(path), st.st_size, st.st_mtime_ns, data.source_sha256)
-        with _hashed_ok_lock:
-            if key in _hashed_ok:
-                return True
+        if key in _hashed_ok:
+            return True
         sha, st = _hash_open_source(source_path)
     except OSError:
         return False
@@ -554,22 +546,20 @@ def _build_locked(peaks_path, source_path, duration, wait_seconds) -> BuildResul
 
 _inflight: set[str] = set()
 _inflight_lock = threading.Lock()
-# peaks path -> (clock time, source size, source mtime_ns) of a failed build
-_build_failures: dict[str, tuple[float, int, int]] = {}
+# peaks path -> (source size, source mtime_ns) of a failed build
+_build_failures = TTLCache(_BUILD_FAILURE_MEMO_SECONDS, _HASHED_CACHE_MAX, clock=lambda: _clock())
 
 
 def build_failed_recently(peaks_path: Path, source_path: Path) -> bool:
     """True when a build of this source failed recently and it is unchanged."""
-    with _inflight_lock:
-        memo = _build_failures.get(str(peaks_path))
+    memo = _build_failures.get(str(peaks_path))
     if memo is None:
         return False
     try:
         st = Path(source_path).stat()
     except OSError:
         return False
-    return (_clock() - memo[0] < _BUILD_FAILURE_MEMO_SECONDS
-            and (st.st_size, st.st_mtime_ns) == memo[1:])
+    return (st.st_size, st.st_mtime_ns) == memo
 
 
 def _record_build_outcome(key: str, stamp: tuple[int, int] | None, outcome: str) -> None:
@@ -577,13 +567,9 @@ def _record_build_outcome(key: str, stamp: tuple[int, int] | None, outcome: str)
     if outcome == BUILD_FAILED:
         if stamp is None:
             return
-        with _inflight_lock:
-            _build_failures[key] = (_clock(), *stamp)
-            while len(_build_failures) > _HASHED_CACHE_MAX:
-                _build_failures.pop(next(iter(_build_failures)))
+        _build_failures.set(key, stamp)
     elif outcome == BUILD_OK:
-        with _inflight_lock:
-            _build_failures.pop(key, None)
+        _build_failures.delete(key)
 
 
 def start_background_build(peaks_path: Path, source_path: Path, duration: float,

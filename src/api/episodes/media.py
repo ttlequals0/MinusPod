@@ -1,6 +1,5 @@
 """Audio, peaks and transcript routes."""
 
-import threading
 import time
 
 from flask import request, send_file, abort
@@ -15,14 +14,14 @@ from audio_peaks import PeaksError
 from split_planning import build_split_candidates, build_split_pieces
 from utils.markers import find_marker_in_list
 from utils.text import extract_timed_spans_in_range
+from utils.ttl_cache import TTLCache
 from api.episodes import common
 
 
 PEAKS_RETRY_AFTER_SECONDS = 5
 PEAKS_PROBE_RETRY_SECONDS = 60
 _clock = time.monotonic
-_probe_lock = threading.Lock()
-_probe_failures: dict[str, float] = {}
+_probe_failures = TTLCache(PEAKS_PROBE_RETRY_SECONDS, 256, clock=lambda: _clock())
 
 
 def _float_arg(name, default=None):
@@ -171,17 +170,11 @@ def _original_duration(path, episode):
     except OSError:
         return None
     key = f'{path}:{st.st_size}:{st.st_mtime_ns}'
-    now = _clock()
-    with _probe_lock:
-        failed_at = _probe_failures.get(key)
-        if failed_at is not None and now - failed_at < PEAKS_PROBE_RETRY_SECONDS:
-            return None
+    if _probe_failures.get(key) is not None:
+        return None
     duration = get_audio_duration(str(path))
     if not duration:
-        with _probe_lock:
-            _probe_failures[key] = now
-            while len(_probe_failures) > 256:
-                _probe_failures.pop(next(iter(_probe_failures)))
+        _probe_failures.set(key, True)
     return duration
 
 

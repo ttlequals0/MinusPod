@@ -5,11 +5,8 @@ Provides module-level containers that multiple main_app modules need to share
 """
 from __future__ import annotations
 
-import threading
-from collections import OrderedDict
-from collections.abc import Hashable
-
 from main_app.cache import TTLCache
+from utils.bounded_set import BoundedSet
 
 # Upstream-RSS lookups behind serve_episode. A podcast client HEADs every
 # unprocessed episode on each refresh, and each miss used to refetch and
@@ -37,39 +34,8 @@ def invalidate_episode_lookup_cache(slug: str) -> None:
     episode_lookup_cache.invalidate_prefix(f"{slug}\n")
 
 
-class _BoundedSet:
-    """Thread-safe set with a fixed upper bound. Evicts the oldest entry
-    when the capacity would be exceeded.
-
-    Used for log-dedup sets so a long-running worker cannot grow the set
-    unboundedly (one entry per distinct episode permanently-failed).
-    """
-
-    def __init__(self, maxsize: int) -> None:
-        self._maxsize = maxsize
-        self._order: OrderedDict[Hashable, None] = OrderedDict()
-        self._lock = threading.Lock()
-
-    def __contains__(self, key: Hashable) -> bool:
-        with self._lock:
-            return key in self._order
-
-    def add(self, key: Hashable) -> None:
-        with self._lock:
-            if key in self._order:
-                self._order.move_to_end(key)
-                return
-            self._order[key] = None
-            while len(self._order) > self._maxsize:
-                self._order.popitem(last=False)
-
-    def __len__(self) -> int:
-        with self._lock:
-            return len(self._order)
-
-
 # Track episodes already warned about permanent failure (avoid log spam on
 # repeated requests). Shared across routes.py and processing.py so the dedup
 # works across both code paths. Bounded so a worker that serves a very large
 # library cannot grow the set unboundedly.
-permanently_failed_warned = _BoundedSet(maxsize=10_000)
+permanently_failed_warned = BoundedSet(maxsize=10_000)

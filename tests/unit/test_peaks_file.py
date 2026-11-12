@@ -7,6 +7,7 @@ import numpy as np
 import pytest
 
 import audio_peaks as ap
+from utils.bounded_set import BoundedSet
 
 
 def _gen_wav(path, seconds=2.0):
@@ -403,8 +404,7 @@ def test_hash_cache_is_keyed_by_source_state(tmp_path, monkeypatch):
 
 
 def test_hash_cache_is_bounded(monkeypatch):
-    ap._hashed_ok.clear()
-    monkeypatch.setattr(ap, '_HASHED_CACHE_MAX', 3)
+    monkeypatch.setattr(ap, '_hashed_ok', BoundedSet(3))
     for i in range(10):
         ap._remember_hashed(('p', i, i, b''))
     assert len(ap._hashed_ok) == 3

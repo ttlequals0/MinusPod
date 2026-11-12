@@ -3,7 +3,7 @@
 Used by callers that previously rolled their own time-based cache. Single
 sentinel (`_MISSING`) distinguishes "no entry" from "entry stored as None".
 
-Time source: `time.monotonic()`. Every operation holds an internal lock, so
+Time source: `time.monotonic()` unless a `clock` callable is given. Every operation holds an internal lock, so
 one instance is safe to share across threads.
 """
 import threading
@@ -17,11 +17,15 @@ _MISSING = object()
 class TTLCache:
     """Dict-like cache where entries expire after `ttl_seconds`."""
 
-    def __init__(self, ttl_seconds: float, max_size: int = 1024):
+    def __init__(self, ttl_seconds: float, max_size: int = 1024, clock=None):
         self._ttl = float(ttl_seconds)
+        self._clock = clock
         self._store: dict = {}
         self._max_size = max_size
         self._lock = threading.RLock()
+
+    def _now(self) -> float:
+        return self._clock() if self._clock else time.monotonic()
 
     def get(self, key, default=None):
         """Return cached value if fresh, else `default`. Lazy eviction."""
@@ -30,7 +34,7 @@ class TTLCache:
             if entry is _MISSING:
                 return default
             value, ts = entry
-            if (time.monotonic() - ts) >= self._ttl:
+            if (self._now() - ts) >= self._ttl:
                 self._store.pop(key, None)
                 return default
             return value
@@ -38,7 +42,7 @@ class TTLCache:
     def set(self, key, value: Any) -> None:
         """Store value with current monotonic timestamp, evicting to fit max_size."""
         with self._lock:
-            now = time.monotonic()
+            now = self._now()
             if key not in self._store and len(self._store) >= self._max_size:
                 self._evict_to_fit(now)
             self._store[key] = (value, now)
