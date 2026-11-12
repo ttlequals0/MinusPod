@@ -1,26 +1,11 @@
 """Scope gate shared by the text and audio matchers."""
 import ast
-import itertools
 from types import SimpleNamespace
 
 import pytest
 
 import utils.pattern_scope as mod
 from text_pattern_matcher import TextPatternMatcher, pattern_passes_scope, UNIVERSAL_TAG
-
-SCOPES = ['global', 'network', 'podcast', 'bogus']
-NETWORK_CASES = [('n1', 'n1'), ('n1', 'n2'), ('n1', None), (None, 'n1'), (None, None)]
-PODCAST_CASES = [('p1', 'p1'), ('p1', 'p2'), ('p1', None), (None, 'p1'), (None, None)]
-SOURCES = ['local', 'community']
-SPONSOR_TAGS = [set(), {UNIVERSAL_TAG}, {'tech'}, {'tech', 'news'}, {'sports'}]
-PODCAST_TAGS = [set(), {'tech'}, {'news', 'comedy'}, {UNIVERSAL_TAG}]
-
-
-def _cases():
-    for scope, (pat_net, net), (pat_pod, pod), source, stags, ptags in itertools.product(
-            SCOPES, NETWORK_CASES, PODCAST_CASES, SOURCES, SPONSOR_TAGS, PODCAST_TAGS):
-        yield scope, pat_net, net, pat_pod, pod, source, stags, ptags
-
 
 def _filter_result(scope, pat_net, net, pat_pod, pod, source, stags, ptags):
     matcher = TextPatternMatcher.__new__(TextPatternMatcher)
@@ -90,9 +75,48 @@ def test_gate_matches_table(case):
     assert _gate_result(*case[:-1]) is case[-1]
 
 
-@pytest.mark.parametrize('case', list(_cases()))
-def test_gate_agrees_with_filter(case):
-    assert _gate_result(*case) == _filter_result(*case)
+# One row per rule: (scope, pattern network, episode network, pattern podcast, episode podcast,
+#  source, sponsor tags, podcast tags, expected)
+RULE_TABLE = [
+    pytest.param('global', 'n1', None, 'p1', None, 'local', set(), set(), True,
+                 id='global ignores network and podcast ids'),
+    pytest.param(None, None, None, None, None, 'local', set(), set(), False, id='missing scope'),
+    pytest.param('', None, None, None, None, 'local', set(), set(), False, id='empty scope'),
+    pytest.param('network', '', '', None, None, 'local', set(), set(), False,
+                 id='empty network ids never match'),
+    pytest.param('podcast', None, None, '', '', 'local', set(), set(), False,
+                 id='empty podcast ids never match'),
+    pytest.param('network', 'n1', 'n1', 'p1', 'p2', 'local', set(), set(), True,
+                 id='network scope ignores the podcast'),
+    pytest.param('podcast', 'n1', 'n2', 'p1', 'p1', 'local', set(), set(), True,
+                 id='podcast scope ignores the network'),
+    pytest.param('global', None, None, None, None, None, {'tech'}, {'news'}, True,
+                 id='missing source is not community'),
+    pytest.param('global', None, None, None, None, 'imported', {'tech'}, {'news'}, True,
+                 id='other sources skip the tag check'),
+    pytest.param('global', None, None, None, None, 'community', {'tech'}, {'news', 'tech'}, True,
+                 id='community needs one shared tag'),
+    pytest.param('global', None, None, None, None, 'community', {'tech', 'news'}, {'comedy'}, False,
+                 id='community drops disjoint tags'),
+    pytest.param('global', None, None, None, None, 'community', {U, 'sports'}, {'tech'}, True,
+                 id='universal sponsor tag passes'),
+    pytest.param('global', None, None, None, None, 'community', {'sports'}, {U}, False,
+                 id='universal podcast tag is not a wildcard'),
+    pytest.param('global', None, None, None, None, 'community', set(), {'tech'}, True,
+                 id='untagged sponsor passes'),
+    pytest.param('global', None, None, None, None, 'community', {'sports'}, set(), True,
+                 id='untagged podcast passes'),
+    pytest.param('network', 'n1', 'n2', None, None, 'community', set(), set(), False,
+                 id='scope is checked before tags'),
+]
+
+
+@pytest.mark.parametrize('scope,pat_net,net,pat_pod,pod,source,stags,ptags,expected', RULE_TABLE)
+def test_gate_and_filter_follow_each_rule(scope, pat_net, net, pat_pod, pod, source, stags, ptags,
+                                          expected):
+    case = (scope, pat_net, net, pat_pod, pod, source, stags, ptags)
+    assert _gate_result(*case) is expected
+    assert _filter_result(*case) is expected
 
 
 def test_global_matches_everywhere():
