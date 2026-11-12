@@ -557,7 +557,7 @@ function QueueControlSection({
               aria-labelledby="queueOrder-heading"
               aria-describedby="queueOrder-help"
             >
-              {queueOrderChoices(queueOrderOptions).map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+              {queueOrderChoices(queueOrderOptions, queueOrder).map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
             </select>
           </DemoDisabled>
         </div>

@@ -46,6 +46,12 @@ describe('audio fingerprint limits against openapi.yaml', () => {
     }
   });
 
+  it('pins the fallback steps to what the server serves', () => {
+    expect(Object.fromEntries(Object.entries(FINGERPRINT_FALLBACK_LIMITS).map(([k, v]) => [k, v.step]))).toEqual({
+      matchStrictness: 0.05, minCoverage: 0.05, gapToleranceS: 0.5, minAdLengthS: 1,
+    });
+  });
+
   it('documents the enable switch as on by default', () => {
     const found = blocks('fingerprintEnabled');
     expect(found.length).toBeGreaterThanOrEqual(2);

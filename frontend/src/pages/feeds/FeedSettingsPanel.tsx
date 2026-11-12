@@ -954,7 +954,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                         ? `Use default (${queueOrderLabel(settings.queueOrder.value)})`
                         : 'Use default'}
                     </option>
-                    {queueOrderChoices(settings?.queueOrder?.options).map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+                    {queueOrderChoices(settings?.queueOrder?.options, feed.queueOrder).map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
                   </select>
                   <p id="feed-queue-order-help" className="text-xs text-muted-foreground">
                     Order for this feed's queued episodes. Priorities still come first.

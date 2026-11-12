@@ -137,7 +137,7 @@ def test_config_import_applies_and_validates_the_keys(app_client, monkeypatch):
     assert db.get_setting('fingerprint_enabled') == 'false'
     bad = config_transfer.export_config(db, '0.0.0-source')
     bad['settings']['fingerprint_gap_tolerance_s'] = 99
-    with pytest.raises(config_transfer.ConfigTransferError, match='fingerprintGapToleranceS'):
+    with pytest.raises(config_transfer.ConfigTransferError, match='^fingerprint_gap_tolerance_s must be a number between 0 and 15$'):
         config_transfer.build_preview(db, bad, 'global')
 
 

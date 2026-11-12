@@ -396,6 +396,14 @@ describe('QueueControlSection processing order options', () => {
     ]);
   });
 
+  it('keeps a stored order the server does not list selected, and a no-op saves nothing', async () => {
+    const { props } = renderSection({ queueOrder: 'newest_first', queueOrderOptions: ['queued', 'oldest_first'] });
+    const select = await screen.findByLabelText('Processing order') as HTMLSelectElement;
+    expect(select.value).toBe('newest_first');
+    expect(select.selectedOptions[0].textContent).toBe('Newest first');
+    expect(props.onQueueOrderChange).not.toHaveBeenCalled();
+  });
+
   it('lists all three when the server reports none', async () => {
     renderSection();
     const select = await screen.findByLabelText('Processing order') as HTMLSelectElement;

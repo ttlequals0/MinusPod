@@ -65,7 +65,7 @@ def test_export_carries_the_setting_and_import_validates_it(temp_db):
     document = config_transfer.export_config(temp_db, '0.0.0')
     assert document['settings']['queue_order'] == 'newest_first'
     document['settings']['queue_order'] = 'sideways'
-    with pytest.raises(ConfigTransferError):
+    with pytest.raises(ConfigTransferError, match='^queue_order must be one of: queued, oldest_first, newest_first$'):
         config_transfer._validate_document(document)
     document['settings']['queue_order'] = 'oldest_first'
     config_transfer._validate_document(document)

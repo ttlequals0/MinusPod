@@ -631,7 +631,7 @@ def _validate_setting_value(key, value):
         elif spec.payload_kind == 'str' and not isinstance(value, str):
             raise ConfigTransferError(f'{key} must be a string')
     if spec and spec.constraint is not None and spec.payload_key:
-        _checked, issue = spec.constraint.payload_issue(spec.payload_key, value)
+        _checked, issue = spec.constraint.payload_issue(key, value)
         if issue is not None:
             raise ConfigTransferError(issue)
     elif spec and spec.validator and not spec.validator(_setting_to_storage(value)):

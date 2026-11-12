@@ -362,6 +362,18 @@ describe('FeedSettingsPanel processing order control (#997)', () => {
     expect(Array.from((select as HTMLSelectElement).options).map((o) => o.value)).toEqual(['', 'queued', 'newest_first']);
   });
 
+  it('keeps a stored order the server does not list selected, and a no-op saves nothing', async () => {
+    mockGetSettings.mockResolvedValue({
+      queueOrder: { value: 'queued', isDefault: true, options: ['queued', 'oldest_first'] },
+    });
+    renderPanel(makeFeed({ queueOrder: 'newest_first' }));
+    await screen.findByRole('option', { name: 'Use default (As queued)' });
+    const select = screen.getByRole('combobox', { name: NAME }) as HTMLSelectElement;
+    expect(select.value).toBe('newest_first');
+    expect(Array.from(select.options).map((o) => o.value)).toEqual(['', 'queued', 'oldest_first', 'newest_first']);
+    expect(mockUpdateFeed).not.toHaveBeenCalled();
+  });
+
   it('names the global order in the Use default option once settings load', async () => {
     mockGetSettings.mockResolvedValue({ queueOrder: { value: 'oldest_first', isDefault: false } });
     renderPanel(makeFeed());

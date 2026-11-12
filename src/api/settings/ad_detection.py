@@ -567,25 +567,16 @@ def _apply_size_caps(db, data):
         logger.info(f"Updated {db_key} to: {value}")
 
 
-def _int_range_writes(data, fields, *, strict=False):
-    """Validated (db key, int or None) writes for integer range fields, or an issue.
-
-    strict also resets on null and rejects bools and fractional floats; otherwise the
-    value is truncated with int().
-    """
+def _int_range_writes(data, fields):
+    """Validated (db key, int) writes for integer range fields, or an issue; floats are truncated."""
     writes = []
     for payload_key, db_key, floor, ceiling in fields:
         if payload_key not in data:
             continue
         raw = data[payload_key]
-        if strict and raw is None:
-            writes.append((db_key, None))
-            continue
         try:
-            if strict and (isinstance(raw, bool) or (isinstance(raw, float) and not raw.is_integer())):
-                raise TypeError
             n = int(raw)
-        except (TypeError, ValueError, OverflowError) if strict else (TypeError, ValueError):
+        except (TypeError, ValueError):
             return None, (f'{payload_key} must be an integer', 400)
         if n < floor or (ceiling is not None and n > ceiling):
             bound = f'between {floor} and {ceiling}' if ceiling is not None else f'at least {floor}'
