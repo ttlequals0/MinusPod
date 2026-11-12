@@ -87,6 +87,7 @@ const emptyTable: Array<[RegExp, unknown]> = [
   [/^\/sponsors$/, { sponsors: [] }],
   [/^\/episodes\/processing$/, []],
   [/^\/episodes\/(awaiting-approval|held|pending-recuts)$/, queue],
+  [/^\/stats\/audio-matching$/, { patternsWithAudio: 0, patternsTotal: 0, audioMatches: 0, foundByAudioOnly: 0, notThisAd: 0 }],
   [/^\/stats\/by-day$/, { days: [] }],
   [/^\/stats\/by-podcast$/, { podcasts: [] }],
   [/^\/stats\/(model-usage|episode-costs)$/, costs],

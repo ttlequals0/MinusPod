@@ -10,14 +10,14 @@ import {
 import {
   getDashboardStats, getStatsByDay, getStatsByPodcast, getReviewerStats, getAddressingStats, getCleanupStats,
   getModelUsageStats, getEpisodeCostStats, getEpisodeCostRuns, getLedgerFilterOptions,
-  getSpendAttempts, getSystemOneStats, getLlmStats, ModelUsageQueryParams, EpisodeCostQueryParams,
+  getSpendAttempts, getSystemOneStats, getLlmStats, getAudioMatchingStats, ModelUsageQueryParams, EpisodeCostQueryParams,
 } from '../api/stats';
 import ProcessingRunsTable from '../components/ProcessingRunsTable';
 import { getCueAggregateStats } from '../api/cueDetections';
 import { feedsQueryOptions } from '../api/feeds';
 import { feedDisplayTitle } from '../utils/feedTitle';
 import { cacheHit, formatCost, formatDateTime, formatElapsed, formatTokenCount } from '../utils/format';
-import { SkeletonStatCards, SkeletonChart, SkeletonRows } from '../components/Skeleton';
+import { Skeleton, SkeletonStatCards, SkeletonChart, SkeletonRows } from '../components/Skeleton';
 import { useThemeColors } from '../hooks/useThemeColors';
 import { Pagination } from '../components/Pagination';
 import { SortHeader, useSortState } from '../components/SortHeader';
@@ -752,6 +752,13 @@ export default function StatsPage() {
     model: ledgerModel || undefined,
   };
   const {
+    data: audioMatching, isLoading: audioMatchingLoading,
+    error: audioMatchingError, refetch: refetchAudioMatching,
+  } = useQuery({
+    queryKey: ['stats-audio-matching', ledgerScope],
+    queryFn: () => getAudioMatchingStats(ledgerScope),
+  });
+  const {
     data: systemOneStats, isLoading: systemOneLoading,
     error: systemOneError, refetch: refetchSystemOne,
   } = useQuery({
@@ -851,6 +858,7 @@ export default function StatsPage() {
     { id: 'stats-llm', label: 'LLM', show: true },
     { id: 'stats-systemone', label: 'System One', show: true },
     { id: 'stats-cleanup', label: 'Cleanup', show: true },
+    { id: 'stats-audio-matching', label: 'Audio matching', show: true },
     { id: 'stats-podcasts', label: 'Podcasts', show: sortedPodcasts.length > 0 },
   ].filter((entry) => entry.show);
 
@@ -1471,6 +1479,33 @@ export default function StatsPage() {
       </div>
 
       {/* Podcast Stats Table */}
+      <div id="stats-audio-matching" className={`scroll-mt-28 bg-card rounded-lg border border-border ${sectionPad} mb-6`}>
+        <h2 className={`${cardTitle} mb-1`}>Audio matching</h2>
+        <p className="text-sm text-muted-foreground mb-3">
+          Uses the Spend filters above. Counts audio fingerprint matches in that period.
+        </p>
+        {audioMatchingLoading && (
+          <div role="status" aria-label="Loading audio matching stats" aria-busy="true" className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            {[0, 1, 2, 3].map((i) => <Skeleton key={i} className="h-20" />)}
+          </div>
+        )}
+        {audioMatchingError && (
+          <QueryErrorPanel
+            message={`Could not load audio matching stats: ${getErrorMessage(audioMatchingError)}.`}
+            onRetry={() => { void refetchAudioMatching(); }}
+            retryLabel="Retry audio matching stats"
+          />
+        )}
+        {audioMatching && (
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <StatTile label="Patterns with audio" value={audioMatching.patternsWithAudio} hint={`of ${audioMatching.patternsTotal}`} />
+            <StatTile label="Audio matches" value={audioMatching.audioMatches} />
+            <StatTile label="Found by audio only" value={audioMatching.foundByAudioOnly} />
+            <StatTile label="Not this ad" value={audioMatching.notThisAd} />
+          </div>
+        )}
+      </div>
+
       <div id="stats-podcasts" className="scroll-mt-28" />
       {/* Mobile Card Layout */}
       {sortedPodcasts.length > 0 && (

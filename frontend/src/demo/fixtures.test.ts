@@ -27,6 +27,12 @@ test('emptyDefault answers the pattern audio routes with an empty state', () => 
   expect(emptyDefault('/patterns/7/audio/preview').status).toBe(404);
 });
 
+test('emptyDefault answers audio matching stats with zeros', () => {
+  expect(emptyDefault('/stats/audio-matching')).toEqual({
+    status: 200, body: { patternsWithAudio: 0, patternsTotal: 0, audioMatches: 0, foundByAudioOnly: 0, notThisAd: 0 },
+  });
+});
+
 test('resolveFixture never substitutes a recording with different filters', async () => {
   __setIndexForTests({ '/settings': 'a.json', '/stats/llm?from=2026-01-01&to=2026-01-31': 'b.json', '/stats/llm?from=2026-01-01': 'c.json' });
   __setLoaderForTests(async (file) => ({ status: 200, body: { file } }));

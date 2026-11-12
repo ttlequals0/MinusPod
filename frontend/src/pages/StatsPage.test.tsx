@@ -22,6 +22,7 @@ const {
   mockGetCleanupStats,
   mockGetSystemOneStats,
   mockGetLlmStats,
+  mockGetAudioMatchingStats,
   mockGetSettings,
 } = vi.hoisted(() => {
   const dashboard: DashboardStats = {
@@ -136,6 +137,9 @@ const {
     SYSTEMONE_STATS: systemOneStats,
     LLM_STATS: llmStats,
     mockGetLlmStats: vi.fn().mockResolvedValue(llmStats),
+    mockGetAudioMatchingStats: vi.fn().mockResolvedValue({
+      patternsWithAudio: 12, patternsTotal: 40, audioMatches: 130, foundByAudioOnly: 91, notThisAd: 47,
+    }),
     mockGetAddressingStats: vi.fn().mockResolvedValue(addressingStats),
     mockGetDashboardStats: vi.fn().mockResolvedValue(dashboard),
     mockGetStatsByDay: vi.fn().mockResolvedValue({ days: [] }),
@@ -172,6 +176,7 @@ vi.mock('../api/stats', () => ({
   getCleanupStats: (...args: unknown[]) => mockGetCleanupStats(...args),
   getSystemOneStats: (...args: unknown[]) => mockGetSystemOneStats(...args),
   getLlmStats: (...args: unknown[]) => mockGetLlmStats(...args),
+  getAudioMatchingStats: (...args: unknown[]) => mockGetAudioMatchingStats(...args),
 }));
 vi.mock('../api/cueDetections', () => ({
   getCueAggregateStats: vi.fn().mockResolvedValue({
@@ -1076,5 +1081,78 @@ describe('StatsPage with populated spend data', () => {
     expect(blank.textContent).toBe('-');
     expect(blank.getAttribute('title')).toBeNull();
     expect(screen.getAllByText('-').length).toBeGreaterThan(0);
+  });
+});
+
+describe('StatsPage audio matching section', () => {
+  const STATS = { patternsWithAudio: 12, patternsTotal: 40, audioMatches: 130, foundByAudioOnly: 91, notThisAd: 47 };
+
+  beforeEach(() => {
+    mockGetAudioMatchingStats.mockReset();
+    mockGetAudioMatchingStats.mockResolvedValue(STATS);
+  });
+
+  async function section() {
+    return within(await waitFor(() => {
+      const el = document.getElementById('stats-audio-matching');
+      expect(el).not.toBeNull();
+      return el!;
+    }));
+  }
+
+  it('shows the four tiles with their values and the of-total hint', async () => {
+    renderPage();
+    const s = await section();
+    expect(s.getByRole('heading', { level: 2, name: 'Audio matching' })).toBeTruthy();
+    const tile = (label: string) => s.getByText(label).parentElement!;
+    expect((await s.findByText('Patterns with audio')).parentElement?.textContent).toContain('12');
+    expect(tile('Patterns with audio').textContent).toContain('of 40');
+    expect(tile('Audio matches').textContent).toContain('130');
+    expect(tile('Found by audio only').textContent).toContain('91');
+    expect(tile('Not this ad').textContent).toContain('47');
+  });
+
+  it('keeps the tiles when every count is zero', async () => {
+    mockGetAudioMatchingStats.mockResolvedValue({ patternsWithAudio: 0, patternsTotal: 0, audioMatches: 0, foundByAudioOnly: 0, notThisAd: 0 });
+    renderPage();
+    const s = await section();
+    expect(await s.findByText('Patterns with audio')).toBeTruthy();
+    expect(s.getByText('of 0')).toBeTruthy();
+    expect(s.getByText('Audio matches')).toBeTruthy();
+    expect(s.getByText('Found by audio only')).toBeTruthy();
+    expect(s.getByText('Not this ad')).toBeTruthy();
+  });
+
+  it('shows a loading status while the counts load', async () => {
+    mockGetAudioMatchingStats.mockReturnValue(new Promise(() => {}));
+    renderPage();
+    const s = await section();
+    expect(s.getByRole('status', { name: 'Loading audio matching stats' })).toBeTruthy();
+    expect(s.queryByText('Audio matches')).toBeNull();
+  });
+
+  it('shows an error with a retry instead of zeros', async () => {
+    mockGetAudioMatchingStats.mockRejectedValueOnce(new Error('boom'));
+    renderPage();
+    const s = await section();
+    expect(await s.findByText('Could not load audio matching stats: boom.')).toBeTruthy();
+    expect(s.queryByText('Audio matches')).toBeNull();
+    mockGetAudioMatchingStats.mockResolvedValue(STATS);
+    await userEvent.click(s.getByRole('button', { name: 'Retry audio matching stats' }));
+    expect(await s.findByText('130')).toBeTruthy();
+  });
+
+  it('follows the spend date range and podcast filter', async () => {
+    renderPage(['/stats?from=2026-01-01&to=2026-01-31&podcast=example-podcast']);
+    await section();
+    await waitFor(() => expect(mockGetAudioMatchingStats).toHaveBeenCalledWith({
+      from: '2026-01-01', to: '2026-01-31', podcastSlug: 'example-podcast',
+    }));
+  });
+
+  it('adds Audio matching to the section links', async () => {
+    renderPage();
+    const link = await screen.findByRole('link', { name: 'Audio matching' });
+    expect(link.getAttribute('href')).toBe('#stats-audio-matching');
   });
 });
