@@ -333,7 +333,8 @@ class MaintenanceMixin:
         Precedence: active over disabled first, so a switched-off row cannot
         delete the live one; then user or community over auto-learned; then
         confirmation count. A duplicate's audio fingerprint moves to the
-        survivor when the survivor has none of its own.
+        survivor, with its match history, when the survivor has none of its own
+        and its audio was not deleted.
 
         Returns count of duplicates removed."""
         conn = self.get_connection()
@@ -357,7 +358,7 @@ class MaintenanceMixin:
             # delete the live one and take its stats; then tier, then confirmations.
             patterns_cursor = conn.execute(
                 f'''SELECT ap.id, ap.sponsor_id, ks.name AS sponsor,
-                          ap.confirmation_count, ap.false_positive_count,
+                          ap.confirmation_count, ap.false_positive_count, ap.audio_removed,
                           COALESCE(ap.is_active, 1) AS is_active
                     FROM ad_patterns ap
                     LEFT JOIN known_sponsors ks ON ap.sponsor_id = ks.id
@@ -418,11 +419,16 @@ class MaintenanceMixin:
             )}
             # Only onto an active keeper: fingerprint matching ignores is_active,
             # so a disabled row would keep cutting audio the operator switched off.
+            # Never onto one whose audio the user deleted. History moves with the row.
             donor = next((pid for pid in remove_ids if pid in fingerprinted), None)
             if (donor is not None and keep_id not in fingerprinted
-                    and keep_pattern['is_active']):
+                    and keep_pattern['is_active'] and not keep_pattern['audio_removed']):
                 conn.execute(
                     'UPDATE audio_fingerprints SET pattern_id = ? WHERE pattern_id = ?',
+                    [keep_id, donor]
+                )
+                conn.execute(
+                    'UPDATE audio_fingerprint_matches SET pattern_id = ? WHERE pattern_id = ?',
                     [keep_id, donor]
                 )
 
@@ -430,6 +436,10 @@ class MaintenanceMixin:
             # but enforcement is per connection so do not lean on it.
             conn.execute(
                 f'DELETE FROM audio_fingerprints WHERE pattern_id IN ({placeholders})',  # noqa: S608
+                remove_ids
+            )
+            conn.execute(
+                f'DELETE FROM audio_fingerprint_matches WHERE pattern_id IN ({placeholders})',  # noqa: S608
                 remove_ids
             )
 

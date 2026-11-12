@@ -294,6 +294,10 @@ class PatternMixin:
             f"DELETE FROM audio_fingerprints WHERE pattern_id IN ({placeholders})",  # noqa: S608
             ids,
         )
+        conn.execute(
+            f"DELETE FROM audio_fingerprint_matches WHERE pattern_id IN ({placeholders})",  # noqa: S608
+            ids,
+        )
         cursor = conn.execute(
             f"DELETE FROM ad_patterns WHERE id IN ({placeholders})",  # noqa: S608
             ids,
@@ -373,6 +377,9 @@ class PatternMixin:
         conn.execute(
             "DELETE FROM audio_fingerprints WHERE pattern_id = ?", (pattern_id,)
         )
+        conn.execute(
+            "DELETE FROM audio_fingerprint_matches WHERE pattern_id = ?", (pattern_id,)
+        )
         cursor = conn.execute(
             "DELETE FROM ad_patterns WHERE id = ?", (pattern_id,)
         )
@@ -397,6 +404,11 @@ class PatternMixin:
         conn = self.get_connection()
         conn.execute(
             "DELETE FROM audio_fingerprints WHERE pattern_id IN ("
+            "SELECT id FROM ad_patterns WHERE source = 'community'"
+            ")"
+        )
+        conn.execute(
+            "DELETE FROM audio_fingerprint_matches WHERE pattern_id IN ("
             "SELECT id FROM ad_patterns WHERE source = 'community'"
             ")"
         )

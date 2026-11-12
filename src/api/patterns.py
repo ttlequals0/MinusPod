@@ -580,6 +580,10 @@ def merge_patterns():
                 f'DELETE FROM audio_fingerprints WHERE pattern_id IN ({placeholders})',  # noqa: S608  # identifiers allowlisted, values bound
                 merge_id_list
             )
+            conn.execute(
+                f'DELETE FROM audio_fingerprint_matches WHERE pattern_id IN ({placeholders})',  # noqa: S608  # identifiers allowlisted, values bound
+                merge_id_list
+            )
             # Delete merged patterns
             conn.execute(
                 f'''DELETE FROM ad_patterns WHERE id IN ({placeholders})''',  # noqa: S608  # identifiers allowlisted, values bound

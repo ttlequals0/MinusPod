@@ -607,6 +607,8 @@ class PodcastMixin:
         conn.execute(
             f"DELETE FROM audio_fingerprints WHERE pattern_id IN ({doomed})", (slug,))  # noqa: S608
         conn.execute(
+            f"DELETE FROM audio_fingerprint_matches WHERE pattern_id IN ({doomed})", (slug,))  # noqa: S608
+        conn.execute(
             f"DELETE FROM pattern_corrections WHERE pattern_id IN ({doomed})", (slug,))  # noqa: S608
         conn.execute(
             "DELETE FROM ad_patterns WHERE scope = 'podcast' AND podcast_id = ?",
