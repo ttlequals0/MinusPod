@@ -1,6 +1,6 @@
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { QueryClient, QueryClientProvider, useQuery } from '@tanstack/react-query';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import AudioMatchesList from './AudioMatchesList';
 import { usePatternAudioPreview } from '../hooks/usePatternAudioPreview';
@@ -131,7 +131,7 @@ describe('AudioMatchesList', () => {
     await waitFor(() => expect(within(screen.getAllByRole('listitem')[0]).queryByRole('button', { name: /^Not this ad/ })).toBeNull());
     expect(within(screen.getAllByRole('listitem')[0]).getByText('Not this ad')).toBeDefined();
     expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['pattern-audio', 7] });
-    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['patterns'] });
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['patterns'], refetchType: 'none' });
     expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['pattern-audio-matches', 7] });
   });
 
@@ -139,9 +139,35 @@ describe('AudioMatchesList', () => {
     mockSubmitCorrection.mockResolvedValue(undefined);
     const { invalidateSpy } = renderList();
     await userEvent.click(within((await screen.findAllByRole('listitem'))[0]).getByRole('button', { name: /^Not this ad/ }));
-    await waitFor(() => expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['detections'] }));
-    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['episode', 'example-podcast', 'ep1'] });
+    await waitFor(() => expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['detections'], refetchType: 'none' }));
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['episode', 'example-podcast', 'ep1'], refetchType: 'none' });
     expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['pending-recuts'] });
+  });
+
+  it('refetches only the audio detail and matches on screen, leaving the lists stale until they are shown again', async () => {
+    mockSubmitCorrection.mockResolvedValue(undefined);
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const listFetch = vi.fn().mockResolvedValue([]);
+    const detailFetch = vi.fn().mockResolvedValue({ state: 'active' });
+    function Watchers() {
+      useQuery({ queryKey: ['patterns', { active: true }], queryFn: listFetch });
+      useQuery({ queryKey: ['detections', {}], queryFn: listFetch });
+      useQuery({ queryKey: ['episode', 'example-podcast', 'ep1'], queryFn: listFetch });
+      useQuery({ queryKey: ['pattern-audio', 7], queryFn: detailFetch });
+      return null;
+    }
+    render(<QueryClientProvider client={qc}><Watchers /><Harness /></QueryClientProvider>);
+    const row = (await screen.findAllByRole('listitem'))[0];
+    await waitFor(() => expect(detailFetch).toHaveBeenCalledTimes(1));
+    listFetch.mockClear();
+    mockGetMatches.mockClear();
+    await userEvent.click(within(row).getByRole('button', { name: /^Not this ad/ }));
+    await waitFor(() => expect(detailFetch).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(mockGetMatches).toHaveBeenCalledTimes(1));
+    expect(listFetch).not.toHaveBeenCalled();
+    for (const key of [['patterns'], ['detections'], ['episode', 'example-podcast', 'ep1']]) {
+      expect(qc.getQueryCache().findAll({ queryKey: key }).every((q) => q.state.isInvalidated)).toBe(true);
+    }
   });
 
   it('moves focus to the row play button after Not this ad, so it is not dropped on the page', async () => {

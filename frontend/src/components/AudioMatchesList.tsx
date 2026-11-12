@@ -3,7 +3,7 @@ import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tansta
 import { getErrorMessage } from '../api/client';
 import { DEMO_AUDIO_TOOLTIP } from '../demo/copy';
 import { IS_DEMO } from '../demo/flag';
-import { AudioMatch, AudioMatchesPage, getPatternAudioMatches, invalidatePatternAudio, submitCorrection } from '../api/patterns';
+import { AudioMatch, AudioMatchesPage, getPatternAudioMatches, patternAudioKey, submitCorrection } from '../api/patterns';
 import type { PatternAudioPreview } from '../hooks/usePatternAudioPreview';
 import { formatElapsed, formatPercent, formatTimestamp } from '../utils/format';
 import { AuditionPlayButton } from './AuditionPlayButton';
@@ -64,9 +64,12 @@ export default function AudioMatchesList({ patternId, preview }: { patternId: nu
       queryClient.setQueryData<AudioMatchesPage>([...matchesKey, page], (old) => old && {
         ...old, matches: old.matches.map((x) => (x.id === m.id ? { ...x, rejected: true } : x)),
       });
-      invalidatePatternAudio(queryClient, patternId);
-      queryClient.invalidateQueries({ queryKey: ['detections'] });
-      queryClient.invalidateQueries({ queryKey: ['episode', m.podcastSlug, m.episodeId] });
+      // Only the audio detail and matches are on screen; the lists below reload when next shown.
+      queryClient.invalidateQueries({ queryKey: patternAudioKey(patternId) });
+      queryClient.invalidateQueries({ queryKey: matchesKey });
+      for (const queryKey of [['patterns'], ['detections'], ['episode', m.podcastSlug, m.episodeId]]) {
+        queryClient.invalidateQueries({ queryKey, refetchType: 'none' });
+      }
       // Rejecting a cut ad puts the audio back, which the server flags for a recut.
       queryClient.invalidateQueries({ queryKey: ['pending-recuts'] });
     },
