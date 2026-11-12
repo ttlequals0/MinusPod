@@ -1,5 +1,6 @@
 """Shared builders for versioned episode filenames and URLs."""
 import os
+from pathlib import Path
 
 
 def episode_ui_url(slug: str, episode_id: str) -> str:
@@ -58,3 +59,8 @@ def episode_public_url(base_url: str, slug: str, episode_id: str,
     """
     url = f"{base_url}/episodes/{slug}/{episode_filename(episode_id, version, extension)}"
     return f"{url}?key={key}" if key else url
+
+
+def peaks_file_path(audio_path: Path | str) -> Path:
+    """Return the sibling ``.peaks`` path for an audio file."""
+    return Path(audio_path).with_suffix('.peaks')

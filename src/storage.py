@@ -20,7 +20,7 @@ from artwork_watermark import (
     composite_watermark, cover_badge_salt, badge_path, normalize_badge_position,
 )
 from user_agent import download_user_agent
-from utils.episode_paths import episode_filename
+from utils.episode_paths import episode_filename, peaks_file_path
 from utils.http import safe_url_for_log
 from utils.url import SSRFError
 from utils.validation import is_dangerous_slug, is_valid_episode_id
@@ -393,6 +393,22 @@ class Storage:
         return self._validated_episode_leaf(
             slug, episode_id, f"{episode_id}-original{extension}"
         )
+
+    def get_peaks_path(self, slug: str, episode_id: str) -> Path:
+        """Get path for the peaks file that sits beside the retained original."""
+        return peaks_file_path(self.get_original_path(slug, episode_id))
+
+    def delete_peaks_file(self, slug: str, episode_id: str) -> bool:
+        """Remove the episode's peaks file; True when one was removed, never raises."""
+        try:
+            path = self.get_peaks_path(slug, episode_id)
+            path.unlink()
+            return True
+        except FileNotFoundError:
+            return False
+        except OSError as exc:
+            logger.warning(f"[{slug}:{episode_id}] Failed to delete peaks file: {exc}")
+            return False
 
     def save_rss(self, slug: str, content: str) -> None:
         """Save modified RSS feed to filesystem."""
@@ -1353,12 +1369,16 @@ class Storage:
             original = self.get_original_path(slug, episode_id, ".mp3")
             if original and original.exists():
                 candidates.append(original)
+        if not keep_original:
+            peaks = self.get_peaks_path(slug, episode_id)
+            if peaks.exists():
+                candidates.append(peaks)
         for path in candidates:
             if can_delete is not None and not can_delete():
                 break
             if path.exists():
                 path.unlink()
-                deleted = True
+                deleted = deleted or path.suffix != '.peaks'
         if deleted:
             logger.debug(f"[{slug}:{episode_id}] Deleted processed/original audio files")
         return deleted
@@ -1375,10 +1395,12 @@ class Storage:
         """
         original = self.get_original_path(slug, episode_id, extension)
         if not original or not original.exists():
+            self.delete_peaks_file(slug, episode_id)
             return False, 0
         try:
             size = original.stat().st_size
             original.unlink()
+            self.delete_peaks_file(slug, episode_id)
             logger.debug(
                 f"[{slug}:{episode_id}] Deleted original audio (freed {size} bytes)"
             )
@@ -1413,6 +1435,7 @@ class Storage:
                 except Exception as e:
                     logger.warning(f"Failed to delete {path}: {e}")
 
+        self.delete_peaks_file(slug, episode_id)
         freed += self.remove_chapter_images(slug, episode_id)
         return freed
 

@@ -310,6 +310,27 @@ def test_upload_backup_cleanup_failure_keeps_published_result(
     assert (storage.data_dir / row['backup_name']).read_bytes() == b'old audio'
 
 
+def test_upload_replacing_an_original_removes_its_peaks_file(app_client, local_feed, real_mp3_bytes):
+    from api import get_storage
+    slug = local_feed['slug']
+    storage = get_storage()
+    storage.get_original_path(slug, 's01e01').write_bytes(b'old audio')
+    peaks = storage.get_peaks_path(slug, 's01e01')
+    peaks.write_bytes(b'MPPK' + b'\x00' * 60)
+    _authed(app_client)
+
+    resp = app_client.post(
+        f'/api/v1/feeds/{slug}/episodes',
+        data={'audio': (io.BytesIO(real_mp3_bytes), 'ep1.mp3'), 'title': 'Again'},
+        headers=_csrf_headers(app_client),
+        content_type='multipart/form-data',
+    )
+
+    assert resp.status_code == 201
+    assert storage.get_original_path(slug, 's01e01').read_bytes() == real_mp3_bytes
+    assert not peaks.exists()
+
+
 @requires_ffmpeg
 def test_upload_sets_original_file_and_serves_original_audio(app_client, local_feed, real_mp3_bytes):
     """Report bug 1: original_file must be set on upload so hasOriginalAudio

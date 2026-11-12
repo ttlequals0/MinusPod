@@ -23,6 +23,7 @@ from pathlib import Path
 import numpy as np
 
 from utils.subprocess_registry import tracked_popen, tracked_run
+from utils.episode_paths import peaks_file_path
 from utils.ffmpeg_run import SAFE_MEDIA_INPUT_ARGS, ffmpeg_timeout
 
 logger = logging.getLogger('podcast.peaks')
@@ -146,11 +147,6 @@ class PeaksData:
     source_mtime_ns: int
     source_sha256: bytes
     buckets: np.ndarray
-
-
-def peaks_file_path(audio_path: Path | str) -> Path:
-    """Return the sibling ``.peaks`` path for an audio file."""
-    return Path(audio_path).with_suffix('.peaks')
 
 
 def _sha256_of(path: Path) -> bytes:
