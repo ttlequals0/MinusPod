@@ -43,7 +43,7 @@ def _memo(key, compute, fresh=False):
     return store[key]
 
 
-def _forget_memo() -> None:
+def forget_memo() -> None:
     if has_app_context():
         g.__dict__.pop(_MEMO_ATTR, None)
 
@@ -113,7 +113,7 @@ def session_is_authenticated(db) -> bool:
 
 def authenticate_session(
         db, generation: int | None = None, remembered: bool = False) -> None:
-    _forget_memo()
+    forget_memo()
     session.clear()
     session.permanent = True
     session['authenticated'] = True
@@ -125,5 +125,5 @@ def authenticate_session(
 
 
 def revoke_sessions(db) -> int:
-    _forget_memo()
+    forget_memo()
     return db.increment_setting_int(AUTH_GENERATION_KEY)

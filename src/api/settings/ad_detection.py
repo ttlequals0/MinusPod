@@ -57,6 +57,7 @@ from llm_route import (
 )
 from tools.reviewer_calibration import calibration_revision, trigger_reviewer_calibration
 from utils.secret_writes import SecretWriteRejected, set_or_clear_secret
+from api.auth_state import forget_memo
 from api.settings import common, systemone_phases, provider_phases
 
 logger = logging.getLogger('podcast.api')
@@ -634,6 +635,8 @@ def _apply_session_settings(db, data):
         else:
             db.set_setting(db_key, str(value), is_default=False)
         logger.info(f"Updated {db_key} to: {value if value is not None else 'default'}")
+    # The response's cookie expiry reads the length again; drop the value memoized at request start.
+    forget_memo()
 
 
 def _validate_session_settings_payload(data):

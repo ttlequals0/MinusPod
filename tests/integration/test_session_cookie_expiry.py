@@ -232,3 +232,15 @@ def test_a_setting_changed_between_requests_applies_on_the_second(client, db, cl
     assert reads.count('session_lifetime_hours') == 2
     assert _cookie_lifetime_seconds(_set_cookie(first, 'session')) > 20 * 3600
     assert _cookie_lifetime_seconds(_set_cookie(second, 'session')) < 3 * 3600
+
+
+def test_saving_the_session_length_sets_the_cookie_expiry_in_the_same_response(client, db, clock):
+    db.set_setting('session_lifetime_hours', '5', is_default=False)
+    _signed_in(client, db, clock, remembered=False)
+    client.get('/api/v1/auth/status')
+    csrf = next(c.value for c in client._cookies.values() if c.key == CSRF_COOKIE_NAME)
+    resp = client.put('/api/v1/settings/ad-detection', json={'sessionLifetimeHours': 9},
+                      headers={'X-CSRF-Token': csrf})
+    assert resp.status_code == 200
+    lifetime = _cookie_lifetime_seconds(_set_cookie(resp, 'session'))
+    assert abs(lifetime - 9 * 3600) < 60
