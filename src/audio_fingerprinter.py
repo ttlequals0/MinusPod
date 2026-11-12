@@ -73,8 +73,9 @@ FINGERPRINT_KEY_SUBSETS = (
 )
 # Fewest key votes that make an alignment a candidate
 FINGERPRINT_MIN_OFFSET_VOTES = 3
-# Votes at a wrong alignment are near Poisson: a candidate needs this margin and this many sigmas above the mean
+# Votes a candidate alignment needs above the mean, since votes at a wrong alignment are near Poisson
 FINGERPRINT_VOTE_MARGIN = 3.0
+# Standard deviations above the mean vote count a candidate alignment needs
 FINGERPRINT_VOTE_SIGMAS = 4.0
 # Alignments measured per pattern, most votes first; enough for every repeat of an ad in an episode
 FINGERPRINT_MAX_CANDIDATES = 512
@@ -86,24 +87,23 @@ FINGERPRINT_MIN_OVERFULL_POSITIONS = 64
 FINGERPRINT_CONSTANT_RUN = 4
 # A point within this many differing bits of the pattern point is good, whatever the strictness
 FINGERPRINT_GOOD_BITS = 11
-# Run edges need closer agreement than the interior: the run's median good difference plus the
-# margin, never above the good threshold or below the floor, so chance agreement past an ad's end is cut
+# Floor of the differing-bit limit at a run edge, which is stricter than the interior
 FINGERPRINT_EDGE_BITS = 8
+# Bits added to the run's median good difference to set the edge limit, capped at the good threshold
 FINGERPRINT_EDGE_MARGIN_BITS = 3
-# Unrelated real audio agrees within the good threshold for up to a few seconds: a match needs this
-# much evidence, or this share of a shorter pattern's evidence
+# Seconds of evidence a match needs, since unrelated audio agrees within the good threshold for a few seconds
 FINGERPRINT_MIN_EVIDENCE_S = 6.0
+# Share of a shorter pattern's own evidence a match needs instead
 FINGERPRINT_SHORT_PATTERN_EVIDENCE = 0.9
 # A pattern that cannot supply this much evidence is not distinctive enough to match safely
 FINGERPRINT_EVIDENCE_FLOOR_S = 2.25
 # Every match needs this much evidence within the edge floor: chance agreement rarely comes that close
 FINGERPRINT_CLOSE_EVIDENCE_S = 2.25
-# Chance agreement in unrelated audio comes in clusters shorter than this many windows, so a gap
-# inside a run is measured on points with half of the centred span in agreement
+# Windows spanned when judging whether a point has support, since chance agreement comes in shorter clusters
 FINGERPRINT_SUPPORT_WINDOWS = 3
-# Steady audio agrees at many nearby shifts, so a match must beat the median of the same run
-# shifted this many windows either way by the margin
+# Window shifts, either way, at which a run is compared with itself to reject steady audio
 FINGERPRINT_CONTRAST_SHIFTS = (2, 3, 4, 5)
+# Similarity a run must beat its shifted self by
 FINGERPRINT_CONTRAST_MARGIN = 0.12
 # Chromaprint points per second at its default settings, for checks made without an episode
 FINGERPRINT_NOMINAL_FPS = 11025 / 1365.33
@@ -486,9 +486,8 @@ class FingerprintMatch:
 class FingerprintStoreResult:
     """Outcome of store_fingerprint: stored, or the reason it was skipped."""
     stored: bool
-    # store_fingerprint sets audio_removed, original_not_retained, segment_too_short, not_distinctive
-    # and fingerprint_failed.
-    # The corrections routes add fingerprint_exists and span_covers_multiple_patterns.
+    # Reasons: audio_removed, original_not_retained, segment_too_short, not_distinctive, fingerprint_failed,
+    # plus fingerprint_exists and span_covers_multiple_patterns from the corrections routes.
     skipped_reason: str | None = None
 
 
@@ -1613,16 +1612,12 @@ class AudioFingerprinter:
         """fpcalc budget for a whole episode: scales with length, never below the floor."""
         return max(FPCALC_TIMEOUT_FULL, int(duration * FINGERPRINT_TIMEOUT_FACTOR))
 
-    def _clamped_setting(self, key: str) -> float:
-        """A fingerprint setting clamped to its range; the default when unset, NaN or not a number."""
-        return clamped_fingerprint_setting(self.db, key)
-
     def _matching_settings(self) -> tuple[float, float, float]:
         """(strictness, min_coverage, gap_tolerance_s) from settings, config defaults otherwise."""
         return (
-            self._clamped_setting('fingerprint_match_strictness'),
-            self._clamped_setting('fingerprint_min_coverage'),
-            self._clamped_setting('fingerprint_gap_tolerance_s'),
+            clamped_fingerprint_setting(self.db, 'fingerprint_match_strictness'),
+            clamped_fingerprint_setting(self.db, 'fingerprint_min_coverage'),
+            clamped_fingerprint_setting(self.db, 'fingerprint_gap_tolerance_s'),
         )
 
     def _in_scope_fingerprints(
@@ -1655,7 +1650,7 @@ class AudioFingerprinter:
         matches, measured = _scan_fingerprints(
             raw_ints, fp_duration, decoded_known, strictness=strictness,
             min_coverage=min_coverage, gap_tolerance_s=gap_tolerance_s,
-            min_ad_length_s=self._clamped_setting('fingerprint_min_ad_length_s'),
+            min_ad_length_s=clamped_fingerprint_setting(self.db, 'fingerprint_min_ad_length_s'),
             should_continue=should_continue)
         for m in matches:
             logger.debug(
@@ -1921,7 +1916,7 @@ class AudioFingerprinter:
         if decoded > 0:
             end = min(end, decoded)
         duration = end - start
-        if duration < self._clamped_setting('fingerprint_min_ad_length_s'):
+        if duration < clamped_fingerprint_setting(self.db, 'fingerprint_min_ad_length_s'):
             logger.debug(f"Segment too short for fingerprinting: {duration:.1f}s")
             return FingerprintStoreResult(False, 'segment_too_short')
         if not self.is_available():
@@ -1936,7 +1931,7 @@ class AudioFingerprinter:
         if ints is None:
             logger.warning(f"Pattern {pattern_id} fingerprint could not be decoded; stored unchecked")
         elif not fingerprint_is_matchable(
-                ints, min_coverage=self._clamped_setting('fingerprint_min_coverage')):
+                ints, min_coverage=clamped_fingerprint_setting(self.db, 'fingerprint_min_coverage')):
             logger.info(f"Pattern {pattern_id} audio is not distinctive enough to match")
             return FingerprintStoreResult(False, 'not_distinctive')
 

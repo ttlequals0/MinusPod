@@ -157,14 +157,12 @@ def test_settings_work_when_the_llm_provider_is_none(app_client):
 
 
 def test_matcher_registry_and_api_ranges_agree(app_client, temp_db):
-    from audio_fingerprinter import AudioFingerprinter
+    from audio_fingerprinter import clamped_fingerprint_setting
     from database.settings import registry_default
-    fp = AudioFingerprinter.__new__(AudioFingerprinter)
-    fp.db = temp_db
     for key, field in KEYS.items():
         default, lo, hi = config.FINGERPRINT_SETTING_RANGES[key]
         assert float(registry_default(key)) == default
         for value, expect_ok in ((lo, True), (hi, True), (lo - 0.5, False), (hi + 0.5, False)):
             assert (_put(app_client, {field: value}).status_code == 200) is expect_ok
             temp_db.set_setting(key, str(value))
-            assert fp._clamped_setting(key) == min(max(value, lo), hi)
+            assert clamped_fingerprint_setting(temp_db, key) == min(max(value, lo), hi)
