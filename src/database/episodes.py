@@ -83,17 +83,20 @@ AD_DATA_NULL_SET_SQL = """SET ad_markers_json = NULL,
 def normalize_published_at(value: str | None) -> str | None:
     """Normalize a published_at value to ISO 8601 format.
 
-    Handles RFC 2822 (e.g. 'Tue, 10 Mar 2026 19:10:06 PDT') and passes
-    through values that already look like ISO 8601.
+    Reads ISO 8601, then RFC 2822 (e.g. 'Tue, 10 Mar 2026 19:10:06 PDT' or
+    '10 Mar 2026 19:10:06 GMT'); a value neither reads is returned unchanged.
     """
     if not value:
         return value
     # Stored as true UTC: cross-feed ordering and the recents cutoff compare
     # these strings directly, so a publisher's local offset must not survive.
     try:
-        parsed = datetime.fromisoformat(value) if value[0].isdigit() else parsedate_to_datetime(value)
-    except (ValueError, TypeError):
-        return value
+        parsed = datetime.fromisoformat(value)
+    except ValueError:
+        try:
+            parsed = parsedate_to_datetime(value)
+        except (ValueError, TypeError):
+            return value
     if parsed.tzinfo is None:
         parsed = parsed.replace(tzinfo=timezone.utc)
     return parsed.astimezone(timezone.utc).strftime(ISO_FORMAT)

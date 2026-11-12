@@ -652,7 +652,7 @@ TABLE_DDL['auto_process_queue'] = """CREATE TABLE IF NOT EXISTS auto_process_que
     status TEXT DEFAULT 'pending' CHECK(status IN ('pending','processing','completed','failed')),
     attempts INTEGER DEFAULT 0,
     error_message TEXT,
-    -- Dequeue priority (#625): higher runs first, ties broken by created_at ASC
+    -- Dequeue priority (#625): higher runs first, ties by the feed's queue_order (created_at when queued)
     priority INTEGER DEFAULT 0,
     created_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
     updated_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),

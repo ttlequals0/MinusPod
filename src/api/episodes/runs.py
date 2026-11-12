@@ -777,7 +777,7 @@ def get_processing_episodes():
 
     # Append the waiting queue after the active job(s). The auto_process_queue
     # rows are the real backlog, so they come first and in dequeue order
-    # (priority DESC, created_at ASC, the ORDER BY the worker claims by),
+    # (priority DESC, then the feed's processing order, as the worker claims),
     # sliced to the requested page. StatusService's display queue only holds
     # hand-enqueued entries, so it trails the DB backlog with the rest.
     seen = {(e['slug'], e['episodeId']) for e in episodes}

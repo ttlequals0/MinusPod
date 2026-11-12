@@ -185,11 +185,48 @@ class TestWritesAndMigration:
 
     def test_migration_normalizes_old_rows_and_keeps_the_rest(self, temp_db):
         pid = _feed(temp_db, 'a')
-        _fill(temp_db, pid, ['Tue, 10 Mar 2026 19:10:06 GMT', '2026-01-01T00:00:00+02:00', None, 'not a date'])
+        _fill(temp_db, pid, ['Tue, 10 Mar 2026 19:10:06 GMT', '2026-01-01T00:00:00+02:00', None, 'not a date',
+                             '10 Mar 2026 19:10:06 GMT'])
+        self._rerun_migration(temp_db)
+        assert self._stored(temp_db) == ['2026-03-10T19:10:06Z', '2025-12-31T22:00:00Z', None, 'not a date',
+                                         '2026-03-10T19:10:06Z']
+
+    def test_migration_runs_once(self, temp_db):
+        pid = _feed(temp_db, 'a')
+        self._rerun_migration(temp_db)
+        _fill(temp_db, pid, ['Tue, 10 Mar 2026 19:10:06 GMT'])
         temp_db._run_schema_migrations()
-        got = [r[0] for r in temp_db.get_connection().execute(
-            "SELECT published_at FROM auto_process_queue ORDER BY id")]
-        assert got == ['2026-03-10T19:10:06Z', '2026-01-01T00:00:00+02:00', None, 'not a date']
+        assert self._stored(temp_db) == ['Tue, 10 Mar 2026 19:10:06 GMT']
+
+    @staticmethod
+    def _rerun_migration(db):
+        db.get_connection().execute(
+            "DELETE FROM schema_migrations WHERE name = 'normalize_queue_published_at_once'")
+        db.get_connection().commit()
+        db._run_schema_migrations()
+
+    @staticmethod
+    def _stored(db):
+        return [r[0] for r in db.get_connection().execute("SELECT published_at FROM auto_process_queue ORDER BY id")]
+
+    def test_stranded_requeue_stores_iso_dates(self, temp_db):
+        _feed(temp_db, 'a')
+        temp_db.upsert_episode('a', 'ep1', original_url='u', title='T', status='pending',
+                               published_at='10 Mar 2026 19:10:06 GMT')
+        temp_db.requeue_stranded_pending_episodes('a', [{'episode_id': 'ep1', 'priority': 0}], '2026-01-01T00:00:00Z')
+        assert self._stored(temp_db) == ['2026-03-10T19:10:06Z']
+
+    def test_held_episode_migration_stores_iso_dates(self, temp_db):
+        _feed(temp_db, 'a')
+        temp_db.upsert_episode('a', 'ep1', original_url='u', title='T', status='deferred',
+                               published_at='10 Mar 2026 19:10:06 GMT')
+        temp_db.get_connection().execute(
+            "UPDATE episodes SET deferred_service = 'llm_rate_limit' WHERE episode_id = 'ep1'")
+        temp_db.get_connection().execute(
+            "DELETE FROM schema_migrations WHERE name = 'requeue_rate_limit_held_episodes'")
+        temp_db.get_connection().commit()
+        temp_db._run_requeue_rate_limit_held_episodes(temp_db.get_connection())
+        assert self._stored(temp_db) == ['2026-03-10T19:10:06Z']
 
 
 class TestUpgrade:

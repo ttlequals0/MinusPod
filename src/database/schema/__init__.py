@@ -1408,21 +1408,13 @@ class SchemaMixin:
 
         # Queued rows can carry the raw feed date; the processing order needs ISO 8601.
         try:
-            from database.episodes import normalize_published_at
-            queue_fixed = 0
-            for row in conn.execute(
-                "SELECT id, published_at FROM auto_process_queue "
-                "WHERE published_at IS NOT NULL AND published_at != '' "
-                "AND SUBSTR(published_at, 1, 1) NOT BETWEEN '0' AND '9'"
-            ).fetchall():
-                normalized = normalize_published_at(row['published_at'])
-                if normalized != row['published_at']:
-                    conn.execute("UPDATE auto_process_queue SET published_at = ? WHERE id = ?",
-                                 (normalized, row['id']))
-                    queue_fixed += 1
-            if queue_fixed:
+            marker = 'normalize_queue_published_at_once'
+            if not conn.execute("SELECT 1 FROM schema_migrations WHERE name = ?", (marker,)).fetchone():
+                queue_fixed = self._normalize_queue_published_at(conn)
+                if queue_fixed:
+                    logger.info(f"Migration: Normalized {queue_fixed} queued published_at dates to ISO 8601")
+                conn.execute("INSERT OR IGNORE INTO schema_migrations (name) VALUES (?)", (marker,))
                 conn.commit()
-                logger.info(f"Migration: Normalized {queue_fixed} queued published_at dates to ISO 8601")
         except Exception as e:
             logger.warning(f"queue published_at normalization migration: {e}")
 
@@ -3315,6 +3307,24 @@ class SchemaMixin:
         )
         conn.commit()
 
+    @staticmethod
+    def _normalize_queue_published_at(conn) -> int:
+        """Rewrite queue published_at values that are not canonical ISO; unreadable ones stay as they are."""
+        from database.episodes import normalize_published_at
+        fixed = 0
+        for row in conn.execute(
+            "SELECT id, published_at FROM auto_process_queue "
+            "WHERE published_at IS NOT NULL AND published_at != '' "
+            "AND published_at NOT GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]T"
+            "[0-9][0-9]:[0-9][0-9]:[0-9][0-9]Z'"
+        ).fetchall():
+            normalized = normalize_published_at(row['published_at'])
+            if normalized != row['published_at']:
+                conn.execute("UPDATE auto_process_queue SET published_at = ? WHERE id = ?",
+                             (normalized, row['id']))
+                fixed += 1
+        return fixed
+
     def _run_requeue_rate_limit_held_episodes(self, conn):
         """One-time requeue of episodes a pre-2.96.2 rate-limit hold parked.
 
@@ -3357,6 +3367,7 @@ class SchemaMixin:
                 cur.rowcount,
             )
 
+        self._normalize_queue_published_at(conn)
         conn.execute(
             "INSERT OR IGNORE INTO schema_migrations (name) VALUES "
             "('requeue_rate_limit_held_episodes')"
