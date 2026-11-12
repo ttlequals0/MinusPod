@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter, useLocation } from 'react-router';
@@ -285,6 +285,60 @@ describe('PatternsPage category filter', () => {
     await screen.findAllByText('Acme');
     expect(screen.queryAllByText('Beta Co')).not.toHaveLength(0);
     expect(screen.queryAllByText('Gamma Co')).not.toHaveLength(0);
+  });
+});
+
+describe('PatternsPage audio column', () => {
+  function audioPattern(id: number, audio?: Record<string, unknown>) {
+    return {
+      id, scope: 'global', network_id: null, podcast_id: null,
+      dai_platform: null, text_template: 'x'.repeat(60),
+      intro_variants: '[]', outro_variants: '[]', sponsor: `Sponsor ${id}`,
+      confirmation_count: 0, false_positive_count: 0, last_matched_at: null,
+      created_at: '2026-01-01T00:00:00Z', created_from_episode_id: null,
+      is_active: true, disabled_at: null, disabled_reason: null,
+      ...(audio ? { audio } : {}),
+    };
+  }
+
+  it('shows the four audio states in the table', async () => {
+    mockGetPatterns.mockResolvedValue([
+      audioPattern(1, { state: 'active', available: true, matchCount: 4, meanSimilarity: 0.912 }),
+      audioPattern(2, { state: 'off', available: true, matchCount: 4, meanSimilarity: 0.9 }),
+      audioPattern(3, { state: 'active', available: false, matchCount: 4, meanSimilarity: 0.9 }),
+      audioPattern(4, { state: 'none', available: false, matchCount: 0, meanSimilarity: null }),
+    ]);
+    renderPage();
+    const table = await screen.findByRole('table');
+    await within(table).findByText('91% match');
+    const rows = within(table).getAllByRole('row').slice(1);
+    const cell = (row: number) => within(rows[row]).getAllByRole('cell')[4].textContent;
+    expect(cell(0)).toBe('91% match');
+    expect(cell(1)).toBe('Audio off');
+    expect(cell(2)).toBe('No source audio');
+    expect(cell(3)).toBe('-');
+    expect(within(table).getByRole('columnheader', { name: 'Audio' })).toBeDefined();
+  });
+
+  it('shows a dash for active audio with no matches and for a pattern without the field', async () => {
+    mockGetPatterns.mockResolvedValue([
+      audioPattern(1, { state: 'active', available: true, matchCount: 0, meanSimilarity: null }),
+      audioPattern(2),
+    ]);
+    renderPage();
+    const table = await screen.findByRole('table');
+    await within(table).findAllByText('Sponsor 1');
+    const rows = within(table).getAllByRole('row').slice(1);
+    expect(within(rows[0]).getAllByRole('cell')[4].textContent).toBe('-');
+    expect(within(rows[1]).getAllByRole('cell')[4].textContent).toBe('-');
+  });
+
+  it('shows the audio state on the phone card', async () => {
+    mockGetPatterns.mockResolvedValue([
+      audioPattern(1, { state: 'active', available: true, matchCount: 4, meanSimilarity: 0.912 }),
+    ]);
+    renderPage();
+    expect(await screen.findByTestId('pattern-card-audio-1')).toHaveProperty('textContent', 'Audio: 91% match');
   });
 });
 

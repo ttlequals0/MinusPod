@@ -23,6 +23,7 @@ import { SegmentCategoryBadge } from '../components/SegmentCategoryBadge';
 import { PatternImportDialog } from '../components/PatternImportDialog';
 import { PatternExportDialog } from '../components/PatternExportDialog';
 import { formatDate } from '../utils/format';
+import { audioSummaryLabel } from '../utils/patternAudio';
 import {
   SEGMENT_CATEGORY_FILTER_OPTIONS, UNSET_CATEGORY,
 } from '../utils/segmentCategory';
@@ -469,6 +470,9 @@ function PatternsPage() {
                 {formatDate(pattern.last_matched_at)}
               </span>
             </div>
+            <div data-testid={`pattern-card-audio-${pattern.id}`} className="mt-2 text-xs text-muted-foreground">
+              Audio: {audioSummaryLabel(pattern.audio)}
+            </div>
           </div>
         ))}
         {paginatedPatterns?.length === 0 && (
@@ -484,15 +488,16 @@ function PatternsPage() {
           <table className="w-full min-w-[960px] table-fixed">
             <colgroup>
               <col className="w-[5%]" />
-              <col className="w-[12%]" />
-              <col className="w-[13%]" />
-              <col className="w-[15%]" />
+              <col className="w-[10%]" />
+              <col className="w-[10%]" />
+              <col className="w-[10%]" />
               <col className="w-[9%]" />
               <col className="w-[10%]" />
               <col className="w-[10%]" />
               <col className="w-[10%]" />
-              <col className="w-[7%]" />
-              <col className="w-[9%]" />
+              <col className="w-[10%]" />
+              <col className="w-[8%]" />
+              <col className="w-[8%]" />
             </colgroup>
             <thead className={tableHead}>
               <tr>
@@ -501,6 +506,9 @@ function PatternsPage() {
                 <SortHeader field="sponsor" label="Sponsor" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} />
                 <th className={`${thBase} px-2 text-left`}>
                   Category
+                </th>
+                <th className={`${thBase} px-2 text-left`}>
+                  Audio
                 </th>
                 <SortHeader field="confirmation_count" label="Confirmed" className="px-2 whitespace-nowrap" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} />
                 <SortHeader field="false_positive_count" label="False pos." className="px-2 whitespace-nowrap" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} />
@@ -575,6 +583,9 @@ function PatternsPage() {
                       ))}
                     </select>
                   </td>
+                  <td className="px-2 py-3 text-sm text-muted-foreground">
+                    {audioSummaryLabel(pattern.audio)}
+                  </td>
                   <td className="px-2 py-3 whitespace-nowrap">
                     <span className="text-sm text-success font-medium">
                       {pattern.confirmation_count}
@@ -615,7 +626,7 @@ function PatternsPage() {
               ))}
               {paginatedPatterns?.length === 0 && (
                 <tr>
-                  <td colSpan={10} className={tdEmpty}>
+                  <td colSpan={11} className={tdEmpty}>
                     {patterns.length === 0 ? 'No patterns yet.' : 'No patterns match these filters.'}
                   </td>
                 </tr>
