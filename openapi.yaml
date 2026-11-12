@@ -4895,6 +4895,63 @@ paths:
                         scope:
                           type: string
 
+  /patterns/{pattern_id}/audio/preview:
+    get:
+      tags:
+        - Patterns
+      summary: Play the source span of a pattern's audio
+      description: |
+        Streams an mp3 slice of a retained original episode, for listening to
+        what a pattern's fingerprint was built from or what it matched. With no
+        `matchId` the source is the newest non-rejected match whose original is
+        still retained, else the episode the fingerprint was built from. With a
+        `matchId` it is that match's measured span. The slice is capped at 600
+        seconds. Supports Range requests.
+
+        404 carries a `code`: `no_audio` when the pattern has no fingerprint,
+        `original_not_retained` when no source episode keeps its original. An
+        unknown pattern or a `matchId` that does not belong to the pattern is a
+        404 without a code. 500 means the slice could not be built.
+      operationId: previewPatternAudio
+      parameters:
+        - $ref: '#/components/parameters/pattern_id'
+        - name: matchId
+          in: query
+          required: false
+          description: Match history row to play. Digits only.
+          schema:
+            type: integer
+            minimum: 0
+      responses:
+        '200':
+          description: Audio slice
+          content:
+            audio/mpeg:
+              schema:
+                type: string
+                format: binary
+        '206':
+          description: Partial audio slice for a Range request
+          content:
+            audio/mpeg:
+              schema:
+                type: string
+                format: binary
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          description: Unknown pattern or match, no audio, or no retained original
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: Original audio not retained for this pattern
+                status: 404
+                code: original_not_retained
+        '500':
+          $ref: '#/components/responses/ServerError'
+
   /patterns/{pattern_id}/split:
     post:
       tags:
@@ -20507,7 +20564,11 @@ components:
           type: [object, 'null']
         code:
           type: string
-          description: Machine-readable reason, present on some 409 responses. `llm_disabled` means the action needs an LLM and the LLM provider is set to none.
+          description: >-
+            Machine-readable reason, present on some 404 and 409 responses.
+            `llm_disabled` means the action needs an LLM and the LLM provider is
+            set to none. `no_audio` means the pattern has no audio fingerprint.
+            `original_not_retained` means no source episode keeps its original audio.
           example: llm_disabled
 
   responses:

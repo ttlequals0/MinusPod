@@ -380,10 +380,14 @@ def _redacted(value):
     return value
 
 
+def coded_error_response(message, status, code):
+    """Error body with a stable machine-readable `code` next to the message."""
+    return json_response({'error': _redacted(message), 'status': status, 'code': code}, status)
+
+
 def llm_disabled_response(message):
     """409 for an action that needs an LLM while the provider is none."""
-    return json_response(
-        {'error': _redacted(message), 'status': 409, 'code': 'llm_disabled'}, 409)
+    return coded_error_response(message, 409, 'llm_disabled')
 
 
 def error_response(message, status=400, details=None):
@@ -570,4 +574,4 @@ def _find_similar_pattern(db, pattern_data: dict) -> dict | None:
 # Import all sub-modules to trigger route registration. `status` is aliased so
 # the submodule name does not shadow the `status` parameter of json_response /
 # error_response defined above.
-from api import feeds, episodes, local_episodes, history, settings, system, config_transfer, patterns, pattern_cleanup, sponsors, status as _status_routes, auth, search, podcast_search, stats, providers, tags, cue_templates, cue_detections, detections, podping, failover, youtube
+from api import feeds, episodes, local_episodes, history, settings, system, config_transfer, patterns, pattern_cleanup, patterns_audio, sponsors, status as _status_routes, auth, search, podcast_search, stats, providers, tags, cue_templates, cue_detections, detections, podping, failover, youtube

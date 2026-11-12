@@ -172,6 +172,18 @@ class FingerprintMatchMixin:
         )
         return [dict(row) for row in cursor.fetchall()]
 
+    def get_retained_fingerprint_matches(self, pattern_id: int, limit: int) -> list[dict]:
+        """Newest non-rejected matches whose episode still has original_file set."""
+        cursor = self.get_connection().execute(
+            """SELECT m.* FROM audio_fingerprint_matches m
+               JOIN podcasts p ON p.slug = m.podcast_slug
+               JOIN episodes e ON e.podcast_id = p.id AND e.episode_id = m.episode_id
+               WHERE m.pattern_id = ? AND m.rejected = 0 AND e.original_file IS NOT NULL
+               ORDER BY m.created_at DESC, m.id DESC LIMIT ?""",
+            (pattern_id, limit)
+        )
+        return [dict(row) for row in cursor.fetchall()]
+
     def count_fingerprint_matches(self, pattern_id: int) -> int:
         """Number of match rows for a pattern."""
         conn = self.get_connection()

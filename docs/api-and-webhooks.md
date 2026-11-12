@@ -82,6 +82,7 @@ Key endpoints:
 - `GET /api/v1/detections` - List ad detections across all feeds with status filter (`needs_review`, `pending`, `rejected`, `accepted`, `all`; default `needs_review`), optional podcast slug (`feed`), free-text search (`q`), sort (`date`, `confidence`, `podcast`), order (`asc`, `desc`), and pagination (`page`, `limit` 1-100, default 20). Powers the Patterns > Ad Review tab.
 - `GET /api/v1/patterns` - List ad patterns (filter by scope)
 - `GET /api/v1/patterns/stats` - Pattern database statistics
+- `GET /api/v1/patterns/{id}/audio/preview` - Play the source span of a pattern's audio as mp3 (Range requests work). Optional `matchId` plays that match instead of the newest retained one. The slice is capped at 600 seconds. A pattern with no fingerprint answers 404 with `code: no_audio`, and one whose source episodes no longer keep their originals answers 404 with `code: original_not_retained`
 - `GET /api/v1/patterns/cleanup` - Pattern cleanup settings plus live state and pending suggestion counts by kind (Experiments). See [Pattern Cleanup](pattern-cleanup.md#api)
 - `PUT /api/v1/settings/pattern-cleanup` - Update pattern cleanup settings (`enabled`, `cron`, `batchSize`, `unusedDays`, `provider`, `model`)
 - `POST /api/v1/patterns/cleanup/run` - Start a cleanup batch; `{"force": true}` forces a recheck of all active learned patterns. Returns 202 with `{"runId"}`, 400 for invalid input, or 409 if already running or, with `code: llm_disabled`, while the LLM provider is `none`; rate limited to 6/hour

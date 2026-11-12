@@ -72,3 +72,32 @@ def fp_original(fp_feed):
 def fp_pattern(fp_feed):
     from tests.integration.fingerprint_helpers import SLUG, TEMPLATE
     return fp_feed.create_ad_pattern(scope='podcast', podcast_id=SLUG, text_template=TEMPLATE)
+
+
+@pytest.fixture
+def fp_audio_original(fp_feed, tmp_path):
+    """The episode keeps a real 12 s mp3 original on disk."""
+    import shutil
+    import subprocess
+    from api import get_storage
+    from tests.integration.fingerprint_helpers import EPISODE, SLUG
+    ffmpeg = shutil.which('ffmpeg')
+    if not ffmpeg:
+        pytest.skip('ffmpeg is not installed')
+    path = get_storage().get_original_path(SLUG, EPISODE)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    subprocess.run([ffmpeg, '-y', '-v', 'error', '-f', 'lavfi', '-i', 'sine=frequency=440:duration=12',
+                    '-c:a', 'libmp3lame', str(path)], check=True, capture_output=True)
+    fp_feed.upsert_episode(SLUG, EPISODE, original_file=path.name)
+    yield path
+    path.unlink(missing_ok=True)
+
+
+@pytest.fixture
+def fp_audio_pattern(fp_feed, fp_pattern):
+    """A pattern whose fingerprint was built from 2 s to 8 s of the episode."""
+    from tests.integration.fingerprint_helpers import EPISODE, SLUG
+    fp_feed.create_audio_fingerprint(
+        fp_pattern, b'AQAA', 6.0, source_podcast_slug=SLUG, source_episode_id=EPISODE,
+        source_start=2.0, source_end=8.0)
+    return fp_pattern

@@ -179,6 +179,7 @@ UNCOVERED = {
     '/feeds/{slug}/import/status': 'local feeds only',
     '/patterns/{pattern_id}': 'needs an argument the seed cannot provide',
     '/patterns/export': 'binary or streaming body',
+    '/patterns/{pattern_id}/audio/preview': 'binary audio body; covered in test_audio_preview_route',
     '/podcast-search': 'network call',
     '/sponsors/{sponsor_id}': 'needs an argument the seed cannot provide',
     '/history/export': 'binary or streaming body',
