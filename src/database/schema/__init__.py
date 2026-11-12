@@ -83,7 +83,7 @@ from database.schema.tables import (
     DOWNLOAD_INDEX_SQL, EPISODE_FEED_DETAILS_TRIGGERS, FINGERPRINT_MATCH_INDEXES, PATTERN_CLEANUP_INDEXES, SCHEMA_SQL,
     TABLE_DDL,
 )
-from database.fingerprint_matches import BACKFILL_GATE
+from database.fingerprint_matches import BACKFILL_GATE, OUT_OF_SCOPE_LOG_CAP
 from database.patterns import _parse_bounds
 from database.search import (
     SEARCH_CHANGE_JOURNAL_DDL,
@@ -2650,14 +2650,18 @@ class SchemaMixin:
             return
         started = time.monotonic()
         try:
-            written = self.backfill_fingerprint_matches_from_markers()
+            written, out_of_scope = self.backfill_fingerprint_matches_from_markers()
         except Exception as e:
             conn.rollback()
             logger.error(f"Fingerprint match history backfill failed, retrying on the next start: "
                          f"{type(e).__name__}: {e}")
             return
+        shown = ", ".join(str(pid) for pid in out_of_scope[:OUT_OF_SCOPE_LOG_CAP])
+        more = len(out_of_scope) - OUT_OF_SCOPE_LOG_CAP
+        scoped = (f"; patterns with rows out of scope: [{shown}]" + (f" and {more} more" if more > 0 else "")
+                  if out_of_scope else "")
         logger.info(f"Migration: Backfilled fingerprint match history, {written} rows in "
-                    f"{time.monotonic() - started:.2f}s")
+                    f"{time.monotonic() - started:.2f}s{scoped}")
 
     def _redact_column_in_batches(self, conn, table, column, rewrite, where='1', params=()):
         """Rewrite one column page by page, committing each page; returns the number of rows changed."""

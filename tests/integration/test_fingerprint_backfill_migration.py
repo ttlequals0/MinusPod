@@ -340,3 +340,141 @@ def test_an_empty_database_just_sets_the_mark(tmp_path):
     db = _open(tmp_path)
     assert db.get_connection().execute("SELECT 1 FROM schema_migrations WHERE name = ?", (GATE,)).fetchone()
     assert _rows(db) == []
+
+
+EP_DEMOTED = 'e5f6a1b2c3d4'
+EP_PLAIN = 'f6a1b2c3d4e5'
+EP_SHARED = 'a1b2c3d4e5f7'
+
+
+def _demoted(marker):
+    """The stored shape of a held marker after Not this ad."""
+    return {**marker, 'held_for_review': False, 'was_cut': False, 'validation': {'decision': 'REJECT'}}
+
+
+def _correct(db, pattern_id, episode_id, bounds, slug=SLUG, created_at='2026-10-06T09:30:00Z'):
+    db.create_pattern_correction(
+        correction_type='false_positive', pattern_id=pattern_id, episode_id=episode_id,
+        original_bounds=bounds, podcast_id=db.get_podcast_by_slug(slug)['id'])
+    db.get_connection().execute(
+        "UPDATE pattern_corrections SET created_at = ? WHERE episode_id = ?", (created_at, episode_id))
+    db.get_connection().commit()
+
+
+def test_a_demoted_marker_with_a_matching_correction_gives_one_rejected_row(seeded):
+    db = seeded['db']
+    marker = _demoted(_fp(seeded['mine'], 800.0, 860.0))
+    _put_markers(db, SLUG, EP_DEMOTED, [marker], processed_at='2026-10-02T10:00:00Z')
+    _correct(db, seeded['mine'], EP_DEMOTED, {'start': 805.0, 'end': 855.0})
+    rows = _rows(_restart(seeded['path'], db), f"episode_id = '{EP_DEMOTED}'")
+    assert len(rows) == 1
+    assert (rows[0]['pattern_id'], rows[0]['rejected'], rows[0]['rejected_at']) == (
+        seeded['mine'], 1, '2026-10-06T09:30:00Z')
+    assert (rows[0]['match_start'], rows[0]['match_end']) == (801.0, 858.0)
+
+
+def test_a_demoted_merged_member_with_a_matching_correction_gives_one_rejected_row(seeded):
+    db = seeded['db']
+    marker = _demoted({'start': 800.0, 'end': 870.0, 'detection_stage': 'claude', 'merged_member_spans': [
+        {'start': 810.0, 'end': 860.0, 'stage': 'fingerprint', 'pattern_id': seeded['mine']},
+        {'start': 800.0, 'end': 870.0, 'stage': 'first_pass'}]})
+    _put_markers(db, SLUG, EP_DEMOTED, [marker])
+    _correct(db, seeded['mine'], EP_DEMOTED, {'start': 812.0, 'end': 858.0})
+    rows = _rows(_restart(seeded['path'], db), f"episode_id = '{EP_DEMOTED}'")
+    assert [(r['rejected'], r['match_start'], r['match_end']) for r in rows] == [(1, 810.0, 860.0)]
+
+
+def test_a_demoted_marker_without_a_correction_gives_no_row(seeded):
+    db = seeded['db']
+    _put_markers(db, SLUG, EP_PLAIN, [_demoted(_fp(seeded['mine'], 800.0, 860.0))])
+    _correct(db, seeded['mine'], EP_PLAIN, {'start': 100.0, 'end': 120.0})
+    assert not _rows(_restart(seeded['path'], db), f"episode_id = '{EP_PLAIN}'")
+
+
+def test_a_correction_for_another_pattern_does_not_revive_a_demoted_marker(seeded):
+    db = seeded['db']
+    _put_markers(db, SLUG, EP_PLAIN, [_demoted(_fp(seeded['mine'], 800.0, 860.0))])
+    _correct(db, seeded['glob'], EP_PLAIN, {'start': 805.0, 'end': 855.0})
+    assert not _rows(_restart(seeded['path'], db), f"episode_id = '{EP_PLAIN}'")
+
+
+def test_the_recorder_still_skips_a_demoted_marker(seeded):
+    db = seeded['db']
+    marker = _demoted(_fp(seeded['mine'], 800.0, 860.0))
+    assert db.record_fingerprint_matches_from_markers(SLUG, EP_DEMOTED, [marker]) == 0
+    assert not _rows(db, f"episode_id = '{EP_DEMOTED}'")
+
+
+def test_a_correction_with_an_unreadable_time_is_rejected_at_the_migration_time(seeded):
+    before = datetime.now(timezone.utc).replace(microsecond=0)
+    seeded['db'].get_connection().execute("UPDATE pattern_corrections SET created_at = 'not a date'")
+    seeded['db'].get_connection().commit()
+    own = _rows(_restart(seeded['path'], seeded['db']), f"pattern_id = {seeded['mine']}")[0]
+    assert own['rejected'] == 1
+    stamp = datetime.strptime(own['rejected_at'], '%Y-%m-%dT%H:%M:%SZ').replace(tzinfo=timezone.utc)
+    assert stamp >= before
+
+
+def test_an_open_caller_transaction_is_not_committed_by_the_read(seeded):
+    conn = seeded['db'].get_connection()
+    conn.execute("INSERT INTO schema_migrations (name) VALUES ('pending_caller_work')")
+    assert conn.in_transaction
+    seeded['db']._read_stored_match_history()
+    assert conn.in_transaction
+    conn.rollback()
+    assert not conn.execute("SELECT 1 FROM schema_migrations WHERE name = 'pending_caller_work'").fetchone()
+
+
+def _shared_episode_pattern(db, scope='global', podcast_id=None):
+    pid = db.create_ad_pattern(scope=scope, podcast_id=podcast_id, text_template='shared read ' * 8,
+                               created_from_episode_id=EP_SHARED)
+    db.create_audio_fingerprint(pid, b'AQAA', 57.0)
+    return pid
+
+
+def test_a_source_is_left_empty_when_two_feeds_share_the_origin_episode_id(seeded):
+    _without_rejections(seeded)
+    db = seeded['db']
+    pid = _shared_episode_pattern(db)
+    _put_markers(db, SLUG, EP_SHARED, [_fp(pid, 100.0, 160.0)])
+    _put_markers(db, OTHER, EP_SHARED, [_fp(pid, 100.0, 160.0)])
+    assert _restart(seeded['path'], db).get_audio_fingerprint(pid)['source_episode_id'] is None
+
+
+def test_a_global_pattern_takes_the_only_feed_holding_the_origin_episode(seeded):
+    _without_rejections(seeded)
+    db = seeded['db']
+    pid = _shared_episode_pattern(db)
+    _put_markers(db, SLUG, EP_SHARED, [_fp(pid, 100.0, 160.0)])
+    source = _restart(seeded['path'], db).get_audio_fingerprint(pid)
+    assert (source['source_podcast_slug'], source['source_episode_id']) == (SLUG, EP_SHARED)
+
+
+def test_a_podcast_pattern_takes_its_own_feeds_copy_of_a_shared_episode_id(seeded):
+    _without_rejections(seeded)
+    db = seeded['db']
+    pid = _shared_episode_pattern(db, scope='podcast', podcast_id=OTHER)
+    _put_markers(db, SLUG, EP_SHARED, [_fp(pid, 100.0, 160.0)])
+    _put_markers(db, OTHER, EP_SHARED, [_fp(pid, 100.0, 160.0)])
+    source = _restart(seeded['path'], db).get_audio_fingerprint(pid)
+    assert (source['source_podcast_slug'], source['source_episode_id']) == (OTHER, EP_SHARED)
+
+
+def test_the_log_line_names_patterns_with_out_of_scope_rows(seeded, caplog):
+    with caplog.at_level(logging.INFO):
+        _restart(seeded['path'], seeded['db'])
+    line = [r.getMessage() for r in caplog.records if 'Backfilled fingerprint match history' in r.getMessage()][0]
+    assert re.search(r'out of scope[^\[]*\[([^\]]*)\]', line).group(1) == str(seeded['theirs'])
+
+
+def test_the_log_line_caps_the_listed_pattern_ids(seeded, caplog):
+    db = seeded['db']
+    ids = [db.create_ad_pattern(scope='podcast', podcast_id=OTHER, text_template=f'other read {i} ' * 8)
+           for i in range(52)]
+    _put_markers(db, SLUG, EP_PLAIN, [_fp(pid, 10.0 + i * 100, 70.0 + i * 100) for i, pid in enumerate(ids)])
+    with caplog.at_level(logging.INFO):
+        _restart(seeded['path'], db)
+    line = [r.getMessage() for r in caplog.records if 'Backfilled fingerprint match history' in r.getMessage()][0]
+    listed = re.search(r'out of scope[^\[]*\[([^\]]*)\]', line).group(1).split(',')
+    assert len(listed) == 50
+    assert re.search(r'and 3 more', line)
