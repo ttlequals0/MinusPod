@@ -1,5 +1,4 @@
 """Shared pytest fixtures for podcast server tests."""
-import importlib
 import logging
 import os
 import pkgutil
@@ -14,6 +13,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
 
 from database import Database
 from storage import Storage
+from tests.model_guard import _no_real_model_loads  # noqa: F401  (autouse fixture)
 
 
 _GUNICORN_LOGGERS = ('gunicorn.error', 'gunicorn.access')
@@ -66,34 +66,6 @@ def _no_leaked_threads():
             leaked.append(f"{thread.name} (daemon={thread.daemon})")
     if leaked:
         pytest.fail(f"test left threads running: {', '.join(leaked)}", pytrace=False)
-
-
-def _forbid_model_fetch(name):
-    def blocked(*args, **kwargs):
-        raise AssertionError(
-            f"{os.environ.get('PYTEST_CURRENT_TEST', 'test')} reached {name}; stub the model boundary")
-    return blocked
-
-
-@pytest.fixture(autouse=True)
-def _no_real_model_loads(monkeypatch):
-    """Fail loudly when a test would load a Whisper model or reach the Hugging Face Hub."""
-    for module_name, attr in (('faster_whisper', 'WhisperModel'),
-                              ('faster_whisper.utils', 'download_model'),
-                              ('huggingface_hub', 'snapshot_download'),
-                              ('huggingface_hub', 'hf_hub_download')):
-        try:
-            module = importlib.import_module(module_name)
-        except ImportError:
-            continue
-        target = getattr(module, attr, None)
-        if target is None:
-            continue
-        if isinstance(target, type):
-            monkeypatch.setattr(target, '__init__', _forbid_model_fetch(f'{module_name}.{attr}'))
-        else:
-            monkeypatch.setattr(module, attr, _forbid_model_fetch(f'{module_name}.{attr}'))
-    yield
 
 
 @pytest.fixture(autouse=True)
