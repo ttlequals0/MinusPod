@@ -14,7 +14,10 @@ import tempfile
 from pathlib import Path
 from unittest.mock import patch
 
+import numpy as np
 import pytest
+
+import audio_peaks
 from embedded_chapters import probe_chapters
 from id3_chapters import ChapterTagError
 from storage import Storage
@@ -311,8 +314,6 @@ def test_upload_backup_cleanup_failure_keeps_published_result(
 
 
 def test_upload_replacing_an_original_leaves_no_valid_peaks_file(app_client, local_feed, real_mp3_bytes):
-    import audio_peaks
-    import numpy as np
     from api import get_storage
     slug = local_feed['slug']
     storage = get_storage()

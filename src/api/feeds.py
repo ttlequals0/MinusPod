@@ -69,6 +69,8 @@ from api.episodes.core import _episode_base_json
 from api.episodes.common import _job_state
 from database.podcasts import (EPISODE_STATUSES, MAX_NETWORK_ID_CHARS, RECENTS_SLUG, PodcastMixin, normalize_network_id, has_upstream, has_upstream_audio, is_local_feed,
                                is_recents_feed, is_youtube_feed, recents_cutoff)
+import local_feed_builder
+import recents_feed
 from youtube import urls as yt_urls
 from youtube.feed import source_link as youtube_source_link
 from youtube.settings import enabled as youtube_enabled, validate_yt_int
@@ -716,12 +718,7 @@ def _slug_from_url_path(source_url: str) -> str | None:
 # Local feed p20_channel_json validation (Task 6). Tag -> allowed attr keys,
 # taken directly from local_feed_builder's own whitelist (module docstring)
 # so this can never invent a shape the builder doesn't already render.
-# Built lazily (not a module-level import) -- local_feed_builder pulls in
-# main_app at its own module level, and api/feeds.py can be imported before
-# main_app exists (e.g. `from api.settings import ...` in isolation), which
-# would otherwise be a circular import.
 def _p20_tag_attrs() -> dict:
-    import local_feed_builder
     return {
         'funding': local_feed_builder._FUNDING_ATTRS,
         'person': local_feed_builder._PERSON_ATTRS,
@@ -1432,8 +1429,7 @@ def _add_local_feed(data, db):
         from main_app.feeds import invalidate_feed_cache
         invalidate_feed_cache()
 
-        from local_feed_builder import rebuild_local_feed
-        rebuild_local_feed(slug)
+        local_feed_builder.rebuild_local_feed(slug)
 
         logger.info(f"Created new local feed: {slug}")
         return json_response({
@@ -2539,8 +2535,7 @@ def update_feed(slug):
                 logger.warning(f"Feed refresh after settings change failed for {slug}: {e}")
             if 'chapters_in_notes' in updates or 'review_links_in_notes' in updates:
                 try:
-                    from recents_feed import rebuild_recents_feed
-                    rebuild_recents_feed()
+                    recents_feed.rebuild_recents_feed()
                 except Exception as e:
                     logger.warning(f"Recents rebuild after settings change failed for {slug}: {e}")
 
@@ -2732,8 +2727,7 @@ def delete_feed(slug):
             except Exception as e:
                 logger.warning(f"[{slug}] could not clear import job files: {e}")
 
-        from recents_feed import rebuild_recents_feed
-        rebuild_recents_feed()
+        recents_feed.rebuild_recents_feed()
         logger.info(f"Deleted feed: {slug}")
         message = ('Feed deleted; in-progress processing was cancelled'
                    if cancelled_runs else 'Feed deleted')

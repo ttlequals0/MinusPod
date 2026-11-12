@@ -3,13 +3,7 @@ artwork upload APIs (#625 Task 8).
 
 Local feeds (``podcasts.feed_type == 'local'``) have no upstream RSS to
 source episode content or edits from, so these routes exist only there --
-a subscribed feed 400s. ``local_feed_builder.rebuild_local_feed`` and
-``database.podcasts.is_local_feed`` are both imported lazily inside each
-function body (not at module load) for the same reason ``api/feeds.py``
-does it (see its ``_p20_tag_attrs`` docstring): ``local_feed_builder``
-pulls in ``main_app`` at its own module level, and ``main_app/__init__.py``
-imports the ``api`` package (which imports this module) before it finishes
-initializing -- a module-level import here would be circular.
+a subscribed feed 400s.
 """
 import json
 import hashlib
@@ -29,11 +23,13 @@ from api.feeds import _validate_p20_items, _p20_tag_attrs
 from cancel import request_cancellation, wait_for_cancellation
 from database.podcasts import is_local_feed
 from database.queue import compute_queue_priority
+import local_feed_builder
 from local_import import (
     _release_import_lock, _try_acquire_import_lock, build_import_plan,
     bump_staging_generation, get_import_status, plan_hash,
     probe_and_save_chapters, read_staging_generation, start_commit,
 )
+import recents_feed
 from storage import _detect_image_mime
 from utils.audio import extract_embedded_artwork, get_audio_duration
 from utils.constants import EpisodeStatus
@@ -74,10 +70,8 @@ def _require_local_feed(db, slug):
 
 
 def _rebuild(slug, podcast=None):
-    from local_feed_builder import rebuild_local_feed
-    from recents_feed import rebuild_recents_feed
-    rebuild_local_feed(slug, podcast=podcast)
-    rebuild_recents_feed()
+    local_feed_builder.rebuild_local_feed(slug, podcast=podcast)
+    recents_feed.rebuild_recents_feed()
 
 
 def _parse_int_field(source, name, default=None):

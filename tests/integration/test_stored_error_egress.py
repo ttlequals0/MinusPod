@@ -1,8 +1,7 @@
 """Stored error text from older builds does not leave the API before the redaction step has run."""
 import pytest
 
-
-from tests.integration.fingerprint_helpers import EPISODE, SLUG, csrf  # noqa: E402
+from tests.integration.fingerprint_helpers import EPISODE, SLUG, csrf
 import api.pending_upgrade_redaction as guard  # noqa: E402
 
 GATE = 'redact_stored_error_text'

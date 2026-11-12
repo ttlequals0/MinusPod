@@ -1,8 +1,4 @@
-"""What the feed builders share with main_app, without importing it at module load.
-
-The app singletons resolve through main_app at call time, so a test that assigns
-`local_feed_builder.db` or `recents_feed.storage` replaces the handle as before.
-"""
+"""Feed builder helpers whose app singletons resolve through main_app at call time, so they import without it."""
 import importlib
 
 

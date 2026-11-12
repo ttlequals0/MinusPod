@@ -238,11 +238,7 @@ def _pack_header(count: int, size: int, mtime_ns: int, sha: bytes) -> bytes:
 
 def write_peaks_file(path: Path, buckets: np.ndarray, source_path: Path,
                      expect_stat: tuple[int, int] | None = None, hash_source: bool = False) -> None:
-    """Atomically write a uint16 peaks file stamped with the source's size and mtime.
-
-    hash_source also stores the source SHA-256, so a later mtime-only change restamps without a rebuild.
-    PeaksSourceChanged if the source differs from expect_stat.
-    """
+    """Atomically write a uint16 peaks file stamped with the source size and mtime; hash_source also stores the SHA-256."""
     path = Path(path)
     arr = np.asarray(buckets)
     if arr.dtype.kind != 'u' or arr.dtype.itemsize != 2:

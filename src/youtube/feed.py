@@ -12,7 +12,7 @@ def source_link(podcast: dict) -> str:
 
 
 def rebuild_youtube_feed(slug: str, podcast: dict | None = None) -> bool:
-    # lazy: local_feed_builder and main_app import main_app at import time
+    # lazy: main_app is still initializing when this module is first imported
     from local_feed_builder import _fetch_local_feed_episodes, build_local_feed_xml
     from main_app import db, storage
     from main_app.shared_state import invalidate_episode_lookup_cache
