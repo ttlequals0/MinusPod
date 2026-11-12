@@ -9,6 +9,7 @@ import time
 from contextlib import contextmanager
 from pathlib import Path
 
+from database.episodes import normalize_published_at
 from utils.text import is_timezone_drift, normalize_title_for_match
 from utils.time import parse_iso_utc, utc_now_iso
 
@@ -906,7 +907,6 @@ class SchemaMixin(DeferredUpgradeMixin):
         # Backfill: pre-v1.0.41 rows may store RFC 2822 dates which break
         # SQLite lexicographic sorting.  After first run this is a no-op.
         try:
-            from database.episodes import normalize_published_at
             cursor = conn.execute(
                 "SELECT id, published_at FROM episodes "
                 "WHERE published_at IS NOT NULL "
@@ -3241,7 +3241,6 @@ class SchemaMixin(DeferredUpgradeMixin):
     @staticmethod
     def _normalize_queue_published_at(conn) -> int:
         """Rewrite queue published_at values that are not canonical ISO; unreadable ones stay as they are."""
-        from database.episodes import normalize_published_at
         fixed = 0
         for row in conn.execute(
             "SELECT id, published_at FROM auto_process_queue "
