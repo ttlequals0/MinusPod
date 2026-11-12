@@ -16,7 +16,7 @@ import secrets
 from flask import Request, Response, request, session
 
 import config
-from api.auth_state import AUTH_HOOK_EXEMPT_ENDPOINTS, current_auth
+from api.auth_state import AUTH_HOOK_EXEMPT_ENDPOINTS, cookie_auth, current_auth
 
 
 CSRF_COOKIE_NAME = 'minuspod_csrf'
@@ -45,7 +45,8 @@ def apply_csrf_cookie(response: Response, cookie_secure: bool) -> Response:
         return response
     if request.endpoint in AUTH_HOOK_EXEMPT_ENDPOINTS:
         return response
-    if not current_auth().signed_in:
+    state = cookie_auth()
+    if state is None or not state.signed_in:
         return response
     token = get_or_create_token()
     existing = response.headers.get('Set-Cookie', '')

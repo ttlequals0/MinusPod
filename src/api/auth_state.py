@@ -6,7 +6,7 @@ import os
 import time
 from dataclasses import dataclass
 
-from flask import g, has_request_context, jsonify, request, session
+from flask import g, has_request_context, request, session
 
 from config import get_env_backed_int
 from database import Database
@@ -18,11 +18,14 @@ AUTH_GENERATION_KEY = 'auth_session_generation'
 SESSION_GENERATION_KEY = 'auth_generation'
 SESSION_REMEMBERED_KEY = 'auth_remembered'
 SESSION_LAST_USED_KEY = 'auth_last_used'
+# Any of these in the session means a check is needed before cookies are written.
+_AUTH_MARKER_KEYS = ('authenticated', SESSION_GENERATION_KEY, SESSION_LAST_USED_KEY)
 LAST_USED_REFRESH_SECONDS = 60
 CLOCK_SKEW_SECONDS = 60
 # Probes answer without the session check so a database failure cannot turn them into a 500.
 AUTH_HOOK_EXEMPT_ENDPOINTS = frozenset({'api.health_live', 'api.health_check'})
 _FAILURE_LOGGED = 'auth_failure_logged'
+_PENDING = 'auth_pending'
 
 
 @dataclass(frozen=True)
@@ -111,25 +114,52 @@ def refresh_auth(db=None, state: AuthState | None = None) -> AuthState | None:
     return state
 
 
-def load_request_auth():
-    """Before-request hook: run the session check once; a failure answers 500 before the view."""
-    if request.endpoint in AUTH_HOOK_EXEMPT_ENDPOINTS:
-        return None
-    try:
-        refresh_auth()
-    except Exception as e:
-        g.pop('auth', None)
-        setattr(g, _FAILURE_LOGGED, True)
-        logger.error("Session check failed: %s: %s", type(e).__name__, e)
-        if request.path.startswith('/api/'):
-            return jsonify({'error': 'Internal server error', 'status': 500}), 500
-        return 'Internal Server Error', 500
-    return None
+def load_request_auth() -> None:
+    """Before-request hook: mark this request's session for a check on first use, without a database read."""
+    if request.endpoint not in AUTH_HOOK_EXEMPT_ENDPOINTS:
+        setattr(g, _PENDING, True)
 
 
 def stored_auth() -> AuthState | None:
-    """The auth state the request hook stored, or None."""
+    """The auth state already resolved for this request, or None."""
     return g.get('auth') if has_request_context() else None
+
+
+def _record_failure(exc: Exception) -> None:
+    g.pop('auth', None)
+    g.pop(_PENDING, None)
+    setattr(g, _FAILURE_LOGGED, True)
+    logger.error("Session check failed: %s: %s", type(exc).__name__, exc)
+
+
+def resolve_auth() -> AuthState | None:
+    """Run the pending session check once and cache it; None when it failed or the hook never ran."""
+    state = stored_auth()
+    if state is None and has_request_context() and g.get(_PENDING):
+        try:
+            state = refresh_auth()
+        except Exception as exc:
+            _record_failure(exc)
+            return None
+        g.pop(_PENDING, None)
+    return state
+
+
+def _session_has_auth_marker() -> bool:
+    return any(session.get(key) is not None for key in _AUTH_MARKER_KEYS)
+
+
+def cookie_auth() -> AuthState | None:
+    """State for cookie decisions: checked only when the session carries a sign-in marker."""
+    state = stored_auth()
+    if state is None and has_request_context() and g.get(_PENDING) and _session_has_auth_marker():
+        state = resolve_auth()
+    return state
+
+
+def auth_check_failed() -> bool:
+    """Whether this request's session check raised."""
+    return has_request_context() and bool(g.get(_FAILURE_LOGGED)) and stored_auth() is None
 
 
 def note_missing_auth() -> None:
@@ -142,8 +172,8 @@ def note_missing_auth() -> None:
 
 
 def current_auth() -> AuthState:
-    """This request's auth state as the request hook stored it."""
-    state = stored_auth()
+    """This request's auth state, checked on first use; signed out when the check is unavailable."""
+    state = resolve_auth()
     if state is None:
         note_missing_auth()
         return _HOOK_MISSING

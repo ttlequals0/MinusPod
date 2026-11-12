@@ -28,7 +28,7 @@ import defusedxml
 # handling through xml.sax, so this also hardens RSS ingestion.
 defusedxml.defuse_stdlib()
 
-from flask import Flask
+from flask import Flask, request
 from flask_compress import Compress
 
 import config
@@ -599,13 +599,10 @@ def _attach_request_id():
 
 @app.before_request
 def _check_session():
-    """Run the session check once before the limiter, auth, CSRF and views; it reads settings even for anonymous requests."""
-    from flask import request
-    from main_app.routes import PUBLIC_FEED_ENDPOINTS
+    """Mark the session for one check on first use; anonymous page requests then read no settings."""
     # Public feed endpoints never read the session, so their responses stay cacheable.
     if request.endpoint not in PUBLIC_FEED_ENDPOINTS:
-        return load_request_auth()
-    return None
+        load_request_auth()
 
 
 init_limiter(app)
@@ -687,7 +684,7 @@ def _apply_security_headers(response):
     return response
 
 # Register routes from routes module
-from main_app.routes import register_routes
+from main_app.routes import PUBLIC_FEED_ENDPOINTS, register_routes
 register_routes(app)
 limiter.exempt(app.view_functions['serve_ui'])
 

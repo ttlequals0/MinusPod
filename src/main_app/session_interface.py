@@ -5,17 +5,25 @@ from flask.sessions import SecureCookieSessionInterface
 from itsdangerous import BadSignature
 
 from api.auth_state import (
-    SESSION_LAST_USED_KEY, SESSION_REMEMBERED_KEY, session_limit_seconds,
-    valid_last_used,
+    SESSION_LAST_USED_KEY, SESSION_REMEMBERED_KEY, auth_check_failed, cookie_auth,
+    session_limit_seconds, valid_last_used,
 )
 
 
 class IdleExpiryCookieSessionInterface(SecureCookieSessionInterface):
     """Per-session cookie expiry, and a signing-time last-used for pre-upgrade cookies."""
 
+    def save_session(self, app, session, response):
+        # Resolve first so an expired or revoked session is deleted, not re-signed empty.
+        cookie_auth()
+        return super().save_session(app, session, response)
+
     def should_set_cookie(self, app, session):
-        # Without a session check this request (probes, feeds, a failed check) only a change is saved.
-        if g.get('auth') is None:
+        state = cookie_auth()
+        if auth_check_failed():
+            return False
+        # Without a session check (anonymous, probes, feeds) only a change is saved.
+        if state is None:
             return session.modified
         return super().should_set_cookie(app, session)
 

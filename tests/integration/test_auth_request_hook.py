@@ -5,6 +5,7 @@ import logging
 import sqlite3
 from datetime import datetime, timezone
 from email.utils import parsedate_to_datetime
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
@@ -129,12 +130,58 @@ def test_a_failing_hook_answers_500_without_running_the_view(client, db, clock, 
     assert len(errors) == 1 and 'OperationalError' in errors[0].getMessage()
 
 
-def test_a_failing_hook_on_a_page_answers_500(client, db, clock, monkeypatch):
+def test_a_failing_lazy_check_on_a_page_keeps_the_page(client, db, clock, monkeypatch, caplog):
+    normal = client.get('/ui/')
     _signed_in(client, db, clock)
-    monkeypatch.setattr(auth_state, 'check_session', lambda _db: 1 / 0)
-    resp = client.get('/ui/')
-    assert resp.status_code == 500
+
+    def boom(_db):
+        raise sqlite3.OperationalError('database is locked')
+    monkeypatch.setattr(auth_state, 'check_session', boom)
+    with caplog.at_level(logging.ERROR):
+        resp = client.get('/ui/')
+    assert (resp.status_code, resp.data) == (normal.status_code, normal.data)
     assert resp.headers.getlist('Set-Cookie') == []
+    errors = _errors(caplog)
+    assert len(errors) == 1 and 'OperationalError' in errors[0].getMessage()
+
+
+def _count_reads(monkeypatch):
+    reads = []
+    real_get = Database.get_setting
+    monkeypatch.setattr(Database, 'get_setting', lambda self, key: (reads.append(key), real_get(self, key))[1])
+    return reads
+
+
+ASSET = '/ui/assets/' + next(p.name for p in (Path(__file__).resolve().parents[2] / 'static/ui/assets').iterdir())
+
+
+@pytest.mark.parametrize('path', ['/ui/', ASSET, '/no/such/page'])
+def test_anonymous_page_requests_read_no_settings(client, monkeypatch, path):
+    reads = _count_reads(monkeypatch)
+    resp = client.get(path)
+    assert reads == []
+    assert resp.headers.getlist('Set-Cookie') == []
+
+
+@pytest.mark.parametrize('path', ['/ui/', ASSET])
+def test_anonymous_page_requests_survive_a_database_failure(client, db_down, path):
+    resp = client.get(path)
+    assert resp.status_code == 200
+    assert resp.headers.getlist('Set-Cookie') == []
+
+
+def test_signed_in_page_gets_a_csrf_cookie_with_one_read_per_setting(client, db, clock, monkeypatch):
+    _signed_in(client, db, clock)
+    reads = _count_reads(monkeypatch)
+    resp = client.get('/ui/')
+    assert _set_cookie(resp, CSRF_COOKIE_NAME) is not None
+    assert sorted(reads) == sorted(['app_password', auth_state.AUTH_GENERATION_KEY,
+                                    'session_lifetime_hours'])
+
+
+def test_no_password_anonymous_status_is_authenticated(client, db):
+    db.set_setting('app_password', '')
+    assert client.get('/api/v1/auth/status').get_json() == {'passwordSet': False, 'authenticated': True}
 
 
 @pytest.fixture

@@ -15,7 +15,7 @@ from functools import wraps
 import config
 from config import normalize_model_key, LOCAL_UPLOAD_MAX_MB_DEFAULT
 from api.auth_state import (
-    AUTH_HOOK_EXEMPT_ENDPOINTS, note_missing_auth, password_is_set, stored_auth,
+    AUTH_HOOK_EXEMPT_ENDPOINTS, note_missing_auth, password_is_set, resolve_auth,
 )
 from api.csrf import validate as csrf_validate
 from llm_client import LLMDisabledError
@@ -175,7 +175,7 @@ def check_auth():
     if request.endpoint in AUTH_HOOK_EXEMPT_ENDPOINTS:
         return None
 
-    state = stored_auth()
+    state = resolve_auth()
     if state is None:
         # Fail closed: a missing session check must never read as a real signed-out state.
         note_missing_auth()
