@@ -558,6 +558,7 @@ describe('AdReviewModal single-span mode', () => {
     expect(screen.getByRole('heading', { name: 'Edit edges' })).toBeDefined();
     expect(screen.getByRole('heading', { name: 'Edit edges' }).className).not.toContain('hidden');
     expect(screen.getByRole('button', { name: 'Save audio' })).toBeDefined();
+    expect(screen.getByText("Save audio rebuilds this pattern's audio from the selection.")).toBeDefined();
     for (const name of [/Split/, /Skip/, /Confirm/, /Not an ad/, /Add new ad/, 'Processed', 'Original']) {
       expect(screen.queryByRole('button', { name })).toBeNull();
     }

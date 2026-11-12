@@ -3,6 +3,7 @@ import { mediaUrl } from '../utils/mediaUrl';
 import { DEMO_AUDIO_TOOLTIP } from '../demo/copy';
 import { useDraftClose } from '../hooks/useDraftClose';
 import { isTopDialog, useEscape, useFocusTrap } from './Modal';
+import SpanEditorFooter from './SpanEditorFooter';
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { AlertCircle, Plus, RotateCcw } from 'lucide-react';
@@ -1694,28 +1695,13 @@ function AdReviewModal({
               </div>
             </>
           ) : mode === 'span' ? (
-            <>
-              <div className="min-w-0 text-xs text-muted-foreground">
-                {spanError
-                  ? <span role="alert" className="text-destructive">{spanError}</span>
-                  : 'Save audio rebuilds the fingerprint from this span.'}
-              </div>
-              <div className="flex items-center gap-2">
-                <button type="button" onClick={requestClose} disabled={spanSaving}
-                  className={`${btnBase} ${btnOutline}`}>
-                  Cancel
-                </button>
-                <DemoDisabled>
-                  <button
-                    type="button"
-                    disabled={spanSaving || boundaryError !== null || !onSaveSpan}
-                    onClick={saveSpan}
-                    className={`${btnBase} ${btnPrimary}`}>
-                    {spanSaving ? 'Saving audio...' : 'Save audio'}
-                  </button>
-                </DemoDisabled>
-              </div>
-            </>
+            <SpanEditorFooter
+              error={spanError}
+              saving={spanSaving}
+              canSave={boundaryError === null && !!onSaveSpan}
+              onCancel={requestClose}
+              onSave={saveSpan}
+            />
           ) : (
             <>
               <div className="flex items-center gap-2 sm:gap-3 min-w-0">
