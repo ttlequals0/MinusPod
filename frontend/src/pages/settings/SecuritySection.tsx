@@ -5,6 +5,7 @@ import CollapsibleSection from '../../components/CollapsibleSection';
 import { setPassword, removePassword, AuthStatus } from '../../api/auth';
 import { getSettings, updateSettings } from '../../api/settings';
 import { getErrorMessage } from '../../api/client';
+import DraftNumberInput, { parseOptionalNumber } from '../../components/DraftNumberInput';
 import { RemovableChip } from '../../components/RemovableChip';
 import { btnBase, btnLg, btnPrimary, btnSecondary, btnOutline } from '../../components/buttonStyles';
 import { inputBase, labelBase } from '../../components/fieldStyles';
@@ -13,6 +14,14 @@ import { uiUrl } from '../../urlPrefix';
 import { DemoDisabled } from '../../components/DemoDisabled';
 
 const MIN_PASSWORD_LENGTH = 12;
+const HOURS_RANGE = { min: 1, max: 8760 };
+const DAYS_RANGE = { min: 1, max: 365 };
+// Defaults used until the server reports the keys (older servers omit them).
+const DEFAULT_HOURS = 24;
+const DEFAULT_DAYS = 30;
+
+const isInRange = (v: number | null | undefined, { min, max }: { min: number; max: number }) =>
+  v != null && Number.isInteger(v) && v >= min && v <= max;
 
 interface SecuritySectionProps {
   cryptoReady?: boolean;
@@ -73,13 +82,45 @@ function SecuritySection({
     });
   };
 
+  const savedHours = settings?.sessionLifetimeHours?.value ?? DEFAULT_HOURS;
+  const savedDays = settings?.sessionRememberDays?.value ?? DEFAULT_DAYS;
+  // undefined means untouched; null means cleared or not a number.
+  const [hoursDraft, setHoursDraft] = useState<number | null | undefined>(undefined);
+  const [daysDraft, setDaysDraft] = useState<number | null | undefined>(undefined);
+  const [sessionSaved, setSessionSaved] = useState(false);
+  const [sessionError, setSessionError] = useState<string | null>(null);
+  const hours = hoursDraft === undefined ? savedHours : hoursDraft;
+  const days = daysDraft === undefined ? savedDays : daysDraft;
+  const hoursValid = isInRange(hours, HOURS_RANGE);
+  const daysValid = isInRange(days, DAYS_RANGE);
+  const sessionDirty = hours !== savedHours || days !== savedDays;
+
+  const sessionMutation = useMutation({
+    mutationFn: (payload: { sessionLifetimeHours: number; sessionRememberDays: number }) => updateSettings(payload),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['settings'] });
+      setHoursDraft(undefined);
+      setDaysDraft(undefined);
+      setSessionSaved(true);
+    },
+    onError: (e) => setSessionError(getErrorMessage(e, 'Could not save session lengths.')),
+  });
+
+  const saveSessionLengths = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!hoursValid || !daysValid || sessionMutation.isPending) return;
+    setSessionError(null);
+    setSessionSaved(false);
+    sessionMutation.mutate({ sessionLifetimeHours: hours as number, sessionRememberDays: days as number });
+  };
+
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [passwordError, setPasswordError] = useState<string | null>(null);
   const [passwordSuccess, setPasswordSuccess] = useState<string | null>(null);
   const [isChangingPassword, setIsChangingPassword] = useState(false);
-  useUnsavedChanges(!!(agentInput || currentPassword || newPassword || confirmPassword));
+  useUnsavedChanges(!!(agentInput || currentPassword || newPassword || confirmPassword) || sessionDirty);
 
   const handleLogout = async () => {
     await logout();
@@ -233,6 +274,82 @@ function SecuritySection({
               : 'Set password'}
           </button>
         </DemoDisabled>
+      </form>
+
+      <form onSubmit={saveSessionLengths} noValidate className="mt-6 pt-6 border-t border-border">
+        <h3 className={`${subHeading} mb-1`}>Session length</h3>
+        <p className="text-sm text-muted-foreground mb-4">
+          How long a sign-in stays valid before the password is asked for again.
+        </p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label htmlFor="sessionLifetimeHours" className={labelBase}>Session length (hours)</label>
+            <DraftNumberInput
+              id="sessionLifetimeHours"
+              value={hours}
+              fallback={null}
+              parse={parseOptionalNumber}
+              onChange={(v) => { setHoursDraft(v); setSessionSaved(false); }}
+              min={HOURS_RANGE.min}
+              max={HOURS_RANGE.max}
+              step={1}
+              disabled={sessionMutation.isPending}
+              ariaInvalid={!hoursValid}
+              ariaDescribedBy={`sessionLifetimeHours-help${!hoursValid ? ' sessionLifetimeHours-error' : ''}`}
+              className="w-full aria-invalid:border-destructive aria-invalid:ring-2 aria-invalid:ring-destructive"
+            />
+            <p id="sessionLifetimeHours-help" className="mt-1 text-sm text-muted-foreground">
+              How long a normal sign-in stays valid, counted from its last use.
+            </p>
+            {!hoursValid && (
+              <p id="sessionLifetimeHours-error" role="alert" className="mt-1 text-sm text-destructive">
+                Enter a whole number of hours from {HOURS_RANGE.min} to {HOURS_RANGE.max}.
+              </p>
+            )}
+          </div>
+          <div>
+            <label htmlFor="sessionRememberDays" className={labelBase}>Remember me length (days)</label>
+            <DraftNumberInput
+              id="sessionRememberDays"
+              value={days}
+              fallback={null}
+              parse={parseOptionalNumber}
+              onChange={(v) => { setDaysDraft(v); setSessionSaved(false); }}
+              min={DAYS_RANGE.min}
+              max={DAYS_RANGE.max}
+              step={1}
+              disabled={sessionMutation.isPending}
+              ariaInvalid={!daysValid}
+              ariaDescribedBy={`sessionRememberDays-help${!daysValid ? ' sessionRememberDays-error' : ''}`}
+              className="w-full aria-invalid:border-destructive aria-invalid:ring-2 aria-invalid:ring-destructive"
+            />
+            <p id="sessionRememberDays-help" className="mt-1 text-sm text-muted-foreground">
+              Applies only to sign-ins that tick the Remember me box; counted from last use.
+            </p>
+            {!daysValid && (
+              <p id="sessionRememberDays-error" role="alert" className="mt-1 text-sm text-destructive">
+                Enter a whole number of days from {DAYS_RANGE.min} to {DAYS_RANGE.max}.
+              </p>
+            )}
+          </div>
+        </div>
+        <div className="mt-4 flex flex-wrap items-center gap-3">
+          <DemoDisabled>
+            <button
+              type="submit"
+              disabled={!sessionDirty || !hoursValid || !daysValid || sessionMutation.isPending}
+              className={`${btnBase} ${btnPrimary}`}
+            >
+              {sessionMutation.isPending ? 'Saving...' : 'Save session lengths'}
+            </button>
+          </DemoDisabled>
+          {sessionSaved && (
+            <span role="status" className="text-sm text-success">Session lengths saved.</span>
+          )}
+        </div>
+        {sessionError && (
+          <p role="alert" className="mt-2 text-sm text-destructive">{sessionError}</p>
+        )}
       </form>
 
       <div className="mt-6 pt-6 border-t border-border">

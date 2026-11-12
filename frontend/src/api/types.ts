@@ -963,6 +963,8 @@ export interface Settings {
   feedAuthKey: string | null;
   // User agents served original audio instead of triggering JIT processing.
   jitBlockedUserAgents: { value: string[]; isDefault: boolean };
+  sessionLifetimeHours: SettingValueNumber;
+  sessionRememberDays: SettingValueNumber;
   opmlModifiedUrl: string | null;
   opmlOriginalUrl: string | null;
   audioBitrate: SettingValue;
@@ -1319,6 +1321,8 @@ export interface UpdateSettingsPayload {
   downloadGeoLookupEnabled?: boolean;
   downloadHistoryRetentionDays?: number;
   jitBlockedUserAgents?: string[];
+  sessionLifetimeHours?: number;
+  sessionRememberDays?: number;
   audioBitrate?: string;
   audioEncoderCompressionLevel?: string;
   audioReplacementSoundEnabled?: boolean | null;
