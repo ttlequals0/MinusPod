@@ -354,7 +354,7 @@ def test_a_row_changed_between_the_page_read_and_write_is_still_redacted(temp_db
 
     def units():
         out = []
-        for table, column, rewrite, where, params in real():
+        for key, table, column, rewrite, where, params in real():
             if (table, column) == ('episodes', 'error_message'):
                 def hooked(value, inner=rewrite):
                     if not fired:
@@ -362,7 +362,7 @@ def test_a_row_changed_between_the_page_read_and_write_is_still_redacted(temp_db
                         _compose_on_another_connection(temp_db)
                     return inner(value)
                 rewrite = hooked
-            out.append((table, column, rewrite, where, params))
+            out.append((key, table, column, rewrite, where, params))
         return out
 
     monkeypatch.setattr(deferred, 'redaction_units', units)
@@ -389,3 +389,74 @@ def test_a_step_whose_owner_lost_the_claim_cannot_mark_itself_done(temp_db, monk
     assert not conn.execute("SELECT 1 FROM schema_migrations WHERE name = ?", (GATE,)).fetchone()
     assert conn.execute("SELECT owner, state FROM deferred_upgrade_steps WHERE name = ?",
                         (GATE,)).fetchone()[:] == ('someone-else', 'running')
+
+
+def _error_cells(db):
+    return {cell: value for cell, value in _snapshot(db).items()
+            if (cell[0], cell[2]) in set(EXPECTED_TEXT) | {('settings', 'value')}}
+
+
+def _reference_run(tmp_path, name):
+    db = _seeded_copy(tmp_path, name)
+    assert db.run_deferred_upgrade_steps()
+    return _error_cells(db)
+
+
+def _killed_run(db, pages):
+    with pytest.raises(Killed):
+        db.run_deferred_upgrade_steps(clock=lambda: 1000.0, pause=_kill_after(pages))
+    db.get_connection().rollback()
+
+
+def test_a_resume_after_the_units_were_reordered_covers_every_unit(tmp_path, monkeypatch):
+    monkeypatch.setattr(deferred, 'REDACT_PAGE_ROWS', 1)
+    reference = _reference_run(tmp_path, 'reference')
+    db = _seeded_copy(tmp_path, 'reordered')
+    _killed_run(db, 6)
+    real = deferred.redaction_units
+    monkeypatch.setattr(deferred, 'redaction_units', lambda: list(reversed(real())))
+    assert db.run_deferred_upgrade_steps(clock=lambda: 5000.0)
+    assert _error_cells(db) == reference
+
+
+def test_a_resume_after_a_unit_was_inserted_before_the_saved_one_skips_nothing(tmp_path, monkeypatch):
+    monkeypatch.setattr(deferred, 'REDACT_PAGE_ROWS', 1)
+    reference = _reference_run(tmp_path, 'reference')
+    db = _seeded_copy(tmp_path, 'inserted')
+    _killed_run(db, 6)
+    real = deferred.redaction_units
+    extra = ('col:episodes.title_probe', 'episodes', 'no_such_column', redact_stored_text_stub, '1', ())
+    monkeypatch.setattr(deferred, 'redaction_units', lambda: [extra, *real()])
+    assert db.run_deferred_upgrade_steps(clock=lambda: 5000.0)
+    assert _error_cells(db) == reference
+
+
+def redact_stored_text_stub(value):
+    return value
+
+
+def test_an_old_numeric_cursor_restarts_the_step_with_one_info_line(tmp_path, monkeypatch, caplog):
+    monkeypatch.setattr(deferred, 'REDACT_PAGE_ROWS', 1)
+    reference = _reference_run(tmp_path, 'reference')
+    db = _seeded_copy(tmp_path, 'numeric')
+    _killed_run(db, 3)
+    conn = db.get_connection()
+    conn.execute("UPDATE deferred_upgrade_steps SET cursor = ? WHERE name = ?", ('{"unit": 4, "last": 1}', GATE))
+    conn.commit()
+    with caplog.at_level(logging.INFO):
+        assert db.run_deferred_upgrade_steps(clock=lambda: 5000.0)
+    assert len([r for r in caplog.records if 'cannot resume' in r.getMessage()]) == 1
+    assert _error_cells(db) == reference
+
+
+def test_an_unknown_saved_key_restarts_the_step(tmp_path, monkeypatch):
+    monkeypatch.setattr(deferred, 'REDACT_PAGE_ROWS', 1)
+    reference = _reference_run(tmp_path, 'reference')
+    db = _seeded_copy(tmp_path, 'unknown')
+    _killed_run(db, 3)
+    conn = db.get_connection()
+    conn.execute("UPDATE deferred_upgrade_steps SET cursor = ? WHERE name = ?",
+                 ('{"unit": "col:gone.column", "last": 1, "done": []}', GATE))
+    conn.commit()
+    assert db.run_deferred_upgrade_steps(clock=lambda: 5000.0)
+    assert _error_cells(db) == reference

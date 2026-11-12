@@ -228,12 +228,10 @@ def test_no_raw_sql_writes_a_stored_error_column_outside_the_accessors():
     assert not offenders, offenders
 
 
-def test_redaction_units_keep_their_persisted_order():
-    units = redaction_units()
-    assert [(u[0], u[1]) for u in units[-3:]] == [
-        ('episodes', 'detection_degraded'), ('settings', 'value'), ('processing_history', 'processing_stats_json')]
-    assert [(u[0], u[1]) for u in units[:12]] == list(STORED_ERROR_COLUMNS[:12])
-    assert units[-2][4] == ('failover\\_probe:%',)
+def test_redaction_unit_keys_are_unique_and_cover_every_stored_column():
+    keys = [unit[0] for unit in redaction_units()]
+    assert len(keys) == len(set(keys))
+    assert {f'col:{table}.{column}' for table, column in STORED_ERROR_COLUMNS} <= set(keys)
 
 
 def test_stats_json_error_fields_are_redacted_on_write(temp_db):
