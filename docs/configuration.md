@@ -70,7 +70,7 @@ Settings > AI and processing > Audio fingerprinting controls how stored ad finge
 | Setting | Meaning | Default | Allowed | Why this default |
 |---------|---------|---------|---------|------------------|
 | Enable audio fingerprinting | Turns fingerprint matching on or off for the install | On | On or off | Matching is cheap and needs no model |
-| Match strictness | Minimum similarity for a match | 65% | 65% to 95% | The value used before the setting existed. Below 65% the setting had no measured effect on the main matcher in synthetic tests, not a real library. Raising it gives fewer false matches and more missed repeats |
+| Match strictness | Minimum similarity for a match | 65% | 65% to 95% | The value used before the setting existed. In synthetic tests a value below 65% had no measured effect on the matcher. Raising it gives fewer false matches and more missed repeats |
 | Minimum coverage | Share of the stored ad that must be found | 50% | 10% to 100% | Starting value. Raising it requires more of the ad to be found before a match counts |
 | Gap tolerance | Longest dropout bridged inside one match | 3.5 s | 0 to 15 s | Starting value. Raising it bridges longer dropouts such as a swapped-in sound, and a longer damaged stretch than this splits the match |
 | Minimum ad length | Shortest span that gets a fingerprint | 5 s | 3 to 30 s | The shortest span fingerprinted before the setting existed |

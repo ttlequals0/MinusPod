@@ -32,7 +32,7 @@ release notes.
 
 ### Changed
 
-- Every rate-limited 429 from the API carries a whole-second `Retry-After` header and `retryAfterSeconds`, and rate-limited responses on routes outside the API, such as feeds, carry `Retry-After`. The web app no longer waits out a long `Retry-After`: it retries a rate-limited read only when the wait is 5 seconds or less.
+- Every rate-limited 429 from the API carries a whole-second `Retry-After` header and `retryAfterSeconds`, and rate-limited responses on routes outside the API, such as feeds, carry `Retry-After`. The web app retries a rate-limited read only when the wait is 5 seconds or less.
 - `GET /api/v1/settings` reports `min` and `max` on the four audio fingerprint numbers and the two session lengths, `step` on the fingerprint numbers, and `options` on `queueOrder`. The Settings page reads its limits from there. Configuration import rejects an out-of-range audio fingerprint or session value with a message naming the setting, for example `fingerprint_min_coverage must be a number between 0.1 and 1`.
 - `PATCH /api/v1/feeds/{slug}` trims `networkIdOverride`, treats a blank value as clearing it, and answers 400 when a changed value is not a string of at most 100 characters. Existing longer values keep working. Network ids already stored on patterns and feed network overrides are trimmed once at startup, and a blank one becomes unset.
 - The health probes `/api/v1/health/live` and `/api/v1/health` never set cookies and keep answering when a settings read fails.

@@ -163,7 +163,7 @@ A fingerprint match is measured at one alignment. Where the audio stops agreeing
 - When only part of a stored ad is in the episode, a match edge rarely runs into show audio, and then only by a few seconds. This was rare in synthetic tests.
 - When an ad and the show share a music bed or other steady audio, the ad's pattern can also match show audio elsewhere in the episode. A match must agree clearly better than the same stretch shifted a few seconds either way. With that check, a false cut of this kind was still seen in a small share of synthetic test ad breaks.
 - A pattern taken from near-uniform audio can be stored and then missed. In synthetic tests, a few stored patterns were not found in a copy with some bits flipped.
-- A false match on unrelated audio is rare. The figures here come from synthetic tests, not from a real library, and no test in the repository reproduces them.
+- A false match on unrelated audio is rare. These limits were observed in synthetic tests. A real library has not been measured yet.
 - The match strictness setting starts at 0.65. Raising it to about 0.70 changes little.
 
 **Defined vs. Auto-Learned Patterns:**
