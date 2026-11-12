@@ -83,6 +83,7 @@ from database.schema.tables import (
     DOWNLOAD_INDEX_SQL, EPISODE_FEED_DETAILS_TRIGGERS, FINGERPRINT_MATCH_INDEXES, PATTERN_CLEANUP_INDEXES, SCHEMA_SQL,
     TABLE_DDL,
 )
+from database.fingerprint_matches import BACKFILL_GATE
 from database.patterns import _parse_bounds
 from database.search import (
     SEARCH_CHANGE_JOURNAL_DDL,
@@ -2623,6 +2624,23 @@ class SchemaMixin:
         except Exception as e:
             conn.rollback()
             logger.error(f"review prompt fingerprint wording update failed: {e}")
+
+        self._backfill_fingerprint_matches(conn)
+
+    def _backfill_fingerprint_matches(self, conn):
+        """One-shot: match history from stored markers; a failure logs once and retries next start."""
+        if conn.execute("SELECT 1 FROM schema_migrations WHERE name = ?", (BACKFILL_GATE,)).fetchone():
+            return
+        started = time.monotonic()
+        try:
+            written = self.backfill_fingerprint_matches_from_markers()
+        except Exception as e:
+            conn.rollback()
+            logger.error(f"Fingerprint match history backfill failed, retrying on the next start: "
+                         f"{type(e).__name__}: {e}")
+            return
+        logger.info(f"Migration: Backfilled fingerprint match history, {written} rows in "
+                    f"{time.monotonic() - started:.2f}s")
 
     def _redact_column_in_batches(self, conn, table, column, rewrite, where='1', params=()):
         """Rewrite one column page by page, committing each page; returns the number of rows changed."""

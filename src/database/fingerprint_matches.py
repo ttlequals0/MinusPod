@@ -4,12 +4,16 @@ import logging
 
 from config import is_keep_like, is_pending_review
 from database.stats import _date_range_clauses
-from utils.markers import MERGED_MEMBER_SPANS, finite_number, marker_stages
+from utils.markers import MERGED_MEMBER_SPANS, finite_number, marker_stages, parse_ad_markers
 from utils.pattern_scope import pattern_passes_scope
+from utils.time import ISO_FORMAT, parse_iso_utc, utc_now_iso
 
 logger = logging.getLogger(__name__)
 
 SUMMARY_ID_CHUNK = 900
+BACKFILL_GATE = 'backfill_fingerprint_matches_v1'
+# A stored span is taken as a fingerprint's origin only when it is this close to the fingerprint's length.
+SOURCE_LENGTH_RATIO = (0.5, 2.0)
 
 # A rejection covers a match only when they overlap by more than half the shorter span.
 _OVERLAP_SQL = "(MIN(match_end, :end) - MAX(match_start, :start))"
@@ -50,6 +54,48 @@ def _mostly_overlaps(lo_a: float, hi_a: float, lo_b: float, hi_b: float) -> bool
     return (min(hi_a, hi_b) - max(lo_a, lo_b)) * 2 > min(hi_a - lo_a, hi_b - lo_b)
 
 
+def _iso_or(value, fallback):
+    """A timestamp normalized to the stored UTC form, else the fallback."""
+    moment = parse_iso_utc(value)
+    return moment.strftime(ISO_FORMAT) if moment else fallback
+
+
+def plan_fingerprint_matches(markers: list[dict]) -> list[tuple]:
+    """(pattern_id, (lo, hi), member, audio_only) for each fingerprint member of a detected ad."""
+    planned = []
+    for marker in markers:
+        if not _is_detected_ad(marker):
+            continue
+        audio_only = marker_stages(marker) == ['fingerprint']
+        for member in _fingerprint_members(marker):
+            pattern_id = member.get('pattern_id')
+            bounds = _member_bounds(member)
+            if pattern_id is None or bounds is None:
+                continue
+            planned.append((pattern_id, bounds, member, audio_only))
+    return planned
+
+
+def fingerprint_match_rows(planned: list[tuple], patterns: dict, scope: dict | None,
+                           rejected=()) -> list[tuple]:
+    """(pattern_id, lo, hi, similarity, coverage, in_scope, audio_only) to store, one per distinct span."""
+    rows, seen = [], set()
+    for pattern_id, (lo, hi), member, audio_only in planned:
+        pattern = patterns.get(pattern_id)
+        if pattern is None or (pattern_id, lo, hi) in seen:
+            continue
+        if any(r['pattern_id'] == pattern_id and _mostly_overlaps(r['match_start'], r['match_end'], lo, hi)
+               for r in rejected):
+            continue
+        seen.add((pattern_id, lo, hi))
+        in_scope = pattern_passes_scope(
+            pattern['scope'], pattern['network_id'], pattern['podcast_id'], pattern['source'],
+            pattern['sponsor_tags'], **scope)
+        rows.append((pattern_id, lo, hi, finite_number(member.get('fingerprint_similarity')),
+                     finite_number(member.get('fingerprint_coverage')), in_scope, audio_only))
+    return rows
+
+
 class FingerprintMatchMixin:
     """Per-pattern record of where a fingerprint matched, and which matches were rejected."""
 
@@ -83,17 +129,7 @@ class FingerprintMatchMixin:
     def record_fingerprint_matches_from_markers(self, podcast_slug: str, episode_id: str,
                                                 markers: list[dict]) -> int:
         """Replace an episode's match rows from its final markers, keeping rejected rows."""
-        planned = []
-        for marker in markers:
-            if not _is_detected_ad(marker):
-                continue
-            audio_only = marker_stages(marker) == ['fingerprint']
-            for member in _fingerprint_members(marker):
-                pattern_id = member.get('pattern_id')
-                bounds = _member_bounds(member)
-                if pattern_id is None or bounds is None:
-                    continue
-                planned.append((pattern_id, bounds, member, audio_only))
+        planned = plan_fingerprint_matches(markers)
         scope = self._episode_scope(podcast_slug) if planned else None
         patterns = self._patterns_for_scope({p[0] for p in planned})
         with self.transaction(immediate=True) as conn:
@@ -106,24 +142,12 @@ class FingerprintMatchMixin:
                 "DELETE FROM audio_fingerprint_matches "
                 "WHERE podcast_slug = ? AND episode_id = ? AND rejected = 0",
                 (podcast_slug, episode_id))
-            written, seen = 0, set()
-            for pattern_id, (lo, hi), member, audio_only in planned:
-                pattern = patterns.get(pattern_id)
-                if pattern is None or (pattern_id, lo, hi) in seen:
-                    continue
-                if any(r['pattern_id'] == pattern_id and _mostly_overlaps(r['match_start'], r['match_end'], lo, hi)
-                       for r in rejected):
-                    continue
-                seen.add((pattern_id, lo, hi))
-                in_scope = pattern_passes_scope(
-                    pattern['scope'], pattern['network_id'], pattern['podcast_id'], pattern['source'],
-                    pattern['sponsor_tags'], **scope)
+            rows = fingerprint_match_rows(planned, patterns, scope, rejected)
+            for pattern_id, lo, hi, similarity, coverage, in_scope, audio_only in rows:
                 self._insert_fingerprint_match(
                     conn, pattern_id, episode_id, podcast_slug, lo, hi,
-                    finite_number(member.get('fingerprint_similarity')),
-                    finite_number(member.get('fingerprint_coverage')), in_scope, audio_only)
-                written += 1
-        return written
+                    similarity, coverage, in_scope, audio_only)
+        return len(rows)
 
     def _episode_scope(self, podcast_slug: str) -> dict:
         """The scope identifiers the matchers use for this feed."""
@@ -142,14 +166,18 @@ class FingerprintMatchMixin:
         if not pattern_ids:
             return {}
         tags_map = self.get_sponsor_tags_map()
-        marks = ','.join('?' * len(pattern_ids))
-        rows = self.get_connection().execute(
-            f"SELECT id, scope, network_id, podcast_id, source, sponsor_id "  # noqa: S608
-            f"FROM ad_patterns WHERE id IN ({marks})", sorted(pattern_ids)).fetchall()
-        return {r['id']: {'scope': r['scope'], 'network_id': r['network_id'],
-                          'podcast_id': r['podcast_id'], 'source': r['source'],
-                          'sponsor_tags': set(tags_map.get(r['sponsor_id'], []))}
-                for r in rows}
+        ids = sorted(pattern_ids)
+        found = {}
+        for i in range(0, len(ids), SUMMARY_ID_CHUNK):
+            chunk = ids[i:i + SUMMARY_ID_CHUNK]
+            rows = self.get_connection().execute(
+                f"SELECT id, scope, network_id, podcast_id, source, sponsor_id "  # noqa: S608
+                f"FROM ad_patterns WHERE id IN ({','.join('?' * len(chunk))})", chunk).fetchall()
+            for r in rows:
+                found[r['id']] = {'scope': r['scope'], 'network_id': r['network_id'],
+                                  'podcast_id': r['podcast_id'], 'source': r['source'],
+                                  'sponsor_tags': set(tags_map.get(r['sponsor_id'], []))}
+        return found
 
     def delete_fingerprint_matches_for_episode(self, podcast_slug: str, episode_id: str,
                                                keep_rejected: bool = False) -> int:
@@ -372,3 +400,111 @@ class FingerprintMatchMixin:
                 r['scope'], r['network_id'], r['podcast_id'], r['source'],
                 set(tags_map.get(r['sponsor_id'], [])), **scope)]
         return len(rows), sum(r['has_audio'] for r in rows)
+
+    def backfill_fingerprint_matches_from_markers(self) -> int:
+        """Write match history from stored markers and set the migration mark in one transaction."""
+        inserts = self._read_stored_match_history()
+        with self.transaction(immediate=True) as conn:
+            done = {(r[0], r[1]) for r in conn.execute(
+                "SELECT DISTINCT podcast_slug, episode_id FROM audio_fingerprint_matches")}
+            written = [row for row in inserts if (row[2], row[1]) not in done]
+            conn.executemany(
+                """INSERT INTO audio_fingerprint_matches
+                     (pattern_id, episode_id, podcast_slug, match_start, match_end, similarity,
+                      coverage, in_scope, audio_only, rejected, rejected_at, created_at)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""", written)
+            conn.executemany(
+                """UPDATE audio_fingerprints SET source_podcast_slug = ?, source_episode_id = ?,
+                     source_start = ?, source_end = ?
+                   WHERE pattern_id = ? AND source_episode_id IS NULL""",
+                [(*source, pattern_id) for pattern_id, source in self._origin_sources(written).items()])
+            conn.execute("INSERT OR IGNORE INTO schema_migrations (name) VALUES (?)", (BACKFILL_GATE,))
+        return len(written)
+
+    def _read_stored_match_history(self) -> list[tuple]:
+        """Rows to insert from every stored marker list, read outside any write transaction."""
+        conn = self.get_connection()
+        if conn.in_transaction:
+            conn.commit()
+        now = utc_now_iso()
+        planned_episodes = []
+        # Only a marker list that names the fingerprint stage can hold a fingerprint member.
+        cursor = conn.execute(
+            """SELECT e.id AS row_id, e.episode_id, p.slug, e.processed_at, d.ad_markers_json
+               FROM episode_details d
+               JOIN episodes e ON e.id = d.episode_id
+               JOIN podcasts p ON p.id = e.podcast_id
+               WHERE d.ad_markers_json LIKE '%"fingerprint"%'
+               ORDER BY e.id""")
+        for row in cursor:
+            markers = parse_ad_markers(row['ad_markers_json'])
+            if markers is None:
+                logger.warning("Skipped unreadable stored markers of episode row %s "
+                               "in the fingerprint match backfill", row['row_id'])
+                continue
+            planned = plan_fingerprint_matches(markers)
+            if planned:
+                planned_episodes.append((row['slug'], row['episode_id'],
+                                         _iso_or(row['processed_at'], now), planned))
+        patterns = self._patterns_for_scope({p[0] for _, _, _, planned in planned_episodes for p in planned})
+        rejections = self._stored_rejections()
+        scopes, inserts = {}, []
+        for slug, episode_id, created_at, planned in planned_episodes:
+            if slug not in scopes:
+                scopes[slug] = self._episode_scope(slug)
+            for pattern_id, lo, hi, similarity, coverage, in_scope, audio_only in fingerprint_match_rows(
+                    planned, patterns, scopes[slug]):
+                rejected_at = next((at for rlo, rhi, at in rejections.get((pattern_id, slug, episode_id), ())
+                                    if _mostly_overlaps(rlo, rhi, lo, hi)), None)
+                inserts.append((pattern_id, episode_id, slug, lo, hi, similarity, coverage, int(in_scope),
+                                int(audio_only), int(rejected_at is not None), rejected_at, created_at))
+        return inserts
+
+    def _stored_rejections(self) -> dict:
+        """{(pattern_id, slug, episode_id): [(start, end, rejected_at)]} from false-positive corrections, oldest first."""
+        found = {}
+        rows = self.get_connection().execute(
+            """SELECT c.pattern_id, p.slug, c.episode_id, c.original_bounds, c.created_at
+               FROM pattern_corrections c JOIN podcasts p ON p.id = c.podcast_id
+               WHERE c.correction_type = 'false_positive' AND c.pattern_id IS NOT NULL
+                 AND c.original_bounds IS NOT NULL
+               ORDER BY c.created_at, c.id""")
+        for row in rows:
+            try:
+                bounds = json.loads(row['original_bounds'])
+            except (TypeError, ValueError):
+                continue
+            lo = finite_number(bounds.get('start')) if isinstance(bounds, dict) else None
+            hi = finite_number(bounds.get('end')) if isinstance(bounds, dict) else None
+            if lo is None or hi is None or hi <= lo:
+                continue
+            found.setdefault((row['pattern_id'], row['slug'], row['episode_id']), []).append(
+                (lo, hi, _iso_or(row['created_at'], None)))
+        return found
+
+    def _origin_sources(self, rows: list[tuple]) -> dict:
+        """{pattern_id: (slug, episode_id, start, end)} for fingerprints whose origin episode holds a match."""
+        origins = self.get_connection().execute(
+            """SELECT af.pattern_id, af.duration, ap.created_from_episode_id AS episode_id,
+                      ap.scope, ap.podcast_id
+               FROM audio_fingerprints af JOIN ad_patterns ap ON ap.id = af.pattern_id
+               WHERE af.source_episode_id IS NULL AND ap.created_from_episode_id IS NOT NULL
+                 AND ap.created_from_episode_id != ''""").fetchall()
+        by_pattern = {}
+        for row in rows:
+            if not row[9]:
+                by_pattern.setdefault(row[0], []).append(row)
+        sources = {}
+        for origin in origins:
+            low, high = SOURCE_LENGTH_RATIO
+            candidates = sorted(
+                (r for r in by_pattern.get(origin['pattern_id'], ())
+                 if r[1] == origin['episode_id']
+                 and (origin['scope'] != 'podcast' or r[2] == origin['podcast_id'])
+                 and origin['duration']
+                 and low <= (r[4] - r[3]) / origin['duration'] <= high),
+                key=lambda r: (r[11], r[3]))
+            if candidates:
+                best = candidates[0]
+                sources[origin['pattern_id']] = (best[2], best[1], best[3], best[4])
+        return sources

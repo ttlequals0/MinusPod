@@ -5000,7 +5000,10 @@ paths:
         list, and `page` in the response is the page actually served. `available` is true when that
         match's episode still keeps its original audio on disk. A match outlives
         its episode, so `episodeTitle` is null once the episode is gone.
-        `audioOnly` is null for matches backfilled from older markers.
+        `audioOnly` is true when only the audio fingerprint found the ad, and is
+        null on a row that does not record it. History from before audio matching
+        kept a record is rebuilt once from the stored markers, with the same
+        rules a reprocess uses.
         A pattern with no audio has an empty history.
       operationId: listPatternAudioMatches
       parameters:
