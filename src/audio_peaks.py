@@ -12,28 +12,32 @@ from __future__ import annotations
 
 import hashlib
 import collections
+import fcntl
 import logging
+import math
 import os
 import stat
 import struct
 import subprocess
 import tempfile
 import threading
+import time
 from dataclasses import dataclass
 from pathlib import Path
 
 import numpy as np
 
 from utils.subprocess_registry import tracked_popen, tracked_run
-from utils.episode_paths import peaks_file_path, remove_peaks_temp_files
+from utils.episode_paths import peaks_file_path, peaks_lock_path, remove_peaks_temp_files
 from utils.ffmpeg_run import SAFE_MEDIA_INPUT_ARGS, ffmpeg_timeout
 
 logger = logging.getLogger('podcast.peaks')
 
 PEAKS_SAMPLE_RATE_HZ = 8000 # mono downsample target -- only need amplitude
 PEAKS_TIMEOUT_SECONDS = 60
-MAX_PEAKS_DURATION_SECONDS = 4 * 60 * 60  # hard ceiling: 4h. Episodes longer
-# than that are extreme outliers; refuse rather than spend a minute decoding.
+MAX_PEAKS_DURATION_SECONDS = 4 * 60 * 60  # cap on a window decoded per request
+PEAKS_INLINE_MAX_SECONDS = MAX_PEAKS_DURATION_SECONDS  # longer originals build in the background
+_BUILD_FAILURE_MEMO_SECONDS = 300
 MAX_PEAK_BUCKETS = 60_000     # keep JSON payload manageable (~600 KB at 4 dp)
 
 PEAKS_MAGIC = b'MPPK'
@@ -47,7 +51,13 @@ _MAX_BUCKET_COUNT = 0xFFFFFFFF
 _PEAKS_CHUNK_BUCKETS = 60_000  # 600 s of audio, about 9.6 MB per read
 _HASH_CHUNK_BYTES = 1 << 20
 _STALE_TEMP_SECONDS = 3600
+PEAKS_BUILD_WAIT_SECONDS = 30.0  # how long a request waits for another build of the same file
+BUILD_OK = 'ok'
+BUILD_BUSY = 'busy'
+BUILD_FAILED = 'failed'
 _HASHED_CACHE_MAX = 256
+
+_GRID_EPSILON = 1e-6
 
 
 class PeaksError(RuntimeError):
@@ -103,11 +113,11 @@ def compute_peaks(audio_path: Path | str,
             scaled = int(((duration * 1000) / MAX_PEAK_BUCKETS) + 0.5)
             resolution_ms = min(1000, max(resolution_ms, scaled))
 
-    cmd = [
-        'ffmpeg', *SAFE_MEDIA_INPUT_ARGS, '-hide_banner', '-loglevel', 'error',
-        '-ss', f'{start:.3f}',
-        '-i', str(audio_path),
-    ]
+    cmd = ['ffmpeg', *SAFE_MEDIA_INPUT_ARGS, '-hide_banner', '-loglevel', 'error']
+    if start > 0:
+        # A seek at 0 drops the decoder pre-roll and draws the first buckets flat
+        cmd += ['-ss', f'{start:.3f}']
+    cmd += ['-i', str(audio_path)]
     if duration is not None:
         cmd += ['-t', f'{duration:.3f}']
     cmd += ['-ac', '1', '-ar', str(PEAKS_SAMPLE_RATE_HZ),
@@ -375,9 +385,191 @@ def build_peaks_from_decode(audio_path: Path, duration: float) -> np.ndarray | N
     return np.concatenate(parts)
 
 
+def is_grid_aligned(start_seconds: float, resolution_ms: int) -> bool:
+    """True when the request maps onto whole 10 ms file buckets."""
+    if resolution_ms < 1 or resolution_ms % PEAKS_BUCKET_WIDTH_MS:
+        return False
+    cells = max(0.0, float(start_seconds)) * 1000 / PEAKS_BUCKET_WIDTH_MS
+    return abs(cells - round(cells)) < _GRID_EPSILON
+
+
+def compute_peaks_from_file(peaks_path: Path, source_path: Path, start_seconds: float,
+                            end_seconds: float | None,
+                            resolution_ms: int) -> tuple[list[float], int] | None:
+    """Serve a window from the peaks file as ``(peaks, effective_resolution_ms)``.
+
+    None when the request is off the 10 ms grid or the file is missing, stale or
+    corrupt. Raises PeaksError for an invalid window or resolution, like compute_peaks.
+    Only the bytes of the window are read.
+    """
+    if resolution_ms < 1 or resolution_ms > 1000:
+        raise PeaksError(f"resolution_ms must be 1-1000, got {resolution_ms}")
+    start = max(0.0, float(start_seconds))
+    if end_seconds is not None and float(end_seconds) <= start:
+        raise PeaksError(f"end ({float(end_seconds)}) must be > start ({start})")
+    if not is_grid_aligned(start, resolution_ms):
+        return None
+    if not validate_or_restamp_peaks_file(peaks_path, source_path):
+        return None
+    first = int(round(start * 1000)) // PEAKS_BUCKET_WIDTH_MS
+    last = None
+    if end_seconds is not None:
+        last = int(math.floor(float(end_seconds) * 1000 / PEAKS_BUCKET_WIDTH_MS + _GRID_EPSILON))
+    data = read_peaks_window(peaks_path, first, last)
+    if data is None:
+        return None
+    if data.bucket_count == 0:
+        return None
+    if first >= data.bucket_count:
+        raise PeaksError("ffmpeg produced no audio data (empty window?)")
+    factor = max(resolution_ms // PEAKS_BUCKET_WIDTH_MS,
+                 math.ceil(len(data.buckets) / MAX_PEAK_BUCKETS))
+    coarse = downsample_max(data.buckets, factor)
+    peaks = (coarse.astype(np.float32) / 32768.0).tolist()
+    return peaks, factor * PEAKS_BUCKET_WIDTH_MS
+
+
+def _acquire_build_lock(peaks_path: Path, wait_seconds: float) -> int | None:
+    """Take the cross-process build lock for a peaks file; None when it stays held."""
+    fd = os.open(peaks_lock_path(peaks_path), os.O_CREAT | os.O_RDWR, 0o644)
+    deadline = time.monotonic() + wait_seconds
+    pause = threading.Event()
+    while True:
+        try:
+            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            return fd
+        except BlockingIOError:
+            if time.monotonic() >= deadline:
+                os.close(fd)
+                return None
+            pause.wait(0.05)
+        except OSError:
+            os.close(fd)
+            raise
+
+
+def _build_and_write(peaks_path: Path, source_path: Path, duration: float) -> bool:
+    """Decode the source and write its peaks file; discards the result if the source changed."""
+    st = source_path.stat()
+    stamp = (st.st_size, st.st_mtime_ns)
+    buckets = build_peaks_from_decode(source_path, duration)
+    if buckets is None:
+        return False
+    try:
+        write_peaks_file(peaks_path, buckets, source_path, expect_stat=stamp)
+    except PeaksSourceChanged:
+        logger.info('Peaks build of %s discarded: source changed during decode', source_path.name)
+        return False
+    # An original removed or replaced after the write: drop the file written for it
+    try:
+        now = source_path.stat()
+        unchanged = (now.st_size, now.st_mtime_ns) == stamp
+    except OSError:
+        unchanged = False
+    if not unchanged:
+        discard_stale_peaks_file(source_path)
+        return False
+    return True
+
+
+def build_peaks_file_locked(peaks_path: Path, source_path: Path, duration: float,
+                            wait_seconds: float = 0.0) -> str:
+    """Build the peaks file under a cross-process lock; never raises.
+
+    BUILD_OK when a valid file exists on return, BUILD_BUSY when another process
+    still holds the lock after ``wait_seconds``, BUILD_FAILED otherwise.
+    """
+    peaks_path, source_path = Path(peaks_path), Path(source_path)
+    try:
+        fd = _acquire_build_lock(peaks_path, wait_seconds)
+    except OSError as e:
+        logger.warning('Peaks build lock unavailable for %s: %s', source_path.name, e)
+        return BUILD_FAILED
+    if fd is None:
+        return BUILD_BUSY
+    try:
+        if validate_or_restamp_peaks_file(peaks_path, source_path):
+            return BUILD_OK
+        return BUILD_OK if _build_and_write(peaks_path, source_path, duration) else BUILD_FAILED
+    except Exception as e:
+        logger.warning('Peaks build failed for %s: %s', source_path.name, e)
+        return BUILD_FAILED
+    finally:
+        os.close(fd)
+
+
+_inflight: set[str] = set()
+_inflight_lock = threading.Lock()
+# peaks path -> (monotonic time, source size, source mtime_ns) of a failed background build
+_build_failures: dict[str, tuple[float, int, int]] = {}
+
+
+def background_build_failed(peaks_path: Path, source_path: Path) -> bool:
+    """True when a background build of this source failed recently and it is unchanged."""
+    with _inflight_lock:
+        memo = _build_failures.get(str(peaks_path))
+    if memo is None:
+        return False
+    try:
+        st = Path(source_path).stat()
+    except OSError:
+        return False
+    return (time.monotonic() - memo[0] < _BUILD_FAILURE_MEMO_SECONDS
+            and (st.st_size, st.st_mtime_ns) == memo[1:])
+
+
+def _record_build_outcome(key: str, source_path: Path, outcome) -> None:
+    try:
+        st = Path(source_path).stat()
+    except OSError:
+        return
+    with _inflight_lock:
+        if outcome == BUILD_FAILED:
+            _build_failures[key] = (time.monotonic(), st.st_size, st.st_mtime_ns)
+            while len(_build_failures) > _HASHED_CACHE_MAX:
+                _build_failures.pop(next(iter(_build_failures)))
+        else:
+            _build_failures.pop(key, None)
+
+
+def start_background_build(peaks_path: Path, source_path: Path, duration: float,
+                           runner=None, name: str = 'peaks-build') -> threading.Thread | None:
+    """Run a build on a daemon thread, one per peaks file per process.
+
+    Returns the thread, or None when a build for this file is already running here.
+    The runner defaults to build_peaks_file_locked and its errors never escape.
+    """
+    key = str(peaks_path)
+    with _inflight_lock:
+        if key in _inflight:
+            return None
+        _inflight.add(key)
+    run = runner or build_peaks_file_locked
+
+    def _target():
+        outcome = BUILD_FAILED
+        try:
+            outcome = run(Path(peaks_path), Path(source_path), duration)
+        except Exception as e:
+            logger.warning('Background peaks build failed for %s: %s', Path(source_path).name, e)
+        finally:
+            _record_build_outcome(key, source_path, outcome)
+            with _inflight_lock:
+                _inflight.discard(key)
+
+    thread = threading.Thread(target=_target, name=name, daemon=True)
+    try:
+        thread.start()
+    except RuntimeError:
+        with _inflight_lock:
+            _inflight.discard(key)
+        return None
+    return thread
+
+
 def maybe_write_peaks_file(original_path: Path, peaks_10ms: np.ndarray | None) -> bool:
     """Write or restamp the sibling peaks file from in-memory maxima; False when none given."""
-    if peaks_10ms is None:
+    if peaks_10ms is None or len(peaks_10ms) == 0:
         return False
     path = peaks_file_path(original_path)
     if validate_or_restamp_peaks_file(path, original_path):

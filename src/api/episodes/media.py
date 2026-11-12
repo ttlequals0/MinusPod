@@ -6,11 +6,16 @@ from api import (
     api, log_request, json_response, error_response,
     get_database, get_storage, extract_transcript_segment, _resolve_original_audio,
 )
-from audio_peaks import compute_peaks, PeaksError
+from utils.audio import get_audio_duration
+import audio_peaks
+from audio_peaks import PeaksError
 from split_planning import build_split_candidates, build_split_pieces
 from utils.markers import find_marker_in_list
 from utils.text import extract_timed_spans_in_range
 from api.episodes import common
+
+
+PEAKS_RETRY_AFTER_SECONDS = 5
 
 
 def _float_arg(name, default=None):
@@ -145,6 +150,29 @@ def serve_processed_audio(slug, episode_id):
     return _audio_response(path, name)
 
 
+def _peaks_pending_response():
+    resp = error_response('Waveform is being prepared', 503)
+    resp.headers['Retry-After'] = str(PEAKS_RETRY_AFTER_SECONDS)
+    return resp
+
+
+def _ensure_peaks_file(path, episode):
+    """Make sure the original has a peaks file: build now, or start a long build.
+
+    Returns an audio_peaks BUILD_* value; BUILD_BUSY means the caller answers 503.
+    """
+    peaks_path = audio_peaks.peaks_file_path(path)
+    duration = (episode or {}).get('original_duration') or get_audio_duration(str(path))
+    if duration and duration > audio_peaks.PEAKS_INLINE_MAX_SECONDS:
+        if audio_peaks.background_build_failed(peaks_path, path):
+            return audio_peaks.BUILD_FAILED
+        audio_peaks.start_background_build(
+            peaks_path, path, duration, name=f'peaks-build-{path.stem}')
+        return audio_peaks.BUILD_BUSY
+    return audio_peaks.build_peaks_file_locked(
+        peaks_path, path, duration or 0.0, wait_seconds=audio_peaks.PEAKS_BUILD_WAIT_SECONDS)
+
+
 @api.route('/feeds/<slug>/episodes/<episode_id>/peaks', methods=['GET'])
 @log_request
 def get_episode_peaks(slug, episode_id):
@@ -160,7 +188,9 @@ def get_episode_peaks(slug, episode_id):
     """
     db = get_database()
     storage = get_storage()
-    path, err = _resolve_original_audio(db, storage, slug, episode_id, self_heal=True)
+    episode = db.get_episode(slug, episode_id)
+    path, err = _resolve_original_audio(db, storage, slug, episode_id, self_heal=True,
+                                        episode=episode)
     if err is not None:
         return err
 
@@ -178,14 +208,24 @@ def get_episode_peaks(slug, episode_id):
     resolution_ms = _i('resolution_ms', 50)
 
     try:
-        peaks, effective_resolution_ms = compute_peaks(
-            path,
-            start_seconds=start_seconds,
-            end_seconds=end_seconds,
-            resolution_ms=resolution_ms,
-        )
+        result = audio_peaks.compute_peaks_from_file(
+            audio_peaks.peaks_file_path(path), path, start_seconds, end_seconds, resolution_ms)
+        if result is None and audio_peaks.is_grid_aligned(start_seconds, resolution_ms):
+            if _ensure_peaks_file(path, episode) == audio_peaks.BUILD_BUSY:
+                return _peaks_pending_response()
+            result = audio_peaks.compute_peaks_from_file(
+                audio_peaks.peaks_file_path(path), path, start_seconds, end_seconds,
+                resolution_ms)
+        if result is None:
+            result = audio_peaks.compute_peaks(
+                path,
+                start_seconds=start_seconds,
+                end_seconds=end_seconds,
+                resolution_ms=resolution_ms,
+            )
     except PeaksError as e:
         return error_response(str(e), 400)
+    peaks, effective_resolution_ms = result
 
     return json_response({
         'episodeId': episode_id,

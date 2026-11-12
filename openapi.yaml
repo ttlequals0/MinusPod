@@ -2239,6 +2239,14 @@ paths:
         the ad editor. The server auto-coarsens the resolution
         for very long windows so the JSON payload stays bounded; the response
         echoes the effective resolution actually used.
+
+        Requests are served from a cached peaks file kept beside the retained
+        original, which stores one value per 10 ms. A request is served from it
+        when `resolution_ms` is a multiple of 10 and `start` is on the 10 ms
+        grid. Any other request is decoded from the audio. The file is built
+        on the first open, so that first request waits for the build. An
+        original longer than 4 hours is built in the background, and the route
+        answers 503 with a `Retry-After` header until the file exists.
       operationId: getEpisodePeaks
       parameters:
         - $ref: '#/components/parameters/slug'
@@ -2254,7 +2262,11 @@ paths:
         - in: query
           name: resolution_ms
           schema: { type: integer }
-          description: Requested peak bucket width in ms (default 50, range 1-1000)
+          description: |
+            Requested peak bucket width in ms (default 50, range 1-1000). A
+            width the server coarsens to stay under 60000 buckets is rounded
+            up to a whole multiple of 10 ms, and `resolutionMs` in the response
+            reports the width actually used.
       responses:
         '200':
           description: Peaks payload
@@ -2274,6 +2286,19 @@ paths:
           $ref: '#/components/responses/BadRequest'
         '404':
           $ref: '#/components/responses/NotFound'
+        '503':
+          description: The waveform file is being built. Retry after the interval in the Retry-After header.
+          headers:
+            Retry-After:
+              description: Seconds to wait before asking again (5).
+              schema: { type: integer }
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error: { type: string }
+                  status: { type: integer }
 
   /feeds/{slug}/episodes/{episode_id}/transcript-span:
     get:
