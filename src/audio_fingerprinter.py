@@ -774,10 +774,10 @@ class _Candidate:
 
 
 def _clipped_runs(al, accepted):
-    """The runs of al outside accepted episode spans, on one side of them, trimmed again."""
+    """The runs of al inside its span and outside accepted episode spans, on one side of them, trimmed again."""
     pieces = []
     for lo, hi in al.runs:
-        parts = [(lo, hi)]
+        parts = [p for p in [(max(lo, al.span[0]), min(hi, al.span[1]))] if p[1] > p[0]]
         for a_lo, a_hi in accepted:
             a_lo, a_hi = a_lo - al.ep_base, a_hi - al.ep_base
             parts = [p for x, y in parts for p in ((x, min(y, a_lo)), (max(x, a_hi), y)) if p[1] > p[0]]

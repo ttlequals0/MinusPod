@@ -137,6 +137,15 @@ def test_a_remainder_shorter_than_the_minimum_ad_length_is_dropped():
         assert [m.pattern_id for m in _run(ep, pats, min_ad_length_s=3.0)] == [1, 9]
 
 
+def test_a_kept_remainder_stays_inside_the_clipped_match():
+    n = 300
+    good = np.ones(n, dtype=bool)
+    al = af._Alignment(1000, np.zeros(n, dtype=np.int64), good, np.ones(n), good, good, 8.0,
+                       [(0, n)], span=(50, 200))
+    runs = af._clipped_runs(al, [(1000, 1120)])
+    assert runs and all(50 <= lo < hi <= 200 for lo, hi in runs)
+
+
 @pytest.mark.parametrize('seconds', [3, 4, 5])
 def test_short_matchable_patterns_find_their_own_audio(seconds):
     rng = np.random.default_rng(seconds)
