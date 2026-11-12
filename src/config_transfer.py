@@ -12,8 +12,6 @@ from email.utils import parseaddr
 from functools import partial
 from urllib.parse import urlsplit
 
-from requests.utils import requote_uri
-
 import email_service
 import webhook_service
 from community_sync import DEFAULT_CRON as COMMUNITY_SYNC_DEFAULT_CRON
@@ -54,6 +52,7 @@ from utils.feed_guid import compute_feed_guid
 FORMAT = 'minuspod-runtime-config'
 FORMAT_VERSION = 1
 MAX_CONFIG_REQUEST_BYTES = 10 * 1024 * 1024
+_URL_SPACE_OR_CONTROL_RE = re.compile(r'[\s\x00-\x1f\x7f-\x9f]')
 EXCLUDED_SETTINGS = frozenset({
     'pattern_cleanup_schedule_anchor', 'provider_budget_fx_fetched_at',
     'provider_budget_fx_source_date', 'provider_budget_fx_rate',
@@ -447,9 +446,13 @@ def _validate_request_envelope(document, scope, selected_feeds=None):
         raise ConfigTransferError('Configuration transfer exceeds the 10 MiB request limit', 413)
 
 
+def _percent_encode(match: re.Match) -> str:
+    return ''.join(f'%{byte:02X}' for byte in match.group().encode('utf-8'))
+
+
 def _import_source_url(url: str) -> str:
-    """A stored source URL as requests sends it; older versions stored raw whitespace."""
-    return requote_uri(url.strip())
+    """The URL trimmed, with only its whitespace and control chars percent-encoded; older versions stored them raw."""
+    return _URL_SPACE_OR_CONTROL_RE.sub(_percent_encode, url.strip())
 
 
 def _validate_document(document):
@@ -879,6 +882,13 @@ def _stored_source(row):
     return _import_source_url(row['source_url']) if row['feed_type'] == 'subscribed' else row['source_url']
 
 
+def _source_owner(conn, source, slug):
+    """Another feed whose stored source URL, normalized as on import, equals source."""
+    rows = conn.execute(
+        'SELECT slug, feed_type, source_url FROM podcasts WHERE slug != ? AND source_url IS NOT NULL', (slug,))
+    return next((row['slug'] for row in rows if _stored_source(row) == source), None)
+
+
 def _validate_import_feed_urls(feeds):
     trust = _feed_trust()
     for feed in feeds:
@@ -959,11 +969,7 @@ def build_preview(db, document, scope, selected_feeds=None):
             updated.append(slug)
         source = feed.get('settings', {}).get('source_url', '')
         if feed['feedType'] in ('subscribed', 'youtube'):
-            duplicate = db.get_connection().execute(
-                'SELECT slug FROM podcasts WHERE source_url = ? AND slug != ? LIMIT 1',
-                (source, slug),
-            ).fetchone()
-            if duplicate:
+            if _source_owner(db.get_connection(), source, slug):
                 raise ConfigTransferError('Source URL already belongs to another feed')
         if feed.get('settings', {}).get('detection_mode') == 'cue_only':
             cue_templates = []
@@ -1420,11 +1426,7 @@ def apply_config(db, document, scope, selected_feeds, preview_token):
                                         or _stored_source(current_row) != feed.get('settings', {}).get('source_url', '')):
                         raise ConfigTransferError(f'Feed identity conflict for {slug}')
                     source_url = feed.get('settings', {}).get('source_url', '')
-                    duplicate_source = conn.execute(
-                        'SELECT slug FROM podcasts WHERE source_url = ? AND slug != ? LIMIT 1',
-                        (source_url, slug),
-                    ).fetchone()
-                    if feed['feedType'] in ('subscribed', 'youtube') and duplicate_source:
+                    if feed['feedType'] in ('subscribed', 'youtube') and _source_owner(conn, source_url, slug):
                         raise ConfigTransferError('Source URL already belongs to another feed')
                     updates = _validated_feed_updates(
                         db, dict(current_row) if current_row else None,

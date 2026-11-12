@@ -168,8 +168,12 @@ def _import(db, document, monkeypatch):
     ('https://feeds.example.com/f\u00a0x.xml', 'https://feeds.example.com/f%C2%A0x.xml'),
     ('https://alice:pass word@h.example/f x.xml', 'https://alice:pass%20word@h.example/f%20x.xml'),
     ('https://feeds.example.com/feed.xml?a=1', 'https://feeds.example.com/feed.xml?a=1'),
-], ids=['space', 'tab', 'nbsp', 'userinfo', 'clean'])
-def test_config_import_stores_the_url_requests_would_send(temp_db, monkeypatch, raw, stored):
+    ('https://b\u00fccher.example/f.xml', 'https://b\u00fccher.example/f.xml'),
+    ('https://feeds.example.com/f.xml?d=%41&t=%7e', 'https://feeds.example.com/f.xml?d=%41&t=%7e'),
+    ('https://feeds.example.com/100%.xml?q=a b', 'https://feeds.example.com/100%.xml?q=a%20b'),
+    ('https://feeds.example.com/f\x01x.xml', 'https://feeds.example.com/f%01x.xml'),
+], ids=['space', 'tab', 'nbsp', 'userinfo', 'clean', 'idn-host', 'escapes', 'percent-literal', 'control'])
+def test_config_import_encodes_only_whitespace_and_controls(temp_db, monkeypatch, raw, stored):
     _import(temp_db, _config_document(raw), monkeypatch)
     assert temp_db.get_podcast_by_slug('ws-config')['source_url'] == stored
 
@@ -180,6 +184,24 @@ def test_config_import_restores_a_backup_over_its_own_stored_whitespace_url(temp
     document = config_transfer.export_config(temp_db, '2.98.2')
     _import(temp_db, document, monkeypatch)
     assert temp_db.get_podcast_by_slug('ws-config')['source_url'] == raw
+
+
+def test_config_import_sees_a_stored_whitespace_url_on_another_slug_as_the_same_feed(temp_db, monkeypatch):
+    temp_db.create_podcast('ws-other', 'https://feeds.example.com/f x.xml', 'Example')
+    with pytest.raises(ConfigTransferError, match='already belongs to another feed'):
+        _import(temp_db, _config_document('https://feeds.example.com/f x.xml'), monkeypatch)
+    assert temp_db.get_podcast_by_slug('ws-config') is None
+    assert temp_db.get_podcast_by_slug('ws-other')['source_url'] == 'https://feeds.example.com/f x.xml'
+
+
+def test_config_import_apply_sees_a_stored_whitespace_url_on_another_slug(temp_db, monkeypatch):
+    document = _config_document('https://feeds.example.com/f x.xml')
+    monkeypatch.setattr(config_transfer, '_validate_for_tier', lambda *_args: None)
+    preview = config_transfer.build_preview(temp_db, document, 'feeds')
+    temp_db.create_podcast('ws-other', 'https://feeds.example.com/f x.xml', 'Example')
+    with pytest.raises(ConfigTransferError, match='already belongs to another feed'):
+        config_transfer.apply_config(temp_db, document, 'feeds', None, preview['previewToken'])
+    assert temp_db.get_podcast_by_slug('ws-config') is None
 
 
 def test_config_import_still_refuses_a_url_that_fails_validation(temp_db, monkeypatch):
