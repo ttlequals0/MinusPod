@@ -9,6 +9,7 @@ from flask import request, Response
 
 from config import resolve_jit_blocked_user_agents, user_agent_is_jit_blocked
 from database.downloads import SORT_COLUMNS
+from database.error_text import redact_error
 
 from api import (
     api, limiter, log_request, json_response,
@@ -128,7 +129,7 @@ def _row_to_json_entry(entry: dict) -> dict:
         'processingDurationSeconds': entry['processing_duration_seconds'],
         'status': entry['status'],
         'adsDetected': entry['ads_detected'],
-        'errorMessage': entry['error_message'],
+        'errorMessage': redact_error(entry['error_message']),
         'reprocessNumber': entry['reprocess_number'],
         'inputTokens': entry.get('input_tokens', 0) or 0,
         'outputTokens': entry.get('output_tokens', 0) or 0,
@@ -172,7 +173,7 @@ def export_processing_history():
             buf.seek(0)
             buf.truncate()
             for row in rows:
-                writer.writerow(row)
+                writer.writerow({**row, 'error_message': redact_error(row.get('error_message'))})
                 yield buf.getvalue()
                 buf.seek(0)
                 buf.truncate()

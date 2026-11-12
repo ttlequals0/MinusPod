@@ -1,42 +1,192 @@
-"""Stored error text from older builds does not leave the API before the redaction step has run."""
+"""Every API route that returns a stored error column redacts it at the serializer, always."""
+import json
+
 import pytest
 
-from tests.integration.fingerprint_helpers import EPISODE, SLUG, csrf
-import api.pending_upgrade_redaction as guard  # noqa: E402
+from database.error_text import STORED_ERROR_COLUMNS
+from tests.integration.fingerprint_helpers import EPISODE, SLUG, csrf  # noqa: E402
 
-GATE = 'redact_stored_error_text'
-RAW = 'GET https://alice:PASS@cdn.example.com/a.mp3?X-Amz-Signature=SIG failed'
-CLEAN = 'GET https://<redacted>@cdn.example.com/a.mp3?<redacted> failed'
+KEY = 'b' * 64
+RAW = f'GET https://alice:PASS@cdn.example.com/a.mp3?X-Amz-Signature=SIG failed {KEY}'
+LEAKS = ('PASS', 'SIG', KEY, 'alice')
 
 
-@pytest.fixture
-def old_error(fp_feed):
+def _sql(db, statement, params=()):
+    conn = db.get_connection()
+    conn.execute(statement, params)
+    conn.commit()
+
+
+def _episode_column(column):
+    def seed(db):
+        _sql(db, f"UPDATE episodes SET {column} = ? WHERE episode_id = ?", (RAW, EPISODE))  # noqa: S608
+    return seed
+
+
+def _youtube_sb_error(db):
+    _sql(db, "UPDATE podcasts SET feed_type = 'youtube' WHERE slug = ?", (SLUG,))
+    _sql(db, "UPDATE episodes SET sb_last_error = ? WHERE episode_id = ?", (RAW, EPISODE))
+
+
+def _history_error(db):
+    pid = db.get_podcast_by_slug(SLUG)['id']
+    _sql(db, "INSERT INTO processing_history (podcast_id, podcast_slug, podcast_title, episode_id, "
+             "episode_title, status, error_message) VALUES (?, ?, 't', ?, 'e', 'failed', ?)",
+         (pid, SLUG, EPISODE, RAW))
+
+
+def _refresh_error(db):
+    _sql(db, "UPDATE podcasts SET refresh_failure_count = 99, last_refresh_error = ? WHERE slug = ?",
+         (RAW, SLUG))
+
+
+def _cleanup_error(db):
+    _sql(db, "INSERT INTO pattern_cleanup_runs (status, error, started_at, finished_at) "
+             "VALUES ('failed', ?, '2026-01-01T00:00:00Z', '2026-01-01T00:01:00Z')", (RAW,))
+
+
+def _failover_reason(db):
+    _sql(db, "INSERT INTO failover_events (target, action, source, reason) VALUES ('llm', 'trigger', 'auto', ?)",
+         (RAW,))
+
+
+def _scan_error(table, key_col, key):
+    def seed(db):
+        pid = db.get_podcast_by_slug(SLUG)['id']
+        cols = f"podcast_id, {key_col}" if table != 'cue_window_optimize_scans' else key_col
+        marks = '?, ?' if table != 'cue_window_optimize_scans' else '?'
+        args = (pid, key) if table != 'cue_window_optimize_scans' else (key,)
+        _sql(db, f"INSERT INTO {table} ({cols}, status, error) VALUES ({marks}, 'error', ?)",  # noqa: S608
+             (*args, RAW))
+    return seed
+
+
+def _episodes(client):
+    return client.get(f'/api/v1/feeds/{SLUG}/episodes', headers=csrf(client))
+
+
+def _episode(client):
+    return client.get(f'/api/v1/feeds/{SLUG}/episodes/{EPISODE}', headers=csrf(client))
+
+
+def _get(url):
+    return lambda client: client.get(url, headers=csrf(client))
+
+
+# Stored error column -> (seed, request that serves it). auto_process_queue.error_message has no route.
+SERVED = {
+    ('episodes', 'error_message'): (_episode_column('error_message'), _episodes),
+    ('episodes', 'chapters_regen_error'): (_episode_column('chapters_regen_error'), _episode),
+    ('episodes', 'sb_last_error'): (_youtube_sb_error, _episode),
+    ('processing_history', 'error_message'): (_history_error, _get('/api/v1/history')),
+    ('podcasts', 'last_refresh_error'): (_refresh_error, _get(f'/api/v1/feeds/{SLUG}')),
+    ('pattern_cleanup_runs', 'error'): (_cleanup_error, _get('/api/v1/patterns/cleanup/runs')),
+    ('failover_events', 'reason'): (_failover_reason, _get('/api/v1/failover')),
+}
+NOT_SERVED = {('auto_process_queue', 'error_message')}
+CUE_SCANS = {
+    ('cue_candidate_scans', 'error'): (
+        _scan_error('cue_candidate_scans', 'episode_id', EPISODE),
+        lambda client: client.get(f'/api/v1/feeds/{SLUG}/episodes/{EPISODE}/cue-candidates',
+                                  headers=csrf(client))),
+    ('cue_threshold_scans', 'error'): (
+        _scan_error('cue_threshold_scans', 'episode_id', EPISODE),
+        lambda client: client.post(f'/api/v1/feeds/{SLUG}/cue-threshold-suggest',
+                                   json={'episodeId': EPISODE}, headers=csrf(client))),
+}
+
+
+def test_every_stored_error_column_is_classified():
+    classified = set(SERVED) | NOT_SERVED | set(CUE_SCANS) | {
+        ('cue_cross_episode_scans', 'error'), ('cue_window_optimize_scans', 'error')}
+    assert classified == set(STORED_ERROR_COLUMNS)
+
+
+def _assert_no_leak(response):
+    assert response.status_code == 200, response.get_data(as_text=True)
+    body = response.get_data(as_text=True)
+    assert 'cdn.example.com' in body
+    for leak in LEAKS:
+        assert leak not in body
+
+
+@pytest.mark.parametrize('column', sorted({**SERVED, **CUE_SCANS}), ids=lambda c: '.'.join(c))
+def test_a_stored_error_is_redacted_on_the_way_out(app_client, fp_feed, column):
+    seed, request = {**SERVED, **CUE_SCANS}[column]
+    seed(fp_feed)
+    _assert_no_leak(request(app_client))
+
+
+@pytest.mark.parametrize('export_format', ['csv', 'json'])
+def test_history_exports_redact_the_error_and_stay_streamed(app_client, fp_feed, export_format):
+    _history_error(fp_feed)
+    response = app_client.get(f'/api/v1/history/export?format={export_format}', headers=csrf(app_client))
+    assert response.is_streamed
+    _assert_no_leak(response)
+
+
+def test_cross_episode_scan_error_is_redacted(app_client, fp_feed):
+    import hashlib
+    ids = [EPISODE, 'b1c2d3e4f5a6']
+    digest = hashlib.sha256(','.join(sorted(ids)).encode()).hexdigest()
+    _scan_error('cue_cross_episode_scans', 'episode_set_hash', digest)(fp_feed)
+    response = app_client.post(f'/api/v1/feeds/{SLUG}/cue-cross-episode-scan',
+                               json={'episodeIds': ids}, headers=csrf(app_client))
+    _assert_no_leak(response)
+
+
+def test_window_optimize_scan_error_is_redacted(app_client, fp_feed):
+    pid = fp_feed.get_podcast_by_slug(SLUG)['id']
+    template = fp_feed.create_cue_template(pid, 'intro', EPISODE, 0.0, 1.0, 16000, 13, b'x')
+    _scan_error('cue_window_optimize_scans', 'template_id', template)(fp_feed)
+    response = app_client.post(f'/api/v1/feeds/{SLUG}/cue-templates/{template}/optimize-window',
+                               json={}, headers=csrf(app_client))
+    _assert_no_leak(response)
+
+
+def test_dai_differential_error_is_redacted(app_client, fp_feed):
     conn = fp_feed.get_connection()
-    conn.execute("UPDATE episodes SET status = 'failed', error_message = ? WHERE episode_id = ?", (RAW, EPISODE))
-    conn.execute("DELETE FROM schema_migrations WHERE name = ?", (GATE,))
-    conn.execute("UPDATE deferred_upgrade_steps SET state = 'pending' WHERE name = ?", (GATE,))
+    row_id = conn.execute("SELECT id FROM episodes WHERE episode_id = ?", (EPISODE,)).fetchone()[0]
+    conn.execute("INSERT INTO episode_details (episode_id, dai_differential_json) VALUES (?, ?) "
+                 "ON CONFLICT(episode_id) DO UPDATE SET dai_differential_json = excluded.dai_differential_json",
+                 (row_id, json.dumps({'status': 'error', 'error': RAW})))
     conn.commit()
-    guard.reset_latch()
-    yield fp_feed
-    conn.execute("INSERT OR IGNORE INTO schema_migrations (name) VALUES (?)", (GATE,))
-    conn.commit()
-    guard.reset_latch()
+    _assert_no_leak(_episode(app_client))
 
 
-def _listed_error(client):
-    body = client.get(f'/api/v1/feeds/{SLUG}/episodes', headers=csrf(client)).get_json()
-    return [e for e in body['episodes'] if e['id'] == EPISODE][0]['error']
+@pytest.mark.parametrize('key,url', [
+    ('youtube_ytdlp_last_error', '/api/v1/settings/youtube'),
+    ('db_backup_last_error', '/api/v1/settings/db-backup'),
+    ('community_sync_last_error', '/api/v1/settings/community-sync'),
+])
+def test_a_last_error_setting_is_redacted_on_the_way_out(app_client, fp_feed, key, url):
+    _sql(fp_feed, "INSERT INTO settings (key, value, is_default) VALUES (?, ?, 0) "
+                  "ON CONFLICT(key) DO UPDATE SET value = excluded.value", (key, RAW))
+    try:
+        _assert_no_leak(_get(url)(app_client))
+    finally:
+        fp_feed.clear_setting(key)
 
 
-def test_an_old_error_is_redacted_on_the_way_out_until_the_step_has_run(app_client, old_error):
-    assert old_error.get_connection().execute(
-        "SELECT error_message FROM episodes WHERE episode_id = ?", (EPISODE,)).fetchone()[0] == RAW
-    assert _listed_error(app_client) == CLEAN
+def test_failover_state_and_probe_text_are_redacted_on_the_way_out(app_client, fp_feed):
+    _sql(fp_feed, "INSERT INTO settings (key, value, is_default) VALUES ('failover_state:llm', ?, 0) "
+                  "ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+         (json.dumps({'active': True, 'source': 'auto', 'since': 'x', 'reason': RAW}),))
+    _sql(fp_feed, "INSERT INTO settings (key, value, is_default) VALUES ('failover_probe:llm', ?, 0) "
+                  "ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+         (json.dumps({'reachable': False, 'detail': RAW}),))
+    try:
+        _assert_no_leak(_get('/api/v1/failover')(app_client))
+    finally:
+        fp_feed.clear_setting('failover_state:llm')
+        fp_feed.clear_setting('failover_probe:llm')
 
 
-def test_once_the_step_has_run_the_stored_text_is_served_as_is(app_client, old_error):
-    assert old_error.run_deferred_upgrade_steps()
-    assert old_error.get_connection().execute(
-        "SELECT error_message FROM episodes WHERE episode_id = ?", (EPISODE,)).fetchone()[0] == CLEAN
-    assert _listed_error(app_client) == CLEAN
-    assert guard.latched()
+def test_error_response_redacts_message_and_details(app_client):
+    from api import error_response
+    with app_client.application.app_context():
+        response = error_response(RAW, 400, details=RAW)
+    assert response.status_code == 400
+    body = response.get_data(as_text=True)
+    assert 'cdn.example.com' in body
+    assert not any(leak in body for leak in LEAKS)

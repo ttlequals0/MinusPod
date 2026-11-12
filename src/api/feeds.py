@@ -22,6 +22,7 @@ from api import (
     _normalize_nullable_finite_float,
 )
 from cancel import request_cancellation, wait_for_cancellation
+from database.error_text import redact_error
 from database.queue import compute_queue_priority
 from processing_queue import ProcessingQueue
 from config import (
@@ -693,7 +694,7 @@ def _refresh_error_fields(podcast) -> dict:
     failing = (podcast.get('refresh_failure_count') or 0) \
         >= FEED_REFRESH_FAILURE_ALERT_THRESHOLD
     return {
-        'lastRefreshError': podcast.get('last_refresh_error') if failing else None,
+        'lastRefreshError': redact_error(podcast.get('last_refresh_error')) if failing else None,
         'lastRefreshErrorAt': podcast.get('last_refresh_error_at') if failing else None,
     }
 
@@ -2749,7 +2750,7 @@ def _refresh_message(outcome) -> str:
     if outcome.status == 'coalesced':
         return 'Refresh already completed recently'
     if outcome.status == 'parse_backoff':
-        return outcome.error or 'Feed is backing off after an unreadable body'
+        return redact_error(outcome.error) or 'Feed is backing off after an unreadable body'
     return 'Feed refreshed'
 
 

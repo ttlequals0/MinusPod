@@ -83,7 +83,7 @@ from config import (
 )
 from database.cue_templates import _UNSET as _CUE_THRESHOLD_UNSET
 from utils.constants import EpisodeStatus
-from utils.http import redact_exc
+from database.error_text import redact_error
 from utils.validation import is_valid_episode_id, nullable_bool
 
 # Cap on loud-spot markers returned to the capture UI.
@@ -1316,7 +1316,7 @@ def _run_cue_candidate_scan(podcast_id, episode_id, slug, audio_path,
         db.save_cue_candidate_scan_result(podcast_id, episode_id, candidates)
     except Exception as e:
         logger.exception('cue candidate scan failed for %s/%s', podcast_id, episode_id)
-        db.save_cue_candidate_scan_error(podcast_id, episode_id, redact_exc(e))
+        db.save_cue_candidate_scan_error(podcast_id, episode_id, str(e))
 
 
 # Bumped when the candidate set's meaning changes so old caches are rescanned.
@@ -1402,7 +1402,7 @@ def episode_cue_candidates(slug, episode_id):
         row = db.get_cue_candidate_scan(podcast_id, episode_id)
         return json_response({
             'episodeId': episode_id, 'status': 'error',
-            'error': (row or {}).get('error') or 'cue candidate scan failed',
+            'error': redact_error((row or {}).get('error')) or 'cue candidate scan failed',
             'candidates': [],
         })
 
@@ -1481,7 +1481,7 @@ def _run_cue_threshold_scan(podcast_id, episode_id, slug, audio_paths,
         })
     except Exception as e:
         logger.warning(f"Cue threshold scan failed for {slug}:{episode_id}: {e}")
-        db.save_cue_threshold_scan_error(podcast_id, episode_id, redact_exc(e))
+        db.save_cue_threshold_scan_error(podcast_id, episode_id, str(e))
 
 
 @api.route('/feeds/<slug>/cue-threshold-suggest', methods=['POST'])
@@ -1513,7 +1513,7 @@ def cue_threshold_suggest(slug):
     elif state == 'error':
         row = db.get_cue_threshold_scan(podcast_id, episode_id)
         return json_response({'episodeId': episode_id, 'status': 'error',
-                              'error': (row or {}).get('error') or 'threshold scan failed'})
+                              'error': redact_error((row or {}).get('error')) or 'threshold scan failed'})
 
     # state == 'started': resolve audio, load templates, sweep in background.
     templates = db.list_active_cue_templates_for_feed(podcast_id)  # same loader as cue-scan
@@ -1603,7 +1603,7 @@ def _run_cue_cross_episode_scan(
             podcast_id, episode_set_hash,
         )
         db.save_cue_cross_episode_scan_error(
-            podcast_id, episode_set_hash, redact_exc(e), claim_epoch=claim_epoch)
+            podcast_id, episode_set_hash, str(e), claim_epoch=claim_epoch)
 
 
 @api.route('/feeds/<slug>/cue-cross-episode-scan', methods=['POST'])
@@ -1668,7 +1668,7 @@ def cue_cross_episode_scan(slug):
         return json_response({
             'status': 'error',
             'episodeIds': episode_ids,
-            'error': (row or {}).get('error') or 'cross-episode scan failed',
+            'error': redact_error((row or {}).get('error')) or 'cross-episode scan failed',
         })
 
     # state == 'started': validate that all IDs belong to this feed and have
@@ -1717,7 +1717,7 @@ def cue_cross_episode_scan(slug):
             'cross-episode scan launch failed for podcast %s hash %s',
             podcast_id, episode_set_hash)
         db.save_cue_cross_episode_scan_error(
-            podcast_id, episode_set_hash, redact_exc(e), claim_epoch=claim_epoch)
+            podcast_id, episode_set_hash, str(e), claim_epoch=claim_epoch)
         raise
     return json_response({'status': 'scanning', 'episodeIds': episode_ids})
 
@@ -1987,7 +1987,7 @@ def _run_cue_window_optimize_scan(template_id, source_path, siblings,
         logger.exception(
             'window optimize scan failed for template %s', template_id)
         db.save_cue_window_optimize_scan_error(
-            template_id, redact_exc(e), claim_epoch=claim_epoch)
+            template_id, str(e), claim_epoch=claim_epoch)
 
 
 @api.route(
@@ -2045,7 +2045,7 @@ def cue_window_optimize(slug, template_id):
         return json_response({
             'status': 'error',
             'templateId': template_id,
-            'error': (row or {}).get('error') or 'window optimize scan failed',
+            'error': redact_error((row or {}).get('error')) or 'window optimize scan failed',
         })
 
     # state == 'started': confirm source audio, resolve siblings, and launch the
@@ -2073,7 +2073,7 @@ def cue_window_optimize(slug, template_id):
         logger.exception(
             'window optimize scan launch failed for template %s', template_id)
         db.save_cue_window_optimize_scan_error(
-            template_id, redact_exc(e), claim_epoch=claim_epoch)
+            template_id, str(e), claim_epoch=claim_epoch)
         raise
     return json_response({'status': 'scanning', 'templateId': template_id})
 

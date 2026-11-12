@@ -13,6 +13,7 @@ from config import (
     SEGMENT_CATEGORIES, resolve_community_sync_categories,
 )
 from api.pattern_cleanup import cleanup_settings_view
+from database.error_text import redact_error
 from database.settings import SETTINGS_REGISTRY
 from offline_queue import (
     get_offline_queue_ttl_hours, is_offline_queue_enabled,
@@ -29,7 +30,6 @@ from processing_schedule import (
 )
 from llm_route import VALID_SLOTS, SAME_AS_DETECTION
 from pattern_cleanup import BATCH_SIZE_RANGE, UNUSED_DAYS_RANGE
-from utils.http import redact_log_text
 from utils.url import SSRFError, validate_base_url
 from webhook_service import fire_queue_resumed_event
 from db_backup_service import (
@@ -262,7 +262,7 @@ def update_rate_limit_hold_settings():
             try:
                 validate_base_url(usage_url)
             except SSRFError as e:
-                return json_response({'error': redact_log_text(f'Invalid LLM usage URL: {e}')}, 400)
+                return error_response(f'Invalid LLM usage URL: {e}', 400)
         db.set_setting('llm_usage_url', usage_url, is_default=False)
     if 'rateLimitProbeMinutes' in data:
         minutes = data['rateLimitProbeMinutes']
@@ -539,7 +539,7 @@ def get_community_sync_settings():
         'enabled': db.get_setting_bool('community_sync_enabled', default=False),
         'cron': db.get_setting('community_sync_cron') or DEFAULT_CRON,
         'lastRun': db.get_setting('community_sync_last_run') or None,
-        'lastError': db.get_setting('community_sync_last_error') or None,
+        'lastError': redact_error(db.get_setting('community_sync_last_error')) or None,
         'manifestVersion': db.get_setting('community_sync_manifest_version') or None,
         'lastSummary': db.get_setting('community_sync_last_summary') or None,
         'categories': resolve_community_sync_categories(
@@ -620,7 +620,7 @@ def get_db_backup_settings():
         'destWritable': writable,
         'keepCount': int(_val('db_backup_keep_count') or '1'),
         'lastRun': _val('db_backup_last_run') or None,
-        'lastError': _val('db_backup_last_error') or None,
+        'lastError': redact_error(_val('db_backup_last_error')) or None,
         'lastSummary': _val('db_backup_last_summary') or None,
     })
 

@@ -16,6 +16,7 @@ from config import (
 from api.audio_state import add_pattern_audio_state
 from ad_chapters import refresh_keep_like_markers
 from ad_yield import latest_completed_run, low_ad_yield
+from database.error_text import redact_error, redact_json_error
 from database.podcasts import is_local_feed, is_recents_feed, is_youtube_feed, recents_cutoff
 from utils.json_fields import load_json_list
 from utils.markers import parse_ad_markers
@@ -230,7 +231,7 @@ def _sponsorblock_json(ep):
         'nextCheckAt': ep.get('sb_next_check_at'),
         'segmentCount': len(load_json_list(ep.get('sb_segment_uuids'))),
         'note': ep.get('sb_note'),
-        'lastError': ep.get('sb_last_error'),
+        'lastError': redact_error(ep.get('sb_last_error')),
         'submissions': load_json_list(ep.get('sb_submissions')),
     }
 
@@ -276,7 +277,7 @@ def _episode_base_json(ep, *, slug=None, is_local=False, is_youtube=False, stora
         # True when this episode's original audio is still on disk (required
         # to mark cue templates or replay original audio) (#350).
         'hasOriginalAudio': bool(ep.get('original_file')),
-        'error': ep.get('error_message'),
+        'error': redact_error(ep.get('error_message')),
         'artworkUrl': artwork_url,
         'pendingReviewCount': ep.get('pending_review_count', 0),
         'awaitingApproval': bool(ep.get('approval_pending_at')),
@@ -359,7 +360,7 @@ def get_episode(slug, episode_id):
     dai_differential = None
     if episode.get('dai_differential_json'):
         try:
-            dai_differential = json.loads(episode['dai_differential_json'])
+            dai_differential = json.loads(redact_json_error(episode['dai_differential_json']))
         except (json.JSONDecodeError, TypeError):
             dai_differential = None
 
@@ -450,7 +451,7 @@ def get_episode(slug, episode_id):
         'transcriptSource': (episode.get('transcript_source')
                              or ('whisper' if episode.get('transcript_text') else None)),
         'chaptersRegenerating': bool(episode.get('chapters_regen_active')),
-        'chaptersRegenError': episode.get('chapters_regen_error'),
+        'chaptersRegenError': redact_error(episode.get('chapters_regen_error')),
         'transcriptVttUrl': (public_path(f"/episodes/{slug}/{episode_id}.vtt{key_suffix}")
                              if transcript_vtt_available else None),
         'chaptersAvailable': chapters_available,

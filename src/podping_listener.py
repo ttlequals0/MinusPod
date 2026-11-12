@@ -18,8 +18,9 @@ from urllib.parse import urlparse, urlunparse
 
 import requests
 
+from database.error_text import redact_error
 from database.podcasts import has_upstream_audio
-from utils.http import redact_exc, redact_log_text
+from utils.http import redact_exc
 from utils.time import ISO_FORMAT, parse_iso_utc, utc_now, utc_now_iso
 
 logger = logging.getLogger('podcast.podping')
@@ -171,7 +172,7 @@ def get_node_health_summary(db) -> list[dict]:
             'consecutiveFailures': int(entry.get('consecutive_failures') or 0),
             'lastSuccessAt': entry.get('last_success_at'),
             'nextRetryAt': entry.get('next_retry_at'),
-            'lastFailureReason': entry.get('last_failure_reason'),
+            'lastFailureReason': redact_error(entry.get('last_failure_reason')),
             'httpStatus': entry.get('last_http_status'),
             'outcome': entry.get('last_outcome'),
             'selected': node == selected_node,
@@ -946,7 +947,7 @@ class PodpingListener:
                 outcome = 'invalid_response'
             else:
                 outcome = 'http_error'
-            self._node_failure(redact_log_text(f"{method} failed: {exc}"), outcome)
+            self._node_failure(f"{method} failed: {exc}", outcome)
             return None
         if not isinstance(result, expected_type):
             self._node_failure(
