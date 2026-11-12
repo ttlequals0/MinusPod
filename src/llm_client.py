@@ -29,6 +29,7 @@ import socket
 import threading
 import time
 import uuid
+from contextlib import contextmanager
 from urllib.parse import urlparse
 from types import SimpleNamespace
 from abc import ABC, abstractmethod
@@ -389,6 +390,21 @@ def llm_disabled(provider=_EFFECTIVE_PROVIDER) -> bool:
     if provider is _EFFECTIVE_PROVIDER:
         provider = get_effective_provider()
     return provider == PROVIDER_NONE
+
+
+def require_llm(message: str | None = None) -> None:
+    """Raise LLMDisabledError while the effective provider is none; the API answers it with a 409."""
+    if llm_disabled():
+        raise LLMDisabledError(message or 'The LLM provider is set to none; no client is available')
+
+
+@contextmanager
+def llm_off_is_quiet(log: logging.Logger, what: str):
+    """Background loop boundary: skip the work at DEBUG when the provider is none, recording no error."""
+    try:
+        yield
+    except LLMDisabledError:
+        log.debug("%s skipped: the LLM provider is none", what)
 
 
 def model_matches_provider(model_id: str, provider: str) -> bool:
@@ -2577,6 +2593,8 @@ def _probe_secondary_provider_formats() -> None:
         client = get_client_for_provider(provider, credential_slot='secondary')
         if hasattr(client, 'verify_connection'):
             client.verify_connection(timeout=HTTP_TIMEOUT_API)
+    except LLMDisabledError:
+        logger.debug("Secondary provider probe skipped: the LLM provider is none")
     except Exception as e:
         logger.warning(f"Secondary provider probe skipped: {e}")
 

@@ -21,7 +21,7 @@ from whisper_pool import get_pool
 from llm_client import (
     get_effective_provider, llm_disabled,
     get_effective_base_url,
-    get_llm_client,
+    get_llm_client, llm_off_is_quiet,
     _JSON_FORMAT_SETTING_KEY,
     _JSON_SCHEMA_SETTING_KEY,
     _clear_model_list_cache,
@@ -181,12 +181,11 @@ def _validate_provider_rate_limit_payload(data):
 
 def _reprobe_primary() -> None:
     """Re-verify the primary client off the request thread, which re-runs its probes."""
-    if llm_disabled():
-        return
-    client = get_llm_client()
-    if hasattr(client, 'verify_connection'):
-        threading.Thread(target=client.verify_connection,
-                         kwargs={'timeout': HTTP_TIMEOUT_API}, daemon=True).start()
+    with llm_off_is_quiet(logger, 'Primary re-probe'):
+        client = get_llm_client()
+        if hasattr(client, 'verify_connection'):
+            threading.Thread(target=client.verify_connection,
+                             kwargs={'timeout': HTTP_TIMEOUT_API}, daemon=True).start()
 
 
 def _forget_endpoint_state(db) -> None:

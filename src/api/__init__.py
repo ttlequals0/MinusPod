@@ -18,6 +18,7 @@ from api.auth_state import (
     AUTH_HOOK_EXEMPT_ENDPOINTS, note_missing_auth, password_is_set, stored_auth,
 )
 from api.csrf import validate as csrf_validate
+from llm_client import LLMDisabledError
 from utils.validation import is_dangerous_slug, nullable_bool
 from utils.http import client_ip, redact_feed_credentials, redact_log_text
 # Import registers the memory-threadsafe scheme before the Limiter resolves it.
@@ -470,6 +471,11 @@ def coded_error_response(message, status, code):
 def llm_disabled_response(message):
     """409 for an action that needs an LLM while the provider is none."""
     return coded_error_response(message, 409, 'llm_disabled')
+
+
+@api.errorhandler(LLMDisabledError)
+def _handle_llm_disabled(exc):
+    return llm_disabled_response(str(exc))
 
 
 def error_response(message, status=400, details=None):

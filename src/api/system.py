@@ -16,7 +16,6 @@ from flask import Response, abort, jsonify, request, send_file
 from api import (
     api, limiter, log_request, json_response, error_response,
     get_database, get_storage, _get_version, _start_time, apply_url_prefix,
-    llm_disabled_response,
 )
 from api.failover import probes_view, targets_view
 import transcriber
@@ -31,7 +30,7 @@ from podping_listener import (
     get_node_health_summary, DEGRADED_SETTING, DEGRADED_SINCE_SETTING,
     get_node_check_status, MONITOR_HEARTBEAT_SETTING, NODE_CHECK_SETTING,
 )
-from llm_client import llm_disabled
+from llm_client import llm_disabled, require_llm
 from pricing_fetcher import force_refresh_pricing
 from secrets_crypto import (
     count_plaintext_secrets,
@@ -337,8 +336,7 @@ def get_model_pricing():
 @log_request
 def refresh_model_pricing():
     """Force refresh pricing data from provider's pricing source."""
-    if llm_disabled():
-        return llm_disabled_response('Pricing refresh is unavailable while the LLM provider is none')
+    require_llm('Pricing refresh is unavailable while the LLM provider is none')
     try:
         force_refresh_pricing()
         db = get_database()

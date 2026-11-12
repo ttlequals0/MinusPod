@@ -7,7 +7,7 @@ import time
 import uuid
 from api import (
     api, limiter, log_request, json_response, error_response,
-    get_database, get_storage, llm_disabled_response,
+    get_database, get_storage,
 )
 from ad_chapters import (
     merge_ad_chapters, public_chapters, refresh_keep_like_markers, resolve_ad_chapter_config,
@@ -17,7 +17,7 @@ from chapters_generator import ChaptersGenerator
 from embedded_chapters import embed_chapters
 from llm_client import (
     ProviderRateLimitedError, start_episode_token_tracking, get_episode_token_totals,
-    llm_disabled,
+    require_llm,
 )
 import run_context
 from llm_route import resolve_route
@@ -44,8 +44,7 @@ def regenerate_chapters(slug, episode_id):
     episode = db.get_episode_state(slug, episode_id)
     if not episode:
         return error_response('Episode not found', 404)
-    if llm_disabled():
-        return llm_disabled_response('Chapter regeneration is unavailable while the LLM provider is set to None')
+    require_llm('Chapter regeneration is unavailable while the LLM provider is set to None')
     if not episode['has_transcript_vtt']:
         return error_response('No VTT transcript available - full reprocess required', 400)
     chapters_route = None
