@@ -47,6 +47,14 @@ def test_summary_excludes_rejected_rows_from_count_and_mean(temp_db, pattern):
     assert abs(summary['mean_similarity'] - 0.8) < 1e-9
 
 
+def test_out_of_scope_count_skips_rejected_rows(temp_db, pattern):
+    _record(temp_db, pattern, 'a', start=10, end=50, in_scope=False)
+    _record(temp_db, pattern, 'b', start=10, end=50, in_scope=False)
+    assert temp_db.mark_fingerprint_match_rejected(pattern, 'show', 'b', 10, 50)
+    summary = temp_db.get_audio_match_summary(pattern)
+    assert (summary['match_count'], summary['rejected_count'], summary['out_of_scope_count']) == (1, 1, 1)
+
+
 def test_summary_with_only_rejected_rows(temp_db, pattern):
     _record(temp_db, pattern, 'a', start=10, end=50)
     temp_db.mark_fingerprint_match_rejected(pattern, 'show', 'a', 10, 50)

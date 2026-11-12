@@ -223,12 +223,12 @@ class FingerprintMatchMixin:
         return True
 
     def get_audio_match_summary(self, pattern_id: int) -> dict:
-        """Match count and mean similarity skip rejected rows, which are counted apart."""
+        """Match, out-of-scope and mean figures skip rejected rows, which are counted apart."""
         conn = self.get_connection()
         row = conn.execute(
             """SELECT COALESCE(SUM(1 - rejected), 0) AS match_count,
                       COALESCE(SUM(rejected), 0) AS rejected_count,
-                      COALESCE(SUM(1 - in_scope), 0) AS out_of_scope_count,
+                      COALESCE(SUM(CASE WHEN rejected = 0 THEN 1 - in_scope ELSE 0 END), 0) AS out_of_scope_count,
                       AVG(CASE WHEN rejected = 0 THEN similarity END) AS mean_similarity,
                       MAX(created_at) AS last_matched_at
                FROM audio_fingerprint_matches WHERE pattern_id = ?""",

@@ -16,6 +16,7 @@ from tests.integration.openapi_conformance import (  # noqa: E402
 
 SLUG = 'conformance-feed'
 EPISODE_ID = 'a1b2c3d4e5f6'
+_SEEDED = {}
 MARKERS = [
     {'start': 10.0, 'end': 40.0, 'confidence': 0.9, 'sponsor': 'Acme', 'reason': 'sponsor read'},
     {'start': 100.0, 'end': 130.0, 'confidence': 0.4, 'was_cut': False,
@@ -39,12 +40,20 @@ def seeded_rows():
         db.save_original_segments(SLUG, EPISODE_ID, segments)
         db.save_final_segments(SLUG, EPISODE_ID, segments)
         db.create_feed_subscriber_key(SLUG, 'Living room')
+        _SEEDED['pattern_id'] = db.create_ad_pattern(
+            scope='podcast', podcast_id=SLUG, text_template='Acme read for the conformance test ' * 3)
+        db.create_audio_fingerprint(_SEEDED['pattern_id'], b'AQAA', 6.0, source_podcast_slug=SLUG,
+                                    source_episode_id=EPISODE_ID, source_start=2.0, source_end=8.0)
+        db.record_fingerprint_match(_SEEDED['pattern_id'], EPISODE_ID, SLUG, 10.0, 40.0,
+                                    0.9, 0.8, True, False)
         db.create_pattern_correction(
             'false_positive', episode_id=EPISODE_ID, podcast_title='Conformance Test Show',
             episode_title='Episode 1', original_bounds={'start': 10.0, 'end': 40.0})
         yield
     finally:
         db.delete_podcast(SLUG)
+        if 'pattern_id' in _SEEDED:
+            db.delete_ad_pattern(_SEEDED.pop('pattern_id'))
         conn = db.get_connection()
         conn.execute('DELETE FROM pattern_corrections WHERE episode_id = ?', (EPISODE_ID,))
         conn.commit()
@@ -148,11 +157,13 @@ GET_ROUTES = [
     ('/podping/nodes', ''),
     ('/community-patterns/sync-status', ''),
     ('/cue-detections/aggregate', ''),
+    ('/patterns/{pattern_id}', ''),
+    ('/patterns/{pattern_id}/audio', ''),
 ]
 
 
 def _fill(template):
-    return template.format(slug=SLUG, episode_id=EPISODE_ID)
+    return template.format(slug=SLUG, episode_id=EPISODE_ID, pattern_id=_SEEDED.get('pattern_id'))
 
 
 def _spec_paths_with_json_200(method, prefix=''):
@@ -177,7 +188,6 @@ UNCOVERED = {
     '/feeds/{slug}/episodes/{episode_id}/cue-loud-spots': 'needs retained original audio',
     '/feeds/{slug}/episodes/{episode_id}/cue-candidates': 'needs retained original audio',
     '/feeds/{slug}/import/status': 'local feeds only',
-    '/patterns/{pattern_id}': 'needs an argument the seed cannot provide',
     '/patterns/export': 'binary or streaming body',
     '/patterns/{pattern_id}/audio/preview': 'binary audio body; covered in test_audio_preview_route',
     '/podcast-search': 'network call',
@@ -262,6 +272,9 @@ MUTATIONS = [
     ('patch', '/feeds/{slug}', {'titleOverride': 'Renamed', 'descriptionOverride': 'About'}),
     ('put', '/feeds/{slug}/tags', {'user_tags': []}),
     ('put', '/settings/ad-detection', {'whisperBackend': 'local'}),
+    ('put', '/patterns/{pattern_id}/audio', {'enabled': True}),
+    ('post', '/patterns/{pattern_id}/audio/rebuild',
+     {'podcastSlug': SLUG, 'episodeId': EPISODE_ID, 'start': 10.0, 'end': 40.0}),
     ('put', '/settings/provider-budget',
      {'enabled': False, 'dailyLimitMicrousd': 0, 'maxReservations': 8,
       'unknownCost': 'deny', 'unknownReserveMicrousd': 0}),
@@ -278,6 +291,17 @@ def test_mutation_response_matches_spec(seeded, method, template, body):
     client, headers = seeded
     response = getattr(client, method)(f'/api/v1{_fill(template)}', json=body, headers=headers)
     assert_response_conforms(method, template, response)
+
+
+def test_delete_pattern_audio_matches_spec(seeded):
+    from api import get_database
+    client, headers = seeded
+    db = get_database()
+    pid = db.create_ad_pattern(scope='podcast', podcast_id=SLUG, text_template='Throwaway read for the delete test ' * 3)
+    db.create_audio_fingerprint(pid, b'AQAA', 6.0)
+    template = '/patterns/{pattern_id}/audio'
+    assert_response_conforms('delete', template, client.delete(f'/api/v1/patterns/{pid}/audio', headers=headers))
+    db.delete_ad_pattern(pid)
 
 
 @pytest.mark.parametrize('template', ECHO_PUTS)

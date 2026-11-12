@@ -8,9 +8,10 @@ import tempfile
 from flask import abort, request, send_file
 
 from api import (
-    api, log_request, error_response, coded_error_response,
+    api, log_request, json_response, error_response, coded_error_response,
     get_database, get_storage, _resolve_original_audio,
 )
+from api.patterns import _store_pattern_audio
 from config import FFMPEG_SHORT_TIMEOUT
 from utils.ffmpeg_run import SAFE_MEDIA_INPUT_ARGS
 from utils.subprocess_registry import tracked_run
@@ -72,6 +73,55 @@ def resolve_audio_source(db, storage, pattern_id, match_id=None):
     return None, original_not_retained_response()
 
 
+def _span(source):
+    return {'podcastSlug': source['podcastSlug'], 'episodeId': source['episodeId'],
+            'start': source['start'], 'end': source['end']}
+
+
+def build_audio_detail(db, storage, pattern_id):
+    """The audio detail object of a pattern that exists."""
+    fingerprint = db.get_audio_fingerprint(pattern_id)
+    summary = db.get_audio_match_summary(pattern_id)
+    detail = {
+        'state': 'none', 'available': False, 'length': None, 'createdAt': None,
+        'builtFrom': None, 'source': None,
+        'counts': {'matches': summary['match_count'], 'rejected': summary['rejected_count'],
+                   'outOfScope': summary['out_of_scope_count']},
+        'meanSimilarity': summary['mean_similarity'], 'lastMatchedAt': summary['last_matched_at'],
+    }
+    if fingerprint is None:
+        return detail
+    detail['state'] = 'active' if fingerprint['enabled'] else 'off'
+    detail['length'] = fingerprint['duration']
+    detail['createdAt'] = fingerprint['created_at']
+    slug, episode_id = fingerprint['source_podcast_slug'], fingerprint['source_episode_id']
+    if slug and episode_id and _usable_span(fingerprint['source_start'], fingerprint['source_end']):
+        _, built_err = _resolve_original_audio(db, storage, slug, episode_id)
+        detail['builtFrom'] = {'podcastSlug': slug, 'episodeId': episode_id,
+                               'start': fingerprint['source_start'], 'end': fingerprint['source_end'],
+                               'available': built_err is None}
+    source, _ = resolve_audio_source(db, storage, pattern_id)
+    if source:
+        detail['source'] = _span(source)
+        detail['available'] = True
+    return detail
+
+
+def _known_pattern(db, pattern_id):
+    """The pattern row, or (None, 404 response)."""
+    pattern = db.get_ad_pattern_by_id(pattern_id)
+    if pattern is None:
+        return None, error_response('Pattern not found', 404)
+    return pattern, None
+
+
+def _number(value):
+    """A finite non-bool number as a float, else None."""
+    if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value):
+        return None
+    return float(value)
+
+
 def _match_id_arg():
     """The optional matchId query argument; digits only, else 400."""
     raw = request.args.get('matchId')
@@ -125,3 +175,85 @@ def preview_pattern_audio(pattern_id):
     response.headers['Accept-Ranges'] = 'bytes'
     response.headers['Cache-Control'] = 'no-store'
     return response
+
+
+@api.route('/patterns/<int:pattern_id>/audio', methods=['GET'])
+@log_request
+def get_pattern_audio(pattern_id):
+    """Audio fingerprint state, source and counts of a pattern."""
+    db = get_database()
+    _, err = _known_pattern(db, pattern_id)
+    if err:
+        return err
+    return json_response(build_audio_detail(db, get_storage(), pattern_id))
+
+
+@api.route('/patterns/<int:pattern_id>/audio', methods=['PUT'])
+@log_request
+def set_pattern_audio_enabled(pattern_id):
+    """Turn a pattern's audio matching on or off."""
+    db = get_database()
+    _, err = _known_pattern(db, pattern_id)
+    if err:
+        return err
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict) or not isinstance(data.get('enabled'), bool):
+        return error_response('enabled must be true or false', 400)
+    if not db.set_fingerprint_enabled(pattern_id, data['enabled']):
+        return no_audio_response()
+    return json_response(build_audio_detail(db, get_storage(), pattern_id))
+
+
+@api.route('/patterns/<int:pattern_id>/audio', methods=['DELETE'])
+@log_request
+def delete_pattern_audio(pattern_id):
+    """Delete a pattern's fingerprint and match history; automatic rows will not rebuild it."""
+    db = get_database()
+    _, err = _known_pattern(db, pattern_id)
+    if err:
+        return err
+    if not db.delete_pattern_audio(pattern_id):
+        return no_audio_response()
+    return json_response({'deleted': True})
+
+
+def _rebuild_span(data):
+    """Validated (slug, episode_id, start, end) of a rebuild body, or an error message."""
+    slug, episode_id = data.get('podcastSlug'), data.get('episodeId')
+    if not (isinstance(slug, str) and slug and isinstance(episode_id, str) and episode_id):
+        return 'podcastSlug and episodeId are required'
+    start, end = _number(data.get('start')), _number(data.get('end'))
+    if start is None or end is None:
+        return 'start and end must be finite numbers'
+    if start < 0 or end <= start:
+        return 'start must be at least 0 and before end'
+    return slug, episode_id, start, end
+
+
+@api.route('/patterns/<int:pattern_id>/audio/rebuild', methods=['POST'])
+@log_request
+def rebuild_pattern_audio(pattern_id):
+    """Rebuild a pattern's fingerprint from a span of an episode's retained original."""
+    db = get_database()
+    _, err = _known_pattern(db, pattern_id)
+    if err:
+        return err
+    data = request.get_json(silent=True)
+    parsed = _rebuild_span(data) if isinstance(data, dict) else 'A JSON object body is required'
+    if isinstance(parsed, str):
+        return error_response(parsed, 400)
+    slug, episode_id, start, end = parsed
+    episode = db.get_episode(slug, episode_id)
+    if episode is None:
+        return error_response('Episode not found', 404)
+    duration = episode.get('original_duration')
+    if duration and end > duration:
+        return error_response('The span runs past the end of the episode', 400)
+    result = _store_pattern_audio(db, slug, episode_id, pattern_id, start, end, force=True)
+    if result.stored:
+        db.set_pattern_audio_removed(pattern_id, False)
+    body = {'fingerprintStored': result.stored}
+    if not result.stored:
+        body['fingerprintSkippedReason'] = result.skipped_reason
+    body['audio'] = build_audio_detail(db, get_storage(), pattern_id)
+    return json_response(body)

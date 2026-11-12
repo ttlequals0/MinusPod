@@ -4952,6 +4952,151 @@ paths:
         '500':
           $ref: '#/components/responses/ServerError'
 
+  /patterns/{pattern_id}/audio:
+    get:
+      tags:
+        - Patterns
+      summary: Audio fingerprint detail of a pattern
+      description: |
+        State, length, source and match counts of the pattern's audio
+        fingerprint. A pattern without a fingerprint answers 200 with
+        `state: none`. `counts.matches` and `meanSimilarity` leave out matches
+        marked "not this ad"; `counts.rejected` and `counts.outOfScope` are
+        separate figures, and `outOfScope` does not include rejected matches.
+        `available` is true when a retained original can be played now.
+      operationId: getPatternAudio
+      parameters:
+        - $ref: '#/components/parameters/pattern_id'
+      responses:
+        '200':
+          description: Audio detail
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PatternAudioDetail'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    put:
+      tags:
+        - Patterns
+      summary: Turn a pattern's audio matching on or off
+      description: |
+        Stops or resumes audio matching for the pattern. Text matching is not
+        affected. Returns the detail object. 400 when `enabled` is missing or
+        not a boolean. 404 with `code: no_audio` when the pattern has no
+        fingerprint, and 404 without a code when the pattern is unknown.
+      operationId: setPatternAudioEnabled
+      parameters:
+        - $ref: '#/components/parameters/pattern_id'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [enabled]
+              properties:
+                enabled:
+                  type: boolean
+      responses:
+        '200':
+          description: Audio detail after the change
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PatternAudioDetail'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      tags:
+        - Patterns
+      summary: Delete a pattern's audio
+      description: |
+        Removes the fingerprint and its match history in one transaction and
+        marks the pattern so automatic detection does not rebuild its audio.
+        The pattern stays. Adjusting the ad edges or rebuilding is explicit and
+        does create audio again. 404 with `code: no_audio` when the pattern has
+        no fingerprint, and 404 without a code when the pattern is unknown.
+      operationId: deletePatternAudio
+      parameters:
+        - $ref: '#/components/parameters/pattern_id'
+      responses:
+        '200':
+          description: Audio deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [deleted]
+                properties:
+                  deleted:
+                    type: boolean
+                    enum: [true]
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /patterns/{pattern_id}/audio/rebuild:
+    post:
+      tags:
+        - Patterns
+      summary: Rebuild a pattern's audio from an episode span
+      description: |
+        Fingerprints `[start, end]` of the named episode's retained original and
+        stores it as the pattern's audio, replacing any existing fingerprint and
+        clearing the deleted-audio marker. The on/off setting is kept. All four
+        body fields are required. `start` and `end` are finite seconds with
+        `0 <= start < end`, and `end` may not pass the episode's duration when
+        that is known; otherwise the answer is 400.
+
+        A span that cannot be stored is still a 200 with
+        `fingerprintStored: false` and a `fingerprintSkippedReason`:
+        `original_not_retained`, `segment_too_short` (shorter than the minimum
+        ad length setting), `fingerprint_failed`. This matches the Add ad
+        correction. 404 when the pattern or the episode is unknown.
+      operationId: rebuildPatternAudio
+      parameters:
+        - $ref: '#/components/parameters/pattern_id'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [podcastSlug, episodeId, start, end]
+              properties:
+                podcastSlug:
+                  type: string
+                episodeId:
+                  type: string
+                start:
+                  type: number
+                  minimum: 0
+                end:
+                  type: number
+      responses:
+        '200':
+          description: Rebuild outcome and the audio detail after it
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [fingerprintStored, audio]
+                properties:
+                  fingerprintStored:
+                    type: boolean
+                  fingerprintSkippedReason:
+                    type: string
+                    enum: [original_not_retained, segment_too_short, fingerprint_failed, audio_removed]
+                    description: Present only when `fingerprintStored` is false.
+                  audio:
+                    $ref: '#/components/schemas/PatternAudioDetail'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
   /patterns/{pattern_id}/split:
     post:
       tags:
@@ -19709,6 +19854,78 @@ components:
             or creation timestamp is also older than 365 days. unproven: no
             recent local match, but not stale; includes all local
             (non-community) patterns, which are never 'stale'.
+
+    PatternAudioSpan:
+      type: object
+      properties:
+        podcastSlug:
+          type: string
+        episodeId:
+          type: string
+        start:
+          type: number
+          description: Seconds into the episode's original audio
+        end:
+          type: number
+
+    PatternAudioDetail:
+      type: object
+      required: [state, available, counts]
+      properties:
+        state:
+          type: string
+          enum: [active, off, none]
+          description: "`none` means the pattern has no fingerprint."
+        available:
+          type: boolean
+          description: Whether any source episode still has a playable original.
+        length:
+          type:
+            - number
+            - 'null'
+          description: Length of the stored fingerprint in seconds.
+        createdAt:
+          type:
+            - string
+            - 'null'
+          format: date-time
+        builtFrom:
+          description: The episode span the fingerprint was built from; null when unknown.
+          oneOf:
+            - type: 'null'
+            - allOf:
+                - $ref: '#/components/schemas/PatternAudioSpan'
+                - type: object
+                  properties:
+                    available:
+                      type: boolean
+                      description: Whether that episode's original is retained now.
+        source:
+          description: The playable span preview uses; null when no source is playable.
+          oneOf:
+            - type: 'null'
+            - $ref: '#/components/schemas/PatternAudioSpan'
+        counts:
+          type: object
+          properties:
+            matches:
+              type: integer
+              description: Matches not marked "not this ad".
+            rejected:
+              type: integer
+            outOfScope:
+              type: integer
+              description: Non-rejected matches found outside the pattern's scope.
+        meanSimilarity:
+          type:
+            - number
+            - 'null'
+          description: Mean similarity of the non-rejected matches that recorded one.
+        lastMatchedAt:
+          type:
+            - string
+            - 'null'
+          format: date-time
 
     Network:
       type: object
