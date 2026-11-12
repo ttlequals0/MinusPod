@@ -1238,6 +1238,8 @@ class TestChunkExtractionTimeoutFallback:
             patch('transcriber.chunking.extract_audio_chunk', side_effect=extract),
             patch('transcriber.settings._get_whisper_settings', return_value={'backend': 'local'}),
             patch('transcriber.clear_gpu_memory'),
+            # The model warm-up runs before the loop; stub it so no real load is attempted.
+            patch.object(WhisperModelSingleton, 'get_batched_pipeline', return_value=MagicMock()),
         )
 
     def test_timeout_halves_the_chunk_and_retries(self):
@@ -1255,8 +1257,8 @@ class TestChunkExtractionTimeoutFallback:
             return tmp.name
 
         t = self._transcriber()
-        p1, p2, p3, p4 = self._patches(extract)
-        with p1, p2, p3, p4:
+        p1, p2, p3, p4, p5 = self._patches(extract)
+        with p1, p2, p3, p4, p5:
             t.transcribe_chunked('/tmp/in.mp3')
 
         # The full first chunk was attempted, and after the timeout the
@@ -1269,8 +1271,8 @@ class TestChunkExtractionTimeoutFallback:
             raise AudioExtractionTimeout('ffmpeg exceeded 300s')
 
         t = self._transcriber()
-        p1, p2, p3, p4 = self._patches(extract)
-        with p1, p2, p3, p4:
+        p1, p2, p3, p4, p5 = self._patches(extract)
+        with p1, p2, p3, p4, p5:
             with pytest.raises(AudioExtractionTimeout) as exc:
                 t.transcribe_chunked('/tmp/in.mp3')
         # The message must not claim the source file failed to decode.
