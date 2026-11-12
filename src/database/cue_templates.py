@@ -106,12 +106,10 @@ class CueTemplateMixin:
         network. Podcast-scope rows sort ahead of network-scope ones so the
         matcher and snap see the feed's own cues first.
 
-        The network match uses the feed's effective network -- a non-empty
-        ``network_id_override`` when set, else the auto-detected ``network_id``.
-        This lets a manually-assigned network (same creator, no auto-detected
-        network) link feeds for promotion. ``NULLIF(..., '')`` guards a blank
-        override stored as an empty string rather than NULL, which COALESCE
-        alone would not fall through.
+        The network match uses the feed's effective network: ``network_id_override``
+        when set, else the auto-detected ``network_id``. This lets a manually-assigned
+        network (same creator, no auto-detected network) link feeds for promotion.
+        Writers store a blank override as NULL, so a plain COALESCE is enough.
         """
         conn = self.get_connection()
         cursor = conn.execute(
