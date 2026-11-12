@@ -151,4 +151,14 @@ describe('DropdownMenu', () => {
     expect(onClick).toHaveBeenCalledTimes(1);
     expect(screen.queryByRole('menu')).toBeNull();
   });
+
+  it('names a disabled item by its title and describes it by its subtitle', async () => {
+    renderMenu({ items: [{ title: 'Regenerate', subtitle: 'LLM provider is set to None.', disabled: true, onClick: vi.fn() }] });
+    await openMenu();
+    const el = item('Regenerate');
+    expect(el.textContent).toContain('LLM provider is set to None.');
+    const desc = document.getElementById(el.getAttribute('aria-describedby') ?? '');
+    expect(desc?.textContent).toBe('LLM provider is set to None.');
+    expect(screen.queryByRole('menuitem', { name: /LLM provider/ })).toBeNull();
+  });
 });

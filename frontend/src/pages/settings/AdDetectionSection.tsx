@@ -276,7 +276,7 @@ function AdDetectionSection({
                   <span className="text-sm font-medium text-foreground">Autocut</span>
                 </label>
                 <p className="mt-2 text-sm text-muted-foreground ml-14">
-                  Cut a verification catch automatically once it reaches a set confidence, instead of holding it for review. Off by default; catches then only ever hold or drop.
+                  Cut a verification catch automatically once it reaches a set confidence, instead of holding it for review. Off by default. Catches then only ever hold or drop.
                 </p>
                 {verificationMissAutocutMinConfidence > 0 && (
                   <div className="mt-3 ml-14">

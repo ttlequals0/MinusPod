@@ -1,6 +1,7 @@
 import { useRef } from 'react';
 import { btnPadY, btnSecondary } from './buttonStyles';
 import { focusRing } from './fieldStyles';
+import { useGroupDisabled } from './DisabledGroup';
 
 export interface SegmentedOption<T extends string | number> {
   value: T;
@@ -48,9 +49,11 @@ const VARIANTS = {
 // One button group, one selected segment. The focus ring is inset so the
 // group's overflow-hidden cannot clip it.
 function SegmentedToggle<T extends string | number>({
-  options, value, onChange, ariaLabel, variant = 'settings', muted, fill, tall, disabled,
+  options, value, onChange, ariaLabel, variant = 'settings', muted, fill, tall, disabled: ownDisabled,
   describedBy, mobileTouchTarget = false,
 }: SegmentedToggleProps<T>) {
+  const groupDisabled = useGroupDisabled();
+  const disabled = ownDisabled || groupDisabled;
   const buttonRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const isRadio = variant === 'settings';
   const sizing = VARIANTS[variant];

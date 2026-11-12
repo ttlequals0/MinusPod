@@ -113,6 +113,7 @@ function DropdownMenu({
               role={item.checked === undefined ? 'menuitem' : 'menuitemradio'}
               aria-checked={item.checked}
               disabled={item.disabled}
+              aria-labelledby={item.disabled && item.subtitle ? `${menuId}-title-${i}` : undefined}
               aria-describedby={item.disabled && item.subtitle ? `${menuId}-sub-${i}` : undefined}
               title={item.tooltip}
               onClick={() => {
@@ -123,7 +124,7 @@ function DropdownMenu({
               className={`${cls} ${focusRing}`}
             >
               <span className="flex items-center gap-2">
-                <span className="min-w-0 flex-1 text-sm font-medium text-foreground">{item.title}</span>
+                <span id={`${menuId}-title-${i}`} className="min-w-0 flex-1 text-sm font-medium text-foreground">{item.title}</span>
                 {item.checked && <Check className="h-4 w-4 shrink-0" aria-hidden="true" />}
               </span>
               {item.subtitle && <span id={`${menuId}-sub-${i}`} className="block text-xs text-muted-foreground">{item.subtitle}</span>}

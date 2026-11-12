@@ -28,7 +28,8 @@ interface EpisodeRowActionsProps {
 function EpisodeRowActions({
   feedSlug, episodeId, status, jobState, hasBeenProcessed, feedType,
 }: EpisodeRowActionsProps) {
-  const menuCopy = reprocessMenuCopy(feedType, useLlmEnabled());
+  const llmEnabled = useLlmEnabled();
+  const menuCopy = reprocessMenuCopy(feedType, llmEnabled);
   const queryClient = useQueryClient();
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);

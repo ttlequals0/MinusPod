@@ -345,7 +345,7 @@ function LLMProviderSection({
                 </span>
               </label>
               <p className="mt-2 text-sm text-muted-foreground ml-14">
-                A second provider that detection, verification, chapters and the reviewer can each route to instead of {SLOT_LABELS.primary}. Both are peers; use the Failover card below for automatic switching when one is down.
+                A second provider that detection, verification, chapters and the reviewer can each route to instead of {SLOT_LABELS.primary}. Both are peers. Use the Failover card below for automatic switching when one is down.
               </p>
             </div>
 

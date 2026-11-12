@@ -24,7 +24,7 @@ const DEFAULT_COPY: ReprocessMenuCopy = {
 const YOUTUBE_COPY: ReprocessMenuCopy = {
   reprocess: {
     subtitle: 'SponsorBlock marks + patterns',
-    tooltip: 'Refresh SponsorBlock marks and captions; learned patterns run, the LLM only when there are no marks',
+    tooltip: 'Refresh SponsorBlock marks and captions. Learned patterns run, the LLM only when there are no marks.',
   },
   full: {
     subtitle: 'Marks, patterns + pass 1 LLM',
@@ -51,7 +51,7 @@ const NONE_COPY: ReprocessMenuCopy = {
 const YOUTUBE_NONE_COPY: ReprocessMenuCopy = {
   reprocess: {
     subtitle: 'SponsorBlock marks + patterns',
-    tooltip: 'Refresh SponsorBlock marks and captions; learned patterns run',
+    tooltip: 'Refresh SponsorBlock marks and captions. Learned patterns run.',
   },
   full: NONE_COPY.full,
   redetect: {

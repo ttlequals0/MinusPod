@@ -96,7 +96,7 @@ function AudioCueDetectionSection({ audioCue, onChange }: AudioCueDetectionSecti
             </span>
           </label>
           <p className="mt-2 text-sm text-muted-foreground ml-14">
-            Adds one ffmpeg pass per episode to find a recurring non-spoken cue. The cue never marks an ad on its own - it only sharpens the boundary of an ad the model finds in the transcript.
+            Adds one ffmpeg pass per episode to find a recurring non-spoken cue. A cue sharpens the boundary of an ad found in the transcript, by the model or by text patterns, fingerprints and cross-fetch comparison. Only a cue template set to cut marks ads on its own.
           </p>
         </div>
 

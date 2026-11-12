@@ -127,7 +127,7 @@ function YouTubeFeedPanel({ feed, slug }: { feed: Feed; slug: string }) {
   const pending = mutation.isPending;
   const demoTitle = IS_DEMO ? DEMO_WRITE_TOOLTIP : undefined;
   const llmEnabled = useLlmEnabled();
-  const llmReason = llmEnabled ? '' : ` ${LLM_DISABLED_REASON}`;
+  const noModelNote = llmEnabled ? '' : ` ${LLM_DISABLED_REASON} Detection then uses text patterns, audio fingerprints and audio cues.`;
 
   return (
     <div className="mb-6">
@@ -166,22 +166,22 @@ function YouTubeFeedPanel({ feed, slug }: { feed: Feed; slug: string }) {
             ariaLabel="LLM fallback"
             value={toTri(feed.ytLlmFallbackOverride)}
             globalOn={!!globals?.llmFallback}
-            disabled={pending || IS_DEMO || !llmEnabled}
+            disabled={pending || IS_DEMO}
             title={demoTitle}
             onChange={setBool('ytLlmFallbackOverride')}
           >
-            Run the ad detector when SponsorBlock has no marks for an episode.{llmReason}
+            Run the ad detector when SponsorBlock has no marks for an episode.{noModelNote}
           </GlobalOverrideRow>
           <GlobalOverrideRow
             label="Pass 1 detection"
             ariaLabel="Pass 1 detection"
             value={toTri(feed.ytLlmOnTopOverride)}
             globalOn={false}
-            disabled={pending || IS_DEMO || !llmEnabled}
+            disabled={pending || IS_DEMO}
             title={demoTitle}
             onChange={setBool('ytLlmOnTopOverride')}
           >
-            Run pass 1 LLM detection even when SponsorBlock has marks, and cut both.{llmReason}
+            Run the ad detector even when SponsorBlock has marks, and cut both.{noModelNote}
           </GlobalOverrideRow>
           <GlobalOverrideRow
             label="Captions"

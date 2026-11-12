@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import SegmentedToggle from './SegmentedToggle';
+import { DisabledGroupContext } from './DisabledGroup';
 
 type Mode = 'one' | 'two' | 'three';
 const OPTIONS = [
@@ -89,6 +90,21 @@ describe('SegmentedToggle: radiogroup semantics', () => {
     await user.click(screen.getByRole('radio', { name: 'Two' }));
     first.focus();
     await user.keyboard('{ArrowRight}');
+    expect(onChange).not.toHaveBeenCalled();
+  });
+});
+
+describe('SegmentedToggle: disabled group', () => {
+  it('follows a disabled group', async () => {
+    const onChange = vi.fn();
+    render(
+      <DisabledGroupContext.Provider value>
+        <SegmentedToggle options={OPTIONS} value="one" onChange={onChange} ariaLabel="Mode" />
+      </DisabledGroupContext.Provider>,
+    );
+    const two = screen.getByRole('radio', { name: 'Two' });
+    expect(two.getAttribute('aria-disabled')).toBe('true');
+    await userEvent.setup().click(two);
     expect(onChange).not.toHaveBeenCalled();
   });
 });

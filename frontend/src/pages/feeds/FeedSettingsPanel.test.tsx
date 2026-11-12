@@ -1819,12 +1819,13 @@ describe('FeedSettingsPanel under LLM provider None', () => {
     ));
   });
 
-  it('disables Keep content only and adds the model-free line to the Standard hint', async () => {
+  it('disables Keep content only and describes model-free detection once', async () => {
     renderPanel(makeFeed());
     const select = screen.getByLabelText('Processing mode:') as HTMLSelectElement;
     await waitFor(() => expect((within(select).getByRole('option', { name: /Keep content only/ }) as HTMLOptionElement).disabled).toBe(true));
     const text = select.getAttribute('aria-describedby')!.split(' ').map((id) => document.getElementById(id)?.textContent).join('|');
-    expect(text).toContain('LLM provider is set to None, so detection uses text patterns');
+    expect(text).toContain('Detects ads with text patterns, audio fingerprints, audio cues and cross-fetch comparison');
+    expect(text.match(/LLM provider is set to None/g)).toHaveLength(1);
     expect(text).toContain('Keep content only is unavailable. LLM provider is set to None.');
   });
 
@@ -1834,10 +1835,11 @@ describe('FeedSettingsPanel under LLM provider None', () => {
     expect(screen.queryByText(/Keep content only is unavailable/)).toBeNull();
   });
 
-  it('disables the per-feed verification select and detection notes with the reason', async () => {
+  it('disables the per-feed verification select, detection notes and chapter notes with the reason', async () => {
     renderPanel(makeFeed());
     await waitFor(() => expectGatedByLlm(screen.getByLabelText('Verification pass')));
     expectGatedByLlm(screen.getByLabelText('Detection notes'));
+    expectGatedByLlm(screen.getByLabelText('Chapter notes'));
   });
 
   it('leaves processing mode, verification and notes enabled when a provider is set', async () => {

@@ -247,13 +247,16 @@ describe('YouTubeFeedPanel under LLM provider None', () => {
     mockSettings.mockResolvedValue({ llmEnabled: false });
   });
 
-  it('disables the two model options with the reason and leaves captions alone', async () => {
+  it('keeps the two detector options enabled and says what detection uses', async () => {
     renderPanel();
     const fallback = await screen.findByLabelText('LLM fallback') as HTMLSelectElement;
-    await waitFor(() => expect(fallback.disabled).toBe(true));
-    expect((screen.getByLabelText('Pass 1 detection') as HTMLSelectElement).disabled).toBe(true);
-    expect((screen.getByLabelText('Use captions as transcript') as HTMLSelectElement).disabled).toBe(false);
+    await waitFor(() => {
+      const help = document.getElementById(fallback.getAttribute('aria-describedby')!);
+      expect(help?.textContent).toContain('LLM provider is set to None.');
+    });
+    expect(fallback.disabled).toBe(false);
+    expect((screen.getByLabelText('Pass 1 detection') as HTMLSelectElement).disabled).toBe(false);
     const help = document.getElementById(fallback.getAttribute('aria-describedby')!);
-    expect(help?.textContent).toContain('LLM provider is set to None.');
+    expect(help?.textContent).toContain('text patterns, audio fingerprints and audio cues');
   });
 });

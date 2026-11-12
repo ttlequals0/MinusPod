@@ -7,12 +7,12 @@ describe('processingModeHint', () => {
     expect(processingModeHint('keep_content', true)).toBe(PROCESSING_MODE_HINTS.keep_content);
   });
 
-  it('adds the model-free detectors line to Standard under None', () => {
+  it('describes model-free detection for Standard under None without repeating the reason', () => {
     const hint = processingModeHint('standard', false);
-    expect(hint.text.startsWith(PROCESSING_MODE_HINTS.standard.text)).toBe(true);
-    expect(hint.text).toContain(
-      'LLM provider is set to None, so detection uses text patterns, audio fingerprints, audio cues and cross-fetch comparison.',
+    expect(hint.text).toBe(
+      'Detects ads with text patterns, audio fingerprints, audio cues and cross-fetch comparison, and cuts them out. The default for most feeds.',
     );
+    expect(hint.text).not.toContain('LLM provider');
   });
 
   it('says keep content runs as Standard under None, without a warning', () => {
