@@ -697,8 +697,8 @@ def _own_pattern_spans(db, slug, episode_id, pattern_ids, start, end, text):
         if covered:
             found[pid] = (lo, lo + len(template), covered[0], covered[-1])
     own = dict.fromkeys(pattern_ids)
-    previous_last = None
-    for pid, (lo, hi, first, last) in sorted(found.items(), key=lambda item: item[1][0]):
+    previous_last, previous_end = None, start
+    for pid, (lo, hi, first, last) in sorted(found.items(), key=lambda item: item[1][:2]):
         if lo <= 0 and hi >= len(joined):
             own[pid] = (start, end)
         else:
@@ -712,6 +712,11 @@ def _own_pattern_spans(db, slug, episode_id, pattern_ids, start, end, text):
                 spans, words, offsets, last, hi, spans[last]['end'])
             begin, finish = max(start, begin), min(end, finish)
             own[pid] = (begin, finish) if finish > begin else None
+        if own[pid] and own[pid][0] < previous_end:
+            # overlapping templates: the earlier pattern keeps the shared time
+            own[pid] = (previous_end, own[pid][1]) if own[pid][1] > previous_end else None
+        if own[pid]:
+            previous_end = own[pid][1]
         previous_last = last
     return own
 

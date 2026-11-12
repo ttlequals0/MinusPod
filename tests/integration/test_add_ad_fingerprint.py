@@ -1,6 +1,7 @@
 """Add ad stores a fingerprint of the marked span and reports the outcome."""
 import pytest
 
+from api.patterns import _own_pattern_spans
 from tests.integration.fingerprint_helpers import (  # noqa: E402
     EPISODE, FIRST_READ, SECOND_TEMPLATE, SLUG, TEMPLATE, TWO_SPONSORS, post_correction, seed_timed_transcript,
     seed_two_sponsor_transcript,
@@ -186,3 +187,51 @@ def test_a_boundary_segment_without_timing_goes_whole_to_the_first_pattern(
     (a_start, a_end), (b_start, b_end) = _spans(fp_feed, _create_two_sponsors(app_client))
     assert (a_start, a_end) == (10.0, 25.0)
     assert (b_start, b_end) == (40.0, 70.0)
+
+
+THIRD_READ = ('This episode is brought to you by Gamma Inc, the smart way to insure your home. '
+              'Visit gammainc.com for a quote today and save.')
+THREE_SPONSORS = TWO_SPONSORS + ' ' + THIRD_READ
+
+
+class _FakeDb:
+    def __init__(self, transcript, templates):
+        self._transcript, self._templates = transcript, templates
+
+    def get_transcript_for_timestamps(self, slug, episode_id):
+        return self._transcript
+
+    def get_ad_pattern_by_id(self, pattern_id):
+        return {'text_template': self._templates[pattern_id]}
+
+
+def _own(timed_lines, templates, text=THREE_SPONSORS, start=10.0, end=100.0):
+    def stamp(sec):
+        return f'{int(sec // 60):02d}:{sec % 60:06.3f}'
+    transcript = '\n'.join(f'[00:{stamp(a)} --> 00:{stamp(b)}] {line}' for a, b, line in timed_lines)
+    return _own_pattern_spans(_FakeDb(transcript, templates), SLUG, EPISODE, list(templates), start, end, text)
+
+
+def test_three_patterns_across_segments_each_get_their_own_span():
+    own = _own([(10.0, 40.0, FIRST_READ), (40.0, 70.0, SECOND_TEMPLATE), (70.0, 100.0, THIRD_READ)],
+               {1: FIRST_READ, 2: SECOND_TEMPLATE, 3: THIRD_READ})
+    assert own == {1: (10.0, 40.0), 2: (40.0, 70.0), 3: (70.0, 100.0)}
+
+
+def test_three_patterns_inside_one_segment_get_ordered_disjoint_spans():
+    own = _own([(10.0, 100.0, THREE_SPONSORS)], {1: FIRST_READ, 2: SECOND_TEMPLATE, 3: THIRD_READ})
+    (a0, a1), (b0, b1), (c0, c1) = own[1], own[2], own[3]
+    assert a0 == 10.0 and c1 == 100.0
+    assert a0 < a1 <= b0 < b1 <= c0 < c1
+
+
+def test_overlapping_templates_are_clamped_earlier_pattern_first():
+    own = _own([(10.0, 40.0, FIRST_READ), (40.0, 70.0, SECOND_TEMPLATE), (70.0, 100.0, THIRD_READ)],
+               {1: FIRST_READ, 2: FIRST_READ + ' ' + SECOND_TEMPLATE, 3: THIRD_READ})
+    assert own == {1: (10.0, 40.0), 2: (40.0, 70.0), 3: (70.0, 100.0)}
+
+
+def test_a_template_wholly_inside_an_earlier_one_gets_no_span():
+    own = _own([(10.0, 40.0, FIRST_READ), (40.0, 70.0, SECOND_TEMPLATE), (70.0, 100.0, THIRD_READ)],
+               {1: FIRST_READ + ' ' + SECOND_TEMPLATE, 2: SECOND_TEMPLATE, 3: THIRD_READ})
+    assert own == {1: (10.0, 70.0), 2: None, 3: (70.0, 100.0)}
