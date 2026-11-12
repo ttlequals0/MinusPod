@@ -246,6 +246,19 @@ const ACTIVE_AUDIO = {
 };
 
 describe('Audio section', () => {
+  it('says the match history is still being filled in only while the backfill runs', async () => {
+    mockGetPatternAudio.mockResolvedValue({ ...ACTIVE_AUDIO, historyBackfillPending: true });
+    renderModal(makePattern());
+    expect(await screen.findByText('Match history is still being filled in.')).toBeDefined();
+  });
+
+  it('shows no backfill line once the history is complete', async () => {
+    mockGetPatternAudio.mockResolvedValue({ ...ACTIVE_AUDIO, historyBackfillPending: false });
+    renderModal(makePattern());
+    expect(await screen.findByText('91%')).toBeDefined();
+    expect(screen.queryByText('Match history is still being filled in.')).toBeNull();
+  });
+
   it('shows an active fingerprint with its stats and controls', async () => {
     mockGetPatternAudio.mockResolvedValue(ACTIVE_AUDIO);
     renderModal(makePattern());

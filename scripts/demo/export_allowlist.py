@@ -29,7 +29,7 @@ _EMPTIED = (
     'cue_cross_episode_scans', 'cue_window_optimize_scans', 'auth_failures',
     'search_index_changes', 'search_index', 'text_patterns',
     '_orphaned_audio_fingerprints', 'episode_feed_details',
-    'audio_fingerprint_matches',
+    'audio_fingerprint_matches', 'deferred_upgrade_steps',
 )
 
 # Dropped before export; startup recreates them.

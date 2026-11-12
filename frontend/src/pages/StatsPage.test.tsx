@@ -1113,6 +1113,21 @@ describe('StatsPage audio matching section', () => {
     expect(tile('Not this ad').textContent).toContain('47');
   });
 
+  it('says the history is still being filled in only while the backfill runs', async () => {
+    mockGetAudioMatchingStats.mockResolvedValue({ ...STATS, historyBackfillPending: true });
+    renderPage();
+    const s = await section();
+    expect(await s.findByText('Match history is still being filled in.')).toBeTruthy();
+  });
+
+  it('shows no backfill line once the history is complete', async () => {
+    mockGetAudioMatchingStats.mockResolvedValue({ ...STATS, historyBackfillPending: false });
+    renderPage();
+    const s = await section();
+    expect(await s.findByText('Patterns with audio')).toBeTruthy();
+    expect(s.queryByText('Match history is still being filled in.')).toBeNull();
+  });
+
   it('keeps the tiles when every count is zero', async () => {
     mockGetAudioMatchingStats.mockResolvedValue({ patternsWithAudio: 0, patternsTotal: 0, audioMatches: 0, foundByAudioOnly: 0, notThisAd: 0 });
     renderPage();

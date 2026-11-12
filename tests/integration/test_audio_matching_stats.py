@@ -54,7 +54,8 @@ def test_pattern_counts_cover_active_patterns_with_an_enabled_fingerprint(app_cl
     body = _get(app_client).get_json()
     assert body['patternsTotal'] == 5
     assert body['patternsWithAudio'] == 4
-    assert set(body) == {'patternsWithAudio', 'patternsTotal', 'audioMatches', 'foundByAudioOnly', 'notThisAd'}
+    assert set(body) == {'patternsWithAudio', 'patternsTotal', 'audioMatches', 'foundByAudioOnly', 'notThisAd',
+                         'historyBackfillPending'}
 
 
 def test_pattern_counts_follow_the_feed_scope(app_client, world):
@@ -119,7 +120,7 @@ def test_unknown_feed_answers_zeros(app_client, world):
     r = _get(app_client, '?podcastSlug=no-such-feed')
     assert r.status_code == 200
     assert r.get_json() == {'patternsWithAudio': 0, 'patternsTotal': 0, 'audioMatches': 0,
-                            'foundByAudioOnly': 0, 'notThisAd': 0}
+                            'foundByAudioOnly': 0, 'notThisAd': 0, 'historyBackfillPending': False}
 
 
 @pytest.mark.parametrize('query,name', [('?from=notadate', 'from'), ('?to=2026-13-45', 'to'),
@@ -134,3 +135,16 @@ def test_bad_dates_are_400_like_the_other_stats_routes(app_client, world, query,
 def test_empty_history_is_all_zero_counts(app_client, world):
     body = _get(app_client, '?from=2026-11-01&to=2026-11-30').get_json()
     assert (body['audioMatches'], body['foundByAudioOnly'], body['notThisAd']) == (0, 0, 0)
+
+
+def test_the_backfill_flag_follows_the_step(app_client, fp_feed):
+    conn = fp_feed.get_connection()
+    assert _get(app_client).get_json()['historyBackfillPending'] is False
+    conn.execute("DELETE FROM schema_migrations WHERE name = 'backfill_fingerprint_matches_v1'")
+    conn.commit()
+    try:
+        assert _get(app_client).get_json()['historyBackfillPending'] is True
+        assert _get(app_client, '?podcastSlug=nope').get_json()['historyBackfillPending'] is True
+    finally:
+        conn.execute("INSERT OR IGNORE INTO schema_migrations (name) VALUES ('backfill_fingerprint_matches_v1')")
+        conn.commit()

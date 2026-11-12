@@ -4013,7 +4013,7 @@ paths:
             application/json:
               schema:
                 type: object
-                required: [patternsWithAudio, patternsTotal, audioMatches, foundByAudioOnly, notThisAd]
+                required: [patternsWithAudio, patternsTotal, audioMatches, foundByAudioOnly, notThisAd, historyBackfillPending]
                 properties:
                   patternsWithAudio:
                     type: integer
@@ -4030,6 +4030,9 @@ paths:
                   notThisAd:
                     type: integer
                     description: History rows marked "not this ad" in the period.
+                  historyBackfillPending:
+                    type: boolean
+                    description: True while the one-time fill of match history from older episodes is still running, so the counts are not final.
         '400':
           $ref: '#/components/responses/LedgerDateBadRequest'
 
@@ -20480,6 +20483,9 @@ components:
             - 'null'
           format: date-time
           description: Newest match not marked "not this ad"; null when there is none.
+        historyBackfillPending:
+          type: boolean
+          description: True while the one-time fill of match history from older episodes is still running, so the counts are not final.
 
     Network:
       type: object

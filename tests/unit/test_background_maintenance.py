@@ -288,3 +288,70 @@ class TestYouTubeTicksWired:
         background.background_rss_refresh()
         assert 'youtube_sponsorblock_tick' in names
         assert 'youtube_ytdlp_update_tick' in names
+
+
+class _InlineThread:
+    """Runs the target when started, so the test needs no wait."""
+
+    def __init__(self, target, name=None, daemon=None):
+        self.target = target
+        self.started = False
+
+    def start(self):
+        self.started = True
+        self.target()
+
+    def is_alive(self):
+        return False
+
+
+def _upgrade_harness(monkeypatch, pending, ok=True):
+    fake_db = MagicMock()
+    fake_db.pending_upgrade_steps.return_value = pending
+    fake_db.run_deferred_upgrade_steps.return_value = ok
+    monkeypatch.setattr(background, 'db', fake_db)
+    monkeypatch.setattr(background.threading, 'Thread', _InlineThread)
+    monkeypatch.setitem(background._UPGRADE_STATE, 'thread', None)
+    monkeypatch.setitem(background._UPGRADE_STATE, 'failed', False)
+    return fake_db
+
+
+def test_pending_upgrade_steps_run_on_a_background_thread(monkeypatch):
+    fake_db = _upgrade_harness(monkeypatch, ['redact_stored_error_text'])
+    background.start_deferred_upgrade_steps()
+    fake_db.run_deferred_upgrade_steps.assert_called_once()
+
+
+def test_nothing_starts_when_no_step_is_pending(monkeypatch):
+    fake_db = _upgrade_harness(monkeypatch, [])
+    background.start_deferred_upgrade_steps()
+    fake_db.run_deferred_upgrade_steps.assert_not_called()
+
+
+def test_a_failed_step_is_not_retried_until_the_next_start(monkeypatch):
+    fake_db = _upgrade_harness(monkeypatch, ['redact_stored_error_text'], ok=False)
+    background.start_deferred_upgrade_steps()
+    background.start_deferred_upgrade_steps()
+    assert fake_db.run_deferred_upgrade_steps.call_count == 1
+
+
+def test_a_raising_run_is_logged_and_marks_the_failure(monkeypatch):
+    fake_db = _upgrade_harness(monkeypatch, ['redact_stored_error_text'])
+    fake_db.run_deferred_upgrade_steps.side_effect = RuntimeError('boom')
+    background.start_deferred_upgrade_steps()
+    assert background._UPGRADE_STATE['failed'] is True
+
+
+def test_the_maintenance_tick_starts_the_upgrade_steps(monkeypatch):
+    started = []
+    monkeypatch.setattr(background, 'start_deferred_upgrade_steps', lambda: started.append(1))
+    monkeypatch.setattr(background, '_start_geo_lookup', lambda: None)
+    monkeypatch.setattr(background, '_maybe_checkpoint_wal', lambda registry: None)
+    monkeypatch.setattr(background, 'reset_stuck_processing_episodes', lambda: None)
+    monkeypatch.setattr(background, '_run_tick', lambda fn, name: None)
+    fake_db = MagicMock()
+    fake_db.reset_orphaned_queue_items.return_value = (0, 0)
+    fake_db.reset_failed_queue_items.return_value = 0
+    monkeypatch.setattr(background, 'db', fake_db)
+    background._run_maintenance_tick(MagicMock())
+    assert started == [1]

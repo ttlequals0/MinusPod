@@ -1,9 +1,12 @@
 """Error text stored by older builds is redacted once, in place, on an existing database."""
 import json
+import logging
+import re
 
 import pytest
 
-import database.schema as schema
+import database.schema.deferred as deferred
+from tests.conftest import _new_isolated_database
 from tests.unit.test_scrub_query_strings import _CONTINUED_SECRETS, _PLANTED, _message_corpus, _min_times
 from utils.http import redact_log_text, redact_stored_text
 
@@ -61,11 +64,18 @@ def _seed(db):
     conn.commit()
 
 
+def _upgrade(db, run=True):
+    """Restart the schema init as the next start would, then run the background step."""
+    db._init_schema()
+    if run:
+        assert db.run_deferred_upgrade_steps()
+
+
 def _snapshot(db):
     conn = db.get_connection()
     tables = [r['name'] for r in conn.execute(
         "SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' "
-        "AND name NOT IN ('schema_migrations', 'search_index') AND name NOT LIKE 'search_index_%'")]
+        "AND name NOT IN ('schema_migrations', 'search_index', 'deferred_upgrade_steps') AND name NOT LIKE 'search_index_%'")]
     out = {}
     for table in tables:
         for row in conn.execute(f'SELECT rowid AS rid, * FROM "{table}"'):  # noqa: S608
@@ -92,7 +102,7 @@ EXPECTED_TEXT = {
 def test_an_existing_database_is_scrubbed_and_nothing_else_changes(temp_db):
     _seed(temp_db)
     before = _snapshot(temp_db)
-    temp_db._init_schema()
+    _upgrade(temp_db)
     changed = _changed(before, _snapshot(temp_db))
     cells = {(table, column): new for (table, _rid, column), (_old, new) in changed.items()}
     assert {k: v for k, v in cells.items() if k[0] not in ('settings', 'system_settings', 'episode_details')} \
@@ -117,59 +127,141 @@ def test_an_existing_database_is_scrubbed_and_nothing_else_changes(temp_db):
 
 def test_a_second_run_changes_nothing(temp_db):
     _seed(temp_db)
-    temp_db._init_schema()
+    _upgrade(temp_db)
     first = _snapshot(temp_db)
     temp_db.get_connection().execute("DELETE FROM schema_migrations WHERE name = ?", (GATE,))
     temp_db.get_connection().commit()
-    temp_db._init_schema()
+    _upgrade(temp_db)
     assert _snapshot(temp_db) == first
 
 
 def test_the_gate_stops_a_second_worker(temp_db, monkeypatch):
     _seed(temp_db)
-    temp_db._init_schema()
+    _upgrade(temp_db)
 
     def fail(*_args, **_kwargs):
         raise AssertionError('ran twice')
 
-    monkeypatch.setattr(type(temp_db), '_redact_column_in_batches', fail)
-    temp_db._run_redact_stored_error_text(temp_db.get_connection())
+    monkeypatch.setattr(type(temp_db), '_advance_redaction', fail)
+    assert temp_db.run_deferred_upgrade_steps()
 
 
-def test_a_crash_halfway_is_finished_by_the_next_start(temp_db, monkeypatch):
+class Killed(BaseException):
+    """Stands in for a worker killed between two pages; nothing in the step may catch it."""
+
+
+def _kill_after(pages):
+    seen = []
+
+    def pause():
+        seen.append(1)
+        if len(seen) >= pages:
+            raise Killed
+    return pause
+
+
+def _stable(db):
+    """The snapshot of the redacted columns, without the start-time stamps elsewhere."""
+    columns = set(EXPECTED_TEXT) | {('episode_details', 'dai_differential_json'),
+                                    ('episode_details', 'upstream_transcript_json'), ('settings', 'value')}
+    return {cell: value for cell, value in _snapshot(db).items() if (cell[0], cell[2]) in columns}
+
+
+def _seeded_copy(tmp_path, name):
+    db = _new_isolated_database(str(tmp_path / name))
+    _seed(db)
+    db._init_schema()
+    return db
+
+
+def test_a_worker_killed_at_any_page_boundary_is_finished_by_the_next_claim(tmp_path, monkeypatch):
+    monkeypatch.setattr(deferred, 'REDACT_PAGE_ROWS', 1)
+    reference_db = _seeded_copy(tmp_path, 'reference')
+    pages = []
+    reference_db.run_deferred_upgrade_steps(pause=lambda: pages.append(1))
+    reference = _stable(reference_db)
+    assert len(pages) > 3
+    for kill_at in range(1, len(pages)):
+        db = _seeded_copy(tmp_path, f'kill{kill_at}')
+        with pytest.raises(Killed):
+            db.run_deferred_upgrade_steps(clock=lambda: 1000.0, pause=_kill_after(kill_at))
+        conn = db.get_connection()
+        conn.rollback()
+        assert not conn.execute("SELECT 1 FROM schema_migrations WHERE name = ?", (GATE,)).fetchone()
+        # a fresh heartbeat keeps a second worker out, a stale one lets it resume
+        assert db.run_deferred_upgrade_steps(clock=lambda: 1001.0)
+        assert not conn.execute("SELECT 1 FROM schema_migrations WHERE name = ?", (GATE,)).fetchone()
+        assert db.run_deferred_upgrade_steps(clock=lambda: 1000.0 + deferred.STALE_HEARTBEAT_SECONDS + 1)
+        assert conn.execute("SELECT 1 FROM schema_migrations WHERE name = ?", (GATE,)).fetchone()
+        assert _stable(db) == reference, kill_at
+
+
+def test_the_second_worker_resumes_at_the_saved_cursor(temp_db, monkeypatch):
+    monkeypatch.setattr(deferred, 'REDACT_PAGE_ROWS', 1)
     _seed(temp_db)
-    monkeypatch.setattr(schema, '_COLLAPSE_BATCH_ROWS', 1)
-    real = type(temp_db)._redact_column_in_batches
-    calls = []
-
-    def crash_after_first_column(self, conn, table, *args, **kwargs):
-        if calls:
-            raise RuntimeError('killed')
-        calls.append(table)
-        return real(self, conn, table, *args, **kwargs)
-
-    conn = temp_db.get_connection()
-    with monkeypatch.context() as patch:
-        patch.setattr(type(temp_db), '_redact_column_in_batches', crash_after_first_column)
-        with pytest.raises(RuntimeError, match='killed'):
-            temp_db._run_redact_stored_error_text(conn)
-    conn.rollback()
-    assert conn.execute("SELECT error_message FROM episodes WHERE episode_id = 'a1b2c3d4e5f6'").fetchone()[0] == CLEAN
-    assert conn.execute("SELECT error_message FROM processing_history").fetchone()[0] == RAW
-    assert not conn.execute("SELECT 1 FROM schema_migrations WHERE name = ?", (GATE,)).fetchone()
     temp_db._init_schema()
-    assert conn.execute("SELECT error_message FROM processing_history").fetchone()[0] == CLEAN
-    assert conn.execute("SELECT 1 FROM schema_migrations WHERE name = ?", (GATE,)).fetchone()
+    with pytest.raises(Killed):
+        temp_db.run_deferred_upgrade_steps(clock=lambda: 5.0, pause=_kill_after(4))
+    temp_db.get_connection().rollback()
+    row = temp_db.get_connection().execute(
+        "SELECT state, cursor, rows_done FROM deferred_upgrade_steps WHERE name = ?", (GATE,)).fetchone()
+    assert row['state'] == 'running' and json.loads(row['cursor']) and row['rows_done'] > 0
+    seen = []
+    real = type(temp_db)._advance_redaction
+
+    def spy(self, cursor, save, ctx):
+        seen.append(dict(cursor))
+        return real(self, cursor, save, ctx)
+
+    monkeypatch.setattr(type(temp_db), '_advance_redaction', spy)
+    temp_db.run_deferred_upgrade_steps(clock=lambda: 5.0 + deferred.STALE_HEARTBEAT_SECONDS + 1)
+    assert seen[0] == json.loads(row['cursor'])
+
+
+def test_a_step_that_fails_is_released_and_logged_once(temp_db, monkeypatch, caplog):
+    _seed(temp_db)
+    temp_db._init_schema()
+
+    def boom(self, cursor, save, ctx):
+        raise RuntimeError('disk full')
+
+    monkeypatch.setattr(type(temp_db), '_advance_redaction', boom)
+    with caplog.at_level(logging.ERROR):
+        assert temp_db.run_deferred_upgrade_steps() is False
+    assert len([r for r in caplog.records if 'disk full' in r.getMessage()]) == 1
+    conn = temp_db.get_connection()
+    assert conn.execute("SELECT state FROM deferred_upgrade_steps WHERE name = ?", (GATE,)).fetchone()[0] == 'pending'
+    assert not conn.execute("SELECT 1 FROM schema_migrations WHERE name = ?", (GATE,)).fetchone()
+
+
+def test_startup_only_records_the_step_as_pending(temp_db):
+    _seed(temp_db)
+    before = _snapshot(temp_db)
+    temp_db._init_schema()
+    conn = temp_db.get_connection()
+    assert conn.execute("SELECT state FROM deferred_upgrade_steps WHERE name = ?", (GATE,)).fetchone()[0] == 'pending'
+    assert not conn.execute("SELECT 1 FROM schema_migrations WHERE name = ?", (GATE,)).fetchone()
+    assert [c for c in _changed(before, _snapshot(temp_db)) if c[0] != 'deferred_upgrade_steps'] == []
+
+
+def test_the_step_logs_once_at_start_and_once_at_finish(temp_db, caplog):
+    _seed(temp_db)
+    temp_db._init_schema()
+    with caplog.at_level(logging.INFO):
+        temp_db.run_deferred_upgrade_steps()
+    lines = [r.getMessage() for r in caplog.records if GATE in r.getMessage()]
+    assert len(lines) == 2 and 'started' in lines[0]
+    assert re.search(r'finished: \d+ row\(s\) in \d+\.\d+s', lines[1])
 
 
 def test_a_fresh_database_records_the_gate_and_changes_nothing(temp_db):
     conn = temp_db.get_connection()
     assert conn.execute("SELECT 1 FROM schema_migrations WHERE name = ?", (GATE,)).fetchone()
-    before = _snapshot(temp_db)
+    before = _stable(temp_db)
     conn.execute("DELETE FROM schema_migrations WHERE name = ?", (GATE,))
     conn.commit()
-    temp_db._run_redact_stored_error_text(conn)
-    assert _snapshot(temp_db) == before
+    _upgrade(temp_db)
+    assert _stable(temp_db) == before
 
 
 @pytest.mark.parametrize('text', [RAW, RAW_KEY, 'plain error', 'x?a=1&b=2', 'line\nhttps://u:p@h/x?k=v'])
@@ -189,14 +281,14 @@ def test_the_migration_redacts_the_multi_line_corpus_like_every_other_path(temp_
     conn.executemany("INSERT INTO pattern_cleanup_runs (status, error) VALUES ('failed', ?)", [(t,) for t in corpus])
     conn.execute("DELETE FROM schema_migrations WHERE name = ?", (GATE,))
     conn.commit()
-    temp_db._run_redact_stored_error_text(conn)
+    _upgrade(temp_db)
     stored = [row[0] for row in conn.execute("SELECT error FROM pattern_cleanup_runs ORDER BY rowid")]
     assert stored == [redact_log_text(t) for t in corpus]
     for out in stored:
         assert not [s for s in _PLANTED if s in out] and not _CONTINUED_SECRETS.findall(out), out
     conn.execute("DELETE FROM schema_migrations WHERE name = ?", (GATE,))
     conn.commit()
-    temp_db._run_redact_stored_error_text(conn)
+    _upgrade(temp_db)
     assert [row[0] for row in conn.execute("SELECT error FROM pattern_cleanup_runs ORDER BY rowid")] == stored
 
 

@@ -89,6 +89,7 @@ from database.schema.tables import (
 )
 from database.fingerprint_cleanup import delete_matches_for_missing_episodes
 from database.fingerprint_matches import BACKFILL_GATE, OUT_OF_SCOPE_LOG_CAP
+from database.schema.deferred import DeferredUpgradeMixin
 from database.patterns import _parse_bounds
 from database.podcasts import normalize_network_id
 from database.search import (
@@ -135,7 +136,7 @@ def _migration_file_lock(data_dir):
 _SPLIT_CHAIN_WINDOW_S = 60
 
 
-class SchemaMixin:
+class SchemaMixin(DeferredUpgradeMixin):
     """Schema initialization and migration methods."""
 
     @staticmethod
@@ -202,6 +203,7 @@ class SchemaMixin:
             "SELECT name FROM sqlite_master WHERE type='table' AND name='podcasts'"
         )
         is_existing_db = cursor.fetchone() is not None
+        self._fresh_schema = not is_existing_db
 
         if is_existing_db:
             # For existing databases, only create new tables and run migrations
@@ -260,6 +262,7 @@ class SchemaMixin:
         'pattern_cleanup_checks',
         'pattern_cleanup_deleted_actions',
         'episode_feed_details',
+        'deferred_upgrade_steps',
     )
 
     def _create_new_tables_only(self, conn):
@@ -2634,12 +2637,6 @@ class SchemaMixin:
             logger.error(f"sponsorblock terminal next-check clear failed: {e}")
 
         try:
-            self._run_redact_stored_error_text(conn)
-        except Exception as e:
-            conn.rollback()
-            logger.error(f"stored error text redaction failed: {e}")
-
-        try:
             self._run_review_prompt_fingerprint_wording(conn)
         except Exception as e:
             conn.rollback()
@@ -2647,7 +2644,7 @@ class SchemaMixin:
 
         self._run_trim_pattern_network_ids(conn)
 
-        self._backfill_fingerprint_matches(conn)
+        self._register_deferred_upgrade_steps(conn, fresh=getattr(self, '_fresh_schema', False))
 
         self._run_fingerprint_matches_drop_vanished_episodes(conn)
 
@@ -2699,73 +2696,20 @@ class SchemaMixin:
             conn.rollback()
             logger.error(f"Pattern network id trim failed, retrying on the next start: {e}")
 
-    def _backfill_fingerprint_matches(self, conn):
-        """One-shot: match history from stored markers; a failure logs once and retries next start."""
-        if _migration_done(conn, BACKFILL_GATE):
-            return
-        started = time.monotonic()
-        try:
-            written, out_of_scope = self.backfill_fingerprint_matches_from_markers()
-        except Exception as e:
-            conn.rollback()
-            logger.error(f"Fingerprint match history backfill failed, retrying on the next start: "
-                         f"{type(e).__name__}: {e}")
-            return
-        shown = ", ".join(str(pid) for pid in out_of_scope[:OUT_OF_SCOPE_LOG_CAP])
-        more = len(out_of_scope) - OUT_OF_SCOPE_LOG_CAP
-        scoped = (f"; patterns with rows out of scope: [{shown}]" + (f" and {more} more" if more > 0 else "")
-                  if out_of_scope else "")
-        logger.info(f"Migration: Backfilled fingerprint match history, {written} rows in "
-                    f"{time.monotonic() - started:.2f}s{scoped}")
-
-    def _redact_column_in_batches(self, conn, table, column, rewrite, where='1', params=()):
-        """Rewrite one column page by page, committing each page; returns the number of rows changed."""
-        if not self._table_exists(conn, table) or column not in self._get_table_columns(conn, table):
-            return 0
-        changed, last = 0, 0
-        while True:
-            rows = conn.execute(
-                f"SELECT rowid AS rid, {column} AS value FROM {table} "  # noqa: S608
-                f"WHERE rowid > ? AND {column} IS NOT NULL AND ({where}) ORDER BY rowid LIMIT ?",
-                (last, *params, _COLLAPSE_BATCH_ROWS)).fetchall()
-            if not rows:
-                return changed
-            last = rows[-1]['rid']
-            updates = []
-            for row in rows:
-                value = row['value']
-                if isinstance(value, str):
-                    redacted = rewrite(value)
-                    if redacted != value:
-                        updates.append((redacted, row['rid']))
-            if updates:
-                conn.executemany(
-                    f"UPDATE {table} SET {column} = ? WHERE rowid = ?", updates)  # noqa: S608
-                conn.commit()
-                changed += len(updates)
-
-    def _run_redact_stored_error_text(self, conn, gate='redact_stored_error_text'):
-        """One-shot: redact URL queries, userinfo and feed keys from error text stored by older builds."""
-        if _migration_done(conn, gate):
-            return
-        # Each page commits on its own; a rerun after a crash finds the done rows already clean.
-        changed = sum(self._redact_column_in_batches(conn, table, column, redact_stored_text)
-                      for table, column in _STORED_ERROR_COLUMNS)
+    @staticmethod
+    def _redaction_units():
+        """(table, column, rewrite, where, params) for every stored error value the redaction step covers."""
+        units = [(table, column, redact_stored_text, '1', ()) for table, column in _STORED_ERROR_COLUMNS]
         for table in ('settings', 'system_settings'):
-            changed += self._redact_column_in_batches(
-                conn, table, 'value', redact_stored_text, "key LIKE ? ESCAPE '\\'", ('%\\_last\\_error',))
-        changed += self._redact_column_in_batches(
-            conn, 'settings', 'value', lambda v: _redact_json_fields(v, ('reason',)),
-            "key LIKE ? ESCAPE '\\'", ('failover\\_state:%',))
-        changed += self._redact_column_in_batches(
-            conn, 'settings', 'value', lambda v: _redact_json_fields(v, ('last_failure_reason',), per_entry=True),
-            'key = ?', ('podping_node_health',))
+            units.append((table, 'value', redact_stored_text, "key LIKE ? ESCAPE '\\'", ('%\\_last\\_error',)))
+        units.append(('settings', 'value', lambda v: _redact_json_fields(v, ('reason',)),
+                      "key LIKE ? ESCAPE '\\'", ('failover\\_state:%',)))
+        units.append(('settings', 'value',
+                      lambda v: _redact_json_fields(v, ('last_failure_reason',), per_entry=True),
+                      'key = ?', ('podping_node_health',)))
         for column in ('dai_differential_json', 'upstream_transcript_json'):
-            changed += self._redact_column_in_batches(
-                conn, 'episode_details', column, lambda v: _redact_json_fields(v, ('error',)))
-        conn.execute("INSERT OR IGNORE INTO schema_migrations (name) VALUES (?)", (gate,))
-        conn.commit()
-        logger.info(f"stored-error-redaction: {changed} value(s) redacted")
+            units.append(('episode_details', column, lambda v: _redact_json_fields(v, ('error',)), '1', ()))
+        return units
 
     def _run_sponsorblock_terminal_clear_next_check(self, conn):
         """One-shot: terminal SponsorBlock rows left armed by older builds stop being polled."""

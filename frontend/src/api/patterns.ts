@@ -443,6 +443,8 @@ export interface AudioDetail {
   counts: { matches: number; rejected: number; outOfScope: number };
   meanSimilarity?: number | null;
   lastMatchedAt?: string | null;
+  // True while the one-time fill of match history from older episodes is still running.
+  historyBackfillPending?: boolean;
   // False when the stored audio cannot match under the current settings.
   matchable?: boolean;
   // The span a fingerprint could be built from when the pattern has none; null when unknown.

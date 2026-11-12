@@ -682,7 +682,7 @@ from main_app.feeds import refresh_rss_feed, refresh_all_feeds, invalidate_feed_
 from main_app.processing import start_background_processing
 from main_app.background import (
     background_rss_refresh, background_queue_processor,
-    reset_stuck_processing_episodes,
+    reset_stuck_processing_episodes, start_deferred_upgrade_steps,
 )
 from whisper_pool import set_background_role
 from podping_listener import podping_listener_loop
@@ -820,6 +820,9 @@ def _startup():
             queue_thread = threading.Thread(target=background_queue_processor, daemon=True)
             queue_thread.start()
             logger.info("Started auto-process queue processor thread")
+
+            # Upgrade scans run here, not under the startup lock the other worker waits on.
+            start_deferred_upgrade_steps()
 
             # Start podping listener thread (active only when podping_enabled)
             podping_thread = threading.Thread(target=podping_listener_loop, daemon=True)

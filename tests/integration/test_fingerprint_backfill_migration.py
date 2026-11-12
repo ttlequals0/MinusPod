@@ -2,12 +2,14 @@
 import json
 import logging
 import re
+import shutil
 import threading
 from datetime import datetime, timezone
 
 import pytest
 
 import database.fingerprint_matches as fm
+import database.schema.deferred as deferred
 from database import Database
 from utils.markers import parse_ad_markers
 from tests.fingerprint_match_helpers import record_fingerprint_match
@@ -56,7 +58,9 @@ def _restart(path, db=None):
         conn = db.get_connection()
         conn.execute("DELETE FROM schema_migrations WHERE name = ?", (GATE,))
         conn.commit()
-    return _open(path)
+    db = _open(path)
+    db.run_deferred_upgrade_steps()
+    return db
 
 
 def _rows(db, where='1'):
@@ -191,14 +195,15 @@ def test_a_second_start_changes_nothing(seeded, caplog):
     caplog.clear()
     with caplog.at_level(logging.INFO):
         again = _open(seeded['path'])
+        again.run_deferred_upgrade_steps()
     assert _rows(again) == first[1:]
-    assert not [r for r in caplog.records if 'Backfilled fingerprint match history' in r.getMessage()]
+    assert not [r for r in caplog.records if GATE in r.getMessage() and 'finished' in r.getMessage()]
 
 
 def test_calling_the_step_twice_adds_nothing(seeded):
     db = _restart(seeded['path'], seeded['db'])
     before = _rows(db)
-    db._backfill_fingerprint_matches(db.get_connection())
+    db.run_deferred_upgrade_steps()
     assert _rows(db) == before
 
 
@@ -211,7 +216,7 @@ def test_two_workers_starting_together_write_one_set(seeded):
     def start():
         try:
             gate.wait()
-            _open(seeded['path'])
+            _open(seeded['path']).run_deferred_upgrade_steps()
         except Exception as exc:
             errors.append(exc)
     workers = [threading.Thread(target=start) for _ in range(2)]
@@ -252,7 +257,7 @@ def test_corrupt_markers_are_skipped_with_one_warning_naming_only_the_row_id(see
 def test_an_info_line_reports_rows_and_seconds(seeded, caplog):
     with caplog.at_level(logging.INFO):
         _restart(seeded['path'], seeded['db'])
-    lines = [r.getMessage() for r in caplog.records if 'Backfilled fingerprint match history' in r.getMessage()]
+    lines = [r.getMessage() for r in caplog.records if GATE in r.getMessage() and 'finished' in r.getMessage()]
     assert len(lines) == 1 and re.search(r'3 row', lines[0]) and re.search(r'\d+\.\d+ ?s', lines[0])
 
 
@@ -265,6 +270,7 @@ def test_a_failed_write_rolls_back_everything_and_retries_on_the_next_start(seed
     conn.commit()
     with caplog.at_level(logging.ERROR):
         db = _open(seeded['path'])
+        assert db.run_deferred_upgrade_steps() is False
     errors = [r for r in caplog.records if r.levelno == logging.ERROR and 'fingerprint' in r.getMessage().lower()]
     assert len(errors) == 1
     assert _rows(db) == []
@@ -274,7 +280,7 @@ def test_a_failed_write_rolls_back_everything_and_retries_on_the_next_start(seed
     ).fetchone()[0] is None
     db.get_connection().execute("DROP TRIGGER fail_third")
     db.get_connection().commit()
-    assert len(_rows(_open(seeded['path']))) == 3
+    assert len(_rows(_restart(seeded['path']))) == 3
 
 
 def test_a_read_failure_is_logged_and_startup_continues(seeded, monkeypatch, caplog):
@@ -464,7 +470,7 @@ def test_a_podcast_pattern_takes_its_own_feeds_copy_of_a_shared_episode_id(seede
 def test_the_log_line_names_patterns_with_out_of_scope_rows(seeded, caplog):
     with caplog.at_level(logging.INFO):
         _restart(seeded['path'], seeded['db'])
-    line = [r.getMessage() for r in caplog.records if 'Backfilled fingerprint match history' in r.getMessage()][0]
+    line = [r.getMessage() for r in caplog.records if GATE in r.getMessage() and 'finished' in r.getMessage()][0]
     assert re.search(r'out of scope[^\[]*\[([^\]]*)\]', line).group(1) == str(seeded['theirs'])
 
 
@@ -475,7 +481,7 @@ def test_the_log_line_caps_the_listed_pattern_ids(seeded, caplog):
     _put_markers(db, SLUG, EP_PLAIN, [_fp(pid, 10.0 + i * 100, 70.0 + i * 100) for i, pid in enumerate(ids)])
     with caplog.at_level(logging.INFO):
         _restart(seeded['path'], db)
-    line = [r.getMessage() for r in caplog.records if 'Backfilled fingerprint match history' in r.getMessage()][0]
+    line = [r.getMessage() for r in caplog.records if GATE in r.getMessage() and 'finished' in r.getMessage()][0]
     listed = re.search(r'out of scope[^\[]*\[([^\]]*)\]', line).group(1).split(',')
     assert len(listed) == 50
     assert re.search(r'and 3 more', line)
@@ -495,3 +501,96 @@ def test_a_correction_rejects_every_overlapping_member_of_a_merged_marker(seeded
     assert flags[seeded['mine']] == flags[seeded['glob']] == 1
     assert flags.get(seeded['theirs'], 0) == 0
     assert (seeded['theirs'] in flags) != demoted
+
+
+class Killed(BaseException):
+    """A worker killed between two pages; nothing in the step may catch it."""
+
+
+def _copy_of(seeded, name):
+    seeded['db'].get_connection().execute("PRAGMA wal_checkpoint(TRUNCATE)")
+    target = seeded['path'] / name
+    shutil.copytree(seeded['path'], target, ignore=shutil.ignore_patterns('copy*', 'kill*'))
+    return target
+
+
+def _drop_mark(path):
+    db = _open(path)
+    db.get_connection().execute("DELETE FROM schema_migrations WHERE name = ?", (GATE,))
+    db.get_connection().commit()
+    return _open(path)
+
+
+def _sources(db):
+    return sorted(tuple(r) for r in db.get_connection().execute(
+        "SELECT pattern_id, source_podcast_slug, source_episode_id, source_start, source_end "
+        "FROM audio_fingerprints"))
+
+
+def test_a_worker_killed_at_any_page_boundary_is_finished_by_the_next_claim(seeded, monkeypatch):
+    _without_rejections(seeded)
+    monkeypatch.setattr(deferred, 'BACKFILL_PAGE_EPISODES', 1)
+    reference = _drop_mark(_copy_of(seeded, 'copy_ref'))
+    pages = []
+    reference.run_deferred_upgrade_steps(pause=lambda: pages.append(1))
+    assert len(pages) >= 2
+    expected = (_shape(_rows(reference)), _sources(reference))
+    for kill_at in range(1, len(pages) + 1):
+        db = _drop_mark(_copy_of(seeded, f'kill{kill_at}'))
+        seen = []
+
+        def pause():
+            seen.append(1)
+            if len(seen) >= kill_at:
+                raise Killed
+        with pytest.raises(Killed):
+            db.run_deferred_upgrade_steps(clock=lambda: 50.0, pause=pause)
+        db.get_connection().rollback()
+        assert db.history_backfill_pending()
+        assert db.run_deferred_upgrade_steps(clock=lambda: 51.0)
+        assert db.history_backfill_pending()
+        assert db.run_deferred_upgrade_steps(clock=lambda: 50.0 + deferred.STALE_HEARTBEAT_SECONDS + 1)
+        assert not db.history_backfill_pending()
+        assert (_shape(_rows(db)), _sources(db)) == expected, kill_at
+
+
+def test_each_page_is_its_own_short_transaction(seeded, monkeypatch):
+    monkeypatch.setattr(deferred, 'BACKFILL_PAGE_EPISODES', 1)
+    db = _drop_mark(_copy_of(seeded, 'copy_pages'))
+    commits = []
+    real = type(db).transaction
+
+    def counting(self, *args, **kwargs):
+        commits.append(1)
+        return real(self, *args, **kwargs)
+    monkeypatch.setattr(type(db), 'transaction', counting)
+    db.run_deferred_upgrade_steps()
+    assert len(commits) >= 4
+
+
+def test_no_fingerprints_skips_the_scan(seeded, monkeypatch):
+    conn = seeded['db'].get_connection()
+    conn.execute("DELETE FROM audio_fingerprints")
+    conn.execute("DELETE FROM schema_migrations WHERE name = ?", (GATE,))
+    conn.commit()
+    db = _open(seeded['path'])
+
+    def fail(*_args, **_kwargs):
+        raise AssertionError('scanned the markers')
+    monkeypatch.setattr(type(db), '_read_stored_match_history', fail)
+    assert db.run_deferred_upgrade_steps()
+    assert not db.history_backfill_pending() and _rows(db) == []
+
+
+def test_a_fresh_install_marks_the_step_done_without_a_claim(tmp_path):
+    db = _open(tmp_path)
+    assert not db.history_backfill_pending()
+    assert db.get_connection().execute(
+        "SELECT state FROM deferred_upgrade_steps WHERE name = ?", (GATE,)).fetchone()[0] == 'done'
+
+
+def test_the_pending_flag_follows_the_step(seeded):
+    db = _drop_mark(_copy_of(seeded, 'copy_flag'))
+    assert db.history_backfill_pending()
+    db.run_deferred_upgrade_steps()
+    assert not db.history_backfill_pending()

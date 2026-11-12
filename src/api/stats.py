@@ -189,7 +189,9 @@ def get_audio_matching_stats():
     invalid = _invalid_date_param(params)
     if invalid:
         return error_response(_DATE_PARAM_ERROR.format(name=invalid), 400)
-    return json_response(get_database().get_audio_matching_stats(**params))
+    db = get_database()
+    return json_response({**db.get_audio_matching_stats(**params),
+                          'historyBackfillPending': db.history_backfill_pending()})
 
 
 @api.route('/stats/cleanup', methods=['GET'])

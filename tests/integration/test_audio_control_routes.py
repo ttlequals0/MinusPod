@@ -266,3 +266,15 @@ def test_last_matched_at_ignores_rejected_rows(app_client, fp_feed, fp_audio_pat
     conn.execute("UPDATE audio_fingerprint_matches SET rejected = 1")
     conn.commit()
     assert app_client.get(_audio(fp_audio_pattern), headers=csrf(app_client)).get_json()['lastMatchedAt'] is None
+
+
+def test_detail_carries_the_backfill_flag(app_client, fp_pattern, fp_feed):
+    conn = fp_feed.get_connection()
+    assert _get(app_client, fp_pattern).get_json()['historyBackfillPending'] is False
+    conn.execute("DELETE FROM schema_migrations WHERE name = 'backfill_fingerprint_matches_v1'")
+    conn.commit()
+    try:
+        assert _get(app_client, fp_pattern).get_json()['historyBackfillPending'] is True
+    finally:
+        conn.execute("INSERT OR IGNORE INTO schema_migrations (name) VALUES ('backfill_fingerprint_matches_v1')")
+        conn.commit()

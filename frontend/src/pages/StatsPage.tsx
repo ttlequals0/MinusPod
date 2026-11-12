@@ -1503,6 +1503,9 @@ export default function StatsPage() {
             <StatTile label="Not this ad" value={audioMatching.notThisAd} />
           </div>
         )}
+        {audioMatching?.historyBackfillPending && (
+          <p className="text-sm text-muted-foreground mt-3">Match history is still being filled in.</p>
+        )}
       </div>
 
       {/* Podcast Stats Table */}

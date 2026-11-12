@@ -365,44 +365,26 @@ class FingerprintMatchMixin:
                 set(tags_map.get(r['sponsor_id'], [])), **scope)]
         return len(rows), sum(r['has_audio'] for r in rows)
 
-    def backfill_fingerprint_matches_from_markers(self) -> tuple[int, list[int]]:
-        """Write match history from stored markers and set the migration mark in one transaction.
+    def _read_stored_match_history(self, after_row_id: int = 0, limit: int | None = None,
+                                   rejections: dict | None = None) -> tuple[list[tuple], int | None]:
+        """Rows to insert from stored marker lists after an episode row id, and the last row id read.
 
-        Returns the row count and the ids of patterns that got out-of-scope rows.
+        The id is None when nothing was left to read. The caller must not hold an open transaction.
         """
-        inserts = self._read_stored_match_history()
-        with self.transaction(immediate=True) as conn:
-            done = {(r[0], r[1]) for r in conn.execute(
-                "SELECT DISTINCT podcast_slug, episode_id FROM audio_fingerprint_matches")}
-            written = [row for row in inserts if (row[2], row[1]) not in done]
-            conn.executemany(
-                """INSERT INTO audio_fingerprint_matches
-                     (pattern_id, episode_id, podcast_slug, match_start, match_end, similarity,
-                      coverage, in_scope, audio_only, rejected, rejected_at, created_at)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""", written)
-            conn.executemany(
-                """UPDATE audio_fingerprints SET source_podcast_slug = ?, source_episode_id = ?,
-                     source_start = ?, source_end = ?
-                   WHERE pattern_id = ? AND source_episode_id IS NULL""",
-                [(*source, pattern_id) for pattern_id, source in self._origin_sources(written).items()])
-            conn.execute("INSERT OR IGNORE INTO schema_migrations (name) VALUES (?)", (BACKFILL_GATE,))
-        return len(written), sorted({row[0] for row in written if not row[7]})
-
-    def _read_stored_match_history(self) -> list[tuple]:
-        """Rows to insert from every stored marker list. The caller must not hold an open transaction."""
         conn = self.get_connection()
         now = utc_now_iso()
-        rejections = self._stored_rejections(now)
+        if rejections is None:
+            rejections = self._stored_rejections(now)
         planned_episodes = []
         # Only a marker list that names the fingerprint stage can hold a fingerprint member.
-        cursor = conn.execute(
+        rows = conn.execute(
             """SELECT e.id AS row_id, e.episode_id, p.slug, e.processed_at, d.ad_markers_json
                FROM episode_details d
                JOIN episodes e ON e.id = d.episode_id
                JOIN podcasts p ON p.id = e.podcast_id
-               WHERE d.ad_markers_json LIKE '%"fingerprint"%'
-               ORDER BY e.id""")
-        for row in cursor:
+               WHERE e.id > ? AND d.ad_markers_json LIKE '%"fingerprint"%'
+               ORDER BY e.id LIMIT ?""", (after_row_id, -1 if limit is None else limit)).fetchall()
+        for row in rows:
             markers = parse_ad_markers(row['ad_markers_json'])
             if markers is None:
                 logger.warning("Skipped unreadable stored markers of episode row %s "
@@ -425,7 +407,7 @@ class FingerprintMatchMixin:
                                     if _mostly_overlaps(rlo, rhi, lo, hi)), None)
                 inserts.append((pattern_id, episode_id, slug, lo, hi, similarity, coverage, int(in_scope),
                                 int(audio_only), int(rejected_at is not None), rejected_at, created_at))
-        return inserts
+        return inserts, (rows[-1]['row_id'] if rows else None)
 
     @staticmethod
     def _planned_with_rejections(marker: dict, slug: str, episode_id: str, rejections: dict) -> list[tuple]:

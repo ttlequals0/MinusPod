@@ -290,6 +290,16 @@ TABLE_DDL['episode_feed_details'] = """CREATE TABLE IF NOT EXISTS episode_feed_d
     FOREIGN KEY (episode_id) REFERENCES episodes(id) ON DELETE CASCADE
 )"""
 
+# Claim state of the upgrade steps that run in the background after startup.
+TABLE_DDL['deferred_upgrade_steps'] = """CREATE TABLE IF NOT EXISTS deferred_upgrade_steps (
+    name TEXT PRIMARY KEY,
+    state TEXT NOT NULL DEFAULT 'pending' CHECK(state IN ('pending', 'running', 'done')),
+    owner TEXT,
+    heartbeat_at REAL,
+    cursor TEXT,
+    rows_done INTEGER NOT NULL DEFAULT 0
+)"""
+
 # UPDATE OF (no WHEN clause) so SQLite never loads the old column values.
 EPISODE_FEED_DETAILS_TRIGGERS = {
     'episode_feed_details_insert': """CREATE TRIGGER episode_feed_details_insert
@@ -923,6 +933,8 @@ PRAGMA journal_mode = WAL;
 """ + TABLE_DDL['episode_details'] + """;
 
 """ + TABLE_DDL['episode_feed_details'] + """;
+
+""" + TABLE_DDL['deferred_upgrade_steps'] + """;
 
 -- settings table (ad detection config, retention)
 """ + TABLE_DDL['settings'] + """;

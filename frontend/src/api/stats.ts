@@ -139,6 +139,8 @@ export interface AudioMatchingStats {
   audioMatches: number;
   foundByAudioOnly: number;
   notThisAd: number;
+  // True while the one-time fill of match history from older episodes is still running.
+  historyBackfillPending?: boolean;
 }
 
 export async function getAudioMatchingStats(

@@ -136,6 +136,7 @@ def build_audio_detail(db, storage, pattern_id):
         'counts': {'matches': summary['match_count'], 'rejected': summary['rejected_count'],
                    'outOfScope': summary['out_of_scope_count']},
         'meanSimilarity': summary['mean_similarity'], 'lastMatchedAt': summary['last_matched_at'],
+        'historyBackfillPending': db.history_backfill_pending(),
     }
     if fingerprint is None:
         detail['addSource'] = _add_source(db, storage, pattern_id)
