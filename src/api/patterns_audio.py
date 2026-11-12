@@ -10,7 +10,7 @@ from flask import abort, request, send_file
 
 from api import (
     api, log_request, json_response, error_response, coded_error_response,
-    get_database, get_storage,
+    get_database, get_storage, retry_after_response,
 )
 from api import preview_cache
 from api.patterns import (
@@ -247,9 +247,7 @@ def preview_pattern_audio(pattern_id):
         logger.error(f"Audio preview failed for pattern {pattern_id}: {type(e).__name__}")
         return error_response('Could not build the audio preview', 500)
     if data is None:
-        busy = error_response('Audio previews are busy, try again shortly', 503)
-        busy.headers['Retry-After'] = str(PREVIEW_RETRY_AFTER_S)
-        return busy
+        return retry_after_response('Audio previews are busy, try again shortly', PREVIEW_RETRY_AFTER_S, 503)
     response = send_file(io.BytesIO(data), mimetype='audio/mpeg', conditional=True,
                          max_age=0, etag=False)
     response.headers['Accept-Ranges'] = 'bytes'

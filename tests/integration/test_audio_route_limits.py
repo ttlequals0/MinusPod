@@ -211,7 +211,7 @@ def test_third_concurrent_encode_is_503_with_retry_after(app_client, fp_audio_pa
         module._preview_slots.release()
         module._preview_slots.release()
     assert r.status_code == 503 and r.headers['Retry-After'] == '2'
-    assert r.get_json()['status'] == 503 and r.get_json()['error']
+    assert r.get_json() == {'error': 'Audio previews are busy, try again shortly', 'status': 503}
     assert spy == []
     assert _preview(app_client, fp_audio_pattern).status_code == 200
 
