@@ -20,7 +20,7 @@ const DAYS_RANGE = { min: 1, max: 365 };
 const DEFAULT_HOURS = 24;
 const DEFAULT_DAYS = 30;
 
-const isInRange = (v: number | null | undefined, { min, max }: { min: number; max: number }) =>
+const isInRange = (v: number | null | undefined, { min, max }: { min: number; max: number }): v is number =>
   v != null && Number.isInteger(v) && v >= min && v <= max;
 
 interface SecuritySectionProps {
@@ -108,10 +108,10 @@ function SecuritySection({
 
   const saveSessionLengths = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!hoursValid || !daysValid || sessionMutation.isPending) return;
+    if (!isInRange(hours, HOURS_RANGE) || !isInRange(days, DAYS_RANGE) || sessionMutation.isPending) return;
     setSessionError(null);
     setSessionSaved(false);
-    sessionMutation.mutate({ sessionLifetimeHours: hours as number, sessionRememberDays: days as number });
+    sessionMutation.mutate({ sessionLifetimeHours: hours, sessionRememberDays: days });
   };
 
   const [currentPassword, setCurrentPassword] = useState('');
@@ -338,7 +338,7 @@ function SecuritySection({
             <button
               type="submit"
               disabled={!sessionDirty || !hoursValid || !daysValid || sessionMutation.isPending}
-              className={`${btnBase} ${btnPrimary}`}
+              className={`${btnLg} ${btnPrimary}`}
             >
               {sessionMutation.isPending ? 'Saving...' : 'Save session lengths'}
             </button>

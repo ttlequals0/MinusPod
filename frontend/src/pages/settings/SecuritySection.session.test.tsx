@@ -67,7 +67,7 @@ describe('Security session-length fields', () => {
       { sessionLifetimeHours: 24, sessionRememberDays: 90 }));
   });
 
-  it.each(['', '0', '8761', '1.5'])('blocks Save and flags the field for hours entry %j', async (entry) => {
+  it.each(['', '0', '8761', '1.5', 'e'])('blocks Save and flags the field for hours entry %j', async (entry) => {
     renderSection();
     const hours = await screen.findByLabelText('Session length (hours)');
     fireEvent.change(hours, { target: { value: entry } });
@@ -118,5 +118,25 @@ describe('Security session-length fields', () => {
     await waitFor(() => expect(hasUnsavedChanges()).toBe(true));
     fireEvent.change(hours, { target: { value: '24' } });
     await waitFor(() => expect(hasUnsavedChanges()).toBe(false));
+  });
+
+  it('clears the guard and shows the saved values after a successful save', async () => {
+    renderSection();
+    const hours = await screen.findByLabelText('Session length (hours)') as HTMLInputElement;
+    const days = screen.getByLabelText('Remember me length (days)') as HTMLInputElement;
+    mockGetSettings.mockResolvedValue({
+      jitBlockedUserAgents: { value: [], isDefault: true },
+      sessionLifetimeHours: { value: 48, isDefault: false },
+      sessionRememberDays: { value: 90, isDefault: false },
+    });
+    fireEvent.change(hours, { target: { value: '48' } });
+    fireEvent.change(days, { target: { value: '90' } });
+    await waitFor(() => expect(hasUnsavedChanges()).toBe(true));
+    fireEvent.click(saveButton());
+    await waitFor(() => expect(screen.queryByRole('status')?.textContent).toBe('Session lengths saved.'));
+    expect(hasUnsavedChanges()).toBe(false);
+    expect(hours.value).toBe('48');
+    expect(days.value).toBe('90');
+    expect(saveButton().disabled).toBe(true);
   });
 });
