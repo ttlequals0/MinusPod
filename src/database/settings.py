@@ -28,8 +28,7 @@ from config import (
     WHISPER_COMPUTE_TYPE_DEFAULT,
     AD_DETECTION_PARALLEL_WINDOWS_DEFAULT,
     AD_REVIEWER_PARALLEL_ADS_DEFAULT,
-    SESSION_LIFETIME_HOURS_MIN, SESSION_LIFETIME_HOURS_MAX,
-    SESSION_REMEMBER_DAYS_MIN, SESSION_REMEMBER_DAYS_MAX,
+    SETTING_CONSTRAINTS, SettingConstraint,
     MAX_ARTWORK_BYTES_MIN, MAX_ARTWORK_BYTES_MAX, MAX_RSS_BYTES_MIN,
     MAX_AUDIO_DOWNLOAD_MB_MIN,
     LOCAL_UPLOAD_MAX_MB_MIN, LOCAL_UPLOAD_MAX_MB_MAX, LOCAL_UPLOAD_MAX_MB_DEFAULT,
@@ -54,7 +53,7 @@ from config import (
     resolve_community_sync_categories, DEFAULT_COMMUNITY_SYNC_CATEGORIES_JSON,
     resolve_jit_blocked_user_agents,
     WHISPER_POOL_MAX_REQUESTS_RANGE, WHISPER_POOL_MAX_EPISODES_RANGE,
-    PROCESSING_SCHEDULE_DAY_KEYS, QUEUE_ORDERS,
+    PROCESSING_SCHEDULE_DAY_KEYS,
 )
 from secrets_crypto import (
     CryptoUnavailableError, decrypt, encrypt, is_ciphertext,
@@ -205,16 +204,12 @@ def _payload_max_artwork_bytes() -> int:
                               ceiling=MAX_ARTWORK_BYTES_MAX, settings={})
 
 
-def _payload_int_in_range(key: str, lo: int, hi: int):
-    def payload() -> int:
-        return get_env_backed_int(key, floor=lo, ceiling=hi, settings={})
-    return payload
+def _payload_session_lifetime_hours() -> int:
+    return get_env_backed_int('session_lifetime_hours', settings={})
 
 
-_payload_session_lifetime_hours = _payload_int_in_range(
-    'session_lifetime_hours', SESSION_LIFETIME_HOURS_MIN, SESSION_LIFETIME_HOURS_MAX)
-_payload_session_remember_days = _payload_int_in_range(
-    'session_remember_days', SESSION_REMEMBER_DAYS_MIN, SESSION_REMEMBER_DAYS_MAX)
+def _payload_session_remember_days() -> int:
+    return get_env_backed_int('session_remember_days', settings={})
 
 
 def _payload_max_rss_bytes() -> int:
@@ -298,6 +293,12 @@ class SettingSpec:
     payload_factory: Callable[[], Any] | None = None
     refresh_default: bool = False
     validator: Callable[[str], bool] | None = None
+    # Declared limits; also the validator, the API payload check and GET's min/max/options.
+    constraint: SettingConstraint | None = None
+
+    def __post_init__(self):
+        if self.constraint is not None and self.validator is None:
+            object.__setattr__(self, 'validator', self.constraint.stored_valid)
 
 
 SETTINGS_REGISTRY: dict[str, SettingSpec] = {
@@ -571,7 +572,7 @@ SETTINGS_REGISTRY: dict[str, SettingSpec] = {
     # queue_order column overrides it. 'queued' keeps today's order.
     'queue_order': SettingSpec(
         default='queued', seeded=True, in_ad_reset=True,
-        payload_key='queueOrder', validator=_one_of(*QUEUE_ORDERS)),
+        payload_key='queueOrder', constraint=SETTING_CONSTRAINTS['queue_order']),
     'podping_enabled': SettingSpec(
         default='false', seeded=True, resettable=False,
         payload_key='podpingEnabled', payload_kind='bool'),
@@ -894,10 +895,12 @@ SETTINGS_REGISTRY: dict[str, SettingSpec] = {
         env_backed=True, payload_key='logDownloadQuery', payload_kind='bool'),
     'session_lifetime_hours': SettingSpec(
         env_backed=True, payload_key='sessionLifetimeHours',
-        payload_factory=_payload_session_lifetime_hours),
+        payload_factory=_payload_session_lifetime_hours,
+        constraint=SETTING_CONSTRAINTS['session_lifetime_hours']),
     'session_remember_days': SettingSpec(
         env_backed=True, payload_key='sessionRememberDays',
-        payload_factory=_payload_session_remember_days),
+        payload_factory=_payload_session_remember_days,
+        constraint=SETTING_CONSTRAINTS['session_remember_days']),
     'max_artwork_bytes': SettingSpec(
         env_backed=True, in_ad_reset=True, payload_key='maxArtworkBytes',
         payload_factory=_payload_max_artwork_bytes),
@@ -1015,10 +1018,12 @@ SETTINGS_REGISTRY: dict[str, SettingSpec] = {
     # Audio fingerprinting
     'fingerprint_enabled': SettingSpec(
         default='true', in_ad_reset=True,
-        payload_key='fingerprintEnabled', payload_kind='bool'),
+        payload_key='fingerprintEnabled', payload_kind='bool',
+        constraint=SETTING_CONSTRAINTS['fingerprint_enabled']),
     **{key: SettingSpec(
         default=str(FINGERPRINT_SETTING_RANGES[key][0]), in_ad_reset=True,
-        payload_key=payload_key, payload_kind='float')
+        payload_key=payload_key, payload_kind='float',
+        constraint=SETTING_CONSTRAINTS[key])
        for key, payload_key in (
            ('fingerprint_match_strictness', 'fingerprintMatchStrictness'),
            ('fingerprint_min_coverage', 'fingerprintMinCoverage'),

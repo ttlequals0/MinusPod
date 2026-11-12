@@ -18216,6 +18216,15 @@ components:
               maximum: 0.95
             isDefault:
               type: boolean
+            min:
+              type: number
+              description: Lowest accepted value.
+            max:
+              type: number
+              description: Highest accepted value.
+            step:
+              type: number
+              description: Suggested input step.
         fingerprintMinCoverage:
           type: object
           description: Share of the stored ad that must be found for a match (default 0.5, range 0.1 to 1).
@@ -18227,6 +18236,15 @@ components:
               maximum: 1
             isDefault:
               type: boolean
+            min:
+              type: number
+              description: Lowest accepted value.
+            max:
+              type: number
+              description: Highest accepted value.
+            step:
+              type: number
+              description: Suggested input step.
         fingerprintGapToleranceS:
           type: object
           description: Longest dropout bridged inside one match, seconds (default 3.5, range 0 to 15).
@@ -18238,6 +18256,15 @@ components:
               maximum: 15
             isDefault:
               type: boolean
+            min:
+              type: number
+              description: Lowest accepted value.
+            max:
+              type: number
+              description: Highest accepted value.
+            step:
+              type: number
+              description: Suggested input step.
         fingerprintMinAdLengthS:
           type: object
           description: Shortest span that gets a fingerprint, seconds (default 5, range 3 to 30).
@@ -18249,6 +18276,15 @@ components:
               maximum: 30
             isDefault:
               type: boolean
+            min:
+              type: number
+              description: Lowest accepted value.
+            max:
+              type: number
+              description: Highest accepted value.
+            step:
+              type: number
+              description: Suggested input step.
         silenceSnapNoiseDb:
           type: object
           description: Amplitude (dBFS) below which audio counts as silence for silence snap (default -50).
@@ -18480,6 +18516,12 @@ components:
               maximum: 8760
             isDefault:
               type: boolean
+            min:
+              type: integer
+              description: Lowest accepted value.
+            max:
+              type: integer
+              description: Highest accepted value.
         sessionRememberDays:
           type: object
           properties:
@@ -18489,6 +18531,12 @@ components:
               maximum: 365
             isDefault:
               type: boolean
+            min:
+              type: integer
+              description: Lowest accepted value.
+            max:
+              type: integer
+              description: Highest accepted value.
         maxArtworkBytes:
           type: object
           properties:
@@ -18900,6 +18948,11 @@ components:
               enum: ['queued', 'oldest_first', 'newest_first']
             isDefault:
               type: boolean
+            options:
+              type: array
+              items:
+                type: string
+              description: Accepted values.
         skipSecondPass:
           type: object
           description: Skip the pass-2 verification scan by default for feeds that inherit this setting.

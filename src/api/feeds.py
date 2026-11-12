@@ -22,7 +22,7 @@ from api import (
     _normalize_nullable_finite_float,
 )
 from cancel import request_cancellation, wait_for_cancellation
-from database.queue import QUEUE_ORDERS, compute_queue_priority
+from database.queue import compute_queue_priority
 from processing_queue import ProcessingQueue
 from config import (
     AUTO_PROCESS_MAX_AGE_ERROR,
@@ -32,7 +32,7 @@ from config import (
     USER_AGENT_MAX_LENGTH, validate_user_agent,
     FEED_REFRESH_FAILURE_ALERT_THRESHOLD,
     PODPING_HOST_ACTIVE_DAYS,
-    VALID_CHAPTERS_MODES,
+    VALID_CHAPTERS_MODES, SETTING_CONSTRAINTS,
     SEGMENT_CATEGORIES, SEGMENT_ACTIONS,
     differential_fetch_effective,
     apply_ad_chapter_compat, ad_chapter_compat_view,
@@ -2291,7 +2291,8 @@ def update_feed(slug):
         updates['queue_priority'] = qp_val
 
     if 'queueOrder' in data:
-        qo_val, qo_err = _normalize_override(data['queueOrder'], QUEUE_ORDERS, 'queueOrder')
+        qo_val, qo_err = _normalize_override(
+            data['queueOrder'], SETTING_CONSTRAINTS['queue_order'].options, 'queueOrder')
         if qo_err:
             return error_response(qo_err, 400)
         updates['queue_order'] = qo_val

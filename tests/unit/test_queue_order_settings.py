@@ -69,3 +69,9 @@ def test_export_carries_the_setting_and_import_validates_it(temp_db):
         config_transfer._validate_document(document)
     document['settings']['queue_order'] = 'oldest_first'
     config_transfer._validate_document(document)
+
+
+def test_get_reports_the_options_beside_the_value(client):
+    body = client.get(BASE).get_json()['queueOrder']
+    assert body['options'] == ['queued', 'oldest_first', 'newest_first']
+    assert 'min' not in body

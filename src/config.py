@@ -11,6 +11,7 @@ import os
 import re
 import sqlite3
 import string
+from dataclasses import dataclass
 from functools import lru_cache
 from typing import Any
 from urllib.parse import urlparse
@@ -2670,19 +2671,92 @@ SESSION_LIFETIME_HOURS_MIN, SESSION_LIFETIME_HOURS_MAX = 1, 8760
 SESSION_REMEMBER_DAYS_MIN, SESSION_REMEMBER_DAYS_MAX = 1, 365
 
 
-def _int_in_range(lo: int, hi: int):
-    def validate(value: str) -> bool:
+@dataclass(frozen=True)
+class SettingConstraint:
+    """Declared limits of one setting: kind is int, float, bool or choice."""
+    kind: str
+    min: float | None = None
+    max: float | None = None
+    step: float | None = None
+    options: tuple[str, ...] = ()
+    null_resets: bool = False  # a null payload value resets the setting
+
+    def stored_valid(self, value) -> bool:
+        """True when a stored or env string satisfies the constraint."""
+        if self.kind == 'bool':
+            return value in ('true', 'false')
+        if self.kind == 'choice':
+            return value in self.options
         try:
-            return lo <= int(value) <= hi
-        except (ValueError, TypeError):
+            n = int(value) if self.kind == 'int' else float(value)
+        except (TypeError, ValueError):
             return False
-    return validate
+        return self.min <= n <= self.max
+
+    def payload_issue(self, field: str, raw):
+        """(value, None) for an acceptable payload value, else (None, message)."""
+        if self.kind == 'bool':
+            if not isinstance(raw, bool):
+                return None, f'{field} must be true or false'
+            return raw, None
+        if self.kind == 'choice':
+            if raw not in self.options:
+                return None, f"{field} must be one of: {', '.join(self.options)}"
+            return raw, None
+        if self.kind == 'int':
+            try:
+                if isinstance(raw, bool) or (isinstance(raw, float) and not raw.is_integer()):
+                    raise TypeError
+                n = int(raw)
+            except (TypeError, ValueError, OverflowError):
+                return None, f'{field} must be an integer'
+            if not self.min <= n <= self.max:
+                return None, f'{field} must be between {self.min} and {self.max}'
+            return n, None
+        message = f'{field} must be a number between {self.min:g} and {self.max:g}'
+        if isinstance(raw, bool) or not isinstance(raw, (int, float)):
+            return None, message
+        try:
+            n = float(raw)
+        except OverflowError:
+            return None, message
+        if not math.isfinite(n) or not self.min <= n <= self.max:
+            return None, message
+        return n, None
+
+    def api_fields(self) -> dict:
+        """The additive limits GET /settings reports beside value and isDefault."""
+        fields = {}
+        if self.kind in ('int', 'float'):
+            fields['min'], fields['max'] = self.min, self.max
+            if self.step is not None:
+                fields['step'] = self.step
+        elif self.kind == 'choice':
+            fields['options'] = list(self.options)
+        return fields
 
 
-_validate_session_lifetime_hours = _int_in_range(
-    SESSION_LIFETIME_HOURS_MIN, SESSION_LIFETIME_HOURS_MAX)
-_validate_session_remember_days = _int_in_range(
-    SESSION_REMEMBER_DAYS_MIN, SESSION_REMEMBER_DAYS_MAX)
+# To constrain an older setting: add its key here and give its SettingSpec
+# constraint=SETTING_CONSTRAINTS[key].
+SETTING_CONSTRAINTS = {
+    'fingerprint_enabled': SettingConstraint('bool'),
+    **{key: SettingConstraint('float', min=lo, max=hi, step=step)
+       for (key, (_default, lo, hi)), step in zip(
+           FINGERPRINT_SETTING_RANGES.items(), (0.05, 0.05, 0.5, 1.0), strict=True)},
+    'session_lifetime_hours': SettingConstraint(
+        'int', SESSION_LIFETIME_HOURS_MIN, SESSION_LIFETIME_HOURS_MAX, null_resets=True),
+    'session_remember_days': SettingConstraint(
+        'int', SESSION_REMEMBER_DAYS_MIN, SESSION_REMEMBER_DAYS_MAX, null_resets=True),
+    'queue_order': SettingConstraint('choice', options=QUEUE_ORDERS),
+}
+
+
+def _validate_session_lifetime_hours(value: str) -> bool:
+    return SETTING_CONSTRAINTS['session_lifetime_hours'].stored_valid(value)
+
+
+def _validate_session_remember_days(value: str) -> bool:
+    return SETTING_CONSTRAINTS['session_remember_days'].stored_valid(value)
 
 
 def _validate_non_negative_int(value: str) -> bool:
@@ -2757,6 +2831,9 @@ def get_env_backed_int(key: str, *, floor: int = None, ceiling: int = None,
         n = int(raw)
     except (TypeError, ValueError):
         n = int(resolve_env_backed_default(key))
+    constraint = SETTING_CONSTRAINTS.get(key)
+    if constraint is not None and constraint.kind == 'int':
+        floor, ceiling = constraint.min, constraint.max
     if ceiling is not None:
         n = min(ceiling, n)
     if floor is not None:

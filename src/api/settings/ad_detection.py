@@ -19,11 +19,7 @@ from config import (
     WHISPER_API_TIMEOUT_MIN, WHISPER_API_TIMEOUT_MAX,
     WHISPER_POOL_MAX_REQUESTS_RANGE, WHISPER_POOL_MAX_EPISODES_RANGE,
     coerce_bool_setting,
-    FINGERPRINT_SETTING_RANGES,
     apply_ad_chapter_compat, MAX_AD_DURATION, MAX_AD_DURATION_CONFIRMED,
-    QUEUE_ORDERS,
-    SESSION_LIFETIME_HOURS_MIN, SESSION_LIFETIME_HOURS_MAX,
-    SESSION_REMEMBER_DAYS_MIN, SESSION_REMEMBER_DAYS_MAX,
     MAX_ARTWORK_BYTES_MIN, MAX_ARTWORK_BYTES_MAX, MAX_RSS_BYTES_MIN,
     MAX_AUDIO_DOWNLOAD_MB_MIN,
     LOCAL_UPLOAD_MAX_MB_MIN, LOCAL_UPLOAD_MAX_MB_MAX,
@@ -155,7 +151,7 @@ def apply_settings_payload_in_transaction(db, data, *, allow_inactive_tunables=F
         _apply_min_cut_confidence,
         _apply_audio_fields,
         _apply_size_caps,
-        _apply_session_settings,
+        _apply_constrained_settings,
         # Secondary first so this save's stage routing resolves against the
         # slot state it is setting.
         provider_phases._apply_secondary_provider_fields,
@@ -168,7 +164,6 @@ def apply_settings_payload_in_transaction(db, data, *, allow_inactive_tunables=F
         provider_phases._apply_whisper_fields,
         _apply_vad_gap_fields,
         _apply_audio_cue_fields,
-        _apply_fingerprint_fields,
         _apply_positional_prior_fields,
         _apply_podcast_index_fields,
         _apply_transcribe_chunk_fields,
@@ -305,8 +300,6 @@ def _validate_processing_defaults_payload(data):
         value = str(data['chaptersMode'] or '').strip().lower()
         if value not in ('auto', 'generate', 'off'):
             return 'chaptersMode must be auto, generate, or off', 400
-    if 'queueOrder' in data and data['queueOrder'] not in QUEUE_ORDERS:
-        return f"queueOrder must be one of: {', '.join(QUEUE_ORDERS)}", 400
     if 'skipSecondPass' in data and not isinstance(data['skipSecondPass'], bool):
         return 'skipSecondPass must be a boolean', 400
     if ('transcriptDifferentialEnabled' in data
@@ -608,39 +601,51 @@ _SIZE_CAP_FIELDS = (
     ('localUploadMaxMb', 'local_upload_max_mb',
      LOCAL_UPLOAD_MAX_MB_MIN, LOCAL_UPLOAD_MAX_MB_MAX),
 )
-_SESSION_FIELDS = (
-    ('sessionLifetimeHours', 'session_lifetime_hours',
-     SESSION_LIFETIME_HOURS_MIN, SESSION_LIFETIME_HOURS_MAX),
-    ('sessionRememberDays', 'session_remember_days',
-     SESSION_REMEMBER_DAYS_MIN, SESSION_REMEMBER_DAYS_MAX),
-)
-
 
 def _size_cap_writes(data):
     return _int_range_writes(data, _SIZE_CAP_FIELDS)
 
 
-def _session_settings_writes(data):
-    return _int_range_writes(data, _SESSION_FIELDS, strict=True)
+_CONSTRAINED = tuple(
+    (spec.payload_key, key, spec.constraint)
+    for key, spec in SETTINGS_REGISTRY.items() if spec.constraint is not None and spec.payload_key)
 
 
-def _apply_session_settings(db, data):
-    """Persist the session lengths; validates both before writing either."""
-    writes, issue = _session_settings_writes(data)
+def _constrained_writes(data):
+    """Validated (setting key, stored string or None to reset) writes for constrained settings, or an issue."""
+    writes = []
+    for payload_key, db_key, constraint in _CONSTRAINED:
+        if payload_key not in data:
+            continue
+        raw = data[payload_key]
+        if raw is None and constraint.null_resets:
+            writes.append((db_key, None))
+            continue
+        value, issue = constraint.payload_issue(payload_key, raw)
+        if issue is not None:
+            return None, (issue, 400)
+        writes.append((db_key, str(value).lower() if isinstance(value, bool) else str(value)))
+    return writes, None
+
+
+def _apply_constrained_settings(db, data):
+    """Persist the constrained settings; validates all before writing any."""
+    writes, issue = _constrained_writes(data)
     if issue is not None:
         return error_response(*issue)
     for db_key, value in writes:
         if value is None:
             db.reset_setting(db_key)
         else:
-            db.set_setting(db_key, str(value), is_default=False)
+            db.set_setting(db_key, value, is_default=False)
         logger.info(f"Updated {db_key} to: {value if value is not None else 'default'}")
-    # The response's cookie expiry reads the length again; drop the value memoized at request start.
-    forget_memo()
+    if writes:
+        # The response's cookie expiry rereads the session length; drop the value memoized at request start.
+        forget_memo()
 
 
-def _validate_session_settings_payload(data):
-    return _session_settings_writes(data)[1]
+def _validate_constrained_payload(data):
+    return _constrained_writes(data)[1]
 
 
 def _validate_size_caps_payload(data):
@@ -880,9 +885,6 @@ def _apply_processing_flags(db, data):
         if value not in ('auto', 'generate', 'off'):
             return error_response('chaptersMode must be auto, generate, or off', 400)
         db.set_setting('chapters_mode', value, is_default=False)
-
-    if 'queueOrder' in data:
-        db.set_setting('queue_order', data['queueOrder'], is_default=False)
 
     if 'skipSecondPass' in data:
         if not isinstance(data['skipSecondPass'], bool):
@@ -1360,12 +1362,11 @@ def validate_settings_payload(
         provider_phases._validate_provider_routing_payload,
         _validate_model_pricing_payload,
         _validate_size_caps_payload,
-        _validate_session_settings_payload,
+        _validate_constrained_payload,
         provider_phases._validate_provider_rate_limit_payload,
         _validate_queue_boost_payload,
         _validate_rss_refresh_payload,
         _validate_audio_payload,
-        _validate_fingerprint_payload,
         _validate_user_agent_payload,
         _validate_podcast_search_provider_payload,
     ):
@@ -1576,27 +1577,14 @@ def _apply_max_ad_duration_fields(db, data):
     return None
 
 
-def _float_in_range(field, raw, low, high, *, numbers_only=False):
-    """(value, None) when raw is a finite float within [low, high], else (None, issue).
-
-    numbers_only rejects bools and strings and reports one combined message.
-    """
-    if numbers_only:
-        message = f'{field} must be a number between {low:g} and {high:g}'
-        if isinstance(raw, bool) or not isinstance(raw, (int, float)):
-            return None, (message, 400)
-        errors = (OverflowError,)
-        range_message = message
-    else:
-        message = f'{field} must be a number'
-        errors = (TypeError, ValueError)
-        range_message = f'{field} must be between {low} and {high}'
+def _float_in_range(field, raw, low, high):
+    """(value, None) when raw is a finite float within [low, high], else (None, issue)."""
     try:
         value = float(raw)
-    except errors:
-        return None, (message, 400)
+    except (TypeError, ValueError):
+        return None, (f'{field} must be a number', 400)
     if not math.isfinite(value) or value < low or value > high:
-        return None, (range_message, 400)
+        return None, (f'{field} must be between {low} and {high}', 400)
     return value, None
 
 
@@ -1679,36 +1667,6 @@ def _validate_audio_cue_payload(db, data):
 
 def _apply_audio_cue_fields(db, data):
     return _apply_writes(db, _audio_cue_writes(db, data))
-
-
-FINGERPRINT_PAYLOAD_KEYS = {
-    key: SETTINGS_REGISTRY[key].payload_key for key in FINGERPRINT_SETTING_RANGES}
-
-
-def _fingerprint_writes(data):
-    """Validated (setting key, stored string) writes for the fingerprint fields, or an issue."""
-    writes = []
-    if 'fingerprintEnabled' in data:
-        if not isinstance(data['fingerprintEnabled'], bool):
-            return None, ('fingerprintEnabled must be true or false', 400)
-        writes.append(('fingerprint_enabled', 'true' if data['fingerprintEnabled'] else 'false'))
-    for db_key, field in FINGERPRINT_PAYLOAD_KEYS.items():
-        if field not in data:
-            continue
-        _default, low, high = FINGERPRINT_SETTING_RANGES[db_key]
-        value, issue = _float_in_range(field, data[field], low, high, numbers_only=True)
-        if issue is not None:
-            return None, issue
-        writes.append((db_key, str(value)))
-    return writes, None
-
-
-def _validate_fingerprint_payload(data):
-    return _fingerprint_writes(data)[1]
-
-
-def _apply_fingerprint_fields(db, data):
-    return _apply_writes(db, _fingerprint_writes(data))
 
 
 def _detection_tuning_writes(db, data):

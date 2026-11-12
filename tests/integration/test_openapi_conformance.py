@@ -331,4 +331,6 @@ def test_global_queue_order_put_and_get_match_spec(seeded):
     assert_response_conforms('put', '/settings/ad-detection', put)
     got = client.get('/api/v1/settings', headers=headers)
     assert_response_conforms('get', '/settings', got)
-    assert got.get_json()['queueOrder'] == {'value': 'newest_first', 'isDefault': False}
+    entry = got.get_json()['queueOrder']
+    assert (entry['value'], entry['isDefault']) == ('newest_first', False)
+    assert entry['options'] == ['queued', 'oldest_first', 'newest_first']

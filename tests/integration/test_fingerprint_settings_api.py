@@ -37,7 +37,7 @@ def reset_settings(app_client):
 
 def test_defaults_are_returned_with_is_default(app_client):
     body = _get(app_client)
-    assert body['fingerprintEnabled'] == {'value': True, 'isDefault': True}
+    assert (body['fingerprintEnabled']['value'], body['fingerprintEnabled']['isDefault']) == (True, True)
     assert body['fingerprintMatchStrictness']['value'] == pytest.approx(0.65)
     assert body['fingerprintMinCoverage']['value'] == pytest.approx(0.5)
     assert body['fingerprintGapToleranceS']['value'] == pytest.approx(3.5)
@@ -53,9 +53,10 @@ def test_put_and_get_roundtrip(app_client):
                           'fingerprintMinAdLengthS': 12})
     assert r.status_code == 200
     body = _get(app_client)
-    assert body['fingerprintEnabled'] == {'value': False, 'isDefault': False}
+    assert (body['fingerprintEnabled']['value'], body['fingerprintEnabled']['isDefault']) == (False, False)
     assert body['fingerprintMatchStrictness']['value'] == pytest.approx(0.7)
-    assert body['fingerprintMinCoverage'] == {'value': pytest.approx(0.7), 'isDefault': False}
+    assert body['fingerprintMinCoverage']['value'] == pytest.approx(0.7)
+    assert body['fingerprintMinCoverage']['isDefault'] is False
     assert body['fingerprintGapToleranceS']['value'] == pytest.approx(9.0)
     assert body['fingerprintMinAdLengthS']['value'] == pytest.approx(12.0)
 
@@ -166,3 +167,16 @@ def test_matcher_registry_and_api_ranges_agree(app_client, temp_db):
             assert (_put(app_client, {field: value}).status_code == 200) is expect_ok
             temp_db.set_setting(key, str(value))
             assert clamped_fingerprint_setting(temp_db, key) == min(max(value, lo), hi)
+
+
+def test_get_reports_the_limits_beside_each_value(app_client):
+    body = _get(app_client)
+    expected = {
+        'fingerprintMatchStrictness': (0.65, 0.95, 0.05),
+        'fingerprintMinCoverage': (0.1, 1.0, 0.05),
+        'fingerprintGapToleranceS': (0.0, 15.0, 0.5),
+        'fingerprintMinAdLengthS': (3.0, 30.0, 1.0),
+    }
+    for field, (lo, hi, step) in expected.items():
+        assert (body[field]['min'], body[field]['max'], body[field]['step']) == (lo, hi, step)
+    assert not {'min', 'max', 'options'} & set(body['fingerprintEnabled'])

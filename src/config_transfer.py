@@ -17,7 +17,7 @@ import webhook_service
 from community_sync import DEFAULT_CRON as COMMUNITY_SYNC_DEFAULT_CRON
 from config import (
     PRICING_OVERRIDE_OPTIONAL, PRICING_OVERRIDE_REQUIRED,
-    PODCAST_SEARCH_PROVIDERS, STAGE_TUNABLE_PAYLOAD_KEYS,
+    PODCAST_SEARCH_PROVIDERS, STAGE_TUNABLE_PAYLOAD_KEYS, SETTING_CONSTRAINTS,
     SYSTEMONE_TUNABLE_DEFAULTS, SYSTEMONE_TUNABLE_PROFILE_KEYS,
     PROCESSING_MODE_CUE_ONLY, cue_only_missing_roles_for_feed,
     get_stage_tunable, resolve_community_sync_categories,
@@ -31,7 +31,6 @@ from db_backup_service import (
     KEEP_COUNT_MAX, KEEP_COUNT_MIN, validate_backup_dest,
 )
 from database.podcasts import FEED_TYPES, MAX_NETWORK_ID_CHARS
-from database.queue import QUEUE_ORDERS
 from database.settings import SETTINGS_REGISTRY, registry_default
 from systemone.tuning import SystemOneSettingsError, merge_profile, profile_from_snapshot
 from fx_rates import FxRateError, get_usd_rate
@@ -631,7 +630,11 @@ def _validate_setting_value(key, value):
             raise ConfigTransferError(f'{key} must be a number')
         elif spec.payload_kind == 'str' and not isinstance(value, str):
             raise ConfigTransferError(f'{key} must be a string')
-    if spec and spec.validator and not spec.validator(_setting_to_storage(value)):
+    if spec and spec.constraint is not None and spec.payload_key:
+        _checked, issue = spec.constraint.payload_issue(spec.payload_key, value)
+        if issue is not None:
+            raise ConfigTransferError(issue)
+    elif spec and spec.validator and not spec.validator(_setting_to_storage(value)):
         if key != 'provider_budget_display_currency':
             raise ConfigTransferError(f'{key} has an invalid value')
     if key == 'provider_budget_display_currency' and (
@@ -1106,7 +1109,8 @@ def _validated_feed_updates(db, podcast, payload, feed_type, *, confirmed_ceilin
             if error:
                 raise ConfigTransferError(error)
         elif key == 'queue_order':
-            value, error = feed_api._normalize_override(value, QUEUE_ORDERS, 'queue_order')
+            value, error = feed_api._normalize_override(
+                value, SETTING_CONSTRAINTS['queue_order'].options, 'queue_order')
             if error:
                 raise ConfigTransferError(error)
         elif key == 'chapters_mode':

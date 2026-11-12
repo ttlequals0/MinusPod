@@ -7,6 +7,11 @@ from database import Database
 from main_app import app
 
 BASE = '/api/v1/settings'
+
+
+def _vd(entry):
+    """An entry without its additive limits."""
+    return {k: entry[k] for k in ('value', 'isDefault')}
 PUT = f'{BASE}/ad-detection'
 
 
@@ -27,8 +32,8 @@ def _put(client, payload):
 
 def test_defaults_when_unset(client):
     body = client.get(BASE).get_json()
-    assert body['sessionLifetimeHours'] == {'value': 24, 'isDefault': True}
-    assert body['sessionRememberDays'] == {'value': 30, 'isDefault': True}
+    assert _vd(body['sessionLifetimeHours']) == {'value': 24, 'isDefault': True}
+    assert _vd(body['sessionRememberDays']) == {'value': 30, 'isDefault': True}
 
 
 def test_env_seeds_default(monkeypatch):
@@ -51,7 +56,7 @@ def test_saved_value_wins_over_env(client, monkeypatch):
     r = _put(client, {'sessionLifetimeHours': 100})
     assert r.status_code == 200, r.get_data(as_text=True)
     got = client.get(BASE).get_json()['sessionLifetimeHours']
-    assert got == {'value': 100, 'isDefault': False}
+    assert _vd(got) == {'value': 100, 'isDefault': False}
 
 
 def test_numeric_string_is_accepted_like_other_int_settings(client):
@@ -99,7 +104,7 @@ def test_rejected_payload_persists_nothing(client):
 def test_reset_returns_to_default(client):
     _put(client, {'sessionRememberDays': 90})
     assert Database().reset_setting('session_remember_days') is True
-    assert client.get(BASE).get_json()['sessionRememberDays'] == {'value': 30, 'isDefault': True}
+    assert _vd(client.get(BASE).get_json()['sessionRememberDays']) == {'value': 30, 'isDefault': True}
 
 
 def test_bulk_ad_reset_leaves_session_settings(client):
@@ -119,19 +124,26 @@ def test_whole_number_float_is_accepted(client):
 ])
 def test_null_resets_to_the_default(client, field, key, saved, default):
     assert _put(client, {field: saved}).status_code == 200
-    assert client.get(BASE).get_json()[field] == {'value': saved, 'isDefault': False}
+    assert _vd(client.get(BASE).get_json()[field]) == {'value': saved, 'isDefault': False}
     assert _put(client, {field: None}).status_code == 200
-    assert client.get(BASE).get_json()[field] == {'value': default, 'isDefault': True}
+    assert _vd(client.get(BASE).get_json()[field]) == {'value': default, 'isDefault': True}
 
 
 def test_null_reset_shows_the_env_value_again(client, monkeypatch):
     monkeypatch.setenv('SESSION_LIFETIME_HOURS', '72')
     _put(client, {'sessionLifetimeHours': 100})
     assert _put(client, {'sessionLifetimeHours': None}).status_code == 200
-    assert client.get(BASE).get_json()['sessionLifetimeHours'] == {'value': 72, 'isDefault': True}
+    assert _vd(client.get(BASE).get_json()['sessionLifetimeHours']) == {'value': 72, 'isDefault': True}
 
 
 def test_null_beside_a_bad_value_changes_nothing(client):
     _put(client, {'sessionLifetimeHours': 100})
     assert _put(client, {'sessionLifetimeHours': None, 'sessionRememberDays': 0}).status_code == 400
     assert client.get(BASE).get_json()['sessionLifetimeHours']['value'] == 100
+
+
+def test_get_reports_the_limits_beside_each_value(client):
+    body = client.get(BASE).get_json()
+    assert (body['sessionLifetimeHours']['min'], body['sessionLifetimeHours']['max']) == (1, 8760)
+    assert (body['sessionRememberDays']['min'], body['sessionRememberDays']['max']) == (1, 365)
+    assert 'step' not in body['sessionLifetimeHours']

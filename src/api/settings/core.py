@@ -21,8 +21,6 @@ from config import (
     MIN_CONTENT_BETWEEN_ADS_SECONDS,
     MAX_AD_DURATION, MAX_AD_DURATION_CONFIRMED, MAX_AD_DURATION_WINDOW,
     get_env_backed_int,
-    SESSION_LIFETIME_HOURS_MIN, SESSION_LIFETIME_HOURS_MAX,
-    SESSION_REMEMBER_DAYS_MIN, SESSION_REMEMBER_DAYS_MAX,
     MAX_ARTWORK_BYTES_MIN, MAX_ARTWORK_BYTES_MAX, MAX_RSS_BYTES_MIN,
     MAX_AUDIO_DOWNLOAD_MB_MIN,
     PODCAST_SEARCH_PROVIDERS,
@@ -422,12 +420,8 @@ def _build_settings_payload():
     max_artwork_bytes = get_env_backed_int(
         'max_artwork_bytes', floor=MAX_ARTWORK_BYTES_MIN,
         ceiling=MAX_ARTWORK_BYTES_MAX, settings=settings)
-    session_lifetime_hours = get_env_backed_int(
-        'session_lifetime_hours', floor=SESSION_LIFETIME_HOURS_MIN,
-        ceiling=SESSION_LIFETIME_HOURS_MAX, settings=settings)
-    session_remember_days = get_env_backed_int(
-        'session_remember_days', floor=SESSION_REMEMBER_DAYS_MIN,
-        ceiling=SESSION_REMEMBER_DAYS_MAX, settings=settings)
+    session_lifetime_hours = get_env_backed_int('session_lifetime_hours', settings=settings)
+    session_remember_days = get_env_backed_int('session_remember_days', settings=settings)
     max_rss_bytes = get_env_backed_int(
         'max_rss_bytes', floor=MAX_RSS_BYTES_MIN, settings=settings)
     max_audio_download_mb = get_env_backed_int(
@@ -868,6 +862,9 @@ def _build_settings_payload():
 
     # Every per-setting default derives from SETTINGS_REGISTRY;
     # openrouterBaseUrl is a fixed constant, not a setting.
+    for spec in SETTINGS_REGISTRY.values():
+        if spec.constraint is not None and spec.payload_key:
+            payload[spec.payload_key].update(spec.constraint.api_fields())
     payload['defaults'] = {
         **{spec.payload_key: registry_get_default(key)
            for key, spec in SETTINGS_REGISTRY.items() if spec.payload_key},
