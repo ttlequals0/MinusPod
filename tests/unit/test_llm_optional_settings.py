@@ -84,6 +84,38 @@ def test_models_preview_for_none_is_empty(app_client, hdr):
     assert r.get_json() == {'models': []}
 
 
+class _ListingClient:
+    """A stand-in provider client that lists one model."""
+
+    def list_models(self):
+        return [SimpleNamespace(id='m-listed', name='Listed', created=0)]
+
+
+def test_secondary_model_listing_stays_available_under_none(app_client, hdr, monkeypatch):
+    # Deliberate: an operator picks a model for a slot before switching back from none.
+    db = get_database()
+    db.set_setting('llm_provider', 'none', is_default=False)
+    invalidate_provider_cache()
+    monkeypatch.setattr('api.settings.providers.create_client_for_provider',
+                        lambda *args, **kwargs: _ListingClient())
+    r = app_client.get('/api/v1/settings/models?provider=openai-compatible&slot=secondary', headers=hdr)
+    assert r.status_code == 200
+    assert [m['id'] for m in r.get_json()['models']] == ['m-listed']
+
+
+def test_secondary_model_refresh_stays_available_under_none(app_client, hdr, monkeypatch):
+    db = get_database()
+    db.set_setting('llm_provider', 'none', is_default=False)
+    db.set_setting('secondary_provider', 'openai-compatible', is_default=False)
+    invalidate_provider_cache()
+    monkeypatch.setattr('api.settings.providers.get_client_for_provider',
+                        lambda *args, **kwargs: _ListingClient())
+    r = app_client.post('/api/v1/settings/models/refresh', json={'slot': 'secondary'}, headers=hdr)
+    assert r.status_code == 200
+    body = r.get_json()
+    assert body['count'] == 1 and [m['id'] for m in body['models']] == ['m-listed']
+
+
 def test_llm_disabled_response_shape(app_client):
     from api import llm_disabled_response
     with app_client.application.test_request_context():
