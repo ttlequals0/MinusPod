@@ -14,7 +14,7 @@ from differential_fetcher import (
     is_likely_dai_feed,
 )
 
-from utils.http import redact_exc, redact_log_text
+from utils.http import redact_exc
 from utils.time import (
     parse_iso_utc, utc_now_iso,
 )
@@ -286,7 +286,7 @@ def _run_transcript_diff(slug, episode_id, episode_row, segments, run_stats, *, 
     host = 'unknown'
 
     def fail(error):
-        payload.update(status='error', error=redact_log_text(error), spans=[])
+        payload.update(status='error', error=error, spans=[])
 
     if url:
         common._publish_status('update_job_stage', slug, episode_id, "pass1:transcript_diff", 21)

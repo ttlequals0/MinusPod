@@ -25,7 +25,6 @@ from database.search import FULL_REBUILD_SETTING
 from db_backup_service import backup_in_progress
 from processing_schedule import is_schedule_closed
 from utils.constants import CANCELED_ERROR_MESSAGE, EpisodeStatus
-from utils.http import redact_exc
 from utils.time import parse_iso_utc
 from transcriber.settings import active_whisper_settings
 from transcriber.local import unload_whisper_if_idle
@@ -204,7 +203,7 @@ def _run_deferred_upgrade_safely(clock=time.time):
         ok = db.run_deferred_upgrade_steps(
             pause=lambda: shutdown_event.wait(UPGRADE_PAGE_PAUSE_SECONDS), should_stop=shutdown_event.is_set)
     except Exception as e:
-        refresh_logger.warning(f"Deferred upgrade steps failed with {type(e).__name__}")
+        refresh_logger.warning(f"Deferred upgrade steps failed with {type(e).__name__}: {e}")
         ok = False
     _UPGRADE_STATE['retry_at'] = None if ok else clock() + UPGRADE_RETRY_SECONDS
 
@@ -528,7 +527,7 @@ def _run_claimed_episode(queued: dict, running: set) -> ClaimResult:
         # Clear any leaked transaction before the status write so
         # the bookkeeping cannot commit partial work (issue #566).
         db.clear_leaked_transaction(refresh_logger, 'auto-process error path')
-        db.close_claimed_queue_row(queue_id, 'failed', redact_exc(e))
+        db.close_claimed_queue_row(queue_id, 'failed', str(e))
         refresh_logger.error(f"[{slug}:{episode_id}] Auto-process error: {e}")
         return 'skipped'
 
@@ -652,7 +651,7 @@ def _wait_for_claimed_episode(queue_id: int, slug: str, episode_id: str) -> None
         # Clear any leaked transaction before the status write so
         # the bookkeeping cannot commit partial work (issue #566).
         db.clear_leaked_transaction(refresh_logger, 'auto-process error path')
-        db.close_claimed_queue_row(queue_id, 'failed', redact_exc(e))
+        db.close_claimed_queue_row(queue_id, 'failed', str(e))
         refresh_logger.error(f"[{slug}:{episode_id}] Auto-process error: {e}")
 
 

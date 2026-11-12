@@ -31,7 +31,6 @@ from typing import Any
 from secrets_crypto import count_plaintext_secrets, count_stored_secrets
 from utils.cron import is_due
 from utils.db_backup import snapshot_database
-from utils.http import redact_exc
 from utils.time import (
     parse_iso_utc as _parse_iso,
     utc_now as _utc_now,
@@ -371,7 +370,7 @@ def backup_now(db) -> dict[str, Any]:
             size_bytes = os.stat(final_name, dir_fd=dest_fd, follow_symlinks=False).st_size
             pruned = _prune_rotated(dest_path, keep, keep_path=dest_path / final_name)
         except Exception as e:
-            db.set_setting('db_backup_last_error', redact_exc(e))
+            db.set_setting('db_backup_last_error', str(e))
             logger.warning('db_backup: backup failed: %s', e)
             raise
         finally:

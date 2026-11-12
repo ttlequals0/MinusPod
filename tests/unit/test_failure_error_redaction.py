@@ -8,10 +8,10 @@ from tests.app_bootstrap import bootstrap
 
 _test_data_dir = bootstrap('failure_error_redaction_test_')
 import differential_fetcher
+import webhook_service
 from api import error_response
 from config import MAX_EPISODE_RETRIES
 from main_app import app, db
-from main_app.pipeline import failure
 from main_app.pipeline.failure import _handle_processing_failure
 from rate_limit_hold import hold_message
 from utils.errors import ServiceUnavailableError
@@ -36,13 +36,27 @@ def episode():
     db.delete_podcast(SLUG)
 
 
+class _InlineThread:
+    def __init__(self, target, args=(), kwargs=None, daemon=None):
+        self._call = lambda: target(*args, **(kwargs or {}))
+
+    def start(self):
+        self._call()
+
+
 def _fail(episode_id, error):
+    """Run the failure handler; returns the contexts that reached webhook dispatch."""
+    sent = []
     with patch('main_app.processing.status_service'), \
-            patch.object(failure, 'fire_event') as webhook, \
-            patch.object(failure, 'fire_service_offline_event') as offline:
+            patch.object(webhook_service, 'load_webhooks', lambda: [
+                {'enabled': True, 'events': sorted(webhook_service.VALID_EVENTS), 'url': 'https://example.com/h'}]), \
+            patch.object(webhook_service, '_prepare_and_dispatch', lambda wh, ctx: sent.append(ctx)), \
+            patch.object(webhook_service, '_timestamp_fields', lambda: {}), \
+            patch.object(webhook_service.email_service, 'send_event_email', lambda event, ctx: None), \
+            patch.object(webhook_service.threading, 'Thread', _InlineThread):
         _handle_processing_failure(SLUG, episode_id, 'Episode 1', 'Failure Redaction Test',
                                    db.get_episode(SLUG, episode_id), error, start_time=0.0)
-    return webhook, offline
+    return sent
 
 
 def _assert_clean(text):
@@ -51,22 +65,22 @@ def _assert_clean(text):
 
 @pytest.mark.parametrize('error', ERRORS, ids=['http-error', 'connect-timeout', 'userinfo-and-key'])
 def test_permanent_failure_stores_and_sends_redacted_text(episode, error):
-    webhook, _ = _fail(episode, error)
+    sent = _fail(episode, error)
     _assert_clean(db.get_episode(SLUG, episode)['error_message'])
     rows, _ = db.get_processing_history(podcast_slug=SLUG)
     _assert_clean(rows[0]['error_message'])
-    _assert_clean(webhook.call_args.kwargs['error_message'])
+    _assert_clean(str(sent[0]['episode']['error_message']))
 
 
 def test_deferred_failure_stores_and_sends_redacted_text(episode):
     db.set_setting('offline_queue_enabled', 'true')
     try:
-        _, offline = _fail(episode, ServiceUnavailableError(
+        sent = _fail(episode, ServiceUnavailableError(
             'llm', 'llm endpoint down: https://llm.example.com/v1?api_key=SECRET'))
     finally:
         db.set_setting('offline_queue_enabled', 'false')
     _assert_clean(db.get_episode(SLUG, episode)['error_message'])
-    _assert_clean(str(offline.call_args.kwargs['error_message']))
+    _assert_clean(str(sent[0]['error_message']))
 
 
 def test_api_error_bodies_carry_no_query_or_credential():
