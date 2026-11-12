@@ -27,6 +27,7 @@ def _clean(text):
 
 def test_webhook_alert_context_is_redacted(monkeypatch):
     sent = []
+    monkeypatch.setattr(webhook_service, '_last_alert_time', {})
     monkeypatch.setattr(webhook_service, 'load_webhooks', lambda: [
         {'enabled': True, 'events': [webhook_service.EVENT_SERVICE_OFFLINE], 'url': 'https://example.com/h'}])
     monkeypatch.setattr(webhook_service, '_prepare_and_dispatch', lambda wh, ctx: sent.append(ctx))
