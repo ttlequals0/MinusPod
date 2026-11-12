@@ -11,13 +11,17 @@ import pytest
 os.environ.setdefault('MINUSPOD_DATA_DIR', tempfile.mkdtemp(prefix='llm-optional-features-test-'))
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 
+import database  # noqa: E402
 import failover  # noqa: E402
 import llm_client  # noqa: E402
 import pattern_cleanup  # noqa: E402
+import pricing_fetcher  # noqa: E402
 import rate_limit_hold  # noqa: E402
 import tools.reviewer_calibration as calibration  # noqa: E402
 from api import get_database  # noqa: E402
+from api import system as system_routes  # noqa: E402
 from api.settings import provider_phases, providers  # noqa: E402
+from tests.integration.openapi_conformance import assert_response_conforms  # noqa: E402
 from tests.unit.llm_optional_support import restoring_auth  # noqa: E402
 
 
@@ -99,6 +103,7 @@ def test_pattern_cleanup_run_returns_409_under_none(app_client, hdr, provider_no
     assert response.status_code == 409
     assert response.get_json()['code'] == 'llm_disabled'
     start.assert_not_called()
+    assert_response_conforms('post', '/patterns/cleanup/run', response, status=409)
 
 
 def test_pattern_cleanup_run_validation_runs_before_the_gate(app_client, hdr, provider_none):
@@ -336,3 +341,45 @@ def test_startup_verification_with_anthropic_and_no_key_still_warns(provider_ant
     monkeypatch.setattr(llm_client, 'get_api_key', lambda: None)
     assert llm_client._verify_primary_connection() is False
     assert any(r.levelno == logging.WARNING and 'API key' in r.getMessage() for r in caplog.records)
+
+
+# Pricing refresh
+
+@pytest.fixture
+def pricing_fetches(monkeypatch):
+    """Calls to the price catalog fetch; the in-memory TTL stamp is restored."""
+    calls = []
+    monkeypatch.setattr(pricing_fetcher, '_last_fetch', 0.0)
+    monkeypatch.setattr(pricing_fetcher, 'fetch_pricing_chain', lambda sources: calls.append(sources) or [])
+    monkeypatch.setattr(pricing_fetcher, 'get_pricing_sources', lambda provider, base_url='': [{'type': 'litellm'}])
+    monkeypatch.setattr(database, 'Database', MagicMock())
+    return calls
+
+
+@pytest.mark.parametrize('force', [False, True])
+def test_pricing_refresh_makes_no_request_under_none(pricing_fetches, provider_none, force):
+    pricing_fetcher.refresh_pricing_if_stale(force=force)
+    assert pricing_fetches == []
+
+
+def test_pricing_refresh_still_fetches_with_a_provider(pricing_fetches, provider_anthropic):
+    pricing_fetcher.refresh_pricing_if_stale(force=True)
+    assert len(pricing_fetches) == 1
+
+
+def test_pricing_refresh_route_returns_409_under_none(app_client, hdr, provider_none, monkeypatch):
+    refreshes = []
+    monkeypatch.setattr(system_routes, 'force_refresh_pricing', lambda: refreshes.append(1))
+    response = app_client.post('/api/v1/system/model-pricing/refresh', headers=hdr)
+    assert response.status_code == 409
+    assert response.get_json()['code'] == 'llm_disabled'
+    assert refreshes == []
+    assert_response_conforms('post', '/system/model-pricing/refresh', response, status=409)
+
+
+def test_pricing_refresh_route_still_refreshes_with_a_provider(app_client, hdr, provider_anthropic, monkeypatch):
+    refreshes = []
+    monkeypatch.setattr(system_routes, 'force_refresh_pricing', lambda: refreshes.append(1))
+    response = app_client.post('/api/v1/system/model-pricing/refresh', headers=hdr)
+    assert response.status_code == 200
+    assert refreshes == [1]

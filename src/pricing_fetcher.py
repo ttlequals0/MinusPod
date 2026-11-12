@@ -359,6 +359,9 @@ def refresh_pricing_if_stale(force: bool = False):
         force: Skip both in-memory and DB TTL checks (used by force_refresh_pricing).
     """
     global _last_fetch
+    from llm_client import llm_disabled  # deferred: see the cycle note below
+    if llm_disabled():
+        return
     if not force:
         with _fetch_lock:
             if time.monotonic() - _last_fetch < PRICING_CACHE_TTL:

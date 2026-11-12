@@ -16,6 +16,7 @@ from flask import Response, abort, jsonify, request, send_file
 from api import (
     api, limiter, log_request, json_response, error_response,
     get_database, get_storage, _get_version, _start_time, apply_url_prefix,
+    llm_disabled_response,
 )
 from api.failover import probes_view, targets_view
 import transcriber
@@ -336,6 +337,8 @@ def get_model_pricing():
 @log_request
 def refresh_model_pricing():
     """Force refresh pricing data from provider's pricing source."""
+    if llm_disabled():
+        return llm_disabled_response('Pricing refresh is unavailable while the LLM provider is none')
     try:
         force_refresh_pricing()
         db = get_database()

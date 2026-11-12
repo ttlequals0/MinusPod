@@ -104,7 +104,7 @@ Key endpoints:
 - `GET /api/v1/system/updates` - Latest stable and edge release info from GitHub Releases, cached 6 hours in-process (`?refresh=true` forces a live fetch, throttled to once per 30 seconds); returns 502 if GitHub is unreachable
 - `GET /api/v1/system/token-usage` - LLM token usage and cost breakdown by model
 - `GET /api/v1/system/model-pricing` - All known LLM model pricing rates
-- `POST /api/v1/system/model-pricing/refresh` - Force refresh pricing from provider source
+- `POST /api/v1/system/model-pricing/refresh` - Force refresh pricing from provider source; returns 409 `llm_disabled` while the LLM provider is none (the background refresh also makes no request then)
 - `GET /api/v1/system/queue` - Auto-process queue status
 - `POST /api/v1/system/vacuum` - Trigger SQLite VACUUM to reclaim disk space
 - `GET /api/v1/changelog` - Released changelog sections, newest first (`limit` 1 to 50, default 10, larger values clamp); optional `since` X.Y.Z keeps only newer sections; 400 on a malformed `since` or `limit` below 1. Drives the What's new dialog

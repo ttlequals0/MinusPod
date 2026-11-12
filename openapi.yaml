@@ -8798,6 +8798,12 @@ paths:
                   modelsUpdated:
                     type: integer
                     description: Number of models with pricing data
+        '409':
+          description: The LLM provider is set to none, so there is no price catalog to refresh (`code` is `llm_disabled`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
         '502':
           description: Pricing fetch failed
           content:

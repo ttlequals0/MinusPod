@@ -12,6 +12,7 @@ from config import (  # noqa: E402
     CHAPTERS_MODE_AUTO, CHAPTERS_MODE_GENERATE, CHAPTERS_MODE_OFF, resolve_chapters_mode,
 )
 from api.episodes import chapters as chapters_routes  # noqa: E402
+from tests.integration.openapi_conformance import assert_response_conforms  # noqa: E402
 from tests.unit.test_chapters_mode import MARKED_SPONSOR, _db, _run  # noqa: E402
 
 PUBLISHER = [
@@ -136,6 +137,8 @@ def test_regenerate_chapters_returns_409_under_none(chapters_feed, provider_none
     assert body['code'] == 'llm_disabled'
     assert body['status'] == 409
     thread.assert_not_called()
+    assert_response_conforms(
+        'post', '/feeds/{slug}/episodes/{episode_id}/regenerate-chapters', response, status=409)
 
 
 def test_regenerate_chapters_without_a_transcript_is_still_400_with_a_provider(chapters_feed, provider_anthropic):
