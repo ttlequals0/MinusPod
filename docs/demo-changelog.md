@@ -4,10 +4,15 @@ This file tracks the hosted demo and its tooling, which are not part of the self
 
 ## [Unreleased]
 
+### Added
+
+- The demo fixtures answer the new pattern audio routes (`/patterns/{id}/audio` and `/patterns/{id}/audio/matches`) and `/stats/audio-matching` with empty data, so the Audio section, Recent matches and the Audio matching stats tiles render in the hosted demo. Audio playback is disabled in the demo.
+
 ### Changed
 
 - The snapshot export empties the new `audio_fingerprint_matches` match-history table and clears the source feed and episode columns of `audio_fingerprints`.
-- The snapshot export keeps the five audio fingerprinting settings (`fingerprint_enabled`, `fingerprint_match_strictness`, `fingerprint_min_coverage`, `fingerprint_gap_tolerance_s` and `fingerprint_min_ad_length_s`) in the demo database.
+- The snapshot export keeps the five audio fingerprinting settings (`fingerprint_enabled`, `fingerprint_match_strictness`, `fingerprint_min_coverage`, `fingerprint_gap_tolerance_s` and `fingerprint_min_ad_length_s`) and the new `queue_order`, `session_lifetime_hours` and `session_remember_days` settings in the demo database.
+- The snapshot export drops `llm_pre_none_identity`, the setting that remembers a model identity from before the LLM provider was set to None.
 
 ## [2.101.34] - 2026-11-09
 
