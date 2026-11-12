@@ -43,7 +43,7 @@ The full reference is in [Environment Variables](environment-variables.md). The 
 
 | Variable | Why |
 |----------|-----|
-| `ANTHROPIC_API_KEY` (or other provider key) | Required for LLM ad detection. Not needed with `LLM_PROVIDER=none`, which uses only the detectors that need no model |
+| `ANTHROPIC_API_KEY` (or other provider key) | Required for LLM ad detection. Not needed with `LLM_PROVIDER=none`, which uses only the detectors that need no model. See [Running without an LLM](llm-providers.md#running-without-an-llm) |
 | `BASE_URL` | Public URL embedded in generated RSS feeds |
 | `MINUSPOD_MASTER_PASSPHRASE` | Encrypts provider keys and downloadable backups at rest. Store it separately from the backup. |
 
@@ -92,7 +92,7 @@ curl http://localhost:8000/api/v1/health
 }
 ```
 
-A non-200 response or `"status": "degraded"` means one of the checks failed; inspect the container logs to find which.
+A non-200 response or `"status": "degraded"` means one of the checks failed; inspect the container logs to find which. With `LLM_PROVIDER=none`, health does not report a missing model as a problem.
 
 ## Common issues
 

@@ -21,7 +21,8 @@ services:
       # =================================================================
       # LLM Provider Configuration (set in .env file)
       # =================================================================
-      # LLM_PROVIDER: anthropic (default), openrouter, openai-compatible, ollama
+      # LLM_PROVIDER: anthropic (default), openrouter, openai-compatible, ollama,
+      # typesafe, systemone-compatible, or none (no LLM, no key or model needed)
       # See .env.example for full configuration options per provider
       - LLM_PROVIDER=${LLM_PROVIDER:-anthropic}
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}

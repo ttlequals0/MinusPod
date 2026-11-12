@@ -21,7 +21,7 @@ Grouped by how often you'll touch them. **Standard** is what a typical deploymen
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `ANTHROPIC_API_KEY` | _(none)_ | Claude API key (required when `LLM_PROVIDER=anthropic`, not needed for Ollama) |
-| `LLM_PROVIDER` | `anthropic` | Default LLM provider: `anthropic`, `openrouter`, `openai-compatible`, `ollama`, `typesafe`, `systemone-compatible`, or `none`. `none` runs without an LLM and needs no key or model; see [Running without an LLM](llm-providers.md#running-without-an-llm) |
+| `LLM_PROVIDER` | `anthropic` | Default LLM provider: `anthropic`, `openrouter`, `openai-compatible`, `ollama`, `typesafe`, `systemone-compatible`, or `none`. `none` runs without an LLM and needs no key or model, so the key and model variables below are ignored. See [Running without an LLM](llm-providers.md#running-without-an-llm) |
 | `OPENROUTER_API_KEY` | _(none)_ | OpenRouter API key (required when `LLM_PROVIDER=openrouter`) |
 | `OPENAI_BASE_URL` | `http://localhost:8000/v1` | Base URL for OpenAI-compatible API (only used with non-anthropic providers) |
 | `TYPESAFE_API_KEY` | _(none)_ | Provider A TypeSafe API key. Provider B uses its saved slot key. |

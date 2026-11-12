@@ -280,13 +280,15 @@ System One preserves caller prompts, policy, and context in its structured quest
 
 An LLM is optional. Set the provider to **None** under Settings > AI & Processing > LLM Provider, or start with `LLM_PROVIDER=none`. No API key, base URL or model is needed, and an episode is not marked failed or degraded because no model is set.
 
+A fresh install on None, with no patterns and no stored fingerprints, finds little or nothing on a regular podcast feed. Ads are cut after you mark them: use Add ad in the ad editor, or confirm or adjust a detected marker (see User Corrections in [How It Works](how-it-works.md#pattern-learning)). Each of these saves a text pattern and, when the episode's original is retained, an audio fingerprint, so the next episode with the same ad is cut with no model. Fingerprints also come from Add audio to pattern on a text-pattern detection, from SponsorBlock marks on YouTube feeds, and from detections made before you switched to None. Synced community patterns add text patterns but no fingerprints. See [Audio fingerprints](how-it-works.md#audio-fingerprints).
+
 Ads are then found by the detectors that need no model:
 
-- Text patterns, audio fingerprints and audio cues
+- Text patterns and audio fingerprints, the main detectors on a regular feed (see [Audio fingerprints](how-it-works.md#audio-fingerprints)), and audio cues
 - The cross-fetch differential. A region is cut when another detector agrees and held for review otherwise.
 - SponsorBlock marks, on YouTube feeds only. There is no LLM fallback when a video has no marks.
 
-Transcription still runs, because text patterns need the transcript. Hold rules, cuts and publishing work as usual. An episode with no detections publishes uncut. If manual approval is on for the feed or globally, it is held for review as usual.
+Transcription still runs, because text patterns need the transcript. Hold rules, cuts and publishing run unchanged. The ad reviewer is skipped, so holds that depend on a reviewer verdict, such as the reviewer boundary conflict, do not occur. An episode with no detections publishes uncut, or waits for review when manual approval is on for the feed or globally.
 
 These parts do not run:
 
@@ -301,11 +303,11 @@ These parts do not run:
 
 Three routes answer 409 with the code `llm_disabled`: `POST /api/v1/feeds/<slug>/episodes/<id>/regenerate-chapters`, `POST /api/v1/patterns/cleanup/run` and `POST /api/v1/system/model-pricing/refresh`. The provider test routes still test the provider named in the request, so you can check credentials before switching back.
 
-Retry ad detection and Reprocess still work. They rerun the detectors that need no model, which is how a newly added pattern is applied to an episode already processed.
+Retry ad detection and Reprocess still work. They rerun the model-free detectors, so a newly added pattern is applied to an episode already processed. Retry ad detection reruns audio fingerprints and text patterns. Reprocess reruns the whole standard pipeline without the model calls.
 
-Two limits follow from this. SponsorBlock covers YouTube feeds only. For a regular podcast feed, MinusPod does not discover repeated ads on its own: a new ad is cut only after you mark it once and it becomes a pattern.
+SponsorBlock covers YouTube feeds only. For a regular podcast feed, MinusPod does not discover repeated ads on its own, so a new ad is cut only after you mark it once and it becomes a pattern.
 
-Saved API keys and model choices are kept when you switch to None. When you switch to another provider, a stage keeps its model if the provider account is the same as before None, and its model field is cleared if the account differs (see [Per-Stage Providers](#per-stage-providers)). None cannot be the secondary provider or the failover provider.
+Saved API keys and model choices are kept when you switch to None. When you switch to another provider, a stage keeps its model if its provider account is the one it used before None. Otherwise its model field is cleared. If the install started on None, only the stages that use the primary provider are cleared. None cannot be the secondary provider or the failover provider.
 
 ## Per-Stage Providers
 
