@@ -5,7 +5,10 @@ GATE = 'trim_pattern_network_ids'
 
 
 def _pattern(db, network):
-    return db.create_ad_pattern(scope='network', network_id=network, text_template=f'text {network!r}')
+    pid = db.create_ad_pattern(scope='network', text_template=f'text {network!r}')
+    db.get_connection().execute("UPDATE ad_patterns SET network_id = ? WHERE id = ?", (network, pid))
+    db.get_connection().commit()
+    return pid
 
 
 def _network(db, pid):

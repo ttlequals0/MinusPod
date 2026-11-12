@@ -1011,3 +1011,27 @@ def test_chapter_notes_invalid_rejected(app_client, seeded_feed, value):
                             json={'chapterNotes': value})
     assert resp.status_code == 400
     assert seeded_feed['db'].get_podcast_by_slug(slug)['chapter_notes'] is None
+
+
+@pytest.mark.parametrize('sent, stored', [
+    (' Acme Net\u00a0', 'Acme Net'),
+    ('   ', None),
+    ('', None),
+])
+def test_patch_network_id_override_is_normalized(app_client, seeded_feed, sent, stored):
+    slug = seeded_feed['slug']
+    _authed(app_client)
+    resp = app_client.patch(f'/api/v1/feeds/{slug}', json={'networkIdOverride': sent},
+                            headers=_csrf_headers(app_client))
+    assert resp.status_code == 200
+    assert seeded_feed['db'].get_podcast_by_slug(slug)['network_id_override'] == stored
+
+
+@pytest.mark.parametrize('bad', [7, ['a'], 'x' * 101])
+def test_patch_network_id_override_rejects_bad_values(app_client, seeded_feed, bad):
+    slug = seeded_feed['slug']
+    _authed(app_client)
+    resp = app_client.patch(f'/api/v1/feeds/{slug}', json={'networkIdOverride': bad},
+                            headers=_csrf_headers(app_client))
+    assert resp.status_code == 400
+    assert seeded_feed['db'].get_podcast_by_slug(slug)['network_id_override'] is None

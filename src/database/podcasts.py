@@ -12,8 +12,16 @@ from utils.constants import EpisodeStatus
 from utils.time import ISO_FORMAT, utc_now_iso
 from utils.validation import nullable_bool
 
-# The feed's network: the non-blank override, else the detected network.
-EFFECTIVE_NETWORK_SQL = "COALESCE(NULLIF(TRIM(network_id_override), ''), network_id)"
+# The feed's network: the override, else the detected network. Writers store the override trimmed.
+EFFECTIVE_NETWORK_SQL = "COALESCE(network_id_override, network_id)"
+MAX_NETWORK_ID_CHARS = 100
+
+
+def normalize_network_id(value):
+    """A string network id trimmed, blank as None; other values unchanged."""
+    if isinstance(value, str):
+        return value.strip() or None
+    return value
 
 logger = logging.getLogger(__name__)
 
@@ -155,12 +163,11 @@ class PodcastMixin:
             SELECT DISTINCT network_id_override
             FROM podcasts
             WHERE network_id_override IS NOT NULL
-              AND TRIM(network_id_override) != ''
         """)
         return [row['network_id_override'] for row in cursor.fetchall()]
 
     def get_effective_network_id(self, slug: str) -> str | None:
-        """The feed's network: the non-blank override, else the detected network, else None."""
+        """The feed's network: the override, else the detected network, else None."""
         row = self.get_connection().execute(
             f"SELECT {EFFECTIVE_NETWORK_SQL} AS network FROM podcasts WHERE slug = ?", (slug,)  # noqa: S608
         ).fetchone()
@@ -409,7 +416,7 @@ class PodcastMixin:
                 'yt_transcribe_override',
             ):
                 fields.append(f"{key} = ?")
-                values.append(value)
+                values.append(normalize_network_id(value) if key == 'network_id_override' else value)
             elif key in ('tags', 'user_tags'):
                 fields.append(f"{key} = ?")
                 values.append(json.dumps(value) if isinstance(value, list) else value)

@@ -7,6 +7,7 @@ from config import (
     SNIPPET_EXCLUDED_SQL, SNIPPET_EXCLUDED_SQL_PARAMS,
 )
 from database.fingerprint_cleanup import delete_pattern_dependents, delete_pattern_dependents_in
+from database.podcasts import normalize_network_id
 from utils.json_fields import load_json_list
 from utils.markers import parse_ad_markers
 from utils.pattern_catalog import invalidate_pattern_catalog_scope
@@ -185,6 +186,7 @@ class PatternMixin:
 
         category is stored as given (including None -> NULL); readers return
         NULL as None, so omitting it here leaves the pattern uncategorized."""
+        network_id = normalize_network_id(network_id)
         cursor = conn.execute(
             """INSERT INTO ad_patterns
                (scope, text_template, sponsor_id, podcast_id, network_id, dai_platform,
@@ -222,7 +224,7 @@ class PatternMixin:
                        'protected_from_sync', 'source_language', 'content_hash',
                        'category', 'community_last_confirmed_at'):
                 fields.append(f"{key} = ?")
-                values.append(value)
+                values.append(normalize_network_id(value) if key == 'network_id' else value)
             elif key in ('intro_variants', 'outro_variants'):
                 fields.append(f"{key} = ?")
                 values.append(json.dumps(value) if isinstance(value, list) else value)

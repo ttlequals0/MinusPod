@@ -67,7 +67,7 @@ from utils.paths import RECENTS_ARTWORK_PATH
 from utils.text import truncate
 from api.episodes.core import _episode_base_json
 from api.episodes.common import _job_state
-from database.podcasts import (EPISODE_STATUSES, RECENTS_SLUG, PodcastMixin, has_upstream, has_upstream_audio, is_local_feed,
+from database.podcasts import (EPISODE_STATUSES, MAX_NETWORK_ID_CHARS, RECENTS_SLUG, PodcastMixin, has_upstream, has_upstream_audio, is_local_feed,
                                is_recents_feed, is_youtube_feed, recents_cutoff)
 from youtube import urls as yt_urls
 from youtube.feed import source_link as youtube_source_link
@@ -2103,6 +2103,13 @@ def update_feed(slug):
         if api_field in data:
             updates[db_field] = data[api_field]
 
+    if 'network_id_override' in updates:
+        network_override = updates['network_id_override']
+        if network_override is not None and not isinstance(network_override, str):
+            return error_response('networkIdOverride must be a string or null', 400)
+        if len((network_override or '').strip()) > MAX_NETWORK_ID_CHARS:
+            return error_response(f'networkIdOverride must be at most {MAX_NETWORK_ID_CHARS} characters', 400)
+
     # Local-only metadata fields (Task 6): title/author/explicit/categories/p20
     # are only meaningful for a local feed (no upstream RSS to derive them
     # from), so a subscribed feed 400s rather than silently accepting a value
@@ -2475,9 +2482,7 @@ def update_feed(slug):
             with db.transaction(immediate=True) as conn:
                 db.update_podcast(slug, conn=conn, **updates)
                 fresh = db.get_podcast_by_slug(slug)
-                effective_network = (
-                    (fresh.get('network_id_override') or '').strip()
-                    or fresh.get('network_id') or None)
+                effective_network = fresh.get('network_id_override') or fresh.get('network_id') or None
                 db.retag_network_cue_templates(fresh['id'], effective_network, conn=conn)
         else:
             db.update_podcast(slug, **updates)

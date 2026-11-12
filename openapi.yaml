@@ -894,11 +894,14 @@ paths:
                   type:
                     - string
                     - 'null'
+                  maxLength: 100
                   description: >-
                     Network to assign this feed to: a known network id, or a
                     custom name that links feeds sharing the same value (null
-                    uses the auto-detected network). The effective network is
-                    the override when set, else the auto-detected one.
+                    uses the auto-detected network). Surrounding whitespace is
+                    trimmed and a blank value clears the override. The
+                    effective network is the override when set, else the
+                    auto-detected one.
                 daiPlatform:
                   type: string
                   description: DAI platform identifier (e.g., megaphone, acast)

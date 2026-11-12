@@ -90,6 +90,7 @@ from database.schema.tables import (
 from database.fingerprint_cleanup import delete_matches_for_missing_episodes
 from database.fingerprint_matches import BACKFILL_GATE, OUT_OF_SCOPE_LOG_CAP
 from database.patterns import _parse_bounds
+from database.podcasts import normalize_network_id
 from database.search import (
     SEARCH_CHANGE_JOURNAL_DDL,
     SEARCH_CHANGE_TRIGGERS_SQL,
@@ -2649,6 +2650,24 @@ class SchemaMixin:
         self._backfill_fingerprint_matches(conn)
 
         self._run_fingerprint_matches_drop_vanished_episodes(conn)
+
+        self._run_trim_podcast_network_id_overrides(conn)
+
+    def _run_trim_podcast_network_id_overrides(self, conn, gate='trim_podcast_network_id_overrides'):
+        """One-shot: trim padded podcasts.network_id_override values and null blank ones; never raises."""
+        try:
+            if conn.execute("SELECT 1 FROM schema_migrations WHERE name = ?", (gate,)).fetchone():
+                return
+            # Same rule as the write path (normalize_network_id): str.strip, not SQL TRIM
+            changes = [(normalize_network_id(row['network_id_override']), row['id']) for row in conn.execute(
+                "SELECT id, network_id_override FROM podcasts WHERE network_id_override IS NOT NULL").fetchall()
+                if normalize_network_id(row['network_id_override']) != row['network_id_override']]
+            conn.executemany("UPDATE podcasts SET network_id_override = ? WHERE id = ?", changes)
+            conn.execute("INSERT OR IGNORE INTO schema_migrations (name) VALUES (?)", (gate,))
+            conn.commit()
+        except Exception as e:
+            conn.rollback()
+            logger.error(f"Feed network override trim failed, retrying on the next start: {e}")
 
     def _run_fingerprint_matches_drop_vanished_episodes(
             self, conn, gate='fingerprint_matches_drop_vanished_episodes'):

@@ -698,9 +698,7 @@ class PatternService:
                     )
                     row = self.db.get_podcast_by_slug(podcast_id)
                     if row:
-                        effective_network = (
-                            (row.get('network_id_override') or '').strip()
-                            or row.get('network_id') or None)
+                        effective_network = row.get('network_id_override') or row.get('network_id') or None
                         self.db.retag_network_cue_templates(
                             row['id'], effective_network, conn=conn)
                 logger.debug(

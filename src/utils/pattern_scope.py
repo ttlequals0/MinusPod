@@ -21,7 +21,7 @@ def pattern_passes_scope(scope, pattern_network_id, pattern_podcast_id, source, 
 
 def network_for_network_scope(db, pattern):
     """The network a pattern takes on moving to network scope: its own when set at network scope, else its feed's."""
-    own = (pattern.get('network_id') or '').strip() or None
+    own = pattern.get('network_id') or None
     if pattern.get('scope') == 'network' and own:
         return own
     feed = db.get_effective_network_id(pattern['podcast_id']) if pattern.get('podcast_id') else None

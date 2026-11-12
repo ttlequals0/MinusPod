@@ -30,7 +30,7 @@ from db_backup_service import (
     DEFAULT_CRON as DB_BACKUP_DEFAULT_CRON,
     KEEP_COUNT_MAX, KEEP_COUNT_MIN, validate_backup_dest,
 )
-from database.podcasts import FEED_TYPES
+from database.podcasts import FEED_TYPES, MAX_NETWORK_ID_CHARS
 from database.queue import QUEUE_ORDERS
 from database.settings import SETTINGS_REGISTRY, registry_default
 from systemone.tuning import SystemOneSettingsError, merge_profile, profile_from_snapshot
@@ -1173,6 +1173,8 @@ def _validated_feed_updates(db, podcast, payload, feed_type, *, confirmed_ceilin
                      'network_id_override', 'website_url', 'auto_process_override'):
             if value is not None and not isinstance(value, str):
                 raise ConfigTransferError(f'{key} must be a string or null')
+            if key == 'network_id_override' and value is not None and len(value.strip()) > MAX_NETWORK_ID_CHARS:
+                raise ConfigTransferError(f'network_id_override must be at most {MAX_NETWORK_ID_CHARS} characters')
             if key == 'auto_process_override' and value not in (None, 'true', 'false', '1', '0'):
                 raise ConfigTransferError('auto_process_override is invalid')
         if key in float_columns:
@@ -1479,7 +1481,7 @@ def apply_config(db, document, scope, selected_feeds, preview_token):
                             priority_changes.append((current_row['id'], updates['queue_priority'] or 0))
                     fresh = conn.execute('SELECT id, network_id, network_id_override, queue_priority FROM podcasts WHERE slug = ?', (slug,)).fetchone()
                     if 'network_id' in updates or 'network_id_override' in updates:
-                        effective_network = updates.get('network_id_override') or fresh['network_id_override'] or fresh['network_id']
+                        effective_network = fresh['network_id_override'] or fresh['network_id']
                         db.retag_network_cue_templates(fresh['id'], effective_network, conn=conn)
                 for stage, key in model_settings.items():
                     if stage in old_models and db.get_setting(key) != old_models[stage]:

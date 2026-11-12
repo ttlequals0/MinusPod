@@ -14,6 +14,7 @@ from config import (
 from api import preview_cache
 from database.fingerprint_cleanup import delete_pattern_dependents
 from database.fingerprint_matches import fingerprint_member_pattern_ids
+from database.podcasts import MAX_NETWORK_ID_CHARS
 from utils.markers import clip_merge_spans, find_marker_in_list, parse_ad_markers
 from utils.time import utc_now_iso, utc_now, parse_iso_datetime
 from sponsor_normalize import get_or_create_known_sponsor
@@ -370,9 +371,6 @@ def get_pattern(pattern_id):
     pattern['is_active'] = bool(pattern.get('is_active'))
     pattern['audio'] = db.get_audio_summaries([pattern_id]).get(pattern_id, NO_AUDIO_SUMMARY)
     return json_response(pattern)
-
-
-MAX_NETWORK_ID_CHARS = 100
 
 
 @api.route(PATTERN_ROUTE, methods=['PUT'])
