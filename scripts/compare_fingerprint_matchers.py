@@ -30,6 +30,7 @@ if str(REPO_ROOT / 'src') not in sys.path:
     sys.path.insert(0, str(REPO_ROOT / 'src'))
 
 import audio_fingerprinter as af  # noqa: E402
+import config  # noqa: E402
 from utils.markers import parse_ad_markers  # noqa: E402
 from utils.pattern_scope import pattern_passes_scope  # noqa: E402
 
@@ -63,6 +64,10 @@ GATE_TEXT = (
     "listed with explain_match output and a verdict column left for the maintainer, and do not block.")
 
 
+# Config names the old ref imports that the current config no longer defines.
+OLD_REF_CONFIG_DEFAULTS = {'FINGERPRINT_CHUNK_SIZE': 10.0}
+
+
 def load_old_matcher(ref=DEFAULT_OLD_REF, *, repo=REPO_ROOT, source_text=None):
     """Import the old audio_fingerprinter.py blob of a git ref as a private module."""
     if source_text is None:
@@ -75,11 +80,17 @@ def load_old_matcher(ref=DEFAULT_OLD_REF, *, repo=REPO_ROOT, source_text=None):
         spec = importlib.util.spec_from_file_location(OLD_MODULE_NAME, path)
         module = importlib.util.module_from_spec(spec)
         sys.modules[OLD_MODULE_NAME] = module
+        added = [name for name in OLD_REF_CONFIG_DEFAULTS if not hasattr(config, name)]
+        for name in added:
+            setattr(config, name, OLD_REF_CONFIG_DEFAULTS[name])
         try:
             spec.loader.exec_module(module)
         except BaseException:
             sys.modules.pop(OLD_MODULE_NAME, None)
             raise
+        finally:
+            for name in added:
+                delattr(config, name)
     return module
 
 

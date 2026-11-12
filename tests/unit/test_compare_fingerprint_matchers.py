@@ -213,3 +213,25 @@ def test_refuses_repo_out_and_live_data(tmp_path):
     with pytest.raises(SystemExit):
         cmp.check_db_path(cmp.REPO_ROOT / 'data' / 'podcast.db')
     cmp.check_out_dir(tmp_path)
+
+
+def _default_ref_present():
+    import subprocess
+    probe = subprocess.run(['git', '-C', str(cmp.REPO_ROOT), 'rev-parse', '--verify', '--quiet',
+                            f'{cmp.DEFAULT_OLD_REF}:src/audio_fingerprinter.py'], capture_output=True)
+    return probe.returncode == 0
+
+
+@pytest.mark.skipif(not _default_ref_present(), reason='default old ref is not in this clone')
+def test_default_old_ref_loads_and_matches_a_planted_fingerprint():
+    import config
+    had = hasattr(config, 'FINGERPRINT_CHUNK_SIZE')
+    old = cmp.load_old_matcher()
+    assert hasattr(config, 'FINGERPRINT_CHUNK_SIZE') == had
+    rng = random.Random(7)
+    ep = _ints(rng, int(300 * IPS))
+    pat = _ints(rng, 80)
+    ep[800:880] = pat
+    found = old.AudioFingerprinter(db=None)._find_matches_fast(
+        ep, 300.0, [(1, pat, 10.0, None, None)], 300.0, 600, None)
+    assert [m.pattern_id for m in found] == [1]
