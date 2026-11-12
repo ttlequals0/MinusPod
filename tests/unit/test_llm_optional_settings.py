@@ -254,6 +254,13 @@ def test_secondary_test_connection_rejects_none(app_client, hdr):
     assert r.status_code == 400
 
 
+@pytest.mark.parametrize('suffix', ['test', 'test-connection'])
+def test_provider_test_routes_do_not_know_none(app_client, hdr, suffix):
+    r = app_client.post(f'/api/v1/settings/providers/none/{suffix}', json={}, headers=hdr)
+    assert r.status_code == 404
+    assert r.get_json()['error'] == 'unknown provider'
+
+
 def test_models_route_accepts_none(app_client, hdr):
     assert app_client.get('/api/v1/settings/models?provider=none', headers=hdr).status_code == 200
 
