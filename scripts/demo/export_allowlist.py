@@ -309,7 +309,7 @@ DEMO_SETTINGS_EXCLUDE: frozenset[str] = frozenset({
     'whisper_pool_max_episodes', 'whisper_backend', 'whisper_api_model',
     'whisper_compute_type',
     # LLM provider wiring, user agents, limits, yt-dlp state
-    'omit_temperature', 'llm_json_schema_enabled', 'llm_provider',
+    'omit_temperature', 'llm_json_schema_enabled', 'llm_provider', 'llm_pre_none_identity',
     'ad_detection_parallel_windows', 'ad_reviewer_parallel_ads',
     'reviewer_calibration_on_change', 'download_user_agent', 'feed_user_agent',
     'log_download_query', 'max_artwork_bytes', 'max_rss_bytes',
