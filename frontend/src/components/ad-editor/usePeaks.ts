@@ -50,10 +50,9 @@ export interface UsePeaksResult {
 // the cache instead of re-downloading the full-episode peaks. Bumping the
 // `resetTick` knob resets every cached ['peaks', slug, episodeId, ...] entry
 // (dropping the possibly-bad data instead of stranding it under an old key)
-// and refetches fresh (belt-and-suspenders for the Reset action). A 503 with
-// Retry-After means the server is still building the waveform file: the query
-// stays pending and polls (fetchPeaksWhenReady). Other failures surface after
-// the client's own retries; react-query retry stays off.
+// and refetches fresh. A 503 with Retry-After means the waveform is still being
+// built: the query stays pending and polls (fetchPeaksWhenReady). Other failures
+// surface after the client's own retries; react-query retry stays off.
 export function usePeaks(
   podcastSlug: string,
   episodeId: string,

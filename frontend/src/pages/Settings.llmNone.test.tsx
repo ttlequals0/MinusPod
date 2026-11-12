@@ -1,8 +1,4 @@
-/**
- * Settings page behavior around the None provider: the sections follow the
- * saved llmEnabled flag, and saving None or leaving it never rewrites the
- * stored model fields.
- */
+/** Settings with the None provider: sections follow the saved llmEnabled flag and stored model fields are never rewritten. */
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';

@@ -36,10 +36,7 @@ const iconBase = 'inline-flex items-center justify-center';
 const iconVisualBase = `${iconBase} rounded transition-colors group-focus-visible:ring-2 group-focus-visible:ring-ring`;
 const coarseFill = 'sm:[@media(pointer:coarse)]:h-11 sm:[@media(pointer:coarse)]:w-11';
 
-/**
- * iconTarget and iconVisual sized to the text button beside them: `row` matches rowActionBtn (28 px),
- * `base` matches btnBase (32 px), `field` matches inputBase (40 px), `full` matches cardActionBtn (44 px at every width).
- */
+/** iconTarget and iconVisual sized to the text button beside them: row 28 px, base 32 px, field 40 px, full 44 px. */
 export const iconSizes = {
   row: { target: iconTarget, visual: iconVisual },
   base: {
