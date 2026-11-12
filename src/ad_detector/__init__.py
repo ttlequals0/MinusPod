@@ -2475,7 +2475,9 @@ class AdDetector:
         if not skip_patterns and audio_path and self.audio_fingerprinter and self.audio_fingerprinter.is_available():
             try:
                 logger.info(f"[{slug}:{episode_id}] Stage 1: Audio fingerprint matching")
-                fp_matches = self.audio_fingerprinter.find_matches(audio_path, cancel_event=cancel_event)
+                fp_matches = self.audio_fingerprinter.find_matches(
+                    audio_path, cancel_event=cancel_event,
+                    podcast_id=podcast_id, podcast_tags=podcast_tags)
 
                 fp_added = 0
                 for match in fp_matches:
@@ -2850,6 +2852,8 @@ class AdDetector:
         if detection_stage == 'fingerprint':
             entry['fingerprint_match_start'] = match.start
             entry['fingerprint_match_end'] = match.end
+            entry['fingerprint_similarity'] = match.similarity
+            entry['fingerprint_coverage'] = match.coverage
         all_ads.append(entry)
         pattern_matched_regions.append({
             'start': match.start,

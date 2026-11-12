@@ -43,8 +43,12 @@ from config import (
     AUDIO_CUE_XEP_MIN_MATCHES,
     AUDIO_CUE_XEP_BODY_MIN_DURATION,
     FINGERPRINT_CHUNK_SIZE,
-    FINGERPRINT_MATCH_THRESHOLD as MATCH_THRESHOLD,
+    FINGERPRINT_MATCH_STRICTNESS,
+    FINGERPRINT_MIN_COVERAGE,
+    FINGERPRINT_GAP_TOLERANCE_S,
+    FINGERPRINT_TIMEOUT_FACTOR,
 )
+from utils.pattern_scope import pattern_passes_scope
 
 logger = logging.getLogger('podcast.fingerprint')
 
@@ -1069,9 +1073,9 @@ class AudioFingerprinter:
                 if result and result[0]:
                     decoded.append((pattern_id, result[0], duration, sponsor, category))
                 else:
-                    logger.warning(f"Could not decode fingerprint for pattern {pattern_id}")
+                    logger.debug(f"Skipping fingerprint pattern {pattern_id}: nothing decodable")
             except Exception as e:
-                logger.warning(f"Failed to decode fingerprint for pattern {pattern_id}: {e}")
+                logger.debug(f"Skipping fingerprint pattern {pattern_id}: decode failed: {e}")
 
         return decoded
 
@@ -1104,155 +1108,61 @@ class AudioFingerprinter:
             last_log_time = now
         return "continue", last_log_time
 
-    def _find_matches_fast(
-        self,
-        raw_ints: list[int],
-        fp_duration: float,
-        decoded_known: list[tuple[int, list[int], float, str, str | None]],
-        total_duration: float,
-        timeout: int,
-        cancel_event: threading.Event | None
-    ) -> list[FingerprintMatch]:
-        """Fast fingerprint matching using pre-computed full-file fingerprint.
+    @staticmethod
+    def _full_fingerprint_timeout(duration: float) -> int:
+        """fpcalc budget for a whole episode: scales with length, never below the floor."""
+        return max(FPCALC_TIMEOUT_FULL, int(duration * FINGERPRINT_TIMEOUT_FACTOR))
 
-        Slides through the raw int array comparing slices against decoded
-        known fingerprints. No subprocess calls -- pure numpy array operations.
-
-        When the greedy walk starts a run (at 0.0, and again after each
-        match jump), all step positions from there to the scan end are
-        batched: per pattern, one 2D gather + popcount + cumsum yields the
-        bit-error count at every position at once, instead of a scalar
-        per-int Python loop per (position, pattern) pair. The integer diff
-        counts and the final matching_bits/total_bits division are the same
-        as _calculate_similarity, so the similarity values, threshold
-        decisions, and resulting match list are identical.
-        """
-        matches = []
-        # fpcalc default sample rate produces ~8 ints/sec; compute actual from data
-        ints_per_second = len(raw_ints) / fp_duration if fp_duration > 0 else 8.0
-        scan_start_time = time.time()
-        last_log_time = scan_start_time
-        position = 0.0
-        scan_limit = total_duration - MIN_SEGMENT_DURATION
-
-        # Via int64 so signed fpcalc ints wrap into uint32, matching the
-        # `& 0xFFFFFFFF` masking in _calculate_similarity.
-        raw_arr = np.asarray(raw_ints, dtype=np.int64).astype(np.uint32)
-        pattern_arrs = [np.asarray(known_ints, dtype=np.int64).astype(np.uint32)
-                        for _, known_ints, _, _, _ in decoded_known]
-        n_ints = len(raw_arr)
-
-        # Positions per batch: large enough to amortize the numpy call
-        # overhead, small enough that a match jump (which invalidates the
-        # rest of the batch) wastes little precomputed work.
-        batch_positions = 512
-
-        def _batch_run(pos0):
-            """Similarities for the next step positions starting at ``pos0``.
-
-            Returns (starts, ends, sims) where sims[p][j] is bit-identical to
-            _calculate_similarity(raw_ints, pattern_p, fp1_start=starts[j],
-            fp1_end=ends[j]). Positions are enumerated with the same repeated
-            float addition as the walk so index truncation cannot drift.
-            """
-            positions = []
-            p = pos0
-            while p < scan_limit and len(positions) < batch_positions:
-                positions.append(p)
-                p += SLIDING_STEP_SIZE
-            starts = np.array([int(q * ints_per_second) for q in positions],
-                              dtype=np.int64)
-            ends = np.minimum(
-                np.array([int((q + FINGERPRINT_CHUNK_SIZE) * ints_per_second)
-                          for q in positions], dtype=np.int64),
-                n_ints)
-            j_count = len(positions)
-            rows = np.arange(j_count)
-            sims = []
-            for pat in pattern_arrs:
-                # Per-position comparison length, exactly as the scalar
-                # min(fp1_end - fp1_start, len(fp2)); <= 0 means sim 0.0.
-                lengths = np.minimum(ends - starts, len(pat))
-                lmax = int(lengths.max()) if j_count else 0
-                if lmax <= 0:
-                    sims.append(np.zeros(j_count))
-                    continue
-                # (j_count, lmax) gather of episode ints per position. Columns
-                # past a row's own length are clipped in-bounds and ignored:
-                # the cumsum lookup below only reads the first ``lengths[j]``.
-                idx = np.minimum(starts[:, None] + np.arange(lmax), n_ints - 1)
-                diff = _popcount32(raw_arr[idx] ^ pat[:lmax][None, :])
-                csum = diff.cumsum(axis=1, dtype=np.int64)
-                lclip = np.maximum(lengths, 1)
-                total_bits = lclip * 32
-                sim = (total_bits - csum[rows, lclip - 1]) / total_bits
-                sim[lengths <= 0] = 0.0
-                sims.append(sim)
-            return starts, ends, sims
-
-        run_starts = None
-        run_ends = None
-        run_sims = None
-        run_j = 0
-
-        while position < scan_limit:
-            action, last_log_time = self._scan_preamble(
-                scan_start_time, last_log_time, position, total_duration,
-                timeout, len(matches), cancel_event
-            )
-            if action != "continue":
-                break
-
-            if run_starts is None or run_j >= len(run_starts):
-                run_starts, run_ends, run_sims = _batch_run(position)
-                run_j = 0
-
-            start_idx = int(run_starts[run_j])
-            end_idx = int(run_ends[run_j])
-
-            if end_idx - start_idx < 4:
-                position += SLIDING_STEP_SIZE
-                run_j += 1
-                continue
-
-            matched = False
-            for pattern_pos, (pattern_id, _known_ints, known_duration,
-                              sponsor, category) in enumerate(decoded_known):
-                similarity = float(run_sims[pattern_pos][run_j])
-
-                if similarity >= MATCH_THRESHOLD:
-                    match = FingerprintMatch(
-                        pattern_id=pattern_id,
-                        start=position,
-                        end=position + known_duration,
-                        confidence=similarity,
-                        sponsor=sponsor,
-                        category=category,
-                    )
-                    matches.append(match)
-                    logger.info(
-                        f"Fingerprint match: pattern={pattern_id} "
-                        f"at {position:.1f}s (confidence={similarity:.2f})"
-                    )
-                    position += known_duration
-                    matched = True
-                    # The jump leaves the batched step grid; rebatch from the
-                    # new position on the next iteration.
-                    run_starts = None
-                    break
-
-            if not matched:
-                position += SLIDING_STEP_SIZE
-                run_j += 1
-
-        matches = self._merge_overlapping_matches(matches)
-
-        scan_elapsed = time.time() - scan_start_time
-        logger.info(
-            f"Fast fingerprint scan completed in {scan_elapsed:.1f}s, "
-            f"found {len(matches)} matches"
+    def _matching_settings(self) -> tuple[float, float, float]:
+        """(strictness, min_coverage, gap_tolerance_s) from settings, config defaults otherwise."""
+        db = self.db
+        if not db:
+            return FINGERPRINT_MATCH_STRICTNESS, FINGERPRINT_MIN_COVERAGE, FINGERPRINT_GAP_TOLERANCE_S
+        return (
+            db.get_setting_float('fingerprint_match_strictness', FINGERPRINT_MATCH_STRICTNESS),
+            db.get_setting_float('fingerprint_min_coverage', FINGERPRINT_MIN_COVERAGE),
+            db.get_setting_float('fingerprint_gap_tolerance_s', FINGERPRINT_GAP_TOLERANCE_S),
         )
 
+    def _in_scope_fingerprints(
+        self, podcast_id, network_id, podcast_tags
+    ) -> list[tuple[int, str, float, str, str | None]]:
+        """Stored fingerprints whose pattern scope applies to this podcast."""
+        podcast_tag_set = set(podcast_tags) if podcast_tags else set()
+        return [
+            (row['pattern_id'], row['fingerprint'], row['duration'], row['sponsor'], row.get('category'))
+            for row in self._load_fingerprints_from_db()
+            if pattern_passes_scope(
+                row['scope'], row['network_id'], row['podcast_id'], row['source'],
+                set(row['sponsor_tags']),
+                podcast_id=podcast_id, network_id=network_id, podcast_tag_set=podcast_tag_set)
+        ]
+
+    def _match_decoded(self, raw_ints, fp_duration, decoded_known, timeout, cancel_event):
+        """Run the measured matcher, stopping on cancel or when the time budget is spent."""
+        strictness, min_coverage, gap_tolerance_s = self._matching_settings()
+        started = time.monotonic()
+        stop_reason = []
+
+        def should_continue():
+            if cancel_event is not None and cancel_event.is_set():
+                stop_reason.append('cancelled')
+            elif time.monotonic() - started > timeout:
+                stop_reason.append('timed out')
+            return not stop_reason
+
+        matches = match_fingerprints(
+            raw_ints, fp_duration, decoded_known, strictness=strictness,
+            min_coverage=min_coverage, gap_tolerance_s=gap_tolerance_s,
+            should_continue=should_continue)
+        for m in matches:
+            logger.info(
+                f"Fingerprint match: pattern={m.pattern_id} {m.start:.1f}s-{m.end:.1f}s "
+                f"(similarity={m.similarity:.2f}, coverage={m.coverage:.2f})"
+            )
+        if stop_reason:
+            logger.warning(f"Fingerprint scan {stop_reason[0]} after {time.monotonic() - started:.0f}s "
+                           f"with {len(matches)} matches")
         return matches
 
     def find_matches(
@@ -1260,18 +1170,21 @@ class AudioFingerprinter:
         audio_path: str,
         known_fingerprints: list[tuple[int, str, float, str, str | None]] = None,
         timeout: int = 600,
-        cancel_event: threading.Event | None = None
+        cancel_event: threading.Event | None = None,
+        *,
+        podcast_id: str | None = None,
+        network_id: str | None = None,
+        podcast_tags: set | None = None,
     ) -> list[FingerprintMatch]:
         """
         Search for known ad fingerprints in an audio file.
 
-        Uses a sliding window approach to find matches at any position.
-
         Args:
             audio_path: Path to audio file to search
-            known_fingerprints: List of (pattern_id, fingerprint, duration, sponsor, category)
-                               If None, loads from database
-            timeout: Maximum seconds to spend scanning (default 600s / 10 minutes).
+            known_fingerprints: List of (pattern_id, fingerprint, duration, sponsor, category),
+                used as given. If None, loads from the database and keeps the ones whose
+                pattern scope applies to podcast_id / network_id / podcast_tags.
+            timeout: Maximum seconds to spend matching (default 600s / 10 minutes).
                      Returns partial results if exceeded.
             cancel_event: Optional threading.Event; if set, scanning stops early.
 
@@ -1281,9 +1194,11 @@ class AudioFingerprinter:
         if not self.is_available():
             return []
 
-        # Load known fingerprints from database if not provided
+        if self.db and not self.db.get_setting_bool('fingerprint_enabled', True):
+            return []
+
         if known_fingerprints is None and self.db:
-            known_fingerprints = self._load_fingerprints_from_db()
+            known_fingerprints = self._in_scope_fingerprints(podcast_id, network_id, podcast_tags)
 
         if not known_fingerprints:
             return []
@@ -1291,27 +1206,24 @@ class AudioFingerprinter:
         matches = []
         broken_patterns = set()
 
-        # Get total duration of audio
         total_duration = self._get_audio_duration(audio_path)
         if total_duration <= 0:
             return []
 
         logger.info(f"Searching {total_duration:.1f}s audio for {len(known_fingerprints)} known fingerprints")
 
-        # Fast path: generate one full-file fingerprint and compare by slicing
-        full_fp = self._generate_full_fingerprint(audio_path)
+        full_fp = self._generate_full_fingerprint(
+            audio_path, timeout=self._full_fingerprint_timeout(total_duration))
         if full_fp is not None:
             raw_ints, fp_duration = full_fp
             decoded_known = self._decode_known_fingerprints(known_fingerprints)
             if decoded_known:
                 logger.info(
-                    f"Using fast fingerprint scan "
+                    f"Matching fingerprints "
                     f"({len(raw_ints)} ints, {len(decoded_known)} patterns)"
                 )
-                return self._find_matches_fast(
-                    raw_ints, fp_duration, decoded_known, total_duration,
-                    timeout, cancel_event
-                )
+                return self._match_decoded(
+                    raw_ints, fp_duration or total_duration, decoded_known, timeout, cancel_event)
             else:
                 logger.warning("Could not decode known fingerprints, falling back to per-window scan")
         else:
@@ -1325,6 +1237,7 @@ class AudioFingerprinter:
         # 10-minute budget is wasted work. 90s is enough to catch the rare
         # case where the failure was a single bad frame.
         slow_timeout = min(timeout, FALLBACK_SLOW_TIMEOUT)
+        strictness = self._matching_settings()[0]
         scan_start_time = time.time()
         last_log_time = scan_start_time
         position = 0.0
@@ -1370,7 +1283,7 @@ class AudioFingerprinter:
                                 logger.error(f"Failed to delete corrupt fingerprint {pattern_id}: {del_err}")
                         continue
 
-                    if similarity >= MATCH_THRESHOLD:
+                    if similarity >= strictness:
                         # Found a match
                         match = FingerprintMatch(
                             pattern_id=pattern_id,
@@ -1379,6 +1292,8 @@ class AudioFingerprinter:
                             confidence=similarity,
                             sponsor=sponsor,
                             category=category,
+                            similarity=similarity,
+                            coverage=1.0,
                         )
                         matches.append(match)
                         logger.info(
@@ -1398,30 +1313,18 @@ class AudioFingerprinter:
 
         return matches
 
-    def _load_fingerprints_from_db(self) -> list[tuple[int, str, float, str, str | None]]:
-        """Load known fingerprints from database with sponsors (single JOIN query)."""
+    def _load_fingerprints_from_db(self) -> list[dict]:
+        """Load enabled fingerprints of active patterns with scope fields (single JOIN query)."""
         if not self.db:
             return []
 
         try:
-            fingerprints = self.db.get_all_fingerprints_with_sponsors()
-            result = []
-            for fp in fingerprints:
-                # Fingerprint may be stored as bytes or string
-                fp_data = fp.get('fingerprint', b'')
-                if isinstance(fp_data, bytes):
-                    fp_str = fp_data.decode('utf-8', errors='ignore')
-                else:
-                    fp_str = str(fp_data)
-
-                result.append((
-                    fp['pattern_id'],
-                    fp_str,
-                    fp['duration'],
-                    fp.get('sponsor'),
-                    fp.get('category'),
-                ))
-            return result
+            rows = self.db.get_active_fingerprints_with_scope()
+            for row in rows:
+                data = row.get('fingerprint', b'')
+                row['fingerprint'] = (data.decode('utf-8', errors='ignore')
+                                      if isinstance(data, bytes) else str(data))
+            return rows
         except Exception as e:
             logger.error(f"Failed to load fingerprints from database: {e}")
             return []
@@ -1459,6 +1362,8 @@ class AudioFingerprinter:
                     confidence=max(current.confidence, match.confidence),
                     sponsor=current.sponsor or match.sponsor,
                     category=current.category or match.category,
+                    similarity=max(current.similarity, match.similarity),
+                    coverage=max(current.coverage, match.coverage),
                 )
             else:
                 merged.append(current)

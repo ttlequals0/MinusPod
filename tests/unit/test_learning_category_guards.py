@@ -588,7 +588,8 @@ class TestPatternMatchCategoryInheritance:
         fp = AudioFingerprinter.__new__(AudioFingerprinter)
         fp.db = temp_db
         loaded = fp._load_fingerprints_from_db()
-        assert loaded == [(pid, 'AQAA', 12.0, None, 'cross_promo')]
+        assert [(r['pattern_id'], r['fingerprint'], r['duration'], r['sponsor'], r.get('category'))
+                for r in loaded] == [(pid, 'AQAA', 12.0, None, 'cross_promo')]
 
     def test_disabled_pattern_fingerprint_not_loaded(self, temp_db):
         """Disabling a pattern must silence its audio fingerprint too
@@ -607,7 +608,8 @@ class TestPatternMatchCategoryInheritance:
         fp = AudioFingerprinter.__new__(AudioFingerprinter)
         fp.db = temp_db
         loaded = fp._load_fingerprints_from_db()
-        assert loaded == [(pid, 'AQAA', 12.0, None, None)]
+        assert [(r['pattern_id'], r['fingerprint'], r['duration'], r['sponsor'], r.get('category'))
+                for r in loaded] == [(pid, 'AQAA', 12.0, None, None)]
 
 
 class TestKeepPartitionFromCategorizedDetection:
