@@ -246,6 +246,8 @@ def test_single_feed_refresh_redacts_the_outcome_error(app_client, fp_feed, monk
 
 def test_all_feeds_refresh_redacts_the_outcome_error(app_client, fp_feed, monkeypatch):
     monkeypatch.setattr(feed_refresh, 'refresh_rss_feed', _raising_outcome)
+    # The feed map is TTL-cached; an earlier test's snapshot would not hold this fixture feed.
+    feed_refresh.invalidate_feed_cache()
     response = app_client.post('/api/v1/feeds/refresh', json={'force': True}, headers=csrf(app_client))
     assert response.status_code in (200, 207)
     outcome = response.get_json()['outcomes'].get(SLUG)
