@@ -1478,11 +1478,10 @@ export default function StatsPage() {
 
       </div>
 
-      {/* Podcast Stats Table */}
       <div id="stats-audio-matching" className={`scroll-mt-28 bg-card rounded-lg border border-border ${sectionPad} mb-6`}>
         <h2 className={`${cardTitle} mb-1`}>Audio matching</h2>
         <p className="text-sm text-muted-foreground mb-3">
-          Uses the Spend filters above. Counts audio fingerprint matches in that period.
+          Uses the date range and podcast filter above. Counts audio fingerprint matches in that period.
         </p>
         {audioMatchingLoading && (
           <div role="status" aria-label="Loading audio matching stats" aria-busy="true" className="grid grid-cols-2 sm:grid-cols-4 gap-3">
@@ -1506,6 +1505,7 @@ export default function StatsPage() {
         )}
       </div>
 
+      {/* Podcast Stats Table */}
       <div id="stats-podcasts" className="scroll-mt-28" />
       {/* Mobile Card Layout */}
       {sortedPodcasts.length > 0 && (

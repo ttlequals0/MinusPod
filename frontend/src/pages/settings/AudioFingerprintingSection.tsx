@@ -1,7 +1,7 @@
-import { useId, useState } from 'react';
+import { useCallback, useEffect, useId, useState } from 'react';
 import CollapsibleSection from '../../components/CollapsibleSection';
 import ToggleSwitch from '../../components/ToggleSwitch';
-import { inputBase, labelBase } from '../../components/fieldStyles';
+import { inputBase, invalidField, labelBase } from '../../components/fieldStyles';
 import { useUnsavedChanges } from '../../hooks/useUnsavedChanges';
 import { formatPercent } from '../../utils/format';
 
@@ -50,14 +50,24 @@ const FIELDS: FieldDef[] = [
   },
 ];
 
-function FingerprintNumber({ def, value, onCommit }: { def: FieldDef; value: number; onCommit: (v: number) => void }) {
+function FingerprintNumber({ def, value, onCommit, onInvalidChange }: {
+  def: FieldDef;
+  value: number;
+  onCommit: (v: number) => void;
+  onInvalidChange: (key: NumericKey, invalid: boolean) => void;
+}) {
   const id = useId();
   const { min, max } = FINGERPRINT_LIMITS[def.key];
   // null follows the saved value; a string is what the person typed and has not been accepted.
   const [draft, setDraft] = useState<string | null>(null);
   const entered = draft === null ? value : draft.trim() === '' ? NaN : Number(draft);
   const invalid = !(entered >= min && entered <= max);
-  useUnsavedChanges(draft !== null && invalid);
+  const blocked = draft !== null && invalid;
+  useUnsavedChanges(blocked);
+  useEffect(() => {
+    onInvalidChange(def.key, blocked);
+    return () => onInvalidChange(def.key, false);
+  }, [def.key, blocked, onInvalidChange]);
 
   return (
     <div>
@@ -71,8 +81,9 @@ function FingerprintNumber({ def, value, onCommit }: { def: FieldDef; value: num
           step={def.step}
           value={draft ?? String(value)}
           aria-invalid={invalid ? true : undefined}
+          data-save-blocker={blocked ? '' : undefined}
           aria-describedby={invalid ? `${id}-help ${id}-error` : `${id}-help`}
-          className={`${inputBase} w-28`}
+          className={`${inputBase} ${invalidField} w-28`}
           onChange={(e) => {
             const raw = e.target.value;
             setDraft(raw);
@@ -100,10 +111,23 @@ function FingerprintNumber({ def, value, onCommit }: { def: FieldDef; value: num
 interface AudioFingerprintingSectionProps {
   fingerprint: FingerprintState;
   onChange: (next: FingerprintState) => void;
+  // True while any field holds an entry that cannot be saved.
+  onInvalidChange?: (invalid: boolean) => void;
 }
 
 // Fingerprint matching needs no model, so this section is never gated on the LLM provider.
-function AudioFingerprintingSection({ fingerprint, onChange }: AudioFingerprintingSectionProps) {
+function AudioFingerprintingSection({ fingerprint, onChange, onInvalidChange }: AudioFingerprintingSectionProps) {
+  const [invalidKeys, setInvalidKeys] = useState<ReadonlySet<NumericKey>>(new Set());
+  const trackInvalid = useCallback((key: NumericKey, invalid: boolean) => {
+    setInvalidKeys((prev) => {
+      if (prev.has(key) === invalid) return prev;
+      const next = new Set(prev);
+      if (invalid) next.add(key); else next.delete(key);
+      return next;
+    });
+  }, []);
+  useEffect(() => { onInvalidChange?.(invalidKeys.size > 0); }, [invalidKeys, onInvalidChange]);
+
   return (
     <CollapsibleSection
       title="Audio fingerprinting"
@@ -129,6 +153,7 @@ function AudioFingerprintingSection({ fingerprint, onChange }: AudioFingerprinti
             def={def}
             value={fingerprint[def.key]}
             onCommit={(v) => onChange({ ...fingerprint, [def.key]: v })}
+            onInvalidChange={trackInvalid}
           />
         ))}
       </div>

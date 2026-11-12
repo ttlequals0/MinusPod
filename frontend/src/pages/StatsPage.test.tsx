@@ -1104,6 +1104,7 @@ describe('StatsPage audio matching section', () => {
     renderPage();
     const s = await section();
     expect(s.getByRole('heading', { level: 2, name: 'Audio matching' })).toBeTruthy();
+    expect(s.getByText(/Uses the date range and podcast filter above\./)).toBeTruthy();
     const tile = (label: string) => s.getByText(label).parentElement!;
     expect((await s.findByText('Patterns with audio')).parentElement?.textContent).toContain('12');
     expect(tile('Patterns with audio').textContent).toContain('of 40');

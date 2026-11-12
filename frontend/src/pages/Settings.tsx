@@ -228,6 +228,7 @@ function Settings() {
     gapToleranceS: FINGERPRINT_LIMITS.gapToleranceS.default,
     minAdLengthS: FINGERPRINT_LIMITS.minAdLengthS.default,
   });
+  const [fingerprintInvalid, setFingerprintInvalid] = useState(false);
   const [positionalPriorEnabled, setPositionalPriorEnabled] = useState(false);
   const [selectedModel, setSelectedModel] = useState('');
   const [verificationModel, setVerificationModel] = useState('');
@@ -1675,7 +1676,7 @@ function Settings() {
         onResetResurrectPrompt={() => resetPromptMutation.mutate('resurrect')}
       />
 
-      <AudioFingerprintingSection fingerprint={fingerprint} onChange={setFingerprint} />
+      <AudioFingerprintingSection fingerprint={fingerprint} onChange={setFingerprint} onInvalidChange={setFingerprintInvalid} />
 
       <SeedSponsorsSection
         llmEnabled={llmEnabled}
@@ -1878,7 +1879,7 @@ function Settings() {
       )}
 
       {/* Sticky save bar */}
-      {hasChanges && (
+      {(hasChanges || fingerprintInvalid) && (
         <div
           data-viewport-inset="bottom"
           className="safe-bottom pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)] fixed bottom-0 left-0 right-0 z-40 border-t border-border bg-background/80 backdrop-blur-md"
@@ -1893,7 +1894,12 @@ function Settings() {
             />
             <DemoDisabled>
               <button
-                onClick={() => updateMutation.mutate()}
+                onClick={() => {
+                  // An entry that cannot be saved holds the whole save until it is fixed.
+                  const blocker = document.querySelector<HTMLElement>('[data-save-blocker]');
+                  if (blocker) blocker.focus();
+                  else updateMutation.mutate();
+                }}
                 disabled={updateMutation.isPending}
                 className={`${btnLg} ${btnPrimary}`}
               >

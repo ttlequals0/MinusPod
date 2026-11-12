@@ -556,3 +556,52 @@ describe('Settings search', () => {
     expect(screen.getByRole('button', { name: 'Expand all' })).toHaveProperty('disabled', false);
   });
 });
+
+describe('Settings: audio fingerprinting entries', () => {
+  beforeEach(() => {
+    mockGetSettings.mockResolvedValue(makeSettings({
+      fingerprintEnabled: { value: true, isDefault: true },
+      fingerprintMatchStrictness: { value: 0.65, isDefault: true },
+      fingerprintMinCoverage: { value: 0.5, isDefault: true },
+      fingerprintGapToleranceS: { value: 3.5, isDefault: true },
+      fingerprintMinAdLengthS: { value: 5, isDefault: true },
+    }));
+  });
+
+  it('holds Save while an entry is out of range and focuses that field', async () => {
+    localStorage.setItem('settings-section-audio-fingerprinting', 'true');
+    const user = userEvent.setup();
+    renderSettings();
+    await screen.findByLabelText('First pass system prompt');
+    const gap = screen.getByLabelText('Gap tolerance (s)');
+    await user.clear(gap);
+    await user.type(gap, '6');
+    const strictness = screen.getByLabelText('Match strictness') as HTMLInputElement;
+    await user.clear(strictness);
+    await user.type(strictness, '0.2');
+    expect(strictness.getAttribute('aria-invalid')).toBe('true');
+    expect(strictness.className).toContain('aria-invalid:border-destructive');
+    await user.click(screen.getByRole('button', { name: 'Save changes' }));
+    expect(updateSettings).not.toHaveBeenCalled();
+    expect(document.activeElement).toBe(strictness);
+    await user.clear(strictness);
+    await user.type(strictness, '0.8');
+    await user.click(screen.getByRole('button', { name: 'Save changes' }));
+    await waitFor(() => expect(updateSettings).toHaveBeenCalledWith(
+      expect.objectContaining({ fingerprintGapToleranceS: 6, fingerprintMatchStrictness: 0.8 }),
+    ));
+  });
+
+  it('offers Save for an invalid entry alone so the block is visible', async () => {
+    localStorage.setItem('settings-section-audio-fingerprinting', 'true');
+    const user = userEvent.setup();
+    renderSettings();
+    await screen.findByLabelText('First pass system prompt');
+    expect(screen.queryByRole('button', { name: 'Save changes' })).toBeNull();
+    const field = screen.getByLabelText('Minimum ad length (s)');
+    await user.clear(field);
+    await user.click(screen.getByRole('button', { name: 'Save changes' }));
+    expect(updateSettings).not.toHaveBeenCalled();
+    expect(document.activeElement).toBe(field);
+  });
+});
