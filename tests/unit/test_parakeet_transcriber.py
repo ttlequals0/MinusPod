@@ -12,6 +12,7 @@ import wave
 from pathlib import Path
 
 import httpx
+import huggingface_hub
 import numpy as np
 import pytest
 from huggingface_hub.errors import HfHubHTTPError, OfflineModeIsEnabled
@@ -167,6 +168,28 @@ class _Clock:
 
     def __call__(self):
         return self.now
+
+
+def _real_hub_call(*a, **k):
+    pytest.fail('a test reached the real Hugging Face hub; stub it with _install_hub')
+
+
+@pytest.fixture(autouse=True)
+def no_real_hub(monkeypatch):
+    """Fail any test that reaches the real hub or sends a real HTTP request; pytest.fail escapes except Exception."""
+    for name in ('snapshot_download', 'hf_hub_download'):
+        monkeypatch.setattr(huggingface_hub, name, _real_hub_call)
+    monkeypatch.setattr(huggingface_hub.HfApi, 'model_info', _real_hub_call)
+    monkeypatch.setattr(httpx.Client, 'send', _real_hub_call)
+    monkeypatch.setattr(httpx.AsyncClient, 'send', _real_hub_call)
+
+
+def test_real_hub_calls_fail_the_test():
+    for call in (lambda: huggingface_hub.snapshot_download('x/y'),
+                 lambda: huggingface_hub.HfApi().model_info('x/y', timeout=1),
+                 lambda: httpx.Client().get('https://example.com/')):
+        with pytest.raises(pytest.fail.Exception):
+            call()
 
 
 @pytest.fixture(autouse=True)
@@ -528,13 +551,29 @@ def test_first_download_with_failed_probe_records_nothing_and_retries_after_the_
     assert len(hub.probes) == 2 and _record(_mdir(tmp_path), None)['sha'] == SHA_OLD
 
 
-def test_failed_probe_over_partial_files_writes_no_record_and_skips_the_snapshot(tmp_path, monkeypatch, caplog):
-    _write_model_files(_mdir(tmp_path), skip=('encoder-model.onnx.data',))
+def test_failed_probe_with_a_required_file_missing_writes_no_record(tmp_path, monkeypatch, caplog):
+    _write_model_files(_mdir(tmp_path), skip=('vocab.txt',))
     hub = _install_hub(monkeypatch, _Hub(probe_error=httpx.ConnectError('down')))
     with caplog.at_level(logging.WARNING, logger=pt.logger.name):
         assert pt._fetch_model_files(str(_mdir(tmp_path)), None) == (False, False)
     assert not list(_mdir(tmp_path).glob('.minuspod-complete*'))
+    assert len(hub.snapshots) == 1 and 'not recorded' in caplog.text
+
+
+@pytest.mark.parametrize('quantization', [None, 'int8'])
+def test_failed_probe_over_complete_files_records_them_without_sha_and_probes_once(
+        tmp_path, monkeypatch, clock, caplog, quantization):
+    _write_model_files(_mdir(tmp_path), quantization)
+    hub = _install_hub(monkeypatch, _Hub(probe_error=httpx.ConnectError('down')))
+    with caplog.at_level(logging.WARNING, logger=pt.logger.name):
+        assert pt._fetch_model_files(str(_mdir(tmp_path)), quantization) == (True, False)
+    record = _record(_mdir(tmp_path), quantization)
+    assert 'sha' not in record and 'checked_at' not in record
     assert hub.snapshots == [] and 'ConnectError' in caplog.text
+    for _ in range(3):
+        clock.now += HOUR
+        assert _fetch(tmp_path, quantization) is True
+    assert len(hub.probes) == 1
 
 
 def test_first_download_missing_a_listed_file_records_nothing(tmp_path, monkeypatch, caplog):
@@ -1024,20 +1063,45 @@ def _enolck(*a, **k):
 
 def test_flock_without_lock_support_lets_a_load_proceed_and_refuses_a_recheck(tmp_path, monkeypatch):
     monkeypatch.setattr(pt.fcntl, 'flock', _enolck)
-    path = str(tmp_path / 'x.lock')
-    with pt._flock(path, fcntl.LOCK_SH) as shared, pt._flock(path, fcntl.LOCK_EX) as exclusive:
+    model = str(tmp_path / 'm')
+    with pt._flock(model, '.lock', fcntl.LOCK_SH) as shared, pt._flock(model, '.lock', fcntl.LOCK_EX) as exclusive:
         assert shared is True and exclusive is True
-    with pt._flock(path, fcntl.LOCK_EX | fcntl.LOCK_NB) as held:
+    with pt._flock(model, '.recheck.lock', fcntl.LOCK_EX | fcntl.LOCK_NB) as held:
         assert held is False
 
 
-def test_volume_without_lock_support_loads_and_never_swaps(monkeypatch, tmp_path, primed, caplog):
-    monkeypatch.setattr(pt.fcntl, 'flock', _enolck)
+def _infos_off(caplog):
+    return [r.getMessage() for r in caplog.records if 'update checks are off' in r.getMessage()]
+
+
+@pytest.mark.parametrize('failure', ['flock', 'open'])
+def test_volume_without_lock_support_logs_one_info_and_starts_no_checks(
+        monkeypatch, tmp_path, primed, clock, caplog, failure):
+    if failure == 'flock':
+        monkeypatch.setattr(pt.fcntl, 'flock', _enolck)
+    else:
+        real_open = os.open
+        monkeypatch.setattr(pt.os, 'open', lambda p, *a, **k: (
+            _enolck() if str(p).endswith('.lock') else real_open(p, *a, **k)))
+    pending = []
+    monkeypatch.setattr(pt, '_recheck_runner', pending.append)
     hub = _install_hub(monkeypatch, _Hub(sha=SHA_NEW, write=lambda d: _write_model_files(d, 'int8')))
-    with caplog.at_level(logging.WARNING, logger=pt.logger.name):
-        assert _load(monkeypatch) == 'ts-model'
-    assert hub.probes == [] and _warnings(caplog) == []
+    with caplog.at_level(logging.INFO, logger=pt.logger.name):
+        for _ in range(3):
+            assert _load(monkeypatch) == 'ts-model'
+            clock.now += HOUR
+    infos = _infos_off(caplog)
+    assert len(infos) == 1 and ('file locks' in infos[0] if failure == 'flock' else 'lock file' in infos[0])
+    assert pending == [] and hub.probes == [] and _warnings(caplog) == []
     assert _tree(_live(tmp_path)) == primed
+
+
+def test_lock_contention_does_not_turn_updates_off(monkeypatch, tmp_path, primed, caplog):
+    _install_hub(monkeypatch, _Hub())
+    with open(f'{_live(tmp_path)}.recheck.lock', 'a') as other, caplog.at_level(logging.INFO, logger=pt.logger.name):
+        fcntl.flock(other, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        _load(monkeypatch)
+    assert _infos_off(caplog) == [] and pt._updates_off == set()
 
 
 def _patch_stat_dev(monkeypatch, target):
@@ -1094,11 +1158,36 @@ def test_first_rename_refused_turns_updates_off_for_the_process(monkeypatch, tmp
     assert len(hub.probes) == 1 and len(hub.snapshots) == 1
 
 
-def test_load_failure_from_a_recorded_copy_drops_the_record(monkeypatch, tmp_path, clean_singleton, caplog):
+class NoSuchFile(Exception):
+    pass
+
+
+class InvalidProtobuf(Exception):
+    pass
+
+
+class RuntimeException(Exception):
+    pass
+
+
+class Fail(Exception):
+    pass
+
+
+@pytest.mark.parametrize('error', [
+    NoSuchFile('[ONNXRuntimeError] : 3 : NO_SUCHFILE : Load model failed. File does not exist'),
+    InvalidProtobuf('[ONNXRuntimeError] : 7 : INVALID_PROTOBUF : Protobuf parsing failed.'),
+    RuntimeException('[ONNXRuntimeError] : 6 : RUNTIME_EXCEPTION : Exception during initialization: '
+                     'filesystem error: cannot get file size: No such file or directory'),
+    Fail('[ONNXRuntimeError] : 1 : FAIL : Deserialize tensor w failed. GetExtDataFromTensorProto '
+         'External initializer: w offset: 0 size to read: 64 does not match the file size: 10'),
+    FileNotFoundError('vocab.txt'),
+], ids=['no-such-file', 'invalid-protobuf', 'missing-external-data', 'truncated-external-data', 'file-not-found'])
+def test_load_failure_from_a_recorded_copy_drops_the_record(monkeypatch, tmp_path, clean_singleton, caplog, error):
     _prime(monkeypatch, tmp_path)
 
     def broken(*a, **k):
-        raise RuntimeError('external data missing')
+        raise error
     with caplog.at_level(logging.WARNING, logger=pt.logger.name), pytest.raises(ModelLoadError):
         _load(monkeypatch, load_model=broken)
     assert not list(_live(tmp_path).glob('.minuspod-complete*'))
@@ -1145,3 +1234,39 @@ def test_download_running_past_the_warn_limit_logs_one_warning(monkeypatch, tmp_
         _load(monkeypatch)
     assert len(_warnings(caplog)) == 1 and 'still running' in _warnings(caplog)[0]
     assert _record(_live(tmp_path))['sha'] == SHA_NEW
+
+
+@pytest.mark.parametrize('error', [
+    RuntimeException('[ONNXRuntimeError] : 6 : RUNTIME_EXCEPTION : CUDA failure 2: out of memory'),
+    Fail('[ONNXRuntimeError] : 1 : FAIL : CUDA error cudaErrorNoDevice'),
+    MemoryError(),
+], ids=['cuda-oom', 'cuda-device', 'host-memory'])
+def test_transient_load_failure_keeps_the_record(monkeypatch, tmp_path, clean_singleton, caplog, error):
+    before = _prime(monkeypatch, tmp_path)
+
+    def broken(*a, **k):
+        raise error
+    with caplog.at_level(logging.WARNING, logger=pt.logger.name), pytest.raises(ModelLoadError):
+        _load(monkeypatch, load_model=broken)
+    assert _tree(_live(tmp_path)) == before and _warnings(caplog) == []
+
+
+def test_leftover_that_cannot_be_removed_is_retried_hourly_with_one_warning(
+        monkeypatch, tmp_path, clean_singleton, clock, caplog):
+    _prime(monkeypatch, tmp_path)
+    live = str(_live(tmp_path))
+    Path(f'{live}.old').mkdir()
+    attempts = []
+    monkeypatch.setattr(pt.shutil, 'rmtree', lambda path, ignore_errors=False: attempts.append(str(path)))
+    hub = _install_hub(monkeypatch, _Hub())
+    with caplog.at_level(logging.WARNING, logger=pt.logger.name):
+        _load(monkeypatch)
+        _load(monkeypatch)
+    warnings = _warnings(caplog)
+    assert len(warnings) == 1 and 'backup' in warnings[0]
+    assert f'{pt.PARAKEET_MODEL_NAME}.old' in warnings[0] and str(tmp_path) not in warnings[0]
+    assert hub.probes == []
+    count = len(attempts)
+    clock.now += HOUR
+    _load(monkeypatch)
+    assert len(attempts) > count

@@ -173,14 +173,23 @@ def _record_model_files(model_dir, quantization, sha, checked_at):
     return _write_record(model_dir, quantization, content)
 
 
+def _locks_unsupported(model_dir, reason, error):
+    """Turn updates off for this directory, once per process, when it cannot hold a file lock."""
+    logger.debug("Parakeet lock unavailable: %s", error)
+    if model_dir not in _updates_off:
+        _updates_off.add(model_dir)
+        logger.info("Parakeet model update checks are off: %s", reason)
+
+
 @contextlib.contextmanager
-def _flock(path, mode):
-    """Hold an fcntl lock on path; yields False when a non-blocking request is refused."""
+def _flock(model_dir, suffix, mode):
+    """Hold an fcntl lock on model_dir + suffix; yields False when a non-blocking request is refused."""
+    path = model_dir + suffix
     try:
         os.makedirs(os.path.dirname(path), exist_ok=True)
         fd = os.open(path, os.O_CREAT | os.O_RDWR, 0o600)
     except OSError as e:
-        logger.debug("Could not open the Parakeet lock file: %s", e)
+        _locks_unsupported(model_dir, 'the lock file cannot be created next to the model directory', e)
         # Without a lock a blocking (load) caller proceeds unprotected and a re-check is refused.
         yield not mode & fcntl.LOCK_NB
         return
@@ -191,7 +200,7 @@ def _flock(path, mode):
             yield False
             return
         except OSError as e:
-            logger.debug("Parakeet lock unavailable: %s", e)
+            _locks_unsupported(model_dir, 'the model volume does not support file locks', e)
             yield not mode & fcntl.LOCK_NB
             return
         yield True
@@ -204,7 +213,7 @@ def _restore_backup(model_dir):
     backup = model_dir + '.old'
     if os.path.isdir(model_dir) or not os.path.isdir(backup):
         return
-    with _flock(model_dir + '.lock', fcntl.LOCK_EX):
+    with _flock(model_dir, '.lock', fcntl.LOCK_EX):
         if not os.path.isdir(model_dir) and os.path.isdir(backup):
             os.rename(backup, model_dir)
             logger.warning("Restored the Parakeet model directory after an interrupted update")
@@ -244,7 +253,7 @@ def _updates_blocked(model_dir):
 def _swap_in(model_dir, staging):
     """Replace the live directory with staging under the exclusive lock; False when it cannot be renamed."""
     backup = model_dir + '.old'
-    with _flock(model_dir + '.lock', fcntl.LOCK_EX):
+    with _flock(model_dir, '.lock', fcntl.LOCK_EX):
         try:
             os.rename(model_dir, backup)
         except OSError as e:
@@ -280,6 +289,20 @@ def _warn_on_stalled_download(key, now):
                        (now - started) // 60)
 
 
+_MODEL_FILE_ERRORS = ('NoSuchFile', 'InvalidProtobuf', 'InvalidGraph', 'ModelLoadingError')
+_MODEL_FILE_MARKERS = ('External initializer', 'cannot get file size', 'No such file or directory')
+
+
+def _model_file_error(e):
+    """True when a load failure points at missing or unreadable model files, not a transient runtime error."""
+    if isinstance(e, (FileNotFoundError, NotADirectoryError)):
+        return True
+    names = {c.__name__ for c in type(e).__mro__}
+    if names & set(_MODEL_FILE_ERRORS):
+        return True
+    return bool(names & {'Fail', 'RuntimeException'}) and any(m in str(e) for m in _MODEL_FILE_MARKERS)
+
+
 def _discard_record(model_dir, quantization):
     with contextlib.suppress(OSError):
         os.unlink(_record_path(model_dir, quantization))
@@ -293,9 +316,10 @@ def _fetch_model_files(model_dir, quantization):
     _warn_on_stalled_download(key, now)
     record = _read_record(model_dir, quantization)
     if _model_files_complete(model_dir, quantization, record):
-        leftovers = any(os.path.exists(model_dir + s) for s in ('.staging', '.old'))
-        due = _recheck_due(record, now) and not _throttled(key, now) and not _updates_blocked(model_dir)
-        return True, due or leftovers
+        if _throttled(key, now) or _updates_blocked(model_dir):
+            return True, False
+        leftovers = any(os.path.lexists(model_dir + s) for s in ('.staging', '.old'))
+        return True, leftovers or _recheck_due(record, now)
     if _throttled(key, now) and _required_files_present(model_dir, quantization):
         return False, False
     required, optional = _model_patterns(quantization)
@@ -304,11 +328,14 @@ def _fetch_model_files(model_dir, quantization):
         from huggingface_hub import HfApi, snapshot_download
         try:
             info = _probe(HfApi)
-        except Exception:
-            # Without the file list a snapshot over local files cannot be verified, so use them as they are.
-            if _required_files_present(model_dir, quantization):
-                raise
-            info = None
+        except Exception as e:
+            if not _required_files_present(model_dir, quantization):
+                info = None
+            else:
+                # Unverified but whole: record without sha so the background check verifies it by a staged download.
+                _last_failed_check[key] = now
+                logger.warning("Parakeet model check failed (%s), using the local files", type(e).__name__)
+                return _record_model_files(model_dir, quantization, None, None), False
         sha = getattr(info, 'sha', None)
         snapshot_download(PARAKEET_MODEL_REPO, revision=sha, local_dir=model_dir, allow_patterns=required + optional)
     except Exception as e:
@@ -331,8 +358,13 @@ def _recheck(model_dir, quantization):
     key = (model_dir, quantization)
     staging = model_dir + '.staging'
     _restore_backup(model_dir)
-    shutil.rmtree(staging, ignore_errors=True)
-    shutil.rmtree(model_dir + '.old', ignore_errors=True)
+    for suffix, role in (('.staging', 'staging'), ('.old', 'backup')):
+        shutil.rmtree(model_dir + suffix, ignore_errors=True)
+        if os.path.lexists(model_dir + suffix):
+            _last_failed_check[key] = now
+            logger.warning("Could not remove the leftover Parakeet %s directory %s; retrying in an hour",
+                           role, os.path.basename(model_dir + suffix))
+            return False
     # Re-read under the re-check lock: another worker may have just finished.
     record = _read_record(model_dir, quantization)
     if (not _model_files_complete(model_dir, quantization, record) or not _recheck_due(record, now)
@@ -376,7 +408,7 @@ def _run_recheck(model_dir, quantization):
     """Re-check body; never raises, and any failure leaves the local copy in use."""
     key = (model_dir, quantization)
     try:
-        with _flock(model_dir + '.recheck.lock', fcntl.LOCK_EX | fcntl.LOCK_NB) as held:
+        with _flock(model_dir, '.recheck.lock', fcntl.LOCK_EX | fcntl.LOCK_NB) as held:
             if held and _recheck(model_dir, quantization):
                 _last_failed_check.pop(key, None)
     except Exception as e:
@@ -445,7 +477,7 @@ class ParakeetModelSingleton:
                     os.environ.get('HF_HOME', '/app/data/.cache'), 'parakeet', PARAKEET_MODEL_NAME)
                 _restore_backup(model_dir)
                 # Shared lock: an update swaps the directory only while no process is reading it.
-                with _flock(model_dir + '.lock', fcntl.LOCK_SH):
+                with _flock(model_dir, '.lock', fcntl.LOCK_SH):
                     recorded, recheck = _fetch_model_files(model_dir, quantization)
                     # ERROR keeps real failures, drops session warnings; the import-time discovery line stays.
                     if hasattr(onnxruntime, 'set_default_logger_severity'):
@@ -454,8 +486,8 @@ class ParakeetModelSingleton:
                         model = onnx_asr.load_model(
                             PARAKEET_MODEL_NAME, path=model_dir, quantization=quantization,
                             providers=providers).with_timestamps()
-                    except Exception:
-                        if recorded:
+                    except Exception as e:
+                        if recorded and _model_file_error(e):
                             _discard_record(model_dir, quantization)
                         raise
                 _warn_on_cpu_fallback(model, device)
