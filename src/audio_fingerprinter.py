@@ -91,7 +91,7 @@ FINGERPRINT_GOOD_BITS = 11
 FINGERPRINT_EDGE_BITS = 8
 FINGERPRINT_EDGE_MARGIN_BITS = 3
 # Unrelated real audio agrees within the good threshold for up to a few seconds: a match needs this
-# much evidence, or this share of a shorter pattern's evidence counted within the edge floor only
+# much evidence, or this share of a shorter pattern's evidence
 FINGERPRINT_MIN_EVIDENCE_S = 6.0
 FINGERPRINT_SHORT_PATTERN_EVIDENCE = 0.9
 # A pattern that cannot supply this much evidence is not distinctive enough to match safely
@@ -529,12 +529,9 @@ def _novelty(pat_arr, informative):
     return weights * informative
 
 
-def _evidence_rule(novelty, fps):
-    """(evidence needed in points, bit threshold evidence is counted at) for a pattern."""
-    short = FINGERPRINT_SHORT_PATTERN_EVIDENCE * float(novelty.sum())
-    if short >= FINGERPRINT_MIN_EVIDENCE_S * fps:
-        return FINGERPRINT_MIN_EVIDENCE_S * fps, FINGERPRINT_GOOD_BITS
-    return short, FINGERPRINT_EDGE_BITS
+def _evidence_needed(novelty, fps):
+    """Evidence a match of this pattern needs, in novelty-weighted good points."""
+    return min(FINGERPRINT_MIN_EVIDENCE_S * fps, FINGERPRINT_SHORT_PATTERN_EVIDENCE * float(novelty.sum()))
 
 
 def _unmatchable_reason(novelty):
@@ -672,10 +669,10 @@ def _weighted(al, runs, bits):
                for lo, hi in runs)
 
 
-def _tally(al, runs, evidence_bits):
+def _tally(al, runs):
     """(good points in the span, similarity, evidence, evidence within the edge floor) over runs."""
     n_good = int(al.good[runs[0][0]:runs[-1][1]].sum())
-    return (n_good, _similarity(al, runs), _weighted(al, runs, evidence_bits),
+    return (n_good, _similarity(al, runs), _weighted(al, runs, FINGERPRINT_GOOD_BITS),
             _weighted(al, runs, FINGERPRINT_EDGE_BITS))
 
 
@@ -845,7 +842,7 @@ def _scan_fingerprints(ep_ints, ep_duration, patterns, *, strictness, min_covera
         if reason:
             logger.debug("Skipping fingerprint pattern %s: %s", pattern_id, reason)
             continue
-        needed, evidence_bits = _evidence_rule(novelty, fps)
+        needed = _evidence_needed(novelty, fps)
         # Evidence never exceeds the good point count, so this bound is safe for the prefilter
         min_good = max(min_coverage * len(pat_arr), needed) - 1e-9
         offsets, found = _candidate_offsets(pat_arr, informative, index, len(ep_arr))
@@ -861,7 +858,7 @@ def _scan_fingerprints(ep_ints, ep_duration, patterns, *, strictness, min_covera
             alignments += [(d, al) for al in _measure_alignment(
                 ep_arr, pat_arr, informative, novelty, d, strictness, gap_points, window)]
         for al in _closest_alignments(alignments, window):
-            tally = _tally(al, al.runs, evidence_bits)
+            tally = _tally(al, al.runs)
             if _rejecting_gate(tally, len(pat_arr), needed, fps, strictness, min_coverage):
                 continue
             n_good, similarity = tally[:2]
@@ -966,7 +963,7 @@ def explain_match(ep_ints, ep_duration, pattern, *, strictness, min_coverage, ga
         return out
     if len(ep_arr) == 0:
         return out
-    needed, evidence_bits = _evidence_rule(novelty, fps)
+    needed = _evidence_needed(novelty, fps)
     offsets, found = _candidate_offsets(pat_arr, informative, _build_offset_index(ep_arr), len(ep_arr))
     out['candidates'] = found
     gap_points = int(round(gap_tolerance_s * fps))
@@ -974,7 +971,7 @@ def explain_match(ep_ints, ep_duration, pattern, *, strictness, min_coverage, ga
         ep_arr, pat_arr, informative, novelty, d, strictness, gap_points, window)]
     best = None
     for al in _closest_alignments(measured, window):
-        tally = _tally(al, al.runs, evidence_bits)
+        tally = _tally(al, al.runs)
         n_good, similarity, evidence, close = tally
         gate = _rejecting_gate(tally, len(pat_arr), needed, fps, strictness, min_coverage)
         rank = (gate is None, n_good, similarity)
@@ -999,7 +996,7 @@ def explain_match(ep_ints, ep_duration, pattern, *, strictness, min_coverage, ga
         'degraded_stretches': stretches, 'longest_degraded_s': longest / fps,
         'coverage': n_good / len(pat_arr),
         'evidence_s': evidence / fps, 'evidence_needed_s': needed / fps,
-        'evidence_bits': evidence_bits, 'close_evidence_s': close / fps,
+        'close_evidence_s': close / fps,
         'close_evidence_needed_s': FINGERPRINT_CLOSE_EVIDENCE_S,
         'runs_counted': len(al.runs),
         'rejected_by': gate, 'matched': gate is None,

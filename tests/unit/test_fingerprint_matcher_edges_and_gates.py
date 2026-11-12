@@ -150,6 +150,18 @@ def test_short_matchable_patterns_find_their_own_audio(seconds):
             assert len(r) == 1 and abs(r[0].start - 125.0) <= 0.25
 
 
+@pytest.mark.parametrize('seconds', [5, 6])
+def test_short_patterns_are_found_at_twenty_percent_bit_error(seconds):
+    rng = np.random.default_rng(30 + seconds)
+    found = 0
+    for _ in range(20):
+        ep = _ints(rng, 4800)
+        pat = _ints(rng, int(seconds * IPS))
+        _plant(rng, ep, pat, 1000, 0.20)
+        found += any(abs(m.start - 125.0) <= 0.5 for m in _run(ep, [(1, pat, float(seconds), None, None)]))
+    assert found >= 19
+
+
 def test_patterns_without_enough_distinctive_audio_are_not_matchable():
     rng = np.random.default_rng(6)
     assert not fingerprint_is_matchable([7] * 240)
