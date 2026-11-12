@@ -1,5 +1,8 @@
 """The audio fingerprinting settings: registry entries and one shared range table."""
+from pathlib import Path
+
 import pytest
+import yaml
 
 import audio_fingerprinter
 import config
@@ -36,3 +39,24 @@ def test_one_range_table_serves_the_matcher_and_the_registry():
         assert (lo, hi) == RANGES[key]
         assert float(registry_default(key)) == default
         assert lo <= default <= hi
+
+
+def _put_body_properties():
+    """Properties of the PUT settings body in openapi.yaml."""
+    spec = yaml.safe_load((Path(__file__).resolve().parents[2] / 'openapi.yaml').read_text())
+    for item in spec['paths'].values():
+        schema = (((item.get('put') or {}).get('requestBody') or {}).get('content', {})
+                  .get('application/json', {}).get('schema', {}))
+        if 'fingerprintEnabled' in schema.get('properties', {}):
+            return schema['properties']
+    raise AssertionError('no PUT body declares the fingerprint settings')
+
+
+@pytest.mark.parametrize('key,payload_key,kind,default', KEYS)
+def test_openapi_bounds_and_default_match_the_registry(key, payload_key, kind, default):
+    prop = _put_body_properties()[payload_key]
+    if kind == 'bool':
+        assert prop['type'] == 'boolean' and prop['default'] is (default == 'true')
+        return
+    _, lo, hi = config.FINGERPRINT_SETTING_RANGES[key]
+    assert (prop['minimum'], prop['maximum'], prop['default']) == (lo, hi, float(default))

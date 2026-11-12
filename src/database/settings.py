@@ -987,7 +987,7 @@ SETTINGS_REGISTRY: dict[str, SettingSpec] = {
     'audio_cue_pair_orient_window_seconds': SettingSpec(
         default=str(AUDIO_CUE_PAIR_ORIENT_WINDOW_SECONDS), in_ad_reset=True),
 
-    # -- Audio fingerprinting --
+    # Audio fingerprinting
     'fingerprint_enabled': SettingSpec(
         default='true', in_ad_reset=True,
         payload_key='fingerprintEnabled', payload_kind='bool'),
