@@ -1018,6 +1018,16 @@ paths:
                     - low
                     - null
                   description: Per-feed auto-process queue priority (issue 625). 'high' processes this feed's episodes before other queued episodes; 'low' runs only when nothing else is waiting; 'normal' or null uses the default ordering. Changing it re-stamps this feed's already-queued pending episodes immediately.
+                queueOrder:
+                  type:
+                    - string
+                    - 'null'
+                  enum:
+                    - queued
+                    - oldest_first
+                    - newest_first
+                    - null
+                  description: Order of this feed's queued episodes within one priority. 'queued' keeps the order they were queued in, 'oldest_first' and 'newest_first' follow the publish date (undated episodes go last). null follows the global queueOrder setting.
                 lowAdYieldAction:
                   type:
                     - string
@@ -8043,6 +8053,10 @@ paths:
                   type: string
                   enum: ['auto', 'generate', 'off']
                   description: Default chapter mode for feeds that inherit this setting.
+                queueOrder:
+                  type: string
+                  enum: ['queued', 'oldest_first', 'newest_first']
+                  description: Default order of a feed's queued episodes within one priority. 'queued' keeps the order they were queued in; the other two follow the publish date. A feed's own queueOrder overrides it. Default queued.
                 skipSecondPass:
                   type: boolean
                   description: When true, feeds that inherit this setting skip the pass-2 verification scan.
@@ -15492,6 +15506,16 @@ components:
             - normal
             - low
           description: Per-feed auto-process queue priority (issue 625), always resolved to one of the three values ('normal' covers both an explicit normal setting and no override). 'high' processes this feed's episodes before other queued episodes; 'low' runs only when nothing else is waiting.
+        queueOrder:
+          type:
+            - string
+            - 'null'
+          enum:
+            - queued
+            - oldest_first
+            - newest_first
+            - null
+          description: Order of this feed's queued episodes within one priority. 'queued' keeps the order they were queued in, 'oldest_first' and 'newest_first' follow the publish date (undated episodes go last). null follows the global queueOrder setting.
         lowAdYieldAction:
           type:
             - string
@@ -18861,6 +18885,15 @@ components:
             value:
               type: string
               enum: ['auto', 'generate', 'off']
+            isDefault:
+              type: boolean
+        queueOrder:
+          type: object
+          description: Default order of a feed's queued episodes within one priority.
+          properties:
+            value:
+              type: string
+              enum: ['queued', 'oldest_first', 'newest_first']
             isDefault:
               type: boolean
         skipSecondPass:

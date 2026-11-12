@@ -22,7 +22,7 @@ from api import (
     _normalize_nullable_finite_float,
 )
 from cancel import request_cancellation, wait_for_cancellation
-from database.queue import compute_queue_priority
+from database.queue import QUEUE_ORDERS, compute_queue_priority
 from processing_queue import ProcessingQueue
 from config import (
     AUTO_PROCESS_MAX_AGE_ERROR,
@@ -1014,6 +1014,7 @@ def _podcast_base_json(podcast, feed_url, db, global_actions=None) -> dict:
         'adChaptersEnabled': ad_chapters_enabled,
         'adChapterCategories': ad_chapter_categories,
         'queuePriority': _serialize_queue_priority(podcast.get('queue_priority')),
+        'queueOrder': podcast.get('queue_order'),
         'lowAdYieldAction': podcast.get('low_ad_yield_action'),
         'episodeLogs': podcast.get('episode_logs'),
         'titleSkipPatterns': _deserialize_skip_patterns(podcast.get('title_skip_patterns')),
@@ -2281,6 +2282,12 @@ def update_feed(slug):
         if qp_err:
             return error_response(qp_err, 400)
         updates['queue_priority'] = qp_val
+
+    if 'queueOrder' in data:
+        qo_val, qo_err = _normalize_override(data['queueOrder'], QUEUE_ORDERS, 'queueOrder')
+        if qo_err:
+            return error_response(qo_err, 400)
+        updates['queue_order'] = qo_val
 
     if 'lowAdYieldAction' in data:
         ly_val, ly_err = _normalize_low_ad_yield_action(data['lowAdYieldAction'])

@@ -76,6 +76,7 @@ SEED_SNAPSHOT = {
     'ad_addressing_mode': 'timestamps',
     'jit_blocked_user_agents': '[]',
     'process_new_episodes_first': '1',
+    'queue_order': 'queued',
     'dai_differential_overrides_keep': 'true',
     'splice_veto_enabled': 'true',
     'differential_hold_min_seconds': '10',
@@ -197,7 +198,7 @@ SEED_SNAPSHOT = {
 EXPECTED_AD_RESET_KEYS = {
     'system_prompt', 'verification_prompt', 'claude_model',
     'verification_model', 'whisper_model', 'vtt_transcripts_enabled',
-    'chapters_enabled', 'chapters_mode', 'chapters_in_notes',
+    'chapters_enabled', 'chapters_mode', 'chapters_in_notes', 'queue_order',
     'review_links_in_notes', 'chapters_model',
     'skip_second_pass', 'differential_fetch_mode',
     'transcript_differential_enabled',
@@ -577,11 +578,12 @@ class TestGetDefaults:
         # feedItunesBlock added after that (177 -> 178).
         # Five fingerprint* settings added after that (178 -> 183).
         # Two session length settings added after that (183 -> 185).
+        # queueOrder added after that (185 -> 186).
         payload_keys = {
             spec.payload_key for spec in SETTINGS_REGISTRY.values()
             if spec.payload_key
         }
-        assert len(payload_keys) == 185
+        assert len(payload_keys) == 186
         assert 'systemoneBaseUrl' in payload_keys
         assert 'failoverWhisperMaxAttempts' in payload_keys
         assert 'audioCuePairOrientWindowSeconds' not in payload_keys

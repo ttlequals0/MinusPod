@@ -111,6 +111,8 @@ def _build_settings_payload():
     chapters_enabled = chapters_value.lower() in ('true', '1', 'yes')
     chapters_mode = common._setting_value(
         settings, 'chapters_mode', registry_default('chapters_mode'))
+    queue_order = common._setting_value(
+        settings, 'queue_order', registry_default('queue_order'))
     skip_second_pass = coerce_bool_setting(common._setting_value(
         settings, 'skip_second_pass', registry_default('skip_second_pass')))
     transcript_differential_enabled = coerce_bool_setting(common._setting_value(
@@ -606,6 +608,7 @@ def _build_settings_payload():
             'rss_refresh_interval_minutes', rss_refresh_interval_minutes),
         'queueManualBoost': _sv('queue_manual_boost', queue_manual_boost),
         'queueFreshBoost': _sv('queue_fresh_boost', queue_fresh_boost),
+        'queueOrder': _sv('queue_order', queue_order),
         'queueBulkBoost': _sv('queue_bulk_boost', queue_bulk_boost),
         'podpingEnabled': _sv('podping_enabled', podping_enabled),
         'segmentCategoryActions': _sv(

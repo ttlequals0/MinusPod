@@ -45,6 +45,7 @@ from database.settings import (
     AD_RESET_SETTING_KEYS, SETTINGS_REGISTRY,
     registry_default, registry_get_default,
 )
+from database.queue import QUEUE_ORDERS
 from user_agent import invalidate_cache as invalidate_user_agent_cache
 from rate_limit_hold import clear_holds_for_provider_change
 from llm_client import (
@@ -303,6 +304,8 @@ def _validate_processing_defaults_payload(data):
         value = str(data['chaptersMode'] or '').strip().lower()
         if value not in ('auto', 'generate', 'off'):
             return 'chaptersMode must be auto, generate, or off', 400
+    if 'queueOrder' in data and data['queueOrder'] not in QUEUE_ORDERS:
+        return f"queueOrder must be one of: {', '.join(QUEUE_ORDERS)}", 400
     if 'skipSecondPass' in data and not isinstance(data['skipSecondPass'], bool):
         return 'skipSecondPass must be a boolean', 400
     if ('transcriptDifferentialEnabled' in data
@@ -870,6 +873,11 @@ def _apply_processing_flags(db, data):
         if value not in ('auto', 'generate', 'off'):
             return error_response('chaptersMode must be auto, generate, or off', 400)
         db.set_setting('chapters_mode', value, is_default=False)
+
+    if 'queueOrder' in data:
+        if data['queueOrder'] not in QUEUE_ORDERS:
+            return error_response(f"queueOrder must be one of: {', '.join(QUEUE_ORDERS)}", 400)
+        db.set_setting('queue_order', data['queueOrder'], is_default=False)
 
     if 'skipSecondPass' in data:
         if not isinstance(data['skipSecondPass'], bool):

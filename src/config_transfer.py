@@ -31,6 +31,7 @@ from db_backup_service import (
     KEEP_COUNT_MAX, KEEP_COUNT_MIN, validate_backup_dest,
 )
 from database.podcasts import FEED_TYPES
+from database.queue import QUEUE_ORDERS
 from database.settings import SETTINGS_REGISTRY, registry_default
 from systemone.tuning import SystemOneSettingsError, merge_profile, profile_from_snapshot
 from fx_rates import FxRateError, get_usd_rate
@@ -160,7 +161,7 @@ FEED_COLUMNS = (
     'website_url', 'passthrough_enabled', 'skip_ad_detection',
     'segment_category_actions', 'detect_show_segments', 'skip_second_pass',
     'transcript_differential', 'skip_transcription', 'cue_only_safety',
-    'queue_priority', 'title_skip_patterns', 'description_skip_patterns',
+    'queue_priority', 'queue_order', 'title_skip_patterns', 'description_skip_patterns',
     'description_trim_pattern', 'description_trim_mode',
     'title_skip_action', 'min_duration_seconds', 'max_duration_seconds',
     'low_ad_yield_action', 'episode_logs', 'retention_days_override',
@@ -1103,6 +1104,10 @@ def _validated_feed_updates(db, podcast, payload, feed_type, *, confirmed_ceilin
                 raise ConfigTransferError(error)
         elif key == 'detection_mode':
             value, error = feed_api._normalize_detection_mode(value)
+            if error:
+                raise ConfigTransferError(error)
+        elif key == 'queue_order':
+            value, error = feed_api._normalize_override(value, QUEUE_ORDERS, 'queue_order')
             if error:
                 raise ConfigTransferError(error)
         elif key == 'chapters_mode':

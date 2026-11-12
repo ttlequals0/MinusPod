@@ -30,4 +30,5 @@ and heading anchor when a test exists to pin a decision made here.
 | [2026-11-11 Audio fingerprints](2026-11-11-audio-fingerprint-design.md) | Measured fingerprint matching, pattern scope, per-pattern audio controls and match history, settings, Stats section | Not shipped yet |
 | [2026-11-11 Cached waveform peaks](2026-11-11-waveform-peaks-cache-design.md) | Peaks file beside the retained original, filled during processing or on first open, waveforms for episodes over 4 hours | Not shipped yet |
 | [2026-11-11 Session settings and "Remember me"](2026-11-11-session-settings-design.md) | Session length settings in the UI and API, per-device "Remember me", Compose pass-through | Not shipped yet |
+| [2026-11-12 Processing order for queued episodes](2026-11-12-queue-order-design.md) | Global and per-feed order for queued episodes: as queued, oldest first or newest first | Not shipped yet |
 | [2026-11-11 Logging and database fixes](2026-11-11-logging-and-database-fixes-design.md) | Credential redaction in logs, WAL size limit, Recents query, JSON gunicorn lines, quieter recurring lines | Not shipped yet |

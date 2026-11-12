@@ -362,6 +362,8 @@ You can override that by hand. Each row on the **Queue** page has -/+ buttons th
 
 Changing a feed's queue priority restamps every episode of that feed still pending in the queue with the new base priority. API: `queuePriority` on `PATCH /api/v1/feeds/{slug}` (`high`, `normal`, or `low`); the boost sizes are `queueManualBoost`, `queueFreshBoost`, and `queueBulkBoost` (0-100) and the toggle is `processNewEpisodesFirst`, all on `PUT /api/v1/settings`.
 
+Within one feed and one priority you can choose the order episodes run in. `As queued` keeps the order they were queued in, `Oldest first` and `Newest first` follow the publish date, and episodes without a publish date go last. The feed's episodes keep the same places in the queue; the order only decides which of them takes each place, so other feeds are not moved and priorities still come first. Set the default in Settings and override it per feed. A change applies to episodes already waiting. API: `queueOrder` (`queued`, `oldest_first`, or `newest_first`) on `PUT /api/v1/settings/ad-detection`, and `queueOrder` (the same values, or `null` to follow the default) on `PATCH /api/v1/feeds/{slug}`.
+
 ### Title blacklist
 
 Each feed can list glob patterns under **Episode filters > Skip episodes by title** on its detail page. An episode whose title matches any pattern is skipped: it is never queued for automatic processing, and just-in-time processing (playing it) does not detect or cut it either.

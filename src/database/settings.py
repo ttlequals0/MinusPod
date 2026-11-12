@@ -565,6 +565,11 @@ SETTINGS_REGISTRY: dict[str, SettingSpec] = {
     'queue_bulk_boost': SettingSpec(
         default='0', seeded=True, resettable=False,
         payload_key='queueBulkBoost', payload_kind='int'),
+    # Order of a feed's queued episodes within one priority; a feed's own
+    # queue_order column overrides it. 'queued' keeps today's order.
+    'queue_order': SettingSpec(
+        default='queued', seeded=True, in_ad_reset=True,
+        payload_key='queueOrder', validator=_one_of('queued', 'oldest_first', 'newest_first')),
     'podping_enabled': SettingSpec(
         default='false', seeded=True, resettable=False,
         payload_key='podpingEnabled', payload_kind='bool'),
