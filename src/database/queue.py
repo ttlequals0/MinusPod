@@ -8,6 +8,7 @@ from config import (
     DEFER_SERVICE_LLM, QUEUE_ORDERS,
 )
 from database.episodes import HAS_TRANSCRIPT_SQL, normalize_published_at
+from database.error_text import redact_error
 from utils.time import ISO_FORMAT, utc_now, utc_now_iso
 
 logger = logging.getLogger(__name__)
@@ -566,7 +567,7 @@ class QueueMixin:
                    attempts = attempts + 1,
                    updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
                    {where}""",  # noqa: S608
-                (status, error_message, *tail)
+                (status, redact_error(error_message), *tail)
             )
         else:
             cursor = conn.execute(
@@ -995,8 +996,8 @@ class QueueMixin:
         expired = []
         for row in rows:
             row = dict(row)
-            message = (f"Offline queue TTL expired after {ttl_hours} hours: "
-                       f"{row['error_message'] or 'service unreachable'}")
+            message = redact_error(f"Offline queue TTL expired after {ttl_hours} hours: "
+                                   f"{row['error_message'] or 'service unreachable'}")
             row['error_message'] = message
             cursor = conn.execute(
                 """UPDATE episodes

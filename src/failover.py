@@ -189,10 +189,7 @@ def _apply_transition_in_transaction(conn, target: str, action: str,
         conn, generation_key, str(_generation_in_transaction(conn, target) + 1),
         is_default=False,
     )
-    conn.execute(
-        "INSERT INTO failover_events (target, action, source, reason) VALUES (?, ?, ?, ?)",
-        (target, action, source, reason),
-    )
+    database.Database.insert_failover_event(conn, target, action, source, reason)
     return True
 
 

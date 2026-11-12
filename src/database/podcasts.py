@@ -7,6 +7,7 @@ from config import (
     DEFAULT_AUDIO_REPLACEMENT_SOUND_ENABLED, DEFAULT_AUDIO_MP3_STREAM_COPY_ENABLED,
     coerce_bool_setting, resolve_segment_category_actions_map,
 )
+from database.error_text import redact_error
 from database.fingerprint_cleanup import delete_matches_for_podcast, delete_pattern_dependents_in
 from utils.constants import EpisodeStatus
 from utils.time import ISO_FORMAT, utc_now_iso
@@ -416,7 +417,8 @@ class PodcastMixin:
                 'yt_transcribe_override',
             ):
                 fields.append(f"{key} = ?")
-                values.append(normalize_network_id(value) if key == 'network_id_override' else value)
+                values.append(normalize_network_id(value) if key == 'network_id_override'
+                              else redact_error(value, 500) if key == 'last_refresh_error' else value)
             elif key in ('tags', 'user_tags'):
                 fields.append(f"{key} = ?")
                 values.append(json.dumps(value) if isinstance(value, list) else value)

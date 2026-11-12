@@ -5,6 +5,7 @@ import os
 import time
 import uuid
 
+from database.error_text import redaction_units
 from database.fingerprint_matches import BACKFILL_GATE, OUT_OF_SCOPE_LOG_CAP
 from utils.time import utc_now_iso
 
@@ -145,7 +146,7 @@ class DeferredUpgradeMixin:
 
     def _advance_redaction(self, cursor, save, ctx):
         """Redact one page of one column; returns the next cursor, None when every column is done."""
-        units = self._redaction_units()
+        units = redaction_units()
         unit, last = cursor.get('unit', 0), cursor.get('last', 0)
         conn = self.get_connection()
         while unit < len(units):

@@ -9,7 +9,6 @@ import time
 from contextlib import contextmanager
 from pathlib import Path
 
-from utils.http import redact_stored_text
 from utils.text import is_timezone_drift, normalize_title_for_match
 from utils.time import parse_iso_utc, utc_now_iso
 
@@ -24,43 +23,6 @@ _OLD_FINGERPRINT_SENTENCE = (
 _NEW_FINGERPRINT_SENTENCE = (
     "fingerprint spans are measured audio matches, but the transcript's precise "
     "edges are still preferred where they extend the span.")
-
-# Columns that hold stored exception or error text, served back by the API.
-_STORED_ERROR_COLUMNS = (
-    ('episodes', 'error_message'),
-    ('episodes', 'chapters_regen_error'),
-    ('episodes', 'sb_last_error'),
-    ('processing_history', 'error_message'),
-    ('auto_process_queue', 'error_message'),
-    ('podcasts', 'last_refresh_error'),
-    ('pattern_cleanup_runs', 'error'),
-    ('cue_candidate_scans', 'error'),
-    ('cue_threshold_scans', 'error'),
-    ('cue_cross_episode_scans', 'error'),
-    ('cue_window_optimize_scans', 'error'),
-    ('failover_events', 'reason'),
-)
-
-
-def _redact_json_fields(value, fields, per_entry=False):
-    """Redact the named top-level string fields of a JSON object, or of each entry's object."""
-    try:
-        data = json.loads(value)
-    except (TypeError, ValueError):
-        return value
-    if not isinstance(data, dict):
-        return value
-    targets = [entry for entry in data.values() if isinstance(entry, dict)] if per_entry else [data]
-    changed = False
-    for target in targets:
-        for field in fields:
-            text = target.get(field)
-            if isinstance(text, str):
-                redacted = redact_stored_text(text)
-                if redacted != text:
-                    target[field] = redacted
-                    changed = True
-    return json.dumps(data) if changed else value
 
 _SEARCH_CHANGE_TRIGGER_NAMES = (
     'search_change_podcasts_insert', 'search_change_podcasts_delete',
@@ -2695,21 +2657,6 @@ class SchemaMixin(DeferredUpgradeMixin):
         except Exception as e:
             conn.rollback()
             logger.error(f"Pattern network id trim failed, retrying on the next start: {e}")
-
-    @staticmethod
-    def _redaction_units():
-        """(table, column, rewrite, where, params) for every stored error value the redaction step covers."""
-        units = [(table, column, redact_stored_text, '1', ()) for table, column in _STORED_ERROR_COLUMNS]
-        for table in ('settings', 'system_settings'):
-            units.append((table, 'value', redact_stored_text, "key LIKE ? ESCAPE '\\'", ('%\\_last\\_error',)))
-        units.append(('settings', 'value', lambda v: _redact_json_fields(v, ('reason',)),
-                      "key LIKE ? ESCAPE '\\'", ('failover\\_state:%',)))
-        units.append(('settings', 'value',
-                      lambda v: _redact_json_fields(v, ('last_failure_reason',), per_entry=True),
-                      'key = ?', ('podping_node_health',)))
-        for column in ('dai_differential_json', 'upstream_transcript_json'):
-            units.append(('episode_details', column, lambda v: _redact_json_fields(v, ('error',)), '1', ()))
-        return units
 
     def _run_sponsorblock_terminal_clear_next_check(self, conn):
         """One-shot: terminal SponsorBlock rows left armed by older builds stop being polled."""

@@ -8,6 +8,7 @@ from decimal import Decimal
 from typing import NamedTuple
 
 from config import SYSTEMONE_PROVIDERS, normalize_model_key
+from database.error_text import redact_error
 from utils.app_version import APP_VERSION as __version__
 from utils.time import parse_iso_utc
 
@@ -1777,7 +1778,7 @@ class StatsMixin:
                 audio_cues_detected, processing_stats_json, app_version, run_id)
                VALUES (?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%SZ', 'now'), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (podcast_id, podcast_slug, podcast_title, episode_id, episode_title,
-             processing_duration_seconds, status, ads_detected, error_message,
+             processing_duration_seconds, status, ads_detected, redact_error(error_message),
              reprocess_number, input_tokens, output_tokens, llm_cost,
              audio_cues_detected,
              json.dumps(processing_stats) if processing_stats else None,

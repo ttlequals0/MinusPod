@@ -20,6 +20,11 @@ CLEAN_KEY = 'refresh failed for /feed/[redacted-feed-key]?<redacted>'
 UNTOUCHED_URL = 'https://cdn.example.com/a.mp3?X-Amz-Signature=KEEP'
 
 
+def _raw_setting(conn, key, value):
+    """Write a setting the way builds before write-time redaction did."""
+    conn.execute("INSERT OR REPLACE INTO settings (key, value, is_default) VALUES (?, ?, 0)", (key, value))
+
+
 def _seed(db):
     conn = db.get_connection()
     conn.execute('PRAGMA foreign_keys = OFF')
@@ -51,13 +56,13 @@ def _seed(db):
                                       json.dumps({'status': 'error', 'source_url': UNTOUCHED_URL, 'error': RAW})))
     conn.commit()
     conn.execute('PRAGMA foreign_keys = ON')
-    db.set_setting('youtube_ytdlp_last_error', RAW, is_default=False)
-    db.set_setting('community_sync_last_error', RAW_KEY, is_default=False)
+    _raw_setting(conn, 'youtube_ytdlp_last_error', RAW)
+    _raw_setting(conn, 'community_sync_last_error', RAW_KEY)
     db.set_setting('db_backup_last_error', 'disk full', is_default=False)
-    db.set_setting('failover_state:llm:primary', json.dumps(
-        {'active': True, 'source': 'auto', 'since': '2026-11-11T00:00:00Z', 'reason': RAW}), is_default=False)
-    db.set_setting('podping_node_health', json.dumps(
-        {'https://node.example.com': {'consecutive_failures': 1, 'last_failure_reason': RAW}}), is_default=False)
+    _raw_setting(conn, 'failover_state:llm:primary', json.dumps(
+        {'active': True, 'source': 'auto', 'since': '2026-11-11T00:00:00Z', 'reason': RAW}))
+    _raw_setting(conn, 'podping_node_health', json.dumps(
+        {'https://node.example.com': {'consecutive_failures': 1, 'last_failure_reason': RAW}}))
     db.set_setting('feed_user_agent', UNTOUCHED_URL, is_default=False)
     conn.execute("INSERT OR REPLACE INTO system_settings (key, value) VALUES ('example_last_error', ?)", (RAW,))
     conn.execute("INSERT OR REPLACE INTO system_settings (key, value) VALUES ('example_note', ?)", (RAW,))

@@ -10,6 +10,8 @@ from dataclasses import dataclass
 from typing import Any
 from collections.abc import Callable
 
+from database.error_text import redact_setting_value
+
 from config import (
     PRICING_OVERRIDE_OPTIONAL, PRICING_OVERRIDE_REQUIRED,
     AUTO_PROCESS_MAX_AGE_HOURS_BOUNDS, AUTO_PROCESS_MAX_AGE_HOURS_DEFAULT,
@@ -1391,6 +1393,7 @@ class SettingsMixin:
 
     @staticmethod
     def _upsert_setting(conn, key: str, value: str, is_default: bool):
+        value = redact_setting_value(key, value)
         conn.execute(
             """INSERT INTO settings (key, value, is_default, updated_at)
                VALUES (?, ?, ?, strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
@@ -1616,6 +1619,7 @@ class SettingsMixin:
 
     def set_system_setting(self, key: str, value: str):
         """Set a system setting value."""
+        value = redact_setting_value(key, value)
         conn = self.get_connection()
         conn.execute(
             """INSERT INTO system_settings (key, value, updated_at)

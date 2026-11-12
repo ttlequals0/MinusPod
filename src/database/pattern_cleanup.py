@@ -1,6 +1,7 @@
 """Pattern cleanup mixin: review runs, suggestions, and review stamps on learned patterns."""
 import json
 
+from database.error_text import redact_error
 from pattern_cleanup_hash import INVALID_MARKER, review_hash
 from utils.time import utc_now_iso
 
@@ -39,7 +40,7 @@ class PatternCleanupMixin:
         cursor = conn.execute(
             "UPDATE pattern_cleanup_runs SET status = 'failed', finished_at = ?, error = ? "
             "WHERE status = 'running'",
-            (utc_now_iso(), error))
+            (utc_now_iso(), redact_error(error)))
         conn.commit()
         return cursor.rowcount
 
@@ -53,7 +54,7 @@ class PatternCleanupMixin:
                    suggested_count = ?, skipped_count = ?, error_count = ?, error = ?, model = ?,
                    provider = ?, credential_slot = ?
                WHERE id = ?""",
-            (status, utc_now_iso(), reviewed, suggested, skipped, error_count, error, model,
+            (status, utc_now_iso(), reviewed, suggested, skipped, error_count, redact_error(error), model,
              provider, credential_slot, run_id))
         conn.commit()
 

@@ -146,6 +146,16 @@ def redact_exc(exc, limit: int | None = None) -> str:
     return text if limit is None else text[:limit]
 
 
+def redact_fields(value, fields):
+    """Copy of a nested dict/list with every string under one of the named keys redacted."""
+    if isinstance(value, dict):
+        return {key: (redact_log_text(item) if key in fields and isinstance(item, str)
+                      else redact_fields(item, fields)) for key, item in value.items()}
+    if isinstance(value, list):
+        return [redact_fields(item, fields) for item in value]
+    return value
+
+
 def _elide(head_text: str, tail_text: str, total: int, limit: int) -> str:
     budget = limit - _ELIDE_MARKER_ROOM
     head = _head(head_text, budget // 2, redacted=True)

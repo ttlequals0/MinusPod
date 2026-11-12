@@ -17,6 +17,7 @@ import logging
 from datetime import timedelta
 
 from config import audio_cue_type_label
+from database.error_text import redact_error
 from database.podcasts import EFFECTIVE_NETWORK_SQL
 from utils.time import ISO_FORMAT, utc_now
 
@@ -420,7 +421,7 @@ class CueTemplateMixin:
         conn = self.get_connection()
         guard = '' if claim_epoch is None else ' AND claim_epoch = ?'
         key_args = (podcast_id, episode_id) if has_podcast else (episode_id,)
-        args = (str(error)[:500],) + key_args + (
+        args = (redact_error(error, 500),) + key_args + (
             () if claim_epoch is None else (claim_epoch,))
         conn.execute(
             f"""UPDATE {table} SET status='error', error=?,

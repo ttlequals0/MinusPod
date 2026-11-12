@@ -6,6 +6,7 @@ from datetime import datetime, timedelta, timezone
 from email.utils import parsedate_to_datetime
 from typing import ClassVar
 
+from database.error_text import redact_error, redact_json_error
 from database.fingerprint_cleanup import delete_matches_for_episodes
 from database.maintenance import _chunked
 from database.podcasts import RECENTS_MEMBER_FEED_TYPES
@@ -20,6 +21,8 @@ logger = logging.getLogger(__name__)
 
 # Busy wait for the best-effort cache fill, so a feed read never stalls behind a writer.
 _FEED_FILL_BUSY_MS = 1000
+_ERROR_KEYS = frozenset({'error_message', 'chapters_regen_error'})
+_DETAIL_ERROR_JSON = frozenset({'dai_differential_json', 'upstream_transcript_json'})
 
 
 def parse_applied_cuts(raw) -> list[dict] | None:
@@ -427,7 +430,7 @@ class EpisodeMixin:
                                'processed_size_bytes', 'yt_metadata_at',
                                'approval_pending_at', 'approved_at'):
                         fields.append(f"{key} = ?")
-                        values.append(value)
+                        values.append(redact_error(value) if key in _ERROR_KEYS else value)
                     elif key == 'tags':
                         fields.append("tags = ?")
                         values.append(
@@ -469,7 +472,7 @@ class EpisodeMixin:
                     kwargs.get('ads_removed', 0),
                     kwargs.get('ads_removed_firstpass', 0),
                     kwargs.get('ads_removed_secondpass', 0),
-                    kwargs.get('error_message'),
+                    redact_error(kwargs.get('error_message')),
                     kwargs.get('ad_detection_status'),
                     kwargs.get('artwork_url'),
                     kwargs.get('episode_number'),
@@ -590,12 +593,12 @@ class EpisodeMixin:
                WHERE episode_id = ?
                  AND podcast_id = (SELECT id FROM podcasts WHERE slug = ?)
                  AND chapters_regen_started_at = ?""",
-            (error, episode_id, slug, stamp)
+            (redact_error(error), episode_id, slug, stamp)
         )
         conn.commit()
         if cursor.rowcount == 0:
             logger.info(f"[{slug}:{episode_id}] Chapter regen stamp {stamp} was taken over; "
-                        f"outcome dropped (error={error})")
+                        f"outcome dropped (error={redact_error(error)})")
 
     def clear_chapters_regen_stamps(self) -> int:
         """Drop every in-flight stamp; a restart killed the threads behind them."""
@@ -827,6 +830,9 @@ class EpisodeMixin:
         normalized = {**assets}
         if normalized.get('applied_cuts') is not None:
             normalized['applied_cuts'] = [_serialize_applied_cut(cut) for cut in normalized['applied_cuts']]
+        if isinstance(normalized.get('upstream_transcript'), dict):
+            normalized['upstream_transcript'] = json.loads(
+                redact_json_error(json.dumps(normalized['upstream_transcript'])))
         values = [None if normalized.get(key) is None else
                   json.dumps(normalized[key]) if key in json_keys
                   else assets[key] for key in keys]
@@ -1032,6 +1038,8 @@ class EpisodeMixin:
             logger.warning(f"Episode not found for {column}: {slug}/{episode_id}")
             return False
         with self.transaction(immediate=True) as conn:
+            if column in _DETAIL_ERROR_JSON:
+                value = redact_json_error(value)
             conn.execute(self._DETAIL_JSON_UPSERT[column], (db_episode_id, value))
         return True
 

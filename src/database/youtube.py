@@ -1,4 +1,6 @@
 """YouTube feed and SponsorBlock state queries."""
+from database.error_text import redact_error
+
 SB_COLUMNS = frozenset({
     'youtube_video_id', 'sb_state', 'sb_next_check_at', 'sb_attempts',
     'sb_segment_uuids', 'sb_last_error', 'sb_note', 'sb_submissions',
@@ -27,6 +29,8 @@ class YouTubeMixin:
             return False
         assignments = ', '.join(f"{col} = ?" for col in fields)
         conn = self.get_connection()
+        if 'sb_last_error' in fields:
+            fields = {**fields, 'sb_last_error': redact_error(fields['sb_last_error'])}
         conn.execute(
             f"UPDATE episodes SET {assignments}, "  # noqa: S608
             "updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now') WHERE id = ?",
