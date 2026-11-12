@@ -424,3 +424,49 @@ def test_a_bad_format_string_leaves_the_redaction_notice_unused(monkeypatch, cap
     monkeypatch.setattr('utils.log_format.redact_log_text', boom)
     assert QueryStringRedactingFilter().filter(_record('later')) is True
     assert 'log redaction failed: RuntimeError' in capsys.readouterr().err
+
+
+_REDACTION_LINES = [
+    'GET https://cdn.example.com/a.mp3?token=SECRET123&x=1 failed',
+    'fetch https://user:pw@example.com/feed.xml?k=abc done',
+    'key a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6 leaked',
+    'plain line with nothing to hide',
+    'multi\nline https://h.example/x?sig=ZZZ\nend',
+    'x' * 40000,
+]
+
+
+@pytest.mark.parametrize('line', _REDACTION_LINES)
+@pytest.mark.parametrize('fmt', [
+    ScrubbingFormatter('%(message)s'),
+    SingleLineFormatter('[%(asctime)s] [%(levelname)s] [%(name)s] %(message)s'),
+    JSONFormatter(),
+])
+def test_marked_record_formats_like_an_unmarked_one(fmt, line):
+    marked = _record(line)
+    assert QueryStringRedactingFilter().filter(marked) is True
+    assert getattr(marked, '_text_redacted', False) is True
+    unmarked = _record(line)
+    a, b = fmt.format(marked), fmt.format(unmarked)
+    if isinstance(fmt, JSONFormatter):
+        a, b = json.loads(a), json.loads(b)
+        a.pop('timestamp'), b.pop('timestamp')
+    elif '%(asctime)s' in fmt._fmt:
+        a, b = a[a.index(']') + 1:], b[b.index(']') + 1:]
+    assert a == b
+
+
+def test_marked_record_message_is_not_redacted_again(monkeypatch):
+    rec = _record('GET https://cdn.example.com/a.mp3?token=SECRET123 failed')
+    QueryStringRedactingFilter().filter(rec)
+    seen = []
+    real = http.redact_log_text
+
+    def spy(text, keep_query=False):
+        seen.append(text)
+        return real(text, keep_query)
+
+    monkeypatch.setattr('utils.log_format.redact_log_text', spy)
+    out = SingleLineFormatter('[%(levelname)s] [%(name)s] %(message)s').format(rec)
+    assert 'SECRET123' not in out
+    assert all('cdn.example.com' not in text for text in seen)

@@ -12,6 +12,8 @@ from utils.http import MAX_REDACT_CHARS, cap_log_text, redact_log_text, report_r
 _HOSTNAME = os.environ.get('HOSTNAME') or socket.gethostname()
 # Record attribute set through logging's extra; only the value True keeps the URL query.
 KEEP_URL_QUERY = 'keep_url_query'
+# Record attribute set once message, traceback and stack text are redacted in place.
+REDACTED_MARK = '_text_redacted'
 
 
 def keeps_url_query(record: logging.LogRecord) -> bool:
@@ -32,21 +34,32 @@ def _join_line(text: str, more: str) -> str:
     return text + more if text[-1:] == '\n' else f"{text}\n{more}"
 
 
+def _ends_with_message(text: str, message: str) -> bool:
+    """Whether the formatted line's prefix is clean, so the redacted message need not be scanned again."""
+    prefix = text[:len(text) - len(message)]
+    return text.endswith(message) and redact_log_text(prefix) == prefix
+
+
 class ScrubbingFormatter(logging.Formatter):
     """Plain formatter that redacts URL query strings from message and traceback."""
 
     def format(self, record: logging.LogRecord) -> str:
         keep_query = keeps_url_query(record)
+        redacted = getattr(record, REDACTED_MARK, False) is True
         head = copy.copy(record)
-        head.msg = redact_log_text(_raw_message(record), keep_query)
+        head.msg = _raw_message(record) if redacted else redact_log_text(_raw_message(record), keep_query)
         head.args = ()
         head.exc_info = head.exc_text = head.stack_info = None
-        text = redact_log_text(super().format(head), keep_query)
+        text = super().format(head)
+        if not redacted or not _ends_with_message(text, head.msg):
+            text = redact_log_text(text, keep_query)
         # Tracebacks and stacks never keep a query: the record's mark covers only its message.
         if record.exc_text or record.exc_info:
-            text = _join_line(text, redact_log_text(record.exc_text or self.formatException(record.exc_info)))
+            trace = record.exc_text or self.formatException(record.exc_info)
+            text = _join_line(text, trace if redacted else redact_log_text(trace))
         if record.stack_info:
-            text = _join_line(text, redact_log_text(self.formatStack(record.stack_info)))
+            stack = self.formatStack(record.stack_info)
+            text = _join_line(text, stack if redacted else redact_log_text(stack))
         return cap_log_text(text)
 
 
@@ -72,7 +85,8 @@ class JSONFormatter(logging.Formatter):
             'timestamp': self.formatTime(record, self.datefmt),
             'level': record.levelname,
             'logger': record.name,
-            'message': redact_log_text(record.getMessage(), keep_query),
+            'message': (record.getMessage() if getattr(record, REDACTED_MARK, False) is True
+                        else redact_log_text(record.getMessage(), keep_query)),
             'hostname': _HOSTNAME,
             'pid': os.getpid(),
         }
@@ -117,6 +131,7 @@ class QueryStringRedactingFilter(logging.Filter):
                 record.exc_text = redact_log_text(record.exc_text)
             if record.stack_info:
                 record.stack_info = redact_log_text(record.stack_info)
+            setattr(record, REDACTED_MARK, True)
         except Exception as exc:
             report_redaction_failure(exc)
         return True
