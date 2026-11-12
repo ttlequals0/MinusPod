@@ -168,13 +168,17 @@ def _original_duration(path, episode):
     known = (episode or {}).get('original_duration')
     if known:
         return known
-    key = str(path)
+    try:
+        st = path.stat()
+    except OSError:
+        return None
+    key = f'{path}:{st.st_size}:{st.st_mtime_ns}'
     now = _clock()
     with _probe_lock:
         failed_at = _probe_failures.get(key)
         if failed_at is not None and now - failed_at < PEAKS_PROBE_RETRY_SECONDS:
             return None
-    duration = get_audio_duration(key)
+    duration = get_audio_duration(str(path))
     if not duration:
         with _probe_lock:
             _probe_failures[key] = now
@@ -186,22 +190,19 @@ def _original_duration(path, episode):
 def _ensure_peaks_file(path, episode):
     """Make sure the original has a peaks file: build now, or start a long build.
 
-    Returns (BUILD_* value, in-memory buckets or None). BUILD_BUSY means the caller
-    answers 503. Buckets are set when the decode worked but the file could not be written.
+    Returns a BuildResult. BUILD_BUSY means the caller answers 503; buckets are set when
+    the decode worked but the file could not be written.
     """
     peaks_path = audio_peaks.peaks_file_path(path)
     if audio_peaks.build_failed_recently(peaks_path, path):
-        return audio_peaks.BUILD_FAILED, None
+        return audio_peaks.BuildResult(audio_peaks.BUILD_FAILED)
     duration = _original_duration(path, episode)
     if duration and duration > audio_peaks.PEAKS_INLINE_MAX_SECONDS:
         audio_peaks.start_background_build(
             peaks_path, path, duration, name=f'peaks-build-{path.stem}')
-        return audio_peaks.BUILD_BUSY, None
-    fallback = []
-    status = audio_peaks.build_peaks_file_locked(
-        peaks_path, path, duration or 0.0, wait_seconds=audio_peaks.PEAKS_BUILD_WAIT_SECONDS,
-        fallback=fallback)
-    return status, (fallback[0] if fallback else None)
+        return audio_peaks.BuildResult(audio_peaks.BUILD_BUSY)
+    return audio_peaks.build_peaks_file_locked(
+        peaks_path, path, duration or 0.0, wait_seconds=audio_peaks.PEAKS_BUILD_WAIT_SECONDS)
 
 
 @api.route('/feeds/<slug>/episodes/<episode_id>/peaks', methods=['GET'])

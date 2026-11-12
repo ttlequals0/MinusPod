@@ -182,8 +182,19 @@ def test_delete_processed_file_return_value_ignores_peaks_only(storage):
     assert not storage.get_peaks_path(SLUG, EP).exists()
 
 
-def test_delete_peaks_file_with_hostile_id_returns_false(storage):
-    assert storage.delete_peaks_file(SLUG, '../../etc/passwd') is False
+def test_delete_peaks_file_with_hostile_id_returns_false(storage, tmp_path):
+    _seed(storage)
+    outside = tmp_path.parent / 'peaks-hostile-outside.peaks'
+    outside.write_bytes(b'x')
+    watched = [storage.get_original_path(SLUG, EP).parent, tmp_path]
+
+    def snapshot():
+        return {str(f): f.stat().st_mtime_ns for d in watched for f in d.rglob('*') if f.is_file()}
+    before = snapshot()
+    for hostile in ('../../etc/passwd', '../peaks-hostile-outside', '..'):
+        assert storage.delete_peaks_file(SLUG, hostile) is False
+    assert snapshot() == before and outside.exists()
+    outside.unlink()
 
 
 def test_cleanup_episode_files_counts_peaks_bytes(storage):

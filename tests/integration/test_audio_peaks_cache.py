@@ -143,7 +143,7 @@ def test_zero_bucket_file_is_not_served(tmp_path):
 
 
 def test_decode_does_not_seek_at_zero(tmp_path, monkeypatch):
-    src = _src(tmp_path, 1.0)
+    src = _src(tmp_path, 3.0)
     cmds = []
     real = ap.tracked_run
 
@@ -153,7 +153,8 @@ def test_decode_does_not_seek_at_zero(tmp_path, monkeypatch):
     monkeypatch.setattr(ap, 'tracked_run', spy)
     ap.compute_peaks(src, 0.0, None, 50)
     ap.compute_peaks(src, 0.5, None, 50)
-    assert '-ss' not in cmds[0] and '-ss' in cmds[1]
+    ap.compute_peaks(src, 2.5, None, 50)
+    assert '-ss' not in cmds[0] and '-ss' not in cmds[1] and '-ss' in cmds[2]
 
 
 def test_first_buckets_of_aac_are_not_flat(tmp_path):
@@ -170,12 +171,12 @@ def test_build_locked_busy_when_lock_held(tmp_path):
     fd = os.open(ap.peaks_lock_path(p), os.O_CREAT | os.O_RDWR, 0o600)
     fcntl.flock(fd, fcntl.LOCK_EX)
     try:
-        assert ap.build_peaks_file_locked(p, src, 1.0) == ap.BUILD_BUSY
+        assert ap.build_peaks_file_locked(p, src, 1.0).status == ap.BUILD_BUSY
         assert not p.exists()
     finally:
         fcntl.flock(fd, fcntl.LOCK_UN)
         os.close(fd)
-    assert ap.build_peaks_file_locked(p, src, 1.0) == ap.BUILD_OK
+    assert ap.build_peaks_file_locked(p, src, 1.0).status == ap.BUILD_OK
     assert p.exists()
 
 
@@ -184,7 +185,7 @@ def test_build_locked_uses_existing_valid_file_without_decoding(tmp_path, monkey
     p = _write(src, 2.0)
     monkeypatch.setattr(ap, 'build_peaks_from_decode',
                         lambda *a: pytest.fail('decoded despite a valid file'))
-    assert ap.build_peaks_file_locked(p, src, 2.0) == ap.BUILD_OK
+    assert ap.build_peaks_file_locked(p, src, 2.0).status == ap.BUILD_OK
 
 
 def test_two_simultaneous_builds_decode_once(tmp_path, monkeypatch):
@@ -201,11 +202,11 @@ def test_two_simultaneous_builds_decode_once(tmp_path, monkeypatch):
         return real(path, duration)
     monkeypatch.setattr(ap, 'build_peaks_from_decode', slow)
     results = []
-    first = threading.Thread(target=lambda: results.append(ap.build_peaks_file_locked(p, src, 2.0)))
+    first = threading.Thread(target=lambda: results.append(ap.build_peaks_file_locked(p, src, 2.0).status))
     first.start()
     assert started.wait(30)
     second = threading.Thread(
-        target=lambda: results.append(ap.build_peaks_file_locked(p, src, 2.0, wait_seconds=30)))
+        target=lambda: results.append(ap.build_peaks_file_locked(p, src, 2.0, wait_seconds=30).status))
     second.start()
     release.set()
     first.join(30)
@@ -225,7 +226,7 @@ def test_build_discarded_when_source_replaced_during_decode(tmp_path, monkeypatc
         _gen_wav(src, 3.0, freq=880)
         return buckets
     monkeypatch.setattr(ap, 'build_peaks_from_decode', replace_then_return)
-    assert ap.build_peaks_file_locked(p, src, 2.0) == ap.BUILD_FAILED
+    assert ap.build_peaks_file_locked(p, src, 2.0).status == ap.BUILD_FAILED
     assert not p.exists() and list(tmp_path.glob('*.tmp')) == []
 
 
@@ -239,7 +240,7 @@ def test_build_writes_nothing_when_source_deleted_during_decode(tmp_path, monkey
         src.unlink()
         return buckets
     monkeypatch.setattr(ap, 'build_peaks_from_decode', delete_then_return)
-    assert ap.build_peaks_file_locked(p, src, 2.0) == ap.BUILD_FAILED
+    assert ap.build_peaks_file_locked(p, src, 2.0).status == ap.BUILD_FAILED
     assert not p.exists()
 
 
@@ -252,7 +253,7 @@ def test_peaks_written_for_a_source_removed_just_after_are_dropped(tmp_path, mon
         real(path, buckets, source, **kw)
         source.unlink()
     monkeypatch.setattr(ap, 'write_peaks_file', write_then_delete)
-    assert ap.build_peaks_file_locked(p, src, 2.0) == ap.BUILD_FAILED
+    assert ap.build_peaks_file_locked(p, src, 2.0).status == ap.BUILD_FAILED
     assert not p.exists()
 
 
@@ -264,13 +265,13 @@ def test_build_never_raises_when_the_directory_is_gone(tmp_path):
     p = ap.peaks_file_path(src)
     src.unlink()
     gone.rmdir()
-    assert ap.build_peaks_file_locked(p, src, 1.0) == ap.BUILD_FAILED
+    assert ap.build_peaks_file_locked(p, src, 1.0).status == ap.BUILD_FAILED
 
 
 def test_build_of_undecodable_audio_fails_quietly(tmp_path):
     src = tmp_path / f'{EP}-original.mp3'
     src.write_bytes(b'not audio')
-    assert ap.build_peaks_file_locked(ap.peaks_file_path(src), src, 1.0) == ap.BUILD_FAILED
+    assert ap.build_peaks_file_locked(ap.peaks_file_path(src), src, 1.0).status == ap.BUILD_FAILED
 
 
 def test_background_build_is_single_flight_and_clears_when_done(tmp_path):
@@ -308,14 +309,47 @@ def test_background_build_swallows_runner_errors(tmp_path):
     assert str(p) not in ap._inflight
 
 
-def test_failure_memo_clears_when_the_source_changes(tmp_path):
+def test_failure_memo_clears_when_the_source_changes(tmp_path, monkeypatch):
     src = _src(tmp_path, 1.0)
     p = ap.peaks_file_path(src)
-    t = ap.start_background_build(p, src, 1.0, runner=lambda *a: ap.BUILD_FAILED)
+    monkeypatch.setattr(ap, 'build_peaks_from_decode', lambda *a: None)
+    t = ap.start_background_build(p, src, 1.0)
     t.join(30)
     assert ap.build_failed_recently(p, src) is True
     _gen_wav(src, 2.0)
     assert ap.build_failed_recently(p, src) is False
+
+
+def test_failure_is_not_remembered_for_a_source_replaced_during_the_build(tmp_path, monkeypatch):
+    src = _src(tmp_path, 2.0)
+    p = ap.peaks_file_path(src)
+    real = ap.build_peaks_from_decode
+
+    def replace_then_return(path, duration):
+        buckets = real(path, duration)
+        _gen_wav(src, 3.0, freq=880)
+        return buckets
+    monkeypatch.setattr(ap, 'build_peaks_from_decode', replace_then_return)
+    assert ap.build_peaks_file_locked(p, src, 2.0).status == ap.BUILD_FAILED
+    assert ap.build_failed_recently(p, src) is False
+
+
+def test_busy_background_build_keeps_an_existing_failure_memo(tmp_path, monkeypatch):
+    src = _src(tmp_path, 1.0)
+    p = ap.peaks_file_path(src)
+    monkeypatch.setattr(ap, 'build_peaks_from_decode', lambda *a: None)
+    assert ap.build_peaks_file_locked(p, src, 1.0).status == ap.BUILD_FAILED
+    assert ap.build_failed_recently(p, src) is True
+    ap.start_background_build(p, src, 1.0, runner=lambda *a: ap.BuildResult(ap.BUILD_BUSY)).join(30)
+    assert ap.build_failed_recently(p, src) is True
+    fd = os.open(ap.peaks_lock_path(p), os.O_CREAT | os.O_RDWR, 0o600)
+    fcntl.flock(fd, fcntl.LOCK_EX)
+    try:
+        ap.start_background_build(p, src, 1.0).join(30)
+    finally:
+        fcntl.flock(fd, fcntl.LOCK_UN)
+        os.close(fd)
+    assert ap.build_failed_recently(p, src) is True
 
 
 def test_maybe_write_ignores_an_empty_array(tmp_path):
@@ -492,6 +526,21 @@ def test_decode_window_above_zero_matches_full_decode_exactly(tmp_path, codec, e
     assert max(window[:7]) > 0.0
 
 
+_NEAR_ZERO_CASES = (
+    [(c, e, st) for c, e in (('libmp3lame', 'mp3'), ('aac', 'm4a'), ('pcm_s16le', 'wav'))
+     for st in (0.5, 0.99, 1.0, 1.01, 1.99)]
+    + [(c, e, st) for c, e in (('libmp3lame', 'mp3'), ('pcm_s16le', 'wav')) for st in (2.0, 2.01)])
+
+
+@pytest.mark.parametrize('codec,ext,start', _NEAR_ZERO_CASES)
+def test_decode_window_near_zero_equals_the_from_zero_decode(tmp_path, codec, ext, start):
+    src = tmp_path / f'{EP}-original.{ext}'
+    subprocess.run(['ffmpeg', '-y', '-f', 'lavfi', '-i', 'anoisesrc=d=8:c=pink:r=44100:a=0.5:seed=1',
+                    '-ac', '1', '-c:a', codec, str(src)], check=True, capture_output=True)
+    window, _ = ap.compute_peaks(src, start, start + 3, 10)
+    assert np.array_equal(np.array(window), _full_decode_slice(src, start, 300))
+
+
 def test_decode_window_near_start_uses_the_shorter_lead_in(tmp_path):
     src = _src(tmp_path, 3.0)
     window, _ = ap.compute_peaks(src, 0.25, 1.25, 10)
@@ -509,7 +558,7 @@ def test_failure_memory_expires_after_300_seconds(tmp_path, monkeypatch):
     p = ap.peaks_file_path(src)
     now = [1000.0]
     monkeypatch.setattr(ap, '_clock', lambda: now[0])
-    assert ap.build_peaks_file_locked(p, src, 1.0) == ap.BUILD_FAILED
+    assert ap.build_peaks_file_locked(p, src, 1.0).status == ap.BUILD_FAILED
     now[0] += 299
     assert ap.build_failed_recently(p, src) is True
     now[0] += 2
@@ -520,20 +569,18 @@ def test_inline_failure_is_remembered_and_cleared_by_a_success(tmp_path, monkeyp
     src = _src(tmp_path, 1.0)
     p = ap.peaks_file_path(src)
     monkeypatch.setattr(ap, '_write_atomic', lambda *a, **k: (_ for _ in ()).throw(OSError('ro')))
-    assert ap.build_peaks_file_locked(p, src, 1.0) == ap.BUILD_FAILED
+    assert ap.build_peaks_file_locked(p, src, 1.0).status == ap.BUILD_FAILED
     assert ap.build_failed_recently(p, src) is True
     monkeypatch.undo()
-    assert ap.build_peaks_file_locked(p, src, 1.0) == ap.BUILD_OK
+    assert ap.build_peaks_file_locked(p, src, 1.0).status == ap.BUILD_OK
     assert ap.build_failed_recently(p, src) is False
 
 
 def test_unwritable_build_hands_back_the_decoded_buckets(tmp_path, monkeypatch):
     src = _src(tmp_path, 2.0)
     monkeypatch.setattr(ap, '_write_atomic', lambda *a, **k: (_ for _ in ()).throw(OSError('ro')))
-    keep = []
-    assert ap.build_peaks_file_locked(ap.peaks_file_path(src), src, 2.0,
-                                      fallback=keep) == ap.BUILD_FAILED
-    assert len(keep) == 1 and len(keep[0]) == 200
+    result = ap.build_peaks_file_locked(ap.peaks_file_path(src), src, 2.0)
+    assert result.status == ap.BUILD_FAILED and len(result.buckets) == 200
 
 
 def test_lock_wait_ends_busy_after_the_deadline_without_sleeping(tmp_path, monkeypatch):
@@ -546,65 +593,77 @@ def test_lock_wait_ends_busy_after_the_deadline_without_sleeping(tmp_path, monke
     fd = os.open(ap.peaks_lock_path(p), os.O_CREAT | os.O_RDWR, 0o600)
     fcntl.flock(fd, fcntl.LOCK_EX)
     try:
-        assert ap.build_peaks_file_locked(p, src, 1.0, wait_seconds=25) == ap.BUILD_BUSY
+        assert ap.build_peaks_file_locked(p, src, 1.0, wait_seconds=25).status == ap.BUILD_BUSY
     finally:
         fcntl.flock(fd, fcntl.LOCK_UN)
         os.close(fd)
     assert len(pauses) >= 2
 
 
-def _hold_first_build(monkeypatch):
-    """Patch the decode to block until released; _pause signals a blocked waiter."""
-    started, blocked, release = threading.Event(), threading.Event(), threading.Event()
-    decodes = []
-    real_decode, real_pause = ap.build_peaks_from_decode, ap._pause
+class _HeldBuild:
+    def __init__(self):
+        self.started, self.blocked, self.release = (threading.Event() for _ in range(3))
+        self.decodes = []
+        self.threads = []
+
+    def spawn(self, fn):
+        t = threading.Thread(target=fn)
+        self.threads.append(t)
+        t.start()
+        return t
+
+
+@pytest.fixture
+def held_build(monkeypatch):
+    """Block the first decode until released; a waiter's _pause signals it is blocked."""
+    held = _HeldBuild()
+    real_decode = ap.build_peaks_from_decode
 
     def slow(path, duration):
-        decodes.append(1)
-        started.set()
-        release.wait(30)
+        held.decodes.append(1)
+        held.started.set()
+        held.release.wait(30)
         return real_decode(path, duration)
 
     def pause(seconds):
-        blocked.set()
-        real_pause(0.01)
+        held.blocked.set()
+        held.release.wait(30)
     monkeypatch.setattr(ap, 'build_peaks_from_decode', slow)
     monkeypatch.setattr(ap, '_pause', pause)
-    return started, blocked, release, decodes
+    try:
+        yield held
+    finally:
+        held.release.set()
+        for t in held.threads:
+            t.join(30)
 
 
-def test_second_build_waits_for_the_first_and_decodes_nothing(tmp_path, monkeypatch):
+def test_second_build_waits_for_the_first_and_decodes_nothing(tmp_path, held_build):
     src = _src(tmp_path, 2.0)
     p = ap.peaks_file_path(src)
-    started, blocked, release, decodes = _hold_first_build(monkeypatch)
     results = []
-    t1 = threading.Thread(target=lambda: results.append(ap.build_peaks_file_locked(p, src, 2.0)))
-    t1.start()
-    assert started.wait(30)
-    t2 = threading.Thread(
-        target=lambda: results.append(ap.build_peaks_file_locked(p, src, 2.0, wait_seconds=60)))
-    t2.start()
-    assert blocked.wait(30)
+    t1 = held_build.spawn(lambda: results.append(ap.build_peaks_file_locked(p, src, 2.0).status))
+    assert held_build.started.wait(30)
+    t2 = held_build.spawn(
+        lambda: results.append(ap.build_peaks_file_locked(p, src, 2.0, wait_seconds=60).status))
+    assert held_build.blocked.wait(30)
     assert not p.exists()
-    release.set()
+    held_build.release.set()
     t1.join(30)
     t2.join(30)
-    assert results == [ap.BUILD_OK, ap.BUILD_OK] and len(decodes) == 1
+    assert results == [ap.BUILD_OK, ap.BUILD_OK] and len(held_build.decodes) == 1
 
 
-def test_route_two_overlapping_requests_build_once(route, monkeypatch):
-    started, blocked, release, decodes = _hold_first_build(monkeypatch)
-    bodies = []
-    t1 = threading.Thread(target=lambda: bodies.append(route(client=route.new_client()).status_code))
-    t1.start()
-    assert started.wait(30)
-    t2 = threading.Thread(target=lambda: bodies.append(route(client=route.new_client()).status_code))
-    t2.start()
-    assert blocked.wait(30)
-    release.set()
+def test_route_two_overlapping_requests_build_once(route, held_build):
+    codes = []
+    t1 = held_build.spawn(lambda: codes.append(route(client=route.new_client()).status_code))
+    assert held_build.started.wait(30)
+    t2 = held_build.spawn(lambda: codes.append(route(client=route.new_client()).status_code))
+    assert held_build.blocked.wait(30)
+    held_build.release.set()
     t1.join(30)
     t2.join(30)
-    assert bodies == [200, 200] and len(decodes) == 1
+    assert codes == [200, 200] and len(held_build.decodes) == 1
 
 
 def test_route_unwritable_directory_decodes_once_then_remembers(route, monkeypatch):
@@ -645,6 +704,20 @@ def test_probe_failure_is_cached_briefly(route, monkeypatch):
     now[0] += media.PEAKS_PROBE_RETRY_SECONDS + 1
     ap.peaks_file_path(route.src).unlink()
     route()
+    assert len(probes) == 2
+
+
+def test_probe_failure_memo_is_dropped_when_the_original_is_replaced(route, monkeypatch):
+    from api.episodes import media
+    route.episode['original_duration'] = None
+    probes = []
+    monkeypatch.setattr(media, 'get_audio_duration', lambda p: probes.append(p) or None)
+    monkeypatch.setattr(media, '_clock', lambda: 0.0)
+    media._probe_failures.clear()
+    assert route().status_code == 200
+    ap.peaks_file_path(route.src).unlink()
+    _gen_wav(route.src, 5.0, freq=880)
+    assert route().status_code == 200
     assert len(probes) == 2
 
 

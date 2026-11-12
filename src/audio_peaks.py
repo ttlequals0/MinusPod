@@ -24,6 +24,7 @@ import threading
 import time
 from dataclasses import dataclass
 from pathlib import Path
+from typing import NamedTuple
 
 import numpy as np
 
@@ -61,6 +62,7 @@ _HASHED_CACHE_MAX = 256
 
 _GRID_EPSILON = 1e-6
 _SEEK_LEAD_IN_SECONDS = 1.0
+_SEEK_MIN_START_SECONDS = 2.0
 
 
 class PeaksError(RuntimeError):
@@ -117,11 +119,12 @@ def compute_peaks(audio_path: Path | str,
             resolution_ms = min(1000, max(resolution_ms, scaled))
 
     cmd = ['ffmpeg', *SAFE_MEDIA_INPUT_ARGS, '-hide_banner', '-loglevel', 'error']
-    # Seek short of the start so the decoder is warm, then drop the lead-in exactly
-    lead_in = min(start, _SEEK_LEAD_IN_SECONDS)
+    # Near the start decode from zero: a seek there changes AAC priming. Later, seek short and trim.
+    seek = start - _SEEK_LEAD_IN_SECONDS if start >= _SEEK_MIN_START_SECONDS else 0.0
+    lead_in = start - seek
     discard = int(round(lead_in * PEAKS_SAMPLE_RATE_HZ))
-    if start > 0:
-        cmd += ['-ss', f'{start - lead_in:.3f}']
+    if seek > 0:
+        cmd += ['-ss', f'{seek:.3f}']
     cmd += ['-i', str(audio_path)]
     if duration is not None:
         cmd += ['-t', f'{duration + lead_in:.3f}']
@@ -493,63 +496,64 @@ def _source_stamp(source_path: Path) -> tuple[int, int] | None:
     return st.st_size, st.st_mtime_ns
 
 
-def _build_and_write(peaks_path: Path, source_path: Path, duration: float,
-                     fallback: list | None = None) -> bool:
-    """Decode the source and write its peaks file; discards the result if the source changed.
+class BuildResult(NamedTuple):
+    """Outcome of a locked build; ``buckets`` is set when the decode worked but the write failed."""
+    status: str
+    buckets: np.ndarray | None = None
 
-    When the decode worked but the write failed, the buckets are appended to ``fallback``.
-    """
+
+def _build_and_write(peaks_path: Path, source_path: Path, duration: float) -> BuildResult:
+    """Decode the source and write its peaks file; discards the result if the source changed."""
     st = source_path.stat()
     stamp = (st.st_size, st.st_mtime_ns)
     buckets = build_peaks_from_decode(source_path, duration)
     if buckets is None:
-        return False
+        return BuildResult(BUILD_FAILED)
     try:
         write_peaks_file(peaks_path, buckets, source_path, expect_stat=stamp)
-    except OSError:
-        if fallback is not None and _source_stamp(source_path) == stamp:
-            fallback.append(buckets)
-        raise
+    except OSError as e:
+        logger.warning('Peaks build failed for %s: %s', source_path.name, e)
+        return BuildResult(BUILD_FAILED, buckets if _source_stamp(source_path) == stamp else None)
     except PeaksSourceChanged:
         logger.info('Peaks build of %s discarded: source changed during decode', source_path.name)
-        return False
+        return BuildResult(BUILD_FAILED)
     # An original removed or replaced after the write: drop the file written for it
     if _source_stamp(source_path) != stamp:
         discard_stale_peaks_file(source_path)
-        return False
-    return True
+        return BuildResult(BUILD_FAILED)
+    return BuildResult(BUILD_OK)
 
 
 def build_peaks_file_locked(peaks_path: Path, source_path: Path, duration: float,
-                            wait_seconds: float = 0.0, fallback: list | None = None) -> str:
+                            wait_seconds: float = 0.0) -> BuildResult:
     """Build the peaks file under a cross-process lock; never raises.
 
     BUILD_OK when a valid file exists on return, BUILD_BUSY when another process
     still holds the lock after ``wait_seconds``, BUILD_FAILED otherwise (remembered
-    for a while). Buckets decoded but not writable are appended to ``fallback``.
+    for a while, with the decoded buckets when only the write failed).
     """
-    outcome = _build_locked(peaks_path, source_path, duration, wait_seconds, fallback)
-    _record_build_outcome(str(peaks_path), source_path, outcome)
-    return outcome
+    stamp = _source_stamp(Path(source_path))
+    result = _build_locked(peaks_path, source_path, duration, wait_seconds)
+    _record_build_outcome(str(peaks_path), stamp, result.status)
+    return result
 
 
-def _build_locked(peaks_path, source_path, duration, wait_seconds, fallback) -> str:
+def _build_locked(peaks_path, source_path, duration, wait_seconds) -> BuildResult:
     peaks_path, source_path = Path(peaks_path), Path(source_path)
     try:
         fd = _acquire_build_lock(peaks_path, wait_seconds)
     except OSError as e:
         logger.warning('Peaks build lock unavailable for %s: %s', source_path.name, e)
-        return BUILD_FAILED
+        return BuildResult(BUILD_FAILED)
     if fd is None:
-        return BUILD_BUSY
+        return BuildResult(BUILD_BUSY)
     try:
         if validate_or_restamp_peaks_file(peaks_path, source_path):
-            return BUILD_OK
-        return (BUILD_OK if _build_and_write(peaks_path, source_path, duration, fallback)
-                else BUILD_FAILED)
+            return BuildResult(BUILD_OK)
+        return _build_and_write(peaks_path, source_path, duration)
     except Exception as e:
         logger.warning('Peaks build failed for %s: %s', source_path.name, e)
-        return BUILD_FAILED
+        return BuildResult(BUILD_FAILED)
     finally:
         os.close(fd)
 
@@ -574,17 +578,17 @@ def build_failed_recently(peaks_path: Path, source_path: Path) -> bool:
             and (st.st_size, st.st_mtime_ns) == memo[1:])
 
 
-def _record_build_outcome(key: str, source_path: Path, outcome) -> None:
-    try:
-        st = Path(source_path).stat()
-    except OSError:
-        return
-    with _inflight_lock:
-        if outcome == BUILD_FAILED:
-            _build_failures[key] = (_clock(), st.st_size, st.st_mtime_ns)
+def _record_build_outcome(key: str, stamp: tuple[int, int] | None, outcome: str) -> None:
+    """Remember a failure against the source stamp taken before the build; a success clears it."""
+    if outcome == BUILD_FAILED:
+        if stamp is None:
+            return
+        with _inflight_lock:
+            _build_failures[key] = (_clock(), *stamp)
             while len(_build_failures) > _HASHED_CACHE_MAX:
                 _build_failures.pop(next(iter(_build_failures)))
-        else:
+    elif outcome == BUILD_OK:
+        with _inflight_lock:
             _build_failures.pop(key, None)
 
 
@@ -603,13 +607,13 @@ def start_background_build(peaks_path: Path, source_path: Path, duration: float,
     run = runner or build_peaks_file_locked
 
     def _target():
-        outcome = BUILD_FAILED
+        stamp = _source_stamp(Path(source_path))
         try:
-            outcome = run(Path(peaks_path), Path(source_path), duration)
+            run(Path(peaks_path), Path(source_path), duration)
         except Exception as e:
             logger.warning('Background peaks build failed for %s: %s', Path(source_path).name, e)
+            _record_build_outcome(key, stamp, BUILD_FAILED)
         finally:
-            _record_build_outcome(key, source_path, outcome)
             with _inflight_lock:
                 _inflight.discard(key)
 
