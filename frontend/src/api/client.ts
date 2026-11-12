@@ -50,6 +50,8 @@ interface RequestOptions {
   // Hand a 503 that carries Retry-After to the caller at once instead of retrying it.
   surfaceBusy?: boolean;
   onResponse?: (status: number) => void;
+  // 'blob' hands back the raw body of a binary endpoint instead of parsing JSON.
+  responseType?: 'json' | 'blob';
 }
 
 function isRetryable(status: number): boolean {
@@ -172,7 +174,7 @@ function handleUnauthorized(endpoint: string): void {
 export async function apiRequest<T>(endpoint: string, options: RequestOptions = {}): Promise<T> {
   const {
     method = 'GET', body, skipAuthRedirect = false, signal,
-    skipRetry = false, retry, surfaceBusy = false, onResponse,
+    skipRetry = false, retry, surfaceBusy = false, onResponse, responseType = 'json',
   } = options;
   const safeMethod = CSRF_SAFE_METHODS.has(method.toUpperCase());
   const retryEnabled = retry ?? (safeMethod && !skipRetry);
@@ -215,6 +217,8 @@ export async function apiRequest<T>(endpoint: string, options: RequestOptions = 
         const error = await response.json().catch(() => null);
         throw new ApiError(errorMessageFor(error, response.status), response.status, error ?? { error: 'Request failed' }, retryAfterMs(response), response.headers.get('Retry-After') !== null);
       }
+
+      if (responseType === 'blob') return await response.blob() as T;
 
       const contentType = response.headers.get('content-type');
       if (response.status === 204 || response.headers.get('content-length') === '0' || !contentType?.includes('application/json')) {

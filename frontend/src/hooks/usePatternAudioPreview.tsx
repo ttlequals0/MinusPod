@@ -1,41 +1,100 @@
-import { useEffect, useState } from 'react';
-import { explainPreviewFailure, patternAudioPreviewUrl } from '../api/patterns';
-import { useAuditionPlayer } from './useAuditionPlayer';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { describePreviewFailure, fetchPatternAudioClip, patternAudioPreviewUrl } from '../api/patterns';
 
 const SOURCE_KEY = 'source';
+const keyOf = (matchId?: number) => (matchId === undefined ? SOURCE_KEY : String(matchId));
+const DECODE_FAILURE = 'Could not play this audio. Try again.';
 
-// One shared player for a pattern's source clip and its matches, with a plain message when a clip cannot load.
+// One player for a pattern's source clip and its matches. A clip is fetched once as a
+// blob, so a failure carries its status and a retry is a new request.
 export function usePatternAudioPreview(patternId: number) {
-  const player = useAuditionPlayer();
-  const { failedKey } = player;
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const objectUrlRef = useRef<string | null>(null);
+  const abortRef = useRef<AbortController | null>(null);
+  const [playingKey, setPlayingKey] = useState<string | null>(null);
+  const [loadingKey, setLoadingKey] = useState<string | null>(null);
   const [failure, setFailure] = useState<{ key: string; text: string } | null>(null);
 
-  useEffect(() => {
-    if (!failedKey) return;
-    const matchId = failedKey === SOURCE_KEY ? undefined : Number(failedKey);
-    const url = patternAudioPreviewUrl(patternId, matchId);
-    if (!url) return;
-    let live = true;
-    void explainPreviewFailure(url).then((text) => {
-      if (live) setFailure({ key: failedKey, text });
-    });
-    return () => { live = false; };
-  }, [failedKey, patternId]);
-
-  const toggle = (matchId?: number) => {
-    setFailure(null);
-    const key = matchId === undefined ? SOURCE_KEY : String(matchId);
-    // The clip is the span itself, so it plays to its own end.
-    player.toggle(key, patternAudioPreviewUrl(patternId, matchId), 0, Number.POSITIVE_INFINITY);
+  const revoke = () => {
+    if (objectUrlRef.current) URL.revokeObjectURL(objectUrlRef.current);
+    objectUrlRef.current = null;
   };
 
-  const keyOf = (matchId?: number) => (matchId === undefined ? SOURCE_KEY : String(matchId));
+  const stop = () => {
+    abortRef.current?.abort();
+    audioRef.current?.pause();
+    setPlayingKey(null);
+    setLoadingKey(null);
+  };
+
+  useEffect(() => () => {
+    abortRef.current?.abort();
+    audioRef.current?.pause();
+    if (objectUrlRef.current) URL.revokeObjectURL(objectUrlRef.current);
+  }, []);
+
+  const start = async (matchId?: number) => {
+    const key = keyOf(matchId);
+    abortRef.current?.abort();
+    audioRef.current?.pause();
+    const controller = new AbortController();
+    abortRef.current = controller;
+    setFailure(null);
+    setPlayingKey(null);
+    setLoadingKey(key);
+    try {
+      const blob = await fetchPatternAudioClip(patternId, matchId, controller.signal);
+      const audio = audioRef.current;
+      if (controller.signal.aborted || !audio) return;
+      revoke();
+      objectUrlRef.current = URL.createObjectURL(blob);
+      audio.src = objectUrlRef.current;
+      setLoadingKey(null);
+      setPlayingKey(key);
+      await audio.play();
+    } catch (error) {
+      if (controller.signal.aborted) return;
+      setLoadingKey(null);
+      setPlayingKey(null);
+      setFailure({ key, text: describePreviewFailure(error) });
+    }
+  };
+
+  const toggle = (matchId?: number) => {
+    const key = keyOf(matchId);
+    if (playingKey === key || loadingKey === key) {
+      stop();
+      return;
+    }
+    // The demo build has no audio.
+    if (!patternAudioPreviewUrl(patternId, matchId)) return;
+    void start(matchId);
+  };
+
+  const attachAudio = useCallback((el: HTMLAudioElement | null) => {
+    if (el) audioRef.current = el;
+  }, []);
+
+  const audioElement = (
+    <audio
+      ref={attachAudio}
+      preload="none"
+      onEnded={() => setPlayingKey(null)}
+      onError={() => {
+        if (!playingKey) return;
+        setFailure({ key: playingKey, text: DECODE_FAILURE });
+        setPlayingKey(null);
+      }}
+    />
+  );
+
   return {
-    audioElement: player.audioElement,
-    stop: player.stop,
+    audioElement,
+    stop,
     toggle,
-    isPlaying: (matchId?: number) => player.playingKey === keyOf(matchId),
-    errorFor: (matchId?: number) => (failure?.key === keyOf(matchId) && failedKey === failure.key ? failure.text : null),
+    isPlaying: (matchId?: number) => playingKey === keyOf(matchId),
+    isLoading: (matchId?: number) => loadingKey === keyOf(matchId),
+    errorFor: (matchId?: number) => (failure?.key === keyOf(matchId) ? failure.text : null),
   };
 }
 

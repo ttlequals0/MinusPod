@@ -12,17 +12,6 @@ function Harness({ showAudio }: { showAudio: boolean }) {
   );
 }
 
-function FailHarness() {
-  const player = useAuditionPlayer();
-  return (
-    <div>
-      <button type="button" onClick={() => player.toggle('a', '/original.mp3', 0, 5)}>play</button>
-      <output data-testid="failed">{player.failedKey ?? ''}</output>
-      {player.audioElement}
-    </div>
-  );
-}
-
 describe('useAuditionPlayer', () => {
   afterEach(() => vi.restoreAllMocks());
 
@@ -35,23 +24,5 @@ describe('useAuditionPlayer', () => {
     pause.mockClear();
     view.unmount();
     expect(pause).toHaveBeenCalled();
-  });
-
-  it('reports the key whose playback failed, and clears it on the next play', async () => {
-    const play = vi.spyOn(HTMLMediaElement.prototype, 'play').mockRejectedValueOnce(new Error('no'));
-    render(<FailHarness />);
-    fireEvent.click(screen.getByRole('button', { name: 'play' }));
-    await vi.waitFor(() => expect(screen.getByTestId('failed').textContent).toBe('a'));
-    play.mockResolvedValue(undefined);
-    fireEvent.click(screen.getByRole('button', { name: 'play' }));
-    expect(screen.getByTestId('failed').textContent).toBe('');
-  });
-
-  it('reports the playing key when the audio element errors', () => {
-    vi.spyOn(HTMLMediaElement.prototype, 'play').mockResolvedValue(undefined);
-    const view = render(<FailHarness />);
-    fireEvent.click(screen.getByRole('button', { name: 'play' }));
-    fireEvent.error(view.container.querySelector('audio') as HTMLAudioElement);
-    expect(screen.getByTestId('failed').textContent).toBe('a');
   });
 });

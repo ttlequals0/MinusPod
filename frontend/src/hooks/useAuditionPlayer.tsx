@@ -15,9 +15,6 @@ export function useAuditionPlayer(preloadSrc?: string | null) {
   // row bails instead of arming a stray stop listener or seeking the wrong row.
   const reqRef = useRef(0);
   const [playingKey, setPlayingKey] = useState<string | null>(null);
-  // Key of the last playback that failed to load; cleared when another play starts.
-  const [failedKey, setFailedKey] = useState<string | null>(null);
-  const activeKeyRef = useRef<string | null>(null);
   // The source currently loaded in the element. Tracked here (not via string
   // comparison against audio.src) because the browser absolutizes audio.src,
   // making suffix matching against a relative path fragile.
@@ -40,7 +37,6 @@ export function useAuditionPlayer(preloadSrc?: string | null) {
   const stop = () => {
     clearStop();
     audioRef.current?.pause();
-    activeKeyRef.current = null;
     setPlayingKey(null);
   };
 
@@ -52,8 +48,6 @@ export function useAuditionPlayer(preloadSrc?: string | null) {
     // Set playing state synchronously (not in play().then) so a second click
     // pauses during a cold load instead of starting a duplicate playback.
     setPlayingKey(key);
-    setFailedKey(null);
-    activeKeyRef.current = key;
     // A different source resets the element to HAVE_NOTHING; the cold-load
     // path below then seeks once the new metadata arrives.
     if (srcRef.current !== src) {
@@ -77,10 +71,7 @@ export function useAuditionPlayer(preloadSrc?: string | null) {
     const settle = () => { switchingRef.current = false; };
     const fail = () => {
       settle();
-      if (reqRef.current === req) {
-        setPlayingKey(null);
-        setFailedKey(key);
-      }
+      if (reqRef.current === req) setPlayingKey(null);
     };
     if (audio.readyState >= 1) {
       audio.currentTime = startS;
@@ -129,12 +120,9 @@ export function useAuditionPlayer(preloadSrc?: string | null) {
         if (!switchingRef.current) setPlayingKey(null);
       }}
       onEnded={() => setPlayingKey(null)}
-      onError={() => {
-        setFailedKey(activeKeyRef.current);
-        setPlayingKey(null);
-      }}
+      onError={() => setPlayingKey(null)}
     />
   );
 
-  return { playingKey, failedKey, toggle, stop, audioElement };
+  return { playingKey, toggle, stop, audioElement };
 }

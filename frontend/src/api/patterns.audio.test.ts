@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 const mockApiRequest = vi.fn();
 
@@ -9,10 +9,11 @@ vi.mock('./client', async (importOriginal) => ({
 
 import {
   getPatternAudio, setPatternAudioEnabled, deletePatternAudio, rebuildPatternAudio,
-  getPatternAudioMatches, patternAudioPreviewUrl, describeFingerprintSkip, explainPreviewFailure,
+  getPatternAudioMatches, patternAudioPreviewUrl, describeFingerprintSkip, fetchPatternAudioClip, describePreviewFailure,
   type FingerprintSkippedReason,
 } from './patterns';
 import { getAudioMatchingStats } from './stats';
+import { ApiError } from './client';
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -97,41 +98,41 @@ describe('describeFingerprintSkip', () => {
   });
 });
 
-describe('explainPreviewFailure', () => {
-  function stubFetch(status: number, body: unknown) {
-    const fetchMock = vi.fn().mockResolvedValue({
-      ok: status < 400, status, json: async () => body,
-    } as unknown as Response);
-    vi.stubGlobal('fetch', fetchMock);
-    return fetchMock;
-  }
-  afterEach(() => vi.unstubAllGlobals());
-
-  it('asks for one byte so nothing is downloaded', async () => {
-    const fetchMock = stubFetch(503, {});
-    await explainPreviewFailure('/api/v1/patterns/7/audio/preview');
-    expect(fetchMock).toHaveBeenCalledWith('/api/v1/patterns/7/audio/preview', expect.objectContaining({ headers: { Range: 'bytes=0-0' } }));
+describe('fetchPatternAudioClip', () => {
+  it('fetches the clip once as a blob without retrying a busy server', async () => {
+    const blob = new Blob(['x']);
+    mockApiRequest.mockResolvedValue(blob);
+    const controller = new AbortController();
+    await expect(fetchPatternAudioClip(7, 102, controller.signal)).resolves.toBe(blob);
+    expect(mockApiRequest).toHaveBeenCalledTimes(1);
+    expect(mockApiRequest).toHaveBeenCalledWith('/patterns/7/audio/preview?matchId=102', {
+      responseType: 'blob', skipRetry: true, signal: controller.signal,
+    });
   });
 
-  it('says a busy server is preparing the audio', async () => {
-    stubFetch(503, { error: 'busy' });
-    await expect(explainPreviewFailure('/x')).resolves.toBe('Audio is being prepared. Try again.');
+  it('asks for the source clip without a match id', async () => {
+    mockApiRequest.mockResolvedValue(new Blob());
+    await fetchPatternAudioClip(7);
+    expect(mockApiRequest.mock.calls[0][0]).toBe('/patterns/7/audio/preview');
+  });
+});
+
+describe('describePreviewFailure', () => {
+  it('says a busy server is preparing the audio', () => {
+    expect(describePreviewFailure(new ApiError('busy', 503, { error: 'busy' }, 2000, true))).toBe('Audio is being prepared. Try again.');
   });
 
-  it('says when the original is gone', async () => {
-    stubFetch(404, { code: 'original_not_retained' });
-    await expect(explainPreviewFailure('/x')).resolves.toBe("This episode's original audio is no longer kept.");
+  it('says when the original is gone', () => {
+    expect(describePreviewFailure(new ApiError('gone', 404, { code: 'original_not_retained' }))).toBe("This episode's original audio is no longer kept.");
   });
 
-  it('says when the pattern has no audio', async () => {
-    stubFetch(404, { code: 'no_audio' });
-    await expect(explainPreviewFailure('/x')).resolves.toBe('This pattern has no audio fingerprint.');
+  it('says when the pattern has no audio', () => {
+    expect(describePreviewFailure(new ApiError('none', 404, { code: 'no_audio' }))).toBe('This pattern has no audio fingerprint.');
   });
 
-  it('falls back to a plain message for anything else, including a network failure', async () => {
-    stubFetch(500, {});
-    await expect(explainPreviewFailure('/x')).resolves.toBe('Could not play this audio.');
-    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('offline')));
-    await expect(explainPreviewFailure('/x')).resolves.toBe('Could not play this audio.');
+  it('falls back to a plain retryable message for anything else', () => {
+    expect(describePreviewFailure(new ApiError('boom', 500, {}))).toBe('Could not play this audio. Try again.');
+    expect(describePreviewFailure(new ApiError('busy', 503, {}))).toBe('Could not play this audio. Try again.');
+    expect(describePreviewFailure(new TypeError('offline'))).toBe('Could not play this audio. Try again.');
   });
 });

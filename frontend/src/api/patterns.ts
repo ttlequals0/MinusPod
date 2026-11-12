@@ -1,4 +1,4 @@
-import { apiRequest, apiFileRequest, buildQueryString } from './client';
+import { ApiError, apiRequest, apiFileRequest, buildQueryString } from './client';
 import { downloadBlob } from './history';
 import type { SegmentCategory } from '../utils/segmentCategory';
 import { apiUrl } from '../urlPrefix';
@@ -531,18 +531,18 @@ export function patternAudioPreviewUrl(id: number, matchId?: number): string | n
   return mediaUrl({ kind: 'audio', url: apiUrl(`/patterns/${id}/audio/preview${qs}`) });
 }
 
-// An <audio> element cannot read the status of a failed load, so ask the route for one byte.
-export async function explainPreviewFailure(url: string): Promise<string> {
-  const fallback = 'Could not play this audio.';
-  try {
-    const res = await fetch(url, { headers: { Range: 'bytes=0-0' } });
-    if (res.status === 503) return 'Audio is being prepared. Try again.';
-    if (res.status !== 404) return fallback;
-    const body = (await res.json().catch(() => null)) as { code?: string } | null;
-    if (body?.code === 'original_not_retained') return describeFingerprintSkip('original_not_retained');
-    if (body?.code === 'no_audio') return 'This pattern has no audio fingerprint.';
-  } catch {
-    // a network failure reads the same as any other unplayable audio
+// Fetched once as a blob so the failure status is readable; an <audio> src load hides it.
+export async function fetchPatternAudioClip(id: number, matchId?: number, signal?: AbortSignal): Promise<Blob> {
+  const qs = buildQueryString({ matchId });
+  return apiRequest<Blob>(`/patterns/${id}/audio/preview${qs}`, { responseType: 'blob', skipRetry: true, signal });
+}
+
+export function describePreviewFailure(error: unknown): string {
+  if (error instanceof ApiError) {
+    const code = (error.body as { code?: string } | null)?.code;
+    if (error.status === 503 && error.hasRetryAfter) return 'Audio is being prepared. Try again.';
+    if (error.status === 404 && code === 'original_not_retained') return describeFingerprintSkip('original_not_retained');
+    if (error.status === 404 && code === 'no_audio') return 'This pattern has no audio fingerprint.';
   }
-  return fallback;
+  return 'Could not play this audio. Try again.';
 }
