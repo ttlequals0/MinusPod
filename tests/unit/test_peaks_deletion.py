@@ -388,6 +388,32 @@ def test_upload_recovery_without_a_move_leaves_peaks(db_storage, tmp_path):
     assert peaks.exists()
 
 
+def test_import_rollback_moving_the_original_back_removes_its_peaks_file(db_storage, local_feed, real_mp3_bytes):
+    db, storage = db_storage
+    slug = local_feed
+    src_dir = storage.import_source_dir(slug)
+    src_dir.mkdir(parents=True)
+    audio = src_dir / 'S01E01 - Pilot.mp3'
+    audio.write_bytes(real_mp3_bytes)
+    entry = build_import_plan(slug, [audio], existing_ids=set(),
+                              overwrite=False, now_iso=NOW_ISO)['entries'][0]
+    reservation_id = db.reserve_staging_upload(slug, audio.name)
+    final = storage.get_original_path(slug, 's01e01')
+    peaks = storage.get_peaks_path(slug, 's01e01')
+
+    def lose_reservation(*_a, **_k):
+        _stamp_for(peaks, final)
+        return False
+
+    with patch.object(db, 'finish_upload_reservation', side_effect=lose_reservation), \
+            pytest.raises(RuntimeError, match='reservation was lost'):
+        local_import._commit_entry(
+            slug, entry, db, storage, overwrite=False, upserted=[], reservation_id=reservation_id)
+
+    assert audio.exists() and not final.exists()
+    assert not peaks.exists()
+
+
 def test_delete_processed_file_removes_the_build_lock(storage):
     _seed(storage)
     lock = storage.get_peaks_path(SLUG, EP).with_name(f'{EP}-original.peaks.lock')
