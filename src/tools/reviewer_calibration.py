@@ -29,8 +29,12 @@ _REPO_SRC = Path(__file__).resolve().parents[1]
 if str(_REPO_SRC) not in sys.path:
     sys.path.insert(0, str(_REPO_SRC))
 
+import database
 import llm_client as provider_clients
+from ad_reviewer import AdReviewer
 from config import PROVIDER_TYPESAFE
+from llm_route import resolve_route
+from utils.time import utc_now_iso
 
 logger = logging.getLogger(__name__)
 
@@ -302,8 +306,6 @@ def resolve_calibration_route():
     detection's actual slot and model instead of the primary. Sending the
     review model to the wrong endpoint 404s and opens that endpoint's breaker.
     """
-    from llm_route import resolve_route
-
     try:
         detection = resolve_route('detection')
         return resolve_route(
@@ -321,18 +323,13 @@ def run_calibration(llm_client=None, model: str | None = None, route=None) -> di
     Returns per-case verdicts, aggregate agreement, and structured_fraction.
     Raises on a missing model or broken client; the auto-run hook catches this.
     """
-    from ad_reviewer import AdReviewer
-    from database import Database
-    from llm_client import get_client_for_provider, require_llm
-    from utils.time import utc_now_iso
-
-    require_llm()
-    db = Database()
+    provider_clients.require_llm()
+    db = database.Database()
     client = llm_client
     resolved_model = model
     if client is None or resolved_model is None:
         route = route or resolve_calibration_route()
-        client = client or get_client_for_provider(
+        client = client or provider_clients.get_client_for_provider(
             route.provider_key, base_url=route.base_url,
             credential_slot=route.credential_slot)
         resolved_model = resolved_model or route.model_id
