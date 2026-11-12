@@ -341,6 +341,41 @@ def _handle_http_exception(exc):
     return jsonify({'error': exc.description, 'status': exc.code}), exc.code
 
 
+API_PATH_PREFIX = '/api/'
+
+
+def register_api_routing_errors(app):
+    """Answer unmatched paths and wrong methods under /api/ in JSON; other paths keep their pages."""
+    def route_exists(methods):
+        """Whether the path routes for one of these methods; a rejected int(max) id does not."""
+        adapter = app.url_map.bind_to_environ(request.environ)
+        for method in methods:
+            try:
+                adapter.match(method=method)
+                return True
+            except _HTTPException:
+                continue
+        return False
+
+    def api_json(exc, message):
+        if not request.path.startswith(API_PATH_PREFIX):
+            return exc
+        status = exc.code
+        allowed = getattr(exc, 'valid_methods', None)
+        # Werkzeug reports 405 for an id its converter rejects when another method's rule exists.
+        if status == 405 and not route_exists(allowed or ()):
+            status, message = 404, 'Not found'
+            allowed = None
+        response = jsonify({'error': message, 'status': status})
+        response.status_code = status
+        if allowed:
+            response.headers['Allow'] = ', '.join(allowed)
+        return response
+
+    app.register_error_handler(404, lambda exc: api_json(exc, 'Not found'))
+    app.register_error_handler(405, lambda exc: api_json(exc, 'Method not allowed'))
+
+
 @api.errorhandler(Exception)
 def _handle_uncaught_exception(_exc):
     """Return a sanitized 500; the traceback is logged server-side only."""

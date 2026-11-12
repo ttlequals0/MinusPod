@@ -21159,6 +21159,34 @@ components:
           schema:
             $ref: '#/components/schemas/Error'
 
+    UnknownApiPath:
+      description: >-
+        No route matches the path under /api/. This includes an id too large
+        for the route. A route that finds no record answers with its own message instead.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: Not found
+            status: 404
+
+    MethodNotAllowed:
+      description: >-
+        The path exists under /api/ but not for this method. The Allow header lists the methods it accepts.
+      headers:
+        Allow:
+          description: Methods the path accepts.
+          schema:
+            type: string
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: Method not allowed
+            status: 405
+
     ServerError:
       description: Internal server error
       content:

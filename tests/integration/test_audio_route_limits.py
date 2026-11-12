@@ -55,8 +55,7 @@ def test_page_clamp_on_an_empty_history_is_page_two(app_client, fp_audio_pattern
 @pytest.mark.parametrize('pid', ['9' * 20, OVER_INT64])
 def test_oversized_pattern_id_is_404(app_client, method, suffix, pid):
     r = getattr(app_client, method)(f'/api/v1/patterns/{pid}{suffix}', json={}, headers=csrf(app_client))
-    # Some unmatched non-GET paths reach the SPA catch-all, which answers 405
-    assert r.status_code in ((404,) if method == 'get' else (404, 405))
+    assert r.status_code == 404 and r.get_json() == {'error': 'Not found', 'status': 404}
 
 
 def test_largest_pattern_id_still_routes(app_client):
@@ -220,3 +219,4 @@ def test_failed_encode_frees_its_slot_and_caches_nothing(app_client, fp_audio_pa
 def test_unsatisfiable_range_is_416(app_client, fp_audio_pattern, fp_audio_original):
     r = _preview(app_client, fp_audio_pattern, Range='bytes=99999999-')
     assert r.status_code == 416
+

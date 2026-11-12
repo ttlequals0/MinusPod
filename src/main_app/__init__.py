@@ -577,8 +577,9 @@ compress.init_app(app)
 # middleware stack.
 
 # Import and register API blueprint
-from api import api as api_blueprint, init_limiter, limiter
+from api import api as api_blueprint, init_limiter, limiter, register_api_routing_errors
 app.register_blueprint(api_blueprint)
+register_api_routing_errors(app)
 init_limiter(app)
 
 
