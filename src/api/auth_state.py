@@ -24,8 +24,7 @@ LAST_USED_REFRESH_SECONDS = 60
 CLOCK_SKEW_SECONDS = 60
 # Probes answer without the session check so a database failure cannot turn them into a 500.
 AUTH_HOOK_EXEMPT_ENDPOINTS = frozenset({'api.health_live', 'api.health_check'})
-_FAILURE_LOGGED = 'auth_failure_logged'
-_PENDING = 'auth_pending'
+_HOLDER = 'auth_holder'
 
 
 @dataclass(frozen=True)
@@ -104,45 +103,72 @@ def check_session(db) -> AuthState:
                      remembered=remembered, limit_seconds=limit)
 
 
+class _RequestAuth:
+    """Auth bookkeeping for one request; ignored by any other request sharing the same g."""
+    __slots__ = ('request', 'pending', 'state', 'failed')
+
+    def __init__(self, req, pending: bool):
+        self.request = req
+        self.pending = pending
+        self.state = None
+        self.failed = False
+
+
+def _holder(create: bool = False) -> _RequestAuth | None:
+    if not has_request_context():
+        return None
+    req = request._get_current_object()
+    holder = g.get(_HOLDER)
+    # A preserved test-client context can keep g alive across requests, so match the request.
+    if holder is None or holder.request is not req:
+        if not create:
+            return None
+        holder = _RequestAuth(req, pending=False)
+        setattr(g, _HOLDER, holder)
+    return holder
+
+
 def refresh_auth(db=None, state: AuthState | None = None) -> AuthState | None:
     """Store this request's auth state: the one given, or a fresh session check; no-op outside a request."""
     if not has_request_context():
         return None
     if state is None:
         state = check_session(db or Database())
-    g.auth = state
+    holder = _holder(create=True)
+    holder.state, holder.pending = state, False
     return state
 
 
-def load_request_auth() -> None:
-    """Before-request hook: mark this request's session for a check on first use, without a database read."""
-    if request.endpoint not in AUTH_HOOK_EXEMPT_ENDPOINTS:
-        setattr(g, _PENDING, True)
+def load_request_auth(check: bool = True) -> None:
+    """Before-request hook: drop any earlier request's auth state and mark this one for a lazy check."""
+    setattr(g, _HOLDER, _RequestAuth(
+        request._get_current_object(),
+        pending=check and request.endpoint not in AUTH_HOOK_EXEMPT_ENDPOINTS))
 
 
 def stored_auth() -> AuthState | None:
     """The auth state already resolved for this request, or None."""
-    return g.get('auth') if has_request_context() else None
+    holder = _holder()
+    return holder.state if holder else None
 
 
 def _record_failure(exc: Exception) -> None:
-    g.pop('auth', None)
-    g.pop(_PENDING, None)
-    setattr(g, _FAILURE_LOGGED, True)
+    holder = _holder(create=True)
+    holder.state, holder.pending, holder.failed = None, False, True
     logger.error("Session check failed: %s: %s", type(exc).__name__, exc)
 
 
 def resolve_auth() -> AuthState | None:
     """Run the pending session check once and cache it; None when it failed or the hook never ran."""
-    state = stored_auth()
-    if state is None and has_request_context() and g.get(_PENDING):
+    holder = _holder()
+    if holder is None:
+        return None
+    if holder.state is None and holder.pending:
         try:
-            state = refresh_auth()
+            refresh_auth()
         except Exception as exc:
             _record_failure(exc)
-            return None
-        g.pop(_PENDING, None)
-    return state
+    return holder.state
 
 
 def _session_has_auth_marker() -> bool:
@@ -151,24 +177,28 @@ def _session_has_auth_marker() -> bool:
 
 def cookie_auth() -> AuthState | None:
     """State for cookie decisions: checked only when the session carries a sign-in marker."""
-    state = stored_auth()
-    if state is None and has_request_context() and g.get(_PENDING) and _session_has_auth_marker():
-        state = resolve_auth()
-    return state
+    holder = _holder()
+    if holder is None:
+        return None
+    if holder.state is None and holder.pending and _session_has_auth_marker():
+        return resolve_auth()
+    return holder.state
 
 
 def auth_check_failed() -> bool:
-    """Whether this request's session check raised."""
-    return has_request_context() and bool(g.get(_FAILURE_LOGGED)) and stored_auth() is None
+    """Whether this request's session check raised or found no stored state."""
+    holder = _holder()
+    return bool(holder and holder.failed and holder.state is None)
 
 
 def note_missing_auth() -> None:
     """Log, once per request, that auth state was read before the hook stored it."""
-    if has_request_context() and g.get(_FAILURE_LOGGED):
+    holder = _holder(create=True)
+    if holder is not None and holder.failed:
         return
     logger.error("Auth state read before the request hook stored it; treating as signed out")
-    if has_request_context():
-        setattr(g, _FAILURE_LOGGED, True)
+    if holder is not None:
+        holder.failed = True
 
 
 def current_auth() -> AuthState:

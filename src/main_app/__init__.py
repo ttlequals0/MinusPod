@@ -599,10 +599,9 @@ def _attach_request_id():
 
 @app.before_request
 def _check_session():
-    """Mark the session for one check on first use; anonymous page requests then read no settings."""
+    """Reset this request's auth state and mark it for one check on first use; anonymous pages read no settings."""
     # Public feed endpoints never read the session, so their responses stay cacheable.
-    if request.endpoint not in PUBLIC_FEED_ENDPOINTS:
-        load_request_auth()
+    load_request_auth(check=request.endpoint not in PUBLIC_FEED_ENDPOINTS)
 
 
 init_limiter(app)

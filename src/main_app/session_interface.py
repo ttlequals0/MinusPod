@@ -1,12 +1,11 @@
 from datetime import datetime, timedelta, timezone
 
-from flask import g
 from flask.sessions import SecureCookieSessionInterface
 from itsdangerous import BadSignature
 
 from api.auth_state import (
     SESSION_LAST_USED_KEY, SESSION_REMEMBERED_KEY, auth_check_failed, cookie_auth,
-    session_limit_seconds, valid_last_used,
+    session_limit_seconds, stored_auth, valid_last_used,
 )
 
 
@@ -30,7 +29,7 @@ class IdleExpiryCookieSessionInterface(SecureCookieSessionInterface):
     def get_expiration_time(self, app, session):
         if not session.permanent:
             return None
-        auth = g.get('auth')
+        auth = stored_auth()
         if auth is not None and auth.limit_seconds is not None:
             seconds = auth.limit_seconds
         else:

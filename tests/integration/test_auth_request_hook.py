@@ -270,3 +270,43 @@ def test_blank_stored_session_lengths_export_report_the_default_and_log_in(clien
                        environ_base={'REMOTE_ADDR': '203.0.113.10'})
     assert resp.status_code == 200, resp.get_json()
     assert abs(_lifetime_seconds(_set_cookie(resp, 'session')) - 24 * 3600) < 60
+
+
+def test_anonymous_request_inside_a_signed_in_context_is_401(client, db, clock):
+    # client's preserved context keeps the app context, and with it g, alive.
+    _signed_in(client, db, clock)
+    assert client.get('/api/v1/auth/status').get_json()['authenticated'] is True
+    with app.test_client() as anonymous:
+        resp = anonymous.post('/api/v1/feeds', json={})
+        assert resp.status_code == 401
+        assert _set_cookie(resp, CSRF_COOKIE_NAME) is None
+        assert anonymous.get('/api/v1/auth/status').get_json()['authenticated'] is False
+
+
+def test_signed_in_request_inside_an_anonymous_context_works(client, db, clock):
+    assert client.get('/api/v1/auth/status').get_json()['authenticated'] is False
+    with app.test_client() as signed:
+        _signed_in(signed, db, clock)
+        resp = signed.get('/api/v1/auth/status')
+        assert resp.get_json()['authenticated'] is True
+        assert _set_cookie(resp, CSRF_COOKIE_NAME) is not None
+
+
+@pytest.mark.parametrize('exempt', ['/api/v1/health/live', '/example-podcast'])
+def test_an_exempt_request_carries_no_auth_state(client, db, clock, exempt):
+    _signed_in(client, db, clock)
+    assert client.get('/api/v1/auth/status').get_json()['authenticated'] is True
+    with app.test_client() as anonymous:
+        anonymous.get(exempt)
+        assert auth_state.stored_auth() is None
+        assert anonymous.post('/api/v1/feeds', json={}).status_code == 401
+
+
+def test_a_state_from_another_request_is_never_trusted(client, db, clock):
+    _signed_in(client, db, clock)
+    client.get('/api/v1/auth/status')
+    with app.test_request_context('/api/v1/feeds'):
+        auth_state.refresh_auth(state=auth_state.AuthState(True, True, True, True))
+    with app.test_request_context('/api/v1/feeds'):
+        assert auth_state.stored_auth() is None
+        assert auth_state.current_auth().signed_in is False
