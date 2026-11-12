@@ -61,7 +61,7 @@ def test_effective_network_matches_before_and_after_the_migration(temp_db):
         conn.execute("UPDATE podcasts SET network_id_override = ?, network_id = ? WHERE slug = ?",
                      (override, detected, slug))
     conn.commit()
-    old = {slug: conn.execute(f"SELECT {OLD_EFFECTIVE_SQL} FROM podcasts WHERE slug = ?", (slug,)).fetchone()[0]
+    old = {slug: conn.execute(f"SELECT {OLD_EFFECTIVE_SQL} FROM podcasts WHERE slug = ?", (slug,)).fetchone()[0]  # noqa: S608
            for slug in rows}
 
     conn.execute("DELETE FROM schema_migrations WHERE name = ?", (GATE,))
