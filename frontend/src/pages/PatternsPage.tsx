@@ -536,7 +536,7 @@ function PatternsPage() {
                   </td>
                   <td className="px-2 py-3 text-sm overflow-hidden">
                     <div className="flex items-center gap-1 flex-wrap">
-                      <ScopeBadge pattern={pattern} podcastClassName="truncate block" />
+                      <ScopeBadge pattern={pattern} podcastClassName="truncate max-w-full block" />
                       <SegmentCategoryBadge category={pattern.category} />
                       {pattern.created_by === 'user' && (
                         <span className={`${badgeBase} ${tint.warning}`}>

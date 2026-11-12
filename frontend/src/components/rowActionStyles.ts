@@ -27,7 +27,7 @@ export const cardActionBtnMobileOnly = `max-sm:min-h-[44px]${cardActionTail}`;
 
 /** Icon button: 44px hit box on coarse pointers; pair with iconVisual for the smaller filled square inside. */
 export const iconTarget = `${rowActionIcon} group shrink-0 touch-manipulation focus-visible:outline-hidden`;
-/** Filled square inside iconTarget: fills the 44px target on phones, 28px from sm; carries the focus ring for the hit box. */
+/** Filled square inside iconTarget: fills the 44px target on phones and coarse pointers, 28px otherwise; carries the focus ring for the hit box. */
 export const iconVisual =
-  'h-11 w-11 sm:h-7 sm:w-7 inline-flex items-center justify-center rounded transition-colors'
+  'h-11 w-11 sm:h-7 sm:w-7 sm:[@media(pointer:coarse)]:h-11 sm:[@media(pointer:coarse)]:w-11 inline-flex items-center justify-center rounded transition-colors'
   + ' group-focus-visible:ring-2 group-focus-visible:ring-ring';

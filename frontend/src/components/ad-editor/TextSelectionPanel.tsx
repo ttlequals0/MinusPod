@@ -478,7 +478,7 @@ function TextSelectionPanel({
         {frozenRuns.map((run, i) => (
           <span key={`${run.start.toFixed(3)}-${run.end.toFixed(3)}`} className={chipClass}>
             {formatTime(run.start)} - {formatTime(run.end)}
-            {/* -ml-1.5 cancels the chip gap so the target starts at the text; -mr-3.5 below sm and -mr-[15px] on coarse pointers from sm pull the 44 px target's empty side back over the chip, about (44 - 14 px icon) / 2. */}
+            {/* Negative margins pull the 44 px target's empty sides back over the chip, about (44 - 14) / 2. */}
             <button
               type="button"
               onClick={() => removeRun(i)}

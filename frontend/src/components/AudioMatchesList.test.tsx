@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import AudioMatchesList from './AudioMatchesList';
 import { usePatternAudioPreview } from '../hooks/usePatternAudioPreview';
 import type { AudioMatch } from '../api/patterns';
+import { iconTarget, iconVisual, rowActionBtn } from './rowActionStyles';
 
 const mockGetMatches = vi.fn();
 const mockSubmitCorrection = vi.fn();
@@ -68,17 +69,6 @@ describe('AudioMatchesList', () => {
     expect(within(row).getByText('91% match')).toBeDefined();
     expect(within(row).getByText('38s of 45s')).toBeDefined();
     expect(within(row).getByText('Matched')).toBeDefined();
-  });
-
-  it('gives the play and Not this ad actions of a row the same recipe height', async () => {
-    renderList();
-    const row = (await screen.findAllByRole('listitem'))[0];
-    const play = within(row).getByRole('button', { name: /^Play match/ });
-    const reject = within(row).getByRole('button', { name: /^Not this ad/ });
-    expect(reject.className).toContain('max-sm:min-h-[44px]');
-    expect(reject.className).not.toMatch(/(^| )min-h-\[44px\]/);
-    expect(reject.className).toContain('py-1.5');
-    expect(play.className).toContain('min-h-11');
   });
 
   it('gives each row action a name that says which episode it acts on', async () => {
@@ -240,6 +230,18 @@ describe('AudioMatchesList', () => {
     await userEvent.click(within(row).getByRole('button', { name: /^Play/ }));
     expect(HTMLMediaElement.prototype.play).toHaveBeenCalledTimes(2);
     await waitFor(() => expect(within(row).queryByText("This episode's original audio is no longer kept.")).toBeNull());
+  });
+
+  it('sizes the play button and Not this ad from the same row-action recipe', async () => {
+    renderList();
+    const row = (await screen.findAllByRole('listitem'))[0];
+    const play = within(row).getByRole('button', { name: /^Play/ });
+    const not = within(row).getByRole('button', { name: /^Not this ad/ });
+    for (const token of iconTarget.split(' ')) expect(play.className).toContain(token);
+    for (const token of rowActionBtn.split(' ')) expect(not.className).toContain(token);
+    // The painted square follows the target on coarse pointers at every width.
+    expect(iconVisual).toContain('sm:[@media(pointer:coarse)]:h-11');
+    expect(iconVisual).toContain('h-11 w-11');
   });
 
   it('shows an empty state', async () => {

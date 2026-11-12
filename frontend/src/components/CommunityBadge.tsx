@@ -18,11 +18,13 @@ export function CommunityBadge({ communityId, version, protected: isProtected }:
         e.stopPropagation();
         setExpanded((v) => !v);
       }}
-      className={`${badgeBase} ${tint.teal} hover:bg-c-teal/30 transition-colors ${focusRing}`}
+      className={`${badgeBase} max-w-full ${tint.teal} hover:bg-c-teal/30 transition-colors ${focusRing}`}
       title="Community pattern"
     >
-      Community{version ? ` v${version}` : ''} - {expanded ? communityId : short}
-      {isProtected ? ' - protected' : ''}
+      <span className="truncate">
+        Community{version ? ` v${version}` : ''} - {expanded ? communityId : short}
+        {isProtected ? ' - protected' : ''}
+      </span>
     </button>
   );
 }

@@ -9,13 +9,12 @@ import { formatElapsed, formatPercent, formatTimestamp } from '../utils/format';
 import { AuditionPlayButton } from './AuditionPlayButton';
 import { badgeBase, tint } from './badgeStyles';
 import { btnOutline } from './buttonStyles';
-import { focusRing } from './fieldStyles';
 import { DemoDisabled } from './DemoDisabled';
 import { Pagination } from './Pagination';
 import QueryError from './QueryError';
 import { Skeleton } from './Skeleton';
 import { rowCard } from './tableStyles';
-import { cardActionBtnMobileOnly } from './rowActionStyles';
+import { rowActionBtn } from './rowActionStyles';
 import { subHeading } from './pageStyles';
 
 const PER_PAGE = 10;
@@ -137,7 +136,7 @@ export default function AudioMatchesList({ patternId, preview }: { patternId: nu
                   </div>
                 </dl>
                 {m.available ? (
-                  <div className="flex flex-wrap items-center gap-2 sm:[@media(pointer:coarse)]:-ml-2">
+                  <div className="flex flex-wrap items-center gap-2">
                     <AuditionPlayButton
                       playing={preview.isPlaying(m.id)}
                       onClick={() => preview.toggle(m.id)}
@@ -153,7 +152,7 @@ export default function AudioMatchesList({ patternId, preview }: { patternId: nu
                           disabled={reject.isPending || frozen}
                           aria-busy={busy}
                           aria-label={`Not this ad, ${title}`}
-                          className={`${cardActionBtnMobileOnly} py-1.5 sm:text-xs ${btnOutline} disabled:opacity-50 ${focusRing}`}
+                          className={`${rowActionBtn} ${btnOutline}`}
                         >
                           Not this ad
                         </button>

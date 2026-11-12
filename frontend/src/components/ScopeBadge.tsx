@@ -1,9 +1,8 @@
 import { AdPattern } from '../api/patterns';
 import { badgeBase, tint } from './badgeStyles';
 
-// Pattern scope badge shared by PatternsPage and PatternDetailModal. The
-// podcast variant takes an optional className so list rows can truncate the
-// podcast name.
+// Pattern scope badge shared by PatternsPage and PatternDetailModal. The podcast and
+// network variants take an optional className so list rows can truncate long names.
 export function ScopeBadge({
   pattern,
   podcastClassName,
@@ -15,7 +14,11 @@ export function ScopeBadge({
     return <span className={`${badgeBase} ${tint.blue}`}>Global</span>;
   }
   if (pattern.scope === 'network') {
-    return <span className={`${badgeBase} ${tint.purple}`}>Network: {pattern.network_id}</span>;
+    return (
+      <span className={`${badgeBase} ${tint.purple}${podcastClassName ? ` ${podcastClassName}` : ''}`}>
+        Network: {pattern.network_id}
+      </span>
+    );
   }
   if (pattern.scope === 'podcast') {
     return (
