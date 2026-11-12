@@ -6,6 +6,7 @@ from datetime import datetime, timedelta, timezone
 from email.utils import parsedate_to_datetime
 from typing import ClassVar
 
+from database.fingerprint_cleanup import delete_matches_for_episodes
 from database.maintenance import _chunked
 from database.podcasts import RECENTS_MEMBER_FEED_TYPES
 # Shared with the stats mixin so both agree on what counts as processed.
@@ -2115,6 +2116,7 @@ class EpisodeMixin:
             f"DELETE FROM auto_process_queue WHERE podcast_id = ? AND episode_id IN ({placeholders})",  # noqa: S608
             params
         )
+        delete_matches_for_episodes(conn, slug, episode_ids)
         cursor = conn.execute(
             f"DELETE FROM episodes WHERE podcast_id = ? AND episode_id IN ({placeholders})",  # noqa: S608
             params

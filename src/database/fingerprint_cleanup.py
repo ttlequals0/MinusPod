@@ -28,6 +28,20 @@ def delete_matches_for_episode(conn, podcast_slug: str, episode_id: str, keep_re
     return conn.execute(sql, (podcast_slug, episode_id)).rowcount
 
 
+def delete_matches_for_episodes(conn, podcast_slug: str, episode_ids: list[str]) -> int:
+    """Delete the match rows of the given episodes of one feed on conn, without committing."""
+    return sum(delete_matches_for_episode(conn, podcast_slug, episode_id) for episode_id in episode_ids)
+
+
+def delete_matches_for_missing_episodes(conn) -> int:
+    """Delete match rows whose feed or episode row no longer exists, on conn, without committing."""
+    return conn.execute(
+        "DELETE FROM audio_fingerprint_matches WHERE NOT EXISTS ("
+        "SELECT 1 FROM episodes e JOIN podcasts p ON p.id = e.podcast_id "
+        "WHERE p.slug = audio_fingerprint_matches.podcast_slug "
+        "AND e.episode_id = audio_fingerprint_matches.episode_id)").rowcount
+
+
 def delete_matches_for_podcast(conn, podcast_slug: str) -> int:
     """Delete every match row of a feed on conn, without committing."""
     return conn.execute(

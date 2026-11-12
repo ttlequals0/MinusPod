@@ -223,8 +223,10 @@ stored. Reprocessing an episode replaces that episode's rows, except rows
 marked "Not this ad", which stay.
 A rejected row does not count in a pattern's match count, mean similarity or
 last-matched time. Rows go
-when the pattern or its audio is deleted. A row outlives its episode so the
-counts stay right; it then has no playable source.
+when the pattern or its audio is deleted, and when its episode row is
+deleted, so counts and the last match reflect only existing episodes. An
+episode whose audio merely expired keeps its rows; they have no playable
+source.
 
 "Found by audio only" means no other detection stage contributed to the merged
 marker for that span. It is worked out when the match is written.

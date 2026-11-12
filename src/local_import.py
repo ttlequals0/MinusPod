@@ -30,6 +30,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from config import MIN_PRESERVED_CHAPTERS
+from database.fingerprint_cleanup import delete_matches_for_episode
 from database.queue import compute_queue_priority
 from embedded_chapters import probe_chapters
 from id3_chapters import ChapterTagError
@@ -1056,6 +1057,7 @@ def _commit_entry(slug: str, entry: dict, db, storage,
                 "DELETE FROM auto_process_queue WHERE podcast_id = ? AND episode_id = ?",
                 (podcast['id'], existing_id),
             )
+            delete_matches_for_episode(conn, slug, existing_id)
             conn.execute("DELETE FROM episodes WHERE id = ?", (existing['id'],))
         db.upsert_episode(
             slug, episode_id,

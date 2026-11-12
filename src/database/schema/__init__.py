@@ -87,6 +87,7 @@ from database.schema.tables import (
     DOWNLOAD_INDEX_SQL, EPISODE_FEED_DETAILS_TRIGGERS, FINGERPRINT_MATCH_INDEXES, PATTERN_CLEANUP_INDEXES, SCHEMA_SQL,
     TABLE_DDL,
 )
+from database.fingerprint_cleanup import delete_matches_for_missing_episodes
 from database.fingerprint_matches import BACKFILL_GATE, OUT_OF_SCOPE_LOG_CAP
 from database.patterns import _parse_bounds
 from database.search import (
@@ -2646,6 +2647,22 @@ class SchemaMixin:
         self._run_trim_pattern_network_ids(conn)
 
         self._backfill_fingerprint_matches(conn)
+
+        self._run_fingerprint_matches_drop_vanished_episodes(conn)
+
+    def _run_fingerprint_matches_drop_vanished_episodes(
+            self, conn, gate='fingerprint_matches_drop_vanished_episodes'):
+        """One-shot: delete match rows whose episode no longer exists; never raises."""
+        try:
+            if conn.execute("SELECT 1 FROM schema_migrations WHERE name = ?", (gate,)).fetchone():
+                return
+            removed = delete_matches_for_missing_episodes(conn)
+            conn.execute("INSERT OR IGNORE INTO schema_migrations (name) VALUES (?)", (gate,))
+            conn.commit()
+            logger.info(f"Migration: removed {removed} fingerprint match row(s) of deleted episodes")
+        except Exception as e:
+            conn.rollback()
+            logger.error(f"Dropping match history of deleted episodes failed, retrying on the next start: {e}")
 
     def _run_trim_pattern_network_ids(self, conn, gate='trim_pattern_network_ids'):
         """One-shot: trim padded ad_patterns.network_id values and null blank ones; never raises."""
