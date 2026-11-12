@@ -13,6 +13,7 @@ from tests.app_bootstrap import bootstrap
 _test_data_dir = bootstrap('background_maintenance_test_')
 import main_app
 from main_app import background
+from utils.log_format import QueryStringRedactingFilter
 from utils.time import parse_iso_utc
 
 
@@ -348,13 +349,17 @@ def test_a_still_failing_step_keeps_the_hourly_interval(monkeypatch):
     assert fake_db.run_deferred_upgrade_steps.call_count == 2
 
 
-def test_a_raising_run_is_logged_without_the_message_and_schedules_a_retry(monkeypatch, caplog):
+def test_a_raising_run_logs_type_and_message_redacted_and_schedules_a_retry(monkeypatch, caplog):
     fake_db = _upgrade_harness(monkeypatch, ['redact_stored_error_text'])
-    fake_db.run_deferred_upgrade_steps.side_effect = RuntimeError('/secret/path?token=x')
+    key = 'ab' * 32
+    fake_db.run_deferred_upgrade_steps.side_effect = RuntimeError(
+        f'boom fetching https://user:hunter2@example.com/feed?token=qq&k=1 key {key}')
+    caplog.handler.addFilter(QueryStringRedactingFilter())
     with caplog.at_level('WARNING'):
         background.start_deferred_upgrade_steps(clock=lambda: 10.0)
     assert background._UPGRADE_STATE['retry_at'] == 3610.0
-    assert 'RuntimeError' in caplog.text and '/secret/path' not in caplog.text
+    assert 'Deferred upgrade steps failed with RuntimeError: boom fetching' in caplog.text
+    assert 'hunter2' not in caplog.text and 'token=qq' not in caplog.text and key not in caplog.text
 
 
 def test_the_maintenance_tick_starts_the_upgrade_steps(monkeypatch):
