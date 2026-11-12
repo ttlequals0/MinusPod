@@ -104,15 +104,15 @@ def get_available_gpu_memory_gb() -> float | None:
 
 def _gpu_summary(handle) -> str:
     try:
-        index = pynvml.nvmlDeviceGetIndex(handle)
+        index = f"NVML index {pynvml.nvmlDeviceGetIndex(handle)}, "
     except pynvml.NVMLError:
-        index = 0  # a MIG slice has no index of its own; CUDA device 0 is what is used
+        index = ""  # a MIG slice has no index of its own
     name = pynvml.nvmlDeviceGetName(handle)
     bus = pynvml.nvmlDeviceGetPciInfo(handle).busId
     total = pynvml.nvmlDeviceGetMemoryInfo(handle).total
     name = name.decode() if isinstance(name, bytes) else name
     bus = bus.decode() if isinstance(bus, bytes) else bus
-    return f"GPU: {name} (NVML index {index}, bus {bus}, {total / _GIB:.1f} GiB)"
+    return f"GPU: {name} ({index}bus {bus}, {total / _GIB:.1f} GiB)"
 
 
 def log_selected_gpu() -> None:

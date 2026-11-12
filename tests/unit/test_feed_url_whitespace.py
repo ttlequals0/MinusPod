@@ -237,10 +237,14 @@ def test_config_import_scans_podcasts_once_per_pass(temp_db, monkeypatch):
     assert temp_db.get_podcast_by_slug('ws-multi-4') is not None
 
 
-def test_config_import_catches_two_feeds_with_one_url_in_a_backup(temp_db, monkeypatch):
-    document = _multi_feed_document(['https://feeds.example.com/a.xml', 'https://feeds.example.com/a.xml'])
+@pytest.mark.parametrize('sources', [
+    ['https://feeds.example.com/a.xml', 'https://feeds.example.com/a.xml'],
+    ['https://feeds.example.com/f x.xml', 'https://feeds.example.com/f%20x.xml'],
+], ids=['identical', 'space-vs-percent-20'])
+def test_config_import_preview_catches_two_feeds_with_one_url_in_a_backup(temp_db, monkeypatch, sources):
+    monkeypatch.setattr(config_transfer, '_validate_for_tier', lambda *_args: None)
     with pytest.raises(ConfigTransferError, match='already belongs to another feed'):
-        _import(temp_db, document, monkeypatch)
+        config_transfer.build_preview(temp_db, _multi_feed_document(sources), 'feeds')
     assert temp_db.get_podcast_by_slug('ws-multi-1') is None
 
 

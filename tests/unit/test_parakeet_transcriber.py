@@ -529,6 +529,26 @@ def test_cpu_fallback_on_cuda_logs_one_warning(monkeypatch, clean_singleton, cap
     assert 'CPUExecutionProvider' in records[0].getMessage()
 
 
+@pytest.mark.parametrize('providers', [None, [1, 2], 'CPUExecutionProvider'], ids=['none', 'non-strings', 'string'])
+def test_unexpected_provider_list_never_fails_the_load(monkeypatch, clean_singleton, providers):
+    model = _load_on(monkeypatch, _loaded_with_providers(providers), 'cuda')
+    assert model is not None and pt.ParakeetModelSingleton.is_loaded()
+
+
+def test_file_vanishing_before_the_record_stat_does_not_fail_the_fetch(tmp_path, monkeypatch):
+    calls = _track_snapshot(monkeypatch, write=lambda: _write_model_files(tmp_path))
+    real = os.path.getsize
+
+    def vanish(path):
+        if str(path).endswith('vocab.txt'):
+            raise FileNotFoundError(path)
+        return real(path)
+    monkeypatch.setattr(pt.os.path, 'getsize', vanish)
+    pt._fetch_model_files(str(tmp_path), None)
+    assert len(calls) == 1
+    assert not list(tmp_path.glob('.minuspod-complete*'))
+
+
 def test_cpu_device_never_checks_providers(monkeypatch, clean_singleton, caplog):
     with caplog.at_level(logging.DEBUG, logger=pt.logger.name):
         _load_on(monkeypatch, _loaded_with_providers(['CPUExecutionProvider']), 'cpu')

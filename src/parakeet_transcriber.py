@@ -77,11 +77,11 @@ def _record_model_files(model_dir, quantization):
     required, optional = _model_patterns(quantization)
     if not all(_matches(model_dir, pat) for pat in required):
         return
-    sizes = {os.path.relpath(p, model_dir): os.path.getsize(p)
-             for pat in required + optional for p in _matches(model_dir, pat)}
     record = _record_path(model_dir, quantization)
     tmp = f'{record}.{os.getpid()}.tmp'
     try:
+        sizes = {os.path.relpath(p, model_dir): os.path.getsize(p)
+                 for pat in required + optional for p in _matches(model_dir, pat)}
         with open(tmp, 'w', encoding='utf-8') as f:
             json.dump({'repo': PARAKEET_MODEL_REPO, 'files': sizes}, f)
         os.replace(tmp, record)
@@ -116,12 +116,11 @@ def _warn_on_cpu_fallback(model, device):
         return
     try:
         providers = model.asr._encoder.get_providers()
+        if 'CUDAExecutionProvider' not in providers:
+            logger.warning("Parakeet is running on %s, not CUDAExecutionProvider; transcription will be slow",
+                           ", ".join(providers))
     except Exception as e:
         logger.debug("Could not read the Parakeet execution providers: %s", e)
-        return
-    if 'CUDAExecutionProvider' not in providers:
-        logger.warning("Parakeet is running on %s, not CUDAExecutionProvider; transcription will be slow",
-                       ", ".join(providers))
 
 
 class ParakeetModelSingleton:
@@ -153,7 +152,7 @@ class ParakeetModelSingleton:
                 model_dir = os.path.join(
                     os.environ.get('HF_HOME', '/app/data/.cache'), 'parakeet', PARAKEET_MODEL_NAME)
                 _fetch_model_files(model_dir, quantization)
-                # ERROR keeps real failures and drops session-creation warnings; the import-time device-discovery line cannot be silenced.
+                # ERROR keeps real failures, drops session warnings; the import-time discovery line stays.
                 if hasattr(onnxruntime, 'set_default_logger_severity'):
                     onnxruntime.set_default_logger_severity(3)
                 model = onnx_asr.load_model(

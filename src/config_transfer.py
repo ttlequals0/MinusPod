@@ -978,8 +978,11 @@ def build_preview(db, document, scope, selected_feeds=None):
             updated.append(slug)
         source = feed.get('settings', {}).get('source_url', '')
         if feed['feedType'] in ('subscribed', 'youtube'):
+            source = _stored_source({'feed_type': feed['feedType'], 'source_url': source})
             if _source_owner(source_owners, source, slug):
                 raise ConfigTransferError('Source URL already belongs to another feed')
+            if current is None:
+                source_owners.setdefault(source, []).append(slug)
         if feed.get('settings', {}).get('detection_mode') == 'cue_only':
             cue_templates = []
             podcast = None

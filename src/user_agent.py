@@ -3,7 +3,7 @@
 A leaf module on purpose, following the processing_timeouts pattern: the value
 is read on every outbound request, so it needs a cache and an explicit
 invalidation hook rather than a settings query per call. It imports nothing
-from the repo but config, so importing it before storage cannot cycle.
+from the repo but config at module level, so importing it before storage cannot cycle.
 
 Two strings because hosts disagree. Bot mitigation on some CDNs refuses
 browser UAs below a rolling version floor, while some feed hosts serve only a

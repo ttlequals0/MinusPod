@@ -248,7 +248,7 @@ def test_selected_gpu_survives_mig_index_failure(monkeypatch, caplog):
     monkeypatch.setattr(gpu, 'pynvml', MigNVML())
     with caplog.at_level(logging.INFO, logger=gpu.logger.name):
         gpu.log_selected_gpu()
-    assert _gpu_lines(caplog)[0].getMessage().startswith('GPU: Fake GPU (NVML index 0,')
+    assert _gpu_lines(caplog)[0].getMessage() == 'GPU: Fake GPU (bus 00000000:01:00.0, 15.0 GiB)'
 
 
 def test_available_memory_logs_the_gpu_once(fake, monkeypatch, caplog):
