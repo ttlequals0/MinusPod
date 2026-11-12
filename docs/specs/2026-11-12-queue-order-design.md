@@ -1,6 +1,6 @@
 # Processing order for queued episodes: design
 
-Issue #997. Ships in 2.102.0.
+Issue #997.
 
 ## Context
 

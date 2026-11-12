@@ -202,6 +202,8 @@ docker-compose -f docker-compose.cpu.yml up -d
 
 Database migrations run automatically on startup. Take a backup (see above) before pulling a major version.
 
+Rolling back to 2.101.34 is not supported, but it does not corrupt data. If the LLM provider was set to None, set a real provider before rolling back, because the older version does not know `none` and falls back to the Anthropic client. Match history and waveform peaks files written by the newer version are ignored by the older one.
+
 The shipped Compose files allow 360 seconds for container shutdown. Keep `MINUSPOD_STOP_GRACE_PERIOD` longer than `GUNICORN_GRACEFUL_TIMEOUT` (330 seconds), which in turn must outlast `MINUSPOD_SHUTDOWN_DRAIN_SECONDS` (300 seconds). Shutdown stops new admission and gives active processing that drain window before workers exit; interrupted work remains pending for recovery.
 
 Portainer and similar stack managers keep a saved Compose definition. Pulling a repository file or image does not update it. When an upgrade changes settings such as `stop_grace_period`, copy the change into the live stack before redeploying.

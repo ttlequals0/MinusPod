@@ -1,6 +1,6 @@
 # Cached waveform peaks: design
 
-Issue #995. Ships in 2.102.0. The design follows the proposal in that issue.
+Issue #995. The design follows the proposal in that issue.
 
 ## Context
 

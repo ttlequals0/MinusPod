@@ -37,6 +37,7 @@ Grouped by how often you'll touch them. **Standard** is what a typical deploymen
 | `WHISPER_DEVICE` | `cuda` (GPU image), `cpu` (CPU image/source) | `cuda` or `cpu`; applies to both local backends. Set to `cpu` with the CPU image or remote backend. |
 | `WHISPER_BACKEND` | `local` | `local` (faster-whisper, in the container), `parakeet` (NVIDIA Parakeet TDT 0.6B v3, in the container), or `openai-api` (remote HTTP server). `WHISPER_MODEL` and `WHISPER_COMPUTE_TYPE` apply to `local` only. See [Transcription](transcription.md). |
 | `HF_HOME` | `/app/data/.cache` in both images | Persistent model-cache root. Parakeet uses `parakeet/nemo-parakeet-tdt-0.6b-v3` beneath it. See [model storage and sizing](installation.md#parakeet-sizing). |
+| `HF_HUB_OFFLINE` | _(unset)_ | Set to `1`, `on`, `yes` or `true` to turn off the Parakeet model update check, so a load never contacts Hugging Face after the first download. See [Transcription](transcription.md). |
 | `WHISPER_API_BASE_URL` | _(none)_ | Base URL for OpenAI-compatible whisper API |
 | `WHISPER_API_KEY` | _(none)_ | API key for whisper API |
 | `WHISPER_API_MODEL` | `whisper-1` | Model name sent to whisper API |

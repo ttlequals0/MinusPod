@@ -1,6 +1,6 @@
 # Logging, database upkeep and upstream fetch fixes: design
 
-Ships in 2.102.0. A set of smaller problems seen in a day of logs from a
+A set of smaller problems seen in a day of logs from a
 running instance. Each has a cause in the code below.
 
 ## Goal
@@ -54,7 +54,7 @@ Connections set `wal_autocheckpoint` and no `journal_size_limit`, and the only
 explicit checkpoint is passive. A WAL file that grows once never shrinks. One
 instance showed a 499 MB WAL beside a 3.0 GB database.
 
-- Each connection sets `journal_size_limit` to 64 MB.
+- Each connection sets `journal_size_limit` to 64 MiB.
 - The leader's maintenance tick runs a truncating checkpoint when no episode
   is processing and no backup is running. A checkpoint that finds a reader in
   the way gives up and tries on the next tick.

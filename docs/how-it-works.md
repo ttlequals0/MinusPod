@@ -159,11 +159,11 @@ When processing new episodes, the system first checks for known patterns before 
 
 **Fingerprint matching limits:**
 A fingerprint match is measured at one alignment. Where the audio stops agreeing for longer than the gap tolerance setting, the match is split, and each piece must pass the coverage and evidence checks on its own. A short dropout inside an ad is bridged. An ad with a damaged stretch longer than the gap tolerance is found as shorter pieces, or not found at all. When two stored ads overlap in an episode, the stronger match takes the overlap and the other keeps what is left if that is at least the minimum ad length. These limits were measured in testing:
-- On heavily compressed audio, a match edge can stop up to about 5 seconds before the ad's real edge. MinusPod does not stretch it to a nearby LLM edge, because that would bring back cuts that run into show audio. Leaving a little ad in is the safer mistake.
-- When only part of a stored ad is in the episode, a match edge rarely runs into show audio, and then by at most about 3 seconds. It went more than 1 second past the ad in 16 of 19,883 such matches.
-- When an ad and the show share a music bed or other steady audio, the ad's pattern can also match show audio elsewhere in the episode. A match must agree clearly better than the same stretch shifted a few seconds either way. With that check, 9 of 4,000 test ad breaks still had such a false cut.
-- A pattern taken from near-uniform audio can be stored and then missed. In testing, 14 of 4,068 stored patterns were not found in a copy with 5 percent of bits flipped, and 13 of those came from one near-uniform recording.
-- A false match on unrelated audio was seen about once per 20,000 patterns.
+- On heavily compressed audio, a match edge can stop a few seconds before the ad's real edge. MinusPod does not stretch it to a nearby LLM edge, because that would bring back cuts that run into show audio. Leaving a little ad in is the safer mistake.
+- When only part of a stored ad is in the episode, a match edge rarely runs into show audio, and then only by a few seconds. This was rare in synthetic tests.
+- When an ad and the show share a music bed or other steady audio, the ad's pattern can also match show audio elsewhere in the episode. A match must agree clearly better than the same stretch shifted a few seconds either way. With that check, a false cut of this kind was still seen in a small share of synthetic test ad breaks.
+- A pattern taken from near-uniform audio can be stored and then missed. In synthetic tests, a few stored patterns were not found in a copy with some bits flipped.
+- A false match on unrelated audio is rare. The figures here come from synthetic tests, not from a real library, and no test in the repository reproduces them.
 - The match strictness setting starts at 0.65. Raising it to about 0.70 changes little.
 
 **Defined vs. Auto-Learned Patterns:**

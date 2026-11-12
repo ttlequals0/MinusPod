@@ -301,7 +301,7 @@ These parts do not run:
 | Failover status | LLM probes show as unknown with "LLM disabled" |
 | Requests to a model provider or the price catalog | None are sent |
 
-Three routes answer 409 with the code `llm_disabled`: `POST /api/v1/feeds/<slug>/episodes/<id>/regenerate-chapters`, `POST /api/v1/patterns/cleanup/run` and `POST /api/v1/system/model-pricing/refresh`. The provider test routes still test the provider named in the request, so you can check credentials before switching back.
+Three routes answer 409 with the code `llm_disabled`: `POST /api/v1/feeds/<slug>/episodes/<id>/regenerate-chapters`, `POST /api/v1/patterns/cleanup/run` and `POST /api/v1/system/model-pricing/refresh`. Listing models for another provider (`GET /api/v1/settings/models?provider=...`, and the models refresh for the secondary or failover slot) and the provider test routes stay available under None, so you can choose a model and check credentials before switching back. Nothing else contacts a provider.
 
 Retry ad detection and Reprocess still work. They rerun the model-free detectors, so a newly added pattern is applied to an episode already processed. Retry ad detection reruns audio fingerprints and text patterns. Reprocess reruns the whole standard pipeline without the model calls.
 

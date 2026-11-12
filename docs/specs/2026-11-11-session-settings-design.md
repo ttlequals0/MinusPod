@@ -1,6 +1,6 @@
 # Session length settings and "Remember me": design
 
-Issue #996, items 1 and 2. Ships in 2.102.0.
+Issue #996, items 1 and 2.
 
 ## Context
 

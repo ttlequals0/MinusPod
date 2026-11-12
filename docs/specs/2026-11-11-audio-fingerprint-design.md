@@ -1,7 +1,7 @@
 # Audio fingerprint matching, review and settings: design
 
 Ships with the "Running without an LLM" work
-([2026-11-10](2026-11-10-llm-optional-design.md)) in 2.102.0.
+([2026-11-10](2026-11-10-llm-optional-design.md)).
 
 ## Context
 
