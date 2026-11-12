@@ -89,7 +89,7 @@ import database
 from llm_timeout import get_llm_timeout_from_snapshot
 from systemone.admission import operation_admission
 from systemone.settings import get_systemone_settings
-from systemone.transport import SystemOneTransport, DispatchResponse
+from systemone import transport as systemone_transport
 from systemone.client import response_payload
 from systemone.adapter import ReviewInconclusiveError, run_chat_completion
 from systemone.protocol import GUIDANCE as SYSTEMONE_GUIDANCE, jev_ask
@@ -1055,7 +1055,7 @@ class SystemOneClient(LLMClient):
             return self._http_client
 
     def _make_transport(self, settings, http_client):
-        return SystemOneTransport(
+        return systemone_transport.SystemOneTransport(
             url=(TYPESAFE_SYSTEMONE_URL if self.provider == PROVIDER_TYPESAFE
                  else f'{self.base_url}/systemone'), api_key=self.api_key,
             model=settings.model, timeout=settings.request_timeout,
@@ -1096,7 +1096,7 @@ class SystemOneClient(LLMClient):
                     latency = round((time.monotonic() - started) * 1000)
                     response = getattr(error, 'usage_response', None)
                     if not dispatched:
-                        response = DispatchResponse(usage={}, actual_dispatch_count=0)
+                        response = systemone_transport.DispatchResponse(usage={}, actual_dispatch_count=0)
                     if getattr(response, 'actual_dispatch_count', 1) == 0:
                         latency = None
                     attempts.append((attempt_id, response, latency))

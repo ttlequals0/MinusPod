@@ -110,7 +110,7 @@ class TestSearchIndexRebuildBackoff:
         db.refresh_search_index.side_effect = refresh
         db.get_system_setting.return_value = str(full_last) if full_last else None
         monkeypatch.setattr(background, 'db', db)
-        monkeypatch.setattr(background, 'rebuild_recents_feed', lambda: None)
+        monkeypatch.setattr(background.recents_feed, 'rebuild_recents_feed', lambda: None)
         background._INDEX_STATE['last_refresh'] = last
         background._INDEX_STATE['last_full'] = full_last
         queue = MagicMock()
@@ -168,7 +168,7 @@ class TestSearchIndexRebuildBackoff:
         db.cleanup_old_episodes.return_value = (0, 0.0)
         db.get_all_podcasts.return_value = []
         monkeypatch.setattr(background, 'db', db)
-        monkeypatch.setattr(background, 'rebuild_recents_feed', lambda: None)
+        monkeypatch.setattr(background.recents_feed, 'rebuild_recents_feed', lambda: None)
         last = time.time() - background.INDEX_REBUILD_INTERVAL_SECONDS - 60
         background._INDEX_STATE['last_refresh'] = last
         with patch('processing_queue.ProcessingQueue',
@@ -198,7 +198,7 @@ class TestDownloadPruneCadence:
         db.get_all_podcasts.return_value = []
         db.get_setting_int.return_value = 90
         monkeypatch.setattr(background, 'db', db)
-        monkeypatch.setattr(background, 'rebuild_recents_feed', lambda: None)
+        monkeypatch.setattr(background.recents_feed, 'rebuild_recents_feed', lambda: None)
         queue = MagicMock()
         queue.slot_count.return_value = 1
         with patch('processing_queue.ProcessingQueue', return_value=queue):

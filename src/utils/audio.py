@@ -15,7 +15,7 @@ from typing import ClassVar
 
 from config import FFMPEG_SHORT_TIMEOUT, FFPROBE_TIMEOUT
 from storage import _detect_image_mime
-from utils.subprocess_registry import tracked_run
+from utils import subprocess_registry
 from utils.ffmpeg_run import SAFE_MEDIA_INPUT_ARGS, SAFE_MEDIA_PROBE_ARGS, decode_stderr, ffmpeg_timeout
 
 logger = logging.getLogger(__name__)
@@ -32,7 +32,7 @@ def get_audio_codec(audio_path: str) -> str | None:
         audio_path
     ]
     try:
-        result = tracked_run(cmd, capture_output=True, text=True,
+        result = subprocess_registry.tracked_run(cmd, capture_output=True, text=True,
                              timeout=FFPROBE_TIMEOUT)
         if result.returncode == 0 and result.stdout.strip():
             return result.stdout.strip().lower()
@@ -61,7 +61,7 @@ def probe_render_input(audio_path: str) -> RenderInput | None:
         audio_path
     ]
     try:
-        result = tracked_run(cmd, capture_output=True, timeout=FFPROBE_TIMEOUT)
+        result = subprocess_registry.tracked_run(cmd, capture_output=True, timeout=FFPROBE_TIMEOUT)
         if result.returncode != 0:
             logger.warning(f"ffprobe failed for {audio_path}: "
                            f"{result.stderr.decode('utf-8', errors='replace') or 'no output'}")
@@ -96,7 +96,7 @@ def _decoded_duration(audio_path: str, estimate: float) -> float | None:
         '-i', audio_path, '-vn', '-f', 'null', '-progress', 'pipe:1', '-',
     ]
     try:
-        result = tracked_run(cmd, capture_output=True, text=True, timeout=ffmpeg_timeout(estimate))
+        result = subprocess_registry.tracked_run(cmd, capture_output=True, text=True, timeout=ffmpeg_timeout(estimate))
     except Exception as e:
         logger.warning(f"Decode for exact duration failed for {audio_path}: {e}")
         return None
@@ -141,7 +141,7 @@ def get_audio_duration(audio_path: str) -> float | None:
         audio_path
     ]
     try:
-        result = tracked_run(
+        result = subprocess_registry.tracked_run(
             cmd,
             capture_output=True,
             text=True,
@@ -172,7 +172,7 @@ def mean_volume_db(audio_path: str, start: float | None = None,
         *seek, '-i', audio_path, *span, '-vn', '-af', 'volumedetect', '-f', 'null', '-',
     ]
     try:
-        result = tracked_run(cmd, capture_output=True, text=True,
+        result = subprocess_registry.tracked_run(cmd, capture_output=True, text=True,
                              timeout=FFMPEG_SHORT_TIMEOUT)
     except Exception as e:
         logger.warning(f"Volume probe failed for {audio_path}: {e}")
@@ -201,7 +201,7 @@ def extract_embedded_artwork(audio_path: str) -> tuple[bytes, str] | None:
             '-an', '-codec:v', 'copy', '-frames:v', '1',
             '-f', 'image2', out_path,
         ]
-        result = tracked_run(cmd, capture_output=True, timeout=FFPROBE_TIMEOUT)
+        result = subprocess_registry.tracked_run(cmd, capture_output=True, timeout=FFPROBE_TIMEOUT)
         if result.returncode != 0:
             return None
         data = Path(out_path).read_bytes()

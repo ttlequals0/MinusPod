@@ -62,7 +62,7 @@ def _cleanup(monkeypatch, stored, cached=0, read_error=None):
     db.get_system_setting.return_value = stored
     db.get_system_setting.side_effect = read_error
     monkeypatch.setattr(bg, 'db', db)
-    monkeypatch.setattr(bg, 'rebuild_recents_feed', lambda: None)
+    monkeypatch.setattr(bg.recents_feed, 'rebuild_recents_feed', lambda: None)
     bg._INDEX_STATE['last_refresh'] = 0
     bg._INDEX_STATE['last_full'] = cached
     queue = MagicMock()

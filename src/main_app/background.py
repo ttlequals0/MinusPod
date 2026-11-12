@@ -35,7 +35,7 @@ from whisper_pool import get_pool
 # the bottom of that file, so the apparent circular import is safe.
 from main_app import db, storage, shutdown_event
 from main_app.pipeline.admission import _active_phases_for_admission, _admission_gates, _required_providers_for_admission, _resolve_route_snapshot
-from recents_feed import rebuild_recents_feed
+import recents_feed
 
 refresh_logger = logging.getLogger('podcast.refresh')
 audio_logger = logging.getLogger('podcast.audio')
@@ -202,7 +202,7 @@ def run_cleanup():
         reset_count, freed_mb = db.cleanup_old_episodes(storage=storage)
         if reset_count > 0:
             refresh_logger.info(f"Cleanup: reset {reset_count} episodes to discovered, freed {freed_mb:.1f} MB")
-            rebuild_recents_feed()
+            recents_feed.rebuild_recents_feed()
     except Exception as e:
         refresh_logger.error(f"Cleanup failed: {e}")
         db.clear_leaked_transaction(refresh_logger, 'cleanup')

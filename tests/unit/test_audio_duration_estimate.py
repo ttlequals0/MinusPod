@@ -35,7 +35,7 @@ def _text_probe(stderr):
 
 def test_estimated_duration_is_replaced_by_decoded_length():
     calls = []
-    with patch('utils.audio.tracked_run', side_effect=_runner(calls, _text_probe(ESTIMATE_LINE))):
+    with patch('utils.audio.subprocess_registry.tracked_run', side_effect=_runner(calls, _text_probe(ESTIMATE_LINE))):
         assert get_audio_duration('/x.mp3') == pytest.approx(1328.431020)
     ffmpeg = [c for c in calls if c[0] == 'ffmpeg']
     assert len(ffmpeg) == 1
@@ -44,14 +44,14 @@ def test_estimated_duration_is_replaced_by_decoded_length():
 
 def test_header_duration_is_kept_without_the_warning():
     calls = []
-    with patch('utils.audio.tracked_run', side_effect=_runner(calls, _text_probe(''))):
+    with patch('utils.audio.subprocess_registry.tracked_run', side_effect=_runner(calls, _text_probe(''))):
         assert get_audio_duration('/x.mp3') == pytest.approx(1326.983856)
     assert all(c[0] == 'ffprobe' for c in calls)
 
 
 def test_failed_decode_falls_back_to_probed_duration():
     calls = []
-    with patch('utils.audio.tracked_run', side_effect=_runner(calls, _text_probe(ESTIMATE_LINE), ffmpeg_returncode=1)):
+    with patch('utils.audio.subprocess_registry.tracked_run', side_effect=_runner(calls, _text_probe(ESTIMATE_LINE), ffmpeg_returncode=1)):
         assert get_audio_duration('/x.mp3') == pytest.approx(1326.983856)
 
 
@@ -66,7 +66,7 @@ def test_probe_render_input_uses_decoded_length():
         return subprocess.CompletedProcess(cmd, 0, json.dumps(info).encode(), ESTIMATE_LINE.encode())
 
     calls = []
-    with patch('utils.audio.tracked_run', side_effect=_runner(calls, probe)):
+    with patch('utils.audio.subprocess_registry.tracked_run', side_effect=_runner(calls, probe)):
         result = probe_render_input('/x.mp3')
     assert result.duration == pytest.approx(1328.431020)
     assert result.audio_format == (44100, 2, 'stereo')
@@ -77,7 +77,7 @@ def test_decode_runs_once_per_unchanged_file(tmp_path):
     audio.write_bytes(b'x')
     AudioMetadata.invalidate(str(audio))
     calls = []
-    with patch('utils.audio.tracked_run', side_effect=_runner(calls, _text_probe(ESTIMATE_LINE))):
+    with patch('utils.audio.subprocess_registry.tracked_run', side_effect=_runner(calls, _text_probe(ESTIMATE_LINE))):
         assert get_audio_duration(str(audio)) == pytest.approx(1328.431020)
         assert get_audio_duration(str(audio)) == pytest.approx(1328.431020)
     assert len([c for c in calls if c[0] == 'ffmpeg']) == 1
@@ -88,7 +88,7 @@ def test_failed_decode_is_not_retried_for_an_unchanged_file(tmp_path):
     audio.write_bytes(b'x')
     AudioMetadata.invalidate(str(audio))
     calls = []
-    with patch('utils.audio.tracked_run', side_effect=_runner(calls, _text_probe(ESTIMATE_LINE), ffmpeg_returncode=1)):
+    with patch('utils.audio.subprocess_registry.tracked_run', side_effect=_runner(calls, _text_probe(ESTIMATE_LINE), ffmpeg_returncode=1)):
         assert get_audio_duration(str(audio)) == pytest.approx(1326.983856)
         assert get_audio_duration(str(audio)) == pytest.approx(1326.983856)
     assert len([c for c in calls if c[0] == 'ffmpeg']) == 1

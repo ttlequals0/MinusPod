@@ -23,16 +23,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 # test_local_episode_api.py's identical guard.
 os.environ.setdefault('MINUSPOD_DATA_DIR', tempfile.mkdtemp(prefix='local-import-commit-test-'))
 
-# Importing main_app FIRST (before local_feed_builder is ever touched)
-# matters: local_feed_builder.py does `from main_app import db, rss_parser,
-# storage` at module level, and main_app/feeds.py does
-# `from local_feed_builder import rebuild_local_feed` at module level. If
-# local_feed_builder is the very first of the two to start importing (e.g.
-# via a bare `patch('local_feed_builder.rebuild_local_feed')` in a test),
-# that second import hits local_feed_builder mid-initialization and raises
-# ImportError. Pre-loading main_app here makes local_feed_builder load as
-# one of *its* dependents instead, same as every route-level test does via
-# the app_client fixture importing `from main_app import app`.
+# The app loads first so its singletons bind to the data dir set above.
 import main_app  # noqa: E402,F401
 import local_import  # noqa: E402
 from embedded_chapters import probe_chapters

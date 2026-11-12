@@ -22,8 +22,9 @@ from database.settings import feed_itunes_block_enabled
 from database.podcasts import is_local_feed, is_recents_feed, is_youtube_feed, podping_declaration_columns
 from database.queue import compute_queue_priority
 from chapter_notes import chapter_notes_for
-from local_feed_builder import rebuild_local_feed
-from recents_feed import rebuild_recents_feed
+# Module imports: both builders import main_app, so their names may not exist yet when this loads.
+import local_feed_builder
+import recents_feed
 from utils.http import redact_log_text, safe_url_for_log
 from utils.retry import calculate_backoff
 from utils.time import parse_iso_utc, utc_now_iso
@@ -320,10 +321,10 @@ def refresh_rss_feed(slug: str, feed_url: str, force: bool = False,
     """
     podcast = db.get_podcast_row(slug)
     if is_local_feed(podcast):
-        success = bool(rebuild_local_feed(slug, podcast))
+        success = bool(local_feed_builder.rebuild_local_feed(slug, podcast))
         return RefreshOutcome(success, 'refreshed' if success else 'failed')
     if is_recents_feed(podcast):
-        success = bool(rebuild_recents_feed(podcast))
+        success = bool(recents_feed.rebuild_recents_feed(podcast))
         return RefreshOutcome(success, 'refreshed' if success else 'failed')
     if is_youtube_feed(podcast):
         return _refresh_youtube_feed(slug, podcast, force, record_failure)
@@ -909,9 +910,9 @@ def rebuild_served_rss(slug, podcast=None):
     """
     podcast = podcast or db.get_podcast_by_slug(slug)
     if is_local_feed(podcast):
-        return rebuild_local_feed(slug, podcast)
+        return local_feed_builder.rebuild_local_feed(slug, podcast)
     if is_recents_feed(podcast):
-        return rebuild_recents_feed(podcast)
+        return recents_feed.rebuild_recents_feed(podcast)
     if is_youtube_feed(podcast):
         return rebuild_youtube_feed(slug, podcast)
     if not podcast or not podcast.get('source_url'):

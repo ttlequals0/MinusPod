@@ -222,7 +222,7 @@ def test_patch_local_only_fields_on_local_feed_rebuilds_rss(app_client, local_fe
     _authed(app_client)
     headers = _csrf_headers(app_client)
 
-    with patch('main_app.feeds.rebuild_local_feed') as mock_rebuild:
+    with patch('local_feed_builder.rebuild_local_feed') as mock_rebuild:
         resp = app_client.patch(f'/api/v1/feeds/{slug}', json={
             'author': 'New Author',
             'categories': ['Comedy', 'News'],
@@ -246,7 +246,7 @@ def test_patch_description_on_local_feed_rebuilds_rss(app_client, local_feed):
     _authed(app_client)
     headers = _csrf_headers(app_client)
 
-    with patch('main_app.feeds.rebuild_local_feed') as mock_rebuild:
+    with patch('local_feed_builder.rebuild_local_feed') as mock_rebuild:
         resp = app_client.patch(f'/api/v1/feeds/{slug}', json={
             'description': 'New archive description',
         }, headers=headers)
@@ -344,7 +344,7 @@ def test_patch_max_episodes_zero_on_local_feed_is_uncapped(app_client, local_fee
     _authed(app_client)
     headers = _csrf_headers(app_client)
 
-    with patch('main_app.feeds.rebuild_local_feed'):
+    with patch('local_feed_builder.rebuild_local_feed'):
         resp = app_client.patch(f'/api/v1/feeds/{slug}', json={
             'maxEpisodes': 0,
         }, headers=headers)
