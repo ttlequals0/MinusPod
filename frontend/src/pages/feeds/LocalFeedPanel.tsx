@@ -1,3 +1,4 @@
+import { useTransientState } from '../../hooks/useTransientState';
 import { useUnsavedChanges } from '../../hooks/useUnsavedChanges';
 import { useDraftClose } from '../../hooks/useDraftClose';
 import { useEffect, useRef, useState, type Dispatch, type SetStateAction } from 'react';
@@ -271,7 +272,7 @@ function LocalFeedPanel({ feed, slug }: Props) {
   const [txtRows, setTxtRows] = useState<P20Row[]>(() => normalizeP20Rows(feed.p20?.txt));
   const [podrollRows, setPodrollRows] = useState<P20Row[]>(() => normalizeP20Rows(feed.p20?.podroll));
   const [p20ValidationError, setP20ValidationError] = useState<string | null>(null);
-  const [metaSaved, setMetaSaved] = useState(false);
+  const [metaSaved, setMetaSaved] = useTransientState(false, 2000);
 
   // Rows/setters per tag, keyed the same way P20_TAG_DEFS is, so the editor
   // markup below and the save handler can both loop over P20_TAG_DEFS
@@ -323,7 +324,6 @@ function LocalFeedPanel({ feed, slug }: Props) {
       syncMetadata(saved);
       queryClient.invalidateQueries({ queryKey: ['feed', slug] });
       setMetaSaved(true);
-      setTimeout(() => setMetaSaved(false), 2000);
     },
   });
 

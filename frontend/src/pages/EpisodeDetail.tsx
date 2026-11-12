@@ -1,3 +1,4 @@
+import { useTransientState } from '../hooks/useTransientState';
 import { pageTitle } from '../components/pageStyles';
 import { DEMO_AUDIO_TOOLTIP } from '../demo/copy';
 import { mediaUrl } from '../utils/mediaUrl';
@@ -211,7 +212,7 @@ function EpisodeMetadataEditSection({ slug, episode }: { slug: string; episode: 
   const [episodeNum, setEpisodeNum] = useState(() =>
     String(episode.episodeNumber ?? parseLocalEpisodeId(episode.id)?.episode ?? ''));
   const [publishedAt, setPublishedAt] = useState(toDatetimeLocalInput(episode.published));
-  const [saved, setSaved] = useState(false);
+  const [saved, setSaved] = useTransientState(false, 2000);
 
   // Reseed the form when the episode object identity changes: a successful
   // save, a background refetch, or navigating to a different episode via
@@ -244,7 +245,6 @@ function EpisodeMetadataEditSection({ slug, episode }: { slug: string; episode: 
       queryClient.invalidateQueries({ queryKey: ['episode', slug, episode.id] });
       queryClient.invalidateQueries({ queryKey: ['episodes', slug] });
       setSaved(true);
-      setTimeout(() => setSaved(false), 2000);
     },
   });
 
