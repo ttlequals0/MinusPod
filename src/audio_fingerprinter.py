@@ -50,20 +50,56 @@ from utils.pattern_scope import pattern_passes_scope
 
 logger = logging.getLogger('podcast.fingerprint')
 
+# Bits of a point that form one index key: few enough that a key often survives 30 percent bit error
 FINGERPRINT_KEY_BITS = 12
-FINGERPRINT_KEY_TABLES = 16
+# One bit subset per index table, fixed so the index never depends on a random number stream
+FINGERPRINT_KEY_SUBSETS = (
+    (2, 11, 25, 21, 10, 4, 29, 16, 23, 6, 18, 26),
+    (7, 11, 21, 10, 31, 8, 4, 28, 14, 9, 23, 18),
+    (24, 7, 5, 13, 1, 19, 20, 3, 29, 25, 16, 26),
+    (0, 10, 18, 30, 17, 9, 21, 31, 26, 14, 3, 2),
+    (26, 19, 6, 1, 22, 4, 17, 30, 29, 24, 27, 28),
+    (20, 0, 5, 6, 7, 27, 24, 26, 1, 2, 13, 3),
+    (31, 11, 10, 1, 7, 26, 22, 25, 27, 0, 19, 24),
+    (3, 9, 16, 31, 26, 8, 20, 0, 27, 12, 19, 14),
+    (17, 9, 15, 1, 28, 7, 6, 3, 5, 13, 11, 27),
+    (12, 11, 6, 14, 20, 23, 13, 24, 22, 28, 0, 3),
+    (17, 8, 7, 3, 29, 19, 25, 18, 16, 9, 0, 20),
+    (3, 31, 23, 1, 22, 18, 6, 13, 19, 21, 14, 7),
+    (3, 13, 1, 2, 7, 28, 29, 25, 26, 30, 14, 22),
+    (1, 14, 7, 11, 5, 17, 31, 23, 2, 13, 22, 12),
+    (19, 17, 4, 3, 2, 0, 14, 28, 11, 5, 24, 10),
+    (26, 13, 18, 1, 31, 16, 23, 27, 17, 30, 10, 4),
+)
+# Fewest key votes that make an alignment a candidate
 FINGERPRINT_MIN_OFFSET_VOTES = 3
+# Votes at a wrong alignment are near Poisson: a candidate needs this margin and this many sigmas above the mean
+FINGERPRINT_VOTE_MARGIN = 3.0
+FINGERPRINT_VOTE_SIGMAS = 4.0
+# Alignments measured per pattern, most votes first; enough for every repeat of an ad in an episode
 FINGERPRINT_MAX_CANDIDATES = 512
 # A key held by this many times its fair share of episode points carries no alignment information
 FINGERPRINT_OVERFULL_KEY_FACTOR = 8
+# A bucket this small is never treated as over-full, so short episodes keep every key
 FINGERPRINT_MIN_OVERFULL_POSITIONS = 64
 # Identical consecutive pattern points (silence, a tone) at or above this run length are not evidence
 FINGERPRINT_CONSTANT_RUN = 4
-# Unrelated real audio can agree for a few seconds: a match needs this much matching audio,
-# or nearly all of a shorter pattern but never less than the floor
+# A point within this many differing bits of the pattern point is good, whatever the strictness
+FINGERPRINT_GOOD_BITS = 11
+# Run edges need closer agreement than the interior: the run's median good difference plus the
+# margin, never above the good threshold or below the floor, so chance agreement past an ad's end is cut
+FINGERPRINT_EDGE_BITS = 8
+FINGERPRINT_EDGE_MARGIN_BITS = 3
+# Unrelated real audio agrees within the good threshold for up to a few seconds: a match needs this
+# much evidence, or this share of a shorter pattern's evidence counted within the edge floor only
 FINGERPRINT_MIN_EVIDENCE_S = 6.0
 FINGERPRINT_SHORT_PATTERN_EVIDENCE = 0.9
-FINGERPRINT_EVIDENCE_FLOOR_S = 3.5
+# A pattern that cannot supply this much evidence is not distinctive enough to match safely
+FINGERPRINT_EVIDENCE_FLOOR_S = 2.25
+# Every match needs this much evidence within the edge floor: chance agreement rarely comes that close
+FINGERPRINT_CLOSE_EVIDENCE_S = 2.25
+# Chromaprint points per second at its default settings, for checks made without an episode
+FINGERPRINT_NOMINAL_FPS = 11025 / 1365.33
 # A point that differs from its predecessor by fewer bits counts as that share of a point of evidence
 FINGERPRINT_NOVELTY_BITS = 3
 # Minimum duration for fingerprinting (seconds)
@@ -448,20 +484,19 @@ class AudioFingerprint:
     pattern_id: int | None = None
 
 
-def _key_byte_tables(key_bits, tables):
+def _key_byte_tables(subsets, key_bits):
     """(tables, 4, 256) lookups from each byte of a point to its share of each table's key."""
-    rng = np.random.default_rng(0)
     values = np.arange(256, dtype=np.int64)
-    lookup = np.zeros((tables, 4, 256), dtype=np.int64)
-    for t in range(tables):
-        for i, bit in enumerate(rng.permutation(32)[:key_bits].tolist()):
+    lookup = np.zeros((len(subsets), 4, 256), dtype=np.int64)
+    for t, bits in enumerate(subsets):
+        for i, bit in enumerate(bits):
             lookup[t, bit // 8] |= ((values >> (bit % 8)) & 1) << i
-        # Each table packs its own random bit subset and owns a separate key range
+        # Each table owns a separate key range
         lookup[t, 0] += t << key_bits
     return lookup
 
 
-_KEY_LOOKUP = _key_byte_tables(FINGERPRINT_KEY_BITS, FINGERPRINT_KEY_TABLES)
+_KEY_LOOKUP = _key_byte_tables(FINGERPRINT_KEY_SUBSETS, FINGERPRINT_KEY_BITS)
 
 
 def _table_keys(arr):
@@ -486,10 +521,22 @@ def _novelty(pat_arr, informative):
     return weights * informative
 
 
-def _run_evidence(ep_arr, pat_arr, novelty, d, lo, hi, max_diff):
-    """Novelty-weighted good points of the run [lo, hi), in episode points, at alignment d."""
-    diff = _popcount32(ep_arr[lo:hi] ^ pat_arr[lo - d:hi - d])
-    return float(novelty[lo - d:hi - d][diff <= max_diff].sum())
+def _evidence_rule(novelty, fps):
+    """(evidence needed in points, bit threshold evidence is counted at) for a pattern."""
+    short = FINGERPRINT_SHORT_PATTERN_EVIDENCE * float(novelty.sum())
+    if short >= FINGERPRINT_MIN_EVIDENCE_S * fps:
+        return FINGERPRINT_MIN_EVIDENCE_S * fps, FINGERPRINT_GOOD_BITS
+    return short, FINGERPRINT_EDGE_BITS
+
+
+def _unmatchable_reason(pat_arr):
+    """Why a pattern can never be matched safely, or None."""
+    capacity = FINGERPRINT_SHORT_PATTERN_EVIDENCE * float(
+        _novelty(pat_arr, _informative_points(pat_arr)).sum()) if len(pat_arr) else 0.0
+    if capacity < FINGERPRINT_EVIDENCE_FLOOR_S * FINGERPRINT_NOMINAL_FPS:
+        return (f"{capacity / FINGERPRINT_NOMINAL_FPS:.1f}s of distinctive audio, "
+                f"{FINGERPRINT_EVIDENCE_FLOOR_S:.1f}s needed")
+    return None
 
 
 def _build_offset_index(ep_arr):
@@ -506,7 +553,7 @@ def _build_offset_index(ep_arr):
 
 
 def _candidate_offsets(pat_arr, informative, index, ep_len):
-    """Alignments d (ep[d + j] ~ pat[j], d may be negative) with enough key votes, most votes first."""
+    """(alignments d with enough key votes, most votes first, capped; count before the cap)."""
     starts, sizes, positions = index
     j = np.flatnonzero(informative)
     keys = _table_keys(pat_arr[j])
@@ -515,21 +562,21 @@ def _candidate_offsets(pat_arr, informative, index, ep_len):
     counts = sizes[keys]
     total = int(counts.sum())
     if total == 0:
-        return np.empty(0, dtype=np.int64)
+        return np.empty(0, dtype=np.int64), 0
     ends = np.cumsum(counts)
     pick = np.arange(total) - np.repeat(ends - counts - starts[keys], counts)
     shifted = positions[pick] - np.repeat(rows, counts) + len(pat_arr)
     span = ep_len + len(pat_arr)
     votes = np.bincount(shifted, minlength=span)
-    # Votes at a wrong alignment are roughly Poisson around the mean; demand a clear excess
     mean = total / span
-    need = max(FINGERPRINT_MIN_OFFSET_VOTES, int(np.ceil(mean + 3.0 + 4.0 * np.sqrt(mean))))
+    need = max(FINGERPRINT_MIN_OFFSET_VOTES, int(np.ceil(
+        mean + FINGERPRINT_VOTE_MARGIN + FINGERPRINT_VOTE_SIGMAS * np.sqrt(mean))))
     cands = np.flatnonzero(votes >= need)
     order = np.argsort(-votes[cands], kind='stable')[:FINGERPRINT_MAX_CANDIDATES]
-    return cands[order] - len(pat_arr)
+    return cands[order] - len(pat_arr), len(cands)
 
 
-def _passing_alignments(ep_arr, pat_arr, informative, offsets, max_diff, min_good):
+def _passing_alignments(ep_arr, pat_arr, informative, offsets, min_good):
     """Offsets with at least min_good good informative points overall, a bound on any run there."""
     if len(offsets) == 0:
         return offsets
@@ -537,7 +584,7 @@ def _passing_alignments(ep_arr, pat_arr, informative, offsets, max_diff, min_goo
     idx = offsets[:, None] + j[None, :]
     inside = (idx >= 0) & (idx < len(ep_arr))
     diff = _popcount32(ep_arr[np.clip(idx, 0, len(ep_arr) - 1)] ^ pat_arr[j])
-    return offsets[((diff <= max_diff) & inside).sum(axis=1) >= min_good]
+    return offsets[((diff <= FINGERPRINT_GOOD_BITS) & inside).sum(axis=1) >= min_good]
 
 
 def _trim_run(good, lo, hi, window):
@@ -555,52 +602,196 @@ def _trim_run(good, lo, hi, window):
     return (lo + a, lo + b) if b > a else None
 
 
-def _measure_run(ep_arr, pat_arr, informative, d, strictness, gap_points, window):
-    """Best trimmed run at d as (ep_lo, ep_hi, similarity, coverage, good points), or None."""
+def _solid_points(mask, window):
+    """(indices of mask points with at least half of the window centred on them in mask, cumsum)."""
+    c = np.concatenate(([0], np.cumsum(mask)))
+    pos = np.arange(len(mask))
+    w_lo = np.maximum(0, pos - window // 2)
+    w_hi = np.minimum(len(mask), pos + window - window // 2)
+    return np.flatnonzero(mask & (2 * (c[w_hi] - c[w_lo]) >= w_hi - w_lo)), c
+
+
+def _edge_run(hits, c, mask, window, island_gap):
+    """Span of solid hits without short edge islands, trimmed to sustained agreement, or None."""
+    if len(hits) == 0:
+        return None
+    islands = np.split(hits, np.flatnonzero(np.diff(hits) > island_gap) + 1)
+
+    def stray(island, gap):
+        # Under a window of agreement, cut off by a gap longer than itself or than a window
+        small = c[island[-1] + 1] - c[island[0]] < window
+        return small and (gap > window or gap >= island[-1] - island[0] + 1)
+
+    while len(islands) > 1 and stray(islands[0], islands[1][0] - islands[0][-1] - 1):
+        islands.pop(0)
+    while len(islands) > 1 and stray(islands[-1], islands[-1][0] - islands[-2][-1] - 1):
+        islands.pop()
+    return _trim_run(mask, int(islands[0][0]), int(islands[-1][-1]) + 1, window)
+
+
+@dataclass
+class _Alignment:
+    """Per-point comparison of a pattern at one alignment and the runs counted there."""
+    ep_base: int
+    diff: np.ndarray
+    informative: np.ndarray
+    novelty: np.ndarray
+    good: np.ndarray
+    tight: np.ndarray
+    edge_bits: float
+    runs: list
+    span: tuple = (0, 0)
+
+
+def _tight_span(al, runs, window):
+    """(lo, hi) of runs with both outer edges built on the edge threshold."""
+    hits, c = _solid_points(al.tight, window)
+    first, last = runs[0], runs[-1]
+    head = _edge_run(hits[(hits >= first[0]) & (hits < first[1])], c, al.tight, window, window // 2)
+    tail = head if last is first else _edge_run(
+        hits[(hits >= last[0]) & (hits < last[1])], c, al.tight, window, window // 2)
+    return (head or first)[0], (tail or last)[1]
+
+
+def _similarity(al, runs):
+    """Mean bit similarity over the informative points of runs."""
+    diffs = np.concatenate([al.diff[lo:hi][al.informative[lo:hi]] for lo, hi in runs])
+    return 1.0 - float(diffs.mean()) / 32.0 if len(diffs) else 0.0
+
+
+def _weighted(al, runs, bits):
+    """Novelty-weighted points of runs within bits."""
+    return sum(float(al.novelty[lo:hi][(al.diff[lo:hi] <= bits) & al.informative[lo:hi]].sum())
+               for lo, hi in runs)
+
+
+def _tally(al, runs, evidence_bits):
+    """(good points in the span, similarity, evidence, evidence within the edge floor) over runs."""
+    n_good = int(al.good[runs[0][0]:runs[-1][1]].sum())
+    return (n_good, _similarity(al, runs), _weighted(al, runs, evidence_bits),
+            _weighted(al, runs, FINGERPRINT_EDGE_BITS))
+
+
+def _measure_alignment(ep_arr, pat_arr, informative, novelty, d, strictness, gap_points, window):
+    """Sustained runs of the pattern at alignment d as an _Alignment, or None."""
     ep_base, pat_base = (d, 0) if d >= 0 else (0, -d)
     overlap = min(len(pat_arr) - pat_base, len(ep_arr) - ep_base)
     if overlap <= 0:
         return None
     diff = _popcount32(ep_arr[ep_base:ep_base + overlap] ^ pat_arr[pat_base:pat_base + overlap])
     inf = informative[pat_base:pat_base + overlap]
-    good = (diff <= (1.0 - strictness) * 32) & inf
+    good = (diff <= FINGERPRINT_GOOD_BITS) & inf
     # Runs are built from sustained matches only, so scattered chance hits in noise cannot bridge
-    c = np.concatenate(([0], np.cumsum(good)))
-    pos = np.arange(overlap)
-    w_lo = np.maximum(0, pos - window // 2)
-    w_hi = np.minimum(overlap, pos + window - window // 2)
-    hits = np.flatnonzero(good & (2 * (c[w_hi] - c[w_lo]) >= w_hi - w_lo))
+    hits, c = _solid_points(good, window)
     if len(hits) == 0:
         return None
-    best = None
-    for run in np.split(hits, np.flatnonzero(np.diff(hits) > gap_points + 1) + 1):
-        islands = np.split(run, np.flatnonzero(np.diff(run) > window) + 1)
-        # A short island across a gap at either end is more likely chance than the ad
-        while len(islands) > 1 and c[islands[0][-1] + 1] - c[islands[0][0]] < window:
-            islands.pop(0)
-        while len(islands) > 1 and c[islands[-1][-1] + 1] - c[islands[-1][0]] < window:
-            islands.pop()
-        trimmed = _trim_run(good, int(islands[0][0]), int(islands[-1][-1]) + 1, window)
-        if trimmed is None:
-            continue
-        lo, hi = trimmed
-        n_good = int(good[lo:hi].sum())
-        similarity = 1.0 - float(diff[lo:hi][inf[lo:hi]].mean()) / 32.0
-        rank = (similarity >= strictness, n_good, similarity)
-        if best is None or rank > best[0]:
-            best = (rank, lo, hi, similarity, n_good)
-    if best is None:
+    runs = [r for r in (_edge_run(h, c, good, window, window) for h in
+                        np.split(hits, np.flatnonzero(np.diff(hits) > gap_points + 1) + 1)) if r]
+    if not runs:
         return None
-    _, lo, hi, similarity, n_good = best
-    return ep_base + lo, ep_base + hi, similarity, n_good / len(pat_arr), n_good
+    al = _Alignment(ep_base, diff, inf, novelty[pat_base:pat_base + overlap], good, good, 0.0, [])
+
+    def rank(run):
+        sim = _similarity(al, [run])
+        return sim >= strictness, int(good[run[0]:run[1]].sum()), sim
+
+    primary = max(runs, key=rank)
+    interior = diff[primary[0]:primary[1]][good[primary[0]:primary[1]]]
+    al.edge_bits = float(min(FINGERPRINT_GOOD_BITS, max(
+        FINGERPRINT_EDGE_BITS, np.median(interior) + FINGERPRINT_EDGE_MARGIN_BITS)))
+    al.tight = (diff <= al.edge_bits) & inf
+    # Other runs at this alignment are the same ad past a degraded stretch when they agree as the
+    # primary does: mostly within the edge threshold, a second of it at least, and strict enough
+    al.runs = [run for run in runs if run is primary or (
+        int(al.tight[run[0]:run[1]].sum()) >= max(window, 0.5 * int(inf[run[0]:run[1]].sum()))
+        and _similarity(al, [run]) >= strictness)]
+    al.span = _tight_span(al, al.runs, window)
+    return al
 
 
-def _resolve_overlaps(scored):
-    """From (evidence, match) pairs keep the best per stretch of time, sorted by start."""
-    accepted = []
-    for _, m in sorted(scored, key=lambda s: (-s[0], -s[1].coverage, -s[1].similarity, s[1].start)):
-        if all(m.start >= a.end or m.end <= a.start for a in accepted):
-            accepted.append(m)
+def _agreement(al):
+    """Closeness of the counted runs: bits to spare under the good threshold, summed."""
+    return sum(float((FINGERPRINT_GOOD_BITS + 1 - al.diff[lo:hi])[al.good[lo:hi]].sum())
+               for lo, hi in al.runs)
+
+
+def _closest_alignments(alignments, window):
+    """Of (d, alignment) pairs, the closest-agreeing one within each second of alignments."""
+    # Neighbouring points of real audio are alike, so a slightly shifted alignment agrees too
+    kept = []
+    for d, al in sorted(alignments, key=lambda a: -_agreement(a[1])):
+        if all(abs(d - k) > window for k, _ in kept):
+            kept.append((d, al))
+    return [al for _, al in kept]
+
+
+def _rejecting_gate(tally, pat_len, needed, strictness, min_coverage):
+    """The first gate a measured alignment fails, or None when it is a match."""
+    n_good, similarity, evidence, close = tally
+    if n_good / pat_len < min_coverage - 1e-9:
+        return 'coverage'
+    # Chance agreement in unrelated real audio rarely comes this close for long
+    if (evidence < needed - 1e-9
+            or close < FINGERPRINT_CLOSE_EVIDENCE_S * FINGERPRINT_NOMINAL_FPS - 1e-9):
+        return 'evidence'
+    if similarity < strictness:
+        return 'similarity'
+    return None
+
+
+@dataclass
+class _Candidate:
+    """A gated alignment waiting for overlap resolution."""
+    score: float
+    match: FingerprintMatch
+    alignment: _Alignment
+    pat_len: int
+    needed: float
+    evidence_bits: float
+
+
+def _clipped_runs(al, accepted):
+    """The runs of al outside accepted episode spans, on one side of them, trimmed again."""
+    pieces = []
+    for lo, hi in al.runs:
+        parts = [(lo, hi)]
+        for a_lo, a_hi in accepted:
+            a_lo, a_hi = a_lo - al.ep_base, a_hi - al.ep_base
+            parts = [p for x, y in parts for p in ((x, min(y, a_lo)), (max(x, a_hi), y)) if p[1] > p[0]]
+        pieces += [t for t in (_trim_run(al.good, x, y, 1) for x, y in parts) if t]
+    if not pieces:
+        return []
+    # Keep the side of the accepted spans that holds the most good points
+    sides = {}
+    for lo, hi in pieces:
+        key = sum(a_hi - al.ep_base <= lo for _a_lo, a_hi in accepted)
+        sides.setdefault(key, []).append((lo, hi))
+    return max(sides.values(), key=lambda runs: sum(int(al.good[x:y].sum()) for x, y in runs))
+
+
+def _resolve_overlaps(candidates, fps, window, strictness, min_coverage):
+    """Best match per stretch of time, lower-ranked overlapping matches clipped and gated again."""
+    accepted, spans = [], []
+    order = sorted(candidates, key=lambda c: (-c.score, -c.match.coverage, -c.match.similarity,
+                                              c.match.start))
+    for cand in order:
+        al, m = cand.alignment, cand.match
+        lo, hi = al.ep_base + al.span[0], al.ep_base + al.span[1]
+        if any(lo < a_hi and hi > a_lo for a_lo, a_hi in spans):
+            runs = _clipped_runs(al, spans)
+            if not runs:
+                continue
+            tally = _tally(al, runs, cand.evidence_bits)
+            if _rejecting_gate(tally, cand.pat_len, cand.needed, strictness, min_coverage):
+                continue
+            n_good, similarity = tally[:2]
+            span = _tight_span(al, runs, window)
+            lo, hi = al.ep_base + span[0], al.ep_base + span[1]
+            m = FingerprintMatch(pattern_id=m.pattern_id, start=lo / fps, end=hi / fps,
+                                 confidence=similarity, sponsor=m.sponsor, category=m.category,
+                                 similarity=similarity, coverage=n_good / cand.pat_len)
+        spans.append((lo, hi))
+        accepted.append(m)
     accepted.sort(key=lambda m: m.start)
     return accepted
 
@@ -614,45 +805,47 @@ def _scan_fingerprints(ep_ints, ep_duration, patterns, *, strictness, min_covera
     fps = len(ep_arr) / ep_duration
     gap_points = int(round(gap_tolerance_s * fps))
     window = max(1, int(round(fps)))
-    max_diff = (1.0 - strictness) * 32
-    min_evidence = FINGERPRINT_MIN_EVIDENCE_S * fps
-    evidence_floor = FINGERPRINT_EVIDENCE_FLOOR_S * fps
     index = _build_offset_index(ep_arr)
-    scored = []
+    candidates = []
     measured = 0
     for pattern_id, pat_ints, _pat_duration, sponsor, category in patterns:
         if should_continue is not None and not should_continue():
             break
         pat_arr = np.asarray(pat_ints, dtype=np.int64).astype(np.uint32)
-        informative = _informative_points(pat_arr)
-        n_informative = int(informative.sum())
-        if n_informative < FINGERPRINT_MIN_OFFSET_VOTES:
-            logger.debug("Skipping fingerprint pattern %s: %d informative points",
-                         pattern_id, n_informative)
+        reason = _unmatchable_reason(pat_arr)
+        if reason:
+            logger.debug("Skipping fingerprint pattern %s: %s", pattern_id, reason)
             continue
+        informative = _informative_points(pat_arr)
         novelty = _novelty(pat_arr, informative)
-        needed = min(min_evidence, max(evidence_floor, FINGERPRINT_SHORT_PATTERN_EVIDENCE
-                                       * float(novelty.sum()))) - 1e-9
-        # Weighted evidence never exceeds the good point count, so this bound is safe for the prefilter
-        min_good = max(min_coverage * len(pat_arr) - 1e-9, needed)
-        offsets = _candidate_offsets(pat_arr, informative, index, len(ep_arr))
-        offsets = _passing_alignments(ep_arr, pat_arr, informative, offsets, max_diff, min_good)
-        for d in offsets.tolist():
+        needed, evidence_bits = _evidence_rule(novelty, fps)
+        # Evidence never exceeds the good point count, so this bound is safe for the prefilter
+        min_good = max(min_coverage * len(pat_arr), needed) - 1e-9
+        offsets, found = _candidate_offsets(pat_arr, informative, index, len(ep_arr))
+        if found > len(offsets):
+            logger.debug("Fingerprint pattern %s: %d candidate alignments, measuring the first %d",
+                         pattern_id, found, len(offsets))
+        alignments = []
+        for d in _passing_alignments(ep_arr, pat_arr, informative, offsets, min_good).tolist():
             measured += 1
-            run = _measure_run(ep_arr, pat_arr, informative, d, strictness, gap_points, window)
-            if run is None:
+            al = _measure_alignment(ep_arr, pat_arr, informative, novelty, d, strictness,
+                                    gap_points, window)
+            if al is not None:
+                alignments.append((d, al))
+        for al in _closest_alignments(alignments, window):
+            tally = _tally(al, al.runs, evidence_bits)
+            if _rejecting_gate(tally, len(pat_arr), needed, strictness, min_coverage):
                 continue
-            lo, hi, similarity, coverage, n_good = run
-            if (similarity < strictness or coverage < min_coverage - 1e-9
-                    or _run_evidence(ep_arr, pat_arr, novelty, d, lo, hi, max_diff) < needed):
-                continue
+            n_good, similarity = tally[:2]
+            coverage = n_good / len(pat_arr)
+            lo, hi = al.ep_base + al.span[0], al.ep_base + al.span[1]
             # Coverage is worth up to one second of evidence, so a chance hit past a shorter
             # pattern's end cannot hand the stretch to a longer pattern that is only partly present
-            scored.append((n_good + window * coverage, FingerprintMatch(
+            candidates.append(_Candidate(n_good + window * coverage, FingerprintMatch(
                 pattern_id=pattern_id, start=lo / fps, end=hi / fps,
                 confidence=similarity, sponsor=sponsor, category=category,
-                similarity=similarity, coverage=coverage)))
-    return _resolve_overlaps(scored), measured
+                similarity=similarity, coverage=coverage), al, len(pat_arr), needed, evidence_bits))
+    return _resolve_overlaps(candidates, fps, window, strictness, min_coverage), measured
 
 
 def match_fingerprints(ep_ints, ep_duration, patterns, *, strictness, min_coverage,
@@ -665,6 +858,29 @@ def match_fingerprints(ep_ints, ep_duration, patterns, *, strictness, min_covera
     return _scan_fingerprints(
         ep_ints, ep_duration, patterns, strictness=strictness, min_coverage=min_coverage,
         gap_tolerance_s=gap_tolerance_s, should_continue=should_continue)[0]
+
+
+def fingerprint_unmatchable_reason(ints, *, min_coverage=None):
+    """Why a fingerprint could never be matched in its own audio, or None when it can be."""
+    pat_arr = np.asarray(ints, dtype=np.int64).astype(np.uint32)
+    reason = _unmatchable_reason(pat_arr)
+    if reason:
+        return reason
+    strictness = FINGERPRINT_SETTING_RANGES['fingerprint_match_strictness'][0]
+    if min_coverage is None:
+        min_coverage = FINGERPRINT_SETTING_RANGES['fingerprint_min_coverage'][0]
+    gap = FINGERPRINT_SETTING_RANGES['fingerprint_gap_tolerance_s'][0]
+    # Silence and other constant stretches count against coverage, so the pattern must find itself
+    if not match_fingerprints(pat_arr, len(pat_arr) / FINGERPRINT_NOMINAL_FPS,
+                              [(0, pat_arr, 0.0, None, None)], strictness=strictness,
+                              min_coverage=min_coverage, gap_tolerance_s=gap):
+        return f"too little distinctive audio to reach {min_coverage:.0%} coverage"
+    return None
+
+
+def fingerprint_is_matchable(ints, *, min_coverage=None):
+    """True when the matcher can find this fingerprint in its own source audio."""
+    return fingerprint_unmatchable_reason(ints, min_coverage=min_coverage) is None
 
 
 class AudioFingerprinter:
