@@ -346,6 +346,9 @@ def test_description_sponsors_extract_once_per_description(caplog):
 
 
 class _PatternDb:
+    def get_effective_network_id(self, slug):
+        return None
+
     def get_false_positive_corrections(self, podcast_id, episode_id):
         return []
 

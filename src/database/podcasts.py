@@ -155,6 +155,14 @@ class PodcastMixin:
         """)
         return [row['network_id_override'] for row in cursor.fetchall()]
 
+    def get_effective_network_id(self, slug: str) -> str | None:
+        """The feed's network: the non-blank override, else the detected network, else None."""
+        row = self.get_connection().execute(
+            "SELECT COALESCE(NULLIF(TRIM(network_id_override), ''), network_id) AS network "
+            "FROM podcasts WHERE slug = ?", (slug,)
+        ).fetchone()
+        return (row['network'] or None) if row else None
+
     def get_podcast_by_slug(self, slug: str) -> dict | None:
         """Get podcast by slug with episode counts."""
         conn = self.get_connection()

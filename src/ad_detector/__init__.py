@@ -2429,6 +2429,7 @@ class AdDetector:
         elif self.db and slug:
             podcast_row = self.db.get_podcast_by_slug(slug)
             podcast_db_id = podcast_row['id'] if podcast_row else None
+        network_id = self.db.get_effective_network_id(slug) if self.db and slug else None
         if action_map is None:
             action_map = self._resolve_segment_action_map(slug)
         all_ads = []
@@ -2477,7 +2478,8 @@ class AdDetector:
                 logger.info(f"[{slug}:{episode_id}] Stage 1: Audio fingerprint matching")
                 fp_matches = self.audio_fingerprinter.find_matches(
                     audio_path, cancel_event=cancel_event,
-                    podcast_id=podcast_id, podcast_tags=podcast_tags)
+                    podcast_id=podcast_id, network_id=network_id,
+                    podcast_tags=podcast_tags)
 
                 fp_added = 0
                 for match in fp_matches:
@@ -2508,6 +2510,7 @@ class AdDetector:
                 text_matches = self.text_pattern_matcher.find_matches(
                     segments,
                     podcast_id=podcast_id,
+                    network_id=network_id,
                     podcast_tags=podcast_tags,
                     language=get_pattern_language(self.db, slug=slug),
                 )

@@ -37,6 +37,9 @@ class _FakeDb:
     def __init__(self, action_map):
         self._action_map = action_map
 
+    def get_effective_network_id(self, slug):
+        return None
+
     def get_false_positive_corrections(self, podcast_id, episode_id):
         return []
 
