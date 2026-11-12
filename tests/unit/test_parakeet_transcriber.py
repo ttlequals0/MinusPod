@@ -5,6 +5,7 @@ import json
 import logging
 import os
 import shutil
+import socket
 import sys
 import threading
 import types
@@ -182,11 +183,15 @@ def no_real_hub(monkeypatch):
     monkeypatch.setattr(huggingface_hub.HfApi, 'model_info', _real_hub_call)
     monkeypatch.setattr(httpx.Client, 'send', _real_hub_call)
     monkeypatch.setattr(httpx.AsyncClient, 'send', _real_hub_call)
+    monkeypatch.setattr(socket.socket, 'connect', _real_hub_call)
+    monkeypatch.setattr(socket.socket, 'connect_ex', _real_hub_call)
 
 
 def test_real_hub_calls_fail_the_test():
     for call in (lambda: huggingface_hub.snapshot_download('x/y'),
                  lambda: huggingface_hub.HfApi().model_info('x/y', timeout=1),
+                 lambda: huggingface_hub.hf_hub_download('x/y', 'f.txt'),
+                 lambda: socket.socket().connect(('192.0.2.1', 9)),
                  lambda: httpx.Client().get('https://example.com/')):
         with pytest.raises(pytest.fail.Exception):
             call()
@@ -1092,6 +1097,7 @@ def test_volume_without_lock_support_logs_one_info_and_starts_no_checks(
             clock.now += HOUR
     infos = _infos_off(caplog)
     assert len(infos) == 1 and ('file locks' in infos[0] if failure == 'flock' else 'lock file' in infos[0])
+    assert 'until the process restarts' in infos[0]
     assert pending == [] and hub.probes == [] and _warnings(caplog) == []
     assert _tree(_live(tmp_path)) == primed
 
@@ -1191,7 +1197,7 @@ def test_load_failure_from_a_recorded_copy_drops_the_record(monkeypatch, tmp_pat
     with caplog.at_level(logging.WARNING, logger=pt.logger.name), pytest.raises(ModelLoadError):
         _load(monkeypatch, load_model=broken)
     assert not list(_live(tmp_path).glob('.minuspod-complete*'))
-    assert len(_warnings(caplog)) == 1
+    assert len(_warnings(caplog)) == 1 and 'after the retry interval' in _warnings(caplog)[0]
     hub = _install_hub(monkeypatch, _Hub(write=lambda d: _write_model_files(d, 'int8')))
     assert _load(monkeypatch) == 'ts-model'
     assert [s['local_dir'] for s in hub.snapshots] == [str(_live(tmp_path))]
@@ -1239,8 +1245,10 @@ def test_download_running_past_the_warn_limit_logs_one_warning(monkeypatch, tmp_
 @pytest.mark.parametrize('error', [
     RuntimeException('[ONNXRuntimeError] : 6 : RUNTIME_EXCEPTION : CUDA failure 2: out of memory'),
     Fail('[ONNXRuntimeError] : 1 : FAIL : CUDA error cudaErrorNoDevice'),
+    RuntimeException('[ONNXRuntimeError] : 6 : RUNTIME_EXCEPTION : libcudnn.so.9: cannot open shared '
+                     'object file: No such file or directory'),
     MemoryError(),
-], ids=['cuda-oom', 'cuda-device', 'host-memory'])
+], ids=['cuda-oom', 'cuda-device', 'missing-cuda-library', 'host-memory'])
 def test_transient_load_failure_keeps_the_record(monkeypatch, tmp_path, clean_singleton, caplog, error):
     before = _prime(monkeypatch, tmp_path)
 

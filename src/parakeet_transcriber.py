@@ -178,7 +178,7 @@ def _locks_unsupported(model_dir, reason, error):
     logger.debug("Parakeet lock unavailable: %s", error)
     if model_dir not in _updates_off:
         _updates_off.add(model_dir)
-        logger.info("Parakeet model update checks are off: %s", reason)
+        logger.info("Parakeet model update checks are off until the process restarts: %s", reason)
 
 
 @contextlib.contextmanager
@@ -290,7 +290,7 @@ def _warn_on_stalled_download(key, now):
 
 
 _MODEL_FILE_ERRORS = ('NoSuchFile', 'InvalidProtobuf', 'InvalidGraph', 'ModelLoadingError')
-_MODEL_FILE_MARKERS = ('External initializer', 'cannot get file size', 'No such file or directory')
+_MODEL_FILE_MARKERS = ('External initializer', 'cannot get file size')
 
 
 def _model_file_error(e):
@@ -306,7 +306,7 @@ def _model_file_error(e):
 def _discard_record(model_dir, quantization):
     with contextlib.suppress(OSError):
         os.unlink(_record_path(model_dir, quantization))
-    logger.warning("Parakeet model did not load from the recorded copy; the next load downloads it again")
+    logger.warning("Parakeet model did not load from the recorded copy; it is fetched again after the retry interval")
 
 
 def _fetch_model_files(model_dir, quantization):
