@@ -2291,9 +2291,9 @@ paths:
         when `resolution_ms` is a multiple of 10 and `start` is on the 10 ms
         grid. Any other request is decoded from the audio. The file is built
         on the first open, so that first request waits for the build. An
-        original longer than 4 hours is built in the background, and the route
+        original longer than 45 minutes is built in the background, and the route
         answers 503 with a `Retry-After` header until the file exists. An
-        original up to 4 hours also answers 503 when another request has held
+        original up to 45 minutes also answers 503 when another request has held
         its build for more than 30 seconds.
       operationId: getEpisodePeaks
       parameters:

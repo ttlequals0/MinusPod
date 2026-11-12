@@ -743,3 +743,64 @@ def test_background_builds_are_capped_and_a_slot_frees(tmp_path):
     t3 = ap.start_background_build(ap.peaks_file_path(third), third, 9.0, runner=runner)
     assert t3 is not None
     t3.join(30)
+
+
+def test_the_inline_cap_is_45_minutes():
+    assert ap.PEAKS_INLINE_MAX_SECONDS == 45 * 60
+
+
+def test_route_builds_inline_at_44_minutes(route, monkeypatch):
+    route.episode['original_duration'] = 44 * 60
+    started, built = [], []
+    monkeypatch.setattr(ap, 'start_background_build', lambda *a, **k: started.append(a) or None)
+    real = ap.build_peaks_file_locked
+    monkeypatch.setattr(ap, 'build_peaks_file_locked', lambda *a, **k: built.append(a) or real(*a, **k))
+    assert route().status_code == 200
+    assert len(built) == 1 and not started
+
+
+def test_route_starts_a_background_build_at_46_minutes(route, monkeypatch):
+    route.episode['original_duration'] = 46 * 60
+    started = []
+    monkeypatch.setattr(ap, 'start_background_build', lambda *a, **k: started.append(a) or None)
+    monkeypatch.setattr(ap, 'build_peaks_file_locked', lambda *a, **k: pytest.fail('decoded inline'))
+    monkeypatch.setattr(ap, 'compute_peaks', lambda *a, **k: pytest.fail('decoded inline'))
+    r = route()
+    assert r.status_code == 503 and r.headers['Retry-After'] == '5'
+    assert len(started) == 1
+
+
+def test_a_stored_duration_means_no_probe_in_the_request(route, monkeypatch):
+    monkeypatch.setattr('api.episodes.media.get_audio_duration', lambda *_: pytest.fail('probed'))
+    assert route().status_code == 200
+
+
+def test_an_old_row_without_a_duration_is_probed_once(route, monkeypatch):
+    route.episode['original_duration'] = None
+    probes = []
+    monkeypatch.setattr('api.episodes.media.get_audio_duration', lambda path: probes.append(path) or 4.0)
+    assert route().status_code == 200
+    assert len(probes) == 1
+
+
+def test_a_replaced_original_is_rebuilt_by_the_stamp_alone(route):
+    assert route().status_code == 200
+    p = ap.peaks_file_path(route.src)
+    before = p.read_bytes()
+    _gen_wav(route.src, 6.0, freq=880)
+    body = route('start=0&end=6&resolution_ms=100').get_json()
+    assert len(body['peaks']) == 60 and p.read_bytes() != before
+
+
+def test_a_build_of_a_removed_original_leaves_no_peaks_file(tmp_path, monkeypatch):
+    src = _src(tmp_path, 2.0)
+    p = ap.peaks_file_path(src)
+    real = ap.write_peaks_file
+
+    def write_then_remove(path, buckets, source, **kwargs):
+        real(path, buckets, source, **kwargs)
+        assert path.exists()
+        source.unlink()
+    monkeypatch.setattr(ap, 'write_peaks_file', write_then_remove)
+    assert ap.build_peaks_file_locked(p, src, 2.0).status == ap.BUILD_FAILED
+    assert not p.exists()

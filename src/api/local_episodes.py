@@ -348,7 +348,6 @@ def upload_local_episode(slug):
                 os.replace(backup_path, final_path)
             raise
         db.cleanup_published_upload_backup(reservation_id)
-        storage.delete_peaks_file(slug, episode_id)
 
         probe_and_save_chapters(storage, slug, episode_id, final_path)
 

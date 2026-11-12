@@ -1104,7 +1104,6 @@ def _commit_entry(slug: str, entry: dict, db, storage,
             backup_path.unlink()
         except OSError:
             logger.warning("Could not remove import backup %s", backup_path)
-    storage.delete_peaks_file(slug, episode_id)
     if existing is not None and existing_id != episode_id:
         storage.cleanup_episode_files(slug, existing_id)
         storage.remove_episode_artwork(slug, existing_id)

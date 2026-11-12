@@ -27,7 +27,7 @@ from typing import NamedTuple
 
 import numpy as np
 
-from utils.episode_paths import peaks_file_path, peaks_lock_path
+from utils.episode_paths import peaks_file_path, peaks_lock_path, remove_peaks_artifacts
 from utils.ffmpeg_run import SAFE_MEDIA_INPUT_ARGS, ffmpeg_timeout
 from utils.bounded_set import BoundedSet
 from utils.subprocess_registry import tracked_popen, tracked_run
@@ -38,17 +38,19 @@ logger = logging.getLogger('podcast.peaks')
 PEAKS_SAMPLE_RATE_HZ = 8000 # mono downsample target -- only need amplitude
 PEAKS_TIMEOUT_SECONDS = 60
 MAX_PEAKS_DURATION_SECONDS = 4 * 60 * 60  # cap on a window decoded per request
-PEAKS_INLINE_MAX_SECONDS = MAX_PEAKS_DURATION_SECONDS  # longer originals build in the background
+PEAKS_INLINE_MAX_SECONDS = 45 * 60  # a request thread decodes no more than this; longer originals build in the background
 _BUILD_FAILURE_MEMO_SECONDS = 300
 _MAX_BACKGROUND_BUILDS = 2
 _clock = time.monotonic
 MAX_PEAK_BUCKETS = 60_000     # keep JSON payload manageable (~600 KB at 4 dp)
 
 PEAKS_MAGIC = b'MPPK'
-PEAKS_VERSION = 1
+PEAKS_VERSION = 2
 PEAKS_BUCKET_WIDTH_MS = 10
 PEAKS_SAMPLES_PER_BUCKET = PEAKS_SAMPLE_RATE_HZ * PEAKS_BUCKET_WIDTH_MS // 1000
 # magic, version, bucket_width_ms, bucket_count, source_size, source_mtime_ns, sha256, pad
+# The sha is all zeros unless the writer hashed the source; size and mtime are the stamp.
+_NO_HASH = bytes(32)
 _HEADER_STRUCT = struct.Struct('<4sHHIQQ32s4x')
 _HEADER_SIZE = _HEADER_STRUCT.size
 _MAX_BUCKET_COUNT = 0xFFFFFFFF
@@ -205,6 +207,12 @@ def _hash_open_source(source_path: Path) -> tuple[bytes, os.stat_result]:
     return h.digest(), st
 
 
+def _stat_open_source(source_path: Path) -> tuple[bytes, os.stat_result]:
+    """The stat of the source handle, with no hash."""
+    with open(source_path, 'rb') as f:
+        return _NO_HASH, os.fstat(f.fileno())
+
+
 def _write_atomic(path: Path, header: bytes, buckets: np.ndarray, mode: int) -> None:
     fd, tmp_name = tempfile.mkstemp(dir=path.parent, prefix=path.name + '.', suffix='.tmp')
     try:
@@ -229,15 +237,19 @@ def _pack_header(count: int, size: int, mtime_ns: int, sha: bytes) -> bytes:
 
 
 def write_peaks_file(path: Path, buckets: np.ndarray, source_path: Path,
-                     expect_stat: tuple[int, int] | None = None) -> None:
-    """Atomically write a uint16 peaks file stamped with the source; PeaksSourceChanged if it differs from expect_stat."""
+                     expect_stat: tuple[int, int] | None = None, hash_source: bool = False) -> None:
+    """Atomically write a uint16 peaks file stamped with the source's size and mtime.
+
+    hash_source also stores the source SHA-256, so a later mtime-only change restamps without a rebuild.
+    PeaksSourceChanged if the source differs from expect_stat.
+    """
     path = Path(path)
     arr = np.asarray(buckets)
     if arr.dtype.kind != 'u' or arr.dtype.itemsize != 2:
         raise ValueError('buckets must be a uint16 array')
     if arr.ndim != 1 or len(arr) > _MAX_BUCKET_COUNT:
         raise ValueError('buckets must be a 1-D array of at most 2**32-1 values')
-    sha, st = _hash_open_source(Path(source_path))
+    sha, st = _hash_open_source(Path(source_path)) if hash_source else _stat_open_source(Path(source_path))
     if expect_stat is not None and expect_stat != (st.st_size, st.st_mtime_ns):
         raise PeaksSourceChanged(Path(source_path).name)
     header = _pack_header(len(arr), st.st_size, st.st_mtime_ns, sha)
@@ -291,7 +303,7 @@ def read_peaks_window(path: Path, start: int = 0, stop: int | None = None) -> Pe
 
 
 def validate_or_restamp_peaks_file(path: Path, source_path: Path) -> bool:
-    """True when the file matches the source; equal size and mtime skip hashing, else a hash match restamps."""
+    """True when the file matches the source by size and mtime; only a stored hash can restamp a changed mtime."""
     path, source_path = Path(path), Path(source_path)
     data = read_peaks_window(path, 0, 0)
     if data is None:
@@ -300,7 +312,7 @@ def validate_or_restamp_peaks_file(path: Path, source_path: Path) -> bool:
         st = source_path.stat()
         if st.st_size == data.source_size and st.st_mtime_ns == data.source_mtime_ns:
             return True
-        if st.st_size != data.source_size:
+        if st.st_size != data.source_size or data.source_sha256 == _NO_HASH:
             return False
         key = (str(path), st.st_size, st.st_mtime_ns, data.source_sha256)
         if key in _hashed_ok:
@@ -486,16 +498,18 @@ def _build_and_write(peaks_path: Path, source_path: Path, duration: float) -> Bu
     if buckets is None:
         return BuildResult(BUILD_FAILED)
     try:
-        write_peaks_file(peaks_path, buckets, source_path, expect_stat=stamp)
+        write_peaks_file(peaks_path, buckets, source_path, expect_stat=stamp, hash_source=True)
     except OSError as e:
         logger.warning('Peaks build failed for %s: %s', source_path.name, e)
         return BuildResult(BUILD_FAILED, buckets if _source_stamp(source_path) == stamp else None)
     except PeaksSourceChanged:
         logger.info('Peaks build of %s discarded: source changed during decode', source_path.name)
         return BuildResult(BUILD_FAILED)
-    # An original removed or replaced after the write: drop the file written for it
-    if _source_stamp(source_path) != stamp:
-        discard_stale_peaks_file(source_path)
+    # A replaced original is caught by the stamp; a removed one must not leave this file behind.
+    after = _source_stamp(source_path)
+    if after is None:
+        remove_peaks_artifacts(peaks_path)
+    if after != stamp:
         return BuildResult(BUILD_FAILED)
     return BuildResult(BUILD_OK)
 
@@ -589,20 +603,11 @@ def start_background_build(peaks_path: Path, source_path: Path, duration: float,
 
 
 def maybe_write_peaks_file(original_path: Path, peaks_10ms: np.ndarray | None) -> bool:
-    """Write or restamp the sibling peaks file from in-memory maxima; False when none given."""
+    """Write the sibling peaks file from in-memory maxima unless it already matches; False when none given."""
     if peaks_10ms is None or len(peaks_10ms) == 0:
         return False
     path = peaks_file_path(original_path)
     if validate_or_restamp_peaks_file(path, original_path):
         return True
     write_peaks_file(path, np.asarray(peaks_10ms, dtype='<u2'), original_path)
-    return True
-
-
-def discard_stale_peaks_file(original_path: Path) -> bool:
-    """Remove the sibling peaks file when it no longer matches its original."""
-    path = peaks_file_path(original_path)
-    if not path.exists() or validate_or_restamp_peaks_file(path, original_path):
-        return False
-    path.unlink(missing_ok=True)
     return True

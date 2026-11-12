@@ -33,11 +33,11 @@ def test_write_then_read_round_trip(tmp_path):
     buckets = np.array([0, 100, 32768, 5], dtype='<u2')
     ap.write_peaks_file(ap.peaks_file_path(src), buckets, src)
     data = ap.read_peaks_window(ap.peaks_file_path(src))
-    assert data.version == 1 and data.bucket_width_ms == 10
+    assert data.version == ap.PEAKS_VERSION and data.bucket_width_ms == 10
     assert data.bucket_count == 4
     assert data.source_size == src.stat().st_size
     assert data.source_mtime_ns == src.stat().st_mtime_ns
-    assert len(data.source_sha256) == 32
+    assert data.source_sha256 == bytes(32)
     assert data.buckets.dtype == np.dtype('<u2')
     assert np.array_equal(data.buckets, buckets)
 
@@ -49,7 +49,7 @@ def test_header_layout_is_little_endian_64_bytes(tmp_path):
     raw = p.read_bytes()
     assert len(raw) == 64 + 6
     assert raw[:4] == ap.PEAKS_MAGIC
-    assert struct.unpack_from('<HHI', raw, 4) == (1, 10, 3)
+    assert struct.unpack_from('<HHI', raw, 4) == (ap.PEAKS_VERSION, 10, 3)
     assert raw[64:] == struct.pack('<3H', 1, 2, 3)
 
 
@@ -77,9 +77,47 @@ def test_read_rejects_future_version(tmp_path):
     p = ap.peaks_file_path(src)
     ap.write_peaks_file(p, np.array([1, 2], dtype='<u2'), src)
     raw = bytearray(p.read_bytes())
-    struct.pack_into('<H', raw, 4, 2)
+    struct.pack_into('<H', raw, 4, ap.PEAKS_VERSION + 1)
     p.write_bytes(raw)
     assert ap.read_peaks_window(p) is None
+
+
+def test_a_file_of_the_previous_version_is_treated_as_missing(tmp_path):
+    src = _src(tmp_path)
+    p = ap.peaks_file_path(src)
+    ap.write_peaks_file(p, np.array([1, 2], dtype='<u2'), src)
+    raw = bytearray(p.read_bytes())
+    struct.pack_into('<H', raw, 4, 1)
+    p.write_bytes(raw)
+    assert ap.read_peaks_window(p) is None
+    assert ap.validate_or_restamp_peaks_file(p, src) is False
+
+
+def test_a_changed_mtime_without_a_stored_hash_is_stale_and_never_hashes(tmp_path, monkeypatch):
+    src = _src(tmp_path)
+    p = ap.peaks_file_path(src)
+    ap.write_peaks_file(p, np.array([7, 8], dtype='<u2'), src)
+    monkeypatch.setattr(ap, '_hash_open_source', lambda path: pytest.fail('hashed the source'))
+    future = time.time_ns() + 10_000_000_000
+    os.utime(src, ns=(future, future))
+    assert ap.validate_or_restamp_peaks_file(p, src) is False
+
+
+def test_a_matching_stamp_is_valid_without_hashing(tmp_path, monkeypatch):
+    src = _src(tmp_path)
+    p = ap.peaks_file_path(src)
+    ap.write_peaks_file(p, np.array([7, 8], dtype='<u2'), src)
+    monkeypatch.setattr(ap, '_hash_open_source', lambda path: pytest.fail('hashed the source'))
+    assert ap.validate_or_restamp_peaks_file(p, src) is True
+
+
+def test_a_changed_size_is_stale_without_hashing(tmp_path, monkeypatch):
+    src = _src(tmp_path)
+    p = ap.peaks_file_path(src)
+    ap.write_peaks_file(p, np.array([7, 8], dtype='<u2'), src, hash_source=True)
+    _gen_wav(src, seconds=3.0)
+    monkeypatch.setattr(ap, '_hash_open_source', lambda path: pytest.fail('hashed the source'))
+    assert ap.validate_or_restamp_peaks_file(p, src) is False
 
 
 def test_read_rejects_other_bucket_width(tmp_path):
@@ -140,7 +178,7 @@ def test_read_directory_returns_none(tmp_path):
 def test_restamp_on_changed_mtime_same_hash(tmp_path):
     src = _src(tmp_path)
     p = ap.peaks_file_path(src)
-    ap.write_peaks_file(p, np.array([7, 8], dtype='<u2'), src)
+    ap.write_peaks_file(p, np.array([7, 8], dtype='<u2'), src, hash_source=True)
     future = time.time_ns() + 10_000_000_000
     os.utime(src, ns=(future, future))
     assert ap.validate_or_restamp_peaks_file(p, src) is True
@@ -161,7 +199,7 @@ def test_validate_true_without_rewrite_when_stamp_matches(tmp_path):
 def test_validate_false_on_changed_hash(tmp_path):
     src = _src(tmp_path)
     p = ap.peaks_file_path(src)
-    ap.write_peaks_file(p, np.array([1], dtype='<u2'), src)
+    ap.write_peaks_file(p, np.array([1], dtype='<u2'), src, hash_source=True)
     _gen_wav(src, seconds=3.0)
     assert ap.validate_or_restamp_peaks_file(p, src) is False
 
@@ -170,7 +208,7 @@ def test_validate_false_on_same_size_different_content(tmp_path):
     src = tmp_path / 's-original.bin'
     src.write_bytes(b'a' * 1000)
     p = ap.peaks_file_path(src)
-    ap.write_peaks_file(p, np.array([1], dtype='<u2'), src)
+    ap.write_peaks_file(p, np.array([1], dtype='<u2'), src, hash_source=True)
     src.write_bytes(b'b' * 1000)
     future = time.time_ns() + 10_000_000_000
     os.utime(src, ns=(future, future))
@@ -333,7 +371,7 @@ def test_stamp_is_taken_from_the_hashed_handle(tmp_path, monkeypatch):
         os.replace(other, src)
         return real(path)
     monkeypatch.setattr(ap, '_hash_open_source', swapped)
-    ap.write_peaks_file(p, np.array([1], dtype='<u2'), src)
+    ap.write_peaks_file(p, np.array([1], dtype='<u2'), src, hash_source=True)
     data = ap.read_peaks_window(p)
     digest, st = real(src)
     assert (data.source_size, data.source_mtime_ns, data.source_sha256) == (
@@ -360,6 +398,7 @@ def test_peaks_file_takes_the_originals_mode(tmp_path):
     ap.write_peaks_file(p, np.array([1], dtype='<u2'), src)
     assert p.stat().st_mode & 0o777 == 0o644
     os.chmod(src, 0o640)
+    ap.write_peaks_file(p, np.array([1], dtype='<u2'), src, hash_source=True)
     os.utime(src, ns=(time.time_ns() + 10**10,) * 2)
     assert ap.validate_or_restamp_peaks_file(p, src)
     assert p.stat().st_mode & 0o777 == 0o640
@@ -368,7 +407,7 @@ def test_peaks_file_takes_the_originals_mode(tmp_path):
 def _readonly_restamp_setup(tmp_path, monkeypatch):
     src = _src(tmp_path)
     p = ap.peaks_file_path(src)
-    ap.write_peaks_file(p, np.array([7, 8], dtype='<u2'), src)
+    ap.write_peaks_file(p, np.array([7, 8], dtype='<u2'), src, hash_source=True)
     os.utime(src, ns=(time.time_ns() + 10**10,) * 2)
     monkeypatch.setattr(ap, '_write_atomic',
                         lambda *a, **k: (_ for _ in ()).throw(OSError('read-only')))

@@ -310,13 +310,15 @@ def test_upload_backup_cleanup_failure_keeps_published_result(
     assert (storage.data_dir / row['backup_name']).read_bytes() == b'old audio'
 
 
-def test_upload_replacing_an_original_removes_its_peaks_file(app_client, local_feed, real_mp3_bytes):
+def test_upload_replacing_an_original_leaves_no_valid_peaks_file(app_client, local_feed, real_mp3_bytes):
+    import audio_peaks
+    import numpy as np
     from api import get_storage
     slug = local_feed['slug']
     storage = get_storage()
     storage.get_original_path(slug, 's01e01').write_bytes(b'old audio')
     peaks = storage.get_peaks_path(slug, 's01e01')
-    peaks.write_bytes(b'MPPK' + b'\x00' * 60)
+    audio_peaks.write_peaks_file(peaks, np.array([1, 2], dtype='<u2'), storage.get_original_path(slug, 's01e01'))
     _authed(app_client)
 
     resp = app_client.post(
@@ -328,7 +330,7 @@ def test_upload_replacing_an_original_removes_its_peaks_file(app_client, local_f
 
     assert resp.status_code == 201
     assert storage.get_original_path(slug, 's01e01').read_bytes() == real_mp3_bytes
-    assert not peaks.exists()
+    assert not audio_peaks.validate_or_restamp_peaks_file(peaks, storage.get_original_path(slug, 's01e01'))
 
 
 @requires_ffmpeg

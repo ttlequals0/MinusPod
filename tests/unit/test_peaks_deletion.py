@@ -5,7 +5,10 @@ import tempfile
 import time
 from unittest.mock import patch
 
+import numpy as np
 import pytest
+
+import audio_peaks as ap
 
 os.environ.setdefault('MINUSPOD_DATA_DIR', tempfile.mkdtemp(prefix='peaks-deletion-test-'))
 
@@ -216,7 +219,12 @@ def test_delete_episode_rows_removes_peaks(db_storage, local_feed):
     assert not storage.get_peaks_path(slug, EP).exists()
 
 
-def test_local_import_overwrite_removes_stale_peaks(db_storage, local_feed, real_mp3_bytes):
+def _stamp_for(path, original):
+    """Write a real peaks file stamped for the current bytes of original."""
+    ap.write_peaks_file(path, np.array([1, 2, 3], dtype='<u2'), original)
+
+
+def test_local_import_overwrite_leaves_the_stamp_to_catch_the_stale_peaks(db_storage, local_feed, real_mp3_bytes):
     db, storage = db_storage
     slug = local_feed
     src_dir = storage.import_source_dir(slug)
@@ -226,16 +234,17 @@ def test_local_import_overwrite_removes_stale_peaks(db_storage, local_feed, real
     plan1 = build_import_plan(slug, [audio], existing_ids=set(),
                               overwrite=False, now_iso=NOW_ISO)
     _commit_synchronously(slug, plan1, db, storage)
-    storage.get_peaks_path(slug, 's01e01').write_bytes(b'MPPK' + b'\x00' * 60)
+    _stamp_for(storage.get_peaks_path(slug, 's01e01'), storage.get_original_path(slug, 's01e01'))
 
-    audio.write_bytes(real_mp3_bytes)
+    audio.write_bytes(real_mp3_bytes + b'\x00' * 64)
     plan2 = build_import_plan(slug, [audio], existing_ids={'s01e01'},
                               overwrite=True, now_iso=NOW_ISO_2)
     _commit_synchronously(slug, plan2, db, storage)
 
     assert local_import.get_import_status(slug, storage)['report']['failed'] == []
-    assert storage.get_original_path(slug, 's01e01').exists()
-    assert not storage.get_peaks_path(slug, 's01e01').exists()
+    original = storage.get_original_path(slug, 's01e01')
+    assert original.exists()
+    assert not ap.validate_or_restamp_peaks_file(storage.get_peaks_path(slug, 's01e01'), original)
 
 
 def test_local_import_wide_id_replacement_removes_old_peaks(db_storage, local_feed, real_mp3_bytes):
@@ -330,33 +339,32 @@ def _recovery_db(tmp_path):
     return Database(data_dir=str(tmp_path))
 
 
-def test_upload_recovery_drops_peaks_when_original_is_moved_back(db_storage, tmp_path):
+def test_upload_recovery_moving_the_original_away_leaves_no_valid_peaks(db_storage, tmp_path):
     db, storage = db_storage
     original = storage.get_original_path(SLUG, EP)
     original.write_bytes(b'new bytes')
     peaks = storage.get_peaks_path(SLUG, EP)
-    peaks.write_bytes(b'MPPK' + b'\x00' * 60)
-    stale = peaks.with_name(peaks.name + '.abcd1234.tmp')
-    stale.write_bytes(b'x')
+    _stamp_for(peaks, original)
     temp_rel = 'import/local/temp.mp3'
     (tmp_path / 'import' / 'local').mkdir(parents=True)
     row = _recovery_row('import', SLUG, EP, temp_rel)
     assert db._recover_upload_files(row) is True
     assert not original.exists() and (tmp_path / temp_rel).exists()
-    assert not peaks.exists() and stale.exists()
+    assert not ap.validate_or_restamp_peaks_file(peaks, original)
 
 
-def test_upload_recovery_drops_peaks_when_backup_is_restored(db_storage, tmp_path):
+def test_upload_recovery_restoring_a_backup_leaves_no_valid_peaks(db_storage, tmp_path):
     db, storage = db_storage
     original = storage.get_original_path(SLUG, EP)
+    original.write_bytes(b'new bytes')
     peaks = storage.get_peaks_path(SLUG, EP)
-    peaks.write_bytes(b'MPPK' + b'\x00' * 60)
+    _stamp_for(peaks, original)
     backup = original.with_name('.upload-recovery.backup')
-    backup.write_bytes(b'old bytes')
+    backup.write_bytes(b'old bytes, a different length')
     row = _recovery_row('import', SLUG, EP, None, str(backup.relative_to(tmp_path)))
     assert db._recover_upload_files(row) is True
-    assert original.read_bytes() == b'old bytes'
-    assert not peaks.exists()
+    assert original.read_bytes() == b'old bytes, a different length'
+    assert not ap.validate_or_restamp_peaks_file(peaks, original)
 
 
 def test_upload_recovery_without_a_move_leaves_peaks(db_storage, tmp_path):

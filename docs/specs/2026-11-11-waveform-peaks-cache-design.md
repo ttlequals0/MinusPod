@@ -44,11 +44,13 @@ values, about 0.7 MB per hour of audio. A header records a format version, the
 bucket width, the bucket count and the source file's size, modification time
 and SHA-256. The file is written to a temporary name and renamed into place.
 
-The file is valid for an original when size and modification time match. When
-they differ, the SHA-256 is compared. If it matches, the header is restamped
-and the file is kept. A reprocess rewrites a byte-identical original with a
-new modification time, so this case is routine. If the hash differs, the file
-is discarded and rebuilt.
+The file is valid for an original when size and modification time match. That
+stamp is the only staleness check, so a replaced original needs no explicit
+delete. The SHA-256 is stored only by writers that decode the original anyway
+(the first-open build), never by the write at retention time. When the size
+matches but the modification time differs, a stored hash is compared and the
+header restamped on a match; a file without a stored hash is rebuilt. A file
+with an older format version is treated as missing.
 
 The exact header layout is left to the builder.
 
@@ -73,8 +75,8 @@ decode failure), no file is written.
 When the route finds no valid file, it builds one from the decode it would
 have done anyway and serves from it.
 
-- Up to 4 hours: built inside the request, as the decode is today.
-- Over 4 hours: built in the background. The route answers 503 with
+- Up to 45 minutes: built inside the request, as the decode is today.
+- Over 45 minutes: built in the background. The route answers 503 with
   `Retry-After: 5` until the file exists, and the editor retries every 5 s.
   The build runs on a thread in the web worker that took the request, as the
   cue scans do. An `fcntl` lock file beside the peaks file keeps it to one
@@ -134,9 +136,9 @@ not change.
 - Same answers: peaks from the file equal a fresh decode bucket for bucket, on
   generated audio, for whole-episode and windowed requests.
 - Processing: a run with splice detection writes the file with one decode. A
-  run without it writes none and decodes nothing extra. A reprocess restamps.
+  run without it writes none and decodes nothing extra. A reprocess rewrites the file when the original changed, and records the original's duration on the episode row.
 - Route: file path, decode fallback for off-grid requests, rounding of
-  coarsened widths, an episode over 4 hours answering 503 then 200, and one
+  coarsened widths, an episode over 45 minutes answering 503 then 200, an episode just under it built inline, and one
   build when two requests arrive together.
 - Deletion: each path removes the file with its original.
 - Decode: no seek at 0, and the first buckets are not flat on an AAC fixture.

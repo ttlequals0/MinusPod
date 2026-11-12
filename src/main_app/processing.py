@@ -7,7 +7,7 @@ import shutil
 import threading
 import time
 from concurrent.futures import Future
-from contextlib import nullcontext, suppress
+from contextlib import nullcontext
 from ad_validator import user_trimmed_keep_ranges
 import audio_peaks
 from audio_processor import AudioProcessor
@@ -328,17 +328,14 @@ def _store_peaks_file(slug, episode_id, original_path, audio_analysis_result):
     """Write the peaks file for a just-retained original; never fails the run."""
     peaks = getattr(audio_analysis_result, 'peaks_10ms', None)
     try:
-        written = audio_peaks.maybe_write_peaks_file(original_path, peaks)
+        audio_peaks.maybe_write_peaks_file(original_path, peaks)
     except Exception as e:
         audio_logger.warning(f"[{slug}:{episode_id}] Could not write peaks file: {e}")
-        written = False
-    if not written:
-        with suppress(Exception):
-            audio_peaks.discard_stale_peaks_file(original_path)
 
 
-def _retain_original(slug, episode_id, audio_path, keep_original, audio_analysis_result):
-    """Move the source audio into place as the retained original and write its peaks file."""
+def _retain_original(slug, episode_id, audio_path, keep_original, audio_analysis_result,
+                     original_duration=None):
+    """Move the source audio into place as the retained original; record its duration and write its peaks file."""
     if not (keep_original and os.path.exists(audio_path)):
         return False
     original_final = storage.get_original_path(slug, episode_id)
@@ -347,6 +344,12 @@ def _retain_original(slug, episode_id, audio_path, keep_original, audio_analysis
     audio_logger.info(
         f"[{slug}:{episode_id}] Retained original audio at {original_final.name}"
     )
+    if original_duration:
+        # The peaks route reads this instead of probing the file inside a request.
+        try:
+            db.upsert_episode(slug, episode_id, original_duration=original_duration)
+        except Exception as e:
+            audio_logger.warning(f"[{slug}:{episode_id}] Could not record original duration: {e}")
     _store_peaks_file(slug, episode_id, original_final, audio_analysis_result)
     return True
 
@@ -1208,7 +1211,7 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
             keep_original = db.resolve_keep_original_audio(
                 slug, podcast_settings)
             _retain_original(slug, episode_id, audio_path, keep_original,
-                             audio_analysis_result)
+                             audio_analysis_result, original_duration)
 
             storage.save_combined_ads(slug, episode_id, all_ads_with_validation)
 
