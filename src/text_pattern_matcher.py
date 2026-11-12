@@ -39,7 +39,8 @@ from utils.constants import (
     is_non_brand_name,
     sanitize_sponsor_label,
 )
-from utils.community_tags import UNIVERSAL_TAG
+from utils.community_tags import UNIVERSAL_TAG  # noqa: F401
+from utils.pattern_scope import pattern_passes_scope
 from utils.language import get_pattern_language
 from utils.markers import labels_compatible, member_label
 from utils.pattern_catalog import scoped_catalog
@@ -859,40 +860,14 @@ class TextPatternMatcher:
         - Either side empty -> match (fallback).
         Local and imported patterns bypass the tag check entirely.
         """
-        applicable: list[AdPattern] = []
         podcast_tag_set = set(podcast_tags) if podcast_tags else set()
-
-        for pattern in self._patterns:
-            # Scope gate
-            if pattern.scope == 'global':
-                pass
-            elif pattern.scope == 'network':
-                if not (network_id and pattern.network_id == network_id):
-                    continue
-            elif pattern.scope == 'podcast':
-                if not (podcast_id and pattern.podcast_id == podcast_id):
-                    continue
-            else:
-                continue
-
-            # Tag eligibility (community patterns only)
-            if pattern.source == 'community':
-                sponsor_tags = self._sponsor_tags.get(pattern.sponsor_id, set())
-                if UNIVERSAL_TAG in sponsor_tags:
-                    applicable.append(pattern)
-                    continue
-                if not sponsor_tags or not podcast_tag_set:
-                    applicable.append(pattern)
-                    continue
-                if sponsor_tags & podcast_tag_set:
-                    applicable.append(pattern)
-                    continue
-                # No overlap -> drop this community pattern
-                continue
-
-            applicable.append(pattern)
-
-        return applicable
+        return [
+            pattern for pattern in self._patterns
+            if pattern_passes_scope(
+                pattern.scope, pattern.network_id, pattern.podcast_id, pattern.source,
+                self._sponsor_tags.get(pattern.sponsor_id, set()),
+                podcast_id=podcast_id, network_id=network_id, podcast_tag_set=podcast_tag_set)
+        ]
 
     def _find_content_matches(
         self,
