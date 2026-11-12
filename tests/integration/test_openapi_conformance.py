@@ -334,3 +334,46 @@ def test_global_queue_order_put_and_get_match_spec(seeded):
     entry = got.get_json()['queueOrder']
     assert (entry['value'], entry['isDefault']) == ('newest_first', False)
     assert entry['options'] == ['queued', 'oldest_first', 'newest_first']
+
+
+def _documented_properties(schema_name):
+    return _spec()['components']['schemas'][schema_name]['properties']
+
+
+def test_settings_defaults_document_the_fingerprint_and_queue_keys(seeded):
+    client, headers = seeded
+    defaults = client.get('/api/v1/settings', headers=headers).get_json()['defaults']
+    served = {k for k in defaults if k.startswith(('fingerprint', 'queue'))}
+    documented = set(_documented_properties('Settings')['defaults']['properties'])
+    assert {'queueOrder', 'fingerprintEnabled'} <= served
+    assert served <= documented, sorted(served - documented)
+
+
+def test_health_checks_are_all_documented(seeded):
+    client, _ = seeded
+    served = set(client.get('/api/v1/health').get_json()['checks'])
+    ok = _spec()['paths']['/health']['get']['responses']['200']['content']['application/json']['schema']
+    documented = set(ok['properties']['checks']['properties'])
+    assert served <= documented and 'queue_available' not in documented
+
+
+def test_pattern_audio_removed_is_documented_as_served(seeded):
+    client, headers = seeded
+    response = client.get(f"/api/v1/patterns/{_SEEDED['pattern_id']}", headers=headers)
+    assert response.get_json()['audio_removed'] in (0, 1)
+    assert 'audio_removed' in _documented_properties('Pattern')
+    assert_response_conforms('get', '/patterns/{pattern_id}', response)
+
+
+def test_retry_ad_detection_success_names_the_served_fields(seeded):
+    from unittest.mock import MagicMock, patch
+    client, headers = seeded
+    detector = MagicMock()
+    detector.process_transcript.return_value = {'status': 'success', 'ads': [{'start': 1.0, 'end': 5.0}]}
+    with patch('ad_detector.AdDetector', return_value=detector):
+        response = client.post(f'/api/v1/feeds/{SLUG}/episodes/{EPISODE_ID}/retry-ad-detection', headers=headers)
+    assert_response_conforms('post', '/feeds/{slug}/episodes/{episode_id}/retry-ad-detection', response)
+    body = response.get_json()
+    documented = _spec()['paths']['/feeds/{slug}/episodes/{episode_id}/retry-ad-detection']['post'][
+        'responses']['200']['content']['application/json']['schema']['properties']
+    assert body['adsFound'] == 1 and set(body) <= set(documented), set(body) - set(documented)

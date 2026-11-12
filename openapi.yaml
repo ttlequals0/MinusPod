@@ -2581,7 +2581,7 @@ paths:
                     type: string
                     enum: [started]
         '400':
-          description: No VTT transcript available (full reprocess required)
+          description: No VTT transcript is available (full reprocess required), or the configured chapters provider and model cannot generate chapters (System One does not support chapters)
           content:
             application/json:
               schema:
@@ -2875,9 +2875,13 @@ paths:
                 properties:
                   message:
                     type: string
-                  adsDetected:
+                  episodeId:
+                    type: string
+                  adsFound:
                     type: integer
                   status:
+                    type: string
+                  note:
                     type: string
         '400':
           description: Episode has no transcript (must use reprocess instead)
@@ -5172,6 +5176,13 @@ paths:
       responses:
         '200':
           description: Audio slice
+          headers:
+            Accept-Ranges:
+              description: Always `bytes`.
+              schema: { type: string }
+            Cache-Control:
+              description: Always `no-store`.
+              schema: { type: string }
           content:
             audio/mpeg:
               schema:
@@ -5179,6 +5190,13 @@ paths:
                 format: binary
         '206':
           description: Partial audio slice for a Range request
+          headers:
+            Accept-Ranges:
+              description: Always `bytes`.
+              schema: { type: string }
+            Cache-Control:
+              description: Always `no-store`.
+              schema: { type: string }
           content:
             audio/mpeg:
               schema:
@@ -5198,6 +5216,13 @@ paths:
                 code: original_not_retained
         '416':
           description: The Range header cannot be satisfied
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: The server cannot provide the requested range.
+                status: 416
         '500':
           $ref: '#/components/responses/ServerError'
         '503':
@@ -8241,13 +8266,13 @@ paths:
                   type: [integer, 'null']
                   minimum: 1
                   maximum: 8760
-                  description: Idle session length in hours for a normal sign-in. Whole numbers only. Null resets to the default.
+                  description: Idle session length in hours for a normal sign-in. Whole numbers only; a whole-number string such as "5" is also accepted. Null resets to the default.
                   example: 24
                 sessionRememberDays:
                   type: [integer, 'null']
                   minimum: 1
                   maximum: 365
-                  description: Idle session length in days for a sign-in that ticked "Remember me". Whole numbers only. Null resets to the default.
+                  description: Idle session length in days for a sign-in that ticked "Remember me". Whole numbers only; a whole-number string such as "5" is also accepted. Null resets to the default.
                   example: 30
                 maxArtworkBytes:
                   type: integer
@@ -8981,8 +9006,6 @@ paths:
                         type: boolean
                       storage:
                         type: boolean
-                      queue_available:
-                        type: boolean
                       llm_model_configured:
                         type: boolean
                         description: >-
@@ -9174,6 +9197,10 @@ paths:
                 $ref: '#/components/schemas/DatabaseCheckpointResult'
         '400':
           description: The mode is not passive or truncate
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
         '409':
           description: Active readers prevented the checkpoint from completing
           content:
@@ -19686,6 +19713,25 @@ components:
               type: integer
             sessionRememberDays:
               type: integer
+            fingerprintEnabled:
+              type: boolean
+            fingerprintGapToleranceS:
+              type: number
+            fingerprintMatchStrictness:
+              type: number
+            fingerprintMinAdLengthS:
+              type: number
+            fingerprintMinCoverage:
+              type: number
+            queueOrder:
+              type: string
+              enum: [queued, oldest_first, newest_first]
+            queueFreshBoost:
+              type: integer
+            queueManualBoost:
+              type: integer
+            queueBulkBoost:
+              type: integer
             maxArtworkBytes:
               type: integer
             maxRssBytes:
@@ -20373,6 +20419,10 @@ components:
             or creation timestamp is also older than 365 days. unproven: no
             recent local match, but not stale; includes all local
             (non-community) patterns, which are never 'stale'.
+        audio_removed:
+          type: integer
+          enum: [0, 1]
+          description: 1 when the operator removed this pattern's audio fingerprint, so automatic fingerprinting skips it; 0 otherwise. Stored as an integer flag, not a boolean.
         audio:
           $ref: '#/components/schemas/PatternAudioSummary'
 

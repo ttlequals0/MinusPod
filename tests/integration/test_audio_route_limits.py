@@ -3,12 +3,14 @@ import os
 import subprocess
 
 import pytest
+import yaml
 
 import api.patterns_audio as module
 from api import preview_cache
 from api.patterns import _store_pattern_audio
 from tests.integration.fingerprint_helpers import EPISODE, SLUG, csrf  # noqa: E402
 from tests.fingerprint_match_helpers import record_fingerprint_match
+from tests.integration.openapi_conformance import SPEC_PATH, assert_response_conforms
 
 HUGE = '9' * 30
 OVER_INT64 = '9223372036854775808'
@@ -227,6 +229,15 @@ def test_cached_slice_is_served_while_encoders_are_busy(app_client, fp_audio_pat
         module._preview_slots.release()
 
 
+def test_preview_success_headers_match_the_spec(app_client, fp_audio_pattern, fp_audio_original):
+    spec = yaml.safe_load(SPEC_PATH.read_text())['paths']['/patterns/{pattern_id}/audio/preview']['get']['responses']
+    for code, extra in ((200, {}), (206, {'Range': 'bytes=0-99'})):
+        r = _preview(app_client, fp_audio_pattern, **extra)
+        assert r.status_code == code
+        assert {'Accept-Ranges', 'Cache-Control'} <= set(spec[str(code)]['headers'])
+        assert r.headers['Accept-Ranges'] == 'bytes' and r.headers['Cache-Control'] == 'no-store'
+
+
 def test_failed_encode_frees_its_slot_and_caches_nothing(app_client, fp_audio_pattern, fp_audio_original, monkeypatch):
     def boom(cmd, **kw):
         raise subprocess.CalledProcessError(1, cmd, stderr=b'x')
@@ -238,7 +249,8 @@ def test_failed_encode_frees_its_slot_and_caches_nothing(app_client, fp_audio_pa
 
 def test_unsatisfiable_range_is_416(app_client, fp_audio_pattern, fp_audio_original):
     r = _preview(app_client, fp_audio_pattern, Range='bytes=99999999-')
-    assert r.status_code == 416
+    assert_response_conforms('get', '/patterns/{pattern_id}/audio/preview', r, 416)
+    assert r.get_json()['status'] == 416
 
 
 def test_a_preview_is_not_served_once_the_original_is_gone(

@@ -50,6 +50,10 @@ def test_success_response_matches_the_schema(client, body):
     assert_response_conforms('post', PATH, resp, status=200)
 
 
+def test_bad_mode_response_matches_the_schema(client):
+    assert_response_conforms('post', PATH, _post(client, {'mode': 'bogus'}), status=400)
+
+
 def test_busy_response_matches_the_schema(client, monkeypatch):
     import api.system as system
     busy = {'mode': 'passive', 'busy': True, 'logPages': 3, 'checkpointedPages': 1, 'durationMs': 0.5}
