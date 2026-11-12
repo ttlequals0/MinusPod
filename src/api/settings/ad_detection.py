@@ -255,8 +255,9 @@ def _clear_stage_models(db, stages, data, changed_stages):
                 continue
             if stage == 'review' and db.get_setting(setting_key) == SAME_AS_PASS:
                 continue
-            db.set_setting(setting_key, '', is_default=False)
-            changed_stages.append(stage)
+            if db.get_setting(setting_key):
+                db.set_setting(setting_key, '', is_default=False)
+                changed_stages.append(stage)
         elif ('patternCleanupModel' not in data
               and db.get_setting('pattern_cleanup_model') is not None):
             db.set_setting('pattern_cleanup_model', '', is_default=False)
@@ -273,9 +274,10 @@ def _clear_models_for_identity_changes(db, previous, data):
     elif previous['primary_none'] and not current['primary_none']:
         stored = _stored_pre_none_identities(db)
         db.set_setting(_PRE_NONE_KEY, '', is_default=False)
-        # No stored identity for a stage means its model's account is unknown.
+        # No stored identity: only a primary-slot model is known to be stale.
         stages = [stage for stage in _MODEL_STAGES
-                  if stored.get(stage) != current[stage]]
+                  if (stored[stage] != current[stage] if stage in stored
+                      else resolved_stage_slot(db, stage) == 'primary')]
     elif previous['primary_none']:
         stages = ()
     else:

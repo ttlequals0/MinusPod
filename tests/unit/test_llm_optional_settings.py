@@ -169,7 +169,36 @@ def test_none_from_env_then_a_provider_clears_stale_models(app_client, hdr):
     finally:
         del os.environ['LLM_PROVIDER']
         invalidate_provider_cache()
+    models = _stage_models(db)
+    assert models.pop('chapters_model') == 'm-chapters_model'
+    assert set(models.values()) == {''}, models
+
+
+def test_none_from_env_then_a_provider_clears_every_primary_stage(app_client, hdr):
+    db = get_database()
+    _seed_all_stage_models(db, 'anthropic')
+    db.set_setting('chapters_provider', 'primary', is_default=False)
+    db.clear_setting('llm_provider')
+    db.clear_setting('llm_pre_none_identity')
+    os.environ['LLM_PROVIDER'] = 'none'
+    try:
+        invalidate_provider_cache()
+        assert _put(app_client, hdr, {'llmProvider': 'openai-compatible'}).status_code == 200
+    finally:
+        del os.environ['LLM_PROVIDER']
+        invalidate_provider_cache()
     assert set(_stage_models(db).values()) == {''}, _stage_models(db)
+
+
+def test_clearing_stage_models_reports_only_stages_that_changed(app_client, hdr):
+    from api.settings import ad_detection
+    db = get_database()
+    _seed_all_stage_models(db, 'anthropic')
+    db.set_setting('verification_model', '', is_default=False)
+    changed = []
+    ad_detection._clear_stage_models(db, ad_detection._MODEL_STAGES, {}, changed)
+    assert 'verification' not in changed
+    assert 'detection' in changed
 
 
 def test_leaving_none_keeps_models_set_in_the_same_payload(app_client, hdr):
