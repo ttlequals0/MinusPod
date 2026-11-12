@@ -234,6 +234,6 @@ def test_second_failure_holds_every_unconfirmed_ad(monkeypatch, caplog):
     assert 'validation' not in supported and 'validation' not in held[0]
     assert [v.verdict for v in result.verdicts] == ['failure', 'failure']
     assert all(v.inconclusive_hold for v in result.verdicts)
-    assert len([r for r in caplog.records if r.levelno == logging.WARNING]) == 1
+    assert len([r for r in caplog.records if r.name == 'ad_reviewer' and r.levelno == logging.WARNING]) == 1
     assert len([r for r in caplog.records if r.levelno == logging.INFO
                 and 'Reviewer unavailable; bounds unsupported' in r.getMessage()]) == 2

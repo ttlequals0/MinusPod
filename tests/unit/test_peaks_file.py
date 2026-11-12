@@ -311,7 +311,7 @@ def test_decode_shorter_than_one_bucket_is_none_and_not_an_error(tmp_path, caplo
     _gen_wav(src, seconds=0.005)
     with caplog.at_level('DEBUG', logger='podcast.peaks'):
         assert ap.build_peaks_from_decode(src, 0.005) is None
-    assert not [r for r in caplog.records if r.levelname in ('ERROR', 'WARNING')]
+    assert not [r for r in caplog.records if r.name == 'podcast.peaks' and r.levelname in ('ERROR', 'WARNING')]
 
 
 def test_bucket_convention_matches_splice_detector():

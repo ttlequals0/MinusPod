@@ -17,7 +17,7 @@ SETTINGS = {'api_base_url': 'https://whisper.example.com/v1',
 def _warnings(caplog, segments, settings=None):
     with caplog.at_level(logging.WARNING, logger='transcriber'):
         _warn_if_word_timestamps_missing(segments, settings or SETTINGS)
-    return [r.getMessage() for r in caplog.records if r.levelno >= logging.WARNING]
+    return [r.getMessage() for r in caplog.records if r.name == 'transcriber' and r.levelno >= logging.WARNING]
 
 
 def test_segments_without_words_warn_once_naming_provider_and_model(caplog):

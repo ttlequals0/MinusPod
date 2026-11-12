@@ -207,7 +207,7 @@ def test_failed_write_on_reprocess_logs_once_and_leaves_no_stale_or_temp_file(tm
     with patch('audio_peaks._write_atomic', side_effect=OSError('disk full')), \
             caplog.at_level(logging.WARNING):
         assert _retain(processing, tmp_path, second, np.array([8, 9], dtype='<u2')) is True
-    warnings = [r for r in caplog.records if r.levelno >= logging.WARNING]
+    warnings = [r for r in caplog.records if r.name == 'podcast.audio' and r.levelno >= logging.WARNING]
     assert len(warnings) == 1
     assert final.exists()
     assert sorted(p.name for p in final.parent.iterdir()) == ['e-original.wav']

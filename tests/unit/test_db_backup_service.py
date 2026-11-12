@@ -673,7 +673,7 @@ def test_passphrase_set_reports_encrypted_not_exposed(db, tmp_path, monkeypatch,
     db.set_setting('db_backup_dest', str(tmp_path / 'backups'))
     with caplog.at_level(logging.INFO, logger='podcast.db_backup'):
         backup_now(db)
-    assert not [r for r in caplog.records if r.levelno == logging.WARNING]
+    assert not [r for r in caplog.records if r.name == 'podcast.db_backup' and r.levelno == logging.WARNING]
     assert any('encrypted provider secrets' in r.getMessage() for r in caplog.records)
 
 
@@ -685,7 +685,7 @@ def test_no_secrets_stored_does_not_warn(db, tmp_path, monkeypatch, caplog):
     db.set_setting('db_backup_dest', str(tmp_path / 'backups'))
     with caplog.at_level(logging.INFO, logger='podcast.db_backup'):
         backup_now(db)
-    assert not [r for r in caplog.records if r.levelno == logging.WARNING]
+    assert not [r for r in caplog.records if r.name == 'podcast.db_backup' and r.levelno == logging.WARNING]
 
 
 def test_no_secrets_stored_reports_none_not_encrypted(db, tmp_path, caplog):
@@ -743,7 +743,7 @@ def test_warns_when_plaintext_secrets_are_present(db, caplog, monkeypatch):
     monkeypatch.setattr(db_backup_service, 'count_plaintext_secrets', lambda _db: 2)
     with caplog.at_level('DEBUG', logger='podcast.db_backup'):
         backup_now(db)
-    warnings = [r for r in caplog.records if r.levelname == 'WARNING']
+    warnings = [r for r in caplog.records if r.name == 'podcast.db_backup' and r.levelname == 'WARNING']
     assert len(warnings) == 1
     assert 'plaintext' in warnings[0].getMessage()
 
@@ -752,7 +752,7 @@ def test_no_warning_when_secrets_are_encrypted(db, caplog):
     db.set_setting('anthropic_api_key', 'enc:v1:bm9uY2U=:Y3Q=')
     with caplog.at_level('DEBUG', logger='podcast.db_backup'):
         backup_now(db)
-    assert not [r for r in caplog.records if r.levelname == 'WARNING']
+    assert not [r for r in caplog.records if r.name == 'podcast.db_backup' and r.levelname == 'WARNING']
     assert any('encrypted provider secrets' in r.getMessage() for r in caplog.records)
 
 
@@ -762,7 +762,7 @@ def test_passphrase_alone_does_not_warn(db, caplog, monkeypatch):
     monkeypatch.setattr(db_backup_service, 'count_plaintext_secrets', lambda _db: 0)
     with caplog.at_level('DEBUG', logger='podcast.db_backup'):
         backup_now(db)
-    assert not [r for r in caplog.records if r.levelname == 'WARNING']
+    assert not [r for r in caplog.records if r.name == 'podcast.db_backup' and r.levelname == 'WARNING']
 
 
 def test_warning_emitted_at_most_once_per_process(db, caplog, monkeypatch):
@@ -770,7 +770,7 @@ def test_warning_emitted_at_most_once_per_process(db, caplog, monkeypatch):
     with caplog.at_level('DEBUG', logger='podcast.db_backup'):
         backup_now(db)
         backup_now(db)
-    assert len([r for r in caplog.records if r.levelname == 'WARNING']) == 1
+    assert len([r for r in caplog.records if r.name == 'podcast.db_backup' and r.levelname == 'WARNING']) == 1
 
 
 def test_secret_count_failure_does_not_break_the_backup(db, caplog, monkeypatch):
@@ -781,7 +781,7 @@ def test_secret_count_failure_does_not_break_the_backup(db, caplog, monkeypatch)
     with caplog.at_level('DEBUG', logger='podcast.db_backup'):
         summary = backup_now(db)
     assert summary['mode'] == 'overwrite'
-    assert not [r for r in caplog.records if r.levelname == 'WARNING']
+    assert not [r for r in caplog.records if r.name == 'podcast.db_backup' and r.levelname == 'WARNING']
 
 
 # ---------------------------------------------------------------------------

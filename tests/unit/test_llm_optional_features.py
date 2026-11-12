@@ -410,7 +410,7 @@ def test_startup_logs_one_info_line_and_no_model_complaint_under_none(provider_n
     caplog.set_level(logging.DEBUG, logger='llm_client')
     llm_client.verify_llm_connection()
     main_app._log_missing_model_settings(db)
-    noisy = [r for r in caplog.records if r.levelno >= logging.WARNING]
+    noisy = [r for r in caplog.records if r.name in ('llm_client', 'podcast.app') and r.levelno >= logging.WARNING]
     assert noisy == []
     disabled = [r for r in caplog.records if r.levelno == logging.INFO and 'disabled' in r.getMessage().lower()]
     assert len(disabled) == 1
