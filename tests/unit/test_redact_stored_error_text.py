@@ -349,7 +349,7 @@ def _compose_on_another_connection(db):
 def test_a_row_changed_between_the_page_read_and_write_is_still_redacted(temp_db, monkeypatch):
     _seed(temp_db)
     temp_db._init_schema()
-    real = type(temp_db)._redaction_units
+    real = deferred.redaction_units
     fired = []
 
     def units():
@@ -365,7 +365,7 @@ def test_a_row_changed_between_the_page_read_and_write_is_still_redacted(temp_db
             out.append((table, column, rewrite, where, params))
         return out
 
-    monkeypatch.setattr(type(temp_db), '_redaction_units', staticmethod(units))
+    monkeypatch.setattr(deferred, 'redaction_units', units)
     assert temp_db.run_deferred_upgrade_steps()
     stored = temp_db.get_connection().execute(
         "SELECT error_message FROM episodes WHERE episode_id = 'a1b2c3d4e5f6'").fetchone()[0]
