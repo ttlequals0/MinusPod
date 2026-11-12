@@ -638,3 +638,29 @@ def test_trim_dropping_a_fingerprint_wholly_past_the_precise_end_is_held():
 
     assert result.accepted_after_review == []
     assert result.held_by_boundary_conflict[0]['reviewer_proposed_end'] == 116.2
+
+
+def _run_past_precise_end_ad():
+    return _merged(1711.02, 1845.0, [
+        {'start': 1711.02, 'end': 1836.66, 'stage': 'claude', 'confidence': 0.98,
+         'precise_start': True, 'precise_end': True},
+        {'start': 1770.0, 'end': 1845.0, 'stage': 'fingerprint',
+         'fingerprint_match_start': 1770.0, 'fingerprint_match_end': 1845.0}],
+        fingerprint_match_start=1770.0, fingerprint_match_end=1845.0)
+
+
+def test_small_trim_of_a_fingerprint_run_past_a_precise_end_is_widened_back():
+    result = _review(_build_reviewer(_SETTINGS), _run_past_precise_end_ad(), (1711.02, 1842.5))
+
+    assert result.held_by_boundary_conflict == []
+    accepted = result.accepted_after_review[0]
+    assert (accepted['start'], accepted['end']) == (1711.02, 1845.0)
+
+
+def test_trim_of_a_fingerprint_run_back_to_the_precise_end_is_held():
+    result = _review(_build_reviewer(_SETTINGS), _run_past_precise_end_ad(), (1711.02, 1836.66))
+
+    assert result.accepted_after_review == []
+    held = result.held_by_boundary_conflict[0]
+    assert held['hold_reason'] == HOLD_REASON_REVIEWER_BOUNDARY_CONFLICT
+    assert (held['end'], held['reviewer_proposed_end']) == (1845.0, 1836.66)

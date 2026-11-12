@@ -9,6 +9,7 @@ os.environ.setdefault('SECRET_KEY', 'test-secret')
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 
 from ad_detector import AdDetector
+from ad_reviewer import AdReviewer
 from ad_detector.boundaries import (
     deduplicate_window_ads,
     split_conflicting_action_span,
@@ -518,6 +519,34 @@ def test_edge_support_takes_the_fingerprints_whole_measured_end():
         'envelope': 1872.74, 'measured': 1872.74, 'source': 'fingerprint', 'precise': False}
     assert edge_support(merged, 'start', MIN_CONF) == {
         'envelope': 1711.02, 'measured': 1711.02, 'source': 'transcript', 'precise': True}
+
+
+def _run_past_precise_end():
+    detector = AdDetector.__new__(AdDetector)
+    (merged,) = detector._merge_detection_results(
+        [_precise_llm(1711.02, 1836.66), _fingerprint(1770.0, 1845.0)])
+    return merged
+
+
+def test_merged_fingerprint_run_past_a_precise_end_is_hard_to_its_end():
+    merged = _run_past_precise_end()
+
+    assert merged['end'] == 1845.0
+    assert edge_support(merged, 'end', MIN_CONF)['measured'] == 1845.0
+    fingerprint = [m for m in hard_member_spans(merged, 1711.02, 1845.0, MIN_CONF)
+                   if m['stage'] == 'fingerprint']
+    assert [(m['start'], m['end']) for m in fingerprint] == [(1770.0, 1845.0)]
+
+
+@pytest.mark.parametrize('proposed_end,conflict', [(1842.5, False), (1836.66, True)])
+def test_trim_of_a_distinct_merged_fingerprint_run_conflicts_only_past_the_tolerance(
+        proposed_end, conflict):
+    merged = _precise_llm(1711.02, 1836.66)
+    mark_distinct_merge(merged, _fingerprint(1770.0, 1845.0))
+    merged.update(end=1845.0, fingerprint_match_start=1770.0, fingerprint_match_end=1845.0)
+
+    assert AdReviewer._proposal_conflicts_with_protection(
+        merged, 1711.02, proposed_end, 1711.02, 1845.0, min_conf=MIN_CONF) is conflict
 
 
 def test_segment_end_text_pattern_is_soft_past_a_precise_word_end():
