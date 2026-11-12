@@ -14,6 +14,7 @@ import { formatTimestamp, formatDate, formatPercent } from '../../utils/format';
 import { btnPrimary, btnOutline, btnDestructive } from '../../components/buttonStyles';
 import { focusRing, selectBase } from '../../components/fieldStyles';
 import { badgeBase, tint } from '../../components/badgeStyles';
+import AddAudioToPatternButton from '../../components/AddAudioToPatternButton';
 import { DemoDisabled } from '../../components/DemoDisabled';
 import { cardActionBtn, tableActionBtn } from '../../components/rowActionStyles';
 
@@ -170,12 +171,13 @@ function ShortLabel({ full, short }: { full: string; short: string }) {
 
 // One set of row actions rendered in two densities: compact at the end of
 // the desktop row, touch-sized inside the mobile card footer.
-function DetectionActions({ d, variant, playing, onTogglePlay, actions }: {
+function DetectionActions({ d, variant, playing, onTogglePlay, actions, showAddAudio }: {
   d: ReviewDetection;
   variant: 'row' | 'card';
   playing: boolean;
   onTogglePlay: () => void;
   actions: DetectionRowActions;
+  showAddAudio: boolean;
 }) {
   const isCard = variant === 'card';
   const btn = isCard ? `${cardActionBtn} ${cardRowBtn}` : tableActionBtn;
@@ -246,6 +248,16 @@ function DetectionActions({ d, variant, playing, onTogglePlay, actions }: {
       </button>
     </DemoDisabled>
   );
+  // The row shows d.start to d.end, and that span is what the audio is built from.
+  const addAudio = showAddAudio && d.detectionStage === 'text_pattern' && d.patternId != null && (
+    <AddAudioToPatternButton
+      patternId={d.patternId}
+      hasOriginal={d.hasOriginalAudio}
+      span={{ podcastSlug: d.feedSlug, episodeId: d.episodeId, start: d.start, end: d.end }}
+      buttonClassName={`${btn} ${btnOutline} disabled:opacity-50 ${focusRing}`}
+      className={isCard ? 'grow' : ''}
+    />
+  );
   const split = actions.onSplit && (
     <DemoDisabled>
       <button
@@ -261,7 +273,7 @@ function DetectionActions({ d, variant, playing, onTogglePlay, actions }: {
 
   if (!isCard) {
     return (
-      <div className="flex items-center gap-1.5">{play}{approve}{dismiss}{category}{split}{edit}</div>
+      <div className="flex items-center gap-1.5">{play}{approve}{dismiss}{category}{split}{addAudio}{edit}</div>
     );
   }
   // Five controls do not fit one line under 430 px, so Split and Edit take a
@@ -273,7 +285,7 @@ function DetectionActions({ d, variant, playing, onTogglePlay, actions }: {
     <div className="flex flex-col gap-2 pt-1">
       {category}
       <div data-testid="detection-actions-row" className="flex flex-wrap items-center gap-1.5 min-[370px]:gap-2">
-        {play}{approve}{dismiss}{tail}
+        {play}{approve}{dismiss}{addAudio}{tail}
       </div>
     </div>
   );
@@ -287,10 +299,12 @@ interface DetectionRowsProps {
   // is about whether the span is an ad at all, and useful on Detected Ads,
   // where the whole point is browsing by category.
   showCategory?: boolean;
+  // Offers "Add audio to pattern" on text-pattern detections (Detected Ads only).
+  showAddAudio?: boolean;
 }
 
 export function DetectionRows({
-  detections, audition, actions, showCategory = false,
+  detections, audition, actions, showCategory = false, showAddAudio = false,
 }: DetectionRowsProps) {
   return (
     <>
@@ -327,6 +341,7 @@ export function DetectionRows({
                     onTogglePlay={() => audition.toggle(
                       rowKey, episodeOriginalUrl(d.feedSlug, d.episodeId), d.start, d.end)}
                     actions={actions}
+                    showAddAudio={showAddAudio}
                   />
                 </div>
               </div>
@@ -363,6 +378,7 @@ export function DetectionRows({
                 onTogglePlay={() => audition.toggle(
                   rowKey, episodeOriginalUrl(d.feedSlug, d.episodeId), d.start, d.end)}
                 actions={actions}
+                showAddAudio={showAddAudio}
               />
             </div>
           );

@@ -422,6 +422,60 @@ describe('Audio section', () => {
   });
 });
 
+describe('Add audio to pattern from the source episode', () => {
+  const episodeWith = (over: Record<string, unknown> = {}) => ({
+    id: 'a1b2c3d4e5f6', originalDuration: 1800, hasOriginalAudio: true,
+    adMarkers: [
+      { start: 40, end: 70, detection_stage: 'claude', reason: 'other' },
+      { start: 300, end: 345, detection_stage: 'text_pattern', reason: 'Acme (pattern #42, intro)', pattern_id: 42 },
+    ],
+    ...over,
+  });
+  const sourced = () => makePattern({ podcast_slug: 'example-podcast', created_from_episode_id: 'a1b2c3d4e5f6' });
+
+  it('adds audio from the ad this pattern matched in its source episode', async () => {
+    mockGetEpisode.mockResolvedValue(episodeWith());
+    mockRebuildPatternAudio.mockResolvedValue({ ...ACTIVE_AUDIO, fingerprintStored: true });
+    renderModal(sourced());
+    await userEvent.click(await screen.findByRole('button', { name: 'Add audio to pattern' }));
+    await waitFor(() => expect(mockRebuildPatternAudio).toHaveBeenCalledWith(
+      42, { podcastSlug: 'example-podcast', episodeId: 'a1b2c3d4e5f6', start: 300, end: 345 },
+    ));
+    expect(mockGetEpisode).toHaveBeenCalledWith('example-podcast', 'a1b2c3d4e5f6');
+    expect((await screen.findByRole('status', { name: 'Audio change' })).textContent).toBe('Audio added to pattern.');
+  });
+
+  it('shows the reason when no fingerprint was stored', async () => {
+    mockGetEpisode.mockResolvedValue(episodeWith());
+    mockRebuildPatternAudio.mockResolvedValue({ ...NO_AUDIO, fingerprintStored: false, fingerprintSkippedReason: 'segment_too_short' });
+    renderModal(sourced());
+    await userEvent.click(await screen.findByRole('button', { name: 'Add audio to pattern' }));
+    expect((await screen.findByRole('alert')).textContent).toBe('That selection is too short for an audio fingerprint.');
+  });
+
+  it('is disabled with a visible reason when the source original is gone', async () => {
+    mockGetEpisode.mockResolvedValue(episodeWith({ hasOriginalAudio: false }));
+    renderModal(sourced());
+    const button = await screen.findByRole('button', { name: 'Add audio to pattern' }) as HTMLButtonElement;
+    expect(button.disabled).toBe(true);
+    expect(screen.getByText('Original audio not kept')).toBeDefined();
+  });
+
+  it('is not offered when the pattern has no source episode or the episode shows no ad for it', async () => {
+    renderModal(makePattern());
+    await screen.findByText('No audio fingerprint.');
+    expect(mockGetEpisode).not.toHaveBeenCalled();
+    expect(screen.queryByRole('button', { name: 'Add audio to pattern' })).toBeNull();
+  });
+
+  it('offers nothing when the source episode holds no ad for this pattern', async () => {
+    mockGetEpisode.mockResolvedValue(episodeWith({ adMarkers: [{ start: 40, end: 70, detection_stage: 'claude', reason: 'other' }] }));
+    renderModal(sourced());
+    await waitFor(() => expect(mockGetEpisode).toHaveBeenCalled());
+    expect(screen.queryByRole('button', { name: 'Add audio to pattern' })).toBeNull();
+  });
+});
+
 describe('Edit edges', () => {
   const EXPIRED = { ...ACTIVE_AUDIO, available: false, source: null, builtFrom: { ...ACTIVE_AUDIO.builtFrom, available: false } };
 

@@ -10,6 +10,8 @@ const mockGetDetections = vi.fn();
 const mockGetFeedsResponse = vi.fn().mockResolvedValue({ feeds: [] });
 const mockSubmitCorrection = vi.fn().mockResolvedValue({});
 const mockReprocess = vi.fn().mockResolvedValue({});
+const mockGetPatterns = vi.fn();
+const mockRebuildPatternAudio = vi.fn();
 
 vi.mock('../../api/detections', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../../api/detections')>()),
@@ -27,6 +29,8 @@ vi.mock('../../api/feeds', async (importOriginal) => ({
 vi.mock('../../api/patterns', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../../api/patterns')>()),
   submitCorrection: (...a: unknown[]) => mockSubmitCorrection(...a),
+  getPatterns: (...a: unknown[]) => mockGetPatterns(...a),
+  rebuildPatternAudio: (...a: unknown[]) => mockRebuildPatternAudio(...a),
 }));
 // AdReviewModal renders WaveSurfer; its behavior is covered by its own tests.
 // The stub records its props so the wiring can be asserted.
@@ -92,6 +96,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   reviewModalProps.current = null;
   mockGetFeedsResponse.mockResolvedValue({ feeds: [] });
+  mockGetPatterns.mockResolvedValue([{ id: 7, audio: { state: 'none', available: false, matchCount: 0, meanSimilarity: null } }]);
   mockGetDetections.mockResolvedValue({
     detections: [detection()],
     total: 1, page: 1, totalPages: 1, limit: 20,
@@ -332,5 +337,50 @@ describe('DetectedAdsTab list state in the URL', () => {
     await screen.findAllByRole('link', { name: 'Episode One' });
     await user.selectOptions(screen.getByLabelText('Reviewer'), 'unadjusted');
     await waitFor(() => expect(mockGetDetections.mock.lastCall?.[0]).toMatchObject({ page: 1, reviewer: 'unadjusted' }));
+  });
+
+  describe('Add audio to pattern', () => {
+    const textRow = (over: Partial<ReviewDetection> = {}) => detection({ patternId: 7, detectionStage: 'text_pattern', ...over });
+    const load = (rows: ReviewDetection[]) => mockGetDetections.mockResolvedValue({
+      detections: rows, total: rows.length, page: 1, totalPages: 1, limit: 20,
+      counts: { total: rows.length, needsReview: 0, pending: 0, rejected: 0, accepted: rows.length, confirmed: 0, dismissed: 0 },
+      cutSummary: SUMMARY,
+    });
+
+    it('adds audio from the span the row shows and confirms in place', async () => {
+      load([textRow()]);
+      mockRebuildPatternAudio.mockResolvedValue({ fingerprintStored: true });
+      const user = userEvent.setup();
+      renderTab();
+      const buttons = await screen.findAllByRole('button', { name: 'Add audio to pattern' });
+      await user.click(buttons[0]);
+      expect(mockRebuildPatternAudio).toHaveBeenCalledWith(7, {
+        podcastSlug: 'example-podcast', episodeId: 'a1b2c3d4e5f6', start: 100, end: 130,
+      });
+      expect((await screen.findAllByText('Audio added to pattern.')).length).toBeGreaterThan(0);
+    });
+
+    it('asks for the pattern summaries once for the whole page', async () => {
+      load([textRow(), textRow({ start: 300, end: 330 }), textRow({ start: 500, end: 530 })]);
+      renderTab();
+      await screen.findAllByRole('button', { name: 'Add audio to pattern' });
+      expect(mockGetPatterns).toHaveBeenCalledTimes(1);
+    });
+
+    it('is absent for a fingerprint detection and for rows with no pattern', async () => {
+      load([textRow({ detectionStage: 'fingerprint' }), detection()]);
+      renderTab();
+      await screen.findAllByRole('link', { name: 'Episode One' });
+      await waitFor(() => expect(mockGetPatterns).not.toHaveBeenCalled());
+      expect(screen.queryByRole('button', { name: 'Add audio to pattern' })).toBeNull();
+    });
+
+    it('is disabled with a visible reason when the original is gone', async () => {
+      load([textRow({ hasOriginalAudio: false })]);
+      renderTab();
+      const buttons = await screen.findAllByRole('button', { name: 'Add audio to pattern' });
+      expect(buttons.every((b) => (b as HTMLButtonElement).disabled)).toBe(true);
+      expect(screen.getAllByText('Original audio not kept').length).toBeGreaterThan(0);
+    });
   });
 });

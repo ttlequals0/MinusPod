@@ -39,7 +39,9 @@ import { applyEpisodeJobState, jobStateFromError } from '../utils/jobStateCache'
 import AdEditor, { AdCorrection } from '../components/AdEditor';
 import AdReviewModal from '../components/AdReviewModal';
 import type { AdSegment, EpisodeCorrection, Feed, EpisodeDetail as EpisodeDetailApi, JobState, ThinkingNoticePass, UpstreamTranscript } from '../api/types';
+import AddAudioToPatternButton from '../components/AddAudioToPatternButton';
 import PatternLink from '../components/PatternLink';
+import { markerPatternId } from '../utils/patternAudio';
 import ExpandableText from '../components/ExpandableText';
 import RichText from '../components/RichText';
 import CollapsibleSection from '../components/CollapsibleSection';
@@ -372,6 +374,16 @@ const downloadChip = btnBase;
 
 // ?rate=N from a feed description link; stripped once applied.
 const URL_PARAM_DEFAULTS = { rate: '' };
+
+// The span a marker row shows: the pre-trim range for reviewer-adjusted markers.
+function displayedSpan(segment: AdSegment): { start: number; end: number } {
+  const adjusted = segment.reviewer_verdict === 'adjust'
+    && segment.reviewer_original_start !== undefined
+    && segment.reviewer_original_end !== undefined;
+  return adjusted
+    ? { start: segment.reviewer_original_start!, end: segment.reviewer_original_end! }
+    : { start: segment.start, end: segment.end };
+}
 
 function EpisodeDetail() {
   const { slug, episodeId } = useParams<{ slug: string; episodeId: string }>();
@@ -803,23 +815,13 @@ function EpisodeDetail() {
           <AuditionPlayButton {...markerPlayProps}
             playing={markerAudition.playingKey === `detected-${segment.start}-${segment.end}`}
             onClick={() => {
-              // Play the displayed span: the pre-trim range for reviewer-adjusted markers.
-              const adjusted = segment.reviewer_verdict === 'adjust'
-                && segment.reviewer_original_start !== undefined
-                && segment.reviewer_original_end !== undefined;
-              markerAudition.toggle(
-                `detected-${segment.start}-${segment.end}`,
-                markerAudioUrl,
-                adjusted ? segment.reviewer_original_start! : segment.start,
-                adjusted ? segment.reviewer_original_end! : segment.end,
-              );
+              const shown = displayedSpan(segment);
+              markerAudition.toggle(`detected-${segment.start}-${segment.end}`, markerAudioUrl, shown.start, shown.end);
             }}
           />
         )}
         <span className="font-mono text-sm">
-          {segment.reviewer_verdict === 'adjust' && segment.reviewer_original_start !== undefined && segment.reviewer_original_end !== undefined
-            ? `${formatTimestamp(segment.reviewer_original_start)} - ${formatTimestamp(segment.reviewer_original_end)}`
-            : `${formatTimestamp(segment.start)} - ${formatTimestamp(segment.end)}`}
+          {formatTimestamp(displayedSpan(segment).start)} - {formatTimestamp(displayedSpan(segment).end)}
         </span>
         <SegmentCategoryBadge category={segment.category} />
         {isKeepLike(segment.actionApplied) && <KeptBadge actionApplied={segment.actionApplied} />}
@@ -896,6 +898,13 @@ function EpisodeDetail() {
           >
             Jump
           </button>
+        )}
+        {segment.detection_stage === 'text_pattern' && markerPatternId(segment) != null && (
+          <AddAudioToPatternButton
+            patternId={markerPatternId(segment)!}
+            hasOriginal={!!episode.hasOriginalAudio}
+            span={{ podcastSlug: slug!, episodeId: episode.id, ...displayedSpan(segment) }}
+          />
         )}
         {(() => {
           const correction = getAdCorrection(segment.start, segment.end);

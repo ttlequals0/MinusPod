@@ -6,6 +6,7 @@ import {
 import { getEpisode } from '../api/feeds';
 import { DEMO_AUDIO_TOOLTIP } from '../demo/copy';
 import { IS_DEMO } from '../demo/flag';
+import { markerPatternId } from '../utils/patternAudio';
 import { usePatternAudioPreview } from '../hooks/usePatternAudioPreview';
 import { usePatternAudioRebuild } from '../hooks/usePatternAudioRebuild';
 import { formatDate, formatDateTime, formatPercent } from '../utils/format';
@@ -20,6 +21,38 @@ import { Skeleton } from './Skeleton';
 import StatTile from './StatTile';
 import ToggleSwitch from './ToggleSwitch';
 import { subHeading } from './pageStyles';
+
+// A pattern without audio can be built from the ad it matched in the episode it was created from.
+function AddFromSourceEpisode({ pattern, onAdded }: { pattern: AdPattern; onAdded: () => void }) {
+  const slug = pattern.podcast_slug;
+  const episodeId = pattern.created_from_episode_id;
+  const { data: episode } = useQuery({
+    queryKey: ['episode', slug, episodeId],
+    queryFn: () => getEpisode(slug!, episodeId!),
+    enabled: !!slug && !!episodeId,
+  });
+  const rebuild = usePatternAudioRebuild(pattern.id, onAdded);
+  const marker = episode?.adMarkers?.find((m) => markerPatternId(m) === pattern.id);
+  if (!slug || !episodeId || !marker) return null;
+  const hasOriginal = !!episode?.hasOriginalAudio;
+  return (
+    <div className="flex flex-col items-start gap-1">
+      <DemoDisabled>
+        <button
+          type="button"
+          onClick={() => rebuild.mutate({ podcastSlug: slug, episodeId, start: marker.start, end: marker.end })}
+          disabled={!hasOriginal || rebuild.isPending}
+          aria-busy={rebuild.isPending}
+          className={`${btnBase} ${btnOutline}`}
+        >
+          {rebuild.isPending ? 'Adding audio...' : 'Add audio to pattern'}
+        </button>
+      </DemoDisabled>
+      {!hasOriginal && <p className="text-xs text-muted-foreground">Original audio not kept</p>}
+      {rebuild.isError && <p role="alert" className="text-sm text-destructive">{rebuild.error.message}</p>}
+    </div>
+  );
+}
 
 function outOfScopeNote(count: number): string {
   return count === 1
@@ -110,7 +143,12 @@ export default function PatternAudioSection({ pattern }: { pattern: AdPattern })
   } else if (isError || !detail) {
     body = <QueryError title="Could not load audio." onRetry={() => { void refetch(); }} retrying={isFetching} />;
   } else if (detail.state === 'none') {
-    body = <p className="text-sm text-muted-foreground">No audio fingerprint.</p>;
+    body = (
+      <>
+        <p className="text-sm text-muted-foreground">No audio fingerprint.</p>
+        <AddFromSourceEpisode pattern={pattern} onAdded={() => setNotice('Audio added to pattern.')} />
+      </>
+    );
   } else {
     // While a change is in flight the switch shows the requested state, and returns to the saved one if it fails.
     const on = toggle.isPending ? toggle.variables : detail.state === 'active';

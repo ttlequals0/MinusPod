@@ -680,6 +680,8 @@ export interface AdSegment {
   reviewer_original_start?: number;
   reviewer_original_end?: number;
   reviewer_reasoning?: string;
+  // Set by pattern stages; reviewer-moved spans keep it.
+  pattern_id?: number | null;
   reviewer_confidence?: number;
   // Why a pass-2 review inside this hold did not release it; the hold stays pending.
   pass2_hold_review?: {

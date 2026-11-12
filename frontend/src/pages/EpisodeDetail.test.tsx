@@ -117,8 +117,14 @@ vi.mock('../api/feeds', () => ({
   submitSponsorBlock: (...args: unknown[]) => mockSubmitSb(...args),
 }));
 
+const mockGetPatterns = vi.fn();
+const mockRebuildPatternAudio = vi.fn();
 vi.mock('../api/patterns', () => ({
   submitCorrection: (...args: unknown[]) => mockSubmitCorrection(...args),
+  getPatterns: (...args: unknown[]) => mockGetPatterns(...args),
+  rebuildPatternAudio: (...args: unknown[]) => mockRebuildPatternAudio(...args),
+  describeFingerprintSkip: (reason: string) => `skipped: ${reason}`,
+  patternAudioKey: (id: number) => ['pattern-audio', id],
 }));
 
 // Minimal QueryClient wrapper; avoids pulling in the full provider.
@@ -2940,5 +2946,61 @@ describe('Regenerate chapters: LLM provider None', () => {
     await screen.findByText('Test Episode');
     await user.click(screen.getByRole('button', { name: 'Reprocess' }));
     await waitFor(() => expect((screen.getByText('Regenerate chapters').closest('button') as HTMLButtonElement).disabled).toBe(false));
+  });
+});
+
+describe('Add audio to pattern on text-pattern detections', () => {
+  const textMarker = {
+    start: 100, end: 160, confidence: 0.95, detection_stage: 'text_pattern' as const,
+    reason: 'Acme (pattern #7, intro)', pattern_id: 7,
+  };
+  const summary = (state: string) => ({ state, available: state !== 'none', matchCount: 0, meanSimilarity: null });
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockGetPatterns.mockResolvedValue([{ id: 7, audio: summary('none') }]);
+  });
+
+  it('adds audio from the span the row shows, then confirms with a status', async () => {
+    mockRebuildPatternAudio.mockResolvedValue({ fingerprintStored: true });
+    const user = userEvent.setup();
+    renderDetail(makeEpisode({ pendingReviewMarkers: [], adMarkers: [textMarker] }));
+    await user.click(await screen.findByRole('button', { name: 'Add audio to pattern' }));
+    expect(mockRebuildPatternAudio).toHaveBeenCalledWith(7, { podcastSlug: 'test-feed', episodeId: 'ep-1', start: 100, end: 160 });
+    expect(await screen.findByText('Audio added to pattern.')).toBeDefined();
+    expect(screen.queryByRole('button', { name: 'Add audio to pattern' })).toBeNull();
+  });
+
+  it('reads the pattern from the reason when the marker carries no id, and uses the span the row shows', async () => {
+    mockRebuildPatternAudio.mockResolvedValue({ fingerprintStored: true });
+    renderDetail(makeEpisode({
+      pendingReviewMarkers: [],
+      adMarkers: [{ ...textMarker, pattern_id: undefined, reviewer_verdict: 'adjust', reviewer_original_start: 90, reviewer_original_end: 170 }],
+    }));
+    await userEvent.click(await screen.findByRole('button', { name: 'Add audio to pattern' }));
+    expect(mockRebuildPatternAudio).toHaveBeenCalledWith(7, expect.objectContaining({ start: 90, end: 170 }));
+  });
+
+  it('is absent for a fingerprint detection and for a pattern that already has audio', async () => {
+    renderDetail(makeEpisode({
+      pendingReviewMarkers: [],
+      adMarkers: [{ ...textMarker, detection_stage: 'fingerprint' }, { ...textMarker, start: 300, end: 360, pattern_id: 8, reason: 'Beta (pattern #8)' }],
+    }));
+    await screen.findByText('Detected ads (2)');
+    await waitFor(() => expect(mockGetPatterns).toHaveBeenCalled());
+    expect(screen.queryByRole('button', { name: 'Add audio to pattern' })).toBeNull();
+  });
+
+  it('is disabled and says why when the episode has no original', async () => {
+    renderDetail(makeEpisode({ pendingReviewMarkers: [], hasOriginalAudio: false, adMarkers: [textMarker] }));
+    const button = await screen.findByRole('button', { name: 'Add audio to pattern' }) as HTMLButtonElement;
+    expect(button.disabled).toBe(true);
+    expect(screen.getByText('Original audio not kept')).toBeDefined();
+  });
+
+  it('does not ask for pattern summaries when no detection came from a text pattern', async () => {
+    renderDetail(makeEpisode({ pendingReviewMarkers: [], adMarkers: [{ start: 10, end: 40, confidence: 0.9, detection_stage: 'claude' }] }));
+    await screen.findByText('Detected ads (1)');
+    expect(mockGetPatterns).not.toHaveBeenCalled();
   });
 });

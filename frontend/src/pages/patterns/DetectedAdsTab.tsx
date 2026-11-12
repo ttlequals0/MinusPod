@@ -176,6 +176,7 @@ export default function DetectedAdsTab() {
         <>
           <DetectionRows
             detections={data.detections}
+            showAddAudio
             audition={audition}
             actions={{
               // These ads were cut, so rejecting one has to put the audio back.
