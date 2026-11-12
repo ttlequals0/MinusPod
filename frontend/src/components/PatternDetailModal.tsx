@@ -21,6 +21,7 @@ import { focusRing, inputBase, labelBase, selectBase, textareaBase } from './fie
 import CloseButton from './CloseButton';
 import StatTile from './StatTile';
 import { DemoDisabled } from './DemoDisabled';
+import PatternAudioSection from './PatternAudioSection';
 
 // 44px icon buttons below sm, text buttons from sm
 
@@ -398,6 +399,8 @@ function PatternDetailModal({ pattern, onClose, onSave }: PatternDetailModalProp
             )}
           </div>
         )}
+
+        <PatternAudioSection pattern={pattern} />
 
         {/* Metadata */}
         <div className="border-t border-border pt-4 mt-4">

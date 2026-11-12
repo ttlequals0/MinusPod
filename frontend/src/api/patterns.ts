@@ -494,6 +494,8 @@ export function describeFingerprintSkip(reason: FingerprintSkippedReason): strin
   return FINGERPRINT_SKIP_TEXT[reason];
 }
 
+export const patternAudioKey = (patternId: number) => ['pattern-audio', patternId] as const;
+
 export async function getPatternAudio(id: number): Promise<AudioDetail> {
   return apiRequest<AudioDetail>(`/patterns/${id}/audio`);
 }
@@ -525,4 +527,20 @@ export async function getPatternAudioMatches(
 export function patternAudioPreviewUrl(id: number, matchId?: number): string | null {
   const qs = buildQueryString({ matchId });
   return mediaUrl({ kind: 'audio', url: apiUrl(`/patterns/${id}/audio/preview${qs}`) });
+}
+
+// An <audio> element cannot read the status of a failed load, so ask the route for one byte.
+export async function explainPreviewFailure(url: string): Promise<string> {
+  const fallback = 'Could not play this audio.';
+  try {
+    const res = await fetch(url, { headers: { Range: 'bytes=0-0' } });
+    if (res.status === 503) return 'Audio is being prepared. Try again.';
+    if (res.status !== 404) return fallback;
+    const body = (await res.json().catch(() => null)) as { code?: string } | null;
+    if (body?.code === 'original_not_retained') return describeFingerprintSkip('original_not_retained');
+    if (body?.code === 'no_audio') return 'This pattern has no audio fingerprint.';
+  } catch {
+    // a network failure reads the same as any other unplayable audio
+  }
+  return fallback;
 }

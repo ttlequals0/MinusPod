@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 const mockApiRequest = vi.fn();
 
@@ -9,7 +9,7 @@ vi.mock('./client', async (importOriginal) => ({
 
 import {
   getPatternAudio, setPatternAudioEnabled, deletePatternAudio, rebuildPatternAudio,
-  getPatternAudioMatches, patternAudioPreviewUrl, describeFingerprintSkip,
+  getPatternAudioMatches, patternAudioPreviewUrl, describeFingerprintSkip, explainPreviewFailure,
   type FingerprintSkippedReason,
 } from './patterns';
 import { getAudioMatchingStats } from './stats';
@@ -93,5 +93,44 @@ describe('describeFingerprintSkip', () => {
   ];
   it.each(cases)('explains %s', (reason, text) => {
     expect(describeFingerprintSkip(reason)).toBe(text);
+  });
+});
+
+describe('explainPreviewFailure', () => {
+  function stubFetch(status: number, body: unknown) {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: status < 400, status, json: async () => body,
+    } as unknown as Response);
+    vi.stubGlobal('fetch', fetchMock);
+    return fetchMock;
+  }
+  afterEach(() => vi.unstubAllGlobals());
+
+  it('asks for one byte so nothing is downloaded', async () => {
+    const fetchMock = stubFetch(503, {});
+    await explainPreviewFailure('/api/v1/patterns/7/audio/preview');
+    expect(fetchMock).toHaveBeenCalledWith('/api/v1/patterns/7/audio/preview', expect.objectContaining({ headers: { Range: 'bytes=0-0' } }));
+  });
+
+  it('says a busy server is preparing the audio', async () => {
+    stubFetch(503, { error: 'busy' });
+    await expect(explainPreviewFailure('/x')).resolves.toBe('Audio is being prepared. Try again.');
+  });
+
+  it('says when the original is gone', async () => {
+    stubFetch(404, { code: 'original_not_retained' });
+    await expect(explainPreviewFailure('/x')).resolves.toBe("This episode's original audio is no longer kept.");
+  });
+
+  it('says when the pattern has no audio', async () => {
+    stubFetch(404, { code: 'no_audio' });
+    await expect(explainPreviewFailure('/x')).resolves.toBe('This pattern has no audio fingerprint.');
+  });
+
+  it('falls back to a plain message for anything else, including a network failure', async () => {
+    stubFetch(500, {});
+    await expect(explainPreviewFailure('/x')).resolves.toBe('Could not play this audio.');
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('offline')));
+    await expect(explainPreviewFailure('/x')).resolves.toBe('Could not play this audio.');
   });
 });
