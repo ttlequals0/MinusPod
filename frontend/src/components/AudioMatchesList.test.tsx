@@ -1,18 +1,21 @@
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import AudioMatchesList from './AudioMatchesList';
 import { usePatternAudioPreview } from '../hooks/usePatternAudioPreview';
+import { ApiError } from '../api/client';
 import type { AudioMatch } from '../api/patterns';
 
 const mockGetMatches = vi.fn();
 const mockSubmitCorrection = vi.fn();
+const mockFetchClip = vi.fn();
 
 vi.mock('../api/patterns', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../api/patterns')>()),
   getPatternAudioMatches: (...a: unknown[]) => mockGetMatches(...a),
   submitCorrection: (...a: unknown[]) => mockSubmitCorrection(...a),
+  fetchPatternAudioClip: (...a: unknown[]) => mockFetchClip(...a),
 }));
 
 function makeMatch(i: number, overrides: Partial<AudioMatch> = {}): AudioMatch {
@@ -43,9 +46,14 @@ const twelve = Array.from({ length: 12 }, (_, i) => makeMatch(i + 1));
 
 beforeEach(() => {
   vi.clearAllMocks();
+  vi.stubGlobal('URL', Object.assign(URL, { createObjectURL: vi.fn(() => 'blob:clip'), revokeObjectURL: vi.fn() }));
+  mockFetchClip.mockResolvedValue(new Blob(['a']));
   mockGetMatches.mockImplementation((_id: number, p: { page?: number } = {}) => Promise.resolve(pageOf(twelve, p.page ?? 1)));
 });
-afterEach(() => vi.restoreAllMocks());
+afterEach(() => {
+  vi.unstubAllGlobals();
+  vi.restoreAllMocks();
+});
 
 describe('AudioMatchesList', () => {
   it('shows ten rows on page 1 and the rest on page 2', async () => {
@@ -71,11 +79,33 @@ describe('AudioMatchesList', () => {
     renderList();
     const row = (await screen.findAllByRole('listitem'))[0];
     const play = within(row).getByRole('button', { name: /^Play match/ });
-    const reject = within(row).getByRole('button', { name: 'Not this ad' });
-    expect(reject.className).toContain('max-sm:h-11');
-    expect(reject.className).toContain('sm:min-h-0');
-    expect(reject.className).not.toContain('min-h-[44px]');
+    const reject = within(row).getByRole('button', { name: /^Not this ad/ });
+    expect(reject.className).toContain('max-sm:min-h-[44px]');
+    expect(reject.className).not.toMatch(/(^| )min-h-\[44px\]/);
+    expect(reject.className).toContain('py-1.5');
     expect(play.className).toContain('min-h-11');
+  });
+
+  it('gives each row action a name that says which episode it acts on', async () => {
+    renderList();
+    const row = (await screen.findAllByRole('listitem'))[0];
+    expect(within(row).getByRole('button', { name: 'Not this ad, Episode 1' })).toBeDefined();
+    expect(within(row).getByRole('button', { name: 'Play match at 5:01, Episode 1' })).toBeDefined();
+  });
+
+  it('labels the section from its heading and keeps no inert padding on the row card', async () => {
+    renderList();
+    const row = (await screen.findAllByRole('listitem'))[0];
+    expect(screen.getByRole('region', { name: 'Recent matches' })).toBeDefined();
+    expect(row.className).not.toMatch(/(^| )p-3( |$)/);
+  });
+
+  it('keeps seconds for spans up to ten minutes so the two numbers compare', async () => {
+    mockGetMatches.mockResolvedValue(pageOf([makeMatch(1, { start: 100, end: 175, storedLength: 90 }), makeMatch(2, { start: 100, end: 800, storedLength: 700 })], 1));
+    renderList();
+    const rows = await screen.findAllByRole('listitem');
+    expect(within(rows[0]).getByText('75s of 90s')).toBeDefined();
+    expect(within(rows[1]).getByText('11m 40s of 11m 40s')).toBeDefined();
   });
 
   it('labels audio-only finds and out-of-scope matches', async () => {
@@ -99,7 +129,7 @@ describe('AudioMatchesList', () => {
     renderList();
     const row = (await screen.findAllByRole('listitem'))[0];
     expect(within(row).getByText('Not this ad')).toBeDefined();
-    expect(within(row).queryByRole('button', { name: 'Not this ad' })).toBeNull();
+    expect(within(row).queryByRole('button', { name: /^Not this ad/ })).toBeNull();
     expect(within(row).getByRole('button', { name: /^Play/ })).toBeDefined();
   });
 
@@ -109,44 +139,111 @@ describe('AudioMatchesList', () => {
     const row = (await screen.findAllByRole('listitem'))[0];
     mockGetMatches.mockImplementation((_id: number, p: { page?: number } = {}) => Promise.resolve(
       pageOf(twelve.map((m) => (m.id === 101 ? { ...m, rejected: true } : m)), p.page ?? 1)));
-    await userEvent.click(within(row).getByRole('button', { name: 'Not this ad' }));
+    await userEvent.click(within(row).getByRole('button', { name: /^Not this ad/ }));
     await waitFor(() => expect(mockSubmitCorrection).toHaveBeenCalledWith('example-podcast', 'ep1', {
       type: 'reject', original_ad: { start: 301, end: 339, pattern_id: 7 },
     }));
-    await waitFor(() => expect(within(screen.getAllByRole('listitem')[0]).queryByRole('button', { name: 'Not this ad' })).toBeNull());
+    await waitFor(() => expect(within(screen.getAllByRole('listitem')[0]).queryByRole('button', { name: /^Not this ad/ })).toBeNull());
     expect(within(screen.getAllByRole('listitem')[0]).getByText('Not this ad')).toBeDefined();
     expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['pattern-audio', 7] });
     expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['patterns'] });
     expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['pattern-audio-matches', 7] });
   });
 
-  it('leaves the row alone and shows an error when the correction fails', async () => {
-    mockSubmitCorrection.mockRejectedValue(new Error('boom'));
-    renderList();
-    const row = (await screen.findAllByRole('listitem'))[0];
-    await userEvent.click(within(row).getByRole('button', { name: 'Not this ad' }));
-    expect(await screen.findByText('Could not save correction.')).toBeDefined();
-    expect(within(screen.getAllByRole('listitem')[0]).getByRole('button', { name: 'Not this ad' })).toBeDefined();
+  it('refreshes the detections and the episode the way the other correction flows do', async () => {
+    mockSubmitCorrection.mockResolvedValue(undefined);
+    const { invalidateSpy } = renderList();
+    await userEvent.click(within((await screen.findAllByRole('listitem'))[0]).getByRole('button', { name: /^Not this ad/ }));
+    await waitFor(() => expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['detections'] }));
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['episode', 'example-podcast', 'ep1'] });
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['pending-recuts'] });
   });
 
-  it('plays the match span through the preview route', async () => {
+  it('moves focus to the row play button after Not this ad, so it is not dropped on the page', async () => {
+    mockSubmitCorrection.mockResolvedValue(undefined);
+    renderList();
+    const row = (await screen.findAllByRole('listitem'))[0];
+    mockGetMatches.mockImplementation((_id: number, p: { page?: number } = {}) => Promise.resolve(
+      pageOf(twelve.map((m) => (m.id === 101 ? { ...m, rejected: true } : m)), p.page ?? 1)));
+    await userEvent.click(within(row).getByRole('button', { name: /^Not this ad/ }));
+    await waitFor(() => expect(document.activeElement).toBe(
+      within(screen.getAllByRole('listitem')[0]).getByRole('button', { name: /^Play match/ })));
+  });
+
+  it('falls back to the row heading when the row has no play button', async () => {
+    mockSubmitCorrection.mockResolvedValue(undefined);
+    mockGetMatches.mockResolvedValue(pageOf([makeMatch(1)], 1));
+    renderList();
+    const row = (await screen.findAllByRole('listitem'))[0];
+    const play = within(row).getByRole('button', { name: /^Play match/ });
+    mockGetMatches.mockResolvedValue(pageOf([makeMatch(1, { rejected: true, available: false })], 1));
+    await userEvent.click(within(row).getByRole('button', { name: /^Not this ad/ }));
+    await waitFor(() => expect(play.isConnected).toBe(false));
+    await waitFor(() => expect(document.activeElement?.tagName).toBe('H5'));
+    expect(document.activeElement?.textContent).toBe('Episode 1');
+  });
+
+  it('shows the server message when the correction fails and keeps the row actionable', async () => {
+    mockSubmitCorrection.mockRejectedValue(new Error('Episode is being processed'));
+    renderList();
+    const row = (await screen.findAllByRole('listitem'))[0];
+    await userEvent.click(within(row).getByRole('button', { name: /^Not this ad/ }));
+    expect((await screen.findByRole('alert')).textContent).toBe('Episode is being processed');
+    expect(within(screen.getAllByRole('listitem')[0]).getByRole('button', { name: /^Not this ad/ })).toBeDefined();
+  });
+
+  it('clears the failure on a page change and after a later success', async () => {
+    mockSubmitCorrection.mockRejectedValueOnce(new Error('boom')).mockResolvedValue(undefined);
+    renderList();
+    const row = (await screen.findAllByRole('listitem'))[0];
+    await userEvent.click(within(row).getByRole('button', { name: /^Not this ad/ }));
+    expect((await screen.findByRole('alert')).textContent).toBe('boom');
+    await userEvent.click(within(screen.getAllByRole('listitem')[0]).getByRole('button', { name: /^Not this ad/ }));
+    await waitFor(() => expect(screen.queryByRole('alert')).toBeNull());
+    mockSubmitCorrection.mockRejectedValueOnce(new Error('again'));
+    await userEvent.click(within(screen.getAllByRole('listitem')[2]).getByRole('button', { name: /^Not this ad/ }));
+    expect((await screen.findByRole('alert')).textContent).toBe('again');
+    await userEvent.click(screen.getAllByRole('button', { name: 'Page 2' })[0]);
+    await waitFor(() => expect(screen.queryByRole('alert')).toBeNull());
+  });
+
+  it('shows a pending state and disables the old rows while the next page loads', async () => {
+    renderList();
+    await screen.findAllByRole('listitem');
+    let finish: (v: unknown) => void = () => {};
+    mockGetMatches.mockImplementation(() => new Promise((resolve) => { finish = resolve; }));
+    await userEvent.click(screen.getAllByRole('button', { name: 'Page 2' })[0]);
+    const list = screen.getAllByRole('list')[0];
+    await waitFor(() => expect(list.getAttribute('aria-busy')).toBe('true'));
+    for (const button of within(list).getAllByRole('button')) expect((button as HTMLButtonElement).disabled).toBe(true);
+    await act(async () => { finish(pageOf(twelve, 2)); });
+    await waitFor(() => expect(list.getAttribute('aria-busy')).toBe('false'));
+  });
+
+  it('plays a match from a blob of the clip and shows Loading audio while it is fetched', async () => {
     vi.spyOn(HTMLMediaElement.prototype, 'play').mockResolvedValue(undefined);
+    let finish: (b: Blob) => void = () => {};
+    mockFetchClip.mockReturnValue(new Promise<Blob>((resolve) => { finish = resolve; }));
     renderList();
     const row = (await screen.findAllByRole('listitem'))[1];
     await userEvent.click(within(row).getByRole('button', { name: /^Play/ }));
-    expect(document.querySelector('audio')?.getAttribute('src')).toBe('/api/v1/patterns/7/audio/preview?matchId=102');
+    expect(within(row).getByRole('status').textContent).toBe('Loading audio...');
+    await act(async () => { finish(new Blob(['a'])); });
+    expect(mockFetchClip).toHaveBeenCalledWith(7, 102, expect.any(AbortSignal));
+    expect(document.querySelector('audio')?.getAttribute('src')).toBe('blob:clip');
+    expect(within(row).queryByRole('status')).toBeNull();
   });
 
-  it('says why a match cannot play', async () => {
-    vi.spyOn(HTMLMediaElement.prototype, 'play').mockRejectedValue(new Error('no'));
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
-      ok: false, status: 404, json: async () => ({ code: 'original_not_retained' }),
-    } as unknown as Response));
+  it('says why a match cannot play, and a retry makes a new request', async () => {
+    vi.spyOn(HTMLMediaElement.prototype, 'play').mockResolvedValue(undefined);
+    mockFetchClip.mockRejectedValueOnce(new ApiError('gone', 404, { code: 'original_not_retained' }));
     renderList();
     const row = (await screen.findAllByRole('listitem'))[0];
     await userEvent.click(within(row).getByRole('button', { name: /^Play/ }));
     expect(await within(row).findByText("This episode's original audio is no longer kept.")).toBeDefined();
-    vi.unstubAllGlobals();
+    await userEvent.click(within(row).getByRole('button', { name: /^Play/ }));
+    await waitFor(() => expect(mockFetchClip).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(within(row).queryByText("This episode's original audio is no longer kept.")).toBeNull());
   });
 
   it('shows an empty state', async () => {

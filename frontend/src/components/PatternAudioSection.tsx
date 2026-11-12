@@ -1,12 +1,14 @@
-import { useId, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   AdPattern, AudioDetail, deletePatternAudio, getPatternAudio, patternAudioKey, setPatternAudioEnabled,
 } from '../api/patterns';
 import { getEpisode } from '../api/feeds';
+import { DEMO_AUDIO_TOOLTIP } from '../demo/copy';
+import { IS_DEMO } from '../demo/flag';
 import { usePatternAudioPreview } from '../hooks/usePatternAudioPreview';
 import { usePatternAudioRebuild } from '../hooks/usePatternAudioRebuild';
-import { formatDateTime, formatPercent } from '../utils/format';
+import { formatDate, formatDateTime, formatPercent } from '../utils/format';
 import AdEditor from './AdEditor';
 import AudioMatchesList from './AudioMatchesList';
 import { AuditionPlayButton } from './AuditionPlayButton';
@@ -33,6 +35,8 @@ export default function PatternAudioSection({ pattern }: { pattern: AdPattern })
   const [notice, setNotice] = useState('');
   const [deleteFailed, setDeleteFailed] = useState(false);
   const [editingEdges, setEditingEdges] = useState(false);
+  const headingRef = useRef<HTMLHeadingElement>(null);
+  const focusHeading = useRef(false);
 
   const { data: detail, isPending, isError, refetch, isFetching } = useQuery({
     queryKey: patternAudioKey(pattern.id),
@@ -66,6 +70,8 @@ export default function PatternAudioSection({ pattern }: { pattern: AdPattern })
       queryClient.invalidateQueries({ queryKey: ['patterns'] });
       setNotice(`Audio matching turned ${enabled ? 'on' : 'off'}.`);
     },
+    // A failure may mean the fingerprint is gone, so show what the server holds.
+    onError: () => { queryClient.invalidateQueries({ queryKey: patternAudioKey(pattern.id) }); },
   });
 
   const remove = useMutation({
@@ -75,13 +81,23 @@ export default function PatternAudioSection({ pattern }: { pattern: AdPattern })
       preview.stop();
       setShowDelete(false);
       setNotice('Audio deleted.');
+      focusHeading.current = true;
       refresh();
     },
     onError: () => {
       setShowDelete(false);
       setDeleteFailed(true);
+      queryClient.invalidateQueries({ queryKey: patternAudioKey(pattern.id) });
     },
   });
+
+  // The Delete audio button is gone once the fingerprint is; put focus on the section.
+  useEffect(() => {
+    if (focusHeading.current && detail?.state === 'none') {
+      headingRef.current?.focus();
+      focusHeading.current = false;
+    }
+  }, [detail?.state]);
 
   let body;
   if (isPending) {
@@ -108,12 +124,13 @@ export default function PatternAudioSection({ pattern }: { pattern: AdPattern })
           </DemoDisabled>
           <span className="text-sm text-foreground">Audio matching</span>
           <span className="text-sm text-muted-foreground">{on ? 'Audio on' : 'Audio off'}</span>
+          <span className="text-sm text-muted-foreground">Applies immediately.</span>
           <AuditionPlayButton
             playing={preview.isPlaying()}
             onClick={() => preview.toggle()}
             label="source audio"
-            disabled={!playable}
-            title={playable ? undefined : 'No source audio'}
+            disabled={!playable || IS_DEMO}
+            title={IS_DEMO ? DEMO_AUDIO_TOOLTIP : playable ? undefined : 'No source audio'}
           />
           {!playable && <span className="text-sm text-muted-foreground">No source audio</span>}
         </div>
@@ -122,12 +139,18 @@ export default function PatternAudioSection({ pattern }: { pattern: AdPattern })
             {`Could not turn audio ${toggle.variables ? 'on' : 'off'}.`}
           </p>
         )}
+        {preview.isLoading() && <p role="status" className="text-sm text-muted-foreground">Loading audio...</p>}
         {playError && <p role="alert" className="text-sm text-destructive">{playError}</p>}
-        <div className="grid grid-cols-[repeat(auto-fit,minmax(6rem,1fr))] gap-2 sm:gap-4">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-4">
           <StatTile label="Matches" value={detail.counts.matches} />
           <StatTile label="Mean match" value={detail.meanSimilarity != null ? formatPercent(detail.meanSimilarity) : '-'} />
           <StatTile label="Not this ad" value={detail.counts.rejected} tone={detail.counts.rejected > 0 ? 'destructive' : 'default'} />
-          <StatTile label="Last audio match" value={<span className="text-sm font-semibold break-words">{formatDateTime(detail.lastMatchedAt ?? null)}</span>} />
+          <StatTile label="Last audio match" value={(
+            <span className="text-sm font-semibold break-words">
+              <span className="sm:hidden">{formatDate(detail.lastMatchedAt ?? null)}</span>
+              <span className="max-sm:hidden">{formatDateTime(detail.lastMatchedAt ?? null)}</span>
+            </span>
+          )} />
         </div>
         {detail.counts.outOfScope > 0 && (
           <p className="text-sm text-muted-foreground">{outOfScopeNote(detail.counts.outOfScope)}</p>
@@ -166,7 +189,7 @@ export default function PatternAudioSection({ pattern }: { pattern: AdPattern })
 
   return (
     <section aria-labelledby={headingId} className="border-t border-border pt-4 space-y-3">
-      <h3 id={headingId} className={subHeading}>Audio</h3>
+      <h3 id={headingId} ref={headingRef} tabIndex={-1} className={`${subHeading} focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring rounded`}>Audio</h3>
       <p role="status" aria-label="Audio change" className="sr-only">{notice}</p>
       {body}
       {preview.audioElement}

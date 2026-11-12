@@ -82,6 +82,8 @@ const emptyTable: Array<[RegExp, unknown]> = [
   [/^\/history\/downloads$/, { downloads: [], total: 0, page: 1, limit: 50 }],
   [/^\/detections$/, { detections: [], ...page(20), counts: {}, cutSummary: {} }],
   [/^\/patterns$/, { patterns: [] }],
+  [/^\/patterns\/\d+\/audio$/, { state: 'none', available: false, counts: { matches: 0, rejected: 0, outOfScope: 0 } }],
+  [/^\/patterns\/\d+\/audio\/matches$/, { matches: [], page: 1, perPage: 10, total: 0 }],
   [/^\/sponsors$/, { sponsors: [] }],
   [/^\/episodes\/processing$/, []],
   [/^\/episodes\/(awaiting-approval|held|pending-recuts)$/, queue],

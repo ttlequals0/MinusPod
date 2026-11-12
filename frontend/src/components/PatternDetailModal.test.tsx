@@ -3,9 +3,11 @@ import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router';
-import { describe, expect, it, vi, beforeEach } from 'vitest';
+import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
 import PatternDetailModal from './PatternDetailModal';
+import { ApiError } from '../api/client';
 import type { AdPattern } from '../api/patterns';
+import { formatDate, formatDateTime } from '../utils/format';
 
 const mockSplitPattern = vi.fn();
 const mockUpdatePattern = vi.fn();
@@ -15,6 +17,7 @@ const mockSetPatternAudioEnabled = vi.fn();
 const mockDeletePatternAudio = vi.fn();
 const mockRebuildPatternAudio = vi.fn();
 const mockGetEpisode = vi.fn();
+const mockFetchClip = vi.fn();
 
 vi.mock('../api/patterns', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../api/patterns')>()),
@@ -25,6 +28,7 @@ vi.mock('../api/patterns', async (importOriginal) => ({
   setPatternAudioEnabled: (...a: unknown[]) => mockSetPatternAudioEnabled(...a),
   deletePatternAudio: (...a: unknown[]) => mockDeletePatternAudio(...a),
   rebuildPatternAudio: (...a: unknown[]) => mockRebuildPatternAudio(...a),
+  fetchPatternAudioClip: (...a: unknown[]) => mockFetchClip(...a),
   getPatternAudioMatches: vi.fn().mockResolvedValue({ matches: [], page: 1, perPage: 10, total: 0 }),
 }));
 
@@ -97,6 +101,11 @@ function renderModal(pattern: AdPattern, onClose = vi.fn(), onSave = vi.fn()) {
 }
 
 const NO_AUDIO = { state: 'none', available: false, counts: { matches: 0, rejected: 0, outOfScope: 0 } };
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+  vi.restoreAllMocks();
+});
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -354,13 +363,62 @@ describe('Audio section', () => {
 
   it('says why the source clip cannot play when the server is busy', async () => {
     mockGetPatternAudio.mockResolvedValue(ACTIVE_AUDIO);
-    vi.spyOn(HTMLMediaElement.prototype, 'play').mockRejectedValue(new Error('no'));
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, status: 503, json: async () => ({}) } as unknown as Response));
+    mockFetchClip.mockRejectedValueOnce(new ApiError('busy', 503, {}, 2000, true)).mockResolvedValueOnce(new Blob(['a']));
+    vi.stubGlobal('URL', Object.assign(URL, { createObjectURL: vi.fn(() => 'blob:clip'), revokeObjectURL: vi.fn() }));
+    vi.spyOn(HTMLMediaElement.prototype, 'play').mockResolvedValue(undefined);
     renderModal(makePattern());
     await userEvent.click(await screen.findByRole('button', { name: 'Play source audio' }));
     expect((await screen.findByRole('alert')).textContent).toBe('Audio is being prepared. Try again.');
-    vi.unstubAllGlobals();
-    vi.restoreAllMocks();
+    await userEvent.click(screen.getByRole('button', { name: 'Play source audio' }));
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Pause source audio' })).toBeDefined());
+    expect(mockFetchClip).toHaveBeenCalledTimes(2);
+    expect(screen.queryByRole('alert')).toBeNull();
+  });
+
+  it('says that the switch applies immediately', async () => {
+    mockGetPatternAudio.mockResolvedValue(ACTIVE_AUDIO);
+    renderModal(makePattern());
+    expect(await screen.findByText('Applies immediately.')).toBeDefined();
+  });
+
+  it('moves focus to the Audio heading once the audio is deleted', async () => {
+    mockGetPatternAudio.mockResolvedValueOnce(ACTIVE_AUDIO);
+    mockDeletePatternAudio.mockResolvedValue(undefined);
+    renderModal(makePattern());
+    await userEvent.click(await screen.findByRole('button', { name: 'Delete audio' }));
+    mockGetPatternAudio.mockResolvedValue(NO_AUDIO);
+    await userEvent.click(within(screen.getByRole('dialog', { name: 'Delete audio?' })).getByRole('button', { name: 'Delete audio' }));
+    await screen.findByText('No audio fingerprint.');
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByRole('heading', { name: 'Audio' })));
+  });
+
+  it('refetches the detail when a switch change fails, so a vanished fingerprint shows', async () => {
+    mockGetPatternAudio.mockResolvedValueOnce(ACTIVE_AUDIO);
+    mockSetPatternAudioEnabled.mockRejectedValue(new ApiError('none', 404, { code: 'no_audio' }));
+    renderModal(makePattern());
+    await userEvent.click(await screen.findByRole('switch', { name: 'Audio matching' }));
+    mockGetPatternAudio.mockResolvedValue(NO_AUDIO);
+    expect(await screen.findByText('No audio fingerprint.')).toBeDefined();
+  });
+
+  it('refetches the detail when a delete fails', async () => {
+    mockGetPatternAudio.mockResolvedValueOnce(ACTIVE_AUDIO);
+    mockDeletePatternAudio.mockRejectedValue(new ApiError('none', 404, { code: 'no_audio' }));
+    renderModal(makePattern());
+    await userEvent.click(await screen.findByRole('button', { name: 'Delete audio' }));
+    mockGetPatternAudio.mockResolvedValue(NO_AUDIO);
+    await userEvent.click(within(screen.getByRole('dialog', { name: 'Delete audio?' })).getByRole('button', { name: 'Delete audio' }));
+    expect(await screen.findByText('No audio fingerprint.')).toBeDefined();
+  });
+
+  it('lays the four tiles out two by two below sm and in one row from sm, with the short date on phones', async () => {
+    mockGetPatternAudio.mockResolvedValue(ACTIVE_AUDIO);
+    renderModal(makePattern());
+    const tile = (await screen.findByText('Mean match')).closest('[class*="grid"]') as HTMLElement;
+    expect(tile.className).toContain('grid-cols-2');
+    expect(tile.className).toContain('sm:grid-cols-4');
+    expect(screen.getByText(formatDate(ACTIVE_AUDIO.lastMatchedAt)).className).toContain('sm:hidden');
+    expect(screen.getByText(formatDateTime(ACTIVE_AUDIO.lastMatchedAt)).className).toContain('max-sm:hidden');
   });
 });
 

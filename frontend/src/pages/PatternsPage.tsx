@@ -14,7 +14,7 @@ import PatternDetailModal from '../components/PatternDetailModal';
 import PatternMergeSuggestions from '../components/PatternMergeSuggestions';
 import { SkeletonRows } from '../components/Skeleton';
 import { Pagination } from '../components/Pagination';
-import { tableBody, tableCard, tableHead, tableRow, td, tdEmpty, thBase, rowCard } from '../components/tableStyles';
+import { tableBody, tableCard, tableHead, tableRow, tdEmpty, thBase, rowCard } from '../components/tableStyles';
 import { SortHeader } from '../components/SortHeader';
 import { ScopeBadge } from '../components/ScopeBadge';
 import { CommunityBadge } from '../components/CommunityBadge';
@@ -488,21 +488,21 @@ function PatternsPage() {
           <table className="w-full min-w-[1100px] table-fixed">
             <colgroup>
               <col className="w-[52px]" />
-              <col className="w-[160px]" />
+              <col className="w-[148px]" />
               <col />
-              <col className="w-[136px]" />
-              <col className="w-[108px]" />
+              <col className="w-[128px]" />
+              <col className="w-[124px]" />
               <col className="w-[84px]" />
+              <col className="w-[76px]" />
               <col className="w-[84px]" />
               <col className="w-[88px]" />
-              <col className="w-[96px]" />
               <col className="w-[68px]" />
               <col className="w-[80px]" />
             </colgroup>
             <thead className={tableHead}>
               <tr>
                 <SortHeader field="id" label="ID" className="px-2" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} />
-                <SortHeader field="scope" label="Scope" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} />
+                <SortHeader field="scope" label="Scope" className="px-2" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} />
                 <SortHeader field="sponsor" label="Sponsor" className="px-2" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} />
                 <th className={`${thBase} px-2 text-left`}>
                   Category
@@ -511,7 +511,7 @@ function PatternsPage() {
                   Audio
                 </th>
                 <SortHeader field="confirmation_count" label="Confirmed" className="px-2 whitespace-nowrap" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} />
-                <SortHeader field="false_positive_count" label="False pos." className="px-2 whitespace-nowrap" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} />
+                <SortHeader field="false_positive_count" label="False pos." className="px-2" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} />
                 <SortHeader field="created_at" label="Created" className="px-2" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} />
                 <SortHeader field="last_matched_at" label="Last matched" className="px-2" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} />
                 <th className={`${thBase} px-2 text-left`}>
@@ -532,7 +532,7 @@ function PatternsPage() {
                   <td className="px-2 py-3 whitespace-nowrap text-sm font-mono text-muted-foreground">
                     #{pattern.id}
                   </td>
-                  <td className={`${td} overflow-hidden`}>
+                  <td className="px-2 py-3 text-sm overflow-hidden">
                     <div className="flex items-center gap-1 flex-wrap">
                       <ScopeBadge pattern={pattern} podcastClassName="truncate block" />
                       <SegmentCategoryBadge category={pattern.category} />
@@ -583,7 +583,7 @@ function PatternsPage() {
                       ))}
                     </select>
                   </td>
-                  <td className="px-2 py-3 text-sm text-muted-foreground">
+                  <td className="px-2 py-3 text-sm text-muted-foreground whitespace-nowrap">
                     {audioSummaryLabel(pattern.audio)}
                   </td>
                   <td className="px-2 py-3 whitespace-nowrap">
