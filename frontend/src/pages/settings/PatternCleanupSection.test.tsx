@@ -463,6 +463,14 @@ describe('PatternCleanupSection: LLM provider None', () => {
     expect(screen.queryByText('A cleanup run is already in progress.')).toBeNull();
   });
 
+  it('refreshes the settings query after a 409 llm_disabled', async () => {
+    mockRun.mockRejectedValue(new ApiError('LLM disabled', 409, { code: 'llm_disabled' }));
+    const view = renderSection();
+    const spy = vi.spyOn(view.queryClient, 'invalidateQueries');
+    await userEvent.setup().click(await screen.findByRole('button', { name: /run now/i }));
+    await waitFor(() => expect(spy).toHaveBeenCalledWith({ queryKey: ['settings'] }));
+  });
+
   it('is enabled when the provider is set', async () => {
     renderSection();
     expectNotGatedByLlm(await screen.findByLabelText(/cleanup model/i));

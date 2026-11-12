@@ -8,7 +8,8 @@
  *   - Disabling an enabled feed fires { differentialFetchEnabled: false }.
  *   - DAI-likely badge + hint render only when feed.daiLikely is true.
  */
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { expectGatedByLlm, expectNotGatedByLlm } from '../../test/llmGate';
 import { act, fireEvent, render, screen, within, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -1802,5 +1803,48 @@ describe('FeedSettingsPanel chapters mode under LLM provider None', () => {
     expect((within(select).getByRole('option', { name: 'Off' }) as HTMLOptionElement).disabled).toBe(false);
     expect(document.getElementById(select.getAttribute('aria-describedby')!)?.textContent).toBe('LLM provider is set to None.');
     mockGetSettings.mockResolvedValue({});
+  });
+});
+
+describe('FeedSettingsPanel under LLM provider None', () => {
+  beforeEach(() => { mockGetSettings.mockResolvedValue({ llmEnabled: false, skipSecondPass: { value: false } }); });
+  afterEach(() => { mockGetSettings.mockResolvedValue({}); });
+
+  it('says an inherited generate mode behaves like Auto', async () => {
+    mockGetSettings.mockResolvedValue({ llmEnabled: false, chaptersMode: { value: 'generate' } });
+    renderPanel(makeFeed());
+    const select = screen.getByRole('combobox', { name: 'Chapters' });
+    await waitFor(() => expect(document.getElementById(select.getAttribute('aria-describedby')!)?.textContent).toBe(
+      'LLM provider is set to None. Always generate behaves like Auto.',
+    ));
+  });
+
+  it('disables Keep content only and adds the model-free line to the Standard hint', async () => {
+    renderPanel(makeFeed());
+    const select = screen.getByLabelText('Processing mode:') as HTMLSelectElement;
+    await waitFor(() => expect((within(select).getByRole('option', { name: /Keep content only/ }) as HTMLOptionElement).disabled).toBe(true));
+    const text = select.getAttribute('aria-describedby')!.split(' ').map((id) => document.getElementById(id)?.textContent).join('|');
+    expect(text).toContain('LLM provider is set to None, so detection uses text patterns');
+    expect(text).toContain('Keep content only is unavailable. LLM provider is set to None.');
+  });
+
+  it('shows one line for a feed already saved on keep content', async () => {
+    renderPanel(makeFeed({ processingMode: 'keep_content' }));
+    await waitFor(() => expect(screen.getByText('Keep content runs as Standard while the LLM provider is set to None.')).toBeDefined());
+    expect(screen.queryByText(/Keep content only is unavailable/)).toBeNull();
+  });
+
+  it('disables the per-feed verification select and detection notes with the reason', async () => {
+    renderPanel(makeFeed());
+    await waitFor(() => expectGatedByLlm(screen.getByLabelText('Verification pass')));
+    expectGatedByLlm(screen.getByLabelText('Detection notes'));
+  });
+
+  it('leaves processing mode, verification and notes enabled when a provider is set', async () => {
+    mockGetSettings.mockResolvedValue({ llmEnabled: true });
+    renderPanel(makeFeed());
+    await waitFor(() => expect((within(screen.getByLabelText('Processing mode:')).getByRole('option', { name: /Keep content only/ }) as HTMLOptionElement).disabled).toBe(false));
+    expectNotGatedByLlm(screen.getByLabelText('Verification pass'));
+    expectNotGatedByLlm(screen.getByLabelText('Detection notes'));
   });
 });

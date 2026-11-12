@@ -368,4 +368,31 @@ describe('LLMProviderSection: None provider', () => {
     renderSection({ llmProvider: 'none', llmEnabled: true });
     expectNotGatedByLlm(screen.getByLabelText('Pricing source'));
   });
+
+  it('tells the operator to save before the toggle takes effect', () => {
+    renderSection({ llmProvider: 'none', llmEnabled: true });
+    expect(screen.getByText('Save to turn off all model features.')).toBeDefined();
+    expect(screen.queryByText(/No model calls are made/)).toBeNull();
+  });
+
+  it('shows the saved-state note once the saved flag is off', () => {
+    renderSection({ llmProvider: 'none', llmEnabled: false });
+    expect(screen.getByText(/No model calls are made\. Ads are found by text patterns, audio fingerprints, audio cues and cross-fetch comparison\. A fresh install finds little until you mark ads\./)).toBeDefined();
+    expect(screen.queryByText('Save to turn off all model features.')).toBeNull();
+    const fieldset = screen.getByLabelText('Pricing source').closest('fieldset')!;
+    expect(document.getElementById(fieldset.getAttribute('aria-describedby')!)?.textContent).toContain('No model calls are made');
+  });
+
+  it('never points the fieldset at a note that is not on screen', () => {
+    renderSection({ llmProvider: 'anthropic', llmEnabled: false });
+    const fieldset = screen.getByLabelText('Pricing source').closest('fieldset')!;
+    expect(document.getElementById(fieldset.getAttribute('aria-describedby')!)?.textContent).toBe('LLM provider is set to None.');
+  });
+
+  it('labels the free pricing option Free, not None', () => {
+    renderSection();
+    const select = screen.getByLabelText('Pricing source') as HTMLSelectElement;
+    expect(within(select).getByRole('option', { name: 'Free (local models)' }).getAttribute('value')).toBe('free');
+    expect(screen.getByText('Auto picks by provider. Choose Free only if your endpoint serves free local models.')).toBeDefined();
+  });
 });

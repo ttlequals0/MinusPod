@@ -22,6 +22,7 @@ const {
   mockGetCleanupStats,
   mockGetSystemOneStats,
   mockGetLlmStats,
+  mockGetSettings,
 } = vi.hoisted(() => {
   const dashboard: DashboardStats = {
     totalEpisodesProcessed: 0,
@@ -150,9 +151,13 @@ const {
     mockGetReviewerStats: vi.fn().mockResolvedValue(reviewerStats),
     mockGetCleanupStats: vi.fn().mockResolvedValue(cleanupStats),
     mockGetSystemOneStats: vi.fn().mockResolvedValue(systemOneStats),
+    mockGetSettings: vi.fn().mockResolvedValue({ llmEnabled: true }),
   };
 });
 
+vi.mock('../api/settings', () => ({
+  getSettings: (...args: unknown[]) => mockGetSettings(...args),
+}));
 vi.mock('../api/stats', () => ({
   getDashboardStats: (...args: unknown[]) => mockGetDashboardStats(...args),
   getStatsByDay: (...args: unknown[]) => mockGetStatsByDay(...args),
@@ -271,6 +276,14 @@ describe('StatsPage loading placeholders', () => {
   it('points at AI and processing for enabling the reviewer', async () => {
     renderPage();
     expect(await screen.findByText(/Enable ad reviewer in Settings, AI and processing section/)).toBeTruthy();
+  });
+
+  it('says no reviews ran, not to enable the reviewer, when the LLM provider is None', async () => {
+    mockGetSettings.mockResolvedValue({ llmEnabled: false });
+    renderPage();
+    expect(await screen.findByText('No reviews. LLM provider is set to None.')).toBeTruthy();
+    expect(screen.queryByText(/Enable ad reviewer/)).toBeNull();
+    mockGetSettings.mockResolvedValue({ llmEnabled: true });
   });
 
   it('shows zero inconclusive reviewer counts as abstentions', async () => {

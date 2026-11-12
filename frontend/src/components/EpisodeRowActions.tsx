@@ -11,6 +11,7 @@ import { btnBase, btnPrimaryOutline, btnSecondary, btnDestructive } from './butt
 import { badgeBase, tint } from './badgeStyles';
 import { cardTitle } from './pageStyles';
 import { reprocessMenuCopy } from '../utils/reprocessMenu';
+import { useLlmEnabled } from '../hooks/useLlmEnabled';
 import { DemoDisabled } from './DemoDisabled';
 
 interface EpisodeRowActionsProps {
@@ -27,7 +28,7 @@ interface EpisodeRowActionsProps {
 function EpisodeRowActions({
   feedSlug, episodeId, status, jobState, hasBeenProcessed, feedType,
 }: EpisodeRowActionsProps) {
-  const menuCopy = reprocessMenuCopy(feedType);
+  const menuCopy = reprocessMenuCopy(feedType, useLlmEnabled());
   const queryClient = useQueryClient();
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);

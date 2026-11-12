@@ -147,15 +147,22 @@ function TargetRow({
   const badge = llmOff ? LLM_OFF_BADGE : off ? { label: 'Off', tone: tint.neutral } : targetBadge(state, probe);
   const verb = state.active ? 'Cancel' : 'Trigger';
   return (
-    <li className={`flex flex-wrap items-center gap-x-4 gap-y-2 px-3 py-3 ${state.active ? 'bg-warning/5' : ''}`}>
+    <li
+      aria-describedby={llmOff ? `${name}-llm-off` : undefined}
+      className={`flex flex-wrap items-center gap-x-4 gap-y-2 px-3 py-3 ${state.active ? 'bg-warning/5' : ''}`}
+    >
       <div className="min-w-0 flex-1 basis-56">
         <div className="flex flex-wrap items-center gap-2">
           <span className="text-sm font-medium text-foreground">{label}</span>
           <span className={`${badgeBase} shrink-0 ${badge.tone}`}>{badge.label}</span>
         </div>
-        <p className="mt-1 text-xs text-muted-foreground break-words">
-          {llmOff ? LLM_DISABLED_REASON : off ? `${label} is off` : targetMeta(state, probe)}
-        </p>
+        {llmOff
+          ? <span id={`${name}-llm-off`} className="sr-only">{LLM_DISABLED_REASON}</span>
+          : (
+            <p className="mt-1 text-xs text-muted-foreground break-words">
+              {off ? `${label} is off` : targetMeta(state, probe)}
+            </p>
+          )}
       </div>
       {!off && !llmOff && <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
         {!state.configured && (
@@ -176,7 +183,8 @@ function TargetRow({
 }
 
 // A standby account's own health: no action, so it reads as subordinate to the targets.
-function StandbyRow({ label, configured, probe, llmOff }: {
+function StandbyRow({ probeId, label, configured, probe, llmOff }: {
+  probeId: string;
   label: string;
   configured: boolean;
   probe: FailoverProbe | undefined;
@@ -184,13 +192,13 @@ function StandbyRow({ label, configured, probe, llmOff }: {
 }) {
   const badge = llmOff ? LLM_OFF_BADGE : configured ? probeBadge(probe) : { label: 'Not configured', tone: tint.neutral };
   return (
-    <li className="px-3 py-3">
+    <li className="px-3 py-3" aria-describedby={llmOff ? `${probeId}-llm-off` : undefined}>
       <div className="flex flex-wrap items-center gap-2">
         <span className="text-sm font-medium text-muted-foreground">{label}</span>
         <span className={`${badgeBase} shrink-0 ${badge.tone}`}>{badge.label}</span>
       </div>
       {llmOff
-        ? <p className="mt-1 text-xs text-muted-foreground break-words">{LLM_DISABLED_REASON}</p>
+        ? <span id={`${probeId}-llm-off`} className="sr-only">{LLM_DISABLED_REASON}</span>
         : configured && <p className="mt-1 text-xs text-muted-foreground break-words">{probeMeta(probe)}</p>}
     </li>
   );
@@ -242,6 +250,7 @@ function FailoverSection({
             {STANDBY_ROWS.map((row) => (
               <StandbyRow
                 key={row.probe}
+                probeId={row.probe}
                 label={row.label}
                 configured={overview.targets[row.target].configured}
                 probe={overview.probes[row.probe]}
@@ -300,7 +309,7 @@ function FailoverSection({
           </div>
         </div>
 
-        <LlmGate disabled={!llmEnabled} id="failover-llm" className="pt-4 border-t border-border space-y-4">
+        <LlmGate disabled={!llmEnabled} id="failover-llm" note={`LLM failover is unavailable. ${LLM_DISABLED_REASON}`} className="pt-4 border-t border-border space-y-4">
           <div>
             <label className="flex items-center gap-3 cursor-pointer">
               <ToggleSwitch

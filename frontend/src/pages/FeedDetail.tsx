@@ -12,6 +12,7 @@ import { applyEpisodeJobState } from '../utils/jobStateCache';
 import { PendingRecutsBar } from './patterns/PendingRecutsBar';
 import { useLocalStorageState } from '../hooks/useLocalStorageState';
 import { useUrlParams } from '../hooks/useUrlParams';
+import { useLlmEnabled } from '../hooks/useLlmEnabled';
 import { SEARCH_DEBOUNCE_MS } from '../hooks/useDebouncedValue';
 import { sortFeeds, FeedSortBy, DASHBOARD_SORT_KEY, DEFAULT_FEED_SORT } from '../utils/feedSort';
 import PrevNextLink from '../components/PrevNextLink';
@@ -44,15 +45,16 @@ import { iconTarget, iconVisual } from '../components/rowActionStyles';
 import { reprocessMenuCopy, reprocessModeKey } from '../utils/reprocessMenu';
 import { DemoDisabled } from '../components/DemoDisabled';
 
-function reprocessModeLabel(mode: string, feedType?: string): string {
+function reprocessModeLabel(mode: string, feedType?: string, llmEnabled = true): string {
   if (mode === 'full') return 'Full reprocess';
   if (mode === 'llm') return 'Re-detect ads';
-  return feedType === 'youtube' ? 'SponsorBlock and patterns' : 'Patterns + AI';
+  if (feedType === 'youtube') return 'SponsorBlock and patterns';
+  return llmEnabled ? 'Patterns + AI' : 'Patterns and other detectors';
 }
 
-function reprocessModeDescription(mode: string, feedType?: string): string {
-  if (feedType === 'youtube') {
-    const copy = reprocessMenuCopy(feedType);
+function reprocessModeDescription(mode: string, feedType?: string, llmEnabled = true): string {
+  if (feedType === 'youtube' || !llmEnabled) {
+    const copy = reprocessMenuCopy(feedType, llmEnabled);
     return copy[reprocessModeKey(mode)].tooltip;
   }
   if (mode === 'full') return 'Fresh analysis without pattern database';
@@ -116,6 +118,7 @@ const bulkActionBtn = `${btnBase} flex-1 sm:flex-none min-w-[8rem]`;
 
 function FeedDetail() {
   const { slug } = useParams<{ slug: string }>();
+  const llmEnabled = useLlmEnabled();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const location = useLocation();
@@ -515,7 +518,7 @@ function FeedDetail() {
     />
   );
 
-  const copy = reprocessMenuCopy(feed.feedType);
+  const copy = reprocessMenuCopy(feed.feedType, llmEnabled);
 
   return (
     <div>
@@ -750,7 +753,7 @@ function FeedDetail() {
               align="left"
               items={[
                 {
-                  title: reprocessModeLabel('reprocess', feed.feedType),
+                  title: reprocessModeLabel('reprocess', feed.feedType, llmEnabled),
                   subtitle: copy.reprocess.subtitle,
                   onClick: () => {
                     setSelectedReprocessMode('reprocess');
@@ -1035,10 +1038,10 @@ function FeedDetail() {
           <div className="p-4">
             <div className="mb-4 p-3 rounded-lg bg-accent/50">
               <p className="text-sm font-medium text-foreground">
-                Mode: {reprocessModeLabel(selectedReprocessMode, feed.feedType)}
+                Mode: {reprocessModeLabel(selectedReprocessMode, feed.feedType, llmEnabled)}
               </p>
               <p className="text-xs text-muted-foreground mt-1">
-                {reprocessModeDescription(selectedReprocessMode, feed.feedType)}
+                {reprocessModeDescription(selectedReprocessMode, feed.feedType, llmEnabled)}
               </p>
             </div>
             <p className="text-sm text-muted-foreground mb-4">
@@ -1071,7 +1074,7 @@ function FeedDetail() {
         >
           <div className="p-4">
             <p className="text-xs text-muted-foreground mb-4">
-              Mode: {reprocessModeLabel(reprocessResult.mode, feed.feedType)}
+              Mode: {reprocessModeLabel(reprocessResult.mode, feed.feedType, llmEnabled)}
             </p>
             <ResultStatsGrid queued={reprocessResult.queued} skipped={reprocessResult.skipped} queuedLabel="Queued" />
             {reprocessResult.queued > 0 && (

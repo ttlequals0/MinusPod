@@ -10,7 +10,7 @@ import DraftNumberInput, { parseOptionalNumber } from '../../components/DraftNum
 import NumberInput from '../../components/NumberInput';
 import ToggleSwitch from '../../components/ToggleSwitch';
 import { selectBase, labelBase } from '../../components/fieldStyles';
-import { LLM_DISABLED_REASON, LlmGate } from './LlmGate';
+import { LlmGate, NONE_SAVED_NOTE } from './LlmGate';
 
 interface LLMProviderSectionProps {
   llmProvider: LlmProvider;
@@ -220,6 +220,8 @@ function LLMProviderSection({
   onAffectedRunsActionChange,
 }: LLMProviderSectionProps) {
   const keyProvider = keyProviderFor(llmProvider);
+  const noneNote = llmProvider !== LLM_PROVIDERS.NONE ? null
+    : llmEnabled ? 'Save to turn off all model features.' : NONE_SAVED_NOTE;
   const status = keyProvider && providersState ? providersState[keyProvider] : NONE_STATUS;
   const cryptoReady = providersState?.cryptoReady ?? false;
 
@@ -275,10 +277,8 @@ function LLMProviderSection({
           )}
         />
 
-        {llmProvider === LLM_PROVIDERS.NONE && (
-          <p id="llm-provider-none-note" className="text-sm text-muted-foreground">
-            {LLM_DISABLED_REASON} No model calls are made. Ads are found with patterns, fingerprints, audio cues and cross-fetch comparison.
-          </p>
+        {noneNote && (
+          <p id="llm-provider-none-note" className="text-sm text-muted-foreground">{noneNote}</p>
         )}
 
         <AccountSwitchPreflight
@@ -329,7 +329,7 @@ function LLMProviderSection({
         <LlmGate
           disabled={!llmEnabled}
           id="llm-provider"
-          describedBy={llmProvider === LLM_PROVIDERS.NONE ? 'llm-provider-none-note' : undefined}
+          describedBy={llmProvider === LLM_PROVIDERS.NONE && !llmEnabled ? 'llm-provider-none-note' : undefined}
           className="space-y-4"
         >
           <div className="pt-4 border-t border-border space-y-4">
@@ -420,10 +420,10 @@ function LLMProviderSection({
             >
               <option value="auto">Auto (recommended)</option>
               <option value="litellm">LiteLLM catalog</option>
-              <option value="free">None (free local models)</option>
+              <option value="free">Free (local models)</option>
             </select>
             <p id="pricingSourceMode-help" className="mt-1 text-sm text-muted-foreground">
-              Auto picks by provider. Choose None only if your endpoint serves free local models.
+              Auto picks by provider. Choose Free only if your endpoint serves free local models.
             </p>
           </div>
         </LlmGate>

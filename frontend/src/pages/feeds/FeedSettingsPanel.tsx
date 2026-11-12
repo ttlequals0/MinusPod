@@ -41,8 +41,9 @@ const MAX_RETENTION_DAYS = 3650;
 type RetentionMode = 'global' | 'archive' | 'custom';
 import { badgeBase, tint } from '../../components/badgeStyles';
 import { isSystemOneChapterRoute } from '../settings/systemoneWarnings';
-import { LlmDisabledNote } from '../settings/LlmGate';
-import { PROCESSING_MODE_HINTS, PROCESSING_MODE_LABELS, PROCESSING_MODE_ORDER } from './processingMode';
+import { isLlmEnabled } from '../../hooks/useLlmEnabled';
+import { GENERATE_AS_AUTO_NOTE, LlmDisabledNote, LlmGate } from '../settings/LlmGate';
+import { KEEP_CONTENT_DISABLED_NOTE, PROCESSING_MODE_LABELS, PROCESSING_MODE_ORDER, processingModeHint } from './processingMode';
 
 const rowLabelTopSm = `${rowLabel} sm:pt-0.5`;
 
@@ -151,7 +152,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
   const nativeChapterGenerationBlocked = unsupportedChapterRoute
     && (settings?.chaptersEnabled?.value ?? settings?.defaults?.chaptersEnabled ?? true);
   const inheritedChapterMode = settings?.chaptersMode?.value ?? 'auto';
-  const llmDisabled = settings?.llmEnabled === false;
+  const llmDisabled = !isLlmEnabled(settings);
 
   // Cue-only mode needs at least one enabled ad-break-start and ad-break-end
   // template; fetched here to gray out the option before the user picks it.
@@ -493,6 +494,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
   };
 
   const processingMode = feed.processingMode ?? 'standard';
+  const keepContentBlocked = llmDisabled && processingMode !== 'keep_content';
   const cueOnlyActive = processingMode === 'cue_only';
   // Local feeds have no upstream RSS: source URL, title-blacklist, GUID
   // scheme (forced own-IDs), and cross-fetch differential rows are all
@@ -740,7 +742,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
           >
             <div className="space-y-4 pt-1">
               {/* Detection notes (#709): free text appended to the LLM prompt context. */}
-              <div className="flex flex-col gap-1 text-sm">
+              <LlmGate disabled={llmDisabled} id="feed-detection-notes" className="flex flex-col gap-1 text-sm">
                 <label htmlFor="detection-notes" className={`${labelBase} mb-0`}>Detection notes</label>
                 <textarea
                   id="detection-notes"
@@ -783,7 +785,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                 {detectionNotesError && (
                   <p className="text-xs text-destructive">{detectionNotesError}</p>
                 )}
-              </div>
+              </LlmGate>
 
               {/* Auto-Process Control */}
               <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 text-sm">
@@ -832,10 +834,10 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                     })}
                     disabled={updateMutation.isPending}
                     className={`self-start min-w-0 max-w-full disabled:opacity-50 ${selectBase} pl-2`}
-                    aria-describedby="processing-mode-help"
+                    aria-describedby={keepContentBlocked ? 'processing-mode-help processing-mode-llm-disabled' : 'processing-mode-help'}
                   >
                     {PROCESSING_MODE_ORDER.map((m) => (
-                      <option key={m} value={m} disabled={m === 'cue_only' && !cueOnlyEligible}>
+                      <option key={m} value={m} disabled={(m === 'cue_only' && !cueOnlyEligible) || (m === 'keep_content' && llmDisabled && processingMode !== 'keep_content')}>
                         {PROCESSING_MODE_LABELS[m]}
                       </option>
                     ))}
@@ -846,9 +848,12 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                       ad-break end template. Mark one of each below to turn it on.
                     </p>
                   )}
-                  <p id="processing-mode-help" className={`text-xs ${PROCESSING_MODE_HINTS[processingMode].warning ? 'text-warning' : 'text-muted-foreground'}`}>
-                    {PROCESSING_MODE_HINTS[processingMode].text}
+                  <p id="processing-mode-help" className={`text-xs ${processingModeHint(processingMode, !llmDisabled).warning ? 'text-warning' : 'text-muted-foreground'}`}>
+                    {processingModeHint(processingMode, !llmDisabled).text}
                   </p>
+                  {keepContentBlocked && (
+                    <p id="processing-mode-llm-disabled" className="text-xs text-muted-foreground">{KEEP_CONTENT_DISABLED_NOTE}</p>
+                  )}
                   {processingMode === 'cue_only' && (
                     <div className="flex flex-col gap-3 pt-1">
                       <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
@@ -1144,7 +1149,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                     the ad-free audio, and generates chapters when an episode has too
                     few. Always generate replaces them; Off leaves them untouched.
                   </p>
-                  {llmDisabled && <LlmDisabledNote id="feed-chapters-llm-disabled" className="text-xs" />}
+                  {llmDisabled && <LlmDisabledNote id="feed-chapters-llm-disabled" className="text-xs" text={(feed.chaptersMode ?? inheritedChapterMode) === 'generate' ? GENERATE_AS_AUTO_NOTE : undefined} />}
                   {unsupportedChapterRoute && <p role="status" className="text-xs text-warning">System One cannot generate chapters. Select a chat provider and model.</p>}
                 </div>
               </div>
@@ -1874,7 +1879,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
               {/* Per-feed verification mode (#599). */}
               <div className="flex flex-col sm:flex-row sm:items-start gap-2 sm:gap-3 text-sm">
                 <span className={rowLabelTopSm}>Verification</span>
-                <div className="flex flex-col gap-1 flex-1 min-w-0">
+                <LlmGate disabled={llmDisabled} id="feed-verification" className="flex flex-col gap-1 flex-1 min-w-0">
                   <select
                     value={cueOnlyActive ? 'skip' : feed.skipSecondPass == null ? 'inherit' : feed.skipSecondPass ? 'skip' : 'run'}
                     onChange={(e) => updateMutation.mutate({
@@ -1897,7 +1902,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                       Verification scans the processed audio a second time. Skipping it reduces LLM use.
                     </p>
                   )}
-                </div>
+                </LlmGate>
               </div>
 
               {/* Cross-fetch differential (Layer 3): auto for DAI-looking feeds,

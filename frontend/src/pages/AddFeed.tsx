@@ -18,7 +18,8 @@ import { badgeBase, tint } from '../components/badgeStyles';
 import DraftNumberInput, { parseOptionalNumber } from '../components/DraftNumberInput';
 import { btnBase, btnLg, btnPrimary, btnSecondary, btnGhost, touchTarget } from '../components/buttonStyles';
 import { focusRing, inputBase, selectBase, textareaBase, labelBase, fileInputBase } from '../components/fieldStyles';
-import { CREATE_PROCESSING_MODES, PROCESSING_MODE_LABELS } from './feeds/processingMode';
+import { CREATE_PROCESSING_MODES, KEEP_CONTENT_DISABLED_NOTE, PROCESSING_MODE_LABELS } from './feeds/processingMode';
+import { isLlmEnabled } from '../hooks/useLlmEnabled';
 import { IS_DEMO } from '../demo/flag';
 import { DemoExplainer } from '../components/DemoExplainer';
 import { useDebouncedValue } from '../hooks/useDebouncedValue';
@@ -556,6 +557,7 @@ function AddFeed() {
     queryKey: ['settings'],
     queryFn: getSettings,
   });
+  const llmOff = !isLlmEnabled(settings);
   const searchAvailable = settings?.podcastSearchReady ?? false;
   const youtubeEnabled = settings?.youtubeEnabled?.value ?? false;
   const showYoutubeDisabled = isYouTube && !!settings && !youtubeEnabled;
@@ -911,11 +913,17 @@ function AddFeed() {
                 value={processingMode}
                 onChange={(e) => setProcessingMode(e.target.value as ProcessingMode)}
                 className={`${selectBase} w-full`}
+                aria-describedby={llmOff ? 'processingMode-llm-disabled' : undefined}
               >
                 {CREATE_PROCESSING_MODES.map((m) => (
-                  <option key={m} value={m}>{PROCESSING_MODE_LABELS[m]}</option>
+                  <option key={m} value={m} disabled={m === 'keep_content' && llmOff}>{PROCESSING_MODE_LABELS[m]}</option>
                 ))}
               </select>
+              {llmOff && (
+                <p id="processingMode-llm-disabled" className="mt-1 text-sm text-muted-foreground">
+                  {KEEP_CONTENT_DISABLED_NOTE}
+                </p>
+              )}
             </div>
           </div>
         </details>

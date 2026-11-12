@@ -1,4 +1,4 @@
-import { ReactNode, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from 'react';
+import { ReactNode, useId, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from 'react';
 import { Check, ChevronDown } from 'lucide-react';
 import { usePopoverTabs } from '../hooks/usePopover';
 import { focusRing } from './fieldStyles';
@@ -45,6 +45,7 @@ function DropdownMenu({
   align = 'auto',
   centerOnMobile,
 }: DropdownMenuProps) {
+  const menuId = useId();
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -112,6 +113,7 @@ function DropdownMenu({
               role={item.checked === undefined ? 'menuitem' : 'menuitemradio'}
               aria-checked={item.checked}
               disabled={item.disabled}
+              aria-describedby={item.disabled && item.subtitle ? `${menuId}-sub-${i}` : undefined}
               title={item.tooltip}
               onClick={() => {
                 closeAndRefocus();
@@ -124,7 +126,7 @@ function DropdownMenu({
                 <span className="min-w-0 flex-1 text-sm font-medium text-foreground">{item.title}</span>
                 {item.checked && <Check className="h-4 w-4 shrink-0" aria-hidden="true" />}
               </span>
-              {item.subtitle && <span className="block text-xs text-muted-foreground">{item.subtitle}</span>}
+              {item.subtitle && <span id={`${menuId}-sub-${i}`} className="block text-xs text-muted-foreground">{item.subtitle}</span>}
             </button>
           );
         })}

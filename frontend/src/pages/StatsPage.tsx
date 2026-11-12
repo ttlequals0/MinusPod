@@ -33,6 +33,8 @@ import StatTile from '../components/StatTile';
 import { btnBase, btnSecondary } from '../components/buttonStyles';
 import { badgeBase, tint } from '../components/badgeStyles';
 import { getErrorMessage } from '../api/client';
+import { useLlmEnabled } from '../hooks/useLlmEnabled';
+import { LLM_DISABLED_REASON } from './settings/LlmGate';
 import { CleanupStatsUsage, EpisodeCostStat, ModelUsageSortField, EpisodeCostSortField, ModelUsageStat, SpendAttempt } from '../api/types';
 
 const CLEANUP_ACTION_LABELS: Record<string, string> = {
@@ -585,6 +587,7 @@ function useExpandedKeys(): [Set<string>, (key: string) => void] {
 }
 
 export default function StatsPage() {
+  const llmEnabled = useLlmEnabled();
   const theme = useThemeColors();
   const [podcastFilter, setPodcastFilter] = useState('');
 
@@ -1010,7 +1013,9 @@ export default function StatsPage() {
           <h2 className={`${cardTitle} mb-4`}>Ad reviewer stats</h2>
           {reviewer.totalReviews === 0 && (
             <p className="text-sm text-muted-foreground mb-4">
-              No reviews yet. Enable ad reviewer in Settings, AI and processing section, then reprocess an episode.
+              {llmEnabled
+                ? 'No reviews yet. Enable ad reviewer in Settings, AI and processing section, then reprocess an episode.'
+                : `No reviews. ${LLM_DISABLED_REASON}`}
             </p>
           )}
           <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">

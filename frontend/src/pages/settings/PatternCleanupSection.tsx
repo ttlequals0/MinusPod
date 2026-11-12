@@ -146,6 +146,9 @@ function PatternCleanupSection({
 
   const run = useMutation({
     mutationFn: (force: boolean) => runPatternCleanup(force),
+    onError: (e: unknown) => {
+      if (isLlmDisabledError(e)) qc.invalidateQueries({ queryKey: ['settings'] });
+    },
     onSettled: () => {
       setConfirmForce(false);
       qc.invalidateQueries({ queryKey: patternCleanupQueryKey });

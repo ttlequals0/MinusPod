@@ -79,6 +79,7 @@ import { focusRing } from '../components/fieldStyles';
 import { pageHeader, pageTitle, pageDescription } from '../components/pageStyles';
 import { apiUrl, uiUrl } from '../urlPrefix';
 import { IS_DEMO } from '../demo/flag';
+import { isLlmEnabled } from '../hooks/useLlmEnabled';
 
 // External doc links stay link-styled so they read as clickable; touchTarget keeps the phone hit box.
 const docsLink = `${touchTarget} gap-1 text-sm text-primary hover:underline whitespace-nowrap ${focusRing}`;
@@ -661,7 +662,7 @@ function Settings() {
   };
 
   // The saved flag, not the select, so a pending choice cannot flip the sections before Save.
-  const llmEnabled = settings?.llmEnabled !== false;
+  const llmEnabled = isLlmEnabled(settings);
   const catalogsEnabled = !settingsLoading && llmEnabled && llmProvider !== LLM_PROVIDERS.NONE;
   const detectionCatalog = useModelCatalog(effectiveDetectionProvider, detectionSlot, catalogsEnabled);
   const verificationCatalog = useModelCatalog(effectiveVerificationProvider, verificationSlot, catalogsEnabled);
@@ -1349,6 +1350,7 @@ function Settings() {
       )}
 
       <GlobalDefaultsSection
+        llmEnabled={llmEnabled}
         autoProcessEnabled={autoProcessEnabled}
         onAutoProcessEnabledChange={setAutoProcessEnabled}
         autoProcessMaxAgeHours={autoProcessMaxAgeHours}
@@ -1605,6 +1607,7 @@ function Settings() {
       <TranscriptNormalizationSection />
 
       <AdDetectionSection
+        llmEnabled={llmEnabled}
         minCutConfidence={minCutConfidence}
         onMinCutConfidenceChange={setMinCutConfidence}
         minContentBetweenAdsSeconds={minContentBetweenAdsSeconds}

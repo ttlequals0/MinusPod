@@ -14,6 +14,7 @@ import type { LocalEpisodePatch } from '../api/feeds';
 import { submitCorrection } from '../api/patterns';
 import { APPROVAL_INVALIDATE_KEYS, getSettings } from '../api/settings';
 import { LLM_DISABLED_REASON, isLlmDisabledError } from './settings/LlmGate';
+import { isLlmEnabled } from '../hooks/useLlmEnabled';
 import { isSystemOneChapterRoute } from './settings/systemoneWarnings';
 import { getErrorMessage, jobStateOf } from '../api/client';
 import { SegmentCategoryBadge, KeptBadge } from '../components/SegmentCategoryBadge';
@@ -439,7 +440,7 @@ function EpisodeDetail() {
     enabled: !!episode?.transcriptVttAvailable,
   });
   const unsupportedChapterRoute = isSystemOneChapterRoute(settings);
-  const llmDisabled = settings?.llmEnabled === false;
+  const llmDisabled = !isLlmEnabled(settings);
   const chapterRouteWarning = 'System One cannot generate chapters. Select a chat provider and model.';
   const chapterActionTooltip = chapterSettingsError ? 'Load chapter settings before regenerating chapters.'
     : chapterSettingsPending ? 'Loading chapter settings...'
@@ -970,7 +971,7 @@ function EpisodeDetail() {
   const redetectDisabled = REDETECT_DISABLED_MODES.has(feed?.processingMode);
   const chaptersRegenerating = regenerateChaptersMutation.isPending
     || !!episode.chaptersRegenerating;
-  const menuCopy = reprocessMenuCopy(feed?.feedType);
+  const menuCopy = reprocessMenuCopy(feed?.feedType, !llmDisabled);
   const redetectTooltip = feed?.processingMode && redetectDisabled
     ? `Ad detection is off because this feed runs in ${REDETECT_DISABLED_MODE_LABELS[feed.processingMode]} mode`
     : menuCopy.redetect.tooltip;
@@ -1253,7 +1254,7 @@ function EpisodeDetail() {
                       tooltip: redetectTooltip,
                       onClick: () => handleReprocess('llm') }] : []),
                     ...(episode.transcriptVttAvailable ? [{
-                      title: 'Regenerate chapters', subtitle: 'Use existing transcript',
+                      title: 'Regenerate chapters', subtitle: llmDisabled ? LLM_DISABLED_REASON : 'Use existing transcript',
                       disabled: chaptersRegenerating || chapterSettingsPending || !settings || unsupportedChapterRoute || llmDisabled,
                       tooltip: chapterActionTooltip,
                       onClick: () => regenerateChaptersMutation.mutate() }] : []),
@@ -1277,11 +1278,6 @@ function EpisodeDetail() {
           <p role="status" className="mt-2 text-sm text-warning">
             {chapterRouteWarning}{' '}
             <Link to="/settings" className={`underline ${focusRing}`}>Open settings</Link>
-          </p>
-        )}
-        {episode.transcriptVttAvailable && llmDisabled && (
-          <p role="status" className="mt-2 text-sm text-muted-foreground">
-            Regenerate chapters is unavailable. {LLM_DISABLED_REASON}
           </p>
         )}
         {episode.transcriptVttAvailable && chapterSettingsError && (
@@ -1708,6 +1704,11 @@ function EpisodeDetail() {
             All held detections are marked not an ad. Re-detect ads to look for
             anything the first run missed, or regenerate the chapters so they
             match the segments you kept.
+            {llmDisabled && (
+              <span id="regenerate-chapters-after-review-reason" className="mt-1 block">
+                Regenerate chapters is unavailable. {LLM_DISABLED_REASON}
+              </span>
+            )}
           </p>
           <div className="flex flex-col sm:flex-row gap-2">
             <DemoDisabled>
@@ -1727,6 +1728,7 @@ function EpisodeDetail() {
                   onClick={() => { setHeldReviewCleared(false); regenerateChaptersMutation.mutate(); }}
                   disabled={chaptersRegenerating || chapterSettingsPending || !settings || unsupportedChapterRoute || llmDisabled}
                   title={chapterActionTooltip}
+                  aria-describedby={llmDisabled ? 'regenerate-chapters-after-review-reason' : undefined}
                   data-testid="regenerate-chapters-after-review"
                   className={`w-full sm:w-auto ${btnBase} ${btnSecondary}`}
                 >

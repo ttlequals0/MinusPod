@@ -9,6 +9,7 @@ import { beforeEach, describe, it, expect } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import AdDetectionSection from './AdDetectionSection';
+import { expectGatedByLlm, expectNotGatedByLlm } from '../../test/llmGate';
 
 interface TunablesState {
   minCutConfidence: number;
@@ -55,13 +56,14 @@ function defaultState(): TunablesState {
 // Mirrors how Settings.tsx wires this section: controlled state lifted to
 // the parent, with a single Commit action standing in for the page's
 // batched "Save changes" button (computeChangedFields -> updateSettings).
-function Harness({ onCommit }: { onCommit: (payload: TunablesState) => void }) {
+function Harness({ onCommit, llmEnabled = true }: { onCommit: (payload: TunablesState) => void; llmEnabled?: boolean }) {
   const [state, setState] = useState<TunablesState>(defaultState());
   const patch = <K extends keyof TunablesState>(key: K) => (v: TunablesState[K]) =>
     setState((s) => ({ ...s, [key]: v }));
   return (
     <>
       <AdDetectionSection
+        llmEnabled={llmEnabled}
         minCutConfidence={state.minCutConfidence}
         onMinCutConfidenceChange={patch('minCutConfidence')}
         minContentBetweenAdsSeconds={state.minContentBetweenAdsSeconds}
@@ -320,5 +322,27 @@ describe('AdDetectionSection: typing a value into the ad-length fields', () => {
 
     await user.click(screen.getByRole('button', { name: 'Commit' }));
     expect(committed!.maxLlmWindowAdSeconds).toBe(900);
+  });
+});
+
+describe('AdDetectionSection: LLM provider None', () => {
+  it('disables the model-only controls with the reason', () => {
+    render(<Harness onCommit={() => {}} llmEnabled={false} />);
+    expectGatedByLlm(screen.getByLabelText('Longest single LLM detection (seconds)'));
+    expectGatedByLlm(screen.getByLabelText('Hold floor'));
+    expectGatedByLlm(screen.getByRole('switch', { name: 'Enable verification autocut' }));
+  });
+
+  it('leaves the pattern-learning floors enabled because corrections still teach patterns', () => {
+    render(<Harness onCommit={() => {}} llmEnabled={false} />);
+    expectNotGatedByLlm(screen.getByLabelText('Pattern-learning floor'));
+    expectNotGatedByLlm(screen.getByLabelText('Learning minimum length (s)'));
+    expectNotGatedByLlm(screen.getByLabelText('Correlation ceiling'));
+  });
+
+  it('enables everything when a provider is set', () => {
+    render(<Harness onCommit={() => {}} />);
+    expectNotGatedByLlm(screen.getByLabelText('Longest single LLM detection (seconds)'));
+    expectNotGatedByLlm(screen.getByLabelText('Hold floor'));
   });
 });

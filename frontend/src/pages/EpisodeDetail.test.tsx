@@ -530,6 +530,20 @@ describe('Held for review: re-detect offer once every held marker is rejected', 
     expect(mockRegenerateChapters).not.toHaveBeenCalled();
   });
 
+  it('explains the disabled post-review action under LLM provider None', async () => {
+    vi.mocked(getSettings).mockResolvedValue({ llmProvider: { value: 'none' }, llmEnabled: false } as Settings);
+    const user = userEvent.setup();
+    renderDetail(makeEpisode({ transcriptAvailable: true, transcriptVttAvailable: true }));
+    await screen.findByTestId('dismiss-0');
+    setupEpisodeMock(makeEpisode({ transcriptAvailable: true, transcriptVttAvailable: true, pendingReviewMarkers: [] }));
+    await user.click(screen.getByTestId('dismiss-0'));
+    const button = await screen.findByTestId('regenerate-chapters-after-review');
+    await waitFor(() => expect((button as HTMLButtonElement).disabled).toBe(true));
+    expect(document.getElementById(button.getAttribute('aria-describedby')!)?.textContent).toBe(
+      'Regenerate chapters is unavailable. LLM provider is set to None.',
+    );
+  });
+
   it('omits Regenerate chapters without a VTT transcript', async () => {
     const user = userEvent.setup();
     renderDetail(makeEpisode({ transcriptAvailable: true, transcriptVttAvailable: false }));
@@ -2886,13 +2900,18 @@ describe('Regenerate chapters: LLM provider None', () => {
   it('disables the action and says why, without calling the API', async () => {
     const user = userEvent.setup();
     renderDetail(makeEpisode({ pendingReviewMarkers: [], transcriptVttAvailable: true }));
-    expect((await screen.findByRole('status')).textContent).toBe(
-      'Regenerate chapters is unavailable. LLM provider is set to None.',
-    );
+    await screen.findByText('Test Episode');
+    expect(screen.queryByText(/Regenerate chapters is unavailable/)).toBeNull();
     await user.click(screen.getByRole('button', { name: 'Reprocess' }));
-    const item = screen.getByText('Regenerate chapters').closest('button') as HTMLButtonElement;
-    expect(item.disabled).toBe(true);
+    const item = await waitFor(() => {
+      const el = screen.getByText('Regenerate chapters').closest('button') as HTMLButtonElement;
+      expect(el.disabled).toBe(true);
+      return el;
+    });
     expect(item.title).toBe('LLM provider is set to None.');
+    const subtitleId = item.getAttribute('aria-describedby');
+    expect(document.getElementById(subtitleId!)?.textContent).toBe('LLM provider is set to None.');
+    expect(screen.queryByText('Use existing transcript')).toBeNull();
     await user.click(item);
     expect(mockRegenerateChapters).not.toHaveBeenCalled();
   });

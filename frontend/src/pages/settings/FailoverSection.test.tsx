@@ -309,6 +309,19 @@ describe('FailoverSection: LLM provider None', () => {
     expect(screen.getByRole('button', { name: 'Trigger failover for Transcriber' })).toBeDefined();
   });
 
+  it('states the reason once as a hidden description per row, with one visible failover note above the LLM block', async () => {
+    renderSection({ llmEnabled: false, overview: offOverview });
+    await openSection();
+    expect(screen.getAllByText('LLM provider is set to None.').every((el) => el.className.includes('sr-only'))).toBe(true);
+    expect(screen.getAllByText('LLM provider is set to None.')).toHaveLength(3);
+    const note = screen.getByText('LLM failover is unavailable. LLM provider is set to None.');
+    const llmBlock = screen.getByRole('switch', { name: 'Enable LLM failover' }).closest('fieldset')!;
+    expect(llmBlock.contains(note)).toBe(true);
+    expect(llmBlock.contains(screen.getByRole('switch', { name: 'Enable transcription failover' }))).toBe(false);
+    const row = screen.getByText('Provider A').closest('li')!;
+    expect(document.getElementById(row.getAttribute('aria-describedby')!)?.textContent).toBe('LLM provider is set to None.');
+  });
+
   it('disables the LLM failover settings with the reason and keeps transcription failover usable', async () => {
     renderSection({ llmEnabled: false, overview: offOverview });
     await openSection();

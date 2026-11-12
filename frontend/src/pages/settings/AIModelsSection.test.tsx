@@ -547,10 +547,14 @@ describe('AIModelsSection: LLM provider None', () => {
     expect((screen.getByRole('button', { name: 'Refresh' }) as HTMLButtonElement).disabled).toBe(true);
   });
 
-  it('keeps saved models shown and custom pricing out of the unsaved-changes guard', () => {
+  it('keeps saved models shown and custom pricing out of the unsaved-changes guard', async () => {
     renderSection({ llmEnabled: false });
     expect((screen.getByLabelText('Ad detection model') as HTMLSelectElement).value).toBe('gpt-5');
-    expectGatedByLlm(screen.getAllByLabelText('Input')[0]);
+    const price = screen.getAllByLabelText('Input')[0] as HTMLInputElement;
+    expectGatedByLlm(price);
+    const before = price.value;
+    await userEvent.setup().type(price, '9');
+    expect(price.value).toBe(before);
   });
 
   it('leaves everything enabled when the provider is set', () => {

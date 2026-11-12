@@ -128,6 +128,14 @@ describe('Transcripts and chapters: LLM provider None', () => {
     expect((screen.getByRole('option', { name: 'Always generate' }) as HTMLOptionElement).disabled).toBe(true);
     expect((screen.getByRole('option', { name: 'Auto' }) as HTMLOptionElement).disabled).toBe(false);
     expect((screen.getByRole('option', { name: 'Off' }) as HTMLOptionElement).disabled).toBe(false);
+    expect(document.getElementById(mode.getAttribute('aria-describedby')!)?.textContent).toBe(
+      `${LLM_DISABLED_REASON} Always generate behaves like Auto.`,
+    );
+  });
+
+  it('keeps the plain reason when the saved mode is not generate', () => {
+    render(<Harness llmEnabled={false} chaptersMode="auto" />);
+    const mode = screen.getByLabelText('Chapter mode for feeds that inherit the global setting');
     expect(document.getElementById(mode.getAttribute('aria-describedby')!)?.textContent).toBe(LLM_DISABLED_REASON);
   });
 

@@ -15,7 +15,7 @@ import { btnLg, btnPrimary } from '../../components/buttonStyles';
 import { selectBase, labelBase } from '../../components/fieldStyles';
 import { subHeading } from '../../components/pageStyles';
 import { DemoDisabled } from '../../components/DemoDisabled';
-import { LlmDisabledNote, LlmGate } from './LlmGate';
+import { GENERATE_AS_AUTO_NOTE, LlmDisabledNote, LlmGate } from './LlmGate';
 
 const CHAPTER_GEOMETRY_FIELDS = [
   {
@@ -221,7 +221,7 @@ function Podcasting20Section({
             <option value="generate" disabled={!llmEnabled}>Always generate</option>
             <option value="off">Off</option>
           </select>
-          {!llmEnabled && <LlmDisabledNote id="globalChaptersMode-llm-disabled" className="mt-1" />}
+          {!llmEnabled && <LlmDisabledNote id="globalChaptersMode-llm-disabled" className="mt-1" text={chaptersMode === 'generate' ? GENERATE_AS_AUTO_NOTE : undefined} />}
         </div>
 
         {adChapters && <AdChaptersBlock {...adChapters} />}
