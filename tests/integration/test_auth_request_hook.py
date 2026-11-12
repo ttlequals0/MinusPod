@@ -208,3 +208,18 @@ def test_stream_ends_on_revocation(client, db, clock, stream_time):
     assert next(chunks).startswith(b'data:')
     db.increment_setting_int(auth_state.AUTH_GENERATION_KEY)
     assert next(chunks).startswith(b'event: auth-failed')
+
+
+def test_blank_stored_session_lengths_export_report_the_default_and_log_in(client, db, clock):
+    db.set_setting('session_lifetime_hours', '', is_default=False)
+    db.set_setting('session_remember_days', '  ', is_default=False)
+    exported = config_transfer.export_config(db, '2.98.7')['settings']
+    assert (exported['session_lifetime_hours'], exported['session_remember_days']) == (24, 30)
+    _signed_in(client, db, clock)
+    body = client.get('/api/v1/settings').get_json()
+    assert (body['sessionLifetimeHours']['value'], body['sessionRememberDays']['value']) == (24, 30)
+    client.post('/api/v1/auth/logout')
+    resp = client.post('/api/v1/auth/login', json={'password': PW},
+                       environ_base={'REMOTE_ADDR': '203.0.113.10'})
+    assert resp.status_code == 200, resp.get_json()
+    assert abs(_lifetime_seconds(_set_cookie(resp, 'session')) - 24 * 3600) < 60

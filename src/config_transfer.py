@@ -20,7 +20,7 @@ from config import (
     PODCAST_SEARCH_PROVIDERS, STAGE_TUNABLE_PAYLOAD_KEYS, SETTING_CONSTRAINTS,
     SYSTEMONE_TUNABLE_DEFAULTS, SYSTEMONE_TUNABLE_PROFILE_KEYS,
     PROCESSING_MODE_CUE_ONLY, cue_only_missing_roles_for_feed,
-    get_stage_tunable, resolve_community_sync_categories,
+    get_env_backed_int, get_stage_tunable, resolve_community_sync_categories,
     resolve_feed_processing_mode, resolve_jit_blocked_user_agents,
     resolve_segment_category_actions_map, resolve_max_ad_duration_confirmed,
     SEARCH_PROVIDER_ITUNES, SEARCH_PROVIDER_PODCASTINDEX,
@@ -330,6 +330,9 @@ def _portable_value(key, value):
     if not isinstance(value, str):
         return value
     spec = SETTINGS_REGISTRY.get(key)
+    if spec and spec.env_backed and key in SETTING_CONSTRAINTS and SETTING_CONSTRAINTS[key].kind == 'int':
+        # Same read-time fallback as every other reader: a blank or bad row means the default.
+        return get_env_backed_int(key, settings={key: {'value': value}})
     if key in {'llm_timeout_seconds', 'secondary_llm_timeout_seconds'}:
         try:
             number = float(value)
