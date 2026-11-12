@@ -23,6 +23,44 @@ const DEFAULT_DAYS = 30;
 const isInRange = (v: number | null | undefined, { min, max }: { min: number; max: number }): v is number =>
   v != null && Number.isInteger(v) && v >= min && v <= max;
 
+function SessionLengthField({ id, label, unit, help, value, range, valid, disabled, onChange }: {
+  id: string;
+  label: string;
+  unit: string;
+  help: string;
+  value: number | null;
+  range: { min: number; max: number };
+  valid: boolean;
+  disabled: boolean;
+  onChange: (v: number | null) => void;
+}) {
+  return (
+    <div>
+      <label htmlFor={id} className={labelBase}>{label}</label>
+      <DraftNumberInput
+        id={id}
+        value={value}
+        fallback={null}
+        parse={parseOptionalNumber}
+        onChange={onChange}
+        min={range.min}
+        max={range.max}
+        step={1}
+        disabled={disabled}
+        ariaInvalid={!valid}
+        ariaDescribedBy={`${id}-help${!valid ? ` ${id}-error` : ''}`}
+        className="w-full aria-invalid:border-destructive aria-invalid:ring-2 aria-invalid:ring-destructive"
+      />
+      <p id={`${id}-help`} className="mt-1 text-sm text-muted-foreground">{help}</p>
+      {!valid && (
+        <p id={`${id}-error`} role="alert" className="mt-1 text-sm text-destructive">
+          Enter a whole number of {unit} from {range.min} to {range.max}.
+        </p>
+      )}
+    </div>
+  );
+}
+
 interface SecuritySectionProps {
   cryptoReady?: boolean;
   isPasswordSet: boolean;
@@ -282,56 +320,28 @@ function SecuritySection({
           How long a sign-in stays valid before the password is asked for again.
         </p>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div>
-            <label htmlFor="sessionLifetimeHours" className={labelBase}>Session length (hours)</label>
-            <DraftNumberInput
-              id="sessionLifetimeHours"
-              value={hours}
-              fallback={null}
-              parse={parseOptionalNumber}
-              onChange={(v) => { setHoursDraft(v); setSessionSaved(false); }}
-              min={HOURS_RANGE.min}
-              max={HOURS_RANGE.max}
-              step={1}
-              disabled={sessionMutation.isPending}
-              ariaInvalid={!hoursValid}
-              ariaDescribedBy={`sessionLifetimeHours-help${!hoursValid ? ' sessionLifetimeHours-error' : ''}`}
-              className="w-full aria-invalid:border-destructive aria-invalid:ring-2 aria-invalid:ring-destructive"
-            />
-            <p id="sessionLifetimeHours-help" className="mt-1 text-sm text-muted-foreground">
-              How long a normal sign-in stays valid, counted from its last use.
-            </p>
-            {!hoursValid && (
-              <p id="sessionLifetimeHours-error" role="alert" className="mt-1 text-sm text-destructive">
-                Enter a whole number of hours from {HOURS_RANGE.min} to {HOURS_RANGE.max}.
-              </p>
-            )}
-          </div>
-          <div>
-            <label htmlFor="sessionRememberDays" className={labelBase}>Remember me length (days)</label>
-            <DraftNumberInput
-              id="sessionRememberDays"
-              value={days}
-              fallback={null}
-              parse={parseOptionalNumber}
-              onChange={(v) => { setDaysDraft(v); setSessionSaved(false); }}
-              min={DAYS_RANGE.min}
-              max={DAYS_RANGE.max}
-              step={1}
-              disabled={sessionMutation.isPending}
-              ariaInvalid={!daysValid}
-              ariaDescribedBy={`sessionRememberDays-help${!daysValid ? ' sessionRememberDays-error' : ''}`}
-              className="w-full aria-invalid:border-destructive aria-invalid:ring-2 aria-invalid:ring-destructive"
-            />
-            <p id="sessionRememberDays-help" className="mt-1 text-sm text-muted-foreground">
-              Applies only to sign-ins that tick the Remember me box; counted from last use.
-            </p>
-            {!daysValid && (
-              <p id="sessionRememberDays-error" role="alert" className="mt-1 text-sm text-destructive">
-                Enter a whole number of days from {DAYS_RANGE.min} to {DAYS_RANGE.max}.
-              </p>
-            )}
-          </div>
+          <SessionLengthField
+            id="sessionLifetimeHours"
+            label="Session length (hours)"
+            unit="hours"
+            help="How long a normal sign-in stays valid, counted from its last use."
+            value={hours}
+            range={HOURS_RANGE}
+            valid={hoursValid}
+            disabled={sessionMutation.isPending}
+            onChange={(v) => { setHoursDraft(v); setSessionSaved(false); }}
+          />
+          <SessionLengthField
+            id="sessionRememberDays"
+            label="Remember me length (days)"
+            unit="days"
+            help="Applies only to sign-ins that tick the Remember me box; counted from last use."
+            value={days}
+            range={DAYS_RANGE}
+            valid={daysValid}
+            disabled={sessionMutation.isPending}
+            onChange={(v) => { setDaysDraft(v); setSessionSaved(false); }}
+          />
         </div>
         <div className="mt-4 flex flex-wrap items-center gap-3">
           <DemoDisabled>
