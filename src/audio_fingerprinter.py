@@ -74,6 +74,7 @@ FINGERPRINT_SETTING_RANGES = {
     'fingerprint_match_strictness': (FINGERPRINT_MATCH_STRICTNESS, 0.40, 0.95),
     'fingerprint_min_coverage': (FINGERPRINT_MIN_COVERAGE, 0.10, 1.00),
     'fingerprint_gap_tolerance_s': (FINGERPRINT_GAP_TOLERANCE_S, 0.0, 15.0),
+    'fingerprint_min_ad_length_s': (FINGERPRINT_MIN_AD_LENGTH_S, 3.0, 30.0),
 }
 
 # Minimum duration for fingerprinting (seconds)
@@ -1552,21 +1553,25 @@ class AudioFingerprinter:
 
     def _store_fingerprint(self, pattern_id, audio_path, start, end,
                            source_podcast_slug, source_episode_id, force):
-        if not audio_path or not os.path.isfile(audio_path):
-            return FingerprintStoreResult(False, 'original_not_retained')
-        if not self.db or not self.is_available():
+        if not self.db:
             return FingerprintStoreResult(False, 'fingerprint_failed')
         if not force:
             pattern = self.db.get_ad_pattern_by_id(pattern_id)
             if pattern and pattern.get('audio_removed'):
                 return FingerprintStoreResult(False, 'audio_removed')
+        if not audio_path or not os.path.isfile(audio_path):
+            return FingerprintStoreResult(False, 'original_not_retained')
 
+        # A span past the end of the file is stored as the audio actually decoded
+        decoded = self._get_audio_duration(audio_path)
+        if decoded > 0:
+            end = min(end, decoded)
         duration = end - start
-        min_length = self.db.get_setting_float(
-            'fingerprint_min_ad_length_s', FINGERPRINT_MIN_AD_LENGTH_S)
-        if duration < min_length:
+        if duration < self._clamped_setting('fingerprint_min_ad_length_s'):
             logger.debug(f"Segment too short for fingerprinting: {duration:.1f}s")
             return FingerprintStoreResult(False, 'segment_too_short')
+        if not self.is_available():
+            return FingerprintStoreResult(False, 'fingerprint_failed')
 
         fingerprint = self.generate_fingerprint(audio_path, start, duration)
         if not fingerprint or not fingerprint.fingerprint:

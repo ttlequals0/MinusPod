@@ -158,3 +158,37 @@ def test_automatic_creation_stores_with_source_and_respects_audio_removed(fp, te
     assert (row['source_podcast_slug'], row['source_episode_id'], row['source_start'],
             row['source_end']) == ('example-podcast', 'a1b2c3d4e5f6', 10.0, 40.0)
     assert temp_db.get_audio_fingerprint(removed) is None
+
+
+def test_short_span_is_reported_even_without_fpcalc(fp, pattern, audio):
+    fp._fpcalc_path = None
+    assert fp.store_fingerprint(pattern, audio, 0.0, 1.0).skipped_reason == 'segment_too_short'
+    assert fp.store_fingerprint(pattern, audio, 0.0, 30.0).skipped_reason == 'fingerprint_failed'
+
+
+def test_audio_removed_is_reported_before_a_missing_original(fp, temp_db, pattern, tmp_path):
+    temp_db.set_pattern_audio_removed(pattern, True)
+    result = fp.store_fingerprint(pattern, str(tmp_path / 'gone.wav'), 0.0, 30.0)
+    assert result.skipped_reason == 'audio_removed'
+
+
+def test_stored_span_is_clamped_to_the_decoded_audio(fp, temp_db, pattern, audio, monkeypatch):
+    monkeypatch.setattr(fp, '_get_audio_duration', lambda path: 20.0)
+    assert fp.store_fingerprint(pattern, audio, 10.0, 40.0).stored is True
+    row = temp_db.get_audio_fingerprint(pattern)
+    assert (row['duration'], row['source_end']) == (10.0, 20.0)
+    assert fp.calls == [(audio, 10.0, 10.0)]
+
+
+def test_span_starting_past_the_decoded_audio_is_too_short(fp, pattern, audio, monkeypatch):
+    monkeypatch.setattr(fp, '_get_audio_duration', lambda path: 20.0)
+    assert fp.store_fingerprint(pattern, audio, 25.0, 40.0).skipped_reason == 'segment_too_short'
+
+
+@pytest.mark.parametrize('raw,short,long', [
+    ('1', 2.9, 3.0), ('100', 29.9, 30.0), ('nan', 4.9, 5.0), ('junk', 4.9, 5.0), ('12', 11.9, 12.0),
+])
+def test_minimum_length_setting_is_clamped_to_3_to_30_seconds(fp, temp_db, pattern, audio, raw, short, long):
+    temp_db.set_setting('fingerprint_min_ad_length_s', raw)
+    assert fp.store_fingerprint(pattern, audio, 0.0, short).skipped_reason == 'segment_too_short'
+    assert fp.store_fingerprint(pattern, audio, 0.0, long).stored is True
