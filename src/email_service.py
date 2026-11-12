@@ -21,7 +21,7 @@ from dataclasses import dataclass
 from email.message import EmailMessage
 from email.utils import make_msgid
 
-from utils.http import redact_fields, redact_log_text
+from utils.http import redact_log_text
 from utils.paths import LOGO_PATH
 from utils.url import validate_outbound_host
 
@@ -468,9 +468,6 @@ def _send(cfg: EmailConfig, msg: EmailMessage) -> None:
         smtp.send_message(msg)
 
 
-_REDACTED_FIELDS = frozenset({'error_message', 'reason', 'feed_url'})
-
-
 def send_event_email(event: str, context: dict) -> None:
     """Send a notification email for an event. Never raises."""
     try:
@@ -480,7 +477,7 @@ def send_event_email(event: str, context: dict) -> None:
         formatter = FORMATTERS.get(event)
         if formatter is None:
             return
-        subject, rows, action_hint = formatter(redact_fields(context, _REDACTED_FIELDS))
+        subject, rows, action_hint = formatter(context)
         msg = build_message(subject, rows, action_hint,
                             cfg.from_addr, cfg.recipients)
         _send(cfg, msg)

@@ -3,6 +3,7 @@
 import json
 from decimal import Decimal
 from ad_yield import latest_completed_run
+from database.error_text import redact_error
 from processing_queue import ProcessingQueue
 
 
@@ -77,7 +78,7 @@ def run_stats_to_api(stats):
     if 'chapters_degraded' in stats:
         result['chaptersDegraded'] = stats['chapters_degraded']
     if 'chapters_degraded_reason' in stats:
-        result['chaptersDegradedReason'] = stats['chapters_degraded_reason']
+        result['chaptersDegradedReason'] = redact_error(stats['chapters_degraded_reason'])
     transcription = stats.get('transcription')
     if transcription:
         result['transcription'] = {
@@ -88,7 +89,7 @@ def run_stats_to_api(stats):
             'device': transcription.get('device'),
             'gpuDeviceName': transcription.get('gpu_device_name'),
             'model': transcription.get('model'),
-            'error': transcription.get('error'),
+            'error': redact_error(transcription.get('error')),
         }
     transcript_diff = stats.get('transcript_diff')
     if isinstance(transcript_diff, dict):
@@ -163,7 +164,7 @@ def processing_runs(db, episode, run_totals=None):
             'status': row.get('status'),
             'adsDetected': row.get('ads_detected'),
             'processingDurationSeconds': row.get('processing_duration_seconds'),
-            'errorMessage': row.get('error_message'),
+            'errorMessage': redact_error(row.get('error_message')),
             'inputTokens': input_tokens,
             'outputTokens': output_tokens,
             'cacheReadTokens': cache_read,
@@ -230,7 +231,7 @@ def partial_detection(episode, runs):
     latest_stats = ((latest_completed or {}).get('stats')) or {}
     windows = latest_stats.get('windows') or {}
     return {
-        'reason': reason,
+        'reason': redact_error(reason),
         'windowsFailed': windows.get('failed'),
         'windowsTotal': windows.get('total'),
     }

@@ -18,6 +18,7 @@ from config import (
 )
 
 from database.episodes import normalize_published_at
+from database.error_text import redact_error
 from database.settings import feed_itunes_block_enabled
 from database.podcasts import is_local_feed, is_recents_feed, is_youtube_feed, podping_declaration_columns
 from database.queue import compute_queue_priority
@@ -76,7 +77,7 @@ class RefreshOutcome:
     error: str | None = None
 
     def to_dict(self) -> dict:
-        return asdict(self)
+        return {**asdict(self), 'error': redact_error(self.error)}
 
     def __bool__(self) -> bool:
         return self.success

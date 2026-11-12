@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 
 # Busy wait for the best-effort cache fill, so a feed read never stalls behind a writer.
 _FEED_FILL_BUSY_MS = 1000
-_ERROR_KEYS = frozenset({'error_message', 'chapters_regen_error'})
+_ERROR_KEYS = frozenset({'error_message', 'chapters_regen_error', 'detection_degraded'})
 _DETAIL_ERROR_JSON = frozenset({'dai_differential_json', 'upstream_transcript_json'})
 
 
@@ -430,7 +430,7 @@ class EpisodeMixin:
                                'processed_size_bytes', 'yt_metadata_at',
                                'approval_pending_at', 'approved_at'):
                         fields.append(f"{key} = ?")
-                        values.append(redact_error(value) if key in _ERROR_KEYS else value)
+                        values.append(redact_error(value) if key in _ERROR_KEYS and isinstance(value, str) else value)
                     elif key == 'tags':
                         fields.append("tags = ?")
                         values.append(

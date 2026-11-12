@@ -1,4 +1,5 @@
 """Shared ffmpeg subprocess helpers used by audio analysis components."""
+from utils.http import redact_stored_text
 
 SAFE_MEDIA_INPUT_ARGS = ('-nostdin', '-protocol_whitelist', 'file,pipe')
 SAFE_MEDIA_PROBE_ARGS = ('-protocol_whitelist', 'file,pipe')
@@ -19,4 +20,4 @@ def decode_stderr(result) -> str:
     try:
         return result.stderr.decode('utf-8', errors='replace')
     except Exception:
-        return str(result.stderr)[:20000]
+        return redact_stored_text(str(result.stderr))[:20000]

@@ -8,7 +8,7 @@ from decimal import Decimal
 from typing import NamedTuple
 
 from config import SYSTEMONE_PROVIDERS, normalize_model_key
-from database.error_text import redact_error
+from database.error_text import STATS_ERROR_FIELDS as _STATS_ERROR_FIELDS, redact_error, redact_json_fields
 from utils.app_version import APP_VERSION as __version__
 from utils.time import parse_iso_utc
 
@@ -1781,7 +1781,7 @@ class StatsMixin:
              processing_duration_seconds, status, ads_detected, redact_error(error_message),
              reprocess_number, input_tokens, output_tokens, llm_cost,
              audio_cues_detected,
-             json.dumps(processing_stats) if processing_stats else None,
+             redact_json_fields(json.dumps(processing_stats), _STATS_ERROR_FIELDS) if processing_stats else None,
              __version__, run_id)
         )
         conn.commit()
@@ -1864,11 +1864,7 @@ class StatsMixin:
 
         # Only backfill episodes not already in history
         # Note: processed_at is often NULL in older records, so use updated_at as fallback
-        cursor = conn.execute('''
-            INSERT INTO processing_history
-                (podcast_id, podcast_slug, podcast_title, episode_id, episode_title,
-                 processed_at, processing_duration_seconds, status, ads_detected,
-                 error_message, reprocess_number)
+        rows = conn.execute('''
             SELECT
                 e.podcast_id,
                 p.slug,
@@ -1892,9 +1888,16 @@ class StatsMixin:
                   WHERE h.podcast_id = e.podcast_id
                     AND h.episode_id = e.episode_id
               )
-        ''')
-
-        count = cursor.rowcount
+        ''').fetchall()
+        # Rows copied in Python so the legacy error text is redacted before it lands in history.
+        conn.executemany('''
+            INSERT INTO processing_history
+                (podcast_id, podcast_slug, podcast_title, episode_id, episode_title,
+                 processed_at, processing_duration_seconds, status, ads_detected,
+                 error_message, reprocess_number)
+            VALUES (?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, 1)
+        ''', [(*tuple(r)[:6], tuple(r)[7], tuple(r)[8], redact_error(tuple(r)[9])) for r in rows])
+        count = len(rows)
         conn.commit()
         if count > 0:
             logger.info(f"Backfilled {count} records to processing_history")

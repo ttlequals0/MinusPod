@@ -13,6 +13,7 @@ from embedded_chapters import (
 )
 from utils.subprocess_registry import tracked_run
 from utils.ffmpeg_run import SAFE_MEDIA_INPUT_ARGS
+from utils.http import redact_stored_text
 from utils.paths import resolve_data_dir
 from utils.markers import precise_edge, subtract_spans
 from mp3_stream_copy import copy_mp3
@@ -166,7 +167,7 @@ class AudioProcessor:
                 try:
                     stderr_text = result.stderr.decode('utf-8', errors='replace')
                 except Exception:
-                    stderr_text = str(result.stderr)[:500]
+                    stderr_text = redact_stored_text(str(result.stderr))[:500]
                 logger.error(f"FFMPEG convert failed: {stderr_text}")
                 return None
 
@@ -237,7 +238,7 @@ class AudioProcessor:
                 try:
                     stderr_text = result.stderr.decode('utf-8', errors='replace')
                 except Exception:
-                    stderr_text = str(result.stderr)[:500]
+                    stderr_text = redact_stored_text(str(result.stderr))[:500]
                 logger.error(f"FFMPEG normalize failed: {stderr_text}")
                 return None
 
@@ -667,7 +668,7 @@ class AudioProcessor:
                 try:
                     stderr_text = result.stderr.decode('utf-8', errors='replace')
                 except Exception:
-                    stderr_text = str(result.stderr)[:500]
+                    stderr_text = redact_stored_text(str(result.stderr))[:500]
                 logger.error(f"FFMPEG failed: {stderr_text}")
                 return None
 

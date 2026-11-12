@@ -1,10 +1,14 @@
 """Every API route that returns a stored error column redacts it at the serializer, always."""
+import hashlib
 import json
 
 import pytest
 
+# The helpers import bootstraps the app environment, so it comes before the app modules.
+from tests.integration.fingerprint_helpers import EPISODE, SLUG, csrf
+from api import error_response, get_database
 from database.error_text import STORED_ERROR_COLUMNS
-from tests.integration.fingerprint_helpers import EPISODE, SLUG, csrf  # noqa: E402
+from main_app import feeds as feed_refresh
 
 KEY = 'b' * 64
 RAW = f'GET https://alice:PASS@cdn.example.com/a.mp3?X-Amz-Signature=SIG failed {KEY}'
@@ -21,7 +25,6 @@ def _sql(db, statement, params=()):
 def _remove_seeded_rows(app_client):
     """The shared database outlives a test, so drop the rows these seeds insert outside the feed."""
     yield
-    from api import get_database
     for table, column in (('pattern_cleanup_runs', 'error'), ('failover_events', 'reason'),
                           ('processing_history', 'error_message')):
         _sql(get_database(), f"DELETE FROM {table} WHERE {column} = ?", (RAW,))  # noqa: S608
@@ -92,6 +95,7 @@ SERVED = {
     ('podcasts', 'last_refresh_error'): (_refresh_error, _get(f'/api/v1/feeds/{SLUG}')),
     ('pattern_cleanup_runs', 'error'): (_cleanup_error, _get('/api/v1/patterns/cleanup/runs')),
     ('failover_events', 'reason'): (_failover_reason, _get('/api/v1/failover')),
+    ('episodes', 'detection_degraded'): (_episode_column('detection_degraded'), _episode),
 }
 NOT_SERVED = {('auto_process_queue', 'error_message')}
 CUE_SCANS = {
@@ -136,7 +140,6 @@ def test_history_exports_redact_the_error_and_stay_streamed(app_client, fp_feed,
 
 
 def test_cross_episode_scan_error_is_redacted(app_client, fp_feed):
-    import hashlib
     ids = [EPISODE, 'b1c2d3e4f5a6']
     digest = hashlib.sha256(','.join(sorted(ids)).encode()).hexdigest()
     _scan_error('cue_cross_episode_scans', 'episode_set_hash', digest)(fp_feed)
@@ -193,10 +196,68 @@ def test_failover_state_and_probe_text_are_redacted_on_the_way_out(app_client, f
 
 
 def test_error_response_redacts_message_and_details(app_client):
-    from api import error_response
     with app_client.application.app_context():
         response = error_response(RAW, 400, details=RAW)
     assert response.status_code == 400
     body = response.get_data(as_text=True)
     assert 'cdn.example.com' in body
     assert not any(leak in body for leak in LEAKS)
+
+
+def _seed_run(db, stats):
+    pid = db.get_podcast_by_slug(SLUG)['id']
+    _sql(db, "INSERT INTO processing_history (podcast_id, podcast_slug, podcast_title, episode_id, "
+             "episode_title, status, error_message, processing_stats_json) "
+             "VALUES (?, ?, 't', ?, 'e', 'failed', ?, ?)", (pid, SLUG, EPISODE, RAW, json.dumps(stats)))
+
+
+@pytest.mark.parametrize('url', [
+    f'/api/v1/feeds/{SLUG}/episodes/{EPISODE}',
+    f'/api/v1/stats/episode-costs/runs?slug={SLUG}&episodeId={EPISODE}',
+])
+def test_processing_runs_redact_the_history_error_and_stats_text(app_client, fp_feed, url):
+    _seed_run(fp_feed, {'chapters_degraded': True, 'chapters_degraded_reason': RAW,
+                        'transcription': {'outcome': 'failed', 'error': RAW}})
+    response = _get(url)(app_client)
+    _assert_no_leak(response)
+    body = response.get_data(as_text=True)
+    assert 'errorMessage' in body and 'chaptersDegradedReason' in body
+
+
+def test_partial_detection_reason_is_redacted(app_client, fp_feed):
+    _episode_column('detection_degraded')(fp_feed)
+    response = _episode(app_client)
+    _assert_no_leak(response)
+    assert response.get_json()['partialDetection']['reason']
+
+
+def _raising_outcome(*args, **kwargs):
+    return feed_refresh.RefreshOutcome(False, 'fetch_failed', error=RAW)
+
+
+def test_single_feed_refresh_redacts_the_outcome_error(app_client, fp_feed, monkeypatch):
+    monkeypatch.setattr(feed_refresh, 'refresh_rss_feed', _raising_outcome)
+    response = app_client.post(f'/api/v1/feeds/{SLUG}/refresh', json={}, headers=csrf(app_client))
+    assert response.status_code == 502
+    body = response.get_data(as_text=True)
+    for leak in LEAKS:
+        assert leak not in body
+
+
+def test_all_feeds_refresh_redacts_the_outcome_error(app_client, fp_feed, monkeypatch):
+    monkeypatch.setattr(feed_refresh, 'refresh_rss_feed', _raising_outcome)
+    response = app_client.post('/api/v1/feeds/refresh', json={'force': True}, headers=csrf(app_client))
+    assert response.status_code in (200, 207)
+    outcome = response.get_json()['outcomes'].get(SLUG)
+    assert outcome and outcome['error'] and not any(leak in outcome['error'] for leak in LEAKS)
+
+
+@pytest.mark.parametrize('method,url,body', [
+    ('put', '/api/v1/settings/rate-limit-hold', {'llmUsageUrl': 'http://169.254.169.254/usage?key=SECRET'}),
+    ('put', '/api/v1/podping/nodes', {'nodes': ['not a url']}),
+])
+def test_400_bodies_carry_status(app_client, method, url, body):
+    response = getattr(app_client, method)(url, json=body, headers=csrf(app_client))
+    assert response.status_code == 400
+    assert response.get_json()['status'] == 400
+    assert 'SECRET' not in response.get_data(as_text=True)

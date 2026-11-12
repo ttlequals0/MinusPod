@@ -1,9 +1,7 @@
 """API, webhook, email and log egress each redact the same error sample."""
 import logging
 
-import email_service
 import webhook_service
-from utils.http import redact_fields
 from utils.log_format import QueryStringRedactingFilter
 
 KEY = 'c' * 64
@@ -37,12 +35,6 @@ def test_webhook_alert_context_is_redacted(monkeypatch):
     webhook_service.fire_service_offline_event('llm', SAMPLE, 'slug', 'a1b2c3d4e5f6', 'Pod')
     assert len(sent) == 2
     _clean(str(sent))
-
-
-def test_email_context_is_redacted():
-    ctx = redact_fields({'episode': {'error_message': SAMPLE}, 'error_message': SAMPLE},
-                        email_service._REDACTED_FIELDS)
-    _clean(str(ctx))
 
 
 def test_log_filter_redacts():

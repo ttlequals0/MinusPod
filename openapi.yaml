@@ -10235,6 +10235,12 @@ paths:
                     type: string
                   rateLimitProbeMinutes:
                     type: integer
+        '400':
+          description: Invalid value, such as a usage URL the server refuses to call
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
 
   /settings/rate-limit-hold/reset:
     post:

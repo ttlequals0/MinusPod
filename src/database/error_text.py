@@ -8,6 +8,7 @@ FAILOVER_PROBE_PREFIX = 'failover_probe:'
 NODE_HEALTH_KEY = 'podping_node_health'
 _ERROR_SETTING_SUFFIX = '_last_error'
 _SETTING_TABLES = ('settings', 'system_settings')
+STATS_ERROR_FIELDS = ('error', 'chapters_degraded_reason')
 
 # Columns that hold stored exception or error text, served back by the API.
 STORED_ERROR_COLUMNS = (
@@ -23,6 +24,7 @@ STORED_ERROR_COLUMNS = (
     ('cue_cross_episode_scans', 'error'),
     ('cue_window_optimize_scans', 'error'),
     ('failover_events', 'reason'),
+    ('episodes', 'detection_degraded'),
 )
 
 # JSON columns that embed error text under one top-level field.
@@ -40,25 +42,35 @@ def redact_error(value, limit: int | None = None):
     return text if limit is None else text[:limit]
 
 
-def redact_json_fields(value, fields, per_entry=False):
-    """Redact the named top-level string fields of a JSON object, or of each entry's object."""
+def _redact_fields_deep(node, fields) -> bool:
+    """Redact the named string fields at any depth in place; True when something changed."""
+    changed = False
+    if isinstance(node, dict):
+        for key, item in node.items():
+            if key in fields and isinstance(item, str):
+                redacted = redact_stored_text(item)
+                if redacted != item:
+                    node[key] = redacted
+                    changed = True
+            elif isinstance(item, (dict, list)):
+                changed |= _redact_fields_deep(item, fields)
+    elif isinstance(node, list):
+        for item in node:
+            changed |= _redact_fields_deep(item, fields)
+    return changed
+
+
+def redact_json_fields(value, fields):
+    """Redact the named string fields of a JSON object at any depth; other or invalid JSON is untouched."""
+    if not isinstance(value, str) or not any(field in value for field in fields):
+        return value
     try:
         data = json.loads(value)
-    except (TypeError, ValueError):
+    except ValueError:
         return value
     if not isinstance(data, dict):
         return value
-    targets = [entry for entry in data.values() if isinstance(entry, dict)] if per_entry else [data]
-    changed = False
-    for target in targets:
-        for field in fields:
-            text = target.get(field)
-            if isinstance(text, str):
-                redacted = redact_stored_text(text)
-                if redacted != text:
-                    target[field] = redacted
-                    changed = True
-    return json.dumps(data) if changed else value
+    return json.dumps(data) if _redact_fields_deep(data, fields) else value
 
 
 def redact_setting_value(key: str, value):
@@ -72,27 +84,32 @@ def redact_setting_value(key: str, value):
     if key.startswith(FAILOVER_PROBE_PREFIX):
         return redact_json_fields(value, ('detail',))
     if key == NODE_HEALTH_KEY:
-        return redact_json_fields(value, ('last_failure_reason',), per_entry=True)
+        return redact_json_fields(value, ('last_failure_reason',))
     return value
 
 
 def redact_json_error(value):
-    """Redact the top-level error field of a stored differential JSON string."""
+    """Redact every error field of a stored differential or upstream transcript JSON string."""
     return redact_json_fields(value, ('error',)) if isinstance(value, str) else value
 
 
+# Unit order is persisted as a cursor by a partly run step: append new units, never insert.
 def redaction_units():
     """(table, column, rewrite, where, params) for every stored error value the redaction step covers."""
-    units = [(table, column, redact_stored_text, '1', ()) for table, column in STORED_ERROR_COLUMNS]
+    units = [(table, column, redact_stored_text, '1', ()) for table, column in STORED_ERROR_COLUMNS[:12]]
     for table in _SETTING_TABLES:
         units.append((table, 'value', redact_stored_text, "key LIKE ? ESCAPE '\\'", ('%\\_last\\_error',)))
     units.append(('settings', 'value', lambda v: redact_json_fields(v, ('reason',)),
                   "key LIKE ? ESCAPE '\\'", ('failover\\_state:%',)))
-    units.append(('settings', 'value', lambda v: redact_json_fields(v, ('detail',)),
-                  "key LIKE ? ESCAPE '\\'", ('failover\\_probe:%',)))
     units.append(('settings', 'value',
-                  lambda v: redact_json_fields(v, ('last_failure_reason',), per_entry=True),
+                  lambda v: redact_json_fields(v, ('last_failure_reason',)),
                   'key = ?', (NODE_HEALTH_KEY,)))
     for table, column in STORED_ERROR_JSON_COLUMNS:
         units.append((table, column, redact_json_error, '1', ()))
+    for table, column in STORED_ERROR_COLUMNS[12:]:
+        units.append((table, column, redact_stored_text, '1', ()))
+    units.append(('settings', 'value', lambda v: redact_json_fields(v, ('detail',)),
+                  "key LIKE ? ESCAPE '\\'", ('failover\\_probe:%',)))
+    units.append(('processing_history', 'processing_stats_json',
+                  lambda v: redact_json_fields(v, STATS_ERROR_FIELDS), '1', ()))
     return units

@@ -1,6 +1,7 @@
 """Stored error text is redacted where it is written, once, in the accessor."""
 import json
 import re
+import time
 from pathlib import Path
 
 import pytest
@@ -9,6 +10,7 @@ from database.error_text import (
     STORED_ERROR_COLUMNS, redact_error, redact_json_error, redact_setting_value,
 )
 from tests.unit.db_test_utils import _seed
+from database.error_text import redact_json_fields, redaction_units
 from utils.http import redact_log_text, redact_stored_text
 
 KEY = 'a' * 64
@@ -26,6 +28,10 @@ def _assert_clean(text):
 
 def _write_episode_error(db):
     db.upsert_episode(SLUG, EPISODE, error_message=RAW)
+
+
+def _write_detection_degraded(db):
+    db.upsert_episode(SLUG, EPISODE, detection_degraded=RAW)
 
 
 def _write_chapters_regen_error(db):
@@ -107,6 +113,7 @@ WRITERS = {
     ('cue_cross_episode_scans', 'error'): _write_cross_scan_error,
     ('cue_window_optimize_scans', 'error'): _write_window_scan_error,
     ('failover_events', 'reason'): _write_failover_reason,
+    ('episodes', 'detection_degraded'): _write_detection_degraded,
 }
 
 
@@ -218,4 +225,86 @@ def test_no_raw_sql_writes_a_stored_error_column_outside_the_accessors():
             statement = text[match.start():match.start() + 600].split('"""')[0].split("',")[0]
             if _COLUMN_WRITE.search(statement) and 'error_message = \'Reset' not in statement:
                 offenders.append(f'{rel}: {statement[:80]!r}')
+    assert not offenders, offenders
+
+
+def test_redaction_units_keep_their_persisted_order():
+    units = redaction_units()
+    assert [(u[0], u[1]) for u in units[-3:]] == [
+        ('episodes', 'detection_degraded'), ('settings', 'value'), ('processing_history', 'processing_stats_json')]
+    assert [(u[0], u[1]) for u in units[:12]] == list(STORED_ERROR_COLUMNS[:12])
+    assert units[-2][4] == ('failover\\_probe:%',)
+
+
+def test_stats_json_error_fields_are_redacted_on_write(temp_db):
+    _seed(temp_db)
+    podcast = temp_db.get_podcast_by_slug(SLUG)
+    temp_db.record_processing_history(
+        podcast['id'], SLUG, 'T', EPISODE, 'E', 'failed',
+        processing_stats={'transcription': {'error': RAW}, 'chapters_degraded_reason': RAW})
+    stored = json.loads(temp_db.get_connection().execute(
+        "SELECT processing_stats_json FROM processing_history").fetchone()[0])
+    _assert_clean(stored['transcription']['error'])
+    _assert_clean(stored['chapters_degraded_reason'])
+
+
+def test_backfill_redacts_the_copied_error(temp_db):
+    _seed(temp_db)
+    conn = temp_db.get_connection()
+    conn.execute("UPDATE episodes SET status = 'failed', error_message = ?", (RAW,))
+    conn.commit()
+    assert temp_db.backfill_processing_history() == 1
+    _assert_clean(conn.execute("SELECT error_message FROM processing_history").fetchone()[0])
+
+
+def test_json_fields_are_redacted_at_any_depth():
+    nested = json.dumps({'error': {'msg': RAW}, 'regions': [{'error': RAW}, {'ok': 1}],
+                         'deep': {'a': [{'error': RAW}]}})
+    once = redact_json_fields(nested, ('error',))
+    data = json.loads(once)
+    _assert_clean(data['regions'][0]['error'])
+    _assert_clean(data['deep']['a'][0]['error'])
+    assert data['error']['msg'] == RAW
+    assert redact_json_fields(once, ('error',)) == once
+
+
+def test_json_object_valued_error_field_is_walked_for_nested_fields():
+    value = json.dumps({'x': {'error': RAW}})
+    _assert_clean(json.loads(redact_json_fields(value, ('error',)))['x']['error'])
+
+
+def test_json_fields_leave_invalid_and_non_object_json_alone():
+    for value in ('not json error', '[{"error": "x"}]', '"error"', '', None, 5):
+        assert redact_json_fields(value, ('error',)) == value
+
+
+def test_two_megabyte_blob_redacts_quickly():
+    """Worst case: every region carries an error that needs redacting."""
+    error = 'GET https://alice:PASS@cdn.example.com/a.mp3?X-Amz-Signature=SIG failed'
+    blob = json.dumps({'regions': [{'error': error, 'text': 'x' * 100}] * 10200})
+    assert len(blob) > 2_000_000
+    start = time.perf_counter()
+    redact_json_fields(blob, ('error',))
+    elapsed = time.perf_counter() - start
+    print(f'2 MB redact_json_fields: {elapsed * 1000:.1f} ms')
+    assert elapsed < 0.05
+
+
+_COPY_STATEMENT = re.compile(r"INSERT\s+(?:OR\s+\w+\s+)?INTO\s+\w+\s*\([^)]*\)\s*SELECT[^;]*?\bFROM\b", re.I | re.S)
+# schema/ copies and rewrites existing rows during migrations; every other copy must redact in Python.
+_COPY_ALLOWLIST_DIRS = ('src/database/schema/',)
+
+
+def test_no_database_statement_copies_a_stored_error_column_outside_the_accessors():
+    root = Path(__file__).resolve().parents[2]
+    columns = {column for _, column in STORED_ERROR_COLUMNS}
+    offenders = []
+    for path in (root / 'src' / 'database').rglob('*.py'):
+        rel = path.relative_to(root).as_posix()
+        if rel.startswith(_COPY_ALLOWLIST_DIRS):
+            continue
+        for match in _COPY_STATEMENT.finditer(path.read_text()):
+            selected = match.group(0).split('SELECT', 1)[1]
+            if any(re.search(rf"\b{column}\b", selected) for column in columns):
+                offenders.append(f'{rel}: {match.group(0)[:80]!r}')
     assert not offenders, offenders

@@ -52,7 +52,7 @@ def _fail(episode_id, error):
                 {'enabled': True, 'events': sorted(webhook_service.VALID_EVENTS), 'url': 'https://example.com/h'}]), \
             patch.object(webhook_service, '_prepare_and_dispatch', lambda wh, ctx: sent.append(ctx)), \
             patch.object(webhook_service, '_timestamp_fields', lambda: {}), \
-            patch.object(webhook_service.email_service, 'send_event_email', lambda event, ctx: None), \
+            patch.object(webhook_service.email_service, 'send_event_email', lambda event, ctx: sent.append(ctx)), \
             patch.object(webhook_service.threading, 'Thread', _InlineThread):
         _handle_processing_failure(SLUG, episode_id, 'Episode 1', 'Failure Redaction Test',
                                    db.get_episode(SLUG, episode_id), error, start_time=0.0)
@@ -70,6 +70,7 @@ def test_permanent_failure_stores_and_sends_redacted_text(episode, error):
     rows, _ = db.get_processing_history(podcast_slug=SLUG)
     _assert_clean(rows[0]['error_message'])
     _assert_clean(str(sent[0]['episode']['error_message']))
+    _assert_clean(str(sent[-1]['episode']['error_message']))  # the email context
 
 
 def test_deferred_failure_stores_and_sends_redacted_text(episode):

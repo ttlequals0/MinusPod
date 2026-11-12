@@ -6,6 +6,7 @@ import uuid
 from typing import Union
 
 import failover
+from database.error_text import redact_error
 import llm_route
 import run_context
 from config import (
@@ -760,7 +761,7 @@ def _dispatch_on_failover(run_ladder, llm_kwargs, last_error, *, target, phase, 
                          stage_tunable_prefix=None, reasoning_retried=False):
     """Retry on standby and return its effective response or error."""
     try:
-        failover.trigger(target, f"{call_label}: {type(last_error).__name__}: {str(last_error)[:200]}",
+        failover.trigger(target, f"{call_label}: {type(last_error).__name__}: {redact_error(last_error, 200)}",
                          raise_on_error=True)
     except Exception as error:
         logger.warning(f"[{slug}:{episode_id}] {call_label} standby skipped: state not saved: {error}")
