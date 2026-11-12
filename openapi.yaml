@@ -17084,6 +17084,11 @@ components:
           enum: [first_pass, claude, fingerprint, text_pattern, language, audio_enforced, verification, dai_differential, transcript_differential, vad_gap, cue_pair, heuristic_preroll, heuristic_postroll, keep_content, manual, description_chapter]
           description: Which detection stage found this ad
           example: first_pass
+        merged_stages:
+          type: array
+          items:
+            type: string
+          description: Every detection stage that contributed to a merged marker. Absent on markers that were never merged and on markers saved before this field existed.
         corroborated_by:
           type: string
           enum: [transition_pair, template_cue, volume_anomaly, splice_evidence, dai_differential, transcript_differential]

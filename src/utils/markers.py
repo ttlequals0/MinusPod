@@ -426,6 +426,8 @@ COARSE_MEMBER_STAGES = frozenset({
 })
 
 MERGED_MEMBER_SPANS = 'merged_member_spans'
+# Every detection stage folded into a marker, including those that leave no member span.
+MERGED_STAGES = 'merged_stages'
 
 # Per-member evidence recorded at merge time, before merges move the edges.
 _MEMBER_FIELDS = ('confidence', 'precise_start', 'precise_end',
@@ -443,7 +445,7 @@ MEASURED_EVIDENCE_STAGES = frozenset({
 # Merge bookkeeping a split fragment must drop: it describes the merged
 # span, not the narrower piece the split just carved out.
 _MERGE_BOOKKEEPING_KEYS = ('merged_distinct_ads', 'merged_protected_start',
-                           'merged_protected_end', MERGED_MEMBER_SPANS)
+                           'merged_protected_end', MERGED_MEMBER_SPANS, MERGED_STAGES)
 
 
 def _protected_bounds(marker: dict) -> tuple[float | None, float | None]:
@@ -658,6 +660,18 @@ def _widen(prior, new, pick):
     return pick(prior, new)
 
 
+def marker_stages(marker: dict) -> list[str]:
+    """Detection stages that contributed to a marker, in first-seen order."""
+    recorded = marker.get(MERGED_STAGES)
+    members = marker.get(MERGED_MEMBER_SPANS)
+    candidates = [marker.get('detection_stage')]
+    if isinstance(recorded, list):
+        candidates.extend(recorded)
+    if isinstance(members, list):
+        candidates.extend(m.get('stage') for m in members if isinstance(m, dict))
+    return list(dict.fromkeys(s for s in candidates if isinstance(s, str) and s))
+
+
 def note_merged_members(target: dict, other: dict) -> None:
     """Record the protected members on any merge, distinct or overlapping.
 
@@ -671,6 +685,7 @@ def note_merged_members(target: dict, other: dict) -> None:
     merge_dai_core_spans(target, other)
     spans = _coalesce_coarse_members(member_spans(target) + member_spans(other))
     target[MERGED_MEMBER_SPANS] = spans
+    target[MERGED_STAGES] = list(dict.fromkeys(marker_stages(target) + marker_stages(other)))
     # A union already on the target only widens: a legacy bound has no member
     # span backing it.
     lo, hi = span_bounds(spans)

@@ -3,7 +3,7 @@ import json
 import logging
 
 from config import is_keep_like, is_pending_review
-from utils.markers import MERGED_MEMBER_SPANS, finite_number
+from utils.markers import MERGED_MEMBER_SPANS, finite_number, marker_stages
 from utils.pattern_scope import pattern_passes_scope
 
 logger = logging.getLogger(__name__)
@@ -49,15 +49,6 @@ def _mostly_overlaps(lo_a: float, hi_a: float, lo_b: float, hi_b: float) -> bool
     return (min(hi_a, hi_b) - max(lo_a, lo_b)) * 2 > min(hi_a - lo_a, hi_b - lo_b)
 
 
-def _marker_stages(marker: dict) -> set:
-    """Detection stages that contributed to a marker."""
-    stages = {marker.get('detection_stage')}
-    spans = marker.get(MERGED_MEMBER_SPANS)
-    if isinstance(spans, list):
-        stages.update(m.get('stage') for m in spans if isinstance(m, dict))
-    return stages
-
-
 class FingerprintMatchMixin:
     """Per-pattern record of where a fingerprint matched, and which matches were rejected."""
 
@@ -95,7 +86,7 @@ class FingerprintMatchMixin:
         for marker in markers:
             if not _is_detected_ad(marker):
                 continue
-            audio_only = _marker_stages(marker) == {'fingerprint'}
+            audio_only = marker_stages(marker) == ['fingerprint']
             for member in _fingerprint_members(marker):
                 pattern_id = member.get('pattern_id')
                 bounds = _member_bounds(member)
