@@ -312,7 +312,7 @@ def _upgrade_harness(monkeypatch, pending, ok=True):
     monkeypatch.setattr(background, 'db', fake_db)
     monkeypatch.setattr(background.threading, 'Thread', _InlineThread)
     monkeypatch.setitem(background._UPGRADE_STATE, 'thread', None)
-    monkeypatch.setitem(background._UPGRADE_STATE, 'failed', False)
+    monkeypatch.setitem(background._UPGRADE_STATE, 'retry_at', None)
     return fake_db
 
 
@@ -328,18 +328,33 @@ def test_nothing_starts_when_no_step_is_pending(monkeypatch):
     fake_db.run_deferred_upgrade_steps.assert_not_called()
 
 
-def test_a_failed_step_is_not_retried_until_the_next_start(monkeypatch):
+def test_a_failed_step_is_retried_after_an_hour_not_before(monkeypatch):
     fake_db = _upgrade_harness(monkeypatch, ['redact_stored_error_text'], ok=False)
-    background.start_deferred_upgrade_steps()
-    background.start_deferred_upgrade_steps()
+    background.start_deferred_upgrade_steps(clock=lambda: 1000.0)
+    background.start_deferred_upgrade_steps(clock=lambda: 1000.0 + 3599.0)
     assert fake_db.run_deferred_upgrade_steps.call_count == 1
+    fake_db.run_deferred_upgrade_steps.return_value = True
+    background.start_deferred_upgrade_steps(clock=lambda: 1000.0 + 3600.0)
+    assert fake_db.run_deferred_upgrade_steps.call_count == 2
+    assert background._UPGRADE_STATE['retry_at'] is None
 
 
-def test_a_raising_run_is_logged_and_marks_the_failure(monkeypatch):
+def test_a_still_failing_step_keeps_the_hourly_interval(monkeypatch):
+    fake_db = _upgrade_harness(monkeypatch, ['redact_stored_error_text'], ok=False)
+    background.start_deferred_upgrade_steps(clock=lambda: 0.0)
+    background.start_deferred_upgrade_steps(clock=lambda: 3600.0)
+    assert background._UPGRADE_STATE['retry_at'] == 7200.0
+    background.start_deferred_upgrade_steps(clock=lambda: 7199.0)
+    assert fake_db.run_deferred_upgrade_steps.call_count == 2
+
+
+def test_a_raising_run_is_logged_without_the_message_and_schedules_a_retry(monkeypatch, caplog):
     fake_db = _upgrade_harness(monkeypatch, ['redact_stored_error_text'])
-    fake_db.run_deferred_upgrade_steps.side_effect = RuntimeError('boom')
-    background.start_deferred_upgrade_steps()
-    assert background._UPGRADE_STATE['failed'] is True
+    fake_db.run_deferred_upgrade_steps.side_effect = RuntimeError('/secret/path?token=x')
+    with caplog.at_level('WARNING'):
+        background.start_deferred_upgrade_steps(clock=lambda: 10.0)
+    assert background._UPGRADE_STATE['retry_at'] == 3610.0
+    assert 'RuntimeError' in caplog.text and '/secret/path' not in caplog.text
 
 
 def test_the_maintenance_tick_starts_the_upgrade_steps(monkeypatch):

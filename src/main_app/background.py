@@ -70,10 +70,11 @@ _INDEX_STATE = {'last_refresh': 0, 'last_full': 0}
 _DOWNLOAD_STATE = {'last_prune': 0}
 _GEO_STATE = {'thread': None}
 _GEO_LOCK = threading.Lock()
-_UPGRADE_STATE = {'thread': None, 'failed': False}
+_UPGRADE_STATE = {'thread': None, 'retry_at': None}
 _UPGRADE_LOCK = threading.Lock()
 # Pause between upgrade pages so a competing writer gets the lock between two of them.
 UPGRADE_PAGE_PAUSE_SECONDS = 0.02
+UPGRADE_RETRY_SECONDS = 3600.0
 # Ceiling on deferring to active runs: an instance that is never idle would
 # otherwise never rebuild at all.
 INDEX_REBUILD_MAX_DEFERRAL_SECONDS = 2 * INDEX_REBUILD_INTERVAL_SECONDS
@@ -197,26 +198,28 @@ def _start_geo_lookup():
         thread.start()
 
 
-def _run_deferred_upgrade_safely():
+def _run_deferred_upgrade_safely(clock=time.time):
     run_context.mark_background_thread()
     try:
         ok = db.run_deferred_upgrade_steps(
             pause=lambda: shutdown_event.wait(UPGRADE_PAGE_PAUSE_SECONDS), should_stop=shutdown_event.is_set)
     except Exception as e:
-        refresh_logger.error(f"Deferred upgrade steps failed: {redact_exc(e)}")
+        refresh_logger.warning(f"Deferred upgrade steps failed with {type(e).__name__}")
         ok = False
-    _UPGRADE_STATE['failed'] = not ok
+    _UPGRADE_STATE['retry_at'] = None if ok else clock() + UPGRADE_RETRY_SECONDS
 
 
-def start_deferred_upgrade_steps():
-    """Run the upgrade steps startup left pending off the request path; a step that failed waits for the next start."""
+def start_deferred_upgrade_steps(clock=time.time):
+    """Run the upgrade steps startup left pending off the request path; a failed run is retried after an hour."""
     with _UPGRADE_LOCK:
         running = _UPGRADE_STATE['thread']
-        if (running is not None and running.is_alive()) or _UPGRADE_STATE['failed']:
+        retry_at = _UPGRADE_STATE['retry_at']
+        if (running is not None and running.is_alive()) or (retry_at is not None and clock() < retry_at):
             return
         if not db.pending_upgrade_steps():
             return
-        thread = threading.Thread(target=_run_deferred_upgrade_safely, name='deferred-upgrade', daemon=True)
+        thread = threading.Thread(target=lambda: _run_deferred_upgrade_safely(clock),
+                                  name='deferred-upgrade', daemon=True)
         _UPGRADE_STATE['thread'] = thread
         thread.start()
 
