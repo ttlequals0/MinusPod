@@ -4895,6 +4895,59 @@ paths:
                         scope:
                           type: string
 
+  /patterns/{pattern_id}/audio/matches:
+    get:
+      tags:
+        - Patterns
+      summary: Match history of a pattern's audio
+      description: |
+        Pages through where the pattern's fingerprint matched, newest first.
+        `perPage` defaults to 10 and is capped at 50. A `page` or `perPage` that is
+        not a number falls back to its default, and one below 1 is raised to 1. A page past
+        the end answers 200 with an empty list. `available` is true when that
+        match's episode still keeps its original audio on disk. A match outlives
+        its episode, so `episodeTitle` is null once the episode is gone.
+        `audioOnly` is null for matches backfilled from older markers.
+        A pattern with no audio has an empty history.
+      operationId: listPatternAudioMatches
+      parameters:
+        - $ref: '#/components/parameters/pattern_id'
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: perPage
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 50
+            default: 10
+      responses:
+        '200':
+          description: One page of matches
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [matches, page, perPage, total]
+                properties:
+                  matches:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/PatternAudioMatch'
+                  page:
+                    type: integer
+                  perPage:
+                    type: integer
+                  total:
+                    type: integer
+                    description: All match rows of the pattern, rejected ones included.
+        '404':
+          $ref: '#/components/responses/NotFound'
+
   /patterns/{pattern_id}/audio/preview:
     get:
       tags:
@@ -19867,6 +19920,54 @@ components:
           description: Seconds into the episode's original audio
         end:
           type: number
+
+    PatternAudioMatch:
+      type: object
+      properties:
+        id:
+          type: integer
+        episodeId:
+          type: string
+        podcastSlug:
+          type: string
+        episodeTitle:
+          type:
+            - string
+            - 'null'
+        start:
+          type: number
+          description: Measured start of the match in seconds
+        end:
+          type: number
+        similarity:
+          type:
+            - number
+            - 'null'
+        coverage:
+          type:
+            - number
+            - 'null'
+        storedLength:
+          type:
+            - number
+            - 'null'
+          description: Length of the pattern's stored fingerprint in seconds.
+        inScope:
+          type: boolean
+        audioOnly:
+          type:
+            - boolean
+            - 'null'
+          description: True when no other detection stage flagged the same span.
+        rejected:
+          type: boolean
+          description: Marked "not this ad".
+        available:
+          type: boolean
+          description: Whether the episode's original audio is retained now.
+        createdAt:
+          type: string
+          format: date-time
 
     PatternAudioDetail:
       type: object

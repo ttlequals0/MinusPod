@@ -159,6 +159,7 @@ GET_ROUTES = [
     ('/cue-detections/aggregate', ''),
     ('/patterns/{pattern_id}', ''),
     ('/patterns/{pattern_id}/audio', ''),
+    ('/patterns/{pattern_id}/audio/matches', 'perPage=5'),
 ]
 
 

@@ -172,6 +172,19 @@ class FingerprintMatchMixin:
         )
         return [dict(row) for row in cursor.fetchall()]
 
+    def get_fingerprint_matches_with_episodes(self, pattern_id: int, limit: int, offset: int) -> list[dict]:
+        """A page of matches, newest first, with episode_title and episode_original_file when the episode exists."""
+        cursor = self.get_connection().execute(
+            """SELECT m.*, e.title AS episode_title, e.original_file AS episode_original_file
+               FROM audio_fingerprint_matches m
+               LEFT JOIN podcasts p ON p.slug = m.podcast_slug
+               LEFT JOIN episodes e ON e.podcast_id = p.id AND e.episode_id = m.episode_id
+               WHERE m.pattern_id = ?
+               ORDER BY m.created_at DESC, m.id DESC LIMIT ? OFFSET ?""",
+            (pattern_id, limit, offset)
+        )
+        return [dict(row) for row in cursor.fetchall()]
+
     def get_retained_fingerprint_matches(self, pattern_id: int, limit: int) -> list[dict]:
         """Newest non-rejected matches whose episode still has original_file set."""
         cursor = self.get_connection().execute(

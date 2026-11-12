@@ -13,6 +13,7 @@ from api import (
 )
 from api.patterns import _store_pattern_audio
 from config import FFMPEG_SHORT_TIMEOUT
+from storage import PathContainmentError
 from utils.ffmpeg_run import SAFE_MEDIA_INPUT_ARGS
 from utils.subprocess_registry import tracked_run
 
@@ -20,6 +21,8 @@ logger = logging.getLogger('podcast.api')
 
 MAX_PREVIEW_SECONDS = 600
 RETAINED_MATCH_CANDIDATES = 20
+MATCHES_PER_PAGE_DEFAULT = 10
+MATCHES_PER_PAGE_MAX = 50
 
 
 def no_audio_response():
@@ -257,3 +260,41 @@ def rebuild_pattern_audio(pattern_id):
         body['fingerprintSkippedReason'] = result.skipped_reason
     body['audio'] = build_audio_detail(db, get_storage(), pattern_id)
     return json_response(body)
+
+
+def _original_on_disk(storage, row):
+    """Whether the match's episode keeps its original: the column is set and the file exists."""
+    if not row['episode_original_file']:
+        return False
+    try:
+        return storage.get_original_path(row['podcast_slug'], row['episode_id']).exists()
+    except PathContainmentError:
+        return False
+
+
+@api.route('/patterns/<int:pattern_id>/audio/matches', methods=['GET'])
+@log_request
+def list_pattern_audio_matches(pattern_id):
+    """Match history of a pattern's audio, newest first."""
+    db = get_database()
+    _, err = _known_pattern(db, pattern_id)
+    if err:
+        return err
+    page = max(1, request.args.get('page', 1, type=int))
+    per_page = min(max(1, request.args.get('perPage', MATCHES_PER_PAGE_DEFAULT, type=int)),
+                   MATCHES_PER_PAGE_MAX)
+    storage = get_storage()
+    fingerprint = db.get_audio_fingerprint(pattern_id)
+    stored_length = fingerprint['duration'] if fingerprint else None
+    rows = db.get_fingerprint_matches_with_episodes(pattern_id, per_page, (page - 1) * per_page)
+    matches = [{
+        'id': row['id'], 'episodeId': row['episode_id'], 'podcastSlug': row['podcast_slug'],
+        'episodeTitle': row['episode_title'], 'start': row['match_start'], 'end': row['match_end'],
+        'similarity': row['similarity'], 'coverage': row['coverage'], 'storedLength': stored_length,
+        'inScope': bool(row['in_scope']),
+        'audioOnly': None if row['audio_only'] is None else bool(row['audio_only']),
+        'rejected': bool(row['rejected']), 'available': _original_on_disk(storage, row),
+        'createdAt': row['created_at'],
+    } for row in rows]
+    return json_response({'matches': matches, 'page': page, 'perPage': per_page,
+                          'total': db.count_fingerprint_matches(pattern_id)})
