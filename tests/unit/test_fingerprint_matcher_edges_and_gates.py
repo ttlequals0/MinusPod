@@ -5,6 +5,7 @@ import numpy as np
 import pytest
 
 import audio_fingerprinter as af
+from ad_detector import AdDetector
 from audio_fingerprinter import AudioFingerprinter, explain_match, fingerprint_is_matchable, match_fingerprints
 from config import FINGERPRINT_SETTING_RANGES
 
@@ -150,6 +151,27 @@ def test_a_remainder_shorter_than_the_minimum_ad_length_is_dropped():
         ep, pats = _ad_partly_covered_by_a_longer_pattern(rng, 4.0)
         assert [m.pattern_id for m in _run(ep, pats)] == [9]
         assert [m.pattern_id for m in _run(ep, pats, min_ad_length_s=3.0)] == [1, 9]
+
+
+def test_a_kept_remainder_is_flagged_with_its_clipped_match_span():
+    rng = np.random.default_rng(22)
+    for _ in range(10):
+        ep, pats = _ad_partly_covered_by_a_longer_pattern(rng, 6.0)
+        first, longer = _run(ep, pats)
+        assert first.clipped_remainder and not longer.clipped_remainder
+        lo, hi = first.candidate_span
+        assert lo <= first.start and first.end <= hi and hi - lo > first.end - first.start + 5.0
+        assert longer.candidate_span == (longer.start, longer.end)
+
+
+def test_the_remainder_flag_stays_out_of_the_ad_entry():
+    detector = AdDetector.__new__(AdDetector)
+    detector.pattern_service = None
+    ads, regions = [], []
+    match = af.FingerprintMatch(1, 10.0, 20.0, 0.9, similarity=0.9, coverage=0.5,
+                                clipped_remainder=True, candidate_span=(5.0, 20.0))
+    detector._add_pattern_match(match, 'fingerprint', 'fingerprint', ads, regions, 'ep1')
+    assert not {'clipped_remainder', 'candidate_span'} & (set(ads[0]) | set(regions[0]))
 
 
 def test_a_kept_remainder_stays_inside_the_clipped_match():

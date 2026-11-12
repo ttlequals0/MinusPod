@@ -476,6 +476,10 @@ class FingerprintMatch:
     measured_end: float | None = None
     # Lead of the match's similarity over nearby shifted alignments; None from the per-window scan
     contrast_margin: float | None = None
+    # True for the part of a match kept after a stronger match took the rest; never sent to the API
+    clipped_remainder: bool = False
+    # Span in seconds the match passed its gates on, before any clipping
+    candidate_span: tuple[float, float] | None = None
 
 
 @dataclass(frozen=True)
@@ -829,7 +833,8 @@ def _resolve_overlaps(candidates, fps, window, min_points):
             m = FingerprintMatch(pattern_id=m.pattern_id, start=lo / fps, end=hi / fps,
                                  confidence=similarity, sponsor=m.sponsor, category=m.category,
                                  similarity=similarity, coverage=n_good / cand.pat_len,
-                                 contrast_margin=m.contrast_margin)
+                                 contrast_margin=m.contrast_margin, clipped_remainder=True,
+                                 candidate_span=m.candidate_span)
         spans.append((lo, hi))
         accepted.append(m)
     accepted.sort(key=lambda m: m.start)
@@ -888,7 +893,8 @@ def _scan_fingerprints(ep_ints, ep_duration, patterns, *, strictness, min_covera
             candidates.append(_Candidate(n_good + window * coverage, FingerprintMatch(
                 pattern_id=pattern_id, start=lo / fps, end=hi / fps,
                 confidence=similarity, sponsor=sponsor, category=category,
-                similarity=similarity, coverage=coverage, contrast_margin=margin), al, len(pat_arr)))
+                similarity=similarity, coverage=coverage, contrast_margin=margin,
+                candidate_span=(lo / fps, hi / fps)), al, len(pat_arr)))
     return _resolve_overlaps(candidates, fps, window, min_ad_length_s * fps), measured
 
 
