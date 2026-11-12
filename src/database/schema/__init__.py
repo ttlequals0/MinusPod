@@ -74,6 +74,10 @@ _SEARCH_CHANGE_TRIGGER_NAMES = (
 )
 _SEARCH_CHANGE_TRIGGER_MARKER = 'search_change_triggers_v1'
 
+def _migration_done(conn, name: str) -> bool:
+    return conn.execute("SELECT 1 FROM schema_migrations WHERE name = ?", (name,)).fetchone() is not None
+
+
 # The hold reason inside the snippet _file_corroborated_hold_approvals writes.
 _AUTO_FILED_REASON_RE = re.compile(r'\s*corroborated (\S+) hold')
 
@@ -1409,7 +1413,7 @@ class SchemaMixin:
         # Queued rows can carry the raw feed date; the processing order needs ISO 8601.
         try:
             marker = 'normalize_queue_published_at_once'
-            if not conn.execute("SELECT 1 FROM schema_migrations WHERE name = ?", (marker,)).fetchone():
+            if not _migration_done(conn, marker):
                 queue_fixed = self._normalize_queue_published_at(conn)
                 if queue_fixed:
                     logger.info(f"Migration: Normalized {queue_fixed} queued published_at dates to ISO 8601")
@@ -2646,7 +2650,7 @@ class SchemaMixin:
     def _run_trim_pattern_network_ids(self, conn, gate='trim_pattern_network_ids'):
         """One-shot: trim padded ad_patterns.network_id values and null blank ones; never raises."""
         try:
-            if conn.execute("SELECT 1 FROM schema_migrations WHERE name = ?", (gate,)).fetchone():
+            if _migration_done(conn, gate):
                 return
             # str.strip, not SQL TRIM, so it matches the API's trim (no-break and other Unicode spaces)
             changes = [(stripped or None, row['id']) for row in conn.execute(
@@ -2661,7 +2665,7 @@ class SchemaMixin:
 
     def _backfill_fingerprint_matches(self, conn):
         """One-shot: match history from stored markers; a failure logs once and retries next start."""
-        if conn.execute("SELECT 1 FROM schema_migrations WHERE name = ?", (BACKFILL_GATE,)).fetchone():
+        if _migration_done(conn, BACKFILL_GATE):
             return
         started = time.monotonic()
         try:
@@ -2706,7 +2710,7 @@ class SchemaMixin:
 
     def _run_redact_stored_error_text(self, conn, gate='redact_stored_error_text'):
         """One-shot: redact URL queries, userinfo and feed keys from error text stored by older builds."""
-        if conn.execute("SELECT 1 FROM schema_migrations WHERE name = ?", (gate,)).fetchone():
+        if _migration_done(conn, gate):
             return
         # Each page commits on its own; a rerun after a crash finds the done rows already clean.
         changed = sum(self._redact_column_in_batches(conn, table, column, redact_stored_text)
@@ -2730,7 +2734,7 @@ class SchemaMixin:
     def _run_sponsorblock_terminal_clear_next_check(self, conn):
         """One-shot: terminal SponsorBlock rows left armed by older builds stop being polled."""
         gate = 'sponsorblock_terminal_clear_next_check'
-        if conn.execute("SELECT 1 FROM schema_migrations WHERE name = ?", (gate,)).fetchone():
+        if _migration_done(conn, gate):
             return
         if not self._table_exists(conn, 'episodes'):
             return
@@ -2742,7 +2746,7 @@ class SchemaMixin:
     def _run_review_prompt_fingerprint_wording(self, conn):
         """One-shot: swap the stale "projected lengths" sentence in a stored review prompt."""
         gate = 'review_prompt_fingerprint_measured'
-        if conn.execute("SELECT 1 FROM schema_migrations WHERE name = ?", (gate,)).fetchone():
+        if _migration_done(conn, gate):
             return
         row = conn.execute("SELECT value FROM settings WHERE key = 'review_prompt'").fetchone()
         if row and _OLD_FINGERPRINT_SENTENCE in (row['value'] or ''):
