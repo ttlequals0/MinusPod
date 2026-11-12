@@ -135,6 +135,21 @@ def test_patterns_without_enough_distinctive_audio_are_not_matchable():
     assert af.fingerprint_unmatchable_reason(pat) is not None
 
 
+def test_matchable_needs_a_coverage_ceiling_at_the_minimum_coverage():
+    rng = np.random.default_rng(15)
+    pat = _ints(rng, 160)
+    pat[120:] = 7
+    assert af.fingerprint_coverage_ceiling(pat) == 0.75
+    assert fingerprint_is_matchable(pat, min_coverage=0.5)
+    assert not fingerprint_is_matchable(pat, min_coverage=0.8)
+    ep = _ints(rng, 4800)
+    _plant(rng, ep, pat, 1000, 0.05)
+    for cov, matchable in ((0.5, True), (0.8, False)):
+        e = _explain(ep, pat, min_coverage=cov)
+        assert e['coverage_ceiling'] == 0.75 and e['matchable'] is matchable
+        assert e['matched'] is matchable
+
+
 def test_ad_split_by_a_long_degraded_stretch_is_one_match():
     rng = np.random.default_rng(8)
     for _ in range(10):

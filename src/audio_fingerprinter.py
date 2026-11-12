@@ -866,21 +866,23 @@ def match_fingerprints(ep_ints, ep_duration, patterns, *, strictness, min_covera
         gap_tolerance_s=gap_tolerance_s, should_continue=should_continue)[0]
 
 
+def fingerprint_coverage_ceiling(ints):
+    """Highest coverage a pattern can reach: its share of points outside constant stretches."""
+    pat_arr = np.asarray(ints, dtype=np.int64).astype(np.uint32)
+    return float(_informative_points(pat_arr).mean()) if len(pat_arr) else 0.0
+
+
 def fingerprint_unmatchable_reason(ints, *, min_coverage=None):
     """Why a fingerprint could never be matched in its own audio, or None when it can be."""
     pat_arr = np.asarray(ints, dtype=np.int64).astype(np.uint32)
     reason = _unmatchable_reason(pat_arr)
     if reason:
         return reason
-    strictness = FINGERPRINT_SETTING_RANGES['fingerprint_match_strictness'][0]
     if min_coverage is None:
         min_coverage = FINGERPRINT_SETTING_RANGES['fingerprint_min_coverage'][0]
-    gap = FINGERPRINT_SETTING_RANGES['fingerprint_gap_tolerance_s'][0]
-    # Silence and other constant stretches count against coverage, so the pattern must find itself
-    if not match_fingerprints(pat_arr, len(pat_arr) / FINGERPRINT_NOMINAL_FPS,
-                              [(0, pat_arr, 0.0, None, None)], strictness=strictness,
-                              min_coverage=min_coverage, gap_tolerance_s=gap):
-        return f"too little distinctive audio to reach {min_coverage:.0%} coverage"
+    ceiling = fingerprint_coverage_ceiling(pat_arr)
+    if ceiling < min_coverage - 1e-9:
+        return f"at most {ceiling:.0%} coverage reachable, {min_coverage:.0%} needed"
     return None
 
 
@@ -927,9 +929,12 @@ def explain_match(ep_ints, ep_duration, pattern, *, strictness, min_coverage, ga
     pat_arr = np.asarray(pat_ints, dtype=np.int64).astype(np.uint32)
     fps = len(ep_arr) / ep_duration if len(ep_arr) and ep_duration > 0 else FINGERPRINT_NOMINAL_FPS
     window = max(1, int(round(fps)))
-    out = {'candidates': 0, 'matchable': _unmatchable_reason(pat_arr) is None,
+    ceiling = fingerprint_coverage_ceiling(pat_arr)
+    distinctive = _unmatchable_reason(pat_arr) is None
+    out = {'candidates': 0, 'coverage_ceiling': ceiling,
+           'matchable': distinctive and ceiling >= min_coverage - 1e-9,
            'rejected_by': 'candidates', 'matched': False}
-    if not out['matchable']:
+    if not distinctive:
         out['rejected_by'] = 'not_distinctive'
         return out
     if len(ep_arr) == 0:
