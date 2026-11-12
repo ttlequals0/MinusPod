@@ -6,7 +6,7 @@ import time
 from flask import request, send_file, abort
 from werkzeug.utils import secure_filename
 from api import (
-    api, log_request, json_response, error_response,
+    api, log_request, json_response, error_response, retry_after_response,
     get_database, get_storage, extract_transcript_segment, _resolve_original_audio,
 )
 from utils.audio import get_audio_duration
@@ -158,9 +158,7 @@ def serve_processed_audio(slug, episode_id):
 
 
 def _peaks_pending_response():
-    resp = error_response('Waveform is being prepared', 503)
-    resp.headers['Retry-After'] = str(PEAKS_RETRY_AFTER_SECONDS)
-    return resp
+    return retry_after_response('Waveform is being prepared', PEAKS_RETRY_AFTER_SECONDS, 503)
 
 
 def _original_duration(path, episode):

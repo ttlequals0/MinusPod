@@ -36,7 +36,7 @@ from id3_chapters import ChapterTagError
 from storage import _detect_image_mime, _safe_join_under
 from utils.atomic_json import write_json_atomic
 from utils.audio import extract_embedded_artwork, get_audio_duration
-from utils.http import redact_log_text
+from utils.http import redact_exc
 from utils.time import utc_now_iso
 from utils.validation import is_dangerous_slug, is_valid_episode_id
 
@@ -897,7 +897,7 @@ def _run_commit(slug: str, plan: dict, db, storage, had_episodes: bool, lock_fh,
             job = _read_job_state(storage, slug) or {}
             if error is not None:
                 job['state'] = 'error'
-                job['report'] = {**report, 'error': redact_log_text(str(error))}
+                job['report'] = {**report, 'error': redact_exc(error)}
             else:
                 job['state'] = 'done'
                 job['report'] = report
@@ -1259,7 +1259,7 @@ def _commit_entries(slug: str, plan: dict, db, storage, had_episodes: bool,
                 # same as the ordinary error paths _commit_entry returns, so
                 # every remaining entry still gets a chance to commit.
                 logger.exception(f"[{slug}:{episode_id}] import commit entry crashed")
-                status, result = 'error', redact_log_text(str(exc))
+                status, result = 'error', redact_exc(exc)
 
             if status == 'ok':
                 committed_internal.append(result)

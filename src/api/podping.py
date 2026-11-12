@@ -5,7 +5,7 @@ import logging
 from flask import request
 
 from api import api, get_database, json_response, log_request
-from utils.http import redact_log_text
+from utils.http import redact_exc
 from config import PODPING_HOST_ACTIVE_DAYS
 from podping_listener import (
     DEGRADED_SETTING, DEGRADED_SINCE_SETTING, PODPING_NODE_SETTING,
@@ -35,7 +35,7 @@ def update_podping_node_settings():
     try:
         nodes = normalize_podping_nodes(payload['nodes'])
     except ValueError as exc:
-        return json_response({'error': redact_log_text(str(exc))}, 400)
+        return json_response({'error': redact_exc(exc)}, 400)
     db = get_database()
     db.set_setting(PODPING_NODE_SETTING, json.dumps(nodes))
     return json_response({'nodes': nodes, 'defaults': list(PODPING_NODES)})

@@ -140,6 +140,12 @@ def redact_log_text(text: str, keep_query: bool = False) -> str:
         return '[log text withheld: redaction failed]'
 
 
+def redact_exc(exc, limit: int | None = None) -> str:
+    """redact_log_text of str(exc), cut to limit characters when given."""
+    text = redact_log_text(str(exc))
+    return text if limit is None else text[:limit]
+
+
 def _elide(head_text: str, tail_text: str, total: int, limit: int) -> str:
     budget = limit - _ELIDE_MARKER_ROOM
     head = _head(head_text, budget // 2, redacted=True)

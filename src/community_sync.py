@@ -29,7 +29,7 @@ from utils.community_tags import (
     VOCABULARY_VERSION,
 )
 from utils.cron import is_due
-from utils.http import redact_log_text, safe_url_for_log
+from utils.http import redact_exc, safe_url_for_log
 from utils.safe_http import (
     ResponseTooLargeError,
     URLTrust,
@@ -319,7 +319,7 @@ def sync_now(db, manifest_url: str = COMMUNITY_MANIFEST_URL) -> dict[str, Any]:
         # branch hasn't been merged to main). Treat as a non-issue; log at
         # info-level so the every-15-min tick doesn't spam WARN.
         status = e.response.status_code if e.response is not None else None
-        msg = f'{status} fetching manifest' if status else redact_log_text(str(e))
+        msg = f'{status} fetching manifest' if status else redact_exc(e)
         db.set_setting('community_sync_last_error', msg)
         if status == 404:
             logger.info(
@@ -331,7 +331,7 @@ def sync_now(db, manifest_url: str = COMMUNITY_MANIFEST_URL) -> dict[str, Any]:
             logger.warning(f'community_sync: manifest fetch failed: {msg}')
         raise
     except Exception as e:
-        msg = redact_log_text(str(e))
+        msg = redact_exc(e)
         db.set_setting('community_sync_last_error', msg)
         logger.warning(f'community_sync: manifest fetch/validate failed: {msg}')
         raise

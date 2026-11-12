@@ -45,7 +45,7 @@ from provider_budget import manual_rate_limit_caps, request_token_estimate
 from provider_probe import finalize_probe_success
 import run_context
 from utils.safe_http import safe_get, URLTrust
-from utils.http import redact_log_text
+from utils.http import redact_exc
 from utils.time import ISO_FORMAT, epoch_to_iso, parse_iso_utc, utc_now, utc_now_iso
 from webhook_service import fire_queue_held_event, fire_queue_resumed_event
 
@@ -438,7 +438,7 @@ def hold_message(hold_until: str | None, error) -> str:
 
     hold_until is None when the hold feature is off: nothing was paused.
     """
-    error = redact_log_text(str(error))
+    error = redact_exc(error)
     if not hold_until:
         return f"LLM rate limit: {error}"
     return f"Paused (LLM rate limit until {hold_until}): {error}"

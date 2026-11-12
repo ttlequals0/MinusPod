@@ -22,7 +22,7 @@ from audio_analysis.silence_detector import SilenceDetector
 from config import HTTP_MAX_REDIRECTS_FEED
 from utils.audio import get_audio_duration
 from user_agent import download_user_agent
-from utils.http import redact_log_text, safe_url_for_log
+from utils.http import redact_exc, safe_url_for_log
 from utils.markers import DAI_PROBE_REF_S, dai_probe_window, merge_runs
 from utils.safe_http import URLTrust, safe_get, stream_to_file_capped
 from utils.subprocess_registry import tracked_run
@@ -548,7 +548,7 @@ def fetch_and_diff(enclosure_url: str, run_file_path: str, work_dir: str,
             f"Differential refetch failed for "
             f"{safe_url_for_log(enclosure_url)}: {e}")
         return {'status': 'error', 'regions': [], 'refetch_meta': meta,
-                'error': redact_log_text(str(e))}
+                'error': redact_exc(e)}
     finally:
         try:
             if os.path.exists(refetch_path):

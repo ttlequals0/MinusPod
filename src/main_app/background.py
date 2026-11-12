@@ -25,7 +25,7 @@ from database.search import FULL_REBUILD_SETTING
 from db_backup_service import backup_in_progress
 from processing_schedule import is_schedule_closed
 from utils.constants import CANCELED_ERROR_MESSAGE, EpisodeStatus
-from utils.http import redact_log_text
+from utils.http import redact_exc
 from utils.time import parse_iso_utc
 from transcriber.settings import active_whisper_settings
 from transcriber.local import unload_whisper_if_idle
@@ -489,7 +489,7 @@ def _run_claimed_episode(queued: dict, running: set) -> ClaimResult:
         # Clear any leaked transaction before the status write so
         # the bookkeeping cannot commit partial work (issue #566).
         db.clear_leaked_transaction(refresh_logger, 'auto-process error path')
-        db.close_claimed_queue_row(queue_id, 'failed', redact_log_text(str(e)))
+        db.close_claimed_queue_row(queue_id, 'failed', redact_exc(e))
         refresh_logger.error(f"[{slug}:{episode_id}] Auto-process error: {e}")
         return 'skipped'
 
@@ -613,7 +613,7 @@ def _wait_for_claimed_episode(queue_id: int, slug: str, episode_id: str) -> None
         # Clear any leaked transaction before the status write so
         # the bookkeeping cannot commit partial work (issue #566).
         db.clear_leaked_transaction(refresh_logger, 'auto-process error path')
-        db.close_claimed_queue_row(queue_id, 'failed', redact_log_text(str(e)))
+        db.close_claimed_queue_row(queue_id, 'failed', redact_exc(e))
         refresh_logger.error(f"[{slug}:{episode_id}] Auto-process error: {e}")
 
 

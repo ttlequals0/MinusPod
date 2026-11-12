@@ -22,7 +22,7 @@ from config import (
     WHISPER_DEVICE_DEFAULT, DEFAULT_OPENAI_BASE_URL, coerce_bool_setting, normalize_whisper_device,
     PROVIDER_TYPESAFE, PROVIDER_SYSTEMONE_COMPATIBLE, TYPESAFE_SYSTEMONE_URL,
 )
-from utils.http import redact_log_text
+from utils.http import redact_exc, redact_log_text
 from utils.time import parse_iso_utc, utc_now_iso
 
 logger = logging.getLogger('podcast.failover')
@@ -652,7 +652,7 @@ def probe_target(target: str, request_config: dict | None = None) -> dict:
         return {'reachable': reachable, 'status': status, 'detail': result.get('detail', '')}
     except Exception as exc:
         logger.debug(f"probe {target} failed: {exc}")
-        return {'reachable': False, 'status': None, 'detail': redact_log_text(str(exc))[:200]}
+        return {'reachable': False, 'status': None, 'detail': redact_exc(exc, 200)}
 
 
 def _probe_state_value(raw: str | None) -> dict:

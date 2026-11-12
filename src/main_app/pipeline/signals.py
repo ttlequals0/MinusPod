@@ -14,7 +14,7 @@ from differential_fetcher import (
     is_likely_dai_feed,
 )
 
-from utils.http import redact_log_text
+from utils.http import redact_exc, redact_log_text
 from utils.time import (
     parse_iso_utc, utc_now_iso,
 )
@@ -238,7 +238,7 @@ def _run_differential_fetch(slug, episode_id, episode_url, audio_path, podcast_i
             # fetch_and_diff traps expected failures itself; this guards the rest.
             audio_logger.warning(f"[{slug}:{episode_id}] Differential fetch failed: {e}")
             result = {'status': 'error', 'regions': [], 'refetch_meta': {},
-                      'error': redact_log_text(str(e))}
+                      'error': redact_exc(e)}
         finally:
             shutil.rmtree(work_dir, ignore_errors=True)
         try:

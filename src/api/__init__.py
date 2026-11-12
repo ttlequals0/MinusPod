@@ -345,10 +345,26 @@ def _handle_http_exception(exc):
 LOGIN_PATH = '/api/v1/auth/login'
 
 
+def retry_after_ceil(wait):
+    """Whole seconds to wait, rounded up and at least 1; None means 1."""
+    return 1 if wait is None else max(1, math.ceil(wait))
+
+
 def limiter_retry_after_seconds(request_limits, now):
     """Whole seconds until every breached limit has reset, at least 1."""
     resets = [lim.reset_at for lim in request_limits if lim.breached]
-    return max(1, math.ceil(max(resets) - now)) if resets else 1
+    return retry_after_ceil(max(resets) - now if resets else None)
+
+
+def retry_after_response(message, seconds, status, *, in_body=False):
+    """Error response with a Retry-After header; in_body also adds retryAfterSeconds."""
+    if in_body:
+        response = json_response(
+            {'error': message, 'status': status, 'retryAfterSeconds': seconds}, status)
+    else:
+        response = error_response(message, status)
+    response.headers['Retry-After'] = str(seconds)
+    return response
 
 
 @api.errorhandler(RateLimitExceeded)
@@ -357,11 +373,7 @@ def _handle_rate_limited(exc):
     if request.path != LOGIN_PATH:
         return _handle_http_exception(exc)
     seconds = limiter_retry_after_seconds(limiter.current_limits, time.time())
-    response = jsonify({
-        'error': exc.description, 'status': 429, 'retryAfterSeconds': seconds})
-    response.status_code = 429
-    response.headers['Retry-After'] = str(seconds)
-    return response
+    return retry_after_response(exc.description, seconds, 429, in_body=True)
 
 
 API_PATH_PREFIX = '/api/'

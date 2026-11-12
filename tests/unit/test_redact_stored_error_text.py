@@ -225,3 +225,11 @@ def test_uncapped_stored_redaction_is_linear_on_multi_megabyte_input(name):
     assert len(build(2 * n)) >= 4_000_000
     assert large < 4.0, (name, small, large)
     assert large / max(small, 1e-3) < 3, (name, small, large)
+
+
+def test_redact_exc_matches_redact_log_text_and_cuts():
+    from utils.http import redact_exc
+    exc = ValueError('failed at https://user:pw@example.com/a?token=SECRET123 ' + 'x' * 400)
+    assert redact_exc(exc) == redact_log_text(str(exc))
+    assert redact_exc(exc, 50) == redact_log_text(str(exc))[:50]
+    assert 'SECRET123' not in redact_exc(exc) and 'pw@' not in redact_exc(exc)

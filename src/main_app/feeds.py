@@ -25,7 +25,7 @@ from chapter_notes import chapter_notes_for
 # Module imports: both builders import main_app, so their names may not exist yet when this loads.
 import local_feed_builder
 import recents_feed
-from utils.http import redact_log_text, safe_url_for_log
+from utils.http import redact_exc, safe_url_for_log
 from utils.retry import calculate_backoff
 from utils.time import parse_iso_utc, utc_now_iso
 from youtube import settings as yt_settings
@@ -102,7 +102,7 @@ def _record_refresh_failure(slug: str, error_message: str, podcast=None):
         if last_counted and (now - last_counted).total_seconds() < FEED_REFRESH_FAILURE_COUNT_INTERVAL:
             return
         count = (podcast.get('refresh_failure_count') or 0) + 1
-        scrubbed_error = redact_log_text(str(error_message))
+        scrubbed_error = redact_exc(error_message)
         db.update_podcast(
             slug,
             refresh_failure_count=count,
@@ -262,7 +262,7 @@ def _refresh_youtube_feed(slug, podcast, force, record_failure) -> RefreshOutcom
                 rebuild_youtube_feed(slug, podcast)
             status_service.complete_feed_refresh(slug, 0)
             _refresh_coalesce.invalidate(slug)
-            return RefreshOutcome(False, 'fetch_failed', error=redact_log_text(str(exc)))
+            return RefreshOutcome(False, 'fetch_failed', error=redact_exc(exc))
         inserted, ep_statuses, _ = db.bulk_upsert_discovered_episodes(slug, episodes, return_state=True)
         if inserted > 0:
             refresh_logger.info(f"[{slug}] Discovered {inserted} new video(s)")
@@ -297,7 +297,7 @@ def _refresh_youtube_feed(slug, podcast, force, record_failure) -> RefreshOutcom
         status_service.complete_feed_refresh(slug, 0)
         return RefreshOutcome(True, 'refreshed', inserted, scheduled)
     except Exception as e:
-        refresh_logger.error(f"[{slug}] YouTube refresh failed: {redact_log_text(str(e))}")
+        refresh_logger.error(f"[{slug}] YouTube refresh failed: {redact_exc(e)}")
         status_service.remove_feed_refresh(slug)
         _refresh_coalesce.invalidate(slug)
         return RefreshOutcome(False, 'internal_error', error='Internal refresh error')
@@ -663,7 +663,7 @@ def refresh_rss_feed(slug: str, feed_url: str, force: bool = False,
         # Feed Refresh Failed alert blames the publisher's feed. Origin
         # failures are recorded at the fetch/parse boundaries above.
         refresh_logger.error(
-            f"[{slug}] RSS refresh failed: {redact_log_text(str(e))}")
+            f"[{slug}] RSS refresh failed: {redact_exc(e)}")
         status_service.remove_feed_refresh(slug)
         _refresh_coalesce.invalidate(slug)
         return RefreshOutcome(False, 'internal_error', error='Internal refresh error')
@@ -730,7 +730,7 @@ def _run_refresh_batch(force, slugs=None, label='RSS feeds'):
                     outcomes[slug] = outcome
                 except Exception as e:
                     refresh_logger.error(
-                        f"[{slug}] Feed refresh failed: {redact_log_text(str(e))}")
+                        f"[{slug}] Feed refresh failed: {redact_exc(e)}")
                     outcomes[slug] = RefreshOutcome(
                         False, 'internal_error', error='Internal refresh error')
 
@@ -798,7 +798,7 @@ def _run_refresh_batch(force, slugs=None, label='RSS feeds'):
             'outage': outage_info,
         }
     except Exception as e:
-        refresh_logger.error(f"RSS refresh failed: {redact_log_text(str(e))}")
+        refresh_logger.error(f"RSS refresh failed: {redact_exc(e)}")
         return {'success': False, 'succeeded': 0, 'failed': 0, 'outcomes': {},
                 'outage': {'detected': False, 'affectedCount': 0, 'nextRetryAt': None}}
 
@@ -820,7 +820,7 @@ def refresh_single_feed(slug: str) -> bool:
         return outcome.success or outcome.status == 'parse_backoff'
     except Exception as e:
         refresh_logger.error(
-            f"[{slug}] Single-feed refresh failed: {redact_log_text(str(e))}")
+            f"[{slug}] Single-feed refresh failed: {redact_exc(e)}")
         return False
 
 

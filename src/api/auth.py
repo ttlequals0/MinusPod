@@ -1,6 +1,5 @@
 """Authentication routes: /auth/* endpoints."""
 import logging
-import math
 import os
 
 from flask import current_app, request, session
@@ -17,7 +16,7 @@ from api.csrf import validate as csrf_validate
 
 from api import (
     api, limiter, log_request, json_response, error_response,
-    get_database,
+    get_database, retry_after_ceil, retry_after_response,
 )
 
 logger = logging.getLogger('podcast.api')
@@ -53,9 +52,7 @@ def _warn_if_session_cookie_unstorable():
 
 def _retry_after_seconds(locked_until_iso: str) -> int:
     unlock = parse_iso_utc(locked_until_iso)
-    if unlock is None:
-        return 1
-    return max(1, math.ceil((unlock - utc_now()).total_seconds()))
+    return retry_after_ceil(None if unlock is None else (unlock - utc_now()).total_seconds())
 
 
 # ========== Authentication Endpoints ==========
@@ -116,13 +113,8 @@ def auth_login():
         if locked_until:
             logger.warning("Login attempt on locked IP %s (until %s)", ip, locked_until)
             seconds = _retry_after_seconds(locked_until)
-            response = json_response({
-                'error': 'Too many failed attempts; try again later',
-                'status': 429,
-                'retryAfterSeconds': seconds,
-            }, 429)
-            response.headers['Retry-After'] = str(seconds)
-            return response
+            return retry_after_response(
+                'Too many failed attempts; try again later', seconds, 429, in_body=True)
 
     data = request.get_json(silent=True)
     if not isinstance(data, dict) or not isinstance(data.get('password'), str):

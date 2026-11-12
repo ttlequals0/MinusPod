@@ -9,7 +9,6 @@ resolves its own singletons -- see that module's docstring.
 import json
 import logging
 import random
-import re
 import time
 import unicodedata
 import uuid
@@ -20,7 +19,7 @@ from urllib.parse import urlparse, urlunparse
 import requests
 
 from database.podcasts import has_upstream_audio
-from utils.http import redact_log_text
+from utils.http import redact_exc, redact_log_text
 from utils.time import ISO_FORMAT, parse_iso_utc, utc_now, utc_now_iso
 
 logger = logging.getLogger('podcast.podping')
@@ -72,9 +71,6 @@ ACTIVE_CONNECTION_STALE_SECONDS = 90
 MONITOR_HEARTBEAT_SECONDS = 15
 NODE_CHECK_LEASE_SECONDS = 60
 
-_QUERY_STRING_RE = re.compile(r'(https?://[^\s?]*)\?\S+')
-
-
 def normalize_podping_nodes(nodes) -> list[str]:
     if not isinstance(nodes, list) or not 1 <= len(nodes) <= MAX_PODPING_NODES:
         raise ValueError(f'Provide between 1 and {MAX_PODPING_NODES} node URLs.')
@@ -124,10 +120,8 @@ def get_podping_nodes(db=None) -> list[str]:
 
 
 def _sanitize_failure_reason(message: str) -> str:
-    """Short, credential-free reason for durable storage and logs: strips any
-    URL query string (where a token would live) and caps the length."""
-    text = _QUERY_STRING_RE.sub(r'\1?<redacted>', str(message))
-    return text[:200]
+    """Short, credential-free reason for durable storage and logs."""
+    return redact_exc(message, 200)
 
 
 def _new_node_health_entry() -> dict:
@@ -519,7 +513,7 @@ class PodpingListener:
                     try:
                         result = future.result()
                     except Exception as exc:
-                        result = (None, 'unreachable', redact_log_text(str(exc)))
+                        result = (None, 'unreachable', redact_exc(exc))
                     if node not in self.nodes:
                         continue
                     if result[1] == 'healthy':

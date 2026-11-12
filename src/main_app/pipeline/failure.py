@@ -20,7 +20,7 @@ from rate_limit_hold import (
 )
 
 from utils.circuit_breaker import CircuitBreakerOpen
-from utils.http import redact_log_text
+from utils.http import redact_exc
 import run_context
 from utils.constants import (
     EpisodeStatus, REPROCESS_SOURCE_JIT,
@@ -82,7 +82,7 @@ def _handle_processing_failure(slug, episode_id, episode_title, podcast_name,
     common._require_publication_owner(slug, episode_id)
     processing_time = time.time() - start_time
     # Every stored, sent or logged copy of the error text goes through redaction once, here.
-    error_text = redact_log_text(str(error))
+    error_text = redact_exc(error)
 
     try:
         from transcriber.local import _unload_local_models

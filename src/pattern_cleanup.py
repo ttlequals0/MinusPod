@@ -33,7 +33,7 @@ from sponsor_service import SponsorService
 from text_pattern_matcher import MIN_TEXT_LENGTH
 from utils.constants import names_the_show, sanitize_sponsor_label
 from utils.cron import is_due, is_valid_expression
-from utils.http import redact_log_text
+from utils.http import redact_exc, redact_log_text
 from utils.llm_call import call_llm, schema_format_for
 from utils.llm_response import extract_json_object
 from utils.pattern_catalog import invalidate_pattern_catalog_scope
@@ -1094,7 +1094,7 @@ def _execute_run(db, run_id: int, started_at: str, *, force: bool, trigger: str,
             suggestion_keys.update((pattern['id'], kind) for kind in stored)
             counts['skipped'] += int(skipped)
     except Exception as e:
-        status, error = 'failed', redact_log_text(str(e)) or type(e).__name__
+        status, error = 'failed', redact_exc(e) or type(e).__name__
         logger.warning("pattern_cleanup: run %s failed: %s", run_id, error)
         db.clear_leaked_transaction(logger, 'pattern cleanup')
 
