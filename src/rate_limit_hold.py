@@ -38,7 +38,7 @@ from config import coerce_bool_setting
 from database.settings import registry_current_value, registry_default
 from llm_client import (
     extract_retry_after, get_client_for_provider, get_effective_provider,
-    is_rate_limit_error, llm_disabled, LLMDisabledError,
+    is_rate_limit_error, llm_disabled, LLMDisabledError, require_llm,
 )
 from llm_route import ALL_CREDENTIAL_SLOTS, resolve_route
 from provider_budget import manual_rate_limit_caps, request_token_estimate
@@ -770,6 +770,7 @@ def _probe_via_completion(db, provider_key: str | None, credential_slot: str) ->
     rather than probed with another account's client and model. Manual caps
     are never completion-probed (see _probe_rate_limit).
     """
+    require_llm()
     target_provider = provider_key or get_effective_provider()
     model, base_url = _probe_route_target(target_provider, credential_slot)
     if not model:

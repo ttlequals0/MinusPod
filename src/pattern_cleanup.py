@@ -19,7 +19,9 @@ from rapidfuzz import fuzz
 
 from database import Database
 from database.settings import registry_default, registry_get_default
-from llm_client import ProviderRateLimitedError, get_effective_provider_from_snapshot, llm_disabled
+from llm_client import (
+    LLMDisabledError, ProviderRateLimitedError, get_effective_provider_from_snapshot, llm_disabled,
+)
 from llm_capabilities import systemone_supported_phases
 from llm_route import (
     LiveRoute, apply_failover, client_for_route, live_route_from, resolve_route,
@@ -1072,6 +1074,12 @@ def _execute_run(db, run_id: int, started_at: str, *, force: bool, trigger: str,
                 stored, skipped = _process_pattern(
                     db, run_id, pattern, unused_days, live, system_prompt,
                     sponsors=sponsors, segments_cache=segments_cache)
+            except LLMDisabledError:
+                # The provider became none mid-run: stop with what finished, as a normal completed run.
+                db.clear_leaked_transaction(logger, 'pattern cleanup')
+                db.record_cleanup_check(run_id, pattern, model_status='stale')
+                logger.debug("pattern_cleanup: run %s stopped, the LLM provider is none", run_id)
+                break
             except ProviderRateLimitedError:
                 db.clear_leaked_transaction(logger, 'pattern cleanup')
                 db.record_cleanup_check(run_id, pattern, model_status='failed')
@@ -1092,6 +1100,9 @@ def _execute_run(db, run_id: int, started_at: str, *, force: bool, trigger: str,
             counts['reviewed'] += 1
             suggestion_keys.update((pattern['id'], kind) for kind in stored)
             counts['skipped'] += int(skipped)
+    except LLMDisabledError:
+        logger.debug("pattern_cleanup: run %s stopped, the LLM provider is none", run_id)
+        db.clear_leaked_transaction(logger, 'pattern cleanup')
     except Exception as e:
         status, error = 'failed', str(e) or type(e).__name__
         logger.warning("pattern_cleanup: run %s failed: %s", run_id, error)

@@ -17,7 +17,7 @@ from utils.text import extract_text_from_segments
 from llm_capabilities import PASS_CHAPTER_GENERATION
 from llm_client import (
     get_llm_client, get_api_key, LLMClient,
-    OllamaContextOverflowError, ProviderAccountChangedError, ProviderRateLimitedError,
+    LLMDisabledError, OllamaContextOverflowError, ProviderAccountChangedError, ProviderRateLimitedError,
 )
 from cancel import ProcessingCancelled, ProcessingOwnershipLost
 from llm_route import client_for_route, live_route_params
@@ -238,6 +238,8 @@ class ChaptersGenerator:
         try:
             client = get_llm_client()
             logger.debug(f"LLM client initialized for chapters generator: {client.get_provider_name()}")
+        except LLMDisabledError:
+            return
         except Exception as e:
             logger.error(f"Failed to initialize LLM client: {e}")
 
@@ -430,7 +432,7 @@ class ChaptersGenerator:
             logger.warning(f"Chapter topic detection skipped: {e}")
             self._model_not_configured_message = CHAPTERS_AI_UNAVAILABLE
             return None
-        except (ProviderRateLimitedError, ProviderAccountChangedError,
+        except (ProviderRateLimitedError, ProviderAccountChangedError, LLMDisabledError,
                 ProcessingCancelled, ProcessingOwnershipLost):
             raise
         except Exception as e:
@@ -505,7 +507,7 @@ class ChaptersGenerator:
             self._model_not_configured_message = CHAPTERS_AI_UNAVAILABLE
             self._title_generation_failed = True
             return self._apply_generic_titles(chapters)
-        except (ProviderRateLimitedError, ProviderAccountChangedError,
+        except (ProviderRateLimitedError, ProviderAccountChangedError, LLMDisabledError,
                 ProcessingCancelled, ProcessingOwnershipLost):
             raise
         except Exception as e:

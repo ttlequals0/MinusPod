@@ -1,4 +1,5 @@
 """Shared pipeline driver for the processing-mode and LLM-optional tests."""
+import inspect
 import os
 import sys
 import tempfile
@@ -36,13 +37,26 @@ _REQUESTS = ('messages_create', 'list_models', 'verify_connection', 'probe_once'
              'probe_json_format_support', 'probe_json_schema_support')
 
 
+class RecordedCalls(list):
+    """Client factory and request calls that went through; refused holds (factory, caller) pairs the provider none refused."""
+
+    def __init__(self):
+        super().__init__()
+        self.refused = []
+
+
+# Callers allowed to ask the factory under none: they treat the refusal as "no client".
+REFUSED_CALLER_ALLOWLIST = frozenset({'initialize_client'})
+
+
 def _install_recorder(monkeypatch):
     """Record client factory and request calls made through the client classes; other HTTP is not recorded."""
-    calls = []
+    calls = RecordedCalls()
 
     def recorder(name):
         def record(*args, **kwargs):
             if name in _FACTORIES and llm_client.llm_disabled():
+                calls.refused.append((name, inspect.stack()[1].function))
                 raise llm_client.LLMDisabledError('The LLM provider is set to none; no client is available')
             calls.append(name)
             raise AssertionError(f'model call attempted: {name}')

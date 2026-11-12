@@ -1,4 +1,5 @@
 """An episode run with the LLM provider set to none makes no model call."""
+import logging
 import os
 import sys
 import tempfile
@@ -20,15 +21,20 @@ from main_app.pipeline import admission  # noqa: E402
 from ad_chapters import AdChapterConfig  # noqa: E402
 from ad_detector import AdDetector  # noqa: E402
 from text_pattern_matcher import TextMatch  # noqa: E402
-from tests.unit.pipeline_run_support import _install_recorder, _row, _run_pipeline  # noqa: E402
+from tests.unit.pipeline_run_support import (  # noqa: E402
+    REFUSED_CALLER_ALLOWLIST, _install_recorder, _row, _run_pipeline,
+)
 
 
 @pytest.fixture
-def model_calls(monkeypatch):
-    """Fails the test if any client factory or request call was made."""
+def model_calls(monkeypatch, caplog):
+    """Fails the test on a client factory or request call, an unlisted refused call, or a WARNING."""
     calls = _install_recorder(monkeypatch)
-    yield calls
+    with caplog.at_level(logging.DEBUG):
+        yield calls
     assert calls == []
+    assert {caller for _, caller in calls.refused} <= REFUSED_CALLER_ALLOWLIST, calls.refused
+    assert [r.getMessage() for r in caplog.records if r.levelno >= logging.WARNING] == []
 
 
 @pytest.fixture

@@ -194,6 +194,8 @@ def client_for_route(route: str | Route | dict | None, *,
             f"route's frozen endpoint",
             credential_slot=credential_slot, phase=phase,
             expected_account_id=frozen, current_account_id=current)
+    # Checked at construction so a route frozen before the switch to none is refused too.
+    llm_client.require_llm()
     return llm_client.get_client_for_provider(provider_key, base_url=base_url,
                                    credential_slot=credential_slot)
 

@@ -1,4 +1,5 @@
 """Chapters with the LLM provider set to none."""
+import logging
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -152,3 +153,20 @@ def test_regenerate_chapters_unknown_episode_is_404_under_none(chapters_feed, pr
     client, token = chapters_feed
     response = client.post(URL.replace('bb11cc22dd33', 'ffffffffffff'), headers=token)
     assert response.status_code == 404
+
+
+def test_regen_thread_that_loses_the_provider_is_a_quiet_noop(chapters_feed, provider_anthropic, caplog):
+    from api import get_database
+    db = get_database()
+    stamp = db.claim_chapters_regen('chapters-none-feed', 'bb11cc22dd33')
+    assert stamp
+
+    def refuse(*args, **kwargs):
+        raise llm_client.LLMDisabledError('none')
+    with patch.object(chapters_routes, '_regenerate_chapters', refuse), caplog.at_level(logging.DEBUG):
+        chapters_routes._regenerate_chapters_job('chapters-none-feed', 'bb11cc22dd33', stamp)
+    episode = db.get_episode('chapters-none-feed', 'bb11cc22dd33')
+    assert not episode['chapters_regen_error'] and not episode['chapters_regen_started_at']
+    rows, _ = db.get_processing_history(podcast_slug='chapters-none-feed')
+    assert rows == []
+    assert [r for r in caplog.records if r.levelno >= logging.WARNING] == []

@@ -17,7 +17,7 @@ from chapters_generator import ChaptersGenerator
 from embedded_chapters import embed_chapters
 from llm_client import (
     ProviderRateLimitedError, start_episode_token_tracking, get_episode_token_totals,
-    require_llm,
+    LLMDisabledError, require_llm,
 )
 import run_context
 from llm_route import resolve_route
@@ -93,6 +93,7 @@ def regenerate_chapters(slug, episode_id):
 def _regenerate_chapters_job(slug, episode_id, stamp):
     db = get_database()
     error = None
+    skipped = False
     podcast_name = slug
     episode = None
     ctx = run_context.begin(slug, episode_id, run_id=uuid.uuid4().hex)
@@ -118,20 +119,25 @@ def _regenerate_chapters_job(slug, episode_id, stamp):
             error = hold_message(hold_until, exc)
         except Exception:
             logger.exception(f"Failed to record the rate-limit hold for {slug}:{episode_id}")
+    except LLMDisabledError:
+        # The provider became none after the route was accepted: end as a no-op, not a failed run.
+        skipped = True
+        logger.debug(f"[{slug}:{episode_id}] Chapter regeneration skipped: the LLM provider is none")
     except Exception as exc:
         logger.exception(f"Failed to regenerate chapters for {slug}:{episode_id}")
         error = truncate(redact_exc(exc), 500) or 'Chapter regeneration failed'
     finally:
         token_totals = get_episode_token_totals()
         try:
-            _record_history_row(
-                db, slug, episode_id,
-                (episode or {}).get('title') or 'Unknown', podcast_name,
-                status='failed' if error else 'completed',
-                processing_time=time.perf_counter() - started,
-                ads_detected=0, token_totals=token_totals,
-                error_message=error, run_stats={'mode': 'chapters'},
-            )
+            if not skipped:
+                _record_history_row(
+                    db, slug, episode_id,
+                    (episode or {}).get('title') or 'Unknown', podcast_name,
+                    status='failed' if error else 'completed',
+                    processing_time=time.perf_counter() - started,
+                    ads_detected=0, token_totals=token_totals,
+                    error_message=error, run_stats={'mode': 'chapters'},
+                )
         except Exception:
             logger.exception(f"Failed to record chapter regeneration history for {slug}:{episode_id}")
         finally:

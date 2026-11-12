@@ -323,9 +323,10 @@ def run_calibration(llm_client=None, model: str | None = None, route=None) -> di
     """
     from ad_reviewer import AdReviewer
     from database import Database
-    from llm_client import get_client_for_provider
+    from llm_client import get_client_for_provider, require_llm
     from utils.time import utc_now_iso
 
+    require_llm()
     db = Database()
     client = llm_client
     resolved_model = model
@@ -458,6 +459,9 @@ def _calibration_worker(db):
         try:
             result = run_calibration(route=route)
             result['revision'] = revision
+        except provider_clients.LLMDisabledError:
+            logger.debug("Reviewer calibration stopped: the LLM provider is none")
+            result = None
         except Exception:
             logger.exception("Reviewer calibration self-test failed")
 

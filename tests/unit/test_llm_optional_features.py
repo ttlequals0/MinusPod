@@ -19,6 +19,7 @@ import llm_client  # noqa: E402
 import main_app  # noqa: E402
 import pattern_cleanup  # noqa: E402
 import pricing_fetcher  # noqa: E402
+import llm_route  # noqa: E402
 import rate_limit_hold  # noqa: E402
 import tools.reviewer_calibration as calibration  # noqa: E402
 from api import get_database  # noqa: E402
@@ -291,8 +292,9 @@ def test_rate_limit_probe_still_runs_with_a_provider(temp_db, provider_anthropic
     probe.assert_called_once()
 
 
-def test_completion_probe_without_a_client_under_none_is_quiet(temp_db, provider_none, no_clients):
-    assert rate_limit_hold._probe_via_completion(temp_db, None, 'primary') is False
+def test_completion_probe_under_none_is_refused_before_any_client(temp_db, provider_none, no_clients):
+    with pytest.raises(llm_client.LLMDisabledError):
+        rate_limit_hold._probe_via_completion(temp_db, None, 'primary')
 
 
 # Model routes
@@ -571,4 +573,50 @@ def test_rate_limit_probe_that_loses_the_provider_mid_tick_is_quiet(temp_db, cap
     monkeypatch.setattr(rate_limit_hold, '_probe_rate_limit', refuse)
     with caplog.at_level(logging.DEBUG):
         assert rate_limit_hold.probe_rate_limit(temp_db) is False
+    assert [r for r in caplog.records if r.levelno >= logging.WARNING] == []
+
+
+# Secondary and frozen routes are ignored while the primary is none
+
+@pytest.mark.parametrize('phase', llm_route.PHASES)
+def test_a_phase_routed_to_the_secondary_provider_builds_no_client_under_none(provider_none, monkeypatch, phase):
+    built = []
+    monkeypatch.setattr(llm_client, '_build_client', lambda *args, **kwargs: built.append(args))
+    frozen = {'phase': phase, 'provider_key': 'openai-compatible', 'base_url': 'http://example.com/v1',
+              'credential_slot': 'secondary'}
+    with pytest.raises(llm_client.LLMDisabledError):
+        llm_route.client_for_route(frozen)
+    route = llm_route.Route(phase=phase, provider_key='openai-compatible', model_id='m',
+                            base_url='http://example.com/v1', slot='secondary',
+                            credential_slot='secondary', account_id=None)
+    with pytest.raises(llm_client.LLMDisabledError):
+        llm_route.client_for_route(route)
+    assert built == []
+
+
+def test_a_route_frozen_before_the_switch_is_refused(provider_anthropic, monkeypatch):
+    built = []
+    monkeypatch.setattr(llm_client, '_build_client', lambda *args, **kwargs: built.append(args))
+    frozen = {'phase': 'detection', 'provider_key': 'anthropic', 'base_url': None, 'credential_slot': 'primary'}
+    monkeypatch.setattr(llm_client, 'get_effective_provider', lambda: 'none')
+    with pytest.raises(llm_client.LLMDisabledError):
+        llm_route.client_for_route(frozen)
+    assert built == []
+
+
+def test_calibration_run_is_refused_under_none(provider_none, no_clients):
+    with pytest.raises(llm_client.LLMDisabledError):
+        calibration.run_calibration()
+
+
+def test_calibration_worker_that_loses_the_provider_mid_run_saves_nothing_and_stays_quiet(
+        temp_db, worker_state, monkeypatch, caplog):
+    def refuse(route=None):
+        raise llm_client.LLMDisabledError('none')
+    monkeypatch.setattr(calibration, 'run_calibration', refuse)
+    temp_db.set_setting('reviewer_calibration_last', '', is_default=True)
+    with caplog.at_level(logging.DEBUG):
+        calibration._calibration_worker(temp_db)
+    assert calibration._CALIBRATION_STATE['running'] is False
+    assert not temp_db.get_setting('reviewer_calibration_last')
     assert [r for r in caplog.records if r.levelno >= logging.WARNING] == []

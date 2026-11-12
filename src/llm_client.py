@@ -2593,8 +2593,6 @@ def _probe_secondary_provider_formats() -> None:
         client = get_client_for_provider(provider, credential_slot='secondary')
         if hasattr(client, 'verify_connection'):
             client.verify_connection(timeout=HTTP_TIMEOUT_API)
-    except LLMDisabledError:
-        logger.debug("Secondary provider probe skipped: the LLM provider is none")
     except Exception as e:
         logger.warning(f"Secondary provider probe skipped: {e}")
 
