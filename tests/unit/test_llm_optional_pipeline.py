@@ -122,7 +122,7 @@ def test_none_run_with_no_detections_publishes_uncut(provider_none, no_model_cal
 def test_detector_builds_no_client_under_none(provider_none, no_model_calls):
     detector = AdDetector(api_key='test-key')
     detector.db = MagicMock()
-    detector.initialize_client()
+    assert detector.initialize_client() is None
 
 
 def test_admission_needs_no_account_under_none(provider_none, no_model_calls):

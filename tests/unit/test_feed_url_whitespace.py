@@ -45,7 +45,7 @@ def test_whitespace_and_control_characters_are_refused(char):
 
 
 def test_a_clean_url_passes():
-    reject_url_whitespace('https://feeds.example.com/a%20b.xml?x=1')
+    assert reject_url_whitespace('https://feeds.example.com/a%20b.xml?x=1') is None
 
 
 def test_refresh_validation_still_accepts_a_stored_url_with_a_space():

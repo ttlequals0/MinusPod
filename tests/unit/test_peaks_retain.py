@@ -112,8 +112,10 @@ def test_store_peaks_file_swallows_errors(tmp_path):
     src = tmp_path / 'e-original.wav'
     _gen_wav(src)
     result = type('R', (), {'peaks_10ms': np.array([1], dtype='<u2')})()
-    with patch('audio_peaks.write_peaks_file', side_effect=OSError('disk full')):
-        processing._store_peaks_file('s', 'e', src, result)
+    with patch('audio_peaks.write_peaks_file', side_effect=OSError('disk full')) as write:
+        assert processing._store_peaks_file('s', 'e', src, result) is None
+    write.assert_called_once()
+    assert not ap.peaks_file_path(src).exists()
 
 
 class _Storage:
