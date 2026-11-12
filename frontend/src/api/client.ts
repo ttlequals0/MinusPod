@@ -62,11 +62,8 @@ function isRetryable(status: number): boolean {
   return status >= 500 || status === 429;
 }
 
-// A 429's or 503's Retry-After (e.g. from a flask-limiter rate limit) is
-// authoritative when the server sends one: honor it over the fixed backoff
-// schedule instead of guessing. Only the numeric-seconds form is parsed
-// (what this backend sends); a missing header, an HTTP-date value, or
-// anything else non-numeric falls back to the fixed delay for that attempt.
+// A 429's or 503's Retry-After wins over the fixed backoff. Only the numeric-seconds form is parsed;
+// a missing or non-numeric header falls back to the fixed delay.
 function retryAfterMs(response: Response): number | null {
   const header = response.headers.get('Retry-After');
   if (!header) return null;
