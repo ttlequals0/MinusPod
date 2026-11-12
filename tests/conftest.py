@@ -42,6 +42,31 @@ def _keep_pytest_excepthooks():
     _restore_excepthooks()
 
 
+# Third-party threads a test cannot own; matched on the thread name prefix.
+_THREAD_ALLOWLIST = (
+    'pytest_timeout',  # pytest-timeout's watchdog
+    'ThreadPoolExecutor',  # stdlib pools owned by third-party clients
+    'asyncio_',  # event-loop helpers of third-party clients
+)
+_THREAD_JOIN_TIMEOUT_S = 5.0
+
+
+@pytest.fixture(autouse=True)
+def _no_leaked_threads():
+    """Fail a test that leaves a thread it started running, naming the thread."""
+    before = set(threading.enumerate())
+    yield
+    leaked = []
+    for thread in threading.enumerate():
+        if thread in before or thread is threading.current_thread() or thread.name.startswith(_THREAD_ALLOWLIST):
+            continue
+        thread.join(timeout=_THREAD_JOIN_TIMEOUT_S)
+        if thread.is_alive():
+            leaked.append(f"{thread.name} (daemon={thread.daemon})")
+    if leaked:
+        pytest.fail(f"test left threads running: {', '.join(leaked)}", pytrace=False)
+
+
 @pytest.fixture(autouse=True)
 def _reset_gunicorn_loggers():
     """pytest attaches its capture handlers to every non-propagating logger, so gunicorn's must not outlive a test."""

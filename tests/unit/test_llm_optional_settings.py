@@ -2,6 +2,8 @@
 import os
 import sys
 import tempfile
+import threading
+from types import SimpleNamespace
 
 import pytest
 
@@ -12,7 +14,24 @@ os.environ.setdefault('MINUSPOD_DATA_DIR', tempfile.mkdtemp(prefix='llm-optional
 
 import config_transfer  # noqa: E402
 from api import get_database  # noqa: E402
+from api.settings import provider_phases  # noqa: E402
+import llm_client  # noqa: E402
 from llm_client import get_effective_provider, invalidate_provider_cache  # noqa: E402
+
+
+@pytest.fixture(autouse=True)
+def _no_background_threads(monkeypatch):
+    """Provider saves start probe and verify threads; none may run or outlive a test."""
+    class InertThread:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def start(self):
+            pass
+
+    fake = SimpleNamespace(**{**vars(threading), 'Thread': InertThread})
+    for module in (llm_client, provider_phases):
+        monkeypatch.setattr(module, 'threading', fake)
 
 
 @pytest.fixture
