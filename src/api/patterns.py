@@ -18,6 +18,7 @@ from pattern_service import PatternService, compute_pattern_trust
 from pattern_variants import derive_intro_outro, merge_variants
 from pattern_clusters import merge_suggestions
 from split_planning import build_split_pieces
+from utils.pattern_scope import network_for_network_scope
 from utils.pattern_similarity import VARIANT_THRESHOLD, canonicalize_for_dedupe, similarity
 from utils.text import (
     BOUNDARY_SNAP_TOLERANCE_S, extract_timed_spans_in_range,
@@ -366,15 +367,19 @@ def get_pattern(pattern_id):
     return json_response(pattern)
 
 
+MAX_NETWORK_ID_CHARS = 100
+
+
 def _network_for_scope_change(db, pattern, given):
     """(network id, None) for a pattern becoming network scope, or (None, 400 response)."""
     if given is not None:
         network_id = given.strip() if isinstance(given, str) else ''
         if not network_id:
             return None, error_response('networkId must be a non-empty string', 400)
+        if len(network_id) > MAX_NETWORK_ID_CHARS:
+            return None, error_response(f'networkId must be at most {MAX_NETWORK_ID_CHARS} characters', 400)
         return network_id, None
-    network_id = db.get_effective_network_id(pattern['podcast_id']) if pattern.get('podcast_id') else None
-    network_id = network_id or (pattern.get('network_id') or '').strip() or None
+    network_id = network_for_network_scope(db, pattern)
     if network_id is None:
         return None, error_response(
             'Network scope needs a network: the pattern has no feed with a network, so send networkId', 400)

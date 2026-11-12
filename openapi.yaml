@@ -4617,17 +4617,22 @@ paths:
                   enum: [global, network, podcast]
                   description: >-
                     Scope of the pattern. Network scope also sets the pattern's
-                    network to the effective network of its feed (the network
-                    override when set, else the detected network), or to
-                    networkId when sent. A pattern with no feed network and no
+                    network to networkId when sent. Otherwise a pattern that is
+                    already network scope keeps its network, and any other
+                    pattern takes the effective network of its feed (the
+                    network override when set, else the detected network). A pattern with no feed network and no
                     networkId is rejected with 400. The global and podcast
                     scopes leave the network as it is.
                 networkId:
                   type: string
+                  maxLength: 100
                   description: >-
                     Network for a pattern becoming network scope. Used only
                     when scope is network. Surrounding whitespace is trimmed,
-                    and a blank value is rejected with 400.
+                    and a blank value or one over 100 characters is rejected
+                    with 400. Without it, a pattern already at network scope
+                    keeps its own network and any other pattern takes its
+                    feed's network.
                 disabled_reason:
                   type: string
                   description: Reason for disabling the pattern

@@ -28,6 +28,7 @@ from utils.constants import (
     sanitize_sponsor_label,
 )
 from utils.text import extract_text_from_segments
+from utils.pattern_scope import network_for_network_scope
 from utils.time import parse_iso_utc
 from sponsor_normalize import get_or_create_known_sponsor
 from community_export import (
@@ -365,9 +366,7 @@ class PatternService:
             # A network pattern matches only feeds on its network_id.
             network_id = None
             if new_scope == 'network':
-                network_id = (self.db.get_effective_network_id(pattern['podcast_id'])
-                              if pattern.get('podcast_id') else None)
-                network_id = network_id or (pattern.get('network_id') or '').strip() or None
+                network_id = network_for_network_scope(self.db, pattern)
                 if network_id is None:
                     logger.warning(f"Pattern {pattern_id} has no network to promote into")
                     return False

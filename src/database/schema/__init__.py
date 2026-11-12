@@ -2625,7 +2625,24 @@ class SchemaMixin:
             conn.rollback()
             logger.error(f"review prompt fingerprint wording update failed: {e}")
 
+        self._run_trim_pattern_network_ids(conn)
+
         self._backfill_fingerprint_matches(conn)
+
+    def _run_trim_pattern_network_ids(self, conn, gate='trim_pattern_network_ids'):
+        """One-shot: trim padded ad_patterns.network_id values and null blank ones; never raises."""
+        try:
+            if conn.execute("SELECT 1 FROM schema_migrations WHERE name = ?", (gate,)).fetchone():
+                return
+            trimmed = "NULLIF(TRIM(network_id, ' ' || char(9, 10, 11, 12, 13)), '')"
+            conn.execute(
+                f"UPDATE ad_patterns SET network_id = {trimmed} "  # noqa: S608
+                f"WHERE network_id IS NOT NULL AND network_id IS NOT {trimmed}")
+            conn.execute("INSERT OR IGNORE INTO schema_migrations (name) VALUES (?)", (gate,))
+            conn.commit()
+        except Exception as e:
+            conn.rollback()
+            logger.error(f"Pattern network id trim failed, retrying on the next start: {e}")
 
     def _backfill_fingerprint_matches(self, conn):
         """One-shot: match history from stored markers; a failure logs once and retries next start."""

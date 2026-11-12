@@ -67,6 +67,38 @@ def test_put_network_scope_rejects_a_blank_or_non_string_network(app_client, fp_
     assert _put(app_client, fp_pattern, {'scope': 'network', 'networkId': 7}).status_code == 400
 
 
+def test_put_network_scope_keeps_the_network_a_network_pattern_already_has(app_client, fp_feed):
+    _network(fp_feed, 'net1')
+    pid = fp_feed.create_ad_pattern(
+        scope='network', network_id='net-own', podcast_id=SLUG, text_template=TEMPLATE)
+    assert _put(app_client, pid, {'scope': 'network'}).status_code == 200
+    assert fp_feed.get_ad_pattern_by_id(pid)['network_id'] == 'net-own'
+    assert _put(app_client, pid, {'scope': 'network', 'networkId': 'net-new'}).status_code == 200
+    assert fp_feed.get_ad_pattern_by_id(pid)['network_id'] == 'net-new'
+
+
+def test_put_network_scope_uses_the_feed_network_when_the_pattern_has_none(app_client, fp_feed):
+    _network(fp_feed, 'net1')
+    pid = fp_feed.create_ad_pattern(
+        scope='network', network_id='   ', podcast_id=SLUG, text_template=TEMPLATE)
+    assert _put(app_client, pid, {'scope': 'network'}).status_code == 200
+    assert fp_feed.get_ad_pattern_by_id(pid)['network_id'] == 'net1'
+
+
+def test_promotion_keeps_the_network_a_network_pattern_already_has(fp_feed):
+    _network(fp_feed, 'net1')
+    pid = fp_feed.create_ad_pattern(
+        scope='network', network_id='net-own', podcast_id=SLUG, text_template=TEMPLATE)
+    assert PatternService(db=fp_feed).promote_pattern(pid, 'network') is True
+    assert fp_feed.get_ad_pattern_by_id(pid)['network_id'] == 'net-own'
+
+
+def test_put_network_scope_rejects_a_network_over_100_characters(app_client, fp_feed, fp_pattern):
+    assert _put(app_client, fp_pattern, {'scope': 'network', 'networkId': 'n' * 101}).status_code == 400
+    assert fp_feed.get_ad_pattern_by_id(fp_pattern)['scope'] == 'podcast'
+    assert _put(app_client, fp_pattern, {'scope': 'network', 'networkId': ' ' + 'n' * 100 + ' '}).status_code == 200
+
+
 @pytest.mark.parametrize('scope', ['global', 'podcast'])
 def test_put_other_scopes_are_unchanged(app_client, fp_feed, fp_pattern, scope):
     _network(fp_feed, 'net1')
