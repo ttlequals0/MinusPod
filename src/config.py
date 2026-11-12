@@ -1763,6 +1763,10 @@ WHISPER_BACKENDS = (WHISPER_BACKEND_LOCAL, WHISPER_BACKEND_API, WHISPER_BACKEND_
 
 PARAKEET_MODEL_NAME = 'nemo-parakeet-tdt-0.6b-v3'
 PARAKEET_MODEL_REPO = 'istupakov/parakeet-tdt-0.6b-v3-onnx'  # Hub repo onnx-asr maps the model name to
+PARAKEET_MODEL_RECHECK_SECONDS = 7 * 86400  # Online model check at most weekly
+PARAKEET_MODEL_RETRY_SECONDS = 3600  # Per-process wait after a failed check
+PARAKEET_MODEL_PROBE_TIMEOUT_SECONDS = 10
+PARAKEET_MODEL_DISK_MARGIN_BYTES = 256 * 1024 * 1024  # Free space beyond a second copy before an update
 # Parakeet decode tuning (#834).
 PARAKEET_WINDOW_S = 30.0  # No dropped speech at 30 s windows
 PARAKEET_OVERLAP_S = 2.0
