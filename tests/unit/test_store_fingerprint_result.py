@@ -192,3 +192,40 @@ def test_minimum_length_setting_is_clamped_to_3_to_30_seconds(fp, temp_db, patte
     temp_db.set_setting('fingerprint_min_ad_length_s', raw)
     assert fp.store_fingerprint(pattern, audio, 0.0, short).skipped_reason == 'segment_too_short'
     assert fp.store_fingerprint(pattern, audio, 0.0, long).stored is True
+
+
+def _chromaprint(ints):
+    import acoustid
+    return acoustid.chromaprint.encode_fingerprint(ints, 1, True).decode('ascii')
+
+
+def _generating(fp, monkeypatch, ints):
+    monkeypatch.setattr(fp, 'generate_fingerprint',
+                        lambda path, start=0, duration=None: AudioFingerprint(_chromaprint(ints), duration))
+
+
+def test_non_distinctive_audio_is_refused(fp, temp_db, pattern, audio, monkeypatch):
+    _generating(fp, monkeypatch, [7] * 400)
+    assert fp.store_fingerprint(pattern, audio, 0.0, 30.0) == FingerprintStoreResult(False, 'not_distinctive')
+    assert temp_db.get_audio_fingerprint(pattern) is None
+
+
+def test_force_does_not_bypass_not_distinctive(fp, temp_db, pattern, audio, monkeypatch):
+    _generating(fp, monkeypatch, [7] * 400)
+    assert fp.store_fingerprint(pattern, audio, 0.0, 30.0, force=True).skipped_reason == 'not_distinctive'
+
+
+def test_distinctive_audio_is_stored(fp, temp_db, pattern, audio, monkeypatch):
+    import random
+    rng = random.Random(3)
+    _generating(fp, monkeypatch, [rng.getrandbits(32) for _ in range(400)])
+    assert fp.store_fingerprint(pattern, audio, 0.0, 30.0).stored is True
+
+
+def test_minimum_coverage_setting_decides_distinctiveness(fp, temp_db, pattern, audio, monkeypatch):
+    import random
+    rng = random.Random(3)
+    _generating(fp, monkeypatch, [rng.getrandbits(32) for _ in range(300)] + [7] * 100)
+    assert fp.store_fingerprint(pattern, audio, 0.0, 30.0).stored is True
+    temp_db.set_setting('fingerprint_min_coverage', '0.9')
+    assert fp.store_fingerprint(pattern, audio, 0.0, 30.0).skipped_reason == 'not_distinctive'

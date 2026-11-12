@@ -21,7 +21,8 @@ def test_no_outcomes_omits_both_fields():
 
 
 @pytest.mark.parametrize('present,winner', [
-    (['fingerprint_failed', 'segment_too_short'], 'segment_too_short'),
+    (['fingerprint_failed', 'not_distinctive'], 'not_distinctive'),
+    (['not_distinctive', 'segment_too_short'], 'segment_too_short'),
     (['segment_too_short', 'original_not_retained'], 'original_not_retained'),
     (['original_not_retained', 'span_covers_multiple_patterns'], 'span_covers_multiple_patterns'),
     (['span_covers_multiple_patterns', 'fingerprint_exists'], 'fingerprint_exists'),
@@ -37,4 +38,4 @@ def test_the_first_reason_by_precedence_wins(present, winner):
 def test_the_precedence_lists_every_reason_once():
     assert FINGERPRINT_SKIP_PRECEDENCE == (
         'audio_removed', 'fingerprint_exists', 'span_covers_multiple_patterns',
-        'original_not_retained', 'segment_too_short', 'fingerprint_failed')
+        'original_not_retained', 'segment_too_short', 'not_distinctive', 'fingerprint_failed')

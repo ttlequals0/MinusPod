@@ -644,7 +644,7 @@ def merge_patterns():
 # First reason present across a request's patterns wins.
 FINGERPRINT_SKIP_PRECEDENCE = (
     'audio_removed', 'fingerprint_exists', 'span_covers_multiple_patterns',
-    'original_not_retained', 'segment_too_short', 'fingerprint_failed',
+    'original_not_retained', 'segment_too_short', 'not_distinctive', 'fingerprint_failed',
 )
 
 

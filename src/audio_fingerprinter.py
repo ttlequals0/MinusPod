@@ -471,7 +471,8 @@ class FingerprintMatch:
 class FingerprintStoreResult:
     """Outcome of store_fingerprint: stored, or the reason it was skipped."""
     stored: bool
-    # store_fingerprint sets audio_removed, original_not_retained, segment_too_short and fingerprint_failed.
+    # store_fingerprint sets audio_removed, original_not_retained, segment_too_short, not_distinctive
+    # and fingerprint_failed.
     # The corrections routes add fingerprint_exists and span_covers_multiple_patterns.
     skipped_reason: str | None = None
 
@@ -881,6 +882,25 @@ def fingerprint_unmatchable_reason(ints, *, min_coverage=None):
 def fingerprint_is_matchable(ints, *, min_coverage=None):
     """True when the matcher can find this fingerprint in its own source audio."""
     return fingerprint_unmatchable_reason(ints, min_coverage=min_coverage) is None
+
+
+def clamped_fingerprint_setting(db, key):
+    """A fingerprint setting clamped to its range; the default when unset, NaN or not a number."""
+    default, lo, hi = FINGERPRINT_SETTING_RANGES[key]
+    value = db.get_setting_float(key, default) if db else default
+    return min(max(value, lo), hi) if np.isfinite(value) else default
+
+
+def decode_fingerprint_ints(data):
+    """Raw chromaprint ints of a fingerprint string or bytes, or None when it cannot be decoded."""
+    if acoustid is None or not data:
+        return None
+    try:
+        ints = acoustid.chromaprint.decode_fingerprint(
+            data.encode('utf-8') if isinstance(data, str) else data)[0]
+    except Exception:
+        return None
+    return ints if len(ints) else None
 
 
 def _degraded_stretches(al, window):
@@ -1528,9 +1548,7 @@ class AudioFingerprinter:
 
     def _clamped_setting(self, key: str) -> float:
         """A fingerprint setting clamped to its range; the default when unset, NaN or not a number."""
-        default, lo, hi = FINGERPRINT_SETTING_RANGES[key]
-        value = self.db.get_setting_float(key, default) if self.db else default
-        return min(max(value, lo), hi) if np.isfinite(value) else default
+        return clamped_fingerprint_setting(self.db, key)
 
     def _matching_settings(self) -> tuple[float, float, float]:
         """(strictness, min_coverage, gap_tolerance_s) from settings, config defaults otherwise."""
@@ -1850,6 +1868,13 @@ class AudioFingerprinter:
         fingerprint = self.generate_fingerprint(audio_path, start, duration)
         if not fingerprint or not fingerprint.fingerprint:
             return FingerprintStoreResult(False, 'fingerprint_failed')
+
+        # An undecodable string is stored as before; the matcher skips it
+        ints = decode_fingerprint_ints(fingerprint.fingerprint)
+        if ints is not None and not fingerprint_is_matchable(
+                ints, min_coverage=self._clamped_setting('fingerprint_min_coverage')):
+            logger.info(f"Pattern {pattern_id} audio is not distinctive enough to match")
+            return FingerprintStoreResult(False, 'not_distinctive')
 
         self.db.create_audio_fingerprint(
             pattern_id=pattern_id,

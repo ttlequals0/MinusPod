@@ -5238,7 +5238,8 @@ paths:
         A span that cannot be stored is still a 200 with
         `fingerprintStored: false` and a `fingerprintSkippedReason`:
         `original_not_retained`, `segment_too_short` (shorter than the minimum
-        ad length setting), `fingerprint_failed`. The same two fields and
+        ad length setting), `not_distinctive` (too little distinctive audio to reach
+        the minimum coverage setting), `fingerprint_failed`. The same two fields and
         reasons come back from the corrections route. 404 when the pattern or
         the episode is unknown. The response is the audio detail object with
         `fingerprintStored` and `fingerprintSkippedReason` added at the same level.
@@ -17228,6 +17229,7 @@ components:
         - span_covers_multiple_patterns
         - original_not_retained
         - segment_too_short
+        - not_distinctive
         - fingerprint_failed
       description: >-
         Why no fingerprint was stored. Present only when fingerprintStored is false.
@@ -17238,7 +17240,9 @@ components:
         span_covers_multiple_patterns means the text was split into several patterns and
         this one's own range could not be found. original_not_retained means the episode
         keeps no original. segment_too_short means the span is under the minimum ad length.
-        fingerprint_failed means the audio could not be fingerprinted.
+        not_distinctive means the span has too little distinctive audio to reach the
+        minimum coverage setting, so it could never be matched, and a forced rebuild
+        does not bypass it. fingerprint_failed means the audio could not be fingerprinted.
     AdMarker:
       type: object
       properties:
