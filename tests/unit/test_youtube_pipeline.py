@@ -16,7 +16,7 @@ from main_app import processing
 from main_app.pipeline import common, detect as detect_stage, finalize as finalize_stage, sponsorblock as sb_stage
 from main_app.pipeline import transcribe, verify, signals, recut, publish
 from youtube.settings import YouTubeSettings
-from tests.unit.test_llm_optional_pipeline import _install_recorder
+from tests.unit.pipeline_run_support import _install_recorder
 
 PODCAST = {'id': 7, 'slug': 'yt-feed', 'feed_type': 'youtube', 'youtube_source_kind': 'playlist',
            'youtube_source_id': 'PL1', 'description': None, 'tags': None, 'dai_platform': None,

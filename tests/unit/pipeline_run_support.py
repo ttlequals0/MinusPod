@@ -1,5 +1,6 @@
 """Shared pipeline driver for the processing-mode and LLM-optional tests."""
 import os
+import sys
 import tempfile
 from contextlib import ExitStack
 from unittest.mock import patch
@@ -7,6 +8,8 @@ from unittest.mock import patch
 os.environ.setdefault('MINUSPOD_DATA_DIR', tempfile.mkdtemp(prefix='pipeline_run_support_'))
 os.environ.setdefault('SECRET_KEY', 'test-secret')
 
+import llm_client  # noqa: E402
+import llm_route  # noqa: E402
 import main_app.processing as processing  # noqa: E402
 from main_app.pipeline import common, transcribe, signals, cuts, review, publish, failure  # noqa: E402
 from main_app.pipeline import recut as recut_stage  # noqa: E402
@@ -19,6 +22,42 @@ import run_context  # noqa: E402
 SEGMENTS = [{'start': 0.0, 'end': 5.0, 'text': 'hello'},
             {'start': 5.0, 'end': 10.0, 'text': 'world'}]
 _PROBE_PHASES_UNSET = object()
+
+
+def _all_client_classes(cls):
+    for sub in cls.__subclasses__():
+        yield sub
+        yield from _all_client_classes(sub)
+
+
+_FACTORIES = ('get_llm_client', 'get_client_for_provider', 'create_client_for_provider',
+              '_build_client', 'client_for_route')
+_REQUESTS = ('messages_create', 'list_models', 'verify_connection', 'probe_once',
+             'probe_json_format_support', 'probe_json_schema_support')
+
+
+def _install_recorder(monkeypatch):
+    """Record client factory and request calls made through the client classes; other HTTP is not recorded."""
+    calls = []
+
+    def recorder(name):
+        def record(*args, **kwargs):
+            calls.append(name)
+            raise AssertionError(f'model call attempted: {name}')
+        return record
+
+    originals = {getattr(owner, name) for owner in (llm_client, llm_route)
+                 for name in _FACTORIES if hasattr(owner, name)}
+    for module in list(sys.modules.values()):
+        for name in _FACTORIES:
+            if getattr(module, name, None) in originals:
+                monkeypatch.setattr(module, name, recorder(name))
+    for cls in (llm_client.LLMClient, *_all_client_classes(llm_client.LLMClient)):
+        for name in _REQUESTS:
+            if name in vars(cls):
+                monkeypatch.setattr(cls, name, recorder(f'{cls.__name__}.{name}'))
+    monkeypatch.setattr(llm_client, '_client_cache', {})
+    return calls
 
 
 _INACTIVE_FAILOVER_STATE = {'active': False, 'source': None, 'since': None, 'reason': None}

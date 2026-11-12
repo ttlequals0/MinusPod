@@ -11,7 +11,6 @@ os.environ.setdefault('SECRET_KEY', 'test-secret')
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 
 import llm_client  # noqa: E402
-import llm_route  # noqa: E402
 from api.episodes import runs  # noqa: E402
 from main_app.pipeline import finalize as finalize_stage  # noqa: E402
 from main_app.pipeline import review as review_stage  # noqa: E402
@@ -21,43 +20,7 @@ from main_app.pipeline import admission  # noqa: E402
 from ad_chapters import AdChapterConfig  # noqa: E402
 from ad_detector import AdDetector  # noqa: E402
 from text_pattern_matcher import TextMatch  # noqa: E402
-from tests.unit.pipeline_run_support import _row, _run_pipeline  # noqa: E402
-
-
-def _all_client_classes(cls):
-    for sub in cls.__subclasses__():
-        yield sub
-        yield from _all_client_classes(sub)
-
-
-_FACTORIES = ('get_llm_client', 'get_client_for_provider', 'create_client_for_provider',
-              '_build_client', 'client_for_route')
-_REQUESTS = ('messages_create', 'list_models', 'verify_connection', 'probe_once',
-             'probe_json_format_support', 'probe_json_schema_support')
-
-
-def _install_recorder(monkeypatch):
-    """Record client factory and request calls made through the client classes; other HTTP is not recorded."""
-    calls = []
-
-    def recorder(name):
-        def record(*args, **kwargs):
-            calls.append(name)
-            raise AssertionError(f'model call attempted: {name}')
-        return record
-
-    originals = {getattr(owner, name) for owner in (llm_client, llm_route)
-                 for name in _FACTORIES if hasattr(owner, name)}
-    for module in list(sys.modules.values()):
-        for name in _FACTORIES:
-            if getattr(module, name, None) in originals:
-                monkeypatch.setattr(module, name, recorder(name))
-    for cls in (llm_client.LLMClient, *_all_client_classes(llm_client.LLMClient)):
-        for name in _REQUESTS:
-            if name in vars(cls):
-                monkeypatch.setattr(cls, name, recorder(f'{cls.__name__}.{name}'))
-    monkeypatch.setattr(llm_client, '_client_cache', {})
-    return calls
+from tests.unit.pipeline_run_support import _install_recorder, _row, _run_pipeline  # noqa: E402
 
 
 @pytest.fixture
