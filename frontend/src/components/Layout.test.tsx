@@ -55,6 +55,11 @@ describe('Layout header hit targets', () => {
     }
   });
 
+  it('keeps the Search link 44px wide on coarse pointers at xl, like the buttons beside it', () => {
+    renderLayout();
+    expect(screen.getByRole('link', { name: 'Search' }).className.split(/\s+/)).toContain('xl:pointer-coarse:min-w-11');
+  });
+
   it('announces when the compact navigation is expanded', async () => {
     renderLayout();
     const menu = screen.getByRole('button', { name: 'Toggle menu' });

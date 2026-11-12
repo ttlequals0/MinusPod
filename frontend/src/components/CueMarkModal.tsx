@@ -828,8 +828,8 @@ function CueMarkModal({
         />
 
         {/* Cue-specific controls: snap to onset + set edge at playhead. */}
-        <div className="flex flex-wrap items-center gap-2 mt-2">
-          <label htmlFor="cue-snap-onset" className="flex items-center gap-1.5 text-xs text-muted-foreground">
+        <div className="@container flex flex-wrap items-center gap-2 mt-2">
+          <label htmlFor="cue-snap-onset" className="flex items-center gap-1.5 text-xs text-muted-foreground @max-[26rem]:w-full">
             <Checkbox id="cue-snap-onset" checked={snapEnabled} onChange={setSnapEnabled} ariaLabel="Snap to detected boundaries" />
             Snap to onset
           </label>

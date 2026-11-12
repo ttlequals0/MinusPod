@@ -93,6 +93,14 @@ function renderCue() {
 }
 
 describe('CueMarkModal waveform states', () => {
+  it('gives the snap checkbox its own line on a narrow row and the edge buttons the recipe padding', () => {
+    renderCue();
+    const row = screen.getByLabelText('Snap to detected boundaries').closest('label')?.parentElement as HTMLElement;
+    expect(row.className.split(/\s+/)).toContain('@container');
+    expect(row.querySelector('label')?.className).toContain('@max-[26rem]:w-full');
+    for (const btn of Array.from(row.querySelectorAll('button'))) expect(btn.className.split(/\s+/)).toContain('px-3');
+  });
+
   it('shows the loading line while peaks are pending, out of the layout flow', () => {
     renderCue();
     const loading = screen.getByText('Loading waveform...');

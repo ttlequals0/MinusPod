@@ -26,7 +26,7 @@ export const primaryBtn =
 // Tailwind's output order (END rendered grey while START rendered green).
 export const edgeBtn =
   'flex-1 sm:flex-none min-h-[44px] inline-flex items-center justify-center ' +
-  'whitespace-nowrap px-2 py-1.5 rounded text-sm border border-border bg-card ' +
+  'whitespace-nowrap px-3 py-1.5 rounded text-sm border border-border bg-card ' +
   'transition-colors hover:bg-accent hover:border-foreground/30 ' +
   'disabled:opacity-40 disabled:cursor-not-allowed';
 

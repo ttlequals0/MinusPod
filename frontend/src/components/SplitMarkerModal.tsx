@@ -295,7 +295,7 @@ export default function SplitMarkerModal({ target, onClose, onSplit }: Props) {
         </>
       )}
       footer={!isLoading && !isError ? (
-        <div className="flex items-center gap-2 flex-wrap p-5 pt-3 max-sm:px-0 border-t border-border max-sm:grid max-sm:grid-cols-2">
+        <div className="flex items-center gap-2 flex-wrap max-sm:w-full max-sm:grid max-sm:grid-cols-2">
           <button
             type="button"
             onClick={addDivider}
@@ -309,8 +309,8 @@ export default function SplitMarkerModal({ target, onClose, onSplit }: Props) {
             onClick={addDividerAtPlayhead}
             className={`${dialogFooterBtn} ${btnOutline}`}
           >
-            <span className="sm:hidden">At playhead</span>
-            <span className="hidden sm:inline">Add divider at playhead</span>
+            <span className="md:hidden">At playhead</span>
+            <span className="hidden md:inline">Add divider at playhead</span>
           </button>
           <button
             type="button"

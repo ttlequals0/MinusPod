@@ -1,6 +1,7 @@
 import { render, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import { touchTarget, touchTargetRow } from '../buttonStyles';
+import { edgeBtn } from './controlStyles';
 import SpeedMenu from './SpeedMenu';
 import TransportBar from './TransportBar';
 import ZoomControl from './ZoomControl';
@@ -63,6 +64,25 @@ describe('coarse-pointer width floor', () => {
         currentTime={0} selectionDuration={10} inSelection={false} />,
     );
     const classes = (container.firstElementChild as HTMLElement).className.split(/\s+/);
-    expect(classes).toEqual(expect.arrayContaining(['max-sm:-mx-3.5', 'max-sm:w-auto', 'max-sm:max-w-none']));
+    expect(classes.filter((c) => /-mx-|^max-sm:w-auto$|^max-sm:max-w-none$/.test(c))).toEqual([]);
+  });
+
+  it('the speed trigger drops to its own row under 336 px of bar width, below sm only', () => {
+    const { container } = render(
+      <TransportBar isPlaying={false} onTogglePlay={() => {}} onSeekToStart={() => {}} onSeekToEnd={() => {}}
+        onSeekRelative={() => {}} onStop={() => {}} playbackRate={1} onPlaybackRateChange={() => {}}
+        currentTime={0} selectionDuration={10} inSelection={false} />,
+    );
+    expect((container.firstElementChild as HTMLElement).className).toContain('max-sm:[container-type:inline-size]');
+    const brk = container.querySelector('[aria-hidden="true"].basis-full') as HTMLElement;
+    expect(brk.className).toContain('max-sm:@max-[21rem]:block');
+    expect(brk.className.split(/\s+/)).toContain('hidden');
+    expect(brk.parentElement?.className).toContain('max-sm:flex-wrap');
+  });
+
+  it('the Set START and END buttons carry the recipe padding', () => {
+    const classes = edgeBtn.split(/\s+/);
+    expect(classes).toContain('px-3');
+    expect(classes).not.toContain('px-2');
   });
 });

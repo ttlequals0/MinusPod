@@ -267,6 +267,9 @@ describe('SplitMarkerModal waveform states', () => {
     const split = await screen.findByRole('button', { name: 'Split into 2 ads' });
     const footer = split.parentElement as HTMLElement;
     expect(footer.className).toContain('max-sm:grid-cols-2');
+    expect(footer.className.split(/\s+/)).toContain('max-sm:w-full');
+    expect(footer.className).not.toContain('border-t');
+    expect(screen.getByText('At playhead').className).toContain('md:hidden');
     for (const name of [/Add divider$/, /Add divider at playhead/, 'Split into 2 ads', 'Cancel']) {
       expect(screen.getByRole('button', { name }).className).toContain('px-3');
     }
