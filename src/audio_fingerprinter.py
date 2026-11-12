@@ -48,6 +48,12 @@ from config import (
 
 logger = logging.getLogger('podcast.fingerprint')
 
+FINGERPRINT_KEY_BITS = 16
+FINGERPRINT_MAX_OFFSETS = 8
+FINGERPRINT_MIN_OFFSET_VOTES = 4
+# Episode positions kept per index key, so silence or a tone cannot make candidate search quadratic
+FINGERPRINT_MAX_KEY_POSITIONS = 64
+
 # Minimum duration for fingerprinting (seconds)
 MIN_SEGMENT_DURATION = 5.0
 
@@ -411,6 +417,8 @@ class FingerprintMatch:
     # Segment category (#565) inherited from the matched pattern; see
     # TextMatch.category in text_pattern_matcher.py for the same rationale.
     category: str | None = None
+    similarity: float = 0.0
+    coverage: float = 0.0
 
 
 @dataclass
@@ -419,6 +427,112 @@ class AudioFingerprint:
     fingerprint: str  # Raw chromaprint fingerprint
     duration: float
     pattern_id: int | None = None
+
+
+def _build_offset_index(ep_arr, key_bits, max_positions=FINGERPRINT_MAX_KEY_POSITIONS):
+    """Map the top ``key_bits`` of each episode point to its positions, capped per key."""
+    shift = 32 - key_bits
+    index = {}
+    for pos, k in enumerate((ep_arr >> shift).tolist()):
+        index.setdefault(k, []).append(pos)
+    for k, positions in index.items():
+        if len(positions) > max_positions:
+            keep = np.linspace(0, len(positions) - 1, max_positions).astype(np.int64)
+            index[k] = [positions[i] for i in keep.tolist()]
+    return index
+
+
+def _candidate_offsets(pat_arr, index, key_bits, max_offsets, min_votes):
+    """Alignments d (ep[d + j] ~ pat[j], d may be negative) ranked by key votes."""
+    shift = 32 - key_bits
+    votes = {}
+    for j, k in enumerate((pat_arr >> shift).tolist()):
+        for i in index.get(k, ()):
+            d = i - j
+            votes[d] = votes.get(d, 0) + 1
+    cands = [d for d, v in votes.items() if v >= min_votes]
+    cands.sort(key=lambda d: -votes[d])
+    return cands[:max_offsets]
+
+
+def _measure_run(ep_arr, pat_arr, d, strictness, gap_points):
+    """Longest good run at alignment d as (ep_lo, ep_hi, similarity, coverage), or None."""
+    ep_base, pat_base = (d, 0) if d >= 0 else (0, -d)
+    overlap = min(len(pat_arr) - pat_base, len(ep_arr) - ep_base)
+    if overlap <= 0:
+        return None
+    diff = _popcount32(ep_arr[ep_base:ep_base + overlap] ^ pat_arr[pat_base:pat_base + overlap])
+    good = (diff <= (1.0 - strictness) * 32).tolist()
+    best = None
+    k = 0
+    while k < overlap:
+        if not good[k]:
+            k += 1
+            continue
+        lo, hi, gap, j = k, k + 1, 0, k + 1
+        while j < overlap:
+            if good[j]:
+                hi, gap = j + 1, 0
+            else:
+                gap += 1
+                if gap > gap_points:
+                    break
+            j += 1
+        if best is None or (hi - lo) > (best[1] - best[0]):
+            best = (lo, hi)
+        k = max(j + 1, hi)
+    if best is None:
+        return None
+    lo, hi = best
+    similarity = 1.0 - float(diff[lo:hi].mean()) / 32.0
+    return ep_base + lo, ep_base + hi, similarity, (hi - lo) / len(pat_arr)
+
+
+def _resolve_overlaps(matches):
+    """Keep the best match (coverage, then similarity) per stretch of time, sorted by start."""
+    accepted = []
+    for m in sorted(matches, key=lambda m: (-m.coverage, -m.similarity, m.start)):
+        if all(m.start >= a.end or m.end <= a.start for a in accepted):
+            accepted.append(m)
+    accepted.sort(key=lambda m: m.start)
+    return accepted
+
+
+def match_fingerprints(ep_ints, ep_duration, patterns, *, strictness, min_coverage,
+                       gap_tolerance_s, should_continue=None):
+    """Find stored patterns in an episode fingerprint and measure each run.
+
+    ``patterns`` is a list of (pattern_id, pat_ints, pat_duration, sponsor, category).
+    Stops early and returns what it has when ``should_continue`` returns False.
+    """
+    if len(ep_ints) == 0 or ep_duration <= 0:
+        return []
+    ep_arr = np.asarray(ep_ints, dtype=np.int64).astype(np.uint32)
+    fps = len(ep_arr) / ep_duration
+    gap_points = int(round(gap_tolerance_s * fps))
+    index = _build_offset_index(ep_arr, FINGERPRINT_KEY_BITS)
+    found = []
+    for pattern_id, pat_ints, _pat_duration, sponsor, category in patterns:
+        if should_continue is not None and not should_continue():
+            break
+        if len(pat_ints) < FINGERPRINT_MIN_OFFSET_VOTES:
+            logger.debug("Skipping fingerprint pattern %s: %d points", pattern_id, len(pat_ints))
+            continue
+        pat_arr = np.asarray(pat_ints, dtype=np.int64).astype(np.uint32)
+        offsets = _candidate_offsets(pat_arr, index, FINGERPRINT_KEY_BITS,
+                                     FINGERPRINT_MAX_OFFSETS, FINGERPRINT_MIN_OFFSET_VOTES)
+        for d in offsets:
+            run = _measure_run(ep_arr, pat_arr, d, strictness, gap_points)
+            if run is None:
+                continue
+            lo, hi, similarity, coverage = run
+            if similarity < strictness or coverage < min_coverage:
+                continue
+            found.append(FingerprintMatch(
+                pattern_id=pattern_id, start=lo / fps, end=hi / fps,
+                confidence=similarity, sponsor=sponsor, category=category,
+                similarity=similarity, coverage=coverage))
+    return _resolve_overlaps(found)
 
 
 class AudioFingerprinter:
