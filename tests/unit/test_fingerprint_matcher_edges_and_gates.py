@@ -239,6 +239,36 @@ def test_explain_reports_a_match():
     assert e['runs_counted'] == 1 and e['degraded_stretches'] == 0
 
 
+def test_explain_counts_degraded_stretches_inside_the_match_only():
+    rng = np.random.default_rng(16)
+    ep = _ints(rng, 4800)
+    pat = _ints(rng, 240)
+    _plant(rng, ep, pat[:160], 1000, 0.05)
+    e = _explain(ep, pat)
+    assert e['matched'] and abs(e['end'] - 145.0) <= 0.25
+    assert e['degraded_stretches'] == 0 and e['longest_degraded_s'] == 0
+
+
+def test_close_evidence_is_counted_in_episode_seconds():
+    rng = np.random.default_rng(17)
+    ep = _ints(rng, 4800)
+    pat = _ints(rng, 240)
+    _plant(rng, ep, pat, 1000, 0.10)
+    for seconds in (600.0, 300.0):
+        e = explain_match(ep, seconds, (1, pat, 30.0, None, None), **KW)
+        assert e['close_evidence_needed_s'] == pytest.approx(af.FINGERPRINT_CLOSE_EVIDENCE_S)
+        assert e['evidence_needed_s'] == pytest.approx(af.FINGERPRINT_MIN_EVIDENCE_S)
+
+
+def test_novelty_is_computed_once_per_pattern(monkeypatch):
+    calls = []
+    novelty = af._novelty
+    monkeypatch.setattr(af, '_novelty', lambda *a: calls.append(1) or novelty(*a))
+    rng = np.random.default_rng(18)
+    _run(_ints(rng, 4800), [(i, _ints(rng, 80), 10.0, None, None) for i in range(3)])
+    assert len(calls) == 3
+
+
 def test_explain_names_the_rejecting_gate():
     rng = np.random.default_rng(13)
     ep = _ints(rng, 4800)

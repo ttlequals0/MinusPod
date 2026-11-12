@@ -532,10 +532,9 @@ def _evidence_rule(novelty, fps):
     return short, FINGERPRINT_EDGE_BITS
 
 
-def _unmatchable_reason(pat_arr):
-    """Why a pattern can never be matched safely, or None."""
-    capacity = FINGERPRINT_SHORT_PATTERN_EVIDENCE * float(
-        _novelty(pat_arr, _informative_points(pat_arr)).sum()) if len(pat_arr) else 0.0
+def _unmatchable_reason(novelty):
+    """Why a pattern with these novelty weights can never be matched safely, or None."""
+    capacity = FINGERPRINT_SHORT_PATTERN_EVIDENCE * float(novelty.sum())
     if capacity < FINGERPRINT_EVIDENCE_FLOOR_S * FINGERPRINT_NOMINAL_FPS:
         return (f"{capacity / FINGERPRINT_NOMINAL_FPS:.1f}s of distinctive audio, "
                 f"{FINGERPRINT_EVIDENCE_FLOOR_S:.1f}s needed")
@@ -728,14 +727,14 @@ def _closest_alignments(alignments, window):
     return [al for _, al in kept]
 
 
-def _rejecting_gate(tally, pat_len, needed, strictness, min_coverage):
+def _rejecting_gate(tally, pat_len, needed, fps, strictness, min_coverage):
     """The first gate a measured alignment fails, or None when it is a match."""
     n_good, similarity, evidence, close = tally
     if n_good / pat_len < min_coverage - 1e-9:
         return 'coverage'
     # Chance agreement in unrelated real audio rarely comes this close for long
     if (evidence < needed - 1e-9
-            or close < FINGERPRINT_CLOSE_EVIDENCE_S * FINGERPRINT_NOMINAL_FPS - 1e-9):
+            or close < FINGERPRINT_CLOSE_EVIDENCE_S * fps - 1e-9):
         return 'evidence'
     if similarity < strictness:
         return 'similarity'
@@ -785,7 +784,7 @@ def _resolve_overlaps(candidates, fps, window, strictness, min_coverage):
             if not runs:
                 continue
             tally = _tally(al, runs, cand.evidence_bits)
-            if _rejecting_gate(tally, cand.pat_len, cand.needed, strictness, min_coverage):
+            if _rejecting_gate(tally, cand.pat_len, cand.needed, fps, strictness, min_coverage):
                 continue
             n_good, similarity = tally[:2]
             span = _tight_span(al, runs, window)
@@ -815,12 +814,12 @@ def _scan_fingerprints(ep_ints, ep_duration, patterns, *, strictness, min_covera
         if should_continue is not None and not should_continue():
             break
         pat_arr = np.asarray(pat_ints, dtype=np.int64).astype(np.uint32)
-        reason = _unmatchable_reason(pat_arr)
+        informative = _informative_points(pat_arr)
+        novelty = _novelty(pat_arr, informative)
+        reason = _unmatchable_reason(novelty)
         if reason:
             logger.debug("Skipping fingerprint pattern %s: %s", pattern_id, reason)
             continue
-        informative = _informative_points(pat_arr)
-        novelty = _novelty(pat_arr, informative)
         needed, evidence_bits = _evidence_rule(novelty, fps)
         # Evidence never exceeds the good point count, so this bound is safe for the prefilter
         min_good = max(min_coverage * len(pat_arr), needed) - 1e-9
@@ -840,7 +839,7 @@ def _scan_fingerprints(ep_ints, ep_duration, patterns, *, strictness, min_covera
                 alignments.append((d, al))
         for al in _closest_alignments(alignments, window):
             tally = _tally(al, al.runs, evidence_bits)
-            if _rejecting_gate(tally, len(pat_arr), needed, strictness, min_coverage):
+            if _rejecting_gate(tally, len(pat_arr), needed, fps, strictness, min_coverage):
                 continue
             n_good, similarity = tally[:2]
             coverage = n_good / len(pat_arr)
@@ -875,7 +874,7 @@ def fingerprint_coverage_ceiling(ints):
 def fingerprint_unmatchable_reason(ints, *, min_coverage=None):
     """Why a fingerprint could never be matched in its own audio, or None when it can be."""
     pat_arr = np.asarray(ints, dtype=np.int64).astype(np.uint32)
-    reason = _unmatchable_reason(pat_arr)
+    reason = _unmatchable_reason(_novelty(pat_arr, _informative_points(pat_arr)))
     if reason:
         return reason
     if min_coverage is None:
@@ -911,10 +910,11 @@ def decode_fingerprint_ints(data):
 
 
 def _degraded_stretches(al, window):
-    """(count, longest in points) of stretches of at least a window without sustained agreement."""
+    """(count, longest in points) of stretches of at least a window without sustained agreement in the span."""
+    lo, hi = al.span
     hits, _c = _solid_points(al.good, window)
-    covered = np.zeros(len(al.good) + 2, dtype=bool)
-    covered[1:-1][hits] = True
+    covered = np.zeros(hi - lo + 2, dtype=bool)
+    covered[1:-1][hits[(hits >= lo) & (hits < hi)] - lo] = True
     covered[0] = covered[-1] = True
     edges = np.flatnonzero(np.diff(covered.astype(np.int8)))
     lengths = edges[1::2] - edges[::2]
@@ -930,7 +930,9 @@ def explain_match(ep_ints, ep_duration, pattern, *, strictness, min_coverage, ga
     fps = len(ep_arr) / ep_duration if len(ep_arr) and ep_duration > 0 else FINGERPRINT_NOMINAL_FPS
     window = max(1, int(round(fps)))
     ceiling = fingerprint_coverage_ceiling(pat_arr)
-    distinctive = _unmatchable_reason(pat_arr) is None
+    informative = _informative_points(pat_arr)
+    novelty = _novelty(pat_arr, informative)
+    distinctive = _unmatchable_reason(novelty) is None
     out = {'candidates': 0, 'coverage_ceiling': ceiling,
            'matchable': distinctive and ceiling >= min_coverage - 1e-9,
            'rejected_by': 'candidates', 'matched': False}
@@ -939,8 +941,6 @@ def explain_match(ep_ints, ep_duration, pattern, *, strictness, min_coverage, ga
         return out
     if len(ep_arr) == 0:
         return out
-    informative = _informative_points(pat_arr)
-    novelty = _novelty(pat_arr, informative)
     needed, evidence_bits = _evidence_rule(novelty, fps)
     offsets, found = _candidate_offsets(pat_arr, informative, _build_offset_index(ep_arr), len(ep_arr))
     out['candidates'] = found
@@ -951,7 +951,7 @@ def explain_match(ep_ints, ep_duration, pattern, *, strictness, min_coverage, ga
     for al in _closest_alignments(measured, window):
         tally = _tally(al, al.runs, evidence_bits)
         n_good, similarity, evidence, close = tally
-        gate = _rejecting_gate(tally, len(pat_arr), needed, strictness, min_coverage)
+        gate = _rejecting_gate(tally, len(pat_arr), needed, fps, strictness, min_coverage)
         rank = (gate is None, n_good, similarity)
         if best is None or rank > best[0]:
             best = (rank, al, n_good, similarity, evidence, close, gate)
@@ -975,7 +975,7 @@ def explain_match(ep_ints, ep_duration, pattern, *, strictness, min_coverage, ga
         'coverage': n_good / len(pat_arr),
         'evidence_s': evidence / fps, 'evidence_needed_s': needed / fps,
         'evidence_bits': evidence_bits, 'close_evidence_s': close / fps,
-        'close_evidence_needed_s': FINGERPRINT_CLOSE_EVIDENCE_S * FINGERPRINT_NOMINAL_FPS / fps,
+        'close_evidence_needed_s': FINGERPRINT_CLOSE_EVIDENCE_S,
         'runs_counted': len(al.runs),
         'rejected_by': gate, 'matched': gate is None,
     })
