@@ -20,6 +20,7 @@ import { SortHeader } from '../components/SortHeader';
 import { ScopeBadge } from '../components/ScopeBadge';
 import { CommunityBadge } from '../components/CommunityBadge';
 import { PatternTrustBadge } from '../components/PatternTrustBadge';
+import { Badge } from '../components/Badge';
 import { SegmentCategoryBadge } from '../components/SegmentCategoryBadge';
 import { PatternImportDialog } from '../components/PatternImportDialog';
 import { PatternExportDialog } from '../components/PatternExportDialog';
@@ -43,7 +44,7 @@ import {
 import { ActiveBadge } from '../components/ActiveBadge';
 import { btnBase, btnOutline } from '../components/buttonStyles';
 import { focusRing, inputBase, selectBase, filterGrid, filterLabel, filterControl } from '../components/fieldStyles';
-import { badgeBase, countPill, tint } from '../components/badgeStyles';
+import { countPill, tint } from '../components/badgeStyles';
 import { pageHeader, pageTitle } from '../components/pageStyles';
 import { tableActionBtn } from '../components/rowActionStyles';
 import { DemoDisabled } from '../components/DemoDisabled';
@@ -430,9 +431,7 @@ function PatternsPage() {
                 <ScopeBadge pattern={pattern} truncate />
                 <SegmentCategoryBadge category={pattern.category} />
                 {pattern.created_by === 'user' && (
-                  <span className={`${badgeBase} max-w-full ${tint.warning}`} title="Manual">
-                    <span className="truncate">Manual</span>
-                  </span>
+                  <Badge tone="warning" title="Manual">Manual</Badge>
                 )}
                 {pattern.source === PATTERN_SOURCE_COMMUNITY && pattern.community_id && (
                   <CommunityBadge
@@ -540,9 +539,7 @@ function PatternsPage() {
                       <ScopeBadge pattern={pattern} truncate />
                       <SegmentCategoryBadge category={pattern.category} />
                       {pattern.created_by === 'user' && (
-                        <span className={`${badgeBase} max-w-full ${tint.warning}`} title="Manual">
-                          <span className="truncate">Manual</span>
-                        </span>
+                        <Badge tone="warning" title="Manual">Manual</Badge>
                       )}
                       {pattern.source === PATTERN_SOURCE_COMMUNITY && pattern.community_id && (
                         <CommunityBadge
