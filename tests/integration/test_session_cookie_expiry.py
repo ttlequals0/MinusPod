@@ -134,3 +134,75 @@ def test_no_password_instance_keeps_a_stale_session_cookie_harmless(client, db, 
     db.set_setting('app_password', '')
     clock[0] += 400 * 86400
     assert client.get('/api/v1/feeds').status_code == 200
+
+
+def _pre_upgrade_cookie(hours_ago):
+    """A session cookie signed hours_ago, without auth_last_used."""
+    import time
+    from itsdangerous.timed import TimestampSigner
+    signed_at = int(time.time() - hours_ago * 3600)
+    serializer = app.session_interface.get_signing_serializer(app)
+    original = TimestampSigner.get_timestamp
+    TimestampSigner.get_timestamp = lambda self: signed_at
+    try:
+        value = serializer.dumps({
+            'authenticated': True,
+            'auth_generation': auth_state.current_generation(Database()),
+            '_permanent': True,
+        })
+    finally:
+        TimestampSigner.get_timestamp = original
+    return value, signed_at
+
+
+def _client_with_cookie(value):
+    c = app.test_client()
+    c.set_cookie('session', value, domain='localhost')
+    return c
+
+
+def test_pre_upgrade_cookie_signed_inside_the_limit_keeps_working(db):
+    value, signed_at = _pre_upgrade_cookie(hours_ago=1)
+    c = _client_with_cookie(value)
+    resp = c.get('/api/v1/feeds')
+    assert resp.status_code == 200
+    with c.session_transaction() as sess:
+        assert sess['auth_last_used'] >= signed_at
+
+
+def test_pre_upgrade_cookie_last_used_is_its_signing_time(db, monkeypatch):
+    value, signed_at = _pre_upgrade_cookie(hours_ago=1)
+    c = _client_with_cookie(value)
+    seen = {}
+    real = auth_state.enforce_idle_limit
+
+    def spy(d):
+        from flask import session
+        seen.setdefault('last_used', session.get('auth_last_used'))
+        return real(d)
+    monkeypatch.setattr(auth_state, 'enforce_idle_limit', spy)
+    import api.csrf as csrf_mod
+    monkeypatch.setattr(csrf_mod, 'enforce_idle_limit', spy)
+    c.get('/api/v1/auth/status')
+    assert seen['last_used'] == signed_at
+
+
+def test_pre_upgrade_cookie_signed_past_the_limit_is_signed_out(db):
+    value, _ = _pre_upgrade_cookie(hours_ago=25)
+    c = _client_with_cookie(value)
+    resp = c.get('/api/v1/feeds')
+    assert resp.status_code == 401
+    assert _set_cookie(resp, CSRF_COOKIE_NAME) is None
+    cleared = _set_cookie(resp, 'session')
+    assert cleared is not None and cleared.startswith('session=;')
+
+
+def test_forged_future_last_used_cookie_is_signed_out(db):
+    import time
+    serializer = app.session_interface.get_signing_serializer(app)
+    value = serializer.dumps({
+        'authenticated': True, '_permanent': True,
+        'auth_generation': auth_state.current_generation(db),
+        'auth_last_used': time.time() + 10 * 86400})
+    resp = _client_with_cookie(value).get('/api/v1/feeds')
+    assert resp.status_code == 401

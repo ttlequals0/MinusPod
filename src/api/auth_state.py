@@ -1,5 +1,6 @@
 """Shared authentication state and session revocation checks."""
 
+import math
 import os
 import time
 
@@ -17,10 +18,16 @@ SESSION_GENERATION_KEY = 'auth_generation'
 SESSION_REMEMBERED_KEY = 'auth_remembered'
 SESSION_LAST_USED_KEY = 'auth_last_used'
 LAST_USED_REFRESH_SECONDS = 60
+CLOCK_SKEW_SECONDS = 60
 
 
 def _now() -> float:
     return time.time()
+
+
+def valid_last_used(value) -> bool:
+    return (not isinstance(value, bool) and isinstance(value, (int, float))
+            and math.isfinite(value))
 
 
 def session_limit_seconds(remembered: bool) -> int:
@@ -60,8 +67,8 @@ def enforce_idle_limit(db) -> None:
         return
     now = _now()
     last_used = session.get(SESSION_LAST_USED_KEY)
-    if isinstance(last_used, bool) or not isinstance(last_used, (int, float)):
-        session[SESSION_LAST_USED_KEY] = now
+    if not valid_last_used(last_used) or last_used - now > CLOCK_SKEW_SECONDS:
+        session.clear()
         return
     limit = session_limit_seconds(bool(session.get(SESSION_REMEMBERED_KEY, False)))
     idle = now - last_used

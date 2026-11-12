@@ -108,23 +108,26 @@ def test_lost_refresh_never_signs_out(db, clock, make_session):
     assert auth_state.session_is_authenticated(db) is True
 
 
-def test_pre_upgrade_session_is_stamped_on_first_use(db, clock, make_session):
-    sess = make_session(auth_remembered=None, auth_last_used=None)
-    assert auth_state.session_is_authenticated(db) is True
-    assert sess['auth_last_used'] == T0
-    clock[0] += 24 * 3600 + 1
+def test_missing_last_used_is_signed_out(db, clock, make_session):
+    make_session(auth_last_used=None)
     assert auth_state.session_is_authenticated(db) is False
 
 
-def test_garbage_last_used_is_restamped_not_fatal(db, clock, make_session):
-    sess = make_session(auth_last_used='yesterday')
+@pytest.mark.parametrize('value', ['yesterday', True, float('nan'), float('inf'), -float('inf'), [1]])
+def test_invalid_last_used_is_signed_out(db, clock, make_session, value):
+    sess = make_session(auth_last_used=value)
+    assert auth_state.session_is_authenticated(db) is False
+    assert 'authenticated' not in sess
+
+
+def test_last_used_within_skew_is_not_expired(db, clock, make_session):
+    make_session(auth_last_used=T0 + 60)
     assert auth_state.session_is_authenticated(db) is True
-    assert sess['auth_last_used'] == T0
 
 
-def test_future_last_used_is_not_expired(db, clock, make_session):
+def test_last_used_beyond_skew_is_signed_out(db, clock, make_session):
     make_session(auth_last_used=T0 + 500)
-    assert auth_state.session_is_authenticated(db) is True
+    assert auth_state.session_is_authenticated(db) is False
 
 
 def test_changed_setting_applies_without_restart(db, clock, make_session):
