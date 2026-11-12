@@ -67,6 +67,7 @@ describe('Layout header hit targets', () => {
     const links = screen.getAllByRole('link', { name: /^(Feeds|Patterns|Queue|Settings)/ });
     expect(links.length).toBeGreaterThan(0);
     for (const link of links) expect(link.className.split(/\s+/)).toContain('touch-target');
+    expect(screen.getByRole('link', { name: 'MinusPod' }).className.split(/\s+/)).toContain('touch-target');
   });
 
   it('announces when the compact navigation is expanded', async () => {
