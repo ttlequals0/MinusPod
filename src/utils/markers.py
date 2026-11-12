@@ -442,10 +442,9 @@ MEASURED_EVIDENCE_STAGES = frozenset({
     'fingerprint', 'cue_pair', CUE_MATCH_STAGE, 'text_pattern', 'manual',
 })
 
-# Merge bookkeeping a split fragment must drop: it describes the merged
-# span, not the narrower piece the split just carved out.
+# Span-specific merge bookkeeping a split fragment must drop. MERGED_STAGES stays: stage evidence is not span-specific.
 _MERGE_BOOKKEEPING_KEYS = ('merged_distinct_ads', 'merged_protected_start',
-                           'merged_protected_end', MERGED_MEMBER_SPANS, MERGED_STAGES)
+                           'merged_protected_end', MERGED_MEMBER_SPANS)
 
 
 def _protected_bounds(marker: dict) -> tuple[float | None, float | None]:

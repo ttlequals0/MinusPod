@@ -115,7 +115,18 @@ def test_the_field_survives_clips_copies_and_a_json_round_trip():
     assert set(marker_stages(copied)) == {'fingerprint', 'vad_gap'}
 
 
-def test_a_carved_fragment_drops_the_merge_record_with_the_member_spans():
+def test_a_carved_fragment_keeps_the_stage_evidence_but_not_the_member_spans():
     marker = _ad('fingerprint', 10.0, 60.0)
     note_merged_members(marker, _ad('vad_gap', 40.0, 80.0))
-    assert marker_stages(carve_fragment(marker, 10.0, 30.0)) == ['fingerprint']
+    fragment = carve_fragment(marker, 10.0, 30.0)
+    assert 'merged_member_spans' not in fragment
+    assert set(marker_stages(fragment)) == {'fingerprint', 'vad_gap'}
+
+
+def test_a_carved_fragment_of_a_fingerprint_and_an_llm_detection_is_not_audio_only(world):
+    db, pid = world
+    marker = _fingerprint(pid)
+    note_merged_members(marker, _ad('claude', 40.0, 80.0))
+    fragment = carve_fragment(json.loads(json.dumps(marker)), 10.0, 30.0)
+    fragment['pattern_id'] = pid
+    assert _audio_only(db, fragment) is False
