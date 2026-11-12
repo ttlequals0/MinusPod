@@ -6513,7 +6513,8 @@ paths:
         the five health probes that drive them (llm-a, llm-b, llm-failover,
         transcriber, transcriber-failover), the auto-trigger/recovery policy,
         and the most recent manual/auto/probe events (#806). Reads committed
-        control state without running health probes.
+        control state without running health probes. When the LLM provider is
+        none, the LLM probe targets read as unknown with detail "LLM disabled".
       operationId: getFailover
       responses:
         '200':

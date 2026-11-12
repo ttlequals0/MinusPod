@@ -351,7 +351,7 @@ def fetch_pricing_chain(sources: list[dict]) -> list[dict]:
 
 
 def refresh_pricing_if_stale(force: bool = False):
-    """Fetch and persist pricing if cache has expired. Thread-safe.
+    """Fetch and persist pricing if cache has expired; does nothing when the LLM is disabled. Thread-safe.
 
     If live fetch fails and model_pricing is empty, seeds from DEFAULT_MODEL_PRICING.
 
@@ -359,7 +359,9 @@ def refresh_pricing_if_stale(force: bool = False):
         force: Skip both in-memory and DB TTL checks (used by force_refresh_pricing).
     """
     global _last_fetch
-    from llm_client import llm_disabled  # deferred: see the cycle note below
+    # Deferred imports to avoid circular dependency:
+    # pricing_fetcher -> llm_client -> database -> ... -> pricing_fetcher
+    from llm_client import get_effective_provider, get_effective_base_url, llm_disabled
     if llm_disabled():
         return
     if not force:
@@ -387,10 +389,6 @@ def refresh_pricing_if_stale(force: bool = False):
     # If fetch fails, allows retry in 5 minutes instead of waiting full TTL.
     with _fetch_lock:
         _last_fetch = time.monotonic() - PRICING_CACHE_TTL + 300
-
-    # Deferred imports to avoid circular dependency:
-    # pricing_fetcher -> llm_client -> database -> ... -> pricing_fetcher
-    from llm_client import get_effective_provider, get_effective_base_url
 
     provider = get_effective_provider()
     base_url = get_effective_base_url()

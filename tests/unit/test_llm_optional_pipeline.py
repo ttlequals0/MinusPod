@@ -252,6 +252,27 @@ def test_none_run_with_real_stages_makes_no_model_call(provider_none, model_call
     assert model_calls == []
 
 
+def test_none_run_still_transcribes(provider_none, no_model_calls):
+    m = _run_pipeline(_row())
+    assert m['result'] is True
+    m['dat'].assert_called_once()
+
+
+def test_none_run_applies_cross_fetch_differential_detections(provider_none, no_model_calls):
+    differential = {'regions': [{'kind': 'differential', 'corr': 0.1, 'start_s': 20.0, 'end_s': 45.0}]}
+    patches, matcher = _detector_with_matcher([])
+    matcher.find_matches.return_value = []
+    db = MagicMock()
+    db.get_setting_float.side_effect = lambda key, default=None: default
+    with patch.object(processing.ad_detector, 'db', db), patches[1], patches[2], patches[3]:
+        m = _run_pipeline(_row(), real_detect=True, refine_cuts_all=True, differential=differential)
+    assert m['result'] is True
+    m['diff_fetch'].assert_called_once()
+    cut_ads = m['refine'].call_args.args[2]
+    assert [(ad['detection_stage'], ad['start'], ad['end']) for ad in cut_ads] == [
+        ('dai_differential', 20.0, 45.0)]
+
+
 def test_recorder_sees_detection_with_a_real_provider(provider_anthropic, monkeypatch):
     calls = _install_recorder(monkeypatch)
     patches, _ = _detector_with_matcher([])

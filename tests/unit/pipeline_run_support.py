@@ -32,12 +32,12 @@ def _run_pipeline(podcast_row, cue_template_counts=None, cue_templates=None,
                   failover_state=None, standby_dispatch=False,
                   probe_phases=_PROBE_PHASES_UNSET, episode_row=None,
                   real_detect=False, refine_cuts_all=False, real_stages=(),
-                  manual_approval=None, settings=None):
+                  manual_approval=None, settings=None, differential=None):
     """Run stubbed pipeline stages with optional frozen routes and failover state.
 
     real_detect runs the real first-pass stage; refine_cuts_all marks every ad cut;
     real_stages names more stages to leave real: refine, reviewer, verify, assets, finalize.
-    settings overrides individual setting reads.
+    settings overrides individual setting reads; differential is the cross-fetch result.
     """
     with ExitStack() as stack:
         p = lambda *a, **k: stack.enter_context(patch.object(*a, **k))
@@ -80,7 +80,7 @@ def _run_pipeline(podcast_row, cue_template_counts=None, cue_templates=None,
         p(common, 'get_min_cut_confidence', return_value=0.8)
         dat = p(transcribe, '_download_and_transcribe',
                 return_value=('/tmp/mode.mp3', SEGMENTS))
-        p(signals, '_run_differential_fetch', return_value=None)
+        diff_fetch = p(signals, '_run_differential_fetch', return_value=differential)
         analyze = p(signals, '_run_audio_analysis', return_value=None)
         p(processing, 'load_positional_prior', return_value=None)
         if real_token_tracking:
@@ -195,7 +195,7 @@ def _run_pipeline(podcast_row, cue_template_counts=None, cue_templates=None,
                 run_context.end(ctx)
     return {'result': result, 'detect': detect, 'verify': verify,
             'analyze': analyze, 'refine': refine, 'finalize': finalize,
-            'dat': dat, 'db': db, 'reviewer': reviewer, 'recut': recut,
+            'dat': dat, 'diff_fetch': diff_fetch, 'db': db, 'reviewer': reviewer, 'recut': recut,
             'probe_selector': probe_selector, 'ensure_probes': ensure_probes}
 
 

@@ -3,6 +3,7 @@ import os
 import sys
 import tempfile
 import threading
+import time
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
@@ -434,9 +435,10 @@ def test_startup_verification_with_anthropic_and_no_key_still_warns(provider_ant
 
 @pytest.fixture
 def pricing_fetches(monkeypatch):
-    """Calls to the price catalog fetch; the in-memory TTL stamp is restored."""
+    """Calls to the price catalog fetch; the TTL stamp is stale on any host and restored."""
     calls = []
-    monkeypatch.setattr(pricing_fetcher, '_last_fetch', 0.0)
+    monkeypatch.setattr(pricing_fetcher, '_last_fetch',
+                        time.monotonic() - pricing_fetcher.PRICING_CACHE_TTL - 1)
     monkeypatch.setattr(pricing_fetcher, 'fetch_pricing_chain', lambda sources: calls.append(sources) or [])
     monkeypatch.setattr(pricing_fetcher, 'get_pricing_sources', lambda provider, base_url='': [{'type': 'litellm'}])
     monkeypatch.setattr(database, 'Database', MagicMock())
@@ -447,6 +449,11 @@ def pricing_fetches(monkeypatch):
 def test_pricing_refresh_makes_no_request_under_none(pricing_fetches, provider_none, force):
     pricing_fetcher.refresh_pricing_if_stale(force=force)
     assert pricing_fetches == []
+
+
+def test_stale_pricing_still_fetches_with_a_provider_when_not_forced(pricing_fetches, provider_anthropic):
+    pricing_fetcher.refresh_pricing_if_stale()
+    assert len(pricing_fetches) == 1
 
 
 def test_pricing_refresh_still_fetches_with_a_provider(pricing_fetches, provider_anthropic):
@@ -470,3 +477,51 @@ def test_pricing_refresh_route_still_refreshes_with_a_provider(app_client, hdr, 
     response = app_client.post('/api/v1/system/model-pricing/refresh', headers=hdr)
     assert response.status_code == 200
     assert refreshes == [1]
+
+
+def test_failover_overview_reads_llm_probes_as_disabled_under_none(app_client, hdr, provider_none):
+    response = app_client.get('/api/v1/failover', headers=hdr)
+    assert response.status_code == 200
+    probes = response.get_json()['probes']
+    for name in ('llm-a', 'llm-b', 'llm-failover'):
+        assert probes[name]['reachable'] is None
+        assert probes[name]['detail'] == 'LLM disabled'
+    assert_response_conforms('get', '/failover', response)
+
+
+def test_viewing_failover_under_none_leaves_stored_probe_rows_unchanged(app_client, hdr, provider_none):
+    db = get_database()
+    stored = '{"reachable": true, "status": 200, "detail": "ok", "healthy_streak": 3}'
+    db.set_setting('failover_probe:llm:primary', stored, is_default=False)
+    raw = {t: db.get_setting(f'failover_probe:{t}') for t in failover.PROBE_TARGETS}
+    assert app_client.get('/api/v1/failover', headers=hdr).status_code == 200
+    assert {t: db.get_setting(f'failover_probe:{t}') for t in failover.PROBE_TARGETS} == raw
+    assert db.get_setting('failover_probe:llm:primary') == stored
+
+
+@pytest.fixture
+def empty_pricing_table():
+    """A fresh install's empty model_pricing table; the rows are put back afterwards."""
+    conn = get_database().get_connection()
+    conn.execute('CREATE TEMP TABLE pricing_saved AS SELECT * FROM model_pricing')
+    conn.execute('DELETE FROM model_pricing')
+    conn.commit()
+    yield
+    conn.execute('DELETE FROM model_pricing')
+    conn.execute('INSERT INTO model_pricing SELECT * FROM pricing_saved')
+    conn.execute('DROP TABLE pricing_saved')
+    conn.commit()
+
+
+def test_model_pricing_is_an_empty_list_under_none(app_client, hdr, provider_none, empty_pricing_table):
+    response = app_client.get('/api/v1/system/model-pricing', headers=hdr)
+    assert response.status_code == 200
+    assert response.get_json() == {'models': []}
+    assert_response_conforms('get', '/system/model-pricing', response)
+
+
+def test_switching_from_none_to_a_provider_refreshes_pricing_once(app_client, hdr, no_clients, started_threads):
+    assert _put(app_client, hdr, {'llmProvider': 'none'}).status_code == 200
+    assert started_threads == []
+    assert _put(app_client, hdr, {'llmProvider': 'anthropic'}).status_code == 200
+    assert started_threads.count(provider_phases.force_refresh_pricing) == 1
