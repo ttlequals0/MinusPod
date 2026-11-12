@@ -159,4 +159,39 @@ describe('usePatternAudioPreview', () => {
     unmount();
     expect(signal?.aborted).toBe(true);
   });
+
+  it('ignores the rejected play of the first row when a second row was tapped right after', async () => {
+    let rejectFirst: (e: unknown) => void = () => {};
+    vi.mocked(HTMLMediaElement.prototype.play)
+      .mockReturnValueOnce(new Promise((_resolve, reject) => { rejectFirst = reject; }))
+      .mockResolvedValueOnce(undefined);
+    render(<Harness />);
+    act(() => { screen.getByRole('button', { name: 'source' }).click(); });
+    act(() => { screen.getByRole('button', { name: 'match' }).click(); });
+    await act(async () => { rejectFirst(new DOMException('interrupted', 'NotSupportedError')); });
+    expect(screen.getByTestId('error-source').textContent).toBe('');
+    expect(fetchSpy).not.toHaveBeenCalled();
+    expect(audioEl().getAttribute('src')).toBe(matchUrl);
+    fireEvent.playing(audioEl());
+    expect(state()).toBe('match-playing');
+  });
+
+  it('leaves playing when the element pauses on its own', async () => {
+    render(<Harness />);
+    await userEvent.click(screen.getByRole('button', { name: 'match' }));
+    fireEvent.playing(audioEl());
+    expect(state()).toBe('match-playing');
+    fireEvent.pause(audioEl());
+    expect(state()).toBe('');
+  });
+
+  it('empties the element source on unmount', async () => {
+    const load = vi.spyOn(HTMLMediaElement.prototype, 'load').mockImplementation(() => {});
+    const { unmount } = render(<Harness />);
+    await userEvent.click(screen.getByRole('button', { name: 'match' }));
+    const el = audioEl();
+    unmount();
+    expect(el.hasAttribute('src')).toBe(false);
+    expect(load).toHaveBeenCalled();
+  });
 });

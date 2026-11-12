@@ -155,6 +155,21 @@ describe('AudioMatchesList', () => {
       within(screen.getAllByRole('listitem')[0]).getByRole('button', { name: /^Play match/ })));
   });
 
+  it('does not pull focus back to a rejected row on later renders', async () => {
+    mockSubmitCorrection.mockResolvedValue(undefined);
+    vi.spyOn(HTMLMediaElement.prototype, 'play').mockResolvedValue(undefined);
+    renderList();
+    const rows = await screen.findAllByRole('listitem');
+    mockGetMatches.mockImplementation((_id: number, p: { page?: number } = {}) => Promise.resolve(
+      pageOf(twelve.map((m) => (m.id === 101 ? { ...m, rejected: true } : m)), p.page ?? 1)));
+    await userEvent.click(within(rows[0]).getByRole('button', { name: /^Not this ad/ }));
+    await waitFor(() => expect(document.activeElement).toBe(
+      within(screen.getAllByRole('listitem')[0]).getByRole('button', { name: /^Play match/ })));
+    const other = within(screen.getAllByRole('listitem')[2]).getByRole('button', { name: /^Play match/ });
+    await userEvent.click(other);
+    expect(document.activeElement).toBe(other);
+  });
+
   it('falls back to the row heading when the row has no play button', async () => {
     mockSubmitCorrection.mockResolvedValue(undefined);
     mockGetMatches.mockResolvedValue(pageOf([makeMatch(1)], 1));

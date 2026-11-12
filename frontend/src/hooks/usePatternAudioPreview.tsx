@@ -33,7 +33,11 @@ export function usePatternAudioPreview(patternId: number) {
 
   useEffect(() => () => {
     explainRef.current?.abort();
-    audioRef.current?.pause();
+    const audio = audioRef.current;
+    if (!audio) return;
+    audio.pause();
+    audio.removeAttribute('src');
+    audio.load();
   }, []);
 
   const fail = async (token: number, key: string, url: string, error?: unknown) => {
@@ -105,6 +109,8 @@ export function usePatternAudioPreview(patternId: number) {
       onWaiting={() => setPhase('loading')}
       onPlaying={() => setPhase('playing')}
       onEnded={() => setActive(null)}
+      // A pause we did not ask for (an OS interruption) must not leave the row on playing.
+      onPause={() => { if (activeRef.current?.phase === 'playing') setActive(null); }}
       onError={() => {
         const current = activeRef.current;
         if (!current) return;
