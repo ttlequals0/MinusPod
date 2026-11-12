@@ -15,7 +15,7 @@ export const rowActionBtn =
 export const rowActionIcon =
   'w-11 min-h-11 sm:h-7 sm:w-7 sm:min-h-0 inline-flex items-center justify-center';
 
-/** Desktop detection table rows: 30px tall. */
+/** Table row actions (detection rows, Sponsors, Patterns Protect): 28px on a fine pointer, 44px on coarse through index.css. */
 export const tableActionBtn = `h-7 px-1.5 text-xs rounded whitespace-nowrap inline-flex items-center justify-center ${focusRing}`;
 
 /** Review/detection cards: 44px, the tap-target floor. Labels wrap on a phone, where a flex row can squeeze a button below its text. */

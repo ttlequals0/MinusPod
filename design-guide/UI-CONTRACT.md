@@ -52,7 +52,7 @@ There is no `<Button>` component. Recipes are class strings composed at the call
 | `touchCompact` | Icon-only header action beside a heading | 36 px square below sm, text button from sm |
 | `touchTargetRow` | Row that must stay on one line on a phone | Full height, shared width below sm |
 | `rowActionBtn`, `rowActionIcon` | Marker and detection row actions and the icon beside them | Icon derives its box from the same source. 44 px tall on phones, labels never wrap. Four controls share one line; the five-control Ad review card moves Split and Edit to a second line below 430 px |
-| `tableActionBtn` | Desktop detection table rows | 30 px tall; carries `focusRing` |
+| `tableActionBtn` | Detection table rows, Sponsors page actions, the Patterns page Protect action | 28 px tall on a fine pointer, 44 px on a coarse pointer through the global rule; carries `focusRing` |
 | `cardActionBtn` | Review and detection card actions | 44 px floor; labels wrap on a phone; carries `focusRing` |
 | `dialogFooterBtn` | Dialog footer action | Text label at every width. Derives from `btnBase` as `${btnBase} border border-transparent` |
 | `dialogFooterGrid` | Dialog footer with 3 or more actions | Two columns below 360 px, one row of equal columns from 360 to 639 px, flex row from sm |
@@ -64,10 +64,11 @@ There is no `<Button>` component. Recipes are class strings composed at the call
 | `tdEmpty` | The single full-width empty-state cell | Centered muted text, `py-8` |
 | `rowCard` | Card fallback for a table row below the table breakpoint | Card surface, border, `p-4` |
 | `thBase` (compact tables) | Preview and breakdown tables that keep tighter density (ImportPreviewTable, the Processing runs table) | `py-2` cells, headers built from `thBase` |
-| `iconTarget` + `iconVisual` | Icon button with a smaller filled square (AuditionPlayButton, OpenEditorButton) | 44 px hit box on coarse pointers. Visual fills the 44 px target on phones and on coarse pointers at every width; on a fine pointer it is 28 px from sm up. |
+| `iconTarget` + `iconVisual` | Icon button with a smaller filled square (AuditionPlayButton, OpenEditorButton) | 44 px hit box on coarse pointers. Visual fills the 44 px target on phones and on coarse pointers at every width; on a fine pointer it is the row size (28 px) from sm up. `iconSizes` has the other sizes (see the button rules). |
 
 - Every button recipe carries `focusRing` and the disabled state through `btnBase` (or `btnLg`). `rowActionBtn`, `cardActionBtn`, and `tableActionBtn` carry `focusRing` too.
 - Pair `iconTarget` with `iconVisual`. The focus ring sits on the visual through `group-focus-visible`. `AuditionPlayButton` is the reference and `OpenEditorButton` is the second. A preview play button beside a text button has the same height as that button.
+- Icon button sizes come from `iconSizes` and equal the control beside them: `row` 28 px (beside `rowActionBtn` and `tableActionBtn`), `base` 32 px (beside `btnBase`), `field` 40 px (beside an input or select) and `full` 44 px (beside `cardActionBtn`). On a fine pointer from sm up each keeps its size. On phones and on coarse pointers every size fills the 44 px target.
 - An icon-only control centers its icon with inline-flex items-center justify-center or the iconTarget and iconVisual pair. Padding alone places the icon top-left once the coarse-pointer floor stretches the box.
 - Dialog footers with 3 or more actions keep their text labels at every width. Below 360 CSS px they become two equal columns in two rows, and from 360 to 639 px one row of equal-width columns (dialogFooterGrid), so nothing is icon-only. PatternDetailModal is the reference. A footer with four actions (SplitMarkerModal) keeps two columns below sm, since four labels do not fit one row. That grid spans the full dialog content width, and Modal draws the only rule above the footer.
 - Inline link-style actions (`text-primary hover:underline`, "Show full match") and selected-state toggles (`PageTabs`, `SegmentedToggle`, pagination numbers) are intentionally not button colour recipes.
