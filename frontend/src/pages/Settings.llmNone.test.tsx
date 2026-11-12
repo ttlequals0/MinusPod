@@ -283,4 +283,31 @@ describe('Settings: None provider', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Save changes' }));
     await waitFor(() => expect(mockUpdateSettings).toHaveBeenCalledWith({ fingerprintMatchStrictness: 0.7 }));
   });
+
+  it('opens a collapsed fingerprint section, focuses the bad field and sends nothing on Save', async () => {
+    localStorage.setItem('settings-section-audio-fingerprinting', 'true');
+    mockGetSettings.mockResolvedValue(makeSettings({
+      ...savedNone,
+      fingerprintEnabled: { value: true, isDefault: true },
+      fingerprintMatchStrictness: { value: 0.65, isDefault: true },
+      fingerprintMinCoverage: { value: 0.5, isDefault: true },
+      fingerprintGapToleranceS: { value: 3.5, isDefault: true },
+      fingerprintMinAdLengthS: { value: 5, isDefault: true },
+    }));
+    renderSettings();
+    const strictness = await screen.findByLabelText('Match strictness') as HTMLInputElement;
+    fireEvent.change(strictness, { target: { value: '99' } });
+    const header = screen.getByRole('heading', { name: 'Audio fingerprinting' }).closest('button') as HTMLButtonElement;
+    fireEvent.click(header);
+    await waitFor(() => expect(header.getAttribute('aria-expanded')).toBe('false'));
+    expect(strictness.closest('[inert]')).not.toBeNull();
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Save changes' }));
+
+    expect(header.getAttribute('aria-expanded')).toBe('true');
+    expect(strictness.closest('[inert]')).toBeNull();
+    expect(document.activeElement).toBe(strictness);
+    expect(screen.getByText('Enter a number from 0.65 to 0.95.')).toBeDefined();
+    expect(mockUpdateSettings).not.toHaveBeenCalled();
+  });
 });

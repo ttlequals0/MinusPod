@@ -1,4 +1,5 @@
-import { useEffect, useId, useRef, useState } from 'react';
+import { useCallback, useEffect, useId, useRef, useState } from 'react';
+import { flushSync } from 'react-dom';
 import CollapsibleSection from '../../components/CollapsibleSection';
 import ToggleSwitch from '../../components/ToggleSwitch';
 import { inputBase, invalidField, labelBase } from '../../components/fieldStyles';
@@ -78,12 +79,13 @@ const FIELDS: FieldDef[] = [
   },
 ];
 
-function FingerprintNumber({ def, value, limits, onCommit, onFieldIssue }: {
+function FingerprintNumber({ def, value, limits, onCommit, onFieldIssue, onReveal }: {
   def: FieldDef;
   value: number;
   limits: FingerprintLimits;
   onCommit: (v: number) => void;
   onFieldIssue: FieldIssueReporter;
+  onReveal: () => void;
 }) {
   const id = useId();
   const inputRef = useRef<HTMLInputElement>(null);
@@ -97,9 +99,13 @@ function FingerprintNumber({ def, value, limits, onCommit, onFieldIssue }: {
   const settingKey = FINGERPRINT_SETTING_KEYS[def.key];
   useEffect(() => {
     if (!blocked) return;
-    onFieldIssue(settingKey, () => inputRef.current?.focus());
+    onFieldIssue(settingKey, () => {
+      onReveal();
+      inputRef.current?.focus({ preventScroll: true });
+      inputRef.current?.scrollIntoView({ block: 'center' });
+    });
     return () => onFieldIssue(settingKey, null);
-  }, [settingKey, blocked, onFieldIssue]);
+  }, [settingKey, blocked, onFieldIssue, onReveal]);
 
   return (
     <div>
@@ -149,9 +155,24 @@ interface AudioFingerprintingSectionProps {
 
 // Fingerprint matching needs no model, so this section is never gated on the LLM provider.
 function AudioFingerprintingSection({ fingerprint, limits, onChange, onFieldIssue }: AudioFingerprintingSectionProps) {
+  const [revealed, setRevealed] = useState(false);
+  const [blockedKeys, setBlockedKeys] = useState<ReadonlySet<string>>(new Set());
+  const reportIssue = useCallback<FieldIssueReporter>((settingKey, focus) => {
+    setBlockedKeys((prev) => {
+      if (prev.has(settingKey) === (focus !== null)) return prev;
+      const next = new Set(prev);
+      if (focus) next.add(settingKey); else next.delete(settingKey);
+      return next;
+    });
+    onFieldIssue(settingKey, focus);
+  }, [onFieldIssue]);
+  // Flush so the section is open (no longer inert) before the field is focused.
+  const reveal = useCallback(() => flushSync(() => setRevealed(true)), []);
+  useEffect(() => { if (blockedKeys.size === 0) setRevealed(false); }, [blockedKeys]);
   return (
     <CollapsibleSection
       title="Audio fingerprinting"
+      forceOpen={revealed}
       subtitle="Recognizes ads you have already marked by their sound, with no model call."
     >
       <div className="space-y-6">
@@ -175,7 +196,8 @@ function AudioFingerprintingSection({ fingerprint, limits, onChange, onFieldIssu
             value={fingerprint[def.key]}
             limits={limits[def.key]}
             onCommit={(v) => onChange({ ...fingerprint, [def.key]: v })}
-            onFieldIssue={onFieldIssue}
+            onFieldIssue={reportIssue}
+            onReveal={reveal}
           />
         ))}
       </div>
