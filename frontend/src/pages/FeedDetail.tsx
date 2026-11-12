@@ -83,9 +83,9 @@ function ResultStatsGrid({ queued, skipped, queuedLabel }: {
   );
 }
 
-function reprocessModeVerb(mode: string, feedType?: string): string {
-  if (feedType === 'youtube') return mode === 'reprocess' ? 'SponsorBlock and pattern' : 'pass 1 LLM';
-  if (mode === 'full') return 'full AI';
+function reprocessModeVerb(mode: string, feedType?: string, llmEnabled = true): string {
+  if (feedType === 'youtube') return mode === 'reprocess' || !llmEnabled ? 'SponsorBlock and pattern' : 'pass 1 LLM';
+  if (mode === 'full') return llmEnabled ? 'full AI' : 'pattern-assisted';
   if (mode === 'llm') return 'transcript-reuse';
   return 'pattern-assisted';
 }
@@ -1079,7 +1079,7 @@ function FeedDetail() {
             <ResultStatsGrid queued={reprocessResult.queued} skipped={reprocessResult.skipped} queuedLabel="Queued" />
             {reprocessResult.queued > 0 && (
               <p className="text-sm text-muted-foreground">
-                {reprocessResult.queued} episodes have been queued for {reprocessModeVerb(reprocessResult.mode, feed.feedType)} reprocessing. They will be processed in the background.
+                {reprocessResult.queued} episodes have been queued for {reprocessModeVerb(reprocessResult.mode, feed.feedType, llmEnabled)} reprocessing. They will be processed in the background.
               </p>
             )}
           </div>

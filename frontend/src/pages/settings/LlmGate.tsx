@@ -36,9 +36,9 @@ export function LlmGate({ disabled, id, className = '', describedBy, note, child
     <fieldset
       disabled={disabled}
       aria-describedby={disabled ? noteId : undefined}
-      className={`m-0 min-w-0 border-0 p-0 [&_:is(input,select,textarea):disabled]:opacity-50 ${className}`}
+      className={`min-w-0 border-0 p-0 [&_:is(input,select,textarea):disabled]:opacity-50 ${className}`}
     >
-      {disabled && !describedBy && <LlmDisabledNote id={noteId} text={note} />}
+      {disabled && !describedBy && <LlmDisabledNote id={noteId} text={note} className="mb-2" />}
       <DisabledGroupContext.Provider value={disabled}>{children}</DisabledGroupContext.Provider>
     </fieldset>
   );

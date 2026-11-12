@@ -5,12 +5,12 @@
  * exercised.
  */
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { render, screen, waitFor, fireEvent } from '@testing-library/react';
+import { render, screen, waitFor, fireEvent, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router';
 import FeedDetail from './FeedDetail';
-import { refreshFeed, updateFeed } from '../api/feeds';
+import { refreshFeed, reprocessAllEpisodes, updateFeed } from '../api/feeds';
 import type { Episode, Feed } from '../api/types';
 
 const mockNavigate = vi.fn();
@@ -109,6 +109,9 @@ describe('FeedDetail: podping metadata line', () => {
     await userEvent.click(screen.getByRole('menuitem', { name: /Full reprocess/ }));
     const dialog = screen.getByRole('dialog', { name: 'Reprocess all episodes' });
     expect(dialog.textContent).toContain('Same as Reprocess while the LLM provider is set to None');
+    vi.mocked(reprocessAllEpisodes).mockResolvedValue({ queued: 2, skipped: 0, mode: 'full' } as never);
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Reprocess all episodes' }));
+    expect(await screen.findByText(/queued for pattern-assisted reprocessing/)).toBeTruthy();
   });
 
   it('shows the last ping time when one arrived', async () => {
