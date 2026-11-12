@@ -620,3 +620,35 @@ def test_calibration_worker_that_loses_the_provider_mid_run_saves_nothing_and_st
     assert calibration._CALIBRATION_STATE['running'] is False
     assert not temp_db.get_setting('reviewer_calibration_last')
     assert [r for r in caplog.records if r.levelno >= logging.WARNING] == []
+
+
+# Per-phase provider settings
+
+_PHASE_PROVIDER_KEYS = [
+    ('detection', 'detection_provider'),
+    ('review', 'review_provider'),
+    ('verification', 'verification_provider'),
+    ('chapters', 'chapters_provider'),
+    ('pattern_cleanup', 'pattern_cleanup_provider'),
+]
+
+
+@pytest.mark.parametrize('phase,setting_key', _PHASE_PROVIDER_KEYS)
+def test_secondary_phase_routes_refuse_a_client_under_none(temp_db, monkeypatch, phase, setting_key):
+    for key, value in {'llm_provider': 'none', 'secondary_provider_enabled': 'true',
+                       'secondary_provider': 'openai-compatible', setting_key: 'secondary',
+                       'claude_model': 'm', 'verification_model': 'm', 'review_model': 'm',
+                       'chapters_model': 'm', 'pattern_cleanup_model': 'm'}.items():
+        temp_db.set_setting(key, value, is_default=False)
+    llm_client.invalidate_provider_cache()
+
+    def boom(self, *args, **kwargs):
+        raise AssertionError('client class instantiated')
+    for cls in (llm_client.AnthropicClient, llm_client.OpenAICompatibleClient,
+                llm_client.OllamaNativeClient, llm_client.SystemOneClient):
+        monkeypatch.setattr(cls, '__init__', boom)
+
+    route = llm_route.resolve_route(phase, pass_provider='openai-compatible', pass_model='m')
+    assert route.credential_slot == 'secondary'
+    with pytest.raises(llm_client.LLMDisabledError):
+        llm_route.client_for_route(route)
