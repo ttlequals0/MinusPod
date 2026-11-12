@@ -62,6 +62,13 @@ describe('Layout header hit targets', () => {
     expect(classes.filter((c) => c.includes('pointer-coarse'))).toEqual([]);
   });
 
+  it('gives the desktop navigation links the coarse-pointer floor, so a tablet at xl keeps a 44px target', () => {
+    renderLayout();
+    const links = screen.getAllByRole('link', { name: /^(Feeds|Patterns|Queue|Settings)/ });
+    expect(links.length).toBeGreaterThan(0);
+    for (const link of links) expect(link.className.split(/\s+/)).toContain('touch-target');
+  });
+
   it('announces when the compact navigation is expanded', async () => {
     renderLayout();
     const menu = screen.getByRole('button', { name: 'Toggle menu' });

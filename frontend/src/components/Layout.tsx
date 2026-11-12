@@ -42,7 +42,7 @@ function NavLink({ to, label, active, onClick, count }: NavLinkProps) {
       to={to}
       onClick={onClick}
       aria-current={active ? 'page' : undefined}
-      className={`flex min-h-11 items-center px-3 py-2 text-sm font-medium transition-colors xl:min-h-0 rounded-md ${focusRing} ${
+      className={`touch-target flex min-h-11 items-center px-3 py-2 text-sm font-medium transition-colors xl:min-h-0 rounded-md ${focusRing} ${
         active
           ? 'bg-primary text-primary-foreground'
           : btnGhost
