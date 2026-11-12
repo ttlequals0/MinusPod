@@ -17,6 +17,16 @@ def _sql(db, statement, params=()):
     conn.commit()
 
 
+@pytest.fixture(autouse=True)
+def _remove_seeded_rows(app_client):
+    """The shared database outlives a test, so drop the rows these seeds insert outside the feed."""
+    yield
+    from api import get_database
+    for table, column in (('pattern_cleanup_runs', 'error'), ('failover_events', 'reason'),
+                          ('processing_history', 'error_message')):
+        _sql(get_database(), f"DELETE FROM {table} WHERE {column} = ?", (RAW,))  # noqa: S608
+
+
 def _episode_column(column):
     def seed(db):
         _sql(db, f"UPDATE episodes SET {column} = ? WHERE episode_id = ?", (RAW, EPISODE))  # noqa: S608
@@ -169,17 +179,17 @@ def test_a_last_error_setting_is_redacted_on_the_way_out(app_client, fp_feed, ke
 
 
 def test_failover_state_and_probe_text_are_redacted_on_the_way_out(app_client, fp_feed):
-    _sql(fp_feed, "INSERT INTO settings (key, value, is_default) VALUES ('failover_state:llm', ?, 0) "
+    _sql(fp_feed, "INSERT INTO settings (key, value, is_default) VALUES ('failover_state:llm:primary', ?, 0) "
                   "ON CONFLICT(key) DO UPDATE SET value = excluded.value",
          (json.dumps({'active': True, 'source': 'auto', 'since': 'x', 'reason': RAW}),))
-    _sql(fp_feed, "INSERT INTO settings (key, value, is_default) VALUES ('failover_probe:llm', ?, 0) "
+    _sql(fp_feed, "INSERT INTO settings (key, value, is_default) VALUES ('failover_probe:llm:primary', ?, 0) "
                   "ON CONFLICT(key) DO UPDATE SET value = excluded.value",
          (json.dumps({'reachable': False, 'detail': RAW}),))
     try:
         _assert_no_leak(_get('/api/v1/failover')(app_client))
     finally:
-        fp_feed.clear_setting('failover_state:llm')
-        fp_feed.clear_setting('failover_probe:llm')
+        fp_feed.clear_setting('failover_state:llm:primary')
+        fp_feed.clear_setting('failover_probe:llm:primary')
 
 
 def test_error_response_redacts_message_and_details(app_client):
