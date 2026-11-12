@@ -10,7 +10,7 @@ export type LoginResult =
 
 const FALLBACK_RETRY_SECONDS = 60;
 
-// Body field first, then the Retry-After header, then a fixed fallback.
+// Body field, then Retry-After; the fallback covers a 429 from a proxy in front of the app.
 function lockoutSeconds(err: ApiError): number {
   const field = (err.body as { retryAfterSeconds?: unknown } | null)?.retryAfterSeconds;
   if (typeof field === 'number' && Number.isFinite(field) && field > 0) return field;
