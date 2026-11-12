@@ -8,6 +8,7 @@ from tests.app_bootstrap import bootstrap, authenticate_test_client
 
 bootstrap('llm_optional_chapters_test_')
 
+import chapters_generator  # noqa: E402
 import llm_client  # noqa: E402
 from config import (  # noqa: E402
     CHAPTERS_MODE_AUTO, CHAPTERS_MODE_GENERATE, CHAPTERS_MODE_OFF, resolve_chapters_mode,
@@ -169,4 +170,43 @@ def test_regen_thread_that_loses_the_provider_is_a_quiet_noop(chapters_feed, pro
     assert not episode['chapters_regen_error'] and not episode['chapters_regen_started_at']
     rows, _ = db.get_processing_history(podcast_slug='chapters-none-feed')
     assert rows == []
+    assert [r for r in caplog.records if r.levelno >= logging.WARNING] == []
+
+
+@pytest.fixture
+def generator(monkeypatch):
+    monkeypatch.setattr(chapters_generator, 'get_chapters_model', lambda: 'test-model')
+    return chapters_generator.ChaptersGenerator(api_key='k')
+
+
+def _refusing_factory(*args, **kwargs):
+    raise llm_client.LLMDisabledError('none')
+
+
+def test_topic_detection_lets_the_disabled_error_propagate(generator, monkeypatch):
+    monkeypatch.setattr(chapters_generator, 'client_for_route', _refusing_factory)
+    with pytest.raises(llm_client.LLMDisabledError):
+        generator._detect_topic_boundaries('[00:00] hi', 0.0, 600.0, 2)
+
+
+def test_title_generation_lets_the_disabled_error_propagate(generator, monkeypatch):
+    # The first client lookup succeeds so the call reaches the guarded request step.
+    factory = iter([MagicMock()])
+
+    def client_once(*args, **kwargs):
+        try:
+            return next(factory)
+        except StopIteration:
+            return _refusing_factory()
+    monkeypatch.setattr(chapters_generator, 'client_for_route', client_once)
+    monkeypatch.setattr(generator, '_initialize_client', lambda: None)
+    chapters = [{'startTime': 0, 'title': None, 'needs_title': True}]
+    with pytest.raises(llm_client.LLMDisabledError):
+        generator.generate_chapter_titles(chapters, [], 'Show', 'Episode')
+
+
+def test_initialize_client_returns_quietly_under_none(generator, monkeypatch, caplog):
+    monkeypatch.setattr(chapters_generator, 'get_llm_client', _refusing_factory)
+    with caplog.at_level(logging.DEBUG):
+        assert generator._initialize_client() is None
     assert [r for r in caplog.records if r.levelno >= logging.WARNING] == []
