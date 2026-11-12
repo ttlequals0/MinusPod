@@ -140,10 +140,57 @@ def test_report_sections_and_notice(tmp_path, monkeypatch):
     _code, out = _run(tmp_path, monkeypatch, [GOOD])
     md = (out / 'report.md').read_text()
     assert 'Do not paste it into public issues' in md
-    for section in ('Gate result', 'Scan', 'Patterns', 'Matches', 'Gained matches', 'Edge moves',
-                    'Pieces', 'Listen to these', 'Wall time per episode', 'Notes'):
+    for section in ('Gate result', 'Scan', 'Patterns', 'Matches', 'Gained matches', 'Kept remainders',
+                    'Far from markers', 'Similarity 0.65 to 0.72', 'Patterns matching more than once',
+                    'Edge moves', 'Pieces', 'Listen to these', 'Wall time per episode', 'Notes'):
         assert f'## {section}' in md
     assert md.isascii()
+
+
+def _new(pid, start, end, similarity=0.9, **kw):
+    return af.FingerprintMatch(pattern_id=pid, start=start, end=end, confidence=similarity,
+                               similarity=similarity, coverage=0.9, contrast_margin=0.3, **kw)
+
+
+def _summary(tmp_path, monkeypatch, old, new):
+    db, root, provider = _build(tmp_path, monkeypatch)
+    monkeypatch.setattr(af, 'match_fingerprints', lambda *a, **k: list(new))
+    out = tmp_path / 'out'
+    code = cmp.run_compare(_args(db, root, out), old_module=_fake_old(old), fp_provider=provider,
+                           log=lambda *_: None)
+    return code, json.loads((out / 'report.json').read_text()), (out / 'report.md').read_text()
+
+
+def test_a_loss_covered_by_another_patterns_match_is_superseded_and_does_not_block(tmp_path, monkeypatch):
+    monkeypatch.setattr(af, 'explain_match', lambda *a, **k: {'matched': True, 'rejected_by': None})
+    code, s, md = _summary(tmp_path, monkeypatch, [_old_match(2, 50.0, 0.9)], [_new(1, 50.0, 70.0)])
+    assert code == 0 and not s['gate_blocking']
+    assert [r['pattern_id'] for r in s['superseded']] == [2]
+    assert '## Superseded losses' in md
+
+
+def test_kept_remainders_are_counted_and_one_outside_its_match_fails_the_gate(tmp_path, monkeypatch):
+    inside = _new(1, 55.0, 70.0, clipped_remainder=True, candidate_span=(50.0, 70.0))
+    (tmp_path / 'a').mkdir()
+    (tmp_path / 'b').mkdir()
+    code, s, _md = _summary(tmp_path / 'a', monkeypatch, [GOOD], [inside])
+    assert code == 0 and s['remainders']['count'] == 1
+    assert s['remainders']['seconds'] == pytest.approx(15.0) and s['remainders']['outside_candidate'] == 0
+    outside = _new(1, 45.0, 70.0, clipped_remainder=True, candidate_span=(50.0, 70.0))
+    code, s, md = _summary(tmp_path / 'b', monkeypatch, [GOOD], [outside])
+    assert code == 2 and s['remainders']['outside_candidate'] == 1 and not s['gate_passed']
+    assert '## Kept remainders' in md
+
+
+def test_far_near_band_and_repeated_matches_are_listed_with_their_contrast_margin(tmp_path, monkeypatch):
+    new = [_new(1, 50.0, 70.0), _new(1, 105.0, 115.0, similarity=0.68)]
+    _code, s, md = _summary(tmp_path, monkeypatch, [GOOD], new)
+    assert [(r['start'], r['marker_distance_s']) for r in s['far_from_markers']] == [(105.0, 35.0)]
+    assert [r['start'] for r in s['near_band']] == [105.0]
+    assert [r['pattern_matches_in_episode'] for r in s['repeated']] == [2, 2]
+    assert all(r['contrast_margin'] == 0.3 for r in s['repeated'])
+    for section in ('Far from markers', 'Similarity 0.65 to 0.72', 'Patterns matching more than once'):
+        assert f'## {section}' in md
 
 
 def test_redact_hides_identifiers(tmp_path, monkeypatch):

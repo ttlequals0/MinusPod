@@ -112,17 +112,29 @@ to replace slugs, episode ids and sponsors with stable hashes.
 
 The exit code is the release gate: 0 passes, 2 fails, 1 means an error. The gate fails when the new matcher loses a match the old matcher
 made in scope with an old score of 0.70 or more, and `explain_match`
-does not name a rejecting gate for it. A loss that does name a gate
-(coverage, evidence, similarity, not distinctive) does not fail the run
-but appears in the report, and the maintainer decides whether that
-reason is acceptable. Old matches scoring 0.65 to 0.70 that were lost are
-listed with a blank verdict column and never block.
+does not name a rejecting gate for it. It also fails if a kept remainder
+lies outside the span of the match it was clipped from. A remainder is
+the part of a match that is kept after a stronger match takes the rest,
+and the report gives their number and total length. A loss that does name
+a gate (coverage, evidence, similarity, contrast, not distinctive) does
+not fail the run but appears in the report, and the maintainer decides
+whether that reason is acceptable. A lost match that another pattern's new
+match covers by more than half is listed as superseded and does not block.
+Old matches scoring 0.65 to 0.70 that were lost are listed with a blank
+verdict column and never block.
 
-The remaining sections never change the exit code. They list gained
-matches and whether an existing ad marker confirms them, edges that moved
-more than one second outside or inside the old span, matches that now
-come back in several pieces, and matches with low similarity or coverage
-to check by ear.
+The remaining sections never change the exit code. They list:
+
+- gained matches and whether an existing ad marker confirms them
+- matches more than 30 seconds from every ad marker of their episode
+- matches with similarity from 0.65 to 0.72
+- patterns that matched more than once in one episode
+- edges that moved more than one second outside or inside the old span
+- matches that now come back in several pieces
+- matches with low similarity or coverage to check by ear
+
+Each match row also shows its contrast margin, which is how far its
+similarity beats the same stretch shifted a few seconds either way.
 
 ## Changelog conventions
 

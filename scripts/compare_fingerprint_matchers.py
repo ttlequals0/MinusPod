@@ -41,6 +41,8 @@ CLOSE_EVIDENCE_LIMIT_S = 3.0
 EDGE_TOLERANCE_S = 1.0
 LOW_SIMILARITY = 0.70
 LOW_COVERAGE = 0.6
+NEAR_BAND = (0.65, 0.72)
+FAR_FROM_MARKER_S = 30.0
 SHORT_PATTERN_S = 10.0
 LONG_PATTERN_S = 30.0
 AUDIO_SUFFIXES = {'.mp3', '.m4a', '.aac', '.ogg', '.opus', '.wav', '.flac', '.mp4'}
@@ -54,8 +56,10 @@ GATE_TEXT = (
     "Release gate: the release does not go ahead if the new matcher loses a match the old "
     "matcher made in scope with an old score of 0.70 or more (the old matcher's own "
     "similarity over min(10 s, stored length) at its start), unless explain_match names the "
-    "rejecting gate and the reason is accepted. Old matches scoring 0.65 to 0.70 are listed "
-    "with explain_match output and a verdict column left for the maintainer, and do not block.")
+    "rejecting gate and the reason is accepted, or if a kept remainder of a clipped match lies "
+    "outside that match's own span. A lost match that another pattern's new match covers by more "
+    "than half is listed as superseded and does not block. Old matches scoring 0.65 to 0.70 are "
+    "listed with explain_match output and a verdict column left for the maintainer, and do not block.")
 
 
 def load_old_matcher(ref=DEFAULT_OLD_REF, *, repo=REPO_ROOT, source_text=None):
@@ -269,6 +273,11 @@ def _best_marker(markers, start, end):
     return None
 
 
+def _marker_distance(markers, start, end):
+    """Seconds from [start, end] to the nearest marker, 0 when one overlaps, None without markers."""
+    return min((max(0.0, m[0] - end, start - m[1]) for m in markers), default=None)
+
+
 def _edge_row(kind, ref, start, end):
     """Edge offsets of [start, end] against a reference span; positive means outside."""
     out_start, out_end = ref[0] - start, end - ref[1]
@@ -290,12 +299,13 @@ def _explain(ep_ints, fp_duration, pattern, settings):
 
 
 def classify_loss(old, ex, superseded):
-    """('explained', gate) or ('unexplained', reason) for an old match the new matcher lost."""
+    """('superseded', why), ('explained', gate) or ('unexplained', reason) for a lost old match."""
+    if superseded:
+        return 'superseded', "another pattern's new match covers more than half of it"
     if ex is None or 'error' in ex:
         return 'unexplained', 'explain_match unavailable'
     if ex.get('matched') or ex.get('rejected_by') is None:
-        return 'unexplained', 'superseded by another pattern' if superseded else \
-            'explain_match accepts it but the scan returned none'
+        return 'unexplained', 'explain_match accepts it but the scan returned none'
     if 'start' in ex and _overlap(ex['start'], ex['end'], old.start, old.end) <= 0:
         return 'unexplained', 'explain_match measured a different place'
     return 'explained', ex['rejected_by']
@@ -329,7 +339,10 @@ def compare_episode(ctx, ep, ep_ints, fp_duration, total_duration, old_matcher):
     markers = ep['markers']
     res = {'old_s': old_s, 'new_s': new_s, 'old_count': len(old_matches), 'new_count': len(new_matches),
            'lost_to_scope': [], 'lost': [], 'pairs': 0, 'split': [], 'gained': [], 'edges': [],
-           'low_quality': []}
+           'low_quality': [], 'remainders': [], 'far_from_markers': [], 'near_band': [], 'repeated': []}
+    per_pattern = {}
+    for n in new_matches:
+        per_pattern[n.pattern_id] = per_pattern.get(n.pattern_id, 0) + 1
     used = set()
     for o in old_matches:
         p = by_id.get(o.pattern_id)
@@ -356,7 +369,8 @@ def compare_episode(ctx, ep, ep_ints, fp_duration, total_duration, old_matcher):
             continue
         ex = _explain(ep_ints, fp_duration, (o.pattern_id, p['ints'], p['duration'], p['sponsor'],
                                               p['category']), settings) if p and p['ints'] is not None else None
-        superseded = any(_overlap(n.start, n.end, o.start, o.end) > 0.5 * (o.end - o.start)
+        superseded = any(n.pattern_id != o.pattern_id
+                         and _overlap(n.start, n.end, o.start, o.end) > 0.5 * (o.end - o.start)
                          for n in new_matches)
         verdict, reason = classify_loss(o, ex, superseded)
         res['lost'].append({**base, 'bucket': 'under_10s' if stored < SHORT_PATTERN_S else 'over_10s',
@@ -364,8 +378,20 @@ def compare_episode(ctx, ep, ep_ints, fp_duration, total_duration, old_matcher):
                             'rejected_by': (ex or {}).get('rejected_by'), 'explain': ex})
     for n in new_matches:
         p = by_id.get(n.pattern_id)
+        distance = _marker_distance(markers, n.start, n.end)
         row = {**ident, 'pattern_id': n.pattern_id, 'start': n.start, 'end': n.end,
-               'similarity': n.similarity, 'coverage': n.coverage}
+               'similarity': n.similarity, 'coverage': n.coverage, 'contrast_margin': n.contrast_margin,
+               'pattern_matches_in_episode': per_pattern[n.pattern_id], 'marker_distance_s': distance}
+        if n.clipped_remainder:
+            c_lo, c_hi = n.candidate_span
+            res['remainders'].append({**row, 'candidate_start': c_lo, 'candidate_end': c_hi,
+                                      'outside_candidate': n.start < c_lo - 1e-6 or n.end > c_hi + 1e-6})
+        if distance is None or distance > FAR_FROM_MARKER_S:
+            res['far_from_markers'].append(row)
+        if NEAR_BAND[0] - 1e-9 <= n.similarity <= NEAR_BAND[1] + 1e-9:
+            res['near_band'].append(row)
+        if per_pattern[n.pattern_id] > 1:
+            res['repeated'].append(row)
         marker = _best_marker(markers, n.start, n.end)
         if marker:
             res['edges'].append({**row, **_edge_row('marker', marker, n.start, n.end)})
@@ -421,9 +447,12 @@ def build_summary(results, skipped, fallback, scanned, patterns, settings, stric
         return [r for res in results for r in res[key]]
 
     lost = rows('lost')
-    gated = [r for r in lost if r['old_score'] >= GATE_SCORE - 1e-9]
+    superseded = [r for r in lost if r['verdict'] == 'superseded']
+    gated = [r for r in lost if r['old_score'] >= GATE_SCORE - 1e-9 and r['verdict'] != 'superseded']
     blocking = [r for r in gated if r['verdict'] == 'unexplained']
-    band = [r for r in lost if r['old_score'] < GATE_SCORE - 1e-9]
+    band = [r for r in lost if r['old_score'] < GATE_SCORE - 1e-9 and r['verdict'] != 'superseded']
+    remainders = rows('remainders')
+    outside = [r for r in remainders if r['outside_candidate']]
     gained = rows('gained')
     edges = rows('edges')
     by_gate = {}
@@ -441,7 +470,7 @@ def build_summary(results, skipped, fallback, scanned, patterns, settings, stric
         'old_matches_out_of_scope': rows('lost_to_scope'),
         'lost': lost, 'lost_by_gate_and_length': by_gate,
         'gate_blocking': blocking, 'gate_explained': [r for r in gated if r['verdict'] == 'explained'],
-        'band': band,
+        'superseded': superseded, 'band': band,
         'gained': {'total': len(gained), 'confirmed_by_marker': sum(g['confirmed_by_marker'] for g in gained),
                    'close_evidence_under_3s': sum(g['close_evidence_s'] < CLOSE_EVIDENCE_LIMIT_S
                                                   for g in known_close),
@@ -452,10 +481,13 @@ def build_summary(results, skipped, fallback, scanned, patterns, settings, stric
         'undershoot': [e for e in edges if e['undershoot']],
         'edge_rows_total': len(edges),
         'split': rows('split'), 'low_quality': rows('low_quality'),
+        'far_from_markers': rows('far_from_markers'), 'near_band': rows('near_band'),
+        'repeated': rows('repeated'),
         'timing': {'old': _timing([r['old_s'] for r in results]),
                    'new': _timing([r['new_s'] for r in results])},
-        'remainders': None,
-        'gate_passed': not blocking,
+        'remainders': {'count': len(remainders), 'seconds': sum(r['end'] - r['start'] for r in remainders),
+                       'outside_candidate': len(outside), 'rows': remainders},
+        'gate_passed': not blocking and not outside,
     }
 
 
@@ -485,6 +517,9 @@ def render_markdown(s, redacted):
          f"## Gate result: {'PASS' if s['gate_passed'] else 'FAIL'}", '',
          f"- Unexplained losses at old score 0.70 or more: {len(s['gate_blocking'])}",
          f"- Explained losses at old score 0.70 or more (need acceptance): {len(s['gate_explained'])}",
+         f"- Kept remainders outside their clipped match's span (must be 0): "
+         f"{s['remainders']['outside_candidate']}",
+         f"- Superseded losses (another pattern's match covers them, do not block): {len(s['superseded'])}",
          f"- Old matches 0.65 to 0.70 lost (verdict for the maintainer): {len(s['band'])}", '']
     if s['gate_blocking']:
         L += _table(LOC_HEADERS + ['old score', 'why unexplained'],
@@ -530,10 +565,32 @@ def render_markdown(s, redacted):
           f"{g['confirmed_by_marker']}",
           f"- Close evidence under 3 s: {g['close_evidence_under_3s']}; 3 s or more: "
           f"{g['close_evidence_3s_or_more']}; not computable: {g['close_evidence_unknown']}", '']
-    L += _table(LOC_HEADERS + ['similarity', 'coverage', 'marker', 'close evidence (s)'],
-                [_loc(r) + [_fmt(r['similarity']), _fmt(r['coverage']),
+    L += _table(LOC_HEADERS + ['similarity', 'coverage', 'contrast margin', 'marker', 'close evidence (s)'],
+                [_loc(r) + [_fmt(r['similarity']), _fmt(r['coverage']), _fmt(r['contrast_margin'], 3),
                             'yes' if r['confirmed_by_marker'] else 'no', _fmt(r['close_evidence_s'])]
                  for r in g['rows']]) + [''] if g['rows'] else []
+    rem = s['remainders']
+    L += ['## Kept remainders', '',
+          f"- Remainders of clipped matches kept: {rem['count']}, {_fmt(rem['seconds'], 1)} s in all; "
+          f"outside their clipped match's span: {rem['outside_candidate']}", '']
+    if rem['rows']:
+        L += _table(LOC_HEADERS + ['clipped match start (s)', 'clipped match end (s)', 'outside'],
+                    [_loc(r) + [_fmt(r['candidate_start'], 1), _fmt(r['candidate_end'], 1),
+                                'yes' if r['outside_candidate'] else 'no'] for r in rem['rows']]) + ['']
+    if s['superseded']:
+        L += ['## Superseded losses', ''] + _table(
+            LOC_HEADERS + ['old score', 'pattern (s)'],
+            [_loc(r) + [_fmt(r['old_score']), _fmt(r['pattern_s'], 1)] for r in s['superseded']]) + ['']
+    L += ['## Far from markers', '',
+          f"- New matches more than {FAR_FROM_MARKER_S:.0f} s from every existing ad marker of the episode: "
+          f"{len(s['far_from_markers'])}", '']
+    L += _match_table(s['far_from_markers'], marker_distance=True)
+    L += ['## Similarity 0.65 to 0.72', '',
+          f"- New matches with similarity {NEAR_BAND[0]} to {NEAR_BAND[1]}: {len(s['near_band'])}", '']
+    L += _match_table(s['near_band'])
+    L += ['## Patterns matching more than once', '',
+          f"- New matches of a pattern that matched more than once in the episode: {len(s['repeated'])}", '']
+    L += _match_table(s['repeated'])
     L += ['## Edge moves', '',
           f"- Edge comparisons: {s['edge_rows_total']}; overshoot (more than 1 s outside): "
           f"{len(s['overshoot'])}; undershoot (more than 1 s inside): {len(s['undershoot'])}", '']
@@ -565,8 +622,6 @@ def render_markdown(s, redacted):
         [[name, _fmt(t[name]['mean_s'], 3), _fmt(t[name]['p95_s'], 3), _fmt(t[name]['total_s'], 3)]
          for name in ('old', 'new')]) + [
         '', '## Notes', '',
-        '- Kept remainders (count, seconds, outside-span check) are not computed: the match objects '
-        'and explain_match do not say which matches are remainders of a clipped candidate.',
         '- A match counts as paired when same-pattern new matches overlap the old match by at least '
         'half of the shorter span. The old match end is start plus stored length, so shorter new '
         'spans show as undershoot against the old match by design.',
@@ -577,6 +632,17 @@ def render_markdown(s, redacted):
         '- Pieces are compared against the old span as one group; marker edge rows are per new match, '
         'so a piece of a split match can show as undershoot against the marker.', '']
     return '\n'.join(L)
+
+
+def _match_table(rows, marker_distance=False):
+    if not rows:
+        return []
+    headers = LOC_HEADERS + ['similarity', 'coverage', 'contrast margin', 'matches of the pattern in the episode']
+    extra = ['nearest marker (s)'] if marker_distance else []
+    return _table(headers + extra, [
+        _loc(r) + [_fmt(r['similarity']), _fmt(r['coverage']), _fmt(r['contrast_margin'], 3),
+                   r['pattern_matches_in_episode']]
+        + ([_fmt(r['marker_distance_s'], 1)] if marker_distance else []) for r in rows]) + ['']
 
 
 def _explain_cell(ex):
@@ -636,7 +702,9 @@ def run_compare(args, *, old_module=None, fp_provider=None, log=print):
     log(GATE_TEXT)
     log(f"Gate {'PASSED' if summary['gate_passed'] else 'FAILED'}: "
         f"{len(summary['gate_blocking'])} unexplained loss(es) at old score 0.70 or more, "
-        f"{len(summary['gate_explained'])} explained (need acceptance), {len(summary['band'])} in the 0.65 to 0.70 band")
+        f"{len(summary['gate_explained'])} explained (need acceptance), "
+        f"{summary['remainders']['outside_candidate']} kept remainder(s) outside their clipped match, "
+        f"{len(summary['superseded'])} superseded, {len(summary['band'])} in the 0.65 to 0.70 band")
     log(f"Report: {out / 'report.md'}")
     return 0 if summary['gate_passed'] else 2
 
