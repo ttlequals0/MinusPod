@@ -685,7 +685,9 @@ def note_merged_members(target: dict, other: dict) -> None:
     merge_dai_core_spans(target, other)
     spans = _coalesce_coarse_members(member_spans(target) + member_spans(other))
     target[MERGED_MEMBER_SPANS] = spans
-    target[MERGED_STAGES] = list(dict.fromkeys(marker_stages(target) + marker_stages(other)))
+    stages = list(dict.fromkeys(marker_stages(target) + marker_stages(other)))
+    if stages:
+        target[MERGED_STAGES] = stages
     # A union already on the target only widens: a legacy bound has no member
     # span backing it.
     lo, hi = span_bounds(spans)
