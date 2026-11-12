@@ -17338,7 +17338,8 @@ components:
           enum: [active, off, none]
           description: >-
             Audio fingerprint state of the marker's pattern. Present only when the
-            marker has a pattern_id.
+            marker's pattern_id refers to an existing pattern; absent for a deleted
+            pattern or no pattern.
         merged_stages:
           type: array
           items:
@@ -17526,7 +17527,7 @@ components:
         patternAudioState:
           type: string
           enum: [active, off, none]
-          description: Audio fingerprint state of the detection's pattern. Present only when patternId is set.
+          description: Audio fingerprint state of the detection's pattern. Present only when patternId refers to an existing pattern; absent for a deleted pattern or no pattern.
         detectionStage: {type: [string, 'null']}
         category:
           type: [string, 'null']

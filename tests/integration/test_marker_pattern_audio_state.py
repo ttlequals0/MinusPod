@@ -68,3 +68,21 @@ def test_detections_mark_each_row_with_one_query(app_client, fp_feed, seeded, mo
     assert (states[seeded[0]], states[seeded[1]], states[seeded[2]]) == ('active', 'off', 'none')
     assert all('patternAudioState' not in d for d in rows if not d['patternId'])
     assert (calls, statements) == (1, 1)
+
+
+def test_a_deleted_pattern_leaves_no_audio_state(app_client, fp_feed):
+    gone = fp_feed.create_ad_pattern(scope='podcast', podcast_id=SLUG, text_template='deleted read ' * 8)
+    kept = fp_feed.create_ad_pattern(scope='podcast', podcast_id=SLUG, text_template='kept read ' * 8)
+    fp_feed.save_episode_details(SLUG, EPISODE, ad_markers=[
+        {'start': 10.0, 'end': 18.0, 'pattern_id': gone, 'was_cut': True},
+        {'start': 30.0, 'end': 38.0, 'pattern_id': kept, 'was_cut': True},
+    ])
+    fp_feed.delete_ad_pattern(gone)
+    body = app_client.get(f'/api/v1/feeds/{SLUG}/episodes/{EPISODE}', headers=csrf(app_client)).get_json()
+    by_pattern = {m['pattern_id']: m for m in body['adMarkers']}
+    assert 'patternAudioState' not in by_pattern[gone]
+    assert by_pattern[kept]['patternAudioState'] == 'none'
+    rows = app_client.get('/api/v1/detections?status=all&limit=100', headers=csrf(app_client)).get_json()['detections']
+    by_id = {d['patternId']: d for d in rows if d['feedSlug'] == SLUG}
+    assert 'patternAudioState' not in by_id[gone]
+    assert by_id[kept]['patternAudioState'] == 'none'
