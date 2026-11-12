@@ -5,7 +5,7 @@ from datetime import datetime, timedelta, timezone
 
 from config import (
     AUTO_PROCESS_MAX_AGE_HOURS_BOUNDS, AUTO_PROCESS_MAX_AGE_HOURS_DEFAULT,
-    DEFER_SERVICE_LLM,
+    DEFER_SERVICE_LLM, QUEUE_ORDERS,
 )
 from database.episodes import HAS_TRANSCRIPT_SQL, normalize_published_at
 from utils.time import ISO_FORMAT, utc_now, utc_now_iso
@@ -50,7 +50,6 @@ def resolve_queue_boosts() -> dict[str, int]:
     """
     return {key: _resolve_boost(key, fallback) for key, fallback in _BOOST_SETTINGS}
 
-QUEUE_ORDERS = ('queued', 'oldest_first', 'newest_first')
 DEFAULT_QUEUE_ORDER = 'queued'
 
 

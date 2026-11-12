@@ -21,6 +21,7 @@ from config import (
     coerce_bool_setting,
     FINGERPRINT_SETTING_RANGES,
     apply_ad_chapter_compat, MAX_AD_DURATION, MAX_AD_DURATION_CONFIRMED,
+    QUEUE_ORDERS,
     SESSION_LIFETIME_HOURS_MIN, SESSION_LIFETIME_HOURS_MAX,
     SESSION_REMEMBER_DAYS_MIN, SESSION_REMEMBER_DAYS_MAX,
     MAX_ARTWORK_BYTES_MIN, MAX_ARTWORK_BYTES_MAX, MAX_RSS_BYTES_MIN,
@@ -45,7 +46,6 @@ from database.settings import (
     AD_RESET_SETTING_KEYS, SETTINGS_REGISTRY,
     registry_default, registry_get_default,
 )
-from database.queue import QUEUE_ORDERS
 from user_agent import invalidate_cache as invalidate_user_agent_cache
 from rate_limit_hold import clear_holds_for_provider_change
 from llm_client import (
@@ -574,21 +574,25 @@ def _apply_size_caps(db, data):
         logger.info(f"Updated {db_key} to: {value}")
 
 
-def _size_cap_writes(data):
-    caps = (
-        ('maxArtworkBytes', 'max_artwork_bytes', MAX_ARTWORK_BYTES_MIN, MAX_ARTWORK_BYTES_MAX),
-        ('maxRssBytes', 'max_rss_bytes', MAX_RSS_BYTES_MIN, None),
-        ('maxAudioDownloadMb', 'max_audio_download_mb', MAX_AUDIO_DOWNLOAD_MB_MIN, None),
-        ('localUploadMaxMb', 'local_upload_max_mb',
-         LOCAL_UPLOAD_MAX_MB_MIN, LOCAL_UPLOAD_MAX_MB_MAX),
-    )
+def _int_range_writes(data, fields, *, strict=False):
+    """Validated (db key, int or None) writes for integer range fields, or an issue.
+
+    strict also resets on null and rejects bools and fractional floats; otherwise the
+    value is truncated with int().
+    """
     writes = []
-    for payload_key, db_key, floor, ceiling in caps:
+    for payload_key, db_key, floor, ceiling in fields:
         if payload_key not in data:
             continue
+        raw = data[payload_key]
+        if strict and raw is None:
+            writes.append((db_key, None))
+            continue
         try:
-            n = int(data[payload_key])
-        except (TypeError, ValueError):
+            if strict and (isinstance(raw, bool) or (isinstance(raw, float) and not raw.is_integer())):
+                raise TypeError
+            n = int(raw)
+        except (TypeError, ValueError, OverflowError) if strict else (TypeError, ValueError):
             return None, (f'{payload_key} must be an integer', 400)
         if n < floor or (ceiling is not None and n > ceiling):
             bound = f'between {floor} and {ceiling}' if ceiling is not None else f'at least {floor}'
@@ -597,31 +601,27 @@ def _size_cap_writes(data):
     return writes, None
 
 
+_SIZE_CAP_FIELDS = (
+    ('maxArtworkBytes', 'max_artwork_bytes', MAX_ARTWORK_BYTES_MIN, MAX_ARTWORK_BYTES_MAX),
+    ('maxRssBytes', 'max_rss_bytes', MAX_RSS_BYTES_MIN, None),
+    ('maxAudioDownloadMb', 'max_audio_download_mb', MAX_AUDIO_DOWNLOAD_MB_MIN, None),
+    ('localUploadMaxMb', 'local_upload_max_mb',
+     LOCAL_UPLOAD_MAX_MB_MIN, LOCAL_UPLOAD_MAX_MB_MAX),
+)
+_SESSION_FIELDS = (
+    ('sessionLifetimeHours', 'session_lifetime_hours',
+     SESSION_LIFETIME_HOURS_MIN, SESSION_LIFETIME_HOURS_MAX),
+    ('sessionRememberDays', 'session_remember_days',
+     SESSION_REMEMBER_DAYS_MIN, SESSION_REMEMBER_DAYS_MAX),
+)
+
+
+def _size_cap_writes(data):
+    return _int_range_writes(data, _SIZE_CAP_FIELDS)
+
+
 def _session_settings_writes(data):
-    fields = (
-        ('sessionLifetimeHours', 'session_lifetime_hours',
-         SESSION_LIFETIME_HOURS_MIN, SESSION_LIFETIME_HOURS_MAX),
-        ('sessionRememberDays', 'session_remember_days',
-         SESSION_REMEMBER_DAYS_MIN, SESSION_REMEMBER_DAYS_MAX),
-    )
-    writes = []
-    for payload_key, db_key, floor, ceiling in fields:
-        if payload_key not in data:
-            continue
-        raw = data[payload_key]
-        if raw is None:
-            writes.append((db_key, None))
-            continue
-        try:
-            if isinstance(raw, bool) or (isinstance(raw, float) and not raw.is_integer()):
-                raise TypeError
-            n = int(raw)
-        except (TypeError, ValueError, OverflowError):
-            return None, (f'{payload_key} must be an integer', 400)
-        if n < floor or n > ceiling:
-            return None, (f'{payload_key} must be between {floor} and {ceiling}', 400)
-        writes.append((db_key, n))
-    return writes, None
+    return _int_range_writes(data, _SESSION_FIELDS, strict=True)
 
 
 def _apply_session_settings(db, data):
@@ -640,13 +640,11 @@ def _apply_session_settings(db, data):
 
 
 def _validate_session_settings_payload(data):
-    _writes, issue = _session_settings_writes(data)
-    return issue
+    return _session_settings_writes(data)[1]
 
 
 def _validate_size_caps_payload(data):
-    _writes, issue = _size_cap_writes(data)
-    return issue
+    return _size_cap_writes(data)[1]
 
 
 def _apply_user_agent_fields(db, data):
@@ -884,8 +882,6 @@ def _apply_processing_flags(db, data):
         db.set_setting('chapters_mode', value, is_default=False)
 
     if 'queueOrder' in data:
-        if data['queueOrder'] not in QUEUE_ORDERS:
-            return error_response(f"queueOrder must be one of: {', '.join(QUEUE_ORDERS)}", 400)
         db.set_setting('queue_order', data['queueOrder'], is_default=False)
 
     if 'skipSecondPass' in data:
@@ -1580,6 +1576,41 @@ def _apply_max_ad_duration_fields(db, data):
     return None
 
 
+def _float_in_range(field, raw, low, high, *, numbers_only=False):
+    """(value, None) when raw is a finite float within [low, high], else (None, issue).
+
+    numbers_only rejects bools and strings and reports one combined message.
+    """
+    if numbers_only:
+        message = f'{field} must be a number between {low:g} and {high:g}'
+        if isinstance(raw, bool) or not isinstance(raw, (int, float)):
+            return None, (message, 400)
+        errors = (OverflowError,)
+        range_message = message
+    else:
+        message = f'{field} must be a number'
+        errors = (TypeError, ValueError)
+        range_message = f'{field} must be between {low} and {high}'
+    try:
+        value = float(raw)
+    except errors:
+        return None, (message, 400)
+    if not math.isfinite(value) or value < low or value > high:
+        return None, (range_message, 400)
+    return value, None
+
+
+def _apply_writes(db, result):
+    """Persist (key, value) writes from a *_writes result, or return its error response."""
+    writes, issue = result
+    if issue is not None:
+        return error_response(*issue)
+    for db_key, value in writes:
+        db.set_setting(db_key, value, is_default=False)
+        logger.info(f"Updated {db_key} to: {value}")
+    return None
+
+
 def _audio_cue_writes(db, data):
     from config import AUDIO_CUE_FREQ_MIN_HZ, AUDIO_CUE_FREQ_MAX_HZ
 
@@ -1619,12 +1650,9 @@ def _audio_cue_writes(db, data):
     ):
         if field_name not in data:
             continue
-        try:
-            value = float(data[field_name])
-        except (TypeError, ValueError):
-            return None, (f'{field_name} must be a number', 400)
-        if not math.isfinite(value) or value < low or value > high:
-            return None, (f'{field_name} must be between {low} and {high}', 400)
+        value, issue = _float_in_range(field_name, data[field_name], low, high)
+        if issue is not None:
+            return None, issue
         if field_name in ('audioCueFreqMinHz', 'audioCueFreqMaxHz'):
             if not value.is_integer():
                 return None, (f'{field_name} must be an integer', 400)
@@ -1646,26 +1674,15 @@ def _audio_cue_writes(db, data):
 
 
 def _validate_audio_cue_payload(db, data):
-    _writes, issue = _audio_cue_writes(db, data)
-    return issue
+    return _audio_cue_writes(db, data)[1]
 
 
 def _apply_audio_cue_fields(db, data):
-    writes, issue = _audio_cue_writes(db, data)
-    if issue is not None:
-        return error_response(*issue)
-    for db_key, value in writes:
-        db.set_setting(db_key, value, is_default=False)
-        logger.info(f"Updated {db_key} to: {value}")
-    return None
+    return _apply_writes(db, _audio_cue_writes(db, data))
 
 
 FINGERPRINT_PAYLOAD_KEYS = {
-    'fingerprint_match_strictness': 'fingerprintMatchStrictness',
-    'fingerprint_min_coverage': 'fingerprintMinCoverage',
-    'fingerprint_gap_tolerance_s': 'fingerprintGapToleranceS',
-    'fingerprint_min_ad_length_s': 'fingerprintMinAdLengthS',
-}
+    key: SETTINGS_REGISTRY[key].payload_key for key in FINGERPRINT_SETTING_RANGES}
 
 
 def _fingerprint_writes(data):
@@ -1679,33 +1696,19 @@ def _fingerprint_writes(data):
         if field not in data:
             continue
         _default, low, high = FINGERPRINT_SETTING_RANGES[db_key]
-        value = data[field]
-        message = f'{field} must be a number between {low:g} and {high:g}'
-        if isinstance(value, bool) or not isinstance(value, (int, float)):
-            return None, (message, 400)
-        try:
-            value = float(value)
-        except OverflowError:
-            return None, (message, 400)
-        if not math.isfinite(value) or value < low or value > high:
-            return None, (message, 400)
+        value, issue = _float_in_range(field, data[field], low, high, numbers_only=True)
+        if issue is not None:
+            return None, issue
         writes.append((db_key, str(value)))
     return writes, None
 
 
 def _validate_fingerprint_payload(data):
-    _writes, issue = _fingerprint_writes(data)
-    return issue
+    return _fingerprint_writes(data)[1]
 
 
 def _apply_fingerprint_fields(db, data):
-    writes, issue = _fingerprint_writes(data)
-    if issue is not None:
-        return error_response(*issue)
-    for db_key, value in writes:
-        db.set_setting(db_key, value, is_default=False)
-        logger.info(f"Updated {db_key} to: {value}")
-    return None
+    return _apply_writes(db, _fingerprint_writes(data))
 
 
 def _detection_tuning_writes(db, data):
@@ -1729,12 +1732,9 @@ def _detection_tuning_writes(db, data):
     ):
         if field_name not in data:
             continue
-        try:
-            value = float(data[field_name])
-        except (TypeError, ValueError):
-            return None, (f'{field_name} must be a number', 400)
-        if not math.isfinite(value) or value < low or value > high:
-            return None, (f'{field_name} must be between {low} and {high}', 400)
+        value, issue = _float_in_range(field_name, data[field_name], low, high)
+        if issue is not None:
+            return None, issue
         writes.append((db_key, str(value)))
 
     bounds = {}
@@ -1769,18 +1769,11 @@ def _detection_tuning_writes(db, data):
 
 
 def _validate_detection_tuning_payload(db, data):
-    _writes, issue = _detection_tuning_writes(db, data)
-    return issue
+    return _detection_tuning_writes(db, data)[1]
 
 
 def _apply_detection_tuning_fields(db, data):
-    writes, issue = _detection_tuning_writes(db, data)
-    if issue is not None:
-        return error_response(*issue)
-    for db_key, value in writes:
-        db.set_setting(db_key, value, is_default=False)
-        logger.info(f"Updated {db_key} to: {value}")
-    return None
+    return _apply_writes(db, _detection_tuning_writes(db, data))
 
 
 def _apply_positional_prior_fields(db, data):

@@ -2666,22 +2666,25 @@ def _validate_positive_int(value: str) -> bool:
         return False
 
 
+QUEUE_ORDERS = ('queued', 'oldest_first', 'newest_first')
+
 SESSION_LIFETIME_HOURS_MIN, SESSION_LIFETIME_HOURS_MAX = 1, 8760
 SESSION_REMEMBER_DAYS_MIN, SESSION_REMEMBER_DAYS_MAX = 1, 365
 
 
-def _validate_session_lifetime_hours(value: str) -> bool:
-    try:
-        return SESSION_LIFETIME_HOURS_MIN <= int(value) <= SESSION_LIFETIME_HOURS_MAX
-    except (ValueError, TypeError):
-        return False
+def _int_in_range(lo: int, hi: int):
+    def validate(value: str) -> bool:
+        try:
+            return lo <= int(value) <= hi
+        except (ValueError, TypeError):
+            return False
+    return validate
 
 
-def _validate_session_remember_days(value: str) -> bool:
-    try:
-        return SESSION_REMEMBER_DAYS_MIN <= int(value) <= SESSION_REMEMBER_DAYS_MAX
-    except (ValueError, TypeError):
-        return False
+_validate_session_lifetime_hours = _int_in_range(
+    SESSION_LIFETIME_HOURS_MIN, SESSION_LIFETIME_HOURS_MAX)
+_validate_session_remember_days = _int_in_range(
+    SESSION_REMEMBER_DAYS_MIN, SESSION_REMEMBER_DAYS_MAX)
 
 
 def _validate_non_negative_int(value: str) -> bool:

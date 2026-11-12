@@ -54,7 +54,7 @@ from config import (
     resolve_community_sync_categories, DEFAULT_COMMUNITY_SYNC_CATEGORIES_JSON,
     resolve_jit_blocked_user_agents,
     WHISPER_POOL_MAX_REQUESTS_RANGE, WHISPER_POOL_MAX_EPISODES_RANGE,
-    PROCESSING_SCHEDULE_DAY_KEYS,
+    PROCESSING_SCHEDULE_DAY_KEYS, QUEUE_ORDERS,
 )
 from secrets_crypto import (
     CryptoUnavailableError, decrypt, encrypt, is_ciphertext,
@@ -205,14 +205,16 @@ def _payload_max_artwork_bytes() -> int:
                               ceiling=MAX_ARTWORK_BYTES_MAX, settings={})
 
 
-def _payload_session_lifetime_hours() -> int:
-    return get_env_backed_int('session_lifetime_hours', floor=SESSION_LIFETIME_HOURS_MIN,
-                              ceiling=SESSION_LIFETIME_HOURS_MAX, settings={})
+def _payload_int_in_range(key: str, lo: int, hi: int):
+    def payload() -> int:
+        return get_env_backed_int(key, floor=lo, ceiling=hi, settings={})
+    return payload
 
 
-def _payload_session_remember_days() -> int:
-    return get_env_backed_int('session_remember_days', floor=SESSION_REMEMBER_DAYS_MIN,
-                              ceiling=SESSION_REMEMBER_DAYS_MAX, settings={})
+_payload_session_lifetime_hours = _payload_int_in_range(
+    'session_lifetime_hours', SESSION_LIFETIME_HOURS_MIN, SESSION_LIFETIME_HOURS_MAX)
+_payload_session_remember_days = _payload_int_in_range(
+    'session_remember_days', SESSION_REMEMBER_DAYS_MIN, SESSION_REMEMBER_DAYS_MAX)
 
 
 def _payload_max_rss_bytes() -> int:
@@ -569,7 +571,7 @@ SETTINGS_REGISTRY: dict[str, SettingSpec] = {
     # queue_order column overrides it. 'queued' keeps today's order.
     'queue_order': SettingSpec(
         default='queued', seeded=True, in_ad_reset=True,
-        payload_key='queueOrder', validator=_one_of('queued', 'oldest_first', 'newest_first')),
+        payload_key='queueOrder', validator=_one_of(*QUEUE_ORDERS)),
     'podping_enabled': SettingSpec(
         default='false', seeded=True, resettable=False,
         payload_key='podpingEnabled', payload_kind='bool'),
@@ -1014,18 +1016,14 @@ SETTINGS_REGISTRY: dict[str, SettingSpec] = {
     'fingerprint_enabled': SettingSpec(
         default='true', in_ad_reset=True,
         payload_key='fingerprintEnabled', payload_kind='bool'),
-    'fingerprint_match_strictness': SettingSpec(
-        default=str(FINGERPRINT_SETTING_RANGES['fingerprint_match_strictness'][0]), in_ad_reset=True,
-        payload_key='fingerprintMatchStrictness', payload_kind='float'),
-    'fingerprint_min_coverage': SettingSpec(
-        default=str(FINGERPRINT_SETTING_RANGES['fingerprint_min_coverage'][0]), in_ad_reset=True,
-        payload_key='fingerprintMinCoverage', payload_kind='float'),
-    'fingerprint_gap_tolerance_s': SettingSpec(
-        default=str(FINGERPRINT_SETTING_RANGES['fingerprint_gap_tolerance_s'][0]), in_ad_reset=True,
-        payload_key='fingerprintGapToleranceS', payload_kind='float'),
-    'fingerprint_min_ad_length_s': SettingSpec(
-        default=str(FINGERPRINT_SETTING_RANGES['fingerprint_min_ad_length_s'][0]), in_ad_reset=True,
-        payload_key='fingerprintMinAdLengthS', payload_kind='float'),
+    **{key: SettingSpec(
+        default=str(FINGERPRINT_SETTING_RANGES[key][0]), in_ad_reset=True,
+        payload_key=payload_key, payload_kind='float')
+       for key, payload_key in (
+           ('fingerprint_match_strictness', 'fingerprintMatchStrictness'),
+           ('fingerprint_min_coverage', 'fingerprintMinCoverage'),
+           ('fingerprint_gap_tolerance_s', 'fingerprintGapToleranceS'),
+           ('fingerprint_min_ad_length_s', 'fingerprintMinAdLengthS'))},
 
     # -- Silence snap (Phase B boundary snap; not in the bulk reset) --
     'silence_snap_noise_db': SettingSpec(
