@@ -13,6 +13,7 @@ from config import (
     title_matches_skip_patterns, description_matches_skip_patterns,
     duration_outside_feed_range, episode_matches_feed_filters,
 )
+from api.audio_state import add_pattern_audio_state
 from ad_chapters import refresh_keep_like_markers
 from ad_yield import latest_completed_run, low_ad_yield
 from database.podcasts import is_local_feed, is_recents_feed, is_youtube_feed, recents_cutoff
@@ -349,6 +350,9 @@ def get_episode(slug, episode_id):
                     ad_markers.append(marker)
         except (json.JSONDecodeError, TypeError, KeyError):
             pass
+
+    add_pattern_audio_state(
+        db, [*ad_markers, *rejected_ad_markers, *pending_review_markers, *kept_markers], 'pattern_id')
 
     # Cross-fetch differential result (Layer 3); null until a differential
     # run has stored one.

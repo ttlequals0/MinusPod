@@ -17267,6 +17267,15 @@ components:
           enum: [first_pass, claude, fingerprint, text_pattern, language, audio_enforced, verification, dai_differential, transcript_differential, vad_gap, cue_pair, heuristic_preroll, heuristic_postroll, keep_content, manual, description_chapter]
           description: Which detection stage found this ad
           example: first_pass
+        pattern_id:
+          type: [integer, 'null']
+          description: The ad pattern this marker matched or created, when any.
+        patternAudioState:
+          type: string
+          enum: [active, off, none]
+          description: >-
+            Audio fingerprint state of the marker's pattern. Present only when the
+            marker has a pattern_id.
         merged_stages:
           type: array
           items:
@@ -17451,6 +17460,10 @@ components:
         sponsor: {type: [string, 'null']}
         reason: {type: [string, 'null']}
         patternId: {type: [integer, 'null']}
+        patternAudioState:
+          type: string
+          enum: [active, off, none]
+          description: Audio fingerprint state of the detection's pattern. Present only when patternId is set.
         detectionStage: {type: [string, 'null']}
         category:
           type: [string, 'null']

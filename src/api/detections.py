@@ -8,6 +8,7 @@ from api import (
     api, log_request, json_response, error_response,
     get_database, get_feed_auth_key,
 )
+from api.audio_state import add_pattern_audio_state
 import config
 from config import ALL_HOLD_REASONS, SEGMENT_CATEGORIES
 from detection_review import (
@@ -84,6 +85,7 @@ def list_detections():
     # Same-origin processed-audio URL, carrying the feed auth key when
     # enabled so the waveform editor does not 401 (mirrors the episode
     # detail endpoint's processedUrl). Built only for the returned page.
+    add_pattern_audio_state(db, page_items, 'patternId')
     feed_auth_key = get_feed_auth_key(db)
     for item in page_items:
         version = item.pop('processedVersion', 0)
