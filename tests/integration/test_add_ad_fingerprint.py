@@ -201,8 +201,8 @@ class _FakeDb:
     def get_transcript_for_timestamps(self, slug, episode_id):
         return self._transcript
 
-    def get_ad_pattern_by_id(self, pattern_id):
-        return {'text_template': self._templates[pattern_id]}
+    def get_ad_patterns_by_ids(self, pattern_ids):
+        return {pid: {'text_template': self._templates[pid]} for pid in pattern_ids}
 
 
 def _own(timed_lines, templates, text=THREE_SPONSORS, start=10.0, end=100.0):
@@ -235,3 +235,19 @@ def test_a_template_wholly_inside_an_earlier_one_gets_no_span():
     own = _own([(10.0, 40.0, FIRST_READ), (40.0, 70.0, SECOND_TEMPLATE), (70.0, 100.0, THIRD_READ)],
                {1: FIRST_READ + ' ' + SECOND_TEMPLATE, 2: SECOND_TEMPLATE, 3: THIRD_READ})
     assert own == {1: (10.0, 70.0), 2: None, 3: (70.0, 100.0)}
+
+
+def test_a_multi_pattern_request_resolves_and_probes_the_original_once(
+        app_client, fp_feed, fp_original, stub_fingerprinting, monkeypatch):
+    import api.patterns as patterns_api
+    from audio_fingerprinter import AudioFingerprinter
+    resolved, probed = [], []
+    real_resolve = patterns_api.resolve_retained_original
+    monkeypatch.setattr(patterns_api, 'resolve_retained_original',
+                        lambda *a: resolved.append(a) or real_resolve(*a))
+    monkeypatch.setattr(AudioFingerprinter, '_get_audio_duration',
+                        lambda self, path: probed.append(path) or 300.0)
+    seed_two_sponsor_transcript(fp_feed)
+    body = _create_two_sponsors(app_client)
+    assert len(body['patternIds']) == 2 and body['fingerprintStored'] is True
+    assert len(resolved) == 1 and len(probed) == 1

@@ -537,12 +537,14 @@ class _PatternCache:
         self._items = OrderedDict()
         self._lock = threading.Lock()
 
-    def get_or_compute(self, key, compute):
+    def get_or_compute(self, key, compute, keep=lambda value: True):
         with self._lock:
             if key in self._items:
                 self._items.move_to_end(key)
                 return self._items[key]
         value = compute()
+        if not keep(value):
+            return value
         with self._lock:
             self._items[key] = value
             self._items.move_to_end(key)
@@ -1909,6 +1911,16 @@ class AudioFingerprinter:
         duration = get_audio_duration(audio_path)
         return duration if duration is not None else 0.0
 
+    def _probed_duration(self, audio_path: str) -> float:
+        """_get_audio_duration, remembered per file version so the patterns of one episode probe it once."""
+        try:
+            stat = os.stat(audio_path)
+        except OSError:
+            return self._get_audio_duration(audio_path)
+        return _PATTERN_CACHE.get_or_compute(
+            ('duration', str(audio_path), stat.st_size, stat.st_mtime_ns),
+            lambda: self._get_audio_duration(audio_path), keep=lambda value: value > 0)
+
     def _merge_overlapping_matches(
         self,
         matches: list[FingerprintMatch]
@@ -1983,7 +1995,7 @@ class AudioFingerprinter:
             return FingerprintStoreResult(False, 'original_not_retained')
 
         # A span past the end of the file is stored as the audio actually decoded
-        decoded = self._get_audio_duration(audio_path)
+        decoded = self._probed_duration(audio_path)
         if decoded > 0:
             end = min(end, decoded)
         duration = end - start

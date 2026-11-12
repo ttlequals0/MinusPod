@@ -237,3 +237,22 @@ def test_undecodable_fingerprint_is_stored_with_a_warning(fp, temp_db, pattern, 
         assert fp.store_fingerprint(pattern, audio, 0.0, 30.0).stored is True
     warnings = [r for r in caplog.records if r.name == af.logger.name and r.levelno == logging.WARNING]
     assert len(warnings) == 1 and str(pattern) in warnings[0].getMessage()
+
+
+def test_several_patterns_of_one_original_probe_its_duration_once(fp, pattern, audio, temp_db, monkeypatch):
+    other = temp_db.create_ad_pattern(scope='podcast', podcast_id='example-podcast',
+                                      text_template='other read ' * 12)
+    probes = []
+    monkeypatch.setattr(fp, '_get_audio_duration', lambda path: probes.append(path) or 300.0)
+    assert fp.store_fingerprint(pattern, audio, 10.0, 40.0).stored
+    assert fp.store_fingerprint(other, audio, 40.0, 70.0).stored
+    assert probes == [audio]
+
+
+def test_a_failed_duration_probe_is_not_remembered(fp, pattern, audio, monkeypatch):
+    results = iter([0.0, 300.0])
+    probes = []
+    monkeypatch.setattr(fp, '_get_audio_duration', lambda path: probes.append(path) or next(results))
+    fp.store_fingerprint(pattern, audio, 10.0, 40.0, force=True)
+    fp.store_fingerprint(pattern, audio, 10.0, 40.0, force=True)
+    assert len(probes) == 2

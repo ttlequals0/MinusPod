@@ -645,17 +645,36 @@ def resolve_retained_original(db, storage, slug, episode_id):
         return None, True
 
 
-def _store_pattern_audio(db, slug, episode_id, pattern_id, start, end, *, force=False):
+class _EpisodeAudio:
+    """The retained original and the fingerprinter of one episode, each made on first use and shared by its patterns."""
+
+    def __init__(self, db, slug, episode_id):
+        self.db, self.slug, self.episode_id = db, slug, episode_id
+        self._original = self._fingerprinter = None
+
+    def original(self):
+        if self._original is None:
+            self._original = resolve_retained_original(self.db, get_storage(), self.slug, self.episode_id)
+        return self._original
+
+    def fingerprinter(self):
+        if self._fingerprinter is None:
+            self._fingerprinter = AudioFingerprinter(db=self.db)
+        return self._fingerprinter
+
+
+def _store_pattern_audio(db, slug, episode_id, pattern_id, start, end, *, force=False, episode_audio=None):
     """Fingerprint [start, end] of the retained original; force replaces a fingerprint and deleted audio."""
+    episode_audio = episode_audio or _EpisodeAudio(db, slug, episode_id)
     try:
-        if not force and db.get_audio_fingerprint(pattern_id) is not None:
+        if not force and db.get_audio_fingerprint(pattern_id, with_blob=False) is not None:
             result = FingerprintStoreResult(False, 'fingerprint_exists')
         else:
-            audio_path, err = resolve_retained_original(db, get_storage(), slug, episode_id)
+            audio_path, err = episode_audio.original()
             if err:
                 result = FingerprintStoreResult(False, 'original_not_retained')
             else:
-                result = AudioFingerprinter(db=db).store_fingerprint(
+                result = episode_audio.fingerprinter().store_fingerprint(
                     pattern_id, str(audio_path), start, end,
                     source_podcast_slug=slug, source_episode_id=episode_id, force=force)
     except Exception as e:
@@ -685,8 +704,9 @@ def _own_pattern_spans(db, slug, episode_id, pattern_ids, start, end, text):
     joined = ' '.join(words)
     offsets = [sum(len(w) + 1 for w in words[:i]) for i in range(len(words))]
     found = {}
+    patterns = db.get_ad_patterns_by_ids(pattern_ids)
     for pid in pattern_ids:
-        pattern = db.get_ad_pattern_by_id(pid) or {}
+        pattern = patterns.get(pid) or {}
         template = ' '.join((pattern.get('text_template') or '').split())
         lo = joined.find(template) if template else -1
         covered = [] if lo < 0 else [
@@ -727,11 +747,13 @@ def _store_patterns_audio(db, slug, episode_id, pattern_ids, start, end, *, forc
         logger.warning(f"Could not derive the pattern spans of {slug}/{episode_id}: {e}")
         own = dict.fromkeys(pattern_ids)
     outcomes = []
+    episode_audio = _EpisodeAudio(db, slug, episode_id)
     for pid in pattern_ids:
         if own[pid] is None:
             outcomes.append((pid, FingerprintStoreResult(False, 'span_covers_multiple_patterns')))
         else:
-            outcomes.append((pid, _store_pattern_audio(db, slug, episode_id, pid, *own[pid], force=pid == force_id)))
+            outcomes.append((pid, _store_pattern_audio(
+                db, slug, episode_id, pid, *own[pid], force=pid == force_id, episode_audio=episode_audio)))
     return outcomes
 
 
