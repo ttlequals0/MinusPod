@@ -5,6 +5,7 @@ import subprocess
 import pytest
 
 import api.patterns_audio as module
+from api.patterns import _store_pattern_audio
 from tests.integration.fingerprint_helpers import EPISODE, SLUG, csrf  # noqa: E402
 
 HUGE = '9' * 30
@@ -63,16 +64,46 @@ def test_largest_pattern_id_still_routes(app_client):
     assert r.status_code == 404 and r.get_json()['error'] == 'Pattern not found'
 
 
-def test_malformed_stored_episode_id_is_not_retained_never_500(app_client, fp_feed, fp_pattern):
-    bad = '../escape'
+BAD_EPISODE = 'bad id'
+
+
+@pytest.fixture
+def bad_id_episode(fp_feed):
+    """An episode row whose id cannot name a file, marked as keeping its original."""
+    fp_feed.upsert_episode(SLUG, BAD_EPISODE, original_url='https://example.com/bad.mp3',
+                           title='Bad', original_duration=300.0, status='processed',
+                           original_file='x.mp3')
+    return BAD_EPISODE
+
+
+def test_malformed_stored_episode_id_is_not_retained_never_500(
+        app_client, fp_feed, fp_pattern, bad_id_episode):
     fp_feed.create_audio_fingerprint(fp_pattern, b'AQAA', 6.0, source_podcast_slug=SLUG,
-                                     source_episode_id=bad, source_start=2.0, source_end=8.0)
+                                     source_episode_id=bad_id_episode, source_start=2.0, source_end=8.0)
     r = app_client.get(f'{_audio(fp_pattern)}/preview', headers=csrf(app_client))
     assert r.status_code == 404 and r.get_json()['code'] == 'original_not_retained'
     detail = app_client.get(_audio(fp_pattern), headers=csrf(app_client))
     body = detail.get_json()
     assert detail.status_code == 200 and body['available'] is False
     assert body['builtFrom']['available'] is False
+
+
+def test_rebuild_from_a_malformed_episode_id_is_not_retained(
+        app_client, fp_feed, fp_pattern, bad_id_episode, stub_fingerprinting):
+    r = app_client.post(f'{_audio(fp_pattern)}/rebuild',
+                        json={'podcastSlug': SLUG, 'episodeId': bad_id_episode, 'start': 2.0, 'end': 8.0},
+                        headers=csrf(app_client))
+    body = r.get_json()
+    assert r.status_code == 200 and body['fingerprintStored'] is False
+    assert body['fingerprintSkippedReason'] == 'original_not_retained'
+    assert stub_fingerprinting == [] and fp_feed.get_audio_fingerprint(fp_pattern) is None
+
+
+def test_storing_audio_for_a_malformed_episode_id_is_not_retained(
+        fp_feed, fp_pattern, bad_id_episode, stub_fingerprinting):
+    result = _store_pattern_audio(fp_feed, SLUG, bad_id_episode, fp_pattern, 10.0, 40.0)
+    assert (result.stored, result.skipped_reason) == (False, 'original_not_retained')
+    assert stub_fingerprinting == [] and fp_feed.get_audio_fingerprint(fp_pattern) is None
 
 
 def test_requires_a_session(app_client, fp_feed, fp_audio_pattern):
