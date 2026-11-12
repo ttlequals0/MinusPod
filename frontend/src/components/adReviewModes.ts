@@ -1,6 +1,6 @@
 export type AdReviewMode = 'review' | 'create' | 'span';
 
-export interface ModeCapabilities {
+interface ModeCapabilities {
   ariaLabel: string;
   heading: string;
   headingOnPhone: boolean;
@@ -22,7 +22,7 @@ export interface ModeCapabilities {
   footer: AdReviewMode;
 }
 
-export const MAX_SPAN_SECONDS = 600;
+const MAX_SPAN_SECONDS = 600;
 
 export const MODE_CAPABILITIES: Record<AdReviewMode, ModeCapabilities> = {
   review: {

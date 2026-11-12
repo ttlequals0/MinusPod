@@ -18,7 +18,7 @@ export interface FingerprintState {
 
 type NumericKey = Exclude<keyof FingerprintState, 'enabled'>;
 
-export interface FingerprintLimits { min: number; max: number; default: number; step?: number }
+interface FingerprintLimits { min: number; max: number; default: number; step?: number }
 
 // Used only when the settings response lacks the limits (an older server or demo fixture);
 // the served min, max, step and default win. The openapi test pins these to openapi.yaml.
@@ -29,7 +29,7 @@ export const FINGERPRINT_FALLBACK_LIMITS: Record<NumericKey, FingerprintLimits> 
   minAdLengthS: { min: 3, max: 30, default: 5, step: 1 },
 };
 
-export const FINGERPRINT_SETTING_KEYS = {
+const FINGERPRINT_SETTING_KEYS = {
   matchStrictness: 'fingerprintMatchStrictness',
   minCoverage: 'fingerprintMinCoverage',
   gapToleranceS: 'fingerprintGapToleranceS',
@@ -51,7 +51,7 @@ export function fingerprintLimits(settings: SettingsShape | undefined): Record<N
 }
 
 // Reports (or clears, with null) a field whose entry cannot be saved, with a way to focus it.
-export type FieldIssueReporter = (settingKey: string, focus: (() => void) | null) => void;
+type FieldIssueReporter = (settingKey: string, focus: (() => void) | null) => void;
 
 interface FieldDef {
   key: NumericKey;
@@ -156,19 +156,14 @@ interface AudioFingerprintingSectionProps {
 // Fingerprint matching needs no model, so this section is never gated on the LLM provider.
 function AudioFingerprintingSection({ fingerprint, limits, onChange, onFieldIssue }: AudioFingerprintingSectionProps) {
   const [revealed, setRevealed] = useState(false);
-  const [blockedKeys, setBlockedKeys] = useState<ReadonlySet<string>>(new Set());
+  const blockedKeys = useRef(new Set<string>());
   const reportIssue = useCallback<FieldIssueReporter>((settingKey, focus) => {
-    setBlockedKeys((prev) => {
-      if (prev.has(settingKey) === (focus !== null)) return prev;
-      const next = new Set(prev);
-      if (focus) next.add(settingKey); else next.delete(settingKey);
-      return next;
-    });
+    if (focus) blockedKeys.current.add(settingKey); else blockedKeys.current.delete(settingKey);
+    if (blockedKeys.current.size === 0) setRevealed(false);
     onFieldIssue(settingKey, focus);
   }, [onFieldIssue]);
   // Flush so the section is open (no longer inert) before the field is focused.
   const reveal = useCallback(() => flushSync(() => setRevealed(true)), []);
-  useEffect(() => { if (blockedKeys.size === 0) setRevealed(false); }, [blockedKeys]);
   return (
     <CollapsibleSection
       title="Audio fingerprinting"

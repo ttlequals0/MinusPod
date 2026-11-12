@@ -1,6 +1,6 @@
 import type { QueueOrder } from '../api/types';
 
-export const QUEUE_ORDER_OPTIONS: { value: QueueOrder; label: string }[] = [
+const QUEUE_ORDER_OPTIONS: { value: QueueOrder; label: string }[] = [
   { value: 'queued', label: 'As queued' },
   { value: 'oldest_first', label: 'Oldest first' },
   { value: 'newest_first', label: 'Newest first' },

@@ -751,7 +751,7 @@ export interface SettingValueNumber {
 }
 
 // A number setting that also reports its accepted range; older servers omit the limits.
-export interface SettingValueRange extends SettingValueNumber {
+interface SettingValueRange extends SettingValueNumber {
   min?: number;
   max?: number;
   step?: number;

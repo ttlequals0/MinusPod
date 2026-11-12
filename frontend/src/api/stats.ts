@@ -133,7 +133,7 @@ export async function getSpendAttempts(
   return apiRequest<SpendAttemptsResponse>(`/stats/spend/attempts${qs}`);
 }
 
-export interface AudioMatchingStats {
+interface AudioMatchingStats {
   patternsWithAudio: number;
   patternsTotal: number;
   audioMatches: number;

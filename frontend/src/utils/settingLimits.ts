@@ -1,4 +1,4 @@
-export interface SettingLimits {
+interface SettingLimits {
   min: number;
   max: number;
   step?: number;

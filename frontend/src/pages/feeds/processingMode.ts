@@ -48,7 +48,7 @@ export const PROCESSING_MODE_ORDER: ProcessingMode[] = ['standard', 'keep_conten
 // cue_only needs cue templates, which a feed only has after creation.
 export const CREATE_PROCESSING_MODES = PROCESSING_MODE_ORDER.filter((m) => m !== 'cue_only');
 
-export const KEEP_CONTENT_NONE_NOTE = 'Keep content runs as Standard while the LLM provider is set to None.';
+const KEEP_CONTENT_NONE_NOTE = 'Keep content runs as Standard while the LLM provider is set to None.';
 const STANDARD_NONE_TEXT = 'Detects ads with text patterns, audio fingerprints, audio cues and cross-fetch comparison, and cuts them out. The default for most feeds.';
 export const KEEP_CONTENT_DISABLED_NOTE = `Keep content only is unavailable. ${LLM_DISABLED_REASON}`;
 
