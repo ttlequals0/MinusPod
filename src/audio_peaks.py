@@ -61,8 +61,8 @@ BUILD_FAILED = 'failed'
 _HASHED_CACHE_MAX = 256
 
 _GRID_EPSILON = 1e-6
-_SEEK_LEAD_IN_SECONDS = 1.0
-_SEEK_MIN_START_SECONDS = 2.0
+# One value: windows starting before it decode from zero, later ones seek this far ahead and trim
+_SEEK_LEAD_IN_SECONDS = 5.0
 
 
 class PeaksError(RuntimeError):
@@ -119,8 +119,8 @@ def compute_peaks(audio_path: Path | str,
             resolution_ms = min(1000, max(resolution_ms, scaled))
 
     cmd = ['ffmpeg', *SAFE_MEDIA_INPUT_ARGS, '-hide_banner', '-loglevel', 'error']
-    # Near the start decode from zero: a seek there changes AAC priming. Later, seek short and trim.
-    seek = start - _SEEK_LEAD_IN_SECONDS if start >= _SEEK_MIN_START_SECONDS else 0.0
+    # Near the start decode from zero: a seek there changes AAC priming.
+    seek = start - _SEEK_LEAD_IN_SECONDS if start >= _SEEK_LEAD_IN_SECONDS else 0.0
     lead_in = start - seek
     discard = int(round(lead_in * PEAKS_SAMPLE_RATE_HZ))
     if seek > 0:

@@ -186,6 +186,7 @@ def test_delete_peaks_file_with_hostile_id_returns_false(storage, tmp_path):
     _seed(storage)
     outside = tmp_path.parent / 'peaks-hostile-outside.peaks'
     outside.write_bytes(b'x')
+    outside_stat = outside.stat()
     watched = [storage.get_original_path(SLUG, EP).parent, tmp_path]
 
     def snapshot():
@@ -193,7 +194,9 @@ def test_delete_peaks_file_with_hostile_id_returns_false(storage, tmp_path):
     before = snapshot()
     for hostile in ('../../etc/passwd', '../peaks-hostile-outside', '..'):
         assert storage.delete_peaks_file(SLUG, hostile) is False
-    assert snapshot() == before and outside.exists()
+    assert snapshot() == before
+    assert outside.read_bytes() == b'x'
+    assert outside.stat().st_mtime_ns == outside_stat.st_mtime_ns
     outside.unlink()
 
 

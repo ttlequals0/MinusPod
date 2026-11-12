@@ -143,7 +143,7 @@ def test_zero_bucket_file_is_not_served(tmp_path):
 
 
 def test_decode_does_not_seek_at_zero(tmp_path, monkeypatch):
-    src = _src(tmp_path, 3.0)
+    src = _src(tmp_path, 8.0)
     cmds = []
     real = ap.tracked_run
 
@@ -153,8 +153,9 @@ def test_decode_does_not_seek_at_zero(tmp_path, monkeypatch):
     monkeypatch.setattr(ap, 'tracked_run', spy)
     ap.compute_peaks(src, 0.0, None, 50)
     ap.compute_peaks(src, 0.5, None, 50)
-    ap.compute_peaks(src, 2.5, None, 50)
-    assert '-ss' not in cmds[0] and '-ss' not in cmds[1] and '-ss' in cmds[2]
+    ap.compute_peaks(src, 4.99, None, 50)
+    ap.compute_peaks(src, 5.5, None, 50)
+    assert all('-ss' not in c for c in cmds[:3]) and '-ss' in cmds[3]
 
 
 def test_first_buckets_of_aac_are_not_flat(tmp_path):

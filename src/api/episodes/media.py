@@ -243,12 +243,12 @@ def get_episode_peaks(slug, episode_id):
         result = audio_peaks.compute_peaks_from_file(
             audio_peaks.peaks_file_path(path), path, start_seconds, end_seconds, resolution_ms)
         if result is None and audio_peaks.is_grid_aligned(start_seconds, resolution_ms):
-            status, buckets = _ensure_peaks_file(path, episode)
-            if status == audio_peaks.BUILD_BUSY:
+            built = _ensure_peaks_file(path, episode)
+            if built.status == audio_peaks.BUILD_BUSY:
                 return _peaks_pending_response()
-            if buckets is not None:
+            if built.buckets is not None:
                 result = audio_peaks.compute_peaks_from_buckets(
-                    buckets, start_seconds, end_seconds, resolution_ms)
+                    built.buckets, start_seconds, end_seconds, resolution_ms)
             else:
                 result = audio_peaks.compute_peaks_from_file(
                     audio_peaks.peaks_file_path(path), path, start_seconds, end_seconds,

@@ -424,3 +424,27 @@ def test_stale_temp_files_removed_on_write_only_for_this_original(tmp_path):
     ap.write_peaks_file(p, np.array([1], dtype='<u2'), src)
     assert not mine.exists()
     assert other.exists() and young.exists()
+
+
+_WINDOW_STARTS = [2.0, 2.01, 2.5, 3.0, 4.99, 5.0, 5.01, 12.34]
+
+
+@pytest.fixture(scope='module', params=[('m4a', ['-c:a', 'aac']), ('mp3', ['-c:a', 'libmp3lame']),
+                                        ('wav', [])], ids=['aac', 'mp3', 'wav'])
+def noise_source(request, tmp_path_factory):
+    ext, codec = request.param
+    path = tmp_path_factory.mktemp('seek') / f'noise.{ext}'
+    subprocess.run(['/usr/bin/ffmpeg', '-y', '-f', 'lavfi', '-i',
+                    'anoisesrc=d=16:seed=7:amplitude=0.5:sample_rate=44100',
+                    '-ac', '1', *codec, str(path)], check=True, capture_output=True)
+    full, _ = ap.compute_peaks(path, 0, None, resolution_ms=10)
+    return path, full
+
+
+@pytest.mark.parametrize('start', _WINDOW_STARTS)
+def test_window_equals_slice_of_from_zero_decode(noise_source, start):
+    path, full = noise_source
+    peaks, _ = ap.compute_peaks(path, start, start + 3.0, resolution_ms=10)
+    first = int(round(start * 100))
+    assert peaks == full[first:first + len(peaks)]
+    assert len(peaks) >= 295
