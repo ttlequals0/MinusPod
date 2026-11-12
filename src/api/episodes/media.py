@@ -1,5 +1,8 @@
 """Audio, peaks and transcript routes."""
 
+import threading
+import time
+
 from flask import request, send_file, abort
 from werkzeug.utils import secure_filename
 from api import (
@@ -16,6 +19,10 @@ from api.episodes import common
 
 
 PEAKS_RETRY_AFTER_SECONDS = 5
+PEAKS_PROBE_RETRY_SECONDS = 60
+_clock = time.monotonic
+_probe_lock = threading.Lock()
+_probe_failures: dict[str, float] = {}
 
 
 def _float_arg(name, default=None):
@@ -156,21 +163,45 @@ def _peaks_pending_response():
     return resp
 
 
+def _original_duration(path, episode):
+    """Episode duration from the row, else a probe; a failed probe is remembered briefly."""
+    known = (episode or {}).get('original_duration')
+    if known:
+        return known
+    key = str(path)
+    now = _clock()
+    with _probe_lock:
+        failed_at = _probe_failures.get(key)
+        if failed_at is not None and now - failed_at < PEAKS_PROBE_RETRY_SECONDS:
+            return None
+    duration = get_audio_duration(key)
+    if not duration:
+        with _probe_lock:
+            _probe_failures[key] = now
+            while len(_probe_failures) > 256:
+                _probe_failures.pop(next(iter(_probe_failures)))
+    return duration
+
+
 def _ensure_peaks_file(path, episode):
     """Make sure the original has a peaks file: build now, or start a long build.
 
-    Returns an audio_peaks BUILD_* value; BUILD_BUSY means the caller answers 503.
+    Returns (BUILD_* value, in-memory buckets or None). BUILD_BUSY means the caller
+    answers 503. Buckets are set when the decode worked but the file could not be written.
     """
     peaks_path = audio_peaks.peaks_file_path(path)
-    duration = (episode or {}).get('original_duration') or get_audio_duration(str(path))
+    if audio_peaks.build_failed_recently(peaks_path, path):
+        return audio_peaks.BUILD_FAILED, None
+    duration = _original_duration(path, episode)
     if duration and duration > audio_peaks.PEAKS_INLINE_MAX_SECONDS:
-        if audio_peaks.background_build_failed(peaks_path, path):
-            return audio_peaks.BUILD_FAILED
         audio_peaks.start_background_build(
             peaks_path, path, duration, name=f'peaks-build-{path.stem}')
-        return audio_peaks.BUILD_BUSY
-    return audio_peaks.build_peaks_file_locked(
-        peaks_path, path, duration or 0.0, wait_seconds=audio_peaks.PEAKS_BUILD_WAIT_SECONDS)
+        return audio_peaks.BUILD_BUSY, None
+    fallback = []
+    status = audio_peaks.build_peaks_file_locked(
+        peaks_path, path, duration or 0.0, wait_seconds=audio_peaks.PEAKS_BUILD_WAIT_SECONDS,
+        fallback=fallback)
+    return status, (fallback[0] if fallback else None)
 
 
 @api.route('/feeds/<slug>/episodes/<episode_id>/peaks', methods=['GET'])
@@ -211,11 +242,16 @@ def get_episode_peaks(slug, episode_id):
         result = audio_peaks.compute_peaks_from_file(
             audio_peaks.peaks_file_path(path), path, start_seconds, end_seconds, resolution_ms)
         if result is None and audio_peaks.is_grid_aligned(start_seconds, resolution_ms):
-            if _ensure_peaks_file(path, episode) == audio_peaks.BUILD_BUSY:
+            status, buckets = _ensure_peaks_file(path, episode)
+            if status == audio_peaks.BUILD_BUSY:
                 return _peaks_pending_response()
-            result = audio_peaks.compute_peaks_from_file(
-                audio_peaks.peaks_file_path(path), path, start_seconds, end_seconds,
-                resolution_ms)
+            if buckets is not None:
+                result = audio_peaks.compute_peaks_from_buckets(
+                    buckets, start_seconds, end_seconds, resolution_ms)
+            else:
+                result = audio_peaks.compute_peaks_from_file(
+                    audio_peaks.peaks_file_path(path), path, start_seconds, end_seconds,
+                    resolution_ms)
         if result is None:
             result = audio_peaks.compute_peaks(
                 path,

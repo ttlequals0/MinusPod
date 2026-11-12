@@ -2246,7 +2246,9 @@ paths:
         grid. Any other request is decoded from the audio. The file is built
         on the first open, so that first request waits for the build. An
         original longer than 4 hours is built in the background, and the route
-        answers 503 with a `Retry-After` header until the file exists.
+        answers 503 with a `Retry-After` header until the file exists. An
+        original up to 4 hours also answers 503 when another request has held
+        its build for more than 30 seconds.
       operationId: getEpisodePeaks
       parameters:
         - $ref: '#/components/parameters/slug'

@@ -38,6 +38,8 @@ PEAKS_TIMEOUT_SECONDS = 60
 MAX_PEAKS_DURATION_SECONDS = 4 * 60 * 60  # cap on a window decoded per request
 PEAKS_INLINE_MAX_SECONDS = MAX_PEAKS_DURATION_SECONDS  # longer originals build in the background
 _BUILD_FAILURE_MEMO_SECONDS = 300
+_MAX_BACKGROUND_BUILDS = 2
+_clock = time.monotonic
 MAX_PEAK_BUCKETS = 60_000     # keep JSON payload manageable (~600 KB at 4 dp)
 
 PEAKS_MAGIC = b'MPPK'
@@ -58,6 +60,7 @@ BUILD_FAILED = 'failed'
 _HASHED_CACHE_MAX = 256
 
 _GRID_EPSILON = 1e-6
+_SEEK_LEAD_IN_SECONDS = 1.0
 
 
 class PeaksError(RuntimeError):
@@ -114,12 +117,14 @@ def compute_peaks(audio_path: Path | str,
             resolution_ms = min(1000, max(resolution_ms, scaled))
 
     cmd = ['ffmpeg', *SAFE_MEDIA_INPUT_ARGS, '-hide_banner', '-loglevel', 'error']
+    # Seek short of the start so the decoder is warm, then drop the lead-in exactly
+    lead_in = min(start, _SEEK_LEAD_IN_SECONDS)
+    discard = int(round(lead_in * PEAKS_SAMPLE_RATE_HZ))
     if start > 0:
-        # A seek at 0 drops the decoder pre-roll and draws the first buckets flat
-        cmd += ['-ss', f'{start:.3f}']
+        cmd += ['-ss', f'{start - lead_in:.3f}']
     cmd += ['-i', str(audio_path)]
     if duration is not None:
-        cmd += ['-t', f'{duration:.3f}']
+        cmd += ['-t', f'{duration + lead_in:.3f}']
     cmd += ['-ac', '1', '-ar', str(PEAKS_SAMPLE_RATE_HZ),
             '-f', 's16le', 'pipe:1']
 
@@ -136,7 +141,9 @@ def compute_peaks(audio_path: Path | str,
     if not raw:
         raise PeaksError("ffmpeg produced no audio data (empty window?)")
 
-    samples = np.frombuffer(raw, dtype='<i2')
+    samples = np.frombuffer(raw, dtype='<i2')[discard:]
+    if len(samples) == 0:
+        raise PeaksError("ffmpeg produced no audio data (empty window?)")
     samples_per_bucket = max(1, int(PEAKS_SAMPLE_RATE_HZ * resolution_ms / 1000))
 
     n_buckets = len(samples) // samples_per_bucket
@@ -411,10 +418,7 @@ def compute_peaks_from_file(peaks_path: Path, source_path: Path, start_seconds: 
         return None
     if not validate_or_restamp_peaks_file(peaks_path, source_path):
         return None
-    first = int(round(start * 1000)) // PEAKS_BUCKET_WIDTH_MS
-    last = None
-    if end_seconds is not None:
-        last = int(math.floor(float(end_seconds) * 1000 / PEAKS_BUCKET_WIDTH_MS + _GRID_EPSILON))
+    first, last = _grid_window(start, end_seconds)
     data = read_peaks_window(peaks_path, first, last)
     if data is None:
         return None
@@ -422,34 +426,79 @@ def compute_peaks_from_file(peaks_path: Path, source_path: Path, start_seconds: 
         return None
     if first >= data.bucket_count:
         raise PeaksError("ffmpeg produced no audio data (empty window?)")
+    return _reduce_buckets(data.buckets, resolution_ms)
+
+
+def _grid_window(start: float, end_seconds: float | None) -> tuple[int, int | None]:
+    """First and one-past-last 10 ms bucket index of a grid-aligned window."""
+    first = int(round(start * 1000)) // PEAKS_BUCKET_WIDTH_MS
+    last = None
+    if end_seconds is not None:
+        last = int(math.floor(float(end_seconds) * 1000 / PEAKS_BUCKET_WIDTH_MS + _GRID_EPSILON))
+    return first, last
+
+
+def _reduce_buckets(buckets: np.ndarray, resolution_ms: int) -> tuple[list[float], int]:
+    """Coarsen 10 ms buckets to the requested width under MAX_PEAK_BUCKETS, normalized to [0, 1]."""
     factor = max(resolution_ms // PEAKS_BUCKET_WIDTH_MS,
-                 math.ceil(len(data.buckets) / MAX_PEAK_BUCKETS))
-    coarse = downsample_max(data.buckets, factor)
-    peaks = (coarse.astype(np.float32) / 32768.0).tolist()
-    return peaks, factor * PEAKS_BUCKET_WIDTH_MS
+                 math.ceil(len(buckets) / MAX_PEAK_BUCKETS))
+    coarse = downsample_max(buckets, factor)
+    return (coarse.astype(np.float32) / 32768.0).tolist(), factor * PEAKS_BUCKET_WIDTH_MS
+
+
+def compute_peaks_from_buckets(buckets: np.ndarray, start_seconds: float,
+                               end_seconds: float | None,
+                               resolution_ms: int) -> tuple[list[float], int] | None:
+    """Same answer as compute_peaks_from_file, from whole-episode in-memory buckets."""
+    if resolution_ms < 1 or resolution_ms > 1000:
+        raise PeaksError(f"resolution_ms must be 1-1000, got {resolution_ms}")
+    start = max(0.0, float(start_seconds))
+    if end_seconds is not None and float(end_seconds) <= start:
+        raise PeaksError(f"end ({float(end_seconds)}) must be > start ({start})")
+    if not is_grid_aligned(start, resolution_ms):
+        return None
+    first, last = _grid_window(start, end_seconds)
+    if first >= len(buckets):
+        raise PeaksError("ffmpeg produced no audio data (empty window?)")
+    return _reduce_buckets(buckets[first:last], resolution_ms)
+
+
+def _pause(seconds: float) -> None:
+    threading.Event().wait(seconds)
 
 
 def _acquire_build_lock(peaks_path: Path, wait_seconds: float) -> int | None:
     """Take the cross-process build lock for a peaks file; None when it stays held."""
     fd = os.open(peaks_lock_path(peaks_path), os.O_CREAT | os.O_RDWR, 0o644)
-    deadline = time.monotonic() + wait_seconds
-    pause = threading.Event()
+    deadline = _clock() + wait_seconds
     while True:
         try:
             fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
             return fd
         except BlockingIOError:
-            if time.monotonic() >= deadline:
+            if _clock() >= deadline:
                 os.close(fd)
                 return None
-            pause.wait(0.05)
+            _pause(0.05)
         except OSError:
             os.close(fd)
             raise
 
 
-def _build_and_write(peaks_path: Path, source_path: Path, duration: float) -> bool:
-    """Decode the source and write its peaks file; discards the result if the source changed."""
+def _source_stamp(source_path: Path) -> tuple[int, int] | None:
+    try:
+        st = source_path.stat()
+    except OSError:
+        return None
+    return st.st_size, st.st_mtime_ns
+
+
+def _build_and_write(peaks_path: Path, source_path: Path, duration: float,
+                     fallback: list | None = None) -> bool:
+    """Decode the source and write its peaks file; discards the result if the source changed.
+
+    When the decode worked but the write failed, the buckets are appended to ``fallback``.
+    """
     st = source_path.stat()
     stamp = (st.st_size, st.st_mtime_ns)
     buckets = build_peaks_from_decode(source_path, duration)
@@ -457,28 +506,34 @@ def _build_and_write(peaks_path: Path, source_path: Path, duration: float) -> bo
         return False
     try:
         write_peaks_file(peaks_path, buckets, source_path, expect_stat=stamp)
+    except OSError:
+        if fallback is not None and _source_stamp(source_path) == stamp:
+            fallback.append(buckets)
+        raise
     except PeaksSourceChanged:
         logger.info('Peaks build of %s discarded: source changed during decode', source_path.name)
         return False
     # An original removed or replaced after the write: drop the file written for it
-    try:
-        now = source_path.stat()
-        unchanged = (now.st_size, now.st_mtime_ns) == stamp
-    except OSError:
-        unchanged = False
-    if not unchanged:
+    if _source_stamp(source_path) != stamp:
         discard_stale_peaks_file(source_path)
         return False
     return True
 
 
 def build_peaks_file_locked(peaks_path: Path, source_path: Path, duration: float,
-                            wait_seconds: float = 0.0) -> str:
+                            wait_seconds: float = 0.0, fallback: list | None = None) -> str:
     """Build the peaks file under a cross-process lock; never raises.
 
     BUILD_OK when a valid file exists on return, BUILD_BUSY when another process
-    still holds the lock after ``wait_seconds``, BUILD_FAILED otherwise.
+    still holds the lock after ``wait_seconds``, BUILD_FAILED otherwise (remembered
+    for a while). Buckets decoded but not writable are appended to ``fallback``.
     """
+    outcome = _build_locked(peaks_path, source_path, duration, wait_seconds, fallback)
+    _record_build_outcome(str(peaks_path), source_path, outcome)
+    return outcome
+
+
+def _build_locked(peaks_path, source_path, duration, wait_seconds, fallback) -> str:
     peaks_path, source_path = Path(peaks_path), Path(source_path)
     try:
         fd = _acquire_build_lock(peaks_path, wait_seconds)
@@ -490,7 +545,8 @@ def build_peaks_file_locked(peaks_path: Path, source_path: Path, duration: float
     try:
         if validate_or_restamp_peaks_file(peaks_path, source_path):
             return BUILD_OK
-        return BUILD_OK if _build_and_write(peaks_path, source_path, duration) else BUILD_FAILED
+        return (BUILD_OK if _build_and_write(peaks_path, source_path, duration, fallback)
+                else BUILD_FAILED)
     except Exception as e:
         logger.warning('Peaks build failed for %s: %s', source_path.name, e)
         return BUILD_FAILED
@@ -500,12 +556,12 @@ def build_peaks_file_locked(peaks_path: Path, source_path: Path, duration: float
 
 _inflight: set[str] = set()
 _inflight_lock = threading.Lock()
-# peaks path -> (monotonic time, source size, source mtime_ns) of a failed background build
+# peaks path -> (clock time, source size, source mtime_ns) of a failed build
 _build_failures: dict[str, tuple[float, int, int]] = {}
 
 
-def background_build_failed(peaks_path: Path, source_path: Path) -> bool:
-    """True when a background build of this source failed recently and it is unchanged."""
+def build_failed_recently(peaks_path: Path, source_path: Path) -> bool:
+    """True when a build of this source failed recently and it is unchanged."""
     with _inflight_lock:
         memo = _build_failures.get(str(peaks_path))
     if memo is None:
@@ -514,7 +570,7 @@ def background_build_failed(peaks_path: Path, source_path: Path) -> bool:
         st = Path(source_path).stat()
     except OSError:
         return False
-    return (time.monotonic() - memo[0] < _BUILD_FAILURE_MEMO_SECONDS
+    return (_clock() - memo[0] < _BUILD_FAILURE_MEMO_SECONDS
             and (st.st_size, st.st_mtime_ns) == memo[1:])
 
 
@@ -525,7 +581,7 @@ def _record_build_outcome(key: str, source_path: Path, outcome) -> None:
         return
     with _inflight_lock:
         if outcome == BUILD_FAILED:
-            _build_failures[key] = (time.monotonic(), st.st_size, st.st_mtime_ns)
+            _build_failures[key] = (_clock(), st.st_size, st.st_mtime_ns)
             while len(_build_failures) > _HASHED_CACHE_MAX:
                 _build_failures.pop(next(iter(_build_failures)))
         else:
@@ -536,12 +592,12 @@ def start_background_build(peaks_path: Path, source_path: Path, duration: float,
                            runner=None, name: str = 'peaks-build') -> threading.Thread | None:
     """Run a build on a daemon thread, one per peaks file per process.
 
-    Returns the thread, or None when a build for this file is already running here.
+    Returns the thread, or None when this file is already building here or two builds run.
     The runner defaults to build_peaks_file_locked and its errors never escape.
     """
     key = str(peaks_path)
     with _inflight_lock:
-        if key in _inflight:
+        if key in _inflight or len(_inflight) >= _MAX_BACKGROUND_BUILDS:
             return None
         _inflight.add(key)
     run = runner or build_peaks_file_locked

@@ -168,9 +168,11 @@ def _spec_paths_with_json_200(method, prefix=''):
     return paths
 
 
+# Routes with their own conformance tests below (they need a generated original)
+OWN_TESTS = {'/feeds/{slug}/episodes/{episode_id}/peaks'}
+
 UNCOVERED = {
     '/feeds/{slug}/episodes/{episode_id}/runs/{run_number}/log': 'needs a recorded processing run',
-    '/feeds/{slug}/episodes/{episode_id}/peaks': 'needs retained original audio',
     '/feeds/{slug}/episodes/{episode_id}/transcript-span': 'needs an argument the seed cannot provide',
     '/feeds/{slug}/episodes/{episode_id}/cue-loud-spots': 'needs retained original audio',
     '/feeds/{slug}/episodes/{episode_id}/cue-candidates': 'needs retained original audio',
@@ -192,7 +194,7 @@ UNCOVERED = {
 
 
 def test_every_spec_get_route_is_covered():
-    covered = {template for template, _ in GET_ROUTES} | set(UNCOVERED)
+    covered = {template for template, _ in GET_ROUTES} | set(UNCOVERED) | OWN_TESTS
     missing = [p for p in _spec_paths_with_json_200('get') if p not in covered]
     assert not missing, f'GET routes in openapi.yaml with no conformance test or UNCOVERED reason: {missing}'
 
@@ -202,6 +204,47 @@ def test_get_response_matches_spec(seeded, template, query):
     client, headers = seeded
     url = _fill(template + (f'?{query}' if query else ''))
     assert_response_conforms('get', template, client.get(f'/api/v1{url}', headers=headers))
+
+
+@pytest.fixture
+def peaks_original(seeded, tmp_path, monkeypatch):
+    import subprocess
+    from api import get_database
+    src = tmp_path / f'{EPISODE_ID}-original.wav'
+    subprocess.run(['ffmpeg', '-y', '-f', 'lavfi', '-i', 'sine=frequency=440:duration=3',
+                    '-ac', '1', '-ar', '44100', str(src)], check=True, capture_output=True)
+
+    class _Storage:
+        def get_original_path(self, slug, episode_id, extension='.mp3'):
+            return src
+    monkeypatch.setattr('api.episodes.media.get_storage', lambda: _Storage())
+    db = get_database()
+    db.upsert_episode(SLUG, EPISODE_ID, original_file=str(src), original_duration=3.0)
+    yield src
+    db.upsert_episode(SLUG, EPISODE_ID, original_file=None, original_duration=3600.0)
+
+
+def test_peaks_200_matches_spec(seeded, peaks_original):
+    client, headers = seeded
+    url = f'/api/v1/feeds/{SLUG}/episodes/{EPISODE_ID}/peaks?start=0&resolution_ms=100'
+    assert_response_conforms('get', '/feeds/{slug}/episodes/{episode_id}/peaks',
+                             client.get(url, headers=headers))
+
+
+def test_peaks_503_matches_spec(seeded, peaks_original, monkeypatch):
+    import audio_peaks
+    from api import get_database
+    monkeypatch.setattr(audio_peaks, 'PEAKS_INLINE_MAX_SECONDS', 1.0)
+    monkeypatch.setattr(audio_peaks, 'start_background_build', lambda *a, **k: None)
+    client, headers = seeded
+    get_database().upsert_episode(SLUG, EPISODE_ID, original_duration=3.0)
+    url = f'/api/v1/feeds/{SLUG}/episodes/{EPISODE_ID}/peaks?start=0&resolution_ms=100'
+    resp = client.get(url, headers=headers)
+    template = '/feeds/{slug}/episodes/{episode_id}/peaks'
+    assert_response_conforms('get', template, resp, status=503)
+    declared = _spec()['paths'][template]['get']['responses']['503']['headers']
+    assert 'Retry-After' in declared
+    assert resp.headers['Retry-After'] == '5'
 
 
 def test_served_spec_carries_running_version(seeded):

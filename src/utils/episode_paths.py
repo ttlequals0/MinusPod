@@ -77,6 +77,11 @@ def is_peaks_temp_name(name: str) -> bool:
     return _PEAKS_TEMP_RE.search(name) is not None
 
 
+def is_peaks_housekeeping_name(name: str) -> bool:
+    """True for a peaks build lock or an interrupted-write temp file."""
+    return is_peaks_temp_name(name) or name.endswith('-original.peaks.lock')
+
+
 def peaks_lock_path(peaks_path: Path | str) -> Path:
     """Return the cross-process build lock path for a peaks file."""
     p = Path(peaks_path)

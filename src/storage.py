@@ -21,7 +21,7 @@ from artwork_watermark import (
 )
 from user_agent import download_user_agent
 from utils.episode_paths import (
-    episode_filename, is_peaks_temp_name, peaks_file_path, peaks_lock_path,
+    episode_filename, is_peaks_housekeeping_name, peaks_file_path, peaks_lock_path,
     remove_peaks_temp_files,
 )
 from utils.http import safe_url_for_log
@@ -1394,6 +1394,7 @@ class Storage:
                 audio_deleted = audio_deleted or path != peaks
         if not keep_original and not fenced:
             remove_peaks_temp_files(peaks)
+            peaks_lock_path(peaks).unlink(missing_ok=True)
         if audio_deleted:
             logger.debug(f"[{slug}:{episode_id}] Deleted processed/original audio files")
         return audio_deleted
@@ -1496,7 +1497,7 @@ class Storage:
             for podcast_dir in self.podcasts_dir.iterdir():
                 if podcast_dir.is_dir():
                     for f in podcast_dir.rglob('*'):
-                        if f.is_file() and not is_peaks_temp_name(f.name):
+                        if f.is_file() and not is_peaks_housekeeping_name(f.name):
                             total_size += f.stat().st_size
                             file_count += 1
 

@@ -304,7 +304,7 @@ def test_background_build_swallows_runner_errors(tmp_path):
     t = ap.start_background_build(p, src, 1.0, runner=boom)
     t.join(30)
     assert not t.is_alive()
-    assert ap.background_build_failed(p, src) is True
+    assert ap.build_failed_recently(p, src) is True
     assert str(p) not in ap._inflight
 
 
@@ -313,9 +313,9 @@ def test_failure_memo_clears_when_the_source_changes(tmp_path):
     p = ap.peaks_file_path(src)
     t = ap.start_background_build(p, src, 1.0, runner=lambda *a: ap.BUILD_FAILED)
     t.join(30)
-    assert ap.background_build_failed(p, src) is True
+    assert ap.build_failed_recently(p, src) is True
     _gen_wav(src, 2.0)
-    assert ap.background_build_failed(p, src) is False
+    assert ap.build_failed_recently(p, src) is False
 
 
 def test_maybe_write_ignores_an_empty_array(tmp_path):
@@ -352,8 +352,9 @@ def route(app_client, tmp_path, monkeypatch):
     monkeypatch.setattr('api.episodes.media.get_database', lambda: _FakeDB(episode))
     monkeypatch.setattr('api.episodes.media.get_storage', lambda: _FakeStorage(src))
 
-    def get(query='start=0&resolution_ms=100'):
-        return app_client.get(f'/api/v1/feeds/{SLUG}/episodes/{EP}/peaks?{query}')
+    def get(query='start=0&resolution_ms=100', client=None):
+        return (client or app_client).get(f'/api/v1/feeds/{SLUG}/episodes/{EP}/peaks?{query}')
+    get.new_client = app_client.application.test_client
     get.src = src
     get.episode = episode
     return get
@@ -428,7 +429,7 @@ def test_route_long_episode_does_not_decode_in_the_request(route, monkeypatch):
 
 def test_route_long_episode_with_failed_build_falls_back_to_the_decode(route, monkeypatch):
     monkeypatch.setattr(ap, 'PEAKS_INLINE_MAX_SECONDS', 1.0)
-    monkeypatch.setattr(ap, 'background_build_failed', lambda *a: True)
+    monkeypatch.setattr(ap, 'build_failed_recently', lambda *a: True)
     assert route().status_code == 200
 
 
@@ -468,3 +469,203 @@ def test_route_survives_an_unwritable_peaks_file(route, monkeypatch):
     monkeypatch.setattr(ap, '_write_atomic', refuse)
     r = route()
     assert r.status_code == 200 and len(r.get_json()['peaks']) == 40
+
+
+# ---- fix round ----
+
+def _full_decode_slice(src, start, count):
+    full, _ = ap.compute_peaks(src, 0.0, None, 10)
+    i = int(round(start * 100))
+    return np.array(full[i:i + count])
+
+
+@pytest.mark.parametrize('codec,ext', [('libmp3lame', 'mp3'), ('aac', 'm4a'), ('pcm_s16le', 'wav')])
+@pytest.mark.parametrize('start', [12.34, 30.0])
+def test_decode_window_above_zero_matches_full_decode_exactly(tmp_path, codec, ext, start):
+    src = tmp_path / f'{EP}-original.{ext}'
+    subprocess.run(['ffmpeg', '-y', '-f', 'lavfi', '-i', 'sine=frequency=440:duration=40',
+                    '-ac', '1', '-c:a', codec, str(src)], check=True, capture_output=True)
+    window, _ = ap.compute_peaks(src, start, start + 3, 10)
+    assert len(window) == 300
+    # measured: MP3 and WAV exact, AAC differs by one 16-bit step in one bucket
+    assert np.allclose(window, _full_decode_slice(src, start, 300), rtol=0, atol=1 / 32768 + 1e-9)
+    assert max(window[:7]) > 0.0
+
+
+def test_decode_window_near_start_uses_the_shorter_lead_in(tmp_path):
+    src = _src(tmp_path, 3.0)
+    window, _ = ap.compute_peaks(src, 0.25, 1.25, 10)
+    assert np.array_equal(np.array(window), _full_decode_slice(src, 0.25, 100))
+
+
+def _undecodable(tmp_path):
+    src = tmp_path / f'{EP}-original.mp3'
+    src.write_bytes(b'not audio')
+    return src
+
+
+def test_failure_memory_expires_after_300_seconds(tmp_path, monkeypatch):
+    src = _undecodable(tmp_path)
+    p = ap.peaks_file_path(src)
+    now = [1000.0]
+    monkeypatch.setattr(ap, '_clock', lambda: now[0])
+    assert ap.build_peaks_file_locked(p, src, 1.0) == ap.BUILD_FAILED
+    now[0] += 299
+    assert ap.build_failed_recently(p, src) is True
+    now[0] += 2
+    assert ap.build_failed_recently(p, src) is False
+
+
+def test_inline_failure_is_remembered_and_cleared_by_a_success(tmp_path, monkeypatch):
+    src = _src(tmp_path, 1.0)
+    p = ap.peaks_file_path(src)
+    monkeypatch.setattr(ap, '_write_atomic', lambda *a, **k: (_ for _ in ()).throw(OSError('ro')))
+    assert ap.build_peaks_file_locked(p, src, 1.0) == ap.BUILD_FAILED
+    assert ap.build_failed_recently(p, src) is True
+    monkeypatch.undo()
+    assert ap.build_peaks_file_locked(p, src, 1.0) == ap.BUILD_OK
+    assert ap.build_failed_recently(p, src) is False
+
+
+def test_unwritable_build_hands_back_the_decoded_buckets(tmp_path, monkeypatch):
+    src = _src(tmp_path, 2.0)
+    monkeypatch.setattr(ap, '_write_atomic', lambda *a, **k: (_ for _ in ()).throw(OSError('ro')))
+    keep = []
+    assert ap.build_peaks_file_locked(ap.peaks_file_path(src), src, 2.0,
+                                      fallback=keep) == ap.BUILD_FAILED
+    assert len(keep) == 1 and len(keep[0]) == 200
+
+
+def test_lock_wait_ends_busy_after_the_deadline_without_sleeping(tmp_path, monkeypatch):
+    src = _src(tmp_path, 1.0)
+    p = ap.peaks_file_path(src)
+    ticks = iter(range(0, 1000, 10))
+    pauses = []
+    monkeypatch.setattr(ap, '_clock', lambda: float(next(ticks)))
+    monkeypatch.setattr(ap, '_pause', pauses.append)
+    fd = os.open(ap.peaks_lock_path(p), os.O_CREAT | os.O_RDWR, 0o600)
+    fcntl.flock(fd, fcntl.LOCK_EX)
+    try:
+        assert ap.build_peaks_file_locked(p, src, 1.0, wait_seconds=25) == ap.BUILD_BUSY
+    finally:
+        fcntl.flock(fd, fcntl.LOCK_UN)
+        os.close(fd)
+    assert len(pauses) >= 2
+
+
+def _hold_first_build(monkeypatch):
+    """Patch the decode to block until released; _pause signals a blocked waiter."""
+    started, blocked, release = threading.Event(), threading.Event(), threading.Event()
+    decodes = []
+    real_decode, real_pause = ap.build_peaks_from_decode, ap._pause
+
+    def slow(path, duration):
+        decodes.append(1)
+        started.set()
+        release.wait(30)
+        return real_decode(path, duration)
+
+    def pause(seconds):
+        blocked.set()
+        real_pause(0.01)
+    monkeypatch.setattr(ap, 'build_peaks_from_decode', slow)
+    monkeypatch.setattr(ap, '_pause', pause)
+    return started, blocked, release, decodes
+
+
+def test_second_build_waits_for_the_first_and_decodes_nothing(tmp_path, monkeypatch):
+    src = _src(tmp_path, 2.0)
+    p = ap.peaks_file_path(src)
+    started, blocked, release, decodes = _hold_first_build(monkeypatch)
+    results = []
+    t1 = threading.Thread(target=lambda: results.append(ap.build_peaks_file_locked(p, src, 2.0)))
+    t1.start()
+    assert started.wait(30)
+    t2 = threading.Thread(
+        target=lambda: results.append(ap.build_peaks_file_locked(p, src, 2.0, wait_seconds=60)))
+    t2.start()
+    assert blocked.wait(30)
+    assert not p.exists()
+    release.set()
+    t1.join(30)
+    t2.join(30)
+    assert results == [ap.BUILD_OK, ap.BUILD_OK] and len(decodes) == 1
+
+
+def test_route_two_overlapping_requests_build_once(route, monkeypatch):
+    started, blocked, release, decodes = _hold_first_build(monkeypatch)
+    bodies = []
+    t1 = threading.Thread(target=lambda: bodies.append(route(client=route.new_client()).status_code))
+    t1.start()
+    assert started.wait(30)
+    t2 = threading.Thread(target=lambda: bodies.append(route(client=route.new_client()).status_code))
+    t2.start()
+    assert blocked.wait(30)
+    release.set()
+    t1.join(30)
+    t2.join(30)
+    assert bodies == [200, 200] and len(decodes) == 1
+
+
+def test_route_unwritable_directory_decodes_once_then_remembers(route, monkeypatch):
+    monkeypatch.setattr(ap, '_write_atomic', lambda *a, **k: (_ for _ in ()).throw(OSError('ro')))
+    builds, windows = [], []
+    real_build, real_compute = ap.build_peaks_from_decode, ap.compute_peaks
+    monkeypatch.setattr(ap, 'build_peaks_from_decode', lambda *a: builds.append(1) or real_build(*a))
+    monkeypatch.setattr(ap, 'compute_peaks', lambda *a, **k: windows.append(1) or real_compute(*a, **k))
+    first = route()
+    assert first.status_code == 200 and len(first.get_json()['peaks']) == 40
+    assert (len(builds), len(windows)) == (1, 0)
+    second = route()
+    assert second.status_code == 200 and second.get_json() == first.get_json()
+    assert (len(builds), len(windows)) == (1, 1)
+
+
+def test_route_undecodable_original_decodes_once_per_request_only(route, monkeypatch):
+    route.src.write_bytes(b'not audio')
+    builds = []
+    real_build = ap.build_peaks_from_decode
+    monkeypatch.setattr(ap, 'build_peaks_from_decode', lambda *a: builds.append(1) or real_build(*a))
+    assert route().status_code == 400
+    assert route().status_code == 400
+    assert len(builds) == 1
+
+
+def test_probe_failure_is_cached_briefly(route, monkeypatch):
+    from api.episodes import media
+    route.episode['original_duration'] = None
+    probes = []
+    now = [0.0]
+    monkeypatch.setattr(media, 'get_audio_duration', lambda p: probes.append(p) or None)
+    monkeypatch.setattr(media, '_clock', lambda: now[0])
+    media._probe_failures.clear()
+    for _ in range(3):
+        assert route().status_code == 200
+    assert len(probes) == 1
+    now[0] += media.PEAKS_PROBE_RETRY_SECONDS + 1
+    ap.peaks_file_path(route.src).unlink()
+    route()
+    assert len(probes) == 2
+
+
+def test_background_builds_are_capped_and_a_slot_frees(tmp_path):
+    srcs = [_src(tmp_path, 1.0, name=f'b{i}-original.wav') for i in range(3)]
+    hold, entered = threading.Event(), threading.Semaphore(0)
+
+    def runner(*a):
+        entered.release()
+        hold.wait(30)
+        return ap.BUILD_OK
+    threads = [ap.start_background_build(ap.peaks_file_path(s), s, 9.0, runner=runner)
+               for s in srcs[:2]]
+    assert all(threads)
+    entered.acquire(timeout=30)
+    entered.acquire(timeout=30)
+    third = srcs[2]
+    assert ap.start_background_build(ap.peaks_file_path(third), third, 9.0, runner=runner) is None
+    hold.set()
+    for t in threads:
+        t.join(30)
+    t3 = ap.start_background_build(ap.peaks_file_path(third), third, 9.0, runner=runner)
+    assert t3 is not None
+    t3.join(30)

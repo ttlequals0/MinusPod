@@ -341,3 +341,29 @@ def test_upload_recovery_without_a_move_leaves_peaks(db_storage, tmp_path):
     row = _recovery_row('import', SLUG, EP, 'import/local/none.mp3')
     assert db._recover_upload_files(row) is True
     assert peaks.exists()
+
+
+def test_delete_processed_file_removes_the_build_lock(storage):
+    _seed(storage)
+    lock = storage.get_peaks_path(SLUG, EP).with_name(f'{EP}-original.peaks.lock')
+    lock.write_bytes(b'')
+    storage.delete_processed_file(SLUG, EP, keep_original=False)
+    assert not lock.exists()
+
+
+def test_delete_processed_file_keep_original_keeps_the_build_lock(storage):
+    _seed(storage)
+    lock = storage.get_peaks_path(SLUG, EP).with_name(f'{EP}-original.peaks.lock')
+    lock.write_bytes(b'')
+    storage.delete_processed_file(SLUG, EP, keep_original=True)
+    assert lock.exists()
+
+
+def test_storage_stats_do_not_count_the_lock_but_count_the_peaks_file(storage):
+    _seed(storage)
+    before = storage.get_storage_stats()
+    lock = storage.get_peaks_path(SLUG, EP).with_name(f'{EP}-original.peaks.lock')
+    lock.write_bytes(b'')
+    storage._storage_stats_cache = type(storage._storage_stats_cache)(0)
+    after = storage.get_storage_stats()
+    assert after['file_count'] == before['file_count'] == 2
