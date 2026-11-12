@@ -1,6 +1,5 @@
 """Measured fingerprint matcher: inverted-index candidates, run measurement, gap bridging."""
 import random
-import time
 
 import numpy as np
 
@@ -70,7 +69,7 @@ def test_gap_within_tolerance_is_one_run():
     ep, dur, pat = _gapped(2.0, 3)
     r = _run(ep, dur, [(1, pat, 20.0, None, None)], min_coverage=0.5)
     assert len(r) == 1
-    assert r[0].coverage >= 0.95
+    assert 0.85 <= r[0].coverage <= 0.92
     assert abs(r[0].start - 50.0) < 0.5 and abs(r[0].end - 70.0) < 0.5
 
 
@@ -114,7 +113,7 @@ def test_corrupt_pattern_is_skipped_not_fatal(caplog):
     assert len(skipped) == 2
 
 
-def test_constant_stretches_do_not_go_quadratic():
+def test_constant_stretches_cast_no_votes():
     rng = random.Random(8)
     ep, dur = _episode(rng, 2400)
     const = 123456789
@@ -126,12 +125,14 @@ def test_constant_stretches_do_not_go_quadratic():
         body = _rand_ints(rng, 480)
         body[40:440] = [const] * 400
         pats.append((pid, body, 60.0, None, None))
-    pats.append((9, planted, 20.0, None, None))
-    t0 = time.perf_counter()
-    r = _run(ep, dur, pats, min_coverage=0.5)
-    assert time.perf_counter() - t0 < 2.0
-    hit = [m for m in r if m.pattern_id == 9]
+    pats.append((99, planted, 20.0, None, None))
+    r, measured = af._scan_fingerprints(ep, dur, pats, **{**KW, 'min_coverage': 0.5})
+    hit = [m for m in r if m.pattern_id == 99]
     assert len(hit) == 1 and abs(hit[0].start - 1500.0) < 0.3
+    assert measured <= 3
+    _starts, sizes, _positions = af._build_offset_index(np.asarray(ep, dtype=np.int64).astype(np.uint32))
+    const_keys = af._table_keys(np.array([const], dtype=np.uint32))[0]
+    assert sizes[const_keys].sum() == 0
 
 
 def test_pattern_cut_off_at_file_head_matches_at_zero():
@@ -161,9 +162,16 @@ def test_empty_episode_returns_empty():
     assert _run([], 0.0, [(1, [1, 2, 3, 4, 5], 2.0, None, None)]) == []
 
 
-def test_index_caps_positions_per_key_spread_evenly():
-    arr = np.zeros(1000, dtype=np.uint32)
-    idx = af._build_offset_index(arr, af.FINGERPRINT_KEY_BITS)
-    kept = idx[0]
-    assert len(kept) == af.FINGERPRINT_MAX_KEY_POSITIONS
-    assert kept[0] == 0 and kept[-1] == 999
+def test_index_empties_overfull_keys_and_keeps_the_rest():
+    rng = np.random.default_rng(0)
+    arr = rng.integers(0, 1 << 32, 4000, dtype=np.int64).astype(np.uint32)
+    arr[1000:3000] = 7
+    _starts, sizes, _positions = af._build_offset_index(arr)
+    assert sizes[af._table_keys(np.array([7], dtype=np.uint32))[0]].sum() == 0
+    kept = af._table_keys(arr[:1])[0]
+    assert (sizes[kept] >= 1).all()
+
+
+def test_constant_runs_are_not_informative():
+    arr = np.array([1, 2, 2, 2, 3, 4, 4, 4, 4, 5, 6, 6, 6, 6, 6], dtype=np.uint32)
+    assert af._informative_points(arr).tolist() == [True] * 5 + [False] * 4 + [True] + [False] * 5
