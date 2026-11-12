@@ -32,6 +32,7 @@ from flask import Flask
 from flask_compress import Compress
 
 import config
+from llm_client import llm_disabled
 
 # Configure structured logging
 _logging_configured = False
@@ -713,7 +714,9 @@ def _background_threads_enabled() -> bool:
 
 
 def _log_missing_model_settings(db_instance):
-    """Log one ERROR line naming any of the three model settings left unset."""
+    """Log one ERROR line naming any of the three model settings left unset; silent under none."""
+    if llm_disabled():
+        return
     missing_models = [
         key for key in ('claude_model', 'verification_model', 'chapters_model')
         if not db_instance.get_setting(key)

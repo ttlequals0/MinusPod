@@ -14,6 +14,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 import database  # noqa: E402
 import failover  # noqa: E402
 import llm_client  # noqa: E402
+import main_app  # noqa: E402
 import pattern_cleanup  # noqa: E402
 import pricing_fetcher  # noqa: E402
 import rate_limit_hold  # noqa: E402
@@ -334,6 +335,28 @@ def test_startup_verification_under_none_logs_one_info_line(provider_none, no_cl
     assert [r.levelno for r in records] == [logging.INFO]
     assert 'disabled' in records[0].getMessage().lower()
     assert 'key' not in records[0].getMessage().lower()
+
+
+def test_startup_logs_one_info_line_and_no_model_complaint_under_none(provider_none, no_clients, started_threads, caplog):
+    import logging
+    db = MagicMock()
+    db.get_setting.return_value = ''
+    caplog.set_level(logging.DEBUG)
+    caplog.set_level(logging.DEBUG, logger='llm_client')
+    llm_client.verify_llm_connection()
+    main_app._log_missing_model_settings(db)
+    noisy = [r for r in caplog.records if r.levelno >= logging.WARNING]
+    assert noisy == []
+    disabled = [r for r in caplog.records if r.levelno == logging.INFO and 'disabled' in r.getMessage().lower()]
+    assert len(disabled) == 1
+
+
+def test_startup_still_reports_missing_models_with_a_provider(provider_anthropic, caplog):
+    import logging
+    db = MagicMock()
+    db.get_setting.return_value = ''
+    main_app._log_missing_model_settings(db)
+    assert any(r.levelno == logging.ERROR and 'No model configured' in r.getMessage() for r in caplog.records)
 
 
 def test_startup_verification_with_anthropic_and_no_key_still_warns(provider_anthropic, monkeypatch, caplog):
