@@ -350,3 +350,111 @@ def test_merge_windows_dedupes_past_a_drifted_earlier_word():
     merged = pt._merge_windows([(0.0, 756.0, a), (756.0, 790.0, b)])
     assert [w['word'] for w in merged].count('can') == 1
     assert merged[-1]['word'] == 'feel'
+
+
+def _write_model_files(model_dir, quantization=None, sizes=None):
+    sfx = f'.{quantization}' if quantization else ''
+    names = ['config.json', 'vocab.txt', f'encoder-model{sfx}.onnx', f'decoder_joint-model{sfx}.onnx']
+    if not quantization:
+        names.append('encoder-model.onnx.data')
+    model_dir.mkdir(parents=True, exist_ok=True)
+    for n in names:
+        (model_dir / n).write_bytes(b'x' * (sizes or {}).get(n, 4))
+    return names
+
+
+def _track_snapshot(monkeypatch, write=None):
+    calls = []
+
+    def snap(repo, local_dir=None, allow_patterns=None):
+        calls.append(allow_patterns)
+        if write:
+            write()
+
+    hub = types.ModuleType('huggingface_hub')
+    hub.snapshot_download = snap
+    monkeypatch.setitem(sys.modules, 'huggingface_hub', hub)
+    return calls
+
+
+@pytest.mark.parametrize('quantization', [None, 'int8'])
+def test_fetch_skips_download_after_a_completed_fetch(tmp_path, monkeypatch, quantization):
+    calls = _track_snapshot(monkeypatch, write=lambda: _write_model_files(tmp_path, quantization))
+    pt._fetch_model_files(str(tmp_path), quantization)
+    pt._fetch_model_files(str(tmp_path), quantization)
+    assert len(calls) == 1
+
+
+def test_fetch_downloads_when_files_exist_without_a_completion_record(tmp_path, monkeypatch):
+    _write_model_files(tmp_path)
+    calls = _track_snapshot(monkeypatch)
+    pt._fetch_model_files(str(tmp_path), None)
+    assert len(calls) == 1
+
+
+@pytest.mark.parametrize('missing', ['vocab.txt', 'decoder_joint-model.onnx', 'encoder-model.onnx.data'])
+def test_fetch_downloads_when_a_recorded_file_is_gone(tmp_path, monkeypatch, missing):
+    calls = _track_snapshot(monkeypatch, write=lambda: _write_model_files(tmp_path))
+    pt._fetch_model_files(str(tmp_path), None)
+    (tmp_path / missing).unlink()
+    pt._fetch_model_files(str(tmp_path), None)
+    assert len(calls) == 2
+
+
+def test_fetch_downloads_when_a_file_was_truncated(tmp_path, monkeypatch):
+    calls = _track_snapshot(monkeypatch, write=lambda: _write_model_files(tmp_path, sizes={'encoder-model.onnx.data': 100}))
+    pt._fetch_model_files(str(tmp_path), None)
+    (tmp_path / 'encoder-model.onnx.data').write_bytes(b'x' * 40)
+    pt._fetch_model_files(str(tmp_path), None)
+    assert len(calls) == 2
+
+
+def test_fetch_records_nothing_when_the_download_left_files_missing(tmp_path, monkeypatch):
+    calls = _track_snapshot(monkeypatch)
+    pt._fetch_model_files(str(tmp_path), None)
+    pt._fetch_model_files(str(tmp_path), None)
+    assert len(calls) == 2
+
+
+def test_fetch_records_nothing_when_the_local_copy_fallback_ran(tmp_path, monkeypatch):
+    _write_model_files(tmp_path, 'int8')
+    hub = types.ModuleType('huggingface_hub')
+    hub.snapshot_download = _offline_snapshot
+    monkeypatch.setitem(sys.modules, 'huggingface_hub', hub)
+    pt._fetch_model_files(str(tmp_path), 'int8')
+    calls = _track_snapshot(monkeypatch)
+    pt._fetch_model_files(str(tmp_path), 'int8')
+    assert len(calls) == 1
+
+
+def test_completion_record_is_per_quantization(tmp_path, monkeypatch):
+    calls = _track_snapshot(monkeypatch, write=lambda: _write_model_files(tmp_path, 'int8'))
+    pt._fetch_model_files(str(tmp_path), 'int8')
+    pt._fetch_model_files(str(tmp_path), None)
+    assert len(calls) == 2
+
+
+def test_unreadable_completion_record_means_download(tmp_path, monkeypatch):
+    calls = _track_snapshot(monkeypatch, write=lambda: _write_model_files(tmp_path))
+    pt._fetch_model_files(str(tmp_path), None)
+    for rec in tmp_path.glob('.minuspod-complete*'):
+        rec.write_text('{not json')
+    pt._fetch_model_files(str(tmp_path), None)
+    assert len(calls) == 2
+
+
+def test_get_instance_sets_ort_severity_before_loading_and_keeps_errors(monkeypatch, clean_singleton):
+    order = []
+    loaded = types.SimpleNamespace(with_timestamps=lambda: 'ts-model')
+    _fake_modules(monkeypatch, lambda *a, **k: order.append('load') or loaded)
+    sys.modules['onnxruntime'].set_default_logger_severity = lambda level: order.append(('severity', level))
+    monkeypatch.setattr(pt, 'resolve_whisper_device', lambda: 'cpu')
+    pt.ParakeetModelSingleton.get_instance()
+    assert order == [('severity', 3), 'load']
+
+
+def test_get_instance_tolerates_onnxruntime_without_severity_api(monkeypatch, clean_singleton):
+    loaded = types.SimpleNamespace(with_timestamps=lambda: 'ts-model')
+    _fake_modules(monkeypatch, lambda *a, **k: loaded)
+    monkeypatch.setattr(pt, 'resolve_whisper_device', lambda: 'cpu')
+    assert pt.ParakeetModelSingleton.get_instance() == 'ts-model'

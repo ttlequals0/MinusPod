@@ -1,5 +1,7 @@
 """In-process NVIDIA Parakeet TDT transcription through onnx-asr (#834)."""
+import glob
 import importlib.util
+import json
 import logging
 import os
 import re
@@ -35,8 +37,59 @@ def parakeet_unavailable_message() -> str:
             "install it or set WHISPER_BACKEND=local or openai-api")
 
 
+def _model_patterns(quantization):
+    """(required, optional) file globs the loader reads; '?' also matches the '.' before a suffix."""
+    suffix = f'?{quantization}' if quantization else ''
+    required = ['vocab.txt']
+    optional = ['config.json', 'config.yaml']
+    for name in ('encoder-model', 'decoder_joint-model'):
+        required.append(f'{name}{suffix}.onnx')
+        optional.append(f'{name}{suffix}.onnx?data')
+    return required, optional
+
+
+def _record_path(model_dir, quantization):
+    return os.path.join(model_dir, f'.minuspod-complete-{quantization or "fp32"}.json')
+
+
+def _matches(model_dir, pattern):
+    return [p for p in glob.glob(os.path.join(glob.escape(model_dir), pattern)) if os.path.isfile(p)]
+
+
+def _model_files_complete(model_dir, quantization):
+    """True only if a finished fetch recorded these files and each is still present at its recorded size."""
+    try:
+        with open(_record_path(model_dir, quantization), encoding='utf-8') as f:
+            sizes = json.load(f)
+        required, _ = _model_patterns(quantization)
+        recorded = {os.path.join(model_dir, name): size for name, size in sizes.items()}
+        return (all(any(p in recorded for p in _matches(model_dir, pat)) for pat in required)
+                and all(os.path.isfile(p) and os.path.getsize(p) == size for p, size in recorded.items()))
+    except (OSError, ValueError, AttributeError, TypeError):
+        return False
+
+
+def _record_model_files(model_dir, quantization):
+    """After a completed download, record each file's size so a later load can skip the network check."""
+    required, optional = _model_patterns(quantization)
+    if not all(_matches(model_dir, pat) for pat in required):
+        return
+    sizes = {os.path.relpath(p, model_dir): os.path.getsize(p)
+             for pat in required + optional for p in _matches(model_dir, pat)}
+    record = _record_path(model_dir, quantization)
+    tmp = f'{record}.{os.getpid()}.tmp'
+    try:
+        with open(tmp, 'w', encoding='utf-8') as f:
+            json.dump(sizes, f)
+        os.replace(tmp, record)
+    except OSError as e:
+        logger.debug("Could not record Parakeet model files: %s", e)
+
+
 def _fetch_model_files(model_dir, quantization):
-    """Download the model files into model_dir; fall back to a local copy when offline."""
+    """Download the model files into model_dir unless a finished fetch is on disk; fall back to a local copy when offline."""
+    if _model_files_complete(model_dir, quantization):
+        return
     from huggingface_hub import snapshot_download
     suffix = f'?{quantization}' if quantization else ''
     patterns = ['config.json', 'config.yaml', 'vocab.txt']
@@ -49,6 +102,8 @@ def _fetch_model_files(model_dir, quantization):
         if not os.path.isfile(encoder):
             raise
         logger.warning("Parakeet model download failed, using the local copy: %s", e)
+        return
+    _record_model_files(model_dir, quantization)
 
 
 class ParakeetModelSingleton:
@@ -80,6 +135,9 @@ class ParakeetModelSingleton:
                 model_dir = os.path.join(
                     os.environ.get('HF_HOME', '/app/data/.cache'), 'parakeet', PARAKEET_MODEL_NAME)
                 _fetch_model_files(model_dir, quantization)
+                # ERROR keeps real failures and drops device-discovery and Memcpy placement warnings.
+                if hasattr(onnxruntime, 'set_default_logger_severity'):
+                    onnxruntime.set_default_logger_severity(3)
                 model = onnx_asr.load_model(
                     PARAKEET_MODEL_NAME, path=model_dir, quantization=quantization,
                     providers=providers).with_timestamps()
