@@ -66,6 +66,7 @@ import PromptsSection from './settings/PromptsSection';
 import ExperimentsSection from './settings/ExperimentsSection';
 import AdReviewerSection from './settings/AdReviewerSection';
 import AudioCueDetectionSection from './settings/AudioCueDetectionSection';
+import AudioFingerprintingSection, { FINGERPRINT_LIMITS } from './settings/AudioFingerprintingSection';
 import PositionalPriorSection from './settings/PositionalPriorSection';
 import PatternCleanupSection from './settings/PatternCleanupSection';
 import CommunityPatternsSection from './settings/CommunityPatternsSection';
@@ -130,7 +131,7 @@ interface FieldSpec {
   // Dispatch<SetStateAction<...>> is assignable)...
   set?: (v: never) => void;
   // ...or a property patch collected into one of the nested state objects.
-  obj?: 'reviewer' | 'audioCue' | 'whisperApi' | 'failoverLlm' | 'failoverWhisper';
+  obj?: 'reviewer' | 'audioCue' | 'fingerprint' | 'whisperApi' | 'failoverLlm' | 'failoverWhisper';
   prop?: string;
   preserveExplicitBlank?: boolean;
 }
@@ -219,6 +220,13 @@ function Settings() {
     silenceSnapNoiseDb: -50,
     silenceSnapMinDurationSeconds: 0.3,
     silenceSnapMaxDistanceSeconds: 2,
+  });
+  const [fingerprint, setFingerprint] = useState({
+    enabled: true,
+    matchStrictness: FINGERPRINT_LIMITS.matchStrictness.default,
+    minCoverage: FINGERPRINT_LIMITS.minCoverage.default,
+    gapToleranceS: FINGERPRINT_LIMITS.gapToleranceS.default,
+    minAdLengthS: FINGERPRINT_LIMITS.minAdLengthS.default,
   });
   const [positionalPriorEnabled, setPositionalPriorEnabled] = useState(false);
   const [selectedModel, setSelectedModel] = useState('');
@@ -951,6 +959,12 @@ function Settings() {
     { key: 'daiDifferentialOverridesKeep', kind: 'val', useDefault: true, literal: true, value: daiDifferentialOverridesKeep, set: setDaiDifferentialOverridesKeep },
     { key: 'spliceVetoEnabled', kind: 'val', useDefault: true, literal: true, value: spliceVetoEnabled, set: setSpliceVetoEnabled },
     { key: 'transcriptDifferentialEnabled', kind: 'val', useDefault: true, literal: true, value: transcriptDifferentialEnabled, set: setTranscriptDifferentialEnabled },
+    // Audio fingerprinting (nested `fingerprint` state)
+    { key: 'fingerprintEnabled', kind: 'val', useDefault: true, literal: true, value: fingerprint.enabled, obj: 'fingerprint', prop: 'enabled' },
+    { key: 'fingerprintMatchStrictness', kind: 'val', useDefault: true, literal: FINGERPRINT_LIMITS.matchStrictness.default, value: fingerprint.matchStrictness, obj: 'fingerprint', prop: 'matchStrictness' },
+    { key: 'fingerprintMinCoverage', kind: 'val', useDefault: true, literal: FINGERPRINT_LIMITS.minCoverage.default, value: fingerprint.minCoverage, obj: 'fingerprint', prop: 'minCoverage' },
+    { key: 'fingerprintGapToleranceS', kind: 'val', useDefault: true, literal: FINGERPRINT_LIMITS.gapToleranceS.default, value: fingerprint.gapToleranceS, obj: 'fingerprint', prop: 'gapToleranceS' },
+    { key: 'fingerprintMinAdLengthS', kind: 'val', useDefault: true, literal: FINGERPRINT_LIMITS.minAdLengthS.default, value: fingerprint.minAdLengthS, obj: 'fingerprint', prop: 'minAdLengthS' },
     // Audio cue detection (nested `audioCue` state)
     { key: 'audioCueDetectionEnabled', kind: 'val', useDefault: true, value: audioCue.enabled, obj: 'audioCue', prop: 'enabled' },
     { key: 'audioCueFreqMinHz', kind: 'val', useDefault: true, value: audioCue.freqMinHz, obj: 'audioCue', prop: 'freqMinHz' },
@@ -1015,7 +1029,7 @@ function Settings() {
       // directly (render-phase setState, same pattern as before); nested
       // fields are collected into per-object patches and applied once.
       const patches: Record<NonNullable<FieldSpec['obj']>, Record<string, SettingScalar | undefined>> = {
-        reviewer: {}, audioCue: {}, whisperApi: {}, failoverLlm: {}, failoverWhisper: {},
+        reviewer: {}, audioCue: {}, fingerprint: {}, whisperApi: {}, failoverLlm: {}, failoverWhisper: {},
       };
       for (const f of FIELDS) {
         const v = fieldBaseline(settings, f);
@@ -1026,6 +1040,7 @@ function Settings() {
       // reviewerSettings query (see useSyncFromQuery above) are preserved.
       setReviewer((prev) => ({ ...prev, ...(patches.reviewer as Partial<typeof prev>) }));
       setAudioCue((prev) => ({ ...prev, ...(patches.audioCue as Partial<typeof prev>) }));
+      setFingerprint((prev) => ({ ...prev, ...(patches.fingerprint as Partial<typeof prev>) }));
       setWhisperApiConfig((prev) => ({ ...prev, ...(patches.whisperApi as Partial<typeof prev>) }));
       setFailoverLlm((prev) => ({ ...prev, ...(patches.failoverLlm as Partial<typeof prev>) }));
       setFailoverWhisper((prev) => ({ ...prev, ...(patches.failoverWhisper as Partial<typeof prev>) }));
@@ -1659,6 +1674,8 @@ function Settings() {
         onResetReviewPrompt={() => resetPromptMutation.mutate('review')}
         onResetResurrectPrompt={() => resetPromptMutation.mutate('resurrect')}
       />
+
+      <AudioFingerprintingSection fingerprint={fingerprint} onChange={setFingerprint} />
 
       <SeedSponsorsSection
         llmEnabled={llmEnabled}

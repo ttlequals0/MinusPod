@@ -985,6 +985,11 @@ export interface Settings {
   whisperPoolEnabled: SettingValueBoolean;
   whisperPoolMaxRequests: SettingValueNumber;
   whisperPoolMaxEpisodes: SettingValueNumber;
+  fingerprintEnabled: SettingValueBoolean;
+  fingerprintMatchStrictness: SettingValueNumber;
+  fingerprintMinCoverage: SettingValueNumber;
+  fingerprintGapToleranceS: SettingValueNumber;
+  fingerprintMinAdLengthS: SettingValueNumber;
   audioCueDetectionEnabled: SettingValueBoolean;
   audioCueFreqMinHz: SettingValueNumber;
   audioCueFreqMaxHz: SettingValueNumber;
@@ -1202,6 +1207,11 @@ export interface Settings {
     failoverWhisperApiModel: string;
     failoverProbeIntervalMinutes: number;
     failoverRecoveryProbes: number;
+    fingerprintEnabled: boolean;
+    fingerprintMatchStrictness: number;
+    fingerprintMinCoverage: number;
+    fingerprintGapToleranceS: number;
+    fingerprintMinAdLengthS: number;
     audioCueDetectionEnabled: boolean;
     audioCueFreqMinHz: number;
     audioCueFreqMaxHz: number;
@@ -1329,6 +1339,11 @@ export interface UpdateSettingsPayload {
   whisperPoolEnabled?: boolean;
   whisperPoolMaxRequests?: number;
   whisperPoolMaxEpisodes?: number;
+  fingerprintEnabled?: boolean;
+  fingerprintMatchStrictness?: number;
+  fingerprintMinCoverage?: number;
+  fingerprintGapToleranceS?: number;
+  fingerprintMinAdLengthS?: number;
   audioCueDetectionEnabled?: boolean;
   audioCueFreqMinHz?: number;
   audioCueFreqMaxHz?: number;

@@ -263,4 +263,28 @@ describe('Settings: None provider', () => {
     await waitFor(() => expect(mockUpdateSettings).toHaveBeenCalledWith({ llmProvider: 'anthropic' }));
     await waitFor(() => expect(captured.models.llmEnabled).toBe(true));
   });
+
+  it('keeps audio fingerprinting editable and saves it while the provider is None', async () => {
+    localStorage.setItem('settings-section-audio-fingerprinting', 'true');
+    mockGetSettings.mockResolvedValue(makeSettings({
+      ...savedNone,
+      fingerprintEnabled: { value: true, isDefault: true },
+      fingerprintMatchStrictness: { value: 0.65, isDefault: true },
+      fingerprintMinCoverage: { value: 0.5, isDefault: true },
+      fingerprintGapToleranceS: { value: 3.5, isDefault: true },
+      fingerprintMinAdLengthS: { value: 5, isDefault: true },
+    }));
+    renderSettings();
+    const toggle = await screen.findByRole('switch', { name: 'Enable audio fingerprinting' }) as HTMLButtonElement;
+    await waitFor(() => expect(captured.models.llmEnabled).toBe(false));
+    expect(toggle.hasAttribute('disabled')).toBe(false);
+    expect(toggle.closest('fieldset:disabled')).toBeNull();
+    const strictness = screen.getByLabelText('Match strictness') as HTMLInputElement;
+    expect(strictness.disabled).toBe(false);
+    expect(strictness.closest('fieldset:disabled')).toBeNull();
+
+    fireEvent.change(strictness, { target: { value: '0.7' } });
+    fireEvent.click(await screen.findByRole('button', { name: 'Save changes' }));
+    await waitFor(() => expect(mockUpdateSettings).toHaveBeenCalledWith({ fingerprintMatchStrictness: 0.7 }));
+  });
 });
