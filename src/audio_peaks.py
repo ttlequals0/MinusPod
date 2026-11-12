@@ -10,9 +10,9 @@ and build it.
 """
 from __future__ import annotations
 
-import hashlib
 import collections
 import fcntl
+import hashlib
 import logging
 import math
 import os
@@ -27,9 +27,9 @@ from pathlib import Path
 
 import numpy as np
 
-from utils.subprocess_registry import tracked_popen, tracked_run
 from utils.episode_paths import peaks_file_path, peaks_lock_path, remove_peaks_temp_files
 from utils.ffmpeg_run import SAFE_MEDIA_INPUT_ARGS, ffmpeg_timeout
+from utils.subprocess_registry import tracked_popen, tracked_run
 
 logger = logging.getLogger('podcast.peaks')
 

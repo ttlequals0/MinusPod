@@ -8,8 +8,8 @@ import threading
 import time
 from concurrent.futures import Future
 from contextlib import nullcontext
-import audio_peaks
 from ad_validator import user_trimmed_keep_ranges
+import audio_peaks
 from audio_processor import AudioProcessor
 from cancel import (
     ProcessingCancelled, ProcessingOwnershipLost, _check_cancel,
@@ -332,6 +332,24 @@ def _store_peaks_file(slug, episode_id, original_path, audio_analysis_result):
             audio_peaks.discard_stale_peaks_file(original_path)
     except Exception as e:
         audio_logger.warning(f"[{slug}:{episode_id}] Could not write peaks file: {e}")
+        try:
+            audio_peaks.discard_stale_peaks_file(original_path)
+        except Exception:
+            pass
+
+
+def _retain_original(slug, episode_id, audio_path, keep_original, audio_analysis_result):
+    """Move the source audio into place as the retained original and write its peaks file."""
+    if not (keep_original and os.path.exists(audio_path)):
+        return False
+    original_final = storage.get_original_path(slug, episode_id)
+    original_final.parent.mkdir(parents=True, exist_ok=True)
+    shutil.move(audio_path, original_final)
+    audio_logger.info(
+        f"[{slug}:{episode_id}] Retained original audio at {original_final.name}"
+    )
+    _store_peaks_file(slug, episode_id, original_final, audio_analysis_result)
+    return True
 
 
 def process_episode(slug: str, episode_id: str, episode_url: str,
@@ -1190,14 +1208,8 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
             # Retain the source only after chapter assets validate.
             keep_original = db.resolve_keep_original_audio(
                 slug, podcast_settings)
-            if keep_original and os.path.exists(audio_path):
-                original_final = storage.get_original_path(slug, episode_id)
-                original_final.parent.mkdir(parents=True, exist_ok=True)
-                shutil.move(audio_path, original_final)
-                audio_logger.info(
-                    f"[{slug}:{episode_id}] Retained original audio at {original_final.name}"
-                )
-                _store_peaks_file(slug, episode_id, original_final, audio_analysis_result)
+            _retain_original(slug, episode_id, audio_path, keep_original,
+                             audio_analysis_result)
 
             storage.save_combined_ads(slug, episode_id, all_ads_with_validation)
 

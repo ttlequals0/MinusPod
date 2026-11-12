@@ -150,12 +150,46 @@ def test_retention_sweep_removes_peaks_with_original(db_storage):
     db, storage = db_storage
     slug = 'peaks-sweep-feed'
     db.create_podcast(slug, 'https://example.com/feed.xml', 'Sweep Test')
+    db.set_setting('retention_days', '30')
+    db.set_setting('original_retention_days', '5')
     db.upsert_episode(slug, EP, original_url='https://example.com/a.mp3',
-                      title='t', status='processed')
-    _seed(storage, slug=slug)
-    storage.delete_original_only(slug, EP)
-    assert not storage.get_original_path(slug, EP).exists()
+                      title='t', status='processed', processed_file='a.mp3')
+    conn = db.get_connection()
+    conn.execute("UPDATE episodes SET processed_at = datetime('now', '-10 days') "
+                 "WHERE episode_id = ?", (EP,))
+    conn.commit()
+    original = _seed(storage, slug=slug)
+
+    db.cleanup_old_episodes(storage=storage)
+
+    assert not original.exists()
     assert not storage.get_peaks_path(slug, EP).exists()
+
+
+def test_delete_processed_file_fence_stop_after_peaks_keeps_original_not_orphan_peaks(storage):
+    original = _seed(storage)
+    answers = iter([True, False])
+    storage.delete_processed_file(SLUG, EP, keep_original=False,
+                                  can_delete=lambda: next(answers))
+    assert not storage.get_peaks_path(SLUG, EP).exists()
+    assert original.exists()
+
+
+def test_delete_processed_file_return_value_ignores_peaks_only(storage):
+    original = _seed(storage)
+    original.unlink()
+    assert storage.delete_processed_file(SLUG, EP, keep_original=False) is False
+    assert not storage.get_peaks_path(SLUG, EP).exists()
+
+
+def test_delete_peaks_file_with_hostile_id_returns_false(storage):
+    assert storage.delete_peaks_file(SLUG, '../../etc/passwd') is False
+
+
+def test_cleanup_episode_files_counts_peaks_bytes(storage):
+    _seed(storage)
+    peaks_size = storage.get_peaks_path(SLUG, EP).stat().st_size
+    assert storage.cleanup_episode_files(SLUG, EP) == 1024 + peaks_size
 
 
 def test_delete_episode_rows_removes_peaks(db_storage, local_feed):

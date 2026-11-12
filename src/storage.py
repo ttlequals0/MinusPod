@@ -414,6 +414,9 @@ class Storage:
             return True
         except FileNotFoundError:
             return False
+        except PathContainmentError as exc:
+            logger.debug(f"[{slug}:{episode_id}] No peaks path: {exc}")
+            return False
         except OSError as exc:
             logger.warning(f"[{slug}:{episode_id}] Failed to delete peaks file: {exc}")
             return False
@@ -1371,16 +1374,16 @@ class Storage:
         keep_original=True skips the original: local feeds keep it as the
         only copy (no upstream to re-download).
         """
-        deleted = False
+        audio_deleted = False
         candidates = list(self.iter_episode_audio_paths(slug, episode_id, ".mp3"))
-        if not keep_original:
-            original = self.get_original_path(slug, episode_id, ".mp3")
-            if original and original.exists():
-                candidates.append(original)
+        peaks = None
         if not keep_original:
             peaks = self.get_peaks_path(slug, episode_id)
             if peaks.exists():
-                candidates.append(peaks)
+                candidates.append(peaks)  # before the original so a fence stop never orphans it
+            original = self.get_original_path(slug, episode_id, ".mp3")
+            if original and original.exists():
+                candidates.append(original)
         fenced = False
         for path in candidates:
             if can_delete is not None and not can_delete():
@@ -1388,12 +1391,12 @@ class Storage:
                 break
             if path.exists():
                 path.unlink()
-                deleted = deleted or path.suffix != '.peaks'
+                audio_deleted = audio_deleted or path != peaks
         if not keep_original and not fenced:
-            remove_peaks_temp_files(self.get_peaks_path(slug, episode_id))
-        if deleted:
+            remove_peaks_temp_files(peaks)
+        if audio_deleted:
             logger.debug(f"[{slug}:{episode_id}] Deleted processed/original audio files")
-        return deleted
+        return audio_deleted
 
     def delete_original_only(self, slug: str, episode_id: str,
                              extension: str = ".mp3") -> tuple[bool, int]:
@@ -1447,7 +1450,12 @@ class Storage:
                 except Exception as e:
                     logger.warning(f"Failed to delete {path}: {e}")
 
-        self.delete_peaks_file(slug, episode_id)
+        try:
+            peaks_size = self.get_peaks_path(slug, episode_id).stat().st_size
+        except OSError:
+            peaks_size = 0
+        if self.delete_peaks_file(slug, episode_id):
+            freed += peaks_size
         freed += self.remove_chapter_images(slug, episode_id)
         return freed
 

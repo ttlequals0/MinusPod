@@ -1,6 +1,8 @@
+import hashlib
+import logging
 import os
 import subprocess
-import time
+from types import SimpleNamespace
 from unittest.mock import patch
 
 import numpy as np
@@ -40,7 +42,7 @@ def test_restamps_existing_valid_file(tmp_path):
     src = tmp_path / 'e-original.wav'
     _gen_wav(src)
     ap.maybe_write_peaks_file(src, np.array([9], dtype='<u2'))
-    future = time.time_ns() + 10_000_000_000
+    future = src.stat().st_mtime_ns + 10_000_000_000
     os.utime(src, ns=(future, future))
     with patch('audio_peaks.write_peaks_file') as w:
         assert ap.maybe_write_peaks_file(src, np.array([9], dtype='<u2')) is True
@@ -55,6 +57,17 @@ def test_changed_content_is_rewritten(tmp_path):
     _gen_wav(src, seconds=2.0, freq=880)
     assert ap.maybe_write_peaks_file(src, np.array([5, 6, 7], dtype='<u2')) is True
     assert list(ap.read_peaks_file(ap.peaks_file_path(src)).buckets) == [5, 6, 7]
+
+
+def test_same_size_different_bytes_is_rewritten(tmp_path):
+    src = tmp_path / 'e-original.wav'
+    _gen_wav(src)
+    ap.maybe_write_peaks_file(src, np.array([9, 9], dtype='<u2'))
+    size = src.stat().st_size
+    _gen_wav(src, freq=880)
+    assert src.stat().st_size == size
+    assert ap.maybe_write_peaks_file(src, np.array([5, 6], dtype='<u2')) is True
+    assert list(ap.read_peaks_file(ap.peaks_file_path(src)).buckets) == [5, 6]
 
 
 def test_discard_stale_removes_mismatched_file(tmp_path):
@@ -105,3 +118,96 @@ def test_store_peaks_file_swallows_errors(tmp_path):
     result = type('R', (), {'peaks_10ms': np.array([1], dtype='<u2')})()
     with patch('audio_peaks.write_peaks_file', side_effect=OSError('disk full')):
         processing._store_peaks_file('s', 'e', src, result)
+
+
+class _Storage:
+    def __init__(self, root):
+        self.root = root
+
+    def get_original_path(self, slug, episode_id):
+        return self.root / f'{episode_id}-original.wav'
+
+
+def _retain(processing, tmp_path, src, peaks, keep=True):
+    result = SimpleNamespace(peaks_10ms=peaks)
+    with patch.object(processing, 'storage', _Storage(tmp_path / 'ep')):
+        return processing._retain_original('s', 'e', src, keep, result)
+
+
+def _work_copy(tmp_path, name, freq=440):
+    path = tmp_path / name
+    _gen_wav(path, freq=freq)
+    return path
+
+
+def test_retain_moves_original_and_writes_peaks_for_final_file(tmp_path):
+    final = tmp_path / 'ep' / 'e-original.wav'
+    src = _work_copy(tmp_path, 'work.wav')
+    assert _retain(processing, tmp_path, src, np.array([1, 2, 3], dtype='<u2')) is True
+    assert not src.exists()
+    data = ap.read_peaks_file(ap.peaks_file_path(final))
+    assert list(data.buckets) == [1, 2, 3]
+    assert data.source_size == final.stat().st_size
+    assert data.source_mtime_ns == final.stat().st_mtime_ns
+    assert data.source_sha256 == hashlib.sha256(final.read_bytes()).digest()
+
+
+def test_retain_with_keep_original_off_writes_nothing(tmp_path):
+    src = _work_copy(tmp_path, 'work.wav')
+    assert _retain(processing, tmp_path, src, np.array([1], dtype='<u2'), keep=False) is False
+    assert src.exists()
+    assert not (tmp_path / 'ep').exists()
+
+
+def test_reprocess_same_bytes_restamps_without_rewrite(tmp_path):
+    final = tmp_path / 'ep' / 'e-original.wav'
+    first = _work_copy(tmp_path, 'work1.wav')
+    _retain(processing, tmp_path, first, np.array([1, 2], dtype='<u2'))
+    peaks_path = ap.peaks_file_path(final)
+    inode = peaks_path.stat().st_ino
+    second = tmp_path / 'work2.wav'
+    second.write_bytes(final.read_bytes())
+    later = final.stat().st_mtime_ns + 10_000_000_000
+    os.utime(second, ns=(later, later))
+    with patch('audio_peaks.write_peaks_file') as w:
+        _retain(processing, tmp_path, second, np.array([7, 7], dtype='<u2'))
+        w.assert_not_called()
+    data = ap.read_peaks_file(peaks_path)
+    assert list(data.buckets) == [1, 2]
+    assert data.source_mtime_ns == final.stat().st_mtime_ns == later
+    assert peaks_path.stat().st_ino != inode  # restamp rewrites atomically, content kept
+
+
+def test_reprocess_same_size_different_bytes_rewrites(tmp_path):
+    final = tmp_path / 'ep' / 'e-original.wav'
+    first = _work_copy(tmp_path, 'work1.wav')
+    _retain(processing, tmp_path, first, np.array([1, 2], dtype='<u2'))
+    size = final.stat().st_size
+    second = _work_copy(tmp_path, 'work2.wav', freq=880)
+    assert second.stat().st_size == size
+    _retain(processing, tmp_path, second, np.array([8, 9], dtype='<u2'))
+    assert list(ap.read_peaks_file(ap.peaks_file_path(final)).buckets) == [8, 9]
+
+
+def test_reprocess_without_peaks_and_new_bytes_removes_stale_file(tmp_path):
+    final = tmp_path / 'ep' / 'e-original.wav'
+    first = _work_copy(tmp_path, 'work1.wav')
+    _retain(processing, tmp_path, first, np.array([1, 2], dtype='<u2'))
+    second = _work_copy(tmp_path, 'work2.wav', freq=880)
+    _retain(processing, tmp_path, second, None)
+    assert final.exists()
+    assert not ap.peaks_file_path(final).exists()
+
+
+def test_failed_write_on_reprocess_logs_once_and_leaves_no_stale_or_temp_file(tmp_path, caplog):
+    final = tmp_path / 'ep' / 'e-original.wav'
+    first = _work_copy(tmp_path, 'work1.wav')
+    _retain(processing, tmp_path, first, np.array([1, 2], dtype='<u2'))
+    second = _work_copy(tmp_path, 'work2.wav', freq=880)
+    with patch('audio_peaks._write_atomic', side_effect=OSError('disk full')), \
+            caplog.at_level(logging.WARNING):
+        assert _retain(processing, tmp_path, second, np.array([8, 9], dtype='<u2')) is True
+    warnings = [r for r in caplog.records if r.levelno >= logging.WARNING]
+    assert len(warnings) == 1
+    assert final.exists()
+    assert sorted(p.name for p in final.parent.iterdir()) == ['e-original.wav']
