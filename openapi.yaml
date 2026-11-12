@@ -20278,6 +20278,22 @@ components:
           oneOf:
             - type: 'null'
             - $ref: '#/components/schemas/PatternAudioSpan'
+        addSource:
+          description: >-
+            Only for a pattern with no fingerprint: the span of its own marker in
+            its origin episode that a fingerprint could be built from. It uses the
+            pre-trim span of a reviewer-adjusted marker and the earliest marker when
+            there are several. Null when the pattern has a fingerprint, has no origin
+            episode or podcast, or has no such marker.
+          oneOf:
+            - type: 'null'
+            - allOf:
+                - $ref: '#/components/schemas/PatternAudioSpan'
+                - type: object
+                  properties:
+                    available:
+                      type: boolean
+                      description: Whether that episode's original is retained now.
         counts:
           type: object
           properties:

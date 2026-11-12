@@ -19,6 +19,7 @@ from audio_fingerprinter import (
 )
 from config import FFMPEG_SHORT_TIMEOUT
 from storage import PathContainmentError
+from utils.markers import parse_ad_markers
 from utils.ffmpeg_run import SAFE_MEDIA_INPUT_ARGS
 from utils.subprocess_registry import tracked_run
 
@@ -102,18 +103,44 @@ def _still_matchable(db, fingerprint):
         ints, min_coverage=clamped_fingerprint_setting(db, 'fingerprint_min_coverage'))
 
 
+def _displayed_span(marker):
+    """The span the episode page shows for a marker: the pre-trim range of a reviewer-adjusted one."""
+    start, end = marker.get('start'), marker.get('end')
+    if marker.get('reviewer_verdict') == 'adjust':
+        start, end = marker.get('reviewer_original_start', start), marker.get('reviewer_original_end', end)
+    return (start, end) if _usable_span(start, end) else None
+
+
+def _add_source(db, storage, pattern_id):
+    """The span of the pattern's own marker in its origin episode that a fingerprint could be built from, or None."""
+    pattern = db.get_ad_pattern_by_id(pattern_id)
+    slug, episode_id = pattern.get('podcast_id'), pattern.get('created_from_episode_id')
+    if not slug or not episode_id:
+        return None
+    episode = db.get_episode(slug, episode_id)
+    spans = sorted(span for marker in parse_ad_markers((episode or {}).get('ad_markers_json')) or []
+                   if isinstance(marker, dict) and marker.get('pattern_id') == pattern_id
+                   and (span := _displayed_span(marker)))
+    if not spans:
+        return None
+    _, err = _retained_original(db, storage, slug, episode_id)
+    return {'podcastSlug': slug, 'episodeId': episode_id,
+            'start': spans[0][0], 'end': spans[0][1], 'available': err is None}
+
+
 def build_audio_detail(db, storage, pattern_id):
     """The audio detail object of a pattern that exists."""
     fingerprint = db.get_audio_fingerprint(pattern_id)
     summary = db.get_audio_match_summary(pattern_id)
     detail = {
         'state': 'none', 'available': False, 'matchable': True, 'length': None, 'createdAt': None,
-        'builtFrom': None, 'source': None,
+        'builtFrom': None, 'source': None, 'addSource': None,
         'counts': {'matches': summary['match_count'], 'rejected': summary['rejected_count'],
                    'outOfScope': summary['out_of_scope_count']},
         'meanSimilarity': summary['mean_similarity'], 'lastMatchedAt': summary['last_matched_at'],
     }
     if fingerprint is None:
+        detail['addSource'] = _add_source(db, storage, pattern_id)
         return detail
     detail['state'] = 'active' if fingerprint['enabled'] else 'off'
     detail['matchable'] = _still_matchable(db, fingerprint)
