@@ -7,7 +7,7 @@ import shutil
 import threading
 import time
 from concurrent.futures import Future
-from contextlib import nullcontext
+from contextlib import nullcontext, suppress
 from ad_validator import user_trimmed_keep_ranges
 import audio_peaks
 from audio_processor import AudioProcessor
@@ -326,16 +326,15 @@ def start_background_processing(slug, episode_id, original_url, title, podcast_n
 
 def _store_peaks_file(slug, episode_id, original_path, audio_analysis_result):
     """Write the peaks file for a just-retained original; never fails the run."""
+    peaks = getattr(audio_analysis_result, 'peaks_10ms', None)
     try:
-        peaks = getattr(audio_analysis_result, 'peaks_10ms', None)
-        if not audio_peaks.maybe_write_peaks_file(original_path, peaks):
-            audio_peaks.discard_stale_peaks_file(original_path)
+        written = audio_peaks.maybe_write_peaks_file(original_path, peaks)
     except Exception as e:
         audio_logger.warning(f"[{slug}:{episode_id}] Could not write peaks file: {e}")
-        try:
+        written = False
+    if not written:
+        with suppress(Exception):
             audio_peaks.discard_stale_peaks_file(original_path)
-        except Exception:
-            pass
 
 
 def _retain_original(slug, episode_id, audio_path, keep_original, audio_analysis_result):
