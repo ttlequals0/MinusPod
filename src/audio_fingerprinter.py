@@ -121,7 +121,7 @@ PATTERN_CACHE_SIZE = 512
 _POPCOUNT8 = np.array([bin(i).count('1') for i in range(256)], dtype=np.uint16)
 
 
-def _fpcalc_output_or_none(result, warn_prefix: str) -> dict | None:
+def _fpcalc_output_or_none(result, warn_prefix: str, level: int = logging.WARNING) -> dict | None:
     """Parse fpcalc's JSON stdout, or None when unusable.
 
     A non-zero exit is not by itself a failure: on a recoverable mid-stream
@@ -132,12 +132,12 @@ def _fpcalc_output_or_none(result, warn_prefix: str) -> dict | None:
     """
     stderr = result.stderr.decode(errors='replace').strip() if result.stderr else ''
     if result.returncode != 0:
-        logger.warning(f"{warn_prefix}: exit {result.returncode}: {stderr[:300]}")
+        logger.log(level, f"{warn_prefix}: exit {result.returncode}: {stderr[:300]}")
     try:
         data = json.loads(result.stdout.decode())
     except (ValueError, UnicodeDecodeError):
         if result.returncode == 0:
-            logger.warning(f"{warn_prefix}: unparseable stdout: {stderr[:300]}")
+            logger.log(level, f"{warn_prefix}: unparseable stdout: {stderr[:300]}")
         return None
     if not data.get('fingerprint'):
         return None
@@ -1213,7 +1213,7 @@ class AudioFingerprinter:
             return None
 
     def _generate_full_fingerprint(
-        self, audio_path: str, timeout: int = FPCALC_TIMEOUT_FULL
+        self, audio_path: str, timeout: int = FPCALC_TIMEOUT_FULL, *, quiet: bool = False
     ) -> tuple[list[int], float] | None:
         """Generate raw fingerprint for entire audio file in one fpcalc call.
 
@@ -1222,6 +1222,7 @@ class AudioFingerprinter:
             timeout: fpcalc wall-clock cap. Defaults to the full-file budget; a
                 caller on a request thread can pass a shorter bound so a stalled
                 decode degrades gracefully instead of holding the request.
+            quiet: log failures at DEBUG; the caller reports them once, labelled.
 
         Returns:
             Tuple of (raw_int_array, duration) or None on failure
@@ -1233,7 +1234,8 @@ class AudioFingerprinter:
             cmd = [self._fpcalc_path, '-raw', '-json', '-length', '0', audio_path]
             result = tracked_run(cmd, capture_output=True, timeout=timeout)
 
-            data = _fpcalc_output_or_none(result, 'Full-file fpcalc')
+            data = _fpcalc_output_or_none(
+                result, 'Full-file fpcalc', logging.DEBUG if quiet else logging.WARNING)
             if data is None:
                 return None
 
@@ -1247,10 +1249,13 @@ class AudioFingerprinter:
             return (raw_ints, duration)
 
         except subprocess.TimeoutExpired:
-            logger.error("Full-file fingerprint generation timed out")
+            logger.log(logging.DEBUG if quiet else logging.ERROR, "Full-file fingerprint generation timed out")
             return None
         except Exception as e:
-            logger.error(f"Full-file fingerprint generation failed: {e}")
+            if quiet:
+                logger.debug(f"Full-file fingerprint generation failed: {type(e).__name__}")
+            else:
+                logger.error(f"Full-file fingerprint generation failed: {e}")
             return None
 
     def _extract_wav_segment(self, audio_path, tmp_path, start, duration):
@@ -1527,7 +1532,7 @@ class AudioFingerprinter:
             List of (pattern_id, raw_int_array, duration, sponsor, category)
         """
         if acoustid is None:
-            logger.warning("acoustid not available for fingerprint decoding")
+            logger.debug("acoustid not available for fingerprint decoding")
             return []
 
         decoded = []
@@ -1652,7 +1657,7 @@ class AudioFingerprinter:
 
         label = episode_label or 'unknown episode'
         full_fp = self._generate_full_fingerprint(
-            audio_path, timeout=self._full_fingerprint_timeout(total_duration))
+            audio_path, timeout=self._full_fingerprint_timeout(total_duration), quiet=True)
         if full_fp is not None:
             raw_ints, fp_duration = full_fp
             decoded_known = self._decode_known_fingerprints(known_fingerprints)

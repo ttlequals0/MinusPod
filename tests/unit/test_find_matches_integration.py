@@ -52,7 +52,7 @@ def world(temp_db, monkeypatch):
     fp._fpcalc_path = '/usr/bin/fpcalc'
     seen = {}
 
-    def full(path, timeout=FPCALC_TIMEOUT_FULL):
+    def full(path, timeout=FPCALC_TIMEOUT_FULL, **_):
         seen['timeout'] = timeout
         return ep, EP_SECONDS
     monkeypatch.setattr(fp, 'is_available', lambda: True)
