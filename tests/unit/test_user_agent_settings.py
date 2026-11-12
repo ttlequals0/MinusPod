@@ -178,8 +178,7 @@ class TestAudioAvailabilityProbe:
 
 def test_module_imports_before_storage():
     """user_agent must stay a leaf: storage imports it, so importing it first
-    has to work. `utils.ttl_cache` drags utils/__init__ -> utils.audio ->
-    storage and puts it back in the cycle."""
+    has to work."""
     import subprocess
     import sys
 

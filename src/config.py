@@ -405,7 +405,7 @@ def is_cue_backed(ad) -> bool:
 def measured_evidence(ad) -> list[str]:
     """Every measured signal backing an ad: its own stage, the measured stages
     it merged in, a cue snap, and a validator-confirmed sponsor."""
-    # Lazy: utils/__init__ imports utils.audio, which imports this module.
+    # Lazy: utils.markers imports this module at top level.
     from utils.markers import MEASURED_EVIDENCE_STAGES, recorded_member_spans
     stages = {ad.get('detection_stage')}
     stages.update(span.get('stage') for span in recorded_member_spans(ad))

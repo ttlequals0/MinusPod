@@ -14,7 +14,8 @@ import utils.http as http
 from run_log import _MESSAGE_FORMATTER
 from transcriber import Transcriber
 from utils.http import (
-    _HSPACE, _LINE_BREAKS, _MAX_INPUT_CHARS, MAX_REDACT_CHARS, redact_feed_credentials, redact_log_text,
+    _HSPACE, _LINE_BREAKS, _MAX_INPUT_CHARS, MAX_REDACT_CHARS, cap_log_text, redact_feed_credentials,
+    redact_log_text,
     redact_stored_text, redact_url_userinfo, scrub_query_strings)
 from utils.log_format import QueryStringRedactingFilter, _flatten, make_formatter
 from utils.url import SSRFError
@@ -113,6 +114,33 @@ def test_redact_log_text_keeps_a_normal_traceback_whole_and_elides_huge_input():
     huge = "x" * (MAX_REDACT_CHARS * 3)
     out = redact_log_text(huge)
     assert "chars elided" in out and len(out) < MAX_REDACT_CHARS + 100
+
+
+def test_space_free_multiline_text_keeps_head_and_tail():
+    text = '\n'.join('https://cdn.example/ep%d.mp3' % i for i in range(3000))
+    out = redact_log_text(text)
+    assert out.startswith('https://cdn.example/ep0.mp3')
+    assert out.endswith('ep2999.mp3')
+    assert 'chars elided' in out and len(out) <= MAX_REDACT_CHARS
+    assert redact_log_text(out) == out
+    assert cap_log_text(text).startswith('https://cdn.example/ep0.mp3')
+
+
+@pytest.mark.parametrize("brk", list(_LINE_BREAKS), ids=[f"u{ord(b):04x}" for b in _LINE_BREAKS])
+@pytest.mark.parametrize("secret_line", [
+    'https://h/f?k=SECRETQ',
+    'https://u:SECRETU@h/x',
+    'D' * 64,
+], ids=['query', 'userinfo', 'hex64'])
+def test_multiline_cut_never_leaks_a_secret(brk, secret_line):
+    fill = brk.join('https://cdn.example/ep%d.mp3' % i for i in range(700))
+    for pad in range(0, 40, 7):
+        text = fill + brk + 'p' * pad + secret_line + brk + 'q?k=SECRETQ' + brk + fill
+        out = redact_log_text(text)
+        assert 'SECRET' not in out and 'D' * 64 not in out
+        assert len(out) <= MAX_REDACT_CHARS
+        assert redact_log_text(out) == out
+        _assert_tokens_whole(out)
 
 
 def test_cdn_check_ssrf_message_is_redacted(monkeypatch):
@@ -351,6 +379,12 @@ _DOUBLING_SHAPES = {
     'alternating-name-eq': lambda n: '?a=?b=' * n,
     'percent-escape-hex': lambda n: '%2F' * n,
     'hex-dot-repeat': lambda n: ('a' * 16 + '.') * n,
+    'query-lf-continuation': lambda n: '/x?a' + '\n' * n + 'b',
+    'query-crlf-continuation': lambda n: '/x?a' + '\r\n' * n + 'b',
+    'query-u2028-continuation': lambda n: '/x?a' + '\u2028' * n + 'b',
+    'query-vt-continuation': lambda n: '/x?a' + '\x0b' * n + 'b',
+    'line-breaks-only': lambda n: '\n\r\u2028\x0b' * n,
+    'query-line-pairs': lambda n: '/x?a\n' * n,
 }
 
 

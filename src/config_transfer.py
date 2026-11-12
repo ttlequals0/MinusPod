@@ -882,11 +882,17 @@ def _stored_source(row):
     return _import_source_url(row['source_url']) if row['feed_type'] == 'subscribed' else row['source_url']
 
 
-def _source_owner(conn, source, slug):
-    """Another feed whose stored source URL, normalized as on import, equals source."""
-    rows = conn.execute(
-        'SELECT slug, feed_type, source_url FROM podcasts WHERE slug != ? AND source_url IS NOT NULL', (slug,))
-    return next((row['slug'] for row in rows if _stored_source(row) == source), None)
+def _source_owners(conn):
+    """Stored source URLs, normalized as on import, mapped to the slugs holding them."""
+    owners = {}
+    for row in conn.execute('SELECT slug, feed_type, source_url FROM podcasts WHERE source_url IS NOT NULL'):
+        owners.setdefault(_stored_source(row), []).append(row['slug'])
+    return owners
+
+
+def _source_owner(owners, source, slug):
+    """Another feed whose stored source URL equals source."""
+    return next((other for other in owners.get(source, ()) if other != slug), None)
 
 
 def _validate_import_feed_urls(feeds):
@@ -947,6 +953,7 @@ def build_preview(db, document, scope, selected_feeds=None):
     added, updated = [], []
     confirmed_ceiling = settings.get(
         'max_ad_duration_confirmed_seconds', resolve_max_ad_duration_confirmed(db))
+    source_owners = _source_owners(db.get_connection())
     for feed in feeds:
         slug = feed['slug']
         current = db.get_connection().execute(
@@ -969,7 +976,7 @@ def build_preview(db, document, scope, selected_feeds=None):
             updated.append(slug)
         source = feed.get('settings', {}).get('source_url', '')
         if feed['feedType'] in ('subscribed', 'youtube'):
-            if _source_owner(db.get_connection(), source, slug):
+            if _source_owner(source_owners, source, slug):
                 raise ConfigTransferError('Source URL already belongs to another feed')
         if feed.get('settings', {}).get('detection_mode') == 'cue_only':
             cue_templates = []
@@ -1415,6 +1422,7 @@ def apply_config(db, document, scope, selected_feeds, preview_token):
                     common.after_commit(ad_detection.invalidate_user_agent_cache)
                 if 'feed_auth_key' in settings:
                     common.after_commit(db.clear_all_podcast_etags)
+                source_owners = _source_owners(conn)
                 for feed in feeds:
                     slug = feed['slug']
                     current_row = conn.execute(
@@ -1426,7 +1434,7 @@ def apply_config(db, document, scope, selected_feeds, preview_token):
                                         or _stored_source(current_row) != feed.get('settings', {}).get('source_url', '')):
                         raise ConfigTransferError(f'Feed identity conflict for {slug}')
                     source_url = feed.get('settings', {}).get('source_url', '')
-                    if feed['feedType'] in ('subscribed', 'youtube') and _source_owner(conn, source_url, slug):
+                    if feed['feedType'] in ('subscribed', 'youtube') and _source_owner(source_owners, source_url, slug):
                         raise ConfigTransferError('Source URL already belongs to another feed')
                     updates = _validated_feed_updates(
                         db, dict(current_row) if current_row else None,
@@ -1439,6 +1447,8 @@ def apply_config(db, document, scope, selected_feeds, preview_token):
                         title = updates.pop('title', None)
                         source_url = updates.pop('source_url', f'local://{slug}')
                         db.create_podcast(slug, source_url, title, feed['feedType'], conn=conn)
+                        source_owners.setdefault(
+                            _stored_source({'feed_type': feed['feedType'], 'source_url': source_url}), []).append(slug)
                         if feed['feedType'] in ('local', 'youtube') and 'p20_channel_json' not in updates:
                             from api.feeds import _apply_p20_merge, _public_feed_url
                             feed_url = _public_feed_url(slug, db.get_setting('feed_auth_key'))

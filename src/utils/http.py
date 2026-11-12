@@ -29,6 +29,9 @@ _CLOSING = "\"'`])}>,.;:!"
 _REDACTED = '<redacted>'
 _LAST_SPACE_RE = re.compile(rf'.*[{_HSPACE}]', re.DOTALL)
 _SPACE_RE = re.compile(rf'[{_HSPACE}]')
+# Already redacted text may also be cut at a line break.
+_LAST_CUT_RE = re.compile(rf'.*[{_HSPACE}{_LINE_BREAKS}]', re.DOTALL)
+_CUT_RE = re.compile(rf'[{_HSPACE}{_LINE_BREAKS}]')
 # Real records are tracebacks of a few KB; beyond this only head and tail are kept.
 MAX_REDACT_CHARS = 32768
 # Longer input is cut to its head and tail before redaction so a huge record costs bounded time.
@@ -92,19 +95,25 @@ def redact_stored_text(text: str) -> str:
     return _redact(str(text), False)
 
 
-def _head(text: str, limit: int) -> str:
-    """Longest prefix of at most limit chars that ends at the text end or where horizontal whitespace follows."""
+def _head(text: str, limit: int, redacted: bool = False) -> str:
+    """Longest prefix of at most limit chars that ends at the text end or where whitespace follows.
+
+    Line breaks count as whitespace only for already redacted text.
+    """
     if len(text) <= limit:
         return text
-    match = _LAST_SPACE_RE.match(text, 0, limit + 1)
+    match = (_LAST_CUT_RE if redacted else _LAST_SPACE_RE).match(text, 0, limit + 1)
     return text[:match.end() - 1] if match else ''
 
 
-def _tail(text: str, limit: int) -> str:
-    """Longest suffix of at most limit chars that is the whole text or starts with horizontal whitespace."""
+def _tail(text: str, limit: int, redacted: bool = False) -> str:
+    """Longest suffix of at most limit chars that is the whole text or starts with whitespace.
+
+    Line breaks count as whitespace only for already redacted text.
+    """
     if len(text) <= limit:
         return text
-    match = _SPACE_RE.search(text, len(text) - limit)
+    match = (_CUT_RE if redacted else _SPACE_RE).search(text, len(text) - limit)
     return text[match.start():] if match else ''
 
 
@@ -133,8 +142,8 @@ def redact_log_text(text: str, keep_query: bool = False) -> str:
 
 def _elide(head_text: str, tail_text: str, total: int, limit: int) -> str:
     budget = limit - _ELIDE_MARKER_ROOM
-    head = _head(head_text, budget // 2)
-    tail = _tail(tail_text, budget - budget // 2)
+    head = _head(head_text, budget // 2, redacted=True)
+    tail = _tail(tail_text, budget - budget // 2, redacted=True)
     return f"{head} [{total - len(head) - len(tail)} chars elided]{tail}"
 
 

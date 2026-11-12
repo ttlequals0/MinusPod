@@ -211,6 +211,39 @@ def test_config_import_apply_sees_a_stored_whitespace_url_on_another_slug(temp_d
     assert temp_db.get_podcast_by_slug('ws-config') is None
 
 
+def _multi_feed_document(sources):
+    document = _config_document('x')
+    document['feeds'] = [{'slug': f'ws-multi-{i}', 'feedType': 'subscribed', 'settings': {'source_url': source}}
+                         for i, source in enumerate(sources)]
+    return document
+
+
+def _count_podcast_scans(conn, scans):
+    conn.set_trace_callback(
+        lambda sql: scans.append(sql) if 'FROM podcasts WHERE source_url IS NOT NULL' in sql else None)
+
+
+def test_config_import_scans_podcasts_once_per_pass(temp_db, monkeypatch):
+    document = _multi_feed_document([f'https://feeds.example.com/{i}.xml' for i in range(5)])
+    monkeypatch.setattr(config_transfer, '_validate_for_tier', lambda *_args: None)
+    monkeypatch.setattr(config_transfer, '_after_feed_commit', lambda *_args: [])
+    scans = []
+    _count_podcast_scans(temp_db.get_connection(), scans)
+    preview = config_transfer.build_preview(temp_db, document, 'feeds')
+    assert len(scans) == 1
+    config_transfer.apply_config(temp_db, document, 'feeds', None, preview['previewToken'])
+    # Apply re-runs the preview, then scans once for its own write pass.
+    assert len(scans) == 3
+    assert temp_db.get_podcast_by_slug('ws-multi-4') is not None
+
+
+def test_config_import_catches_two_feeds_with_one_url_in_a_backup(temp_db, monkeypatch):
+    document = _multi_feed_document(['https://feeds.example.com/a.xml', 'https://feeds.example.com/a.xml'])
+    with pytest.raises(ConfigTransferError, match='already belongs to another feed'):
+        _import(temp_db, document, monkeypatch)
+    assert temp_db.get_podcast_by_slug('ws-multi-1') is None
+
+
 def test_config_import_still_refuses_a_url_that_fails_validation(temp_db, monkeypatch):
     def reject(*_args):
         raise SSRFError('Blocked private IP')
