@@ -1,11 +1,11 @@
 """Add ad stores a fingerprint of the marked span and reports the outcome."""
 import pytest
 
-from api.patterns import _own_pattern_spans
 from tests.integration.fingerprint_helpers import (  # noqa: E402
     EPISODE, FIRST_READ, SECOND_TEMPLATE, SLUG, TEMPLATE, TWO_SPONSORS, post_correction, seed_timed_transcript,
     seed_two_sponsor_transcript,
 )
+from api.patterns import _own_pattern_spans  # noqa: E402  must follow the helpers, which bootstrap the data dir
 
 
 def _create(app_client, start=10.0, end=40.0):
