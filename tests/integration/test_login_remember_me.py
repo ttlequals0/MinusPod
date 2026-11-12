@@ -107,3 +107,26 @@ def test_csrf_cookie_reissued_after_browser_restart_on_remembered_session(client
     r = client.get('/api/v1/auth/status')
     assert r.get_json()['authenticated'] is True
     assert any(c.startswith(f'{CSRF_COOKIE_NAME}=') for c in r.headers.getlist('Set-Cookie'))
+
+
+@pytest.mark.parametrize('body', [['password'], 'password', {'password': None}, {'password': 5},
+                                  {'rememberMe': True}, 7, None])
+def test_malformed_login_body_is_a_400(client, body):
+    r = _login(client, body)
+    assert_response_conforms('post', '/auth/login', r, status=400)
+
+
+def test_locked_client_with_a_bad_body_still_gets_429(client):
+    ip = '8.8.8.8'
+    db = database.Database()
+    for _ in range(50):
+        if db.record_auth_failure(ip):
+            break
+    r = client.post('/api/v1/auth/login', data=json.dumps({'password': PW, 'rememberMe': 'yes'}),
+                    content_type='application/json', environ_base={'REMOTE_ADDR': ip})
+    assert r.status_code == 429
+    assert r.headers['Retry-After'].isdigit()
+    r = client.post('/api/v1/auth/login', data=json.dumps(['password']),
+                    content_type='application/json', environ_base={'REMOTE_ADDR': ip})
+    assert r.status_code == 429
+    db.record_auth_success(ip)

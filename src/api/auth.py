@@ -105,15 +105,6 @@ def auth_login():
             'message': 'No password configured'
         })
 
-    data = request.get_json()
-    if not data or 'password' not in data:
-        return error_response('Password is required', 400)
-
-    remember = data.get('rememberMe', False)
-    if not isinstance(remember, bool):
-        return error_response('rememberMe must be a boolean', 400)
-
-    password = data['password']
     ip = request.remote_addr or ''
 
     # Lockout only fires on public IPs so operators behind RFC1918, CGNAT,
@@ -132,6 +123,16 @@ def auth_login():
             }, 429)
             response.headers['Retry-After'] = str(seconds)
             return response
+
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict) or not isinstance(data.get('password'), str):
+        return error_response('Password is required', 400)
+
+    remember = data.get('rememberMe', False)
+    if not isinstance(remember, bool):
+        return error_response('rememberMe must be a boolean', 400)
+
+    password = data['password']
 
     if not stored_hash or not check_password_hash(stored_hash, password):
         logger.warning(f"Failed login attempt from {ip}")
