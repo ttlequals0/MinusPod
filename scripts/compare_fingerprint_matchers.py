@@ -443,7 +443,7 @@ def pattern_report(patterns, settings, redact):
             'self_match_refusals': refusals}
 
 
-def build_summary(results, skipped, fallback, scanned, patterns, settings, strictness_info, old_ref):
+def build_summary(results, skipped, failed, scanned, patterns, settings, strictness_info, old_ref):
     def rows(key):
         return [r for res in results for r in res[key]]
 
@@ -463,7 +463,7 @@ def build_summary(results, skipped, fallback, scanned, patterns, settings, stric
     known_close = [g for g in gained if g['close_evidence_s'] is not None]
     return {
         'old_ref': old_ref, 'episodes_scanned': scanned, 'episodes_skipped_no_original': skipped,
-        'per_window_fallback_scans': fallback, 'settings': settings, 'strictness': strictness_info,
+        'whole_file_failures': failed, 'settings': settings, 'strictness': strictness_info,
         'patterns': patterns,
         'old_matches': sum(r['old_count'] for r in results),
         'new_matches': sum(r['new_count'] for r in results),
@@ -535,8 +535,8 @@ def render_markdown(s, redacted):
     L += ['## Scan', '',
           f"- Episodes scanned: {s['episodes_scanned']}",
           f"- Episodes skipped (no retained original): {s['episodes_skipped_no_original']}",
-          f"- Per-window fallback scans (full-file fpcalc failed, episode not comparable): "
-          f"{s['per_window_fallback_scans']}",
+          f"- Episodes whose whole-file fingerprint failed (not comparable): "
+          f"{s['whole_file_failures']}",
           f"- Stored strictness {'not set' if st['stored'] is None else _fmt(st['stored'], 3)} used as {_fmt(st['used'], 3)}; "
           f"clamped up to the range floor: {'yes' if st['clamped_up'] else 'no'}",
           f"- Settings used: {json.dumps(s['settings'], sort_keys=True)}", '',
@@ -672,9 +672,9 @@ def run_compare(args, *, old_module=None, fp_provider=None, log=print):
     finally:
         conn.close()
     ctx = {'redact': redact, 'settings': settings, 'patterns': patterns}
-    results, skipped, fallback = [], 0, 0
+    results, skipped, failed = [], 0, 0
     for row in episodes:
-        if args.limit is not None and len(results) + fallback >= args.limit:
+        if args.limit is not None and len(results) + failed >= args.limit:
             break
         path = find_original(args.audio_root, row['slug'], row['episode_id'])
         if path is None:
@@ -682,7 +682,7 @@ def run_compare(args, *, old_module=None, fp_provider=None, log=print):
             continue
         fp = provider(path)
         if fp is None:
-            fallback += 1
+            failed += 1
             continue
         try:
             tags = set(json.loads(row['podcast_tags'] or '[]'))
@@ -696,7 +696,7 @@ def run_compare(args, *, old_module=None, fp_provider=None, log=print):
         ints, fp_duration, total = fp
         log(f"episode {redact.slug(row['slug'])}/{redact.episode(row['episode_id'])}")
         results.append(compare_episode(ctx, ep, ints, fp_duration or total, total, old_matcher))
-    summary = build_summary(results, skipped, fallback, len(results) + fallback, pattern_report(
+    summary = build_summary(results, skipped, failed, len(results) + failed, pattern_report(
         patterns, settings, redact), settings, strictness_info, args.old_ref)
     (out / 'report.json').write_text(json.dumps(summary, indent=2, default=str))
     (out / 'report.md').write_text(render_markdown(summary, args.redact))

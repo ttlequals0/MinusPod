@@ -638,8 +638,6 @@ DEFER_SERVICE_SPONSORBLOCK = 'sponsorblock'
 TFIDF_MATCH_THRESHOLD = 0.70         # TF-IDF similarity for content matching
 FUZZY_MATCH_THRESHOLD = 0.75         # Fuzzy string match threshold
 FINGERPRINT_MATCH_THRESHOLD = 0.65   # Audio fingerprint similarity threshold
-# Seconds of audio a fingerprint match correlates, measured from its start.
-FINGERPRINT_CHUNK_SIZE = 10.0
 FINGERPRINT_MATCH_STRICTNESS = FINGERPRINT_MATCH_THRESHOLD
 FINGERPRINT_MIN_COVERAGE = 0.50      # Matched run over stored fingerprint length
 FINGERPRINT_GAP_TOLERANCE_S = 3.5    # Mismatching stretch bridged inside one run

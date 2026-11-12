@@ -58,9 +58,9 @@ candidate and measures the run of matching points at that one alignment. A gap
 inside the run is bridged up to the gap tolerance. Where agreement stops for
 longer than the gap tolerance, the run is split and each piece must pass every
 gate on its own. An ad with a long damaged stretch is found as shorter
-matches or missed. The best run per position wins. The fallback
-that fingerprints the episode window by window is kept for the case where the
-whole-file fingerprint cannot be produced.
+matches or missed. The best run per position wins. When the whole-file
+fingerprint cannot be produced, the episode gets no audio matches, a warning
+names it, and the rest of detection runs as usual.
 
 A match reports:
 
@@ -271,7 +271,7 @@ defaults and reset, and included in config export and import.
 | Minimum ad length | Shortest span that gets a fingerprint | 5 s (today's value); allowed 3 to 30 s |
 
 Strictness cannot go below 65%: below that the setting had no measured effect
-in the main matcher and was unsafe in the per-window fallback.
+in the matcher.
 
 Starting values are placeholders. The comparison run sets the shipped defaults,
 and `docs/` records each with one line of reasoning. Changing a setting affects

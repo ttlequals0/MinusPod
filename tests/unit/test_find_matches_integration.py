@@ -7,9 +7,9 @@ from unittest.mock import patch
 import pytest
 
 import audio_fingerprinter as af
-from audio_fingerprinter import AudioFingerprint, AudioFingerprinter, FingerprintMatch
+from audio_fingerprinter import AudioFingerprinter, FingerprintMatch
 from config import (
-    FINGERPRINT_MATCH_STRICTNESS, FINGERPRINT_MIN_COVERAGE, FINGERPRINT_SETTING_RANGES, FINGERPRINT_TIMEOUT_FACTOR,
+    FINGERPRINT_MATCH_STRICTNESS, FINGERPRINT_MIN_COVERAGE, FINGERPRINT_TIMEOUT_FACTOR,
     FPCALC_TIMEOUT_FULL,
 )
 from ad_detector import AdDetector
@@ -155,63 +155,27 @@ def test_deadline_stops_scan_with_injected_clock(world, monkeypatch):
     assert len(out) == 1
 
 
-def test_whole_file_failure_falls_back_to_per_window_scan(world, monkeypatch):
+def test_whole_file_failure_returns_no_matches_and_warns_once(world, monkeypatch, caplog):
     fp = world.fp
     monkeypatch.setattr(fp, '_generate_full_fingerprint', lambda *a, **k: None)
-    monkeypatch.setattr(fp, '_get_audio_duration', lambda p: 40.0)
-    monkeypatch.setattr(fp, 'generate_fingerprint',
-                        lambda path, start, duration: AudioFingerprint('win', duration))
-    monkeypatch.setattr(fp, 'compare_fingerprints',
-                        lambda chunk, known: 0.9 if known == 'FPG' else 0.1)
-    out = fp.find_matches('x.mp3', podcast_id='showA')
-    assert out
-    assert all(isinstance(m, FingerprintMatch) for m in out)
-    assert all(m.pattern_id == world.ids.g for m in out)
-    assert all(m.similarity == m.confidence == 0.9 and m.coverage == 1.0 for m in out)
+
+    def boom(*a, **k):
+        raise AssertionError('no per-window scan after a whole-file failure')
+    monkeypatch.setattr(fp, 'generate_fingerprint', boom)
+    with caplog.at_level('WARNING', logger='podcast.fingerprint'):
+        out = fp.find_matches('/media/secret/x.mp3', podcast_id='showA', episode_label='show-a:ep1')
+    assert out == []
+    warnings = [r.getMessage() for r in caplog.records if r.levelname == 'WARNING']
+    assert len(warnings) == 1
+    assert 'show-a:ep1' in warnings[0] and '/media/secret' not in warnings[0]
 
 
-def test_fallback_never_accepts_a_window_below_the_strictness_floor(world, monkeypatch):
-    fp = world.fp
-    world.db.set_setting('fingerprint_match_strictness', '0.5')
-    monkeypatch.setattr(fp, '_generate_full_fingerprint', lambda *a, **k: None)
-    monkeypatch.setattr(fp, '_get_audio_duration', lambda p: 40.0)
-    monkeypatch.setattr(fp, 'generate_fingerprint',
-                        lambda path, start, duration: AudioFingerprint('win', duration))
-    monkeypatch.setattr(fp, 'compare_fingerprints', lambda chunk, known: 0.6)
-    assert fp.find_matches('x.mp3', podcast_id='showA') == []
-    floor = FINGERPRINT_SETTING_RANGES['fingerprint_match_strictness'][1]
-    monkeypatch.setattr(fp, 'compare_fingerprints', lambda chunk, known: floor)
-    assert fp.find_matches('x.mp3', podcast_id='showA')
-
-
-def test_fallback_match_reports_only_the_compared_window_as_measured(world, monkeypatch):
-    fp = world.fp
-    monkeypatch.setattr(fp, '_generate_full_fingerprint', lambda *a, **k: None)
-    monkeypatch.setattr(fp, '_get_audio_duration', lambda p: 44.0)
-    monkeypatch.setattr(fp, 'generate_fingerprint',
-                        lambda path, start, duration: AudioFingerprint('win', duration))
-    monkeypatch.setattr(fp, 'compare_fingerprints',
-                        lambda chunk, known: 0.9 if known == 'LONG' else 0.1)
-    out = fp.find_matches('x.mp3', known_fingerprints=[(7, 'LONG', 40.0, None, None)])
-    assert [(m.start, m.end, m.measured_end) for m in out] == [(0.0, 40.0, 10.0)]
-    assert out[0].coverage == 0.25
+def test_whole_file_match_reports_its_measured_span_as_the_match(world):
+    out = world.fp.find_matches('x.mp3', podcast_id='showA')
     detector = AdDetector(api_key='test-key')
     all_ads, regions = [], []
     detector._add_pattern_match(out[0], 'fingerprint', 'fingerprint', all_ads, regions, 'ep1')
-    assert (all_ads[0]['start'], all_ads[0]['end']) == (0.0, 40.0)
-    assert all_ads[0]['fingerprint_match_end'] == 10.0
-    assert all_ads[0]['fingerprint_coverage'] == 0.25
-
-
-def test_fallback_merge_keeps_only_contiguous_measured_spans(world):
-    fp = world.fp
-    a = FingerprintMatch(1, 0.0, 30.0, 0.9, similarity=0.9, coverage=1 / 3, measured_end=10.0)
-    b = FingerprintMatch(2, 30.0, 60.0, 0.8, similarity=0.8, coverage=1 / 3, measured_end=40.0)
-    c = FingerprintMatch(3, 5.0, 15.0, 0.8, similarity=0.8, coverage=1.0, measured_end=15.0)
-    merged = fp._merge_overlapping_matches([a, b])
-    assert [(m.start, m.end, m.measured_end, m.coverage) for m in merged] == [(0.0, 60.0, 10.0, 1 / 3)]
-    merged = fp._merge_overlapping_matches([a, c])
-    assert [(m.start, m.end, m.measured_end) for m in merged] == [(0.0, 30.0, 15.0)]
+    assert all_ads[0]['fingerprint_match_end'] == out[0].end
 
 
 def test_successful_scan_logs_one_info_line(world, caplog):

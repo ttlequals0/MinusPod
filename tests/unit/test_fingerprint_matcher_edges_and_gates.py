@@ -6,8 +6,7 @@ import pytest
 
 import audio_fingerprinter as af
 from ad_detector import AdDetector
-from audio_fingerprinter import AudioFingerprinter, explain_match, fingerprint_is_matchable, match_fingerprints
-from config import FINGERPRINT_SETTING_RANGES
+from audio_fingerprinter import explain_match, fingerprint_is_matchable, match_fingerprints
 
 IPS = 8.0
 KW = dict(strictness=0.65, min_coverage=0.5, gap_tolerance_s=3.5)
@@ -353,20 +352,6 @@ def test_candidate_cap_is_logged_once(caplog, monkeypatch):
     assert len(r) == 3
     capped = [x.getMessage() for x in caplog.records if 'candidate alignments' in x.getMessage()]
     assert len(capped) == 1 and '42' in capped[0] and '6' in capped[0]
-
-
-def test_lowest_strictness_rejects_unrelated_real_format_windows_in_the_fallback():
-    clean, degraded, other = _fixture()
-    ln = int(10 * len(degraded) / 180.0)
-    lowest = FINGERPRINT_SETTING_RANGES['fingerprint_match_strictness'][1]
-    fp = AudioFingerprinter.__new__(AudioFingerprinter)
-    rng = np.random.default_rng(14)
-    passed = 0
-    for a in (degraded, clean):
-        for _ in range(500):
-            i, j = int(rng.integers(0, len(a) - ln)), int(rng.integers(0, len(other) - ln))
-            passed += fp._calculate_similarity(a[i:i + ln].tolist(), other[j:j + ln].tolist()) >= lowest
-    assert passed / 1000 < 0.02
 
 
 def _explain(ep, pat, **over):
