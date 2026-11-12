@@ -1,8 +1,8 @@
 import { Pause, Play } from 'lucide-react';
 import { btnPrimary } from './buttonStyles';
-import { iconTarget, iconVisual } from './rowActionStyles';
+import { iconSizes, type IconSize } from './rowActionStyles';
 
-export function AuditionPlayButton({ playing, onClick, label = 'this ad', disabled = false, title }: {
+export function AuditionPlayButton({ playing, onClick, label = 'this ad', disabled = false, title, size = 'row' }: {
   playing: boolean;
   onClick: () => void;
   /** What the button plays, e.g. "this segment" on rows kept on purpose. */
@@ -10,7 +10,10 @@ export function AuditionPlayButton({ playing, onClick, label = 'this ad', disabl
   disabled?: boolean;
   /** Replaces the default tooltip, e.g. to say why the button is disabled. */
   title?: string;
+  /** Match the text button beside it; see iconSizes. */
+  size?: IconSize;
 }) {
+  const { target, visual } = iconSizes[size];
   return (
     <button
       type="button"
@@ -18,9 +21,9 @@ export function AuditionPlayButton({ playing, onClick, label = 'this ad', disabl
       disabled={disabled}
       aria-label={playing ? `Pause ${label}` : `Play ${label}`}
       title={title ?? (playing ? 'Pause' : `Play ${label}`)}
-      className={`${iconTarget} disabled:opacity-50`}
+      className={`${target} disabled:opacity-50`}
     >
-      <span className={`${iconVisual} ${btnPrimary}`}>
+      <span className={`${visual} ${btnPrimary}`}>
         {/* Play reads left-heavy; nudge it 1px right to center optically. */}
         {playing ? <Pause className="w-3.5 h-3.5" aria-hidden="true" /> : <Play className="w-3.5 h-3.5 translate-x-px" aria-hidden="true" />}
       </span>

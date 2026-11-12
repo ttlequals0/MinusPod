@@ -1452,6 +1452,13 @@ describe('Detected ads: inline audition', () => {
 });
 
 describe('AdEditor detected marker metadata', () => {
+  it('sizes the Edit ads pencil like the Add ad button beside it', async () => {
+    renderDetail(makeEpisode({ pendingReviewMarkers: [], transcript: 'available', adMarkers: [{ start: 10, end: 40, confidence: 0.9 }] }));
+    const pencil = await screen.findByRole('button', { name: 'Edit ads' });
+    expect(pencil.className).toContain('sm:h-8');
+    expect(screen.getByRole('button', { name: 'Add ad' }).className).toContain('py-1.5');
+  });
+
   it('passes category and resolved action into the edit flow', async () => {
     const user = userEvent.setup();
     renderDetail(makeEpisode({

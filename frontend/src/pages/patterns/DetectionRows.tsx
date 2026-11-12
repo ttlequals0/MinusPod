@@ -184,7 +184,7 @@ function DetectionActions({ d, variant, playing, onTogglePlay, actions, showAddA
   const undecided = d.resolution === 'unresolved';
   const noAudio = IS_DEMO;
   const play = d.hasOriginalAudio && (
-    <AuditionPlayButton playing={playing} onClick={onTogglePlay}
+    <AuditionPlayButton playing={playing} onClick={onTogglePlay} size={isCard ? 'full' : 'row'}
       disabled={noAudio} title={noAudio ? DEMO_AUDIO_TOOLTIP : undefined} />
   );
   const categorySelect = actions.onCategory && (

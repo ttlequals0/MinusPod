@@ -2,6 +2,7 @@ import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router';
+import { cardActionBtn, iconSizes, tableActionBtn } from '../../components/rowActionStyles';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { CutSummary, ReviewDetection } from '../../api/detections';
 import DetectedAdsTab from './DetectedAdsTab';
@@ -121,6 +122,19 @@ describe('DetectedAdsTab', () => {
     expect(row.contains(category)).toBe(false);
     expect(category.compareDocumentPosition(row) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(category.className).toContain('w-full');
+  });
+
+  it('sizes the play button from the same recipe as the text buttons in each variant', async () => {
+    renderTab();
+    await screen.findByText('Time cut');
+    const cardRow = within(screen.getByTestId('detections-cards')).getByTestId('detection-actions-row');
+    const cardPlay = within(cardRow).getByRole('button', { name: 'Play this ad' });
+    for (const token of iconSizes.full.target.split(' ')) expect(cardPlay.className).toContain(token);
+    for (const token of cardActionBtn.split(' ').slice(0, 1)) expect(within(cardRow).getByRole('button', { name: 'Split' }).className).toContain(token);
+    const tableRow = within(screen.getByTestId('detections-rows')).getAllByRole('button', { name: 'Play this ad' })[0];
+    for (const token of iconSizes.row.target.split(' ')) expect(tableRow.className).toContain(token);
+    const split = within(screen.getByTestId('detections-rows')).getByRole('button', { name: 'Split' });
+    for (const token of tableActionBtn.split(' ').slice(0, 3)) expect(split.className).toContain(token);
   });
 
   it('requests only detections that were cut', async () => {

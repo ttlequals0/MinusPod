@@ -16,7 +16,7 @@ export const rowActionIcon =
   'w-11 min-h-11 sm:h-7 sm:w-7 sm:min-h-0 inline-flex items-center justify-center';
 
 /** Desktop detection table rows: 30px tall. */
-export const tableActionBtn = `px-1.5 py-1 text-xs rounded whitespace-nowrap ${focusRing}`;
+export const tableActionBtn = `h-7 px-1.5 text-xs rounded whitespace-nowrap inline-flex items-center justify-center ${focusRing}`;
 
 /** Review/detection cards: 44px, the tap-target floor. Labels wrap on a phone, where a flex row can squeeze a button below its text. */
 const cardActionTail =
@@ -31,3 +31,24 @@ export const iconTarget = `${rowActionIcon} group shrink-0 touch-manipulation fo
 export const iconVisual =
   'h-11 w-11 sm:h-7 sm:w-7 sm:[@media(pointer:coarse)]:h-11 sm:[@media(pointer:coarse)]:w-11 inline-flex items-center justify-center rounded transition-colors'
   + ' group-focus-visible:ring-2 group-focus-visible:ring-ring';
+
+const iconBase = 'inline-flex items-center justify-center';
+const iconVisualBase = `${iconBase} rounded transition-colors group-focus-visible:ring-2 group-focus-visible:ring-ring`;
+const coarseFill = 'sm:[@media(pointer:coarse)]:h-11 sm:[@media(pointer:coarse)]:w-11';
+
+/**
+ * iconTarget and iconVisual sized to the text button beside them: `row` matches rowActionBtn (28 px),
+ * `base` matches btnBase (32 px), `full` matches cardActionBtn (44 px at every width).
+ */
+export const iconSizes = {
+  row: { target: iconTarget, visual: iconVisual },
+  base: {
+    target: `${iconBase} w-11 min-h-11 sm:h-8 sm:w-8 sm:min-h-0 group shrink-0 touch-manipulation focus-visible:outline-hidden`,
+    visual: `${iconVisualBase} h-11 w-11 sm:h-8 sm:w-8 ${coarseFill}`,
+  },
+  full: {
+    target: `${iconBase} h-11 w-11 group shrink-0 touch-manipulation focus-visible:outline-hidden`,
+    visual: `${iconVisualBase} h-11 w-11`,
+  },
+} as const;
+export type IconSize = keyof typeof iconSizes;

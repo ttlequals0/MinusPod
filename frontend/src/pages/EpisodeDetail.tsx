@@ -55,7 +55,7 @@ import { groupAdBlocks } from '../utils/adBlocks';
 import { formatDate, formatPercent, formatTimestamp, toDatetimeLocalInput, fromDatetimeLocalInput } from '../utils/format';
 import { useAuditionPlayer } from '../hooks/useAuditionPlayer';
 import { AuditionPlayButton } from '../components/AuditionPlayButton';
-import { iconTarget, iconVisual, rowActionBtn } from '../components/rowActionStyles';
+import { iconSizes, iconTarget, iconVisual, rowActionBtn } from '../components/rowActionStyles';
 import { StageBadge } from '../components/StageBadge';
 import ProcessingRunsTable from '../components/ProcessingRunsTable';
 import CostAmount from '../components/CostAmount';
@@ -1493,9 +1493,9 @@ function EpisodeDetail() {
                     onClick={() => openEditorFresh(false)}
                     aria-label={showEditor ? 'Hide editor' : 'Edit ads'}
                     title={showEditor ? 'Hide editor' : 'Edit ads'}
-                    className={iconTarget}
+                    className={iconSizes.base.target}
                   >
-                    <span className={`${iconVisual} ${btnSecondary}`}>
+                    <span className={`${iconSizes.base.visual} ${btnSecondary}`}>
                       <Pencil className="w-4 h-4" aria-hidden="true" />
                     </span>
                   </button>
