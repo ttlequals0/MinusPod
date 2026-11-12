@@ -539,11 +539,13 @@ def test_runtime_config_download_route_sets_attachment_and_cache_headers(temp_db
     assert 'attachment' in response.headers['Content-Disposition']
     assert json.loads(response.get_data()) == document
 
-    from api.auth_state import SESSION_GENERATION_KEY, current_generation
+    from api.auth_state import (
+        SESSION_GENERATION_KEY, SESSION_LAST_USED_KEY, _now, current_generation)
     temp_db.set_setting('app_password', 'configured-password')
     with client.session_transaction() as session:
         session['authenticated'] = True
         session[SESSION_GENERATION_KEY] = current_generation(temp_db)
+        session[SESSION_LAST_USED_KEY] = _now()
     rejected = client.post('/api/v1/system/config-import/preview', json={})
     assert rejected.status_code == 403
 
