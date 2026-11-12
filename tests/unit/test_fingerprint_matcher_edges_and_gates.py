@@ -1,11 +1,11 @@
-"""Fingerprint matcher: real-format edges, adjacent ads, matchability and split runs."""
+"""Fingerprint matcher: real-format edges, adjacent ads, matchability, split runs and gate reporting."""
 from pathlib import Path
 
 import numpy as np
 import pytest
 
 import audio_fingerprinter as af
-from audio_fingerprinter import fingerprint_is_matchable, match_fingerprints
+from audio_fingerprinter import explain_match, fingerprint_is_matchable, match_fingerprints
 
 IPS = 8.0
 KW = dict(strictness=0.65, min_coverage=0.5, gap_tolerance_s=3.5)
@@ -148,3 +148,38 @@ def test_candidate_cap_is_logged_once(caplog, monkeypatch):
     assert len(r) == 3
     capped = [x.getMessage() for x in caplog.records if 'candidate alignments' in x.getMessage()]
     assert len(capped) == 1 and '42' in capped[0] and '6' in capped[0]
+
+
+def _explain(ep, pat, **over):
+    return explain_match(ep, len(ep) / IPS, (1, pat, len(pat) / IPS, None, None), **{**KW, **over})
+
+
+def test_explain_reports_a_match():
+    rng = np.random.default_rng(12)
+    ep = _ints(rng, 4800)
+    pat = _ints(rng, 240)
+    _plant(rng, ep, pat, 1000, 0.10)
+    e = _explain(ep, pat)
+    assert e['matched'] and e['rejected_by'] is None
+    assert abs(e['start'] - 125.0) <= 0.25 and abs(e['end'] - 155.0) <= 0.25
+    assert e['coverage'] >= 0.95 and e['evidence_s'] >= e['evidence_needed_s']
+    assert e['diff_p50'] <= e['diff_p90'] and e['good_share'] >= e['edge_good_share']
+    assert e['runs_counted'] == 1 and e['degraded_stretches'] == 0
+
+
+def test_explain_names_the_rejecting_gate():
+    rng = np.random.default_rng(13)
+    ep = _ints(rng, 4800)
+    pat = _ints(rng, 160)
+    assert _explain(np.full(4800, 7), pat)['rejected_by'] == 'candidates'
+    assert _explain(ep, np.full(160, 7))['rejected_by'] == 'not_distinctive'
+    _plant(rng, ep, pat[:100], 1000, 0.05)
+    e = _explain(ep, pat, min_coverage=0.9)
+    assert e['rejected_by'] == 'coverage' and not e['matched'] and e['coverage'] < 0.9
+    short = _ints(rng, 80)
+    _plant(rng, ep, short[:44], 3000, 0.05)
+    assert _explain(ep, short)['rejected_by'] == 'evidence'
+    noisy = _ints(rng, 160)
+    _plant(rng, ep, noisy, 2000, 0.10)
+    e = _explain(ep, noisy, strictness=0.95)
+    assert e['rejected_by'] == 'similarity' and e['similarity'] < 0.95

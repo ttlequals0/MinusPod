@@ -883,6 +883,75 @@ def fingerprint_is_matchable(ints, *, min_coverage=None):
     return fingerprint_unmatchable_reason(ints, min_coverage=min_coverage) is None
 
 
+def _degraded_stretches(al, window):
+    """(count, longest in points) of stretches of at least a window without sustained agreement."""
+    hits, _c = _solid_points(al.good, window)
+    covered = np.zeros(len(al.good) + 2, dtype=bool)
+    covered[1:-1][hits] = True
+    covered[0] = covered[-1] = True
+    edges = np.flatnonzero(np.diff(covered.astype(np.int8)))
+    lengths = edges[1::2] - edges[::2]
+    lengths = lengths[lengths >= window]
+    return len(lengths), int(lengths.max()) if len(lengths) else 0
+
+
+def explain_match(ep_ints, ep_duration, pattern, *, strictness, min_coverage, gap_tolerance_s):
+    """Measurements of one pattern at its best alignment and the gate that decided it."""
+    _pattern_id, pat_ints, _pat_duration, _sponsor, _category = pattern
+    ep_arr = np.asarray(ep_ints, dtype=np.int64).astype(np.uint32)
+    pat_arr = np.asarray(pat_ints, dtype=np.int64).astype(np.uint32)
+    fps = len(ep_arr) / ep_duration if len(ep_arr) and ep_duration > 0 else FINGERPRINT_NOMINAL_FPS
+    window = max(1, int(round(fps)))
+    out = {'candidates': 0, 'matchable': _unmatchable_reason(pat_arr) is None,
+           'rejected_by': 'candidates', 'matched': False}
+    if not out['matchable']:
+        out['rejected_by'] = 'not_distinctive'
+        return out
+    if len(ep_arr) == 0:
+        return out
+    informative = _informative_points(pat_arr)
+    novelty = _novelty(pat_arr, informative)
+    needed, evidence_bits = _evidence_rule(novelty, fps)
+    offsets, found = _candidate_offsets(pat_arr, informative, _build_offset_index(ep_arr), len(ep_arr))
+    out['candidates'] = found
+    gap_points = int(round(gap_tolerance_s * fps))
+    measured = [(d, al) for d in offsets.tolist() if (al := _measure_alignment(
+        ep_arr, pat_arr, informative, novelty, d, strictness, gap_points, window)) is not None]
+    best = None
+    for al in _closest_alignments(measured, window):
+        tally = _tally(al, al.runs, evidence_bits)
+        n_good, similarity, evidence, close = tally
+        gate = _rejecting_gate(tally, len(pat_arr), needed, strictness, min_coverage)
+        rank = (gate is None, n_good, similarity)
+        if best is None or rank > best[0]:
+            best = (rank, al, n_good, similarity, evidence, close, gate)
+    if best is None:
+        # Candidates exist but none holds a sustained run, so no alignment can reach the coverage
+        out['rejected_by'] = 'coverage' if found else 'candidates'
+        return out
+    _rank, al, n_good, similarity, evidence, close, gate = best
+    lo, hi = al.span
+    inf = al.informative[lo:hi]
+    diffs = al.diff[lo:hi][inf]
+    stretches, longest = _degraded_stretches(al, window)
+    out.update({
+        'start': (al.ep_base + lo) / fps, 'end': (al.ep_base + hi) / fps,
+        'similarity': similarity,
+        'diff_p50': float(np.percentile(diffs, 50)), 'diff_p90': float(np.percentile(diffs, 90)),
+        'good_share': float((diffs <= FINGERPRINT_GOOD_BITS).mean()),
+        'edge_bits': al.edge_bits,
+        'edge_good_share': float((diffs <= al.edge_bits).mean()),
+        'degraded_stretches': stretches, 'longest_degraded_s': longest / fps,
+        'coverage': n_good / len(pat_arr),
+        'evidence_s': evidence / fps, 'evidence_needed_s': needed / fps,
+        'evidence_bits': evidence_bits, 'close_evidence_s': close / fps,
+        'close_evidence_needed_s': FINGERPRINT_CLOSE_EVIDENCE_S * FINGERPRINT_NOMINAL_FPS / fps,
+        'runs_counted': len(al.runs),
+        'rejected_by': gate, 'matched': gate is None,
+    })
+    return out
+
+
 class AudioFingerprinter:
     """
     Audio fingerprinting using Chromaprint for identifying repeated ads.
