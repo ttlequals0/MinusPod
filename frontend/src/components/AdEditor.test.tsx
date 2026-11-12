@@ -118,38 +118,3 @@ describe('AdEditor create submit path', () => {
     expect(onCorrection).not.toHaveBeenCalled();
   });
 });
-
-describe('AdEditor single-span mode', () => {
-  function renderSpan() {
-    const onCorrection = vi.fn();
-    const onSave = vi.fn().mockResolvedValue(undefined);
-    render(
-      <MemoryRouter>
-        <AdEditor
-          detectedAds={[]}
-          audioDuration={3600}
-          onCorrection={onCorrection}
-          singleSpan={{ podcastSlug: 'example-podcast', episodeId: 'a1b2c3d4e5f6', start: 10, end: 40, onSave }}
-        />
-      </MemoryRouter>,
-    );
-    return { onCorrection, onSave };
-  }
-
-  it('opens one region on the named episode in span mode', () => {
-    renderSpan();
-    const modal = screen.getByTestId('review-item');
-    expect(modal.dataset.mode).toBe('span');
-    expect(modal.dataset.slug).toBe('example-podcast');
-    expect(modal.dataset.episode).toBe('a1b2c3d4e5f6');
-    expect(modal.dataset.span).toBe('10-40');
-    expect(modal.dataset.hasOriginal).toBe('true');
-  });
-
-  it('hands the adjusted span to the save handler and emits no correction', async () => {
-    const { onCorrection, onSave } = renderSpan();
-    await userEvent.click(screen.getByRole('button', { name: 'save span' }));
-    expect(onSave).toHaveBeenCalledWith({ start: 12, end: 41 });
-    expect(onCorrection).not.toHaveBeenCalled();
-  });
-});

@@ -2995,7 +2995,7 @@ describe('Add audio to pattern on text-pattern detections', () => {
     renderDetail(makeEpisode({ pendingReviewMarkers: [], hasOriginalAudio: false, adMarkers: [textMarker] }));
     const button = await screen.findByRole('button', { name: 'Add audio to pattern' }) as HTMLButtonElement;
     expect(button.disabled).toBe(true);
-    expect(screen.getByText('Original audio not kept')).toBeDefined();
+    expect(screen.getByText('Source audio expired')).toBeDefined();
   });
 
   it('does not ask for pattern summaries when no detection came from a text pattern', async () => {

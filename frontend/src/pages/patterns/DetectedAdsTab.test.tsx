@@ -375,12 +375,19 @@ describe('DetectedAdsTab list state in the URL', () => {
       expect(screen.queryByRole('button', { name: 'Add audio to pattern' })).toBeNull();
     });
 
+    it('reads the pattern audio state from the row and skips the pattern list', async () => {
+      load([textRow({ patternAudioState: 'none' }), textRow({ start: 300, end: 330, patternAudioState: 'active' })]);
+      renderTab();
+      expect(await screen.findAllByRole('button', { name: 'Add audio to pattern' })).toHaveLength(2);
+      expect(mockGetPatterns).not.toHaveBeenCalled();
+    });
+
     it('is disabled with a visible reason when the original is gone', async () => {
       load([textRow({ hasOriginalAudio: false })]);
       renderTab();
       const buttons = await screen.findAllByRole('button', { name: 'Add audio to pattern' });
       expect(buttons.every((b) => (b as HTMLButtonElement).disabled)).toBe(true);
-      expect(screen.getAllByText('Original audio not kept').length).toBeGreaterThan(0);
+      expect(screen.getAllByText('Source audio expired').length).toBeGreaterThan(0);
     });
   });
 });

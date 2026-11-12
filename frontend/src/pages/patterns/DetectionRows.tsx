@@ -252,6 +252,7 @@ function DetectionActions({ d, variant, playing, onTogglePlay, actions, showAddA
   const addAudio = showAddAudio && d.detectionStage === 'text_pattern' && d.patternId != null && (
     <AddAudioToPatternButton
       patternId={d.patternId}
+      audioState={d.patternAudioState}
       hasOriginal={d.hasOriginalAudio}
       span={{ podcastSlug: d.feedSlug, episodeId: d.episodeId, start: d.start, end: d.end }}
       buttonClassName={`${btn} ${btnOutline} disabled:opacity-50 ${focusRing}${isCard ? ' w-full' : ''}`}

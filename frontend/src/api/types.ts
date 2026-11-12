@@ -682,6 +682,8 @@ export interface AdSegment {
   reviewer_reasoning?: string;
   // Set by pattern stages; reviewer-moved spans keep it.
   pattern_id?: number | null;
+  // Audio state of the matched pattern; absent when there is no pattern.
+  patternAudioState?: 'active' | 'off' | 'none';
   reviewer_confidence?: number;
   // Why a pass-2 review inside this hold did not release it; the hold stays pending.
   pass2_hold_review?: {

@@ -902,6 +902,7 @@ function EpisodeDetail() {
         {segment.detection_stage === 'text_pattern' && markerPatternId(segment) != null && (
           <AddAudioToPatternButton
             patternId={markerPatternId(segment)!}
+            audioState={segment.patternAudioState}
             hasOriginal={!!episode.hasOriginalAudio}
             span={{ podcastSlug: slug!, episodeId: episode.id, ...displayedSpan(segment) }}
           />

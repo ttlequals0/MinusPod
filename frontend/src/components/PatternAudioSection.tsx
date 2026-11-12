@@ -6,11 +6,10 @@ import {
 import { getEpisode } from '../api/feeds';
 import { DEMO_AUDIO_TOOLTIP } from '../demo/copy';
 import { IS_DEMO } from '../demo/flag';
-import { markerPatternId } from '../utils/patternAudio';
 import { usePatternAudioPreview } from '../hooks/usePatternAudioPreview';
 import { usePatternAudioRebuild } from '../hooks/usePatternAudioRebuild';
 import { formatDate, formatDateTime, formatPercent } from '../utils/format';
-import AdEditor from './AdEditor';
+import AdReviewModal from './AdReviewModal';
 import AudioMatchesList from './AudioMatchesList';
 import { AuditionPlayButton } from './AuditionPlayButton';
 import { btnBase, btnDestructiveOutline, btnOutline } from './buttonStyles';
@@ -22,37 +21,34 @@ import StatTile from './StatTile';
 import ToggleSwitch from './ToggleSwitch';
 import { subHeading } from './pageStyles';
 
-// A pattern without audio can be built from the ad it matched in the episode it was created from.
-function AddFromSourceEpisode({ pattern, onAdded }: { pattern: AdPattern; onAdded: () => void }) {
-  const slug = pattern.podcast_slug;
-  const episodeId = pattern.created_from_episode_id;
-  const { data: episode } = useQuery({
-    queryKey: ['episode', slug, episodeId],
-    queryFn: () => getEpisode(slug!, episodeId!),
-    enabled: !!slug && !!episodeId,
-  });
-  const rebuild = usePatternAudioRebuild(pattern.id, onAdded);
-  const marker = episode?.adMarkers?.find((m) => markerPatternId(m) === pattern.id);
-  if (!slug || !episodeId || !marker) return null;
-  const hasOriginal = !!episode?.hasOriginalAudio;
+// A pattern without audio can be built from the ad it matched, when the server knows which.
+function AddFromSource({ patternId, source, onAdded }: {
+  patternId: number;
+  source: NonNullable<AudioDetail['addSource']>;
+  onAdded: () => void;
+}) {
+  const rebuild = usePatternAudioRebuild(patternId, onAdded);
+  const { podcastSlug, episodeId, start, end } = source;
   return (
     <div className="flex flex-col items-start gap-1">
       <DemoDisabled>
         <button
           type="button"
-          onClick={() => rebuild.mutate({ podcastSlug: slug, episodeId, start: marker.start, end: marker.end })}
-          disabled={!hasOriginal || rebuild.isPending}
+          onClick={() => rebuild.mutate({ podcastSlug, episodeId, start, end })}
+          disabled={!source.available || rebuild.isPending}
           aria-busy={rebuild.isPending}
           className={`${btnBase} ${btnOutline}`}
         >
           {rebuild.isPending ? 'Adding audio...' : 'Add audio to pattern'}
         </button>
       </DemoDisabled>
-      {!hasOriginal && <p className="text-xs text-muted-foreground">Original audio not kept</p>}
+      {!source.available && <p className="text-xs text-muted-foreground">Source audio expired</p>}
       {rebuild.isError && <p role="alert" className="text-sm text-destructive">{rebuild.error.message}</p>}
     </div>
   );
 }
+
+const EDGE_SLACK_SECONDS = 30;
 
 function outOfScopeNote(count: number): string {
   return count === 1
@@ -69,7 +65,10 @@ export default function PatternAudioSection({ pattern }: { pattern: AdPattern })
   const [deleteFailed, setDeleteFailed] = useState(false);
   const [editingEdges, setEditingEdges] = useState(false);
   const headingRef = useRef<HTMLHeadingElement>(null);
-  const focusHeading = useRef(false);
+  const editEdgesRef = useRef<HTMLButtonElement>(null);
+  const wasEditing = useRef(false);
+  // Which saved state the heading waits for before it takes focus: the control that had it is gone by then.
+  const focusHeadingWhen = useRef<'none' | 'present' | null>(null);
 
   const { data: detail, isPending, isError, refetch, isFetching } = useQuery({
     queryKey: patternAudioKey(pattern.id),
@@ -114,7 +113,7 @@ export default function PatternAudioSection({ pattern }: { pattern: AdPattern })
       preview.stop();
       setShowDelete(false);
       setNotice('Audio deleted.');
-      focusHeading.current = true;
+      focusHeadingWhen.current = 'none';
       refresh();
     },
     onError: () => {
@@ -124,13 +123,19 @@ export default function PatternAudioSection({ pattern }: { pattern: AdPattern })
     },
   });
 
-  // The Delete audio button is gone once the fingerprint is; put focus on the section.
   useEffect(() => {
-    if (focusHeading.current && detail?.state === 'none') {
+    const waiting = focusHeadingWhen.current;
+    if (waiting && detail && (waiting === 'none') === (detail.state === 'none')) {
       headingRef.current?.focus();
-      focusHeading.current = false;
+      focusHeadingWhen.current = null;
     }
-  }, [detail?.state]);
+  }, [detail]);
+
+  // The editor takes focus with it when it closes; hand it back to the button that opened it.
+  useEffect(() => {
+    if (wasEditing.current && !editingEdges) editEdgesRef.current?.focus();
+    wasEditing.current = editingEdges;
+  }, [editingEdges]);
 
   let body;
   if (isPending) {
@@ -146,7 +151,13 @@ export default function PatternAudioSection({ pattern }: { pattern: AdPattern })
     body = (
       <>
         <p className="text-sm text-muted-foreground">No audio fingerprint.</p>
-        <AddFromSourceEpisode pattern={pattern} onAdded={() => setNotice('Audio added to pattern.')} />
+        {detail.addSource && (
+          <AddFromSource
+            patternId={pattern.id}
+            source={detail.addSource}
+            onAdded={() => { focusHeadingWhen.current = 'present'; setNotice('Audio added to pattern.'); }}
+          />
+        )}
       </>
     );
   } else {
@@ -177,6 +188,9 @@ export default function PatternAudioSection({ pattern }: { pattern: AdPattern })
             {`Could not turn audio ${toggle.variables ? 'on' : 'off'}.`}
           </p>
         )}
+        {detail.matchable === false && (
+          <p className="text-sm text-muted-foreground">This audio cannot match under the current settings.</p>
+        )}
         {preview.isLoading() && <p role="status" className="text-sm text-muted-foreground">Loading audio...</p>}
         {playError && <p role="alert" className="text-sm text-destructive">{playError}</p>}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-4">
@@ -198,8 +212,9 @@ export default function PatternAudioSection({ pattern }: { pattern: AdPattern })
             <>
               <DemoDisabled>
                 <button
+                  ref={editEdgesRef}
                   type="button"
-                  onClick={() => { rebuild.reset(); setEditingEdges(true); }}
+                  onClick={() => { preview.stop(); rebuild.reset(); setEditingEdges(true); }}
                   disabled={!sourceAvailable || !episodeQuery.data}
                   aria-busy={sourceAvailable && episodeQuery.isPending}
                   className={`${btnBase} ${btnOutline}`}
@@ -232,18 +247,27 @@ export default function PatternAudioSection({ pattern }: { pattern: AdPattern })
       {body}
       {preview.audioElement}
       {editingEdges && built && episodeQuery.data && (
-        <AdEditor
-          detectedAds={[]}
-          audioDuration={episodeQuery.data.originalDuration ?? 0}
-          onCorrection={() => {}}
-          onClose={() => setEditingEdges(false)}
-          singleSpan={{
+        <AdReviewModal
+          item={{
             podcastSlug: built.podcastSlug,
             episodeId: built.episodeId,
             start: built.start,
             end: built.end,
-            onSave: async (span) => { await rebuild.mutateAsync({ podcastSlug: built.podcastSlug, episodeId: built.episodeId, ...span }); },
+            sponsor: null,
+            reason: null,
+            confidence: null,
+            detectionStage: null,
+            patternId: null,
+            correctedBounds: null,
           }}
+          mode="span"
+          onClose={() => setEditingEdges(false)}
+          onSubmit={() => {}}
+          onSkip={() => {}}
+          onSaveSpan={async (span) => { await rebuild.mutateAsync({ podcastSlug: built.podcastSlug, episodeId: built.episodeId, ...span }); }}
+          hasOriginal
+          // Without a known duration the editor still needs a bound past the span.
+          episodeDuration={episodeQuery.data.originalDuration || built.end + EDGE_SLACK_SECONDS}
         />
       )}
       {showDelete && (

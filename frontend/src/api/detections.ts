@@ -23,6 +23,8 @@ export interface ReviewDetection {
   sponsor: string | null;
   reason: string | null;
   patternId: number | null;
+  // Audio state of the matched pattern; absent when there is no pattern.
+  patternAudioState?: 'active' | 'off' | 'none';
   detectionStage: string | null;
   category: string | null;
   actionApplied: string | null;

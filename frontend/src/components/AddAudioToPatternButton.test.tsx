@@ -77,7 +77,7 @@ describe('AddAudioToPatternButton', () => {
     renderButton({ hasOriginal: false });
     const button = await screen.findByRole('button', { name: 'Add audio to pattern' }) as HTMLButtonElement;
     expect(button.disabled).toBe(true);
-    expect(screen.getByText('Original audio not kept')).toBeDefined();
+    expect(screen.getByText('Source audio expired')).toBeDefined();
     await userEvent.click(button);
     expect(mockRebuild).not.toHaveBeenCalled();
   });
@@ -88,7 +88,7 @@ describe('AddAudioToPatternButton', () => {
     await userEvent.click(await screen.findByRole('button', { name: 'Add audio to pattern' }));
     expect((await screen.findByRole('alert')).textContent).toBe('That selection is too short for an audio fingerprint.');
     expect(screen.getByRole('button', { name: 'Add audio to pattern' })).toBeDefined();
-    expect(screen.queryByRole('status')).toBeNull();
+    expect(screen.getByRole('status').textContent).toBe('');
   });
 
   it('shows the server message when the request fails', async () => {
@@ -108,5 +108,29 @@ describe('AddAudioToPatternButton', () => {
     finish({ fingerprintStored: true });
     expect((await screen.findByRole('status')).textContent).toBe('Audio added to pattern.');
     expect(mockRebuild).toHaveBeenCalledTimes(1);
+  });
+
+  it('uses the row state without fetching the pattern list', async () => {
+    mockRebuild.mockResolvedValue({ fingerprintStored: true, state: 'active' });
+    const { container } = renderButton({ audioState: 'none' });
+    await userEvent.click(await screen.findByRole('button', { name: 'Add audio to pattern' }));
+    expect(mockGetPatterns).not.toHaveBeenCalled();
+    expect(container.textContent).toContain('Audio added to pattern.');
+  });
+
+  it.each(['active', 'off'] as const)('renders nothing when the row says the pattern has audio %s', (audioState) => {
+    const { container } = renderButton({ audioState });
+    expect(container.textContent).toBe('');
+    expect(mockGetPatterns).not.toHaveBeenCalled();
+  });
+
+  it('announces success through a live region that was mounted before the text and takes focus', async () => {
+    mockRebuild.mockResolvedValue({ fingerprintStored: true, state: 'active' });
+    renderButton({ audioState: 'none' });
+    const region = screen.getByRole('status');
+    expect(region.textContent).toBe('');
+    await userEvent.click(screen.getByRole('button', { name: 'Add audio to pattern' }));
+    await waitFor(() => expect(region.textContent).toBe('Audio added to pattern.'));
+    expect(document.activeElement).toBe(region);
   });
 });

@@ -1,4 +1,4 @@
-import { ApiError, apiRequest, apiFileRequest, buildQueryString } from './client';
+import { apiRequest, apiFileRequest, buildQueryString } from './client';
 import { downloadBlob } from './history';
 import type { SegmentCategory } from '../utils/segmentCategory';
 import { apiUrl } from '../urlPrefix';
@@ -442,6 +442,10 @@ export interface AudioDetail {
   counts: { matches: number; rejected: number; outOfScope: number };
   meanSimilarity?: number | null;
   lastMatchedAt?: string | null;
+  // False when the stored audio cannot match under the current settings.
+  matchable?: boolean;
+  // The span a fingerprint could be built from when the pattern has none; null when unknown.
+  addSource?: (AudioSpan & { available: boolean }) | null;
 }
 
 export interface AudioMatch {

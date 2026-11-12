@@ -13,7 +13,6 @@ import {
   type FingerprintSkippedReason,
 } from './patterns';
 import { getAudioMatchingStats } from './stats';
-import { ApiError } from './client';
 
 beforeEach(() => {
   vi.clearAllMocks();
