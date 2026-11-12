@@ -8,7 +8,7 @@ from typing import Any
 from collections.abc import Mapping
 from config import (
     PROVIDER_ANTHROPIC, PROVIDER_OPENROUTER, PROVIDER_OPENAI_COMPATIBLE, PROVIDER_OLLAMA,
-    SYSTEMONE_PROVIDERS,
+    PROVIDER_NONE, SYSTEMONE_PROVIDERS,
     SEGMENT_CATEGORIES,
 )
 
@@ -18,6 +18,7 @@ logger = logging.getLogger('podcast.api')
 VALID_LLM_PROVIDERS = (
     PROVIDER_ANTHROPIC, PROVIDER_OPENROUTER,
     PROVIDER_OPENAI_COMPATIBLE, PROVIDER_OLLAMA, *SYSTEMONE_PROVIDERS,
+    PROVIDER_NONE,
 )
 
 # Provider B payload keys accepted as aliases of the stored secondary_* keys

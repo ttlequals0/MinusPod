@@ -36,7 +36,7 @@ from database.settings import (
     registry_default, registry_get_default,
 )
 from llm_client import (
-    get_effective_provider, get_effective_base_url, get_api_key, get_effective_openrouter_api_key,
+    get_effective_provider, llm_disabled, get_effective_base_url, get_api_key, get_effective_openrouter_api_key,
 )
 from utils.opml import modified_feed_url
 from api.settings import common, operations
@@ -673,6 +673,7 @@ def _build_settings_payload():
         'patternCleanupModel': _sv('pattern_cleanup_model'),
         'minCutConfidence': _sv('min_cut_confidence', min_cut_confidence),
         'llmProvider': _sv('llm_provider', llm_provider),
+        'llmEnabled': not llm_disabled(llm_provider),
         'omitTemperature': _sv('omit_temperature', omit_temperature),
         'llmJsonSchemaEnabled': _sv('llm_json_schema_enabled', llm_json_schema_enabled),
         'openaiBaseUrl': _sv('openai_base_url', openai_base_url),

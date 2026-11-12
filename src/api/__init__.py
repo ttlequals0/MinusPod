@@ -380,6 +380,12 @@ def _redacted(value):
     return value
 
 
+def llm_disabled_response(message):
+    """409 for an action that needs an LLM while the provider is none."""
+    return json_response(
+        {'error': _redacted(message), 'status': 409, 'code': 'llm_disabled'}, 409)
+
+
 def error_response(message, status=400, details=None):
     """Create error response. `details` is logged server-side and dropped from
     the client payload for 5xx, so internal state never leaks externally."""

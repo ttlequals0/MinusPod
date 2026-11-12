@@ -6883,7 +6883,7 @@ paths:
               properties:
                 provider:
                   type: string
-                  enum: [anthropic, openrouter, openai-compatible, ollama, typesafe, systemone-compatible]
+                  enum: [anthropic, openrouter, openai-compatible, ollama, typesafe, systemone-compatible, none]
                   description: Provider type to test; when absent the saved secondaryProvider is used
                 baseUrl:
                   type: string
@@ -7692,8 +7692,8 @@ paths:
                   example: 1024
                 llmProvider:
                   type: string
-                  description: LLM provider for detection and verification; System One review is experimental. Chapters and Pattern Cleanup require a chat provider when enabled.
-                  enum: [anthropic, openai-compatible, ollama, openrouter, typesafe, systemone-compatible]
+                  description: LLM provider for detection and verification; System One review is experimental. Chapters and Pattern Cleanup require a chat provider when enabled. none runs episodes with the model-free detectors only and needs no key, base URL or model; saved keys and models are kept.
+                  enum: [anthropic, openai-compatible, ollama, openrouter, typesafe, systemone-compatible, none]
                   example: anthropic
                 omitTemperature:
                   type: boolean
@@ -8262,7 +8262,7 @@ paths:
         - name: provider
           in: query
           required: false
-          description: Preview models for this provider without saving settings. Valid values are anthropic, openrouter, openai-compatible, ollama, typesafe, systemone-compatible.
+          description: Preview models for this provider without saving settings. Valid values are anthropic, openrouter, openai-compatible, ollama, typesafe, systemone-compatible, none. none returns an empty list.
           schema:
             type: string
             enum: [anthropic, openrouter, openai-compatible, ollama, typesafe, systemone-compatible]
@@ -18359,9 +18359,12 @@ components:
           properties:
             value:
               type: string
-              description: Active LLM provider (anthropic, openrouter, openai-compatible, ollama, typesafe, systemone-compatible)
+              description: Active LLM provider (anthropic, openrouter, openai-compatible, ollama, typesafe, systemone-compatible, none)
             isDefault:
               type: boolean
+        llmEnabled:
+          type: boolean
+          description: False when the LLM provider is none, so no model is called. Read-only.
         omitTemperature:
           type: object
           description: |

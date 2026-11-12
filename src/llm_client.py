@@ -377,9 +377,13 @@ def get_effective_provider() -> str:
     return get_effective_provider_from_snapshot({'llm_provider': _get_cached_setting('llm_provider')})
 
 
-def llm_disabled() -> bool:
-    """True when the operator selected no LLM provider."""
-    return get_effective_provider() == PROVIDER_NONE
+class LLMDisabledError(RuntimeError):
+    """A model call was requested while the LLM provider is none."""
+
+
+def llm_disabled(provider: str | None = None) -> bool:
+    """True when the given provider, or the effective one, is none."""
+    return (get_effective_provider() if provider is None else provider) == PROVIDER_NONE
 
 
 def model_matches_provider(model_id: str, provider: str) -> bool:
@@ -2341,6 +2345,8 @@ def get_client_for_provider(provider_key: str, base_url: str | None = None,
 
     force_new=True also flushes the provider settings cache.
     """
+    if llm_disabled(provider_key):
+        raise LLMDisabledError('The LLM provider is set to none; no client is available')
     if force_new:
         _clear_provider_cache()
         _clear_model_list_cache()

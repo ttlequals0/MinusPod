@@ -19,6 +19,7 @@ from transcriber.remote import probe_whisper_health
 from whisper_pool import get_pool
 from llm_client import (
     get_effective_provider, get_llm_client, create_client_for_provider, get_client_for_provider,
+    llm_disabled,
 )
 from llm_route import (
     ALL_CREDENTIAL_SLOTS, SLOT_FAILOVER, SLOT_PRIMARY, SLOT_SECONDARY,
@@ -378,6 +379,8 @@ def get_available_models():
             return error_response(
                 f'provider must be one of: {", ".join(common.VALID_LLM_PROVIDERS)}', 400
             )
+        if llm_disabled(provider_override):
+            return json_response({'models': []})
         if slot == SLOT_FAILOVER and provider_override in SYSTEMONE_PROVIDERS:
             return error_response('Failover LLM is chat-only', 400)
         if slot == SLOT_SECONDARY:

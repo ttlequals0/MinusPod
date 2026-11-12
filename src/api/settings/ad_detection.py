@@ -45,7 +45,7 @@ from database.settings import (
 from user_agent import invalidate_cache as invalidate_user_agent_cache
 from rate_limit_hold import clear_holds_for_provider_change
 from llm_client import (
-    get_effective_provider,
+    get_effective_provider, llm_disabled,
 )
 from llm_route import (
     VALID_SLOTS, SAME_AS_PASS,
@@ -236,11 +236,15 @@ def _clear_models_for_identity_changes(db, previous, data):
     for stage, (setting_key, payload_key) in _STAGE_MODEL_KEYS.items():
         if previous[stage] == current[stage] or payload_key in data:
             continue
+        if llm_disabled(previous[stage][1]) or llm_disabled(current[stage][1]):
+            continue
         if stage == 'review' and db.get_setting(setting_key) == SAME_AS_PASS:
             continue
         db.set_setting(setting_key, '', is_default=False)
         changed_stages.append(stage)
     if (previous['pattern_cleanup'] != current['pattern_cleanup']
+            and not llm_disabled(previous['pattern_cleanup'][1])
+            and not llm_disabled(current['pattern_cleanup'][1])
             and 'patternCleanupModel' not in data
             and db.get_setting('pattern_cleanup_model') is not None):
         db.set_setting('pattern_cleanup_model', '', is_default=False)

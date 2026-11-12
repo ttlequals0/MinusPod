@@ -19,7 +19,7 @@ from rate_limit_hold import clear_holds_for_provider_change
 from pricing_fetcher import force_refresh_pricing
 from whisper_pool import get_pool
 from llm_client import (
-    get_effective_provider,
+    get_effective_provider, llm_disabled,
     get_effective_base_url,
     get_llm_client,
     _JSON_FORMAT_SETTING_KEY,
@@ -45,7 +45,8 @@ logger = logging.getLogger('podcast.api')
 
 
 VALID_FAILOVER_LLM_PROVIDERS = tuple(
-    provider for provider in common.VALID_LLM_PROVIDERS if provider not in SYSTEMONE_PROVIDERS)
+    provider for provider in common.VALID_LLM_PROVIDERS
+    if provider not in SYSTEMONE_PROVIDERS and not llm_disabled(provider))
 
 
 PRICING_SOURCE_MODES = ('auto', 'litellm', 'free')
@@ -180,6 +181,8 @@ def _validate_provider_rate_limit_payload(data):
 
 def _reprobe_primary() -> None:
     """Re-verify the primary client off the request thread, which re-runs its probes."""
+    if llm_disabled():
+        return
     client = get_llm_client()
     if hasattr(client, 'verify_connection'):
         threading.Thread(target=client.verify_connection,
@@ -258,6 +261,8 @@ def _validate_provider_payload(data):
             return error
     if data.get('secondaryProvider') and data['secondaryProvider'] not in common.VALID_LLM_PROVIDERS:
         return f'secondaryProvider must be one of: {", ".join(common.VALID_LLM_PROVIDERS)}', 400
+    if data.get('secondaryProvider') and llm_disabled(data['secondaryProvider']):
+        return 'secondaryProvider cannot be none', 400
     if 'secondaryProviderBaseUrl' in data:
         value = data['secondaryProviderBaseUrl']
         if not isinstance(value, str):
