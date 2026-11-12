@@ -53,7 +53,7 @@ from llm_route import (
 )
 from tools.reviewer_calibration import calibration_revision, trigger_reviewer_calibration
 from utils.secret_writes import SecretWriteRejected, set_or_clear_secret
-from api.auth_state import refresh_auth
+from api.auth_state import recheck_auth
 from api.settings import common, systemone_phases, provider_phases
 
 logger = logging.getLogger('podcast.api')
@@ -632,7 +632,7 @@ def _apply_constrained_settings(db, data):
         logger.info(f"Updated {db_key} to: {value if value is not None else 'default'}")
     if writes:
         # The response's cookie expiry must use the new length, not the one read at request start.
-        refresh_auth(db)
+        recheck_auth(db)
 
 
 def _validate_constrained_payload(data):

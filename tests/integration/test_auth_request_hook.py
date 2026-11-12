@@ -310,3 +310,89 @@ def test_a_state_from_another_request_is_never_trusted(client, db, clock):
     with app.test_request_context('/api/v1/feeds'):
         assert auth_state.stored_auth() is None
         assert auth_state.current_auth().signed_in is False
+
+
+def _raise_on_second_check(monkeypatch):
+    real = auth_state.check_session
+    calls = []
+
+    def flaky(d):
+        calls.append(1)
+        if len(calls) >= 2:
+            raise sqlite3.OperationalError('database is locked')
+        return real(d)
+    monkeypatch.setattr(auth_state, 'check_session', flaky)
+
+
+def _assert_signed_out_response(resp):
+    assert resp.status_code == 500
+    assert _set_cookie(resp, CSRF_COOKIE_NAME) is None
+    cleared = _set_cookie(resp, 'session')
+    assert cleared is not None and cleared.startswith('session=;')
+
+
+def test_failed_logout_recheck_leaves_the_response_signed_out(client, db, monkeypatch):
+    client.post('/api/v1/auth/login', json={'password': PW})
+    token = client.get_cookie(CSRF_COOKIE_NAME).value
+    _raise_on_second_check(monkeypatch)
+    resp = client.post('/api/v1/auth/logout', headers={'X-CSRF-Token': token})
+    _assert_signed_out_response(resp)
+
+
+def test_failed_password_removal_recheck_leaves_the_response_signed_out(client, db, monkeypatch):
+    client.post('/api/v1/auth/login', json={'password': PW})
+    token = client.get_cookie(CSRF_COOKIE_NAME).value
+    _raise_on_second_check(monkeypatch)
+    resp = client.put('/api/v1/auth/password', json={'currentPassword': PW, 'newPassword': ''},
+                      headers={'X-CSRF-Token': token})
+    _assert_signed_out_response(resp)
+
+
+def test_failed_session_length_recheck_writes_no_cookie(client, db, clock, monkeypatch):
+    _signed_in(client, db, clock)
+    client.get('/api/v1/auth/status')
+    token = client.get_cookie(CSRF_COOKIE_NAME).value
+    _raise_on_second_check(monkeypatch)
+    resp = client.put('/api/v1/settings/ad-detection', json={'sessionLifetimeHours': 2},
+                      headers={'X-CSRF-Token': token})
+    assert resp.status_code == 500
+    assert resp.headers.getlist('Set-Cookie') == []
+
+
+@pytest.mark.parametrize('expired', [False, True])
+def test_a_slug_guard_400_inside_a_signed_in_context_sets_no_cookie(client, db, clock, expired):
+    _signed_in(client, db, clock)
+    assert client.get('/api/v1/auth/status').get_json()['authenticated'] is True
+    with app.test_client() as other:
+        if expired:
+            _signed_in(other, db, clock)
+            clock[0] += 25 * 3600
+        resp = other.get('/api/v1/feeds/example-podcast/episodes/zzz')
+        assert resp.status_code == 400
+        assert resp.headers.getlist('Set-Cookie') == []
+
+
+@pytest.mark.parametrize('shape', [
+    {'auth_generation': 0, 'auth_last_used': 1_000_000.0},
+    {'authenticated': False, 'auth_generation': 0, 'auth_last_used': 1_000_000.0},
+])
+@pytest.mark.parametrize('path', ['/ui/', '/api/v1/auth/status'])
+def test_auth_keys_without_a_sign_in_delete_the_cookie(client, db, clock, shape, path):
+    with client.session_transaction() as sess:
+        sess.permanent = True
+        sess.update(shape)
+    resp = client.get(path)
+    cleared = _set_cookie(resp, 'session')
+    assert cleared is not None and cleared.startswith('session=;')
+    assert _set_cookie(resp, CSRF_COOKIE_NAME) is None
+    assert client.get(path).headers.getlist('Set-Cookie') == []
+
+
+def test_no_password_mode_leaves_auth_keys_without_a_sign_in(client, db, clock):
+    db.set_setting('app_password', '')
+    with client.session_transaction() as sess:
+        sess.permanent = True
+        sess.update({'authenticated': False, 'auth_last_used': 1_000_000.0})
+    assert client.get('/api/v1/auth/status').get_json()['authenticated'] is True
+    with client.session_transaction() as sess:
+        assert sess['auth_last_used'] == 1_000_000.0

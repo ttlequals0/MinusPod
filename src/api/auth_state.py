@@ -4,7 +4,7 @@ import logging
 import math
 import os
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 from flask import g, has_request_context, request, session
 
@@ -79,6 +79,9 @@ def check_session(db) -> AuthState:
     password_set = password_is_set(db)
     required = password_set or _auth_forced()
     if not session.get('authenticated'):
+        # Leftover auth keys can never sign in; drop them so the cookie is not kept alive.
+        if required and _session_has_auth_marker():
+            session.clear()
         return AuthState(password_set, required, authenticated=not required, signed_in=False)
     remembered = bool(session.get(SESSION_REMEMBERED_KEY, False))
     if not required:
@@ -228,7 +231,21 @@ def authenticate_session(
 def sign_out(db) -> AuthState:
     """Clear the session and record the signed-out state for this request."""
     session.clear()
+    # Stored first so a failing re-check cannot leave the earlier signed-in state in place.
+    before = stored_auth() or _HOOK_MISSING
+    refresh_auth(state=replace(before, authenticated=not before.required, signed_in=False,
+                               remembered=False, limit_seconds=None))
     return refresh_auth(db)
+
+
+def recheck_auth(db) -> AuthState:
+    """Re-run the session check after a settings change; if it fails, nothing from before is trusted."""
+    try:
+        return refresh_auth(db)
+    except Exception:
+        holder = _holder(create=True)
+        holder.state, holder.pending, holder.failed = None, False, True
+        raise
 
 
 def revoke_sessions(db) -> int:

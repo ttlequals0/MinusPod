@@ -158,12 +158,28 @@ def test_no_password_signs_nothing_out(db, clock, make_session):
     assert sess.get('authenticated') is True
 
 
-def test_anonymous_session_is_untouched(db, clock, make_session):
-    sess = make_session(authenticated=None)
-    auth_state.check_session(db)
-    assert dict(sess) == {
-        'auth_generation': auth_state.current_generation(db),
-        'auth_remembered': False, 'auth_last_used': T0}
+@pytest.mark.parametrize('authenticated', [None, False, 0, ''])
+def test_auth_keys_without_a_sign_in_are_cleared(db, clock, make_session, authenticated):
+    sess = make_session(authenticated=authenticated)
+    sess['_csrf_token'] = 'anonymous-token'
+    state = auth_state.check_session(db)
+    assert (state.authenticated, state.signed_in) == (False, False)
+    assert dict(sess) == {}
+
+
+def test_session_without_auth_keys_is_untouched(db, clock):
+    with app.test_request_context('/api/v1/health'):
+        session['_csrf_token'] = 'anonymous-token'
+        session['auth_remembered'] = True
+        auth_state.check_session(db)
+        assert dict(session) == {'_csrf_token': 'anonymous-token', 'auth_remembered': True}
+
+
+def test_no_password_keeps_auth_keys_without_a_sign_in(db, clock, make_session):
+    db.set_setting('app_password', '')
+    sess = make_session(authenticated=False)
+    assert auth_state.check_session(db).authenticated is True
+    assert sess['auth_last_used'] == T0 and sess['authenticated'] is False
 
 
 def test_authenticate_session_records_state(db, clock):
