@@ -20237,7 +20237,7 @@ components:
 
     PatternAudioDetail:
       type: object
-      required: [state, available, counts]
+      required: [state, available, matchable, counts]
       properties:
         state:
           type: string
@@ -20246,6 +20246,12 @@ components:
         available:
           type: boolean
           description: Whether any source episode still has a playable original.
+        matchable:
+          type: boolean
+          description: >-
+            False when the stored fingerprint cannot be matched under the current
+            minimum coverage setting, for example after the setting was raised.
+            True when the pattern has no fingerprint.
         length:
           type:
             - number

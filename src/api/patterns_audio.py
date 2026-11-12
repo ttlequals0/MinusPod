@@ -14,6 +14,9 @@ from api import (
 )
 from api import preview_cache
 from api.patterns import _store_pattern_audio, fingerprint_response_fields
+from audio_fingerprinter import (
+    clamped_fingerprint_setting, decode_fingerprint_ints, fingerprint_is_matchable,
+)
 from config import FFMPEG_SHORT_TIMEOUT
 from storage import PathContainmentError
 from utils.ffmpeg_run import SAFE_MEDIA_INPUT_ARGS
@@ -92,12 +95,19 @@ def _span(source):
             'start': source['start'], 'end': source['end']}
 
 
+def _still_matchable(db, fingerprint):
+    """Whether the stored fingerprint can match under the current minimum coverage."""
+    ints = decode_fingerprint_ints(fingerprint['fingerprint'])
+    return ints is not None and fingerprint_is_matchable(
+        ints, min_coverage=clamped_fingerprint_setting(db, 'fingerprint_min_coverage'))
+
+
 def build_audio_detail(db, storage, pattern_id):
     """The audio detail object of a pattern that exists."""
     fingerprint = db.get_audio_fingerprint(pattern_id)
     summary = db.get_audio_match_summary(pattern_id)
     detail = {
-        'state': 'none', 'available': False, 'length': None, 'createdAt': None,
+        'state': 'none', 'available': False, 'matchable': True, 'length': None, 'createdAt': None,
         'builtFrom': None, 'source': None,
         'counts': {'matches': summary['match_count'], 'rejected': summary['rejected_count'],
                    'outOfScope': summary['out_of_scope_count']},
@@ -106,6 +116,7 @@ def build_audio_detail(db, storage, pattern_id):
     if fingerprint is None:
         return detail
     detail['state'] = 'active' if fingerprint['enabled'] else 'off'
+    detail['matchable'] = _still_matchable(db, fingerprint)
     detail['length'] = fingerprint['duration']
     detail['createdAt'] = fingerprint['created_at']
     slug, episode_id = fingerprint['source_podcast_slug'], fingerprint['source_episode_id']
