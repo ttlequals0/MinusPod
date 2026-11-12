@@ -150,7 +150,7 @@ def test_holds_are_not_listed_and_plain_ad_has_no_provenance():
 
 def test_default_review_prompt_states_the_hard_limit():
     assert 'Protected audio lines are hard limits' in DEFAULT_REVIEW_PROMPT
-    assert 'fingerprint spans are projected lengths' in DEFAULT_REVIEW_PROMPT
+    assert 'fingerprint spans are measured audio matches' in DEFAULT_REVIEW_PROMPT
 
 
 def test_fingerprint_members_record_their_pattern_id():

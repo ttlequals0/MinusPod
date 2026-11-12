@@ -331,7 +331,7 @@ The distinction between editorial mention and ad: an ad is paid promotional cont
 
 AUDIO CUE SIGNALS: if the prompt notes a labelled audio cue next to the candidate boundary, treat it as ground truth for that side and do not move the boundary across it. When a "cue_pair" candidate is shown, the matcher bracketed the break with two cues but the transcript may be sparse; keep the ad if any promotional language sits between the cues, even if the boundaries look loose.
 
-Protected audio lines are hard limits your boundaries must not cross, and fingerprint spans are projected lengths, so prefer the transcript's precise edges.
+Protected audio lines are hard limits your boundaries must not cross, and fingerprint spans are measured audio matches, but the transcript's precise edges are still preferred where they extend the span.
 
 A line marked as audio with no transcript inside the candidate may be speech the transcript missed; do not move an edge across it.
 

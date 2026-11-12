@@ -133,7 +133,7 @@ SEED_SNAPSHOT = {
     'review_provider': 'same_as_pass',
     'secondary_provider_enabled': 'false',
     'secondary_provider_base_url': 'http://localhost:8000/v1',
-    'review_prompt': ('sha256', '3515a8a98250a187f7e885b696864db04ceca30ffdf97d72baa6a3d69029e87a'),  # Updated for the untranscribed-audio sentence
+    'review_prompt': ('sha256', '71f8a86b21db7272c5ec9e981faf09c64dd73f5355a8dc232173d602bb924d0f'),  # Updated for the measured-fingerprint sentence
     'rss_refresh_interval_minutes': '15',
     'auto_process_max_age_hours': '48',
     'queue_manual_boost': '20',

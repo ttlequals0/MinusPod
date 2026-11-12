@@ -19,6 +19,12 @@ logger = logging.getLogger(__name__)
 # not land in memory at once inside the startup schema lock.
 _COLLAPSE_BATCH_ROWS = 500
 
+_OLD_FINGERPRINT_SENTENCE = (
+    "fingerprint spans are projected lengths, so prefer the transcript's precise edges.")
+_NEW_FINGERPRINT_SENTENCE = (
+    "fingerprint spans are measured audio matches, but the transcript's precise "
+    "edges are still preferred where they extend the span.")
+
 # Columns that hold stored exception or error text, served back by the API.
 _STORED_ERROR_COLUMNS = (
     ('episodes', 'error_message'),
@@ -2612,6 +2618,12 @@ class SchemaMixin:
             conn.rollback()
             logger.error(f"stored error text redaction failed: {e}")
 
+        try:
+            self._run_review_prompt_fingerprint_wording(conn)
+        except Exception as e:
+            conn.rollback()
+            logger.error(f"review prompt fingerprint wording update failed: {e}")
+
     def _redact_column_in_batches(self, conn, table, column, rewrite, where='1', params=()):
         """Rewrite one column page by page, committing each page; returns the number of rows changed."""
         if not self._table_exists(conn, table) or column not in self._get_table_columns(conn, table):
@@ -2670,6 +2682,19 @@ class SchemaMixin:
             return
         conn.execute("UPDATE episodes SET sb_next_check_at = NULL "
                      "WHERE sb_state IN ('done', 'llm', 'exhausted') AND sb_next_check_at IS NOT NULL")
+        conn.execute("INSERT INTO schema_migrations (name) VALUES (?)", (gate,))
+        conn.commit()
+
+    def _run_review_prompt_fingerprint_wording(self, conn):
+        """One-shot: swap the stale "projected lengths" sentence in a stored review prompt."""
+        gate = 'review_prompt_fingerprint_measured'
+        if conn.execute("SELECT 1 FROM schema_migrations WHERE name = ?", (gate,)).fetchone():
+            return
+        row = conn.execute("SELECT value FROM settings WHERE key = 'review_prompt'").fetchone()
+        if row and _OLD_FINGERPRINT_SENTENCE in (row['value'] or ''):
+            conn.execute(
+                "UPDATE settings SET value = ? WHERE key = 'review_prompt'",
+                (row['value'].replace(_OLD_FINGERPRINT_SENTENCE, _NEW_FINGERPRINT_SENTENCE),))
         conn.execute("INSERT INTO schema_migrations (name) VALUES (?)", (gate,))
         conn.commit()
 
