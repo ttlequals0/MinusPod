@@ -7619,6 +7619,29 @@ paths:
                 audioCueCutMatches:
                   type: boolean
                   description: Cut every matched cue on its own, with no ad next to it. Templates and feeds can override. Off by default.
+                fingerprintEnabled:
+                  type: boolean
+                  description: Turns audio fingerprint matching on or off for the install (default true). It never depends on the LLM provider. Must be a boolean.
+                fingerprintMatchStrictness:
+                  type: number
+                  description: Lowest similarity that counts as a match (default 0.65). A number from 0.4 to 0.95; anything else is a 400.
+                  minimum: 0.4
+                  maximum: 0.95
+                fingerprintMinCoverage:
+                  type: number
+                  description: Share of the stored ad that must be found for a match (default 0.5). A number from 0.1 to 1; anything else is a 400.
+                  minimum: 0.1
+                  maximum: 1
+                fingerprintGapToleranceS:
+                  type: number
+                  description: Longest dropout, in seconds, bridged inside one match (default 3.5). A number from 0 to 15; anything else is a 400.
+                  minimum: 0
+                  maximum: 15
+                fingerprintMinAdLengthS:
+                  type: number
+                  description: Shortest span, in seconds, that gets a fingerprint (default 5). A number from 3 to 30; anything else is a 400. Changing it never re-fingerprints stored ads.
+                  minimum: 3
+                  maximum: 30
                 silenceSnapNoiseDb:
                   type: number
                   description: Amplitude (dBFS) below which audio counts as silence for silence snap (default -50).
@@ -17996,6 +18019,46 @@ components:
           properties:
             value:
               type: boolean
+            isDefault:
+              type: boolean
+        fingerprintEnabled:
+          type: object
+          description: Whether audio fingerprint matching is on (default true).
+          properties:
+            value:
+              type: boolean
+            isDefault:
+              type: boolean
+        fingerprintMatchStrictness:
+          type: object
+          description: Lowest similarity that counts as a match (default 0.65, range 0.4 to 0.95).
+          properties:
+            value:
+              type: number
+            isDefault:
+              type: boolean
+        fingerprintMinCoverage:
+          type: object
+          description: Share of the stored ad that must be found for a match (default 0.5, range 0.1 to 1).
+          properties:
+            value:
+              type: number
+            isDefault:
+              type: boolean
+        fingerprintGapToleranceS:
+          type: object
+          description: Longest dropout bridged inside one match, seconds (default 3.5, range 0 to 15).
+          properties:
+            value:
+              type: number
+            isDefault:
+              type: boolean
+        fingerprintMinAdLengthS:
+          type: object
+          description: Shortest span that gets a fingerprint, seconds (default 5, range 3 to 30).
+          properties:
+            value:
+              type: number
             isDefault:
               type: boolean
         silenceSnapNoiseDb:

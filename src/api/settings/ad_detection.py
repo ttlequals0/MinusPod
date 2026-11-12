@@ -19,6 +19,7 @@ from config import (
     WHISPER_API_TIMEOUT_MIN, WHISPER_API_TIMEOUT_MAX,
     WHISPER_POOL_MAX_REQUESTS_RANGE, WHISPER_POOL_MAX_EPISODES_RANGE,
     coerce_bool_setting,
+    FINGERPRINT_SETTING_RANGES,
     apply_ad_chapter_compat, MAX_AD_DURATION, MAX_AD_DURATION_CONFIRMED,
     MAX_ARTWORK_BYTES_MIN, MAX_ARTWORK_BYTES_MAX, MAX_RSS_BYTES_MIN,
     MAX_AUDIO_DOWNLOAD_MB_MIN,
@@ -162,6 +163,7 @@ def apply_settings_payload_in_transaction(db, data, *, allow_inactive_tunables=F
         provider_phases._apply_whisper_fields,
         _apply_vad_gap_fields,
         _apply_audio_cue_fields,
+        _apply_fingerprint_fields,
         _apply_positional_prior_fields,
         _apply_podcast_index_fields,
         _apply_transcribe_chunk_fields,
@@ -1307,6 +1309,7 @@ def validate_settings_payload(
         _validate_queue_boost_payload,
         _validate_rss_refresh_payload,
         _validate_audio_payload,
+        _validate_fingerprint_payload,
         _validate_user_agent_payload,
         _validate_podcast_search_provider_payload,
     ):
@@ -1589,6 +1592,54 @@ def _validate_audio_cue_payload(db, data):
 
 def _apply_audio_cue_fields(db, data):
     writes, issue = _audio_cue_writes(db, data)
+    if issue is not None:
+        return error_response(*issue)
+    for db_key, value in writes:
+        db.set_setting(db_key, value, is_default=False)
+        logger.info(f"Updated {db_key} to: {value}")
+    return None
+
+
+FINGERPRINT_PAYLOAD_KEYS = {
+    'fingerprint_match_strictness': 'fingerprintMatchStrictness',
+    'fingerprint_min_coverage': 'fingerprintMinCoverage',
+    'fingerprint_gap_tolerance_s': 'fingerprintGapToleranceS',
+    'fingerprint_min_ad_length_s': 'fingerprintMinAdLengthS',
+}
+
+
+def _fingerprint_writes(data):
+    """Validated (setting key, stored string) writes for the fingerprint fields, or an issue."""
+    writes = []
+    if 'fingerprintEnabled' in data:
+        if not isinstance(data['fingerprintEnabled'], bool):
+            return None, ('fingerprintEnabled must be true or false', 400)
+        writes.append(('fingerprint_enabled', 'true' if data['fingerprintEnabled'] else 'false'))
+    for db_key, field in FINGERPRINT_PAYLOAD_KEYS.items():
+        if field not in data:
+            continue
+        _default, low, high = FINGERPRINT_SETTING_RANGES[db_key]
+        value = data[field]
+        message = f'{field} must be a number between {low:g} and {high:g}'
+        if isinstance(value, bool) or not isinstance(value, (int, float)):
+            return None, (message, 400)
+        try:
+            value = float(value)
+        except OverflowError:
+            return None, (message, 400)
+        if not math.isfinite(value) or value < low or value > high:
+            return None, (message, 400)
+        writes.append((db_key, str(value)))
+    return writes, None
+
+
+def _validate_fingerprint_payload(data):
+    _writes, issue = _fingerprint_writes(data)
+    return issue
+
+
+def _apply_fingerprint_fields(db, data):
+    writes, issue = _fingerprint_writes(data)
     if issue is not None:
         return error_response(*issue)
     for db_key, value in writes:

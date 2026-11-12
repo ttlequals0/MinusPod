@@ -7,7 +7,7 @@ from api import (
     get_database, limiter,
 )
 from config import (
-    OPENROUTER_BASE_URL, DEFAULT_AUDIO_BITRATE,
+    OPENROUTER_BASE_URL, FINGERPRINT_SETTING_RANGES, DEFAULT_AUDIO_BITRATE,
     DEFAULT_AUDIO_ENCODER_COMPRESSION_LEVEL,
     AD_DETECTION_PARALLEL_WINDOWS_DEFAULT,
     AD_DETECTION_PARALLEL_WINDOWS_MIN,
@@ -559,6 +559,11 @@ def _build_settings_payload():
     audio_cue_pair_max_break_fraction = _cue_num('audio_cue_pair_max_break_fraction', AUDIO_CUE_PAIR_MAX_BREAK_FRACTION)
     audio_cue_pair_orient_window = _cue_num('audio_cue_pair_orient_window_seconds', AUDIO_CUE_PAIR_ORIENT_WINDOW_SECONDS)
 
+    fingerprint_enabled = coerce_bool_setting(common._setting_value(
+        settings, 'fingerprint_enabled', registry_default('fingerprint_enabled')))
+    fingerprint_values = {
+        key: _cue_num(key, FINGERPRINT_SETTING_RANGES[key][0]) for key in FINGERPRINT_SETTING_RANGES}
+
     # Silence-snap tunables (Phase B boundary snap)
     silence_snap_noise_db = _cue_num('silence_snap_noise_db', SILENCE_SNAP_NOISE_DB)
     silence_snap_min_duration = _cue_num('silence_snap_min_duration_seconds', SILENCE_SNAP_MIN_DURATION_SECONDS)
@@ -780,6 +785,14 @@ def _build_settings_payload():
         'audioCuePairMaxBreakSeconds': _sv('audio_cue_pair_max_break_seconds', audio_cue_pair_max_break),
         'audioCuePairMaxBreakFraction': _sv('audio_cue_pair_max_break_fraction', audio_cue_pair_max_break_fraction),
         'audioCuePairOrientWindowSeconds': _sv('audio_cue_pair_orient_window_seconds', audio_cue_pair_orient_window),
+        'fingerprintEnabled': _sv('fingerprint_enabled', fingerprint_enabled),
+        'fingerprintMatchStrictness': _sv(
+            'fingerprint_match_strictness', fingerprint_values['fingerprint_match_strictness']),
+        'fingerprintMinCoverage': _sv('fingerprint_min_coverage', fingerprint_values['fingerprint_min_coverage']),
+        'fingerprintGapToleranceS': _sv(
+            'fingerprint_gap_tolerance_s', fingerprint_values['fingerprint_gap_tolerance_s']),
+        'fingerprintMinAdLengthS': _sv(
+            'fingerprint_min_ad_length_s', fingerprint_values['fingerprint_min_ad_length_s']),
         'silenceSnapNoiseDb': _sv('silence_snap_noise_db', silence_snap_noise_db),
         'silenceSnapMinDurationSeconds': _sv('silence_snap_min_duration_seconds', silence_snap_min_duration),
         'silenceSnapMaxDistanceSeconds': _sv('silence_snap_max_distance_seconds', silence_snap_max_distance),

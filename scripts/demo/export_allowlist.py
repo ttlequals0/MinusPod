@@ -242,6 +242,11 @@ _ALLOW_AUDIO_CUE = (
     'audio_cue_pair_max_break_fraction', 'audio_cue_pair_orient_window_seconds',
 )
 
+_ALLOW_FINGERPRINT = (
+    'fingerprint_enabled', 'fingerprint_match_strictness', 'fingerprint_min_coverage',
+    'fingerprint_gap_tolerance_s', 'fingerprint_min_ad_length_s',
+)
+
 _ALLOW_SILENCE_SNAP = (
     'silence_snap_noise_db', 'silence_snap_min_duration_seconds',
     'silence_snap_max_distance_seconds',
@@ -265,7 +270,7 @@ _ALLOW_STAGE_TUNABLES = (
 DEMO_SETTINGS_ALLOW: frozenset[str] = frozenset(
     _ALLOW_PROMPTS + _ALLOW_PATTERN_CLEANUP + _ALLOW_AD_REVIEWER + _ALLOW_GENERAL
     + _ALLOW_AUDIO_OUTPUT + _ALLOW_TRANSCRIPTION + _ALLOW_WHISPER + _ALLOW_VAD
-    + _ALLOW_LLM_PROVIDER + _ALLOW_AUDIO_CUE + _ALLOW_SILENCE_SNAP
+    + _ALLOW_LLM_PROVIDER + _ALLOW_AUDIO_CUE + _ALLOW_FINGERPRINT + _ALLOW_SILENCE_SNAP
     + _ALLOW_DETECTION_TUNING + _ALLOW_STAGE_TUNABLES
 )
 
