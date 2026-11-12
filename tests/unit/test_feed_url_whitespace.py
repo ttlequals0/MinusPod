@@ -58,6 +58,13 @@ def test_safe_url_for_log_drops_userinfo_with_a_space():
     assert safe_url_for_log(BAD_URL, keep_path=True) == 'https://feeds.example.com/f.xml'
 
 
+@pytest.mark.parametrize('password', ['pa ss', 'pa\tss', 'pa/ss', 'pa#ss'])
+def test_safe_url_for_log_hides_a_password_the_userinfo_pass_cannot_match(password):
+    # Raw whitespace, "/" or "#" in a password ends the userinfo pass, so log sites rely on this helper.
+    out = safe_url_for_log(f'https://alice:{password}@feeds.example.com/f.xml?k=SECRET')
+    assert 'pa' not in out and 'ss' not in out and 'SECRET' not in out
+
+
 def test_add_feed_refuses_whitespace_and_logs_no_credential(app_client, caplog):
     _authed(app_client)
     with patch('api.feeds.validate_url'), patch('main_app.feeds.refresh_rss_feed'), caplog.at_level(logging.INFO):
