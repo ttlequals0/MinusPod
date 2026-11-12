@@ -12,6 +12,9 @@ from utils.constants import EpisodeStatus
 from utils.time import ISO_FORMAT, utc_now_iso
 from utils.validation import nullable_bool
 
+# The feed's network: the non-blank override, else the detected network.
+EFFECTIVE_NETWORK_SQL = "COALESCE(NULLIF(TRIM(network_id_override), ''), network_id)"
+
 logger = logging.getLogger(__name__)
 
 
@@ -159,8 +162,7 @@ class PodcastMixin:
     def get_effective_network_id(self, slug: str) -> str | None:
         """The feed's network: the non-blank override, else the detected network, else None."""
         row = self.get_connection().execute(
-            "SELECT COALESCE(NULLIF(TRIM(network_id_override), ''), network_id) AS network "
-            "FROM podcasts WHERE slug = ?", (slug,)
+            f"SELECT {EFFECTIVE_NETWORK_SQL} AS network FROM podcasts WHERE slug = ?", (slug,)  # noqa: S608
         ).fetchone()
         return (row['network'] or None) if row else None
 

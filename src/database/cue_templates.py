@@ -17,6 +17,7 @@ import logging
 from datetime import timedelta
 
 from config import audio_cue_type_label
+from database.podcasts import EFFECTIVE_NETWORK_SQL
 from utils.time import ISO_FORMAT, utc_now
 
 logger = logging.getLogger(__name__)
@@ -114,16 +115,16 @@ class CueTemplateMixin:
         """
         conn = self.get_connection()
         cursor = conn.execute(
-            """SELECT * FROM audio_cue_templates
+            f"""SELECT * FROM audio_cue_templates
                WHERE enabled = 1 AND (
                    (scope = 'podcast' AND podcast_id = ?)
                    OR (scope = 'network' AND network_id IS NOT NULL
                        AND network_id = (
-                           SELECT COALESCE(NULLIF(TRIM(network_id_override), ''), network_id)
+                           SELECT {EFFECTIVE_NETWORK_SQL}
                            FROM podcasts WHERE id = ?
                        ))
                )
-               ORDER BY (scope = 'podcast') DESC, created_at DESC""",
+               ORDER BY (scope = 'podcast') DESC, created_at DESC""",  # noqa: S608
             (podcast_id, podcast_id),
         )
         return [dict(row) for row in cursor.fetchall()]
@@ -154,7 +155,7 @@ class CueTemplateMixin:
         """
         conn = self.get_connection()
         cursor = conn.execute(
-            """SELECT id, podcast_id, label, cue_type, source_episode_id, source_offset_s,
+            f"""SELECT id, podcast_id, label, cue_type, source_episode_id, source_offset_s,
                       duration_s, sample_rate, n_coeffs, scope, network_id,
                       enabled, score_threshold, remove_with_ad, cut_matches, created_at, created_by,
                       (pcm_blob IS NOT NULL) AS has_audio
@@ -163,9 +164,9 @@ class CueTemplateMixin:
                   OR (scope = 'network' AND network_id IS NOT NULL AND network_id != ''
                       AND podcast_id != :pid
                       AND network_id = (
-                          SELECT COALESCE(NULLIF(TRIM(network_id_override), ''), network_id)
+                          SELECT {EFFECTIVE_NETWORK_SQL}
                           FROM podcasts WHERE id = :pid))
-               ORDER BY (podcast_id = :pid) DESC, created_at DESC""",
+               ORDER BY (podcast_id = :pid) DESC, created_at DESC""",  # noqa: S608
             {'pid': podcast_id},
         )
         return [dict(row) for row in cursor.fetchall()]
@@ -175,9 +176,9 @@ class CueTemplateMixin:
         auto-detected) equals ``network_id``, excluding one podcast id."""
         conn = self.get_connection()
         cursor = conn.execute(
-            """SELECT id, slug FROM podcasts
+            f"""SELECT id, slug FROM podcasts
                WHERE id != :exclude_id
-                 AND COALESCE(NULLIF(TRIM(network_id_override), ''), network_id) = :network_id""",
+                 AND {EFFECTIVE_NETWORK_SQL} = :network_id""",  # noqa: S608
             {'exclude_id': exclude_podcast_id, 'network_id': network_id},
         )
         return [dict(row) for row in cursor.fetchall()]

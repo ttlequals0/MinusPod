@@ -39,6 +39,7 @@ GATE_SCORE = 0.70
 BAND_LOW = 0.65
 CLOSE_EVIDENCE_LIMIT_S = 3.0
 EDGE_TOLERANCE_S = 1.0
+# Report threshold for weak new matches; equal to GATE_SCORE (the old matcher gate) by coincidence.
 LOW_SIMILARITY = 0.70
 LOW_COVERAGE = 0.6
 NEAR_BAND = (0.65, 0.72)
