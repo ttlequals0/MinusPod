@@ -35,7 +35,7 @@ SLICE_CACHE_TTL_S = 120
 
 _clock = time.monotonic
 _preview_slots = threading.BoundedSemaphore(PREVIEW_ENCODERS)
-# key -> (expires_at, mp3 bytes); oldest first
+# key -> (expires_at, mp3 bytes, pattern id); oldest first
 _slice_cache = OrderedDict()
 _slice_cache_lock = threading.Lock()
 
@@ -194,15 +194,25 @@ def _cached_slice(key):
         return entry[1]
 
 
-def _remember_slice(key, data):
+def _remember_slice(key, data, pattern_id):
     with _slice_cache_lock:
-        _slice_cache[key] = (_clock() + SLICE_CACHE_TTL_S, data)
+        now = _clock()
+        for stale in [k for k, entry in _slice_cache.items() if entry[0] <= now]:
+            del _slice_cache[stale]
+        _slice_cache[key] = (now + SLICE_CACHE_TTL_S, data, pattern_id)
         _slice_cache.move_to_end(key)
         while len(_slice_cache) > SLICE_CACHE_ENTRIES:
             _slice_cache.popitem(last=False)
 
 
-def _encode_slice(path, start, end):
+def drop_cached_slices(pattern_id):
+    """Forget every cached preview slice of a pattern."""
+    with _slice_cache_lock:
+        for key in [k for k, entry in _slice_cache.items() if entry[2] == pattern_id]:
+            del _slice_cache[key]
+
+
+def _encode_slice(path, start, end, pattern_id):
     """The encoded slice from the cache or a new encode; None when every encoder slot is busy."""
     key = _slice_key(path, start, end)
     data = _cached_slice(key)
@@ -214,7 +224,7 @@ def _encode_slice(path, start, end):
         data = _slice_to_mp3(path, start, end)
     finally:
         _preview_slots.release()
-    _remember_slice(key, data)
+    _remember_slice(key, data, pattern_id)
     return data
 
 
@@ -230,7 +240,7 @@ def preview_pattern_audio(pattern_id):
         return err
     end = min(source['end'], source['start'] + MAX_PREVIEW_SECONDS)
     try:
-        data = _encode_slice(source['path'], source['start'], end)
+        data = _encode_slice(source['path'], source['start'], end, pattern_id)
     except Exception as e:
         logger.error(f"Audio preview failed for pattern {pattern_id}: {type(e).__name__}")
         return error_response('Could not build the audio preview', 500)
@@ -280,7 +290,9 @@ def delete_pattern_audio(pattern_id):
     _, err = _known_pattern(db, pattern_id)
     if err:
         return err
-    if not db.delete_pattern_audio(pattern_id):
+    deleted = db.delete_pattern_audio(pattern_id)
+    drop_cached_slices(pattern_id)
+    if not deleted:
         return no_audio_response()
     return json_response({'deleted': True})
 
@@ -320,6 +332,7 @@ def rebuild_pattern_audio(pattern_id):
     if duration and end > duration:
         return error_response('The span runs past the end of the episode', 400)
     result = _store_pattern_audio(db, slug, episode_id, pattern_id, start, end, force=True)
+    drop_cached_slices(pattern_id)
     if result.stored:
         db.set_pattern_audio_removed(pattern_id, False)
     return json_response({**fingerprint_response_fields([(pattern_id, result)]),

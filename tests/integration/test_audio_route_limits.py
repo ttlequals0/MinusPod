@@ -220,3 +220,46 @@ def test_unsatisfiable_range_is_416(app_client, fp_audio_pattern, fp_audio_origi
     r = _preview(app_client, fp_audio_pattern, Range='bytes=99999999-')
     assert r.status_code == 416
 
+
+def test_a_preview_is_not_served_once_the_original_is_gone(
+        app_client, fp_feed, fp_audio_pattern, fp_audio_original, spy, clock):
+    assert _preview(app_client, fp_audio_pattern).status_code == 200
+    fp_audio_original.unlink()
+    r = _preview(app_client, fp_audio_pattern)
+    assert r.status_code == 404 and r.get_json()['code'] == 'original_not_retained'
+
+
+def test_deleting_a_patterns_audio_drops_its_cached_slices(
+        app_client, fp_feed, fp_audio_pattern, fp_audio_original, spy, clock):
+    _preview(app_client, fp_audio_pattern)
+    assert len(module._slice_cache) == 1
+    assert app_client.delete(_audio(fp_audio_pattern), headers=csrf(app_client)).status_code == 200
+    assert len(module._slice_cache) == 0
+    fp_feed.create_audio_fingerprint(fp_audio_pattern, b'AQAA', 6.0, source_podcast_slug=SLUG,
+                                     source_episode_id=EPISODE, source_start=2.0, source_end=8.0)
+    assert _preview(app_client, fp_audio_pattern).status_code == 200
+    assert len(spy) == 2
+
+
+def test_rebuilding_a_patterns_audio_drops_its_cached_slices_only(
+        app_client, fp_feed, fp_audio_pattern, fp_audio_original, spy, clock, stub_fingerprinting):
+    other = fp_feed.create_ad_pattern(scope='podcast', podcast_id=SLUG, text_template='other read ' * 8)
+    fp_feed.create_audio_fingerprint(other, b'AQAA', 6.0, source_podcast_slug=SLUG,
+                                     source_episode_id=EPISODE, source_start=3.0, source_end=9.0)
+    _preview(app_client, fp_audio_pattern)
+    _preview(app_client, other)
+    assert len(module._slice_cache) == 2
+    r = app_client.post(f'{_audio(fp_audio_pattern)}/rebuild', headers=csrf(app_client),
+                        json={'podcastSlug': SLUG, 'episodeId': EPISODE, 'start': 2.0, 'end': 8.0})
+    assert r.status_code == 200 and r.get_json()['fingerprintStored'] is True
+    assert [entry[2] for entry in module._slice_cache.values()] == [other]
+
+
+def test_expired_entries_are_purged_when_a_slice_is_stored(
+        app_client, fp_feed, fp_audio_pattern, fp_audio_original, spy, clock):
+    first = fp_feed.record_fingerprint_match(fp_audio_pattern, EPISODE, SLUG, 1.0, 4.0, 0.9, 0.9, True, False)
+    second = fp_feed.record_fingerprint_match(fp_audio_pattern, EPISODE, SLUG, 5.0, 8.0, 0.9, 0.9, True, False)
+    app_client.get(f'{_audio(fp_audio_pattern)}/preview?matchId={first}', headers=csrf(app_client))
+    clock[0] += module.SLICE_CACHE_TTL_S + 1
+    app_client.get(f'{_audio(fp_audio_pattern)}/preview?matchId={second}', headers=csrf(app_client))
+    assert len(module._slice_cache) == 1
