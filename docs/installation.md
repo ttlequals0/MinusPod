@@ -78,7 +78,7 @@ Record the image version, CPU/GPU, backend, episode duration, highest observed c
 
 ## Quick Start
 
-Before processing an episode, set `BASE_URL`, configure provider access (`ANTHROPIC_API_KEY`, `OPENROUTER_API_KEY`, or `OPENAI_BASE_URL` for a local endpoint), and choose a model. Provider access and a model are not needed with `LLM_PROVIDER=none`. `OPENAI_MODEL` seeds the model settings, or you can choose each model under Settings > AI & Processing > AI Models. Compose starts without `MINUSPOD_MASTER_PASSPHRASE`. Set it to encrypt provider keys saved through the UI and API-downloaded database backups. Env vars seed unset settings; stored values win afterward.
+Before processing an episode, set `BASE_URL`, configure provider access (`ANTHROPIC_API_KEY`, `OPENROUTER_API_KEY`, or `OPENAI_BASE_URL` for a local endpoint), and choose a model. Provider access and a model are not needed with `LLM_PROVIDER=none`. `OPENAI_MODEL` seeds the model settings, or you can choose each model under Settings > AI and processing > AI Models. Compose starts without `MINUSPOD_MASTER_PASSPHRASE`. Set it to encrypt provider keys saved through the UI and API-downloaded database backups. Env vars seed unset settings; stored values win afterward.
 
 ```bash
 # 1. Create environment file
@@ -128,7 +128,7 @@ The CPU image transcribes locally with `faster-whisper` or Parakeet. For Parakee
 
 ### Without an LLM
 
-To run with no model, set `LLM_PROVIDER=none` in `.env` (or choose None under Settings > AI & Processing > LLM Provider) and leave the provider keys out. Transcription still runs. Ads are found by text patterns, audio fingerprints, audio cues, the cross-fetch differential and, on YouTube feeds, SponsorBlock marks.
+To run with no model, set `LLM_PROVIDER=none` in `.env` (or choose None under Settings > AI and processing > LLM Provider) and leave the provider keys out. Transcription still runs. Ads are found by text patterns, audio fingerprints, audio cues, the cross-fetch differential and, on YouTube feeds, SponsorBlock marks.
 
 A fresh install on None finds little or nothing on a regular podcast feed until you mark ads with Add ad, or confirm or adjust a marker. Those actions save patterns and audio fingerprints that cut the same ad in later episodes. SponsorBlock marks cover YouTube feeds only. See [Running without an LLM](llm-providers.md#running-without-an-llm) for how fingerprints are made and what is switched off.
 

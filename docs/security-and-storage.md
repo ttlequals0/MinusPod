@@ -48,7 +48,7 @@ The login lockout feature (5 fails / 15 min / 15 min block) keys on `request.rem
 3. **Audit logs carry the wrong IP.** Every `[ip]` bracket in the access log is the proxy hop. Forensics are much harder.
 4. **Auth-failure webhooks carry the wrong IP** in the `clientIp` field, so any Auth Failure alerting points at the proxy.
 
-Startup logs a WARN (`Running in a container without MINUSPOD_TRUSTED_PROXY_COUNT set ...`) when the variable is unset. Treat the WARN as load-bearing: if you're behind a reverse proxy and it's still firing after a deploy, your lockout and rate limits are not working.
+Startup logs a WARN (`Running in a container without MINUSPOD_TRUSTED_PROXY_COUNT set ...`) when the variable is unset. If you're behind a reverse proxy and the WARN still fires after a deploy, your lockout and rate limits are not working.
 
 ### Security recommendations
 

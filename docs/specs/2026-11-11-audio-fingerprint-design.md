@@ -57,7 +57,7 @@ between the fingerprint and the episode fingerprint by offset, then walks each
 candidate and measures the run of matching points at that one alignment. A gap
 inside the run is bridged up to the gap tolerance. Where agreement stops for
 longer than the gap tolerance, the run is split and each piece must pass every
-gate on its own, so an ad with a long damaged stretch is found as shorter
+gate on its own. An ad with a long damaged stretch is found as shorter
 matches or missed. The best run per position wins. The fallback
 that fingerprints the episode window by window is kept for the case where the
 whole-file fingerprint cannot be produced.

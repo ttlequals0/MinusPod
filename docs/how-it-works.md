@@ -222,7 +222,7 @@ Storing is best effort. The pattern or correction is saved either way, and the r
 
 If you raise the minimum coverage setting so far that a stored fingerprint could no longer match, the section says "This audio cannot match under the current settings".
 
-The Patterns table has an Audio column ("91% match", "Audio off", "No source audio" or "-"), the Stats page has an Audio matching section (patterns with audio, audio matches, found by audio only, marked Not this ad), and the settings are under Settings > AI & Processing > Audio fingerprinting, described in [Configuration](configuration.md#audio-fingerprinting). Merging or deduplicating patterns moves a fingerprint and its history to the pattern that is kept. Deleting a pattern or feed deletes them.
+The Patterns table has an Audio column ("91% match", "Audio off", "No source audio" or "-"), the Stats page has an Audio matching section (patterns with audio, audio matches, found by audio only, marked Not this ad), and the settings are under Settings > AI and processing > Audio fingerprinting, described in [Configuration](configuration.md#audio-fingerprinting). Merging or deduplicating patterns moves a fingerprint and its history to the pattern that is kept. Deleting a pattern or feed deletes them.
 
 "Found by audio only" means no other detection stage contributed to that marker. Match history is written from an episode's final markers, so an ad the validator rejected is not a match. Reprocessing replaces an episode's rows and keeps those marked Not this ad.
 

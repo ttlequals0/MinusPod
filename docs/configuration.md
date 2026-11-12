@@ -61,11 +61,11 @@ Customize ad detection in Settings:
 - **Compare with the publisher transcript** - diffs the Whisper transcript against the feed's `podcast:transcript` tag, when one exists, and uses missing speech as ad evidence. On by default; each feed can override it (Feed Settings > Advanced > Transcript diff). See [Upstream Transcript Differential](transcript-differential.md)
 - **LLM Tunables** - See below
 
-Each customizable prompt (first pass system, verification, chapter, and the Ad Reviewer's review and resurrect prompts under AI & Processing) has its own **Reset** button next to its label, in addition to the section-wide "Reset Prompts to Default" / "Reset Reviewer Prompts to Default" buttons. The per-prompt button is a two-click confirm; it stays visible but disabled (with a tooltip) while that prompt is already at its default, so a customized prompt is easy to spot and revert without resetting every prompt at once.
+Each customizable prompt (first pass system, verification, chapter, and the Ad Reviewer's review and resurrect prompts under AI and processing) has its own **Reset** button next to its label, in addition to the section-wide "Reset Prompts to Default" / "Reset Reviewer Prompts to Default" buttons. The per-prompt button is a two-click confirm; it stays visible but disabled (with a tooltip) while that prompt is already at its default, so a customized prompt is easy to spot and revert without resetting every prompt at once.
 
 ### Audio fingerprinting
 
-Settings > AI & Processing > Audio fingerprinting controls how stored ad fingerprints are matched against new episodes. It needs no model and stays enabled when the LLM provider is None. How fingerprints are made and matched is in [How It Works > Audio fingerprints](how-it-works.md#audio-fingerprints).
+Settings > AI and processing > Audio fingerprinting controls how stored ad fingerprints are matched against new episodes. It needs no model and stays enabled when the LLM provider is None. How fingerprints are made and matched is in [How It Works > Audio fingerprints](how-it-works.md#audio-fingerprints).
 
 | Setting | Meaning | Default | Allowed | Why this default |
 |---------|---------|---------|---------|------------------|
@@ -89,14 +89,14 @@ The ad reviewer is an opt-in third LLM stage that sits between detection and aud
 
 When to enable it:
 
-- Comedy and fiction podcasts that include in-bit fake sponsor reads (Welcome to Night Vale was the torture test for this feature)
+- Comedy and fiction podcasts that include in-bit fake sponsor reads (the torture test for this feature)
 - News shows that read sponsor-adjacent copy editorially without it actually being an ad break
 - Hosts who organically mention their own other shows or Patreon, where the detector flags a non-ad as promotional
 - Episodes where you have noticed the cut is starting a few seconds late or ending a few seconds early
 
 Cost is one extra LLM call per detected ad, and one extra call per rejected detection in the resurrection band.
 
-Settings live under AI & Processing -> Ad Reviewer:
+Settings live under AI and processing -> Ad Reviewer:
 
 - **Enable ad reviewer** - master toggle, off by default
 - **Review provider** - `Same as pass` (default) runs the reviewer on whichever provider and model resolved the pass it is reviewing, and ignores the review model setting below. Pick `Provider A` or `Provider B` to run the reviewer on that slot instead, such as detection on Provider A with review on a cheaper Provider B account
@@ -112,7 +112,7 @@ Reviewer activity surfaces in two places:
 
 ### Text recurrence hints
 
-Settings > AI & Processing has a Text recurrence hints toggle. When on, MinusPod compares the current transcript against a show's last two or more processed episodes and flags spans of wording that repeat near-verbatim, such as intros, credits, and other boilerplate. Those spans go to pass 1 detection as a hint; nothing is ever cut on text recurrence alone.
+Settings > AI and processing has a Text recurrence hints toggle. When on, MinusPod compares the current transcript against a show's last two or more processed episodes and flags spans of wording that repeat near-verbatim, such as intros, credits, and other boilerplate. Those spans go to pass 1 detection as a hint; nothing is ever cut on text recurrence alone.
 
 Off by default. API: `PUT /api/v1/settings/ad-detection` with `textRecurrenceHints` (boolean).
 
@@ -265,7 +265,7 @@ Each of Provider A, Provider B, and the LLM failover provider has its own reques
 
 Every value here must be a JSON integer or `null`/omitted; a numeric string (`"30"`) is rejected with a 400 rather than coerced. `null` or an empty string clears the override back to the provider-type default. A max-retries value of 0 sends exactly one request and also skips the two per-window retries, so a failing call reaches the failover provider without delay. Each slot reads its own override, whichever slot a stage uses. See [Failover](failover.md#per-provider-timeouts-and-retries) for how the failover provider's timeout and retries are used mid-run.
 
-Transcription uses `whisperMaxAttempts` for upload attempts per chunk, including the first upload. `failoverWhisperMaxAttempts` independently sets failover transcriber upload attempts from 1 to 10. Null or blank inherits the current `whisperMaxAttempts`; omitting it leaves the override unchanged. Configure it under Settings > Failover, including when the active transcriber runs locally.
+Transcription uses `whisperMaxAttempts` for upload attempts per chunk, including the first upload. `failoverWhisperMaxAttempts` independently sets failover transcriber upload attempts from 1 to 10. Null or blank inherits the current `whisperMaxAttempts`; omitting it leaves the override unchanged. Configure it under Settings > AI and processing > Failover, including when the active transcriber runs locally.
 
 ### Rotating or clearing a provider key
 
@@ -291,7 +291,7 @@ Provider admission reserves budget before a run starts and reconciles it afterwa
 
 Admission is cautious the same way. A run whose cost cannot be estimated is denied admission by default; the behavior is configurable to allow it outright, or to allow it against a fixed fallback reservation. A run abandoned by a dead worker is also settled as uncertain rather than released whenever it had already attempted a provider call.
 
-If your daily budget looks consumed faster than your invoices suggest, unpriced models are the usual reason. Set prices for those model ids (Settings > AI & Processing > AI Models) and the estimates sharpen. The same condition surfaces per episode as `hasUnknownCost` and in the UI as a partial-total marker.
+If your daily budget looks consumed faster than your invoices suggest, unpriced models are the usual reason. Set prices for those model ids (Settings > AI and processing > AI Models) and the estimates sharpen. The same condition surfaces per episode as `hasUnknownCost` and in the UI as a partial-total marker.
 
 ### Which run a cost figure describes
 
@@ -668,7 +668,7 @@ The rate-limit hold above reacts to a 429 after it happens. Manual request-rate 
 
 Limits are scoped to one provider account, meaning one credential slot on one provider type: Provider A and Provider B count separately even when both point at the same provider. Counting comes from the LLM call ledger: requests in the last 60 seconds against the per-minute cap (RPM), input plus output tokens of finalized calls in the last 60 seconds against the tokens-per-minute cap (TPM), and requests since the last UTC midnight against the per-day cap (RPD). When any cap is reached, that account's queue is paused. A per-minute pause (RPM or TPM) lifts about 60 seconds after the oldest contributing call in the window; the per-day pause lifts at the next UTC midnight, which is the fixed reset boundary regardless of your server's timezone or the provider's own billing day. When more than one cap is over, the later reset wins.
 
-All are off by default (0 means unlimited). Configure them under **Settings > AI & Processing > LLM Provider**, or via `PUT /api/v1/settings/ad-detection`:
+All are off by default (0 means unlimited). Configure them under **Settings > AI and processing > LLM Provider**, or via `PUT /api/v1/settings/ad-detection`:
 
 - `providerRequestsPerMin`, `providerRequestsPerDay`, `providerTokensPerMin` - caps for the Provider A account (env `PROVIDER_REQUESTS_PER_MIN`, `PROVIDER_REQUESTS_PER_DAY`, `PROVIDER_TOKENS_PER_MIN`).
 - `secondaryProviderRequestsPerMin`, `secondaryProviderRequestsPerDay`, `secondaryProviderTokensPerMin` - caps for the Provider B account (env `SECONDARY_PROVIDER_REQUESTS_PER_MIN`, `SECONDARY_PROVIDER_REQUESTS_PER_DAY`, `SECONDARY_PROVIDER_TOKENS_PER_MIN`); aliases `providerBRequestsPerMin`, `providerBRequestsPerDay`, `providerBTokensPerMin`.

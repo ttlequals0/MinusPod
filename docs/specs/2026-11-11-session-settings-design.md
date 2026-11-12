@@ -66,7 +66,7 @@ Flask's own lifetime is set to the largest value the settings allow, 8760
 hours, so the cookie signature never expires before the app's check does. The
 session cookie's expiry is set per session to match its limit. Flask computes
 that expiry from the global lifetime when it saves the session, after the
-`after_request` hooks have run, so this needs a small subclass of
+`after_request` hooks have run. This needs a small subclass of
 `SecureCookieSessionInterface` that overrides only `get_expiration_time`.
 
 A changed setting applies to existing sessions on their next request.

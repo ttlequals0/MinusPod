@@ -183,7 +183,7 @@ Every term the app uses, in plain words, with a link to the part of the docs tha
 
 ## N
 
-**Normalization** - A rule that maps sponsor name variants ("betterhelp.com slash pod", "Better Help") onto one sponsor so patterns and history stay tidy. [Web Interface > Sponsors and Normalizations](web-interface.md#sponsors-and-normalizations)
+**Normalization** - A rule that maps sponsor name variants ("acme.com slash pod", "Acme Co") onto one sponsor so patterns and history stay tidy. [Web Interface > Sponsors and Normalizations](web-interface.md#sponsors-and-normalizations)
 
 ## O
 

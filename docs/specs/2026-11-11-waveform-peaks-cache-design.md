@@ -112,7 +112,7 @@ directory. A peaks file with no original is never served.
 
 - `usePeaks` retries a 503 every 5 s and shows "Loading waveform..." while it
   waits. The API client retries any 5xx twice at 1 s and 3 s today and reads
-  `Retry-After` only on a 429, so the peaks request turns the client's retry
+  `Retry-After` only on a 429. So the peaks request turns the client's retry
   off and the hook owns the loop.
 - `SplitMarkerModal` shows the same "Could not load waveform" text the other
   two editors show. Today it ignores the error.

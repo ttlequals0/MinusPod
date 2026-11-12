@@ -23,7 +23,7 @@ https://github.com/user-attachments/assets/87741bcb-35b4-4712-9f91-36207a697cd5
 
 ## Using Anthropic directly
 
-Select Anthropic and save an API key under Settings > AI & Processing. Each stage can use its own model. MinusPod chooses a tool-call format that the selected model supports. Models that reject forced tool calls use automatic tool choice with a strict schema. A response without the requested tool result follows the normal bounded retry policy; its token usage still counts.
+Select Anthropic and save an API key under Settings > AI and processing. Each stage can use its own model. MinusPod chooses a tool-call format that the selected model supports. Models that reject forced tool calls use automatic tool choice with a strict schema. A response without the requested tool result follows the normal bounded retry policy; its token usage still counts.
 
 Temperature is not sent to Anthropic. API version 2026-10-21 removed the parameter on every model, so Anthropic stages run at the model default.
 
@@ -69,7 +69,7 @@ The [Claude Code OpenAI Wrapper](https://github.com/ttlequals0/claude-code-opena
 
 **Other OpenAI-Compatible Endpoints:**
 
-The `openai-compatible` provider can work with other endpoints by configuring `OPENAI_BASE_URL` and `OPENAI_API_KEY` accordingly. Select models under Settings > AI & Processing > AI Models, or use `OPENAI_MODEL` to seed unset model settings.
+The `openai-compatible` provider can work with other endpoints by configuring `OPENAI_BASE_URL` and `OPENAI_API_KEY` accordingly. Select models under Settings > AI and processing > AI Models, or use `OPENAI_MODEL` to seed unset model settings.
 
 **Example `.env` for OpenAI-compatible mode:**
 
@@ -262,7 +262,7 @@ All of these can be changed at runtime from the Settings UI. No container restar
 
 ## Using System One
 
-Select TypeSafe or System One compatible under Settings > AI & Processing > LLM Provider. Each slot keeps its own credentials, endpoint, and tuning profiles. TypeSafe uses a fixed endpoint. Compatible endpoints require their own base URL; `OPENAI_BASE_URL` is not reused. See [System One](system-one.md) for setup and manual migration from the Jev proxy.
+Select TypeSafe or System One compatible under Settings > AI and processing > LLM Provider. Each slot keeps its own credentials, endpoint, and tuning profiles. TypeSafe uses a fixed endpoint. Compatible endpoints require their own base URL; `OPENAI_BASE_URL` is not reused. See [System One](system-one.md) for setup and manual migration from the Jev proxy.
 
 Detection, verification, and the ad category pass are supported. Review is experimental, including both passes when the reviewer inherits the pass route. Chapter generation and Pattern Cleanup require a chat provider. Disabled unsupported routes remain editable, but enabling or manually running them is blocked until the route is repaired. Failover supports chat providers only.
 
@@ -278,7 +278,7 @@ System One preserves caller prompts, policy, and context in its structured quest
 
 ## Running without an LLM
 
-An LLM is optional. Set the provider to **None** under Settings > AI & Processing > LLM Provider, or start with `LLM_PROVIDER=none`. No API key, base URL or model is needed, and an episode is not marked failed or degraded because no model is set.
+An LLM is optional. Set the provider to **None** under Settings > AI and processing > LLM Provider, or start with `LLM_PROVIDER=none`. No API key, base URL or model is needed, and an episode is not marked failed or degraded because no model is set.
 
 A fresh install on None, with no patterns and no stored fingerprints, finds little or nothing on a regular podcast feed. Ads are cut after you mark them: use Add ad in the ad editor, or confirm or adjust a detected marker (see User Corrections in [How It Works](how-it-works.md#pattern-learning)). Each of these saves a text pattern and, when the episode's original is retained, an audio fingerprint, so the next episode with the same ad is cut with no model. Fingerprints also come from Add audio to pattern on a text-pattern detection, from SponsorBlock marks on YouTube feeds, and from detections made before you switched to None. Synced community patterns add text patterns but no fingerprints. See [Audio fingerprints](how-it-works.md#audio-fingerprints).
 
@@ -311,7 +311,7 @@ Saved API keys and model choices are kept when you switch to None. When you swit
 
 ## Per-Stage Providers
 
-MinusPod supports up to two full provider configurations: Provider A, and one optional Provider B with its own type, base URL, and API key. See [Provider B](configuration.md#provider-b). Each pipeline stage then picks one of the two, not a provider type directly. Settings > AI & Processing > AI Models shows a slot selector next to each model selector:
+MinusPod supports up to two full provider configurations: Provider A, and one optional Provider B with its own type, base URL, and API key. See [Provider B](configuration.md#provider-b). Each pipeline stage then picks one of the two, not a provider type directly. Settings > AI and processing > AI Models shows a slot selector next to each model selector:
 
 - **Ad Detection Provider** - `Default (Provider A)` or `Provider B`. Provider B only appears in the list once it is enabled and configured.
 - **Verification Provider** - `Same as detection` (default), `Default (Provider A)`, or `Provider B`. Pointing it at the other slot is useful for cost control (a cheap pass-2 sanity check) or comparing two providers' output on the same episode.
@@ -352,7 +352,7 @@ MinusPod tracks token usage and cost for every LLM call. The Settings page and `
 
 ### Custom model pricing
 
-Settings > AI & Processing > AI Models shows pricing fields for configured routes, including enabled standby and supported manual chapter and Cleanup models. Enter input and output rates in USD per 1 million tokens. A third optional field sets the cached input rate; leave it blank to bill cached input at the input rate. An operator override wins over catalog pricing and appears as `pricingSource: "operator"`. Leave both fields blank to use the catalog. Save both as `0` to mark a model explicitly free; missing pricing is different.
+Settings > AI and processing > AI Models shows pricing fields for configured routes, including enabled standby and supported manual chapter and Cleanup models. Enter input and output rates in USD per 1 million tokens. A third optional field sets the cached input rate; leave it blank to bill cached input at the input rate. An operator override wins over catalog pricing and appears as `pricingSource: "operator"`. Leave both fields blank to use the catalog. Save both as `0` to mark a model explicitly free; missing pricing is different.
 
 Inactive prices stay saved and reappear when those models are selected again. Recorded call costs stay unchanged.
 
