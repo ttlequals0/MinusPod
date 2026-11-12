@@ -1869,9 +1869,11 @@ class AudioFingerprinter:
         if not fingerprint or not fingerprint.fingerprint:
             return FingerprintStoreResult(False, 'fingerprint_failed')
 
-        # An undecodable string is stored as before; the matcher skips it
+        # An undecodable string is stored unchecked; the matcher skips it
         ints = decode_fingerprint_ints(fingerprint.fingerprint)
-        if ints is not None and not fingerprint_is_matchable(
+        if ints is None:
+            logger.warning(f"Pattern {pattern_id} fingerprint could not be decoded; stored unchecked")
+        elif not fingerprint_is_matchable(
                 ints, min_coverage=self._clamped_setting('fingerprint_min_coverage')):
             logger.info(f"Pattern {pattern_id} audio is not distinctive enough to match")
             return FingerprintStoreResult(False, 'not_distinctive')

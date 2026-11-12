@@ -12,6 +12,7 @@ from transcriber import Transcriber, TranscriptionRejectedError
 from transcriber.settings import (
     _get_whisper_settings, _get_whisper_compute_type, _api_timeout, PREPROCESS_AUDIO_FILTERS,
 )
+from transcriber.local import WhisperModelSingleton
 from transcriber.remote import (
     _whisper_api_rejects_word_timestamps, _whisper_api_rejects_vad_filter, is_whisper_failover_trigger,
 )
@@ -362,7 +363,6 @@ class TestTranscriberBackendDispatch:
         'api_base_url': '', 'api_key': '', 'api_model': 'whisper-1',
     })
     def test_does_not_dispatch_to_api_when_local(self, mock_settings):
-        from transcriber.local import WhisperModelSingleton
         transcriber = Transcriber()
         with patch.object(Transcriber, '_transcribe_via_api') as mock_api, \
                 patch.object(WhisperModelSingleton, 'get_batched_pipeline',
@@ -412,7 +412,6 @@ class TestWhisperModelSingletonFallback:
     """Tests for WhisperModelSingleton float16 -> int8_float16 -> int8 -> float32 fallback."""
 
     def _reset_singleton(self):
-        from transcriber.local import WhisperModelSingleton
         WhisperModelSingleton._instance = None
         WhisperModelSingleton._base_model = None
         WhisperModelSingleton._current_model_name = None
@@ -428,7 +427,6 @@ class TestWhisperModelSingletonFallback:
     @patch.dict(os.environ, {'WHISPER_DEVICE': 'cuda'})
     def test_float16_on_cuda_succeeds_first_try(self):
         self._reset_singleton()
-        from transcriber.local import WhisperModelSingleton
         with patch('transcriber.settings._get_whisper_settings', return_value=self._settings()), \
              patch('transcriber.settings._get_whisper_compute_type', return_value='auto'), \
              patch('transcriber.local.ctranslate2.get_cuda_device_count', return_value=1), \
@@ -445,7 +443,6 @@ class TestWhisperModelSingletonFallback:
     @patch.dict(os.environ, {'WHISPER_DEVICE': 'cuda'})
     def test_cuda_float16_failure_falls_back_to_int8_float16(self):
         self._reset_singleton()
-        from transcriber.local import WhisperModelSingleton
         call_log = []
 
         def fake_model(*args, **kwargs):
@@ -468,7 +465,6 @@ class TestWhisperModelSingletonFallback:
     def test_cuda_fallback_walks_chain_to_float32(self):
         """Pascal consumer (CC 6.1) fails float16 and int8_float16; should land on int8."""
         self._reset_singleton()
-        from transcriber.local import WhisperModelSingleton
         call_log = []
 
         def fake_model(*args, **kwargs):
@@ -490,7 +486,6 @@ class TestWhisperModelSingletonFallback:
     @patch.dict(os.environ, {'WHISPER_DEVICE': 'cuda'})
     def test_cuda_fallback_raises_when_entire_chain_fails(self):
         self._reset_singleton()
-        from transcriber.local import WhisperModelSingleton
 
         def fake_model(*args, **kwargs):
             raise RuntimeError(f"boom-{kwargs['compute_type']}")
@@ -510,7 +505,6 @@ class TestWhisperModelSingletonFallback:
     def test_explicit_non_float16_reraises_without_fallback(self):
         """Explicit int8_float16 failure must not silently fall back."""
         self._reset_singleton()
-        from transcriber.local import WhisperModelSingleton
         call_log = []
 
         def fake_model(*args, **kwargs):
@@ -532,7 +526,6 @@ class TestWhisperModelSingletonFallback:
     @patch.dict(os.environ, {'WHISPER_DEVICE': 'cpu'})
     def test_cpu_auto_resolves_to_int8_without_fallback(self):
         self._reset_singleton()
-        from transcriber.local import WhisperModelSingleton
         with patch('transcriber.settings._get_whisper_settings', return_value=self._settings()), \
              patch('transcriber.settings._get_whisper_compute_type', return_value='auto'), \
              patch('transcriber.local.WhisperModel') as mock_model, \

@@ -24,6 +24,12 @@ def test_names_the_marker_of_the_pattern_in_its_origin_episode(app_client, fp_fe
         'podcastSlug': SLUG, 'episodeId': EPISODE, 'start': 50.0, 'end': 80.0, 'available': True}
 
 
+def test_unavailable_when_the_original_is_not_retained(app_client, fp_feed):
+    pid = _pattern(fp_feed)
+    _markers(fp_feed, [{'start': 50.0, 'end': 80.0, 'pattern_id': pid}])
+    assert _detail(app_client, pid)['addSource']['available'] is False
+
+
 def test_earliest_marker_wins(app_client, fp_feed):
     pid = _pattern(fp_feed)
     _markers(fp_feed, [{'start': 90.0, 'end': 100.0, 'pattern_id': pid},

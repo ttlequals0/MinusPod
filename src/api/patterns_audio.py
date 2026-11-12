@@ -19,8 +19,8 @@ from audio_fingerprinter import (
 )
 from config import FFMPEG_SHORT_TIMEOUT
 from storage import PathContainmentError
-from utils.markers import parse_ad_markers
 from utils.ffmpeg_run import SAFE_MEDIA_INPUT_ARGS
+from utils.markers import parse_ad_markers
 from utils.subprocess_registry import tracked_run
 
 logger = logging.getLogger('podcast.api')
@@ -108,6 +108,7 @@ def _displayed_span(marker):
     start, end = marker.get('start'), marker.get('end')
     if marker.get('reviewer_verdict') == 'adjust':
         start, end = marker.get('reviewer_original_start', start), marker.get('reviewer_original_end', end)
+    # A null reviewer-original bound makes the span unusable, so the marker is skipped
     return (start, end) if _usable_span(start, end) else None
 
 

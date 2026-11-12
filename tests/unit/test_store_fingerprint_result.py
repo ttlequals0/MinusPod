@@ -1,4 +1,8 @@
 """store_fingerprint reports why nothing was stored and never raises."""
+import logging
+import random
+
+import acoustid
 import pytest
 
 import audio_fingerprinter as af
@@ -195,7 +199,6 @@ def test_minimum_length_setting_is_clamped_to_3_to_30_seconds(fp, temp_db, patte
 
 
 def _chromaprint(ints):
-    import acoustid
     return acoustid.chromaprint.encode_fingerprint(ints, 1, True).decode('ascii')
 
 
@@ -216,16 +219,21 @@ def test_force_does_not_bypass_not_distinctive(fp, temp_db, pattern, audio, monk
 
 
 def test_distinctive_audio_is_stored(fp, temp_db, pattern, audio, monkeypatch):
-    import random
     rng = random.Random(3)
     _generating(fp, monkeypatch, [rng.getrandbits(32) for _ in range(400)])
     assert fp.store_fingerprint(pattern, audio, 0.0, 30.0).stored is True
 
 
 def test_minimum_coverage_setting_decides_distinctiveness(fp, temp_db, pattern, audio, monkeypatch):
-    import random
     rng = random.Random(3)
     _generating(fp, monkeypatch, [rng.getrandbits(32) for _ in range(300)] + [7] * 100)
     assert fp.store_fingerprint(pattern, audio, 0.0, 30.0).stored is True
     temp_db.set_setting('fingerprint_min_coverage', '0.9')
     assert fp.store_fingerprint(pattern, audio, 0.0, 30.0).skipped_reason == 'not_distinctive'
+
+
+def test_undecodable_fingerprint_is_stored_with_a_warning(fp, temp_db, pattern, audio, caplog):
+    with caplog.at_level(logging.WARNING, logger=af.logger.name):
+        assert fp.store_fingerprint(pattern, audio, 0.0, 30.0).stored is True
+    warnings = [r for r in caplog.records if r.name == af.logger.name and r.levelno == logging.WARNING]
+    assert len(warnings) == 1 and str(pattern) in warnings[0].getMessage()

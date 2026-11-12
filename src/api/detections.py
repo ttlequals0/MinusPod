@@ -82,10 +82,11 @@ def list_detections():
     items = sort_detections(items, sort=sort, order=order)
     page_items, total, total_pages, page = paginate(items, page, limit)
 
+    add_pattern_audio_state(db, page_items, 'patternId')
+
     # Same-origin processed-audio URL, carrying the feed auth key when
     # enabled so the waveform editor does not 401 (mirrors the episode
     # detail endpoint's processedUrl). Built only for the returned page.
-    add_pattern_audio_state(db, page_items, 'patternId')
     feed_auth_key = get_feed_auth_key(db)
     for item in page_items:
         version = item.pop('processedVersion', 0)
