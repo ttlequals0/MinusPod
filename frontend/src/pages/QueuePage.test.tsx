@@ -153,6 +153,15 @@ describe('QueuePage', () => {
     await waitFor(() => expect(mockUpdateSettings).toHaveBeenCalledWith({ queueOrder: 'newest_first' }));
   });
 
+  it('refetches the queue list after the global order changes', async () => {
+    mockGetEpisodes.mockResolvedValue([]);
+    renderPage();
+    await userEvent.click(await screen.findByRole('button', { name: 'Queue control' }));
+    const calls = mockGetEpisodes.mock.calls.length;
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Processing order' }), 'newest_first');
+    await waitFor(() => expect(mockGetEpisodes.mock.calls.length).toBeGreaterThan(calls));
+  });
+
   it('shows the save error when the server rejects the order', async () => {
     mockGetEpisodes.mockResolvedValue([]);
     mockUpdateSettings.mockRejectedValue(new Error('invalid queueOrder'));

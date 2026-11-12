@@ -260,6 +260,13 @@ function FeedSettingsPanel({ feed, slug }: Props) {
     ]),
   });
 
+  const failedSave = (field: keyof UpdateFeedPayload) =>
+    updateMutation.isError && updateMutation.variables && field in updateMutation.variables
+      ? getErrorMessage(updateMutation.error, 'Could not save this setting.')
+      : null;
+  const queuePriorityError = failedSave('queuePriority');
+  const queueOrderError = failedSave('queueOrder');
+
   // Separate mutation from updateMutation: that one closes the network editor
   // on success and surfaces no error message, while a rejected source URL
   // (backend validates by fetching the feed) must stay in edit mode with the
@@ -912,6 +919,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                     disabled={updateMutation.isPending}
                     className={`self-start min-w-0 max-w-full disabled:opacity-50 ${selectBase}`}
                     aria-label="Queue priority"
+                    aria-invalid={queuePriorityError ? true : undefined}
                   >
                     <option value="high">High</option>
                     <option value="normal">Normal</option>
@@ -921,6 +929,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                     High processes before other queued episodes. Low runs only when nothing else is waiting.
                     New episodes and manual reprocesses get an automatic boost.
                   </p>
+                  {queuePriorityError && <p role="alert" className="text-xs text-destructive">{queuePriorityError}</p>}
                 </div>
               </div>
 
@@ -937,6 +946,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                     className={`self-start min-w-0 max-w-full disabled:opacity-50 ${selectBase}`}
                     aria-label="Processing order"
                     aria-describedby="feed-queue-order-help"
+                    aria-invalid={queueOrderError ? true : undefined}
                   >
                     <option value="">
                       {settings?.queueOrder
@@ -948,6 +958,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                   <p id="feed-queue-order-help" className="text-xs text-muted-foreground">
                     Order for this feed's queued episodes. Priorities still come first.
                   </p>
+                  {queueOrderError && <p role="alert" className="text-xs text-destructive">{queueOrderError}</p>}
                 </div>
               </div>
 

@@ -185,7 +185,10 @@ function QueuePage() {
   });
   const tunable = useMutation({
     mutationFn: (payload: UpdateSettingsPayload) => updateSettings(payload),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['settings'] }),
+    onSuccess: (_data, payload) => {
+      queryClient.invalidateQueries({ queryKey: ['settings'] });
+      if ('queueOrder' in payload) queryClient.invalidateQueries({ queryKey: ['processing-episodes'] });
+    },
   });
   const configured = settings.data;
 

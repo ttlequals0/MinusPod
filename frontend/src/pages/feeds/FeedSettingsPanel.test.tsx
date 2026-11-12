@@ -362,6 +362,33 @@ describe('FeedSettingsPanel processing order control (#997)', () => {
   });
 });
 
+describe('FeedSettingsPanel failed saves for queue controls', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockGetSettings.mockResolvedValue({});
+    mockUpdateFeed.mockRejectedValue(new Error('invalid queueOrder'));
+  });
+
+  it('shows the error and the saved value when Processing order fails', async () => {
+    renderPanel(makeFeed({ queueOrder: 'oldest_first' }));
+    const select = screen.getByRole('combobox', { name: 'Processing order' }) as HTMLSelectElement;
+    await userEvent.selectOptions(select, 'newest_first');
+    const alert = await screen.findByRole('alert');
+    expect(alert.textContent).toContain('invalid queueOrder');
+    expect(select.value).toBe('oldest_first');
+  });
+
+  it('shows the error and the saved value when Queue priority fails', async () => {
+    mockUpdateFeed.mockRejectedValue(new Error('invalid queuePriority'));
+    renderPanel(makeFeed({ queuePriority: 'low' }));
+    const select = screen.getByRole('combobox', { name: 'Queue priority' }) as HTMLSelectElement;
+    await userEvent.selectOptions(select, 'high');
+    const alert = await screen.findByRole('alert');
+    expect(alert.textContent).toContain('invalid queuePriority');
+    expect(select.value).toBe('low');
+  });
+});
+
 describe('FeedSettingsPanel auto-process window override', () => {
   beforeEach(() => {
     vi.clearAllMocks();

@@ -476,11 +476,11 @@ function QueueControlSection({
         </div>
 
         {/* Queue priority: how far each kind of request jumps the queue.
-            Higher number processes sooner; ties process oldest first. */}
+            Higher number processes sooner; equal priorities follow the processing order. */}
         <div className="pt-4 border-t border-border">
           <p className="text-sm font-medium text-foreground mb-1">Queue priority</p>
           <p className="text-sm text-muted-foreground mb-3">
-            How far each request type jumps the queue. Ties process oldest first.
+            How far each request type jumps the queue. Episodes with the same priority follow the Processing order setting.
           </p>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             <div>
@@ -542,21 +542,22 @@ function QueueControlSection({
 
         {/* Processing order: within-feed order for equal-priority episodes, saves immediately */}
         <div className="pt-4 border-t border-border">
-          <label htmlFor="queueOrder" className={labelBase}>Processing order</label>
+          <h3 id="queueOrder-heading" className={`${subHeading} mb-1`}>Processing order</h3>
+          <p id="queueOrder-help" className="text-sm text-muted-foreground mb-3">
+            Applies within each feed. Priorities still come first.
+          </p>
           <DemoDisabled>
             <select
               id="queueOrder"
               value={queueOrder}
               onChange={(e) => onQueueOrderChange(e.target.value as QueueOrder)}
               className={`${selectBase} w-full sm:w-auto`}
+              aria-labelledby="queueOrder-heading"
               aria-describedby="queueOrder-help"
             >
               {QUEUE_ORDER_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
             </select>
           </DemoDisabled>
-          <p id="queueOrder-help" className="mt-2 text-sm text-muted-foreground">
-            Applies within each feed. Priorities still come first.
-          </p>
         </div>
 
         <div className="pt-4 border-t border-border">
