@@ -40,6 +40,12 @@ def _fingerprint_members(marker: dict) -> list[dict]:
     return [marker] if marker.get('detection_stage') == 'fingerprint' else []
 
 
+def fingerprint_member_pattern_ids(marker: dict) -> list[int]:
+    """Distinct pattern ids of a marker's fingerprint members, in order."""
+    ids = (m.get('pattern_id') for m in _fingerprint_members(marker))
+    return list(dict.fromkeys(pid for pid in ids if pid is not None))
+
+
 def _member_bounds(member: dict) -> tuple[float, float] | None:
     """Measured match span of a member, falling back to its own span."""
     for lo_key, hi_key in (('fingerprint_match_start', 'fingerprint_match_end'), ('start', 'end')):

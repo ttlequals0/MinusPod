@@ -11,6 +11,7 @@ from config import (
     SNIPPET_EXCLUDED_HOLD_REASONS, SNIPPET_EXCLUDED_SQL, SNIPPET_EXCLUDED_SQL_PARAMS,
     SNIPPET_EXCLUDED_STAGE_REASONS,
 )
+from database.fingerprint_matches import fingerprint_member_pattern_ids
 from utils.markers import clip_merge_spans, find_marker_in_list, parse_ad_markers
 from utils.time import utc_now_iso, utc_now, parse_iso_datetime
 from sponsor_normalize import get_or_create_known_sponsor
@@ -744,14 +745,29 @@ def fingerprint_response_fields(outcomes):
                 (r for r in FINGERPRINT_SKIP_PRECEDENCE if r in reasons), 'fingerprint_failed')}
 
 
-def _restore_rejected_match(db, pattern_id, slug, episode_id, start, end):
-    """Un-reject the audio match a deleted rejection had marked; never raises."""
-    if not pattern_id:
-        return
-    try:
-        db.unmark_fingerprint_match_rejected(pattern_id, slug, episode_id, start, end)
-    except Exception as e:
-        logger.warning(f"Could not restore the fingerprint match of pattern {pattern_id}: {e}")
+def _reviewed_pattern_ids(marker, marker_pattern_id):
+    """The marker's own pattern id and the pattern of every fingerprint member it merged."""
+    ids = fingerprint_member_pattern_ids(marker) if marker else []
+    return list(dict.fromkeys([*([marker_pattern_id] if marker_pattern_id else []), *ids]))
+
+
+def _set_fingerprint_matches_rejected(db, rejected, pattern_ids, slug, episode_id, start, end):
+    """Reject or restore the audio match each pattern recorded for the span; never raises."""
+    setter = db.mark_fingerprint_match_rejected if rejected else db.unmark_fingerprint_match_rejected
+    for pattern_id in pattern_ids:
+        try:
+            setter(pattern_id, slug, episode_id, start, end)
+        except Exception as e:
+            logger.warning(f"Could not {'reject' if rejected else 'restore'} the fingerprint match "
+                           f"of pattern {pattern_id}: {e}")
+
+
+def _restore_rejected_matches(db, marker_pattern_id, slug, episode_id, start, end, bounds):
+    """Un-reject the audio matches a deleted rejection had marked; bounds locate the stored marker."""
+    markers = _load_markers(db, slug, episode_id)
+    marker = find_marker_in_list(markers, *bounds) if markers else None
+    _set_fingerprint_matches_rejected(
+        db, False, _reviewed_pattern_ids(marker, marker_pattern_id), slug, episode_id, start, end)
 
 
 def _validate_create_correction_input(data):
@@ -1386,7 +1402,8 @@ def _handle_confirm_correction(
     deleted = db.delete_conflicting_corrections(podcast_id, episode_id, 'confirm', original_start, original_end)
     if deleted:
         logger.info(f"Deleted {deleted} conflicting false_positive correction(s) for {slug}/{episode_id}")
-        _restore_rejected_match(db, marker_pattern_id, slug, episode_id, original_start, original_end)
+        _restore_rejected_matches(db, marker_pattern_id, slug, episode_id, original_start, original_end,
+                                  (original_start, original_end))
 
     db.create_pattern_correction(
         correction_type='confirm',
@@ -1432,6 +1449,8 @@ def _handle_reject_correction(db, slug, episode_id, original_ad, addressing_mode
     # never a confirmed false positive of a real detector, so its text must
     # not seed cross-episode FP matching on other episodes.
     markers = _load_markers(db, slug, episode_id)
+    reviewed_pattern_ids = _reviewed_pattern_ids(
+        find_marker_in_list(markers, original_start, original_end) if markers else None, pattern_id)
     matched_marker = None
     if markers:
         for m in markers:
@@ -1474,12 +1493,8 @@ def _handle_reject_correction(db, slug, episode_id, original_ad, addressing_mode
     _clear_held_marker_on_reject(db, slug, episode_id, original_start, original_end,
                                  markers=markers)
 
-    if pattern_id:
-        try:
-            db.mark_fingerprint_match_rejected(
-                pattern_id, slug, episode_id, original_start, original_end)
-        except Exception as e:
-            logger.warning(f"Could not mark the fingerprint match rejected for pattern {pattern_id}: {e}")
+    _set_fingerprint_matches_rejected(
+        db, True, reviewed_pattern_ids, slug, episode_id, original_start, original_end)
 
     return json_response({'message': 'False positive recorded'})
 
@@ -1755,8 +1770,8 @@ def _handle_adjust_correction(db, pattern_service, slug, episode_id, original_ad
         logger.info(
             f"Deleted {deleted} conflicting false_positive correction(s) "
             f"for {slug}/{episode_id}")
-        _restore_rejected_match(
-            db, marker_pattern_id, slug, episode_id, adjusted_start, adjusted_end)
+        _restore_rejected_matches(db, marker_pattern_id, slug, episode_id, adjusted_start, adjusted_end,
+                                  (original_start, original_end))
 
     db.create_pattern_correction(
         correction_type='boundary_adjustment',

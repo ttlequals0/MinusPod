@@ -312,3 +312,49 @@ def test_confirming_without_a_conflicting_rejection_leaves_rejected_matches(
     fp_feed.mark_fingerprint_match_rejected(fp_pattern, SLUG, EPISODE, 100.0, 140.0)
     assert _confirm(app_client, fp_pattern).status_code == 200
     assert [r['rejected'] for r in fp_feed.get_fingerprint_matches(fp_pattern, 10, 0)] == [1]
+
+
+def _merged_marker(first, second):
+    """A model-detected ad whose merge folded in fingerprint matches of two patterns."""
+    members = [{'stage': 'fingerprint', 'pattern_id': pid, 'start': 10.0, 'end': 40.0,
+                'fingerprint_match_start': 10.0, 'fingerprint_match_end': 40.0,
+                'fingerprint_similarity': 0.9, 'fingerprint_coverage': 0.8} for pid in (first, second)]
+    return {'start': 10.0, 'end': 40.0, 'detection_stage': 'claude', 'pattern_id': first,
+            'merged_member_spans': members, 'validation': {'decision': 'ACCEPT'}, 'was_cut': True}
+
+
+def _second_pattern(db):
+    return db.create_ad_pattern(scope='podcast', podcast_id=SLUG, text_template='Another read of a sponsor here.')
+
+
+def _rejected_flags(db, *pattern_ids):
+    return [[r['rejected'] for r in db.get_fingerprint_matches(pid, 10, 0)] for pid in pattern_ids]
+
+
+def test_reject_marks_the_match_of_every_fingerprint_member(app_client, fp_feed, fp_pattern):
+    other = _second_pattern(fp_feed)
+    marker = _merged_marker(fp_pattern, other)
+    fp_feed.save_episode_details(SLUG, EPISODE, ad_markers=[marker])
+    fp_feed.record_fingerprint_matches_from_markers(SLUG, EPISODE, [marker])
+    assert _reject(app_client, fp_pattern).status_code == 200
+    assert _rejected_flags(fp_feed, fp_pattern, other) == [[1], [1]]
+
+
+def test_confirming_a_rejected_merged_ad_restores_every_member_match(app_client, fp_feed, fp_pattern):
+    other = _second_pattern(fp_feed)
+    marker = _merged_marker(fp_pattern, other)
+    fp_feed.save_episode_details(SLUG, EPISODE, ad_markers=[marker])
+    fp_feed.record_fingerprint_matches_from_markers(SLUG, EPISODE, [marker])
+    _reject(app_client, fp_pattern)
+    assert _confirm(app_client, fp_pattern).status_code == 200
+    assert _rejected_flags(fp_feed, fp_pattern, other) == [[0], [0]]
+
+
+def test_adjusting_a_rejected_merged_ad_restores_every_member_match(app_client, fp_feed, fp_pattern):
+    other = _second_pattern(fp_feed)
+    marker = _merged_marker(fp_pattern, other)
+    fp_feed.save_episode_details(SLUG, EPISODE, ad_markers=[marker])
+    fp_feed.record_fingerprint_matches_from_markers(SLUG, EPISODE, [marker])
+    _reject(app_client, fp_pattern)
+    assert _adjust(app_client, fp_pattern, 12.0, 38.0).status_code == 200
+    assert _rejected_flags(fp_feed, fp_pattern, other) == [[0], [0]]
