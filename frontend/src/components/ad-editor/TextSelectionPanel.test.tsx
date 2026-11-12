@@ -188,8 +188,20 @@ describe('TextSelectionPanel run list', () => {
     await selectWords(container, 0, 2);
     await user.click(screen.getByRole('button', { name: 'Add another span' }));
     const classes = screen.getByRole('button', { name: 'Remove span 0:00.0 to 0:02.9' }).className.split(/\s+/);
-    expect(classes).toContain('max-sm:-mx-2.5');
-    expect(classes).toContain('sm:pointer-coarse:-mx-[15px]');
+    expect(classes).toContain('max-sm:-mr-3.5');
+    expect(classes).toContain('sm:pointer-coarse:-mr-[15px]');
+  });
+
+  it('starts the remove-span target at the time text, not inside it', async () => {
+    const { container } = renderPanel();
+    await waitForTranscript(container);
+    const user = userEvent.setup();
+    await selectWords(container, 0, 2);
+    await user.click(screen.getByRole('button', { name: 'Add another span' }));
+    const classes = screen.getByRole('button', { name: 'Remove span 0:00.0 to 0:02.9' }).className.split(/\s+/);
+    expect(classes).toContain('max-sm:-ml-1.5');
+    expect(classes).toContain('sm:pointer-coarse:-ml-1.5');
+    expect(classes).not.toContain('sm:pointer-coarse:-mx-[15px]');
   });
 
   it('blocks frozen-span removal and transcript selection while submitting', async () => {

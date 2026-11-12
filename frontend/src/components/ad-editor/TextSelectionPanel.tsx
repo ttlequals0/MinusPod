@@ -478,12 +478,13 @@ function TextSelectionPanel({
         {frozenRuns.map((run, i) => (
           <span key={`${run.start.toFixed(3)}-${run.end.toFixed(3)}`} className={chipClass}>
             {formatTime(run.start)} - {formatTime(run.end)}
+            {/* -ml-1.5 cancels the chip gap so the target starts at the text; -mr-[15px] is (44 - 14 px icon) / 2. */}
             <button
               type="button"
               onClick={() => removeRun(i)}
               disabled={disabled}
               aria-label={`Remove span ${formatTime(run.start)} to ${formatTime(run.end)}`}
-              className={`${touchTarget} max-sm:-mx-2.5 max-sm:-my-2.5 sm:pointer-coarse:-mx-[15px] rounded text-muted-foreground hover:text-destructive disabled:opacity-40 ${focusRing}`}
+              className={`${touchTarget} max-sm:-ml-1.5 max-sm:-mr-3.5 max-sm:-my-2.5 sm:pointer-coarse:-ml-1.5 sm:pointer-coarse:-mr-[15px] rounded text-muted-foreground hover:text-destructive disabled:opacity-40 ${focusRing}`}
             >
               <X className="w-3.5 h-3.5" aria-hidden="true" />
             </button>
