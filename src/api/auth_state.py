@@ -82,10 +82,13 @@ def session_is_authenticated(db) -> bool:
     if not authentication_required(db):
         return True
     enforce_idle_limit(db)
-    return bool(
-        session.get('authenticated', False)
-        and session.get(SESSION_GENERATION_KEY) == current_generation(db)
-    )
+    if not session.get('authenticated', False):
+        return False
+    if session.get(SESSION_GENERATION_KEY) != current_generation(db):
+        # A revoked session is dropped so its 401 deletes the cookie and mints no CSRF token.
+        session.clear()
+        return False
+    return True
 
 
 def authenticate_session(
