@@ -74,7 +74,7 @@ _AUTO_FILED_REASON_RE = re.compile(r'\s*corroborated (\S+) hold')
 
 # SQL DDL constants live in tables.py - re-exported for backward compat
 from database.schema.tables import (
-    DOWNLOAD_INDEX_SQL, EPISODE_FEED_DETAILS_TRIGGERS, PATTERN_CLEANUP_INDEXES, SCHEMA_SQL,
+    DOWNLOAD_INDEX_SQL, EPISODE_FEED_DETAILS_TRIGGERS, FINGERPRINT_MATCH_INDEXES, PATTERN_CLEANUP_INDEXES, SCHEMA_SQL,
     TABLE_DDL,
 )
 from database.patterns import _parse_bounds
@@ -223,6 +223,7 @@ class SchemaMixin:
         'ad_patterns',
         'audio_cue_templates',
         'audio_fingerprints',
+        'audio_fingerprint_matches',
         'pattern_corrections',
         'known_sponsors',
         'sponsor_normalizations',
@@ -303,7 +304,7 @@ class SchemaMixin:
             "CREATE INDEX IF NOT EXISTS idx_failover_events_created "
             "ON failover_events(created_at DESC)"
         )
-        for statement in PATTERN_CLEANUP_INDEXES + DOWNLOAD_INDEX_SQL:
+        for statement in PATTERN_CLEANUP_INDEXES + DOWNLOAD_INDEX_SQL + FINGERPRINT_MATCH_INDEXES:
             conn.execute(statement)
         conn.execute("DROP INDEX IF EXISTS idx_upload_reservations_active_target")
         conn.execute(
@@ -2510,6 +2511,17 @@ class SchemaMixin:
                     (cleanup_category_gate,))
                 conn.commit()
 
+        ap_cols = self._get_table_columns(conn, 'ad_patterns')
+        self._add_column_if_missing(conn, 'ad_patterns', 'audio_removed',
+                                    'INTEGER NOT NULL DEFAULT 0', ap_cols)
+        fp_cols = self._get_table_columns(conn, 'audio_fingerprints')
+        for name, definition in (('enabled', 'INTEGER NOT NULL DEFAULT 1'),
+                                 ('source_podcast_slug', 'TEXT'),
+                                 ('source_episode_id', 'TEXT'),
+                                 ('source_start', 'REAL'),
+                                 ('source_end', 'REAL')):
+            self._add_column_if_missing(conn, 'audio_fingerprints', name, definition, fp_cols)
+
         cleanup_ledger_cols = self._get_table_columns(conn, 'llm_call_usage')
         for name in ('cleanup_run_id', 'cleanup_pattern_id'):
             self._add_column_if_missing(conn, 'llm_call_usage', name, 'INTEGER', cleanup_ledger_cols)
@@ -4449,7 +4461,12 @@ class SchemaMixin:
                     pattern_id INTEGER UNIQUE REFERENCES ad_patterns(id) ON DELETE CASCADE,
                     fingerprint BLOB,
                     duration REAL,
-                    created_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
+                    created_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
+                    enabled INTEGER NOT NULL DEFAULT 1,
+                    source_podcast_slug TEXT,
+                    source_episode_id TEXT,
+                    source_start REAL,
+                    source_end REAL
                 )
             """)
             new_cols = [r['name'] for r in

@@ -356,7 +356,8 @@ TABLE_DDL['ad_patterns'] = """CREATE TABLE IF NOT EXISTS ad_patterns (
     community_last_confirmed_at TEXT,
     cleanup_reviewed_at TEXT,
     cleanup_reviewed_hash TEXT,
-    cleanup_stats_reviewed TEXT
+    cleanup_stats_reviewed TEXT,
+    audio_removed INTEGER NOT NULL DEFAULT 0
 )"""
 
 TABLE_DDL['pattern_corrections'] = """CREATE TABLE IF NOT EXISTS pattern_corrections (
@@ -554,8 +555,36 @@ TABLE_DDL['audio_fingerprints'] = """CREATE TABLE IF NOT EXISTS audio_fingerprin
     pattern_id INTEGER UNIQUE REFERENCES ad_patterns(id) ON DELETE CASCADE,
     fingerprint BLOB,
     duration REAL,
-    created_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
+    created_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
+    enabled INTEGER NOT NULL DEFAULT 1,
+    source_podcast_slug TEXT,
+    source_episode_id TEXT,
+    source_start REAL,
+    source_end REAL
 )"""
+
+TABLE_DDL['audio_fingerprint_matches'] = """CREATE TABLE IF NOT EXISTS audio_fingerprint_matches (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    pattern_id INTEGER NOT NULL REFERENCES ad_patterns(id) ON DELETE CASCADE,
+    episode_id TEXT NOT NULL,
+    podcast_slug TEXT NOT NULL,
+    match_start REAL NOT NULL,
+    match_end REAL NOT NULL,
+    similarity REAL,
+    coverage REAL,
+    in_scope INTEGER NOT NULL DEFAULT 1,
+    audio_only INTEGER,
+    rejected INTEGER NOT NULL DEFAULT 0,
+    rejected_at TEXT,
+    created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
+)"""
+
+FINGERPRINT_MATCH_INDEXES = (
+    "CREATE INDEX IF NOT EXISTS idx_fp_matches_pattern "
+    "ON audio_fingerprint_matches(pattern_id, created_at)",
+    "CREATE INDEX IF NOT EXISTS idx_fp_matches_episode "
+    "ON audio_fingerprint_matches(podcast_slug, episode_id)",
+)
 
 TABLE_DDL['known_sponsors'] = """CREATE TABLE IF NOT EXISTS known_sponsors (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -957,6 +986,8 @@ CREATE INDEX IF NOT EXISTS idx_failover_events_created
 
 -- audio_fingerprints table (Chromaprint hashes for DAI-inserted ads)
 """ + TABLE_DDL['audio_fingerprints'] + """;
+""" + TABLE_DDL['audio_fingerprint_matches'] + """;
+""" + ';\n'.join(FINGERPRINT_MATCH_INDEXES) + """;
 
 -- known_sponsors table (master sponsor list - single source of truth)
 """ + TABLE_DDL['known_sponsors'] + """;
