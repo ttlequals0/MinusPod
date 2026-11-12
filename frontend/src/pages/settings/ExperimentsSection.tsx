@@ -1,19 +1,21 @@
 import CollapsibleSection from '../../components/CollapsibleSection';
 import ExperimentalBadge from '../../components/ExperimentalBadge';
 import { selectBase } from '../../components/fieldStyles';
+import { LlmGate } from './LlmGate';
 
 interface ExperimentsSectionProps {
+  llmEnabled: boolean;
   addressingMode: string;
   onAddressingModeChange: (v: string) => void;
 }
 
-function ExperimentsSection({ addressingMode, onAddressingModeChange }: ExperimentsSectionProps) {
+function ExperimentsSection({ llmEnabled, addressingMode, onAddressingModeChange }: ExperimentsSectionProps) {
   return (
     <CollapsibleSection
       title="Ad addressing mode"
       subtitle="Experimental: how the detector points at ads in the transcript."
     >
-      <div>
+      <LlmGate disabled={!llmEnabled} id="ad-addressing-mode" className="space-y-2">
         <div className="flex items-center gap-3 mb-2">
           <label htmlFor="adAddressingMode" className="text-sm font-medium text-foreground">
             Ad addressing mode
@@ -36,7 +38,7 @@ function ExperimentsSection({ addressingMode, onAddressingModeChange }: Experime
           IDs asks it to name numbered transcript lines, which removes invented timestamps.
           Random alternates so the Stats page can compare them.
         </p>
-      </div>
+      </LlmGate>
     </CollapsibleSection>
   );
 }

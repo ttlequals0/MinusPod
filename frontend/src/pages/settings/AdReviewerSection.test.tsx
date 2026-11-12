@@ -9,6 +9,7 @@ import userEvent from '@testing-library/user-event';
 import AdReviewerSection, { type ReviewerState } from './AdReviewerSection';
 import type { ModelCatalog } from '../../hooks/useModelCatalog';
 import type { ClaudeModel } from '../../api/types';
+import { expectGatedByLlm, expectNotGatedByLlm } from '../../test/llmGate';
 
 function catalog(models: ClaudeModel[]): ModelCatalog {
   return { models, isLoading: false, isError: false };
@@ -32,7 +33,7 @@ function baseReviewer(): ReviewerState {
 
 function renderSection(props: Partial<Parameters<typeof AdReviewerSection>[0]> = {}) {
   return render(
-    <AdReviewerSection
+    <AdReviewerSection llmEnabled
       reviewer={baseReviewer()}
       onChange={vi.fn()}
       onResetPrompts={vi.fn()}
@@ -189,7 +190,7 @@ describe('AdReviewerSection: review provider select', () => {
       catalog: catalog([{ id: 'claude-opus-5', name: 'Claude Opus 5' }]),
     });
     rerender(
-      <AdReviewerSection
+      <AdReviewerSection llmEnabled
         reviewer={{ ...baseReviewer(), provider: 'primary' }}
         onChange={vi.fn()}
         onResetPrompts={vi.fn()}
@@ -244,5 +245,19 @@ describe('AdReviewerSection: review provider select', () => {
     await user.selectOptions(screen.getByLabelText('Review provider'), 'Provider B');
 
     expect(onChange).toHaveBeenCalledWith({ ...reviewer, provider: 'secondary' });
+  });
+});
+
+describe('AdReviewerSection: LLM provider None', () => {
+  it('disables the reviewer with the reason and skips the model warnings', () => {
+    renderSection({ llmEnabled: false, reviewer: { ...baseReviewer(), provider: 'primary', model: '' } });
+    expectGatedByLlm(screen.getByLabelText('Enable ad reviewer'));
+    expectGatedByLlm(screen.getByLabelText('Review provider'));
+    expect(screen.queryByText('Choose a model')).toBeNull();
+  });
+
+  it('is enabled when the provider is set', () => {
+    renderSection({ llmEnabled: true });
+    expectNotGatedByLlm(screen.getByLabelText('Review provider'));
   });
 });

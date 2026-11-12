@@ -1791,3 +1791,16 @@ describe('FeedSettingsPanel require manual approval tri-state control', () => {
     expect(mockUpdateFeed).toHaveBeenLastCalledWith('test-feed', { requireManualApproval: false });
   });
 });
+
+describe('FeedSettingsPanel chapters mode under LLM provider None', () => {
+  it('disables Always generate with the reason and keeps Auto, Off and Inherit', async () => {
+    mockGetSettings.mockResolvedValue({ llmEnabled: false });
+    renderPanel(makeFeed());
+    const select = screen.getByRole('combobox', { name: 'Chapters' });
+    await waitFor(() => expect((within(select).getByRole('option', { name: 'Always generate' }) as HTMLOptionElement).disabled).toBe(true));
+    expect((within(select).getByRole('option', { name: 'Auto' }) as HTMLOptionElement).disabled).toBe(false);
+    expect((within(select).getByRole('option', { name: 'Off' }) as HTMLOptionElement).disabled).toBe(false);
+    expect(document.getElementById(select.getAttribute('aria-describedby')!)?.textContent).toBe('LLM provider is set to None.');
+    mockGetSettings.mockResolvedValue({});
+  });
+});

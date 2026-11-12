@@ -6,6 +6,7 @@ import CatalogStatus from '../../components/CatalogStatus';
 import { formatModelLabel } from './settingsUtils';
 import { btnBase, btnGhost } from '../../components/buttonStyles';
 import { inputBase, selectBase, labelBase } from '../../components/fieldStyles';
+import { useGroupDisabled } from '../../components/DisabledGroup';
 
 interface ModelSelectProps {
   id: string;
@@ -36,7 +37,10 @@ function ModelSelect({
   // Free-text toggle lets proxies, private deployments and new model ids in
   // despite the catalog only listing what the provider advertises.
   const [typed, setTyped] = useState(false);
-  const notConfigured = !value && (!inheritLabel || inheritValue !== '');
+  // A disabled group (LLM provider None) is not editable, so a blank model is not an error there.
+  const groupDisabled = useGroupDisabled();
+  const unset = !value && (!inheritLabel || inheritValue !== '');
+  const notConfigured = unset && !groupDisabled;
   const requiredMessageId = `${id}-required-message`;
   return (
     <div className={aligned ? 'grid grid-rows-subgrid row-span-3 gap-y-0' : undefined}>
@@ -77,7 +81,7 @@ function ModelSelect({
           className={`w-full min-h-11 sm:min-h-0 ${selectBase}`}
         >
           {inheritLabel && <option value={inheritValue}>{inheritLabel}</option>}
-          {notConfigured && <option value="">Not configured</option>}
+          {unset && <option value="">Not configured</option>}
           {value !== inheritValue && renderOrphan(value, catalog.models)}
           {catalog.models?.map((model) => (
             <option key={model.id} value={model.id}>

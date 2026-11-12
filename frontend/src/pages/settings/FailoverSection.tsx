@@ -20,6 +20,7 @@ import { ProviderFields, keyMetaForType } from './ProviderFields';
 import { btnBase, btnSecondary, btnOutline } from '../../components/buttonStyles';
 import { focusRing, inputBase, selectBase, labelBase } from '../../components/fieldStyles';
 import { badgeBase, tint } from '../../components/badgeStyles';
+import { LLM_DISABLED_REASON, LlmGate } from './LlmGate';
 
 interface FailoverLlm {
   enabled: boolean;
@@ -47,6 +48,7 @@ interface FailoverWhisper {
 }
 
 interface FailoverSectionProps {
+  llmEnabled: boolean;
   storageKey?: string;
   onToggle?: (isOpen: boolean) => void;
   overview: FailoverOverview | undefined;
@@ -86,6 +88,8 @@ const STANDBY_ROWS: { label: string; target: FailoverTargetName; probe: Failover
 function keyStatus(configured: boolean): ProviderStatus {
   return { configured, source: configured ? 'db' : 'none' };
 }
+
+const LLM_OFF_BADGE = { label: 'LLM disabled', tone: tint.neutral };
 
 function targetBadge(state: FailoverTargetState, probe: FailoverProbe | undefined) {
   if (state.active) return { label: 'Failed over', tone: tint.warning };
@@ -127,18 +131,20 @@ function probeMeta(probe: FailoverProbe | undefined): string {
 }
 
 function TargetRow({
-  name, state, probe, pending, onTrigger, onCancel,
+  name, state, probe, pending, llmOff, onTrigger, onCancel,
 }: {
   name: FailoverTargetName;
   state: FailoverTargetState;
   probe: FailoverProbe | undefined;
   pending: boolean;
+  // The LLM targets are idle while the provider is None; the transcriber is unaffected.
+  llmOff: boolean;
   onTrigger: (t: FailoverTargetName) => void;
   onCancel: (t: FailoverTargetName) => void;
 }) {
   const label = FAILOVER_TARGET_LABELS[name];
   const off = !state.enabled && !state.active;
-  const badge = off ? { label: 'Off', tone: tint.neutral } : targetBadge(state, probe);
+  const badge = llmOff ? LLM_OFF_BADGE : off ? { label: 'Off', tone: tint.neutral } : targetBadge(state, probe);
   const verb = state.active ? 'Cancel' : 'Trigger';
   return (
     <li className={`flex flex-wrap items-center gap-x-4 gap-y-2 px-3 py-3 ${state.active ? 'bg-warning/5' : ''}`}>
@@ -148,10 +154,10 @@ function TargetRow({
           <span className={`${badgeBase} shrink-0 ${badge.tone}`}>{badge.label}</span>
         </div>
         <p className="mt-1 text-xs text-muted-foreground break-words">
-          {off ? `${label} is off` : targetMeta(state, probe)}
+          {llmOff ? LLM_DISABLED_REASON : off ? `${label} is off` : targetMeta(state, probe)}
         </p>
       </div>
-      {!off && <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+      {!off && !llmOff && <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
         {!state.configured && (
           <span className="text-xs text-muted-foreground">Failover not configured</span>
         )}
@@ -170,25 +176,28 @@ function TargetRow({
 }
 
 // A standby account's own health: no action, so it reads as subordinate to the targets.
-function StandbyRow({ label, configured, probe }: {
+function StandbyRow({ label, configured, probe, llmOff }: {
   label: string;
   configured: boolean;
   probe: FailoverProbe | undefined;
+  llmOff: boolean;
 }) {
-  const badge = configured ? probeBadge(probe) : { label: 'Not configured', tone: tint.neutral };
+  const badge = llmOff ? LLM_OFF_BADGE : configured ? probeBadge(probe) : { label: 'Not configured', tone: tint.neutral };
   return (
     <li className="px-3 py-3">
       <div className="flex flex-wrap items-center gap-2">
         <span className="text-sm font-medium text-muted-foreground">{label}</span>
         <span className={`${badgeBase} shrink-0 ${badge.tone}`}>{badge.label}</span>
       </div>
-      {configured && <p className="mt-1 text-xs text-muted-foreground break-words">{probeMeta(probe)}</p>}
+      {llmOff
+        ? <p className="mt-1 text-xs text-muted-foreground break-words">{LLM_DISABLED_REASON}</p>
+        : configured && <p className="mt-1 text-xs text-muted-foreground break-words">{probeMeta(probe)}</p>}
     </li>
   );
 }
 
 function FailoverSection({
-  storageKey, onToggle,
+  llmEnabled, storageKey, onToggle,
   overview, overviewLoading, onTrigger, onCancel, onProbeNow, actionPending, probePending, actionError,
   probeIntervalMinutes, onProbeIntervalChange, recoveryProbes, onRecoveryProbesChange,
   llm, onLlmChange, onLlmApiKeySave, onLlmApiKeyClear, failoverCatalog,
@@ -225,6 +234,7 @@ function FailoverSection({
                 state={overview.targets[name]}
                 probe={overview.probes[name]}
                 pending={actionPending}
+                llmOff={!llmEnabled && name !== 'transcriber'}
                 onTrigger={onTrigger}
                 onCancel={onCancel}
               />
@@ -235,6 +245,7 @@ function FailoverSection({
                 label={row.label}
                 configured={overview.targets[row.target].configured}
                 probe={overview.probes[row.probe]}
+                llmOff={!llmEnabled && row.target !== 'transcriber'}
               />
             ))}
           </ul>
@@ -289,7 +300,7 @@ function FailoverSection({
           </div>
         </div>
 
-        <div className="pt-4 border-t border-border space-y-4">
+        <LlmGate disabled={!llmEnabled} id="failover-llm" className="pt-4 border-t border-border space-y-4">
           <div>
             <label className="flex items-center gap-3 cursor-pointer">
               <ToggleSwitch
@@ -377,7 +388,7 @@ function FailoverSection({
               </div>
             </>
           )}
-        </div>
+        </LlmGate>
 
         <div className="pt-4 border-t border-border space-y-4">
           <div>

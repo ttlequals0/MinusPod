@@ -13,11 +13,13 @@ import { btnBase, btnLg, btnPrimary, btnGhost } from '../../components/buttonSty
 import { selectBase, labelBase } from '../../components/fieldStyles';
 import { subHeading } from '../../components/pageStyles';
 import { DemoDisabled } from '../../components/DemoDisabled';
+import { LlmGate } from './LlmGate';
 
 type ProfilePatch = Partial<SystemOneProfile>;
 type DraftProfiles = Record<SystemOneCredentialSlot, Record<SystemOneProvider, SystemOneProfile>>;
 
 interface Props {
+  llmEnabled: boolean;
   connections: Record<SystemOneCredentialSlot, string>;
   profiles: SystemOneProfiles;
   defaults: SystemOneProfiles;
@@ -34,7 +36,7 @@ function equalProfiles(a: DraftProfiles, b: SystemOneProfiles) {
   return JSON.stringify(a) === JSON.stringify(b);
 }
 
-function SystemOneTunablesSection({ connections, profiles, defaults, isDefault, onSave, pending, error }: Props) {
+function SystemOneTunablesSection({ llmEnabled, connections, profiles, defaults, isDefault, onSave, pending, error }: Props) {
   const [selectedSlot, setSelectedSlot] = useState<SystemOneCredentialSlot>('primary');
   const [draft, setDraft] = useState<DraftProfiles>(profiles);
   const [baseline, setBaseline] = useState(profiles);
@@ -43,7 +45,7 @@ function SystemOneTunablesSection({ connections, profiles, defaults, isDefault, 
     setBaseline(profiles);
   }
   const dirty = !equalProfiles(draft, profiles);
-  useUnsavedChanges(dirty);
+  useUnsavedChanges(dirty && llmEnabled);
 
   const change = <K extends keyof SystemOneProfile>(
     slot: SystemOneCredentialSlot,
@@ -96,7 +98,7 @@ function SystemOneTunablesSection({ connections, profiles, defaults, isDefault, 
 
   return (
     <CollapsibleSection title="System One tuneables" storageKey="settings-section-system-one">
-      <div className="space-y-5">
+      <LlmGate disabled={!llmEnabled} id="system-one-tunables" className="space-y-5">
         {!selectedProfileSlot ? (
           <p className="text-sm text-muted-foreground">Choose a System One provider in LLM provider.</p>
         ) : <>
@@ -213,7 +215,7 @@ function SystemOneTunablesSection({ connections, profiles, defaults, isDefault, 
           {!dirty && !pending && <SavedBadge />}
         </div>
         </>}
-      </div>
+      </LlmGate>
     </CollapsibleSection>
   );
 }

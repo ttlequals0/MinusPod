@@ -1,4 +1,5 @@
 import { focusRing } from './fieldStyles';
+import { useGroupDisabled } from './DisabledGroup';
 import { touchTarget } from './buttonStyles';
 
 interface ToggleSwitchProps {
@@ -8,7 +9,9 @@ interface ToggleSwitchProps {
   ariaLabel?: string;
 }
 
-function ToggleSwitch({ checked, onChange, disabled, ariaLabel }: ToggleSwitchProps) {
+function ToggleSwitch({ checked, onChange, disabled: ownDisabled, ariaLabel }: ToggleSwitchProps) {
+  const groupDisabled = useGroupDisabled();
+  const disabled = ownDisabled || groupDisabled;
   return (
     <div
       role="switch"

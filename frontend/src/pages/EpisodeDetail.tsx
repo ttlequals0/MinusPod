@@ -13,6 +13,7 @@ import {
 import type { LocalEpisodePatch } from '../api/feeds';
 import { submitCorrection } from '../api/patterns';
 import { APPROVAL_INVALIDATE_KEYS, getSettings } from '../api/settings';
+import { LLM_DISABLED_REASON, isLlmDisabledError } from './settings/LlmGate';
 import { isSystemOneChapterRoute } from './settings/systemoneWarnings';
 import { getErrorMessage, jobStateOf } from '../api/client';
 import { SegmentCategoryBadge, KeptBadge } from '../components/SegmentCategoryBadge';
@@ -438,9 +439,11 @@ function EpisodeDetail() {
     enabled: !!episode?.transcriptVttAvailable,
   });
   const unsupportedChapterRoute = isSystemOneChapterRoute(settings);
+  const llmDisabled = settings?.llmEnabled === false;
   const chapterRouteWarning = 'System One cannot generate chapters. Select a chat provider and model.';
   const chapterActionTooltip = chapterSettingsError ? 'Load chapter settings before regenerating chapters.'
     : chapterSettingsPending ? 'Loading chapter settings...'
+      : llmDisabled ? LLM_DISABLED_REASON
       : unsupportedChapterRoute ? chapterRouteWarning : 'Regenerate chapters from existing transcript';
 
   const approveMutation = useMutation({
@@ -514,6 +517,8 @@ function EpisodeDetail() {
     // so refetch for the same reason reprocess does.
     onError: async (error) => {
       console.error('Failed to regenerate chapters:', error);
+      // A stale page learns the provider is None from the refreshed settings.
+      if (isLlmDisabledError(error)) await queryClient.invalidateQueries({ queryKey: ['settings'] });
       await queryClient.invalidateQueries({ queryKey: ['episode', slug, episodeId] });
     },
   });
@@ -1249,7 +1254,7 @@ function EpisodeDetail() {
                       onClick: () => handleReprocess('llm') }] : []),
                     ...(episode.transcriptVttAvailable ? [{
                       title: 'Regenerate chapters', subtitle: 'Use existing transcript',
-                      disabled: chaptersRegenerating || chapterSettingsPending || !settings || unsupportedChapterRoute,
+                      disabled: chaptersRegenerating || chapterSettingsPending || !settings || unsupportedChapterRoute || llmDisabled,
                       tooltip: chapterActionTooltip,
                       onClick: () => regenerateChaptersMutation.mutate() }] : []),
                     { title: passthroughToggleLabel, subtitle: 'Served unmodified, no ad processing',
@@ -1272,6 +1277,11 @@ function EpisodeDetail() {
           <p role="status" className="mt-2 text-sm text-warning">
             {chapterRouteWarning}{' '}
             <Link to="/settings" className={`underline ${focusRing}`}>Open settings</Link>
+          </p>
+        )}
+        {episode.transcriptVttAvailable && llmDisabled && (
+          <p role="status" className="mt-2 text-sm text-muted-foreground">
+            Regenerate chapters is unavailable. {LLM_DISABLED_REASON}
           </p>
         )}
         {episode.transcriptVttAvailable && chapterSettingsError && (
@@ -1297,8 +1307,10 @@ function EpisodeDetail() {
           <p className="mt-2 text-sm text-success">Chapters regenerated.</p>
         )}
         {regenerateChaptersMutation.isError && (
-          <p className="mt-2 text-sm text-destructive">
-            {getErrorMessage(regenerateChaptersMutation.error, 'Could not regenerate chapters.')}
+          <p className={`mt-2 text-sm ${isLlmDisabledError(regenerateChaptersMutation.error) ? 'text-muted-foreground' : 'text-destructive'}`}>
+            {isLlmDisabledError(regenerateChaptersMutation.error)
+              ? `Regenerate chapters is unavailable. ${LLM_DISABLED_REASON}`
+              : getErrorMessage(regenerateChaptersMutation.error, 'Could not regenerate chapters.')}
           </p>
         )}
         {!episode.chaptersRegenerating && episode.chaptersRegenError && (
@@ -1713,7 +1725,7 @@ function EpisodeDetail() {
               <DemoDisabled>
                 <button
                   onClick={() => { setHeldReviewCleared(false); regenerateChaptersMutation.mutate(); }}
-                  disabled={chaptersRegenerating || chapterSettingsPending || !settings || unsupportedChapterRoute}
+                  disabled={chaptersRegenerating || chapterSettingsPending || !settings || unsupportedChapterRoute || llmDisabled}
                   title={chapterActionTooltip}
                   data-testid="regenerate-chapters-after-review"
                   className={`w-full sm:w-auto ${btnBase} ${btnSecondary}`}

@@ -15,6 +15,7 @@ import { btnLg, btnPrimary } from '../../components/buttonStyles';
 import { selectBase, labelBase } from '../../components/fieldStyles';
 import { subHeading } from '../../components/pageStyles';
 import { DemoDisabled } from '../../components/DemoDisabled';
+import { LlmDisabledNote, LlmGate } from './LlmGate';
 
 const CHAPTER_GEOMETRY_FIELDS = [
   {
@@ -43,6 +44,7 @@ type GeometryKey = (typeof CHAPTER_GEOMETRY_FIELDS)[number]['key'];
 const CHAPTER_GEOMETRY_KEYS = CHAPTER_GEOMETRY_FIELDS.map((f) => f.key);
 
 export interface ChapterGeometryProps {
+  llmEnabled: boolean;
   tunables: StageTunables;
   defaults: Record<keyof StageTunables, number | string | null>;
   onSave: (payload: UpdateSettingsPayload) => void;
@@ -52,6 +54,7 @@ export interface ChapterGeometryProps {
 }
 
 function ChapterGeometryBlock({
+  llmEnabled,
   tunables,
   defaults,
   onSave,
@@ -66,6 +69,7 @@ function ChapterGeometryBlock({
   const { draft, dirty, setField, buildPayload } = useServerDraft(
     CHAPTER_GEOMETRY_KEYS,
     serverBaseline,
+    llmEnabled,
   );
 
   const eff = (key: GeometryKey) => (draft[key] ?? defaults[key]) as number | null;
@@ -154,6 +158,7 @@ export function ToggleRow({ checked, onChange, label, disabled, children }: {
 }
 
 interface Podcasting20SectionProps {
+  llmEnabled: boolean;
   vttTranscriptsEnabled: boolean;
   chaptersEnabled: boolean;
   chaptersInNotes: boolean;
@@ -166,10 +171,11 @@ interface Podcasting20SectionProps {
   onChaptersModeChange: (mode: 'auto' | 'generate' | 'off') => void;
   unsupportedChaptersRoute?: string | null;
   adChapters?: AdChaptersBlockProps;
-  geometry?: ChapterGeometryProps;
+  geometry?: Omit<ChapterGeometryProps, 'llmEnabled'>;
 }
 
 function Podcasting20Section({
+  llmEnabled,
   vttTranscriptsEnabled,
   chaptersEnabled,
   chaptersInNotes,
@@ -209,11 +215,13 @@ function Podcasting20Section({
           </label>
           <select id="globalChaptersMode" value={chaptersMode}
             onChange={(e) => onChaptersModeChange(e.target.value as 'auto' | 'generate' | 'off')}
+            aria-describedby={llmEnabled ? undefined : 'globalChaptersMode-llm-disabled'}
             className={`w-full ${selectBase}`}>
             <option value="auto">Auto</option>
-            <option value="generate">Always generate</option>
+            <option value="generate" disabled={!llmEnabled}>Always generate</option>
             <option value="off">Off</option>
           </select>
+          {!llmEnabled && <LlmDisabledNote id="globalChaptersMode-llm-disabled" className="mt-1" />}
         </div>
 
         {adChapters && <AdChaptersBlock {...adChapters} />}
@@ -231,7 +239,11 @@ function Podcasting20Section({
           anyone reading the feed. Feeds can override this.
         </ToggleRow>
 
-        {geometry && <ChapterGeometryBlock {...geometry} />}
+        {geometry && (
+          <LlmGate disabled={!llmEnabled} id="chapter-density" className="space-y-2">
+            <ChapterGeometryBlock {...geometry} llmEnabled={llmEnabled} />
+          </LlmGate>
+        )}
       </div>
     </CollapsibleSection>
   );

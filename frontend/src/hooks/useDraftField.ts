@@ -20,12 +20,14 @@ export function useDraftField<T>(
   source: T,
   selector: (source: T) => string,
   normalize: (v: string) => string = (v) => v,
+  // False for a disabled field: its draft must not block navigation.
+  active = true,
 ): DraftField {
   const initial = selector(source);
   const [value, setValue] = useState(initial);
   const [baseline, setBaseline] = useState(initial);
   const dirty = normalize(value) !== normalize(baseline);
-  useUnsavedChanges(dirty);
+  useUnsavedChanges(dirty && active);
 
   useSyncFromQuery(source, (s) => {
     if (dirty) return;

@@ -7,6 +7,9 @@ import { MemoryRouter } from 'react-router';
 import PatternCleanupSection from './PatternCleanupSection';
 import { ApiError } from '../../api/client';
 import type { PatternCleanupSettings, PatternCleanupStatus } from '../../api/patternCleanup';
+import { expectGatedByLlm, expectNotGatedByLlm } from '../../test/llmGate';
+import { LLM_DISABLED_REASON } from './LlmGate';
+import { hasUnsavedChanges } from '../../hooks/useUnsavedChanges';
 
 const mockGet = vi.fn();
 const mockUpdate = vi.fn();
@@ -54,7 +57,7 @@ function renderSection(props: Partial<React.ComponentProps<typeof PatternCleanup
   const view = render(
     <MemoryRouter>
       <QueryClientProvider client={client}>
-        <PatternCleanupSection
+        <PatternCleanupSection llmEnabled
           primaryProvider="anthropic"
           secondaryProvider="openrouter"
           secondaryEnabled
@@ -181,7 +184,7 @@ describe('PatternCleanupSection', () => {
     view.rerender(
       <MemoryRouter>
         <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
-          <PatternCleanupSection
+          <PatternCleanupSection llmEnabled
             primaryProvider="ollama"
             primaryBaseUrl="http://localhost:11434"
             secondaryProvider="openrouter"
@@ -205,7 +208,7 @@ describe('PatternCleanupSection', () => {
     view.rerender(
       <MemoryRouter>
         <QueryClientProvider client={view.queryClient}>
-          <PatternCleanupSection
+          <PatternCleanupSection llmEnabled
             primaryProvider="anthropic"
             secondaryProvider="new-provider"
             secondaryEnabled
@@ -227,7 +230,7 @@ describe('PatternCleanupSection', () => {
     view.rerender(
       <MemoryRouter>
         <QueryClientProvider client={view.queryClient}>
-          <PatternCleanupSection
+          <PatternCleanupSection llmEnabled
             primaryProvider="openai-compatible"
             primaryBaseUrl="https://new.example/v1"
             secondaryProvider="openrouter"
@@ -431,5 +434,55 @@ describe('PatternCleanupSection', () => {
     mockGet.mockResolvedValue(makeStatus());
     await user.click(screen.getByRole('button', { name: /retry/i }));
     expect(await screen.findByLabelText(/patterns per run/i)).toBeDefined();
+  });
+});
+
+describe('PatternCleanupSection: LLM provider None', () => {
+  it('disables the controls with the reason and drops the missing model nag', async () => {
+    mockGet.mockResolvedValue(makeStatus({ model: '', modelMissing: true }));
+    renderSection({ llmEnabled: false });
+    const model = await screen.findByLabelText(/cleanup model/i);
+    expectGatedByLlm(model);
+    expectGatedByLlm(screen.getByRole('button', { name: /run now/i }));
+    expectGatedByLlm(screen.getByRole('button', { name: /^save$/i }));
+    expect(screen.queryByText('Pick a model before processing episodes.')).toBeNull();
+  });
+
+  it('does not fetch a model list while disabled', async () => {
+    renderSection({ llmEnabled: false });
+    await screen.findByLabelText(/cleanup model/i);
+    expect(mockCatalog.mock.calls.every((call) => call[2] === false)).toBe(true);
+  });
+
+  it('shows the reason, not a failure, when a stale page gets 409 llm_disabled', async () => {
+    mockRun.mockRejectedValue(new ApiError('LLM disabled', 409, { code: 'llm_disabled' }));
+    renderSection();
+    await userEvent.setup().click(await screen.findByRole('button', { name: /run now/i }));
+    const note = await screen.findByText(LLM_DISABLED_REASON);
+    expect(note.className).not.toContain('text-destructive');
+    expect(screen.queryByText('A cleanup run is already in progress.')).toBeNull();
+  });
+
+  it('is enabled when the provider is set', async () => {
+    renderSection();
+    expectNotGatedByLlm(await screen.findByLabelText(/cleanup model/i));
+  });
+});
+
+describe('PatternCleanupSection: unsaved changes under None', () => {
+  it('stops reporting an edited draft as unsaved once the section is disabled', async () => {
+    const view = renderSection();
+    const batch = await screen.findByLabelText(/patterns per run/i);
+    await userEvent.setup().type(batch, '5');
+    await waitFor(() => expect(hasUnsavedChanges()).toBe(true));
+    view.rerender(
+      <MemoryRouter>
+        <QueryClientProvider client={view.queryClient}>
+          <PatternCleanupSection llmEnabled={false} primaryProvider="anthropic" secondaryProvider="openrouter"
+            secondaryEnabled detectionSlot="secondary" />
+        </QueryClientProvider>
+      </MemoryRouter>,
+    );
+    await waitFor(() => expect(hasUnsavedChanges()).toBe(false));
   });
 });

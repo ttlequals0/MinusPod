@@ -1,5 +1,6 @@
 import CollapsibleSection from '../../components/CollapsibleSection';
 import ToggleSwitch from '../../components/ToggleSwitch';
+import { LlmGate } from './LlmGate';
 
 type SeedSponsorsKey =
   | 'seedSponsorsDetection'
@@ -8,6 +9,7 @@ type SeedSponsorsKey =
   | 'seedSponsorsResurrect';
 
 interface SeedSponsorsSectionProps {
+  llmEnabled: boolean;
   detection: boolean;
   verification: boolean;
   reviewer: boolean;
@@ -16,6 +18,7 @@ interface SeedSponsorsSectionProps {
 }
 
 function SeedSponsorsSection({
+  llmEnabled,
   detection,
   verification,
   reviewer,
@@ -27,7 +30,7 @@ function SeedSponsorsSection({
       title="Seed sponsors"
       subtitle="Choose which prompts see the known-sponsor list. All on by default."
     >
-      <div className="space-y-6">
+      <LlmGate disabled={!llmEnabled} id="seed-sponsors" className="space-y-6">
         <div>
           <label className="flex items-center gap-3 cursor-pointer">
             <ToggleSwitch
@@ -83,7 +86,7 @@ function SeedSponsorsSection({
             Include the known-sponsor list when the reviewer reconsiders rejected detections.
           </p>
         </div>
-      </div>
+      </LlmGate>
     </CollapsibleSection>
   );
 }

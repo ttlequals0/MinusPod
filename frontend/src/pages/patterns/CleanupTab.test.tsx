@@ -8,6 +8,9 @@ import { splitTrim } from './TrimDiff';
 import { ApiError } from '../../api/client';
 import type { PatternCleanupSuggestion } from '../../api/patternCleanup';
 
+const mockSettings = vi.fn();
+vi.mock('../../api/settings', () => ({ getSettings: (...a: unknown[]) => mockSettings(...a) }));
+
 const mockList = vi.fn();
 const mockApprove = vi.fn();
 const mockReject = vi.fn();
@@ -83,6 +86,7 @@ function card(id: number) {
 }
 
 beforeEach(() => {
+  mockSettings.mockResolvedValue({ llmEnabled: true });
   vi.clearAllMocks();
   mockList.mockResolvedValue(ALL_KINDS);
   mockApprove.mockImplementation(async (id: number) => ({ ...ALL_KINDS[0], id, status: 'approved' }));
@@ -382,5 +386,15 @@ describe('CleanupTab', () => {
     expect(await screen.findByText(/No suggestions yet\./)).toBeDefined();
     const link = screen.getByRole('link', { name: 'Settings > Experiments' });
     expect(link.getAttribute('href')).toBe('/settings');
+  });
+});
+
+describe('CleanupTab under LLM provider None', () => {
+  it('explains that cleanup is unavailable instead of telling the operator to run it', async () => {
+    mockSettings.mockResolvedValue({ llmEnabled: false });
+    mockList.mockResolvedValue([]);
+    renderTab();
+    expect(await screen.findByText('No suggestions yet. Pattern cleanup is unavailable. LLM provider is set to None.')).toBeDefined();
+    expect(screen.queryByRole('link', { name: 'Settings > Experiments' })).toBeNull();
   });
 });

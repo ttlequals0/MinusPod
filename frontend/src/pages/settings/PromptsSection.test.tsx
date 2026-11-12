@@ -7,6 +7,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import PromptsSection from './PromptsSection';
+import { expectGatedByLlm, expectNotGatedByLlm } from '../../test/llmGate';
 
 function baseProps() {
   return {
@@ -32,7 +33,7 @@ function baseProps() {
 describe('PromptsSection: per-prompt reset', () => {
   it('renders all per-field reset buttons disabled when every prompt is at its default', () => {
     render(
-      <PromptsSection
+      <PromptsSection llmEnabled
         {...baseProps()}
         systemPromptIsDefault
         verificationPromptIsDefault
@@ -55,7 +56,7 @@ describe('PromptsSection: per-prompt reset', () => {
     const onResetChapterPrompt = vi.fn();
     const user = userEvent.setup();
     render(
-      <PromptsSection
+      <PromptsSection llmEnabled
         {...baseProps()}
         systemPromptIsDefault={false}
         verificationPromptIsDefault
@@ -79,7 +80,7 @@ describe('PromptsSection: per-prompt reset', () => {
     const onResetChapterPrompt = vi.fn();
     const user = userEvent.setup();
     render(
-      <PromptsSection
+      <PromptsSection llmEnabled
         {...baseProps()}
         systemPromptIsDefault
         verificationPromptIsDefault
@@ -103,7 +104,7 @@ describe('PromptsSection: per-prompt reset', () => {
     const onResetChapterPrompt = vi.fn();
     const user = userEvent.setup();
     render(
-      <PromptsSection
+      <PromptsSection llmEnabled
         {...baseProps()}
         onPatternCleanupPromptChange={onChange}
         chapterPromptIsDefault
@@ -121,5 +122,18 @@ describe('PromptsSection: per-prompt reset', () => {
     await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Reset' }));
     expect(onResetCleanup).toHaveBeenCalledTimes(1);
     expect(onResetChapterPrompt).not.toHaveBeenCalled();
+  });
+});
+
+describe('PromptsSection: LLM provider None', () => {
+  it('disables the prompts with the reason', () => {
+    render(<PromptsSection {...baseProps()} llmEnabled={false} />);
+    expectGatedByLlm(screen.getByLabelText('First pass system prompt'));
+    expectGatedByLlm(screen.getByRole('button', { name: 'Reset prompts to default' }));
+  });
+
+  it('is enabled when the provider is set', () => {
+    render(<PromptsSection {...baseProps()} llmEnabled />);
+    expectNotGatedByLlm(screen.getByLabelText('First pass system prompt'));
   });
 });

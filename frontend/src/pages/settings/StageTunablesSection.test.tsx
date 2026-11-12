@@ -8,11 +8,14 @@ import userEvent from '@testing-library/user-event';
 import StageTunablesSection from './StageTunablesSection';
 import type { LlmProvider, UpdateSettingsPayload } from '../../api/types';
 import { baseDefaults, baseTunables } from './tunablesTestFixtures';
+import { expectGatedByLlm, expectNotGatedByLlm } from '../../test/llmGate';
+import { hasUnsavedChanges } from '../../hooks/useUnsavedChanges';
 
 // openai-compatible renders the reasoning field as a <select> (not a number
 // input), so each stage block contributes exactly two number inputs
 // (Temperature, then Max tokens) in a stable, predictable order.
 function Harness({
+  llmEnabled = true,
   omitTemperature = false,
   onSave = () => {},
   llmProvider = 'openai-compatible',
@@ -23,6 +26,7 @@ function Harness({
   reviewRoutes,
   reviewEnabled = false,
 }: {
+  llmEnabled?: boolean;
   omitTemperature?: boolean;
   onSave?: (payload: UpdateSettingsPayload) => void;
   llmProvider?: LlmProvider;
@@ -35,6 +39,7 @@ function Harness({
 }) {
   return (
     <StageTunablesSection
+      llmEnabled={llmEnabled}
       tunables={baseTunables}
       defaults={baseDefaults}
       llmProvider={llmProvider}
@@ -205,5 +210,28 @@ describe('StageTunablesSection: per-stage effective provider', () => {
     expect(within(stageCard('Chapter title generation')).getByText('Reasoning effort')).toBeDefined();
     expect(within(stageCard('Verification (ad detection pass 2)')).getByText('Reasoning effort')).toBeDefined();
     expect(within(stageCard('Ad detection (pass 1)')).getByText('Reasoning budget (legacy Anthropic models)')).toBeDefined();
+  });
+});
+
+describe('StageTunablesSection: LLM provider None', () => {
+  it('disables the tunables and their save button with the reason', () => {
+    render(<Harness llmEnabled={false} />);
+    expectGatedByLlm(screen.getByRole('button', { name: 'Save LLM tunables' }));
+    expectGatedByLlm(screen.getAllByRole('spinbutton')[0]);
+  });
+
+  it('is enabled when the provider is set', () => {
+    render(<Harness />);
+    expectNotGatedByLlm(screen.getByRole('button', { name: 'Save LLM tunables' }));
+  });
+});
+
+describe('StageTunablesSection: unsaved changes under None', () => {
+  it('stops reporting a draft as unsaved once the section is disabled', async () => {
+    const view = render(<Harness />);
+    await userEvent.setup().click(screen.getByRole('switch', { name: 'Do not send temperature' }));
+    expect(hasUnsavedChanges()).toBe(true);
+    view.rerender(<Harness llmEnabled={false} />);
+    expect(hasUnsavedChanges()).toBe(false);
   });
 });

@@ -17,6 +17,7 @@ import EpisodeList from '../components/EpisodeList';
 import type { AdSegment, Episode, EpisodeDetail as EpisodeDetailType, Settings } from '../api/types';
 import { formatTimestamp } from '../utils/format';
 import { getSettings } from '../api/settings';
+import { ApiError } from '../api/client';
 
 // react-router stubs. Mutable so a test can move the view to another episode.
 const routeParams = vi.hoisted(() => ({ slug: 'test-feed', episodeId: 'ep-1' }));
@@ -2871,5 +2872,54 @@ describe('Awaiting approval', () => {
     renderDetail(makeEpisode());
     const section = await screen.findByTestId('held-for-review-section');
     expect(section.id).toBe('held-for-review-section');
+  });
+});
+
+describe('Regenerate chapters: LLM provider None', () => {
+  beforeEach(() => {
+    mockRegenerateChapters.mockReset();
+    vi.mocked(getSettings).mockResolvedValue({
+      llmProvider: { value: 'none' }, llmEnabled: false,
+    } as Settings);
+  });
+
+  it('disables the action and says why, without calling the API', async () => {
+    const user = userEvent.setup();
+    renderDetail(makeEpisode({ pendingReviewMarkers: [], transcriptVttAvailable: true }));
+    expect((await screen.findByRole('status')).textContent).toBe(
+      'Regenerate chapters is unavailable. LLM provider is set to None.',
+    );
+    await user.click(screen.getByRole('button', { name: 'Reprocess' }));
+    const item = screen.getByText('Regenerate chapters').closest('button') as HTMLButtonElement;
+    expect(item.disabled).toBe(true);
+    expect(item.title).toBe('LLM provider is set to None.');
+    await user.click(item);
+    expect(mockRegenerateChapters).not.toHaveBeenCalled();
+  });
+
+  it('shows the reason, not a failure, when a stale page gets 409 llm_disabled', async () => {
+    vi.mocked(getSettings).mockResolvedValue({
+      llmProvider: { value: 'anthropic' }, claudeModel: { value: 'claude-sonnet' }, llmEnabled: true,
+    } as Settings);
+    mockRegenerateChapters.mockRejectedValueOnce(new ApiError('LLM disabled', 409, { code: 'llm_disabled' }));
+    const user = userEvent.setup();
+    renderDetail(makeEpisode({ pendingReviewMarkers: [], transcriptVttAvailable: true }));
+    await screen.findByText('Test Episode');
+    await user.click(screen.getByRole('button', { name: 'Reprocess' }));
+    await user.click(await screen.findByText('Regenerate chapters'));
+    const note = await screen.findByText('Regenerate chapters is unavailable. LLM provider is set to None.');
+    expect(note.className).not.toContain('text-destructive');
+    expect(screen.queryByText('Could not regenerate chapters.')).toBeNull();
+  });
+
+  it('leaves the action enabled when the provider is set', async () => {
+    vi.mocked(getSettings).mockResolvedValue({
+      llmProvider: { value: 'anthropic' }, claudeModel: { value: 'claude-sonnet' }, llmEnabled: true,
+    } as Settings);
+    const user = userEvent.setup();
+    renderDetail(makeEpisode({ pendingReviewMarkers: [], transcriptVttAvailable: true }));
+    await screen.findByText('Test Episode');
+    await user.click(screen.getByRole('button', { name: 'Reprocess' }));
+    await waitFor(() => expect((screen.getByText('Regenerate chapters').closest('button') as HTMLButtonElement).disabled).toBe(false));
   });
 });

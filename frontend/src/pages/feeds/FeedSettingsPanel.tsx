@@ -41,6 +41,7 @@ const MAX_RETENTION_DAYS = 3650;
 type RetentionMode = 'global' | 'archive' | 'custom';
 import { badgeBase, tint } from '../../components/badgeStyles';
 import { isSystemOneChapterRoute } from '../settings/systemoneWarnings';
+import { LlmDisabledNote } from '../settings/LlmGate';
 import { PROCESSING_MODE_HINTS, PROCESSING_MODE_LABELS, PROCESSING_MODE_ORDER } from './processingMode';
 
 const rowLabelTopSm = `${rowLabel} sm:pt-0.5`;
@@ -150,6 +151,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
   const nativeChapterGenerationBlocked = unsupportedChapterRoute
     && (settings?.chaptersEnabled?.value ?? settings?.defaults?.chaptersEnabled ?? true);
   const inheritedChapterMode = settings?.chaptersMode?.value ?? 'auto';
+  const llmDisabled = settings?.llmEnabled === false;
 
   // Cue-only mode needs at least one enabled ad-break-start and ad-break-end
   // template; fetched here to gray out the option before the user picks it.
@@ -1130,10 +1132,11 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                     disabled={updateMutation.isPending}
                     className={`self-start min-w-0 max-w-full disabled:opacity-50 ${selectBase}`}
                     aria-label="Chapters"
+                    aria-describedby={llmDisabled ? 'feed-chapters-llm-disabled' : undefined}
                   >
                     <option value="" disabled={nativeChapterGenerationBlocked && inheritedChapterMode !== 'off'}>Inherit global ({inheritedChapterMode})</option>
                     <option value="auto" disabled={nativeChapterGenerationBlocked}>Auto</option>
-                    <option value="generate" disabled={nativeChapterGenerationBlocked}>Always generate</option>
+                    <option value="generate" disabled={nativeChapterGenerationBlocked || llmDisabled}>Always generate</option>
                     <option value="off">Off</option>
                   </select>
                   <p className="text-xs text-muted-foreground">
@@ -1141,6 +1144,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                     the ad-free audio, and generates chapters when an episode has too
                     few. Always generate replaces them; Off leaves them untouched.
                   </p>
+                  {llmDisabled && <LlmDisabledNote id="feed-chapters-llm-disabled" className="text-xs" />}
                   {unsupportedChapterRoute && <p role="status" className="text-xs text-warning">System One cannot generate chapters. Select a chat provider and model.</p>}
                 </div>
               </div>

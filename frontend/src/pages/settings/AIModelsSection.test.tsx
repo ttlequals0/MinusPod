@@ -10,6 +10,8 @@ import AIModelsSection from './AIModelsSection';
 import { inputBase } from '../../components/fieldStyles';
 import type { ModelCatalog } from '../../hooks/useModelCatalog';
 import type { ClaudeModel } from '../../api/types';
+import { expectGatedByLlm, expectNotGatedByLlm } from '../../test/llmGate';
+import { hasUnsavedChanges } from '../../hooks/useUnsavedChanges';
 
 const models: ClaudeModel[] = [
   { id: 'gpt-5', name: 'GPT-5' },
@@ -22,7 +24,7 @@ function catalog(overrides: Partial<ModelCatalog> = {}): ModelCatalog {
 
 function section(overrides: Partial<Parameters<typeof AIModelsSection>[0]> = {}) {
   return (
-    <AIModelsSection
+    <AIModelsSection llmEnabled
       detectionCatalog={catalog()}
       verificationCatalog={catalog()}
       chaptersCatalog={catalog()}
@@ -531,5 +533,40 @@ describe('AIModelsSection: stored secondary slot while the secondary provider is
       within(screen.getByLabelText('Verification provider')).queryByRole('option', { name: 'Provider B (off)' })
     ).toBeNull();
     expect(screen.getAllByText('Provider B is off, so this stage runs on Provider A.')).toHaveLength(1);
+  });
+});
+
+describe('AIModelsSection: LLM provider None', () => {
+  it('disables the section with the reason and does not nag about a missing model', () => {
+    renderSection({ llmEnabled: false, selectedModel: '' });
+    expectGatedByLlm(screen.getByLabelText('Ad detection model'));
+    expectGatedByLlm(screen.getByLabelText('Ad detection provider'));
+    expect(screen.queryByText('Pick a model before processing episodes.')).toBeNull();
+    expect(screen.queryByText('No model selected from the provider.')).toBeNull();
+    expect(screen.queryByText(/Set both prices to estimate cost/)).toBeNull();
+    expect((screen.getByRole('button', { name: 'Refresh' }) as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it('keeps saved models shown and custom pricing out of the unsaved-changes guard', () => {
+    renderSection({ llmEnabled: false });
+    expect((screen.getByLabelText('Ad detection model') as HTMLSelectElement).value).toBe('gpt-5');
+    expectGatedByLlm(screen.getAllByLabelText('Input')[0]);
+  });
+
+  it('leaves everything enabled when the provider is set', () => {
+    renderSection({ llmEnabled: true });
+    expect(screen.getAllByText(/Set both prices to estimate cost/).length).toBeGreaterThan(0);
+    expectNotGatedByLlm(screen.getByLabelText('Ad detection model'));
+    expect((screen.getByRole('button', { name: 'Refresh' }) as HTMLButtonElement).disabled).toBe(false);
+  });
+});
+
+describe('AIModelsSection: unsaved pricing under None', () => {
+  it('stops reporting a pricing draft as unsaved once the section is disabled', async () => {
+    const view = renderSection();
+    await userEvent.setup().type(screen.getAllByLabelText('Input')[0], '3');
+    expect(hasUnsavedChanges()).toBe(true);
+    view.rerender(section({ llmEnabled: false }));
+    expect(hasUnsavedChanges()).toBe(false);
   });
 });

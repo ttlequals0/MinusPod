@@ -795,7 +795,7 @@ export interface WhisperCapacity {
   health: WhisperHealthProbe;
 }
 
-export type LlmProvider = 'anthropic' | 'openai-compatible' | 'ollama' | 'openrouter' | 'typesafe' | 'systemone-compatible';
+export type LlmProvider = 'none' | 'anthropic' | 'openai-compatible' | 'ollama' | 'openrouter' | 'typesafe' | 'systemone-compatible';
 // Corner the MinusPod cover-art badge renders in (issue #600).
 export type BadgePosition = 'bottom-right' | 'bottom-left' | 'top-right' | 'top-left';
 // Automatic response to a run that removed far less ad time than the feed
@@ -812,6 +812,7 @@ export interface WhisperApiConfig {
 }
 
 export const LLM_PROVIDERS = {
+  NONE: 'none' as const,
   ANTHROPIC: 'anthropic' as const,
   OPENAI_COMPATIBLE: 'openai-compatible' as const,
   OLLAMA: 'ollama' as const,
@@ -832,6 +833,7 @@ export const LLM_PROVIDER_OPTIONS: LlmProvider[] = [
 ];
 
 export const LLM_PROVIDER_LABELS: Record<LlmProvider, string> = {
+  [LLM_PROVIDERS.NONE]: 'None',
   [LLM_PROVIDERS.ANTHROPIC]: 'Anthropic',
   [LLM_PROVIDERS.OPENROUTER]: 'OpenRouter',
   [LLM_PROVIDERS.OPENAI_COMPATIBLE]: 'OpenAI Compatible',
@@ -1042,6 +1044,8 @@ export interface Settings {
   whisperLanguage: SettingValue;
   whisperComputeType: SettingValue;
   llmProvider: SettingValue;
+  // False when the primary provider is None; the UI reads this, never the provider string.
+  llmEnabled: boolean;
   omitTemperature: SettingValueBoolean;
   llmJsonSchemaEnabled: SettingValueBoolean;
   openaiBaseUrl: SettingValue;

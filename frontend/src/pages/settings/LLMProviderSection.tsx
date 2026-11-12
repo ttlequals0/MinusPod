@@ -10,9 +10,12 @@ import DraftNumberInput, { parseOptionalNumber } from '../../components/DraftNum
 import NumberInput from '../../components/NumberInput';
 import ToggleSwitch from '../../components/ToggleSwitch';
 import { selectBase, labelBase } from '../../components/fieldStyles';
+import { LLM_DISABLED_REASON, LlmGate } from './LlmGate';
 
 interface LLMProviderSectionProps {
   llmProvider: LlmProvider;
+  // Saved state from the settings response, not the select's local value.
+  llmEnabled: boolean;
   openaiBaseUrl: string;
   systemoneBaseUrl: string;
   pricingSourceMode: string;
@@ -164,6 +167,7 @@ const NONE_STATUS: ProviderStatus = { configured: false, source: 'none' };
 
 function LLMProviderSection({
   llmProvider,
+  llmEnabled,
   openaiBaseUrl,
   systemoneBaseUrl,
   pricingSourceMode,
@@ -234,6 +238,7 @@ function LLMProviderSection({
         <ProviderFields
           providerSelectId="llmProvider"
           providerLabel="Provider"
+          includeNone
           provider={llmProvider}
           onProviderChange={onProviderChange}
           baseUrlInputId={llmProvider === LLM_PROVIDERS.SYSTEMONE_COMPATIBLE ? 'systemoneBaseUrl' : 'openaiBaseUrl'}
@@ -270,6 +275,12 @@ function LLMProviderSection({
           )}
         />
 
+        {llmProvider === LLM_PROVIDERS.NONE && (
+          <p id="llm-provider-none-note" className="text-sm text-muted-foreground">
+            {LLM_DISABLED_REASON} No model calls are made. Ads are found with patterns, fingerprints, audio cues and cross-fetch comparison.
+          </p>
+        )}
+
         <AccountSwitchPreflight
           slot={SLOT_PRIMARY}
           changed={primaryAccountChanged}
@@ -302,111 +313,120 @@ function LLMProviderSection({
           </div>
         )}
 
-        <RateLimitFields
-          idPrefix="provider"
-          legend={`${SLOT_LABELS.primary} rate limits`}
-          rpm={providerRequestsPerMin}
-          onRpmChange={onProviderRequestsPerMinChange}
-          rpd={providerRequestsPerDay}
-          onRpdChange={onProviderRequestsPerDayChange}
-          tpm={providerTokensPerMin}
-          onTpmChange={onProviderTokensPerMinChange}
-        />
+        {llmProvider !== LLM_PROVIDERS.NONE && (
+          <RateLimitFields
+            idPrefix="provider"
+            legend={`${SLOT_LABELS.primary} rate limits`}
+            rpm={providerRequestsPerMin}
+            onRpmChange={onProviderRequestsPerMinChange}
+            rpd={providerRequestsPerDay}
+            onRpdChange={onProviderRequestsPerDayChange}
+            tpm={providerTokensPerMin}
+            onTpmChange={onProviderTokensPerMinChange}
+          />
+        )}
 
-        <div className="pt-4 border-t border-border space-y-4">
-          <div>
-            <label className="flex items-center gap-3 cursor-pointer">
-              <ToggleSwitch
-                checked={secondaryProviderEnabled}
-                onChange={onSecondaryProviderEnabledChange}
-                ariaLabel="Enable provider B"
+        <LlmGate
+          disabled={!llmEnabled}
+          id="llm-provider"
+          describedBy={llmProvider === LLM_PROVIDERS.NONE ? 'llm-provider-none-note' : undefined}
+          className="space-y-4"
+        >
+          <div className="pt-4 border-t border-border space-y-4">
+            <div>
+              <label className="flex items-center gap-3 cursor-pointer">
+                <ToggleSwitch
+                  checked={secondaryProviderEnabled}
+                  onChange={onSecondaryProviderEnabledChange}
+                  ariaLabel="Enable provider B"
+                />
+                <span className="text-sm font-medium text-foreground">
+                  {SLOT_LABELS.secondary}
+                </span>
+              </label>
+              <p className="mt-2 text-sm text-muted-foreground ml-14">
+                A second provider that detection, verification, chapters and the reviewer can each route to instead of {SLOT_LABELS.primary}. Both are peers; use the Failover card below for automatic switching when one is down.
+              </p>
+            </div>
+
+            {secondaryProviderEnabled && (
+              <ProviderFields
+                providerSelectId="secondaryProviderType"
+                providerLabel="Provider B type"
+                provider={secondaryProvider}
+                onProviderChange={onSecondaryProviderChange}
+                baseUrlInputId="secondaryProviderBaseUrl"
+                baseUrlLabel="Provider B base URL"
+                baseUrl={secondaryProviderBaseUrl}
+                onBaseUrlChange={onSecondaryProviderBaseUrlChange}
+                slotLabel={SLOT_LABELS.secondary}
+                timeoutSeconds={providerBTimeoutSeconds}
+                onTimeoutChange={onProviderBTimeoutSecondsChange}
+                maxRetries={providerBMaxRetries}
+                onMaxRetriesChange={onProviderBMaxRetriesChange}
+                keyProvider="secondary"
+                keyStatus={secondaryKeyStatus}
+                cryptoReady={cryptoReady}
+                keyLabel={secondaryKeyMeta.label}
+                keyPlaceholder={secondaryKeyMeta.placeholder}
+                keyHelper={secondaryKeyMeta.helper}
+                onProviderKeySave={(_provider, apiKey) => onSecondaryProviderKeySave(apiKey)}
+                onProviderKeyClear={() => onSecondaryProviderKeyClear()}
+                onProviderKeyTest={async () => {
+                  const result = await onSecondaryConnectionTest(secondaryProvider);
+                  return {
+                    ok: result.ok, detail: result.detail,
+                    error: result.ok ? undefined : result.detail,
+                    validation: result.validation, inferenceChecked: result.inferenceChecked,
+                  };
+                }}
+                onConnectionTest={(baseUrl) => onSecondaryConnectionTest(secondaryProvider, baseUrl)}
               />
-              <span className="text-sm font-medium text-foreground">
-                {SLOT_LABELS.secondary}
-              </span>
-            </label>
-            <p className="mt-2 text-sm text-muted-foreground ml-14">
-              A second provider that detection, verification, chapters and the reviewer can each route to instead of {SLOT_LABELS.primary}. Both are peers; use the Failover card below for automatic switching when one is down.
-            </p>
+            )}
+
+            {secondaryProviderEnabled && (
+              <AccountSwitchPreflight
+                slot={SLOT_SECONDARY}
+                changed={secondaryAccountChanged}
+                action={affectedRunsAction}
+                onActionChange={onAffectedRunsActionChange}
+              />
+            )}
+
+            {secondaryProviderEnabled && (
+              <RateLimitFields
+                idPrefix="secondaryProvider"
+                legend={`${SLOT_LABELS.secondary} rate limits`}
+                rpm={secondaryProviderRequestsPerMin}
+                onRpmChange={onSecondaryProviderRequestsPerMinChange}
+                rpd={secondaryProviderRequestsPerDay}
+                onRpdChange={onSecondaryProviderRequestsPerDayChange}
+                tpm={secondaryProviderTokensPerMin}
+                onTpmChange={onSecondaryProviderTokensPerMinChange}
+              />
+            )}
           </div>
 
-          {secondaryProviderEnabled && (
-            <ProviderFields
-              providerSelectId="secondaryProviderType"
-              providerLabel="Provider B type"
-              provider={secondaryProvider}
-              onProviderChange={onSecondaryProviderChange}
-              baseUrlInputId="secondaryProviderBaseUrl"
-              baseUrlLabel="Provider B base URL"
-              baseUrl={secondaryProviderBaseUrl}
-              onBaseUrlChange={onSecondaryProviderBaseUrlChange}
-              slotLabel={SLOT_LABELS.secondary}
-              timeoutSeconds={providerBTimeoutSeconds}
-              onTimeoutChange={onProviderBTimeoutSecondsChange}
-              maxRetries={providerBMaxRetries}
-              onMaxRetriesChange={onProviderBMaxRetriesChange}
-              keyProvider="secondary"
-              keyStatus={secondaryKeyStatus}
-              cryptoReady={cryptoReady}
-              keyLabel={secondaryKeyMeta.label}
-              keyPlaceholder={secondaryKeyMeta.placeholder}
-              keyHelper={secondaryKeyMeta.helper}
-              onProviderKeySave={(_provider, apiKey) => onSecondaryProviderKeySave(apiKey)}
-              onProviderKeyClear={() => onSecondaryProviderKeyClear()}
-              onProviderKeyTest={async () => {
-                const result = await onSecondaryConnectionTest(secondaryProvider);
-                return {
-                  ok: result.ok, detail: result.detail,
-                  error: result.ok ? undefined : result.detail,
-                  validation: result.validation, inferenceChecked: result.inferenceChecked,
-                };
-              }}
-              onConnectionTest={(baseUrl) => onSecondaryConnectionTest(secondaryProvider, baseUrl)}
-            />
-          )}
-
-          {secondaryProviderEnabled && (
-            <AccountSwitchPreflight
-              slot={SLOT_SECONDARY}
-              changed={secondaryAccountChanged}
-              action={affectedRunsAction}
-              onActionChange={onAffectedRunsActionChange}
-            />
-          )}
-
-          {secondaryProviderEnabled && (
-            <RateLimitFields
-              idPrefix="secondaryProvider"
-              legend={`${SLOT_LABELS.secondary} rate limits`}
-              rpm={secondaryProviderRequestsPerMin}
-              onRpmChange={onSecondaryProviderRequestsPerMinChange}
-              rpd={secondaryProviderRequestsPerDay}
-              onRpdChange={onSecondaryProviderRequestsPerDayChange}
-              tpm={secondaryProviderTokensPerMin}
-              onTpmChange={onSecondaryProviderTokensPerMinChange}
-            />
-          )}
-        </div>
-
-        <div>
-          <label htmlFor="pricingSourceMode" className={labelBase}>
-            Pricing source
-          </label>
-          <select
-            id="pricingSourceMode"
-            value={pricingSourceMode}
-            onChange={(e) => onPricingSourceModeChange(e.target.value)}
-            className={`w-full ${selectBase}`}
-            aria-describedby="pricingSourceMode-help"
-          >
-            <option value="auto">Auto (recommended)</option>
-            <option value="litellm">LiteLLM catalog</option>
-            <option value="free">None (free local models)</option>
-          </select>
-          <p id="pricingSourceMode-help" className="mt-1 text-sm text-muted-foreground">
-            Auto picks by provider. Choose None only if your endpoint serves free local models.
-          </p>
-        </div>
+          <div>
+            <label htmlFor="pricingSourceMode" className={labelBase}>
+              Pricing source
+            </label>
+            <select
+              id="pricingSourceMode"
+              value={pricingSourceMode}
+              onChange={(e) => onPricingSourceModeChange(e.target.value)}
+              className={`w-full ${selectBase}`}
+              aria-describedby="pricingSourceMode-help"
+            >
+              <option value="auto">Auto (recommended)</option>
+              <option value="litellm">LiteLLM catalog</option>
+              <option value="free">None (free local models)</option>
+            </select>
+            <p id="pricingSourceMode-help" className="mt-1 text-sm text-muted-foreground">
+              Auto picks by provider. Choose None only if your endpoint serves free local models.
+            </p>
+          </div>
+        </LlmGate>
       </div>
     </CollapsibleSection>
   );

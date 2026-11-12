@@ -79,6 +79,8 @@ interface ProviderFieldsProps {
   onProviderKeyTest: (provider: ProviderName) => Promise<ProviderTestResult>;
   onConnectionTest: (baseUrl?: string) => Promise<ConnectionTestResult>;
   allowSystemOne?: boolean;
+  // Only the primary provider can be None; secondary and failover selects never offer it.
+  includeNone?: boolean;
 }
 
 export function ProviderFields({
@@ -87,36 +89,44 @@ export function ProviderFields({
   slotLabel, timeoutSeconds, onTimeoutChange, maxRetries, onMaxRetriesChange,
   keyProvider, keyStatus, cryptoReady, keyLabel, keyPlaceholder, keyHelper,
   onProviderKeySave, onProviderKeyClear, onProviderKeyTest, onConnectionTest,
-  allowSystemOne = true,
+  allowSystemOne = true, includeNone = false,
 }: ProviderFieldsProps) {
   const hasBaseUrl = provider === LLM_PROVIDERS.OPENAI_COMPATIBLE || provider === LLM_PROVIDERS.OLLAMA || provider === LLM_PROVIDERS.SYSTEMONE_COMPATIBLE;
   const hasFixedEndpoint = provider === LLM_PROVIDERS.ANTHROPIC || provider === LLM_PROVIDERS.OPENROUTER || provider === LLM_PROVIDERS.TYPESAFE;
   const providerOptions = allowSystemOne ? LLM_PROVIDER_OPTIONS : LLM_PROVIDER_OPTIONS.filter(
     (p) => p !== LLM_PROVIDERS.TYPESAFE && p !== LLM_PROVIDERS.SYSTEMONE_COMPATIBLE,
   );
+  const selectOptions = includeNone ? [...providerOptions, LLM_PROVIDERS.NONE] : providerOptions;
   const defaults = providerDefaults(provider);
   const nativeSystemOne = provider === LLM_PROVIDERS.TYPESAFE || provider === LLM_PROVIDERS.SYSTEMONE_COMPATIBLE;
 
+  const providerSelect = (
+    <div>
+      <label htmlFor={providerSelectId} className={labelBase}>
+        {providerLabel}
+      </label>
+      <select
+        id={providerSelectId}
+        value={provider}
+        onChange={(e) => onProviderChange(e.target.value as LlmProvider)}
+        className={`w-full ${selectBase}`}
+      >
+        {/* No type saved yet: without an option of its own the select would
+            render blank, reading as the first provider in the list. */}
+        {!provider && <option value="">Choose a provider</option>}
+        {selectOptions.map((p) => (
+          <option key={p} value={p}>{LLM_PROVIDER_LABELS[p]}</option>
+        ))}
+      </select>
+    </div>
+  );
+
+  // None has no endpoint, key or limits to configure.
+  if (provider === LLM_PROVIDERS.NONE) return providerSelect;
+
   return (
     <>
-      <div>
-        <label htmlFor={providerSelectId} className={labelBase}>
-          {providerLabel}
-        </label>
-        <select
-          id={providerSelectId}
-          value={provider}
-          onChange={(e) => onProviderChange(e.target.value as LlmProvider)}
-          className={`w-full ${selectBase}`}
-        >
-          {/* No type saved yet: without an option of its own the select would
-              render blank, reading as the first provider in the list. */}
-          {!provider && <option value="">Choose a provider</option>}
-          {providerOptions.map((p) => (
-            <option key={p} value={p}>{LLM_PROVIDER_LABELS[p]}</option>
-          ))}
-        </select>
-      </div>
+      {providerSelect}
 
       {hasBaseUrl && (
         <div>

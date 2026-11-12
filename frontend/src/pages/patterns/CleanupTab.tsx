@@ -22,6 +22,8 @@ import { btnBase, btnPrimary, btnOutline } from '../../components/buttonStyles';
 import { focusRing, selectBase, filterLabel, filterControl } from '../../components/fieldStyles';
 import { badgeBase, tint } from '../../components/badgeStyles';
 import { DemoDisabled } from '../../components/DemoDisabled';
+import { useLlmEnabled } from '../../hooks/useLlmEnabled';
+import { LLM_DISABLED_REASON } from '../settings/LlmGate';
 
 type KindFilter = CleanupKind | 'all';
 
@@ -332,6 +334,7 @@ const ACTIONS = {
 };
 
 export default function CleanupTab() {
+  const llmEnabled = useLlmEnabled();
   const [kind, setKind] = useState<KindFilter>('all');
   const [status, setStatus] = useState<CleanupStatus>('pending');
   const [selected, setSelected] = useState<Set<number>>(new Set());
@@ -469,7 +472,9 @@ export default function CleanupTab() {
       {error && <div className="text-destructive text-sm">Could not load suggestions.</div>}
       {!isLoading && !error && items.length === 0 && (
         <div className="bg-card rounded-lg border border-border p-8 text-center text-sm text-muted-foreground">
-          {status === 'pending' && kind === 'all' ? (
+          {status === 'pending' && kind === 'all' && !llmEnabled ? (
+            <>No suggestions yet. Pattern cleanup is unavailable. {LLM_DISABLED_REASON}</>
+          ) : status === 'pending' && kind === 'all' ? (
             <>
               No suggestions yet. Run cleanup from{' '}
               <Link to="/settings" className={`text-primary hover:underline ${focusRing}`}>

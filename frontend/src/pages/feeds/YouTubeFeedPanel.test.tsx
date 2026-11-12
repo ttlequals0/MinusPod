@@ -12,6 +12,9 @@ vi.mock('../../components/CollapsibleSection', () => ({
   ),
 }));
 
+const mockSettings = vi.fn();
+vi.mock('../../api/settings', () => ({ getSettings: (...args: unknown[]) => mockSettings(...args) }));
+
 const mockUpdateFeed = vi.fn();
 const mockUploadFeedArtwork = vi.fn();
 vi.mock('../../api/feeds', () => ({
@@ -55,6 +58,7 @@ function renderPanel(overrides: Partial<Feed> = {}) {
 describe('YouTubeFeedPanel', () => {
   beforeEach(() => {
     mockEnabled = true;
+    mockSettings.mockResolvedValue({ llmEnabled: true });
     mockGetSettings.mockReset();
     mockGetSettings.mockResolvedValue(undefined);
     mockUpdateFeed.mockReset();
@@ -232,5 +236,24 @@ describe('YouTubeFeedPanel', () => {
     await userEvent.type(input, '60');
     await userEvent.tab();
     await waitFor(() => expect(mockUpdateFeed).toHaveBeenCalledWith('yt', { ytProcessDelayMinutesOverride: 60 }));
+  });
+});
+
+describe('YouTubeFeedPanel under LLM provider None', () => {
+  beforeEach(() => {
+    mockEnabled = true;
+    mockGetSettings.mockReset();
+    mockGetSettings.mockResolvedValue(undefined);
+    mockSettings.mockResolvedValue({ llmEnabled: false });
+  });
+
+  it('disables the two model options with the reason and leaves captions alone', async () => {
+    renderPanel();
+    const fallback = await screen.findByLabelText('LLM fallback') as HTMLSelectElement;
+    await waitFor(() => expect(fallback.disabled).toBe(true));
+    expect((screen.getByLabelText('Pass 1 detection') as HTMLSelectElement).disabled).toBe(true);
+    expect((screen.getByLabelText('Use captions as transcript') as HTMLSelectElement).disabled).toBe(false);
+    const help = document.getElementById(fallback.getAttribute('aria-describedby')!);
+    expect(help?.textContent).toContain('LLM provider is set to None.');
   });
 });
