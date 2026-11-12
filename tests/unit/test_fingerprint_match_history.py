@@ -263,3 +263,18 @@ def test_unmark_rejected_never_touches_another_podcast(temp_db, pattern):
     temp_db.mark_fingerprint_match_rejected(pattern, 'other', 'epY', 100, 140)
     assert temp_db.unmark_fingerprint_match_rejected(pattern, 'show', 'epY', 100, 140) is False
     assert temp_db.get_fingerprint_match(other)['rejected'] == 1
+
+
+def test_deleting_a_feed_clears_the_source_of_surviving_fingerprints(temp_db):
+    temp_db.create_podcast('show', 'https://example.com/feed.xml', 'Show')
+    shared = temp_db.create_ad_pattern(scope='global', text_template='acme read ' * 12)
+    elsewhere = temp_db.create_ad_pattern(scope='global', text_template='beta read ' * 12)
+    temp_db.create_audio_fingerprint(shared, b'AQAA', 30.0, 'show', 'epA', 10.0, 40.0)
+    temp_db.create_audio_fingerprint(elsewhere, b'AQAB', 30.0, 'other', 'epB', 10.0, 40.0)
+    assert temp_db.delete_podcast('show')
+    gone = temp_db.get_audio_fingerprint(shared)
+    assert gone['fingerprint'] == b'AQAA'
+    assert (gone['source_podcast_slug'], gone['source_episode_id'],
+            gone['source_start'], gone['source_end']) == (None, None, None, None)
+    kept = temp_db.get_audio_fingerprint(elsewhere)
+    assert (kept['source_podcast_slug'], kept['source_episode_id']) == ('other', 'epB')
