@@ -8,6 +8,7 @@ const RETRY_DELAYS = [1000, 3000]; // 2 retries with 1s and 3s backoff
 const BUSY_DEFAULT_MS = 5000;
 const BUSY_MIN_MS = 1000;
 const BUSY_MAX_MS = 30000;
+const RATE_LIMIT_MAX_WAIT_MS = 5000;
 const BUSY_WAIT_METHODS = new Set(['GET', 'HEAD']);
 
 const JOB_STATES = new Set(['idle', 'submitting', 'queued', 'processing']);
@@ -76,7 +77,7 @@ function busyWaitMs(response: Response): number {
   return Math.min(BUSY_MAX_MS, Math.max(BUSY_MIN_MS, retryAfterMs(response) ?? BUSY_DEFAULT_MS));
 }
 
-export function sleep(ms: number, signal?: AbortSignal): Promise<void> {
+function sleep(ms: number, signal?: AbortSignal): Promise<void> {
   return new Promise((resolve, reject) => {
     if (signal?.aborted) {
       reject(signal.reason);
@@ -221,11 +222,12 @@ export async function apiRequest<T>(endpoint: string, options: RequestOptions = 
               continue;
             }
           } else if (attempt < maxAttempts - 1) {
-            const delay = busy ? busyWaitMs(response)
-              : response.status === 429 ? retryAfterMs(response) ?? RETRY_DELAYS[attempt]
-                : RETRY_DELAYS[attempt];
-            await sleep(delay, signal);
-            continue;
+            const headerWait = response.status === 429 ? retryAfterMs(response) : null;
+            // A long rate-limit wait must not hang a user action: surface the 429 instead.
+            if (headerWait === null || headerWait <= RATE_LIMIT_MAX_WAIT_MS) {
+              await sleep(headerWait ?? RETRY_DELAYS[attempt], signal);
+              continue;
+            }
           }
         }
         const error = await response.json().catch(() => null);
