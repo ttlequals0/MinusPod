@@ -85,6 +85,8 @@ Use `WHISPER_DEVICE=cpu` with the CPU image or `WHISPER_DEVICE=cuda` with the NV
 
 The first use downloads weights into `$HF_HOME/parakeet/nemo-parakeet-tdt-0.6b-v3`, normally `/app/data/.cache/parakeet/nemo-parakeet-tdt-0.6b-v3`. CPU uses int8 weights; CUDA uses the unquantized export. Download sizes, RAM guidance, and the resource-measurement procedure are in [Installation > Parakeet sizing](installation.md#parakeet-sizing).
 
+After the first download the model is checked online at most once every 7 days, so upstream updates still arrive, and normal loads skip the network. If a check fails, MinusPod logs a warning, uses the local copy and tries again no sooner than an hour later. To force a re-download, delete the `.minuspod-complete-*.json` file in the model directory and the next load fetches the files again.
+
 The decoder uses 30-second windows with 2-second overlap. Each model call is bounded, but the input WAV and transcript data still consume system RAM. Longer inputs and concurrent processing can increase total memory use.
 
 For an offline installation, first complete a transcription on a connected instance using the same device mode. Preserve the entire model directory, including external weights and vocabulary. A complete local copy lets the loader continue when a later download attempt fails; an incomplete cache cannot. Keep the directory writable for normal model updates.

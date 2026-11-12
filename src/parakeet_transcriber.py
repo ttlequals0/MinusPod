@@ -8,6 +8,7 @@ import os
 import re
 import string
 import threading
+import time
 import unicodedata
 import wave
 
@@ -21,6 +22,12 @@ from config import (
 from utils.errors import ModelLoadError
 
 logger = logging.getLogger('podcast.parakeet')
+
+# Online model check cadence: at most weekly, and a failed check waits an hour before the next attempt.
+PARAKEET_MODEL_RECHECK_SECONDS = 7 * 86400
+PARAKEET_MODEL_RETRY_SECONDS = 3600
+_clock = time.time
+_last_failed_check = {}
 
 WORD_MARKER = '\u2581'
 _SPECIAL_TOKEN = re.compile(r'^(<\|.*\|>|<unk>|<pad>|<blk>)$')
@@ -57,23 +64,48 @@ def _matches(model_dir, pattern):
     return [p for p in glob.glob(os.path.join(glob.escape(model_dir), pattern)) if os.path.isfile(p)]
 
 
-def _model_files_complete(model_dir, quantization):
-    """True only if a finished fetch recorded these files and each is still present at its recorded size."""
+def _read_record(model_dir, quantization):
+    """The parsed completion record, or None when it is missing or unreadable."""
     try:
         with open(_record_path(model_dir, quantization), encoding='utf-8') as f:
             record = json.load(f)
-        if record['repo'] != PARAKEET_MODEL_REPO:
+        return record if isinstance(record, dict) else None
+    except (OSError, ValueError):
+        return None
+
+
+def _model_files_complete(model_dir, quantization):
+    """True only if a finished fetch recorded these files and each is still present at its recorded size."""
+    record = _read_record(model_dir, quantization)
+    try:
+        if record is None or record['repo'] != PARAKEET_MODEL_REPO:
             return False
         required, _ = _model_patterns(quantization)
         recorded = {os.path.join(model_dir, name): size for name, size in record['files'].items()}
         return (all(any(p in recorded for p in _matches(model_dir, pat)) for pat in required)
                 and all(os.path.isfile(p) and os.path.getsize(p) == size for p, size in recorded.items()))
-    except (OSError, ValueError, AttributeError, TypeError, KeyError):
+    except (OSError, AttributeError, TypeError, KeyError):
         return False
 
 
-def _record_model_files(model_dir, quantization):
-    """Record the source repo and each file's size so a later load can skip the network check."""
+def _checked_at(model_dir, quantization):
+    """Epoch seconds of the last successful online check, or None when unrecorded or unusable."""
+    value = (_read_record(model_dir, quantization) or {}).get('checked_at')
+    return value if isinstance(value, (int, float)) and not isinstance(value, bool) else None
+
+
+def _recheck_due(model_dir, quantization, now):
+    checked = _checked_at(model_dir, quantization)
+    return checked is None or checked > now or now - checked >= PARAKEET_MODEL_RECHECK_SECONDS
+
+
+def _required_files_present(model_dir, quantization):
+    required, _ = _model_patterns(quantization)
+    return all(_matches(model_dir, pat) for pat in required)
+
+
+def _record_model_files(model_dir, quantization, checked_at):
+    """Record the source repo, each file's size and the last online check so a later load can skip the network."""
     required, optional = _model_patterns(quantization)
     if not all(_matches(model_dir, pat) for pat in required):
         return
@@ -82,8 +114,11 @@ def _record_model_files(model_dir, quantization):
     try:
         sizes = {os.path.relpath(p, model_dir): os.path.getsize(p)
                  for pat in required + optional for p in _matches(model_dir, pat)}
+        content = {'repo': PARAKEET_MODEL_REPO, 'files': sizes}
+        if checked_at is not None:
+            content['checked_at'] = checked_at
         with open(tmp, 'w', encoding='utf-8') as f:
-            json.dump({'repo': PARAKEET_MODEL_REPO, 'files': sizes}, f)
+            json.dump(content, f)
         os.replace(tmp, record)
     except OSError as e:
         logger.debug("Could not record Parakeet model files: %s", e)
@@ -92,22 +127,32 @@ def _record_model_files(model_dir, quantization):
 
 
 def _fetch_model_files(model_dir, quantization):
-    """Download the model files into model_dir unless a finished fetch is on disk; fall back to a local copy when offline."""
-    if _model_files_complete(model_dir, quantization):
+    """Download the model files unless a recent check is on disk; a failed check uses the local copy when it is whole."""
+    now = _clock()
+    key = (model_dir, quantization)
+    if _model_files_complete(model_dir, quantization) and not _recheck_due(model_dir, quantization, now):
+        return
+    failed_at = _last_failed_check.get(key)
+    if (failed_at is not None and 0 <= now - failed_at < PARAKEET_MODEL_RETRY_SECONDS
+            and _required_files_present(model_dir, quantization)):
         return
     from huggingface_hub import snapshot_download
     suffix = f'?{quantization}' if quantization else ''
     patterns = ['config.json', 'config.yaml', 'vocab.txt']
     for name in ('encoder-model', 'decoder_joint-model'):
         patterns += [f'{name}{suffix}.onnx', f'{name}{suffix}.onnx?data']
+    previous = _checked_at(model_dir, quantization)
     try:
         snapshot_download(PARAKEET_MODEL_REPO, local_dir=model_dir, allow_patterns=patterns)
     except Exception as e:
-        encoder = os.path.join(model_dir, f'encoder-model{suffix.replace("?", ".")}.onnx')
-        if not os.path.isfile(encoder):
+        if not _required_files_present(model_dir, quantization):
             raise
-        logger.warning("Parakeet model download failed, using the local copy: %s", e)
-    _record_model_files(model_dir, quantization)
+        _last_failed_check[key] = now
+        logger.warning("Parakeet model check failed (%s), using the local copy", type(e).__name__)
+        _record_model_files(model_dir, quantization, previous)
+        return
+    _last_failed_check.pop(key, None)
+    _record_model_files(model_dir, quantization, now)
 
 
 def _warn_on_cpu_fallback(model, device):

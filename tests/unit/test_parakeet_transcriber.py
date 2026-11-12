@@ -286,8 +286,7 @@ def _offline_snapshot(repo, local_dir=None, allow_patterns=None):
 
 def test_get_instance_offline_uses_local_copy(monkeypatch, tmp_path, clean_singleton):
     model_dir = tmp_path / 'parakeet' / pt.PARAKEET_MODEL_NAME
-    model_dir.mkdir(parents=True)
-    (model_dir / 'encoder-model.int8.onnx').write_bytes(b'x')
+    _write_model_files(model_dir, 'int8')
     loaded = types.SimpleNamespace(with_timestamps=lambda: 'ts-model')
     _fake_modules(monkeypatch, lambda *a, **k: loaded, snapshot=_offline_snapshot)
     monkeypatch.setattr(pt, 'resolve_whisper_device', lambda: 'cpu')
@@ -352,6 +351,22 @@ def test_merge_windows_dedupes_past_a_drifted_earlier_word():
     merged = pt._merge_windows([(0.0, 756.0, a), (756.0, 790.0, b)])
     assert [w['word'] for w in merged].count('can') == 1
     assert merged[-1]['word'] == 'feel'
+
+
+class _Clock:
+    def __init__(self):
+        self.now = 1_000_000.0
+
+    def __call__(self):
+        return self.now
+
+
+@pytest.fixture(autouse=True)
+def clock(monkeypatch):
+    fake = _Clock()
+    monkeypatch.setattr(pt, '_clock', fake)
+    monkeypatch.setattr(pt, '_last_failed_check', {})
+    return fake
 
 
 def _write_model_files(model_dir, quantization=None, sizes=None):
@@ -433,14 +448,12 @@ def test_fetch_records_a_complete_local_copy_used_offline(tmp_path, monkeypatch)
     assert calls == []
 
 
-def test_fetch_records_nothing_for_an_incomplete_local_copy_used_offline(tmp_path, monkeypatch):
+def test_incomplete_local_copy_used_offline_fails_with_the_download_error(tmp_path, monkeypatch):
     (tmp_path / 'encoder-model.int8.onnx').write_bytes(b'x')
     _offline_hub(monkeypatch)
-    pt._fetch_model_files(str(tmp_path), 'int8')
+    with pytest.raises(OSError, match='no network'):
+        pt._fetch_model_files(str(tmp_path), 'int8')
     assert not list(tmp_path.glob('.minuspod-complete*'))
-    calls = _track_snapshot(monkeypatch)
-    pt._fetch_model_files(str(tmp_path), 'int8')
-    assert len(calls) == 1
 
 
 def test_completion_record_is_per_quantization(tmp_path, monkeypatch):
@@ -580,3 +593,134 @@ def test_get_instance_tolerates_onnxruntime_without_severity_api(monkeypatch, cl
     _fake_modules(monkeypatch, lambda *a, **k: loaded)
     monkeypatch.setattr(pt, 'resolve_whisper_device', lambda: 'cpu')
     assert pt.ParakeetModelSingleton.get_instance() == 'ts-model'
+
+
+WEEK = pt.PARAKEET_MODEL_RECHECK_SECONDS
+
+
+def _fetch_once(tmp_path, monkeypatch, snapshot=None, quantization=None):
+    calls = []
+
+    def snap(repo, local_dir=None, allow_patterns=None):
+        calls.append(1)
+        if snapshot:
+            snapshot()
+
+    hub = types.ModuleType('huggingface_hub')
+    hub.snapshot_download = snap
+    monkeypatch.setitem(sys.modules, 'huggingface_hub', hub)
+    pt._fetch_model_files(str(tmp_path), quantization)
+    return calls
+
+
+def _prime(tmp_path, monkeypatch):
+    _fetch_once(tmp_path, monkeypatch, snapshot=lambda: _write_model_files(tmp_path))
+
+
+def _record(tmp_path):
+    (record,) = tmp_path.glob('.minuspod-complete*')
+    return json.loads(record.read_text())
+
+
+def _failing_hub(monkeypatch, effect=None, error=None):
+    attempts = []
+
+    def snap(repo, local_dir=None, allow_patterns=None):
+        attempts.append(1)
+        if effect:
+            effect()
+        raise error or ConnectionError('https://huggingface.co/x?token=SECRET unreachable')
+
+    hub = types.ModuleType('huggingface_hub')
+    hub.snapshot_download = snap
+    monkeypatch.setitem(sys.modules, 'huggingface_hub', hub)
+    return attempts
+
+
+def test_record_carries_the_time_of_the_last_online_check(tmp_path, monkeypatch, clock):
+    _prime(tmp_path, monkeypatch)
+    assert _record(tmp_path)['checked_at'] == clock.now
+
+
+def test_fresh_record_skips_the_network(tmp_path, monkeypatch, clock):
+    _prime(tmp_path, monkeypatch)
+    clock.now += WEEK - 1
+    assert _fetch_once(tmp_path, monkeypatch) == []
+
+
+def test_old_record_rechecks_and_rewrites_the_record_with_new_files(tmp_path, monkeypatch, clock):
+    _prime(tmp_path, monkeypatch)
+    clock.now += WEEK
+    calls = _fetch_once(tmp_path, monkeypatch, snapshot=lambda: _write_model_files(tmp_path, sizes={'vocab.txt': 9}))
+    assert len(calls) == 1
+    record = _record(tmp_path)
+    assert record['checked_at'] == clock.now and record['files']['vocab.txt'] == 9
+    assert (tmp_path / 'vocab.txt').stat().st_size == 9
+
+
+@pytest.mark.parametrize('edit', [lambda r: r.pop('checked_at'), lambda r: r.update(checked_at='soon'),
+                                  lambda r: r.update(checked_at=9e9)],
+                         ids=['missing', 'not-a-number', 'future'])
+def test_unusable_checked_at_counts_as_due_not_incomplete(tmp_path, monkeypatch, edit):
+    _prime(tmp_path, monkeypatch)
+    _rewrite_record(tmp_path, lambda rec: (edit(rec), rec)[1])
+    assert len(_fetch_once(tmp_path, monkeypatch)) == 1
+
+
+def test_failed_recheck_uses_the_local_copy_and_keeps_checked_at(tmp_path, monkeypatch, clock, caplog):
+    _prime(tmp_path, monkeypatch)
+    first = clock.now
+    clock.now += WEEK
+    attempts = _failing_hub(monkeypatch)
+    with caplog.at_level(logging.WARNING, logger=pt.logger.name):
+        pt._fetch_model_files(str(tmp_path), None)
+    assert len(attempts) == 1
+    warnings = [r for r in caplog.records if r.levelno == logging.WARNING]
+    assert len(warnings) == 1
+    assert 'ConnectionError' in warnings[0].getMessage() and 'SECRET' not in warnings[0].getMessage()
+    assert _record(tmp_path)['checked_at'] == first
+
+
+def test_failed_recheck_is_not_retried_within_the_hour_but_is_after(tmp_path, monkeypatch, clock):
+    _prime(tmp_path, monkeypatch)
+    clock.now += WEEK
+    attempts = _failing_hub(monkeypatch)
+    pt._fetch_model_files(str(tmp_path), None)
+    clock.now += 3599
+    pt._fetch_model_files(str(tmp_path), None)
+    assert len(attempts) == 1
+    clock.now += 1
+    pt._fetch_model_files(str(tmp_path), None)
+    assert len(attempts) == 2
+
+
+def test_recheck_that_raises_after_replacing_nothing_still_loads(tmp_path, monkeypatch, clock):
+    _prime(tmp_path, monkeypatch)
+    before = {p.name: p.read_bytes() for p in tmp_path.iterdir() if not p.name.startswith('.')}
+    clock.now += WEEK
+    _failing_hub(monkeypatch)
+    pt._fetch_model_files(str(tmp_path), None)
+    assert {p.name: p.read_bytes() for p in tmp_path.iterdir() if not p.name.startswith('.')} == before
+
+
+def test_recheck_that_leaves_a_truncated_file_still_loads_and_rerecords_sizes(tmp_path, monkeypatch, clock):
+    _prime(tmp_path, monkeypatch)
+    clock.now += WEEK
+    _failing_hub(monkeypatch, effect=lambda: (tmp_path / 'encoder-model.onnx.data').write_bytes(b'x'))
+    pt._fetch_model_files(str(tmp_path), None)
+    assert _record(tmp_path)['files']['encoder-model.onnx.data'] == 1
+
+
+def test_recheck_that_loses_a_required_file_fails_with_the_download_error(tmp_path, monkeypatch, clock):
+    _prime(tmp_path, monkeypatch)
+    clock.now += WEEK
+    _failing_hub(monkeypatch, effect=lambda: (tmp_path / 'vocab.txt').unlink())
+    with pytest.raises(ConnectionError):
+        pt._fetch_model_files(str(tmp_path), None)
+
+
+def test_skip_path_does_not_touch_the_hub(tmp_path, monkeypatch):
+    _prime(tmp_path, monkeypatch)
+    monkeypatch.delitem(sys.modules, 'huggingface_hub')
+    monkeypatch.setattr(sys, 'meta_path', [])
+    pt._fetch_model_files(str(tmp_path), None)
