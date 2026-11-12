@@ -1057,3 +1057,43 @@ def test_youtube_import_accepts_a_video_source(temp_db):
     preview = config_transfer.build_preview(temp_db, document, 'feeds', ['yt-new'])
     config_transfer.apply_config(temp_db, document, 'feeds', ['yt-new'], preview['previewToken'])
     assert temp_db.get_podcast_by_slug('yt-new')['youtube_source_kind'] == 'video'
+
+
+LONG_OVERRIDE = 'N' * 120
+
+
+def _legacy_long_override_feed(db):
+    db.create_podcast('local-archive', 'local://local-archive', 'Archive', feed_type='local')
+    conn = db.get_connection()
+    conn.execute("UPDATE podcasts SET network_id_override = ? WHERE slug = 'local-archive'", (LONG_OVERRIDE,))
+    conn.commit()
+
+
+def _local_entry(exported):
+    return next(feed for feed in exported['feeds'] if feed['slug'] == 'local-archive')
+
+
+def test_a_stored_over_long_network_override_exports_and_imports(temp_db, monkeypatch):
+    _legacy_long_override_feed(temp_db)
+    exported = config_transfer.export_config(temp_db, '2.98.2')
+    assert _local_entry(exported)['settings']['network_id_override'] == LONG_OVERRIDE
+    monkeypatch.setattr(config_transfer, '_after_feed_commit', lambda *_args: [])
+    preview = config_transfer.build_preview(temp_db, exported, 'everything')
+    config_transfer.apply_config(temp_db, exported, 'everything', None, preview['previewToken'])
+    assert temp_db.get_podcast_by_slug('local-archive')['network_id_override'] == LONG_OVERRIDE
+
+
+def test_a_new_over_long_network_override_is_rejected_on_import(temp_db):
+    temp_db.create_podcast('local-archive', 'local://local-archive', 'Archive', feed_type='local')
+    exported = config_transfer.export_config(temp_db, '2.98.2')
+    _local_entry(exported)['settings']['network_id_override'] = LONG_OVERRIDE
+    with pytest.raises(ConfigTransferError):
+        config_transfer.build_preview(temp_db, exported, 'everything')
+
+
+def test_changing_a_stored_over_long_override_to_another_is_rejected_on_import(temp_db):
+    _legacy_long_override_feed(temp_db)
+    exported = config_transfer.export_config(temp_db, '2.98.2')
+    _local_entry(exported)['settings']['network_id_override'] = 'M' * 120
+    with pytest.raises(ConfigTransferError):
+        config_transfer.build_preview(temp_db, exported, 'everything')

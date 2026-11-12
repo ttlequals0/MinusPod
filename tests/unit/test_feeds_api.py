@@ -1035,3 +1035,29 @@ def test_patch_network_id_override_rejects_bad_values(app_client, seeded_feed, b
                             headers=_csrf_headers(app_client))
     assert resp.status_code == 400
     assert seeded_feed['db'].get_podcast_by_slug(slug)['network_id_override'] is None
+
+
+def _store_legacy_override(db, slug, value):
+    conn = db.get_connection()
+    conn.execute("UPDATE podcasts SET network_id_override = ? WHERE slug = ?", (value, slug))
+    conn.commit()
+
+
+def test_patch_resending_a_stored_over_long_override_is_allowed(app_client, seeded_feed):
+    slug = seeded_feed['slug']
+    _store_legacy_override(seeded_feed['db'], slug, 'N' * 120)
+    _authed(app_client)
+    resp = app_client.patch(f'/api/v1/feeds/{slug}', json={'networkIdOverride': 'N' * 120},
+                            headers=_csrf_headers(app_client))
+    assert resp.status_code == 200
+    assert seeded_feed['db'].get_podcast_by_slug(slug)['network_id_override'] == 'N' * 120
+
+
+def test_patch_changing_a_stored_over_long_override_to_another_is_rejected(app_client, seeded_feed):
+    slug = seeded_feed['slug']
+    _store_legacy_override(seeded_feed['db'], slug, 'N' * 120)
+    _authed(app_client)
+    resp = app_client.patch(f'/api/v1/feeds/{slug}', json={'networkIdOverride': 'M' * 120},
+                            headers=_csrf_headers(app_client))
+    assert resp.status_code == 400
+    assert seeded_feed['db'].get_podcast_by_slug(slug)['network_id_override'] == 'N' * 120

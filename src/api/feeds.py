@@ -67,7 +67,7 @@ from utils.paths import RECENTS_ARTWORK_PATH
 from utils.text import truncate
 from api.episodes.core import _episode_base_json
 from api.episodes.common import _job_state
-from database.podcasts import (EPISODE_STATUSES, MAX_NETWORK_ID_CHARS, RECENTS_SLUG, PodcastMixin, has_upstream, has_upstream_audio, is_local_feed,
+from database.podcasts import (EPISODE_STATUSES, MAX_NETWORK_ID_CHARS, RECENTS_SLUG, PodcastMixin, normalize_network_id, has_upstream, has_upstream_audio, is_local_feed,
                                is_recents_feed, is_youtube_feed, recents_cutoff)
 from youtube import urls as yt_urls
 from youtube.feed import source_link as youtube_source_link
@@ -2107,7 +2107,8 @@ def update_feed(slug):
         network_override = updates['network_id_override']
         if network_override is not None and not isinstance(network_override, str):
             return error_response('networkIdOverride must be a string or null', 400)
-        if len((network_override or '').strip()) > MAX_NETWORK_ID_CHARS:
+        changed = normalize_network_id(network_override) != normalize_network_id(podcast.get('network_id_override'))
+        if changed and len((network_override or '').strip()) > MAX_NETWORK_ID_CHARS:
             return error_response(f'networkIdOverride must be at most {MAX_NETWORK_ID_CHARS} characters', 400)
 
     # Local-only metadata fields (Task 6): title/author/explicit/categories/p20

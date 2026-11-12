@@ -30,7 +30,7 @@ from db_backup_service import (
     DEFAULT_CRON as DB_BACKUP_DEFAULT_CRON,
     KEEP_COUNT_MAX, KEEP_COUNT_MIN, validate_backup_dest,
 )
-from database.podcasts import FEED_TYPES, MAX_NETWORK_ID_CHARS
+from database.podcasts import FEED_TYPES, MAX_NETWORK_ID_CHARS, normalize_network_id
 from database.settings import SETTINGS_REGISTRY, registry_default
 from systemone.tuning import SystemOneSettingsError, merge_profile, profile_from_snapshot
 from fx_rates import FxRateError, get_usd_rate
@@ -1177,7 +1177,8 @@ def _validated_feed_updates(db, podcast, payload, feed_type, *, confirmed_ceilin
                      'network_id_override', 'website_url', 'auto_process_override'):
             if value is not None and not isinstance(value, str):
                 raise ConfigTransferError(f'{key} must be a string or null')
-            if key == 'network_id_override' and value is not None and len(value.strip()) > MAX_NETWORK_ID_CHARS:
+            if (key == 'network_id_override' and value is not None and len(value.strip()) > MAX_NETWORK_ID_CHARS
+                    and normalize_network_id(value) != normalize_network_id((podcast or {}).get(key))):
                 raise ConfigTransferError(f'network_id_override must be at most {MAX_NETWORK_ID_CHARS} characters')
             if key == 'auto_process_override' and value not in (None, 'true', 'false', '1', '0'):
                 raise ConfigTransferError('auto_process_override is invalid')

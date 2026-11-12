@@ -894,12 +894,12 @@ paths:
                   type:
                     - string
                     - 'null'
-                  maxLength: 100
                   description: >-
                     Network to assign this feed to: a known network id, or a
                     custom name that links feeds sharing the same value (null
                     uses the auto-detected network). Surrounding whitespace is
-                    trimmed and a blank value clears the override. The
+                    trimmed and a blank value clears the override. A changed value may be
+                    at most 100 characters. The
                     effective network is the override when set, else the
                     auto-detected one.
                 daiPlatform:
