@@ -467,10 +467,9 @@ class FingerprintMatchMixin:
                 logger.warning("Skipped unreadable stored markers of episode row %s "
                                "in the fingerprint match backfill", row['row_id'])
                 continue
-            planned = plan_fingerprint_matches(markers) + [
-                p for p in plan_demoted_fingerprint_matches(markers)
-                if any(_mostly_overlaps(rlo, rhi, *p[1])
-                       for rlo, rhi, _ in rejections.get((p[0], row['slug'], row['episode_id']), ()))]
+            planned = []
+            for marker in markers:
+                planned += self._planned_with_rejections(marker, row['slug'], row['episode_id'], rejections)
             if planned:
                 planned_episodes.append((row['slug'], row['episode_id'],
                                          _iso_or(row['processed_at'], now), planned))
@@ -486,6 +485,27 @@ class FingerprintMatchMixin:
                 inserts.append((pattern_id, episode_id, slug, lo, hi, similarity, coverage, int(in_scope),
                                 int(audio_only), int(rejected_at is not None), rejected_at, created_at))
         return inserts
+
+    @staticmethod
+    def _planned_with_rejections(marker: dict, slug: str, episode_id: str, rejections: dict) -> list[tuple]:
+        """A marker's planned members; a rejection of any member's pattern covers all of them.
+
+        A demoted marker keeps only members that majority-overlap a rejection. Adds the shared spans to
+        rejections so the row loop marks each member rejected.
+        """
+        planned = plan_fingerprint_matches([marker]) or plan_demoted_fingerprint_matches([marker])
+        demoted = not plan_fingerprint_matches([marker])
+        group = {p[0] for p in planned} | {marker.get('pattern_id')}
+        spans = [span for pid in group for span in rejections.get((pid, slug, episode_id), ())]
+        if not spans:
+            return [] if demoted else planned
+        for pid in group:
+            if pid is not None:
+                rejections[(pid, slug, episode_id)] = list(dict.fromkeys(
+                    [*rejections.get((pid, slug, episode_id), ()), *spans]))
+        if demoted:
+            return [p for p in planned if any(_mostly_overlaps(lo, hi, *p[1]) for lo, hi, _ in spans)]
+        return planned
 
     def _stored_rejections(self, fallback_at: str) -> dict:
         """{(pattern_id, slug, episode_id): [(start, end, rejected_at)]} from false-positive corrections, oldest first.

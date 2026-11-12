@@ -478,3 +478,19 @@ def test_the_log_line_caps_the_listed_pattern_ids(seeded, caplog):
     listed = re.search(r'out of scope[^\[]*\[([^\]]*)\]', line).group(1).split(',')
     assert len(listed) == 50
     assert re.search(r'and 3 more', line)
+
+
+@pytest.mark.parametrize('demoted', [False, True])
+def test_a_correction_rejects_every_overlapping_member_of_a_merged_marker(seeded, demoted):
+    db = seeded['db']
+    marker = {'start': 800.0, 'end': 900.0, 'detection_stage': 'claude', 'merged_member_spans': [
+        {'start': 805.0, 'end': 855.0, 'stage': 'fingerprint', 'pattern_id': seeded['mine']},
+        {'start': 806.0, 'end': 854.0, 'stage': 'fingerprint', 'pattern_id': seeded['glob']},
+        {'start': 870.0, 'end': 900.0, 'stage': 'fingerprint', 'pattern_id': seeded['theirs']}]}
+    _put_markers(db, SLUG, EP_DEMOTED, [_demoted(marker) if demoted else marker])
+    _correct(db, seeded['mine'], EP_DEMOTED, {'start': 805.0, 'end': 855.0})
+    rows = _rows(_restart(seeded['path'], db), f"episode_id = '{EP_DEMOTED}'")
+    flags = {r['pattern_id']: r['rejected'] for r in rows}
+    assert flags[seeded['mine']] == flags[seeded['glob']] == 1
+    assert flags.get(seeded['theirs'], 0) == 0
+    assert (seeded['theirs'] in flags) != demoted
