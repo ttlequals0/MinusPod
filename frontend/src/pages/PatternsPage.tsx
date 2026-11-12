@@ -487,9 +487,9 @@ function PatternsPage() {
         <div className="overflow-x-auto" role="region" aria-label="Patterns table" tabIndex={0}>
           <table className="w-full min-w-[960px] table-fixed">
             <colgroup>
-              <col className="w-[5%]" />
+              <col className="w-[6%]" />
               <col className="w-[10%]" />
-              <col className="w-[10%]" />
+              <col className="w-[9%]" />
               <col className="w-[10%]" />
               <col className="w-[9%]" />
               <col className="w-[10%]" />
@@ -512,8 +512,8 @@ function PatternsPage() {
                 </th>
                 <SortHeader field="confirmation_count" label="Confirmed" className="px-2 whitespace-nowrap" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} />
                 <SortHeader field="false_positive_count" label="False pos." className="px-2 whitespace-nowrap" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} />
-                <SortHeader field="created_at" label="Created" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} />
-                <SortHeader field="last_matched_at" label="Last matched" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} />
+                <SortHeader field="created_at" label="Created" className="px-2" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} />
+                <SortHeader field="last_matched_at" label="Last matched" className="px-2" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} />
                 <th className={`${thBase} px-2 text-left`}>
                   Status
                 </th>
