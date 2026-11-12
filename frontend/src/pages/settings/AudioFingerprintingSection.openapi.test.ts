@@ -5,7 +5,7 @@ import { FINGERPRINT_FALLBACK_LIMITS } from './AudioFingerprintingSection';
 
 const spec = readFileSync(resolve(__dirname, '../../../../openapi.yaml'), 'utf8').split('\n');
 
-// Every block of lines nested under `key:`, which the spec repeats for the request and the response.
+// Blocks nested under `key:` that describe the setting (request and response); the bare `defaults` entry is skipped.
 function blocks(key: string): string[][] {
   const found: string[][] = [];
   spec.forEach((line, i) => {
@@ -19,7 +19,7 @@ function blocks(key: string): string[][] {
     }
     found.push(body);
   });
-  return found;
+  return found.filter((body) => body.some((l) => l.startsWith('description: ')));
 }
 
 const numberOf = (body: string[], field: string) => {
