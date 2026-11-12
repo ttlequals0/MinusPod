@@ -222,6 +222,19 @@ describe('Audio section', () => {
     expect(screen.getByRole('button', { name: 'Play source audio' })).toHaveProperty('disabled', false);
   });
 
+  it('lists recent matches under an active fingerprint', async () => {
+    mockGetPatternAudio.mockResolvedValue(ACTIVE_AUDIO);
+    renderModal(makePattern());
+    expect(await screen.findByRole('heading', { name: 'Recent matches' })).toBeDefined();
+    expect(await screen.findByText('No matches yet.')).toBeDefined();
+  });
+
+  it('does not list matches when the pattern has no audio', async () => {
+    renderModal(makePattern());
+    await screen.findByText('No audio fingerprint.');
+    expect(screen.queryByRole('heading', { name: 'Recent matches' })).toBeNull();
+  });
+
   it('shows the off state with the switch off', async () => {
     mockGetPatternAudio.mockResolvedValue({ ...ACTIVE_AUDIO, state: 'off' });
     renderModal(makePattern());

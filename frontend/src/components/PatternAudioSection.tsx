@@ -5,6 +5,7 @@ import {
 } from '../api/patterns';
 import { usePatternAudioPreview } from '../hooks/usePatternAudioPreview';
 import { formatDateTime, formatPercent } from '../utils/format';
+import AudioMatchesList from './AudioMatchesList';
 import { AuditionPlayButton } from './AuditionPlayButton';
 import { btnBase, btnDestructiveOutline } from './buttonStyles';
 import { ConfirmModal } from './Modal';
@@ -122,6 +123,7 @@ export default function PatternAudioSection({ pattern }: { pattern: AdPattern })
           </DemoDisabled>
         </div>
         {deleteFailed && <p role="alert" className="text-sm text-destructive">Could not delete audio.</p>}
+        <AudioMatchesList patternId={pattern.id} preview={preview} />
       </>
     );
   }
