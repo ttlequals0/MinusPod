@@ -20,7 +20,7 @@ from database.queue import (
     compute_queue_priority, PENDING_QUEUE_LIMIT,
     QUEUE_PRIORITY_MAX, QUEUE_PRIORITY_MIN,
 )
-from llm_client import start_episode_token_tracking, get_episode_token_totals
+from llm_client import start_episode_token_tracking, get_episode_token_totals, llm_disabled
 import run_context
 from processing_schedule import schedule_state
 from reprocess_modes import (
@@ -638,11 +638,12 @@ def retry_ad_detection(slug, episode_id):
             segments, podcast_name, episode.get('title', 'Unknown'), slug, episode_id,
             podcast_id=slug,  # Pass slug as podcast_id for pattern matching
             podcast_tags=podcast_tags,
+            skip_llm=llm_disabled(),
         )
 
         ad_detection_status = ad_result.get('status', 'failed')
 
-        if ad_detection_status == 'success':
+        if ad_detection_status in ('success', 'llm_skipped'):
             storage.save_ads_json(slug, episode_id, ad_result)
             db.upsert_episode(slug, episode_id, ad_detection_status='success')
 

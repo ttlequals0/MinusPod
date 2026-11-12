@@ -259,10 +259,8 @@ def _validate_provider_payload(data):
         error = _base_url_syntax_error(data['openaiBaseUrl'], 'base URL')
         if error is not None:
             return error
-    if data.get('secondaryProvider') and data['secondaryProvider'] not in common.VALID_LLM_PROVIDERS:
-        return f'secondaryProvider must be one of: {", ".join(common.VALID_LLM_PROVIDERS)}', 400
-    if data.get('secondaryProvider') and llm_disabled(data['secondaryProvider']):
-        return 'secondaryProvider cannot be none', 400
+    if data.get('secondaryProvider') and data['secondaryProvider'] not in VALID_FAILOVER_LLM_PROVIDERS + SYSTEMONE_PROVIDERS:
+        return f'secondaryProvider must be one of: {", ".join(VALID_FAILOVER_LLM_PROVIDERS + SYSTEMONE_PROVIDERS)}', 400
     if 'secondaryProviderBaseUrl' in data:
         value = data['secondaryProviderBaseUrl']
         if not isinstance(value, str):

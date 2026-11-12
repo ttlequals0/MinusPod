@@ -59,7 +59,7 @@ Key endpoints:
 - `POST /api/v1/feeds/{slug}/episodes/{id}/sponsorblock/submit` - Send the reviewed segments to SponsorBlock under the stored private user ID and record the outcome
 - `POST /api/v1/feeds/{slug}/reprocess-all` - Batch reprocess all episodes
 - `GET /api/v1/feeds/{slug}/ad-distribution` - Histogram of where ads have historically been cut across the feed's episodes, with learned prior zones. Informational; powers the feed detail Ad Distribution panel and is independent of the learned-positions experiment toggle.
-- `POST /api/v1/feeds/{slug}/episodes/{id}/retry-ad-detection` - Retry ad detection only
+- `POST /api/v1/feeds/{slug}/episodes/{id}/retry-ad-detection` - Retry ad detection only. With `llmProvider` set to `none` it reruns the model-free detectors (fingerprints and text patterns)
 - `POST /api/v1/feeds/{slug}/episodes/{id}/corrections` - Submit ad corrections
 - `GET /api/v1/patterns/corrections/unresolved` - List legacy corrections with no feed assignment and the evidence for safe candidates
 - `POST /api/v1/patterns/corrections/{id}/assign` - Assign one unresolved correction after `confirm: true`

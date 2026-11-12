@@ -309,6 +309,8 @@ def _assert_route_snapshot_current(snapshot: dict | None) -> None:
     A recovered run reloads its persisted snapshot, so without this it would
     spend calls pairing the old endpoint with the slot's new credential.
     """
+    if llm_disabled():
+        return
     for phase, route in (snapshot or {}).items():
         if isinstance(route, dict) and route.get('credential_slot') == 'failover':
             raise ProviderAccountChangedError(

@@ -381,9 +381,14 @@ class LLMDisabledError(RuntimeError):
     """A model call was requested while the LLM provider is none."""
 
 
-def llm_disabled(provider: str | None = None) -> bool:
-    """True when the given provider, or the effective one, is none."""
-    return (get_effective_provider() if provider is None else provider) == PROVIDER_NONE
+_EFFECTIVE_PROVIDER = object()
+
+
+def llm_disabled(provider=_EFFECTIVE_PROVIDER) -> bool:
+    """True when the given provider, or the effective one if omitted, is none; an explicit None is not none."""
+    if provider is _EFFECTIVE_PROVIDER:
+        provider = get_effective_provider()
+    return provider == PROVIDER_NONE
 
 
 def model_matches_provider(model_id: str, provider: str) -> bool:

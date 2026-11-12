@@ -14,7 +14,7 @@ from config import (
     LOW_AD_YIELD_ACTION_MODES,
 )
 
-from llm_client import get_episode_token_totals
+from llm_client import get_episode_token_totals, llm_disabled
 
 import run_context
 import run_log
@@ -188,6 +188,9 @@ def _maybe_fire_low_ad_yield_action(slug, episode_id, episode_url, episode_title
         # A cue-only feed reruns the same cue pipeline whatever mode is asked
         # for, so a rerun can only spend the one shot.
         if (run_stats or {}).get('cue_only'):
+            return
+        # A model-free run reruns the same detectors, so a rerun cannot find more.
+        if llm_disabled():
             return
         podcast = podcast_row if podcast_row is not None else db.get_podcast_by_slug(slug)
         action = resolve_low_ad_yield_action(db, podcast)

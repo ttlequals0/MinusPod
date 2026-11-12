@@ -11,11 +11,15 @@ os.environ.setdefault('SECRET_KEY', 'test-secret')
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 
 import llm_client  # noqa: E402
+import llm_route  # noqa: E402
+from api.episodes import runs  # noqa: E402
+from main_app.pipeline import finalize as finalize_stage  # noqa: E402
+from llm_client import ProviderAccountChangedError  # noqa: E402
 import main_app.processing as processing  # noqa: E402
 from main_app.pipeline import admission  # noqa: E402
 from ad_detector import AdDetector  # noqa: E402
 from text_pattern_matcher import TextMatch  # noqa: E402
-from tests.unit.test_processing_mode import _row, _run_pipeline  # noqa: E402
+from tests.unit.pipeline_run_support import _row, _run_pipeline  # noqa: E402
 
 
 def _all_client_classes(cls):
@@ -24,18 +28,41 @@ def _all_client_classes(cls):
         yield from _all_client_classes(sub)
 
 
+_FACTORIES = ('get_llm_client', 'get_client_for_provider', 'create_client_for_provider',
+              '_build_client', 'client_for_route')
+_REQUESTS = ('messages_create', 'list_models', 'verify_connection', 'probe_once',
+             'probe_json_format_support')
+
+
 @pytest.fixture
-def no_model_calls(monkeypatch):
-    """Any attempt to build a client or call a model fails the test."""
-    def boom(*args, **kwargs):
-        raise AssertionError('model call attempted while the LLM provider is none')
-    monkeypatch.setattr(llm_client, '_build_client', boom)
+def model_calls(monkeypatch):
+    """Records every client factory and request call; the test asserts the list is empty."""
+    calls = []
+
+    def recorder(name):
+        def record(*args, **kwargs):
+            calls.append(name)
+            raise AssertionError(f'model call attempted: {name}')
+        return record
+
+    originals = {getattr(owner, name) for owner in (llm_client, llm_route)
+                 for name in _FACTORIES if hasattr(owner, name)}
+    for module in list(sys.modules.values()):
+        for name in _FACTORIES:
+            if getattr(module, name, None) in originals:
+                monkeypatch.setattr(module, name, recorder(name))
     for cls in (llm_client.LLMClient, *_all_client_classes(llm_client.LLMClient)):
-        for name in ('messages_create', 'list_models', 'verify_connection',
-                     'probe_once', 'probe_json_format_support'):
+        for name in _REQUESTS:
             if name in vars(cls):
-                monkeypatch.setattr(cls, name, boom)
-    llm_client._client_cache.clear()
+                monkeypatch.setattr(cls, name, recorder(f'{cls.__name__}.{name}'))
+    monkeypatch.setattr(llm_client, '_client_cache', {})
+    yield calls
+    assert calls == []
+
+
+@pytest.fixture
+def no_model_calls(model_calls):
+    return model_calls
 
 
 @pytest.fixture
@@ -126,3 +153,121 @@ def test_admission_needs_no_account_under_none(provider_none, no_model_calls):
         assert admission._active_phases_for_admission('feed', 'ep1') == {}
         assert admission._required_providers_for_admission('feed', 'ep1') == []
     assert admission._resolve_route_snapshot() is None
+
+
+def _detector_with_matcher(matches):
+    matcher = MagicMock()
+    matcher.find_matches.return_value = matches
+    detector = processing.ad_detector
+    return (patch.object(detector, 'db', MagicMock()),
+            patch.object(detector, 'text_pattern_matcher', matcher),
+            patch.object(detector, 'audio_fingerprinter', None),
+            patch.object(detector, 'pattern_service', None)), matcher
+
+
+def _run_with_matcher(matches, **kwargs):
+    patches, matcher = _detector_with_matcher(matches)
+    with patches[0], patches[1], patches[2], patches[3]:
+        return _run_pipeline(_row(), real_detect=True, refine_cuts_all=True, **kwargs), matcher
+
+
+def test_full_reprocess_under_none_still_matches_patterns(provider_none, no_model_calls):
+    match = TextMatch(pattern_id=7, start=1.0, end=9.0, confidence=0.95, sponsor='Acme')
+    m, matcher = _run_with_matcher([match], episode_row={'reprocess_mode': 'full'})
+    assert m['result'] is True
+    matcher.find_matches.assert_called_once()
+    assert [ad['pattern_id'] for ad in m['refine'].call_args.args[2]] == [7]
+
+
+def test_full_reprocess_with_a_provider_skips_patterns(provider_anthropic):
+    m, matcher = _run_with_matcher([], episode_row={'reprocess_mode': 'full'})
+    matcher.find_matches.assert_not_called()
+    assert m['detect'].call_args.args[3] is True
+
+
+def test_plain_reprocess_under_none_runs_model_free(provider_none, no_model_calls):
+    m = _run_pipeline(_row(), episode_row={'reprocess_mode': 'reprocess'})
+    assert m['result'] is True
+    assert m['detect'].call_args.kwargs['skip_llm'] is True
+
+
+def test_manual_approval_holds_a_none_run_with_the_real_finalize(provider_none, no_model_calls):
+    with patch.object(finalize_stage, '_persist_episode_state') as persist:
+        m = _run_pipeline(_row(), manual_approval=True, real_stages=('finalize',))
+    assert m['result'] is True
+    assert persist.call_args.kwargs['approval']['approval_pending_at']
+    assert not persist.call_args.kwargs['detection_degraded']
+
+
+def test_no_approval_setting_publishes_a_none_run(provider_none, no_model_calls):
+    with patch.object(finalize_stage, '_persist_episode_state') as persist:
+        _run_pipeline(_row(), manual_approval=False, real_stages=('finalize',))
+    assert persist.call_args.kwargs['approval'] == {'approval_pending_at': None}
+
+
+def test_stale_route_snapshot_does_not_fail_a_none_run(provider_none):
+    snapshot = {'detection': {'credential_slot': 'primary', 'account_id': 'old'}}
+    with patch.object(admission, 'route_account_mismatch', return_value=('old', 'new')):
+        admission._assert_route_snapshot_current(snapshot)
+
+
+def test_stale_route_snapshot_still_fails_a_provider_run(provider_anthropic):
+    snapshot = {'detection': {'credential_slot': 'primary', 'account_id': 'old'}}
+    with patch.object(admission, 'route_account_mismatch', return_value=('old', 'new')), \
+         pytest.raises(ProviderAccountChangedError):
+        admission._assert_route_snapshot_current(snapshot)
+
+
+@pytest.mark.parametrize('provider,expected_calls', [('none', 0), ('anthropic', 1)])
+def test_low_yield_rerun_is_suppressed_under_none(monkeypatch, provider, expected_calls):
+    monkeypatch.setattr(llm_client, 'get_effective_provider', lambda: provider)
+    resolver = MagicMock(return_value='off')
+    monkeypatch.setattr(finalize_stage, 'resolve_low_ad_yield_action', resolver)
+    with patch.object(finalize_stage, 'db', MagicMock()):
+        finalize_stage._maybe_fire_low_ad_yield_action(
+            'feed', 'ep1', 'https://example.com/e.mp3', 'T', 'P', 'D', None, {}, {},
+            podcast_row={})
+    assert resolver.call_count == expected_calls
+
+
+def test_none_run_with_real_stages_makes_no_model_call(provider_none, model_calls):
+    match = TextMatch(pattern_id=7, start=1.0, end=9.0, confidence=0.95, sponsor='Acme')
+    patches, matcher = _detector_with_matcher([match])
+    with patches[0], patches[1], patches[2], patches[3], \
+         patch.object(finalize_stage, '_persist_episode_state'):
+        m = _run_pipeline(_row(), real_detect=True, enable_ad_review=True,
+                          real_stages=('refine', 'reviewer', 'verify', 'assets', 'finalize'))
+    assert m['result'] is True
+    matcher.find_matches.assert_called_once()
+    assert m['verify'].call_args.kwargs['skip_verification'] is True
+    m['reviewer'].assert_not_called()
+    assert model_calls == []
+
+
+@pytest.fixture
+def retry_feed(app_client):
+    from api import get_database
+    from tests.app_bootstrap import authenticate_test_client
+    db = get_database()
+    db.create_podcast('retry-none-feed', 'https://example.com/feed.xml', 'Retry None')
+    db.upsert_episode('retry-none-feed', 'aa11bb22cc33', title='Episode', status='processed',
+                      original_url='https://example.com/e.mp3')
+    token = authenticate_test_client(app_client)
+    yield app_client, db, token
+    db.delete_podcast('retry-none-feed')
+
+
+def test_retry_ad_detection_under_none_applies_patterns(retry_feed, provider_none, no_model_calls):
+    client, db, token = retry_feed
+    match = TextMatch(pattern_id=7, start=1.0, end=9.0, confidence=0.95, sponsor='Acme')
+    storage = MagicMock()
+    storage.get_transcript.return_value = 'transcript'
+    with patch.object(runs, 'get_storage', return_value=storage), \
+         patch.object(runs, 'parse_transcript_segments',
+                      return_value=[{'start': 0.0, 'end': 10.0, 'text': 'hello'}]), \
+         patch('text_pattern_matcher.TextPatternMatcher.find_matches', return_value=[match]):
+        response = client.post('/api/v1/feeds/retry-none-feed/episodes/aa11bb22cc33/retry-ad-detection',
+                               headers=token)
+    assert response.status_code == 200, response.get_json()
+    assert response.get_json()['adsFound'] == 1
+    assert db.get_episode('retry-none-feed', 'aa11bb22cc33')['ad_detection_status'] == 'success'

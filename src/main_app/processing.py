@@ -359,7 +359,8 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
     reprocess_mode = episode_data.get('reprocess_mode') if episode_data else None
     # Only 'full' skips the learned-pattern DB. 'reprocess', 'llm' (#349) and the
     # default first run all keep patterns; any new mode keeps them unless added here.
-    skip_patterns = reprocess_mode == 'full'
+    # Under none the patterns are the only detectors, so a full reprocess keeps them.
+    skip_patterns = reprocess_mode == 'full' and not llm_disabled()
 
     if reprocess_mode:
         audio_logger.info(f"[{slug}:{episode_id}] Reprocess mode: {reprocess_mode} (skip_patterns={skip_patterns})")
