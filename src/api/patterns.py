@@ -606,13 +606,17 @@ def _store_pattern_audio(db, slug, episode_id, pattern_id, start, end, *, force=
     try:
         audio_path, err = _resolve_original_audio(db, get_storage(), slug, episode_id)
         if err:
-            return FingerprintStoreResult(False, 'original_not_retained')
-        return AudioFingerprinter(db=db).store_fingerprint(
-            pattern_id, str(audio_path), start, end,
-            source_podcast_slug=slug, source_episode_id=episode_id, force=force)
+            result = FingerprintStoreResult(False, 'original_not_retained')
+        else:
+            result = AudioFingerprinter(db=db).store_fingerprint(
+                pattern_id, str(audio_path), start, end,
+                source_podcast_slug=slug, source_episode_id=episode_id, force=force)
     except Exception as e:
         logger.warning(f"Could not store audio for pattern {pattern_id}: {e}")
-        return FingerprintStoreResult(False, 'fingerprint_failed')
+        result = FingerprintStoreResult(False, 'fingerprint_failed')
+    if not result.stored:
+        logger.debug(f"No fingerprint stored for pattern {pattern_id}: {result.skipped_reason}")
+    return result
 
 
 def _validate_create_correction_input(data):
@@ -1240,6 +1244,9 @@ def _handle_confirm_correction(
                         db, slug, episode_id, original_start, original_end),
                 )
 
+    if pattern_id and not db.get_audio_fingerprint(pattern_id):
+        _store_pattern_audio(db, slug, episode_id, pattern_id, eff_start, eff_end)
+
     podcast_id = (podcast or db.get_podcast_by_slug(slug))['id']
     deleted = db.delete_conflicting_corrections(podcast_id, episode_id, 'confirm', original_start, original_end)
     if deleted:
@@ -1329,6 +1336,13 @@ def _handle_reject_correction(db, slug, episode_id, original_ad, addressing_mode
 
     _clear_held_marker_on_reject(db, slug, episode_id, original_start, original_end,
                                  markers=markers)
+
+    if pattern_id:
+        try:
+            db.mark_fingerprint_match_rejected(
+                pattern_id, slug, episode_id, original_start, original_end)
+        except Exception as e:
+            logger.warning(f"Could not mark the fingerprint match rejected for pattern {pattern_id}: {e}")
 
     return json_response({'message': 'False positive recorded'})
 
@@ -1583,6 +1597,12 @@ def _handle_adjust_correction(db, pattern_service, slug, episode_id, original_ad
             category=_reviewed_marker_category(
                 db, slug, episode_id, original_start, original_end),
         )
+
+    if pattern_id:
+        result = _store_pattern_audio(
+            db, slug, episode_id, pattern_id, adjusted_start, adjusted_end, force=True)
+        if result.stored:
+            db.set_pattern_audio_removed(pattern_id, False)
 
     # Judge conflicts against the adjusted bounds: they are the span the
     # user is asserting is ad. The pre-adjustment bounds can cover an

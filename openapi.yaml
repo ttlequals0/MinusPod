@@ -3365,12 +3365,18 @@ paths:
         the cross-episode pattern database for better future detection.
 
         Actions:
-        - confirm: Mark detection as correct (creates/updates pattern)
+        - confirm: Mark detection as correct (creates/updates pattern). When the pattern
+          has no audio fingerprint and its audio was not deleted, one is stored from the
+          confirmed span of the retained original. This is best effort and never fails the request.
         - reject: Mark as false positive. Stores transcript text for cross-episode matching -
           similar text in future episodes of the same podcast will be automatically excluded
-          using TF-IDF similarity matching (threshold: 0.75)
+          using TF-IDF similarity matching (threshold: 0.75). If the pattern's audio
+          fingerprint recorded a match for the span, that match is marked rejected.
         - adjust: Correct ad boundaries. Also creates patterns from the adjusted boundaries
-          (like confirm), ensuring accurate pattern text is learned from the corrected segment
+          (like confirm), ensuring accurate pattern text is learned from the corrected segment.
+          The pattern's audio fingerprint is rebuilt from the adjusted span of the retained
+          original, even if its audio was deleted earlier, and the deleted marker is cleared
+          when the rebuild succeeds. This is best effort and never fails the request.
         - create: Mark a brand-new ad on an episode the detector missed. Top-level
           start/end/sponsor/text_template required (no original_ad). Creates a new
           pattern with created_by='user' and a pattern_corrections row of type 'create'.
