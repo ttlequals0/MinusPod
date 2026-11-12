@@ -94,15 +94,17 @@ def test_promotion_to_global_leaves_the_network_alone(fp_feed, fp_pattern):
     assert fp_feed.get_ad_pattern_by_id(fp_pattern)['network_id'] is None
 
 
-def test_a_promotion_merge_keeps_the_network(fp_feed, fp_pattern):
+def test_a_promotion_merge_keeps_the_network(fp_feed):
+    neutral = 'quarterly widget discount offer ' * 8
     _network(fp_feed, 'net-merge')
-    twin = fp_feed.create_ad_pattern(scope='network', network_id='net-merge', text_template=TEMPLATE)
-    elsewhere = fp_feed.create_ad_pattern(scope='network', network_id='net-other', text_template=TEMPLATE)
-    assert PatternService(db=fp_feed).promote_pattern(fp_pattern, 'network') is True
+    mine = fp_feed.create_ad_pattern(scope='podcast', podcast_id=SLUG, text_template=neutral)
+    twin = fp_feed.create_ad_pattern(scope='network', network_id='net-merge', text_template=neutral)
+    elsewhere = fp_feed.create_ad_pattern(scope='network', network_id='net-other', text_template=neutral)
+    assert PatternService(db=fp_feed).promote_pattern(mine, 'network') is True
     merged = fp_feed.get_ad_patterns(scope='network', network_id='net-merge')
-    assert len(merged) == 1 and merged[0]['id'] not in (fp_pattern, twin)
+    assert len(merged) == 1 and merged[0]['id'] not in (mine, twin)
     assert fp_feed.get_ad_pattern_by_id(elsewhere)['is_active']
-    for pid in (merged[0]['id'], twin, elsewhere):
+    for pid in (merged[0]['id'], mine, twin, elsewhere):
         fp_feed.delete_ad_pattern(pid)
 
 
