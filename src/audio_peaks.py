@@ -284,3 +284,23 @@ def build_peaks_from_decode(audio_path: Path, duration: float) -> np.ndarray | N
         logger.error('Peaks decode ffmpeg exited %d for %s', returncode, Path(audio_path).name)
         return None
     return np.concatenate(parts)
+
+
+def maybe_write_peaks_file(original_path: Path, peaks_10ms: np.ndarray | None) -> bool:
+    """Write or restamp the sibling peaks file from in-memory maxima; False when none given."""
+    if peaks_10ms is None:
+        return False
+    path = peaks_file_path(original_path)
+    if validate_or_restamp_peaks_file(path, original_path):
+        return True
+    write_peaks_file(path, np.asarray(peaks_10ms, dtype='<u2'), original_path)
+    return True
+
+
+def discard_stale_peaks_file(original_path: Path) -> bool:
+    """Remove the sibling peaks file when it no longer matches its original."""
+    path = peaks_file_path(original_path)
+    if not path.exists() or validate_or_restamp_peaks_file(path, original_path):
+        return False
+    path.unlink(missing_ok=True)
+    return True
