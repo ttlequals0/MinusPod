@@ -16,8 +16,15 @@ vi.mock('wavesurfer.js/dist/plugins/regions.esm.js', () => ({
     })),
   },
 }));
+const peaksState = vi.hoisted(() => ({
+  value: { peaks: [0.2, 0.5, 0.3] as number[] | null, peakResolutionMs: 100, peaksError: null as string | null },
+  ticks: [] as number[],
+}));
 vi.mock('./ad-editor/usePeaks', () => ({
-  usePeaks: () => ({ peaks: [0.2, 0.5, 0.3], peakResolutionMs: 100, peaksError: null }),
+  usePeaks: (...args: unknown[]) => {
+    peaksState.ticks.push(args[4] as number);
+    return peaksState.value;
+  },
 }));
 vi.mock('../api/sponsors', () => ({
   getSponsors: vi.fn().mockResolvedValue([]),
@@ -138,6 +145,8 @@ function renderModal(over: Partial<React.ComponentProps<typeof AdReviewModal>> =
 
 beforeEach(() => {
   vi.clearAllMocks();
+  peaksState.value = { peaks: [0.2, 0.5, 0.3], peakResolutionMs: 100, peaksError: null };
+  peaksState.ticks.length = 0;
   mockReprocess.mockResolvedValue({});
 });
 
@@ -490,5 +499,31 @@ describe('AdReviewModal multi-span create', () => {
     expect(screen.getByText(/0:30\.0 - 0:40\.0: Could not save/)).toBeTruthy();
     expect(onCreateDone).not.toHaveBeenCalled();
     expect(onClose).not.toHaveBeenCalled();
+  });
+});
+
+describe('AdReviewModal waveform states', () => {
+  it('shows the loading line while peaks are pending', () => {
+    peaksState.value = { peaks: null, peakResolutionMs: 100, peaksError: null };
+    renderModal();
+    expect(screen.getByText('Loading waveform...')).toBeTruthy();
+    expect(screen.queryByText(/Could not load waveform/)).toBeNull();
+  });
+
+  it('shows the error with a Retry and no server text', () => {
+    peaksState.value = { peaks: null, peakResolutionMs: 100, peaksError: 'boom' };
+    renderModal();
+    expect(screen.getByText('Could not load waveform. Try again.')).toBeTruthy();
+    expect(screen.queryByText(/boom/)).toBeNull();
+    expect(screen.getByRole('button', { name: 'Retry' })).toBeTruthy();
+  });
+
+  it('Retry refetches the waveform', async () => {
+    peaksState.value = { peaks: null, peakResolutionMs: 100, peaksError: 'boom' };
+    renderModal();
+    const user = userEvent.setup();
+    const before = peaksState.ticks[peaksState.ticks.length - 1];
+    await user.click(screen.getByRole('button', { name: 'Retry' }));
+    expect(peaksState.ticks[peaksState.ticks.length - 1]).toBe(before + 1);
   });
 });

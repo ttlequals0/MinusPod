@@ -47,6 +47,8 @@ interface RequestOptions {
   signal?: AbortSignal;
   skipRetry?: boolean;
   retry?: boolean;
+  // Hand a 503 that carries Retry-After to the caller at once instead of retrying it.
+  surfaceBusy?: boolean;
   onResponse?: (status: number) => void;
 }
 
@@ -67,7 +69,7 @@ function retryAfterMs(response: Response): number | null {
   return seconds * 1000;
 }
 
-function sleep(ms: number, signal?: AbortSignal): Promise<void> {
+export function sleep(ms: number, signal?: AbortSignal): Promise<void> {
   return new Promise((resolve, reject) => {
     if (signal?.aborted) {
       reject(signal.reason);
@@ -128,12 +130,14 @@ export class ApiError extends Error {
   status: number;
   body: unknown;
   retryAfterMs: number | null;
-  constructor(message: string, status: number, body?: unknown, retryAfterMs: number | null = null) {
+  hasRetryAfter: boolean;
+  constructor(message: string, status: number, body?: unknown, retryAfterMs: number | null = null, hasRetryAfter = false) {
     super(message);
     this.name = 'ApiError';
     this.status = status;
     this.body = body;
     this.retryAfterMs = retryAfterMs;
+    this.hasRetryAfter = hasRetryAfter;
   }
 
   get jobState(): JobState | undefined {
@@ -164,7 +168,7 @@ function handleUnauthorized(endpoint: string): void {
 export async function apiRequest<T>(endpoint: string, options: RequestOptions = {}): Promise<T> {
   const {
     method = 'GET', body, skipAuthRedirect = false, signal,
-    skipRetry = false, retry, onResponse,
+    skipRetry = false, retry, surfaceBusy = false, onResponse,
   } = options;
   const safeMethod = CSRF_SAFE_METHODS.has(method.toUpperCase());
   const retryEnabled = retry ?? (safeMethod && !skipRetry);
@@ -196,7 +200,8 @@ export async function apiRequest<T>(endpoint: string, options: RequestOptions = 
 
       // Retry on 5xx / 429 (not on 4xx client errors)
       if (!response.ok) {
-        if (isRetryable(response.status) && attempt < maxAttempts - 1) {
+        const busy = surfaceBusy && response.status === 503 && response.headers.get('Retry-After') !== null;
+        if (isRetryable(response.status) && !busy && attempt < maxAttempts - 1) {
           const delay = response.status === 429
             ? retryAfterMs(response) ?? RETRY_DELAYS[attempt]
             : RETRY_DELAYS[attempt];
@@ -204,7 +209,7 @@ export async function apiRequest<T>(endpoint: string, options: RequestOptions = 
           continue;
         }
         const error = await response.json().catch(() => null);
-        throw new ApiError(errorMessageFor(error, response.status), response.status, error ?? { error: 'Request failed' }, retryAfterMs(response));
+        throw new ApiError(errorMessageFor(error, response.status), response.status, error ?? { error: 'Request failed' }, retryAfterMs(response), response.headers.get('Retry-After') !== null);
       }
 
       const contentType = response.headers.get('content-type');

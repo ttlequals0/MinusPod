@@ -8,6 +8,7 @@ import { Pin } from './ad-editor/Pin';
 import { snapToOnset } from './ad-editor/snapToOnset';
 import TransportBar from './ad-editor/TransportBar';
 import ZoomControl from './ad-editor/ZoomControl';
+import { WaveformError, WaveformLoading } from './ad-editor/WaveformStatus';
 import { useWaveformWindow } from './ad-editor/useWaveformWindow';
 import { edgeBtn } from './ad-editor/controlStyles';
 import CloseButton from './CloseButton';
@@ -185,10 +186,10 @@ function CueMarkModal({
   // Fetch the whole episode's peaks ONCE (stable), then slice the current
   // window out client-side. Re-fetching per window would null `peaks` on every
   // zoom/pan tick, flashing the pins and waveform; slicing keeps the loaded
-  // peaks stable so only the rendered slice changes. This modal never forces
-  // a refetch, so the resetTick knob stays at 0.
+  // peaks stable so only the rendered slice changes. Only Retry refetches.
+  const [peaksRetryTick, setPeaksRetryTick] = useState(0);
   const { peaks, peakResolutionMs, peaksError } = usePeaks(
-    podcastSlug, episodeId, 0, totalDuration, 0,
+    podcastSlug, episodeId, 0, totalDuration, peaksRetryTick,
   );
 
   const audioUrl = episodeOriginalUrl(podcastSlug, episodeId);
@@ -616,9 +617,7 @@ function CueMarkModal({
         {/* Waveform + pins. Same overlay pattern as AdReviewModal. */}
         <div ref={scrollRef} className="overflow-hidden border border-border rounded-lg bg-secondary/40 min-h-[140px]">
           <div ref={overlayRef} className="relative">
-            {!peaks && !peaksError && (
-              <p className="p-3 text-sm text-muted-foreground">Loading waveform...</p>
-            )}
+            {!peaks && !peaksError && <WaveformLoading className="absolute left-3 top-3" />}
             <div ref={waveformRef} />
             {/* Selected-cue region highlight -- same amber fill the ad editor
                 uses for its selection window. Below the markers/pins/playhead. */}
@@ -753,9 +752,7 @@ function CueMarkModal({
         )}
 
         {peaksError && (
-          <p className="text-sm text-destructive mt-2">
-            Could not load waveform: {peaksError}
-          </p>
+          <WaveformError className="mt-2" onRetry={() => setPeaksRetryTick((n) => n + 1)} />
         )}
 
         {/* Find audio cues (on-demand -- the scan decodes the episode). */}

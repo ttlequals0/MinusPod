@@ -11,17 +11,17 @@ vi.mock('../../api/feeds', () => ({
 }));
 
 const busy = (retryAfterMs: number | null = 5000) =>
-  new ApiError('Waveform is being prepared', 503, { error: 'Waveform is being prepared' }, retryAfterMs);
+  new ApiError('Waveform is being prepared', 503, { error: 'Waveform is being prepared' }, retryAfterMs, true);
 const ok = { peaks: [0.1, 0.2], resolutionMs: 100 };
 
-function setup(slug = 's', episode = 'e1') {
+function setup(slug = 's', episode = 'e1', tick = 0) {
   const qc = new QueryClient({ defaultOptions: { queries: { gcTime: Infinity } } });
   const wrapper = ({ children }: { children: ReactNode }) => (
     <QueryClientProvider client={qc}>{children}</QueryClientProvider>
   );
   return renderHook(
-    ({ slug: sl, episode: ep }) => usePeaks(sl, ep, 0, 100, 0),
-    { wrapper, initialProps: { slug, episode } },
+    ({ slug: sl, episode: ep, tick: t }) => usePeaks(sl, ep, 0, 100, t),
+    { wrapper, initialProps: { slug, episode, tick } },
   );
 }
 
@@ -70,13 +70,71 @@ describe('usePeaks 503 wait', () => {
     expect(mockGetPeaks).toHaveBeenCalledTimes(3);
   });
 
-  it('surfaces a non-503 error at once without retrying', async () => {
-    mockGetPeaks.mockRejectedValue(new ApiError('nope', 400, {}));
+  it('waits the 1s floor when Retry-After is 0', async () => {
+    mockGetPeaks.mockRejectedValueOnce(busy(0)).mockResolvedValue(ok);
+    setup();
+    await act(() => vi.advanceTimersByTimeAsync(0));
+    await act(() => vi.advanceTimersByTimeAsync(999));
+    expect(mockGetPeaks).toHaveBeenCalledTimes(1);
+    await act(() => vi.advanceTimersByTimeAsync(1));
+    expect(mockGetPeaks).toHaveBeenCalledTimes(2);
+  });
+
+  it('waits the 5s default when Retry-After was sent but could not be read', async () => {
+    mockGetPeaks.mockRejectedValueOnce(busy(null)).mockResolvedValue(ok);
+    setup();
+    await act(() => vi.advanceTimersByTimeAsync(4999));
+    expect(mockGetPeaks).toHaveBeenCalledTimes(1);
+    await act(() => vi.advanceTimersByTimeAsync(1));
+    expect(mockGetPeaks).toHaveBeenCalledTimes(2);
+  });
+
+  it('caps a huge Retry-After at 30s', async () => {
+    mockGetPeaks.mockRejectedValueOnce(busy(86_400_000)).mockResolvedValue(ok);
+    setup();
+    await act(() => vi.advanceTimersByTimeAsync(29_999));
+    expect(mockGetPeaks).toHaveBeenCalledTimes(1);
+    await act(() => vi.advanceTimersByTimeAsync(1));
+    expect(mockGetPeaks).toHaveBeenCalledTimes(2);
+  });
+
+  it.each([
+    ['400', new ApiError('nope', 400, {})],
+    ['404', new ApiError('missing', 404, {})],
+    ['500', new ApiError('broke', 500, {})],
+    ['502 after the client retries', new ApiError('bad gateway', 502, {})],
+    ['503 without Retry-After', new ApiError('unavailable', 503, {})],
+  ])('surfaces a %s at once and schedules nothing', async (_name, error) => {
+    mockGetPeaks.mockRejectedValue(error);
     const { result } = setup();
     await act(() => vi.advanceTimersByTimeAsync(0));
-    expect(result.current.peaksError).toBe('nope');
-    await act(() => vi.advanceTimersByTimeAsync(60000));
+    expect(result.current.peaksError).toBe(error.message);
+    expect(vi.getTimerCount()).toBe(0);
+    await act(() => vi.advanceTimersByTimeAsync(60_000));
     expect(mockGetPeaks).toHaveBeenCalledTimes(1);
+  });
+
+  it('passes an abort signal that fires on unmount', async () => {
+    mockGetPeaks.mockRejectedValue(busy());
+    const { unmount } = setup();
+    await act(() => vi.advanceTimersByTimeAsync(0));
+    const signal = mockGetPeaks.mock.calls[0][5] as AbortSignal;
+    expect(signal).toBeInstanceOf(AbortSignal);
+    expect(signal.aborted).toBe(false);
+    unmount();
+    expect(signal.aborted).toBe(true);
+  });
+
+  it('restarts the 10 minute bound when the tick changes during a wait', async () => {
+    mockGetPeaks.mockRejectedValue(busy());
+    const { result, rerender } = setup();
+    await act(() => vi.advanceTimersByTimeAsync(9 * 60 * 1000));
+    expect(result.current.peaksError).toBeNull();
+    rerender({ slug: 's', episode: 'e1', tick: 1 });
+    await act(() => vi.advanceTimersByTimeAsync(9 * 60 * 1000));
+    expect(result.current.peaksError).toBeNull();
+    await act(() => vi.advanceTimersByTimeAsync(61 * 1000));
+    expect(result.current.peaksError).toBe('Waveform is being prepared');
   });
 
   it('cancels the timer on unmount', async () => {
@@ -91,15 +149,18 @@ describe('usePeaks 503 wait', () => {
     expect(mockGetPeaks).toHaveBeenCalledTimes(1);
   });
 
-  it('stops polling the old episode when the episode changes', async () => {
+  it('aborts and stops polling the old episode when the episode changes', async () => {
     mockGetPeaks.mockRejectedValue(busy());
     const { rerender } = setup('s', 'e1');
     await act(() => vi.advanceTimersByTimeAsync(0));
+    const oldSignal = mockGetPeaks.mock.calls[0][5] as AbortSignal;
     mockGetPeaks.mockClear();
     mockGetPeaks.mockResolvedValue(ok);
-    rerender({ slug: 's', episode: 'e2' });
-    await act(() => vi.advanceTimersByTimeAsync(60000));
-    expect(mockGetPeaks.mock.calls.every((c) => c[1] === 'e2')).toBe(true);
+    rerender({ slug: 's', episode: 'e2', tick: 0 });
+    await act(() => vi.advanceTimersByTimeAsync(60_000));
+    expect(oldSignal.aborted).toBe(true);
+    expect(mockGetPeaks).toHaveBeenCalledTimes(1);
+    expect(mockGetPeaks.mock.calls[0][1]).toBe('e2');
   });
 
   it('shows the error after 10 minutes of 503s', async () => {

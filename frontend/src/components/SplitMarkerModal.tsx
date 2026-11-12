@@ -15,6 +15,7 @@ import { usePeaks } from './ad-editor/usePeaks';
 import { usePeakSlice } from './ad-editor/usePeakSlice';
 import { useWaveformWindow } from './ad-editor/useWaveformWindow';
 import ZoomControl from './ad-editor/ZoomControl';
+import { WaveformError, WaveformLoading } from './ad-editor/WaveformStatus';
 import { SponsorInput, type SponsorOption } from './ad-editor/SponsorInput';
 import {
   commitTimeInput, formatTime, timeInputKeyDown,
@@ -89,13 +90,9 @@ function tooShort(pieces: PieceView[]): number | null {
 // Amplitude strip for the span. Renders the peak slice directly rather than
 // mounting a third WaveSurfer instance: splitting needs to see where speech
 // stops, not scrub a decorative region, and the peaks are already fetched.
-function PeakStrip({ peaks, loading }: { peaks: number[] | null; loading: boolean }) {
+function PeakStrip({ peaks }: { peaks: number[] | null }) {
   if (!peaks || peaks.length === 0) {
-    return (
-      <div className="h-20 bg-secondary rounded flex items-center px-3">
-        {loading && <p className="text-sm text-muted-foreground">Loading waveform...</p>}
-      </div>
-    );
+    return <div className="h-20 bg-secondary rounded" aria-hidden />;
   }
   // ~200 gapless bars: per-bar gaps at this density would out-measure the
   // bars themselves on a phone-width strip and render as empty space.
@@ -162,8 +159,9 @@ export default function SplitMarkerModal({ target, onClose, onSplit }: Props) {
   );
   // Fetch peaks from episode start: usePeakSlice indexes by absolute time,
   // so a window-scoped fetch would slice past the array and render nothing.
+  const [peaksRetryTick, setPeaksRetryTick] = useState(0);
   const { peaks, peakResolutionMs, peaksError } = usePeaks(
-    podcastSlug, episodeId, 0, end, 0);
+    podcastSlug, episodeId, 0, end, peaksRetryTick);
   const windowPeaks = usePeakSlice(
     peaks, peakResolutionMs, window_.windowStart, window_.windowEnd);
 
@@ -371,12 +369,7 @@ export default function SplitMarkerModal({ target, onClose, onSplit }: Props) {
 
             {/* Waveform plus the dividers laid over it. */}
             <div ref={containerRef} className="relative">
-              <PeakStrip peaks={windowPeaks} loading={!peaks && !peaksError} />
-              {peaksError && (
-                <p className="text-sm text-destructive mt-2">
-                  Could not load waveform: {peaksError}
-                </p>
-              )}
+              <PeakStrip peaks={windowPeaks} />
               {effectiveDividers.map((t, i) => (
                 <Pin
                   key={i}
@@ -393,6 +386,15 @@ export default function SplitMarkerModal({ target, onClose, onSplit }: Props) {
                   totalDuration={end}
                 />
               ))}
+            </div>
+
+            {/* Outside the pin overlay so no divider crosses it; min-h keeps the rows below still when the waveform lands. */}
+            <div className="min-h-5">
+              {peaksError ? (
+                <WaveformError onRetry={() => setPeaksRetryTick((n) => n + 1)} />
+              ) : !peaks && (
+                <WaveformLoading />
+              )}
             </div>
 
             {/* The piece strip: one segment per resulting ad, gapped so the

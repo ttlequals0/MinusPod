@@ -21,6 +21,7 @@ import { useWaveformWindow } from './ad-editor/useWaveformWindow';
 import TextSelectionPanel, { type TextRun, runKey } from './ad-editor/TextSelectionPanel';
 import TransportBar from './ad-editor/TransportBar';
 import ZoomControl from './ad-editor/ZoomControl';
+import { WaveformError, WaveformLoading } from './ad-editor/WaveformStatus';
 import { edgeBtn } from './ad-editor/controlStyles';
 import {
   formatTime,
@@ -259,6 +260,8 @@ function AdReviewModal({
   // Bumped by resetView to force a clean re-fetch of peaks. Belt-and-suspenders
   // so Reset always lands a known-good state.
   const [resetTick, setResetTick] = useState(0);
+  // Retry refetches the waveform only; resetTick also reseeks audio and resets pins.
+  const [peaksRetryTick, setPeaksRetryTick] = useState(0);
   // Fetch the whole episode's peaks ONCE and slice the visible window out
   // client-side (windowPeaks below). Re-fetching per window would null `peaks`
   // on every zoom/pan tick, flashing the pins and waveform.
@@ -267,7 +270,7 @@ function AdReviewModal({
     item.episodeId,
     0,
     totalDuration,
-    resetTick,
+    resetTick + peaksRetryTick,
   );
   const [playWhileDrag, setPlayWhileDrag] = useState<boolean>(loadPlayWhileDragging);
   const wasPlayingBeforeDragRef = useRef(false);
@@ -1174,9 +1177,9 @@ function AdReviewModal({
         <div className={`px-6 py-4 ${textModeActive ? 'hidden' : ''}`}>
           <div className="bg-secondary/40 rounded-lg p-3 min-h-[180px]">
             {peaksError ? (
-              <p className="text-sm text-destructive">Could not load waveform: {peaksError}</p>
+              <WaveformError onRetry={() => setPeaksRetryTick((n) => n + 1)} />
             ) : !peaks ? (
-              <p className="text-sm text-muted-foreground">Loading waveform...</p>
+              <WaveformLoading />
             ) : (
               <div
                 ref={waveformScrollRef}

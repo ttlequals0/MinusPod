@@ -18,7 +18,13 @@ vi.mock('../api/sponsors', () => ({
 const peaksState = vi.hoisted(() => ({
   value: { peaks: [0.2, 0.5, 0.3] as number[] | null, peakResolutionMs: 100, peaksError: null as string | null },
 }));
-vi.mock('./ad-editor/usePeaks', () => ({ usePeaks: () => peaksState.value }));
+const peaksTicks = vi.hoisted(() => [] as number[]);
+vi.mock('./ad-editor/usePeaks', () => ({
+  usePeaks: (...args: unknown[]) => {
+    peaksTicks.push(args[4] as number);
+    return peaksState.value;
+  },
+}));
 
 const TARGET = {
   podcastSlug: 'example-podcast',
@@ -39,6 +45,7 @@ function renderModal(onSplit = vi.fn(), onClose = vi.fn()) {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  peaksTicks.length = 0;
   peaksState.value = { peaks: [0.2, 0.5, 0.3], peakResolutionMs: 100, peaksError: null };
   mockSubmitSplit.mockResolvedValue({
     message: 'Split into 2 ads', markerCount: 2, patternIds: [1, 2],
@@ -255,18 +262,45 @@ describe('SplitMarkerModal loading placeholder', () => {
 });
 
 describe('SplitMarkerModal waveform states', () => {
-  it('shows the loading text while peaks are pending', async () => {
+  it('shows the loading text outside the divider overlay while peaks are pending', async () => {
     peaksState.value = { peaks: null, peakResolutionMs: 100, peaksError: null };
     renderModal();
     await screen.findByRole('button', { name: 'Split into 2 ads' });
-    expect(screen.getByText('Loading waveform...')).toBeTruthy();
+    const loading = screen.getByText('Loading waveform...');
+    const pin = screen.getByRole('slider', { name: /SPLIT/ });
     expect(screen.queryByText(/Could not load waveform/)).toBeNull();
+    const overlay = pin.closest('.relative');
+    expect(overlay).not.toBeNull();
+    expect(overlay?.contains(loading)).toBe(false);
   });
 
-  it('shows the waveform error text when peaks fail', async () => {
+  it('keeps the strip height while loading', async () => {
+    peaksState.value = { peaks: null, peakResolutionMs: 100, peaksError: null };
+    renderModal();
+    await screen.findByRole('button', { name: 'Split into 2 ads' });
+    const pin = screen.getByRole('slider', { name: /SPLIT/ });
+    expect(pin.closest('.relative')?.querySelector('.h-20')).toBeTruthy();
+  });
+
+  it('shows the error with a Retry outside the divider overlay and no server text', async () => {
     peaksState.value = { peaks: null, peakResolutionMs: 100, peaksError: 'boom' };
     renderModal();
-    expect(await screen.findByText('Could not load waveform: boom')).toBeTruthy();
+    const message = await screen.findByText('Could not load waveform. Try again.');
+    const pin = screen.getByRole('slider', { name: /SPLIT/ });
+    const overlay = pin.closest('.relative');
+    expect(overlay).not.toBeNull();
+    expect(overlay?.contains(message)).toBe(false);
+    expect(screen.queryByText(/boom/)).toBeNull();
     expect(screen.queryByText('Loading waveform...')).toBeNull();
+    expect(screen.getByRole('button', { name: 'Retry' })).toBeTruthy();
+  });
+
+  it('refetches when Retry is pressed', async () => {
+    peaksState.value = { peaks: null, peakResolutionMs: 100, peaksError: 'boom' };
+    renderModal();
+    const user = userEvent.setup();
+    expect(new Set(peaksTicks)).toEqual(new Set([0]));
+    await user.click(await screen.findByRole('button', { name: 'Retry' }));
+    expect(peaksTicks[peaksTicks.length - 1]).toBe(1);
   });
 });
