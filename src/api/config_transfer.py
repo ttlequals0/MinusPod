@@ -6,7 +6,6 @@ from io import BytesIO
 from flask import request, send_file
 
 from api import api, error_response, get_database, json_response, limiter, log_request
-from api.auth_state import refresh_auth
 from config_transfer import (
     MAX_CONFIG_REQUEST_BYTES, ConfigTransferError, apply_config, build_preview,
     export_config,
@@ -80,8 +79,6 @@ def apply_runtime_config_import():
             raise ConfigTransferError('previewToken is required')
         db = get_database()
         result = apply_config(db, document, scope, selected, token)
-        # Recheck after commit so this response's cookie uses an imported session length.
-        refresh_auth(db)
         return json_response(result)
     except ConfigTransferError as exc:
         return error_response(str(exc), exc.status)
