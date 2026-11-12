@@ -11,10 +11,9 @@ way it preserves embedded chapters.
 import json
 import logging
 
-from config import HTTP_MAX_REDIRECTS_FEED, HTTP_TIMEOUT_API
 from user_agent import download_user_agent
 from utils.http import safe_url_for_log
-from utils.safe_http import URLTrust, read_response_capped, safe_get
+from utils.safe_http import get_feed_content_with_agents, read_response_capped
 
 logger = logging.getLogger(__name__)
 
@@ -57,23 +56,8 @@ def fetch_upstream_chapters(url: str, user_agent: str | None = None, *,
     try:
         agents = list(dict.fromkeys(
             ua for ua in (user_agent or download_user_agent(), fallback_user_agent) if ua))
-        for i, agent in enumerate(agents):
-            response = safe_get(
-                url,
-                trust=URLTrust.FEED_CONTENT,
-                max_redirects=HTTP_MAX_REDIRECTS_FEED,
-                timeout=HTTP_TIMEOUT_API,
-                stream=True,
-                headers={
-                    'User-Agent': agent,
-                    'Accept': 'application/json',
-                },
-            )
-            # Some hosts refuse the download UA but accept the feed UA.
-            if response.status_code == 403 and i < len(agents) - 1:
-                response.close()
-                continue
-            break
+        response = get_feed_content_with_agents(
+            url, agents, 'application/json')
         try:
             response.raise_for_status()
             body = read_response_capped(response, MAX_UPSTREAM_CHAPTERS_BYTES)

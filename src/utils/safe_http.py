@@ -33,7 +33,7 @@ from urllib.parse import urlparse
 
 import requests
 
-from config import HTTP_MAX_REDIRECTS_API, HTTP_TIMEOUT_API, HTTP_TIMEOUT_FETCH
+from config import HTTP_MAX_REDIRECTS_API, HTTP_MAX_REDIRECTS_FEED, HTTP_TIMEOUT_API, HTTP_TIMEOUT_FETCH
 from utils.pinned_transport import PinnedHTTPAdapter
 from utils.url import SSRFError, validate_base_url, validate_url
 
@@ -192,6 +192,25 @@ def safe_get(
     finally:
         if not stream:
             session.close()
+
+
+def get_feed_content_with_agents(url: str, agents: list[str], accept: str) -> requests.Response:
+    """Streamed feed-content GET that tries each User-Agent in order, moving on after a 403."""
+    if not agents:
+        raise ValueError("no User-Agent to fetch with")
+    for i, agent in enumerate(agents):
+        response = safe_get(
+            url,
+            trust=URLTrust.FEED_CONTENT,
+            max_redirects=HTTP_MAX_REDIRECTS_FEED,
+            timeout=HTTP_TIMEOUT_API,
+            stream=True,
+            headers={'User-Agent': agent, 'Accept': accept},
+        )
+        if response.status_code == 403 and i < len(agents) - 1:
+            response.close()
+            continue
+        return response
 
 
 def get_capped(

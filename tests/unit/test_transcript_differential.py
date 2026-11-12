@@ -9,6 +9,7 @@ from unittest.mock import patch
 import pytest
 import requests
 
+from utils.safe_http import URLTrust
 import transcript_differential as td
 from transcript_differential import (
     MAX_CUES,
@@ -235,14 +236,14 @@ class TestFetch:
         def _get(url, **kwargs):
             seen.update(kwargs, url=url)
             return _response(_fixture('sample.vtt'))
-        monkeypatch.setattr('transcript_differential.safe_get', _get)
+        monkeypatch.setattr('utils.safe_http.safe_get', _get)
 
         t = fetch_upstream_transcript(URL, 'text/vtt')
 
         assert t.mime == 'text/vtt' and t.source_url == URL and len(t.cues) == 3
         assert seen['url'] == URL
         assert seen['stream'] is True
-        assert seen['trust'] == td.URLTrust.FEED_CONTENT
+        assert seen['trust'] == URLTrust.FEED_CONTENT
         assert 'User-Agent' in seen['headers']
 
     def test_403_retries_with_feed_ua(self, monkeypatch):
@@ -252,7 +253,7 @@ class TestFetch:
             ua = kwargs['headers']['User-Agent']
             seen.append(ua)
             return _response(_fixture('sample.vtt'), status=403 if ua == 'Settled/1' else 200)
-        monkeypatch.setattr('transcript_differential.safe_get', _get)
+        monkeypatch.setattr('utils.safe_http.safe_get', _get)
 
         t = fetch_upstream_transcript(URL, 'text/vtt', user_agent='Settled/1',
                                       fallback_user_agent='Feed/2')
@@ -266,7 +267,7 @@ class TestFetch:
         def _get(url, **kwargs):
             seen.append(kwargs['headers']['User-Agent'])
             return _response(b'', status=403)
-        monkeypatch.setattr('transcript_differential.safe_get', _get)
+        monkeypatch.setattr('utils.safe_http.safe_get', _get)
 
         assert fetch_upstream_transcript(URL, 'text/vtt', user_agent='Settled/1',
                                          fallback_user_agent='Feed/2') is None
@@ -278,32 +279,32 @@ class TestFetch:
         def _get(url, **kwargs):
             seen.append(kwargs['headers']['User-Agent'])
             return _response(b'', status=403)
-        monkeypatch.setattr('transcript_differential.safe_get', _get)
+        monkeypatch.setattr('utils.safe_http.safe_get', _get)
 
         assert fetch_upstream_transcript(URL, 'text/vtt', user_agent='Same/1',
                                          fallback_user_agent='Same/1') is None
         assert seen == ['Same/1']
 
     def test_falls_back_to_response_content_type(self, monkeypatch):
-        monkeypatch.setattr('transcript_differential.safe_get', lambda *a, **k: _response(
+        monkeypatch.setattr('utils.safe_http.safe_get', lambda *a, **k: _response(
             _fixture('sample.json'), content_type='application/json; charset=utf-8'))
         assert fetch_upstream_transcript(URL, None).mime == 'application/json'
 
     def test_network_error_returns_none(self, monkeypatch):
         def _boom(*a, **k):
             raise requests.ConnectionError('refused')
-        monkeypatch.setattr('transcript_differential.safe_get', _boom)
+        monkeypatch.setattr('utils.safe_http.safe_get', _boom)
         assert fetch_upstream_transcript(URL, 'text/vtt') is None
 
     def test_http_error_returns_none(self, monkeypatch):
-        monkeypatch.setattr('transcript_differential.safe_get',
+        monkeypatch.setattr('utils.safe_http.safe_get',
                             lambda *a, **k: _response(b'oops', status=500))
         assert fetch_upstream_transcript(URL, 'text/vtt') is None
 
     def test_oversized_body_returns_none(self, monkeypatch):
         def _too_big(*a, **k):
             raise ResponseTooLargeError('too big')
-        monkeypatch.setattr('transcript_differential.safe_get',
+        monkeypatch.setattr('utils.safe_http.safe_get',
                             lambda *a, **k: _response(b'WEBVTT'))
         monkeypatch.setattr('transcript_differential.read_response_capped', _too_big)
         assert fetch_upstream_transcript(URL, 'text/vtt') is None
@@ -315,7 +316,7 @@ class TestFetch:
                 yield b'WEBVTT\n'
         response = _response(b'')
         response.iter_content = _slow
-        monkeypatch.setattr('transcript_differential.safe_get', lambda *a, **k: response)
+        monkeypatch.setattr('utils.safe_http.safe_get', lambda *a, **k: response)
         monkeypatch.setattr('transcript_differential.FETCH_DEADLINE_S', 0.2)
         start = time.monotonic()
         assert fetch_upstream_transcript(URL, 'text/vtt') is None
@@ -325,7 +326,7 @@ class TestFetch:
         assert MAX_UPSTREAM_TRANSCRIPT_BYTES == 5 * 1024 * 1024
 
     def test_unparseable_body_returns_none(self, monkeypatch):
-        monkeypatch.setattr('transcript_differential.safe_get',
+        monkeypatch.setattr('utils.safe_http.safe_get',
                             lambda *a, **k: _response(b'{"nope": 1}'))
         assert fetch_upstream_transcript(URL, 'application/json') is None
 
