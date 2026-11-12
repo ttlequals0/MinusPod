@@ -82,15 +82,30 @@ def test_retry_after_uses_the_slowest_breached_limit():
     assert limiter_retry_after_seconds([L(breached=True, reset_at=9_999)], 10_000) == 1
 
 
-def test_other_rate_limited_routes_keep_their_429_unchanged(limited_client, db):
+def test_other_rate_limited_routes_also_say_when_to_retry(limited_client, db):
     db.set_setting('app_password', '')
     last = None
     for _ in range(6):
         last = limited_client.get('/api/v1/system/config-backup')
+    assert_response_conforms('get', '/system/config-backup', last, status=429)
+    ra = last.headers['Retry-After']
+    assert ra.isdigit() and 1 <= int(ra) <= 3601
+    body = last.get_json()
+    assert set(body) == {'error', 'status', 'retryAfterSeconds'}
+    assert body['retryAfterSeconds'] == int(ra)
+    assert body['status'] == 429
+    assert body['error'] == '5 per 1 hour'
+
+
+def test_default_limit_429_says_when_to_retry(limited_client, db):
+    db.set_setting('app_password', '')
+    last = None
+    for _ in range(201):
+        last = limited_client.get('/api/v1/auth/status')
+        if last.status_code == 429:
+            break
     assert last.status_code == 429
-    assert 'Retry-After' not in last.headers
-    assert set(last.get_json()) == {'error', 'status'}
-    assert last.get_json()['status'] == 429
+    assert int(last.headers['Retry-After']) == last.get_json()['retryAfterSeconds'] >= 1
 
 
 def test_login_without_a_limit_hit_has_no_retry_after(client):

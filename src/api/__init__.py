@@ -338,9 +338,6 @@ def _handle_http_exception(exc):
     return jsonify({'error': exc.description, 'status': exc.code}), exc.code
 
 
-LOGIN_PATH = '/api/v1/auth/login'
-
-
 def retry_after_ceil(wait):
     """Whole seconds to wait, rounded up and at least 1; None means 1."""
     return 1 if wait is None else max(1, math.ceil(wait))
@@ -365,9 +362,7 @@ def retry_after_response(message, seconds, status, *, in_body=False):
 
 @api.errorhandler(RateLimitExceeded)
 def _handle_rate_limited(exc):
-    """Same 429 body as any HTTPException; the login route also says when to retry."""
-    if request.path != LOGIN_PATH:
-        return _handle_http_exception(exc)
+    """The HTTPException 429 body plus when to retry, as a header and retryAfterSeconds."""
     seconds = limiter_retry_after_seconds(limiter.current_limits, time.time())
     return retry_after_response(exc.description, seconds, 429, in_body=True)
 

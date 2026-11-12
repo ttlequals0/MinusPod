@@ -53,3 +53,11 @@ def test_helper_accepts_json_schema_null():
     ok = {'episodeId': 'a1b2c3d4e5f6', 'processedAt': None, 'newDuration': None,
           'navigation': {'previous': None, 'next': None}}
     assert_response_conforms('get', EPISODE_PATH, _Resp(ok))
+
+
+def test_helper_resolves_a_shared_response_ref():
+    schema = response_schema('get', '/system/config-backup', 429)
+    assert schema == {'$ref': '#/components/schemas/RateLimitError'}
+    with pytest.raises(AssertionError, match='retryAfterSeconds'):
+        assert_response_conforms('get', '/system/config-backup',
+                                 _Resp({'error': 'x', 'status': 429}, 429), status=429)

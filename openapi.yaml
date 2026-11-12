@@ -160,19 +160,11 @@ paths:
           description: Too many sign-in attempts, from the rate limit or the failed-login lockout. The Retry-After header and retryAfterSeconds both give the wait in whole seconds.
           headers:
             Retry-After:
-              description: Seconds to wait before trying again.
-              schema:
-                type: integer
+              $ref: '#/components/headers/RetryAfter'
           content:
             application/json:
               schema:
-                allOf:
-                  - $ref: '#/components/schemas/Error'
-                  - type: object
-                    properties:
-                      retryAfterSeconds:
-                        type: integer
-                        minimum: 1
+                $ref: '#/components/schemas/RateLimitError'
         '503':
           description: Authentication is required but the first password has not been set
           content:
@@ -2679,11 +2671,20 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
         '429':
-          description: SponsorBlock rate limited the submission, or the endpoint limit was reached. The outcome is recorded.
+          description: >-
+            SponsorBlock rate limited the submission, and the outcome is recorded.
+            When this endpoint's own limit is reached instead, nothing is sent or
+            recorded, and the body and Retry-After header follow the shared
+            RateLimited response.
+          headers:
+            Retry-After:
+              $ref: '#/components/headers/RetryAfter'
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SponsorBlockSubmitResult'
+                anyOf:
+                  - $ref: '#/components/schemas/SponsorBlockSubmitResult'
+                  - $ref: '#/components/schemas/RateLimitError'
         '502':
           description: The request to SponsorBlock failed. The outcome is recorded.
           content:
@@ -3183,6 +3184,7 @@ paths:
                   skipped:
                     type: integer
         '429':
+          $ref: '#/components/responses/RateLimited'
           description: Rate limited (5 per minute)
 
   /episodes/awaiting-approval:
@@ -3301,6 +3303,7 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
         '429':
+          $ref: '#/components/responses/RateLimited'
           description: Rate limited (10 per minute)
 
   /episodes/held:
@@ -5542,10 +5545,7 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
         '429':
-          description: Rate limit exceeded
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/Error' }
+          $ref: '#/components/responses/RateLimited'
 
   /patterns/cleanup/runs:
     get:
@@ -9185,11 +9185,7 @@ paths:
                   updateAvailable:
                     type: boolean
         '429':
-          description: Rate limit exceeded
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
+          $ref: '#/components/responses/RateLimited'
         '502':
           description: GitHub unreachable or fetch failed
           content:
@@ -9611,11 +9607,8 @@ paths:
         '400':
           $ref: '#/components/responses/BadRequest'
         '429':
+          $ref: '#/components/responses/RateLimited'
           description: Update limit of 10 requests per hour exceeded
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
         '503':
           description: Currency service unavailable for a non-USD update
           content:
@@ -9727,11 +9720,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
         '429':
-          description: Rate limit exceeded
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
+          $ref: '#/components/responses/RateLimited'
 
   /system/config-backup:
     get:
@@ -9754,6 +9743,8 @@ paths:
           description: Authentication required
         '413':
           description: Complete configuration exceeds the supported import request size
+        '429':
+          $ref: '#/components/responses/RateLimited'
         '500':
           description: Configuration or credentials could not be exported
 
@@ -9875,11 +9866,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
         '429':
-          description: Rate limit exceeded
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
+          $ref: '#/components/responses/RateLimited'
 
   /system/diagnostic-export:
     get:
@@ -9971,11 +9958,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
         '429':
-          description: Rate limit exceeded
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
+          $ref: '#/components/responses/RateLimited'
 
   /system/db-backup/run:
     post:
@@ -9998,10 +9981,7 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
         '429':
-          description: Rate limit exceeded
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/Error' }
+          $ref: '#/components/responses/RateLimited'
         '500':
           description: Backup failed
           content:
@@ -10863,11 +10843,7 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
         '429':
-          description: Rate limit exceeded
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
+          $ref: '#/components/responses/RateLimited'
 
   /settings/webhooks/validate-template:
     post:
@@ -10905,11 +10881,7 @@ paths:
                     type: [string, 'null']
                     description: Error message (when invalid)
         '429':
-          description: Rate limit exceeded
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
+          $ref: '#/components/responses/RateLimited'
 
   /settings/notifications/timezone:
     get:
@@ -11018,11 +10990,7 @@ paths:
                   message:
                     type: string
         '429':
-          description: Rate limit exceeded
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
+          $ref: '#/components/responses/RateLimited'
 
   /feeds/{slug}/episodes/bulk:
     post:
@@ -12274,7 +12242,7 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/CommunitySyncSummary' }
         '429':
-          description: Rate-limited
+          $ref: '#/components/responses/RateLimited'
         '502':
           description: Manifest fetch or apply failed
 
@@ -21348,6 +21316,24 @@ components:
             `original_not_retained` means no source episode keeps its original audio.
           example: llm_disabled
 
+    RateLimitError:
+      allOf:
+        - $ref: '#/components/schemas/Error'
+        - type: object
+          required: [retryAfterSeconds]
+          properties:
+            retryAfterSeconds:
+              type: integer
+              minimum: 1
+              description: The same wait as the Retry-After header, in whole seconds.
+
+  headers:
+    RetryAfter:
+      description: Whole seconds to wait before trying again, at least 1.
+      schema:
+        type: integer
+        minimum: 1
+
   responses:
     BadRequest:
       description: Bad request - invalid input
@@ -21409,3 +21395,16 @@ components:
         application/json:
           schema:
             $ref: '#/components/schemas/Error'
+
+    RateLimited:
+      description: >-
+        Too many requests from this client under the route's own limit or the
+        default limit of 200 a minute and 1000 an hour. The Retry-After header
+        and retryAfterSeconds both give the wait in whole seconds.
+      headers:
+        Retry-After:
+          $ref: '#/components/headers/RetryAfter'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/RateLimitError'
