@@ -320,15 +320,62 @@ describe('PatternsPage audio column', () => {
     expect(within(table).getByRole('columnheader', { name: 'Audio' })).toBeDefined();
   });
 
-  it('leaves the Sponsor column unsized so it takes the spare width', async () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  function setViewport(xl: boolean) {
+    vi.stubGlobal('matchMedia', (query: string) => ({
+      matches: xl, media: query, addEventListener: () => {}, removeEventListener: () => {},
+    }));
+  }
+
+  it.each([
+    [false, 10, false],
+    [true, 11, true],
+  ])('below xl the Created column is dropped (xl=%s: %i columns, Created header %s)', async (xl, columns, created) => {
+    setViewport(xl);
     mockGetPatterns.mockResolvedValue([audioPattern(1)]);
     renderPage();
     const table = await screen.findByRole('table');
     await within(table).findAllByText('Sponsor 1');
-    const cols = [...table.querySelectorAll('col')];
-    expect(cols).toHaveLength(11);
-    expect(cols[2].className).toBe('');
-    expect(cols.filter((c) => c.className === '')).toHaveLength(1);
+    expect(within(table).getAllByRole('columnheader')).toHaveLength(columns);
+    expect(within(table).queryByRole('columnheader', { name: 'Created' }) !== null).toBe(created);
+    expect(within(table).getAllByRole('row')[1].querySelectorAll('td')).toHaveLength(columns);
+    expect(table.querySelectorAll('col')).toHaveLength(columns);
+  });
+
+  it('leaves the Sponsor column unsized in both layouts so it takes the spare width', async () => {
+    for (const xl of [false, true]) {
+      setViewport(xl);
+      mockGetPatterns.mockResolvedValue([audioPattern(1)]);
+      const { unmount } = renderPage();
+      const table = await screen.findByRole('table');
+      await within(table).findAllByText('Sponsor 1');
+      const cols = [...table.querySelectorAll('col')];
+      expect(cols[2].className).toBe('');
+      expect(cols.filter((c) => c.className === '')).toHaveLength(1);
+      unmount();
+    }
+  });
+
+  it('spans the empty-state cell over every visible column', async () => {
+    setViewport(false);
+    mockGetPatterns.mockResolvedValue([]);
+    renderPage();
+    const table = await screen.findByRole('table');
+    expect((await within(table).findByText('No patterns yet.')).getAttribute('colspan')).toBe('10');
+  });
+
+  it('sorts newest first when Created is the sort but its column is hidden', async () => {
+    setViewport(false);
+    mockGetPatterns.mockResolvedValue([
+      { ...audioPattern(1), created_at: '2026-01-01T00:00:00Z' },
+      { ...audioPattern(2), created_at: '2026-03-01T00:00:00Z' },
+    ]);
+    renderPage('/patterns?sort=created_at&dir=asc');
+    const table = await screen.findByRole('table');
+    await within(table).findAllByText('Sponsor 1');
+    const ids = within(table).getAllByRole('row').slice(1).map((r) => within(r).getAllByRole('cell')[0].textContent);
+    expect(ids).toEqual(['#2', '#1']);
   });
 
   it('shows a dash for active audio with no matches and for a pattern without the field', async () => {

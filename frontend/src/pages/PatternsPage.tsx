@@ -3,6 +3,7 @@ import PageTabs from '../components/PageTabs';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router';
 import { useUrlParams, useUrlSearch, useUrlSort } from '../hooks/useUrlParams';
+import { useMediaQuery } from '../hooks/useMediaQuery';
 import {
   getPatterns, getPatternStats, AdPattern, updatePattern,
   protectPattern, unprotectPattern, PATTERN_SOURCE_COMMUNITY,
@@ -64,6 +65,10 @@ const PATTERN_PARAM_DEFAULTS = {
   page: '1', scope: 'all', origin: 'all', source: 'all', category: '', inactive: '',
 };
 
+// Column widths in px, Sponsor (index 2) unsized so it takes the spare width. Below xl Created is dropped.
+const COLUMN_WIDTHS = ['w-[56px]', 'w-[100px]', '', 'w-[128px]', 'w-[124px]', 'w-[96px]', 'w-[72px]', 'w-[84px]', 'w-[72px]', 'w-[84px]'];
+const COLUMN_WIDTHS_XL = ['w-[52px]', 'w-[148px]', '', 'w-[128px]', 'w-[124px]', 'w-[96px]', 'w-[84px]', 'w-[96px]', 'w-[96px]', 'w-[72px]', 'w-[84px]'];
+
 function PatternsPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const tabParam = searchParams.get('tab');
@@ -78,7 +83,10 @@ function PatternsPage() {
   // ?q= belongs to the visible tab; the sponsors tab reads it itself.
   const [searchInput, setSearchInput, searchQuery] = useUrlSearch('q', { enabled: activeTab === 'patterns' });
   const [selectedPattern, setSelectedPattern] = useState<AdPattern | null>(null);
-  const { sortBy: sortField, sortDirection, onSort: handleSort } = useUrlSort(SORT_FIELDS, 'created_at', 'desc');
+  const { sortBy: sortField, sortDirection: urlSortDirection, onSort: handleSort } = useUrlSort(SORT_FIELDS, 'created_at', 'desc');
+  // The Created column only fits from xl; below that the default order applies instead of an unseen one.
+  const showCreated = useMediaQuery('(min-width: 1280px)');
+  const sortDirection = sortField === 'created_at' && !showCreated ? 'desc' : urlSortDirection;
   const [importOpen, setImportOpen] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
   const limit = 20;
@@ -485,19 +493,11 @@ function PatternsPage() {
       {/* Desktop Table Layout */}
       <div className={`hidden sm:block ${tableCard}`}>
         <div className="overflow-x-auto" role="region" aria-label="Patterns table" tabIndex={0}>
-          <table className="w-full min-w-[1140px] table-fixed">
+          <table className={`w-full table-fixed ${showCreated ? 'min-w-[1140px]' : 'min-w-[940px]'}`}>
             <colgroup>
-              <col className="w-[52px]" />
-              <col className="w-[148px]" />
-              <col />
-              <col className="w-[128px]" />
-              <col className="w-[124px]" />
-              <col className="w-[96px]" />
-              <col className="w-[84px]" />
-              <col className="w-[96px]" />
-              <col className="w-[96px]" />
-              <col className="w-[72px]" />
-              <col className="w-[84px]" />
+              {(showCreated ? COLUMN_WIDTHS_XL : COLUMN_WIDTHS).map((w, i) => (
+                <col key={i} className={w} />
+              ))}
             </colgroup>
             <thead className={tableHead}>
               <tr>
@@ -512,7 +512,9 @@ function PatternsPage() {
                 </th>
                 <SortHeader field="confirmation_count" label="Confirmed" className="px-2 whitespace-nowrap" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} />
                 <SortHeader field="false_positive_count" label="False pos." className="px-2" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} />
-                <SortHeader field="created_at" label="Created" className="px-2" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} />
+                {showCreated && (
+                  <SortHeader field="created_at" label="Created" className="px-2" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} />
+                )}
                 <SortHeader field="last_matched_at" label="Last matched" className="px-2" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} />
                 <th className={`${thBase} px-2 text-left`}>
                   Status
@@ -600,9 +602,11 @@ function PatternsPage() {
                       {pattern.false_positive_count}
                     </span>
                   </td>
-                  <td className="px-2 py-3 text-sm text-muted-foreground whitespace-nowrap">
-                    {formatDate(pattern.created_at)}
-                  </td>
+                  {showCreated && (
+                    <td className="px-2 py-3 text-sm text-muted-foreground whitespace-nowrap">
+                      {formatDate(pattern.created_at)}
+                    </td>
+                  )}
                   <td className="px-2 py-3 text-sm text-muted-foreground whitespace-nowrap">
                     {formatDate(pattern.last_matched_at)}
                   </td>
@@ -626,7 +630,7 @@ function PatternsPage() {
               ))}
               {paginatedPatterns?.length === 0 && (
                 <tr>
-                  <td colSpan={11} className={tdEmpty}>
+                  <td colSpan={showCreated ? 11 : 10} className={tdEmpty}>
                     {patterns.length === 0 ? 'No patterns yet.' : 'No patterns match these filters.'}
                   </td>
                 </tr>
