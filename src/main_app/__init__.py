@@ -15,9 +15,9 @@ from utils.session_defaults import _default_session_cookie_secure
 from utils.paths import resolve_data_dir
 # Re-exported: main_app.shutdown_event stays the same object every waiter uses.
 from utils.shutdown import shutdown_event
-# SingleLineFormatter and JSONFormatter stay importable from main_app.
+# SingleLineFormatter stays importable from main_app for its test.
 from utils.log_format import (  # noqa: F401
-    JSONFormatter, QueryStringRedactingFilter, SingleLineFormatter, guard_handler_errors,
+    QueryStringRedactingFilter, SingleLineFormatter, guard_handler_errors,
     install_exception_hooks, make_formatter)
 from pathlib import Path
 
