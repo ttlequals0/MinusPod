@@ -36,6 +36,17 @@ export function formatDateTime(dateStr: string | null): string {
   });
 }
 
+// Month, day and time without the year for the current year ("Mar 4, 3:26 PM"); `-` for a missing value.
+export function formatDateTimeShort(dateStr: string | null, now = new Date()): string {
+  if (!dateStr) return '-';
+  const date = new Date(dateStr);
+  return date.toLocaleString([], {
+    month: 'short', day: 'numeric',
+    ...(date.getFullYear() === now.getFullYear() ? {} : { year: 'numeric' }),
+    hour: 'numeric', minute: '2-digit',
+  });
+}
+
 // Past time relative to now ("just now", "5m ago", "3h ago", "2d ago").
 export function formatTimeAgo(dateStr: string, now = Date.now()): string {
   const minutes = Math.floor((now - new Date(dateStr).getTime()) / 60000);

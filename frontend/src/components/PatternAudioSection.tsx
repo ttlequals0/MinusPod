@@ -8,7 +8,7 @@ import { DEMO_AUDIO_TOOLTIP } from '../demo/copy';
 import { IS_DEMO } from '../demo/flag';
 import { usePatternAudioPreview } from '../hooks/usePatternAudioPreview';
 import { usePatternAudioRebuild } from '../hooks/usePatternAudioRebuild';
-import { formatDate, formatDateTime, formatPercent } from '../utils/format';
+import { formatDate, formatDateTimeShort, formatPercent } from '../utils/format';
 import AdReviewModal from './AdReviewModal';
 import AudioMatchesList from './AudioMatchesList';
 import { AuditionPlayButton } from './AuditionPlayButton';
@@ -198,9 +198,9 @@ export default function PatternAudioSection({ pattern }: { pattern: AdPattern })
           <StatTile label="Mean match" value={detail.meanSimilarity != null ? formatPercent(detail.meanSimilarity) : '-'} />
           <StatTile label="Not this ad" value={detail.counts.rejected} tone={detail.counts.rejected > 0 ? 'destructive' : 'default'} />
           <StatTile label="Last audio match" value={(
-            <span className="text-sm font-semibold break-words">
+            <span className="text-sm font-semibold">
               <span className="sm:hidden">{formatDate(detail.lastMatchedAt ?? null)}</span>
-              <span className="max-sm:hidden">{formatDateTime(detail.lastMatchedAt ?? null)}</span>
+              <span className="max-sm:hidden whitespace-nowrap">{formatDateTimeShort(detail.lastMatchedAt ?? null)}</span>
             </span>
           )} />
         </div>

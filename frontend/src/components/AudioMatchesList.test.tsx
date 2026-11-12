@@ -210,9 +210,11 @@ describe('AudioMatchesList', () => {
     await userEvent.click(screen.getAllByRole('button', { name: 'Page 2' })[0]);
     const list = screen.getAllByRole('list')[0];
     await waitFor(() => expect(list.getAttribute('aria-busy')).toBe('true'));
+    expect(screen.getByText('Loading matches...').getAttribute('role')).toBe('status');
     for (const button of within(list).getAllByRole('button')) expect((button as HTMLButtonElement).disabled).toBe(true);
     await act(async () => { finish(pageOf(twelve, 2)); });
     await waitFor(() => expect(list.getAttribute('aria-busy')).toBe('false'));
+    expect(screen.queryByText('Loading matches...')).toBeNull();
   });
 
   it('plays a match from its preview url and shows Loading audio until it starts', async () => {

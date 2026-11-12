@@ -39,7 +39,7 @@ export default function AudioMatchesList({ patternId, preview }: { patternId: nu
   const queryClient = useQueryClient();
   const headingId = useId();
   const listRef = useRef<HTMLUListElement>(null);
-  const focusMatchId = useRef<number | null>(null);
+  const [focusMatchId, setFocusMatchId] = useState<number | null>(null);
   const [page, setPage] = useState(1);
   const [rejectError, setRejectError] = useState<string | null>(null);
   const matchesKey = ['pattern-audio-matches', patternId] as const;
@@ -61,7 +61,7 @@ export default function AudioMatchesList({ patternId, preview }: { patternId: nu
     },
     onError: (error) => setRejectError(getErrorMessage(error, 'Could not save correction.')),
     onSuccess: (_void, m) => {
-      focusMatchId.current = m.id;
+      setFocusMatchId(m.id);
       queryClient.setQueryData<AudioMatchesPage>([...matchesKey, page], (old) => old && {
         ...old, matches: old.matches.map((x) => (x.id === m.id ? { ...x, rejected: true } : x)),
       });
@@ -83,14 +83,13 @@ export default function AudioMatchesList({ patternId, preview }: { patternId: nu
 
   // The row's Not this ad button is gone once it is saved; put focus on the row's next control.
   useEffect(() => {
-    const id = focusMatchId.current;
-    const row = id == null ? null : listRef.current?.querySelector(`[data-match-id="${id}"]`);
+    const row = focusMatchId == null ? null : listRef.current?.querySelector(`[data-match-id="${focusMatchId}"]`);
     const target = row?.querySelector<HTMLElement>('button[aria-label^="Play"]') ?? row?.querySelector<HTMLElement>('h5');
-    if (target && data?.matches.find((m) => m.id === id)?.rejected) {
+    if (target && data?.matches.find((m) => m.id === focusMatchId)?.rejected) {
       target.focus();
-      focusMatchId.current = null;
+      setFocusMatchId(null);
     }
-  });
+  }, [data, focusMatchId]);
 
   let body;
   if (isPending) {
@@ -107,6 +106,7 @@ export default function AudioMatchesList({ patternId, preview }: { patternId: nu
   } else {
     body = (
       <>
+        {isPlaceholderData && <p role="status" className="text-sm text-muted-foreground">Loading matches...</p>}
         <ul ref={listRef} aria-busy={isPlaceholderData} className="space-y-2">
           {data.matches.map((m) => {
             const { label, tone } = outcome(m);
