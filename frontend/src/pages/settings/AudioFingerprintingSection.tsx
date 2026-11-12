@@ -17,7 +17,7 @@ type NumericKey = Exclude<keyof FingerprintState, 'enabled'>;
 
 // Ranges and defaults mirror the server (openapi.yaml, /settings/ad-detection); the one place they live here.
 export const FINGERPRINT_LIMITS: Record<NumericKey, { min: number; max: number; default: number }> = {
-  matchStrictness: { min: 0.4, max: 0.95, default: 0.65 },
+  matchStrictness: { min: 0.65, max: 0.95, default: 0.65 },
   minCoverage: { min: 0.1, max: 1, default: 0.5 },
   gapToleranceS: { min: 0, max: 15, default: 3.5 },
   minAdLengthS: { min: 3, max: 30, default: 5 },
