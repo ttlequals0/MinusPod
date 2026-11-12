@@ -57,8 +57,8 @@ session starts the period again.
 `POST /api/v1/auth/login` accepts an optional `rememberMe` boolean, default
 false. A session records whether it is remembered and when it was last used.
 
-A request hook in `src/api/auth_state.py` checks the session once on every
-request. It also compares the time since last use with the limit for that
+`src/api/auth_state.py` checks the session at most once per request, the first
+time an API check or a signed-in cookie needs it. It also compares the time since last use with the limit for that
 session, the hours setting or the days setting, and treats a session past its
 limit as signed out. The last-used time is refreshed at most once a minute.
 
