@@ -93,6 +93,16 @@ ordered AS (
 )
 """.format(orders=",".join("'%s'" % o for o in QUEUE_ORDERS), exclude_sql="{exclude_sql}")  # noqa: S608
 
+# Same shape as `ordered` for the common case where no feed changes the order.
+_QUEUED_ONLY_CTE = """
+WITH ordered AS (
+    SELECT q.id, q.priority, q.created_at AS sort_created_at, q.id AS sort_id
+    FROM auto_process_queue q
+    JOIN podcasts p ON q.podcast_id = p.id
+    WHERE q.status = 'pending'{exclude_sql}
+)
+"""
+
 _ORDERED_BY = "o.priority DESC, o.sort_created_at ASC, o.sort_id ASC"
 
 # Bound on the row-level detail returned by get_queue_status.
@@ -363,22 +373,41 @@ class QueueMixin:
                          description = COALESCE(excluded.description, auto_process_queue.description),
                          updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')""",
                     (podcast['id'], episode_id, episode['original_url'], episode['title'],
-                     episode['published_at'], episode['description'], candidate['priority']),
+                     normalize_published_at(episode['published_at']), episode['description'],
+                     candidate['priority']),
                 )
                 result['queued'].append(episode_id)
         return result
 
 
+    def _window_order_needed(self) -> bool:
+        """True when some pending row's feed resolves to an order other than 'queued'."""
+        if resolve_queue_order(None, self.get_setting('queue_order')) != 'queued':
+            return True
+        return self.get_connection().execute(
+            """SELECT EXISTS (
+                   SELECT 1 FROM podcasts p
+                   WHERE p.queue_order IN ('oldest_first', 'newest_first')
+                     AND EXISTS (SELECT 1 FROM auto_process_queue q
+                                 WHERE q.podcast_id = p.id AND q.status = 'pending'))"""
+        ).fetchone()[0] == 1
+
     def _ordered_pending(self, exclude_pairs=()) -> tuple[str, list]:
         """CTE text and params giving each claimable pending row its place in `ordered`."""
-        global_order = resolve_queue_order(None, self.get_setting('queue_order'))
-        params: list = [global_order]
+        params: list = []
         exclude_sql = ""
         if exclude_pairs:
             rows_sql = ",".join("(?,?)" for _ in exclude_pairs)
             exclude_sql = f" AND (p.slug, q.episode_id) NOT IN (VALUES {rows_sql})"
+        if not self._window_order_needed():
+            # Every feed is 'queued': the legacy order, served by idx_queue_status_priority.
             for slug, episode_id in exclude_pairs:
                 params.extend((slug, episode_id))
+            return _QUEUED_ONLY_CTE.format(exclude_sql=exclude_sql), params  # noqa: S608
+        global_order = resolve_queue_order(None, self.get_setting('queue_order'))
+        params = [global_order]
+        for slug, episode_id in exclude_pairs:
+            params.extend((slug, episode_id))
         return _ORDERED_PENDING_CTE.format(exclude_sql=exclude_sql), params  # noqa: S608
 
     def get_next_queued_episode(self) -> dict | None:
