@@ -150,12 +150,8 @@ def _popcount32(x):
             + _POPCOUNT8[(x >> 16) & 0xFF] + _POPCOUNT8[(x >> 24) & 0xFF])
 
 
-# _window_similarity / _pair_similarity are the numpy-vectorized twins of the
-# scalar AudioFingerprinter._calculate_similarity: the same bit-error-rate metric
-# (1 - hamming(a XOR b) / bits) over uint32-masked Chromaprint ints. The np.uint32
-# array dtype handles the signed-int masking that _calculate_similarity does with
-# `& 0xFFFFFFFF`. Kept separate because these run the comparison over every offset
-# at once, where the scalar version walks one pair in a Python loop.
+# Bit similarity is 1 - hamming(a XOR b) / bits over uint32-masked Chromaprint ints; the np.uint32
+# dtype does the signed-int masking, and these compare every offset at once instead of one pair.
 def _window_similarity(arr, anchor, win):
     """Bit-similarity (0-1) of window [anchor, anchor+win) vs every start position."""
     m = len(arr) - win + 1
@@ -389,8 +385,7 @@ def _discover_repeats(raw_ints, fp_duration, similarity, min_count):
     min_gap = max(1, int(round(AUDIO_CUE_FP_MIN_GAP_SECONDS * fps)))
     max_len = max(win, int(round(AUDIO_CUE_FP_MAX_LEN_SECONDS * fps)))
     step = max(1, win // 2)
-    # Via int64 so signed/out-of-range ints wrap into uint32 (matching the
-    # `& 0xFFFFFFFF` masking in _calculate_similarity) instead of warning.
+    # Via int64 so signed/out-of-range ints wrap into uint32 instead of warning.
     arr = np.asarray(raw_ints, dtype=np.int64).astype(np.uint32)
 
     # LSH seed: bucket each probe window by the top KEY_BITS of KEY_SAMPLES
