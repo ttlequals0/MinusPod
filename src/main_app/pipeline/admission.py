@@ -15,7 +15,7 @@ from config import (
 )
 
 from database import Database
-from llm_client import ProviderAccountChangedError
+from llm_client import ProviderAccountChangedError, llm_disabled
 
 from llm_route import apply_failover_dict, resolve_route, route_account_mismatch
 from rate_limit_hold import (
@@ -143,6 +143,8 @@ def _active_phases_for_admission(slug: str, episode_id: str | None = None,
     that must name the blocked phase (the queue admission explanation) reads
     the same resolved set admission itself gates on.
     """
+    if llm_disabled():
+        return {}
     ctx = run_context.current()
     if snapshot is None:
         snapshot = (ctx.route_snapshot if ctx else None) or _resolve_route_snapshot()
@@ -252,6 +254,8 @@ def _resolve_route_snapshot() -> dict | None:
     operator changing review_provider mid-run cannot change pass-2's
     provider after pass-1 already ran on a different one.
     """
+    if llm_disabled():
+        return None
     try:
         detection = resolve_route('detection')
         verification = resolve_route('verification')

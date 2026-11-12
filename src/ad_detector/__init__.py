@@ -21,7 +21,7 @@ from llm_client import (
     is_connectivity_error, is_retryable_error, is_not_found_error,
     is_rate_limit_error, is_limit_exceeded_error,
     is_permanent_request_rejection_status,
-    get_effective_provider, model_matches_provider,
+    get_effective_provider, model_matches_provider, llm_disabled,
     StructuralRateLimitError, ProviderRateLimitedError,
 )
 from llm_route import client_for_route, live_route_params
@@ -873,7 +873,7 @@ class AdDetector:
         """
         self._ensure_deps()
 
-        if not self.api_key:
+        if not self.api_key or llm_disabled():
             return
         try:
             client = get_llm_client()

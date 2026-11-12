@@ -40,7 +40,7 @@ from config import (
 
 from database.podcasts import has_upstream_audio, is_youtube_feed
 from llm_client import (
-    start_episode_token_tracking, get_effective_provider,
+    start_episode_token_tracking, get_effective_provider, llm_disabled,
 )
 
 from rate_limit_hold import (
@@ -571,7 +571,10 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
             detection_mode = 'sponsorblock'
             run_stats['verification_skipped'] = True
         sponsorblock_only = detection_mode == 'sponsorblock'
-        llm_off = cue_only or sponsorblock_only
+        llm_none = llm_disabled()
+        llm_off = cue_only or sponsorblock_only or llm_none
+        if llm_none:
+            run_stats['verification_skipped'] = True
         detection_off = detection_mode == 'skip'
         # SponsorBlock-only marks are cut as given; nothing reads the signals.
         audio_analysis_skipped = sponsorblock_only and not cue_only
@@ -917,7 +920,7 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                     run_stats['detected'] = first_pass_count
             _check_cancel(cancel_event, slug, episode_id)
 
-            # cue_only and SponsorBlock-only skip this: neither mode makes LLM calls.
+            # Model-free runs (cue_only, SponsorBlock-only, provider none) skip the reviewer.
             # Otherwise a no-op when enable_ad_review is off (the default).
             ads_to_remove = detect._exclude_opening_ads(ads_to_remove, opening_exclusion_seconds)
             all_ads_with_validation = detect._exclude_opening_ads(all_ads_with_validation, opening_exclusion_seconds)
@@ -926,7 +929,7 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
             user_trim_ranges = user_trimmed_keep_ranges(user_corrections[1] or [])
             pass1_user_rejects = review._pass1_user_rejects(user_corrections[0], user_trim_ranges)
             pass1_hard = [*keep_ads, *pass1_user_rejects]
-            if detection_mode == 'normal' and not cue_only:
+            if detection_mode == 'normal' and not llm_off:
                 with common._measure_run_stage('refine_validate'):
                     ads_to_remove, all_ads_with_validation = review._run_ad_reviewer(
                         slug, episode_id, podcast_id, ads_to_remove,

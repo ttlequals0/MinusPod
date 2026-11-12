@@ -133,8 +133,12 @@ def _run_pipeline(podcast_row, cue_template_counts=None, cue_templates=None,
                    token_cost=0.012, real_token_tracking=False,
                    approval_recut=False, route_snapshot=None,
                    failover_state=None, standby_dispatch=False,
-                   probe_phases=_PROBE_PHASES_UNSET, episode_row=None):
-    """Run stubbed pipeline stages with optional frozen routes and failover state."""
+                   probe_phases=_PROBE_PHASES_UNSET, episode_row=None,
+                   real_detect=False, refine_cuts_all=False):
+    """Run stubbed pipeline stages with optional frozen routes and failover state.
+
+    real_detect runs the real first-pass stage; refine_cuts_all marks every ad cut.
+    """
     with ExitStack() as stack:
         p = lambda *a, **k: stack.enter_context(patch.object(*a, **k))
         db = p(processing, 'db')
@@ -186,10 +190,19 @@ def _run_pipeline(podcast_row, cue_template_counts=None, cue_templates=None,
 
             detect = p(detect_stage, '_detect_ads_first_pass',
                        side_effect=detect_with_usage)
+        elif real_detect:
+            detect = p(detect_stage, '_detect_ads_first_pass',
+                       side_effect=detect_stage._detect_ads_first_pass)
         else:
             detect = p(detect_stage, '_detect_ads_first_pass',
                        return_value=([], 0, None))
-        refine = p(detect_stage, '_refine_and_validate', return_value=([], []))
+        if refine_cuts_all:
+            def cut_everything(slug, episode_id, ads, *a, **k):
+                marked = [dict(ad, was_cut=True) for ad in ads]
+                return marked, marked
+            refine = p(detect_stage, '_refine_and_validate', side_effect=cut_everything)
+        else:
+            refine = p(detect_stage, '_refine_and_validate', return_value=([], []))
         reviewer = p(review, '_run_ad_reviewer', return_value=([], []))
         p(cuts, '_snap_terminal_starts', return_value=[])
         p(cuts, '_complete_cut_tails', return_value=[])
