@@ -16,7 +16,7 @@ https://github.com/user-attachments/assets/cf3d38d7-3df6-4e8d-bac1-c5dd720dc4b6
 ## How It Works
 
 1. **Transcription** - audio is converted to text with timestamps by faster-whisper or Parakeet (local, GPU or CPU), or by a remote OpenAI-compatible API
-2. **Ad Detection** - An LLM analyzes the transcript to identify ad segments, with an automatic verification pass
+2. **Ad Detection** - An LLM analyzes the transcript to identify ad segments, with an automatic verification pass. With the provider set to None, learned patterns and audio fingerprints do this instead; see [Running without an LLM](llm-providers.md#running-without-an-llm)
 3. **Audio Processing** - FFmpeg removes detected ads and inserts short audio markers
 4. **Serving** - Flask serves modified RSS feeds and processed audio files
 
@@ -186,6 +186,44 @@ Access the Patterns page from the navigation bar to:
 - View confirmation and false positive counts
 - Split a pattern that already covers multiple sponsors into one pattern per
   sponsor from its detail view
+
+### Audio fingerprints
+
+An audio fingerprint is a Chromaprint signature of a known ad. It lives on a pattern, next to the pattern's text, and finds the same ad in a new episode by sound alone, with no transcript and no LLM call. This is the main detector when the LLM provider is [None](llm-providers.md#running-without-an-llm).
+
+**Where a fingerprint comes from.** One is stored when a person or a trusted detector sets an ad's edges on an episode whose original audio is still retained (the global or per-feed "Keep original audio" setting):
+
+| Source | Result |
+|--------|--------|
+| LLM or SponsorBlock detection that creates a pattern | A fingerprint of the detected span |
+| Add ad in the ad editor | A fingerprint of the marked span, one per sponsor if the text splits |
+| Confirm | A fingerprint, only if the pattern has none |
+| Adjust | The fingerprint is rebuilt from the new edges |
+| Add audio to pattern, on a text-pattern detection | A fingerprint of the detection's span as shown |
+| Community or imported pattern | None until one of the rows above adds it |
+
+Storing is best effort. The pattern or correction is saved either way, and the response says whether audio was stored and, if not, why (no retained original, span shorter than the minimum ad length, too little distinctive audio to ever match, an existing fingerprint, or a failure). Once you delete a pattern's audio, the automatic rows above do not create it again. Adjust and Add audio to pattern do.
+
+**How a match is measured.** For each active fingerprint in scope, the matcher finds where it lines up with the episode and measures the whole run of agreeing audio. The match reports its measured start and end, similarity (how closely the audio agrees, 0 to 100%) and coverage (the share of the stored ad that was found). It counts only when similarity and coverage reach their settings and enough close agreement backs it. Unrelated real audio can agree for a few seconds, so a very short or low-detail fingerprint that could not pass those checks is refused when it is stored rather than left unable to match. The marker then spans the measured edges, not the stored length.
+
+**Scope.** Audio follows the pattern's scope exactly as text does: a podcast pattern matches only that podcast, a network pattern only podcasts on that network, and a global pattern everywhere. A network pattern uses the feed's network override when one is set. Matches an older version made outside a pattern's scope are flagged in its history, so you can widen the scope on purpose if you want them.
+
+**Controls on a pattern.** Open a pattern on the Patterns page and use its Audio section:
+
+- **Audio on or off.** Stops or resumes matching for the fingerprint. Text matching and the pattern's active state are not affected, and disabling the whole pattern still silences both.
+- **Play.** Plays the source audio. It needs a retained original of the episode the fingerprint was built from or of a recent match. When none is left, the section says "Source audio expired". The fingerprint keeps matching and becomes playable again after its next match.
+- **Edit edges.** Opens the source episode with the fingerprint's span as the only region. Moving the edges and saving rebuilds the fingerprint. The episode's own markers and cuts are not changed.
+- **Delete audio.** Removes the fingerprint and its match history and keeps the pattern.
+- **Add audio to pattern.** For a pattern with no fingerprint whose marker still has a retained original, builds one from that marker.
+- **Recent matches.** Each match with its episode, position, similarity, how much of the ad it covered, and whether only audio found it. **Not this ad** on a row sends the existing reject correction for that episode and marks the match, so it stops counting toward the pattern's matches and mean similarity. A reject does not turn audio off by itself.
+
+If you raise the minimum coverage setting so far that a stored fingerprint could no longer match, the section says "This audio cannot match under the current settings".
+
+The Patterns table has an Audio column ("91% match", "Audio off", "No source audio" or "-"), the Stats page has an Audio matching section (patterns with audio, audio matches, found by audio only, marked Not this ad), and the settings are under Settings > AI & Processing > Audio fingerprinting, described in [Configuration](configuration.md#audio-fingerprinting). Merging or deduplicating patterns moves a fingerprint and its history to the pattern that is kept. Deleting a pattern or feed deletes them.
+
+"Found by audio only" means no other detection stage contributed to that marker. Match history is written from an episode's final markers, so an ad the validator rejected is not a match. Reprocessing replaces an episode's rows and keeps those marked Not this ad.
+
+The routes behind all of this are listed in [API and Webhooks](api-and-webhooks.md).
 
 ### Real-Time Processing Status
 

@@ -63,6 +63,20 @@ Customize ad detection in Settings:
 
 Each customizable prompt (first pass system, verification, chapter, and the Ad Reviewer's review and resurrect prompts under AI & Processing) has its own **Reset** button next to its label, in addition to the section-wide "Reset Prompts to Default" / "Reset Reviewer Prompts to Default" buttons. The per-prompt button is a two-click confirm; it stays visible but disabled (with a tooltip) while that prompt is already at its default, so a customized prompt is easy to spot and revert without resetting every prompt at once.
 
+### Audio fingerprinting
+
+Settings > AI & Processing > Audio fingerprinting controls how stored ad fingerprints are matched against new episodes. It needs no model and stays enabled when the LLM provider is None. How fingerprints are made and matched is in [How It Works > Audio fingerprints](how-it-works.md#audio-fingerprints).
+
+| Setting | Meaning | Default | Allowed | Why this default |
+|---------|---------|---------|---------|------------------|
+| Enable audio fingerprinting | Turns fingerprint matching on or off for the install | On | On or off | Matching is cheap and needs no model |
+| Match strictness | Minimum similarity for a match | 65% | 65% to 95% | The lowest value that produced no false matches in testing, and the value used before the setting existed. Below 65% the setting had no measured effect on the main matcher. Raising it gives fewer false matches and more missed repeats |
+| Minimum coverage | Share of the stored ad that must be found | 50% | 10% to 100% | Starting value. Raising it requires more of the ad to be found before a match counts |
+| Gap tolerance | Longest dropout bridged inside one match | 3.5 s | 0 to 15 s | Starting value. Raising it bridges longer dropouts such as a swapped-in sound, and a longer damaged stretch than this splits the match |
+| Minimum ad length | Shortest span that gets a fingerprint | 5 s | 3 to 30 s | The shortest span fingerprinted before the setting existed |
+
+A value outside the allowed range is rejected with a 400. Changes apply to later runs and to Re-detect ads. They never re-fingerprint ads that are already stored, and each setting has a reset to its default. The settings are included in configuration export and import. API: `fingerprintEnabled`, `fingerprintMatchStrictness`, `fingerprintMinCoverage`, `fingerprintGapToleranceS` and `fingerprintMinAdLengthS` on `PUT /api/v1/settings/ad-detection`.
+
 ### Seed sponsors
 
 Four toggles decide which LLM passes are handed the running list of known sponsors: Detection, Verification, Reviewer, and Resurrect. Turning one off does not turn off that pass; it just stops seeding its prompt with prior sponsors, so the pass judges each candidate on its own. Turning off Reviewer, for example, makes that pass an independent second opinion rather than a check that already expects the sponsor it is reviewing.

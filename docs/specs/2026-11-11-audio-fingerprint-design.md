@@ -54,8 +54,11 @@ removed. There is one matcher and no switch between two.
 
 For each stored fingerprint in scope, the matcher finds candidate alignments
 between the fingerprint and the episode fingerprint by offset, then walks each
-candidate and measures the run of matching points. A gap inside the run is
-bridged up to the gap tolerance. The best run per position wins. The fallback
+candidate and measures the run of matching points at that one alignment. A gap
+inside the run is bridged up to the gap tolerance. Where agreement stops for
+longer than the gap tolerance, the run is split and each piece must pass every
+gate on its own, so an ad with a long damaged stretch is found as shorter
+matches or missed. The best run per position wins. The fallback
 that fingerprints the episode window by window is kept for the case where the
 whole-file fingerprint cannot be produced.
 
@@ -65,11 +68,20 @@ A match reports:
 |---|---|
 | `start`, `end` | Measured edges of the run in original-audio time |
 | `similarity` | Mean bit similarity over the run, 0 to 1 |
-| `coverage` | Measured run length divided by the stored fingerprint length, 0 to 1 |
+| `coverage` | Matching points divided by the stored fingerprint's points, 0 to 1. A point inside a stretch of identical values (silence, a tone) carries no information and never counts as matching |
 
-A run is a match when `similarity` is at least the strictness setting and
-`coverage` is at least the minimum coverage setting. Anything else is ignored
-and not recorded.
+A run is a match when `similarity` is at least the strictness setting,
+`coverage` is at least the minimum coverage setting, and the run also passes
+two evidence gates. Unrelated real audio agrees closely for a few seconds, so
+a match needs a minimum amount of novelty-weighted agreeing audio (or 90 percent
+of what a shorter pattern can supply) and a minimum amount of very close
+agreement. Anything else is ignored and not recorded.
+
+A fingerprint with too little distinctive audio, or whose share of
+non-constant points is below the minimum coverage, could never pass these
+gates. It is refused when stored (reason `not_distinctive`) instead of sitting
+unmatched. If the minimum coverage setting is raised later, a stored
+fingerprint that can no longer match shows `matchable: false` in its detail.
 
 The marker for a match spans the measured `start` to `end`. Today the end is
 the start plus the stored length. `fingerprint_match_start` and
@@ -92,11 +104,14 @@ scope is not slower than today, checked by the comparison run below.
 
 Audio follows its pattern's scope, with the same rule the text matcher uses: a
 `podcast` pattern matches only that podcast, a `network` pattern only podcasts
-on that network, and a `global` pattern everywhere. The audio matcher reuses
-the text matcher's scope filter (`_filter_patterns_by_scope` in
-`src/text_pattern_matcher.py`), including its community-pattern tag
-eligibility, so the two cannot drift. The podcast and network are passed down
-to `find_matches`.
+on that network, and a `global` pattern everywhere. Both matchers
+call one shared scope rule (`pattern_passes_scope` in
+`src/utils/pattern_scope.py`), including community-pattern tag eligibility, so
+the two cannot drift. The podcast and the episode's effective network (the
+feed's network override, else its detected network) are passed down to both.
+Before this release the detector never passed a network to the text matcher, so
+a `network` pattern never matched; that is fixed here for text and audio alike.
+Changing a pattern's scope to `network` records the network it applies to.
 
 An existing install may have fingerprints that have been matching outside their
 scope. A one-shot migration reads stored episode markers with stage
@@ -107,10 +122,16 @@ deliberately. The migration logs the affected pattern ids once. It deletes
 nothing.
 
 The backfill is partial. It covers only markers still stored on
-episodes, skips markers whose pattern no longer exists, and has no similarity,
-coverage or "audio only" value for old rows because the old matcher did not
-measure them. Those fields are stored empty, shown as "-", and left out of
-means.
+episodes and skips markers whose pattern no longer exists. A row takes
+similarity and coverage from the stored marker when it recorded them and
+otherwise stores them empty, shown as "-" and left out of means. An old
+row's span is the marker's own span, since the old matcher did not measure
+one. A
+held marker that was later rejected is written as a rejected row when a
+matching reject correction exists, so "Not this ad" history is kept. The rows
+and the migration mark are written in one transaction; a failed run writes
+nothing and retries on the next start. The log names affected pattern ids, up to
+a cap, with a count of the rest.
 
 ## Decision: when a fingerprint is created
 
@@ -126,11 +147,18 @@ ad's edges on an episode whose original is retained.
 | Text-pattern match | Only by the manual action "Add audio to pattern" on that detection, using the detection's span as shown. To use other edges, adjust the ad first |
 | Imported or community pattern | None. It gains audio through the rows above |
 
+A manual "Add ad" or a create correction whose text splits into several
+sponsors fingerprints each pattern over its own span only. A pattern whose own
+range cannot be found in the transcript gets none (`span_covers_multiple_patterns`).
+A pattern that already has a fingerprint keeps it (`fingerprint_exists`); confirm
+and Add ad never replace one, adjust and "Add audio to pattern" do. An adjust
+rebuilds only the adjusted marker's pattern.
+
 Creation is best effort everywhere. The pattern or correction is saved either
 way, and the route reports `fingerprintStored` and `fingerprintSkippedReason`
 (`audio_removed`, `fingerprint_exists`, `span_covers_multiple_patterns`,
-`original_not_retained`, `segment_too_short`, `fingerprint_failed`, reported
-in that order of precedence) as the 2026-11-10 spec defines for "Add ad". Confirm and
+`original_not_retained`, `segment_too_short`, `not_distinctive`,
+`fingerprint_failed`, reported in that order of precedence) as the 2026-11-10 spec defines for "Add ad". Confirm and
 adjust go through the existing corrections route and its `correctionType`.
 `AudioFingerprinter.store_fingerprint` returns only a boolean today, so
 it changes to report which reason applied.
@@ -188,7 +216,13 @@ them:
 
 Each match is stored: pattern, episode, measured start and end, similarity,
 coverage, whether it was in scope, whether any other detector flagged the same
-span, and when. Reprocessing an episode replaces that episode's rows. Rows go
+span, and when. A match is stored when its ad is in the episode's final markers
+as cut, held for review or kept. A marker the validator rejects, or one left
+uncut below the confidence gate, is not a match the pipeline kept and is not
+stored. Reprocessing an episode replaces that episode's rows, except rows
+marked "Not this ad", which stay.
+A rejected row does not count in a pattern's match count, mean similarity or
+last-matched time. Rows go
 when the pattern or its audio is deleted. A row outlives its episode so the
 counts stay right; it then has no playable source.
 
@@ -203,14 +237,14 @@ the existing camelCase payloads.
 | Route | Purpose |
 |---|---|
 | `GET /patterns`, `GET /patterns/{id}` | Each pattern gains an `audio` summary: state (`active`, `off`, `none`), whether a source is available, match count and mean similarity |
-| `GET /patterns/{id}/audio` | Detail: state, length, created time, the span it was built from, current source and whether it is available, counts (matches, rejected, out of scope), mean similarity, last matched |
+| `GET /patterns/{id}/audio` | Detail: state, whether it is matchable under the current settings, length, created time, the span it was built from, current source and whether it is available, for a pattern with no audio the span of its own marker that audio could be built from (`addSource`), counts (matches, rejected, out of scope), mean similarity, last matched |
 | `PUT /patterns/{id}/audio` | Turn audio on or off |
 | `DELETE /patterns/{id}/audio` | Delete audio |
 | `POST /patterns/{id}/audio/rebuild` | Rebuild from an episode and span. Used by edge editing and "Add audio to pattern" |
 | `GET /patterns/{id}/audio/matches` | Match history, newest first, paginated, 10 per page by default |
 | `GET /patterns/{id}/audio/preview` | The source span as audio, for the source or a given match |
 | `PUT /settings/ad-detection`, `GET /settings` | The settings below, with defaults and reset |
-| Stats route for audio matching | The four numbers below for a period |
+| `GET /stats/audio-matching` | The four numbers below for a period |
 
 "Not this ad" uses the existing corrections route. The builder picks exact
 paths and shapes to fit the neighboring routes and documents every route in
@@ -231,10 +265,13 @@ defaults and reset, and included in config export and import.
 | Setting | Meaning | Starting value |
 |---|---|---|
 | Audio fingerprinting | On or off for the install | On |
-| Match strictness | Minimum similarity for a match | 65% (today's threshold) |
-| Minimum coverage | Share of the stored ad that must be found | 50% |
-| Gap tolerance | Longest dropout bridged inside a match | 3.5 s |
-| Minimum ad length | Shortest span that gets a fingerprint | 5 s (today's value) |
+| Match strictness | Minimum similarity for a match | 65% (today's threshold); allowed 65% to 95% |
+| Minimum coverage | Share of the stored ad that must be found | 50%; allowed 10% to 100% |
+| Gap tolerance | Longest dropout bridged inside a match | 3.5 s; allowed 0 to 15 s |
+| Minimum ad length | Shortest span that gets a fingerprint | 5 s (today's value); allowed 3 to 30 s |
+
+Strictness cannot go below 65%: below that the setting had no measured effect
+in the main matcher and was unsafe in the per-window fallback.
 
 Starting values are placeholders. The comparison run sets the shipped defaults,
 and `docs/` records each with one line of reasoning. Changing a setting affects
