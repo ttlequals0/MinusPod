@@ -7,12 +7,14 @@ This is particularly effective for DAI (Dynamic Ad Insertion) ads that are
 inserted as identical audio files.
 """
 import ctypes
+import hashlib
 import logging
 import os
 import subprocess
 import tempfile
 import threading
 import time
+from collections import OrderedDict
 from dataclasses import dataclass
 import json
 
@@ -116,6 +118,11 @@ DEFAULT_MIN_AD_LENGTH_S = FINGERPRINT_SETTING_RANGES['fingerprint_min_ad_length_
 
 # Step size for sliding window (seconds)
 SLIDING_STEP_SIZE = 2.0
+
+# Offsets measured per batch by the alignment prefilter, which bounds its peak memory
+PASSING_ALIGNMENT_CHUNK = 64
+# Entries kept of per-pattern derived data (decoded points, profiles, matchable verdicts)
+PATTERN_CACHE_SIZE = 512
 
 # Per-window fallback cap: enough to get past a single bad frame, far below the full scan budget
 FALLBACK_SLOW_TIMEOUT = 90
@@ -522,6 +529,50 @@ def _table_keys(arr):
     return keys.T
 
 
+class _PatternCache:
+    """Thread-safe bounded LRU for data derived from a pattern; keys carry the content, so a rebuild misses."""
+
+    def __init__(self, size):
+        self._size = size
+        self._items = OrderedDict()
+        self._lock = threading.Lock()
+
+    def get_or_compute(self, key, compute):
+        with self._lock:
+            if key in self._items:
+                self._items.move_to_end(key)
+                return self._items[key]
+        value = compute()
+        with self._lock:
+            self._items[key] = value
+            self._items.move_to_end(key)
+            while len(self._items) > self._size:
+                self._items.popitem(last=False)
+        return value
+
+    def clear(self):
+        with self._lock:
+            self._items.clear()
+
+    def __len__(self):
+        with self._lock:
+            return len(self._items)
+
+
+_PATTERN_CACHE = _PatternCache(PATTERN_CACHE_SIZE)
+
+
+def _content_key(data):
+    """Digest of a pattern's bytes, so equal content shares an entry and a rebuild gets a new one."""
+    return hashlib.blake2b(data, digest_size=16).digest()
+
+
+def _decode_chromaprint(fp_bytes):
+    """acoustid's decode of a chromaprint, cached by content; raises as acoustid does."""
+    decode = acoustid.chromaprint.decode_fingerprint
+    return _PATTERN_CACHE.get_or_compute(('decode', decode, _content_key(fp_bytes)), lambda: decode(fp_bytes))
+
+
 def _informative_points(pat_arr):
     """False for points inside a run of FINGERPRINT_CONSTANT_RUN or more identical values."""
     change = np.flatnonzero(pat_arr[1:] != pat_arr[:-1]) + 1
@@ -534,6 +585,23 @@ def _novelty(pat_arr, informative):
     weights = np.ones(len(pat_arr))
     weights[1:] = np.minimum(1.0, _popcount32(pat_arr[1:] ^ pat_arr[:-1]) / FINGERPRINT_NOVELTY_BITS)
     return weights * informative
+
+
+@dataclass(frozen=True)
+class _PatternProfile:
+    informative: np.ndarray
+    novelty: np.ndarray
+    unmatchable_reason: str | None
+
+
+def _pattern_profile(pat_arr):
+    """Informative mask, novelty weights and unmatchable reason of a uint32 pattern, cached by content."""
+    def build():
+        informative = _informative_points(pat_arr)
+        novelty = _novelty(pat_arr, informative)
+        informative.flags.writeable = novelty.flags.writeable = False
+        return _PatternProfile(informative, novelty, _unmatchable_reason(novelty))
+    return _PATTERN_CACHE.get_or_compute(('profile', _content_key(pat_arr.tobytes())), build)
 
 
 def _evidence_needed(novelty, fps):
@@ -592,10 +660,13 @@ def _passing_alignments(ep_arr, pat_arr, informative, offsets, min_good):
     if len(offsets) == 0:
         return offsets
     j = np.flatnonzero(informative)
-    idx = offsets[:, None] + j[None, :]
-    inside = (idx >= 0) & (idx < len(ep_arr))
-    diff = _popcount32(ep_arr[np.clip(idx, 0, len(ep_arr) - 1)] ^ pat_arr[j])
-    return offsets[((diff <= FINGERPRINT_GOOD_BITS) & inside).sum(axis=1) >= min_good]
+    passing = []
+    for lo in range(0, len(offsets), PASSING_ALIGNMENT_CHUNK):
+        idx = offsets[lo:lo + PASSING_ALIGNMENT_CHUNK, None] + j[None, :]
+        inside = (idx >= 0) & (idx < len(ep_arr))
+        diff = _popcount32(ep_arr[np.clip(idx, 0, len(ep_arr) - 1)] ^ pat_arr[j])
+        passing.append(((diff <= FINGERPRINT_GOOD_BITS) & inside).sum(axis=1) >= min_good)
+    return offsets[np.concatenate(passing)]
 
 
 def _trim_run(good, lo, hi, window):
@@ -857,11 +928,10 @@ def _scan_fingerprints(ep_ints, ep_duration, patterns, *, strictness, min_covera
         if should_continue is not None and not should_continue():
             break
         pat_arr = np.asarray(pat_ints, dtype=np.int64).astype(np.uint32)
-        informative = _informative_points(pat_arr)
-        novelty = _novelty(pat_arr, informative)
-        reason = _unmatchable_reason(novelty)
-        if reason:
-            logger.debug("Skipping fingerprint pattern %s: %s", pattern_id, reason)
+        profile = _pattern_profile(pat_arr)
+        informative, novelty = profile.informative, profile.novelty
+        if profile.unmatchable_reason:
+            logger.debug("Skipping fingerprint pattern %s: %s", pattern_id, profile.unmatchable_reason)
             continue
         needed = _evidence_needed(novelty, fps)
         # Evidence never exceeds the good point count, so this bound is safe for the prefilter
@@ -914,28 +984,30 @@ def match_fingerprints(ep_ints, ep_duration, patterns, *, strictness, min_covera
 def fingerprint_coverage_ceiling(ints):
     """Highest coverage a pattern can reach: its share of points outside constant stretches."""
     pat_arr = np.asarray(ints, dtype=np.int64).astype(np.uint32)
-    return float(_informative_points(pat_arr).mean()) if len(pat_arr) else 0.0
+    return float(_pattern_profile(pat_arr).informative.mean()) if len(pat_arr) else 0.0
 
 
 def fingerprint_unmatchable_reason(ints, *, min_coverage=None):
     """Why a fingerprint could never be matched in its own audio, or None when it can be."""
     pat_arr = np.asarray(ints, dtype=np.int64).astype(np.uint32)
-    reason = _unmatchable_reason(_novelty(pat_arr, _informative_points(pat_arr)))
-    if reason:
-        return reason
-    if min_coverage is None:
-        min_coverage = FINGERPRINT_SETTING_RANGES['fingerprint_min_coverage'][0]
-    ceiling = fingerprint_coverage_ceiling(pat_arr)
-    if ceiling < min_coverage - 1e-9:
-        return f"at most {ceiling:.0%} coverage reachable, {min_coverage:.0%} needed"
-    # A pause can leave pieces too short to count, so the pattern must also find itself
-    if not match_fingerprints(pat_arr, len(pat_arr) / FINGERPRINT_NOMINAL_FPS,
-                              [(0, pat_arr, 0.0, None, None)],
-                              strictness=FINGERPRINT_SETTING_RANGES['fingerprint_match_strictness'][0],
-                              min_coverage=min_coverage,
-                              gap_tolerance_s=FINGERPRINT_SETTING_RANGES['fingerprint_gap_tolerance_s'][0]):
-        return f"does not match its own audio at {min_coverage:.0%} coverage"
-    return None
+
+    def verdict():
+        reason = _pattern_profile(pat_arr).unmatchable_reason
+        if reason:
+            return reason
+        coverage = FINGERPRINT_SETTING_RANGES['fingerprint_min_coverage'][0] if min_coverage is None else min_coverage
+        ceiling = fingerprint_coverage_ceiling(pat_arr)
+        if ceiling < coverage - 1e-9:
+            return f"at most {ceiling:.0%} coverage reachable, {coverage:.0%} needed"
+        # A pause can leave pieces too short to count, so the pattern must also find itself
+        if not match_fingerprints(pat_arr, len(pat_arr) / FINGERPRINT_NOMINAL_FPS,
+                                  [(0, pat_arr, 0.0, None, None)],
+                                  strictness=FINGERPRINT_SETTING_RANGES['fingerprint_match_strictness'][0],
+                                  min_coverage=coverage,
+                                  gap_tolerance_s=FINGERPRINT_SETTING_RANGES['fingerprint_gap_tolerance_s'][0]):
+            return f"does not match its own audio at {coverage:.0%} coverage"
+        return None
+    return _PATTERN_CACHE.get_or_compute(('matchable', _content_key(pat_arr.tobytes()), min_coverage), verdict)
 
 
 def fingerprint_is_matchable(ints, *, min_coverage=None):
@@ -955,8 +1027,7 @@ def decode_fingerprint_ints(data):
     if acoustid is None or not data:
         return None
     try:
-        ints = acoustid.chromaprint.decode_fingerprint(
-            data.encode('utf-8') if isinstance(data, str) else data)[0]
+        ints = _decode_chromaprint(data.encode('utf-8') if isinstance(data, str) else data)[0]
     except Exception:
         return None
     return ints if len(ints) else None
@@ -983,9 +1054,9 @@ def explain_match(ep_ints, ep_duration, pattern, *, strictness, min_coverage, ga
     fps = len(ep_arr) / ep_duration if len(ep_arr) and ep_duration > 0 else FINGERPRINT_NOMINAL_FPS
     window = max(1, int(round(fps)))
     ceiling = fingerprint_coverage_ceiling(pat_arr)
-    informative = _informative_points(pat_arr)
-    novelty = _novelty(pat_arr, informative)
-    distinctive = _unmatchable_reason(novelty) is None
+    profile = _pattern_profile(pat_arr)
+    informative, novelty = profile.informative, profile.novelty
+    distinctive = profile.unmatchable_reason is None
     out = {'candidates': 0, 'coverage_ceiling': ceiling,
            'matchable': fingerprint_is_matchable(pat_arr, min_coverage=min_coverage),
            'rejected_by': 'candidates', 'matched': False}
@@ -1568,7 +1639,7 @@ class AudioFingerprinter:
         for pattern_id, fp_str, duration, sponsor, category in known_fingerprints:
             try:
                 fp_bytes = fp_str.encode('utf-8') if isinstance(fp_str, str) else fp_str
-                result = acoustid.chromaprint.decode_fingerprint(fp_bytes)
+                result = _decode_chromaprint(fp_bytes)
                 if result and result[0]:
                     decoded.append((pattern_id, result[0], duration, sponsor, category))
                 else:
