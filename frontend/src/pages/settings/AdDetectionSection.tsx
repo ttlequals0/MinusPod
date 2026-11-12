@@ -5,9 +5,9 @@ import NumberInput from '../../components/NumberInput';
 import { focusRing, labelBase } from '../../components/fieldStyles';
 import { subHeading } from '../../components/pageStyles';
 import { LlmGate } from './LlmGate';
+import { useLlmEnabled } from '../../hooks/useLlmEnabled';
 
 interface AdDetectionSectionProps {
-  llmEnabled: boolean;
   minCutConfidence: number;
   onMinCutConfidenceChange: (value: number) => void;
   minContentBetweenAdsSeconds: number;
@@ -72,7 +72,6 @@ function numRow(
 }
 
 function AdDetectionSection({
-  llmEnabled,
   minCutConfidence,
   onMinCutConfidenceChange,
   minContentBetweenAdsSeconds,
@@ -108,6 +107,7 @@ function AdDetectionSection({
   transcriptDifferentialEnabled,
   onTranscriptDifferentialEnabledChange,
 }: AdDetectionSectionProps) {
+  const llmEnabled = useLlmEnabled();
   return (
     <CollapsibleSection title="Ad detection">
       <div className="space-y-6">

@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { formatDateTime } from '../../utils/format';
@@ -10,6 +10,10 @@ import type { PatternCleanupSettings, PatternCleanupStatus } from '../../api/pat
 import { expectGatedByLlm, expectNotGatedByLlm } from '../../test/llmGate';
 import { LLM_DISABLED_REASON } from './LlmGate';
 import { hasUnsavedChanges } from '../../hooks/useUnsavedChanges';
+import { llmState } from '../../test/llmEnabled';
+
+vi.mock('../../hooks/useLlmEnabled', async () => (await import('../../test/llmEnabled')).llmEnabledMock);
+afterEach(() => { llmState.enabled = true; });
 
 const mockGet = vi.fn();
 const mockUpdate = vi.fn();
@@ -57,7 +61,7 @@ function renderSection(props: Partial<React.ComponentProps<typeof PatternCleanup
   const view = render(
     <MemoryRouter>
       <QueryClientProvider client={client}>
-        <PatternCleanupSection llmEnabled
+        <PatternCleanupSection
           primaryProvider="anthropic"
           secondaryProvider="openrouter"
           secondaryEnabled
@@ -184,7 +188,7 @@ describe('PatternCleanupSection', () => {
     view.rerender(
       <MemoryRouter>
         <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
-          <PatternCleanupSection llmEnabled
+          <PatternCleanupSection
             primaryProvider="ollama"
             primaryBaseUrl="http://localhost:11434"
             secondaryProvider="openrouter"
@@ -208,7 +212,7 @@ describe('PatternCleanupSection', () => {
     view.rerender(
       <MemoryRouter>
         <QueryClientProvider client={view.queryClient}>
-          <PatternCleanupSection llmEnabled
+          <PatternCleanupSection
             primaryProvider="anthropic"
             secondaryProvider="new-provider"
             secondaryEnabled
@@ -230,7 +234,7 @@ describe('PatternCleanupSection', () => {
     view.rerender(
       <MemoryRouter>
         <QueryClientProvider client={view.queryClient}>
-          <PatternCleanupSection llmEnabled
+          <PatternCleanupSection
             primaryProvider="openai-compatible"
             primaryBaseUrl="https://new.example/v1"
             secondaryProvider="openrouter"
@@ -440,7 +444,8 @@ describe('PatternCleanupSection', () => {
 describe('PatternCleanupSection: LLM provider None', () => {
   it('disables the controls with the reason and drops the missing model nag', async () => {
     mockGet.mockResolvedValue(makeStatus({ model: '', modelMissing: true }));
-    renderSection({ llmEnabled: false });
+    llmState.enabled = false;
+    renderSection();
     const model = await screen.findByLabelText(/cleanup model/i);
     expectGatedByLlm(model);
     expectGatedByLlm(screen.getByRole('button', { name: /run now/i }));
@@ -449,7 +454,8 @@ describe('PatternCleanupSection: LLM provider None', () => {
   });
 
   it('does not fetch a model list while disabled', async () => {
-    renderSection({ llmEnabled: false });
+    llmState.enabled = false;
+    renderSection();
     await screen.findByLabelText(/cleanup model/i);
     expect(mockCatalog.mock.calls.every((call) => call[2] === false)).toBe(true);
   });
@@ -486,7 +492,8 @@ describe('PatternCleanupSection: unsaved changes under None', () => {
     view.rerender(
       <MemoryRouter>
         <QueryClientProvider client={view.queryClient}>
-          <PatternCleanupSection llmEnabled={false} primaryProvider="anthropic" secondaryProvider="openrouter"
+          llmState.enabled = false;
+          <PatternCleanupSection primaryProvider="anthropic" secondaryProvider="openrouter"
             secondaryEnabled detectionSlot="secondary" />
         </QueryClientProvider>
       </MemoryRouter>,

@@ -16,6 +16,7 @@ import { selectBase, labelBase } from '../../components/fieldStyles';
 import { subHeading } from '../../components/pageStyles';
 import { DemoDisabled } from '../../components/DemoDisabled';
 import { GENERATE_AS_AUTO_NOTE, LlmDisabledNote, LlmGate } from './LlmGate';
+import { useLlmEnabled } from '../../hooks/useLlmEnabled';
 
 const CHAPTER_GEOMETRY_FIELDS = [
   {
@@ -44,7 +45,6 @@ type GeometryKey = (typeof CHAPTER_GEOMETRY_FIELDS)[number]['key'];
 const CHAPTER_GEOMETRY_KEYS = CHAPTER_GEOMETRY_FIELDS.map((f) => f.key);
 
 export interface ChapterGeometryProps {
-  llmEnabled: boolean;
   tunables: StageTunables;
   defaults: Record<keyof StageTunables, number | string | null>;
   onSave: (payload: UpdateSettingsPayload) => void;
@@ -54,7 +54,6 @@ export interface ChapterGeometryProps {
 }
 
 function ChapterGeometryBlock({
-  llmEnabled,
   tunables,
   defaults,
   onSave,
@@ -62,6 +61,7 @@ function ChapterGeometryBlock({
   saveIsSuccess,
   saveError,
 }: ChapterGeometryProps) {
+  const llmEnabled = useLlmEnabled();
   const serverBaseline = useMemo(
     () => baselineFromTunables(tunables, CHAPTER_GEOMETRY_KEYS),
     [tunables],
@@ -158,7 +158,6 @@ export function ToggleRow({ checked, onChange, label, disabled, children }: {
 }
 
 interface Podcasting20SectionProps {
-  llmEnabled: boolean;
   vttTranscriptsEnabled: boolean;
   chaptersEnabled: boolean;
   chaptersInNotes: boolean;
@@ -171,11 +170,10 @@ interface Podcasting20SectionProps {
   onChaptersModeChange: (mode: 'auto' | 'generate' | 'off') => void;
   unsupportedChaptersRoute?: string | null;
   adChapters?: AdChaptersBlockProps;
-  geometry?: Omit<ChapterGeometryProps, 'llmEnabled'>;
+  geometry?: ChapterGeometryProps;
 }
 
 function Podcasting20Section({
-  llmEnabled,
   vttTranscriptsEnabled,
   chaptersEnabled,
   chaptersInNotes,
@@ -190,6 +188,7 @@ function Podcasting20Section({
   adChapters,
   geometry,
 }: Podcasting20SectionProps) {
+  const llmEnabled = useLlmEnabled();
   return (
     <CollapsibleSection title="Transcripts and chapters" storageKey="settings-section-transcripts-&-chapters">
       <div className="space-y-4 max-sm:[&_select]:min-h-11 max-sm:[&_button]:min-h-11">
@@ -241,7 +240,7 @@ function Podcasting20Section({
 
         {geometry && (
           <LlmGate disabled={!llmEnabled} id="chapter-density" className="space-y-2">
-            <ChapterGeometryBlock {...geometry} llmEnabled={llmEnabled} />
+            <ChapterGeometryBlock {...geometry} />
           </LlmGate>
         )}
       </div>

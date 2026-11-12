@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -6,6 +6,10 @@ import LLMProviderSection from './LLMProviderSection';
 import type { ProvidersResponse } from '../../api/providers';
 import { LLM_PROVIDERS } from '../../api/types';
 import { expectGatedByLlm, expectNotGatedByLlm } from '../../test/llmGate';
+import { llmState } from '../../test/llmEnabled';
+
+vi.mock('../../hooks/useLlmEnabled', async () => (await import('../../test/llmEnabled')).llmEnabledMock);
+afterEach(() => { llmState.enabled = true; });
 
 const providersState: ProvidersResponse = {
   cryptoReady: true,
@@ -22,7 +26,7 @@ function renderSection(overrides: Partial<Parameters<typeof LLMProviderSection>[
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={qc}>
-    <LLMProviderSection llmEnabled
+    <LLMProviderSection
       llmProvider="anthropic"
       openaiBaseUrl=""
       systemoneBaseUrl=""
@@ -349,7 +353,8 @@ describe('LLMProviderSection: None provider', () => {
   });
 
   it('shows only the select and a note when None is chosen', () => {
-    renderSection({ llmProvider: 'none', llmEnabled: false });
+    llmState.enabled = false;
+    renderSection({ llmProvider: 'none' });
     expect((screen.getByLabelText('Provider') as HTMLSelectElement).value).toBe('none');
     expect(screen.getByText(/No model calls are made/)).toBeDefined();
     expect(screen.queryByLabelText('Anthropic API key')).toBeNull();
@@ -358,25 +363,27 @@ describe('LLMProviderSection: None provider', () => {
   });
 
   it('keeps the provider select editable and gates the model-only settings from the saved flag', () => {
-    renderSection({ llmProvider: 'none', llmEnabled: false });
+    llmState.enabled = false;
+    renderSection({ llmProvider: 'none' });
     expectNotGatedByLlm(screen.getByLabelText('Provider'));
     expectGatedByLlm(screen.getByLabelText('Pricing source'));
     expectGatedByLlm(screen.getByRole('switch', { name: 'Enable provider B' }));
   });
 
   it('does not gate from the pending select value before the save lands', () => {
-    renderSection({ llmProvider: 'none', llmEnabled: true });
+    renderSection({ llmProvider: 'none' });
     expectNotGatedByLlm(screen.getByLabelText('Pricing source'));
   });
 
   it('tells the operator to save before the toggle takes effect', () => {
-    renderSection({ llmProvider: 'none', llmEnabled: true });
+    renderSection({ llmProvider: 'none' });
     expect(screen.getByText('Save to turn off all model features.')).toBeDefined();
     expect(screen.queryByText(/No model calls are made/)).toBeNull();
   });
 
   it('shows the saved-state note once the saved flag is off', () => {
-    renderSection({ llmProvider: 'none', llmEnabled: false });
+    llmState.enabled = false;
+    renderSection({ llmProvider: 'none' });
     expect(screen.getByText(/No model calls are made\. Ads are found by text patterns, audio fingerprints, audio cues and cross-fetch comparison\. A fresh install finds little until you mark ads\./)).toBeDefined();
     expect(screen.queryByText('Save to turn off all model features.')).toBeNull();
     const fieldset = screen.getByLabelText('Pricing source').closest('fieldset')!;
@@ -384,7 +391,8 @@ describe('LLMProviderSection: None provider', () => {
   });
 
   it('never points the fieldset at a note that is not on screen', () => {
-    renderSection({ llmProvider: 'anthropic', llmEnabled: false });
+    llmState.enabled = false;
+    renderSection({ llmProvider: 'anthropic' });
     const fieldset = screen.getByLabelText('Pricing source').closest('fieldset')!;
     expect(document.getElementById(fieldset.getAttribute('aria-describedby')!)?.textContent).toBe('LLM provider is set to None.');
   });

@@ -4,11 +4,15 @@
  * prompt (detection, verification, reviewer, resurrect).
  */
 import { useState } from 'react';
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, afterEach, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import SeedSponsorsSection from './SeedSponsorsSection';
 import { expectGatedByLlm, expectNotGatedByLlm } from '../../test/llmGate';
+import { llmState, setLlmEnabled } from '../../test/llmEnabled';
+
+vi.mock('../../hooks/useLlmEnabled', async () => (await import('../../test/llmEnabled')).llmEnabledMock);
+afterEach(() => { llmState.enabled = true; });
 
 type SeedSponsorsKey =
   | 'seedSponsorsDetection'
@@ -36,9 +40,9 @@ function Harness({
     onChange(key, value);
   };
 
+  setLlmEnabled(llmEnabled);
   return (
     <SeedSponsorsSection
-      llmEnabled={llmEnabled}
       detection={detection}
       verification={verification}
       reviewer={reviewer}

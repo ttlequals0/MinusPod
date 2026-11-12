@@ -14,12 +14,12 @@ import { selectBase, labelBase } from '../../components/fieldStyles';
 import { subHeading } from '../../components/pageStyles';
 import { DemoDisabled } from '../../components/DemoDisabled';
 import { LlmGate } from './LlmGate';
+import { useLlmEnabled } from '../../hooks/useLlmEnabled';
 
 type ProfilePatch = Partial<SystemOneProfile>;
 type DraftProfiles = Record<SystemOneCredentialSlot, Record<SystemOneProvider, SystemOneProfile>>;
 
 interface Props {
-  llmEnabled: boolean;
   connections: Record<SystemOneCredentialSlot, string>;
   profiles: SystemOneProfiles;
   defaults: SystemOneProfiles;
@@ -36,7 +36,8 @@ function equalProfiles(a: DraftProfiles, b: SystemOneProfiles) {
   return JSON.stringify(a) === JSON.stringify(b);
 }
 
-function SystemOneTunablesSection({ llmEnabled, connections, profiles, defaults, isDefault, onSave, pending, error }: Props) {
+function SystemOneTunablesSection({ connections, profiles, defaults, isDefault, onSave, pending, error }: Props) {
+  const llmEnabled = useLlmEnabled();
   const [selectedSlot, setSelectedSlot] = useState<SystemOneCredentialSlot>('primary');
   const [draft, setDraft] = useState<DraftProfiles>(profiles);
   const [baseline, setBaseline] = useState(profiles);

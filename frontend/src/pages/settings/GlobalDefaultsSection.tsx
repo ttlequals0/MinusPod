@@ -7,9 +7,9 @@ import ToggleSwitch from '../../components/ToggleSwitch';
 import PodpingServersSection from './PodpingServersSection';
 import { selectBase, labelBase } from '../../components/fieldStyles';
 import { LlmGate } from './LlmGate';
+import { useLlmEnabled } from '../../hooks/useLlmEnabled';
 
 interface GlobalDefaultsSectionProps {
-  llmEnabled: boolean;
   autoProcessEnabled: boolean;
   onAutoProcessEnabledChange: (enabled: boolean) => void;
   autoProcessMaxAgeHours: number;
@@ -41,7 +41,6 @@ interface GlobalDefaultsSectionProps {
 }
 
 function GlobalDefaultsSection({
-  llmEnabled,
   autoProcessEnabled,
   onAutoProcessEnabledChange,
   autoProcessMaxAgeHours,
@@ -71,6 +70,7 @@ function GlobalDefaultsSection({
   differentialFetchMode,
   onDifferentialFetchModeChange,
 }: GlobalDefaultsSectionProps) {
+  const llmEnabled = useLlmEnabled();
   return (
     <CollapsibleSection
       title="Global defaults"

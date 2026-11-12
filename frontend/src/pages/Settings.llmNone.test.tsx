@@ -7,6 +7,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import Settings from './Settings';
+import { useLlmEnabled } from '../hooks/useLlmEnabled';
 import type { Settings as SettingsShape, SettingValue } from '../api/types';
 
 vi.mock('react-router', () => ({
@@ -21,8 +22,7 @@ vi.mock('../context/AuthContext', () => ({
   }),
 }));
 
-// Latest props handed to the two sections under test, so assertions read the
-// real values Settings passes down rather than a re-implementation of them.
+// Latest props handed to the sections under test, plus the flag each section reads itself.
 const captured = vi.hoisted(() => ({
   llm: {} as Record<string, unknown>,
   models: {} as Record<string, unknown>,
@@ -41,19 +41,19 @@ vi.mock('./settings/ProcessingQueueSection', () => ({ default: () => null }));
 vi.mock('./settings/AppearanceSection', () => ({ default: () => null }));
 vi.mock('./settings/PodcastIndexSection', () => ({ default: () => null }));
 vi.mock('./settings/LLMProviderSection', () => ({
-  default: (props: Record<string, unknown>) => { captured.llm = props; return null; },
+  default: function Probe(props: Record<string, unknown>) { captured.llm = { ...props, llmEnabled: useLlmEnabled() }; return null; },
 }));
 vi.mock('./settings/AIModelsSection', () => ({
-  default: (props: Record<string, unknown>) => { captured.models = props; return null; },
+  default: function Probe(props: Record<string, unknown>) { captured.models = { ...props, llmEnabled: useLlmEnabled() }; return null; },
 }));
 vi.mock('./settings/AdReviewerSection', () => ({
-  default: (props: Record<string, unknown>) => { captured.reviewer = props; return null; },
+  default: function Probe(props: Record<string, unknown>) { captured.reviewer = { ...props, llmEnabled: useLlmEnabled() }; return null; },
 }));
 vi.mock('./settings/StageTunablesSection', () => ({ default: () => null }));
 vi.mock('./settings/SeedSponsorsSection', () => ({ default: () => null }));
 vi.mock('./settings/ExperimentsSection', () => ({ default: () => null }));
 vi.mock('./settings/PromptsSection', () => ({
-  default: (props: Record<string, unknown>) => { captured.prompts = props; return null; },
+  default: function Probe(props: Record<string, unknown>) { captured.prompts = { ...props, llmEnabled: useLlmEnabled() }; return null; },
 }));
 vi.mock('./settings/TranscriptionSection', () => ({ default: () => null }));
 vi.mock('./settings/AudioSection', () => ({ default: () => null }));

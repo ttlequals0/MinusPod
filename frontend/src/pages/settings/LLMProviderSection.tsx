@@ -11,11 +11,11 @@ import NumberInput from '../../components/NumberInput';
 import ToggleSwitch from '../../components/ToggleSwitch';
 import { selectBase, labelBase } from '../../components/fieldStyles';
 import { LlmGate, NONE_SAVED_NOTE } from './LlmGate';
+import { useLlmEnabled } from '../../hooks/useLlmEnabled';
 
 interface LLMProviderSectionProps {
   llmProvider: LlmProvider;
   // Saved state from the settings response, not the select's local value.
-  llmEnabled: boolean;
   openaiBaseUrl: string;
   systemoneBaseUrl: string;
   pricingSourceMode: string;
@@ -167,7 +167,6 @@ const NONE_STATUS: ProviderStatus = { configured: false, source: 'none' };
 
 function LLMProviderSection({
   llmProvider,
-  llmEnabled,
   openaiBaseUrl,
   systemoneBaseUrl,
   pricingSourceMode,
@@ -219,6 +218,7 @@ function LLMProviderSection({
   affectedRunsAction,
   onAffectedRunsActionChange,
 }: LLMProviderSectionProps) {
+  const llmEnabled = useLlmEnabled();
   const keyProvider = keyProviderFor(llmProvider);
   const noneNote = llmProvider !== LLM_PROVIDERS.NONE ? null
     : llmEnabled ? 'Save to turn off all model features.' : NONE_SAVED_NOTE;

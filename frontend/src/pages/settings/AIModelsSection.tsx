@@ -15,9 +15,9 @@ import { inputBase, labelBase } from '../../components/fieldStyles';
 import { subHeading } from '../../components/pageStyles';
 import { DemoDisabled } from '../../components/DemoDisabled';
 import { LlmGate } from './LlmGate';
+import { useLlmEnabled } from '../../hooks/useLlmEnabled';
 
 interface AIModelsSectionProps {
-  llmEnabled: boolean;
   // Each stage carries its own catalog and its own fetch state. No fallback
   // to detection's: verification/chapters can sit on a different provider,
   // and borrowing its list would offer models that provider never serves.
@@ -55,7 +55,6 @@ interface AIModelsSectionProps {
 }
 
 function AIModelsSection({
-  llmEnabled,
   detectionCatalog,
   verificationCatalog,
   chaptersCatalog,
@@ -79,6 +78,7 @@ function AIModelsSection({
   onPricingOverrideUpdate,
   pricingOverrideSavingModel = null,
 }: AIModelsSectionProps) {
+  const llmEnabled = useLlmEnabled();
   // Merge every fetched catalog for pricing lookups: verification/chapters
   // can now be on a different provider than detection, each with its own
   // catalog entry (and price) for the same model id.

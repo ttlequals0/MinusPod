@@ -11,6 +11,7 @@ import type { ModelCatalog } from '../../hooks/useModelCatalog';
 import { SAME_AS_PASS, SLOT_LABELS, SLOT_PRIMARY, SLOT_SECONDARY } from '../../api/types';
 import { selectBase, labelBase } from '../../components/fieldStyles';
 import { LlmGate } from './LlmGate';
+import { useLlmEnabled } from '../../hooks/useLlmEnabled';
 
 export interface ReviewerState {
   enabled: boolean;
@@ -29,7 +30,6 @@ export interface ReviewerState {
 }
 
 interface AdReviewerSectionProps {
-  llmEnabled: boolean;
   reviewer: ReviewerState;
   onChange: (next: ReviewerState) => void;
   onResetPrompts: () => void;
@@ -52,7 +52,6 @@ interface AdReviewerSectionProps {
 }
 
 function AdReviewerSection({
-  llmEnabled,
   reviewer,
   onChange,
   onResetPrompts,
@@ -66,6 +65,7 @@ function AdReviewerSection({
   onResetReviewPrompt,
   onResetResurrectPrompt,
 }: AdReviewerSectionProps) {
+  const llmEnabled = useLlmEnabled();
   const update = <K extends keyof ReviewerState>(key: K, value: ReviewerState[K]) =>
     onChange({ ...reviewer, [key]: value });
 

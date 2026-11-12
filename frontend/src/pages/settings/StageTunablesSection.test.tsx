@@ -2,7 +2,7 @@
  * Tests for the "Do not send temperature" operator override toggle in the
  * LLM Tunables section.
  */
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, afterEach, vi } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import StageTunablesSection from './StageTunablesSection';
@@ -10,6 +10,10 @@ import type { LlmProvider, UpdateSettingsPayload } from '../../api/types';
 import { baseDefaults, baseTunables } from './tunablesTestFixtures';
 import { expectGatedByLlm, expectNotGatedByLlm } from '../../test/llmGate';
 import { hasUnsavedChanges } from '../../hooks/useUnsavedChanges';
+import { llmState, setLlmEnabled } from '../../test/llmEnabled';
+
+vi.mock('../../hooks/useLlmEnabled', async () => (await import('../../test/llmEnabled')).llmEnabledMock);
+afterEach(() => { llmState.enabled = true; });
 
 // openai-compatible renders the reasoning field as a <select> (not a number
 // input), so each stage block contributes exactly two number inputs
@@ -37,9 +41,9 @@ function Harness({
   reviewRoutes?: { provider: string; model: string }[];
   reviewEnabled?: boolean;
 }) {
+  setLlmEnabled(llmEnabled);
   return (
     <StageTunablesSection
-      llmEnabled={llmEnabled}
       tunables={baseTunables}
       defaults={baseDefaults}
       llmProvider={llmProvider}

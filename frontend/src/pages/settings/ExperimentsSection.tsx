@@ -2,14 +2,15 @@ import CollapsibleSection from '../../components/CollapsibleSection';
 import ExperimentalBadge from '../../components/ExperimentalBadge';
 import { selectBase } from '../../components/fieldStyles';
 import { LlmGate } from './LlmGate';
+import { useLlmEnabled } from '../../hooks/useLlmEnabled';
 
 interface ExperimentsSectionProps {
-  llmEnabled: boolean;
   addressingMode: string;
   onAddressingModeChange: (v: string) => void;
 }
 
-function ExperimentsSection({ llmEnabled, addressingMode, onAddressingModeChange }: ExperimentsSectionProps) {
+function ExperimentsSection({ addressingMode, onAddressingModeChange }: ExperimentsSectionProps) {
+  const llmEnabled = useLlmEnabled();
   return (
     <CollapsibleSection
       title="Ad addressing mode"

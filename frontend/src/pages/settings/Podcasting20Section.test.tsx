@@ -1,7 +1,7 @@
 /**
  * Tests for the Chapter density group in the Transcripts and chapters section.
  */
-import { beforeEach, describe, it, expect, vi } from 'vitest';
+import { beforeEach, describe, it, expect, vi, afterEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import Podcasting20Section from './Podcasting20Section';
@@ -9,6 +9,10 @@ import type { UpdateSettingsPayload } from '../../api/types';
 import { baseDefaults, baseTunables, inputFor } from './tunablesTestFixtures';
 import { expectGatedByLlm, expectNotGatedByLlm } from '../../test/llmGate';
 import { LLM_DISABLED_REASON } from './LlmGate';
+import { llmState, setLlmEnabled } from '../../test/llmEnabled';
+
+vi.mock('../../hooks/useLlmEnabled', async () => (await import('../../test/llmEnabled')).llmEnabledMock);
+afterEach(() => { llmState.enabled = true; });
 
 function Harness({
   llmEnabled = true,
@@ -23,9 +27,9 @@ function Harness({
   onChaptersInNotesChange?: (enabled: boolean) => void;
   onReviewLinksInNotesChange?: (enabled: boolean) => void;
 }) {
+  setLlmEnabled(llmEnabled);
   return (
     <Podcasting20Section
-      llmEnabled={llmEnabled}
       vttTranscriptsEnabled
       chaptersEnabled
       chaptersInNotes={false}

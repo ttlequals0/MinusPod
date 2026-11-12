@@ -17,6 +17,7 @@ import { btnBase, btnLg, btnPrimary, btnGhost } from '../../components/buttonSty
 import { selectBase, labelBase } from '../../components/fieldStyles';
 import { subHeading } from '../../components/pageStyles';
 import { DemoDisabled } from '../../components/DemoDisabled';
+import { useLlmEnabled } from '../../hooks/useLlmEnabled';
 
 // Which per-phase provider override (see llm_route.py) governs a stage block.
 // Both chapter blocks route through chaptersProvider.
@@ -38,7 +39,6 @@ interface StageTunablesSectionProps {
   reviewModels?: string[];
   reviewRoutes?: { provider: string; model: string }[];
   reviewEnabled?: boolean;
-  llmEnabled: boolean;
   onSave: (payload: UpdateSettingsPayload) => void;
   saveIsPending: boolean;
   saveIsSuccess: boolean;
@@ -598,7 +598,6 @@ function StageTunablesSection({
   reviewModels = [],
   reviewRoutes,
   reviewEnabled = false,
-  llmEnabled,
   onSave,
   saveIsPending,
   saveIsSuccess,
@@ -607,6 +606,7 @@ function StageTunablesSection({
   parallelWindowsDefault,
   omitTemperature,
 }: StageTunablesSectionProps) {
+  const llmEnabled = useLlmEnabled();
   const serverBaseline = useMemo(
     () => buildBaseline(tunables, parallelWindows, omitTemperature),
     [tunables, parallelWindows, omitTemperature],

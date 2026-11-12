@@ -1366,7 +1366,6 @@ function Settings() {
       )}
 
       <GlobalDefaultsSection
-        llmEnabled={llmEnabled}
         autoProcessEnabled={autoProcessEnabled}
         onAutoProcessEnabledChange={setAutoProcessEnabled}
         autoProcessMaxAgeHours={autoProcessMaxAgeHours}
@@ -1409,7 +1408,6 @@ function Settings() {
 
       <LLMProviderSection
         llmProvider={llmProvider}
-        llmEnabled={llmEnabled}
         openaiBaseUrl={openaiBaseUrl}
         systemoneBaseUrl={systemoneBaseUrl}
         pricingSourceMode={pricingSourceMode}
@@ -1463,7 +1461,6 @@ function Settings() {
       />
 
       <AIModelsSection
-        llmEnabled={llmEnabled}
         detectionCatalog={detectionCatalog}
         verificationCatalog={verificationCatalog}
         chaptersCatalog={chaptersCatalog}
@@ -1492,7 +1489,6 @@ function Settings() {
       />
 
       <FailoverSection
-        llmEnabled={llmEnabled}
         storageKey={FAILOVER_STORAGE_KEY}
         onToggle={setFailoverOpen}
         overview={failoverOverview}
@@ -1527,7 +1523,6 @@ function Settings() {
 
       {settings?.stageTunables && settings?.stageTunableDefaults && (
         <StageTunablesSection
-          llmEnabled={llmEnabled}
           tunables={settings.stageTunables}
           defaults={settings.stageTunableDefaults}
           llmProvider={llmProvider}
@@ -1557,7 +1552,6 @@ function Settings() {
 
       {hasAllSystemOneProfiles(settings) && (
         <SystemOneTunablesSection
-          llmEnabled={llmEnabled}
           connections={{ primary: llmProvider, secondary: secondaryProvider }}
           profiles={settings.systemOneTunables}
           defaults={settings.systemOneTunableDefaults}
@@ -1623,7 +1617,6 @@ function Settings() {
       <TranscriptNormalizationSection />
 
       <AdDetectionSection
-        llmEnabled={llmEnabled}
         minCutConfidence={minCutConfidence}
         onMinCutConfidenceChange={setMinCutConfidence}
         minContentBetweenAdsSeconds={minContentBetweenAdsSeconds}
@@ -1661,7 +1654,6 @@ function Settings() {
       />
 
       <AdReviewerSection
-        llmEnabled={llmEnabled}
         reviewer={reviewer}
         onChange={handleReviewerChange}
         systemOneReview={reviewUsesSystemOne}
@@ -1679,7 +1671,6 @@ function Settings() {
       <AudioFingerprintingSection fingerprint={fingerprint} onChange={setFingerprint} onInvalidChange={setFingerprintInvalid} />
 
       <SeedSponsorsSection
-        llmEnabled={llmEnabled}
         detection={settings?.seedSponsorsDetection?.value ?? settings?.defaults?.seedSponsorsDetection ?? true}
         verification={settings?.seedSponsorsVerification?.value ?? settings?.defaults?.seedSponsorsVerification ?? true}
         reviewer={settings?.seedSponsorsReviewer?.value ?? settings?.defaults?.seedSponsorsReviewer ?? true}
@@ -1688,7 +1679,6 @@ function Settings() {
       />
 
       <PromptsSection
-        llmEnabled={llmEnabled}
         systemPrompt={systemPrompt}
         verificationPrompt={verificationPrompt}
         chapterPrompt={chapterPrompt}
@@ -1720,7 +1710,6 @@ function Settings() {
       <SettingsGroupHeader title="Experiments" />
 
       <ExperimentsSection
-        llmEnabled={llmEnabled}
         addressingMode={settings?.adAddressingMode?.value ?? settings?.defaults?.adAddressingMode ?? 'timestamps'}
         onAddressingModeChange={(v) => tunableMutation.mutate({ adAddressingMode: v })}
       />
@@ -1733,7 +1722,6 @@ function Settings() {
       />
 
       <PatternCleanupSection
-        llmEnabled={llmEnabled}
         primaryProvider={llmProvider}
         primaryBaseUrl={llmProvider === LLM_PROVIDERS.SYSTEMONE_COMPATIBLE ? systemoneBaseUrl : openaiBaseUrl}
         secondaryProvider={secondaryProviderEnabled && secondaryProvider ? secondaryProvider : ''}
@@ -1766,7 +1754,6 @@ function Settings() {
       />
 
       <Podcasting20Section
-        llmEnabled={llmEnabled}
         vttTranscriptsEnabled={vttTranscriptsEnabled}
         chaptersEnabled={chaptersEnabled}
         chaptersInNotes={chaptersInNotes}

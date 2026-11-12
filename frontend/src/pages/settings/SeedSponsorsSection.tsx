@@ -1,6 +1,7 @@
 import CollapsibleSection from '../../components/CollapsibleSection';
 import ToggleSwitch from '../../components/ToggleSwitch';
 import { LlmGate } from './LlmGate';
+import { useLlmEnabled } from '../../hooks/useLlmEnabled';
 
 type SeedSponsorsKey =
   | 'seedSponsorsDetection'
@@ -9,7 +10,6 @@ type SeedSponsorsKey =
   | 'seedSponsorsResurrect';
 
 interface SeedSponsorsSectionProps {
-  llmEnabled: boolean;
   detection: boolean;
   verification: boolean;
   reviewer: boolean;
@@ -18,13 +18,13 @@ interface SeedSponsorsSectionProps {
 }
 
 function SeedSponsorsSection({
-  llmEnabled,
   detection,
   verification,
   reviewer,
   resurrect,
   onChange,
 }: SeedSponsorsSectionProps) {
+  const llmEnabled = useLlmEnabled();
   return (
     <CollapsibleSection
       title="Seed sponsors"

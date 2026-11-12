@@ -1,9 +1,13 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi, afterEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { SystemOneProfile, SystemOneProfiles } from '../../api/types';
 import SystemOneTunablesSection from './SystemOneTunablesSection';
 import { expectGatedByLlm } from '../../test/llmGate';
+import { llmState } from '../../test/llmEnabled';
+
+vi.mock('../../hooks/useLlmEnabled', async () => (await import('../../test/llmEnabled')).llmEnabledMock);
+afterEach(() => { llmState.enabled = true; });
 
 const profile: SystemOneProfile = {
   detectionEnter: 0.7,
@@ -42,7 +46,7 @@ describe('SystemOneTunablesSection', () => {
   it('retains an editable draft and renders the mutation error after a rejected save', async () => {
     const user = userEvent.setup();
     const onSave = vi.fn().mockRejectedValue(new Error('Save rejected'));
-    render(<SystemOneTunablesSection llmEnabled connections={connections} profiles={profiles} defaults={defaults} isDefault={isDefault} onSave={onSave} pending={false} error="Save rejected" />);
+    render(<SystemOneTunablesSection connections={connections} profiles={profiles} defaults={defaults} isDefault={isDefault} onSave={onSave} pending={false} error="Save rejected" />);
 
     await user.click(screen.getByRole('button', { name: 'System One tuneables' }));
     const field = screen.getByLabelText('Detection confidence threshold', { selector: '#primary-typesafe-detectionEnter' }) as HTMLInputElement;
@@ -56,7 +60,7 @@ describe('SystemOneTunablesSection', () => {
   });
 
   it('disables profile reset while another save is pending', async () => {
-    render(<SystemOneTunablesSection llmEnabled connections={connections} profiles={profiles} defaults={defaults} isDefault={isDefault} onSave={vi.fn()} pending error={null} />);
+    render(<SystemOneTunablesSection connections={connections} profiles={profiles} defaults={defaults} isDefault={isDefault} onSave={vi.fn()} pending error={null} />);
     await userEvent.setup().click(screen.getByRole('button', { name: 'System One tuneables' }));
     expect(screen.getAllByRole('button', { name: 'Reset profile' }).every((button) => (button as HTMLButtonElement).disabled)).toBe(true);
   });
@@ -64,7 +68,7 @@ describe('SystemOneTunablesSection', () => {
   it('saves concurrency changes only for the edited slot and provider', async () => {
     const user = userEvent.setup();
     const onSave = vi.fn().mockResolvedValue(undefined);
-    render(<SystemOneTunablesSection llmEnabled connections={connections} profiles={profiles} defaults={defaults} isDefault={isDefault} onSave={onSave} pending={false} error={null} />);
+    render(<SystemOneTunablesSection connections={connections} profiles={profiles} defaults={defaults} isDefault={isDefault} onSave={onSave} pending={false} error={null} />);
     await user.click(screen.getByRole('button', { name: 'System One tuneables' }));
     await user.selectOptions(screen.getByLabelText('Provider'), 'secondary');
     const field = screen.getByLabelText('Maximum concurrent operations', { selector: '#secondary-systemone-compatible-maxConcurrentOperations' });
@@ -79,7 +83,7 @@ describe('SystemOneTunablesSection', () => {
   it('keeps a cleared required field editable and saves fractional seconds', async () => {
     const user = userEvent.setup();
     const onSave = vi.fn().mockResolvedValue(undefined);
-    render(<SystemOneTunablesSection llmEnabled connections={connections} profiles={profiles} defaults={defaults} isDefault={isDefault} onSave={onSave} pending={false} error={null} />);
+    render(<SystemOneTunablesSection connections={connections} profiles={profiles} defaults={defaults} isDefault={isDefault} onSave={onSave} pending={false} error={null} />);
     await user.click(screen.getByRole('button', { name: 'System One tuneables' }));
     const field = screen.getByLabelText('Logical request deadline (seconds)', { selector: '#primary-typesafe-requestDeadlineSeconds' }) as HTMLInputElement;
     await user.clear(field);
@@ -96,7 +100,7 @@ describe('SystemOneTunablesSection', () => {
     const onSave = vi.fn().mockResolvedValue(undefined);
     const customized = structuredClone(profiles);
     customized.secondary['systemone-compatible'].reviewEvidenceEnter = 0.72;
-    render(<SystemOneTunablesSection llmEnabled connections={connections} profiles={customized} defaults={defaults} isDefault={isDefault} onSave={onSave} pending={false} error={null} />);
+    render(<SystemOneTunablesSection connections={connections} profiles={customized} defaults={defaults} isDefault={isDefault} onSave={onSave} pending={false} error={null} />);
     await user.click(screen.getByRole('button', { name: 'System One tuneables' }));
     await user.selectOptions(screen.getByLabelText('Provider'), 'secondary');
     const field = screen.getByLabelText('Evidence enter threshold', { selector: '#secondary-systemone-compatible-reviewEvidenceEnter' }) as HTMLInputElement;
@@ -109,7 +113,7 @@ describe('SystemOneTunablesSection', () => {
   it('keeps the reset draft visible and renders the error after a rejected reset', async () => {
     const user = userEvent.setup();
     const onSave = vi.fn().mockRejectedValue(new Error('Reset rejected'));
-    render(<SystemOneTunablesSection llmEnabled connections={connections} profiles={profiles} defaults={defaults} isDefault={isDefault} onSave={onSave} pending={false} error="Reset rejected" />);
+    render(<SystemOneTunablesSection connections={connections} profiles={profiles} defaults={defaults} isDefault={isDefault} onSave={onSave} pending={false} error="Reset rejected" />);
     await user.click(screen.getByRole('button', { name: 'System One tuneables' }));
     await user.click(screen.getAllByRole('button', { name: 'Reset profile' })[0]);
 
@@ -121,7 +125,7 @@ describe('SystemOneTunablesSection', () => {
     const user = userEvent.setup();
     const onSave = vi.fn().mockResolvedValue(undefined);
     const props = { profiles, defaults, isDefault, onSave, pending: false, error: null };
-    const { rerender } = render(<SystemOneTunablesSection llmEnabled {...props} connections={connections} />);
+    const { rerender } = render(<SystemOneTunablesSection {...props} connections={connections} />);
     await user.click(screen.getByRole('button', { name: 'System One tuneables' }));
     await user.clear(screen.getByLabelText('Detection confidence threshold'));
     await user.type(screen.getByLabelText('Detection confidence threshold'), '0.8');
@@ -131,10 +135,10 @@ describe('SystemOneTunablesSection', () => {
     await user.selectOptions(screen.getByLabelText('Provider'), 'primary');
     expect((screen.getByLabelText('Detection confidence threshold') as HTMLInputElement).value).toBe('0.8');
 
-    rerender(<SystemOneTunablesSection llmEnabled {...props} connections={{ ...connections, primary: 'systemone-compatible' }} />);
+    rerender(<SystemOneTunablesSection {...props} connections={{ ...connections, primary: 'systemone-compatible' }} />);
     await user.clear(screen.getByLabelText('Detection confidence threshold'));
     await user.type(screen.getByLabelText('Detection confidence threshold'), '0.6');
-    rerender(<SystemOneTunablesSection llmEnabled {...props} connections={connections} />);
+    rerender(<SystemOneTunablesSection {...props} connections={connections} />);
     expect((screen.getByLabelText('Detection confidence threshold') as HTMLInputElement).value).toBe('0.8');
     await user.click(screen.getByRole('button', { name: 'Save System One tuning' }));
     expect(onSave).toHaveBeenCalledWith({ systemOneTunables: {
@@ -144,7 +148,7 @@ describe('SystemOneTunablesSection', () => {
   });
 
   it('keeps a saved native Provider B profile editable when Provider A uses chat', async () => {
-    render(<SystemOneTunablesSection llmEnabled connections={{ primary: 'anthropic', secondary: 'typesafe' }} profiles={profiles} defaults={defaults} isDefault={isDefault} onSave={vi.fn()} pending={false} error={null} />);
+    render(<SystemOneTunablesSection connections={{ primary: 'anthropic', secondary: 'typesafe' }} profiles={profiles} defaults={defaults} isDefault={isDefault} onSave={vi.fn()} pending={false} error={null} />);
     await userEvent.setup().click(screen.getByRole('button', { name: 'System One tuneables' }));
     expect(screen.getByLabelText('Detection confidence threshold', { selector: '#secondary-typesafe-detectionEnter' })).toBeTruthy();
     expect(screen.queryByLabelText('Provider')).toBeNull();
@@ -153,14 +157,14 @@ describe('SystemOneTunablesSection', () => {
   it('shows provider guidance without discarding a dormant draft', async () => {
     const user = userEvent.setup();
     const props = { profiles, defaults, isDefault, onSave: vi.fn(), pending: false, error: null };
-    const { rerender } = render(<SystemOneTunablesSection llmEnabled {...props} connections={connections} />);
+    const { rerender } = render(<SystemOneTunablesSection {...props} connections={connections} />);
     await user.click(screen.getByRole('button', { name: 'System One tuneables' }));
     await user.clear(screen.getByLabelText('Detection confidence threshold'));
     await user.type(screen.getByLabelText('Detection confidence threshold'), '0.83');
-    rerender(<SystemOneTunablesSection llmEnabled {...props} connections={{ primary: 'anthropic', secondary: 'openrouter' }} />);
+    rerender(<SystemOneTunablesSection {...props} connections={{ primary: 'anthropic', secondary: 'openrouter' }} />);
     expect(screen.getByText(/Choose a System One provider in LLM provider/)).toBeTruthy();
     expect(screen.queryByLabelText('Detection confidence threshold')).toBeNull();
-    rerender(<SystemOneTunablesSection llmEnabled {...props} connections={connections} />);
+    rerender(<SystemOneTunablesSection {...props} connections={connections} />);
     expect((screen.getByLabelText('Detection confidence threshold') as HTMLInputElement).value).toBe('0.83');
   });
 
@@ -169,7 +173,7 @@ describe('SystemOneTunablesSection', () => {
     const onSave = vi.fn().mockResolvedValue(undefined);
     const customized = structuredClone(profiles);
     customized.primary.typesafe.maxPromptTokens = 7000;
-    render(<SystemOneTunablesSection llmEnabled connections={connections} profiles={customized} defaults={defaults} isDefault={isDefault} onSave={onSave} pending={false} error={null} />);
+    render(<SystemOneTunablesSection connections={connections} profiles={customized} defaults={defaults} isDefault={isDefault} onSave={onSave} pending={false} error={null} />);
     await user.click(screen.getByRole('button', { name: 'System One tuneables' }));
     const field = screen.getByLabelText('Maximum prompt tokens') as HTMLInputElement;
     expect(field.value).toBe('7000');
@@ -183,7 +187,7 @@ describe('SystemOneTunablesSection', () => {
   });
 
   it('explains that the deadline applies per request', async () => {
-    render(<SystemOneTunablesSection llmEnabled connections={connections} profiles={profiles} defaults={defaults} isDefault={isDefault} onSave={vi.fn()} pending={false} error={null} />);
+    render(<SystemOneTunablesSection connections={connections} profiles={profiles} defaults={defaults} isDefault={isDefault} onSave={vi.fn()} pending={false} error={null} />);
     await userEvent.setup().click(screen.getByRole('button', { name: 'System One tuneables' }));
     expect(screen.getByText('Applies per request even when the provider timeout is longer.')).toBeTruthy();
   });
@@ -191,18 +195,21 @@ describe('SystemOneTunablesSection', () => {
 
 describe('SystemOneTunablesSection: LLM provider None', () => {
   it('disables the tuning with the reason', async () => {
-    render(<SystemOneTunablesSection llmEnabled={false} connections={connections} profiles={profiles} defaults={defaults} isDefault={isDefault} onSave={vi.fn()} pending={false} error={null} />);
+    llmState.enabled = false;
+    render(<SystemOneTunablesSection connections={connections} profiles={profiles} defaults={defaults} isDefault={isDefault} onSave={vi.fn()} pending={false} error={null} />);
     await userEvent.setup().click(screen.getByRole('button', { name: 'System One tuneables' }));
     expectGatedByLlm(screen.getByRole('button', { name: 'Save System One tuning' }));
   });
 
   it('hides the amber System One notice and keeps it when the LLM is enabled', async () => {
     const props = { connections, profiles, defaults, isDefault, onSave: vi.fn(), pending: false, error: null };
-    const { unmount } = render(<SystemOneTunablesSection llmEnabled={false} {...props} />);
+    llmState.enabled = false;
+    const { unmount } = render(<SystemOneTunablesSection {...props} />);
     await userEvent.setup().click(screen.getByRole('button', { name: 'System One tuneables' }));
     expect(screen.queryByText(/unavailable for System One models/)).toBeNull();
     unmount();
-    render(<SystemOneTunablesSection llmEnabled {...props} />);
+    llmState.enabled = true;
+    render(<SystemOneTunablesSection {...props} />);
     await userEvent.setup().click(screen.getByRole('button', { name: 'System One tuneables' }));
     expect(screen.getByText(/unavailable for System One models/)).toBeTruthy();
   });

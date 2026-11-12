@@ -28,9 +28,9 @@ import { btnBase, btnLg, btnPrimary, btnSecondary } from '../../components/butto
 import { focusRing, labelBase } from '../../components/fieldStyles';
 import { DemoDisabled } from '../../components/DemoDisabled';
 import { LLM_DISABLED_REASON, LlmGate, isLlmDisabledError } from './LlmGate';
+import { useLlmEnabled } from '../../hooks/useLlmEnabled';
 
 interface PatternCleanupSectionProps {
-  llmEnabled: boolean;
   // Provider types behind each slot; secondaryProvider is '' when that slot is unusable.
   primaryProvider: string;
   secondaryProvider: string;
@@ -51,12 +51,12 @@ function runErrorMessage(e: unknown): string {
 }
 
 function PatternCleanupSection({
-  llmEnabled,
   primaryProvider, secondaryProvider, secondaryEnabled, detectionSlot,
   primaryBaseUrl = '', secondaryBaseUrl = '',
   detectionModel = '',
   providerIdentityHasUnsavedChanges = false,
 }: PatternCleanupSectionProps) {
+  const llmEnabled = useLlmEnabled();
   const qc = useQueryClient();
   // Fetch only while the card is on screen; it sits in the collapsed Experiments group.
   const [open, setOpen] = useCollapsibleOpen(STORAGE_KEY);

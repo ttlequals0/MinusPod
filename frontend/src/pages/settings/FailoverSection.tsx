@@ -21,6 +21,7 @@ import { btnBase, btnSecondary, btnOutline } from '../../components/buttonStyles
 import { focusRing, inputBase, selectBase, labelBase } from '../../components/fieldStyles';
 import { badgeBase, tint } from '../../components/badgeStyles';
 import { LLM_DISABLED_REASON, LlmGate } from './LlmGate';
+import { useLlmEnabled } from '../../hooks/useLlmEnabled';
 
 interface FailoverLlm {
   enabled: boolean;
@@ -48,7 +49,6 @@ interface FailoverWhisper {
 }
 
 interface FailoverSectionProps {
-  llmEnabled: boolean;
   storageKey?: string;
   onToggle?: (isOpen: boolean) => void;
   overview: FailoverOverview | undefined;
@@ -205,12 +205,13 @@ function StandbyRow({ probeId, label, configured, probe, llmOff }: {
 }
 
 function FailoverSection({
-  llmEnabled, storageKey, onToggle,
+  storageKey, onToggle,
   overview, overviewLoading, onTrigger, onCancel, onProbeNow, actionPending, probePending, actionError,
   probeIntervalMinutes, onProbeIntervalChange, recoveryProbes, onRecoveryProbesChange,
   llm, onLlmChange, onLlmApiKeySave, onLlmApiKeyClear, failoverCatalog,
   whisper, activeWhisperMaxAttempts, onWhisperChange, onWhisperApiKeySave, onWhisperApiKeyClear, skipFlacCompression, cryptoReady,
 }: FailoverSectionProps) {
+  const llmEnabled = useLlmEnabled();
   const keyMeta = keyMetaForType(llm.provider);
   const whisperKey = keyStatus(whisper.apiKeyConfigured);
   const events = overview?.events.slice(0, EVENT_LIMIT) ?? [];

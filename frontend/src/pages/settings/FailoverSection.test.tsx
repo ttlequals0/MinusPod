@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -7,6 +7,10 @@ import type { FailoverOverview } from '../../api/failover';
 import type { ClaudeModel } from '../../api/types';
 import { makeFailoverProbe, makeFailoverTarget } from '../../test/failover';
 import { expectGatedByLlm, expectNotGatedByLlm } from '../../test/llmGate';
+import { llmState } from '../../test/llmEnabled';
+
+vi.mock('../../hooks/useLlmEnabled', async () => (await import('../../test/llmEnabled')).llmEnabledMock);
+afterEach(() => { llmState.enabled = true; });
 
 type Props = Parameters<typeof FailoverSection>[0];
 
@@ -44,7 +48,6 @@ const baseWhisper: Props['whisper'] = {
 
 function props(overrides: Partial<Props> = {}): Props {
   return {
-    llmEnabled: true,
     overview: makeOverview(),
     overviewLoading: false,
     onTrigger: vi.fn(),
@@ -300,7 +303,8 @@ describe('FailoverSection: LLM provider None', () => {
   });
 
   it('reads the LLM rows as disabled, not unprobed or failed, and offers no LLM failover action', async () => {
-    renderSection({ llmEnabled: false, overview: offOverview });
+    llmState.enabled = false;
+    renderSection({ overview: offOverview });
     await openSection();
     expect(screen.getAllByText('LLM disabled')).toHaveLength(3);
     expect(screen.getAllByText('Unprobed')).toHaveLength(1);
@@ -310,7 +314,8 @@ describe('FailoverSection: LLM provider None', () => {
   });
 
   it('states the reason once as a hidden description per row, with one visible failover note above the LLM block', async () => {
-    renderSection({ llmEnabled: false, overview: offOverview });
+    llmState.enabled = false;
+    renderSection({ overview: offOverview });
     await openSection();
     expect(screen.getAllByText('LLM provider is set to None.').every((el) => el.className.includes('sr-only'))).toBe(true);
     expect(screen.getAllByText('LLM provider is set to None.')).toHaveLength(3);
@@ -323,7 +328,8 @@ describe('FailoverSection: LLM provider None', () => {
   });
 
   it('disables the LLM failover settings with the reason and keeps transcription failover usable', async () => {
-    renderSection({ llmEnabled: false, overview: offOverview });
+    llmState.enabled = false;
+    renderSection({ overview: offOverview });
     await openSection();
     expectGatedByLlm(screen.getByRole('switch', { name: 'Enable LLM failover' }));
     expectNotGatedByLlm(screen.getByRole('switch', { name: 'Enable transcription failover' }));

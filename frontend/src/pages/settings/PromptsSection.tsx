@@ -2,13 +2,13 @@ import CollapsibleSection from '../../components/CollapsibleSection';
 import ConfirmResetButton from './ConfirmResetButton';
 import PromptField from './PromptField';
 import { LlmGate } from './LlmGate';
+import { useLlmEnabled } from '../../hooks/useLlmEnabled';
 
 const OVERRIDE_HELP =
   'Optional. Appended to the prompt above at run time. Put {override} in a '
   + 'customized prompt to change where it goes.';
 
 interface PromptsSectionProps {
-  llmEnabled: boolean;
   systemPrompt: string;
   verificationPrompt: string;
   chapterPrompt: string;
@@ -38,7 +38,6 @@ interface PromptsSectionProps {
 }
 
 function PromptsSection({
-  llmEnabled,
   systemPrompt,
   verificationPrompt,
   chapterPrompt,
@@ -64,6 +63,7 @@ function PromptsSection({
   onResetChapterPrompt,
   onResetPatternCleanupPrompt,
 }: PromptsSectionProps) {
+  const llmEnabled = useLlmEnabled();
   return (
     <CollapsibleSection title="Prompts">
       <LlmGate disabled={!llmEnabled} id="prompts" className="space-y-6">

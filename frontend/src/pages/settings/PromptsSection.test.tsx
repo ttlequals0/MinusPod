@@ -3,11 +3,15 @@
  * prompt field gets its own two-click reset button; the bulk button is
  * unaffected.
  */
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import { fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import PromptsSection from './PromptsSection';
 import { expectGatedByLlm, expectNotGatedByLlm } from '../../test/llmGate';
+import { llmState } from '../../test/llmEnabled';
+
+vi.mock('../../hooks/useLlmEnabled', async () => (await import('../../test/llmEnabled')).llmEnabledMock);
+afterEach(() => { llmState.enabled = true; });
 
 function baseProps() {
   return {
@@ -33,7 +37,7 @@ function baseProps() {
 describe('PromptsSection: per-prompt reset', () => {
   it('renders all per-field reset buttons disabled when every prompt is at its default', () => {
     render(
-      <PromptsSection llmEnabled
+      <PromptsSection
         {...baseProps()}
         systemPromptIsDefault
         verificationPromptIsDefault
@@ -56,7 +60,7 @@ describe('PromptsSection: per-prompt reset', () => {
     const onResetChapterPrompt = vi.fn();
     const user = userEvent.setup();
     render(
-      <PromptsSection llmEnabled
+      <PromptsSection
         {...baseProps()}
         systemPromptIsDefault={false}
         verificationPromptIsDefault
@@ -80,7 +84,7 @@ describe('PromptsSection: per-prompt reset', () => {
     const onResetChapterPrompt = vi.fn();
     const user = userEvent.setup();
     render(
-      <PromptsSection llmEnabled
+      <PromptsSection
         {...baseProps()}
         systemPromptIsDefault
         verificationPromptIsDefault
@@ -104,7 +108,7 @@ describe('PromptsSection: per-prompt reset', () => {
     const onResetChapterPrompt = vi.fn();
     const user = userEvent.setup();
     render(
-      <PromptsSection llmEnabled
+      <PromptsSection
         {...baseProps()}
         onPatternCleanupPromptChange={onChange}
         chapterPromptIsDefault
@@ -127,13 +131,14 @@ describe('PromptsSection: per-prompt reset', () => {
 
 describe('PromptsSection: LLM provider None', () => {
   it('disables the prompts with the reason', () => {
-    render(<PromptsSection {...baseProps()} llmEnabled={false} />);
+    llmState.enabled = false;
+    render(<PromptsSection {...baseProps()} />);
     expectGatedByLlm(screen.getByLabelText('First pass system prompt'));
     expectGatedByLlm(screen.getByRole('button', { name: 'Reset prompts to default' }));
   });
 
   it('is enabled when the provider is set', () => {
-    render(<PromptsSection {...baseProps()} llmEnabled />);
+    render(<PromptsSection {...baseProps()} />);
     expectNotGatedByLlm(screen.getByLabelText('First pass system prompt'));
   });
 });

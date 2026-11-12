@@ -5,11 +5,15 @@
  * thresholds). Follows NotificationsSection.test.tsx conventions.
  */
 import { useState } from 'react';
-import { beforeEach, describe, it, expect } from 'vitest';
+import { beforeEach, describe, it, expect, afterEach, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import AdDetectionSection from './AdDetectionSection';
 import { expectGatedByLlm, expectNotGatedByLlm } from '../../test/llmGate';
+import { llmState, setLlmEnabled } from '../../test/llmEnabled';
+
+vi.mock('../../hooks/useLlmEnabled', async () => (await import('../../test/llmEnabled')).llmEnabledMock);
+afterEach(() => { llmState.enabled = true; });
 
 interface TunablesState {
   minCutConfidence: number;
@@ -60,10 +64,10 @@ function Harness({ onCommit, llmEnabled = true }: { onCommit: (payload: Tunables
   const [state, setState] = useState<TunablesState>(defaultState());
   const patch = <K extends keyof TunablesState>(key: K) => (v: TunablesState[K]) =>
     setState((s) => ({ ...s, [key]: v }));
+  setLlmEnabled(llmEnabled);
   return (
     <>
       <AdDetectionSection
-        llmEnabled={llmEnabled}
         minCutConfidence={state.minCutConfidence}
         onMinCutConfidenceChange={patch('minCutConfidence')}
         minContentBetweenAdsSeconds={state.minContentBetweenAdsSeconds}

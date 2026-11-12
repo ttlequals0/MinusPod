@@ -7,13 +7,17 @@
  * their own card, SegmentActionsSection; see SegmentActionsSection.test.tsx.
  */
 import { useState, type ComponentProps } from 'react';
-import { beforeEach, describe, it, expect, vi } from 'vitest';
+import { beforeEach, describe, it, expect, vi, afterEach } from 'vitest';
 import { render as rtlRender, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { expectGatedByLlm, expectNotGatedByLlm } from '../../test/llmGate';
 import GlobalDefaultsSection from './GlobalDefaultsSection';
 import type { EpisodeLogLevel, LowAdYieldAction } from '../../api/types';
+import { llmState } from '../../test/llmEnabled';
+
+vi.mock('../../hooks/useLlmEnabled', async () => (await import('../../test/llmEnabled')).llmEnabledMock);
+afterEach(() => { llmState.enabled = true; });
 
 const { mockGetPodpingNodes } = vi.hoisted(() => ({
   mockGetPodpingNodes: vi.fn(),
@@ -43,7 +47,6 @@ function Harness({ onCommit, overrides }: {
   return (
     <>
       <GlobalDefaultsSection
-        llmEnabled
         autoProcessEnabled={false}
         onAutoProcessEnabledChange={() => {}}
         autoProcessMaxAgeHours={48}
@@ -88,7 +91,6 @@ function PodpingHarness({ onCommit }: { onCommit: (payload: PodpingState) => voi
   return (
     <>
       <GlobalDefaultsSection
-        llmEnabled
         autoProcessEnabled={false}
         onAutoProcessEnabledChange={() => {}}
         autoProcessMaxAgeHours={48}
@@ -229,7 +231,6 @@ function LowAdYieldHarness({ onCommit }: { onCommit: (payload: LowAdYieldState) 
   return (
     <>
       <GlobalDefaultsSection
-        llmEnabled
         autoProcessEnabled={false}
         onAutoProcessEnabledChange={() => {}}
         autoProcessMaxAgeHours={48}
@@ -301,7 +302,6 @@ function EpisodeLogHarness({ onCommit }: { onCommit: (payload: EpisodeLogState) 
   return (
     <>
       <GlobalDefaultsSection
-        llmEnabled
         autoProcessEnabled={false}
         onAutoProcessEnabledChange={() => {}}
         autoProcessMaxAgeHours={48}
@@ -376,7 +376,6 @@ function TextRecurrenceHintsHarness({ onCommit }: { onCommit: (payload: TextRecu
   return (
     <>
       <GlobalDefaultsSection
-        llmEnabled
         autoProcessEnabled={false}
         onAutoProcessEnabledChange={() => {}}
         autoProcessMaxAgeHours={48}
@@ -456,7 +455,8 @@ describe('GlobalDefaultsSection: Mark served feeds private toggle', () => {
 
 describe('GlobalDefaultsSection: LLM provider None', () => {
   it('disables the global verification pass select with the reason', () => {
-    render(<Harness onCommit={() => {}} overrides={{ llmEnabled: false }} />);
+    llmState.enabled = false;
+    render(<Harness onCommit={() => {}} />);
     expectGatedByLlm(screen.getByLabelText('Verification pass by default'));
     expectNotGatedByLlm(screen.getByLabelText('Cross-fetch differential default'));
   });
