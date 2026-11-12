@@ -312,3 +312,22 @@ def test_put_echoing_current_settings_matches_spec(seeded, template):
     client, headers = seeded
     current = client.get(f'/api/v1{template}', headers=headers).get_json()
     assert_response_conforms('put', template, client.put(f'/api/v1{template}', json=current, headers=headers))
+
+
+@pytest.mark.parametrize('value', ['oldest_first', 'newest_first', 'queued', None])
+def test_feed_queue_order_patch_and_get_match_spec(seeded, value):
+    client, headers = seeded
+    patched = client.patch(f'/api/v1/feeds/{SLUG}', json={'queueOrder': value}, headers=headers)
+    assert_response_conforms('patch', '/feeds/{slug}', patched)
+    fetched = client.get(f'/api/v1/feeds/{SLUG}', headers=headers)
+    assert_response_conforms('get', '/feeds/{slug}', fetched)
+    assert fetched.get_json()['queueOrder'] == value
+
+
+def test_global_queue_order_put_and_get_match_spec(seeded):
+    client, headers = seeded
+    put = client.put('/api/v1/settings/ad-detection', json={'queueOrder': 'newest_first'}, headers=headers)
+    assert_response_conforms('put', '/settings/ad-detection', put)
+    got = client.get('/api/v1/settings', headers=headers)
+    assert_response_conforms('get', '/settings', got)
+    assert got.get_json()['queueOrder'] == {'value': 'newest_first', 'isDefault': False}
