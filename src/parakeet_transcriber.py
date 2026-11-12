@@ -1,5 +1,6 @@
 """In-process NVIDIA Parakeet TDT transcription through onnx-asr (#834)."""
 import contextlib
+import errno
 import fcntl
 import fnmatch
 import glob
@@ -18,7 +19,7 @@ import wave
 import numpy as np
 
 from config import (
-    PARAKEET_MODEL_DISK_MARGIN_BYTES, PARAKEET_MODEL_NAME, PARAKEET_MODEL_PROBE_TIMEOUT_SECONDS,
+    PARAKEET_MODEL_DISK_MARGIN_BYTES, PARAKEET_MODEL_DOWNLOAD_WARN_SECONDS, PARAKEET_MODEL_NAME, PARAKEET_MODEL_PROBE_TIMEOUT_SECONDS,
     PARAKEET_MODEL_RECHECK_SECONDS, PARAKEET_MODEL_REPO, PARAKEET_MODEL_RETRY_SECONDS,
     PARAKEET_OVERLAP_S, PARAKEET_SEGMENT_MAX_S, PARAKEET_SEGMENT_PAUSE_S, PARAKEET_TOKEN_STEP_S,
     PARAKEET_WINDOW_S, PARAKEET_WORD_MAX_S, resolve_whisper_device,
@@ -30,6 +31,8 @@ logger = logging.getLogger('podcast.parakeet')
 _clock = time.time
 _last_failed_check = {}
 _rechecks_running = set()
+_updates_off = set()
+_downloads_started = {}
 _recheck_guard = threading.Lock()
 os.register_at_fork(after_in_child=_rechecks_running.clear)
 
@@ -178,7 +181,7 @@ def _flock(path, mode):
         fd = os.open(path, os.O_CREAT | os.O_RDWR, 0o600)
     except OSError as e:
         logger.debug("Could not open the Parakeet lock file: %s", e)
-        # On an unlockable volume a load proceeds and a re-check is skipped.
+        # Without a lock a blocking (load) caller proceeds unprotected and a re-check is refused.
         yield not mode & fcntl.LOCK_NB
         return
     try:
@@ -186,6 +189,10 @@ def _flock(path, mode):
             fcntl.flock(fd, mode)
         except BlockingIOError:
             yield False
+            return
+        except OSError as e:
+            logger.debug("Parakeet lock unavailable: %s", e)
+            yield not mode & fcntl.LOCK_NB
             return
         yield True
     finally:
@@ -203,17 +210,57 @@ def _restore_backup(model_dir):
             logger.warning("Restored the Parakeet model directory after an interrupted update")
 
 
+def _offline_mode():
+    return os.environ.get('HF_HUB_OFFLINE', '').strip().lower() in ('1', 'on', 'yes', 'true')
+
+
+def _update_blocker(model_dir):
+    """Why the live directory cannot be swapped by rename, or None."""
+    if _offline_mode():
+        return 'HF_HUB_OFFLINE is set (offline mode)'
+    if os.path.islink(model_dir):
+        return 'the model directory is a symlink'
+    if os.path.ismount(model_dir):
+        return 'the model directory is a mount point'
+    try:
+        if os.stat(model_dir).st_dev != os.stat(os.path.dirname(model_dir)).st_dev:
+            return 'the model directory is on another filesystem than its parent'
+    except OSError:
+        return None
+    return None
+
+
+def _updates_blocked(model_dir):
+    """True when updates cannot run for this directory; the reason is logged once per process."""
+    if model_dir in _updates_off:
+        return True
+    reason = _update_blocker(model_dir)
+    if reason:
+        _updates_off.add(model_dir)
+        logger.info("Parakeet model update checks are off: %s", reason)
+    return reason is not None
+
+
 def _swap_in(model_dir, staging):
-    """Replace the live directory with staging under the exclusive lock, so no loader sees it missing."""
+    """Replace the live directory with staging under the exclusive lock; False when it cannot be renamed."""
     backup = model_dir + '.old'
     with _flock(model_dir + '.lock', fcntl.LOCK_EX):
-        os.rename(model_dir, backup)
+        try:
+            os.rename(model_dir, backup)
+        except OSError as e:
+            if e.errno not in (errno.EBUSY, errno.EXDEV, errno.ENOTDIR, errno.EPERM):
+                raise
+            _updates_off.add(model_dir)
+            logger.warning("Parakeet model updates are off: the model directory cannot be renamed (%s)",
+                           errno.errorcode[e.errno])
+            return False
         try:
             os.rename(staging, model_dir)
         except OSError:
             os.rename(backup, model_dir)
             raise
     shutil.rmtree(backup, ignore_errors=True)
+    return True
 
 
 def _probe(hf_api):
@@ -224,23 +271,43 @@ class IncompleteModelDownload(Exception):
     """A download returned without every model file the repo lists."""
 
 
+def _warn_on_stalled_download(key, now):
+    """One WARNING per download that has run past the warn limit; the library sets no overall timeout."""
+    started = _downloads_started.get(key)
+    if started is not None and now - started >= PARAKEET_MODEL_DOWNLOAD_WARN_SECONDS:
+        _downloads_started[key] = None
+        logger.warning("Parakeet model update download still running after %d minutes; the local copy stays in use",
+                       (now - started) // 60)
+
+
+def _discard_record(model_dir, quantization):
+    with contextlib.suppress(OSError):
+        os.unlink(_record_path(model_dir, quantization))
+    logger.warning("Parakeet model did not load from the recorded copy; the next load downloads it again")
+
+
 def _fetch_model_files(model_dir, quantization):
-    """Make sure model files exist; True when a complete local copy is due for its online re-check."""
+    """Make sure model files exist; returns (recorded complete, start the background re-check)."""
     now = _clock()
     key = (model_dir, quantization)
+    _warn_on_stalled_download(key, now)
     record = _read_record(model_dir, quantization)
     if _model_files_complete(model_dir, quantization, record):
-        return _recheck_due(record, now) and not _throttled(key, now)
+        leftovers = any(os.path.exists(model_dir + s) for s in ('.staging', '.old'))
+        due = _recheck_due(record, now) and not _throttled(key, now) and not _updates_blocked(model_dir)
+        return True, due or leftovers
     if _throttled(key, now) and _required_files_present(model_dir, quantization):
-        return False
+        return False, False
     required, optional = _model_patterns(quantization)
     try:
         # Imported here so a load from a complete local copy never needs the hub package.
         from huggingface_hub import HfApi, snapshot_download
         try:
             info = _probe(HfApi)
-        except Exception as e:
-            logger.debug("Parakeet model probe failed (%s)", type(e).__name__)
+        except Exception:
+            # Without the file list a snapshot over local files cannot be verified, so use them as they are.
+            if _required_files_present(model_dir, quantization):
+                raise
             info = None
         sha = getattr(info, 'sha', None)
         snapshot_download(PARAKEET_MODEL_REPO, revision=sha, local_dir=model_dir, allow_patterns=required + optional)
@@ -249,21 +316,17 @@ def _fetch_model_files(model_dir, quantization):
             raise
         _last_failed_check[key] = now
         logger.warning("Parakeet model download failed (%s), using the local files", type(e).__name__)
-        return False
-    if info is not None and not _expected_files_present(model_dir, quantization, info):
+        return False, False
+    if not sha or not _expected_files_present(model_dir, quantization, info):
         _last_failed_check[key] = now
-        logger.warning("Parakeet model download left files missing; the copy is not recorded as complete")
-        return False
-    if sha:
-        _last_failed_check.pop(key, None)
-    else:
-        _last_failed_check[key] = now
-    _record_model_files(model_dir, quantization, sha, now if sha else None)
-    return False
+        logger.warning("Parakeet model download could not be verified complete; the files are not recorded")
+        return False, False
+    _last_failed_check.pop(key, None)
+    return _record_model_files(model_dir, quantization, sha, now), False
 
 
 def _recheck(model_dir, quantization):
-    """Probe the hub and stage, verify and swap in a new commit; True on success, raises on failure."""
+    """Clean leftovers, then probe and swap in a new commit when due; True on success, False when skipped."""
     now = _clock()
     key = (model_dir, quantization)
     staging = model_dir + '.staging'
@@ -272,7 +335,8 @@ def _recheck(model_dir, quantization):
     shutil.rmtree(model_dir + '.old', ignore_errors=True)
     # Re-read under the re-check lock: another worker may have just finished.
     record = _read_record(model_dir, quantization)
-    if not _model_files_complete(model_dir, quantization, record) or not _recheck_due(record, now):
+    if (not _model_files_complete(model_dir, quantization, record) or not _recheck_due(record, now)
+            or _updates_blocked(model_dir)):
         return False
     # Imported here so a broken hub install cannot fail a load from a complete local copy.
     from huggingface_hub import HfApi, snapshot_download
@@ -280,10 +344,9 @@ def _recheck(model_dir, quantization):
     sha = info.sha
     if not sha:
         raise ValueError('model info carried no commit sha')
-    if record.get('sha') in (None, sha):
-        if record.get('sha') is None:
-            logger.info("Parakeet model record has no revision; adopting %s without a download", sha[:12])
-        _write_record(model_dir, quantization, {**record, 'sha': sha, 'checked_at': now})
+    if record.get('sha') == sha:
+        if not _write_record(model_dir, quantization, {**record, 'checked_at': now}):
+            raise OSError('could not write the model record')
         return True
     needed = sum(record['files'].values()) + PARAKEET_MODEL_DISK_MARGIN_BYTES
     free = _free_bytes(os.path.dirname(model_dir))
@@ -293,14 +356,17 @@ def _recheck(model_dir, quantization):
                        free // 2**20, needed // 2**20)
         return False
     required, optional = _model_patterns(quantization)
+    _downloads_started[key] = now
     try:
         snapshot_download(PARAKEET_MODEL_REPO, revision=sha, local_dir=staging, allow_patterns=required + optional)
         if not _expected_files_present(staging, quantization, info):
             raise IncompleteModelDownload()
         if not _record_model_files(staging, quantization, sha, now):
             raise OSError('could not write the model record')
-        _swap_in(model_dir, staging)
+        if not _swap_in(model_dir, staging):
+            return False
     finally:
+        _downloads_started.pop(key, None)
         shutil.rmtree(staging, ignore_errors=True)
     logger.info("Parakeet model updated to revision %s; the next load uses it", sha[:12])
     return True
@@ -380,13 +446,18 @@ class ParakeetModelSingleton:
                 _restore_backup(model_dir)
                 # Shared lock: an update swaps the directory only while no process is reading it.
                 with _flock(model_dir + '.lock', fcntl.LOCK_SH):
-                    recheck = _fetch_model_files(model_dir, quantization)
+                    recorded, recheck = _fetch_model_files(model_dir, quantization)
                     # ERROR keeps real failures, drops session warnings; the import-time discovery line stays.
                     if hasattr(onnxruntime, 'set_default_logger_severity'):
                         onnxruntime.set_default_logger_severity(3)
-                    model = onnx_asr.load_model(
-                        PARAKEET_MODEL_NAME, path=model_dir, quantization=quantization,
-                        providers=providers).with_timestamps()
+                    try:
+                        model = onnx_asr.load_model(
+                            PARAKEET_MODEL_NAME, path=model_dir, quantization=quantization,
+                            providers=providers).with_timestamps()
+                    except Exception:
+                        if recorded:
+                            _discard_record(model_dir, quantization)
+                        raise
                 _warn_on_cpu_fallback(model, device)
             except Exception as e:
                 raise ModelLoadError(str(e)) from e

@@ -1,4 +1,5 @@
 """Parakeet transcriber: pure helpers and decode with a stubbed model (#834)."""
+import errno
 import fcntl
 import json
 import logging
@@ -176,6 +177,9 @@ def clock(monkeypatch):
     monkeypatch.setattr(pt, '_rechecks_running', set())
     monkeypatch.setattr(pt, '_recheck_runner', lambda work: work())
     monkeypatch.setattr(pt, '_free_bytes', lambda path: 1 << 50)
+    monkeypatch.setattr(pt, '_updates_off', set())
+    monkeypatch.setattr(pt, '_downloads_started', {})
+    monkeypatch.delenv('HF_HUB_OFFLINE', raising=False)
     return fake
 
 
@@ -477,7 +481,7 @@ def _mdir(tmp_path):
 
 
 def _fetch(tmp_path, quantization=None):
-    return pt._fetch_model_files(str(_mdir(tmp_path)), quantization)
+    return pt._fetch_model_files(str(_mdir(tmp_path)), quantization)[1]
 
 
 def _record(model_dir, quantization='int8'):
@@ -511,15 +515,26 @@ def test_first_download_records_repo_sha_files_and_checked_at(tmp_path, monkeypa
                       'files': {n: 4 for n in _write_model_files(tmp_path / 'scratch')}}
 
 
-def test_first_download_with_failed_probe_records_no_sha_and_is_due_after_the_hour(tmp_path, monkeypatch, clock):
+def test_first_download_with_failed_probe_records_nothing_and_retries_after_the_hour(tmp_path, monkeypatch, clock):
     hub = _writing_hub(monkeypatch, tmp_path, probe_error=httpx.ConnectError('down'))
     _fetch(tmp_path)
-    record = _record(_mdir(tmp_path), None)
-    assert 'sha' not in record and 'checked_at' not in record
     assert hub.snapshots[0]['revision'] is None
-    assert _fetch(tmp_path) is False
+    assert not list(_mdir(tmp_path).glob('.minuspod-complete*'))
+    _fetch(tmp_path)
+    assert len(hub.probes) == 1
     clock.now += HOUR
-    assert _fetch(tmp_path) is True
+    hub.probe_error = None
+    _fetch(tmp_path)
+    assert len(hub.probes) == 2 and _record(_mdir(tmp_path), None)['sha'] == SHA_OLD
+
+
+def test_failed_probe_over_partial_files_writes_no_record_and_skips_the_snapshot(tmp_path, monkeypatch, caplog):
+    _write_model_files(_mdir(tmp_path), skip=('encoder-model.onnx.data',))
+    hub = _install_hub(monkeypatch, _Hub(probe_error=httpx.ConnectError('down')))
+    with caplog.at_level(logging.WARNING, logger=pt.logger.name):
+        assert pt._fetch_model_files(str(_mdir(tmp_path)), None) == (False, False)
+    assert not list(_mdir(tmp_path).glob('.minuspod-complete*'))
+    assert hub.snapshots == [] and 'ConnectError' in caplog.text
 
 
 def test_first_download_missing_a_listed_file_records_nothing(tmp_path, monkeypatch, caplog):
@@ -527,7 +542,7 @@ def test_first_download_missing_a_listed_file_records_nothing(tmp_path, monkeypa
     with caplog.at_level(logging.WARNING, logger=pt.logger.name):
         _fetch(tmp_path)
     assert not list(_mdir(tmp_path).glob('.minuspod-complete*'))
-    assert 'files missing' in caplog.text
+    assert 'not recorded' in caplog.text
 
 
 def test_fetch_downloads_when_files_exist_without_a_completion_record(tmp_path, monkeypatch):
@@ -559,6 +574,7 @@ def test_fetch_records_nothing_when_the_download_left_files_missing(tmp_path, mo
     _fetch(tmp_path)
     _fetch(tmp_path)
     assert len(hub.snapshots) == 2
+    assert not list(_mdir(tmp_path).glob('.minuspod-complete*'))
 
 
 def test_get_instance_offline_uses_local_files(monkeypatch, tmp_path, clean_singleton):
@@ -765,15 +781,27 @@ def test_failed_check_is_not_retried_within_the_hour_but_is_after(monkeypatch, t
     assert len(hub.probes) == 2
 
 
-def test_record_without_sha_adopts_the_probed_sha_without_downloading(monkeypatch, tmp_path, primed, clock, caplog):
+def test_record_without_sha_goes_through_the_staged_download(monkeypatch, tmp_path, primed, clock, caplog):
     _rewrite_record(_live(tmp_path), lambda r: {k: v for k, v in r.items() if k != 'sha'}, 'int8')
-    hub = _install_hub(monkeypatch, _Hub(sha=SHA_NEW))
+    hub = _install_hub(monkeypatch, _Hub(sha=SHA_OLD, write=lambda d: _write_model_files(
+        d, 'int8', sizes={'vocab.txt': 9})))
     with caplog.at_level(logging.INFO, logger=pt.logger.name):
         _load(monkeypatch)
-    assert hub.snapshots == []
+    assert [s['local_dir'] for s in hub.snapshots] == [f'{_live(tmp_path)}.staging']
     record = _record(_live(tmp_path))
-    assert record['sha'] == SHA_NEW and record['checked_at'] == clock.now
-    assert [r.getMessage() for r in caplog.records if 'adopting' in r.getMessage()] and not _warnings(caplog)
+    assert record['sha'] == SHA_OLD and record['checked_at'] == clock.now and record['files']['vocab.txt'] == 9
+    assert 'adopting' not in caplog.text and not _warnings(caplog)
+
+
+def test_same_sha_with_an_unwritable_record_is_a_failed_check(monkeypatch, tmp_path, primed, caplog):
+    monkeypatch.setattr(pt, '_write_record', lambda *a: False)
+    hub = _install_hub(monkeypatch, _Hub(sha=SHA_OLD))
+    with caplog.at_level(logging.WARNING, logger=pt.logger.name):
+        _load(monkeypatch)
+    assert len(_warnings(caplog)) == 1 and hub.snapshots == []
+    assert _tree(_live(tmp_path)) == primed
+    _load(monkeypatch)
+    assert len(hub.probes) == 1
 
 
 def test_new_revision_with_complete_staging_is_swapped_in(monkeypatch, tmp_path, primed, clock):
@@ -837,12 +865,16 @@ def test_low_disk_skips_the_update_with_one_warning(monkeypatch, tmp_path, prime
 
 def test_another_worker_holding_the_recheck_lock_means_skip(monkeypatch, tmp_path, primed, caplog):
     hub = _install_hub(monkeypatch, _Hub(sha=SHA_NEW, write=lambda d: _write_model_files(d, 'int8')))
+    staging = Path(f'{_live(tmp_path)}.staging')
+    staging.mkdir()
+    (staging / 'vocab.txt').write_bytes(b'in progress')
     with open(f'{_live(tmp_path)}.recheck.lock', 'a') as other:
         fcntl.flock(other, fcntl.LOCK_EX | fcntl.LOCK_NB)
         with caplog.at_level(logging.WARNING, logger=pt.logger.name):
             assert _load(monkeypatch) == 'ts-model'
     assert hub.probes == [] and _warnings(caplog) == []
     assert _tree(_live(tmp_path)) == primed
+    assert (staging / 'vocab.txt').read_bytes() == b'in progress'
 
 
 def test_one_recheck_at_a_time_in_a_process(monkeypatch, tmp_path, primed):
@@ -984,3 +1016,132 @@ def test_default_runner_starts_a_named_daemon_thread():
     thread = pt._start_thread(lambda: seen.append(threading.current_thread().daemon))
     thread.join()
     assert seen == [True] and thread.name == 'parakeet-model-recheck'
+
+
+def _enolck(*a, **k):
+    raise OSError(errno.ENOLCK, 'No locks available')
+
+
+def test_flock_without_lock_support_lets_a_load_proceed_and_refuses_a_recheck(tmp_path, monkeypatch):
+    monkeypatch.setattr(pt.fcntl, 'flock', _enolck)
+    path = str(tmp_path / 'x.lock')
+    with pt._flock(path, fcntl.LOCK_SH) as shared, pt._flock(path, fcntl.LOCK_EX) as exclusive:
+        assert shared is True and exclusive is True
+    with pt._flock(path, fcntl.LOCK_EX | fcntl.LOCK_NB) as held:
+        assert held is False
+
+
+def test_volume_without_lock_support_loads_and_never_swaps(monkeypatch, tmp_path, primed, caplog):
+    monkeypatch.setattr(pt.fcntl, 'flock', _enolck)
+    hub = _install_hub(monkeypatch, _Hub(sha=SHA_NEW, write=lambda d: _write_model_files(d, 'int8')))
+    with caplog.at_level(logging.WARNING, logger=pt.logger.name):
+        assert _load(monkeypatch) == 'ts-model'
+    assert hub.probes == [] and _warnings(caplog) == []
+    assert _tree(_live(tmp_path)) == primed
+
+
+def _patch_stat_dev(monkeypatch, target):
+    real = os.stat
+
+    def fake(path, *a, **k):
+        result = real(path, *a, **k)
+        if str(path) == target:
+            fields = list(result)
+            fields[2] = result.st_dev + 1
+            return os.stat_result(fields)
+        return result
+    monkeypatch.setattr(pt.os, 'stat', fake)
+
+
+@pytest.mark.parametrize('blocker', ['symlink', 'mount', 'other-device'])
+def test_model_dir_that_cannot_be_renamed_skips_updates_with_one_info(
+        monkeypatch, tmp_path, primed, clock, caplog, blocker):
+    live = str(_live(tmp_path))
+    if blocker == 'symlink':
+        monkeypatch.setattr(pt.os.path, 'islink', lambda p: str(p) == live)
+    elif blocker == 'mount':
+        monkeypatch.setattr(pt.os.path, 'ismount', lambda p: str(p) == live)
+    else:
+        _patch_stat_dev(monkeypatch, live)
+    hub = _install_hub(monkeypatch, _Hub(sha=SHA_NEW, write=lambda d: _write_model_files(d, 'int8')))
+    with caplog.at_level(logging.INFO, logger=pt.logger.name):
+        assert _load(monkeypatch) == 'ts-model'
+        clock.now += HOUR
+        _load(monkeypatch)
+    assert hub.probes == [] and hub.snapshots == []
+    assert len([r for r in caplog.records if 'update checks are off' in r.getMessage()]) == 1
+    assert not _warnings(caplog)
+    assert _tree(_live(tmp_path)) == primed
+
+
+@pytest.mark.parametrize('code', [errno.EBUSY, errno.EXDEV, errno.ENOTDIR, errno.EPERM])
+def test_first_rename_refused_turns_updates_off_for_the_process(monkeypatch, tmp_path, primed, clock, caplog, code):
+    live = str(_live(tmp_path))
+    real = os.rename
+
+    def rename(src, dst):
+        if str(src) == live:
+            raise OSError(code, os.strerror(code))
+        real(src, dst)
+    monkeypatch.setattr(pt.os, 'rename', rename)
+    hub = _install_hub(monkeypatch, _Hub(sha=SHA_NEW, write=lambda d: _write_model_files(d, 'int8')))
+    with caplog.at_level(logging.WARNING, logger=pt.logger.name):
+        assert _load(monkeypatch) == 'ts-model'
+    assert len(_warnings(caplog)) == 1 and errno.errorcode[code] in _warnings(caplog)[0]
+    assert _tree(_live(tmp_path)) == primed and not Path(f'{live}.staging').exists()
+    clock.now += WEEK
+    _load(monkeypatch)
+    assert len(hub.probes) == 1 and len(hub.snapshots) == 1
+
+
+def test_load_failure_from_a_recorded_copy_drops_the_record(monkeypatch, tmp_path, clean_singleton, caplog):
+    _prime(monkeypatch, tmp_path)
+
+    def broken(*a, **k):
+        raise RuntimeError('external data missing')
+    with caplog.at_level(logging.WARNING, logger=pt.logger.name), pytest.raises(ModelLoadError):
+        _load(monkeypatch, load_model=broken)
+    assert not list(_live(tmp_path).glob('.minuspod-complete*'))
+    assert len(_warnings(caplog)) == 1
+    hub = _install_hub(monkeypatch, _Hub(write=lambda d: _write_model_files(d, 'int8')))
+    assert _load(monkeypatch) == 'ts-model'
+    assert [s['local_dir'] for s in hub.snapshots] == [str(_live(tmp_path))]
+
+
+@pytest.mark.parametrize('value', ['1', 'ON', 'yes', 'True'])
+def test_hub_offline_mode_starts_no_check_and_imports_no_hub(monkeypatch, tmp_path, primed, clock, caplog, value):
+    monkeypatch.setenv('HF_HUB_OFFLINE', value)
+    pending = []
+    monkeypatch.setattr(pt, '_recheck_runner', pending.append)
+    monkeypatch.setitem(sys.modules, 'huggingface_hub', None)
+    with caplog.at_level(logging.INFO, logger=pt.logger.name):
+        assert _load(monkeypatch) == 'ts-model'
+        clock.now += HOUR
+        _load(monkeypatch)
+    assert pending == [] and not _warnings(caplog)
+    assert len([r for r in caplog.records if 'offline' in r.getMessage()]) == 1
+
+
+@pytest.mark.parametrize('leftover', ['.staging', '.old'])
+def test_leftover_directory_is_cleaned_even_when_no_check_is_due(monkeypatch, tmp_path, clean_singleton, leftover):
+    _prime(monkeypatch, tmp_path)
+    extra = Path(f'{_live(tmp_path)}{leftover}')
+    _write_model_files(extra, 'int8')
+    hub = _install_hub(monkeypatch, _Hub())
+    _load(monkeypatch)
+    assert not extra.exists() and hub.probes == []
+
+
+def test_download_running_past_the_warn_limit_logs_one_warning(monkeypatch, tmp_path, primed, clock, caplog):
+    live = str(_live(tmp_path))
+
+    def slow(d):
+        clock.now += pt.PARAKEET_MODEL_DOWNLOAD_WARN_SECONDS
+        pt._fetch_model_files(live, 'int8')
+        pt._fetch_model_files(live, 'int8')
+        _write_model_files(d, 'int8')
+    _install_hub(monkeypatch, _Hub(sha=SHA_NEW, write=slow))
+    with caplog.at_level(logging.WARNING, logger=pt.logger.name):
+        _load(monkeypatch)
+    assert len(_warnings(caplog)) == 1 and 'still running' in _warnings(caplog)[0]
+    assert _record(_live(tmp_path))['sha'] == SHA_NEW
