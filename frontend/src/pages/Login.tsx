@@ -114,7 +114,7 @@ function Login() {
             />
 
             {error && (
-              <div role="alert" className="p-3 rounded-lg bg-destructive/10 text-destructive text-sm text-center">
+              <div role="alert" className="p-3 rounded-lg bg-destructive/10 text-destructive text-sm text-center [text-wrap:balance]">
                 {error}
               </div>
             )}
