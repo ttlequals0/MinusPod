@@ -67,6 +67,18 @@ describe('coarse-pointer width floor', () => {
     expect(classes.filter((c) => /-mx-|^max-sm:w-auto$|^max-sm:max-w-none$/.test(c))).toEqual([]);
   });
 
+  it('the selection readout stays on one line and wraps below the controls when the bar is too narrow', () => {
+    render(
+      <TransportBar isPlaying={false} onTogglePlay={() => {}} onSeekToStart={() => {}} onSeekToEnd={() => {}}
+        onSeekRelative={() => {}} onStop={() => {}} playbackRate={1} onPlaybackRateChange={() => {}}
+        currentTime={0} selectionDuration={90} inSelection={false} />,
+    );
+    const readout = screen.getByText('1:30.0 selection').parentElement as HTMLElement;
+    expect(readout.className).toContain('sm:flex-nowrap');
+    expect(readout.className).toContain('sm:whitespace-nowrap');
+    expect(readout.parentElement?.className).toContain('sm:flex-wrap');
+  });
+
   it('the speed trigger drops to its own row under 336 px of bar width, below sm only', () => {
     const { container } = render(
       <TransportBar isPlaying={false} onTogglePlay={() => {}} onSeekToStart={() => {}} onSeekToEnd={() => {}}
