@@ -77,12 +77,7 @@ def authentication_required(db, fresh=False) -> bool:
 
 
 def enforce_idle_limit(db) -> None:
-    """Clear a signed-in session idle past its limit; otherwise note this use.
-
-    Runs wherever a request's sign-in state is read. Nothing is signed out when
-    authentication is not required. The cookie is signed, so concurrent requests
-    race last-writer-wins: the worst case is a refresh lost for under a minute.
-    """
+    """Clear a signed-in session idle past its limit, else note this use (concurrent refreshes may be lost)."""
     if not session.get('authenticated') or not authentication_required(db):
         return
     now = _now()

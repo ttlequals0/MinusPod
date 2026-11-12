@@ -179,11 +179,7 @@ def _original_duration(path, episode):
 
 
 def _ensure_peaks_file(path, episode):
-    """Make sure the original has a peaks file: build now, or start a long build.
-
-    Returns a BuildResult. BUILD_BUSY means the caller answers 503; buckets are set when
-    the decode worked but the file could not be written.
-    """
+    """Build the original's peaks file now, or start a long build; returns a BuildResult (BUILD_BUSY means 503)."""
     peaks_path = audio_peaks.peaks_file_path(path)
     if audio_peaks.build_failed_recently(peaks_path, path):
         return audio_peaks.BuildResult(audio_peaks.BUILD_FAILED)

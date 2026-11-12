@@ -230,11 +230,7 @@ def _pack_header(count: int, size: int, mtime_ns: int, sha: bytes) -> bytes:
 
 def write_peaks_file(path: Path, buckets: np.ndarray, source_path: Path,
                      expect_stat: tuple[int, int] | None = None) -> None:
-    """Atomically write a peaks file stamped with the source's size, mtime and SHA-256.
-
-    ``buckets`` must be uint16. When ``expect_stat`` (size, mtime_ns) is given and the
-    hashed source differs, raises PeaksSourceChanged and writes nothing.
-    """
+    """Atomically write a uint16 peaks file stamped with the source; PeaksSourceChanged if it differs from expect_stat."""
     path = Path(path)
     arr = np.asarray(buckets)
     if arr.dtype.kind != 'u' or arr.dtype.itemsize != 2:
@@ -295,11 +291,7 @@ def read_peaks_window(path: Path, start: int = 0, stop: int | None = None) -> Pe
 
 
 def validate_or_restamp_peaks_file(path: Path, source_path: Path) -> bool:
-    """True when the file matches the source; restamps the header on a hash match.
-
-    Equal size and mtime are trusted without hashing. Otherwise the source is hashed,
-    once per process for each file state, even when the restamp cannot be written.
-    """
+    """True when the file matches the source; equal size and mtime skip hashing, else a hash match restamps."""
     path, source_path = Path(path), Path(source_path)
     data = read_peaks_window(path, 0, 0)
     if data is None:
@@ -510,12 +502,7 @@ def _build_and_write(peaks_path: Path, source_path: Path, duration: float) -> Bu
 
 def build_peaks_file_locked(peaks_path: Path, source_path: Path, duration: float,
                             wait_seconds: float = 0.0) -> BuildResult:
-    """Build the peaks file under a cross-process lock; never raises.
-
-    BUILD_OK when a valid file exists on return, BUILD_BUSY when another process
-    still holds the lock after ``wait_seconds``, BUILD_FAILED otherwise (remembered
-    for a while, with the decoded buckets when only the write failed).
-    """
+    """Build the peaks file under a cross-process lock; returns BUILD_OK, BUILD_BUSY or BUILD_FAILED, never raises."""
     stamp = _source_stamp(Path(source_path))
     result = _build_locked(peaks_path, source_path, duration, wait_seconds)
     _record_build_outcome(str(peaks_path), stamp, result.status)
@@ -572,11 +559,7 @@ def _record_build_outcome(key: str, stamp: tuple[int, int] | None, outcome: str)
 
 def start_background_build(peaks_path: Path, source_path: Path, duration: float,
                            runner=None, name: str = 'peaks-build') -> threading.Thread | None:
-    """Run a build on a daemon thread, one per peaks file per process.
-
-    Returns the thread, or None when this file is already building here or two builds run.
-    The runner defaults to build_peaks_file_locked and its errors never escape.
-    """
+    """Run a build on a daemon thread; None when this file is already building or two builds run."""
     key = str(peaks_path)
     with _inflight_lock:
         if key in _inflight or len(_inflight) >= _MAX_BACKGROUND_BUILDS:
