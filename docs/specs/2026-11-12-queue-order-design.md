@@ -76,11 +76,13 @@ orders.
 
 Follows `design-guide/UI-CONTRACT.md`.
 
-- Settings, in the section that holds the auto-process options: "Processing
-  order" with the three choices and one line of help saying that it applies
-  within a feed and that priorities still come first.
+- Queue page, in the Queue control section after the priority boosts:
+  "Processing order" with the three choices. It saves on change like the
+  boosts, with one line of help saying that it applies within a feed and that
+  priorities still come first.
 - Feed settings, beside "Queue priority": "Processing order" with "Use
-  default", "As queued", "Oldest first" and "Newest first".
+  default", "As queued", "Oldest first" and "Newest first". It saves on change
+  like Queue priority.
 - The Processing Queue panel needs no new control. Its rows come back in the
   new order.
 
