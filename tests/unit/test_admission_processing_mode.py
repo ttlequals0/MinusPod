@@ -413,6 +413,23 @@ class TestBlockedScanPaging:
             db, {('provider-a', 'primary')})) == 3
         assert seen == []
 
+    def test_scan_reads_the_ordered_queue_once(self, feed, monkeypatch):
+        for i in range(4):
+            episode_id = f'bb88cc99dd{i}{i}'
+            db.upsert_episode(SLUG, episode_id, title='E', status='discovered',
+                              original_url='https://example.com/e.mp3')
+            db.upsert_episode_for_processing(SLUG, episode_id,
+                                             'https://example.com/e.mp3', title='E')
+        monkeypatch.setattr(background, 'BLOCKED_SCAN_PAGE', 2)
+        monkeypatch.setattr('main_app.background._resolve_route_snapshot',
+                            lambda: FULL_SNAPSHOT)
+        calls = []
+        real = db.get_pending_queued_episodes
+        monkeypatch.setattr(db, 'get_pending_queued_episodes',
+                            lambda **kw: calls.append(kw) or real(**kw))
+        background._blocked_queue_entries(db, {('provider-a', 'primary')})
+        assert len(calls) == 1
+
     def test_scan_stops_at_the_row_cap(self, feed, monkeypatch):
         for i in range(4):
             episode_id = f'dd44ee55ff{i}{i}'

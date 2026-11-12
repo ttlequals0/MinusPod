@@ -55,7 +55,7 @@ def test_both_paths_give_the_same_order(temp_db, monkeypatch):
     _seed(temp_db, 4, 300, seed=7)
     fast = _order(temp_db)
     claimed_fast = temp_db.get_next_queued_episode()['id']
-    monkeypatch.setattr(type(temp_db), '_window_order_needed', lambda self: True)
+    monkeypatch.setattr(type(temp_db), '_window_order_needed', lambda self, *args: True)
     assert 'TEMP B-TREE' in _claim_plan(temp_db)
     assert _order(temp_db) == fast
     assert temp_db.get_next_queued_episode()['id'] == claimed_fast

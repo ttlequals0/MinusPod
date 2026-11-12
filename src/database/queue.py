@@ -61,9 +61,7 @@ def resolve_queue_order(feed_value: str | None, global_value: str | None) -> str
     return DEFAULT_QUEUE_ORDER
 
 
-# Pending rows of one feed and priority keep their places; the feed's order decides which
-# row takes each place. julianday() reads ISO 8601 (Z, offsets, fractions) and gives NULL for
-# anything else, so undated rows sort last in both date orders.
+# A feed's order picks which pending row takes each of its places; julianday() is NULL for undated rows, which sort last.
 _ORDERED_PENDING_CTE = """
 WITH claimable AS (
     SELECT q.id, q.podcast_id, q.priority, q.created_at,
@@ -90,7 +88,8 @@ ordered AS (
     FROM ranked r
     JOIN ranked s ON s.podcast_id = r.podcast_id AND s.priority = r.priority AND s.place = r.turn
 )
-""".format(orders=",".join("'%s'" % o for o in QUEUE_ORDERS), exclude_sql="{exclude_sql}")  # noqa: S608
+"""
+_QUEUE_ORDERS_SQL = ",".join(f"'{o}'" for o in QUEUE_ORDERS)
 
 # Same shape as `ordered` for the common case where no feed changes the order.
 _QUEUED_ONLY_CTE = """
@@ -379,9 +378,11 @@ class QueueMixin:
         return result
 
 
-    def _window_order_needed(self) -> bool:
+    def _window_order_needed(self, global_order: str | None = None) -> bool:
         """True when some pending row's feed resolves to an order other than 'queued'."""
-        if resolve_queue_order(None, self.get_setting('queue_order')) != 'queued':
+        if global_order is None:
+            global_order = resolve_queue_order(None, self.get_setting('queue_order'))
+        if global_order != 'queued':
             return True
         return self.get_connection().execute(
             """SELECT EXISTS (
@@ -393,21 +394,17 @@ class QueueMixin:
 
     def _ordered_pending(self, exclude_pairs=()) -> tuple[str, list]:
         """CTE text and params giving each claimable pending row its place in `ordered`."""
-        params: list = []
+        global_order = resolve_queue_order(None, self.get_setting('queue_order'))
         exclude_sql = ""
+        exclude_params = [value for pair in exclude_pairs for value in pair]
         if exclude_pairs:
             rows_sql = ",".join("(?,?)" for _ in exclude_pairs)
             exclude_sql = f" AND (p.slug, q.episode_id) NOT IN (VALUES {rows_sql})"
-        if not self._window_order_needed():
+        if not self._window_order_needed(global_order):
             # Every feed is 'queued': the legacy order, served by idx_queue_status_priority.
-            for slug, episode_id in exclude_pairs:
-                params.extend((slug, episode_id))
-            return _QUEUED_ONLY_CTE.format(exclude_sql=exclude_sql), params  # noqa: S608
-        global_order = resolve_queue_order(None, self.get_setting('queue_order'))
-        params = [global_order]
-        for slug, episode_id in exclude_pairs:
-            params.extend((slug, episode_id))
-        return _ORDERED_PENDING_CTE.format(exclude_sql=exclude_sql), params  # noqa: S608
+            return _QUEUED_ONLY_CTE.format(exclude_sql=exclude_sql), exclude_params  # noqa: S608
+        cte = _ORDERED_PENDING_CTE.format(orders=_QUEUE_ORDERS_SQL, exclude_sql=exclude_sql)  # noqa: S608
+        return cte, [global_order, *exclude_params]
 
     def get_next_queued_episode(self) -> dict | None:
         """The next pending episode in dequeue order (read-only)."""
@@ -426,14 +423,10 @@ class QueueMixin:
 
     def get_pending_queued_episodes(self, limit: int = PENDING_QUEUE_LIMIT,
                                     offset: int = 0) -> list[dict]:
-        """Pending queue rows in dequeue order (the same order as the claim).
+        """Pending queue rows in dequeue order, capped at `limit` from `offset`.
 
-        Feeds the Processing Queue panel. Capped at `limit` rows with an
-        optional `offset`; each row carries total_pending (the uncapped count,
-        via a window function evaluated before the LIMIT).
-
-        The feed and episode processing-mode columns ride along so the hold
-        gating scan can score a row without a per-row lookup.
+        Each row carries total_pending (the uncapped count) and the feed and episode
+        processing-mode columns, so the hold gating scan needs no per-row lookup.
         """
         cte, params = self._ordered_pending()
         cursor = self.get_connection().execute(

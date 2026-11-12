@@ -96,18 +96,14 @@ def _blocked_queue_entries(db, held_pairs: set, legacy_hold: bool = False) -> se
         return set()
     gates = _admission_gates(db)
     blocked: set = set()
-    scanned = 0
-    while scanned < BLOCKED_SCAN_MAX_ROWS:
-        try:
-            page = db.get_pending_queued_episodes(
-                limit=BLOCKED_SCAN_PAGE, offset=scanned)
-        except Exception as e:
-            refresh_logger.warning(
-                f"Could not list pending episodes for hold gating: {e}")
-            return blocked
-        if not page:
-            return blocked
-        scanned += len(page)
+    try:
+        rows = db.get_pending_queued_episodes(limit=BLOCKED_SCAN_MAX_ROWS)
+    except Exception as e:
+        refresh_logger.warning(
+            f"Could not list pending episodes for hold gating: {e}")
+        return blocked
+    for start in range(0, len(rows), BLOCKED_SCAN_PAGE):
+        page = rows[start:start + BLOCKED_SCAN_PAGE]
         page_all_blocked = True
         for row in page:
             entry = (row['podcast_slug'], row['episode_id'])
