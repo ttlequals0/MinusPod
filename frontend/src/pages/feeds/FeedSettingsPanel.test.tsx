@@ -1804,6 +1804,17 @@ describe('FeedSettingsPanel chapters mode under LLM provider None', () => {
     expect(document.getElementById(select.getAttribute('aria-describedby')!)?.textContent).toBe('LLM provider is set to None.');
     mockGetSettings.mockResolvedValue({});
   });
+
+  it('points Chapter notes at the Chapters note instead of printing a second line', async () => {
+    mockGetSettings.mockResolvedValue({ llmEnabled: false });
+    renderPanel(makeFeed());
+    const notes = await screen.findByLabelText('Chapter notes');
+    await waitFor(() => expect((notes.closest('fieldset') as HTMLFieldSetElement).disabled).toBe(true));
+    expect(document.querySelectorAll('#feed-chapters-llm-disabled')).toHaveLength(1);
+    expect(document.getElementById('feed-chapter-notes-llm-disabled')).toBeNull();
+    expect(notes.closest('fieldset')?.getAttribute('aria-describedby')).toBe('feed-chapters-llm-disabled');
+    mockGetSettings.mockResolvedValue({});
+  });
 });
 
 describe('FeedSettingsPanel under LLM provider None', () => {

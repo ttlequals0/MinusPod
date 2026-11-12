@@ -195,4 +195,15 @@ describe('SystemOneTunablesSection: LLM provider None', () => {
     await userEvent.setup().click(screen.getByRole('button', { name: 'System One tuneables' }));
     expectGatedByLlm(screen.getByRole('button', { name: 'Save System One tuning' }));
   });
+
+  it('hides the amber System One notice and keeps it when the LLM is enabled', async () => {
+    const props = { connections, profiles, defaults, isDefault, onSave: vi.fn(), pending: false, error: null };
+    const { unmount } = render(<SystemOneTunablesSection llmEnabled={false} {...props} />);
+    await userEvent.setup().click(screen.getByRole('button', { name: 'System One tuneables' }));
+    expect(screen.queryByText(/unavailable for System One models/)).toBeNull();
+    unmount();
+    render(<SystemOneTunablesSection llmEnabled {...props} />);
+    await userEvent.setup().click(screen.getByRole('button', { name: 'System One tuneables' }));
+    expect(screen.getByText(/unavailable for System One models/)).toBeTruthy();
+  });
 });

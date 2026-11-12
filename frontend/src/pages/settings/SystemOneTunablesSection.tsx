@@ -102,9 +102,11 @@ function SystemOneTunablesSection({ llmEnabled, connections, profiles, defaults,
         {!selectedProfileSlot ? (
           <p className="text-sm text-muted-foreground">Choose a System One provider in LLM provider.</p>
         ) : <>
-        <div className="rounded-lg border border-warning/30 bg-warning/10 p-3 text-sm text-warning">
-          Chapters and pattern cleanup are unavailable for System One models.
-        </div>
+        {llmEnabled && (
+          <div className="rounded-lg border border-warning/30 bg-warning/10 p-3 text-sm text-warning">
+            Chapters and pattern cleanup are unavailable for System One models.
+          </div>
+        )}
         {editableSlots.length > 1 && (
           <div>
             <label htmlFor="system-one-provider" className={labelBase}>Provider</label>

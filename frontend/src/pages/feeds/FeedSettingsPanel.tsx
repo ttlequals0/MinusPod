@@ -1154,7 +1154,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
                 </div>
               </div>
 
-              <LlmGate disabled={llmDisabled} id="feed-chapter-notes" className="flex flex-col gap-1 text-sm">
+              <LlmGate disabled={llmDisabled} id="feed-chapter-notes" describedBy="feed-chapters-llm-disabled" className="flex flex-col gap-1 text-sm">
                 <label htmlFor="chapter-notes" className={`${labelBase} mb-0`}>Chapter notes</label>
                 <textarea
                   id="chapter-notes"
