@@ -7,7 +7,6 @@ import uuid
 
 from database.error_text import redaction_units
 from database.fingerprint_matches import BACKFILL_GATE, OUT_OF_SCOPE_LOG_CAP
-from utils.time import utc_now_iso
 
 logger = logging.getLogger(__name__)
 
@@ -16,6 +15,7 @@ STEP_NAMES = (REDACT_GATE, BACKFILL_GATE)
 STALE_HEARTBEAT_SECONDS = 120.0
 REDACT_PAGE_ROWS = 500
 BACKFILL_PAGE_EPISODES = 100
+ORIGIN_PAGE_PATTERNS = 200
 
 
 class StepClaimLost(Exception):
@@ -147,23 +147,27 @@ class DeferredUpgradeMixin:
     def _advance_redaction(self, cursor, save, ctx):
         """Redact one page of one column; returns the next cursor, None when every column is done."""
         units = redaction_units()
-        unit, last = cursor.get('unit', 0), cursor.get('last', 0)
+        current, last, done = cursor.get('unit'), cursor.get('last', 0), set(cursor.get('done', ()))
+        if cursor and current not in {unit[0] for unit in units}:
+            logger.info("Upgrade step %s found a cursor it cannot resume, starting again", REDACT_GATE)
+            current, last, done = None, 0, set()
         conn = self.get_connection()
-        while unit < len(units):
-            table, column, rewrite, where, params = units[unit]
+        for key, table, column, rewrite, where, params in units:
+            if key in done:
+                continue
             if not self._table_exists(conn, table) or column not in self._get_table_columns(conn, table):
-                unit, last = unit + 1, 0
+                done.add(key)
                 continue
             rows = conn.execute(
                 f"SELECT rowid AS rid, {column} AS value FROM {table} "  # noqa: S608
                 f"WHERE rowid > ? AND {column} IS NOT NULL AND ({where}) ORDER BY rowid LIMIT ?",
-                (last, *params, REDACT_PAGE_ROWS)).fetchall()
+                (last if key == current else 0, *params, REDACT_PAGE_ROWS)).fetchall()
             if not rows:
-                unit, last = unit + 1, 0
+                done.add(key)
                 continue
             updates = [(redacted, row['rid'], row['value']) for row in rows
                        if isinstance(row['value'], str) and (redacted := rewrite(row['value'])) != row['value']]
-            new_cursor = {'unit': unit, 'last': rows[-1]['rid']}
+            new_cursor = {'unit': key, 'last': rows[-1]['rid'], 'done': sorted(done)}
             with self.transaction(immediate=True) as write:
                 changed = 0
                 for redacted, rid, old in updates:
@@ -204,17 +208,19 @@ class DeferredUpgradeMixin:
                 save(write, new_cursor, len(written))
             ctx['out_of_scope'].update(row[0] for row in written if not row[7])
             return new_cursor
-        with self.transaction(immediate=True) as write:
-            save(write, cursor, 0)
-        sources = self._origin_sources(self._stored_match_rows_of_unsourced_patterns())
+        rows, last = self._origin_candidate_rows(cursor.get('after', 0), ORIGIN_PAGE_PATTERNS)
+        if last is None:
+            return None
+        sources = self._origin_sources(rows)
+        new_cursor = {'phase': 'origins', 'after': last}
         with self.transaction(immediate=True) as write:
             write.executemany(
                 """UPDATE audio_fingerprints SET source_podcast_slug = ?, source_episode_id = ?,
                      source_start = ?, source_end = ?
                    WHERE pattern_id = ? AND source_episode_id IS NULL""",
                 [(*source, pattern_id) for pattern_id, source in sources.items()])
-            save(write, cursor, 0)
-        return None
+            save(write, new_cursor, 0)
+        return new_cursor
 
     def _current_page(self, after, inserts, last, used):
         """The page's rows, recomputed when a correction changed since they were read; call inside the write transaction."""
@@ -222,7 +228,7 @@ class DeferredUpgradeMixin:
         ids = {row[0] for row in conn.execute(
             "SELECT e.episode_id FROM episodes e JOIN episode_details d ON d.episode_id = e.id "
             "WHERE e.id > ? AND e.id <= ? AND d.ad_markers_json LIKE '%\"fingerprint\"%'", (after, last))}
-        fresh = self._stored_rejections(utc_now_iso(), ids)
+        fresh = self._stored_rejections(ids)
         if fresh == used:
             return inserts, last
         fresh_inserts, fresh_last, _ = self._read_stored_match_history(after, BACKFILL_PAGE_EPISODES, fresh)
@@ -254,10 +260,19 @@ class DeferredUpgradeMixin:
                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""", written)
         return written
 
-    def _stored_match_rows_of_unsourced_patterns(self) -> list[tuple]:
-        """History rows in the insert column order for patterns whose fingerprint has no source yet."""
-        return [tuple(row) for row in self.get_connection().execute(
-            """SELECT pattern_id, episode_id, podcast_slug, match_start, match_end, similarity, coverage,
-                      in_scope, audio_only, rejected, rejected_at, created_at
-               FROM audio_fingerprint_matches
-               WHERE pattern_id IN (SELECT pattern_id FROM audio_fingerprints WHERE source_episode_id IS NULL)""")]
+    def _origin_candidate_rows(self, after_pattern_id: int, limit: int) -> tuple[list[tuple], int | None]:
+        """Insert-order history rows of the origin episode for a page of patterns still lacking a source."""
+        conn = self.get_connection()
+        ids = [row[0] for row in conn.execute(
+            "SELECT DISTINCT pattern_id FROM audio_fingerprints WHERE source_episode_id IS NULL AND pattern_id > ? "
+            "ORDER BY pattern_id LIMIT ?", (after_pattern_id, limit))]
+        if not ids:
+            return [], None
+        # Only rows of the pattern's own origin episode can name its source.
+        rows = [tuple(row) for row in conn.execute(
+            f"""SELECT m.pattern_id, m.episode_id, m.podcast_slug, m.match_start, m.match_end, m.similarity,
+                       m.coverage, m.in_scope, m.audio_only, m.rejected, m.rejected_at, m.created_at
+                FROM audio_fingerprint_matches m JOIN ad_patterns ap ON ap.id = m.pattern_id
+                WHERE m.pattern_id IN ({','.join('?' * len(ids))}) AND m.episode_id = ap.created_from_episode_id""",  # noqa: S608
+            ids)]
+        return rows, ids[-1]

@@ -381,8 +381,7 @@ class FingerprintMatchMixin:
                ORDER BY e.id LIMIT ?""", (after_row_id, -1 if limit is None else limit)).fetchall()
         if rejections is None:
             # A page needs only its own episodes' corrections; a whole-table read has no page.
-            rejections = self._stored_rejections(
-                now, None if limit is None else {row['episode_id'] for row in rows})
+            rejections = self._stored_rejections(None if limit is None else {row['episode_id'] for row in rows})
         used = {key: list(spans) for key, spans in rejections.items()}
         for row in rows:
             markers = parse_ad_markers(row['ad_markers_json'])
@@ -403,10 +402,11 @@ class FingerprintMatchMixin:
                 scopes[slug] = self._episode_scope(slug)
             for pattern_id, lo, hi, similarity, coverage, in_scope, audio_only in fingerprint_match_rows(
                     planned, patterns, scopes[slug]):
-                rejected_at = next((at for rlo, rhi, at in rejections.get((pattern_id, slug, episode_id), ())
-                                    if _mostly_overlaps(rlo, rhi, lo, hi)), None)
+                hit = next((span for span in rejections.get((pattern_id, slug, episode_id), ())
+                            if _mostly_overlaps(span[0], span[1], lo, hi)), None)
+                # One fallback stamp per page for a correction without a readable time.
                 inserts.append((pattern_id, episode_id, slug, lo, hi, similarity, coverage, int(in_scope),
-                                int(audio_only), int(rejected_at is not None), rejected_at, created_at))
+                                int(audio_only), int(hit is not None), (hit[2] or now) if hit else None, created_at))
         return inserts, (rows[-1]['row_id'] if rows else None), used
 
     @staticmethod
@@ -430,10 +430,10 @@ class FingerprintMatchMixin:
             return [p for p in planned if any(_mostly_overlaps(lo, hi, *p[1]) for lo, hi, _ in spans)]
         return planned
 
-    def _stored_rejections(self, fallback_at: str, episode_ids: set | None = None) -> dict:
+    def _stored_rejections(self, episode_ids: set | None = None) -> dict:
         """{(pattern_id, slug, episode_id): [(start, end, rejected_at)]} from false-positive corrections, oldest first.
 
-        A correction with an unreadable timestamp is stamped fallback_at. episode_ids limits the read.
+        rejected_at is None for a correction without a readable time. episode_ids limits the read.
         """
         found = {}
         conn = self.get_connection()
@@ -458,7 +458,7 @@ class FingerprintMatchMixin:
             if lo is None or hi is None or hi <= lo:
                 continue
             found.setdefault((row['pattern_id'], row['slug'], row['episode_id']), []).append(
-                (lo, hi, _iso_or(row['created_at'], fallback_at)))
+                (lo, hi, _iso_or(row['created_at'], None)))
         return found
 
     def _origin_sources(self, rows: list[tuple]) -> dict:

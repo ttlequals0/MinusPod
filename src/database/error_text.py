@@ -93,23 +93,21 @@ def redact_json_error(value):
     return redact_json_fields(value, ('error',)) if isinstance(value, str) else value
 
 
-# Unit order is persisted as a cursor by a partly run step: append new units, never insert.
 def redaction_units():
-    """(table, column, rewrite, where, params) for every stored error value the redaction step covers."""
-    units = [(table, column, redact_stored_text, '1', ()) for table, column in STORED_ERROR_COLUMNS[:12]]
+    """(key, table, column, rewrite, where, params) for every stored error value; the key is stable and persisted."""
+    units = [(f'col:{table}.{column}', table, column, redact_stored_text, '1', ())
+             for table, column in STORED_ERROR_COLUMNS]
     for table in _SETTING_TABLES:
-        units.append((table, 'value', redact_stored_text, "key LIKE ? ESCAPE '\\'", ('%\\_last\\_error',)))
-    units.append(('settings', 'value', lambda v: redact_json_fields(v, ('reason',)),
+        units.append((f'setting:{table}.last_error', table, 'value', redact_stored_text,
+                      "key LIKE ? ESCAPE '\\'", ('%\\_last\\_error',)))
+    units.append(('setting:failover_state', 'settings', 'value', lambda v: redact_json_fields(v, ('reason',)),
                   "key LIKE ? ESCAPE '\\'", ('failover\\_state:%',)))
-    units.append(('settings', 'value',
-                  lambda v: redact_json_fields(v, ('last_failure_reason',)),
-                  'key = ?', (NODE_HEALTH_KEY,)))
-    for table, column in STORED_ERROR_JSON_COLUMNS:
-        units.append((table, column, redact_json_error, '1', ()))
-    for table, column in STORED_ERROR_COLUMNS[12:]:
-        units.append((table, column, redact_stored_text, '1', ()))
-    units.append(('settings', 'value', lambda v: redact_json_fields(v, ('detail',)),
+    units.append(('setting:failover_probe', 'settings', 'value', lambda v: redact_json_fields(v, ('detail',)),
                   "key LIKE ? ESCAPE '\\'", ('failover\\_probe:%',)))
-    units.append(('processing_history', 'processing_stats_json',
+    units.append(('setting:node_health', 'settings', 'value',
+                  lambda v: redact_json_fields(v, ('last_failure_reason',)), 'key = ?', (NODE_HEALTH_KEY,)))
+    units += [(f'json:{table}.{column}', table, column, redact_json_error, '1', ())
+              for table, column in STORED_ERROR_JSON_COLUMNS]
+    units.append(('json:processing_history.processing_stats_json', 'processing_history', 'processing_stats_json',
                   lambda v: redact_json_fields(v, STATS_ERROR_FIELDS), '1', ()))
     return units

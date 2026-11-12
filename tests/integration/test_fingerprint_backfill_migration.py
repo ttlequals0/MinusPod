@@ -717,7 +717,7 @@ def test_a_step_whose_owner_lost_the_claim_cannot_mark_itself_done(seeded, monke
     assert db.history_backfill_pending()
 
 
-def test_the_origin_scan_heartbeats_before_it_reads(seeded, monkeypatch):
+def test_every_origin_page_heartbeats_before_the_next_read(seeded, monkeypatch):
     db = _drop_mark(_copy_of(seeded, 'copy_heartbeat'))
     ticks = iter(range(100, 10_000))
     last = []
@@ -726,12 +726,122 @@ def test_the_origin_scan_heartbeats_before_it_reads(seeded, monkeypatch):
         last.append(next(ticks))
         return float(last[-1])
     seen = []
-    real = type(db)._stored_match_rows_of_unsourced_patterns
+    real = type(db)._origin_candidate_rows
 
-    def spy(self):
+    def spy(self, after, limit):
         seen.append((self.get_connection().execute(
             "SELECT heartbeat_at FROM deferred_upgrade_steps WHERE name = ?", (GATE,)).fetchone()[0], last[-1]))
-        return real(self)
-    monkeypatch.setattr(type(db), '_stored_match_rows_of_unsourced_patterns', spy)
+        return real(self, after, limit)
+    monkeypatch.setattr(deferred, 'ORIGIN_PAGE_PATTERNS', 1)
+    monkeypatch.setattr(type(db), '_origin_candidate_rows', spy)
     assert db.run_deferred_upgrade_steps(clock=clock)
-    assert seen and seen[0][0] == float(seen[0][1])
+    assert len(seen) >= 2 and all(beat == float(tick) for beat, tick in seen)
+
+
+def _unsourced_patterns(db, count):
+    """Patterns with a fingerprint and an origin episode holding a match, so each has a source to find."""
+    ids = []
+    for i in range(count):
+        episode = f'{i:012x}'
+        pid = db.create_ad_pattern(scope='global', text_template=f'origin read {i} ' * 8,
+                                   created_from_episode_id=episode)
+        db.create_audio_fingerprint(pid, b'AQAA', 57.0)
+        _put_markers(db, SLUG, episode, [_fp(pid, 100.0, 160.0)], processed_at='2026-10-01T10:00:00Z')
+        ids.append(pid)
+    return ids
+
+
+def test_the_paged_origin_phase_gives_the_unpaged_result(seeded, monkeypatch):
+    _without_rejections(seeded)
+    _unsourced_patterns(seeded['db'], 5)
+    unpaged = _drop_mark(_copy_of(seeded, 'copy_unpaged'))
+    unpaged.run_deferred_upgrade_steps()
+    monkeypatch.setattr(deferred, 'ORIGIN_PAGE_PATTERNS', 2)
+    paged = _drop_mark(_copy_of(seeded, 'copy_paged'))
+    pages = []
+    assert paged.run_deferred_upgrade_steps(pause=lambda: pages.append(1))
+    assert _sources(paged) == _sources(unpaged)
+    assert sum(1 for row in _sources(paged) if row[2]) >= 5
+
+
+def test_the_origin_phase_holds_at_most_a_page_of_patterns(seeded, monkeypatch):
+    _without_rejections(seeded)
+    _unsourced_patterns(seeded['db'], 5)
+    db = _drop_mark(_copy_of(seeded, 'copy_bounded'))
+    monkeypatch.setattr(deferred, 'ORIGIN_PAGE_PATTERNS', 2)
+    limits, sizes = [], []
+    real = type(db)._origin_candidate_rows
+
+    def spy(self, after, limit):
+        limits.append(limit)
+        rows, last = real(self, after, limit)
+        sizes.append(len({r[0] for r in rows}))
+        return rows, last
+    monkeypatch.setattr(type(db), '_origin_candidate_rows', spy)
+    assert db.run_deferred_upgrade_steps()
+    assert set(limits) == {2} and max(sizes) <= 2 and len(limits) >= 3
+
+
+def test_a_worker_killed_at_any_origin_page_boundary_is_finished_by_the_next_claim(seeded, monkeypatch):
+    _without_rejections(seeded)
+    _unsourced_patterns(seeded['db'], 4)
+    monkeypatch.setattr(deferred, 'ORIGIN_PAGE_PATTERNS', 1)
+    reference = _drop_mark(_copy_of(seeded, 'copy_origin_ref'))
+    pages = []
+    reference.run_deferred_upgrade_steps(pause=lambda: pages.append(1))
+    expected = _sources(reference)
+    for kill_at in range(1, len(pages) + 1):
+        db = _drop_mark(_copy_of(seeded, f'kill_origin{kill_at}'))
+        seen = []
+
+        def pause():
+            seen.append(1)
+            if len(seen) >= kill_at:
+                raise Killed
+        with pytest.raises(Killed):
+            db.run_deferred_upgrade_steps(clock=lambda: 50.0, pause=pause)
+        db.get_connection().rollback()
+        assert db.run_deferred_upgrade_steps(clock=lambda: 50.0 + deferred.STALE_HEARTBEAT_SECONDS + 1)
+        assert not db.history_backfill_pending()
+        assert _sources(db) == expected, kill_at
+
+
+def _correction_without_a_time(seeded, created_at):
+    _without_rejections(seeded)
+    _reject(seeded['db'], seeded['mine'], EP1, SLUG, {'start': 105.0, 'end': 155.0})
+    conn = seeded['db'].get_connection()
+    conn.execute("UPDATE pattern_corrections SET created_at = ?", (created_at,))
+    conn.commit()
+
+
+@pytest.mark.parametrize('created_at', [None, 'not a date'])
+def test_a_correction_without_a_readable_time_is_computed_once_with_one_fallback(seeded, monkeypatch, created_at):
+    _correction_without_a_time(seeded, created_at)
+    monkeypatch.setattr(deferred, 'BACKFILL_PAGE_EPISODES', 1000)
+    db = _drop_mark(_copy_of(seeded, 'copy_untimed'))
+    reads = []
+    real = type(db)._read_stored_match_history
+
+    def counting(self, *args, **kwargs):
+        reads.append(1)
+        return real(self, *args, **kwargs)
+    monkeypatch.setattr(type(db), '_read_stored_match_history', counting)
+    assert db.run_deferred_upgrade_steps()
+    assert len(reads) == 2
+    stamps = {r['rejected_at'] for r in _rows(db) if r['rejected']}
+    assert len(stamps) == 1 and re.fullmatch(r'\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ', stamps.pop())
+
+
+def test_a_real_correction_change_still_recomputes_when_another_has_no_time(seeded, monkeypatch):
+    _correction_without_a_time(seeded, None)
+    db = _drop_mark(_copy_of(seeded, 'copy_untimed_change'))
+    reads = []
+    real = type(db)._read_stored_match_history
+
+    def counting(self, *args, **kwargs):
+        reads.append(1)
+        return real(self, *args, **kwargs)
+    monkeypatch.setattr(type(db), '_read_stored_match_history', counting)
+    _after_read(monkeypatch, db, lambda: _reject(db, seeded['theirs'], EP2, OTHER, {'start': 20.0, 'end': 70.0}))
+    assert db.run_deferred_upgrade_steps()
+    assert [r['rejected'] for r in _rows(db, f"pattern_id = {seeded['theirs']} AND episode_id = '{EP2}'")] == [1]
