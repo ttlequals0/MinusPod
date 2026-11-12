@@ -323,7 +323,7 @@ class FingerprintMatchMixin:
                       COALESCE(SUM(rejected), 0) AS rejected_count,
                       COALESCE(SUM(CASE WHEN rejected = 0 THEN 1 - in_scope ELSE 0 END), 0) AS out_of_scope_count,
                       AVG(CASE WHEN rejected = 0 THEN similarity END) AS mean_similarity,
-                      MAX(created_at) AS last_matched_at
+                      MAX(CASE WHEN rejected = 0 THEN created_at END) AS last_matched_at
                FROM audio_fingerprint_matches WHERE pattern_id = ?""",
             (pattern_id,)
         ).fetchone()

@@ -1,0 +1,191 @@
+"""Hostile numbers, load limits and edge cases of the audio routes."""
+import os
+import subprocess
+
+import pytest
+
+import api.patterns_audio as module
+from tests.integration.fingerprint_helpers import EPISODE, SLUG, csrf  # noqa: E402
+
+HUGE = '9' * 30
+OVER_INT64 = '9223372036854775808'
+
+
+def _audio(pid):
+    return f'/api/v1/patterns/{pid}/audio'
+
+
+@pytest.fixture(autouse=True)
+def clean_preview_state():
+    module._slice_cache.clear()
+    yield
+    module._slice_cache.clear()
+
+
+@pytest.mark.parametrize('digits', [HUGE, '9' * 5000, '9' * 19])
+def test_oversized_match_id_is_400(app_client, fp_audio_pattern, fp_audio_original, digits):
+    r = app_client.get(f'{_audio(fp_audio_pattern)}/preview?matchId={digits}', headers=csrf(app_client))
+    assert r.status_code == 400 and r.get_json()['error'] == 'matchId must be an integer'
+
+
+def test_page_past_int_range_clamps_to_one_past_the_last_page(app_client, fp_feed, fp_audio_pattern):
+    for i in range(12):
+        fp_feed.record_fingerprint_match(fp_audio_pattern, EPISODE, SLUG, 10.0 + i, 40.0 + i,
+                                         0.9, 0.8, True, False)
+    for page in ('99999999999999999999', '9' * 400):
+        r = app_client.get(f'{_audio(fp_audio_pattern)}/matches?page={page}', headers=csrf(app_client))
+        body = r.get_json()
+        assert r.status_code == 200 and body['matches'] == [] and body['page'] == 3
+        assert body['total'] == 12
+
+
+def test_page_clamp_on_an_empty_history_is_page_two(app_client, fp_audio_pattern):
+    r = app_client.get(f'{_audio(fp_audio_pattern)}/matches?page=99999999999999999999',
+                       headers=csrf(app_client))
+    assert r.status_code == 200 and r.get_json()['page'] == 2
+
+
+@pytest.mark.parametrize('method,suffix', [
+    ('get', ''), ('put', ''), ('delete', ''), ('post', '/split'),
+    ('post', '/protect'), ('delete', '/protect'), ('post', '/submit-to-community'),
+    ('get', '/audio'), ('put', '/audio'), ('delete', '/audio'), ('get', '/audio/preview'),
+    ('get', '/audio/matches'), ('post', '/audio/rebuild'),
+])
+@pytest.mark.parametrize('pid', ['9' * 20, OVER_INT64])
+def test_oversized_pattern_id_is_404(app_client, method, suffix, pid):
+    r = getattr(app_client, method)(f'/api/v1/patterns/{pid}{suffix}', json={}, headers=csrf(app_client))
+    # Some unmatched non-GET paths reach the SPA catch-all, which answers 405
+    assert r.status_code in ((404,) if method == 'get' else (404, 405))
+
+
+def test_largest_pattern_id_still_routes(app_client):
+    r = app_client.get('/api/v1/patterns/9223372036854775807', headers=csrf(app_client))
+    assert r.status_code == 404 and r.get_json()['error'] == 'Pattern not found'
+
+
+def test_malformed_stored_episode_id_is_not_retained_never_500(app_client, fp_feed, fp_pattern):
+    bad = '../escape'
+    fp_feed.create_audio_fingerprint(fp_pattern, b'AQAA', 6.0, source_podcast_slug=SLUG,
+                                     source_episode_id=bad, source_start=2.0, source_end=8.0)
+    r = app_client.get(f'{_audio(fp_pattern)}/preview', headers=csrf(app_client))
+    assert r.status_code == 404 and r.get_json()['code'] == 'original_not_retained'
+    detail = app_client.get(_audio(fp_pattern), headers=csrf(app_client))
+    body = detail.get_json()
+    assert detail.status_code == 200 and body['available'] is False
+    assert body['builtFrom']['available'] is False
+
+
+def test_requires_a_session(app_client, fp_feed, fp_audio_pattern):
+    from werkzeug.security import generate_password_hash
+    fp_feed.set_setting('app_password', generate_password_hash('OverrideTest123!', method='scrypt'))
+    try:
+        with app_client.session_transaction() as sess:
+            sess.clear()
+        assert app_client.get(f'{_audio(fp_audio_pattern)}/matches').status_code == 401
+    finally:
+        fp_feed.set_setting('app_password', '')
+
+
+def test_preview_is_never_stored_by_clients(app_client, fp_audio_pattern, fp_audio_original):
+    r = app_client.get(f'{_audio(fp_audio_pattern)}/preview', headers=csrf(app_client))
+    assert r.status_code == 200 and r.headers['Cache-Control'] == 'no-store'
+
+
+@pytest.fixture
+def spy(monkeypatch):
+    calls = []
+    real = module.tracked_run
+
+    def run(cmd, **kw):
+        calls.append(cmd)
+        return real(cmd, **kw)
+    monkeypatch.setattr(module, 'tracked_run', run)
+    return calls
+
+
+@pytest.fixture
+def clock(monkeypatch):
+    now = [1000.0]
+    monkeypatch.setattr(module, '_clock', lambda: now[0])
+    return now
+
+
+def _preview(client, pid, **headers):
+    return client.get(f'{_audio(pid)}/preview', headers={**csrf(client), **headers})
+
+
+def test_repeat_and_range_requests_encode_once(app_client, fp_audio_pattern, fp_audio_original, spy, clock):
+    first = _preview(app_client, fp_audio_pattern)
+    second = _preview(app_client, fp_audio_pattern, Range='bytes=0-99')
+    assert first.status_code == 200 and second.status_code == 206 and len(second.data) == 100
+    assert len(spy) == 1
+    assert second.data == first.data[:100]
+
+
+def test_cache_entry_expires_after_120_seconds(app_client, fp_audio_pattern, fp_audio_original, spy, clock):
+    _preview(app_client, fp_audio_pattern)
+    clock[0] += 119.0
+    _preview(app_client, fp_audio_pattern)
+    assert len(spy) == 1
+    clock[0] += 2.0
+    _preview(app_client, fp_audio_pattern)
+    assert len(spy) == 2
+
+
+def test_changed_file_is_encoded_again(app_client, fp_audio_pattern, fp_audio_original, spy, clock):
+    _preview(app_client, fp_audio_pattern)
+    stat = os.stat(fp_audio_original)
+    os.utime(fp_audio_original, ns=(stat.st_atime_ns, stat.st_mtime_ns + 1_000_000_000))
+    _preview(app_client, fp_audio_pattern)
+    assert len(spy) == 2
+
+
+def test_cache_holds_four_entries(app_client, fp_feed, fp_audio_pattern, fp_audio_original, spy, clock):
+    ids = [fp_feed.record_fingerprint_match(fp_audio_pattern, EPISODE, SLUG, 1.0 + i, 4.0 + i,
+                                            0.9, 0.9, True, False) for i in range(5)]
+    for mid in ids:
+        app_client.get(f'{_audio(fp_audio_pattern)}/preview?matchId={mid}', headers=csrf(app_client))
+    assert len(spy) == 5 and len(module._slice_cache) == 4
+    app_client.get(f'{_audio(fp_audio_pattern)}/preview?matchId={ids[-1]}', headers=csrf(app_client))
+    assert len(spy) == 5
+    app_client.get(f'{_audio(fp_audio_pattern)}/preview?matchId={ids[0]}', headers=csrf(app_client))
+    assert len(spy) == 6
+
+
+def test_third_concurrent_encode_is_503_with_retry_after(app_client, fp_audio_pattern, fp_audio_original, spy):
+    assert module._preview_slots.acquire(blocking=False)
+    assert module._preview_slots.acquire(blocking=False)
+    try:
+        r = _preview(app_client, fp_audio_pattern)
+    finally:
+        module._preview_slots.release()
+        module._preview_slots.release()
+    assert r.status_code == 503 and r.headers['Retry-After'] == '2'
+    assert r.get_json()['status'] == 503 and r.get_json()['error']
+    assert spy == []
+    assert _preview(app_client, fp_audio_pattern).status_code == 200
+
+
+def test_cached_slice_is_served_while_encoders_are_busy(app_client, fp_audio_pattern, fp_audio_original, spy, clock):
+    _preview(app_client, fp_audio_pattern)
+    assert module._preview_slots.acquire(blocking=False)
+    assert module._preview_slots.acquire(blocking=False)
+    try:
+        assert _preview(app_client, fp_audio_pattern).status_code == 200
+    finally:
+        module._preview_slots.release()
+        module._preview_slots.release()
+
+
+def test_failed_encode_frees_its_slot_and_caches_nothing(app_client, fp_audio_pattern, fp_audio_original, monkeypatch):
+    def boom(cmd, **kw):
+        raise subprocess.CalledProcessError(1, cmd, stderr=b'x')
+    monkeypatch.setattr(module, 'tracked_run', boom)
+    for _ in range(3):
+        assert _preview(app_client, fp_audio_pattern).status_code == 500
+    assert len(module._slice_cache) == 0
+
+
+def test_unsatisfiable_range_is_416(app_client, fp_audio_pattern, fp_audio_original):
+    r = _preview(app_client, fp_audio_pattern, Range='bytes=99999999-')
+    assert r.status_code == 416

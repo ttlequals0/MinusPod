@@ -4644,7 +4644,10 @@ paths:
       tags:
         - Patterns
       summary: Deduplicate patterns
-      description: Manually trigger deduplication of similar patterns in the database
+      description: |
+        Manually trigger deduplication of similar patterns in the database.
+        A fingerprint and its match history move with the pattern that is kept.
+        Deduplication never puts audio onto a pattern whose audio was deleted.
       operationId: deduplicatePatterns
       responses:
         '200':
@@ -4923,7 +4926,8 @@ paths:
         Pages through where the pattern's fingerprint matched, newest first.
         `perPage` defaults to 10 and is capped at 50. A `page` or `perPage` that is
         not a number falls back to its default, and one below 1 is raised to 1. A page past
-        the end answers 200 with an empty list. `available` is true when that
+        the end is lowered to one page after the last and answers 200 with an empty
+        list, and `page` in the response is the page actually served. `available` is true when that
         match's episode still keeps its original audio on disk. A match outlives
         its episode, so `episodeTitle` is null once the episode is gone.
         `audioOnly` is null for matches backfilled from older markers.
@@ -4980,10 +4984,18 @@ paths:
         `matchId` it is that match's measured span. The slice is capped at 600
         seconds. Supports Range requests.
 
+        A rejected match is never the default source, but it can still be played
+        by its `matchId`. At most two slices are encoded at once per process, and
+        a third request answers 503 with `Retry-After: 2`. A slice just encoded
+        is kept for 120 seconds, so Range requests and seeks do not encode it
+        again. The response is sent with `Cache-Control: no-store`. A `Range`
+        that cannot be satisfied answers 416.
+
         404 carries a `code`: `no_audio` when the pattern has no fingerprint,
         `original_not_retained` when no source episode keeps its original. An
         unknown pattern or a `matchId` that does not belong to the pattern is a
-        404 without a code. 500 means the slice could not be built.
+        404 without a code. A `matchId` that is not digits, or has more than 18
+        digits, is a 400. 500 means the slice could not be built.
       operationId: previewPatternAudio
       parameters:
         - $ref: '#/components/parameters/pattern_id'
@@ -5021,8 +5033,20 @@ paths:
                 error: Original audio not retained for this pattern
                 status: 404
                 code: original_not_retained
+        '416':
+          description: The Range header cannot be satisfied
         '500':
           $ref: '#/components/responses/ServerError'
+        '503':
+          description: Two slices are already being encoded. Retry after the interval in the Retry-After header.
+          headers:
+            Retry-After:
+              description: Seconds to wait before asking again (2).
+              schema: { type: integer }
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
 
   /patterns/{pattern_id}/audio:
     get:
@@ -5035,6 +5059,7 @@ paths:
         `state: none`. `counts.matches` and `meanSimilarity` leave out matches
         marked "not this ad"; `counts.rejected` and `counts.outOfScope` are
         separate figures, and `outOfScope` does not include rejected matches.
+        `lastMatchedAt` also ignores rejected matches.
         `available` is true when a retained original can be played now.
       operationId: getPatternAudio
       parameters:
@@ -5119,15 +5144,19 @@ paths:
         stores it as the pattern's audio, replacing any existing fingerprint and
         clearing the deleted-audio marker. The on/off setting is kept. All four
         body fields are required. `start` and `end` are finite seconds with
-        `0 <= start < end`, and `end` may not pass the episode's duration when
-        that is known; otherwise the answer is 400.
+        `0 <= start < end`, the span is at most 600 seconds, and `end` may not
+        pass the episode's duration when that is known; otherwise the answer is
+        400. When the file holds less audio than the span asks for, the stored
+        span is cut to the audio that was decoded, and `length` and
+        `builtFrom.end` report that. The pattern's match history is kept.
 
         A span that cannot be stored is still a 200 with
         `fingerprintStored: false` and a `fingerprintSkippedReason`:
         `original_not_retained`, `segment_too_short` (shorter than the minimum
         ad length setting), `fingerprint_failed`. The same two fields and
         reasons come back from the corrections route. 404 when the pattern or
-        the episode is unknown.
+        the episode is unknown. The response is the audio detail object with
+        `fingerprintStored` and `fingerprintSkippedReason` added at the same level.
       operationId: rebuildPatternAudio
       parameters:
         - $ref: '#/components/parameters/pattern_id'
@@ -5154,15 +5183,15 @@ paths:
           content:
             application/json:
               schema:
-                type: object
-                required: [fingerprintStored, audio]
-                properties:
-                  fingerprintStored:
-                    type: boolean
-                  fingerprintSkippedReason:
-                    $ref: '#/components/schemas/FingerprintSkippedReason'
-                  audio:
-                    $ref: '#/components/schemas/PatternAudioDetail'
+                allOf:
+                  - $ref: '#/components/schemas/PatternAudioDetail'
+                  - type: object
+                    required: [fingerprintStored]
+                    properties:
+                      fingerprintStored:
+                        type: boolean
+                      fingerprintSkippedReason:
+                        $ref: '#/components/schemas/FingerprintSkippedReason'
         '400':
           $ref: '#/components/responses/BadRequest'
         '404':
@@ -20093,6 +20122,7 @@ components:
             - string
             - 'null'
           format: date-time
+          description: Newest match not marked "not this ad"; null when there is none.
 
     Network:
       type: object

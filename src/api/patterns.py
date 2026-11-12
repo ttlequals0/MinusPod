@@ -24,6 +24,7 @@ from utils.text import (
     parse_transcript_segments,
 )
 from audio_fingerprinter import AudioFingerprinter, FingerprintStoreResult
+from storage import PathContainmentError
 from text_pattern_matcher import (
     split_template_text, can_split_pattern, MAX_PATTERN_CHARS, TextPatternMatcher,
 )
@@ -321,7 +322,7 @@ def get_contaminated_patterns():
     })
 
 
-@api.route('/patterns/<int:pattern_id>/split', methods=['POST'])
+@api.route('/patterns/<int(max=9223372036854775807):pattern_id>/split', methods=['POST'])
 @log_request
 def split_pattern(pattern_id):
     """Split a contaminated multi-sponsor pattern into separate patterns.
@@ -349,7 +350,7 @@ def split_pattern(pattern_id):
     })
 
 
-@api.route('/patterns/<int:pattern_id>', methods=['GET'])
+@api.route('/patterns/<int(max=9223372036854775807):pattern_id>', methods=['GET'])
 @log_request
 def get_pattern(pattern_id):
     """Get a single pattern by ID."""
@@ -380,7 +381,7 @@ def _network_for_scope_change(db, pattern, given):
     return network_id, None
 
 
-@api.route('/patterns/<int:pattern_id>', methods=['PUT'])
+@api.route('/patterns/<int(max=9223372036854775807):pattern_id>', methods=['PUT'])
 @log_request
 def update_pattern(pattern_id):
     """Update a pattern."""
@@ -437,7 +438,7 @@ def update_pattern(pattern_id):
     return error_response('No valid fields provided', 400)
 
 
-@api.route('/patterns/<int:pattern_id>', methods=['DELETE'])
+@api.route('/patterns/<int(max=9223372036854775807):pattern_id>', methods=['DELETE'])
 @log_request
 def delete_pattern(pattern_id):
     """Delete a pattern."""
@@ -644,7 +645,10 @@ def _store_pattern_audio(db, slug, episode_id, pattern_id, start, end, *, force=
         if not force and db.get_audio_fingerprint(pattern_id) is not None:
             result = FingerprintStoreResult(False, 'fingerprint_exists')
         else:
-            audio_path, err = _resolve_original_audio(db, get_storage(), slug, episode_id)
+            try:
+                audio_path, err = _resolve_original_audio(db, get_storage(), slug, episode_id)
+            except PathContainmentError:
+                audio_path, err = None, True
             if err:
                 result = FingerprintStoreResult(False, 'original_not_retained')
             else:
@@ -2376,7 +2380,7 @@ def submit_bundle_to_community():
     )
 
 
-@api.route('/patterns/<int:pattern_id>/submit-to-community', methods=['POST'])
+@api.route('/patterns/<int(max=9223372036854775807):pattern_id>/submit-to-community', methods=['POST'])
 @log_request
 def submit_pattern_to_community(pattern_id: int):
     """Run the community export pipeline for a single local pattern.
@@ -2394,7 +2398,7 @@ def submit_pattern_to_community(pattern_id: int):
     return json_response(result)
 
 
-@api.route('/patterns/<int:pattern_id>/protect', methods=['POST'])
+@api.route('/patterns/<int(max=9223372036854775807):pattern_id>/protect', methods=['POST'])
 @log_request
 def protect_pattern(pattern_id: int):
     """Set protected_from_sync=1 on a community pattern."""
@@ -2409,7 +2413,7 @@ def protect_pattern(pattern_id: int):
     return json_response({'pattern_id': pattern_id, 'protected_from_sync': 1})
 
 
-@api.route('/patterns/<int:pattern_id>/protect', methods=['DELETE'])
+@api.route('/patterns/<int(max=9223372036854775807):pattern_id>/protect', methods=['DELETE'])
 @log_request
 def unprotect_pattern(pattern_id: int):
     """Set protected_from_sync=0 on a community pattern."""

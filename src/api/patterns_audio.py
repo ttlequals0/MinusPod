@@ -4,6 +4,9 @@ import logging
 import math
 import os
 import tempfile
+import threading
+import time
+from collections import OrderedDict
 
 from flask import abort, request, send_file
 
@@ -23,6 +26,18 @@ MAX_PREVIEW_SECONDS = 600
 RETAINED_MATCH_CANDIDATES = 20
 MATCHES_PER_PAGE_DEFAULT = 10
 MATCHES_PER_PAGE_MAX = 50
+MAX_REBUILD_SECONDS = 600
+MATCH_ID_MAX_DIGITS = 18
+PREVIEW_ENCODERS = 2
+PREVIEW_RETRY_AFTER_S = 2
+SLICE_CACHE_ENTRIES = 4
+SLICE_CACHE_TTL_S = 120
+
+_clock = time.monotonic
+_preview_slots = threading.BoundedSemaphore(PREVIEW_ENCODERS)
+# key -> (expires_at, mp3 bytes); oldest first
+_slice_cache = OrderedDict()
+_slice_cache_lock = threading.Lock()
 
 
 def no_audio_response():
@@ -41,13 +56,16 @@ def _usable_span(start, end):
             and math.isfinite(start) and math.isfinite(end) and end > start)
 
 
-def resolve_audio_source(db, storage, pattern_id, match_id=None):
-    """Pick the playable source span of a pattern's audio.
+def _retained_original(db, storage, slug, episode_id):
+    """_resolve_original_audio, with an episode id that cannot name a file counted as not retained."""
+    try:
+        return _resolve_original_audio(db, storage, slug, episode_id)
+    except PathContainmentError:
+        return None, original_not_retained_response()
 
-    Returns (source, None) with source {podcastSlug, episodeId, start, end, path}, or
-    (None, error response). Order: the given match, else the newest non-rejected match
-    whose original is retained, else the episode the fingerprint was built from.
-    """
+
+def resolve_audio_source(db, storage, pattern_id, match_id=None):
+    """Pick the playable source of a pattern's audio: (source, None) or (None, error response)."""
     fingerprint = db.get_audio_fingerprint(pattern_id)
     if fingerprint is None:
         return None, no_audio_response()
@@ -69,7 +87,7 @@ def resolve_audio_source(db, storage, pattern_id, match_id=None):
         if not cand['podcast_slug'] or not cand['episode_id'] or \
                 not _usable_span(cand['match_start'], cand['match_end']):
             continue
-        path, err = _resolve_original_audio(db, storage, cand['podcast_slug'], cand['episode_id'])
+        path, err = _retained_original(db, storage, cand['podcast_slug'], cand['episode_id'])
         if err is None:
             return {'podcastSlug': cand['podcast_slug'], 'episodeId': cand['episode_id'],
                     'start': cand['match_start'], 'end': cand['match_end'], 'path': path}, None
@@ -99,7 +117,7 @@ def build_audio_detail(db, storage, pattern_id):
     detail['createdAt'] = fingerprint['created_at']
     slug, episode_id = fingerprint['source_podcast_slug'], fingerprint['source_episode_id']
     if slug and episode_id and _usable_span(fingerprint['source_start'], fingerprint['source_end']):
-        _, built_err = _resolve_original_audio(db, storage, slug, episode_id)
+        _, built_err = _retained_original(db, storage, slug, episode_id)
         detail['builtFrom'] = {'podcastSlug': slug, 'episodeId': episode_id,
                                'start': fingerprint['source_start'], 'end': fingerprint['source_end'],
                                'available': built_err is None}
@@ -130,7 +148,7 @@ def _match_id_arg():
     raw = request.args.get('matchId')
     if raw is None:
         return None
-    if not (raw.isascii() and raw.isdigit()):
+    if not (raw.isascii() and raw.isdigit()) or len(raw) > MATCH_ID_MAX_DIGITS:
         abort(400, description='matchId must be an integer')
     return int(raw)
 
@@ -157,7 +175,50 @@ def _slice_to_mp3(path, start, end):
     return data
 
 
-@api.route('/patterns/<int:pattern_id>/audio/preview', methods=['GET'])
+def _slice_key(path, start, end):
+    """Cache key that changes whenever the file or the span does."""
+    stat = os.stat(path)
+    return (str(path), stat.st_size, stat.st_mtime_ns, start, end)
+
+
+def _cached_slice(key):
+    """The unexpired encoded slice for a key, or None."""
+    with _slice_cache_lock:
+        entry = _slice_cache.get(key)
+        if entry is None:
+            return None
+        if entry[0] <= _clock():
+            del _slice_cache[key]
+            return None
+        _slice_cache.move_to_end(key)
+        return entry[1]
+
+
+def _remember_slice(key, data):
+    with _slice_cache_lock:
+        _slice_cache[key] = (_clock() + SLICE_CACHE_TTL_S, data)
+        _slice_cache.move_to_end(key)
+        while len(_slice_cache) > SLICE_CACHE_ENTRIES:
+            _slice_cache.popitem(last=False)
+
+
+def _encode_slice(path, start, end):
+    """The encoded slice from the cache or a new encode; None when every encoder slot is busy."""
+    key = _slice_key(path, start, end)
+    data = _cached_slice(key)
+    if data is not None:
+        return data
+    if not _preview_slots.acquire(blocking=False):
+        return None
+    try:
+        data = _slice_to_mp3(path, start, end)
+    finally:
+        _preview_slots.release()
+    _remember_slice(key, data)
+    return data
+
+
+@api.route('/patterns/<int(max=9223372036854775807):pattern_id>/audio/preview', methods=['GET'])
 @log_request
 def preview_pattern_audio(pattern_id):
     """Stream the source span of a pattern's audio, or of one match, as mp3."""
@@ -169,10 +230,14 @@ def preview_pattern_audio(pattern_id):
         return err
     end = min(source['end'], source['start'] + MAX_PREVIEW_SECONDS)
     try:
-        data = _slice_to_mp3(source['path'], source['start'], end)
+        data = _encode_slice(source['path'], source['start'], end)
     except Exception as e:
         logger.error(f"Audio preview failed for pattern {pattern_id}: {type(e).__name__}")
         return error_response('Could not build the audio preview', 500)
+    if data is None:
+        busy = error_response('Audio previews are busy, try again shortly', 503)
+        busy.headers['Retry-After'] = str(PREVIEW_RETRY_AFTER_S)
+        return busy
     response = send_file(io.BytesIO(data), mimetype='audio/mpeg', conditional=True,
                          max_age=0, etag=False)
     response.headers['Accept-Ranges'] = 'bytes'
@@ -180,7 +245,7 @@ def preview_pattern_audio(pattern_id):
     return response
 
 
-@api.route('/patterns/<int:pattern_id>/audio', methods=['GET'])
+@api.route('/patterns/<int(max=9223372036854775807):pattern_id>/audio', methods=['GET'])
 @log_request
 def get_pattern_audio(pattern_id):
     """Audio fingerprint state, source and counts of a pattern."""
@@ -191,7 +256,7 @@ def get_pattern_audio(pattern_id):
     return json_response(build_audio_detail(db, get_storage(), pattern_id))
 
 
-@api.route('/patterns/<int:pattern_id>/audio', methods=['PUT'])
+@api.route('/patterns/<int(max=9223372036854775807):pattern_id>/audio', methods=['PUT'])
 @log_request
 def set_pattern_audio_enabled(pattern_id):
     """Turn a pattern's audio matching on or off."""
@@ -207,7 +272,7 @@ def set_pattern_audio_enabled(pattern_id):
     return json_response(build_audio_detail(db, get_storage(), pattern_id))
 
 
-@api.route('/patterns/<int:pattern_id>/audio', methods=['DELETE'])
+@api.route('/patterns/<int(max=9223372036854775807):pattern_id>/audio', methods=['DELETE'])
 @log_request
 def delete_pattern_audio(pattern_id):
     """Delete a pattern's fingerprint and match history; automatic rows will not rebuild it."""
@@ -230,10 +295,12 @@ def _rebuild_span(data):
         return 'start and end must be finite numbers'
     if start < 0 or end <= start:
         return 'start must be at least 0 and before end'
+    if end - start > MAX_REBUILD_SECONDS:
+        return f'The span can be at most {MAX_REBUILD_SECONDS} seconds'
     return slug, episode_id, start, end
 
 
-@api.route('/patterns/<int:pattern_id>/audio/rebuild', methods=['POST'])
+@api.route('/patterns/<int(max=9223372036854775807):pattern_id>/audio/rebuild', methods=['POST'])
 @log_request
 def rebuild_pattern_audio(pattern_id):
     """Rebuild a pattern's fingerprint from a span of an episode's retained original."""
@@ -256,7 +323,7 @@ def rebuild_pattern_audio(pattern_id):
     if result.stored:
         db.set_pattern_audio_removed(pattern_id, False)
     return json_response({**fingerprint_response_fields([(pattern_id, result)]),
-                          'audio': build_audio_detail(db, get_storage(), pattern_id)})
+                          **build_audio_detail(db, get_storage(), pattern_id)})
 
 
 def _original_on_disk(storage, row):
@@ -269,7 +336,7 @@ def _original_on_disk(storage, row):
         return False
 
 
-@api.route('/patterns/<int:pattern_id>/audio/matches', methods=['GET'])
+@api.route('/patterns/<int(max=9223372036854775807):pattern_id>/audio/matches', methods=['GET'])
 @log_request
 def list_pattern_audio_matches(pattern_id):
     """Match history of a pattern's audio, newest first."""
@@ -277,9 +344,11 @@ def list_pattern_audio_matches(pattern_id):
     _, err = _known_pattern(db, pattern_id)
     if err:
         return err
-    page = max(1, request.args.get('page', 1, type=int))
     per_page = min(max(1, request.args.get('perPage', MATCHES_PER_PAGE_DEFAULT, type=int)),
                    MATCHES_PER_PAGE_MAX)
+    total = db.count_fingerprint_matches(pattern_id)
+    last_page = max(1, -(-total // per_page))
+    page = min(max(1, request.args.get('page', 1, type=int)), last_page + 1)
     storage = get_storage()
     fingerprint = db.get_audio_fingerprint(pattern_id)
     stored_length = fingerprint['duration'] if fingerprint else None
@@ -293,5 +362,4 @@ def list_pattern_audio_matches(pattern_id):
         'rejected': bool(row['rejected']), 'available': _original_on_disk(storage, row),
         'createdAt': row['created_at'],
     } for row in rows]
-    return json_response({'matches': matches, 'page': page, 'perPage': per_page,
-                          'total': db.count_fingerprint_matches(pattern_id)})
+    return json_response({'matches': matches, 'page': page, 'perPage': per_page, 'total': total})

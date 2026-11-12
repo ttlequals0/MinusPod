@@ -125,7 +125,8 @@ def test_rebuild_from_span(app_client, fp_feed, fp_original, fp_pattern, stub_fi
     body = r.get_json()
     assert r.status_code == 200 and body['fingerprintStored'] is True
     assert 'fingerprintSkippedReason' not in body
-    assert body['audio']['state'] == 'active' and body['audio']['builtFrom']['start'] == 10.0
+    assert body['state'] == 'active' and body['builtFrom']['start'] == 10.0
+    assert 'audio' not in body
     row = fp_feed.get_audio_fingerprint(fp_pattern)
     assert (row['source_podcast_slug'], row['source_episode_id'],
             row['source_start'], row['source_end']) == (SLUG, EPISODE, 10.0, 40.0)
@@ -159,7 +160,7 @@ def test_rebuild_without_retained_original_is_200_original_not_retained(
     body = r.get_json()
     assert r.status_code == 200
     assert (body['fingerprintStored'], body['fingerprintSkippedReason']) == (False, 'original_not_retained')
-    assert body['audio']['state'] == 'none'
+    assert body['state'] == 'none'
 
 
 @pytest.mark.parametrize('change', [
@@ -224,3 +225,43 @@ def test_routes_need_a_session_and_mutations_need_the_csrf_token(app_client, fp_
         assert app_client.put(base, json={'enabled': False}, headers=headers).status_code == 200
     finally:
         fp_feed.set_setting('app_password', '')
+
+
+def test_rebuild_response_is_flat(app_client, fp_feed, fp_original, fp_pattern, stub_fingerprinting):
+    body = _rebuild(app_client, fp_pattern).get_json()
+    assert {'fingerprintStored', 'state', 'available', 'length', 'counts'} <= set(body)
+
+
+def test_rebuild_span_over_600_seconds_is_400(app_client, fp_feed, fp_original, fp_audio_pattern, stub_fingerprinting):
+    fp_feed.upsert_episode(SLUG, EPISODE, original_duration=None)
+    assert _rebuild(app_client, fp_audio_pattern, start=0.0, end=600.5).status_code == 400
+    assert _rebuild(app_client, fp_audio_pattern, start=0.0, end=600.0).status_code == 200
+
+
+def test_rebuild_clamps_the_span_to_the_decoded_audio(
+        app_client, fp_feed, fp_audio_original, fp_pattern, stub_fingerprinting):
+    body = _rebuild(app_client, fp_pattern, start=6.0, end=40.0).get_json()
+    assert body['fingerprintStored'] is True
+    assert 5.5 < body['length'] < 6.6
+    assert 11.5 < body['builtFrom']['end'] < 12.5
+
+
+def test_rebuild_keeps_the_match_history(app_client, fp_feed, fp_original, fp_audio_pattern, stub_fingerprinting):
+    fp_feed.record_fingerprint_match(fp_audio_pattern, EPISODE, SLUG, 1.0, 4.0, 0.9, 0.9, True, False)
+    body = _rebuild(app_client, fp_audio_pattern).get_json()
+    assert body['counts']['matches'] == 1
+
+
+def test_last_matched_at_ignores_rejected_rows(app_client, fp_feed, fp_audio_pattern):
+    conn = fp_feed.get_connection()
+    kept = fp_feed.record_fingerprint_match(fp_audio_pattern, EPISODE, SLUG, 1.0, 4.0, 0.9, 0.9, True, False)
+    late = fp_feed.record_fingerprint_match(fp_audio_pattern, EPISODE, SLUG, 20.0, 24.0, 0.9, 0.9, True, False)
+    conn.execute("UPDATE audio_fingerprint_matches SET created_at = '2026-01-01T00:00:00Z' WHERE id = ?", (kept,))
+    conn.execute("UPDATE audio_fingerprint_matches SET created_at = '2026-02-01T00:00:00Z', rejected = 1 "
+                 "WHERE id = ?", (late,))
+    conn.commit()
+    body = app_client.get(_audio(fp_audio_pattern), headers=csrf(app_client)).get_json()
+    assert body['lastMatchedAt'] == '2026-01-01T00:00:00Z'
+    conn.execute("UPDATE audio_fingerprint_matches SET rejected = 1")
+    conn.commit()
+    assert app_client.get(_audio(fp_audio_pattern), headers=csrf(app_client)).get_json()['lastMatchedAt'] is None
