@@ -75,3 +75,16 @@ describe('AdReviewModal mode capabilities', () => {
     expect(screen.getByRole('button', { name: 'Save audio' })).toBeTruthy();
   });
 });
+
+describe('AdReviewModal footer placement', () => {
+  it.each(['review', 'create', 'span'] as const)('keeps the %s footer outside the scrolling body so it never covers a control', (mode) => {
+    renderMode(mode);
+    const dialog = screen.getByRole('dialog');
+    const body = [...dialog.children].find((c) => c.className.includes('overflow-y-auto'));
+    const footer = dialog.lastElementChild as HTMLElement;
+    expect(body).toBeDefined();
+    expect(footer).not.toBe(body);
+    expect(body?.contains(footer)).toBe(false);
+    expect(footer.className).toContain('shrink-0');
+  });
+});
