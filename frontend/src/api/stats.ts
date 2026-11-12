@@ -132,3 +132,18 @@ export async function getSpendAttempts(
   const qs = buildQueryString({ ...scope });
   return apiRequest<SpendAttemptsResponse>(`/stats/spend/attempts${qs}`);
 }
+
+export interface AudioMatchingStats {
+  patternsWithAudio: number;
+  patternsTotal: number;
+  audioMatches: number;
+  foundByAudioOnly: number;
+  notThisAd: number;
+}
+
+export async function getAudioMatchingStats(
+  params: { from?: string; to?: string; podcastSlug?: string } = {},
+): Promise<AudioMatchingStats> {
+  const qs = buildQueryString({ from: params.from, to: params.to, podcastSlug: params.podcastSlug });
+  return apiRequest<AudioMatchingStats>(`/stats/audio-matching${qs}`);
+}

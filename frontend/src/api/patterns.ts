@@ -1,6 +1,8 @@
 import { apiRequest, apiFileRequest, buildQueryString } from './client';
 import { downloadBlob } from './history';
 import type { SegmentCategory } from '../utils/segmentCategory';
+import { apiUrl } from '../urlPrefix';
+import { mediaUrl } from '../utils/mediaUrl';
 
 // Mirrors src/utils/community_tags.py:PATTERN_SOURCES so the frontend
 // and backend can't drift on the source-discriminator string spellings.
@@ -24,6 +26,16 @@ export type PatternScope = 'podcast' | 'network' | 'global';
 // Mirrors pattern_service.compute_pattern_trust's return values. Computed
 // server-side, not stored; local (non-community) patterns are never 'stale'.
 export type PatternTrust = 'active' | 'unproven' | 'stale';
+
+// Mirrors the audio summary on each pattern; absent in the demo fixtures.
+export type PatternAudioState = 'active' | 'off' | 'none';
+
+export interface PatternAudioSummary {
+  state: PatternAudioState;
+  available: boolean;
+  matchCount: number;
+  meanSimilarity: number | null;
+}
 
 export interface AdPattern {
   id: number;
@@ -57,6 +69,7 @@ export interface AdPattern {
   category?: SegmentCategory;
   // Computed staleness-based trust tier; always present in list responses.
   trust?: PatternTrust;
+  audio?: PatternAudioSummary;
 }
 
 export interface PatternCorrection {
@@ -408,4 +421,108 @@ export interface SplitPatternResult {
 
 export async function splitPattern(id: number): Promise<SplitPatternResult> {
   return apiRequest<SplitPatternResult>(`/patterns/${id}/split`, { method: 'POST' });
+}
+
+// Pattern audio fingerprint
+
+export interface AudioSpan {
+  podcastSlug: string;
+  episodeId: string;
+  start: number;
+  end: number;
+}
+
+export interface AudioDetail {
+  state: PatternAudioState;
+  available: boolean;
+  length?: number | null;
+  createdAt?: string | null;
+  builtFrom?: (AudioSpan & { available: boolean }) | null;
+  source?: AudioSpan | null;
+  counts: { matches: number; rejected: number; outOfScope: number };
+  meanSimilarity?: number | null;
+  lastMatchedAt?: string | null;
+}
+
+export interface AudioMatch {
+  id: number;
+  episodeId: string;
+  podcastSlug: string;
+  episodeTitle: string | null;
+  start: number;
+  end: number;
+  similarity: number | null;
+  coverage: number | null;
+  storedLength: number | null;
+  inScope: boolean;
+  audioOnly: boolean | null;
+  rejected: boolean;
+  available: boolean;
+  createdAt: string;
+}
+
+export interface AudioMatchesPage {
+  matches: AudioMatch[];
+  page: number;
+  perPage: number;
+  total: number;
+}
+
+export type FingerprintSkippedReason =
+  | 'audio_removed'
+  | 'fingerprint_exists'
+  | 'span_covers_multiple_patterns'
+  | 'original_not_retained'
+  | 'segment_too_short'
+  | 'fingerprint_failed';
+
+export type AudioRebuildResult = {
+  fingerprintStored: boolean;
+  fingerprintSkippedReason?: FingerprintSkippedReason;
+} & AudioDetail;
+
+const FINGERPRINT_SKIP_TEXT: Record<FingerprintSkippedReason, string> = {
+  audio_removed: 'Audio was deleted for this pattern, so it was not added back.',
+  fingerprint_exists: 'This pattern already has an audio fingerprint.',
+  span_covers_multiple_patterns: 'That selection covers more than one pattern, so no audio fingerprint was stored.',
+  original_not_retained: "This episode's original audio is no longer kept.",
+  segment_too_short: 'That selection is too short for an audio fingerprint.',
+  fingerprint_failed: 'Could not make an audio fingerprint from that selection.',
+};
+
+export function describeFingerprintSkip(reason: FingerprintSkippedReason): string {
+  return FINGERPRINT_SKIP_TEXT[reason];
+}
+
+export async function getPatternAudio(id: number): Promise<AudioDetail> {
+  return apiRequest<AudioDetail>(`/patterns/${id}/audio`);
+}
+
+export async function setPatternAudioEnabled(id: number, enabled: boolean): Promise<AudioDetail> {
+  return apiRequest<AudioDetail>(`/patterns/${id}/audio`, { method: 'PUT', body: { enabled } });
+}
+
+export async function deletePatternAudio(id: number): Promise<void> {
+  await apiRequest(`/patterns/${id}/audio`, { method: 'DELETE' });
+}
+
+export async function rebuildPatternAudio(
+  id: number,
+  span: { podcastSlug: string; episodeId: string; start: number; end: number },
+): Promise<AudioRebuildResult> {
+  return apiRequest<AudioRebuildResult>(`/patterns/${id}/audio/rebuild`, { method: 'POST', body: span });
+}
+
+export async function getPatternAudioMatches(
+  id: number,
+  params: { page?: number; perPage?: number } = {},
+): Promise<AudioMatchesPage> {
+  const qs = buildQueryString({ page: params.page, perPage: params.perPage });
+  return apiRequest<AudioMatchesPage>(`/patterns/${id}/audio/matches${qs}`);
+}
+
+// Direct URL for an <audio src>; null in the demo build, which has no audio.
+export function patternAudioPreviewUrl(id: number, matchId?: number): string | null {
+  const qs = buildQueryString({ matchId });
+  return mediaUrl({ kind: 'audio', url: apiUrl(`/patterns/${id}/audio/preview${qs}`) });
 }
