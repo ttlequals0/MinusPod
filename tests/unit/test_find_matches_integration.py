@@ -268,6 +268,19 @@ def test_matching_settings_are_clamped(world, key, raw, expected):
     assert world.fp._matching_settings()[names.index(key)] == expected
 
 
+@pytest.mark.parametrize('raw,expected', [('12', 12.0), ('99', 30.0), ('abc', 5.0)])
+def test_scan_gets_the_clamped_minimum_ad_length(world, monkeypatch, raw, expected):
+    seen = {}
+
+    def scan(*args, **kwargs):
+        seen.update(kwargs)
+        return [], 0
+    monkeypatch.setattr(af, '_scan_fingerprints', scan)
+    world.db.set_setting('fingerprint_min_ad_length_s', raw)
+    world.fp.find_matches('x.mp3', podcast_id='showA')
+    assert seen['min_ad_length_s'] == expected
+
+
 def test_corrupt_stored_fingerprint_is_skipped(world, caplog):
     pid = world.db.create_ad_pattern(scope='global', text_template='read ' * 12)
     world.db.create_audio_fingerprint(pid, b'EMPTY', 5.0)

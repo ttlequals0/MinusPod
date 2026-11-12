@@ -107,6 +107,8 @@ FINGERPRINT_NOMINAL_FPS = 11025 / 1365.33
 FINGERPRINT_NOVELTY_BITS = 3
 # Minimum duration for fingerprinting (seconds)
 MIN_SEGMENT_DURATION = 5.0
+# Shortest remainder of a clipped match that is kept, when the caller passes no setting
+DEFAULT_MIN_AD_LENGTH_S = FINGERPRINT_SETTING_RANGES['fingerprint_min_ad_length_s'][0]
 
 # Step size for sliding window (seconds)
 SLIDING_STEP_SIZE = 2.0
@@ -730,7 +732,7 @@ def _measure_alignment(ep_arr, pat_arr, informative, novelty, d, strictness, gap
         groups = _split_at_gaps(supported[(supported >= lo) & (supported < hi)], inf_c, gap_points)
         starts = [lo] + [int(g[0]) for g in groups[1:]]
         ends = [int(g[-1]) + 1 for g in groups[:-1]] + [hi]
-        pieces += [p for p in (_trim_run(good, a, b, window) for a, b in zip(starts, ends)) if p]
+        pieces += [p for p in (_trim_run(good, a, b, window) for a, b in zip(starts, ends, strict=True)) if p]
     return [replace(al, runs=[p], span=_tight_span(al, [p], window)) for p in pieces]
 
 
@@ -772,8 +774,6 @@ class _Candidate:
     match: FingerprintMatch
     alignment: _Alignment
     pat_len: int
-    needed: float
-    evidence_bits: float
 
 
 def _clipped_runs(al, accepted):
@@ -795,8 +795,8 @@ def _clipped_runs(al, accepted):
     return max(sides.values(), key=lambda runs: sum(int(al.good[x:y].sum()) for x, y in runs))
 
 
-def _resolve_overlaps(candidates, fps, window, strictness, min_coverage):
-    """Best match per stretch of time, lower-ranked overlapping matches clipped and gated again."""
+def _resolve_overlaps(candidates, fps, window, min_points):
+    """Best match per stretch of time; a lower-ranked overlapping match keeps a long enough remainder."""
     accepted, spans = [], []
     order = sorted(candidates, key=lambda c: (-c.score, -c.match.coverage, -c.match.similarity,
                                               c.match.start))
@@ -807,11 +807,11 @@ def _resolve_overlaps(candidates, fps, window, strictness, min_coverage):
             runs = _clipped_runs(al, spans)
             if not runs:
                 continue
-            tally = _tally(al, runs, cand.evidence_bits)
-            if _rejecting_gate(tally, cand.pat_len, cand.needed, fps, strictness, min_coverage):
-                continue
-            n_good, similarity = tally[:2]
+            # The whole match already passed every gate, so its remainder needs only the length of an ad
             span = _tight_span(al, runs, window)
+            if span[1] - span[0] < min_points - 1e-9:
+                continue
+            n_good, similarity = int(al.good[runs[0][0]:runs[-1][1]].sum()), _similarity(al, runs)
             lo, hi = al.ep_base + span[0], al.ep_base + span[1]
             m = FingerprintMatch(pattern_id=m.pattern_id, start=lo / fps, end=hi / fps,
                                  confidence=similarity, sponsor=m.sponsor, category=m.category,
@@ -823,7 +823,8 @@ def _resolve_overlaps(candidates, fps, window, strictness, min_coverage):
 
 
 def _scan_fingerprints(ep_ints, ep_duration, patterns, *, strictness, min_coverage,
-                       gap_tolerance_s, should_continue=None):
+                       gap_tolerance_s, min_ad_length_s=DEFAULT_MIN_AD_LENGTH_S,
+                       should_continue=None):
     """match_fingerprints plus the number of alignments measured."""
     if len(ep_ints) == 0 or ep_duration <= 0:
         return [], 0
@@ -871,12 +872,13 @@ def _scan_fingerprints(ep_ints, ep_duration, patterns, *, strictness, min_covera
             candidates.append(_Candidate(n_good + window * coverage, FingerprintMatch(
                 pattern_id=pattern_id, start=lo / fps, end=hi / fps,
                 confidence=similarity, sponsor=sponsor, category=category,
-                similarity=similarity, coverage=coverage), al, len(pat_arr), needed, evidence_bits))
-    return _resolve_overlaps(candidates, fps, window, strictness, min_coverage), measured
+                similarity=similarity, coverage=coverage), al, len(pat_arr)))
+    return _resolve_overlaps(candidates, fps, window, min_ad_length_s * fps), measured
 
 
 def match_fingerprints(ep_ints, ep_duration, patterns, *, strictness, min_coverage,
-                       gap_tolerance_s, should_continue=None):
+                       gap_tolerance_s, min_ad_length_s=DEFAULT_MIN_AD_LENGTH_S,
+                       should_continue=None):
     """Find stored patterns in an episode fingerprint and measure each run.
 
     ``patterns`` is a list of (pattern_id, pat_ints, pat_duration, sponsor, category).
@@ -884,7 +886,8 @@ def match_fingerprints(ep_ints, ep_duration, patterns, *, strictness, min_covera
     """
     return _scan_fingerprints(
         ep_ints, ep_duration, patterns, strictness=strictness, min_coverage=min_coverage,
-        gap_tolerance_s=gap_tolerance_s, should_continue=should_continue)[0]
+        gap_tolerance_s=gap_tolerance_s, min_ad_length_s=min_ad_length_s,
+        should_continue=should_continue)[0]
 
 
 def fingerprint_coverage_ceiling(ints):
@@ -1627,6 +1630,7 @@ class AudioFingerprinter:
         matches, measured = _scan_fingerprints(
             raw_ints, fp_duration, decoded_known, strictness=strictness,
             min_coverage=min_coverage, gap_tolerance_s=gap_tolerance_s,
+            min_ad_length_s=self._clamped_setting('fingerprint_min_ad_length_s'),
             should_continue=should_continue)
         for m in matches:
             logger.debug(

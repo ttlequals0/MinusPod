@@ -109,6 +109,34 @@ def test_back_to_back_ads_stored_with_a_shared_edge_are_both_found(seconds, shar
         assert r[0].end <= r[1].start
 
 
+def _ad_partly_covered_by_a_longer_pattern(rng, other_s):
+    """Two ads back to back, a pattern for the first and a longer one for the rest of it plus the second."""
+    ep = _ints(rng, 4800)
+    first, second = _ints(rng, 160), _ints(rng, 160)
+    _plant(rng, ep, np.concatenate([first, second]), 1000, 0.05)
+    k = int(other_s * IPS)
+    return ep, [(1, first, 20.0, None, None), (9, np.concatenate([first[k:], second]), 40.0 - other_s, None, None)]
+
+
+@pytest.mark.parametrize('other_s', [5.0, 6.0, 8.0])
+def test_the_rest_of_an_ad_is_kept_when_a_longer_pattern_takes_most_of_it(other_s):
+    rng = np.random.default_rng(int(other_s * 10))
+    for _ in range(10):
+        ep, pats = _ad_partly_covered_by_a_longer_pattern(rng, other_s)
+        r = _run(ep, pats)
+        assert [m.pattern_id for m in r] == [1, 9]
+        assert abs(r[0].start - 125.0) <= 0.25 and r[0].end <= r[1].start
+        assert r[1].start - r[0].end <= 0.25 and r[0].end - r[0].start >= 5.0
+
+
+def test_a_remainder_shorter_than_the_minimum_ad_length_is_dropped():
+    rng = np.random.default_rng(21)
+    for _ in range(10):
+        ep, pats = _ad_partly_covered_by_a_longer_pattern(rng, 4.0)
+        assert [m.pattern_id for m in _run(ep, pats)] == [9]
+        assert [m.pattern_id for m in _run(ep, pats, min_ad_length_s=3.0)] == [1, 9]
+
+
 @pytest.mark.parametrize('seconds', [3, 4, 5])
 def test_short_matchable_patterns_find_their_own_audio(seconds):
     rng = np.random.default_rng(seconds)
