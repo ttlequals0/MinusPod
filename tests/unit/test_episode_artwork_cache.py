@@ -226,10 +226,8 @@ def test_eviction_drops_the_least_recently_served_covers(storage, monkeypatch):
 
 
 def test_evict_false_preserves_older_covers_over_the_cap(storage, monkeypatch):
-    """Local-feed episode artwork (#625 Task 8) is the only copy of that
-    cover -- there is no upstream URL to re-download it from -- so
-    save_episode_artwork(..., evict=False) must skip the LRU trim
-    entirely, even when the directory is left far over the cap."""
+    """Local-feed episode artwork is the only copy (no upstream URL to re-download), so
+    save_episode_artwork(..., evict=False) skips the LRU trim even when the directory is far over the cap."""
     blob = b'\xff\xd8\xff\xe0' + b'\x00' * 96  # 100 bytes each
 
     monkeypatch.setattr(storage_module, 'EPISODE_ARTWORK_CACHE_BYTES', 10_000)

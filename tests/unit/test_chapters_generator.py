@@ -393,10 +393,7 @@ class TestDescriptionAnchorPromptInjection:
 
 
 class TestChapterTunablesAreConfigDriven:
-    """Verify chapters_generator reads from per-stage config, not the legacy
-    literals/constants. Pin this so a future refactor can't silently put
-    `temperature=0.3` back in place.
-    """
+    """Chapters generator reads per-stage config, not legacy literals (pins against a hardcoded temperature=0.3 returning)."""
 
     def test_boundary_temperature_reads_from_config(self, monkeypatch):
         from llm_client import _clear_provider_cache
@@ -530,10 +527,8 @@ class TestSharedLLMCallPath:
         assert client.calls == 1
 
     def test_full_pipeline_degradation_reported_on_generator(self, caplog):
-        """Reproduces #530: both topic-detection and title-generation LLM
-        calls fail on a long episode, degrading to a single whole-episode
-        chapter. Must be visible on the generator instance (chapters_degraded
-        / reason) and logged, not look like a normal short episode."""
+        """Regression #530: both topic-detection and title-generation LLM calls failing on a long episode
+        must show as chapters_degraded / reason on the generator and be logged."""
         gen = ChaptersGenerator(api_key='test')
         client = _FailingClient(RuntimeError('temperature rejected'))
         gen._llm_client = client
@@ -604,16 +599,10 @@ class _SplitTextClient:
 
 
 class TestEmptyTopicDetectionDegradation:
-    """A response that succeeds at the API level but yields zero parsed
-    boundaries must be treated the same as a failed detection call on a
-    long episode: silently returning a single chapter with no degraded
-    flag hides the failure from operators."""
+    """A response that succeeds at the API level but yields zero parsed boundaries degrades like a failed detection call on a long episode."""
 
     def test_empty_result_on_long_episode_flags_degraded(self, caplog):
-        """Response is non-empty (EmptyCompletionError retry never kicks in)
-        but nothing matches the MM:SS topic-line pattern, so
-        _detect_topic_boundaries returns [] with no exception; that must
-        still degrade the run."""
+        """A non-empty response with no MM:SS topic lines makes _detect_topic_boundaries return [] without an exception; that must still degrade the run."""
         gen = ChaptersGenerator(api_key='test')
         gen._llm_client = _SplitTextClient()
 

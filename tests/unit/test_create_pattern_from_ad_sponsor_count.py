@@ -1,16 +1,6 @@
-"""Tests for the 2.5.13 sponsor-occurrence guard in TextPatternMatcher.create_pattern_from_ad.
+"""Tests for the sponsor-occurrence guard in TextPatternMatcher.create_pattern_from_ad.
 
-Real ads repeat the brand name; a single mention is a host name-drop the
-verification pass mis-classified. The guard rejects patterns whose sponsor
-name appears fewer than 2 times (case-insensitive substring count) in the
-extracted ad_text.
-
-The canonical false positive was Pattern #354 (example-podcast, Globex):
-~870 chars of host conversation about meeting Jay where "Globex" was
-mentioned exactly once. The verification pass returned this as a
-"missed Globex ad" and the pattern was written without any occurrence
-check.
-"""
+Real ads repeat the brand name; a single mention is a host name-drop. Patterns whose sponsor name appears fewer than 2 times (case-insensitive substring) in ad_text are rejected."""
 import os
 import sys
 
@@ -82,10 +72,7 @@ def test_create_pattern_allowed_when_sponsor_appears_twice(db):
 
 
 def test_create_pattern_allowed_when_brand_lives_inside_url(db):
-    """DeleteMe-style: brand never appears standalone, only inside joindeleteme.com.
-
-    The guard uses substring count (not word-boundary) so this passes.
-    """
+    """DeleteMe-style: brand appears only inside joindeleteme.com; the guard counts substrings, not word boundaries, so this passes."""
     matcher = TextPatternMatcher(db=db)
     deleteme_ad = (
         "Use the promo code SHOW at checkout. The only way to get 20% off "

@@ -1,7 +1,5 @@
-"""Admission must consult the resolved processing mode: a run that makes no
-LLM call cannot be refused by a provider hold, and the dispatcher's blocked-slug
-scan resolves the slug-independent route snapshot once per pass.
-"""
+"""Admission consults the resolved processing mode: a no-LLM run is not refused by a provider hold,
+and the blocked-slug scan resolves the route snapshot once per pass."""
 import os
 import sys
 import tempfile

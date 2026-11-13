@@ -58,10 +58,7 @@ def test_an_unchanged_cover_url_is_not_refetched():
 
 
 def test_refresh_retains_cached_artwork_when_the_new_cover_fails_to_download():
-    """A changed cover must reach download_artwork with force=True, but a
-    failed download must not clear or overwrite the still-valid cached
-    cover: storage.download_artwork is the sole writer of artwork_url/
-    artwork_cached, and this refresh never wrote a speculative guess."""
+    """A changed cover reaches download_artwork with force=True, and a failed download must not clear the cached cover (download_artwork is the sole writer of artwork_url/artwork_cached)."""
     slug = 'art-refresh'
     _seed(slug)  # seeds https://example.com/old.png, cached
     feed = """<?xml version="1.0" encoding="UTF-8"?>

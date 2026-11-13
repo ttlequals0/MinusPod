@@ -1,10 +1,6 @@
-"""Issues #693/#694: json_schema response_format for OpenAI-compatible
-providers. Covers the per-model probe, the runtime gate, the json_object
-downgrade in _build_kwargs, and the runtime-400 retry.
-
-Uses fresh Database() instances (not the main_app.db singleton) for settings
-writes: llm_client's internals read settings through Database() too, so the
-two stay in the same data dir regardless of module import order."""
+"""Issues #693/#694: json_schema response_format for OpenAI-compatible providers (per-model probe, runtime gate,
+json_object downgrade in _build_kwargs, runtime-400 retry). Uses fresh Database() instances because llm_client
+reads settings through Database() too, keeping both in the same data dir regardless of import order."""
 import json
 from unittest.mock import MagicMock
 

@@ -1,9 +1,4 @@
-"""Cover-art MinusPod badge overlay (issue #420).
-
-Covers the compositor, the cached watermark variant in Storage, and the served
-RSS feed pointing its channel image at the badge-overlaid endpoint only when the
-toggle is on and the cover is cached.
-"""
+"""Cover-art MinusPod badge overlay (issue #420): compositor, cached variant in Storage, RSS channel image."""
 import io
 
 from PIL import Image
@@ -49,10 +44,8 @@ def test_composite_outputs_jpeg_and_darkens_bottom_right():
 
 
 def test_composite_badge_has_solid_dark_backing():
-    # Regression for issue #420: the badge was the colorful waveform on a
-    # transparent background, so it vanished on dark/busy covers. The fix gives
-    # it a solid dark chip behind the mark. On a white cover the old badge left
-    # the corner white (only thin pastel bars); the chip fills it dark.
+    # Regression #420: the badge was thin pastel bars on transparent, invisible on dark/busy covers.
+    # It now sits on a solid dark chip, which fills the corner of a white cover.
     out = artwork_watermark.composite_watermark(_png())  # white cover
     assert out is not None
     composed = Image.open(io.BytesIO(out)).convert('RGB')

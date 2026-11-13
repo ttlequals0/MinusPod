@@ -1,16 +1,4 @@
-"""Validate real transcript fixtures and test windowing logic.
-
-Uses anonymized real transcript data to verify:
-- Fixture integrity (segments cover ad regions, sponsor keywords present)
-- create_windows() produces correct overlapping windows for real episodes
-- Every known ad falls within at least one processing window
-
-These tests do NOT run the LLM or the full detection pipeline.
-
-Fixtures:
-    tests/fixtures/example_long_transcript.json - long episode (8 ads, 169min)
-    tests/fixtures/example_transcript.json      - short episode (5 ads, 37min)
-"""
+"""Validate real transcript fixtures and create_windows() windowing (no LLM or pipeline run)."""
 import json
 import os
 import pytest
@@ -97,7 +85,7 @@ class TestAdTimestampCoverage:
 
 class TestSponsorKeywordsInTranscript:
     """Verify that sponsor names or related keywords appear in the transcript
-    near where ads were detected -- confirming the fixtures are valid."""
+    near where ads were detected, confirming the fixtures are valid."""
 
     def _get_text_in_range(self, segments, start, end, padding=30):
         """Get concatenated text from segments in a time range with padding."""

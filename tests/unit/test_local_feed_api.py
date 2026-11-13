@@ -1,9 +1,5 @@
-"""Local feed creation + metadata API (Task 6): POST /feeds branch,
-PATCH extensions for local-only fields, and feed artwork upload.
-
-Mirrors test_feeds_api.py's fixture style (shared app_client fixture from
-conftest.py, local _authed/_csrf_headers helpers).
-"""
+"""Local feed creation and metadata API (POST /feeds branch, local-only PATCH fields, artwork upload); mirrors
+test_feeds_api.py's fixture style (shared app_client, local _authed/_csrf_headers helpers)."""
 import io
 import json
 import os
@@ -40,10 +36,8 @@ def _csrf_headers(client):
 
 @pytest.fixture(autouse=True)
 def _reset_rate_limiter():
-    """Clear in-memory flask-limiter counters before each test (mirrors
-    tests/integration/conftest.py). This module's POST /feeds tests alone
-    exceed add_feed's "3 per minute" limit within a single run without this.
-    """
+    """Clear in-memory flask-limiter counters before each test (mirrors tests/integration/conftest.py);
+    this module's POST /feeds tests alone exceed add_feed's "3 per minute" limit."""
     try:
         from api import limiter
         limiter.reset()
@@ -54,18 +48,9 @@ def _reset_rate_limiter():
 
 @pytest.fixture(autouse=True)
 def _align_main_app_singletons(app_client):
-    """Many test modules across the suite reset Database._instance /
-    Storage._instance at import time for isolation (tests/app_bootstrap.py).
-    main_app.feeds and local_feed_builder bind `db`/`storage` module-level
-    names once, at whichever moment main_app itself first got imported
-    during collection -- so by the time this module's tests run, those
-    frozen references can point at a stale singleton, different from
-    whatever api.get_database()/get_storage() currently return. The local
-    feed rebuild path (PATCH -> refresh_rss_feed -> rebuild_local_feed, and
-    POST -> local_feed_builder.rebuild_local_feed) goes through those frozen
-    references, so without this alignment it silently no-ops against an
-    empty database instead of touching the row the API layer just wrote.
-    """
+    """Point main_app.feeds and local_feed_builder at the current db/storage singletons: other modules reset
+    Database/Storage._instance at import (tests/app_bootstrap.py), so names bound at collection can be stale and the
+    local feed rebuild path would silently no-op against an empty database."""
     import main_app.feeds as mf
     import local_feed_builder as lfb
     from api import get_database, get_storage
@@ -95,9 +80,8 @@ def local_feed(app_client):
     db = get_database()
     slug = 'local-feed-api-local'
     db.create_podcast(slug, f'local://{slug}', 'Local Test', feed_type='local')
-    # Seed the same minted p20_channel_json _add_local_feed produces at
-    # creation, since this fixture bypasses the POST endpoint -- PATCH p20
-    # tests need a real guid already in place to assert it survives.
+    # Seed the minted p20_channel_json _add_local_feed produces at creation (this fixture bypasses the POST
+    # endpoint); PATCH p20 tests need a real guid in place to assert it survives.
     db.update_podcast(slug, p20_channel_json=json.dumps({
         'guid': compute_feed_guid(f'http://localhost:8000/{slug}'),
         'medium': 'podcast',
@@ -107,7 +91,7 @@ def local_feed(app_client):
     db.delete_podcast(slug)
 
 
-# -- POST /feeds (feedType: local) --
+# POST /feeds (feedType: local)
 
 def test_post_local_feed_happy_path(app_client):
     from api import get_database, get_storage
@@ -165,11 +149,10 @@ def test_post_local_feed_invalid_slug_400(app_client):
     assert resp.status_code == 400
 
 
-# -- POST /feeds (feedType: local) maxEpisodes --
+# POST /feeds (feedType: local) maxEpisodes
 
 def test_post_local_feed_max_episodes_zero_accepted(app_client):
-    """0 means uncapped on a local feed -- accepted and stored as-is, not
-    bumped up to the subscribed-feed 10-episode floor."""
+    """0 means uncapped on a local feed: accepted and stored as-is, not bumped to the subscribed-feed 10-episode floor."""
     from api import get_database
     _authed(app_client)
     headers = _csrf_headers(app_client)
@@ -215,7 +198,7 @@ def test_post_local_feed_max_episodes_negative_400(app_client):
     assert resp.status_code == 400
 
 
-# -- PATCH /feeds/<slug> local-only fields --
+# PATCH /feeds/<slug> local-only fields
 
 def test_patch_local_only_fields_on_local_feed_rebuilds_rss(app_client, local_feed):
     slug = local_feed['slug']
@@ -237,11 +220,8 @@ def test_patch_local_only_fields_on_local_feed_rebuilds_rss(app_client, local_fe
 
 
 def test_patch_description_on_local_feed_rebuilds_rss(app_client, local_feed):
-    """description is not a local-only field (it's editable on any feed),
-    but a local feed's served RSS is rendered entirely from the DB row --
-    it was previously missing from update_feed's rebuild-trigger list, so a
-    description edit never reached the served channel <description> until
-    an unrelated refresh happened to fire."""
+    """description is editable on any feed, and a local feed's served RSS is rendered entirely from the DB row,
+    so a description edit must trigger the rebuild (update_feed's rebuild-trigger list once omitted it)."""
     slug = local_feed['slug']
     _authed(app_client)
     headers = _csrf_headers(app_client)
@@ -259,9 +239,8 @@ def test_patch_description_on_local_feed_rebuilds_rss(app_client, local_feed):
 
 
 def test_patch_author_categories_clear_via_null(app_client, local_feed):
-    """{"author": null, "categories": null} must clear both fields (not
-    leave the previous value untouched) -- the frontend must send an actual
-    null, not omit the key, for this to fire (#625 Task 13 review finding 2)."""
+    """{"author": null, "categories": null} must clear both fields rather than leave the previous value;
+    the frontend must send an actual null, not omit the key."""
     slug = local_feed['slug']
     db = local_feed['db']
     _authed(app_client)
@@ -287,12 +266,8 @@ def test_patch_author_categories_clear_via_null(app_client, local_feed):
 
 
 def test_get_feed_detail_echoes_local_metadata(app_client, local_feed):
-    """GET /feeds/<slug> must carry back author/explicit/categories/p20 after
-    they're set via PATCH -- locks the _podcast_base_json serializer fix
-    from 9d4ace57 (previously write-only: the PATCH persisted correctly but
-    no response, including a subsequent GET, ever echoed these fields back,
-    so a client reseeding its edit form from the refetched feed silently
-    reverted to blank/default)."""
+    """GET /feeds/<slug> must echo author/explicit/categories/p20 after PATCH (the _podcast_base_json serializer
+    once omitted them, so an edit form reseeded from the refetched feed reverted to blank)."""
     slug = local_feed['slug']
     _authed(app_client)
     headers = _csrf_headers(app_client)
@@ -316,9 +291,8 @@ def test_get_feed_detail_echoes_local_metadata(app_client, local_feed):
 
 
 def test_get_feed_detail_carries_has_artwork(app_client, local_feed):
-    """hasArtwork is an explicit boolean signal, unlike artworkUrl (which is
-    never falsy -- it falls back to the artwork proxy path even with
-    nothing uploaded)."""
+    """hasArtwork is an explicit boolean, unlike artworkUrl (never falsy: it falls back to the artwork proxy path
+    even with nothing uploaded)."""
     slug = local_feed['slug']
     _authed(app_client)
 
@@ -337,7 +311,7 @@ def test_patch_author_on_subscribed_feed_400(app_client, subscribed_feed):
     assert 'only editable on local feeds' in resp.get_json()['error']
 
 
-# -- PATCH /feeds/<slug> maxEpisodes: local vs subscribed semantics --
+# PATCH /feeds/<slug> maxEpisodes: local vs subscribed semantics
 
 def test_patch_max_episodes_zero_on_local_feed_is_uncapped(app_client, local_feed):
     slug = local_feed['slug']
@@ -383,7 +357,7 @@ def test_patch_max_episodes_zero_on_subscribed_feed_clamped_to_floor(app_client,
     assert subscribed_feed['db'].get_podcast_by_slug(slug)['max_episodes'] == 10
 
 
-# -- POST /feeds/<slug>/artwork --
+# POST /feeds/<slug>/artwork
 
 def test_artwork_upload_happy_path(app_client, local_feed):
     slug = local_feed['slug']
@@ -466,12 +440,11 @@ def test_patch_local_episode_reports_title_skip(app_client, local_feed):
     assert resp.get_json()['titleSkipped'] is True
 
 
-# -- GET /feeds list serialization --
+# GET /feeds list serialization
 
 def test_bulk_delete_local_feed_preserves_original(app_client, local_feed):
-    """POST .../episodes/bulk {action: delete} on a local feed must keep the
-    retained original (it's the only copy -- no upstream to re-download)
-    and only wipe the processed output, then rebuild the served RSS once."""
+    """POST .../episodes/bulk {action: delete} on a local feed keeps the retained original (the only copy) and
+    wipes only the processed output, then rebuilds the served RSS once."""
     from api import get_storage
     slug = local_feed['slug']
     db = local_feed['db']
@@ -579,7 +552,7 @@ def test_feed_type_present_in_list_serialization(app_client, subscribed_feed, lo
     assert feeds_by_slug[local_feed['slug']]['feedType'] == 'local'
 
 
-# -- _validate_p20 / _validate_p20_items (direct unit coverage) --
+# _validate_p20 / _validate_p20_items (direct unit coverage)
 
 def test_validate_p20_funding_person_happy_path():
     from api.feeds import _validate_p20
@@ -675,11 +648,8 @@ def test_validate_p20_locked_owner_email_shape():
     assert cleaned is None
     assert 'email address' in err
 
-    # blank/whitespace-only is a delete sentinel: the validator keeps the
-    # key with a None value (not omitted) so a merge site can tell "clear
-    # this" apart from "the client never sent locked_owner at all" -- see
-    # _apply_p20_merge, which is what actually turns the sentinel into a
-    # removed key in the stored object.
+    # blank/whitespace-only is a delete sentinel: the validator keeps the key with a None value (not omitted)
+    # so a merge site can tell "clear this" from "never sent locked_owner"; _apply_p20_merge turns it into a removed key.
     cleaned, err = _validate_p20({'locked_owner': '   '})
     assert err is None
     assert cleaned == {'locked_owner': None}
@@ -689,8 +659,8 @@ def test_validate_p20_locked_owner_email_shape():
     assert cleaned == {'locked_owner': None}
 
 
-# -- PATCH /feeds/<slug> p20 (funding/person round-trip, null clearing,
-#    medium/locked/locked_owner) --
+# PATCH /feeds/<slug> p20 (funding/person round-trip, null clearing,
+#    medium/locked/locked_owner)
 
 def test_patch_p20_funding_person_round_trips(app_client, local_feed):
     slug = local_feed['slug']
@@ -761,9 +731,8 @@ def _seed_locked_owner(app_client, slug, headers):
 
 
 def test_patch_p20_locked_owner_clear_via_blank_string(app_client, local_feed):
-    """{"p20": {"locked_owner": ""}} must remove the stored key, not store
-    a JSON null under it -- the delete sentinel from _validate_p20_scalar
-    has to survive the merge (_apply_p20_merge), not just the validator."""
+    """{"p20": {"locked_owner": ""}} must remove the stored key, not store a JSON null: the delete sentinel from
+    _validate_p20_scalar has to survive the merge (_apply_p20_merge)."""
     slug = local_feed['slug']
     db = local_feed['db']
     _authed(app_client)
@@ -785,9 +754,8 @@ def test_patch_p20_locked_owner_clear_via_blank_string(app_client, local_feed):
 
 
 def test_patch_p20_locked_owner_clear_via_null(app_client, local_feed):
-    """{"p20": {"locked_owner": null}} is the other delete-sentinel input
-    shape (JSON null on the key, not p20 itself null) -- must also remove
-    the key rather than merge a stored null."""
+    """{"p20": {"locked_owner": null}} (JSON null on the key, not p20 itself) is the other delete-sentinel input
+    shape and must also remove the key."""
     slug = local_feed['slug']
     db = local_feed['db']
     _authed(app_client)
@@ -898,14 +866,13 @@ def test_post_local_feed_p20_medium_locked_override_minted_defaults(app_client):
         assert channel_json['medium'] == 'audiobook'
         assert channel_json['locked'] == 'no'
         assert channel_json['locked_owner'] == 'owner@example.com'
-        # guid is still the minted one -- a client can never set it, even
-        # implicitly by omission changing the merge order.
+        # guid stays the minted one: a client can never set it, even by omission changing the merge order.
         assert channel_json['guid']
     finally:
         db.delete_podcast(slug)
 
 
-# -- _validate_p20_podroll (direct unit coverage) --
+# _validate_p20_podroll (direct unit coverage)
 
 _PODROLL_GUID = '29cdca4a-32d8-56ba-b48b-09a011c5daa9'
 
@@ -1028,7 +995,7 @@ def test_validate_p20_podroll_empty_item_guid_after_strip_is_dropped_not_error()
     assert cleaned == {'podroll': [{'feedGuid': _PODROLL_GUID}]}
 
 
-# -- PATCH /feeds/<slug> p20.podroll --
+# PATCH /feeds/<slug> p20.podroll
 
 def test_patch_p20_podroll_round_trips(app_client, local_feed):
     slug = local_feed['slug']
@@ -1106,8 +1073,8 @@ def test_patch_p20_podroll_per_tag_clear_still_works(app_client, local_feed):
 
 
 def test_patch_p20_null_also_clears_podroll(app_client, local_feed):
-    """{"p20": null} is the "clear everything operator-editable" shortcut
-    (same as the five list tags) -- podroll is operator-supplied data too."""
+    """{"p20": null} is the "clear everything operator-editable" shortcut (same as the five list tags);
+    podroll is operator-supplied too."""
     slug = local_feed['slug']
     db = local_feed['db']
     _authed(app_client)

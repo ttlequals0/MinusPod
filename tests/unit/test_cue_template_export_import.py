@@ -16,10 +16,7 @@ requires_ffmpeg = pytest.mark.skipif(
 
 
 def test_export_import_roundtrip_reproduces_mfcc():
-    """The WAV round-trip (export builds a WAV from pcm_blob, import reads it
-    back and recomputes the MFCC) reproduces an equivalent MFCC within int16
-    quantization, so a shared template matches the same way on the far install.
-    """
+    """The WAV round-trip (export builds a WAV from pcm_blob, import recomputes the MFCC) reproduces an equivalent MFCC within int16 quantization."""
     rng = np.random.default_rng(0)
     pcm = np.clip(rng.standard_normal(SAMPLE_RATE_HZ // 2), -1, 1).astype(np.float32)
     original_mfcc = compute_mfcc(pcm)
@@ -50,10 +47,9 @@ def test_export_import_roundtrip_reproduces_mfcc():
 
 @requires_ffmpeg
 def test_flac_roundtrip_is_lossless_and_preserves_mfcc():
-    """v2 export encodes the cue PCM to FLAC; import decodes it back. FLAC is
-    lossless, so the decoded PCM is bit-identical and the recomputed MFCC matches
-    -- a shared cue matches the same way on the far install, at ~half the size.
-    """
+    """v2 export encodes the cue PCM to FLAC and import decodes it back.
+
+    FLAC is lossless, so the decoded PCM is bit-identical and the recomputed MFCC matches, at about half the size."""
     rng = np.random.default_rng(0)
     pcm = np.clip(rng.standard_normal(SAMPLE_RATE_HZ // 2), -1, 1).astype(np.float32)
     pcm_blob = pcm_to_int16_bytes(pcm)

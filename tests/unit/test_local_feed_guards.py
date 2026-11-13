@@ -1,7 +1,4 @@
-"""Local feeds (feed_type='local', source_url='local://<slug>') must be inert
-on every upstream-dependent path: refresh, podping feed-map, differential
-fetch, artwork refresh, the refresh API, and OPML original-mode export.
-"""
+"""Local feeds (feed_type='local', source_url='local://<slug>') must be inert on every upstream-dependent path: refresh, podping feed-map, differential fetch, artwork refresh, the refresh API, OPML original-mode export."""
 from unittest.mock import MagicMock, patch
 
 import pytest

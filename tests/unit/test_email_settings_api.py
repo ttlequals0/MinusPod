@@ -1,9 +1,5 @@
-"""API tests for the email notification settings endpoints (#491 follow-up).
-
-Uses the main_app boot pattern from test_settings_validation: bind a temp
-DATA_DIR and a master passphrase before importing main_app so the secrets
-store works.
-"""
+"""API tests for the email notification settings endpoints (#491). Binds a temp DATA_DIR and master passphrase
+before importing main_app (as in test_settings_validation) so the secrets store works."""
 import json
 import sqlite3
 from unittest.mock import patch

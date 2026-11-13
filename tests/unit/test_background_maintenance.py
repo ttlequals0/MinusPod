@@ -1,7 +1,5 @@
-"""Background loop pacing: a shared RSS outage backs off across passes instead
-of re-arming the same short retry, and a failed search-index rebuild waits out
-a bounded cooldown rather than retrying every cleanup pass.
-"""
+"""Background loop pacing: a shared RSS outage backs off across passes, and a failed search-index
+rebuild waits out a bounded cooldown instead of retrying every cleanup pass."""
 import time
 from datetime import datetime, timedelta, timezone
 from unittest.mock import MagicMock, patch

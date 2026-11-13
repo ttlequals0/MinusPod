@@ -472,7 +472,7 @@ def test_rotation_keeps_last_n_and_prunes(db, tmp_path, monkeypatch):
 
 def test_rotation_same_second_keeps_distinct_files(db, tmp_path, monkeypatch):
     # Freeze the clock so two runs land in the same UTC second; the second must
-    # not overwrite the first -- both distinct backups survive.
+    # not overwrite the first; both distinct backups survive.
     dest = tmp_path / 'backups'
     dest.mkdir()
     db.set_setting('db_backup_dest', str(dest))
@@ -727,9 +727,7 @@ def test_dest_writable_existing_non_dir(tmp_path):
 
 
 # ---------------------------------------------------------------------------
-# Snapshot secret-state logging. The old condition warned when a passphrase was
-# set, which is exactly when the keys are already ciphertext, and stayed silent
-# when they were readable.
+# Snapshot secret-state logging: warn only when keys are readable (a passphrase means ciphertext).
 # ---------------------------------------------------------------------------
 
 @pytest.fixture(autouse=True)

@@ -1,9 +1,5 @@
-"""Tests for the Feed Refresh Failed notification event (#516).
-
-A feed whose origin RSS keeps failing to refresh should raise an operator
-alert (webhook + email) once per outage. The alert is deduped per feed so
-one broken feed does not suppress alerts for another.
-"""
+"""Feed Refresh Failed notification event (#516): a feed whose origin RSS keeps failing raises one
+operator alert (webhook + email) per outage, deduped per feed so one broken feed doesn't suppress another's."""
 from unittest.mock import patch
 
 import pytest

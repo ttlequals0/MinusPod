@@ -361,7 +361,7 @@ class TestAnthropicFallback:
                 messages=[{"role": "user", "content": "hi"}],
                 episode_id="ep1", pass_name=PASS_AD_DETECTION_1,
             )
-            # Only the final success records the breaker -- no failure on the 4xx.
+            # Only the final success records the breaker, no failure on the 4xx.
             calls = [c.kwargs for c in mock_record.call_args_list]
             assert {"success": True} in calls
             assert {"success": False} not in calls
@@ -658,10 +658,7 @@ class TestAnthropicNonTemperatureRetry:
 
 
 class TestAnthropicJsonSchemaStructuredOutput:
-    """response_format={"type": "json_schema", ...} forces a tool call so the
-    Messages API validates the response against the schema, instead of the
-    prompt-injected instructions json_object relies on (#565 follow-up,
-    category repair pass)."""
+    """response_format json_schema forces a tool call so the Messages API validates against the schema (#565)."""
 
     def test_forces_tool_call_and_extracts_tool_input_as_json_content(self):
         from llm_client import AnthropicClient
@@ -881,11 +878,7 @@ class TestAnthropicJsonSchemaStructuredOutput:
 
 
 class TestAnthropicExtendedThinkingTextExtraction:
-    """Extended-thinking responses (temperature omitted, thinking enabled)
-    put a ThinkingBlock first in response.content; the real answer is in a
-    later TextBlock. content[0].text blows up with AttributeError since
-    ThinkingBlock has no .text attribute (regression behind Verification
-    Window failures on 2.78.5)."""
+    """Extended-thinking responses put a ThinkingBlock first in response.content; the answer is in a later TextBlock (content[0].text would raise AttributeError)."""
 
     def _thinking_block(self, thinking="internal reasoning..."):
         block = MagicMock(spec=['type', 'thinking'])

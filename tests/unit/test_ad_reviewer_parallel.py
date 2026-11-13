@@ -1,11 +1,6 @@
 """Tests for the parallel ad-review batch executor in src/ad_reviewer.
 
-Covers:
-- max_workers=1 preserves the original sequential behavior (regression).
-- max_workers=N returns (verdict, ad) pairs in input order regardless of
-  future completion order.
-- _resolve_reviewer_parallel_ads clamps into [1, 32] and prefers DB over env.
-"""
+max_workers=1 preserves sequential behavior; max_workers=N returns (verdict, ad) pairs in input order regardless of completion order; _resolve_reviewer_parallel_ads clamps into [1, 32] and prefers DB over env."""
 import os
 import time
 from unittest.mock import MagicMock, patch

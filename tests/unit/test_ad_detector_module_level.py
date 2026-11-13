@@ -1,9 +1,6 @@
 """Tests for the module-level functions lifted out of AdDetector in 2.0.25.
 
-These functions back the offline LLM benchmark, which can't construct a
-full AdDetector (no DB, no LLM client). The tests pin the module-level
-surface so future refactors don't break the benchmark contract.
-"""
+They back the offline LLM benchmark, which cannot build a full AdDetector (no DB, no LLM client); these tests pin that surface."""
 import json
 
 import pytest
@@ -61,10 +58,8 @@ def test_parse_ads_from_response_accepts_ad_segments_key():
 
 
 def test_parse_ads_from_response_flattens_ad_break_envelope():
-    # The model intermittently wraps ads in {"ad_break_index": N, "ads": [...]}
-    # instead of emitting them flat (observed in prod 2026-06-18). The envelope
-    # has no top-level start/end, so without flattening the whole break is
-    # discarded. The inner ads must still be extracted.
+    # The model sometimes wraps ads in {"ad_break_index": N, "ads": [...]} instead of a flat list.
+    # The envelope has no top-level start/end, so it must be flattened or the whole break is discarded.
     response = json.dumps([
         {"ad_break_index": 1, "ads": [
             {"sponsor": "Arm & Hammer", "start_timestamp": 1714.0,
@@ -103,18 +98,9 @@ def test_parse_ads_from_response_mixed_flat_and_enveloped():
     'Detected as a network-inserted spot in this window',
 ])
 def test_parse_ads_from_response_drops_reasoning_sentence_sponsor(bad_sponsor):
-    """Claude occasionally puts a reasoning sentence in the sponsor field.
+    """A reasoning sentence in the sponsor field is dropped; the ad survives.
 
-    Real sponsor names never start with "Inferred from" / "Based on" /
-    "Detected as", never run past 60 characters, and never contain
-    meta-substrings like "in transcript", "audio signal", "volume anomaly".
-    The ad survives; the bogus sponsor is dropped.
-
-    Note: if the reasoning sentence happens to embed a real brand name
-    (e.g. "...looks like a Capital One ad"), the downstream fuzzy
-    extractor will still surface that brand. That is intentional and is
-    not what this gate targets.
-    """
+    Real sponsor names never start with "Inferred from" / "Based on" / "Detected as", exceed 60 characters, or contain meta-substrings like "in transcript". A real brand embedded in the sentence is still surfaced by the downstream fuzzy extractor, intentionally."""
     response = json.dumps([{
         "start": 100.0, "end": 160.0,
         "confidence": 0.92, "reason": "ad",
@@ -202,11 +188,9 @@ def test_get_static_system_prompt_is_deterministic():
 
 
 class TestCategoryRepairTolerance:
-    """Only Anthropic enforces the category enum. Every other provider answers
-    freely, and an entry the parser drops reads as "the model had no opinion",
-    which is how 10 of 14 detections on one episode ended up uncategorized and
-    silently defaulted to sponsor.
-    """
+    """Only Anthropic enforces the category enum.
+
+    Other providers answer freely, and a dropped entry reads as "no opinion" and silently defaults to sponsor."""
 
     def _parse(self, payload):
         from ad_detector.prompts import parse_category_repair_response
@@ -238,10 +222,9 @@ class TestCategoryRepairTolerance:
 
 
 class TestCategoryResolvedFromAnyField:
-    """start, end and sponsor all tolerate the field names a model invents;
-    category was read with a single exact key. Observed dropped values:
-    {"type": "self_promo"} and {"category": "self-promotion"}, both valid.
-    """
+    """start, end and sponsor tolerate invented field names; category must too.
+
+    Examples: {"type": "self_promo"} and {"category": "self-promotion"}, both valid."""
 
     def _resolve(self, ad):
         from ad_detector.prompts import resolve_ad_category

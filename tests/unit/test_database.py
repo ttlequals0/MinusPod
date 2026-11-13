@@ -1220,13 +1220,8 @@ class TestSonnet5Fable5CostRecomputeMigration:
         assert abs(stat['value'] - 2.5) < 0.001  # untouched
 
     def test_sibling_row_with_correct_cost_is_not_clobbered(self, temp_db):
-        """Two rows share claudesonnet5 match_key: one $0 (needs fix), one $42 (correct).
-        After migration the $0 row gets its own recomputed cost and the $42 row is untouched.
-        Sonnet 5 rates: in=3.0/Mtok out=15.0/Mtok.
-        $0 row: 1M in + 1M out -> 3 + 15 = $18.
-        $42 row: dated model_id, already correct, must stay at $42.
-        Global resets to sum of all token_usage rows = 18 + 42 = $60.
-        """
+        """Two rows share the claudesonnet5 match_key: one $0 (needs fix), one $42 (correct). At in=3.0/Mtok out=15.0/Mtok
+        the $0 row (1M in + 1M out) recomputes to $18, the $42 row (dated model_id) stays, and global resets to $60."""
         conn = temp_db.get_connection()
         conn.execute(
             """INSERT INTO token_usage
@@ -1409,11 +1404,11 @@ class TestBulkUpsertDiscoveredEpisodes:
         first = temp_db.bulk_upsert_discovered_episodes(slug, episodes)
         assert first == 5
 
-        # Re-upsert the same five GUIDs -- no new rows, count must be 0.
+        # Re-upsert the same five GUIDs: no new rows, count must be 0.
         second = temp_db.bulk_upsert_discovered_episodes(slug, episodes)
         assert second == 0
 
-        # Mix: 3 existing + 2 new -- count must be 2.
+        # Mix: 3 existing + 2 new: count must be 2.
         mixed = episodes + [self._make_episode('ep-new-a'), self._make_episode('ep-new-b')]
         third = temp_db.bulk_upsert_discovered_episodes(slug, mixed)
         assert third == 2
@@ -1616,7 +1611,7 @@ class TestEpisodeSorting:
         temp_db.create_podcast(slug, 'https://example.com/feed.xml', 'Test')
         temp_db.upsert_episode(slug, 'ep-1', original_url='https://example.com/1.mp3')
 
-        # Should not crash -- falls back to created_at
+        # Should not crash: falls back to created_at
         episodes, total = temp_db.get_episodes(slug, sort_by='bobby_tables; DROP TABLE--', sort_dir='asc')
         assert total >= 1
 
@@ -1934,10 +1929,8 @@ class TestStalePromptRefresh:
         assert is_default == 0
 
     def test_the_refresh_is_not_on_the_seeding_path(self, temp_db):
-        """Seeding is reached through _migrate_from_json, which returns early
-        on any database that already has podcasts. Putting the refresh there
-        skipped every install that needed it, which is how it shipped once
-        without working."""
+        """Seeding runs through _migrate_from_json, which returns early on a database that already has
+        podcasts, so the refresh must not live there."""
         import inspect
         src = inspect.getsource(temp_db.__class__._seed_default_settings)
         assert 'iter_refreshable_defaults' not in src

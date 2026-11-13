@@ -219,13 +219,8 @@ def test_global_scope_creates_global_pattern(temp_db):
 
 
 def test_case_variant_sponsor_resolves_to_existing(temp_db):
-    """Submitting a create with 'testbrand' after 'TestBrand' exists
-    must reuse the same sponsor_id (case-insensitive lookup).
-
-    Uses a name that is NOT in the community seed list, since the
-    schema migration now preloads 255 sponsors and re-inserting an
-    existing name violates the UNIQUE constraint.
-    """
+    """Creating 'testbrand' after 'TestBrand' reuses the same sponsor_id (case-insensitive lookup).
+    Uses a name outside the community seed list: the migration preloads 255 sponsors and re-inserting one violates UNIQUE."""
     _make_episode(temp_db)
     sid = temp_db.create_known_sponsor(name='TestBrandPRT')
 

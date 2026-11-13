@@ -1,10 +1,6 @@
-"""serve_minuspod_cover fallback behavior (task-5 review fix #2).
+"""serve_minuspod_cover fallback behavior.
 
-The badge endpoint is the ONLY public podcast-level artwork route (local
-feeds always point their channel <image> here, watermark setting or not),
-so it must serve the plain cover when badging is off, and must never 404 a
-feed that has a cover cached just because compositing failed.
-"""
+It is the only public podcast-level artwork route, so it must serve the plain cover when badging is off and never 404 a cached cover because compositing failed."""
 import io
 from unittest.mock import patch
 

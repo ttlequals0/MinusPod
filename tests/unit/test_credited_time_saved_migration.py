@@ -1,10 +1,6 @@
 """Migration test for the credited_time_saved backfill (#727).
 
-Builds a DB with two episodes already credited under the pre-2.96.3 counter
-(credited_time_saved column absent, so it lands as NULL) and asserts the
-backfill sets each row's credit from its stored durations, resets
-total_time_saved to their sum, and is a no-op on a second run.
-"""
+Two episodes credited under the pre-2.96.3 counter (column absent, so NULL) get credit from their stored durations, total_time_saved resets to their sum, and a second run is a no-op."""
 import re
 import sqlite3
 

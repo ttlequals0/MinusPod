@@ -146,13 +146,13 @@ def test_mixed_source_guidance_blocks():
 def test_mixed_source_flags_independent():
     """Guidance blocks must be gated independently: merging flags would make this fail."""
     enforcer = AudioEnforcer()
-    # Only spectral -- LABELLED must be absent.
+    # Only spectral: LABELLED must be absent.
     spec_only = _result_with(_cue(10.0, 10.4, source='spectral', label=None))
     out_spec = enforcer.format_for_window(spec_only, 0.0, 60.0)
     assert 'GENERIC AUDIO CUES' in out_spec
     assert 'LABELLED AUDIO CUES' not in out_spec
 
-    # Only template -- GENERIC must be absent.
+    # Only template: GENERIC must be absent.
     tmpl_only = _result_with(_cue(10.0, 10.4, source='template', label='ding'))
     out_tmpl = enforcer.format_for_window(tmpl_only, 0.0, 60.0)
     assert 'LABELLED AUDIO CUES' in out_tmpl

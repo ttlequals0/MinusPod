@@ -1,9 +1,5 @@
-"""Reconciliation tests for AudioAnalyzer._load_cue_config (#350).
-
-Verifies the gating decision: the master ``audio_cue_detection_enabled`` toggle
-controls whether any cue detector runs, per-feed templates take precedence when
-present, and the spectral detector is the fallback otherwise.
-"""
+"""Gating in AudioAnalyzer._load_cue_config (#350): the master ``audio_cue_detection_enabled`` toggle controls
+whether any cue detector runs, per-feed templates take precedence, and the spectral detector is the fallback."""
 import logging
 from unittest.mock import PropertyMock, patch
 
@@ -114,10 +110,8 @@ def test_force_with_unusable_matcher_logs_and_reports_error(temp_db, caplog):
 
 
 def test_analyze_force_with_unusable_matcher_surfaces_error_on_result(temp_db):
-    # End-to-end through analyze(): the force-path failure message must
-    # reach AudioAnalysisResult.errors, not just the log (a local `errors`
-    # list inside analyze() previously shadowed the one _load_cue_config
-    # appended to, so result.errors never carried it).
+    # End-to-end through analyze(): the force-path failure message must reach AudioAnalysisResult.errors,
+    # not just the log (a local `errors` list in analyze() once shadowed the one _load_cue_config appended to).
     pid = temp_db.create_podcast('show-g', 'http://x/g.xml', 'Show G')
     _add_template(temp_db, pid)
     analyzer = AudioAnalyzer(db=temp_db)

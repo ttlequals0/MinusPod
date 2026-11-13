@@ -1,8 +1,5 @@
-"""Unit tests for favicon and apple-touch-icon short-circuit routes.
-
-These routes prevent /favicon.ico and /apple-touch-icon*.png from falling through
-to the /<slug> feed route, which would trigger expensive DB lookups.
-"""
+"""Unit tests for the favicon and apple-touch-icon routes, which keep /favicon.ico and
+/apple-touch-icon*.png from falling through to the /<slug> feed route and its expensive DB lookups."""
 import pytest
 
 from tests.app_bootstrap import bootstrap

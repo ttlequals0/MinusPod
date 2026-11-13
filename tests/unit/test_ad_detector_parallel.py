@@ -1,15 +1,6 @@
 """Tests for the parallel ad-detection window executor in src/ad_detector.
 
-Covers four guarantees the 2.5.23 refactor must hold:
-
-- parallel_windows=1 produces the same ordered output as the original
-  sequential loop (regression guard).
-- parallel_windows=N completes and returns ads in window-position order,
-  not future-completion order.
-- Cost accumulator totals match between sequential and parallel runs
-  (no double-counting, no lost updates).
-- Validator rejects out-of-range values via the API.
-"""
+Guarantees from the 2.5.23 refactor: parallel_windows=1 matches the original sequential output; parallel_windows=N returns ads in window-position order, not completion order; cost totals match between sequential and parallel runs; the validator rejects out-of-range values via the API."""
 import os
 import threading
 import time
@@ -214,11 +205,9 @@ class TestRunWindowsFailFast:
         assert results[-1].failed is True
 
     def test_parallel_does_not_dispatch_queued_windows_after_failure(self, detector):
-        # Concurrency 2 over 6 windows; window 0 fails instantly while the
-        # others sleep, keeping both workers busy long enough for the main
-        # thread to collect the failure and cancel the queued tail. The
-        # in-flight windows (<= max_workers) may still run, but the queued
-        # tail must never dispatch.
+        # Concurrency 2 over 6 windows; window 0 fails instantly while the others sleep, so both workers
+        # stay busy until the main thread cancels the queued tail. In-flight windows (<= max_workers) may
+        # still run, but the queued tail must never dispatch.
         calls = []
         results = self._run(detector, _make_windows(6), 2, True,
                             self._stub(fail_idx=0, calls=calls, slow=0.25))

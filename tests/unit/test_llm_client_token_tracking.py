@@ -1,9 +1,5 @@
-"""Tests for the per-run token accumulator.
-
-Totals are keyed by run_context, per thread, and pool workers bind to
-their submitter's run via run_context.run_in_worker_thread, so several
-episodes can run concurrently in one process without sharing totals.
-"""
+"""Per-run token accumulator: totals are keyed by run_context per thread, and pool workers bind to their submitter's
+run via run_context.run_in_worker_thread, so concurrent episodes don't share totals."""
 
 import threading
 from concurrent.futures import ThreadPoolExecutor

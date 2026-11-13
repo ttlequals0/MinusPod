@@ -1,17 +1,6 @@
 """A keep-resolving category must survive a fully covering pattern match.
 
-Observed on a feed with detect_show_segments=true and per-feed actions
-{cross_promo,intro,outro,recap,self_promo: keep; sponsor,interaction: remove}.
-
-A second, independent layer from the window-dedup fix covered in
-test_ad_detector.py::TestDeduplicateWindowAdsActionGate and
-test_segment_categories.py::TestIntroOutroSurviveFullPipeline:
-process_transcript's pattern-merge step silently discarded a Claude ad's
-category whenever its span was fully covered by an existing
-fingerprint/text_pattern match. An uncategorized pattern was all that
-remained, losing a keep-resolving 'intro'/'outro' detection even when the
-window-boundary dedup left it intact.
-"""
+process_transcript's pattern-merge step must not discard a Claude ad's category when a fingerprint/text_pattern match fully covers it. Independent of the window-dedup fix in test_ad_detector.py::TestDeduplicateWindowAdsActionGate."""
 import os
 import sys
 from unittest.mock import patch
@@ -107,21 +96,15 @@ def test_intro_fully_covered_by_legacy_pattern_still_survives_as_keep():
     assert by_cat['intro']['start'] == 158.0
     assert by_cat['intro']['end'] == 166.6
 
-    # The legacy pattern's own remove-resolving span still covers the
-    # pre-roll audio ahead of the intro, so nothing is left uncut. It has no
-    # category of its own (the pattern predates the column) and is no longer
-    # relabelled 'sponsor' to hide that.
+    # The legacy pattern's remove-resolving span still covers the pre-roll ahead of the intro.
+    # It has no category (the pattern predates the column) and is not relabelled 'sponsor'.
     assert None in by_cat
     assert by_cat[None]['start'] == 0.0
     assert by_cat[None]['end'] == 158.0
 
 
 def test_default_action_map_still_drops_fully_covered_claude_ad():
-    """Regression: a plain sponsor-categorized (or uncategorized) Claude ad
-    that is fully covered by a pattern match is still dropped in favor of
-    the pattern's own marker: the fix only protects a non-default
-    (keep-resolving) category. The surviving marker adopts the LLM bounds
-    since the pattern span overshoots them materially."""
+    """A plain sponsor-categorized (or uncategorized) Claude ad fully covered by a pattern match is still dropped for the pattern's marker, which adopts the LLM bounds when the pattern overshoots."""
     detector = AdDetector(api_key='test-key')
     sponsor_ad = {'start': 10.0, 'end': 150.0, 'confidence': 0.9,
                   'reason': 'Sponsor read'}
@@ -135,10 +118,7 @@ def test_default_action_map_still_drops_fully_covered_claude_ad():
 
 
 def test_no_action_map_preserves_pre_fix_drop_behavior():
-    """A feed/db with no resolvable action map (module-level callers, cold
-    detector) must behave exactly as before this fix: the Claude ad's
-    category cannot be resolved to a non-default action without a map, so
-    a fully-covered ad is still dropped."""
+    """With no resolvable action map (module-level callers, cold detector) a fully covered Claude ad is still dropped."""
     detector = AdDetector(api_key='test-key')
     detector.db = None
     detector.audio_fingerprinter = None

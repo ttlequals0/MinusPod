@@ -14,7 +14,7 @@ ECHO_REASONS = [
     'Splice evidence: digital silence and loudness step at both edges',
     'splice_1261.3',
     '12.0 dB',
-    # The model restates the DAI signals without the word "pair" (#807 follow-up).
+    # The model restates the DAI signals without the word "pair".
     'DAI transition with volume anomaly and splice evidence',
     'DAI transitions detected, volume increase 6 dB',
     'Dynamic ad insertion detected',

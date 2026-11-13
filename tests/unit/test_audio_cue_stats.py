@@ -39,9 +39,7 @@ def test_audio_cues_default_zero_when_omitted(temp_db, mock_podcast, mock_episod
 def test_verification_surfaces_processed_audio_cue_count():
     """verify() reports cues found on the processed audio so the stat counts them (#350).
 
-    The pass-1 counter in processing never sees the verification analysis, so the
-    count has to come back through the result dict.
-    """
+    The pass-1 counter never sees the verification analysis, so the count rides the result dict."""
     from types import SimpleNamespace
     from audio_analysis.base import AudioAnalysisResult
     from verification_pass import VerificationPass

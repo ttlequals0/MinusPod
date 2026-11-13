@@ -1,11 +1,5 @@
-"""A confirmed span must not mint a pattern the auto path would refuse.
-
-Confirming an ad is a statement about one episode. Turning that span into a
-pattern generalizes it to every future episode, and the correction path used
-to do that with no gates at all: a 176s confirm whose first 87s were show
-content produced a pattern keyed on the content, which then dragged the same
-overshoot onto later episodes.
-"""
+"""A confirmed span must not mint a pattern the auto path would refuse: a pattern generalizes one
+episode's confirm to every future episode, so the correction path needs the same gates."""
 import json
 from unittest.mock import MagicMock, patch
 

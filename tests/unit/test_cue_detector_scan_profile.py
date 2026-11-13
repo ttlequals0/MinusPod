@@ -1,10 +1,5 @@
-"""Unit tests for the generous scan profile (release-threshold hysteresis) on
-AudioCueDetector (cue-candidate suggestions, #350 follow-up).
-
-These drive _find_bursts directly with synthetic per-frame loudness so no ffmpeg
-or audio file is needed. baseline is passed as 0.0, so each measurement's
-loudness IS its prominence over baseline.
-"""
+"""Generous scan profile (release-threshold hysteresis) on AudioCueDetector (#350), driving _find_bursts with
+synthetic frames; baseline is 0.0, so each measurement's loudness is its prominence."""
 import os
 import sys
 
@@ -36,8 +31,8 @@ def test_hysteresis_captures_more_envelope_than_single_threshold():
     assert len(live_sig) == 1 and len(scan_sig) == 1
     live_dur = live_sig[0].end - live_sig[0].start
     scan_dur = scan_sig[0].end - scan_sig[0].start
-    # The scan window starts no later and ends no earlier, and is strictly
-    # longer -- it keeps the attack/decay the single-threshold path clips off.
+    # The scan window starts no later, ends no earlier and is strictly longer: it keeps the
+    # attack/decay the single-threshold path clips off.
     assert scan_sig[0].start <= live_sig[0].start
     assert scan_sig[0].end >= live_sig[0].end
     assert scan_dur > live_dur

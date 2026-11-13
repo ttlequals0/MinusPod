@@ -1,10 +1,6 @@
-"""Correction provenance + FP-text suppression (2.76.0).
-
-pattern_corrections gains source_hold_reason (provenance for a
-false_positive correction) and fp_suppressed (excludes a correction's
-text_snippet from cross-episode FP matching once it's known to have come
-from a rejected differential hold rather than a confirmed false positive).
-"""
+"""Correction provenance + FP-text suppression (2.76.0): pattern_corrections gains source_hold_reason
+(provenance) and fp_suppressed (excludes a correction's text_snippet from cross-episode FP matching when
+it came from a rejected differential hold, not a confirmed false positive)."""
 import pytest
 
 from tests.app_bootstrap import bootstrap
@@ -381,10 +377,8 @@ def test_reject_differential_hold_writes_null_text_and_source_hold_reason():
 
 
 def test_reject_dai_differential_stage_without_hold_reason_field_still_nulls_text():
-    """detection_stage=='dai_differential' alone (hold_reason field absent,
-    e.g. already popped or never set) must independently trigger the same
-    null-text, stamped-source_hold_reason behavior as an explicit
-    hold_reason=='differential_uncorroborated'."""
+    """detection_stage=='dai_differential' alone (hold_reason absent, e.g. popped or never set) must
+    trigger the same null-text, stamped-source_hold_reason behavior as hold_reason=='differential_uncorroborated'."""
     slug, episode_id = _make_episode('fp-scope-diff-stage', 'ep-fp-scope-diff-stage')
     db.save_episode_details(
         slug, episode_id, transcript_text=TRANSCRIPT_TEXT,
@@ -470,14 +464,9 @@ def test_get_false_positive_texts_excludes_differential_provenance_even_if_snipp
 
 
 def test_backfill_endpoint_skips_differential_provenance_rows():
-    """The backfill-false-positives endpoint must not populate text_snippet
-    for corrections stamped source_hold_reason=differential_uncorroborated,
-    while it still fills a normal false_positive row with a NULL snippet.
-
-    Uses api.get_database() throughout (not the module-level `db`) so setup,
-    the endpoint call, and assertions all see the same Database singleton
-    that backfill_false_positive_texts() resolves internally at call time.
-    """
+    """The backfill-false-positives endpoint must not fill text_snippet for corrections stamped
+    source_hold_reason=differential_uncorroborated, but still fills a normal false_positive row.
+    Uses api.get_database() (not module-level `db`) to share the singleton the endpoint resolves."""
     from api import get_database
     gdb = get_database()
 

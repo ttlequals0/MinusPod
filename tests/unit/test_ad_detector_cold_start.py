@@ -1,11 +1,5 @@
-"""process_transcript must build detector dependencies before the stage
-1/2 gates.
-
-Regression: the first run to reach ad detection in a fresh process
-silently skipped fingerprint and text-pattern matching because the
-matcher attributes were still None when the stage gates evaluated
-(deps were only built mid-run, at stage 3). See the 2.75.0 changelog.
-"""
+"""process_transcript builds detector dependencies before the stage 1/2 gates (2.75.0 regression:
+fresh processes skipped fingerprint and text-pattern matching while the matcher attributes were None)."""
 
 from unittest.mock import patch
 
@@ -82,10 +76,7 @@ def test_pattern_stage_runs_on_cold_detector():
 
 
 def test_learn_from_detections_initializes_deps_on_cold_detector():
-    """A detector that has never been initialized must still be able to
-    learn patterns: initialize_client() must run before the
-    text_pattern_matcher gate, not after it.
-    """
+    """An uninitialized detector must run initialize_client() before the text_pattern_matcher gate."""
     det = AdDetector()
     assert det.text_pattern_matcher is None, "expected a cold detector"
 

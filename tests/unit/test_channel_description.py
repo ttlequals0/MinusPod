@@ -1,10 +1,6 @@
 """Tests for RSSParser._get_channel_description fallback chain.
 
-Mirrors the episode-level subtitle/content fallback at channel scope.
-Falls back only when ``<description>`` is empty or whitespace, never
-"short": a publisher who emits a deliberately concise description
-should not be second-guessed.
-"""
+Falls back only when ``<description>`` is empty or whitespace, never when merely short."""
 import defusedxml
 defusedxml.defuse_stdlib()
 

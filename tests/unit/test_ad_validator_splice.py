@@ -1,8 +1,5 @@
 """Splice-evidence consumers in AdValidator (item a of docs/specs/2026-07-08-ad-splice-detection.md#23-consumers-none-cuts-on-audio-alone).
-
-Builds on _audio_corroboration_source and the validate(..., audio_analysis=)
-wiring, adding the splice_evidence source.
-"""
+Builds on _audio_corroboration_source and the validate(..., audio_analysis=) wiring."""
 import os
 import sys
 
@@ -64,13 +61,9 @@ class TestSpliceCorroboration:
 
 
 class TestNoSegmentsVadGapClamp:
-    """Pins the no-segments branch of _verify_in_transcript. A fully
-    untranscribed episode (segments=[]) with an uncorroborated vad_gap
-    marker clamps confidence to min_cut_confidence - 0.01 so it routes to
-    REVIEW; a splice event in range corroborates it and skips the clamp.
-    The empty-segments branch used to return confidence unchanged; the clamp
-    is deliberate, backstopped by the tail hold rule.
-    """
+    """No-segments branch of _verify_in_transcript: an uncorroborated vad_gap marker clamps confidence
+    to min_cut_confidence - 0.01 (routes to REVIEW); a splice event in range skips the clamp.
+    The clamp is deliberate, backstopped by the tail hold rule."""
 
     def _marker(self):
         return {'start': 100.0, 'end': 130.0, 'confidence': 0.90,
@@ -141,10 +134,8 @@ class TestSpliceVeto:
     @pytest.mark.parametrize('stage', ['manual', 'vad_gap', 'fingerprint',
                                        'dai_differential', 'cue'])
     def test_other_stages_not_vetoed(self, stage):
-        """Only claude/text_pattern are subject to the splice veto; every
-        other stage carries its own evidence and is exempt. vad_gap can still
-        route to REVIEW via its own confidence clamp, but never with the
-        no_splice_evidence hold, so assert the veto did not fire."""
+        """Only claude/text_pattern are subject to the splice veto; other stages carry their own
+        evidence. vad_gap can still route to REVIEW via its clamp, but never with no_splice_evidence."""
         validator = AdValidator(episode_duration=3600.0)
         ad = dict(self._AD, detection_stage=stage)
         result = validator.validate([ad], audio_analysis=_analysis([]))

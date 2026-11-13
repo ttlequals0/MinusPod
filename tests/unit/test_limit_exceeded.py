@@ -1,12 +1,6 @@
 """Tests for the spend/quota limit classifier and its webhook routing.
 
-A limit-exceeded error means the provider rejected the request because a
-billing or usage limit is exhausted (OpenRouter monthly key limit, out of
-credits, OpenAI insufficient_quota). These must fire the Limit Exceeded
-webhook instead of Auth Failure, classify as non-retryable at both the
-window and episode level, and must not shadow the transient-429 retry path
-or the Gemini daily/structural classifiers (#491).
-"""
+A billing or usage limit rejection (e.g. OpenRouter key limit, OpenAI insufficient_quota) must fire the Limit Exceeded webhook, not Auth Failure, be non-retryable at window and episode level, and not shadow the transient-429 or Gemini classifiers (#491)."""
 
 import json
 import threading

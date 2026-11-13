@@ -1,10 +1,6 @@
 """Tests for the configurable per-episode download size cap (#493).
 
-The cap guards the disk against oversized or malicious enclosures. It must
-be overridable via MAX_AUDIO_DOWNLOAD_MB, and tripping it must raise the
-typed AudioTooLargeError (permanent, actionable) instead of the generic
-return-None download failure.
-"""
+The cap (MAX_AUDIO_DOWNLOAD_MB) guards the disk; tripping it raises the typed AudioTooLargeError, not the generic None failure."""
 import os
 from unittest.mock import MagicMock, patch
 

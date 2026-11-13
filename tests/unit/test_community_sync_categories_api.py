@@ -1,12 +1,6 @@
 """API tests for the community_sync_categories global setting.
 
-Covers the SETTINGS_REGISTRY / SettingSpec + PUT-phase pattern (mirroring
-segment_category_actions), including the top-level _sv entry in GET
-/settings, plus the dedicated /settings/community-sync GET/PUT surface the
-CommunityPatternsSection UI talks to. Each test patches
-the settings group modules' get_database to a fresh temp_db to avoid order-dependence
-between tests sharing the same setting key.
-"""
+Covers the SETTINGS_REGISTRY / SettingSpec + PUT-phase pattern (like segment_category_actions), the top-level _sv entry in GET /settings, and the /settings/community-sync GET/PUT surface used by CommunityPatternsSection. Each test patches the settings group modules' get_database to a fresh temp_db to avoid order-dependence."""
 import json
 from unittest.mock import patch
 

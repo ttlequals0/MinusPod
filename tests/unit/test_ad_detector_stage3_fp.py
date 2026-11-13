@@ -1,10 +1,4 @@
-"""Stage-3 (Claude) same-episode false-positive region check (issue #183).
-
-Stages 1 and 2 already skip detections in user-rejected regions via
-`_is_region_covered`. This test documents that Stage 3 mirrors that check
-on Claude's per-portion output, preventing the editor from displaying ads
-the user already explicitly rejected.
-"""
+"""Stage-3 (Claude) skips detections in user-rejected regions, mirroring Stages 1/2 (issue #183)."""
 
 from ad_detector import AdDetector
 

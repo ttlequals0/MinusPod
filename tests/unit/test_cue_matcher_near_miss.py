@@ -1,9 +1,5 @@
-"""Near-miss telemetry for the cue template matcher (#350 Phase 6).
-
-The matcher, when given a ``near_miss_floor``, records sub-threshold peaks in
-[floor, threshold) as advisory near-misses -- never signals. floor=None keeps
-the exact pre-Phase-6 behavior (no near-misses, identical signal set).
-"""
+"""Near-miss telemetry for the cue template matcher (#350 Phase 6): with ``near_miss_floor``, peaks in
+[floor, threshold) are advisory near-misses, never signals; floor=None keeps the old behavior."""
 import numpy as np
 
 from audio_analysis import cue_template_matcher as ctm
@@ -20,11 +16,9 @@ def _template_row(mfcc, *, template_id=1, label='t', duration_s=0.5):
 
 
 def _planted_chunk(rng, template, *, planted):
-    """Build a haystack MFCC with events planted at given (frame, weight) pairs.
+    """Build a haystack MFCC with events planted at (frame, weight) pairs.
 
-    weight=1.0 is a perfect copy (score ~1.0); a lower weight mixed with noise
-    lands the ZNCC score in a sub-threshold band.
-    """
+    weight=1.0 is a perfect copy (score ~1.0); lower weights mix in noise to land sub-threshold."""
     hay = rng.standard_normal((400, template.shape[1])).astype(np.float32)
     n = template.shape[0]
     for frame, weight in planted:

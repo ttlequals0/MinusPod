@@ -377,13 +377,7 @@ class TestMergeSameSponsorAds:
         assert len(merged) == 2
 
     def test_without_the_show_name_the_shared_token_still_merges(self):
-        """Guards the own-site fix: same input, no podcast name, one span.
-
-        The gap is untranscribed so the shared token is the only thing
-        deciding the outcome. With speech there the content gate would keep
-        the ads apart whatever the token said, and the pair would prove
-        nothing about own_site.
-        """
+        """Guards the own-site fix: the gap is untranscribed, so the shared token alone decides the merge."""
         segments = [
             {'start': 0.0, 'end': 60.0, 'text': 'squarespace dailytech.com'},
             {'start': 60.0, 'end': 100.0, 'text': ''},
@@ -584,7 +578,7 @@ class TestGetUncoveredPortions:
         ad = {'start': 100, 'end': 300, 'confidence': 0.9, 'reason': 'test'}
         # Two coverage regions leaving gaps
         covered = [(100, 140), (180, 260)]
-        # Uncovered: 140-180 (40s), 260-300 (40s) -- both >= 15s
+        # Uncovered: 140-180 (40s), 260-300 (40s), both >= 15s
         result = get_uncovered_portions(ad, covered, min_duration=15.0)
         assert len(result) == 2
         assert result[0]['start'] == 140
@@ -610,7 +604,7 @@ class TestGetUncoveredPortions:
         assert portion['dai_core_spans'] == [{'start': 250.0, 'end': 280.0}]
 
     def test_more_than_half_uncovered_returns_original(self):
-        """>50% uncovered means overlap is incidental -- return original ad."""
+        """>50% uncovered means overlap is incidental: return original ad."""
         ad = {'start': 100, 'end': 200, 'confidence': 0.9, 'reason': 'test'}
         # Pattern covers only 30s of 100s ad (30%)
         covered = [(120, 150)]
@@ -743,10 +737,7 @@ class TestDeduplicateWindowMergeFlag:
 
 
 class TestSplitConflictingActionSpan:
-    """split_conflicting_action_span is the shared containment-safe split
-    used by both deduplicate_window_ads and _merge_detection_results when
-    two adjacent-or-overlapping ads resolve to different actions (#565
-    follow-up)."""
+    """split_conflicting_action_span is the containment-safe split shared by deduplicate_window_ads and _merge_detection_results (#565)."""
 
     def test_no_true_overlap_both_survive_untouched(self):
         last = {'start': 0.0, 'end': 20.0, 'category': 'sponsor'}
@@ -880,10 +871,7 @@ class TestSplitConflictingActionSpan:
         assert entries == [current]
 
     def test_current_nested_inside_last_splits_last_around_it(self):
-        """The observed shape: a longer remove-resolving pattern match
-        fully containing a shorter keep-resolving LLM span (e.g. an intro
-        tail-aligned inside a pre-roll pattern match) must not collapse the
-        nested span to nothing."""
+        """A longer remove-resolving pattern match fully containing a shorter keep-resolving LLM span must not collapse the nested span."""
         last = {'start': 0.0, 'end': 166.6, 'category': 'sponsor'}
         current = {'start': 158.0, 'end': 166.6, 'category': 'intro'}
         new_last, entries = split_conflicting_action_span(last, current)
@@ -967,12 +955,7 @@ class TestSplitConflictingActionSpan:
         assert entries[1]['start'] == 50.0 and entries[1]['end'] == 100.0
 
     def test_nested_split_strips_stale_merge_bookkeeping(self):
-        """A last that already carries merged_distinct_ads/
-        merged_protected_start/end (from an earlier same-action fold) must
-        not hand that stale bookkeeping to the split pieces: the recorded
-        protected bounds describe last's original span and could otherwise
-        float the reviewer's expand-only floor back across the split
-        boundary, re-absorbing audio this split just carved out."""
+        """A last carrying merged_* bookkeeping must not pass stale protected bounds to the split pieces (they would re-absorb carved-out audio)."""
         last = {'start': 0.0, 'end': 100.0, 'category': 'sponsor',
                 'merged_distinct_ads': True,
                 'merged_protected_start': 0.0, 'merged_protected_end': 100.0}
@@ -1004,15 +987,9 @@ class TestSplitConflictingActionSpan:
 
 
 class TestDeduplicateWindowAdsActionGate:
-    """One episode (example-podcast a1b2c3d4e5f6), reprocessed
-    with detect_show_segments=true and per-feed actions {cross_promo,
-    intro,outro,recap,self_promo: keep; sponsor,interaction: remove}. The
-    LLM's raw 9 detections carried category on only the intro and outro;
-    deduplicate_window_ads's 5.0s window-boundary merge fused each into an
-    adjacent uncategorized sponsor read before the merge seam ever saw
-    them as separate candidates: the intro's category was silently
-    dropped, and the outro's span was wrongly extended.
-    """
+    """Dedup must not fuse a keep-resolving intro/outro into an adjacent uncategorized sponsor read.
+
+    Fixture mirrors one episode's raw LLM detections under per-feed keep/remove actions."""
 
     EXAMPLE_ACTION_MAP = {
         'sponsor': 'remove', 'interaction': 'remove',
@@ -1057,10 +1034,7 @@ class TestDeduplicateWindowAdsActionGate:
         ]
 
     def test_without_action_map_reproduces_the_bug(self):
-        """Regression anchor: without an action_map, today's (pre-fix, and
-        still-current no-map) behavior fuses the intro into the pre-roll
-        (1.3s gap) and the outro into the trailing sponsor ad (4.7s gap),
-        exactly matching the production log ("Total after dedup: 6 ads")."""
+        """Without an action_map the intro fuses into the pre-roll (1.3s gap) and the outro into the trailing sponsor ad (4.7s gap)."""
         merged = deduplicate_window_ads(self._raw_llm_detections())
         assert len(merged) == 6
         first = merged[0]
@@ -1110,10 +1084,7 @@ class TestDeduplicateWindowAdsActionGate:
 
 
 class TestRemovalCoverageRegions:
-    """removal_coverage_regions gates which pattern-matched regions may
-    shadow (trim) a Claude detection: a keep-resolving pattern
-    region never cuts, so letting it cover a remove-resolving detection
-    leaves the ad in the audio with no marker responsible for removing it."""
+    """removal_coverage_regions excludes keep-resolving pattern regions: they never cut, so they must not shadow a remove-resolving detection."""
 
     ACTION_MAP = {'sponsor': 'remove', 'cross_promo': 'keep',
                   'self_promo': 'keep', 'intro': 'keep', 'outro': 'keep',

@@ -1,4 +1,4 @@
-"""Unit tests for the cue detection telemetry builder (#350 follow-up)."""
+"""Unit tests for the cue detection telemetry builder (#350)."""
 from ad_detector.cue_telemetry import build_cue_detection_records
 from audio_analysis.base import AudioAnalysisResult, AudioSegmentSignal
 

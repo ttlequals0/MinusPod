@@ -1,9 +1,6 @@
 """Tests for the per-phase LLM route resolver (src/llm_route.py).
 
-Stage settings (detection_provider, verification_provider,
-chapters_provider, review_provider) store a SLOT (primary/secondary), not a
-provider type.
-"""
+Stage settings (detection_provider, verification_provider, chapters_provider, review_provider) store a slot (primary/secondary), not a provider type."""
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -403,11 +400,7 @@ class TestMigrationDefaults:
 
 
 class TestPopulatedDatabaseUpgrade:
-    """A real, populated pre-secondary-provider database: existing settings
-    and other data, no secondary config, no stage-provider slot settings.
-    Reopening it (as an app restart on the new code would) must not lose
-    data or rebuild any table, and every stage must resolve to primary,
-    reproducing the single-provider routes the install already had."""
+    """A populated pre-secondary-provider database must reopen without data loss or table rebuilds, with every stage resolving to primary."""
 
     def test_populated_db_upgrades_cleanly(self, temp_dir, monkeypatch):
         monkeypatch.delenv('LLM_PROVIDER', raising=False)

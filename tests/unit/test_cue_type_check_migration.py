@@ -1,7 +1,6 @@
-"""Rebuild migration that drops the legacy cue_type CHECK on audio_cue_templates
-so new cue types (#350 content_transition) are accepted on DBs created while the
-CHECK still existed. Runs the real Database init path against a seeded legacy DB.
-"""
+"""Rebuild migration dropping the legacy cue_type CHECK on audio_cue_templates so new cue types (#350) are accepted.
+
+Runs the real Database init path against a seeded legacy DB."""
 import sqlite3
 
 import pytest

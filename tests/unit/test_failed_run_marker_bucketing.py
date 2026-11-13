@@ -1,10 +1,5 @@
-"""T14: markers persisted by a failed run must not render as cut ads.
-
-Contract: an episode with status='failed' and a non-held marker with no
-'was_cut' key must not land in adMarkers (the cut/"Detected Ads" bucket).
-Companion: the same marker on a 'processed' episode still defaults to cut,
-so existing behavior is unchanged.
-"""
+"""Markers persisted by a failed run must not render as cut ads: a non-held marker with no 'was_cut' key stays out
+of adMarkers on a 'failed' episode but still defaults to cut on a 'processed' one."""
 import pytest
 
 from tests.app_bootstrap import bootstrap

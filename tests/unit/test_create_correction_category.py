@@ -1,9 +1,5 @@
-"""Category on manual ad creation (`create` correction).
-
-The create correction is the UI's pattern-creation path; the chosen
-category must land on both the new pattern (so future matches resolve the
-right segment action) and the manual marker itself.
-"""
+"""Category on manual ad creation (`create` correction): the chosen category must land on both the
+new pattern (so future matches resolve the right segment action) and the manual marker."""
 import json
 import os
 import tempfile

@@ -1,12 +1,5 @@
-"""Tests for the segment-category keep-action bypass in pass 1.
-
-A marker whose resolved segment-category action is 'keep' is pulled out
-before the validator and reviewer ever see it: persisted with
-was_cut=False/action_applied='keep', but never entering the validator
-input, the reviewer input, the cut list, or held-for-review routing.
-Markers resolving to 'remove' (the default) flow through byte-identical
-to before.
-"""
+"""Segment-category keep-action bypass in pass 1: a marker resolving to 'keep' is persisted with was_cut=False /
+action_applied='keep' and never enters validator/reviewer input, the cut list or held-for-review routing; 'remove' flows through."""
 import json
 import logging
 import os
@@ -517,10 +510,8 @@ class TestKeepMarkersBlockTerminalSnap:
     safe coverage. Runs the real (unpatched) sweep functions, not mocks."""
 
     def test_terminal_snap_does_not_sweep_across_kept_marker(self):
-        # The digital-silence event at 72.0 sits inside the 30s scan-back
-        # window: if the kept marker were misread as safe coverage, the
-        # sweep would pull the ad's start back to 72.0, eating part of
-        # the kept recap into the cut.
+        # The digital-silence event at 72.0 is inside the 30s scan-back window: if the kept marker were
+        # misread as safe coverage, the sweep would pull the ad's start back to 72.0 into the kept recap.
         segments = [{'start': 70.0, 'end': 85.0,
                     'text': 'and that wraps up this segment for today'}]
         kept_marker = {'start': 70.0, 'end': 85.0, 'category': 'recap',
@@ -725,10 +716,8 @@ class TestKeepMarkersBlockTerminalSnap:
 
 
 class TestLateKeepSafetyNet:
-    """A marker synthesized after the keep partition already ran (heuristic
-    pre/post-roll, VAD-gap) never had a chance to be pulled out even when
-    its category resolves to 'keep'. _apply_late_keep_safety_net is the
-    last chance, right before the cut list reaches the audio processor."""
+    """A marker synthesized after the keep partition ran (heuristic pre/post-roll, VAD-gap) with a 'keep' category is caught by
+    _apply_late_keep_safety_net, the last chance before the cut list reaches the audio processor."""
 
     def test_drops_synthesized_marker_with_keep_resolved_category(self, caplog):
         actions_map = {'sponsor': 'keep', 'cross_promo': 'remove',
@@ -808,19 +797,12 @@ class TestLateKeepSafetyNet:
 
 
 class TestLateKeepPartitionBeforeSweeps:
-    """A marker synthesized inside _refine_and_validate, whose category
-    resolves to 'keep', must be pulled out right after _refine_and_validate
-    returns, before the reviewer's resurrection pool and the sweeps see it,
-    not merely at the final _apply_late_keep_safety_net backstop. Drives
-    the real, unpatched functions through process_episode (real_sweeps=True);
-    only db/storage and the detection/reviewer/verification stages are mocked.
-    """
+    """A synthesized 'keep' marker from _refine_and_validate is pulled out right after it returns, before the reviewer's
+    resurrection pool and the sweeps. Real functions run via process_episode; only db/storage and the detection stages are mocked."""
 
     def test_late_partition_drops_synthesized_marker_end_to_end(self):
-        """A synthesized post-roll marker (no category) is caught by the
-        early re-partition right after _refine_and_validate returns and
-        never reaches the audio processor, while a real cross_promo cut
-        marker still cuts normally."""
+        """A synthesized post-roll marker (no category) is caught by the early re-partition and never reaches the audio
+        processor; a real cross_promo cut marker still cuts."""
         cross_promo = _cross_promo_ad()
         late_marker = {'start': 90.0, 'end': 99.0, 'confidence': 0.9,
                        'detection_stage': 'post_roll'}
@@ -845,14 +827,9 @@ class TestLateKeepPartitionBeforeSweeps:
         assert [s['start'] for s in audio_segments] == [cross_promo['start']]
 
     def test_terminal_snap_does_not_swallow_late_kept_span(self):
-        """Drives the real, unpatched _snap_terminal_starts inside the full
-        process_episode flow. A synthesized marker at [70, 85) (no category,
-        normalizes to 'sponsor' -> 'keep') sits ahead of a terminal cut at
-        [90, 99), with a digital-silence splice event at 72.0 inside the 30s
-        scan-back window. Without the early re-partition, the marker would
-        reach the sweep unstamped, its span read as safe coverage, and the
-        terminal cut's start would snap back to 72.0, swallowing part of
-        the kept span."""
+        """Real _snap_terminal_starts in process_episode: a synthesized [70, 85) marker (normalizes to 'sponsor' -> 'keep')
+        precedes a terminal cut at [90, 99) with a silence event at 72.0 in the scan-back window. Without the early
+        re-partition the marker reads as safe coverage and the cut's start snaps back to 72.0."""
         terminal_ad = {'start': 90.0, 'end': 99.0, 'category': 'cross_promo',
                        'confidence': 0.9, 'detection_stage': 'text_pattern',
                        'reason': 'terminal block'}
@@ -900,11 +877,9 @@ class TestLateKeepPartitionBeforeSweeps:
 
 
 class TestPartitionKeepAdsClearsHold:
-    """A keep resolution is a final decision, so _partition_keep_ads must
-    clear any hold on a marker it catches. Otherwise a marker already held
-    for review would keep counting as pending review, and a user confirm on
-    it would force-cut it on recut (_build_recut_ad_list never consults
-    action_applied), overriding the feed's keep policy."""
+    """A keep resolution is final, so _partition_keep_ads clears any hold on a marker it catches; otherwise a held
+    marker would still count as pending review and a user confirm would force-cut it on recut (_build_recut_ad_list
+    never consults action_applied)."""
 
     def _held_keep_marker(self):
         # No 'category' key, normalizes to 'sponsor'. held_for_review

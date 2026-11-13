@@ -50,7 +50,7 @@ def test_dedupe_identifies_duplicate_when_near_identical():
 
 
 def test_dedupe_identifies_variant():
-    # Same sponsor + same opener and closing sentence, middle CTA swapped -- 
+    # Same sponsor, opener and closing sentence, middle CTA swapped;
     # calibrated to land around 0.78-0.85 on SequenceMatcher.
     base = (
         'Visit Squarespace dot com slash show for a free trial. Use code SHOW '
@@ -189,16 +189,14 @@ def test_validate_doc_accepts_own_alias_in_text():
 
 
 def test_validate_doc_accepts_seed_alias_of_declared_sponsor():
-    """If the seed row carries aliases the doc didn't redeclare, mentioning
-    those aliases in the text must still not flag as foreign. The helper
-    skips the declared sponsor's seed row entirely once any of its names
-    matches the declared identity."""
+    """Seed aliases the doc didn't redeclare must not flag as foreign: the helper skips the
+    declared sponsor's seed row once any of its names matches the declared identity."""
     seed = sponsor_seed()
     doc = {
         'community_id': 'abc',
         'version': 1,
         'sponsor': 'Athletic Greens',
-        # NOTE: sponsor_aliases intentionally omitted; rely on seed aliases.
+        # Note: sponsor_aliases intentionally omitted; rely on seed aliases.
         'submitted_at': '2026-01-01T00:00:00Z',
         'text_template': (
             'Athletic Greens makes AG1, a daily nutrition supplement, and you can '
@@ -212,10 +210,8 @@ def test_validate_doc_accepts_seed_alias_of_declared_sponsor():
 
 
 def test_run_accepts_bundle_file(tmp_path, monkeypatch):
-    """A bundle file with `format == 'minuspod-community-submission'`
-    is expanded into N validations, one per pattern in `patterns[]`.
-    Each result path is `<file>#patterns[i]` so the PR comment can
-    point at the failing index."""
+    """A bundle file (`format == 'minuspod-community-submission'`) expands into one validation per
+    pattern; result paths are `<file>#patterns[i]` so the PR comment can point at the failing index."""
     import tools.community_pattern_validator as v
     repo_root = tmp_path / 'repo'
     community = repo_root / 'patterns' / 'community'
@@ -259,10 +255,8 @@ def test_run_accepts_bundle_file(tmp_path, monkeypatch):
 
 
 def test_run_excludes_pr_files_from_existing_baseline(tmp_path, monkeypatch):
-    """CI checks out the PR branch, so files added in the PR are already
-    on disk in patterns/community/. The CLI's `run()` must strip them
-    from the "existing" baseline before deduping, otherwise every new
-    pattern flags as a duplicate of itself with score 1.0."""
+    """CI checks out the PR branch, so `run()` must strip files added in the PR from the "existing"
+    baseline before deduping, else every new pattern flags as a duplicate of itself (score 1.0)."""
     import tools.community_pattern_validator as v
     repo_root = tmp_path / 'repo'
     community = repo_root / 'patterns' / 'community'

@@ -28,7 +28,7 @@ from tests.unit.pipeline_run_support import (  # noqa: E402
 
 @pytest.fixture
 def model_calls(monkeypatch, caplog):
-    """Fails the test on a client factory or request call, an unlisted refused call, or a WARNING."""
+    """Fails the test on a client factory or request call, an unlisted refused call, or a warning."""
     calls = _install_recorder(monkeypatch)
     with caplog.at_level(logging.DEBUG):
         yield calls

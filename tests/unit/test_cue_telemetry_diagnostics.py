@@ -113,11 +113,9 @@ def test_unused_reason_out_of_reach():
 
 
 def test_unused_reason_out_of_reach_start_role_past_ad_start():
-    # Role-aware asymmetric reach (finding 10): a start-role cue's END sits 6s PAST
-    # the ad start (cue.end = ad_start + 6). Its window is [ad_start-lead, ad_start
-    # +lag] on cue.end, i.e. signed d=ad_start-cue.end in [-lag, +lead] = [-4, +10].
-    # d = -6 < -4 -> out_of_reach. The old symmetric abs() gate (|-6| <= max(10,4))
-    # wrongly called this 'unpaired'.
+    # Role-aware asymmetric reach: a start-role cue's END sits 6s past the ad start (cue.end = ad_start + 6),
+    # so d = ad_start - cue.end = -6 is outside [-lag, +lead] = [-4, +10] -> out_of_reach
+    # (the old symmetric abs() gate called it 'unpaired').
     cue = _tcue(106.0, 106.0, role='start', cue_type='ad_break_start', conf=0.95)
     ads = [{'start': 100.0, 'end': 300.0}]
     recs = build_cue_detection_records(ads, _result(signals=[cue]), pre_snap_ads=ads,

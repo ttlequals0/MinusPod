@@ -39,8 +39,5 @@ def test_normalize_keeps_distinct_models_distinct(a, b):
 
 
 def test_known_gpt_collision_documented():
-    """gpt-4omini and gpt-4o-mini collapse to the same key. This is a
-    known artifact of the lossy normalization; the test fixes the
-    behavior so a future tweak cannot silently introduce or resolve
-    this collision."""
+    """gpt-4omini and gpt-4o-mini collapse to the same key (known lossy-normalization artifact); pinned so a change is deliberate."""
     assert normalize_model_key("gpt-4omini") == normalize_model_key("gpt-4o-mini")

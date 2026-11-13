@@ -1,9 +1,6 @@
 """Hosting-platform names screen new labels, not stored registry rows.
 
-A row named after a hosting platform predates the create-time gate or was
-added deliberately. Dropping it at cache-build time stops it matching at all,
-so every span it names reads as having no advertiser.
-"""
+A row named after a hosting platform predates the create-time gate or was added deliberately; dropping it at cache-build time would stop it matching, leaving its spans with no advertiser."""
 import os
 import sys
 

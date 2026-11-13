@@ -1,10 +1,6 @@
 """Tests for the LLM provider and PodcastIndex connection tests (#544).
 
-The whisper transcriber probe is covered in test_whisper_connection_test.py;
-this file covers the /models probe behind
-/settings/providers/{openai,ollama}/test-connection and the
-/settings/podcast-index/test endpoint.
-"""
+Covers the /models probe behind /settings/providers/{openai,ollama}/test-connection and /settings/podcast-index/test; the whisper probe is in test_whisper_connection_test.py."""
 import hashlib
 import json
 from unittest.mock import patch, MagicMock

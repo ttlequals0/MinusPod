@@ -1,7 +1,5 @@
-"""Mid-episode holes the batched decoder skipped are re-transcribed without VAD.
-
-Production shape: a sponsor read opening at 728.77s-752.55s never reached the transcript.
-"""
+"""Mid-episode holes the batched decoder skipped are re-transcribed without VAD
+(e.g. a sponsor read at 728.77s-752.55s that never reached the transcript)."""
 import os
 import sys
 import tempfile
@@ -34,10 +32,8 @@ def _production_shape():
 
 
 def _repair(tmp_path, segments, decoded, volume=-20.0, min_s=8.0, skip=()):
-    """Run Transcriber.repair_gaps with extraction, volume and decode faked.
-
-    Returns (added, empty, decode mock, extracted chunks, volume probe mock).
-    """
+    """Run Transcriber.repair_gaps with extraction, volume and decode faked; returns
+    (added, empty, decode mock, extracted chunks, volume probe mock)."""
     chunks = []
 
     def _extract(path, start, end):

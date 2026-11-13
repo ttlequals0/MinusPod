@@ -1,9 +1,6 @@
-"""Unit tests for fingerprint self-repeat cue discovery (#350).
-
-Exercises the pure functions over a synthetic fpcalc ``-raw`` int array: a
-distinctive 16-int "sound" planted at several well-separated positions, with the
-rest filled by a unique-per-index sequence that never repeats. No fpcalc needed.
-"""
+"""Unit tests for fingerprint self-repeat cue discovery (#350), over a synthetic fpcalc ``-raw`` int
+array: a distinctive 16-int "sound" planted at several well-separated positions in a never-repeating
+sequence. No fpcalc needed."""
 from unittest.mock import patch
 
 import numpy as np

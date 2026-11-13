@@ -1,12 +1,6 @@
 """Third-party transport loggers stay quiet at LOG_LEVEL=DEBUG.
 
-Their DEBUG output is per-request connection chatter (connect_tcp.started,
-close.complete) that buries real signal in Loki and, since 2.89.2, fills a
-quarter of every episode run log. The suppression list matches logger names
-exactly, so an SDK that renames its transport escapes it: openai 3.x moved
-to httpx2/httpcore2 and went unsuppressed until 2.89.4. This test fails when
-an installed transport is missing from the list.
-"""
+Their per-request chatter (connect_tcp.started, close.complete) buries real signal in Loki and, since 2.89.2, fills a quarter of every episode run log. The suppression list matches logger names exactly, so an SDK that renames its transport escapes it (openai 3.x moved to httpx2/httpcore2 and went unsuppressed until 2.89.4); this test fails when an installed transport is missing."""
 
 import importlib
 import logging

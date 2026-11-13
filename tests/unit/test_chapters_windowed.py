@@ -1,9 +1,5 @@
-"""Windowed chapter boundary detection.
-
-A single call over a multi-hour transcript both capped the count (a hardcoded
-min(duration / 600, 6)) and clustered the boundaries it did return, leaving long
-untouched stretches at the end. Detection now runs a window at a time.
-"""
+"""Windowed chapter boundary detection: one call over a multi-hour transcript capped the count and
+clustered boundaries, so detection runs a window at a time."""
 
 from types import SimpleNamespace
 
@@ -34,10 +30,7 @@ def _clear_geometry():
 
 
 class ScriptedBoundaries:
-    """Returns one boundary per call, placed inside the requested window.
-
-    Mirrors the real contract: None for a failed LLM call, [] for a
-    legitimately empty window."""
+    """One boundary per call inside the requested window; None for a failed LLM call, [] for an empty window."""
 
     def __init__(self, fail_on=(), empty_on=()):
         self.calls = []

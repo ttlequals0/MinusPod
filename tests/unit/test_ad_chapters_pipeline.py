@@ -1,10 +1,4 @@
-"""Ad chapters wired into the three chapter-producing paths.
-
-Kept ad segments still in the served audio are published as their own
-chapters so a chapter-aware player can skip them. This covers the pass-1
-_generate_assets branches (generate, publisher-preserve) and the manual
-regenerate-chapters endpoint.
-"""
+"""Ad chapters for kept ad segments in the generate, publisher-preserve and regenerate-chapters paths."""
 import json
 import shutil
 from datetime import datetime, timedelta, timezone

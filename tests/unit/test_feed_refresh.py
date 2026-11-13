@@ -1,4 +1,4 @@
-"""Tests for feed refresh logic -- N+1 query fix and bulk episode lookup."""
+"""Tests for feed refresh logic: N+1 query fix and bulk episode lookup."""
 from unittest.mock import MagicMock
 
 from database.episodes import EpisodeMixin

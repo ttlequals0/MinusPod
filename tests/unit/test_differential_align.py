@@ -1,10 +1,6 @@
-"""Alignment engine tests on synthetic ffmpeg fixtures (Layer 3).
-
-Two 'episodes' share seeded-noise content blocks separated by digital
-silence; only the inserted fill differs (6s vs 9s, different seeds).
-align_and_diff must recover the fill span as a differential region within
-0.5s and report matched content as identical regions. No network involved.
-"""
+"""Alignment engine tests on synthetic ffmpeg fixtures (Layer 3): two 'episodes' share seeded-noise
+content blocks separated by digital silence and differ only in the inserted fill (6s vs 9s).
+align_and_diff must recover the fill within 0.5s and report matched content as identical. No network."""
 import os
 import shutil
 import subprocess
@@ -104,10 +100,9 @@ def test_identical_files_report_no_differential(episode_pair):
 
 
 def test_whole_file_reencode_is_discarded(tmp_path):
-    # FIX 1 (#541): when nearly the whole run reads as differential (two fully
-    # different files -- the CDN re-encode case), the aligner is unreliable and
-    # the differential is discarded rather than cut. status 'unreliable_reencode'
-    # with zero regions.
+    # Re-encode guard (#541): when nearly the whole run reads as differential (two fully different
+    # files, as with a CDN re-encode), the aligner is unreliable and the differential is discarded
+    # (status 'unreliable_reencode', zero regions).
     work = str(tmp_path)
     run_file = os.path.join(work, 'run.wav')
     ref_file = os.path.join(work, 'ref.wav')
@@ -156,13 +151,9 @@ def test_three_discrete_fills_not_discarded(three_fill_pair):
 
 @pytest.fixture
 def high_diff_aligned_pair(tmp_path):
-    # ~60% differential but the aligner locks on: two 10s identical content
-    # blocks bracket one long differing fill (30s run / 27s ref, so the
-    # duration mismatch splits the offset groups and the content is probed
-    # separately from the fill). differential_fraction ~0.59 (below the 0.70
-    # cap) with identical_fraction ~0.40 (well above the 0.15 floor). The OLD
-    # 0.5 OR-threshold would have discarded this; the retuned AND guard must
-    # NOT -- a correctly-aligned ad-heavy episode keeps its ads (#541).
+    # ~60% differential but the aligner locks on: two 10s identical blocks bracket a long differing
+    # fill (30s run / 27s ref). differential_fraction ~0.59 (< 0.70 cap), identical_fraction ~0.40
+    # (> 0.15 floor): the AND guard must keep a correctly-aligned ad-heavy episode's ads (#541).
     work = str(tmp_path)
     seg = {}
     for name, seconds, seed in [
@@ -190,10 +181,8 @@ def test_high_differential_but_aligned_not_discarded(high_diff_aligned_pair):
 
 
 def test_reencode_discards_when_both_conditions_hold(episode_pair, monkeypatch):
-    # FIX 1 re-encode guard (AND semantics): force correlation to never confirm,
-    # so no identical coverage is recorded. identical_fraction 0.0 (< 0.15) and
-    # ~all of the run then reads as differential (> 0.70) -- both conditions hold
-    # -> discard as a likely whole-file re-encode.
+    # Re-encode guard (AND semantics): correlation never confirms, so identical_fraction is 0.0 (< 0.15)
+    # and ~all of the run reads as differential (> 0.70): both hold, discard as a whole-file re-encode.
     work, run_file, ref_file = episode_pair
     monkeypatch.setattr(df, '_block_correlation', lambda *a, **k: 0.0)
     result = align_and_diff(run_file, ref_file, work)

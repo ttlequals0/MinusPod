@@ -1,16 +1,6 @@
-"""Cue fusion into the differential stage.
-
-Three seams:
-1. dai_differential_ads consumes cue_marks: an uncorroborated merged
-   candidate with an edge inside the snap window of a primary template cue
-   cuts (cue-backed) instead of holding.
-2. Stage 2.5 derives cue_marks and cue-pair corroborating spans from the
-   audio_analysis object process_transcript already receives.
-3. The differential fetch scans the refetch for template cues (persisted as
-   refetch_cues) and align_and_diff interpolates the probe offset between
-   cue anchor pairs so a shifted identical block scores identical without
-   the doubled-window drift retry.
-"""
+"""Cue fusion into the differential stage: dai_differential_ads consumes cue_marks (an uncorroborated candidate near a
+template cue cuts instead of holding), Stage 2.5 derives cue_marks and cue-pair spans, and align_and_diff interpolates
+the probe offset between refetch_cues anchor pairs."""
 import os
 import sys
 import tempfile
@@ -195,10 +185,8 @@ def test_stage25_dict_analysis_is_tolerated():
 
 
 def test_stage25_non_ad_role_cue_excluded_from_marks():
-    # A non_ad-role cue (show_intro/show_outro/content_transition) must
-    # never corroborate a differential edge -- same role gate
-    # cue_boundary_snap and cue_pair_ads honor. Only the role differs from
-    # test_stage25_passes_template_cue_marks's confident template cue.
+    # A non_ad-role cue (show_intro/show_outro/content_transition) must never corroborate a differential
+    # edge, the same role gate cue_boundary_snap and cue_pair_ads honor.
     analysis = _analysis(
         _cue(101.5, confidence=0.9, role='non_ad'),
     )
@@ -208,7 +196,7 @@ def test_stage25_non_ad_role_cue_excluded_from_marks():
 
 def test_stage25_start_and_end_role_cues_are_included():
     # Ad-edge roles ('start', 'end', and by extension 'boundary') still
-    # corroborate -- pins existing behavior alongside the non_ad exclusion.
+    # corroborate, alongside the non_ad exclusion.
     analysis = _analysis(
         _cue(101.5, confidence=0.9, role='start', template_id=1),
         _cue(200.0, confidence=0.9, role='end', template_id=2),
@@ -218,10 +206,8 @@ def test_stage25_start_and_end_role_cues_are_included():
 
 
 def test_stage25_non_ad_cue_at_edge_leaves_candidate_held():
-    # End-to-end: a non_ad-role cue sitting right at the differential
-    # region's edge must not corroborate it -- the candidate stays held
-    # for review, unlike an ad-role cue at the same position (contrast
-    # test_differential_inside_cue_pair_is_cut_not_held).
+    # End-to-end: a non_ad-role cue at the differential region's edge must not corroborate it, so the
+    # candidate stays held (contrast test_differential_inside_cue_pair_is_cut_not_held).
     analysis = _analysis(_cue(138.0, confidence=0.9, role='non_ad'))
     detector = AdDetector(api_key='test-key')
     detector.db = MagicMock()
@@ -504,11 +490,8 @@ def test_anchor_offset_interpolates_between_anchors():
 
 
 def _shifted_pair(run_only_tail=False):
-    """Run A|sil|C; refetch inserts 2.5s unmarked pad before C (its silence
-    mark went undetected on the refetch), so C is chain-unmatched and its
-    inherited offset is stale by 2.5s (outside the base +-2s search window).
-    run_only_tail keeps C off the file end, where the end alignment would find it.
-    """
+    """Run A|sil|C; the refetch inserts a 2.5s unmarked pad before C (its silence mark went undetected), so C is
+    chain-unmatched with an offset stale by 2.5s (outside the +-2s window). run_only_tail keeps C off the file end."""
     a = _burst(8, 11, 220.0)
     c = _burst(8, 12, 440.0)
     pad = _burst(2.5, 77, None)

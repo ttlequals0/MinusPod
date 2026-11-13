@@ -1,8 +1,6 @@
-"""Unit tests for HEAD request handling on serve_episode route.
+"""Unit tests for HEAD request handling on serve_episode.
 
-HEAD requests on unprocessed episodes should NOT trigger JIT processing.
-They should proxy upstream audio headers instead.
-"""
+HEAD on an unprocessed episode must not trigger JIT processing; it proxies upstream audio headers."""
 from datetime import datetime, timedelta, timezone
 from unittest.mock import patch, MagicMock
 

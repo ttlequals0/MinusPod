@@ -1,12 +1,6 @@
-"""Unit tests for config.resolve_feed_cue_settings (Task A2).
+"""Unit tests for config.resolve_feed_cue_settings.
 
-Tests verify:
-- Per-feed override wins over global for each of the 7 knobs.
-- NULL override falls back to global setting.
-- NULL override + no global falls back to code default.
-- All 7 values returned from ONE db getter call (not seven).
-- Exception in DB falls back gracefully to defaults.
-"""
+Per-feed override beats global for each of the 7 knobs, NULL falls back to global then code default, all 7 values come from one db getter call, and a DB exception falls back to defaults."""
 import os
 import sys
 
@@ -55,7 +49,7 @@ class _DB:
 
 
 class _ErrorDB:
-    """All DB calls raise -- simulates total DB failure."""
+    """All DB calls raise, simulating total DB failure."""
 
     def get_podcast_cue_settings_overrides(self, podcast_id):
         raise RuntimeError('db error')
@@ -74,7 +68,7 @@ class _OverrideErrorDB(_DB):
         raise RuntimeError('override read failed')
 
 
-# -- Override wins --
+# Override wins
 
 def test_create_from_pairs_override_wins():
     db = _DB(overrides={'cue_create_from_pairs_override': 1},
@@ -126,7 +120,7 @@ def test_snap_lag_override_wins():
     assert resolve_feed_cue_settings(db, 1)['snap_lag'] == 2.0
 
 
-# -- NULL override falls back to global --
+# NULL override falls back to global
 
 def test_null_override_uses_global_create_from_pairs():
     db = _DB(overrides={'cue_create_from_pairs_override': None},
@@ -146,7 +140,7 @@ def test_null_override_uses_global_pair_min_break():
     assert resolve_feed_cue_settings(db, 1)['pair_min_break'] == 45.0
 
 
-# -- NULL override + no global falls back to code default --
+# NULL override + no global falls back to code default
 
 def test_all_null_uses_code_defaults():
     db = _DB()  # no overrides, no globals
@@ -160,7 +154,7 @@ def test_all_null_uses_code_defaults():
     assert result['snap_lag'] == DEFAULT_SNAP_LAG_SECONDS
 
 
-# -- Single getter call --
+# Single getter call
 
 def test_one_db_read_for_all_seven():
     """Resolver must fetch all 7 overrides in one db call."""
@@ -172,7 +166,7 @@ def test_one_db_read_for_all_seven():
     )
 
 
-# -- podcast_id=None skips override lookup --
+# podcast_id=None skips override lookup
 
 def test_no_podcast_id_skips_override():
     db = _DB(overrides={'cue_snap_confidence_override': 0.50},
@@ -181,7 +175,7 @@ def test_no_podcast_id_skips_override():
     assert result['snap_confidence'] == 0.88
 
 
-# -- Override-read failure falls through to globals (not code defaults) --
+# Override-read failure falls through to globals (not code defaults)
 
 def test_override_error_still_uses_globals():
     """Override read raises -> resolver falls through to global DB settings."""

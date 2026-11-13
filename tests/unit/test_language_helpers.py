@@ -1,10 +1,5 @@
-"""Tests for the shared language validation regex and per-feed override lookup.
-
-LANGUAGE_CODE_RE must reject region/script subtags (e.g. 'pt-br', 'zh-hans')
-because faster-whisper raises a fatal ValueError on them, which would make a
-feed silently unprocessable. get_feed_language_override centralizes the
-per-feed lookup so the transcription and pattern-stamping paths can't drift.
-"""
+"""Shared language validation regex and per-feed override lookup: LANGUAGE_CODE_RE must reject region/script subtags
+(e.g. 'pt-br') because faster-whisper raises a fatal ValueError on them; get_feed_language_override keeps paths from drifting."""
 import os
 import sys
 

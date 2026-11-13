@@ -1,10 +1,6 @@
 """Tests for utils.language.get_pattern_language resolution order.
 
-Resolution: per-feed language_override > global whisper_language. 'auto'
-collapses to None at either level. Used to stamp learned ad patterns with
-the language of the audio they came from so multi-lingual setups don't
-cross-contaminate the pattern DB.
-"""
+Per-feed language_override > global whisper_language; 'auto' collapses to None at either level."""
 
 import os
 import pathlib
@@ -59,7 +55,7 @@ def test_slug_override_auto_returns_none_not_global(db):
 def test_empty_slug_override_falls_back_to_global(db):
     db.set_setting('whisper_language', 'fr', is_default=False)
     db.create_podcast('show-c', 'https://example.com/feed.xml', title='Show C')
-    # Default after create -- no override set
+    # Default after create, no override set
     assert get_pattern_language(db, slug='show-c') == 'fr'
 
 

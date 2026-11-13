@@ -1,4 +1,4 @@
-"""A fingerprint stage that cannot read the audio logs one labelled WARNING and never the path."""
+"""A fingerprint stage that cannot read the audio logs one labelled warning and never the path."""
 import logging
 import stat
 

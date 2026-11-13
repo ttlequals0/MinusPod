@@ -207,7 +207,7 @@ def _spectral_cue(start, end, conf=0.9):
 
 def test_spectral_cue_does_not_snap_edge():
     # A coarse spectral cue sitting exactly where a template cue would snap
-    # must not move the edge -- consistent with cue-pair source gating.
+    # must not move the edge, consistent with cue-pair source gating.
     ads = [{'start': 100.0, 'end': 160.0}]
     result = _result_with(_spectral_cue(98.0, 99.5))
     snap_ad_boundaries_to_cues(ads, result, max_boundary_shift_s=10.0)
@@ -220,12 +220,7 @@ def test_spectral_cue_does_not_snap_edge():
 # ---------------------------------------------------------------------------
 
 def test_nearest_first_beats_farther_higher_confidence_cue():
-    """A cue at 2s distance with conf=0.85 must win over one at 8s with conf=0.99.
-
-    Old confidence-first key: (0.99, -8.0) > (0.85, -2.0) -- would select the
-    8s cue (wrong). New nearest-first key: (-2.0, 0.85) > (-8.0, 0.99) --
-    selects the 2s cue (correct).
-    """
+    """A cue at 2s distance with conf=0.85 must win over one at 8s with conf=0.99 (nearest-first, not confidence-first)."""
     ad_start = 100.0
     # near cue: end=98.0 -> distance = abs(98.0 - 100.0) = 2.0s, conf=0.85
     near = _cue(start=97.5, end=98.0, conf=0.85)
@@ -247,7 +242,7 @@ def test_tie_broken_by_confidence():
     ad_start = 100.0
     # Both cue ends are safely within the same 0.1s bucket.
     # cue_a.end = 97.10 -> distance = 2.90, rounds to 2.9
-    # cue_b.end = 97.06 -> distance = 2.94, rounds to 2.9 -- same bucket
+    # cue_b.end = 97.06 -> distance = 2.94, rounds to 2.9 (same bucket)
     cue_a = _cue(start=96.5, end=97.10, conf=0.95)
     cue_b = _cue(start=96.4, end=97.06, conf=0.82)
 
@@ -258,12 +253,7 @@ def test_tie_broken_by_confidence():
 
 
 def test_widened_window_snaps_7s_away_cue():
-    """A cue 7s before the ad start snaps with new defaults but not old constants.
-
-    Old constants: snap_lead=4.0s, snap_lag=2.0s. A cue whose end is 7s
-    before ad_start falls outside the old lead window (4s) -- not eligible.
-    New defaults: snap_lead=10.0s -- the cue is within the window.
-    """
+    """A cue 7s before the ad start snaps with the new defaults (snap_lead=10.0s) but not the old ones (snap_lead=4.0s, snap_lag=2.0s)."""
     ads_new = [{'start': 100.0, 'end': 160.0}]
     ads_old = [{'start': 100.0, 'end': 160.0}]
     # cue.end = 93.0 -> distance = 7.0s before ad_start
@@ -310,12 +300,7 @@ def test_single_cue_no_ambiguous_key():
 
 
 def test_settings_plumbing_snap_receives_db_values():
-    """detect._detect_ads_first_pass threads DB lead/lag into snap_ad_boundaries_to_cues.
-
-    Patches the DB settings accessor and the snap function itself so that if
-    processing.py stops reading or forwarding the DB values the mock assertion
-    will fail.
-    """
+    """detect._detect_ads_first_pass threads DB lead/lag into snap_ad_boundaries_to_cues (the mock assertion fails if forwarding stops)."""
     db_lead = 8.0
     db_lag = 3.5
 
@@ -361,11 +346,7 @@ def test_settings_plumbing_snap_receives_db_values():
 
 
 def test_telemetry_out_of_reach_follows_settings():
-    """out_of_reach computation in build_cue_detection_records uses live lead/lag.
-
-    With tight lead/lag a cue 6s away is out_of_reach. With wider values it
-    is not (it becomes 'unpaired' or another reason, but not 'out_of_reach').
-    """
+    """out_of_reach in build_cue_detection_records uses live lead/lag: a cue 6s away is out_of_reach with tight values, not with wider ones."""
     from ad_detector.cue_telemetry import build_cue_detection_records
 
     # One template cue 6s before the ad start; no snap occurred (outcome=none).
@@ -375,7 +356,7 @@ def test_telemetry_out_of_reach_follows_settings():
     cue = _cue(start=93.0, end=94.0, conf=0.90)  # 6s before ad_start
     result = _result_with(cue)
 
-    # Tight window (lead=4.0, lag=2.0): cue is 6s away -- out_of_reach.
+    # Tight window (lead=4.0, lag=2.0): cue is 6s away, out_of_reach.
     records_tight = build_cue_detection_records(
         ads, result,
         pre_snap_ads=pre_snap,
@@ -388,7 +369,7 @@ def test_telemetry_out_of_reach_follows_settings():
         "with lead=4.0 a cue 6s away must be out_of_reach"
     )
 
-    # Wide window (lead=10.0, lag=4.0): cue is within lead -- not out_of_reach.
+    # Wide window (lead=10.0, lag=4.0): cue is within lead, not out_of_reach.
     records_wide = build_cue_detection_records(
         ads, result,
         pre_snap_ads=pre_snap,
@@ -505,10 +486,7 @@ def test_transition_confidence_floor_applies():
 
 
 def test_spectral_transition_cue_never_snaps():
-    """Spectral (non-template) transition-band cues must not snap with allow_transition=True.
-
-    The is_template_cue gate filters these out before role / cue_type checks.
-    """
+    """Spectral (non-template) transition-band cues must not snap with allow_transition=True (the is_template_cue gate filters them first)."""
     spectral = AudioSegmentSignal(
         start=98.0, end=99.5, signal_type='audio_cue', confidence=0.9,
         details={

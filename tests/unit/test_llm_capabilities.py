@@ -268,7 +268,7 @@ class TestModelOmitsTemperature:
 
 
 class TestMarkModelOmitsTemperature:
-    """Self-healing per-process memo for models not in the static list (#530 follow-up)."""
+    """Self-healing per-process memo for models not in the static list (#530)."""
 
     def test_unknown_model_defaults_to_keeping_temperature(self):
         assert llm_capabilities.model_omits_temperature("claude-unreleased-9") is False

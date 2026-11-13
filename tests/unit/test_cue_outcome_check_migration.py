@@ -1,9 +1,6 @@
-"""Rebuild migration that drops the legacy outcome CHECK on cue_detections so the
-new 'below_threshold' near-miss outcome (#350 Phase 6) is accepted on DBs created
-while the CHECK still listed only ('snap', 'pair', 'none'). Runs the real
-Database init path against a seeded legacy DB. THE DATA-LOSS RULE IS ABSOLUTE:
-every seeded row must survive the rebuild.
-"""
+"""Rebuild migration dropping the legacy outcome CHECK on cue_detections so 'below_threshold' (#350) is accepted.
+
+Runs the real Database init against a seeded legacy DB; every seeded row must survive the rebuild."""
 import sqlite3
 
 import pytest

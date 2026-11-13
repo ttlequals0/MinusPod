@@ -84,7 +84,7 @@ def test_max_single_ad_gate_aborts_one_giant_cut():
 
 def test_max_single_ad_seconds_aborts_long_absolute_cut():
     # On a 2-hour episode a single 497s cut is a tiny fraction (0.069), so the
-    # fraction gate passes -- but the absolute 420s cap catches it and aborts.
+    # fraction gate passes, but the absolute 420s cap catches it and aborts.
     content = [{'start': 0, 'end': 3000}, {'start': 3500, 'end': 7200}]
     assert _ads(content, 7200) is None
     # A looser absolute cap lets the same cut through.

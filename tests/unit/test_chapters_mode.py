@@ -1,11 +1,5 @@
-"""Unit tests for the per-feed chapters mode (issue #560).
-
-'auto' (default) preserves publisher-embedded chapters when enough of them
-survive the cut: it probes the PROCESSED file, which the ffmpeg cut step has
-already remapped onto the cut timeline (audio_processor.py), instead of
-generating new ones with the chapter LLM. 'generate' keeps the pre-#560
-behavior unconditionally; 'off' skips the chapter step entirely.
-"""
+"""Per-feed chapters mode (issue #560): 'auto' (default) preserves publisher-embedded chapters that survive the cut
+(probing the remapped processed file), 'generate' always uses the chapter LLM, 'off' skips the step."""
 from datetime import datetime, timedelta, timezone
 import json
 import shutil
@@ -466,10 +460,8 @@ def test_unknown_empty_chapter_set_does_not_imply_publisher_choice(monkeypatch):
 
 
 def test_auto_probe_failure_skips_chapter_step_without_generating(monkeypatch):
-    # probe_chapters returns None (not []) on a transient ffprobe failure,
-    # distinct from "definitively no chapters" (embedded_chapters.py). This
-    # must NOT fall through to generate+embed, which would overwrite the ID3
-    # frames the cut step already wrote correctly (issue #500's failure mode).
+    # probe_chapters returns None (not []) on a transient ffprobe failure; that must not fall through to
+    # generate+embed, which would overwrite the ID3 frames the cut step already wrote (issue #500).
     db = _db(chapters_mode='auto')
     storage_mock, probe_mock, generator_class, embed_mock, fetch_mock = _run(monkeypatch, db, None)
 
@@ -532,14 +524,9 @@ def test_passed_in_podcast_row_skips_refetch(monkeypatch):
     assert 'chapters' not in db.save_processing_assets.call_args.args[2]
 
 
-# ---------- Upstream podcast:chapters JSON fetch (issue #560 follow-up) ----------
-#
-# Auto mode tries this source only after the embedded probe comes up short
-# (fewer than MIN_PRESERVED_CHAPTERS survivors) and the episode row carries
-# upstream_chapters_url. all_cuts=[] in this harness, so
-# _remap_chapters_for_recut's previous_cuts=[]/new_cuts=[] projection is an
-# identity map: a fetched chapter's startTime survives unchanged as long as
-# it is not a degenerate sliver against its neighbor or original_duration.
+# Upstream podcast:chapters JSON fetch (issue #560): auto mode tries it only after the embedded probe
+# yields fewer than MIN_PRESERVED_CHAPTERS and the episode row has upstream_chapters_url.
+# all_cuts=[] makes _remap_chapters_for_recut an identity map, so startTime survives unless it is a degenerate sliver.
 
 def test_auto_fetches_upstream_when_embedded_short_and_url_present(monkeypatch):
     db = _db(chapters_mode='auto', upstream_chapters_url='https://pub.example.com/ch.json')
@@ -610,10 +597,7 @@ def test_fetched_chapters_below_threshold_after_remap_falls_to_generator(monkeyp
 # ---------- Segment-marker hints (ad-break boundary hints) ----------
 
 def test_markers_reach_generator_as_segment_markers_kwarg(monkeypatch):
-    """_generate_assets threads its markers argument through to
-    ChaptersGenerator.generate_chapters as segment_markers: only reachable
-    on the AI-generation branch (mode 'generate' here, no publisher/upstream
-    chapters to preserve)."""
+    """_generate_assets passes markers to ChaptersGenerator.generate_chapters as segment_markers (AI-generation branch only)."""
     db = _db(chapters_mode='generate')
     markers = [{'start': 10.0, 'end': 20.0, 'action_applied': 'remove', 'category': 'sponsor'}]
     storage_mock, probe_mock, generator_class, embed_mock, fetch_mock = _run(

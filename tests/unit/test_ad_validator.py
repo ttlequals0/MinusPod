@@ -141,11 +141,8 @@ class TestAdValidatorDuration:
         assert any('ERROR' in f for f in result.ads[0]['validation']['flags'])
 
     def test_too_long_ads_are_held_not_dropped(self, sample_transcript):
-        """An ad past the ceiling whose only fault is length is held for review.
-
-        It used to be rejected outright, which left no marker at all, so a
-        whole ad break could disappear with nothing to look at.
-        """
+        """An ad past the ceiling whose only fault is length is held for review; outright rejection
+        left no marker at all."""
         validator = AdValidator(episode_duration=600.0, segments=sample_transcript)
 
         long_ad = {
@@ -633,7 +630,7 @@ class TestNotAdPatternsRegex:
         )
 
     def test_is_show_content_still_matched(self):
-        """'is show content' MUST still trigger rejection."""
+        """'is show content' must still trigger rejection."""
         validator = AdValidator(episode_duration=600.0, segments=[])
 
         ad = {
@@ -648,7 +645,7 @@ class TestNotAdPatternsRegex:
         assert result.rejected == 1
 
     def test_appears_to_be_regular_content_still_matched(self):
-        """'appears to be regular content' MUST still trigger rejection."""
+        """'appears to be regular content' must still trigger rejection."""
         validator = AdValidator(episode_duration=600.0, segments=[])
 
         ad = {
@@ -682,7 +679,7 @@ class TestNotAdPatternsRegex:
             assert not any('not an ad' in f for f in result.ads[0]['validation']['flags'])
 
     def test_no_ad_still_matched(self):
-        """'no ad' / 'no sponsor' as whole words MUST still trigger rejection."""
+        """'no ad' / 'no sponsor' as whole words must still trigger rejection."""
         validator = AdValidator(episode_duration=600.0, segments=[])
 
         for reason in ('There is no ad in this window',
@@ -699,7 +696,7 @@ class TestNotAdPatternsRegex:
             assert result.rejected == 1, f"{reason!r} should be rejected"
 
     def test_not_an_ad_still_matched(self):
-        """'not an ad' MUST still trigger rejection."""
+        """'not an ad' must still trigger rejection."""
         validator = AdValidator(episode_duration=600.0, segments=[])
 
         ad = {
@@ -714,7 +711,7 @@ class TestNotAdPatternsRegex:
         assert result.rejected == 1
 
     def test_false_positive_still_matched(self):
-        """'false positive' MUST still trigger rejection."""
+        """'false positive' must still trigger rejection."""
         validator = AdValidator(episode_duration=600.0, segments=[])
 
         ad = {
@@ -1445,13 +1442,8 @@ class TestConfirmedCorrections:
 
 
 class TestAdValidatorVadGapVerification:
-    """Tests for vad_gap-specific transcript verification.
-
-    Regression: one episode (b2c3d4e5f6a1) produced 8 vad_gap
-    markers carrying 'WARN: No ad signals in transcript' that were ACCEPTed
-    at adjusted confidence 0.80. Validator must not auto-cut a vad_gap
-    marker that has no corroborating sponsor or ad-signal pattern in range.
-    """
+    """vad_gap-specific transcript verification: a vad_gap marker with no corroborating sponsor or
+    ad-signal pattern in range must not be auto-cut (regression: such markers were ACCEPTed at 0.80)."""
 
     def test_vad_gap_with_no_signals_drops_below_cut_threshold(self):
         segments = [
@@ -1769,7 +1761,7 @@ class TestCueGatedApproval:
         assert ad['validation']['decision'] == Decision.ACCEPT.value
 
     def test_gate_on_manual_stage_is_accepted(self):
-        # 'manual' is exempt from cue gating -- human decision
+        # 'manual' is exempt from cue gating (human decision)
         validator = AdValidator(episode_duration=3600.0, segments=[],
                                 cue_gate_enabled=True)
         result = validator.validate([self._ad(detection_stage='manual')])
@@ -1801,10 +1793,9 @@ class TestCueGatedApproval:
         assert ad['validation']['decision'] == Decision.REVIEW.value
 
     def test_rounding_boundary_no_cue_is_held_not_accepted(self):
-        # Unrounded 0.7996 rounds to 0.800 == slider 0.80. The rounded value must
-        # not slip past the cue gate as a plain ACCEPT: decision rounds too, so
-        # the cue-gate hold rule sees ACCEPT and holds the no-cue ad. Position
-        # 0.10 and a neutral reason avoid position/reason boosts.
+        # Unrounded 0.7996 rounds to 0.800 == slider 0.80. The rounded value must not slip past the cue
+        # gate as a plain ACCEPT: decision rounds too, so the gate sees ACCEPT and holds. Position 0.10
+        # and a neutral reason avoid position/reason boosts.
         validator = AdValidator(episode_duration=3600.0, segments=[],
                                 cue_gate_enabled=True, min_cut_confidence=0.80)
         result = validator.validate([self._ad(start=360.0, end=420.0,
@@ -1909,11 +1900,8 @@ class TestCueOnlySafetyHold:
 
 class TestAudioCorroborationSource:
     """Layer 1 audio corroboration seam (docs/specs/2026-07-08-ad-splice-detection.md#11-vad_gap-clamp-bypass-with-audio-corroboration).
-
-    The stored audio_analysis dict is AudioAnalysisResult.to_dict():
-    {'signals': [{'start', 'end', 'signal_type', 'confidence', 'duration',
-    'details'}, ...], 'loudness_baseline', 'analysis_time_seconds', 'errors'}.
-    """
+    audio_analysis is AudioAnalysisResult.to_dict(): {'signals': [{'start', 'end', 'signal_type',
+    'confidence', 'duration', 'details'}, ...], 'loudness_baseline', 'analysis_time_seconds', 'errors'}"""
 
     def _validator(self, analysis):
         validator = AdValidator(episode_duration=10600.0, segments=[])
@@ -1985,12 +1973,9 @@ class TestAudioCorroborationSource:
 
 
 class TestVadGapClampBypass:
-    """Regression (example-podcast/a1b2c3d4e5f6): a DAI
-    post-roll played ~15 dB quieter, Whisper VAD dropped it, and the vad_gap
-    marker covering it (0.75 + 0.05 POST_ROLL boost = 0.80) was clamped to
-    0.79 because untranscribed audio can never show ad signals in transcript.
-    A stored 15 dB transition pair at the boundary must bypass the clamp.
-    """
+    """Regression: a DAI post-roll played ~15 dB quieter and Whisper VAD dropped it, so the vad_gap marker
+    covering it (0.75 + 0.05 POST_ROLL boost = 0.80) was clamped to 0.79. A stored 15 dB transition pair
+    at the boundary must bypass the clamp."""
 
     SEGMENTS = [
         {'start': 10520.0, 'end': 10545.0,
@@ -2080,11 +2065,9 @@ class TestVadGapClampBypass:
 
 
 class TestUncorroboratedTailHold:
-    """docs/specs/2026-07-08-ad-splice-detection.md#13-review-queue-visibility-for-uncorroborated-tail-markers: a vad_gap marker at the episode tail (end within 5s of EOF)
-    that stays REVIEW and uncorroborated is held for review, so it lands in
-    the pending-review UI instead of shipping silently (one episode shipped
-    with pendingReviewCount=0).
-    """
+    """docs/specs/2026-07-08-ad-splice-detection.md#13-review-queue-visibility-for-uncorroborated-tail-markers:
+    a vad_gap marker at the episode tail (end within 5s of EOF) that stays REVIEW and uncorroborated is
+    held, so it reaches the pending-review UI instead of shipping silently."""
 
     SEGMENTS = [
         {'start': 10520.0, 'end': 10545.0,
@@ -2252,10 +2235,9 @@ class TestDaiDifferentialCorroboration:
 
 class TestMergeCloseAdsDifferentialBoundary:
     def test_close_ads_do_not_merge_across_differential_hold_boundary(self):
-        # #541: a confident cut ad within MERGE_GAP_THRESHOLD of a held
-        # uncorroborated differential must NOT fold into it -- the fold would
-        # keep differential_uncorroborated on the merged span and Rule 5 would
-        # hold the real ad forever. They stay separate.
+        # #541: a confident cut ad within MERGE_GAP_THRESHOLD of a held uncorroborated differential must
+        # not fold into it, or differential_uncorroborated stays on the merged span and Rule 5 holds the
+        # real ad forever. They stay separate.
         from config import HOLD_REASON_DIFFERENTIAL_UNCORROBORATED
         from ad_validator import ValidationResult
         validator = AdValidator(episode_duration=3600.0, segments=[])
@@ -2349,13 +2331,9 @@ def test_merge_preserves_vad_adjacency_extension_limit():
 
 
 class TestRegistryConfirmsLongAds:
-    """A real multi-sponsor break was rejected on length alone.
-
-    The duration ceiling lifts when a sponsor is "confirmed", but the only
-    source of confirmation was the episode description, and many shows never
-    list sponsors there. A 374s break naming two registry sponsors was
-    rejected as "Very long", and the verification pass could not rescue it.
-    """
+    """A multi-sponsor break naming two registry sponsors must not be rejected on length alone: the
+    duration ceiling lifts on a "confirmed" sponsor, and the episode description (often sponsor-free)
+    must not be the only source of confirmation."""
 
     ADS_TEXT = ("head to the money zone. Are you ready to upgrade your home for way "
                 "less? Head to Wayfair.com right now to shop all things home. "
@@ -2478,14 +2456,9 @@ class TestConfigurableDurationCeilings:
 
 
 class TestReasonDenyingAdContent:
-    """A reason that says there is no ad content must not become a marker.
-
-    The verification pass reads the already-cut audio, so a seam left by a
-    pass-1 cut looks like a mid-sentence break. The model reported one and
-    said so plainly ("no promotional copy is present in the transcript for
-    this gap"), but the phrase was not in the not-an-ad set, so a 17-second
-    stretch of an advice segment was flagged.
-    """
+    """A reason that says there is no ad content must not become a marker. The verification pass reads
+    already-cut audio, where a pass-1 seam looks like a mid-sentence break, so a "no promotional copy is
+    present" reason must be in the not-an-ad set."""
 
     REASON = ("Ad break cut into the advice segment: segment breaks off "
               "mid-sentence at 2980.9 and resumes at 2997.9 with the advice "
@@ -3457,10 +3430,9 @@ class TestPlainConfirmMultiFragment:
 
 
 class TestSponsorConfirmedIsEvidenceNotProse:
-    """The duration allowance takes any confirmation, including the detection
-    model's own reason. The stored sponsor_confirmed flag is read back by the
-    reviewer's reject floor, where one model's prose cannot outrank the other
-    model's verdict."""
+    """The duration allowance takes any confirmation, including the detection model's own reason; the
+    stored sponsor_confirmed flag is read by the reviewer's reject floor, where one model's prose
+    cannot outrank the other model's verdict."""
 
     def _validator(self, transcript):
         from utils.text import word_boundary_re

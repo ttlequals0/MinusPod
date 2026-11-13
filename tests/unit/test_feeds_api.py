@@ -1,11 +1,6 @@
 """Integration tests for the chaptersMode per-feed setting (#560 API surface).
 
-Mirrors test_passthrough_settings_api.py's fixture style. Covers:
-- GET echoes the raw chapters_mode column (null when unset).
-- PATCH sets each valid value ('auto', 'generate', 'off').
-- PATCH null resets the override.
-- PATCH an invalid string -> 400, column left unchanged.
-"""
+Mirrors test_passthrough_settings_api.py's fixtures. GET echoes the raw chapters_mode column (null when unset); PATCH sets 'auto'/'generate'/'off', null resets, an invalid string is 400 with the column unchanged."""
 import os
 import sqlite3
 import sys
@@ -218,7 +213,7 @@ def test_patch_network_id_override_rolls_back_if_retag_fails(app_client, seeded_
     assert db.get_podcast_by_slug(slug)['network_id_override'] == 'old-network'
 
 
-# -- ownEpisodeGuids (#598) --
+# ownEpisodeGuids (#598)
 
 @pytest.fixture
 def no_feed_refresh(monkeypatch):
@@ -269,7 +264,7 @@ def test_own_episode_guids_migration_idempotent(app_client, seeded_feed):
                                      'INTEGER', cols) is False
 
 
-# -- queuePriority (#625) --
+# queuePriority (#625)
 
 def _insert_pending_queue_row(db, podcast_id, episode_id):
     conn = db.get_connection()
@@ -371,7 +366,7 @@ def test_patch_queue_priority_same_value_skips_restamp(app_client, seeded_feed, 
     assert restamp_calls == []
 
 
-# -- titleSkipPatterns / titleSkipAction (episode title blacklist) --
+# titleSkipPatterns / titleSkipAction (episode title blacklist)
 
 def test_get_feed_defaults_title_skip_fields(app_client, seeded_feed):
     slug = seeded_feed['slug']
@@ -507,7 +502,7 @@ def test_patch_invalid_skip_patterns_rejected(app_client, seeded_feed, patterns,
     assert seeded_feed['db'].get_podcast_by_slug(slug)[column] is None
 
 
-# -- lowAdYieldAction per-feed override --
+# lowAdYieldAction per-feed override
 
 def test_get_feed_echoes_null_low_ad_yield_action(app_client, seeded_feed):
     slug = seeded_feed['slug']
@@ -559,7 +554,7 @@ def test_patch_invalid_low_ad_yield_action_rejected(app_client, seeded_feed):
     assert seeded_feed['db'].get_podcast_by_slug(slug)['low_ad_yield_action'] == 'full'
 
 
-# -- episodeLogs per-feed override (#660) --
+# episodeLogs per-feed override (#660)
 
 def test_get_feed_echoes_null_episode_logs(app_client, seeded_feed):
     slug = seeded_feed['slug']
@@ -611,7 +606,7 @@ def test_patch_invalid_episode_logs_rejected(app_client, seeded_feed):
     assert seeded_feed['db'].get_podcast_by_slug(slug)['episode_logs'] == 'off'
 
 
-# -- detectionNotes (#709) --
+# detectionNotes (#709)
 
 def test_patch_detection_notes_roundtrip(app_client, seeded_feed):
     slug = seeded_feed['slug']

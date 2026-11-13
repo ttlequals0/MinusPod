@@ -1,11 +1,6 @@
 """Tests for how much of a download URL reaches the logs.
 
-A failed download used to log the host and nothing else, so repeated failures
-left no record of what was being fetched. The path and the redirect chain are
-now logged; the query string stays opt-in because a podcast enclosure
-regularly carries a signed CDN token or a per-listener tracking id there, and
-logs outlive both.
-"""
+The host, path and redirect chain are logged; the query string stays opt-in because an enclosure URL often carries a signed CDN token or per-listener tracking id, and logs outlive both."""
 import logging
 
 import pytest

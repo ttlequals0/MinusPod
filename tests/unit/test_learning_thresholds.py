@@ -1,11 +1,6 @@
 """Tests for tunable learning confidence thresholds.
 
-record_verification_misses (pattern_service) and learn_from_detections /
-_ad_passes_learning_filters (ad_detector) must read learning_min_confidence
-and learning_min_confidence_long from the DB at call time instead of the
-LEARNING_MIN_CONFIDENCE / _LONG constants directly, so a settings change
-takes effect on the next run without any caching.
-"""
+record_verification_misses, learn_from_detections and _ad_passes_learning_filters must read learning_min_confidence and learning_min_confidence_long from the DB at call time, not the LEARNING_MIN_CONFIDENCE / _LONG constants, so a settings change applies on the next run without caching."""
 import os
 import sys
 from unittest.mock import MagicMock

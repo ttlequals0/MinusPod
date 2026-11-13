@@ -1,16 +1,6 @@
 """Tests for RSSParser.extract_podcast_artwork_url.
 
-The Podcasting 2.0 reference feed pc20.xml exposes a known feedparser
-quirk: it declares a 144x144 PNG as the channel ``<image><url>`` and as
-the channel ``<itunes:image href="...">``, but the FIRST episode also
-declares its own ``<itunes:image>`` (a 40 MB animated GIF), and
-feedparser folds that into ``feed.image.href``. Reading the raw XML
-channel-level elements directly avoids that override.
-
-The function returns an ORDERED CANDIDATE LIST (itunes:image first, then
-the RSS <image><url>), not a single URL, so a downloader can fall back to
-the next candidate when the preferred one fails.
-"""
+Reads channel-level XML directly because feedparser folds the first episode's itunes:image into feed.image.href (seen in the Podcasting 2.0 reference feed). Returns an ordered candidate list (itunes:image, then <image><url>) so a downloader can fall back."""
 import defusedxml
 defusedxml.defuse_stdlib()
 
