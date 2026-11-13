@@ -77,6 +77,17 @@ a match needs a minimum amount of novelty-weighted agreeing audio (or 90 percent
 of what a shorter pattern can supply) and a minimum amount of very close
 agreement. Anything else is ignored and not recorded.
 
+A run under the minimum coverage still counts, as a partial match, when it
+holds at least 20 seconds of novelty-weighted agreeing audio and passes the
+strictness and both evidence gates. Ads air in groups, so a stored fingerprint
+often spans two or three ads of one break, and another episode may air only
+one of them. The cut spans only the measured run, as for any match. Shared
+heads such as a 4 to 13 second tagline, disclaimer or bumper stay under 20
+seconds and are still rejected by coverage. When a partial match overlaps a
+full match of another pattern, the full match takes the overlap even when the
+partial one is longer. The partial one keeps what is left if that is at least
+the minimum ad length.
+
 A fingerprint with too little distinctive audio, or whose share of
 non-constant points is below the minimum coverage, could never pass these
 gates. It is refused when stored (reason `not_distinctive`) instead of sitting
@@ -268,7 +279,7 @@ defaults and reset, and included in config export and import.
 |---|---|---|
 | Audio fingerprinting | On or off for the install | On |
 | Match strictness | Minimum similarity for a match | 65% (today's threshold); allowed 65% to 95% |
-| Minimum coverage | Share of the stored ad that must be found | 50%; allowed 10% to 100% |
+| Minimum coverage | Share of the stored ad that must be found by a run with under 20 s of evidence | 50%; allowed 10% to 100% |
 | Gap tolerance | Longest dropout bridged inside a match | 3.5 s; allowed 0 to 15 s |
 | Minimum ad length | Shortest span that gets a fingerprint | 5 s (today's value); allowed 3 to 30 s |
 
