@@ -7861,7 +7861,7 @@ paths:
                 fingerprintMinCoverage:
                   type: number
                   default: 0.5
-                  description: Share of the stored ad that must be found for a match (default 0.5). A number from 0.1 to 1; anything else is a 400.
+                  description: Share of the stored ad that must be found for a match with under 20 seconds of matching evidence (default 0.5). A match with 20 seconds or more is accepted below it, and only the matched part is cut. A number from 0.1 to 1; anything else is a 400.
                   minimum: 0.1
                   maximum: 1
                 fingerprintGapToleranceS:
@@ -18348,7 +18348,7 @@ components:
               description: Suggested input step.
         fingerprintMinCoverage:
           type: object
-          description: Share of the stored ad that must be found for a match (default 0.5, range 0.1 to 1).
+          description: Share of the stored ad that must be found for a match with under 20 seconds of matching evidence (default 0.5, range 0.1 to 1). A match with 20 seconds or more is accepted below it, and only the matched part is cut.
           properties:
             value:
               type: number

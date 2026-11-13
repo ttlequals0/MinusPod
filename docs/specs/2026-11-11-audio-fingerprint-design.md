@@ -83,15 +83,19 @@ strictness and both evidence gates. Ads air in groups, so a stored fingerprint
 often spans two or three ads of one break, and another episode may air only
 one of them. The cut spans only the measured run, as for any match. Shared
 heads such as a 4 to 13 second tagline, disclaimer or bumper stay under 20
-seconds and are still rejected by coverage. When a partial match overlaps a
-full match of another pattern, the full match takes the overlap even when the
-partial one is longer. The partial one keeps what is left if that is at least
-the minimum ad length.
+seconds and are still rejected by coverage. When a full match of another
+pattern covers at least half of a partial match, the full match takes the
+overlap even when the partial one is longer. A partial composite then cannot
+displace a full match of the same ad. Otherwise the longer match wins as usual,
+so a short pattern from the middle of an ad does not leave the rest uncut. The
+losing match keeps what is left if that is at least the minimum ad length. A
+partial match counts toward the pattern's matches but never promotes the
+pattern's scope, because it found only one ad of the pattern.
 
-A fingerprint with too little distinctive audio, or whose share of
-non-constant points is below the minimum coverage, could never pass these
-gates. It is refused when stored (reason `not_distinctive`) instead of sitting
-unmatched. If the minimum coverage setting is raised later, a stored
+A fingerprint with too little distinctive audio, or with under 20 seconds of
+evidence and a share of non-constant points below the minimum coverage, could
+never pass these gates. It is refused when stored (reason `not_distinctive`)
+instead of sitting unmatched. If the minimum coverage setting is raised later, a stored
 fingerprint that can no longer match shows `matchable: false` in its detail.
 
 The marker for a match spans the measured `start` to `end`. Today the end is
