@@ -99,8 +99,8 @@ The sponsor check verifies that the name occurs in the retained text. It cannot 
 
 | Kind | What it proposes | What approving does |
 |---|---|---|
-| Trim | Removes leading and/or trailing text that isn't the sponsor read, optionally correcting its sponsor | Replaces the text and intro/outro variants, plus the sponsor when included |
-| Split | Two or more sponsors read back to back become separate patterns | Creates the new patterns and disables the original, with a reason noting the split |
+| Trim | Removes leading and/or trailing text that isn't the sponsor read, optionally correcting its sponsor | Replaces the text and intro/outro variants, plus the sponsor when included. The audio fingerprint is rebuilt from the trimmed text's span, or kept as it was if that span cannot be found |
+| Split | Two or more sponsors read back to back become separate patterns | Creates the new patterns and disables the original, with a reason noting the split. Each new pattern gets its own audio fingerprint from the original's source episode, if that episode's original audio is retained and the original's audio is on |
 | Rename | The sponsor on the pattern doesn't match what's actually read | Re-resolves the sponsor and updates the pattern's sponsor link |
 | Category | The category doesn't match the pattern's content | Updates the pattern category |
 | Retire | The pattern hasn't matched in a long time | Deactivates the pattern with a reason noting how long it went unused |

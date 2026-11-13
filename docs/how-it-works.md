@@ -200,6 +200,8 @@ An audio fingerprint is a Chromaprint signature of a known ad. It lives on a pat
 |--------|--------|
 | LLM or SponsorBlock detection that creates a pattern | A fingerprint of the detected span |
 | Add ad in the ad editor | A fingerprint of the marked span, one per sponsor if the text splits |
+| Split of a pattern, by hand or in Pattern Cleanup | Each new pattern gets a fingerprint of its own span of the original's source episode |
+| Trim in Pattern Cleanup | The fingerprint is rebuilt from the trimmed text's span |
 | Confirm | A fingerprint, only if the pattern has none |
 | Adjust | The fingerprint is rebuilt from the new edges |
 | Add audio to pattern, on a text-pattern detection | A fingerprint of the detection's span as shown |

@@ -5394,7 +5394,10 @@ paths:
       description: |
         Split a pattern containing multiple ad transition phrases into separate
         single-sponsor patterns. The original pattern is disabled and new patterns
-        are created for each detected sponsor segment.
+        are created for each detected sponsor segment. When the original has audio that
+        is on and not deleted, and its source episode still retains the original, each
+        new pattern is fingerprinted over its own span of that episode. This is best
+        effort and never fails the split.
       operationId: splitPattern
       parameters:
         - name: pattern_id
@@ -5421,6 +5424,11 @@ paths:
                       type: integer
                   message:
                     type: string
+                  fingerprintStored:
+                    type: boolean
+                    description: Whether an audio fingerprint was stored for at least one new pattern. Absent when the original had no usable audio.
+                  fingerprintSkippedReason:
+                    $ref: '#/components/schemas/FingerprintSkippedReason'
         '400':
           description: Pattern does not need splitting or not found
           content:
@@ -5684,7 +5692,12 @@ paths:
       summary: Approve a pattern cleanup suggestion
       description: >-
         Applies the change in place; the pattern keeps a `before` snapshot
-        so it can be undone.
+        so it can be undone. After a split, each new pattern is fingerprinted
+        over its own span of the original's source episode; after a trim, the
+        pattern's fingerprint is rebuilt from the trimmed text's span. Both are
+        best effort, run after the change is saved, and never fail the approval.
+        The response carries `fingerprintStored` and `fingerprintSkippedReason`
+        when audio was involved.
       operationId: approvePatternCleanupSuggestion
       parameters:
         - name: suggestion_id
@@ -5752,7 +5765,9 @@ paths:
       description: >-
         Restores only fields owned by the approval, using its before and
         post-approval snapshots. Split undo restores the original pattern
-        and disables its unchanged children.
+        and disables its unchanged children. Trim undo rebuilds the earlier
+        fingerprint from its source span when the trim replaced it, and reports
+        `fingerprintStored` like approve does.
       operationId: undoPatternCleanupSuggestion
       parameters:
         - name: suggestion_id
@@ -15118,6 +15133,11 @@ components:
             sourceContext:
               type: string
               description: Optional retained source transcript around the reviewed pattern, with its span marked by double brackets. Absent when unavailable.
+        fingerprintStored:
+          type: boolean
+          description: Returned by approve and undo only. Whether an audio fingerprint was stored. Absent when no audio was involved.
+        fingerprintSkippedReason:
+          $ref: '#/components/schemas/FingerprintSkippedReason'
         applied:
           type: [object, 'null']
           description: >-
@@ -15140,6 +15160,9 @@ components:
               type: string
             sponsorId:
               type: integer
+            audioSource:
+              type: [object, 'null']
+              description: Source episode span of the pattern's fingerprint when it was approved, used to restore audio on undo. Null when it had none.
             after:
               type: object
               description: Post-approval values of fields owned by this change.

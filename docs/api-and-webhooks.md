@@ -99,9 +99,9 @@ Key endpoints:
 - `POST /api/v1/patterns/cleanup/run` - Start a cleanup batch; `{"force": true}` forces a recheck of all active learned patterns. Returns 202 with `{"runId"}`, 400 for invalid input, or 409 if already running or, with `code: llm_disabled`, while the LLM provider is `none`; rate limited to 6/hour
 - `GET /api/v1/patterns/cleanup/runs` - Recent pattern cleanup runs, newest first
 - `GET /api/v1/patterns/cleanup/suggestions` - List suggestions by `status` and `kind`, paginated with `limit` and `before_id`
-- `POST /api/v1/patterns/cleanup/suggestions/{id}/approve` - Approve one suggestion, applying it to the pattern in place
+- `POST /api/v1/patterns/cleanup/suggestions/{id}/approve` - Approve one suggestion, applying it to the pattern in place. A split or trim also rebuilds audio fingerprints after it is saved, and the response carries `fingerprintStored` and `fingerprintSkippedReason` when audio was involved
 - `POST /api/v1/patterns/cleanup/suggestions/{id}/reject` - Reject one suggestion
-- `POST /api/v1/patterns/cleanup/suggestions/{id}/undo` - Undo an approval; 409 on a conflicting later edit
+- `POST /api/v1/patterns/cleanup/suggestions/{id}/undo` - Undo an approval; 409 on a conflicting later edit. Undoing a trim restores the earlier fingerprint span and reports `fingerprintStored` the same way
 - `POST /api/v1/patterns/cleanup/suggestions/bulk` - Approve or reject several suggestion ids at once
 - `GET /api/v1/sponsors` - List/create/update/delete sponsors (full CRUD)
 - `GET /api/v1/search?q=query` - Full-text search across all content, grouped into shows, episodes, transcripts, patterns and sponsors. Optional `groups` (comma-separated subset of those five, default all) limits which are computed; an unrequested group is returned empty rather than omitted. Names are case-sensitive, empty tokens from a stray comma are ignored, and duplicates are tolerated. A query shorter than two characters returns every group empty. A request that sends the removed `type` parameter gets a 400
