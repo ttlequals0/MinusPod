@@ -1221,8 +1221,8 @@ class TestSonnet5Fable5CostRecomputeMigration:
 
     def test_sibling_row_with_correct_cost_is_not_clobbered(self, temp_db):
         """Two rows share the claudesonnet5 match_key: one $0 (needs fix), one $42 (correct). At
-        in=3.0/Mtok out=15.0/Mtok
-        the $0 row (1M in + 1M out) recomputes to $18, the $42 row (dated model_id) stays, and global resets to $60."""
+        in=3.0/Mtok out=15.0/Mtok the $0 row (1M in + 1M out) recomputes to $18, the $42 row (dated
+        model_id) stays, and global resets to $60."""
         conn = temp_db.get_connection()
         conn.execute(
             """INSERT INTO token_usage

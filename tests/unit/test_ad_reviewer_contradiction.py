@@ -1,6 +1,7 @@
 """Reviewer verdict/reasoning contradiction
 (docs/specs/2026-07-08-ad-splice-detection.md#14-reviewer-verdictreasoning-contradiction-bug-3):
-_review_single derives confirmed/adjust only from boundary arithmetic and never reads the reason text."""
+_review_single derives confirmed/adjust only from boundary arithmetic and never reads the reason
+text."""
 import os
 import sys
 import tempfile

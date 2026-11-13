@@ -718,8 +718,8 @@ class TestKeepMarkersBlockTerminalSnap:
 
 class TestLateKeepSafetyNet:
     """A marker synthesized after the keep partition ran (heuristic pre/post-roll, VAD-gap) with a
-    'keep' category is caught by
-    _apply_late_keep_safety_net, the last chance before the cut list reaches the audio processor."""
+    'keep' category is caught by _apply_late_keep_safety_net, the last chance before the cut list
+    reaches the audio processor."""
 
     def test_drops_synthesized_marker_with_keep_resolved_category(self, caplog):
         actions_map = {'sponsor': 'keep', 'cross_promo': 'remove',
@@ -831,9 +831,9 @@ class TestLateKeepPartitionBeforeSweeps:
 
     def test_terminal_snap_does_not_swallow_late_kept_span(self):
         """Real _snap_terminal_starts in process_episode: a synthesized [70, 85) marker (normalizes
-        to 'sponsor' -> 'keep')
-        precedes a terminal cut at [90, 99) with a silence event at 72.0 in the scan-back window. Without the early
-        re-partition the marker reads as safe coverage and the cut's start snaps back to 72.0."""
+        to 'sponsor' -> 'keep') precedes a terminal cut at [90, 99) with a silence event at 72.0 in
+        the scan-back window. Without the early re-partition the marker reads as safe coverage and
+        the cut's start snaps back to 72.0."""
         terminal_ad = {'start': 90.0, 'end': 99.0, 'category': 'cross_promo',
                        'confidence': 0.9, 'detection_stage': 'text_pattern',
                        'reason': 'terminal block'}

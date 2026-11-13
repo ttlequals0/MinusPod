@@ -1464,11 +1464,11 @@ class AdValidator:
                 return Decision.REVIEW
 
         # Rule 4: an uncorroborated vad_gap marker at the episode tail must surface in the
-        # pending-review queue, not ship
-        # silently. Fires on REVIEW (clamp already routed it) and on ACCEPT (the empty-text early-return left confidence
-        # unclamped, so 0.80 >= threshold but no stored evidence justifies the cut). A corroborated
-        # tail cuts regardless.
-        # Calls the corroboration helper directly so tails with no transcript text still count stored audio evidence.
+        # pending-review queue, not ship silently. Fires on REVIEW (clamp already routed it) and on
+        # ACCEPT (the empty-text early-return left confidence unclamped, so 0.80 >= threshold but no
+        # stored evidence justifies the cut). A corroborated tail cuts regardless. Calls the
+        # corroboration helper directly so tails with no transcript text still count stored audio
+        # evidence.
         if (decision in (Decision.REVIEW, Decision.ACCEPT)
                 and ad.get('detection_stage') == 'vad_gap'
                 and self.episode_duration > 0

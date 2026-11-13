@@ -656,7 +656,8 @@ def start_commit(slug: str, plan: dict, *, db, storage) -> tuple[bool, str]:
     as running, captures whether the feed already had episodes (for the initial-import auto-process rule, see
     ``_commit_entries``) before spawning the thread so its own inserts cannot flip it, and returns
     ``(True, 'started')``.
-    The flock is acquired here and held by the thread for the commit; ``_run_commit``'s ``finally`` releases it.
+    The flock is acquired here and held by the thread for the commit; ``_run_commit``'s
+    ``finally`` releases it.
     """
     if plan.get('slug') != slug:
         return False, 'plan slug mismatch'
@@ -1180,15 +1181,16 @@ def _commit_entries(slug: str, plan: dict, db, storage, had_episodes: bool,
         local_feed_builder.rebuild_local_feed(slug)
     finally:
         # Staging is MinusPod-managed: once a commit finishes (even if queueing/rebuild above
-        # raised), sweep what is left.
-        # Committed entries' leftovers are already gone (_commit_entry moves the audio and deletes sidecars), so what
-        # remains is (1) files the plan rejected outright (a name that never matched sNNeNN, an empty file, a stray
-        # .part), which this sweep removes, and (2) a skipped or errored entry's audio + sidecars, which it keeps
-        # (preserved_leftovers) so an operator can fix the problem and rescan without re-uploading. The directory is
-        # removed only once every non-preserved file is gone. Per-entry removal (not one rmtree) mirrors
-        # clear_import_staging: a busy bind-mounted staging dir can refuse to remove itself but let contents go.
-        # Scoped to source in ('staging', 'both'): a 'directory' plan never looked at staging, so it must not sweep it
-        # (an operator mid-upload for a separate directory-sourced commit would lose their staging batch).
+        # raised), sweep what is left. Committed entries' leftovers are already gone (_commit_entry
+        # moves the audio and deletes sidecars), so what remains is (1) files the plan rejected
+        # outright (a name that never matched sNNeNN, an empty file, a stray .part), which this
+        # sweep removes, and (2) a skipped or errored entry's audio + sidecars, which it keeps
+        # (preserved_leftovers) so an operator can fix the problem and rescan without re-uploading.
+        # The directory is removed only once every non-preserved file is gone. Per-entry removal
+        # (not one rmtree) mirrors clear_import_staging: a busy bind-mounted staging dir can refuse
+        # to remove itself but let contents go. Scoped to source in ('staging', 'both'): a
+        # 'directory' plan never looked at staging, so it must not sweep it (an operator mid-upload
+        # for a separate directory-sourced commit would lose their staging batch).
         if source in ('staging', 'both') and staging_dir.exists():
             all_removed = True
             for child in staging_dir.iterdir():
