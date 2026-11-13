@@ -56,6 +56,7 @@ release notes.
 - The Recents feed query uses a new index on processed status and publish date, created at startup, instead of scanning the episodes table.
 - The pattern audio preview cache is capped at 64 MiB and drops expired slices. A rebuild span with an out-of-range number is rejected with a 400.
 - The start of the waveform for AAC and low-bitrate MP3 is no longer drawn flat, because the decode no longer seeks to 0 and drops the decoder's lead-in.
+- Expired failed sign-in records are now removed by the maintenance task. Before, they stayed in the database until that address signed in.
 
 ## [2.101.34] - 2026-11-09
 

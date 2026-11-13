@@ -107,10 +107,7 @@ class AuthLockoutMixin:
         conn.commit()
 
     def cleanup_auth_failures(self) -> int:
-        """Remove rows whose window expired and whose lockout (if any) is
-        also in the past. Callers invoke this from the existing cleanup task.
-        Returns the count of deleted rows for telemetry.
-        """
+        """Delete rows whose window and lockout have passed; return the count."""
         now = _now_iso()
         window_start = _window_start_iso()
         conn = self.get_connection()

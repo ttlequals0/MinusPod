@@ -375,3 +375,55 @@ def test_the_maintenance_tick_starts_the_upgrade_steps(monkeypatch):
     monkeypatch.setattr(background, 'db', fake_db)
     background._run_maintenance_tick(MagicMock())
     assert started == [1]
+
+
+class TestAuthFailureCleanup:
+    @pytest.fixture
+    def conn(self, monkeypatch):
+        monkeypatch.setattr(background.db, 'cleanup_old_episodes', lambda storage=None: (0, 0.0))
+        monkeypatch.setattr(background.db, 'get_all_podcasts', lambda: [])
+        monkeypatch.setattr(background.run_log, 'sweep_expired_logs', lambda *a: (0, 0))
+        monkeypatch.setattr(background.storage, 'sweep_peaks_temp_files', lambda: 0)
+        conn = background.db.get_connection()
+        conn.execute("DELETE FROM auth_failures")
+        conn.commit()
+        yield conn
+        conn.execute("DELETE FROM auth_failures")
+        conn.commit()
+
+    @staticmethod
+    def _insert(conn, ip, last_failed_at, locked_until=None):
+        conn.execute(
+            "INSERT INTO auth_failures (ip, failed_count, first_failed_at, last_failed_at, locked_until) "
+            "VALUES (?, 1, ?, ?, ?)", (ip, last_failed_at, last_failed_at, locked_until))
+        conn.commit()
+
+    @staticmethod
+    def _ips(conn):
+        return {r[0] for r in conn.execute("SELECT ip FROM auth_failures")}
+
+    def test_expired_row_is_removed_and_live_rows_are_kept(self, conn):
+        now = datetime.now(timezone.utc)
+        fmt = "%Y-%m-%dT%H:%M:%SZ"
+        old = (now - timedelta(days=2)).strftime(fmt)
+        recent = now.strftime(fmt)
+        future = (now + timedelta(hours=1)).strftime(fmt)
+        self._insert(conn, '203.0.113.1', old)
+        self._insert(conn, '203.0.113.2', recent)
+        self._insert(conn, '203.0.113.3', old, locked_until=future)
+
+        background.run_cleanup()
+
+        assert self._ips(conn) == {'203.0.113.2', '203.0.113.3'}
+
+    def test_a_failing_sweep_does_not_stop_the_rest_of_the_pass(self, conn, monkeypatch):
+        def boom():
+            raise RuntimeError('db busy')
+        monkeypatch.setattr(background.db, 'cleanup_auth_failures', boom)
+        pruned = []
+        monkeypatch.setattr(background.db, 'prune_downloads', lambda days: pruned.append(days))
+        monkeypatch.setitem(background._DOWNLOAD_STATE, 'last_prune', 0)
+
+        background.run_cleanup()
+
+        assert pruned

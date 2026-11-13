@@ -274,6 +274,14 @@ def run_cleanup():
     except Exception as e:
         refresh_logger.error(f"Peaks temp cleanup failed: {e}")
 
+    # Failed sign-in records whose window and lockout have passed.
+    try:
+        removed = db.cleanup_auth_failures()
+        if removed:
+            refresh_logger.info(f"Cleanup: removed {removed} expired failed sign-in record(s)")
+    except Exception as e:
+        refresh_logger.error(f"Auth failure cleanup failed: {e}")
+
     # Download history: drop rows past retention (geo lookup runs on the 5-minute tick).
     if time.time() - _DOWNLOAD_STATE['last_prune'] > DOWNLOAD_PRUNE_INTERVAL_SECONDS:
         try:
