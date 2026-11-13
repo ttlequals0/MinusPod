@@ -5,11 +5,7 @@ from collections.abc import Hashable
 
 
 class BoundedSet:
-    """Set that evicts its least recently added entry past maxsize.
-
-    Keeps log-dedup and hash-validation sets from growing without bound in a
-    long-running worker.
-    """
+    """Set that evicts its least recently added entry past maxsize (bounds long-lived dedup sets)."""
 
     def __init__(self, maxsize: int) -> None:
         self._maxsize = maxsize

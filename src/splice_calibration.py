@@ -1,10 +1,9 @@
 """Per-feed splice-evidence calibration (spec 2.2).
 
 Measures content base rates from the feed's recent stored splice_evidence
-payloads and picks per-feed duration thresholds so the expected content
-false-positive rate stays at or under SPLICE_CALIBRATION_MAX_FP_PER_HOUR.
-Mirrors positional_prior's per-feed learning shape: computed from stored
-history at pipeline time, additive, and it never raises into the pipeline.
+payloads and picks per-feed duration thresholds that keep the expected content
+false-positive rate at or under SPLICE_CALIBRATION_MAX_FP_PER_HOUR. Computed at
+pipeline time from stored history; never raises into the pipeline.
 
 Cold start (fewer than SPLICE_CALIBRATION_MIN_EPISODES usable episodes):
 consumers may corroborate with splice events but must never veto.
@@ -35,9 +34,8 @@ _DEFAULT_MIN_S = {
 def cold_start_calibration(episodes_considered: int = 0) -> dict:
     """Conservative defaults used before a feed has enough history.
 
-    episodes_considered carries the count of valid payloads found so a
-    below-gate cold_start payload stays diagnosable (e.g. 3 of 5). No-history
-    and exception paths keep the default 0.
+    episodes_considered is the count of valid payloads found, so a below-gate
+    payload stays diagnosable (e.g. 3 of 5); no-history and error paths keep 0.
     """
     return {
         'status': 'cold_start',
@@ -86,11 +84,9 @@ def build_calibration(rows, ad_history_rows=()) -> dict:
     from db.get_recent_audio_analyses). ad_history_rows: ad_markers_json rows
     (from db.get_recent_episode_ad_history) that decide calibrated vs host_read.
 
-    The returned thresholds (digital_silence_min_s, deep_silence_min_s) are
-    stored in the audio analysis payload as observability data and are visible
-    via the API. They are NOT currently applied to event filtering: consumers
-    gate on calibration.status only (spec 2.3c). Per-feed duration threshold
-    suppression is deferred to a future reviewed change.
+    The thresholds (digital_silence_min_s, deep_silence_min_s) are stored in
+    the audio analysis payload for observability only; they are not applied to
+    event filtering. Consumers gate on calibration.status (spec 2.3c).
     """
     total_hours = 0.0
     durations_by_type = {t: [] for t in _SILENCE_TYPES}

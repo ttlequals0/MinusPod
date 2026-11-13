@@ -374,11 +374,9 @@ def _dispatch_webhook(webhook_config, context, add_test_flag=False,
         ).hexdigest()
         headers['X-MinusPod-Signature'] = f"sha256={sig}"
 
-    # Webhook URLs are operator-configured (admin-typed), so use
-    # OPERATOR_CONFIGURED trust. safe_post revalidates every redirect hop
-    # against the SSRF rules, which closes a gap where a legitimate webhook
-    # host could 302 to a private IP. Retry loop wraps safe_post because
-    # the consolidated fetcher is a single shot per call.
+    # Admin-typed URLs get OPERATOR_CONFIGURED trust. safe_post revalidates every redirect hop
+    # against the SSRF rules (a legitimate host could 302 to a private IP) and is single-shot,
+    # so the retry loop wraps it.
     last_status = None
     for attempt in range(max_attempts):
         try:
@@ -426,9 +424,8 @@ def load_webhooks(db=None):
 
 
 def _fire_event_sync(payload: WebhookPayload):
-    """Synchronous notification dispatch -- called in a daemon thread by
-    fire_event. Webhooks and email each get the event; a failure in one
-    channel never blocks the other."""
+    """Synchronous notification dispatch, run in a daemon thread by fire_event.
+    Webhooks and email each get the event; one channel failing never blocks the other."""
     context = _build_context(payload)
 
     for wh in load_webhooks():
@@ -489,18 +486,13 @@ _REDACTED_ALERT_FIELDS = ('error_message', 'reason', 'feed_url')
 
 
 def _fire_alert_event(event, context, log_detail, dedup_key=None, dedup=True):
-    """Dispatch an operator alert to webhooks and email with a 5-minute
-    dedup, keyed per event (or per `dedup_key` when alerts for the same
-    event must not suppress each other, e.g. per-feed failures). Keyed
-    alerts additionally share a short per-event burst cap so a systemic
-    outage tripping every feed at once sends one alert, not one per feed.
-    Email is not gated on any webhook existing: the thread always runs so
-    email-only setups still get alerts.
+    """Dispatch an operator alert to webhooks and email with a 5-minute dedup per event, or per
+    `dedup_key` when alerts for one event must not suppress each other (e.g. per-feed failures).
+    Keyed alerts also share a short per-event burst cap so a systemic outage sends one alert,
+    not one per feed. Email does not require a webhook: the thread always runs.
 
-    Returns True when the alert was dispatched, False when suppressed --
-    callers that alert on a one-shot state transition use this to retry
-    later instead of losing the alert. ``dedup=False`` sends every call, for
-    events that are already one per state transition."""
+    Returns True when dispatched, False when suppressed, so one-shot state-transition callers
+    can retry later. ``dedup=False`` sends every call, for events already one per transition."""
     key = dedup_key or event
     now = time.time()
     with _alert_lock:
@@ -554,10 +546,9 @@ def fire_auth_failure_event(provider, model, error_message, status_code):
 def fire_limit_exceeded_event(provider, model, error_message, status_code):
     """Fire a spend/quota limit webhook.
 
-    Signals that the provider rejected the request because a billing or
-    usage limit is exhausted (monthly key limit, out of credits), as opposed
-    to bad credentials (Auth Failure) or a per-minute cap (Rate Limit
-    Structural).
+    The provider rejected the request because a billing or usage limit is exhausted (monthly
+    key limit, out of credits), not bad credentials (Auth Failure) or a per-minute cap
+    (Rate Limit Structural).
     """
     _fire_alert_event(EVENT_LIMIT_EXCEEDED, {
         'provider': provider,
@@ -571,10 +562,8 @@ def fire_feed_refresh_failed_event(slug, podcast_name, feed_url, error_message,
                                    failure_count):
     """Fire a feed-refresh-failure webhook.
 
-    Signals that a podcast's origin RSS feed has failed several consecutive
-    refresh attempts (moved/removed feed, wrong URL, or the publisher's
-    server being down). Deduped per feed so one broken feed does not
-    suppress alerts for another. Returns True when dispatched, False when
+    A podcast's origin RSS feed failed several consecutive refreshes (moved or removed feed,
+    wrong URL, publisher down). Deduped per feed. Returns True when dispatched, False when
     suppressed by the dedup or burst caps.
     """
     return _fire_alert_event(EVENT_FEED_REFRESH_FAILED, {
@@ -590,9 +579,8 @@ def fire_feed_refresh_failed_event(slug, podcast_name, feed_url, error_message,
 def fire_structural_rate_limit_event(provider, model, limit, used, requested, error_message):
     """Fire a structural-429 webhook.
 
-    Signals that a single LLM request structurally exceeds the provider's
-    per-minute token cap. The user-facing remedy is to shrink the detection
-    window or change provider/tier, not to wait for the rate limit to clear.
+    A single LLM request structurally exceeds the provider's per-minute token cap. The remedy is
+    a smaller detection window or a different provider/tier, not waiting.
     """
     _fire_alert_event(EVENT_RATE_LIMIT_STRUCTURAL, {
         'provider': provider,
@@ -657,9 +645,8 @@ def fire_failover_event(action: str, target: str, source: str, reason: str | Non
 def fire_update_available_event(version, channel, release_date, url):
     """Fire an update-available webhook.
 
-    Signals that a newer MinusPod release is available on the instance's
-    selected update channel. Deduped per version so a new release always
-    gets its own alert even if the last one was recent.
+    A newer release is available on the selected update channel. Deduped per version so each
+    release gets its own alert.
     """
     _fire_alert_event(EVENT_UPDATE_AVAILABLE, {
         'version': version,
@@ -689,8 +676,7 @@ def fire_cue_template_quiet_event(slug, podcast_name, template_id, template_labe
 def render_template_preview(template_string):
     """Render a Jinja2 template with dummy data for validation/preview.
 
-    Returns the rendered string. Raises jinja2.TemplateError on invalid
-    templates so callers can surface the error to the user.
+    Raises jinja2.TemplateError on invalid templates so callers can surface it.
     """
     context = dict(_DUMMY_CONTEXT)
     context.update(_timestamp_fields())
@@ -698,13 +684,10 @@ def render_template_preview(template_string):
 
 
 def _episode_test_context(event):
-    """Build an episode-shaped context (Episode Processed or Episode Failed
-    payload family) for a test delivery.
+    """Build an episode-shaped context (Episode Processed or Episode Failed) for a test delivery.
 
-    Episode Processed attempts to load real data from the most recent
-    completed processing_history entry, falling back to placeholder data
-    (existing behavior). Episode Failed always uses placeholder data; there
-    is no comparable "most recent failure" query.
+    Episode Processed tries the most recent completed processing_history entry, falling back
+    to placeholder data. Episode Failed always uses placeholders (no "most recent failure" query).
     """
     if event in _EPISODE_EVENTS:
         try:

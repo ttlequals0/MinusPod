@@ -1,7 +1,4 @@
-"""Audio utility functions.
-
-Provides shared audio file operations used across multiple modules.
-"""
+"""Shared audio file operations."""
 
 import json
 import logging
@@ -123,14 +120,7 @@ def _exact_duration(audio_path: str, probed: float, stderr: str) -> float:
 
 
 def get_audio_duration(audio_path: str) -> float | None:
-    """Get audio duration in seconds using ffprobe.
-
-    Args:
-        audio_path: Path to audio file
-
-    Returns:
-        Duration in seconds, or None if unable to determine
-    """
+    """Audio duration in seconds via ffprobe, or None if unable to determine."""
     cached = AudioMetadata.lookup(audio_path)
     if cached is not None:
         return cached
@@ -186,12 +176,8 @@ def mean_volume_db(audio_path: str, start: float | None = None,
 def extract_embedded_artwork(audio_path: str) -> tuple[bytes, str] | None:
     """First embedded picture stream as (bytes, 'image/jpeg'|'image/png').
 
-    Stream-copies the video (picture) stream to a single frame via ffmpeg
-    (``-an -codec:v copy -frames:v 1``) rather than decoding, so this works
-    for any embedded cover regardless of its original codec. Returns None
-    when the file has no embedded picture, ffmpeg fails, the output is not
-    a JPEG/PNG (magic-number checked, mirroring the upload validation path
-    in storage.py), or the probe times out.
+    Stream-copies one frame (no decode), so any embedded cover codec works. None when there is
+    no picture, ffmpeg fails or times out, or the output is not JPEG/PNG by magic number.
     """
     fd, out_path = tempfile.mkstemp(suffix='.img')
     os.close(fd)
@@ -225,11 +211,7 @@ def extract_embedded_artwork(audio_path: str) -> tuple[bytes, str] | None:
 
 
 class AudioMetadata:
-    """Cached audio file metadata to avoid redundant ffprobe calls.
-
-    Usage:
-        duration = AudioMetadata.get_duration('/path/to/audio.mp3')
-    """
+    """Cached audio file metadata to avoid redundant ffprobe calls."""
 
     _MAX_CACHE_SIZE = 500
     _cache: ClassVar[dict[str, tuple[float, tuple[int, int]]]] = {}  # path -> (duration, (mtime_ns, size))

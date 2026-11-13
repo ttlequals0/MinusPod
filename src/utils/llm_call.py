@@ -46,11 +46,9 @@ from rate_limit_hold import (
 from context_limits import CHARS_PER_TOKEN, ContextOverflowError
 from utils.shutdown import shutdown_event
 from utils.time import parse_iso_utc, utc_now, utc_now_iso
-# webhook_service, database and cancel are lazy-imported at the call sites
-# below (database pulls in Flask via AuthLockoutMixin; cancel pulls in
-# database transitively). Keeping them out of this module's import-time
-# graph lets the offline benchmark in benchmarks/llm/ import
-# ad_detector -> utils.llm_call without pulling in jinja2/flask transitively.
+# webhook_service, database and cancel are lazy-imported at call sites: database pulls in Flask
+# (via AuthLockoutMixin) and cancel pulls in database, which the offline benchmark in
+# benchmarks/llm/ must avoid when importing ad_detector -> utils.llm_call.
 from utils.llm_response import json_object_is_blank
 from utils.retry import calculate_backoff
 from utils.circuit_breaker import CircuitBreakerOpen
@@ -94,12 +92,9 @@ def schema_format_for(model, name: str, schema: dict,
 class EmptyCompletionError(Exception):
     """The provider returned a completion with no content.
 
-    Distinct from a valid empty-ad-list (``[]``) response: an empty body means
-    the call never produced an answer (truncation, refusal, or a flaky
-    endpoint). Treated as a retryable failure so it is retried and, if it
-    persists, surfaced as a failed window rather than silently recorded as
-    "no ads" (issue #358). Carries the raw response when one was returned so
-    the ledger can still record the tokens the provider billed for it.
+    Distinct from a valid empty ad list (``[]``): an empty body means no answer was produced
+    (truncation, refusal, flaky endpoint). Retryable, and if it persists it surfaces as a failed
+    window, not "no ads" (#358). Carries the raw response so the ledger can record billed tokens.
     """
 
     def __init__(self, *args, response=None):
@@ -219,11 +214,9 @@ def _ledger_call_once(llm_client, llm_kwargs, model, *, phase_key, invoking_pass
                       route_phase=None, max_retries=None):
     """One ledger-tracked adapter dispatch.
 
-    Reserves the request by creating its attempt row before the network call
-    and finalizes it after, so every real dispatch (including each retry) is
-    its own billable ledger row: the single writer of token counters,
-    replacing the retired adapter usage callback. A manual cap refuses the
-    reservation and raises instead of dispatching.
+    Creates the attempt row before the network call and finalizes it after, so every dispatch
+    (including each retry) is its own billable ledger row; this is the single writer of token
+    counters. A manual cap refuses the reservation and raises instead of dispatching.
     """
     from cancel import ProcessingCancelled
     from database import Database
@@ -562,8 +555,7 @@ def _sleep_before_retry(delay: float, *, before_wait=None,
 def _fallback_delay(error, base_delay: float, honor_retry_after: bool, *, retry_after_cap=None) -> float:
     """Per-window retry wait: a rate limit's own reset beats the fixed backoff.
 
-    Only the first retry honors the reset, capped, so a long hint cannot park
-    a worker for the sum of both iterations.
+    Only the first retry honors the reset, capped, so a long hint cannot park a worker twice.
     """
     if honor_retry_after and is_rate_limit_error(error):
         retry_after = extract_retry_after(
@@ -627,11 +619,9 @@ def _terminal_error(error, *, model, slug, episode_id, call_label, provider=None
                     credential_slot='primary', phase=None):
     """Return a terminal or normalized provider error, else None.
 
-    ``provider``, when given, is the call's resolved route provider; omitted,
-    error context falls back to the global effective provider.
-    ``credential_slot`` is that route's account ('primary'/'secondary'), so a
-    held 429 pauses only the account that actually hit the limit. ``phase``
-    labels the call so a hold can fall back to the run's route for it.
+    ``provider`` is the call's resolved route provider (default: the global effective provider).
+    ``credential_slot`` ('primary'/'secondary') limits a held 429 to the account that hit it.
+    ``phase`` lets a hold fall back to the run's route for that phase.
     """
     provider = provider or get_effective_provider()
     daily_quota = classify_daily_quota_exhaustion(error)
@@ -703,8 +693,7 @@ def _manual_rate_limit_error(provider_key, credential_slot, slug, episode_id,
                              phase=None):
     """ProviderRateLimitedError when the manual RPM/RPD cap is hit, else None.
 
-    Records the provider+slot hold as a side effect (via
-    enforce_provider_rate_limit) so admission and the probe tick see it too.
+    Side effect: records the provider+slot hold (via enforce_provider_rate_limit) for admission and the probe tick.
     """
     try:
         from database import Database
@@ -1043,9 +1032,8 @@ def call_llm_for_window(
 ) -> tuple[object | None, Exception | None]:
     """Detection-window flavor of ``call_llm``: JSON response format.
 
-    ``response_format`` defaults to json_object; call sites with a defined
-    response schema (#694) pass a json_schema dict when the capability gate
-    passes. A blank JSON answer at the output budget counts as a lost window.
+    ``response_format`` defaults to json_object; sites with a response schema (#694) pass a
+    json_schema dict when the capability gate allows. A blank JSON answer at the output budget is a lost window.
     """
     return call_llm(
         call_label=window_label,

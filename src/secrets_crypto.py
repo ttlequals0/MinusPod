@@ -1,12 +1,9 @@
 """Authenticated-encryption wrapper for provider API keys.
 
-Secrets are stored in the ``settings`` table using the envelope
-``enc:v1:<b64(nonce)>:<b64(ciphertext_with_tag)>``.  The DEK is derived
-once per process via PBKDF2-HMAC-SHA256 from ``MINUSPOD_MASTER_PASSPHRASE``
-and a random 16-byte salt persisted as setting ``provider_crypto_salt``.
-
-The feature is locked when ``MINUSPOD_MASTER_PASSPHRASE`` is unset;
-callers must check ``is_available()`` or handle ``CryptoUnavailableError``.
+Secrets live in the ``settings`` table as ``enc:v1:<b64(nonce)>:<b64(ciphertext_with_tag)>``.
+The DEK is derived once per process (PBKDF2-HMAC-SHA256) from ``MINUSPOD_MASTER_PASSPHRASE``
+and a random 16-byte salt stored as ``provider_crypto_salt``. Locked when the passphrase is
+unset: check ``is_available()`` or handle ``CryptoUnavailableError``.
 """
 import base64
 import datetime
@@ -91,11 +88,8 @@ def _load_or_create_salt(db) -> bytes:
                 return salt
         except (ValueError, TypeError):
             pass
-        # Salt row present but unusable. Regenerating would derive a different
-        # DEK and permanently orphan any existing ciphertext, so fail closed
-        # when secrets still exist rather than silently destroy them
-        # (secrets-storage-1 / creds-6). The ciphertext is intact and
-        # recoverable once the original salt/DB is restored from backup.
+        # Unusable salt row: regenerating would derive a different DEK and orphan existing
+        # ciphertext, so fail closed while secrets exist (recoverable from a backup).
         if _has_ciphertext_secrets(db):
             raise CryptoUnavailableError(
                 "provider_crypto_salt is corrupt but encrypted secrets still "
@@ -154,19 +148,12 @@ def reset_cache() -> None:
 def rotate(db, old_passphrase: str, new_passphrase: str) -> int:
     """Re-encrypt every ``enc:v1:`` row under a new passphrase + new salt.
 
-    Order matters: decrypt all rows up-front using the current DEK, mint a new
-    DEK in memory, then write all new ciphertexts and the new salt inside a
-    single SQLite transaction so a mid-rotation crash leaves the database
-    consistent.
+    Decrypts all rows first, then writes the new ciphertexts and salt in one SQLite
+    transaction so a mid-rotation crash leaves the database consistent.
 
-    The caller MUST update ``MINUSPOD_MASTER_PASSPHRASE`` in the container
-    environment to ``new_passphrase`` before the next restart, otherwise the
-    boot-time DEK derivation will not match the rotated ciphertext.
-
-    Multi-worker note: the new DEK is cached in the calling worker's memory
-    only.  Other Gunicorn workers retain the old cached DEK and will fail to
-    decrypt the rotated rows until the container is restarted.  Restart
-    immediately after rotating the env var.
+    The caller must set ``MINUSPOD_MASTER_PASSPHRASE`` to ``new_passphrase`` before the
+    next restart, or boot-time DEK derivation will not match. The new DEK is cached in
+    this worker only; other workers fail to decrypt until the container restarts.
     """
     current = os.environ.get("MINUSPOD_MASTER_PASSPHRASE")
     if not current:
@@ -178,8 +165,7 @@ def rotate(db, old_passphrase: str, new_passphrase: str) -> int:
     if new_passphrase == old_passphrase:
         raise ValueError("new passphrase must differ from current")
 
-    # Mandatory pre-rotation backup so a crash or operator mistake mid-rotation
-    # is recoverable, mirroring the plaintext-migration backup (creds-1).
+    # Mandatory backup so a crash or operator mistake mid-rotation is recoverable.
     backup_path = _create_pre_migration_backup(db)
     logger.info("rotate: pre-rotation backup written to %s", backup_path)
 
@@ -394,28 +380,19 @@ def count_stored_secrets(db) -> int:
 
 
 def count_plaintext_secrets(db) -> int:
-    """Report how many known secret keys are still stored as plaintext.
-
-    Counts regardless of crypto availability so ``/system/status`` can
-    surface "you have N plaintext rows, crypto is not configured"
-    instead of silently reporting zero.
-    """
+    """Count secret keys still stored as plaintext, even when crypto is unavailable."""
     return sum(1 for _ in _iter_plaintext_secret_rows(db))
 
 
 def _create_pre_migration_backup(db) -> str:
     """Snapshot the live SQLite database to the data dir's ``backups`` folder.
 
-    Uses PID plus a short UUID suffix in the filename so two gunicorn
-    workers racing at the same wall-clock second don't clobber each
-    other's backup. Tight file permissions are set by ``snapshot_database``.
-    Raises ``OSError`` if the backup cannot be written.
+    The PID plus UUID suffix keeps workers racing in the same second from clobbering
+    each other. Raises ``OSError`` if the backup cannot be written.
     """
     ts = datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     suffix = f"{os.getpid()}-{uuid.uuid4().hex[:6]}"
-    # The live DB's data dir first, then the configured one read at call
-    # time, so the snapshot lands beside the database it protects
-    # (secrets-storage-2).
+    # Prefer the live DB's data dir so the snapshot lands beside the database it protects.
     base = Path(getattr(db, "data_dir", None) or resolve_data_dir())
     backup_dir = base / "backups"
     backup_dir.mkdir(parents=True, exist_ok=True)
@@ -426,14 +403,9 @@ def _create_pre_migration_backup(db) -> str:
 def migrate_plaintext_secrets(db) -> dict:
     """Re-encrypt legacy plaintext rows in ``SECRET_SETTING_KEYS``.
 
-    Idempotent: rows that already start with the ``enc:v1:`` envelope are
-    skipped. When crypto is unavailable the migration is a no-op (the
-    rows cannot be encrypted without ``MINUSPOD_MASTER_PASSPHRASE``); a
-    single WARN surfaces so operators know to set it.
-
-    A mandatory pre-migration backup is written before any writes happen;
-    if the backup raises, the whole migration is aborted so plaintext
-    stays on disk (recoverable) rather than being silently overwritten.
+    Idempotent: ``enc:v1:`` rows are skipped. A no-op with one WARN when crypto is
+    unavailable. A pre-migration backup is written first; if it raises, the migration
+    aborts and plaintext stays on disk.
     """
     result = {"migrated": 0, "skipped": 0, "backup_path": None}
 
@@ -461,11 +433,8 @@ def migrate_plaintext_secrets(db) -> dict:
             db.set_secret(row[0], row[1])
             result["migrated"] += 1
         except Exception:
-            # Intentionally no identifying data in the log: the column name
-            # is constrained to SECRET_SETTING_KEYS but still flows from a
-            # source CodeQL treats as sensitive (py/clear-text-logging).
-            # The /system/status endpoint reports plaintextSecretsCount so
-            # operators can tell that at least one row failed to migrate.
+            # No identifying data logged (CodeQL py/clear-text-logging); /system/status
+            # reports plaintextSecretsCount so operators can see a failed row.
             logger.exception("failed to encrypt one legacy secret row")
             result["skipped"] += 1
 

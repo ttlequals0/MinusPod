@@ -1,9 +1,8 @@
 """Scaffold a community pattern JSON file from the CLI.
 
-Intended for contributors who hand-craft patterns (the bundle exporter
-in the app handles automated submissions). Produces a file at the
-canonical `<slug>-<short_uuid>.json` path so the PR validator's
-filename check passes by construction.
+For contributors who hand-craft patterns (the in-app bundle exporter covers automated
+submissions). Writes the canonical `<slug>-<short_uuid>.json` path so the PR
+validator's filename check passes.
 
 Usage:
 

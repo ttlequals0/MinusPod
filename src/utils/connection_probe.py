@@ -1,14 +1,11 @@
 """Shared plumbing for endpoint connection tests (#544).
 
-Each configured external endpoint (remote whisper transcriber, LLM provider
-base URL, PodcastIndex) exposes a "test connection" probe. The request shape
-differs per endpoint, but the transport-failure classification, the capped
-body read, and the result dict contract are identical; they live here so the
-probes cannot drift apart.
+Each external endpoint (remote whisper, LLM provider base URL, PodcastIndex) has a
+"test connection" probe. Request shapes differ; transport-failure classification,
+the capped body read and the result dict are shared here.
 
-Result dict contract: ok (the endpoint accepted the probe), reachable (the
-server responded at all), status (HTTP code when one was received), detail
-(user-facing outcome message).
+Result dict: ok (endpoint accepted the probe), reachable (server responded at all),
+status (HTTP code if received), detail (user-facing message).
 """
 import json
 import logging
@@ -30,16 +27,11 @@ PROBE_RESPONSE_CAP_BYTES = 64 * 1024
 def run_probe(send, timeout_seconds: float, log_context: str = '',
               slow_hint: str = '',
               cap_bytes: int = PROBE_RESPONSE_CAP_BYTES):
-    """Execute ``send`` (a zero-arg callable performing the HTTP request with
-    ``stream=True``) and normalize transport failures.
+    """Run ``send`` (a zero-arg callable doing the ``stream=True`` request) and normalize transport failures.
 
-    ``slow_hint`` is appended to the read-timeout message for endpoints
-    where a slow first answer has a known benign cause (model cold-load).
-
-    Returns ``(error_result, status, body_bytes)``. ``error_result`` is a
-    complete result dict when the request failed or an accepted reply could
-    not be read, else None with ``status`` and the capped ``body_bytes``
-    (None when a rejected reply could not be read).
+    ``slow_hint`` is appended to the read-timeout message where a slow first answer is benign (model cold-load).
+    Returns ``(error_result, status, body_bytes)``: error_result is a full result dict on failure
+    or an unreadable accepted reply, else None; body_bytes is None when a rejected reply was unreadable.
     """
     try:
         response = send()

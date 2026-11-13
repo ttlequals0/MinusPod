@@ -1,12 +1,9 @@
 """Circuit breaker pattern for external service calls.
 
-Prevents cascading failures by short-circuiting after consecutive failures,
-allowing the service time to recover before retrying.
+Short-circuits after consecutive failures so the service can recover.
 
-States:
-    CLOSED  - Normal operation, requests pass through
-    OPEN    - Service is down, requests fail immediately for `recovery_timeout` seconds
-    HALF_OPEN - After recovery timeout, one probe request is allowed through
+States: CLOSED (pass through), OPEN (fail fast for `recovery_timeout` seconds),
+HALF_OPEN (one probe allowed after the timeout).
 """
 import logging
 import threading
@@ -27,10 +24,8 @@ class CircuitBreakerOpen(Exception):
         self.name = name
         self.seconds_until_retry = seconds_until_retry
         self.cause = cause
-        # Classified from the full untruncated trigger error at open time
-        # (see CircuitBreaker.record_failure), not from `cause` above, which
-        # is truncated for log readability and may have dropped the marker
-        # that a classifier like is_auth_error looks for.
+        # Classified from the full trigger error at open time (record_failure), not
+        # the truncated `cause`, which may have dropped the marker is_auth_error needs.
         self.auth_cause = auth_cause
         message = f"Circuit breaker '{name}' is open, retry in {seconds_until_retry:.0f}s"
         if cause:
@@ -49,8 +44,7 @@ class CircuitBreaker:
             result = call_external_service()
             breaker.record_success()
         except Exception:
-            # Don't call record_failure on HTTP 429 / rate-limit errors --
-            # throttling is back-pressure, not an outage. See record_failure.
+            # Skip record_failure on HTTP 429: throttling is not an outage.
             breaker.record_failure()
             raise
     """
@@ -67,11 +61,8 @@ class CircuitBreaker:
             name: Identifier for this circuit (used in logging)
             failure_threshold: Consecutive failures before opening the circuit
             recovery_timeout: Seconds to wait before allowing a probe request
-            cause_classifier: optional predicate run on the full trigger
-                exception when the breaker opens; its result is exposed as
-                CircuitBreakerOpen.auth_cause so callers can classify a
-                breaker-masked failure without depending on the truncated
-                message text.
+            cause_classifier: optional predicate run on the full trigger exception
+                when the breaker opens; exposed as CircuitBreakerOpen.auth_cause.
         """
         self.name = name
         self.failure_threshold = failure_threshold
@@ -167,13 +158,11 @@ class CircuitBreaker:
     def record_failure(self, error: Exception | None = None, token=None):
         """Record a failed call. Opens the circuit after threshold failures.
 
-        Callers must NOT invoke this for HTTP 429 / rate-limit errors --
-        throttling is the provider asking us to slow down, not a provider
-        outage, and counting it would open the breaker during normal free-tier
-        use.
+        Callers must not invoke this for HTTP 429 / rate-limit errors: throttling
+        is not an outage and would open the breaker during normal free-tier use.
 
-        error: triggering exception; its text becomes the open-circuit cause
-        so a later CircuitBreakerOpen still surfaces it (e.g. an auth outage).
+        error: triggering exception; its text becomes the open-circuit cause that
+        a later CircuitBreakerOpen surfaces (e.g. an auth outage).
         """
         with self._lock:
             if token is not None and token != self._half_open_probe_token:

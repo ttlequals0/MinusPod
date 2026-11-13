@@ -1,34 +1,18 @@
 """Rate-limit queue hold (#696): pause the queue until a 429 reset passes.
 
 A held 429 sends its episode back to pending and stamps a hold-until
-marker; no processing starts on that provider until that time, then the
-queue processor clears the marker on its next pass. Episodes never leave
-the normal queue.
+marker; no processing starts on that provider until then, and the queue
+processor clears the marker on its next pass.
 
-Provider-scoped holds: each provider gets its own marker
-(``rate_limit_hold_until:<provider>``), so a hold on one provider does not
-pause a run whose phases all use a different, healthy provider. The
-original unscoped key (``rate_limit_hold_until``) is kept as a global
-fallback: it is still read (and still honored) for one release so an
-in-flight hold recorded by pre-migration code, or a caller that cannot
-resolve which provider hit the limit, still pauses the queue.
+Markers are scoped per provider and credential slot
+(``rate_limit_hold_until:<provider>:<slot>``) so a 429 on one account does
+not pause a healthy one. The unscoped ``rate_limit_hold_until`` key is a
+blanket pause for both slots; the pre-slot ``:<provider>`` key is
+primary-only.
 
-Credential-slot scoping: a provider can have two independent accounts, a
-primary and an optional secondary, so the marker also carries the
-credential slot (``rate_limit_hold_until:<provider>:<slot>``). A 429 on
-one slot must not pause the other same-type account. Both slots fall back
-to the fully-unscoped marker, which is a blanket pause; only the pre-slot
-per-provider marker is primary-only, since secondary did not exist while
-that key was being written.
-
-While a hold is active, probe_rate_limit() periodically re-checks it: an
-operator-configured usage URL (tier 1) or a minimal LLM completion (tier 2)
-can clear the hold early or re-stamp it with a fresher reset, since the
-429's own stated reset can be wrong in either direction. The probe acts on
-whichever marker is the active source, on any (provider, slot), and sends
-its completion through a client and model routed to that pair. The
-dispatcher's blanket pause and the tick's cleanup react to any active
-hold, legacy or provider-scoped, as a unit.
+While a hold is active, probe_rate_limit() re-checks it (usage URL, then a
+minimal LLM completion) and can clear or re-stamp it, since the 429's own
+reset can be wrong either way.
 """
 import logging
 import time
@@ -134,14 +118,10 @@ def _slot_key(provider_key: str, credential_slot: str) -> str:
 
 
 def _hold_chain(provider_key: str | None, credential_slot: str) -> list[str | None]:
-    """Marker suffixes to check for (provider_key, credential_slot), most
-    specific first.
+    """Marker suffixes to check for (provider_key, credential_slot), most specific first.
 
-    provider_key=None means only the fully-unscoped legacy marker. Both
-    slots fall back to that marker: it is a blanket pause recorded by a
-    caller that could not resolve a provider, so it applies to every
-    account. The pre-slot per-provider marker is primary-only; secondary
-    did not exist while that key was being written.
+    provider_key=None means only the unscoped legacy marker, a blanket pause
+    every slot falls back to. The pre-slot per-provider marker is primary-only.
     """
     if provider_key is None:
         return [None]
@@ -155,11 +135,9 @@ def _hold_chain(provider_key: str | None, credential_slot: str) -> list[str | No
 def _clear_chain(provider_key: str | None, credential_slot: str) -> list[str | None]:
     """Marker suffixes a change to (provider_key, credential_slot) may lift.
 
-    Never the blanket unscoped marker for 'secondary': that hold pauses
-    secondary but can belong to primary, so lifting it here would resume
-    the queue straight back into a live limit. Primary does lift it: in-run
-    429s now carry their (provider, slot), so a blanket marker is a legacy
-    primary artifact.
+    Never the unscoped marker for 'secondary': it can belong to primary, and
+    lifting it would resume into a live limit. Primary does lift it, since
+    a blanket marker is a legacy primary artifact.
     """
     chain = _hold_chain(provider_key, credential_slot)
     if credential_slot == 'secondary':
@@ -179,22 +157,14 @@ def get_hold_until(db, provider_key: str | None = None) -> str | None:
 def record_hold_until(db, provider_key: str | None, retry_at_iso: str,
                       *, credential_slot: str = 'primary',
                       force: bool = False, manual: bool = False) -> tuple[str, bool]:
-    """Stamp (provider_key, credential_slot)'s pause marker, keeping
-    whichever reset is later so a second 429 can extend an active pause but
-    never cut it short. Returns the effective hold_until and whether this
-    call started a new pause (as opposed to extending or falling inside an
-    active one).
+    """Stamp (provider_key, credential_slot)'s pause marker, keeping the later reset.
 
-    provider_key=None writes the legacy unscoped marker (a caller that
-    could not resolve which provider hit the limit); a real provider_key
-    writes that (provider, credential_slot)'s own marker so the pause
-    cannot bleed into a different account, healthy or otherwise.
-    credential_slot defaults to 'primary' for callers that predate
-    secondary-provider routing.
+    A second 429 can extend an active pause but never cut it short. Returns
+    the effective hold_until and whether this call started a new pause.
+    provider_key=None writes the legacy unscoped marker.
 
-    force=True (rate-limit probe re-stamps) skips the "later wins" guard:
-    the probe's fresher provider read is authoritative and may pull the
-    release closer as well as push it out.
+    force=True (probe re-stamps) skips the "later wins" guard: the probe's
+    fresher read may pull the release closer.
     """
     key_suffix = _slot_key(provider_key, credential_slot) if provider_key is not None else None
     until_key = _hold_until_key(key_suffix)
@@ -241,15 +211,11 @@ def _provider_hold_suffixes(db) -> list[str]:
 
 
 def get_any_active_hold(db) -> tuple[str | None, str | None]:
-    """(hold_until, hold_since) for whichever active hold, the legacy
-    marker or any provider-scoped one, resets latest, or (None, None)
-    when nothing is held.
+    """(hold_until, hold_since) of the latest-resetting active hold, or (None, None).
 
-    For callers that react to "is anything held" as a single unit without
-    resolving a specific provider: the dispatcher's blanket pause/log/probe
-    trigger and /status reporting. NOT for admission, which must check the
-    run's own required provider(s) via is_queue_paused(db, provider_key) --
-    this would incorrectly treat an unrelated provider's hold as blocking.
+    For callers that treat "anything held" as one unit (dispatcher pause/probe,
+    /status). Not for admission, which must use is_queue_paused(db, provider_key)
+    so an unrelated provider's hold does not block.
     """
     candidates = []
     legacy_until, legacy_since = get_active_hold(db)
@@ -267,9 +233,8 @@ def get_any_active_hold(db) -> tuple[str | None, str | None]:
 def active_held_pairs(db) -> set[tuple[str, str]]:
     """Active provider-scoped holds as (provider_key, credential_slot) pairs.
 
-    Excludes the legacy unscoped marker (which pauses everything and is
-    handled separately). Lets the dispatcher skip only the queue entries
-    whose required accounts are held, instead of pausing all work.
+    Excludes the legacy unscoped marker (a blanket pause handled separately),
+    so the dispatcher can skip only entries whose accounts are held.
     """
     pairs: set[tuple[str, str]] = set()
     for suffix in _provider_hold_suffixes(db):
@@ -285,24 +250,19 @@ def active_held_pairs(db) -> set[tuple[str, str]]:
 def any_hold_active(db) -> bool:
     """True while the legacy hold or any provider-scoped hold is active.
 
-    For bookkeeping that classifies an episode's pending status without
-    knowing which provider its run used, and for the hold-disable escape
-    hatch. Not scoped enough to gate a start: admission must check the
-    run's own required provider(s) via is_queue_paused(db, provider_key).
+    For bookkeeping that does not know which provider a run used. Too broad
+    to gate a start: admission must use is_queue_paused(db, provider_key).
     """
     return get_any_active_hold(db)[0] is not None
 
 
 def clear_all_holds(db) -> str | None:
     """Clear the legacy hold and every provider/slot-scoped hold; returns the
-    earliest held_since seen. Used when an operator turns the hold feature
-    off entirely, which lifts every account's pause, not just one provider's.
+    earliest held_since seen. Used when the hold feature is turned off.
 
-    Checks each stored suffix's own marker directly rather than through
-    get_active_hold's fallback chain: these suffixes are already the literal
-    stored keys (legacy per-provider or slot-scoped), not a provider_key to
-    resolve, so re-running the chain here would be redundant at best and,
-    for a composite provider:slot suffix, unreadable.
+    Reads each stored suffix directly, not via get_active_hold's fallback
+    chain: they are literal stored keys, and a composite provider:slot suffix
+    is not a resolvable provider_key.
     """
     held_since = clear_hold(db) if hold_is_active(get_hold_until(db)) else None
     for suffix in _provider_hold_suffixes(db):
@@ -318,14 +278,9 @@ def clear_hold_for_provider_change(db, reason: str, *,
     """Lift an active hold after a provider, endpoint, or credential change.
 
     A hold belongs to the account and endpoint that returned the 429, so it
-    is meaningless once those change. provider_key=None (a settings change
-    that could touch more than one account, or the caller cannot isolate
-    which one) lifts only the legacy unscoped hold, matching pre-scoping
-    behavior. A real provider_key with credential_slot='primary' also lifts
-    the pre-slot per-provider marker and the fully-unscoped legacy one,
-    since an unmigrated legacy hold may belong to it. credential_slot=
-    'secondary' lifts only that slot's own marker (see _clear_chain).
-    Returns whether any hold was lifted.
+    is meaningless once those change. provider_key=None lifts only the legacy
+    unscoped hold; otherwise the markers per _clear_chain. Returns whether
+    any hold was lifted.
     """
     return clear_holds_for_provider_change(db, reason, [provider_key],
                                            credential_slot=credential_slot)
@@ -389,17 +344,10 @@ def get_active_hold(db, provider_key: str | None = None,
                     credential_slot: str = 'primary') -> tuple[str | None, str | None]:
     """(hold_until, hold_since) while (provider_key, credential_slot)'s pause
     is active, else (None, None). provider_key=None checks only the legacy
-    unscoped marker.
-
-    A real provider_key with credential_slot='primary' also falls back, in
-    order, to the pre-slot per-provider marker and the fully-unscoped
-    legacy marker when its own marker is not active: a hold recorded before
-    provider- or slot-scoping (or by a caller that could not resolve a
-    provider) still blocks primary for one release. 'secondary' falls back
-    only to the fully-unscoped marker (see _hold_chain).
+    unscoped marker; other keys fall back along _hold_chain.
 
     A marker past its reset waits on the processor's next pass to be
-    cleared; readers see no hold at all in that gap.
+    cleared; readers see no hold in that gap.
     """
     for suffix in _hold_chain(provider_key, credential_slot):
         hold_until = get_hold_until(db, suffix)
@@ -549,12 +497,9 @@ def hold_queue_for_provider_limit(db, error, *, slug: str, episode_id: str,
     """Pause the 429'd account's queue and alert once per pause; returns the
     effective hold_until, or None when the hold feature is off.
 
-    The scope comes from resolve_hold_scope unless the caller passes an
-    explicit provider_key; `phase` names the pipeline phase to fall back to
-    when the error carries none.
-
-    A configured usage endpoint is preferred over the 429's own stated reset,
-    which can be wrong in either direction.
+    Scope comes from resolve_hold_scope unless provider_key is given; `phase`
+    is the fallback when the error carries none. A configured usage endpoint
+    beats the 429's own reset, which can be wrong either way.
     """
     if not is_rate_limit_hold_enabled(db):
         return None
@@ -594,13 +539,11 @@ def _cap_reset_iso(blocked: str, oldest: str | None) -> str:
 def reserve_provider_request(db, provider_key: str,
                              credential_slot: str = 'primary', *,
                              attempt: dict) -> tuple[str | None, str | None]:
-    """Take one request slot for (provider, slot) by creating its ledger
-    attempt inside the cap check; returns (attempt_id, hold_until).
+    """Take one request slot for (provider, slot); returns (attempt_id, hold_until).
 
-    attempt_id is None when a manual cap refused the request, and hold_until
-    is then the pause this recorded. Unlike evaluate_provider_rate_limit,
-    counting and reserving are one transaction, so concurrent workers cannot
-    all pass the same check.
+    attempt_id is None when a manual cap refused the request and hold_until
+    is the pause recorded. Counting and reserving are one transaction, so
+    concurrent workers cannot all pass the same check.
     """
     caps = manual_rate_limit_caps(credential_slot)
     result = db.reserve_llm_attempt(provider_key=provider_key,
@@ -622,13 +565,11 @@ def evaluate_provider_rate_limit(db, provider_key: str,
     """Reset time when (provider_key, credential_slot) is at or over its
     manual RPM/RPD/TPM cap, else None (no side effects).
 
-    RPM counts SDK dispatches in the last 60s and resets 60s after the oldest
-    of them; TPM counts reserved-or-actual tokens over the same window; RPD
-    resets at the next UTC midnight. Returns the latest reset of whichever
-    caps trip. 0 for a limit disables it; all 0 short-circuits to None.
-    Capped at MAX_HOLD. This is the pre-start check: the per-request
-    reservation in reserve_provider_request is what actually enforces a cap
-    against concurrent workers.
+    RPM counts SDK dispatches in the last 60s, TPM reserved-or-actual tokens
+    over the same window; RPD resets at the next UTC midnight. Returns the
+    latest reset of whichever caps trip; a 0 limit is disabled. This is the
+    pre-start check: reserve_provider_request enforces caps against
+    concurrent workers.
     """
     caps = manual_rate_limit_caps(credential_slot)
     rpm, rpd, tpm = caps['rpm'], caps['rpd'], caps['tpm']
@@ -666,9 +607,7 @@ def enforce_provider_rate_limit(db, provider_key: str,
     """Record a provider+slot hold when the manual RPM/RPD cap is reached;
     returns the effective hold_until, or None when under the cap.
 
-    Uses the same record_hold_until marker a 429 hold uses, so is_queue_paused
-    and the probe tick treat it uniformly. Independent of the 429-hold toggle:
-    the RPM/RPD settings are their own switch.
+    Uses the same marker as a 429 hold; independent of the 429-hold toggle.
     """
     reset_iso = evaluate_provider_rate_limit(db, provider_key, credential_slot)
     if reset_iso is None:
@@ -687,7 +626,7 @@ def enforce_provider_rate_limit(db, provider_key: str,
 
 
 def _warn_probe_failure(hold_until: str, message: str) -> None:
-    """WARNING once per hold_until (repeat failures log at DEBUG)."""
+    """Warn once per hold_until (repeat failures log at DEBUG)."""
     if hold_until in _warned_probe_holds:
         logger.debug(message)
         return
@@ -764,11 +703,10 @@ def _probe_route_target(provider_key: str, credential_slot: str) -> tuple[str | 
 def _probe_via_completion(db, provider_key: str | None, credential_slot: str) -> bool:
     """Tier 2: one minimal completion against the held (provider, slot).
 
-    The probe is a real, billable request, so it is recorded in the ledger
-    under phase_key 'probe' with no episode/run, the same as any other
-    dispatch. A pair no stage routes to is left to expire by wall clock
-    rather than probed with another account's client and model. Manual caps
-    are never completion-probed (see _probe_rate_limit).
+    The probe is a billable request, recorded in the ledger under phase_key
+    'probe'. A pair no stage routes to is left to expire by wall clock rather
+    than probed with another account's client. Manual caps are never
+    completion-probed (see _probe_rate_limit).
     """
     require_llm()
     target_provider = provider_key or get_effective_provider()
@@ -885,10 +823,9 @@ def _active_hold_sources(db) -> list[tuple[str, str | None, str, str | None]]:
     provider_key, credential_slot, suffix); suffix is the literal stored key
     suffix (for the manual-flag and cadence lookups).
 
-    The effective provider's primary chain comes first, so a
-    single-provider install and a not-yet-migrated hold behave as before.
-    Each held pair is its own entry with its own cadence stamp, so a manual
-    cap or a hold inside its window cannot starve the rest.
+    The effective provider's primary chain comes first. Each held pair has
+    its own cadence stamp, so a manual cap or a hold inside its window
+    cannot starve the rest.
     """
     provider = get_effective_provider()
     primary_chain = _hold_chain(provider, 'primary')

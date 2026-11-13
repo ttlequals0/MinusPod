@@ -1,9 +1,8 @@
 """Process registry for graceful shutdown.
 
-Tracks long-running subprocesses (ffmpeg, whisper) so SIGTERM on the gunicorn
-worker can terminate them with SIGTERM -> SIGKILL escalation instead of
-leaving orphans. Thread-safe; prefer ``tracked_popen`` over bare
-``register`` / ``unregister`` so the finally-block guarantees cleanup.
+Tracks long-running subprocesses (ffmpeg, whisper) so SIGTERM on the gunicorn worker can
+escalate SIGTERM -> SIGKILL on them instead of leaving orphans. Thread-safe; prefer
+``tracked_popen`` over bare ``register`` / ``unregister`` so cleanup is guaranteed.
 """
 
 from __future__ import annotations
@@ -110,15 +109,10 @@ def tracked_run(
 ) -> subprocess.CompletedProcess:
     """Drop-in replacement for ``subprocess.run`` that registers the child.
 
-    Long-running subprocesses (ffmpeg, whisper, chromaprint) can outlive
-    a SIGTERM to the gunicorn worker when called via ``subprocess.run``
-    because ``run`` blocks on the thread and the Python signal handler
-    only fires between C calls. If gunicorn then SIGKILLs the worker,
-    the subprocess becomes an orphan reparented to PID 1.
-
-    Using ``Popen`` + our registry lets ``terminate_all`` -- invoked
-    from the graceful-shutdown signal handler -- forward SIGTERM (then
-    SIGKILL after a deadline) to every tracked child so nothing leaks.
+    With ``subprocess.run`` the Python signal handler only fires between C calls, so a child
+    can outlive a SIGTERM to the worker and become an orphan under PID 1 if gunicorn then
+    SIGKILLs it. Popen plus the registry lets ``terminate_all`` (called from the graceful-shutdown
+    handler) forward SIGTERM, then SIGKILL after a deadline, to every tracked child.
     """
     if capture_output:
         if stdout is not None or stderr is not None:

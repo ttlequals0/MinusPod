@@ -32,9 +32,8 @@ COVERAGE_GAP_TOLERANCE = 3.0
 def invalidate_tail_provenance(marker: dict, new_end: float) -> None:
     """Drop tail-growth eligibility when a stage selects a new end.
 
-    Content-tail provenance describes how the current edge was reached. A
-    reviewer or human-selected end must earn any later sonic-tail extension
-    from fresh evidence instead of reusing stale eligibility.
+    Tail provenance describes how the current edge was reached; a newly selected end must
+    earn any later sonic-tail extension from fresh evidence.
     """
     if marker.get('end') != new_end:
         marker.pop('end_extended_by_content', None)
@@ -132,8 +131,8 @@ def covering_confirm(start, end, confirmed, *, where=None,
                      prefer_confirmed_span=False) -> dict | None:
     """First (newest) confirm covering >= CORRECTION_MATCH_MIN_COVERAGE of the range.
 
-    Tests the original and confirmed_span; prefer_confirmed_span tests only the
-    confirmed_span when there is one, so a stale wide original cannot match.
+    Tests the original and confirmed_span; prefer_confirmed_span uses only the confirmed_span
+    when present, so a stale wide original cannot match.
     """
     if start is None or end is None or end - start < 0.001:
         return None
@@ -405,18 +404,14 @@ def dai_core_bounds(marker: dict) -> tuple[float | None, float | None]:
     """Return the outer bounds of measured DAI evidence, if present."""
     return span_bounds(_valid_dai_core_spans(marker))
 
-# Stages whose spans carry alignment-derived padding (especially tails)
-# rather than transcript- or splice-anchored bounds. Members from these
-# stages are trimmable by the reviewer; every other stage's span is
-# protected inside a merge, except that a duration-estimated text-pattern
-# span protects only its matched text. Blacklist (not whitelist) so a future
-# stage name fails conservative: unknown stages are protected.
+# Stages whose spans carry alignment-derived padding (especially tails), so the reviewer may
+# trim them; every other stage is protected inside a merge (a duration-estimated text-pattern
+# span protects only its matched text). A blacklist so unknown future stages stay protected.
 UNPROTECTED_MEMBER_STAGES = frozenset({'dai_differential', 'vad_gap'})
 
-# LLM- or heuristic-derived edges carry padding the reviewer may trim, so a
-# proposal only has to keep overlapping such a member. Every other stage is
-# measured (fingerprint, cue_pair, text_pattern, manual) and must stay covered,
-# a duration-estimated text-pattern span only over its matched text.
+# LLM- or heuristic-derived edges carry trimmable padding, so a proposal need only overlap such
+# a member. Every other stage is measured (fingerprint, cue_pair, text_pattern, manual) and must
+# stay covered (a duration-estimated text-pattern span only over its matched text).
 COARSE_MEMBER_STAGES = frozenset({
     'claude', 'first_pass', 'verification', 'verification_miss',
     'heuristic_preroll', 'heuristic_postroll', 'language',
@@ -483,9 +478,8 @@ def protected_member_spans(marker: dict, fallback_start=None,
                            fallback_end=None) -> list[dict]:
     """Member-shaped spans a merged marker protects, legacy markers included.
 
-    A marker persisted before member tracking knows only its recorded union,
-    or the caller's original bounds; that becomes one stage-less member, and
-    an unknown stage counts as measured, so it stays expand-only.
+    A marker persisted before member tracking has only its recorded union or the caller's
+    original bounds; that becomes one stage-less member, counted as measured (expand-only).
     """
     members = recorded_member_spans(marker)
     if members:
@@ -674,10 +668,9 @@ def marker_stages(marker: dict) -> list[str]:
 def note_merged_members(target: dict, other: dict) -> None:
     """Record the protected members on any merge, distinct or overlapping.
 
-    Call BEFORE the merge mutates target's span or stage. Always writes
-    merged_protected_start/end and merged_member_spans on target (None/None
-    and [] when no member is anchored) so the reviewer can tell a tracked
-    merge from a legacy marker persisted by a pre-tracking release.
+    Call before the merge mutates target's span or stage. Always writes merged_protected_start/end
+    and merged_member_spans (None/None and [] when no member is anchored) so the reviewer can
+    tell a tracked merge from a pre-tracking legacy marker.
     """
     if other.get('has_estimated_pattern_member'):
         target['has_estimated_pattern_member'] = True
@@ -857,10 +850,9 @@ def subtract_spans(pieces, spans):
 
 
 def mark_distinct_merge(target: dict, other: dict) -> None:
-    """The one primitive every distinct-ad merge site calls: records the
-    protected-member union and sets the merged_distinct_ads flag together,
-    so a future merge site cannot set the flag while forgetting the
-    bookkeeping. Call BEFORE mutating target's span or stage."""
+    """The one primitive every distinct-ad merge site calls: records the protected-member union
+    and sets merged_distinct_ads together, so no site sets the flag without the bookkeeping.
+    Call before mutating target's span or stage."""
     note_merged_members(target, other)
     target['merged_distinct_ads'] = True
 
@@ -973,10 +965,9 @@ def _fold_rank(marker: dict) -> int:
 
 
 def fold_marker_pair(target: dict, other: dict) -> None:
-    """Fold two markers stored for one span into target, in place. A keep verdict
-    wins over a hold and a hold wins over a rejected or plain record; the loser
-    fills any field the winner lacks, including a hold reason with nowhere else
-    to go, which becomes a validation flag."""
+    """Fold two markers stored for one span into target, in place. Keep beats hold, hold beats
+    rejected or plain; the loser fills fields the winner lacks (an orphaned hold reason
+    becomes a validation flag)."""
     other_wins = _fold_rank(other) > _fold_rank(target)
     winner, loser = (other, target) if other_wins else (target, other)
     cleared = loser.get('hold_reason') if loser.get('held_for_review') else None

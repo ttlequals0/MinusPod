@@ -1,12 +1,6 @@
-"""
-Status Service - Tracks processing status for real-time UI updates.
+"""Status service: processing jobs, queue state and feed refresh status for the UI.
 
-Provides centralized status tracking for:
-- Current processing jobs
-- Processing queue state
-- Feed refresh status
-
-Uses file-based storage for multi-worker consistency.
+File-based storage keeps gunicorn workers consistent.
 """
 import fcntl
 import json
@@ -132,8 +126,7 @@ class StatusService:
         threading.Lock covers only this process, so without the flock two
         workers interleave and one update is silently lost.
         """
-        # Lock path derives from self.status_file so a relocated status file, as in
-        # tests, cannot end up guarded by a lock somewhere else.
+        # Lock path derives from self.status_file so a relocated file (tests) is guarded by its own lock.
         with self._file_lock:
             fd = None
             try:
@@ -157,11 +150,8 @@ class StatusService:
                     os.close(fd)  # releases the flock
 
     def _read_status_file(self) -> dict:
-        """Parse the status file. Writes only to heal a corrupt one.
-
-        Staleness expiry moved to _expire_stale so a plain read stops
-        rewriting the file on every poll. Corruption recovery stays here: it
-        is one-shot, and without it every later read logs the same warning.
+        """Parse the status file. Writes only to heal a corrupt one (one-shot, so
+        later reads do not repeat the same warning); expiry lives in _expire_stale.
         """
         try:
             if not os.path.exists(self.status_file):
@@ -185,9 +175,9 @@ class StatusService:
     def _expire_stale(self, status: dict, announce: bool) -> bool:
         """Drop a timed-out job and stale queue entries. True if it changed.
 
-        Workers that are SIGKILL'd never call complete_job(), so nothing else
-        clears them. `announce` is off for read-only callers, which expire in
-        memory only and would otherwise log the same job on every poll.
+        SIGKILL'd workers never call complete_job(), so nothing else clears
+        them. `announce` is off for read-only callers, which expire in memory
+        only and would otherwise log the same job on every poll.
         """
         changed = False
         now = time.time()
@@ -339,8 +329,8 @@ class StatusService:
                          run_id: str = None) -> bool:
         """Remove the job for (slug, episode_id) if present.
 
-        Used by ProcessingQueue orphan recovery so the UI does not show a
-        killed job as still transcribing for up to MAX_JOB_DURATION.
+        Used by orphan recovery so the UI does not show a killed job as still
+        running until MAX_JOB_DURATION.
         """
         with self._status_transaction():
             status = self._load()
@@ -495,8 +485,8 @@ class StatusService:
     def to_dict(self, status: SystemStatus | None = None) -> dict:
         """Convert status to a JSON-serializable dict.
 
-        Callers may pass an already-loaded snapshot to avoid a second
-        cross-process lock acquisition per open SSE stream, per update.
+        Pass an already-loaded snapshot to avoid a second cross-process lock
+        acquisition per SSE stream update.
         """
         status = status if status is not None else self.get_status()
 

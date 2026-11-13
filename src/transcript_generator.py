@@ -48,18 +48,15 @@ class TranscriptGenerator:
     def _trim_ad_words(self, segment: dict, ads_removed: list[dict]) -> dict | None:
         """Drop the words of a partially-covered segment that sit inside a cut.
 
-        A segment under the coverage threshold is kept, but without trimming
-        its in-cut words the removed ad's text bleeds into the transcript.
-        Uses each word's midpoint against the raw cut intervals (midpoint in
-        any interval == midpoint in their union, so no merge is needed).
+        Without this, a kept segment under the coverage threshold leaks the removed
+        ad's text. Tests each word midpoint against the raw cut intervals (no merge
+        needed: in any interval == in their union).
 
-        Returns the segment unchanged when there is nothing to trim or no
-        usable word timing, a rebuilt segment when words were dropped, or
-        None when no words survive.
+        Returns the segment unchanged if nothing to trim or no usable word timing,
+        a rebuilt segment if words were dropped, or None if none survive.
         """
         words = segment.get('words') or []
-        # Key-presence is not enough: the API transcription path can carry
-        # JSON nulls through as None values.
+        # Key-presence is not enough: the API path can carry JSON nulls as None.
         if not words or any(not isinstance(w.get('start'), (int, float))
                             or not isinstance(w.get('end'), (int, float))
                             for w in words):
@@ -88,11 +85,9 @@ class TranscriptGenerator:
         ads_removed: list[dict],
         replacement_duration: float = 0.0,
     ) -> list[dict]:
-        """Apply ad-removal filter + timestamp adjustment, return surviving segments.
+        """Filter ads and adjust timestamps, returning surviving segments as plain dicts.
 
-        Mirrors the filter/adjust pass used by generate_vtt and generate_text,
-        producing the post-cut segment list as plain dicts so it can be persisted
-        as final_segments_json alongside the VTT.
+        Mirrors generate_vtt/generate_text; the result is persisted as final_segments_json.
         """
         out = []
         for segment in segments:
@@ -124,11 +119,8 @@ class TranscriptGenerator:
         """Generate VTT transcript with adjusted timestamps.
 
         Args:
-            segments: Whisper transcript segments with start, end, text
+            segments: Whisper segments with start, end, text
             ads_removed: Removed ad markers with start, end
-
-        Returns:
-            VTT formatted transcript string
         """
         if not segments:
             logger.warning("No segments provided for VTT generation")
@@ -156,7 +148,7 @@ class TranscriptGenerator:
     ) -> str:
         """Generate plain text transcript with adjusted timestamps.
 
-        Output format: [HH:MM:SS.sss --> HH:MM:SS.sss] text
+        Format: [HH:MM:SS.sss --> HH:MM:SS.sss] text
         """
         if not segments:
             return ""

@@ -1,7 +1,7 @@
 """Remote transcription backend: health probes, endpoint probes, failover and the upload attempt policy.
 
-request_transcription is the one home of the attempt policy (transport retries, 429 waits, word-timestamp and vad_filter fallbacks).
-Tests patch transcriber.remote.safe_post for every Whisper API upload and probe; safe_get patches for probes target transcriber.remote.safe_get.
+request_transcription owns the attempt policy (transport retries, 429 waits, word-timestamp and vad_filter fallbacks).
+Tests patch transcriber.remote.safe_post for uploads and probes, and transcriber.remote.safe_get for GET probes.
 """
 
 import io
@@ -37,10 +37,9 @@ logger = logging.getLogger('transcriber')
 
 
 def get_remote_transcriber_health() -> dict:
-    """API-backend transcriber health for /system/status, from cached probes
-    only: a polled status endpoint must not fire an outbound request per
-    tick. Unconfigured reads as unavailable; never probed reads as available
-    (nothing has failed)."""
+    """API-backend health for /system/status, from cached probes only (a polled
+    endpoint must not fire a request per tick). Unconfigured is unavailable;
+    never probed is available (nothing has failed)."""
     whisper_settings = settings._get_whisper_settings()
     base_url = (whisper_settings.get('api_base_url') or '').rstrip('/')
     if not base_url:
@@ -137,8 +136,7 @@ def _coerce_hashable(value):
 def _clamped_concurrency(value) -> int:
     """One instance's usable max_concurrent, floored at 1.
 
-    Accepts the int, float, and numeric-string spellings backends use; bool
-    and anything unparseable count as 1.
+    Accepts int, float and numeric strings; bool and unparseable values count as 1.
     """
     if isinstance(value, bool):
         return 1
@@ -154,17 +152,13 @@ def probe_whisper_health(base_url: str | None = None, samples: int = 8,
                          budget: float = _HEALTH_PROBE_BUDGET_SECONDS) -> dict:
     """Sample a self-hosted Whisper backend's optional /health endpoint.
 
-    Behind a load balancer, repeated calls round-robin across replicas,
-    revealing the replica count and total concurrency accepted. Stops early
-    after three consecutive already-seen instances. Results are cached per
-    base URL for 120s; refresh=True skips that read and re-probes, then
-    stores the fresh result so an on-demand check such as the connection
-    test also clears a stale entry. One probe runs per backend at a time,
-    and a caller arriving mid-probe (refresh included) gets the cached or
-    last good result instead of queuing. `budget` caps how many further
-    samples start, not the wall time of one already in flight. Never
-    raises: an unusable sample is skipped, and a probe that finds nothing
-    returns {'available': False}.
+    Behind a load balancer, repeated calls round-robin across replicas, revealing
+    replica count and total concurrency; stops after three consecutive
+    already-seen instances. Cached per base URL for 120s; refresh=True re-probes
+    and stores the result (clearing a stale entry). One probe runs per backend:
+    a caller arriving mid-probe gets the cached or last good result. `budget`
+    caps how many further samples start, not an in-flight one's wall time. Never
+    raises; finding nothing returns {'available': False}.
     """
     whisper_settings = None
     if base_url is None:
@@ -281,10 +275,9 @@ def _bearer_headers(api_key: str) -> dict[str, str]:
 
 
 def _probe_upload(skip_flac_compression: bool) -> tuple[str, bytes]:
-    """Probe audio in the format a real episode upload would use: FLAC by
-    default, WAV when the skip toggle is on (mirrors _transcribe_via_api,
-    including its fall-back to WAV when the FLAC encode fails). Matters for
-    servers with no FLAC decoder (OVMS): a WAV-only probe would pass while
+    """Probe audio in the real upload format: FLAC, or WAV when the skip toggle is on
+    (mirrors _transcribe_via_api, incl. WAV fallback on FLAC encode failure).
+    A WAV-only probe would pass on servers without a FLAC decoder (OVMS) while
     real episodes fail.
     """
     wav = common.probe_wav_bytes()
@@ -317,17 +310,13 @@ def probe_transcription_endpoint(base_url: str, api_key: str = '',
                                  skip_flac_compression: bool = True) -> dict:
     """End-to-end reachability test for a remote transcription endpoint (#544).
 
-    Uploads one second of generated audio using the same URL construction,
-    auth header, form fields, and upload format as the real transcription
-    path, so the result reflects what an actual episode upload would hit.
-    Distinguishes the failure classes that matter for setup debugging:
-    server unreachable, server alive but wrong endpoint path (OVMS answers
-    400/404 everywhere except its versioned base), and endpoint present but
-    rejecting requests.
+    Uploads one second of generated audio with the real path's URL, auth header,
+    form fields and format. Distinguishes unreachable server, wrong endpoint path
+    (OVMS answers 400/404 except at its versioned base) and an endpoint rejecting
+    requests.
 
-    Returns a dict: ok (transcription endpoint accepted the probe),
-    reachable (server responded at all), status (HTTP code when one was
-    received), detail (user-facing outcome message).
+    Returns a dict: ok (probe accepted), reachable (server responded), status
+    (HTTP code if any), detail (user-facing message).
     """
     url = _transcription_url(base_url)
     headers = _bearer_headers(api_key)
@@ -395,9 +384,8 @@ def probe_transcription_endpoint(base_url: str, api_key: str = '',
 def _whisper_api_rejects_word_timestamps(response) -> bool:
     """True when the server failed because word-level timestamps are unsupported.
 
-    OpenAI proper returns the rejection as HTTP 400; OpenVINO Model Server
-    surfaces the same condition as a 5xx with a MediaPipe error string. Detect
-    by body-text marker so both shapes route into the segment-only fallback.
+    OpenAI returns HTTP 400; OpenVINO Model Server returns a 5xx with a MediaPipe
+    error string. Detected by body-text marker to cover both.
     """
     if response is None or response.status_code == 200:
         return False
@@ -415,8 +403,7 @@ def _whisper_api_rejects_word_timestamps(response) -> bool:
 def _whisper_api_rejects_vad_filter(response) -> bool:
     """True when the server 400s an unrecognized `vad_filter` form field.
 
-    Narrow to that field name so only this specific rejection retries; any
-    other non-200 falls through unchanged.
+    Matches on the field name so only this rejection retries.
     """
     if response is None or response.status_code == 200:
         return False

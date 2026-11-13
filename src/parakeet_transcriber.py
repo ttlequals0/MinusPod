@@ -281,7 +281,7 @@ class IncompleteModelDownload(Exception):
 
 
 def _warn_on_stalled_download(key, now):
-    """One WARNING per download that has run past the warn limit; the library sets no overall timeout."""
+    """One warning per download that has run past the warn limit; the library sets no overall timeout."""
     started = _downloads_started.get(key)
     if started is not None and now - started >= PARAKEET_MODEL_DOWNLOAD_WARN_SECONDS:
         _downloads_started[key] = None

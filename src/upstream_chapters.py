@@ -1,12 +1,9 @@
-"""Fetch upstream podcast:chapters JSON (issue #560 follow-up).
+"""Fetch upstream podcast:chapters JSON (#560).
 
-Some feeds publish chapters only as a separate podcast:chapters JSON file
-(Podcasting 2.0), not as embedded ID3 CHAP frames. Auto mode's embedded probe
-never sees these, so it falls back to AI-generated chapters even though the
-publisher's own chapters are available. rss_parser.py captures the file's URL
-at feed refresh (episodes.upstream_chapters_url); this module fetches it at
-processing time so main_app/pipeline/publish.py can remap and preserve it the same
-way it preserves embedded chapters.
+Some feeds publish chapters only as a podcast:chapters JSON file (Podcasting 2.0),
+which the embedded ID3 probe never sees. rss_parser.py stores its URL at feed
+refresh (episodes.upstream_chapters_url); this module fetches it at processing
+time so main_app/pipeline/publish.py can remap and keep it like embedded chapters.
 """
 import json
 import logging
@@ -35,21 +32,14 @@ def fetch_upstream_chapters(url: str, user_agent: str | None = None, *,
                             fallback_user_agent: str | None = None) -> list[dict] | None:
     """Fetch and parse a podcast:chapters JSON file.
 
-    Returns None for ANY failure: network error, size-cap trip, JSON parse
-    failure, or a payload that is not a dict with a 'chapters' list. None
-    means "unknown", not "this episode has no chapters", mirroring
-    embedded_chapters.probe_chapters' None-vs-[] contract so callers can tell
-    an unreachable or malformed remote file apart from a genuinely empty one
-    and fall back to generation instead of skipping the chapter step.
+    Returns None on any failure (network, size cap, bad JSON, payload not a dict
+    with a 'chapters' list). None means "unknown", mirroring
+    embedded_chapters.probe_chapters' None-vs-[] contract, so callers fall back to
+    generation. Returns [] only when the file parses and its 'chapters' is empty.
 
-    Returns [] only when the fetch and parse both succeed and the file's
-    'chapters' list is empty.
-
-    Each kept entry needs a numeric startTime >= 0; entries failing that are
-    dropped rather than failing the whole fetch. title/img/url are carried
-    through unchanged when present. A missing title is left absent here;
-    the processing step applies the "Chapter N" fallback once it knows each
-    chapter's final position in the remapped list.
+    Entries need a numeric startTime >= 0 or are dropped. title/img/url pass
+    through; a missing title stays absent (the "Chapter N" fallback is applied
+    later, once the final position is known).
     """
     if not url:
         return None

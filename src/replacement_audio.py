@@ -1,8 +1,7 @@
 """Manage the replacement audio spliced in where an ad was cut.
 
-The operator can upload their own file over the shipped default. Uploads land
-on the data volume so they survive a redeploy, and are transcoded to MP3 so the
-render path always gets the format the filename claims.
+An operator upload overrides the shipped default. It lives on the data volume
+(survives redeploys) and is transcoded to MP3 to match the filename.
 """
 import json
 import logging
@@ -145,10 +144,9 @@ def _validate_format(info: dict[str, Any]) -> None:
 
 
 def save_upload(raw: bytes) -> dict[str, Any]:
-    """Validate, transcode to MP3 and install an uploaded replacement.
+    """Validate, transcode to MP3 and install an upload; return its metadata.
 
-    Returns the new metadata. Raises ReplacementAudioError with an
-    operator-facing message on any rejection.
+    Raises ReplacementAudioError (operator-facing message) on rejection.
     """
     if not raw:
         raise ReplacementAudioError('That file is empty.')

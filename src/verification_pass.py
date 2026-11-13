@@ -1,13 +1,8 @@
-"""
-Verification pass for ad detection.
+"""Verification pass: re-run detection on the post-cut transcript to catch missed ads.
 
-After the first pass detects and removes ads, this module gets the processed
-transcript and runs detection again with a "what doesn't belong" prompt to
-catch missed ads. It normally re-transcribes the processed audio, but in
-LLM-only reprocess it maps the saved transcript through the cuts instead, so
-iterating on detection needs no transcription (issue #349). Returns dual
-timestamps: original-audio coordinates for UI/DB and processed-audio
-coordinates for cutting.
+Normally re-transcribes the processed audio; LLM-only reprocess maps the
+saved transcript through the cuts instead (#349). Returns dual timestamps:
+original-audio for UI/DB, processed-audio for cutting.
 """
 
 import logging
@@ -24,15 +19,10 @@ logger = logging.getLogger('podcast.verification')
 
 
 class VerificationPass:
-    """
-    Runs the full detection pipeline on processed audio to find missed ads.
+    """Runs detection on processed audio to find missed ads.
 
-    The verification pass:
-    1. Re-transcribes the pass 1 output on GPU (singleton lazy-reloads)
-    2. Runs audio analysis (volume + transitions)
-    3. Runs Claude detection with verification prompt + audio context
-    4. Maps processed-audio timestamps back to original-audio timestamps
-    5. Returns both coordinate sets (original for UI, processed for cutting)
+    Steps: transcribe the pass 1 output, analyze audio, run detection with the
+    verification prompt, then map processed timestamps back to original.
     """
 
     def __init__(self, ad_detector, transcriber, audio_analyzer,
@@ -55,20 +45,15 @@ class VerificationPass:
                reuse_transcript: bool = False,
                feed_id: int | None = None,
                action_map: dict[str, str] | None = None) -> dict:
-        """
-        Run full pipeline on processed audio to find missed ads.
+        """Run detection on processed audio to find missed ads.
 
-        Args:
-            pass1_cuts: List of ad dicts removed in pass 1 (need start/end).
-                        Used to build the timestamp map back to original audio.
-            action_map: The run's resolved category actions, forwarded to detection.
+        pass1_cuts: ad dicts removed in pass 1 (start/end), used to map back to
+        original audio. action_map: the run's category actions, passed to detection.
 
-        Returns dict with:
-            'ads': list of ad dicts in ORIGINAL-audio timestamps (for UI/DB)
-            'ads_processed': list of ad dicts in PROCESSED-audio timestamps (for cutting)
-            'segments': transcript segments from verification
-            'status': 'clean', 'found_ads', 'no_segments',
-                      'transcription_failed', or 'detection_failed'
+        Returns a dict: 'ads' (original-audio timestamps, for UI/DB),
+        'ads_processed' (processed-audio timestamps, for cutting), 'segments',
+        and 'status' ('clean', 'found_ads', 'no_segments',
+        'transcription_failed' or 'detection_failed').
         """
         # Step 1: Get verification segments.
         if not pass1_cuts and original_segments:
@@ -82,16 +67,8 @@ class VerificationPass:
             # and downstream can't mutate the caller's segment list in place.
             verification_segments = list(original_segments)
         elif reuse_transcript and pass1_cuts and original_segments:
-            # LLM-only reprocess (#349): map the saved transcript through the
-            # applied cuts instead of re-transcribing the processed audio. The
-            # surviving audio is unchanged, so a re-transcription would yield the
-            # same words; only the segment boundaries differ. This is what makes
-            # LLM-only iteration transcription-free. The trade is that pass 2 can
-            # only re-examine what the saved transcript already captured -- it
-            # cannot surface an ad whose audio the transcript missed entirely.
-            # Map onto the beeped timeline: the processed audio this pass
-            # re-examines has a replacement beep where each cut was, exactly
-            # like a re-transcription would see it.
+            # LLM-only reprocess (#349): map the saved transcript through the cuts onto the
+            # beeped timeline instead of re-transcribing; pass 2 only sees what it captured.
             verification_segments = TranscriptGenerator().compute_final_segments(
                 original_segments, pass1_cuts, get_replacement_duration()
             )
@@ -107,10 +84,8 @@ class VerificationPass:
             try:
                 verification_segments = self._transcribe_verification(processed_audio_path, slug=slug)
             except (ServiceUnavailableError, AudioExtractionError) as e:
-                # Verification is best-effort: a Whisper outage (or a chunk
-                # extraction failure, #556) here must not fail or defer an
-                # already-cut episode. Return the failed status so the
-                # pass-2 record is still persisted (#482).
+                # Best-effort: a Whisper outage or chunk extraction failure (#556) must not
+                # fail an already-cut episode; the failed status still persists the pass-2 record (#482).
                 logger.warning(f"[{slug}:{episode_id}] Verification: transcription unavailable, skipping pass 2: {e}")
                 return {'ads': [], 'ads_processed': [], 'segments': [],
                         'status': 'transcription_failed'}
@@ -126,9 +101,8 @@ class VerificationPass:
             progress_callback("analyzing", 88)
         processed_analysis = None
         try:
-            # Pass the feed PK so the cue analyzer can select the per-feed
-            # template matcher; without it the verification pass would only
-            # ever see the spectral fallback even when the feed has templates.
+            # The feed PK lets the cue analyzer pick the per-feed template matcher
+            # instead of only the spectral fallback.
             processed_analysis = self.audio_analyzer.analyze(
                 processed_audio_path, feed_id=feed_id,
             )
@@ -205,7 +179,7 @@ class VerificationPass:
             logger.info(f"[{slug}:{episode_id}] Verification: mapped {len(original_ads)} ads "
                        f"to original timestamps using {len(pass1_cuts)} pass 1 cuts")
         else:
-            # No pass 1 cuts means no timestamp shift -- processed = original
+            # No pass 1 cuts means no timestamp shift: processed equals original
             original_ads = deepcopy(processed_ads)
             logger.info(f"[{slug}:{episode_id}] Verification: no pass 1 cuts, "
                        f"timestamps are already original")
@@ -240,15 +214,11 @@ class VerificationPass:
 
     def _transcribe_verification(self, audio_path: str,
                                  slug: str = None) -> list[dict]:
-        """Re-transcribe for verification using the shared Transcriber.
+        """Re-transcribe via transcribe_chunked() so audio over the backend's
+        single-request limit (e.g. OpenAI whisper's 25MB) is chunked, not a 413.
 
-        Delegates to self.transcriber.transcribe_chunked() so episodes longer
-        than the backend's single-request limit (e.g. OpenAI whisper's 25MB)
-        are split into chunks instead of failing with 413. Short-circuits to
-        single-shot transcribe() internally when the audio fits in one chunk.
-
-        Lets exceptions propagate to caller so status correctly reflects
-        'transcription_failed' vs 'no_segments'.
+        Exceptions propagate so the status distinguishes 'transcription_failed'
+        from 'no_segments'.
         """
         language_override = get_feed_language_override(self.db, slug)
         segments = self.transcriber.transcribe_chunked(
@@ -263,14 +233,11 @@ class VerificationPass:
 
 
 def _build_timestamp_map(pass1_cuts: list[dict]) -> list[tuple[float, float, float | None]]:
-    """Build a sorted list of (cut_start, cut_duration, cut_replacement) from
-    pass 1 removed ads.
+    """Build a sorted list of (cut_start, cut_duration, cut_replacement) from pass 1 removed ads.
 
-    Each entry represents a gap in the original timeline that was removed.
-    cut_replacement is the span's own 'replacement_duration' when present,
-    else None; callers fall back to their `replacement_duration` argument
-    for legacy rows without a per-span value. Used by _map_to_original to
-    reverse the timestamp shift.
+    cut_replacement is the span's own 'replacement_duration', else None;
+    callers fall back to their `replacement_duration` argument for legacy
+    rows. Used by _map_to_original to reverse the timestamp shift.
     """
     cuts = []
     for ad in pass1_cuts:
@@ -318,33 +285,24 @@ def _map_ad_to_original(ad: dict, timestamp_map: list[tuple],
 
 def _cut_replacement(cut: tuple, default: float | None = None) -> float | None:
     """A cut tuple's own replacement duration (third element), or `default`
-    for a 2-tuple or an explicit None third element.
-
-    Shared by _map_to_original and _map_correction_to_processed so both
-    honor the same 2-tuple/3-tuple compatibility rule (see
-    _build_timestamp_map) from one place.
-    """
+    for a 2-tuple or an explicit None third element."""
     return cut[2] if len(cut) > 2 and cut[2] is not None else default
 
 
 def _map_to_original(processed_time: float,
                      cuts: list[tuple[float, float]],
                      replacement_duration: float = 0.0) -> float:
-    """Map a processed-audio timestamp back to original-audio timestamp.
+    """Map a processed-audio timestamp back to original-audio time.
 
-    Walks through the sorted cuts, accumulating removed time. Each cut is
-    replaced by its own replacement duration (or `replacement_duration` as
-    fallback) of audio in the processed file, so a cut shifts later content
-    by (duration - replacement). A timestamp inside a replacement maps just
-    inside the removed span it stands in for, keeping the mapping monotonic
-    (the inverse of utils.time.adjust_timestamp).
+    Each cut shifts later content by (duration - replacement). A timestamp
+    inside a replacement maps just inside the removed span it stands in for,
+    keeping the mapping monotonic (the inverse of utils.time.adjust_timestamp).
     """
     offset = 0.0
     for cut in cuts:
         cut_start, cut_duration = cut[0], cut[1]
         cut_replacement = _cut_replacement(cut, replacement_duration)
-        # In processed timeline, this cut's replacement starts at
-        # cut_start - offset and lasts cut_replacement.
+        # In the processed timeline this cut's replacement starts at cut_start - offset.
         replacement_start = cut_start - offset
         if processed_time >= replacement_start + cut_replacement:
             offset += cut_duration - cut_replacement
@@ -361,18 +319,12 @@ def _map_correction_to_processed(
     cuts: list[tuple[float, float]],
     replacement_duration: float = 0.0,
 ) -> tuple[float, float] | None:
-    """Map a user-correction range from original time to processed-audio time.
+    """Map a user-flagged range [orig_start, orig_end) to processed-audio time.
 
-    Pass 1 already removed `cuts` (in original time). For a user-flagged
-    region `[orig_start, orig_end)`, return the visible portion in
-    processed-audio coordinates. Returns None when the entire range was
-    removed by a cut (no representation in processed audio).
-
-    Cuts are pre-sorted by start ascending (2-tuples or 3-tuples, see
-    _cut_replacement). If a cut contains `orig_start`, the visible portion
-    begins at the cut's end. If a cut contains `orig_end`, the visible
-    portion ends at the cut's start. Then both endpoints are shifted left by
-    the total cut duration that ended at or before them.
+    Returns the portion that survives pass 1's `cuts` (sorted by start; 2- or
+    3-tuples), or None when a cut removed the whole range. An endpoint inside
+    a cut snaps to the cut's edge, then both shift left by the cut duration
+    ending before them.
     """
     if orig_end <= orig_start:
         return None
@@ -389,10 +341,8 @@ def _map_correction_to_processed(
     if end <= start:
         return None
 
-    # After the snap loop the endpoints are never strictly inside a cut, so
-    # the forward shift is exactly adjust_timestamp's: one owner for the
-    # (duration - replacement) render model. Each cut's own replacement
-    # carries through so a beeped span in the mix shifts nothing.
+    # Endpoints are never strictly inside a cut now, so adjust_timestamp does
+    # the shift (one owner for the duration-minus-replacement model).
     span_dicts = []
     for cut in cuts:
         s, d = cut[0], cut[1]

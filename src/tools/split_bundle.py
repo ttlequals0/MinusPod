@@ -1,11 +1,9 @@
 """Split a community-submission bundle into per-pattern files.
 
-The in-app exporter packages multiple patterns into one bundle file
-(`minuspod-submission-<id>.json`). The maintainer prefers per-pattern
-files in `patterns/community/` (one file = one ad). This tool reads a
-bundle and writes each contained pattern to its canonical
-`<slug>-<short_uuid>.json` filename using the same slugify logic the
-validator enforces.
+The in-app exporter packs several patterns into one bundle file
+(`minuspod-submission-<id>.json`), but `patterns/community/` wants one file per ad.
+This tool writes each pattern to its canonical `<slug>-<short_uuid>.json` filename,
+using the slugify logic the validator enforces.
 
 Usage:
 
@@ -30,9 +28,8 @@ from utils.community_tags import BUNDLE_FORMAT, expected_filename, iter_bundle_p
 def split(bundle_path: Path, *, keep_original: bool = False) -> list[Path]:
     """Write each pattern from `bundle_path` as a sibling per-pattern file.
 
-    Returns the list of written paths. Raises ValueError if the file is not a
-    bundle, and FileExistsError if any target per-pattern filename already
-    exists in the same directory (no overwrite).
+    Returns the written paths. Raises ValueError if the file is not a bundle, and
+    FileExistsError if a target filename already exists (no overwrite).
     """
     raw = json.loads(bundle_path.read_text(encoding='utf-8'))
     if not isinstance(raw, dict) or raw.get('format') != BUNDLE_FORMAT:
@@ -44,10 +41,8 @@ def split(bundle_path: Path, *, keep_original: bool = False) -> list[Path]:
         raise ValueError(f'{bundle_path.name} contains zero patterns')
 
     out_dir = bundle_path.parent
-    # First pass: compute names + check collisions before writing anything.
-    # Check against BOTH the on-disk state and the other targets queued in this
-    # same run -- two bundle entries that slugify to the same filename would
-    # otherwise silently overwrite each other and lose a pattern.
+    # First pass: compute names and check collisions before writing anything, against both disk
+    # and targets queued in this run (two entries slugifying alike would overwrite each other).
     targets = []
     seen: set = set()
     for i, p in enumerate(patterns):

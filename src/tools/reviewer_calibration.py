@@ -1,17 +1,15 @@
 """Reviewer calibration self-test.
 
-Runs a small labeled corpus of ad/non-ad transcripts through the production
-`AdReviewer` stack against the configured LLM and reports verdict agreement
-plus how often responses carry the structured `is_ad` bool. Every transcript
-in the corpus was written for this tool; nothing is sourced from a real feed.
+Runs a small synthetic labeled corpus of ad/non-ad transcripts through the
+production `AdReviewer` stack against the configured LLM and reports verdict
+agreement plus how often responses carry the structured `is_ad` bool.
 
 CLI usage (see docs/llm-providers.md):
 
     PYTHONPATH=src python -m tools.reviewer_calibration
 
 Also auto-runs in a background thread when a settings save commits a
-different review route, storing its result under the
-`reviewer_calibration_last` setting.
+different review route, storing its result under `reviewer_calibration_last`.
 """
 from __future__ import annotations
 
@@ -39,7 +37,7 @@ from utils.time import utc_now_iso
 logger = logging.getLogger(__name__)
 
 # Below this verdict-agreement fraction the CLI exits 1 and the settings
-# auto-run hook logs a WARNING instead of INFO.
+# auto-run hook logs a warning instead of info.
 CALIBRATION_AGREEMENT_THRESHOLD = 0.75
 
 _EPISODE_META = {
@@ -302,9 +300,8 @@ def _verdict_agrees(verdict: str, expected: str) -> bool:
 def resolve_calibration_route():
     """Review route a calibration run uses.
 
-    The detection route is the pass fallback, so same_as_pass inherits
-    detection's actual slot and model instead of the primary. Sending the
-    review model to the wrong endpoint 404s and opens that endpoint's breaker.
+    Detection is the pass fallback, so same_as_pass inherits its slot and
+    model; the wrong endpoint would 404 and open that endpoint's breaker.
     """
     try:
         detection = resolve_route('detection')
@@ -411,9 +408,8 @@ def calibration_revision() -> str:
 def trigger_reviewer_calibration(db, previous_revision: str | None):
     """Self-test the committed review route when it differs from previous_revision.
 
-    Returns the started Thread, or None when nothing was started. A run
-    already in flight adopts the new revision instead of queueing a second
-    job, so one committed configuration gets at most one calibration.
+    Returns the started Thread, or None. A run already in flight adopts the new
+    revision instead of queueing a second, so one configuration is calibrated once.
     """
     if provider_clients.llm_disabled():
         return None

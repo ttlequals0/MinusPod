@@ -1,7 +1,6 @@
 """Sponsor name sanitization and known_sponsors FK resolution.
 
-All sponsor writes from the rest of the codebase flow through
-`get_or_create_known_sponsor()` so the canonical row in
+All sponsor writes go through `get_or_create_known_sponsor()`, so
 `known_sponsors` is the only place sponsor names live.
 """
 import logging
@@ -118,18 +117,13 @@ def sanitize_sponsor_name(name):
 def get_or_create_known_sponsor(db, name, conn=None):
     """Resolve a free-text sponsor name to a `known_sponsors.id`.
 
-    Sanitization, in order:
-      1. Must be a string.
-      2. Strip leading/trailing whitespace and outer quotes/punctuation.
-      3. Reject if any character is a non-whitespace control char
-         (0x00-0x1F minus \\t \\n \\r, plus 0x7F).
-      4. Collapse runs of internal whitespace to single spaces.
-      5. Reject if empty after sanitization.
-      6. Reject if longer than 100 characters.
+    Sanitization, in order: must be a string; strip outer whitespace, quotes
+    and punctuation; reject non-whitespace control chars (0x00-0x1F minus
+    \\t \\n \\r, plus 0x7F); collapse internal whitespace; reject empty or
+    over 100 characters.
 
-    Returns:
-      Existing row id on case-insensitive match, or a new row id if
-      inserted, or `None` for any rejected input.
+    Returns the existing row id on a case-insensitive match, a new row id if
+    inserted, or `None` for rejected input.
     """
     s = sanitize_sponsor_name(name)
     if s is None:

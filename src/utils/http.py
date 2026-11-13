@@ -1,10 +1,5 @@
-"""HTTP utility helpers.
-
-The `post_with_retry` / `get_with_retry` wrappers that lived here were
-removed after the 2.0 security audit; every outbound caller now routes
-through ``utils.safe_http`` so the per-redirect SSRF revalidation and
-downgrade guards apply. Only log-oriented helpers remain here.
-"""
+"""Log-oriented HTTP helpers. Outbound requests go through ``utils.safe_http``
+for per-redirect SSRF revalidation and downgrade guards."""
 import re
 import sys
 from urllib.parse import urlsplit
@@ -167,18 +162,13 @@ def safe_url_for_log(url, keep_path: bool = False,
                      keep_query: bool = False) -> str:
     """Return a safe-for-logs URL string.
 
-    Default: ``scheme://host[:port]`` only; userinfo is always dropped. Query strings and paths often carry
-    credentials or identifiers and are dropped. Set ``keep_path=True``
-    to include the path (useful for LLM endpoint logs where the operator
-    wants to see ``/v1/chat/completions`` etc.).
+    Default: ``scheme://host[:port]`` only. Userinfo and fragments are always
+    dropped; paths and queries often carry credentials or identifiers.
+    ``keep_path=True`` includes the path. ``keep_query=True`` also keeps the
+    query (opt-in: enclosure queries often hold signed CDN tokens or tracking
+    ids) and implies ``keep_path``.
 
-    ``keep_query=True`` additionally keeps the query string, which on a
-    podcast enclosure regularly holds a signed CDN token or a per-listener
-    tracking id. It is opt-in for that reason and implies ``keep_path``.
-    Fragments are always dropped.
-
-    Tolerant of non-string input (test doubles, None): anything that
-    can't be parsed reduces to the sentinel ``<url>`` rather than raising.
+    Unparseable or non-string input reduces to ``<url>`` rather than raising.
     """
     try:
         parts = urlsplit(str(url))
@@ -205,9 +195,8 @@ def safe_url_for_log(url, keep_path: bool = False,
 def redirect_chain_for_log(response, keep_query: bool = False) -> list[str]:
     """Indented log lines tracing a response's redirect hops to its final URL.
 
-    Empty when the request went straight through, so a caller can splice it in
-    without a special case. Reads ``response.history``, which requests fills
-    with one entry per hop.
+    Empty when the request went straight through, so callers need no special
+    case. Reads ``response.history`` (one entry per hop).
     """
     lines = []
     history = list(getattr(response, 'history', None) or [])

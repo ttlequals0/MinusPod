@@ -1,10 +1,8 @@
 """Minimal TTL cache helper.
 
-Used by callers that previously rolled their own time-based cache. Single
-sentinel (`_MISSING`) distinguishes "no entry" from "entry stored as None".
-
-Time source: `time.monotonic()` unless a `clock` callable is given. Every operation holds an internal lock, so
-one instance is safe to share across threads.
+A sentinel (`_MISSING`) distinguishes "no entry" from "entry stored as None".
+Time source is `time.monotonic()` unless a `clock` callable is given. Every operation
+holds an internal lock, so one instance is safe to share across threads.
 """
 import threading
 import time

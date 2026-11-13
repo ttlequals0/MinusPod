@@ -1,12 +1,8 @@
 """Shared helpers for API endpoints that write encrypted secrets.
 
-Every secret-bearing route needs the same three rules:
-- reject writes when crypto is unavailable (so plaintext never hits disk),
-- encrypt when a value is provided, clear otherwise,
-- translate deep crypto failures into the same 409 the shallow gate returns.
-
-Putting the logic here keeps ``api/providers.py`` and ``api/settings/ad_detection.py``
-from drifting.
+Every secret-bearing route needs the same rules: reject writes when crypto is
+unavailable (so plaintext never hits disk), encrypt a provided value or clear
+otherwise, and map deep crypto failures to the same 409 as the shallow gate.
 """
 from __future__ import annotations
 
@@ -20,10 +16,8 @@ class SecretWriteRejected(Exception):
 def set_or_clear_secret(db, key: str, value: str | None) -> None:
     """Encrypt-and-store ``value`` when non-empty, else clear the row.
 
-    Raises ``SecretWriteRejected`` when the value is non-empty but the
-    crypto subsystem is not usable. Callers translate that to a 409
-    response; pre-check with ``crypto_available()`` to short-circuit
-    before validating the rest of the payload.
+    Raises ``SecretWriteRejected`` when the value is non-empty but crypto is unusable;
+    callers map that to a 409. Pre-check with ``crypto_available()`` to fail early.
     """
     stripped = (value or "").strip()
     if not stripped:

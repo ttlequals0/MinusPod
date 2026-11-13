@@ -1,9 +1,8 @@
 """Shared text-similarity helpers for ad-pattern dedupe and merge.
 
-Lifted from `tools/community_pattern_validator` so the community-submission
-validator (CI + import endpoint) and the runtime merge/clustering paths
-(`pattern_service`, `api/patterns`) compute similarity with one implementation.
-The validator re-exports these names for backward compatibility.
+One implementation shared by the community-pattern validator (CI + import
+endpoint, which re-exports these names) and the runtime merge/clustering
+paths (`pattern_service`, `api/patterns`).
 
 Bands: `>= DUPLICATE_THRESHOLD` is a duplicate, `>= VARIANT_THRESHOLD` (and
 below duplicate) is a variant, below that is distinct.
@@ -27,10 +26,9 @@ VARIANT_THRESHOLD = 0.75
 def canonicalize_for_dedupe(text: str) -> str:
     """Return the canonical form of `text` used for dedupe comparison only.
 
-    Lowercase -> strip date/year tokens (BEFORE punctuation removal, otherwise
-    '12/31' becomes '12 31' and slips past) -> punctuation->space -> collapse
-    whitespace -> strip stopwords / day / month / relative-time tokens -> trim.
-    The original text is not modified.
+    Lowercase, strip date/year tokens (before punctuation removal, or '12/31'
+    becomes '12 31' and slips past), punctuation to space, collapse whitespace,
+    strip stopwords and day/month/relative-time tokens, trim.
     """
     if not text:
         return ''

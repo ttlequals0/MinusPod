@@ -1,13 +1,10 @@
 """Outbound User-Agent resolution.
 
-A leaf module on purpose, following the processing_timeouts pattern: the value
-is read on every outbound request, so it needs a cache and an explicit
-invalidation hook rather than a settings query per call. It imports nothing
-from the repo but config at module level, so importing it before storage cannot cycle.
+A leaf module (imports only config at module level, so it cannot cycle with storage).
+The value is read on every outbound request, hence a cache plus an invalidation hook.
 
-Two strings because hosts disagree. Bot mitigation on some CDNs refuses
-browser UAs below a rolling version floor, while some feed hosts serve only a
-declared podcast client.
+Two strings because hosts disagree: some CDNs refuse browser UAs below a rolling version
+floor, while some feed hosts serve only a declared podcast client.
 """
 import logging
 import threading

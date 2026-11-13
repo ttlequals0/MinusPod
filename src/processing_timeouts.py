@@ -1,15 +1,12 @@
 """Processing timeout configuration.
 
-Two thresholds control how long an episode may remain in-flight:
+Two in-flight thresholds:
+- soft (default 3600s): status_service clears the current_job and stale queue entries.
+- hard (default 7200s): processing_queue force-releases the lock, even if held
+  by a stuck thread of this process.
 
-- soft (default 3600s / 60 min): status_service auto-clears the current_job
-  and drops stale queue entries at this age.
-- hard (default 7200s / 120 min): processing_queue force-releases the lock
-  even when held by the current process (stuck processing thread).
-
-Precedence: DB setting > env var > default. DB values take effect at
-next resolution (no restart needed); a short TTL cache avoids thrashing
-the DB on hot paths.
+Precedence: DB setting > env var > default. DB values apply without a restart;
+a short TTL cache keeps hot paths off the DB.
 """
 from __future__ import annotations
 
@@ -46,11 +43,8 @@ def _resolve(key: str, env_name: str, default: int) -> int:
 
     value: int | None = None
     try:
-        # Read the singleton straight from the `database` package rather than
-        # via `api.get_database` (which just returns this same singleton).
-        # status_service/processing_queue can resolve a timeout during early
-        # startup before the `api` package finishes importing, which raised a
-        # circular ImportError that got caught and fell back to the default.
+        # Import from `database`, not `api.get_database`: early-startup callers
+        # run before `api` finishes importing (circular ImportError, silent default).
         from database import Database
         raw = Database().get_setting(key)
         if raw is not None and str(raw).strip():
@@ -92,7 +86,7 @@ def invalidate_cache() -> None:
 
 def validate(soft: int, hard: int) -> str | None:
     """Return an error string if invalid, else None."""
-    # JSON booleans pass isinstance(int) -- reject them explicitly.
+    # JSON booleans pass isinstance(int); reject them explicitly.
     if type(soft) is not int or type(hard) is not int:
         return 'timeouts must be integers'
     if soft < SOFT_MIN:

@@ -152,10 +152,8 @@ def unload_whisper_if_idle() -> bool:
         return _unload_local_models()
 
 
-# Last local transcription outcome, mirrored at module scope so
-# get_local_transcriber_health() can report it without needing the
-# Transcriber() instance (module functions such as probe_whisper_health
-# follow the same instance-free pattern for the remote backend).
+# Last local transcription outcome, kept at module scope so
+# get_local_transcriber_health() can report it without a Transcriber() instance.
 _local_transcription_state_lock = threading.Lock()
 _last_local_transcription_outcome: dict | None = None
 
@@ -212,10 +210,9 @@ def _latest_local_outcome(device: str, backend: str) -> dict | None:
 def get_local_transcriber_health(backend: str | None = None) -> dict:
     """Local-backend transcriber health for /system/status.
 
-    The local model runs in-process with no endpoint to probe, so 'available'
-    reflects the last transcription outcome (a GPU-OOM exhaustion reads as
-    available=False). The outcome is read from shared state so any worker
-    reports the latest one; no attempt yet reads as available.
+    The model runs in-process with no endpoint to probe, so 'available' is the
+    last transcription outcome (GPU-OOM exhaustion reads as False; no attempt
+    yet reads as True), read from shared state so any worker reports it.
     """
     device = resolve_whisper_device()
     backend = backend or settings._get_whisper_settings()['backend']
@@ -327,9 +324,8 @@ class WhisperModelSingleton:
     def unload_model(cls):
         """Unload the current model and free GPU memory.
 
-        Call this after transcription is complete to free ~5-6GB memory
-        before memory-intensive operations like speaker diarization.
-        The model will lazy-reload on the next transcription request.
+        Frees ~5-6GB before memory-intensive steps like diarization; the model
+        lazy-reloads on the next request.
         """
         if cls._instance is not None or cls._base_model is not None:
             logger.info(f"Unloading Whisper model: {cls._current_model_name}")
@@ -380,11 +376,9 @@ class WhisperModelSingleton:
             )
             logger.info(f"Initializing Whisper model: {model_size} on {device} with {compute_type}")
 
-            # CTranslate2 requires compute capability >= 7.0 for float16. Pascal
-            # consumer (CC 6.1), Maxwell (CC 5.x), and Jetson TX2 (CC 6.2) raise
-            # at init. Walk the fallback chain only when float16 was selected;
-            # any other explicit choice that fails is a config error, not a
-            # hardware mismatch, so re-raise.
+            # CTranslate2 float16 needs compute capability >= 7.0 (Pascal, Maxwell and
+            # Jetson TX2 raise at init). Fall back only from float16; any other
+            # explicit choice that fails is a config error, so re-raise.
             try:
                 cls._base_model = WhisperModel(
                     model_size, device=device, compute_type=compute_type,
@@ -458,10 +452,9 @@ BATCH_SIZE_TIERS = [
     (120 * 60, 8),      # 90-120 min: batch_size=8
 ]
 
-# Largest batch size proven to fit this device's VRAM: recorded when a run
-# completes below the duration tier, so later episodes start at a size that
-# fits. After the TTL the next run probes one size up, so a transient OOM
-# cannot pin every later episode for good.
+# Largest batch size proven to fit this device's VRAM, recorded when a run
+# completes below its duration tier. After the TTL the next run probes one
+# size up, so a transient OOM cannot pin later episodes.
 BATCH_CEILING_SETTING = 'transcribe_batch_size_ceiling'
 BATCH_CEILING_TTL_DAYS = 2
 
@@ -502,9 +495,9 @@ def ceiling_expired(entry: dict) -> bool:
 
 
 def record_batch_size_ceiling(batch_size: int) -> None:
-    """Persist batch_size as this device's ceiling. Called only after a
-    completed run, since only completion proves a size fits; ratchets down
-    against an unexpired ceiling and keeps its timestamp so it still ages out.
+    """Persist batch_size as this device's ceiling. Called only after a completed
+    run (only completion proves a size fits); ratchets down against an
+    unexpired ceiling and keeps its timestamp so it still ages out.
     """
     candidate = max(1, int(batch_size))
     entry = read_ceiling()

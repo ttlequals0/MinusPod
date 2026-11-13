@@ -15,8 +15,7 @@ _FILE_MODE = 0o666 & ~_UMASK
 def write_json_atomic(path: Union[str, os.PathLike], obj) -> bool:
     """Replace `path` with `obj` as JSON. Returns False if the write failed.
 
-    The temp file is per-writer. A shared temp name lets one worker truncate
-    another's partial write, after which both rename the wreckage into place.
+    The temp file is per-writer: a shared name lets one worker truncate another's partial write.
     """
     path = os.fspath(path)
     temp_path = None

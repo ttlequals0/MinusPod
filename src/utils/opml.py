@@ -1,9 +1,8 @@
 """Shared OPML 2.0 builder for feed export.
 
-Used by both the session-gated admin download (`api/feeds.py`) and the
-key-gated public import-by-URL route (`main_app/routes.py`), so the two stay
-byte-identical. defusedxml has no SubElement/tostring, so stdlib ET is used
-for building only (we never parse untrusted OPML here).
+Shared by the admin download (`api/feeds.py`) and the public import-by-URL route
+(`main_app/routes.py`) so their output stays identical. defusedxml has no
+SubElement/tostring, so stdlib ET builds only; untrusted OPML is never parsed here.
 """
 import xml.etree.ElementTree as ET
 
@@ -11,8 +10,7 @@ import xml.etree.ElementTree as ET
 def modified_feed_url(base_url: str, slug: str, key: str | None) -> str:
     """MinusPod-served feed URL, carrying ?key= while feed auth is enabled.
 
-    Single implementation of the keyed feed-URL shape; api.feeds._public_feed_url
-    delegates here so the export and the feedUrl the UI shows never drift.
+    api.feeds._public_feed_url delegates here so the export and the UI feedUrl never drift.
     """
     url = f"{base_url.rstrip('/')}/{slug}"
     return f"{url}?key={key}" if key else url
@@ -22,9 +20,8 @@ def build_opml_xml(podcasts: list[dict], mode: str, base_url: str,
                    feed_auth_key: str | None = None) -> str:
     """Render feeds as an OPML 2.0 document string.
 
-    mode='modified' emits MinusPod ad-free feed URLs (keyed when feed_auth_key
-    is set); mode='original' emits the upstream source URLs. Callers validate
-    mode before calling.
+    mode='modified' emits ad-free feed URLs (keyed when feed_auth_key is set);
+    mode='original' emits upstream source URLs. Callers validate mode.
     """
     opml = ET.Element('opml', version='2.0')
     head = ET.SubElement(opml, 'head')

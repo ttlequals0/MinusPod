@@ -14,9 +14,7 @@ def episode_ui_url(slug: str, episode_id: str) -> str:
 def episode_version_suffix(version: int | None) -> str:
     """Return '-v{N}' for N>=1, empty string otherwise.
 
-    Kept separate from ``Storage.get_episode_path`` so callers that only need
-    the string suffix (DB `processed_file` column, RSS enclosure URL, API
-    response `processedUrl`) avoid depending on a Storage instance.
+    Separate from ``Storage.get_episode_path`` so suffix-only callers need no Storage.
     """
     return f"-v{int(version)}" if version and int(version) > 0 else ""
 
@@ -56,8 +54,7 @@ def episode_public_url(base_url: str, slug: str, episode_id: str,
                         key: str | None = None) -> str:
     """Return the public-facing enclosure URL.
 
-    ``key`` is the global feed auth key (authenticated feeds); when set it is
-    appended as the ``?key=`` query param the public routes enforce.
+    ``key`` is the global feed auth key; when set it is appended as ``?key=``.
     """
     url = f"{base_url}/episodes/{slug}/{episode_filename(episode_id, version, extension)}"
     return f"{url}?key={key}" if key else url
