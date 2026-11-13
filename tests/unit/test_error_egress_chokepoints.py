@@ -1,5 +1,6 @@
 """API, webhook, email and log egress each redact the same error sample."""
 import logging
+import re
 
 import webhook_service
 from utils.log_format import QueryStringRedactingFilter
@@ -18,7 +19,7 @@ class _InlineThread:
 
 
 def _clean(text):
-    assert 'cdn.example.com' in text
+    assert re.search(r'<redacted>@cdn\.example\.com/a\.mp3', text)
     for leak in LEAKS:
         assert leak not in text
 

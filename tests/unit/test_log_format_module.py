@@ -1,6 +1,7 @@
 import io
 import json
 import logging
+import re
 import sys
 import threading
 
@@ -469,4 +470,4 @@ def test_marked_record_message_is_not_redacted_again(monkeypatch):
     monkeypatch.setattr('utils.log_format.redact_log_text', spy)
     out = SingleLineFormatter('[%(levelname)s] [%(name)s] %(message)s').format(rec)
     assert 'SECRET123' not in out
-    assert all('cdn.example.com' not in text for text in seen)
+    assert not any(re.search(r'cdn\.example\.com', text) for text in seen)

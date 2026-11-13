@@ -200,7 +200,8 @@ def test_skip_names_the_url_without_its_query(storage, caplog):
     with caplog.at_level(logging.DEBUG, logger='storage'):
         storage.download_artwork('example-feed', url)
     line = _skip_lines(caplog)[0].getMessage()
-    assert 'example.com' in line and 'secret123' not in line
+    assert line == '[example-feed] Skipping artwork retry for http://example.com, it failed recently'
+    assert 'secret123' not in line
 
 
 def test_skip_is_logged_again_after_a_new_failure_opens_a_window(storage, caplog):

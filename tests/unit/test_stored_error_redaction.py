@@ -22,7 +22,7 @@ SLUG, EPISODE = 'origin-test', 'a1b2c3d4e5f6'
 
 
 def _assert_clean(text):
-    assert isinstance(text, str) and 'cdn.example.com' in text
+    assert isinstance(text, str) and re.search(r'<redacted>@cdn\.example\.com/a', text)
     for leak in LEAKS:
         assert leak not in text
 
@@ -285,16 +285,25 @@ def test_json_fields_leave_invalid_and_non_object_json_alone():
         assert redact_json_fields(value, ('error',)) == value
 
 
-def test_two_megabyte_blob_redacts_quickly():
-    """Worst case: every region carries an error that needs redacting."""
+def _best_redact_seconds(regions):
     error = 'GET https://alice:PASS@cdn.example.com/a.mp3?X-Amz-Signature=SIG failed'
-    blob = json.dumps({'regions': [{'error': error, 'text': 'x' * 100}] * 10200})
-    assert len(blob) > 2_000_000
-    start = time.perf_counter()
-    redact_json_fields(blob, ('error',))
-    elapsed = time.perf_counter() - start
-    print(f'2 MB redact_json_fields: {elapsed * 1000:.1f} ms')
-    assert elapsed < 0.05
+    blob = json.dumps({'regions': [{'error': error, 'text': 'x' * 100}] * regions})
+    best = float('inf')
+    for _ in range(3):
+        start = time.perf_counter()
+        redact_json_fields(blob, ('error',))
+        best = min(best, time.perf_counter() - start)
+    return best, len(blob)
+
+
+def test_redaction_scales_linearly_on_a_large_blob():
+    """Worst case: every region needs redacting. 8x the input must cost ~8x, not ~64x."""
+    small, small_len = _best_redact_seconds(1275)
+    large, large_len = _best_redact_seconds(10200)
+    assert large_len > 2_000_000
+    ratio = large / small
+    print(f'2 MB redact_json_fields: {large * 1000:.1f} ms, {ratio:.1f}x the 8x-smaller input')
+    assert ratio < 24  # linear is ~8, quadratic ~64
 
 
 _COPY_STATEMENT = re.compile(r"INSERT\s+(?:OR\s+\w+\s+)?INTO\s+\w+\s*\([^)]*\)\s*SELECT[^;]*?\bFROM\b", re.I | re.S)

@@ -1,6 +1,7 @@
 """Every API route that returns a stored error column redacts it at the serializer, always."""
 import hashlib
 import json
+import re
 
 import pytest
 
@@ -126,7 +127,7 @@ def test_every_stored_error_column_is_classified():
 def _assert_no_leak(response):
     assert response.status_code == 200, response.get_data(as_text=True)
     body = response.get_data(as_text=True)
-    assert 'cdn.example.com' in body
+    assert re.search(r'<redacted>@cdn\.example\.com/a\.mp3', body)
     for leak in LEAKS:
         assert leak not in body
 
@@ -207,7 +208,7 @@ def test_error_response_redacts_message_and_details(app_client):
         response = error_response(RAW, 400, details=RAW)
     assert response.status_code == 400
     body = response.get_data(as_text=True)
-    assert 'cdn.example.com' in body
+    assert re.search(r'<redacted>@cdn\.example\.com/a\.mp3', body)
     assert not any(leak in body for leak in LEAKS)
 
 
