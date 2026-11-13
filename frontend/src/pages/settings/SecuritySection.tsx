@@ -6,7 +6,7 @@ import { setPassword, removePassword, AuthStatus } from '../../api/auth';
 import { getSettings, updateSettings } from '../../api/settings';
 import { getErrorMessage } from '../../api/client';
 import DraftNumberInput, { parseOptionalNumber } from '../../components/DraftNumberInput';
-import { tableBody, tableCard, tableHead, tableRow, thBase } from '../../components/tableStyles';
+import { tableBody, tableCard, tableHead, tableRow, td, th } from '../../components/tableStyles';
 import { btnBase, btnLg, btnPrimary, btnSecondary, btnOutline, btnDestructiveOutline } from '../../components/buttonStyles';
 import { inputBase, labelBase } from '../../components/fieldStyles';
 import { subHeading } from '../../components/pageStyles';
@@ -69,9 +69,6 @@ interface SecuritySectionProps {
   refreshStatus: () => Promise<AuthStatus>;
   plaintextSecretsCount?: number;
 }
-
-const agentHead = `${thBase} px-3 py-3 text-left`;
-const agentCell = 'px-3 py-3 text-sm';
 
 function SecuritySection({
   isPasswordSet,
@@ -419,15 +416,15 @@ function SecuritySection({
                 <table className="w-full">
                   <thead className={tableHead}>
                     <tr>
-                      <th className={agentHead}>Agent</th>
-                      <th className={agentHead}><span className="sr-only">Actions</span></th>
+                      <th className={th}>Agent</th>
+                      <th className={th}><span className="sr-only">Actions</span></th>
                     </tr>
                   </thead>
                   <tbody className={tableBody}>
                     {blockedAgents.map((agent) => (
                       <tr key={agent} className={tableRow}>
-                        <td className={`${agentCell} min-w-0 break-all font-mono text-foreground`}>{agent}</td>
-                        <td className={`${agentCell} text-right whitespace-nowrap`}>{removeAgentButton(agent)}</td>
+                        <td className={`${td} min-w-0 break-all font-mono text-foreground`}>{agent}</td>
+                        <td className={`${td} text-right whitespace-nowrap`}>{removeAgentButton(agent)}</td>
                       </tr>
                     ))}
                   </tbody>

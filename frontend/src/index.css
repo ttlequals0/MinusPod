@@ -162,10 +162,8 @@ mark,
   summary:not(.flex) { padding-block: 12px; }
 }
 
-/* WebKit sizes a native select (and a time input) with its own metrics: a select ignores min-height and renders shorter
-   than the inputs beside it, and a time input keeps an intrinsic min-width that pushes it out of a grid cell. A plain box
-   follows the field recipe. The chevron is two stroked diagonals in --muted-foreground (the colour of the app's other
-   chevrons, so every theme follows); unlayered so it beats the px-3 padding. */
+/* WebKit sizes a native select and a time input with its own metrics (short select, wide time input), so both follow the
+   field recipe as plain boxes. The chevron is two --muted-foreground strokes; unlayered so it beats the px-3 padding. */
 select {
   appearance: none;
   padding-right: 2.25rem;
@@ -178,8 +176,8 @@ select {
 }
 input[type="time"] { appearance: none; min-width: 0; }
 input[type="time"]::-webkit-date-and-time-value { text-align: left; }
-/* One explicit height for a select and a single-line input, so WebKit's differing box metrics cannot change it.
-   Base layer so an h-* utility (h-auto on a deliberately compact or tall input) still wins; the coarse 44px floor is the unlayered min-height above. */
+/* One explicit height for a select and a single-line input. Base layer so an h-* utility (h-auto) wins; the coarse 44px
+   floor is the unlayered min-height above. */
 @layer base {
   select, input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]) { height: 2.5rem; }
   @media (pointer: coarse) {

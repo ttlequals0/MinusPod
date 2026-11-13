@@ -66,8 +66,7 @@ const PATTERN_PARAM_DEFAULTS = {
   page: '1', scope: 'all', origin: 'all', source: 'all', category: '', inactive: '',
 };
 
-// Column widths in px, Sponsor (index 2) unsized so it takes the spare width. Below xl Created is dropped and Scope is
-// sized to show 14 or more characters of a podcast name; Sponsor gives the room up.
+// Column widths in px, Sponsor (index 2) unsized so it takes the spare width.
 const COLUMN_WIDTHS = ['w-[52px]', 'w-[148px]', '', 'w-[128px]', 'w-[124px]', 'w-[96px]', 'w-[84px]', 'w-[96px]', 'w-[96px]', 'w-[72px]', 'w-[84px]'];
 
 function PatternsPage() {
