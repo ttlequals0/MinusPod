@@ -175,6 +175,7 @@ Add feed names RSS and YouTube in its input label. Advanced options apply to eit
 - Use Ctrl/Cmd+K for global quick search. Ordinary printable keys remain available to native controls, browser search, and assistive technology.
 - Editor shortcuts run only when focus belongs to the editor. Ignore editable content, buttons, selects, sliders, composition, repeated keys, modifiers, and already-handled events.
 - Use `PageTabs` for page sections with exclusive panels. The `wrap` prop keeps a short tab set inside the viewport on phones (Search, six tabs). In-page section links (Stats) are anchors styled with `tabStrip` and `tabItem`, not `role="tab"`. The Add feed mode toggle is a `SegmentedToggle` that stacks below 560 px.
+- A dialog with exclusive sections (the pattern dialog: Details and Audio) uses `PageTabs` with `flush` inside the `Modal` header, so the tab row stays pinned above the scrolling body and its rule is the header rule. The panel renders only the active section; a draft in the other section is kept.
 - Page tabs use one Tab stop, Left/Right, Home/End, `aria-selected`, and a named `tabpanel`. Navigation links and filter buttons retain their own semantics.
 
 ## Saves, resets, and destructive actions
