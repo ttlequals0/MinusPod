@@ -352,12 +352,12 @@ function FeedSettingsPanel({ feed, slug }: Props) {
 
   // markClean re-baselines the field the instant it commits (or reverts),
   // rather than waiting on the refetch this mutation's onSettled triggers.
-  function commitFloat(
+  function commitNumber(
     draftField: DraftField,
     serverValue: number | null | undefined,
     field: keyof UpdateFeedPayload,
-    lo: number,
-    hi: number,
+    parse: (s: string) => number,
+    isValid: (v: number) => boolean,
   ) {
     const trimmed = draftField.value.trim();
     if (trimmed === '') {
@@ -368,8 +368,8 @@ function FeedSettingsPanel({ feed, slug }: Props) {
       draftField.markClean('');
       return;
     }
-    const v = parseFloat(trimmed);
-    if (!Number.isNaN(v) && v >= lo && v <= hi) {
+    const v = parse(trimmed);
+    if (isValid(v)) {
       // Only send the PATCH when the normalized value differs from the server value.
       if (v !== serverValue) {
         updateMutation.mutate({ [field]: v });
@@ -382,6 +382,16 @@ function FeedSettingsPanel({ feed, slug }: Props) {
     }
   }
 
+  function commitFloat(
+    draftField: DraftField,
+    serverValue: number | null | undefined,
+    field: keyof UpdateFeedPayload,
+    lo: number,
+    hi: number,
+  ) {
+    commitNumber(draftField, serverValue, field, parseFloat, (v) => !Number.isNaN(v) && v >= lo && v <= hi);
+  }
+
   function commitInt(
     draftField: DraftField,
     serverValue: number | null | undefined,
@@ -389,23 +399,7 @@ function FeedSettingsPanel({ feed, slug }: Props) {
     lo: number,
     hi: number,
   ) {
-    const trimmed = draftField.value.trim();
-    if (trimmed === '') {
-      if (serverValue != null) {
-        updateMutation.mutate({ [field]: null });
-      }
-      draftField.markClean('');
-      return;
-    }
-    const v = Number(trimmed);
-    if (Number.isInteger(v) && v >= lo && v <= hi) {
-      if (v !== serverValue) {
-        updateMutation.mutate({ [field]: v });
-      }
-      draftField.markClean(String(v));
-    } else {
-      draftField.markClean(serverValue != null ? String(serverValue) : '');
-    }
+    commitNumber(draftField, serverValue, field, Number, (v) => Number.isInteger(v) && v >= lo && v <= hi);
   }
 
   const commitTrimPattern = () => {
