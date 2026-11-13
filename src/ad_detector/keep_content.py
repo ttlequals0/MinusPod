@@ -1,23 +1,21 @@
-"""Keep-content (whitelist) inversion for ad detection -- opt-in, per feed.
+"""Keep-content (whitelist) inversion for ad detection, opt-in per feed.
 
-Normal "blacklist" mode asks the LLM which spans are ADS and removes those.
-Keep-content mode flips it: the LLM labels the substantive show CONTENT and we
-remove the complement (everything that is not content). It targets feeds with
-unrecognizable programmatic (DAI) ads, where the host content is easier to
-identify than the ads themselves.
+Normal "blacklist" mode asks the LLM which spans are ads and removes those.
+Keep-content mode flips it: the LLM labels the substantive show content and we
+remove the complement. It targets feeds with unrecognizable programmatic (DAI)
+ads, where host content is easier to identify than the ads.
 
-The failure mode is the dangerous one -- if the LLM UNDER-labels content, the
-unlabeled real show audio gets deleted. So ``invert_content_to_ads`` is gated:
-if the content coverage looks too low or the inversion would remove too much,
-it returns None and the caller falls back to normal blacklist detection rather
-than risk cutting real content.
+The dangerous failure is the LLM under-labeling content, which deletes real show
+audio. So ``invert_content_to_ads`` is gated: if content coverage looks too low
+or the inversion would remove too much, it returns None and the caller falls
+back to blacklist detection.
 """
 
 
 # System prompt for the content-labeling pass. The model marks the substantive
-# SHOW content; we keep those spans and remove the complement. It is written to
-# be INCLUSIVE -- when unsure, label as content -- because under-labeling here
-# deletes real show audio, while over-labeling only leaves an ad in.
+# show content; we keep those spans and remove the complement. It is written to
+# be inclusive (when unsure, label as content) because under-labeling deletes
+# real show audio, while over-labeling only leaves an ad in.
 CONTENT_SYSTEM_PROMPT = (
     "You label the substantive SHOW CONTENT in a podcast transcript window so a "
     "tool can keep it and remove everything else (ads, sponsor reads, dynamically "
@@ -39,10 +37,9 @@ CONTENT_SYSTEM_PROMPT = (
 def _normalize_content_spans(
     spans: list[dict], total_duration: float, edge_pad: float, min_gap: float,
 ) -> list[tuple[float, float]]:
-    """Grow each content span outward by edge_pad (keep a speech buffer so we
-    never clip the first/last syllable), clamp to the episode, sort, then merge
-    spans separated by less than min_gap so micro-pauses between sentences are
-    kept rather than cut."""
+    """Grow each content span outward by edge_pad (a speech buffer so the first/last
+    syllable is never clipped), clamp to the episode, sort, then merge spans
+    closer than min_gap so micro-pauses between sentences are kept."""
     norm: list[tuple[float, float]] = []
     for s in spans:
         try:
@@ -78,20 +75,19 @@ def invert_content_to_ads(
 
     Returns ``(ads, info)``. ``ads`` is the complement of the content spans, or
     ``None`` if a gate fails (the caller then reverts to blacklist mode). ``info``
-    is ALWAYS populated with the metrics and the name of the gate that failed
-    (``failed_gate`` is ``None`` on success) so the caller can log why an
-    inversion was rejected and the thresholds can be tuned.
+    is always populated with the metrics and the failed gate's name
+    (``failed_gate`` is ``None`` on success), so rejections can be logged and
+    thresholds tuned.
 
-    Gates (evaluated in order; the first failure sets ``failed_gate``):
+    Gates (in order; the first failure sets ``failed_gate``):
       - ``coverage``: content must cover at least ``min_coverage`` of the episode
-      - ``removed_fraction``: the inverted cuts must remove no more than
-        ``max_removed_fraction``
+      - ``removed_fraction``: inverted cuts may remove at most ``max_removed_fraction``
       - ``single_cut_fraction`` / ``single_cut_seconds``: no single inverted cut
-        may exceed ``max_single_ad_fraction`` of the episode OR
-        ``max_single_ad_seconds`` (a giant contiguous cut means a whole content
-        window went unlabeled -- coverage/removed gates miss this because they
-        are near complementary; the fraction gate alone is too loose on
-        multi-hour episodes, so the absolute cap backstops it)
+        may exceed ``max_single_ad_fraction`` of the episode or
+        ``max_single_ad_seconds``. A giant contiguous cut means a whole content
+        window went unlabeled, which the near-complementary coverage/removed
+        gates miss; the fraction alone is too loose on multi-hour episodes, so
+        the absolute cap backstops it.
     Inverted ad slivers shorter than ``min_ad_seconds`` are dropped.
     """
     info: dict = {

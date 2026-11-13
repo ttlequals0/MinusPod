@@ -1,19 +1,15 @@
 """Synthesize ad spans from unmatched cue pairs (#350).
 
-Some shows bracket every ad break with a stinger sound. When the LLM misses
-a break entirely (no spoken sponsor copy is detected, or the model bails on
-that window), the audio cue matcher still flags both stingers. This pass
-turns *consecutive* high-confidence cues that no LLM ad covers into a
-synthetic ad span, provided the gap between them matches a plausible break
-duration.
+Some shows bracket every ad break with a stinger. When the LLM misses a break
+entirely, the cue matcher still flags both stingers. This pass turns
+consecutive high-confidence cues that no LLM ad covers into a synthetic ad,
+provided the gap between them matches a plausible break duration.
 
-This breaks the original "cue is supporting evidence only" contract; that is
-why it is an opt-in setting (``audio_cue_create_from_pairs``). The contract
-when the setting is off is unchanged, except under the cue_only preset,
-which always forces synthesis with strict role matching regardless of the
-setting. When on, the synthesised ads carry a distinct ``reason`` and
+This breaks the "cue is supporting evidence only" contract, so it is opt-in
+(``audio_cue_create_from_pairs``); the cue_only preset always forces it with
+strict role matching. Synthesised ads carry a distinct ``reason`` and
 ``detection_stage`` so they show up in the ad editor as cue-only detections
-that the user can confirm or reject before they harden into patterns.
+the user can confirm or reject before they harden into patterns.
 """
 from __future__ import annotations
 
@@ -47,11 +43,10 @@ SKIP_PHASE_MISMATCH = 'phase_mismatch'
 logger = logging.getLogger('podcast.claude.cue_pair')
 
 
-# Defaults (DB-settable; the caller threads the live values in). Minimum
-# confidence is tighter than the snap threshold because synthesis *creates*
-# ads rather than just refining them. The break-duration band rejects pairs
-# too close (intro flourish / double-tap stinger) or too far apart (two
-# unrelated breaks rather than one bracketing pair).
+# Defaults (DB-settable; the caller threads live values in). Minimum confidence
+# is tighter than the snap threshold because synthesis creates ads. The
+# break-duration band rejects pairs too close (intro flourish / double-tap
+# stinger) or too far apart (two unrelated breaks).
 DEFAULT_MIN_PAIR_CONFIDENCE = AUDIO_CUE_PAIR_CONFIDENCE
 DEFAULT_MIN_BREAK_S = AUDIO_CUE_PAIR_MIN_BREAK_SECONDS
 DEFAULT_MAX_BREAK_S = AUDIO_CUE_PAIR_MAX_BREAK_SECONDS
@@ -62,11 +57,10 @@ DEFAULT_ORIENT_WINDOW_S = AUDIO_CUE_PAIR_ORIENT_WINDOW_SECONDS
 OVERLAP_TOLERANCE_S = 5.0
 
 # A pair spans an opener cue -> a later closer cue. A 'boundary' cue (and the
-# role-less spectral fallback) can play either part, so the all-boundary case
-# behaves exactly as before; a 'start'-typed cue can only open and an 'end'
-# can only close, which stops two break-entry stingers from pairing into a
-# span that covers the show content between two separate breaks. 'non_ad'
-# (intro/outro) cues match neither set, so they are never opener or closer.
+# role-less spectral fallback) can play either part; a 'start' cue can only open
+# and an 'end' only close, which stops two break-entry stingers pairing into a
+# span over the content between breaks. 'non_ad' (intro/outro) cues match
+# neither set.
 
 
 @dataclass
@@ -97,7 +91,7 @@ def _ad_edges_ok(a):
 
 def _is_exit_like(cue, idx, elig, ad_ends, window_s):
     """True if `cue` is the first edge-eligible cue after an LLM ad END, within
-    the window -- i.e. it plays where content resumes after a detected break."""
+    the window, i.e. it plays where content resumes after a detected break."""
     if not ad_ends:
         return False
     i = bisect.bisect_right(ad_ends, cue.start) - 1
@@ -113,7 +107,7 @@ def _is_exit_like(cue, idx, elig, ad_ends, window_s):
 
 def _is_entry_like(cue, idx, elig, ad_starts, window_s):
     """True if `cue` is the last edge-eligible cue before an LLM ad START, within
-    the window -- i.e. it plays where a detected break begins."""
+    the window, i.e. it plays where a detected break begins."""
     if not ad_starts:
         return False
     i = bisect.bisect_left(ad_starts, cue.end)
@@ -132,18 +126,16 @@ def _orient_cues(cues, ads, window_s):
     exit cue cannot open a pair that spans show content.
 
     A feed whose single cue brackets both ends of every ad break, but whose
-    opening ad has no entry cue, yields an ordered sequence exit, entry, exit,
-    entry ...; greedy pairing would pair the leading exit with the first entry
-    over CONTENT. Using the first-pass LLM ad edges, the leading exit cues
-    (edge-eligible cues before the first ad-entry cue, sitting just after an LLM
-    ad end) are marked closer-only, so pairing starts at the first real entry.
+    opening ad has no entry cue, yields exit, entry, exit, entry ...; greedy
+    pairing would pair the leading exit with the first entry over content. Using
+    the first-pass LLM ad edges, leading exit cues (edge-eligible, before the
+    first ad-entry cue, just after an LLM ad end) are marked closer-only.
 
-    Only the leading run is touched: a mid-episode cue is never demoted, so a
-    genuinely missed break bracketed by two boundary cues still synthesizes. A
-    missed break in the very first (pre-entry) position is indistinguishable from
-    a content span there, so orientation favors leaving that ad over cutting into
-    content -- the safer direction. Demotes only on positive LLM evidence; feeds
-    with no LLM ads, or window_s == 0, behave exactly as before."""
+    Only the leading run is touched, so a genuinely missed mid-episode break
+    still synthesizes. A missed break in the very first position is
+    indistinguishable from content there, so this favors leaving that ad over
+    cutting content. Demotes only on positive LLM evidence; feeds with no LLM
+    ads, or window_s == 0, behave as before."""
     if window_s <= 0 or not ads:
         return
     ad_starts = sorted(float(a['start']) for a in ads if _ad_edges_ok(a))
@@ -157,10 +149,9 @@ def _orient_cues(cues, ads, window_s):
     elig = [c for c in cues
             if c.role in AUDIO_CUE_START_EDGE_ROLES
             or c.role in AUDIO_CUE_END_EDGE_ROLES]
-    # The first ad-entry cue: greedy pairing is already correctly phased from
-    # there on, so only cues before it can be a leading unpaired exit. Limiting
-    # orientation to that leading run keeps it from demoting a mid-episode cue
-    # and stranding a genuinely missed break bracketed by two boundary cues.
+    # The first ad-entry cue: greedy pairing is correctly phased from there on,
+    # so only cues before it can be a leading unpaired exit. Limiting orientation
+    # to that run keeps it from demoting a mid-episode cue.
     first_entry = next(
         (i for i, c in enumerate(elig)
          if _is_entry_like(c, i, elig, ad_starts, window_s)),
@@ -190,21 +181,17 @@ def synthesize_ads_from_cue_pairs(
     ``ads`` is the input list plus any synthesised cue-pair ads in chronological
     order (input not mutated). ``skip_diagnostics`` maps
     ``(template_id, round(start, 3))`` -> reason for every eligible template cue
-    that did NOT become part of a synthesised pair, so per-cue telemetry can
-    explain why (#350 Phase 6).
+    that did not become part of a pair, so per-cue telemetry can explain why.
 
     Args:
         ads: First-pass ad list (may be empty).
-        audio_analysis_result: ``AudioAnalysisResult`` from the analyzer,
-            or ``None``.
+        audio_analysis_result: ``AudioAnalysisResult`` from the analyzer, or ``None``.
         min_confidence: Drop any cue weaker than this before pairing.
-        min_break_s: Minimum gap (cue1.end -> cue2.start) for a pair to
-            qualify.
-        max_break_s: Maximum gap; pairs beyond this are skipped because the
-            two cues are more likely two separate boundaries.
+        min_break_s: Minimum gap (cue1.end -> cue2.start) for a pair.
+        max_break_s: Maximum gap; wider pairs are likely two separate boundaries.
         total_duration: Episode duration (s); 0 disables the fraction guard.
         max_break_fraction: Reject a pair spanning more than this fraction of
-            ``total_duration`` -- a short-episode phantom-ad backstop.
+            ``total_duration`` (short-episode phantom-ad backstop).
         strict_roles: cue_only preset. When True only role 'start' opens and
             only 'end' closes; 'boundary' cues cannot pair.
     """
@@ -223,12 +210,10 @@ def synthesize_ads_from_cue_pairs(
         if is_template_cue(c.details) and c.confidence < min_confidence:
             skip_diagnostics[_diag_key((c.details or {}).get('template_id'), c.start)] = \
                 SKIP_BELOW_CONFIDENCE
-    # Only precise template cues may *create* ads. Spectral-fallback cues (no
-    # 'source' key) are too coarse to synthesize from: on a no-template feed a
-    # dense burst section pairs them into dozens of overlapping false ads. They
-    # still inform the LLM prompt as supporting evidence; they just cannot mint
-    # an ad on their own. The opener/closer role checks below additionally
-    # exclude 'non_ad' (intro/outro) cues.
+    # Only precise template cues may create ads. Spectral-fallback cues (no
+    # 'source' key) are too coarse: on a no-template feed a dense burst pairs
+    # them into dozens of overlapping false ads. They still inform the LLM prompt
+    # as supporting evidence. The role checks below also exclude 'non_ad' cues.
     cues = sorted(
         (_Cue(
             start=float(c.start),
@@ -254,10 +239,9 @@ def synthesize_ads_from_cue_pairs(
 
     _orient_cues(cues, ads, orient_window_s)
 
-    # Greedy left-to-right pairing: each cue starts a candidate break with
-    # the next cue inside the duration band. Once a pair is formed, both
-    # cues are consumed so we do not chain a third cue onto the same break.
-    # Per-cue reasons accumulate for every cue that does not end up in a pair.
+    # Greedy left-to-right pairing: each cue starts a candidate break with the
+    # next cue inside the duration band. A formed pair consumes both cues so a
+    # third is not chained on. Per-cue reasons accumulate for cues left unpaired.
     new_ads = list(ads)
     consumed = [False] * len(cues)
     reasons: list = [None] * len(cues)
@@ -355,17 +339,15 @@ def synthesize_ads_from_cue_pairs(
             consumed[j] = True
             break
         # cue_a opened but no in-band partner paired with it (every closer was
-        # too near, too far, or already consumed). A covered / undersized pair
-        # took the break path above and set its own reason, so this only fires
-        # on a true band miss.
+        # too near, too far, or consumed). A covered/undersized pair took the
+        # break path above and set its own reason, so this fires only on a band miss.
         if not consumed[i] and not found_partner_in_band and reasons[i] is None:
             reasons[i] = SKIP_NO_PARTNER
 
-    # A trailing eligible cue (index len-1) is never an opener in the loop above,
-    # and any opener that fell through without a partner is already handled. Mark
-    # the remaining unconsumed, unclassified cues by role: any cue that is start-
-    # or end-capable in context simply found no partner (no_partner); only a cue
-    # that can play neither part is a phase mismatch.
+    # A trailing eligible cue is never an opener in the loop above, and openers
+    # that found no partner are already handled. Mark the remaining unconsumed,
+    # unclassified cues by role: a start- or end-capable cue found no partner
+    # (no_partner); only a cue that can play neither part is a phase mismatch.
     for idx, c in enumerate(cues):
         if consumed[idx] or reasons[idx] is not None:
             continue
@@ -386,9 +368,8 @@ def synthesize_ads_from_cue_pairs(
 def _covered_by_existing_ad(ads: list[dict], start: float, end: float) -> bool:
     """True iff an existing ad overlaps ``[start, end]`` within the tolerance.
 
-    ``ads`` is the growing list (input LLM ads plus already-synthesized spans),
-    so this both skips pairs an LLM ad already covers and prevents a clustered
-    or duplicated cue list from minting overlapping synthetic ads.
+    ``ads`` is the growing list (LLM ads plus already-synthesized spans), so this
+    skips pairs an LLM ad covers and stops duplicated cues minting overlapping ads.
     """
     for ad in ads:
         try:

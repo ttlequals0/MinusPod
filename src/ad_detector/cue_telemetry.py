@@ -1,16 +1,16 @@
-"""Build per-cue detection telemetry from a finished first-pass (#350 follow-up).
+"""Build per-cue detection telemetry from a finished first pass (#350).
 
 Pure function over the final ad list and the audio analysis result. For every
 template cue the matcher surfaced it records the match score and how detection
-used the cue: ``pair`` (it bracketed a synthesized ad), ``snap`` (it moved an ad
-edge), or ``none`` (it was surfaced but did not affect the cut). Spectral cues
-are not recorded -- they carry no template identity to review or promote.
+used the cue: ``pair`` (bracketed a synthesized ad), ``snap`` (moved an ad
+edge), or ``none`` (surfaced but did not affect the cut). Spectral cues are not
+recorded: they carry no template identity to review or promote.
 
-Phase 6 adds three diagnostics that make an ``outcome='none'`` cut explainable:
-sub-threshold ``below_threshold`` advisory rows (from the matcher's near-miss
-list), ``edge_distance_s`` (signed distance from an above-threshold cue to the
-nearest pre-snap LLM ad edge on its eligible side), and ``unused_reason`` (a
-taxonomy for why a surfaced cue did nothing). None of these ever changes a cut.
+Diagnostics make an ``outcome='none'`` cut explainable: sub-threshold
+``below_threshold`` advisory rows (the matcher's near-miss list),
+``edge_distance_s`` (signed distance from an above-threshold cue to the nearest
+pre-snap LLM ad edge on its eligible side), and ``unused_reason`` (why a
+surfaced cue did nothing). None of these ever changes a cut.
 """
 
 from config import (
@@ -31,9 +31,8 @@ from ad_detector.cue_boundary_snap import (
 def cue_key(template_id, start):
     """Stable (template_id, start) key for matching a cue to a pair/snap record.
 
-    Rounds to 3 decimals -- the same precision cue_pair/cue_snap store cue_start
-    at -- so the match is exact and two near-adjacent cues of the same template
-    do not collapse into one key.
+    Rounds to 3 decimals, the precision cue_pair/cue_snap store cue_start at, so
+    the match is exact and near-adjacent cues of one template stay distinct.
     """
     try:
         return (template_id, round(float(start), 3))
@@ -58,11 +57,10 @@ def build_cue_detection_records(
     Args:
         ads: The live ad list after cue-pair synthesis and boundary snap.
         audio_analysis_result: analyzer result; ``None`` yields no records.
-        pre_snap_ads: The LLM ad list BEFORE boundary snap (edge_distance is
+        pre_snap_ads: The LLM ad list before boundary snap (edge_distance is
             measured against these). Falls back to ``ads`` when omitted.
         pair_skip_diagnostics: (template_id, round(start,3)) -> pair-skip reason
-            from ``synthesize_ads_from_cue_pairs``; used for unused_reason when
-            cue-pair synthesis ran.
+            from ``synthesize_ads_from_cue_pairs``, used for unused_reason.
         snap_confidence: The live snap confidence floor.
         snap_lead_s / snap_lag_s: The live snap window either side of an ad edge.
     """
@@ -133,9 +131,8 @@ def build_cue_detection_records(
             'unused_reason': unused_reason,
         })
 
-    # Sub-threshold near-misses: advisory rows, never signals. They carry no
-    # outcome beyond 'below_threshold' and no edge_distance/unused_reason -- the
-    # pipeline never saw them, so there is nothing to explain.
+    # Sub-threshold near-misses: advisory rows, never signals. The pipeline never
+    # saw them, so they carry only 'below_threshold', no edge_distance/unused_reason.
     for nm in getattr(audio_analysis_result, 'cue_near_misses', None) or []:
         records.append({
             'template_id': nm.get('template_id'),
@@ -157,11 +154,10 @@ def build_cue_detection_records(
 def _edge_distance(cue_start, cue_end, role, ad_starts, ad_ends):
     """Signed distance from a cue to the nearest pre-snap LLM ad edge.
 
-    start-role cues can only move an ad START, so they are measured from the
-    cue's END to the nearest ad start; end-role cues from the cue's START to the
-    nearest ad end; boundary cues take whichever of the two is closer; non_ad
-    cues never move an edge, so they carry no distance. Sign is edge - cue, so
-    a positive value means the ad edge sits after the cue.
+    start-role cues can only move an ad START, so they measure from the cue's END
+    to the nearest ad start; end-role cues from the cue's START to the nearest ad
+    end; boundary cues take the closer of the two; non_ad cues never move an edge
+    and carry no distance. Sign is edge - cue (positive: the edge is after the cue).
     """
     if role == AUDIO_CUE_ROLE_NON_AD:
         return None
@@ -190,13 +186,12 @@ def _unused_reason(cue, role, ad_spans, edge_distance, snap_confidence,
                    snap_lead_s, snap_lag_s, pair_skip_diagnostics, template_id):
     """Explain why an above-threshold cue with outcome='none' did nothing.
 
-    Precedence (most-defining first): a non_ad cue is 'advisory_role' wherever it
-    sits; a cue inside an LLM ad span is 'covered'; a cue below the snap
-    confidence floor is 'below_snap_confidence'. When cue-pair synthesis ran and
-    recorded why this cue did not pair, that specific reason wins next -- it is
-    the authoritative pairing explanation. Otherwise an eligible in-confidence
-    cue whose nearest edge is beyond the live snap window is 'out_of_reach', and
-    anything left is 'unpaired'.
+    Precedence, most-defining first: a non_ad cue is 'advisory_role'; a cue
+    inside an LLM ad span is 'covered'; one below the snap confidence floor is
+    'below_snap_confidence'. Then the specific reason cue-pair synthesis
+    recorded for not pairing it, if any (the authoritative pairing explanation).
+    Otherwise an eligible cue whose nearest edge is beyond the live snap window
+    is 'out_of_reach', and anything left is 'unpaired'.
     """
     if role == AUDIO_CUE_ROLE_NON_AD:
         return 'advisory_role'
@@ -206,14 +201,13 @@ def _unused_reason(cue, role, ad_spans, edge_distance, snap_confidence,
     if pair_reason:
         return pair_reason
     # Role-aware reach check mirrors _pick_cue_for_start/_pick_cue_for_end.
-    # sign convention: d = edge - cue_ref (from _nearest_signed).
+    # Sign convention: d = edge - cue_ref (from _nearest_signed).
     #   start-role: cue.end vs ad_start -> reachable iff d in [-lag, +lead]
     #   end-role:   cue.start vs ad_end -> reachable iff d in [-lead, +lag]
     #   boundary:   either window suffices (picks whichever edge is closer).
-    # Reach is checked before 'covered' so that a directional cue outside its
-    # snap window reports out_of_reach even when it happens to fall inside the
-    # LLM span.  Boundary cues keep 'covered' first because a span-interior
-    # boundary cue has no un-covered edge to act on regardless of distance.
+    # Reach is checked before 'covered' so a directional cue outside its snap
+    # window reports out_of_reach even inside the LLM span. Boundary cues keep
+    # 'covered' first: a span-interior boundary cue has no uncovered edge to act on.
     in_reach = edge_distance is not None and _in_reach(
         role, edge_distance, snap_lead_s, snap_lag_s
     )
@@ -232,7 +226,7 @@ def _unused_reason(cue, role, ad_spans, edge_distance, snap_confidence,
 def _in_reach(role, edge_distance, snap_lead_s, snap_lag_s):
     """True if edge_distance falls within the role-specific snap window.
 
-    Mirrors _pick_cue_for_start and _pick_cue_for_end from cue_boundary_snap:
+    Mirrors _pick_cue_for_start/_pick_cue_for_end from cue_boundary_snap:
       start-role: cue.end in [ad_start-lead, ad_start+lag]  -> d in [-lag, +lead]
       end-role:   cue.start in [ad_end-lag, ad_end+lead]    -> d in [-lead, +lag]
       boundary:   either side is sufficient.
