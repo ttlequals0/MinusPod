@@ -2166,20 +2166,8 @@ class AdDetector:
             # Addressing-mode sample (random addressing mode A/B tracking).
             # Only recorded when at least one window was judged; never
             # allowed to fail the pass.
-            if addressing.windows_judged > 0:
-                try:
-                    self.db.record_addressing_log(
-                        slug, episode_id, 'detection', configured_mode,
-                        addressing_mode,
-                        addressing.windows_judged,
-                        addressing.windows_compliant,
-                        ads_proposed=addressing.ads_proposed,
-                        ads_kept=addressing.ads_kept,
-                        ads_dropped_invalid_ref=addressing.dropped_invalid_ref,
-                        ads_dropped_out_of_window=addressing.dropped_out_of_window,
-                        ads_dropped_too_long=addressing.dropped_too_long)
-                except Exception as e:
-                    logger.warning(f"[{slug}:{episode_id}] addressing log write failed: {e}")
+            self._record_addressing_sample(
+                slug, episode_id, 'detection', configured_mode, addressing_mode, addressing)
 
             return {
                 "ads": final_ads,
@@ -2197,6 +2185,25 @@ class AdDetector:
             return {"ads": [], "status": "failed", "error": redact_log_text(str(e)),
                     "retryable": is_retryable_error(e),
                     "model_not_configured": isinstance(e, ModelNotConfiguredError)}
+
+    def _record_addressing_sample(self, slug, episode_id, stage, configured_mode,
+                                  addressing_mode, addressing):
+        """Log the addressing-mode A/B sample when a window was judged; never fails the pass."""
+        if addressing.windows_judged <= 0:
+            return
+        try:
+            self.db.record_addressing_log(
+                slug, episode_id, stage, configured_mode,
+                addressing_mode,
+                addressing.windows_judged,
+                addressing.windows_compliant,
+                ads_proposed=addressing.ads_proposed,
+                ads_kept=addressing.ads_kept,
+                ads_dropped_invalid_ref=addressing.dropped_invalid_ref,
+                ads_dropped_out_of_window=addressing.dropped_out_of_window,
+                ads_dropped_too_long=addressing.dropped_too_long)
+        except Exception as e:
+            logger.warning(f"[{slug}:{episode_id}] addressing log write failed: {e}")
 
     def _process_keep_content_window(self, *, window_idx, window, total_windows,
                                      model, podcast_name, episode_title,
@@ -3738,20 +3745,8 @@ class AdDetector:
             else:
                 logger.info(f"[{slug}:{episode_id}] Verification: No additional ads found")
 
-            if addressing.windows_judged > 0:
-                try:
-                    self.db.record_addressing_log(
-                        slug, episode_id, 'verification', configured_mode,
-                        addressing_mode,
-                        addressing.windows_judged,
-                        addressing.windows_compliant,
-                        ads_proposed=addressing.ads_proposed,
-                        ads_kept=addressing.ads_kept,
-                        ads_dropped_invalid_ref=addressing.dropped_invalid_ref,
-                        ads_dropped_out_of_window=addressing.dropped_out_of_window,
-                        ads_dropped_too_long=addressing.dropped_too_long)
-                except Exception as e:
-                    logger.warning(f"[{slug}:{episode_id}] addressing log write failed: {e}")
+            self._record_addressing_sample(
+                slug, episode_id, 'verification', configured_mode, addressing_mode, addressing)
 
             return {
                 "ads": final_ads,
