@@ -87,6 +87,7 @@ describe('describeFingerprintSkip', () => {
     ['audio_removed', 'Audio was deleted for this pattern, so it was not added back.'],
     ['fingerprint_exists', 'This pattern already has an audio fingerprint.'],
     ['span_covers_multiple_patterns', 'That selection covers more than one pattern, so no audio fingerprint was stored.'],
+    ['span_not_found', 'The pattern text could not be found in the source transcript, so no audio fingerprint was stored.'],
     ['original_not_retained', "This episode's original audio is no longer kept."],
     ['segment_too_short', 'That selection is too short for an audio fingerprint.'],
     ['fingerprint_failed', 'Could not make an audio fingerprint from that selection.'],

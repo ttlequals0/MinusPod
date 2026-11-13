@@ -17412,6 +17412,7 @@ components:
         - audio_removed
         - fingerprint_exists
         - span_covers_multiple_patterns
+        - span_not_found
         - original_not_retained
         - segment_too_short
         - not_distinctive
@@ -17423,7 +17424,8 @@ components:
         audio_removed means the pattern's audio was deleted. fingerprint_exists means
         the pattern already has a fingerprint that Add ad and confirm do not replace.
         span_covers_multiple_patterns means the text was split into several patterns and
-        this one's own range could not be found. original_not_retained means the episode
+        this one's own range could not be found. span_not_found means a split or trim
+        could not locate the pattern's own text in the source transcript. original_not_retained means the episode
         keeps no original. segment_too_short means the span is under the minimum ad length.
         not_distinctive means the span has too little distinctive audio to reach the
         minimum coverage setting, so it could never be matched, and a forced rebuild
