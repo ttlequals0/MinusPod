@@ -165,6 +165,21 @@ describe('HistoryPage: failure reason', () => {
   });
 });
 
+describe('HistoryPage summary tiles', () => {
+  it('makes Completed and Failed buttons that are direct tiles and toggle the filter', async () => {
+    const user = userEvent.setup();
+    renderPage([makeEntry()]);
+    const completed = await screen.findByRole('button', { name: /Completed/ });
+    expect(completed.classList.contains('row-span-3')).toBe(true);
+    expect(completed.getAttribute('aria-pressed')).toBe('false');
+    await user.click(completed);
+    expect(screen.getByRole('button', { name: /Completed/ }).getAttribute('aria-pressed')).toBe('true');
+    expect(screen.getByRole('button', { name: /Failed/ }).getAttribute('aria-pressed')).toBe('false');
+    await user.click(screen.getByRole('button', { name: /Completed/ }));
+    expect(screen.getByRole('button', { name: /Completed/ }).getAttribute('aria-pressed')).toBe('false');
+  });
+});
+
 describe('HistoryPage loading placeholder', () => {
   it('shows header and row skeletons while the history query is pending', () => {
     mockGetProcessingHistory.mockReturnValueOnce(new Promise(() => {}));

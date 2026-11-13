@@ -1,5 +1,5 @@
-import { render, screen } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
+import { fireEvent, render, screen } from '@testing-library/react';
+import { describe, expect, it, vi } from 'vitest';
 import StatTile from './StatTile';
 
 describe('StatTile', () => {
@@ -26,5 +26,25 @@ describe('StatTile', () => {
     const { container } = render(<StatTile label="A" value="1" />);
     const cls = (container.firstChild as HTMLElement).classList;
     expect(cls.contains('row-span-3') && cls.contains('grid-rows-subgrid')).toBe(true);
+  });
+
+  it('renders a button that is the tile itself when onClick is given', () => {
+    const onClick = vi.fn();
+    render(<StatTile label="Failed" value="3" onClick={onClick} selected title="Filter" />);
+    const btn = screen.getByRole('button', { name: /Failed/ });
+    expect(btn.classList.contains('row-span-3') && btn.classList.contains('grid-rows-subgrid')).toBe(true);
+    expect(btn.getAttribute('aria-pressed')).toBe('true');
+    expect(btn.getAttribute('title')).toBe('Filter');
+    expect(btn.classList.contains('border-primary')).toBe(true);
+    fireEvent.click(btn);
+    expect(onClick).toHaveBeenCalledTimes(1);
+    expect(btn.querySelector('button')).toBeNull();
+  });
+
+  it('is not pressed by default and renders no button without onClick', () => {
+    const { rerender } = render(<StatTile label="A" value="1" onClick={() => {}} />);
+    expect(screen.getByRole('button').getAttribute('aria-pressed')).toBe('false');
+    rerender(<StatTile label="A" value="1" />);
+    expect(screen.queryByRole('button')).toBeNull();
   });
 });
