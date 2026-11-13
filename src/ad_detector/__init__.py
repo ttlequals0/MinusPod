@@ -427,7 +427,7 @@ def _windows_failed_response(stage: str, failed_windows: int, num_windows: int,
 DIFFERENTIAL_CLAUDE_UPGRADE_MIN_COVERAGE = 0.2
 
 # Two accepted markers describing the same ad read (one Claude response
-# emitting both 'Xbox segment' and 'CiraSync' for a single ad) fold into one
+# emitting both 'Example segment' and 'Acme' for a single ad) fold into one
 # when their overlap covers this much of the shorter span.
 DUPLICATE_MARKER_OVERLAP_MIN_RATIO = 0.8
 
@@ -1943,8 +1943,8 @@ class AdDetector:
             progress_callback: Optional callback(stage, percent) to report progress
             positional_prior_hint: Pre-rendered learned ad-position scrutiny
                                    hint for the per-window prompt (issue #360)
-            recurrence_spans: Optional cross-episode text-recurrence spans
-                                   (hushpod adoption); rendered per-window.
+            recurrence_spans: Optional cross-episode text-recurrence spans,
+                                   rendered per-window.
             episode_sponsors: Matchers for sponsors already known for this
                               episode; a long window naming one passes the content gate.
             action_map: Caller-resolved category actions; resolved here when None.
