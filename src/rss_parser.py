@@ -56,6 +56,26 @@ def _max_rss_bytes() -> int:
     return get_env_backed_int('max_rss_bytes', floor=MAX_RSS_BYTES_MIN)
 
 
+def _read_capped_feed_body(response, url, breaker, probe_token) -> bytes | None:
+    """Read a feed body under the size cap and close the response. On an
+    oversize or truncated body, record a breaker failure and return None."""
+    max_bytes = _max_rss_bytes()
+    try:
+        return read_response_capped(response, max_bytes)
+    except ResponseTooLargeError:
+        logger.warning("feed_size_cap_exceeded: url=%s max=%d",
+                       safe_url_for_log(url), max_bytes)
+        breaker.record_failure(token=probe_token)
+        return None
+    except IncompleteResponseError as e:
+        logger.warning("feed_body_truncated: url=%s err=%s",
+                       safe_url_for_log(url), e)
+        breaker.record_failure(token=probe_token)
+        return None
+    finally:
+        response.close()
+
+
 def _feed_trust() -> URLTrust:
     """Strict SSRF tier for feed URLs by default (rss-http-1); opt back into
     private/LAN hosts with MINUSPOD_ALLOW_PRIVATE_FEED_HOSTS=true."""
@@ -445,22 +465,8 @@ class RSSParser:
                     )
                     breaker.record_failure(token=probe_token)
                     return None
-                max_bytes = _max_rss_bytes()
-                try:
-                    body = read_response_capped(response, max_bytes)
-                except ResponseTooLargeError:
-                    logger.warning(
-                        "feed_size_cap_exceeded: url=%s max=%d",
-                        safe_url_for_log(url), max_bytes,
-                    )
-                    breaker.record_failure(token=probe_token)
-                    return None
-                except IncompleteResponseError as e:
-                    logger.warning(
-                        "feed_body_truncated: url=%s err=%s",
-                        safe_url_for_log(url), e,
-                    )
-                    breaker.record_failure(token=probe_token)
+                body = _read_capped_feed_body(response, url, breaker, probe_token)
+                if body is None:
                     return None
                 logger.info(f"Successfully fetched RSS feed, size: {len(body)} bytes")
                 breaker.record_success(token=probe_token)
@@ -491,21 +497,9 @@ class RSSParser:
                     },
                 )
                 response.raise_for_status()
-                max_bytes = _max_rss_bytes()
-                try:
-                    body = read_response_capped(response, max_bytes)
-                except ResponseTooLargeError:
-                    logger.warning("feed_size_cap_exceeded: url=%s max=%d",
-                                   safe_url_for_log(url), max_bytes)
-                    breaker.record_failure(token=probe_token)
+                body = _read_capped_feed_body(response, url, breaker, probe_token)
+                if body is None:
                     return None
-                except IncompleteResponseError as e:
-                    logger.warning("feed_body_truncated: url=%s err=%s",
-                                   safe_url_for_log(url), e)
-                    breaker.record_failure(token=probe_token)
-                    return None
-                finally:
-                    response.close()
                 logger.info(
                     "Identity retry after gzip failure: url=%s bytes=%d content_length=%s "
                     "transfer_encoding=%s content_encoding=%s",
@@ -587,21 +581,9 @@ class RSSParser:
             new_etag = response.headers.get('ETag')
             new_last_modified = response.headers.get('Last-Modified')
 
-            max_bytes = _max_rss_bytes()
-            try:
-                body = read_response_capped(response, max_bytes)
-            except ResponseTooLargeError:
-                logger.warning("feed_size_cap_exceeded: url=%s max=%d",
-                               safe_url_for_log(url), max_bytes)
-                breaker.record_failure(token=probe_token)
+            body = _read_capped_feed_body(response, url, breaker, probe_token)
+            if body is None:
                 return None, None, None
-            except IncompleteResponseError as e:
-                logger.warning("feed_body_truncated: url=%s err=%s",
-                               safe_url_for_log(url), e)
-                breaker.record_failure(token=probe_token)
-                return None, None, None
-            finally:
-                response.close()
 
             logger.debug(f"Fetched RSS feed, size: {len(body)} bytes")
             breaker.record_success(token=probe_token)
@@ -634,21 +616,9 @@ class RSSParser:
                 response.raise_for_status()
                 new_etag = response.headers.get('ETag')
                 new_last_modified = response.headers.get('Last-Modified')
-                max_bytes = _max_rss_bytes()
-                try:
-                    body = read_response_capped(response, max_bytes)
-                except ResponseTooLargeError:
-                    logger.warning("feed_size_cap_exceeded: url=%s max=%d",
-                                   safe_url_for_log(url), max_bytes)
-                    breaker.record_failure(token=probe_token)
+                body = _read_capped_feed_body(response, url, breaker, probe_token)
+                if body is None:
                     return None, None, None
-                except IncompleteResponseError as e:
-                    logger.warning("feed_body_truncated: url=%s err=%s",
-                                   safe_url_for_log(url), e)
-                    breaker.record_failure(token=probe_token)
-                    return None, None, None
-                finally:
-                    response.close()
                 logger.info(
                     "Identity retry after gzip failure: url=%s bytes=%d content_length=%s "
                     "transfer_encoding=%s content_encoding=%s",
