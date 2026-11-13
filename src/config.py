@@ -1,8 +1,4 @@
-"""Centralized configuration constants.
-
-All magic numbers and thresholds should be defined here
-for easy tuning and consistency across the codebase.
-"""
+"""Centralized configuration constants: magic numbers and thresholds live here for tuning and consistency."""
 import fnmatch
 import json
 import logging
@@ -165,9 +161,10 @@ SEGMENT_CATEGORY_ALIASES = {
 
 
 def repair_segment_category(value):
-    """A known category from any spelling, or None. Spacing, case and hyphens
-    vary between providers ("Cross-Promo"); the vocabulary does not. A position
-    word like "pre-roll", or a bare "ad", is not a category and stays rejected.
+    """A known category from any spelling, or None.
+
+    Spacing, case and hyphens vary between providers ("Cross-Promo"); the vocabulary does not. A position word
+    like "pre-roll", or a bare "ad", is not a category and stays rejected.
     """
     if not isinstance(value, str):
         return None
@@ -179,9 +176,8 @@ def repair_segment_category(value):
 def normalize_segment_category(value: Any) -> str:
     """Return value if it is a known segment category, else 'sponsor'.
 
-    For resolving a per-category action, where an unknown category has to
-    resolve to something and 'sponsor' is the conservative choice (cut it).
-    Do not use this to record or display a category: an unset one is left
+    For resolving a per-category action, where an unknown category must resolve to something and 'sponsor' is
+    the conservative choice (cut it). Do not use this to record or display a category: an unset one stays
     unset so 'sponsor' keeps meaning a real sponsor read.
     """
     return value if value in SEGMENT_CATEGORIES else 'sponsor'
@@ -230,9 +226,9 @@ DEFAULT_COMMUNITY_SYNC_CATEGORIES_JSON = json.dumps(list(SEGMENT_CATEGORIES))
 
 
 def resolve_community_sync_categories(raw_json: str | None) -> list[str]:
-    """Parse community_sync_categories JSON into accepted categories, falling
-    back to every category on missing, blank, or malformed input. An explicit
-    empty list is kept as-is (deliberate 'accept nothing'), not treated as unset.
+    """Parse community_sync_categories JSON into accepted categories, falling back to every category on
+    missing, blank or malformed input. An explicit empty list is kept (deliberate "accept nothing"), not
+    treated as unset.
     """
     if not raw_json:
         return list(SEGMENT_CATEGORIES)
@@ -278,9 +274,10 @@ def user_agent_is_jit_blocked(user_agent: str | None, patterns: list[str]) -> bo
 def resolve_segment_category_actions_map(
         raw_json: str | None,
         baseline: dict[str, str] | None = None) -> dict[str, str]:
-    """Parse segment_category_actions JSON and merge over `baseline` (default:
-    every category at DEFAULT_SEGMENT_ACTION). Invalid JSON, non-dict payloads,
-    and unknown category/action pairs are ignored rather than clearing keys.
+    """Parse segment_category_actions JSON and merge over `baseline` (default: every category at
+    DEFAULT_SEGMENT_ACTION).
+
+    Invalid JSON, non-dict payloads and unknown category/action pairs are ignored rather than clearing keys.
     Pass a prior result as `baseline` to layer another override on top.
     """
     merged = dict(baseline) if baseline is not None else {
@@ -317,21 +314,14 @@ def valid_ad_chapter_title_format(value) -> bool:
                for _, name, spec, conv in fields)
 
 
-# Hold reasons pass-2 auto-approval may release when the verification pass
-# independently re-detects the held span at cut confidence. Deliberate
-# allowlist, fail-closed: a new hold reason is NOT auto-approvable until
-# someone adds it here. no_cue_evidence stays out: pass-2 ads can never
-# carry cue evidence, so auto-approval would neutralize cue gating on
-# cue-gated feeds. max_duration stays out: such a hold is by definition
-# over the duration ceiling, and the auto-filed confirm would force-accept
-# it past the validator's re-check on recut, defeating the guard.
-# verification_miss stays out deliberately: pass 2 is the source of these
-# holds, and auto-approving them on a later pass-2 corroboration would let
-# pass 2 approve its own products with no independent second opinion.
-# reviewer_boundary_conflict is in: pass 2 re-detecting the span on its own
-# is the independent second opinion the hold was waiting for. Same reasoning
-# covers estimated_pattern_bounds: an independent pass-2 re-detection is the
-# measurement pass 1 could not make.
+# Hold reasons pass-2 auto-approval may release when the verification pass independently re-detects the held
+# span at cut confidence. A deliberate fail-closed allowlist: a new hold reason is not auto-approvable until
+# added here. Left out on purpose: no_cue_evidence (pass-2 ads never carry cue evidence, so approving would
+# neutralize cue gating); max_duration (over the duration ceiling by definition, and the auto-filed confirm
+# would force-accept it past the validator's re-check on recut); verification_miss (pass 2 is the source of
+# these holds, so approving them would let pass 2 approve its own products with no independent second
+# opinion). In: reviewer_boundary_conflict and estimated_pattern_bounds, where an independent pass-2
+# re-detection is the second opinion or measurement pass 1 could not make.
 PASS2_AUTOAPPROVE_HOLD_REASONS = frozenset({
     HOLD_REASON_DIFFERENTIAL_UNCORROBORATED,
     HOLD_REASON_REVIEWER_BOUNDARY_CONFLICT,
@@ -349,10 +339,9 @@ PASS2_REVIEWED_RELEASE_HOLD_REASONS = PASS2_AUTOAPPROVE_HOLD_REASONS | frozenset
     HOLD_REASON_TRANSCRIPT_DIFFERENTIAL,
 })
 
-# Of those, the reasons a pass-2 ad may only corroborate by covering the held
-# span, never by agreeing with the reviewer's stored proposal. That proposal
-# is the trim the hold was created to block, so approving it would ship the
-# measured member the hold protects.
+# Of those, the reasons a pass-2 ad may only corroborate by covering the held span, never by agreeing with the
+# reviewer's stored proposal: that proposal is the trim the hold was created to block, so approving it would
+# ship the measured member the hold protects.
 PASS2_COVERAGE_ONLY_HOLD_REASONS = frozenset({
     HOLD_REASON_REVIEWER_BOUNDARY_CONFLICT,
 })
@@ -361,13 +350,11 @@ PASS2_COVERAGE_ONLY_HOLD_REASONS = frozenset({
 # auto-approval) only when at least this fraction of the pass-2 span lies
 # inside the held span...
 PASS2_DIFFERENTIAL_AUTOAPPROVE_MIN_AD_INSIDE = 0.5
-# ...and the detection covers at least this fraction of the held span. A
-# short ad inside a long hold must not approve the whole hold. The bar is
-# deliberately below 0.9: differential hold tails carry alignment padding
-# the detection rightly excludes (a 240s hold with 24s of padding scored
-# 0.899 and stayed audible, example-podcast a1b2c3d4e5f6), and the auto-approve
-# confirm is trimmed to the corroborated span, so the uncovered remainder
-# is never cut on the strength of this threshold.
+# ...and the detection covers at least this fraction of the held span. A short ad inside a long hold must not
+# approve the whole hold. The bar is deliberately below 0.9: differential hold tails carry alignment padding
+# the detection rightly excludes (a 240s hold with 24s of padding scored 0.899 and stayed audible), and the
+# auto-approve confirm is trimmed to the corroborated span, so the uncovered remainder is never cut on the
+# strength of this threshold.
 PASS2_DIFFERENTIAL_AUTOAPPROVE_MIN_HOLD_COVERAGE = 0.75
 # An estimated hold is approved on containment alone: the pass-2 ad must lie
 # at least this far inside it, since the confirm is clipped to the ad anyway.
@@ -386,18 +373,17 @@ CORRECTION_ORIGIN_AUTO_PASS2 = 'auto_pass2'
 # Validation flag on a reviewer reject a recut kept out of the audio.
 REVIEWER_REJECT_PRESERVED_FLAG = 'reviewer_reject_preserved'
 
-# Second acceptance path: a contradiction hold carries the reviewer's own
-# proposed ad sub-span. When the pass-2 detection and that proposal agree
-# (IoU of the two sub-spans at or above this bar), two independent signals
-# have named the same audio; corroborate on the agreement instead of on
-# coverage of the padded hold.
+# Second acceptance path: a contradiction hold carries the reviewer's own proposed ad sub-span. When the
+# pass-2 detection and that proposal agree (IoU of the two sub-spans at or above this bar), two independent
+# signals named the same audio; corroborate on the agreement instead of on coverage of the padded hold.
 PASS2_AUTOAPPROVE_PROPOSED_IOU = 0.8
 
 
 def is_cue_backed(ad) -> bool:
-    """Single source of truth for the cue gate: an ad is exempt from cue-gated
-    holding when it has an audio-cue snap, came from a cue pair or cue match, or is a manual
-    (human) marker. Used by the validator hold rules and the pass-1 gate.
+    """Single source of truth for the cue gate: an ad is exempt from cue-gated holding when it has an
+    audio-cue snap, came from a cue pair or cue match, or is a manual (human) marker.
+
+    Used by the validator hold rules and the pass-1 gate.
     """
     return (bool(ad.get('cue_snap'))
             or ad.get('detection_stage') in ('cue_pair', CUE_MATCH_STAGE, 'manual'))
@@ -427,11 +413,12 @@ def is_edge_cue_snapped(ad, edge: str) -> bool:
 
 
 def is_pending_review(marker) -> bool:
-    """A marker awaiting a human decision: held for review and not cut. Single
-    source of truth for the pending-review bucket and count. Missing was_cut
-    defaults to True (cut) here; the API defaults it by episode status instead,
-    so a legacy marker without the field is never counted as a phantom pending
-    review."""
+    """A marker awaiting a human decision: held for review and not cut. Single source of truth for the
+    pending-review bucket and count.
+
+    Missing was_cut defaults to True (cut) here; the API defaults it by episode status instead, so a legacy
+    marker without the field is never counted as a phantom pending review.
+    """
     return bool(marker.get('held_for_review')) and not marker.get('was_cut', True)
 
 
@@ -453,11 +440,12 @@ def count_pending_review(markers) -> int:
 
 
 def count_not_cut(markers) -> int:
-    """Number of markers that stayed in the audio and are not pending review
-    (e.g. a rejected correction). Missing was_cut defaults to True (cut),
-    matching is_pending_review's convention. A keep/mark-action marker is
-    intentionally left in the audio, not a miss, so it's excluded here:
-    it must never inflate the notification-facing not-cut/miss count."""
+    """Number of markers that stayed in the audio and are not pending review (e.g. a rejected correction).
+
+    Missing was_cut defaults to True (cut), matching is_pending_review. A keep/mark-action marker is
+    intentionally left in the audio, not a miss, so it is excluded: it must never inflate the
+    notification-facing not-cut/miss count.
+    """
     return sum(1 for m in markers
                if not m.get('was_cut', True) and not is_pending_review(m)
                and not is_keep_like(m.get('action_applied')))
@@ -578,12 +566,10 @@ SPONSOR_GLOBAL_THRESHOLD = 3       # Podcasts with same sponsor for global promo
 PATTERN_CORRECTION_OVERLAP_THRESHOLD = 0.5  # 50% overlap triggers duration correction
 PATTERN_TIGHTEN_MIN_EXCESS_SECONDS = 15.0  # Pattern span overshoot before LLM bounds win
 PATTERN_TIGHTEN_MIN_CONFIDENCE = 0.9       # LLM confidence needed to tighten a pattern span
-# Minimum fraction of a span a user correction must cover to match it.
-# Single source for the validator's force-accept checks and the
-# auto-approve idempotency check in processing.py: a correction that would
-# not force-accept a span at recut time must never suppress filing a new
-# confirm for it (stale confirms from a previous fetch's shifted DAI
-# timeline routinely graze a new hold without covering it).
+# Minimum fraction of a span a user correction must cover to match it. Single source for the validator's
+# force-accept checks and the auto-approve idempotency check in processing.py: a correction that would not
+# force-accept a span at recut time must never suppress filing a new confirm for it (stale confirms from a
+# previous fetch's shifted DAI timeline routinely graze a new hold without covering it).
 CORRECTION_MATCH_MIN_COVERAGE = 0.5
 
 # Podcast name-search providers. iTunes needs no credentials and is the
@@ -604,21 +590,18 @@ WINDOW_OVERLAP_SECONDS = 180    # Overlap between windows (3 min)
 # ============================================================
 # Background Processing (seconds)
 # ============================================================
-# Feed Refresh Failed alerting (#516). A failure only increments the
-# per-feed counter when the previous counted failure is at least the
-# interval old (on-demand refreshes triggered by client polls would
-# otherwise hit the threshold within minutes); the alert fires when the
-# count reaches the threshold, i.e. after 20+ minutes of continuous
-# failure (30-45 min at the 15-minute scheduler cadence). The API also
-# gates lastRefreshError on the threshold so the UI marker matches.
+# Feed Refresh Failed alerting (#516). A failure only increments the per-feed counter when the previous
+# counted failure is at least the interval old (on-demand refreshes triggered by client polls would otherwise
+# hit the threshold within minutes); the alert fires when the count reaches the threshold, i.e. after 20+
+# minutes of continuous failure (30-45 min at the 15-minute scheduler cadence). The API also gates
+# lastRefreshError on the threshold so the UI marker matches.
 FEED_REFRESH_FAILURE_ALERT_THRESHOLD = 3
 FEED_REFRESH_FAILURE_COUNT_INTERVAL = 600  # Seconds between counted failures
 
-# Shared-outage detection for refresh_all_feeds. When most feeds in one
-# batch fail together (a shared network blip, not N unrelated publishers
-# breaking at once), skip per-feed failure counting so healthy feeds are
-# not marked broken, and schedule one bounded retry instead of letting
-# every feed's own retry logic fire in lockstep at the next 15-min tick.
+# Shared-outage detection for refresh_all_feeds. When most feeds in one batch fail together (a shared network
+# blip, not N unrelated publishers breaking at once), skip per-feed failure counting so healthy feeds are not
+# marked broken, and schedule one bounded retry instead of letting every feed's own retry logic fire in
+# lockstep at the next 15-min tick.
 FEED_REFRESH_OUTAGE_FRACTION = 0.5       # Failed/total ratio that trips outage mode
 FEED_REFRESH_OUTAGE_MIN_FEEDS = 3        # Below this batch size, count failures per-feed as usual
 FEED_REFRESH_OUTAGE_RETRY_BASE_SECONDS = 180   # Base delay before the one retry
@@ -627,8 +610,7 @@ FEED_REFRESH_OUTAGE_RETRY_JITTER_SECONDS = 90  # Random extra delay, avoids thun
 # ============================================================
 # Deferred-episode services
 # ============================================================
-# episodes.deferred_service names which hold owns a deferred row.
-# NULL reads as DEFER_SERVICE_LLM.
+# episodes.deferred_service names which hold owns a deferred row; NULL reads as DEFER_SERVICE_LLM.
 DEFER_SERVICE_LLM = 'llm'
 DEFER_SERVICE_WHISPER = 'whisper'
 DEFER_SERVICE_SPONSORBLOCK = 'sponsorblock'
@@ -693,12 +675,10 @@ MAX_TRANSITION_AD_DURATION = 180.0   # Max seconds for a valid transition-bounde
 # ============================================================
 # Audio Cue Detection (issue #350, opt-in experiment)
 # ============================================================
-# Detects a short non-spoken cue (a "ding"/stinger) that some shows play just
-# before an ad break by band-passing the audio to the cue's frequency band and
-# flagging brief loudness bursts that stand out from the speech baseline. The
-# cue is emitted as an ``audio_cue`` signal into the LLM prompt as a timing
-# hint -- it never marks an ad on its own. Off by default; gated by the
-# ``audio_cue_detection_enabled`` setting.
+# Detects a short non-spoken cue (a "ding"/stinger) that some shows play just before an ad break by
+# band-passing the audio to the cue's frequency band and flagging brief loudness bursts that stand out from
+# the speech baseline. The cue is emitted as an ``audio_cue`` signal into the LLM prompt as a timing hint and
+# never marks an ad on its own. Off by default; gated by the ``audio_cue_detection_enabled`` setting.
 AUDIO_CUE_FREQ_MIN_HZ = 1500         # Low edge of the band a stinger lives in
 AUDIO_CUE_FREQ_MAX_HZ = 8000         # High edge of that band
 AUDIO_CUE_PROMINENCE_DB = 9.0        # dB above the in-band baseline to count as a burst
@@ -709,10 +689,9 @@ AUDIO_CUE_ONSET_LAG_SECONDS = 0.2    # ebur128 momentary loudness integrates ove
                                      # first above-threshold frame lags the true onset; pull the
                                      # reported start back by this much
 
-# Per-feed template matcher (#350): ZNCC score floor for a learned cue to
-# register. 0.75 balances cross-codec recurrences (which land 0.85-0.95 but can
-# dip below 0.85 with background beds) against false positives (non-cue audio
-# sits near 0.0). Tuneable via the audio_cue_template_score DB setting.
+# Per-feed template matcher (#350): ZNCC score floor for a learned cue to register. 0.75 balances cross-codec
+# recurrences (which land 0.85-0.95 but can dip below 0.85 with background beds) against false positives
+# (non-cue audio sits near 0.0). Tuneable via the audio_cue_template_score DB setting.
 AUDIO_CUE_TEMPLATE_SCORE = 0.75
 AUDIO_CUE_SCORE_MAX = 0.99              # Upper bound for cue score overrides
 # Noise floor measured at 0.33-0.50; sub-floor thresholds pass noise as cue
@@ -732,11 +711,10 @@ def resolve_near_miss_floor(threshold):
 AUDIO_CUE_AD_AFFINITY_TOLERANCE_SECONDS = 5.0
 AUDIO_CUE_AD_AFFINITY_MIN_FRACTION = 0.6
 AUDIO_CUE_AD_AFFINITY_PHASE_FRACTION = 0.8
-# Voiceover-robust matching (#350): global formant-band (800-3400 Hz) attenuation
-# in dB applied to saved-template matching so a cue keys on its constant music bed
-# despite a varying voiceover. 0.0 = off (default; existing/ding/full-spectrum cues
-# unchanged). A per-template formant_atten_db column overrides this. ~9-12 dB is a
-# typical opt-in for a music-bed cue. DB-settable via audio_cue_formant_atten_db.
+# Voiceover-robust matching (#350): global formant-band (800-3400 Hz) attenuation in dB applied to
+# saved-template matching so a cue keys on its constant music bed despite a varying voiceover. 0.0 = off
+# (default; existing/ding/full-spectrum cues unchanged). A per-template formant_atten_db column overrides
+# this. ~9-12 dB is a typical opt-in for a music-bed cue. DB-settable via audio_cue_formant_atten_db.
 AUDIO_CUE_FORMANT_ATTEN_DB = 0.0
 
 # Cue boundary snap + cue-pair synthesis tunables (#350). All DB-settable so a
@@ -762,10 +740,9 @@ SILENCE_SNAP_MAX_DISTANCE_SECONDS = 2.0     # Farthest an ad edge may move to re
 # ============================================================
 # Splice-evidence detection (spec 2.1)
 # ============================================================
-# Encoding artifacts that mark DAI splice points. Evidence only: consumers
-# corroborate, snap, veto, and annotate prompts -- nothing cuts on these
-# alone. Numeric defaults are the cold-start values; per-feed calibration
-# raises effective thresholds on splice-noisy feeds.
+# Encoding artifacts that mark DAI splice points. Evidence only: consumers corroborate, snap, veto and
+# annotate prompts, and nothing cuts on these alone. Numeric defaults are the cold-start values; per-feed
+# calibration raises effective thresholds on splice-noisy feeds.
 SPLICE_DIGITAL_SILENCE_DBFS = -80.0       # RMS below this is encoded digital silence
 SPLICE_DIGITAL_SILENCE_MIN_SECONDS = 0.5  # Min run length for a digital_silence event
 SPLICE_DEEP_SILENCE_DBFS = -70.0          # RMS below this is a deep silence
@@ -775,10 +752,9 @@ SPLICE_LOUDNESS_STEP_MIN_LU = 5.0         # Min |step| to emit a loudness_step e
 SPLICE_CENTROID_STEP_MIN_HZ = 300.0       # Min |centroid step| for a spectral_step event
 SPLICE_FLATNESS_STEP_MIN = 0.10           # Min |flatness step| for a spectral_step event
 SPLICE_STEP_SIDE_WINDOW_SECONDS = 5.0     # Side window for spectral aggregation
-# Rows to FETCH, not the calibrated threshold. Set above MIN_EPISODES because
-# pre-schema rows pass the audio_analysis_json NOT NULL filter but lack the
-# splice_evidence key, so more than MIN rows may be needed to gather MIN valid
-# payloads. Plan named 5; the buffer is the intentional divergence.
+# Rows to fetch, not the calibrated threshold. Set above MIN_EPISODES because pre-schema rows pass the
+# audio_analysis_json NOT NULL filter but lack the splice_evidence key, so more than MIN rows may be needed to
+# gather MIN valid payloads.
 SPLICE_CALIBRATION_RECENT_EPISODES = 10
 SPLICE_CALIBRATION_MIN_EPISODES = 5       # Min VALID payloads for calibrated; below this: cold_start
 SPLICE_CALIBRATION_MAX_FP_PER_HOUR = 1.0  # Target content false-positive event rate
@@ -790,9 +766,8 @@ VETO_MIN_CUT_SECONDS = 60.0  # Cuts at/over this from claude/text_pattern need s
 SPLICE_VETO_IDENTICAL_MIN_COVERAGE = 0.95  # no_differential cut this identical skips the veto
 TERMINAL_SNAP_WINDOW_SECONDS = 30.0        # Max backward scan from a terminal marker's start
 TERMINAL_SNAP_EOF_TOLERANCE_SECONDS = 2.0  # Marker end within this of EOF counts as terminal
-# Tail no-VAD re-transcription window (spec 1.2). An untranscribed tail whose
-# length falls between min and max is re-run with vad_filter=False so quiet
-# DAI post-rolls reach the LLM windows. DB-tunable via the
+# Tail no-VAD re-transcription window (spec 1.2). An untranscribed tail whose length falls between min and max
+# is re-run with vad_filter=False so quiet DAI post-rolls reach the LLM windows. DB-tunable via the
 # tail_retranscribe_min_seconds / tail_retranscribe_max_seconds settings.
 TAIL_RETRANSCRIBE_MIN_SECONDS = 10.0
 TAIL_RETRANSCRIBE_MAX_SECONDS = 600.0
@@ -814,28 +789,23 @@ PODPING_HOSTS_FLUSH_MAX_DOMAINS = 500
 AUDIO_CUE_PAIR_CONFIDENCE = 0.85        # Min cue confidence to synthesize an ad from a pair
 AUDIO_CUE_PAIR_MIN_BREAK_SECONDS = 30.0   # Shortest plausible cue-pair break
 AUDIO_CUE_PAIR_MAX_BREAK_SECONDS = 480.0  # Longest plausible cue-pair break
-# Backstop for short episodes: a pair whose span covers more than this fraction
-# of the whole episode is almost certainly two unrelated breaks (or a mis-typed
-# bumper near each end), not one bracketing pair, so it is rejected even when the
-# absolute MAX_BREAK_SECONDS cap would pass it. On a 6-minute episode the 480s
-# absolute cap never bites; this does.
+# Backstop for short episodes: a pair whose span covers more than this fraction of the whole episode is almost
+# certainly two unrelated breaks (or a mis-typed bumper near each end), not one bracketing pair, so it is
+# rejected even when the absolute MAX_BREAK_SECONDS cap would pass it. On a 6-minute episode the 480s absolute
+# cap never bites; this does.
 AUDIO_CUE_PAIR_MAX_BREAK_FRACTION = 0.5
-# Max gap (s) between an LLM ad edge and a boundary-role template cue for that
-# cue to be oriented as an ad entry or exit before cue-pair synthesis. Must
-# exceed the teaser gap between an opening ad's end and the first content cue.
-# 0 disables orientation (reverts to greedy left-to-right pairing).
+# Max gap (s) between an LLM ad edge and a boundary-role template cue for that cue to be oriented as an ad
+# entry or exit before cue-pair synthesis. Must exceed the teaser gap between an opening ad's end and the
+# first content cue. 0 disables orientation (reverts to greedy left-to-right pairing).
 AUDIO_CUE_PAIR_ORIENT_WINDOW_SECONDS = 20.0
-# Cue-candidate recurrence (episode-page "find candidates" scan). A real cue
-# repeats; a one-off sound does not. The scan generates one Chromaprint
-# fingerprint of the whole episode and finds windows that recur at least
-# MIN_COUNT times (loudness-independent, so it catches level-matched stings the
-# old loudness-gated pass missed). SIMILARITY is the per-window fingerprint
-# bit-similarity (0-1, higher = stricter) two occurrences must reach to count as
-# the same sound. 0.73 from a threshold sweep on real ad-break stings: 0.72-0.75
-# behave identically on a clean episode, but a recurring sting whose occurrences
-# vary more (codec/level jitter) can land just under 0.75 and be under-counted,
-# so 0.73 buys headroom; 0.70 is a noise cliff (the candidate list triples and a
-# non-ad cluster nearly ties the real sting), so do not go below ~0.72.
+# Cue-candidate recurrence (episode-page "find candidates" scan). A real cue repeats; a one-off sound does
+# not. The scan generates one Chromaprint fingerprint of the whole episode and finds windows that recur at
+# least MIN_COUNT times (loudness-independent, so it catches level-matched stings the old loudness-gated pass
+# missed). SIMILARITY is the per-window fingerprint bit-similarity (0-1, higher = stricter) two occurrences
+# must reach to count as the same sound. 0.73 from a threshold sweep on real ad-break stings: 0.72-0.75 behave
+# identically on a clean episode, but a recurring sting whose occurrences vary more (codec/level jitter) can
+# land just under 0.75 and be under-counted, so 0.73 buys headroom; 0.70 is a noise cliff (the candidate list
+# triples and a non-ad cluster nearly ties the real sting), so do not go below ~0.72.
 AUDIO_CUE_RECURRENCE_SIMILARITY = 0.73   # fingerprint bit-similarity to call two windows the same sound
 AUDIO_CUE_RECURRENCE_MIN_COUNT = 3       # minimum occurrences to suggest a sound
 # Verdict-labeled threshold suggestion: minimum reviewed detections before
@@ -845,12 +815,11 @@ AUDIO_CUE_SUGGEST_MIN_LABELED = 3
 # score band above the current threshold that reads as "just above threshold".
 AUDIO_CUE_HINT_MIN_REJECTIONS = 3
 AUDIO_CUE_HINT_NEAR_BAND = 0.10
-# Cross-episode intro/outro detection (candidate scan). Real intros/outros play
-# once per episode, so within-episode recurrence cannot see them, but they recur
-# ACROSS episodes near the start/end. We fingerprint this episode's head and tail
-# and look for a segment that also appears in the head/tail of recent COMPLETED
-# sibling episodes; a segment is only suggested when it recurs in >= MIN_MATCHES
-# of them, so one-off loud dialogue is never flagged.
+# Cross-episode intro/outro detection (candidate scan). Real intros/outros play once per episode, so
+# within-episode recurrence cannot see them, but they recur across episodes near the start/end. This episode's
+# head and tail are fingerprinted and compared with the head/tail of recent completed sibling episodes; a
+# segment is only suggested when it recurs in >= MIN_MATCHES of them, so one-off loud dialogue is never
+# flagged.
 AUDIO_CUE_XEP_HEAD_SECONDS = 180.0     # how much of the episode start to scan for an intro
 AUDIO_CUE_XEP_TAIL_SECONDS = 120.0     # how much of the episode end to scan for an outro
 AUDIO_CUE_XEP_MAX_SIBLINGS = 5         # most recent completed siblings to compare against
@@ -860,10 +829,9 @@ AUDIO_CUE_XEP_MIN_DURATION = 3.0       # ignore matches shorter than a real intr
 AUDIO_CUE_XEP_BODY_MIN_DURATION = 2.0  # body scan floor: bounded by the 2s probe window so 1.5-2.5s ad stings survive
 AUDIO_CUE_XEP_MAX_PER_ZONE = 3         # most intro (and outro) candidates to surface per episode
 AUDIO_CUE_XEP_SIMILARITY = AUDIO_CUE_RECURRENCE_SIMILARITY  # bit-similarity threshold for a cross-episode match
-# Fingerprint self-repeat discovery internals (candidate scan). The probe window
-# seeds LSH buckets; each bucket's first member anchors a full self-scan whose
-# segment is then grown to its true length and its whole extent claimed so a long
-# recurring block surfaces as one candidate, not many fragments.
+# Fingerprint self-repeat discovery internals (candidate scan). The probe window seeds LSH buckets; each
+# bucket's first member anchors a full self-scan whose segment is grown to its true length and whole extent
+# claimed, so a long recurring block surfaces as one candidate, not many fragments.
 AUDIO_CUE_FP_WINDOW_SECONDS = 2.0        # LSH probe window (~16 subfingerprints)
 AUDIO_CUE_FP_KEY_BITS = 6                # top bits sampled per keyed subfingerprint
 AUDIO_CUE_FP_KEY_SAMPLES = 4             # subfingerprints sampled to form an LSH key
@@ -872,25 +840,21 @@ AUDIO_CUE_FP_MAX_COUNT = 30              # >this many repeats is pervasive fille
 AUDIO_CUE_FP_MAX_LEN_SECONDS = 30.0      # cap on segment-length extension
 AUDIO_CUE_FP_MAX_ANCHORS = 600           # cap on anchors scanned (bounds long-episode work)
 AUDIO_CUE_FP_MAX_CANDIDATES = 10         # cap on candidates returned to the UI
-# Music/speech discriminator for WITHIN-episode recurring candidates (#350). A
-# common spoken phrase repeats like a sting but reads as speech: its energy sits
-# in the formant band, it is not tonal, and it is gappy. A produced sting (even a
-# bass jingle with voiceover) is tonal and/or sustained with energy outside the
-# band. Drop a recurring candidate only when ALL speech-like conditions hold, so
-# musical cues are kept. Anchored to the measured WSJ content-transition cue
-# (speech-band ratio 0.32, flatness 0.0003, sustained 0.90 -> kept). Applied to
-# recurring candidates only; cross-episode intro/outro (often spoken) is exempt.
+# Music/speech discriminator for within-episode recurring candidates (#350). A common spoken phrase repeats
+# like a sting but reads as speech: its energy sits in the formant band, it is not tonal, and it is gappy. A
+# produced sting (even a bass jingle with voiceover) is tonal and/or sustained with energy outside the band.
+# Drop a recurring candidate only when all speech-like conditions hold, so musical cues are kept. Anchored to
+# a measured content-transition cue (speech-band ratio 0.32, flatness 0.0003, sustained 0.90 -> kept). Applies
+# to recurring candidates only; cross-episode intro/outro (often spoken) is exempt.
 AUDIO_CUE_SPEECH_BAND_LO_HZ = 300.0      # formant-band lower edge for the energy ratio
 AUDIO_CUE_SPEECH_BAND_HI_HZ = 3400.0     # formant-band upper edge
 AUDIO_CUE_SPEECH_BAND_RATIO_MAX = 0.55   # formant-band energy share above this looks like talking
 AUDIO_CUE_SPEECH_FLATNESS_MIN = 0.02     # spectral flatness above this is non-tonal (speech/noise)
 AUDIO_CUE_SPEECH_SUSTAINED_MAX = 0.65    # sustained-energy fraction below this is gappy (speech)
-# Generous loudness discovery profile for the capture-UI loud spots (the
-# template-free "jump to a loud spot" markers), separate from the precise
-# live-detection band above. Real ad-break sounds are often sustained,
-# bass/broadband musical stings rather than short high-band dings, so the scan
-# reaches lower in frequency, triggers on a smaller rise, captures the full
-# attack/decay via a release threshold, and allows long sounds.
+# Generous loudness discovery profile for the capture-UI loud spots (the template-free "jump to a loud spot"
+# markers), separate from the precise live-detection band above. Real ad-break sounds are often sustained,
+# bass/broadband musical stings rather than short high-band dings, so the scan reaches lower in frequency,
+# triggers on a smaller rise, captures the full attack/decay via a release threshold, and allows long sounds.
 AUDIO_CUE_SCAN_FREQ_MIN_HZ = 500.0       # reach below the 1.5kHz live floor to catch bass stings
 AUDIO_CUE_SCAN_PROMINENCE_DB = 6.0       # dB over baseline to START a candidate burst (vs 9 live)
 AUDIO_CUE_SCAN_RELEASE_DB = 3.0          # extend the burst out to where it falls within this of baseline
@@ -922,16 +886,13 @@ AUDIO_CUE_SUGGEST_NEAR_MISS_BAND = 0.2
 # display/annotation mirror only -- do NOT rewire audio_enforcer from it here.
 AUDIO_CUE_EFFECT_FLOOR = 0.80
 
-# Keep-content (whitelist) detection mode -- OPT-IN per feed, default blacklist.
-# In this mode the LLM labels substantive show content and we remove the
-# COMPLEMENT (everything that is not content). It targets feeds with
-# unrecognizable programmatic (DAI) ads where the host content is easier to
-# identify than the ads. The failure mode is silent content deletion (an
-# under-labeled content list cuts real show audio), so these gates abort to
-# normal blacklist detection rather than trust a suspicious content pass.
-# Coverage and removed-fraction are complements at these defaults (0.55 + 0.45
-# = 1.0), so they enforce the same boundary unless tuned apart -- keep both as
-# independent knobs: max_removed can be set stricter than 1 - min_coverage.
+# Keep-content (whitelist) detection mode, opt-in per feed, default blacklist. The LLM labels substantive show
+# content and the complement (everything that is not content) is removed. It targets feeds with unrecognizable
+# programmatic (DAI) ads where host content is easier to identify than the ads. The failure mode is silent
+# content deletion (an under-labeled content list cuts real show audio), so these gates abort to normal
+# blacklist detection rather than trust a suspicious content pass. Coverage and removed-fraction are
+# complements at these defaults (0.55 + 0.45 = 1.0), so they enforce the same boundary unless tuned apart;
+# keep both as independent knobs (max_removed can be set stricter than 1 - min_coverage).
 KEEP_CONTENT_MIN_COVERAGE = 0.55          # content must cover >= this fraction or abort
 KEEP_CONTENT_MAX_REMOVED_FRACTION = 0.45  # inverted cuts may remove <= this or abort
 KEEP_CONTENT_EDGE_PAD_SECONDS = 1.5       # grow each content span by this (keep a speech buffer)
@@ -949,9 +910,8 @@ DETECTION_MODES = (DETECTION_MODE_BLACKLIST, DETECTION_MODE_KEEP_CONTENT)
 def resolve_detection_mode(db, slug):
     """Per-feed detection mode, defaulting to blacklist (today's behavior).
 
-    Keep-content is deliberately PER-FEED ONLY -- there is no global default
-    that could silently flip every feed to content-cutting. An unknown value
-    falls back to blacklist so a bad value can never enable content cutting.
+    Keep-content is deliberately per-feed only: no global default could silently flip every feed to
+    content-cutting. An unknown value falls back to blacklist so a bad value can never enable content cutting.
     """
     mode = None
     try:
@@ -962,10 +922,9 @@ def resolve_detection_mode(db, slug):
     return mode if mode in DETECTION_MODES else DETECTION_MODE_BLACKLIST
 
 
-# Per-feed processing mode: the effective pipeline behavior resolved from
-# three independent podcasts columns (passthrough_enabled, skip_ad_detection,
-# detection_mode). Columns remain independent for legacy per-field writes (issue #537),
-# but a processingMode preset write canonicalizes all three.
+# Per-feed processing mode: the effective pipeline behavior resolved from three independent podcasts columns
+# (passthrough_enabled, skip_ad_detection, detection_mode). Columns stay independent for legacy per-field
+# writes (issue #537), but a processingMode preset write canonicalizes all three.
 PROCESSING_MODE_PASSTHROUGH = 'passthrough'
 PROCESSING_MODE_SKIP_DETECTION = 'skip_detection'
 PROCESSING_MODE_KEEP_CONTENT = 'keep_content'
@@ -976,13 +935,11 @@ PROCESSING_MODE_CUE_ONLY = 'cue_only'
 def resolve_feed_processing_mode(podcast_row):
     """Effective processing mode from an already-fetched podcasts row.
 
-    Precedence: passthrough > skip_ad_detection > keep_content > cue_only > standard.
-    This matches the pipeline's historical branch ordering: passthrough
-    returned before the skip check ran, and a skipped detection stage never
-    consulted detection_mode. Keep-content semantics mirror
-    resolve_detection_mode (the DB-read variant kept for callers without the
-    row): only the exact 'keep_content' value opts in; NULL, 'blacklist',
-    or an unknown value all resolve past it.
+    Precedence: passthrough > skip_ad_detection > keep_content > cue_only > standard, matching the pipeline's
+    historical branch ordering (passthrough returned before the skip check ran, and a skipped detection stage
+    never consulted detection_mode). Keep-content mirrors resolve_detection_mode (the DB-read variant for
+    callers without the row): only the exact 'keep_content' value opts in; NULL, 'blacklist' or an unknown
+    value resolve past it.
     """
     if not podcast_row:
         return PROCESSING_MODE_STANDARD
@@ -1038,8 +995,7 @@ LOW_AD_YIELD_ACTIONS = (LOW_AD_YIELD_ACTION_NOTHING, *LOW_AD_YIELD_ACTION_MODES)
 def resolve_low_ad_yield_action(db, podcast_row) -> str:
     """Per-feed low-ad-yield action if set, else the global setting.
 
-    Unknown or unset values resolve to 'nothing' so a bad row cannot start
-    reruns nobody asked for.
+    Unknown or unset values resolve to 'nothing' so a bad row cannot start reruns nobody asked for.
     """
     feed_value = (podcast_row or {}).get('low_ad_yield_action')
     if feed_value in LOW_AD_YIELD_ACTIONS:
@@ -1154,10 +1110,9 @@ def resolve_cue_only_safety(podcast_row):
     return value if value in CUE_ONLY_SAFETY_VALUES else CUE_ONLY_SAFETY_HOLD_NEW
 
 
-# Per-feed chapter mode (issue #560): whether to preserve publisher-embedded
-# chapters (already remapped onto the cut timeline by the ffmpeg cut step,
-# see audio_processor.py) instead of generating new ones with the chapter
-# LLM, or to skip the chapter step entirely for the feed.
+# Per-feed chapter mode (issue #560): whether to preserve publisher-embedded chapters (already remapped onto
+# the cut timeline by the ffmpeg cut step, see audio_processor.py) instead of generating new ones with the
+# chapter LLM, or to skip the chapter step entirely for the feed.
 CHAPTERS_MODE_AUTO = 'auto'
 CHAPTERS_MODE_GENERATE = 'generate'
 CHAPTERS_MODE_OFF = 'off'
@@ -1267,17 +1222,13 @@ def resolve_cut_matches_default(db, podcast_id) -> bool:
 
 
 def resolve_feed_cue_settings(db, podcast_id):
-    """Resolve per-feed cue knobs in one DB read.
+    """Resolve per-feed cue knobs in one DB read, returning effective values for the processing hot path.
 
-    Returns a dict with effective values for the processing hot path.
-    Priority: per-feed override > global DB setting > code default.
-    With all overrides NULL the result is byte-identical to the previous
-    direct db.get_setting_* calls.
-
-    Also includes transition_snap_enabled as a plain bool (opt-in per-feed
-    flag with no global tier). silence_snap_enabled is intentionally absent:
-    silence gating is handled by resolve_silence_snap_enabled in the analyzer,
-    which gates whether silence spans are collected at all.
+    Priority: per-feed override > global DB setting > code default; with all overrides NULL the result is
+    byte-identical to direct db.get_setting_* calls. Also includes transition_snap_enabled as a plain bool
+    (opt-in per-feed flag with no global tier). silence_snap_enabled is intentionally absent: silence gating
+    is handled by resolve_silence_snap_enabled in the analyzer, which gates whether silence spans are
+    collected at all.
     """
     if not db:
         result = {out_key: default for _, _, default, out_key in _CUE_FLOAT_KNOBS}
@@ -1310,9 +1261,8 @@ def resolve_feed_cue_settings(db, podcast_id):
 def _resolve_override(db, podcast_id, col, coerce, default):
     """Read one per-feed override column and coerce it.
 
-    ``coerce`` is called on the raw value when it is not None; ``default``
-    is returned when the column is absent, the podcast has no override row,
-    or any DB error occurs. Fails open to ``default`` so a broken read can
+    ``coerce`` runs on the raw value when it is not None; ``default`` is returned when the column is absent,
+    the podcast has no override row, or any DB error occurs. Fails open to ``default`` so a broken read can
     never enable behavior-changing flags.
     """
     try:
@@ -1386,16 +1336,15 @@ def resolve_ad_detection_exclude_start_seconds(db, podcast_id) -> float:
 def resolve_max_ad_duration_override(db, podcast_id) -> float | None:
     """Per-feed max ad duration cap in seconds (Phase C held-for-review).
 
-    Returns None when unset or on any error -- None means no cap (the
-    global MAX_AD_DURATION / MAX_AD_DURATION_CONFIRMED constants apply).
+    Returns None when unset or on any error; None means no cap (the global MAX_AD_DURATION /
+    MAX_AD_DURATION_CONFIRMED constants apply).
     """
     return _resolve_override(db, podcast_id, 'max_ad_duration_override', float, None)
 
 
 def resolve_max_ad_duration(db, podcast_id) -> float:
-    """Length past which an ad needs a confirmed sponsor.
-
-    Per-feed override wins, else the global setting, else the constant.
+    """Length past which an ad needs a confirmed sponsor: per-feed override, else the global setting, else the
+    constant.
     """
     override = _resolve_override(
         db, podcast_id, 'max_ad_duration_reject_override', float, None)
@@ -1411,9 +1360,9 @@ def resolve_max_ad_duration(db, podcast_id) -> float:
 def resolve_splice_veto_enabled(db, podcast_id, global_default: bool) -> bool:
     """Whether the zero-splice-evidence veto applies to this feed.
 
-    Per-feed override wins; NULL inherits `global_default`. The escape hatch
-    exists for feeds that structurally cannot produce splice evidence, such as
-    a host-read archive where nothing was ever dynamically inserted.
+    Per-feed override wins; NULL inherits `global_default`. The escape hatch exists for feeds that
+    structurally cannot produce splice evidence, such as a host-read archive where nothing was ever
+    dynamically inserted.
     """
     override = _resolve_override(db, podcast_id, 'splice_veto_enabled', bool, None)
     return global_default if override is None else override
@@ -1496,9 +1445,8 @@ _SILENCE_SNAP_DEFAULTS = {
 def resolve_silence_snap_tunables(db):
     """Global silence-snap tunables: noise floor, min duration, max snap distance.
 
-    Returns a dict with keys: noise_db, min_duration_seconds, max_distance_seconds.
-    Reads from global settings only (no per-feed override). Falls back to code
-    defaults when db is None or a read fails.
+    Returns a dict with keys noise_db, min_duration_seconds, max_distance_seconds. Global settings only (no
+    per-feed override); falls back to code defaults when db is None or a read fails.
     """
     if not db:
         return dict(_SILENCE_SNAP_DEFAULTS)
@@ -1543,16 +1491,14 @@ def resolve_tail_retranscribe_tunables(db):
         return dict(_TAIL_RETRANSCRIBE_DEFAULTS)
 
 
-# Cue template types (#350). A cue is one of a fixed set of types chosen from a
-# dropdown, never freeform text, so the phrase fed to the LLM prompt is always
-# consistent and the matching role is explicit. Maps type key -> (canonical
-# phrase shown to the LLM and UI, matching role). Roles:
+# Cue template types (#350). A cue is one of a fixed set of types chosen from a dropdown, never freeform
+# text, so the phrase fed to the LLM prompt is always consistent and the matching role explicit. Maps type
+# key -> (canonical phrase shown to the LLM and UI, matching role). Roles:
 #   'start'    - eligible to snap an ad START edge; opens a cue pair.
 #   'end'      - eligible to snap an ad END edge; closes a cue pair.
-#   'boundary' - both of the above (default; also the role of the spectral
-#                fallback's role-less cues, so legacy behavior is unchanged).
-#   'non_ad'   - never snaps or pairs; only hints the model. Used by intro/outro
-#                (show open/close) and content_transition (segment transitions).
+#   'boundary' - both of the above (default; also the role of the spectral fallback's role-less cues).
+#   'non_ad'   - never snaps or pairs; only hints the model. Used by intro/outro (show open/close)
+#                and content_transition (segment transitions).
 AUDIO_CUE_TYPES = {
     'ad_break_boundary': ('ad-break boundary', 'boundary'),
     'ad_break_start': ('ad-break start', 'start'),
@@ -1561,7 +1507,7 @@ AUDIO_CUE_TYPES = {
     'show_outro': ('show outro', 'non_ad'),
     # A jingle reused across non-ad transitions (intro, ad-exit, segment changes,
     # outro). non_ad so it never forces an ad cut; the prompt hints the model the
-    # topic shifts there without claiming an ad boundary (#350 follow-up).
+    # topic shifts there without claiming an ad boundary (#350).
     'content_transition': ('content transition', 'non_ad'),
 }
 # Cue type -> marker category for cut-matched-audio; absent types never cut.
@@ -1577,14 +1523,13 @@ AUDIO_CUE_TYPE_DEFAULT = 'ad_break_boundary'
 AUDIO_CUE_TYPE_CONTENT_TRANSITION = 'content_transition'
 # The two non_ad types that anchor where show content begins / ends. Audio
 # before the first intro or after the last outro is biased toward pre/post-roll
-# ads in the prompt (#350 follow-up).
+# ads in the prompt (#350).
 AUDIO_CUE_TYPE_SHOW_INTRO = 'show_intro'
 AUDIO_CUE_TYPE_SHOW_OUTRO = 'show_outro'
-# Per-type capture ceiling (seconds). Intro/outro stingers run longer than
-# ad-break dings, so they get a higher ceiling; every other type falls back to
-# the flat AUDIO_CUE_CAPTURE_MAX_SECONDS default. These are the DEFAULTS only;
-# the show-intro/outro ceilings are DB-settable per the audio_cue_capture_max_
-# intro/outro_seconds settings, read live in api/cue_templates.py.
+# Per-type capture ceiling (seconds). Intro/outro stingers run longer than ad-break dings, so they get a
+# higher ceiling; every other type falls back to the flat AUDIO_CUE_CAPTURE_MAX_SECONDS default. These are
+# defaults only; the show-intro/outro ceilings are DB-settable via the
+# audio_cue_capture_max_intro/outro_seconds settings, read live in api/cue_templates.py.
 AUDIO_CUE_CAPTURE_MAX_BY_TYPE = {
     AUDIO_CUE_TYPE_SHOW_INTRO: AUDIO_CUE_CAPTURE_MAX_INTRO_SECONDS,
     AUDIO_CUE_TYPE_SHOW_OUTRO: AUDIO_CUE_CAPTURE_MAX_OUTRO_SECONDS,
@@ -1601,11 +1546,10 @@ def audio_cue_type_role(cue_type):
     return AUDIO_CUE_TYPES.get(cue_type, AUDIO_CUE_TYPES[AUDIO_CUE_TYPE_DEFAULT])[1]
 
 
-# Single source of truth for the cue-role vocabulary the consumers gate on, so
-# snap / cue-pair / prompt rendering never re-type the same role literals.
-# AUDIO_CUE_ROLE_DEFAULT is the role assumed for a signal with no explicit role
-# (the spectral fallback's cues and any legacy signal) -- it must stay equal to
-# the default type's role.
+# Single source of truth for the cue-role vocabulary the consumers gate on, so snap / cue-pair / prompt
+# rendering never re-type the same role literals. AUDIO_CUE_ROLE_DEFAULT is the role assumed for a signal with
+# no explicit role (the spectral fallback's cues and any legacy signal); it must stay equal to the default
+# type's role.
 AUDIO_CUE_ROLE_DEFAULT = audio_cue_type_role(AUDIO_CUE_TYPE_DEFAULT)  # 'boundary'
 AUDIO_CUE_ROLE_NON_AD = 'non_ad'  # intro/outro: never snaps or pairs
 AUDIO_CUE_ROLE_END = 'end'       # closer-only (ad exit): closes a cue pair
@@ -1624,9 +1568,8 @@ def is_template_cue(details):
 def is_transition_cue(details):
     """True if a cue's ``details`` identify it as a content_transition type.
 
-    Used by snap to allow content_transition cues to move ad edges when
-    allow_transition is on, while keeping show_intro/show_outro excluded.
-    Both share the non_ad role so the cue_type check is mandatory here.
+    Lets snap move ad edges for content_transition cues when allow_transition is on while keeping
+    show_intro/show_outro excluded; both share the non_ad role, so the cue_type check is mandatory.
     """
     return (details or {}).get('cue_type') == AUDIO_CUE_TYPE_CONTENT_TRANSITION
 
@@ -1702,12 +1645,10 @@ LLM_RETRY_MAX_RETRIES_LOCAL = 2      # Fewer retries for local (each is slow)
 # ============================================================
 # Outbound HTTP
 # ============================================================
-# Podcast CDN chains are deep -- Megaphone / Art19 / Acast / simplecast
-# routinely chain 6-8 redirects per asset request (edge -> regional ->
-# storage), and analytics bouncers add more. 5 was too tight and caused
-# false "CDN not ready" errors for legitimate feeds. 3 stays on outbound
-# APIs (LLM / PodcastIndex / webhook) where long chains are a misconfig
-# signal rather than expected behaviour.
+# Podcast CDN chains are deep: Megaphone / Art19 / Acast / simplecast routinely chain 6-8 redirects per asset
+# request (edge -> regional -> storage), and analytics bouncers add more. 5 was too tight and caused false
+# "CDN not ready" errors for legitimate feeds. 3 stays on outbound APIs (LLM / PodcastIndex / webhook) where
+# long chains are a misconfig signal rather than expected behaviour.
 HTTP_MAX_REDIRECTS_FEED = 10         # RSS, audio, artwork, VTT, chapters
 HTTP_MAX_REDIRECTS_API = 3           # LLM / PodcastIndex / webhook / pricing
 
@@ -1723,9 +1664,8 @@ HTTP_TIMEOUT_WHISPER = 600            # Remote Whisper transcription upload
                                       # (multi-minute audio over slow network)
 HTTP_TIMEOUT_CONNECTION_TEST = 30.0   # Whisper /test-connection probe: 1s WAV
                                       # upload + inference, may cold-load model
-# Bounds on the operator-tunable override of HTTP_TIMEOUT_WHISPER (#593). The
-# API validator and the point-of-use clamp share these so an env var or direct
-# DB write cannot route around the range.
+# Bounds on the operator-tunable override of HTTP_TIMEOUT_WHISPER (#593). The API validator and the
+# point-of-use clamp share these so an env var or direct DB write cannot route around the range.
 WHISPER_API_TIMEOUT_MIN = 30
 WHISPER_API_TIMEOUT_MAX = 3600
 # The test-connection probe follows the request timeout but stops here, so a
@@ -1863,10 +1803,8 @@ PRICING_CACHE_TTL = 86400  # 24 hours
 # Memory safety margin - don't use all available memory
 MEMORY_SAFETY_MARGIN = 0.7           # Use only 70% of available memory
 
-# Whisper model memory profiles (approximate, in GB)
-# Format: (base_memory_gb, memory_per_minute_gb)
-# Base memory = model weights + fixed overhead
-# Per-minute = additional memory for audio processing (scales with duration)
+# Whisper model memory profiles (approximate, in GB): (base_memory_gb, memory_per_minute_gb).
+# Base = model weights + fixed overhead; per-minute = additional memory for audio processing (scales with duration).
 WHISPER_MEMORY_PROFILES = {
     # Correct VRAM values from faster-whisper README (not PyTorch-based Whisper)
     # Format: (base_memory_gb, memory_per_minute_gb)
@@ -2022,9 +1960,9 @@ class ModelNotConfiguredError(ValueError):
 # ============================================================
 # User-Agent Strings
 # ============================================================
-# Fallback defaults only; the live values are settings resolved through
-# user_agent.py. Some CDNs refuse browser UAs below a rolling version floor,
-# so this string ages out and needs bumping here and in the env-var docs.
+# Fallback defaults only; the live values are settings resolved through user_agent.py. Some CDNs refuse
+# browser UAs below a rolling version floor, so this string ages out and needs bumping here and in the env-var
+# docs.
 BROWSER_USER_AGENT = (
     'Mozilla/5.0 (Windows NT 10.0; Win64; x64) '
     'AppleWebKit/537.36 (KHTML, like Gecko) '
@@ -2044,15 +1982,11 @@ USER_AGENT_MAX_LENGTH = 512
 def normalize_model_key(name: str) -> str:
     """Normalize a model name into a match key for pricing lookups.
 
-    Examples:
-        'Claude Sonnet 4.5'           -> 'claudesonnet45'
-        'claude-sonnet-4-5-20250929'  -> 'claudesonnet45'
-        'anthropic/claude-sonnet-4-5' -> 'claudesonnet45'
-        'gpt-4o-mini'                 -> 'gpt4omini'
-        'gpt-4o-2024-05-13'          -> 'gpt4o'
+    Examples: 'Claude Sonnet 4.5', 'claude-sonnet-4-5-20250929' and 'anthropic/claude-sonnet-4-5' ->
+    'claudesonnet45'; 'gpt-4o-mini' -> 'gpt4omini'; 'gpt-4o-2024-05-13' -> 'gpt4o'.
 
-    Note: normalization is intentionally lossy (strips punctuation, hyphens).
-    OpenRouter variants (:free, :extended) map to the same key as the base model.
+    Normalization is intentionally lossy (strips punctuation, hyphens). OpenRouter variants (:free, :extended)
+    map to the same key as the base model.
     """
     # Strip provider prefix (anything before /)
     if '/' in name:
@@ -2088,14 +2022,13 @@ def _get_pricing_source_mode() -> str:
 def get_pricing_sources(provider: str, base_url: str = '') -> list:
     """Ordered pricing-source chain for the active provider.
 
-    Each element is a source dict:
-      'type': 'openrouter_api' | 'pricepertoken' | 'litellm' | 'free'
-      'url': fetch URL (openrouter_api, pricepertoken)
-      'provider_filter': litellm_provider to filter on (litellm only, optional)
+    Each element is a source dict: 'type' ('openrouter_api' | 'pricepertoken' | 'litellm' | 'free'), 'url'
+    (fetch URL for openrouter_api and pricepertoken) and optional 'provider_filter' (litellm_provider to
+    filter on, litellm only).
 
-    Chain semantics: fetch each source in order, first source with a key wins,
-    later sources only fill gaps. Address locality never implies cost; use
-    pricing_source_mode='free' explicitly for self-hosted local models.
+    Chain semantics: fetch each source in order, first source with a key wins, later sources only fill gaps.
+    Address locality never implies cost; use pricing_source_mode='free' explicitly for self-hosted local
+    models.
     """
     mode = _get_pricing_source_mode()
     if mode == 'free':
@@ -2140,13 +2073,11 @@ def get_pricing_sources(provider: str, base_url: str = '') -> list:
 # ============================================================
 # Per-Stage LLM Tunables (env > DB > default)
 # ============================================================
-# 5 stages * 4 keys + 1 global Ollama key + 2 global detection-window keys.
-# Reasoning is split into a numeric
-# token budget (Anthropic, extended thinking) and a string-enum effort level
-# (OpenAI/OpenRouter/Ollama); only the key matching the active provider is read.
-# Stage code reads via get_stage_tunable() at call time so Settings UI changes
-# take effect without restart. Out-of-range values log a WARNING and the default
-# is returned -- the system keeps running.
+# 5 stages * 4 keys + 1 global Ollama key + 2 global detection-window keys. Reasoning is split into a numeric
+# token budget (Anthropic, extended thinking) and a string-enum effort level (OpenAI/OpenRouter/Ollama); only
+# the key matching the active provider is read. Stage code reads via get_stage_tunable() at call time so
+# Settings UI changes take effect without restart. Out-of-range values log a WARNING and the default is
+# returned, so the system keeps running.
 
 STAGE_TUNABLE_DEFAULTS = {
     # ad detection (pass 1)
@@ -2165,9 +2096,8 @@ STAGE_TUNABLE_DEFAULTS = {
     # Budget stays None: for Anthropic that means extended thinking off, which
     # is already cheaper than the 1024-token floor the range allows.
     'reviewer_reasoning_budget': None,
-    # Unset: a default effort costs a rejected request plus a retry per
-    # reviewed ad on a non-reasoning model. Operators who want the reviewer to
-    # think set it in Settings, where 'low' caps a verdict that otherwise
+    # Unset: a default effort costs a rejected request plus a retry per reviewed ad on a non-reasoning model.
+    # Operators who want the reviewer to think set it in Settings, where 'low' caps a verdict that otherwise
     # spent ~2k reasoning tokens on a 188-character answer.
     'reviewer_reasoning_level': None,
     # chapter generation: boundary detection
@@ -2285,22 +2215,14 @@ def _coerce_tunable(key: str, raw: Any, source_label: str) -> Any | None:
 def get_stage_tunable(key: str, settings: dict | None = None) -> Any:
     """Resolve DB > env > default for a per-stage tunable.
 
-    Same precedence as every other env-backed setting: a value saved in the
-    Settings UI wins, the env var supplies the default when no UI value
-    exists (issue #491 consolidation; env used to win here).
+    Same precedence as every other env-backed setting (issue #491): a value saved in the Settings UI wins, and
+    the env var supplies the default when no UI value exists. Out-of-range or malformed values produce a
+    WARNING and the next source is used, never an exception, so a bad DB value never blocks processing.
 
-    Out-of-range or malformed values produce a WARNING and the next source
-    is used, never an exception, so a bad value in the DB never blocks
-    processing.
-
-    Args:
-        key: Tunable key.
-        settings: Pre-loaded {key: {'value', 'is_default'}} dict from
-            db.get_all_settings(). When supplied, skips the DB read -- used
-            by the Settings GET handler to resolve all tunables off the
-            single query it already issues. When omitted, the lookup hits
-            the shared 5s TTL cache in llm_client so per-window calls during
-            episode processing don't issue a fresh SQLite read each pass.
+    key is the tunable key. settings is an optional pre-loaded {key: {'value', 'is_default'}} dict from
+    db.get_all_settings(), used by the Settings GET handler to resolve everything off its single query; when
+    omitted, the lookup hits the shared 5s TTL cache in llm_client so per-window calls during episode
+    processing do not issue a fresh SQLite read each pass.
     """
     if key not in STAGE_TUNABLE_DEFAULTS:
         raise KeyError(f"Unknown stage tunable: {key!r}")
@@ -2352,8 +2274,8 @@ def get_stage_tunable(key: str, settings: dict | None = None) -> Any:
 def stage_tunable_env_override(key: str) -> str | None:
     """Return the env-var name supplying this key's default, or None.
 
-    Env no longer beats a UI-saved value (issue #491 consolidation); the
-    Settings UI shows this as informational provenance, not a lock.
+    Env no longer beats a UI-saved value (issue #491); the Settings UI shows this as informational provenance,
+    not a lock.
     """
     if key not in STAGE_TUNABLE_DEFAULTS:
         return None
@@ -2403,9 +2325,8 @@ STAGE_TUNABLE_PAYLOAD_KEYS = (
 def resolve_chapter_geometry(settings: dict | None = None):
     """Read (target, window, max_boundaries, min_duration) for chapter density.
 
-    Clamped so a stored combination that slipped past API validation, or an env
-    override that never saw it, still yields workable geometry: target no larger
-    than the window, min_duration no larger than target.
+    Clamped so a stored combination that slipped past API validation, or an env override that never saw it,
+    still yields workable geometry: target no larger than the window, min_duration no larger than target.
     """
     target = get_stage_tunable('chapter_target_seconds', settings=settings)
     window = get_stage_tunable('chapter_window_seconds', settings=settings)
@@ -2462,9 +2383,8 @@ AD_DETECTION_PARALLEL_WINDOWS_MIN = 1
 AD_DETECTION_PARALLEL_WINDOWS_MAX = 32
 
 
-# Above this failed-window ratio the whole detection pass fails (episode
-# retried later) instead of publishing with blind spots. 1.0 disables.
-# Parse-time default only: the runtime reads the DB-backed setting via
+# Above this failed-window ratio the whole detection pass fails (episode retried later) instead of publishing
+# with blind spots. 1.0 disables. Parse-time default only: the runtime reads the DB-backed setting via
 # ad_detector._resolve_max_failed_window_ratio.
 AD_DETECTION_MAX_FAILED_WINDOW_RATIO_DEFAULT = '0.25'
 AD_DETECTION_MAX_FAILED_WINDOW_RATIO = float(
@@ -2532,10 +2452,9 @@ _TRUTHY_STRINGS = ('true', '1', 'yes')
 def coerce_bool_setting(value) -> bool:
     """Coerce a raw setting value to bool the same way everywhere.
 
-    Accepts native ``bool``, strings, or anything string-coercible. Returns
-    True if the lowercased string form is in the truthy set, else False.
-    Used by settings GET, PUT, and the transcriber consumer so all four
-    sites agree on the truthy/falsy boundary.
+    Accepts native ``bool``, strings or anything string-coercible; True if the lowercased string form is in
+    the truthy set, else False. Used by settings GET, PUT and the transcriber consumer so all four sites agree
+    on the truthy/falsy boundary.
     """
     if isinstance(value, bool):
         return value
@@ -2788,14 +2707,10 @@ def get_env_backed_int(key: str, *, floor: int = None, ceiling: int = None,
                        settings: dict = None) -> int:
     """Resolve an env-backed integer setting: DB value > env seed > fallback.
 
-    The single read path for the ENV_BACKED_SETTINGS integer keys. A value
-    saved in the Settings UI wins; the env var seeds the default at boot.
-    Malformed stored values fall back to the validated registry default, and
-    the result is clamped to [floor, ceiling].
-
-    Args:
-        settings: Optional pre-loaded dict from db.get_all_settings() (the
-            Settings GET handler resolves everything off one query).
+    The single read path for the ENV_BACKED_SETTINGS integer keys. A value saved in the Settings UI wins; the
+    env var seeds the default at boot. Malformed stored values fall back to the validated registry default,
+    and the result is clamped to [floor, ceiling]. settings is an optional pre-loaded dict from
+    db.get_all_settings() (the Settings GET handler resolves everything off one query).
     """
     raw = None
     if settings is not None:
@@ -2827,15 +2742,13 @@ def get_env_backed_int(key: str, *, floor: int = None, ceiling: int = None,
 # Each tuple: (db_key, env_var, fallback_default, optional_validator)
 #
 # Behavior in src/database/schema/__init__.py _run_env_backed_settings_migration:
-# - On every boot: rows where is_default=1 re-sync to the current env_var
-#   value. Rows where is_default=0 (user customized via UI) are never touched.
-# - One-shot corrective migration on the FIRST 2.5.23 boot: any row where
-#   is_default=1 but value != env_var is treated as evidence the value was
-#   customized in the past without the flag being set; the migration flips
-#   is_default to 0 and KEEPS the existing value. The migration never writes
-#   value during the corrective pass -- data is never lost.
-# - validator runs on the env_var value at boot. If validation fails the
-#   env_var is ignored and the registry's fallback_default is used instead.
+# - On every boot: rows where is_default=1 re-sync to the current env_var value. Rows where is_default=0
+#   (user customized via UI) are never touched.
+# - One-shot corrective migration on the first 2.5.23 boot: any row where is_default=1 but value != env_var
+#   is treated as evidence the value was customized without the flag being set; it flips is_default to 0 and
+#   keeps the existing value. It never writes value during the corrective pass, so data is never lost.
+# - validator runs on the env_var value at boot. If validation fails the env_var is ignored and the
+#   registry's fallback_default is used instead.
 ENV_BACKED_SETTINGS = (
     ('llm_provider', 'LLM_PROVIDER', 'anthropic', _validate_llm_provider),
     ('audio_bitrate', 'AUDIO_BITRATE', DEFAULT_AUDIO_BITRATE, _validate_audio_bitrate),
