@@ -216,7 +216,8 @@ def bulk_cleanup_suggestions():
     for sid in ids:
         try:
             suggestion = fn(db, sid)
-            results.append({'id': sid, 'status': suggestion['status']})
+            results.append({'id': sid, 'status': suggestion['status'],
+                            **fingerprint_response_fields(suggestion.get('fingerprint_outcomes') or [])})
         except pattern_cleanup.SuggestionNotFoundError:
             results.append({'id': sid, 'error': 'not_found'})
         except pattern_cleanup.SuggestionStateError:

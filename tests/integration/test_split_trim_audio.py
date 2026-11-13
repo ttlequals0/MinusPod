@@ -167,3 +167,47 @@ def test_undo_trim_after_a_kept_fingerprint_changes_nothing(fp_feed, stub_finger
     sid, _ = _trim(fp_feed, parent)
     pattern_cleanup.undo_suggestion(fp_feed, sid)
     assert fp_feed.get_audio_fingerprint(parent)['fingerprint'] == OLD
+
+
+def _bulk(app_client, ids):
+    return app_client.post('/api/v1/patterns/cleanup/suggestions/bulk', headers=csrf(app_client),
+                           json={'ids': ids, 'action': 'approve'}).get_json()['results']
+
+
+def _split_and_trim_suggestions(fp_feed):
+    split_parent = _make_parent(fp_feed)
+    trim_parent = fp_feed.create_ad_pattern(scope='podcast', podcast_id=SLUG, text_template=TWO_SPONSORS)
+    fp_feed.create_audio_fingerprint(trim_parent, OLD, 60.0, source_podcast_slug=SLUG, source_episode_id=EPISODE,
+                                     source_start=10.0, source_end=70.0)
+    ids = [_suggest(fp_feed, trim_parent, 'trim', {'text': SECOND_TEMPLATE}),
+           _suggest(fp_feed, split_parent, 'split', {'pieces': PIECES})]
+    return trim_parent, ids
+
+
+def test_bulk_approve_carries_audio_for_a_split_and_a_trim(app_client, fp_feed, fp_original, stub_fingerprinting):
+    trim_parent, ids = _split_and_trim_suggestions(fp_feed)
+    results = _bulk(app_client, ids)
+    assert [r['fingerprintStored'] for r in results] == [True, True]
+    kids = fp_feed.get_cleanup_suggestion(ids[1])['applied']['new_pattern_ids']
+    assert [_span(fp_feed, k) for k in kids] == [(10.0, 40.0), (40.0, 70.0)]
+    assert _span(fp_feed, trim_parent) == (40.0, 70.0)
+
+
+def test_bulk_fingerprint_failure_in_one_item_does_not_fail_the_batch(
+        app_client, fp_feed, fp_original, stub_fingerprinting, monkeypatch):
+    from audio_fingerprinter import AudioFingerprinter
+    trim_parent, ids = _split_and_trim_suggestions(fp_feed)
+    real = AudioFingerprinter.generate_fingerprint
+    calls = []
+
+    def first_call_fails(self, path, start=0, duration=None):
+        calls.append(start)
+        if len(calls) == 1:
+            raise RuntimeError('decoder crashed')
+        return real(self, path, start, duration)
+    monkeypatch.setattr(AudioFingerprinter, 'generate_fingerprint', first_call_fails)
+    trim, split = _bulk(app_client, ids)
+    assert trim['status'] == 'approved' and trim['fingerprintStored'] is False
+    assert trim['fingerprintSkippedReason'] == 'fingerprint_failed'
+    assert split['status'] == 'approved' and split['fingerprintStored'] is True
+    assert fp_feed.get_audio_fingerprint(trim_parent)['fingerprint'] == OLD
