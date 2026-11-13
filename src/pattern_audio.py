@@ -82,10 +82,14 @@ def own_pattern_spans(db, slug, episode_id, pattern_ids, start, end, text, *, lo
     offsets = [sum(len(w) + 1 for w in words[:i]) for i in range(len(words))]
     found = {}
     patterns = db.get_ad_patterns_by_ids(pattern_ids)
+    after = 0
     for pid in pattern_ids:
         pattern = patterns.get(pid) or {}
         template = ' '.join((pattern.get('text_template') or '').split())
-        lo = joined.find(template) if template else -1
+        # split children come in text order, so a repeat inside an earlier child is not theirs
+        lo = joined.find(template, after if locate else 0) if template else -1
+        if locate and lo >= 0:
+            after = lo + len(template)
         covered = [] if lo < 0 else [
             i for i, w in enumerate(words) if offsets[i] + len(w) > lo and offsets[i] < lo + len(template)]
         if covered:
@@ -127,7 +131,8 @@ def store_patterns_audio(db, slug, episode_id, pattern_ids, start, end, *, force
     episode_audio = EpisodeAudio(db, slug, episode_id)
     for pid in pattern_ids:
         if own[pid] is None:
-            outcomes.append((pid, FingerprintStoreResult(False, 'span_covers_multiple_patterns')))
+            outcomes.append((pid, FingerprintStoreResult(
+                False, 'span_not_found' if locate else 'span_covers_multiple_patterns')))
         else:
             outcomes.append((pid, store_pattern_audio(
                 db, slug, episode_id, pid, *own[pid], force=pid == force_id, episode_audio=episode_audio)))
@@ -150,10 +155,14 @@ def audio_source_on(conn, pattern_id):
 
 
 def carry_audio_to_children(db, source, child_ids):
-    """Fingerprint each split child over its own span of the parent's source; best effort, [] when none."""
+    """Fingerprint each still-active split child over its own span of the parent's source; best effort."""
     if not source:
         return []
     try:
+        active = [pid for pid, p in db.get_ad_patterns_by_ids(child_ids).items() if p.get('is_active')]
+        child_ids = [pid for pid in child_ids if pid in active]
+        if not child_ids:
+            return []
         return store_patterns_audio(
             db, source['slug'], source['episode_id'], child_ids, source['start'], source['end'], locate=True)
     except Exception as e:
@@ -161,14 +170,15 @@ def carry_audio_to_children(db, source, child_ids):
         return []
 
 
-def rebuild_pattern_audio(db, source, pattern_id, *, locate=True):
-    """Replace a pattern's fingerprint from source; the old one stays unless a new one is stored.
-
-    locate=True cuts the pattern's own text span out of source (trim); False fingerprints all of it (undo).
-    """
+def rebuild_pattern_audio(db, source, pattern_id, expected_text, *, locate=True):
+    """Force-replace a pattern's fingerprint from source if its audio is usable and its text is still expected_text."""
     if not source:
         return []
     try:
+        pattern = db.get_ad_pattern_by_id(pattern_id)
+        if (not pattern or pattern.get('text_template') != expected_text
+                or audio_source_on(db.get_connection(), pattern_id) is None):
+            return []
         if locate:
             return store_patterns_audio(
                 db, source['slug'], source['episode_id'], [pattern_id], source['start'], source['end'],

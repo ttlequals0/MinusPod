@@ -1377,7 +1377,7 @@ def apply_suggestion(db, suggestion_id: int) -> dict:
     if applied.get('new_pattern_ids'):
         outcomes = carry_audio_to_children(db, source, applied['new_pattern_ids'])
     elif applied.get('text') is not None:
-        outcomes = rebuild_pattern_audio(db, source, pattern['id'])
+        outcomes = rebuild_pattern_audio(db, source, pattern['id'], applied['text'])
     else:
         outcomes = []
     result = db.get_cleanup_suggestion(suggestion_id)
@@ -1441,13 +1441,13 @@ def _undo_split(db, conn, pattern: dict, before: dict, applied: dict) -> None:
         db._update_ad_pattern_conn(conn, new_id, is_active=0, disabled_reason='Cleanup undo')
 
 
-def _restore_trimmed_audio(db, pattern_id: int, source: dict | None) -> list:
+def _restore_trimmed_audio(db, pattern_id: int, source: dict | None, restored_text: str | None) -> list:
     """Rebuild the pre-trim fingerprint only when the trim replaced it with another span."""
     current = db.get_audio_fingerprint(pattern_id, with_blob=False)
     if (not source or current is None
             or (current['source_start'], current['source_end']) == (source['start'], source['end'])):
         return []
-    return rebuild_pattern_audio(db, source, pattern_id, locate=False)
+    return rebuild_pattern_audio(db, source, pattern_id, restored_text, locate=False)
 
 
 def undo_suggestion(db, suggestion_id: int) -> dict:
@@ -1509,7 +1509,8 @@ def undo_suggestion(db, suggestion_id: int) -> dict:
     invalidate_pattern_catalog_scope()
     outcomes = []
     if suggestion['kind'] != 'split' and applied.get('text') is not None:
-        outcomes = _restore_trimmed_audio(db, pattern['id'], applied.get('audio_source'))
+        outcomes = _restore_trimmed_audio(
+            db, pattern['id'], applied.get('audio_source'), before.get('text_template'))
     result = db.get_cleanup_suggestion(suggestion_id)
     result['fingerprint_outcomes'] = outcomes
     return result
