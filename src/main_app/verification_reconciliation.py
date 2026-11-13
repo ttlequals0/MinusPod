@@ -617,10 +617,10 @@ def _gate_verification_ads_by_confidence(verification_ads_processed,
     release_by_hold = {}
     word_edges = WordEdges(segments)
     for ad, orig_ad in zip(verification_ads_processed, verification_ads_original, strict=True):
-        # Held ads divert to the held list; never cut, never enter the UI/reviewer pool.
-        # Checked before the pass-1 overlap below so a held ad can never corroborate
-        # a hold into auto-approval; one repeating a pass-1 span folds into it at the
-        # marker merge seam instead.
+        # Held ads divert to the held list; never cut, never enter the UI/reviewer
+        # pool. Checked before the pass-1 overlap below so a held ad can never
+        # corroborate a hold into auto-approval; one repeating a pass-1 span folds
+        # into it at the marker merge seam instead.
         if ad.get('held_for_review'):
             orig_ad['was_cut'] = False
             orig_ad['held_for_review'] = True
@@ -639,20 +639,18 @@ def _gate_verification_ads_by_confidence(verification_ads_processed,
                 hold_overlaps.append((dict(ad), dict(orig_ad)))
             ledger.record_carved(orig_ad, labelled_spans(overlapping, 'covered:pass1_hold'))
             ledger.supersede(orig_ad)
-            # A pass-2 cut overlapping a pass-1 held span would destroy the audio
-            # the hold protects; drop it (never cut). The pass-1 held marker
-            # already represents the region, so no second held marker either, or
-            # pending_review_count would double-count.
+            # A pass-2 cut overlapping a pass-1 held span would destroy the audio the
+            # hold protects; drop it. The pass-1 marker already represents the region,
+            # so no second held marker either (pending_review_count would double-count).
             if _corroborates_hold(overlapping, orig_ad,
                                    confidence, min_cut_confidence):
                 hold = overlapping[0]
                 if not hold.get('pass2_corroborated'):
                     hold['pass2_corroborated'] = True
-                    # The corroborated sub-span: what pass 2 attested as ad,
-                    # clamped inside the hold (or inside the reviewer's proposed
-                    # span when that is what agreed). The auto-approve confirm is
-                    # trimmed to this, so hold padding the detection excluded is
-                    # never cut on the detection's authority.
+                    # The corroborated sub-span: what pass 2 attested as ad, clamped
+                    # inside the hold (or the reviewer's proposed span when that agreed).
+                    # The auto-approve confirm is trimmed to it, so hold padding the
+                    # detection excluded is never cut on its authority.
                     hold['pass2_corroborated_span'] = _corroborated_span(
                         hold, orig_ad)
                     flags = hold.setdefault('validation', {}).setdefault('flags', [])
@@ -689,8 +687,8 @@ def _gate_verification_ads_by_confidence(verification_ads_processed,
             continue
         # Standalone miss: below min_cut_confidence, overlaps no pass-1 marker.
         # Deliberately re-reads raw confidence rather than ``confidence`` (which
-        # prefers the validator's adjusted_confidence): this bucketing is a
-        # distinct, more conservative decision from the primary cut gate above.
+        # prefers the validator's adjusted_confidence): a distinct, more
+        # conservative decision than the primary cut gate above.
         conf = float(ad.get('confidence') or 0.0)
         if (verification_miss_autocut_min_confidence > 0
                 and conf >= verification_miss_autocut_min_confidence):
@@ -757,7 +755,7 @@ def _drop_uncovered_pass2_ads(slug, episode_id, v_ads_to_cut, v_ads_for_ui,
     # Action reconciliation can replace a candidate with split copies after
     # validation. Prefer the final cut/UI pairing so a short split fragment
     # filtered by AudioProcessor also removes its exact UI marker. Not strict: a
-    # cut can legitimately lack a UI twin (e.g. merged spans).
+    # cut can lack a UI twin (e.g. merged spans).
     twin.update({id(p): o for p, o in zip(v_ads_to_cut, v_ads_for_ui,
                                           strict=False)})
     ts_map = None

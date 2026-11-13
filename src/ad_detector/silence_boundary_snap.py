@@ -193,12 +193,11 @@ def snap_ad_boundaries_to_silence(
         if not snap_record:
             continue
 
-        # Guard A: if the pre-snap ad was long enough to be removable and the snap
-        # shrinks it below the removal threshold, revert entirely, since
-        # compute_applied_cuts silently drops sub-threshold cuts. Duration-only on
-        # purpose: compute_applied_cuts also keeps sub-10s cuts in the fingerprint
-        # stage and at confidence >= 0.9; ignoring those is conservative (revert
-        # rather than silently shrink).
+        # Guard A: if the pre-snap ad was removable and the snap shrinks it below
+        # the removal threshold, revert entirely (compute_applied_cuts silently
+        # drops sub-threshold cuts). Duration-only on purpose: it also keeps
+        # sub-10s cuts in the fingerprint stage and at confidence >= 0.9, and
+        # ignoring those is conservative.
         snapped_duration = new_end - new_start
         if (
             pre_snap_duration >= MIN_AD_DURATION_FOR_REMOVAL

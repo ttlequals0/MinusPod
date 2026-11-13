@@ -299,11 +299,11 @@ def _remap_stored_chapters(slug, episode_id, all_cuts, replacement_duration,
                 f"[{slug}:{episode_id}] Chapter remap swallowed every "
                 f"chapter; keeping previous chapters JSON")
             return
-        # Embed first, save JSON only after it succeeds: if the embed fails the
-        # served JSON and embedded ID3 must both stay the old matching set (#523
-        # was the reverse order). This replaces the ffmpeg cut step's remapped
-        # chapters, not a second remap: embed_chapters writes timestamps as-is
-        # and returns False for ffmpeg/OS errors; unsafe metadata raises.
+        # Embed first, save JSON only after it succeeds: if the embed fails, the
+        # served JSON and embedded ID3 must both stay the old matching set (#523 was
+        # the reverse order). This replaces the cut step's remapped chapters, not a
+        # second remap: embed_chapters writes timestamps as-is, returns False for
+        # ffmpeg/OS errors, and raises on unsafe metadata.
         if audio_path:
             if not embed_chapters(str(audio_path), public_chapters(merged, for_embedding=True),
                                   duration=resolved_duration):
@@ -507,19 +507,17 @@ def _generate_assets(slug, episode_id, segments, all_cuts, episode_description,
                     ad_config = resolve_ad_chapter_config(db, podcast_row)
                     # 'auto' probes the PROCESSED file: the ffmpeg cut step already
                     # remapped publisher ID3 CHAP frames onto the cut timeline
-                    # (audio_processor.py), so the probe returns the remapped list
-                    # for free. 'generate' never probes and always falls through to
-                    # the generator.
+                    # (audio_processor.py), so the probe returns the remapped list.
+                    # 'generate' never probes and always falls through to the generator.
                     publisher = []
                     if chapters_mode == CHAPTERS_MODE_AUTO and audio_path:
                         publisher = probe_chapters(str(audio_path))
                         if publisher is None:
-                            # Probe failed (e.g. transient ffprobe error), not
-                            # "no chapters" (embedded_chapters.probe_chapters).
-                            # Falling through to generate+embed would overwrite
-                            # the ID3 frames the cut step wrote correctly, the
-                            # failure mode #500 prevents at the ffmpeg layer.
-                            # Skip the chapter step this run instead.
+                            # Probe failed (e.g. transient ffprobe error), not "no
+                            # chapters" (embedded_chapters.probe_chapters). Falling
+                            # through to generate+embed would overwrite the ID3 frames
+                            # the cut step wrote correctly (the failure mode #500
+                            # prevents). Skip the chapter step this run instead.
                             audio_logger.warning(
                                 f"[{slug}:{episode_id}] Chapter probe failed after "
                                 f"cut; skipping chapter step this run")
@@ -544,14 +542,12 @@ def _generate_assets(slug, episode_id, segments, all_cuts, episode_description,
                             audio_path, audio_duration, merged != base,
                             f"Preserved {len(publisher)} publisher chapter(s) (no AI call)", pending_assets=pending_assets)
                         return
-                    # Embedded chapters came up short. Some feeds publish chapters
-                    # only as a separate podcast:chapters JSON file (#560),
-                    # captured at RSS refresh as episodes.upstream_chapters_url;
-                    # try fetching it before generating. A failed probe above skips
-                    # the run to protect correctly-embedded ID3 frames, but a fetch
-                    # failure (None) has no such risk, so it falls through to the
-                    # generator: an unreachable remote file must not block chapters,
-                    # only lose the chance to keep the publisher's own set.
+                    # Embedded chapters came up short. Some feeds publish chapters only
+                    # as a separate podcast:chapters JSON file (#560), captured at RSS
+                    # refresh as episodes.upstream_chapters_url; try it before
+                    # generating. A failed probe above skips the run to protect embedded
+                    # ID3 frames, but a failed fetch (None) has no such risk, so it falls
+                    # through to the generator: an unreachable file must not block chapters.
                     if chapters_mode == CHAPTERS_MODE_AUTO and original_duration:
                         episode_row = db.get_episode(slug, episode_id)
                         upstream_url = (episode_row or {}).get('upstream_chapters_url')

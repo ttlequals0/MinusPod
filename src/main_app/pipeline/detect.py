@@ -156,9 +156,8 @@ def _detect_ads_first_pass(ctx, segments, audio_path,
         # Degraded continue: a transient, non-auth failure that still left
         # pattern/cross-fetch markers publishes those instead of failing.
         # Auth-class failures and zero markers still raise. A partial window
-        # failure is excluded (a retry will likely complete, and pattern-only
-        # cuts would permanently discard the markers the successful windows
-        # found); only a total outage degrades.
+        # failure is excluded (a retry will likely complete, and pattern-only cuts
+        # would discard the successful windows' markers); only a total outage degrades.
         windows_total = ad_result.get('windows_total') or 0
         windows_failed = ad_result.get('windows_failed') or 0
         partial_window_failure = 0 < windows_failed < windows_total
@@ -194,11 +193,10 @@ def _detect_ads_first_pass(ctx, segments, audio_path,
     snap_lag = cue_settings['snap_lag']
     allow_transition = cue_settings['transition_snap_enabled']
 
-    # Cue-pair ad synthesis (opt-in): when the LLM missed a break bracketed by
-    # two high-confidence cues, synthesize an ad spanning the pair. Off by
-    # default because it breaks the "cue is supporting evidence only" contract
-    # (audio_cue_create_from_pairs). The reviewer still evaluates every
-    # synthesized ad (#350).
+    # Cue-pair ad synthesis (opt-in): when the LLM missed a break bracketed by two
+    # high-confidence cues, synthesize an ad spanning the pair. Off by default
+    # because it breaks the "cue is supporting evidence only" contract
+    # (audio_cue_create_from_pairs); the reviewer still evaluates every one (#350).
     cue_pair_skip_diagnostics = {}
     if audio_analysis_result and (cue_settings['create_from_pairs'] or force_create_from_pairs):
         try:
@@ -247,8 +245,7 @@ def _detect_ads_first_pass(ctx, segments, audio_path,
 
     # Snap both ad edges to nearby audio cues, capped by the reviewer's
     # max_boundary_shift so a misfiring cue cannot warp a boundary past what the
-    # user authorised. A no-op when cue detection is off, since there are then
-    # no audio_cue signals (#350).
+    # user authorised. A no-op without audio_cue signals (#350).
     # Edge snapshot before snap, for telemetry edge distances.
     pre_snap_ads = ([{'start': a.get('start'), 'end': a.get('end')} for a in first_pass_ads]
                     if audio_analysis_result else [])
@@ -506,9 +503,8 @@ def _gate_validation_by_confidence(slug, episode_id, validation_ads, min_cut_con
             )
             continue
         # REVIEW fall-through guard: the validator's rounding keeps a REVIEW ad
-        # below threshold, so this is belt-and-suspenders for one reaching the
-        # gate at/above threshold (e.g. non-validator inputs): on a cue-gated
-        # feed hold it instead of cutting when it has no cue.
+        # below threshold, so this is belt-and-suspenders for one at/above it (e.g.
+        # non-validator inputs): on a cue-gated feed hold it if it has no cue.
         if cue_gate_enabled and not is_cue_backed(ad):
             ad['was_cut'] = False
             ad['held_for_review'] = True

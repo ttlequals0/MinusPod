@@ -13,9 +13,9 @@ back to blacklist detection.
 
 
 # System prompt for the content-labeling pass. The model marks the substantive
-# show content; we keep those spans and remove the complement. It is written to
-# be inclusive (when unsure, label as content) because under-labeling deletes
-# real show audio, while over-labeling only leaves an ad in.
+# show content; we keep it and remove the complement. It is inclusive (when
+# unsure, label as content): under-labeling deletes real audio, over-labeling
+# only leaves an ad in.
 CONTENT_SYSTEM_PROMPT = (
     "You label the substantive SHOW CONTENT in a podcast transcript window so a "
     "tool can keep it and remove everything else (ads, sponsor reads, dynamically "

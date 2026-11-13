@@ -331,8 +331,8 @@ def _validate_verification_ads(slug, episode_id, verification_ads_processed,
 
     # Pair each processed candidate with its original-coords twin before
     # validation: validate() sorts, merges and drops ads, so positional indexing
-    # against the unvalidated original list mispairs. The shallow ad.copy() in
-    # validate() carries the reference through; a merge keeps the survivor's twin.
+    # against the unvalidated list mispairs. The shallow ad.copy() carries the
+    # reference through; a merge keeps the survivor's twin.
     for proc, orig in zip(verification_ads_processed, verification_ads_original, strict=True):
         proc['_orig_twin'] = orig
 
@@ -993,10 +993,9 @@ def _run_verification_pass(ctx, processed_path, pass1_cuts,
         if verification_ads_processed:
             audio_logger.info(f"[{slug}:{episode_id}] Verification found {len(verification_ads_processed)} missed ads")
 
-            # Real duration of the pass-1 output, probed once: validation clamps
-            # and extends trailing ads against it (Whisper's last segment end can
-            # over- or under-run the file) and the recut coverage check needs the
-            # same pre-recut bounds.
+            # Real duration of the pass-1 output, probed once: validation clamps and
+            # extends trailing ads against it (Whisper's last segment end can mis-state
+            # the file length) and the recut coverage check needs the same bounds.
             processed_duration = local_audio_processor.get_audio_duration(processed_path)
 
             def validate(processed, original, barriers):

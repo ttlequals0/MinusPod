@@ -241,9 +241,8 @@ def _download_and_transcribe(slug, episode_id, episode_url,
 
     if transcript_text:
         # Prefer the saved whisper segments (with word-level timestamps):
-        # parse_transcript_segments drops the word timing that boundary
-        # refinement and detection need, which weakened LLM-only detection (#349).
-        # Fall back to the text parse if the segments were never saved.
+        # parse_transcript_segments drops the word timing that boundary refinement
+        # and detection need (#349). Fall back to the text parse if never saved.
         segments = db.get_original_segments(slug, episode_id)
         if segments:
             audio_logger.info(

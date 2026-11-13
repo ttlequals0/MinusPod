@@ -1863,10 +1863,9 @@ def deduplicate_window_ads(all_ads: list[dict], merge_threshold: float = 5.0,
             # Keep higher confidence
             if current.get('confidence', 0) > last.get('confidence', 0):
                 last['confidence'] = current['confidence']
-            # Keep sponsor and reason as a consistent pair from the same member
-            # (mirrors _merge_detection_results) so a merged marker never shows
-            # one ad's sponsor with another's description. The longer reason is
-            # the content-aware one, so its sponsor goes with it.
+            # Keep sponsor and reason as a pair from the same member (mirrors
+            # _merge_detection_results) so a merged marker never mixes one ad's
+            # sponsor with another's description; the longer reason wins.
             current_reason = current.get('reason', '')
             last_reason = last.get('reason', '')
             if len(current_reason) > len(last_reason):

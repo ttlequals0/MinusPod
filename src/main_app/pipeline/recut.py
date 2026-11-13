@@ -145,11 +145,11 @@ def _build_recut_ad_list(slug, episode_id, segments, episode_duration,
     keep_ads, all_ads = keep_rules._partition_keep_ads(
         all_ads, segment_actions, keep_rules._make_keep_differential_override(dd_parsed))
 
-    # Stamp saved cut state before validation re-derives it. A marker already
-    # cut in the published audio must not flip to held/review when settings
-    # tighten (e.g. cue gating newly enabled), or it would resurrect the ad.
-    # The stamp survives validate()'s shallow copy even when validation
-    # clamps/merges/extends boundaries (a span key would not).
+    # Stamp saved cut state before validation re-derives it. A marker already cut
+    # in the published audio must not flip to held/review when settings tighten
+    # (e.g. cue gating newly enabled), or it would resurrect the ad. The stamp
+    # survives validate()'s shallow copy even when it clamps/merges/extends
+    # boundaries (a span key would not).
     # A standing reviewer reject outranks the saved-cut stamp; only a user override lifts it.
     # A pending reviewer hold stays pending unless a user or its own pass-2 approval releases it.
     for a in all_ads:
@@ -197,9 +197,8 @@ def _build_recut_ad_list(slug, episode_id, segments, episode_duration,
         all_ads, audio_analysis=audio_analysis, actions_map=segment_actions)
 
     # Force previously-cut markers back to ACCEPT so the gate cuts them again,
-    # overriding any hold/review from re-validation. A trusted fragment split from
-    # a validated cut also survives the short-duration rejection. Other fresh
-    # REJECTs, including later FP corrections, still win.
+    # overriding re-validation holds. A trusted fragment split from a validated cut
+    # survives the short-duration rejection. Other fresh REJECTs still win.
     reviewer_rejects = []
     for ad in validation_result.ads:
         if ad.pop('_reviewer_rejected', False):
@@ -295,9 +294,8 @@ def _passthrough_episode(slug, episode_id, episode_url, episode_title,
 
         # The serving stack names files .mp3 and declares audio/mpeg, so non-MP3
         # enclosures (m4a/aac) are converted, the one transformation pass-through
-        # does. Convert whenever the codec is not confidently 'mp3', including
-        # when ffprobe can't tell (get_audio_codec returns None): output is always
-        # .mp3, so unverified bytes would serve a mislabeled file.
+        # does. Convert unless the codec is confidently 'mp3', including when ffprobe
+        # can't tell (None): unverified bytes would serve a mislabeled .mp3.
         codec = get_audio_codec(audio_path)
         if codec is None:
             # A transient ffprobe miss on a genuine MP3 would otherwise force a
@@ -529,16 +527,14 @@ def _recut_episode(slug, episode_id, episode_title, podcast_name,
 
         common._publish_status('update_job_stage', slug, episode_id, "recut:assets", 85)
         # Skip chapter regeneration: its topic-boundary detection is an LLM call
-        # and recut is AI-free. The stored chapters JSON is remapped
-        # arithmetically onto the new cut list; titles can be refreshed with the
-        # manual Regenerate Chapters action.
+        # and recut is AI-free. The stored chapters JSON is remapped arithmetically
+        # onto the new cut list; titles can be refreshed with Regenerate Chapters.
         #
-        # applied_cuts are in original-episode coordinates (recut re-cuts the
-        # retained original) while the stored chapters sit on the previous
-        # processed timeline. previous_cuts (the prior render's applied_cuts_json,
-        # also original coordinates) lets the remap go previous-processed ->
-        # original -> recut. None (rendered before applied_cuts_json existed)
-        # makes the remap a safe no-op rather than a wrong guess.
+        # applied_cuts are in original-episode coordinates while the stored chapters
+        # sit on the previous processed timeline. previous_cuts (the prior render's
+        # applied_cuts_json, also original coordinates) lets the remap go
+        # previous-processed -> original -> recut. None (rendered before
+        # applied_cuts_json existed) makes the remap a safe no-op.
         previous_cuts = storage.get_applied_cuts(slug, episode_id)
         with common._measure_run_stage('assets'):
             publish._generate_assets(slug, episode_id, segments, applied_cuts,

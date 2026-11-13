@@ -300,10 +300,9 @@ def _pick_cue_for_end(
     +/-4s window; at 10s a farther higher-confidence cue must not beat a nearer
     one (all candidates cleared the 0.80 floor).
     """
-    # The end-side stinger can sit a beat before the LLM's end (snap_lag) because
-    # the LLM tends to overshoot into post-break silence, or a beat after it
-    # (snap_lead) because the LLM sometimes cuts at the last word of the ad copy
-    # and the stinger plays a moment later.
+    # The end-side stinger can sit a beat before the LLM's end (snap_lag; the LLM
+    # overshoots into post-break silence) or a beat after it (snap_lead; the LLM
+    # cuts at the last word of the copy and the stinger follows).
     # window replaces the lag/lead band, e.g. with the content-match span.
     low, high = window or (ad_end - snap_lag_s, ad_end + snap_lead_s)
     eligible = []

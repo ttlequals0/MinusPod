@@ -36,9 +36,8 @@ from slugify import slugify
 
 from main_app.cache import TTLCache
 # Singletons are created in main_app/__init__.py before it imports this module
-# (`from main_app.feeds import ...` near its bottom), so a module-level import
-# is safe despite the circular shape. Replaces the positional 5-tuple from
-# _get_components(), which broke silently on reorder.
+# (near its bottom), so a module-level import is safe despite the circular
+# shape. Replaces the positional tuple from _get_components().
 from main_app import db, rss_parser, storage, status_service, pattern_service
 from main_app.feed_auth import active_feed_key
 from main_app.shared_state import invalidate_episode_lookup_cache
@@ -51,12 +50,10 @@ feed_logger = logging.getLogger('podcast.feed')
 # Initialize caches for performance
 _feed_cache = TTLCache(ttl_seconds=30)
 
-# Coalesce back-to-back refreshes of the same feed: a client poll triggering
-# serve_rss's on-demand refresh at the same moment as the 15-min background loop
-# yields two "Starting RSS refresh" calls seconds apart, both conditional-GET
-# against upstream. Skip the second. `force=True` (finalize hook, manual
-# reprocess, API force-refresh) bypasses the skip but still stamps so later
-# non-force calls in the window coalesce.
+# Coalesce back-to-back refreshes of the same feed (a client poll's on-demand
+# refresh and the background loop would otherwise both hit upstream seconds
+# apart). `force=True` (finalize hook, manual reprocess, API force-refresh)
+# bypasses the skip but still stamps so later non-force calls coalesce.
 _refresh_coalesce = TTLCache(ttl_seconds=30)
 
 # Unparseable-body backoff: a body that never parses used to force a full
@@ -422,11 +419,10 @@ def refresh_rss_feed(slug: str, feed_url: str, force: bool = False,
             _refresh_coalesce.invalidate(slug)
             return RefreshOutcome(False, 'fetch_failed', error='Failed to fetch RSS feed')
 
-        # Parse feed to extract metadata. A body with neither channel metadata
-        # nor entries that also tripped the parser (bozo) is an origin failure
-        # (error page served with an RSS content type), not a success, which
-        # would reset the failure counter mid-outage. A clean parse of an empty
-        # placeholder feed still counts as success.
+        # Parse feed to extract metadata. A body with neither channel metadata nor
+        # entries that also tripped the parser (bozo) is an origin failure (error
+        # page served as RSS), not a success that would reset the failure counter
+        # mid-outage. A clean parse of an empty placeholder feed is a success.
         parsed_feed = rss_parser.parse_feed(feed_content, source=slug)
         if parsed_feed is None:
             # One immediate refetch usually clears a body cut in transfer before falling back to backoff.
@@ -485,11 +481,10 @@ def refresh_rss_feed(slug: str, feed_url: str, force: bool = False,
                 feed_content, channel=channel_elem)
 
             prev = podcast or {}
-            # "Changed" means the resolved cover has dropped out of the feed's
-            # current candidate set entirely, not just that the preferred
-            # candidate differs: otherwise a persistently-broken itunes:image
-            # (while the RSS <image> resolves fine) would look "changed" every
-            # refresh and force a redownload of the known-bad URL each time.
+            # "Changed" means the resolved cover dropped out of the feed's candidate
+            # set entirely, not just that the preferred candidate differs: otherwise
+            # a persistently-broken itunes:image (with a working RSS <image>) would
+            # force a redownload of the known-bad URL every refresh.
             artwork_source_changed = (bool(artwork_candidates)
                                       and prev.get('artwork_url') not in artwork_candidates)
             changed = [
@@ -507,9 +502,9 @@ def refresh_rss_feed(slug: str, feed_url: str, force: bool = False,
                     f"[{slug}] Feed metadata changed upstream: {', '.join(changed)}")
 
             # Update podcast metadata (and ETag if available) in one DB call.
-            # artwork_url/artwork_cached are deliberately not written here:
-            # storage.download_artwork is their sole writer (via save_artwork),
-            # so a failed candidate never clears a still-valid cached cover.
+            # artwork_url/artwork_cached are not written here: storage.download_artwork
+            # is their sole writer (via save_artwork), so a failed candidate never
+            # clears a still-valid cached cover.
             update_kwargs = dict(
                 title=title,
                 description=description,
@@ -650,10 +645,10 @@ def refresh_rss_feed(slug: str, feed_url: str, force: bool = False,
         status_service.complete_feed_refresh(slug, 0)
         return RefreshOutcome(True, 'refreshed', inserted, queued_count)
     except Exception as e:
-        # Deliberately not recorded as a feed failure: exceptions here are
-        # internal faults (DB locked, disk full, downstream bugs), and the Feed
-        # Refresh Failed alert blames the publisher's feed. Origin failures are
-        # recorded at the fetch/parse boundaries above.
+        # Deliberately not recorded as a feed failure: these are internal faults
+        # (DB locked, disk full, bugs) and the Feed Refresh Failed alert blames the
+        # publisher's feed. Origin failures are recorded at the fetch/parse
+        # boundaries above.
         refresh_logger.error(
             f"[{slug}] RSS refresh failed: {e}")
         status_service.remove_feed_refresh(slug)
@@ -692,9 +687,8 @@ def _run_refresh_batch(force, slugs=None, label='RSS feeds'):
         refresh_logger.info(f"Refreshing {label}")
 
         # The force sweep enumerates every configured feed; the staggered tick
-        # passes the due slugs. Either way the fetch URL and feed_type come from
-        # the podcast row, so a due slug never round-trips through the
-        # slugify-keyed feed map.
+        # passes the due slugs. Either way the fetch URL and feed_type come from the
+        # podcast row, so a due slug never round-trips through the slugify-keyed map.
         candidates = slugs if slugs is not None else list(get_feed_map().keys())
 
         # Parallelize feed refresh with ThreadPoolExecutor. record_failure=False:
@@ -746,12 +740,11 @@ def _run_refresh_batch(force, slugs=None, label='RSS feeds'):
         outage_info = {'detected': False, 'affectedCount': failed, 'nextRetryAt': None}
 
         if outage_detected:
-            # Shared outage: origin feeds did not individually break, the network
-            # path did. A failed refresh_rss_feed call leaves cached feed data and
-            # conditional-fetch validators (etag/last-modified) untouched, so
-            # nothing needs preserving beyond not counting the failures. One
-            # jittered retry avoids every instance hammering the same upstream
-            # host back-to-back.
+            # Shared outage: the network path broke, not the origin feeds. A failed
+            # refresh_rss_feed leaves cached feed data and conditional-fetch
+            # validators untouched, so nothing needs preserving beyond not counting
+            # the failures. One jittered retry avoids every instance hammering the
+            # same upstream host back-to-back.
             refresh_logger.warning(
                 f"RSS refresh: shared outage detected ({failed}/{attempted} feeds "
                 "failed together) - skipping per-feed failure counting, "
@@ -950,10 +943,9 @@ def refresh_feed_artwork(slug, podcast=None):
             refresh_logger.warning(f"[{slug}] artwork candidate fetch failed: {e}")
         if not candidates and podcast.get('artwork_url'):
             candidates = [podcast['artwork_url']]
-        # force, because the guard reads the same URL off the row and would
-        # always match; without it this only cleared the badge variant. Then
-        # drop the cached badge so it recomposites with the current badge
-        # rendering even when the cover itself has not changed.
+        # force, because the guard reads the same URL off the row and would always
+        # match; without it this only cleared the badge variant. Then drop the
+        # cached badge so it recomposites even when the cover itself is unchanged.
         if candidates:
             storage.download_artwork(slug, candidates, force=True)
         storage.clear_watermark_cache(slug)

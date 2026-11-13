@@ -82,8 +82,7 @@ from main_app.shared_state import permanently_failed_warned as _permanently_fail
 from main_app.shared_state import episode_lookup_cache, episode_lookup_key
 # Singletons are created in main_app/__init__.py before it imports this module
 # (`from main_app.routes import register_routes`), so a module-level import is
-# safe here. Replaces the positional tuple from _get_components(), which broke
-# silently on reorder.
+# safe. Replaces the positional tuple from _get_components().
 from main_app import db, storage, rss_parser, status_service
 from main_app.feed_auth import (
     KEY_RE, SUBSCRIBER_KEY_RE, active_feed_key, feed_auth_enabled,
@@ -140,9 +139,9 @@ def _personalize_rss_for_subscriber(cached_rss: str) -> str:
 
 # Endpoints served to podcast apps and other unauthenticated clients. None can
 # use a CSRF token, and minting one writes the session, adding a cookie and
-# `Vary: Cookie` that stops CDNs caching the response. The after_request hook
-# in main_app/__init__.py skips them. serve_ui is absent on purpose: the SPA
-# reads the CSRF cookie from JS.
+# `Vary: Cookie` that stops CDN caching. The after_request hook in
+# main_app/__init__.py skips them. serve_ui is absent on purpose: the SPA reads
+# the CSRF cookie from JS.
 PUBLIC_FEED_ENDPOINTS = frozenset({
     'serve_rss',
     'serve_episode',
@@ -546,10 +545,10 @@ def register_routes(app):
         feed_map = _routes.get_feed_map()
 
         if slug not in feed_map:
-            # Do not trigger a full refresh on every unknown slug: external bots
-            # probe random slugs (`/foo`, `/.hidden`, `/etc`) and each probe would
-            # fire an outbound request per subscribed feed. The scheduled
-            # refresher keeps feed_map current; a bogus slug just 404s.
+            # Do not trigger a full refresh on every unknown slug: bots probe
+            # random slugs and each probe would fire an outbound request per
+            # subscribed feed. The scheduled refresher keeps feed_map current; a
+            # bogus slug just 404s.
             feed_logger.info(f"[{slug}] Feed not found (no refresh-on-miss)")
             abort(404)
 
@@ -580,13 +579,12 @@ def register_routes(app):
                     f"({cached_base} != {current_base}), forcing refresh"
                 )
             else:
-                # Same self-heal for the feed auth key: an enable, disable or
-                # rotation re-renders on the first fetch that passes the key
-                # gate. The extractor also reads the badged cover token, so
-                # episode-less feeds heal too; the keyable-URL guard (enclosures
-                # or cover present) stops a feed with nothing to re-key from
-                # force-refreshing forever, and cheap substring checks keep the
-                # regex off the common path.
+                # Same self-heal for the feed auth key: an enable, disable or rotation
+                # re-renders on the first fetch that passes the key gate. The
+                # extractor also reads the badged cover token, so episode-less feeds
+                # heal too; the keyable-URL guard (enclosures or cover present) stops
+                # a feed with nothing to re-key force-refreshing forever, and cheap
+                # substring checks keep the regex off the common path.
                 active_key = active_feed_key(db)
                 if ((active_key or '?key=' in cached_rss)
                         and (cached_base is not None
@@ -678,9 +676,8 @@ def register_routes(app):
                 status = None
 
         # Fetched once and reused below (status branches, HEAD branch,
-        # title-blacklist guard). Placed after the PROCESSED fast-return above:
-        # that is the hottest path in the app and must not pay for a podcast row
-        # it never uses.
+        # title-blacklist guard). Placed after the PROCESSED fast-return above,
+        # the hottest path in the app, which must not pay for a row it never uses.
         podcast = db.get_podcast_by_slug(slug)
         serves_own_audio = not has_upstream_audio(podcast)
 
@@ -832,12 +829,11 @@ def register_routes(app):
                 headers={'Retry-After': '30'}
             )
         else:
-            # Queue is busy: this must reach the real work queue the drainer
-            # reads, not only the status file the UI shows. The user-intent mark
-            # gets it past the drainer's auto-process gate on a feed with
-            # auto-process off. Never over an existing stamp: relabelling a
-            # person's reprocess as a play request would let automatic policies
-            # act on their run.
+            # Queue is busy: this must reach the real work queue the drainer reads,
+            # not only the status file the UI shows. The user-intent mark gets it
+            # past the drainer's auto-process gate on a feed with auto-process off.
+            # Never over an existing stamp: relabelling a person's reprocess as a
+            # play request would let automatic policies act on their run.
             if not serves_own_audio:
                 _stamp_jit_play(slug, episode_id, episode)
             feed_priority = db.get_podcast_queue_priority(slug)

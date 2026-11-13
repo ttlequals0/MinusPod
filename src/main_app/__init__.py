@@ -90,14 +90,13 @@ def setup_logging():
     logging.getLogger('werkzeug').setLevel(logging.INFO)
     logging.getLogger('urllib3').setLevel(logging.WARNING)
 
-    # Third-party HTTP / LLM SDK loggers stay at WARNING even when
-    # LOG_LEVEL=DEBUG: their DEBUG output is request/response dumps that bury
-    # real signal in Loki. The app's own podcast.llm_io logger still emits
-    # prompt/response bodies at DEBUG on request.
+    # Third-party HTTP / LLM SDK loggers stay at WARNING even when LOG_LEVEL=DEBUG:
+    # their DEBUG output is request/response dumps that bury real signal in Loki.
+    # The app's own podcast.llm_io logger still emits prompt bodies at DEBUG.
     #
-    # Names match exactly in the logging tree, so a transport that renames itself
-    # escapes this list (openai 3.x moved to httpx2/httpcore2, unsuppressed until
-    # 2.89.4). Check this list when an SDK crosses a major version.
+    # Names match exactly, so a transport that renames itself escapes this list
+    # (openai 3.x moved to httpx2/httpcore2, unsuppressed until 2.89.4). Check it
+    # when an SDK crosses a major version.
     for noisy in ('openai', 'httpx', 'httpcore', 'httpx2', 'httpcore2',
                   'anthropic', 'asyncio', 'charset_normalizer', 'requests', 'filelock'):
         logging.getLogger(noisy).setLevel(logging.WARNING)
@@ -245,9 +244,8 @@ _validate_configured_base_urls()
 
 
 # Re-encrypt any legacy plaintext provider secrets under the current master
-# passphrase. Idempotent on ``enc:v1:`` rows and a no-op with nothing to
-# migrate, so racing gunicorn workers cannot corrupt the DB; backup filenames
-# include PID and a UUID suffix to avoid same-second collisions.
+# passphrase. Idempotent on ``enc:v1:`` rows, so racing gunicorn workers cannot
+# corrupt the DB; backup filenames include PID and a UUID suffix.
 try:
     migrate_plaintext_secrets(db)
 except Exception as e:
@@ -371,10 +369,9 @@ def graceful_shutdown(signum, frame):
     if owned:
         logger.warning("Shutdown drain expired with %d processing run(s) active", len(owned))
 
-    # Release the background-leader flock explicitly. Linux frees it when the FD
-    # closes anyway, so this is defensive: on NFS and filesystem layers with
-    # buggy close-on-exit semantics, an explicit LOCK_UN is the only way to
-    # guarantee release inside the graceful window.
+    # Release the background-leader flock explicitly. Linux frees it on FD close,
+    # so this is defensive: on NFS and layers with buggy close-on-exit semantics,
+    # LOCK_UN is the only way to guarantee release inside the graceful window.
     lock_file = getattr(_try_become_background_leader, '_lock_file', None)
     if lock_file is not None:
         try:
@@ -480,10 +477,10 @@ _init_sentry()
 app = Flask(__name__)
 
 # Reverse-proxy awareness. Cloudflare + cloudflared puts the real client IP in
-# X-Forwarded-For, so request.remote_addr is otherwise the tunnel's loopback
-# hop. The lockout logic in api/auth.py keys on remote_addr; without ProxyFix
-# every failed login looks like 127.0.0.1 and lockout never fires. Configure
-# via MINUSPOD_TRUSTED_PROXY_COUNT=1 (most single-proxy setups) or higher.
+# X-Forwarded-For, so request.remote_addr is the tunnel's loopback hop. The
+# lockout in api/auth.py keys on remote_addr; without ProxyFix every failed login
+# looks like 127.0.0.1 and lockout never fires. Configure via
+# MINUSPOD_TRUSTED_PROXY_COUNT=1 (most single-proxy setups) or higher.
 _trusted_proxy_hops = int(os.environ.get('MINUSPOD_TRUSTED_PROXY_COUNT', '0') or 0)
 if _trusted_proxy_hops > 0:
     from werkzeug.middleware.proxy_fix import ProxyFix
@@ -556,10 +553,9 @@ app.config['COMPRESS_LEVEL'] = 6  # Balance between speed and compression
 app.config['COMPRESS_MIN_SIZE'] = 500  # Only compress responses > 500 bytes
 compress.init_app(app)
 
-# CORS is intentionally not enabled. MinusPod is single-origin (the browser talks
-# to the host serving the API); the Vite dev server at :5173 proxies /api/* to
-# :8000, so cross-origin requests never reach the Python process. Removing
-# flask-cors closes an allow-credentials-from-any-origin footgun.
+# CORS is intentionally not enabled. MinusPod is single-origin; the Vite dev
+# server at :5173 proxies /api/* to :8000, so cross-origin requests never reach
+# Python. Removing flask-cors closed an allow-credentials-from-any-origin footgun.
 
 # Import and register API blueprint
 from api import api as api_blueprint, init_limiter, limiter, register_api_routing_errors
@@ -821,9 +817,8 @@ def _startup():
             logger.debug("Background threads not started")
 
         # No inline initial RSS refresh: background_rss_refresh (started above)
-        # staggers the due feeds from its first tick. On a fresh boot every feed
-        # is due, so early ticks drain them in batches; an inline sequential
-        # pass would only block leader boot.
+        # staggers due feeds from its first tick, draining a fresh boot in batches;
+        # an inline sequential pass would only block leader boot.
 
         logger.info(f"Web UI available at: {base_url}/ui/")
     else:

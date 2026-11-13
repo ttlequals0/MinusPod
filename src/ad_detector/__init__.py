@@ -248,19 +248,15 @@ class WindowResult(NamedTuple):
     # pass to send context without rebuilding it. Left at the default ''
     # by failed windows and callers that don't populate it.
     transcript_excerpt: str = ''
-    # Addressing-mode compliance stats (random addressing mode A/B tracking).
-    # ``addressing_mode`` is the effective mode this window rendered under.
-    # ``compliant`` is True/False for a judged window, or None when excluded from
-    # the stats (LLM call failed, or a worker that doesn't track compliance, e.g.
-    # the keep-content pass).
+    # Addressing-mode compliance stats (random A/B tracking). ``addressing_mode``
+    # is the effective mode this window rendered under; ``compliant`` is None when
+    # excluded from the stats (LLM call failed, or the worker doesn't track it).
     addressing_mode: str = 'timestamps'
     compliant: bool | None = None
-    # Yield and waste for this window (random addressing mode A/B tracking).
-    # Compliance only says the model used the requested output shape; these say
-    # what it produced. ``ads_proposed`` is what the model returned before
-    # filtering; ``len(ads)`` is what survived. ``dropped_invalid_ref`` is
-    # segment_ids-only: an invented segment id is detectable and dropped, an
-    # invented timestamp is not.
+    # Yield and waste for this window (random A/B tracking). Compliance only says
+    # the model used the requested shape. ``ads_proposed`` is the model's output
+    # before filtering; ``dropped_invalid_ref`` is segment_ids-only (an invented
+    # segment id is detectable and dropped, an invented timestamp is not).
     ads_proposed: int = 0
     dropped_invalid_ref: int = 0
     dropped_out_of_window: int = 0
@@ -411,10 +407,9 @@ def _windows_failed_response(stage: str, failed_windows: int, num_windows: int,
         # boundary: a manual hold is never completion-probed, and defers even
         # when the 429-hold toggle is off.
         "manual": getattr(last_error, 'manual', False),
-        # Lets the pipeline tell "endpoint down" from a bad response so the
-        # offline queue (#482) defers only genuine outages. Includes
-        # CircuitBreakerOpen, which arrives as last_error because
-        # call_llm_for_window treats it as non-retryable and breaks.
+        # Lets the pipeline tell "endpoint down" from a bad response so the offline
+        # queue (#482) defers only genuine outages. Includes CircuitBreakerOpen,
+        # which arrives as last_error (call_llm_for_window breaks on it).
         "connectivity": is_connectivity_error(last_error) if last_error else False,
         "last_error_type": last_err_type,
         "last_error_status": last_err_status,
@@ -550,10 +545,9 @@ def dai_differential_ads(dai_differential, fp_pairs, corroborating_spans=None, *
             'detection_stage': 'dai_differential',
             # A dynamically inserted block is a paid ad by definition.
             'category': 'sponsor',
-            # Preserve the measured cross-fetch region independently of the
-            # candidate's mutable outer bounds: later merges may widen start/end
-            # with coarse LLM spans, but the reviewer must not trim away audio
-            # that cross-fetch measured as inserted.
+            # Keep the measured cross-fetch region apart from the candidate's
+            # mutable outer bounds: later merges may widen start/end with coarse
+            # LLM spans, but the reviewer must not trim audio cross-fetch measured.
             DAI_CORE_SPANS: [{'start': start, 'end': end}],
             DAI_PROBE_SPANS: probes,
         }
@@ -665,11 +659,9 @@ def _corroborating_stages(ad: dict) -> set:
 
 
 # Roles eligible to corroborate a differential candidate's edge. Fusion checks
-# both edges against one cue_marks list (dai_differential_ads doesn't know which
-# edge a mark backs), so the eligible set is the union of the start-edge and
-# end-edge role sets, mirroring the per-edge gate in cue_boundary_snap and
-# cue_pair_ads. This excludes 'non_ad' (show_intro/show_outro/content_transition):
-# those cues never snap or pair either (see config.py).
+# both edges against one cue_marks list, so the set is the union of the
+# start-edge and end-edge role sets (as in cue_boundary_snap and cue_pair_ads).
+# 'non_ad' cues (show_intro/show_outro/content_transition) never snap or pair.
 _CUE_FUSION_ELIGIBLE_ROLES = frozenset(AUDIO_CUE_START_EDGE_ROLES) | frozenset(AUDIO_CUE_END_EDGE_ROLES)
 
 
@@ -784,11 +776,9 @@ class AdDetector:
         self._api_key_override: str | None = api_key
         self._llm_client_override: LLMClient | None = None
 
-        # Dependency attributes are initialised to None here and built eagerly
-        # by ``initialize_client`` (called at the start of every real detection
-        # run), rather than lazy @property accessors, which saved nothing beyond
-        # letting tests construct a detector without an on-disk DB. Tests that
-        # need stubs overwrite these attributes after construction.
+        # Dependencies start as None and are built eagerly by ``initialize_client``
+        # (called at the start of every real detection run) instead of lazy
+        # @property accessors. Tests that need stubs overwrite them afterwards.
         self.db = None
         self.audio_fingerprinter = None
         self.text_pattern_matcher = None
@@ -1358,13 +1348,11 @@ class AdDetector:
             f"[{slug}:{episode_id}] {window_label} LLM response ({len(response_text)} chars): {preview}"
         )
 
-        # Compliance (random addressing mode A/B tracking): whether this window's
-        # response honored the effective mode's contract. segment_ids compliance
-        # is used_ids (the model returned id fields at all, even if some ads are
-        # later dropped by resolution); timestamps compliance is "extraction
-        # produced a parseable ads array", including a valid empty one, so only a
-        # totally unparseable response is non-compliant. See
-        # parse_ads_from_response's compliance_meta doc.
+        # Compliance (random A/B tracking): whether the response honored the
+        # effective mode's contract. segment_ids: used_ids (id fields returned at
+        # all, even if some ads are later dropped). timestamps: extraction produced
+        # a parseable ads array, valid empty included. See compliance_meta in
+        # parse_ads_from_response.
         dropped_invalid_ref = 0
         if addressing_mode == 'segment_ids':
             id_ads, used_ids = parse_id_ads_from_response(
@@ -1377,9 +1365,8 @@ class AdDetector:
                     sponsor_service=self.sponsor_service,
                     episode_sponsors=episode_sponsors)
                 # Everything resolve_segment_id_ads discarded referenced a segment
-                # id that does not exist in this window: the hallucination this
-                # mode exists to catch, so count it rather than lose it in the
-                # yield number.
+                # id absent from this window: the hallucination this mode exists to
+                # catch, so count it rather than lose it in the yield number.
                 ads_proposed = len(id_ads)
                 dropped_invalid_ref = max(0, ads_proposed - len(window_ads))
             else:
@@ -1981,10 +1968,9 @@ class AdDetector:
                            f"non-English segments as ads")
 
             # Resolved once per run, before windowing: 'segment_ids' stamps a global
-            # index onto every segment so create_windows' per-window references keep
-            # it. 'random' draws its effective mode here too (once per run, per
-            # _effective_addressing_mode), so a random-mode run stamps segment ids
-            # only when that draw landed on segment_ids.
+            # index onto every segment so create_windows keeps per-window references.
+            # 'random' draws its effective mode here too (see
+            # _effective_addressing_mode).
             configured_mode, addressing_mode = self._effective_addressing_mode(
                 slug=slug, episode_id=episode_id)
             detection_segments = timed_line_segments(segments)
@@ -2034,17 +2020,15 @@ class AdDetector:
                 logger.info(f"[{slug}:{episode_id}] Including positional prior hint: "
                             f"{positional_prior_hint.splitlines()[0]}")
 
-            # Resolved once per run, before the window pass, so
-            # deduplicate_window_ads can gate on it: window-boundary dedup is the
-            # earliest point a categorized detection could be fused into an
-            # uncategorized one and lose its category.
+            # Resolved once per run, before the window pass, so deduplicate_window_ads
+            # can gate on it: window-boundary dedup is where a categorized detection
+            # could be fused into an uncategorized one and lose its category.
             if action_map is None:
                 action_map = self._resolve_segment_action_map(slug)
 
-            # Gates the category repair pass and the category-miss warning on
-            # whether per-category actions are configured for this feed. Checks
-            # system_prompt for SHOW_SEGMENTS_PROMPT_SECTION instead of a second
-            # DB call: _build_detection_system_prompt already made it.
+            # Gates the category repair pass and category-miss warning on whether
+            # per-category actions are configured for this feed. Checks system_prompt
+            # for SHOW_SEGMENTS_PROMPT_SECTION to avoid a second DB call.
             show_segments_enabled = SHOW_SEGMENTS_PROMPT_SECTION in system_prompt
             segment_categories_configured = show_segments_enabled or (
                 action_map is not None
@@ -2257,10 +2241,9 @@ class AdDetector:
         content_spans = []
         for idx, result in enumerate(window_results):
             # A failed window means we don't know what is content there; cutting its
-            # complement could delete real show audio that the aggregate coverage
-            # gate (which sees the other windows) would not catch. Abort the whole
-            # inversion and fall back to blacklist. None = window cancelled or
-            # uncollected by fail_fast after another failed; same abort.
+            # complement could delete real show audio the aggregate coverage gate
+            # would not catch. Abort the inversion and fall back to blacklist. None
+            # (cancelled/uncollected by fail_fast) aborts the same way.
             if result is None or result.failed:
                 logger.warning(
                     f"[{slug}:{episode_id}] keep-content window {idx + 1} "
@@ -2350,9 +2333,8 @@ class AdDetector:
             Dict with ads, status, and detection metadata
         """
         # Build db/matcher dependencies before the stage 1/2 gates below: they
-        # silently short-circuit on None matchers, so a cold detector (first run in
-        # a fresh process) would skip fingerprint and text pattern matching if deps
-        # were only built at stage 3.
+        # silently skip on None matchers, so a cold detector would skip fingerprint
+        # and text pattern matching if deps were only built at stage 3.
         self.initialize_client()
 
         podcast_db_id = None
@@ -2485,18 +2467,15 @@ class AdDetector:
         # Stage 2.5: Cross-fetch differential candidates (Layer 3). Not added to
         # pattern_matched_regions: overlapping Claude detections keep their
         # sponsor/reason and _merge_detection_results folds the spans. A region
-        # overlapping a marker already found (fingerprint/text_pattern/cue) cuts;
-        # an uncorroborated one is held for review instead of silently cut (#541).
-        # Claude runs after this stage, so a region overlapping a Claude ad is
-        # folded by _merge_detection_results, which clears the held flag so it
-        # cuts, and is still corroborated via the validator's audio-corroboration
-        # path.
+        # overlapping an already-found marker (fingerprint/text_pattern/cue) cuts;
+        # an uncorroborated one is held for review (#541). A region overlapping a
+        # Claude ad is folded later, which clears the held flag, and is still
+        # corroborated via the validator's audio-corroboration path.
         if dai_differential:
             corroborating_spans = [(a['start'], a['end']) for a in all_ads]
-            # Cue fusion (2.76.0): template cues corroborate differential
-            # candidates directly (cue_marks) and via bracketing pair spans. Pair
-            # spans join corroborating_spans only; no cue_pair ads are minted here
-            # (synthesis stays the opt-in pass in processing).
+            # Cue fusion (2.76.0): template cues corroborate differential candidates
+            # directly (cue_marks) and via bracketing pair spans. Pair spans join
+            # corroborating_spans only; no cue_pair ads are minted here.
             try:
                 cue_marks, pair_spans = _cue_fusion_inputs(
                     audio_analysis, segments)
@@ -2546,10 +2525,9 @@ class AdDetector:
         logger.info(f"[{slug}:{episode_id}] Stage 3: "
                     f"{'LLM detection skipped' if skip_llm else 'Claude API detection'}")
 
-        # Keep-content (whitelist) mode, opt-in per feed. Label the show content
-        # and remove the complement. If the content pass produces nothing or trips
-        # the safety gates, fall through to blacklist detection so real show audio
-        # is never silently deleted.
+        # Keep-content (whitelist) mode, opt-in per feed. If the content pass
+        # produces nothing or trips the safety gates, fall through to blacklist
+        # detection so real show audio is never silently deleted.
         result = None
         if skip_llm:
             # cue_only preset: stages 1/2/2.5 ran above; the LLM never does.
@@ -2557,11 +2535,10 @@ class AdDetector:
                       "raw_response": "", "prompt": "", "model": None}
         else:
             if keep_content is None:
-                # Default for callers that don't pass the orchestrator-resolved
-                # mode (e.g. the retry-detection API): resolve per-feed from the
-                # DB. self.db is already built by initialize_client() at the top;
-                # this idempotent call is a belt-and-suspenders guard that also
-                # preserves test stubs.
+                # Default for callers that don't pass the orchestrator-resolved mode
+                # (e.g. the retry-detection API): resolve per-feed from the DB.
+                # Idempotent guard; self.db is normally built by initialize_client()
+                # above, and this preserves test stubs.
                 self._ensure_deps()
                 keep_content = (resolve_detection_mode(self.db, slug)
                                 == DETECTION_MODE_KEEP_CONTENT)
@@ -2669,10 +2646,9 @@ class AdDetector:
             uncovered_portions = get_uncovered_portions(ad, coverage_regions)
 
             if not uncovered_portions:
-                # A covering pattern match rarely carries a category and defaults
-                # to sponsor/remove; dropping the Claude ad here would discard a
-                # keep-resolving category (e.g. intro/outro), so keep it intact
-                # for the merge below.
+                # A covering pattern match rarely carries a category and defaults to
+                # sponsor/remove; dropping the Claude ad would discard a keep-resolving
+                # category (e.g. intro/outro), so keep it for the merge below.
                 if (action_map is not None
                         and effective_resolved_action(ad, action_map)
                             != DEFAULT_SEGMENT_ACTION):
@@ -3251,9 +3227,8 @@ class AdDetector:
                 same_action = action_map is None or last_action == current_action
                 if not same_action:
                     # Contested audio: never merge a keep-resolving marker into a
-                    # remove-resolving one, and never let a shorter span nested
-                    # inside the other collapse to nothing (e.g. an intro/outro
-                    # inside a remove-resolving match).
+                    # remove-resolving one, and never let a nested shorter span (e.g.
+                    # an intro/outro inside a remove match) collapse to nothing.
                     new_last, new_entries = split_conflicting_action_span(
                         last, current, last_action, current_action)
                     if new_last is None:
@@ -3361,12 +3336,10 @@ class AdDetector:
                     if current.get('content_end') is not None:
                         last['content_end'] = current['content_end']
 
-                # Keep sponsor and reason as a consistent pair from the same member,
-                # so a merged marker never shows one ad's sponsor with another ad's
-                # description (e.g. a pattern that matched a host's tour promo, or
-                # one sponsor's read folded into another's marker). The pair goes to
-                # the member covering the largest span, as with the category rule
-                # above; an exact tie goes to the longer, more descriptive reason.
+                # Keep sponsor and reason as a pair from the same member, so a merged
+                # marker never shows one ad's sponsor with another's description. The
+                # pair goes to the member covering the largest span (as with category);
+                # an exact tie goes to the longer reason.
                 cur_reason = current.get('reason') or ''
                 last_reason = last.get('reason') or ''
                 cur_label_span = _label_reach(current)
@@ -3378,12 +3351,10 @@ class AdDetector:
                     last['sponsor'] = current.get('sponsor')
                     last[_LABEL_SPAN] = cur_label_span
 
-                # Recover from a junk primary sponsor (segment name / reasoning
-                # prose) picked by the label rule above: try the other member's
-                # sponsor, preferring higher confidence, before giving up to None
-                # (e.g. 'Example segment' 0.8 discarded for 'Acme' 0.9's clean
-                # label). Skipped when the primary sponsor is already None, which
-                # is a real "no sponsor" read, not junk.
+                # Recover from a junk primary sponsor (segment name / reasoning prose)
+                # picked by the label rule above: try the other member's sponsor,
+                # preferring higher confidence, before giving up to None. Skipped when
+                # the primary sponsor is already None (a real "no sponsor" read).
                 primary_sponsor = last.get('sponsor')
                 if primary_sponsor and not sanitize_sponsor_label(primary_sponsor):
                     candidates = sorted(
@@ -3396,11 +3367,10 @@ class AdDetector:
                         None
                     )
 
-                # #541 hold upgrade: an independent-stage overlap always
-                # corroborates; a claude overlap counts only with real transcript
-                # coverage (claude saw the region as a prompt hint, so on an
-                # untranscribed span it can only echo it). Handles the flag on
-                # either side of the fold.
+                # #541 hold upgrade: an independent-stage overlap always corroborates;
+                # a claude overlap counts only with real transcript coverage (claude
+                # saw the region as a prompt hint, so on an untranscribed span it can
+                # only echo it). Handles the flag on either side of the fold.
                 diff_is_last = bool(last.get(DIFFERENTIAL_FLAG))
                 if diff_is_last != bool(current.get(DIFFERENTIAL_FLAG)):
                     diff_side = last if diff_is_last else current
@@ -3560,10 +3530,9 @@ class AdDetector:
         try:
             self.initialize_client()
 
-            # Verification re-transcribes processed audio into a fresh segment
-            # list, so ids are stamped independently of pass 1's, consistent with
-            # detect_ads. 'random' draws its own effective mode here too:
-            # verification is a separate sample from pass 1's draw.
+            # Verification re-transcribes processed audio into a fresh segment list,
+            # so ids are stamped independently of pass 1's. 'random' draws its own
+            # effective mode here: a separate sample from pass 1's draw.
             configured_mode, addressing_mode = self._effective_addressing_mode(
                 slug=slug, episode_id=episode_id)
             detection_segments = timed_line_segments(segments)
@@ -3611,9 +3580,8 @@ class AdDetector:
                 description_section += sponsor_history
 
             # Category actions must enter at the earliest merge seam. The default
-            # verification prompt requires a category, and configured non-default
-            # actions enable the same narrow repair pass as pass 1 for custom/legacy
-            # prompts or omitted model fields.
+            # verification prompt requires a category; non-default actions enable the
+            # same repair pass as pass 1 for custom prompts or omitted fields.
             if action_map is None:
                 action_map = self._resolve_segment_action_map(slug)
             segment_categories_configured = (

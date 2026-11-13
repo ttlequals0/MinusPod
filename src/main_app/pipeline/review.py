@@ -516,8 +516,7 @@ def _apply_reviewer_verdict_to_ad(ad, v):
         ad['reviewer_contradiction'] = True
         # Keep the reviewer's proposed trim so the UI can offer approving the
         # trimmed span. Adjust verdicts carry adjusted_* natively; confirmed ones
-        # only when the trim-recovery call reconstructed it from the reasoning
-        # (ad_reviewer._recover_contradiction_trim).
+        # only when trim-recovery reconstructed it (ad_reviewer._recover_contradiction_trim).
         if (v.adjusted_start is not None
                 and v.adjusted_end is not None):
             ad['reviewer_proposed_start'] = v.adjusted_start

@@ -44,9 +44,8 @@ logger = logging.getLogger('podcast.claude.cue_pair')
 
 
 # Defaults (DB-settable; the caller threads live values in). Minimum confidence
-# is tighter than the snap threshold because synthesis creates ads. The
-# break-duration band rejects pairs too close (intro flourish / double-tap
-# stinger) or too far apart (two unrelated breaks).
+# is tighter than the snap threshold because synthesis creates ads. The duration
+# band rejects pairs too close (double-tap stinger) or too far apart.
 DEFAULT_MIN_PAIR_CONFIDENCE = AUDIO_CUE_PAIR_CONFIDENCE
 DEFAULT_MIN_BREAK_S = AUDIO_CUE_PAIR_MIN_BREAK_SECONDS
 DEFAULT_MAX_BREAK_S = AUDIO_CUE_PAIR_MAX_BREAK_SECONDS
@@ -56,11 +55,10 @@ DEFAULT_ORIENT_WINDOW_S = AUDIO_CUE_PAIR_ORIENT_WINDOW_SECONDS
 # either side) is treated as "already covers it" and the pair is skipped.
 OVERLAP_TOLERANCE_S = 5.0
 
-# A pair spans an opener cue -> a later closer cue. A 'boundary' cue (and the
-# role-less spectral fallback) can play either part; a 'start' cue can only open
-# and an 'end' only close, which stops two break-entry stingers pairing into a
-# span over the content between breaks. 'non_ad' (intro/outro) cues match
-# neither set.
+# A pair spans an opener cue -> a later closer cue. 'boundary' and role-less
+# spectral cues can play either part; 'start' only opens and 'end' only closes,
+# so two break-entry stingers cannot pair over the content between breaks.
+# 'non_ad' (intro/outro) cues match neither set.
 
 
 @dataclass
@@ -211,9 +209,8 @@ def synthesize_ads_from_cue_pairs(
             skip_diagnostics[_diag_key((c.details or {}).get('template_id'), c.start)] = \
                 SKIP_BELOW_CONFIDENCE
     # Only precise template cues may create ads. Spectral-fallback cues (no
-    # 'source' key) are too coarse: on a no-template feed a dense burst pairs
-    # them into dozens of overlapping false ads. They still inform the LLM prompt
-    # as supporting evidence. The role checks below also exclude 'non_ad' cues.
+    # 'source' key) are too coarse: on a no-template feed a dense burst pairs them
+    # into dozens of false ads. They still inform the LLM prompt.
     cues = sorted(
         (_Cue(
             start=float(c.start),
@@ -344,10 +341,10 @@ def synthesize_ads_from_cue_pairs(
         if not consumed[i] and not found_partner_in_band and reasons[i] is None:
             reasons[i] = SKIP_NO_PARTNER
 
-    # A trailing eligible cue is never an opener in the loop above, and openers
-    # that found no partner are already handled. Mark the remaining unconsumed,
-    # unclassified cues by role: a start- or end-capable cue found no partner
-    # (no_partner); only a cue that can play neither part is a phase mismatch.
+    # A trailing eligible cue is never an opener above, and openers with no
+    # partner are already handled. Mark remaining unconsumed, unclassified cues:
+    # start/end-capable ones found no partner (no_partner); only a cue that can
+    # play neither part is a phase mismatch.
     for idx, c in enumerate(cues):
         if consumed[idx] or reasons[idx] is not None:
             continue

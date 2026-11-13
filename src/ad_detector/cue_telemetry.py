@@ -201,13 +201,13 @@ def _unused_reason(cue, role, ad_spans, edge_distance, snap_confidence,
     if pair_reason:
         return pair_reason
     # Role-aware reach check mirrors _pick_cue_for_start/_pick_cue_for_end.
-    # Sign convention: d = edge - cue_ref (from _nearest_signed).
+    # d = edge - cue_ref (from _nearest_signed):
     #   start-role: cue.end vs ad_start -> reachable iff d in [-lag, +lead]
     #   end-role:   cue.start vs ad_end -> reachable iff d in [-lead, +lag]
-    #   boundary:   either window suffices (picks whichever edge is closer).
+    #   boundary:   either window suffices (closer edge wins).
     # Reach is checked before 'covered' so a directional cue outside its snap
     # window reports out_of_reach even inside the LLM span. Boundary cues keep
-    # 'covered' first: a span-interior boundary cue has no uncovered edge to act on.
+    # 'covered' first: an interior boundary cue has no uncovered edge to act on.
     in_reach = edge_distance is not None and _in_reach(
         role, edge_distance, snap_lead_s, snap_lag_s
     )

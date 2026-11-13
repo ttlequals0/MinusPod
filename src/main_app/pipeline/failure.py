@@ -129,10 +129,10 @@ def _handle_processing_failure(slug, episode_id, episode_title, podcast_name,
                 db, slug, episode_id, episode_title, episode_data, hold_until, error)
             return
 
-    # Offline queue (#482): endpoint-down failures defer instead of failing.
-    # Only typed exceptions qualify (never string matching). retry_count is
-    # untouched so a deferred episode cannot drift toward permanently_failed;
-    # no history row or webhook, since nothing "failed" yet.
+    # Offline queue (#482): endpoint-down failures defer instead of failing. Only
+    # typed exceptions qualify (never string matching). retry_count is untouched
+    # so a deferred episode cannot drift toward permanently_failed; no history row
+    # or webhook, since nothing "failed" yet.
     if (isinstance(error, (ServiceUnavailableError, CircuitBreakerOpen))
             and is_offline_queue_enabled(db)):
         service = getattr(error, 'service', 'llm')

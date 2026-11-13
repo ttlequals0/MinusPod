@@ -92,9 +92,8 @@ def create_windows(segments: list[dict], window_size: float = None,
     step_size = window_size - overlap
     if step_size <= 0:
         # overlap >= window_size never advances window_start and hangs the
-        # detection worker. The Settings API cross-field check can be bypassed
-        # via env vars or a direct DB write, so guard here too: fall back to
-        # non-overlapping windows rather than wedge.
+        # detection worker. The Settings API check can be bypassed via env vars or
+        # a direct DB write, so guard here too and fall back to no overlap.
         logger.warning(
             "create_windows: window_overlap_seconds (%s) >= window_size_seconds "
             "(%s); falling back to non-overlapping windows to avoid a "
@@ -627,9 +626,8 @@ def parse_ads_from_response(response_text: str, slug: str = None,
                 # Log raw ad object for debugging
                 logger.debug(f"[{slug}:{episode_id}] Raw ad from LLM: {json.dumps(ad, default=str)[:500]}")
                 # Fuzzy-match start/end timestamp fields: the LLM names them
-                # inconsistently across runs (start_time, ad_start,
-                # timestamp_start, ...), so match any key containing
-                # 'start'/'end' that isn't a known text field instead of an allowlist.
+                # inconsistently across runs (start_time, ad_start, ...), so match any
+                # key containing 'start'/'end' that isn't a known text field.
                 _SKIP_SUFFIXES = ('_note', '_text', '_snip', '_quote', '_description')
                 _SKIP_KEYS = {'endorser', 'endorsed', 'price_starting', 'starting_point'}
                 start_val = None
@@ -964,7 +962,7 @@ def _repair_index(value):
 # Spelled-out forms of the vocabulary ("self-promotion" as often as "self_promo");
 # a position word like "pre-roll" or a bare "ad" is still refused.
 # Keys a category can arrive under: only Anthropic enforces the schema, so
-# elsewhere fields are named freely (the parser tolerates that for start, end, sponsor).
+# elsewhere fields are named freely.
 _CATEGORY_KEY_HINTS = ('categor', 'segment_type', 'classification', 'type')
 
 
