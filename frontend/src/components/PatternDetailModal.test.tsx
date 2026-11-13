@@ -680,7 +680,7 @@ describe('Audio tab reasons', () => {
   it('names the other route when no episode can source the audio', async () => {
     mockGetPatternAudio.mockResolvedValue({ ...NO_AUDIO, addSource: null });
     renderAudioModal(makePattern());
-    expect(await screen.findByText(/Add audio to pattern" on a text pattern detection in the Detected ads tab or on the episode page/)).toBeDefined();
+    expect(await screen.findByText(/use Add audio to pattern on a text pattern detection in the Detected ads tab or on the episode page/)).toBeDefined();
   });
 
   it('does not give that reason when a source is offered', async () => {

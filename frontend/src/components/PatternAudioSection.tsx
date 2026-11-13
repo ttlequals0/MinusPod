@@ -152,7 +152,7 @@ export default function PatternAudioSection({ pattern }: { pattern: AdPattern })
         <p className="text-sm text-muted-foreground">No audio fingerprint.</p>
         {!detail.addSource && (
           <p className="text-sm text-muted-foreground">
-            No episode that still keeps its original audio holds this ad, so use "Add audio to pattern" on a text pattern detection in the Detected ads tab or on the episode page.
+            No retained episode has this ad. To add audio, use Add audio to pattern on a text pattern detection in the Detected ads tab or on the episode page.
           </p>
         )}
         {detail.addSource && (
