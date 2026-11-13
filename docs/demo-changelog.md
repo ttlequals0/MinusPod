@@ -24,6 +24,7 @@ This file tracks the hosted demo and its tooling, which are not part of the self
 ### Changed
 
 - The snapshot export empties `episode_feed_details`, a cache table the app refills on first read.
+- The snapshot export also empties `episode_snap_stats`, the per-episode cache behind the addressing snap distance.
 
 ## [2.101.31] - 2026-11-08
 

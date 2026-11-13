@@ -47,8 +47,8 @@ _AUTO_FILED_REASON_RE = re.compile(r'\s*corroborated (\S+) hold')
 
 # SQL DDL constants live in tables.py - re-exported for backward compat
 from database.schema.tables import (
-    DOWNLOAD_INDEX_SQL, EPISODE_FEED_DETAILS_TRIGGERS, FINGERPRINT_MATCH_INDEXES, PATTERN_CLEANUP_INDEXES, SCHEMA_SQL,
-    TABLE_DDL,
+    DOWNLOAD_INDEX_SQL, EPISODE_FEED_DETAILS_TRIGGERS, EPISODE_SNAP_STATS_TRIGGERS,
+    FINGERPRINT_MATCH_INDEXES, PATTERN_CLEANUP_INDEXES, SCHEMA_SQL, TABLE_DDL,
 )
 from database.fingerprint_cleanup import delete_matches_for_missing_episodes
 from database.fingerprint_matches import BACKFILL_GATE, OUT_OF_SCOPE_LOG_CAP
@@ -181,7 +181,8 @@ class SchemaMixin(DeferredUpgradeMixin):
         # After migrations (they may drop triggers); legacy databases can lack episode_details.
         installed = {row['name'] for row in conn.execute(
             "SELECT name FROM sqlite_master WHERE type = 'trigger' AND tbl_name = 'episode_details'")}
-        missing = [ddl for name, ddl in EPISODE_FEED_DETAILS_TRIGGERS.items()
+        missing = [ddl for name, ddl in {**EPISODE_FEED_DETAILS_TRIGGERS,
+                                         **EPISODE_SNAP_STATS_TRIGGERS}.items()
                    if name not in installed and self._table_exists(conn, 'episode_details')]
         for statement in missing:
             conn.execute(statement)
@@ -220,6 +221,7 @@ class SchemaMixin(DeferredUpgradeMixin):
         'pattern_cleanup_checks',
         'pattern_cleanup_deleted_actions',
         'episode_feed_details',
+        'episode_snap_stats',
         'deferred_upgrade_steps',
     )
 
@@ -743,6 +745,8 @@ class SchemaMixin(DeferredUpgradeMixin):
                     ('quality_notes', 'TEXT'),
                     ('quality_rated_at', 'TEXT')):
                 self._add_column_if_missing(conn, 'episodes', col, definition, episode_cols)
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_episodes_activity_at "
+                         "ON episodes(COALESCE(processed_at, updated_at))")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_episodes_quality_rated_at "
                          "ON episodes(quality_rated_at) WHERE quality_rating IS NOT NULL")
             for col, definition in (

@@ -2,12 +2,14 @@
 import json
 import logging
 import math
+import sqlite3
 import uuid
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from typing import NamedTuple
 
 from config import SYSTEMONE_PROVIDERS, normalize_model_key
+from database.maintenance import _chunked
 from database.error_text import STATS_ERROR_FIELDS as _STATS_ERROR_FIELDS, redact_error, redact_json_fields
 from utils.app_version import APP_VERSION as __version__
 from utils.time import parse_iso_utc
@@ -16,6 +18,7 @@ logger = logging.getLogger(__name__)
 
 _SNAP_WINDOW_DAYS = 90
 _SNAP_MAX_EPISODES = 2000
+_SNAP_FILL_BUSY_MS = 1000
 _ADDRESSING_MODES = ('timestamps', 'segment_ids')
 _REVIEWER_VERDICT_KEYS = {
     'confirmed': 'confirmed', 'adjust': 'adjusted', 'reject': 'rejected',
@@ -2419,8 +2422,7 @@ class StatsMixin:
         return {'modes': modes,
                 'byMode': self._addressing_outcomes_by_mode(conn, podcast_slug)}
 
-    @staticmethod
-    def _addressing_outcomes_by_mode(conn, podcast_slug: str | None) -> dict:
+    def _addressing_outcomes_by_mode(self, conn, podcast_slug: str | None) -> dict:
         """Per-mode correction rates and mean snap distance, grouped per marker."""
         out = _blank_by_mode({'heldRate': None, 'approveRate': None, 'rejectRate': None,
                               'avgSnapDistance': None})
@@ -2449,31 +2451,89 @@ class StatsMixin:
 
         # Distance from the model's raw bounds to the stored marker, all correction
         # stages included. The recent window keeps the stats request bounded.
-        snap = dict.fromkeys(out, (0.0, 0))
         cutoff = (datetime.now(timezone.utc) - timedelta(days=_SNAP_WINDOW_DAYS)
                   ).strftime('%Y-%m-%dT%H:%M:%SZ')
-        for r in conn.execute(
-            f"""
-            SELECT ed.ad_markers_json FROM episode_details ed
-            JOIN episodes e ON e.id = ed.episode_id
-            WHERE ed.ad_markers_json LIKE '%"llm_start"%'
-              AND COALESCE(e.processed_at, e.updated_at) >= ?
-            {"AND e.podcast_id = ?" if podcast_slug else ""}
-            ORDER BY COALESCE(e.processed_at, e.updated_at) DESC
-            LIMIT {_SNAP_MAX_EPISODES}
-            """,  # noqa: S608
-            [cutoff] + feed_params,
-        ).fetchall():
-            try:
-                markers = json.loads(r['ad_markers_json'])
-            except (TypeError, ValueError):
-                continue
-            for m in markers if isinstance(markers, list) else []:
-                found = _marker_snap_dist(m)
-                if found:
-                    total, n = snap[found[0]]
-                    snap[found[0]] = (total + found[1], n + 1)
+        snap = self._episode_snap_sums(conn, cutoff, feed_params)
         for mode, (total, n) in snap.items():
             if n:
                 out[mode]['avgSnapDistance'] = round(total / n, 3)
         return out
+
+    def _episode_snap_sums(self, conn, cutoff: str, feed_params: list) -> dict:
+        """Snap-distance (sum, count) per mode over the newest episodes with raw LLM bounds.
+
+        Reads the episode_snap_stats cache; episodes without a row are computed from
+        episode_details (the slow read) and cached best-effort.
+        """
+        feed_filter = "AND e.podcast_id = ?" if feed_params else ""
+        rows = conn.execute(
+            f"""
+            SELECT e.id, s.has_llm, s.ts_total, s.ts_n, s.seg_total, s.seg_n
+            FROM episodes e
+            LEFT JOIN episode_snap_stats s ON s.episode_id = e.id
+            WHERE COALESCE(e.processed_at, e.updated_at) >= ?
+              AND EXISTS (SELECT 1 FROM episode_details d WHERE d.episode_id = e.id)
+              {feed_filter}
+            ORDER BY COALESCE(e.processed_at, e.updated_at) DESC
+            """,  # noqa: S608
+            [cutoff] + feed_params,
+        ).fetchall()
+        computed = self._compute_snap_stats([r['id'] for r in rows if r['has_llm'] is None])
+        sums = {mode: [0.0, 0] for mode in _ADDRESSING_MODES}
+        used = 0
+        for r in rows:
+            vals = computed.get(r['id']) if r['has_llm'] is None else (
+                r['has_llm'], r['ts_total'], r['ts_n'], r['seg_total'], r['seg_n'])
+            if not vals or not vals[0]:
+                continue
+            for mode, total, n in (('timestamps', vals[1], vals[2]), ('segment_ids', vals[3], vals[4])):
+                sums[mode][0] += total
+                sums[mode][1] += n
+            used += 1
+            if used >= _SNAP_MAX_EPISODES:
+                break
+        return sums
+
+    def _compute_snap_stats(self, episode_pks: list) -> dict:
+        """{episodes.id: (has_llm, ts_total, ts_n, seg_total, seg_n)}; persists them when it can."""
+        out: dict = {}
+        conn = self.get_connection()
+        for chunk in _chunked(episode_pks):
+            for r in conn.execute(
+                f"""
+                SELECT episode_id, ad_markers_json,
+                       COALESCE(ad_markers_json LIKE '%"llm_start"%', 0) AS has_llm
+                FROM episode_details WHERE episode_id IN ({','.join('?' for _ in chunk)})
+                """,  # noqa: S608
+                chunk,
+            ).fetchall():
+                tot = {mode: [0.0, 0] for mode in _ADDRESSING_MODES}
+                if r['has_llm']:
+                    try:
+                        markers = json.loads(r['ad_markers_json'])
+                    except (TypeError, ValueError):
+                        markers = []
+                    for m in markers if isinstance(markers, list) else []:
+                        found = _marker_snap_dist(m)
+                        if found:
+                            tot[found[0]][0] += found[1]
+                            tot[found[0]][1] += 1
+                out[r['episode_id']] = (r['has_llm'], tot['timestamps'][0], tot['timestamps'][1],
+                                        tot['segment_ids'][0], tot['segment_ids'][1])
+        self._store_snap_stats(out)
+        return out
+
+    def _store_snap_stats(self, computed: dict) -> None:
+        """Best-effort cache write; skipped inside an open transaction or on lock contention."""
+        if not computed or self.get_connection().in_transaction:
+            return
+        try:
+            for chunk in _chunked(list(computed.items())):
+                with self.transaction(immediate=True, busy_timeout_ms=_SNAP_FILL_BUSY_MS) as conn:
+                    conn.executemany(
+                        "INSERT OR IGNORE INTO episode_snap_stats "
+                        "(episode_id, has_llm, ts_total, ts_n, seg_total, seg_n) "
+                        "VALUES (?, ?, ?, ?, ?, ?)",
+                        [(pk, *vals) for pk, vals in chunk])
+        except sqlite3.OperationalError as e:
+            logger.info(f"Skipped episode_snap_stats fill: {e}")

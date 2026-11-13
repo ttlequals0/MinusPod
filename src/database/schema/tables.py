@@ -286,6 +286,18 @@ TABLE_DDL['episode_feed_details'] = """CREATE TABLE IF NOT EXISTS episode_feed_d
     FOREIGN KEY (episode_id) REFERENCES episodes(id) ON DELETE CASCADE
 )"""
 
+# Per-episode snap-distance sums read by the addressing stats, so that request skips the
+# large TEXT columns. Filled lazily; the triggers below invalidate it.
+TABLE_DDL['episode_snap_stats'] = """CREATE TABLE IF NOT EXISTS episode_snap_stats (
+    episode_id INTEGER PRIMARY KEY,
+    has_llm INTEGER NOT NULL,
+    ts_total REAL NOT NULL DEFAULT 0,
+    ts_n INTEGER NOT NULL DEFAULT 0,
+    seg_total REAL NOT NULL DEFAULT 0,
+    seg_n INTEGER NOT NULL DEFAULT 0,
+    FOREIGN KEY (episode_id) REFERENCES episodes(id) ON DELETE CASCADE
+)"""
+
 # Claim state of the upgrade steps that run in the background after startup.
 TABLE_DDL['deferred_upgrade_steps'] = """CREATE TABLE IF NOT EXISTS deferred_upgrade_steps (
     name TEXT PRIMARY KEY,
@@ -309,6 +321,21 @@ END""",
     'episode_feed_details_delete': """CREATE TRIGGER episode_feed_details_delete
 AFTER DELETE ON episode_details BEGIN
     DELETE FROM episode_feed_details WHERE episode_id = OLD.episode_id;
+END""",
+}
+
+EPISODE_SNAP_STATS_TRIGGERS = {
+    'episode_snap_stats_insert': """CREATE TRIGGER episode_snap_stats_insert
+AFTER INSERT ON episode_details BEGIN
+    DELETE FROM episode_snap_stats WHERE episode_id = NEW.episode_id;
+END""",
+    'episode_snap_stats_update': """CREATE TRIGGER episode_snap_stats_update
+AFTER UPDATE OF episode_id, ad_markers_json ON episode_details BEGIN
+    DELETE FROM episode_snap_stats WHERE episode_id IN (OLD.episode_id, NEW.episode_id);
+END""",
+    'episode_snap_stats_delete': """CREATE TRIGGER episode_snap_stats_delete
+AFTER DELETE ON episode_details BEGIN
+    DELETE FROM episode_snap_stats WHERE episode_id = OLD.episode_id;
 END""",
 }
 
@@ -929,6 +956,8 @@ PRAGMA journal_mode = WAL;
 
 """ + TABLE_DDL['episode_feed_details'] + """;
 
+""" + TABLE_DDL['episode_snap_stats'] + """;
+
 """ + TABLE_DDL['deferred_upgrade_steps'] + """;
 
 -- settings table (ad detection config, retention)
@@ -1034,6 +1063,7 @@ CREATE INDEX IF NOT EXISTS idx_episodes_created_at ON episodes(created_at);
 CREATE INDEX IF NOT EXISTS idx_episodes_sb_next_check ON episodes(sb_next_check_at) WHERE sb_next_check_at IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_episodes_sb_waiting ON episodes(sb_state) WHERE sb_state IN ('waiting','probing');
 CREATE INDEX IF NOT EXISTS idx_episodes_approval_pending ON episodes(approval_pending_at) WHERE approval_pending_at IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_episodes_activity_at ON episodes(COALESCE(processed_at, updated_at));
 
 -- Cross-episode training indexes (indexes on new columns created in migrations)
 CREATE INDEX IF NOT EXISTS idx_patterns_sponsor_id ON ad_patterns(sponsor_id) WHERE is_active = 1;
