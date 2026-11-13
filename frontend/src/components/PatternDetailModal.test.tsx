@@ -426,7 +426,7 @@ describe('Audio section', () => {
   it('lays the four tiles out two by two below sm and in one row from sm, with date over time at every width', async () => {
     mockGetPatternAudio.mockResolvedValue(ACTIVE_AUDIO);
     renderModal(makePattern());
-    const tile = (await screen.findByText('Mean match')).closest('[class*="grid"]') as HTMLElement;
+    const tile = (await screen.findByText('Mean match')).closest('[class*="grid"]')?.parentElement as HTMLElement;
     expect(tile.className).toContain('grid-cols-2');
     expect(tile.className).toContain('sm:grid-cols-4');
     expect(tile.className).toContain('auto-rows-fr');
@@ -507,7 +507,7 @@ describe('Dialog layout classes', () => {
   it('keeps the stat tiles at least 7rem wide so a label does not touch the tile edge', async () => {
     mockGetPatternAudio.mockResolvedValue(ACTIVE_AUDIO);
     renderModal(makePattern());
-    const tile = (await screen.findByText('Confirmations')).closest('[class*="grid"]') as HTMLElement;
+    const tile = (await screen.findByText('Confirmations')).closest('[class*="grid"]')?.parentElement as HTMLElement;
     expect(tile.className).toContain('minmax(7rem,1fr)');
   });
 });
