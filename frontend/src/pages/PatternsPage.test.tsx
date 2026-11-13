@@ -384,6 +384,16 @@ describe('PatternsPage audio column', () => {
     renderPage();
     expect(await screen.findByTestId('pattern-card-audio-1')).toHaveProperty('textContent', 'Audio: 91% match');
   });
+
+  it('puts the category select and the created date on the phone card without opening the dialog', async () => {
+    mockGetPatterns.mockResolvedValue([audioPattern(1, { state: 'none', available: false, matchCount: 0, meanSimilarity: null })]);
+    renderPage();
+    const card = (await screen.findByTestId('pattern-card-audio-1')).parentElement as HTMLElement;
+    const select = within(card).getByLabelText('Category for pattern 1');
+    expect(within(card).getByText(/^Created:/)).toBeDefined();
+    fireEvent.click(select);
+    expect(screen.queryByRole('dialog', { name: 'Pattern details' })).toBeNull();
+  });
 });
 
 describe('PatternsPage detected ads tab', () => {

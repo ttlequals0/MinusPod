@@ -224,6 +224,24 @@ function PatternsPage() {
   const setPage = (next: number) => write({ page: String(next) });
   const paginatedPatterns = sortedPatterns?.slice((page - 1) * limit, page * limit);
 
+  const categorySelect = (pattern: AdPattern, className: string) => (
+    <select
+      aria-label={`Category for pattern ${pattern.id}`}
+      value={pattern.category ?? ''}
+      disabled={categoryMutation.isPending}
+      onChange={(e) => categoryMutation.mutate({
+        id: pattern.id,
+        category: e.target.value === '' ? null : (e.target.value as SegmentCategory),
+      })}
+      className={`${selectBase} ${className} disabled:opacity-50`}
+    >
+      <option value="">Uncategorized</option>
+      {SEGMENT_CATEGORIES.map((c) => (
+        <option key={c} value={c}>{SEGMENT_CATEGORY_LABELS[c]}</option>
+      ))}
+    </select>
+  );
+
   return (
     <div>
       <div className={pageHeader}>
@@ -466,16 +484,19 @@ function PatternsPage() {
                 {pattern.text_template.substring(0, 80)}...
               </div>
             )}
-            <div className="flex items-center gap-4 text-xs text-muted-foreground">
+            {/* Stops the card click: the select is its own control */}
+            <div className="mb-3" onClick={(e) => e.stopPropagation()}>
+              {categorySelect(pattern, 'w-full')}
+            </div>
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
               <span className="text-success">
                 Confirmed: {pattern.confirmation_count}
               </span>
               <span className={pattern.false_positive_count > 0 ? 'text-destructive' : ''}>
                 False positives: {pattern.false_positive_count}
               </span>
-              <span className="ml-auto">
-                {formatDate(pattern.last_matched_at)}
-              </span>
+              <span>Created: {formatDate(pattern.created_at)}</span>
+              <span>Last matched: {formatDate(pattern.last_matched_at)}</span>
             </div>
             <div data-testid={`pattern-card-audio-${pattern.id}`} className="mt-2 text-xs text-muted-foreground">
               Audio: {audioSummaryLabel(pattern.audio)}
@@ -563,22 +584,7 @@ function PatternsPage() {
                   {/* Stops the row click: the select is its own control, not
                       a way into the detail modal. */}
                   <td className="px-2 py-3 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
-                    <select
-                      aria-label={`Category for pattern ${pattern.id}`}
-                      value={pattern.category ?? ''}
-                      disabled={categoryMutation.isPending}
-                      onChange={(e) => categoryMutation.mutate({
-                        id: pattern.id,
-                        category: e.target.value === ''
-                          ? null : (e.target.value as SegmentCategory),
-                      })}
-                      className={`${selectBase} w-full min-w-0 disabled:opacity-50`}
-                    >
-                      <option value="">Uncategorized</option>
-                      {SEGMENT_CATEGORIES.map((c) => (
-                        <option key={c} value={c}>{SEGMENT_CATEGORY_LABELS[c]}</option>
-                      ))}
-                    </select>
+                    {categorySelect(pattern, 'w-full min-w-0')}
                   </td>
                   <td className="px-2 py-3 text-sm text-muted-foreground whitespace-nowrap">
                     {audioSummaryLabel(pattern.audio)}
