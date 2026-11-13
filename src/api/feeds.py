@@ -23,7 +23,6 @@ from api import (
 )
 from cancel import request_cancellation, wait_for_cancellation
 from database.error_text import redact_error
-from database.queue import compute_queue_priority
 from processing_queue import ProcessingQueue
 from config import (
     AUTO_PROCESS_MAX_AGE_ERROR,
@@ -76,7 +75,6 @@ from youtube import urls as yt_urls
 from youtube.feed import source_link as youtube_source_link
 from youtube.settings import enabled as youtube_enabled, validate_yt_int
 from podping_listener import feed_url_domain
-from utils.time import utc_now_iso
 from utils.url import reject_url_whitespace, validate_url, SSRFError
 from utils.validation import is_valid_slug
 
@@ -3092,8 +3090,7 @@ def rerender_segments(slug):
     if not podcast:
         return error_response('Feed not found', 404)
 
-    from api.episodes.runs import _check_recut_preconditions
-    from main_app.processing import start_background_processing
+    from api.episodes.runs import _check_recut_preconditions, _queue_recut
 
     # get_episodes defaults to a 50-row page; a feed's processed backlog can
     # exceed that, so ask for effectively "all" (storage.py uses the same
@@ -3120,37 +3117,7 @@ def rerender_segments(slug):
             continue
 
         try:
-            db.upsert_episode(
-                slug, episode_id,
-                status=EpisodeStatus.PENDING.value,
-                reprocess_mode='recut',
-                reprocess_requested_at=utc_now_iso(),
-                retry_count=0,
-                error_message=None,
-            )
-            started, _reason = start_background_processing(
-                slug, episode_id,
-                episode.get('original_url'),
-                episode.get('title', 'Unknown'),
-                podcast.get('title', slug),
-                episode.get('description'),
-                None,
-                episode.get('published_at'),
-            )
-            if not started:
-                # Bulk recut: no manual boost, same policy as Reprocess All.
-                # JIT plays and single reprocesses must outrank backlog work.
-                priority = compute_queue_priority(
-                    podcast.get('queue_priority'), episode.get('published_at'), bulk=True)
-                db.upsert_episode_for_processing(
-                    slug, episode_id, episode.get('original_url'),
-                    episode.get('title', 'Unknown'),
-                    episode.get('published_at'), episode.get('description'),
-                    priority=priority,
-                )
-                get_status_service().queue_episode(
-                    slug, episode_id, episode.get('title', 'Unknown'),
-                    podcast.get('title', slug))
+            _queue_recut(db, slug, episode_id, episode, podcast, bulk=True)
             queued += 1
         except Exception:
             logger.exception(

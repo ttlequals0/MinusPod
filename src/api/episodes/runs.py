@@ -1035,6 +1035,39 @@ def get_pending_recuts():
     })
 
 
+def _queue_recut(db, slug, episode_id, episode, podcast, *, bulk):
+    """Mark an episode for recut and start it, falling back to the queue."""
+    from main_app.processing import start_background_processing
+
+    db.upsert_episode(
+        slug, episode_id,
+        status=EpisodeStatus.PENDING.value,
+        reprocess_mode='recut',
+        reprocess_requested_at=utc_now_iso(),
+        retry_count=0,
+        error_message=None,
+    )
+    started, _reason = start_background_processing(
+        slug, episode_id, episode.get('original_url'),
+        episode.get('title', 'Unknown'), podcast.get('title', slug),
+        episode.get('description'), None, episode.get('published_at'),
+    )
+    if not started:
+        # Bulk recut gets no manual boost, so JIT plays and single reprocesses outrank it.
+        priority = compute_queue_priority(
+            podcast.get('queue_priority'), episode.get('published_at'),
+            **({'bulk': True} if bulk else {'manual': True}))
+        db.upsert_episode_for_processing(
+            slug, episode_id, episode.get('original_url'),
+            episode.get('title', 'Unknown'),
+            episode.get('published_at'), episode.get('description'),
+            priority=priority,
+        )
+        get_status_service().queue_episode(
+            slug, episode_id, episode.get('title', 'Unknown'),
+            podcast.get('title', slug))
+
+
 @api.route('/episodes/pending-recuts/apply', methods=['POST'])
 @limiter.limit("5 per minute")
 @log_request
@@ -1046,7 +1079,6 @@ def apply_pending_recuts():
     rather than silently cleared, so its decisions are not lost.
     """
     db = get_database()
-    from main_app.processing import start_background_processing
 
     payload = request.get_json(silent=True)
     scope = (payload.get('slug') or None) if isinstance(payload, dict) else None
@@ -1074,32 +1106,7 @@ def apply_pending_recuts():
             skipped += 1
             continue
         try:
-            db.upsert_episode(
-                slug, episode_id,
-                status=EpisodeStatus.PENDING.value,
-                reprocess_mode='recut',
-                reprocess_requested_at=utc_now_iso(),
-                retry_count=0,
-                error_message=None,
-            )
-            started, _reason = start_background_processing(
-                slug, episode_id, episode.get('original_url'),
-                episode.get('title', 'Unknown'), podcast.get('title', slug),
-                episode.get('description'), None, episode.get('published_at'),
-            )
-            if not started:
-                priority = compute_queue_priority(
-                    podcast.get('queue_priority'), episode.get('published_at'),
-                    manual=True)
-                db.upsert_episode_for_processing(
-                    slug, episode_id, episode.get('original_url'),
-                    episode.get('title', 'Unknown'),
-                    episode.get('published_at'), episode.get('description'),
-                    priority=priority,
-                )
-                get_status_service().queue_episode(
-                    slug, episode_id, episode.get('title', 'Unknown'),
-                    podcast.get('title', slug))
+            _queue_recut(db, slug, episode_id, episode, podcast, bulk=False)
             queued += 1
         except Exception:
             logger.exception(
