@@ -1,10 +1,7 @@
-"""
-Audio Fingerprinter - Chromaprint-based audio fingerprinting for ad detection.
+"""Audio Fingerprinter: Chromaprint-based audio fingerprinting for ad detection.
 
-Uses the Chromaprint library (via fpcalc binary) to generate audio fingerprints
-that can identify identical or near-identical audio segments across episodes.
-This is particularly effective for DAI (Dynamic Ad Insertion) ads that are
-inserted as identical audio files.
+Uses Chromaprint (via the fpcalc binary) to fingerprint audio so identical or near-identical segments
+can be identified across episodes. Particularly effective for DAI ads inserted as identical audio files.
 """
 import hashlib
 import logging
@@ -126,11 +123,9 @@ _POPCOUNT8 = np.array([bin(i).count('1') for i in range(256)], dtype=np.uint16)
 def _fpcalc_output_or_none(result, warn_prefix: str, level: int = logging.WARNING) -> dict | None:
     """Parse fpcalc's JSON stdout, or None when unusable.
 
-    A non-zero exit is not by itself a failure: on a recoverable mid-stream
-    decode glitch fpcalc stops reading, prints the fingerprint it got (often
-    complete when libav recovers, sometimes a usable prefix), and exits 3
-    (#690). Callers therefore gate on the parsed output, not the exit code;
-    stderr is logged whenever the exit is non-zero either way.
+    A non-zero exit is not by itself a failure: on a recoverable mid-stream decode glitch fpcalc prints the
+    fingerprint it got (often complete, sometimes a usable prefix) and exits 3 (#690). Callers gate on the
+    parsed output, not the exit code; stderr is logged whenever the exit is non-zero.
     """
     stderr = result.stderr.decode(errors='replace').strip() if result.stderr else ''
     if result.returncode != 0:
@@ -171,9 +166,8 @@ def _pair_similarity(arr, a, b, length):
 def _greedy_hit_positions(sim, similarity, min_gap, claimed=None):
     """Walk a similarity curve left-to-right, taking one hit per ``min_gap`` run.
 
-    Once a position clears ``similarity`` it is taken and the next ``min_gap``
-    positions are skipped, so a single occurrence is counted once. ``claimed``,
-    when given, suppresses positions an earlier candidate already owns.
+    A position clearing ``similarity`` is taken and the next ``min_gap`` positions skipped, so one occurrence
+    counts once. ``claimed`` suppresses positions an earlier candidate already owns.
     """
     hits = []
     p = 0
@@ -188,11 +182,10 @@ def _greedy_hit_positions(sim, similarity, min_gap, claimed=None):
 
 
 def _count_window_matches(raw_ints, fp_duration, start_s, end_s, similarity):
-    """Count how many times the [start_s, end_s] window recurs in the file.
+    """Count how many times the [start_s, end_s] window recurs in the file (pure function over the ``-raw`` int array).
 
-    A self-match of a captured cue: 1 means it appears only where it was
-    captured (a non-recurring, weak template); >=2 means it recurs and can
-    bracket ad breaks. Pure function over the fpcalc ``-raw`` int array.
+    A self-match of a captured cue: 1 means it appears only where captured (a weak, non-recurring template);
+    >=2 means it recurs and can bracket ad breaks.
     """
     n = len(raw_ints)
     if n == 0 or fp_duration <= 0 or end_s <= start_s:
@@ -211,10 +204,8 @@ def _count_window_matches(raw_ints, fp_duration, start_s, end_s, similarity):
 def enumerate_window_occurrences(window, ep_ints, ep_duration, similarity):
     """Every occurrence of ``window`` (uint32 array) in one episode's fingerprint.
 
-    Cross-array twin of :func:`_count_window_matches` that keeps positions
-    instead of just the count. Returns ``[(start_s, end_s)]`` in the episode's
-    own timeline; occurrences closer than AUDIO_CUE_FP_MIN_GAP_SECONDS
-    collapse to one (same greedy collection as the self-match counter).
+    Cross-array twin of :func:`_count_window_matches` that keeps positions. Returns ``[(start_s, end_s)]`` on the
+    episode's own timeline; occurrences closer than AUDIO_CUE_FP_MIN_GAP_SECONDS collapse to one.
     """
     ep_arr = np.asarray(ep_ints, dtype=np.uint32)
     win = len(window)
@@ -231,8 +222,7 @@ def enumerate_window_occurrences(window, ep_ints, ep_duration, similarity):
 def _cross_pair_similarity(a_arr, a, b_arr, b, length):
     """Bit-similarity (0-1) of ``a_arr[a:a+length]`` vs ``b_arr[b:b+length]``.
 
-    Cross-array twin of :func:`_pair_similarity` (which compares two windows in
-    one array). Same bit-error-rate metric.
+    Cross-array twin of :func:`_pair_similarity` (two windows in one array); same bit-error-rate metric.
     """
     bad = int(_popcount32(a_arr[a:a + length] ^ b_arr[b:b + length]).sum())
     return 1.0 - bad / (length * 32)
@@ -240,19 +230,15 @@ def _cross_pair_similarity(a_arr, a, b_arr, b, length):
 
 def _find_shared_segments(target, siblings, win, similarity, min_matches,
                           min_len, max_len, step=None):
-    """Every contiguous run of ``target`` that also appears in at least
-    ``min_matches`` of the ``siblings`` fingerprint arrays.
+    """Every contiguous run of ``target`` that also appears in at least ``min_matches`` of the ``siblings``.
 
-    Pure function over raw Chromaprint int arrays. For each probe start in the
-    target, find each sibling's best-matching offset, then grow the run -- both
-    backward (to the true onset) and forward -- one ``step``-sized slice at a time,
-    keeping it while >= ``min_matches`` siblings still match that *new* slice
-    (incremental, so it stops at the real boundary rather than riding a strong
-    prefix's cumulative average). Returns a list of ``(start, end, match_count)``
-    runs as indices into ``target``, ordered left to right and non-overlapping
-    (each found run is skipped past). Real intros/outros play once per episode but
-    recur across episodes, which is exactly such a shared head/tail run; a show can
-    have several (theme plus a recurring sponsor read), so all are returned.
+    Pure function over raw Chromaprint int arrays. For each probe start in the target, find each sibling's
+    best-matching offset, then grow the run backward (to the true onset) and forward one ``step``-sized slice at
+    a time, keeping it while >= ``min_matches`` siblings still match that new slice (incremental, so it stops at
+    the real boundary rather than riding a strong prefix's cumulative average). Returns ``(start, end,
+    match_count)`` runs as indices into ``target``, left to right and non-overlapping. Real intros/outros play
+    once per episode but recur across episodes; a show can have several (theme plus a recurring sponsor read),
+    so all are returned.
     """
     target = np.asarray(target, dtype=np.int64).astype(np.uint32)
     sibs = [np.asarray(s, dtype=np.int64).astype(np.uint32) for s in siblings]
@@ -341,10 +327,9 @@ def _find_shared_segments(target, siblings, win, similarity, min_matches,
             found.append((lo, hi, len(alive)))
             seg_end = hi
             if coarse_capped:
-                # The run was capped at max_len while the shared sound continues;
-                # skip past its true end so one long segment yields one candidate,
-                # not overlapping max_len fragments. (When the run instead ended at
-                # its real boundary, hi already is that end -- no skip needed.)
+                # The run was capped at max_len while the shared sound continues; skip past its true end so one
+                # long segment yields one candidate, not overlapping max_len fragments. (A run that ended at its
+                # real boundary already has hi at that end.)
                 tail = alive
                 while seg_end + step <= len(target):
                     cand = _slice_ok(tail, seg_end, step)
@@ -361,21 +346,14 @@ def _find_shared_segments(target, siblings, win, similarity, min_matches,
 def _discover_repeats(raw_ints, fp_duration, similarity, min_count):
     """Find windows of a raw Chromaprint fingerprint that recur across the file.
 
-    Pure function over the fpcalc ``-raw`` int array (no I/O). A short probe
-    window seeds LSH buckets; each bucket's first member anchors a full
-    self-Hamming scan, the matched segment is grown to its true length, and its
-    whole extent is claimed so a long recurring block surfaces as one candidate
-    rather than many fragments. Loudness-independent.
+    Pure function over the fpcalc ``-raw`` int array (no I/O), loudness-independent. A short probe window seeds
+    LSH buckets; each bucket's first member anchors a full self-Hamming scan, the matched segment is grown to its
+    true length and its whole extent claimed, so a long recurring block surfaces as one candidate.
 
-    Args:
-        raw_ints: fpcalc ``-raw`` fingerprint as a list/array of ints (~8/sec).
-        fp_duration: duration the fingerprint covers, in seconds.
-        similarity: per-window bit-similarity (0-1) two occurrences must reach.
-        min_count: minimum occurrences for a sound to be suggested.
+    raw_ints: fingerprint ints (~8/sec). fp_duration: seconds covered. similarity: per-window bit-similarity
+    (0-1) two occurrences must reach. min_count: minimum occurrences to suggest a sound.
 
-    Returns:
-        Candidate dicts {start, end, count} in descending recurrence order,
-        capped at AUDIO_CUE_FP_MAX_CANDIDATES.
+    Returns {start, end, count} dicts in descending recurrence order, capped at AUDIO_CUE_FP_MAX_CANDIDATES.
     """
     n = len(raw_ints)
     if n == 0 or fp_duration <= 0:
@@ -984,8 +962,8 @@ def match_fingerprints(ep_ints, ep_duration, patterns, *, strictness, min_covera
                        should_continue=None):
     """Find stored patterns in an episode fingerprint and measure each run.
 
-    ``patterns`` is a list of (pattern_id, pat_ints, pat_duration, sponsor, category).
-    Stops early and returns what it has when ``should_continue`` returns False.
+    ``patterns`` is a list of (pattern_id, pat_ints, pat_duration, sponsor, category). Stops early, returning
+    what it has, when ``should_continue`` returns False.
     """
     return _scan_fingerprints(
         ep_ints, ep_duration, patterns, strictness=strictness, min_coverage=min_coverage,
@@ -1125,22 +1103,11 @@ def explain_match(ep_ints, ep_duration, pattern, *, strictness, min_coverage, ga
 
 
 class AudioFingerprinter:
-    """
-    Audio fingerprinting using Chromaprint for identifying repeated ads.
-
-    This class provides functionality to:
-    - Generate fingerprints for audio segments
-    - Compare fingerprints to find matches
-    - Search for known ad fingerprints in new episodes
-    """
+    """Audio fingerprinting using Chromaprint for identifying repeated ads: generate fingerprints for segments,
+    compare them, and search for known ad fingerprints in new episodes."""
 
     def __init__(self, db=None):
-        """
-        Initialize the audio fingerprinter.
-
-        Args:
-            db: Database instance for storing/retrieving fingerprints
-        """
+        """db is the Database instance used to store/retrieve fingerprints."""
         self.db = db
         self._fpcalc_path = self._find_fpcalc()
 
@@ -1179,16 +1146,9 @@ class AudioFingerprinter:
         start: float = 0,
         duration: float = None
     ) -> AudioFingerprint | None:
-        """
-        Generate a fingerprint for an audio segment.
+        """Generate a fingerprint for an audio segment (start in seconds, duration None = entire file).
 
-        Args:
-            audio_path: Path to audio file
-            start: Start time in seconds
-            duration: Duration in seconds (None = entire file)
-
-        Returns:
-            AudioFingerprint or None if generation failed
+        Returns AudioFingerprint or None if generation failed.
         """
         if not self._fpcalc_path:
             return None
@@ -1242,15 +1202,9 @@ class AudioFingerprinter:
     ) -> tuple[list[int], float] | None:
         """Generate raw fingerprint for entire audio file in one fpcalc call.
 
-        Args:
-            audio_path: Path to the audio file.
-            timeout: fpcalc wall-clock cap. Defaults to the full-file budget; a
-                caller on a request thread can pass a shorter bound so a stalled
-                decode degrades gracefully instead of holding the request.
-            quiet: log failures at DEBUG; the caller reports them once, labelled.
-
-        Returns:
-            Tuple of (raw_int_array, duration) or None on failure
+        timeout is the fpcalc wall-clock cap; defaults to the full-file budget, and a request-thread caller can
+        pass a shorter bound so a stalled decode degrades gracefully. quiet logs failures at DEBUG (the caller
+        reports them once, labelled). Returns (raw_int_array, duration) or None on failure.
         """
         if not self._fpcalc_path:
             return None
@@ -1297,10 +1251,8 @@ class AudioFingerprinter:
     ) -> tuple[list[int], float] | None:
         """Raw chromaprint ints for the [start_s, end_s] span of a file.
 
-        Extract-then-fingerprint twin of :meth:`generate_fingerprint` that
-        keeps the ``-raw`` int array (comparable against full-file raw
-        fingerprints via the window-occurrence helpers) instead of the
-        compressed string. Returns (raw_ints, duration) or None on failure.
+        Extract-then-fingerprint twin of :meth:`generate_fingerprint` that keeps the ``-raw`` int array (comparable
+        against full-file raw fingerprints via the window-occurrence helpers). Returns (raw_ints, duration) or None.
         """
         if not self._fpcalc_path or end_s <= start_s:
             return None
@@ -1338,14 +1290,10 @@ class AudioFingerprinter:
                                  target_fingerprint=None):
         """Find recurring sounds in an episode as cue-template candidates.
 
-        Generates one full-file raw Chromaprint fingerprint, then surfaces the
-        windows that recur at least ``min_count`` times. Loudness-independent,
-        so it catches level-matched stings the loudness scan misses. Pass
-        ``target_fingerprint`` (an already-computed ``(raw_ints, duration)``) to
-        reuse a fingerprint the caller has, avoiding a second fpcalc pass.
-
-        Returns candidate dicts {start, end, count} in descending recurrence
-        order, or [] if fpcalc is unavailable or fails.
+        One full-file raw Chromaprint fingerprint, then the windows recurring at least ``min_count`` times.
+        Loudness-independent, so it catches level-matched stings the loudness scan misses. Pass
+        ``target_fingerprint`` (``(raw_ints, duration)``) to avoid a second fpcalc pass. Returns {start, end,
+        count} dicts in descending recurrence order, or [] if fpcalc is unavailable or fails.
         """
         if not self._fpcalc_path:
             return []
@@ -1367,15 +1315,12 @@ class AudioFingerprinter:
                                     similarity, min_matches, min_duration,
                                     intro_max_duration, outro_max_duration,
                                     max_per_zone, target_fingerprint=None):
-        """Find intro/outro cues by comparing this episode's head and tail
-        fingerprint against recent completed sibling episodes.
+        """Find intro/outro cues by comparing this episode's head and tail fingerprint against recent siblings.
 
-        A real intro/outro plays once per episode (so within-episode recurrence
-        misses it) but recurs across episodes near the start/end. Pass
-        ``target_fingerprint`` (an already-computed ``(raw_ints, duration)``) to
-        reuse a fingerprint the caller has. Returns
-        ``[{start, end, kind: 'intro'|'outro', episodeMatches}]``, or [] when
-        fpcalc is unavailable or fewer than ``min_matches`` siblings are usable.
+        A real intro/outro plays once per episode (so within-episode recurrence misses it) but recurs across
+        episodes near the start/end. Pass ``target_fingerprint`` (``(raw_ints, duration)``) to reuse a fingerprint.
+        Returns ``[{start, end, kind: 'intro'|'outro', episodeMatches}]``, or [] when fpcalc is unavailable or
+        fewer than ``min_matches`` siblings are usable.
         """
         if not self.is_available():
             return []
@@ -1443,28 +1388,20 @@ class AudioFingerprinter:
                                     min_duration=AUDIO_CUE_XEP_BODY_MIN_DURATION,
                                     max_len_s=AUDIO_CUE_FP_MAX_LEN_SECONDS,
                                     target_fingerprint=None):
-        """Find recurring audio segments ANYWHERE in the episode body across siblings.
+        """Find recurring audio segments anywhere in the episode body across siblings.
 
-        Sibling of discover_cross_episode_cues but with no head/tail window
-        restriction -- the full fingerprint arrays are compared so mid-episode
-        stings (e.g. ad-break tones) are found alongside intro/outro material.
+        Sibling of discover_cross_episode_cues without the head/tail restriction: the full fingerprint arrays are
+        compared so mid-episode stings (e.g. ad-break tones) surface alongside intro/outro material. Pass
+        ``target_fingerprint`` (``(raw_ints, duration)``) to reuse a fingerprint; otherwise one fpcalc pass is made.
 
-        Pass ``target_fingerprint`` (an already-computed ``(raw_ints, duration)``)
-        to reuse a fingerprint the caller has; otherwise one fpcalc pass is made.
+        Returns ``[{start, end, kind: 'recurring', episodeMatches}]``, field-for-field compatible with
+        discover_cross_episode_cues, or [] when fpcalc is unavailable or fewer than ``min_matches`` siblings usable.
 
-        Returns ``[{start, end, kind: 'recurring', episodeMatches}]``, or [] when
-        fpcalc is unavailable or fewer than ``min_matches`` siblings are usable.
-        The result shape is field-for-field compatible with discover_cross_episode_cues
-        so downstream template-creation code can consume it unchanged.
-
-        Default max_len_s is AUDIO_CUE_FP_MAX_LEN_SECONDS (30s): mid-episode
-        stings are short; a 30s cap keeps false-positive body content from being
-        surfaced as candidates while still covering realistic sting lengths.
-        Default min_duration is AUDIO_CUE_XEP_BODY_MIN_DURATION (2s), not the 3s
-        intro/outro floor, so recurring 1.5-2.5s ad stings survive the length gate.
-        Duplicate candidates across sibling pairs are prevented natively: all
-        sibling arrays are passed in a single _find_shared_segments call, whose
-        claimed_until mechanism ensures non-overlapping, left-to-right results.
+        Default max_len_s is AUDIO_CUE_FP_MAX_LEN_SECONDS (30s): mid-episode stings are short, and the cap keeps
+        false-positive body content out. Default min_duration is AUDIO_CUE_XEP_BODY_MIN_DURATION (2s), not the 3s
+        intro/outro floor, so recurring 1.5-2.5s ad stings survive. Duplicates across sibling pairs are prevented
+        by passing all sibling arrays in one _find_shared_segments call (its claimed_until keeps results
+        non-overlapping, left to right).
         """
         if not self.is_available():
             return []
@@ -1528,15 +1465,11 @@ class AudioFingerprinter:
         return out
 
     def count_self_matches(self, audio_path, start_s, end_s, *, similarity):
-        """Count how many times a captured cue window recurs in its episode.
+        """Count how many times a captured cue window recurs in its episode (0 if fpcalc is unavailable or fails).
 
-        Used at template-create time to warn on a weak cue: 1 means the sound
-        appears only where it was captured (it will not bracket ad breaks); >=2
-        means it recurs. Returns 0 if fpcalc is unavailable or fails.
-
-        Runs on the create request thread, so the fingerprint is bounded by the
-        shorter FPCALC_TIMEOUT (not the full-file budget): a normal episode
-        fingerprints in seconds, and a stalled decode gives up well before the
+        Used at template-create time to warn on a weak cue: 1 means the sound appears only where captured; >=2
+        means it recurs. Runs on the create request thread, so the fingerprint is bounded by the shorter
+        FPCALC_TIMEOUT: a normal episode fingerprints in seconds, and a stalled decode gives up well before the
         proxy timeout, yielding 0 (no warning) rather than blocking the save.
         """
         if not self._fpcalc_path:
@@ -1551,11 +1484,7 @@ class AudioFingerprinter:
         self,
         known_fingerprints: list[tuple[int, str, float, str, str | None]]
     ) -> list[tuple[int, list[int], float, str, str | None]]:
-        """Decode known fingerprint strings to raw int arrays.
-
-        Returns:
-            List of (pattern_id, raw_int_array, duration, sponsor, category)
-        """
+        """Decode known fingerprint strings to a list of (pattern_id, raw_int_array, duration, sponsor, category)."""
         if acoustid is None:
             logger.debug("acoustid not available for fingerprint decoding")
             return []
@@ -1645,22 +1574,15 @@ class AudioFingerprinter:
         podcast_tags: set | None = None,
         episode_label: str | None = None,
     ) -> list[FingerprintMatch]:
-        """
-        Search for known ad fingerprints in an audio file.
+        """Search for known ad fingerprints in an audio file; returns FingerprintMatch objects.
 
-        Args:
-            audio_path: Path to audio file to search
-            known_fingerprints: List of (pattern_id, fingerprint, duration, sponsor, category),
-                used as given. If None, loads from the database and keeps the ones whose
-                pattern scope applies to podcast_id / network_id / podcast_tags.
-            timeout: Maximum seconds to spend matching (default 600s / 10 minutes).
-                     Returns partial results if exceeded.
-            cancel_event: Optional threading.Event; if set, scanning stops early.
-            episode_label: "slug:episode_id", named in the warning when the audio cannot be fingerprinted.
+        known_fingerprints: (pattern_id, fingerprint, duration, sponsor, category) tuples, used as given; if None,
+            loads from the database and keeps those whose scope applies to podcast_id / network_id / podcast_tags.
+        timeout: maximum seconds to spend matching (default 600s / 10 minutes); partial results if exceeded.
+        cancel_event: optional threading.Event; if set, scanning stops early.
+        episode_label: "slug:episode_id", named in the warning when the audio cannot be fingerprinted.
 
-        Returns:
-            List of FingerprintMatch objects for found ads; empty when the whole-file
-            fingerprint fails.
+        Empty when the whole-file fingerprint fails.
         """
         if not self.is_available():
             return []
@@ -1715,10 +1637,7 @@ class AudioFingerprinter:
             return []
 
     def _get_audio_duration(self, audio_path: str) -> float:
-        """Get duration of audio file in seconds.
-
-        Delegates to utils.audio.get_audio_duration for consistent implementation.
-        """
+        """Get duration of audio file in seconds (via utils.audio.get_audio_duration)."""
         duration = get_audio_duration(audio_path)
         return duration if duration is not None else 0.0
 

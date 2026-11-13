@@ -1,14 +1,12 @@
 """Cross-fetch differential fetcher (Layer 3).
 
-Re-fetches an episode enclosure with a different podcast-client User-Agent
-after transcription and diffs the two files. Audio that differs across
-fetches is dynamically inserted by definition; identical audio is content
+Re-fetches an episode enclosure with a different podcast-client User-Agent after transcription and diffs the
+two files. Audio that differs across fetches is dynamically inserted by definition; identical audio is content
 or a baked-in ad.
 
-The primary download uses the configured download UA (see
-transcriber.download_audio); the refetch always presents a different,
-realistic podcast-client string because ad decisioning keys on the request
-fingerprint and UA + natural time spacing is the only variation available.
+The primary download uses the configured download UA (see transcriber.download_audio); the refetch always
+presents a different, realistic podcast-client string, since ad decisioning keys on the request fingerprint
+and UA plus natural time spacing is the only variation available.
 """
 
 import logging
@@ -91,12 +89,10 @@ XCORR_SEARCH_S = 2.0
 XCORR_MIN_CORR = 0.75
 # Differential regions shorter than this are alignment noise, not fills.
 MIN_REGION_S = 1.0
-# Whole-file re-encode guard (#541): a CDN re-encode on the refetch stops
-# identical content from correlating, so nearly the whole run falls to the
-# differential complement. Discard only when BOTH >70% reads as differing
-# (a real show is almost never >70% ads) AND identical coverage is <15%
-# (the aligner never locked on) -- requiring both keeps a genuinely
-# ad-heavy but correctly-aligned episode's discrete ads.
+# Whole-file re-encode guard (#541): a CDN re-encode on the refetch stops identical content from correlating,
+# so nearly the whole run falls to the differential complement. Discard only when both >70% reads as
+# differing (a real show is almost never >70% ads) and identical coverage is <15% (the aligner never locked on);
+# requiring both keeps a genuinely ad-heavy but correctly-aligned episode's discrete ads.
 DIFFERENTIAL_MAX_FRACTION = 0.7
 IDENTICAL_MIN_FRACTION = 0.15
 # ffmpeg decode guard.
@@ -138,8 +134,7 @@ def _silence_marks(audio_path: str, duration_s: float) -> list:
 def _chain_marks(run_marks: list, ref_marks: list) -> list:
     """Duration-matched chaining: LCS-style DP over inter-mark intervals.
 
-    Returns matched (i, j) index pairs meaning run block
-    [run_marks[i], run_marks[i+1]] aligns with refetch block
+    Returns matched (i, j) pairs: run block [run_marks[i], run_marks[i+1]] aligns with refetch block
     [ref_marks[j], ref_marks[j+1]].
     """
     run_iv = [run_marks[i + 1] - run_marks[i] for i in range(len(run_marks) - 1)]
@@ -188,17 +183,13 @@ def _block_correlation(run_pcm: np.ndarray, ref_pcm: np.ndarray, run_t: float,
                        search_s: float = XCORR_SEARCH_S, prepared=None):
     """Peak normalized cross-correlation of one run block against the refetch.
 
-    Correlates a ref_s reference from the run file at run_t against the
-    refetch file within +-search_s of the coarse silence-chain offset.
-    FFT-based so a 4s reference over an 8s search span stays cheap.
-    Returns the peak NCC in [-1, 1], or None when a window falls outside
-    either file or the reference is silent. `prepared` is the block's
-    _prepare_template result, so several offsets share one template.
+    Correlates a ref_s reference from the run file at run_t against the refetch within +-search_s of the
+    coarse silence-chain offset (FFT-based, so a 4s reference over an 8s search span stays cheap). Returns the
+    peak NCC in [-1, 1], or None when a window falls outside either file or the reference is silent.
+    `prepared` is the block's _prepare_template result, so several offsets share one template.
 
-    Only the correlation confidence is consumed: the coarse silence-midpoint
-    boundaries already meet the 0.5s region tolerance and the +-3s downstream
-    corroboration, so the sub-sample peak lag is not fed back into region
-    boundaries and is not returned.
+    Only the correlation confidence is consumed: the coarse silence-midpoint boundaries already meet the 0.5s
+    region tolerance and the +-3s downstream corroboration, so the sub-sample peak lag is not returned.
     """
     if prepared is None:
         prepared = _prepare_template(run_pcm, run_t, ref_s)
@@ -237,18 +228,15 @@ def _probe_block(run_pcm: np.ndarray, ref_pcm: np.ndarray, start: float,
                  end: float, offsets: list, *, allow_retry: bool = False):
     """Measure one silence-delimited run block against the refetch.
 
-    Returns (kind, corr): ('identical'|'differential', float) for a usable
-    probe, ('unknown', None) when the block is too short to probe or the
-    probe window is unusable (silent template, window outside either file).
+    Returns (kind, corr): ('identical'|'differential', float) for a usable probe, ('unknown', None) when the
+    block is too short or the probe window is unusable (silent template, window outside either file).
 
-    Each candidate offset is probed and the best corr kept. With allow_retry
-    (unmatched blocks probed at inherited neighbor offsets), a best score
-    below XCORR_MIN_CORR gets ONE retry at the best offset with a doubled search
-    window (drift re-probe): an inherited offset stale by more than
-    XCORR_SEARCH_S, e.g. silencedetect missed a mark on the refetch, would
-    otherwise mislabel identical audio as differential.
-    Chain-matched blocks carry their own exact offset, so they are never
-    retried: a low score there is a real difference, not drift.
+    Each candidate offset is probed and the best corr kept. With allow_retry (unmatched blocks probed at
+    inherited neighbor offsets), a best score below XCORR_MIN_CORR gets one retry at the best offset with a
+    doubled search window (drift re-probe): an inherited offset stale by more than XCORR_SEARCH_S (e.g.
+    silencedetect missed a mark on the refetch) would otherwise mislabel identical audio as differential.
+    Chain-matched blocks carry their own exact offset and are never retried: a low score there is a real
+    difference, not drift.
     """
     block_len = end - start
     if block_len < MIN_REGION_S:
@@ -281,11 +269,9 @@ def _probe_block(run_pcm: np.ndarray, ref_pcm: np.ndarray, start: float,
 def _anchor_offset(anchor_pairs: list, t: float) -> float:
     """Coarse offset at run time ``t`` interpolated from cue anchor pairs.
 
-    Each anchor is (primary_time, refetch_time) for the same template cue;
-    its delta (refetch - primary) is the true offset at that instant.
-    Between consecutive anchors the delta is linearly interpolated; outside
-    the anchored range it clamps to the nearest anchor's delta (a single
-    anchor is a constant offset). Caller guarantees a non-empty list.
+    Each anchor is (primary_time, refetch_time) for the same template cue; its delta (refetch - primary) is the
+    true offset at that instant. Deltas are linearly interpolated between anchors and clamp to the nearest
+    anchor's delta outside the range (a single anchor is a constant offset). Caller guarantees a non-empty list.
     """
     anchors = sorted(anchor_pairs)
     if t <= anchors[0][0]:
@@ -307,15 +293,12 @@ def _align_and_diff_pcm(run_pcm: np.ndarray, ref_pcm: np.ndarray,
                         anchor_pairs: list | None = None) -> dict:
     """Diff two decoded fetches given their silence marks (see align_and_diff).
 
-    Probes EVERY silence-delimited run block, so every emitted region
-    carries a measured corr: 'identical' and 'differential' from the peak
-    NCC of the block's own probe, 'unknown' (corr None) when the block
-    could not be measured. Unmatched blocks (no duration-matched refetch
-    counterpart, typically DAI fills of differing length) are probed at the
-    cue-anchored offset (when ``anchor_pairs`` is given) and at both
-    neighbouring matched blocks' offsets, keeping the best corr: an ad
-    inserted only in the refetch steps the offset between neighbours.
-    Chain-matched blocks keep their own exact offsets.
+    Probes every silence-delimited run block, so every emitted region carries a measured corr: 'identical' and
+    'differential' from the peak NCC of the block's own probe, 'unknown' (corr None) when it could not be
+    measured. Unmatched blocks (no duration-matched refetch counterpart, typically DAI fills of differing
+    length) are probed at the cue-anchored offset (when ``anchor_pairs`` is given) and at both neighbouring
+    matched blocks' offsets, keeping the best corr: an ad inserted only in the refetch steps the offset between
+    neighbours. Chain-matched blocks keep their own exact offsets.
     """
     pairs = _chain_marks(run_marks, ref_marks)
     offsets = {i: ref_marks[j] - run_marks[i] for i, j in pairs}
@@ -354,12 +337,10 @@ def _align_and_diff_pcm(run_pcm: np.ndarray, ref_pcm: np.ndarray,
         blocks.append({'start_s': start, 'end_s': end,
                        'kind': kind, 'corr': corr})
 
-    # Blocks tile the run file. Adjacent 'identical' (and 'unknown') blocks
-    # merge into one region; merged identical corr is the min (the weakest
-    # member still cleared XCORR_MIN_CORR). Differential blocks are emitted
-    # PER BLOCK, each with its own measured corr: aggregating corr across a
-    # multi-block break would let one borderline member veto the whole
-    # break at the downstream corr gate. Qualifying candidates are merged
+    # Blocks tile the run file. Adjacent 'identical' (and 'unknown') blocks merge into one region; merged
+    # identical corr is the min (the weakest member still cleared XCORR_MIN_CORR). Differential blocks are
+    # emitted per block, each with its own measured corr: aggregating corr across a multi-block break would let
+    # one borderline member veto the whole break at the downstream corr gate. Qualifying candidates are merged
     # after gating in ad_detector.dai_differential_ads.
     merged = []
     for block in blocks:
@@ -377,11 +358,9 @@ def _align_and_diff_pcm(run_pcm: np.ndarray, ref_pcm: np.ndarray,
                 'corr': None if r['corr'] is None else round(r['corr'], 3)}
                for r in merged]
 
-    # Re-encode guard (#541): see the constants above for the rationale.
-    # Fractions are computed over the MEASURED duration (identical +
-    # differential): 'unknown' regions are unmeasured, so counting them in
-    # the denominator would dilute the differential fraction and let a
-    # whole-file re-encode slip past the guard on a chatty file.
+    # Re-encode guard (#541): see the constants above for the rationale. Fractions are computed over the
+    # measured duration (identical + differential): 'unknown' regions are unmeasured, so counting them in the
+    # denominator would dilute the differential fraction and let a whole-file re-encode slip past on a chatty file.
     differential_dur = sum(r['end_s'] - r['start_s']
                            for r in regions if r['kind'] == 'differential')
     identical_dur = sum(r['end_s'] - r['start_s']
@@ -410,20 +389,16 @@ def align_and_diff(run_file: str, refetch_file: str, work_dir: str,
                    anchor_pairs: list | None = None) -> dict:
     """Align two fetches of one episode and diff them.
 
-    Pure over file paths (ffmpeg + numpy, no network). Returns
-    {'status': 'ok' | 'no_differential' | 'unreliable_reencode',
-    'regions': [...]} with regions in RUN-file coordinates. kind 'identical'
-    means the audio matches across fetches (content or baked-in ad);
-    'differential' means it differs (dynamically inserted); 'unknown' means
-    the block could not be measured (corr None) and is never a candidate.
-    no_differential means "no differential found", NOT "no DAI" -- same-fill
-    re-rolls are a known false negative. unreliable_reencode means alignment
-    failed wholesale (e.g. the CDN re-encoded the whole file on refetch);
+    Pure over file paths (ffmpeg + numpy, no network). Returns {'status': 'ok' | 'no_differential' |
+    'unreliable_reencode', 'regions': [...]} with regions in run-file coordinates. kind 'identical' means the
+    audio matches across fetches (content or baked-in ad); 'differential' means it differs (dynamically
+    inserted); 'unknown' means the block could not be measured (corr None) and is never a candidate.
+    no_differential means "no differential found", not "no DAI": same-fill re-rolls are a known false negative.
+    unreliable_reencode means alignment failed wholesale (e.g. the CDN re-encoded the whole file on refetch);
     regions is empty so downstream treats it as no differential (#541).
 
-    anchor_pairs (2.76.0): (primary_time, refetch_time) template-cue anchor
-    pairs; the probe offset for chain-unmatched blocks is interpolated
-    between anchors instead of inherited. Empty/None keeps prior behavior.
+    anchor_pairs (2.76.0): (primary_time, refetch_time) template-cue anchor pairs; the probe offset for
+    chain-unmatched blocks is interpolated between anchors instead of inherited. Empty/None keeps prior behavior.
     """
     run_pcm = _decode_pcm(run_file, work_dir, 'run')
     ref_pcm = _decode_pcm(refetch_file, work_dir, 'refetch')
@@ -447,11 +422,9 @@ REFETCH_SIZE_FACTOR = 1.5
 def match_cue_anchor_pairs(primary_cues: list, refetch_cues: list) -> list:
     """Greedy in-order pairing of same-template cues across the two fetches.
 
-    Both inputs are [{'time': float, 'template_id': ...}]. Each primary cue
-    (in time order) pairs with the first unused refetch cue of the same
-    template_id whose time keeps the refetch sequence monotonic, so DAI
-    length changes between breaks cannot cross-pair cues out of order.
-    Returns [(primary_time, refetch_time), ...].
+    Inputs are [{'time': float, 'template_id': ...}]. Each primary cue (in time order) pairs with the first unused
+    refetch cue of the same template_id whose time keeps the refetch sequence monotonic, so DAI length changes
+    between breaks cannot cross-pair cues. Returns [(primary_time, refetch_time), ...].
     """
     pairs = []
     remaining = sorted(refetch_cues, key=lambda c: c['time'])
@@ -475,22 +448,16 @@ def fetch_and_diff(enclosure_url: str, run_file_path: str, work_dir: str,
                    primary_cues: Callable[[], list] | None = None,
                    primary_user_agent: str | None = None,
                    fallback_user_agent: str | None = None) -> dict:
-    """Refetch the enclosure with a rotated podcast-client UA and diff it
-    against the run file.
+    """Refetch the enclosure with a rotated podcast-client UA and diff it against the run file.
 
-    Never raises: every failure returns status 'error' so the pipeline can
-    record it and continue. timeout_s is the per-read timeout passed to
-    safe_get; matched to the primary download's 300s cap.
+    Never raises: every failure returns status 'error' so the pipeline can record it and continue. timeout_s is
+    the per-read timeout passed to safe_get, matched to the primary download's 300s cap.
 
-    Cue fusion (2.76.0): ``cue_scan`` is an optional callable
-    (refetch_path) -> [{'time', 'template_id'}] run after the download and
-    BEFORE alignment, so the refetch's template cues can both persist in
-    the result ('refetch_cues') and anchor the probe offsets of the same
-    alignment pass (paired against ``primary_cues``, a zero-arg callable
-    resolved only here, after the refetch scan, so the caller can still be
-    computing them while this side scans). A failure on either side logs once
-    and degrades to no cues; it never fails the differential. The refetch file is still deleted here in
-    all cases.
+    Cue fusion (2.76.0): ``cue_scan`` is an optional callable (refetch_path) -> [{'time', 'template_id'}] run after
+    the download and before alignment, so the refetch's template cues persist in the result ('refetch_cues') and
+    anchor the probe offsets of the same pass (paired against ``primary_cues``, a zero-arg callable resolved only
+    here, after the refetch scan, so the caller can still be computing them meanwhile). A failure on either side
+    logs once and degrades to no cues; it never fails the differential. The refetch file is deleted here in all cases.
     """
     # Checked before the never-raises boundary below: a non-callable here is a
     # caller bug, and swallowing it would silently drop every cue anchor.
@@ -561,13 +528,10 @@ def differential_region_overlapping(dai_differential, start: float, end: float,
                                     corr_max: float):
     """The measured `differential` region overlapping [start, end), or None.
 
-    A high-corr region mostly matched across fetches and proves nothing, so
-    corr must be numeric and at or under corr_max; legacy stored regions
-    carry a hard-coded 0.0 and still qualify. Shared by the validator's
-    Layer 3 corroboration and the keep-map override so the two cannot drift.
-
-    Overlap is strict, not utils.time.ranges_overlap: a marker that merely
-    touches a region's edge shares no audio with it and is not evidence.
+    A high-corr region mostly matched across fetches and proves nothing, so corr must be numeric and at or under
+    corr_max; legacy stored regions carry a hard-coded 0.0 and still qualify. Shared by the validator's Layer 3
+    corroboration and the keep-map override so the two cannot drift. Overlap is strict, not
+    utils.time.ranges_overlap: a marker merely touching a region's edge shares no audio and is not evidence.
     """
     regions = (dai_differential or {}).get('regions') or []
     for region in regions:
