@@ -187,8 +187,12 @@ def test_decode_does_not_seek_at_zero(tmp_path, monkeypatch):
     ap.compute_peaks(src, 0.5, None, 50)
     ap.compute_peaks(src, 4.99, None, 50)
     ap.compute_peaks(src, 5.5, None, 50)
+    ap.compute_peaks(src, 7.3, None, 50)
     assert '-ss' not in cmds[0]
-    assert all(c.index('-ss') > c.index('-i') for c in cmds[1:])
+    assert all(c.index('-ss') > c.index('-i') for c in cmds[1:4])
+    late = cmds[4]
+    assert late[late.index('-i') - 2:late.index('-i')] == ['-ss', '2']
+    assert late[late.index('-i') + 2:late.index('-i') + 4] == ['-ss', '5.300000']
 
 
 def test_first_buckets_of_aac_are_not_flat(tmp_path):
@@ -579,6 +583,26 @@ def test_decode_window_near_start_matches_full_decode(tmp_path):
     src = _src(tmp_path, 3.0)
     window, _ = ap.compute_peaks(src, 0.25, 1.25, 10)
     assert np.array_equal(np.array(window), _full_decode_slice(src, 0.25, 100))
+
+
+@pytest.mark.parametrize('codec,ext', [('libmp3lame', 'mp3'), ('aac', 'm4a'), ('pcm_s16le', 'wav')])
+def test_late_window_seeks_the_input_and_matches_full_decode(tmp_path, codec, ext):
+    src = tmp_path / f'{EP}-original.{ext}'
+    subprocess.run(['ffmpeg', '-y', '-f', 'lavfi', '-i', 'anoisesrc=d=90:c=pink:r=44100:a=0.5:seed=1',
+                    '-ac', '1', '-c:a', codec, str(src)], check=True, capture_output=True)
+    window, _ = ap.compute_peaks(src, 71.237, 74.237, 10)
+    assert len(window) == 300
+    expected = ap.compute_peaks(src, 0.237, None, 10)[0][7100:7400]
+    assert np.allclose(window, expected, rtol=0, atol=1 / 32768 + 1e-9)
+
+
+def test_decode_timeout_is_reported(tmp_path, monkeypatch):
+    src = _src(tmp_path, 6.0)
+    monkeypatch.setattr(ap, 'ffmpeg_timeout', lambda _d: 0)
+    real = ap.tracked_popen
+    monkeypatch.setattr(ap, 'tracked_popen', lambda cmd, **kw: real(['sleep', '5'], **kw))
+    with pytest.raises(ap.PeaksError, match='timed out after 0s'):
+        ap.compute_peaks(src, 0.0, None, 50)
 
 
 def _undecodable(tmp_path):

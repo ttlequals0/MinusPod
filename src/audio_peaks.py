@@ -60,6 +60,7 @@ BUILD_FAILED = 'failed'
 _HASHED_CACHE_MAX = 256
 
 _GRID_EPSILON = 1e-6
+_SEEK_LEAD_IN_SECONDS = 5.0  # decoder and resampler warm-up before a seeked window
 
 
 class PeaksError(RuntimeError):
@@ -110,17 +111,23 @@ def compute_peaks(audio_path: Path | str,
         if max_buckets_at_request_res > MAX_PEAK_BUCKETS:
             resolution_ms = math.ceil(duration * 1000 / MAX_PEAK_BUCKETS / PEAKS_BUCKET_WIDTH_MS) * PEAKS_BUCKET_WIDTH_MS
 
-    cmd = ['ffmpeg', *SAFE_MEDIA_INPUT_ARGS, '-hide_banner', '-loglevel', 'error', '-i', str(audio_path)]
-    # Output seeking preserves AAC priming and resampling alignment with cached peaks.
-    if start > 0:
-        cmd += ['-ss', f'{start:.6f}']
+    cmd = ['ffmpeg', *SAFE_MEDIA_INPUT_ARGS, '-hide_banner', '-loglevel', 'error']
+    # A late window seeks the input to a whole second before it and trims the rest on the output.
+    # A whole second is a whole sample at any rate, so resampling stays aligned with cached peaks.
+    seek = max(0, math.floor(start - _SEEK_LEAD_IN_SECONDS))
+    lead_in = start - seek
+    if seek:
+        cmd += ['-ss', str(seek)]
+    cmd += ['-i', str(audio_path)]
+    if lead_in > 0:
+        cmd += ['-ss', f'{lead_in:.6f}']
     if duration is not None:
         cmd += ['-t', f'{duration:.6f}']
     cmd += ['-ac', '1', '-ar', str(PEAKS_SAMPLE_RATE_HZ),
             '-f', 's16le', 'pipe:1']
 
     samples_per_bucket = max(1, int(PEAKS_SAMPLE_RATE_HZ * resolution_ms / 1000))
-    peaks = _decode_peaks(cmd, samples_per_bucket, start + (duration or MAX_PEAKS_DURATION_SECONDS),
+    peaks = _decode_peaks(cmd, samples_per_bucket, lead_in + (duration or MAX_PEAKS_DURATION_SECONDS),
                           max_samples=MAX_PEAKS_DURATION_SECONDS * PEAKS_SAMPLE_RATE_HZ)
     if len(peaks) > MAX_PEAK_BUCKETS:
         multiple = PEAKS_BUCKET_WIDTH_MS // math.gcd(resolution_ms, PEAKS_BUCKET_WIDTH_MS)
@@ -308,7 +315,9 @@ def _decode_peaks(cmd, samples_per_bucket, duration, *, max_samples=None):
     try:
         with tempfile.TemporaryFile() as stderr, tracked_popen(
                 cmd, stdout=subprocess.PIPE, stderr=stderr, stdin=subprocess.DEVNULL) as proc:
-            timer = threading.Timer(ffmpeg_timeout(duration), proc.kill)
+            timeout = ffmpeg_timeout(duration)
+            timed_out = threading.Event()
+            timer = threading.Timer(timeout, lambda: (timed_out.set(), proc.kill()))
             timer.start()
             try:
                 while True:
@@ -332,6 +341,8 @@ def _decode_peaks(cmd, samples_per_bucket, duration, *, max_samples=None):
                 if proc.poll() is None:
                     proc.kill()
                     proc.wait()
+            if timed_out.is_set():
+                raise PeaksError(f'ffmpeg timed out after {timeout}s')
             if returncode != 0:
                 stderr.seek(0)
                 message = stderr.read(500).decode('utf-8', errors='replace')

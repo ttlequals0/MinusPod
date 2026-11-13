@@ -6,7 +6,7 @@ This file tracks the hosted demo and its tooling, which are not part of the self
 
 ### Added
 
-- The demo fixtures answer the new pattern audio routes (`/patterns/{id}/audio` and `/patterns/{id}/audio/matches`) and `/stats/audio-matching` with empty data, so the Audio section, Recent matches and the Audio matching stats tiles render in the hosted demo. Audio playback is disabled in the demo.
+- The demo answers the new pattern audio routes (`/patterns/{id}/audio` and `/patterns/{id}/audio/matches`) and `/stats/audio-matching`, so the Audio section, Recent matches and the Audio matching stats tiles render in the hosted demo. A route with no recorded fixture gets empty data. Audio playback is disabled in the demo.
 
 ### Changed
 
