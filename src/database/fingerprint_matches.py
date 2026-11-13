@@ -198,15 +198,17 @@ class FingerprintMatchMixin:
         )
         return [dict(row) for row in cursor.fetchall()]
 
-    def get_retained_fingerprint_matches(self, pattern_id: int, limit: int) -> list[dict]:
-        """Newest non-rejected matches whose episode still has original_file set."""
+    def get_retained_fingerprint_matches(self, pattern_id: int, limit: int,
+                                         in_scope_only: bool = False) -> list[dict]:
+        """Newest non-rejected matches whose episode still has original_file set; in_scope_only drops out-of-scope ones."""
         cursor = self.get_connection().execute(
             """SELECT m.* FROM audio_fingerprint_matches m
                JOIN podcasts p ON p.slug = m.podcast_slug
                JOIN episodes e ON e.podcast_id = p.id AND e.episode_id = m.episode_id
                WHERE m.pattern_id = ? AND m.rejected = 0 AND e.original_file IS NOT NULL
+                 AND (? = 0 OR m.in_scope = 1)
                ORDER BY m.created_at DESC, m.id DESC LIMIT ?""",
-            (pattern_id, limit)
+            (pattern_id, int(in_scope_only), limit)
         )
         return [dict(row) for row in cursor.fetchall()]
 

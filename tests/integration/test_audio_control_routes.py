@@ -311,3 +311,19 @@ def test_legacy_fingerprint_without_a_resolvable_source_has_no_built_from(app_cl
     _legacy(fp_feed, fp_audio_pattern)
     body = _get(app_client, fp_audio_pattern).get_json()
     assert body['builtFrom'] is None and body['source'] is None
+
+
+def test_legacy_built_from_skips_the_newest_out_of_scope_match(app_client, fp_feed, fp_audio_pattern, fp_original):
+    _legacy(fp_feed, fp_audio_pattern)
+    _record(fp_feed, fp_audio_pattern, 20.0, 50.0, in_scope=True)
+    _record(fp_feed, fp_audio_pattern, 60.0, 90.0, in_scope=False)
+    body = _get(app_client, fp_audio_pattern).get_json()
+    assert body['source']['start'] == 60.0
+    assert (body['builtFrom']['start'], body['builtFrom']['end']) == (20.0, 50.0)
+
+
+def test_legacy_built_from_is_null_with_only_out_of_scope_matches(app_client, fp_feed, fp_audio_pattern, fp_original):
+    _legacy(fp_feed, fp_audio_pattern)
+    _record(fp_feed, fp_audio_pattern, 60.0, 90.0, in_scope=False)
+    body = _get(app_client, fp_audio_pattern).get_json()
+    assert body['builtFrom'] is None and body['source']['start'] == 60.0

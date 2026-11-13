@@ -148,11 +148,46 @@ def test_checks_only_the_newest_episodes(app_client, fp_feed):
 
 
 def test_correction_route_uses_the_pattern_index(fp_feed):
+    from database.patterns import CORRECTION_EPISODES_SQL
     plan = ' '.join(row[3] for row in fp_feed.get_connection().execute(
-        """EXPLAIN QUERY PLAN SELECT p.slug, e.episode_id FROM pattern_corrections c
-           JOIN podcasts p ON p.id = c.podcast_id
-           JOIN episodes e ON e.podcast_id = p.id AND e.episode_id = c.episode_id
-           WHERE c.pattern_id = ? AND c.correction_type != 'false_positive'
-             AND e.original_file IS NOT NULL
-           GROUP BY e.id ORDER BY MAX(e.processed_at) DESC, e.id DESC LIMIT ?""", (1, 5)))
+        'EXPLAIN QUERY PLAN ' + CORRECTION_EPISODES_SQL, (1, 5)))
     assert 'idx_corrections_pattern' in plan
+
+
+def test_rejected_and_uncut_markers_are_not_offered(app_client, fp_feed, other_original):
+    pid = _pattern(fp_feed, created_from_episode_id=None)
+    _other_episode(fp_feed, '2026-02-01T00:00:00Z', pid=pid, markers=[
+        {'start': 1.0, 'end': 9.0, 'pattern_id': pid, 'validation': {'decision': 'REJECT'}},
+        {'start': 11.0, 'end': 19.0, 'pattern_id': pid, 'was_cut': False}])
+    assert _detail(app_client, pid)['addSource'] is None
+
+
+def test_rejected_marker_in_the_origin_episode_is_not_offered(app_client, fp_feed, fp_original):
+    pid = _pattern(fp_feed)
+    _markers(fp_feed, [{'start': 50.0, 'end': 80.0, 'pattern_id': pid, 'validation': {'decision': 'REJECT'}}])
+    assert _detail(app_client, pid)['addSource'] is None
+
+
+def test_held_marker_is_offered(app_client, fp_feed, fp_original):
+    pid = _pattern(fp_feed)
+    _markers(fp_feed, [{'start': 50.0, 'end': 80.0, 'pattern_id': pid, 'held_for_review': True, 'was_cut': False}])
+    assert _detail(app_client, pid)['addSource']['start'] == 50.0
+
+
+def test_episode_with_a_false_positive_for_the_pattern_is_excluded(app_client, fp_feed, other_original):
+    pid = _pattern(fp_feed, created_from_episode_id=None)
+    _other_episode(fp_feed, '2026-02-01T00:00:00Z', pid=pid,
+                   markers=[{'start': 1.0, 'end': 9.0, 'pattern_id': pid}])
+    fp_feed.create_pattern_correction('false_positive', pattern_id=pid, episode_id=OTHER,
+                                      podcast_id=fp_feed.get_podcast_by_slug(SLUG)['id'])
+    assert _detail(app_client, pid)['addSource'] is None
+
+
+def test_legacy_correction_without_a_podcast_id_still_finds_its_episode(app_client, fp_feed, other_original):
+    pid = _pattern(fp_feed, created_from_episode_id=None)
+    _other_episode(fp_feed, '2026-02-01T00:00:00Z', pid=pid,
+                   markers=[{'start': 1.0, 'end': 9.0, 'pattern_id': pid}])
+    conn = fp_feed.get_connection()
+    conn.execute("UPDATE pattern_corrections SET podcast_id = NULL WHERE pattern_id = ?", (pid,))
+    conn.commit()
+    assert _detail(app_client, pid)['addSource']['episodeId'] == OTHER

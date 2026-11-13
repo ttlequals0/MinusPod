@@ -35,6 +35,17 @@ def _row_with_category(row: dict) -> dict:
     return row
 
 
+CORRECTION_EPISODES_SQL = """SELECT p.slug, e.episode_id FROM pattern_corrections c
+               JOIN episodes e ON e.episode_id = c.episode_id
+                 AND (c.podcast_id IS NULL OR e.podcast_id = c.podcast_id)
+               JOIN podcasts p ON p.id = e.podcast_id
+               WHERE c.pattern_id = ? AND c.correction_type != 'false_positive'
+                 AND e.original_file IS NOT NULL
+                 AND NOT EXISTS (SELECT 1 FROM pattern_corrections f WHERE f.pattern_id = c.pattern_id
+                                 AND f.episode_id = c.episode_id AND f.correction_type = 'false_positive')
+               GROUP BY e.id ORDER BY MAX(e.processed_at) DESC, e.id DESC LIMIT ?"""
+
+
 class PatternMixin:
     """Ad pattern and correction management methods."""
 
@@ -466,15 +477,10 @@ class PatternMixin:
         return deleted
 
     def get_pattern_correction_episodes(self, pattern_id: int, limit: int) -> list[tuple[str, str]]:
-        """(slug, episode_id) of the newest-processed episodes that keep their original and hold a non-false-positive correction of the pattern."""
-        rows = self.get_connection().execute(
-            """SELECT p.slug, e.episode_id FROM pattern_corrections c
-               JOIN podcasts p ON p.id = c.podcast_id
-               JOIN episodes e ON e.podcast_id = p.id AND e.episode_id = c.episode_id
-               WHERE c.pattern_id = ? AND c.correction_type != 'false_positive'
-                 AND e.original_file IS NOT NULL
-               GROUP BY e.id ORDER BY MAX(e.processed_at) DESC, e.id DESC LIMIT ?""",
-            (pattern_id, limit)).fetchall()
+        """(slug, episode_id) of the newest-processed episodes that keep their original and hold a correction of the pattern but no false positive."""
+        # A legacy correction has no podcast_id, so its episode is found by episode_id alone
+        rows = self.get_connection().execute(CORRECTION_EPISODES_SQL,
+                                            (pattern_id, limit)).fetchall()
         return [(r['slug'], r['episode_id']) for r in rows]
 
     def get_pattern_corrections(self, pattern_id: int = None, limit: int = 100) -> list[dict]:

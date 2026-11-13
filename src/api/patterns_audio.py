@@ -18,10 +18,11 @@ from pattern_audio import resolve_retained_original, store_pattern_audio
 from audio_fingerprinter import (
     clamped_fingerprint_setting, decode_fingerprint_ints, fingerprint_is_matchable,
 )
-from config import FFMPEG_SHORT_TIMEOUT
+from config import FFMPEG_SHORT_TIMEOUT, is_keep_like, is_pending_review
 from storage import PathContainmentError
 from utils.ffmpeg_run import SAFE_MEDIA_INPUT_ARGS
 from utils.markers import parse_ad_markers
+from utils.constants import EpisodeStatus
 from utils.subprocess_registry import tracked_run
 
 logger = logging.getLogger('podcast.api')
@@ -55,10 +56,11 @@ def _usable_span(start, end):
             and math.isfinite(start) and math.isfinite(end) and end > start)
 
 
-def resolve_audio_source(db, storage, pattern_id, match_id=None, fingerprint=None):
+def resolve_audio_source(db, storage, pattern_id, match_id=None, fingerprint=None, in_scope_only=False):
     """Pick the playable source of a pattern's audio: (source, None) or (None, error response).
 
-    fingerprint is the pattern's stored row when the caller already has it.
+    fingerprint is the pattern's stored row when the caller already has it. in_scope_only keeps
+    out-of-scope matches out, for a source the fingerprint may be rebuilt from.
     """
     fingerprint = fingerprint or db.get_audio_fingerprint(pattern_id, with_blob=False)
     if fingerprint is None:
@@ -72,7 +74,8 @@ def resolve_audio_source(db, storage, pattern_id, match_id=None, fingerprint=Non
         candidates = [
             {'podcast_slug': m['podcast_slug'], 'episode_id': m['episode_id'],
              'match_start': m['match_start'], 'match_end': m['match_end']}
-            for m in db.get_retained_fingerprint_matches(pattern_id, RETAINED_MATCH_CANDIDATES)]
+            for m in db.get_retained_fingerprint_matches(
+                pattern_id, RETAINED_MATCH_CANDIDATES, in_scope_only)]
         candidates.append({
             'podcast_slug': fingerprint['source_podcast_slug'],
             'episode_id': fingerprint['source_episode_id'],
@@ -109,12 +112,21 @@ def _displayed_span(marker):
     return (start, end) if _usable_span(start, end) else None
 
 
+def _is_rejected_marker(marker, episode_status):
+    """Whether the episode page files the marker under rejected: REJECT or never cut, and neither held nor kept."""
+    if is_pending_review(marker) or is_keep_like(marker.get('action_applied')):
+        return False
+    was_cut = marker.get('was_cut', episode_status == EpisodeStatus.PROCESSED)
+    return (marker.get('validation') or {}).get('decision') == 'REJECT' or not was_cut
+
+
 def _own_marker_span(db, slug, episode_id, pattern_id):
-    """The earliest displayed span of the pattern's own marker in an episode, or None."""
+    """The earliest displayed span of the pattern's own accepted marker in an episode, or None."""
     episode = db.get_episode(slug, episode_id)
+    status = EpisodeStatus.from_api((episode or {}).get('status'))
     spans = sorted(span for marker in parse_ad_markers((episode or {}).get('ad_markers_json')) or []
                    if isinstance(marker, dict) and marker.get('pattern_id') == pattern_id
-                   and (span := _displayed_span(marker)))
+                   and not _is_rejected_marker(marker, status) and (span := _displayed_span(marker)))
     return spans[0] if spans else None
 
 
@@ -171,9 +183,12 @@ def build_audio_detail(db, storage, pattern_id):
     if source:
         detail['source'] = _span(source)
         detail['available'] = True
-        # A fingerprint stored before sources were recorded: offer the span that plays, so Edit edges works
-        if detail['builtFrom'] is None:
-            detail['builtFrom'] = {**_span(source), 'available': True}
+    # A fingerprint stored before sources were recorded: Edit edges rebuilds from an in-scope match,
+    # never another feed's audio. Play keeps any match, since hearing it replaces nothing.
+    if detail['builtFrom'] is None:
+        scoped, _ = resolve_audio_source(db, storage, pattern_id, fingerprint=fingerprint, in_scope_only=True)
+        if scoped:
+            detail['builtFrom'] = {**_span(scoped), 'available': True}
     return detail
 
 
